@@ -43,3 +43,10 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Consumo: semana 39 % → 40 %.
 - Commit: ver `git log` de main (S2).
 - Siguiente: P1 (ficha técnica + `limits.json`).
+
+## 2026-10-15 03:2x · P1 · hecho
+- Qué: ficha técnica del motor. `limits.json` para máquinas y `docs/FICHA-TECNICA.md` para personas: servidor, cuatro niveles de aparato (A–D), navegador, gráfica y red, con niveles Base/Mejorado/Frontera. Cada número dice si es medido (y qué prueba lo mide) o estimado (y de dónde sale). Un test nuevo lo valida.
+- Números: 23 pruebas en verde; puertas OK (tick p99 8,5 ms en la plaza de 1.000, 25,0 kbit/s por persona). Lo medido viene de los diarios anteriores; la tabla de aparatos es toda estimada hasta P2. WebKit sin probar.
+- Consumo: semana 41 % → ver `hermes usage` (≈ 41–42 %).
+- Commit: ver `git log` de main (P1).
+- Siguiente: J0 (catálogo de lo que espera un jugador).

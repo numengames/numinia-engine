@@ -23,7 +23,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 |---|---|---|---|
 | S1 | Kit de despliegue para un servidor pequeño (para mañana) | hecho | sí |
 | S2 | Métricas del servidor (`/health`, `/metrics`) y enjambre contra una URL remota (para mañana) | hecho | sí |
-| P1 | Ficha técnica: características y límites del motor (humana + `limits.json`) | pendiente | sí |
+| P1 | Ficha técnica: características y límites del motor (humana + `limits.json`) | hecho | sí |
 | J0 | Catálogo de todo lo que espera un jugador + receta para añadir funciones nuevas | pendiente | sí |
 | J7 | Módulos de juego: añadir una función sin tocar el núcleo, con un ejemplo real (gestos) | pendiente | sí |
 | P2 | Móvil frío: política de energía del cliente + puerta de coste por cuadro | pendiente | sí |
@@ -210,3 +210,5 @@ marca su objetivo.
 ### A2, A3, A4, B3, D2, D3, D4
 Ver su línea en la cola. B2: el emulador IWER (Meta, MIT) se inyecta en Playwright para simular una
 Quest 3; comprobar licencia y versión antes de instalar.
+
+**P1 hecho (15-10):** `limits.json` (`numinia-engine/limits@1`; lista plana de `limits` con eje/ámbito/clave/valor/unidad/estado + `features`), `docs/FICHA-TECNICA.md` y `test/limits.test.ts` (esquema, sin duplicados, mismas claves en A–D, cada `measured` apunta a un archivo que existe, cada `estimated` lleva fuente). Medido: tick, kbit/s, memoria, conexión, e2e Chromium/Firefox; estimado: tabla A–D, VPS-1/2, voz. WebKit sin probar.
