@@ -3,7 +3,7 @@
 Una entrada por turno (desatendido o con Pablo), la más nueva abajo. En español, para personas.
 Formato: `## AAAA-MM-DD HH:MM · <ID> · <estado>` y cuatro líneas: Qué, Números, Commit, Siguiente.
 
-## 2026-10-14 23:55 · arranque · hecho
+## 2026-10-14 23:40 · arranque · hecho
 - Qué: PP0 (arquitectura) y PP1 (esqueleto que anda) hechos; PP2 parte 1 (mil en una plaza) hecha;
   módulo de multitud escrito sin probar; montados los raíles del turno desatendido (`tools/auto.sh`,
   `tools/plaza.sh`, esta cola y este diario).
