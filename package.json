@@ -1,0 +1,14 @@
+{
+  "name": "numinia-engine",
+  "private": true,
+  "version": "0.0.0",
+  "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "test": "node --test \"test/*.test.ts\"",
+    "layers": "node tools/layers.mjs",
+    "run": "node packages/cli/src/run.ts",
+    "gates": "node tools/gates.mjs"
+  }
+}

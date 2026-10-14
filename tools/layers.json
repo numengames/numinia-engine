@@ -1,0 +1,10 @@
+{
+  "_doc": "Each package may import only the packages listed for it. Lower layers never import upper ones.",
+  "core": [],
+  "schema": ["core"],
+  "ecs": ["core", "schema"],
+  "sim": ["core", "schema", "ecs"],
+  "net": ["core", "schema", "ecs", "sim"],
+  "instance": ["core", "schema", "ecs", "sim", "net"],
+  "cli": ["core", "schema", "ecs", "sim", "net", "instance"]
+}
