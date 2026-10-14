@@ -22,19 +22,26 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | ID | Tarea | Estado | Desatendible |
 |---|---|---|---|
 | S1 | Kit de despliegue para un servidor pequeño (para mañana) | hecho | sí |
+| S2 | Métricas del servidor (`/health`, `/metrics`) y enjambre contra una URL remota (para mañana) | pendiente | sí |
 | P1 | Ficha técnica: características y límites del motor (humana + `limits.json`) | pendiente | sí |
-| S2 | Métricas del servidor (`/health`, `/metrics`) y enjambre contra una URL remota | pendiente | sí |
+| J0 | Catálogo de todo lo que espera un jugador + receta para añadir funciones nuevas | pendiente | sí |
+| J7 | Módulos de juego: añadir una función sin tocar el núcleo, con un ejemplo real (gestos) | pendiente | sí |
 | P2 | Móvil frío: política de energía del cliente + puerta de coste por cuadro | pendiente | sí |
-| A1 | Página de multitud (50/200/1.000/2.000 robots, completos vs horneados) | pendiente | sí |
 | P3 | Nativo para IA v1: `llms.txt`, mapa, README-contrato por paquete, `npm run describe` | pendiente | sí |
+| J1 | Avatares VRM de verdad (CC0) con animaciones CC0 en la plaza | pendiente | sí |
+| J2 | Salto y altura en la simulación (cambia la huella fijada) | necesita aprobación | sí |
+| J3 | Chat y bocadillos de texto sobre los avatares, con nombres | pendiente | sí |
 | B1 | HTTPS en la red de casa para los visores (certificado propio, `/ws` en el mismo origen) | pendiente | sí |
+| J6 | VR de verdad: entrar en VR/AR, moverse, manos y mandos, paneles 3D (emulador IWER) | pendiente | sí |
+| J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR | pendiente | sí |
+| J5 | Libro de misiones, mapa y minimapa con marcadores | pendiente | sí |
+| A1 | Página de multitud (50/200/1.000/2.000 robots, completos vs horneados) | pendiente | sí |
 | D1 | Puerta de tipos: TypeScript 7 estricto, 0 errores | pendiente | sí |
 | S3 | Dilatación de tiempo cuando el tick no cabe (4.000 bots) | pendiente | sí |
 | P4 | Agentes como jugadores v1: SDK con verbos y observación textual | pendiente | sí |
 | A2 | Banco de multitud con la GPU real (si Chromium la usa sin pantalla) | pendiente | sí |
 | A3 | Normales horneadas en la animación de textura (luz correcta al girar) | pendiente | sí |
 | A4 | Robots en la plaza: cercanos completos, lejanos horneados | pendiente | sí |
-| B2 | Botones VR/AR (WebXR) con detección de capacidad, probados con el emulador IWER | pendiente | sí |
 | B3 | Telemetría en el visor: p99 de cuadro y cuadros perdidos | pendiente | sí |
 | D2 | Puerta de tamaño del cliente (≤ 300 kB comprimido) | pendiente | sí |
 | D3 | Fuzz de todos los decodificadores de red | pendiente | sí |
@@ -128,6 +135,68 @@ retraso; el factor sale en métricas. Probado en local con 4.000 bots, `nice`, �
 `decir`, `seguir`; observación textual de lo cercano. Sin LLM (el cerebro es otro servicio). Test
 sin pantalla: el agente llega a un destino y su observación lista a los cercanos.
 
-### A2, A3, A4, B2, B3, D2, D3, D4
+### J0 — Lo que espera un jugador (Pablo, 14-10: "todas esas cosas las tenemos que tener previstas")
+`docs/JUGADOR.md`: catálogo de lo que cualquier jugador da por hecho en un mundo social / MMO en 2026,
+por grupos (moverse, verse, comunicarse, interactuar, progresar —libro de misiones, logros, sellos—,
+orientarse —mapa, minimapa, brújula, marcadores—, interfaz y ajustes, VR, móvil, accesibilidad,
+social —amigos, grupo—, eventos). Para cada cosa: qué es en una línea, capa (motor o ciudad), nivel
+(Base / Mejorado / Frontera), cómo es en escritorio, móvil y VR, qué primitivas del motor necesita
+(componente con esquema, mensaje, sistema del servidor, panel), coste para el móvil, y qué fila de
+esta cola lo construye (o una fila nueva). Más `docs/EXTENDER.md`: la receta de una página para añadir
+una función (esquema → sistema → mensaje → panel → prueba), que J7 convierte en código. Fuentes:
+`../mmo-browser-study/FUNCIONALIDADES.md` y lo que hacen VRChat, Roblox, WoW/FFXIV, Hyperfy (citar
+la URL si se consulta). **Hecho cuando:** existen los dos documentos y la cola tiene una fila por cada
+pieza de nivel Base que falte.
+
+### J7 — Módulos de juego (flexible: "que sea muy fácil implementar algo nuevo")
+Una API `defineFeature({ id, components, messages, server, client, panels })`: una función nueva se
+añade en su propia carpeta sin tocar el núcleo. Ejemplo real hecho con ella: gestos (saludar / bailar
+con una tecla) que viajan por la red y se ven en la otra pestaña. **Hecho cuando:** test sin pantalla
+del ejemplo; quitar el módulo no rompe nada; `docs/EXTENDER.md` usa el ejemplo. J3, J4 y J5 se
+construyen después como módulos.
+
+### J1 — Avatares VRM de verdad
+`@pixiv/three-vrm` 3.5.5 (MIT, versión exacta). 2–3 VRM CC0 con la licencia comprobada dentro del
+propio fichero (metadatos VRM) y en su fuente (candidato: 100Avatars de Polygonal Mind), cada uno con
+su nota de licencia; animaciones CC0 (candidato: Universal Animation Library de Quaternius —
+comprobar) reasignadas al esqueleto humanoide: quieto, andar, correr. En la plaza: tu avatar y los
+cercanos en VRM (como mucho 12 en móvil, 25 en visor, 60 en escritorio, `LIMITES` §3), el resto
+como hoy; rechazar avatares de más de 10.000 triángulos. **Hecho cuando:** e2e chromium + firefox
+cuenta avatares VRM cargados sin errores; peso de descarga por avatar medido y apuntado.
+
+### J2 — Salto y altura
+La simulación gana altura, velocidad vertical, gravedad y suelo, y la entrada un bit de salto; la
+predicción sigue exacta (0 correcciones). Cambia la huella fijada y el formato de entrada y de
+snapshot → **necesita el permiso de Pablo** (pedido el 14-10). Con permiso: rama `auto`; sin él,
+`propuesta/J2`.
+
+### J3 — Chat y bocadillos
+Mensaje nuevo CHAT (aditivo: tipo nuevo, texto UTF-8 ≤ 200 bytes, límite de ritmo en el servidor,
+alcance por cercanía de 20 m); bocadillo sobre quien habla durante ~6 s, legible en VR; nombre sobre
+la cabeza; caja de chat en la página (Enter para escribir; en móvil, un botón). **Hecho cuando:** e2e:
+la pestaña A escribe "hola" y la B ve el bocadillo; el servidor descarta textos largos o seguidos.
+
+### J6 — VR de verdad
+Botón "Entrar en VR" (y "AR" donde haya passthrough) solo si `navigator.xr.isSessionSupported`;
+`renderer.xr` (WebGL2 en Quest); moverse con el stick (intenciones), teletransporte con arco, giro a
+saltos de 30°, viñeta de confort ajustable, mandos y manos, un panel 3D legible. Probado con el
+emulador IWER (Meta, MIT, versión exacta) inyectado en Playwright: entra en sesión, dibuja cuadros,
+el stick mueve el avatar. Después X1 con Pablo (necesita B1).
+
+### J4 — Interacciones ("cómo interactúan unas cosas con otras")
+Componente Interactuable (usar / agarrar, texto del aviso, radio) y un sistema del servidor que decide;
+aviso "E: abrir" en escritorio, botón en móvil, rayo y gatillo en VR. Tres ejemplos: puerta que se
+abre, botón que enciende una luz, objeto que se coge y se suelta; todo se ve igual en la otra
+pestaña. **Hecho cuando:** e2e de los tres.
+
+### J5 — Libro de misiones y mapa
+Formato de misión en JSON con esquema (pasos; condiciones "llega a", "usa", "habla con";
+recompensas), estado por jugador en el servidor, panel del libro (lista, detalle, seguimiento en el
+HUD), mapa de la zona (vista cenital generada) y minimapa con marcadores (tú, gente, objetivo,
+portales); en VR, panel en la muñeca. El formato y los paneles son del motor; las misiones concretas,
+de la ciudad. **Hecho cuando:** una misión de ejemplo de tres pasos se completa en un e2e y el mapa
+marca su objetivo.
+
+### A2, A3, A4, B3, D2, D3, D4
 Ver su línea en la cola. B2: el emulador IWER (Meta, MIT) se inyecta en Playwright para simular una
 Quest 3; comprobar licencia y versión antes de instalar.

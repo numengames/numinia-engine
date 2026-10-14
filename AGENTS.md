@@ -52,8 +52,18 @@ with the `.ts` extension. Validation returns `Result` with error paths; it never
 ## Autonomy
 Nothing ever leaves this machine without Pablo: never push, never add a remote, never open a PR.
 Local work may land on `main` only through `tools/auto.sh finish` (gates green, fast-forward only).
-Format changes (wire, files, pinned fingerprint) go to a branch `propuesta/<ID>` and the task is
-marked `necesita aprobación` in `docs/BACKLOG.md`.
+Additive format changes (a new message type, a new optional field at the end, a new file kind) are
+allowed and must be written in the diary. Non-additive ones (changing an existing layout, the pinned
+fingerprint) go to a branch `propuesta/<ID>` and the task is marked `necesita aprobación`.
+
+## Token budget (Pablo, 2026-10-14: "que no te pulas todos los tokens")
+The shift shares Pablo's account. A pre-run governor
+(`/var/home/uruk/arkhitektonian-lab/.hermes/profiles/ursa/scripts/motor_presupuesto.py`, ceilings in
+`motor_presupuesto.json` next to it) only starts a shift under the weekly and 5-hour ceilings, and tells you
+your allowance (default ≤ 2.5 points of the week per shift). Run `hermes usage` at the start, before
+each big step and at the end; when the allowance is reached, close the slice you are on and finish.
+Spend tokens only on the task: read the files the task needs, not the whole repo; no screenshots
+unless the task needs one. Every diary entry carries `Consumo: semana a % → b %`.
 
 ## Unattended shift (cron) — the procedure
 Work happens in the worktree `../numinia-engine-auto` (branch `auto`), never in the main checkout.
