@@ -65,7 +65,13 @@ The shift shares Pablo's account. A pre-run governor
 your allowance (default ≤ 2.5 points of the week per shift). Run `hermes usage` at the start, before
 each big step and at the end; when the allowance is reached, close the slice you are on and finish.
 Spend tokens only on the task: read the files the task needs, not the whole repo; no screenshots
-unless the task needs one. Every diary entry carries `Consumo: semana a % → b %`.
+unless the task needs one. Every diary entry carries `Consumo: semana a % → b %` and the model.
+
+## When a task is too hard
+Shifts run on Sonnet 5.5 to stretch the budget. If the diary already shows a failed attempt at this
+task and you fail again (gates red, or no coherent slice to commit), do not spend a third shift on
+it: mark it `bloqueada: para Opus` in docs/BACKLOG.md, write in its detail what you tried and what
+is missing, and take the next row. Pablo's daytime session (Opus) picks those up.
 
 ## Unattended shift (cron) — the procedure
 Work happens in the worktree `../numinia-engine-auto` (branch `auto`), never in the main checkout.

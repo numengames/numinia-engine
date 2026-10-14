@@ -2,7 +2,7 @@
 
 Una entrada por turno (desatendido o con Pablo), la más nueva abajo. En español, para personas.
 Formato: `## AAAA-MM-DD HH:MM · <ID> · <estado>` y cinco líneas: Qué, Números, Consumo (semana a % →
-b %, de `hermes usage`), Commit, Siguiente.
+b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 
 ## 2026-10-14 23:40 · arranque · hecho
 - Qué: PP0 (arquitectura) y PP1 (esqueleto que anda) hechos; PP2 parte 1 (mil en una plaza) hecha;
