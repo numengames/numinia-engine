@@ -3,7 +3,9 @@
 **Regla:** cada turno desatendido coge la **primera** fila con estado `pendiente` y desatendible `sí`,
 la hace entera (o la parte en trozos y lo dice), la deja con las puertas en verde y escribe una
 entrada en `docs/RUNLOG.md`. El orden de la tabla ES la prioridad. Solo Pablo (o una sesión con él)
-reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con motivo) · `necesita aprobación`.
+reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con motivo) · `necesita aprobación` ·
+`para Opus` (mucho razonamiento: la hace la sesión de Pablo con Opus, nunca un turno; Pablo, 15-10) ·
+`espera a <ID>` (no empieza hasta que esa fila esté `hecho`).
 
 ## Principios que mandan sobre cualquier tarea (Pablo, 14-10 noche)
 
@@ -24,28 +26,28 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | S1 | Kit de despliegue para un servidor pequeño (para mañana) | hecho | sí |
 | S2 | Métricas del servidor (`/health`, `/metrics`) y enjambre contra una URL remota (para mañana) | hecho | sí |
 | P1 | Ficha técnica: características y límites del motor (humana + `limits.json`) | hecho | sí |
-| J0 | Catálogo de todo lo que espera un jugador + receta para añadir funciones nuevas | pendiente | sí |
-| J7 | Módulos de juego: añadir una función sin tocar el núcleo, con un ejemplo real (gestos) | pendiente | sí |
+| J0 | Catálogo de todo lo que espera un jugador (la receta para añadir funciones es de J7) | pendiente | sí |
+| J7 | Módulos de juego: añadir una función sin tocar el núcleo, con un ejemplo real (gestos) | para Opus | no |
 | P2 | Móvil frío: política de energía del cliente + puerta de coste por cuadro | pendiente | sí |
 | P3 | Nativo para IA v1: `llms.txt`, mapa, README-contrato por paquete, `npm run describe` | pendiente | sí |
 | J1 | Avatares VRM de verdad (CC0) con animaciones CC0 en la plaza | pendiente | sí |
 | J2 | Salto y altura en la simulación (cambia la huella fijada; permiso de Pablo, 14-10) | pendiente | sí |
-| J3 | Chat y bocadillos de texto sobre los avatares, con nombres | pendiente | sí |
+| J3 | Chat y bocadillos de texto sobre los avatares, con nombres | espera a J7 | sí |
 | B1 | HTTPS en la red de casa para los visores (certificado propio, `/ws` en el mismo origen) | pendiente | sí |
 | J6 | VR de verdad: entrar en VR/AR, moverse, manos y mandos, paneles 3D (emulador IWER) | pendiente | sí |
-| J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR | pendiente | sí |
-| J5 | Libro de misiones, mapa y minimapa con marcadores | pendiente | sí |
+| J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR | espera a J7 | sí |
+| J5 | Libro de misiones, mapa y minimapa con marcadores | espera a J7 | sí |
 | A1 | Página de multitud (50/200/1.000/2.000 robots, completos vs horneados) | pendiente | sí |
 | D1 | Puerta de tipos: TypeScript 7 estricto, 0 errores | pendiente | sí |
-| S3 | Dilatación de tiempo cuando el tick no cabe (4.000 bots) | pendiente | sí |
-| P4 | Agentes como jugadores v1: SDK con verbos y observación textual | pendiente | sí |
+| S3 | Dilatación de tiempo cuando el tick no cabe (4.000 bots) | para Opus | no |
+| P4 | Agentes como jugadores v1: SDK con verbos y observación textual | para Opus | no |
 | A2 | Banco de multitud con la GPU real (si Chromium la usa sin pantalla) | pendiente | sí |
 | A3 | Normales horneadas en la animación de textura (luz correcta al girar) | pendiente | sí |
 | A4 | Robots en la plaza: cercanos completos, lejanos horneados | pendiente | sí |
 | B3 | Telemetría en el visor: p99 de cuadro y cuadros perdidos | pendiente | sí |
 | D2 | Puerta de tamaño del cliente (≤ 300 kB comprimido) | pendiente | sí |
 | D3 | Fuzz de todos los decodificadores de red | pendiente | sí |
-| D4 | El formato de red sale del esquema, no escrito a mano | pendiente | sí |
+| D4 | El formato de red sale del esquema, no escrito a mano | para Opus | no |
 | X1 | Probar en Quest 3 y Pico 4 | pendiente | no |
 | X2 | Probar Safari de verdad (iPhone o Mac) | pendiente | no |
 | X3 | Montarlo en un servidor pequeño real y medir sus límites (con Pablo, 15-10) | pendiente | no |
@@ -152,11 +154,12 @@ orientarse —mapa, minimapa, brújula, marcadores—, interfaz y ajustes, VR, m
 social —amigos, grupo—, eventos). Para cada cosa: qué es en una línea, capa (motor o ciudad), nivel
 (Base / Mejorado / Frontera), cómo es en escritorio, móvil y VR, qué primitivas del motor necesita
 (componente con esquema, mensaje, sistema del servidor, panel), coste para el móvil, y qué fila de
-esta cola lo construye (o una fila nueva). Más `docs/EXTENDER.md`: la receta de una página para añadir
-una función (esquema → sistema → mensaje → panel → prueba), que J7 convierte en código. Fuentes:
+esta cola lo construye (o una fila nueva). `docs/EXTENDER.md` (la receta para añadir una función) ya
+no es de J0: la escribe J7 junto con el código. Fuentes:
 `../mmo-browser-study/FUNCIONALIDADES.md` y lo que hacen VRChat, Roblox, WoW/FFXIV, Hyperfy (citar
-la URL si se consulta). **Hecho cuando:** existen los dos documentos y la cola tiene una fila por cada
-pieza de nivel Base que falte.
+la URL si se consulta). **Hecho cuando:** existe el catálogo y la cola tiene una fila por cada
+pieza de nivel Base que falte; las filas nuevas que cambien el núcleo (red, simulación, formato) entran
+como `para Opus`, y las que sean una función de juego, como `espera a J7`.
 
 ### J7 — Módulos de juego (flexible: "que sea muy fácil implementar algo nuevo")
 Una API `defineFeature({ id, components, messages, server, client, panels })`: una función nueva se
@@ -164,6 +167,9 @@ añade en su propia carpeta sin tocar el núcleo. Ejemplo real hecho con ella: g
 con una tecla) que viajan por la red y se ven en la otra pestaña. **Hecho cuando:** test sin pantalla
 del ejemplo; quitar el módulo no rompe nada; `docs/EXTENDER.md` usa el ejemplo. J3, J4 y J5 se
 construyen después como módulos.
+**Para Opus (15-10):** incluye `docs/EXTENDER.md`; se diseña junto con D4 (los mensajes de cada función
+se declaran con esquema) y pensando en P4 (cada función declara sus verbos y un agente los recibe sin
+código extra). Al cerrarla, J3, J4 y J5 pasan a `pendiente`.
 
 ### J1 — Avatares VRM de verdad
 `@pixiv/three-vrm` 3.5.5 (MIT, versión exacta). 2–3 VRM CC0 con la licencia comprobada dentro del

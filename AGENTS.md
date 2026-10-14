@@ -72,6 +72,8 @@ Shifts run on Sonnet 5.5 to stretch the budget. If the diary already shows a fai
 task and you fail again (gates red, or no coherent slice to commit), do not spend a third shift on
 it: mark it `bloqueada: para Opus` in docs/BACKLOG.md, write in its detail what you tried and what
 is missing, and take the next row. Pablo's daytime session (Opus) picks those up.
+Rows in state `para Opus` are heavy-reasoning tasks Pablo reserved for his Opus session (15-10): never
+take them, not even when nothing else is left. Rows `espera a <ID>` wait until that row is `hecho`.
 
 ## Unattended shift (cron) — the procedure
 Work happens in the worktree `../numinia-engine-auto` (branch `auto`), never in the main checkout.
@@ -84,7 +86,8 @@ Work happens in the worktree `../numinia-engine-auto` (branch `auto`), never in 
    bigger, finish a coherent slice, write what is left in the task's detail, keep it `pendiente`.
 4. Commit only with `npm run gates` green; if browser code changed, `tools/auto.sh e2e` too.
 5. Update `docs/BACKLOG.md` (state + the numbers you measured) and append a diary entry to
-   `docs/RUNLOG.md` (Spanish, for people: Qué, Números, Commit, Siguiente). Commit.
+   `docs/RUNLOG.md` (Spanish, for people: Qué, Números, Commit, Siguiente). Commit. The heading time
+   comes from `date '+%Y-%m-%d %H:%M'`, never estimated.
 6. `tools/auto.sh finish` — re-runs the gates, fast-forwards `main` if nobody is editing it, restarts
    the plaza if server code changed, releases the lock. Always run it, even after a failed attempt.
 If something fails honestly: do not fake a result; stash the attempt, mark the task `bloqueada` with
