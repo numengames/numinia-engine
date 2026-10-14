@@ -4,11 +4,25 @@
   "version": "0.0.0",
   "license": "MIT",
   "type": "module",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "test": "node --test \"test/*.test.ts\"",
     "layers": "node tools/layers.mjs",
     "run": "node packages/cli/src/run.ts",
+    "server": "node packages/server/src/main.ts",
+    "bots": "node packages/server/src/bots.ts",
+    "dev": "vite --config apps/plaza/vite.config.mjs",
+    "build": "vite build --config apps/plaza/vite.config.mjs",
+    "e2e": "node tools/e2e.mjs",
     "gates": "node tools/gates.mjs"
+  },
+  "dependencies": {
+    "three": "^0.186.1",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4"
   }
 }

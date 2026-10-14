@@ -27,6 +27,9 @@ Adding a package means adding it to `layers.json` first.
 | plaza of 1,000 (warning until PP2) | tick p99 ≤ 50 ms | ~3 s |
 
 Keep gates light: seconds, one core. Never add a gate that needs a GPU or an LLM to the default run.
+Browser check (not in the default run, needs `npm run server` + `npm run dev`): `taskset -c 0-1 nice -n 19
+npm run e2e` — two real tabs, software GL, ~4 s; must print `E2E OK` (browser fingerprint = server,
+the other tab sees you move, 0 prediction corrections).
 
 ## Style
 Boring code over clever code. Node ≥ 24 runs the `.ts` files directly (type stripping): use only

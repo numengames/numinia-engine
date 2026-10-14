@@ -1,10 +1,13 @@
 {
-  "_doc": "Each package may import only the packages listed for it. Lower layers never import upper ones.",
+  "_doc": "Each package may import only the packages listed for it. Lower layers never import upper ones. render talks to three.js only.",
   "core": [],
   "schema": ["core"],
   "ecs": ["core", "schema"],
   "sim": ["core", "schema", "ecs"],
   "net": ["core", "schema", "ecs", "sim"],
+  "client": ["core", "schema", "ecs", "sim", "net"],
+  "render": [],
   "instance": ["core", "schema", "ecs", "sim", "net"],
+  "server": ["core", "schema", "ecs", "sim", "net", "instance"],
   "cli": ["core", "schema", "ecs", "sim", "net", "instance"]
 }

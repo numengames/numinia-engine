@@ -90,3 +90,21 @@ export function replay(r: Recording): number[] {
   for (const inputs of r.ticks) { step(s, inputs); hashes.push(stateHash(s)); }
   return hashes;
 }
+
+// ---- Reference run: the same recording replayed in the browser and in Node must give the same
+// fingerprint (the hash of all 10,000 per-tick hashes). Little-endian byte order is assumed; every
+// target platform (x86-64, ARM64 phones and headsets) is little-endian.
+export const REFERENCE = { seed: 1234, ticks: 10000, n: 20 };
+
+export function referenceRecording(seed: number, ticks: number, n: number): Recording {
+  const r = new Uint32Array([(seed ^ 0xabcdef) >>> 0]);
+  const rec: Recording = { seed, capacity: n + 1, spawns: Array.from({ length: n }, (_, i) => i), ticks: [] };
+  for (let t = 0; t < ticks; t++) {
+    const inp = new Int32Array(n * 3);
+    for (let e = 0; e < n; e++) { inp[e * 3] = e; inp[e * 3 + 1] = (rngNext(r) % 255) - 127; inp[e * 3 + 2] = (rngNext(r) % 255) - 127; }
+    rec.ticks.push(inp);
+  }
+  return rec;
+}
+
+export const replayFingerprint = (r: Recording): number => fnv1a(new Uint8Array(new Uint32Array(replay(r)).buffer));
