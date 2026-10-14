@@ -43,70 +43,106 @@ export const dequantPos = (q: number): number => (q - 32768) * Q;
 export const ID_BITS = 16;
 export const ENTITY_BITS = ID_BITS + 2 * POS_BITS; // 48 bits = 6 bytes per visible entity
 
-// ---------- area of interest: grid cells + accumulated priority + per-client budget ----------
+// ---------- area of interest: flat grid of 8 m cells + rings + accumulated priority + top-k ----------
 // Runs on the server only and decides WHAT is sent, never game state, so floats are allowed here.
-export type Viewer = { entity: number; priority: Float64Array }; // priority per entity id
-export const CELL = 32 * FX_ONE;
+// Each viewer looks at rings of cells around it until it has enough candidates (or reaches the view
+// radius), so a dense crowd costs ~CAND_MIN candidates per viewer, not everyone.
+export type Viewer = { entity: number; priority: Float32Array | Float64Array }; // priority per entity id
+export const CELL_M = 8;
+export const CELL = CELL_M * FX_ONE;
+export const GRID_SIDE = 128;  // 128 cells x 8 m = 1,024 m: the whole +-512 m plaza
+export const CAND_MIN = 150;   // stop widening once this many candidates are in hand
+export const RING_MAX = 8;     // view radius: 8 rings x 8 m = 64 m
+const cellOf = (v: number): number => { const c = Math.floor(v / CELL) + GRID_SIDE / 2; return c < 0 ? 0 : c >= GRID_SIDE ? GRID_SIDE - 1 : c; };
 
-export function buildGrid(s: SimState): Map<number, number[]> {
-  const grid = new Map<number, number[]>();
-  for (const id of s.world.query(s.tf)) {
-    const key = cellKey(Math.floor(s.tf.cols.x[id] / CELL), Math.floor(s.tf.cols.z[id] / CELL));
-    let list = grid.get(key);
-    if (!list) grid.set(key, (list = []));
-    list.push(id); // ascending id because query is ascending
-  }
-  return grid;
-}
-const cellKey = (cx: number, cz: number): number => (cx + 1024) * 4096 + (cz + 1024);
+export type Grid = { start: Int32Array; items: Int32Array };
 
-/** Pick at most k entities for this viewer: nearby cells only, highest accumulated priority. */
-export function selectVisible(s: SimState, grid: Map<number, number[]>, v: Viewer, k: number, radiusCells = 2): number[] {
+/** Bucket every avatar into its cell (counting sort: O(entities + cells)); ascending id inside a cell. */
+export function buildGrid(s: SimState): Grid {
   const X = s.tf.cols.x, Z = s.tf.cols.z;
-  const cx = Math.floor(X[v.entity] / CELL), cz = Math.floor(Z[v.entity] / CELL);
-  const cands: number[] = [];
-  for (let dx = -radiusCells; dx <= radiusCells; dx++)
-    for (let dz = -radiusCells; dz <= radiusCells; dz++) {
-      const list = grid.get(cellKey(cx + dx, cz + dz));
-      if (list) for (const id of list) if (id !== v.entity) cands.push(id);
+  const ids = s.world.query(s.tf);
+  const ncell = GRID_SIDE * GRID_SIDE;
+  const start = new Int32Array(ncell + 1);
+  const cellIds = new Int32Array(ids.length);
+  for (let i = 0; i < ids.length; i++) { const c = cellOf(X[ids[i]]) * GRID_SIDE + cellOf(Z[ids[i]]); cellIds[i] = c; start[c + 1]++; }
+  for (let c = 0; c < ncell; c++) start[c + 1] += start[c];
+  const cursor = start.slice(0, ncell);
+  const items = new Int32Array(ids.length);
+  for (let i = 0; i < ids.length; i++) items[cursor[cellIds[i]]++] = ids[i];
+  return { start, items };
+}
+
+let cand = new Int32Array(1024);
+let prio = new Float64Array(1024);
+
+/** Pick at most k entities for this viewer: nearest rings only, highest accumulated priority. */
+export function selectVisible(s: SimState, grid: Grid, v: Viewer, k: number, ringMax = RING_MAX): number[] {
+  const X = s.tf.cols.x, Z = s.tf.cols.z;
+  const vx = X[v.entity], vz = Z[v.entity];
+  const cx = cellOf(vx), cz = cellOf(vz);
+  let n = 0;
+  const visit = (gx: number, gz: number) => {
+    if (gx < 0 || gz < 0 || gx >= GRID_SIDE || gz >= GRID_SIDE) return;
+    const c = gx * GRID_SIDE + gz, end = grid.start[c + 1];
+    if (n + (end - grid.start[c]) > cand.length) { const m = Math.max(cand.length * 2, n + end - grid.start[c]); const a = new Int32Array(m); a.set(cand); cand = a; prio = new Float64Array(m); }
+    for (let i = grid.start[c]; i < end; i++) { const id = grid.items[i]; if (id !== v.entity) cand[n++] = id; }
+  };
+  for (let r = 0; r <= ringMax && n < CAND_MIN; r++) {
+    if (r === 0) { visit(cx, cz); continue; }
+    for (let gx = cx - r; gx <= cx + r; gx++) {
+      if (gx === cx - r || gx === cx + r) for (let gz = cz - r; gz <= cz + r; gz++) visit(gx, gz);
+      else { visit(gx, cz - r); visit(gx, cz + r); }
     }
-  for (const id of cands) {
-    const ddx = fxToFloat(X[id] - X[v.entity]), ddz = fxToFloat(Z[id] - Z[v.entity]);
-    v.priority[id] += 1 / (1 + Math.sqrt(ddx * ddx + ddz * ddz)); // closer accumulates faster
   }
-  cands.sort((a, b) => v.priority[b] - v.priority[a] || a - b);
-  const chosen = cands.slice(0, k);
-  for (const id of chosen) v.priority[id] = 0; // sent: back to the end of the queue
+  for (let i = 0; i < n; i++) {
+    const id = cand[i], dx = (X[id] - vx) / FX_ONE, dz = (Z[id] - vz) / FX_ONE;
+    prio[i] = (v.priority[id] += 1 / (1 + (dx * dx + dz * dz) * 0.01)); // closer accumulates faster
+  }
+  if (n > k) topK(n, k);
+  const m = Math.min(n, k), chosen = new Array<number>(m);
+  for (let i = 0; i < m; i++) { chosen[i] = cand[i]; v.priority[cand[i]] = 0; } // sent: back of the queue
   return chosen.sort((a, b) => a - b);
 }
 
+/** Move the k best (priority desc, id asc) to the front of cand/prio. Quickselect, deterministic pivot. */
+function topK(n: number, k: number): void {
+  const better = (i: number, j: number) => prio[i] > prio[j] || (prio[i] === prio[j] && cand[i] < cand[j]);
+  const swap = (i: number, j: number) => { const c = cand[i]; cand[i] = cand[j]; cand[j] = c; const p = prio[i]; prio[i] = prio[j]; prio[j] = p; };
+  let lo = 0, hi = n - 1;
+  while (lo < hi) {
+    swap((lo + hi) >> 1, hi); // pivot to the end
+    let store = lo;
+    for (let i = lo; i < hi; i++) if (better(i, hi)) swap(i, store++);
+    swap(store, hi);
+    if (store === k - 1 || store === k) return;
+    if (store < k) lo = store + 1; else hi = store - 1;
+  }
+}
+
 // ---------- messages ----------
+// Byte-aligned fields are written with DataView (big-endian), which is byte-for-byte what the
+// MSB-first BitWriter produces: same wire format, ~10x less work. BitWriter stays for sub-byte fields.
+const SNAP_HEADER = 19; // type 1 + tick 4 + ack 2 + self 2 + x 4 + z 4 + count 2
+
 /** SNAPSHOT: own position at full precision (exact reconciliation), others quantized. */
 export function encodeSnapshot(s: SimState, self: number, ack: number, visible: number[]): Uint8Array {
-  const w = new BitWriter(24 + visible.length * 6);
-  w.write(MSG.SNAPSHOT, 8);
-  w.write(s.tick, 32);
-  w.write(ack & 0xffff, 16);
-  w.write(self, ID_BITS);
-  w.write(s.tf.cols.x[self], 32); w.write(s.tf.cols.z[self], 32);
-  w.write(visible.length, 16);
-  for (const id of visible) {
-    w.write(id, ID_BITS);
-    w.write(quantPos(s.tf.cols.x[id]), POS_BITS);
-    w.write(quantPos(s.tf.cols.z[id]), POS_BITS);
-  }
-  return w.finish();
+  const X = s.tf.cols.x, Z = s.tf.cols.z;
+  const buf = new Uint8Array(SNAP_HEADER + visible.length * 6), dv = new DataView(buf.buffer);
+  dv.setUint8(0, MSG.SNAPSHOT); dv.setUint32(1, s.tick >>> 0); dv.setUint16(5, ack & 0xffff); dv.setUint16(7, self);
+  dv.setInt32(9, X[self]); dv.setInt32(13, Z[self]); dv.setUint16(17, visible.length);
+  let o = SNAP_HEADER;
+  for (const id of visible) { dv.setUint16(o, id); dv.setUint16(o + 2, quantPos(X[id])); dv.setUint16(o + 4, quantPos(Z[id])); o += 6; }
+  return buf;
 }
 export type Snapshot = { tick: number; ack: number; self: { id: number; x: number; z: number }; others: { id: number; x: number; z: number }[] };
-export function decodeSnapshot(bytes: Uint8Array): Snapshot {
-  const r = new BitReader(bytes);
-  r.read(8);
-  const tick = r.read(32), ack = r.read(16);
-  const self = { id: r.read(ID_BITS), x: r.readSigned32(), z: r.readSigned32() };
-  const n = Math.min(r.read(16), Math.floor((bytes.length * 8) / ENTITY_BITS)); // never trust a count
-  const others = [];
-  for (let i = 0; i < n; i++) others.push({ id: r.read(ID_BITS), x: dequantPos(r.read(POS_BITS)), z: dequantPos(r.read(POS_BITS)) });
-  return { tick, ack, self, others };
+/** Returns null for a message too short to be a snapshot; a lying count is clipped. Never throws. */
+export function decodeSnapshot(bytes: Uint8Array): Snapshot | null {
+  if (bytes.length < SNAP_HEADER) return null;
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const n = Math.min(dv.getUint16(17), Math.floor((bytes.length - SNAP_HEADER) / 6));
+  const others = new Array(n);
+  for (let i = 0, o = SNAP_HEADER; i < n; i++, o += 6) others[i] = { id: dv.getUint16(o), x: dequantPos(dv.getUint16(o + 2)), z: dequantPos(dv.getUint16(o + 4)) };
+  return { tick: dv.getUint32(1), ack: dv.getUint16(5), self: { id: dv.getUint16(7), x: dv.getInt32(9), z: dv.getInt32(13) }, others };
 }
 
 /** INPUT: one per client tick. The server knows who sent it; mx/mz are int8 stick axes. */

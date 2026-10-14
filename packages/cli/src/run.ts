@@ -6,18 +6,19 @@ import { TICK_HZ } from "../../sim/src/index.ts";
 
 export type RunResult = { hash: string; ticks: number; bots: number; k: number; tickP50ms: number; tickP99ms: number; bytesPerClientPerSec: number; avgVisible: number };
 
-export function runHeadless(o: { ticks: number; seed: number; bots: number; k: number }): RunResult {
+export function runHeadless(o: { ticks: number; seed: number; bots: number; k: number; warmup?: number }): RunResult {
   const inst = new Instance({ seed: o.seed, capacity: o.bots + 8, k: o.k, snapshotEvery: 2 });
   const bots: Bot[] = [];
   for (let i = 0; i < o.bots; i++) bots.push(new Bot(inst.join(i), (o.seed ^ (i * 0x9e3779b1)) >>> 0));
+  const warmup = Math.min(o.warmup ?? 20, Math.floor(o.ticks / 2)); // the JIT is still compiling during the first ticks
   const times: number[] = [];
   let visibleSum = 0;
   for (let t = 0; t < o.ticks; t++) {
     for (const b of bots) b.think();
     const t0 = performance.now();
     inst.tick();
-    times.push(performance.now() - t0);
-    if (t === o.ticks - 1) for (const b of bots) { b.t.flush(); visibleSum += b.seen; }
+    if (t >= warmup) times.push(performance.now() - t0);
+    if (t === o.ticks - 1) for (const b of bots) { b.t.flush?.(); visibleSum += b.seen; }
   }
   times.sort((a, b) => a - b);
   const pct = (p: number) => Math.round(times[Math.min(times.length - 1, Math.floor(times.length * p))] * 1000) / 1000;

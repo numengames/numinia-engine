@@ -31,7 +31,7 @@ export class Instance {
   /** A client arrives over any transport: spawn its avatar, say welcome, listen. */
   connect(t: Transport, owner = this.conns.length): number {
     const entity = spawnAvatar(this.sim, owner);
-    const conn: Conn = { entity, transport: t, viewer: { entity, priority: new Float64Array(this.opts.capacity) }, queue: [], ack: 0, dropped: 0, bad: 0 };
+    const conn: Conn = { entity, transport: t, viewer: { entity, priority: new Float32Array(this.opts.capacity) }, queue: [], ack: 0, dropped: 0, bad: 0 };
     t.onMessage((bytes) => {
       if (bytes[0] === MSG.INPUT && bytes.length === 5) {
         conn.queue.push(decodeInput(bytes));
@@ -92,7 +92,7 @@ export class Bot {
     this.t = t; this.rng = new Uint32Array([seed >>> 0]);
     t.onMessage((bytes) => {
       if (bytes[0] === MSG.WELCOME) { const w = decodeWelcome(bytes); this.entity = w.entity; this.x = w.x; this.z = w.z; }
-      else if (bytes[0] === MSG.SNAPSHOT) { const s = decodeSnapshot(bytes); this.seen = s.others.length; this.lastTick = s.tick; this.x = s.self.x; this.z = s.self.z; }
+      else if (bytes[0] === MSG.SNAPSHOT) { const s = decodeSnapshot(bytes); if (s) { this.seen = s.others.length; this.lastTick = s.tick; this.x = s.self.x; this.z = s.self.z; } }
     });
   }
   think(): void {

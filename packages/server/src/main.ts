@@ -53,11 +53,15 @@ const loop = () => {
 };
 loop();
 
+let lastBytes = 0, lastAt = performance.now();
 setInterval(() => {
   times.sort((x, y) => x - y);
   const p99 = times.length ? times[Math.floor(times.length * 0.99)] : 0;
-  console.log(`[instancia] tick ${inst.sim.tick} · conectados ${inst.conns.length} · tick p99 ${p99.toFixed(2)} ms (peor ${worst.toFixed(2)})`);
+  const bytes = inst.sentBytes(), now = performance.now();
+  const kbit = inst.conns.length ? ((bytes - lastBytes) * 8) / 1000 / inst.conns.length / ((now - lastAt) / 1000) : 0;
+  lastBytes = bytes; lastAt = now;
+  console.log(`[instancia] tick ${inst.sim.tick} · conectados ${inst.conns.length} · tick p99 ${p99.toFixed(2)} ms (peor ${worst.toFixed(2)}) · ${kbit.toFixed(1)} kbit/s por persona`);
   times.length = 0; worst = 0;
-}, 30000).unref();
+}, Number(process.env.STATS_MS ?? 30000)).unref();
 
 console.log(`[instancia] ws://${HOST}:${PORT} · 20 Hz · huella de referencia ${hex(refHash)} (${REFERENCE.ticks} ticks, ${refMs} ms)`);

@@ -24,7 +24,10 @@ Adding a package means adding it to `layers.json` first.
 | layers | 0 violations | < 0.1 s |
 | determinism | same seed → same hash | ~1.5 s |
 | bandwidth K=50 @10 Hz | ≤ 70 kbit/s per client | free (reuses the run) |
-| plaza of 1,000 (warning until PP2) | tick p99 ≤ 50 ms | ~3 s |
+| plaza of 1,000, one thread, everyone within 80 m | tick p99 ≤ 25 ms (half the 50 ms tick) | ~1.5 s |
+
+Load test over real WebSockets (not in the default run, ~35 s, own port): `tools/swarm.sh 1000 30`.
+Measured 2026-10-14 on the dev PC: 1,000 connected → tick p99 17–23 ms, 25.5 kbit/s per person.
 
 Keep gates light: seconds, one core. Never add a gate that needs a GPU or an LLM to the default run.
 Browser check (not in the default run, needs `npm run server` + `npm run dev`): `taskset -c 0-1 nice -n 19

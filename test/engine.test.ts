@@ -5,7 +5,7 @@ import { defineSchema, validate, fieldBits } from "../packages/schema/src/index.
 import { createSim, spawnAvatar, step, stateHash, replay, referenceRecording, replayFingerprint, REFERENCE } from "../packages/sim/src/index.ts";
 import {
   BitWriter, BitReader, encodeSnapshot, decodeSnapshot, buildGrid, selectVisible, encodeInput, decodeInput,
-  encodeWelcome, decodeWelcome, seqNewer, loopbackPair, MSG,
+  encodeWelcome, decodeWelcome, seqNewer, loopbackPair, quantPos, MSG,
 } from "../packages/net/src/index.ts";
 import { Instance } from "../packages/instance/src/index.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
@@ -85,7 +85,20 @@ test("net: bits, messages and quantization round-trip", () => {
 test("net: a lying count or a truncated message never throws", () => {
   const bytes = encodeSnapshot(createSim(1, 1), 0, 0, []);
   bytes[bytes.length - 1] = 0xff; // claims many entities
-  assert.doesNotThrow(() => decodeSnapshot(bytes.slice(0, 12)));
+  assert.doesNotThrow(() => decodeSnapshot(bytes));
+  assert.equal(decodeSnapshot(bytes)!.others.length, 0);
+  assert.equal(decodeSnapshot(bytes.slice(0, 12)), null);
+});
+
+test("net: the fast snapshot writer is byte-for-byte the documented bit layout", () => {
+  const s = createSim(40, 11); for (let i = 0; i < 40; i++) spawnAvatar(s, i);
+  s.tick = 0xfedcba98;
+  const vis = [3, 7, 21, 39];
+  const w = new BitWriter(8);
+  w.write(MSG.SNAPSHOT, 8); w.write(s.tick, 32); w.write(513, 16); w.write(5, 16);
+  w.write(s.tf.cols.x[5], 32); w.write(s.tf.cols.z[5], 32); w.write(vis.length, 16);
+  for (const id of vis) { w.write(id, 16); w.write(quantPos(s.tf.cols.x[id]), 16); w.write(quantPos(s.tf.cols.z[id]), 16); }
+  assert.deepEqual(encodeSnapshot(s, 5, 513, vis), w.finish());
 });
 
 test("area of interest: never more than k, never far away", () => {

@@ -57,6 +57,7 @@ export class ClientSession {
       this.syncClock(w.tick, now, true);
     } else if (type === MSG.SNAPSHOT) {
       const s = decodeSnapshot(bytes);
+      if (!s) return;
       this.stats.snapshots++; this.stats.visible = s.others.length; this.stats.lastServerTick = s.tick;
       this.syncClock(s.tick, now, false);
       this.reconcile(s.self.x, s.self.z, s.ack);

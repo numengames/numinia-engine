@@ -40,10 +40,10 @@ gate("ancho de banda (K=50, 10 Hz)", "≤ 70 kbit/s por persona", () => {
   return [kbit <= 70, `${kbit.toFixed(1)} kbit/s, ve ${base.avgVisible} de media`];
 });
 
-gate("plaza de 1.000 (adelanto de PP2)", "tick p99 ≤ 50 ms", () => {
-  const r = runHeadless({ ticks: 40, seed: 7, bots: 1000, k: 50 });
-  return [r.tickP99ms <= 50, `p50 ${r.tickP50ms} ms · p99 ${r.tickP99ms} ms, un hilo`];
-}, { warnOnly: true });
+gate("plaza de 1.000, un hilo", "tick p99 ≤ 25 ms", () => {
+  const r = runHeadless({ ticks: 100, seed: 7, bots: 1000, k: 50, warmup: 20 });
+  return [r.tickP99ms <= 25, `p50 ${r.tickP50ms} ms · p99 ${r.tickP99ms} ms`];
+});
 
 const w = (s, n) => String(s).padEnd(n);
 console.log(`\n${w("Puerta", 34)}${w("Debe", 32)}${w("Sale", 44)}${w("Estado", 8)}ms`);
