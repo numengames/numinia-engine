@@ -21,7 +21,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 
 | ID | Tarea | Estado | Desatendible |
 |---|---|---|---|
-| S1 | Kit de despliegue para un servidor pequeño (para mañana) | pendiente | sí |
+| S1 | Kit de despliegue para un servidor pequeño (para mañana) | hecho | sí |
 | P1 | Ficha técnica: características y límites del motor (humana + `limits.json`) | pendiente | sí |
 | S2 | Métricas del servidor (`/health`, `/metrics`) y enjambre contra una URL remota | pendiente | sí |
 | P2 | Móvil frío: política de energía del cliente + puerta de coste por cuadro | pendiente | sí |
@@ -57,6 +57,14 @@ dominio, HTTP por IP para pruebas), ufw 22/80/443. El cliente usa `wss://<mismo 
 está en localhost. `bash -n` limpio. Prueba en un contenedor `podman` ubuntu:24.04 hasta donde se
 pueda sin systemd: arrancar el servidor a mano dentro y conectar un bot que recibe snapshots. Si
 podman no está o no va, decirlo y dejar la prueba local equivalente.
+**Hecho (14-10 noche):** `npm run deploy` → `deploy/instalar-motor.sh` (534 kB, fuera de git) desde
+`deploy/instalar-motor.plantilla.sh`; Node 24.22.0 LTS con sha256 fijado (x64 y arm64) en
+`tools/build-deploy.mjs`; opciones `--dominio`, `--memoria`, `--sin-cortafuegos`, `--solo-extraer`,
+`--version`. Cliente: `serverUrl()` en `packages/client` (localhost → `:8790`, fuera → `/ws` del mismo
+origen). Instrucciones en `deploy/README.md`. **Sin podman ni docker en esta máquina:** la prueba
+equivalente es `node tools/deploy-check.mjs [node]` (desempaqueta, comprueba la página, arranca el
+servidor desempaquetado en :8793 y un cliente recibe 10 snapshots en ~955 ms; huella `fa94375e`) —
+pasada con Node 24.22.0 y con 26.7.0. **Sin probar:** apt, systemd, Caddy y ufw de verdad (eso es X3).
 
 ### P1 — Ficha técnica
 **Por qué:** si alguien técnico decide montar algo en el motor, necesita saber sus límites; dependen

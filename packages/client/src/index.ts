@@ -13,6 +13,24 @@ const MAX_SAMPLES = 16;
 
 type Sample = { tick: number; x: number; z: number };
 
+/** Port the instance server listens on when you run it locally (npm run server). */
+export const DEV_SERVER_PORT = 8790;
+
+/**
+ * Where the page finds its instance server, given where the page was loaded from.
+ * - `?server=ws://…` in the page address always wins.
+ * - On this machine (localhost, 127.x, ::1) → `ws://<host>:8790` (the dev server, no proxy).
+ * - Anywhere else → the same origin, path `/ws` (`wss://` when the page is https). This is how a
+ *   deployed server works: Caddy serves the page and passes `/ws` to the instance (deploy/).
+ */
+export function serverUrl(loc: { protocol: string; hostname: string; host: string; search: string }): string {
+  const forced = new URLSearchParams(loc.search).get("server");
+  if (forced) return forced;
+  const h = loc.hostname;
+  if (h === "localhost" || h === "::1" || h === "[::1]" || h.startsWith("127.")) return `ws://${h}:${DEV_SERVER_PORT}`;
+  return `${loc.protocol === "https:" ? "wss" : "ws"}://${loc.host}/ws`;
+}
+
 export class ClientSession {
   readonly t: Transport;
   entity = -1;

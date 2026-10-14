@@ -2,13 +2,13 @@
 import { hex } from "../../packages/core/src/index.ts";
 import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX } from "../../packages/sim/src/index.ts";
 import { webSocketClient } from "../../packages/net/src/index.ts";
-import { ClientSession } from "../../packages/client/src/index.ts";
+import { ClientSession, serverUrl } from "../../packages/client/src/index.ts";
 import { createView } from "../../packages/render/src/index.ts";
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
 const view = await createView(document.body, { forceWebGL: params.has("webgl2") });
-const url = params.get("server") ?? `ws://${location.hostname}:8790`;
+const url = serverUrl(location);
 const transport = webSocketClient(url);
 const session = new ClientSession(transport);
 transport.opened.catch(() => { hud.textContent = `No llego al servidor ${url}.\n¿Está arrancado (npm run server)?`; });

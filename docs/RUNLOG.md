@@ -12,3 +12,16 @@ Formato: `## AAAA-MM-DD HH:MM · <ID> · <estado>` y cuatro líneas: Qué, Núme
   210 kB comprimido.
 - Commit: ver `git log` de main.
 - Siguiente: S1 (kit de despliegue para el servidor pequeño del 15-10).
+
+## 2026-10-14 23:45 · S1 · hecho
+- Qué: kit de despliegue. `npm run deploy` genera `deploy/instalar-motor.sh`, un solo fichero que en
+  Ubuntu 24.04 / Debian 12 instala Node 24.22.0 LTS (sha256 comprobado), el usuario `numinia`, el
+  servicio `numinia-motor` (LimitNOFILE, MemoryMax, endurecido), Caddy (página + `/ws`; HTTPS solo
+  con `--dominio`) y ufw sin cerrar ssh. La página ahora busca el servidor en `/ws` del mismo sitio
+  cuando no está en localhost. Cómo usarlo: `deploy/README.md`.
+- Números: instalador 534 kB, se genera en ~0,6 s; prueba local (`tools/deploy-check.mjs`): el
+  servidor desempaquetado arranca con Node 24.22.0 y 26.7.0, huella `fa94375e`, un cliente recibe 10
+  snapshots en ~955 ms; 18 pruebas en verde; e2e chromium y firefox OK. No hay podman ni docker aquí:
+  apt, systemd, Caddy y ufw NO están probados de verdad (queda para X3, con Pablo).
+- Commit: ver `git log` de main (S1).
+- Siguiente: P1 (ficha técnica + `limits.json`).
