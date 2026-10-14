@@ -1,0 +1,135 @@
+// server: one instance process. HTTP + WebSocket on one port, the Instance (authority) behind, 20 Hz loop.
+//   WebSocket upgrade on any path (Caddy passes /ws) · GET /health · GET /metrics (JSON, see metrics.ts)
+import { createServer } from "node:http";
+import type { IncomingMessage, Server, ServerResponse } from "node:http";
+import { existsSync, readFileSync } from "node:fs";
+import { WebSocketServer } from "ws";
+import type { WebSocket } from "ws";
+import { hex } from "../../core/src/index.ts";
+import { REFERENCE, referenceRecording, replayFingerprint, TICK_HZ } from "../../sim/src/index.ts";
+import { Instance } from "../../instance/src/index.ts";
+import type { Transport } from "../../net/src/index.ts";
+import { buildMetrics, ByteWindow, TickWindow } from "./metrics.ts";
+import type { Metrics } from "./metrics.ts";
+
+export type ServerOptions = {
+  port: number;          // 0 = any free port (tests)
+  host: string;
+  maxPlayers?: number;   // default 1000
+  statsMs?: number;      // console summary period; default 30000
+  sampleMs?: number;     // byte-rate sample period (kbit/s window = 10 samples); default 1000
+  version?: string;      // default: ENGINE_BUILD env, then ../VERSION (written by the installer), then "dev"
+  log?: (line: string) => void;
+};
+
+export type RunningServer = {
+  port: number;
+  inst: Instance;
+  fingerprint: string;
+  metrics(): Metrics;
+  close(): Promise<void>;
+};
+
+/** Total bytes sent over every WebSocket ever opened by this process (survives disconnects). */
+let bytesOut = 0;
+
+/** Server end of one WebSocket, behind the engine's Transport interface. */
+export function wsTransport(ws: WebSocket): Transport {
+  let cb: (b: Uint8Array) => void = () => {};
+  const t = {
+    sentBytes: 0,
+    send(bytes: Uint8Array) { if (ws.readyState === 1) { ws.send(bytes); t.sentBytes += bytes.length; bytesOut += bytes.length; } },
+    onMessage(f: (b: Uint8Array) => void) { cb = f; },
+  };
+  ws.on("message", (data, isBinary) => {
+    if (!isBinary || !(data instanceof Buffer)) return; // text frames and fragments are ignored
+    cb(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
+  });
+  return t;
+}
+
+export function engineVersion(): string {
+  if (process.env.ENGINE_BUILD) return process.env.ENGINE_BUILD;
+  if (existsSync("../VERSION")) return readFileSync("../VERSION", "utf8").trim();
+  return "dev";
+}
+
+export function startServer(o: ServerOptions): Promise<RunningServer> {
+  const log = o.log ?? ((l: string) => console.log(l));
+  const maxPlayers = o.maxPlayers ?? 1000;
+  const version = o.version ?? engineVersion();
+  const born = performance.now();
+
+  const t0 = performance.now();
+  const refHash = replayFingerprint(referenceRecording(REFERENCE.seed, REFERENCE.ticks, REFERENCE.n));
+  const refMs = Math.round(performance.now() - t0);
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash } });
+
+  const ticks = new TickWindow(200), bytes = new ByteWindow(11);
+  const tickMs = 1000 / TICK_HZ;
+  let n = 0, lagMs = 0, start = 0, stopped = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const metrics = () => buildMetrics({
+    version, uptimeMs: performance.now() - born, tick: inst.sim.tick, tickHz: TICK_HZ, people: inst.conns.length,
+    capacity: maxPlayers, ticks, bytes, lagMs, mem: process.memoryUsage(),
+  });
+
+  const json = (res: ServerResponse, code: number, body: unknown) => {
+    res.writeHead(code, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+    res.end(JSON.stringify(body));
+  };
+  const http: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
+    const path = (req.url ?? "/").split("?")[0];
+    if (req.method !== "GET") return json(res, 405, { error: "solo GET" });
+    if (path === "/health") return json(res, 200, { ok: true, version, huella: hex(refHash), conectados: inst.conns.length });
+    if (path === "/metrics") return json(res, 200, metrics());
+    json(res, 404, { error: `no existe ${path}`, hay: ["/health", "/metrics", "WebSocket en cualquier ruta (/ws)"] });
+  });
+
+  const wss = new WebSocketServer({ server: http, maxPayload: 1024, perMessageDeflate: false });
+  wss.on("connection", (ws) => {
+    if (inst.conns.length >= maxPlayers) { ws.close(1013, "instance full"); return; }
+    const entity = inst.connect(wsTransport(ws));
+    ws.on("close", () => inst.disconnect(entity));
+    ws.on("error", () => ws.terminate());
+  });
+
+  // fixed-rate loop: schedule against the start time so timer drift never accumulates
+  const loop = () => {
+    if (stopped) return;
+    const a = performance.now();
+    lagMs = a - (start + n * tickMs);
+    inst.tick();
+    ticks.record(performance.now() - a);
+    n++;
+    timer = setTimeout(loop, Math.max(0, start + n * tickMs - performance.now()));
+  };
+  const sampler = setInterval(() => bytes.sample(performance.now(), bytesOut, inst.conns.length), o.sampleMs ?? 1000);
+  sampler.unref();
+  const stats = setInterval(() => {
+    const m = metrics();
+    log(`[instancia] tick ${m.tick} · conectados ${m.conectados} · tick p99 ${m.tickMs.p99.toFixed(2)} ms (peor ${m.tickMs.peor.toFixed(2)}) · ${m.kbitPorPersona.toFixed(1)} kbit/s por persona`);
+  }, o.statsMs ?? 30000);
+  stats.unref();
+
+  return new Promise((ok, ko) => {
+    http.once("error", ko);
+    http.listen(o.port, o.host, () => {
+      const addr = http.address();
+      const port = typeof addr === "object" && addr ? addr.port : o.port;
+      bytes.sample(performance.now(), bytesOut, 0);
+      start = performance.now();
+      loop();
+      log(`[instancia] ws://${o.host}:${port} · 20 Hz · huella de referencia ${hex(refHash)} (${REFERENCE.ticks} ticks, ${refMs} ms) · /health /metrics · versión ${version}`);
+      ok({
+        port, inst, fingerprint: hex(refHash), metrics,
+        close: () => new Promise<void>((done) => {
+          stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats);
+          for (const c of wss.clients) c.terminate();
+          wss.close(); http.close(() => done());
+        }),
+      });
+    });
+  });
+}

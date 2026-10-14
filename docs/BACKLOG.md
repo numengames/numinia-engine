@@ -22,7 +22,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | ID | Tarea | Estado | Desatendible |
 |---|---|---|---|
 | S1 | Kit de despliegue para un servidor pequeño (para mañana) | hecho | sí |
-| S2 | Métricas del servidor (`/health`, `/metrics`) y enjambre contra una URL remota (para mañana) | pendiente | sí |
+| S2 | Métricas del servidor (`/health`, `/metrics`) y enjambre contra una URL remota (para mañana) | hecho | sí |
 | P1 | Ficha técnica: características y límites del motor (humana + `limits.json`) | pendiente | sí |
 | J0 | Catálogo de todo lo que espera un jugador + receta para añadir funciones nuevas | pendiente | sí |
 | J7 | Módulos de juego: añadir una función sin tocar el núcleo, con un ejemplo real (gestos) | pendiente | sí |
@@ -91,6 +91,16 @@ que cada valor medido apunta a una prueba que existe.
 **Hecho cuando:** el servidor sirve por HTTP en su puerto `/health` (ok + versión) y `/metrics`
 (JSON: conectados, tick p50/p99, kbit/s por persona, memoria, factor de dilatación). `tools/swarm.sh`
 acepta una URL (`wss://…/ws`) y un modo "en el propio servidor". Test de `/metrics` en local.
+**Hecho (15-10 madrugada):** `packages/server/src/server.ts` (`startServer`, HTTP + WebSocket en el
+mismo puerto) y `metrics.ts` (ventanas: últimos 200 ticks = 10 s; bytes por segundo, 10 s). `/health`
+→ `{ok, version, huella, conectados}`; `/metrics` → JSON `numinia-engine/metrics@1` (conectados,
+capacidad, tick p50/p99/peor, presupuesto 25 ms, retraso del bucle, kbit/s por persona, memoria RSS y
+heap, `dilatacion` = 1 fija hasta S3). Versión: `ENGINE_BUILD` o `../VERSION` del instalador. Caddy
+publica `/health`; `/metrics` solo en 127.0.0.1 (túnel `ssh -L 18790:…`). Enjambre:
+`packages/server/src/swarm.ts` (va dentro del instalador) con `--url`, `--en-servidor`, `--metrics`,
+`--procs`, tope 120 s; `tools/swarm.sh --url …` lo llama. Los bots conectan en tandas de 25 en paralelo
+y cuentan fallos. Medido aquí: swarm local 1.000 → `/metrics` tick p50 13,8 / p99 16,2 ms, 25,5 kbit/s,
+RSS 169 MB, conexión de 500 bots en ~0,4 s. **Sin probar:** `wss://` de verdad (aquí no hay TLS) → X3.
 
 ### P2 — Móvil frío
 **Hecho cuando:** política de energía en el cliente, decidida por capacidad (nunca por nombre de

@@ -146,6 +146,10 @@ $SITE {
 	handle /ws {
 		reverse_proxy 127.0.0.1:$PORT
 	}
+	# /health is public (ok + version); /metrics stays on 127.0.0.1:$PORT (ssh -L to read it from home)
+	handle /health {
+		reverse_proxy 127.0.0.1:$PORT
+	}
 	handle {
 		root * $PREFIX/www
 		@hashed path /assets/*

@@ -47,6 +47,11 @@ try {
   t.close();
   if (!s.welcome) fail("no llegó el saludo (welcome) del servidor");
   if (s.stats.snapshots < 10) fail(`solo ${s.stats.snapshots} snapshots en 5 s`);
+  const get = (p) => fetch(`http://127.0.0.1:${PORT}${p}`).then((r) => r.json()).catch(() => null);
+  const health = await get("/health");
+  if (!health?.ok) fail(`/health no responde ok: ${JSON.stringify(health)}`);
+  const m = await get("/metrics");
+  if (!(m?.conectados >= 0 && m?.tickMs)) fail(`/metrics no responde: ${JSON.stringify(m)}`);
   const fp = log.match(/huella de referencia ([0-9a-f]+)/)?.[1];
-  console.log(`[deploy-check] OK · node ${version} · página ${refs.length} ficheros enlazados · ${s.stats.snapshots} snapshots en ${Math.round(performance.now() - t0)} ms · huella ${fp}`);
+  console.log(`[deploy-check] OK · node ${version} · página ${refs.length} ficheros enlazados · ${s.stats.snapshots} snapshots en ${Math.round(performance.now() - t0)} ms · huella ${fp} · /health y /metrics OK (RSS ${m.memoriaMB.rss} MB)`);
 } finally { stop(); }

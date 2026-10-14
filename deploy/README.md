@@ -38,7 +38,26 @@ Comandos útiles en el servidor:
 systemctl status numinia-motor        # ¿está vivo?
 journalctl -u numinia-motor -f        # cada 30 s: conectados, tick p99, kbit/s por persona
 bash instalar-motor.sh --version      # qué versión lleva el fichero
+curl -s localhost:8790/health         # {"ok":true,"version":…,"huella":"fa94375e","conectados":N}
+curl -s localhost:8790/metrics        # JSON: conectados, tick p50/p99/peor (últimos 10 s), kbit/s por persona, memoria, retraso, dilatación
 ```
+
+`/health` también se ve desde fuera (`https://<dominio>/health`); `/metrics` solo desde el propio
+servidor. Para leerlo desde casa (8790 ya lo usa la plaza de tu PC): `ssh -L 18790:127.0.0.1:8790 root@IP`
+y abrir `http://localhost:18790/metrics`; el enjambre lo lee con `--metrics http://localhost:18790/metrics`.
+
+## Medir los límites: el enjambre
+
+Robots que hablan el protocolo real, con tiempo tope (máx. 120 s):
+
+```bash
+# desde tu PC, contra el servidor remoto (sin métricas salvo que abras el túnel ssh de arriba)
+tools/swarm.sh --url wss://motor.ejemplo.com/ws --n 200 --secs 30
+# en el propio servidor (lee /metrics cada 5 s y da el resumen al final)
+cd /opt/numinia-engine/app && /opt/numinia-engine/node/bin/node packages/server/src/swarm.ts --en-servidor --n 500 --secs 30
+```
+
+Ojo: robots y servidor en la misma máquina compiten por la CPU; el número bueno es el remoto.
 
 Lo que **no** está probado aún: la instalación real con root, systemd, Caddy y ufw (aquí no hay
 contenedores ni root). La prueba local cubre el fichero, el desempaquetado y el servidor desempaquetado

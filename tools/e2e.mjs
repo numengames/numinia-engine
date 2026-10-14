@@ -8,6 +8,8 @@ const PW = process.env.PW_CORE ?? "/var/home/uruk/arkhitektonian-lab/.hermes/pro
 const CHROME = process.env.CHROME ?? "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell";
 const BASE = process.env.BASE ?? "http://127.0.0.1:5173/?webgl2";
 if (!existsSync(PW) || !existsSync(CHROME)) { console.error("playwright-core or chromium not found; set PW_CORE / CHROME"); process.exit(2); }
+// cron/Hermes shells point HOME at the profile home, where Playwright would look for its browsers in vain
+process.env.PLAYWRIGHT_BROWSERS_PATH ??= "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright";
 const { chromium, firefox, webkit } = createRequire(import.meta.url)(PW);
 const ENGINE = process.env.BROWSER ?? "chromium"; // chromium | firefox | webkit
 const launchers = {

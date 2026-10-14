@@ -26,3 +26,20 @@ b %, de `hermes usage`), Commit, Siguiente.
   apt, systemd, Caddy y ufw NO están probados de verdad (queda para X3, con Pablo).
 - Commit: ver `git log` de main (S1).
 - Siguiente: P1 (ficha técnica + `limits.json`).
+
+## 2026-10-15 00:40 · S2 · hecho
+- Qué: el servidor ahora contesta por HTTP en su mismo puerto: `/health` (vivo, versión, huella,
+  conectados) y `/metrics` (JSON con conectados, tick p50/p99/peor de los últimos 10 s, kbit/s por
+  persona, memoria, retraso del bucle y dilatación, que vale 1 hasta S3). En el servidor instalado,
+  `/health` se ve desde fuera y `/metrics` solo por túnel ssh. Enjambre contra un servidor que ya
+  corre: `tools/swarm.sh --url wss://…/ws` desde casa, o `swarm.ts --en-servidor` en el propio
+  servidor (va dentro del instalador). Instrucciones en `deploy/README.md`. Además, `tools/e2e.mjs`
+  ya encuentra Firefox cuando el turno corre con otro HOME (fallaba por eso, no por el motor).
+- Números: enjambre local de 1.000 durante 20 s → `/metrics` dice tick p50 13,8 ms / p99 16,2 ms,
+  25,5 kbit/s por persona, RSS 169 MB; 500 bots conectan en ~0,4 s (antes, uno a uno). Enjambre
+  por URL contra un servidor aparte: 300 bots, p99 7,1 ms, 25,5 kbit/s. 21 pruebas en verde (la
+  nueva de `/metrics` tarda ~0,6 s); `deploy-check` OK con `/health` y `/metrics`; e2e chromium y
+  firefox OK. Sin probar: `wss://` real (aquí no hay TLS) — queda para X3.
+- Consumo: semana 39 % → 40 %.
+- Commit: ver `git log` de main (S2).
+- Siguiente: P1 (ficha técnica + `limits.json`).
