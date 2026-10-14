@@ -82,16 +82,17 @@ export class Instance {
   sentBytes(): number { return this.conns.reduce((n, c) => n + c.transport.sentBytes, 0); }
 }
 
-/** A headless bot: speaks the real protocol over any transport, wanders with its own seeded RNG. */
+/** A headless bot: speaks the real protocol over any transport, wanders with its own seeded RNG
+ * and drifts back towards the centre of the plaza when it strays beyond ~20 m. */
 export class Bot {
   readonly t: Transport;
   readonly rng: Uint32Array;
-  entity = -1; seq = 0; mx = 0; mz = 0; seen = 0; lastTick = 0;
+  entity = -1; seq = 0; mx = 0; mz = 0; seen = 0; lastTick = 0; x = 0; z = 0;
   constructor(t: Transport, seed: number) {
     this.t = t; this.rng = new Uint32Array([seed >>> 0]);
     t.onMessage((bytes) => {
-      if (bytes[0] === MSG.WELCOME) this.entity = decodeWelcome(bytes).entity;
-      else if (bytes[0] === MSG.SNAPSHOT) { const s = decodeSnapshot(bytes); this.seen = s.others.length; this.lastTick = s.tick; }
+      if (bytes[0] === MSG.WELCOME) { const w = decodeWelcome(bytes); this.entity = w.entity; this.x = w.x; this.z = w.z; }
+      else if (bytes[0] === MSG.SNAPSHOT) { const s = decodeSnapshot(bytes); this.seen = s.others.length; this.lastTick = s.tick; this.x = s.self.x; this.z = s.self.z; }
     });
   }
   think(): void {
@@ -99,6 +100,9 @@ export class Bot {
     if (rngNext(this.rng) % 20 === 0) { // change direction about once a second
       this.mx = (rngNext(this.rng) % 255) - 127;
       this.mz = (rngNext(this.rng) % 255) - 127;
+      const far = 20 * 65536;              // 20 m in Q16.16
+      if (this.x > far) this.mx = -Math.abs(this.mx); else if (this.x < -far) this.mx = Math.abs(this.mx);
+      if (this.z > far) this.mz = -Math.abs(this.mz); else if (this.z < -far) this.mz = Math.abs(this.mz);
     }
     this.seq = (this.seq + 1) & 0xffff;
     this.t.send(encodeInput(this.seq, this.mx, this.mz), false);

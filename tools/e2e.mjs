@@ -8,9 +8,14 @@ const PW = process.env.PW_CORE ?? "/var/home/uruk/arkhitektonian-lab/.hermes/pro
 const CHROME = process.env.CHROME ?? "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell";
 const BASE = process.env.BASE ?? "http://127.0.0.1:5173/?webgl2";
 if (!existsSync(PW) || !existsSync(CHROME)) { console.error("playwright-core or chromium not found; set PW_CORE / CHROME"); process.exit(2); }
-const { chromium } = createRequire(import.meta.url)(PW);
-
-const browser = await chromium.launch({ executablePath: CHROME, args: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"] });
+const { chromium, firefox, webkit } = createRequire(import.meta.url)(PW);
+const ENGINE = process.env.BROWSER ?? "chromium"; // chromium | firefox | webkit
+const launchers = {
+  chromium: () => chromium.launch({ executablePath: CHROME, args: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"] }),
+  firefox: () => firefox.launch({ firefoxUserPrefs: { "webgl.force-enabled": true } }),
+  webkit: () => webkit.launch(),
+};
+const browser = await launchers[ENGINE]();
 const ctx = await browser.newContext({ viewport: { width: 480, height: 300 } });
 const errors = [];
 const open = async () => {
@@ -41,6 +46,7 @@ await browser.close();
 
 const dz = after.z - before.z;
 const result = {
+  engine: ENGINE,
   backend: A2.backend,
   probe: { browser: A2.probe.browser.toString(16), server: A2.probe.server.toString(16), equal: A2.probe.browser === A2.probe.server, ms: A2.probe.ms },
   tabBSeesTabA: { entity: A.entity, movedZ: Math.round(dz * 100) / 100, expectedZ: -6 },
