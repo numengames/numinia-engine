@@ -29,7 +29,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | P2 | Móvil frío: política de energía del cliente + puerta de coste por cuadro | pendiente | sí |
 | P3 | Nativo para IA v1: `llms.txt`, mapa, README-contrato por paquete, `npm run describe` | pendiente | sí |
 | J1 | Avatares VRM de verdad (CC0) con animaciones CC0 en la plaza | pendiente | sí |
-| J2 | Salto y altura en la simulación (cambia la huella fijada) | necesita aprobación | sí |
+| J2 | Salto y altura en la simulación (cambia la huella fijada; permiso de Pablo, 14-10) | pendiente | sí |
 | J3 | Chat y bocadillos de texto sobre los avatares, con nombres | pendiente | sí |
 | B1 | HTTPS en la red de casa para los visores (certificado propio, `/ws` en el mismo origen) | pendiente | sí |
 | J6 | VR de verdad: entrar en VR/AR, moverse, manos y mandos, paneles 3D (emulador IWER) | pendiente | sí |
@@ -177,8 +177,8 @@ cuenta avatares VRM cargados sin errores; peso de descarga por avatar medido y a
 ### J2 — Salto y altura
 La simulación gana altura, velocidad vertical, gravedad y suelo, y la entrada un bit de salto; la
 predicción sigue exacta (0 correcciones). Cambia la huella fijada y el formato de entrada y de
-snapshot → **necesita el permiso de Pablo** (pedido el 14-10). Con permiso: rama `auto`; sin él,
-`propuesta/J2`.
+snapshot. **Permiso de Pablo (14-10, "que no pare el desarrollo"): se hace en `auto`**, con versión de
+formato nueva, la huella nueva fijada en el test y el cambio explicado en el diario.
 
 ### J3 — Chat y bocadillos
 Mensaje nuevo CHAT (aditivo: tipo nuevo, texto UTF-8 ≤ 200 bytes, límite de ritmo en el servidor,

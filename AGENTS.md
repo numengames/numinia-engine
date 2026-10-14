@@ -27,8 +27,8 @@ only. A package imports only what `layers.json` allows. Adding a package means a
 - `sim` decides with integers / Q16.16 fixed point only (`core`). No `Math.sin/cos/exp`, no
   `Math.random`, no `Date`, no iterating `Map`/`Set` to decide anything.
 - Randomness comes from the RNG state stored inside the sim state.
-- The reference fingerprint `fa94375e` is pinned in a test. Changing it, the wire format or any file
-  format is a FORMAT CHANGE: never done unattended (see below).
+- The reference fingerprint is pinned in a test (`fa94375e` until J2 changes it). Changing it, the
+  wire format or any file format is a FORMAT CHANGE: see Autonomy for when and how it is allowed.
 
 ## Gates (run `npm run gates` before committing anything)
 | Gate | Budget | Cost |
@@ -54,7 +54,9 @@ Nothing ever leaves this machine without Pablo: never push, never add a remote, 
 Local work may land on `main` only through `tools/auto.sh finish` (gates green, fast-forward only).
 Additive format changes (a new message type, a new optional field at the end, a new file kind) are
 allowed and must be written in the diary. Non-additive ones (changing an existing layout, the pinned
-fingerprint) go to a branch `propuesta/<ID>` and the task is marked `necesita aprobación`.
+fingerprint) are ALSO allowed while the engine has no external users (Pablo, 2026-10-14: "que no
+pare el desarrollo"): bump the format version, pin the new fingerprint in the test, and explain the
+change in the diary. The day the engine has outside users, this paragraph goes back to approval.
 
 ## Token budget (Pablo, 2026-10-14: "que no te pulas todos los tokens")
 The shift shares Pablo's account. A pre-run governor
