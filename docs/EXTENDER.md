@@ -149,6 +149,10 @@ en `features.cards()`. Un agente de IA lee lo mismo en el catálogo. Ejemplos: `
   lista de la zona llega entera a quien entra, sin `at`, porque el escenario se ve desde lejos). Su constructor
   (`constructor` en `client.ts`) es lo que usa el panel de la plaza (`apps/plaza/constructor.ts`), y lo mismo puede
   usar un agente.
+- M22: la selección y la herramienta (`coger`, `mover`, `girar`, `escalar`) viven en ese constructor
+  (`seleccionar`, `modo`, `escuchar`), así el gizmo de la página, su inspector y un agente comparten un solo estado;
+  `transformar(id, { x, ry, … })` mueve por id (acotado a `LIMITES`, giros en [-180, 180]) y `rehacer` vuelve a
+  hacer lo deshecho. Las manos en 3D (`pick`, `puntoBajo`, gizmo) están en `packages/render/src/gizmo.ts`.
 
 ## Comprobar
 

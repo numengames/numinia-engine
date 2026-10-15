@@ -53,8 +53,8 @@ if (matchMedia("(pointer: coarse)").matches) {
   document.getElementById("help")!.textContent += " · " + acts.map((a) => `${(a.key ?? "").replace(/^Key/, "")} ${a.label.toLowerCase()}`).join(" · ");
 }
 
-// ---- H1: the builder, for whoever may build (the server says so on entering) ----
-montarConstructor(constructor, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!);
+// ---- H1 + M22: the builder, for whoever may build (the server says so on entering): panel, gizmo, grab ----
+montarConstructor(constructor, view, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!);
 
 // ---- determinism probe: replay the reference run here and compare with the server's number ----
 const probe = { browser: -1, server: -1, ms: 0, done: false };

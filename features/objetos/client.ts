@@ -60,6 +60,8 @@ export function crearCliente() {
     limites: LIMITES,
     lista,
     seleccion,
+    /** M22: one thing by its id (with its id), or null. */
+    objeto: (id: string): (Msg & { id: string }) | null => { const o = id ? api?.state.get(id) : undefined; return o ? { id, ...o } : null; },
     /** Put a library model 3 m in front of you (the camera looks along -z), named after the model. */
     colocar: (id: string) => {
       const m = biblioteca.modelos.find((x) => x.id === id);
@@ -80,6 +82,8 @@ export function crearCliente() {
     duplicar: () => conSeleccion((o) => enviar("duplicar", { id: o.id })),
     borrar: () => conSeleccion((o) => enviar("borrar", { id: o.id })),
     fijar: () => conSeleccion((o) => enviar("fijar", { id: o.id, fijado: !o.fijado })),
+    /** M22: name the selected thing (what screen readers say and agents read), or mark it as decoration. */
+    nombrar: (nombre: string, decorado = false) => conSeleccion((o) => enviar("nombrar", { id: o.id, nombre, decorado })),
     deshacer: () => enviar("deshacer", {}),
     /** M22: redo what you last undid (until you make a new change). */
     rehacer: () => enviar("rehacer", {}),

@@ -11,6 +11,8 @@ import { createPower, readCaps, checkCost } from "./power.ts";
 export { createPower, readCaps, checkCost } from "./power.ts";
 export type { FrameCost } from "./power.ts";
 export { leerAparato, leerBateria, medidorDeCuadros } from "./sesion.ts";
+import { crearEditor } from "./gizmo.ts";
+export type { Donde, Eje, Herramienta, Fase, Paso, Editor } from "./gizmo.ts";
 
 export type Backend = "WebGPU" | "WebGL2";
 export type Placed = { id: number; x: number; z: number };
@@ -170,6 +172,14 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (distance2(s) <= r2) { s.mixer.update(dt); animatingNear = true; }
     }
   }
+  // M22: the builder's hands (pick, the point under the pointer, the selection's outline, the lazy gizmo): gizmo.ts.
+  // While a thing is held its server echoes only update `want` (editor.retiene), so it never jumps back mid-drag.
+  const editor = crearEditor({
+    scene, camera, canvas: renderer.domElement,
+    *grupos() { for (const [k, s] of things) yield [k, s.group] as [string, THREE.Object3D]; },
+    grupo: (k) => things.get(k)?.group,
+    reponer: (k) => { const s = things.get(k); if (s) placeGroup(s); },
+  });
 
   return {
     backend,
@@ -259,20 +269,26 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         const ns: Slot = { group, want: t, model: t.model, loaded: false, failed: false };
         things.set(key, ns); placeGroup(ns); waiting.add(key); pumpLoads(); return;
       }
-      s.want = t; placeGroup(s);
+      s.want = t; if (!editor.retiene(key, t)) placeGroup(s);
       if (s.model !== t.model) { s.mixer?.stopAllAction(); s.mixer = undefined; s.group.clear(); s.model = t.model; s.loaded = false; s.failed = false; waiting.add(key); pumpLoads(); }
       else if (!t.animate && s.mixer) { s.mixer.stopAllAction(); s.mixer = undefined; }
     },
-    /** H1: things placed, how many have their model drawn, and how many failed to load (for checks). */
+    /** H1: things placed, how many have their model drawn, and how many failed to load (for checks). `~` keys = the page's previews, not counted. */
     objects(): { placed: number; loaded: number; failed: number } {
-      let loaded = 0, failed = 0;
-      for (const s of things.values()) { if (s.loaded) loaded++; if (s.failed) failed++; }
-      return { placed: things.size, loaded, failed };
+      let placed = 0, loaded = 0, failed = 0;
+      for (const [k, s] of things) { if (k.startsWith("~")) continue; placed++; if (s.loaded) loaded++; if (s.failed) failed++; }
+      return { placed, loaded, failed };
     },
+    /** M22: the builder's hands (packages/render/src/gizmo.ts): select, the point under the pointer, gizmo, hold. */
+    editor,
+    /** M22: the key of the placed thing under a screen point (client px), or null. */
+    pick: editor.pick,
+    /** M22: the point under a screen point on the ground (y = 0) or on other things (not `ignorar`), or null. */
+    puntoBajo: editor.puntoBajo,
     /** Who has a label right now (for checks). */
     labels(): Target[] { return [...labels.keys()]; },
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
-    busy(): boolean { return labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0; },
+    busy(): boolean { return labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || editor.activo(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); },
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */
@@ -284,6 +300,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     draw(dtSeconds: number): void {
       updateDecorations(performance.now());
       updateThings(dtSeconds);
+      editor.frame();
       if (renderer.xr.isPresenting) { ar.update(); vr.update(selfXZ, dtSeconds); renderer.render(scene, camera); return; }
       target.copy(selfMesh.position);
       wanted.set(target.x, target.y + 6, target.z + 9);
