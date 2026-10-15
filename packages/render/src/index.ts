@@ -11,6 +11,9 @@ import { createPower, readCaps, checkCost } from "./power.ts";
 export { createPower, readCaps, checkCost } from "./power.ts";
 export type { FrameCost } from "./power.ts";
 export { leerAparato, leerBateria, medidorDeCuadros } from "./sesion.ts";
+import { createCamara } from "./camara.ts";
+export { haciaMundo, TECLAS_CAMARA, CAMARA } from "./camara.ts";
+export type { Camara, ModoCamara } from "./camara.ts";
 
 export type Backend = "WebGPU" | "WebGL2";
 /** Someone to draw. J2 (optional, additive): `y` = height of the feet in metres (0 = on the plaza), `speed` =
@@ -67,8 +70,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   selfMesh.visible = false;
   world.add(selfMesh);
   const others = new Map<number, THREE.Mesh>();
-  const target = new THREE.Vector3();
-  const wanted = new THREE.Vector3();
+  // N1: the camera (mouse, keys, touch, gamepad; play and build modes) — packages/render/src/camara.ts
+  const cam = createCamara(camera, renderer.domElement, { enXR: () => renderer.xr.isPresenting });
+  const feet = { x: 0, y: 0, z: 0 };
 
   const ar = createAR({ renderer, scene, world, domOverlayRoot: document.getElementById("hud") ?? undefined, maxMs: opts.arMaxMs });
 
@@ -274,7 +278,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** Who has a label right now (for checks). */
     labels(): Target[] { return [...labels.keys()]; },
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
-    busy(): boolean { return labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0; },
+    busy(): boolean { return labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); },
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */
@@ -282,15 +286,16 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       const r = (renderer as unknown as { info: { render: { drawCalls: number; triangles: number } } }).info.render;
       return { calls: r.drawCalls, triangles: r.triangles };
     },
-    /** Follow camera, then draw. */
+    /** N1: the camera — orbit, zoom, first person, build mode. See camara.ts. */
+    cam,
+    /** Move the camera (N1), then draw. */
     draw(dtSeconds: number): void {
       updateDecorations(performance.now());
       updateThings(dtSeconds);
+      selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
       if (renderer.xr.isPresenting) { ar.update(); vr.update(selfXZ, dtSeconds); renderer.render(scene, camera); return; }
-      target.copy(selfMesh.position);
-      wanted.set(target.x, target.y + 6, target.z + 9);
-      camera.position.lerp(wanted, 1 - Math.exp(-dtSeconds * 8));
-      camera.lookAt(target.x, target.y + 0.8, target.z);
+      if (selfXZ) { feet.x = selfXZ.x; feet.z = selfXZ.z; }
+      cam.update(dtSeconds, selfXZ ? feet : null);
       renderer.render(scene, camera);
     },
     loop(fn: (timeMs: number) => void): void { renderer.setAnimationLoop(fn); },

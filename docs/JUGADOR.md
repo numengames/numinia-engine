@@ -24,9 +24,9 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 | Cosa | Qué es | Capa | Nivel | Escritorio / móvil / VR | Primitivas | Coste móvil | Fila |
 |---|---|---|---|---|---|---|---|
 | Andar y correr con colisión | Moverse por el suelo sin atravesar nada ✔ | motor | Base | teclado / joystick táctil / mando | C posición, M entrada, S sim | bajo | hecho (sim) |
-| Cámara en 3.ª persona | Seguir al avatar con ratón o dedo ◐ | motor | Base | ratón / dedo / cabeza | P ajustes de cámara | bajo | N1 |
-| Entrada táctil | Joystick virtual + cámara con el dedo ✘ | motor | Base | — / sí / — | cliente | bajo | N1 |
-| Gamepad | Xbox/PS/genérico ✘ | motor | Base | sí / sí / mandos | cliente | bajo | N1 |
+| Cámara en 3.ª persona | Seguir al avatar con ratón o dedo ✔ (órbita, rueda hasta 1.ª persona; ver § Cámara) | motor | Base | ratón / dedo / cabeza | P ajustes de cámara | bajo | N1 |
+| Entrada táctil | Joystick virtual + cámara con el dedo ✔ (izquierda anda, derecha mira, pellizco) | motor | Base | — / sí / — | cliente | bajo | N1 |
+| Gamepad | Xbox/PS/genérico ◐ (palancas y LB/RB; sin probar con un mando real) | motor | Base | sí / sí / mandos | cliente | bajo | N1 |
 | Salto y altura | Saltar y subir desniveles ✘ | motor | Base | tecla / botón / botón | C altura, S sim (cambia la huella) | bajo | J2 |
 | Correr / agacharse / sentarse | Estados de postura | motor | Mejorado | sí / sí / sí | C estado, M | bajo | J4 |
 | Teletransporte a un punto | Saltar a un sitio marcado | ciudad | Base | menú / menú / apuntar | M, S | bajo | J5 |
@@ -137,3 +137,36 @@ Piezas Base sin fila hasta hoy, añadidas a `docs/BACKLOG.md` en este turno:
 
 Lo que queda marcado «Frontera, sin fila» (voz, vídeo en el mundo, subtítulos, eventos, idioma)
 no entra en la cola hasta que Pablo lo pida: cuesta mucho por aparato o depende de un servicio externo.
+
+## Cámara y controles (N1)
+
+La cámara vive en `packages/render/src/camara.ts` (la cuenta, en `camara-orbita.ts`, probada en
+`test/camara.test.ts`; en el navegador, `tools/e2e-piernas/camara.mjs`). Moverse va **hacia donde mira la
+cámara**: W = adelante en pantalla. La cámara solo gira cuando tú la giras (nunca se coloca sola detrás).
+
+**Jugar (escritorio)**
+
+| Hacer | Ratón | Teclado | Mando |
+|---|---|---|---|
+| Andar | — | WASD o flechas | palanca izquierda |
+| Mirar alrededor | arrastra con el botón derecho, o con el izquierdo sobre el mundo (un clic sin mover sigue siendo un clic) | `,` y `.` giran; RePág y AvPág inclinan | palanca derecha |
+| Acercar / alejar | rueda (de 1,5 a 20 m; una muesca más hacia dentro = 1.ª persona) | `+` y `−` (también los del teclado numérico) | RB acerca, LB aleja |
+| 1.ª ↔ 3.ª persona | rueda | V | — |
+| Cámara detrás de ti otra vez | — | Inicio | — |
+
+**Móvil y tableta:** un dedo que empieza en la mitad izquierda es el joystick; en la mitad derecha, mira
+alrededor; dos dedos pellizcan para acercar o alejar. Los botones de acciones y los de AR/VR no mueven nada.
+
+**Construir** (la cámara se suelta del avatar cuando el constructor la pone en modo `construir`):
+botón derecho = orbitar alrededor de un punto; botón central o Mayús + derecho = desplazar ese punto; Alt +
+izquierdo = orbitar (panel táctil); rueda = acercar hacia lo que hay bajo el puntero (hasta 80 m); el botón
+izquierdo solo es del constructor (elegir, mover con el gizmo). F (del constructor) mira a lo elegido; Inicio
+vuelve sobre tu avatar; al cerrar construir, la cámara vuelve sola detrás de ti. Si andas mientras construyes,
+la vista viaja contigo. En el móvil, dos dedos también desplazan.
+
+Teclas reservadas por otras ramas (no usarlas para la cámara): W A S D y flechas, Espacio, Mayús, C, Tab, B, G,
+H, E, Intro, 1–4, R, T, F, P, X, Y, Z, N, Supr/Retroceso, Ctrl+Z/Ctrl+Y, Esc. Con Ctrl, Alt o Meta, o escribiendo
+en una caja de texto, las teclas de cámara no hacen nada.
+
+**Todavía no:** la cámara no choca con lo construido (solo con el suelo: mirando hacia arriba se acerca en vez de
+meterse bajo tierra; colisión de verdad con la física, M6); el avatar no se gira hacia donde anda (rama avatares).
