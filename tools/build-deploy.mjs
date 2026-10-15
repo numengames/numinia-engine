@@ -57,6 +57,7 @@ function main() {
   const app = join(stage, "app");
   for (const p of serverPackages()) cpSync(join(root, "packages", p, "src"), join(app, "packages", p, "src"), { recursive: true });
   cpSync(join(root, "features"), join(app, "features"), { recursive: true }); // the game features main.ts composes (J7)
+  cpSync(join(root, "activos"), join(app, "activos"), { recursive: true }); // H1: the house library, served at /a/<sha256>
   cpSync(join(root, "node_modules/ws"), join(app, "node_modules/ws"), { recursive: true });
   writeFileSync(join(app, "package.json"), JSON.stringify({ name: "numinia-engine-server", private: true, type: "module", license: "MIT" }, null, 2) + "\n");
   cpSync(page, join(stage, "www"), { recursive: true });

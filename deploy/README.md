@@ -63,6 +63,13 @@ Desde casa, por el túnel (`ssh -L 18790:localhost:8790 …`): `npm run sesiones
 `/var/lib/numinia-motor/datos/<función>.json` + `.jsonl` (texto). Para una copia de seguridad basta copiar esa
 carpeta; para empezar de cero, parar el servicio y vaciarla.
 
+## Construir en el mundo (H1)
+
+Por defecto nadie construye en un servidor instalado. Para abrirlo a todos (personas y agentes) hasta que lleguen
+los roles (H3): `sudo systemctl edit numinia-motor` → `[Service]` + `Environment=MOTOR_CONSTRUIR=todos`, y
+`sudo systemctl restart numinia-motor`. Lo construido se guarda en `datos/objetos.json` + `.jsonl`. Los modelos que
+se pueden colocar son los de la biblioteca de la casa (`app/activos/`, CC0), servidos en `/a/<sha256>.glb`.
+
 ## Medir los límites
 
 Todo está explicado en [`docs/MEDIDAS.md`](../docs/MEDIDAS.md). Lo mínimo:

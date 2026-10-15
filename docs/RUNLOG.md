@@ -181,3 +181,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: semana 48 %, Opus.
 - Commit: ver `git log` (cola y agentes).
 - Siguiente: sesión con Opus, H1 (objetos del mundo).
+
+## 2026-10-15 12:29 · H1 · hecho (sesión de Pablo con Opus)
+- Qué: objetos del mundo, la columna de la paridad con Hyperfy2 (sus `blueprints` + `entities`). `features/objetos`: colocar un modelo de la biblioteca de la casa (`activos/`: un bloque propio hecho por `tools/hacer-bloque.mjs` y el robot CC0), moverlo, girarlo, escalarlo, duplicarlo, fijarlo, nombrarlo, borrarlo y deshacer (50 cambios por constructor; un arrastre de menos de 1 s es uno). La lista de la zona llega entera a quien entra; se guarda como texto (S4) con quién colocó qué solo en el servidor; los ids no se repiten. Quién construye lo dice el servidor con `api.puede` (nuevo en el enchufe): hoy `MOTOR_CONSTRUIR=todos` o nadie (lo de fábrica; la plaza de casa y el e2e lo abren); H3 lo hará por rol, personas y agentes igual. El servidor sirve los ficheros por su sha256 (`GET /a/<sha256>.glb`, caché de un año). La página los dibuja (`view.place`; el cargador glTF solo se baja con la primera cosa; la primera animación en bucle a menos de 40 m) y enseña un panel «Construir» (tecla C, botones HTML) a quien puede. Una ficha sin nombre es decorado y no se lista. De paso, el enchufe codifica cada entrada de estado una vez (entrar con 2.000 objetos: 7,2 → 0,3 ms). Instalador: Caddy pasa `/a/*`, `activos/` va dentro.
+- Números: 92 pruebas (9 nuevas); puertas en verde (tick p99 7,7 ms); e2e chromium, firefox, AR, VR y https verdes (la pestaña B dibuja el bloque de A y lee su ficha «Bloque»; A lo gira 90° y deshace dos veces); 2.000 objetos = 186,8 kB al entrar; cliente 245 kB comprimidos al arrancar (antes 228) + 15 kB con la primera cosa; deploy-check sirve el robot por su sha256.
+- Consumo: semana 48 % → 50 % (`hermes usage`), Opus.
+- Commit: ver `git log` (H1).
+- Siguiente: H9 (subir ficheros) y M22 (constructor con gizmos) pasan a `pendiente`. Sesión con Opus: M6 (física) → H3 → H2 → M19 → M20.

@@ -213,6 +213,7 @@ export type ServerHost = {
   sign?(text: string): string;                                  // HMAC of `text` with the server's secret; "" when there is none
   storage?: FeatureStorage;                                     // S4: where persisted state and stores live (none = memory only)
   who?(entity: number): { id: string; nombre: string } | null;  // I1: the guest behind an entity (null for bots)
+  puede?(entity: number, accion: string): boolean;              // H1: may this player do this ("construir"…)? none = no. H3 makes it roles
 };
 export type Scope = "all" | { to: number } | { near: number | { x: number; z: number }; radius?: number };
 export type HttpRequest = { method: "GET" | "POST"; path: string; params: Record<string, string>; query: Record<string, string>; body: string };
@@ -243,12 +244,16 @@ export type ServerApi = {
   log(line: string): void;
   /** 24 hex characters: HMAC-SHA256 of `text` with the server's secret (env MOTOR_SECRET, 16+ characters). "" when the server has no secret: refuse whatever needed it. Use it to sign URLs/tokens; features cannot import node:crypto. */
   sign(text: string): string;
+  /** H1: may this player do this? Actions today: "construir" (place, move, delete things in the world). The server
+   * decides (MOTOR_CONSTRUIR=todos opens building to everyone, people and agents alike; H3 turns it into roles per
+   * identity). Ask it on every intent that changes the world; never trust the page. */
+  puede(entity: number, accion: string): boolean;
 };
 export type ServerPart = { feature: Feature; side: "server"; setup: (api: ServerApi) => void };
 export const serverPart = (feature: Feature, setup: (api: ServerApi) => void): ServerPart => ({ feature, side: "server", setup });
 
 type Route = { method: string; parts: string[]; feature: string; fn: (req: HttpRequest) => HttpReply };
-type Entry2 = { value: Msg; at?: { x: number; z: number } };
+type Entry2 = { value: Msg; at?: { x: number; z: number }; bytes?: Uint8Array }; // bytes: the STATE message, encoded once (H1: a zone's list goes to everyone who enters)
 
 /** J9: the things one feature has put in the world, in square cells as wide as its radius, so "what is near
  * this player" looks at 9 cells instead of every thing. */
@@ -290,7 +295,7 @@ export class ServerRuntime {
   private readonly handlers = new Map<number, { feature: string; fn: (from: number, msg: Msg) => void }>();
   private readonly hooks: { join: [string, (e: number) => void][]; leave: [string, (e: number) => void][]; tick: [string, (t: number) => void][]; identify: [string, (e: number, w: { id: string; nombre: string }) => void][] } = { join: [], leave: [], tick: [], identify: [] };
   private readonly routeList: Route[] = [];
-  private readonly shared = new Map<string, Map<string, { value: Msg; at?: { x: number; z: number } }>>();
+  private readonly shared = new Map<string, Map<string, Entry2>>();
   private readonly near = new Map<string, { index: NearIndex; pos: number; fields: Fields; table: Map<string, Entry2> }>(); // J9
   private readonly known = new Map<number, Map<string, Set<string>>>(); // J9: player -> feature -> things it has
   private queue: { from: number; entry: Entry; msg: Msg }[] = [];
@@ -333,7 +338,7 @@ export class ServerRuntime {
     const id = f.id, log = (l: string) => this.host.log(`[${id}] ${l}`);
     const pos = this.catalog.features.findIndex((c) => c.id === id);
     const stateSchema = f.state ? defineSchema(`${id}.state`, f.version, f.state.fields) : null;
-    const table = new Map<string, { value: Msg; at?: { x: number; z: number } }>();
+    const table = new Map<string, Entry2>();
     this.shared.set(id, table);
     const index = f.state ? new NearIndex(f.state.radius ?? STATE_RADIUS_M) : null;
     if (index && f.state) this.near.set(id, { index, pos, fields: f.state.fields, table });
@@ -379,9 +384,9 @@ export class ServerRuntime {
           const v = validate(stateSchema, value);
           if (!v.ok) { log(`state.set('${key}') no cumple su esquema: ${v.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`); return false; }
           const before = table.get(key);
-          table.set(key, { value: v.value, at: opts?.at });
-          if (persist) save(opts?.at ? { op: "s", key, value: v.value, at: opts.at } : { op: "s", key, value: v.value });
           const bytes = encodeState(pos, key, f.state.fields, v.value);
+          table.set(key, { value: v.value, at: opts?.at, bytes });
+          if (persist) save(opts?.at ? { op: "s", key, value: v.value, at: opts.at } : { op: "s", key, value: v.value });
           if (opts?.at && index) { // J9: only who is near
             if (before && !before.at) for (const pl of this.host.players()) this.knows(pl, id).add(key); // it was global: everyone had it, the far ones must forget it
             index.put(key, opts.at); this.pushThing(id, key, bytes); return true;
@@ -421,7 +426,7 @@ export class ServerRuntime {
       },
       route: (method, path, fn) => {
         const clean = "/" + path.split("/").filter(Boolean).join("/");
-        if (RESERVED_PATHS.includes(clean)) { log(`route: ${clean} es del motor`); return; }
+        if (RESERVED_PATHS.includes(clean) || clean === "/a" || clean.startsWith("/a/")) { log(`route: ${clean} es del motor (/a/ son los ficheros por su sha256)`); return; }
         const parts = clean.split("/").slice(1);
         if (this.routeList.some((r) => r.method === method && r.parts.join("/") === parts.join("/"))) { log(`route: ${method} ${clean} ya existe`); return; }
         this.routeList.push({ method, parts, feature: id, fn });
@@ -435,6 +440,7 @@ export class ServerRuntime {
       position: (e) => this.host.position(e),
       tick: () => this.host.tick(),
       sign: (text) => this.host.sign?.(text) ?? "",
+      puede: (e, accion) => { try { return this.host.puede?.(e, accion) ?? false; } catch { return false; } },
       log,
     };
   }
@@ -447,7 +453,7 @@ export class ServerRuntime {
     this.catalog.features.forEach((cf, pos) => {
       const table = this.shared.get(cf.id);
       if (!table || !cf.state) return;
-      for (const [key, s] of table) if (!s.at) this.host.send(entity, encodeState(pos, key, cf.state.fields, s.value)); // global state: everyone
+      for (const [key, s] of table) if (!s.at) this.host.send(entity, (s.bytes ??= encodeState(pos, key, cf.state.fields, s.value))); // global state: everyone (encoded once)
       const n = this.near.get(cf.id);
       if (n && me) { // J9: things in the world, only the near ones
         const r2 = n.index.radius ** 2, mine = this.knows(entity, cf.id);
@@ -587,7 +593,14 @@ export type ViewHooks = {
   beacon?(x: number, z: number, text: string, ms: number): void;
   /** V1: an event as a person hears and reads it (the page puts it in an aria-live region; V3 speaks it). */
   announce?(a: Announcement): void;
+  /** H1: put a thing in the world (a model by its sha256, placed in metres and degrees), move it, or take it away
+   * (`null`). The page decides where the file comes from (today `/a/<sha256>.glb` on the instance's server). */
+  place?(key: string, o: PlacedObject | null): void;
+  /** H1: where this player is now (metres), so a feature can put things in front of them. */
+  here?(): { x: number; y: number; z: number } | null;
 };
+/** H1: a thing in the world as the page draws it. Rotation in degrees, applied yaw (ry), then pitch (rx), then roll (rz). */
+export type PlacedObject = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean };
 export const NO_VIEW: ViewHooks = { label() {}, bounce() {} };
 /** An event as a person hears and reads it (V1). `at` in metres; `who` = the entity it is about. */
 export type Announcement = { feature: string; event: string; text: string; sound: Sound; importance: Importance; at?: { x: number; z: number }; who?: number };
@@ -666,7 +679,9 @@ export class ClientRuntime {
       if (!c) continue;
       for (const [key, v] of this.mirror.get(f.id) ?? []) {
         const vals = { key, ...v };
-        const card: CardView = { feature: f.id, key, role: c.role, name: fillTemplate(c.name, vals), importance: c.importance ?? 1, actions: c.actions ?? [] };
+        const name = fillTemplate(c.name, vals).trim();
+        if (!name) continue; // H1: no name = decorative (like alt=""): not listed for screen readers nor agents
+        const card: CardView = { feature: f.id, key, role: c.role, name, importance: c.importance ?? 1, actions: c.actions ?? [] };
         if (c.description) card.description = fillTemplate(c.description, vals);
         if (c.at) card.at = { x: Number(v[c.at[0]]), z: Number(v[c.at[1]]) };
         out.push(card);

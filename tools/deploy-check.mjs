@@ -27,7 +27,7 @@ if (x.status !== 0) fail(`--solo-extraer: ${x.stderr}`);
 const html = readFileSync(join(dir, "www/index.html"), "utf8");
 const refs = [...html.matchAll(/(?:src|href)="\/?([^"#?]+)"/g)].map((m) => m[1]).filter((r) => !r.includes("://"));
 for (const r of refs) if (!existsSync(join(dir, "www", r))) fail(`la página pide ${r} y no está en www/`);
-if (!existsSync(join(dir, "www/assets/robot/RobotExpressive.glb"))) fail("falta el robot (www/assets/robot/RobotExpressive.glb)");
+if (!existsSync(join(dir, "app/activos/robot/RobotExpressive.glb"))) fail("falta la biblioteca de la casa (app/activos/robot/RobotExpressive.glb)");
 
 // the server, from the unpacked copy only (cwd = app/, like the systemd unit)
 const version = spawnSync(node, ["--version"], { encoding: "utf8" }).stdout.trim();
@@ -52,6 +52,9 @@ try {
   if (!health?.ok) fail(`/health no responde ok: ${JSON.stringify(health)}`);
   const m = await get("/metrics");
   if (!(m?.conectados >= 0 && m?.tickMs)) fail(`/metrics no responde: ${JSON.stringify(m)}`);
+  // H1: the house library is served by its sha256 (the robot, CC0)
+  const robot = await fetch(`http://127.0.0.1:${PORT}/a/047f5e5fb3bb6d378bd1df16ca6137f2a596c99b3a1b5690b4020c05aaf6f319.glb`).catch(() => null);
+  if (robot?.status !== 200 || robot.headers.get("content-type") !== "model/gltf-binary") fail(`/a/<sha256>.glb no sirve el robot: ${robot?.status}`);
   const fp = log.match(/huella de referencia ([0-9a-f]+)/)?.[1];
-  console.log(`[deploy-check] OK · node ${version} · página ${refs.length} ficheros enlazados · ${s.stats.snapshots} snapshots en ${Math.round(performance.now() - t0)} ms · huella ${fp} · /health y /metrics OK (RSS ${m.memoriaMB.rss} MB)`);
+  console.log(`[deploy-check] OK · node ${version} · página ${refs.length} ficheros enlazados · ${s.stats.snapshots} snapshots en ${Math.round(performance.now() - t0)} ms · huella ${fp} · /health, /metrics y /a/ OK (RSS ${m.memoriaMB.rss} MB)`);
 } finally { stop(); }

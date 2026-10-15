@@ -17,6 +17,7 @@ import { buildMetrics, ByteWindow, TickWindow, toPrometheus } from "./metrics.ts
 import { entorno, Runtime } from "./runtime.ts";
 import { KEEP_DAYS, Sesiones } from "./sesiones.ts";
 import { FileStorage } from "./datos.ts";
+import { Activos, BIBLIOTECA } from "./activos.ts";
 import type { Metrics } from "./metrics.ts";
 
 export type ServerOptions = {
@@ -30,6 +31,9 @@ export type ServerOptions = {
   secret?: string;       // signs QR URLs etc. (api.sign); default: MOTOR_SECRET env; under 16 characters = none
   sesiones?: string | null; // T1: folder for the session log (one JSONL per UTC day); default null = keep in memory only
   datos?: string | null;    // S4: folder where the features' saved state and stores live; default null = memory only
+  construir?: "todos" | "nadie"; // H1: who may build in the world until H3 brings roles; default "nadie" (env MOTOR_CONSTRUIR)
+  biblioteca?: string | null;    // H1: the house library served at /a/<sha256>.<ext>; default the repo's activos/ (null = none)
+  subidas?: string | null;       // H1/H9: folder of uploaded files named <sha256>.<ext>; default null
   log?: (line: string) => void;
 };
 
@@ -86,7 +90,11 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const secret = o.secret ?? process.env.MOTOR_SECRET;
   let identitySign = signer(secret);
   if (!identitySign("probe")) { identitySign = signer(randomBytes(24).toString("hex")); log("[identidad] sin MOTOR_SECRET: los invitados no se reconocen después de reiniciar"); }
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: o.features, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32 });
+  // H1: building is open to everyone (people and agents alike) or to nobody, until H3 makes it roles per identity
+  const construir = o.construir ?? "nadie";
+  const puede = (_who: unknown, accion: string) => accion === "construir" && construir === "todos";
+  const activos = new Activos(o.biblioteca === undefined ? BIBLIOTECA : o.biblioteca, o.subidas ?? null, log);
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: o.features, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede });
 
   const ticks = new TickWindow(200), lags = new TickWindow(200), responses = new TickWindow(200), bytes = new ByteWindow(11);
   const runtime = new Runtime(), env = entorno();
@@ -118,6 +126,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     if (method === "GET" && path === "/metrics") return json(res, 200, metrics());
     if (method === "GET" && path === "/sesiones") return json(res, 200, { schema: "numinia-engine/sesiones@1", carpeta: sesiones.dir, resumen: sesiones.resumen(), ahora: sesiones.ahora() });
     if (method === "GET" && path === "/metrics.prom") { res.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8", "cache-control": "no-store" }); return void res.end(toPrometheus(metrics())); }
+    if (method === "GET" && path.startsWith("/a/") && activos.servir(path, res)) return; // H1: files by their sha256
     if (method !== "GET" && method !== "POST") return json(res, 405, { error: "solo GET o POST" });
     // everything else may be a game feature's route (e.g. the page a QR opens)
     const answer = (body: string) => {

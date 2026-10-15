@@ -43,8 +43,22 @@ Cada función (gestos, y las que vengan) vive en `features/<id>/` y entra por el
 | Alcance por defecto de un evento «cerca» | 32 m |
 | Campo de texto | hasta 512 bytes |
 | Petición a una ruta de función (POST) | hasta 4 KB |
-| Estado compartido | se manda a todos (por cercanía: J9); se pierde al reiniciar (S4) |
+| Estado compartido | sin sitio, a todos; con sitio (`at`), solo a quien está cerca (J9); se guarda si se declara (S4) |
 | Coste si no hay funciones | ninguno: no viaja ningún mensaje nuevo y los de antes no cambian |
+
+## Objetos del mundo (H1, paridad con Hyperfy2)
+
+Lo que se coloca y se queda (`features/objetos`): un modelo de la biblioteca de la casa (`activos/`, CC0) con su
+sitio, giro, escala y nombre. Medido por `test/objetos.test.ts`.
+
+| Dato | Valor |
+|---|---|
+| Objetos por zona | hasta 2.000; la lista entera llega a quien entra |
+| Entrar en una zona llena (2.000) | 186,8 kB en 2.001 mensajes; 0,3 ms del servidor por persona |
+| Quién construye | hoy, todos o nadie (`MOTOR_CONSTRUIR=todos`; instalado, nadie); con H3, por rol (personas y agentes igual) |
+| Deshacer | los 50 últimos cambios de cada constructor; un arrastre de menos de 1 s cuenta como uno |
+| Ficheros | `GET /a/<sha256>.glb`, caché de un año; se bajan 4 a la vez, el más cercano primero |
+| Animación | la primera del modelo, en bucle, solo a menos de 40 m (móvil frío) |
 
 ## Aparato
 

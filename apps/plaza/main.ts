@@ -5,11 +5,15 @@ import { webSocketClient } from "../../packages/net/src/index.ts";
 import { ClientSession, serverUrl } from "../../packages/client/src/index.ts";
 import { createView, leerAparato, leerBateria, medidorDeCuadros } from "../../packages/render/src/index.ts";
 import funciones from "../../features/cliente.ts";
+import { constructor } from "../../features/objetos/client.ts";
+import { montarConstructor } from "./constructor.ts";
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
-const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined });
 const url = serverUrl(location);
+// H1: files of things in the world come from the instance's server by their sha256 (ws://h:p -> http://h:p/a/<sha256>.glb)
+const activos = new URL(url.replace(/^ws/, "http")).origin;
+const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, assetUrl: (m) => `${activos}/a/${m}.glb` });
 const transport = webSocketClient(url);
 // game features (J7): their client parts, and how they may draw (a label, a hop) over any avatar
 // I1: the guest token stays in this browser (no account, no personal data); private mode = a new guest each time
@@ -21,6 +25,9 @@ const session = new ClientSession(transport, {
     label: (e, text, ms) => view.label(e === session.entity ? "self" : e, text, ms),
     bounce: (e, ms) => view.bounce(e === session.entity ? "self" : e, ms),
     beacon: (x, z, text, ms) => view.beacon(x, z, text, ms),
+    // H1: things placed in the world, and where I am (a builder puts things in front of me)
+    place: (key, o) => view.place(key, o),
+    here: () => { if (session.entity < 0) return null; const p = session.selfPosition(0); return { x: p.x, y: 0, z: p.z }; },
     // V1: every announced event reaches screen readers (polite; safety = assertive). V3 adds the engine's own voice.
     announce: (a) => {
       const box = document.getElementById(a.importance >= 3 ? "avisos-urgentes" : "avisos")!;
@@ -45,6 +52,9 @@ if (matchMedia("(pointer: coarse)").matches) {
 } else if (acts.length) {
   document.getElementById("help")!.textContent += " · " + acts.map((a) => `${(a.key ?? "").replace(/^Key/, "")} ${a.label.toLowerCase()}`).join(" · ");
 }
+
+// ---- H1: the builder, for whoever may build (the server says so on entering) ----
+montarConstructor(constructor, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!);
 
 // ---- determinism probe: replay the reference run here and compare with the server's number ----
 const probe = { browser: -1, server: -1, ms: 0, done: false };
@@ -187,7 +197,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor };
 
 // battery mode: press B (or open ?bateria)
 addEventListener("keydown", (e) => { if (e.code === "KeyB") { view.power.setBattery(!view.power.battery); view.applyPixelRatio(); } });

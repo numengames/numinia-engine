@@ -17,7 +17,7 @@ status() {
 }
 start() {
   if [ -z "$(pid_on "$SP")" ]; then
-    PORT=$SP setsid nohup nice -n 19 node packages/server/src/main.ts >> "$RUN/server.log" 2>&1 < /dev/null &
+    PORT=$SP MOTOR_CONSTRUIR=${MOTOR_CONSTRUIR:-todos} setsid nohup nice -n 19 node packages/server/src/main.ts >> "$RUN/server.log" 2>&1 < /dev/null &
     sleep 1.5
   fi
   if ! pgrep -f "$BOTS" > /dev/null; then

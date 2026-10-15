@@ -44,7 +44,7 @@ case "${1:-status}" in
     echo "--- siguiente tarea pendiente desatendible ---"; grep -m1 -E '^\| *[A-Z][0-9]+ .*\| *pendiente *\| *sí *\|' docs/BACKLOG.md || echo "(ninguna)"
     ;;
   e2e)
-    PORT=8792 setsid nohup nice -n 19 node packages/server/src/main.ts > "$TMP/auto-e2e-server.log" 2>&1 < /dev/null &
+    PORT=8792 MOTOR_CONSTRUIR=todos DATOS_DIR="$TMP/auto-e2e-datos" setsid nohup nice -n 19 node packages/server/src/main.ts > "$TMP/auto-e2e-server.log" 2>&1 < /dev/null &
     PLAZA_PORT=5174 setsid nohup nice -n 19 npx vite --config apps/plaza/vite.config.mjs > "$TMP/auto-e2e-vite.log" 2>&1 < /dev/null &
     for _ in $(seq 1 40); do curl -sf -o /dev/null http://127.0.0.1:5174/ && [ -n "$(pid_on 8792)" ] && break; sleep 0.5; done
     rc=0

@@ -7,14 +7,16 @@ por capacidad, con lo que Hyperfy2 tiene, lo que tenemos hoy y la fila de `docs/
   `src/core/nodes/*.js` (propiedades de cada nodo), `src/core/systems/*.js`, `src/core/entities/PlayerLocal.js`,
   `src/core/systems/Apps.js` (API de los scripts), `src/core/extras/createPlayerProxy.js` (API del jugador),
   `src/core/systems/ServerNetwork.js` (órdenes, permisos, guardado) y `src/server/*.js` (subidas, base de datos).
-- **Nosotros hoy** = main `fec2f5f` (83 pruebas, e2e en Chromium, Firefox, AR y VR emulados).
+- **Nosotros hoy** = main `fec2f5f` (83 pruebas, e2e en Chromium, Firefox, AR y VR emulados), y desde H1 (15-10) lo
+  que dice cada fila marcada «H1».
 - **Paridad** = lo que una persona puede *hacer* en Hyperfy2 (visitar, hablar, construir, programar, administrar)
   se puede hacer aquí. No es copiar cómo lo hace: lo que Hyperfy hace mal no se copia (§4).
 - Estado: ✔ igual o mejor · ◐ a medias · ✘ falta. Filas nuevas: **H1–H13** (H de Hyperfy).
 
 ## 1. Resumen
 
-- De **78 capacidades**: **13 ✔**, **15 ◐**, **50 ✘**. Lo que falta es casi todo **contenido**: modelos
+- De **78 capacidades**: **14 ✔**, **19 ◐**, **45 ✘** (el 15-10 al empezar: 13, 15, 50; H1 movió seis filas).
+  Lo que falta es casi todo **contenido**: modelos
   colocados, escenario con colisión, sonido, imagen, vídeo, paneles, partículas, construir dentro del mundo,
   scripts y ajustes. Lo que tenemos es lo que Hyperfy no puede tener sin rehacerse: 1.000 personas en una
   instancia, servidor que manda, accesibilidad, telemetría, móvil frío.
@@ -80,8 +82,8 @@ por capacidad, con lo que Hyperfy2 tiene, lo que tenemos hoy y la fila de `docs/
 
 | Capacidad | Hyperfy2 | Nosotros hoy | Estado | Fila |
 |---|---|---|---|---|
-| Modelos 3D colocados | cada app trae su `.glb` (`Mesh`, `SkinnedMesh`) | solo figuras y cajas | ✘ | H1 |
-| Animaciones de los modelos | `SkinnedMesh` + script | no | ✘ | H1 (bucle) + M20 (control) |
+| Modelos 3D colocados | cada app trae su `.glb` (`Mesh`, `SkinnedMesh`) | los de la biblioteca de la casa (H1, 15-10); los tuyos con H9 | ◐ | H1 hecho; H9 |
+| Animaciones de los modelos | `SkinnedMesh` + script | la primera en bucle, a menos de 40 m (H1) | ◐ | H1 hecho; M20 (control) |
 | Cielo, sol, niebla y entorno HDR | nodo `Sky`: `bg`, `hdr`, `sunDirection`, `sunIntensity`, `sunColor`, `fogNear/Far/Color` | hemisferio + sol + niebla fijos en el código | ◐ | H4 |
 | Escenario base del mundo | ajuste `model` | suelo plano con rejilla | ✘ | H1 + M6 + H7 |
 | Viento | sistema `Wind` | no | ✘ | H4 |
@@ -116,17 +118,17 @@ por capacidad, con lo que Hyperfy2 tiene, lo que tenemos hoy y la fila de `docs/
 
 | Capacidad | Hyperfy2 | Nosotros hoy | Estado | Fila |
 |---|---|---|---|---|
-| Modo construir | sí, para quien construye | no | ✘ | M22 |
+| Modo construir | sí, para quien construye | panel «Construir» (tecla C) con botones, sin gizmos (H1) | ◐ | M22 |
 | Mover, girar y escalar con pasos | gizmos `translate`/`rotate`/`scale`, grados con paso | no | ✘ | M22 |
-| Coger, duplicar, borrar, fijar, deshacer | sí | no | ✘ | H1 + M22 |
+| Coger, duplicar, borrar, fijar, deshacer | sí | todo menos coger y llevar (H1) | ◐ | M22 |
 | Soltar ficheros en el mundo | `.glb` → modelo, `.vrm` → avatar, `.hyp` → app, imagen, vídeo, sonido | no | ✘ | H9 + M22 |
 | Subida de ficheros | `/api/upload`: nombre = hash, no repite (`upload-check`); **no mira quién sube** | no | ✘ | H9 |
 | Puntos de encaje | nodo `Snap` | no | ✘ | M22 |
 | Inspector de propiedades | campos de `app.configure`: texto, número, rango, interruptor, lista, fichero, color, curva | no | ✘ | M19 + M22 |
 | Lista de apps con su coste | `AppsList` | `npm run describe` (texto) | ◐ | M22 |
 | Jerarquía de nodos | `NodeHierarchy` | no | ✘ | M22 |
-| Biblioteca de la casa | colecciones; la de serie trae Imagen, Modelo, Texto, Vídeo | no | ✘ | M22 |
-| Lo construido se guarda | SQLite (`blueprints`, `entities`) cada 60 s | lo de las funciones, en texto, cada 1 s (S4); objetos colocados, no | ◐ | H1 |
+| Biblioteca de la casa | colecciones; la de serie trae Imagen, Modelo, Texto, Vídeo | `activos/` + `biblioteca.json`: Bloque y Robot, CC0 (H1) | ◐ | M22 |
+| Lo construido se guarda | SQLite (`blueprints`, `entities`) cada 60 s | en texto, cada 1 s y al parar, con quién lo colocó (H1 + S4) | ✔ | hecho |
 
 ### 3.6 Programar: apps y scripts
 

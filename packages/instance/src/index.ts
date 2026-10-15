@@ -26,6 +26,7 @@ export type InstanceOptions = {
   identitySign?: (text: string) => string; // I1: signs guest tokens; none = no identities (bots, bare tests)
   random?: () => number;                   // I1: randomness for new guest ids (the server passes crypto); default Math.random
   now?: () => number;                      // I1: the clock for token days; default Date.now
+  puede?: (who: Who | null, accion: string, entity: number) => boolean; // H1: permissions for features (api.puede); none = nobody may
 };
 
 /** Inputs wait in a queue; the server applies exactly ONE per tick (none = stand still). */
@@ -56,6 +57,7 @@ export class Instance {
       sign: opts.sign,
       storage: opts.storage,
       who: (e) => this.byEntity[e]?.who ?? null,
+      puede: (e, accion) => !!this.byEntity[e] && (opts.puede?.(this.byEntity[e]?.who ?? null, accion, e) ?? false),
     });
   }
 

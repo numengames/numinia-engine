@@ -61,6 +61,8 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 | Latencia desde casa de Pablo | Gravelines 25 · Estrasburgo 27 · Roubaix 27 · Hetzner Núremberg 43 · Falkenstein 50 · Helsinki 65 · Vultr Madrid 5 ms | |
 | Cliente Hyperfy de hoy | 1,25 MB de JS + 1,49 MB de PhysX comprimidos | Nuestro cliente (PP1): 210 kB comprimido |
 | Escaneo de QR → efecto en la plaza (R1) | 4 ms en local | Sin medir con móvil real |
+| Entrar en una zona con 2.000 objetos colocados (H1) | 186,8 kB en 2.001 mensajes; 0,3 ms del servidor por persona | El sha256 del modelo en texto es dos tercios del peso: un índice de modelos lo bajaría (M16). Codificar cada entrada en cada entrada costaba 7,2 ms: ahora se codifica una vez |
+| Cliente de la plaza tras H1 | 245 kB comprimidos al arrancar + 15 kB (cargador glTF) cuando llega la primera cosa | Antes de H1, 228 kB; D2 pide ≤ 300 kB |
 | Conversión de animaciones (UAL1 de Quaternius, CC0) | caderas 0,916 → 0,533 → 0,917 m al sentarse y levantarse, 0 errores | Defectos conocidos en §3.4 |
 
 **Hechos de plataforma (oct-2026), comprobados en fuente:**

@@ -19,6 +19,7 @@ Para quien llega nuevo (persona o IA). La versión de una página para máquinas
 | añadir un paquete | primero `tools/layers.json`, luego carpeta con `README.md`, y una línea en `llms.txt` |
 | qué toca hacer | `docs/BACKLOG.md`; lo ya hecho en `docs/RUNLOG.md` |
 | saber qué nos falta para estar, como mínimo, al nivel de Hyperfy2 | `docs/HYPERFY2-PARIDAD.md` |
+| poner cosas en el mundo (modelos, constructor) | `features/objetos/` (servidor decide, `biblioteca.json` = lo que se puede colocar); el panel, `apps/plaza/constructor.ts`; los ficheros, `activos/` (CC0) servidos en `/a/<sha256>.glb` |
 
 Capas (de abajo arriba): `core → schema → ecs → sim → net → feature → {client, instance} → {server, cli}`;
 `render` solo habla con three.js; las funciones de juego (`features/`) solo con `feature`. `tools/layers.mjs` lo comprueba.

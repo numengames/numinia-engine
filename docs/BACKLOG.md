@@ -56,7 +56,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | V5 | «¿Dónde estoy / qué hay cerca / dónde está X / quién hay?» contestado desde los datos, sin modelo | espera a V3 | sí |
 | V6 | Audio espacial que sigue a la cabeza + volumen aparte para avisos + modo mono + baliza simple (un sonido fijo en el destino) | pendiente | sí |
 | V7 | Comodidad y seguridad: limitador de destellos (≤ 3/s), modo sentado, «menos movimiento» del sistema; giro a saltos y viñeta ya en J6 | pendiente | sí |
-| H1 | Paridad Hyperfy2: objetos del mundo — colocar un GLB, moverlo, borrarlo, deshacer, en vivo, guardado como texto (sus `blueprints` + `entities`) | para Opus | no |
+| H1 | Paridad Hyperfy2: objetos del mundo — colocar un GLB, moverlo, borrarlo, deshacer, en vivo, guardado como texto (sus `blueprints` + `entities`) | hecho | no |
 | H3 | Paridad Hyperfy2: roles del mundo (admin, constructor, visitante) y órdenes con barra (`/nombre`, `/aparecer`, `/chat borrar`, `/servidor`) | para Opus | no |
 | H2 | Paridad Hyperfy2: lo que el servidor le hace a un jugador (teletransportar, congelar, frenar, empujar, sentarse, volar, salud) como entradas grabadas de la simulación | para Opus | no |
 | H4 | Paridad Hyperfy2: entorno — cielo, sol, niebla, mapa HDR y viento desde un JSON con esquema (su nodo `Sky`) | pendiente | sí |
@@ -64,7 +64,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | H12 | Paridad Hyperfy2: sombras y posprocesado por nivel de aparato, elegibles en ajustes | pendiente | sí |
 | H8 | Paridad Hyperfy2: partículas en GPU (su nodo `Particles`) con tope por aparato y limitador de destellos | pendiente | sí |
 | H5 | Paridad Hyperfy2: sonido del mundo — fuentes en objetos y puntos, grupos música/efectos (su nodo `Audio`) | espera a V6 | sí |
-| H9 | Paridad Hyperfy2: subir ficheros arrastrando — por hash, con tope, solo quien construye | espera a H1 | sí |
+| H9 | Paridad Hyperfy2: subir ficheros arrastrando — por hash, con tope, solo quien construye | pendiente | sí |
 | H7 | Paridad Hyperfy2: ajustes del mundo — título, descripción, imagen, escenario, avatar por defecto, abierto a construir, límite de personas | espera a H3 | sí |
 | H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | espera a J1, H9 | sí |
 | H13 | Paridad Hyperfy2: nivel de detalle (LOD) de los modelos, generado en la ingesta | espera a M21 | sí |
@@ -100,7 +100,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | M19 | Formato de app: carpeta de texto (`app.json` + `main.ts` + activos por hash) → paquete glTF con `NUM_app` | para Opus | no |
 | M20 | Scripts de mundo en el servidor, en sandbox (SES) y con límite de CPU | para Opus | no |
 | M9 | WebTransport como escalón de arriba detrás de la misma interfaz que WebSocket | para Opus | no |
-| M22 | Constructor en el mundo, en vivo (paridad Hyperfy2): gizmos, duplicar, borrar, deshacer, soltar ficheros, inspector, biblioteca; para personas y agentes de IA, según su rol | espera a H1 | sí |
+| M22 | Constructor en el mundo, en vivo (paridad Hyperfy2): gizmos, duplicar, borrar, deshacer, soltar ficheros, inspector, biblioteca; para personas y agentes de IA, según su rol (el panel mínimo ya existe: H1) | pendiente | sí |
 | M26 | Servidor MCP del motor: leer zona, proponer cambio, abrir PR (nunca publica solo) | espera a M19, P4 | sí |
 | O4 | Seguridad: billete firmado para entrar a una instancia, tope de conexiones por IP, exportar y borrar lo tuyo | pendiente | sí |
 | O3 | Observabilidad: panel y alertas sobre `/metrics` del servidor real | espera a X3 | sí |
@@ -687,7 +687,7 @@ Mismo esquema de mensajes, transporte por HTTP/3 con datagramas para los snapsho
 producción en JavaScript: decidir entre un proxy (Caddy/quic-go) o un servicio aparte; el transporte doble de
 Hytopia (MIT) es lo más aprovechable. UDP 443 abierto en el servidor.
 
-### M22 — Constructor en el mundo (espera a H1)
+### M22 — Constructor en el mundo
 **Cambio (15-10, paridad Hyperfy2, `docs/HYPERFY2-PARIDAD.md` §2):** se construye **en vivo**, como en Hyperfy2,
 no por PR. Modo construir (tecla o botón; en VR, con el mando) para quien tenga permiso (H1; roles con H3):
 coger y llevar, gizmos de mover, girar y escalar con pasos (grados), duplicar, borrar, fijar, deshacer; soltar
@@ -747,6 +747,29 @@ caché larga) hasta que exista M16. **Hecho cuando:** e2e: la pestaña A coloca 
 borrar y deshacer llegan a B; tras reiniciar el servidor sigue ahí; sin permiso, se niega; un objeto usable sin
 nombre se niega; medido lo que cuesta entrar en una zona con 2.000 objetos (bytes y ms), apuntado en
 `limits.json`.
+
+**Hecho (15-10, sesión con Opus).** `features/objetos/` (declaración, servidor, cliente, `biblioteca.json`) +
+`activos/` (la biblioteca de la casa: `casa/bloque.glb`, obra propia hecha por `tools/hacer-bloque.mjs`, y el
+robot CC0, movido desde la página) + `packages/server/src/activos.ts` (`GET /a/<sha256>.<ext>`: indexa `activos/` por
+sha256 al arrancar y mira `ACTIVOS_DIR` para lo que suba H9; caché de un año, cualquier origen). Decisiones:
+(1) cada objeto es una entrada del estado de `objetos` **sin `at`** (llega a toda la zona y a quien entra; persist
+de S4); (2) giros en **grados** (`ry`, luego `rx`, luego `rz`) y escala por eje, no cuaterniones: un agente y una
+persona leen «ry: 90»; (3) quién puede lo dice el servidor con `api.puede(entidad, "construir")` (nuevo en el
+enchufe; hoy `MOTOR_CONSTRUIR=todos` o nadie, que es lo de fábrica; la plaza de casa y el e2e lo abren; H3 lo hará
+por rol, personas y agentes igual); (4) **quién colocó qué** se queda en el almacén del servidor (`a:<id>`), nunca
+en lo que reciben las páginas; los ids no se repiten tras reiniciar (contador guardado); (5) deshacer: los 50
+últimos cambios de cada constructor (por identidad; sin ella, por conexión), un arrastre de menos de 1 s es un solo
+cambio; (6) sin nombre solo si es decorado: una ficha con nombre vacío no la leen ni el lector de pantalla ni los
+agentes (cambio en `cards()`). Página: `view.place` en `render` (GLTFLoader + `SkeletonUtils.clone`, que solo se bajan cuando llega la primera
+cosa: 15 kB comprimidos aparte; un fichero por modelo compartido por sus copias, 4 descargas a la vez la más cercana primero, la primera animación en bucle a menos
+de 40 m), `view.here`, y un panel «Construir» (tecla C; botones HTML de verdad: colocar Bloque o Robot delante,
+girar, mover, subir, escalar, duplicar, fijar, borrar, deshacer; R, Z y Supr con el panel abierto) que solo sale a
+quien puede. Mejora del enchufe de paso: cada entrada de estado se codifica **una vez** y se reenvía (entrar en una
+zona con 2.000 objetos: 7,2 ms → 0,3 ms del servidor). Instalador: Caddy pasa `/a/*`, `activos/` va dentro,
+`deploy-check` pide el robot por su sha256. **Medido:** 9 pruebas nuevas (`test/objetos.test.ts`), 92 en total;
+2.000 objetos = 186,8 kB al entrar; cliente al arrancar 245 kB comprimidos (antes 228; D2 pide ≤ 300); e2e: la pestaña A coloca un bloque, la B lo dibuja y lee su ficha «Bloque», A lo
+gira 90° y deshace dos veces. **Falta (otras filas):** gizmos y soltar ficheros (M22, H9), roles (H3), colisión con
+lo colocado (M6), propiedades y scripts por app (M19, M20), bajar el peso por objeto con un índice de modelos (M16).
 
 ### H2 — Lo que el servidor le hace a un jugador (para Opus; necesita J2)
 Teletransportar, congelar, frenar, empujar, gesto forzado, sentarse o anclarse a un objeto (su nodo `Anchor`),
@@ -810,7 +833,7 @@ instanciado, una llamada por emisor; tope de partículas por nivel de aparato en
 se ve; pasa el limitador de destellos de V7 si ya existe. Primer uso: la columna de luz de `despertar`. **Hecho
 cuando:** test de las curvas y del tope; e2e con un emisor sin errores; coste por cuadro medido en el banco (P2).
 
-### H9 — Subir ficheros (espera a H1)
+### H9 — Subir ficheros
 Arrastrar y soltar, como su `/api/upload`, pero con permiso: `POST` solo para quien construye (H1; roles con
 H3), tope de tamaño por tipo, nombre = sha256 (lo que ya está no se vuelve a subir: se pregunta antes por el
 hash), tipos permitidos `glb`, `vrm`, `png`, `jpg`, `webp`, `ktx2`, `hdr`, `mp3`, `ogg`, `mp4`, `webm`. Se guarda en

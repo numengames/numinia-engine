@@ -162,6 +162,10 @@ $SITE {
 	handle /e/* {
 		reverse_proxy 127.0.0.1:$PORT
 	}
+	# H1: files of things in the world, by their sha256 (the house library; uploads with H9)
+	handle /a/* {
+		reverse_proxy 127.0.0.1:$PORT
+	}
 	handle {
 		root * $PREFIX/www
 		@hashed path /assets/*

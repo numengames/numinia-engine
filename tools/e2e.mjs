@@ -84,6 +84,40 @@ const gesture = {
 const near = gesture.distanceAB !== null && gesture.distanceAB <= 28, far = gesture.distanceAB === null || gesture.distanceAB >= 32;
 const gestureOk = gesture.catalog.includes("gestos") && gesture.selfHeard === 1 && gesture.selfLabel && gesture.aAviso.includes("Gesto: saludar")
   && (!near || (gesture.bHeard === 1 && gesture.bLabel && gesture.bAviso.includes("Gesto: saludar"))) && (!far || gesture.bHeard === 0);
+// H1 leg: things placed in the world. A places a block 3 m in front of itself; B (wherever it is: the zone's list
+// reaches everyone) gets it, draws the model and reads its card; A turns it 90°, B sees it; A undoes twice: back to
+// 0°, then gone (so nothing is left behind). With building closed (MOTOR_CONSTRUIR not "todos"): refused, said why.
+const objs = (p) => p.evaluate(() => { const n = globalThis.__numinia; return { estado: { ...n.constructor.estado }, ids: [...n.session.features.stateOf("objetos").keys()], dibujo: n.view.objects() }; });
+const objetos = { puede: null, ok: false };
+try {
+  const o0 = { a: await objs(a), b: await objs(b) };
+  objetos.puede = o0.a.estado.puede;
+  const ry = (p, k) => p.evaluate((k) => globalThis.__numinia.session.features.stateOf("objetos").get(k)?.ry, k);
+  if (objetos.puede) {
+    await a.evaluate(() => globalThis.__numinia.constructor.colocar("bloque"));
+    await a.waitForFunction((n0) => { const n = globalThis.__numinia; return !!n.constructor.estado.seleccionado && n.session.features.stateOf("objetos").size > n0; }, o0.a.ids.length, { timeout: 5000 });
+    const id = await a.evaluate(() => globalThis.__numinia.constructor.estado.seleccionado);
+    await b.waitForFunction((k) => globalThis.__numinia.session.features.stateOf("objetos").has(k), id, { timeout: 5000 });
+    await b.waitForFunction((n0) => globalThis.__numinia.view.objects().loaded > n0, o0.b.dibujo.loaded, { timeout: 20000 });
+    const card = await b.evaluate((k) => globalThis.__numinia.session.features.cards().find((c) => c.key === k) ?? null, id);
+    const dibujadoEnB = await b.evaluate(() => globalThis.__numinia.view.objects()); // the model file arrived and is drawn
+    await a.evaluate(() => globalThis.__numinia.constructor.girar(90));
+    await b.waitForFunction((k) => Math.abs((globalThis.__numinia.session.features.stateOf("objetos").get(k)?.ry ?? 0) - 90) < 0.05, id, { timeout: 5000 });
+    const girado = await ry(b, id);
+    await a.evaluate(() => globalThis.__numinia.constructor.deshacer());
+    await b.waitForFunction((k) => Math.abs(globalThis.__numinia.session.features.stateOf("objetos").get(k)?.ry ?? 99) < 0.05, id, { timeout: 5000 });
+    await a.evaluate(() => globalThis.__numinia.constructor.deshacer());
+    await b.waitForFunction((k) => !globalThis.__numinia.session.features.stateOf("objetos").has(k), id, { timeout: 5000 });
+    const o1 = await objs(b);
+    Object.assign(objetos, { id, card: card && { role: card.role, name: card.name }, girado, dibujadoEnB, alFinalEnB: o1.dibujo, ok: card?.name === "Bloque" && card?.role === "objeto" && o1.dibujo.failed === 0 && !o1.ids.includes(id) });
+  } else {
+    await a.evaluate(() => globalThis.__numinia.constructor.colocar("bloque"));
+    await a.waitForTimeout(800);
+    const o1 = await objs(a);
+    objetos.rechazo = o1.estado.ultimoRechazo;
+    objetos.ok = o1.ids.length === o0.a.ids.length && /construir/.test(objetos.rechazo) && !(await a.evaluate(() => !!document.getElementById("construir")?.offsetParent));
+  }
+} catch (e) { objetos.error = String(e).split("\n")[0]; }
 // T1 leg: both tabs told the server how they entered (entrada) and how it goes (pulso), with the right backend
 const sesiones = { comprobado: !!SERVER_HTTP, ok: false, conEntrada: 0, conPulso: 0, clases: [], navegadores: [] };
 if (SERVER_HTTP) {
@@ -113,14 +147,14 @@ const result = {
   probe: { browser: A2.probe.browser.toString(16), server: A2.probe.server.toString(16), equal: A2.probe.browser === A2.probe.server, ms: A2.probe.ms },
   tabBSeesTabA: { entity: A.entity, movedZ: Math.round(dz * 100) / 100, expectedZ: -6 },
   costFrame: A2.cost, power: A2.power, costBreaches,
-  corrections: A2.stats.corrections, rttMs: A2.stats.rttMs, visibleFromB: B2.stats.visible, gesture, sesiones,
+  corrections: A2.stats.corrections, rttMs: A2.stats.rttMs, visibleFromB: B2.stats.visible, gesture, objetos, sesiones,
   identidad: { a: A2.who, b: B2.who }, // I1: two tabs of the same browser are the same guest
   errors,
 };
 // movement: 1.5 s at 4 m/s = 6 m. The https pass failed once at exactly -4.0 (J6 saw a one-off too); likely
 // cause: software GL drops frames under load and the 250 ms dt clamp in the page loses ticks. Past 3.5 m
 // proves the path; corrections === 0 is the real netcode check.
-const ok = result.probe.equal && dz < -3.5 && dz > -7.5 && result.corrections === 0 && costBreaches.length === 0 && gestureOk && (!sesiones.comprobado || sesiones.ok) && !!A2.who?.id && A2.who.id === B2.who?.id && errors.length === 0;
+const ok = result.probe.equal && dz < -3.5 && dz > -7.5 && result.corrections === 0 && costBreaches.length === 0 && gestureOk && objetos.ok && (!sesiones.comprobado || sesiones.ok) && !!A2.who?.id && A2.who.id === B2.who?.id && errors.length === 0;
 console.log(JSON.stringify(result, null, 1));
 console.log(ok ? "E2E OK" : "E2E FALLA");
 process.exit(ok ? 0 : 1);

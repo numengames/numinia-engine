@@ -14,8 +14,12 @@ export { leerAparato, leerBateria, medidorDeCuadros } from "./sesion.ts";
 
 export type Backend = "WebGPU" | "WebGL2";
 export type Placed = { id: number; x: number; z: number };
+/** H1: a thing in the world (same shape as the feature plug's PlacedObject; render does not import it). Degrees, YXZ. */
+export type Thing = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean };
+const LOADS_AT_ONCE = 4;   // H1: model files downloading at the same time; the nearest first
+const ANIMATE_WITHIN_M = 40; // H1: farther than this, a model's animation stands still (cold phones)
 
-export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number } = {}) {
+export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; assetUrl?: (model: string) => string } = {}) {
   const power = createPower(readCaps(), { battery: opts.battery, maxFps: opts.maxFps });
   const renderer = new THREE.WebGPURenderer({ antialias: !power.mobile, forceWebGL: !!opts.forceWebGL, powerPreference: power.mobile ? "low-power" : "high-performance" });
   await renderer.init();
@@ -110,6 +114,63 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     camera.updateProjectionMatrix();
   });
 
+  // ---- H1: things placed in the world (features/objetos): a model by its sha256, loaded once per file and cloned,
+  // the nearest first, never more than LOADS_AT_ONCE downloads at a time ----
+  type Gltf = { scene: THREE.Object3D; animations: THREE.AnimationClip[] };
+  type Slot = { group: THREE.Group; want: Thing; model: string; loaded: boolean; failed: boolean; mixer?: THREE.AnimationMixer };
+  const assetUrl = opts.assetUrl ?? ((m: string) => `/a/${m}.glb`);
+  // the glTF loader (~26 kB gz) arrives only when the first thing does: a world without things never downloads it
+  type Tools = { load: (url: string) => Promise<Gltf>; clone: (o: THREE.Object3D) => THREE.Object3D };
+  let tools: Promise<Tools> | null = null;
+  const getTools = () => (tools ??= Promise.all([import("three/addons/loaders/GLTFLoader.js"), import("three/addons/utils/SkeletonUtils.js")])
+    .then(([g, u]) => { const l = new g.GLTFLoader(); return { load: (url: string) => l.loadAsync(url) as unknown as Promise<Gltf>, clone: (o: THREE.Object3D) => u.clone(o as never) as unknown as THREE.Object3D }; }));
+  const files = new Map<string, Promise<{ g: Gltf; clone: Tools["clone"] }>>(); // model -> its parsed file, shared by every copy
+  const things = new Map<string, Slot>();
+  const waiting = new Set<string>();
+  let loading = 0, animatingNear = false;
+  const RAD = Math.PI / 180;
+  const distance2 = (s: Slot) => (selfXZ ? (s.want.x - selfXZ.x) ** 2 + (s.want.z - selfXZ.z) ** 2 : 0);
+  function placeGroup(s: Slot): void {
+    const w = s.want;
+    s.group.position.set(w.x, w.y, w.z);
+    s.group.rotation.set(w.rx * RAD, w.ry * RAD, w.rz * RAD, "YXZ");
+    s.group.scale.set(w.sx, w.sy, w.sz);
+  }
+  function pumpLoads(): void {
+    while (loading < LOADS_AT_ONCE && waiting.size) {
+      let best = "", bestD = Infinity;
+      for (const k of waiting) { const s = things.get(k); const d = s ? distance2(s) : Infinity; if (d < bestD) { bestD = d; best = k; } }
+      waiting.delete(best);
+      const s = things.get(best);
+      if (!s) continue;
+      const model = s.model;
+      let file = files.get(model);
+      if (!file) { file = getTools().then(async (t) => ({ g: await t.load(assetUrl(model)), clone: t.clone })); files.set(model, file); }
+      loading++;
+      file.then(({ g, clone }) => {
+        const now = things.get(best);
+        if (!now || now.model !== model || now.loaded) return; // removed or changed while it downloaded
+        const copy = clone(g.scene);
+        now.group.add(copy);
+        if (now.want.animate && g.animations.length) { now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction(g.animations[0]).play(); }
+        now.loaded = true;
+      }).catch((e) => {
+        const now = things.get(best);
+        if (now && now.model === model) now.failed = true;
+        files.delete(model); // a later placement may try again
+        console.warn(`[objetos] no se pudo cargar ${assetUrl(model)}: ${(e as Error)?.message ?? e}`);
+      }).finally(() => { loading--; pumpLoads(); });
+    }
+  }
+  function updateThings(dt: number): void {
+    animatingNear = false;
+    const r2 = ANIMATE_WITHIN_M ** 2;
+    for (const s of things.values()) {
+      if (!s.mixer) continue;
+      if (distance2(s) <= r2) { s.mixer.update(dt); animatingNear = true; }
+    }
+  }
+
   return {
     backend,
     power,
@@ -189,10 +250,29 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** Beacons alive right now (for checks). */
     beaconCount(): number { return beacons.length; },
+    /** H1: put a thing in the world, move it, change its model, or take it away (`null`). */
+    place(key: string, t: Thing | null): void {
+      const s = things.get(key);
+      if (!t) { if (s) { s.mixer?.stopAllAction(); world.remove(s.group); things.delete(key); waiting.delete(key); } return; }
+      if (!s) {
+        const group = new THREE.Group(); group.name = `objeto:${key}`; world.add(group);
+        const ns: Slot = { group, want: t, model: t.model, loaded: false, failed: false };
+        things.set(key, ns); placeGroup(ns); waiting.add(key); pumpLoads(); return;
+      }
+      s.want = t; placeGroup(s);
+      if (s.model !== t.model) { s.mixer?.stopAllAction(); s.mixer = undefined; s.group.clear(); s.model = t.model; s.loaded = false; s.failed = false; waiting.add(key); pumpLoads(); }
+      else if (!t.animate && s.mixer) { s.mixer.stopAllAction(); s.mixer = undefined; }
+    },
+    /** H1: things placed, how many have their model drawn, and how many failed to load (for checks). */
+    objects(): { placed: number; loaded: number; failed: number } {
+      let loaded = 0, failed = 0;
+      for (const s of things.values()) { if (s.loaded) loaded++; if (s.failed) failed++; }
+      return { placed: things.size, loaded, failed };
+    },
     /** Who has a label right now (for checks). */
     labels(): Target[] { return [...labels.keys()]; },
-    /** True while a label or a bounce is alive: the power policy must keep drawing. */
-    busy(): boolean { return labels.size > 0 || bounces.size > 0 || beacons.length > 0; },
+    /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
+    busy(): boolean { return labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0; },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); },
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */
@@ -203,6 +283,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** Follow camera, then draw. */
     draw(dtSeconds: number): void {
       updateDecorations(performance.now());
+      updateThings(dtSeconds);
       if (renderer.xr.isPresenting) { ar.update(); vr.update(selfXZ, dtSeconds); renderer.render(scene, camera); return; }
       target.copy(selfMesh.position);
       wanted.set(target.x, target.y + 6, target.z + 9);

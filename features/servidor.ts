@@ -3,6 +3,7 @@
 import type { ServerPart } from "../packages/feature/src/index.ts";
 import gestos from "./gestos/server.ts";
 import despertar from "./despertar/server.ts";
+import objetos from "./objetos/server.ts";
 
-const funciones: ServerPart[] = [gestos, despertar];
+const funciones: ServerPart[] = [gestos, despertar, objetos];
 export default funciones;
