@@ -7,13 +7,15 @@ import { createView, leerAparato, leerBateria, medidorDeCuadros } from "../../pa
 import funciones from "../../features/cliente.ts";
 import { constructor } from "../../features/objetos/client.ts";
 import { montarConstructor } from "./constructor.ts";
+import { catalogoDeAvatares } from "./catalogo-avatares.ts"; // not "./a…": dev:lan proxies every path starting with /a to the server
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
 const url = serverUrl(location);
 // H1: files of things in the world come from the instance's server by their sha256 (ws://h:p -> http://h:p/a/<sha256>.glb)
 const activos = new URL(url.replace(/^ws/, "http")).origin;
-const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, assetUrl: (m) => `${activos}/a/${m}.glb` });
+const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, assetUrl: (m) => `${activos}/a/${m}.glb`,
+  avatares: { catalogo: catalogoDeAvatares(activos, params), yo: () => session.entity } }); // J1: VRM avatars (session exists by the first draw)
 const transport = webSocketClient(url);
 // game features (J7): their client parts, and how they may draw (a label, a hop) over any avatar
 // I1: the guest token stays in this browser (no account, no personal data); private mode = a new guest each time
