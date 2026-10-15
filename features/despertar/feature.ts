@@ -8,6 +8,8 @@ export const despertar = defineFeature({
   level: "frontera",
   describe: "Un QR real despierta un punto de la plaza: columna de luz y texto para todos durante unos segundos.",
   store: { describe: "Por punto: cuándo se despertó la última vez (UTC) y cuántas veces (sin quién: aún no hay identidad, I1)." },
+  // N2: an adventure's own setting (menu group «Despertar»); the client part reads it with view.ajuste
+  ajustes: [{ id: "columna", tipo: "bool", nombre: "Columna de luz", describe: "Dibuja la columna de luz donde despierta un punto. El aviso para el lector de pantalla llega igual.", defecto: true }],
   events: {
     despertado: {
       describe: "Un punto de la plaza se ha despertado (alguien escaneó su QR). Dibuja una columna de luz en (x, z).",

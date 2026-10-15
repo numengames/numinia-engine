@@ -109,6 +109,20 @@ en Quest entra en todo.
 | Hasta poder jugar | ≤ 15 MB | ≤ 12 MB | ≤ 10 MB | ≤ 6 MB |
 | fps objetivo | 60 | 72 | 30 | 30 |
 
+## Ajustes (N2)
+
+El menú de ajustes (tecla O o el engranaje) es HTML de verdad; lo leen los lectores de pantalla y los agentes
+(`window.__numinia.ajustes`). Cómo crece: [`EXTENDER.md`](EXTENDER.md) («Añadir un ajuste», «Añadir una capacidad»).
+
+| Dato | Valor |
+|---|---|
+| Ajustes del motor | 24 en 6 grupos: gráficos, sonido, controles, accesibilidad, interfaz, privacidad |
+| Ajustes que añade una función o un mundo | hasta 16 cada uno (medido, `test/ajustes.test.ts`) |
+| Guardado | en el navegador: hasta 64 valores y 8 KB por clave (medido); el motor por aparato, funciones y mundos por mundo |
+| Calidad | automática (según el aparato) · baja (ratio 1, 30 fps) · media (1,5 y 60) · alta (2 y 60); el modo batería manda (1 y 24) |
+| Nivel del aparato | A escritorio · B visor (clase móvil que puede VR) · C móvil · D móvil de ≤ 2 GB: estimado hasta medir aparatos reales (T1) |
+| Lo que pesa en la página | +12,0 kB gz al arrancar (260,7 kB de 300; medido con `npm run build`) |
+
 ## Navegador, gráfica y red
 
 | Eje | Estado |
