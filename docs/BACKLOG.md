@@ -33,7 +33,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | I1 | Identidad de invitado (sin vincular aparatos: Pablo, 15-10, «de momento no») | hecho | no |
 | S4 | Persistencia mínima del mundo (puntos de enlace, inventario, cosas plantadas) | hecho | no |
 | V1 | Ficha `accesible` en el esquema (nombre, función, estado, descripción, importancia, sonido, acciones) + reglas en J7: nombre hablado, sonido↔texto, verbo sin gesto; puerta en los tests | hecho | no |
-| J9 | Estado y objetos de las funciones por cercanía (mundos grandes): a cada uno, solo lo que tiene cerca | para Opus | no |
+| J9 | Estado y objetos de las funciones por cercanía (mundos grandes): a cada uno, solo lo que tiene cerca | hecho | no |
 | B1 | HTTPS en la red de casa para móviles y visores (certificado propio, `/ws` en el mismo origen) | hecho | sí |
 | J8 | AR de verdad: entrar en AR en Android, Quest 3 y Pico 4, suelo, anclar un objeto; iPhone en plano | hecho (emulado; falta probar en aparato real) | sí |
 | J6 | VR de verdad: entrar en VR, moverse, mandos, giro a saltos, viñeta, panel 3D (emulador IWER) | hecho (emulado) | sí |
@@ -440,6 +440,18 @@ termina o lo descarta diciéndolo en el diario.
 Reglas que valen para todas las filas V (y para cualquier función nueva): `docs/SABER.md` §3.6. La idea
 central: **una sola ficha `accesible` por cosa del mundo** alimenta el lector de pantalla, la voz propia del
 motor y a los agentes de IA. Lo que no se ha medido en un aparato real se dice (V2).
+
+### J9 — Estado y objetos por cercanía (hecho, 15-10, sesión con Opus)
+**Decisión:** los objetos de las funciones (puertas, semillas, células) **no** son entidades de la simulación:
+son entradas del estado de su función puestas con `at` (y con ficha, V1). Así no tocan la huella ni el tick
+de la simulación; lo que necesite física irá con M6. **Hecho:** una entrada con `at` llega solo a quien está a
+menos de `state.radius` (64 m por defecto; la función puede declarar el suyo, 8–2.000 m); al moverse, cada
+jugador recibe lo que se le acerca y olvida lo que pasa de radio × 1,25 (margen para que nada parpadee en el
+borde); quien llega tarde recibe solo lo cercano; una cosa que se mueve lejos de alguien se le borra; al
+borrarla, solo se entera quien la tenía. Lo que no tiene `at` sigue llegando a todos. Índice en rejilla de
+celdas del ancho del radio (`NearIndex`: mira 9 celdas, no todas las cosas); el repaso se reparte: cada tick,
+una décima parte de los jugadores (cada uno cada 0,5 s). El mensaje es el mismo STATE de siempre. Medido:
+1.000 jugadores × 2.000 cosas en 1 km²: repaso completo 4,5 ms, una décima 0,24 ms por tick.
 
 ### V1 — Ficha accesible y reglas de las funciones (para Opus)
 Componente con esquema `accesible`: `nombre` (texto corto que se dice), `funcion` (enum: puerta, botón,

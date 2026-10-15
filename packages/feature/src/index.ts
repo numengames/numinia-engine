@@ -41,7 +41,7 @@ export type FeatureDecl = {
   level?: Level;         // base (everyone) · mejorado · frontera (FUNCIONALIDADES.md)
   intents?: Record<string, IntentDecl>;    // client -> server: the verbs a player or an agent can use
   events?: Record<string, EventDecl>;      // server -> client
-  state?: { describe: string; fields: Fields; card?: Card; persist?: boolean }; // shared state by key, replicated to every client; card = it is a thing in the world; persist = survives restarts (S4)
+  state?: { describe: string; fields: Fields; card?: Card; persist?: boolean; radius?: number }; // radius (J9): things (entries set with `at`) reach players within it // shared state by key, replicated to every client; card = it is a thing in the world; persist = survives restarts (S4)
   store?: { describe: string };            // S4: server-only data that survives restarts (inventories, who claimed what and when); never sent to pages
 };
 export type Feature = Readonly<Required<Pick<FeatureDecl, "id" | "version" | "describe" | "level">> & Omit<FeatureDecl, "level"> & { issues: Issue[] }>;
@@ -49,6 +49,9 @@ export type Feature = Readonly<Required<Pick<FeatureDecl, "id" | "version" | "de
 export const DEFAULT_RATE: Rate = { perSecond: 4, burst: 8 };
 export const STORE_VALUE_MAX = 4096;      // bytes of JSON per stored key (S4)
 export const STORE_KEYS_MAX = 10_000;     // keys per feature store (S4)
+export const STATE_RADIUS_M = 64;         // J9: a thing in the world (state set with `at`) reaches players this close, by default
+export const STATE_REFRESH_TICKS = 10;    // J9: who has which things is recomputed every 0.5 s as people move
+export const FORGET_FACTOR = 1.25;        // J9: a thing a player has is forgotten only past radius × 1.25 (no flapping at the edge)
 export const NEAR_RADIUS_M = 32;          // default reach of an event sent { near }
 export const QUEUE_PER_PLAYER = 32;       // intents waiting for the next tick, per player
 export const STATE_KEY_BYTES = 64;
@@ -114,6 +117,7 @@ export function defineFeature(decl: FeatureDecl): Feature {
   }
   if (decl.store !== undefined && !decl.store?.describe) issues.push({ path: `${id}.store.describe`, message: "say in one line what is kept (people and agents read it)" });
   if (decl.state?.persist !== undefined && typeof decl.state.persist !== "boolean") issues.push({ path: `${id}.state.persist`, message: "persist: true or false" });
+  if (decl.state?.radius !== undefined && !(typeof decl.state.radius === "number" && decl.state.radius >= 8 && decl.state.radius <= 2000)) issues.push({ path: `${id}.state.radius`, message: "radius: metres between 8 and 2000 (who receives the things this feature puts in the world)" });
   if (decl.state) {
     checkFields(decl.state.fields, `${id}.state.fields`, issues);
     const c = decl.state.card, p = `${id}.state.card`;
@@ -133,7 +137,7 @@ export function defineFeature(decl: FeatureDecl): Feature {
 
 // ---------- catalog: what the server runs, sent once per join; agents read their verbs here ----------
 export type CatalogEntry = { index: number; feature: string; kind: "intent" | "event"; name: string; describe: string; fields: Fields; rate?: Rate; spoken?: string; announce?: Announce | "silent" };
-export type CatalogFeature = { id: string; version: number; describe: string; level: Level; intents: CatalogEntry[]; events: CatalogEntry[]; state: { describe: string; fields: Fields; card?: Card } | null };
+export type CatalogFeature = { id: string; version: number; describe: string; level: Level; intents: CatalogEntry[]; events: CatalogEntry[]; state: { describe: string; fields: Fields; card?: Card; radius?: number } | null };
 export type Catalog = { schema: "numinia-engine/catalog@1"; features: CatalogFeature[] };
 type Entry = CatalogEntry & { schema: Schema };
 
@@ -144,7 +148,7 @@ export function buildCatalog(features: readonly Feature[], log: (l: string) => v
     if (f.issues.length) { log(`[funciones] '${f.id}' no se carga: ${f.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`); continue; }
     if (seen.has(f.id)) { log(`[funciones] '${f.id}' está dos veces en la lista; uso la primera`); continue; }
     seen.add(f.id); used.push(f);
-    const cf: CatalogFeature = { id: f.id, version: f.version, describe: f.describe, level: f.level, intents: [], events: [], state: f.state ? { describe: f.state.describe, fields: f.state.fields, ...(f.state.card ? { card: f.state.card } : {}) } : null };
+    const cf: CatalogFeature = { id: f.id, version: f.version, describe: f.describe, level: f.level, intents: [], events: [], state: f.state ? { describe: f.state.describe, fields: f.state.fields, ...(f.state.card ? { card: f.state.card, radius: f.state.radius ?? STATE_RADIUS_M } : {}) } : null };
     for (const kind of ["intent", "event"] as const) {
       for (const [name, m] of Object.entries((kind === "intent" ? f.intents : f.events) ?? {})) {
         const mm = m as MessageDecl;
@@ -244,6 +248,37 @@ export type ServerPart = { feature: Feature; side: "server"; setup: (api: Server
 export const serverPart = (feature: Feature, setup: (api: ServerApi) => void): ServerPart => ({ feature, side: "server", setup });
 
 type Route = { method: string; parts: string[]; feature: string; fn: (req: HttpRequest) => HttpReply };
+type Entry2 = { value: Msg; at?: { x: number; z: number } };
+
+/** J9: the things one feature has put in the world, in square cells as wide as its radius, so "what is near
+ * this player" looks at 9 cells instead of every thing. */
+export class NearIndex {
+  readonly radius: number;
+  private readonly cells = new Map<string, Set<string>>();
+  private readonly cellOf = new Map<string, string>();
+  constructor(radius: number) { this.radius = radius; }
+  get size(): number { return this.cellOf.size; }
+  private cell(cx: number, cz: number): string { return `${cx},${cz}`; }
+  put(key: string, at: { x: number; z: number }): void {
+    this.remove(key);
+    const c = this.cell(Math.floor(at.x / this.radius), Math.floor(at.z / this.radius));
+    let s = this.cells.get(c);
+    if (!s) this.cells.set(c, (s = new Set()));
+    s.add(key); this.cellOf.set(key, c);
+  }
+  remove(key: string): void {
+    const c = this.cellOf.get(key);
+    if (c === undefined) return;
+    const s = this.cells.get(c)!; s.delete(key); if (s.size === 0) this.cells.delete(c);
+    this.cellOf.delete(key);
+  }
+  /** Keys in the 3×3 cells around a point: everything within `radius` is among them. */
+  around(x: number, z: number): string[] {
+    const cx = Math.floor(x / this.radius), cz = Math.floor(z / this.radius), out: string[] = [];
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const s = this.cells.get(this.cell(cx + dx, cz + dz)); if (s) for (const k of s) out.push(k); }
+    return out;
+  }
+}
 
 export class ServerRuntime {
   readonly catalog: Catalog;
@@ -256,6 +291,8 @@ export class ServerRuntime {
   private readonly hooks: { join: [string, (e: number) => void][]; leave: [string, (e: number) => void][]; tick: [string, (t: number) => void][]; identify: [string, (e: number, w: { id: string; nombre: string }) => void][] } = { join: [], leave: [], tick: [], identify: [] };
   private readonly routeList: Route[] = [];
   private readonly shared = new Map<string, Map<string, { value: Msg; at?: { x: number; z: number } }>>();
+  private readonly near = new Map<string, { index: NearIndex; pos: number; fields: Fields; table: Map<string, Entry2> }>(); // J9
+  private readonly known = new Map<number, Map<string, Set<string>>>(); // J9: player -> feature -> things it has
   private queue: { from: number; entry: Entry; msg: Msg }[] = [];
   private readonly waiting = new Map<number, number>();
   private readonly buckets = new Map<number, Map<number, { tokens: number; tick: number }>>();
@@ -298,6 +335,8 @@ export class ServerRuntime {
     const stateSchema = f.state ? defineSchema(`${id}.state`, f.version, f.state.fields) : null;
     const table = new Map<string, { value: Msg; at?: { x: number; z: number } }>();
     this.shared.set(id, table);
+    const index = f.state ? new NearIndex(f.state.radius ?? STATE_RADIUS_M) : null;
+    if (index && f.state) this.near.set(id, { index, pos, fields: f.state.fields, table });
     // S4: bring back what was saved. State values are checked against today's schema: a value that no longer
     // fits (the feature changed shape) is dropped and counted, never sent to anyone.
     const persist = !!f.state?.persist, keeps = persist || !!f.store, storage = this.host.storage;
@@ -306,7 +345,7 @@ export class ServerRuntime {
     const box = new Map<string, unknown>(f.store && saved ? saved.store : []);
     if (saved && persist && stateSchema) {
       let dropped = 0;
-      for (const [k, s] of saved.state) { const v = validate(stateSchema, s.value); if (v.ok) table.set(k, s.at ? { value: v.value, at: s.at } : { value: v.value }); else dropped++; }
+      for (const [k, s] of saved.state) { const v = validate(stateSchema, s.value); if (v.ok) { table.set(k, s.at ? { value: v.value, at: s.at } : { value: v.value }); if (s.at) index?.put(k, s.at); } else dropped++; }
       if (dropped) log(`${dropped} claves guardadas ya no cumplen el esquema (versión ${saved.version} → ${f.version}): no se cargan`);
     }
     if (saved) log(`recupero lo guardado: ${table.size} claves de estado, ${box.size} del almacén`);
@@ -339,16 +378,28 @@ export class ServerRuntime {
           if (key.length === 0 || new TextEncoder().encode(key).length > STATE_KEY_BYTES) { log(`state.set: la clave debe tener 1-${STATE_KEY_BYTES} bytes`); return false; }
           const v = validate(stateSchema, value);
           if (!v.ok) { log(`state.set('${key}') no cumple su esquema: ${v.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`); return false; }
+          const before = table.get(key);
           table.set(key, { value: v.value, at: opts?.at });
           if (persist) save(opts?.at ? { op: "s", key, value: v.value, at: opts.at } : { op: "s", key, value: v.value });
           const bytes = encodeState(pos, key, f.state.fields, v.value);
+          if (opts?.at && index) { // J9: only who is near
+            if (before && !before.at) for (const pl of this.host.players()) this.knows(pl, id).add(key); // it was global: everyone had it, the far ones must forget it
+            index.put(key, opts.at); this.pushThing(id, key, bytes); return true;
+          }
+          if (before?.at) { index?.remove(key); for (const m of this.known.values()) m.get(id)?.delete(key); }
           for (const p of this.host.players()) this.host.send(p, bytes);
           return true;
         },
         delete: (key) => {
+          const before = table.get(key);
           if (!table.delete(key)) return;
           if (persist) save({ op: "sd", key });
           const bytes = encodeState(pos, key, null);
+          if (before?.at) { // J9: only those who had it
+            index?.remove(key);
+            for (const [p, m] of this.known) if (m.get(id)?.delete(key)) this.host.send(p, bytes);
+            return;
+          }
           for (const p of this.host.players()) this.host.send(p, bytes);
         },
       },
@@ -392,10 +443,19 @@ export class ServerRuntime {
   join(entity: number): void {
     if (!this.active) return;
     this.host.send(entity, this.catalogBytes);
+    const me = this.host.position(entity);
     this.catalog.features.forEach((cf, pos) => {
       const table = this.shared.get(cf.id);
       if (!table || !cf.state) return;
-      for (const [key, s] of table) this.host.send(entity, encodeState(pos, key, cf.state.fields, s.value));
+      for (const [key, s] of table) if (!s.at) this.host.send(entity, encodeState(pos, key, cf.state.fields, s.value)); // global state: everyone
+      const n = this.near.get(cf.id);
+      if (n && me) { // J9: things in the world, only the near ones
+        const r2 = n.index.radius ** 2, mine = this.knows(entity, cf.id);
+        for (const key of n.index.around(me.x, me.z)) {
+          const s = table.get(key);
+          if (s?.at && (s.at.x - me.x) ** 2 + (s.at.z - me.z) ** 2 <= r2) { this.host.send(entity, encodeState(pos, key, cf.state.fields, s.value)); mine.add(key); }
+        }
+      }
     });
     for (const [id, fn] of this.hooks.join) { try { fn(entity); } catch (e) { this.fail(id, "en onJoin", e); } }
   }
@@ -409,7 +469,7 @@ export class ServerRuntime {
 
   leave(entity: number): void {
     for (const [id, fn] of this.hooks.leave) { try { fn(entity); } catch (e) { this.fail(id, "en onLeave", e); } }
-    this.buckets.delete(entity); this.waiting.delete(entity);
+    this.buckets.delete(entity); this.waiting.delete(entity); this.known.delete(entity);
   }
 
   /** A FEATURE message from a player. Returns false if it is malformed (the caller counts it). */
@@ -446,6 +506,55 @@ export class ServerRuntime {
     }
     const t = this.host.tick();
     for (const [id, fn] of this.hooks.tick) { try { fn(t); } catch (e) { this.fail(id, "en onTick", e); } }
+    this.refreshNear(t % STATE_REFRESH_TICKS); // a tenth of the players each tick: each one every 0.5 s, no spike
+  }
+
+  private knows(player: number, feature: string): Set<string> {
+    let m = this.known.get(player);
+    if (!m) this.known.set(player, (m = new Map()));
+    let s = m.get(feature);
+    if (!s) m.set(feature, (s = new Set()));
+    return s;
+  }
+
+  /** J9: a thing was set at a place: send it to who is near (or already had it, up to the forget distance); tell who moved out of reach to forget it. */
+  private pushThing(feature: string, key: string, bytes: Uint8Array): void {
+    const n = this.near.get(feature)!, s = n.table.get(key)!, r2 = n.index.radius ** 2, f2 = (n.index.radius * FORGET_FACTOR) ** 2;
+    for (const p of this.host.players()) {
+      const me = this.host.position(p);
+      if (!me || !s.at) continue;
+      const d2 = (s.at.x - me.x) ** 2 + (s.at.z - me.z) ** 2, mine = this.knows(p, feature);
+      if (d2 <= r2 || (mine.has(key) && d2 <= f2)) { this.host.send(p, bytes); mine.add(key); }
+      else if (mine.delete(key)) this.host.send(p, encodeState(n.pos, key, null));
+    }
+  }
+
+  /** J9: people moved; each gets the things that came near and forgets the far ones. `slice` = only the players
+   * whose position in the list is slice modulo STATE_REFRESH_TICKS (the instance passes tick % 10); none = all. */
+  refreshNear(slice?: number): number {
+    let sent = 0;
+    for (const [id, n] of this.near) {
+      if (n.index.size === 0) continue;
+      const r2 = n.index.radius ** 2, f2 = (n.index.radius * FORGET_FACTOR) ** 2;
+      const players = this.host.players();
+      for (let i = 0; i < players.length; i++) {
+        if (slice !== undefined && i % STATE_REFRESH_TICKS !== slice) continue;
+        const p = players[i], me = this.host.position(p);
+        if (!me) continue;
+        const mine = this.knows(p, id);
+        for (const key of mine) {
+          const s = n.table.get(key);
+          if (!s?.at) { mine.delete(key); continue; }
+          if ((s.at.x - me.x) ** 2 + (s.at.z - me.z) ** 2 > f2) { mine.delete(key); this.host.send(p, encodeState(n.pos, key, null)); sent++; }
+        }
+        for (const key of n.index.around(me.x, me.z)) {
+          if (mine.has(key)) continue;
+          const s = n.table.get(key)!;
+          if (s.at && (s.at.x - me.x) ** 2 + (s.at.z - me.z) ** 2 <= r2) { mine.add(key); this.host.send(p, encodeState(n.pos, key, n.fields, s.value)); sent++; }
+        }
+      }
+    }
+    return sent;
   }
 
   /** HTTP for the features' routes; null when no route matches. */

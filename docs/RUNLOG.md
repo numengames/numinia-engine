@@ -152,3 +152,10 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Consumo: semana 47 % → ver `hermes usage` (Opus).
 - Commit: ver `git log` (I1).
 - Siguiente: turnos, R1 → R2 → R3 → R4. Sesión con Opus: J9 (estado por cercanía).
+
+## 2026-10-15 11:05 · J9 · hecho (sesión de Pablo con Opus)
+- Qué: las cosas que una función pone en el mundo (`state.set` con `at`) llegan solo a quien está cerca (`state.radius`, 64 m por defecto); al moverse, cada jugador recibe lo que se acerca y olvida lo que pasa de radio × 1,25; quien llega tarde recibe solo lo cercano; si una cosa se aleja de alguien, se le borra; al borrarla solo se enteran quienes la tenían. Lo que no tiene `at` sigue llegando a todos. Decisión: los objetos no son entidades de la simulación (la huella no cambia); lo que necesite física, M6. Rejilla de celdas del ancho del radio y repaso repartido (una décima de los jugadores por tick). El mensaje STATE es el de siempre.
+- Números: 83 pruebas (5 nuevas en `test/cercania.test.ts`); 1.000 jugadores × 2.000 cosas: repaso completo 4,5 ms, por tick 0,24 ms; puertas en verde (tick p99 8,9 ms; huella sin cambios). 2 límites nuevos.
+- Consumo: semana 47 % → ver `hermes usage` (Opus).
+- Commit: ver `git log` (J9).
+- Siguiente: filas `para Opus` que quedan: F1, F2, S3, P4, D4, M6, M10, V9, M19, M20, M9.

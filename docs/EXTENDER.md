@@ -84,10 +84,11 @@ export default clientPart(gestos, (api) => {
 
 ## Límites de esta primera versión (y qué fila de la cola los quita)
 
-- El estado compartido se manda **a todos**; en mundos grandes tendrá que ir solo a los cercanos (J9).
-  `state.set(clave, valor, { at: { x, z } })` ya guarda la posición para entonces.
+- Lo que pones con `state.set(clave, valor, { at: { x, z } })` es **una cosa en el mundo**: llega solo a quien
+  está a menos de `state.radius` (64 m por defecto) y cada jugador la recibe u olvida al moverse (J9). Sin
+  `at`, el estado llega a todos. En la página, «olvidar» y «borrar» se ven igual (`onChange` con `undefined`).
 - Los objetos (puertas, semillas) viven en el estado de su función, con `x` y `z`, y la página los dibuja;
-  no son entidades de la simulación (J9 decidirá si deben serlo).
+  no son entidades de la simulación (decidido en J9; lo que necesite física, M6).
 - El estado se pierde al reiniciar salvo que la función lo declare (`persist`, `store`: ver «Guardar», S4).
 - Para dibujar hay `label` y `bounce`; se añaden primitivas en `render` cuando una función las pida.
 - Las rutas HTTP viven en el puerto de la instancia; en un servidor instalado, Caddy solo pasa `/ws` y
