@@ -80,7 +80,8 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   const responder = (r: Res, bien = "Hecho.") => decir(r.ok ? bien : `No: ${r.why}`);
   const boton2 = (texto: string, titulo: string, fn: () => Res | void) => {
     const b = el("button", { type: "button", textContent: texto, title: titulo });
-    b.addEventListener("click", () => { const r = fn(); if (r) responder(r); });
+    // after a mouse click the focus goes back to the page: Space (jump) must not press «Borrar» again
+    b.addEventListener("click", (e) => { const r = fn(); if (r) responder(r); if (e.detail > 0) b.blur(); });
     return b;
   };
   const fila = (etiqueta: string, ...hijos: Node[]) => {
@@ -94,8 +95,12 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   const opciones = (s: HTMLSelectElement, vals: number[], txt: (v: number) => string, def: number) => { for (const v of vals) s.append(el("option", { value: String(v), textContent: v ? txt(v) : "libre" })); s.value = String(def); return s; };
   const selPos = opciones(el("select"), PASOS_POS, (v) => `${String(v).replace(".", ",")} m`, 0.5);
   const selGiro = opciones(el("select"), PASOS_GIRO, (v) => `${v}°`, 15);
-  selPos.addEventListener("change", () => aplicarPaso());
-  selGiro.addEventListener("change", () => aplicarPaso());
+  for (const s of [selPos, selGiro]) {
+    let conRaton = false; // chosen with the mouse: give the keys back to the page (1–4 must not pick an option)
+    s.addEventListener("pointerdown", () => { conRaton = true; });
+    s.addEventListener("keydown", () => { conRaton = false; });
+    s.addEventListener("change", () => { aplicarPaso(); if (conRaton) s.blur(); });
+  }
   const sel = el("p");
   const campo = (k: string, texto: string, paso: string) => { const i = el("input", { type: "number", step: paso }); i.dataset.k = k; i.addEventListener("change", () => aplicarCampo(i)); return { i, l: el("label", {}, `${texto} `, i) }; };
   const campos: Record<string, { i: HTMLInputElement; l: HTMLLabelElement }> = {
@@ -253,11 +258,12 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     view.place(FANTASMA, { model: fantasma.modelo, ...fantasma.p, rx: 0, ry: fantasma.ry, rz: 0, sx: 1, sy: 1, sz: 1, animate: false });
     ed.despertar();
   };
-  const quitarFantasma = () => { if (fantasma) { fantasma = null; view.place(FANTASMA, null); ed.despertar(); } };
+  const quitarFantasma = () => { if (fantasma) { fantasma = null; view.place(FANTASMA, null); cam()?.bloquear?.(false); ed.despertar(); } };
   function empezarFantasma(m: { id: string; nombre: string; modelo: string }): void {
     if (agarre) soltarAgarre(false);
     quitarFantasma();
     fantasma = { id: m.id, nombre: m.nombre, modelo: m.modelo, p: null, ry: 0 };
+    cam()?.bloquear?.(true); // like grab mode, the preview owns the wheel
     decir(`${m.nombre}: llévalo con el ratón y haz clic donde lo quieras (rueda: girar · Esc: cancelar).`);
     if (puntero) seguir(puntero.x, puntero.y);
   }
@@ -406,7 +412,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     refrescar();
     ed.despertar();
   }
-  boton.addEventListener("click", () => abrir(!abierto()));
+  boton.addEventListener("click", (e) => { abrir(!abierto()); if (e.detail > 0) boton.blur(); });
 
   // ---- keys: the builder's go first (capture) and stop there; text fields keep theirs ----
   function tecla(e: KeyboardEvent): (() => Res | void) | null {

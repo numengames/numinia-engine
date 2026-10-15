@@ -93,6 +93,8 @@ fijar y encuadrar. Todo cambio pasa por el servidor (`features/objetos`) y llega
 14. **La vista previa de la biblioteca** es una copia normal del modelo dibujada solo en tu página (`~fantasma`), no
     transparente (los materiales se comparten con las demás copias).
 15. **El paso de escala va con el de posición:** posición «libre» = escala libre.
+16. **Tras un clic de ratón en un botón o un desplegable del panel, el foco vuelve a la página** (con teclado no):
+    así Espacio (saltar, rama `salto`) no vuelve a pulsar «Borrar» ni «Construir», y 1–4 no eligen una opción.
 
 De OnCyber AWE (MIT) se leyó `engine-edit/src/transformer/drag-handler.ts` y `selection/selector.ts`: un paso de
 deshacer por arrastre y «un clic es una pulsación que no se movió»; **no se copió código** (no hace falta aviso MIT).
@@ -124,10 +126,13 @@ Mayús + rueda al coger. Substrata: no se leyó (falta de tiempo).
 ## Sin comprobar
 
 - Aparatos de verdad: móvil (táctil: solo razonado), Quest/Pico (no hay gizmo en VR).
-- Con la rama `camara`: `view.cam.modo`, `frame` (F) y `bloquear` se llaman con `?.` y no se han probado juntos.
+- Con la rama `camara` de verdad. Lo que sí se probó (script, con un `view.cam` falso que apunta las llamadas):
+  abrir → `modo("construir")`; F → `frame({y: 0,5}, 1,5)`; arrastre de asa, coger y vista previa de la biblioteca →
+  `bloquear(true)` … `bloquear(false)` en pares; cerrar → `modo("juego")`.
 - Lector de pantalla (NVDA/VoiceOver) sobre el panel: es HTML de verdad con etiquetas y `role=status`, sin probar.
-- El gizmo de escalar con el ratón (la pierna prueba mover y girar; escalar solo con Mayús + rueda y el inspector).
-- Elegir el Robot (malla con esqueleto) con un clic; lo probado es el Bloque.
+- El gizmo de escalar y el Robot (malla con esqueleto) solo con un script a mano, no en la pierna: clic en su
+  pecho lo selecciona, el asa X de escalar deja sx = 4,4 en el servidor. Entre las piernas del Robot no hay malla:
+  el clic ahí no lo elige (el rayo va contra la malla de verdad, como en Blender).
 - Coste de `pick`/`puntoBajo` con 2.000 cosas en la zona (rayo contra todas en cada movimiento al coger): sin medir.
 
 ## Lo que falta (otras filas)
