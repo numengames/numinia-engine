@@ -18,6 +18,8 @@ import { entorno, Runtime } from "./runtime.ts";
 import { KEEP_DAYS, Sesiones } from "./sesiones.ts";
 import { FileStorage } from "./datos.ts";
 import { Activos, BIBLIOTECA } from "./activos.ts";
+import { Subidas } from "./subidas.ts";
+import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
 import type { Metrics } from "./metrics.ts";
 
 export type ServerOptions = {
@@ -33,7 +35,8 @@ export type ServerOptions = {
   datos?: string | null;    // S4: folder where the features' saved state and stores live; default null = memory only
   construir?: "todos" | "nadie"; // H1: who may build in the world until H3 brings roles; default "nadie" (env MOTOR_CONSTRUIR)
   biblioteca?: string | null;    // H1: the house library served at /a/<sha256>.<ext>; default the repo's activos/ (null = none)
-  subidas?: string | null;       // H1/H9: folder of uploaded files named <sha256>.<ext>; default null
+  subidas?: string | null;       // H1/H9: folder of uploaded files named <sha256>.<ext>; default null (= no uploads)
+  subir?: { topesMB?: Partial<Record<string, number>>; totalMB?: number }; // H9: smaller caps (tests); default ficheros.ts
   log?: (line: string) => void;
 };
 
@@ -94,7 +97,18 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const construir = o.construir ?? "nadie";
   const puede = (_who: unknown, accion: string) => accion === "construir" && construir === "todos";
   const activos = new Activos(o.biblioteca === undefined ? BIBLIOTECA : o.biblioteca, o.subidas ?? null, log);
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: o.features, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede });
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: o.features, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, activo: (h, ext) => activos.buscar(h, ext) !== null });
+  // H9: uploads (PUT /a/<sha256>.<ext>) by whoever may build; the page shows its guest token (I1) to say who it is
+  const subidas = new Subidas({
+    dir: o.subidas ?? null, activos, log, topesMB: o.subir?.topesMB, totalMB: o.subir?.totalMB,
+    quien: (token) => {
+      const v = verificar(identitySign, token, today());
+      if (!v) return null;
+      const c = inst.conns.find((k) => k.who?.id === v.id); // connected now: its name and entity (H3: roles per identity)
+      return { who: c?.who ?? { id: v.id, nombre: nombreDe(v.id) }, entity: c?.entity ?? -1 };
+    },
+    puede: (who) => puede(who, "construir"), // the same question every building intent asks (api.puede)
+  });
 
   const ticks = new TickWindow(200), lags = new TickWindow(200), responses = new TickWindow(200), bytes = new ByteWindow(11);
   const runtime = new Runtime(), env = entorno();
@@ -126,7 +140,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     if (method === "GET" && path === "/metrics") return json(res, 200, metrics());
     if (method === "GET" && path === "/sesiones") return json(res, 200, { schema: "numinia-engine/sesiones@1", carpeta: sesiones.dir, resumen: sesiones.resumen(), ahora: sesiones.ahora() });
     if (method === "GET" && path === "/metrics.prom") { res.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8", "cache-control": "no-store" }); return void res.end(toPrometheus(metrics())); }
-    if (method === "GET" && path.startsWith("/a/") && activos.servir(path, res)) return; // H1: files by their sha256
+    if ((method === "GET" || method === "HEAD") && path.startsWith("/a/") && activos.servir(path, res, method === "HEAD")) return; // H1: files by their sha256
+    if ((method === "PUT" || method === "OPTIONS") && path.startsWith("/a/")) return subidas.atender(method, path, req, res); // H9: uploads
     if (method !== "GET" && method !== "POST") return json(res, 405, { error: "solo GET o POST" });
     // everything else may be a game feature's route (e.g. the page a QR opens)
     const answer = (body: string) => {

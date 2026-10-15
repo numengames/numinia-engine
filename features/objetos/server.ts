@@ -58,7 +58,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
   api.on("colocar", (from, m) => {
     if (!puede(from) || !caben(from)) return;
     const modelo = String(m.modelo), nombre = String(m.nombre).trim(), decorado = m.decorado === true;
-    if (!enBiblioteca.has(modelo)) return void rechazar(from, "Ese modelo no está en la biblioteca.");
+    if (!enBiblioteca.has(modelo) && !api.activo(modelo, "glb")) return void rechazar(from, "Ese modelo no está en la biblioteca ni se ha subido a este servidor.");
     if (sinNombre(from, nombre, decorado)) return;
     const id = nuevoId();
     api.state.set(id, {

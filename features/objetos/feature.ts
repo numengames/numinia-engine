@@ -35,7 +35,7 @@ export const objetos = defineFeature({
   },
   intents: {
     colocar: {
-      describe: "Poner en el mundo un modelo de la biblioteca (por su sha256) en un sitio. Sin nombre, tiene que ir decorado: true.",
+      describe: "Poner en el mundo un modelo (por su sha256) de la biblioteca o subido a este servidor (H9: PUT /a/<sha256>.glb) en un sitio. Sin nombre, tiene que ir decorado: true.",
       spoken: "colocar un objeto",
       fields: { modelo: { kind: "text", maxBytes: 64 }, x: X, y: Y, z: X, ry: GIRO, nombre: NOMBRE, decorado: { kind: "bool", default: true } },
     },

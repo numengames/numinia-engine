@@ -10,15 +10,12 @@ import { createReadStream, existsSync, readdirSync, readFileSync, statSync } fro
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ServerResponse } from "node:http";
+import { TIPOS } from "../../net/src/ficheros.ts";
+export { TIPOS } from "../../net/src/ficheros.ts"; // the kinds of file (H9 shares them with the page)
 
 /** The house library. In the installer it sits next to the server code (app/activos). */
 export const BIBLIOTECA = fileURLToPath(new URL("../../../activos", import.meta.url));
 
-export const TIPOS: Record<string, string> = {
-  glb: "model/gltf-binary", vrm: "model/gltf-binary",
-  png: "image/png", jpg: "image/jpeg", webp: "image/webp", ktx2: "image/ktx2", hdr: "image/vnd.radiance",
-  mp3: "audio/mpeg", ogg: "audio/ogg", mp4: "video/mp4", webm: "video/webm",
-};
 const RUTA = /^\/a\/([0-9a-f]{64})\.([a-z0-9]{2,4})$/;
 
 export const sha256 = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex");
@@ -53,21 +50,22 @@ export class Activos {
     return null;
   }
 
-  /** Answer GET /a/<sha256>.<ext>. Returns false when the path is not an asset path at all. */
-  servir(path: string, res: ServerResponse): boolean {
+  /** Answer GET /a/<sha256>.<ext> (HEAD: the same headers, no body — H9: a page asks before uploading). Returns
+   * false when the path is not an asset path at all. */
+  servir(path: string, res: ServerResponse, head = false): boolean {
     const m = RUTA.exec(path);
     if (!m || !TIPOS[m[2]]) return false;
     const ruta = this.buscar(m[1], m[2]);
     if (!ruta) {
       res.writeHead(404, { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "no-store" });
-      res.end(JSON.stringify({ error: `no hay ningún fichero ${m[1]}.${m[2]}` }));
+      res.end(head ? undefined : JSON.stringify({ error: `no hay ningún fichero ${m[1]}.${m[2]}` }));
       return true;
     }
     res.writeHead(200, {
       "content-type": TIPOS[m[2]], "content-length": String(statSync(ruta).size),
       "cache-control": "public, max-age=31536000, immutable", "access-control-allow-origin": "*",
     });
-    createReadStream(ruta).pipe(res);
+    if (head) res.end(); else createReadStream(ruta).pipe(res);
     return true;
   }
 }
