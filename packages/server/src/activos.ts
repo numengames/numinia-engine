@@ -13,7 +13,7 @@ import type { ServerResponse } from "node:http";
 import { TIPOS } from "../../net/src/ficheros.ts";
 export { TIPOS } from "../../net/src/ficheros.ts"; // the kinds of file (H9 shares them with the page)
 /** What /a/ serves: every uploadable kind plus .vrma (J1: the house animations; nobody uploads those). */
-const SERVIR: Record<string, string> = { ...TIPOS, vrma: "model/gltf-binary" };
+export const SERVIR: Record<string, string> = { ...TIPOS, vrma: "model/gltf-binary" };
 
 /** The house library. In the installer it sits next to the server code (app/activos). */
 export const BIBLIOTECA = fileURLToPath(new URL("../../../activos", import.meta.url));

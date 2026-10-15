@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { infoVrm, leerGlb, revisarAvatar, TRIANGULOS_MAX_VRM } from "../packages/server/src/vrm.ts";
 import type { InfoVrm } from "../packages/server/src/vrm.ts";
-import { Activos, BIBLIOTECA, TIPOS } from "../packages/server/src/activos.ts";
+import { Activos, BIBLIOTECA, SERVIR } from "../packages/server/src/activos.ts";
 
 // J1: the house library of avatars (VRM) and animations (VRMA). The plaza's side is test/avatares.test.ts.
 const catalogo = JSON.parse(readFileSync("activos/avatares/catalogo.json", "utf8"));
@@ -43,7 +43,7 @@ test("J1 library: the animations are VRMA 1.0 with a humanoid, by their sha256, 
     for (const b of ["hips", "spine", "head", "leftUpperLeg", "rightLowerArm"]) assert.equal(typeof ext.humanoid.humanBones[b]?.node, "number", `${clip}: ${b}`);
     assert.equal((j.value.animations as unknown[]).length, 1);
   }
-  assert.equal(TIPOS.vrma, "model/gltf-binary");
+  assert.equal(SERVIR.vrma, "model/gltf-binary"); // served, never uploaded (TIPOS = what a builder may upload, H9)
   const lib = new Activos(BIBLIOTECA, null);
   assert.ok(lib.buscar(catalogo.animaciones.quieto.sha256, "vrma")?.endsWith("quieto.vrma"));
   assert.ok(lib.buscar(catalogo.modelos[0].sha256, "vrm")?.endsWith(".vrm"));
