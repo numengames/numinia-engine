@@ -46,6 +46,7 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 | Servidor de pruebas: empezar por la máquina más pequeña (OVH VPS-1, Gravelines, Ubuntu 24.04) y subir | Pablo, 15-10 | `SERVIDOR-X3-paso-a-paso.md` |
 | **Cada sesión cuenta cómo entró el jugador** (aparato, navegador, gráfica, XR, cuadros, ping, batería), sin IP ni identidad, 14 días | Pablo, 15-10: «ahí es donde aprenderás más»; se aprende de los aparatos reales antes que de los emuladores | T1, `docs/MEDIDAS.md` |
 | Vincular el móvil con el ordenador o el visor: **de momento no** | Pablo, 15-10 | I2 (aparcada) |
+| **Se construye en vivo, como en Hyperfy2**: quien tiene rol de constructor coloca, mueve y borra y todos lo ven al momento, guardado como texto y con deshacer; los agentes de IA, solo por PR (M26) | Pablo pidió «como mínimo el nivel de Hyperfy2» (15-10), y construir dentro del mundo es lo que lo define; la verdad sigue siendo texto, así que el PR sigue siendo posible | `docs/HYPERFY2-PARIDAD.md` §2, H1, M22 |
 
 ## 2. Lo medido (número, dónde y cuándo)
 
@@ -146,6 +147,10 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 | Guarda el mundo en SQLite cada 60 s | S4: lo de las funciones en ficheros de texto (foto + diario) cada segundo; la simulación nunca se guarda |
 | Animaciones: solo 8 internas; pierde la traslación de caderas con nombres VRM | `.vrma` con traslación; colección «Movimientos» |
 | Proyecto parado desde abril de 2026 | Motor que mantiene una IA, con puertas numéricas |
+| Sube ficheros sin mirar quién (`/api/upload`) | H9: solo quien construye, con tope por tipo y licencia (M21) |
+| Un solo chat para todo el mundo | J3: el cercano por defecto y el de la zona con su propio límite |
+
+La comparación completa, capacidad por capacidad, y lo que falta para igualarlo: `docs/HYPERFY2-PARIDAD.md`.
 
 ## 5. Lo que está abierto (lo decide Pablo)
 
@@ -192,3 +197,4 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 | `LIMITES.md` | P1 (`limits.json`, `docs/FICHA-TECNICA.md`) |
 | Agente en Hyperfy (`../procyon-hyp/`) y STD-050 | P4, P5 |
 | `../movimientos/` | J1, W2 dentro de J1 |
+| `docs/HYPERFY2-PARIDAD.md` (el fork de Hyperfy2 leído en su código, 15-10) | H1–H13; amplía J2, J3, J4, N1, N2, M6, M16–M20, M22 y F1 |

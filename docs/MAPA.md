@@ -18,6 +18,7 @@ Para quien llega nuevo (persona o IA). La versión de una página para máquinas
 | ver cómo entró cada jugador (aparato, navegador, XR, cuadros, ping) | `npm run sesiones`; en vivo `GET /sesiones`; código en `packages/server/src/sesiones.ts` |
 | añadir un paquete | primero `tools/layers.json`, luego carpeta con `README.md`, y una línea en `llms.txt` |
 | qué toca hacer | `docs/BACKLOG.md`; lo ya hecho en `docs/RUNLOG.md` |
+| saber qué nos falta para estar, como mínimo, al nivel de Hyperfy2 | `docs/HYPERFY2-PARIDAD.md` |
 
 Capas (de abajo arriba): `core → schema → ecs → sim → net → feature → {client, instance} → {server, cli}`;
 `render` solo habla con three.js; las funciones de juego (`features/`) solo con `feature`. `tools/layers.mjs` lo comprueba.

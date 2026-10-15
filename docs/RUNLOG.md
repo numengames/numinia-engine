@@ -3,6 +3,8 @@
 Una entrada por turno (desatendido o con Pablo), la más nueva abajo. En español, para personas.
 Formato: `## AAAA-MM-DD HH:MM · <ID> · <estado>` y cinco líneas: Qué, Números, Consumo (semana a % →
 b %, de `hermes usage`, y el modelo), Commit, Siguiente.
+Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 15-10 están en hora de Madrid
+(CEST, UTC+2); desde la de las 10:08, en UTC.
 
 ## 2026-10-14 23:40 · arranque · hecho
 - Qué: PP0 (arquitectura) y PP1 (esqueleto que anda) hechos; PP2 parte 1 (mil en una plaza) hecha;
@@ -165,3 +167,10 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Números: e2e chromium, firefox, AR, VR y https verdes otra vez (con J9 dentro).
 - Regla: un commit que toca código de navegador o de funciones no se lleva a main si `tools/auto.sh e2e` no dice OK en todas las piernas.
 - Commit: ver `git log` (e2e propio).
+
+## 2026-10-15 11:59 · paridad Hyperfy2 · hecho (sesión de Pablo con Opus)
+- Qué: `docs/HYPERFY2-PARIDAD.md` contesta «¿qué falta para llegar como mínimo al nivel de Hyperfy2?»: 78 capacidades leídas en el código del fork (v0.13.0: nodos, sistemas, API de scripts y del jugador, órdenes, subidas, guardado) frente al motor, cada una con su fila. Filas nuevas H1–H13: H1 objetos del mundo, H3 roles y órdenes, H2 efectos sobre el jugador (las tres para Opus); H4 entorno, H6 imagen y paneles, H12 calidad gráfica, H8 partículas (pendientes, detrás de V7); H5, H7, H9, H10, H11, H13 esperan a su fila. Ampliadas J2 (correr y doble salto), J3 (canal de la zona, `/` va a las órdenes), J4, N1, N2, M6, M16–M20, M22 (ahora constructor en vivo, espera a H1) y F1 (los roles pasan a H3). Decisión: se construye en vivo como en Hyperfy2; los agentes de IA, por PR (SABER §1). Tres paradas: PH1 se visita, PH2 se construye, PH3 se programa. `AGENTS.md`: al cerrar una fila, el turno pasa a `pendiente` las que la esperaban; horas del diario en UTC.
+- Números: 13 ✔, 15 ◐, 50 ✘ de 78; 83 pruebas en verde; puertas en verde (tick p99 7,9 ms; 25,0 kbit/s). Solo documentos.
+- Consumo: semana 47 % → 48 % (`hermes usage`), Opus.
+- Commit: ver `git log` (paridad Hyperfy2).
+- Siguiente: Pablo decide si J2, J1 y J3 van antes que R2–R4 y V3–V7. Sesión con Opus: H1 → M6 → H3 → H2 → M19 → M20.

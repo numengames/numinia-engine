@@ -110,9 +110,11 @@ Work happens in the worktree `../numinia-engine-auto` (branch `auto`), never in 
    The state cell must say exactly `pendiente` (`tools/auto.sh` greps it): «trozo 1 hecho» goes in the task
    text or its detail, never in the state cell — otherwise no shift ever picks the row again.
 4. Commit only with `npm run gates` green; if browser code changed, `tools/auto.sh e2e` too.
-5. Update `docs/BACKLOG.md` (state + the numbers you measured) and append a diary entry to
+5. Update `docs/BACKLOG.md` (state + the numbers you measured). When a row becomes `hecho`, flip to
+   `pendiente` every row `espera a …` whose awaited rows are now all `hecho` — nobody else does it, and a
+   row left waiting is never picked. Append a diary entry to
    `docs/RUNLOG.md` (Spanish, for people: Qué, Números, Commit, Siguiente). Commit. The heading time
-   comes from `date '+%Y-%m-%d %H:%M'`, never estimated.
+   comes from `date -u '+%Y-%m-%d %H:%M'` (UTC, Pablo's rule for every written time), never estimated.
 6. `tools/auto.sh finish` — re-runs the gates, fast-forwards `main` if nobody is editing it, restarts
    the plaza if server code changed, releases the lock. Always run it, even after a failed attempt.
 If something fails honestly: do not fake a result; stash the attempt, mark the task `bloqueada` with

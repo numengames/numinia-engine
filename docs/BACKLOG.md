@@ -45,8 +45,8 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | P2 | Móvil frío: política de energía del cliente + puerta de coste por cuadro | hecho (sin medir en móvil real → X1) | sí |
 | P3 | Nativo para IA v1: `llms.txt`, mapa, README-contrato por paquete, `npm run describe` | hecho | sí |
 | J1 | Avatares VRM de verdad (CC0) con animaciones CC0 en la plaza | pendiente | sí |
-| J2 | Salto y altura en la simulación (cambia la huella fijada; permiso de Pablo, 14-10) | pendiente | sí |
-| J3 | Chat y bocadillos de texto sobre los avatares, con nombres | pendiente | sí |
+| J2 | Salto, doble salto y correr en la simulación (cambia la huella fijada; permiso de Pablo, 14-10) | pendiente | sí |
+| J3 | Chat (cercano y de la zona) y bocadillos sobre los avatares, con nombres; lo que empieza por `/` va a las órdenes (H3) | pendiente | sí |
 | J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR | pendiente | sí |
 | J5 | Libro de misiones, mapa y minimapa con marcadores | pendiente | sí |
 | N1 | Entrada táctil, gamepad, cámara en 3.ª persona y pantalla completa (de `docs/JUGADOR.md`) | pendiente | sí |
@@ -56,7 +56,20 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | V5 | «¿Dónde estoy / qué hay cerca / dónde está X / quién hay?» contestado desde los datos, sin modelo | espera a V3 | sí |
 | V6 | Audio espacial que sigue a la cabeza + volumen aparte para avisos + modo mono + baliza simple (un sonido fijo en el destino) | pendiente | sí |
 | V7 | Comodidad y seguridad: limitador de destellos (≤ 3/s), modo sentado, «menos movimiento» del sistema; giro a saltos y viñeta ya en J6 | pendiente | sí |
-| F1 | Amigos, bloqueo, moderación y roles (toca red y guardado; de `docs/JUGADOR.md`) | para Opus | no |
+| H1 | Paridad Hyperfy2: objetos del mundo — colocar un GLB, moverlo, borrarlo, deshacer, en vivo, guardado como texto (sus `blueprints` + `entities`) | para Opus | no |
+| H3 | Paridad Hyperfy2: roles del mundo (admin, constructor, visitante) y órdenes con barra (`/nombre`, `/aparecer`, `/chat borrar`, `/servidor`) | para Opus | no |
+| H2 | Paridad Hyperfy2: lo que el servidor le hace a un jugador (teletransportar, congelar, frenar, empujar, sentarse, volar, salud) como entradas grabadas de la simulación | para Opus | no |
+| H4 | Paridad Hyperfy2: entorno — cielo, sol, niebla, mapa HDR y viento desde un JSON con esquema (su nodo `Sky`) | pendiente | sí |
+| H6 | Paridad Hyperfy2: imagen y paneles de interfaz en el mundo (sus nodos `Image` y `UI`), cada panel con gemelo HTML | pendiente | sí |
+| H12 | Paridad Hyperfy2: sombras y posprocesado por nivel de aparato, elegibles en ajustes | pendiente | sí |
+| H8 | Paridad Hyperfy2: partículas en GPU (su nodo `Particles`) con tope por aparato y limitador de destellos | pendiente | sí |
+| H5 | Paridad Hyperfy2: sonido del mundo — fuentes en objetos y puntos, grupos música/efectos (su nodo `Audio`) | espera a V6 | sí |
+| H9 | Paridad Hyperfy2: subir ficheros arrastrando — por hash, con tope, solo quien construye | espera a H1 | sí |
+| H7 | Paridad Hyperfy2: ajustes del mundo — título, descripción, imagen, escenario, avatar por defecto, abierto a construir, límite de personas | espera a H3 | sí |
+| H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | espera a J1, H9 | sí |
+| H13 | Paridad Hyperfy2: nivel de detalle (LOD) de los modelos, generado en la ingesta | espera a M21 | sí |
+| H11 | Paridad Hyperfy2: importar de Hyperfy — `.hyp` → carpeta de app; un mundo entero → carpeta del mundo | espera a M19 | sí |
+| F1 | Amigos, bloqueo y moderación (los roles son H3; toca red y guardado; de `docs/JUGADOR.md`) | para Opus | no |
 | F2 | Portales entre instancias y grupo (toca red e instancias; de `docs/JUGADOR.md`) | para Opus | no |
 | A1 | Página de multitud (50/200/1.000/2.000 robots, completos vs horneados) | pendiente | sí |
 | D1 | Puerta de tipos: TypeScript 7 estricto, 0 errores | pendiente | sí |
@@ -87,7 +100,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | M19 | Formato de app: carpeta de texto (`app.json` + `main.ts` + activos por hash) → paquete glTF con `NUM_app` | para Opus | no |
 | M20 | Scripts de mundo en el servidor, en sandbox (SES) y con límite de CPU | para Opus | no |
 | M9 | WebTransport como escalón de arriba detrás de la misma interfaz que WebSocket | para Opus | no |
-| M22 | Estudio en el navegador: mover, rotar, propiedades, deshacer; produce un PR, no toca el servidor | espera a M19 | sí |
+| M22 | Constructor en el mundo, en vivo (paridad Hyperfy2): gizmos, duplicar, borrar, deshacer, soltar ficheros, inspector, biblioteca; los agentes de IA, por PR | espera a H1 | sí |
 | M26 | Servidor MCP del motor: leer zona, proponer cambio, abrir PR (nunca publica solo) | espera a M19, P4 | sí |
 | O4 | Seguridad: billete firmado para entrar a una instancia, tope de conexiones por IP, exportar y borrar lo tuyo | pendiente | sí |
 | O3 | Observabilidad: panel y alertas sobre `/metrics` del servidor real | espera a X3 | sí |
@@ -107,6 +120,10 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 persona ciega entra en la plaza desde el ordenador con su lector de pantalla, pregunta qué hay cerca, sigue
 una baliza hasta otra persona y la saluda; con baja visión, lo mismo en las gafas. Ahí se invita a las dos
 ponentes de la Commit Conf a probarlo (`../mmo-browser-study/ACCESIBILIDAD-3D.md` §6).
+
+**Puntos de parada «Hyperfy2» (PH1 se visita, PH2 se construye, PH3 se programa):** qué falta para llegar como
+mínimo al nivel de Hyperfy2, fila por fila, en `docs/HYPERFY2-PARIDAD.md` (§5 las paradas, §6 el orden). Filas
+para Opus, en este orden: H1 → M6 → H3 → H2 → M19 → M20.
 
 **Lo que sabemos y por qué:** `docs/SABER.md` (decisiones, medidas, reglas, preguntas abiertas). Léelo antes
 de diseñar una fila.
@@ -271,12 +288,19 @@ La simulación gana altura, velocidad vertical, gravedad y suelo, y la entrada u
 predicción sigue exacta (0 correcciones). Cambia la huella fijada y el formato de entrada y de
 snapshot. **Permiso de Pablo (14-10, "que no pare el desarrollo"): se hace en `auto`**, con versión de
 formato nueva, la huella nueva fijada en el test y el cambio explicado en el diario.
+**Paridad Hyperfy2 (15-10):** también correr (Mayús: 8 m/s frente a 4 andando, como Hyperfy) y un salto en el
+aire (doble salto). Volar es de H2 (necesita permiso).
 
 ### J3 — Chat y bocadillos
 Mensaje nuevo CHAT (aditivo: tipo nuevo, texto UTF-8 ≤ 200 bytes, límite de ritmo en el servidor,
 alcance por cercanía de 20 m); bocadillo sobre quien habla durante ~6 s, legible en VR; nombre sobre
 la cabeza; caja de chat en la página (Enter para escribir; en móvil, un botón). **Hecho cuando:** e2e:
 la pestaña A escribe "hola" y la B ve el bocadillo; el servidor descarta textos largos o seguidos.
+**Paridad Hyperfy2 (15-10):** además del cercano, un canal de la zona con su propio límite de ritmo (Hyperfy
+solo tiene uno para todo el mundo) y los 50 últimos mensajes de la zona al entrar. Lo que empieza por `/` no se
+publica: llega a las funciones como evento `orden` (las órdenes son H3). Las funciones reciben el chat cercano
+como evento (lo usará el habitante IA, P5). El nombre de la cabeza es el de la identidad (I1) hasta que H3 deje
+cambiarlo con `/nombre`.
 
 ### J6 — VR de verdad
 Botón "Entrar en VR" solo si `navigator.xr.isSessionSupported('immersive-vr')` (la AR es J8);
@@ -290,6 +314,13 @@ Componente Interactuable (usar / agarrar, texto del aviso, radio) y un sistema d
 aviso "E: abrir" en escritorio, botón en móvil, rayo y gatillo en VR. Tres ejemplos: puerta que se
 abre, botón que enciende una luz, objeto que se coge y se suelta; todo se ve igual en la otra
 pestaña. **Hecho cuando:** e2e de los tres.
+**Paridad Hyperfy2 (15-10):** aviso con «mantener pulsado» y anillo de progreso (su nodo `Action`: texto,
+distancia, duración; empezar, disparar, cancelar); clic sobre cosas del mundo (sus eventos de puntero: entrar,
+salir, pulsar, soltar); abrir un enlace avisando antes (`world.open`).
+
+### N1 — Entrada táctil, gamepad, cámara y pantalla completa
+De `docs/JUGADOR.md`. **Paridad Hyperfy2 (15-10):** cámara en primera y tercera persona, con zoom de la rueda
+(y de pellizco en móvil).
 
 ### J5 — Libro de misiones y mapa
 Formato de misión en JSON con esquema (pasos; condiciones "llega a", "usa", "habla con";
@@ -551,6 +582,8 @@ iPhone: Safari no vibra desde la web. El resultado va a `docs/SABER.md` §2 y de
 Los menús, la tienda, la cuenta y el chat son **HTML de verdad**, no dibujos en el lienzo (los lee el lector
 y lo exige la ley para servicios al público: RD 193/2023). Lee las preferencias del sistema antes del primer
 cuadro (V7). Guarda en local hasta que exista I1 (V8).
+**Paridad Hyperfy2 (15-10):** lo que tienen sus ajustes: resolución, sombras y posprocesado (H12), volumen de
+música, efectos y voz, tamaño de la interfaz, mostrar los avisos de acciones, estadísticas en pantalla.
 
 ### F2 — Grupos (lo que decidió `PREGUNTAS.md` #19)
 La pieza ahora, la pantalla después: un grupo es un id compartido que el servidor conoce; a los de tu grupo
@@ -568,6 +601,7 @@ Manifiesto JSON con esquema por zona: cada fichero con su sha256, tamaño, clase
 hash, guarda en la caché del navegador (Cache API u OPFS) por hash y no vuelve a bajar lo que ya tiene.
 Trozos con Brotli desde una CDN, nunca desde el VPS del juego. **Hecho cuando:** e2e: segunda carga de la
 zona sin descargas (todo de caché); un fichero con hash falso se rechaza; tiempo hasta jugar medido.
+**Paridad Hyperfy2 (15-10):** pantalla de carga con progreso (su `ClientLoader` precarga y lo enseña).
 
 ### O2 — Origen de reserva (espera a M16)
 El manifiesto lista varios orígenes; si el primero no contesta en ~3 s (o da error), el cliente usa el
@@ -595,6 +629,8 @@ contra las guardadas con un umbral. Fuera de las puertas por defecto (cuesta seg
 ### M18 — Medios (función J7)
 Pantalla de vídeo en el mundo; la reproducción sigue el reloj del servidor (todos ven el mismo segundo);
 solo se reproduce si está cerca y a la vista (móvil frío).
+**Paridad Hyperfy2 (15-10):** como su nodo `Video`: fichero o URL, bucle, ajuste a la pantalla, con o sin luz,
+audio espacial por el mezclador de V6; y la pantalla compartida de alguien (con M17).
 
 ### P5 — Habitante IA en la plaza (espera a P4)
 Lo que enseñó el agente de Hyperfy (`../procyon-hyp/`, `docs/SABER.md` §3.5) llevado al motor: un cerebro
@@ -612,6 +648,11 @@ versión exacta) en el
 servidor y en el cliente dentro de la simulación compartida; controlador de personaje (suelo, pendientes,
 escalones); colisionadores desde M21. Cambia la huella: versión de formato nueva. Medir el coste por tick con
 1.000 personas antes de decidir (¿física para todos o solo cápsulas?).
+**Paridad Hyperfy2 (15-10):** lo que tiene su PhysX: colisionadores caja, esfera, malla y convexa, también como
+disparador (entrar y salir de una zona); cuerpos estáticos, cinemáticos y dinámicos con contactos (decidir si los
+dinámicos viven solo en el servidor y llegan como estado, o en la simulación); rayo y solape de esfera con capas
+(los usarán los scripts, M20); controlador cinemático para personajes no jugadores; articulaciones al final. Lo
+primero: pisar el escenario base, un objeto de H1.
 
 ### M10 — Servidor de instancia completo (para Opus)
 Regiones en `worker_threads` (una sola hebra se rompe entre 3.000 y 4.000), traspaso entre regiones sin
@@ -624,20 +665,38 @@ versión, nombre, licencia, modelo por hash, propiedades y eventos con esquema, 
 `accesible`) + `main.ts` tipado contra la API pública + `assets/<sha256>` + `README.md`; `build` produce el
 paquete de entrega (glTF con la extensión `NUM_app`, o zip firmado) que nunca se edita. Migraciones
 automáticas entre versiones. Leer antes `notes/16-content-unit-hyp-vs-alternatives.md` y `16a`.
+**Paridad Hyperfy2 (15-10, `docs/HYPERFY2-PARIDAD.md` §2):** una app es una función J7 que se carga en marcha
+desde la carpeta del mundo (misma declaración: verbos con nombre hablado, eventos con anuncio, estado con ficha).
+Sus nodos (Mesh, Collider, RigidBody, Audio, Video, Image, UI, Particles, LOD, Anchor, Action, Snap, Group) son
+componentes con esquema en `app.json`; los campos de propiedades (texto, número, rango, interruptor, lista,
+fichero, color, curva, como `app.configure`) salen del esquema y los pinta el inspector de M22.
 
 ### M20 — Scripts de mundo (para Opus)
 `main.ts` de cada app corre en el servidor, en un compartimento SES (clases congeladas) con tope de CPU por
 tick y de memoria; solo ve la API pública (la de J7 ampliada). `KHR_interactivity` como escalón sin código
 cuando three o nosotros lo lean.
+**Paridad Hyperfy2 (15-10):** la API equivalente a la suya (`src/core/systems/Apps.js` del fork): mundo (`add`,
+`remove`, `attach`, `on`/`off`/`emit`, la hora, `chat`, los jugadores, `raycast` y `overlapSphere` de M6,
+`get`/`set` = `api.store`, `open`, `load`), app (`on`/`off`/`send`/`sendTo`/`emit`, `create`, `control`,
+`configure`, `state`, `props`) y jugador (los efectos de H2, `getBoneTransform`, avatar de la sesión). La mitad
+del cliente puede tomar el control (`control`: teclas y cámara para un vehículo o una escena). Editar el script
+desde el navegador, con recarga en caliente, solo para administración.
 
 ### M9 — WebTransport (para Opus)
 Mismo esquema de mensajes, transporte por HTTP/3 con datagramas para los snapshots. No hay servidor de
 producción en JavaScript: decidir entre un proxy (Caddy/quic-go) o un servicio aparte; el transporte doble de
 Hytopia (MIT) es lo más aprovechable. UDP 443 abierto en el servidor.
 
-### M22 — Estudio (espera a M19)
-Editar en el navegador: mover, rotar, escalar, propiedades por esquema, deshacer. Guarda cambios de la
-carpeta de M19 y produce un PR; nunca toca el servidor en marcha. Cantera: `oncyberio/awe` (MIT).
+### M22 — Constructor en el mundo (espera a H1)
+**Cambio (15-10, paridad Hyperfy2, `docs/HYPERFY2-PARIDAD.md` §2):** se construye **en vivo**, como en Hyperfy2,
+no por PR. Modo construir (tecla o botón; en VR, con el mando) para quien tenga permiso (H1; roles con H3):
+coger y llevar, gizmos de mover, girar y escalar con pasos (grados), duplicar, borrar, fijar, deshacer; soltar
+ficheros (H9) para crear objetos; puntos de encaje (su nodo `Snap`); inspector de propiedades por esquema (M19);
+lista de las apps del mundo con su coste (triángulos, texturas, MB, como su `AppsList`); jerarquía de nodos;
+biblioteca de la casa (como sus colecciones: Imagen, Modelo, Texto, Vídeo). Todo cambio pasa por H1: llega a
+todos al momento, se guarda como texto y se puede deshacer. Los agentes de IA no construyen en vivo: proponen un
+PR (M26). Cantera: `oncyberio/awe` (MIT). **Hecho cuando:** e2e: la pestaña A entra en modo construir, mueve y
+gira un objeto con el gizmo y deshace; la B ve cada paso; un visitante no ve el modo construir.
 
 ### M26 — MCP del motor (espera a M19 y P4)
 Tres herramientas: leer una zona (como `describe`), proponer un cambio de manifiesto, abrir un PR. Nunca
@@ -654,6 +713,8 @@ cuando el p99 del tick, el steal o la memoria pasan de su umbral (`puertas.ts`).
 ### M17 — Voz por cercanía (necesita aprobación)
 LiveKit (Apache-2.0); suscripción solo a las N voces más cercanas (N lo decide Pablo), DTX, modo escenario
 para eventos grandes (una voz para todos). Es el coste que manda a escala (`docs/SABER.md` §3.1).
+**Paridad Hyperfy2 (15-10):** Hyperfy tiene voz espacial con LiveKit y deja compartir la pantalla en una
+pantalla del mundo; lo segundo va con M18.
 
 ### W1 — La plaza de entrada (necesita aprobación)
 El primer mundo, al presupuesto de la Quest (`limits.json`, nivel B), con un portal a un mundo Hyperfy de
@@ -661,4 +722,123 @@ hoy. Qué mundo lo estrena es pregunta abierta de Pablo.
 
 ### O5 — El motor en la Summa (necesita aprobación)
 Un ADR y un SYS del motor en numinia.org, cuando Pablo lo diga (rama, PR y revisores según sus reglas).
+
+## Paridad con Hyperfy2 (H) — de `docs/HYPERFY2-PARIDAD.md` (15-10)
+
+Pablo (15-10): «¿qué falta para llegar como mínimo al nivel de Hyperfy2?». La tabla capacidad por capacidad, las
+decisiones (§2) y las tres paradas (§5) están en `docs/HYPERFY2-PARIDAD.md`. Lo que Hyperfy hace mal no se copia
+(`docs/SABER.md` §4). Cada fila dice qué nodo o sistema de Hyperfy cubre, para comprobarlo en el fork
+(`../numinia-hyperfy2/src/core/`).
+
+### H1 — Objetos del mundo (para Opus)
+Lo que se coloca en el mundo y se queda: lo que en Hyperfy son `blueprints` + `entities`. Cada objeto: id, modelo
+(sha256 de un `.glb`), posición, giro (cuaternión), escala, propiedades (JSON; con esquema cuando exista M19),
+ficha accesible (V1: nombre obligatorio si se puede usar; lo decorativo se marca como decorado, igual que
+`alt=""`), autor (id de invitado, I1) y fijado (no se mueve sin quitarlo antes). Decisiones
+(`docs/HYPERFY2-PARIDAD.md` §2): la lista de la zona llega entera a quien entra (con tope medido) y los cambios,
+a toda la zona; los ficheros de los modelos se bajan por distancia, lo cercano primero; se guarda como texto en
+la carpeta del mundo (foto + diario, como S4); se construye en vivo: colocar, mover, girar, escalar, duplicar,
+borrar y deshacer (pila por constructor, en el servidor), solo con permiso — hasta H3, el mundo entero abierto o
+cerrado a construir con una variable, como el `public` de Hyperfy. Los agentes de IA no construyen en vivo. Si el
+modelo trae animaciones, la primera va en bucle. Los ficheros los sirve el servidor por hash (`/a/<sha256>`,
+caché larga) hasta que exista M16. **Hecho cuando:** e2e: la pestaña A coloca un GLB CC0 y la B lo ve; mover,
+borrar y deshacer llegan a B; tras reiniciar el servidor sigue ahí; sin permiso, se niega; un objeto usable sin
+nombre se niega; medido lo que cuesta entrar en una zona con 2.000 objetos (bytes y ms), apuntado en
+`limits.json`.
+
+### H2 — Lo que el servidor le hace a un jugador (para Opus; necesita J2)
+Teletransportar, congelar, frenar, empujar, gesto forzado, sentarse o anclarse a un objeto (su nodo `Anchor`),
+volar (con permiso, H3; correr dobla la velocidad, como en Hyperfy) y salud (`damage`/`heal`, que se ve en el
+nombre). Entran en la simulación como órdenes del servidor con su tick, grabadas junto a las entradas: la
+repetición da la misma huella y la predicción del cliente las aplica sin tirones. Hyperfy lo hace en el cliente y
+se fía. Empujar y volar necesitan la velocidad vertical de J2. **Hecho cuando:** test sin pantalla: una grabación
+con teletransporte, congelar y empujar se repite con la misma huella; e2e: un asiento sienta al avatar y la otra
+pestaña lo ve sentado; sin permiso no se vuela.
+
+### H3 — Roles del mundo y órdenes (para Opus)
+Tres roles por identidad (I1), guardados (S4): administrador, constructor y visitante; un mundo «abierto a
+construir» hace constructores a todos (el `public` de Hyperfy). El rol de admin se da con un enlace firmado de un
+solo uso que imprime `npm run admin` (mejor que un código escrito en el chat); con chat (J3), también
+`/admin <código>`, como en Hyperfy. Órdenes: `/nombre <nombre>` (se guarda con la identidad), `/aparecer aquí` y
+`/aparecer quitar` (punto de aparición), `/chat borrar`, `/servidor` (CPU, memoria, personas, tick p99). Las
+funciones reciben el evento `orden` (su `command`, el que usa Procyon) y preguntan `api.rol(quien)` y
+`api.puede(quien, "construir" | "volar" | "subir" | "administrar")`. Un agente de IA nunca es constructor ni admin
+(`docs/SABER.md` §3.5). **Hecho cuando:** test: el enlace hace admin a esa identidad y no sirve dos veces; un
+visitante no construye; el rol sobrevive a un reinicio.
+
+### H4 — Entorno: cielo, luz, niebla y viento
+Su nodo `Sky` (`bg`, `hdr`, `sunDirection`, `sunIntensity`, `sunColor`, `fogNear`, `fogFar`, `fogColor`) y su
+sistema `Wind`, como datos: fondo (color, degradado o imagen equirectangular), mapa de entorno HDR (PMREM; 256 px
+en móvil), dirección, intensidad y color del sol, niebla (cerca, lejos, color) y viento (dirección y fuerza: un
+uniforme para la vegetación). Sale de un JSON con esquema (`entorno@1`) que el servidor manda al entrar y puede
+cambiar en marcha (H7 lo editará); la plaza trae uno por defecto. En móvil y Quest, sin HDR grande. **Hecho
+cuando:** test del esquema; e2e: el servidor cambia el entorno y la otra pestaña cambia su fondo (se comprueba
+el estado del render), sin errores en chromium y firefox.
+
+### H5 — Sonido del mundo (espera a V6)
+Su nodo `Audio`: fichero, volumen, bucle, grupo (música o efectos), espacial (distancia de referencia y máxima,
+caída, conos) o plano; pegado a un objeto (H1) o a un punto de una función (`at`). Usa el mezclador de V6
+(volumen por grupo en ajustes, tope de fuentes por aparato, las de accesibilidad primero); suena tras el primer
+gesto (regla de los navegadores); nada con la pestaña oculta. Cada sonido que importa tiene su texto (V1).
+**Hecho cuando:** test de la mezcla con grupos; e2e: una fuente en bucle queda conectada y el `AudioContext`
+corre, sin errores.
+
+### H6 — Imagen y paneles en el mundo
+Su nodo `Image` (ajuste contener o cubrir, con o sin luz, doble cara) y sus paneles `UI`, `UIView`, `UIText`,
+`UIImage`: diseño flex (fila o columna, márgenes, huecos, alinear, bordes redondeados), texto e imagen, en el
+mundo (fijo o mirando a la cámara) o pegado a la pantalla, con clic que dispara un verbo de la función. Se dibuja
+en un lienzo y solo se redibuja al cambiar (móvil frío). Cada panel tiene su gemelo HTML, que lee el lector de
+pantalla (`docs/SABER.md` §3.6). Diseño flex propio o dependencia MIT exacta con su peso medido (D2: cliente
+≤ 300 kB). Legible en VR (J6). **Hecho cuando:** test del diseño (cajas calculadas de un panel fijo); e2e: un
+panel con un botón en el mundo, el clic llega al servidor y el gemelo aparece en el árbol de accesibilidad.
+
+### H7 — Ajustes del mundo (espera a H3)
+Su `Settings`: título, descripción, imagen, escenario base (un objeto de H1), avatar por defecto, abierto a
+construir y límite de personas; más el entorno (H4). Panel HTML solo para administración; se guarda como texto
+en la carpeta del mundo; los cambios llegan a todos al momento. Título, descripción e imagen alimentan la ficha
+`.md` del sitio para los agentes y la vista previa del enlace. Con el límite lleno, quien llega lee un aviso claro
+(con M10, entra en una copia). **Hecho cuando:** e2e: el admin cambia el título y el cielo y la otra pestaña lo
+ve; con límite 1, la segunda pestaña recibe el aviso.
+
+### H8 — Partículas
+Su nodo `Particles`: forma (punto, esfera, cono, caja), ritmo y ráfagas, vida, velocidad, tamaño, giro, color y
+alfa a lo largo de la vida (curvas), imagen u hoja de sprites, mezcla aditiva o normal, fuerzas. En la GPU,
+instanciado, una llamada por emisor; tope de partículas por nivel de aparato en `limits.json`; parado cuando no
+se ve; pasa el limitador de destellos de V7 si ya existe. Primer uso: la columna de luz de `despertar`. **Hecho
+cuando:** test de las curvas y del tope; e2e con un emisor sin errores; coste por cuadro medido en el banco (P2).
+
+### H9 — Subir ficheros (espera a H1)
+Arrastrar y soltar, como su `/api/upload`, pero con permiso: `POST` solo para quien construye (H1; roles con
+H3), tope de tamaño por tipo, nombre = sha256 (lo que ya está no se vuelve a subir: se pregunta antes por el
+hash), tipos permitidos `glb`, `vrm`, `png`, `jpg`, `webp`, `ktx2`, `hdr`, `mp3`, `ogg`, `mp4`, `webm`. Se guarda en
+`ACTIVOS_DIR` y se sirve por hash con caché larga; cuando exista M21, cada fichero pasa su validación (límites y
+licencia) antes de usarse; llevarlo a la CDN es M16. **Hecho cuando:** test: subir dos veces lo mismo guarda uno;
+un visitante recibe 403; un tipo no permitido, 415; e2e: soltar un GLB lo coloca delante de quien lo suelta.
+
+### H10 — Tu avatar (espera a J1 y H9)
+Elegir entre los avatares de la casa (J1) o soltar tu `.vrm` (H9; validado: ≤ 10.000 triángulos y sus campos de
+licencia leídos). Se guarda con tu identidad (I1) y lo ven todos; el avatar por defecto lo pone el mundo (H7);
+una función puede poner un avatar solo para la sesión (su `setSessionAvatar`). **Hecho cuando:** e2e: la
+pestaña A cambia de avatar, la B lo ve, y al volver A sigue con él.
+
+### H11 — Importar de Hyperfy (espera a M19)
+Para traer los mundos Numinia de hoy. Un `.hyp` (4 bytes con el tamaño de la cabecera + JSON + ficheros; ver
+`../mmo-browser-study/notes/16a-hyp-read-from-source.md`; el escritor es `src/core/extras/appTools.js`) → carpeta de
+app (M19): modelo y ficheros por hash, propiedades, nombre; el script se guarda aparte, marcado «por portar» (su
+API no es la nuestra). Un mundo entero (su `db.sqlite`: tablas `config`, `blueprints`, `entities`; y su carpeta
+`assets/`) → carpeta del mundo (H1, H7). Solo contenido nuestro o con licencia: los 351 `.hyp` de `hyperfy-apps`
+no tienen. **Hecho cuando:** test con un `.hyp` propio de prueba y un `db.sqlite` mínimo; informe de lo traído y
+de lo que queda por portar.
+
+### H12 — Calidad gráfica
+Sombras (no, baja, media, alta) y posprocesado (bloom, antialias), como sus ajustes, decididos por nivel de
+aparato: en móvil, apagados por defecto (móvil frío); en Quest, sin posprocesado (presupuesto del nivel B); en
+escritorio, según el banco. Elegibles en los ajustes (N2). **Hecho cuando:** coste por cuadro de cada nivel
+medido en el banco (P2) y apuntado en `limits.json`; e2e sin errores en los dos backends.
+
+### H13 — Nivel de detalle (espera a M21)
+La ingesta (M21) genera 2–3 versiones de cada modelo (`simplify` de meshoptimizer); el cliente cambia de versión
+según la distancia y el tamaño en pantalla (como su `LOD` con `scaleAware`), con margen para que no parpadee.
+**Hecho cuando:** test de la elección por distancia; triángulos dibujados medidos con y sin LOD en una zona de
+prueba.
 
