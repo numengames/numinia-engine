@@ -3,7 +3,7 @@ import { hex } from "../../packages/core/src/index.ts";
 import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX } from "../../packages/sim/src/index.ts";
 import { webSocketClient } from "../../packages/net/src/index.ts";
 import { ClientSession, serverUrl } from "../../packages/client/src/index.ts";
-import { createView, leerAparato, leerBateria, medidorDeCuadros } from "../../packages/render/src/index.ts";
+import { createView, leerAparato, leerBateria, medidorDeCuadros, haciaMundo } from "../../packages/render/src/index.ts";
 import funciones from "../../features/cliente.ts";
 import { constructor } from "../../features/objetos/client.ts";
 import { montarConstructor } from "./constructor.ts";
@@ -74,7 +74,7 @@ addEventListener("blur", () => keys.clear());
 const joy = document.getElementById("joy")!, knob = document.getElementById("knob")!;
 let touch: { id: number; x: number; y: number; dx: number; dy: number } | null = null;
 addEventListener("pointerdown", (e) => {
-  if (e.pointerType === "mouse" || touch) return;
+  if (e.pointerType === "mouse" || touch || view.cam.tieneDedo(e.pointerId)) return; // N1: right-half fingers turn the camera
   touch = { id: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, dy: 0 };
   joy.style.display = "block"; joy.style.left = `${e.clientX - 55}px`; joy.style.top = `${e.clientY - 55}px`;
 });
@@ -94,6 +94,9 @@ function readAxes(): [number, number] {
   if (keys.has("KeyW") || keys.has("ArrowUp")) z -= 1;
   if (keys.has("KeyS") || keys.has("ArrowDown")) z += 1;
   if (touch) { x = touch.dx; z = touch.dy; }
+  const pad = view.cam.mando(); // N1: a gamepad's left stick
+  if (pad && (pad[0] || pad[1])) { x = pad[0]; z = pad[1]; }
+  [x, z] = haciaMundo(x, z, view.cam.yaw()); // N1: W walks where the camera looks
   if (view.vr.active) { const [vx, vz] = view.vr.axes(); if (vx || vz) { x = vx; z = vz; } }
   return [Math.round(x * STICK_MAX), Math.round(z * STICK_MAX)];
 }
