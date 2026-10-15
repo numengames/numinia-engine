@@ -4,7 +4,7 @@
 import { createRequire } from "node:module";
 import { existsSync, readFileSync } from "node:fs";
 
-const PW = process.env.PW_CORE ?? "/var/home/uruk/arkhitektonian-lab/.hermes/profiles/ursa/work/archive-world-agent/web/node_modules/playwright-core";
+const PW = process.env.PW_CORE ?? new URL("../node_modules/playwright-core", import.meta.url).pathname; // devDependency, exact version (1.64.1: Firefox 1555)
 const CHROME = process.env.CHROME ?? "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell";
 const BASE0 = process.env.BASE ?? "http://127.0.0.1:5173/?webgl2";
 const BASE = BASE0 + (BASE0.includes("?") ? "&" : "?") + "pulso=2000"; // T1: a session pulse every 2 s instead of 10

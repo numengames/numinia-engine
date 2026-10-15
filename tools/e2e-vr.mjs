@@ -5,7 +5,7 @@
 import { createRequire } from "node:module";
 import { readFileSync, existsSync } from "node:fs";
 
-const PW = process.env.PW_CORE ?? "/var/home/uruk/arkhitektonian-lab/.hermes/profiles/ursa/work/archive-world-agent/web/node_modules/playwright-core";
+const PW = process.env.PW_CORE ?? new URL("../node_modules/playwright-core", import.meta.url).pathname; // devDependency, exact version (1.64.1: Firefox 1555)
 const CHROME = process.env.CHROME ?? "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell";
 const BASE = process.env.BASE ?? "http://127.0.0.1:5173/?webgl2";
 if (!existsSync(PW) || !existsSync(CHROME)) { console.error("playwright-core or chromium not found; set PW_CORE / CHROME"); process.exit(2); }

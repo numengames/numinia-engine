@@ -159,3 +159,9 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Consumo: semana 47 % → ver `hermes usage` (Opus).
 - Commit: ver `git log` (J9).
 - Siguiente: filas `para Opus` que quedan: F1, F2, S3, P4, D4, M6, M10, V9, M19, M20, M9.
+
+## 2026-10-15 11:07 · e2e propio · hecho (sesión de Pablo con Opus)
+- Qué: las pruebas en navegador usaban el `playwright-core` de otra carpeta (`work/archive-world-agent`), que otra sesión borró: tras J9 todas las piernas del e2e salieron «FALLA» porque no arrancaba el navegador (y el commit de J9 llegó a main sin e2e: fallo mío, la cadena no miraba el resultado). Ahora `playwright-core` 1.64.1 es dependencia de desarrollo exacta del motor (Apache-2.0; la 1.64 usa Firefox 1555, el que hay instalado; Chromium sigue con su ruta fija al 1243), y `tools/e2e*.mjs` la buscan en `node_modules` del propio repositorio.
+- Números: e2e chromium, firefox, AR, VR y https verdes otra vez (con J9 dentro).
+- Regla: un commit que toca código de navegador o de funciones no se lleva a main si `tools/auto.sh e2e` no dice OK en todas las piernas.
+- Commit: ver `git log` (e2e propio).
