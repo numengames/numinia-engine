@@ -88,11 +88,16 @@ Formato: todo aditivo (un método HTTP nuevo en una ruta que ya existía, un cam
 ## Números (de ejecuciones de hoy, no de memoria)
 
 - `npm test`: **101 en verde** (eran 92: +8 `test/subidas.test.ts`, +1 `test/deploy.test.ts`).
-- `npm run gates`: todas en verde; capas 0; plaza de 1.000 tick p99 **7,7 ms** (p50 6,2).
-- `tools/auto.sh e2e` (puertos 8803/5183/5193, núcleos 12-15): `e2e chromium OK` · `e2e firefox OK` ·
-  `e2e AR (IWER) OK` · `e2e VR (IWER) OK` · `e2e subir OK` · `e2e https (wss por /ws del mismo origen) OK`.
+- `npm run gates`: todas en verde; capas 0; plaza de 1.000 tick p99 **7,6–8,1 ms** (p50 6,2–6,3) en tres pasadas.
+- `tools/auto.sh e2e` (puertos 8803/5183/5193, núcleos 12-15), última pasada sobre el commit final: `e2e chromium OK` ·
+  `e2e firefox OK` · `e2e AR (IWER) OK` · `e2e VR (IWER) OK` · `e2e subir OK` · `e2e https (wss por /ws del mismo origen) OK`.
+  Cinco pasadas en total: la pierna `subir` pasó las cinco; dos pasadas salieron enteras en verde; en las otras tres,
+  con la máquina cargada por las otras ramas (carga 13–24), falló **solo** la comprobación de distancia andada de
+  `tools/e2e.mjs` en una pierna de base (chromium −3,19 m; https −3,0 y −3,19 m; pide más de 3,5 m): es el fallo ya
+  descrito en ese fichero (el GL por software pierde ticks con carga), con todo lo demás de esas piernas en verde.
 - Pierna `subir`, en **chromium y firefox**: la capa aparece al arrastrar (y se va al soltar); el objeto cae a
-  **≤ 0,01 m** del punto del suelo bajo el puntero (p. ej. soltado en (120, 220) px → (−6,83, −19,40) m); la pestaña B
+  **≤ 0,01 m** del punto del suelo bajo el puntero (p. ej. soltado en (120, 220) px → (−6,87, −19,28) m, colocado en
+  (−6,87, −19,28)); la pestaña B
   lo recibe y **carga su fichero** (`loaded` +1, `failed` 0); `GET /a/<sha>.glb` devuelve los mismos 1.616 bytes; el
   mismo fichero por el botón (foco + Enter → selector de ficheros real) **no se vuelve a subir** (1 PUT, 2 HEAD) y
   cae a 3 m delante; un `roto.glb` lo rechaza la página sin subir nada; se borran los dos; 0 errores de página.
