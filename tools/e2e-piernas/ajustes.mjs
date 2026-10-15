@@ -1,7 +1,8 @@
 // e2e leg N2 (settings and capabilities), chromium + firefox: O opens the menu; keyboard only (Tab + ArrowLeft) moves
 // «Resolución» and the power policy's pixel ratio follows (renderer included); the status line says it; Escape closes;
 // a reload keeps the value (applied before the first frame); B is kept like any other choice; O typed in a text box does
-// not open it; agents get validation with paths; every control has a label; «Restablecer todo» (keyboard) restores.
+// not open it; agents get validation with paths; every control has a label; «Restablecer todo» (keyboard) restores; a
+// browser that asks for reduced motion starts with «Menos movimiento» on (V7).
 // No page errors. Leaves everything at the defaults. Receives BASE (and SERVER_HTTP, unused). Prints JSON; exit 0 = right.
 import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
@@ -101,6 +102,14 @@ async function pierna(engine) {
     await p.keyboard.press("Escape");
     r.guardadoFinal = await p.evaluate(() => JSON.parse(localStorage.getItem("numinia.ajustes") ?? "{}"));
     await p.evaluate(() => globalThis.__numinia.ajustes.restablecer()); // leave it as it was found
+    // 9. the system's preference (V7): a browser that asks for reduced motion starts with «Menos movimiento» on
+    const ctx2 = await browser.newContext({ viewport: { width: 480, height: 300 }, reducedMotion: "reduce" });
+    const q = await ctx2.newPage();
+    q.on("pageerror", (e) => r.errors.push(String(e)));
+    await q.goto(BASE);
+    await listo(q);
+    r.sistemaMenosMovimiento = await q.evaluate(() => ({ capacidad: globalThis.__numinia.capacidades.menosMovimiento, ajuste: globalThis.__numinia.ajustes.get("accesibilidad.menosMovimiento"), clase: document.documentElement.classList.contains("menos-movimiento") }));
+    await ctx2.close();
   } catch (e) { r.fallo = String(e).split("\n")[0]; }
   await browser.close();
   r.ok = !r.fallo && r.abreConO && r.focoDentro && r.tabsHastaResolucion > 0 && r.ratioCambia && /Resolución: 95 %/.test(r.estado ?? "") && r.cierraConEscape
@@ -109,6 +118,7 @@ async function pierna(engine) {
     && r.agente?.ok === false && r.agente?.issues?.[0]?.path === "graficos.resolucion"
     && r.tabsHastaRestablecer > 0 && r.restablecido?.res === 100 && r.restablecido?.statsRes === 1 && /restablecidos/.test(r.estadoFinal ?? "")
     && r.etiquetas?.controles > 0 && r.etiquetas.sinEtiqueta.length === 0 && r.etiquetas.sinDescripcion.length === 0
+    && r.sistemaMenosMovimiento?.capacidad === true && r.sistemaMenosMovimiento?.ajuste === true && r.sistemaMenosMovimiento?.clase === true
     && r.errors.length === 0;
   return r;
 }

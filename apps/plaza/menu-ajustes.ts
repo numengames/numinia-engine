@@ -102,6 +102,8 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   a.alAplicar("graficos.fpsMax", (v) => view.power.setMaxFps(v === "auto" ? fpsUrl : Number(v)));
   a.alAplicar("graficos.bateria", (v) => { view.power.setBattery(v === true); pr(); });
   a.alAplicar("graficos.estadisticas", (v) => { const h = $("hud"); if (h) h.hidden = v !== true; });
+  // «No llego al servidor» is written in the HUD: it shows even with the statistics off
+  (session.t as { opened?: Promise<void> }).opened?.catch(() => { const h = $("hud"); if (h) h.hidden = false; });
   const entorno = (_: Valor, l: Lectura) => extra.entorno?.calidad?.({ sombras: String(l.get("graficos.sombras")), agua: String(l.get("graficos.agua")), particulas: String(l.get("graficos.particulas")), hdr: l.get("graficos.hdr") === true });
   for (const id of ["graficos.sombras", "graficos.agua", "graficos.particulas", "graficos.hdr"]) a.alAplicar(id, entorno);
   const camara = (_: Valor, l: Lectura) => extra.cam?.ajustar?.({ sensibilidad: Number(l.get("controles.sensibilidad")) / 100, invertirY: l.get("controles.invertirY") === true });
