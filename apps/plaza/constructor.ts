@@ -1,6 +1,7 @@
 // The builder (H1): a «Construir» button (key C) for whoever may build, and a panel of real HTML buttons that
 // screen readers and keyboards can use. It only asks the server (features/objetos); the gizmos come with M22.
 // main.ts passes the builder of features/objetos/client.ts (only composition roots import features/).
+import { escribiendo } from "./escribiendo.ts";
 type Res = { ok: true } | { ok: false; why: string };
 type Builder = {
   estado: { puede: boolean; seleccionado: string; ultimoRechazo: string };
@@ -40,7 +41,7 @@ export function montarConstructor(c: Builder, boton: HTMLButtonElement, panel: H
   const abrir = (si: boolean) => { panel.hidden = !si; boton.setAttribute("aria-expanded", String(si)); boton.textContent = si ? "Cerrar construir" : "Construir"; };
   boton.addEventListener("click", () => abrir(panel.hidden));
   addEventListener("keydown", (e) => {
-    if (e.repeat || !c.estado.puede) return;
+    if (e.repeat || !c.estado.puede || escribiendo(e)) return; // J3: typing in a box is not a builder key
     if (e.code === "KeyC") return abrir(panel.hidden);
     if (panel.hidden) return;
     const r = e.code === "KeyR" ? c.girar(15) : e.code === "KeyZ" ? c.deshacer() : e.code === "Delete" ? c.borrar() : null;

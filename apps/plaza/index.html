@@ -24,19 +24,44 @@
     #panel-construir button { padding: 7px 9px; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; font: inherit; }
     #panel-construir button:focus-visible { outline: 3px solid #ffd27a; }
     #panel-construir .estado { color: #ffd27a; min-height: 1.4em; }
+    /* J3: the chat box, bottom left: the list is always there (an empty one takes no room), the input opens with Enter */
+    #chat { position: fixed; left: 10px; bottom: 34px; width: min(380px, 62vw); display: flex; flex-direction: column; gap: 4px; }
+    #chat-lista { margin: 0; padding: 6px 10px; list-style: none; max-height: min(30vh, 210px); overflow-y: auto; border-radius: 8px; background: rgba(20, 24, 30, .62); color: #eef2f6; overflow-wrap: anywhere; }
+    #chat-lista:empty { padding: 0; background: transparent; }
+    #chat-lista b { color: #9ad0ff; font-weight: 600; }
+    #chat-lista .zona b { color: #c9b6ff; }
+    #chat-lista .antes { opacity: .7; }
+    #chat-lista .aviso { color: #ffd27a; font-style: italic; }
+    #chat-form { display: flex; gap: 6px; }
+    #chat-form[hidden] { display: none; }
+    #chat-texto { flex: 1; min-width: 0; padding: 8px 10px; border: 0; border-radius: 8px; background: #f4f7fb; color: #17202a; font: inherit; font-size: 15px; }
+    #chat-canal, #chat-boton { padding: 8px 12px; border: 0; border-radius: 8px; background: #9ad0ff; color: #23303b; font: inherit; font-weight: 600; }
+    #chat-boton { align-self: flex-start; }
+    #chat-texto:focus-visible, #chat-canal:focus-visible, #chat-boton:focus-visible { outline: 3px solid #ffd27a; }
+    #chat .estado { margin: 0; color: #23303b; min-height: 0; }
     /* V1: what happens, for screen readers (not shown on screen; the voice of V3 comes later) */
     .solo-lector { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   </style>
 </head>
 <body>
   <div id="hud">Conectando…</div>
-  <div id="help">WASD o flechas para moverte · en el móvil, arrastra el dedo · C construir (si puedes)</div>
+  <div id="help">WASD o flechas para moverte · en el móvil, arrastra el dedo · Enter para hablar · C construir (si puedes)</div>
   <button id="ar" type="button">Entrar en AR</button>
   <button id="vr" type="button">Entrar en VR</button>
   <button id="construir" type="button" aria-expanded="false" aria-controls="panel-construir">Construir</button>
   <section id="panel-construir" aria-label="Construir" hidden></section>
   <div id="acciones"></div>
   <div id="joy"><div id="knob"></div></div>
+  <section id="chat" aria-label="Chat">
+    <ol id="chat-lista" role="log" aria-live="polite" aria-label="Mensajes del chat"></ol>
+    <form id="chat-form" hidden>
+      <label for="chat-texto" class="solo-lector">Mensaje para el chat</label>
+      <input id="chat-texto" type="text" autocomplete="off" enterkeyhint="send" placeholder="Escribe y pulsa Enter (Esc cierra)" />
+      <button id="chat-canal" type="button">Cerca</button>
+    </form>
+    <p id="chat-estado" class="estado" role="status"></p>
+    <button id="chat-boton" type="button" aria-expanded="false" aria-controls="chat-form" hidden>Chat</button>
+  </section>
   <div id="avisos" class="solo-lector" role="status" aria-live="polite"></div>
   <div id="avisos-urgentes" class="solo-lector" role="alert" aria-live="assertive"></div>
   <script type="module" src="./main.ts"></script>
