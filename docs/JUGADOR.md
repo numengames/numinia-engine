@@ -38,7 +38,7 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 |---|---|---|---|---|---|---|---|
 | Avatares de otros | Ver a los demás moverse suave ✔ (robots) | motor | Base | sí | C, interpolación | medio | hecho |
 | Avatar de verdad (VRM) | Cuerpo humanoide con animación | motor | Mejorado | tope 60 / 12 / 25 | C avatar, carga de asset | alto | J1 |
-| Nombre sobre la cabeza | Etiqueta con el nombre | motor | Base | sí / sí / sí | P en mundo | bajo | J3 |
+| Nombre sobre la cabeza | Etiqueta con el nombre ✔ (J3: el de la identidad, a 24 m) | motor | Base | sí / sí / sí | P en mundo | bajo | J3 |
 | Elegir / cambiar avatar | Escoger cuerpo y nombre | ciudad | Base | menú | M, G | bajo | I1 |
 | Gestos y emotes | Saludar, bailar con una tecla | motor | Base | tecla / botón / gesto | M, C | bajo | J7 (ejemplo) |
 | Multitud lejana | Cientos de cuerpos baratos ◐ | motor | Base | sí | render instanciado | medio | A1, A4 |
@@ -47,8 +47,8 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 
 | Cosa | Qué es | Capa | Nivel | Escritorio / móvil / VR | Primitivas | Coste móvil | Fila |
 |---|---|---|---|---|---|---|---|
-| Chat de texto cercano | Hablar a quien está cerca ✘ | motor | Base | caja / teclado del móvil / teclado virtual | M, S filtro por cercanía, P | bajo | J3 |
-| Bocadillos | El texto sale sobre el avatar | motor | Base | sí | P en mundo | bajo | J3 |
+| Chat de texto cercano | Hablar a quien está cerca ✔ (J3: 20 m, y un canal de la zona) | motor | Base | caja / teclado del móvil / teclado virtual | M, S filtro por cercanía, P | bajo | J3 |
+| Bocadillos | El texto sale sobre el avatar ✔ (J3: 6 s) | motor | Base | sí | P en mundo | bajo | J3 |
 | Susurro y bloqueo personal | Hablar a uno / silenciar a uno | motor | Base | sí | M, G | bajo | F1 |
 | Moderación básica | Silenciar, expulsar, denunciar con contexto | motor | Base | sí | S, roles | bajo | F1 |
 | Voz por cercanía | Hablar por micrófono (WebRTC) | motor | Base | sí | servicio externo, S | alto | Frontera, sin fila |
