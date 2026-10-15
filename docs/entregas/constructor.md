@@ -119,7 +119,7 @@ Mayús + rueda al coger. Substrata: no se leyó (falta de tiempo).
 - **Prueba a mano** (script fuera del repo, chromium): Tab abre; coger sigue al puntero y B lo ve en directo; dos
   pasos de rueda = 30°, Mayús + rueda = 1,1; clic suelta; Esc devuelve (A y B); Mayús + D: copia seleccionada y
   cogida; inspector y = 2 y nombre llegan a B; escribir en el inspector no camina ni cambia la batería; N, X, T, P.
-- **Peso del cliente al arrancar** (`npm run build`, gzip): `index` 192,49 kB + `three.core` 65,97 kB = **258,5 kB**
+- **Peso del cliente al arrancar** (`npm run build`, gzip): `index` 192,55 kB + `three.core` 65,97 kB = **258,5 kB**
   (main 55b0b3a: 184,64 + 64,02 = 248,7 kB, así que +9,8 kB; D2 pide ≤ 300). Aparte, al primer uso:
   `TransformControls` 5,45 kB, `GLTFLoader` 13,36 kB, `SkeletonUtils` 1,53 kB.
 
