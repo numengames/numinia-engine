@@ -76,11 +76,13 @@ Paridad de movimiento con Hyperfy2 (`docs/HYPERFY2-PARIDAD.md`, filas «Correr»
   0 caídos, steal 0 %. El mismo enjambre sobre `main` 55b0b3a (sacado con `git archive`) en la misma máquina el
   mismo día: p99 19,95 ms (peor 20,5; p50 13,1), 25,6 kbit/s, 171 MB. Actualizados `limits.json` y
   `docs/FICHA-TECNICA.md` (27,2).
-- **e2e** (`tools/auto.sh e2e` con los puertos 8804/5184/5194): chromium OK (avanza −5,39 m con W, 0 correcciones,
-  huella igual) · firefox OK (−6 m, 0, igual) · AR OK · VR OK (19,6 m: corre) · **salto OK** · https OK (−4,2 m, 0).
-- **Pierna `salto`** (última): B ve a A subir a **1,48 m** y volver a 0 · doble salto **2,79 m** y vuelta a 0 · W
-  1,5 s = 6 m a 4 m/s, Mayús+W = 12 m a 8 m/s (**×2,0**) · Espacio en un campo de texto escribe « » y no salta ·
-  Espacio con el foco en un botón salta y no lo pulsa (0 clics) · 0
+- **e2e** (`tools/auto.sh e2e` con los puertos 8804/5184/5194, última pasada sobre el último commit): chromium OK
+  (avanza −5,39 m con W, 0 correcciones, huella igual) · firefox OK (−6 m, 0, igual) · AR OK · VR OK (19,6 m: corre) ·
+  **salto OK** · https OK (−3,8 m, 0, igual; el umbral es −3,5 m y `tools/e2e.mjs` ya avisa de que con la máquina
+  cargada pierde ticks: carga media ~17 durante la pasada; en la pasada anterior, −4,2 m).
+- **Pierna `salto`** (última pasada): B ve a A subir a **1,48 m** y volver a 0 · doble salto **2,79 m** y vuelta a 0 ·
+  W 1,5 s = 6 m a 4 m/s, Mayús+W = 11,6 m a 8 m/s (**×1,93**; ×2,0–2,07 en pasadas anteriores) · Espacio en un campo
+  de texto escribe « » y no salta · Espacio con el foco en un botón salta y no lo pulsa (0 clics) · 0
   correcciones · huella `93b192c8` = `93b192c8` · formato 2 · móvil (emulado): botón «Saltar» salta (0,67 m al primer
   muestreo), dedo a media carrera 2,68 m/s, al borde 8 m/s, 0 correcciones · VR (IWER Quest 3): la A salta y aterriza,
   0 correcciones · 0 errores de página.
