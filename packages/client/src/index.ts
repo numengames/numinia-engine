@@ -2,8 +2,8 @@
 // Own avatar: predicted with the SAME sim step the server runs, reconciled exactly on each snapshot.
 // Others: drawn slightly in the past, interpolated between snapshots.
 import { fxToFloat } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, TICK_HZ } from "../../sim/src/index.ts";
-import type { SimState } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, TICK_HZ } from "../../sim/src/index.ts";
+import type { Body, SimState } from "../../sim/src/index.ts";
 import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, encodeIdentityRequest, decodeIdentity, seqNewer } from "../../net/src/index.ts";
 import type { Transport, Welcome } from "../../net/src/index.ts";
 import { ClientRuntime } from "../../feature/src/index.ts";
@@ -13,7 +13,7 @@ export const INTERP_TICKS = 3;   // draw others 150 ms in the past (1.5 snapshot
 export const FORGET_TICKS = 40;  // drop a remote not heard of for 2 s
 const MAX_SAMPLES = 16;
 
-type Sample = { tick: number; x: number; z: number };
+type Sample = { tick: number; x: number; y: number; z: number };
 
 /** Port the instance server listens on when you run it locally (npm run server). */
 export const DEV_SERVER_PORT = 8790;
@@ -41,10 +41,10 @@ export class ClientSession {
   entity = -1;
   welcome: Welcome | null = null;
   private seq = 0;
-  private pending: { seq: number; mx: number; mz: number }[] = [];
+  private pending: { seq: number; mx: number; mz: number; buttons: number }[] = [];
   private readonly local: SimState;         // a one-avatar sim used only for prediction
-  private prev = { x: 0, z: 0 };            // predicted position one client tick ago (fixed point)
-  private cur = { x: 0, z: 0 };             // predicted position now (fixed point)
+  private prev: Body = { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0 }; // predicted state one client tick ago (fixed point)
+  private cur: Body = this.prev;            // predicted state now (fixed point); J2: height and vertical state too
   private remotes = new Map<number, { samples: Sample[]; lastTick: number }>();
   private offset = 0;                       // server tick minus local tick clock
   private hasClock = false;
@@ -64,16 +64,17 @@ export class ClientSession {
     t.onMessage((bytes) => this.handle(bytes, nowMs()));
   }
 
-  /** One client tick (20 Hz): send the input and predict its effect immediately. */
-  tick(mx: number, mz: number): void {
+  /** One client tick (20 Hz): send the input and predict its effect immediately. `buttons`: BTN_JUMP (a press since
+   * the previous tick: latch taps in the page so none is lost between two ticks) | BTN_RUN (held). */
+  tick(mx: number, mz: number, buttons = 0): void {
     if (this.entity < 0) return;
     this.seq = (this.seq + 1) & 0xffff;
-    this.t.send(encodeInput(this.seq, mx, mz), false);
-    this.pending.push({ seq: this.seq, mx, mz });
+    this.t.send(encodeInput(this.seq, mx, mz, buttons), false);
+    this.pending.push({ seq: this.seq, mx, mz, buttons });
     if (this.pending.length > 64) this.pending.shift();
-    this.prev = { ...this.cur };
-    step(this.local, new Int32Array([0, mx, mz]));
-    this.cur = { x: this.local.tf.cols.x[0], z: this.local.tf.cols.z[0] };
+    this.prev = this.cur;
+    step(this.local, new Int32Array([0, mx, mz, buttons]));
+    this.cur = getBody(this.local, 0);
   }
 
   ping(now = nowMs()): void { this.t.send(encodePing(now >>> 0), true); }
@@ -92,7 +93,7 @@ export class ClientSession {
     if (type === MSG.WELCOME) {
       const w = decodeWelcome(bytes);
       this.welcome = w; this.entity = w.entity;
-      this.setLocal(w.x, w.z); this.prev = { ...this.cur };
+      this.setLocal({ x: w.x, y: groundHeight(w.x, w.z), z: w.z, vy: 0, air: 0, buf: 0 }); this.prev = this.cur; // spawned standing
       this.syncClock(w.tick, now, true);
       if (this.keeper) { let kept: string | null = null; try { kept = this.keeper.load(); } catch { /* private mode */ } this.t.send(encodeIdentityRequest(kept ?? ""), true); }
     } else if (type === MSG.IDENTITY) {
@@ -103,11 +104,11 @@ export class ClientSession {
       if (!s) return;
       this.stats.snapshots++; this.stats.visible = s.others.length; this.stats.lastServerTick = s.tick;
       this.syncClock(s.tick, now, false);
-      this.reconcile(s.self.x, s.self.z, s.ack);
+      this.reconcile(s.self, s.ack);
       for (const o of s.others) {
         let r = this.remotes.get(o.id);
         if (!r) this.remotes.set(o.id, (r = { samples: [], lastTick: s.tick }));
-        r.samples.push({ tick: s.tick, x: o.x, z: o.z });
+        r.samples.push({ tick: s.tick, x: o.x, y: o.y, z: o.z });
         if (r.samples.length > MAX_SAMPLES) r.samples.shift();
         r.lastTick = s.tick;
       }
@@ -116,19 +117,20 @@ export class ClientSession {
     } else this.features.receive(bytes); // CATALOG, FEATURE, STATE; anything else is ignored
   }
 
-  /** Server says where we were after input `ack`; replay what it has not applied yet. */
-  private reconcile(x: number, z: number, ack: number): void {
-    const before = { ...this.cur };
+  /** Server says what our avatar was after input `ack` (height and vertical state included); replay what it has not
+   * applied yet. Any difference from what we had predicted, in any field, is a correction. */
+  private reconcile(server: Body, ack: number): void {
+    const before = this.cur;
     this.pending = this.pending.filter((p) => seqNewer(p.seq, ack));
-    this.setLocal(x, z);
-    for (const p of this.pending) step(this.local, new Int32Array([0, p.mx, p.mz]));
-    this.cur = { x: this.local.tf.cols.x[0], z: this.local.tf.cols.z[0] };
-    if (this.cur.x !== before.x || this.cur.z !== before.z) { this.stats.corrections++; this.prev = { ...this.cur }; }
+    this.setLocal(server);
+    for (const p of this.pending) step(this.local, new Int32Array([0, p.mx, p.mz, p.buttons]));
+    this.cur = getBody(this.local, 0);
+    if (!sameBody(this.cur, before)) { this.stats.corrections++; this.prev = this.cur; }
   }
 
-  private setLocal(x: number, z: number): void {
-    this.local.tf.cols.x[0] = x; this.local.tf.cols.z[0] = z;
-    this.cur = { x, z };
+  private setLocal(b: Body): void {
+    setBody(this.local, 0, b);
+    this.cur = getBody(this.local, 0);
   }
 
   private syncClock(serverTick: number, now: number, force: boolean): void {
@@ -139,13 +141,19 @@ export class ClientSession {
 
   serverTickNow(now = nowMs()): number { return (now * TICK_HZ) / 1000 + this.offset; }
 
-  /** Own avatar in metres, blended between the last two client ticks (alpha in [0,1]). */
-  selfPosition(alpha: number): { x: number; z: number } {
-    return { x: fxToFloat(this.prev.x + (this.cur.x - this.prev.x) * alpha), z: fxToFloat(this.prev.z + (this.cur.z - this.prev.z) * alpha) };
+  /** Own avatar in metres, blended between the last two client ticks (alpha in [0,1]). J2: `y` is the height of the
+   * feet, `speed` the horizontal speed in m/s (≈4 walking, ≈8 running), `grounded` false while in the air. */
+  selfPosition(alpha: number): { x: number; y: number; z: number; speed: number; grounded: boolean } {
+    const p = this.prev, c = this.cur;
+    return {
+      x: fxToFloat(p.x + (c.x - p.x) * alpha), y: fxToFloat(p.y + (c.y - p.y) * alpha), z: fxToFloat(p.z + (c.z - p.z) * alpha),
+      speed: Math.hypot(fxToFloat(c.x - p.x), fxToFloat(c.z - p.z)) * TICK_HZ, grounded: c.y <= groundHeight(c.x, c.z),
+    };
   }
 
-  /** Everyone else in metres, interpolated INTERP_TICKS in the past. */
-  remotePositions(now = nowMs()): { id: number; x: number; z: number }[] {
+  /** Everyone else in metres, interpolated INTERP_TICKS in the past. J2: `y` (height of the feet) and `speed`
+   * (horizontal, m/s, over the snapshot interval being drawn). */
+  remotePositions(now = nowMs()): { id: number; x: number; y: number; z: number; speed: number }[] {
     const est = this.serverTickNow(now), at = est - INTERP_TICKS, out = [];
     for (const [id, r] of this.remotes) {
       if (est - r.lastTick > FORGET_TICKS) { this.remotes.delete(id); continue; }
@@ -154,7 +162,8 @@ export class ClientSession {
       for (let i = 0; i < sm.length - 1; i++) if (sm[i].tick <= at && at <= sm[i + 1].tick) { a = sm[i]; b = sm[i + 1]; break; }
       const span = b.tick - a.tick;
       const k = span > 0 ? Math.min(1, Math.max(0, (at - a.tick) / span)) : 1;
-      out.push({ id, x: fxToFloat(a.x + (b.x - a.x) * k), z: fxToFloat(a.z + (b.z - a.z) * k) });
+      const speed = span > 0 ? (Math.hypot(fxToFloat(b.x - a.x), fxToFloat(b.z - a.z)) * TICK_HZ) / span : 0;
+      out.push({ id, x: fxToFloat(a.x + (b.x - a.x) * k), y: fxToFloat(a.y + (b.y - a.y) * k), z: fxToFloat(a.z + (b.z - a.z) * k), speed });
     }
     return out.sort((p, q) => p.id - q.id);
   }

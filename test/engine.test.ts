@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fx, fxMul, fxDiv, fxSqrt, FX_ONE, rngNext, fnv1a, hex } from "../packages/core/src/index.ts";
 import { defineSchema, validate, fieldBits } from "../packages/schema/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, replay, referenceRecording, replayFingerprint, REFERENCE } from "../packages/sim/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, replay, referenceRecording, replayFingerprint, REFERENCE, BTN_JUMP } from "../packages/sim/src/index.ts";
 import {
   BitWriter, BitReader, encodeSnapshot, decodeSnapshot, buildGrid, selectVisible, encodeInput, decodeInput,
   encodeWelcome, decodeWelcome, seqNewer, loopbackPair, quantPos, MSG,
@@ -53,23 +53,24 @@ test("determinism: 10,000 ticks replay to identical fingerprints", () => {
 });
 
 test("determinism: the reference fingerprint is pinned (a change here is a sim format change: ADR)", () => {
+  // 93b192c8 since J2 (height, jump, the jump in the air, running; sim format 2). Before J2: fa94375e.
   const h = replayFingerprint(referenceRecording(REFERENCE.seed, REFERENCE.ticks, REFERENCE.n));
-  assert.equal(hex(h), "fa94375e");
+  assert.equal(hex(h), "93b192c8");
 });
 
 test("determinism: input order does not matter", () => {
   const mk = () => { const s = createSim(4, 9); for (let i = 0; i < 3; i++) spawnAvatar(s, i); return s; };
   const s1 = mk(), s2 = mk();
-  step(s1, new Int32Array([0, 127, 0, 1, 0, -127, 2, 50, 50]));
-  step(s2, new Int32Array([2, 50, 50, 0, 127, 0, 1, 0, -127]));
+  step(s1, new Int32Array([0, 127, 0, 1, 1, 0, -127, 0, 2, 50, 50, 3]));
+  step(s2, new Int32Array([2, 50, 50, 3, 0, 127, 0, 1, 1, 0, -127, 0]));
   assert.equal(stateHash(s1), stateHash(s2));
 });
 
 test("net: bits, messages and quantization round-trip", () => {
   const w = new BitWriter(1); w.write(5, 3); w.write(65535, 16); w.write(1, 1);
   const r = new BitReader(w.finish()); assert.deepEqual([r.read(3), r.read(16), r.read(1)], [5, 65535, 1]);
-  assert.deepEqual(decodeInput(encodeInput(3, -127, 64)), { seq: 3, mx: -127, mz: 64 });
-  const wel = { entity: 7, tick: 99, x: -123456, z: 654321, ref: { seed: 1, ticks: 2, n: 3, hash: 0xdeadbeef } };
+  assert.deepEqual(decodeInput(encodeInput(3, -127, 64)), { seq: 3, mx: -127, mz: 64, buttons: 0 });
+  const wel = { entity: 7, tick: 99, x: -123456, z: 654321, ref: { seed: 1, ticks: 2, n: 3, hash: 0xdeadbeef }, format: 2 };
   assert.deepEqual(decodeWelcome(encodeWelcome(wel)), wel);
   const s = createSim(10, 5); for (let i = 0; i < 10; i++) spawnAvatar(s, i);
   const bytes = encodeSnapshot(s, 0, 4242, [1, 2, 3]);
@@ -92,12 +93,15 @@ test("net: a lying count or a truncated message never throws", () => {
 
 test("net: the fast snapshot writer is byte-for-byte the documented bit layout", () => {
   const s = createSim(40, 11); for (let i = 0; i < 40; i++) spawnAvatar(s, i);
+  step(s, new Int32Array([5, 0, 0, BTN_JUMP, 21, 0, 0, BTN_JUMP])); // two of them in the air (J2)
   s.tick = 0xfedcba98;
   const vis = [3, 7, 21, 39];
   const w = new BitWriter(8);
   w.write(MSG.SNAPSHOT, 8); w.write(s.tick, 32); w.write(513, 16); w.write(5, 16);
-  w.write(s.tf.cols.x[5], 32); w.write(s.tf.cols.z[5], 32); w.write(vis.length, 16);
-  for (const id of vis) { w.write(id, 16); w.write(quantPos(s.tf.cols.x[id]), 16); w.write(quantPos(s.tf.cols.z[id]), 16); }
+  w.write(s.tf.cols.x[5], 32); w.write(s.tf.cols.z[5], 32); w.write(s.tf.cols.y[5], 32); w.write(s.mo.cols.vy[5], 32);
+  w.write(s.mo.cols.air[5] | (s.mo.cols.buf[5] << 1), 8); w.write(3, 16); w.write(1, 16); // 3 at ground level, 1 above
+  for (const id of [3, 7, 39]) { w.write(id, 16); w.write(quantPos(s.tf.cols.x[id]), 16); w.write(quantPos(s.tf.cols.z[id]), 16); }
+  w.write(21, 16); w.write(quantPos(s.tf.cols.x[21]), 16); w.write(quantPos(s.tf.cols.z[21]), 16); w.write(quantPos(s.tf.cols.y[21]), 16);
   assert.deepEqual(encodeSnapshot(s, 5, 513, vis), w.finish());
 });
 

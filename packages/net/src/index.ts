@@ -1,7 +1,7 @@
 // net: wire format (bit-packed, quantized by schema), area of interest, transports.
 // Every message starts with one type byte. The format is additive: new types, never changed ones.
 import { fxToFloat, FX_ONE } from "../../core/src/index.ts";
-import type { SimState } from "../../sim/src/index.ts";
+import type { Body, SimState } from "../../sim/src/index.ts";
 import { fieldBits, textLenBits } from "../../schema/src/index.ts";
 import type { Field } from "../../schema/src/index.ts";
 
@@ -9,6 +9,11 @@ import type { Field } from "../../schema/src/index.ts";
 // 9 (T1, additive): REPORT, page -> server: how this player entered and how it is going (JSON, see server/sesiones.ts).
 // 10 (I1, additive): IDENTITY. page -> server: the guest token it kept (or nothing); server -> page: {token, id, nombre}.
 export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8, REPORT: 9, IDENTITY: 10 } as const;
+
+/** Wire format version, sent at the end of WELCOME. 1 = everything before J2 (it was never written on the wire);
+ * 2 = J2: SNAPSHOT carries height (own vertical state exact, others with height in their own list), INPUT has a
+ * buttons byte. A page whose number differs from its server's must reload. */
+export const WIRE_FORMAT = 2;
 
 // ---------- bit packing ----------
 export class BitWriter {
@@ -98,7 +103,8 @@ const Q = FX_ONE / 64;
 export const quantPos = (v: number): number => (Math.floor(v / Q) + 32768) & 0xffff;
 export const dequantPos = (q: number): number => (q - 32768) * Q;
 export const ID_BITS = 16;
-export const ENTITY_BITS = ID_BITS + 2 * POS_BITS; // 48 bits = 6 bytes per visible entity
+export const ENTITY_BITS = ID_BITS + 2 * POS_BITS; // 48 bits = 6 bytes per visible entity at ground level
+export const ENTITY_BITS_HIGH = ENTITY_BITS + POS_BITS; // J2: 64 bits = 8 bytes for one above the ground (y too)
 
 // ---------- area of interest: flat grid of 8 m cells + rings + accumulated priority + top-k ----------
 // Runs on the server only and decides WHAT is sent, never game state, so floats are allowed here.
@@ -179,56 +185,81 @@ function topK(n: number, k: number): void {
 // ---------- messages ----------
 // Byte-aligned fields are written with DataView (big-endian), which is byte-for-byte what the
 // MSB-first BitWriter produces: same wire format, ~10x less work. BitWriter stays for sub-byte fields.
-const SNAP_HEADER = 19; // type 1 + tick 4 + ack 2 + self 2 + x 4 + z 4 + count 2
+// SNAPSHOT, wire format 2 (J2):
+//   type 1 · tick 4 · ack 2 · self 2 · x 4 · z 4 · y 4 · vy 4 · flags 1 (bit 0 air jump spent, bits 1-2 jump buffer)
+//   · nLow 2 · nHigh 2, then nLow × (id 2, x 2, z 2) for others at ground level (their height quantizes to 0)
+//   and nHigh × (id 2, x 2, z 2, y 2) for others above it. A crowd standing on the plaza costs what it cost before J2.
+const SNAP_HEADER = 30;
+const ZERO_Q = 32768; // quantPos(0)
 
-/** SNAPSHOT: own position at full precision (exact reconciliation), others quantized. */
+/** SNAPSHOT: own state at full precision (exact reconciliation, height included), others quantized. */
 export function encodeSnapshot(s: SimState, self: number, ack: number, visible: number[]): Uint8Array {
-  const X = s.tf.cols.x, Z = s.tf.cols.z;
-  const buf = new Uint8Array(SNAP_HEADER + visible.length * 6), dv = new DataView(buf.buffer);
+  const X = s.tf.cols.x, Y = s.tf.cols.y, Z = s.tf.cols.z;
+  let high = 0;
+  for (const id of visible) if (quantPos(Y[id]) !== ZERO_Q) high++;
+  const low = visible.length - high;
+  const buf = new Uint8Array(SNAP_HEADER + low * 6 + high * 8), dv = new DataView(buf.buffer);
   dv.setUint8(0, MSG.SNAPSHOT); dv.setUint32(1, s.tick >>> 0); dv.setUint16(5, ack & 0xffff); dv.setUint16(7, self);
-  dv.setInt32(9, X[self]); dv.setInt32(13, Z[self]); dv.setUint16(17, visible.length);
-  let o = SNAP_HEADER;
-  for (const id of visible) { dv.setUint16(o, id); dv.setUint16(o + 2, quantPos(X[id])); dv.setUint16(o + 4, quantPos(Z[id])); o += 6; }
+  dv.setInt32(9, X[self]); dv.setInt32(13, Z[self]); dv.setInt32(17, Y[self]); dv.setInt32(21, s.mo.cols.vy[self]);
+  dv.setUint8(25, (s.mo.cols.air[self] & 1) | ((s.mo.cols.buf[self] & 3) << 1));
+  dv.setUint16(26, low); dv.setUint16(28, high);
+  let o = SNAP_HEADER, h = SNAP_HEADER + low * 6;
+  for (const id of visible) {
+    const qy = quantPos(Y[id]);
+    if (qy === ZERO_Q) { dv.setUint16(o, id); dv.setUint16(o + 2, quantPos(X[id])); dv.setUint16(o + 4, quantPos(Z[id])); o += 6; }
+    else { dv.setUint16(h, id); dv.setUint16(h + 2, quantPos(X[id])); dv.setUint16(h + 4, quantPos(Z[id])); dv.setUint16(h + 6, qy); h += 8; }
+  }
   return buf;
 }
-export type Snapshot = { tick: number; ack: number; self: { id: number; x: number; z: number }; others: { id: number; x: number; z: number }[] };
-/** Returns null for a message too short to be a snapshot; a lying count is clipped. Never throws. */
+export type Snapshot = { tick: number; ack: number; self: Body & { id: number }; others: { id: number; x: number; y: number; z: number }[] };
+/** Returns null for a message too short to be a snapshot; lying counts are clipped. Never throws. */
 export function decodeSnapshot(bytes: Uint8Array): Snapshot | null {
   if (bytes.length < SNAP_HEADER) return null;
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const n = Math.min(dv.getUint16(17), Math.floor((bytes.length - SNAP_HEADER) / 6));
-  const others = new Array(n);
-  for (let i = 0, o = SNAP_HEADER; i < n; i++, o += 6) others[i] = { id: dv.getUint16(o), x: dequantPos(dv.getUint16(o + 2)), z: dequantPos(dv.getUint16(o + 4)) };
-  return { tick: dv.getUint32(1), ack: dv.getUint16(5), self: { id: dv.getUint16(7), x: dv.getInt32(9), z: dv.getInt32(13) }, others };
+  const nLow = Math.min(dv.getUint16(26), Math.floor((bytes.length - SNAP_HEADER) / 6));
+  const nHigh = Math.min(dv.getUint16(28), Math.floor((bytes.length - SNAP_HEADER - nLow * 6) / 8));
+  const others = new Array(nLow + nHigh);
+  let o = SNAP_HEADER;
+  for (let i = 0; i < nLow; i++, o += 6) others[i] = { id: dv.getUint16(o), x: dequantPos(dv.getUint16(o + 2)), y: 0, z: dequantPos(dv.getUint16(o + 4)) };
+  for (let i = 0; i < nHigh; i++, o += 8) others[nLow + i] = { id: dv.getUint16(o), x: dequantPos(dv.getUint16(o + 2)), y: dequantPos(dv.getUint16(o + 6)), z: dequantPos(dv.getUint16(o + 4)) };
+  const flags = dv.getUint8(25);
+  return {
+    tick: dv.getUint32(1), ack: dv.getUint16(5),
+    self: { id: dv.getUint16(7), x: dv.getInt32(9), z: dv.getInt32(13), y: dv.getInt32(17), vy: dv.getInt32(21), air: flags & 1, buf: (flags >> 1) & 3 },
+    others,
+  };
 }
 
-/** INPUT: one per client tick. The server knows who sent it; mx/mz are int8 stick axes. */
-export function encodeInput(seq: number, mx: number, mz: number): Uint8Array {
-  const w = new BitWriter(5); w.write(MSG.INPUT, 8); w.write(seq & 0xffff, 16); w.write(mx & 0xff, 8); w.write(mz & 0xff, 8); return w.finish();
+/** INPUT: one per client tick. The server knows who sent it; mx/mz are int8 stick axes; buttons is one byte of
+ * BTN_* bits (J2, additive: a 5-byte input from before J2 is still valid and means no buttons). */
+export function encodeInput(seq: number, mx: number, mz: number, buttons = 0): Uint8Array {
+  const w = new BitWriter(6); w.write(MSG.INPUT, 8); w.write(seq & 0xffff, 16); w.write(mx & 0xff, 8); w.write(mz & 0xff, 8); w.write(buttons & 0xff, 8); return w.finish();
 }
-export function decodeInput(bytes: Uint8Array): { seq: number; mx: number; mz: number } {
+export function decodeInput(bytes: Uint8Array): { seq: number; mx: number; mz: number; buttons: number } {
   const r = new BitReader(bytes); r.read(8);
   const seq = r.read(16), mx = (r.read(8) << 24) >> 24, mz = (r.read(8) << 24) >> 24;
-  return { seq, mx, mz };
+  return { seq, mx, mz, buttons: bytes.length > 5 ? r.read(8) : 0 };
 }
 
 export const encodePing = (t: number): Uint8Array => { const w = new BitWriter(5); w.write(MSG.PING, 8); w.write(t >>> 0, 32); return w.finish(); };
 export const encodePong = (t: number): Uint8Array => { const w = new BitWriter(5); w.write(MSG.PONG, 8); w.write(t >>> 0, 32); return w.finish(); };
 export const decodeTime = (bytes: Uint8Array): number => { const r = new BitReader(bytes); r.read(8); return r.read(32); };
 
-/** WELCOME: who you are, where you start, and the reference run for the determinism probe. */
-export type Welcome = { entity: number; tick: number; x: number; z: number; ref: { seed: number; ticks: number; n: number; hash: number } };
+/** WELCOME: who you are, where you start, the reference run for the determinism probe, and (J2, one byte added at
+ * the end) the server's wire format: 0 when absent, i.e. a server from before J2. */
+export type Welcome = { entity: number; tick: number; x: number; z: number; ref: { seed: number; ticks: number; n: number; hash: number }; format?: number };
 export function encodeWelcome(m: Welcome): Uint8Array {
   const w = new BitWriter(32);
   w.write(MSG.WELCOME, 8); w.write(m.entity, 16); w.write(m.tick, 32); w.write(m.x, 32); w.write(m.z, 32);
   w.write(m.ref.seed, 32); w.write(m.ref.ticks, 32); w.write(m.ref.n, 16); w.write(m.ref.hash, 32);
+  w.write(m.format ?? WIRE_FORMAT, 8);
   return w.finish();
 }
 export function decodeWelcome(bytes: Uint8Array): Welcome {
   const r = new BitReader(bytes); r.read(8);
   const entity = r.read(16), tick = r.read(32), x = r.readSigned32(), z = r.readSigned32();
   const ref = { seed: r.read(32), ticks: r.read(32), n: r.read(16), hash: r.read(32) };
-  return { entity, tick, x, z, ref };
+  return { entity, tick, x, z, ref, format: r.read(8) };
 }
 
 /** 16-bit sequence comparison with wrap-around: is a newer than b? */

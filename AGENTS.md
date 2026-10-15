@@ -50,7 +50,7 @@ import `features/` except the composition roots listed in `layers.json` (`_compo
 - `sim` decides with integers / Q16.16 fixed point only (`core`). No `Math.sin/cos/exp`, no
   `Math.random`, no `Date`, no iterating `Map`/`Set` to decide anything.
 - Randomness comes from the RNG state stored inside the sim state.
-- The reference fingerprint is pinned in a test (`fa94375e` until J2 changes it). Changing it, the
+- The reference fingerprint is pinned in a test (`93b192c8` since J2, sim/wire format 2; it was `fa94375e`). Changing it, the
   wire format or any file format is a FORMAT CHANGE: see Autonomy for when and how it is allowed.
 
 ## Gates (run `npm run gates` before committing anything)

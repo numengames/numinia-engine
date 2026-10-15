@@ -13,7 +13,9 @@ export type { FrameCost } from "./power.ts";
 export { leerAparato, leerBateria, medidorDeCuadros } from "./sesion.ts";
 
 export type Backend = "WebGPU" | "WebGL2";
-export type Placed = { id: number; x: number; z: number };
+/** Someone to draw. J2 (optional, additive): `y` = height of the feet in metres (0 = on the plaza), `speed` =
+ * horizontal speed in m/s (≈4 walking, ≈8 running) for whoever animates avatars. */
+export type Placed = { id: number; x: number; z: number; y?: number; speed?: number };
 /** H1: a thing in the world (same shape as the feature plug's PlacedObject; render does not import it). Degrees, YXZ. */
 export type Thing = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean };
 const LOADS_AT_ONCE = 4;   // H1: model files downloading at the same time; the nearest first
@@ -71,7 +73,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const ar = createAR({ renderer, scene, world, domOverlayRoot: document.getElementById("hud") ?? undefined, maxMs: opts.arMaxMs });
 
   const vr = createVR({ renderer, scene, camera });
-  let selfXZ: { x: number; z: number } | null = null;
+  let selfXZ: { x: number; z: number; y?: number } | null = null;
 
   // feature decorations (J7): a text label over an avatar and a short bounce; both expire on their own
   type Target = number | "self";
@@ -199,16 +201,16 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     arSupported,
     vr,
     vrSupported,
-    /** Place everyone for this frame. */
-    sync(self: { x: number; z: number } | null, list: Placed[]): void {
+    /** Place everyone for this frame (J2: at their height). */
+    sync(self: { x: number; z: number; y?: number; speed?: number } | null, list: Placed[]): void {
       selfXZ = self;
-      if (self) { selfMesh.visible = true; selfMesh.position.set(self.x, 0.85, self.z); }
+      if (self) { selfMesh.visible = true; selfMesh.position.set(self.x, (self.y ?? 0) + 0.85, self.z); }
       const seen = new Set<number>();
       for (const o of list) {
         seen.add(o.id);
         let m = others.get(o.id);
         if (!m) { m = new THREE.Mesh(bodyGeo, otherMat); world.add(m); others.set(o.id, m); }
-        m.position.set(o.x, 0.85, o.z);
+        m.position.set(o.x, (o.y ?? 0) + 0.85, o.z);
       }
       for (const [id, m] of others) if (!seen.has(id)) { world.remove(m); others.delete(id); }
       const now = performance.now();

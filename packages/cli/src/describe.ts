@@ -11,7 +11,7 @@ import funciones from "../../../features/servidor.ts";
 
 export type Description = {
   schema: "numinia-engine/describe@1"; seed: number; tick: number; seconds: number; hash: string;
-  entities: { id: number; x: number; z: number; sees: number[] }[];
+  entities: { id: number; x: number; y: number; z: number; sees: number[] }[]; // y (J2): height of the feet, 0 = on the ground
 };
 
 export function describeInstance(o: { seed: number; bots: number; ticks: number; k: number }): Description {
@@ -24,6 +24,7 @@ export function describeInstance(o: { seed: number; bots: number; ticks: number;
   const entities = inst.conns.map((c) => ({
     id: c.entity,
     x: r2(inst.sim.tf.cols.x[c.entity]),
+    y: r2(inst.sim.tf.cols.y[c.entity]),
     z: r2(inst.sim.tf.cols.z[c.entity]),
     sees: selectVisible(inst.sim, grid, c.viewer, o.k).slice().sort((a, b) => a - b),
   }));

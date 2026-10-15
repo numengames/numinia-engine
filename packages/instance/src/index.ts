@@ -1,7 +1,7 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, BTN_JUMP, BTN_RUN, INPUT_STRIDE } from "../../sim/src/index.ts";
 import type { SimState } from "../../sim/src/index.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
@@ -29,12 +29,12 @@ export type InstanceOptions = {
   puede?: (who: Who | null, accion: string, entity: number) => boolean; // H1: permissions for features (api.puede); none = nobody may
 };
 
-/** Inputs wait in a queue; the server applies exactly ONE per tick (none = stand still). */
+/** Inputs wait in a queue; the server applies exactly ONE per tick (none = that avatar does not advance: J2). */
 export const MAX_QUEUE = 8;
 
 type Conn = {
   entity: number; transport: Transport; viewer: Viewer;
-  queue: { seq: number; mx: number; mz: number }[]; ack: number; dropped: number; bad: number;
+  queue: { seq: number; mx: number; mz: number; buttons: number }[]; ack: number; dropped: number; bad: number;
   who?: Who; // I1: set once the page shows (or asks for) its guest token
 };
 
@@ -66,7 +66,7 @@ export class Instance {
     const entity = spawnAvatar(this.sim, owner);
     const conn: Conn = { entity, transport: t, viewer: { entity, priority: new Float32Array(this.opts.capacity) }, queue: [], ack: 0, dropped: 0, bad: 0 };
     t.onMessage((bytes) => {
-      if (bytes[0] === MSG.INPUT && bytes.length === 5) {
+      if (bytes[0] === MSG.INPUT && (bytes.length === 6 || bytes.length === 5)) { // 5 = from before J2 (no buttons)
         conn.queue.push(decodeInput(bytes));
         if (conn.queue.length > MAX_QUEUE) { conn.queue.shift(); conn.dropped++; } // faster-than-tick senders lose inputs
       } else if (bytes[0] === MSG.PING && bytes.length === 5) {
@@ -113,13 +113,17 @@ export class Instance {
 
   tick(): void {
     for (const c of this.conns) c.transport.flush?.();
-    const inputs = new Int32Array(this.conns.length * 3);
-    this.conns.forEach((c, i) => {
+    // only avatars whose input arrived advance this tick (gravity too): one input = one step of the owner's clock,
+    // so the owner's prediction stays exact when an input comes late (J2)
+    const inputs = new Int32Array(this.conns.length * INPUT_STRIDE);
+    let n = 0;
+    for (const c of this.conns) {
       const m = c.queue.shift();
-      inputs[i * 3] = c.entity;
-      if (m) { inputs[i * 3 + 1] = m.mx; inputs[i * 3 + 2] = m.mz; c.ack = m.seq; }
-    });
-    step(this.sim, inputs); // authority
+      if (!m) continue;
+      const o = n++ * INPUT_STRIDE;
+      inputs[o] = c.entity; inputs[o + 1] = m.mx; inputs[o + 2] = m.mz; inputs[o + 3] = m.buttons; c.ack = m.seq;
+    }
+    step(this.sim, inputs.subarray(0, n * INPUT_STRIDE)); // authority
     this.features.tick();   // game features: queued intents, then their tick hooks (no effect on the sim)
     if (this.sim.tick % this.opts.snapshotEvery === 0) { // 20 Hz sim, 10 Hz snapshots by default
       const grid = buildGrid(this.sim);
@@ -138,11 +142,12 @@ export class Instance {
 }
 
 /** A headless bot: speaks the real protocol over any transport, wanders with its own seeded RNG
- * and drifts back towards the centre of the plaza when it strays beyond ~20 m. */
+ * and drifts back towards the centre of the plaza when it strays beyond ~20 m. J2: it runs on some
+ * stretches (one in four) and hops now and then (about every 8 s), so the plaza shows both. */
 export class Bot {
   readonly t: Transport;
   readonly rng: Uint32Array;
-  entity = -1; seq = 0; mx = 0; mz = 0; seen = 0; lastTick = 0; x = 0; z = 0;
+  entity = -1; seq = 0; mx = 0; mz = 0; run = false; seen = 0; lastTick = 0; x = 0; z = 0;
   constructor(t: Transport, seed: number) {
     this.t = t; this.rng = new Uint32Array([seed >>> 0]);
     t.onMessage((bytes) => {
@@ -155,11 +160,13 @@ export class Bot {
     if (rngNext(this.rng) % 20 === 0) { // change direction about once a second
       this.mx = (rngNext(this.rng) % 255) - 127;
       this.mz = (rngNext(this.rng) % 255) - 127;
+      this.run = rngNext(this.rng) % 4 === 0;
       const far = 20 * 65536;              // 20 m in Q16.16
       if (this.x > far) this.mx = -Math.abs(this.mx); else if (this.x < -far) this.mx = Math.abs(this.mx);
       if (this.z > far) this.mz = -Math.abs(this.mz); else if (this.z < -far) this.mz = Math.abs(this.mz);
     }
+    const hop = rngNext(this.rng) % 160 === 0;
     this.seq = (this.seq + 1) & 0xffff;
-    this.t.send(encodeInput(this.seq, this.mx, this.mz), false);
+    this.t.send(encodeInput(this.seq, this.mx, this.mz, (hop ? BTN_JUMP : 0) | (this.run ? BTN_RUN : 0)), false);
   }
 }
