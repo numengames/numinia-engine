@@ -19,6 +19,9 @@ import { montarDialogo } from "./dialogo.ts";
 import { montarLibro } from "./misiones.ts";
 import { montarMapa } from "./mapa.ts";
 import { montarFicha } from "./ficha.ts";
+import { ambiente } from "../../features/entorno/client.ts";
+import { elementos } from "../../features/elementos/client.ts";
+import { montarEntorno } from "./entorno.ts";
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
@@ -47,6 +50,9 @@ const session = new ClientSession(transport, {
     bubble: (e, text, ms) => view.bubble(e === session.entity ? "self" : e, text, ms),
     // J5: a name that stays over a person of the world
     tag: (key, t) => view.tag(key, t),
+    // H4/H8: the zone's environment and its elements (water, fire, smoke, dust)
+    entorno: (v) => view.entorno.aplicar(v),
+    elemento: (k, v) => view.elementos.poner(k, v),
     // V1: every announced event reaches screen readers (polite; safety = assertive). V3 adds the engine's own voice.
     announce: (a) => {
       if (a.feature === "chat") return; // J3: the chat box's own list (role=log, polite) reads the chat
@@ -78,6 +84,7 @@ if (matchMedia("(pointer: coarse)").matches) {
 montarConstructor(constructor, view, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!);
 // ---- H9: drop your own .glb on the world (or «Subir modelo…» in the panel): uploaded by sha256, placed for everyone ----
 montarSoltar({ session, view, puede: () => constructor.estado.puede, origen: activos, billete: () => localStorage.getItem(GUARDA), panel: document.getElementById("panel-construir") });
+montarEntorno(ambiente, elementos, view); // H4/H8: environment and elements, a section of its own while building
 
 // ---- J3: the chat box (Enter opens, Enter sends, Escape closes; a «Chat» button on touch screens) ----
 const cajaChat = montarChat(chatDePagina, document.getElementById("chat")!);
@@ -280,7 +287,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, mapa, ficha };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, mapa, ficha, ambiente, elementos };
 
 // ---- N2: settings and capabilities (menu-ajustes.ts): gear + O, window.__numinia.ajustes / .capacidades. Applied here,
 // before the first frame: the display loop above only draws from the next animation frame on ----

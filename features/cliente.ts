@@ -6,6 +6,8 @@ import despertar from "./despertar/client.ts";
 import objetos from "./objetos/client.ts";
 import chat from "./chat/client.ts";
 import misiones from "./misiones/client.ts"; // J5: two features: people (pnj) and quests (misiones)
+import entorno from "./entorno/client.ts";
+import elementos from "./elementos/client.ts";
 
-const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones];
+const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos];
 export default funciones;

@@ -1,0 +1,62 @@
+{
+  "schema": "numinia-engine/presets-entorno@1",
+  "describe": "Entornos con nombre (H4). Cada uno dice solo lo que cambia sobre el entorno por defecto del mundo; el suelo nunca lo cambia un preset. Formato de cada uno: entorno@1 (features/entorno/esquema.ts).",
+  "presets": {
+    "día": {
+      "cielo": { "tipo": "atmosfera", "turbidez": 2.5, "nubes": 0.35 },
+      "luz": { "hdr": "", "ambiente": 0.9, "cielo": "#bcd6ee", "suelo": "#5f5240" },
+      "sol": { "altura": 42, "rumbo": 155, "intensidad": 3.2, "color": "#fff1dc" },
+      "niebla": { "cerca": 90, "lejos": 390, "color": "#bfd1e2" },
+      "viento": { "rumbo": 60, "fuerza": 2.5 },
+      "tono": { "curva": "neutro", "exposicion": 1 }
+    },
+    "amanecer": {
+      "cielo": { "tipo": "atmosfera", "turbidez": 8, "nubes": 0.25 },
+      "luz": { "hdr": "", "ambiente": 0.7, "cielo": "#f3c6a5", "suelo": "#4a3a30" },
+      "sol": { "altura": 5, "rumbo": 80, "intensidad": 2, "color": "#ffb47e" },
+      "niebla": { "cerca": 50, "lejos": 330, "color": "#e7c3a8" },
+      "viento": { "rumbo": 90, "fuerza": 1 },
+      "tono": { "curva": "neutro", "exposicion": 1.1 }
+    },
+    "atardecer": {
+      "cielo": { "tipo": "atmosfera", "turbidez": 10, "nubes": 0.3 },
+      "luz": { "hdr": "", "ambiente": 0.65, "cielo": "#f0b08a", "suelo": "#45352c" },
+      "sol": { "altura": 3, "rumbo": -95, "intensidad": 1.8, "color": "#ff9659" },
+      "niebla": { "cerca": 50, "lejos": 320, "color": "#dda587" },
+      "viento": { "rumbo": -60, "fuerza": 3 },
+      "tono": { "curva": "neutro", "exposicion": 1.1 }
+    },
+    "noche": {
+      "cielo": { "tipo": "degradado", "arriba": "#03060f", "horizonte": "#152038", "nubes": 0 },
+      "luz": { "hdr": "", "ambiente": 0.35, "cielo": "#33456e", "suelo": "#0b0e14" },
+      "sol": { "altura": -20, "rumbo": -150, "intensidad": 0.45, "color": "#a9c1ff" },
+      "niebla": { "cerca": 25, "lejos": 230, "color": "#101a2e" },
+      "viento": { "rumbo": 30, "fuerza": 1 },
+      "tono": { "curva": "neutro", "exposicion": 1.2 }
+    },
+    "niebla": {
+      "cielo": { "tipo": "degradado", "arriba": "#aeb8c0", "horizonte": "#c9cfd3", "nubes": 0 },
+      "luz": { "hdr": "", "ambiente": 1.3, "cielo": "#d5dade", "suelo": "#6a6a64" },
+      "sol": { "altura": 35, "rumbo": 150, "intensidad": 0.8, "color": "#f2f2ee" },
+      "niebla": { "cerca": 2, "lejos": 60, "color": "#c9cfd3" },
+      "viento": { "rumbo": 10, "fuerza": 0.5 },
+      "tono": { "curva": "neutro", "exposicion": 1 }
+    },
+    "tormenta": {
+      "cielo": { "tipo": "degradado", "arriba": "#2f3641", "horizonte": "#636b75", "nubes": 0 },
+      "luz": { "hdr": "", "ambiente": 0.8, "cielo": "#6b7480", "suelo": "#26282b" },
+      "sol": { "altura": 30, "rumbo": 120, "intensidad": 0.55, "color": "#c7d0e0" },
+      "niebla": { "cerca": 15, "lejos": 170, "color": "#59616b" },
+      "viento": { "rumbo": 70, "fuerza": 14 },
+      "tono": { "curva": "neutro", "exposicion": 1.05 }
+    },
+    "nublado": {
+      "cielo": { "tipo": "atmosfera", "turbidez": 6, "nubes": 0.8 },
+      "luz": { "hdr": "fd94c84997b8a3c353b62c2125a9b44e19509956986a126e472684432a02d798.hdr", "ambiente": 1, "cielo": "#c3ccd4", "suelo": "#55504a" },
+      "sol": { "altura": 50, "rumbo": 140, "intensidad": 1.6, "color": "#f4f1ea" },
+      "niebla": { "cerca": 60, "lejos": 330, "color": "#c2cbd2" },
+      "viento": { "rumbo": 45, "fuerza": 5 },
+      "tono": { "curva": "neutro", "exposicion": 1 }
+    }
+  }
+}

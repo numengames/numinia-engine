@@ -1,0 +1,15 @@
+{
+  "schema": "numinia-engine/suelos@1",
+  "describe": "Los suelos que se pueden poner (H4, «tierra»). Cada uno: su textura de color (1k) y de relieve (normal, 512 px), por su sha256 en /a/; metros = lo que mide una baldosa con escala 1; rugosidad del material. Solo CC0 (activos/texturas/LICENCIAS.md); test/entorno.test.ts comprueba cada sha256. «liso» = sin textura (el color del suelo).",
+  "suelos": {
+    "hierba": { "nombre": "Hierba", "color": "5ef0c982b64aa4622bf7cbe5468899f56290630da7f9b9036c1a7da8d37ce9de.webp", "normal": "d861c5738877f78e0c48b7527730729bc27a08d1428c0d8f8e2405402520bf83.webp", "metros": 4, "rugosidad": 0.95, "ficheros": ["activos/texturas/hierba-color.webp", "activos/texturas/hierba-normal.webp"], "licencia": "CC0-1.0", "fuente": "https://polyhaven.com/a/leafy_grass" },
+    "tierra": { "nombre": "Tierra", "color": "856008f1f7218e51ec629bd3ce903b28f55db65454551b6b12bdb5d8cdaf6312.webp", "normal": "5b310044f7bd3970a2d1f71acc2de77eee84b275d756a7792b3079e5f3a48995.webp", "metros": 2.6, "rugosidad": 0.95, "ficheros": ["activos/texturas/tierra-color.webp", "activos/texturas/tierra-normal.webp"], "licencia": "CC0-1.0", "fuente": "https://polyhaven.com/a/brown_mud_dry" },
+    "arena": { "nombre": "Arena", "color": "4580b5480bd6699e3c4479c744fc033cd1175713e17d2926325dd1453e2681f8.webp", "normal": "13868acf54af77680c7e096c71f8b084d417ee95955b760531bc8f7757bc0b9b.webp", "metros": 3, "rugosidad": 0.9, "ficheros": ["activos/texturas/arena-color.webp", "activos/texturas/arena-normal.webp"], "licencia": "CC0-1.0", "fuente": "https://polyhaven.com/a/sand_01" },
+    "roca": { "nombre": "Roca", "color": "d30d59473af3b15666824d033eefd714fa9e2139f17fd19b450154b6b13c8a6e.webp", "normal": "92bd2d35b31b71a4a614d48b8a7761b9f364c425add10349febd65f6b1442094.webp", "metros": 10, "rugosidad": 0.85, "ficheros": ["activos/texturas/roca-color.webp", "activos/texturas/roca-normal.webp"], "licencia": "CC0-1.0", "fuente": "https://polyhaven.com/a/aerial_rocks_02" },
+    "nieve": { "nombre": "Nieve", "color": "96ddd479bedaf6f9251e9877ae0cde97b33cfe004f1c608bba04efe4cd811bfa.webp", "normal": "285c944563826e9e9485f6320b782eea45353984c6cac3b1e36fc3d021bfaf71.webp", "metros": 4, "rugosidad": 0.7, "ficheros": ["activos/texturas/nieve-color.webp", "activos/texturas/nieve-normal.webp"], "licencia": "CC0-1.0", "fuente": "https://polyhaven.com/a/snow_02" },
+    "liso": { "nombre": "Liso", "color": "", "normal": "", "metros": 1, "rugosidad": 1, "ficheros": [], "licencia": "", "fuente": "" }
+  },
+  "cielos": {
+    "nublado": { "hdr": "fd94c84997b8a3c353b62c2125a9b44e19509956986a126e472684432a02d798.hdr", "fichero": "activos/cielos/kloofendal_48d_partly_cloudy_puresky_1k.hdr", "licencia": "CC0-1.0", "fuente": "https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky" }
+  }
+}

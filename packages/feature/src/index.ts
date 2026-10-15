@@ -685,6 +685,10 @@ export type ViewHooks = {
   bubble?(entity: number, text: string, ms: number): void;
   /** J5: a name that stays over a thing (a person you can talk to), facing whoever looks; `null` takes it away. */
   tag?(key: string, t: { text: string; x: number; y: number; z: number } | null): void;
+  /** H4: the zone's environment (sky, sun, fog, wind, ground, tone) by field name — features/entorno; render/entorno.ts reads it. */
+  entorno?(valores: Msg): void;
+  /** H4/H8: an element of the world (water, fire, smoke, dust) by key, or `null` to take it away — features/elementos. */
+  elemento?(key: string, valores: Msg | null): void;
 };
 /** H1: a thing in the world as the page draws it. Rotation in degrees, applied yaw (ry), then pitch (rx), then roll (rz). */
 export type PlacedObject = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean };

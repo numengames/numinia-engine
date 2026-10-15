@@ -96,6 +96,10 @@ export default clientPart(gestos, (api) => {
   `/health`: R1 (`despertar`) ya añadió `/e/*` al instalador y al proxy LAN.
 - Para firmar algo (URL de QR, token) usa `api.sign(texto)`: HMAC con el secreto del servidor (`MOTOR_SECRET`); devuelve `""` si no hay secreto, y entonces hay que negarse. Una función no importa `node:crypto`.
 - Para dibujar en un punto del mundo hay `view.beacon?.(x, z, texto, ms)` (columna de luz).
+- El entorno de la zona (cielo, sol, niebla, viento, suelo) y los elementos (agua, fuego, humo, polvo) llegan a la
+  página por `view.entorno?.(valores)` y `view.elemento?.(clave, valores | null)` (H4/H8: `features/entorno`,
+  `features/elementos`; el render los lee por nombre de campo). Un mundo trae los suyos en `MUNDO_DIR/entorno.json`
+  y `MUNDO_DIR/elementos.json`.
 - Un agente usa el mismo camino que una persona: lee el catálogo y envía intentos (P4 hará el SDK).
 
 ## Quién es quién (I1)

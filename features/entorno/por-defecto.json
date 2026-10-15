@@ -1,0 +1,15 @@
+{
+  "schema": "numinia-engine/entorno@1",
+  "describe": "El entorno con el que arranca la plaza de casa (H4). Un mundo o una aventura trae el suyo en MUNDO_DIR/entorno.json con este mismo formato (docs/entregas/entorno.md); lo que no diga sale de aquí.",
+  "preset": "día",
+  "cielo": { "tipo": "atmosfera", "arriba": "#5d8fc9", "horizonte": "#c9d8e4", "imagen": "", "turbidez": 2.5, "nubes": 0.35 },
+  "luz": { "hdr": "", "ambiente": 0.9, "cielo": "#bcd6ee", "suelo": "#5f5240" },
+  "hora": { "valor": 11, "mueveElSol": false, "cicloMinutos": 0 },
+  "sol": { "altura": 42, "rumbo": 155, "intensidad": 3.2, "color": "#fff1dc" },
+  "niebla": { "cerca": 90, "lejos": 390, "color": "#bfd1e2" },
+  "viento": { "rumbo": 60, "fuerza": 2.5 },
+  "suelo": { "tipo": "hierba", "color": "#ffffff", "escala": 1 },
+  "tono": { "curva": "neutro", "exposicion": 1 },
+  "hitos": true,
+  "rejilla": false
+}
