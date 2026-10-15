@@ -1,5 +1,5 @@
 # numinia-engine (working name)
-> Thin MIT web 3D/XR engine in TypeScript. It draws, syncs, simulates and loads data; it knows nothing of any game. Node >= 24 runs the .ts files directly (erasable TypeScript only, imports end in .ts).
+> Thin AGPL-3.0 web 3D/XR engine in TypeScript. It draws, syncs, simulates and loads data; it knows nothing of any game. Node >= 24 runs the .ts files directly (erasable TypeScript only, imports end in .ts).
 
 ## Layers (enforced by tools/layers.mjs, rules in tools/layers.json)
 core -> schema -> ecs -> sim -> net -> feature -> {client, instance} -> {server, cli}; render talks to three.js only.

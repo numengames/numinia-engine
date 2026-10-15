@@ -1,6 +1,7 @@
 # numinia-engine (working name)
 
-Thin MIT web 3D/XR engine in TypeScript. Status: **PP1 — walking skeleton, local only.**
+Web 3D/XR engine in TypeScript: multiplayer, social, and yours to download, run locally or host anywhere.
+Licence: AGPL-3.0-only (`LICENSE`). Dependencies stay permissive (MIT, Apache-2.0, BSD, ISC); world assets CC0 or CC-BY.
 
 ```
 npm test       # 14 tests, < 1 s

@@ -3,9 +3,9 @@
 This file is the single source of truth. `CLAUDE.md` and similar files only point here.
 
 ## What this is
-`numinia-engine` (working name; the real name is chosen by Pablo and Christian): a thin MIT web
-3D/XR engine in TypeScript. The engine does not know what Numinia is: it draws, syncs, simulates and
-loads data. Game/city logic lives elsewhere (AGPL).
+`numinia-engine` (working name; the real name is chosen by Pablo and Christian): a thin web
+3D/XR engine in TypeScript, licensed AGPL-3.0-only (Pablo, 2026-10-15). The engine does not know what
+Numinia is: it draws, syncs, simulates and loads data. Game/city logic lives elsewhere (AGPL too).
 
 ## Principles that outrank any task
 1. **AI-native.** This must be the easiest engine in the world for an LLM to understand, navigate and
@@ -74,7 +74,9 @@ erasable TypeScript (no `enum`, no `namespace`, no constructor parameter propert
 with the `.ts` extension. Validation returns `Result` with error paths; it never throws.
 
 ## Autonomy
-Nothing ever leaves this machine without Pablo: never push, never add a remote, never open a PR.
+The repository is public: `origin` = github.com/numengames/numinia-engine (Pablo, 2026-10-15). `main` there
+only moves through a pull request Pablo approves. Only Pablo's interactive sessions push, and only with his
+explicit ok; the unattended shift never pushes, never opens a PR and never touches `origin`.
 Local work may land on `main` only through `tools/auto.sh finish` (gates green, fast-forward only).
 Additive format changes (a new message type, a new optional field at the end, a new file kind) are
 allowed and must be written in the diary. Non-additive ones (changing an existing layout, the pinned

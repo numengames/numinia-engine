@@ -16,7 +16,7 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 
 | Decisión | Por qué, en una línea | Fuente |
 |---|---|---|
-| Motor propio, fino, MIT, TypeScript de punta a punta, sobre three.js r186 (`WebGPURenderer`) | Nada libre en oct-2026 junta WebGPU + XR + 1.000 en una instancia + TypeScript; three elige solo WebGPU o WebGL2 y hace XR con los dos | `EVALUACION-MOTORES-2026.md` §8, `EL-MOTOR.md` §0 |
+| Motor propio, fino, AGPL-3.0, TypeScript de punta a punta, sobre three.js r186 (`WebGPURenderer`) | Nada libre en oct-2026 junta WebGPU + XR + 1.000 en una instancia + TypeScript; three elige solo WebGPU o WebGL2 y hace XR con los dos | `EVALUACION-MOTORES-2026.md` §8, `EL-MOTOR.md` §0 |
 | Frontera primero, escalera hacia abajo; suelo = cualquier navegador con WebGL2 | Pablo, 11-10: el techo primero, el móvil viejo es la última prueba, nunca el origen del diseño | `PLAN-MOTOR-WEB-3D.md`, `EL-MOTOR.md` §3 |
 | VR es requisito duro; **la AR va primero** | Pablo, 11-10 y 15-10 («la AR me interesa muchísimo») | `REALIDAD-CRUZADA.md` |
 | 1.000 personas en una instancia como diseño, 5.000 como horizonte (con dilatación de tiempo) | Pablo: «eso parece bien» (11-10) | `LIMITES.md` §1 |
@@ -38,7 +38,7 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 | Juego en el servidor y transaccional; escape rooms como máquinas de estado; sin azar de pago | Auditable y legal | `PREGUNTAS.md` #22 |
 | URLs: ciudad en `numinia.com/w/<zona>`, activos en `assets.numinia.com`, instancias en `ix-<n>.numinia.com`; los Hyperfy de hoy no se tocan | Almacenamiento por origen, caché por sitio | `LIMITES.md` §4 |
 | La regla de las reglas: cada función declara API, nivel (Base/Mejorado/Frontera), escalón de bajada, **alternativa accesible** y prueba; se detecta por capacidad, nunca por nombre de navegador | Saber qué funciona dónde, verificado | `FUNCIONALIDADES.md` §0, `ACCESIBILIDAD-3D.md` §4 |
-| Licencias: motor MIT, ciudad AGPL-3.0 con CLA, mundo y avatares CC0 | Pendiente la firma de Pablo (#29) | `DISENO-MOTOR-NUMINIA.md` §10 |
+| Licencias: **motor AGPL-3.0-only** (Pablo, 15-10: «el motor va a ser AGPL»; repo público en GitHub), ciudad AGPL-3.0 con CLA, mundo y avatares CC0; las dependencias siguen siendo permisivas | El CLA sigue pendiente (#29) | `DISENO-MOTOR-NUMINIA.md` §10 |
 | Hyperfy sigue con los eventos de hoy; el motor nuevo solapa, no salta | Sin riesgo para lo que ya funciona | `PREGUNTAS.md` #31 |
 | Movimientos (gestos, bailes, sentarse): todo CC0; un original → dos salidas (`.vrma` para este motor, `.glb` para Hyperfy); nunca se edita una salida a mano | Pablo, 14-10; Mixamo prohibido | `../movimientos/PLAN.md`, `COBERTURA.md` |
 | Calidad de cuadro: nunca perder cuadros a la tasa nativa del visor (72 Hz garantizados en Quest 3 / Pico 4 → 13,9 ms, diseñar para ≤ 10 ms; 90 Hz objetivo); escritorio a la tasa del monitor; móvil 60 objetivo, 30 suelo declarado | Se mide p99 del cuadro y cuadros perdidos, no «fps medios» | `EL-MOTOR.md` §2.2 |
@@ -57,6 +57,9 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 | Misiones, personas y cosas de misión son texto de la aventura (`mision@1`, `pnj@1`, `cosa@1`); el árbol de diálogo es la política (un modelo solo podrá redactar la línea, P5) | Una aventura nueva no toca el motor; lo que dice una persona no lo decide un modelo | BACKLOG J5 (15-10) |
 | El mapa solo enseña lo que la página ya recibe (área de interés); forma y color en cada marcador; norte = -z | Privacidad y daltonismo | BACKLOG J5 (15-10) |
 | Entorno = estado de la zona (todos ven el mismo cielo); los elementos llevan `at` y ficha; la calidad, por nivel de aparato decidido por capacidad | Quien no ve sabe que hay una hoguera; el móvil no se calienta | BACKLOG H4, H8, H12 (15-10) |
+| **Guardar el progreso: passkey del propio motor** (camino B); la cuenta de numinia.com se une después (O4) | Jugar sigue sin pedir nada; quien quiere conservar lo suyo da un toque; sin correo ni coste por persona | Pablo, 15-10; `INTERFAZ-Y-MODS.md` §13 |
+| La interfaz son datos (marcos) pintados en página, en VR y como texto; addons de datos primero, con código encerrado después; mods = paquetes de recursos y de datos + scripts del servidor | Una IA los escribe desde el esquema; nada ajeno corre en la página | Pablo, 15-10; `INTERFAZ-Y-MODS.md` |
+| Edades: el motor no las gestiona; la plataforma, las comunidades y la clasificación de cada aventura (niños, mayores…) | Pablo, 15-10 | — |
 
 ## 2. Lo medido (número, dónde y cuándo)
 

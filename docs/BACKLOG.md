@@ -64,6 +64,16 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | N2 | Menú de ajustes y accesibilidad básica, guardado local (de `docs/JUGADOR.md`) | hecho | sí |
 | N3 | Ajustes dentro de VR: panel 3D legible, con su gemelo HTML | pendiente | sí |
 | N4 | Cambiar teclas (el tipo `tecla` deja de ser solo para ver; choques con las reservadas) | pendiente | sí |
+| U1 | Pantalla de carga de verdad (armazón ≤ 14 kB en la página + controlador; fases reales; atasco con «Reintentar») y reconexión cuando se cae el socket | pendiente | sí |
+| U2 | Un solo dueño de las teclas (capas) + menú del juego con diálogos nativos (Continuar, Ajustes, Controles y ayuda, Zona de usuario, Gente, Salir); ⚙ siempre en móvil | pendiente | sí |
+| U3 | Marcos: formato `marco@1` (id estable, ancla, desplazamiento relativo, visibilidad `requiere`, árbol con nombre hablado y verbo) + pintor de página; el HUD de hoy pasa a marcos | para Opus | no |
+| U4 | Zona de usuario: quién eres, avatar, misiones e insignias, lo que he construido (lista, cuota, borrar, descargar), privacidad y datos, seguridad; el informe de sesión (T1) pasa a pedir consentimiento | espera a U2 | sí |
+| I3 | «Guardar mi progreso» con una llave de acceso (passkey) del propio motor, sin correo (Pablo, 15-10: camino B); la llave queda unida al invitado | pendiente | sí |
+| U5 | «Editar interfaz»: mover sin arrastrar (cuadrícula 3×3, números, flechas, lista), 5 disposiciones por clase de aparato, copiar y pegar `nl1.` sin código | espera a U3 | sí |
+| U6 | Pintor de VR para los marcos (lienzo en un plano; capa nítida si la concede), menú invocado y quieto en el espacio (cambia J13) | espera a U3 | sí |
+| U7 | Addons de datos (sin código) + vistas de solo lectura + gestor de addons + rangos medidos + modo seguro + lista de bloqueo | espera a U5 | sí |
+| U8 | Paquetes de recursos y temas (`paquete.json`, huella y tamaño declarados, licencia obligatoria); el aspecto de Numinia como tema; el mundo declara sus paquetes y se pide permiso una vez | espera a U3, M16 | sí |
+| U9 | Addons con código encerrado: QuickJS en un Worker de otro origen, plazo 4 ms, 8 MB, se apaga tras 3 fallos en 10 s; medir antes en un móvil | para Opus | no |
 | V3 | Voz propia del motor: cola con prioridades, se puede cortar, baja lo demás (la región `aria-live` ya existe, V1) | pendiente | sí |
 | V4 | Lista HTML de lo cercano (escritorio y móvil) que leen NVDA, VoiceOver y TalkBack, navegable con teclado | pendiente | sí |
 | V5 | «¿Dónde estoy / qué hay cerca / dónde está X / quién hay?» contestado desde los datos, sin modelo | espera a V3 | sí |
@@ -963,3 +973,52 @@ Receta para que un modelo escriba una aventura (`docs/EXTENDER.md`) y `node tool
 
 ### H4b, H4c, H8b, H12b, H12c, M6b
 Ver su línea en la cola y la nota de la rama entorno en el RUNLOG del 15-10.
+
+## Interfaz, mods y zona de usuario (U) — de `../mmo-browser-study/INTERFAZ-Y-MODS.md` (15-10)
+
+Diseño aprobado por Pablo el 15-10 (respuesta a su pregunta: camino B, passkey). Las notas 26–35 del estudio son la
+fuente; los números de los addons con código están medidos solo en un PC (nota 29) y son estimados en móvil.
+Orden de Pablo (15-10): primero publicar y probar lo que ya hay; las U se prueban antes en local.
+
+### U1 — Pantalla de carga
+Armazón dentro de `index.html` (≤ 14 kB comprimido, letra del sistema, sin lienzo ni `requestAnimationFrame`) y un
+controlador de ~2 kB con un estado `__numinia.carga = {fase, hecho, total, estado}`. Fases: código, gráfica, red,
+mundo (bytes del manifiesto M16 cuando exista), preparar (`compileAsync(…, onProgress)`), listo. Aparece si la espera
+pasa de 400 ms y se queda ≥ 600 ms; barra por fases, nunca indeterminada; atasco a los 8 s sin bytes → «Sigue
+trabajando» con Reintentar/Cancelar y un aviso urgente; ≤ 6 avisos hablados; `inert` + `aria-busy` mientras carga;
+foco al mundo al terminar. Reconexión con espera creciente cuando el socket se cierra (hoy no se maneja). El arte de
+`work/pantalla-carga/` como imagen ≤ 45 kB tras el primer pintado (sin el fractal por cuadro, sin la fuente en línea,
+sin cursor que parpadea). **Hecho cuando:** e2e con red lenta simulada ve las fases en orden y el estado en
+`__numinia.carga`; con caché caliente no aparece; cortar el servidor → «Reintentar» → vuelve.
+
+### U2 — Teclas y menú del juego
+Un enrutador con capas (cambiar tecla › escribir › paneles › modo › menú › jugar): Esc, «atrás», B y el gesto de
+volver cierran la de arriba; sin capas abren el menú. Las 13 escuchas de teclado y los 4 dueños de Esc de hoy pasan
+a capas. El menú se abre también al soltarse el puntero o salir de pantalla completa (el primer Esc es del
+navegador); «Continuar» es un clic, nunca se recaptura solo. Diálogos nativos (`showModal`). Entradas fijas que
+ningún addon quita: Continuar, Ajustes, Controles y ayuda, Zona de usuario, Gente, Salir; después, entradas
+declaradas por datos. **Hecho cuando:** e2e: Esc abre y cierra; con el chat escribiendo, Esc no abre el menú; en
+móvil el ⚙ abre lo mismo; prueba de 10 min por aparato (nota 33 §E) apuntada en X1.
+
+### U3 — Marcos (para Opus: es el contrato de U5–U9)
+`marco@1`: id estable (`hud.chat`, `addon:<id>/<marco>`), ancla (9 puntos o otro marco), desplazamiento en unidad
+relativa a la altura, escala, opacidad, visibilidad con la gramática `requiere` de N2, y un árbol de piezas fijas
+(caja, fila, columna, texto, imagen, botón, deslizador, interruptor, lista) con nombre hablado y verbo. Pintor de
+página (HTML real = gemelo de texto). El HUD de hoy (chat, minimapa, misiones, botones) pasa a marcos y desaparecen
+los px escritos a mano en cinco sitios. Añade la clave `marcos` a `defineFeature` (la `panels` de J7 nunca se hizo).
+
+### U4 — Zona de usuario
+Secciones de la ficha J12: quién eres, avatar (licencia VRM leída y enseñada), misiones e insignias, lo que he
+construido (índice por invitado, cuota, borrar, descargar), interfaz, ajustes, privacidad y datos (qué se guarda,
+lo último enviado, descargar y borrar), seguridad (bloqueos, informes), ayuda y legal. El informe T1 se pide una vez
+al entrar y queda apagado hasta que digan sí (guía 2/2023 del EDPB). Edades: no se tocan en el motor (Pablo, 15-10:
+la plataforma, las comunidades y la clasificación de cada aventura lo deciden).
+
+### I3 — Passkey
+WebAuthn con SimpleWebAuthn (MIT, versión exacta); la llave se une al id del invitado; sin correo; un toque en
+«Guardar mi progreso». Recuperar en otro aparato = la llave sincronizada (iCloud, Google). Más adelante (O4) se une
+con la cuenta de numinia.com. **Hecho cuando:** test: registrar, borrar el billete, entrar con la llave → mismo
+invitado, mismas insignias.
+
+### U5–U9
+Ver `INTERFAZ-Y-MODS.md` §6–§9 y la tabla de límites §10 (todos `estimated` en `limits.json` hasta medirlos).

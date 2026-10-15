@@ -8,7 +8,7 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 
 ## Cómo leerlo
 
-- **Capa:** `motor` = sirve a cualquier mundo (MIT, este repo). `ciudad` = es contenido o regla de
+- **Capa:** `motor` = sirve a cualquier mundo (AGPL-3.0, este repo). `ciudad` = es contenido o regla de
   Numinia (AGPL, otro repo); el motor solo da las primitivas.
 - **Nivel:** `Base` (todo navegador con WebGL2), `Mejorado` (donde exista la API), `Frontera`
   (opcional, tras un interruptor). Cada función se detecta por capacidad, nunca por nombre de navegador.

@@ -202,3 +202,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: semana 53 % → 56 % (`hermes usage`), Opus.
 - Commit: ver `git log` (Merge wt/ajustes … Merge wt/entorno y los dos de integración).
 - Siguiente: sesión nueva de Pablo con Opus, «la versión avanzada antes de subirlo»: pantalla de carga (y con ella D2), zona de usuario, menú del juego e interfaz modificable con addons y mods. Filas nuevas: N3, N4, J11–J16, H4b, H4c, H8b, H12b, H12c, M6b.
+
+## 2026-10-15 18:08 · licencia AGPL, plan U · hecho (sesión de Pablo con Opus)
+- Qué: Pablo: «el motor va a ser AGPL»; el repositorio pasa a ser público en GitHub (`numengames/numinia-engine`, `main` solo por PR que él aprueba; el turno nunca empuja). `package.json` AGPL-3.0-only; AGENTS, README, llms, SABER, JUGADOR al día. Plan de interfaz, menú, zona de usuario, addons y mods (`../mmo-browser-study/INTERFAZ-Y-MODS.md`, notas 26–35 verificadas): filas U1–U9 e I3 (passkey, camino B de Pablo) en la cola; decisiones en SABER §1 (passkey, marcos, edades fuera del motor).
+- Números: 200 pruebas; puertas en verde (tick p99 7,5 ms; 26,7 kbit/s; huella `f719d31b`). Sin cambios de código.
+- Consumo: semana 60 % → 61 % (`hermes usage`), Opus.
+- Commit: este.
+- Siguiente: publicar en GitHub (PR) y desplegar en bronte-xs-ca-003 para la QA de Pablo; después U1 y U2 en local.
