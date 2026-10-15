@@ -1,8 +1,10 @@
 // e2e leg J2 (salto): two real tabs against the running server + page. A presses Space: tab B sees A rise above
 // 0.5 m and come back to 0; a double jump (Space again near the top) climbs higher than a single one; Shift+W for
-// 1.5 s goes about twice as far as W alone (and reads ~8 m/s against ~4); A's prediction makes 0 corrections; the
-// browser's replay fingerprint equals the server's. Then an emulated Quest 3 (IWER, MIT): the A button jumps.
-// Gets BASE (?webgl2&server=…) and SERVER_HTTP from tools/auto.sh e2e. Prints JSON; exit 0 only when all is right.
+// 1.5 s goes about twice as far as W alone (and reads ~8 m/s against ~4); Space typed in a text box is not a jump;
+// A's prediction makes 0 corrections; the browser's replay fingerprint equals the server's. Then a phone (touch
+// emulation): the «Saltar» button jumps and the stick pushed to its edge runs. Then an emulated Quest 3 (IWER, MIT):
+// the A button jumps. Gets BASE (?webgl2&server=…) and SERVER_HTTP from tools/auto.sh e2e. Prints JSON; exit 0 only
+// when all is right.
 import { createRequire } from "node:module";
 import { existsSync, readFileSync } from "node:fs";
 
@@ -31,7 +33,8 @@ const A = await a.evaluate(() => globalThis.__numinia.session.entity);
 await b.waitForFunction((id) => globalThis.__numinia.session.remotePositions().some((r) => r.id === id), A, { timeout: 10000 });
 await a.bringToFront();
 
-/** What B draws of A: its height every ~20 ms while `act` runs and for `ms` after. */
+/** What B draws of A: its height every ~20 ms while `act` runs, then until B has seen A go above 0.5 m and land
+ * again (at most `ms`). A busy machine slows a page's ticks, and an avatar only advances on its own inputs. */
 const watch = async (ms, act) => {
   const ys = [];
   let stop = false;
@@ -43,15 +46,15 @@ const watch = async (ms, act) => {
     }
   })();
   await act();
-  await sleep(ms);
+  for (const t0 = Date.now(); Date.now() - t0 < ms && !(Math.max(0, ...ys) > 0.5 && ys[ys.length - 1] === 0); ) await sleep(50);
   stop = true; await sampler;
   return { max: r2(Math.max(0, ...ys)), last: ys.length ? ys[ys.length - 1] : null, samples: ys.length };
 };
 
 // 1) single jump
-result.single = await watch(1600, () => a.keyboard.press("Space"));
+result.single = await watch(6000, () => a.keyboard.press("Space"));
 // 2) double jump: the second press once A's own (predicted) height passes 1.2 m, i.e. near the top
-result.double = await watch(2200, async () => {
+result.double = await watch(6000, async () => {
   await a.keyboard.press("Space");
   await a.waitForFunction(() => globalThis.__numinia.session.selfPosition(1).y > 1.2, null, { timeout: 3000, polling: 10 }).catch(() => {});
   await a.keyboard.press("Space");
@@ -73,6 +76,17 @@ const move = async (keys) => {
 result.walk = await move(["KeyW"]);
 result.run = await move(["Shift", "KeyW"]);
 result.ratio = r2(result.run.metres / Math.max(0.01, result.walk.metres));
+// 4) typing is not jumping: Space inside a text box (the chat to come) writes a space and A stays on the ground
+await a.evaluate(() => { const box = document.createElement("input"); box.id = "prueba-texto"; document.body.appendChild(box); });
+await a.bringToFront();
+await a.focus("#prueba-texto");
+await a.keyboard.press("Space");
+let typedMaxY = 0;
+for (let i = 0; i < 40; i++) { typedMaxY = Math.max(typedMaxY, await a.evaluate(() => globalThis.__numinia.session.selfPosition(1).y)); await sleep(25); }
+result.typing = await a.evaluate((y) => {
+  const box = document.getElementById("prueba-texto"), r = { value: box.value, focused: document.activeElement === box, maxY: y };
+  box.remove(); return r;
+}, typedMaxY);
 await sleep(500);
 const A2 = await a.evaluate(() => { const n = globalThis.__numinia; return { corrections: n.session.stats.corrections, probe: n.probe, format: n.session.welcome.format, y: n.session.selfPosition(1).y }; });
 result.corrections = A2.corrections;
@@ -80,7 +94,36 @@ result.probe = { browser: A2.probe.browser.toString(16), server: A2.probe.server
 result.format = A2.format;
 await ctx.close();
 
-// 4) VR: an emulated Quest 3 presses A (right controller): the avatar jumps and lands again
+// 5) a phone: the «Saltar» button jumps (a real button, first in #acciones) and the stick pushed to its edge runs
+const tctx = await browser.newContext({ viewport: { width: 390, height: 700 }, hasTouch: true, isMobile: true });
+const t = await tctx.newPage();
+t.on("pageerror", (e) => errors.push(String(e)));
+result.touch = { button: false, maxY: 0, edgeSpeed: 0, halfSpeed: 0 };
+try {
+  await t.goto(BASE);
+  await t.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
+  result.touch.button = await t.evaluate(() => { const b = document.getElementById("saltar"); return !!b && b.tagName === "BUTTON" && b.textContent === "Saltar"; });
+  await t.tap("#saltar");
+  await t.waitForFunction(() => globalThis.__numinia.session.selfPosition(1).y > 0.5, null, { timeout: 5000, polling: 10 }).catch(() => {});
+  result.touch.maxY = r2(await t.evaluate(() => globalThis.__numinia.session.selfPosition(1).y));
+  await sleep(1200);
+  // a finger on the canvas, dragged 30 px (walk) and then 80 px (past the 45 px edge: run)
+  const drag = (dy) => t.evaluate((dy) => {
+    const ev = (type, y) => new PointerEvent(type, { pointerId: 7, pointerType: "touch", clientX: 200, clientY: y, bubbles: true });
+    if (dy === 0) { dispatchEvent(ev("pointerdown", 400)); return; }
+    if (dy < 0) { dispatchEvent(ev("pointerup", 400)); return; }
+    dispatchEvent(ev("pointermove", 400 - dy));
+  }, dy);
+  await drag(0); await drag(30); await sleep(600);
+  result.touch.halfSpeed = r2(await t.evaluate(() => globalThis.__numinia.session.selfPosition(1).speed));
+  await drag(80); await sleep(600);
+  result.touch.edgeSpeed = r2(await t.evaluate(() => globalThis.__numinia.session.selfPosition(1).speed));
+  await drag(-1);
+  result.touch.corrections = await t.evaluate(() => globalThis.__numinia.session.stats.corrections);
+} catch (e) { result.touch.error = String(e).split("\n")[0]; }
+await tctx.close();
+
+// 6) VR: an emulated Quest 3 presses A (right controller): the avatar jumps and lands again
 const IWER = readFileSync(new URL("../../node_modules/iwer/build/iwer.min.js", import.meta.url), "utf8");
 const vctx = await browser.newContext({ viewport: { width: 480, height: 300 } });
 await vctx.addInitScript(IWER + `;
@@ -114,6 +157,9 @@ const ok = result.single.max > 0.5 && result.single.last === 0
   && result.walk.metres > 3 && result.ratio >= 1.5 && result.ratio <= 2.5
   && Math.abs(result.walk.speed - 4) < 0.1 && Math.abs(result.run.speed - 8) < 0.1
   && result.corrections === 0 && result.probe.equal && result.format === 2
+  && result.typing.value === " " && result.typing.maxY === 0
+  && result.touch.button && result.touch.maxY > 0.5 && result.touch.halfSpeed > 2 && result.touch.halfSpeed < 4.1
+  && Math.abs(result.touch.edgeSpeed - 8) < 0.1 && result.touch.corrections === 0
   && result.vr.entered && result.vr.maxY > 0.5 && result.vr.landed && result.vr.corrections === 0
   && errors.length === 0;
 console.log(JSON.stringify(result, null, 1));

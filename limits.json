@@ -25,8 +25,8 @@
   "limits": [
     { "axis": "any", "scope": "all", "key": "tick_rate", "value": 20, "unit": "Hz", "state": "measured", "test": "tools/gates.mjs", "date": "2026-10-14", "note": "paso de simulación del servidor: 50 ms" },
     { "axis": "any", "scope": "all", "key": "snapshot_rate", "value": 10, "unit": "Hz", "state": "measured", "test": "tools/gates.mjs", "date": "2026-10-14" },
-    { "axis": "any", "scope": "all", "key": "bandwidth_per_person_k50", "value": 70, "unit": "kbit/s max", "state": "measured", "test": "tools/gates.mjs", "date": "2026-10-14", "note": "presupuesto de la puerta; lo medido es 25,5" },
-    { "axis": "any", "scope": "all", "key": "bandwidth_per_person_plaza_1000", "value": 25.5, "unit": "kbit/s", "state": "measured", "test": "tools/swarm.sh", "date": "2026-10-15" },
+    { "axis": "any", "scope": "all", "key": "bandwidth_per_person_k50", "value": 70, "unit": "kbit/s max", "state": "measured", "test": "tools/gates.mjs", "date": "2026-10-15", "note": "presupuesto de la puerta; lo medido es 26,7 con J2 (25,0 antes)" },
+    { "axis": "any", "scope": "all", "key": "bandwidth_per_person_plaza_1000", "value": 27.2, "unit": "kbit/s", "state": "measured", "test": "tools/swarm.sh", "date": "2026-10-15", "note": "J2: cabecera de snapshot 19 → 30 bytes y 8 bytes (no 6) por quien está en el aire; antes de J2, 25,6 en la misma máquina el mismo día" },
     { "axis": "any", "scope": "all", "key": "tick_p99_plaza_1000", "value": 25, "unit": "ms max", "state": "measured", "test": "tools/gates.mjs", "date": "2026-10-14", "note": "presupuesto de la puerta; medido 16-23 ms en el PC de desarrollo" },
     { "axis": "server", "scope": "all", "key": "people_per_instance_dev_pc", "value": 1000, "unit": "personas", "state": "measured", "test": "tools/swarm.sh", "date": "2026-10-15", "note": "medido en el PC de desarrollo, no en un servidor real" },
     { "axis": "server", "scope": "VPS-1", "key": "people_per_instance_one_thread", "value": 500, "unit": "personas", "state": "estimated", "source": "mmo-browser-study/LIMITES.md §1-2 (~1.000 por núcleo dedicado; núcleo compartido a la mitad)" },

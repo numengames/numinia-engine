@@ -21,7 +21,7 @@ Se detecta por capacidad, nunca por nombre de navegador.
 | Dato | Valor | Estado |
 |---|---|---|
 | Paso de simulación / reparto | 20 Hz / 10 Hz | medido (`tools/gates.mjs`) |
-| Tráfico por persona (K=50 a 10 Hz) | tope 70 kbit/s; real **25,5 kbit/s** | medido (`tools/gates.mjs`, `tools/swarm.sh`) |
+| Tráfico por persona (K=50 a 10 Hz) | tope 70 kbit/s; real **27,2 kbit/s** (J2: con altura; 25,6 antes) | medido (`tools/gates.mjs`, `tools/swarm.sh`) |
 | Plaza de 1.000, un hilo | tick p99 ≤ 25 ms; real 16–23 ms | medido (`tools/gates.mjs`), en el PC de desarrollo |
 | Memoria con 1.000 conectados | 169 MB | medido (`tools/swarm.sh`) |
 | Conectar 500 bots | ~0,4 s | medido (`tools/swarm.sh`) |
