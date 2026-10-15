@@ -11,6 +11,10 @@ import { createPower, readCaps, checkCost } from "./power.ts";
 export { createPower, readCaps, checkCost } from "./power.ts";
 export type { FrameCost } from "./power.ts";
 export { leerAparato, leerBateria, medidorDeCuadros } from "./sesion.ts";
+import { crearEntorno } from "./entorno.ts";
+import { vistaElementos } from "./elementos-vista.ts";
+export type { EntornoDatos } from "./entorno.ts";
+export type { Calidad, Nivel } from "./calidad.ts";
 
 export type Backend = "WebGPU" | "WebGL2";
 export type Placed = { id: number; x: number; z: number };
@@ -36,7 +40,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
 
   const world = new THREE.Group(); // the normal world; hidden while AR shows the real one
   scene.add(world);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x556070, 1.6));
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x556070, 1.6);
+  scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffffff, 1.6);
   sun.position.set(6, 12, 4);
   scene.add(sun);
@@ -51,11 +56,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // landmarks so movement is visible: fixed positions, no randomness
   const pillarGeo = new THREE.BoxGeometry(1, 3, 1);
   const palette = [0xd9a441, 0x5b8cc0, 0xc0605b, 0x6ea86a];
+  const hitos: THREE.Mesh[] = []; // H4: the environment may hide them (hitos: false)
   for (let i = 0; i < 24; i++) {
     const a = (i / 24) * Math.PI * 2, r = 18 + (i % 3) * 9;
     const p = new THREE.Mesh(pillarGeo, new THREE.MeshStandardMaterial({ color: palette[i % 4] }));
     p.position.set(Math.cos(a) * r, 1.5, Math.sin(a) * r);
-    world.add(p);
+    world.add(p); hitos.push(p);
   }
 
   const bodyGeo = new THREE.CapsuleGeometry(0.35, 1.0, 4, 12);
@@ -72,6 +78,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
 
   const vr = createVR({ renderer, scene, camera });
   let selfXZ: { x: number; z: number } | null = null;
+  // H4 + H12: sky, sun, light, fog, wind and ground come from data (features/entorno), quality from the device tier
+  const entorno = crearEntorno({ renderer, scene, world, camera, hemi, sun, ground, grid, hitos, aparato: { mobile: power.mobile, deviceMemoryGB: readCaps().deviceMemoryGB, saveData: readCaps().saveData }, foco: () => selfXZ,
+    fichero: (f) => { const i = f.lastIndexOf("."); return (opts.assetUrl ?? ((m: string) => `/a/${m}.glb`))(f.slice(0, i)).replace(/\.glb$/, f.slice(i)); } });
+  const elementos = vistaElementos({ renderer, scene, world, camera, entorno }); // H4/H8: water, fire, smoke, dust (lazy)
 
   // feature decorations (J7): a text label over an avatar and a short bounce; both expire on their own
   type Target = number | "self";
@@ -199,6 +209,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     arSupported,
     vr,
     vrSupported,
+    /** H4 + H12: the environment (aplicar, estado, calidad, capacidades) — packages/render/src/entorno.ts. */
+    entorno,
+    /** H4/H8: water, fire, smoke and dust (poner, contar) — packages/render/src/elementos.ts, loaded with the first one. */
+    elementos,
     /** Place everyone for this frame. */
     sync(self: { x: number; z: number } | null, list: Placed[]): void {
       selfXZ = self;
@@ -272,7 +286,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** Who has a label right now (for checks). */
     labels(): Target[] { return [...labels.keys()]; },
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
-    busy(): boolean { return labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0; },
+    busy(): boolean { return labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || entorno.ocupado() || elementos.ocupado(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); },
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */
@@ -284,6 +298,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     draw(dtSeconds: number): void {
       updateDecorations(performance.now());
       updateThings(dtSeconds);
+      entorno.actualizar(); elementos.actualizar(dtSeconds);
       if (renderer.xr.isPresenting) { ar.update(); vr.update(selfXZ, dtSeconds); renderer.render(scene, camera); return; }
       target.copy(selfMesh.position);
       wanted.set(target.x, target.y + 6, target.z + 9);

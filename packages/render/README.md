@@ -6,3 +6,4 @@ The only package that talks to three.js: WebGPU/WebGL2 view, power policy (frame
 - **Depends on:** three.js only (rule: `tools/layers.json`)
 - **Tested by:** `test/power.test.ts`; browser: `tools/auto.sh e2e`
 - **Main API:** `createView`, `createPower`, `readCaps`, `checkCost`, `createVatCrowd`, `createAR`, `createVR`, `leerAparato`, `medidorDeCuadros` (T1 report; tested by `test/sesiones.test.ts`)
+- **Environment and elements (H4/H8/H12):** `view.entorno` (`entorno.ts`: `aplicar(valores)`, `estado()`, `calidad({ sombras, agua, particulas, hdr })`, `capacidades()`, `simularNivel(n)`), `view.elementos` (`elementos-vista.ts` → lazy `elementos.ts`: `poner(clave, valores | null)`, `contar()`), GPU particles in `particulas.ts` (one draw call per emitter), pure tier/quality rules in `calidad.ts` and curves/flicker in `curvas.ts` (tested by `test/particulas.test.ts`).
