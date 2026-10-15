@@ -68,11 +68,12 @@ Ficheros compartidos tocados (pequeño y local, para juntar):
   decía 6). En XR tu propio avatar no se dibuja (la cámara está en tu cabeza).
 - Avatar por id de entidad (`id % 3`) hasta H10.
 
-## Números (de una ejecución, 2026-10-15)
+## Números (2026-10-15; e2e sobre el commit final)
 - Pruebas: **101 en verde** (9 nuevas: 6 en `test/avatares.test.ts`, 3 en `test/avatares-biblioteca.test.ts`).
-  Puertas: en verde (plaza de 1.000: p99 7,6 ms).
-- e2e (`tools/auto.sh e2e`, puertos 8805/5185/5195, núcleos 20-23), todas **OK**: chromium (movedZ −5,39, 6 draw
-  calls, 2.751 triángulos), firefox (−6,0; 7; 2.763), AR (IWER), VR (IWER), avatares, https (−5,39; 13; 2.835).
+  Puertas: en verde en cada commit (plaza de 1.000: p99 7,9–8,0 ms).
+- e2e (`tools/auto.sh e2e`, puertos 8805/5185/5195, núcleos 20-23), todas **OK** dos veces seguidas; la última:
+  chromium (movedZ −5,39, 6 draw calls, 2.751 triángulos), firefox (−6,0; 7; 2.763), AR (IWER), VR (IWER),
+  avatares, https (−4,59; 13; 2.835).
   Una ejecución anterior (antes de compilar los sombreadores por adelantado y quitar las formas) falló la https por
   movimiento (−3,19 < −3,5): el tirón de cargar avatares en GL por software se come ticks (recorte de 250 ms de la
   página). Con el arreglo pasó; queda como riesgo de inestabilidad en máquinas cargadas.
@@ -80,8 +81,10 @@ Ficheros compartidos tocados (pequeño y local, para juntar):
   otro), 0 fallos, 0 errores de página; B ve el avatar de A pasar de `quieto/quieto` a `andar/trotar` mientras A anda
   y volver a `quieto`; Firefox: 2 VRM por pestaña, 0 errores.
 - Peso por avatar (medido en la descarga): Astrodisco **1.009 kB**, Skelly **1.142 kB**, Polybot 974 kB (del
-  catálogo). Animaciones: 491 kB las cinco (con dos jugadores andando se bajaron cuatro: 358 kB).
-- Coste de un cuadro con 2 VRM (Chromium, software): 6–15 draw calls, 2.700–5.700 triángulos (tope D: 80 y 150.000).
+  catálogo). Animaciones: 491 kB las cinco; en la pierna se bajaron solo las tres que hicieron falta (quieto, andar,
+  trotar: 295 kB).
+- Coste de un cuadro con 2 VRM (software): Chromium 5 draw calls / 2.739 triángulos (A) y 14 / 5.715 (B); Firefox
+  16 / 2.871 y 8 / 2.931 (tope D: 80 y 150.000).
 - Paquete de arranque: **245,0 kB gz** (main 55b0b3a: 240,0; +5,0). three-vrm aparte: 63,9 kB gz, después del
   primer cuadro. Con MToon el arranque era 269,9 kB gz.
 - Carga en el navegador de pruebas: VRM analizado ~40 ms; el tirón del primer cuadro con avatares (software GL, 2
