@@ -4,6 +4,7 @@ import type { ServerPart } from "../packages/feature/src/index.ts";
 import gestos from "./gestos/server.ts";
 import despertar from "./despertar/server.ts";
 import objetos from "./objetos/server.ts";
+import misiones from "./misiones/server.ts"; // J5: two features, one engine: people (pnj) and quests (misiones)
 
-const funciones: ServerPart[] = [gestos, despertar, objetos];
+const funciones: ServerPart[] = [gestos, despertar, objetos, ...misiones];
 export default funciones;

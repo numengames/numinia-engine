@@ -27,6 +27,7 @@ export type InstanceOptions = {
   random?: () => number;                   // I1: randomness for new guest ids (the server passes crypto); default Math.random
   now?: () => number;                      // I1: the clock for token days; default Date.now
   puede?: (who: Who | null, accion: string, entity: number) => boolean; // H1: permissions for features (api.puede); none = nobody may
+  aventura?: (carpeta: string) => { fichero: string; texto: string }[]; // J5: the adventure's text files (server/aventura.ts); none = no adventure
 };
 
 /** Inputs wait in a queue; the server applies exactly ONE per tick (none = stand still). */
@@ -58,6 +59,7 @@ export class Instance {
       storage: opts.storage,
       who: (e) => this.byEntity[e]?.who ?? null,
       puede: (e, accion) => !!this.byEntity[e] && (opts.puede?.(this.byEntity[e]?.who ?? null, accion, e) ?? false),
+      aventura: opts.aventura,
     });
   }
 

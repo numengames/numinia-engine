@@ -1,0 +1,11 @@
+{
+  "formato": "cosa@1",
+  "id": "caja-de-bruno",
+  "nombre": "Caja de herramientas",
+  "descripcion": "La caja que perdió Bruno, el farolero.",
+  "posicion": { "x": 4, "z": 14 },
+  "radio": 2,
+  "aviso": "coger la caja",
+  "apariencia": { "escala": 0.45 },
+  "notas": "EJEMPLO del motor. Sin modelo: se dibuja el bloque de la casa, pequeño."
+}

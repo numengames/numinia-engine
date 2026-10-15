@@ -29,7 +29,14 @@ export type Importance = 0 | 1 | 2 | 3;
 /** What a person hears (sound) and reads (text) when an event happens. `{field}` puts a field's value in the text. */
 export type Announce = { text: string; sound: Sound; importance?: Importance; at?: [string, string]; who?: string };
 /** A thing a feature puts in the world (its shared state). `{key}` and `{field}` work in name and description. */
-export type Card = { role: Role; name: string; description?: string; importance?: Importance; sound?: Sound; actions?: string[]; at?: [string, string] };
+export type Card = { role: Role; name: string; description?: string; importance?: Importance; sound?: Sound; actions?: string[]; at?: [string, string]; interact?: Interact };
+/** J4: something a person uses from close by (talk to someone, take a thing, open a door). The page shows «E: <prompt>»
+ * for the nearest one in reach (a button on touch screens) and sends `intent` with the thing's state key in the
+ * intent's text field `key`; the server checks the distance again (`api.within`). `radius`: metres, or the name of a
+ * numeric state field (each thing its own). */
+export type Interact = { intent: string; prompt: string; radius: number | string; key: string };
+export const INTERACT_RADIUS_MAX = 16;   // J4: metres
+export const INTERACT_SLACK_M = 1.5;     // J4: the server allows this much more than the page (latency, prediction)
 export type IntentDecl = { describe: string; fields: Fields; rate?: Rate; spoken: string };
 export type EventDecl = { describe: string; fields: Fields; announce: Announce | "silent" };
 export type MessageDecl = { describe: string; fields: Fields; rate?: Rate; spoken?: string; announce?: Announce | "silent" };
@@ -85,6 +92,17 @@ function checkWhere(fields: Fields, at: unknown, who: unknown, path: string, iss
   if (who !== undefined && !(typeof who === "string" && fields[who]?.kind === "int")) issues.push({ path: `${path}.who`, message: "who: the name of an int field that holds an entity (the person it is about)" });
 }
 const okImportance = (i: unknown) => i === undefined || i === 0 || i === 1 || i === 2 || i === 3;
+/** J4: an interactive thing names one of its feature's intents, the text field that gets the thing's key, a prompt and a reach. */
+function checkInteract(decl: FeatureDecl, it: Interact, path: string, issues: Issue[]): void {
+  const intent = decl.intents?.[String(it?.intent)];
+  if (!intent) { issues.push({ path: `${path}.intent`, message: `'${String(it?.intent)}' is not an intent of this feature (the verb a person uses on the thing)` }); return; }
+  if (intent.fields?.[it.key]?.kind !== "text") issues.push({ path: `${path}.key`, message: `the name of a text field of '${it.intent}' that receives the thing's key, e.g. key: "pnj"` });
+  const sf = decl.state?.fields ?? {};
+  checkTemplate(it.prompt, SPOKEN_MAX, ["key", ...Object.keys(sf)], `${path}.prompt`, issues, "what the page shows after «E:», e.g. \"hablar con {nombre}\"");
+  const r = it.radius;
+  if (typeof r === "number" ? !(r >= 0.5 && r <= INTERACT_RADIUS_MAX) : !(typeof r === "string" && (sf[r]?.kind === "fixed" || sf[r]?.kind === "int"))) issues.push({ path: `${path}.radius`, message: `metres between 0.5 and ${INTERACT_RADIUS_MAX}, or the name of a numeric state field` });
+  if (!decl.state?.card?.at) issues.push({ path, message: "a thing used from close by needs its place: card.at: [xField, zField]" });
+}
 
 /** Declare a feature. Never throws: problems are listed in `issues` and the runtime skips that feature. */
 export function defineFeature(decl: FeatureDecl): Feature {
@@ -130,6 +148,7 @@ export function defineFeature(decl: FeatureDecl): Feature {
       if (c.sound !== undefined && !SOUNDS.includes(c.sound)) issues.push({ path: `${p}.sound`, message: `one of: ${SOUNDS.join(", ")}` });
       for (const v of c.actions ?? []) if (!decl.intents?.[v]) issues.push({ path: `${p}.actions`, message: `'${v}' is not an intent of this feature` });
       checkWhere(decl.state.fields ?? {}, c.at, undefined, p, issues);
+      if (c.interact !== undefined) checkInteract(decl, c.interact, `${p}.interact`, issues);
     }
   }
   return Object.freeze({ ...decl, id, level: decl.level ?? "base", issues });
@@ -214,6 +233,7 @@ export type ServerHost = {
   storage?: FeatureStorage;                                     // S4: where persisted state and stores live (none = memory only)
   who?(entity: number): { id: string; nombre: string } | null;  // I1: the guest behind an entity (null for bots)
   puede?(entity: number, accion: string): boolean;              // H1: may this player do this ("construir"…)? none = no. H3 makes it roles
+  aventura?(carpeta: string): { fichero: string; texto: string }[]; // J5: the adventure's text files in one folder (AVENTURA_DIR); none = []
 };
 export type Scope = "all" | { to: number } | { near: number | { x: number; z: number }; radius?: number };
 export type HttpRequest = { method: "GET" | "POST"; path: string; params: Record<string, string>; query: Record<string, string>; body: string };
@@ -248,6 +268,12 @@ export type ServerApi = {
    * decides (MOTOR_CONSTRUIR=todos opens building to everyone, people and agents alike; H3 turns it into roles per
    * identity). Ask it on every intent that changes the world; never trust the page. */
   puede(entity: number, accion: string): boolean;
+  /** J5: the text files an adventure ships in one of its folders (`<AVENTURA_DIR>/<carpeta>/`, sorted by name; the
+   * server's own folder, never the page's). Read-only and unvalidated: check them against your format. [] without one. */
+  aventura(carpeta: string): { fichero: string; texto: string }[];
+  /** J4: is this player within reach of this thing of yours (its card's interact radius plus INTERACT_SLACK_M)? Ask it
+   * on every intent a thing receives: the page shows the prompt, the server decides. */
+  within(entity: number, key: string): boolean;
 };
 export type ServerPart = { feature: Feature; side: "server"; setup: (api: ServerApi) => void };
 export const serverPart = (feature: Feature, setup: (api: ServerApi) => void): ServerPart => ({ feature, side: "server", setup });
@@ -441,6 +467,16 @@ export class ServerRuntime {
       tick: () => this.host.tick(),
       sign: (text) => this.host.sign?.(text) ?? "",
       puede: (e, accion) => { try { return this.host.puede?.(e, accion) ?? false; } catch { return false; } },
+      aventura: (carpeta) => {
+        if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(carpeta)) { log(`aventura('${carpeta}'): una carpeta en minúsculas, sin barras`); return []; }
+        try { return this.host.aventura?.(carpeta) ?? []; } catch (e) { log(`aventura('${carpeta}'): ${String((e as Error)?.message ?? e)}`); return []; }
+      },
+      within: (e, key) => {
+        const s = table.get(key), me = this.host.position(e), it = f.state?.card?.interact;
+        if (!s?.at || !me || !it) return false;
+        const r = (typeof it.radius === "number" ? it.radius : Number(s.value[it.radius])) + INTERACT_SLACK_M;
+        return (s.at.x - me.x) ** 2 + (s.at.z - me.z) ** 2 <= r * r;
+      },
       log,
     };
   }
@@ -598,6 +634,8 @@ export type ViewHooks = {
   place?(key: string, o: PlacedObject | null): void;
   /** H1: where this player is now (metres), so a feature can put things in front of them. */
   here?(): { x: number; y: number; z: number } | null;
+  /** J5: a name that stays over a thing (a person you can talk to), facing whoever looks; `null` takes it away. */
+  tag?(key: string, t: { text: string; x: number; y: number; z: number } | null): void;
 };
 /** H1: a thing in the world as the page draws it. Rotation in degrees, applied yaw (ry), then pitch (rx), then roll (rz). */
 export type PlacedObject = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean };
@@ -606,6 +644,8 @@ export const NO_VIEW: ViewHooks = { label() {}, bounce() {} };
 export type Announcement = { feature: string; event: string; text: string; sound: Sound; importance: Importance; at?: { x: number; z: number }; who?: number };
 /** A thing in the world as a screen reader or an agent reads it (V1). */
 export type CardView = { feature: string; key: string; role: Role; name: string; description?: string; importance: Importance; actions: string[]; at?: { x: number; z: number } };
+/** J4: a thing in reach as the page offers it: «E: <prompt>»; `use(feature, key)` sends its intent. */
+export type Reachable = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number };
 /** Fill `{field}` holes with the values (`{key}` = the state key). Unknown holes stay as they are. */
 export const fillTemplate = (t: string, values: Record<string, unknown>): string => t.replace(/\{([a-zA-Z0-9]+)\}/g, (all, k) => (values[k] === undefined ? all : String(values[k])));
 export type Action = { feature: string; id: string; label: string; key?: string; describe?: string; run: () => void };
@@ -692,6 +732,30 @@ export class ClientRuntime {
 
   /** The shared state of one feature as this page knows it (for the page, checks and agents). */
   stateOf(feature: string): ReadonlyMap<string, Msg> { return this.mirror.get(feature) ?? new Map(); }
+
+  /** J4: the things a person at (x, z) can use right now (each within its interact radius), nearest first. */
+  reachable(x: number, z: number): Reachable[] {
+    const out: Reachable[] = [];
+    for (const f of this.catalog?.features ?? []) {
+      const c = f.state?.card, it = c?.interact;
+      if (!c || !it || !c.at) continue;
+      for (const [key, v] of this.mirror.get(f.id) ?? []) {
+        const r = typeof it.radius === "number" ? it.radius : Number(v[it.radius]);
+        const d = Math.hypot(Number(v[c.at[0]]) - x, Number(v[c.at[1]]) - z);
+        if (!(d <= r)) continue;
+        const vals = { key, ...v };
+        out.push({ feature: f.id, key, intent: it.intent, prompt: fillTemplate(it.prompt, vals), name: fillTemplate(c.name, vals).trim(), distance: d });
+      }
+    }
+    return out.sort((a, b) => a.distance - b.distance);
+  }
+
+  /** J4: use a thing (talk, take, open): sends the intent its card declares, with its key. The server checks the reach. */
+  use(feature: string, key: string): { ok: true } | { ok: false; why: string } {
+    const it = this.catalog?.features.find((f) => f.id === feature)?.state?.card?.interact;
+    if (!it) { this.stats.refused++; return { ok: false, why: `'${feature}' no tiene cosas que se usen de cerca` }; }
+    return this.send(feature, it.intent, { [it.key]: key });
+  }
 
   send(feature: string, intent: string, msg: Msg): { ok: true } | { ok: false; why: string } {
     const refuse = (why: string) => { this.stats.refused++; return { ok: false as const, why }; };

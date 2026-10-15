@@ -18,6 +18,7 @@ import { entorno, Runtime } from "./runtime.ts";
 import { KEEP_DAYS, Sesiones } from "./sesiones.ts";
 import { FileStorage } from "./datos.ts";
 import { Activos, BIBLIOTECA } from "./activos.ts";
+import { lectorAventura } from "./aventura.ts";
 import type { Metrics } from "./metrics.ts";
 
 export type ServerOptions = {
@@ -34,6 +35,7 @@ export type ServerOptions = {
   construir?: "todos" | "nadie"; // H1: who may build in the world until H3 brings roles; default "nadie" (env MOTOR_CONSTRUIR)
   biblioteca?: string | null;    // H1: the house library served at /a/<sha256>.<ext>; default the repo's activos/ (null = none)
   subidas?: string | null;       // H1/H9: folder of uploaded files named <sha256>.<ext>; default null
+  aventura?: string | null;      // J5: the adventure's folder (quests, people, things as text files); default null = none
   log?: (line: string) => void;
 };
 
@@ -94,7 +96,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const construir = o.construir ?? "nadie";
   const puede = (_who: unknown, accion: string) => accion === "construir" && construir === "todos";
   const activos = new Activos(o.biblioteca === undefined ? BIBLIOTECA : o.biblioteca, o.subidas ?? null, log);
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: o.features, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede });
+  if (o.aventura) log(`[aventura] ${o.aventura}${existsSync(o.aventura) ? "" : " (no existe: el mundo arranca sin aventura)"}`);
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: o.features, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, aventura: lectorAventura(o.aventura ?? null, log) });
 
   const ticks = new TickWindow(200), lags = new TickWindow(200), responses = new TickWindow(200), bytes = new ByteWindow(11);
   const runtime = new Runtime(), env = entorno();

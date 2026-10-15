@@ -1,0 +1,45 @@
+{
+  "formato": "pnj@1",
+  "id": "alma",
+  "nombre": "Alma, la guía",
+  "descripcion": "Guía de la plaza. Da la bienvenida y propone un primer paseo.",
+  "posicion": { "x": 2, "z": -4 },
+  "giro": 0,
+  "radio": 3,
+  "dialogo": {
+    "entradas": [
+      { "si": { "mision": "primeros-pasos", "estado": "hecha" }, "nodo": "gracias" },
+      { "si": { "mision": "primeros-pasos", "estado": "activa" }, "nodo": "en-camino" },
+      { "nodo": "saludo" }
+    ],
+    "nodos": {
+      "saludo": {
+        "texto": "¡Hola! Soy Alma, la guía de la plaza. ¿Es tu primera vez por aquí?",
+        "opciones": [
+          { "texto": "Sí. ¿Me enseñas la plaza?", "ir": "encargo" },
+          { "texto": "Ahora no, gracias.", "accion": { "tipo": "despedir" } }
+        ]
+      },
+      "encargo": {
+        "texto": "Te propongo un paseo: visita el pilar dorado del este, saluda a Bruno, el farolero, y ayúdale a encontrar su caja de herramientas. ¿Te animas?",
+        "opciones": [
+          { "texto": "¡Acepto!", "accion": { "tipo": "dar_mision", "mision": "primeros-pasos" }, "ir": "suerte" },
+          { "texto": "Mejor otro día.", "accion": { "tipo": "despedir" } }
+        ]
+      },
+      "suerte": {
+        "texto": "¡Estupendo! Lo tienes en tu libro de misiones: ábrelo con la tecla J y pulsa «Seguir» para ver adónde ir.",
+        "opciones": [{ "texto": "¡Hasta luego!", "accion": { "tipo": "despedir" } }]
+      },
+      "en-camino": {
+        "texto": "¿Qué tal el paseo? Si te pierdes, abre tu libro (J) y pulsa «Seguir»: una luz te marca el sitio.",
+        "opciones": [{ "texto": "Sigo con ello.", "accion": { "tipo": "despedir" } }]
+      },
+      "gracias": {
+        "texto": "¡Ya conoces la plaza! Bruno está feliz con su caja. Vuelve cuando quieras.",
+        "opciones": [{ "texto": "¡Adiós, Alma!", "accion": { "tipo": "despedir" } }]
+      }
+    }
+  },
+  "notas": "EJEMPLO del motor. Sin apariencia: se dibuja el robot de la casa."
+}

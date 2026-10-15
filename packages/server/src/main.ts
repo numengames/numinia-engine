@@ -13,6 +13,7 @@ const srv = await startServer({
   datos: process.env.DATOS_DIR ?? ".run/datos",                   // S4: what features keep across restarts (installed: /var/lib/numinia-motor/datos)
   construir: process.env.MOTOR_CONSTRUIR === "todos" ? "todos" : "nadie", // H1: open building to everyone (home plaza) or nobody (default); H3 = roles
   subidas: process.env.ACTIVOS_DIR ?? null,                      // H9: uploaded files by sha256 (the house library, activos/, is always served)
+  aventura: process.env.AVENTURA_DIR === "" ? null : (process.env.AVENTURA_DIR ?? "aventuras/ejemplo"), // J5: quests, people, things (AVENTURA_DIR= for none)
 });
 
 // systemd (and tools/plaza.sh) stop the server with SIGTERM: close every connection first so each session
