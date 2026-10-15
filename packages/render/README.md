@@ -6,3 +6,4 @@ The only package that talks to three.js: WebGPU/WebGL2 view, power policy (frame
 - **Depends on:** three.js only (rule: `tools/layers.json`)
 - **Tested by:** `test/power.test.ts`; browser: `tools/auto.sh e2e`
 - **Main API:** `createView`, `createPower`, `readCaps`, `checkCost`, `createVatCrowd`, `createAR`, `createVR`, `leerAparato`, `medidorDeCuadros` (T1 report; tested by `test/sesiones.test.ts`)
+- **H9:** `view.sueloBajo(clientX, clientY)` — the ground point (y = 0) under a point of the screen, or null (sky / too far): where a dropped file lands. Tested by `tools/e2e-piernas/subir.mjs`.

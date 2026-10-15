@@ -169,7 +169,8 @@ export function montarSoltar(o: OpcionesSoltar) {
   entrada.addEventListener("change", () => { const fs = Array.from(entrada.files ?? []); entrada.value = ""; void varios(fs, null); });
   fila.append(boton, entrada);
   o.panel?.append(fila);
-  const mirarPermiso = () => { fila.style.display = o.puede() ? "" : "none"; }; // not `hidden`: the panel's .fila is display:flex
+  let visible: boolean | null = null;
+  const mirarPermiso = () => { const si = o.puede(); if (si !== visible) { visible = si; fila.style.display = si ? "" : "none"; } }; // not `hidden`: the panel's .fila is display:flex
   mirarPermiso(); setInterval(mirarPermiso, 500);
   return { cuenta, subir: varios };
 }

@@ -39,6 +39,15 @@ test("installer: template parses, placeholders are filled, the payload round-tri
   assert.throws(() => fillTemplate(tpl.replace("__BUILD__", "__OTRO__"), { build: "x", payloadB64: "" }), /__OTRO__/);
 });
 
+test("installer (H9): uploads live next to the saved world, and Caddy passes /a/ (GET, HEAD, PUT) to the server", () => {
+  const tpl = readFileSync("deploy/instalar-motor.plantilla.sh", "utf8");
+  const env = tpl.split("\n").find((l) => l.startsWith("Environment=")) ?? "";
+  assert.match(env, /\bDATOS_DIR=\/var\/lib\/numinia-motor\/datos\b/);
+  assert.match(env, /\bACTIVOS_DIR=\/var\/lib\/numinia-motor\/datos\/activos\b/, "the server writes uploads only inside its StateDirectory (ProtectSystem=strict)");
+  assert.match(tpl, /StateDirectory=numinia-motor/);
+  assert.match(tpl, /handle \/a\/\* \{\n\t\treverse_proxy 127\.0\.0\.1:\$PORT\n\t\}/, "no method or size filter in front of /a/: the server decides");
+});
+
 test("installer ships exactly the packages the server may import", () => {
   assert.deepEqual(serverPackages().sort(), ["core", "ecs", "feature", "instance", "net", "schema", "server", "sim"]);
 });

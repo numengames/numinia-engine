@@ -113,9 +113,10 @@ Wants=network-online.target
 User=$USER_NAME
 Group=$USER_NAME
 WorkingDirectory=$PREFIX/app
-Environment=PORT=$PORT HOST=127.0.0.1 STATS_MS=30000 NODE_ENV=production SESIONES_DIR=/var/lib/numinia-motor/sesiones DATOS_DIR=/var/lib/numinia-motor/datos
+Environment=PORT=$PORT HOST=127.0.0.1 STATS_MS=30000 NODE_ENV=production SESIONES_DIR=/var/lib/numinia-motor/sesiones DATOS_DIR=/var/lib/numinia-motor/datos ACTIVOS_DIR=/var/lib/numinia-motor/datos/activos
 # T1: how each player entered (device, browser, XR, frames), one JSONL per UTC day, 14 days, no IP
 # S4: what the game features keep across restarts (datos/<feature>.json + .jsonl); back it up with the folder
+# H9: what builders upload (datos/activos/<sha256>.<ext> + subidas.jsonl: who, when); the server creates it; same backup
 StateDirectory=numinia-motor
 EnvironmentFile=$PREFIX/secreto.env
 ExecStart=$PREFIX/node/bin/node packages/server/src/main.ts
@@ -162,7 +163,8 @@ $SITE {
 	handle /e/* {
 		reverse_proxy 127.0.0.1:$PORT
 	}
-	# H1: files of things in the world, by their sha256 (the house library; uploads with H9)
+	# H1 + H9: files of things in the world, by their sha256 — GET/HEAD for everyone, PUT (uploads) only for who may
+	# build (the server checks the guest token and the caps: 12 MB per .glb, see limits.json); no size limit here
 	handle /a/* {
 		reverse_proxy 127.0.0.1:$PORT
 	}

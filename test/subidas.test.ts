@@ -19,6 +19,7 @@ import { ClientSession } from "../packages/client/src/index.ts";
 import type { ClientPart } from "../packages/feature/src/index.ts";
 import { crearObjetos } from "../features/objetos/server.ts";
 import { crearCliente } from "../features/objetos/client.ts";
+import { nombreDeFichero } from "../apps/plaza/soltar.ts";
 
 const SECRETO = "una-clave-de-prueba-larga";
 const BILLETE = emitir(signer(SECRETO), "abcdefgh2345", today());
@@ -165,6 +166,14 @@ test("upload refused: no token 401, a visitor 403, a forbidden kind 415, too big
     for (const p of ["/a/..%2f..%2fpackage.json", "/a/../../package.json", `/a/${"A".repeat(64)}.glb`, `/a/${"a".repeat(64)}.glb/x`, "/a/x.glb"]) assert.equal(await crudo(p), 400, p);
     assert.equal(existsSync(join(s.dir, "..", "package.json")), false);
   } finally { await s.srv.close(); }
+});
+
+test("the page names a dropped thing after its file (screen readers and agents hear it), at most 60 bytes", () => {
+  assert.equal(nombreDeFichero("Mi_silla__roja.glb"), "Mi silla roja");
+  assert.equal(nombreDeFichero("farola.v2.glb"), "farola.v2");
+  assert.equal(nombreDeFichero(".glb"), "Modelo subido");
+  const largo = nombreDeFichero(`${"ñ".repeat(40)}.glb`);
+  assert.ok(new TextEncoder().encode(largo).length <= 60 && largo.length === 30, largo);
 });
 
 test("objetos: colocar takes an uploaded model (api.activo) and refuses an unknown one", () => {

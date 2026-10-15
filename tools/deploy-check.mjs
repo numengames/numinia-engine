@@ -55,6 +55,10 @@ try {
   // H1: the house library is served by its sha256 (the robot, CC0)
   const robot = await fetch(`http://127.0.0.1:${PORT}/a/047f5e5fb3bb6d378bd1df16ca6137f2a596c99b3a1b5690b4020c05aaf6f319.glb`).catch(() => null);
   if (robot?.status !== 200 || robot.headers.get("content-type") !== "model/gltf-binary") fail(`/a/<sha256>.glb no sirve el robot: ${robot?.status}`);
+  // H9: uploads answer (a page asks HEAD first; a PUT without the guest token is refused, never stored)
+  const head = await fetch(`http://127.0.0.1:${PORT}/a/047f5e5fb3bb6d378bd1df16ca6137f2a596c99b3a1b5690b4020c05aaf6f319.glb`, { method: "HEAD" }).catch(() => null);
+  const put = await fetch(`http://127.0.0.1:${PORT}/a/${"0".repeat(64)}.glb`, { method: "PUT", body: "x" }).catch(() => null);
+  if (head?.status !== 200 || put?.status !== 401) fail(`subidas (H9): HEAD ${head?.status} (quiero 200), PUT sin billete ${put?.status} (quiero 401)`);
   const fp = log.match(/huella de referencia ([0-9a-f]+)/)?.[1];
-  console.log(`[deploy-check] OK · node ${version} · página ${refs.length} ficheros enlazados · ${s.stats.snapshots} snapshots en ${Math.round(performance.now() - t0)} ms · huella ${fp} · /health, /metrics y /a/ OK (RSS ${m.memoriaMB.rss} MB)`);
+  console.log(`[deploy-check] OK · node ${version} · página ${refs.length} ficheros enlazados · ${s.stats.snapshots} snapshots en ${Math.round(performance.now() - t0)} ms · huella ${fp} · /health, /metrics, /a/ y subidas OK (RSS ${m.memoriaMB.rss} MB)`);
 } finally { stop(); }

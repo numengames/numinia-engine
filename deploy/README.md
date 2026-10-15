@@ -70,6 +70,14 @@ los roles (H3): `sudo systemctl edit numinia-motor` → `[Service]` + `Environme
 `sudo systemctl restart numinia-motor`. Lo construido se guarda en `datos/objetos.json` + `.jsonl`. Los modelos que
 se pueden colocar son los de la biblioteca de la casa (`app/activos/`, CC0), servidos en `/a/<sha256>.glb`.
 
+## Subir tus modelos (H9)
+
+Con el mundo abierto a construir, quien construye arrastra un `.glb` desde su ordenador al mundo (o usa «Subir
+modelo…» en el panel de construir) y aparece donde lo suelta, para todos. Se guarda por su sha256 en
+`/var/lib/numinia-motor/datos/activos/` (lo crea el servidor; `ACTIVOS_DIR` en la unidad de systemd) y quién subió
+qué y cuándo, en `datos/activos/subidas.jsonl` (no se sirve nunca). Topes: 12 MB por `.glb` y 1 GB entre todas las
+subidas (`limits.json`, `upload_*`). La copia de seguridad de `datos/` ya lo incluye.
+
 ## Medir los límites
 
 Todo está explicado en [`docs/MEDIDAS.md`](../docs/MEDIDAS.md). Lo mínimo:
