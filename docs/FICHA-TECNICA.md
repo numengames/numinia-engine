@@ -60,6 +60,22 @@ sitio, giro, escala y nombre. Medido por `test/objetos.test.ts`.
 | Ficheros | `GET /a/<sha256>.glb`, caché de un año; se bajan 4 a la vez, el más cercano primero |
 | Animación | la primera del modelo, en bucle, solo a menos de 40 m (móvil frío) |
 
+## Avatares VRM (J1)
+
+Tú y los jugadores más cercanos, como humanoides VRM con animaciones; el resto, cápsulas. Medido por
+`test/avatares.test.ts`, `test/avatares-biblioteca.test.ts` y la pierna `tools/e2e-piernas/avatares.mjs` (Chromium y Firefox).
+
+| Dato | Valor |
+|---|---|
+| Avatares de la casa | 3 de 100Avatars (Polygonal Mind), CC0 dentro del fichero y en su fuente (`activos/avatares/LICENCIAS.md`) |
+| Triángulos por avatar | como mucho 10.000 (más = rechazado); los de la casa, 2.130–2.880 |
+| Peso por avatar | 974–1.142 kB, una vez (caché de un año por sha256), solo los de quien está cerca |
+| Animaciones | quieto, andar, trotar, correr, en el aire: 491 kB las cinco, se piden según hacen falta (UAL1 de Quaternius, CC0) |
+| A la vez | 60 en escritorio, 25 en XR, 12 en móvil (el resto, cápsulas); se reparte dos veces por segundo, los más cercanos primero |
+| Animación | solo a menos de 40 m; de pie (respirando) no obliga a dibujar más deprisa; cambio de clip fundido en 0,2 s, sin pose en T |
+| Código | three-vrm llega después del primer cuadro (64 kB gz aparte); el arranque crece 5 kB gz |
+| Material | Lambert con la textura del avatar (sin MToon: costaría ~30 kB gz más en el arranque) |
+
 ## Aparato
 
 Todo **estimado** (fuente: estudio de límites, 13-10). La ciudad se diseña al nivel B: lo que entra
@@ -72,6 +88,7 @@ en Quest entra en todo.
 | Texturas (KTX2) | ≤ 1 GB | ≤ 256 MB | ≤ 256 MB | ≤ 128 MB |
 | Luces | varias + sombras | sol + 2 sin sombra | sol + 1 | sol |
 | Avatares completos | 60–100 | 12–25 | 12 | 6 |
+| Avatares VRM a la vez (tope del motor, medido) | 60 | 25 | 12 | 12 |
 | Figuras horneadas | miles | 300–500 | 200 | 100 |
 | Fuentes de audio | 32 | 16 | 8 | 4 |
 | Descarga por zona | ≤ 60 MB | ≤ 40 MB | ≤ 30 MB | ≤ 15 MB |
