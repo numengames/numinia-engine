@@ -9,6 +9,7 @@ import { hex } from "../../core/src/index.ts";
 import { REFERENCE, referenceRecording, replayFingerprint, TICK_HZ } from "../../sim/src/index.ts";
 import { Instance } from "../../instance/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
+import type { HttpReply, ServerPart } from "../../feature/src/index.ts";
 import { buildMetrics, ByteWindow, TickWindow } from "./metrics.ts";
 import type { Metrics } from "./metrics.ts";
 
@@ -19,8 +20,12 @@ export type ServerOptions = {
   statsMs?: number;      // console summary period; default 30000
   sampleMs?: number;     // byte-rate sample period (kbit/s window = 10 samples); default 1000
   version?: string;      // default: ENGINE_BUILD env, then ../VERSION (written by the installer), then "dev"
+  features?: readonly ServerPart[]; // game features (J7): composition roots pass them in
   log?: (line: string) => void;
 };
+
+/** Largest POST body a feature route accepts. */
+export const MAX_BODY = 4096;
 
 export type RunningServer = {
   port: number;
@@ -63,7 +68,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const t0 = performance.now();
   const refHash = replayFingerprint(referenceRecording(REFERENCE.seed, REFERENCE.ticks, REFERENCE.n));
   const refMs = Math.round(performance.now() - t0);
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash } });
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: o.features, log });
 
   const ticks = new TickWindow(200), bytes = new ByteWindow(11);
   const tickMs = 1000 / TICK_HZ;
@@ -79,12 +84,33 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     res.writeHead(code, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
     res.end(JSON.stringify(body));
   };
+  const reply = (res: ServerResponse, r: HttpReply) => {
+    const type = r.type ?? "json";
+    const ct = type === "html" ? "text/html; charset=utf-8" : type === "text" ? "text/plain; charset=utf-8" : "application/json; charset=utf-8";
+    res.writeHead(r.status ?? 200, { "content-type": ct, "cache-control": "no-store" });
+    res.end(type === "json" ? JSON.stringify(r.body) : String(r.body));
+  };
   const http: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    const path = (req.url ?? "/").split("?")[0];
-    if (req.method !== "GET") return json(res, 405, { error: "solo GET" });
-    if (path === "/health") return json(res, 200, { ok: true, version, huella: hex(refHash), conectados: inst.conns.length });
-    if (path === "/metrics") return json(res, 200, metrics());
-    json(res, 404, { error: `no existe ${path}`, hay: ["/health", "/metrics", "WebSocket en cualquier ruta (/ws)"] });
+    const [path, qs = ""] = (req.url ?? "/").split("?");
+    const method = req.method ?? "GET";
+    if (method === "GET" && path === "/health") return json(res, 200, { ok: true, version, huella: hex(refHash), conectados: inst.conns.length });
+    if (method === "GET" && path === "/metrics") return json(res, 200, metrics());
+    if (method !== "GET" && method !== "POST") return json(res, 405, { error: "solo GET o POST" });
+    // everything else may be a game feature's route (e.g. the page a QR opens)
+    const answer = (body: string) => {
+      const r = inst.features.http(method, path, Object.fromEntries(new URLSearchParams(qs)), body);
+      if (r) return reply(res, r);
+      json(res, 404, { error: `no existe ${method} ${path}`, hay: ["/health", "/metrics", ...inst.features.routes(), "WebSocket en cualquier ruta (/ws)"] });
+    };
+    if (method === "GET") return answer("");
+    let body = "", size = 0;
+    req.setEncoding("utf8");
+    req.on("data", (chunk: string) => {
+      size += Buffer.byteLength(chunk);
+      if (size <= MAX_BODY) body += chunk;
+      else if (size > 64 * MAX_BODY) req.destroy(); // someone streaming without end: cut, no answer
+    });
+    req.on("end", () => (size > MAX_BODY ? json(res, 413, { error: `cuerpo de más de ${MAX_BODY} bytes` }) : answer(body)));
   });
 
   const wss = new WebSocketServer({ server: http, maxPayload: 1024, perMessageDeflate: false });

@@ -14,6 +14,8 @@
     #ar { position: fixed; top: 10px; right: 10px; display: none; padding: 10px 14px; border: 0; border-radius: 8px; background: #ffd27a; color: #23303b; font: inherit; font-weight: 600; }
     #joy { position: fixed; width: 110px; height: 110px; border-radius: 50%; background: rgba(20,24,30,.25); display: none; pointer-events: none; }
     #knob { position: absolute; left: 35px; top: 35px; width: 40px; height: 40px; border-radius: 50%; background: rgba(20,24,30,.55); }
+    #acciones { position: fixed; right: 10px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; }
+    #acciones button { padding: 10px 14px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #ffd27a; font: inherit; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -21,6 +23,7 @@
   <div id="help">WASD o flechas para moverte · en el móvil, arrastra el dedo</div>
   <button id="ar" type="button">Entrar en AR</button>
   <button id="vr" type="button">Entrar en VR</button>
+  <div id="acciones"></div>
   <div id="joy"><div id="knob"></div></div>
   <script type="module" src="./main.ts"></script>
 </body>

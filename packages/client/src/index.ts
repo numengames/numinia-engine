@@ -6,6 +6,8 @@ import { createSim, spawnAvatar, step, TICK_HZ } from "../../sim/src/index.ts";
 import type { SimState } from "../../sim/src/index.ts";
 import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, seqNewer } from "../../net/src/index.ts";
 import type { Transport, Welcome } from "../../net/src/index.ts";
+import { ClientRuntime } from "../../feature/src/index.ts";
+import type { ClientPart, ViewHooks } from "../../feature/src/index.ts";
 
 export const INTERP_TICKS = 3;   // draw others 150 ms in the past (1.5 snapshot intervals at 10 Hz)
 export const FORGET_TICKS = 40;  // drop a remote not heard of for 2 s
@@ -44,11 +46,14 @@ export class ClientSession {
   private offset = 0;                       // server tick minus local tick clock
   private hasClock = false;
   stats = { snapshots: 0, corrections: 0, rttMs: -1, visible: 0, lastServerTick: 0 };
+  /** Game features (J7): their client parts, the server's catalog, their recent events. */
+  readonly features: ClientRuntime;
 
-  constructor(t: Transport) {
+  constructor(t: Transport, opts: { features?: readonly ClientPart[]; view?: ViewHooks } = {}) {
     this.t = t;
     this.local = createSim(1, 0);
     spawnAvatar(this.local, 0);
+    this.features = new ClientRuntime(opts.features ?? [], { send: (b) => this.t.send(b, true), self: () => this.entity, view: opts.view });
     t.onMessage((bytes) => this.handle(bytes, nowMs()));
   }
 
@@ -88,7 +93,7 @@ export class ClientSession {
       }
     } else if (type === MSG.PONG) {
       this.stats.rttMs = ((now >>> 0) - decodeTime(bytes)) >>> 0;
-    }
+    } else this.features.receive(bytes); // CATALOG, FEATURE, STATE; anything else is ignored
   }
 
   /** Server says where we were after input `ack`; replay what it has not applied yet. */

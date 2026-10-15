@@ -1,9 +1,13 @@
 // cli: `npm run describe -- --bots 6 --ticks 100 --seed 42` prints the state of a headless instance as
 // readable JSON: entities, positions in metres, and who sees whom. For humans and LLMs; no screen needed.
+// `npm run describe -- --catalogo` prints instead what the game features offer: verbs (intents), events, state.
+// Composition root (tools/layers.json, "_composition"): it may import features/.
 import { fxToFloat, hex } from "../../core/src/index.ts";
 import { Instance, Bot } from "../../instance/src/index.ts";
 import { TICK_HZ } from "../../sim/src/index.ts";
 import { buildGrid, selectVisible } from "../../net/src/index.ts";
+import { buildCatalog } from "../../feature/src/index.ts";
+import funciones from "../../../features/servidor.ts";
 
 export type Description = {
   schema: "numinia-engine/describe@1"; seed: number; tick: number; seconds: number; hash: string;
@@ -29,5 +33,6 @@ export function describeInstance(o: { seed: number; bots: number; ticks: number;
 const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
   const arg = (name: string, d: number) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? Number(process.argv[i + 1]) : d; };
-  console.log(JSON.stringify(describeInstance({ seed: arg("seed", 42), bots: arg("bots", 6), ticks: arg("ticks", 100), k: arg("k", 50) }), null, 2));
+  if (process.argv.includes("--catalogo")) console.log(JSON.stringify(buildCatalog(funciones.map((f) => f.feature)).catalog, null, 2));
+  else console.log(JSON.stringify(describeInstance({ seed: arg("seed", 42), bots: arg("bots", 6), ticks: arg("ticks", 100), k: arg("k", 50) }), null, 2));
 }

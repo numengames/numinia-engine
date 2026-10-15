@@ -91,15 +91,22 @@
     { "axis": "backend", "scope": "webgpu", "key": "support", "value": "Chromium sí; Firefox Win/mac; Safari 26+", "unit": "texto", "state": "estimated", "source": "mmo-browser-study/FUNCIONALIDADES.md §9" },
     { "axis": "backend", "scope": "webgl2", "key": "support", "value": "todos los navegadores objetivo; es el nivel Base", "unit": "texto", "state": "estimated", "source": "mmo-browser-study/FUNCIONALIDADES.md §0" },
     { "axis": "transport", "scope": "websocket", "key": "support", "value": "todos; es el transporte actual", "unit": "texto", "state": "measured", "test": "test/server.test.ts", "date": "2026-10-15" },
-    { "axis": "transport", "scope": "webtransport", "key": "support", "value": "Chromium y Firefox; Safari 26.4+; aún no implementado en el motor", "unit": "texto", "state": "estimated", "source": "mmo-browser-study/FUNCIONALIDADES.md §9" }
+    { "axis": "transport", "scope": "webtransport", "key": "support", "value": "Chromium y Firefox; Safari 26.4+; aún no implementado en el motor", "unit": "texto", "state": "estimated", "source": "mmo-browser-study/FUNCIONALIDADES.md §9" },
+
+    { "axis": "any", "scope": "all", "key": "feature_intent_rate_default", "value": 4, "unit": "por segundo, jugador e intento (ráfaga 8)", "state": "measured", "test": "test/feature.test.ts", "date": "2026-10-15", "note": "módulos de juego (J7); cada intento puede declarar el suyo (gestos: 1/s, ráfaga 3)" },
+    { "axis": "any", "scope": "all", "key": "feature_intents_waiting_per_player", "value": 32, "unit": "intentos por tick", "state": "measured", "test": "test/feature.test.ts", "date": "2026-10-15", "note": "los que pasan de ahí se tiran y se cuentan" },
+    { "axis": "any", "scope": "all", "key": "feature_event_reach_default", "value": 32, "unit": "m", "state": "measured", "test": "test/feature.test.ts", "date": "2026-10-15", "note": "eventos { near } sin radio propio (gestos: 30 m)" },
+    { "axis": "any", "scope": "all", "key": "feature_text_field_max", "value": 512, "unit": "bytes UTF-8", "state": "measured", "test": "test/feature.test.ts", "date": "2026-10-15" },
+    { "axis": "any", "scope": "all", "key": "feature_http_body_max", "value": 4096, "unit": "bytes", "state": "measured", "test": "test/feature.test.ts", "date": "2026-10-15", "note": "POST a las rutas de las funciones; más = 413" }
   ],
   "features": [
     { "id": "instancia_en_servidor", "level": "base", "needs": "WebSocket", "fallback": "ninguno: es el núcleo", "state": "measured", "test": "test/server.test.ts" },
     { "id": "simulacion_determinista", "level": "base", "needs": "BigInt/enteros", "fallback": "ninguno", "state": "measured", "test": "test/engine.test.ts" },
     { "id": "prediccion_en_cliente", "level": "base", "needs": "WebSocket", "fallback": "ninguno", "state": "measured", "test": "test/engine.test.ts" },
     { "id": "render_webgl2", "level": "base", "needs": "WebGL2", "fallback": "ninguno", "state": "measured", "test": "tools/e2e.mjs" },
+    { "id": "modulos_de_juego", "level": "base", "needs": "nada nuevo: van por el mismo WebSocket", "fallback": "sin funciones: el motor desnudo (SIN_FUNCIONES=1)", "state": "measured", "test": "test/feature.test.ts" },
     { "id": "render_webgpu", "level": "mejorado", "needs": "navigator.gpu", "fallback": "WebGL2", "state": "estimated", "source": "three r186 elige el backend; sin prueba propia todavía" },
-    { "id": "xr_inmersivo", "level": "mejorado", "needs": "navigator.xr", "fallback": "escritorio o táctil", "state": "estimated", "source": "mmo-browser-study/FUNCIONALIDADES.md §2; aún no implementado" },
+    { "id": "xr_inmersivo", "level": "mejorado", "needs": "navigator.xr", "fallback": "escritorio o táctil", "state": "estimated", "source": "J6 (VR) y J8 (AR) hechos y probados con el emulador IWER (tools/e2e-vr.mjs, tools/e2e-ar.mjs); sin aparato real todavía (X1)" },
     { "id": "voz_por_cercania", "level": "base", "needs": "WebRTC", "fallback": "chat de texto", "state": "estimated", "source": "mmo-browser-study/FUNCIONALIDADES.md §3; aún no implementado" },
     { "id": "webtransport", "level": "frontera", "needs": "WebTransport", "fallback": "WebSocket", "state": "estimated", "source": "aún no implementado" }
   ]

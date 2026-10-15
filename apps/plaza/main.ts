@@ -4,14 +4,37 @@ import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX } from "../..
 import { webSocketClient } from "../../packages/net/src/index.ts";
 import { ClientSession, serverUrl } from "../../packages/client/src/index.ts";
 import { createView } from "../../packages/render/src/index.ts";
+import funciones from "../../features/cliente.ts";
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
 const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined });
 const url = serverUrl(location);
 const transport = webSocketClient(url);
-const session = new ClientSession(transport);
+// game features (J7): their client parts, and how they may draw (a label, a hop) over any avatar
+const session = new ClientSession(transport, {
+  features: funciones,
+  view: {
+    label: (e, text, ms) => view.label(e === session.entity ? "self" : e, text, ms),
+    bounce: (e, ms) => view.bounce(e === session.entity ? "self" : e, ms),
+  },
+});
 transport.opened.catch(() => { hud.textContent = `No llego al servidor ${url}.\n¿Está arrancado (npm run server)?`; });
+
+// ---- the features' actions: a key on desktop, a button on touch screens; the help line lists them ----
+const acts = session.features.actions();
+addEventListener("keydown", (e) => { if (!e.repeat) acts.find((a) => a.key === e.code)?.run(); });
+if (matchMedia("(pointer: coarse)").matches) {
+  const bar = document.getElementById("acciones")!;
+  for (const a of acts) {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = a.label; b.title = a.describe ?? "";
+    b.addEventListener("pointerdown", (ev) => { ev.stopPropagation(); a.run(); }); // not a joystick touch
+    bar.appendChild(b);
+  }
+} else if (acts.length) {
+  document.getElementById("help")!.textContent += " · " + acts.map((a) => `${(a.key ?? "").replace(/^Key/, "")} ${a.label.toLowerCase()}`).join(" · ");
+}
 
 // ---- determinism probe: replay the reference run here and compare with the server's number ----
 const probe = { browser: -1, server: -1, ms: 0, done: false };
@@ -87,7 +110,7 @@ view.loop((now) => {
   if (session.welcome && !probe.done) runProbe();
   // power policy (P2): skip the draw when hidden or when nothing changes; the 20 Hz ticks above never skip
   const sig = lastSig; lastSig = signature();
-  if (sig !== lastSig || keys.size > 0 || touch || view.vr.active || view.ar.state !== "off") lastActive = now;
+  if (sig !== lastSig || keys.size > 0 || touch || view.vr.active || view.ar.state !== "off" || view.busy()) lastActive = now;
   const active = now - lastActive < 600;
   if (view.vr.active || view.ar.state !== "off" || view.power.shouldDraw(now, { hidden: document.hidden, active })) {
     view.sync(session.entity >= 0 ? session.selfPosition(acc / TICK_MS) : null, session.remotePositions(now));

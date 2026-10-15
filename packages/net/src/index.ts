@@ -2,8 +2,11 @@
 // Every message starts with one type byte. The format is additive: new types, never changed ones.
 import { fxToFloat, FX_ONE } from "../../core/src/index.ts";
 import type { SimState } from "../../sim/src/index.ts";
+import { fieldBits, textLenBits } from "../../schema/src/index.ts";
+import type { Field } from "../../schema/src/index.ts";
 
-export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5 } as const;
+// 6-8 (J7, additive): only a server that runs game features sends them; with no features the wire is unchanged.
+export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8 } as const;
 
 // ---------- bit packing ----------
 export class BitWriter {
@@ -33,6 +36,58 @@ export class BitReader {
     return v >>> 0;
   }
   readSigned32(): number { return this.read(32) | 0; }
+  /** True once more bits were read than the message has: the message was truncated or lied. */
+  get overrun(): boolean { return this.bit > this.bytesIn.length * 8; }
+}
+
+// ---------- schema codec (J7): declared fields -> bits -> fields. Declaration order is wire order. ----------
+// Used by feature messages and feature state; D4 will move the hand-written core messages here too.
+export type Fields = Record<string, Field>;
+const utf8enc = new TextEncoder(), utf8dec = new TextDecoder();
+
+/** Cut UTF-8 bytes to at most max without splitting a character. */
+export function clipUtf8(b: Uint8Array, max: number): Uint8Array {
+  if (b.length <= max) return b;
+  let n = max;
+  while (n > 0 && (b[n] & 0xc0) === 0x80) n--; // b[n] continues a character that would be cut: back off
+  return b.subarray(0, n);
+}
+
+/** Write a value (already validated) field by field. Out-of-range numbers are clamped, never thrown. */
+export function writeFields(w: BitWriter, fields: Fields, value: Record<string, unknown>): void {
+  for (const [k, f] of Object.entries(fields)) {
+    const v = value[k];
+    if (f.kind === "bool") w.write(v ? 1 : 0, 1);
+    else if (f.kind === "int") w.write(Math.min(f.max, Math.max(f.min, Math.trunc(Number(v) || 0))) - f.min, fieldBits(f));
+    else if (f.kind === "fixed") {
+      const top = Math.floor((f.max - f.min) / f.step), q = Math.round(((Number(v) || 0) - f.min) / f.step);
+      w.write(Math.min(top, Math.max(0, q)), fieldBits(f));
+    } else if (f.kind === "enum") w.write(Math.max(0, f.values.indexOf(String(v))), fieldBits(f));
+    else {
+      const b = clipUtf8(utf8enc.encode(typeof v === "string" ? v : ""), f.maxBytes);
+      w.write(b.length, textLenBits(f.maxBytes));
+      for (const x of b) w.write(x, 8);
+    }
+  }
+}
+
+/** Read fields back. Returns null if the bits cannot be a valid value (out of range, truncated). Never throws. */
+export function readFields(r: BitReader, fields: Fields): Record<string, unknown> | null {
+  const out: Record<string, unknown> = {};
+  for (const [k, f] of Object.entries(fields)) {
+    if (f.kind === "bool") out[k] = r.read(1) === 1;
+    else if (f.kind === "int") { const v = f.min + r.read(fieldBits(f)); if (v > f.max) return null; out[k] = v; }
+    else if (f.kind === "fixed") { const q = r.read(fieldBits(f)); if (q > Math.floor((f.max - f.min) / f.step)) return null; out[k] = f.min + q * f.step; }
+    else if (f.kind === "enum") { const i = r.read(fieldBits(f)); if (i >= f.values.length) return null; out[k] = f.values[i]; }
+    else {
+      const n = r.read(textLenBits(f.maxBytes));
+      if (n > f.maxBytes) return null;
+      const b = new Uint8Array(n);
+      for (let i = 0; i < n; i++) b[i] = r.read(8);
+      out[k] = utf8dec.decode(b); // invalid UTF-8 becomes U+FFFD, never an exception
+    }
+  }
+  return r.overrun ? null : out;
 }
 
 // ---------- quantization for OTHER entities: 1/64 m in [-512, 512) -> 16 bits per axis ----------

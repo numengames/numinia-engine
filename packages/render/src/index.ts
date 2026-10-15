@@ -68,6 +68,29 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const vr = createVR({ renderer, scene, camera });
   let selfXZ: { x: number; z: number } | null = null;
 
+  // feature decorations (J7): a text label over an avatar and a short bounce; both expire on their own
+  type Target = number | "self";
+  const labels = new Map<Target, { mesh: THREE.Mesh; until: number }>();
+  const bounces = new Map<Target, number>(); // target -> until (ms)
+  const labelGeo = new THREE.PlaneGeometry(1.6, 0.4);
+  const meshOf = (t: Target): THREE.Mesh | undefined => (t === "self" ? (selfMesh.visible ? selfMesh : undefined) : others.get(t));
+  function dropLabel(t: Target): void {
+    const d = labels.get(t);
+    if (!d) return;
+    world.remove(d.mesh);
+    const mat = d.mesh.material as THREE.MeshBasicMaterial;
+    mat.map?.dispose(); mat.dispose();
+    labels.delete(t);
+  }
+  function updateDecorations(now: number): void {
+    for (const [t, d] of labels) {
+      const m = meshOf(t);
+      if (!m || now > d.until) { dropLabel(t); continue; }
+      d.mesh.position.set(m.position.x, m.position.y + 1.25, m.position.z);
+      d.mesh.quaternion.copy(camera.quaternion); // always faces whoever looks
+    }
+  }
+
   addEventListener("resize", () => {
     renderer.setSize(innerWidth, innerHeight);
     camera.aspect = innerWidth / innerHeight;
@@ -94,7 +117,32 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         m.position.set(o.x, 0.85, o.z);
       }
       for (const [id, m] of others) if (!seen.has(id)) { world.remove(m); others.delete(id); }
+      const now = performance.now();
+      for (const [t, until] of bounces) {
+        const m = meshOf(t);
+        if (!m || now > until) bounces.delete(t);
+        else m.position.y += Math.abs(Math.sin(now / 90)) * 0.35;
+      }
     },
+    /** A short text over an avatar (`"self"` = your own) for `ms` milliseconds. Replaces the previous one. */
+    label(t: Target, text: string, ms: number): void {
+      dropLabel(t);
+      const c = document.createElement("canvas"); c.width = 256; c.height = 64;
+      const g = c.getContext("2d")!;
+      g.fillStyle = "rgba(20,30,40,0.85)"; g.fillRect(0, 0, 256, 64);
+      g.fillStyle = "#ffd27a"; g.font = "bold 34px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText(text.slice(0, 18), 128, 34);
+      const mesh = new THREE.Mesh(labelGeo, new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
+      mesh.renderOrder = 10;
+      world.add(mesh);
+      labels.set(t, { mesh, until: performance.now() + ms });
+    },
+    /** Make an avatar hop for `ms` milliseconds. */
+    bounce(t: Target, ms: number): void { bounces.set(t, performance.now() + ms); },
+    /** Who has a label right now (for checks). */
+    labels(): Target[] { return [...labels.keys()]; },
+    /** True while a label or a bounce is alive: the power policy must keep drawing. */
+    busy(): boolean { return labels.size > 0 || bounces.size > 0; },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); },
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */
@@ -104,6 +152,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** Follow camera, then draw. */
     draw(dtSeconds: number): void {
+      updateDecorations(performance.now());
       if (renderer.xr.isPresenting) { ar.update(); vr.update(selfXZ, dtSeconds); renderer.render(scene, camera); return; }
       target.copy(selfMesh.position);
       wanted.set(target.x, target.y + 6, target.z + 9);

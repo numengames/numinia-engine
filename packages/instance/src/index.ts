@@ -1,6 +1,6 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
-import { rngNext } from "../../core/src/index.ts";
+import { rngNext, fxToFloat } from "../../core/src/index.ts";
 import { createSim, spawnAvatar, step, stateHash } from "../../sim/src/index.ts";
 import type { SimState } from "../../sim/src/index.ts";
 import {
@@ -8,10 +8,14 @@ import {
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair,
 } from "../../net/src/index.ts";
 import type { Transport, Viewer, Welcome } from "../../net/src/index.ts";
+import { ServerRuntime } from "../../feature/src/index.ts";
+import type { ServerPart } from "../../feature/src/index.ts";
 
 export type InstanceOptions = {
   seed: number; capacity: number; k: number; snapshotEvery: number;
   reference?: Welcome["ref"]; // determinism probe sent to every client on join
+  features?: readonly ServerPart[]; // game features (J7); none = the wire is exactly the pre-J7 one
+  log?: (line: string) => void;
 };
 
 /** Inputs wait in a queue; the server applies exactly ONE per tick (none = stand still). */
@@ -26,7 +30,20 @@ export class Instance {
   readonly sim: SimState;
   readonly opts: InstanceOptions;
   readonly conns: Conn[] = []; // array: join order is the deterministic order
-  constructor(opts: InstanceOptions) { this.opts = opts; this.sim = createSim(opts.capacity, opts.seed); }
+  readonly features: ServerRuntime; // game features: outside the simulation, never in the fingerprint
+  private readonly byEntity: (Conn | undefined)[];
+  constructor(opts: InstanceOptions) {
+    this.opts = opts; this.sim = createSim(opts.capacity, opts.seed);
+    this.byEntity = new Array(opts.capacity);
+    const tf = this.sim.tf;
+    this.features = new ServerRuntime(opts.features ?? [], {
+      players: () => this.conns.map((c) => c.entity),
+      position: (e) => (this.sim.world.alive[e] && tf.has[e] ? { x: fxToFloat(tf.cols.x[e]), z: fxToFloat(tf.cols.z[e]) } : null),
+      send: (e, bytes) => this.byEntity[e]?.transport.send(bytes, true),
+      tick: () => this.sim.tick,
+      log: opts.log ?? (() => {}),
+    });
+  }
 
   /** A client arrives over any transport: spawn its avatar, say welcome, listen. */
   connect(t: Transport, owner = this.conns.length): number {
@@ -38,11 +55,15 @@ export class Instance {
         if (conn.queue.length > MAX_QUEUE) { conn.queue.shift(); conn.dropped++; } // faster-than-tick senders lose inputs
       } else if (bytes[0] === MSG.PING && bytes.length === 5) {
         t.send(encodePong(decodeTime(bytes)), true);
+      } else if (bytes[0] === MSG.FEATURE && this.features.active) {
+        if (!this.features.receive(entity, bytes)) conn.bad++;
       } else conn.bad++; // unknown or malformed: counted, never thrown
     });
     this.conns.push(conn);
+    this.byEntity[entity] = conn;
     const ref = this.opts.reference ?? { seed: 0, ticks: 0, n: 0, hash: 0 };
     t.send(encodeWelcome({ entity, tick: this.sim.tick, x: this.sim.tf.cols.x[entity], z: this.sim.tf.cols.z[entity], ref }), true);
+    this.features.join(entity); // catalog + shared state, only if this instance runs features
     return entity;
   }
 
@@ -50,6 +71,8 @@ export class Instance {
     const i = this.conns.findIndex((c) => c.entity === entity);
     if (i < 0) return;
     this.conns.splice(i, 1);
+    this.byEntity[entity] = undefined;
+    this.features.leave(entity); // still has a position here; no longer among the players
     this.sim.world.despawn(entity);
   }
 
@@ -69,6 +92,7 @@ export class Instance {
       if (m) { inputs[i * 3 + 1] = m.mx; inputs[i * 3 + 2] = m.mz; c.ack = m.seq; }
     });
     step(this.sim, inputs); // authority
+    this.features.tick();   // game features: queued intents, then their tick hooks (no effect on the sim)
     if (this.sim.tick % this.opts.snapshotEvery === 0) { // 20 Hz sim, 10 Hz snapshots by default
       const grid = buildGrid(this.sim);
       for (const c of this.conns) {

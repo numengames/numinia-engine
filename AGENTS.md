@@ -20,8 +20,11 @@ loads data. Game/city logic lives elsewhere (AGPL).
    measures it) or `estimated` (with its source).
 
 ## Layers (enforced by `tools/layers.mjs`, rules in `tools/layers.json`)
-`core → schema → ecs → sim → net → {client, instance} → {server, cli}`; `render` talks to three.js
+`core → schema → ecs → sim → net → feature → {client, instance} → {server, cli}`; `render` talks to three.js
 only. A package imports only what `layers.json` allows. Adding a package means adding it there first.
+Game features live in `features/<id>/` and import only `core`, `schema` and `feature`; packages never
+import `features/` except the composition roots listed in `layers.json` (`_composition`). Recipe:
+`docs/EXTENDER.md`. A feature never touches the simulation or the fingerprint.
 
 ## Determinism contract (see `docs/DETERMINISM.md`)
 - `sim` decides with integers / Q16.16 fixed point only (`core`). No `Math.sin/cos/exp`, no

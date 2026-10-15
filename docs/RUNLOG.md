@@ -92,3 +92,12 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Consumo: semana 43 % → 43 % (Sonnet).
 - Commit: ver `git log` (P3).
 - Siguiente: la siguiente fila pendiente (A1 si sigue ahí).
+
+## 2026-10-15 08:57 · J7 · hecho (sesión de Pablo con Opus)
+- Qué: enchufe para funciones de juego. Paquete `packages/feature` (entre `net` y `client`/`instance`): `defineFeature` (solo datos: intentos = verbos, eventos, estado por clave, cada campo con esquema; `schema` gana `enum` y `text`), catálogo que cada cliente recibe al entrar (`npm run describe -- --catalogo`), códec que sale del esquema (`writeFields`/`readFields` en `net`), `ServerRuntime` en la instancia (valida, ritmo por jugador e intento, cola hasta el tick, alcance `to`/`near`/`all`, estado para todos y para quien llega tarde, rutas HTTP en el puerto de la instancia, fallos aislados) y `ClientRuntime` en la sesión (acciones con tecla o botón táctil, `view.label`/`bounce`). Mensajes 6/7/8 solo si el servidor corre funciones; `SIN_FUNCIONES=1` arranca el motor desnudo. `features/gestos`: G saluda, H baila, lo ven quienes están a menos de 30 m (texto sobre el avatar y bote; botones en pantallas táctiles). Capas: `features/` solo importa `core`, `schema` y `feature`; solo las raíces de `_composition` importan `features/`. `docs/EXTENDER.md` (receta), README del paquete, `llms.txt`, MAPA, AGENTS, ficha y `limits.json` (5 límites nuevos, medidos). El instalador copia `features/`.
+- Cola: J3, J4, J5, N1, N2, R1 y R4 pasan a `pendiente`; J9 nueva (`para Opus`: estado y objetos por cercanía); D4 se acota a los mensajes del núcleo; R1 va antes que J6b (Pablo: la AR primero) y lleva un «Ojo» con las rutas `/e/`.
+- Números: gates verdes (42 tests, 12 nuevos; p99 8,5 y 8,7 ms en dos pasadas, la puerta corre sin funciones; 25,0 kbit/s). e2e chromium, firefox, AR, VR y https OK; en chromium, firefox y https la pestaña B camina hasta ~25 m de A, A pulsa G y las dos ven «¡Hola!». La prueba de gestos da la misma huella con y sin funciones. Instalador 564 kB; `deploy-check` OK.
+- Cambios de criterio: en el e2e, el movimiento pasa con más de 3,5 m (antes 4): la pasada https dio -4,0 justo una vez, como la que vio J6. Ficha y `limits.json`: XR ya no figura como «no implementado» (J6/J8, con emulador).
+- Consumo: semana 43 % → 44 % (Opus).
+- Commit: ver `git log` (J7).
+- Siguiente: turnos, R1 «Despertar». Sesión con Opus: I1 y S4 (desbloquean R2 y R3), luego J9.

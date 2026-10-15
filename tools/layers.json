@@ -1,13 +1,16 @@
 {
-  "_doc": "Each package may import only the packages listed for it. Lower layers never import upper ones. render talks to three.js only.",
+  "_doc": "Each package may import only the packages listed for it. Lower layers never import upper ones. render talks to three.js only. 'features' is the rule for every folder in features/ (game features: only the plug, no bare imports). Only the files in _composition may import features/.",
+  "_composition": ["packages/server/src/main.ts", "packages/cli/src/describe.ts", "apps/plaza/main.ts"],
   "core": [],
   "schema": ["core"],
   "ecs": ["core", "schema"],
   "sim": ["core", "schema", "ecs"],
   "net": ["core", "schema", "ecs", "sim"],
-  "client": ["core", "schema", "ecs", "sim", "net"],
+  "feature": ["core", "schema", "net"],
+  "client": ["core", "schema", "ecs", "sim", "net", "feature"],
   "render": [],
-  "instance": ["core", "schema", "ecs", "sim", "net"],
-  "server": ["core", "schema", "ecs", "sim", "net", "instance"],
-  "cli": ["core", "schema", "ecs", "sim", "net", "instance"]
+  "instance": ["core", "schema", "ecs", "sim", "net", "feature"],
+  "server": ["core", "schema", "ecs", "sim", "net", "instance", "feature"],
+  "cli": ["core", "schema", "ecs", "sim", "net", "instance", "feature"],
+  "features": ["core", "schema", "feature"]
 }

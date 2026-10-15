@@ -10,8 +10,8 @@ cuando exista. Versión 1 · 15 de octubre de 2026.
 
 | Nivel | Qué es | Hoy |
 |---|---|---|
-| **Base** | funciona en todo navegador con WebGL2 | instancia en servidor, simulación determinista, predicción en el cliente, dibujo WebGL2, enjambre de bots (medido) |
-| **Mejorado** | se enciende solo donde la API existe | WebGPU (lo elige three.js; sin prueba propia), XR, voz: **aún no implementados** |
+| **Base** | funciona en todo navegador con WebGL2 | instancia en servidor, simulación determinista, predicción en el cliente, dibujo WebGL2, enjambre de bots, módulos de juego (medido) |
+| **Mejorado** | se enciende solo donde la API existe | XR (VR y AR): hecho y probado con emulador, **sin aparato real** (X1); WebGPU (lo elige three.js; sin prueba propia); voz: **aún no implementada** |
 | **Frontera** | opcional, detrás de un interruptor | WebTransport: **aún no implementado** |
 
 Se detecta por capacidad, nunca por nombre de navegador.
@@ -30,6 +30,21 @@ Se detecta por capacidad, nunca por nombre de navegador.
 
 Máquinas (OVH, sin IVA): VPS-1 3,81 €, VPS-2 7,21 €, SYS-3 (8 núcleos dedicados) 41,99 €. Hasta
 1.000 en una instancia basta un hilo; más allá habría que repartir por regiones.
+
+## Módulos de juego (funciones)
+
+Cada función (gestos, y las que vengan) vive en `features/<id>/` y entra por el enchufe; receta en
+[`EXTENDER.md`](EXTENDER.md). Todo medido por `test/feature.test.ts`.
+
+| Dato | Valor |
+|---|---|
+| Ritmo por defecto de cada intento | 4 por segundo y jugador, ráfaga de 8 (cada intento puede declarar el suyo) |
+| Intentos en espera por jugador | 32 por tick; el resto se tira y se cuenta |
+| Alcance por defecto de un evento «cerca» | 32 m |
+| Campo de texto | hasta 512 bytes |
+| Petición a una ruta de función (POST) | hasta 4 KB |
+| Estado compartido | se manda a todos (por cercanía: J9); se pierde al reiniciar (S4) |
+| Coste si no hay funciones | ninguno: no viaja ningún mensaje nuevo y los de antes no cambian |
 
 ## Aparato
 

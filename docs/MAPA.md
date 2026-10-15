@@ -10,10 +10,12 @@ Para quien llega nuevo (persona o IA). La versión de una página para máquinas
 | cambiar qué se manda a cada cliente | `packages/net/src/index.ts` (`selectVisible`, `encodeSnapshot`) |
 | cambiar el bucle del servidor | `packages/instance/src/index.ts` y `packages/server/src/server.ts` |
 | cambiar cómo se dibuja | `packages/render/src/` (único sitio con three.js) |
+| añadir una función de juego (gestos, chat, puertas, misiones…) | `docs/EXTENDER.md`; el código va en `features/<id>/` |
+| saber qué verbos tiene el mundo (personas y agentes) | `npm run describe -- --catalogo` |
 | ver el mundo sin pantalla | `npm run describe` (JSON: entidades, posiciones, quién ve a quién) |
 | saber un límite | `limits.json` / `docs/FICHA-TECNICA.md` |
 | añadir un paquete | primero `tools/layers.json`, luego carpeta con `README.md`, y una línea en `llms.txt` |
 | qué toca hacer | `docs/BACKLOG.md`; lo ya hecho en `docs/RUNLOG.md` |
 
-Capas (de abajo arriba): `core → schema → ecs → sim → net → {client, instance} → {server, cli}`;
-`render` solo habla con three.js. `tools/layers.mjs` lo comprueba.
+Capas (de abajo arriba): `core → schema → ecs → sim → net → feature → {client, instance} → {server, cli}`;
+`render` solo habla con three.js; las funciones de juego (`features/`) solo con `feature`. `tools/layers.mjs` lo comprueba.

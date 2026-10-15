@@ -40,5 +40,5 @@ test("installer: template parses, placeholders are filled, the payload round-tri
 });
 
 test("installer ships exactly the packages the server may import", () => {
-  assert.deepEqual(serverPackages().sort(), ["core", "ecs", "instance", "net", "schema", "server", "sim"]);
+  assert.deepEqual(serverPackages().sort(), ["core", "ecs", "feature", "instance", "net", "schema", "server", "sim"]);
 });

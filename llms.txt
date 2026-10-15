@@ -2,30 +2,35 @@
 > Thin MIT web 3D/XR engine in TypeScript. It draws, syncs, simulates and loads data; it knows nothing of any game. Node >= 24 runs the .ts files directly (erasable TypeScript only, imports end in .ts).
 
 ## Layers (enforced by tools/layers.mjs, rules in tools/layers.json)
-core -> schema -> ecs -> sim -> net -> {client, instance} -> {server, cli}; render talks to three.js only.
+core -> schema -> ecs -> sim -> net -> feature -> {client, instance} -> {server, cli}; render talks to three.js only.
+Game features live in features/<id>/ and may import only core, schema and feature; only the composition roots
+(packages/server/src/main.ts, packages/cli/src/describe.ts, apps/) import features/.
 
 ## Packages (each has a README.md with: is, does not, depends on, tested by, API)
 - `core` — Q16.16 fixed point, seeded RNG (xorshift), FNV-1a hash, `Result`/`Issue` types. Deps: nothing. [packages/core/README.md]
 - `schema` — One description per component/message: defaults, validation with error paths, bits per field. Deps: core. [packages/schema/README.md]
 - `ecs` — Entities with generation counters and component columns (one Int32Array per field). Deps: core, schema. [packages/ecs/README.md]
 - `sim` — Deterministic 20 Hz step over integers: avatars, movement, snapshot, state hash, replay, the reference fingerprint. Deps: core, schema, ecs. [packages/sim/README.md]
-- `net` — Bit packing, quantized snapshots (6 bytes per visible entity), area of interest with a priority cap K, message types, `Transport` + in-memory loopback + WebSocket client. Deps: core, schema, ecs, sim. [packages/net/README.md]
-- `client` — Session on the player's side: prediction of the own avatar, interpolation of others (150 ms in the past), reconnection to the server URL. Deps: core, schema, ecs, sim, net. [packages/client/README.md]
+- `net` — Bit packing, quantized snapshots (6 bytes per visible entity), area of interest with a priority cap K, message types, `Transport` + in-memory loopback + WebSocket client, schema codec (`writeFields`/`readFields`). Deps: core, schema, ecs, sim. [packages/net/README.md]
+- `feature` — The plug for game features: `defineFeature` (intents, events, shared state, all by schema), the catalog sent on join (what agents read as verbs), `ServerRuntime` and `ClientRuntime`. Deps: core, schema, net. [packages/feature/README.md] Recipe: docs/EXTENDER.md.
+- `client` — Session on the player's side: prediction of the own avatar, interpolation of others (150 ms in the past), reconnection to the server URL, the game features' client runtime. Deps: core, schema, ecs, sim, net, feature. [packages/client/README.md]
 - `render` — The only package that talks to three.js: WebGPU/WebGL2 view, power policy (frame cap, dynamic resolution, battery), crowds (baked VAT), AR and VR sessions. Deps: three.js only. [packages/render/README.md]
-- `instance` — The authoritative loop: connects any `Transport`, applies one input per tick, sends snapshots; `Bot` speaks the real protocol headless. Deps: core, schema, ecs, sim, net. [packages/instance/README.md]
-- `server` — `startServer()`: HTTP `/health` `/metrics` + WebSocket on one port, tick metrics, load swarm. Deps: core, schema, ecs, sim, net, instance. [packages/server/README.md]
-- `cli` — Command line over a headless instance: `run` (fingerprint + timings, feeds the gates) and `describe` (readable JSON of a world). Deps: core, schema, ecs, sim, net, instance. [packages/cli/README.md]
+- `instance` — The authoritative loop: connects any `Transport`, applies one input per tick, sends snapshots; `Bot` speaks the real protocol headless; hosts the game features' server runtime. Deps: core, schema, ecs, sim, net, feature. [packages/instance/README.md]
+- `server` — `startServer()`: HTTP `/health` `/metrics` + the features' routes + WebSocket on one port, tick metrics, load swarm. Deps: core, schema, ecs, sim, net, instance, feature. [packages/server/README.md]
+- `cli` — Command line over a headless instance: `run` (fingerprint + timings, feeds the gates) and `describe` (readable JSON of a world; `--catalogo` for the features). Deps: core, schema, ecs, sim, net, instance, feature. [packages/cli/README.md]
 
 ## Commands
 - npm test            unit tests (< 1 s)
 - npm run gates       tests + layers + determinism + bandwidth + 1,000-person tick (a few s). Run before committing.
 - npm run describe -- --bots 6 --ticks 100 --seed 42   JSON of a headless world: entities, positions (m), who sees whom
+- npm run describe -- --catalogo   what the game features offer: verbs (intents) with their fields, events, state
 - npm run run -- --ticks 2000 --bots 50   fingerprint + timings
 - npm run server / dev / bots / e2e   plaza server, page, headless players, browser check
 
 ## Contracts you must not break
 - Determinism: sim uses integers / Q16.16 only; no Math.random, Date, Map/Set iteration to decide. See docs/DETERMINISM.md.
 - Reference fingerprint is pinned in test/engine.test.ts; changing it, the wire format or a file format is a FORMAT CHANGE (AGENTS.md, Autonomy).
+- Game features never touch the simulation: their state lives outside it and never enters the fingerprint.
 - Validation returns Result with error paths; it never throws.
 
 ## Limits and numbers

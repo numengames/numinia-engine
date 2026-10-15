@@ -27,26 +27,27 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | S2 | Métricas del servidor (`/health`, `/metrics`) y enjambre contra una URL remota (para mañana) | hecho | sí |
 | P1 | Ficha técnica: características y límites del motor (humana + `limits.json`) | hecho | sí |
 | J0 | Catálogo de todo lo que espera un jugador (la receta para añadir funciones es de J7) | hecho | sí |
-| J7 | Módulos de juego: añadir una función sin tocar el núcleo, con un ejemplo real (gestos) | para Opus | no |
+| J7 | Módulos de juego: añadir una función sin tocar el núcleo, con un ejemplo real (gestos) | hecho | no |
 | I1 | Identidad de invitado y vincular el móvil con el ordenador o el visor | para Opus | no |
 | S4 | Persistencia mínima del mundo (puntos de enlace, inventario, cosas plantadas) | para Opus | no |
+| J9 | Estado y objetos de las funciones por cercanía (mundos grandes): a cada uno, solo lo que tiene cerca | para Opus | no |
 | B1 | HTTPS en la red de casa para móviles y visores (certificado propio, `/ws` en el mismo origen) | hecho | sí |
 | J8 | AR de verdad: entrar en AR en Android, Quest 3 y Pico 4, suelo, anclar un objeto; iPhone en plano | hecho (emulado; falta probar en aparato real) | sí |
 | J6 | VR de verdad: entrar en VR, moverse, mandos, giro a saltos, viñeta, panel 3D (emulador IWER) | hecho (emulado) | sí |
+| R1 | Realidad cruzada 1 «Despertar»: un QR real hace que la plaza reaccione para todos | pendiente | sí |
+| R2 | Realidad cruzada 2 «Semilla del Conocimiento»: pregunta en un sitio real → semilla que se planta en el mundo | espera a I1, S4 | sí |
+| R3 | Realidad cruzada 3 «Célula del Prisma» + herramienta del DJ para marcar puntos reales | espera a I1, S4 | sí |
+| R4 | Realidad cruzada 4 «Caza de invisibles»: la cámara, el color y la hora deciden qué aparece | pendiente | sí |
 | J6b | VR: teletransporte con arco, manos (hand-tracking) y viñeta ajustable desde un menú; resto de J6 | pendiente | sí |
-| R1 | Realidad cruzada 1 «Despertar»: un QR real hace que la plaza reaccione para todos | espera a J7 | sí |
-| R2 | Realidad cruzada 2 «Semilla del Conocimiento»: pregunta en un sitio real → semilla que se planta en el mundo | espera a J7, I1, S4 | sí |
-| R3 | Realidad cruzada 3 «Célula del Prisma» + herramienta del DJ para marcar puntos reales | espera a J7, I1, S4 | sí |
-| R4 | Realidad cruzada 4 «Caza de invisibles»: la cámara, el color y la hora deciden qué aparece | espera a J7, J8 | sí |
 | P2 | Móvil frío: política de energía del cliente + puerta de coste por cuadro | hecho (sin medir en móvil real → X1) | sí |
 | P3 | Nativo para IA v1: `llms.txt`, mapa, README-contrato por paquete, `npm run describe` | hecho | sí |
 | J1 | Avatares VRM de verdad (CC0) con animaciones CC0 en la plaza | pendiente | sí |
 | J2 | Salto y altura en la simulación (cambia la huella fijada; permiso de Pablo, 14-10) | pendiente | sí |
-| J3 | Chat y bocadillos de texto sobre los avatares, con nombres | espera a J7 | sí |
-| J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR | espera a J7 | sí |
-| J5 | Libro de misiones, mapa y minimapa con marcadores | espera a J7 | sí |
-| N1 | Entrada táctil, gamepad, cámara en 3.ª persona y pantalla completa (de `docs/JUGADOR.md`) | espera a J7 | sí |
-| N2 | Menú de ajustes y accesibilidad básica, guardado local (de `docs/JUGADOR.md`) | espera a J7 | sí |
+| J3 | Chat y bocadillos de texto sobre los avatares, con nombres | pendiente | sí |
+| J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR | pendiente | sí |
+| J5 | Libro de misiones, mapa y minimapa con marcadores | pendiente | sí |
+| N1 | Entrada táctil, gamepad, cámara en 3.ª persona y pantalla completa (de `docs/JUGADOR.md`) | pendiente | sí |
+| N2 | Menú de ajustes y accesibilidad básica, guardado local (de `docs/JUGADOR.md`) | pendiente | sí |
 | F1 | Amigos, bloqueo, moderación y roles (toca red y guardado; de `docs/JUGADOR.md`) | para Opus | no |
 | F2 | Portales entre instancias y grupo (toca red e instancias; de `docs/JUGADOR.md`) | para Opus | no |
 | A1 | Página de multitud (50/200/1.000/2.000 robots, completos vs horneados) | pendiente | sí |
@@ -59,7 +60,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | B3 | Telemetría en el visor: p99 de cuadro y cuadros perdidos | pendiente | sí |
 | D2 | Puerta de tamaño del cliente (≤ 300 kB comprimido) | pendiente | sí |
 | D3 | Fuzz de todos los decodificadores de red | pendiente | sí |
-| D4 | El formato de red sale del esquema, no escrito a mano | para Opus | no |
+| D4 | Los mensajes del núcleo (entrada, snapshot, bienvenida) salen del esquema, como ya los de las funciones (J7) | para Opus | no |
 | X1 | Probar en Quest 3 y Pico 4 | pendiente | no |
 | X2 | Probar Safari de verdad (iPhone o Mac) | pendiente | no |
 | X3 | Montarlo en un servidor pequeño real y medir sus límites (con Pablo, 15-10) | pendiente | no |
@@ -185,6 +186,24 @@ se declaran con esquema) y pensando en P4 (cada función declara sus verbos y un
 código extra). Al cerrarla, J3, J4 y J5 pasan a `pendiente`.
 **Lo que añade la realidad cruzada (15-10):** una función puede registrar rutas HTTP propias (la URL
 que abre un QR) y tener estado guardado (con S4). El primer módulo real después de los gestos es R1.
+**Hecho (15-10, sesión con Opus).** Paquete `packages/feature` (capa entre `net` y `client`/`instance`):
+`defineFeature` (declaración solo de datos: intentos = verbos, eventos, estado por clave; campos por
+esquema, con dos tipos nuevos en `schema`: `enum` y `text`), catálogo JSON que cada cliente recibe al
+entrar (lo que un agente lee como verbos; `npm run describe -- --catalogo`), códec que sale del esquema
+(`writeFields`/`readFields` en `net`), `ServerRuntime` dentro de la instancia (validación, límite de ritmo
+por jugador e intento, cola hasta el tick, alcance `to`/`near`/`all`, estado replicado a todos y al que
+llega tarde, rutas HTTP en el puerto de la instancia, fallos aislados) y `ClientRuntime` dentro de la
+sesión (acciones = tecla o botón táctil, `view.label`/`bounce`, registro de eventos). Formato aditivo:
+mensajes 6 CATALOG, 7 FEATURE, 8 STATE, solo si el servidor corre funciones; sin funciones la red es
+idéntica. Las funciones viven en `features/<id>/` (solo pueden importar `core`, `schema`, `feature`; lo
+comprueba `tools/layers.mjs`), y entran por dos listas (`features/servidor.ts`, `features/cliente.ts`).
+Ejemplo: `features/gestos` (G saluda, H baila; alcance 30 m). Receta: `docs/EXTENDER.md`. Medido: 12
+pruebas nuevas (42 en total; antes 30); puertas en verde (tick p99 8,5 y 8,7 ms en dos pasadas en la
+plaza de 1.000, que corre sin funciones; antes 7,7–8,5; 25,0 kbit/s); e2e chromium, firefox y https: la
+pestaña B camina hasta ~25 m de A, A pulsa G, las dos ven el texto. La simulación no cambia: la huella
+fijada pasa y la prueba de gestos da la misma huella con y sin funciones. Límites nuevos en `limits.json`
+y `docs/FICHA-TECNICA.md`. Sin hacer (otras filas): estado por cercanía y objetos (J9), guardar (S4),
+identidad (I1), rutas públicas `/e/` en el proxy de casa y en Caddy (R1).
 
 ### J1 — Avatares VRM de verdad
 `@pixiv/three-vrm` 3.5.5 (MIT, versión exacta). 2–3 VRM CC0 con la licencia comprobada dentro del
@@ -274,6 +293,12 @@ luz y texto) unos 10 s para todos. `npm run enlaces -- qr` imprime los QR (SVG) 
 casa; opción para que el servidor escuche en la red de casa (hoy solo en 127.0.0.1). **Hecho cuando:**
 e2e: una petición a un código válido hace aparecer el efecto en una pestaña sin pantalla; un código falso
 o repetido no hace nada; medido el tiempo del escaneo al efecto.
+**Ojo (J7, 15-10):** el código va en `features/despertar/` con `api.route("GET", "/e/:token", …)` y
+`api.emit(…, "all")` (receta: `docs/EXTENDER.md`). Hoy, desde fuera, a la instancia solo llega `/ws` (y
+`/health` en un servidor instalado): en casa lo pasa el proxy de `apps/plaza/vite.config.mjs` (modo LAN) y
+en un servidor instalado, Caddy (`deploy/instalar-motor.plantilla.sh`). R1 añade `/e/` en los dos sitios,
+nunca `/metrics` (se queda en 127.0.0.1). El secreto que firma los tokens va en una variable de entorno,
+nunca en el repositorio.
 
 ### R2 — Semilla del Conocimiento
 El punto hace una pregunta que solo se responde estando allí; la respuesta la fija el DJ (un agente puede
