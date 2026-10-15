@@ -1,0 +1,38 @@
+{
+  "name": "numinia-engine",
+  "private": true,
+  "version": "0.0.0",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.ts\"",
+    "layers": "node tools/layers.mjs",
+    "run": "node packages/cli/src/run.ts",
+    "describe": "node packages/cli/src/describe.ts",
+    "server": "node packages/server/src/main.ts",
+    "bots": "node packages/server/src/bots.ts",
+    "dev": "vite --config apps/plaza/vite.config.mjs",
+    "dev:lan": "node tools/dev-lan.mjs",
+    "build": "vite build --config apps/plaza/vite.config.mjs",
+    "e2e": "node tools/e2e.mjs",
+    "gates": "node tools/gates.mjs",
+    "deploy": "node tools/build-deploy.mjs",
+    "enlaces": "node tools/enlaces.ts",
+    "bench": "node packages/server/src/bench.ts",
+    "sesiones": "node packages/server/src/sesiones-ver.ts"
+  },
+  "dependencies": {
+    "@pixiv/three-vrm": "3.5.5",
+    "@pixiv/three-vrm-animation": "3.5.5",
+    "three": "^0.186.1",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "iwer": "2.6.0",
+    "playwright-core": "1.64.1",
+    "vite": "^8.3.4"
+  }
+}

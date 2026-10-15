@@ -1,0 +1,43 @@
+{
+  "formato": "pnj@1",
+  "id": "bruno",
+  "nombre": "Bruno, el farolero",
+  "descripcion": "Cuida de los faroles de la plaza. Ha perdido su caja de herramientas.",
+  "posicion": { "x": 10, "z": 8 },
+  "giro": -90,
+  "radio": 3,
+  "dialogo": {
+    "entradas": [
+      { "si": { "mision": "primeros-pasos", "estado": "activa", "paso": "bruno" }, "nodo": "recado" },
+      { "si": { "mision": "primeros-pasos", "estado": "activa", "paso": "caja" }, "nodo": "busca" },
+      { "si": { "mision": "primeros-pasos", "estado": "hecha" }, "nodo": "contento" },
+      { "nodo": "hola" }
+    ],
+    "nodos": {
+      "hola": {
+        "texto": "Buenas. Soy Bruno: cuido de los faroles de la plaza.",
+        "opciones": [{ "texto": "Adiós, Bruno.", "accion": { "tipo": "despedir" } }]
+      },
+      "recado": {
+        "texto": "¿Te manda Alma? ¡Qué alegría! Oye, he perdido mi caja de herramientas. La dejé junto al pilar rojo del sur.",
+        "opciones": [
+          { "texto": "Yo te la busco.", "accion": { "tipo": "avanzar_paso", "mision": "primeros-pasos" }, "ir": "gracias" },
+          { "texto": "Ahora no puedo.", "accion": { "tipo": "despedir" } }
+        ]
+      },
+      "gracias": {
+        "texto": "¡Gracias! Es una caja pequeña, junto al pilar rojo.",
+        "opciones": [{ "texto": "Voy.", "accion": { "tipo": "despedir" } }]
+      },
+      "busca": {
+        "texto": "La caja debe de estar junto al pilar rojo del sur. ¡Gracias por buscarla!",
+        "opciones": [{ "texto": "Voy.", "accion": { "tipo": "despedir" } }]
+      },
+      "contento": {
+        "texto": "¡Mi caja! Ya puedo arreglar los faroles. Gracias de corazón.",
+        "opciones": [{ "texto": "De nada.", "accion": { "tipo": "despedir" } }]
+      }
+    }
+  },
+  "notas": "EJEMPLO del motor. El paso «habla con Bruno» se completa al elegir «Yo te la busco» (avanzar_paso)."
+}

@@ -1,0 +1,17 @@
+{
+  "formato": "mision@1",
+  "id": "primeros-pasos",
+  "titulo": "Primeros pasos en la plaza",
+  "descripcion": "Alma, la guía, te propone un paseo: visita el pilar dorado del este, saluda a Bruno, el farolero, y ayúdale a encontrar su caja de herramientas.",
+  "pasos": [
+    { "id": "pilar", "tipo": "llega_a", "texto": "Visita el pilar dorado del este", "x": 18, "z": 0, "radio": 4, "lugar": "Pilar dorado" },
+    { "id": "bruno", "tipo": "habla_con", "texto": "Habla con Bruno, el farolero", "pnj": "bruno" },
+    { "id": "caja", "tipo": "coge", "texto": "Recupera la caja de herramientas de Bruno", "cosa": "caja-de-bruno" }
+  ],
+  "recompensas": [{ "tipo": "insignia", "id": "conoce-la-plaza", "nombre": "Conoce la plaza" }],
+  "textos": {
+    "aceptada": "Lo tienes en tu libro de misiones (tecla J).",
+    "completada": "Bruno ya puede arreglar los faroles."
+  },
+  "notas": "EJEMPLO del motor (aventuras/ejemplo): una misión de tres pasos para probar el formato. Las misiones de verdad son de la aventura, no del motor."
+}

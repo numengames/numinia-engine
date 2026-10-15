@@ -1,0 +1,76 @@
+{
+ "fuente": "Quaternius Universal Animation Library (UAL1 Standard), CC0",
+ "fbx": {
+  "bytes": 24908124,
+  "sha256": "05b7912f6926eb023b3bf5133012dca1ee27e41f453909857e1d471e9eacef12"
+ },
+ "convertMs": 3746,
+ "clipsInFile": 45,
+ "missingBones": [],
+ "clips": {
+  "quieto": {
+   "from": "Idle_Loop",
+   "duration": 3.125,
+   "frames": 95,
+   "tracks": 53,
+   "bytes": 136648,
+   "speedMs": 0,
+   "speedPerHipHeight": 0,
+   "minToeY": 0.002,
+   "sha256": "5db3f0b204d9aee25c6c9abfed1fa31d375b0004125c0f1f07328c0a03ac4d86"
+  },
+  "andar": {
+   "from": "Walk_Loop",
+   "duration": 1.667,
+   "frames": 51,
+   "tracks": 53,
+   "bytes": 90780,
+   "speedMs": 0.724,
+   "speedPerHipHeight": 0.797,
+   "minToeY": -0.005,
+   "sha256": "7afdd6c1a912b63dd4bef6c5fad55aa0d0b6d93d845834d7695e4db37a3776aa"
+  },
+  "trotar": {
+   "from": "Jog_Fwd_Loop",
+   "duration": 1.167,
+   "frames": 36,
+   "tracks": 53,
+   "bytes": 74932,
+   "speedMs": 4.713,
+   "speedPerHipHeight": 5.184,
+   "minToeY": -0.02,
+   "sha256": "e1d19cd9d620341f30e26e66a25697ec786e62f47812e80b6e0ab42a80b90602"
+  },
+  "correr": {
+   "from": "Sprint_Loop",
+   "duration": 0.833,
+   "frames": 26,
+   "tracks": 53,
+   "bytes": 64368,
+   "speedMs": 7.066,
+   "speedPerHipHeight": 7.772,
+   "minToeY": -0.031,
+   "sha256": "d3f38c5a2cb367c13a2afaf67efcc7133826ddbbfab9094252bb7fabaaa7372a"
+  },
+  "saltar": {
+   "from": "Jump_Loop",
+   "duration": 3.125,
+   "frames": 95,
+   "tracks": 53,
+   "bytes": 136636,
+   "speedMs": 0,
+   "speedPerHipHeight": 0,
+   "minToeY": -0.075,
+   "sha256": "f87d42354e4f0b502546f1afe8cfd6a1f1a39bd8eafef7bc0cc9e61b3578df61"
+  }
+ },
+ "rest": {
+  "hipHeight": 0.9092,
+  "unit": 1,
+  "facing": [
+   0,
+   -0.084,
+   0.996
+  ]
+ }
+}
