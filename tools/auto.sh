@@ -75,7 +75,7 @@ case "${1:-status}" in
     tail -9 "$TMP/auto-gates.log"
     if [ -n "$MAIN" ] && [ -z "$(git -C "$MAIN" status --short --untracked-files=no)" ] && git merge-base --is-ancestor main auto; then
       if [ "$(git rev-list --count main..auto)" -gt 0 ]; then
-        server_changed=$(git diff --name-only main auto | grep -cE '^packages/(server|instance|net|sim|core|ecs|schema)/' || true)
+        server_changed=$(git diff --name-only main auto | grep -cE '^(packages/(server|instance|net|sim|core|ecs|schema|feature)/|features/)' || true)
         git -C "$MAIN" merge -q --ff-only auto && echo "main avanzada a $(git rev-parse --short auto)"
         [ "$server_changed" -gt 0 ] && "$MAIN/tools/plaza.sh" restart
       else echo "nada nuevo que llevar a main"; fi
