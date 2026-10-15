@@ -13,6 +13,10 @@ import { montarSoltar } from "./soltar.ts";
 import { catalogoDeAvatares } from "./catalogo-avatares.ts"; // not "./a…": dev:lan proxies every path starting with /a to the server
 import { montarChat } from "./chat.ts";
 import { escribiendo } from "./escribiendo.ts";
+import { misiones } from "../../features/misiones/client.ts";
+import { montarInteraccion } from "./interactuar.ts";
+import { montarDialogo } from "./dialogo.ts";
+import { montarLibro } from "./misiones.ts";
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
@@ -39,6 +43,8 @@ const session = new ClientSession(transport, {
     // J3: names over heads and speech bubbles (features/chat)
     nameTag: (e, text) => view.nameTag(e === session.entity ? "self" : e, text),
     bubble: (e, text, ms) => view.bubble(e === session.entity ? "self" : e, text, ms),
+    // J5: a name that stays over a person of the world
+    tag: (key, t) => view.tag(key, t),
     // V1: every announced event reaches screen readers (polite; safety = assertive). V3 adds the engine's own voice.
     announce: (a) => {
       if (a.feature === "chat") return; // J3: the chat box's own list (role=log, polite) reads the chat
@@ -73,6 +79,15 @@ montarSoltar({ session, view, puede: () => constructor.estado.puede, origen: act
 
 // ---- J3: the chat box (Enter opens, Enter sends, Escape closes; a «Chat» button on touch screens) ----
 const cajaChat = montarChat(chatDePagina, document.getElementById("chat")!);
+
+// ---- J4/J5: what you can use from close by (E, a click, the prompt button), conversations, the quest book (J) ----
+const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: misiones.ofrece, ocupado: () => !!misiones.dialogo() });
+misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
+montarDialogo(misiones, document.getElementById("dialogo")!, view);
+montarLibro(misiones, {
+  boton: document.getElementById("misiones") as HTMLButtonElement, panel: document.getElementById("libro")!, linea: document.getElementById("mision-seguida")!,
+  nota: document.getElementById("mision-nota")!, view, here: () => (session.entity >= 0 ? session.selfPosition(1) : null),
+});
 
 // ---- determinism probe: replay the reference run here and compare with the server's number ----
 const probe = { browser: -1, server: -1, ms: 0, done: false };
@@ -257,7 +272,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion };
 
 // ---- N2: settings and capabilities (menu-ajustes.ts): gear + O, window.__numinia.ajustes / .capacidades. Applied here,
 // before the first frame: the display loop above only draws from the next animation frame on ----

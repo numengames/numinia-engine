@@ -90,6 +90,19 @@ Tú y los jugadores más cercanos, como humanoides VRM con animaciones; el resto
 | Código | three-vrm llega después del primer cuadro (64 kB gz aparte); el arranque crece 5 kB gz |
 | Material | Lambert con la textura del avatar (sin MToon: costaría ~30 kB gz más en el arranque) |
 
+## Misiones y personas (J5) y cosas que se usan de cerca (J4)
+
+Las misiones, las personas que las dan y las cosas que se cogen las escribe la aventura como texto (`mision@1`,
+`pnj@1`, `cosa@1`; `docs/EXTENDER.md`). Medido por `test/misiones.test.ts` y `tools/e2e-piernas/misiones.mjs`.
+
+| Dato | Valor |
+|---|---|
+| Coste por tick | 1.000 jugadores esperando llegar a un sitio: p99 0,18 ms (p50 0,09); solo se mira a quien tiene un paso «llega a», cada 0,2 s |
+| Alcance para hablar o coger | el radio de cada persona o cosa (1-8 m; el ejemplo, 3 y 2 m); el servidor acepta 1,5 m más |
+| Límites | 16 misiones activas, 16 pasos por misión, 4 respuestas por nodo, 64 nodos por persona; textos en bytes UTF-8 |
+| Progreso | por invitado (I1), en el almacén del servidor (S4); solo le llega a su dueño |
+| Dibujo | el robot de la casa, quieto: 19 draw calls por persona (el tope del nivel D es 80): falta LOD |
+
 ## Aparato
 
 Todo **estimado** (fuente: estudio de límites, 13-10). La ciudad se diseña al nivel B: lo que entra

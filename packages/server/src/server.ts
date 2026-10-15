@@ -20,6 +20,7 @@ import { FileStorage } from "./datos.ts";
 import { Activos, BIBLIOTECA } from "./activos.ts";
 import { Subidas } from "./subidas.ts";
 import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
+import { lectorAventura } from "./aventura.ts";
 import type { Metrics } from "./metrics.ts";
 
 export type ServerOptions = {
@@ -37,6 +38,7 @@ export type ServerOptions = {
   biblioteca?: string | null;    // H1: the house library served at /a/<sha256>.<ext>; default the repo's activos/ (null = none)
   subidas?: string | null;       // H1/H9: folder of uploaded files named <sha256>.<ext>; default null (= no uploads)
   subir?: { topesMB?: Partial<Record<string, number>>; totalMB?: number }; // H9: smaller caps (tests); default ficheros.ts
+  aventura?: string | null;      // J5: the adventure's folder (quests, people, things as text files); default null = none
   log?: (line: string) => void;
 };
 
@@ -97,7 +99,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const construir = o.construir ?? "nadie";
   const puede = (_who: unknown, accion: string) => accion === "construir" && construir === "todos";
   const activos = new Activos(o.biblioteca === undefined ? BIBLIOTECA : o.biblioteca, o.subidas ?? null, log);
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: o.features, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, activo: (h, ext) => activos.buscar(h, ext) !== null });
+  if (o.aventura) log(`[aventura] ${o.aventura}${existsSync(o.aventura) ? "" : " (no existe: el mundo arranca sin aventura)"}`);
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: o.features, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, activo: (h, ext) => activos.buscar(h, ext) !== null, aventura: lectorAventura(o.aventura ?? null, log) });
   // H9: uploads (PUT /a/<sha256>.<ext>) by whoever may build; the page shows its guest token (I1) to say who it is
   const subidas = new Subidas({
     dir: o.subidas ?? null, activos, log, topesMB: o.subir?.topesMB, totalMB: o.subir?.totalMB,

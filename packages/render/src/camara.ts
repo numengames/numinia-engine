@@ -41,6 +41,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
   const sujetas = new Set<string>();          // turn/tilt keys held (by code)
   let mandos = 0;                             // gamepads connected: polled only while there is one
   const palanca = { x: 0, z: 0, gx: 0, gy: 0, zoom: 0 };
+  let sens = 1, invY = 1;                     // N2 settings: look speed (mouse, finger, stick) and inverted vertical axis
 
   // ---- mouse ----
   const soltar = () => {
@@ -69,7 +70,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
     }
     const dx = e.clientX - a.x, dy = e.clientY - a.y;
     a.x = e.clientX; a.y = e.clientY;
-    if (a.accion === "orbita") orbita.orbitar(-dx * RATON, dy * RATON);
+    if (a.accion === "orbita") orbita.orbitar(-dx * RATON * sens, dy * RATON * sens * invY);
     else panear(dx, dy);
   }
   function panear(dxPx: number, dyPx: number): void {
@@ -93,7 +94,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
     const f = dedos.get(e.pointerId)!;
     const dx = e.clientX - f.x, dy = e.clientY - f.y;
     f.x = e.clientX; f.y = e.clientY;
-    if (dedos.size === 1) { const k = Math.PI / Math.max(320, dom.clientWidth || innerWidth); orbita.orbitar(-dx * k, dy * k); return; }
+    if (dedos.size === 1) { const k = (sens * Math.PI) / Math.max(320, dom.clientWidth || innerWidth); orbita.orbitar(-dx * k, dy * k * invY); return; }
     if (!pinza) return;
     const m = medir();
     if (orbita.modo === "construir") { orbita.acercarHacia(pinza.d / m.d, null, pies); panear(m.x - pinza.x, m.y - pinza.y); }
@@ -171,7 +172,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
         orbita.orbitar((h(T.izquierda) - h(T.derecha)) * GIRO_TECLA * s, (h(T.abajo) - h(T.arriba)) * INCLINA_TECLA * s);
       }
       leerMando();
-      if (palanca.gx || palanca.gy) orbita.orbitar(-palanca.gx * PALANCA.giro * s, palanca.gy * PALANCA.inclina * s);
+      if (palanca.gx || palanca.gy) orbita.orbitar(-palanca.gx * PALANCA.giro * sens * s, palanca.gy * PALANCA.inclina * sens * invY * s);
       if (palanca.zoom) orbita.acercar(Math.exp(-palanca.zoom * Math.log(PALANCA.zoom) * s));
       orbita.paso(s);
       orbita.pose(pies, pose);
@@ -201,6 +202,11 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
     reiniciar(): void { orbita.reiniciar(); },
     /** Play mode: first person ↔ third person. */
     alternarVista(): void { orbita.alternarVista(); },
+    /** N2 (settings menu): look speed for mouse, finger and stick (1 = as shipped, 0.25–3) and the inverted vertical axis. */
+    ajustar(p: { sensibilidad?: number; invertirY?: boolean }): void {
+      if (typeof p.sensibilidad === "number" && Number.isFinite(p.sensibilidad)) sens = Math.min(3, Math.max(0.25, p.sensibilidad));
+      if (typeof p.invertirY === "boolean") invY = p.invertirY ? -1 : 1;
+    },
     /** True when this touch pointer is the camera's (the page's joystick leaves it alone). */
     tieneDedo(pointerId: number): boolean { return dedos.has(pointerId); },
     /** The gamepad's left stick (x right, z back: up = -1), dead zone applied; null without a gamepad. */
@@ -211,6 +217,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
       return {
         modo: orbita.modo, yaw: o.yaw(), pitch: a.pitch, distancia: a.dist, metaDistancia: m.dist, pivote: p,
         camara: { x: pose.x, y: pose.y, z: pose.z }, primeraPersona: pose.dentro, bloqueada, arrastrando: !!arrastre, quieta: orbita.quieta(),
+        sensibilidad: sens, invertirY: invY < 0,
       };
     },
   };

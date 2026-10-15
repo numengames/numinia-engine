@@ -1,0 +1,12 @@
+# Aventura de EJEMPLO del motor
+
+**Esto es contenido de ejemplo**, no la ciudad: sirve para probar los formatos y que la plaza de casa tenga algo con
+lo que hablar. Las aventuras de verdad viven en su propio repositorio y el servidor las lee con
+`AVENTURA_DIR=/ruta/a/la/aventura` (por defecto, esta carpeta; `AVENTURA_DIR=` sin nada = ninguna).
+
+- `misiones/primeros-pasos.json` (`mision@1`): visitar el pilar dorado del este, hablar con Bruno y coger su caja.
+- `pnj/alma.json`, `pnj/bruno.json` (`pnj@1`): la guía que da la misión y el farolero.
+- `cosas/caja-de-bruno.json` (`cosa@1`): la caja perdida («E: coger la caja»).
+
+Cómo se escribe una aventura (formatos, reglas, errores): `docs/EXTENDER.md`, «Misiones y personas (PNJ)».
+Comprobar una carpeta sin arrancar nada: `node tools/aventura.ts aventuras/ejemplo`.
