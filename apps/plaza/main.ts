@@ -18,6 +18,12 @@ const session = new ClientSession(transport, {
     label: (e, text, ms) => view.label(e === session.entity ? "self" : e, text, ms),
     bounce: (e, ms) => view.bounce(e === session.entity ? "self" : e, ms),
     beacon: (x, z, text, ms) => view.beacon(x, z, text, ms),
+    // V1: every announced event reaches screen readers (polite; safety = assertive). V3 adds the engine's own voice.
+    announce: (a) => {
+      const box = document.getElementById(a.importance >= 3 ? "avisos-urgentes" : "avisos")!;
+      const p = document.createElement("p"); p.textContent = a.text; box.appendChild(p);
+      while (box.childElementCount > 3) box.firstElementChild!.remove();
+    },
   },
 });
 transport.opened.catch(() => { hud.textContent = `No llego al servidor ${url}.\n¿Está arrancado (npm run server)?`; });

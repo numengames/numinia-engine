@@ -17,6 +17,7 @@ export const despertar = defineFeature({
         z: { kind: "fixed", min: -2000, max: 2000, step: 0.25 },
         ms: { kind: "int", min: 500, max: 60000 },
       },
+      announce: { text: "{texto}", sound: "magia", importance: 2, at: ["x", "z"] },
     },
   },
 });

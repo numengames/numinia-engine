@@ -12,6 +12,7 @@ export const gestos = defineFeature({
   intents: {
     hacer: {
       describe: "Hacer un gesto. Lo ven quienes estén a menos de 30 m.",
+      spoken: "hacer un gesto",
       fields: { gesto: { kind: "enum", values: GESTOS } },
       rate: { perSecond: 1, burst: 3 }, // nobody needs more than one gesture a second
     },
@@ -20,6 +21,7 @@ export const gestos = defineFeature({
     hecho: {
       describe: "Alguien cercano (o tú) ha hecho un gesto.",
       fields: { quien: { kind: "int", min: 0, max: 65535 }, gesto: { kind: "enum", values: GESTOS } },
+      announce: { text: "Gesto: {gesto}", sound: "suave", importance: 1, who: "quien" },
     },
   },
 });

@@ -131,3 +131,10 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Consumo: semana 47 % (Opus).
 - Commit: ver `git log` (T1).
 - Siguiente: instalador nuevo para el X3 (con T1 dentro); sesión con Opus: S4 → V1 → I1 → J9.
+
+## 2026-10-15 10:52 · V1 · hecho (sesión de Pablo con Opus)
+- Qué: la accesibilidad pasa a ser parte de la declaración de cada función de juego. `defineFeature` exige `spoken` en cada intento (el verbo dicho en voz alta), `announce` en cada evento (texto con `{campo}`, sonido de la lista del motor, importancia 0–3, dónde o sobre quién) o `"silent"`, y `state.card` (rol, nombre, descripción, acciones, dónde) para lo que se pone en el mundo; si falta algo, la función no se carga y el error dice cómo arreglarlo. El catálogo lo lleva (un agente lee lo mismo que un lector de pantalla); el cliente tiene `announcements`, `cards()` y `view.announce`; la plaza pone cada anuncio en una región `aria-live` (urgente si es de seguridad). `gestos` y `despertar` cumplen. La ficha no es un componente de la simulación: va en la declaración y en el estado, así que no cuesta red por tick ni cambia la huella. V3 y V4 pasan a `pendiente`.
+- Números: 67 pruebas (8 nuevas en `test/accesible.test.ts`); puertas en verde (tick p99 8,3 ms; 25,0 kbit/s; huella sin cambios); e2e chromium, firefox, AR, VR y https verdes; en chromium y firefox las dos pestañas tienen «Gesto: saludar» en su región `aria-live`.
+- Consumo: semana 47 % → ver `hermes usage` (Opus).
+- Commit: ver `git log` (V1).
+- Siguiente: turnos, R1 y V3/V4 cuando les toque. Sesión con Opus: S4 → I1 (solo invitado) → J9.

@@ -3,12 +3,13 @@
 The plug for game features (J7): `defineFeature` (a declaration: intents, events, shared state, each
 field described by a schema), the catalog every client receives on join, the schema codec on the wire,
 and the two runtimes that host the features: `ServerRuntime` (inside the instance) and `ClientRuntime`
-(inside the client session). How to add a feature: `docs/EXTENDER.md`.
+(inside the client session). Accessibility is part of every declaration (V1): `spoken` verbs, `announce`
+events, `state.card` things; `announcements`, `cards()` and `view.announce` on the client. How to add a feature: `docs/EXTENDER.md`.
 
 - **Does not:** Know any feature (they live in `features/`), touch the simulation or the fingerprint, draw
   (the page lends it `ViewHooks`), open sockets (the instance and the server carry its bytes).
 - **Depends on:** core, schema, net (rule: `tools/layers.json`)
-- **Tested by:** `test/feature.test.ts`, `tools/e2e.mjs` (gesture leg)
+- **Tested by:** `test/feature.test.ts`, `test/accesible.test.ts`, `tools/e2e.mjs` (gesture leg)
 - **Main API:** `defineFeature`, `serverPart`, `clientPart`, `buildCatalog`, `ServerRuntime`,
   `ClientRuntime`, `ServerApi` (`on`, `emit`, `state`, `route`, `onJoin`/`onLeave`/`onTick`),
   `ClientApi` (`on`, `send`, `state`, `action`, `view`), `escapeHtml`

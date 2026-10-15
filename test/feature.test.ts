@@ -129,10 +129,10 @@ test("defaults (limits.json): burst of 8 per intent, 32 waiting per player and t
   const eco = defineFeature({
     id: "eco", version: 1, describe: "Prueba de los valores por defecto.",
     intents: {
-      uno: { describe: "Sin ritmo propio.", fields: {} },
-      muchos: { describe: "Con ritmo alto.", fields: {}, rate: { perSecond: 100, burst: 100 } },
+      uno: { describe: "Sin ritmo propio.", spoken: "uno", fields: {} },
+      muchos: { describe: "Con ritmo alto.", spoken: "muchos", fields: {}, rate: { perSecond: 100, burst: 100 } },
     },
-    events: { oido: { describe: "Eco para quien esté cerca.", fields: {} } },
+    events: { oido: { describe: "Eco para quien esté cerca.", fields: {}, announce: { text: "Eco", sound: "suave" } } },
   });
   let muchos = 0;
   const ecoServer = serverPart(eco, (api) => {
@@ -151,15 +151,15 @@ test("defaults (limits.json): burst of 8 per intent, 32 waiting per player and t
   W.pump();
   assert.equal(muchos, 32);
   assert.equal(W.inst.features.stats.dropped, 4 + 8);
-  const larga = defineFeature({ id: "larga", version: 1, describe: "Texto demasiado largo.", intents: { decir: { describe: "Dice.", fields: { t: { kind: "text", maxBytes: 513 } } } } });
+  const larga = defineFeature({ id: "larga", version: 1, describe: "Texto demasiado largo.", intents: { decir: { describe: "Dice.", spoken: "decir", fields: { t: { kind: "text", maxBytes: 513 } } } } });
   assert.ok(larga.issues.some((i) => i.message.includes("between 1 and 512")));
 });
 
 const marcador = defineFeature({
   id: "marcador", version: 1, describe: "Puntos por nombre (prueba del estado compartido).",
   intents: {
-    sumar: { describe: "Suma un punto.", fields: { quien: { kind: "text", maxBytes: 16 } }, rate: { perSecond: 20, burst: 20 } },
-    borrar: { describe: "Borra un nombre.", fields: { quien: { kind: "text", maxBytes: 16 } } },
+    sumar: { describe: "Suma un punto.", spoken: "sumar un punto", fields: { quien: { kind: "text", maxBytes: 16 } }, rate: { perSecond: 20, burst: 20 } },
+    borrar: { describe: "Borra un nombre.", spoken: "borrar", fields: { quien: { kind: "text", maxBytes: 16 } } },
   },
   state: { describe: "Puntos de cada nombre.", fields: { puntos: { kind: "int", min: 0, max: 100 } } },
 });
@@ -197,7 +197,7 @@ test("shared state: everyone gets changes, a late joiner gets what exists, delet
 });
 
 test("a feature that throws is isolated: logged once, counted, the instance and the others keep going", () => {
-  const roto = defineFeature({ id: "roto", version: 1, describe: "Falla a propósito.", intents: { romper: { describe: "Rompe.", fields: {} } } });
+  const roto = defineFeature({ id: "roto", version: 1, describe: "Falla a propósito.", intents: { romper: { describe: "Rompe.", spoken: "romper", fields: {} } } });
   const rotoServer = serverPart(roto, (api) => {
     api.on("romper", () => { throw new Error("adrede"); });
     api.onTick(() => { throw new Error("en cada tick"); });

@@ -23,9 +23,10 @@ loads data. Game/city logic lives elsewhere (AGPL).
 `docs/SABER.md` distils the whole project (studies, measurements, Pablo's decisions, the lessons of the AI
 agent built for Hyperfy) with a pointer to each source in `../mmo-browser-study/`. Five of its rules bind
 every task:
-1. **Every feature declares its accessible path**: a spoken name for each verb, a sound for each visible
-   event and a text for each sound, and at least one way to act without a gesture. Until V1 enforces it in
-   code, write it in the feature's README. The same `accesible` card is what agents read.
+1. **Every feature declares its accessible path** (enforced by `defineFeature` since V1: it refuses to load
+   otherwise): a `spoken` name for each verb, an `announce` (text + sound) or `"silent"` for each event, and a
+   `state.card` for anything put in the world. Every verb is also reachable without a gesture (key, HTML
+   button, agent). The same card is what agents read. Recipe: `docs/EXTENDER.md`.
 2. **Untrusted text never enters an agent's instructions**: links, place cards, people's and objects' names
    go in one fenced `<material>` block, rebuilt each turn (numinia.org STD-050). Policy lives in code; the
    LLM only phrases. A public agent never runs code and never holds admin keys.

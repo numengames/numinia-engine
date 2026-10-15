@@ -77,9 +77,13 @@ const gesture = {
   distanceAB: await b.evaluate((w) => { const n = globalThis.__numinia, me = n.session.selfPosition(1), o = n.session.remotePositions().find((r) => r.id === w); return o ? Math.round(Math.hypot(o.x - me.x, o.z - me.z) * 10) / 10 : null; }, A.entity),
   bHeard: await heard(b, A.entity),
   bLabel: await b.evaluate((w) => globalThis.__numinia.view.labels().includes(w), A.entity),
+  // V1: the same gesture reaches screen readers as text in the page's aria-live region
+  aAviso: await a.evaluate(() => document.getElementById("avisos")?.textContent ?? ""),
+  bAviso: await b.evaluate(() => document.getElementById("avisos")?.textContent ?? ""),
 };
 const near = gesture.distanceAB !== null && gesture.distanceAB <= 28, far = gesture.distanceAB === null || gesture.distanceAB >= 32;
-const gestureOk = gesture.catalog.includes("gestos") && gesture.selfHeard === 1 && gesture.selfLabel && (!near || (gesture.bHeard === 1 && gesture.bLabel)) && (!far || gesture.bHeard === 0);
+const gestureOk = gesture.catalog.includes("gestos") && gesture.selfHeard === 1 && gesture.selfLabel && gesture.aAviso.includes("Gesto: saludar")
+  && (!near || (gesture.bHeard === 1 && gesture.bLabel && gesture.bAviso.includes("Gesto: saludar"))) && (!far || gesture.bHeard === 0);
 // T1 leg: both tabs told the server how they entered (entrada) and how it goes (pulso), with the right backend
 const sesiones = { comprobado: !!SERVER_HTTP, ok: false, conEntrada: 0, conPulso: 0, clases: [], navegadores: [] };
 if (SERVER_HTTP) {

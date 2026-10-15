@@ -121,6 +121,7 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 - Las ayudas (protección contra caídas, andar solo hasta un punto) son **reglas por jugador que el servidor conoce**, no trucos del cliente.
 - Con IA, tres niveles y en este orden: lo que el motor sabe (datos, sin modelo) → un LLM que razona sobre esos datos → un modelo que mira la imagen, marcado como IA. Sus errores son «difíciles de detectar sin vista».
 - Un mundo con objetos interactivos sin nombre **no se publica**; otra puerta pasa un detector de destellos (≤ 3 por segundo).
+  **En el motor ya (V1):** una función sin nombre hablado, sin anuncio o que pone cosas sin ficha no se carga.
 - Ley: tienda, cuenta, ajustes y chat en **HTML de verdad**, auditable (RD 193/2023: nivel AA para servicios nuevos desde el 01-01-2029); el lienzo 3D no está claro en la ley.
 - Se diseña **con** las personas afectadas: punto de parada con las dos ponentes de la Commit Conf.
 

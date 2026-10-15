@@ -16,6 +16,8 @@
     #knob { position: absolute; left: 35px; top: 35px; width: 40px; height: 40px; border-radius: 50%; background: rgba(20,24,30,.55); }
     #acciones { position: fixed; right: 10px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; }
     #acciones button { padding: 10px 14px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #ffd27a; font: inherit; font-weight: 600; }
+    /* V1: what happens, for screen readers (not shown on screen; the voice of V3 comes later) */
+    .solo-lector { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   </style>
 </head>
 <body>
@@ -25,6 +27,8 @@
   <button id="vr" type="button">Entrar en VR</button>
   <div id="acciones"></div>
   <div id="joy"><div id="knob"></div></div>
+  <div id="avisos" class="solo-lector" role="status" aria-live="polite"></div>
+  <div id="avisos-urgentes" class="solo-lector" role="alert" aria-live="assertive"></div>
   <script type="module" src="./main.ts"></script>
 </body>
 </html>

@@ -32,7 +32,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | T1 | Cómo entra cada jugador: el aparato, el navegador, la gráfica, la XR, los cuadros, el ping y la batería de cada sesión, guardados en el servidor (Pablo, 15-10) | hecho | sí |
 | I1 | Identidad de invitado (sin vincular aparatos: Pablo, 15-10, «de momento no») | para Opus | no |
 | S4 | Persistencia mínima del mundo (puntos de enlace, inventario, cosas plantadas) | para Opus | no |
-| V1 | Ficha `accesible` en el esquema (nombre, función, estado, descripción, importancia, sonido, acciones) + reglas en J7: nombre hablado, sonido↔texto, verbo sin gesto; puerta en los tests | para Opus | no |
+| V1 | Ficha `accesible` en el esquema (nombre, función, estado, descripción, importancia, sonido, acciones) + reglas en J7: nombre hablado, sonido↔texto, verbo sin gesto; puerta en los tests | hecho | no |
 | J9 | Estado y objetos de las funciones por cercanía (mundos grandes): a cada uno, solo lo que tiene cerca | para Opus | no |
 | B1 | HTTPS en la red de casa para móviles y visores (certificado propio, `/ws` en el mismo origen) | hecho | sí |
 | J8 | AR de verdad: entrar en AR en Android, Quest 3 y Pico 4, suelo, anclar un objeto; iPhone en plano | hecho (emulado; falta probar en aparato real) | sí |
@@ -51,8 +51,8 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J5 | Libro de misiones, mapa y minimapa con marcadores | pendiente | sí |
 | N1 | Entrada táctil, gamepad, cámara en 3.ª persona y pantalla completa (de `docs/JUGADOR.md`) | pendiente | sí |
 | N2 | Menú de ajustes y accesibilidad básica, guardado local (de `docs/JUGADOR.md`) | pendiente | sí |
-| V3 | Voz propia del motor: cola con prioridades, se puede cortar, baja lo demás; en plano, `aria-live` | espera a V1 | sí |
-| V4 | Lista HTML de lo cercano (escritorio y móvil) que leen NVDA, VoiceOver y TalkBack, navegable con teclado | espera a V1 | sí |
+| V3 | Voz propia del motor: cola con prioridades, se puede cortar, baja lo demás (la región `aria-live` ya existe, V1) | pendiente | sí |
+| V4 | Lista HTML de lo cercano (escritorio y móvil) que leen NVDA, VoiceOver y TalkBack, navegable con teclado | pendiente | sí |
 | V5 | «¿Dónde estoy / qué hay cerca / dónde está X / quién hay?» contestado desde los datos, sin modelo | espera a V3 | sí |
 | V6 | Audio espacial que sigue a la cabeza + volumen aparte para avisos + modo mono + baliza simple (un sonido fijo en el destino) | pendiente | sí |
 | V7 | Comodidad y seguridad: limitador de destellos (≤ 3/s), modo sentado, «menos movimiento» del sistema; giro a saltos y viñeta ya en J6 | pendiente | sí |
@@ -426,6 +426,16 @@ evento que se ve lleva sonido y cada sonido, texto. Si falta, la función **no s
 qué falta. `npm run describe -- --catalogo` enseña las fichas (un agente las lee igual). **Hecho cuando:**
 `features/gestos` y `features/despertar` cumplen; una función sin nombre hablado falla en un test con un
 mensaje que dice cómo arreglarlo; huella sin cambios.
+**Hecho (15-10, sesión con Opus).** En `packages/feature`: `ROLES`, `SOUNDS`, `Importance`; intentos con
+`spoken` (obligatorio), eventos con `announce` (`{ text con {campo}, sound, importance, at | who }`) o `"silent"`
+(obligatorio), `state.card` (`role`, `name`, `description`, `importance`, `sound`, `actions`, `at`); los huecos
+`{campo}` se comprueban contra los campos; `state.set` con `at` sin ficha se niega. El catálogo lleva todo eso
+(un agente lee lo mismo que un lector de pantalla). En el cliente: `features.announcements`, `view.announce`,
+`features.cards()`, `fillTemplate`. La plaza tiene dos regiones `aria-live` (educada y urgente) donde cae cada
+anuncio. `gestos` («Gesto: saludar», suave, sobre quien lo hace) y `despertar` (su texto, magia, importancia 2,
+en su punto) cumplen. Diferencia con el plan: la ficha no es un componente de la simulación sino parte de la
+declaración de cada función (dato fijo en el catálogo + estado con ficha): coste de red por tick 0 y la huella
+no cambia. Las personas (avatares) tendrán su ficha cuando haya nombres (J3) y la usarán V4/V5.
 
 ### V3 — Voz propia del motor
 Cola con prioridades (aviso de seguridad > respuesta a una pregunta > descripción > ambiente), se puede
