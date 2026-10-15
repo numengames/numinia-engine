@@ -7,6 +7,9 @@ import { createView, leerAparato, leerBateria, medidorDeCuadros } from "../../pa
 import funciones from "../../features/cliente.ts";
 import { constructor } from "../../features/objetos/client.ts";
 import { montarConstructor } from "./constructor.ts";
+import { ambiente } from "../../features/entorno/client.ts";
+import { elementos } from "../../features/elementos/client.ts";
+import { montarEntorno } from "./entorno.ts";
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
@@ -28,6 +31,9 @@ const session = new ClientSession(transport, {
     // H1: things placed in the world, and where I am (a builder puts things in front of me)
     place: (key, o) => view.place(key, o),
     here: () => { if (session.entity < 0) return null; const p = session.selfPosition(0); return { x: p.x, y: 0, z: p.z }; },
+    // H4/H8: the zone's environment and its elements (water, fire, smoke, dust)
+    entorno: (v) => view.entorno.aplicar(v),
+    elemento: (k, v) => view.elementos.poner(k, v),
     // V1: every announced event reaches screen readers (polite; safety = assertive). V3 adds the engine's own voice.
     announce: (a) => {
       const box = document.getElementById(a.importance >= 3 ? "avisos-urgentes" : "avisos")!;
@@ -55,6 +61,7 @@ if (matchMedia("(pointer: coarse)").matches) {
 
 // ---- H1: the builder, for whoever may build (the server says so on entering) ----
 montarConstructor(constructor, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!);
+montarEntorno(ambiente, elementos, view); // H4/H8: environment and elements, a section of its own while building
 
 // ---- determinism probe: replay the reference run here and compare with the server's number ----
 const probe = { browser: -1, server: -1, ms: 0, done: false };
@@ -197,7 +204,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, ambiente, elementos };
 
 // battery mode: press B (or open ?bateria)
 addEventListener("keydown", (e) => { if (e.code === "KeyB") { view.power.setBattery(!view.power.battery); view.applyPixelRatio(); } });

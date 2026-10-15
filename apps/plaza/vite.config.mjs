@@ -19,7 +19,7 @@ export default defineConfig({
     fs: { allow: [repo] },
     ...(lan ? {
       https: { cert: readFileSync(process.env.PLAZA_HTTPS_CERT), key: readFileSync(process.env.PLAZA_HTTPS_KEY) },
-      proxy: { "/ws": { target: `ws://127.0.0.1:${serverPort}`, ws: true, changeOrigin: true }, "/e": { target: `http://127.0.0.1:${serverPort}`, changeOrigin: true }, "/a": { target: `http://127.0.0.1:${serverPort}`, changeOrigin: true } },
+      proxy: { "/ws": { target: `ws://127.0.0.1:${serverPort}`, ws: true, changeOrigin: true }, "/e/": { target: `http://127.0.0.1:${serverPort}`, changeOrigin: true }, "/a/": { target: `http://127.0.0.1:${serverPort}`, changeOrigin: true } },
     } : {}),
   },
   build: { target: "es2022", outDir: fileURLToPath(new URL("../../dist/plaza", import.meta.url)), emptyOutDir: true },
