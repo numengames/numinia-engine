@@ -15,7 +15,7 @@ import type { ServerResponse } from "node:http";
 export const BIBLIOTECA = fileURLToPath(new URL("../../../activos", import.meta.url));
 
 export const TIPOS: Record<string, string> = {
-  glb: "model/gltf-binary", vrm: "model/gltf-binary",
+  glb: "model/gltf-binary", vrm: "model/gltf-binary", vrma: "model/gltf-binary",
   png: "image/png", jpg: "image/jpeg", webp: "image/webp", ktx2: "image/ktx2", hdr: "image/vnd.radiance",
   mp3: "audio/mpeg", ogg: "audio/ogg", mp4: "video/mp4", webm: "video/webm",
 };

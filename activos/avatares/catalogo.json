@@ -1,0 +1,85 @@
+{
+ "schema": "numinia-engine/avatares@1",
+ "describe": "Avatares VRM y animaciones .vrma de la casa (J1). Cada fichero por su sha256; el servidor lo sirve en /a/<sha256>.vrm|.vrma. Solo CC0 (licencia comprobada dentro del fichero y en su fuente: LICENCIAS.md) y como mucho 10000 triángulos. pasoPorCadera = velocidad natural del ciclo en alturas de cadera por segundo. Lo escribe tools/avatares-catalogo.ts; test/avatares-biblioteca.test.ts lo comprueba.",
+ "animacionesFuente": "Quaternius Universal Animation Library (UAL1 Standard), CC0",
+ "modelos": [
+  {
+   "id": "astrodisco",
+   "nombre": "Astrodisco",
+   "fichero": "activos/avatares/100Avatars_027_Astrodisco.vrm",
+   "sha256": "6385ea72c79699a441a2d4590b7308170b46e140474003ee11055e0f0ba9e834",
+   "bytes": 1033356,
+   "triangulos": 2724,
+   "vrm": "0",
+   "licencia": "CC0",
+   "autor": "Polygonal Mind",
+   "fuente": "https://github.com/PolygonalMind/100Avatars/blob/ff07c2ad0017819c4e5366656ee1e5bcc4029bd4/100Avatars_027/100Avatars_027_Astrodisco.vrm"
+  },
+  {
+   "id": "skelly",
+   "nombre": "Skelly",
+   "fichero": "activos/avatares/100Avatars_029_Skelly.vrm",
+   "sha256": "3b789306ad0e22845a3668398f7d71c93fd8f99b0a2ee6116311270655dda06c",
+   "bytes": 1169152,
+   "triangulos": 2880,
+   "vrm": "0",
+   "licencia": "CC0",
+   "autor": "Polygonal Mind",
+   "fuente": "https://github.com/PolygonalMind/100Avatars/blob/ff07c2ad0017819c4e5366656ee1e5bcc4029bd4/100Avatars_029/100Avatars_029_Skelly.vrm"
+  },
+  {
+   "id": "polybot",
+   "nombre": "Polybot",
+   "fichero": "activos/avatares/100Avatars_051_Polybot.vrm",
+   "sha256": "e255bace0d7de8b5fc90756efc83e167080e6db97692f23623fec5f1c67c423d",
+   "bytes": 997048,
+   "triangulos": 2130,
+   "vrm": "0",
+   "licencia": "CC0",
+   "autor": "Polygonal Mind",
+   "fuente": "https://github.com/PolygonalMind/100Avatars/blob/ff07c2ad0017819c4e5366656ee1e5bcc4029bd4/100Avatars_051/100Avatars_051_Polybot.vrm"
+  }
+ ],
+ "animaciones": {
+  "quieto": {
+   "fichero": "activos/animaciones/quieto.vrma",
+   "sha256": "5db3f0b204d9aee25c6c9abfed1fa31d375b0004125c0f1f07328c0a03ac4d86",
+   "bytes": 136648,
+   "duracion": 3.125,
+   "origen": "Idle_Loop",
+   "pasoPorCadera": 0
+  },
+  "andar": {
+   "fichero": "activos/animaciones/andar.vrma",
+   "sha256": "7afdd6c1a912b63dd4bef6c5fad55aa0d0b6d93d845834d7695e4db37a3776aa",
+   "bytes": 90780,
+   "duracion": 1.667,
+   "origen": "Walk_Loop",
+   "pasoPorCadera": 0.797
+  },
+  "trotar": {
+   "fichero": "activos/animaciones/trotar.vrma",
+   "sha256": "e1d19cd9d620341f30e26e66a25697ec786e62f47812e80b6e0ab42a80b90602",
+   "bytes": 74932,
+   "duracion": 1.167,
+   "origen": "Jog_Fwd_Loop",
+   "pasoPorCadera": 5.184
+  },
+  "correr": {
+   "fichero": "activos/animaciones/correr.vrma",
+   "sha256": "d3f38c5a2cb367c13a2afaf67efcc7133826ddbbfab9094252bb7fabaaa7372a",
+   "bytes": 64368,
+   "duracion": 0.833,
+   "origen": "Sprint_Loop",
+   "pasoPorCadera": 7.772
+  },
+  "saltar": {
+   "fichero": "activos/animaciones/saltar.vrma",
+   "sha256": "f87d42354e4f0b502546f1afe8cfd6a1f1a39bd8eafef7bc0cc9e61b3578df61",
+   "bytes": 136636,
+   "duracion": 3.125,
+   "origen": "Jump_Loop",
+   "pasoPorCadera": 0
+  }
+ }
+}
