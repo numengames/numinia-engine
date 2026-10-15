@@ -47,19 +47,19 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J10 | VR: teletransporte con arco, manos (hand-tracking) y viñeta ajustable desde un menú; resto de J6 (antes «J6b»: `auto.sh` solo reconoce letra + cifras) | pendiente | sí |
 | P2 | Móvil frío: política de energía del cliente + puerta de coste por cuadro | hecho (sin medir en móvil real → X1) | sí |
 | P3 | Nativo para IA v1: `llms.txt`, mapa, README-contrato por paquete, `npm run describe` | hecho | sí |
-| J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR | pendiente | sí |
+| J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR (sesión Opus 15-10, en una rama propia) | en curso | sí |
 | J5 | Libro de misiones, mapa y minimapa con marcadores | pendiente | sí |
 | N1 | Entrada táctil, gamepad, cámara en 3.ª persona y pantalla completa (de `docs/JUGADOR.md`) (sesión Opus 15-10, en una rama propia) | en curso | sí |
 | N2 | Menú de ajustes y accesibilidad básica, guardado local (de `docs/JUGADOR.md`) | pendiente | sí |
-| V3 | Voz propia del motor: cola con prioridades, se puede cortar, baja lo demás (la región `aria-live` ya existe, V1) | pendiente | sí |
-| V4 | Lista HTML de lo cercano (escritorio y móvil) que leen NVDA, VoiceOver y TalkBack, navegable con teclado | pendiente | sí |
+| V3 | Voz propia del motor: cola con prioridades, se puede cortar, baja lo demás (la región `aria-live` ya existe, V1) (sesión Opus 15-10, en una rama propia) | en curso | sí |
+| V4 | Lista HTML de lo cercano (escritorio y móvil) que leen NVDA, VoiceOver y TalkBack, navegable con teclado (sesión Opus 15-10, en una rama propia) | en curso | sí |
 | V5 | «¿Dónde estoy / qué hay cerca / dónde está X / quién hay?» contestado desde los datos, sin modelo | espera a V3 | sí |
 | V6 | Audio espacial que sigue a la cabeza + volumen aparte para avisos + modo mono + baliza simple (un sonido fijo en el destino) | pendiente | sí |
 | V7 | Comodidad y seguridad: limitador de destellos (≤ 3/s), modo sentado, «menos movimiento» del sistema; giro a saltos y viñeta ya en J6 | pendiente | sí |
 | H1 | Paridad Hyperfy2: objetos del mundo — colocar un GLB, moverlo, borrarlo, deshacer, en vivo, guardado como texto (sus `blueprints` + `entities`) | hecho | no |
 | H3 | Paridad Hyperfy2: roles del mundo (admin, constructor, visitante) y órdenes con barra (`/nombre`, `/aparecer`, `/chat borrar`, `/servidor`) | para Opus | no |
 | H2 | Paridad Hyperfy2: lo que el servidor le hace a un jugador (teletransportar, congelar, frenar, empujar, sentarse, volar, salud) como entradas grabadas de la simulación | para Opus | no |
-| H4 | Paridad Hyperfy2: entorno — cielo, sol, niebla, mapa HDR y viento desde un JSON con esquema (su nodo `Sky`) | pendiente | sí |
+| H4 | Paridad Hyperfy2: entorno — cielo, sol, niebla, mapa HDR y viento desde un JSON con esquema (su nodo `Sky`) (sesión Opus 15-10, en una rama propia) | en curso | sí |
 | H6 | Paridad Hyperfy2: imagen y paneles de interfaz en el mundo (sus nodos `Image` y `UI`), cada panel con gemelo HTML | pendiente | sí |
 | H12 | Paridad Hyperfy2: sombras y posprocesado por nivel de aparato, elegibles en ajustes | pendiente | sí |
 | H8 | Paridad Hyperfy2: partículas en GPU (su nodo `Particles`) con tope por aparato y limitador de destellos | pendiente | sí |
