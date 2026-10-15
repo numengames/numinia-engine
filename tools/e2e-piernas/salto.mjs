@@ -87,6 +87,14 @@ result.typing = await a.evaluate((y) => {
   const box = document.getElementById("prueba-texto"), r = { value: box.value, focused: document.activeElement === box, maxY: y };
   box.remove(); return r;
 }, typedMaxY);
+await sleep(300);
+// 5) Space on a focused button (e.g. after clicking «Construir» with the mouse) jumps and does not click the button
+await a.evaluate(() => { const b = document.createElement("button"); b.id = "prueba-boton"; b.textContent = "x"; b.dataset.clics = "0"; b.onclick = () => { b.dataset.clics = String(Number(b.dataset.clics) + 1); }; document.body.appendChild(b); });
+await a.focus("#prueba-boton");
+await a.keyboard.press("Space");
+await a.waitForFunction(() => globalThis.__numinia.session.selfPosition(1).y > 0.5, null, { timeout: 5000, polling: 10 }).catch(() => {});
+result.focusedButton = await a.evaluate(() => { const b = document.getElementById("prueba-boton"), r = { clicks: Number(b.dataset.clics), y: Math.round(globalThis.__numinia.session.selfPosition(1).y * 100) / 100 }; b.remove(); return r; });
+await a.waitForFunction(() => globalThis.__numinia.session.selfPosition(1).y === 0, null, { timeout: 5000 }).catch(() => {});
 await sleep(500);
 const A2 = await a.evaluate(() => { const n = globalThis.__numinia; return { corrections: n.session.stats.corrections, probe: n.probe, format: n.session.welcome.format, y: n.session.selfPosition(1).y }; });
 result.corrections = A2.corrections;
@@ -94,7 +102,7 @@ result.probe = { browser: A2.probe.browser.toString(16), server: A2.probe.server
 result.format = A2.format;
 await ctx.close();
 
-// 5) a phone: the «Saltar» button jumps (a real button, first in #acciones) and the stick pushed to its edge runs
+// 6) a phone: the «Saltar» button jumps (a real button, first in #acciones) and the stick pushed to its edge runs
 const tctx = await browser.newContext({ viewport: { width: 390, height: 700 }, hasTouch: true, isMobile: true });
 const t = await tctx.newPage();
 t.on("pageerror", (e) => errors.push(String(e)));
@@ -123,7 +131,7 @@ try {
 } catch (e) { result.touch.error = String(e).split("\n")[0]; }
 await tctx.close();
 
-// 6) VR: an emulated Quest 3 presses A (right controller): the avatar jumps and lands again
+// 7) VR: an emulated Quest 3 presses A (right controller): the avatar jumps and lands again
 const IWER = readFileSync(new URL("../../node_modules/iwer/build/iwer.min.js", import.meta.url), "utf8");
 const vctx = await browser.newContext({ viewport: { width: 480, height: 300 } });
 await vctx.addInitScript(IWER + `;
@@ -157,7 +165,7 @@ const ok = result.single.max > 0.5 && result.single.last === 0
   && result.walk.metres > 3 && result.ratio >= 1.5 && result.ratio <= 2.5
   && Math.abs(result.walk.speed - 4) < 0.1 && Math.abs(result.run.speed - 8) < 0.1
   && result.corrections === 0 && result.probe.equal && result.format === 2
-  && result.typing.value === " " && result.typing.maxY === 0
+  && result.typing.value === " " && result.typing.maxY === 0 && result.focusedButton.clicks === 0 && result.focusedButton.y > 0.5
   && result.touch.button && result.touch.maxY > 0.5 && result.touch.halfSpeed > 2 && result.touch.halfSpeed < 4.1
   && Math.abs(result.touch.edgeSpeed - 8) < 0.1 && result.touch.corrections === 0
   && result.vr.entered && result.vr.maxY > 0.5 && result.vr.landed && result.vr.corrections === 0
