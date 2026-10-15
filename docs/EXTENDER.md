@@ -96,6 +96,17 @@ export default clientPart(gestos, (api) => {
 - Para dibujar en un punto del mundo hay `view.beacon?.(x, z, texto, ms)` (columna de luz).
 - Un agente usa el mismo camino que una persona: lee el catálogo y envía intentos (P4 hará el SDK).
 
+## Lo que toda función declara (accesibilidad; regla de `AGENTS.md`)
+
+Hasta que V1 lo compruebe en código, apúntalo en el `README.md` de la función:
+- cada intento (verbo) tiene un **nombre que se puede decir** («saludar») y al menos **una forma sin gesto**
+  (tecla, botón HTML, orden);
+- cada evento que se ve tiene un **sonido**, y cada sonido importante, un **texto**;
+- qué ve, oye o lee alguien que no ve la pantalla (y lo mismo lee un agente de IA).
+
+Ejemplo, `gestos`: «Saludar» (tecla G o botón táctil), «Bailar» (H o botón táctil); el texto sobre el avatar es el doble
+escrito; falta el sonido (lo añade V6). Razones y fuentes: `docs/SABER.md` §3.6.
+
 ## Comprobar
 
 `npm test` · `npm run gates` · `tools/auto.sh e2e` (incluye los gestos: la pestaña B camina hasta A,

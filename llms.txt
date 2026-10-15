@@ -37,4 +37,4 @@ Game features live in features/<id>/ and may import only core, schema and featur
 limits.json (schema numinia-engine/limits@1) is the machine form; docs/FICHA-TECNICA.md the human one. Every number is `measured` (names its test) or `estimated` (names its source).
 
 ## More
-AGENTS.md (binding rules), docs/MAPA.md (where things live), docs/BACKLOG.md (queue), docs/RUNLOG.md (diary), docs/MOVIL-FRIO.md (mobile heat).
+AGENTS.md (binding rules), docs/SABER.md (what the project learned: decisions, measurements, rules, open questions — read before designing), docs/MAPA.md (where things live), docs/BACKLOG.md (queue), docs/RUNLOG.md (diary), docs/MOVIL-FRIO.md (mobile heat).

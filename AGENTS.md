@@ -19,6 +19,25 @@ loads data. Game/city logic lives elsewhere (AGPL).
    backend) lives in `limits.json` + `docs/FICHA-TECNICA.md`, marked `measured` (with the test that
    measures it) or `estimated` (with its source).
 
+## What we already know (read before designing a row)
+`docs/SABER.md` distils the whole project (studies, measurements, Pablo's decisions, the lessons of the AI
+agent built for Hyperfy) with a pointer to each source in `../mmo-browser-study/`. Five of its rules bind
+every task:
+1. **Every feature declares its accessible path**: a spoken name for each verb, a sound for each visible
+   event and a text for each sound, and at least one way to act without a gesture. Until V1 enforces it in
+   code, write it in the feature's README. The same `accesible` card is what agents read.
+2. **Untrusted text never enters an agent's instructions**: links, place cards, people's and objects' names
+   go in one fenced `<material>` block, rebuilt each turn (numinia.org STD-050). Policy lives in code; the
+   LLM only phrases. A public agent never runs code and never holds admin keys.
+3. **Licences are checked before anything enters**: dependencies MIT/Apache-2.0/BSD/ISC/CC0, world assets
+   and animations CC0 (or CC-BY with credit); never Mixamo, VRoid bases, Redis ≥ 8, BUSL or GPL code. The
+   trap register is in `docs/SABER.md` §3.3.
+4. **Never broadcast to everyone and never trust a client's transform** (Hyperfy's two ceilings): area of
+   interest and server-applied inputs, always.
+5. **Numbers come from a run, not from memory**: judge the tick by p99 and tick response, load tests open
+   loop, server numbers only with steal < 2 %. A new measurement that changes `docs/SABER.md` §2 or
+   `limits.json` updates both in the same commit.
+
 ## Layers (enforced by `tools/layers.mjs`, rules in `tools/layers.json`)
 `core → schema → ecs → sim → net → feature → {client, instance} → {server, cli}`; `render` talks to three.js
 only. A package imports only what `layers.json` allows. Adding a package means adding it there first.
@@ -87,6 +106,8 @@ Work happens in the worktree `../numinia-engine-auto` (branch `auto`), never in 
    Mark it `en curso` in the same commit as the first real change.
 3. Work in small verified steps (`npm test` after each). Budget ~45 minutes per shift. If the task is
    bigger, finish a coherent slice, write what is left in the task's detail, keep it `pendiente`.
+   The state cell must say exactly `pendiente` (`tools/auto.sh` greps it): «trozo 1 hecho» goes in the task
+   text or its detail, never in the state cell — otherwise no shift ever picks the row again.
 4. Commit only with `npm run gates` green; if browser code changed, `tools/auto.sh e2e` too.
 5. Update `docs/BACKLOG.md` (state + the numbers you measured) and append a diary entry to
    `docs/RUNLOG.md` (Spanish, for people: Qué, Números, Commit, Siguiente). Commit. The heading time

@@ -115,3 +115,11 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Consumo: semana 45 % → 45 % (Sonnet 5.5; `hermes usage` no se movió en el entero).
 - Commit: ver `git log` de auto (R1 trozo 1).
 - Siguiente: resto de R1 (QR en SVG, comprobar la columna en e2e, escuchar en la red de casa), luego R4.
+
+## 2026-10-15 10:08 · saber · hecho (sesión de Pablo con Opus)
+- Qué: Pablo: «coge todo lo que hemos aprendido en el proyecto e intégralo en el motor». Nuevo `docs/SABER.md`: decisiones tomadas (con su porqué y su fuente), lo medido, hechos de plataforma, reglas aprendidas (red, cliente y XR, contenido y licencias, animaciones, agentes de IA, accesibilidad, realidad cruzada, operación), lo que nos enseñó Hyperfy, preguntas abiertas de Pablo y qué fila sale de qué estudio. `AGENTS.md` gana cinco reglas que obligan a toda tarea (camino accesible de cada función, texto no fiable fuera de las instrucciones de un agente, licencias, nada de mandar a todos ni fiarse del cliente, números de una pasada). Cola: 14 filas de accesibilidad (V1–V14, con el punto de parada «accesible») y las piezas de `CONSTRUIR.md` que no tenían fila (M6, M9, M10, M16–M23, M25, M26, O2–O5, W1) más P5 (el habitante IA con las lecciones de Procyon), cada una con su detalle. J1 recoge lo aprendido convirtiendo movimientos; N2 y F2, lo decidido; `docs/EXTENDER.md` pide el camino accesible de cada función.
+- Arreglo: R1 tenía el estado «pendiente (trozo 1 hecho)» y `tools/auto.sh` solo reconoce «pendiente» exacto: por eso el turno de las 11:30 (hora de Madrid) saltó a R4. Ahora R1 vuelve a ser la siguiente; regla escrita en `AGENTS.md`. Ese turno se cortó a las 11:47 por un reinicio del gateway: su R4 a medias está en `git stash` de la copia `auto` (nota en el detalle de R4).
+- Números: solo documentos; puertas en verde (51 pruebas; p99 8,1 ms; 25,0 kbit/s); 76 filas en la cola, sin duplicados ni esperas rotas.
+- Consumo: semana 47 % (Opus).
+- Commit: ver `git log` (saber).
+- Siguiente: turnos, R1 (resto). Sesión con Opus: I1 → S4 → V1 → J9. X3 cuando Pablo tenga la máquina.

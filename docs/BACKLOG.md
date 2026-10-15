@@ -31,11 +31,12 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J7 | Módulos de juego: añadir una función sin tocar el núcleo, con un ejemplo real (gestos) | hecho | no |
 | I1 | Identidad de invitado y vincular el móvil con el ordenador o el visor | para Opus | no |
 | S4 | Persistencia mínima del mundo (puntos de enlace, inventario, cosas plantadas) | para Opus | no |
+| V1 | Ficha `accesible` en el esquema (nombre, función, estado, descripción, importancia, sonido, acciones) + reglas en J7: nombre hablado, sonido↔texto, verbo sin gesto; puerta en los tests | para Opus | no |
 | J9 | Estado y objetos de las funciones por cercanía (mundos grandes): a cada uno, solo lo que tiene cerca | para Opus | no |
 | B1 | HTTPS en la red de casa para móviles y visores (certificado propio, `/ws` en el mismo origen) | hecho | sí |
 | J8 | AR de verdad: entrar en AR en Android, Quest 3 y Pico 4, suelo, anclar un objeto; iPhone en plano | hecho (emulado; falta probar en aparato real) | sí |
 | J6 | VR de verdad: entrar en VR, moverse, mandos, giro a saltos, viñeta, panel 3D (emulador IWER) | hecho (emulado) | sí |
-| R1 | Realidad cruzada 1 «Despertar»: un QR real hace que la plaza reaccione para todos | pendiente (trozo 1 hecho) | sí |
+| R1 | Realidad cruzada 1 «Despertar»: un QR real hace que la plaza reaccione para todos (trozo 1 hecho; falta lo de «Falta de R1» en su detalle) | pendiente | sí |
 | R2 | Realidad cruzada 2 «Semilla del Conocimiento»: pregunta en un sitio real → semilla que se planta en el mundo | espera a I1, S4 | sí |
 | R3 | Realidad cruzada 3 «Célula del Prisma» + herramienta del DJ para marcar puntos reales | espera a I1, S4 | sí |
 | R4 | Realidad cruzada 4 «Caza de invisibles»: la cámara, el color y la hora deciden qué aparece | pendiente | sí |
@@ -49,6 +50,11 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J5 | Libro de misiones, mapa y minimapa con marcadores | pendiente | sí |
 | N1 | Entrada táctil, gamepad, cámara en 3.ª persona y pantalla completa (de `docs/JUGADOR.md`) | pendiente | sí |
 | N2 | Menú de ajustes y accesibilidad básica, guardado local (de `docs/JUGADOR.md`) | pendiente | sí |
+| V3 | Voz propia del motor: cola con prioridades, se puede cortar, baja lo demás; en plano, `aria-live` | espera a V1 | sí |
+| V4 | Lista HTML de lo cercano (escritorio y móvil) que leen NVDA, VoiceOver y TalkBack, navegable con teclado | espera a V1 | sí |
+| V5 | «¿Dónde estoy / qué hay cerca / dónde está X / quién hay?» contestado desde los datos, sin modelo | espera a V3 | sí |
+| V6 | Audio espacial que sigue a la cabeza + volumen aparte para avisos + modo mono + baliza simple (un sonido fijo en el destino) | pendiente | sí |
+| V7 | Comodidad y seguridad: limitador de destellos (≤ 3/s), modo sentado, «menos movimiento» del sistema; giro a saltos y viñeta ya en J6 | pendiente | sí |
 | F1 | Amigos, bloqueo, moderación y roles (toca red y guardado; de `docs/JUGADOR.md`) | para Opus | no |
 | F2 | Portales entre instancias y grupo (toca red e instancias; de `docs/JUGADOR.md`) | para Opus | no |
 | A1 | Página de multitud (50/200/1.000/2.000 robots, completos vs horneados) | pendiente | sí |
@@ -62,11 +68,46 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | D2 | Puerta de tamaño del cliente (≤ 300 kB comprimido) | pendiente | sí |
 | D3 | Fuzz de todos los decodificadores de red | pendiente | sí |
 | D4 | Los mensajes del núcleo (entrada, snapshot, bienvenida) salen del esquema, como ya los de las funciones (J7) | para Opus | no |
+| M16 | Carga de zonas: manifiesto por zona (arranque / fondo / perezoso), sha256 por fichero, caché del navegador por hash | pendiente | sí |
+| O2 | Origen de reserva fuera de Cloudflare: el cliente prueba una lista de orígenes (LaLiga bloquea rangos de Cloudflare en España) | espera a M16 | sí |
+| M21 | Ingesta de contenido: glTF → validar presupuestos y licencia → comprimir (colisionadores sin cuantizar) → publicar por hash | espera a M16 | sí |
+| M23 | CLI completa: `check`, `shot`, `diff-shot`, `replay` (ya hay `run` y `describe`) | pendiente | sí |
+| M25 | Imágenes de referencia en los dos backends (WebGPU y WebGL2), fuera de las puertas por defecto | pendiente | sí |
+| V10 | Avisos de personas: quién se acerca, quién habla, quién me mira, con tope en multitudes | espera a V3 | sí |
+| V11 | Baja visión: contraste por función, contornos en lo importante, lupa, texto a 200 % (coste medido) | pendiente | sí |
+| V14 | Página compañera accesible: el móvil o el PC muestra lo que pasa en las gafas (chat, avisos, lista) | espera a V4 | sí |
+| M18 | Medios: vídeo en pantallas del mundo sincronizado con el reloj del servidor (función J7) | pendiente | sí |
+| V8 | Perfil de accesibilidad en la identidad, aplicado antes del primer fotograma en cualquier aparato | espera a I1 | sí |
+| P5 | Habitante IA en la plaza con las reglas de Procyon y STD-050 (política en código, `<material>`, verbos del catálogo) | espera a P4 | sí |
+| V12 | Guía IA: un agente que acompaña, describe y lleva (primero desde datos) | espera a P5 | sí |
+| M6 | Física: Rapier determinista en WASM y controlador de personaje compartido (cambia la huella) | para Opus | no |
+| M10 | Servidor de instancia completo: regiones en hilos (horizonte de 5.000) y copias cuando se llena | para Opus | no |
+| V9 | Mapa de caminos (navmesh) en el servidor + guía paso a paso + «mírame al objetivo» + escáner direccional | para Opus | no |
+| M19 | Formato de app: carpeta de texto (`app.json` + `main.ts` + activos por hash) → paquete glTF con `NUM_app` | para Opus | no |
+| M20 | Scripts de mundo en el servidor, en sandbox (SES) y con límite de CPU | para Opus | no |
+| M9 | WebTransport como escalón de arriba detrás de la misma interfaz que WebSocket | para Opus | no |
+| M22 | Estudio en el navegador: mover, rotar, propiedades, deshacer; produce un PR, no toca el servidor | espera a M19 | sí |
+| M26 | Servidor MCP del motor: leer zona, proponer cambio, abrir PR (nunca publica solo) | espera a M19, P4 | sí |
+| O4 | Seguridad: billete firmado para entrar a una instancia, tope de conexiones por IP, exportar y borrar lo tuyo | espera a I1, S4 | sí |
+| O3 | Observabilidad: panel y alertas sobre `/metrics` del servidor real | espera a X3 | sí |
+| M17 | Voz por cercanía (LiveKit) con tope de voces audibles, DTX y modo escenario | necesita aprobación (Pablo: cuántas voces a la vez, `docs/SABER.md` §5) | no |
+| V13 | Subtítulos del chat de voz (con quién habla y desde dónde) + texto que habla | espera a M17 | sí |
 | X1 | Probar en Quest 3 y Pico 4 | pendiente | no |
 | X2 | Probar Safari de verdad (iPhone o Mac) | pendiente | no |
 | X3 | Montarlo en un servidor pequeño real y medir sus límites (con Pablo, 15-10) | pendiente | no |
 | X4 | Nombre del motor (Pablo y Christian, 15-10) | pendiente | no |
 | X5 | Medir temperatura y batería en un Android real (`adb`) | pendiente | no |
+| V2 | Con Pablo, 15 min con las gafas: ¿funcionan `speechSynthesis`, el reconocimiento de voz, «menos movimiento» y la vibración dentro de una sesión inmersiva (Quest 3, Pico 4) y en iPhone? | pendiente | no |
+| W1 | La plaza de entrada: primer mundo, al presupuesto de la Quest, con un portal a un mundo Hyperfy | necesita aprobación (Pablo: qué mundo lo estrena) | no |
+| O5 | ADR y SYS del motor en la Summa (numinia.org) | necesita aprobación (Pablo) | no |
+
+**Punto de parada «accesible» (como los PP de `CONSTRUIR.md`):** con V1, V3, V4, V5, V6 y V7 hechas, una
+persona ciega entra en la plaza desde el ordenador con su lector de pantalla, pregunta qué hay cerca, sigue
+una baliza hasta otra persona y la saluda; con baja visión, lo mismo en las gafas. Ahí se invita a las dos
+ponentes de la Commit Conf a probarlo (`../mmo-browser-study/ACCESIBILIDAD-3D.md` §6).
+
+**Lo que sabemos y por qué:** `docs/SABER.md` (decisiones, medidas, reglas, preguntas abiertas). Léelo antes
+de diseñar una fila.
 
 ## Detalle
 
@@ -214,6 +255,14 @@ comprobar) reasignadas al esqueleto humanoide: quieto, andar, correr. En la plaz
 cercanos en VRM (como mucho 12 en móvil, 25 en visor, 60 en escritorio, `LIMITES` §3), el resto
 como hoy; rechazar avatares de más de 10.000 triángulos. **Hecho cuando:** e2e chromium + firefox
 cuenta avatares VRM cargados sin errores; peso de descarga por avatar medido y apuntado.
+**Lo que ya sabemos (15-10, `docs/SABER.md` §3.4):** las animaciones salen de la colección «Movimientos»
+(`../movimientos/`: todo CC0; un original → `.vrma` para este motor y `.glb` para Hyperfy; Mixamo y bases de
+VRoid prohibidos). UAL1 de Quaternius (CC0, 45 clips, nombres de huesos estilo Unreal) ya se convirtió y
+funciona (`../movimientos/conversion/`): rotación de mundo respecto a su propia pose T, caderas normalizadas.
+Al cambiar de animación, **mantener la vieja hasta que cargue la nueva y entonces fundir** (si no, salta la
+pose de reposo un cuadro). Cargar `.vrma` con `VRMAnimationLoaderPlugin` de three-vrm. Los cinco gestos que
+pide el agente: saludar, asentir, negar, pensar, señalar — los gestos de `features/gestos` pasan a usar clips
+cuando existan.
 
 ### J2 — Salto y altura
 La simulación gana altura, velocidad vertical, gravedad y suelo, y la entrada un bit de salto; la
@@ -324,3 +373,214 @@ pitido de frío/caliente; se captura con el cuerpo (soplar al micrófono, agitar
 Android y Quest se posa en el suelo (J8); en iPhone, dibujada sobre el vídeo. Lo capturado aparece en el
 mundo digital. Todo se analiza en el aparato. **Hecho cuando:** e2e con la cámara falsa de Chromium
 (`--use-fake-device-for-media-stream` + vídeo de un color) hace aparecer la criatura que toca.
+**Intento guardado (15-10):** el turno de las 11:30 empezó R4 (`features/invisibles/` con `regla.ts`, cliente,
+servidor y `test/invisibles.test.ts`) y se cortó a las 11:47 por un reinicio del gateway, sin pasar las
+puertas. Está en `git stash list` de la copia `auto` («turno 11:30: R4 sin terminar»): el próximo turno que
+coja R4 lo mira con `git stash show -p stash@{0}`, lo recupera con `git stash pop` si le sirve, y lo
+termina o lo descarta diciéndolo en el diario.
+
+## Accesibilidad (V) — de `../mmo-browser-study/ACCESIBILIDAD-3D.md` (15-10)
+
+Reglas que valen para todas las filas V (y para cualquier función nueva): `docs/SABER.md` §3.6. La idea
+central: **una sola ficha `accesible` por cosa del mundo** alimenta el lector de pantalla, la voz propia del
+motor y a los agentes de IA. Lo que no se ha medido en un aparato real se dice (V2).
+
+### V1 — Ficha accesible y reglas de las funciones (para Opus)
+Componente con esquema `accesible`: `nombre` (texto corto que se dice), `funcion` (enum: puerta, botón,
+persona, cartel, objeto, lugar, salida…), `estado` (texto o enum), `descripcion` (≤ 140 caracteres),
+`importancia` (0–3), `sonido` (id), `acciones` (ids de verbos del catálogo). Casi todo es **dato fijo**: viaja
+con el contenido y el catálogo, no en cada tick (coste de red ≈ 0); lo que cambia va por el estado de las
+funciones (J7). En `defineFeature`: cada intento lleva nombre hablado y al menos una forma sin gesto; cada
+evento que se ve lleva sonido y cada sonido, texto. Si falta, la función **no se registra** y el error dice
+qué falta. `npm run describe -- --catalogo` enseña las fichas (un agente las lee igual). **Hecho cuando:**
+`features/gestos` y `features/despertar` cumplen; una función sin nombre hablado falla en un test con un
+mensaje que dice cómo arreglarlo; huella sin cambios.
+
+### V3 — Voz propia del motor
+Cola con prioridades (aviso de seguridad > respuesta a una pregunta > descripción > ambiente), se puede
+cortar con una tecla o botón, baja el resto del audio mientras habla. En plano, además, una región
+`aria-live` para que el lector del sistema lo diga. Motor de voz: `speechSynthesis` del navegador donde
+exista (V2 dice si existe dentro de las gafas); si no, texto en el panel. **Hecho cuando:** test sin pantalla
+de la cola (prioridad, cortar) y e2e: un evento con ficha llega a la región `aria-live`.
+
+### V4 — Lista HTML de lo cercano (el «gemelo HTML»)
+Una lista invisible a la vista y visible para el lector, con lo que el área de interés ya eligió, recortada
+a 30–50 cosas por importancia y distancia; cada entrada: nombre, distancia, lado («a tu izquierda»), y sus
+acciones como botones de verdad. Navegable con teclado (Tab, flechas) y sin trampas de foco. Referencia:
+el «HTML twin» de Babylon.js. **Hecho cuando:** e2e chromium + firefox: el árbol de accesibilidad
+(`locator.ariaSnapshot()` de Playwright) lista a la otra pestaña por su nombre y el botón «Saludar» funciona con
+teclado.
+
+### V5 — Preguntas desde los datos
+Cuatro órdenes (tecla, botón y, donde exista, voz): ¿dónde estoy? (zona y lo más importante), ¿qué hay
+cerca? (las 5 cosas más importantes con distancia y lado), ¿dónde está X? (dirección y distancia, en
+relativo: «a 12 m, delante a la derecha»), ¿quién hay? (personas cerca). Sin LLM: todo sale de las fichas y
+de las posiciones. **Hecho cuando:** test sin pantalla con un mundo fijo da las respuestas exactas.
+
+### V6 — Audio espacial y baliza simple
+Fuentes posicionales (Web Audio `PannerNode` HRTF) que siguen a la cabeza en VR; tope de 16–32 fuentes,
+las de accesibilidad primero; volumen aparte para avisos; modo mono (para quien oye por un solo oído). La
+baliza simple: un sonido que se repite en el destino elegido (una persona, una salida); el guiado paso a paso
+es V9. Móvil frío: sin audio cuando la pestaña está oculta. **Hecho cuando:** test de la mezcla (tope,
+prioridad, mono) y e2e sin errores con la baliza activa.
+
+### V7 — Comodidad y seguridad
+Limitador de destellos (≤ 3 por segundo, WCAG 2.3.1) en efectos como la columna de `despertar`; modo
+sentado (altura ajustable en VR); leer `prefers-reduced-motion` y `prefers-contrast` del sistema y aplicarlos
+**antes del primer cuadro**; nada se mueve solo con «menos movimiento». Giro a saltos y viñeta ya existen (J6).
+**Hecho cuando:** test del limitador; e2e con `reducedMotion: 'reduce'` emulado sin animaciones automáticas.
+
+### V8 — Perfil de accesibilidad en la identidad (espera a I1)
+Los ajustes de V3–V11 van con la persona (identidad de I1), no con el aparato; se aplican antes del primer
+cuadro en el móvil, el PC o las gafas; la primera vez se rellenan con lo que dice el sistema.
+
+### V9 — Caminos, guía, «mírame al objetivo» y escáner (para Opus)
+Mapa de caminos (navmesh) generado en el servidor para cada zona; guía paso a paso que suena en la próxima
+esquina; una tecla que gira la vista hacia el objetivo (The Last of Us II, God of War); escáner direccional
+(mueves el stick o la cabeza y oyes qué hay en esa dirección: NavStick). Andar solo hasta un punto genera
+entradas normales: la predicción no cambia. Decidir dónde vive el navmesh (¿sim o funciones?) y si toca la
+huella.
+
+### V10 — Avisos de personas (espera a V3)
+Quién se acerca (entra en 2–3 m), quién habla, quién me mira (VRBubble, señales no verbales); con tope en
+multitudes (agrupar: «cinco personas a tu izquierda»). Burbuja de espacio personal de ~1,2 m opcional.
+
+### V11 — Baja visión
+Contraste por función (aliados, objetos, salidas pintados con colores fijos y el escenario apagado, como
+TLOU2), contornos en lo importante, lupa (×2–×10), texto de los paneles escalable a 200 %, subtítulos de
+32 caracteres × 2 líneas. Cuesta GPU en gafas: **medir** en el banco de cuadro antes de prometerlo en Quest.
+
+### V12 — Guía IA (espera a P5)
+Un agente que acompaña, describe y lleva: primero desde los datos (V5), luego un LLM que razona sobre esos
+datos (sin píxeles, no inventa objetos), y solo al final un modelo que mira la imagen, marcado como IA.
+
+### V13 — Subtítulos de voz (espera a M17)
+Transcripción una vez por quien habla, en el servidor, solo si cerca hay alguien con subtítulos; nombre de
+quien habla y flecha si está fuera de la vista; quien habla ve que hay subtítulos activos. Texto que habla
+para quien no puede hablar. Coste: ~0,7–1,7 céntimos por minuto de quien habla.
+
+### V14 — Página compañera (espera a V4)
+El móvil o el PC, vinculados (I1), muestran en HTML accesible lo que pasa en las gafas: chat, avisos, lista
+de lo cercano, tienda. Así una persona usa su lector o su línea braille mientras otra lleva las gafas. Solo
+es posible porque somos web.
+
+### V2 — Prueba en aparatos (con Pablo)
+Quince minutos: en Quest 3 y Pico 4, dentro de una sesión inmersiva (`npm run dev:lan`), ¿habla
+`speechSynthesis`? ¿escucha el reconocimiento de voz? ¿llega «menos movimiento»? ¿vibran los mandos? En
+iPhone: Safari no vibra desde la web. El resultado va a `docs/SABER.md` §2 y decide V3.
+
+### N2 — Menú de ajustes (lo que añade la accesibilidad)
+Los menús, la tienda, la cuenta y el chat son **HTML de verdad**, no dibujos en el lienzo (los lee el lector
+y lo exige la ley para servicios al público: RD 193/2023). Lee las preferencias del sistema antes del primer
+cuadro (V7). Guarda en local hasta que exista I1 (V8).
+
+### F2 — Grupos (lo que decidió `PREGUNTAS.md` #19)
+La pieza ahora, la pantalla después: un grupo es un id compartido que el servidor conoce; a los de tu grupo
+los ves siempre aunque la plaza esté llena (prioridad en el área de interés), cruzan un portal juntos
+(reserva de plaza conjunta) y tienen su canal de chat y voz.
+
+## Lo que faltaba de `CONSTRUIR.md` (piezas M, O, W, 15-10)
+
+Mismos números que en `../mmo-browser-study/CONSTRUIR.md` para poder seguirlos. Las piezas de la ciudad
+(C1–C8: cuentas, Postgres, roles de la casa, la interfaz de Numinia) no son del motor y no entran aquí.
+
+### M16 — Carga de zonas
+Manifiesto JSON con esquema por zona: cada fichero con su sha256, tamaño, clase (`arranque` para jugar,
+`fondo` justo después, `perezoso` al acercarse) y orígenes. El cliente descarga por clases, comprueba el
+hash, guarda en la caché del navegador (Cache API u OPFS) por hash y no vuelve a bajar lo que ya tiene.
+Trozos con Brotli desde una CDN, nunca desde el VPS del juego. **Hecho cuando:** e2e: segunda carga de la
+zona sin descargas (todo de caché); un fichero con hash falso se rechaza; tiempo hasta jugar medido.
+
+### O2 — Origen de reserva (espera a M16)
+El manifiesto lista varios orígenes; si el primero no contesta en ~3 s (o da error), el cliente usa el
+siguiente y lo recuerda un rato. El segundo origen real (fuera de Cloudflare) lo monta Pablo. **Hecho
+cuando:** e2e con el primer origen caído carga la zona desde el segundo.
+
+### M21 — Ingesta de contenido (espera a M16)
+Herramienta de línea de órdenes: glTF/GLB → validar (triángulos, draw calls, texturas, tamaño por zona del
+nivel B: `limits.json`), exigir licencia por fichero (CC0/CC-BY/propia) y por VRM (sus campos de licencia),
+aceptar los sufijos de colisión de Hyperfy y convertirlos en datos de física, **colisionadores sin
+cuantizar**, comprimir (gltfpack/meshopt, KTX2), escribir el manifiesto de M16. Rechaza lo que se pasa, con
+un error que dice cuánto sobra. **Hecho cuando:** tests con tres ficheros de prueba (uno bueno, uno que se
+pasa, uno sin licencia).
+
+### M23 — CLI completa
+`check` (valida esquemas, manifiestos y licencias de una carpeta), `shot` (captura sin pantalla desde una
+cámara con nombre), `diff-shot` (compara con una imagen de referencia y da el porcentaje distinto),
+`replay` (reproduce una grabación de entradas y comprueba la huella). Ya existen `run` y `describe`.
+
+### M25 — Imágenes de referencia
+La plaza con semilla fija, capturada en WebGPU y en WebGL2 (GL por software) desde 3 cámaras; `diff-shot`
+contra las guardadas con un umbral. Fuera de las puertas por defecto (cuesta segundos y CPU): entra en
+`tools/auto.sh e2e`.
+
+### M18 — Medios (función J7)
+Pantalla de vídeo en el mundo; la reproducción sigue el reloj del servidor (todos ven el mismo segundo);
+solo se reproduce si está cerca y a la vista (móvil frío).
+
+### P5 — Habitante IA en la plaza (espera a P4)
+Lo que enseñó el agente de Hyperfy (`../procyon-hyp/`, `docs/SABER.md` §3.5) llevado al motor: un cerebro
+que es otro servicio y entra con el SDK de P4; contesta solo si lo llaman (nombre o `/p`); órdenes cortas
+decididas en código; prioridad de quien administra; presencia por teletransporte; responde en JSON con los
+verbos del catálogo J7, validado en código; el texto no fiable va en un bloque `<material>` vallado, nunca en
+las instrucciones (STD-050); lee la ficha `.md` del sitio y las fichas `accesible` (V1); dice que es una IA.
+Sin LLM en las pruebas: cerebro de eco. **Hecho cuando:** test sin pantalla: le hablan por su nombre, se
+presenta delante, contesta con un gesto de la lista y descarta uno inventado; un texto con «SISTEMA:» dentro
+del material no cambia sus instrucciones.
+
+### M6 — Física (para Opus)
+Rapier determinista (`rapier3d-deterministic-compat` de dimforge, 0.21.0 comprobada el 14-10, Apache-2.0;
+versión exacta) en el
+servidor y en el cliente dentro de la simulación compartida; controlador de personaje (suelo, pendientes,
+escalones); colisionadores desde M21. Cambia la huella: versión de formato nueva. Medir el coste por tick con
+1.000 personas antes de decidir (¿física para todos o solo cápsulas?).
+
+### M10 — Servidor de instancia completo (para Opus)
+Regiones en `worker_threads` (una sola hebra se rompe entre 3.000 y 4.000), traspaso entre regiones sin
+saltos, y copias de la instancia cuando se llena (con grupos que entran juntos, F2). Junto con S3
+(dilatación).
+
+### M19 — Formato de app (para Opus)
+La unidad de contenido decidida en `EVALUACION-MOTORES-2026.md` §3.4: carpeta `app.json` (con `schema` y
+versión, nombre, licencia, modelo por hash, propiedades y eventos con esquema, dependencias, ficha
+`accesible`) + `main.ts` tipado contra la API pública + `assets/<sha256>` + `README.md`; `build` produce el
+paquete de entrega (glTF con la extensión `NUM_app`, o zip firmado) que nunca se edita. Migraciones
+automáticas entre versiones. Leer antes `notes/16-content-unit-hyp-vs-alternatives.md` y `16a`.
+
+### M20 — Scripts de mundo (para Opus)
+`main.ts` de cada app corre en el servidor, en un compartimento SES (clases congeladas) con tope de CPU por
+tick y de memoria; solo ve la API pública (la de J7 ampliada). `KHR_interactivity` como escalón sin código
+cuando three o nosotros lo lean.
+
+### M9 — WebTransport (para Opus)
+Mismo esquema de mensajes, transporte por HTTP/3 con datagramas para los snapshots. No hay servidor de
+producción en JavaScript: decidir entre un proxy (Caddy/quic-go) o un servicio aparte; el transporte doble de
+Hytopia (MIT) es lo más aprovechable. UDP 443 abierto en el servidor.
+
+### M22 — Estudio (espera a M19)
+Editar en el navegador: mover, rotar, escalar, propiedades por esquema, deshacer. Guarda cambios de la
+carpeta de M19 y produce un PR; nunca toca el servidor en marcha. Cantera: `oncyberio/awe` (MIT).
+
+### M26 — MCP del motor (espera a M19 y P4)
+Tres herramientas: leer una zona (como `describe`), proponer un cambio de manifiesto, abrir un PR. Nunca
+publica sola: la etapa de autonomía la abre Pablo (`docs/SABER.md` §5).
+
+### O4 — Seguridad (espera a I1 y S4)
+Billete firmado y con caducidad para entrar a una instancia (de I1); tope de conexiones por IP y de mensajes
+por segundo; sin grabar voz; exportar y borrar lo tuyo. Lo legal (consentimiento a los 16) lo confirma Pablo.
+
+### O3 — Observabilidad (espera a X3)
+Con los números del servidor real: un panel (lo mínimo: una página que lee `/metrics` por el túnel) y avisos
+cuando el p99 del tick, el steal o la memoria pasan de su umbral (`puertas.ts`).
+
+### M17 — Voz por cercanía (necesita aprobación)
+LiveKit (Apache-2.0); suscripción solo a las N voces más cercanas (N lo decide Pablo), DTX, modo escenario
+para eventos grandes (una voz para todos). Es el coste que manda a escala (`docs/SABER.md` §3.1).
+
+### W1 — La plaza de entrada (necesita aprobación)
+El primer mundo, al presupuesto de la Quest (`limits.json`, nivel B), con un portal a un mundo Hyperfy de
+hoy. Qué mundo lo estrena es pregunta abierta de Pablo.
+
+### O5 — El motor en la Summa (necesita aprobación)
+Un ADR y un SYS del motor en numinia.org, cuando Pablo lo diga (rama, PR y revisores según sus reglas).
+
