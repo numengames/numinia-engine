@@ -12,6 +12,9 @@ import { defineSchema, validate } from "../../schema/src/index.ts";
 import type { Field, Schema } from "../../schema/src/index.ts";
 import { MSG, BitWriter, BitReader, writeFields, readFields } from "../../net/src/index.ts";
 import type { Fields } from "../../net/src/index.ts";
+import { validarAjustes } from "./ajustes.ts";
+import type { AjusteDecl } from "./ajustes.ts";
+export type { AjusteDecl } from "./ajustes.ts"; // N2: the settings a feature declares (format and validation: ajustes.ts)
 
 export type { Fields } from "../../net/src/index.ts";
 export type Level = "base" | "mejorado" | "frontera";
@@ -43,6 +46,7 @@ export type FeatureDecl = {
   events?: Record<string, EventDecl>;      // server -> client
   state?: { describe: string; fields: Fields; card?: Card; persist?: boolean; radius?: number }; // radius (J9): things (entries set with `at`) reach players within it // shared state by key, replicated to every client; card = it is a thing in the world; persist = survives restarts (S4)
   store?: { describe: string };            // S4: server-only data that survives restarts (inventories, who claimed what and when); never sent to pages
+  ajustes?: AjusteDecl[];                  // N2: settings this feature offers in the menu, in its own group (page side only; read with view.ajuste)
 };
 export type Feature = Readonly<Required<Pick<FeatureDecl, "id" | "version" | "describe" | "level">> & Omit<FeatureDecl, "level"> & { issues: Issue[] }>;
 
@@ -132,6 +136,7 @@ export function defineFeature(decl: FeatureDecl): Feature {
       checkWhere(decl.state.fields ?? {}, c.at, undefined, p, issues);
     }
   }
+  if (decl.ajustes !== undefined) issues.push(...validarAjustes(decl.ajustes, `${id}.ajustes`, id)); // N2: settings, each with its spoken name
   return Object.freeze({ ...decl, id, level: decl.level ?? "base", issues });
 }
 
@@ -593,6 +598,9 @@ export type ViewHooks = {
   beacon?(x: number, z: number, text: string, ms: number): void;
   /** V1: an event as a person hears and reads it (the page puts it in an aria-live region; V3 speaks it). */
   announce?(a: Announcement): void;
+  /** N2: the current value of a setting this feature declared (`<feature>.<id>`, e.g. "despertar.columna"); undefined
+   * when the page has no settings menu. Read it when you need it (pull); the person may change it at any time. */
+  ajuste?(id: string): string | number | boolean | undefined;
   /** H1: put a thing in the world (a model by its sha256, placed in metres and degrees), move it, or take it away
    * (`null`). The page decides where the file comes from (today `/a/<sha256>.glb` on the instance's server). */
   place?(key: string, o: PlacedObject | null): void;

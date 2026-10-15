@@ -9,6 +9,7 @@ export { vrSupported } from "./vr.ts";
 export type { VRState } from "./vr.ts";
 import { createPower, readCaps, checkCost } from "./power.ts";
 export { createPower, readCaps, checkCost } from "./power.ts";
+export { limitesGraficos } from "./capacidades.ts"; // N2: max texture size for the capabilities
 export type { FrameCost } from "./power.ts";
 export { leerAparato, leerBateria, medidorDeCuadros } from "./sesion.ts";
 

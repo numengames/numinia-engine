@@ -18,6 +18,15 @@ export function readCaps(): Caps {
 
 export const isMobileClass = (c: Caps): boolean => c.coarsePointer || c.deviceMemoryGB <= 4;
 
+/** N2: the person's quality choice (settings menu). `auto` = by device class, as above. */
+export type Calidad = "auto" | "baja" | "media" | "alta";
+/** What each explicit quality allows: pixel ratio cap, fps while something moves, fps when nothing does. */
+export const CALIDADES: Record<Exclude<Calidad, "auto">, { ratio: number; fps: number; quieto: number }> = {
+  baja: { ratio: 1, fps: 30, quieto: 12 },
+  media: { ratio: 1.5, fps: 60, quieto: 20 },
+  alta: { ratio: 2, fps: 60, quieto: 30 },
+};
+
 export type PowerPolicy = ReturnType<typeof createPower>;
 
 export function createPower(caps: Caps, opts: PowerOpts = {}) {
@@ -25,12 +34,15 @@ export function createPower(caps: Caps, opts: PowerOpts = {}) {
   let battery = !!opts.battery || caps.saveData;
   let userMaxFps = opts.maxFps ?? 0; // 0 = default for the device class
   let scale = 1; // dynamic resolution factor, 0.5..1
+  let calidad: Calidad = "auto"; // N2: the person's quality choice
+  let resolucion = 1; // N2: the person's share of the quality's pixel ratio, 0.25..1
   let lastDraw = -Infinity;
   let slowMs = 0, fastMs = 0, emaCost = 0, draws = 0, skipped = 0;
 
-  const maxFps = () => (battery ? Math.min(userMaxFps || 24, 24) : userMaxFps || (mobile ? 30 : 60));
-  const idleFps = () => (battery ? 8 : mobile ? 12 : 30);
-  const pixelRatioCap = () => (battery ? 1 : mobile ? 1.25 : 2);
+  const q = () => (calidad === "auto" ? null : CALIDADES[calidad]);
+  const maxFps = () => (battery ? Math.min(userMaxFps || 24, 24) : userMaxFps || q()?.fps || (mobile ? 30 : 60));
+  const idleFps = () => (battery ? 8 : q()?.quieto ?? (mobile ? 12 : 30));
+  const pixelRatioCap = () => (battery ? 1 : q()?.ratio ?? (mobile ? 1.25 : 2));
 
   return {
     mobile,
@@ -38,10 +50,16 @@ export function createPower(caps: Caps, opts: PowerOpts = {}) {
     setBattery(on: boolean) { battery = on; },
     setMaxFps(n: number) { userMaxFps = n; },
     get scale() { return scale; },
+    get calidad(): Calidad { return calidad; },
+    /** N2: quality choice; anything unknown = auto. Call view.applyPixelRatio() after. */
+    setCalidad(c: Calidad) { calidad = c === "baja" || c === "media" || c === "alta" ? c : "auto"; },
+    get resolucion() { return resolucion; },
+    /** N2: share of the pixel ratio the person wants (0.25..1; 1 = all the quality allows). Call view.applyPixelRatio() after. */
+    setResolucion(f: number) { resolucion = Number.isFinite(f) ? Math.min(1, Math.max(0.25, f)) : 1; },
     /** The fps we aim at right now. */
     targetFps(active: boolean): number { return active ? maxFps() : Math.min(idleFps(), maxFps()); },
-    /** Pixel ratio to give the renderer: device ratio, capped by class, shrunk by dynamic resolution. */
-    pixelRatio(): number { return Math.max(0.5, Math.min(caps.dpr, pixelRatioCap()) * scale); },
+    /** Pixel ratio to give the renderer: device ratio, capped by class or quality, shrunk by dynamic resolution and the person's share. */
+    pixelRatio(): number { return Math.max(0.5, Math.min(caps.dpr, pixelRatioCap()) * scale * resolucion); },
     /** Should this display-loop callback draw? Call once per callback with the clock in ms. */
     shouldDraw(now: number, f: Frame): boolean {
       if (f.hidden) { skipped++; return false; }
@@ -64,7 +82,7 @@ export function createPower(caps: Caps, opts: PowerOpts = {}) {
       if (fastMs >= 6000 && scale < 1) { scale = Math.min(1, +(scale / 0.85).toFixed(3)); fastMs = 0; return true; }
       return false;
     },
-    get stats() { return { draws, skipped, scale, emaCostMs: Math.round(emaCost * 100) / 100, targetFps: maxFps(), mobile, battery }; },
+    get stats() { return { draws, skipped, scale, emaCostMs: Math.round(emaCost * 100) / 100, targetFps: maxFps(), mobile, battery, calidad, resolucion }; },
   };
 }
 
