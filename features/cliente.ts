@@ -4,6 +4,8 @@ import type { ClientPart } from "../packages/feature/src/index.ts";
 import gestos from "./gestos/client.ts";
 import despertar from "./despertar/client.ts";
 import objetos from "./objetos/client.ts";
+import entorno from "./entorno/client.ts";
+import elementos from "./elementos/client.ts";
 
-const funciones: ClientPart[] = [gestos, despertar, objetos];
+const funciones: ClientPart[] = [gestos, despertar, objetos, entorno, elementos];
 export default funciones;

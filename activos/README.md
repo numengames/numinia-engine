@@ -15,3 +15,5 @@ al lado (`docs/SABER.md` §3.3: nada de Mixamo, ni bases de VRoid, ni «gratis»
 |---|---|---|---|
 | `casa/bloque.glb` | Bloque de 1 m apoyado en el suelo, piedra cálida (1,6 kB) | CC0 (obra propia) | `node tools/hacer-bloque.mjs` (siempre los mismos bytes) |
 | `robot/RobotExpressive.glb` | Robot animado (464 kB, 14 animaciones) | CC0 (`robot/LICENSE.txt`) | Tomás Laulhé (Quaternius), ejemplos de three.js |
+| `texturas/*.webp` | Suelos (H4): hierba, tierra, arena, roca, nieve; color 1k + relieve 512 px (52–375 kB cada uno) | CC0 (`texturas/LICENCIAS.md`) | Poly Haven, recodificados a WebP; listados en `features/entorno/suelos.json` |
+| `cielos/kloofendal_48d_partly_cloudy_puresky_1k.hdr` | Luz de entorno HDR del preset «nublado» (1,4 MB, se baja solo si se usa) | CC0 (`texturas/LICENCIAS.md`) | Poly Haven (Greg Zaal, Jarod Guest) |
