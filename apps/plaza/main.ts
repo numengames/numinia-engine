@@ -7,6 +7,8 @@ import { createView, leerAparato, leerBateria, medidorDeCuadros } from "../../pa
 import funciones from "../../features/cliente.ts";
 import { constructor } from "../../features/objetos/client.ts";
 import { montarConstructor } from "./constructor.ts";
+import { montarMapa } from "./mapa.ts";
+import { montarFicha } from "./ficha.ts";
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
@@ -55,6 +57,12 @@ if (matchMedia("(pointer: coarse)").matches) {
 
 // ---- H1: the builder, for whoever may build (the server says so on entering) ----
 montarConstructor(constructor, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!);
+
+// ---- J5: minimap (corner), big map (M, «Mapa») and player sheet (I, «Ficha»); other branches' contracts are read
+// from __numinia when present (misiones.objetivos/resumen, ajustes.abrir, chat.nombres) ----
+const otros = () => (globalThis as unknown as { __numinia?: Record<string, unknown> }).__numinia ?? {};
+const mapa = montarMapa({ session, view, otros });
+const ficha = montarFicha({ session, view, desde: () => informe.bienvenidaMs, otros }, mapa.botonFicha);
 
 // ---- determinism probe: replay the reference run here and compare with the server's number ----
 const probe = { browser: -1, server: -1, ms: 0, done: false };
@@ -197,7 +205,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, mapa, ficha };
 
 // battery mode: press B (or open ?bateria)
 addEventListener("keydown", (e) => { if (e.code === "KeyB") { view.power.setBattery(!view.power.battery); view.applyPixelRatio(); } });
