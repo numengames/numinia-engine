@@ -209,3 +209,11 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: semana 60 % → 61 % (`hermes usage`), Opus.
 - Commit: este.
 - Siguiente: publicar en GitHub (PR) y desplegar en bronte-xs-ca-003 para la QA de Pablo; después U1 y U2 en local.
+
+## 2026-10-15 18:55 · IAs del motor: diseño y primer habitante (P4a) · hecho (sesión de Pablo con Opus)
+- Qué: Pablo: «diseñamos las IAs del motor y construimos el primer habitante para verlo en la máquina de pruebas». Diseño en `../mmo-browser-study/DISENO-IAS-MOTOR.md` (D1–D13: diez cerradas; D4, D7 y la cifra de D8 se cierran en P5a; D11 en P4b). Construido: `packages/agent` (cuerpo, guion E0, `habitante@1`, servicio `numinia-habitantes`), billete de agente con secreto aparte y marca « · IA» puesta por el servidor, `tap()` en el cliente de funciones, Lía en `aventuras/ejemplo/habitantes/`, segundo servicio en el instalador (`--sin-habitantes`), `tools/plaza.sh` la arranca. Filas: P4 → P4a (hecha) + P4b; P5 → P5a + P5b; M26 y V12 esperan a P4b. Paquete del instalador con licencia AGPL (decía MIT).
+- Números: 207 pruebas (antes 200); puertas en verde (tick p99 7,8 ms; 26,7 kbit/s; huella `f719d31b`); `deploy-check` OK con «Lía · IA» dentro; QA en navegador (chromium, plaza local): saludo, «¿quién eres?», «sígueme» (acaba a 2,0 m), «pasea», 0 errores. A mano: 200 habitantes = tick p99 4,2 ms, servicio 14,1 % de un núcleo y 329 MB.
+- Consumo: semana 61 % → ver `hermes usage`, Opus.
+- Commit: este (rama `habitantes/lia-e0`, sin subir).
+- Siguiente: con permiso de Pablo, PR #2 y pre-publicación `v0.1.0-qa.1` con el instalador; su ayudante instala en bronte-xs-ca-003. Después P4b (Sonnet) y P5a (Opus).
+

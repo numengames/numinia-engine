@@ -8,7 +8,7 @@ import {
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
   decodeIdentityRequest, encodeIdentity,
 } from "../../net/src/index.ts";
-import { emitir, nombreDe, nuevoId, today, verificar } from "./identidad.ts";
+import { agenteDe, emitir, nombreDe, nuevoId, today, verificar, verificarAgente } from "./identidad.ts";
 import type { Who } from "./identidad.ts";
 export type { Who } from "./identidad.ts";
 import type { Transport, Viewer, Welcome } from "../../net/src/index.ts";
@@ -29,6 +29,9 @@ export type InstanceOptions = {
   puede?: (who: Who | null, accion: string, entity: number) => boolean; // H1: permissions for features (api.puede); none = nobody may
   activo?: (sha256: string, ext: string) => boolean; // H9: is /a/<sha256>.<ext> on this server (library or uploaded)? (api.activo)
   aventura?: (carpeta: string) => { fichero: string; texto: string }[]; // J5: the adventure's text files (server/aventura.ts); none = no adventure
+  // P4: AI inhabitants. `sign` checks agent tickets (a secret apart from the guests'); `nombre` = the name the world
+  // declares for that inhabitant id (its habitante@1 file), null = this world has no such inhabitant. None = no agents.
+  agentes?: { sign: (text: string) => string; nombre: (id: string) => string | null };
 };
 
 /** Inputs wait in a queue; the server applies exactly ONE per tick (none = that avatar does not advance: J2). */
@@ -83,6 +86,14 @@ export class Instance {
         const token = conn.who ? null : decodeIdentityRequest(bytes); // once per connection
         if (token === null) { conn.bad++; return; }
         const sign = this.opts.identitySign, day = today(this.opts.now?.());
+        if (token.startsWith("a1.")) { // P4: an AI inhabitant; its name comes from the world and always says « · IA»
+          const ag = this.opts.agentes, id = ag ? verificarAgente(ag.sign, token, day) : null, nombre = id ? ag!.nombre(id) : null;
+          if (!id || !nombre) { conn.bad++; this.opts.log?.(`[agentes] billete de agente rechazado (${id ? `«${id}» no es habitante de este mundo` : "firma o fecha"})`); return; }
+          conn.who = agenteDe(id, nombre);
+          t.send(encodeIdentity({ token, id: conn.who.id, nombre: conn.who.nombre }), true);
+          this.features.identify(entity);
+          return;
+        }
         const ok = token ? verificar(sign, token, day) : null;
         const id = ok?.id ?? nuevoId(this.opts.random ?? Math.random);
         conn.who = { id, nombre: nombreDe(id) };

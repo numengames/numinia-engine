@@ -1,0 +1,33 @@
+{
+  "formato": "habitante@1",
+  "id": "lia",
+  "nombre": "Lía",
+  "descripcion": "Soy Lía, una inteligencia artificial de prueba del motor. Todavía no tengo cerebro: paseo por la plaza, saludo y te acompaño si me lo pides.",
+  "responsable": "Numen Games (Pablo)",
+  "escalon": 0,
+  "ruta": [
+    { "x": -4, "z": 3 },
+    { "x": -5, "z": -6 },
+    { "x": 5, "z": -9 },
+    { "x": 7, "z": 2 }
+  ],
+  "pausa": 4,
+  "saludo": {
+    "radio": 6,
+    "cada": 120,
+    "frases": [
+      "¡Hola, {nombre}! Soy Lía, una IA del motor. Si quieres que te acompañe, dime «Lía, sígueme».",
+      "¡Bienvenida o bienvenido, {nombre}! Soy Lía, una IA. Pregúntame «Lía, ¿quién eres?»."
+    ],
+    "gesto": "saludar"
+  },
+  "respuestas": [
+    { "si": ["quien eres", "que eres", "eres una ia", "eres un robot", "eres real"], "dice": "Soy Lía, una inteligencia artificial de prueba del motor. Todavía no tengo cerebro: paseo, saludo y te acompaño si me lo pides." },
+    { "si": ["hola", "buenas", "buenos dias", "buenas tardes"], "dice": "¡Hola, {nombre}! Dime «Lía, sígueme» y voy contigo, o «Lía, quieta» y me quedo." },
+    { "si": ["que puedes hacer", "ayuda", "que haces"], "dice": "Sé pasear, saludar y acompañarte. Órdenes: «Lía, sígueme», «Lía, quieta», «Lía, pasea», «Lía, saluda», «Lía, baila»." },
+    { "si": ["alma", "bruno", "mision"], "dice": "Alma, la guía, está cerca del centro y te propone un paseo. Bruno, el farolero, anda por el este." },
+    { "si": ["gracias", "adios", "hasta luego"], "dice": "¡A ti, {nombre}! Aquí sigo." }
+  ],
+  "siNoEntiende": "Aún no tengo cerebro y no sé contestar a eso. Prueba «Lía, ¿quién eres?» o «Lía, sígueme».",
+  "notas": "EJEMPLO del motor (escalón 0: guion sin LLM). Entra por el servicio numinia-habitantes (packages/agent)."
+}

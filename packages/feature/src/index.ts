@@ -730,6 +730,7 @@ export class ClientRuntime {
   private readonly mirror = new Map<string, Map<string, Msg>>();
   private readonly acts: Action[] = [];
   private byIndex: CatalogEntry[] = [];
+  private readonly taps: ((feature: string, event: string, msg: Msg) => void)[] = [];
 
   constructor(parts: readonly ClientPart[], host: ClientHost) {
     this.host = host;
@@ -763,6 +764,9 @@ export class ClientRuntime {
   }
 
   actions(): readonly Action[] { return this.acts; }
+
+  /** P4: hear every event of every feature the server runs, without a client part (agents read the catalog, not code). */
+  tap(fn: (feature: string, event: string, msg: Msg) => void): void { this.taps.push(fn); }
 
   /** V1: every thing the features put in the world, as a screen reader or an agent reads it. */
   cards(): CardView[] {
@@ -852,6 +856,7 @@ export class ClientRuntime {
         try { this.host.view?.announce?.(a); } catch { this.stats.errors++; }
       }
       for (const fn of this.listeners.get(`${e.feature}.${e.name}`) ?? []) { try { fn(msg); } catch { this.stats.errors++; } }
+      for (const fn of this.taps) { try { fn(e.feature, e.name, msg); } catch { this.stats.errors++; } }
       return true;
     }
     if (type === MSG.STATE) {

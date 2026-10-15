@@ -21,6 +21,7 @@ Qué deja montado:
 | Pieza | Dónde | Notas |
 |---|---|---|
 | Node LTS oficial | `/opt/numinia-engine/node` | versión y sha256 fijados en `tools/build-deploy.mjs` (`NODE`) |
+| Habitantes IA (P4a) | servicio `numinia-habitantes`, mismo `app/` | usuario `numinia-hab`; solo habla con `127.0.0.1:8790` (`IPAddressDeny=any`); `MemoryMax=256M`, `CPUQuota=50%`; secreto de agentes en `/opt/numinia-engine/agentes.env` (lo lee systemd); quitarlos: `systemctl stop numinia-habitantes` o instalar con `--sin-habitantes` |
 | Servidor de instancia | `/opt/numinia-engine/app`, servicio `numinia-motor` | escucha solo en `127.0.0.1:8790`; usuario `numinia`; `LimitNOFILE=65536`, `MemoryMax=75%` (cámbialo con `--memoria 1G`) |
 | Página | `/opt/numinia-engine/www` | la sirve Caddy |
 | Caddy | `/etc/caddy/Caddyfile` | página + `/ws` al servidor, mismo origen; guarda el Caddyfile anterior en `Caddyfile.antes-del-motor` |

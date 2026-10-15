@@ -5,4 +5,4 @@ The authoritative loop: connects any `Transport`, applies one input per tick (J2
 - **Does not:** Sockets or HTTP (those are in `server`).
 - **Depends on:** core, schema, ecs, sim, net, feature (rule: `tools/layers.json`)
 - **Tested by:** `test/engine.test.ts`, `test/identidad.test.ts`
-- **Main API:** `Instance`, `Bot`, `MAX_QUEUE`, `emitir`/`verificar` (guest tokens)
+- **Main API:** `Instance`, `Bot`, `MAX_QUEUE`, `emitir`/`verificar` (guest tokens), `emitirAgente`/`verificarAgente`/`agenteDe` (P4a: AI inhabitants' tickets, own secret; the server names them «<name> · IA»; option `agentes`)

@@ -103,7 +103,8 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | A1 | Página de multitud (50/200/1.000/2.000 robots, completos vs horneados) | pendiente | sí |
 | D1 | Puerta de tipos: TypeScript 7 estricto, 0 errores | pendiente | sí |
 | S3 | Dilatación de tiempo cuando el tick no cabe (4.000 bots) | para Opus | no |
-| P4 | Agentes como jugadores v1: SDK con verbos y observación textual | para Opus | no |
+| P4a | Habitante IA sin cerebro (E0): entra como jugador con billete de agente, «· IA» puesto por el servidor, servicio aparte `numinia-habitantes` (Lía en la plaza) | hecho | sí |
+| P4b | Sentidos y verbos completos del habitante: su ficha (V1), verbos del catálogo por escalón, permiso por rol (H3), guía determinista con el árbol de Alma | pendiente | sí |
 | A2 | Banco de multitud con la GPU real (si Chromium la usa sin pantalla) | pendiente | sí |
 | A3 | Normales horneadas en la animación de textura (luz correcta al girar) | pendiente | sí |
 | A4 | Robots en la plaza: cercanos completos, lejanos horneados | pendiente | sí |
@@ -121,8 +122,9 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | V14 | Página compañera accesible: el móvil o el PC muestra lo que pasa en las gafas (chat, avisos, lista) | espera a V4 | sí |
 | M18 | Medios: vídeo en pantallas del mundo sincronizado con el reloj del servidor (función J7) | pendiente | sí |
 | V8 | Perfil de accesibilidad en la identidad, aplicado antes del primer fotograma en cualquier aparato | pendiente | sí |
-| P5 | Habitante IA en la plaza con las reglas de Procyon y STD-050 (política en código, `<material>`, verbos del catálogo) | espera a P4 | sí |
-| V12 | Guía IA: un agente que acompaña, describe y lleva (primero desde datos) | espera a P5 | sí |
+| P5a | El puente nuevo y el primer cerebro (E1–E2): clave sin eco, tope de gasto, `<material>`, guardas, auditoría; cierra D4, D7 y la cifra de D8 | para Opus | no |
+| P5b | Iniciativa por evento (E3), gestos con clips, persona en `.md`, medidor de consumo por habitante y por mundo | espera a P5a | sí |
+| V12 | Guía IA: un agente que acompaña, describe y lleva (primero desde datos) | espera a P4b | sí |
 | M6 | Física: Rapier determinista en WASM y controlador de personaje compartido (cambia la huella) | para Opus | no |
 | M6b | Terreno con altura (relieve y suelos pintados por capas) | espera a M6 | no |
 | M10 | Servidor de instancia completo: regiones en hilos (horizonte de 5.000) y copias cuando se llena | para Opus | no |
@@ -133,7 +135,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | M22 | Constructor en el mundo, en vivo (paridad Hyperfy2): gizmos, duplicar, borrar, deshacer, soltar ficheros, inspector, biblioteca; para personas y agentes de IA, según su rol (el panel mínimo ya existe: H1) | hecho (escritorio; VR y móvil → M22b) | sí |
 | M22b | Constructor en VR y en el móvil (gizmo con el mando y con el dedo) | pendiente | sí |
 | M22c | Constructor: puntos de encaje, selección múltiple y jerarquía | pendiente | sí |
-| M26 | Servidor MCP del motor: leer zona, proponer cambio, abrir PR (nunca publica solo) | espera a M19, P4 | sí |
+| M26 | Servidor MCP del motor: leer zona (con el cuerpo de P4), proponer cambio, abrir PR (nunca publica solo) | espera a M19, P4b | sí |
 | O4 | Seguridad: billete firmado para entrar a una instancia, tope de conexiones por IP, exportar y borrar lo tuyo | pendiente | sí |
 | O3 | Observabilidad: panel y alertas sobre `/metrics` del servidor real | espera a X3 | sí |
 | M17 | Voz por cercanía (LiveKit) con tope de voces audibles, DTX y modo escenario | necesita aprobación (Pablo: cuántas voces a la vez, `docs/SABER.md` §5) | no |
@@ -249,10 +251,24 @@ libres, versión exacta). 0 errores. Entra en `npm run gates` con su coste medid
 Si el tick no cabe en su presupuesto, la simulación va más despacio (como EVE) en vez de acumular
 retraso; el factor sale en métricas. Probado en local con 4.000 bots, `nice`, ≤ 30 s.
 
-### P4 — Agentes como jugadores v1
-`packages/agent`: un agente entra por el mismo protocolo que una persona; verbos `irA`, `mirar`,
-`decir`, `seguir`; observación textual de lo cercano. Sin LLM (el cerebro es otro servicio). Test
-sin pantalla: el agente llega a un destino y su observación lista a los cercanos.
+### P4 — Agentes como jugadores (diseño: `../mmo-browser-study/DISENO-IAS-MOTOR.md`, 15-10, Opus)
+**P4a, hecho (15-10).** `packages/agent`: `Cuerpo` (un jugador sin pantalla: `ClientSession` + verbos `irA`, `seguir`,
+`parar`, `decir`, `gesto`, `hacer(función, verbo)`; sentidos `cercanos`, `cosas`, `sentidos()` con los nombres y
+palabras de la gente solo dentro de un `<material>`), `Guion` (escalón E0: ruta, saludo a quien llega una vez cada
+`cada` s, contesta solo si le llaman por su nombre, órdenes cortas en código — «sígueme», «quieta», «pasea», «saluda»,
+«baila»; nunca «para» —, nunca contesta a otra IA, como mucho una frase cada 2 s), formato `habitante@1`
+(`aventuras/<x>/habitantes/<id>.json`, lo comprueba `node tools/aventura.ts`) y el servicio `main.ts`
+(`numinia-habitantes`: otro proceso, vuelve solo si el motor reinicia). Identidad: billete de agente
+`a1.<id>.<día>.<firma>` con `MOTOR_AGENTES_SECRET` (secreto aparte del de invitados); el servidor solo acepta ids que la
+aventura declara y les da `ia-<id>` y el nombre + « · IA». Instalador: segundo servicio con usuario propio, solo
+localhost, `MemoryMax=256M`, `--sin-habitantes`; `deploy-check` lo arranca desde el paquete. **Medido:** 7 pruebas
+(`test/agente.test.ts`); a mano en el PC (25 s): 200 habitantes = tick p99 4,2 ms (200 robots: 10,2), 14,1 % de un
+núcleo y 329 MB el servicio. **Falta:** P4b; probarlo en el VPS (X3).
+
+**P4b.** Su ficha V1 (que un lector y otra IA lo lean como lo que es), verbos del catálogo filtrados por escalón, permiso
+por rol cuando exista H3 (requisito para H3: `/nombre` no puede acabar en « · IA»), y una guía determinista: Alma
+explica el camino y acompaña con su árbol de diálogo, sin LLM. **Hecho cuando:** test sin pantalla: la ficha del
+habitante aparece en `cards()` de otro jugador; Alma lleva a una persona hasta el pilar dorado.
 
 ### J0 — Lo que espera un jugador (Pablo, 14-10: "todas esas cosas las tenemos que tener previstas")
 `docs/JUGADOR.md`: catálogo de lo que cualquier jugador da por hecho en un mundo social / MMO en 2026,
@@ -603,7 +619,7 @@ Contraste por función (aliados, objetos, salidas pintados con colores fijos y e
 TLOU2), contornos en lo importante, lupa (×2–×10), texto de los paneles escalable a 200 %, subtítulos de
 32 caracteres × 2 líneas. Cuesta GPU en gafas: **medir** en el banco de cuadro antes de prometerlo en Quest.
 
-### V12 — Guía IA (espera a P5)
+### V12 — Guía IA (espera a P4b)
 Un agente que acompaña, describe y lleva: primero desde los datos (V5), luego un LLM que razona sobre esos
 datos (sin píxeles, no inventa objetos), y solo al final un modelo que mira la imagen, marcado como IA.
 
@@ -678,15 +694,20 @@ solo se reproduce si está cerca y a la vista (móvil frío).
 **Paridad Hyperfy2 (15-10):** como su nodo `Video`: fichero o URL, bucle, ajuste a la pantalla, con o sin luz,
 audio espacial por el mezclador de V6; y la pantalla compartida de alguien (con M17).
 
-### P5 — Habitante IA en la plaza (espera a P4)
-Lo que enseñó el agente de Hyperfy (`../procyon-hyp/`, `docs/SABER.md` §3.5) llevado al motor: un cerebro
-que es otro servicio y entra con el SDK de P4; contesta solo si lo llaman (nombre o `/p`); órdenes cortas
-decididas en código; prioridad de quien administra; presencia por teletransporte; responde en JSON con los
-verbos del catálogo J7, validado en código; el texto no fiable va en un bloque `<material>` vallado, nunca en
-las instrucciones (STD-050); lee la ficha `.md` del sitio y las fichas `accesible` (V1); dice que es una IA.
-Sin LLM en las pruebas: cerebro de eco. **Hecho cuando:** test sin pantalla: le hablan por su nombre, se
-presenta delante, contesta con un gesto de la lista y descarta uno inventado; un texto con «SISTEMA:» dentro
-del material no cambia sus instrucciones.
+### P5 — El cerebro (diseño: `../mmo-browser-study/DISENO-IAS-MOTOR.md` §4–§5)
+**P5a (para Opus).** Lo que enseñó el agente de Hyperfy (`docs/SABER.md` §3.5) llevado al servicio de habitantes: un
+módulo «puente» dentro de `numinia-habitantes` que guarda la clave (pedida sin eco por `instalar-motor.sh`, fichero 640,
+nunca en git ni en el mundo), aplica topes de gasto por habitante y por mundo, elige cerebro (Claude primero; Hermes como
+opción) y registra el consumo. E1 (redacta la frase escrita) y E2 (contesta libre cuando le llaman), con `sentidos()`
+como `<material>`, verbos como herramientas limitadas al catálogo y validación en código; si cae el modelo, baja a E0.
+Antes de la primera llamada real: leer la documentación actual de herramientas y salidas estructuradas (D4), revisar
+contrato y retención del proveedor (D7, skill `vendor-gdpr-due-diligence`) y recalcular el coste con precios vivos (D8).
+Sin LLM en las pruebas: cerebro de eco. **Hecho cuando:** test sin pantalla: le hablan por su nombre, contesta con un
+gesto de la lista y descarta uno inventado; un texto con «SISTEMA:» dentro del material no cambia sus instrucciones;
+sin clave o sobre el tope, contesta con E0.
+
+**P5b.** E3 (habla o actúa por evento con espera mínima entre llamadas), gestos con clips (los cinco de §3.4), persona
+en `habitantes/<id>.md`, medidor de consumo visible para quien administra.
 
 ### M6 — Física (para Opus)
 Rapier determinista (`rapier3d-deterministic-compat` de dimforge, 0.21.0 comprobada el 14-10, Apache-2.0;
@@ -748,9 +769,9 @@ gira un objeto con el gizmo y deshace; la B ve cada paso; un visitante no ve el 
 
 **Hecho (15-10, escritorio; rama `wt/constructor`).** `packages/render/src/gizmo.ts`: `view.pick`, `view.puntoBajo` (suelo o encima de otras cosas), contorno amarillo y `TransformControls` de three (X rojo, Y verde, Z azul; mover, girar, escalar; mundo/local; paso; un eje), perezoso (5,45 kB gz). La selección y la herramienta viven en `features/objetos/client.ts` (la usan el panel, el gizmo y los agentes: `seleccionar`, `transformar`, `colocarEn`, `rehacer`, `modo`). Intento nuevo `rehacer` (objetos v2). Panel nuevo (`apps/plaza/constructor.ts`): herramientas, ejes, paso, biblioteca que sigue al puntero y se coloca donde apuntas, «Delante de ti», inspector con campos, ayuda de teclas. Teclas: C o Tab abre; clic selecciona; 1 coger (rueda gira, Mayús+rueda escala), 2 o G mover, 3 o R girar, 4 escalar; X/Y/Z eje; T local/mundo; Ctrl sin paso (0,5 m, 15°, 0,1); Mayús+D o Ctrl+D duplica y coge; Supr borra; Ctrl+Z / Ctrl+Mayús+Z / Ctrl+Y; P fija; F encuadra; N inspector; Esc devuelve o deselecciona. Red: como mucho 8 `mover`/s y un latido cada 0,5 s (un arrastre = un paso de deshacer); nada salta atrás. **Medido:** 96 pruebas en su rama (+4); pierna `tools/e2e-piernas/constructor.mjs` con ratón y teclado de verdad en chromium y firefox (coloca donde apuntas, clic selecciona, arrastra el asa X 1,5–2 m, gira 135°, deshacer/rehacer llegan a B, borra); WebGPU de verdad probado a mano. **Falta:** VR y móvil (M22b), puntos de encaje, selección múltiple y jerarquía (M22c), inspector por esquema (M19), lista de apps con su coste.
 
-### M26 — MCP del motor (espera a M19 y P4)
-Tres herramientas: leer una zona (como `describe`), proponer un cambio de manifiesto, abrir un PR. Nunca
-publica sola: la etapa de autonomía la abre Pablo (`docs/SABER.md` §5).
+### M26 — MCP del motor (espera a M19 y P4b)
+Tres herramientas: leer una zona (con el cuerpo de P4: lo que ve un jugador, no un volcado del servidor), proponer un
+cambio de manifiesto, abrir un PR. Nunca publica sola: la etapa de autonomía la abre Pablo (`docs/SABER.md` §5).
 
 ### O4 — Seguridad (espera a I1 y S4)
 Billete firmado y con caducidad para entrar a una instancia (de I1); tope de conexiones por IP y de mensajes
@@ -838,7 +859,8 @@ solo uso que imprime `npm run admin` (mejor que un código escrito en el chat); 
 funciones reciben el evento `orden` (su `command`, el que usa Procyon) y preguntan `api.rol(quien)` y
 `api.puede(quien, "construir" | "volar" | "subir" | "administrar")`. Los agentes de IA tienen identidad y rol como
 cualquiera (Pablo, 15-10: un agente con permiso construye en directo); su identidad dice que es una IA y lo que
-hace queda firmado como suyo. **Hecho cuando:** test: el enlace hace admin a esa identidad y no sirve dos veces; un
+hace queda firmado como suyo (P4a: billete de agente, id `ia-<id>`, nombre con « · IA» que pone el servidor; `/nombre`
+no puede acabar en « · IA»). **Hecho cuando:** test: el enlace hace admin a esa identidad y no sirve dos veces; un
 visitante no construye; el rol sobrevive a un reinicio.
 
 ### H4 — Entorno: cielo, luz, niebla y viento

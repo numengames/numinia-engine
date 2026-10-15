@@ -48,6 +48,6 @@ test("installer (H9): uploads live next to the saved world, and Caddy passes /a/
   assert.match(tpl, /handle \/a\/\* \{\n\t\treverse_proxy 127\.0\.0\.1:\$PORT\n\t\}/, "no method or size filter in front of /a/: the server decides");
 });
 
-test("installer ships exactly the packages the server may import", () => {
-  assert.deepEqual(serverPackages().sort(), ["core", "ecs", "feature", "instance", "net", "schema", "server", "sim"]);
+test("installer ships exactly the packages the server may import (P4: and the inhabitants' service: agent, client)", () => {
+  assert.deepEqual(serverPackages().sort(), ["agent", "client", "core", "ecs", "feature", "instance", "net", "schema", "server", "sim"]);
 });
