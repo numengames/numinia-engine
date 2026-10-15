@@ -34,7 +34,7 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 | Identidad: invitado primero; passkey y wallet para volver a ser tú | Decentraland perdió el 72 % de los nuevos en el paso de registrarse | `PREGUNTAS.md` #17, nota 03 |
 | Invitado en el motor (I1, 15-10): billete firmado guardado en el navegador, sin cuenta ni datos; el mismo navegador = el mismo invitado; lo de cada persona se guarda por su id, nunca por la entidad | Funciona sin pedir nada a nadie; passkey y wallet llegarán encima | `docs/EXTENDER.md` |
 | Grupos: la pieza ahora (un id compartido que el servidor conoce: prioridad en el área de interés, portal juntos, canal propio), la pantalla después | Barato hoy, caro mañana | `PREGUNTAS.md` #19 |
-| Los agentes de IA entran como jugadores por el mismo protocolo, LLM solo por evento, nunca moderan, siempre se identifican; los constructores cambian el mundo por PR (MCP) | Nativo para IA sin darles poder | `PREGUNTAS.md` #21, `EL-MOTOR.md` §2.8 |
+| Los agentes de IA entran como jugadores por el mismo protocolo, LLM solo por evento, nunca moderan a personas, siempre se identifican; lo demás que pueden hacer lo decide su rol, como a cualquiera (Pablo, 15-10: «los agentes tendrán también sus permisos»; con permiso, construyen en directo); por PR (MCP) proponen cambios al repositorio | Nativo para IA sin darles poder | `PREGUNTAS.md` #21, `EL-MOTOR.md` §2.8 |
 | Juego en el servidor y transaccional; escape rooms como máquinas de estado; sin azar de pago | Auditable y legal | `PREGUNTAS.md` #22 |
 | URLs: ciudad en `numinia.com/w/<zona>`, activos en `assets.numinia.com`, instancias en `ix-<n>.numinia.com`; los Hyperfy de hoy no se tocan | Almacenamiento por origen, caché por sitio | `LIMITES.md` §4 |
 | La regla de las reglas: cada función declara API, nivel (Base/Mejorado/Frontera), escalón de bajada, **alternativa accesible** y prueba; se detecta por capacidad, nunca por nombre de navegador | Saber qué funciona dónde, verificado | `FUNCIONALIDADES.md` §0, `ACCESIBILIDAD-3D.md` §4 |
@@ -46,7 +46,7 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 | Servidor de pruebas: empezar por la máquina más pequeña (OVH VPS-1, Gravelines, Ubuntu 24.04) y subir | Pablo, 15-10 | `SERVIDOR-X3-paso-a-paso.md` |
 | **Cada sesión cuenta cómo entró el jugador** (aparato, navegador, gráfica, XR, cuadros, ping, batería), sin IP ni identidad, 14 días | Pablo, 15-10: «ahí es donde aprenderás más»; se aprende de los aparatos reales antes que de los emuladores | T1, `docs/MEDIDAS.md` |
 | Vincular el móvil con el ordenador o el visor: **de momento no** | Pablo, 15-10 | I2 (aparcada) |
-| **Se construye en vivo, como en Hyperfy2**: quien tiene rol de constructor coloca, mueve y borra y todos lo ven al momento, guardado como texto y con deshacer; los agentes de IA, solo por PR (M26) | Pablo pidió «como mínimo el nivel de Hyperfy2» (15-10), y construir dentro del mundo es lo que lo define; la verdad sigue siendo texto, así que el PR sigue siendo posible | `docs/HYPERFY2-PARIDAD.md` §2, H1, M22 |
+| **Se construye en vivo, como en Hyperfy2**: quien tiene rol de constructor coloca, mueve y borra y todos lo ven al momento, guardado como texto y con deshacer; los agentes de IA igual, si su rol lo permite (Pablo, 15-10) | Pablo pidió «como mínimo el nivel de Hyperfy2» (15-10), y construir dentro del mundo es lo que lo define; la verdad sigue siendo texto, así que el PR sigue siendo posible | `docs/HYPERFY2-PARIDAD.md` §2, H1, M22 |
 
 ## 2. Lo medido (número, dónde y cuándo)
 
@@ -109,7 +109,9 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 - **La política va en el código, el LLM solo redacta**: responder solo si lo llaman (por su nombre o `/p`), las órdenes cortas (≤ 6 palabras) se deciden sin LLM, el admin tiene prioridad, los roles salen del mundo y nunca de lo que alguien escribe. No usar «para» como palabra de parada (es una preposición).
 - **El texto no fiable nunca entra en las instrucciones**: enlaces, la ficha del sitio, nombres de personas y objetos van en **un** bloque `<material>` vallado antes del último mensaje, rehecho en cada turno y nunca guardado; dentro no se obedece nada (numinia.org STD-050, reglas AGW-001…014).
 - El cerebro contesta en JSON con lo que el mundo anuncia (`{decir, gesto}` de una lista), y el código lo valida; los primeros fallos en producción de otros fueron bucles agente↔agente y respuestas largas.
-- Un agente público nunca ejecuta código y nunca tiene las llaves de administración.
+- Un agente nunca ejecuta código que le pasen. Sus permisos son los de su rol, como los de cualquiera (Pablo, 15-10);
+  como lee texto no fiable, todo lo que hace con permiso pasa por verbos validados en código, queda firmado como
+  suyo y se puede deshacer.
 - Cada sitio tiene su ficha `.md` para LLM (solo lo que no se puede medir, nada privado), que se lee como material.
 - El agente dice que es una IA. Presencia por teletransporte delante de quien le habla (1,6 m), «sígueme» detrás.
 - Las escape rooms son máquinas de estado deterministas; el LLM solo redacta pistas escritas por una persona.

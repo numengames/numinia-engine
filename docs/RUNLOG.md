@@ -174,3 +174,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: semana 47 % → 48 % (`hermes usage`), Opus.
 - Commit: ver `git log` (paridad Hyperfy2).
 - Siguiente: Pablo decide si J2, J1 y J3 van antes que R2–R4 y V3–V7. Sesión con Opus: H1 → M6 → H3 → H2 → M19 → M20.
+
+## 2026-10-15 12:09 · cola y agentes · hecho (sesión de Pablo con Opus)
+- Qué: Pablo (15-10): «sí» a adelantar lo básico de la paridad con Hyperfy2 → J2 (saltar, correr), J1 (avatares VRM) y J3 (chat con nombres) van justo detrás de lo que queda de R1, delante de R2–R4 y V3–V7. Y corrige una regla: «los agentes digitales tendrán también sus permisos y podrían tener permiso para crear cosas en directo» → lo que puede hacer un agente lo decide su rol, como a cualquiera (cambiado en `docs/HYPERFY2-PARIDAD.md` §2, SABER §1 y §3.5, H1, H3 y M22); sigue en pie que nunca modera a personas, que dice que es una IA y que lo que hace queda firmado como suyo.
+- Números: solo documentos.
+- Consumo: semana 48 %, Opus.
+- Commit: ver `git log` (cola y agentes).
+- Siguiente: sesión con Opus, H1 (objetos del mundo).

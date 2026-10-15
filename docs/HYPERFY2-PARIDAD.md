@@ -28,7 +28,8 @@ por capacidad, con lo que Hyperfy2 tiene, lo que tenemos hoy y la fila de `docs/
 
 1. **Se construye en vivo, como en Hyperfy2.** Quien tenga el rol de constructor coloca, mueve y borra cosas
    y todos lo ven al momento; se guarda como texto (la carpeta del mundo: foto + diario, como S4) y se puede
-   deshacer. Los agentes de IA no construyen en vivo: proponen un PR (M26). Cambia M22, que decía «produce un
+   deshacer. Los agentes de IA también, si su rol lo permite (Pablo, 15-10: «tendrán también sus permisos»);
+   lo que hacen queda firmado como suyo. Cambia M22, que decía «produce un
    PR, nunca toca el servidor». Por qué: construir dentro del mundo es lo que define a Hyperfy2, y como la
    verdad sigue siendo texto, exportar la carpeta a un PR sigue siendo posible.
 2. **Lo colocado es la lista de la zona, no la simulación ni la cercanía.** El escenario, el decorado y las
@@ -214,6 +215,5 @@ scripts y propiedades visibles para todos; guardar cada 60 s; 8 animaciones inte
 **Turnos, orden propuesto para la paridad:** J2 → J1 → J3 → N1 → H4 → H6 → H12 → H8 → V6 → H5 → M18. Las que
 esperan a otra fila (H5, H7, H9, H10, H11, H13 y M22) pasan a `pendiente` cuando esa fila queda `hecho`.
 
-**Pregunta abierta a Pablo:** si lo básico de la paridad (J2, J1, J3) va en la cola antes que las mecánicas
-de AR (R2–R4) y la accesibilidad (V3–V7). Hasta que conteste, la cola sigue como estaba y las filas H de turno
-van detrás de V7.
+**Decidido por Pablo (15-10): sí.** J2, J1 y J3 van en la cola justo detrás de lo que queda de R1, delante de
+las mecánicas de AR (R2–R4) y de la accesibilidad (V3–V7). Las filas H de turno siguen detrás de V7.

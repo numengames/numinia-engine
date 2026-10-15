@@ -38,15 +38,15 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J8 | AR de verdad: entrar en AR en Android, Quest 3 y Pico 4, suelo, anclar un objeto; iPhone en plano | hecho (emulado; falta probar en aparato real) | sí |
 | J6 | VR de verdad: entrar en VR, moverse, mandos, giro a saltos, viñeta, panel 3D (emulador IWER) | hecho (emulado) | sí |
 | R1 | Realidad cruzada 1 «Despertar»: un QR real hace que la plaza reaccione para todos (trozo 1 hecho; falta lo de «Falta de R1» en su detalle) | pendiente | sí |
+| J2 | Salto, doble salto y correr en la simulación (cambia la huella fijada; permiso de Pablo, 14-10; delante de R2–R4 y V3–V7 por la paridad con Hyperfy2, Pablo 15-10) | pendiente | sí |
+| J1 | Avatares VRM de verdad (CC0) con animaciones CC0 en la plaza | pendiente | sí |
+| J3 | Chat (cercano y de la zona) y bocadillos sobre los avatares, con nombres; lo que empieza por `/` va a las órdenes (H3) | pendiente | sí |
 | R2 | Realidad cruzada 2 «Semilla del Conocimiento»: pregunta en un sitio real → semilla que se planta en el mundo | pendiente | sí |
 | R3 | Realidad cruzada 3 «Célula del Prisma» + herramienta del DJ para marcar puntos reales | pendiente | sí |
 | R4 | Realidad cruzada 4 «Caza de invisibles»: la cámara, el color y la hora deciden qué aparece | pendiente | sí |
 | J10 | VR: teletransporte con arco, manos (hand-tracking) y viñeta ajustable desde un menú; resto de J6 (antes «J6b»: `auto.sh` solo reconoce letra + cifras) | pendiente | sí |
 | P2 | Móvil frío: política de energía del cliente + puerta de coste por cuadro | hecho (sin medir en móvil real → X1) | sí |
 | P3 | Nativo para IA v1: `llms.txt`, mapa, README-contrato por paquete, `npm run describe` | hecho | sí |
-| J1 | Avatares VRM de verdad (CC0) con animaciones CC0 en la plaza | pendiente | sí |
-| J2 | Salto, doble salto y correr en la simulación (cambia la huella fijada; permiso de Pablo, 14-10) | pendiente | sí |
-| J3 | Chat (cercano y de la zona) y bocadillos sobre los avatares, con nombres; lo que empieza por `/` va a las órdenes (H3) | pendiente | sí |
 | J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR | pendiente | sí |
 | J5 | Libro de misiones, mapa y minimapa con marcadores | pendiente | sí |
 | N1 | Entrada táctil, gamepad, cámara en 3.ª persona y pantalla completa (de `docs/JUGADOR.md`) | pendiente | sí |
@@ -100,7 +100,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | M19 | Formato de app: carpeta de texto (`app.json` + `main.ts` + activos por hash) → paquete glTF con `NUM_app` | para Opus | no |
 | M20 | Scripts de mundo en el servidor, en sandbox (SES) y con límite de CPU | para Opus | no |
 | M9 | WebTransport como escalón de arriba detrás de la misma interfaz que WebSocket | para Opus | no |
-| M22 | Constructor en el mundo, en vivo (paridad Hyperfy2): gizmos, duplicar, borrar, deshacer, soltar ficheros, inspector, biblioteca; los agentes de IA, por PR | espera a H1 | sí |
+| M22 | Constructor en el mundo, en vivo (paridad Hyperfy2): gizmos, duplicar, borrar, deshacer, soltar ficheros, inspector, biblioteca; para personas y agentes de IA, según su rol | espera a H1 | sí |
 | M26 | Servidor MCP del motor: leer zona, proponer cambio, abrir PR (nunca publica solo) | espera a M19, P4 | sí |
 | O4 | Seguridad: billete firmado para entrar a una instancia, tope de conexiones por IP, exportar y borrar lo tuyo | pendiente | sí |
 | O3 | Observabilidad: panel y alertas sobre `/metrics` del servidor real | espera a X3 | sí |
@@ -694,8 +694,9 @@ coger y llevar, gizmos de mover, girar y escalar con pasos (grados), duplicar, b
 ficheros (H9) para crear objetos; puntos de encaje (su nodo `Snap`); inspector de propiedades por esquema (M19);
 lista de las apps del mundo con su coste (triángulos, texturas, MB, como su `AppsList`); jerarquía de nodos;
 biblioteca de la casa (como sus colecciones: Imagen, Modelo, Texto, Vídeo). Todo cambio pasa por H1: llega a
-todos al momento, se guarda como texto y se puede deshacer. Los agentes de IA no construyen en vivo: proponen un
-PR (M26). Cantera: `oncyberio/awe` (MIT). **Hecho cuando:** e2e: la pestaña A entra en modo construir, mueve y
+todos al momento, se guarda como texto y se puede deshacer. Un agente de IA construye igual que una persona si su
+rol se lo permite (Pablo, 15-10: «los agentes tendrán también sus permisos»); lo que hace queda firmado como suyo.
+Cantera: `oncyberio/awe` (MIT). **Hecho cuando:** e2e: la pestaña A entra en modo construir, mueve y
 gira un objeto con el gizmo y deshace; la B ve cada paso; un visitante no ve el modo construir.
 
 ### M26 — MCP del motor (espera a M19 y P4)
@@ -739,7 +740,8 @@ ficha accesible (V1: nombre obligatorio si se puede usar; lo decorativo se marca
 a toda la zona; los ficheros de los modelos se bajan por distancia, lo cercano primero; se guarda como texto en
 la carpeta del mundo (foto + diario, como S4); se construye en vivo: colocar, mover, girar, escalar, duplicar,
 borrar y deshacer (pila por constructor, en el servidor), solo con permiso — hasta H3, el mundo entero abierto o
-cerrado a construir con una variable, como el `public` de Hyperfy. Los agentes de IA no construyen en vivo. Si el
+cerrado a construir con una variable, como el `public` de Hyperfy. Los agentes de IA, igual que las personas:
+según su permiso (Pablo, 15-10). Si el
 modelo trae animaciones, la primera va en bucle. Los ficheros los sirve el servidor por hash (`/a/<sha256>`,
 caché larga) hasta que exista M16. **Hecho cuando:** e2e: la pestaña A coloca un GLB CC0 y la B lo ve; mover,
 borrar y deshacer llegan a B; tras reiniciar el servidor sigue ahí; sin permiso, se niega; un objeto usable sin
@@ -762,8 +764,9 @@ solo uso que imprime `npm run admin` (mejor que un código escrito en el chat); 
 `/admin <código>`, como en Hyperfy. Órdenes: `/nombre <nombre>` (se guarda con la identidad), `/aparecer aquí` y
 `/aparecer quitar` (punto de aparición), `/chat borrar`, `/servidor` (CPU, memoria, personas, tick p99). Las
 funciones reciben el evento `orden` (su `command`, el que usa Procyon) y preguntan `api.rol(quien)` y
-`api.puede(quien, "construir" | "volar" | "subir" | "administrar")`. Un agente de IA nunca es constructor ni admin
-(`docs/SABER.md` §3.5). **Hecho cuando:** test: el enlace hace admin a esa identidad y no sirve dos veces; un
+`api.puede(quien, "construir" | "volar" | "subir" | "administrar")`. Los agentes de IA tienen identidad y rol como
+cualquiera (Pablo, 15-10: un agente con permiso construye en directo); su identidad dice que es una IA y lo que
+hace queda firmado como suyo. **Hecho cuando:** test: el enlace hace admin a esa identidad y no sirve dos veces; un
 visitante no construye; el rol sobrevive a un reinicio.
 
 ### H4 — Entorno: cielo, luz, niebla y viento
