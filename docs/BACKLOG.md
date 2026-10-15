@@ -32,7 +32,8 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | S4 | Persistencia mínima del mundo (puntos de enlace, inventario, cosas plantadas) | para Opus | no |
 | B1 | HTTPS en la red de casa para móviles y visores (certificado propio, `/ws` en el mismo origen) | hecho | sí |
 | J8 | AR de verdad: entrar en AR en Android, Quest 3 y Pico 4, suelo, anclar un objeto; iPhone en plano | hecho (emulado; falta probar en aparato real) | sí |
-| J6 | VR de verdad: entrar en VR, moverse, manos y mandos, paneles 3D (emulador IWER) | pendiente | sí |
+| J6 | VR de verdad: entrar en VR, moverse, mandos, giro a saltos, viñeta, panel 3D (emulador IWER) | hecho (emulado) | sí |
+| J6b | VR: teletransporte con arco, manos (hand-tracking) y viñeta ajustable desde un menú; resto de J6 | pendiente | sí |
 | R1 | Realidad cruzada 1 «Despertar»: un QR real hace que la plaza reaccione para todos | espera a J7 | sí |
 | R2 | Realidad cruzada 2 «Semilla del Conocimiento»: pregunta en un sitio real → semilla que se planta en el mundo | espera a J7, I1, S4 | sí |
 | R3 | Realidad cruzada 3 «Célula del Prisma» + herramienta del DJ para marcar puntos reales | espera a J7, I1, S4 | sí |

@@ -10,6 +10,7 @@
     #hud { position: fixed; top: 10px; left: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #eef2f6; white-space: pre; pointer-events: none; }
     #hud b { color: #ffd27a; font-weight: 600; }
     #help { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); color: #23303b; opacity: .8; pointer-events: none; }
+    #vr { position: fixed; top: 56px; right: 10px; display: none; padding: 10px 14px; border: 0; border-radius: 8px; background: #9ad0ff; color: #23303b; font: inherit; font-weight: 600; }
     #ar { position: fixed; top: 10px; right: 10px; display: none; padding: 10px 14px; border: 0; border-radius: 8px; background: #ffd27a; color: #23303b; font: inherit; font-weight: 600; }
     #joy { position: fixed; width: 110px; height: 110px; border-radius: 50%; background: rgba(20,24,30,.25); display: none; pointer-events: none; }
     #knob { position: absolute; left: 35px; top: 35px; width: 40px; height: 40px; border-radius: 50%; background: rgba(20,24,30,.55); }
@@ -19,6 +20,7 @@
   <div id="hud">Conectando…</div>
   <div id="help">WASD o flechas para moverte · en el móvil, arrastra el dedo</div>
   <button id="ar" type="button">Entrar en AR</button>
+  <button id="vr" type="button">Entrar en VR</button>
   <div id="joy"><div id="knob"></div></div>
   <script type="module" src="./main.ts"></script>
 </body>

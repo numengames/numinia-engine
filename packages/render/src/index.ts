@@ -4,6 +4,9 @@ import * as THREE from "three/webgpu";
 import { createAR, arSupported } from "./ar.ts";
 export { arSupported } from "./ar.ts";
 export type { ARState } from "./ar.ts";
+import { createVR, vrSupported } from "./vr.ts";
+export { vrSupported } from "./vr.ts";
+export type { VRState } from "./vr.ts";
 
 export type Backend = "WebGPU" | "WebGL2";
 export type Placed = { id: number; x: number; z: number };
@@ -58,6 +61,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
 
   const ar = createAR({ renderer, scene, world, domOverlayRoot: document.getElementById("hud") ?? undefined, maxMs: opts.arMaxMs });
 
+  const vr = createVR({ renderer, scene, camera });
+  let selfXZ: { x: number; z: number } | null = null;
+
   addEventListener("resize", () => {
     renderer.setSize(innerWidth, innerHeight);
     camera.aspect = innerWidth / innerHeight;
@@ -69,8 +75,11 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     renderer,
     ar,
     arSupported,
+    vr,
+    vrSupported,
     /** Place everyone for this frame. */
     sync(self: { x: number; z: number } | null, list: Placed[]): void {
+      selfXZ = self;
       if (self) { selfMesh.visible = true; selfMesh.position.set(self.x, 0.85, self.z); }
       const seen = new Set<number>();
       for (const o of list) {
@@ -83,7 +92,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** Follow camera, then draw. */
     draw(dtSeconds: number): void {
-      if (renderer.xr.isPresenting) { ar.update(); renderer.render(scene, camera); return; }
+      if (renderer.xr.isPresenting) { ar.update(); vr.update(selfXZ, dtSeconds); renderer.render(scene, camera); return; }
       target.copy(selfMesh.position);
       wanted.set(target.x, target.y + 6, target.z + 9);
       camera.position.lerp(wanted, 1 - Math.exp(-dtSeconds * 8));

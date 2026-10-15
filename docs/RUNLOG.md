@@ -71,3 +71,10 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Consumo: semana 43 % → 43% used (Sonnet).
 - Commit: ver `git log` (J8).
 - Siguiente: J6 (VR de verdad), que reutiliza IWER.
+
+## 2026-10-15 05:35 · J6 · hecho (emulado, trozo 1)
+- Qué: botón «Entrar en VR» (solo si el aparato soporta `immersive-vr`). Dentro: la plataforma sigue a tu avatar, el stick izquierdo da las intenciones de movimiento (en la dirección de la mirada), el derecho gira a saltos de 30° (un empujón = un salto), viñeta de confort que aparece al moverse o girar, mandos con rayo y cuerpo, y un panel 3D con fps, conectados y ping. Todo en `packages/render/src/vr.ts`; nuevo `tools/e2e-vr.mjs`, ya dentro de `tools/auto.sh e2e`.
+- Números: gates verdes (24 tests; p99 8 ms; 25 kbit/s). e2e chromium, firefox, AR y VR OK; https falló una vez y pasó a la repetición (software GL pierde fotogramas). VR con IWER como Quest 3: entra, el stick avanza 9.8 m en 2.5 s, mantener el stick derecho da -30° (no gira sin parar), volver da 0°, viñeta 0.8 al moverse, sale limpio, 0 errores. No probado en un Quest real: confort, manos y panel legible solo se juzgan puestos (X1).
+- Consumo: semana 43 % → 43 % (Sonnet).
+- Commit: ver `git log` (J6).
+- Siguiente: J6b (teletransporte con arco, manos, viñeta ajustable); si no, la siguiente fila.

@@ -51,6 +51,7 @@ function readAxes(): [number, number] {
   if (keys.has("KeyW") || keys.has("ArrowUp")) z -= 1;
   if (keys.has("KeyS") || keys.has("ArrowDown")) z += 1;
   if (touch) { x = touch.dx; z = touch.dy; }
+  if (view.vr.active) { const [vx, vz] = view.vr.axes(); if (vx || vz) { x = vx; z = vz; } }
   return [Math.round(x * STICK_MAX), Math.round(z * STICK_MAX)];
 }
 
@@ -63,6 +64,15 @@ view.arSupported().then((ok) => {
   arBtn.onclick = () => { if (view.ar.state === "off") void view.ar.enter(); else void view.ar.exit(); };
 });
 setInterval(() => { arBtn.textContent = arLabel[view.ar.state]; }, 250);
+
+// ---- VR (J6): same idea; the stick becomes the same two int8 intentions as keyboard and touch ----
+const vrBtn = document.getElementById("vr") as HTMLButtonElement;
+view.vrSupported().then((ok) => {
+  if (!ok) return;
+  vrBtn.style.display = "block";
+  vrBtn.onclick = () => { if (view.vr.state === "off") void view.vr.enter(); else void view.vr.exit(); };
+});
+setInterval(() => { vrBtn.textContent = view.vr.active ? "Salir de VR" : "Entrar en VR"; }, 250);
 
 // ---- loop: fixed 20 Hz client ticks inside the display loop, drawing blends between ticks ----
 const TICK_MS = 1000 / TICK_HZ;
@@ -89,6 +99,7 @@ function drawHud() {
     `Tú: avatar ${session.entity} · conectados a la vista: ${s.visible + 1}\n` +
     `Ping: ${s.rttMs < 0 ? "—" : s.rttMs + " ms"} · correcciones de tu predicción: ${s.corrections}\n` +
     `Huella navegador = servidor: ${det}`;
+  if (view.vr.active) view.vr.setPanel([`${view.backend} · ${fps} fps`, `Conectados: ${s.visible + 1}`, `Ping: ${s.rttMs < 0 ? "—" : s.rttMs + " ms"}`, `Huella ${probe.browser === probe.server ? "✓" : "…"}`]);
 }
 
 // handle for automated checks (tools/e2e.mjs)
