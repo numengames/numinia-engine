@@ -59,6 +59,7 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 | Entorno = estado de la zona (todos ven el mismo cielo); los elementos llevan `at` y ficha; la calidad, por nivel de aparato decidido por capacidad | Quien no ve sabe que hay una hoguera; el móvil no se calienta | BACKLOG H4, H8, H12 (15-10) |
 | **Guardar el progreso: passkey del propio motor** (camino B); la cuenta de numinia.com se une después (O4) | Jugar sigue sin pedir nada; quien quiere conservar lo suyo da un toque; sin correo ni coste por persona | Pablo, 15-10; `INTERFAZ-Y-MODS.md` §13 |
 | La interfaz son datos (marcos) pintados en página, en VR y como texto; addons de datos primero, con código encerrado después; mods = paquetes de recursos y de datos + scripts del servidor | Una IA los escribe desde el esquema; nada ajeno corre en la página | Pablo, 15-10; `INTERFAZ-Y-MODS.md` |
+| **Las IAs del mundo son jugadores** (P4a): entran por el mismo protocolo con un billete de agente firmado con un secreto aparte del de invitados; el servidor les pone el nombre que declara la aventura + « · IA»; viven en un servicio aparte (`numinia-habitantes`), nunca en el tick; escalón E0 = guion sin LLM, y si el modelo cae vuelven a E0; no recuerdan a nadie; las personas de guion (`pnj@1`) siguen siendo datos | Sus topes y permisos son los de cualquiera sin código extra; el mundo sigue si se caen; nadie lleva la marca de IA sin serlo | Pablo, 15-10; `../mmo-browser-study/DISENO-IAS-MOTOR.md` |
 | Edades: el motor no las gestiona; la plataforma, las comunidades y la clasificación de cada aventura (niños, mayores…) | Pablo, 15-10 | — |
 
 ## 2. Lo medido (número, dónde y cuándo)
@@ -66,6 +67,7 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 | Qué | Número | Notas |
 |---|---|---|
 | Determinismo entre motores de JS | huella `fa94375e` (formato 1) y `93b192c8` (formato 2, con salto, J2) igual en Node, Chromium (V8) y Firefox (SpiderMonkey) | WebKit/Safari **sin probar**: Playwright WebKit no arranca en Bazzite (X2) |
+| Un habitante IA E0 (P4a, 15-10) | servidor: como un jugador (200 habitantes, tick p99 4,2 ms; 200 robots, 10,2); servicio: ~0,07 % de un núcleo y ~1,2 MB por habitante + ~100 MB fijos | A mano en el PC, 25 s cada medida, servidor y servicio en núcleos aparte; **no** en el VPS (`limits.json`, estimado) |
 | 1.000 personas por WebSocket real, un núcleo | tick p99 17–23 ms, 25,5 kbit/s por persona, 20 Hz exactos; con salto y correr (J2, 15-10): p99 19,3 ms, 27,2 kbit/s | PC de desarrollo (Ryzen 9 7950X); en un VPS se espera 1,5–2,5× peor (estimado, X3 lo mide) |
 | Un hilo, todos a menos de 80 m | 1.000 → p99 10 ms · 2.000 → 21 · 3.000 → 36 · 4.000 → 53 | Se rompe entre 3.000 y 4.000: regiones en hilos solo para el horizonte de 5.000 |
 | Área de interés ingenua (ordenar ~999 candidatos por cliente) | p99 146 ms con 1.000 | Por eso: rejilla de 8 m, anillos, quickselect |

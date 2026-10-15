@@ -8,12 +8,16 @@
 #   sudo bash instalar-motor.sh --dominio motor.ejemplo.com   automatic HTTPS (DNS must point here)
 #   Other options: --memoria 75%   (systemd MemoryMax for the instance, default 75% of RAM)
 #                  --sin-cortafuegos  (do not touch ufw)
+#                  --sin-habitantes   (no AI inhabitants: stops and disables numinia-habitantes if it was there)
 #   bash instalar-motor.sh --solo-extraer DIR   unpack app/ and www/ into DIR, install nothing (no root)
 #   bash instalar-motor.sh --version            print what is inside
 #
 # What it does: official Node LTS (sha256 checked) in /opt/numinia-engine/node, system user
 # `numinia`, systemd service `numinia-motor` (127.0.0.1:8790, LimitNOFILE, MemoryMax, hardening),
 # Caddy serving the page and passing /ws to the instance, ufw allowing ssh/80/443.
+# P4: a second service `numinia-habitantes` (own system user, localhost only, no route in Caddy) runs the AI
+# inhabitants of the adventure (escalón 0: a script, no language model, no provider key). Off switch:
+# `systemctl stop numinia-habitantes` and the world goes on without them.
 set -euo pipefail
 
 BUILD="__BUILD__"
@@ -24,6 +28,8 @@ PREFIX=/opt/numinia-engine
 SERVICE=numinia-motor
 USER_NAME=numinia
 PORT=8790
+HAB_SERVICE=numinia-habitantes
+HAB_USER=numinia-hab
 
 say() { printf '\033[1m[motor]\033[0m %s\n' "$*"; }
 die() { printf '\033[31m[motor] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -33,12 +39,13 @@ extract_payload() { # $1 = destination directory
   awk 'found { print } /^__CARGA_DEBAJO__$/ { found = 1 }' "$0" | base64 -d | tar -xz -C "$1"
 }
 
-DOMAIN=""; MEMORY="75%"; FIREWALL=1; ONLY_EXTRACT=""
+DOMAIN=""; MEMORY="75%"; FIREWALL=1; ONLY_EXTRACT=""; HABITANTES=1
 while [ $# -gt 0 ]; do
   case "$1" in
     --dominio) DOMAIN=${2:?falta el dominio, p. ej. --dominio motor.ejemplo.com}; shift 2 ;;
     --memoria) MEMORY=${2:?falta el valor, p. ej. --memoria 1G o --memoria 75%}; shift 2 ;;
     --sin-cortafuegos) FIREWALL=0; shift ;;
+    --sin-habitantes) HABITANTES=0; shift ;;
     --solo-extraer) ONLY_EXTRACT=${2:?falta la carpeta destino}; shift 2 ;;
     --version) echo "numinia-engine $BUILD · Node $NODE_VERSION"; exit 0 ;;
     -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
@@ -103,6 +110,11 @@ echo "$BUILD" > "$PREFIX/VERSION"
 if [ ! -f "$PREFIX/secreto.env" ]; then
   ( umask 077; echo "MOTOR_SECRET=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')" > "$PREFIX/secreto.env" )
 fi
+# P4: the secret that signs the AI inhabitants' tickets: apart from MOTOR_SECRET, so the inhabitants' service can make
+# agent identities and never guest ones. Made once, kept across reinstalls, read by systemd (root) for both units.
+if [ ! -f "$PREFIX/agentes.env" ]; then
+  ( umask 077; echo "MOTOR_AGENTES_SECRET=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')" > "$PREFIX/agentes.env" )
+fi
 cat > "/etc/systemd/system/$SERVICE.service" << UNIT
 [Unit]
 Description=numinia-engine instance server ($BUILD)
@@ -119,6 +131,7 @@ Environment=PORT=$PORT HOST=127.0.0.1 STATS_MS=30000 NODE_ENV=production SESIONE
 # H9: what builders upload (datos/activos/<sha256>.<ext> + subidas.jsonl: who, when); the server creates it; same backup
 StateDirectory=numinia-motor
 EnvironmentFile=$PREFIX/secreto.env
+EnvironmentFile=$PREFIX/agentes.env
 ExecStart=$PREFIX/node/bin/node packages/server/src/main.ts
 Restart=always
 RestartSec=2
@@ -142,6 +155,54 @@ UNIT
 systemctl daemon-reload
 systemctl enable "$SERVICE" > /dev/null 2>&1
 systemctl restart "$SERVICE"
+
+# ---------- P4: the AI inhabitants (a second service, apart from the engine's tick) ----------
+if [ "$HABITANTES" = 1 ]; then
+  say "habitantes IA (servicio $HAB_SERVICE: guion sin LLM, solo hablan con el motor de esta máquina)"
+  id "$HAB_USER" > /dev/null 2>&1 || useradd --system --home-dir "$PREFIX" --no-create-home --shell /usr/sbin/nologin "$HAB_USER"
+  cat > "/etc/systemd/system/$HAB_SERVICE.service" << UNIT
+[Unit]
+Description=numinia-engine AI inhabitants ($BUILD)
+After=$SERVICE.service
+Wants=$SERVICE.service
+
+[Service]
+User=$HAB_USER
+Group=$HAB_USER
+WorkingDirectory=$PREFIX/app
+Environment=MOTOR_URL=ws://127.0.0.1:$PORT NODE_ENV=production STATS_MS=300000
+EnvironmentFile=$PREFIX/agentes.env
+ExecStart=$PREFIX/node/bin/node packages/agent/src/main.ts
+Restart=always
+RestartSec=5
+Nice=10
+CPUQuota=50%
+MemoryMax=256M
+TasksMax=64
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+# escalón 0 has no brain: it only talks to the engine on this machine (P5 opens the provider's address, nothing else)
+IPAddressDeny=any
+IPAddressAllow=localhost
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  systemctl daemon-reload
+  systemctl enable "$HAB_SERVICE" > /dev/null 2>&1
+  systemctl restart "$HAB_SERVICE"
+elif [ -f "/etc/systemd/system/$HAB_SERVICE.service" ]; then
+  say "sin habitantes: paro y desactivo $HAB_SERVICE"
+  systemctl disable --now "$HAB_SERVICE" > /dev/null 2>&1 || true
+fi
 
 # ---------- Caddy: page + /ws on the same origin ----------
 SITE=${DOMAIN:-:80}
@@ -198,8 +259,12 @@ systemctl is-active --quiet "$SERVICE" || die "el servicio no arrancó: journalc
 curl -fsS -o /dev/null "http://127.0.0.1/" -H "Host: ${DOMAIN:-localhost}" 2> /dev/null \
   || say "AVISO: Caddy aún no responde en el puerto 80 (con dominio, puede estar pidiendo el certificado)"
 IP=$(hostname -I 2> /dev/null | awk '{ print $1 }')
+if [ "$HABITANTES" = 1 ]; then
+  systemctl is-active --quiet "$HAB_SERVICE" || say "AVISO: $HAB_SERVICE no arrancó (el mundo sigue sin ellos): journalctl -u $HAB_SERVICE -n 50"
+fi
 say "listo. Servicio $SERVICE activo, $BUILD."
 if [ -n "$DOMAIN" ]; then say "abre https://$DOMAIN/"; else say "abre http://${IP:-<ip-del-servidor>}/  (HTTP sin cifrar: solo para pruebas)"; fi
 say "registro: journalctl -u $SERVICE -f · estado: systemctl status $SERVICE"
+[ "$HABITANTES" = 1 ] && say "habitantes IA: journalctl -u $HAB_SERVICE -f (quitarlos: systemctl stop $HAB_SERVICE)"
 exit 0
 __CARGA_DEBAJO__

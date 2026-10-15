@@ -10,7 +10,8 @@
   "client": ["core", "schema", "ecs", "sim", "net", "feature"],
   "render": [],
   "instance": ["core", "schema", "ecs", "sim", "net", "feature"],
-  "server": ["core", "schema", "ecs", "sim", "net", "instance", "feature"],
+  "agent": ["core", "schema", "ecs", "sim", "net", "feature", "client", "instance"],
+  "server": ["core", "schema", "ecs", "sim", "net", "instance", "feature", "client", "agent"],
   "cli": ["core", "schema", "ecs", "sim", "net", "instance", "feature"],
   "features": ["core", "schema", "feature"]
 }

@@ -12,9 +12,10 @@ import { ClientSession } from "../packages/client/src/index.ts";
 const root = join(fileURLToPath(import.meta.url), "../..");
 const node = process.argv[2] ?? process.execPath;
 const PORT = 8793;
+const AGENTES = "deploy-check-agentes-secreto-0001";
 const dir = join(process.env.TMPDIR ?? "/tmp", "numinia-deploy-check");
-let srv = null;
-const fail = (msg) => { srv?.kill(); console.error(`[deploy-check] FALLA: ${msg}`); process.exit(1); };
+let srv = null, hab = null, habLog = "";
+const fail = (msg) => { srv?.kill(); hab?.kill(); console.error(`[deploy-check] FALLA: ${msg}`); process.exit(1); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const installer = join(root, "deploy/instalar-motor.sh");
@@ -31,11 +32,12 @@ if (!existsSync(join(dir, "app/activos/robot/RobotExpressive.glb"))) fail("falta
 
 // the server, from the unpacked copy only (cwd = app/, like the systemd unit)
 const version = spawnSync(node, ["--version"], { encoding: "utf8" }).stdout.trim();
-srv = spawn(node, ["packages/server/src/main.ts"], { cwd: join(dir, "app"), env: { ...process.env, PORT: String(PORT), HOST: "127.0.0.1", STATS_MS: "60000" } });
+srv = spawn(node, ["packages/server/src/main.ts"], { cwd: join(dir, "app"), env: { ...process.env, PORT: String(PORT), HOST: "127.0.0.1", STATS_MS: "60000", MOTOR_AGENTES_SECRET: AGENTES } });
 let log = "";
 srv.stdout.on("data", (d) => { log += d; });
 srv.stderr.on("data", (d) => { log += d; });
-const stop = () => srv.kill();
+// P4: the inhabitants' service from the same unpacked copy (the second systemd unit), with the same agents' secret
+const stop = () => { srv.kill(); hab?.kill(); };
 try {
   for (let i = 0; i < 40 && !log.includes("[instancia]"); i++) await sleep(100);
   if (!log.includes("[instancia]")) fail(`el servidor desempaquetado no arrancó con node ${version}:\n${log}`);
@@ -59,6 +61,11 @@ try {
   const head = await fetch(`http://127.0.0.1:${PORT}/a/047f5e5fb3bb6d378bd1df16ca6137f2a596c99b3a1b5690b4020c05aaf6f319.glb`, { method: "HEAD" }).catch(() => null);
   const put = await fetch(`http://127.0.0.1:${PORT}/a/${"0".repeat(64)}.glb`, { method: "PUT", body: "x" }).catch(() => null);
   if (head?.status !== 200 || put?.status !== 401) fail(`subidas (H9): HEAD ${head?.status} (quiero 200), PUT sin billete ${put?.status} (quiero 401)`);
+  hab = spawn(node, ["packages/agent/src/main.ts"], { cwd: join(dir, "app"), env: { ...process.env, MOTOR_URL: `ws://127.0.0.1:${PORT}`, MOTOR_AGENTES_SECRET: AGENTES, STATS_MS: "60000" } });
+  hab.stdout.on("data", (d) => { habLog += d; }); hab.stderr.on("data", (d) => { habLog += d; });
+  for (let i = 0; i < 50 && !habLog.includes("el motor me llama"); i++) await sleep(100);
+  const nombre = habLog.match(/el motor me llama «([^»]+)»/)?.[1];
+  if (!nombre?.endsWith(" · IA")) fail(`el servicio de habitantes no entró como IA:\n${habLog}\n${log.split("\n").filter((l) => l.includes("agentes") || l.includes("habitantes")).join("\n")}`);
   const fp = log.match(/huella de referencia ([0-9a-f]+)/)?.[1];
-  console.log(`[deploy-check] OK · node ${version} · página ${refs.length} ficheros enlazados · ${s.stats.snapshots} snapshots en ${Math.round(performance.now() - t0)} ms · huella ${fp} · /health, /metrics, /a/ y subidas OK (RSS ${m.memoriaMB.rss} MB)`);
+  console.log(`[deploy-check] OK · node ${version} · página ${refs.length} ficheros enlazados · ${s.stats.snapshots} snapshots en ${Math.round(performance.now() - t0)} ms · huella ${fp} · /health, /metrics, /a/ y subidas OK · habitante «${nombre}» dentro (RSS ${m.memoriaMB.rss} MB)`);
 } finally { stop(); }

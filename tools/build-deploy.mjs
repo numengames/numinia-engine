@@ -60,7 +60,7 @@ function main() {
   cpSync(join(root, "activos"), join(app, "activos"), { recursive: true }); // H1: the house library, served at /a/<sha256>
   cpSync(join(root, "aventuras"), join(app, "aventuras"), { recursive: true }); // J5: the example adventure (AVENTURA_DIR= for none)
   cpSync(join(root, "node_modules/ws"), join(app, "node_modules/ws"), { recursive: true });
-  writeFileSync(join(app, "package.json"), JSON.stringify({ name: "numinia-engine-server", private: true, type: "module", license: "MIT" }, null, 2) + "\n");
+  writeFileSync(join(app, "package.json"), JSON.stringify({ name: "numinia-engine-server", private: true, type: "module", license: "AGPL-3.0-only" }, null, 2) + "\n");
   cpSync(page, join(stage, "www"), { recursive: true });
 
   const dirty = run("git", ["status", "--porcelain"]) ? "+cambios" : "";

@@ -21,6 +21,7 @@ import { Activos, BIBLIOTECA } from "./activos.ts";
 import { Subidas } from "./subidas.ts";
 import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
 import { lectorAventura } from "./aventura.ts";
+import { leerHabitantes } from "../../agent/src/formato.ts";
 import type { Metrics } from "./metrics.ts";
 
 export type ServerOptions = {
@@ -39,6 +40,7 @@ export type ServerOptions = {
   subidas?: string | null;       // H1/H9: folder of uploaded files named <sha256>.<ext>; default null (= no uploads)
   subir?: { topesMB?: Partial<Record<string, number>>; totalMB?: number }; // H9: smaller caps (tests); default ficheros.ts
   aventura?: string | null;      // J5: the adventure's folder (quests, people, things as text files); default null = none
+  agentes?: string;              // P4: the secret that signs AI inhabitants' tickets (env MOTOR_AGENTES_SECRET); none or short = no inhabitants
   log?: (line: string) => void;
 };
 
@@ -100,7 +102,14 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const puede = (_who: unknown, accion: string) => accion === "construir" && construir === "todos";
   const activos = new Activos(o.biblioteca === undefined ? BIBLIOTECA : o.biblioteca, o.subidas ?? null, log);
   if (o.aventura) log(`[aventura] ${o.aventura}${existsSync(o.aventura) ? "" : " (no existe: el mundo arranca sin aventura)"}`);
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: o.features, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, activo: (h, ext) => activos.buscar(h, ext) !== null, aventura: lectorAventura(o.aventura ?? null, log) });
+  // P4: who may enter as an AI inhabitant = the habitantes/ of the adventure, with a ticket of the agents' secret
+  const lector = lectorAventura(o.aventura ?? null, log);
+  const hab = leerHabitantes(lector("habitantes"));
+  for (const p of hab.problemas) log(`[habitantes] no se carga: ${p}`);
+  const agentesSign = signer(o.agentes ?? process.env.MOTOR_AGENTES_SECRET);
+  const agentes = agentesSign("probe") ? { sign: agentesSign, nombre: (id: string) => hab.habitantes.find((h) => h.id === id)?.nombre ?? null } : undefined;
+  if (hab.habitantes.length) log(`[habitantes] ${hab.habitantes.map((h) => h.nombre).join(", ")}${agentes ? "" : " — sin MOTOR_AGENTES_SECRET: no podrán entrar como IA"}`);
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: o.features, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, activo: (h, ext) => activos.buscar(h, ext) !== null, aventura: lector, agentes });
   // H9: uploads (PUT /a/<sha256>.<ext>) by whoever may build; the page shows its guest token (I1) to say who it is
   const subidas = new Subidas({
     dir: o.subidas ?? null, activos, log, topesMB: o.subir?.topesMB, totalMB: o.subir?.totalMB,
