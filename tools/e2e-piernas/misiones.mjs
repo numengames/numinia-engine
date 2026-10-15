@@ -78,6 +78,9 @@ try {
   await esperar(a, () => globalThis.__numinia.misiones.libro().some((m) => m.id === "primeros-pasos" && m.lista.length === 3), null, 5000);
   await esperar(a, () => /Primeros pasos/.test(document.getElementById("mision-seguida")?.textContent ?? ""), null, 3000).catch(() => {});
   out.aceptada = { libro: await libro(a), objetivos: await objetivos(a), balizas: await ctl(a, () => globalThis.__numinia.view.beaconCount()), linea: await ctl(a, () => document.getElementById("mision-seguida").textContent) };
+  // J5's «Hecho cuando»: the map marks the quest's objective (the minimap gathers markers every 200 ms)
+  await esperar(a, () => (globalThis.__numinia.mapa?.contar?.().objetivo ?? 0) >= 1, null, 3000).catch(() => {});
+  out.aceptada.mapaObjetivo = await ctl(a, () => globalThis.__numinia.mapa?.contar?.().objetivo ?? 0);
   await a.keyboard.press("Digit1"); // «¡Hasta luego!»
   await esperar(a, () => document.getElementById("dialogo").hidden, null, 5000);
   await a.keyboard.press("KeyJ");
@@ -144,7 +147,7 @@ try {
   nota("B");
   const ob1ok = ob1 && ob1.x === 18 && ob1.z === 0 && ob1.nombre === "Pilar dorado";
   ok = out.alma.card.role === "persona" && /^E: hablar con Alma, la guía$/.test(out.alma.prompt) && out.alma.dialogo.opciones.length === 2 && /^1\. /.test(out.alma.dialogo.foco ?? "")
-    && out.aceptada.libro[0]?.seguida === true && ob1ok && out.aceptada.balizas > 0 && /Primeros pasos/.test(out.aceptada.linea)
+    && out.aceptada.libro[0]?.seguida === true && ob1ok && out.aceptada.balizas > 0 && out.aceptada.mapaObjetivo >= 1 && /Primeros pasos/.test(out.aceptada.linea)
     && out.libroAbierto.some((t) => t.startsWith("→ Visita el pilar dorado"))
     && out.pilar.siguiente?.nombre === "Bruno, el farolero" && !!out.bruno.clic && out.bruno.siguiente?.nombre === "Caja de herramientas" && out.caja.prompt === "E: coger la caja"
     && out.hecha.libro[0]?.estado === "hecha" && out.hecha.objetivos.length === 0 && out.hecha.panel.some((t) => t.startsWith("✓ Primeros pasos en la plaza"))

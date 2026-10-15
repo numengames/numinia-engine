@@ -19,7 +19,7 @@ type View = Awaited<ReturnType<typeof createView>>;
 type Contratos = {
   cam?: { ajustar?(o: { sensibilidad: number; invertirY: boolean }): void };
   entorno?: {
-    calidad?(o: { sombras: string; agua: string; particulas: string; hdr: boolean }): void;
+    calidad?(o: { sombras?: string; agua?: string; particulas?: string; hdr?: boolean }): void;
     capacidades?(): Record<string, unknown> | null | undefined;
   };
 };
@@ -100,7 +100,16 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   a.alAplicar("graficos.estadisticas", (v) => { const h = $("hud"); if (h) h.hidden = v !== true; });
   // «No llego al servidor» is written in the HUD: it shows even with the statistics off
   (session.t as { opened?: Promise<void> }).opened?.catch(() => { const h = $("hud"); if (h) h.hidden = false; });
-  const entorno = (_: Valor, l: Lectura) => extra.entorno?.calidad?.({ sombras: String(l.get("graficos.sombras")), agua: String(l.get("graficos.agua")), particulas: String(l.get("graficos.particulas")), hdr: l.get("graficos.hdr") === true });
+  // Only what the person chose (or the URL forced) is asked of the environment; the rest stays undefined so it keeps its
+  // own tier's default, which follows the headset when XR starts (B) — this registry's tier is the page's, not the
+  // headset's. Choosing «Calidad» sets the four as chosen; «Automática» and «Restablecer» send undefined again.
+  const propio = (id: string) => a.lista().some((v) => v.id === id && (v.elegido || v.forzado));
+  const pide = (id: string, l: Lectura) => (propio(id) ? l.get(id) : undefined);
+  const texto = (v: Valor | undefined) => (v === undefined ? undefined : String(v));
+  const entorno = (_: Valor, l: Lectura) => {
+    const hdr = pide("graficos.hdr", l);
+    extra.entorno?.calidad?.({ sombras: texto(pide("graficos.sombras", l)), agua: texto(pide("graficos.agua", l)), particulas: texto(pide("graficos.particulas", l)), hdr: hdr === undefined ? undefined : hdr === true });
+  };
   for (const id of ["graficos.sombras", "graficos.agua", "graficos.particulas", "graficos.hdr"]) a.alAplicar(id, entorno);
   const camara = (_: Valor, l: Lectura) => extra.cam?.ajustar?.({ sensibilidad: Number(l.get("controles.sensibilidad")) / 100, invertirY: l.get("controles.invertirY") === true });
   a.alAplicar("controles.sensibilidad", camara);

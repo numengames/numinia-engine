@@ -115,7 +115,16 @@ try {
   const b3 = await cam(p);
   await drag(p, cx, cy, cx + 60, cy + 40, "middle"); await settle(p);
   const b4 = await cam(p);
-  await p.mouse.move(cx + 120, cy + 60); await wheel(p, -200); await settle(p);
+  // off-centre, on the 3D view itself: the minimap and the panels sit in the corners and take their own wheel
+  const [wx, wy] = await p.evaluate(([x0, y0]) => {
+    const lienzo = globalThis.__numinia.view.renderer.domElement;
+    for (let r = 0; r <= 200; r += 6) for (let k = 0, n = Math.max(1, Math.round(r / 3)); k < n; k++) {
+      const a = (k / n) * 2 * Math.PI, x = x0 + r * Math.cos(a), y = y0 + r * Math.sin(a);
+      if (document.elementFromPoint(x, y) === lienzo) return [x, y];
+    }
+    return [x0, y0];
+  }, [cx + 120, cy + 60]);
+  await p.mouse.move(wx, wy); await wheel(p, -200); await settle(p);
   const b5 = await cam(p);
   await p.evaluate(() => globalThis.__numinia.view.cam.bloquear(true));
   await wheel(p, 300); await drag(p, cx - 80, cy, cx + 80, cy, "right"); await settle(p);
@@ -179,18 +188,22 @@ if (ENGINE === "chromium") {
       if (holdMs) await t.waitForTimeout(holdMs);
       await touch("touchEnd", []);
     };
-    const ty = 150; // the touch row: clear of the HUD, the full-screen button and the touch action buttons
+    // the touch row: the first height where every finger of this check lands on the 3D view itself. The HUD panels, the
+    // minimap and the touch buttons grow as features arrive (and will move: a layout of one's own), so it is searched,
+    // not fixed; the help line and the HUD take no clicks, so a finger over them still reaches the view
+    const pinza0 = [[W * 0.56], [W * 0.72]], pinza1 = [[W * 0.52], [W * 0.76]], orbitaX = [W * 0.75, W * 0.75 - 120];
+    const ty = await t.evaluate(([xs, alto]) => {
+      const lienzo = globalThis.__numinia.view.renderer.domElement;
+      for (let y = 60; y < alto - 40; y += 6) if (xs.every((x) => document.elementFromPoint(x, y) === lienzo)) return y;
+      return -1;
+    }, [[...pinza0.flat(), ...pinza1.flat(), ...orbitaX], H]);
+    if (ty < 0) throw new Error("ninguna fila libre para los dedos: la interfaz tapa la mitad derecha de la vista 3D");
     const t0 = await cam(t), m0 = await me(t);
     await swipe([[W * 0.75, ty]], [[W * 0.75 - 120, ty]]); await settle(t); await t.waitForTimeout(300);
     const t1 = await cam(t), m1 = await me(t);
     await swipe([[W * 0.25, 200]], [[W * 0.25, 160]], 6, 900); await t.waitForTimeout(700);
     const t2 = await cam(t), m2 = await me(t);
-    // the pinch stays clear of the right-hand column of touch buttons (gesture, «Saltar», «Chat»…), which grows as
-    // features add buttons: both fingers must land on the 3D view itself
-    const pinza0 = [[W * 0.56, ty], [W * 0.72, ty]], pinza1 = [[W * 0.52, ty], [W * 0.76, ty]];
-    const libres = await t.evaluate((pts) => pts.every(([x, y]) => document.elementFromPoint(x, y)?.tagName === "CANVAS"), [...pinza0, ...pinza1]);
-    if (!libres) throw new Error("los dedos del pellizco caen sobre un botón: mueve pinza0/pinza1");
-    await swipe(pinza0, pinza1); await settle(t);
+    await swipe(pinza0.map(([x]) => [x, ty]), pinza1.map(([x]) => [x, ty])); await settle(t);
     const t3 = await cam(t);
     const walked = Math.hypot(m2.x - m1.x, m2.z - m1.z);
     ok("tactil", t1.yaw > t0.yaw + 0.5 && Math.hypot(m1.x - m0.x, m1.z - m0.z) < 0.01 && Math.abs(t2.yaw - t1.yaw) < 1e-6 && walked > 0.5 && t3.distancia < t2.distancia - 1,

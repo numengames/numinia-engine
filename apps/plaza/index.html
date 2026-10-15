@@ -26,7 +26,7 @@
     #panel-construir button:focus-visible { outline: 3px solid #ffd27a; }
     #panel-construir .estado { color: #ffd27a; min-height: 1.4em; }
     /* J3: the chat box, bottom left: the list is always there (an empty one takes no room), the input opens with Enter */
-    #chat { position: fixed; left: 10px; bottom: 34px; width: min(380px, 62vw); display: flex; flex-direction: column; gap: 4px; }
+    #chat { position: fixed; left: 10px; bottom: 34px; width: min(380px, 62vw, calc(100vw - 240px)); display: flex; flex-direction: column; gap: 4px; }
     #chat-lista { margin: 0; padding: 6px 10px; list-style: none; max-height: min(30vh, 210px); overflow-y: auto; border-radius: 8px; background: rgba(20, 24, 30, .62); color: #eef2f6; overflow-wrap: anywhere; }
     #chat-lista:empty { padding: 0; background: transparent; }
     #chat-lista b { color: #9ad0ff; font-weight: 600; }
@@ -92,6 +92,7 @@
     #ajustes :focus-visible, #ajustes-abrir:focus-visible { outline: 3px solid #ffd27a; outline-offset: 1px; }
     html.texto-grande body { font-size: 18px; }
     html.alto-contraste #hud, html.alto-contraste #ajustes, html.alto-contraste #panel-construir, html.alto-contraste #acciones button, html.alto-contraste #ajustes-abrir { background: #000; color: #fff; outline: 2px solid #fff; }
+    @media (min-width: 900px) { #help { max-width: calc(100vw - 480px); } } /* between «Misiones» and the minimap */
     html.alto-contraste #help { background: #fff; color: #000; opacity: 1; padding: 2px 6px; border-radius: 4px; }
     html.alto-contraste #ajustes .describe { opacity: 1; }
     html.alto-contraste :focus-visible { outline: 3px solid #ffeb3b !important; outline-offset: 2px; }
@@ -100,7 +101,7 @@
 </head>
 <body>
   <div id="hud">Conectando…</div>
-  <div id="help">WASD o flechas: andar · Mayús: correr · Espacio: saltar (otra vez en el aire: más alto) · arrastra: mirar · rueda o + −: acercar (hasta 1.ª persona) · , . RePág AvPág: girar la cámara · V: 1.ª persona · Inicio: cámara detrás · móvil: dedo a la izquierda anda, a la derecha mira, pellizca para acercar · Intro: chat · E: hablar o coger · J: misiones · M: mapa · I: tu ficha · O: ajustes · C o Tab construir (si puedes)</div>
+  <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · M: mapa · I: ficha · O: ajustes · C: construir</div>
   <button id="ar" type="button">Entrar en AR</button>
   <button id="vr" type="button">Entrar en VR</button>
   <button id="construir" type="button" aria-expanded="false" aria-controls="panel-construir">Construir</button>
