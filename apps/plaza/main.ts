@@ -7,7 +7,7 @@ import { createView } from "../../packages/render/src/index.ts";
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
-const view = await createView(document.body, { forceWebGL: params.has("webgl2") });
+const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined });
 const url = serverUrl(location);
 const transport = webSocketClient(url);
 const session = new ClientSession(transport);
@@ -53,6 +53,16 @@ function readAxes(): [number, number] {
   if (touch) { x = touch.dx; z = touch.dy; }
   return [Math.round(x * STICK_MAX), Math.round(z * STICK_MAX)];
 }
+
+// ---- AR (J8): the button exists only where the device can do immersive-ar; no WebXR (iPhone) = no button ----
+const arBtn = document.getElementById("ar") as HTMLButtonElement;
+const arLabel = { off: "Entrar en AR", searching: "Busca el suelo… (salir)", ready: "Toca para colocar (salir)", placed: "Colocado (salir)" };
+view.arSupported().then((ok) => {
+  if (!ok) return;
+  arBtn.style.display = "block";
+  arBtn.onclick = () => { if (view.ar.state === "off") void view.ar.enter(); else void view.ar.exit(); };
+});
+setInterval(() => { arBtn.textContent = arLabel[view.ar.state]; }, 250);
 
 // ---- loop: fixed 20 Hz client ticks inside the display loop, drawing blends between ticks ----
 const TICK_MS = 1000 / TICK_HZ;

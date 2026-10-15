@@ -64,3 +64,10 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Consumo: semana 43 % → 43 % (Sonnet).
 - Commit: ver `git log` (B1).
 - Siguiente: D1 (puerta de tipos).
+
+## 2026-10-15 04:35 · J8 · hecho (emulado)
+- Qué: botón «Entrar en AR» (solo si el aparato soporta `immersive-ar`; en iPhone no sale y se juega en plano). La sesión busca el suelo, enseña un aro, al tocar o pulsar el gatillo coloca un cubo anclado, y se cierra sola a los 90 s. Todo en `packages/render/src/ar.ts`. Nuevo `tools/e2e-ar.mjs`, ya dentro de `tools/auto.sh e2e`.
+- Números: 24 tests verdes; e2e chromium, firefox, AR y https OK. AR probado con el emulador IWER 2.6.0 (MIT, devDependency exacta) como Quest 3: entra, encuentra el suelo (falso), coloca, cierra solo, 0 errores; sin WebXR no hay botón ni errores. No probado en Android/Quest reales: el emulador no demuestra que se vea la cámara ni que el anclaje aguante.
+- Consumo: semana 43 % → 43% used (Sonnet).
+- Commit: ver `git log` (J8).
+- Siguiente: J6 (VR de verdad), que reutiliza IWER.

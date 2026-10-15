@@ -31,7 +31,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | I1 | Identidad de invitado y vincular el móvil con el ordenador o el visor | para Opus | no |
 | S4 | Persistencia mínima del mundo (puntos de enlace, inventario, cosas plantadas) | para Opus | no |
 | B1 | HTTPS en la red de casa para móviles y visores (certificado propio, `/ws` en el mismo origen) | hecho | sí |
-| J8 | AR de verdad: entrar en AR en Android, Quest 3 y Pico 4, suelo, anclar un objeto; iPhone en plano | pendiente | sí |
+| J8 | AR de verdad: entrar en AR en Android, Quest 3 y Pico 4, suelo, anclar un objeto; iPhone en plano | hecho (emulado; falta probar en aparato real) | sí |
 | J6 | VR de verdad: entrar en VR, moverse, manos y mandos, paneles 3D (emulador IWER) | pendiente | sí |
 | R1 | Realidad cruzada 1 «Despertar»: un QR real hace que la plaza reaccione para todos | espera a J7 | sí |
 | R2 | Realidad cruzada 2 «Semilla del Conocimiento»: pregunta en un sitio real → semilla que se planta en el mundo | espera a J7, I1, S4 | sí |
@@ -261,6 +261,8 @@ para `WebGLRenderer`: leer `src/renderers/common/XRManager.js` (el nuestro es `W
 WebGL2 en XR) antes de escribir. La sesión se cierra sola a los 90 s (móvil frío). **Hecho cuando:** e2e
 con el emulador IWER (MIT) si emula AR — comprobarlo; si no, decirlo y dejar escrita la prueba a mano para
 Pablo (necesita B1); la página no da errores cuando no existe `navigator.xr`.
+
+**J8 hecho (15-10):** `packages/render/src/ar.ts` (`arSupported`, `createAR`: sesión `immersive-ar` con `hit-test`, `anchors`/`dom-overlay` opcionales, retícula, tocar/gatillo coloca un cubo, se cierra a los 90 s) y botón «Entrar en AR» que solo aparece si el aparato lo soporta. `tools/e2e-ar.mjs` (dentro de `tools/auto.sh e2e`): sin WebXR no hay botón ni errores; con IWER 2.6.0 (MIT, devDependency exacta) haciendo de Quest 3 con un suelo falso: entra → «ready» → gatillo → «placed» → cierre automático (con `?armax=6000`) → «off», 0 errores. Límites del emulador: su capa base tiene framebuffer nulo (el test lo parchea) y el hit-test es un suelo inventado, así que **no prueba** que el vídeo de la cámara se vea detrás ni que los anclajes aguanten. Prueba a mano (necesita `npm run dev:lan` por https): Android Chrome con ARCore y Quest 3: abrir la página, «Entrar en AR», mover el aparato hasta ver el aro, tocar, comprobar que el cubo se queda quieto. Pendiente para otra fila: sincronizar el objeto colocado con los demás, pintar avatares en AR.
 
 ### R1 — Despertar (primera prueba de realidad cruzada)
 Módulo hecho con J7: `enlaces.json` con esquema (id, nombre, zona y posición en la plaza, efecto, reglas);
