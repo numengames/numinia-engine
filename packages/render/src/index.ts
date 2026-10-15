@@ -19,6 +19,8 @@ export type { Donde, Eje, Herramienta, Fase, Paso, Editor } from "./gizmo.ts";
 import { createAvatares } from "./avatares.ts";
 export type { CatalogoAvatares } from "./avatares.ts";
 import type { CatalogoAvatares } from "./avatares.ts";
+import { createNombres } from "./nombres.ts";
+export { NOMBRE_VISIBLE_M, NOMBRES_DIBUJADOS, BOCADILLO_VISIBLE_M } from "./nombres.ts";
 
 export type Backend = "WebGPU" | "WebGL2";
 /** Someone to draw. J2 (optional, additive): `y` = height of the feet in metres (0 = on the plaza), `speed` =
@@ -92,6 +94,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const bounces = new Map<Target, number>(); // target -> until (ms)
   const labelGeo = new THREE.PlaneGeometry(1.6, 0.4);
   const meshOf = (t: Target): THREE.Mesh | undefined => (t === "self" ? (selfMesh.visible ? selfMesh : undefined) : others.get(t));
+  const nombres = createNombres({ world, camera, avatarOf: meshOf }); // J3: names over heads and speech bubbles
   function dropLabel(t: Target): void {
     const d = labels.get(t);
     if (!d) return;
@@ -116,9 +119,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     for (const [t, d] of labels) {
       const m = meshOf(t);
       if (!m || now > d.until) { dropLabel(t); continue; }
-      d.mesh.position.set(m.position.x, m.position.y + 1.25, m.position.z);
+      d.mesh.position.set(m.position.x, nombres.above(t, m), m.position.z); // over the name and the bubble, if any (J3)
       d.mesh.quaternion.copy(camera.quaternion); // always faces whoever looks
     }
+    nombres.update(now);
   }
 
   addEventListener("resize", () => {
@@ -312,8 +316,18 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     labels(): Target[] { return [...labels.keys()]; },
     /** J1: VRM avatars (for checks): files loaded, clips, who wears which avatar and which clip plays. */
     avatares(): ReturnType<typeof avs.stats> { return avs.stats(); },
+    /** J3: the name over an avatar (`null` takes it away); drawn for the nearest 32 within 24 m, never over yourself. */
+    nameTag(t: Target, text: string | null): void { nombres.nameTag(t, text); },
+    /** J3: a speech bubble over an avatar for `ms` (wrapped, up to 6 lines); the latest replaces the one before. */
+    bubble(t: Target, text: string, ms: number): void { nombres.bubble(t, text, ms); },
+    /** J3: where names, bubbles and labels sit — world y of the top of the drawn avatar. Default: the capsule's top
+     * (centre y + 0.85); VRM avatars (J1) pass their head bone's height. */
+    setHeadTop(fn: (t: Target, avatar: THREE.Object3D) => number): void { nombres.setTop(fn); },
+    /** J3: names and bubbles the page holds, and whether each is drawn now (for checks). */
+    nameTags() { return nombres.nameTags(); },
+    bubbles() { return nombres.bubbles(); },
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
-    busy(): boolean { return labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy(); },
+    busy(): boolean { return labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); },
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */

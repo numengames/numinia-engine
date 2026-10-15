@@ -6,9 +6,12 @@ import { ClientSession, serverUrl } from "../../packages/client/src/index.ts";
 import { createView, leerAparato, leerBateria, medidorDeCuadros, haciaMundo } from "../../packages/render/src/index.ts";
 import funciones from "../../features/cliente.ts";
 import { constructor } from "../../features/objetos/client.ts";
+import { chatDePagina } from "../../features/chat/client.ts";
 import { montarConstructor } from "./constructor.ts";
 import { montarSoltar } from "./soltar.ts";
 import { catalogoDeAvatares } from "./catalogo-avatares.ts"; // not "./a…": dev:lan proxies every path starting with /a to the server
+import { montarChat } from "./chat.ts";
+import { escribiendo } from "./escribiendo.ts";
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
@@ -31,8 +34,12 @@ const session = new ClientSession(transport, {
     // H1: things placed in the world, and where I am (a builder puts things in front of me)
     place: (key, o) => view.place(key, o),
     here: () => { if (session.entity < 0) return null; const p = session.selfPosition(0); return { x: p.x, y: 0, z: p.z }; },
+    // J3: names over heads and speech bubbles (features/chat)
+    nameTag: (e, text) => view.nameTag(e === session.entity ? "self" : e, text),
+    bubble: (e, text, ms) => view.bubble(e === session.entity ? "self" : e, text, ms),
     // V1: every announced event reaches screen readers (polite; safety = assertive). V3 adds the engine's own voice.
     announce: (a) => {
+      if (a.feature === "chat") return; // J3: the chat box's own list (role=log, polite) reads the chat
       const box = document.getElementById(a.importance >= 3 ? "avisos-urgentes" : "avisos")!;
       const p = document.createElement("p"); p.textContent = a.text; box.appendChild(p);
       while (box.childElementCount > 3) box.firstElementChild!.remove();
@@ -43,7 +50,7 @@ transport.opened.catch(() => { hud.textContent = `No llego al servidor ${url}.\n
 
 // ---- the features' actions: a key on desktop, a button on touch screens; the help line lists them ----
 const acts = session.features.actions();
-addEventListener("keydown", (e) => { if (!e.repeat) acts.find((a) => a.key === e.code)?.run(); });
+addEventListener("keydown", (e) => { if (!e.repeat && !escribiendo(e)) acts.find((a) => a.key === e.code)?.run(); }); // J3: typing in a box is not an action
 if (matchMedia("(pointer: coarse)").matches) {
   document.getElementById("help")!.textContent = "Dedo a la izquierda: andar · a la derecha: mirar · dos dedos: acercar"; // N1: the touch map only
   const bar = document.getElementById("acciones")!;
@@ -62,6 +69,9 @@ montarConstructor(constructor, view, document.getElementById("construir") as HTM
 // ---- H9: drop your own .glb on the world (or «Subir modelo…» in the panel): uploaded by sha256, placed for everyone ----
 montarSoltar({ session, view, puede: () => constructor.estado.puede, origen: activos, billete: () => localStorage.getItem(GUARDA), panel: document.getElementById("panel-construir") });
 
+// ---- J3: the chat box (Enter opens, Enter sends, Escape closes; a «Chat» button on touch screens) ----
+const cajaChat = montarChat(chatDePagina, document.getElementById("chat")!);
+
 // ---- determinism probe: replay the reference run here and compare with the server's number ----
 const probe = { browser: -1, server: -1, ms: 0, done: false };
 const runProbe = () => {
@@ -74,8 +84,8 @@ const runProbe = () => {
 
 // ---- input: keyboard and a touch joystick, both reduced to two int8 axes ----
 const keys = new Set<string>();
-addEventListener("keydown", (e) => keys.add(e.code));
-addEventListener("keyup", (e) => keys.delete(e.code));
+addEventListener("keydown", (e) => { if (!escribiendo(e)) keys.add(e.code); }); // J3: typing never moves you
+addEventListener("keyup", (e) => keys.delete(e.code)); // always: a key let go inside a box must not stay held
 addEventListener("blur", () => keys.clear());
 const joy = document.getElementById("joy")!, knob = document.getElementById("knob")!;
 let touch: { id: number; x: number; y: number; dx: number; dy: number } | null = null;
@@ -110,9 +120,8 @@ function readAxes(): [number, number] {
 // ---- J2: Space jumps (again in the air: higher), Shift held runs; on touch screens a «Saltar» button and the stick
 // pushed to its edge runs; in VR, A or X jumps and the stick at its edge runs. A tap waits for the next 20 Hz tick ----
 let saltoPendiente = false;
-const escribiendo = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
 addEventListener("keydown", (e) => {
-  if (e.code !== "Space" || escribiendo(e.target)) return;
+  if (e.code !== "Space" || escribiendo(e)) return;
   e.preventDefault(); // no scrolling, no clicking the focused button
   if (!e.repeat) saltoPendiente = true;
 });
@@ -246,7 +255,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat };
 
 // battery mode: press B (or open ?bateria)
-addEventListener("keydown", (e) => { if (e.code === "KeyB") { view.power.setBattery(!view.power.battery); view.applyPixelRatio(); } });
+addEventListener("keydown", (e) => { if (e.code === "KeyB" && !escribiendo(e)) { view.power.setBattery(!view.power.battery); view.applyPixelRatio(); } });

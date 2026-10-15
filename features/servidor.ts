@@ -4,6 +4,7 @@ import type { ServerPart } from "../packages/feature/src/index.ts";
 import gestos from "./gestos/server.ts";
 import despertar from "./despertar/server.ts";
 import objetos from "./objetos/server.ts";
+import chat from "./chat/server.ts";
 
-const funciones: ServerPart[] = [gestos, despertar, objetos];
+const funciones: ServerPart[] = [gestos, despertar, objetos, chat];
 export default funciones;
