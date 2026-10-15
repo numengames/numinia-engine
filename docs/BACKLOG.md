@@ -26,7 +26,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | S1 | Kit de despliegue para un servidor pequeño (para mañana) | hecho | sí |
 | S2 | Métricas del servidor (`/health`, `/metrics`) y enjambre contra una URL remota (para mañana) | hecho | sí |
 | P1 | Ficha técnica: características y límites del motor (humana + `limits.json`) | hecho | sí |
-| J0 | Catálogo de todo lo que espera un jugador (la receta para añadir funciones es de J7) | pendiente | sí |
+| J0 | Catálogo de todo lo que espera un jugador (la receta para añadir funciones es de J7) | hecho | sí |
 | J7 | Módulos de juego: añadir una función sin tocar el núcleo, con un ejemplo real (gestos) | para Opus | no |
 | I1 | Identidad de invitado y vincular el móvil con el ordenador o el visor | para Opus | no |
 | S4 | Persistencia mínima del mundo (puntos de enlace, inventario, cosas plantadas) | para Opus | no |
@@ -44,6 +44,10 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J3 | Chat y bocadillos de texto sobre los avatares, con nombres | espera a J7 | sí |
 | J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR | espera a J7 | sí |
 | J5 | Libro de misiones, mapa y minimapa con marcadores | espera a J7 | sí |
+| N1 | Entrada táctil, gamepad, cámara en 3.ª persona y pantalla completa (de `docs/JUGADOR.md`) | espera a J7 | sí |
+| N2 | Menú de ajustes y accesibilidad básica, guardado local (de `docs/JUGADOR.md`) | espera a J7 | sí |
+| F1 | Amigos, bloqueo, moderación y roles (toca red y guardado; de `docs/JUGADOR.md`) | para Opus | no |
+| F2 | Portales entre instancias y grupo (toca red e instancias; de `docs/JUGADOR.md`) | para Opus | no |
 | A1 | Página de multitud (50/200/1.000/2.000 robots, completos vs horneados) | pendiente | sí |
 | D1 | Puerta de tipos: TypeScript 7 estricto, 0 errores | pendiente | sí |
 | S3 | Dilatación de tiempo cuando el tick no cabe (4.000 bots) | para Opus | no |

@@ -50,3 +50,10 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Consumo: semana 41 % → ver `hermes usage` (≈ 41–42 %).
 - Commit: ver `git log` de main (P1).
 - Siguiente: J0 (catálogo de lo que espera un jugador).
+
+## 2026-10-15 02:31 · J0 · hecho
+- Qué: `docs/JUGADOR.md`, el catálogo de lo que espera un jugador: diez grupos (moverse, verse, comunicarse, interactuar, progresar, orientarse, ajustes, VR/AR/móvil, accesibilidad, social). Cada cosa dice qué es, capa, nivel, cómo se ve en escritorio/móvil/VR, qué primitivas necesita, coste en móvil y qué fila la construye. Cola: nuevas N1 (entrada táctil, gamepad, 3.ª persona) y N2 (ajustes y accesibilidad) en `espera a J7`; F1 (amigos, moderación, roles) y F2 (portales y grupo) en `para Opus`.
+- Números: solo documentación, sin código; no se han medido cosas nuevas. No se consultó ninguna URL: lo que se dice de VRChat/Roblox/WoW sale del estudio previo y del conocimiento general.
+- Consumo: semana 43 % → 43 % (Sonnet).
+- Commit: ver `git log` (J0).
+- Siguiente: B1 (HTTPS en casa para móviles y visores).
