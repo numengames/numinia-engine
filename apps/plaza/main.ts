@@ -2,6 +2,7 @@
 import { hex } from "../../packages/core/src/index.ts";
 import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX } from "../../packages/sim/src/index.ts";
 import { webSocketClient } from "../../packages/net/src/index.ts";
+import { montarAjustes, leerAjuste } from "./menu-ajustes.ts"; // N2: settings menu + capabilities
 import { ClientSession, serverUrl } from "../../packages/client/src/index.ts";
 import { createView, leerAparato, leerBateria, medidorDeCuadros } from "../../packages/render/src/index.ts";
 import funciones from "../../features/cliente.ts";
@@ -25,6 +26,7 @@ const session = new ClientSession(transport, {
     label: (e, text, ms) => view.label(e === session.entity ? "self" : e, text, ms),
     bounce: (e, ms) => view.bounce(e === session.entity ? "self" : e, ms),
     beacon: (x, z, text, ms) => view.beacon(x, z, text, ms),
+    ajuste: (id) => leerAjuste(id), // N2: a feature reads its own settings (menu-ajustes.ts)
     // H1: things placed in the world, and where I am (a builder puts things in front of me)
     place: (key, o) => view.place(key, o),
     here: () => { if (session.entity < 0) return null; const p = session.selfPosition(0); return { x: p.x, y: 0, z: p.z }; },
@@ -198,6 +200,10 @@ function drawHud() {
 
 // handle for automated checks (tools/e2e.mjs)
 (globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor };
+
+// ---- N2: settings and capabilities (menu-ajustes.ts): gear + O, window.__numinia.ajustes / .capacidades. Applied here,
+// before the first frame: the display loop above only draws from the next animation frame on ----
+montarAjustes({ view, session, params, funciones, numinia: (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia });
 
 // battery mode: press B (or open ?bateria)
 addEventListener("keydown", (e) => { if (e.code === "KeyB") { view.power.setBattery(!view.power.battery); view.applyPixelRatio(); } });

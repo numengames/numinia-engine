@@ -26,6 +26,39 @@
     #panel-construir .estado { color: #ffd27a; min-height: 1.4em; }
     /* V1: what happens, for screen readers (not shown on screen; the voice of V3 comes later) */
     .solo-lector { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+    /* N2: the settings menu (a real <dialog>: keyboard, touch and screen readers) and what its settings change */
+    :root { --ui: 1; }
+    body > :not(canvas):not(#joy) { zoom: var(--ui); } /* «Tamaño de la interfaz»: everything on the screen but the world */
+    #ajustes-abrir { position: fixed; top: 10px; right: 10px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #eef2f6; font: inherit; font-size: 22px; line-height: 44px; }
+    #ajustes-abrir[hidden] { display: none; }
+    #ar, #vr, #construir { right: 62px; } /* the gear takes the corner: AR, VR and Construir move one button to the left */
+    #ajustes { position: fixed; inset: 10px 10px auto auto; margin: 0; width: min(390px, calc(100vw - 20px)); max-height: calc((100vh - 20px) / var(--ui)); overflow: auto; padding: 10px 12px 12px; border: 0; border-radius: 10px; background: rgb(20, 24, 30); color: #eef2f6; box-sizing: border-box; }
+    #ajustes::backdrop { background: rgba(10, 14, 20, .25); }
+    #ajustes .cabecera { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    #ajustes h2 { margin: 0; font-size: 1.25em; color: #ffd27a; }
+    #ajustes fieldset { margin: 10px 0 0; padding: 4px 10px 6px; border: 1px solid rgba(238, 242, 246, .25); border-radius: 8px; }
+    #ajustes legend { padding: 0 4px; font-weight: 600; color: #9ad0ff; }
+    #ajustes .ajuste { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; padding: 6px 0; border-top: 1px solid rgba(238, 242, 246, .08); }
+    #ajustes .ajuste[hidden], #ajustes fieldset[hidden] { display: none; }
+    #ajustes .ajuste label, #ajustes .ajuste .nombre { flex: 1 1 auto; font-weight: 600; }
+    #ajustes .ajuste input[type="checkbox"] { width: 22px; height: 22px; margin: 0; accent-color: #ffd27a; }
+    #ajustes .ajuste input[type="range"] { flex: 1 1 100%; height: 28px; margin: 0; accent-color: #ffd27a; }
+    #ajustes .ajuste select { min-height: 32px; padding: 2px 6px; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; font: inherit; }
+    #ajustes .ajuste output { font-variant-numeric: tabular-nums; color: #ffd27a; }
+    #ajustes .describe, #ajustes .nota { flex: 1 1 100%; margin: 0; font-size: .9em; opacity: .8; }
+    #ajustes .nota { color: #ffd27a; opacity: 1; }
+    #ajustes kbd, #ajustes .teclas kbd { display: inline-block; min-width: 1.4em; padding: 1px 6px; border: 1px solid #eef2f6; border-radius: 4px; text-align: center; font: inherit; font-weight: 600; }
+    #ajustes .teclas { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+    #ajustes button { min-height: 36px; padding: 6px 12px; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; font: inherit; font-weight: 600; }
+    #ajustes .pie { margin-top: 10px; }
+    #ajustes .estado { min-height: 1.4em; margin: 4px 0 0; color: #ffd27a; }
+    #ajustes :focus-visible, #ajustes-abrir:focus-visible { outline: 3px solid #ffd27a; outline-offset: 1px; }
+    html.texto-grande body { font-size: 18px; }
+    html.alto-contraste #hud, html.alto-contraste #ajustes, html.alto-contraste #panel-construir, html.alto-contraste #acciones button, html.alto-contraste #ajustes-abrir { background: #000; color: #fff; outline: 2px solid #fff; }
+    html.alto-contraste #help { background: #fff; color: #000; opacity: 1; padding: 2px 6px; border-radius: 4px; }
+    html.alto-contraste #ajustes .describe { opacity: 1; }
+    html.alto-contraste :focus-visible { outline: 3px solid #ffeb3b !important; outline-offset: 2px; }
+    html.menos-movimiento *, html.menos-movimiento *::before, html.menos-movimiento *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   </style>
 </head>
 <body>
@@ -39,6 +72,14 @@
   <div id="joy"><div id="knob"></div></div>
   <div id="avisos" class="solo-lector" role="status" aria-live="polite"></div>
   <div id="avisos-urgentes" class="solo-lector" role="alert" aria-live="assertive"></div>
+  <!-- N2: settings (gear or O; Escape closes). Filled by menu-ajustes.ts from the settings registry -->
+  <button id="ajustes-abrir" type="button" aria-haspopup="dialog" aria-controls="ajustes" aria-expanded="false" title="Ajustes (O)"><span aria-hidden="true">⚙</span><span class="solo-lector">Ajustes</span></button>
+  <dialog id="ajustes" aria-labelledby="ajustes-titulo">
+    <div class="cabecera"><h2 id="ajustes-titulo" tabindex="-1">Ajustes</h2><button id="ajustes-cerrar" type="button">Cerrar</button></div>
+    <p id="ajustes-estado" class="estado" role="status" aria-live="polite"></p>
+    <div id="ajustes-grupos"></div>
+    <div class="pie"><button id="ajustes-restablecer" type="button">Restablecer todo</button></div>
+  </dialog>
   <script type="module" src="./main.ts"></script>
 </body>
 </html>
