@@ -171,6 +171,16 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     }
   }
 
+  // ---- J5: names that stay over things (people of the world). Sprites: they face the camera by themselves, so
+  // nothing runs per frame; the fog fades the far ones. pickThing tells which thing (or name) is under a screen point.
+  const tags = new Map<string, THREE.Sprite>();
+  function dropTag(key: string): void {
+    const s = tags.get(key);
+    if (!s) return;
+    world.remove(s); s.material.map?.dispose(); s.material.dispose(); tags.delete(key);
+  }
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+
   return {
     backend,
     power,
@@ -250,6 +260,35 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** Beacons alive right now (for checks). */
     beaconCount(): number { return beacons.length; },
+    /** J5: a name that stays over a thing (`key` as in place), or `null` to take it away. */
+    tag(key: string, t: { text: string; x: number; y: number; z: number } | null): void {
+      dropTag(key);
+      if (!t) return;
+      const c = document.createElement("canvas"); c.width = 512; c.height = 96;
+      const g = c.getContext("2d")!;
+      g.fillStyle = "rgba(20,30,40,0.78)"; g.fillRect(0, 0, 512, 96);
+      g.fillStyle = "#ffffff"; g.font = "bold 44px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText(t.text.slice(0, 26), 256, 50);
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
+      s.name = `nombre:${key}`; s.scale.set(2.9, 0.54, 1); s.position.set(t.x, t.y, t.z); s.renderOrder = 10;
+      world.add(s); tags.set(key, s);
+    },
+    /** J5: names over things alive right now (for checks). */
+    tagCount(): number { return tags.size; },
+    /** J4: the key of the placed thing (or of the thing whose name it is) under a screen point, nearest first; null if none. */
+    pickThing(clientX: number, clientY: number): string | null {
+      const r = renderer.domElement.getBoundingClientRect();
+      if (!r.width || !r.height) return null;
+      ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+      ray.setFromCamera(ndc, camera);
+      for (const hit of ray.intersectObjects([...[...things.values()].map((s) => s.group), ...tags.values()], true)) {
+        for (let o: THREE.Object3D | null = hit.object; o; o = o.parent) {
+          if (o.name.startsWith("objeto:")) return o.name.slice(7);
+          if (o.name.startsWith("nombre:")) return o.name.slice(7);
+        }
+      }
+      return null;
+    },
     /** H1: put a thing in the world, move it, change its model, or take it away (`null`). */
     place(key: string, t: Thing | null): void {
       const s = things.get(key);

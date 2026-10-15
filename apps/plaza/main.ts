@@ -7,6 +7,10 @@ import { createView, leerAparato, leerBateria, medidorDeCuadros } from "../../pa
 import funciones from "../../features/cliente.ts";
 import { constructor } from "../../features/objetos/client.ts";
 import { montarConstructor } from "./constructor.ts";
+import { misiones } from "../../features/misiones/client.ts";
+import { montarInteraccion } from "./interactuar.ts";
+import { montarDialogo } from "./dialogo.ts";
+import { montarLibro } from "./misiones.ts";
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
@@ -28,6 +32,8 @@ const session = new ClientSession(transport, {
     // H1: things placed in the world, and where I am (a builder puts things in front of me)
     place: (key, o) => view.place(key, o),
     here: () => { if (session.entity < 0) return null; const p = session.selfPosition(0); return { x: p.x, y: 0, z: p.z }; },
+    // J5: a name that stays over a person of the world
+    tag: (key, t) => view.tag(key, t),
     // V1: every announced event reaches screen readers (polite; safety = assertive). V3 adds the engine's own voice.
     announce: (a) => {
       const box = document.getElementById(a.importance >= 3 ? "avisos-urgentes" : "avisos")!;
@@ -55,6 +61,15 @@ if (matchMedia("(pointer: coarse)").matches) {
 
 // ---- H1: the builder, for whoever may build (the server says so on entering) ----
 montarConstructor(constructor, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!);
+
+// ---- J4/J5: what you can use from close by (E, a click, the prompt button), conversations, the quest book (J) ----
+const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: misiones.ofrece, ocupado: () => !!misiones.dialogo() });
+misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
+montarDialogo(misiones, document.getElementById("dialogo")!, view);
+montarLibro(misiones, {
+  boton: document.getElementById("misiones") as HTMLButtonElement, panel: document.getElementById("libro")!, linea: document.getElementById("mision-seguida")!,
+  nota: document.getElementById("mision-nota")!, view, here: () => (session.entity >= 0 ? session.selfPosition(1) : null),
+});
 
 // ---- determinism probe: replay the reference run here and compare with the server's number ----
 const probe = { browser: -1, server: -1, ms: 0, done: false };
@@ -197,7 +212,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, misiones, interaccion };
 
 // battery mode: press B (or open ?bateria)
 addEventListener("keydown", (e) => { if (e.code === "KeyB") { view.power.setBattery(!view.power.battery); view.applyPixelRatio(); } });

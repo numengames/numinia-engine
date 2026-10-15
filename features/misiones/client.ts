@@ -39,9 +39,10 @@ export function crearCliente() {
   let P: ClientApi | null = null, M: ClientApi | null = null;
   const libro = new Map<string, MisionVista>();
   let dialogo: Dialogo | null = null;
-  const estado = { ultimoRechazo: "", ultimoAviso: "" };
-  const oyentes = new Set<(que: "libro" | "dialogo") => void>();
-  const avisar = (que: "libro" | "dialogo") => { for (const f of oyentes) { try { f(que); } catch { /* a panel's problem is its own */ } } };
+  const estado = { ultimoRechazo: "", ultimoAviso: "", nota: "" }; // nota: the last thing worth showing on screen (the page's toast)
+  const oyentes = new Set<(que: "libro" | "dialogo" | "nota") => void>();
+  const avisar = (que: "libro" | "dialogo" | "nota") => { for (const f of oyentes) { try { f(que); } catch { /* a panel's problem is its own */ } } };
+  const nota = (t: string) => { estado.nota = t; avisar("nota"); };
   const sin = (why: string): Res => ({ ok: false, why });
 
   const actual = (m: MisionVista): PasoVista | undefined => m.lista.find((s) => s.n === m.paso);
@@ -76,8 +77,8 @@ export function crearCliente() {
     usar: (cosa: string): Res => M?.send("usar", { cosa }) ?? sin("la página aún no ha arrancado"),
     /** Whether the page should offer «E: …» for a thing: quest things only while a current step needs them. */
     ofrece: (feature: string, key: string): boolean => feature !== "misiones" || [...libro.values()].some((m) => m.estado === "activa" && actual(m)?.que === key && (actual(m)?.tipo === "coge" || actual(m)?.tipo === "usa")),
-    /** Call `fn` when the book or the conversation changes; returns how to stop. */
-    alCambiar: (fn: (que: "libro" | "dialogo") => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
+    /** Call `fn` when the book, the conversation or the on-screen note changes; returns how to stop. */
+    alCambiar: (fn: (que: "libro" | "dialogo" | "nota") => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
 
   const pnjPart = clientPart(pnjDecl, (a) => {
@@ -93,12 +94,12 @@ export function crearCliente() {
       avisar("dialogo");
     });
     a.on("fin", (m) => { if (dialogo?.pnj === String(m.pnj)) { dialogo = null; avisar("dialogo"); } });
-    a.on("rechazado", (m) => { estado.ultimoRechazo = String(m.motivo); avisar("dialogo"); });
+    a.on("rechazado", (m) => { estado.ultimoRechazo = String(m.motivo); avisar("dialogo"); nota(String(m.motivo)); });
   });
 
   const misionesPart = clientPart(misionesDecl, (a) => {
     M = a;
-    a.state.onChange((key, v) => a.view.place?.(`cosa:${key}`, v ? aspectoCosa(v) : null));
+    a.state.onChange((key, v) => a.view.place?.(`misiones:${key}`, v ? aspectoCosa(v) : null)); // J4: <feature>:<key>, so a click is understood
     a.on("libro", () => { libro.clear(); avisar("libro"); });
     a.on("mision", (m) => {
       libro.set(String(m.id), { id: String(m.id), titulo: String(m.titulo), descripcion: String(m.descripcion), estado: m.estado === "hecha" ? "hecha" : "activa", paso: Number(m.paso), pasos: Number(m.pasos), seguida: m.seguida === true, recompensa: String(m.recompensa ?? ""), lista: [] });
@@ -111,11 +112,11 @@ export function crearCliente() {
       mv.lista = [...mv.lista.filter((x) => x.n !== s.n), s].sort((p, q) => p.n - q.n);
       avisar("libro");
     });
-    a.on("aceptada", () => avisar("libro"));
-    a.on("avance", () => avisar("libro"));
-    a.on("completada", () => avisar("libro"));
-    a.on("aviso", (m) => { estado.ultimoAviso = String(m.texto); avisar("libro"); });
-    a.on("rechazado", (m) => { estado.ultimoRechazo = String(m.motivo); avisar("libro"); });
+    a.on("aceptada", (m) => nota(`Misión nueva: ${String(m.titulo)}`));
+    a.on("avance", (m) => nota(`✓ ${String(m.texto)}`));
+    a.on("completada", (m) => nota(`¡Misión completada! ${String(m.titulo)}${m.recompensa ? ` · ${String(m.recompensa)}` : ""}`));
+    a.on("aviso", (m) => { estado.ultimoAviso = String(m.texto); nota(String(m.texto)); });
+    a.on("rechazado", (m) => { estado.ultimoRechazo = String(m.motivo); nota(String(m.motivo)); });
   });
 
   const parts: ClientPart[] = [pnjPart, misionesPart];
