@@ -123,7 +123,7 @@ the reason, write it in the diary, finish.
 Shift hygiene: prefix heavy commands with `nice -n 19` (and `taskset -c 2-5` for long ones); no local
 LLMs; load tests ≤ 30 s; never touch the user's plaza (ports 8790/5173) except through
 `tools/auto.sh finish`; no inline scripts (`node -e`, `python -c`, heredocs) — they wait for a manual
-approval nobody can give at night: write a file under `$TMPDIR` and run it; no `sudo`, no system
+approval nobody can give at night: write a file under `$TMPDIR` and run it; `rm -rf` asks for approval too: extract or build into a new folder instead of deleting one; no `sudo`, no system
 packages, no destructive git (`reset --hard`, `clean -fdx`, `branch -D`, force anything); new npm
 dependencies only with exact versions and a free licence (MIT, Apache-2.0, BSD, ISC, CC0), listed in
 the diary. Interactive sessions: `tools/auto.sh lock` before editing `main`, `unlock` after.
