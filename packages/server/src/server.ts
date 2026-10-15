@@ -1,6 +1,7 @@
 // server: one instance process. HTTP + WebSocket on one port, the Instance (authority) behind, 20 Hz loop.
 //   WebSocket upgrade on any path (Caddy passes /ws) · GET /health · GET /metrics (JSON, see metrics.ts)
 //   GET /sesiones (T1: how each connected player entered; like /metrics, never published by Caddy)
+//   /mundo (download the world as a zip, upload one: mundo-zip.ts; only with the administration code)
 import { createServer } from "node:http";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { existsSync, readFileSync } from "node:fs";
@@ -19,6 +20,7 @@ import { KEEP_DAYS, Sesiones } from "./sesiones.ts";
 import { FileStorage } from "./datos.ts";
 import { Activos, BIBLIOTECA } from "./activos.ts";
 import { Subidas } from "./subidas.ts";
+import { CopiaMundo } from "./mundo-zip.ts";
 import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
 import { lectorAventura } from "./aventura.ts";
 import { leerHabitantes } from "../../agent/src/formato.ts";
@@ -41,6 +43,8 @@ export type ServerOptions = {
   subir?: { topesMB?: Partial<Record<string, number>>; totalMB?: number }; // H9: smaller caps (tests); default ficheros.ts
   aventura?: string | null;      // J5: the adventure's folder (quests, people, things as text files); default null = none
   agentes?: string;              // P4: the secret that signs AI inhabitants' tickets (env MOTOR_AGENTES_SECRET); none or short = no inhabitants
+  admin?: string;                // the administration code for /mundo (env MOTOR_ADMIN); none or short = /mundo answers 403
+  reiniciar?: () => void;        // after a world was uploaded and swapped in: the installed server exits (systemd starts it again)
   log?: (line: string) => void;
 };
 
@@ -122,6 +126,14 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     puede: (who) => puede(who, "construir"), // the same question every building intent asks (api.puede)
   });
 
+  // the world as a zip (download / upload): see mundo-zip.ts; `apagar` is filled in below, once the loop exists
+  let apagar: () => Promise<void> = async () => {};
+  const copia = new CopiaMundo({
+    datos: o.datos ?? null, subidas: o.datos ? (o.subidas ?? null) : null, admin: o.admin ?? process.env.MOTOR_ADMIN, version, log,
+    vaciar: async () => { await datos?.flush(); }, apagar: () => apagar(),
+    reiniciar: o.reiniciar ?? (() => log("[mundo] mundo cambiado: reinicia el servidor para usarlo")),
+  });
+
   const ticks = new TickWindow(200), lags = new TickWindow(200), responses = new TickWindow(200), bytes = new ByteWindow(11);
   const runtime = new Runtime(), env = entorno();
   const counts = { aceptadas: 0, cerradas: 0, rechazadasLlenas: 0 };
@@ -154,6 +166,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     if (method === "GET" && path === "/metrics.prom") { res.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8", "cache-control": "no-store" }); return void res.end(toPrometheus(metrics())); }
     if ((method === "GET" || method === "HEAD") && path.startsWith("/a/") && activos.servir(path, res, method === "HEAD")) return; // H1: files by their sha256
     if ((method === "PUT" || method === "OPTIONS") && path.startsWith("/a/")) return subidas.atender(method, path, req, res); // H9: uploads
+    if (copia.atender(method, path, req, res)) return; // the world as a zip
     if (method !== "GET" && method !== "POST") return json(res, 405, { error: "solo GET o POST" });
     // everything else may be a game feature's route (e.g. the page a QR opens)
     const answer = (body: string) => {
@@ -200,6 +213,13 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     log(`[instancia] tick ${m.tick} · conectados ${m.conectados} · tick p99 ${m.tickMs.p99.toFixed(2)} ms (peor ${m.tickMs.peor.toFixed(2)}) · ${m.kbitPorPersona.toFixed(1)} kbit/s por persona`);
   }, o.statsMs ?? 30000);
   stats.unref();
+  // stop the world for good (before a swap of datos/): no tick, nobody connected, no new connections, all written
+  apagar = async () => {
+    stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats);
+    for (const c of wss.clients) c.terminate();
+    wss.close(); http.close(); http.closeIdleConnections();
+    await Promise.all([sesiones.vaciar(), datos?.flush()]);
+  };
 
   return new Promise((ok, ko) => {
     http.once("error", ko);

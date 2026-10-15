@@ -48,6 +48,23 @@ test("installer (H9): uploads live next to the saved world, and Caddy passes /a/
   assert.match(tpl, /handle \/a\/\* \{\n\t\treverse_proxy 127\.0\.0\.1:\$PORT\n\t\}/, "no method or size filter in front of /a/: the server decides");
 });
 
+test("installer: /mundo reaches the server with the administration code; options survive a run without them", () => {
+  const tpl = readFileSync("deploy/instalar-motor.plantilla.sh", "utf8");
+  assert.match(tpl, /handle \/mundo\* \{\n\t\treverse_proxy 127\.0\.0\.1:\$PORT\n\t\}/, "no size limit in front of the world upload: the server caps it");
+  assert.match(tpl, /EnvironmentFile=\$PREFIX\/admin\.env\nExecStart=\$PREFIX\/node\/bin\/node packages\/server\/src\/main\.ts/, "only the engine reads the administration code");
+  assert.match(tpl, /umask 077; echo "MOTOR_ADMIN=/);
+  assert.doesNotMatch(tpl, /cat "\$PREFIX\/admin\.env"|echo "\$MOTOR_ADMIN/, "the code is never printed");
+  assert.match(tpl, /ExecStart=\/usr\/bin\/bash \$PREFIX\/actualizar\.sh/);
+  assert.match(tpl, /printf 'DOMAIN=%s\\nMEMORY=%s\\nFIREWALL=%s\\nHABITANTES=%s\\nAUTO=%s\\n'/);
+  // the help is the header, and every option it lists is parsed
+  const help = spawnSync("bash", ["deploy/instalar-motor.plantilla.sh", "--help"], { encoding: "utf8" }).stdout;
+  for (const o of ["--dominio", "--sin-dominio", "--memoria", "--sin-cortafuegos", "--sin-habitantes", "--auto-actualizar", "--sin-auto-actualizar", "--solo-extraer", "--version"]) {
+    assert.ok(help.includes(o), `--help names ${o}`);
+    assert.ok(tpl.includes(`    ${o})`), `${o} is parsed`);
+  }
+  assert.doesNotMatch(help, /set -euo/);
+});
+
 test("installer ships exactly the packages the server may import (P4: and the inhabitants' service: agent, client)", () => {
   assert.deepEqual(serverPackages().sort(), ["agent", "client", "core", "ecs", "feature", "instance", "net", "schema", "server", "sim"]);
 });

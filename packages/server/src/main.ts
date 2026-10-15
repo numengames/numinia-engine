@@ -17,6 +17,10 @@ const srv = await startServer({
   construir: process.env.MOTOR_CONSTRUIR === "todos" ? "todos" : "nadie", // H1: open building to everyone (home plaza) or nobody (default); H3 = roles
   subidas: process.env.ACTIVOS_DIR ?? `${process.env.DATOS_DIR ?? ".run/datos"}/activos`, // H9: uploaded files by sha256, next to the saved world (installed: /var/lib/numinia-motor/datos/activos); activos/ is always served
   aventura: process.env.AVENTURA_DIR === "" ? null : (process.env.AVENTURA_DIR ?? "aventuras/ejemplo"), // J5: quests, people, things (AVENTURA_DIR= for none)
+  // /mundo: a world uploaded as a zip is swapped in, then the process leaves; under systemd (INVOCATION_ID) it is started
+  // again with the new world. By hand (tools/plaza.sh, npm run server) it stays stopped and the log says to restart it.
+  admin: process.env.MOTOR_ADMIN,
+  reiniciar: () => { if (process.env.INVOCATION_ID) process.exit(0); else console.log("[mundo] mundo cambiado y servidor parado: arráncalo otra vez para usarlo"); },
 });
 
 // systemd (and tools/plaza.sh) stop the server with SIGTERM: close every connection first so each session
