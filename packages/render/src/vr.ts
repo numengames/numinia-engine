@@ -84,6 +84,9 @@ export function createVR(h: VRHooks) {
   let session: any = null;
   let comfort = 0.8; // 0 = off, 1 = strongest
   let moveX = 0, moveZ = 0, turnLatched = false, yawSteps = 0, strength = 0;
+  // J2: A (right) or X (left) = jump, like Hyperfy2's A; a press waits here until the page's next tick takes it
+  let jumpWanted = false;
+  const jumpHeld = { left: false, right: false };
   const dir = new THREE.Vector3();
   const set = (s: VRState) => { if (s !== state) { state = s; h.onChange?.(s); } };
 
@@ -109,10 +112,10 @@ export function createVR(h: VRHooks) {
   }
   async function exit(): Promise<void> { if (session) await session.end(); }
 
-  /** Call every frame while presenting; `self` is where the avatar is (metres). */
-  function update(self: { x: number; z: number } | null, dtSeconds: number): void {
+  /** Call every frame while presenting; `self` is where the avatar is (metres; J2: the floor rises with its jumps). */
+  function update(self: { x: number; z: number; y?: number } | null, dtSeconds: number): void {
     if (!session) return;
-    if (self) rig.position.set(self.x, 0, self.z);
+    if (self) rig.position.set(self.x, self.y ?? 0, self.z);
     let lx = 0, ly = 0, rx = 0;
     for (const src of session.inputSources ?? []) {
       const a = src.gamepad?.axes;
@@ -120,6 +123,11 @@ export function createVR(h: VRHooks) {
       const sx = a.length > 3 ? a[2] : a[0], sy = a.length > 3 ? a[3] : a[1];
       if (src.handedness === "left") { lx = deadzone(sx); ly = deadzone(sy); }
       else if (src.handedness === "right") rx = deadzone(sx);
+      if (src.handedness === "left" || src.handedness === "right") { // xr-standard buttons[4] = A (right) / X (left)
+        const down = !!src.gamepad.buttons?.[4]?.pressed;
+        if (down && !jumpHeld[src.handedness as "left" | "right"]) jumpWanted = true;
+        jumpHeld[src.handedness as "left" | "right"] = down;
+      }
     }
     // snap turn: one step per push, re-armed when the stick returns to the middle
     let turned = false;
@@ -147,6 +155,8 @@ export function createVR(h: VRHooks) {
     get active() { return state === "on"; },
     /** Movement intention in the world frame, each -1..1. */
     axes(): [number, number] { return [moveX, moveZ]; },
+    /** J2: true once per press of A or X since the last call (the page asks on each tick). */
+    takeJump(): boolean { const j = jumpWanted; jumpWanted = false; return j; },
     get comfort() { return comfort; },
     set comfort(v: number) { comfort = Math.max(0, Math.min(1, v)); },
     get yawDegrees() { return yawSteps * SNAP_DEG; },

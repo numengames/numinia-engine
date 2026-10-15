@@ -1,6 +1,6 @@
 // The PP1 page: one plaza, your capsule, everyone else's, and the determinism probe.
 import { hex } from "../../packages/core/src/index.ts";
-import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX } from "../../packages/sim/src/index.ts";
+import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX, BTN_JUMP, BTN_RUN } from "../../packages/sim/src/index.ts";
 import { webSocketClient } from "../../packages/net/src/index.ts";
 import { ClientSession, serverUrl } from "../../packages/client/src/index.ts";
 import { createView, leerAparato, leerBateria, medidorDeCuadros } from "../../packages/render/src/index.ts";
@@ -98,6 +98,31 @@ function readAxes(): [number, number] {
   return [Math.round(x * STICK_MAX), Math.round(z * STICK_MAX)];
 }
 
+// ---- J2: Space jumps (again in the air: higher), Shift held runs; on touch screens a «Saltar» button and the stick
+// pushed to its edge runs; in VR, A or X jumps and the stick at its edge runs. A tap waits for the next 20 Hz tick ----
+let saltoPendiente = false;
+const escribiendo = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+addEventListener("keydown", (e) => {
+  if (e.code !== "Space" || escribiendo(e.target)) return;
+  e.preventDefault(); // no scrolling, no clicking the focused button
+  if (!e.repeat) saltoPendiente = true;
+});
+if (matchMedia("(pointer: coarse)").matches) {
+  const b = document.createElement("button");
+  b.type = "button"; b.id = "saltar"; b.textContent = "Saltar"; b.title = "Saltar (otra vez en el aire: más alto)";
+  let porToque = false;
+  b.addEventListener("pointerdown", (ev) => { ev.stopPropagation(); porToque = true; saltoPendiente = true; }); // not a joystick touch
+  b.addEventListener("click", () => { if (!porToque) saltoPendiente = true; porToque = false; }); // screen readers click
+  document.getElementById("acciones")!.prepend(b);
+}
+function readButtons(): number {
+  let b = 0;
+  if (view.vr.takeJump() || saltoPendiente) { saltoPendiente = false; b |= BTN_JUMP; }
+  const alBorde = (touch && Math.hypot(touch.dx, touch.dy) >= 0.9) || (view.vr.active && Math.hypot(...view.vr.axes()) >= 0.9);
+  if (keys.has("ShiftLeft") || keys.has("ShiftRight") || alBorde) b |= BTN_RUN;
+  return b;
+}
+
 // ---- AR (J8): the button exists only where the device can do immersive-ar; no WebXR (iPhone) = no button ----
 const arBtn = document.getElementById("ar") as HTMLButtonElement;
 const arLabel = { off: "Entrar en AR", searching: "Busca el suelo… (salir)", ready: "Toca para colocar (salir)", placed: "Colocado (salir)" };
@@ -153,13 +178,13 @@ let lastDrawAt = 0;
 // ---- loop: fixed 20 Hz client ticks inside the display loop, drawing blends between ticks ----
 const TICK_MS = 1000 / TICK_HZ;
 let lastActive = 0, lastSig = "", cost: { calls: number; triangles: number; cpuMs?: number } = { calls: 0, triangles: 0 };
-const signature = () => { const s = session.entity >= 0 ? session.selfPosition(0) : null; let h = s ? s.x + s.z : 0; for (const r of session.remotePositions()) h += r.x * 3 + r.z; return h.toFixed(2); };
+const signature = () => { const s = session.entity >= 0 ? session.selfPosition(0) : null; let h = s ? s.x + s.z + s.y * 7 : 0; for (const r of session.remotePositions()) h += r.x * 3 + r.z + r.y * 5; return h.toFixed(2); };
 let last = performance.now(), acc = 0, frames = 0, fps = 0, fpsT = last;
 setInterval(() => session.ping(), 1000);
 view.loop((now) => {
   const dt = Math.min(250, now - last); last = now;
   acc += dt;
-  while (acc >= TICK_MS) { const [mx, mz] = readAxes(); session.tick(mx, mz); acc -= TICK_MS; }
+  while (acc >= TICK_MS) { const [mx, mz] = readAxes(); session.tick(mx, mz, readButtons()); acc -= TICK_MS; }
   if (session.welcome && !probe.done) runProbe();
   if (session.welcome && !informe.bienvenidaMs) informe.bienvenidaMs = Math.round(performance.now());
   if (probe.done && informe.primerCuadroMs && !informe.entrada) void enviarEntrada();
