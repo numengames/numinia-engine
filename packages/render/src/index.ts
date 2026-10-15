@@ -11,6 +11,8 @@ import { createPower, readCaps, checkCost } from "./power.ts";
 export { createPower, readCaps, checkCost } from "./power.ts";
 export type { FrameCost } from "./power.ts";
 export { leerAparato, leerBateria, medidorDeCuadros } from "./sesion.ts";
+import { crearCenital } from "./cenital.ts";
+export type { Huella, ImagenCenital } from "./cenital.ts";
 
 export type Backend = "WebGPU" | "WebGL2";
 export type Placed = { id: number; x: number; z: number };
@@ -57,6 +59,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     p.position.set(Math.cos(a) * r, 1.5, Math.sin(a) * r);
     world.add(p);
   }
+  // J5: what the top-down map draws (cenital.ts): ground and grid as its background, the pillars as landmarks
+  ground.userData.mapa = grid.userData.mapa = "suelo";
+  for (const o of world.children) if (o !== ground && o !== grid) o.userData.mapa = true;
 
   const bodyGeo = new THREE.CapsuleGeometry(0.35, 1.0, 4, 12);
   const selfMat = new THREE.MeshStandardMaterial({ color: 0xe07a3f });
@@ -71,6 +76,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const ar = createAR({ renderer, scene, world, domOverlayRoot: document.getElementById("hud") ?? undefined, maxMs: opts.arMaxMs });
 
   const vr = createVR({ renderer, scene, camera });
+  const cenital = crearCenital(renderer, scene, world, backend); // J5: the zone from above (big map) and its footprints
   let selfXZ: { x: number; z: number } | null = null;
 
   // feature decorations (J7): a text label over an avatar and a short bounce; both expire on their own
@@ -95,7 +101,11 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     world.remove(b.group);
     for (const ch of b.group.children) { const m = (ch as THREE.Mesh).material as THREE.MeshBasicMaterial; if (m !== beaconMat) { m.map?.dispose(); m.dispose(); } }
   }
+  // J5: waypoints («Marcar destino» on the map): the same column, kept until dropped; busy() ignores them (cool phones)
+  const waypoints = new Map<number, { group: THREE.Group; until: number }>();
+  let waypointSeq = 0;
   function updateDecorations(now: number): void {
+    for (const w of waypoints.values()) w.group.children[1].quaternion.copy(camera.quaternion);
     for (let i = beacons.length - 1; i >= 0; i--) {
       const b = beacons[i];
       if (now > b.until) { dropBeacon(b); beacons.splice(i, 1); } else b.group.children[1].quaternion.copy(camera.quaternion);
@@ -249,7 +259,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       beacons.push({ group, until: performance.now() + ms });
     },
     /** Beacons alive right now (for checks). */
-    beaconCount(): number { return beacons.length; },
+    beaconCount(): number { return beacons.length + waypoints.size; },
+    /** J5: a waypoint: a beacon that stays until `dropWaypoint(id)` and never keeps the page drawing. Returns its id. */
+    waypoint(x: number, z: number, text: string): number { this.beacon(x, z, text, Infinity); waypoints.set(++waypointSeq, beacons.pop()!); return waypointSeq; },
+    dropWaypoint(id: number): void { const w = waypoints.get(id); if (w) { dropBeacon(w); waypoints.delete(id); } },
+    /** J5: the zone seen from above (the big map's picture), the footprints of what stands in it (the minimap's
+     * landmarks) and a number that changes when they do. Cost and the two ways (gpu, huellas): cenital.ts. */
+    cenital: (o?: { px?: number; incluir?: { x: number; z: number }; modo?: "gpu" | "huellas" }) => cenital.generar(o),
+    huellas: () => cenital.huellas(),
+    cenitalVersion: () => cenital.version(),
     /** H1: put a thing in the world, move it, change its model, or take it away (`null`). */
     place(key: string, t: Thing | null): void {
       const s = things.get(key);
