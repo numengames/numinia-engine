@@ -10,6 +10,8 @@ events, `state.card` things; `announcements`, `cards()` and `view.announce` on t
   (the page lends it `ViewHooks`), open sockets (the instance and the server carry its bytes).
 - **Depends on:** core, schema, net (rule: `tools/layers.json`)
 - **Tested by:** `test/feature.test.ts`, `test/accesible.test.ts`, `test/objetos.test.ts`, `tools/e2e.mjs` (gesture and objects legs)
+- **Files (H9):** `api.activo(sha256, ext = "glb")` — is there a file `/a/<sha256>.<ext>` on this server (the house
+  library or a builder's upload)? Read-only; the composition answers it (`InstanceOptions.activo`). Tested by `test/subidas.test.ts`.
 - **Main API:** `defineFeature`, `serverPart`, `clientPart`, `buildCatalog`, `ServerRuntime`,
   `ClientRuntime`, `ServerApi` (`on`, `emit`, `state`, `route`, `onJoin`/`onLeave`/`onTick`),
   `ClientApi` (`on`, `send`, `state`, `action`, `view`), `escapeHtml`

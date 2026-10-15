@@ -60,6 +60,20 @@ sitio, giro, escala y nombre. Medido por `test/objetos.test.ts`.
 | Ficheros | `GET /a/<sha256>.glb`, caché de un año; se bajan 4 a la vez, el más cercano primero |
 | Animación | la primera del modelo, en bucle, solo a menos de 40 m (móvil frío) |
 
+## Subir tus ficheros (H9, paridad con Hyperfy2)
+
+Soltar un `.glb` en el mundo (o «Subir modelo…») lo sube por su sha256 y lo coloca donde se suelta. Solo quien puede
+construir. Medido por `test/subidas.test.ts` y `tools/e2e-piernas/subir.mjs`.
+
+| Dato | Valor |
+|---|---|
+| Quién sube | quien puede construir (billete de invitado I1 en `Authorization: Bearer`; sin él 401, sin permiso 403) |
+| Tipos | glb, vrm, png, jpg, webp, ktx2, hdr, mp3, ogg, mp4, webm (otro: 415) |
+| Tope por fichero | glb y vrm 12 MB (como Hyperfy2) · png, jpg, webp 4 MB · ktx2, hdr, mp3, ogg 8 MB · mp4, webm 32 MB (más: 413) |
+| Tope entre todas | 1 GB por servidor (más: 507); 4 subidas a la vez (más: 503) |
+| Comprobación | el servidor calcula el sha256 y lee el fichero: un .glb entero (cabecera, trozos, JSON), el resto por sus primeros bytes (mal: 422) |
+| Repetidos | la página pregunta antes (`HEAD /a/<sha256>.glb`); lo que ya está no se sube ni se guarda dos veces |
+
 ## Aparato
 
 Todo **estimado** (fuente: estudio de límites, 13-10). La ciudad se diseña al nivel B: lo que entra

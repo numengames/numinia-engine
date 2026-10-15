@@ -214,6 +214,7 @@ export type ServerHost = {
   storage?: FeatureStorage;                                     // S4: where persisted state and stores live (none = memory only)
   who?(entity: number): { id: string; nombre: string } | null;  // I1: the guest behind an entity (null for bots)
   puede?(entity: number, accion: string): boolean;              // H1: may this player do this ("construir"…)? none = no. H3 makes it roles
+  activo?(sha256: string, ext: string): boolean;                // H9: is there a file /a/<sha256>.<ext> on this server? none = no
 };
 export type Scope = "all" | { to: number } | { near: number | { x: number; z: number }; radius?: number };
 export type HttpRequest = { method: "GET" | "POST"; path: string; params: Record<string, string>; query: Record<string, string>; body: string };
@@ -248,6 +249,9 @@ export type ServerApi = {
    * decides (MOTOR_CONSTRUIR=todos opens building to everyone, people and agents alike; H3 turns it into roles per
    * identity). Ask it on every intent that changes the world; never trust the page. */
   puede(entity: number, accion: string): boolean;
+  /** H9: is there a file /a/<sha256>.<ext> on this server — the house library or something a builder uploaded?
+   * (ext defaults to "glb"). Read-only; ask it before putting a model in the world. */
+  activo(sha256: string, ext?: string): boolean;
 };
 export type ServerPart = { feature: Feature; side: "server"; setup: (api: ServerApi) => void };
 export const serverPart = (feature: Feature, setup: (api: ServerApi) => void): ServerPart => ({ feature, side: "server", setup });
@@ -441,6 +445,7 @@ export class ServerRuntime {
       tick: () => this.host.tick(),
       sign: (text) => this.host.sign?.(text) ?? "",
       puede: (e, accion) => { try { return this.host.puede?.(e, accion) ?? false; } catch { return false; } },
+      activo: (sha256, ext = "glb") => { try { return /^[0-9a-f]{64}$/.test(sha256) && (this.host.activo?.(sha256, ext) ?? false); } catch { return false; } },
       log,
     };
   }

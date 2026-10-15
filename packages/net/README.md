@@ -6,3 +6,6 @@ Bit packing, quantized snapshots (6 bytes per visible entity at ground level, 8 
 - **Depends on:** core, schema, ecs, sim (rule: `tools/layers.json`)
 - **Tested by:** `test/engine.test.ts`, `test/server.test.ts`, `test/salto.test.ts`
 - **Main API:** `MSG` (9 = REPORT: the page's session report, `encodeReport`/`decodeReport`, ≤ 1.000 bytes), `buildGrid`, `selectVisible`, `encodeSnapshot`/`decodeSnapshot` (own state exact: x, y, z, vertical speed, air jump, jump buffer), `encodeInput(seq, mx, mz, buttons)` (6 bytes; 5-byte inputs still accepted = no buttons), `WIRE_FORMAT`, `loopbackPair`, `webSocketClient`, `Transport`
+- **Files over HTTP (H9, `ficheros.ts`, pure, shared by page and server):** `TIPOS` (kinds and content types), `TOPES_MB` /
+  `SUBIDAS_TOTAL_MB` (caps, also in `limits.json`), `comprobarGlb` / `comprobarFichero` (Result with paths, never throws),
+  `sha256Hex` (for pages without `crypto.subtle`). Tested by `test/subidas.test.ts`.

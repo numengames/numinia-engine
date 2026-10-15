@@ -266,6 +266,16 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** Beacons alive right now (for checks). */
     beaconCount(): number { return beacons.length; },
+    /** H9: the point of the ground (y = 0) under a point of the screen (CSS pixels, like a drop's clientX/Y), or null
+     * when that ray never meets the ground (the sky) or meets it too far away. */
+    sueloBajo(clientX: number, clientY: number): { x: number; z: number } | null {
+      const r = renderer.domElement.getBoundingClientRect();
+      if (!r.width || !r.height) return null;
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), camera);
+      const p = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
+      return p && p.distanceTo(camera.position) <= 150 ? { x: p.x, z: p.z } : null;
+    },
     /** H1: put a thing in the world, move it, change its model, or take it away (`null`). */
     place(key: string, t: Thing | null): void {
       const s = things.get(key);

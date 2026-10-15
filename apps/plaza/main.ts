@@ -7,6 +7,7 @@ import { createView, leerAparato, leerBateria, medidorDeCuadros, haciaMundo } fr
 import funciones from "../../features/cliente.ts";
 import { constructor } from "../../features/objetos/client.ts";
 import { montarConstructor } from "./constructor.ts";
+import { montarSoltar } from "./soltar.ts";
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
@@ -56,6 +57,8 @@ if (matchMedia("(pointer: coarse)").matches) {
 
 // ---- H1 + M22: the builder, for whoever may build (the server says so on entering): panel, gizmo, grab ----
 montarConstructor(constructor, view, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!);
+// ---- H9: drop your own .glb on the world (or «Subir modelo…» in the panel): uploaded by sha256, placed for everyone ----
+montarSoltar({ session, view, puede: () => constructor.estado.puede, origen: activos, billete: () => localStorage.getItem(GUARDA), panel: document.getElementById("panel-construir") });
 
 // ---- determinism probe: replay the reference run here and compare with the server's number ----
 const probe = { browser: -1, server: -1, ms: 0, done: false };
