@@ -17,3 +17,6 @@ events, `state.card` things; `announcements`, `cards()` and `view.announce` on t
   tick (≤ 32 per player); events scoped `to` one player, `near` a player or a point (default 32 m) or
   `all`; shared state is sent to everyone (area-of-interest scoping is J9); text fields ≤ 512 bytes;
   client → server messages ≤ 1,024 bytes (WebSocket limit); POST bodies to feature routes ≤ 4 KB.
+- **Settings (N2):** `ajustes?: AjusteDecl[]` in a declaration (≤ 16, validated like the rest: a bad one refuses the
+  feature, with its path); format, validation and the `requiere` grammar live in `src/ajustes.ts`; the page reads a value
+  with the view hook `ajuste(id)`. Page side only: nothing new on the wire or in the catalog.

@@ -90,7 +90,7 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 
 | Cosa | Qué es | Capa | Nivel | Escritorio / móvil / VR | Primitivas | Coste móvil | Fila |
 |---|---|---|---|---|---|---|---|
-| Menú de ajustes | Gráficos, sonido, controles, red, privacidad ✘ | motor | Base | panel | P, G local | bajo | N2 |
+| Menú de ajustes | Gráficos, sonido, controles, red, privacidad ✔ (N2: tecla O o el engranaje; el sonido se guarda y suena con H5) | motor | Base | panel | P, G local | bajo | N2 |
 | Preajuste automático de calidad | El motor elige según el aparato y baja si se calienta | motor | Base | sí | cliente | **es** el ahorro | P2 |
 | Ping, fps y pérdida visibles | Saber si el fallo es mío | motor | Base | sí | P | bajo | B3 |
 | Entrar con un nombre | Invitado sin cuenta ✘ | motor | Base | sí | M | bajo | I1 |
@@ -111,9 +111,9 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 
 | Cosa | Qué es | Capa | Nivel | Fila |
 |---|---|---|---|---|
-| Tamaño de texto y alto contraste | Ajustes de interfaz | motor | Base | N2 |
-| Movimiento reducido | Nada se mueve solo | motor | Base | N2 |
-| Menús con teclado y lector de pantalla | Interfaz navegable sin ratón | motor | Base | N2 |
+| Tamaño de texto y alto contraste | Ajustes de interfaz ✔ (texto grande, alto contraste, tamaño de la interfaz) | motor | Base | N2 |
+| Movimiento reducido | Nada se mueve solo ◐ (lo lee del sistema; sin saltitos ni animaciones de la interfaz; destellos y cámara con V7) | motor | Base | N2 |
+| Menús con teclado y lector de pantalla | Interfaz navegable sin ratón ✔ en ajustes (HTML de verdad; cada panel nuevo, igual) | motor | Base | N2 |
 | Paletas para daltonismo | Colores alternativos | motor | Mejorado | N2 |
 | Subtítulos de voz | Texto de lo que se oye | motor | Mejorado | Frontera, sin fila |
 
