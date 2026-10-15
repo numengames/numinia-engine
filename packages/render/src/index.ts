@@ -16,6 +16,9 @@ export { haciaMundo, TECLAS_CAMARA, CAMARA } from "./camara.ts";
 export type { Camara, ModoCamara } from "./camara.ts";
 import { crearEditor } from "./gizmo.ts";
 export type { Donde, Eje, Herramienta, Fase, Paso, Editor } from "./gizmo.ts";
+import { createAvatares } from "./avatares.ts";
+export type { CatalogoAvatares } from "./avatares.ts";
+import type { CatalogoAvatares } from "./avatares.ts";
 
 export type Backend = "WebGPU" | "WebGL2";
 /** Someone to draw. J2 (optional, additive): `y` = height of the feet in metres (0 = on the plaza), `speed` =
@@ -26,7 +29,7 @@ export type Thing = { model: string; x: number; y: number; z: number; rx: number
 const LOADS_AT_ONCE = 4;   // H1: model files downloading at the same time; the nearest first
 const ANIMATE_WITHIN_M = 40; // H1: farther than this, a model's animation stands still (cold phones)
 
-export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; assetUrl?: (model: string) => string } = {}) {
+export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; assetUrl?: (model: string) => string; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number } } = {}) {
   const power = createPower(readCaps(), { battery: opts.battery, maxFps: opts.maxFps });
   const renderer = new THREE.WebGPURenderer({ antialias: !power.mobile, forceWebGL: !!opts.forceWebGL, powerPreference: power.mobile ? "low-power" : "high-performance" });
   await renderer.init();
@@ -80,6 +83,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
 
   const vr = createVR({ renderer, scene, camera });
   let selfXZ: { x: number; z: number; y?: number } | null = null;
+  // J1: you and the nearest players as VRM humanoids (avatares.ts); the capsules above stay as their anchors
+  const avs = createAvatares({ world, mobile: power.mobile, xr: () => renderer.xr.isPresenting, catalogo: opts.avatares?.catalogo, yo: opts.avatares?.yo, compilar: (o) => renderer.compileAsync(o, camera, scene) });
 
   // feature decorations (J7): a text label over an avatar and a short bounce; both expire on their own
   type Target = number | "self";
@@ -233,6 +238,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         if (!m || now > until) bounces.delete(t);
         else m.position.y += Math.abs(Math.sin(now / 90)) * 0.35;
       }
+      // J1: VRMs follow the capsules (hops and jumps included); yours hides in first person (camera branch: view.cam)
+      avs.sync(self ? selfMesh : null, others, !!(this as unknown as { cam?: { primeraPersona?: () => boolean } }).cam?.primeraPersona?.(), now);
     },
     /** A short text over an avatar (`"self"` = your own) for `ms` milliseconds. Replaces the previous one. */
     label(t: Target, text: string, ms: number): void {
@@ -303,8 +310,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     puntoBajo: editor.puntoBajo,
     /** Who has a label right now (for checks). */
     labels(): Target[] { return [...labels.keys()]; },
+    /** J1: VRM avatars (for checks): files loaded, clips, who wears which avatar and which clip plays. */
+    avatares(): ReturnType<typeof avs.stats> { return avs.stats(); },
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
-    busy(): boolean { return labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo(); },
+    busy(): boolean { return labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); },
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */

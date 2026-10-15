@@ -1,11 +1,11 @@
 # render
 
-The only package that talks to three.js: WebGPU/WebGL2 view, power policy (frame cap, dynamic resolution, battery), crowds (baked VAT), AR and VR sessions, what the page reports about the device (`sesion.ts`), the camera (`camara.ts`, N1).
+The only package that talks to three.js: WebGPU/WebGL2 view, power policy (frame cap, dynamic resolution, battery), crowds (baked VAT), AR and VR sessions, what the page reports about the device (`sesion.ts`), the camera (`camara.ts`, N1), VRM avatars (J1: `avatares.ts`, decisions in `avatares-politica.ts`, the lazy heavy half in `avatares-vrm.ts`).
 
 - **Does not:** Simulation or networking; it imports nothing from other engine packages.
-- **Depends on:** three.js only (rule: `tools/layers.json`)
-- **Tested by:** `test/power.test.ts`, `test/camara.test.ts`; browser: `tools/auto.sh e2e` (camera: `tools/e2e-piernas/camara.mjs`)
-- **Main API:** `createView`, `createPower`, `readCaps`, `checkCost`, `createVatCrowd`, `createAR`, `createVR`, `leerAparato`, `medidorDeCuadros` (T1 report; tested by `test/sesiones.test.ts`), `haciaMundo` (N1: a movement intention turned by the camera's yaw)
+- **Depends on:** three.js, and `@pixiv/three-vrm` + `@pixiv/three-vrm-animation` 3.5.5 (MIT) loaded only by `avatares-vrm.ts` after the first frame (rule: `tools/layers.json`)
+- **Tested by:** `test/power.test.ts`, `test/camara.test.ts`, `test/avatares.test.ts`; browser: `tools/auto.sh e2e` (camera: `tools/e2e-piernas/camara.mjs`, avatars: `tools/e2e-piernas/avatares.mjs`)
+- **Main API:** `createView` (option `avatares: { catalogo, yo }`; `view.avatares()` says who wears which VRM and which clip plays), `createPower`, `readCaps`, `checkCost`, `createVatCrowd`, `createAR`, `createVR`, `leerAparato`, `medidorDeCuadros` (T1 report; tested by `test/sesiones.test.ts`), `haciaMundo` (N1: a movement intention turned by the camera's yaw)
 - **M22 builder's hands (`gizmo.ts`):** `view.pick(clientX, clientY)` → key of the placed thing under the pointer; `view.puntoBajo(clientX, clientY, ignorar?)` → point on the ground (y = 0) or on other things; `view.editor`: `seleccionar(key)` (yellow outline), `herramienta("mover" | "girar" | "escalar" | null)` (three's TransformControls, X red, Y green, Z blue, downloaded on first use: not in the start bundle), `eje`, `espacio`, `paso` (snap), `onArrastre(fase, key, donde)` (degrees, Euler YXZ, rounded to the wire's steps), `poner`, `sostener` / `retiene` (a held thing ignores its server echoes: no rubber-banding), `pantalla(x, y, z)`, `estado()`, `activo()` (feeds `busy()`). Tested by `tools/e2e-piernas/constructor.mjs` (real mouse, chromium + firefox).
 - **H9:** `view.sueloBajo(clientX, clientY)` — the ground point (y = 0) under a point of the screen, or null (sky / too far): where a dropped file lands. Tested by `tools/e2e-piernas/subir.mjs`.
 

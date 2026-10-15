@@ -12,6 +12,8 @@ import { fileURLToPath } from "node:url";
 import type { ServerResponse } from "node:http";
 import { TIPOS } from "../../net/src/ficheros.ts";
 export { TIPOS } from "../../net/src/ficheros.ts"; // the kinds of file (H9 shares them with the page)
+/** What /a/ serves: every uploadable kind plus .vrma (J1: the house animations; nobody uploads those). */
+const SERVIR: Record<string, string> = { ...TIPOS, vrma: "model/gltf-binary" };
 
 /** The house library. In the installer it sits next to the server code (app/activos). */
 export const BIBLIOTECA = fileURLToPath(new URL("../../../activos", import.meta.url));
@@ -36,7 +38,7 @@ export class Activos {
       const ruta = join(dir, e.name);
       if (e.isDirectory()) { this.indexar(ruta); continue; }
       const ext = e.name.split(".").pop()!.toLowerCase();
-      if (!TIPOS[ext]) continue; // licences, READMEs
+      if (!SERVIR[ext]) continue; // licences, READMEs
       const bytes = readFileSync(ruta);
       this.indice.set(sha256(bytes), { ruta, ext, bytes: bytes.length });
     }
@@ -54,7 +56,7 @@ export class Activos {
    * false when the path is not an asset path at all. */
   servir(path: string, res: ServerResponse, head = false): boolean {
     const m = RUTA.exec(path);
-    if (!m || !TIPOS[m[2]]) return false;
+    if (!m || !SERVIR[m[2]]) return false;
     const ruta = this.buscar(m[1], m[2]);
     if (!ruta) {
       res.writeHead(404, { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "no-store" });
@@ -62,7 +64,7 @@ export class Activos {
       return true;
     }
     res.writeHead(200, {
-      "content-type": TIPOS[m[2]], "content-length": String(statSync(ruta).size),
+      "content-type": SERVIR[m[2]], "content-length": String(statSync(ruta).size),
       "cache-control": "public, max-age=31536000, immutable", "access-control-allow-origin": "*",
     });
     if (head) res.end(); else createReadStream(ruta).pipe(res);

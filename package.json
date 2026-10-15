@@ -25,6 +25,8 @@
     "sesiones": "node packages/server/src/sesiones-ver.ts"
   },
   "dependencies": {
+    "@pixiv/three-vrm": "3.5.5",
+    "@pixiv/three-vrm-animation": "3.5.5",
     "three": "^0.186.1",
     "ws": "^8.22.0"
   },
