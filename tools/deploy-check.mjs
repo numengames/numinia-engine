@@ -3,7 +3,7 @@
 // Unpacks deploy/instalar-motor.sh with --solo-extraer into $TMPDIR, checks the page files, starts the
 // unpacked server on a spare port (8793) with the given node, connects one client and waits for snapshots.
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { webSocketClient } from "../packages/net/src/index.ts";
@@ -13,6 +13,7 @@ const root = join(fileURLToPath(import.meta.url), "../..");
 const node = process.argv[2] ?? process.execPath;
 const PORT = 8793;
 const AGENTES = "deploy-check-agentes-secreto-0001";
+const ADMIN = "deploy-check-codigo-de-administracion";
 const dir = join(process.env.TMPDIR ?? "/tmp", "numinia-deploy-check");
 let srv = null, hab = null, habLog = "";
 const fail = (msg) => { srv?.kill(); hab?.kill(); console.error(`[deploy-check] FALLA: ${msg}`); process.exit(1); };
@@ -29,10 +30,11 @@ const html = readFileSync(join(dir, "www/index.html"), "utf8");
 const refs = [...html.matchAll(/(?:src|href)="\/?([^"#?]+)"/g)].map((m) => m[1]).filter((r) => !r.includes("://"));
 for (const r of refs) if (!existsSync(join(dir, "www", r))) fail(`la página pide ${r} y no está en www/`);
 if (!existsSync(join(dir, "app/activos/robot/RobotExpressive.glb"))) fail("falta la biblioteca de la casa (app/activos/robot/RobotExpressive.glb)");
+if (spawnSync("bash", ["-n", join(dir, "actualizar.sh")]).status !== 0) fail("falta actualizar.sh (el que usa --auto-actualizar) o no es bash válido");
 
 // the server, from the unpacked copy only (cwd = app/, like the systemd unit)
 const version = spawnSync(node, ["--version"], { encoding: "utf8" }).stdout.trim();
-srv = spawn(node, ["packages/server/src/main.ts"], { cwd: join(dir, "app"), env: { ...process.env, PORT: String(PORT), HOST: "127.0.0.1", STATS_MS: "60000", MOTOR_AGENTES_SECRET: AGENTES } });
+srv = spawn(node, ["packages/server/src/main.ts"], { cwd: join(dir, "app"), env: { ...process.env, PORT: String(PORT), HOST: "127.0.0.1", STATS_MS: "60000", MOTOR_AGENTES_SECRET: AGENTES, MOTOR_ADMIN: ADMIN, DATOS_DIR: join(dir, "datos") } });
 let log = "";
 srv.stdout.on("data", (d) => { log += d; });
 srv.stderr.on("data", (d) => { log += d; });
@@ -61,11 +63,19 @@ try {
   const head = await fetch(`http://127.0.0.1:${PORT}/a/047f5e5fb3bb6d378bd1df16ca6137f2a596c99b3a1b5690b4020c05aaf6f319.glb`, { method: "HEAD" }).catch(() => null);
   const put = await fetch(`http://127.0.0.1:${PORT}/a/${"0".repeat(64)}.glb`, { method: "PUT", body: "x" }).catch(() => null);
   if (head?.status !== 200 || put?.status !== 401) fail(`subidas (H9): HEAD ${head?.status} (quiero 200), PUT sin billete ${put?.status} (quiero 401)`);
+  // the world as a zip: the page answers, no code = 401, with the code a zip that unzip accepts
+  const pagina = await fetch(`http://127.0.0.1:${PORT}/mundo`).catch(() => null);
+  const sinCodigo = await fetch(`http://127.0.0.1:${PORT}/mundo/zip`).catch(() => null);
+  const zip = await fetch(`http://127.0.0.1:${PORT}/mundo/zip`, { headers: { authorization: `Bearer ${ADMIN}` } }).catch(() => null);
+  if (pagina?.status !== 200 || sinCodigo?.status !== 401 || zip?.status !== 200) fail(`/mundo: página ${pagina?.status} (200), sin código ${sinCodigo?.status} (401), zip ${zip?.status} (200)`);
+  writeFileSync(join(dir, "mundo.zip"), Buffer.from(await zip.arrayBuffer()));
+  const tz = spawnSync("unzip", ["-t", join(dir, "mundo.zip")], { encoding: "utf8" });
+  if (tz.status !== 0) fail(`el zip del mundo no pasa unzip -t:\n${tz.stdout}${tz.stderr}`);
   hab = spawn(node, ["packages/agent/src/main.ts"], { cwd: join(dir, "app"), env: { ...process.env, MOTOR_URL: `ws://127.0.0.1:${PORT}`, MOTOR_AGENTES_SECRET: AGENTES, STATS_MS: "60000" } });
   hab.stdout.on("data", (d) => { habLog += d; }); hab.stderr.on("data", (d) => { habLog += d; });
   for (let i = 0; i < 50 && !habLog.includes("el motor me llama"); i++) await sleep(100);
   const nombre = habLog.match(/el motor me llama «([^»]+)»/)?.[1];
   if (!nombre?.endsWith(" · IA")) fail(`el servicio de habitantes no entró como IA:\n${habLog}\n${log.split("\n").filter((l) => l.includes("agentes") || l.includes("habitantes")).join("\n")}`);
   const fp = log.match(/huella de referencia ([0-9a-f]+)/)?.[1];
-  console.log(`[deploy-check] OK · node ${version} · página ${refs.length} ficheros enlazados · ${s.stats.snapshots} snapshots en ${Math.round(performance.now() - t0)} ms · huella ${fp} · /health, /metrics, /a/ y subidas OK · habitante «${nombre}» dentro (RSS ${m.memoriaMB.rss} MB)`);
+  console.log(`[deploy-check] OK · node ${version} · página ${refs.length} ficheros enlazados · ${s.stats.snapshots} snapshots en ${Math.round(performance.now() - t0)} ms · huella ${fp} · /health, /metrics, /a/, subidas y /mundo (zip) OK · habitante «${nombre}» dentro (RSS ${m.memoriaMB.rss} MB)`);
 } finally { stop(); }

@@ -9,12 +9,17 @@
 #   Other options: --memoria 75%   (systemd MemoryMax for the instance, default 75% of RAM)
 #                  --sin-cortafuegos  (do not touch ufw)
 #                  --sin-habitantes   (no AI inhabitants: stops and disables numinia-habitantes if it was there)
+#                  --auto-actualizar  (timer: installs every new release of GitHub by itself, sha256 checked; actualizar.sh)
+#                  --sin-auto-actualizar · --sin-dominio (back to HTTP by IP)
+#   Options are saved in /opt/numinia-engine/instalacion.env: a later run without them keeps them (the updater relies on it).
 #   bash instalar-motor.sh --solo-extraer DIR   unpack app/ and www/ into DIR, install nothing (no root)
 #   bash instalar-motor.sh --version            print what is inside
 #
 # What it does: official Node LTS (sha256 checked) in /opt/numinia-engine/node, system user
 # `numinia`, systemd service `numinia-motor` (127.0.0.1:8790, LimitNOFILE, MemoryMax, hardening),
 # Caddy serving the page and passing /ws to the instance, ufw allowing ssh/80/443.
+# The world as a zip: https://<domain>/mundo downloads it and uploads one, with the administration code that this
+# script makes once in /opt/numinia-engine/admin.env (sudo cat it; it is never printed).
 # P4: a second service `numinia-habitantes` (own system user, localhost only, no route in Caddy) runs the AI
 # inhabitants of the adventure (escalón 0: a script, no language model, no provider key). Off switch:
 # `systemctl stop numinia-habitantes` and the world goes on without them.
@@ -30,6 +35,7 @@ USER_NAME=numinia
 PORT=8790
 HAB_SERVICE=numinia-habitantes
 HAB_USER=numinia-hab
+ACT_SERVICE=numinia-actualizar
 
 say() { printf '\033[1m[motor]\033[0m %s\n' "$*"; }
 die() { printf '\033[31m[motor] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -39,16 +45,20 @@ extract_payload() { # $1 = destination directory
   awk 'found { print } /^__CARGA_DEBAJO__$/ { found = 1 }' "$0" | base64 -d | tar -xz -C "$1"
 }
 
-DOMAIN=""; MEMORY="75%"; FIREWALL=1; ONLY_EXTRACT=""; HABITANTES=1
+DOMAIN=""; MEMORY="75%"; FIREWALL=1; ONLY_EXTRACT=""; HABITANTES=1; AUTO=0
+DADO=" " # the options given on this run; the rest come from instalacion.env when there is one
 while [ $# -gt 0 ]; do
   case "$1" in
-    --dominio) DOMAIN=${2:?falta el dominio, p. ej. --dominio motor.ejemplo.com}; shift 2 ;;
-    --memoria) MEMORY=${2:?falta el valor, p. ej. --memoria 1G o --memoria 75%}; shift 2 ;;
-    --sin-cortafuegos) FIREWALL=0; shift ;;
-    --sin-habitantes) HABITANTES=0; shift ;;
+    --dominio) DOMAIN=${2:?falta el dominio, p. ej. --dominio motor.ejemplo.com}; DADO+="DOMAIN "; shift 2 ;;
+    --sin-dominio) DOMAIN=""; DADO+="DOMAIN "; shift ;;
+    --memoria) MEMORY=${2:?falta el valor, p. ej. --memoria 1G o --memoria 75%}; DADO+="MEMORY "; shift 2 ;;
+    --sin-cortafuegos) FIREWALL=0; DADO+="FIREWALL "; shift ;;
+    --sin-habitantes) HABITANTES=0; DADO+="HABITANTES "; shift ;;
+    --auto-actualizar) AUTO=1; DADO+="AUTO "; shift ;;
+    --sin-auto-actualizar) AUTO=0; DADO+="AUTO "; shift ;;
     --solo-extraer) ONLY_EXTRACT=${2:?falta la carpeta destino}; shift 2 ;;
     --version) echo "numinia-engine $BUILD · Node $NODE_VERSION"; exit 0 ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
     *) die "opción desconocida '$1'. Usa --help para ver las opciones." ;;
   esac
 done
@@ -61,6 +71,17 @@ fi
 
 # ---------- checks ----------
 [ "$(id -u)" -eq 0 ] || die "hay que ejecutarlo como root: sudo bash $0"
+case "$DOMAIN" in ""|*[!A-Za-z0-9.-]*) [ -z "$DOMAIN" ] || die "el dominio '$DOMAIN' no vale (solo letras, números, puntos y guiones)" ;; esac
+case "$MEMORY" in *[!0-9KMGT%]*|"") die "--memoria '$MEMORY' no vale (p. ej. 1G o 75%)" ;; esac
+# the options of the last install, for what this run did not say (the updater runs the new installer with no options)
+if [ -f "$PREFIX/instalacion.env" ]; then
+  while IFS='=' read -r k v; do
+    case "$k" in DOMAIN|MEMORY|FIREWALL|HABITANTES|AUTO) ;; *) continue ;; esac
+    case "$DADO" in *" $k "*) continue ;; esac
+    case "$k:$v" in DOMAIN:|DOMAIN:[A-Za-z0-9]*[A-Za-z0-9]|MEMORY:[0-9]*|FIREWALL:[01]|HABITANTES:[01]|AUTO:[01]) printf -v "$k" '%s' "$v" ;; esac
+  done < "$PREFIX/instalacion.env"
+  say "opciones guardadas de la instalación anterior: dominio ${DOMAIN:-ninguno} · memoria $MEMORY · cortafuegos $FIREWALL · habitantes $HABITANTES · auto-actualizar $AUTO"
+fi
 . /etc/os-release
 case "${ID:-}-${VERSION_ID:-}" in
   ubuntu-24.04|debian-12) say "sistema $PRETTY_NAME" ;;
@@ -102,6 +123,7 @@ say "motor $BUILD"
 rm -rf "$PREFIX/new"; extract_payload "$PREFIX/new"
 chown -R root:root "$PREFIX/new"; chmod -R a+rX "$PREFIX/new"
 for d in app www; do rm -rf "$PREFIX/$d.old"; [ -d "$PREFIX/$d" ] && mv "$PREFIX/$d" "$PREFIX/$d.old"; mv "$PREFIX/new/$d" "$PREFIX/$d"; done
+install -m 0755 "$PREFIX/new/actualizar.sh" "$PREFIX/actualizar.sh" # the updater (used by the timer with --auto-actualizar)
 rm -rf "$PREFIX/new" "$PREFIX/app.old" "$PREFIX/www.old"
 echo "$BUILD" > "$PREFIX/VERSION"
 
@@ -114,6 +136,11 @@ fi
 # agent identities and never guest ones. Made once, kept across reinstalls, read by systemd (root) for both units.
 if [ ! -f "$PREFIX/agentes.env" ]; then
   ( umask 077; echo "MOTOR_AGENTES_SECRET=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')" > "$PREFIX/agentes.env" )
+fi
+# The code that downloads and uploads the world as a zip (/mundo), until H3 brings roles. Made once, kept across
+# reinstalls, readable by root only; never printed: sudo cat /opt/numinia-engine/admin.env
+if [ ! -f "$PREFIX/admin.env" ]; then
+  ( umask 077; echo "MOTOR_ADMIN=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')" > "$PREFIX/admin.env" )
 fi
 cat > "/etc/systemd/system/$SERVICE.service" << UNIT
 [Unit]
@@ -132,6 +159,7 @@ Environment=PORT=$PORT HOST=127.0.0.1 STATS_MS=30000 NODE_ENV=production SESIONE
 StateDirectory=numinia-motor
 EnvironmentFile=$PREFIX/secreto.env
 EnvironmentFile=$PREFIX/agentes.env
+EnvironmentFile=$PREFIX/admin.env
 ExecStart=$PREFIX/node/bin/node packages/server/src/main.ts
 Restart=always
 RestartSec=2
@@ -229,6 +257,10 @@ $SITE {
 	handle /a/* {
 		reverse_proxy 127.0.0.1:$PORT
 	}
+	# the world as a zip: the page, the download and the upload (the server asks the administration code; no size limit here)
+	handle /mundo* {
+		reverse_proxy 127.0.0.1:$PORT
+	}
 	handle {
 		root * $PREFIX/www
 		@hashed path /assets/*
@@ -240,6 +272,41 @@ CADDY
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile > /dev/null 2>&1 || die "Caddy no acepta /etc/caddy/Caddyfile (caddy validate --config /etc/caddy/Caddyfile)"
 systemctl enable caddy > /dev/null 2>&1
 systemctl reload caddy 2> /dev/null || systemctl restart caddy
+
+# ---------- updates from GitHub by themselves (--auto-actualizar) ----------
+if [ "$AUTO" = 1 ]; then
+  say "auto-actualizar: cada 10 min mira la última versión publicada en GitHub (journalctl -u $ACT_SERVICE)"
+  cat > "/etc/systemd/system/$ACT_SERVICE.service" << UNIT
+[Unit]
+Description=numinia-engine: install the newest release from GitHub (sha256 checked)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash $PREFIX/actualizar.sh
+Nice=10
+TimeoutStartSec=30min
+UNIT
+  cat > "/etc/systemd/system/$ACT_SERVICE.timer" << UNIT
+[Unit]
+Description=numinia-engine: look for a new release every 10 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=10min
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target
+UNIT
+  systemctl daemon-reload
+  systemctl enable "$ACT_SERVICE.timer" > /dev/null 2>&1
+  systemctl start "$ACT_SERVICE.timer"
+elif [ -f "/etc/systemd/system/$ACT_SERVICE.timer" ]; then
+  say "sin auto-actualizar: paro el temporizador $ACT_SERVICE"
+  systemctl disable --now "$ACT_SERVICE.timer" > /dev/null 2>&1 || true
+fi
 
 # ---------- firewall: never lock ssh out ----------
 if [ "$FIREWALL" = 1 ]; then
@@ -262,9 +329,15 @@ IP=$(hostname -I 2> /dev/null | awk '{ print $1 }')
 if [ "$HABITANTES" = 1 ]; then
   systemctl is-active --quiet "$HAB_SERVICE" || say "AVISO: $HAB_SERVICE no arrancó (el mundo sigue sin ellos): journalctl -u $HAB_SERVICE -n 50"
 fi
+# what this install was, for the next run without options (and the updater), and the installer itself to go back to
+( umask 077; printf 'DOMAIN=%s\nMEMORY=%s\nFIREWALL=%s\nHABITANTES=%s\nAUTO=%s\n' "$DOMAIN" "$MEMORY" "$FIREWALL" "$HABITANTES" "$AUTO" > "$PREFIX/instalacion.env" )
+[ -f "$0" ] && [ "$(readlink -f "$0")" != "$PREFIX/instalador.sh" ] && install -m 0700 "$0" "$PREFIX/instalador.sh"
 say "listo. Servicio $SERVICE activo, $BUILD."
-if [ -n "$DOMAIN" ]; then say "abre https://$DOMAIN/"; else say "abre http://${IP:-<ip-del-servidor>}/  (HTTP sin cifrar: solo para pruebas)"; fi
+if [ -n "$DOMAIN" ]; then WEB="https://$DOMAIN"; else WEB="http://${IP:-<ip-del-servidor>}"; fi
+if [ -n "$DOMAIN" ]; then say "abre $WEB/"; else say "abre $WEB/  (HTTP sin cifrar: solo para pruebas)"; fi
+say "el mundo en un zip (bajar y subir): $WEB/mundo · código: sudo cat $PREFIX/admin.env"
 say "registro: journalctl -u $SERVICE -f · estado: systemctl status $SERVICE"
 [ "$HABITANTES" = 1 ] && say "habitantes IA: journalctl -u $HAB_SERVICE -f (quitarlos: systemctl stop $HAB_SERVICE)"
+if [ "$AUTO" = 1 ]; then say "auto-actualizar: sí (pausa: touch $PREFIX/PAUSA · ver: journalctl -u $ACT_SERVICE)"; else say "auto-actualizar: no (actívalo con --auto-actualizar)"; fi
 exit 0
 __CARGA_DEBAJO__

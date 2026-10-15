@@ -1,7 +1,33 @@
 # deploy/ — montar el motor en un servidor pequeño
 
-Un solo fichero lo instala todo: `instalar-motor.sh`. No está en git (lleva dentro la página construida);
-se genera aquí, en tu PC:
+Un solo fichero lo instala todo: `instalar-motor.sh`. No está en git (lleva dentro la página construida): se
+publica en GitHub como versión `motor-<build>` con `instalar-motor.sh` y `SHA256SUMS` adjuntos, después de pasar
+`deploy-check`, con `tools/publicar-version.sh` (solo un commit limpio que ya esté en `main`). Hoy lo corre una
+persona o Ursa tras cada fusión; cuando alguien con permiso añada el workflow que lo llama en cada fusión, será solo.
+
+## Instalar desde GitHub (lo normal)
+
+En el servidor (Ubuntu 24.04 o Debian 12, x86_64 o arm64, recién hecho), como root:
+
+```bash
+curl -fsSLO https://github.com/numengames/numinia-engine/releases/latest/download/instalar-motor.sh
+curl -fsSLO https://github.com/numengames/numinia-engine/releases/latest/download/SHA256SUMS
+sha256sum -c SHA256SUMS && bash instalar-motor.sh --dominio motor.ejemplo.com --auto-actualizar
+```
+
+`--auto-actualizar` deja un temporizador (`numinia-actualizar.timer`) que cada 10 minutos mira la última versión
+publicada y, si es otra, la descarga, comprueba su sha256 (contra `SHA256SUMS` y contra el que da GitHub) y se
+reinstala con las mismas opciones (`/opt/numinia-engine/instalacion.env`). Nunca toca `/var/lib/numinia-motor`
+(el mundo). Si hay gente dentro espera, hasta 6 h. Si el instalador nuevo falla, vuelve a poner el anterior y no
+lo reintenta solo.
+
+```bash
+journalctl -u numinia-actualizar                      # qué hizo cada vuelta
+sudo bash /opt/numinia-engine/actualizar.sh --ahora     # una vuelta ya, aunque haya gente
+sudo touch /opt/numinia-engine/PAUSA                    # en pausa (p. ej. durante una medición); rm para seguir
+```
+
+## Construirlo en tu PC (desarrollo)
 
 ```bash
 npm run deploy                 # construye la página y escribe deploy/instalar-motor.sh (~0,5 MB)
@@ -46,6 +72,27 @@ curl -s localhost:8790/metrics        # JSON: conectados, tick p50/p99/peor (úl
 `/health` también se ve desde fuera (`https://<dominio>/health`); `/metrics` solo desde el propio
 servidor. Para leerlo desde casa (8790 ya lo usa la plaza de tu PC): `ssh -L 18790:127.0.0.1:8790 root@IP`
 y abrir `http://localhost:18790/metrics`; el enjambre lo lee con `--metrics http://localhost:18790/metrics`.
+
+## El mundo en un zip: bajarlo y subirlo
+
+`https://<dominio>/mundo` es una página con dos botones: **Descargar el mundo** (un `.zip`) y **Subir un mundo**
+(sustituye el de ahora por el del zip). Pide el código de administración, que el instalador hace una vez y no
+enseña nunca: `sudo cat /opt/numinia-engine/admin.env` (hasta que lleguen los roles, H3).
+
+Qué lleva el zip: `mundo.json` (versión del motor, fecha y cada fichero con sus bytes y su sha256) y `datos/`:
+lo que guardan las funciones (lo construido, las misiones…) y los modelos subidos (`datos/activos/`). No lleva
+quién entró (sesiones), quién subió qué (`subidas.jsonl`) ni el motor (viene de la versión). Al subir, el
+servidor lo comprueba entero antes de tocar nada (zip con contraseña, enlaces, rutas con `..`, bombas de zip,
+ficheros que no son los que dice `mundo.json`: rechazado con el motivo), guarda el mundo de ahora en
+`/var/lib/numinia-motor/datos.antes-<fecha UTC>` (los dos últimos), pone el nuevo y se reinicia (unos segundos).
+
+Por terminal, lo mismo:
+
+```bash
+. /opt/numinia-engine/admin.env
+curl -fsS -H "Authorization: Bearer $MOTOR_ADMIN" http://127.0.0.1:8790/mundo/zip -o mundo.zip     # bajar
+curl -fsS -H "Authorization: Bearer $MOTOR_ADMIN" -T mundo.zip http://127.0.0.1:8790/mundo/zip     # subir
+```
 
 ## Ver cómo entra cada jugador (T1)
 

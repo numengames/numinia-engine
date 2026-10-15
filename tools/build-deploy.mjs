@@ -2,7 +2,7 @@
 // Usage: node tools/build-deploy.mjs [--sin-construir]
 //   -> deploy/instalar-motor.sh (git-ignored; copy it to the server and run `sudo bash instalar-motor.sh`)
 // The installer is deploy/instalar-motor.plantilla.sh with the build stamp, the pinned Node LTS and a
-// base64 tar.gz payload appended: app/ (server sources + `ws`) and www/ (the built page).
+// base64 tar.gz payload appended: app/ (server sources + `ws`), www/ (the built page) and actualizar.sh (the updater).
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, chmodSync } from "node:fs";
 import { join } from "node:path";
@@ -62,11 +62,12 @@ function main() {
   cpSync(join(root, "node_modules/ws"), join(app, "node_modules/ws"), { recursive: true });
   writeFileSync(join(app, "package.json"), JSON.stringify({ name: "numinia-engine-server", private: true, type: "module", license: "AGPL-3.0-only" }, null, 2) + "\n");
   cpSync(page, join(stage, "www"), { recursive: true });
+  cpSync(join(root, "deploy/actualizar.sh"), join(stage, "actualizar.sh")); // the updater (--auto-actualizar's timer runs it)
 
   const dirty = run("git", ["status", "--porcelain"]) ? "+cambios" : "";
   const build = `${run("git", ["rev-parse", "--short", "HEAD"])}${dirty} ${new Date().toISOString().slice(0, 10)}`;
   const tgz = join(tmp, "numinia-deploy.tgz");
-  run("tar", ["-czf", tgz, "-C", stage, "app", "www"]);
+  run("tar", ["-czf", tgz, "-C", stage, "app", "www", "actualizar.sh"]);
   const payloadB64 = readFileSync(tgz).toString("base64");
 
   const template = readFileSync(join(root, "deploy/instalar-motor.plantilla.sh"), "utf8");
