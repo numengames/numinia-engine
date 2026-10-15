@@ -7,12 +7,21 @@
 //   AVENTURA_DIR   aventuras/ejemplo by default (the same folder the engine reads)
 //   HABITANTES_COPIAS=N   to MEASURE: N bodies of each inhabitant (same name), D1/D2 of the design
 //   STATS_MS       one «[habitantes]» line every 60 s by default (alive, CPU, memory)
+// The brain (P5a, mente.ts) for inhabitants with escalón 2 or 4 — without a key they answer with their script:
+//   CEREBRO_CLAVE  the provider key (installed: /opt/numinia-engine/cerebro.env, made by `instalar-motor.sh --clave-ia`)
+//   CEREBRO_MODELO the model (default cerebro.ts MODELO_POR_DEFECTO) · CEREBRO_DIA_MAX calls a day for all (300)
+//   CEREBRO_MINUTO calls a minute per inhabitant (6) · CEREBRO_ECO=1 the echo brain (QA: no provider, no key)
+//   MOTOR_BIBLIOTECA what it may place (default features/objetos/biblioteca.json, the engine's house library)
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { webSocketClient } from "../../net/src/index.ts";
 import { emitirAgente, today } from "../../instance/src/identidad.ts";
 import { Cuerpo } from "./index.ts";
 import { Guion, HZ } from "./guion.ts";
+import { Mente } from "./mente.ts";
+import type { Modelo3D } from "./mente.ts";
+import { cerebroClaude, cerebroEco, Topes } from "./cerebro.ts";
+import type { Cerebro } from "./cerebro.ts";
 import { leerHabitantes } from "./formato.ts";
 import type { Habitante } from "./formato.ts";
 import { createHmac } from "node:crypto";
@@ -32,6 +41,18 @@ function ficheros(): { fichero: string; texto: string }[] {
   return nombres.filter((n) => statSync(join(d, n)).size <= 64 * 1024).map((n) => ({ fichero: `habitantes/${n}`, texto: readFileSync(join(d, n), "utf8") }));
 }
 
+// the brain: one for all the inhabitants of this service, with shared caps (the key never reaches a log)
+const clave = process.env.CEREBRO_CLAVE ?? process.env.ANTHROPIC_API_KEY ?? "";
+let cerebro: Cerebro | null = null;
+if (process.env.CEREBRO_ECO === "1") cerebro = cerebroEco();
+else if (clave) { try { cerebro = cerebroClaude({ clave, modelo: process.env.CEREBRO_MODELO }); } catch (e) { log(`cerebro: ${(e as Error).message}`); } }
+const topes = new Topes({ alDia: Number(process.env.CEREBRO_DIA_MAX ?? 300) || 300, porMinuto: Number(process.env.CEREBRO_MINUTO ?? 6) || 6 });
+let biblioteca: Modelo3D[] = [];
+try {
+  const b = JSON.parse(readFileSync(process.env.MOTOR_BIBLIOTECA ?? "features/objetos/biblioteca.json", "utf8")) as { modelos?: Modelo3D[] };
+  biblioteca = (b.modelos ?? []).filter((m) => /^[a-z0-9-]{1,32}$/.test(m.id) && /^[0-9a-f]{64}$/.test(m.modelo)).map(({ id, nombre, modelo }) => ({ id, nombre, modelo }));
+} catch { /* without the library it can talk, not place */ }
+
 const { habitantes, problemas } = leerHabitantes(ficheros());
 for (const p of problemas) log(`NO se carga: ${p}`);
 if (!habitantes.length) { log(`ningún habitante en ${dir}/habitantes; me quedo esperando (systemctl stop numinia-habitantes para quitarme)`); setInterval(() => {}, 1 << 30); }
@@ -44,6 +65,7 @@ async function entrar(v: Vivo): Promise<void> {
   try { await t.opened; } catch { return reintentar(v, "no llego al motor"); }
   const c = new Cuerpo(t, emitirAgente(sign, v.h.id, today()));
   v.g = new Guion(c, v.h); v.dentro = true; v.espera = 0; v.nombrado = false;
+  if (cerebro && v.h.escalon >= 2) new Mente({ guion: v.g, cerebro, topes, biblioteca, log }); // it plugs into the script
   t.closed.then(() => { v.g = null; v.dentro = false; reintentar(v, "el motor cerró la conexión"); });
 }
 function reintentar(v: Vivo, porque: string): void {
@@ -54,6 +76,9 @@ function reintentar(v: Vivo, porque: string): void {
 
 for (const v of vivos) await entrar(v);
 log(`${vivos.filter((v) => v.dentro).length} de ${vivos.length} dentro de ${url}: ${habitantes.map((h) => `${h.nombre} (${h.id}, E${h.escalon})`).join(", ")}${copias > 1 ? ` × ${copias} copias` : ""}`);
+const conCerebro = habitantes.filter((h) => h.escalon >= 2);
+if (conCerebro.length) log(cerebro ? `cerebro: ${cerebro.nombre} para ${conCerebro.map((h) => h.nombre).join(", ")} · topes ${topes.porMinuto}/min por habitante, ${topes.porPersonaMinuto}/min por persona, ${topes.alDia}/día · ${biblioteca.length} modelos para colocar`
+  : `sin clave de cerebro (CEREBRO_CLAVE): ${conCerebro.map((h) => h.nombre).join(", ")} contestan con su guion`);
 
 // one clock for all: 20 Hz, like a page; the script decides at most a few things per second
 let paso = 0;
@@ -71,7 +96,8 @@ setInterval(() => {
 let cpu0 = process.cpuUsage(), t0 = performance.now();
 setInterval(() => {
   const c = process.cpuUsage(cpu0), ms = performance.now() - t0;
-  log(`dentro ${vivos.filter((v) => v.dentro).length} de ${vivos.length} · CPU ${(((c.user + c.system) / 1000 / ms) * 100).toFixed(1)} % de un núcleo · memoria ${Math.round(process.memoryUsage().rss / 1048576)} MB · paso ${paso}`);
+  const u = topes.uso, gasto = u.llamadas || u.negadas ? ` · cerebro hoy ${topes.llamadasHoy}/${topes.alDia} (negadas ${u.negadas}; tokens ${u.entrada} entrada, ${u.cache} caché, ${u.salida} salida)` : "";
+  log(`dentro ${vivos.filter((v) => v.dentro).length} de ${vivos.length}${gasto} · CPU ${(((c.user + c.system) / 1000 / ms) * 100).toFixed(1)} % de un núcleo · memoria ${Math.round(process.memoryUsage().rss / 1048576)} MB · paso ${paso}`);
   cpu0 = process.cpuUsage(); t0 = performance.now();
 }, Number(process.env.STATS_MS ?? 60000)).unref();
 

@@ -113,10 +113,25 @@ carpeta; para empezar de cero, parar el servicio y vaciarla.
 
 ## Construir en el mundo (H1)
 
-Por defecto nadie construye en un servidor instalado. Para abrirlo a todos (personas y agentes) hasta que lleguen
-los roles (H3): `sudo systemctl edit numinia-motor` → `[Service]` + `Environment=MOTOR_CONSTRUIR=todos`, y
-`sudo systemctl restart numinia-motor`. Lo construido se guarda en `datos/objetos.json` + `.jsonl`. Los modelos que
+Por defecto todos construyen en un servidor instalado (personas y habitantes IA), hasta que lleguen los roles (H3).
+Para cerrarlo: `sudo bash instalar-motor.sh --construir nadie` (se guarda; `--construir todos` lo vuelve a abrir). Lo construido se guarda en `datos/objetos.json` + `.jsonl`. Los modelos que
 se pueden colocar son los de la biblioteca de la casa (`app/activos/`, CC0), servidos en `/a/<sha256>.glb`.
+
+## El cerebro de los habitantes IA (P5a)
+
+Lía (y cualquier habitante con `escalon` 2 o 4) contesta con Claude cuando la llamas por su nombre y, si el mundo
+deja construir, pone, mueve, escala y borra objetos. Hace falta la clave de Anthropic, una vez:
+
+```bash
+sudo bash instalar-motor.sh --clave-ia          # la pide sin mostrarla, la comprueba y elige modelo (sonnet si hay)
+sudo bash instalar-motor.sh --modelo-ia claude-haiku-4-5   # cambiar de modelo · --quitar-clave-ia para quitarla
+journalctl -u numinia-habitantes -f              # cada respuesta: modelo, tokens, acciones
+```
+
+La clave queda en `/opt/numinia-engine/cerebro.env` (0640, solo el servicio de habitantes; el motor no la lee) y
+ese servicio solo puede hablar con el motor de la máquina y con Anthropic (`IPAddressAllow`). Topes: 300 llamadas al
+día entre todos (`CEREBRO_DIA_MAX` en ese fichero), 6 por minuto por habitante, 3 por minuto por persona. Sin clave,
+pasado un tope o con el proveedor caído, contestan con su guion.
 
 ## Subir tus modelos (H9)
 

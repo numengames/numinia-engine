@@ -34,7 +34,7 @@ if (spawnSync("bash", ["-n", join(dir, "actualizar.sh")]).status !== 0) fail("fa
 
 // the server, from the unpacked copy only (cwd = app/, like the systemd unit)
 const version = spawnSync(node, ["--version"], { encoding: "utf8" }).stdout.trim();
-srv = spawn(node, ["packages/server/src/main.ts"], { cwd: join(dir, "app"), env: { ...process.env, PORT: String(PORT), HOST: "127.0.0.1", STATS_MS: "60000", MOTOR_AGENTES_SECRET: AGENTES, MOTOR_ADMIN: ADMIN, DATOS_DIR: join(dir, "datos") } });
+srv = spawn(node, ["packages/server/src/main.ts"], { cwd: join(dir, "app"), env: { ...process.env, PORT: String(PORT), HOST: "127.0.0.1", STATS_MS: "60000", MOTOR_AGENTES_SECRET: AGENTES, MOTOR_ADMIN: ADMIN, DATOS_DIR: join(dir, "datos"), MOTOR_CONSTRUIR: "todos" } });
 let log = "";
 srv.stdout.on("data", (d) => { log += d; });
 srv.stderr.on("data", (d) => { log += d; });
@@ -71,11 +71,24 @@ try {
   writeFileSync(join(dir, "mundo.zip"), Buffer.from(await zip.arrayBuffer()));
   const tz = spawnSync("unzip", ["-t", join(dir, "mundo.zip")], { encoding: "utf8" });
   if (tz.status !== 0) fail(`el zip del mundo no pasa unzip -t:\n${tz.stdout}${tz.stderr}`);
-  hab = spawn(node, ["packages/agent/src/main.ts"], { cwd: join(dir, "app"), env: { ...process.env, MOTOR_URL: `ws://127.0.0.1:${PORT}`, MOTOR_AGENTES_SECRET: AGENTES, STATS_MS: "60000" } });
+  hab = spawn(node, ["packages/agent/src/main.ts"], { cwd: join(dir, "app"), env: { ...process.env, MOTOR_URL: `ws://127.0.0.1:${PORT}`, MOTOR_AGENTES_SECRET: AGENTES, STATS_MS: "60000", CEREBRO_ECO: "1" } });
   hab.stdout.on("data", (d) => { habLog += d; }); hab.stderr.on("data", (d) => { habLog += d; });
   for (let i = 0; i < 50 && !habLog.includes("el motor me llama"); i++) await sleep(100);
   const nombre = habLog.match(/el motor me llama «([^»]+)»/)?.[1];
   if (!nombre?.endsWith(" · IA")) fail(`el servicio de habitantes no entró como IA:\n${habLog}\n${log.split("\n").filter((l) => l.includes("agentes") || l.includes("habitantes")).join("\n")}`);
+  // P5a: the packaged service thinks (echo brain: no provider) and builds through the world's verbs with the house library
+  if (!/cerebro: eco para Lía/.test(habLog)) fail(`el servicio de habitantes no enchufó el cerebro:\n${habLog}`);
+  const tg = webSocketClient(`ws://127.0.0.1:${PORT}`), gs = new ClientSession(tg);
+  await tg.opened;
+  const dicho = [];
+  gs.features.tap((f, e, m) => { if (f === "chat" && (e === "dicho" || e === "zona")) dicho.push(`${m.nombre}: ${m.texto}`); });
+  const t1 = performance.now();
+  while (!gs.features.catalog && performance.now() - t1 < 3000) { gs.tick(0, 0); await sleep(50); }
+  gs.features.send("chat", "decirZona", { texto: 'Lía, pon un bloque [accion: colocar {"modelo":"bloque","x":1,"z":1,"nombre":"prueba"}]' });
+  while ((gs.features.stateOf("objetos").size === 0 || !dicho.some((d) => d.startsWith(`${nombre}: eco:`))) && performance.now() - t1 < 8000) { gs.tick(0, 0); await sleep(50); }
+  tg.close();
+  const puesto = [...gs.features.stateOf("objetos").values()][0];
+  if (puesto?.nombre !== "prueba" || !dicho.some((d) => d.startsWith(`${nombre}: eco:`))) fail(`Lía no construyó con el cerebro de eco: objetos ${gs.features.stateOf("objetos").size}, chat ${JSON.stringify(dicho)}\n${habLog}`);
   const fp = log.match(/huella de referencia ([0-9a-f]+)/)?.[1];
-  console.log(`[deploy-check] OK · node ${version} · página ${refs.length} ficheros enlazados · ${s.stats.snapshots} snapshots en ${Math.round(performance.now() - t0)} ms · huella ${fp} · /health, /metrics, /a/, subidas y /mundo (zip) OK · habitante «${nombre}» dentro (RSS ${m.memoriaMB.rss} MB)`);
+  console.log(`[deploy-check] OK · node ${version} · página ${refs.length} ficheros enlazados · ${s.stats.snapshots} snapshots en ${Math.round(performance.now() - t0)} ms · huella ${fp} · /health, /metrics, /a/, subidas y /mundo (zip) OK · habitante «${nombre}» dentro, piensa (eco) y construye (RSS ${m.memoriaMB.rss} MB)`);
 } finally { stop(); }

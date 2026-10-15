@@ -55,14 +55,27 @@ test("installer: /mundo reaches the server with the administration code; options
   assert.match(tpl, /umask 077; echo "MOTOR_ADMIN=/);
   assert.doesNotMatch(tpl, /cat "\$PREFIX\/admin\.env"|echo "\$MOTOR_ADMIN/, "the code is never printed");
   assert.match(tpl, /ExecStart=\/usr\/bin\/bash \$PREFIX\/actualizar\.sh/);
-  assert.match(tpl, /printf 'DOMAIN=%s\\nMEMORY=%s\\nFIREWALL=%s\\nHABITANTES=%s\\nAUTO=%s\\n'/);
+  assert.match(tpl, /printf 'DOMAIN=%s\\nMEMORY=%s\\nFIREWALL=%s\\nHABITANTES=%s\\nAUTO=%s\\nCONSTRUIR=%s\\n'/);
   // the help is the header, and every option it lists is parsed
   const help = spawnSync("bash", ["deploy/instalar-motor.plantilla.sh", "--help"], { encoding: "utf8" }).stdout;
-  for (const o of ["--dominio", "--sin-dominio", "--memoria", "--sin-cortafuegos", "--sin-habitantes", "--auto-actualizar", "--sin-auto-actualizar", "--solo-extraer", "--version"]) {
+  for (const o of ["--dominio", "--sin-dominio", "--memoria", "--sin-cortafuegos", "--sin-habitantes", "--auto-actualizar", "--sin-auto-actualizar", "--construir", "--clave-ia", "--modelo-ia", "--quitar-clave-ia", "--solo-extraer", "--version"]) {
     assert.ok(help.includes(o), `--help names ${o}`);
     assert.ok(tpl.includes(`    ${o})`), `${o} is parsed`);
   }
   assert.doesNotMatch(help, /set -euo/);
+});
+
+test("installer (P5a): the brain's key is asked without echo, kept for the inhabitants only, and opens only Anthropic; building is a saved option", () => {
+  const tpl = readFileSync("deploy/instalar-motor.plantilla.sh", "utf8");
+  const motor = tpl.slice(tpl.indexOf('cat > "/etc/systemd/system/$SERVICE.service"'), tpl.indexOf("systemctl restart \"$SERVICE\""));
+  const hab = tpl.slice(tpl.indexOf('cat > "/etc/systemd/system/$HAB_SERVICE.service"'), tpl.indexOf("systemctl restart \"$HAB_SERVICE\""));
+  assert.match(tpl, /IFS= read -rs CLAVE < \/dev\/tty/, "asked without echo, from the terminal");
+  assert.doesNotMatch(tpl, /echo[^\n]*\$CLAVE|say[^\n]*\$CLAVE|set -x/, "the key is never printed");
+  assert.match(tpl, /chown root:"\$HAB_USER" "\$PREFIX\/cerebro\.env"; chmod 0640/);
+  assert.match(hab, /EnvironmentFile=-\$PREFIX\/cerebro\.env/); assert.doesNotMatch(motor, /cerebro\.env/, "the engine never reads the key");
+  assert.match(tpl, /HAB_IPS="localhost 160\.79\.104\.0\/23 2607:6bc0::\/48"/); assert.match(hab, /IPAddressDeny=any\nIPAddressAllow=\$HAB_IPS/);
+  assert.match(motor, /MOTOR_CONSTRUIR=\$CONSTRUIR/);
+  assert.match(tpl, /CONSTRUIR=todos;/, "Pablo, 15-10: everyone builds at first (H3 brings roles)");
 });
 
 test("installer ships exactly the packages the server may import (P4: and the inhabitants' service: agent, client)", () => {

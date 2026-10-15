@@ -2,7 +2,8 @@
 // STD-050 AGW-006/012/013): it walks its route; greets whoever comes near (once per person per `saludo.cada`);
 // answers only when called by its name; short orders («sígueme», «quieta», «pasea», «saluda», «baila») are decided
 // here; it never answers another AI (loops between agents were the first failures of others: note 08 §3.9) and never
-// speaks more than once every 2 s. A brain (P5) will only phrase what this skeleton allows.
+// speaks more than once every 2 s. A brain (P5a, mente.ts) plugs in through `pensar`: it gets only what this skeleton
+// lets through (called by name, not a short order, not an AI) and, when it cannot think, the script answers.
 import { Cuerpo, esIA } from "./index.ts";
 import type { Oido } from "./index.ts";
 import type { Habitante } from "./formato.ts";
@@ -43,6 +44,9 @@ export class Guion {
   private readonly saludados = new Map<string, number>(); // name -> tick greeted (names are what stays the same)
   private readonly llamada: string;
   readonly diario: string[] = [];                          // what it did and why (tests, and the service's log)
+  /** P5a: the brain's turn. Called with what someone said to it (by name, not a short order); true = it takes it
+   * (it will answer later), false = the script answers now (no brain, over a cap, busy…). */
+  pensar: ((o: Oido) => boolean) | null = null;
 
   constructor(c: Cuerpo, h: Habitante) {
     this.c = c; this.h = h;
@@ -101,36 +105,52 @@ export class Guion {
     const t = this.c.tick, resto = texto.split(" ").filter((w) => w !== this.llamada);
     if (resto.length <= ORDEN_MAX_PALABRAS) {
       const frase = resto.join(" ");
-      const orden = ORDENES.find((x) => x.palabras.some((p) => tiene(frase, p)));
+      // with a brain, an order must BE the phrase («sígueme», «quieta ya»), not a word inside a request («vuelve a poner la mesa»)
+      const es = (p: string) => (this.pensar ? frase === p || (frase.startsWith(`${p} `) && resto.length <= 3) : tiene(frase, p));
+      const orden = ORDENES.find((x) => x.palabras.some(es));
       if (orden) { this.ordenar(orden.modo, o, t); return; }
     }
+    if (this.pensar?.(o)) { this.diario.push(`${t} piensa (le habla ${o.quien})`); return; }
+    this.responderGuion(o);
+  }
+
+  /** The script's answer (E0): the first `respuestas` whose word appears, or `siNoEntiende`. */
+  responderGuion(o: Oido): void {
+    const texto = normal(o.texto), t = this.c.tick;
     const r = this.h.respuestas.find((x) => x.si.some((w) => tiene(texto, normal(w))));
     this.hablar(r ? r.dice : this.h.siNoEntiende, o.nombre, t, r ? `contesta «${r.si[0]}»` : "no entiende");
   }
 
-  private ordenar(modo: Modo | "saludar" | "bailar", o: Oido, t: number): void {
+  /** What a brain may ask the body to do as a mode (go back to its walk, stay, follow who spoke). */
+  ordenar(modo: Modo | "saludar" | "bailar", o: Oido, t: number, callada = false): void {
+    const decir = (frase: string, porque: string) => { if (!callada) this.hablar(frase, o.nombre, t, porque); };
     if (modo === "saludar" || modo === "bailar") { this.c.gesto(modo); this.diario.push(`${t} gesto ${modo} (orden de ${o.quien})`); return; }
     if (modo === "seguir") {
       this.siguiendo = { entidad: o.quien, desde: t, vistoEn: t };
       this.c.seguir(o.quien, 2);
       this.cambiar("seguir", `orden de ${o.quien}`);
-      this.hablar("Voy contigo, {nombre}. Dime «quieta» o «pasea» cuando quieras.", o.nombre, t, "acepta seguir");
+      decir("Voy contigo, {nombre}. Dime «quieta» o «pasea» cuando quieras.", "acepta seguir");
       return;
     }
-    if (modo === "quieta") { this.c.parar(); this.cambiar("quieta", `orden de ${o.quien}`); this.hablar("Me quedo aquí.", o.nombre, t, "se queda"); return; }
-    this.c.parar(); this.cambiar("pasear", `orden de ${o.quien}`); this.hablar("Vuelvo a mi paseo.", o.nombre, t, "vuelve a pasear");
+    if (modo === "quieta") { this.c.parar(); this.cambiar("quieta", `orden de ${o.quien}`); decir("Me quedo aquí.", "se queda"); return; }
+    this.c.parar(); this.cambiar("pasear", `orden de ${o.quien}`); decir("Vuelvo a mi paseo.", "vuelve a pasear");
   }
+
+  /** P5a: the brain sent the body somewhere: it stays there (the walk would pull it back) until told otherwise. */
+  irA(x: number, z: number, porque: string): void { this.c.irA(x, z); this.cambiar("quieta", porque); this.c.irA(x, z); }
 
   private cambiar(modo: Modo, porque: string): void {
     if (modo !== "seguir" && this.modo === "seguir") this.c.parar();
     this.modo = modo; this.diario.push(`${this.c.tick} modo ${modo} (${porque})`);
   }
 
-  private hablar(plantilla: string, nombre: string, t: number, porque: string): void {
+  /** Say something now (the 2-second rule still applies). {nombre} = who it speaks to. */
+  get habloEnTick(): number { return this.habloEn; }
+  hablar(plantilla: string, nombre: string, t: number, porque: string, canal: "cerca" | "zona" = "cerca"): void {
     if (t - this.habloEn < HABLAR_CADA_TICKS) { this.diario.push(`${t} calla (habló hace menos de 2 s): ${porque}`); return; }
     const quien = nombre.endsWith(MARCA_IA) ? nombre.slice(0, -MARCA_IA.length) : nombre;
     const texto = plantilla.replaceAll("{nombre}", quien.slice(0, 32));
-    const r = this.c.decir(texto);
+    const r = this.c.decir(texto, canal);
     this.habloEn = t;
     this.diario.push(`${t} dice «${texto}» (${porque})${r.ok ? "" : ` NO: ${r.why}`}`);
   }
