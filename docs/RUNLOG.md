@@ -145,3 +145,10 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Consumo: semana 47 % → ver `hermes usage` (Opus).
 - Commit: ver `git log` (S4).
 - Siguiente: R2 y R3 siguen esperando a I1. Sesión con Opus: I1 (solo invitado) → J9.
+
+## 2026-10-15 11:01 · I1 · hecho (sesión de Pablo con Opus)
+- Qué: identidad de invitado, sin cuenta ni datos personales (vincular aparatos queda fuera: I2, Pablo «de momento no»). El servidor da un billete firmado (`g1.<id>.<día>.<firma>`, HMAC con `MOTOR_SECRET`; sin secreto, uno de usar y tirar y el registro lo avisa); la página lo guarda en `localStorage` y lo enseña al volver con un mensaje nuevo IDENTITY (tipo 10, aditivo): el mismo navegador es el mismo invitado («Invitado ASC6»), también en dos pestañas; falso o de más de 180 días → invitado nuevo; a los 30 días se renueva. Las funciones tienen `api.onIdentify` y `api.who` y guardan lo de cada persona por `quien.id`. El HUD dice tu nombre de invitado. R2, R3, V8 y O4 pasan a `pendiente`.
+- Números: 78 pruebas (5 nuevas en `test/identidad.test.ts`); puertas en verde (tick p99 8,1 ms; huella sin cambios); e2e chromium, firefox, AR, VR y https verdes; en chromium y firefox las dos pestañas son el mismo invitado.
+- Consumo: semana 47 % → ver `hermes usage` (Opus).
+- Commit: ver `git log` (I1).
+- Siguiente: turnos, R1 → R2 → R3 → R4. Sesión con Opus: J9 (estado por cercanía).

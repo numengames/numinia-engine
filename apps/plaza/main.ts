@@ -12,8 +12,11 @@ const view = await createView(document.body, { forceWebGL: params.has("webgl2"),
 const url = serverUrl(location);
 const transport = webSocketClient(url);
 // game features (J7): their client parts, and how they may draw (a label, a hop) over any avatar
+// I1: the guest token stays in this browser (no account, no personal data); private mode = a new guest each time
+const GUARDA = "numinia.invitado";
 const session = new ClientSession(transport, {
   features: funciones,
+  identity: { load: () => localStorage.getItem(GUARDA), save: (t) => localStorage.setItem(GUARDA, t) },
   view: {
     label: (e, text, ms) => view.label(e === session.entity ? "self" : e, text, ms),
     bounce: (e, ms) => view.bounce(e === session.entity ? "self" : e, ms),
@@ -177,7 +180,7 @@ function drawHud() {
     : `${hex(probe.browser)} ≠ ${hex(probe.server)} ✗`;
   hud.innerHTML =
     `Render: <b>${view.backend}</b> · ${fps} fps${view.power.battery ? " · modo batería" : ""}${view.power.scale < 1 ? ` · resolución ${Math.round(view.power.scale * 100)} %` : ""}\n` +
-    `Tú: avatar ${session.entity} · conectados a la vista: ${s.visible + 1}\n` +
+    `Tú: ${session.who?.nombre ?? "…"} (avatar ${session.entity}) · conectados a la vista: ${s.visible + 1}\n` +
     `Ping: ${s.rttMs < 0 ? "—" : s.rttMs + " ms"} · correcciones de tu predicción: ${s.corrections}\n` +
     `Huella navegador = servidor: ${det}`;
   if (view.vr.active) view.vr.setPanel([`${view.backend} · ${fps} fps`, `Conectados: ${s.visible + 1}`, `Ping: ${s.rttMs < 0 ? "—" : s.rttMs + " ms"}`, `Huella ${probe.browser === probe.server ? "✓" : "…"}`]);

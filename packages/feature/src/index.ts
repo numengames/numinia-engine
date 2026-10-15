@@ -208,6 +208,7 @@ export type ServerHost = {
   log(line: string): void;
   sign?(text: string): string;                                  // HMAC of `text` with the server's secret; "" when there is none
   storage?: FeatureStorage;                                     // S4: where persisted state and stores live (none = memory only)
+  who?(entity: number): { id: string; nombre: string } | null;  // I1: the guest behind an entity (null for bots)
 };
 export type Scope = "all" | { to: number } | { near: number | { x: number; z: number }; radius?: number };
 export type HttpRequest = { method: "GET" | "POST"; path: string; params: Record<string, string>; query: Record<string, string>; body: string };
@@ -226,6 +227,10 @@ export type ServerApi = {
   /** An HTTP route on the instance's own port (e.g. the URL a QR opens). Paths like "/e/:token". */
   route(method: "GET" | "POST", path: string, fn: (req: HttpRequest) => HttpReply): void;
   onJoin(fn: (entity: number) => void): void;
+  /** I1: the page showed who it is (a guest id that stays the same across visits). Key per-person data by `who.id`, never by entity. */
+  onIdentify(fn: (entity: number, who: { id: string; nombre: string }) => void): void;
+  /** I1: the guest behind an entity, or null (bots, or before onIdentify). */
+  who(entity: number): { id: string; nombre: string } | null;
   onLeave(fn: (entity: number) => void): void;
   onTick(fn: (tick: number) => void): void;
   players(): readonly number[];
@@ -248,7 +253,7 @@ export class ServerRuntime {
   private readonly entries: Entry[];
   private readonly catalogBytes: Uint8Array;
   private readonly handlers = new Map<number, { feature: string; fn: (from: number, msg: Msg) => void }>();
-  private readonly hooks: { join: [string, (e: number) => void][]; leave: [string, (e: number) => void][]; tick: [string, (t: number) => void][] } = { join: [], leave: [], tick: [] };
+  private readonly hooks: { join: [string, (e: number) => void][]; leave: [string, (e: number) => void][]; tick: [string, (t: number) => void][]; identify: [string, (e: number, w: { id: string; nombre: string }) => void][] } = { join: [], leave: [], tick: [], identify: [] };
   private readonly routeList: Route[] = [];
   private readonly shared = new Map<string, Map<string, { value: Msg; at?: { x: number; z: number } }>>();
   private queue: { from: number; entry: Entry; msg: Msg }[] = [];
@@ -371,6 +376,8 @@ export class ServerRuntime {
         this.routeList.push({ method, parts, feature: id, fn });
       },
       onJoin: (fn) => { this.hooks.join.push([id, fn]); },
+      onIdentify: (fn) => { this.hooks.identify.push([id, fn]); },
+      who: (e) => this.host.who?.(e) ?? null,
       onLeave: (fn) => { this.hooks.leave.push([id, fn]); },
       onTick: (fn) => { this.hooks.tick.push([id, fn]); },
       players: () => this.host.players(),
@@ -391,6 +398,13 @@ export class ServerRuntime {
       for (const [key, s] of table) this.host.send(entity, encodeState(pos, key, cf.state.fields, s.value));
     });
     for (const [id, fn] of this.hooks.join) { try { fn(entity); } catch (e) { this.fail(id, "en onJoin", e); } }
+  }
+
+  /** I1: the instance bound a guest identity to this entity. */
+  identify(entity: number): void {
+    const w = this.host.who?.(entity);
+    if (!this.active || !w) return;
+    for (const [id, fn] of this.hooks.identify) { try { fn(entity, w); } catch (e) { this.fail(id, "en onIdentify", e); } }
   }
 
   leave(entity: number): void {

@@ -6,7 +6,11 @@ import type { SimState } from "../../sim/src/index.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
+  decodeIdentityRequest, encodeIdentity,
 } from "../../net/src/index.ts";
+import { emitir, nombreDe, nuevoId, today, verificar } from "./identidad.ts";
+import type { Who } from "./identidad.ts";
+export type { Who } from "./identidad.ts";
 import type { Transport, Viewer, Welcome } from "../../net/src/index.ts";
 import { ServerRuntime } from "../../feature/src/index.ts";
 import type { FeatureStorage, ServerPart } from "../../feature/src/index.ts";
@@ -19,6 +23,9 @@ export type InstanceOptions = {
   sign?: (text: string) => string; // HMAC with the server's secret, for features (api.sign)
   onReport?: (entity: number, report: Record<string, unknown>) => void; // T1: how a player entered (server/sesiones.ts)
   storage?: FeatureStorage; // S4: where the features' saved state and stores live (server/datos.ts); none = memory only
+  identitySign?: (text: string) => string; // I1: signs guest tokens; none = no identities (bots, bare tests)
+  random?: () => number;                   // I1: randomness for new guest ids (the server passes crypto); default Math.random
+  now?: () => number;                      // I1: the clock for token days; default Date.now
 };
 
 /** Inputs wait in a queue; the server applies exactly ONE per tick (none = stand still). */
@@ -27,6 +34,7 @@ export const MAX_QUEUE = 8;
 type Conn = {
   entity: number; transport: Transport; viewer: Viewer;
   queue: { seq: number; mx: number; mz: number }[]; ack: number; dropped: number; bad: number;
+  who?: Who; // I1: set once the page shows (or asks for) its guest token
 };
 
 export class Instance {
@@ -47,6 +55,7 @@ export class Instance {
       log: opts.log ?? (() => {}),
       sign: opts.sign,
       storage: opts.storage,
+      who: (e) => this.byEntity[e]?.who ?? null,
     });
   }
 
@@ -62,6 +71,15 @@ export class Instance {
         t.send(encodePong(decodeTime(bytes)), true);
       } else if (bytes[0] === MSG.FEATURE && this.features.active) {
         if (!this.features.receive(entity, bytes)) conn.bad++;
+      } else if (bytes[0] === MSG.IDENTITY && this.opts.identitySign) {
+        const token = conn.who ? null : decodeIdentityRequest(bytes); // once per connection
+        if (token === null) { conn.bad++; return; }
+        const sign = this.opts.identitySign, day = today(this.opts.now?.());
+        const ok = token ? verificar(sign, token, day) : null;
+        const id = ok?.id ?? nuevoId(this.opts.random ?? Math.random);
+        conn.who = { id, nombre: nombreDe(id) };
+        t.send(encodeIdentity({ token: ok && !ok.renovar ? token : emitir(sign, id, day), ...conn.who }), true);
+        this.features.identify(entity);
       } else if (bytes[0] === MSG.REPORT) {
         const r = decodeReport(bytes);
         if (!r) conn.bad++; else this.opts.onReport?.(entity, r); // no listener (tests, bots): ignored
@@ -109,6 +127,9 @@ export class Instance {
       }
     }
   }
+
+  /** I1: the guest behind a connected entity (null for bots and before the page showed its token). */
+  who(entity: number): Who | null { return this.byEntity[entity]?.who ?? null; }
 
   hash(): number { return stateHash(this.sim); }
   sentBytes(): number { return this.conns.reduce((n, c) => n + c.transport.sentBytes, 0); }

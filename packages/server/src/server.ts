@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { existsSync, readFileSync } from "node:fs";
 import { signer } from "./secret.ts";
+import { randomBytes, randomInt } from "node:crypto";
 import { WebSocketServer } from "ws";
 import type { WebSocket } from "ws";
 import { hex } from "../../core/src/index.ts";
@@ -80,7 +81,12 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const refMs = Math.round(performance.now() - t0);
   const sesiones = new Sesiones({ dir: o.sesiones ?? null, log });
   const datos = o.datos ? new FileStorage(o.datos, log) : null;
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: o.features, sign: signer(o.secret ?? process.env.MOTOR_SECRET), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined });
+  // I1: guest tokens are signed with the server's secret; without one, with a secret made now (guests are
+  // then new after every restart, and the log says so)
+  const secret = o.secret ?? process.env.MOTOR_SECRET;
+  let identitySign = signer(secret);
+  if (!identitySign("probe")) { identitySign = signer(randomBytes(24).toString("hex")); log("[identidad] sin MOTOR_SECRET: los invitados no se reconocen después de reiniciar"); }
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: o.features, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32 });
 
   const ticks = new TickWindow(200), lags = new TickWindow(200), responses = new TickWindow(200), bytes = new ByteWindow(11);
   const runtime = new Runtime(), env = entorno();

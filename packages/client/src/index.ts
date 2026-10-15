@@ -4,7 +4,7 @@
 import { fxToFloat } from "../../core/src/index.ts";
 import { createSim, spawnAvatar, step, TICK_HZ } from "../../sim/src/index.ts";
 import type { SimState } from "../../sim/src/index.ts";
-import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, seqNewer } from "../../net/src/index.ts";
+import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, encodeIdentityRequest, decodeIdentity, seqNewer } from "../../net/src/index.ts";
 import type { Transport, Welcome } from "../../net/src/index.ts";
 import { ClientRuntime } from "../../feature/src/index.ts";
 import type { ClientPart, ViewHooks } from "../../feature/src/index.ts";
@@ -33,6 +33,9 @@ export function serverUrl(loc: { protocol: string; hostname: string; host: strin
   return `${loc.protocol === "https:" ? "wss" : "ws"}://${loc.host}/ws`;
 }
 
+/** I1: where the page keeps its guest token between visits (the browser passes localStorage; tests a variable). */
+export type GuestKeeper = { load(): string | null; save(token: string): void };
+
 export class ClientSession {
   readonly t: Transport;
   entity = -1;
@@ -48,9 +51,13 @@ export class ClientSession {
   stats = { snapshots: 0, corrections: 0, rttMs: -1, visible: 0, lastServerTick: 0 };
   /** Game features (J7): their client parts, the server's catalog, their recent events. */
   readonly features: ClientRuntime;
+  /** I1: who the server says you are (guest id + name); null until it answers, or when no keeper was given. */
+  who: { id: string; nombre: string } | null = null;
+  private readonly keeper?: GuestKeeper;
 
-  constructor(t: Transport, opts: { features?: readonly ClientPart[]; view?: ViewHooks } = {}) {
+  constructor(t: Transport, opts: { features?: readonly ClientPart[]; view?: ViewHooks; identity?: GuestKeeper } = {}) {
     this.t = t;
+    this.keeper = opts.identity;
     this.local = createSim(1, 0);
     spawnAvatar(this.local, 0);
     this.features = new ClientRuntime(opts.features ?? [], { send: (b) => this.t.send(b, true), self: () => this.entity, view: opts.view });
@@ -87,6 +94,10 @@ export class ClientSession {
       this.welcome = w; this.entity = w.entity;
       this.setLocal(w.x, w.z); this.prev = { ...this.cur };
       this.syncClock(w.tick, now, true);
+      if (this.keeper) { let kept: string | null = null; try { kept = this.keeper.load(); } catch { /* private mode */ } this.t.send(encodeIdentityRequest(kept ?? ""), true); }
+    } else if (type === MSG.IDENTITY) {
+      const i = decodeIdentity(bytes);
+      if (i) { this.who = { id: i.id, nombre: i.nombre }; try { this.keeper?.save(i.token); } catch { /* private mode: a new guest next time */ } }
     } else if (type === MSG.SNAPSHOT) {
       const s = decodeSnapshot(bytes);
       if (!s) return;

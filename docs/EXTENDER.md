@@ -96,6 +96,14 @@ export default clientPart(gestos, (api) => {
 - Para dibujar en un punto del mundo hay `view.beacon?.(x, z, texto, ms)` (columna de luz).
 - Un agente usa el mismo camino que una persona: lee el catálogo y envía intentos (P4 hará el SDK).
 
+## Quién es quién (I1)
+
+- `api.onIdentify((entidad, quien) => …)` — la página ha dicho quién es: `quien.id` (12 letras, el mismo en
+  cada visita desde ese navegador) y `quien.nombre` («Invitado ASC6»). `api.who(entidad)` lo da después.
+- Lo de cada persona (inventario, lo que reclamó) se guarda por `quien.id` en `api.store`, **nunca por
+  entidad** (la entidad cambia en cada conexión). Los robots no tienen identidad: `who` da `null`.
+- Sin cuenta ni datos personales; vincular el móvil con el ordenador no existe todavía (I2, aparcada).
+
 ## Guardar lo que tiene que sobrevivir a un reinicio (S4)
 
 - `state: { …, persist: true }` — el estado compartido se guarda y vuelve al arrancar (antes de que entre

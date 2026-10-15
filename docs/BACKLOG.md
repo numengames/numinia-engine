@@ -30,7 +30,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J0 | Catálogo de todo lo que espera un jugador (la receta para añadir funciones es de J7) | hecho | sí |
 | J7 | Módulos de juego: añadir una función sin tocar el núcleo, con un ejemplo real (gestos) | hecho | no |
 | T1 | Cómo entra cada jugador: el aparato, el navegador, la gráfica, la XR, los cuadros, el ping y la batería de cada sesión, guardados en el servidor (Pablo, 15-10) | hecho | sí |
-| I1 | Identidad de invitado (sin vincular aparatos: Pablo, 15-10, «de momento no») | para Opus | no |
+| I1 | Identidad de invitado (sin vincular aparatos: Pablo, 15-10, «de momento no») | hecho | no |
 | S4 | Persistencia mínima del mundo (puntos de enlace, inventario, cosas plantadas) | hecho | no |
 | V1 | Ficha `accesible` en el esquema (nombre, función, estado, descripción, importancia, sonido, acciones) + reglas en J7: nombre hablado, sonido↔texto, verbo sin gesto; puerta en los tests | hecho | no |
 | J9 | Estado y objetos de las funciones por cercanía (mundos grandes): a cada uno, solo lo que tiene cerca | para Opus | no |
@@ -38,8 +38,8 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J8 | AR de verdad: entrar en AR en Android, Quest 3 y Pico 4, suelo, anclar un objeto; iPhone en plano | hecho (emulado; falta probar en aparato real) | sí |
 | J6 | VR de verdad: entrar en VR, moverse, mandos, giro a saltos, viñeta, panel 3D (emulador IWER) | hecho (emulado) | sí |
 | R1 | Realidad cruzada 1 «Despertar»: un QR real hace que la plaza reaccione para todos (trozo 1 hecho; falta lo de «Falta de R1» en su detalle) | pendiente | sí |
-| R2 | Realidad cruzada 2 «Semilla del Conocimiento»: pregunta en un sitio real → semilla que se planta en el mundo | espera a I1, S4 | sí |
-| R3 | Realidad cruzada 3 «Célula del Prisma» + herramienta del DJ para marcar puntos reales | espera a I1, S4 | sí |
+| R2 | Realidad cruzada 2 «Semilla del Conocimiento»: pregunta en un sitio real → semilla que se planta en el mundo | pendiente | sí |
+| R3 | Realidad cruzada 3 «Célula del Prisma» + herramienta del DJ para marcar puntos reales | pendiente | sí |
 | R4 | Realidad cruzada 4 «Caza de invisibles»: la cámara, el color y la hora deciden qué aparece | pendiente | sí |
 | J10 | VR: teletransporte con arco, manos (hand-tracking) y viñeta ajustable desde un menú; resto de J6 (antes «J6b»: `auto.sh` solo reconoce letra + cifras) | pendiente | sí |
 | P2 | Móvil frío: política de energía del cliente + puerta de coste por cuadro | hecho (sin medir en móvil real → X1) | sí |
@@ -78,7 +78,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | V11 | Baja visión: contraste por función, contornos en lo importante, lupa, texto a 200 % (coste medido) | pendiente | sí |
 | V14 | Página compañera accesible: el móvil o el PC muestra lo que pasa en las gafas (chat, avisos, lista) | espera a V4 | sí |
 | M18 | Medios: vídeo en pantallas del mundo sincronizado con el reloj del servidor (función J7) | pendiente | sí |
-| V8 | Perfil de accesibilidad en la identidad, aplicado antes del primer fotograma en cualquier aparato | espera a I1 | sí |
+| V8 | Perfil de accesibilidad en la identidad, aplicado antes del primer fotograma en cualquier aparato | pendiente | sí |
 | P5 | Habitante IA en la plaza con las reglas de Procyon y STD-050 (política en código, `<material>`, verbos del catálogo) | espera a P4 | sí |
 | V12 | Guía IA: un agente que acompaña, describe y lleva (primero desde datos) | espera a P5 | sí |
 | M6 | Física: Rapier determinista en WASM y controlador de personaje compartido (cambia la huella) | para Opus | no |
@@ -89,7 +89,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | M9 | WebTransport como escalón de arriba detrás de la misma interfaz que WebSocket | para Opus | no |
 | M22 | Estudio en el navegador: mover, rotar, propiedades, deshacer; produce un PR, no toca el servidor | espera a M19 | sí |
 | M26 | Servidor MCP del motor: leer zona, proponer cambio, abrir PR (nunca publica solo) | espera a M19, P4 | sí |
-| O4 | Seguridad: billete firmado para entrar a una instancia, tope de conexiones por IP, exportar y borrar lo tuyo | espera a I1, S4 | sí |
+| O4 | Seguridad: billete firmado para entrar a una instancia, tope de conexiones por IP, exportar y borrar lo tuyo | pendiente | sí |
 | O3 | Observabilidad: panel y alertas sobre `/metrics` del servidor real | espera a X3 | sí |
 | M17 | Voz por cercanía (LiveKit) con tope de voces audibles, DTX y modo escenario | necesita aprobación (Pablo: cuántas voces a la vez, `docs/SABER.md` §5) | no |
 | V13 | Subtítulos del chat de voz (con quién habla y desde dónde) + texto que habla | espera a M17 | sí |
@@ -343,6 +343,15 @@ conectará un móvil viejo en modo depuración (X5) para pruebas serias con `adb
 ### I1 — Identidad de invitado (para Opus)
 **Pablo (15-10): vincular el móvil con el ordenador «de momento no»** → esa parte pasa a I2 (aparcada); I1 es
 solo la identidad de invitado guardada en el aparato.
+**Hecho (15-10, sesión con Opus).** Sin cuenta ni datos personales: el servidor da un billete firmado
+`g1.<id>.<día>.<firma>` (id de 12 letras al azar, HMAC con `MOTOR_SECRET`; sin secreto, uno de usar y tirar y el
+registro avisa de que los invitados no se reconocerán tras reiniciar); la página lo guarda en `localStorage` y lo
+enseña al volver (mensaje nuevo IDENTITY, tipo 10, aditivo); el mismo navegador es el mismo invitado («Invitado
+ASC6»), dos pestañas también; un billete falso o de más de 180 días da un invitado nuevo; a los 30 días se
+renueva con el mismo id. Las funciones tienen `api.onIdentify(entidad, quien)` y `api.who(entidad)`, y guardan lo
+de cada persona por `quien.id`, nunca por entidad. Los robots no tienen identidad. Código:
+`packages/instance/src/identidad.ts` (puro), `Instance.who`, `ClientSession.who` + `GuestKeeper`. Las sesiones
+de T1 siguen sin identidad (promesa: «sin IP ni identidad»). Desbloquea R2, R3, V8 y O4.
 Hoy el motor no sabe quién es nadie. La Semilla y la Célula necesitan una identidad de invitado (sin
 cuenta) guardada en el aparato y **vincular** el móvil con el ordenador o el visor (el ordenador enseña un
 QR, el móvil lo escanea) para que lo que haga el móvil cuente para la misma persona. Tokens firmados con
@@ -398,6 +407,8 @@ nunca en el repositorio.
 **Falta de R1:** imprimir los QR como SVG (hace falta un codificador QR: escribirlo o dependencia MIT exacta); opción para que el servidor escuche en la red de casa; comprobar en un navegador real que la columna se dibuja (hoy solo se prueba el evento sin pantalla; `beaconCount()` en render permite hacerlo en e2e); medir el tiempo con un móvil real.
 
 ### R2 — Semilla del Conocimiento
+**Ya hay (15-10):** identidad de invitado (I1: `api.onIdentify`, `api.who`) y guardado (S4: `state.persist`,
+`api.store` por `quien.id`). Lo que se planta es algo en el mundo: lleva `state.card` (V1).
 El punto hace una pregunta que solo se responde estando allí; la respuesta la fija el DJ (un agente puede
 redactar la pregunta desde la ficha `.md` del sitio, nunca decidir si se acierta). Acierto → Semilla en
 el inventario de la persona (I1); en el mundo digital se planta, crece con el tiempo real y los demás la

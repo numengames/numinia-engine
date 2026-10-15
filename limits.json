@@ -100,6 +100,7 @@
     { "axis": "any", "scope": "all", "key": "feature_http_body_max", "value": 4096, "unit": "bytes", "state": "measured", "test": "test/feature.test.ts", "date": "2026-10-15", "note": "POST a las rutas de las funciones; más = 413" },
     { "axis": "any", "scope": "all", "key": "feature_store_value_max", "value": 4096, "unit": "bytes de JSON por clave", "state": "measured", "test": "test/datos.test.ts", "date": "2026-10-15", "note": "almacén de una función (S4), solo en el servidor" },
     { "axis": "any", "scope": "all", "key": "feature_store_keys_max", "value": 10000, "unit": "claves por función", "state": "measured", "test": "test/datos.test.ts", "date": "2026-10-15" },
+    { "axis": "any", "scope": "all", "key": "guest_token_days", "value": 180, "unit": "días", "state": "measured", "test": "test/identidad.test.ts", "date": "2026-10-15", "note": "I1: un billete de invitado más viejo da un invitado nuevo; a los 30 días se renueva con el mismo id" },
     { "axis": "any", "scope": "all", "key": "feature_saved_loss_on_crash", "value": 1, "unit": "s de cambios como mucho", "state": "estimated", "source": "packages/server/src/datos.ts: los cambios se escriben cada segundo; un apagón pierde lo que esperaba (un reinicio normal no pierde nada)" }
   ],
   "features": [

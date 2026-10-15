@@ -7,7 +7,8 @@ import type { Field } from "../../schema/src/index.ts";
 
 // 6-8 (J7, additive): only a server that runs game features sends them; with no features the wire is unchanged.
 // 9 (T1, additive): REPORT, page -> server: how this player entered and how it is going (JSON, see server/sesiones.ts).
-export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8, REPORT: 9 } as const;
+// 10 (I1, additive): IDENTITY. page -> server: the guest token it kept (or nothing); server -> page: {token, id, nombre}.
+export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8, REPORT: 9, IDENTITY: 10 } as const;
 
 // ---------- bit packing ----------
 export class BitWriter {
@@ -273,6 +274,27 @@ export function encodeReport(report: Record<string, unknown>): Uint8Array | null
 export function decodeReport(bytes: Uint8Array): Record<string, unknown> | null {
   if (bytes[0] !== MSG.REPORT || bytes.length > REPORT_MAX) return null;
   try { const o = JSON.parse(utf8dec.decode(bytes.subarray(1))); return o && typeof o === "object" && !Array.isArray(o) ? o : null; }
+  catch { return null; }
+}
+
+// ---------- IDENTITY (I1): a guest token, no personal data (instance/identidad.ts) ----------
+/** page -> server: the token this browser kept, or "" to ask for one. */
+export function encodeIdentityRequest(token: string): Uint8Array {
+  const t = utf8enc.encode(token.slice(0, 120));
+  const out = new Uint8Array(t.length + 1); out[0] = MSG.IDENTITY; out.set(t, 1); return out;
+}
+export function decodeIdentityRequest(bytes: Uint8Array): string | null {
+  if (bytes[0] !== MSG.IDENTITY || bytes.length > 121) return null;
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(1)); } catch { return null; }
+}
+export type Identity = { token: string; id: string; nombre: string };
+/** server -> page: who you are here (keep the token for the next visit). */
+export function encodeIdentity(i: Identity): Uint8Array {
+  const j = utf8enc.encode(JSON.stringify(i));
+  const out = new Uint8Array(j.length + 1); out[0] = MSG.IDENTITY; out.set(j, 1); return out;
+}
+export function decodeIdentity(bytes: Uint8Array): Identity | null {
+  try { const o = JSON.parse(utf8dec.decode(bytes.subarray(1))); return typeof o?.token === "string" && typeof o?.id === "string" && typeof o?.nombre === "string" ? o : null; }
   catch { return null; }
 }
 
