@@ -142,7 +142,7 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 | Se fía de la posición del cliente | Entradas validadas por el servidor |
 | `.hyp` binario como única verdad, API de scripts inestable | Carpeta de texto con esquema y versión; paquete de entrega aparte |
 | Scripts y propiedades llegan a todos los clientes (no caben secretos) | Secretos solo en el servidor (`MOTOR_SECRET`, `api.sign`) |
-| Guarda el mundo en SQLite cada 60 s | S4 decide; reiniciar sin perder nada es la prueba |
+| Guarda el mundo en SQLite cada 60 s | S4: lo de las funciones en ficheros de texto (foto + diario) cada segundo; la simulación nunca se guarda |
 | Animaciones: solo 8 internas; pierde la traslación de caderas con nombres VRM | `.vrma` con traslación; colección «Movimientos» |
 | Proyecto parado desde abril de 2026 | Motor que mantiene una IA, con puertas numéricas |
 

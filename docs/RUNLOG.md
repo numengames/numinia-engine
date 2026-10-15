@@ -138,3 +138,10 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Consumo: semana 47 % → ver `hermes usage` (Opus).
 - Commit: ver `git log` (V1).
 - Siguiente: turnos, R1 y V3/V4 cuando les toque. Sesión con Opus: S4 → I1 (solo invitado) → J9.
+
+## 2026-10-15 10:56 · S4 · hecho (sesión de Pablo con Opus)
+- Qué: lo que guardan las funciones sobrevive a un reinicio. Decisiones: la simulación nunca se guarda (los avatares son de paso; la huella no se toca); ficheros de texto por función en `DATOS_DIR` (`<id>.json` foto + `<id>.jsonl` diario), no SQLite (sin dependencias, legibles con `cat`); se escribe cada segundo y al parar (SIGTERM), un apagón pierde ≤ 1 s; el diario se pliega en una foto a las 1.000 líneas. Declarado en la función: `state.persist: true` (vuelve antes de que entre nadie, comprobado contra el esquema de hoy; lo que ya no cabe se descarta y se dice) y `store: { describe }` → `api.store` (solo servidor, JSON ≤ 4.096 bytes, ≤ 10.000 claves). `despertar` guarda cuándo se despertó cada punto y cuántas veces. Instalador: `DATOS_DIR=/var/lib/numinia-motor/datos`; en casa `.run/datos`. 3 límites nuevos en `limits.json`.
+- Números: 73 pruebas (6 nuevas en `test/datos.test.ts`: reinicio sin pérdida, línea cortada, esquema que cambia, plegado a 1.050 líneas, topes del almacén, servidor real con un QR recordado tras reiniciar); puertas en verde (tick p99 8,2 ms; 25,0 kbit/s; huella sin cambios).
+- Consumo: semana 47 % → ver `hermes usage` (Opus).
+- Commit: ver `git log` (S4).
+- Siguiente: R2 y R3 siguen esperando a I1. Sesión con Opus: I1 (solo invitado) → J9.

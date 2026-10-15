@@ -41,11 +41,14 @@ export type FeatureDecl = {
   level?: Level;         // base (everyone) · mejorado · frontera (FUNCIONALIDADES.md)
   intents?: Record<string, IntentDecl>;    // client -> server: the verbs a player or an agent can use
   events?: Record<string, EventDecl>;      // server -> client
-  state?: { describe: string; fields: Fields; card?: Card }; // shared state by key, replicated to every client; card = it is a thing in the world
+  state?: { describe: string; fields: Fields; card?: Card; persist?: boolean }; // shared state by key, replicated to every client; card = it is a thing in the world; persist = survives restarts (S4)
+  store?: { describe: string };            // S4: server-only data that survives restarts (inventories, who claimed what and when); never sent to pages
 };
 export type Feature = Readonly<Required<Pick<FeatureDecl, "id" | "version" | "describe" | "level">> & Omit<FeatureDecl, "level"> & { issues: Issue[] }>;
 
 export const DEFAULT_RATE: Rate = { perSecond: 4, burst: 8 };
+export const STORE_VALUE_MAX = 4096;      // bytes of JSON per stored key (S4)
+export const STORE_KEYS_MAX = 10_000;     // keys per feature store (S4)
 export const NEAR_RADIUS_M = 32;          // default reach of an event sent { near }
 export const QUEUE_PER_PLAYER = 32;       // intents waiting for the next tick, per player
 export const STATE_KEY_BYTES = 64;
@@ -109,6 +112,8 @@ export function defineFeature(decl: FeatureDecl): Feature {
       }
     }
   }
+  if (decl.store !== undefined && !decl.store?.describe) issues.push({ path: `${id}.store.describe`, message: "say in one line what is kept (people and agents read it)" });
+  if (decl.state?.persist !== undefined && typeof decl.state.persist !== "boolean") issues.push({ path: `${id}.state.persist`, message: "persist: true or false" });
   if (decl.state) {
     checkFields(decl.state.fields, `${id}.state.fields`, issues);
     const c = decl.state.card, p = `${id}.state.card`;
@@ -190,6 +195,11 @@ export function decodeState(bytes: Uint8Array, fieldsOf: (pos: number) => Fields
 }
 
 // ---------- server side ----------
+/** S4: what a feature had saved (state entries and store entries) and how changes are recorded. The server
+ * gives a file-backed one (packages/server/src/datos.ts); without one, everything lives in memory only. */
+export type Saved = { version: number; state: [string, { value: Msg; at?: { x: number; z: number } }][]; store: [string, unknown][] };
+export type StorageOp = { op: "s"; key: string; value: Msg; at?: { x: number; z: number } } | { op: "sd"; key: string } | { op: "k"; key: string; value: unknown } | { op: "kd"; key: string };
+export interface FeatureStorage { load(feature: string): Saved | null; record(feature: string, version: number, op: StorageOp): void }
 export type ServerHost = {
   players(): readonly number[];                                 // connected entities, join order
   position(entity: number): { x: number; z: number } | null;    // metres; null if gone
@@ -197,6 +207,7 @@ export type ServerHost = {
   tick(): number;
   log(line: string): void;
   sign?(text: string): string;                                  // HMAC of `text` with the server's secret; "" when there is none
+  storage?: FeatureStorage;                                     // S4: where persisted state and stores live (none = memory only)
 };
 export type Scope = "all" | { to: number } | { near: number | { x: number; z: number }; radius?: number };
 export type HttpRequest = { method: "GET" | "POST"; path: string; params: Record<string, string>; query: Record<string, string>; body: string };
@@ -210,6 +221,8 @@ export type ServerApi = {
   emit(event: string, msg: Msg, scope: Scope): number;
   /** Shared state by key, validated against the declared state, sent to everyone (and to whoever joins later). `at` is kept for area-of-interest scoping later (J9). */
   state: { get(key: string): Msg | undefined; set(key: string, value: Msg, opts?: { at?: { x: number; z: number } }): boolean; delete(key: string): void; keys(): string[] };
+  /** S4: server-only data that survives restarts (declare `store` first). JSON values up to STORE_VALUE_MAX bytes, STORE_KEYS_MAX keys. Never sent to pages. */
+  store: { get(key: string): unknown; set(key: string, value: unknown): boolean; delete(key: string): void; keys(): string[] };
   /** An HTTP route on the instance's own port (e.g. the URL a QR opens). Paths like "/e/:token". */
   route(method: "GET" | "POST", path: string, fn: (req: HttpRequest) => HttpReply): void;
   onJoin(fn: (entity: number) => void): void;
@@ -280,6 +293,20 @@ export class ServerRuntime {
     const stateSchema = f.state ? defineSchema(`${id}.state`, f.version, f.state.fields) : null;
     const table = new Map<string, { value: Msg; at?: { x: number; z: number } }>();
     this.shared.set(id, table);
+    // S4: bring back what was saved. State values are checked against today's schema: a value that no longer
+    // fits (the feature changed shape) is dropped and counted, never sent to anyone.
+    const persist = !!f.state?.persist, keeps = persist || !!f.store, storage = this.host.storage;
+    const saved = keeps && storage ? storage.load(id) : null;
+    if (keeps && !storage) log("sin carpeta de datos: lo que guarda esta función se pierde al reiniciar (DATOS_DIR)");
+    const box = new Map<string, unknown>(f.store && saved ? saved.store : []);
+    if (saved && persist && stateSchema) {
+      let dropped = 0;
+      for (const [k, s] of saved.state) { const v = validate(stateSchema, s.value); if (v.ok) table.set(k, s.at ? { value: v.value, at: s.at } : { value: v.value }); else dropped++; }
+      if (dropped) log(`${dropped} claves guardadas ya no cumplen el esquema (versión ${saved.version} → ${f.version}): no se cargan`);
+    }
+    if (saved) log(`recupero lo guardado: ${table.size} claves de estado, ${box.size} del almacén`);
+    const save = (op: StorageOp) => storage?.record(id, f.version, op);
+    const keyOk = (key: string, what: string) => { if (key.length === 0 || new TextEncoder().encode(key).length > STATE_KEY_BYTES) { log(`${what}: la clave debe tener 1-${STATE_KEY_BYTES} bytes`); return false; } return true; };
     return {
       id,
       on: (intent, fn) => {
@@ -308,15 +335,33 @@ export class ServerRuntime {
           const v = validate(stateSchema, value);
           if (!v.ok) { log(`state.set('${key}') no cumple su esquema: ${v.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`); return false; }
           table.set(key, { value: v.value, at: opts?.at });
+          if (persist) save(opts?.at ? { op: "s", key, value: v.value, at: opts.at } : { op: "s", key, value: v.value });
           const bytes = encodeState(pos, key, f.state.fields, v.value);
           for (const p of this.host.players()) this.host.send(p, bytes);
           return true;
         },
         delete: (key) => {
           if (!table.delete(key)) return;
+          if (persist) save({ op: "sd", key });
           const bytes = encodeState(pos, key, null);
           for (const p of this.host.players()) this.host.send(p, bytes);
         },
+      },
+      store: {
+        get: (key) => box.get(key),
+        keys: () => [...box.keys()],
+        set: (key, value) => {
+          if (!f.store) { log("store.set: declara store: { describe } en la función para guardar datos"); return false; }
+          if (!keyOk(key, "store.set")) return false;
+          let json: string | undefined;
+          try { json = JSON.stringify(value); } catch { json = undefined; }
+          if (json === undefined || new TextEncoder().encode(json).length > STORE_VALUE_MAX) { log(`store.set('${key}'): el valor debe ser JSON de como mucho ${STORE_VALUE_MAX} bytes`); return false; }
+          if (!box.has(key) && box.size >= STORE_KEYS_MAX) { log(`store.set('${key}'): el almacén ya tiene ${STORE_KEYS_MAX} claves; borra alguna`); return false; }
+          const clean = JSON.parse(json);
+          box.set(key, clean); save({ op: "k", key, value: clean });
+          return true;
+        },
+        delete: (key) => { if (box.delete(key)) save({ op: "kd", key }); },
       },
       route: (method, path, fn) => {
         const clean = "/" + path.split("/").filter(Boolean).join("/");

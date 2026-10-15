@@ -58,6 +58,11 @@ cd /opt/numinia-engine/app && SESIONES_DIR=/var/lib/numinia-motor/sesiones ../no
 
 Desde casa, por el túnel (`ssh -L 18790:localhost:8790 …`): `npm run sesiones -- --url http://localhost:18790`.
 
+## Lo que guardan las funciones (S4)
+
+`/var/lib/numinia-motor/datos/<función>.json` + `.jsonl` (texto). Para una copia de seguridad basta copiar esa
+carpeta; para empezar de cero, parar el servicio y vaciarla.
+
 ## Medir los límites
 
 Todo está explicado en [`docs/MEDIDAS.md`](../docs/MEDIDAS.md). Lo mínimo:

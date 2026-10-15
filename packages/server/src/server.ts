@@ -15,6 +15,7 @@ import type { HttpReply, ServerPart } from "../../feature/src/index.ts";
 import { buildMetrics, ByteWindow, TickWindow, toPrometheus } from "./metrics.ts";
 import { entorno, Runtime } from "./runtime.ts";
 import { KEEP_DAYS, Sesiones } from "./sesiones.ts";
+import { FileStorage } from "./datos.ts";
 import type { Metrics } from "./metrics.ts";
 
 export type ServerOptions = {
@@ -27,6 +28,7 @@ export type ServerOptions = {
   features?: readonly ServerPart[]; // game features (J7): composition roots pass them in
   secret?: string;       // signs QR URLs etc. (api.sign); default: MOTOR_SECRET env; under 16 characters = none
   sesiones?: string | null; // T1: folder for the session log (one JSONL per UTC day); default null = keep in memory only
+  datos?: string | null;    // S4: folder where the features' saved state and stores live; default null = memory only
   log?: (line: string) => void;
 };
 
@@ -37,6 +39,7 @@ export type RunningServer = {
   port: number;
   inst: Instance;
   sesiones: Sesiones;
+  datos: FileStorage | null;
   fingerprint: string;
   metrics(): Metrics;
   close(): Promise<void>;
@@ -76,7 +79,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const refHash = replayFingerprint(referenceRecording(REFERENCE.seed, REFERENCE.ticks, REFERENCE.n));
   const refMs = Math.round(performance.now() - t0);
   const sesiones = new Sesiones({ dir: o.sesiones ?? null, log });
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: o.features, sign: signer(o.secret ?? process.env.MOTOR_SECRET), log, onReport: (e, r) => sesiones.informe(e, r) });
+  const datos = o.datos ? new FileStorage(o.datos, log) : null;
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: o.features, sign: signer(o.secret ?? process.env.MOTOR_SECRET), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined });
 
   const ticks = new TickWindow(200), lags = new TickWindow(200), responses = new TickWindow(200), bytes = new ByteWindow(11);
   const runtime = new Runtime(), env = entorno();
@@ -147,7 +151,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     n++;
     timer = setTimeout(loop, Math.max(0, start + n * tickMs - performance.now()));
   };
-  const sampler = setInterval(() => { bytes.sample(performance.now(), bytesOut, inst.conns.length); runtime.sample(); void sesiones.vaciar(); }, o.sampleMs ?? 1000);
+  const sampler = setInterval(() => { bytes.sample(performance.now(), bytesOut, inst.conns.length); runtime.sample(); void sesiones.vaciar(); void datos?.flush(); }, o.sampleMs ?? 1000);
   sampler.unref();
   const stats = setInterval(() => {
     const m = metrics();
@@ -166,11 +170,11 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       log(`[instancia] ws://${o.host}:${port} · 20 Hz · huella de referencia ${hex(refHash)} (${REFERENCE.ticks} ticks, ${refMs} ms) · /health /metrics /sesiones · versión ${version}`);
       if (sesiones.dir) log(`[sesiones] cómo entra cada jugador: ${sesiones.dir}/sesiones-<día UTC>.jsonl (${KEEP_DAYS} días; npm run sesiones)`);
       ok({
-        port, inst, sesiones, fingerprint: hex(refHash), metrics,
+        port, inst, sesiones, datos, fingerprint: hex(refHash), metrics,
         close: () => new Promise<void>((done) => {
           stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); runtime.close();
           for (const c of wss.clients) c.terminate();
-          wss.close(); http.close(() => void sesiones.vaciar().then(() => done()));
+          wss.close(); http.close(() => void Promise.all([sesiones.vaciar(), datos?.flush()]).then(() => done()));
         }),
       });
     });

@@ -31,7 +31,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J7 | Módulos de juego: añadir una función sin tocar el núcleo, con un ejemplo real (gestos) | hecho | no |
 | T1 | Cómo entra cada jugador: el aparato, el navegador, la gráfica, la XR, los cuadros, el ping y la batería de cada sesión, guardados en el servidor (Pablo, 15-10) | hecho | sí |
 | I1 | Identidad de invitado (sin vincular aparatos: Pablo, 15-10, «de momento no») | para Opus | no |
-| S4 | Persistencia mínima del mundo (puntos de enlace, inventario, cosas plantadas) | para Opus | no |
+| S4 | Persistencia mínima del mundo (puntos de enlace, inventario, cosas plantadas) | hecho | no |
 | V1 | Ficha `accesible` en el esquema (nombre, función, estado, descripción, importancia, sonido, acciones) + reglas en J7: nombre hablado, sonido↔texto, verbo sin gesto; puerta en los tests | hecho | no |
 | J9 | Estado y objetos de las funciones por cercanía (mundos grandes): a cada uno, solo lo que tiene cerca | para Opus | no |
 | B1 | HTTPS en la red de casa para móviles y visores (certificado propio, `/ws` en el mismo origen) | hecho | sí |
@@ -352,6 +352,20 @@ caducidad; ningún dato personal.
 Hoy todo vive en memoria y se pierde al reiniciar. Guardar: puntos de enlace, inventarios, cosas plantadas
 o dejadas, y quién reclamó qué y cuándo (sin coordenadas). Decidir formato (SQLite de Node, JSON o
 registro de eventos), cómo convive con la simulación determinista y cómo se prueba (reinicio sin pérdida).
+**Hecho (15-10, sesión con Opus). Decisiones:** (1) **la simulación nunca se guarda**: los avatares son de
+paso; se guarda lo de las funciones, que vive fuera de la huella, así que el determinismo no se toca.
+(2) **Ficheros de texto, no SQLite**: por función, `DATOS_DIR/<id>.json` (foto) + `<id>.jsonl` (cambios desde
+la foto, uno por línea); un agente o una persona los lee con `cat`; sin dependencias (`node:sqlite` aún es
+experimental en Node 24). Al cargar: foto + diario; una línea cortada por un apagón se salta; pasado
+`COMPACT_AT` (1.000) líneas, el diario se pliega en una foto nueva (`.tmp` + renombrar). Se escribe cada
+segundo y al cerrar (SIGTERM): un apagón pierde ≤ 1 s; un reinicio normal, nada. (3) **Declarado**:
+`state.persist: true` guarda el estado compartido (y vuelve antes de que entre nadie, comprobado contra el
+esquema de hoy: lo que ya no cabe se descarta y se dice); `store: { describe }` da `api.store` (solo servidor,
+nunca a las páginas; JSON ≤ 4.096 bytes por clave, ≤ 10.000 claves). El almacenamiento lo da el servidor
+(`packages/server/src/datos.ts`, `FileStorage`) por la interfaz `FeatureStorage`; sin carpeta, todo en memoria
+y la función lo avisa. `despertar` guarda cuándo se despertó cada punto y cuántas veces. Falta: «quién»
+(necesita I1), copias de seguridad (las hace quien administra la máquina, carpeta `/var/lib/numinia-motor/datos`)
+y migraciones con código (hoy: lo que no cabe en el esquema nuevo se descarta).
 
 ### J8 — AR de verdad (Pablo, 15-10: «la AR me interesa muchísimo»)
 Botón «Entrar en AR» solo si `navigator.xr.isSessionSupported('immersive-ar')` (Android Chrome con

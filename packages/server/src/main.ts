@@ -10,6 +10,7 @@ const srv = await startServer({
   statsMs: Number(process.env.STATS_MS ?? 30000),
   features: process.env.SIN_FUNCIONES === "1" ? [] : funciones, // SIN_FUNCIONES=1: the bare engine
   sesiones: process.env.SESIONES_DIR ?? "informes/sesiones",     // T1: how each player entered (installed: /var/lib/numinia-motor/sesiones)
+  datos: process.env.DATOS_DIR ?? ".run/datos",                   // S4: what features keep across restarts (installed: /var/lib/numinia-motor/datos)
 });
 
 // systemd (and tools/plaza.sh) stop the server with SIGTERM: close every connection first so each session

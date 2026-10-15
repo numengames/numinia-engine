@@ -29,6 +29,8 @@ export const crearDespertar = (puntos?: Punto[]) => serverPart(despertar, (api) 
     const now = api.tick();
     if ((hasta.get(p.id) ?? 0) > now) return { type: "html", body: pagina(p.nombre, "Ya está despierto: míralo en la plaza.") };
     hasta.set(p.id, now + Math.ceil((p.ms / 1000) * TICK_HZ));
+    const antes = api.store.get(p.id) as { veces?: number } | undefined; // S4: survives restarts
+    api.store.set(p.id, { ultima: new Date().toISOString(), veces: (antes?.veces ?? 0) + 1 });
     api.emit("despertado", { punto: p.id, texto: p.texto, x: p.x, z: p.z, ms: p.ms }, "all");
     api.log(`despertar: ${p.id} despierto`);
     return { type: "html", body: pagina(p.nombre, `Has despertado ${esc(p.nombre)}.<br>Mírala en la plaza.`) };

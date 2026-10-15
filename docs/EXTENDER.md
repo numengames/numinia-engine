@@ -88,13 +88,24 @@ export default clientPart(gestos, (api) => {
   `state.set(clave, valor, { at: { x, z } })` ya guarda la posición para entonces.
 - Los objetos (puertas, semillas) viven en el estado de su función, con `x` y `z`, y la página los dibuja;
   no son entidades de la simulación (J9 decidirá si deben serlo).
-- El estado **se pierde al reiniciar** el servidor (S4).
+- El estado se pierde al reiniciar salvo que la función lo declare (`persist`, `store`: ver «Guardar», S4).
 - Para dibujar hay `label` y `bounce`; se añaden primitivas en `render` cuando una función las pida.
 - Las rutas HTTP viven en el puerto de la instancia; en un servidor instalado, Caddy solo pasa `/ws` y
   `/health`: R1 (`despertar`) ya añadió `/e/*` al instalador y al proxy LAN.
 - Para firmar algo (URL de QR, token) usa `api.sign(texto)`: HMAC con el secreto del servidor (`MOTOR_SECRET`); devuelve `""` si no hay secreto, y entonces hay que negarse. Una función no importa `node:crypto`.
 - Para dibujar en un punto del mundo hay `view.beacon?.(x, z, texto, ms)` (columna de luz).
 - Un agente usa el mismo camino que una persona: lee el catálogo y envía intentos (P4 hará el SDK).
+
+## Guardar lo que tiene que sobrevivir a un reinicio (S4)
+
+- `state: { …, persist: true }` — el estado compartido se guarda y vuelve al arrancar (antes de que entre
+  nadie), comprobado contra el esquema de hoy.
+- `store: { describe: "…" }` — da `api.store.get/set/delete/keys`: datos solo del servidor, nunca van a las
+  páginas (inventarios, quién reclamó qué y cuándo). JSON de hasta 4.096 bytes por clave, 10.000 claves.
+- Se escribe en `DATOS_DIR/<id>.json` + `<id>.jsonl` (en casa `.run/datos/`; instalado
+  `/var/lib/numinia-motor/datos/`). Un apagón pierde como mucho el último segundo.
+- Si cambias la forma del estado, sube `version`: lo guardado que ya no cumpla el esquema se descarta y se
+  dice en el registro. Ejemplo: `features/despertar` (almacén con la última vez y cuántas veces).
 
 ## Lo que toda función declara (accesibilidad, V1: si falta, la función no se carga)
 

@@ -9,7 +9,7 @@ import {
 } from "../../net/src/index.ts";
 import type { Transport, Viewer, Welcome } from "../../net/src/index.ts";
 import { ServerRuntime } from "../../feature/src/index.ts";
-import type { ServerPart } from "../../feature/src/index.ts";
+import type { FeatureStorage, ServerPart } from "../../feature/src/index.ts";
 
 export type InstanceOptions = {
   seed: number; capacity: number; k: number; snapshotEvery: number;
@@ -18,6 +18,7 @@ export type InstanceOptions = {
   log?: (line: string) => void;
   sign?: (text: string) => string; // HMAC with the server's secret, for features (api.sign)
   onReport?: (entity: number, report: Record<string, unknown>) => void; // T1: how a player entered (server/sesiones.ts)
+  storage?: FeatureStorage; // S4: where the features' saved state and stores live (server/datos.ts); none = memory only
 };
 
 /** Inputs wait in a queue; the server applies exactly ONE per tick (none = stand still). */
@@ -45,6 +46,7 @@ export class Instance {
       tick: () => this.sim.tick,
       log: opts.log ?? (() => {}),
       sign: opts.sign,
+      storage: opts.storage,
     });
   }
 

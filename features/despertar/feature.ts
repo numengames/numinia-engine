@@ -7,6 +7,7 @@ export const despertar = defineFeature({
   version: 1,
   level: "frontera",
   describe: "Un QR real despierta un punto de la plaza: columna de luz y texto para todos durante unos segundos.",
+  store: { describe: "Por punto: cuándo se despertó la última vez (UTC) y cuántas veces (sin quién: aún no hay identidad, I1)." },
   events: {
     despertado: {
       describe: "Un punto de la plaza se ha despertado (alguien escaneó su QR). Dibuja una columna de luz en (x, z).",
