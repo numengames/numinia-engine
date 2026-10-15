@@ -1,18 +1,19 @@
 /* J5: the minimap (corner), the big map and the player sheet (apps/plaza/mapa.ts, ficha.ts, paneles.ts) */
-#minimapa { position: fixed; right: 10px; bottom: 34px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+#minimapa { position: fixed; right: 10px; bottom: 34px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 #minimapa[hidden] { display: none; }
 #minimapa canvas { width: min(150px, 30vmin); height: min(150px, 30vmin); border-radius: 50%; cursor: pointer; box-shadow: 0 1px 6px rgba(20, 24, 30, .35); }
-#minimapa .botones { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: 190px; }
-#minimapa button, .panel-j5 button { padding: 5px 9px; border: 0; border-radius: 6px; background: rgba(20, 24, 30, .78); color: #eef2f6; font: inherit; font-weight: 600; min-width: 30px; }
+#minimapa .botones { display: flex; justify-content: flex-end; gap: 4px; }
+#minimapa button, .panel-j5 button { padding: 5px 8px; border: 0; border-radius: 6px; background: rgba(20, 24, 30, .78); color: #eef2f6; font: inherit; font-weight: 600; min-width: 28px; }
 #minimapa button[aria-pressed="true"] { background: #ffd27a; color: #23303b; }
 #minimapa button:focus-visible, .panel-j5 button:focus-visible, .panel-j5 canvas:focus-visible { outline: 3px solid #ffd27a; outline-offset: 1px; }
 
 .panel-j5 { width: min(96vw, 1000px); max-height: 92vh; padding: 0; border: 0; border-radius: 10px; background: rgba(20, 24, 30, .94); color: #eef2f6; font: 13px/1.45 system-ui, sans-serif; }
+.panel-j5[open] { display: flex; flex-direction: column; }
 .panel-j5::backdrop { background: rgba(20, 24, 30, .25); }
-.panel-j5 header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid rgba(238, 242, 246, .15); }
+.panel-j5 header { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid rgba(238, 242, 246, .15); }
 .panel-j5 h2 { margin: 0; font-size: 16px; color: #ffd27a; }
 .panel-j5 h3 { margin: 10px 0 4px; font-size: 14px; color: #ffd27a; }
-.panel-j5 .cuerpo { padding: 8px 12px 12px; overflow: auto; }
+.panel-j5 .cuerpo { flex: 1 1 auto; min-height: 0; padding: 8px 12px 12px; overflow: auto; }
 .panel-j5 dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 0; }
 .panel-j5 dt { color: #9ad0ff; }
 .panel-j5 dd { margin: 0; }
@@ -21,7 +22,7 @@
 .panel-j5 button[aria-disabled="true"] { opacity: .6; }
 
 #mapa-grande { height: min(92vh, 720px); }
-#mapa-grande .cuerpo { display: flex; gap: 12px; height: calc(100% - 46px); box-sizing: border-box; overflow: hidden; }
+#mapa-grande .cuerpo { display: flex; gap: 12px; box-sizing: border-box; overflow: hidden; }
 #mapa-grande .lienzo { position: relative; flex: 1 1 60%; min-width: 0; min-height: 200px; }
 #mapa-grande .lienzo canvas { width: 100%; height: 100%; display: block; border-radius: 8px; touch-action: none; cursor: grab; }
 #mapa-grande .controles { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 4px; }

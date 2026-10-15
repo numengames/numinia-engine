@@ -36,7 +36,7 @@ const LISTA_MS = 1000;             // the big map's list, at most once a second 
 const RADIOS = [15, 30, 60, 120];  // minimap zoom: metres from the centre to the edge
 const LLEGADA_M = 2.5;             // a waypoint this close is reached (and cleared, with a notice)
 const IMAGEN_MS = 5000;            // the zone's picture is regenerated at most every 5 s, only while the big map is open
-const SUELO = "#b7c6ab", FONDO = "#c9d8e4";
+const SUELO = "#b7c6ab";
 
 /** Draw one marker shape centred at (x, y), half-size `s`, turned `ang` (arrows only). */
 function forma(g: CanvasRenderingContext2D, t: Tipo, x: number, y: number, s: number, ang = 0): void {
@@ -286,12 +286,11 @@ export function montarMapa(h: HostMapa) {
     lg.ajustar();
     gv.ancho = lg.ancho; gv.alto = lg.alto;
     const g = lg.g;
-    g.fillStyle = FONDO; g.fillRect(0, 0, lg.ancho, lg.alto);
+    g.fillStyle = imagen?.fondo ?? SUELO; g.fillRect(0, 0, lg.ancho, lg.alto); // the ground goes on beyond the picture
     if (imagen) {
       const a = proyectar(gv, imagen.x0, imagen.z0), b = proyectar(gv, imagen.x1, imagen.z1);
       g.imageSmoothingEnabled = true; g.drawImage(imagen.canvas, a.px, a.py, b.px - a.px, b.py - a.py);
     } else {
-      g.fillStyle = SUELO; g.fillRect(0, 0, lg.ancho, lg.alto);
       for (const hu of huellas) huella(g, gv, hu);
     }
     rejilla(g, gv, gv.escala >= 4 ? 10 : 50);
@@ -337,7 +336,10 @@ export function montarMapa(h: HostMapa) {
   const filas = new Map<string, { li: HTMLLIElement; ver: HTMLButtonElement; marcar: HTMLButtonElement; e: Entrada }>();
   function pintarLista(): void {
     if (!yo) return;
-    const entradas = cercanos(ultimos, yo, reg, 50), vivos = new Set(entradas.map((e) => e.id));
+    // the waypoint is listed only when it is a point of the map (a marker that is the destination already says so)
+    const real = destino && ultimos.some((m) => m.id === destino!.id) ? "destino" : "";
+    const entradas = cercanos(ultimos.filter((m) => m.id !== real), yo, reg, 50).map((e) => (e.id === "destino" && destino ? { ...e, id: destino.id } : e));
+    const vivos = new Set(entradas.map((e) => e.id));
     const foco = lista.contains(document.activeElement);
     for (const [id, f] of filas) if (!vivos.has(id)) { if (f.li.contains(document.activeElement)) hLista.focus(); f.li.remove(); filas.delete(id); }
     for (const e of entradas) {

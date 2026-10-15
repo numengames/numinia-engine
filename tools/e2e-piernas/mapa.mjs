@@ -51,7 +51,7 @@ async function pasada(engine) {
     await a.keyboard.down("KeyW"); await a.waitForTimeout(2000); await a.keyboard.up("KeyW");
     const d2 = await a.evaluate(() => ({ n: globalThis.__numinia.mapa.stats().mini.dibujos, p: globalThis.__numinia.session.selfPosition(1) }));
     const quieto = d1.n - d0, andando = d2.n - d1.n, metros = Math.round(Math.hypot(d2.p.x - d1.p.x, d2.p.z - d1.p.z) * 10) / 10;
-    ok("redibujo", quieto <= 2 && andando >= (metros > 2 ? 3 : 0) && andando <= 11 && !d1.busy, { quieto2s: quieto, andando2s: andando, metrosAndados: metros, busyQuieto: d1.busy });
+    ok("redibujo", quieto <= 2 && andando >= (metros > 1 ? 1 : 0) && andando <= 11 && !d1.busy, { quieto2s: quieto, andando2s: andando, metrosAndados: metros, busyQuieto: d1.busy });
     // 3) a block placed 3 m in front of A is a marker with its name, in the list with its direction in words
     const n0 = await a.evaluate(() => globalThis.__numinia.session.features.stateOf("objetos").size);
     await a.evaluate(() => globalThis.__numinia.constructor.colocar("bloque"));

@@ -11,8 +11,9 @@ import * as THREE from "three/webgpu";
 
 export type Huella = { x0: number; z0: number; x1: number; z1: number; color: string };
 /** A picture of the zone from above: north (-z) up, east (+x) right, covering x0..x1 × z0..z1 metres. `rgba` = its
- * pixels (sRGB, rows from the top), kept so reading a colour never asks the GPU again. */
-export type ImagenCenital = { canvas: HTMLCanvasElement; rgba: Uint8ClampedArray; x0: number; z0: number; x1: number; z1: number; modo: "gpu" | "huellas"; ms: number; px: number; conCosas: number; partes?: Record<string, number>; error?: string };
+ * pixels (sRGB, rows from the top), kept so reading a colour never asks the GPU again; `fondo` = the ground's colour
+ * (CSS), to paint beyond the picture's edge. */
+export type ImagenCenital = { canvas: HTMLCanvasElement; rgba: Uint8ClampedArray; fondo: string; x0: number; z0: number; x1: number; z1: number; modo: "gpu" | "huellas"; ms: number; px: number; conCosas: number; partes?: Record<string, number>; error?: string };
 
 const ALTO = 80;              // camera height (m); things taller than this are cut at the top (a map does not mind)
 const SUELO = "#a7b89c";      // the ground's colour, for the footprint picture
@@ -23,14 +24,15 @@ const LADO_MIN = 24, LADO_MAX = 256, MARGEN = 10; // half-side of the picture (m
 const SRGB = new Uint8ClampedArray(256);
 for (let i = 0; i < 256; i++) { const c = i / 255; SRGB[i] = Math.round(255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055)); }
 
-/** Pixels that are not the most common colour (the ground): a picture with things in it is not empty. Looks at one
- * pixel in four and scales the count (it only has to tell «empty» from «something»). */
-export function pixelesConCosas(rgba: Uint8ClampedArray | Uint8Array): number {
+/** The most common colour (the ground) and how many pixels are not it: a picture with things in it is not empty. Looks
+ * at one pixel in four and scales the count (it only has to tell «empty» from «something»). */
+export function analizarPixeles(rgba: Uint8ClampedArray | Uint8Array): { conCosas: number; fondo: string } {
   const cuenta = new Map<number, number>();
   for (let i = 0; i < rgba.length; i += 16) { const k = ((rgba[i] >> 4) << 8) | ((rgba[i + 1] >> 4) << 4) | (rgba[i + 2] >> 4); cuenta.set(k, (cuenta.get(k) ?? 0) + 1); }
-  let max = 0, total = 0;
-  for (const n of cuenta.values()) { total += n; if (n > max) max = n; }
-  return (total - max) * 4;
+  let max = 0, total = 0, clave = 0;
+  for (const [k, n] of cuenta) { total += n; if (n > max) { max = n; clave = k; } }
+  const canal = (s: number) => (((clave >> s) & 15) << 4) + 8;
+  return { conCosas: (total - max) * 4, fondo: `rgb(${canal(8)},${canal(4)},${canal(0)})` };
 }
 
 /** Part of the zone: the ground and grid ("suelo"), landmarks (true) and things placed (named `objeto:<key>`). */
@@ -89,21 +91,29 @@ export function crearCenital(renderer: THREE.WebGPURenderer, scene: THREE.Scene,
     const rt = new THREE.RenderTarget(px, px);
     const cam = new THREE.OrthographicCamera(-m.medio, m.medio, m.medio, -m.medio, 0.1, ALTO + 1);
     cam.up.set(0, 0, -1); cam.position.set(m.cx, ALTO, m.cz); cam.lookAt(m.cx, 0, m.cz); cam.updateMatrixWorld();
-    // hide what is not the zone (people, labels, beacons, gizmos, skies) and push the fog away; all put back after
-    const ocultos: THREE.Object3D[] = [];
-    for (const o of scene.children) if (o !== world && !(o as THREE.Light).isLight && o.visible) { o.visible = false; ocultos.push(o); }
-    for (const o of world.children) if (!esZona(o) && o.visible) { o.visible = false; ocultos.push(o); }
-    const niebla = scene.fog as (THREE.Fog & THREE.FogExp2) | null, antes = niebla && { near: niebla.near, far: niebla.far, density: niebla.density };
-    if (niebla) { if (niebla.isFog) { niebla.near = 1e5; niebla.far = 2e5; } else niebla.density = 0; }
+    // hide what is not the zone (people, labels, beacons, gizmos, skies) and push the fog away; all put back at once
+    const aparte = (): (() => void) => {
+      const ocultos: THREE.Object3D[] = [];
+      for (const o of scene.children) if (o !== world && !(o as THREE.Light).isLight && o.visible) { o.visible = false; ocultos.push(o); }
+      for (const o of world.children) if (!esZona(o) && o.visible) { o.visible = false; ocultos.push(o); }
+      const niebla = scene.fog as (THREE.Fog & THREE.FogExp2) | null, antes = niebla && { near: niebla.near, far: niebla.far, density: niebla.density };
+      if (niebla) { if (niebla.isFog) { niebla.near = 1e5; niebla.far = 2e5; } else niebla.density = 0; }
+      return () => {
+        for (const o of ocultos) o.visible = true;
+        if (niebla && antes) { if (niebla.isFog) { niebla.near = antes.near; niebla.far = antes.far; } else niebla.density = antes.density; }
+      };
+    };
     const destino = renderer.getRenderTarget();
-    try { renderer.setRenderTarget(rt); renderer.render(scene, cam); }
-    finally {
-      renderer.setRenderTarget(destino);
-      for (const o of ocultos) o.visible = true;
-      if (niebla && antes) { if (niebla.isFog) { niebla.near = antes.near; niebla.far = antes.far; } else niebla.density = antes.density; }
-    }
-    marca("dibujarMs");
     try {
+      // the render target needs its own shaders: compile them first without blocking the page (the first opening
+      // stalled for 0.2-1.4 s in software GL); the frames drawn meanwhile see the world as it was
+      let volver = aparte(), compilar: Promise<unknown> | undefined;
+      try { renderer.setRenderTarget(rt); compilar = renderer.compileAsync(scene, cam); } finally { renderer.setRenderTarget(destino); volver(); }
+      await compilar?.catch(() => undefined);
+      marca("compilarMs");
+      volver = aparte();
+      try { renderer.setRenderTarget(rt); renderer.render(scene, cam); } finally { renderer.setRenderTarget(destino); volver(); }
+      marca("dibujarMs");
       const datos = (await renderer.readRenderTargetPixelsAsync(rt, 0, 0, px, px)) as Uint8Array;
       marca("leerMs");
       const fila = datos.length >= px * px * 4 && datos.length < px * px * 4 + 256 ? px * 4 : Math.ceil((px * 4) / 256) * 256; // WebGPU pads rows to 256 bytes
@@ -138,9 +148,9 @@ export function crearCenital(renderer: THREE.WebGPURenderer, scene: THREE.Scene,
         try { hecho = await pintarGpu(px, m, partes); modo = "gpu"; } catch (e) { error = String((e as Error)?.message ?? e).slice(0, 160); }
       }
       if (!hecho) { const canvas = pintarHuellas(px, m, hs); hecho = { canvas, rgba: canvas.getContext("2d")!.getImageData(0, 0, px, px).data }; }
-      const t1 = performance.now(), conCosas = pixelesConCosas(hecho.rgba);
+      const t1 = performance.now(), { conCosas, fondo } = analizarPixeles(hecho.rgba);
       partes.contarMs = Math.round((performance.now() - t1) * 10) / 10;
-      return { canvas: hecho.canvas, rgba: hecho.rgba, x0: m.cx - m.medio, z0: m.cz - m.medio, x1: m.cx + m.medio, z1: m.cz + m.medio, modo, ms: Math.round((performance.now() - t0) * 10) / 10, px, conCosas, partes, ...(error ? { error } : {}) };
+      return { canvas: hecho.canvas, rgba: hecho.rgba, fondo, x0: m.cx - m.medio, z0: m.cz - m.medio, x1: m.cx + m.medio, z1: m.cz + m.medio, modo, ms: Math.round((performance.now() - t0) * 10) / 10, px, conCosas, partes, ...(error ? { error } : {}) };
     },
   };
 }
