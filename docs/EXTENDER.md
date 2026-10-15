@@ -154,3 +154,115 @@ en `features.cards()`. Un agente de IA lee lo mismo en el catálogo. Ejemplos: `
 
 `npm test` · `npm run gates` · `tools/auto.sh e2e` (incluye los gestos: la pestaña B camina hasta A,
 A pulsa G, las dos ven el texto).
+
+## Cosas que se usan de cerca (J4: hablar, coger, abrir)
+
+Una cosa del mundo que se usa de cerca declara **cómo** en su ficha: `state.card.interact = { intent, prompt, radius, key }`.
+- `intent`: el verbo que se manda (uno de tus `intents`); `key`: el campo de texto de ese intento que recibe la clave de la
+  cosa (`{ pnj: "alma" }`); `prompt`: lo que sale tras «E:» (`"hablar con {nombre}"`, `"{aviso}"`); `radius`: metros
+  (0,5-16) o el nombre de un campo numérico del estado (cada cosa el suyo). `defineFeature` rechaza lo que no cuadre.
+- La página ofrece la más cercana al alcance («E: hablar con Alma»): tecla E, un clic sin arrastrar sobre la cosa o el
+  botón del aviso (el que se toca en el móvil). Nunca con el panel de construir abierto, escribiendo o en una
+  conversación. Para que el clic se entienda, dibuja la cosa con `view.place?.("<función>:<clave>", …)`.
+- **Decide el servidor**: en el intento, `api.within(quien, clave)` dice si está a su alcance (radio + 1,5 m de margen).
+  Sin eso, nada. Los agentes leen `interact` en el catálogo y usan `features.use(función, clave)` o el intento a mano.
+- `view.tag?.(clave, { text, x, y, z } | null)` pone un nombre que se queda sobre una cosa (las personas lo llevan).
+- Falta (fila J4): mantener pulsado con anillo de progreso, rayo y gatillo en VR, puertas y botones de ejemplo.
+
+## Misiones y personas (PNJ): cómo escribe una aventura las suyas (J5)
+
+Una **aventura** es una carpeta de ficheros de texto que el servidor lee al arrancar (`AVENTURA_DIR=/ruta`; por defecto
+`aventuras/ejemplo`, que es **contenido de ejemplo**; `AVENTURA_DIR=` vacío = ninguna). El motor pone la máquina
+(`features/misiones`: los formatos, las comprobaciones, la máquina de estados, el diálogo, el libro); la aventura pone
+qué misiones hay, quién las da y qué cosas se cogen. Comprueba una carpeta sin arrancar nada:
+`node tools/aventura.ts <carpeta>` (dice cada problema con su fichero y su ruta, y cómo arreglarlo).
+
+```
+mi-aventura/
+  misiones/<id>.json   formato "mision@1"
+  pnj/<id>.json        formato "pnj@1"     (personas que no son jugadores: hablan y dan misiones)
+  cosas/<id>.json      formato "cosa@1"    (cosas que se cogen o se usan)
+  *.md                 notas para quien escribe (no se leen)
+```
+
+Reglas para quien escribe (persona o LLM):
+- **Ids** en minúsculas, cifras y guiones (`primeros-pasos`); cada fichero, un `formato` en su primera línea. Un campo
+  desconocido es un error (así una tilde de más, `descripción`, no pasa en silencio). `notas` vale en todos.
+- Los textos se miden en **bytes UTF-8** (una letra con tilde cuenta 2): título ≤ 80, descripción ≤ 300, texto de paso
+  ≤ 160, línea de diálogo ≤ 400, respuesta ≤ 100, aviso ≤ 40, nombre ≤ 60.
+- Posiciones en metros (`x`, `z`; −z es el norte, hacia donde mira la cámara al llegar), radios en metros.
+- Lo que tenga un problema **no se carga** (y el registro dice por qué); el resto sí.
+
+**`mision@1`** — pasos en orden; cada uno se completa solo cuando el servidor lo ve:
+
+```json
+{ "formato": "mision@1", "id": "primeros-pasos", "titulo": "Primeros pasos en la plaza",
+  "descripcion": "Visita el pilar dorado, saluda a Bruno y busca su caja.",
+  "requisitos": { "misiones": [] },
+  "pasos": [
+    { "id": "pilar", "tipo": "llega_a", "texto": "Visita el pilar dorado", "x": 18, "z": 0, "radio": 4, "lugar": "Pilar dorado" },
+    { "id": "bruno", "tipo": "habla_con", "texto": "Habla con Bruno", "pnj": "bruno" },
+    { "id": "caja", "tipo": "coge", "texto": "Recupera la caja", "cosa": "caja-de-bruno" }
+  ],
+  "recompensas": [{ "tipo": "insignia", "id": "conoce-la-plaza", "nombre": "Conoce la plaza" }],
+  "textos": { "aceptada": "Lo tienes en tu libro (J).", "completada": "Bruno ya puede arreglar los faroles." },
+  "repetible": false }
+```
+
+| Paso | Campos | Se completa cuando |
+|---|---|---|
+| `llega_a` | `x`, `z`, `radio` (1-50, 4), `lugar` (nombre para el mapa) | el servidor ve al jugador a menos de `radio` |
+| `habla_con` | `pnj` | elige en el diálogo de esa persona una respuesta `avanzar_paso` de esta misión; si su árbol no tiene ninguna, basta con hablarle |
+| `usa` | `cosa` | usa la cosa a su alcance (E) |
+| `coge` | `cosa` | la coge a su alcance (E); queda «llevada» para una `entrega` |
+| `entrega` | `cosa`, `pnj` | la lleva (un `coge` antes en la misma misión) y elige `entregar` (o le habla, si no hay esa respuesta) |
+
+Recompensas: hoy solo insignias (recuerdos de lo hecho; sin economía). `requisitos.misiones`: las que hay que haber
+completado antes. Hasta 16 pasos, 16 misiones activas por jugador.
+
+**`pnj@1`** — una persona: dónde está y un **árbol de diálogo determinista** que depende de tus misiones:
+
+```json
+{ "formato": "pnj@1", "id": "bruno", "nombre": "Bruno, el farolero", "descripcion": "Cuida de los faroles.",
+  "posicion": { "x": 10, "z": 8 }, "giro": -90, "radio": 3, "apariencia": { "modelo": "<sha256 de un .glb>", "escala": 1 },
+  "dialogo": {
+    "entradas": [
+      { "si": { "mision": "primeros-pasos", "estado": "activa", "paso": "bruno" }, "nodo": "recado" },
+      { "nodo": "hola" }
+    ],
+    "nodos": {
+      "hola": { "texto": "Buenas. Cuido de los faroles.", "opciones": [{ "texto": "Adiós.", "accion": { "tipo": "despedir" } }] },
+      "recado": { "texto": "¿Te manda Alma? He perdido mi caja.", "opciones": [
+        { "texto": "Yo te la busco.", "accion": { "tipo": "avanzar_paso", "mision": "primeros-pasos" }, "ir": "gracias" },
+        { "texto": "Ahora no puedo.", "accion": { "tipo": "despedir" } } ] },
+      "gracias": { "texto": "¡Gracias!", "opciones": [{ "texto": "Voy.", "accion": { "tipo": "despedir" } }] }
+    } } }
+```
+
+- Al hablarle, el servidor abre el primer nodo de `entradas` cuyo `si` se cumple; **la última no lleva `si`**.
+- Condiciones (`si`, una o una lista: todas deben cumplirse): `{ "mision", "estado" }` con estado `sin_empezar`,
+  `disponible` (sin empezar y con los requisitos hechos), `activa` (y si quieres `"paso": "<id del paso actual>"` o
+  `"tiene": "<cosa>"`) o `hecha`. Una respuesta con `si` que no se cumple no se ve.
+- Cada nodo: `texto` y hasta 4 respuestas (teclas 1-4). Una respuesta lleva `ir` (otro nodo), `accion` o las dos:
+  `dar_mision` (la acepta, si puede), `avanzar_paso` (completa su paso `habla_con` con esta persona), `entregar`
+  (completa su `entrega` a esta persona), `despedir`. Sin `ir`, la conversación termina.
+- `apariencia.modelo` vacío = el robot de la casa; `apariencia.vrm` queda reservado (avatares VRM).
+- `radio`: a cuántos metros se le habla (1-8, 3). La conversación se cierra si te alejas 4 m más.
+
+**`cosa@1`** — `{ "formato": "cosa@1", "id": "caja-de-bruno", "nombre": "Caja de herramientas", "posicion": { "x": 4, "z": 14 },
+"radio": 2, "aviso": "coger la caja", "apariencia": { "escala": 0.45 } }`. Sale «E: coger la caja» solo a quien tiene ahora
+un paso `coge`/`usa` con ella; la cosa sigue en el mundo para los demás (cada uno coge «la suya»).
+
+Lo que pasa en el servidor (`features/misiones/server.ts`) y no se puede saltar desde la página:
+- distancias (`api.within`), posiciones (`api.position`, cada 0,2 s y solo de quien espera llegar a un sitio) y el paso
+  actual; hablar de lejos, coger algo que no toca o elegir sin conversación se rechaza diciendo por qué;
+- el progreso es **por invitado** (I1) en el almacén (S4, `p:<id>`): sobrevive a los reinicios y llega **solo a su dueño**
+  (eventos `libro`, `mision`, `paso`, `aceptada`, `avance`, `completada`); las personas y las cosas llegan con `at` (J9);
+- **el texto no lo decide un modelo**: el árbol es la política. Si un día un LLM da voz a una persona (P5), solo
+  **redacta** la línea escrita (`Frasear` en `server.ts`) siguiendo STD-050: en sus instrucciones solo el papel de la
+  persona y las normas de la casa; el nombre del jugador y lo que alguien escribió van en un bloque `<material>`
+  vallado; su respuesta se comprueba y, si falla, se dice la línea escrita. Se llama al hablar, nunca por tick.
+
+Para agentes y páginas: `window.__numinia.misiones` (`libro()`, `objetivos()`, `resumen()`, `dialogo()`, `hablar`,
+`elegir`, `adios`, `aceptar`, `abandonar`, `seguir`, `usar`); el mapa lee `objetivos()` → `[{ mision, paso, nombre,
+texto, x, z, seguida }]`.

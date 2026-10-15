@@ -66,6 +66,7 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 | Enlaces fuera del mundo | Abrir una web avisando | motor | Base | sí | P | bajo | J4 |
 | QR y sitio real | Algo real cambia el mundo | motor+ciudad | Mejorado | móvil | R, S | bajo | R1–R4 |
 | Vídeo / pantalla en el mundo | Reproducir un medio compartido | motor | Mejorado | sí | C, reloj del servidor | alto | Frontera, sin fila |
+| Hablar con personas (PNJ) | Conversación con respuestas; dan y avanzan misiones | motor (máquina) + aventura (textos) | Base | E o clic / botón «Hablar con…» / rayo ✘ | C, M, S | bajo (19 draw calls por robot) | J5 |
 
 ## 5. Progresar
 
@@ -76,6 +77,11 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 | Sellos y logros | Recuerdo de lo hecho | ciudad | Base | panel | G, P | bajo | J5 |
 | Persistencia | Volver y encontrar lo mío | motor | Base | — | G | bajo | S4 |
 | Eventos programados | Algo pasa a una hora | ciudad | Mejorado | — | S, calendario | bajo | Frontera, sin fila |
+
+Libro de misiones (J5, rama `misiones`): la máquina, los formatos y los paneles son del motor; las misiones, de la
+aventura (`AVENTURA_DIR`). Tecla J o botón «Misiones»: activas con sus pasos (✓ hecho, → ahora), «Seguir» (columna de
+luz sobre el objetivo y el mapa lo marca), «Abandonar», y las hechas con su insignia. Arriba, una línea con el paso que
+sigues y a cuántos metros está. E (o un clic, o el botón en el móvil) habla con las personas y coge las cosas.
 
 ## 6. Orientarse
 
