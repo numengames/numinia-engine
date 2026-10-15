@@ -279,10 +279,16 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   function aplicarModo(): void {
     const m = c.estado.modo;
     if (m !== "coger" && agarre) soltarAgarre(false);
-    const h = abierto() && (m === "mover" || m === "girar" || m === "escalar") ? m : null;
-    void ed.herramienta(h).then(() => refrescar());
+    aplicarGizmo();
+    const h = m === "mover" || m === "girar" || m === "escalar" ? m : null;
     if (abierto()) decir(m === "coger" ? "Coger: haz clic en un objeto y llévalo; otro clic lo suelta." : h ? `${h[0].toUpperCase()}${h.slice(1)}: arrastra una asa (X roja, Y verde, Z azul).` : "Haz clic en un objeto para seleccionarlo.");
     refrescar();
+  }
+  /** The gizmo shows for the tool on the selection — not for a pinned thing (the server would refuse every move). */
+  function aplicarGizmo(): void {
+    const m = c.estado.modo, o = c.objeto(c.estado.seleccionado);
+    const h = abierto() && !o?.fijado && (m === "mover" || m === "girar" || m === "escalar") ? m : null;
+    if (ed.estado().herramienta !== h || (h && !ed.estado().cargado)) void ed.herramienta(h).then(() => programarRefresco());
   }
   function elegirEje(e: Eje | null): void {
     eje = e; ed.eje(e);
@@ -373,6 +379,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
       rechazosVistos = c.estado.ultimoRechazo;
       if (agarre) cancelarAgarre();
     }
+    if (que === "seleccion" || que === "estado") aplicarGizmo();
     programarRefresco();
   });
 
@@ -480,6 +487,10 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     if (e.shiftKey) escalarCogido(d < 0 ? 1.1 : 1 / 1.1);
     else girarCogido((d < 0 ? 1 : -1) * (e.ctrlKey ? 1 : pasoGiro() || 15));
   }, { passive: false });
+  // touch: a finger on a handle, or carrying something, is the builder's — the page's walking joystick never sees it
+  document.addEventListener("pointerdown", (e) => {
+    if (abierto() && e.pointerType !== "mouse" && (ed.estado().arrastrando || agarre || fantasma)) e.stopPropagation();
+  });
 
   // who may build can change (H3 will give roles); the nearest thing changes as you walk
   setInterval(() => { if (!c.estado.puede && abierto()) abrir(false); refrescar(); }, 500);

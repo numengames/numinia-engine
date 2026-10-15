@@ -263,3 +263,17 @@ test("M22 builder API: select by id, transform within the limits, tools; everyth
   assert.equal(a.b.modo("volar").ok, false);
   assert.ok(vistos.includes("modo"));
 });
+
+test("M22 selection: the echo of a move keeps what you selected meanwhile; what you place or bring back is selected", () => {
+  const { pages, pump } = world({ abierto: true });
+  const [a] = pages;
+  a.b.colocar("bloque"); pump();
+  const uno = a.b.estado.seleccionado;
+  a.b.colocar("robot"); pump();
+  const dos = a.b.estado.seleccionado;
+  assert.notEqual(uno, dos);
+  assert.ok(a.b.transformar(uno, { x: 3 }).ok); pump();             // a drag's last move arrives after you clicked «dos»
+  assert.equal(a.b.estado.seleccionado, dos, "the echo of a move does not steal the selection");
+  a.b.deshacer(); pump();
+  assert.equal(a.b.estado.seleccionado, uno, "undo selects what it touched");
+});

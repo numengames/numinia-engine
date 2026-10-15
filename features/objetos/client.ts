@@ -118,8 +118,14 @@ export function crearCliente() {
       avisar("estado");
     });
     a.on("permiso", (m) => { estado.puede = m.construir === true; avisar("permiso"); });
-    // the state of a change arrives before its `hecho` (same ordered channel): what is gone is not selected
-    a.on("hecho", (m) => { elegir(m.accion === "borrar" || !a.state.get(String(m.id)) ? "" : String(m.id)); avisar("hecho"); });
+    // the state of a change arrives before its `hecho` (same ordered channel). What you make or bring back becomes the
+    // selection; moves, turns, pins and names keep yours (you may have clicked something else meanwhile)
+    a.on("hecho", (m) => {
+      const id = String(m.id), hay = !!a.state.get(id);
+      if (["colocar", "duplicar", "deshacer", "rehacer"].includes(String(m.accion))) elegir(hay ? id : estado.seleccionado === id ? "" : estado.seleccionado);
+      else if (!hay && estado.seleccionado === id) elegir("");
+      avisar("hecho");
+    });
     a.on("rechazado", (m) => { estado.ultimoRechazo = String(m.motivo); avisar("rechazado"); });
   });
   return { part, constructor };
