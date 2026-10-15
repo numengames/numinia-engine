@@ -25,6 +25,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 |---|---|---|---|
 | S1 | Kit de despliegue para un servidor pequeño (para mañana) | hecho | sí |
 | S2 | Métricas del servidor (`/health`, `/metrics`) y enjambre contra una URL remota (para mañana) | hecho | sí |
+| S5 | Batería de pruebas de capacidad para X3: banco de CPU, escalera/remojo/tormenta, robots que miden, steal, informe, `/metrics.prom` (`docs/MEDIDAS.md`) | hecho | sí |
 | P1 | Ficha técnica: características y límites del motor (humana + `limits.json`) | hecho | sí |
 | J0 | Catálogo de todo lo que espera un jugador (la receta para añadir funciones es de J7) | hecho | sí |
 | J7 | Módulos de juego: añadir una función sin tocar el núcleo, con un ejemplo real (gestos) | hecho | no |

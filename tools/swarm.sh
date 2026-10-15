@@ -5,11 +5,12 @@
 # Against a server that is already running (remote URL, or on the server itself) — packages/server/src/swarm.ts:
 #   tools/swarm.sh --url wss://motor.ejemplo.com/ws --n 200 --secs 30 [--metrics http://…/metrics]
 #   tools/swarm.sh --en-servidor --n 500 --secs 30
+# Profiles (stairs, soak, join storm) and the report: see docs/MEDIDAS.md. Env: SWARM_CPUS (default 3-5) · SWARM_MAX seconds (default 3900).
 # Light by design: server on one core, bots on two, nice 19, everything stops by itself.
 set -u
 cd "$(dirname "$0")/.."
 case "${1:-}" in
-  --url|--en-servidor) exec timeout 130 taskset -c 3-4 nice -n 19 node packages/server/src/swarm.ts "$@" ;;
+  --url|--en-servidor) exec timeout "${SWARM_MAX:-3900}" taskset -c "${SWARM_CPUS:-3-5}" nice -n 19 node packages/server/src/swarm.ts "$@" ;;
 esac
 N=${1:-1000}; SECS=${2:-30}; PORT=${3:-8791}
 LOG=${TMPDIR:-/tmp}/swarm-$PORT

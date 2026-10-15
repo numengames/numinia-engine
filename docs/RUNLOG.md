@@ -101,3 +101,10 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Consumo: semana 43 % → 44 % (Opus).
 - Commit: ver `git log` (J7).
 - Siguiente: turnos, R1 «Despertar». Sesión con Opus: I1 y S4 (desbloquean R2 y R3), luego J9.
+
+## 2026-10-15 09:15 · S5 · hecho
+- Qué: batería de pruebas de capacidad para el X3 (sesión con Pablo, a la espera de que prepare la máquina). El servidor ahora cuenta, además del tick, el retraso de cada tick y la «respuesta» (retraso + duración), la utilización del bucle de eventos, la CPU del proceso, la CPU de la máquina y el **steal**, las pausas de GC, las conexiones (aceptadas, cerradas, rechazadas) y su entorno; `GET /metrics.prom` da lo mismo en formato Prometheus. Los robots miden lo que sentiría un jugador (tiempo de conexión, hasta el primer snapshot, RTT por PING/PONG, hueco entre snapshots, jitter RFC 3550, saltados) con histogramas fusionables (`hist.ts`) y avisan de si ellos mismos están saturados. `swarm.ts` hace escalera (punto de ruptura), remojo (fugas) y tormenta (todos a la vez), juzga con `puertas.ts` y escribe un informe `.json` + `.md`. `bench.ts` (`npm run bench`) mide un núcleo de la máquina sin red. Explicado en `docs/MEDIDAS.md`.
+- Números: 47 pruebas en verde (6 nuevas en `test/measure.test.ts`, la del enjambre contra un servidor real tarda ~4 s); puertas en verde; en este PC (Ryzen 9 7950X) `bench`: tick p50 6,1 ms / p99 7,9 ms con 1.000 personas; enjambre local 300 personas: tick p99 7,2 ms, 28,6 kbit/s por persona, RSS 129 MB, RTT p99 5 ms. Hallazgo: el p50 del tick es el tick barato (sin snapshot, 0,09 ms); el p99 es el tick con snapshot. La bandera `--max-semi-space-size=64` no cambia nada (9 pasadas con 1.000).
+- Consumo: semana 44 % → ver `hermes usage` (≈ 44 %); modelo Sonnet 5.5 en sesión interactiva.
+- Commit: ver `git log` de main (S5).
+- Siguiente: X3 con Pablo (OVH VPS-1 y siguientes), después rellenar `limits.json` con lo medido.

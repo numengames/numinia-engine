@@ -10,7 +10,8 @@ import { REFERENCE, referenceRecording, replayFingerprint, TICK_HZ } from "../..
 import { Instance } from "../../instance/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
 import type { HttpReply, ServerPart } from "../../feature/src/index.ts";
-import { buildMetrics, ByteWindow, TickWindow } from "./metrics.ts";
+import { buildMetrics, ByteWindow, TickWindow, toPrometheus } from "./metrics.ts";
+import { entorno, Runtime } from "./runtime.ts";
 import type { Metrics } from "./metrics.ts";
 
 export type ServerOptions = {
@@ -70,14 +71,17 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const refMs = Math.round(performance.now() - t0);
   const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: o.features, log });
 
-  const ticks = new TickWindow(200), bytes = new ByteWindow(11);
+  const ticks = new TickWindow(200), lags = new TickWindow(200), responses = new TickWindow(200), bytes = new ByteWindow(11);
+  const runtime = new Runtime(), env = entorno();
+  const counts = { aceptadas: 0, cerradas: 0, rechazadasLlenas: 0 };
   const tickMs = 1000 / TICK_HZ;
-  let n = 0, lagMs = 0, start = 0, stopped = false;
+  let n = 0, lagMs = 0, start = 0, stopped = false, tickSumMs = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const metrics = () => buildMetrics({
     version, uptimeMs: performance.now() - born, tick: inst.sim.tick, tickHz: TICK_HZ, people: inst.conns.length,
     capacity: maxPlayers, ticks, bytes, lagMs, mem: process.memoryUsage(),
+    lags, responses, runtime: runtime.window(), entorno: env, counts, bytesTotal: bytesOut, tickSumMs,
   });
 
   const json = (res: ServerResponse, code: number, body: unknown) => {
@@ -95,12 +99,13 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     const method = req.method ?? "GET";
     if (method === "GET" && path === "/health") return json(res, 200, { ok: true, version, huella: hex(refHash), conectados: inst.conns.length });
     if (method === "GET" && path === "/metrics") return json(res, 200, metrics());
+    if (method === "GET" && path === "/metrics.prom") { res.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8", "cache-control": "no-store" }); return void res.end(toPrometheus(metrics())); }
     if (method !== "GET" && method !== "POST") return json(res, 405, { error: "solo GET o POST" });
     // everything else may be a game feature's route (e.g. the page a QR opens)
     const answer = (body: string) => {
       const r = inst.features.http(method, path, Object.fromEntries(new URLSearchParams(qs)), body);
       if (r) return reply(res, r);
-      json(res, 404, { error: `no existe ${method} ${path}`, hay: ["/health", "/metrics", ...inst.features.routes(), "WebSocket en cualquier ruta (/ws)"] });
+      json(res, 404, { error: `no existe ${method} ${path}`, hay: ["/health", "/metrics", "/metrics.prom", ...inst.features.routes(), "WebSocket en cualquier ruta (/ws)"] });
     };
     if (method === "GET") return answer("");
     let body = "", size = 0;
@@ -115,9 +120,10 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
 
   const wss = new WebSocketServer({ server: http, maxPayload: 1024, perMessageDeflate: false });
   wss.on("connection", (ws) => {
-    if (inst.conns.length >= maxPlayers) { ws.close(1013, "instance full"); return; }
+    if (inst.conns.length >= maxPlayers) { counts.rechazadasLlenas++; ws.close(1013, "instance full"); return; }
+    counts.aceptadas++;
     const entity = inst.connect(wsTransport(ws));
-    ws.on("close", () => inst.disconnect(entity));
+    ws.on("close", () => { counts.cerradas++; inst.disconnect(entity); });
     ws.on("error", () => ws.terminate());
   });
 
@@ -127,11 +133,12 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     const a = performance.now();
     lagMs = a - (start + n * tickMs);
     inst.tick();
-    ticks.record(performance.now() - a);
+    const took = performance.now() - a;
+    ticks.record(took); lags.record(Math.max(0, lagMs)); responses.record(Math.max(0, lagMs) + took); tickSumMs += took;
     n++;
     timer = setTimeout(loop, Math.max(0, start + n * tickMs - performance.now()));
   };
-  const sampler = setInterval(() => bytes.sample(performance.now(), bytesOut, inst.conns.length), o.sampleMs ?? 1000);
+  const sampler = setInterval(() => { bytes.sample(performance.now(), bytesOut, inst.conns.length); runtime.sample(); }, o.sampleMs ?? 1000);
   sampler.unref();
   const stats = setInterval(() => {
     const m = metrics();
@@ -151,7 +158,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       ok({
         port, inst, fingerprint: hex(refHash), metrics,
         close: () => new Promise<void>((done) => {
-          stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats);
+          stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); runtime.close();
           for (const c of wss.clients) c.terminate();
           wss.close(); http.close(() => done());
         }),

@@ -39,25 +39,32 @@ systemctl status numinia-motor        # ¿está vivo?
 journalctl -u numinia-motor -f        # cada 30 s: conectados, tick p99, kbit/s por persona
 bash instalar-motor.sh --version      # qué versión lleva el fichero
 curl -s localhost:8790/health         # {"ok":true,"version":…,"huella":"fa94375e","conectados":N}
-curl -s localhost:8790/metrics        # JSON: conectados, tick p50/p99/peor (últimos 10 s), kbit/s por persona, memoria, retraso, dilatación
+curl -s localhost:8790/metrics        # JSON: conectados, tick p50/p99/peor (últimos 10 s), respuesta del tick, bucle, CPU, steal, memoria, kbit/s por persona…
 ```
 
 `/health` también se ve desde fuera (`https://<dominio>/health`); `/metrics` solo desde el propio
 servidor. Para leerlo desde casa (8790 ya lo usa la plaza de tu PC): `ssh -L 18790:127.0.0.1:8790 root@IP`
 y abrir `http://localhost:18790/metrics`; el enjambre lo lee con `--metrics http://localhost:18790/metrics`.
 
-## Medir los límites: el enjambre
+## Medir los límites
 
-Robots que hablan el protocolo real, con tiempo tope (máx. 120 s):
+Todo está explicado en [`docs/MEDIDAS.md`](../docs/MEDIDAS.md). Lo mínimo:
 
 ```bash
-# desde tu PC, contra el servidor remoto (sin métricas salvo que abras el túnel ssh de arriba)
-tools/swarm.sh --url wss://motor.ejemplo.com/ws --n 200 --secs 30
-# en el propio servidor (lee /metrics cada 5 s y da el resumen al final)
-cd /opt/numinia-engine/app && /opt/numinia-engine/node/bin/node packages/server/src/swarm.ts --en-servidor --n 500 --secs 30
+# 1) en la máquina nueva, antes de nada (15 s, sin red): cuánto rinde UN núcleo
+cd /opt/numinia-engine/app && /opt/numinia-engine/node/bin/node packages/server/src/bench.ts
+
+# 2) desde tu PC, con el túnel abierto (ssh -N -L 18790:127.0.0.1:8790 usuario@IP): la escalera
+tools/swarm.sh --url wss://motor.ejemplo.com/ws --metrics http://localhost:18790/metrics --pasos 100,300,600,1000 --etiqueta vps1
+
+# 3) remojo (memoria, 30 min) y tormenta (todos entran a la vez)
+tools/swarm.sh --url … --metrics … --n 500 --remojo 30
+tools/swarm.sh --url … --metrics … --n 500 --tormenta 3 --retener 10
 ```
 
-Ojo: robots y servidor en la misma máquina compiten por la CPU; el número bueno es el remoto.
+Cada orden escribe un informe (`informes/*.json` y `.md`) con el límite medido, el steal y si la medida es de fiar.
+Robots y servidor en la misma máquina (`--en-servidor`) compiten por la CPU: el número bueno es el remoto.
+`GET /metrics.prom` (solo desde la propia máquina) da lo mismo en formato Prometheus.
 
 Lo que **no** está probado aún: la instalación real con root, systemd, Caddy y ufw (aquí no hay
 contenedores ni root). La prueba local cubre el fichero, el desempaquetado y el servidor desempaquetado

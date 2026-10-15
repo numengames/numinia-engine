@@ -4,3 +4,4 @@ dist/
 .run/
 .cert/
 deploy/instalar-motor.sh
+informes/

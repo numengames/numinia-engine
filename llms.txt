@@ -16,7 +16,7 @@ Game features live in features/<id>/ and may import only core, schema and featur
 - `client` — Session on the player's side: prediction of the own avatar, interpolation of others (150 ms in the past), reconnection to the server URL, the game features' client runtime. Deps: core, schema, ecs, sim, net, feature. [packages/client/README.md]
 - `render` — The only package that talks to three.js: WebGPU/WebGL2 view, power policy (frame cap, dynamic resolution, battery), crowds (baked VAT), AR and VR sessions. Deps: three.js only. [packages/render/README.md]
 - `instance` — The authoritative loop: connects any `Transport`, applies one input per tick, sends snapshots; `Bot` speaks the real protocol headless; hosts the game features' server runtime. Deps: core, schema, ecs, sim, net, feature. [packages/instance/README.md]
-- `server` — `startServer()`: HTTP `/health` `/metrics` + the features' routes + WebSocket on one port, tick metrics, load swarm. Deps: core, schema, ecs, sim, net, instance, feature. [packages/server/README.md]
+- `server` — `startServer()`: HTTP `/health` `/metrics` `/metrics.prom` + the features' routes + WebSocket on one port, tick/runtime metrics, measuring bots, load swarm with reports (docs/MEDIDAS.md), CPU bench. Deps: core, schema, ecs, sim, net, instance, feature. [packages/server/README.md]
 - `cli` — Command line over a headless instance: `run` (fingerprint + timings, feeds the gates) and `describe` (readable JSON of a world; `--catalogo` for the features). Deps: core, schema, ecs, sim, net, instance, feature. [packages/cli/README.md]
 
 ## Commands
