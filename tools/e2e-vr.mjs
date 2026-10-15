@@ -27,7 +27,7 @@ const shown = () => getComputedStyle(document.getElementById("vr")).display !== 
   const p = await (await browser.newContext({ viewport: { width: 480, height: 300 } })).newPage();
   p.on("pageerror", (e) => errors.push(String(e)));
   await p.goto(BASE);
-  await p.waitForFunction(() => globalThis.__numinia?.session.entity >= 0, null, { timeout: 30000 });
+  await p.waitForFunction(() => globalThis.__numinia?.carga?.estado === "listo" && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
   await p.waitForTimeout(500);
   results.noXrButtonHidden = !(await p.evaluate(shown));
   await p.close();
@@ -43,7 +43,7 @@ const shown = () => getComputedStyle(document.getElementById("vr")).display !== 
   p.on("pageerror", (e) => errors.push(String(e)));
   p.on("console", (m) => { if (m.type() === "error") errors.push("console: " + m.text()); });
   await p.goto(BASE);
-  await p.waitForFunction(() => globalThis.__numinia?.session.entity >= 0, null, { timeout: 30000 });
+  await p.waitForFunction(() => globalThis.__numinia?.carga?.estado === "listo" && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
   await p.waitForFunction(shown, null, { timeout: 5000 }).catch(() => {});
   results.vrButtonShown = await p.evaluate(shown);
   if (results.vrButtonShown) {

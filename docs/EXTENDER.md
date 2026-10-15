@@ -198,6 +198,11 @@ en `features.cards()`. Un agente de IA lee lo mismo en el catálogo. Ejemplos: `
   (bocadillo; el último sustituye al anterior). Dónde se ponen lo decide `view.setHeadTop` (la cápsula hoy; VRM, J1).
 - **Escribir nunca mueve.** Toda escucha de teclas de la página pregunta antes `escribiendo(e)`
   (`apps/plaza/escribiendo.ts`): una tecla dentro de una caja de texto es de la caja, no del mundo.
+- **Escape, «atrás», B y Start tienen un solo dueño** (`apps/plaza/capas.ts`, U2): todo lo que se puede cerrar
+  (un panel, una caja, un modo) se registra con `registrar({ id, rango, abierta, cerrar })` (`RANGO`: tecla › escribir ›
+  panel › modo › menú) o, si es un `<dialog>`, con `vigilar(dialog)`; el enrutador cierra la de arriba y, si no hay
+  ninguna, abre el menú del juego. Nunca escuches `Escape` por tu cuenta. Una entrada propia del menú:
+  `__numinia.menu.agregar({ id, etiqueta, accion })` (no puede reemplazar a las seis fijas).
 - El ejemplo completo es `features/chat` (cercano a 20 m, canal de la zona con su límite, los 50 últimos al entrar,
   nombres a 24 m de quien ves, órdenes con `/`).
 

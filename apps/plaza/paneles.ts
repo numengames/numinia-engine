@@ -3,6 +3,7 @@
 
 /** Typing never moves you (J3's one rule for every key listener of the page). */
 import { escribiendo } from "./escribiendo.ts";
+import { vigilar } from "./capas.ts"; // U2: an open panel is a layer: Escape / back / B close it through the router
 export { escribiendo };
 
 /** Say something politely to screen readers (the page's aria-live region, as the features' announcements do). */
@@ -30,6 +31,7 @@ export function crearDialogo(o: { id: string; titulo: string; tecla: string; bot
   const cuerpo = document.createElement("div"); cuerpo.className = "cuerpo";
   dialog.append(cabeza, cuerpo);
   document.body.appendChild(dialog);
+  vigilar(dialog);
   o.boton.setAttribute("aria-haspopup", "dialog"); o.boton.setAttribute("aria-controls", o.id);
   o.boton.setAttribute("aria-expanded", "false"); o.boton.setAttribute("aria-keyshortcuts", letra);
   let volver: Element | null = null;

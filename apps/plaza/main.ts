@@ -41,7 +41,13 @@ import { icono } from "./iconos.ts";
 import { montarXR } from "./xr.ts";
 import { aplicarTema } from "./tema-mundo.ts"; // a world's look (ficha@1 `tema`): an event's colours and title face
 import { montarFoto } from "./foto.ts"; // N13: photo mode (P): hide the interface, frame, filter, PNG, share, a link to the place
+import { carga } from "./carga.ts"; // U1: the loading screen (shell and controller are in index.html)
+import { vigilarConexion } from "./conexion.ts";
+import { montarCapas, arriba, abiertas } from "./capas.ts"; // U2: ONE owner of Escape / back / B / Start
+import { montarMenu } from "./menu-juego.ts";
 
+montarCapas(); // first: its Escape listener (capture) must come before every other one on the window
+carga.irA("grafica"); // the code is here
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
 const url = serverUrl(location, import.meta.env.PROD); // the built page (Caddy or the engine itself) always talks to its own origin
@@ -49,6 +55,7 @@ const url = serverUrl(location, import.meta.env.PROD); // the built page (Caddy 
 const activos = new URL(url.replace(/^ws/, "http")).origin;
 const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, assetUrl: (m) => `${activos}/a/${m}.glb`,
   avatares: { catalogo: catalogoDeAvatares(activos, params), yo: () => session.entity } }); // J1: VRM avatars (session exists by the first draw)
+carga.irA("red");
 const transport = webSocketClient(url);
 // game features (J7): their client parts, and how they may draw (a label, a hop) over any avatar
 // I1: the guest token stays in this browser (no account, no personal data); private mode = a new guest each time
@@ -87,12 +94,14 @@ const session = new ClientSession(transport, {
   },
 });
 transport.opened.catch(() => { hud.textContent = `No llego al servidor ${url}.\n¿Está arrancado (npm run server)?`; });
+// U1: a cut or refused connection says so and tries again; «Salir» in the menu closes it on purpose
+const conexion = vigilarConexion({ transport, url, carga, conectado: () => !!session.welcome });
 
 // ---- the features' actions: a key on desktop, a button on touch screens; the help line lists them ----
 const acts = session.features.actions();
 addEventListener("keydown", (e) => { if (!e.repeat && !escribiendo(e)) acts.find((a) => a.key === e.code)?.run(); }); // J3: typing in a box is not an action
 if (matchMedia("(pointer: coarse)").matches) {
-  document.getElementById("help")!.textContent = "Dedo a la izquierda: andar · a la derecha: mirar · dos dedos: acercar"; // N1: the touch map only
+  document.getElementById("help")!.textContent = "Dedo a la izquierda: andar · a la derecha: mirar · dos dedos: acercar · ⚙: menú"; // N1: the touch map only
   const bar = document.getElementById("acciones")!;
   for (const a of acts) {
     const b = document.createElement("button");
@@ -283,7 +292,7 @@ if (document.fullscreenEnabled) {
   };
   pantalla.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
   pantalla.classList.add("solo-icono");
-  pantalla.onclick = () => { if (document.fullscreenElement) void document.exitFullscreen().catch(() => {}); else void document.documentElement.requestFullscreen().catch(() => {}); };
+  pantalla.onclick = () => { if (document.fullscreenElement) { menu.salidaPropia(); void document.exitFullscreen().catch(() => {}); } else void document.documentElement.requestFullscreen().catch(() => {}); };
   addEventListener("fullscreenchange", pintar);
   setInterval(pintar, 1000);
   pintar();
@@ -371,7 +380,9 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, mapa, ficha, ambiente, elementos, voz, xr, pesca, bienes, dardos, dados, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina };
+// (index.html's loading screen put a stub here with `carga`, probe.done = false and session.entity = -1: checks that wait for
+// the page wait on those, and on carga.estado === "listo" before they touch the page)
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, mapa, ficha, ambiente, elementos, voz, xr, pesca, bienes, dardos, dados, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, carga, conexion, capas: { arriba: () => arriba()?.id ?? null, abiertas } };
 
 // ---- U11: the bar of icon buttons, top right (rightmost first): settings, build, microphone, full screen, VR, AR ----
 {
@@ -386,7 +397,35 @@ function drawHud() {
 
 // ---- N2: settings and capabilities (menu-ajustes.ts): gear + O, window.__numinia.ajustes / .capacidades. Applied here,
 // before the first frame: the display loop above only draws from the next animation frame on ----
-montarAjustes({ view, session, params, funciones, numinia: (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia });
+const ajustes = montarAjustes({ view, session, params, funciones, numinia: (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia });
+
+// ---- U2: the game menu (Esc, Start, «atrás» on a phone, the ⚙ button). The layers (capas.ts) decide who owns Escape ----
+const menu = montarMenu({
+  session, view, boton: document.getElementById("menu-abrir") as HTMLButtonElement,
+  abrirAjustes: () => { ajustes.abrir(); }, abrirZona: () => { ficha.abrir(); },
+  nombres: () => chatDePagina.nombres, salir: () => conexion.salir(), ocupada: () => carga.estado !== "listo",
+});
+Object.assign((globalThis as unknown as { __numinia: object }).__numinia, { menu });
+
+// ---- U1: the loading screen follows real signals only: the welcome (red) → files of the world (mundo) → materials
+// (preparar) → first drawn frame (listo). It shows after 400 ms and stays 600 ms (index.html's controller) ----
+void (async () => {
+  const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  while (!session.welcome) await dormir(50);
+  let visto = 0, quietas = 0;
+  while (quietas < 2) { // the world's files: nothing pending twice in a row (the first messages of the zone may still be on their way)
+    const pendientes = view.cargando();
+    visto = Math.max(visto, pendientes);
+    carga.irA("mundo", visto - pendientes, visto);
+    quietas = pendientes === 0 && session.entity >= 0 ? quietas + 1 : 0;
+    await dormir(100);
+  }
+  carga.irA("preparar", 0, 1);
+  await view.preparar();
+  carga.irA("preparar", 1, 1);
+  while (!informe.primerCuadroMs) await dormir(50);
+  carga.listo();
+})();
 
 // battery mode: press B (or open ?bateria)
 addEventListener("keydown", (e) => { if (e.code === "KeyB" && !escribiendo(e)) { view.power.setBattery(!view.power.battery); view.applyPixelRatio(); } });

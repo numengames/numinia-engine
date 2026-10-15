@@ -11,6 +11,7 @@
 // press that did not move).
 import type { Donde, Editor, Eje } from "../../packages/render/src/index.ts";
 import { icono } from "./iconos.ts";
+import { RANGO, registrar } from "./capas.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type Obj = Record<string, unknown> & { id: string };
@@ -458,6 +459,8 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     refrescar();
     ed.despertar();
   }
+  // U2: Escape / back / B go one step back: cancel the ghost or the grab, then deselect, then close the builder
+  registrar({ id: "construir", rango: RANGO.modo, abierta: () => abierto(), cerrar: () => { if (fantasma || agarre || c.estado.seleccionado) escape(); else abrir(false); } });
   boton.addEventListener("click", (e) => { abrir(!abierto()); if (e.detail > 0) boton.blur(); });
   // U11: an icon (the house glyph for production, crane-tower), the words for screen readers and the tooltip
   function pintarBoton(si: boolean): void {
@@ -476,7 +479,6 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     if (mod || e.altKey) return null;
     const conGizmo = c.estado.modo === "mover" || c.estado.modo === "girar" || c.estado.modo === "escalar";
     switch (k) {
-      case "Escape": return () => escape();
       case "Digit1": case "Numpad1": return () => elegirModo("coger");
       case "Digit2": case "Numpad2": case "KeyG": return () => elegirModo("mover");
       case "Digit3": case "Numpad3": case "KeyR": return () => elegirModo("girar");

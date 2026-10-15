@@ -730,3 +730,18 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Opus 5.5.
 - Siguiente: lo fusiona Pablo después de #35. Tras desplegar, `/status` debe decir 0.5.0; probar `/tirar 2d6` con
   dos pestañas y «Gente» (L).
+## 2026-10-15 19:05 · U1 U2 · hecho en local (sesión de Pablo con Sonnet; rama `wt/u1-u2`, sin publicar)
+- Qué: pantalla de carga (armazón + controlador dentro de `index.html`, fases con señales reales, atasco a los 8 s con
+  Reintentar/Cancelar, imagen de 40 kB tras el primer pintado), reconexión (espera 1-2-4-8-16-30 s, sonda desechable,
+  recarga con el mismo invitado), «Salir» con «Volver a entrar»; un solo dueño de Escape/atrás/B/Start (`capas.ts`) y menú
+  del juego con las seis entradas fijas y `menu.agregar` (`menu-juego.ts`); el ⚙ abre el menú. Detalle y diferencias con el
+  diseño: BACKLOG, sección U. Todas las piernas del e2e esperan ahora `carga.estado === "listo"` (que se dice cuando la
+  pantalla ya no está).
+- Números: 211 pruebas, puertas en verde (tick p99 8,5 ms, huella `f719d31b`); e2e completo en verde (chromium y firefox,
+  AR, VR, 14 piernas con `carga` y `menu` nuevas, https). Arranque (JS+CSS comprimido) **347 kB** (342 antes: +5 kB del menú
+  y las capas; el tope 300 es de D2, que debe cargar menú/zona/ayuda solo al abrirlos); `index.html` 6,2 kB comprimido
+  (tope 14), controlador 1,9 kB. `avatares` falló en `main` limpio (97 llamadas de dibujo > 80, servidor nuevo) y pasó en la
+  rama: es intermitente y no viene de este cambio.
+- Consumo: semana 62 % (`hermes usage`), Sonnet.
+- Commit: este (rama `wt/u1-u2`; `main` no se toca hasta que Pablo lo mire).
+- Siguiente: Pablo mira la pantalla de carga y el menú (un enlace); D2 (bajar el arranque), luego U3 en Opus.

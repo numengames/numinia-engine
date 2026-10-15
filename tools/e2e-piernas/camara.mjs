@@ -22,7 +22,7 @@ const open = async (ctx) => {
   const p = await ctx.newPage();
   p.on("pageerror", (e) => errors.push(String(e)));
   await p.goto(BASE);
-  await p.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
+  await p.waitForFunction(() => globalThis.__numinia?.carga?.estado === "listo" && globalThis.__numinia.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
   return p;
 };
 const W = 480, H = 300, cx = W / 2, cy = 185; // the mouse row: clear of the HUD, the full-screen button and the help line

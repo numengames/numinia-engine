@@ -26,7 +26,7 @@ async function pierna(motor) {
     const p = await ctx.newPage();
     p.on("pageerror", (e) => errors.push(String(e)));
     await p.goto(BASE);
-    await p.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0 && !!globalThis.__numinia.ambiente?.valores(), null, { timeout: 30000 });
+    await p.waitForFunction(() => globalThis.__numinia?.carga?.estado === "listo" && globalThis.__numinia.probe.done && globalThis.__numinia.session.entity >= 0 && !!globalThis.__numinia.ambiente?.valores(), null, { timeout: 30000 });
     return p;
   };
   const out = { motor, ok: false };

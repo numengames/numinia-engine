@@ -14,6 +14,7 @@
 import { escribiendo } from "./interactuar.ts";
 import { icono } from "./iconos.ts";
 import { anunciar } from "./paneles.ts";
+import { RANGO, registrar } from "./capas.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type Paso = { n: number; texto: string; hecho: boolean; donde: string; tipo?: string; espera?: number; listoEn?: number };
@@ -226,6 +227,7 @@ export function montarLibro(c: Ctl, o: {
     o.boton.setAttribute("aria-expanded", String(si));
     if (si) { pintar(); if (foco) titulo.focus({ preventScroll: true }); }
   };
+  registrar({ id: "libro", rango: RANGO.panel, abierta: () => !o.panel.hidden, cerrar: () => abrir(false) }); // U2: Escape / back / B close the book
   o.boton.addEventListener("click", () => abrir(o.panel.hidden));
   cerrar.addEventListener("click", () => abrir(false));
   for (const x of [o.boton, o.panel]) x.addEventListener("pointerdown", (ev) => ev.stopPropagation()); // not a joystick touch

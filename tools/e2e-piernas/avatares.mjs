@@ -27,7 +27,7 @@ const open = async (tab) => {
     descargas.push({ tab, sha256: m[1].slice(0, 12), ext: m[2], status: r.status(), bytes });
   });
   await p.goto(BASE);
-  await p.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
+  await p.waitForFunction(() => globalThis.__numinia?.carga?.estado === "listo" && globalThis.__numinia.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
   return p;
 };
 const av = (p) => p.evaluate(() => globalThis.__numinia.view.avatares());
@@ -110,7 +110,7 @@ if (ok && process.env.AVATARES_UN_MOTOR !== "1") {
       const p = await cx.newPage();
       p.on("pageerror", (e) => errs.push(`${tab}: ${e}`));
       await p.goto(BASE);
-      await p.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
+      await p.waitForFunction(() => globalThis.__numinia?.carga?.estado === "listo" && globalThis.__numinia.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
       pages.push(p);
     }
     for (const p of pages) await p.waitForFunction(() => globalThis.__numinia.view.avatares().dibujados >= 2, null, { timeout: 40000 });

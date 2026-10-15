@@ -25,7 +25,7 @@ const open = async () => {
   const p = await ctx.newPage();
   p.on("pageerror", (e) => errors.push(String(e)));
   await p.goto(BASE);
-  await p.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
+  await p.waitForFunction(() => globalThis.__numinia?.carga?.estado === "listo" && globalThis.__numinia.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
   return p;
 };
 const a = await open(), b = await open();
@@ -109,7 +109,7 @@ t.on("pageerror", (e) => errors.push(String(e)));
 result.touch = { button: false, maxY: 0, edgeSpeed: 0, halfSpeed: 0 };
 try {
   await t.goto(BASE);
-  await t.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
+  await t.waitForFunction(() => globalThis.__numinia?.carga?.estado === "listo" && globalThis.__numinia.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
   result.touch.button = await t.evaluate(() => { const b = document.getElementById("saltar"); return !!b && b.tagName === "BUTTON" && b.textContent === "Saltar"; });
   await t.tap("#saltar");
   await t.waitForFunction(() => globalThis.__numinia.session.selfPosition(1).y > 0.5, null, { timeout: 5000, polling: 10 }).catch(() => {});
@@ -142,7 +142,7 @@ v.on("pageerror", (e) => errors.push(String(e)));
 result.vr = { entered: false, maxY: 0, landed: false };
 try {
   await v.goto(BASE);
-  await v.waitForFunction(() => globalThis.__numinia?.session.entity >= 0, null, { timeout: 30000 });
+  await v.waitForFunction(() => globalThis.__numinia?.carga?.estado === "listo" && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
   await v.waitForFunction(() => getComputedStyle(document.getElementById("vr")).display !== "none", null, { timeout: 5000 });
   await v.evaluate(() => document.getElementById("vr").click());
   await v.waitForFunction(() => globalThis.__numinia.view.vr.active, null, { timeout: 15000 });

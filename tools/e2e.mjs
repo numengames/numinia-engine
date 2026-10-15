@@ -29,7 +29,7 @@ const open = async () => {
   const p = await ctx.newPage();
   p.on("pageerror", (e) => errors.push(String(e)));
   await p.goto(BASE);
-  await p.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
+  await p.waitForFunction(() => globalThis.__numinia?.carga?.estado === "listo" && globalThis.__numinia.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
   return p;
 };
 const state = (p) => p.evaluate(() => {

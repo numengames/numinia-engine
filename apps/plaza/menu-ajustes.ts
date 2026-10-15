@@ -10,6 +10,7 @@ import type { Ajustes, Grupo, Lectura, Nivel, Valor, Vista } from "../../package
 import type { ClientSession } from "../../packages/client/src/index.ts";
 import type { ClientPart } from "../../packages/feature/src/index.ts";
 import { limitesGraficos } from "../../packages/render/src/index.ts";
+import { vigilar } from "./capas.ts"; // U2: the dialog is a layer (Escape / back / B close it through the router)
 import type { createView } from "../../packages/render/src/index.ts";
 import type { Calidad } from "../../packages/render/src/power.ts";
 import mundoPlaza from "./mundo.ajustes.json";
@@ -134,7 +135,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   a.aplicarTodo(); // before the first frame
 
   // ---- 4. the menu ----
-  const dlg = $("ajustes") as HTMLDialogElement | null, boton = $("ajustes-abrir") as HTMLButtonElement | null;
+  const dlg = $("ajustes") as HTMLDialogElement | null;
   const lista = $("ajustes-grupos"), estado = $("ajustes-estado"), titulo = $("ajustes-titulo");
   const api = {
     lista: () => a.lista(), grupos: () => a.grupos(), get: (id: string) => a.get(id), set: (id: string, v: unknown) => a.set(id, v),
@@ -145,7 +146,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   Object.assign(o.numinia, { ajustes: api, capacidades: caps.valores });
   const help = $("help");
   if (help && !caps.valores.punteroGrueso) help.textContent += " · O ajustes";
-  if (!dlg || !boton || !lista || !estado) { console.warn("[ajustes] faltan #ajustes, #ajustes-abrir, #ajustes-grupos o #ajustes-estado en la página"); return api; }
+  if (!dlg || !lista || !estado) { console.warn("[ajustes] faltan #ajustes, #ajustes-grupos o #ajustes-estado en la página"); return api; }
 
   let espera: ReturnType<typeof setTimeout> | undefined;
   const anunciar = (texto: string, ms = 0) => { clearTimeout(espera); espera = setTimeout(() => { estado.textContent = texto; }, ms); };
@@ -229,13 +230,12 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
     if (!dlg || dlg.open || enXR()) return !!dlg?.open;
     volverA = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     try { dlg.showModal(); } catch { dlg.setAttribute("open", ""); }
-    boton!.setAttribute("aria-expanded", "true");
     titulo?.focus(); // a quiet start: the dialog's name is read, nothing changes by accident; Tab walks the settings
     return true;
   }
+  vigilar(dlg);
   function cerrar(): void { if (dlg?.open) dlg.close(); }
   dlg.addEventListener("close", () => {
-    boton.setAttribute("aria-expanded", "false");
     const a2 = volverA && document.contains(volverA) && volverA !== document.body ? volverA : null;
     a2?.focus();
   });
@@ -252,13 +252,11 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   });
   $("ajustes-cerrar")?.addEventListener("click", cerrar);
   $("ajustes-restablecer")?.addEventListener("click", () => { a.restablecer(); anunciar("Ajustes restablecidos: cada uno vuelve a lo que da tu aparato."); });
-  boton.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
-  boton.addEventListener("click", () => { if (dlg.open) cerrar(); else abrir(); });
   addEventListener("keydown", (e) => {
     if (e.code !== "KeyO" || e.repeat || e.ctrlKey || e.altKey || e.metaKey || escribiendo(e)) return;
     if (dlg.open) cerrar(); else abrir();
   });
-  // hidden in XR (a 3D settings panel inside VR comes later)
-  setInterval(() => { const x = enXR(); if (x) cerrar(); if (boton.hidden !== x) boton.hidden = x; }, 250);
+  // hidden in XR (a 3D settings panel inside VR comes later); the gear that opens the game menu is menu-juego.ts's
+  setInterval(() => { if (enXR()) cerrar(); }, 250);
   return api;
 }

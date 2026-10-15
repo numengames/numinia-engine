@@ -1,8 +1,9 @@
-// The chat box (J3): Enter opens it, Enter sends, Escape closes; «/» opens it with the slash typed. The list
+// The chat box (J3): Enter opens it, Enter sends, Escape closes it (U2: it is the «typing» layer of capas.ts); «/» opens it with the slash typed. The list
 // (role=log, polite) shows the last 30 lines and is what screen readers hear; the zone's history arrives without being
 // read line by line. A «Chat» button on touch screens. What people write goes in with textContent only, never HTML.
 // main.ts passes the chat of features/chat/client.ts (only composition roots import features/).
 import { escribiendo } from "./escribiendo.ts";
+import { RANGO, registrar } from "./capas.ts";
 
 type Linea = { tipo: "cerca" | "zona" | "antes" | "aviso"; quien: number; nombre: string; texto: string; tuyo: boolean };
 type Res = { ok: true } | { ok: false; why: string };
@@ -47,6 +48,7 @@ export function montarChat(chat: Chat, raiz: HTMLElement) {
     input.value = ""; estado.textContent = "";
     input.blur();
   };
+  registrar({ id: "chat", rango: RANGO.escribir, abierta: () => !form.hidden, cerrar: () => cerrar() }); // Escape / back / B
   const enviar = () => {
     if (!input.value.trim()) { cerrar(); return; }
     const r = chat.decir(input.value, canal);
@@ -62,7 +64,6 @@ export function montarChat(chat: Chat, raiz: HTMLElement) {
   input.addEventListener("keydown", (e) => {
     if (e.isComposing) return;
     if (e.key === "Enter") { e.preventDefault(); enviar(); }
-    else if (e.key === "Escape") { e.preventDefault(); cerrar(); }
   });
   input.addEventListener("input", () => { const n = new TextEncoder().encode(input.value).length; estado.textContent = n > 160 ? `${n} de 200 bytes` : ""; });
   // Enter (or «/») anywhere in the world opens the box; never while typing in another box or when a button has focus

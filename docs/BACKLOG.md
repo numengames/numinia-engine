@@ -71,8 +71,8 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | N2 | Menú de ajustes y accesibilidad básica, guardado local (de `docs/JUGADOR.md`) | hecho | sí |
 | N3 | Ajustes dentro de VR: panel 3D legible, con su gemelo HTML | pendiente | sí |
 | N4 | Cambiar teclas (el tipo `tecla` deja de ser solo para ver; choques con las reservadas) | pendiente | sí |
-| U1 | Pantalla de carga de verdad (armazón ≤ 14 kB en la página + controlador; fases reales; atasco con «Reintentar») y reconexión cuando se cae el socket | pendiente | sí |
-| U2 | Un solo dueño de las teclas (capas) + menú del juego con diálogos nativos (Continuar, Ajustes, Controles y ayuda, Zona de usuario, Gente, Salir); ⚙ siempre en móvil | pendiente | sí |
+| U1 | Pantalla de carga de verdad (armazón ≤ 14 kB en la página + controlador; fases reales; atasco con «Reintentar») y reconexión cuando se cae el socket | hecho en local (rama `wt/u1-u2`, sin publicar; falta mirarla en un móvil → X1) | sí |
+| U2 | Un solo dueño de las teclas (capas) + menú del juego con diálogos nativos (Continuar, Ajustes, Controles y ayuda, Zona de usuario, Gente, Salir); ⚙ siempre en móvil | hecho en local (rama `wt/u1-u2`; Escape, atrás, B y Start en capas; las demás teclas siguen con `escribiendo()`; prueba de 10 min por aparato → X1) | sí |
 | U3 | Marcos: formato `marco@1` (id estable, ancla, desplazamiento relativo, visibilidad `requiere`, árbol con nombre hablado y verbo) + pintor de página; el HUD de hoy pasa a marcos | para Opus | no |
 | U10 | Pedido de Pablo (16-10): misiones que se ven (el libro ya no queda tras el chat), barra sobre el objeto con Borrar, asas más grandes, doble clic para editar; imágenes, pantallas de vídeo y zonas de sonido (esfera visible o invisible, volumen); «sólido» (colisión en la simulación); micrófono por cercanía | hecho (escritorio; VR y móvil sin probar) | sí |
 | U11 | Pedido de Pablo (16-10, tras probar U10): misiones a la derecha y mapa arriba a la derecha; botones de icono (casa de numinia.org, Phosphor) y paneles con el Numinia Design System (STD-023: Nocturno, Geist, dos radios); el vídeo lleva burbuja de sonido; quién oye un sonido o un vídeo: solo la burbuja, toda la zona o todo el mundo; radio a mano | hecho (escritorio) | sí |
@@ -1260,6 +1260,35 @@ navegador); «Continuar» es un clic, nunca se recaptura solo. Diálogos nativos
 ningún addon quita: Continuar, Ajustes, Controles y ayuda, Zona de usuario, Gente, Salir; después, entradas
 declaradas por datos. **Hecho cuando:** e2e: Esc abre y cierra; con el chat escribiendo, Esc no abre el menú; en
 móvil el ⚙ abre lo mismo; prueba de 10 min por aparato (nota 33 §E) apuntada en X1.
+
+**U1 y U2, hechos en local (15-10, rama `wt/u1-u2`, nada publicado).** Qué hay y en qué se aparta del diseño:
+- U1: `apps/plaza/index.html` lleva el armazón (un `<dialog>` modal) y el controlador (~1,9 kB comprimido; prueba de peso
+  en `test/carga.test.ts`); `carga.ts` es el asa tipada; `conexion.ts` es la reconexión; `apps/plaza/public/carga.webp`
+  (40 kB) es el arte del 50 % de `work/pantalla-carga/` sin la barra ni el texto, y llega tras el primer pintado.
+  Fases con señales reales: código (el módulo ya corre) → gráfica (`createView`) → red (`welcome`) → mundo
+  (`view.cargando()`: ficheros de cosas pendientes, «n de m»; los bytes del manifiesto llegarán con M16) → preparar
+  (`view.preparar()` = `compileAsync`, sin progreso interno: solo 0/1) → listo (primer cuadro dibujado). Controlador usa
+  `requestAnimationFrame` UNA vez (para pedir la imagen tras el primer pintado), nunca por cuadro.
+  Reconexión: al cerrarse el socket, esperas 1-2-4-8-16-30 s con una sonda desechable y, cuando el servidor contesta,
+  **recarga la página** (el billete de invitado está en el navegador: mismo nombre y mismas insignias). No hay reanudación
+  por trozos ni reconexión «en caliente» sin recargar: `ClientSession` no se puede re-atar a otro socket todavía.
+  El sol y la luna ya no avanzan con el progreso (el arte es una imagen fija).
+  `window.__numinia` es un resguardo (`carga`, `probe.done = false`, `session.entity = -1`) hasta que `main.ts` lo
+  sustituye; todas las piernas del e2e esperan ahora `carga.estado === "listo"` (el diálogo modal vuelve inerte la página).
+- U2: `capas.ts` (rangos: tecla › escribir › paneles › modo › menú), `menu-juego.ts` (las seis entradas fijas, `agregar`
+  / `quitar` para entradas declaradas, páginas «Controles y ayuda» y «Gente»). Escape, «atrás» (solo pantallas táctiles o
+  `?atras`; una entrada de historial propia siempre por delante), B y Start del mando pasan por las capas; los cuatro
+  dueños de Esc (chat, diálogo con persona, constructor, paneles/ajustes/libro) se registran como capa. El ⚙ de la
+  esquina abre el menú (antes abría los ajustes; `O` sigue abriéndolos). El menú se abre también al soltarse el
+  puntero y al salir de pantalla completa sin usar nuestro botón.
+  **Distinto del diseño:** (1) solo Escape/atrás/B/Start están en capas; las otras escuchas de teclado siguen usando
+  `escribiendo()` (mover todas a un registro es el siguiente paso, con U3). (2) «Gente» lista a quien está cerca, pero
+  informar y bloquear NO existen todavía (llegan con U4: lo dice la propia página). (3) «Zona de usuario» abre hoy la
+  ficha J12 (la base de U4). (4) «Salir» cierra el socket y ofrece «Volver a entrar»; no hay a dónde «salir» hasta que
+  haya portal. (5) Sin probar en Quest/Pico ni con un mando real (la pierna del e2e cubre ratón, teclado y «atrás»
+  simulado): son las pruebas de 10 min de X1.
+  **Al juntar con la rama del mando (`wt/mando`, N5):** borrar `montarMando` (B y Start) de `capas.ts` y que el adaptador del
+  mando llame a `cerrarArriba()` con B y abra el menú del juego (no los ajustes) con Menú; si no, B y Start actúan dos veces.
 
 ### U3 — Marcos (para Opus: es el contrato de U5–U9)
 `marco@1`: id estable (`hud.chat`, `addon:<id>/<marco>`), ancla (9 puntos o otro marco), desplazamiento en unidad

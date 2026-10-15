@@ -3,6 +3,7 @@
 // a screen reader lands in it; the line itself reaches screen readers once, through the engine's announcements (the
 // polite #avisos region, V1), so the box does not repeat it. It only asks: features/misiones decides on the server.
 import { escribiendo, construyendo } from "./interactuar.ts";
+import { RANGO, registrar } from "./capas.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type Dialogo = { pnj: string; nombre: string; oficio?: string; texto: string; opciones: string[] };
@@ -50,11 +51,11 @@ export function montarDialogo(c: Ctl, caja: HTMLElement, view: Vista): void {
     caja.hidden = false;
     ((opciones.firstElementChild as HTMLElement | null) ?? adios).focus({ preventScroll: true });
   };
+  registrar({ id: "dialogo", rango: RANGO.modo, abierta: () => !caja.hidden, cerrar: () => { c.adios(); } }); // U2: Escape / back / B are «Adiós»
   rechazoVisto = c.estado.ultimoRechazo;
   c.alCambiar((que) => { if (que === "dialogo") pintar(); });
   addEventListener("keydown", (e) => {
     if (caja.hidden || e.repeat || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e) || construyendo(view)) return;
-    if (e.code === "Escape") { e.preventDefault(); c.adios(); return; }
     const n = /^(?:Digit|Numpad)([1-4])$/.exec(e.code);
     if (n) { e.preventDefault(); c.elegir(Number(n[1])); }
   });
