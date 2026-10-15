@@ -144,7 +144,7 @@ test("habitante@1: the example passes; bad files are refused with their path; na
     { fichero: "habitantes/dup.json", texto: JSON.stringify(LIA) },
     { fichero: "habitantes/roto.json", texto: "{" },
     { fichero: "habitantes/ia.json", texto: JSON.stringify({ ...LIA, id: "x2", nombre: "Pepe IA" }) },
-    { fichero: "habitantes/lejos.json", texto: JSON.stringify({ ...LIA, id: "x3", ruta: [{ x: 500, z: 0 }], escalon: 2, extra: 1 }) },
+    { fichero: "habitantes/lejos.json", texto: JSON.stringify({ ...LIA, id: "x3", ruta: [{ x: 500, z: 0 }], escalon: 3, extra: 1 }) },
   ]);
   assert.deepEqual(r.habitantes.map((h) => h.id), ["lia"]);
   assert.ok(r.problemas.some((p) => p.includes("repetido")) && r.problemas.some((p) => p.includes("JSON roto")));

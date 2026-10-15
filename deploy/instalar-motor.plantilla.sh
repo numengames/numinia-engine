@@ -11,6 +11,9 @@
 #                  --sin-habitantes   (no AI inhabitants: stops and disables numinia-habitantes if it was there)
 #                  --auto-actualizar  (timer: installs every new release of GitHub by itself, sha256 checked; actualizar.sh)
 #                  --sin-auto-actualizar · --sin-dominio (back to HTTP by IP)
+#                  --construir todos|nadie  (who may place and move things in the world; default todos, until roles: H3)
+#                  --clave-ia  (asks, without showing it, the Claude key for the AI inhabitants' brain; checks it with
+#                              Anthropic and keeps it in /opt/numinia-engine/cerebro.env) · --modelo-ia ID · --quitar-clave-ia
 #   Options are saved in /opt/numinia-engine/instalacion.env: a later run without them keeps them (the updater relies on it).
 #   bash instalar-motor.sh --solo-extraer DIR   unpack app/ and www/ into DIR, install nothing (no root)
 #   bash instalar-motor.sh --version            print what is inside
@@ -45,7 +48,7 @@ extract_payload() { # $1 = destination directory
   awk 'found { print } /^__CARGA_DEBAJO__$/ { found = 1 }' "$0" | base64 -d | tar -xz -C "$1"
 }
 
-DOMAIN=""; MEMORY="75%"; FIREWALL=1; ONLY_EXTRACT=""; HABITANTES=1; AUTO=0
+DOMAIN=""; MEMORY="75%"; FIREWALL=1; ONLY_EXTRACT=""; HABITANTES=1; AUTO=0; CONSTRUIR=todos; CLAVE_IA=""; MODELO_IA=""
 DADO=" " # the options given on this run; the rest come from instalacion.env when there is one
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -56,9 +59,13 @@ while [ $# -gt 0 ]; do
     --sin-habitantes) HABITANTES=0; DADO+="HABITANTES "; shift ;;
     --auto-actualizar) AUTO=1; DADO+="AUTO "; shift ;;
     --sin-auto-actualizar) AUTO=0; DADO+="AUTO "; shift ;;
+    --construir) CONSTRUIR=${2:?falta todos o nadie}; DADO+="CONSTRUIR "; shift 2 ;;
+    --clave-ia) CLAVE_IA=pedir; shift ;;
+    --quitar-clave-ia) CLAVE_IA=quitar; shift ;;
+    --modelo-ia) MODELO_IA=${2:?falta el modelo, p. ej. --modelo-ia claude-sonnet-5}; shift 2 ;;
     --solo-extraer) ONLY_EXTRACT=${2:?falta la carpeta destino}; shift 2 ;;
     --version) echo "numinia-engine $BUILD · Node $NODE_VERSION"; exit 0 ;;
-    -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,28p' "$0"; exit 0 ;;
     *) die "opción desconocida '$1'. Usa --help para ver las opciones." ;;
   esac
 done
@@ -73,14 +80,17 @@ fi
 [ "$(id -u)" -eq 0 ] || die "hay que ejecutarlo como root: sudo bash $0"
 case "$DOMAIN" in ""|*[!A-Za-z0-9.-]*) [ -z "$DOMAIN" ] || die "el dominio '$DOMAIN' no vale (solo letras, números, puntos y guiones)" ;; esac
 case "$MEMORY" in *[!0-9KMGT%]*|"") die "--memoria '$MEMORY' no vale (p. ej. 1G o 75%)" ;; esac
+case "$CONSTRUIR" in todos|nadie) ;; *) die "--construir '$CONSTRUIR' no vale: todos o nadie" ;; esac
+case "$MODELO_IA" in ""|claude-[a-z0-9.-]*) ;; *) die "--modelo-ia '$MODELO_IA' no parece un modelo de Claude (claude-…)" ;; esac
+if [ "$CLAVE_IA" = pedir ] && [ ! -r /dev/tty ]; then die "--clave-ia pregunta la clave en la terminal: ejecútalo en una terminal, no en segundo plano"; fi
 # the options of the last install, for what this run did not say (the updater runs the new installer with no options)
 if [ -f "$PREFIX/instalacion.env" ]; then
   while IFS='=' read -r k v; do
-    case "$k" in DOMAIN|MEMORY|FIREWALL|HABITANTES|AUTO) ;; *) continue ;; esac
+    case "$k" in DOMAIN|MEMORY|FIREWALL|HABITANTES|AUTO|CONSTRUIR) ;; *) continue ;; esac
     case "$DADO" in *" $k "*) continue ;; esac
-    case "$k:$v" in DOMAIN:|DOMAIN:[A-Za-z0-9]*[A-Za-z0-9]|MEMORY:[0-9]*|FIREWALL:[01]|HABITANTES:[01]|AUTO:[01]) printf -v "$k" '%s' "$v" ;; esac
+    case "$k:$v" in DOMAIN:|DOMAIN:[A-Za-z0-9]*[A-Za-z0-9]|MEMORY:[0-9]*|FIREWALL:[01]|HABITANTES:[01]|AUTO:[01]|CONSTRUIR:todos|CONSTRUIR:nadie) printf -v "$k" '%s' "$v" ;; esac
   done < "$PREFIX/instalacion.env"
-  say "opciones guardadas de la instalación anterior: dominio ${DOMAIN:-ninguno} · memoria $MEMORY · cortafuegos $FIREWALL · habitantes $HABITANTES · auto-actualizar $AUTO"
+  say "opciones guardadas de la instalación anterior: dominio ${DOMAIN:-ninguno} · memoria $MEMORY · cortafuegos $FIREWALL · habitantes $HABITANTES · auto-actualizar $AUTO · construir $CONSTRUIR"
 fi
 . /etc/os-release
 case "${ID:-}-${VERSION_ID:-}" in
@@ -152,7 +162,8 @@ Wants=network-online.target
 User=$USER_NAME
 Group=$USER_NAME
 WorkingDirectory=$PREFIX/app
-Environment=PORT=$PORT HOST=127.0.0.1 STATS_MS=30000 NODE_ENV=production SESIONES_DIR=/var/lib/numinia-motor/sesiones DATOS_DIR=/var/lib/numinia-motor/datos ACTIVOS_DIR=/var/lib/numinia-motor/datos/activos
+Environment=PORT=$PORT HOST=127.0.0.1 STATS_MS=30000 NODE_ENV=production SESIONES_DIR=/var/lib/numinia-motor/sesiones DATOS_DIR=/var/lib/numinia-motor/datos ACTIVOS_DIR=/var/lib/numinia-motor/datos/activos MOTOR_CONSTRUIR=$CONSTRUIR
+# H1: who may place, move and delete things (--construir todos|nadie; todos = people and AI inhabitants alike, until H3 roles)
 # T1: how each player entered (device, browser, XR, frames), one JSONL per UTC day, 14 days, no IP
 # S4: what the game features keep across restarts (datos/<feature>.json + .jsonl); back it up with the folder
 # H9: what builders upload (datos/activos/<sha256>.<ext> + subidas.jsonl: who, when); the server creates it; same backup
@@ -188,6 +199,30 @@ systemctl restart "$SERVICE"
 if [ "$HABITANTES" = 1 ]; then
   say "habitantes IA (servicio $HAB_SERVICE: guion sin LLM, solo hablan con el motor de esta máquina)"
   id "$HAB_USER" > /dev/null 2>&1 || useradd --system --home-dir "$PREFIX" --no-create-home --shell /usr/sbin/nologin "$HAB_USER"
+  # P5a: the brain's key (Claude). Asked without echo, checked with Anthropic, kept for this service only (0640
+  # root:numinia-hab, read by systemd). Never printed, never in the world, never in git. Without it: the script (E0).
+  if [ "$CLAVE_IA" = quitar ]; then rm -f "$PREFIX/cerebro.env"; say "clave del cerebro quitada: los habitantes contestan con su guion"; fi
+  if [ "$CLAVE_IA" = pedir ]; then
+    printf '  Clave de Claude (no se ve al escribir; Enter para no cambiarla): ' > /dev/tty
+    IFS= read -rs CLAVE < /dev/tty; echo > /dev/tty
+    if [ -n "$CLAVE" ]; then
+      MODELOS=$(K="$CLAVE" "$PREFIX/node/bin/node" -e '
+        fetch("https://api.anthropic.com/v1/models?limit=100", { headers: { "x-api-key": process.env.K, "anthropic-version": "2023-06-01" } })
+          .then(async (r) => { if (!r.ok) { console.error("HTTP " + r.status); process.exit(2) } const d = await r.json(); console.log(d.data.map((m) => m.id).join("\n")) })
+          .catch((e) => { console.error(e.message); process.exit(3) })') || die "Anthropic no acepta esa clave (o el servidor no sale a internet). No he guardado nada."
+      if [ -z "$MODELO_IA" ]; then MODELO_IA=$(printf '%s\n' "$MODELOS" | grep -m1 -i sonnet || printf '%s\n' "$MODELOS" | grep -m1 -i haiku || printf '%s\n' "$MODELOS" | head -1); fi
+      printf '%s\n' "$MODELOS" | grep -qx "$MODELO_IA" || die "tu cuenta no tiene el modelo $MODELO_IA. Tiene: $(printf '%s ' $MODELOS)"
+      ( umask 027; printf 'CEREBRO_CLAVE=%s\nCEREBRO_MODELO=%s\nCEREBRO_DIA_MAX=300\n' "$CLAVE" "$MODELO_IA" > "$PREFIX/cerebro.env" )
+      chown root:"$HAB_USER" "$PREFIX/cerebro.env"; chmod 0640 "$PREFIX/cerebro.env"
+      unset CLAVE MODELOS
+      say "cerebro: clave aceptada por Anthropic, modelo $MODELO_IA, tope 300 llamadas al día (en $PREFIX/cerebro.env)"
+    fi
+  elif [ -n "$MODELO_IA" ] && [ -f "$PREFIX/cerebro.env" ]; then
+    sed -i "s/^CEREBRO_MODELO=.*/CEREBRO_MODELO=$MODELO_IA/" "$PREFIX/cerebro.env"; say "cerebro: modelo $MODELO_IA"
+  fi
+  # the brain talks to Anthropic only (its published inbound ranges, read 2026-10-15); without a key, localhost only
+  HAB_IPS=localhost
+  [ -f "$PREFIX/cerebro.env" ] && HAB_IPS="localhost 160.79.104.0/23 2607:6bc0::/48"
   cat > "/etc/systemd/system/$HAB_SERVICE.service" << UNIT
 [Unit]
 Description=numinia-engine AI inhabitants ($BUILD)
@@ -200,6 +235,7 @@ Group=$HAB_USER
 WorkingDirectory=$PREFIX/app
 Environment=MOTOR_URL=ws://127.0.0.1:$PORT NODE_ENV=production STATS_MS=300000
 EnvironmentFile=$PREFIX/agentes.env
+EnvironmentFile=-$PREFIX/cerebro.env
 ExecStart=$PREFIX/node/bin/node packages/agent/src/main.ts
 Restart=always
 RestartSec=5
@@ -216,9 +252,9 @@ ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
 RestrictAddressFamilies=AF_INET AF_INET6
-# escalón 0 has no brain: it only talks to the engine on this machine (P5 opens the provider's address, nothing else)
+# it talks to the engine on this machine and, with a brain, to Anthropic's API; nothing else
 IPAddressDeny=any
-IPAddressAllow=localhost
+IPAddressAllow=$HAB_IPS
 LockPersonality=yes
 
 [Install]
@@ -330,14 +366,15 @@ if [ "$HABITANTES" = 1 ]; then
   systemctl is-active --quiet "$HAB_SERVICE" || say "AVISO: $HAB_SERVICE no arrancó (el mundo sigue sin ellos): journalctl -u $HAB_SERVICE -n 50"
 fi
 # what this install was, for the next run without options (and the updater), and the installer itself to go back to
-( umask 077; printf 'DOMAIN=%s\nMEMORY=%s\nFIREWALL=%s\nHABITANTES=%s\nAUTO=%s\n' "$DOMAIN" "$MEMORY" "$FIREWALL" "$HABITANTES" "$AUTO" > "$PREFIX/instalacion.env" )
+( umask 077; printf 'DOMAIN=%s\nMEMORY=%s\nFIREWALL=%s\nHABITANTES=%s\nAUTO=%s\nCONSTRUIR=%s\n' "$DOMAIN" "$MEMORY" "$FIREWALL" "$HABITANTES" "$AUTO" "$CONSTRUIR" > "$PREFIX/instalacion.env" )
 [ -f "$0" ] && [ "$(readlink -f "$0")" != "$PREFIX/instalador.sh" ] && install -m 0700 "$0" "$PREFIX/instalador.sh"
 say "listo. Servicio $SERVICE activo, $BUILD."
 if [ -n "$DOMAIN" ]; then WEB="https://$DOMAIN"; else WEB="http://${IP:-<ip-del-servidor>}"; fi
 if [ -n "$DOMAIN" ]; then say "abre $WEB/"; else say "abre $WEB/  (HTTP sin cifrar: solo para pruebas)"; fi
 say "el mundo en un zip (bajar y subir): $WEB/mundo · código: sudo cat $PREFIX/admin.env"
 say "registro: journalctl -u $SERVICE -f · estado: systemctl status $SERVICE"
-[ "$HABITANTES" = 1 ] && say "habitantes IA: journalctl -u $HAB_SERVICE -f (quitarlos: systemctl stop $HAB_SERVICE)"
+[ "$HABITANTES" = 1 ] && say "habitantes IA: journalctl -u $HAB_SERVICE -f (quitarlos: systemctl stop $HAB_SERVICE) · cerebro: $([ -f "$PREFIX/cerebro.env" ] && echo "sí ($(grep -m1 '^CEREBRO_MODELO=' "$PREFIX/cerebro.env" | cut -d= -f2))" || echo "no (ponlo con --clave-ia)")"
+say "construir: $CONSTRUIR (cámbialo con --construir todos|nadie)"
 if [ "$AUTO" = 1 ]; then say "auto-actualizar: sí (pausa: touch $PREFIX/PAUSA · ver: journalctl -u $ACT_SERVICE)"; else say "auto-actualizar: no (actívalo con --auto-actualizar)"; fi
 exit 0
 __CARGA_DEBAJO__
