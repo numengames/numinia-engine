@@ -28,13 +28,20 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | P1 | Ficha técnica: características y límites del motor (humana + `limits.json`) | hecho | sí |
 | J0 | Catálogo de todo lo que espera un jugador (la receta para añadir funciones es de J7) | pendiente | sí |
 | J7 | Módulos de juego: añadir una función sin tocar el núcleo, con un ejemplo real (gestos) | para Opus | no |
+| I1 | Identidad de invitado y vincular el móvil con el ordenador o el visor | para Opus | no |
+| S4 | Persistencia mínima del mundo (puntos de enlace, inventario, cosas plantadas) | para Opus | no |
+| B1 | HTTPS en la red de casa para móviles y visores (certificado propio, `/ws` en el mismo origen) | pendiente | sí |
+| J6 | VR de verdad: entrar en VR, moverse, manos y mandos, paneles 3D (emulador IWER) | pendiente | sí |
+| J8 | AR de verdad: entrar en AR en Android, Quest 3 y Pico 4, suelo, anclar un objeto; iPhone en plano | pendiente | sí |
+| R1 | Realidad cruzada 1 «Despertar»: un QR real hace que la plaza reaccione para todos | espera a J7 | sí |
+| R2 | Realidad cruzada 2 «Semilla del Conocimiento»: pregunta en un sitio real → semilla que se planta en el mundo | espera a J7, I1, S4 | sí |
+| R3 | Realidad cruzada 3 «Célula del Prisma» + herramienta del DJ para marcar puntos reales | espera a J7, I1, S4 | sí |
+| R4 | Realidad cruzada 4 «Caza de invisibles»: la cámara, el color y la hora deciden qué aparece | espera a J7, J8 | sí |
 | P2 | Móvil frío: política de energía del cliente + puerta de coste por cuadro | pendiente | sí |
 | P3 | Nativo para IA v1: `llms.txt`, mapa, README-contrato por paquete, `npm run describe` | pendiente | sí |
 | J1 | Avatares VRM de verdad (CC0) con animaciones CC0 en la plaza | pendiente | sí |
 | J2 | Salto y altura en la simulación (cambia la huella fijada; permiso de Pablo, 14-10) | pendiente | sí |
 | J3 | Chat y bocadillos de texto sobre los avatares, con nombres | espera a J7 | sí |
-| B1 | HTTPS en la red de casa para los visores (certificado propio, `/ws` en el mismo origen) | pendiente | sí |
-| J6 | VR de verdad: entrar en VR/AR, moverse, manos y mandos, paneles 3D (emulador IWER) | pendiente | sí |
 | J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR | espera a J7 | sí |
 | J5 | Libro de misiones, mapa y minimapa con marcadores | espera a J7 | sí |
 | A1 | Página de multitud (50/200/1.000/2.000 robots, completos vs horneados) | pendiente | sí |
@@ -170,6 +177,8 @@ construyen después como módulos.
 **Para Opus (15-10):** incluye `docs/EXTENDER.md`; se diseña junto con D4 (los mensajes de cada función
 se declaran con esquema) y pensando en P4 (cada función declara sus verbos y un agente los recibe sin
 código extra). Al cerrarla, J3, J4 y J5 pasan a `pendiente`.
+**Lo que añade la realidad cruzada (15-10):** una función puede registrar rutas HTTP propias (la URL
+que abre un QR) y tener estado guardado (con S4). El primer módulo real después de los gestos es R1.
 
 ### J1 — Avatares VRM de verdad
 `@pixiv/three-vrm` 3.5.5 (MIT, versión exacta). 2–3 VRM CC0 con la licencia comprobada dentro del
@@ -193,7 +202,7 @@ la cabeza; caja de chat en la página (Enter para escribir; en móvil, un botón
 la pestaña A escribe "hola" y la B ve el bocadillo; el servidor descarta textos largos o seguidos.
 
 ### J6 — VR de verdad
-Botón "Entrar en VR" (y "AR" donde haya passthrough) solo si `navigator.xr.isSessionSupported`;
+Botón "Entrar en VR" solo si `navigator.xr.isSessionSupported('immersive-vr')` (la AR es J8);
 `renderer.xr` (WebGL2 en Quest); moverse con el stick (intenciones), teletransporte con arco, giro a
 saltos de 30°, viñeta de confort ajustable, mandos y manos, un panel 3D legible. Probado con el
 emulador IWER (Meta, MIT, versión exacta) inyectado en Playwright: entra en sesión, dibuja cuadros,
@@ -218,3 +227,63 @@ Ver su línea en la cola. B2: el emulador IWER (Meta, MIT) se inyecta en Playwri
 Quest 3; comprobar licencia y versión antes de instalar.
 
 **P1 hecho (15-10):** `limits.json` (`numinia-engine/limits@1`; lista plana de `limits` con eje/ámbito/clave/valor/unidad/estado + `features`), `docs/FICHA-TECNICA.md` y `test/limits.test.ts` (esquema, sin duplicados, mismas claves en A–D, cada `measured` apunta a un archivo que existe, cada `estimated` lleva fuente). Medido: tick, kbit/s, memoria, conexión, e2e Chromium/Firefox; estimado: tabla A–D, VPS-1/2, voz. WebKit sin probar.
+
+## Realidad cruzada: la calle (AR) y el mundo digital (VR) juntos (Pablo, 15-10)
+
+Diseño completo, fuentes y reglas: `../mmo-browser-study/REALIDAD-CRUZADA.md`. Las mecánicas concretas
+(Semilla, Célula) son de la ciudad; el motor pone las piezas: puntos de enlace, reclamaciones que decide
+el servidor, efectos, inventario, persistencia, sesión AR. Reglas que valen para todas: GPS solo para
+zonas (≥ 30 m), nunca para colocar; la posición se manda solo al reclamar un punto y no se guarda; la
+cámara no sale del aparato; AR y cámara a ráfagas (≤ 90 s); todo lo que usa cámara, GPS o WebXR exige
+HTTPS (B1); cada mecánica tiene versión plana para iPhone y ordenador.
+
+### I1 — Identidad de invitado y vincular aparatos (para Opus)
+Hoy el motor no sabe quién es nadie. La Semilla y la Célula necesitan una identidad de invitado (sin
+cuenta) guardada en el aparato y **vincular** el móvil con el ordenador o el visor (el ordenador enseña un
+QR, el móvil lo escanea) para que lo que haga el móvil cuente para la misma persona. Tokens firmados con
+caducidad; ningún dato personal.
+
+### S4 — Persistencia mínima del mundo (para Opus)
+Hoy todo vive en memoria y se pierde al reiniciar. Guardar: puntos de enlace, inventarios, cosas plantadas
+o dejadas, y quién reclamó qué y cuándo (sin coordenadas). Decidir formato (SQLite de Node, JSON o
+registro de eventos), cómo convive con la simulación determinista y cómo se prueba (reinicio sin pérdida).
+
+### J8 — AR de verdad (Pablo, 15-10: «la AR me interesa muchísimo»)
+Botón «Entrar en AR» solo si `navigator.xr.isSessionSupported('immersive-ar')` (Android Chrome con
+ARCore, Quest 3, Pico 4); en iPhone no hay WebXR: no sale y se juega en plano. Sesión `immersive-ar` con
+fondo transparente, `hit-test` para el suelo, retícula, tocar o gatillo para colocar un objeto, `anchors`
+para que se quede quieto, `dom-overlay` en Android para el HUD. Los ejemplos de AR de three r186 son solo
+para `WebGLRenderer`: leer `src/renderers/common/XRManager.js` (el nuestro es `WebGPURenderer`, backend
+WebGL2 en XR) antes de escribir. La sesión se cierra sola a los 90 s (móvil frío). **Hecho cuando:** e2e
+con el emulador IWER (MIT) si emula AR — comprobarlo; si no, decirlo y dejar escrita la prueba a mano para
+Pablo (necesita B1); la página no da errores cuando no existe `navigator.xr`.
+
+### R1 — Despertar (primera prueba de realidad cruzada)
+Módulo hecho con J7: `enlaces.json` con esquema (id, nombre, zona y posición en la plaza, efecto, reglas);
+cada punto tiene una URL firmada `GET /e/<token>` que contesta con una página corta («Has despertado la
+fuente: mírala en la plaza») y suelta un evento en la instancia; la plaza muestra el efecto (columna de
+luz y texto) unos 10 s para todos. `npm run enlaces -- qr` imprime los QR (SVG) con la URL de la red de
+casa; opción para que el servidor escuche en la red de casa (hoy solo en 127.0.0.1). **Hecho cuando:**
+e2e: una petición a un código válido hace aparecer el efecto en una pestaña sin pantalla; un código falso
+o repetido no hace nada; medido el tiempo del escaneo al efecto.
+
+### R2 — Semilla del Conocimiento
+El punto hace una pregunta que solo se responde estando allí; la respuesta la fija el DJ (un agente puede
+redactar la pregunta desde la ficha `.md` del sitio, nunca decidir si se acierta). Acierto → Semilla en
+el inventario de la persona (I1); en el mundo digital se planta, crece con el tiempo real y los demás la
+ven (S4). Base: Semillas del Conocimiento del manual (`lore/game/manual/es/06-inventario-y-bestiario.md`).
+**Hecho cuando:** e2e: responder bien en una pestaña-móvil hace aparecer la semilla en la pestaña-ordenador
+vinculada; después de reiniciar el servidor sigue plantada.
+
+### R3 — Célula del Prisma + herramienta del DJ
+Página para directores de juego: soltar un punto en el mapa (zona de 30–50 m), elegir la prueba final (QR
+escondido o pregunta), imprimir el QR y esconder una Célula en su hueco digital. En el móvil, el mapa
+avisa «algo late en esta zona»; al llegar se hace la prueba; quien la encuentra se la lleva y en el mundo
+se ve quién fue. **Hecho cuando:** e2e con geolocalización simulada (Playwright) dentro y fuera de la zona.
+
+### R4 — Caza de invisibles (homenaje a Invizimals)
+Momento de cámara de ≤ 60 s: el color dominante, la luz, la hora y el tiempo real deciden qué aparece;
+pitido de frío/caliente; se captura con el cuerpo (soplar al micrófono, agitar, tapar la cámara). En
+Android y Quest se posa en el suelo (J8); en iPhone, dibujada sobre el vídeo. Lo capturado aparece en el
+mundo digital. Todo se analiza en el aparato. **Hecho cuando:** e2e con la cámara falsa de Chromium
+(`--use-fake-device-for-media-stream` + vídeo de un color) hace aparecer la criatura que toca.
