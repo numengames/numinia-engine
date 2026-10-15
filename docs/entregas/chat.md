@@ -93,14 +93,18 @@ con `/` que llegan a las funciones y una caja de chat accesible en la plaza.
   cada 10 s): **25,0 → 27,0 kbit/s (+1,9)**.
 - Nombres con 1.000 personas entrando a la vez, 50 visibles cada una: 48.420 mensajes (866 B por persona) en 3,5 s;
   tick del chat p50 1,7–1,9 ms, p99 3,7 ms (6,7 con la máquina a carga 15); con todos quietos, p50 0,11 ms.
-- e2e (`tools/auto.sh e2e` con puertos 8806/5186/5196, núcleos 24-27), tres pasadas con la máquina a carga 12-15:
+- e2e (`tools/auto.sh e2e` con puertos 8806/5186/5196, núcleos 24-27), cuatro pasadas con la máquina a carga 11-16:
   1. chromium OK · firefox OK · AR OK · VR OK · chat OK · https FALLA: la página no cargaba `/escribiendo.ts` (el proxy
      LAN se lo tragaba, decisión 11) → arreglado; la pierna https sola, después: OK.
   2. chromium OK · firefox OK · AR OK · VR OK · chat OK · https FALLA solo en el paso de andar (`movedZ` −3,2; pide
      < −3,5): el fallo conocido de `tools/e2e.mjs` con GL por software y la máquina cargada (pierde ticks).
   3. chromium FALLA solo en el mismo paso de andar (−3,0) · firefox OK · AR OK · VR OK · chat OK · https OK.
+  4. chromium FALLA solo en el paso de andar (−3,39) · firefox OK (−6) · AR OK · VR OK · chat OK · https OK (−5).
   En todas: gestos, objetos, sesiones, correcciones 0 y cero errores de página. Ninguna pasada salió entera en verde
-  por ese paso de andar (ver «Sin comprobar»).
+  por ese paso de andar. **No es de esta rama:** la pierna chromium contra `main` de partida (55b0b3a, exportado con
+  `git archive`) y contra esta rama, alternando, 7 veces cada una con la máquina a carga 7-16: partida −5,19 −5,0 −5,2
+  −4,39 −5,2 **−3,39** −4,61; rama −4,8 **−3,2** −4,2 −5,0 **−3,2** −4,59 −5,2. Las dos caen bajo −3,5 cuando la carga
+  pasa de ~15 (GL por software pierde cuadros y la página pierde ticks, como ya avisa `tools/e2e.mjs`).
 - e2e chat (17 de 17): dos invitados distintos; B anduvo hasta 12,5 m de A; B dibuja «Invitado 6IGN» sobre A; Enter
   abre la caja con el foco; «hola» + Enter envía y cierra; B ve el bocadillo «hola» y «Invitado 6IGN: hola» en su lista,
   A ve «Tú: hola»; la lista es `role=log` + `aria-live=polite`; escribir «wasd WASD» y mantener W 0,9 s dentro de la
@@ -111,6 +115,8 @@ con `/` que llegan a las funciones y una caja de chat accesible en la plaza.
 
 ## Sin comprobar
 
+- Una pasada de `tools/auto.sh e2e` entera en verde: con la máquina cargada siempre cayó una pierna en el paso de andar
+  (arriba: pasa igual sin esta rama). Repetirla con la máquina tranquila al juntar.
 - Lectores de pantalla de verdad (NVDA, VoiceOver, TalkBack) con la lista `role=log`: solo el marcado está comprobado.
 - Móvil de verdad (botón «Chat», teclado virtual, `enterkeyhint="send"`) y gafas de verdad (legibilidad; en VR no hay
   forma de escribir todavía: se lee, no se escribe).
