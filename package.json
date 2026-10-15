@@ -11,6 +11,7 @@
     "test": "node --test \"test/*.test.ts\"",
     "layers": "node tools/layers.mjs",
     "run": "node packages/cli/src/run.ts",
+    "describe": "node packages/cli/src/describe.ts",
     "server": "node packages/server/src/main.ts",
     "bots": "node packages/server/src/bots.ts",
     "dev": "vite --config apps/plaza/vite.config.mjs",

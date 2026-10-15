@@ -39,7 +39,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | R3 | Realidad cruzada 3 «Célula del Prisma» + herramienta del DJ para marcar puntos reales | espera a J7, I1, S4 | sí |
 | R4 | Realidad cruzada 4 «Caza de invisibles»: la cámara, el color y la hora deciden qué aparece | espera a J7, J8 | sí |
 | P2 | Móvil frío: política de energía del cliente + puerta de coste por cuadro | hecho (sin medir en móvil real → X1) | sí |
-| P3 | Nativo para IA v1: `llms.txt`, mapa, README-contrato por paquete, `npm run describe` | pendiente | sí |
+| P3 | Nativo para IA v1: `llms.txt`, mapa, README-contrato por paquete, `npm run describe` | hecho | sí |
 | J1 | Avatares VRM de verdad (CC0) con animaciones CC0 en la plaza | pendiente | sí |
 | J2 | Salto y altura en la simulación (cambia la huella fijada; permiso de Pablo, 14-10) | pendiente | sí |
 | J3 | Chat y bocadillos de texto sobre los avatares, con nombres | espera a J7 | sí |

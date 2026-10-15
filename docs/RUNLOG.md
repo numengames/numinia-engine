@@ -85,3 +85,10 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Consumo: semana 43 % → 43 % (Sonnet).
 - Commit: ver `git log` (P2).
 - Siguiente: A1 (página de multitud) o la siguiente fila pendiente.
+
+## 2026-10-15 07:31 · P3 · hecho
+- Qué: `llms.txt` (una página: capas, paquetes, comandos, contratos, límites), `docs/MAPA.md`, un `README.md` por cada uno de los 10 paquetes (qué es, qué no, dependencias, pruebas, API) y `npm run describe` (`packages/cli/src/describe.ts`): JSON de un mundo sin pantalla con entidades, posiciones en metros y quién ve a quién. Test `test/describe.test.ts`: cada paquete tiene README y sale en `llms.txt` (el mensaje de error dice cómo arreglarlo); `describe` es determinista.
+- Números: gates verdes (30 tests; p99 7,7 ms; 25 kbit/s). Sin código de navegador: e2e no necesario.
+- Consumo: semana 43 % → 43 % (Sonnet).
+- Commit: ver `git log` (P3).
+- Siguiente: la siguiente fila pendiente (A1 si sigue ahí).
