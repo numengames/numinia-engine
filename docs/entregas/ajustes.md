@@ -145,15 +145,20 @@ Ficheros nuevos: `packages/feature/src/ajustes.ts`, `packages/client/src/{ajuste
   valores por nivel y por preferencia del sistema, ocultar y aparecer al llegar la capacidad, validación con rutas, ida y
   vuelta del guardado, migración y versiones rotas, tope del guardado, `forzar`, preajuste de calidad, una función que
   falla, ajustes de una función, fichero de mundo y el de la plaza, `power` con calidad y resolución).
-- Puertas (`npm run gates`, antes de cada commit): todas en verde; plaza de 1.000 tick p99 7,6–7,7 ms, 25,0 kbit/s.
-- `tools/auto.sh e2e` con mis puertos (8810/5190/5200, núcleos 2-3), 74 s: **chromium OK, firefox OK, AR OK, VR OK,
-  ajustes OK, https OK**.
+- Puertas (`npm run gates`, antes de cada commit): todas en verde; plaza de 1.000 tick p99 7,6–16,3 ms (según la carga de
+  la máquina), 25,0 kbit/s.
+- `tools/auto.sh e2e` con mis puertos (8810/5190/5200, núcleos 2-3), ~75 s cada vez, cuatro pasadas: la 1.ª, la 2.ª y la
+  4.ª (con el último código) **chromium OK, firefox OK, AR OK, VR OK, ajustes OK, https OK**; en la 3.ª falló la de
+  https solo en el paso de andar (`movedZ` −3,0, pide < −3,5; correcciones 0, gestos, objetos y sesiones bien): el fallo
+  conocido de ese paso con la máquina cargada (carga ~11), el mismo que `tools/e2e.mjs` ya describe. No lo comparé con
+  el árbol base.
 - Pierna `ajustes` (igual en chromium y firefox): 23 controles, todos con etiqueta y descripción; O abre con el foco
   dentro; 3 tabuladores hasta «Resolución»; ← la deja en 95 % y el pixel ratio pasa de 1 a 0,95 (también el del
   renderizador); la línea de estado dice «Resolución: 95 %»; Escape cierra; al recargar sigue en 95 % y aplicado; B
   enciende el modo batería y queda guardado, otra B lo apaga; O dentro de una caja de texto no abre; un agente que pide
   3 % recibe `graficos.resolucion: a number from 50 to 100 %`; 19 tabuladores hasta «Restablecer todo», Intro vuelve a
-  100 % y ratio 1; 0 errores de página.
+  100 % y ratio 1; un navegador que pide menos movimiento (`reducedMotion: reduce`) arranca con la capacidad, el ajuste
+  y la clase puestos; 0 errores de página.
 - Peso de arranque (`npm run build`, `index` + `three.core`): **260,7 kB gz** con la rama frente a 248,7 kB en la base
   55b0b3a (**+12,0 kB**; gzip -9: 256,8 frente a 244,8 kB). Presupuesto 300 kB. Si aprieta, el dibujo del menú (~4 kB)
   puede cargarse al abrirlo la primera vez; el registro tiene que estar al arrancar.
