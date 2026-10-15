@@ -29,7 +29,7 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 | Gamepad | Xbox/PS/genérico ◐ (palancas y LB/RB; sin probar con un mando real) | motor | Base | sí / sí / mandos | cliente | bajo | N1 |
 | Salto y altura | Saltar y subir desniveles ✘ | motor | Base | tecla / botón / botón | C altura, S sim (cambia la huella) | bajo | J2 |
 | Correr / agacharse / sentarse | Estados de postura | motor | Mejorado | sí / sí / sí | C estado, M | bajo | J4 |
-| Teletransporte a un punto | Saltar a un sitio marcado | ciudad | Base | menú / menú / apuntar | M, S | bajo | J5 |
+| Teletransporte a un punto | Saltar a un sitio marcado (el mapa ya marca destinos: J5) | ciudad | Base | menú / menú / apuntar | M, S | bajo | J5 |
 | Confort en VR | Giro a saltos, teletransporte, viñeta | motor | Base (en XR) | — / — / sí | cliente | medio | J6 |
 
 ## 2. Verse
@@ -75,6 +75,7 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 | Libro de misiones | Qué tengo que hacer y por dónde voy | ciudad | Base | panel / panel / panel 3D | C, S, G, P | bajo | J5 |
 | Inventario | Lo que llevo, que no se pierde | motor | Base | panel | C, G | bajo | S4, J4 |
 | Sellos y logros | Recuerdo de lo hecho | ciudad | Base | panel | G, P | bajo | J5 |
+| Ficha de jugador | Quién soy, mi aparato y calidad, tiempo conectado, misiones, insignias, ajustes ◐ (tecla I; avatar e inventario, próximamente) | motor | Base | panel / panel / — | P | bajo | J11 (propuesta) |
 | Persistencia | Volver y encontrar lo mío | motor | Base | — | G | bajo | S4 |
 | Eventos programados | Algo pasa a una hora | ciudad | Mejorado | — | S, calendario | bajo | Frontera, sin fila |
 
@@ -87,9 +88,9 @@ sigues y a cuántos metros está. E (o un clic, o el botón en el móvil) habla 
 
 | Cosa | Qué es | Capa | Nivel | Escritorio / móvil / VR | Primitivas | Coste móvil | Fila |
 |---|---|---|---|---|---|---|---|
-| Minimapa | Vista pequeña de lo cercano con marcadores | motor | Base | esquina / esquina / muñeca | P, datos del servidor | medio (redibujar solo al cambiar) | J5 |
-| Mapa grande | El mundo entero | motor | Base | panel | P | bajo | J5 |
-| Brújula y marcadores | Dirección hacia un objetivo | motor | Base | sí | P | bajo | J5 |
+| Minimapa | Vista pequeña de lo cercano con marcadores ◐ (esquina; norte arriba o gira con la cámara; en VR falta la muñeca) | motor | Base | esquina / esquina / muñeca | P, datos del servidor | medio (redibujar solo al cambiar) | J5 |
+| Mapa grande | El mundo entero ✔ (tecla M: vista cenital generada, destinos, lista HTML con direcciones) | motor | Base | panel | P | bajo | J5 |
+| Brújula y marcadores | Dirección hacia un objetivo ✔ (objetivos y destino pegados al borde del minimapa; columna de luz en el mundo) | motor | Base | sí | P | bajo | J5 |
 | Amigos en el mapa | Ver dónde están los míos | motor | Mejorado | sí | M, G | bajo | F1 |
 
 ## 7. Interfaz y ajustes

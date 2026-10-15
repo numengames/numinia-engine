@@ -17,6 +17,8 @@ import { misiones } from "../../features/misiones/client.ts";
 import { montarInteraccion } from "./interactuar.ts";
 import { montarDialogo } from "./dialogo.ts";
 import { montarLibro } from "./misiones.ts";
+import { montarMapa } from "./mapa.ts";
+import { montarFicha } from "./ficha.ts";
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
@@ -88,6 +90,12 @@ montarLibro(misiones, {
   boton: document.getElementById("misiones") as HTMLButtonElement, panel: document.getElementById("libro")!, linea: document.getElementById("mision-seguida")!,
   nota: document.getElementById("mision-nota")!, view, here: () => (session.entity >= 0 ? session.selfPosition(1) : null),
 });
+
+// ---- J5: minimap (corner), big map (M, «Mapa») and player sheet (I, «Ficha»); other branches' contracts are read
+// from __numinia when present (misiones.objetivos/resumen, ajustes.abrir, chat.nombres) ----
+const otros = () => (globalThis as unknown as { __numinia?: Record<string, unknown> }).__numinia ?? {};
+const mapa = montarMapa({ session, view, otros });
+const ficha = montarFicha({ session, view, desde: () => informe.bienvenidaMs, otros }, mapa.botonFicha);
 
 // ---- determinism probe: replay the reference run here and compare with the server's number ----
 const probe = { browser: -1, server: -1, ms: 0, done: false };
@@ -272,7 +280,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, mapa, ficha };
 
 // ---- N2: settings and capabilities (menu-ajustes.ts): gear + O, window.__numinia.ajustes / .capacidades. Applied here,
 // before the first frame: the display loop above only draws from the next animation frame on ----
