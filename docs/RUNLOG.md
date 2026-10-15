@@ -57,3 +57,10 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Consumo: semana 43 % → 43 % (Sonnet).
 - Commit: ver `git log` (J0).
 - Siguiente: B1 (HTTPS en casa para móviles y visores).
+
+## 2026-10-15 03:31 · B1 · hecho
+- Qué: `npm run dev:lan` crea (si falta) un certificado propio con openssl en `.cert/` (fuera de git, válido para localhost y tu IP de casa), sirve la página por https en la red y pasa `/ws` al servidor por el mismo origen; el cliente ya usaba `wss://` en https. En el móvil saldrá un aviso de certificado una vez: se acepta. `tools/auto.sh e2e` tiene ahora una tercera pasada por https (chromium, certificado ignorado, `wss://…/ws`).
+- Números: 24 tests verdes (nuevo: detección de IP de casa); e2e chromium, firefox y https OK. No probado en un móvil ni visor real.
+- Consumo: semana 43 % → 43 % (Sonnet).
+- Commit: ver `git log` (B1).
+- Siguiente: D1 (puerta de tipos).

@@ -30,7 +30,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J7 | Módulos de juego: añadir una función sin tocar el núcleo, con un ejemplo real (gestos) | para Opus | no |
 | I1 | Identidad de invitado y vincular el móvil con el ordenador o el visor | para Opus | no |
 | S4 | Persistencia mínima del mundo (puntos de enlace, inventario, cosas plantadas) | para Opus | no |
-| B1 | HTTPS en la red de casa para móviles y visores (certificado propio, `/ws` en el mismo origen) | pendiente | sí |
+| B1 | HTTPS en la red de casa para móviles y visores (certificado propio, `/ws` en el mismo origen) | hecho | sí |
 | J8 | AR de verdad: entrar en AR en Android, Quest 3 y Pico 4, suelo, anclar un objeto; iPhone en plano | pendiente | sí |
 | J6 | VR de verdad: entrar en VR, moverse, manos y mandos, paneles 3D (emulador IWER) | pendiente | sí |
 | R1 | Realidad cruzada 1 «Despertar»: un QR real hace que la plaza reaccione para todos | espera a J7 | sí |

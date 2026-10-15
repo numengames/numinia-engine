@@ -18,7 +18,8 @@ const launchers = {
   webkit: () => webkit.launch(),
 };
 const browser = await launchers[ENGINE]();
-const ctx = await browser.newContext({ viewport: { width: 480, height: 300 } });
+// HTTPS=1: the page uses our own certificate (dev:lan), so ignore certificate errors
+const ctx = await browser.newContext({ viewport: { width: 480, height: 300 }, ignoreHTTPSErrors: process.env.HTTPS === "1" });
 const errors = [];
 const open = async () => {
   const p = await ctx.newPage();
