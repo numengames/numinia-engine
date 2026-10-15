@@ -20,6 +20,7 @@ const TICK_HZ = 20;
 export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPart(objetos, (api) => {
   const enBiblioteca = new Map(modelos.map((m) => [m.modelo, m]));
   const pilas = new Map<string, Cambio[]>();
+  const rehechos = new Map<string, Cambio[]>(); // M22: what each builder undid, ready to redo; a new change of theirs empties it
   const quien = (from: number) => api.who(from)?.id ?? `e${from}`;
   const rechazar = (from: number, motivo: string) => { api.emit("rechazado", { motivo }, { to: from }); return false; };
   const hecho = (from: number, id: string, accion: string) => api.emit("hecho", { id, accion }, { to: from });
@@ -30,6 +31,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
     return o;
   };
   const apuntar = (from: number, c: Omit<Cambio, "tick">) => {
+    rehechos.delete(quien(from)); // M22: a new change ends what could be redone
     const pila = pilas.get(quien(from)) ?? [];
     const ultimo = pila[pila.length - 1], ahora = api.tick();
     // a drag sends many moves: within a second they are one change (undo goes back to before the drag)
@@ -134,14 +136,26 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
     hecho(from, id, "nombrar");
   });
 
-  api.on("deshacer", (from) => {
+  // M22: undo and redo put a thing back as it was (or take it away) and leave the opposite on the other stack.
+  // A pinned thing stays put for them too, unless what is undone or redone is the pin itself (or its name).
+  const DONDE_CAMPOS = ["x", "y", "z", "rx", "ry", "rz", "sx", "sy", "sz"];
+  const fijadoImpide = (ahora: Msg | undefined, destino: Msg | null) => !!ahora?.fijado && (destino === null || DONDE_CAMPOS.some((k) => ahora[k] !== destino[k]));
+  const volver = (from: number, de: Map<string, Cambio[]>, a: Map<string, Cambio[]>, accion: "deshacer" | "rehacer") => {
     if (!puede(from)) return;
-    const c = pilas.get(quien(from))?.pop();
-    if (!c) return void rechazar(from, "No hay nada tuyo que deshacer.");
+    const k = quien(from), pila = de.get(k), c = pila?.pop();
+    if (!c) return void rechazar(from, `No hay nada tuyo que ${accion}.`);
+    const ahora = api.state.get(c.id);
+    if (fijadoImpide(ahora, c.antes)) { pila!.push(c); return void rechazar(from, `Está fijado: suéltalo antes de ${accion}.`); }
+    const otra = a.get(k) ?? [];
+    otra.push({ id: c.id, antes: ahora ?? null, autor: ahora ? autorDe(c.id) : undefined, tick: api.tick() });
+    if (otra.length > DESHACER_MAX) otra.shift();
+    a.set(k, otra);
     if (c.antes === null) { api.state.delete(c.id); api.store.delete(`a:${c.id}`); }
     else { api.state.set(c.id, c.antes); if (c.autor) api.store.set(`a:${c.id}`, c.autor); }
-    hecho(from, c.id, "deshacer");
-  });
+    hecho(from, c.id, accion);
+  };
+  api.on("deshacer", (from) => volver(from, pilas, rehechos, "deshacer"));
+  api.on("rehacer", (from) => volver(from, rehechos, pilas, "rehacer"));
 });
 
 export default crearObjetos();

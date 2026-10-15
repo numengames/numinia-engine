@@ -126,6 +126,32 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 | Bloquear / denunciar | Seguridad personal | motor | Base | M, S | F1 |
 | Roles de la casa | Invitado, ciudadano, moderador, Oráculo; el agente nunca modera | motor | Base | S, G | F1 |
 
+## 11. Construir en el mundo (M22, como Hyperfy2 y Blender)
+
+Quien tiene permiso (hoy `MOTOR_CONSTRUIR=todos`; roles con H3) abre el modo construir; quien no, no lo ve.
+Todo cambio pasa por el servidor (`features/objetos`) y llega a todos al momento. Con ratón y teclado:
+
+| Tecla o ratón | Qué hace |
+|---|---|
+| C, o Tab | Abrir y cerrar construir (Tab solo si has usado el ratón hace poco: con teclado, Tab sigue moviendo el foco) |
+| Clic izquierdo | Seleccionar lo que hay bajo el puntero; en el suelo, o con Esc, nada seleccionado |
+| 1 | Coger: lo seleccionado sigue al puntero sobre el suelo y sobre otros objetos (con paso); rueda = girar, Mayús + rueda = escalar; clic = soltar; Esc = devolverlo |
+| 2 o G · 3 o R · 4 | Mover · girar · escalar con el gizmo: asas X roja, Y verde, Z azul |
+| X, Y, Z | Solo ese eje (otra vez: todos), con mover, girar o escalar |
+| T | Ejes del objeto (local) o del mundo |
+| Ctrl mantenido | Sin paso (por defecto 0,5 m, 15°, escala 0,1; el panel deja elegir libre, 0,1, 0,5, 1 m y 5, 15, 45°) |
+| Mayús + D o Ctrl + D | Duplicar: la copia queda seleccionada y cogida |
+| Supr o Retroceso | Borrar |
+| Ctrl + Z · Ctrl + Mayús + Z o Ctrl + Y | Deshacer · rehacer (cada arrastre es un paso) |
+| P | Fijar o soltar (fijado: nadie lo mueve ni lo borra) |
+| F | Encuadrar lo seleccionado (con la cámara nueva, N1) |
+| N | Mostrar u ocultar el inspector (nombre, posición, giro en grados, escala, fijado: Intro aplica) |
+| Botones derecho y central, rueda | La cámara (rama de la cámara, N1) |
+
+Sin ratón: el panel tiene botones de verdad para todo (colocar delante de ti, girar, desplazar, subir, escalar,
+duplicar, fijar, borrar, deshacer, rehacer) y el inspector con campos con nombre. Un agente hace lo mismo con
+`window.__numinia.constructor` (`seleccionar`, `transformar`, `colocarEn`, `modo`, `rehacer`…).
+
 ## Qué falta en la cola
 
 Piezas Base sin fila hasta hoy, añadidas a `docs/BACKLOG.md` en este turno:
