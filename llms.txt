@@ -40,5 +40,9 @@ limits.json (schema numinia-engine/limits@1) is the machine form; docs/FICHA-TEC
 Things placed in the world (H1, M22): features/objetos (place, move, turn, duplicate, pin, name, delete, undo, redo; MOTOR_CONSTRUIR=todos opens building), models in activos/ listed in features/objetos/biblioteca.json; the builder panel and keys in apps/plaza/constructor.ts.
 Chat, bubbles and names (J3): features/chat, apps/plaza/chat.ts. Typing never moves: every page key listener asks apps/plaza/escribiendo.ts.
 Jump and run (J2): packages/sim (groundHeight is the hook for physics, M6). House avatars and animations (J1): activos/avatares, activos/animaciones, converter tools/vrma/.
+Settings (N2): every setting is data — engine (packages/client/src/ajustes-motor.ts), features (`ajustes` in defineFeature), worlds (mundo.ajustes.json); registry packages/client/src/ajustes.ts, device capabilities capacidades.ts, menu apps/plaza/menu-ajustes.ts; agents use window.__numinia.ajustes.
+Quests and people (J5): an adventure is a folder of text files (aventuras/<name>/, AVENTURA_DIR; mision@1, pnj@1, cosa@1), checked with `node tools/aventura.ts`; engine in features/misiones; things used from close by declare `interact` (J4).
+Map and player sheet (J5): apps/plaza/mapa.ts, ficha.ts; arithmetic packages/client/src/mapa.ts; top-down picture packages/render/src/cenital.ts.
+Environment and elements (H4, H8, H12): features/entorno (entorno@1), features/elementos (water, fire, smoke, dust); render packages/render/src/entorno.ts, calidad.ts (quality by device tier), particulas.ts, elementos.ts.
 Parity with Hyperfy2, capability by capability: docs/HYPERFY2-PARIDAD.md.
 AGENTS.md (binding rules), docs/SABER.md (what the project learned: decisions, measurements, rules, open questions — read before designing), docs/MAPA.md (where things live), docs/BACKLOG.md (queue), docs/RUNLOG.md (diary), docs/MOVIL-FRIO.md (mobile heat).

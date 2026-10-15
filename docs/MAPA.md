@@ -27,6 +27,10 @@ Para quien llega nuevo (persona o IA). La versión de una página para máquinas
 | cambiar los avatares VRM | `packages/render/src/avatares.ts`, `avatares-politica.ts`, `avatares-vrm.ts`; los ficheros, `activos/avatares/` y `activos/animaciones/`; el conversor, `tools/vrma/` |
 | cambiar el chat, los nombres o los bocadillos | `features/chat/`, `apps/plaza/chat.ts`, `packages/render/src/nombres.ts` |
 | añadir una tecla a la página | escúchala con `escribiendo(e)` (`apps/plaza/escribiendo.ts`): escribir nunca mueve |
+| añadir o cambiar un ajuste del menú | un dato en `packages/client/src/ajustes-motor.ts` (motor), `ajustes` en `defineFeature` (función) o `mundo.ajustes.json` (mundo); lo que hace, en `apps/plaza/menu-ajustes.ts`; receta en `docs/EXTENDER.md` |
+| escribir misiones y personas de una aventura | ficheros en `aventuras/<nombre>/` (`mision@1`, `pnj@1`, `cosa@1`), comprobar con `node tools/aventura.ts`; el motor en `features/misiones/` |
+| cambiar el mapa, el minimapa o la ficha | `apps/plaza/mapa.ts`, `ficha.ts`, `paneles.ts`; las cuentas en `packages/client/src/mapa.ts`; la imagen cenital en `packages/render/src/cenital.ts` |
+| cambiar el cielo, la luz, el suelo, el agua o el fuego | `features/entorno/`, `features/elementos/`; el dibujo en `packages/render/src/entorno.ts`, `calidad.ts`, `particulas.ts`, `elementos.ts`; el panel, `apps/plaza/entorno.ts` |
 
 Capas (de abajo arriba): `core → schema → ecs → sim → net → feature → {client, instance} → {server, cli}`;
 `render` solo habla con three.js; las funciones de juego (`features/`) solo con `feature`. `tools/layers.mjs` lo comprueba.

@@ -53,6 +53,10 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 | Saltar y correr como Hyperfy2 (gravedad 20, salto 1,5 m, uno más en el aire, correr 8 m/s); un avatar solo avanza con sus propias entradas | Predicción exacta aunque las entradas lleguen tarde o juntas | BACKLOG J2 (15-10) |
 | Avatares de la casa: 3 VRM CC0 de 100Avatars; animaciones `.vrma` convertidas de UAL1 (CC0); sin MToon; VRM para los más cercanos (60 / 25 / 12) | Arranque ligero y licencia limpia | BACKLOG J1 (15-10) |
 | El chat es una función del enchufe, no un mensaje del núcleo: cercano 20 m, zona con tope propio, nombres solo a quien los dibuja, `/` a las funciones (`api.listen`) | Lo que se añadió al enchufe sirve a H3 y P5 | BACKLOG J3 (15-10) |
+| Un ajuste es un dato: el motor, las funciones y los mundos declaran los suyos y el menú se pinta solo; lo que no puede funcionar no se enseña; se guarda solo lo elegido | Crecer sin tocar el menú; en lo demás manda el aparato | BACKLOG N2 (15-10) |
+| Misiones, personas y cosas de misión son texto de la aventura (`mision@1`, `pnj@1`, `cosa@1`); el árbol de diálogo es la política (un modelo solo podrá redactar la línea, P5) | Una aventura nueva no toca el motor; lo que dice una persona no lo decide un modelo | BACKLOG J5 (15-10) |
+| El mapa solo enseña lo que la página ya recibe (área de interés); forma y color en cada marcador; norte = -z | Privacidad y daltonismo | BACKLOG J5 (15-10) |
+| Entorno = estado de la zona (todos ven el mismo cielo); los elementos llevan `at` y ficha; la calidad, por nivel de aparato decidido por capacidad | Quien no ve sabe que hay una hoguera; el móvil no se calienta | BACKLOG H4, H8, H12 (15-10) |
 
 ## 2. Lo medido (número, dónde y cuándo)
 
@@ -70,6 +74,9 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 | Entrar en una zona con 2.000 objetos colocados (H1) | 186,8 kB en 2.001 mensajes; 0,3 ms del servidor por persona | El sha256 del modelo en texto es dos tercios del peso: un índice de modelos lo bajaría (M16). Codificar cada entrada en cada entrada costaba 7,2 ms: ahora se codifica una vez |
 | Cliente de la plaza tras H1 | 245 kB comprimidos al arrancar + 15 kB (cargador glTF) cuando llega la primera cosa | Antes de H1, 228 kB; D2 pide ≤ 300 kB |
 | Conversión de animaciones (UAL1 de Quaternius, CC0) | caderas 0,916 → 0,533 → 0,917 m al sentarse y levantarse, 0 errores | Defectos conocidos en §3.4 |
+| Misiones: 1.000 jugadores esperando llegar a un sitio | tick de las funciones p99 0,18 ms (p50 0,09) | `test/misiones.test.ts`, 15-10 |
+| Entorno por nivel (A mira una hoguera y un estanque) | A 64–67 llamadas, ~2.200 triángulos; D 12–22 llamadas, ~2.400 | WebGL2 por SwiftShader: los ms no valen para un móvil (15-10) |
+| Arranque de la página tras la ola 2 | 342 kB gz (tope 300) | `npm run build`, 15-10; plan en BACKLOG D2 |
 
 **Hechos de plataforma (oct-2026), comprobados en fuente:**
 - WebGPU dentro de XR solo es producción en Vision Pro; en Quest es experimental (v146–v152, tras banderas) → en Quest, backend WebGL2.
@@ -105,6 +112,11 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 - La cámara nunca para un evento: el joystick pregunta `view.cam.tieneDedo()`; en construir, el botón izquierdo es del constructor y el derecho y la rueda, de la cámara (N1, M22).
 - Sin MToon en los avatares: metía ~30 kB gz de TSL en el arranque (`three/webgpu` es un módulo compartido); Lambert con su textura. Un avatar quieto no obliga a dibujar rápido (J1).
 - Proxy LAN de vite con barra (`/e/`, `/a/`): sin ella, cualquier módulo de `apps/plaza/` que empiece por a o e rompía el https (J3).
+- Un mapa que solo pinta cuando cambia su firma no cuesta nada quieto; una baliza larga (un destino) no mantiene `busy()` (J5).
+- Hornear poco: el cubo del cielo y el PMREM solo cuando cambia el cielo, y pequeños (16 px la niebla, 64 px la luz); a 256 px paraban SwiftShader ~1,5 s (H4).
+- En three r186 no se vuelve a apagar `castShadow`: libera el nodo de sombra que aún usan los materiales (firefox: «shadowMap is null»); «sin sombras» = no pasar la sombra e intensidad 0 (H12).
+- Los ajustes de la página piden al entorno solo lo elegido: el nivel de la página y el del visor no son el mismo (al entrar en VR el entorno pasa a B) (N2 con H12, al juntar).
+- Las pruebas que tocan la pantalla buscan un sitio libre de la vista 3D (`elementFromPoint` = el lienzo): la interfaz crece y se moverá (al juntar la ola 2, el minimapa tapaba el pellizco y el chat).
 
 ### 3.3 Contenido, formatos y licencias
 - **Entrega como los ports de juegos nativos**, lo único que se copia de ellos: manifiesto por zona con clases arranque / fondo / perezoso, sha256 por fichero, trozos con Brotli desde una CDN (nunca desde el VPS del juego), caché del navegador por hash (OPFS). Y **un origen de reserva fuera de Cloudflare** (LaLiga).
@@ -115,6 +127,7 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 - **Muertos o parados (no proponer):** Hathora (cerró 05-05-2026), Lance.gg, la plataforma de 8th Wall (su código MIT queda), Hytopia (MIT y congelado; su transporte doble WebTransport/WebSocket es lo más aprovechable), `rapier.js` (archivado, vive en el monorepo de Rust), Hyperfy (sin commits desde el 21-04-2026).
 - 100Avatars (Polygonal Mind): CC0 dentro de cada fichero y en la fuente; su README de 2020 pide no revenderlos sin cambios y su esqueleto se hizo con el auto-rigger de Mixamo sobre sus propias mallas (ninguna animación ni personaje de Mixamo dentro). Pablo puede leerlo distinto (`activos/avatares/LICENCIAS.md`).
 - Lo subido se nombra por el sha256 que calcula el servidor; `.vrma` se sirve pero no se sube (H9, J1).
+- Suelos y cielo HDR de Poly Haven: CC0 comprobado en la página de cada activo y md5 igual al de su API (`activos/texturas/LICENCIAS.md`); ninguna textura de los ejemplos de three (H4).
 
 ### 3.4 Animaciones (lo que enseñó convertir movimientos)
 - Convertir por **rotación de mundo respecto a la pose T del propio paquete**, en un marco canónico, sobre un esqueleto de reposo identidad: así la corrección de reposo del motor no hace nada.

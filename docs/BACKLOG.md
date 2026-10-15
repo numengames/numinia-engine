@@ -51,11 +51,19 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J10 | VR: teletransporte con arco, manos (hand-tracking) y viñeta ajustable desde un menú; resto de J6 (antes «J6b»: `auto.sh` solo reconoce letra + cifras) | pendiente | sí |
 | P2 | Móvil frío: política de energía del cliente + puerta de coste por cuadro | hecho (sin medir en móvil real → X1) | sí |
 | P3 | Nativo para IA v1: `llms.txt`, mapa, README-contrato por paquete, `npm run describe` | hecho | sí |
-| J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR (sesión Opus 15-10, en una rama propia) | en curso | sí |
-| J5 | Libro de misiones, mapa y minimapa con marcadores (sesión Opus 15-10, en una rama propia) | en curso | sí |
+| J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR | en curso (núcleo hecho; faltan puerta, botón y coger) | sí |
+| J5 | Libro de misiones, mapa y minimapa con marcadores | hecho (panel en la muñeca en VR → J13) | sí |
+| J11 | Personas que dan misiones (`pnj@1`: árbol de diálogo, quién da y recibe qué) | hecho | sí |
+| J12 | Ficha de jugador: nombre, aparato y calidad, tiempo, misiones e insignias, ajustes | hecho (falta retrato → H10 e inventario) | sí |
+| J13 | Panel de muñeca en VR: minimapa, lo cercano y la ficha en 3D | pendiente | sí |
+| J14 | Dibujo barato de personas (LOD o una pieza; hoy el robot son 19 llamadas) | pendiente | sí |
+| J15 | Marcas «!» y «?» sobre quien tiene algo para ti (por jugador) | pendiente | sí |
+| J16 | Escribir aventuras con un LLM: receta y `node tools/aventura.ts` como comprobación | pendiente | sí |
 | N1 | Entrada táctil, gamepad, cámara en 3.ª persona y pantalla completa (de `docs/JUGADOR.md`) | hecho (sin probar en aparato real) | sí |
 | N1b | Cámara que no atraviesa lo construido (choca con el escenario) | espera a M6 | sí |
-| N2 | Menú de ajustes y accesibilidad básica, guardado local (de `docs/JUGADOR.md`) (sesión Opus 15-10, en una rama propia) | en curso | sí |
+| N2 | Menú de ajustes y accesibilidad básica, guardado local (de `docs/JUGADOR.md`) | hecho | sí |
+| N3 | Ajustes dentro de VR: panel 3D legible, con su gemelo HTML | pendiente | sí |
+| N4 | Cambiar teclas (el tipo `tecla` deja de ser solo para ver; choques con las reservadas) | pendiente | sí |
 | V3 | Voz propia del motor: cola con prioridades, se puede cortar, baja lo demás (la región `aria-live` ya existe, V1) | pendiente | sí |
 | V4 | Lista HTML de lo cercano (escritorio y móvil) que leen NVDA, VoiceOver y TalkBack, navegable con teclado | pendiente | sí |
 | V5 | «¿Dónde estoy / qué hay cerca / dónde está X / quién hay?» contestado desde los datos, sin modelo | espera a V3 | sí |
@@ -64,10 +72,15 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | H1 | Paridad Hyperfy2: objetos del mundo — colocar un GLB, moverlo, borrarlo, deshacer, en vivo, guardado como texto (sus `blueprints` + `entities`) | hecho | no |
 | H3 | Paridad Hyperfy2: roles del mundo (admin, constructor, visitante) y órdenes con barra (`/nombre`, `/aparecer`, `/chat borrar`, `/servidor`) | para Opus | no |
 | H2 | Paridad Hyperfy2: lo que el servidor le hace a un jugador (teletransportar, congelar, frenar, empujar, sentarse, volar, salud) como entradas grabadas de la simulación | para Opus | no |
-| H4 | Paridad Hyperfy2: entorno — cielo, sol, niebla, mapa HDR y viento desde un JSON con esquema (su nodo `Sky`) (sesión Opus 15-10, en una rama propia) | en curso | sí |
+| H4 | Paridad Hyperfy2: entorno — cielo, sol, niebla, mapa HDR y viento desde un JSON con esquema (su nodo `Sky`) | hecho | sí |
+| H4b | Entorno fino en el panel: colores de cielo, niebla y sol; fondo y HDR de la biblioteca o subidos (H9) | pendiente | sí |
+| H4c | Agua mejor: espuma de orilla, refracción en A, ríos; olas que mueven cosas (con M6) | pendiente | sí |
 | H6 | Paridad Hyperfy2: imagen y paneles de interfaz en el mundo (sus nodos `Image` y `UI`), cada panel con gemelo HTML | pendiente | sí |
-| H12 | Paridad Hyperfy2: sombras y posprocesado por nivel de aparato, elegibles en ajustes (sesión Opus 15-10, en una rama propia) | en curso | sí |
-| H8 | Paridad Hyperfy2: partículas en GPU (su nodo `Particles`) con tope por aparato y limitador de destellos (sesión Opus 15-10, en una rama propia) | en curso | sí |
+| H12 | Paridad Hyperfy2: sombras y posprocesado por nivel de aparato, elegibles en ajustes | en curso (sombras por nivel hechas; posprocesado → H12b) | sí |
+| H12b | Sombras en cascada o suaves y posprocesado (bloom, AO), solo en A | pendiente | sí |
+| H12c | Compilar el entorno antes de dibujarlo (`compileAsync`): sin tirón al cambiarlo | pendiente | sí |
+| H8 | Paridad Hyperfy2: partículas en GPU (su nodo `Particles`) con tope por aparato y limitador de destellos | hecho (primera parte; emisores como fichero → H8b) | sí |
+| H8b | Emisores de partículas como fichero (`particulas@1`) para que una aventura traiga los suyos | pendiente | sí |
 | H5 | Paridad Hyperfy2: sonido del mundo — fuentes en objetos y puntos, grupos música/efectos (su nodo `Audio`) | espera a V6 | sí |
 | H9 | Paridad Hyperfy2: subir ficheros arrastrando — por hash, con tope, solo quien construye | hecho | sí |
 | H9b | Subidas: borrar lo que nadie usa y cupo por identidad | espera a H3 | sí |
@@ -85,7 +98,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | A3 | Normales horneadas en la animación de textura (luz correcta al girar) | pendiente | sí |
 | A4 | Robots en la plaza: cercanos completos, lejanos horneados | pendiente | sí |
 | B3 | Telemetría en el visor: p99 de cuadro y cuadros perdidos | hecho (dentro de T1; sin probar en un visor real → X1) | sí |
-| D2 | Puerta de tamaño del cliente (≤ 300 kB comprimido) | pendiente | sí |
+| D2 | Puerta de tamaño del cliente (≤ 300 kB comprimido) | pendiente (hoy 342 kB al arrancar: pasado) | sí |
 | D3 | Fuzz de todos los decodificadores de red | pendiente | sí |
 | D4 | Los mensajes del núcleo (entrada, snapshot, bienvenida) salen del esquema, como ya los de las funciones (J7) | para Opus | no |
 | M16 | Carga de zonas: manifiesto por zona (arranque / fondo / perezoso), sha256 por fichero, caché del navegador por hash | pendiente | sí |
@@ -101,6 +114,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | P5 | Habitante IA en la plaza con las reglas de Procyon y STD-050 (política en código, `<material>`, verbos del catálogo) | espera a P4 | sí |
 | V12 | Guía IA: un agente que acompaña, describe y lleva (primero desde datos) | espera a P5 | sí |
 | M6 | Física: Rapier determinista en WASM y controlador de personaje compartido (cambia la huella) | para Opus | no |
+| M6b | Terreno con altura (relieve y suelos pintados por capas) | espera a M6 | no |
 | M10 | Servidor de instancia completo: regiones en hilos (horizonte de 5.000) y copias cuando se llena | para Opus | no |
 | V9 | Mapa de caminos (navmesh) en el servidor + guía paso a paso + «mírame al objetivo» + escáner direccional | para Opus | no |
 | M19 | Formato de app: carpeta de texto (`app.json` + `main.ts` + activos por hash) → paquete glTF con `NUM_app` | para Opus | no |
@@ -332,6 +346,8 @@ pestaña. **Hecho cuando:** e2e de los tres.
 distancia, duración; empezar, disparar, cancelar); clic sobre cosas del mundo (sus eventos de puntero: entrar,
 salir, pulsar, soltar); abrir un enlace avisando antes (`world.open`).
 
+**En curso (15-10, núcleo en `wt/misiones`).** La ficha de una cosa declara cómo se usa (`interact`: verbo, aviso, radio); el servidor decide (`api.within`, radio + 1,5 m); la página y los agentes usan `reachable`/`use`; aviso con E, un clic sin arrastrar o el botón (el que se toca en el móvil). **Falta:** los tres ejemplos (puerta, botón con luz, coger y soltar), mantener pulsado y el rayo de VR.
+
 ### N1 — Entrada táctil, gamepad, cámara y pantalla completa
 De `docs/JUGADOR.md`. **Paridad Hyperfy2 (15-10):** cámara en primera y tercera persona, con zoom de la rueda
 (y de pellizco en móvil).
@@ -345,6 +361,8 @@ HUD), mapa de la zona (vista cenital generada) y minimapa con marcadores (tú, g
 portales); en VR, panel en la muñeca. El formato y los paneles son del motor; las misiones concretas,
 de la ciudad. **Hecho cuando:** una misión de ejemplo de tres pasos se completa en un e2e y el mapa
 marca su objetivo.
+
+**Hecho (15-10, ramas `wt/misiones` y `wt/mapa`).** Misiones, personas y cosas de misión son texto de la aventura (`aventuras/<nombre>/`, `AVENTURA_DIR`; `mision@1`, `pnj@1`, `cosa@1`, con errores que dicen dónde; `node tools/aventura.ts` comprueba una carpeta sin arrancar nada): pasos «llega a», «habla con», «coge», «entrega»; recompensas e insignias; el progreso de cada invitado vive en el servidor (S4), que decide cada paso. Página: aviso «E: hablar con Alma» (E, clic o el botón: J4), conversación con respuestas 1–4, libro (J) con seguimiento, la línea del paso seguido y una columna de luz al objetivo. Mapa: minimapa en la esquina (tú, gente, fichas con `at`, objetivos y destino; norte arriba o girando con la cámara), mapa grande (M; imagen cenital por GPU o huellas; destino con columna de luz; leyenda con forma y color) con su gemelo HTML «Lo que hay cerca», y la ficha (I, J12). Contratos: `__numinia.misiones.objetivos()/resumen()`, `__numinia.mapa`. **Medido:** 7 + 13 pruebas; pierna de misiones: una misión de tres pasos de principio a fin (Alma → pilar → Bruno → caja) y el mapa marca su objetivo (`mapa.contar().objetivo`); pierna del mapa en chromium y firefox; 1.000 jugadores esperando llegar a un sitio: tick de funciones p99 0,18 ms; minimapa quieto = 0 dibujos, andando ≤ 5 por segundo. **Falta:** panel en la muñeca en VR (J13), dibujo barato de personas (J14), marcas «!» y «?» (J15), libro incremental, aventuras escritas con un LLM (J16).
 
 ### X5 — Móvil real en modo depuración
 Pablo conectará en algún momento un móvil viejo por USB en modo depuración: entonces `adb` (temperatura y
@@ -601,6 +619,8 @@ cuadro (V7). Guarda en local hasta que exista I1 (V8).
 **Paridad Hyperfy2 (15-10):** lo que tienen sus ajustes: resolución, sombras y posprocesado (H12), volumen de
 música, efectos y voz, tamaño de la interfaz, mostrar los avisos de acciones, estadísticas en pantalla.
 
+**Hecho (15-10, rama `wt/ajustes`).** Un ajuste es un dato: el motor (`packages/client/src/ajustes-motor.ts`), cada función (`ajustes: [...]` en `defineFeature`) y cada mundo (`mundo.ajustes.json`, `ajustes-mundo@1`) declaran los suyos y el menú los pinta solo (tecla O o el engranaje; diálogo modal con el foco dentro; cada control con etiqueta y descripción). Registro en `packages/client/src/ajustes.ts`; capacidades del aparato en `capacidades.ts` (se decide por capacidad, nunca por el nombre del navegador). Los del motor: calidad (preajuste), resolución, cuadros por segundo, modo batería, estadísticas, sombras, agua, partículas, HDR, sensibilidad e invertir eje de la cámara, menos movimiento, texto grande, alto contraste, anunciar, tamaño de la interfaz, ayuda, volúmenes (suenan con H5) y el informe T1. Se guarda solo lo elegido (con versión y migraciones); lo demás sigue al aparato y se aplica antes del primer cuadro; los agentes usan lo mismo (`window.__numinia.ajustes`). Al juntar: la cámara ganó `view.cam.ajustar` (sensibilidad 25–300 %, invertir eje) y al entorno solo se le pide lo elegido (el resto sigue el nivel que ve el entorno, que pasa a B al entrar en VR). **Medido:** 15 pruebas (`test/ajustes.test.ts`); pierna `tools/e2e-piernas/ajustes.mjs` en chromium y firefox (23 controles con etiqueta; O abre; ← deja la resolución en 95 % y se aplica; recargar la conserva; un agente que pide 3 % recibe el error con el rango; quien pide menos movimiento arranca con él); arranque +12 kB gz. **Falta:** ajustes en VR (N3), cambiar teclas (N4), posprocesado y antialias (H12b), daltonismo y modo sentado (V7), lupa (V11), mezclador (H5, V6), ajustes con la persona (V8), indicador «personalizada».
+
 ### F2 — Grupos (lo que decidió `PREGUNTAS.md` #19)
 La pieza ahora, la pantalla después: un grupo es un id compartido que el servidor conoce; a los de tu grupo
 los ves siempre aunque la plaza esté llena (prioridad en el área de interés), cruzan un portal juntos
@@ -820,6 +840,8 @@ cambiar en marcha (H7 lo editará); la plaza trae uno por defecto. En móvil y Q
 cuando:** test del esquema; e2e: el servidor cambia el entorno y la otra pestaña cambia su fondo (se comprueba
 el estado del render), sin errores en chromium y firefox.
 
+**Hecho (15-10, rama `wt/entorno`).** `features/entorno` (`entorno@1`: cielo, sol, hora y ciclo de día, luz de cielo o HDR, niebla, viento, suelo, tono; presets de día a nublado): una entrada por zona (todos ven el mismo cielo), en directo para quien construye, guardada; un mundo trae su `entorno.json`. Render en `packages/render/src/entorno.ts`: cielo TSL perezoso o cúpula, horneado a un cubo en móvil y XR; sol con sombras según el nivel; niebla del color del horizonte; suelos CC0 de Poly Haven en WebP. Sección propia en el panel de construir. **Medido:** pierna `tools/e2e-piernas/entorno.mjs` en chromium y firefox (el preset de A llega a B; agua y fuego colocados se dibujan con sus fichas; coste de A a D; todo vuelve a como estaba); nivel D: 12–22 llamadas y ~2.400 triángulos. **Falta:** H4b, H4c, M6b; probarlo en un móvil y unas Quest de verdad.
+
 ### H5 — Sonido del mundo (espera a V6)
 Su nodo `Audio`: fichero, volumen, bucle, grupo (música o efectos), espacial (distancia de referencia y máxima,
 caída, conos) o plano; pegado a un objeto (H1) o a un punto de una función (`at`). Usa el mezclador de V6
@@ -851,6 +873,8 @@ alfa a lo largo de la vida (curvas), imagen u hoja de sprites, mezcla aditiva o 
 instanciado, una llamada por emisor; tope de partículas por nivel de aparato en `limits.json`; parado cuando no
 se ve; pasa el limitador de destellos de V7 si ya existe. Primer uso: la columna de luz de `despertar`. **Hecho
 cuando:** test de las curvas y del tope; e2e con un emisor sin errores; coste por cuadro medido en el banco (P2).
+
+**Hecho, primera parte (15-10, rama `wt/entorno`).** `features/elementos`: agua, fuego, humo y polvo como entradas con `at` y ficha (J9, S4). Partículas en la GPU (`particulas.ts`: una llamada por emisor, curvas, topes por nivel en `limits.json`, quietas lejos o fuera de vista); hoguera con llamas, chispas, humo y parpadeo de ≤ 3 destellos por segundo; agua con reflejos cerca en escritorio y normales que se mueven en lo demás. **Falta:** emisores como fichero (H8b).
 
 ### H9 — Subir ficheros
 Arrastrar y soltar, como su `/api/upload`, pero con permiso: `POST` solo para quien construye (H1; roles con
@@ -884,6 +908,8 @@ aparato: en móvil, apagados por defecto (móvil frío); en Quest, sin posproces
 escritorio, según el banco. Elegibles en los ajustes (N2). **Hecho cuando:** coste por cuadro de cada nivel
 medido en el banco (P2) y apuntado en `limits.json`; e2e sin errores en los dos backends.
 
+**En curso (15-10, rama `wt/entorno`).** Calidad por nivel de aparato (`calidad.ts`, por capacidad: A escritorio, B visor, C móvil, D móvil viejo): sombras no/baja/media/alta, agua, partículas y HDR, elegibles en el menú (N2); pedir más de lo que el aparato permite se recorta. **Falta:** cascadas, bloom y AO (H12b), compilar antes de dibujar (H12c).
+
 ### H13 — Nivel de detalle (espera a M21)
 La ingesta (M21) genera 2–3 versiones de cada modelo (`simplify` de meshoptimizer); el cliente cambia de versión
 según la distancia y el tamaño en pantalla (como su `LOD` con `scaleAware`), con margen para que no parpadee.
@@ -913,3 +939,27 @@ Tope de mensajes cercanos por oyente y por segundo, y los nombres más cercanos 
 
 ### J3c — Escribir en VR
 En una sesión inmersiva, un botón abre el teclado del sistema (o el dictado si existe) para el chat; si no hay teclado, frases rápidas. **Hecho cuando:** e2e con IWER manda una frase rápida; probado en Quest (X1).
+
+### D2 — Peso del cliente al arrancar
+Tras la ola 2 (15-10) la página baja **342 kB gz** antes de dibujar (tope 300): `index` 84,6 + `three.core` 66,8 + `three.tsl` 188,9 + `calidad` 1,4 + `avatares-politica` 0,7. La mayor parte es TSL de three que solo usan piezas perezosas (cielo, agua, partículas), y el empaquetador lo pone en el trozo común. Medido por la rama entorno: alias de `three`, `three/webgpu` y `three/tsl` a sus fuentes en `vite.config.mjs` = −24,5 kB; además, mapa grande y ficha perezosos (~7 kB) y el dibujo del menú de ajustes al abrirlo (~4 kB). La pantalla de carga decide qué baja primero. **Hecho cuando:** una puerta mide el arranque en cada `npm run gates` y falla por encima de 300 kB.
+
+### N3 — Ajustes dentro de VR
+Hoy el menú se oculta en XR. Un panel 3D legible (J6) con su gemelo HTML, con los mismos datos del registro. **Hecho cuando:** e2e con IWER cambia la sensibilidad desde el panel 3D.
+
+### N4 — Cambiar teclas
+El tipo `tecla` deja de ser solo para ver: elegir otra tecla, avisar de los choques con las reservadas (`docs/JUGADOR.md`) y guardarla. **Hecho cuando:** e2e: J pasa a K, K abre el libro y J ya no.
+
+### J13 — Panel de muñeca en VR
+Minimapa, lista de lo cercano y ficha en un panel 3D sobre la muñeca (mano izquierda), con su gemelo HTML. **Hecho cuando:** e2e con IWER: girar la muñeca enseña el panel y el objetivo de la misión aparece en él.
+
+### J14 — Dibujo barato de personas
+El robot de la casa son 19 llamadas por persona (tope del nivel D: 80). LOD o un modelo de una pieza; con avatares VRM, decidir. **Hecho cuando:** 20 personas a la vista en el nivel D caben en su tope.
+
+### J15 — Marcas de misión sobre las personas
+«!» si alguien tiene una misión para ti, «?» si espera algo tuyo; es por jugador (un evento, no estado compartido). **Hecho cuando:** e2e: A ve «!» sobre Alma y B, que ya la hizo, no.
+
+### J16 — Escribir aventuras con un LLM
+Receta para que un modelo escriba una aventura (`docs/EXTENDER.md`) y `node tools/aventura.ts` como comprobación; un ejemplo escrito por un LLM y revisado. **Hecho cuando:** la aventura del ejemplo pasa la comprobación y se completa en un e2e.
+
+### H4b, H4c, H8b, H12b, H12c, M6b
+Ver su línea en la cola y la nota de la rama entorno en el RUNLOG del 15-10.
