@@ -36,6 +36,7 @@ type Conn = {
   entity: number; transport: Transport; viewer: Viewer;
   queue: { seq: number; mx: number; mz: number }[]; ack: number; dropped: number; bad: number;
   who?: Who; // I1: set once the page shows (or asks for) its guest token
+  visible?: number[]; // J3: who its last snapshot carried (features ask with api.visible: names over heads)
 };
 
 export class Instance {
@@ -58,6 +59,7 @@ export class Instance {
       storage: opts.storage,
       who: (e) => this.byEntity[e]?.who ?? null,
       puede: (e, accion) => !!this.byEntity[e] && (opts.puede?.(this.byEntity[e]?.who ?? null, accion, e) ?? false),
+      visible: (e) => this.byEntity[e]?.visible ?? [],
     });
   }
 
@@ -125,6 +127,7 @@ export class Instance {
       const grid = buildGrid(this.sim);
       for (const c of this.conns) {
         const visible = selectVisible(this.sim, grid, c.viewer, this.opts.k);
+        c.visible = visible;
         c.transport.send(encodeSnapshot(this.sim, c.entity, c.ack, visible), false);
       }
     }

@@ -214,8 +214,12 @@ export type ServerHost = {
   storage?: FeatureStorage;                                     // S4: where persisted state and stores live (none = memory only)
   who?(entity: number): { id: string; nombre: string } | null;  // I1: the guest behind an entity (null for bots)
   puede?(entity: number, accion: string): boolean;              // H1: may this player do this ("construir"…)? none = no. H3 makes it roles
+  visible?(entity: number): readonly number[];                  // J3: who this player's page draws (its last snapshot); none = []
 };
-export type Scope = "all" | { to: number } | { near: number | { x: number; z: number }; radius?: number };
+/** Who gets an event: everyone, one player, the players near a player or a point, or (J3) "server": no page, only
+ * the server-side listeners of other features (`api.listen`), e.g. a command typed in the chat. */
+export type Scope = "all" | "server" | { to: number } | { near: number | { x: number; z: number }; radius?: number };
+export const LISTEN_DEPTH = 4;            // J3: events that trigger events that trigger events… stop here
 export type HttpRequest = { method: "GET" | "POST"; path: string; params: Record<string, string>; query: Record<string, string>; body: string };
 export type HttpReply = { status?: number; type?: "json" | "html" | "text"; body: unknown };
 export type Msg = Record<string, unknown>;
@@ -248,6 +252,12 @@ export type ServerApi = {
    * decides (MOTOR_CONSTRUIR=todos opens building to everyone, people and agents alike; H3 turns it into roles per
    * identity). Ask it on every intent that changes the world; never trust the page. */
   puede(entity: number, accion: string): boolean;
+  /** J3: hear an event of another feature (or your own) on the server, e.g. ("chat", "orden") for commands or
+   * ("chat", "dicho") for near chat (an AI inhabitant, P5). Runs inside that emit; return true if you handled it.
+   * Text inside is untrusted: never put it in an agent's instructions (STD-050). */
+  listen(feature: string, event: string, fn: (msg: Msg) => boolean | void): void;
+  /** J3: the entities this player's page draws now (its last snapshot: the area of interest, at most K). */
+  visible(entity: number): readonly number[];
 };
 export type ServerPart = { feature: Feature; side: "server"; setup: (api: ServerApi) => void };
 export const serverPart = (feature: Feature, setup: (api: ServerApi) => void): ServerPart => ({ feature, side: "server", setup });
@@ -302,6 +312,8 @@ export class ServerRuntime {
   private readonly waiting = new Map<number, number>();
   private readonly buckets = new Map<number, Map<number, { tokens: number; tick: number }>>();
   private readonly failed = new Set<string>();
+  private readonly listeners = new Map<string, { feature: string; fn: (msg: Msg) => boolean | void }[]>(); // J3: "feature.event" -> server-side listeners
+  private depth = 0;
 
   constructor(parts: readonly ServerPart[], host: ServerHost) {
     this.host = host;
@@ -325,9 +337,10 @@ export class ServerRuntime {
     return this.entries.find((e) => e.feature === feature && e.kind === kind && e.name === name);
   }
   private recipients(scope: Scope): number[] {
+    if (scope === "server") return [];
+    if (typeof scope === "object" && "to" in scope) return this.host.position(scope.to) ? [scope.to] : []; // in the world = connected; no list scan (J3 sends names one by one)
     const all = this.host.players();
     if (scope === "all") return all.slice();
-    if ("to" in scope) return all.includes(scope.to) ? [scope.to] : [];
     const c = typeof scope.near === "number" ? this.host.position(scope.near) : scope.near;
     if (!c) return [];
     const r2 = (scope.radius ?? NEAR_RADIUS_M) ** 2;
@@ -368,11 +381,10 @@ export class ServerRuntime {
         if (!e) { log(`emit('${event}'): no está declarado en events`); return 0; }
         const v = validate(e.schema, msg);
         if (!v.ok) { log(`emit('${event}') no cumple su esquema: ${v.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`); return 0; }
-        const bytes = encodeFeatureMessage(e.index, e.fields, v.value);
         const to = this.recipients(scope);
-        for (const p of to) this.host.send(p, bytes);
+        if (to.length) { const bytes = encodeFeatureMessage(e.index, e.fields, v.value); for (const p of to) this.host.send(p, bytes); }
         this.stats.events++;
-        return to.length;
+        return to.length + this.tell(`${id}.${event}`, v.value);
       },
       state: {
         get: (key) => table.get(key)?.value,
@@ -441,8 +453,28 @@ export class ServerRuntime {
       tick: () => this.host.tick(),
       sign: (text) => this.host.sign?.(text) ?? "",
       puede: (e, accion) => { try { return this.host.puede?.(e, accion) ?? false; } catch { return false; } },
+      listen: (feature, event, fn) => {
+        if (!this.entries.some((x) => x.feature === feature && x.kind === "event" && x.name === event)) log(`listen('${feature}', '${event}'): este servidor no tiene ese evento (¿falta la función '${feature}'?); no oirás nada`);
+        const k = `${feature}.${event}`;
+        this.listeners.set(k, [...(this.listeners.get(k) ?? []), { feature: id, fn }]);
+      },
+      visible: (e) => this.host.visible?.(e) ?? [],
       log,
     };
+  }
+
+  /** J3: run the server-side listeners of one feature's event (in the order they listened). Returns how many said
+   * they handled it. A listener that throws is logged once; chains deeper than LISTEN_DEPTH are cut. */
+  private tell(key: string, msg: Msg): number {
+    const ls = this.listeners.get(key);
+    if (!ls) return 0;
+    if (this.depth >= LISTEN_DEPTH) { this.host.log(`[funciones] '${key}': más de ${LISTEN_DEPTH} eventos encadenados; corto aquí`); return 0; }
+    const copy = Object.freeze({ ...msg });
+    let handled = 0;
+    this.depth++;
+    try { for (const l of ls) { try { if (l.fn(copy) === true) handled++; } catch (e) { this.fail(l.feature, `en listen('${key}')`, e); } } }
+    finally { this.depth--; }
+    return handled;
   }
 
   /** Someone joined: send what the server runs and the current shared state, then tell the features. */
@@ -598,6 +630,10 @@ export type ViewHooks = {
   place?(key: string, o: PlacedObject | null): void;
   /** H1: where this player is now (metres), so a feature can put things in front of them. */
   here?(): { x: number; y: number; z: number } | null;
+  /** J3: the name over an avatar (null takes it away). The page decides from how far it is drawn. */
+  nameTag?(entity: number, text: string | null): void;
+  /** J3: a speech bubble over an avatar for `ms` (several lines; the latest replaces the one before). */
+  bubble?(entity: number, text: string, ms: number): void;
 };
 /** H1: a thing in the world as the page draws it. Rotation in degrees, applied yaw (ry), then pitch (rx), then roll (rz). */
 export type PlacedObject = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean };

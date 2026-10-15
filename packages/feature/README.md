@@ -11,8 +11,9 @@ events, `state.card` things; `announcements`, `cards()` and `view.announce` on t
 - **Depends on:** core, schema, net (rule: `tools/layers.json`)
 - **Tested by:** `test/feature.test.ts`, `test/accesible.test.ts`, `test/objetos.test.ts`, `tools/e2e.mjs` (gesture and objects legs)
 - **Main API:** `defineFeature`, `serverPart`, `clientPart`, `buildCatalog`, `ServerRuntime`,
-  `ClientRuntime`, `ServerApi` (`on`, `emit`, `state`, `route`, `onJoin`/`onLeave`/`onTick`),
-  `ClientApi` (`on`, `send`, `state`, `action`, `view`), `escapeHtml`
+  `ClientRuntime`, `ServerApi` (`on`, `emit`, `state`, `route`, `onJoin`/`onLeave`/`onTick`; J3: `listen` to hear
+  another feature's event on the server, scope `"server"` = no page hears it, `visible` = who a player's page draws),
+  `ClientApi` (`on`, `send`, `state`, `action`, `view`; J3: `view.nameTag`, `view.bubble`), `escapeHtml`
 - **Limits (v1):** intents rate-limited per player (default 4/s, burst 8) and queued until the next
   tick (≤ 32 per player); events scoped `to` one player, `near` a player or a point (default 32 m) or
   `all`; shared state is sent to everyone (area-of-interest scoping is J9); text fields ≤ 512 bytes;
