@@ -96,14 +96,15 @@ Ficheros compartidos tocados (para juntar):
   mide aparte (siguiente).
 - Tick de las funciones con 1.000 jugadores esperando llegar a un sitio: **p99 0,18 ms, p50 0,09 ms** (400 ticks tras 40
   de calentamiento; 5 pasadas iguales). Sin calentamiento, una pasada dio p99 2,4 ms (JIT).
-- `tools/auto.sh e2e` en 8808/5188/5198, cuatro pasadas: la 1ª, misiones FALLA (la línea del paso seguido aún no se
+- `tools/auto.sh e2e` en 8808/5188/5198, cinco pasadas: la 1ª, misiones FALLA (la línea del paso seguido aún no se
   había pintado: arreglado, se pinta al cambiar el libro); **la 2ª, todo en verde** (chromium, firefox, AR, VR,
   misiones, https); la 3ª y la 4ª, con la carga de la máquina en 10-14 (diez ramas a la vez), **falla el paso de caminar
   de `tools/e2e.mjs`** en chromium (avanzó 0,39 y 3,39 m; pide más de 3,5) y una vez en https (2,41 m); firefox (6,0),
   AR, VR y misiones, OK. A/B en el mismo rato con el árbol base `55b0b3a` (`git archive` + su `tools/e2e.mjs`,
   chromium, mismos puertos): **también falla 2 de 3** (2,59 y 2,61 m; 4,61 pasa); esta rama, 1 de 3 (3,59 pasa; 3,2 y
-  3,0). Es la carga (GL por software, SABER §3.2), no esta rama; volver a pasarlo con la máquina tranquila.
-- La pierna de misiones tarda ~24-34 s y pasó en las tres pasadas desde el arreglo (y en dos sueltas) (A: aviso «E: hablar con Alma, la guía», E, foco en «1. Sí. ¿Me
+  3,0). Es la carga (GL por software, SABER §3.2), no esta rama. **La 5ª, con la carga en 10-12, todo en verde otra
+  vez** (chromium 3,8 m, firefox 6,0, https 6,0; misiones en 20,6 s).
+- La pierna de misiones tarda ~20-34 s y pasó en las cuatro pasadas desde el arreglo (y en dos sueltas) (A: aviso «E: hablar con Alma, la guía», E, foco en «1. Sí. ¿Me
   enseñas la plaza?», 1, 1 → misión aceptada y seguida, `objetivos()` = pilar (18, 0), columna de luz 1, línea «★
   Primeros pasos…»; libro con J; pilar → `objetivos()` = Bruno (10, 8); **clic** sobre Bruno → «Te manda Alma», 1 →
   `objetivos()` = caja (4, 14); «E: coger la caja», E → hecha, libro «✓ Primeros pasos en la plaza · Insignia «Conoce
