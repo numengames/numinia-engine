@@ -42,6 +42,7 @@ transport.opened.catch(() => { hud.textContent = `No llego al servidor ${url}.\n
 const acts = session.features.actions();
 addEventListener("keydown", (e) => { if (!e.repeat) acts.find((a) => a.key === e.code)?.run(); });
 if (matchMedia("(pointer: coarse)").matches) {
+  document.getElementById("help")!.textContent = "Dedo a la izquierda: andar · a la derecha: mirar · dos dedos: acercar"; // N1: the touch map only
   const bar = document.getElementById("acciones")!;
   for (const a of acts) {
     const b = document.createElement("button");
@@ -119,6 +120,21 @@ view.vrSupported().then((ok) => {
   vrBtn.onclick = () => { if (view.vr.state === "off") void view.vr.enter().then((ok) => { if (!ok) session.report({ k: "xr", modo: "vr", accion: "falla", detalle: view.vr.lastError }); }); else void view.vr.exit(); };
 });
 setInterval(() => { vrBtn.textContent = view.vr.active ? "Salir de VR" : "Entrar en VR"; }, 250);
+
+// ---- N1: full screen — a real button where the browser can do it (not iPhone), hidden while XR presents ----
+const pantalla = document.getElementById("pantalla") as HTMLButtonElement;
+if (document.fullscreenEnabled) {
+  const pintar = () => {
+    const oculto = view.vr.active || view.ar.state !== "off", texto = document.fullscreenElement ? "Salir de pantalla completa" : "Pantalla completa";
+    if (pantalla.hidden !== oculto) pantalla.hidden = oculto;
+    if (pantalla.textContent !== texto) pantalla.textContent = texto;
+  };
+  pantalla.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
+  pantalla.onclick = () => { if (document.fullscreenElement) void document.exitFullscreen().catch(() => {}); else void document.documentElement.requestFullscreen().catch(() => {}); };
+  addEventListener("fullscreenchange", pintar);
+  setInterval(pintar, 1000);
+  pintar();
+}
 
 // ---- T1: tell the server how this player entered and how it is going (device, browser, XR, frames, ping,
 // battery; no personal data). The server keeps it per session: GET /sesiones, npm run sesiones. ?pulso=ms ----

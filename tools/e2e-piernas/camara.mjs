@@ -2,8 +2,9 @@
 // person and back); a click without moving stays a click and a left drag turns the camera without a click; a right
 // drag turns it ~90° and then W walks where the camera looks (corrections 0); keys turn, zoom, toggle first person
 // and reset; build mode (the builder's API): frame(), plain left ignored, Alt+left orbits, middle drag pans, the wheel
-// zooms toward the cursor, bloquear() freezes it, back to play follows the avatar again. Chromium also checks touch:
-// a right-half finger orbits, a left-half finger is the joystick, two fingers pinch. Ends still (no work when still).
+// zooms toward the cursor, bloquear() freezes it, back to play follows the avatar again; a (fake) gamepad turns and
+// walks; the full-screen button goes in and out. Chromium also checks touch: a right-half finger orbits, a left-half
+// finger is the joystick, two fingers pinch. Ends still (no work when still).
 // Usage (tools/auto.sh e2e runs it): BASE=http://127.0.0.1:5174/?webgl2&server=ws://127.0.0.1:8792 node tools/e2e-piernas/camara.mjs
 import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
@@ -24,7 +25,7 @@ const open = async (ctx) => {
   await p.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
   return p;
 };
-const W = 480, H = 300, cx = W / 2, cy = H / 2;
+const W = 480, H = 300, cx = W / 2, cy = 185; // the mouse row: clear of the HUD, the full-screen button and the help line
 const R = (v, n = 3) => Math.round(v * 10 ** n) / 10 ** n;
 const cam = (p) => p.evaluate(() => globalThis.__numinia.view.cam.estado());
 const settle = (p) => p.waitForFunction(() => globalThis.__numinia.view.cam.estado().quieta, null, { timeout: 8000 });
@@ -133,6 +134,36 @@ try {
   const still = await p.evaluate(() => !globalThis.__numinia.view.cam.ocupada());
   ok("volverAJugar", j.modo === "juego" && Math.hypot(j.pivote.x - feet.x, j.pivote.z - feet.z) < 0.05 && Math.abs(j.pivote.y - 1.6) < 0.01 && Math.abs(j.distancia - 10.4) < 1e-3 && still,
     { pivoteSobreTi: R(Math.hypot(j.pivote.x - feet.x, j.pivote.z - feet.z), 3), distancia: R(j.distancia, 2), quietaSinTrabajo: still });
+
+  // gamepad (a fake one behind navigator.getGamepads): the right stick turns, the left stick walks where the camera looks
+  await p.evaluate(() => {
+    const pad = { id: "falso", index: 0, connected: true, mapping: "standard", axes: [0, 0, 0.9, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })) };
+    globalThis.__pad = pad;
+    Object.defineProperty(navigator, "getGamepads", { value: () => [pad], configurable: true });
+    dispatchEvent(new Event("gamepadconnected"));
+  });
+  await p.waitForTimeout(500);
+  await p.evaluate(() => { globalThis.__pad.axes[2] = 0; }); await settle(p);
+  const g1 = await cam(p), q0 = await me(p);
+  await p.evaluate(() => { globalThis.__pad.axes[1] = -1; }); await p.waitForTimeout(1000);
+  await p.evaluate(() => { globalThis.__pad.axes[1] = 0; }); await p.waitForTimeout(600);
+  const q1 = await me(p);
+  await p.evaluate(() => dispatchEvent(new Event("gamepaddisconnected")));
+  const gd = { x: q1.x - q0.x, z: q1.z - q0.z }, gl = Math.hypot(gd.x, gd.z), gf = { x: -Math.sin(g1.yaw), z: -Math.cos(g1.yaw) };
+  const gerr = (Math.acos(Math.max(-1, Math.min(1, (gd.x * gf.x + gd.z * gf.z) / (gl || 1)))) * 180) / Math.PI;
+  const gcorr = await p.evaluate(() => globalThis.__numinia.session.stats.corrections);
+  const gstill = await p.evaluate(() => !globalThis.__numinia.view.cam.ocupada());
+  const dg = Math.atan2(Math.sin(g1.yaw - j.yaw), Math.cos(g1.yaw - j.yaw));
+  ok("mando", dg < -0.5 && gl > 2 && gerr < 8 && gcorr === 0 && gstill, { giro: R(dg), metros: R(gl, 2), errorGrados: R(gerr, 1), correcciones: gcorr, quietaAlSoltar: gstill });
+
+  // full screen: a real button (the browser can do it here), on and off
+  const fs0 = await p.evaluate(() => ({ soporta: document.fullscreenEnabled, visible: !document.getElementById("pantalla").hidden, texto: document.getElementById("pantalla").textContent }));
+  await p.click("#pantalla");
+  const fsOn = await p.waitForFunction(() => !!document.fullscreenElement, null, { timeout: 3000 }).then(() => true, () => false);
+  const fs1 = await p.evaluate(() => document.getElementById("pantalla").textContent);
+  await p.click("#pantalla");
+  const fsOff = await p.waitForFunction(() => !document.fullscreenElement, null, { timeout: 3000 }).then(() => true, () => false);
+  ok("pantallaCompleta", !fs0.soporta || (fs0.visible && fsOn && fsOff && /Salir/.test(fs1)), { ...fs0, entra: fsOn, textoDentro: fs1, sale: fsOff });
 } catch (e) { checks.excepcion = { ok: false, error: String(e).split("\n")[0] }; }
 
 // touch (Chromium: CDP touch events become real touch pointers): right half orbits, left half walks, two fingers pinch
@@ -148,12 +179,13 @@ if (ENGINE === "chromium") {
       if (holdMs) await t.waitForTimeout(holdMs);
       await touch("touchEnd", []);
     };
+    const ty = 150; // the touch row: clear of the HUD, the full-screen button and the touch action buttons
     const t0 = await cam(t), m0 = await me(t);
-    await swipe([[W * 0.75, cy]], [[W * 0.75 - 120, cy]]); await settle(t); await t.waitForTimeout(300);
+    await swipe([[W * 0.75, ty]], [[W * 0.75 - 120, ty]]); await settle(t); await t.waitForTimeout(300);
     const t1 = await cam(t), m1 = await me(t);
-    await swipe([[W * 0.25, cy]], [[W * 0.25, cy - 40]], 6, 900); await t.waitForTimeout(700);
+    await swipe([[W * 0.25, 200]], [[W * 0.25, 160]], 6, 900); await t.waitForTimeout(700);
     const t2 = await cam(t), m2 = await me(t);
-    await swipe([[W * 0.62, cy], [W * 0.88, cy]], [[W * 0.55, cy], [W * 0.95, cy]]); await settle(t);
+    await swipe([[W * 0.62, ty], [W * 0.88, ty]], [[W * 0.55, ty], [W * 0.95, ty]]); await settle(t);
     const t3 = await cam(t);
     const walked = Math.hypot(m2.x - m1.x, m2.z - m1.z);
     ok("tactil", t1.yaw > t0.yaw + 0.5 && Math.hypot(m1.x - m0.x, m1.z - m0.z) < 0.01 && Math.abs(t2.yaw - t1.yaw) < 1e-6 && walked > 0.5 && t3.distancia < t2.distancia - 1,
@@ -162,7 +194,7 @@ if (ENGINE === "chromium") {
 }
 await browser.close();
 
-const allOk = Object.values(checks).every((c) => c.ok) && errors.length === 0 && Object.keys(checks).length >= 8;
+const allOk = Object.values(checks).every((c) => c.ok) && errors.length === 0 && Object.keys(checks).length >= 10;
 console.log(JSON.stringify({ engine: ENGINE, checks, errors }, null, 1));
 console.log(allOk ? "E2E CAMARA OK" : "E2E CAMARA FALLA");
 process.exit(allOk ? 0 : 1);

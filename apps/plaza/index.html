@@ -9,7 +9,7 @@
     canvas { display: block; touch-action: none; }
     #hud { position: fixed; top: 10px; left: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #eef2f6; white-space: pre; pointer-events: none; }
     #hud b { color: #ffd27a; font-weight: 600; }
-    #help { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); color: #23303b; opacity: .8; pointer-events: none; }
+    #help { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 20px); text-align: center; color: #23303b; opacity: .8; pointer-events: none; }
     #vr { position: fixed; top: 56px; right: 10px; display: none; padding: 10px 14px; border: 0; border-radius: 8px; background: #9ad0ff; color: #23303b; font: inherit; font-weight: 600; }
     #ar { position: fixed; top: 10px; right: 10px; display: none; padding: 10px 14px; border: 0; border-radius: 8px; background: #ffd27a; color: #23303b; font: inherit; font-weight: 600; }
     #joy { position: fixed; width: 110px; height: 110px; border-radius: 50%; background: rgba(20,24,30,.25); display: none; pointer-events: none; }
@@ -17,6 +17,7 @@
     #acciones { position: fixed; right: 10px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; }
     #acciones button { padding: 10px 14px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #ffd27a; font: inherit; font-weight: 600; }
     #construir { position: fixed; top: 102px; right: 10px; display: none; padding: 10px 14px; border: 0; border-radius: 8px; background: #c9b6ff; color: #23303b; font: inherit; font-weight: 600; }
+    #pantalla { position: fixed; top: 112px; left: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #eef2f6; font: inherit; font-weight: 600; }
     #panel-construir { position: fixed; top: 150px; right: 10px; width: 300px; max-height: calc(100% - 210px); overflow: auto; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .82); color: #eef2f6; }
     #panel-construir h2 { margin: 0 0 4px; font-size: 15px; color: #ffd27a; }
     #panel-construir p { margin: 6px 0 4px; }
@@ -34,6 +35,7 @@
   <button id="ar" type="button">Entrar en AR</button>
   <button id="vr" type="button">Entrar en VR</button>
   <button id="construir" type="button" aria-expanded="false" aria-controls="panel-construir">Construir</button>
+  <button id="pantalla" type="button" hidden>Pantalla completa</button>
   <section id="panel-construir" aria-label="Construir" hidden></section>
   <div id="acciones"></div>
   <div id="joy"><div id="knob"></div></div>

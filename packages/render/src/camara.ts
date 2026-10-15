@@ -35,7 +35,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
   const enXR = opts.enXR ?? (() => false);
   const pies: Punto = { x: 0, y: 0, z: 0 };   // the avatar's feet (last known)
   const pose: Pose = { x: 0, y: 0, z: 0, fx: 0, fy: 0, fz: -1, dentro: false };
-  let bloqueada = false, arrastre: Arrastre | null = null, tragarClic = false, ultimo = 0;
+  let bloqueada = false, arrastre: Arrastre | null = null, tragarHasta = 0, ultimo = 0;
   const dedos = new Map<number, { x: number; y: number }>();
   let pinza: { d: number; x: number; y: number } | null = null;
   const sujetas = new Set<string>();          // turn/tilt keys held (by code)
@@ -45,12 +45,12 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
   // ---- mouse ----
   const soltar = () => {
     if (!arrastre) return;
-    if (arrastre.boton === 0 && arrastre.accion !== "quizas") tragarClic = true; // the drag was not a click
+    if (arrastre.boton === 0 && arrastre.accion !== "quizas") tragarHasta = performance.now() + 300; // the drag was not a click
     try { dom.releasePointerCapture(arrastre.id); } catch { /* already released */ }
     arrastre = null;
   };
   function raton(e: PointerEvent): void {
-    tragarClic = false;
+    tragarHasta = 0;
     if (arrastre) return;
     const construir = orbita.modo === "construir";
     let accion: Arrastre["accion"] | null = null;
@@ -117,11 +117,12 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
   dom.addEventListener("lostpointercapture", (e) => { if (arrastre && e.pointerId === arrastre.id) soltar(); });
   dom.addEventListener("contextmenu", (e) => e.preventDefault()); // the right button orbits
   dom.addEventListener("mousedown", (e) => { if (e.button === 1) e.preventDefault(); }); // no autoscroll on middle drag
-  addEventListener("click", (e) => { if (tragarClic) { tragarClic = false; e.stopPropagation(); e.preventDefault(); } }, true);
+  // the click that a browser sends right after a left drag is swallowed (only that one: a short window, then never)
+  addEventListener("click", (e) => { if (tragarHasta && performance.now() < tragarHasta) { tragarHasta = 0; e.stopPropagation(); e.preventDefault(); } }, true);
   dom.addEventListener("wheel", (e) => {
     e.preventDefault(); // the page never scrolls or zooms from the 3D view
     if (bloqueada || enXR()) return;
-    const px = Math.max(-300, Math.min(300, e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1)));
+    const px = Math.max(-300, Math.min(300, e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 300 : 1))); // lines: 3 ≈ one 100 px notch
     const f = Math.exp(px * CAMARA.rueda);
     if (orbita.modo !== "construir") { orbita.acercar(f); return; }
     const r = dom.getBoundingClientRect();
@@ -184,7 +185,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
     /** Build mode: smoothly point the camera at a thing (centre, radius in metres). false (and nothing) in play mode. */
     frame(center: Punto, radius: number): boolean { return orbita.encuadrar(center, radius, pies, camera.fov); },
     /** While true, drags and the wheel do not move the camera (the builder's gizmo or grab mode owns them). */
-    bloquear(on: boolean): void { bloqueada = !!on; if (bloqueada) { soltar(); tragarClic = false; dedos.clear(); pinza = null; } },
+    bloquear(on: boolean): void { bloqueada = !!on; if (bloqueada) { soltar(); tragarHasta = 0; dedos.clear(); pinza = null; } },
     /** True while dragging, a key or stick is held, or the camera is still settling: keep drawing. */
     ocupada(): boolean {
       if (mandos) leerMando();
