@@ -70,6 +70,7 @@ export function montarChat(chat: Chat, raiz: HTMLElement) {
     if (escribiendo(e) || e.repeat || (e.key !== "Enter" && e.key !== "/")) return;
     const t = e.target as Element | null;
     if (t && t !== document.body && t.closest?.("button, a, summary, [role=button]")) return; // Enter presses that button
+    if (document.querySelector("dialog[open]")) return; // a modal panel (map, sheet, settings) owns Enter
     e.preventDefault();
     abrir(e.key === "/" ? "/" : "");
   });

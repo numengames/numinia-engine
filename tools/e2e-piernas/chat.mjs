@@ -67,6 +67,7 @@ try {
   await b.waitForFunction(() => /hola/.test(document.getElementById("chat-lista")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
   out.listaB = await b.evaluate(() => [...document.querySelectorAll("#chat-lista li")].map((li) => li.textContent));
   out.bocadilloEnB = await b.evaluate((w) => globalThis.__numinia.view.bubbles().find((x) => x.target === w) ?? null, A.entity);
+  await a.waitForFunction(() => /Tú: hola/.test(document.getElementById("chat-lista")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {}); // A's own echo comes back from the server too
   out.listaA = await a.evaluate(() => [...document.querySelectorAll("#chat-lista li")].map((li) => li.textContent));
   checks.bocadillo = out.bocadilloEnB?.text === "hola";
   checks.lista = out.listaB.includes(`${A.who.nombre}: hola`) && out.listaA.includes("Tú: hola");
