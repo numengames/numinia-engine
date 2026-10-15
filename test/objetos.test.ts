@@ -180,3 +180,86 @@ test("a player with no identity (a bot, an agent today) builds as itself when bu
   pages[0].s.features.send("objetos", "colocar", { modelo: BLOQUE, x: 10, z: 0, nombre: "Hito", decorado: false }); pump();
   assert.equal(pages[0].drawn.size, 1);
 });
+
+test("M22 redo: what you undid comes back (B sees it), a new change of yours ends it, and it is yours only", () => {
+  const { pages, pump } = world({ abierto: true });
+  const [a, b] = pages;
+  a.b.colocar("bloque"); pump();
+  const id = a.b.estado.seleccionado;
+  assert.ok(a.b.transformar(id, { x: 2, ry: 45 }).ok); pump();
+  assert.ok(cerca(b.drawn.get(id)?.x, 2) && cerca(b.drawn.get(id)?.ry, 45));
+  a.b.deshacer(); pump();
+  assert.ok(cerca(b.drawn.get(id)?.x, 0) && cerca(b.drawn.get(id)?.ry, 0), "undo: back to where it was placed");
+  assert.equal(a.s.features.log.at(-1)?.msg.accion, "deshacer");
+  a.b.rehacer(); pump();
+  assert.ok(cerca(b.drawn.get(id)?.x, 2) && cerca(b.drawn.get(id)?.ry, 45), "redo: the move again");
+  assert.equal(a.s.features.log.at(-1)?.msg.accion, "rehacer");
+  a.b.rehacer(); pump();
+  assert.match(a.b.estado.ultimoRechazo, /nada tuyo que rehacer/);
+  a.b.deshacer(); pump();                                              // undo works again after a redo
+  assert.ok(cerca(b.drawn.get(id)?.x, 0));
+  b.b.rehacer(); pump();
+  assert.match(b.b.estado.ultimoRechazo, /nada tuyo que rehacer/, "B cannot redo what A undid");
+  a.b.girar(90); pump();                                               // a new change by A
+  a.b.rehacer(); pump();
+  assert.match(a.b.estado.ultimoRechazo, /nada tuyo que rehacer/, "a new change empties the redo stack");
+  assert.ok(cerca(b.drawn.get(id)?.x, 0) && cerca(b.drawn.get(id)?.ry, 90));
+  // undo the placing itself, then redo it: the same thing comes back (same id, name), and goes away again
+  a.b.deshacer(); a.b.deshacer(); pump(4);
+  assert.equal(b.drawn.has(id), false);
+  assert.equal(a.b.estado.seleccionado, "", "what is gone is not selected");
+  a.b.rehacer(); pump();
+  assert.equal(b.s.features.stateOf("objetos").get(id)?.nombre, "Bloque");
+  assert.equal(a.b.estado.seleccionado, id, "redo selects what it brought back");
+  a.b.deshacer(); pump();
+  assert.equal(b.drawn.has(id), false);
+});
+
+test("M22 undo and redo respect pinned things (except the pin itself); closed building refuses redo", () => {
+  const { pages, pump } = world({ abierto: true });
+  const [a, b] = pages;
+  a.b.colocar("bloque"); pump();
+  const id = a.b.estado.seleccionado;
+  a.b.desplazar(3, 0); pump();
+  b.b.seleccionar(id); b.b.fijar(); pump();                            // B pins what A moved
+  a.b.deshacer(); pump();
+  assert.match(a.b.estado.ultimoRechazo, /fijado/);
+  assert.ok(cerca(b.drawn.get(id)?.x, 3), "a pinned thing does not move back");
+  b.b.fijar(); pump();                                                 // B lets it go
+  a.b.deshacer(); pump();                                              // A's move is still on A's stack
+  assert.ok(cerca(b.drawn.get(id)?.x, 0));
+  a.b.seleccionar(id); a.b.fijar(); pump();                            // A pins it; undoing the pin itself is allowed
+  a.b.deshacer(); pump();
+  assert.equal(b.s.features.stateOf("objetos").get(id)?.fijado, false);
+  a.b.rehacer(); pump();
+  assert.equal(b.s.features.stateOf("objetos").get(id)?.fijado, true);
+  const cerrado = world({ abierto: false, n: 1 });
+  cerrado.pages[0].b.rehacer(); cerrado.pump();
+  assert.match(cerrado.pages[0].b.estado.ultimoRechazo, /construir/);
+});
+
+test("M22 builder API: select by id, transform within the limits, tools; everything goes through the server", () => {
+  const { pages, pump } = world({ abierto: true });
+  const [a, b] = pages;
+  const vistos: string[] = [];
+  a.b.escuchar((q) => vistos.push(q));
+  a.b.colocar("bloque"); pump();
+  const id = a.b.estado.seleccionado;
+  assert.ok(vistos.includes("seleccion") && vistos.includes("estado") && vistos.includes("hecho"));
+  assert.equal(a.b.seleccionar("nada").ok, false);
+  assert.ok(a.b.seleccionar("").ok);
+  assert.equal(a.b.estado.seleccionado, "");
+  assert.ok(a.b.seleccionar(id).ok);
+  assert.ok(a.b.transformar(id, { y: 900, rx: 200, sx: 99, sz: 0.001 }).ok); pump();
+  const o = b.s.features.stateOf("objetos").get(id)!;
+  assert.deepEqual([o.y, o.rx, o.sx, o.sy, o.sz], [500, -160, 50, 1, 0.05], "clamped to LIMITES, turns wrapped to [-180, 180]");
+  assert.equal(a.b.transformar(id, { w: 1 } as never).ok, false);
+  assert.equal(a.b.transformar("nada", { x: 1 }).ok, false);
+  assert.ok(a.b.colocarEn("robot", { x: 4.5, y: 1, z: -2 }, 270).ok); pump();
+  const r = b.s.features.stateOf("objetos").get(a.b.estado.seleccionado)!;
+  assert.deepEqual([r.x, r.y, r.z, r.ry, r.nombre], [4.5, 1, -2, -90, "Robot"]);
+  assert.ok(a.b.modo("girar").ok);
+  assert.equal(a.b.estado.modo, "girar");
+  assert.equal(a.b.modo("volar").ok, false);
+  assert.ok(vistos.includes("modo"));
+});

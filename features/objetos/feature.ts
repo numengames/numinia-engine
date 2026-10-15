@@ -17,13 +17,15 @@ const GIRO = { kind: "fixed", min: -180, max: 180, step: PASO.grados, default: 0
 const ESCALA = { kind: "fixed", min: 0.05, max: 50, step: PASO.escala, default: 1 } as const;
 const ID = { kind: "text", maxBytes: 16 } as const;
 const NOMBRE = { kind: "text", maxBytes: 60, default: "" } as const;
+/** M22: what a transform may hold (the schema's own numbers), for builders that clamp before asking. */
+export const LIMITES = { x: [X.min, X.max], y: [Y.min, Y.max], z: [X.min, X.max], giro: [GIRO.min, GIRO.max], escala: [ESCALA.min, ESCALA.max] } as const;
 
 /** Where a thing is and how it is turned (degrees: yaw ry, then pitch rx, then roll rz) and scaled. */
 const DONDE: Fields = { x: X, y: Y, z: X, rx: GIRO, ry: GIRO, rz: GIRO, sx: ESCALA, sy: ESCALA, sz: ESCALA };
 
 export const objetos = defineFeature({
   id: "objetos",
-  version: 1,
+  version: 2, // M22: + rehacer (intent and `hecho.accion`); the state did not change shape
   level: "base",
   describe: "Cosas colocadas en el mundo que se quedan (un modelo 3D con su sitio, giro, escala y nombre). Quien tiene permiso de construir las coloca, mueve, duplica, fija, borra y deshace en directo; todos lo ven al momento y sobrevive a los reinicios.",
   store: { describe: "Por objeto, quién lo colocó y cuándo (`a:<id>`); y el contador de ids (`siguiente`). Nunca va a las páginas." },
@@ -46,10 +48,11 @@ export const objetos = defineFeature({
     fijar: { describe: "Fijar un objeto (nadie lo mueve ni lo borra) o soltarlo.", spoken: "fijar un objeto", fields: { id: ID, fijado: { kind: "bool" } } },
     nombrar: { describe: "Ponerle nombre a un objeto (lo que dice el lector de pantalla y leen los agentes), o marcarlo como decorado.", spoken: "poner nombre a un objeto", fields: { id: ID, nombre: NOMBRE, decorado: { kind: "bool", default: false } } },
     deshacer: { describe: "Deshacer el último cambio que hiciste en el mundo.", spoken: "deshacer", fields: {} },
+    rehacer: { describe: "Volver a hacer lo último que deshiciste (hasta que hagas un cambio nuevo).", spoken: "rehacer", fields: {} },
   },
   events: {
     permiso: { describe: "Lo que puedes hacer aquí (llega al entrar y al identificarte).", fields: { construir: { kind: "bool" } }, announce: "silent" },
-    hecho: { describe: "Tu cambio se hizo: el objeto que tocó (para seleccionarlo).", fields: { id: ID, accion: { kind: "enum", values: ["colocar", "mover", "girar", "duplicar", "borrar", "fijar", "nombrar", "deshacer"] } }, announce: "silent" },
+    hecho: { describe: "Tu cambio se hizo: el objeto que tocó (para seleccionarlo).", fields: { id: ID, accion: { kind: "enum", values: ["colocar", "mover", "girar", "duplicar", "borrar", "fijar", "nombrar", "deshacer", "rehacer"] } }, announce: "silent" },
     rechazado: { describe: "Tu cambio no se hizo, y por qué.", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
   },
 });
