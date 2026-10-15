@@ -38,9 +38,13 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J8 | AR de verdad: entrar en AR en Android, Quest 3 y Pico 4, suelo, anclar un objeto; iPhone en plano | hecho (emulado; falta probar en aparato real) | sí |
 | J6 | VR de verdad: entrar en VR, moverse, mandos, giro a saltos, viñeta, panel 3D (emulador IWER) | hecho (emulado) | sí |
 | R1 | Realidad cruzada 1 «Despertar»: un QR real hace que la plaza reaccione para todos (trozo 1 hecho; falta lo de «Falta de R1» en su detalle) | pendiente | sí |
-| J2 | Salto, doble salto y correr en la simulación (cambia la huella fijada; permiso de Pablo, 14-10; delante de R2–R4 y V3–V7 por la paridad con Hyperfy2, Pablo 15-10) (sesión Opus 15-10, en una rama propia) | en curso | sí |
-| J1 | Avatares VRM de verdad (CC0) con animaciones CC0 en la plaza (sesión Opus 15-10, en una rama propia) | en curso | sí |
-| J3 | Chat (cercano y de la zona) y bocadillos sobre los avatares, con nombres; lo que empieza por `/` va a las órdenes (H3) (sesión Opus 15-10, en una rama propia) | en curso | sí |
+| J2 | Salto, doble salto y correr en la simulación (cambia la huella fijada; permiso de Pablo, 14-10; delante de R2–R4 y V3–V7 por la paridad con Hyperfy2, Pablo 15-10) | hecho | sí |
+| J2b | Aviso en pantalla cuando el servidor habla otro formato («recarga la página») | pendiente | sí |
+| J1 | Avatares VRM de verdad (CC0) con animaciones CC0 en la plaza | hecho (trozo 1: avatares de la casa; elegir el tuyo → H10) | sí |
+| J1b | Nombres, bocadillos y etiquetas a la altura de la cabeza de cada avatar VRM | pendiente | sí |
+| J3 | Chat (cercano y de la zona) y bocadillos sobre los avatares, con nombres; lo que empieza por `/` va a las órdenes (H3) | hecho | sí |
+| J3b | Chat en multitudes: tope por oyente y primero los nombres más cercanos | pendiente | sí |
+| J3c | Escribir en VR (teclado del sistema o dictado) para el chat | pendiente | sí |
 | R2 | Realidad cruzada 2 «Semilla del Conocimiento»: pregunta en un sitio real → semilla que se planta en el mundo | pendiente | sí |
 | R3 | Realidad cruzada 3 «Célula del Prisma» + herramienta del DJ para marcar puntos reales | pendiente | sí |
 | R4 | Realidad cruzada 4 «Caza de invisibles»: la cámara, el color y la hora deciden qué aparece | pendiente | sí |
@@ -49,7 +53,8 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | P3 | Nativo para IA v1: `llms.txt`, mapa, README-contrato por paquete, `npm run describe` | hecho | sí |
 | J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR (sesión Opus 15-10, en una rama propia) | en curso | sí |
 | J5 | Libro de misiones, mapa y minimapa con marcadores (sesión Opus 15-10, en una rama propia) | en curso | sí |
-| N1 | Entrada táctil, gamepad, cámara en 3.ª persona y pantalla completa (de `docs/JUGADOR.md`) (sesión Opus 15-10, en una rama propia) | en curso | sí |
+| N1 | Entrada táctil, gamepad, cámara en 3.ª persona y pantalla completa (de `docs/JUGADOR.md`) | hecho (sin probar en aparato real) | sí |
+| N1b | Cámara que no atraviesa lo construido (choca con el escenario) | espera a M6 | sí |
 | N2 | Menú de ajustes y accesibilidad básica, guardado local (de `docs/JUGADOR.md`) (sesión Opus 15-10, en una rama propia) | en curso | sí |
 | V3 | Voz propia del motor: cola con prioridades, se puede cortar, baja lo demás (la región `aria-live` ya existe, V1) | pendiente | sí |
 | V4 | Lista HTML de lo cercano (escritorio y móvil) que leen NVDA, VoiceOver y TalkBack, navegable con teclado | pendiente | sí |
@@ -64,9 +69,10 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | H12 | Paridad Hyperfy2: sombras y posprocesado por nivel de aparato, elegibles en ajustes (sesión Opus 15-10, en una rama propia) | en curso | sí |
 | H8 | Paridad Hyperfy2: partículas en GPU (su nodo `Particles`) con tope por aparato y limitador de destellos (sesión Opus 15-10, en una rama propia) | en curso | sí |
 | H5 | Paridad Hyperfy2: sonido del mundo — fuentes en objetos y puntos, grupos música/efectos (su nodo `Audio`) | espera a V6 | sí |
-| H9 | Paridad Hyperfy2: subir ficheros arrastrando — por hash, con tope, solo quien construye (sesión Opus 15-10, en una rama propia) | en curso | sí |
+| H9 | Paridad Hyperfy2: subir ficheros arrastrando — por hash, con tope, solo quien construye | hecho | sí |
+| H9b | Subidas: borrar lo que nadie usa y cupo por identidad | espera a H3 | sí |
 | H7 | Paridad Hyperfy2: ajustes del mundo — título, descripción, imagen, escenario, avatar por defecto, abierto a construir, límite de personas | espera a H3 | sí |
-| H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | espera a J1, H9 | sí |
+| H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | pendiente | sí |
 | H13 | Paridad Hyperfy2: nivel de detalle (LOD) de los modelos, generado en la ingesta | espera a M21 | sí |
 | H11 | Paridad Hyperfy2: importar de Hyperfy — `.hyp` → carpeta de app; un mundo entero → carpeta del mundo | espera a M19 | sí |
 | F1 | Amigos, bloqueo y moderación (los roles son H3; toca red y guardado; de `docs/JUGADOR.md`) | para Opus | no |
@@ -100,7 +106,9 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | M19 | Formato de app: carpeta de texto (`app.json` + `main.ts` + activos por hash) → paquete glTF con `NUM_app` | para Opus | no |
 | M20 | Scripts de mundo en el servidor, en sandbox (SES) y con límite de CPU | para Opus | no |
 | M9 | WebTransport como escalón de arriba detrás de la misma interfaz que WebSocket | para Opus | no |
-| M22 | Constructor en el mundo, en vivo (paridad Hyperfy2): gizmos, duplicar, borrar, deshacer, soltar ficheros, inspector, biblioteca; para personas y agentes de IA, según su rol (el panel mínimo ya existe: H1) (sesión Opus 15-10, en una rama propia) | en curso | sí |
+| M22 | Constructor en el mundo, en vivo (paridad Hyperfy2): gizmos, duplicar, borrar, deshacer, soltar ficheros, inspector, biblioteca; para personas y agentes de IA, según su rol (el panel mínimo ya existe: H1) | hecho (escritorio; VR y móvil → M22b) | sí |
+| M22b | Constructor en VR y en el móvil (gizmo con el mando y con el dedo) | pendiente | sí |
+| M22c | Constructor: puntos de encaje, selección múltiple y jerarquía | pendiente | sí |
 | M26 | Servidor MCP del motor: leer zona, proponer cambio, abrir PR (nunca publica solo) | espera a M19, P4 | sí |
 | O4 | Seguridad: billete firmado para entrar a una instancia, tope de conexiones por IP, exportar y borrar lo tuyo | pendiente | sí |
 | O3 | Observabilidad: panel y alertas sobre `/metrics` del servidor real | espera a X3 | sí |
@@ -283,6 +291,8 @@ pose de reposo un cuadro). Cargar `.vrma` con `VRMAnimationLoaderPlugin` de thre
 pide el agente: saludar, asentir, negar, pensar, señalar — los gestos de `features/gestos` pasan a usar clips
 cuando existan.
 
+**Hecho, trozo 1 (15-10, rama `wt/avatares`).** Tú y los más cercanos como humanoides VRM (60 en escritorio, 25 en XR, 12 en móvil; el resto, cápsulas), mirando hacia donde andan, con animaciones por velocidad: quieto, andar o trotar (según la zancada natural de cada avatar), correr y en el aire; cambio fundido en 0,2 s sin pose en T; congelados a más de 40 m. Tres avatares de la casa de 100Avatars (Polygonal Mind, CC0 dentro del fichero y en la fuente; 2.130–2.880 triángulos; `activos/avatares/LICENCIAS.md`), cada jugador uno según su id hasta H10. Animaciones `.vrma` convertidas de UAL1 de Quaternius (CC0) con `tools/vrma/` (pies en el suelo ±3 cm en 8 avatares). `@pixiv/three-vrm` y `three-vrm-animation` 3.5.5 (MIT, exactas) llegan después del primer cuadro (64 kB gz aparte). Sin MToon (Lambert con su textura): MToon metía ~30 kB gz en el arranque. `packages/server/src/vrm.ts` lee un VRM sin three (licencia, triángulos): listo para H10. **Medido:** 9 pruebas; pierna `tools/e2e-piernas/avatares.mjs` (2 VRM por pestaña, 0 fallos, B ve a A pasar de quieto a andar y trotar); 974–1.142 kB por avatar, 491 kB las cinco animaciones; arranque +5 kB gz. **Falta:** elegir el tuyo (H10), etiquetas a la altura de cada cabeza (J1b), gestos con clips, ficheros más ligeros, probar 60 a la vez y en aparatos reales.
+
 ### J2 — Salto y altura
 La simulación gana altura, velocidad vertical, gravedad y suelo, y la entrada un bit de salto; la
 predicción sigue exacta (0 correcciones). Cambia la huella fijada y el formato de entrada y de
@@ -290,6 +300,8 @@ snapshot. **Permiso de Pablo (14-10, "que no pare el desarrollo"): se hace en `a
 formato nueva, la huella nueva fijada en el test y el cambio explicado en el diario.
 **Paridad Hyperfy2 (15-10):** también correr (Mayús: 8 m/s frente a 4 andando, como Hyperfy) y un salto en el
 aire (doble salto). Volar es de H2 (necesita permiso).
+
+**Hecho (15-10, rama `wt/salto`; formato 2).** Simulación: altura, velocidad vertical, gravedad 20 m/s², salto de 1,5 m (v = √(2gh) con `fxSqrt`), uno más en el aire, búfer de 150 ms, caída máxima 50 m/s; correr 8 m/s (Mayús), andar 4; `groundHeight(x, z)` = 0 es el punto de enganche de M6. Entrada con un sexto byte de botones (aditivo: la de 5 bytes vale sin botones); el snapshot lleva tu estado vertical exacto y la altura de los demás solo cuando están en el aire (de pie cuestan lo de antes); `WIRE_FORMAT = 2` al final de la bienvenida. Un avatar solo avanza con sus propias entradas (como los «usercmd» de Quake): la predicción sigue exacta con entradas tardías o agrupadas. Página: Espacio salta (fuera de los campos de texto), Mayús corre; en el móvil, botón «Saltar» y correr con el joystick al borde; en VR, A o X saltan y el borde de la palanca corre. Bots que corren y saltan de vez en cuando. **Medido:** 10 pruebas (`test/salto.test.ts`); huella de referencia `fa94375e` → `93b192c8` (fijada en `test/engine.test.ts` y `test/server.test.ts`); enjambre de 1.000 por WebSocket: tick p99 19,3 ms (antes 19,95 el mismo día), 27,2 kbit/s por persona (antes 25,6); pierna `tools/e2e-piernas/salto.mjs`: cima 1,48 m, doble 2,79 m, Mayús+W 11,6 m frente a 6,0 m. **Falta:** aviso de formato distinto (J2b), mantener Espacio para encadenar saltos, volar (H2), pendientes y tiempo de coyote (M6).
 
 ### J3 — Chat y bocadillos
 Mensaje nuevo CHAT (aditivo: tipo nuevo, texto UTF-8 ≤ 200 bytes, límite de ritmo en el servidor,
@@ -301,6 +313,8 @@ solo tiene uno para todo el mundo) y los 50 últimos mensajes de la zona al entr
 publica: llega a las funciones como evento `orden` (las órdenes son H3). Las funciones reciben el chat cercano
 como evento (lo usará el habitante IA, P5). El nombre de la cabeza es el de la identidad (I1) hasta que H3 deje
 cambiarlo con `/nombre`.
+
+**Hecho (15-10, rama `wt/chat`).** Función `features/chat` por el enchufe (no mensaje del núcleo): cercano 20 m con bocadillo, canal de la zona (la instancia hasta M16) con tope por persona y por zona, los 50 últimos al entrar; texto en una línea, sin caracteres de control, ≤ 200 bytes; lo que empieza por `/` nunca se publica: va a las funciones como `orden` (`/ayuda` contesta). Nombres sobre la cabeza: solo de quien tu página dibuja (área de interés) a menos de 24 m, como mucho 64, olvidados a 30 m; los bots, «Robot N». El enchufe gana `api.listen` (oír eventos de otras funciones: H3, P5), el alcance `"server"` y `api.visible`. Página: Intro abre, Intro manda, Esc cierra; lista con `role=log` y `aria-live`; botón «Chat» en el móvil; `apps/plaza/escribiendo.ts`: escribir nunca mueve (toda escucha de teclas lo pregunta). Proxy LAN de vite: `/e/` y `/a/` con barra. **Medido:** 13 pruebas; ancho de banda K=50 +1,9 kbit/s con nombres y una línea cada 10 s; 1.000 entrando a la vez: 866 B de nombres por persona, tick del chat p99 3,7 ms; pierna `tools/e2e-piernas/chat.mjs` (17 comprobaciones). **Falta:** multitudes (J3b), escribir en VR (J3c), lectores de pantalla reales.
 
 ### J6 — VR de verdad
 Botón "Entrar en VR" solo si `navigator.xr.isSessionSupported('immersive-vr')` (la AR es J8);
@@ -321,6 +335,8 @@ salir, pulsar, soltar); abrir un enlace avisando antes (`world.open`).
 ### N1 — Entrada táctil, gamepad, cámara y pantalla completa
 De `docs/JUGADOR.md`. **Paridad Hyperfy2 (15-10):** cámara en primera y tercera persona, con zoom de la rueda
 (y de pellizco en móvil).
+
+**Hecho (15-10, sesión Opus en paralelo, rama `wt/camara`).** `packages/render/src/camara.ts` (entrada) + `camara-orbita.ts` (cuentas puras) → `view.cam`. Jugar: arrastre derecho (o izquierdo sobre el mundo; un clic sin mover sigue siendo clic) gira alrededor de los ojos (1,6 m), cabeceo ±80°; rueda 1,5–20 m y un paso más = 1.ª persona (tu cuerpo se oculta); `,` `.` giran, RePág/AvPág inclinan, `+`/`−` acercan, V 1.ª/3.ª persona, Inicio detrás de ti. Andar va hacia donde mira la cámara (`haciaMundo`, sin tocar la simulación). Construir: cámara libre (arrastre derecho gira, central o Mayús+derecho desplaza, Alt+izquierdo gira en touchpads, rueda hacia el punto bajo el cursor, hasta 80 m; `frame()` con F). Táctil: mitad izquierda anda, mitad derecha mira, pellizco acerca. Mando: palanca izquierda anda, derecha mira, RB/LB zoom. Botón de pantalla completa. La cámara nunca para un evento. **Medido:** 11 pruebas (`test/camara.test.ts`), pierna `tools/e2e-piernas/camara.mjs` (11 comprobaciones: rueda, 1.ª persona, giro 90° y W anda por donde mira con 0,1° de error y 0 correcciones, construir, mando falso, pantalla completa, táctil por CDP); arranque +3,8 kB gz. **Falta:** chocar con el escenario (N1b, espera a M6), orientación de pantalla, sensibilidad e invertir eje en ajustes (N2), probar en aparato real.
 
 ### J5 — Libro de misiones y mapa
 Formato de misión en JSON con esquema (pasos; condiciones "llega a", "usa", "habla con";
@@ -653,6 +669,7 @@ disparador (entrar y salir de una zona); cuerpos estáticos, cinemáticos y din�
 dinámicos viven solo en el servidor y llegan como estado, o en la simulación); rayo y solape de esfera con capas
 (los usarán los scripts, M20); controlador cinemático para personajes no jugadores; articulaciones al final. Lo
 primero: pisar el escenario base, un objeto de H1.
+**De J2 (15-10):** `groundHeight(x, z)` en `packages/sim` es el enganche; falta pegar al suelo en pendientes, tiempo de coyote y juzgar la lista de alturas del snapshot respecto al suelo bajo cada avatar. La cámara que no atraviesa lo construido es N1b.
 
 ### M10 — Servidor de instancia completo (para Opus)
 Regiones en `worker_threads` (una sola hebra se rompe entre 3.000 y 4.000), traspaso entre regiones sin
@@ -698,6 +715,8 @@ todos al momento, se guarda como texto y se puede deshacer. Un agente de IA cons
 rol se lo permite (Pablo, 15-10: «los agentes tendrán también sus permisos»); lo que hace queda firmado como suyo.
 Cantera: `oncyberio/awe` (MIT). **Hecho cuando:** e2e: la pestaña A entra en modo construir, mueve y
 gira un objeto con el gizmo y deshace; la B ve cada paso; un visitante no ve el modo construir.
+
+**Hecho (15-10, escritorio; rama `wt/constructor`).** `packages/render/src/gizmo.ts`: `view.pick`, `view.puntoBajo` (suelo o encima de otras cosas), contorno amarillo y `TransformControls` de three (X rojo, Y verde, Z azul; mover, girar, escalar; mundo/local; paso; un eje), perezoso (5,45 kB gz). La selección y la herramienta viven en `features/objetos/client.ts` (la usan el panel, el gizmo y los agentes: `seleccionar`, `transformar`, `colocarEn`, `rehacer`, `modo`). Intento nuevo `rehacer` (objetos v2). Panel nuevo (`apps/plaza/constructor.ts`): herramientas, ejes, paso, biblioteca que sigue al puntero y se coloca donde apuntas, «Delante de ti», inspector con campos, ayuda de teclas. Teclas: C o Tab abre; clic selecciona; 1 coger (rueda gira, Mayús+rueda escala), 2 o G mover, 3 o R girar, 4 escalar; X/Y/Z eje; T local/mundo; Ctrl sin paso (0,5 m, 15°, 0,1); Mayús+D o Ctrl+D duplica y coge; Supr borra; Ctrl+Z / Ctrl+Mayús+Z / Ctrl+Y; P fija; F encuadra; N inspector; Esc devuelve o deselecciona. Red: como mucho 8 `mover`/s y un latido cada 0,5 s (un arrastre = un paso de deshacer); nada salta atrás. **Medido:** 96 pruebas en su rama (+4); pierna `tools/e2e-piernas/constructor.mjs` con ratón y teclado de verdad en chromium y firefox (coloca donde apuntas, clic selecciona, arrastra el asa X 1,5–2 m, gira 135°, deshacer/rehacer llegan a B, borra); WebGPU de verdad probado a mano. **Falta:** VR y móvil (M22b), puntos de encaje, selección múltiple y jerarquía (M22c), inspector por esquema (M19), lista de apps con su coste.
 
 ### M26 — MCP del motor (espera a M19 y P4)
 Tres herramientas: leer una zona (como `describe`), proponer un cambio de manifiesto, abrir un PR. Nunca
@@ -841,11 +860,14 @@ hash), tipos permitidos `glb`, `vrm`, `png`, `jpg`, `webp`, `ktx2`, `hdr`, `mp3`
 licencia) antes de usarse; llevarlo a la CDN es M16. **Hecho cuando:** test: subir dos veces lo mismo guarda uno;
 un visitante recibe 403; un tipo no permitido, 415; e2e: soltar un GLB lo coloca delante de quien lo suelta.
 
-### H10 — Tu avatar (espera a J1 y H9)
+**Hecho (15-10, rama `wt/subir`).** `PUT /a/<sha256>.<ext>` con `Authorization: Bearer <billete de invitado I1>`; el servidor comprueba el billete y el mismo permiso `construir` (H3 lo hará por rol), calcula el sha256 y lee los bytes (`packages/net/src/ficheros.ts`, compartido con la página: un .glb entero, el resto por sus primeros bytes). 401 sin billete, 403 sin permiso, 415 tipo no admitido, 413 sobre el tope (glb y vrm 12 MB como Hyperfy2; imágenes 4; ktx2, hdr, audio 8; vídeo 32), 422 bytes malos o sha distinto, 507 sobre 1 GB en total, 503 con más de 4 a la vez. Lo repetido no se sube (la página pregunta antes con `HEAD`). Quién subió qué, en `<ACTIVOS_DIR>/subidas.jsonl`, nunca servido. `api.activo(sha, ext)` en el enchufe: `colocar` acepta lo de la biblioteca o lo subido. Página (`apps/plaza/soltar.ts`): soltar un .glb sobre el mundo lo sube y lo coloca donde cae (`view.sueloBajo`), con el nombre del fichero; botón «Subir modelo…» para teclado y lector. Instalador: `ACTIVOS_DIR` dentro de `datos/` (entra en la copia). **Medido:** 9 pruebas nuevas (`test/subidas.test.ts`, deploy); pierna `tools/e2e-piernas/subir.mjs` en chromium y firefox (cae a 0,01 m del punto bajo el puntero, B lo carga, el repetido no se sube, el roto se niega en la página); deploy-check: HEAD 200, PUT sin billete 401. **Falta:** borrar lo que nadie usa y cupo por identidad (H9b), licencia y límites por fichero (M21), colocar .vrm (H10), imágenes, audio y vídeo (H6, H5, M18).
+
+### H10 — Tu avatar (J1 y H9 hechos)
 Elegir entre los avatares de la casa (J1) o soltar tu `.vrm` (H9; validado: ≤ 10.000 triángulos y sus campos de
 licencia leídos). Se guarda con tu identidad (I1) y lo ven todos; el avatar por defecto lo pone el mundo (H7);
 una función puede poner un avatar solo para la sesión (su `setSessionAvatar`). **Hecho cuando:** e2e: la
 pestaña A cambia de avatar, la B lo ve, y al volver A sigue con él.
+Validar cada VRM subido con `packages/server/src/vrm.ts` (`revisarAvatar`: CC0 dentro del fichero, ≤ 10.000 triángulos; hecho en J1).
 
 ### H11 — Importar de Hyperfy (espera a M19)
 Para traer los mundos Numinia de hoy. Un `.hyp` (4 bytes con el tamaño de la cabecera + JSON + ficheros; ver
@@ -868,3 +890,26 @@ según la distancia y el tamaño en pantalla (como su `LOD` con `scaleAware`), c
 **Hecho cuando:** test de la elección por distancia; triángulos dibujados medidos con y sin LOD en una zona de
 prueba.
 
+### N1b — Cámara que choca (espera a M6)
+La cámara de N1 se acerca cuando algo construido queda entre ella y tu avatar (rayo contra los colisionadores de M6), sin tirones. **Hecho cuando:** e2e: detrás de una pared colocada, la cámara queda delante de la pared.
+
+### M22b — Constructor en VR y en el móvil
+En VR, el rayo del mando selecciona y el gatillo arrastra el gizmo (o coge la cosa con la mano); en el móvil, un dedo sobre un asa la arrastra y dos dedos giran la cámara (N1). Mismas órdenes de `features/objetos`. **Hecho cuando:** e2e con IWER mueve un bloque con el mando; e2e táctil por CDP mueve otro con el dedo.
+
+### M22c — Encajes, selección múltiple y jerarquía
+Puntos de encaje (su nodo `Snap`), seleccionar varias cosas y moverlas juntas, agrupar (jerarquía de nodos, su `NodeHierarchy`). **Hecho cuando:** e2e: dos bloques encajan cara con cara; tres seleccionados se mueven a la vez y deshacer los devuelve en un paso.
+
+### H9b — Limpiar subidas y cupo por identidad (espera a H3)
+Borrar los ficheros subidos que ninguna cosa usa (tras un plazo), cupo de MB por identidad y por rol, y que quien administra vea quién subió qué (`subidas.jsonl`). **Hecho cuando:** test: un fichero sin uso se borra tras el plazo; una identidad sobre su cupo recibe 507.
+
+### J2b — Aviso de formato distinto
+Si `welcome.format` no es el `WIRE_FORMAT` de la página (servidor nuevo, página vieja o al revés), un aviso visible y hablado: «El mundo se ha actualizado: recarga la página». **Hecho cuando:** test del aviso con un servidor de formato 1.
+
+### J1b — Etiquetas a la altura de cada cabeza
+`view.setHeadTop` (J3) con la altura del hueso de la cabeza de cada VRM, para nombres, bocadillos y etiquetas de gestos (hoy todos a 2,1 m: flotan sobre Polybot). **Hecho cuando:** e2e: el nombre queda a menos de 0,3 m sobre la cabeza de cada uno de los tres avatares.
+
+### J3b — Chat en multitudes
+Tope de mensajes cercanos por oyente y por segundo, y los nombres más cercanos primero cuando hay más de 64. **Hecho cuando:** test con 200 hablando a la vez: cada oyente recibe como mucho el tope y siempre lo del más cercano.
+
+### J3c — Escribir en VR
+En una sesión inmersiva, un botón abre el teclado del sistema (o el dictado si existe) para el chat; si no hay teclado, frases rápidas. **Hecho cuando:** e2e con IWER manda una frase rápida; probado en Quest (X1).

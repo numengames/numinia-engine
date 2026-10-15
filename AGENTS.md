@@ -63,7 +63,8 @@ import `features/` except the composition roots listed in `layers.json` (`_compo
 | plaza of 1,000, one thread, everyone within 80 m | tick p99 ≤ 25 ms (half the 50 ms tick) | ~1.5 s |
 
 Load test over real WebSockets (not in the default run, ~35 s, own port): `tools/swarm.sh 1000 30`. Capacity battery for a real server (stairs, soak, join storm, CPU bench, report): `docs/MEDIDAS.md`.
-Measured 2026-10-14 on the dev PC: 1,000 connected → tick p99 17–23 ms, 25.5 kbit/s per person.
+Measured 2026-10-14 on the dev PC: 1,000 connected → tick p99 17–23 ms, 25.5 kbit/s per person; with jump and run
+(J2, 2026-10-15): p99 19.3 ms, 27.2 kbit/s per person.
 Browser check: `tools/auto.sh e2e` (spare ports 8792/5174, chromium + firefox, ~20 s).
 Keep gates light: seconds, one core. Never add a gate that needs a GPU or an LLM to the default run.
 

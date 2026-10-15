@@ -20,6 +20,13 @@ Para quien llega nuevo (persona o IA). La versión de una página para máquinas
 | qué toca hacer | `docs/BACKLOG.md`; lo ya hecho en `docs/RUNLOG.md` |
 | saber qué nos falta para estar, como mínimo, al nivel de Hyperfy2 | `docs/HYPERFY2-PARIDAD.md` |
 | poner cosas en el mundo (modelos, constructor) | `features/objetos/` (servidor decide, `biblioteca.json` = lo que se puede colocar); el panel, `apps/plaza/constructor.ts`; los ficheros, `activos/` (CC0) servidos en `/a/<sha256>.glb` |
+| cambiar la cámara (ratón, rueda, dedos, mando) | `packages/render/src/camara.ts` (entrada) y `camara-orbita.ts` (cuentas); teclas en `docs/JUGADOR.md` |
+| cambiar el gizmo y las manos del constructor | `packages/render/src/gizmo.ts`; el panel y las teclas, `apps/plaza/constructor.ts`; la selección, `features/objetos/client.ts` |
+| subir ficheros al servidor | `packages/server/src/subidas.ts` (servidor), `packages/net/src/ficheros.ts` (tipos, topes, comprobación), `apps/plaza/soltar.ts` (página) |
+| cambiar saltar o correr | `packages/sim/src/index.ts` (solo enteros); los botones, `apps/plaza/main.ts` |
+| cambiar los avatares VRM | `packages/render/src/avatares.ts`, `avatares-politica.ts`, `avatares-vrm.ts`; los ficheros, `activos/avatares/` y `activos/animaciones/`; el conversor, `tools/vrma/` |
+| cambiar el chat, los nombres o los bocadillos | `features/chat/`, `apps/plaza/chat.ts`, `packages/render/src/nombres.ts` |
+| añadir una tecla a la página | escúchala con `escribiendo(e)` (`apps/plaza/escribiendo.ts`): escribir nunca mueve |
 
 Capas (de abajo arriba): `core → schema → ecs → sim → net → feature → {client, instance} → {server, cli}`;
 `render` solo habla con three.js; las funciones de juego (`features/`) solo con `feature`. `tools/layers.mjs` lo comprueba.

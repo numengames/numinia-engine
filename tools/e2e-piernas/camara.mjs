@@ -185,7 +185,12 @@ if (ENGINE === "chromium") {
     const t1 = await cam(t), m1 = await me(t);
     await swipe([[W * 0.25, 200]], [[W * 0.25, 160]], 6, 900); await t.waitForTimeout(700);
     const t2 = await cam(t), m2 = await me(t);
-    await swipe([[W * 0.62, ty], [W * 0.88, ty]], [[W * 0.55, ty], [W * 0.95, ty]]); await settle(t);
+    // the pinch stays clear of the right-hand column of touch buttons (gesture, «Saltar», «Chat»…), which grows as
+    // features add buttons: both fingers must land on the 3D view itself
+    const pinza0 = [[W * 0.56, ty], [W * 0.72, ty]], pinza1 = [[W * 0.52, ty], [W * 0.76, ty]];
+    const libres = await t.evaluate((pts) => pts.every(([x, y]) => document.elementFromPoint(x, y)?.tagName === "CANVAS"), [...pinza0, ...pinza1]);
+    if (!libres) throw new Error("los dedos del pellizco caen sobre un botón: mueve pinza0/pinza1");
+    await swipe(pinza0, pinza1); await settle(t);
     const t3 = await cam(t);
     const walked = Math.hypot(m2.x - m1.x, m2.z - m1.z);
     ok("tactil", t1.yaw > t0.yaw + 0.5 && Math.hypot(m1.x - m0.x, m1.z - m0.z) < 0.01 && Math.abs(t2.yaw - t1.yaw) < 1e-6 && walked > 0.5 && t3.distancia < t2.distancia - 1,

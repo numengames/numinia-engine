@@ -47,13 +47,19 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 | **Cada sesión cuenta cómo entró el jugador** (aparato, navegador, gráfica, XR, cuadros, ping, batería), sin IP ni identidad, 14 días | Pablo, 15-10: «ahí es donde aprenderás más»; se aprende de los aparatos reales antes que de los emuladores | T1, `docs/MEDIDAS.md` |
 | Vincular el móvil con el ordenador o el visor: **de momento no** | Pablo, 15-10 | I2 (aparcada) |
 | **Se construye en vivo, como en Hyperfy2**: quien tiene rol de constructor coloca, mueve y borra y todos lo ven al momento, guardado como texto y con deshacer; los agentes de IA igual, si su rol lo permite (Pablo, 15-10) | Pablo pidió «como mínimo el nivel de Hyperfy2» (15-10), y construir dentro del mundo es lo que lo define; la verdad sigue siendo texto, así que el PR sigue siendo posible | `docs/HYPERFY2-PARIDAD.md` §2, H1, M22 |
+| Cámara de ratón propia (no OrbitControls): órbita, rueda hasta 1.ª persona, andar hacia donde mira; nunca para un evento | La entrada se reparte con el constructor y hay dos modos (jugar, construir) | BACKLOG N1 (15-10) |
+| Constructor con el gizmo de three (`TransformControls`, perezoso), teclas de Hyperfy2 (1–4, Tab, T, Ctrl, P) y de Blender (G, R, X/Y/Z, Mayús+D, N, F); un arrastre = un paso de deshacer; nada salta atrás | Lo que ya saben quienes vienen de Hyperfy2 y de Blender (Pablo, 15-10) | BACKLOG M22 (15-10) |
+| Subidas por `PUT /a/<sha256>.<ext>` con el billete de invitado, solo quien construye; el servidor calcula el sha256 y lee los bytes; topes por tipo (glb 12 MB, como Hyperfy2) y 1 GB en total | Contenido por hash, sin listado, sin fiarse del cliente | BACKLOG H9 (15-10) |
+| Saltar y correr como Hyperfy2 (gravedad 20, salto 1,5 m, uno más en el aire, correr 8 m/s); un avatar solo avanza con sus propias entradas | Predicción exacta aunque las entradas lleguen tarde o juntas | BACKLOG J2 (15-10) |
+| Avatares de la casa: 3 VRM CC0 de 100Avatars; animaciones `.vrma` convertidas de UAL1 (CC0); sin MToon; VRM para los más cercanos (60 / 25 / 12) | Arranque ligero y licencia limpia | BACKLOG J1 (15-10) |
+| El chat es una función del enchufe, no un mensaje del núcleo: cercano 20 m, zona con tope propio, nombres solo a quien los dibuja, `/` a las funciones (`api.listen`) | Lo que se añadió al enchufe sirve a H3 y P5 | BACKLOG J3 (15-10) |
 
 ## 2. Lo medido (número, dónde y cuándo)
 
 | Qué | Número | Notas |
 |---|---|---|
-| Determinismo entre motores de JS | huella `fa94375e` igual en Node, Chromium (V8) y Firefox (SpiderMonkey) | WebKit/Safari **sin probar**: Playwright WebKit no arranca en Bazzite (X2) |
-| 1.000 personas por WebSocket real, un núcleo | tick p99 17–23 ms, 25,5 kbit/s por persona, 20 Hz exactos | PC de desarrollo (Ryzen 9 7950X); en un VPS se espera 1,5–2,5× peor (estimado, X3 lo mide) |
+| Determinismo entre motores de JS | huella `fa94375e` (formato 1) y `93b192c8` (formato 2, con salto, J2) igual en Node, Chromium (V8) y Firefox (SpiderMonkey) | WebKit/Safari **sin probar**: Playwright WebKit no arranca en Bazzite (X2) |
+| 1.000 personas por WebSocket real, un núcleo | tick p99 17–23 ms, 25,5 kbit/s por persona, 20 Hz exactos; con salto y correr (J2, 15-10): p99 19,3 ms, 27,2 kbit/s | PC de desarrollo (Ryzen 9 7950X); en un VPS se espera 1,5–2,5× peor (estimado, X3 lo mide) |
 | Un hilo, todos a menos de 80 m | 1.000 → p99 10 ms · 2.000 → 21 · 3.000 → 36 · 4.000 → 53 | Se rompe entre 3.000 y 4.000: regiones en hilos solo para el horizonte de 5.000 |
 | Área de interés ingenua (ordenar ~999 candidatos por cliente) | p99 146 ms con 1.000 | Por eso: rejilla de 8 m, anillos, quickselect |
 | Los dos tipos de tick | impar sin snapshot: p50 ~0,09 ms; par con snapshots: el p99 | Juzga siempre por p99 y por la respuesta del tick (retraso + duración), nunca por p50 |
@@ -85,6 +91,9 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 - Con un servidor de un hilo se compara **precio por núcleo dedicado**, no número de vCPU.
 - **La voz por cercanía es lo caro a escala**: ~230 suscripciones de audio por núcleo → ~13 núcleos para 1.000 oyentes con 3 voces audibles. Tope de voces, DTX, modo escenario.
 - Un LLM cuesta por **cadencia**, no por modelo: por evento ≈ 0,0024 $ por agente y hora; sondeando cada 2 s, 0,29 $.
+- Un avatar solo avanza cuando se aplica una entrada suya, también la gravedad (los «usercmd» de Quake): la predicción queda exacta con entradas tardías o agrupadas; una pestaña oculta se queda quieta, también en el aire (J2).
+- Lo que solo importa a una función va por el enchufe, no por un mensaje del núcleo; si al enchufe le falta algo, se añade genérico (`api.listen`, alcance `"server"`, `api.visible`, `api.activo`: J3, H9).
+- Los nombres sobre la cabeza van solo a quien dibuja esa entidad (su último snapshot): nunca todos a todos (J3).
 
 ### 3.2 Cliente, móvil y XR
 - **El cliente es más riesgo que el servidor**: el mejor cliente WoW en three.js cae a 25 fps con 200 personajes animados en una RTX 5070 Ti. Medir la multitud (A1) antes de prometer una plaza llena.
@@ -92,6 +101,10 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 - Nada importante pegado a la cabeza (impide acercarse a leer y rompe la lupa) — Apple.
 - AR y cámara a ráfagas de ≤ 90 s; los fotogramas de la cámara no salen del aparato.
 - En pruebas sin pantalla (GL por software, ~6 fps) se espera por estado medido, nunca por reloj: un cuadro lento pierde tiempo por el tope de `dt` y no es un fallo de red.
+- Escribir nunca mueve: toda escucha global de teclas pregunta `escribiendo(e)` (`apps/plaza/escribiendo.ts`); los `keyup` borran siempre (J3).
+- La cámara nunca para un evento: el joystick pregunta `view.cam.tieneDedo()`; en construir, el botón izquierdo es del constructor y el derecho y la rueda, de la cámara (N1, M22).
+- Sin MToon en los avatares: metía ~30 kB gz de TSL en el arranque (`three/webgpu` es un módulo compartido); Lambert con su textura. Un avatar quieto no obliga a dibujar rápido (J1).
+- Proxy LAN de vite con barra (`/e/`, `/a/`): sin ella, cualquier módulo de `apps/plaza/` que empiece por a o e rompía el https (J3).
 
 ### 3.3 Contenido, formatos y licencias
 - **Entrega como los ports de juegos nativos**, lo único que se copia de ellos: manifiesto por zona con clases arranque / fondo / perezoso, sha256 por fichero, trozos con Brotli desde una CDN (nunca desde el VPS del juego), caché del navegador por hash (OPFS). Y **un origen de reserva fuera de Cloudflare** (LaLiga).
@@ -100,12 +113,15 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 - El estado de un estándar se lee en su registro (Khronos `extensions/README.md`, el PR en la API), no en un blog; antes de decir que three soporta algo, se busca en su código.
 - **Registro de licencias trampa:** Redis ≥ 8 (usar Valkey), SpacetimeDB (BUSL-1.1), núcleo de Hyperscape (GPL-3.0-only aunque diga MIT), Piper TTS mantenido (GPL-3.0), Mixamo (ni redistribuir ni usar con IA), bases de VRoid (no CC0), bitECS (MPL-2.0 y parado), los 351 `.hyp` de `hyperfy-apps` (sin licencia), project-forge (BUSL), fnayr y hyperforge (sin LICENSE), Hunyuan3D (dicen que excluye la UE: comprobar). «Gratis» en Pexels o Pixabay no es CC0; y CC0 no limpia una coreografía reconocible (Hanagami c. Epic, 2023): solo pasos genéricos.
 - **Muertos o parados (no proponer):** Hathora (cerró 05-05-2026), Lance.gg, la plataforma de 8th Wall (su código MIT queda), Hytopia (MIT y congelado; su transporte doble WebTransport/WebSocket es lo más aprovechable), `rapier.js` (archivado, vive en el monorepo de Rust), Hyperfy (sin commits desde el 21-04-2026).
+- 100Avatars (Polygonal Mind): CC0 dentro de cada fichero y en la fuente; su README de 2020 pide no revenderlos sin cambios y su esqueleto se hizo con el auto-rigger de Mixamo sobre sus propias mallas (ninguna animación ni personaje de Mixamo dentro). Pablo puede leerlo distinto (`activos/avatares/LICENCIAS.md`).
+- Lo subido se nombra por el sha256 que calcula el servidor; `.vrma` se sirve pero no se sube (H9, J1).
 
 ### 3.4 Animaciones (lo que enseñó convertir movimientos)
 - Convertir por **rotación de mundo respecto a la pose T del propio paquete**, en un marco canónico, sobre un esqueleto de reposo identidad: así la corrección de reposo del motor no hace nada.
 - La altura de las caderas se normaliza a la del avatar; unas piernas de otra proporción hunden los pies al sentarse (~5 cm): ajustar al avatar de la casa.
 - **Al cambiar de animación, mantener la vieja hasta que la nueva haya cargado y entonces fundir**; si no, se ve un cuadro de la pose de reposo (en Hyperfy, las caderas saltan ~9 cm).
 - Los cinco primeros gestos que necesita un agente: saludar, asentir, negar, pensar (mientras el LLM contesta) y señalar.
+- `tools/vrma/` convierte UAL1 (FBX) en `.vrma` (VRMC_vrm_animation 1.0): rotación de mundo respecto a su pose `A_TPose`, reposo identidad; three-vrm escala la cadera de cada avatar. Velocidades naturales (alturas de cadera por segundo): andar 0,80, trotar 5,18, correr 7,77; el simulador anda a 4 m/s, que es un trote (J1).
 
 ### 3.5 Agentes de IA dentro del mundo (lo que enseñó Procyon en Hyperfy)
 - **La política va en el código, el LLM solo redacta**: responder solo si lo llaman (por su nombre o `/p`), las órdenes cortas (≤ 6 palabras) se deciden sin LLM, el admin tiene prioridad, los roles salen del mundo y nunca de lo que alguien escribe. No usar «para» como palabra de parada (es una preposición).
