@@ -3,7 +3,7 @@ import { hex } from "../../packages/core/src/index.ts";
 import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX } from "../../packages/sim/src/index.ts";
 import { webSocketClient } from "../../packages/net/src/index.ts";
 import { ClientSession, serverUrl } from "../../packages/client/src/index.ts";
-import { createView } from "../../packages/render/src/index.ts";
+import { createView, leerAparato, leerBateria, medidorDeCuadros } from "../../packages/render/src/index.ts";
 import funciones from "../../features/cliente.ts";
 
 const params = new URLSearchParams(location.search);
@@ -85,7 +85,7 @@ const arLabel = { off: "Entrar en AR", searching: "Busca el suelo… (salir)", r
 view.arSupported().then((ok) => {
   if (!ok) return;
   arBtn.style.display = "block";
-  arBtn.onclick = () => { if (view.ar.state === "off") void view.ar.enter(); else void view.ar.exit(); };
+  arBtn.onclick = () => { if (view.ar.state === "off") void view.ar.enter().then((ok) => { if (!ok) session.report({ k: "xr", modo: "ar", accion: "falla", detalle: view.ar.lastError }); }); else void view.ar.exit(); };
 });
 setInterval(() => { arBtn.textContent = arLabel[view.ar.state]; }, 250);
 
@@ -94,9 +94,42 @@ const vrBtn = document.getElementById("vr") as HTMLButtonElement;
 view.vrSupported().then((ok) => {
   if (!ok) return;
   vrBtn.style.display = "block";
-  vrBtn.onclick = () => { if (view.vr.state === "off") void view.vr.enter(); else void view.vr.exit(); };
+  vrBtn.onclick = () => { if (view.vr.state === "off") void view.vr.enter().then((ok) => { if (!ok) session.report({ k: "xr", modo: "vr", accion: "falla", detalle: view.vr.lastError }); }); else void view.vr.exit(); };
 });
 setInterval(() => { vrBtn.textContent = view.vr.active ? "Salir de VR" : "Entrar en VR"; }, 250);
+
+// ---- T1: tell the server how this player entered and how it is going (device, browser, XR, frames, ping,
+// battery; no personal data). The server keeps it per session: GET /sesiones, npm run sesiones. ?pulso=ms ----
+const PULSO_MS = Math.max(1000, Number(params.get("pulso")) || 10_000);
+const medidor = medidorDeCuadros();
+const informe = { entrada: false, bienvenidaMs: 0, primerCuadroMs: 0, errores: 0, oculta: false, pulsos: 0 };
+let bateria: { nivel: number; cargando: boolean } | null = null;
+const modo = () => (view.vr.active ? "vr" : view.ar.state !== "off" ? "ar" : "plano");
+const enviarEntrada = async () => {
+  informe.entrada = true;
+  const [vr, ar] = await Promise.all([view.vrSupported(), view.arSupported()]);
+  const aparato = await leerAparato({ backend: view.backend, gpu: await view.gpu(), xr: { vr, ar } });
+  const r = { k: "entrada", ...aparato, tiempos: { bienvenidaMs: informe.bienvenidaMs, primerCuadroMs: informe.primerCuadroMs, huellaMs: probe.ms }, huellaIgual: probe.browser === probe.server, origen: location.protocol.replace(":", ""), motorPagina: "plaza" };
+  if (!session.report(r)) session.report({ ...r, ua: String(r.ua).slice(0, 60), gpu: String(r.gpu).slice(0, 60) }); // too long: shorter texts
+};
+setInterval(async () => {
+  if (!informe.entrada) return;
+  bateria = (await leerBateria()) ?? bateria;
+  const s = session.stats, mem = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory;
+  session.report({
+    k: "pulso", modo: modo(), ...medidor.ventana(), objetivoFps: view.vr.active || view.ar.state !== "off" ? view.xrHz() || 72 : view.power.stats.targetFps,
+    hzXR: view.xrHz(), escala: view.power.scale, modoBateria: view.power.battery, rttMs: s.rttMs, correcciones: s.corrections, visibles: s.visible,
+    oculta: informe.oculta || document.hidden, bateria: bateria ?? undefined, errores: informe.errores, memoriaMB: mem ? Math.round(mem.usedJSHeapSize / 1048576) : undefined,
+  });
+  informe.oculta = document.hidden; informe.pulsos++;
+}, PULSO_MS);
+addEventListener("visibilitychange", () => { if (document.hidden) informe.oculta = true; });
+let modoAntes = "plano";
+setInterval(() => { const m = modo(); if (m !== modoAntes) { session.report({ k: "xr", modo: m === "plano" ? modoAntes : m, accion: m === "plano" ? "sale" : "entra", detalle: m === "plano" ? "" : `${view.xrHz() || "?"} Hz` }); modoAntes = m; } }, 250);
+const informarError = (mensaje: unknown, donde: string) => { informe.errores++; if (informe.errores <= 5) session.report({ k: "error", mensaje: String(mensaje).slice(0, 160), donde: donde.slice(0, 160) }); };
+addEventListener("error", (e) => informarError(e.message, `${(e.filename ?? "").split("/").pop()}:${e.lineno}`));
+addEventListener("unhandledrejection", (e) => informarError((e.reason as Error)?.message ?? e.reason, "promesa"));
+let lastDrawAt = 0;
 
 // ---- loop: fixed 20 Hz client ticks inside the display loop, drawing blends between ticks ----
 const TICK_MS = 1000 / TICK_HZ;
@@ -109,6 +142,8 @@ view.loop((now) => {
   acc += dt;
   while (acc >= TICK_MS) { const [mx, mz] = readAxes(); session.tick(mx, mz); acc -= TICK_MS; }
   if (session.welcome && !probe.done) runProbe();
+  if (session.welcome && !informe.bienvenidaMs) informe.bienvenidaMs = Math.round(performance.now());
+  if (probe.done && informe.primerCuadroMs && !informe.entrada) void enviarEntrada();
   // power policy (P2): skip the draw when hidden or when nothing changes; the 20 Hz ticks above never skip
   const sig = lastSig; lastSig = signature();
   if (sig !== lastSig || keys.size > 0 || touch || view.vr.active || view.ar.state !== "off" || view.busy()) lastActive = now;
@@ -120,6 +155,11 @@ view.loop((now) => {
     cost = view.lastFrame(); cost.cpuMs = Math.round((performance.now() - t0) * 100) / 100;
     if (view.power.reportCost(cost.cpuMs, dt)) view.applyPixelRatio();
     frames++;
+    // T1: interval between draws against the target of the moment (a pause over 1 s is not a lost frame)
+    const xr = view.vr.active || view.ar.state !== "off";
+    if (lastDrawAt && now - lastDrawAt < 1000) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active));
+    lastDrawAt = now;
+    if (session.welcome && !informe.primerCuadroMs) informe.primerCuadroMs = Math.round(performance.now());
   }
   if (now - fpsT >= 500) { fps = Math.round((frames * 1000) / (now - fpsT)); frames = 0; fpsT = now; drawHud(); }
 });
@@ -138,7 +178,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe };
 
 // battery mode: press B (or open ?bateria)
 addEventListener("keydown", (e) => { if (e.code === "KeyB") { view.power.setBattery(!view.power.battery); view.applyPixelRatio(); } });

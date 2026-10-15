@@ -15,6 +15,7 @@ Para quien llega nuevo (persona o IA). La versión de una página para máquinas
 | saber qué verbos tiene el mundo (personas y agentes) | `npm run describe -- --catalogo` |
 | ver el mundo sin pantalla | `npm run describe` (JSON: entidades, posiciones, quién ve a quién) |
 | saber un límite | `limits.json` / `docs/FICHA-TECNICA.md` |
+| ver cómo entró cada jugador (aparato, navegador, XR, cuadros, ping) | `npm run sesiones`; en vivo `GET /sesiones`; código en `packages/server/src/sesiones.ts` |
 | añadir un paquete | primero `tools/layers.json`, luego carpeta con `README.md`, y una línea en `llms.txt` |
 | qué toca hacer | `docs/BACKLOG.md`; lo ya hecho en `docs/RUNLOG.md` |
 

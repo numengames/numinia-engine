@@ -4,7 +4,7 @@
 import { fxToFloat } from "../../core/src/index.ts";
 import { createSim, spawnAvatar, step, TICK_HZ } from "../../sim/src/index.ts";
 import type { SimState } from "../../sim/src/index.ts";
-import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, seqNewer } from "../../net/src/index.ts";
+import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, seqNewer } from "../../net/src/index.ts";
 import type { Transport, Welcome } from "../../net/src/index.ts";
 import { ClientRuntime } from "../../feature/src/index.ts";
 import type { ClientPart, ViewHooks } from "../../feature/src/index.ts";
@@ -70,6 +70,15 @@ export class ClientSession {
   }
 
   ping(now = nowMs()): void { this.t.send(encodePing(now >>> 0), true); }
+
+  /** T1: tell the server how this player entered / how it is going. false if not joined yet or too big. */
+  report(r: Record<string, unknown>): boolean {
+    if (this.entity < 0) return false;
+    const bytes = encodeReport(r);
+    if (!bytes) return false;
+    this.t.send(bytes, true);
+    return true;
+  }
 
   handle(bytes: Uint8Array, now: number): void {
     const type = bytes[0];

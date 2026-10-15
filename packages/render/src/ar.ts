@@ -57,12 +57,13 @@ export function createAR(h: ARHooks) {
     try { lastHit?.createAnchor?.()?.then((a: any) => { anchor = a; }).catch(() => {}); } catch { /* no anchors here */ }
   };
 
+  let lastError = ""; // why the last enter() failed (T1 report)
   async function enter(): Promise<boolean> {
     const xr = xrOf();
     if (!xr || session) return false;
     const init: Record<string, unknown> = { requiredFeatures: ["hit-test"], optionalFeatures: ["anchors", "local-floor"] };
     if (h.domOverlayRoot) { (init.optionalFeatures as string[]).push("dom-overlay"); init.domOverlay = { root: h.domOverlayRoot }; }
-    try { session = await xr.requestSession("immersive-ar", init); } catch { session = null; return false; }
+    try { session = await xr.requestSession("immersive-ar", init); } catch (e) { lastError = String((e as Error)?.message ?? e).slice(0, 160); session = null; return false; }
     h.renderer.xr.enabled = true;
     h.renderer.xr.setReferenceSpaceType("local");
     await h.renderer.xr.setSession(session);
@@ -103,5 +104,5 @@ export function createAR(h: ARHooks) {
     } else { reticle.visible = false; hitMatrix = null; lastHit = null; }
   }
 
-  return { enter, exit, update, get state() { return state; }, get placed() { return thing.visible; } };
+  return { enter, exit, update, get state() { return state; }, get placed() { return thing.visible; }, get lastError() { return lastError; } };
 }

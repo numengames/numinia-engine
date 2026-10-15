@@ -113,7 +113,9 @@ Wants=network-online.target
 User=$USER_NAME
 Group=$USER_NAME
 WorkingDirectory=$PREFIX/app
-Environment=PORT=$PORT HOST=127.0.0.1 STATS_MS=30000 NODE_ENV=production
+Environment=PORT=$PORT HOST=127.0.0.1 STATS_MS=30000 NODE_ENV=production SESIONES_DIR=/var/lib/numinia-motor/sesiones
+# T1: how each player entered (device, browser, XR, frames), one JSONL per UTC day, 14 days, no IP
+StateDirectory=numinia-motor
 EnvironmentFile=$PREFIX/secreto.env
 ExecStart=$PREFIX/node/bin/node packages/server/src/main.ts
 Restart=always

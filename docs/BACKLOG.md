@@ -29,7 +29,8 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | P1 | Ficha técnica: características y límites del motor (humana + `limits.json`) | hecho | sí |
 | J0 | Catálogo de todo lo que espera un jugador (la receta para añadir funciones es de J7) | hecho | sí |
 | J7 | Módulos de juego: añadir una función sin tocar el núcleo, con un ejemplo real (gestos) | hecho | no |
-| I1 | Identidad de invitado y vincular el móvil con el ordenador o el visor | para Opus | no |
+| T1 | Cómo entra cada jugador: el aparato, el navegador, la gráfica, la XR, los cuadros, el ping y la batería de cada sesión, guardados en el servidor (Pablo, 15-10) | hecho | sí |
+| I1 | Identidad de invitado (sin vincular aparatos: Pablo, 15-10, «de momento no») | para Opus | no |
 | S4 | Persistencia mínima del mundo (puntos de enlace, inventario, cosas plantadas) | para Opus | no |
 | V1 | Ficha `accesible` en el esquema (nombre, función, estado, descripción, importancia, sonido, acciones) + reglas en J7: nombre hablado, sonido↔texto, verbo sin gesto; puerta en los tests | para Opus | no |
 | J9 | Estado y objetos de las funciones por cercanía (mundos grandes): a cada uno, solo lo que tiene cerca | para Opus | no |
@@ -64,7 +65,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | A2 | Banco de multitud con la GPU real (si Chromium la usa sin pantalla) | pendiente | sí |
 | A3 | Normales horneadas en la animación de textura (luz correcta al girar) | pendiente | sí |
 | A4 | Robots en la plaza: cercanos completos, lejanos horneados | pendiente | sí |
-| B3 | Telemetría en el visor: p99 de cuadro y cuadros perdidos | pendiente | sí |
+| B3 | Telemetría en el visor: p99 de cuadro y cuadros perdidos | hecho (dentro de T1; sin probar en un visor real → X1) | sí |
 | D2 | Puerta de tamaño del cliente (≤ 300 kB comprimido) | pendiente | sí |
 | D3 | Fuzz de todos los decodificadores de red | pendiente | sí |
 | D4 | Los mensajes del núcleo (entrada, snapshot, bienvenida) salen del esquema, como ya los de las funciones (J7) | para Opus | no |
@@ -97,6 +98,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | X3 | Montarlo en un servidor pequeño real y medir sus límites (con Pablo, 15-10) | pendiente | no |
 | X4 | Nombre del motor (Pablo y Christian, 15-10) | pendiente | no |
 | X5 | Medir temperatura y batería en un Android real (`adb`) | pendiente | no |
+| I2 | Vincular el móvil con el ordenador o el visor (el ordenador enseña un QR, el móvil lo escanea) | necesita aprobación (Pablo, 15-10: de momento no) | no |
 | V2 | Con Pablo, 15 min con las gafas: ¿funcionan `speechSynthesis`, el reconocimiento de voz, «menos movimiento» y la vibración dentro de una sesión inmersiva (Quest 3, Pico 4) y en iPhone? | pendiente | no |
 | W1 | La plaza de entrada: primer mundo, al presupuesto de la Quest, con un portal a un mundo Hyperfy | necesita aprobación (Pablo: qué mundo lo estrena) | no |
 | O5 | ADR y SYS del motor en la Summa (numinia.org) | necesita aprobación (Pablo) | no |
@@ -297,6 +299,11 @@ portales); en VR, panel en la muñeca. El formato y los paneles son del motor; l
 de la ciudad. **Hecho cuando:** una misión de ejemplo de tres pasos se completa en un e2e y el mapa
 marca su objetivo.
 
+### X5 — Móvil real en modo depuración
+Pablo conectará en algún momento un móvil viejo por USB en modo depuración: entonces `adb` (temperatura y
+batería, `docs/MOVIL-FRIO.md`) y la depuración remota de Chrome (`adb forward` + CDP) para medir de verdad.
+Hasta entonces se aprende de las sesiones reales (T1).
+
 ### A2, A3, A4, B3, D2, D3, D4
 Ver su línea en la cola. B2: el emulador IWER (Meta, MIT) se inyecta en Playwright para simular una
 Quest 3; comprobar licencia y versión antes de instalar.
@@ -312,7 +319,30 @@ zonas (≥ 30 m), nunca para colocar; la posición se manda solo al reclamar un 
 cámara no sale del aparato; AR y cámara a ráfagas (≤ 90 s); todo lo que usa cámara, GPS o WebXR exige
 HTTPS (B1); cada mecánica tiene versión plana para iPhone y ordenador.
 
-### I1 — Identidad de invitado y vincular aparatos (para Opus)
+### T1 — Cómo entra cada jugador (hecho, 15-10)
+**Por qué (Pablo, 15-10):** «cuando monte la máquina y me meta con el móvil, captura la información de la
+sesión: ahí es donde aprenderás más; igual con las gafas; distingue cómo entra cada jugador en el mundo».
+**Hecho:** la página manda al servidor un mensaje nuevo REPORT (tipo 9, JSON ≤ 1.000 bytes, aditivo):
+`entrada` una vez tras el primer cuadro (clase visor/móvil/tableta/escritorio, modelo si el navegador lo dice,
+sistema, navegador, UA, backend y GPU, núcleos, memoria, pantalla, XR posible, red, batería, preferencias del
+sistema, tiempos hasta la bienvenida y el primer cuadro, huella igual), `pulso` cada 10 s (modo plano/VR/AR,
+cuadro p50/p99/peor, cuadros perdidos frente al objetivo del momento, Hz de la XR, coste por cuadro, escala de
+resolución, modo batería, ping, correcciones, visibles, pestaña oculta, batería, errores, memoria), `xr` al
+entrar, salir o fallar (con el motivo) y `error` (los 5 primeros). `packages/server/src/sesiones.ts` solo
+guarda las claves que conoce, en `SESIONES_DIR/sesiones-<día UTC>.jsonl` (una línea por informe, 14 días, sin
+IP ni identidad; una conexión que nunca informa —robots— no escribe nada), y al cerrar escribe `sale` con la
+duración. `GET /sesiones` (como `/metrics`, nunca publicado por Caddy) da quién está dentro y su último pulso;
+`npm run sesiones` lo cuenta para personas (un bloque por sesión + resumen por aparato y navegador). El
+instalador crea `/var/lib/numinia-motor/sesiones` (`StateDirectory`). Nombrar el aparato por el UA vale aquí
+porque es solo un informe: el comportamiento sigue decidiéndose por capacidad.
+**Medido:** 8 pruebas nuevas; e2e chromium, firefox y https comprueban que las dos pestañas mandan `entrada` y
+`pulso` con su backend; el emulador IWER aparece como «visor · Quest Browser 33.0».
+**Falta:** datos de aparatos reales (lo dará el X3: Pablo entra con su móvil y las gafas). Más adelante, Pablo
+conectará un móvil viejo en modo depuración (X5) para pruebas serias con `adb`.
+
+### I1 — Identidad de invitado (para Opus)
+**Pablo (15-10): vincular el móvil con el ordenador «de momento no»** → esa parte pasa a I2 (aparcada); I1 es
+solo la identidad de invitado guardada en el aparato.
 Hoy el motor no sabe quién es nadie. La Semilla y la Célula necesitan una identidad de invitado (sin
 cuenta) guardada en el aparato y **vincular** el móvil con el ordenador o el visor (el ordenador enseña un
 QR, el móvil lo escanea) para que lo que haga el móvil cuente para la misma persona. Tokens firmados con
@@ -359,7 +389,8 @@ redactar la pregunta desde la ficha `.md` del sitio, nunca decidir si se acierta
 el inventario de la persona (I1); en el mundo digital se planta, crece con el tiempo real y los demás la
 ven (S4). Base: Semillas del Conocimiento del manual (`lore/game/manual/es/06-inventario-y-bestiario.md`).
 **Hecho cuando:** e2e: responder bien en una pestaña-móvil hace aparecer la semilla en la pestaña-ordenador
-vinculada; después de reiniciar el servidor sigue plantada.
+vinculada (sin I2, que está aparcada: en la misma pestaña o desde otra con la misma identidad); después de
+reiniciar el servidor sigue plantada.
 
 ### R3 — Célula del Prisma + herramienta del DJ
 Página para directores de juego: soltar un punto en el mapa (zona de 30–50 m), elegir la prueba final (QR

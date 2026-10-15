@@ -46,6 +46,18 @@ curl -s localhost:8790/metrics        # JSON: conectados, tick p50/p99/peor (úl
 servidor. Para leerlo desde casa (8790 ya lo usa la plaza de tu PC): `ssh -L 18790:127.0.0.1:8790 root@IP`
 y abrir `http://localhost:18790/metrics`; el enjambre lo lee con `--metrics http://localhost:18790/metrics`.
 
+## Ver cómo entra cada jugador (T1)
+
+Cada sesión de un navegador se guarda en `/var/lib/numinia-motor/sesiones/sesiones-<día UTC>.jsonl` (14 días,
+sin IP). Desde el servidor:
+
+```
+curl -s localhost:8790/sesiones                     # quién está dentro ahora y su último pulso (JSON)
+cd /opt/numinia-engine/app && SESIONES_DIR=/var/lib/numinia-motor/sesiones ../node/bin/node packages/server/src/sesiones-ver.ts
+```
+
+Desde casa, por el túnel (`ssh -L 18790:localhost:8790 …`): `npm run sesiones -- --url http://localhost:18790`.
+
 ## Medir los límites
 
 Todo está explicado en [`docs/MEDIDAS.md`](../docs/MEDIDAS.md). Lo mínimo:

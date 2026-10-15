@@ -10,6 +10,7 @@ export type { VRState } from "./vr.ts";
 import { createPower, readCaps, checkCost } from "./power.ts";
 export { createPower, readCaps, checkCost } from "./power.ts";
 export type { FrameCost } from "./power.ts";
+export { leerAparato, leerBateria, medidorDeCuadros } from "./sesion.ts";
 
 export type Backend = "WebGPU" | "WebGL2";
 export type Placed = { id: number; x: number; z: number };
@@ -113,6 +114,26 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     backend,
     power,
     renderer,
+    /** T1: the graphics chip as the browser names it ("" when it hides it). */
+    async gpu(): Promise<string> {
+      try {
+        const b = renderer.backend as unknown as { device?: { adapterInfo?: Record<string, string> }; gl?: WebGL2RenderingContext };
+        if (backend === "WebGPU") {
+          const nav = navigator as Navigator & { gpu?: { requestAdapter(): Promise<{ info?: Record<string, string> } | null> } };
+          const info = b.device?.adapterInfo ?? (await nav.gpu?.requestAdapter())?.info;
+          return info ? [info.vendor, info.architecture, info.description].filter(Boolean).join(" ").slice(0, 120) : "";
+        }
+        const gl = b.gl;
+        if (!gl) return "";
+        const ext = gl.getExtension("WEBGL_debug_renderer_info");
+        return String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? "").slice(0, 120);
+      } catch { return ""; }
+    },
+    /** T1: refresh rate of the XR session (Hz); 0 outside XR or when the browser does not say. */
+    xrHz(): number {
+      const s = renderer.xr.getSession() as unknown as { frameRate?: number } | null;
+      return renderer.xr.isPresenting && s?.frameRate ? s.frameRate : 0;
+    },
     ar,
     arSupported,
     vr,

@@ -123,3 +123,11 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Consumo: semana 47 % (Opus).
 - Commit: ver `git log` (saber).
 - Siguiente: turnos, R1 (resto). Sesión con Opus: I1 → S4 → V1 → J9. X3 cuando Pablo tenga la máquina.
+
+## 2026-10-15 10:46 · T1 · hecho (sesión de Pablo con Opus)
+- Qué: Pablo: «cuando monte la máquina y me meta con el móvil, captura la información de la sesión; igual con las gafas; distingue cómo entra cada jugador». La página manda al servidor un mensaje nuevo REPORT (tipo 9, aditivo, JSON ≤ 1.000 bytes): `entrada` (clase de aparato, modelo, sistema, navegador, UA, backend y GPU, núcleos, memoria, pantalla, XR posible, red, batería, preferencias, tiempos hasta jugar, huella igual), `pulso` cada 10 s (modo, cuadro p50/p99/peor, cuadros perdidos, Hz de la XR, coste, escala, ping, correcciones, batería, errores, memoria), `xr` (entra, sale o falla con el motivo) y `error`. `packages/server/src/sesiones.ts` guarda solo lo que conoce, una línea por informe en `SESIONES_DIR/sesiones-<día UTC>.jsonl` (14 días, sin IP ni identidad; los robots no escriben nada), y `sale` al cerrar (también al parar el servidor con SIGTERM). `GET /sesiones` en vivo (no publicado); `npm run sesiones` para personas. El instalador crea `/var/lib/numinia-motor/sesiones`. Cola: I1 queda en identidad de invitado; vincular móvil y ordenador pasa a I2 (aparcada, Pablo: «de momento no»); B3 hecho dentro de T1; X5 apunta el móvil viejo en modo depuración.
+- Números: 59 pruebas (8 nuevas en `test/sesiones.test.ts`); puertas en verde (tick p99 7,8 ms; 25,0 kbit/s; huella sin cambios); e2e chromium, firefox, AR, VR y https verdes, y en chromium, firefox y https las dos pestañas mandan `entrada` y `pulso` con su backend. Lo que se vio: Chrome sin pantalla con GL por software dibuja a ~20 fps (pierde 59–87 % frente a 60), Firefox 0,4 %; el emulador IWER aparece como «visor · Quest Browser 33.0».
+- Trampa: en este contenedor, `mkdir` dentro de `/proc` se queda colgado para siempre: las pruebas de «carpeta sin permiso» usan una carpeta bajo un fichero (ENOTDIR).
+- Consumo: semana 47 % (Opus).
+- Commit: ver `git log` (T1).
+- Siguiente: instalador nuevo para el X3 (con T1 dentro); sesión con Opus: S4 → V1 → I1 → J9.

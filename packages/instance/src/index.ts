@@ -5,7 +5,7 @@ import { createSim, spawnAvatar, step, stateHash } from "../../sim/src/index.ts"
 import type { SimState } from "../../sim/src/index.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
-  encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair,
+  encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
 } from "../../net/src/index.ts";
 import type { Transport, Viewer, Welcome } from "../../net/src/index.ts";
 import { ServerRuntime } from "../../feature/src/index.ts";
@@ -17,6 +17,7 @@ export type InstanceOptions = {
   features?: readonly ServerPart[]; // game features (J7); none = the wire is exactly the pre-J7 one
   log?: (line: string) => void;
   sign?: (text: string) => string; // HMAC with the server's secret, for features (api.sign)
+  onReport?: (entity: number, report: Record<string, unknown>) => void; // T1: how a player entered (server/sesiones.ts)
 };
 
 /** Inputs wait in a queue; the server applies exactly ONE per tick (none = stand still). */
@@ -59,6 +60,9 @@ export class Instance {
         t.send(encodePong(decodeTime(bytes)), true);
       } else if (bytes[0] === MSG.FEATURE && this.features.active) {
         if (!this.features.receive(entity, bytes)) conn.bad++;
+      } else if (bytes[0] === MSG.REPORT) {
+        const r = decodeReport(bytes);
+        if (!r) conn.bad++; else this.opts.onReport?.(entity, r); // no listener (tests, bots): ignored
       } else conn.bad++; // unknown or malformed: counted, never thrown
     });
     this.conns.push(conn);

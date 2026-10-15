@@ -43,6 +43,8 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 | Calidad de cuadro: nunca perder cuadros a la tasa nativa del visor (72 Hz garantizados en Quest 3 / Pico 4 → 13,9 ms, diseñar para ≤ 10 ms; 90 Hz objetivo); escritorio a la tasa del monitor; móvil 60 objetivo, 30 suelo declarado | Se mide p99 del cuadro y cuadros perdidos, no «fps medios» | `EL-MOTOR.md` §2.2 |
 | Los tres principios de Pablo (14-10): nativo para IA, móviles fríos, límites publicados | Mandan sobre cualquier tarea | `AGENTS.md` |
 | Servidor de pruebas: empezar por la máquina más pequeña (OVH VPS-1, Gravelines, Ubuntu 24.04) y subir | Pablo, 15-10 | `SERVIDOR-X3-paso-a-paso.md` |
+| **Cada sesión cuenta cómo entró el jugador** (aparato, navegador, gráfica, XR, cuadros, ping, batería), sin IP ni identidad, 14 días | Pablo, 15-10: «ahí es donde aprenderás más»; se aprende de los aparatos reales antes que de los emuladores | T1, `docs/MEDIDAS.md` |
+| Vincular el móvil con el ordenador o el visor: **de momento no** | Pablo, 15-10 | I2 (aparcada) |
 
 ## 2. Lo medido (número, dónde y cuándo)
 
@@ -166,7 +168,8 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 - Cuántos avatares animados aguanta una Quest 3 a 72 Hz (A1 + X1), y cuánto cuestan la lupa y el contraste allí (V11).
 - Si `speechSynthesis`, el reconocimiento de voz y «menos movimiento» funcionan dentro de una sesión inmersiva en Quest, Pico e iPhone (V2).
 - Safari de verdad (X2): la huella en JavaScriptCore.
-- Temperatura y batería en un Android real (X5).
+- Temperatura y batería en un Android real (X5; Pablo conectará un móvil viejo en modo depuración).
+- Todo lo que dicen los aparatos de verdad: llega con las sesiones reales (T1) desde el X3.
 - WebTransport: no hay servidor de producción en JavaScript (M9 lo investiga).
 
 ## 7. Cómo seguir aprendiendo

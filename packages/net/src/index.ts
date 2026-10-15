@@ -6,7 +6,8 @@ import { fieldBits, textLenBits } from "../../schema/src/index.ts";
 import type { Field } from "../../schema/src/index.ts";
 
 // 6-8 (J7, additive): only a server that runs game features sends them; with no features the wire is unchanged.
-export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8 } as const;
+// 9 (T1, additive): REPORT, page -> server: how this player entered and how it is going (JSON, see server/sesiones.ts).
+export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8, REPORT: 9 } as const;
 
 // ---------- bit packing ----------
 export class BitWriter {
@@ -260,6 +261,21 @@ export function loopbackPair(): [Transport & { flush(): void }, Transport & { fl
 }
 
 /** Client side over the standard WebSocket API (browsers and Node >= 22 both have it). */
+// ---------- REPORT (T1): one JSON object, at most REPORT_MAX bytes; the server keeps only the keys it knows ----------
+export const REPORT_MAX = 1000; // the server's WebSocket refuses frames over 1024 bytes
+/** null when the object does not fit: drop the longest texts and try again. */
+export function encodeReport(report: Record<string, unknown>): Uint8Array | null {
+  const json = utf8enc.encode(JSON.stringify(report));
+  if (json.length + 1 > REPORT_MAX) return null;
+  const out = new Uint8Array(json.length + 1); out[0] = MSG.REPORT; out.set(json, 1); return out;
+}
+/** null for anything that is not a JSON object (never throws). */
+export function decodeReport(bytes: Uint8Array): Record<string, unknown> | null {
+  if (bytes[0] !== MSG.REPORT || bytes.length > REPORT_MAX) return null;
+  try { const o = JSON.parse(utf8dec.decode(bytes.subarray(1))); return o && typeof o === "object" && !Array.isArray(o) ? o : null; }
+  catch { return null; }
+}
+
 export function webSocketClient(url: string): Transport & { opened: Promise<void>; closed: Promise<void>; close(): void } {
   const ws = new WebSocket(url);
   ws.binaryType = "arraybuffer";

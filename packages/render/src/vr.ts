@@ -87,10 +87,11 @@ export function createVR(h: VRHooks) {
   const dir = new THREE.Vector3();
   const set = (s: VRState) => { if (s !== state) { state = s; h.onChange?.(s); } };
 
+  let lastError = ""; // why the last enter() failed (T1 report)
   async function enter(): Promise<boolean> {
     const xr = xrOf();
     if (!xr || session) return false;
-    try { session = await xr.requestSession("immersive-vr", { optionalFeatures: ["local-floor", "hand-tracking"] }); } catch { session = null; return false; }
+    try { session = await xr.requestSession("immersive-vr", { optionalFeatures: ["local-floor", "hand-tracking"] }); } catch (e) { lastError = String((e as Error)?.message ?? e).slice(0, 160); session = null; return false; }
     h.renderer.xr.enabled = true;
     h.renderer.xr.setReferenceSpaceType("local-floor");
     await h.renderer.xr.setSession(session);
@@ -142,6 +143,7 @@ export function createVR(h: VRHooks) {
   return {
     enter, exit, update, setPanel,
     get state() { return state; },
+    get lastError() { return lastError; },
     get active() { return state === "on"; },
     /** Movement intention in the world frame, each -1..1. */
     axes(): [number, number] { return [moveX, moveZ]; },

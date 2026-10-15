@@ -46,6 +46,18 @@ Pasa si: **tick p99 ≤ 25 ms**, **respuesta p99 ≤ 50 ms**, 0 fallos, 0 caída
 **steal ≤ 2 %** y los robots no están saturados (bucle de los robots p99 ≤ 20 ms y CPU ≤ 85 % por proceso). Si la medida no es fiable el veredicto es **NO FIABLE**, no «no pasa»: se repite con otra máquina de robots.
 Los umbrales son de la casa; los que tengan fuente externa la citan en el estudio. Para el RTT y los huecos no hay umbral todavía: primero se mide.
 
+## Sesiones reales: cómo entra cada jugador (T1)
+
+Cada página cuenta al servidor con qué entró (aparato, navegador, gráfica, XR, tiempos hasta jugar) y, cada
+10 s, cómo le va (cuadro p50/p99, cuadros perdidos, Hz de la XR, ping, batería, errores). Se guarda una
+línea por informe en `SESIONES_DIR/sesiones-<día UTC>.jsonl` (en casa, `informes/sesiones/`; en el servidor,
+`/var/lib/numinia-motor/sesiones/`), 14 días, sin IP ni identidad.
+- `npm run sesiones` — un bloque por sesión y un resumen por aparato y navegador (`-- --dias 7`, o un fichero).
+- `npm run sesiones -- --url http://localhost:18790` — quién está dentro ahora (por el túnel, como `/metrics`).
+- `curl -s localhost:8790/sesiones` — lo mismo en JSON.
+Un número de aparato real vale más que uno emulado: cuando una sesión real contradiga `limits.json`, se
+corrige allí (y en `docs/SABER.md` §2) con la fecha y el aparato.
+
 ## Otras formas de leer el servidor
 
 `GET /metrics.prom` da los mismos números en el formato de texto de Prometheus (nombres con unidades base y `_total` en los contadores, como pide su guía de nombres), para Grafana o cualquier recolector. Sigue sin ser público: Caddy solo expone `/ws` y `/health`.

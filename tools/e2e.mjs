@@ -6,7 +6,11 @@ import { existsSync, readFileSync } from "node:fs";
 
 const PW = process.env.PW_CORE ?? "/var/home/uruk/arkhitektonian-lab/.hermes/profiles/ursa/work/archive-world-agent/web/node_modules/playwright-core";
 const CHROME = process.env.CHROME ?? "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell";
-const BASE = process.env.BASE ?? "http://127.0.0.1:5173/?webgl2";
+const BASE0 = process.env.BASE ?? "http://127.0.0.1:5173/?webgl2";
+const BASE = BASE0 + (BASE0.includes("?") ? "&" : "?") + "pulso=2000"; // T1: a session pulse every 2 s instead of 10
+// the server's HTTP side, for GET /sesiones (T1): SERVER_HTTP, or the ?server= ws URL when it has no path
+const serverParam = new URL(BASE0).searchParams.get("server");
+const SERVER_HTTP = process.env.SERVER_HTTP ?? (!serverParam ? "http://127.0.0.1:8790" : ["", "/"].includes(new URL(serverParam).pathname) ? `http://${new URL(serverParam).host}` : null);
 if (!existsSync(PW) || !existsSync(CHROME)) { console.error("playwright-core or chromium not found; set PW_CORE / CHROME"); process.exit(2); }
 // cron/Hermes shells point HOME at the profile home, where Playwright would look for its browsers in vain
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright";
@@ -76,6 +80,17 @@ const gesture = {
 };
 const near = gesture.distanceAB !== null && gesture.distanceAB <= 28, far = gesture.distanceAB === null || gesture.distanceAB >= 32;
 const gestureOk = gesture.catalog.includes("gestos") && gesture.selfHeard === 1 && gesture.selfLabel && (!near || (gesture.bHeard === 1 && gesture.bLabel)) && (!far || gesture.bHeard === 0);
+// T1 leg: both tabs told the server how they entered (entrada) and how it goes (pulso), with the right backend
+const sesiones = { comprobado: !!SERVER_HTTP, ok: false, conEntrada: 0, conPulso: 0, clases: [], navegadores: [] };
+if (SERVER_HTTP) {
+  for (const t0 = Date.now(); Date.now() - t0 < 8000 && !sesiones.ok; ) {
+    const r = await (await fetch(`${SERVER_HTTP}/sesiones`)).json().catch(() => ({ ahora: [] }));
+    const mine = (r.ahora ?? []).filter((s) => s.entrada);
+    Object.assign(sesiones, { conEntrada: mine.length, conPulso: mine.filter((s) => s.pulso?.cuadros > 0).length, clases: mine.map((s) => s.entrada.clase), navegadores: mine.map((s) => s.entrada.navegador) });
+    sesiones.ok = mine.length >= 2 && sesiones.conPulso >= 2 && mine.every((s) => s.entrada.backend === A2.backend && s.entrada.clase === "escritorio" && s.entrada.navegador);
+    if (!sesiones.ok) await a.waitForTimeout(500);
+  }
+}
 if (process.env.SHOTS === "1") { await a.screenshot({ path: "e2e-a.png" }); await b.screenshot({ path: "e2e-b.png" }); }
 await browser.close();
 
@@ -94,12 +109,12 @@ const result = {
   probe: { browser: A2.probe.browser.toString(16), server: A2.probe.server.toString(16), equal: A2.probe.browser === A2.probe.server, ms: A2.probe.ms },
   tabBSeesTabA: { entity: A.entity, movedZ: Math.round(dz * 100) / 100, expectedZ: -6 },
   costFrame: A2.cost, power: A2.power, costBreaches,
-  corrections: A2.stats.corrections, rttMs: A2.stats.rttMs, visibleFromB: B2.stats.visible, gesture, errors,
+  corrections: A2.stats.corrections, rttMs: A2.stats.rttMs, visibleFromB: B2.stats.visible, gesture, sesiones, errors,
 };
 // movement: 1.5 s at 4 m/s = 6 m. The https pass failed once at exactly -4.0 (J6 saw a one-off too); likely
 // cause: software GL drops frames under load and the 250 ms dt clamp in the page loses ticks. Past 3.5 m
 // proves the path; corrections === 0 is the real netcode check.
-const ok = result.probe.equal && dz < -3.5 && dz > -7.5 && result.corrections === 0 && costBreaches.length === 0 && gestureOk && errors.length === 0;
+const ok = result.probe.equal && dz < -3.5 && dz > -7.5 && result.corrections === 0 && costBreaches.length === 0 && gestureOk && (!sesiones.comprobado || sesiones.ok) && errors.length === 0;
 console.log(JSON.stringify(result, null, 1));
 console.log(ok ? "E2E OK" : "E2E FALLA");
 process.exit(ok ? 0 : 1);

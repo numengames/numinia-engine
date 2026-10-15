@@ -1,8 +1,8 @@
 # render
 
-The only package that talks to three.js: WebGPU/WebGL2 view, power policy (frame cap, dynamic resolution, battery), crowds (baked VAT), AR and VR sessions.
+The only package that talks to three.js: WebGPU/WebGL2 view, power policy (frame cap, dynamic resolution, battery), crowds (baked VAT), AR and VR sessions, what the page reports about the device (`sesion.ts`).
 
 - **Does not:** Simulation or networking; it imports nothing from other engine packages.
 - **Depends on:** three.js only (rule: `tools/layers.json`)
 - **Tested by:** `test/power.test.ts`; browser: `tools/auto.sh e2e`
-- **Main API:** `createView`, `createPower`, `readCaps`, `checkCost`, `createVatCrowd`, `createAR`, `createVR`
+- **Main API:** `createView`, `createPower`, `readCaps`, `checkCost`, `createVatCrowd`, `createAR`, `createVR`, `leerAparato`, `medidorDeCuadros` (T1 report; tested by `test/sesiones.test.ts`)

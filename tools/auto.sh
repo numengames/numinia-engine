@@ -62,7 +62,7 @@ case "${1:-status}" in
     node tools/dev-lan.mjs --cert-only > /dev/null
     PLAZA_PORT=5175 PLAZA_SERVER_PORT=8792 PLAZA_HTTPS_CERT=.cert/lan.crt PLAZA_HTTPS_KEY=.cert/lan.key setsid nohup nice -n 19 npx vite --config apps/plaza/vite.config.mjs > "$TMP/auto-e2e-vite-https.log" 2>&1 < /dev/null &
     for _ in $(seq 1 40); do [ -n "$(pid_on 5175)" ] && break; sleep 0.5; done
-    if HTTPS=1 BROWSER=chromium BASE="https://127.0.0.1:5175/?webgl2&server=wss://127.0.0.1:5175/ws" timeout 120 taskset -c 0-1 nice -n 19 node tools/e2e.mjs > "$TMP/auto-e2e-https.log" 2>&1
+    if HTTPS=1 SERVER_HTTP=http://127.0.0.1:8792 BROWSER=chromium BASE="https://127.0.0.1:5175/?webgl2&server=wss://127.0.0.1:5175/ws" timeout 120 taskset -c 0-1 nice -n 19 node tools/e2e.mjs > "$TMP/auto-e2e-https.log" 2>&1
     then echo "e2e https (wss por /ws del mismo origen) OK"; else echo "e2e https FALLA"; tail -15 "$TMP/auto-e2e-https.log"; rc=1; fi
     for p in 8792 5174 5175; do pid=$(pid_on $p); [ -n "$pid" ] && kill "$pid"; done
     exit $rc
