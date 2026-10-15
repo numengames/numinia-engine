@@ -78,3 +78,10 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Consumo: semana 43 % → 43 % (Sonnet).
 - Commit: ver `git log` (J6).
 - Siguiente: J6b (teletransporte con arco, manos, viñeta ajustable); si no, la siguiente fila.
+
+## 2026-10-15 06:33 · P2 · hecho (política y puerta; temperatura sin medir)
+- Qué: `packages/render/src/power.ts`, política pura decidida por capacidad (puntero táctil, memoria, saveData): móvil 30 fps y pixel ratio ≤ 1,25, `low-power`, sin antialias; 12 fps si nada se mueve; nada con la pestaña oculta; resolución dinámica (baja ×0,85 si el coste supera el 70 % del presupuesto 2 s, sube tras 6 s holgado); modo batería (`?bateria`, tecla B, saveData). Los pasos de simulación a 20 Hz no se saltan. Puerta de coste por cuadro en `tools/e2e.mjs` (llamadas de dibujo y triángulos contra el nivel D de `limits.json`). `docs/MOVIL-FRIO.md` con el protocolo de `adb`. Dos entradas nuevas por nivel en `limits.json` (`idle_fps`, `pixel_ratio_max`, estimadas).
+- Números: gates verdes (28 tests; p99 8 ms; 25 kbit/s). e2e chromium, firefox, AR, VR y https OK. Plaza de prueba: 6 llamadas de dibujo, 243 triángulos por cuadro (límite D: 80 / 150.000). Ojo: en three r186 el contador bueno es `info.render.drawCalls`, `calls` es acumulado. Temperatura y batería reales: sin medir (X1).
+- Consumo: semana 43 % → 43 % (Sonnet).
+- Commit: ver `git log` (P2).
+- Siguiente: A1 (página de multitud) o la siguiente fila pendiente.

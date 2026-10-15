@@ -7,7 +7,7 @@ import { createView } from "../../packages/render/src/index.ts";
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
-const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined });
+const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined });
 const url = serverUrl(location);
 const transport = webSocketClient(url);
 const session = new ClientSession(transport);
@@ -76,6 +76,8 @@ setInterval(() => { vrBtn.textContent = view.vr.active ? "Salir de VR" : "Entrar
 
 // ---- loop: fixed 20 Hz client ticks inside the display loop, drawing blends between ticks ----
 const TICK_MS = 1000 / TICK_HZ;
+let lastActive = 0, lastSig = "", cost: { calls: number; triangles: number; cpuMs?: number } = { calls: 0, triangles: 0 };
+const signature = () => { const s = session.entity >= 0 ? session.selfPosition(0) : null; let h = s ? s.x + s.z : 0; for (const r of session.remotePositions()) h += r.x * 3 + r.z; return h.toFixed(2); };
 let last = performance.now(), acc = 0, frames = 0, fps = 0, fpsT = last;
 setInterval(() => session.ping(), 1000);
 view.loop((now) => {
@@ -83,9 +85,18 @@ view.loop((now) => {
   acc += dt;
   while (acc >= TICK_MS) { const [mx, mz] = readAxes(); session.tick(mx, mz); acc -= TICK_MS; }
   if (session.welcome && !probe.done) runProbe();
-  view.sync(session.entity >= 0 ? session.selfPosition(acc / TICK_MS) : null, session.remotePositions(now));
-  view.draw(dt / 1000);
-  frames++;
+  // power policy (P2): skip the draw when hidden or when nothing changes; the 20 Hz ticks above never skip
+  const sig = lastSig; lastSig = signature();
+  if (sig !== lastSig || keys.size > 0 || touch || view.vr.active || view.ar.state !== "off") lastActive = now;
+  const active = now - lastActive < 600;
+  if (view.vr.active || view.ar.state !== "off" || view.power.shouldDraw(now, { hidden: document.hidden, active })) {
+    view.sync(session.entity >= 0 ? session.selfPosition(acc / TICK_MS) : null, session.remotePositions(now));
+    const t0 = performance.now();
+    view.draw(dt / 1000);
+    cost = view.lastFrame(); cost.cpuMs = Math.round((performance.now() - t0) * 100) / 100;
+    if (view.power.reportCost(cost.cpuMs, dt)) view.applyPixelRatio();
+    frames++;
+  }
   if (now - fpsT >= 500) { fps = Math.round((frames * 1000) / (now - fpsT)); frames = 0; fpsT = now; drawHud(); }
 });
 
@@ -95,7 +106,7 @@ function drawHud() {
     : probe.browser === probe.server ? `<b>${hex(probe.browser)} = ${hex(probe.server)} ✓</b> (${probe.ms} ms)`
     : `${hex(probe.browser)} ≠ ${hex(probe.server)} ✗`;
   hud.innerHTML =
-    `Render: <b>${view.backend}</b> · ${fps} fps\n` +
+    `Render: <b>${view.backend}</b> · ${fps} fps${view.power.battery ? " · modo batería" : ""}${view.power.scale < 1 ? ` · resolución ${Math.round(view.power.scale * 100)} %` : ""}\n` +
     `Tú: avatar ${session.entity} · conectados a la vista: ${s.visible + 1}\n` +
     `Ping: ${s.rttMs < 0 ? "—" : s.rttMs + " ms"} · correcciones de tu predicción: ${s.corrections}\n` +
     `Huella navegador = servidor: ${det}`;
@@ -103,4 +114,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost };
+
+// battery mode: press B (or open ?bateria)
+addEventListener("keydown", (e) => { if (e.code === "KeyB") { view.power.setBattery(!view.power.battery); view.applyPixelRatio(); } });

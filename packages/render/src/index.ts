@@ -7,15 +7,19 @@ export type { ARState } from "./ar.ts";
 import { createVR, vrSupported } from "./vr.ts";
 export { vrSupported } from "./vr.ts";
 export type { VRState } from "./vr.ts";
+import { createPower, readCaps, checkCost } from "./power.ts";
+export { createPower, readCaps, checkCost } from "./power.ts";
+export type { FrameCost } from "./power.ts";
 
 export type Backend = "WebGPU" | "WebGL2";
 export type Placed = { id: number; x: number; z: number };
 
-export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number } = {}) {
-  const renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL: !!opts.forceWebGL });
+export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number } = {}) {
+  const power = createPower(readCaps(), { battery: opts.battery, maxFps: opts.maxFps });
+  const renderer = new THREE.WebGPURenderer({ antialias: !power.mobile, forceWebGL: !!opts.forceWebGL, powerPreference: power.mobile ? "low-power" : "high-performance" });
   await renderer.init();
   const backend: Backend = (renderer as unknown as { backend: { isWebGPUBackend?: boolean } }).backend.isWebGPUBackend ? "WebGPU" : "WebGL2";
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setPixelRatio(power.pixelRatio());
   renderer.setSize(innerWidth, innerHeight);
   parent.appendChild(renderer.domElement);
 
@@ -72,6 +76,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
 
   return {
     backend,
+    power,
     renderer,
     ar,
     arSupported,
@@ -89,6 +94,13 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         m.position.set(o.x, 0.85, o.z);
       }
       for (const [id, m] of others) if (!seen.has(id)) { world.remove(m); others.delete(id); }
+    },
+    /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
+    applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); },
+    /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */
+    lastFrame(): { calls: number; triangles: number } {
+      const r = (renderer as unknown as { info: { render: { drawCalls: number; triangles: number } } }).info.render;
+      return { calls: r.drawCalls, triangles: r.triangles };
     },
     /** Follow camera, then draw. */
     draw(dtSeconds: number): void {
