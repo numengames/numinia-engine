@@ -136,6 +136,7 @@ export type ServerHost = {
   send(entity: number, bytes: Uint8Array): void;                // reliable, in order
   tick(): number;
   log(line: string): void;
+  sign?(text: string): string;                                  // HMAC of `text` with the server's secret; "" when there is none
 };
 export type Scope = "all" | { to: number } | { near: number | { x: number; z: number }; radius?: number };
 export type HttpRequest = { method: "GET" | "POST"; path: string; params: Record<string, string>; query: Record<string, string>; body: string };
@@ -158,6 +159,8 @@ export type ServerApi = {
   position(entity: number): { x: number; z: number } | null;
   tick(): number;
   log(line: string): void;
+  /** 24 hex characters: HMAC-SHA256 of `text` with the server's secret (env MOTOR_SECRET, 16+ characters). "" when the server has no secret: refuse whatever needed it. Use it to sign URLs/tokens; features cannot import node:crypto. */
+  sign(text: string): string;
 };
 export type ServerPart = { feature: Feature; side: "server"; setup: (api: ServerApi) => void };
 export const serverPart = (feature: Feature, setup: (api: ServerApi) => void): ServerPart => ({ feature, side: "server", setup });
@@ -267,6 +270,7 @@ export class ServerRuntime {
       players: () => this.host.players(),
       position: (e) => this.host.position(e),
       tick: () => this.host.tick(),
+      sign: (text) => this.host.sign?.(text) ?? "",
       log,
     };
   }
@@ -347,7 +351,12 @@ export class ServerRuntime {
 }
 
 // ---------- client side (no DOM: runs in Node tests and in the browser) ----------
-export type ViewHooks = { label(entity: number, text: string, ms: number): void; bounce(entity: number, ms: number): void };
+export type ViewHooks = {
+  label(entity: number, text: string, ms: number): void;
+  bounce(entity: number, ms: number): void;
+  /** A column of light with a text at a world point (metres) for `ms`. Optional: a view that cannot draw it just skips it. */
+  beacon?(x: number, z: number, text: string, ms: number): void;
+};
 export const NO_VIEW: ViewHooks = { label() {}, bounce() {} };
 export type Action = { feature: string; id: string; label: string; key?: string; describe?: string; run: () => void };
 export type ClientApi = {

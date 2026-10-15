@@ -17,6 +17,7 @@ const session = new ClientSession(transport, {
   view: {
     label: (e, text, ms) => view.label(e === session.entity ? "self" : e, text, ms),
     bounce: (e, ms) => view.bounce(e === session.entity ? "self" : e, ms),
+    beacon: (x, z, text, ms) => view.beacon(x, z, text, ms),
   },
 });
 transport.opened.catch(() => { hud.textContent = `No llego al servidor ${url}.\n¿Está arrancado (npm run server)?`; });

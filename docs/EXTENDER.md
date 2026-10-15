@@ -91,7 +91,9 @@ export default clientPart(gestos, (api) => {
 - El estado **se pierde al reiniciar** el servidor (S4).
 - Para dibujar hay `label` y `bounce`; se añaden primitivas en `render` cuando una función las pida.
 - Las rutas HTTP viven en el puerto de la instancia; en un servidor instalado, Caddy solo pasa `/ws` y
-  `/health`: la primera función con ruta pública (R1) añade la suya al instalador.
+  `/health`: R1 (`despertar`) ya añadió `/e/*` al instalador y al proxy LAN.
+- Para firmar algo (URL de QR, token) usa `api.sign(texto)`: HMAC con el secreto del servidor (`MOTOR_SECRET`); devuelve `""` si no hay secreto, y entonces hay que negarse. Una función no importa `node:crypto`.
+- Para dibujar en un punto del mundo hay `view.beacon?.(x, z, texto, ms)` (columna de luz).
 - Un agente usa el mismo camino que una persona: lee el catálogo y envía intentos (P4 hará el SDK).
 
 ## Comprobar

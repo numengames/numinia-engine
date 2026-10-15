@@ -2,6 +2,7 @@
 // Imported by apps/plaza/main.ts. A feature the server lacks just stays quiet. Recipe: docs/EXTENDER.md.
 import type { ClientPart } from "../packages/feature/src/index.ts";
 import gestos from "./gestos/client.ts";
+import despertar from "./despertar/client.ts";
 
-const funciones: ClientPart[] = [gestos];
+const funciones: ClientPart[] = [gestos, despertar];
 export default funciones;

@@ -1,0 +1,7 @@
+{
+  "schema": "numinia-engine/enlaces@1",
+  "puntos": [
+    { "id": "fuente", "nombre": "la fuente", "x": 0, "z": 12, "texto": "¡La fuente despierta!", "ms": 10000 },
+    { "id": "arbol", "nombre": "el árbol viejo", "x": -18, "z": -10, "texto": "El árbol despierta", "ms": 10000 }
+  ]
+}

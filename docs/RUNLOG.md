@@ -108,3 +108,10 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 - Consumo: semana 44 % → ver `hermes usage` (≈ 44 %); modelo Sonnet 5.5 en sesión interactiva.
 - Commit: ver `git log` de main (S5).
 - Siguiente: X3 con Pablo (OVH VPS-1 y siguientes), después rellenar `limits.json` con lo medido.
+
+## 2026-10-15 09:35 · R1 (trozo 1) · parcial
+- Qué: primer trozo de «Despertar». Un QR (una URL firmada `/e/<punto>.<firma>`) hace que todos los jugadores vean una columna de luz con un texto sobre el punto, unos 10 s. Vive en `features/despertar/`; el motor solo ganó dos cosas pequeñas: `api.sign` (firma con el secreto del servidor, `MOTOR_SECRET`) y `view.beacon` (opcional). Un código falso no hace nada, un segundo escaneo mientras dura el efecto tampoco. `npm run enlaces` imprime las URLs; el proxy de casa y Caddy dejan pasar `/e`; el instalador crea el secreto una sola vez.
+- Números: 51 pruebas en verde (4 nuevas en `test/despertar.test.ts`); puertas en verde (tick p99 8,0 ms, 25,0 kbit/s; huella sin cambios); e2e chromium, firefox, AR, VR y https verdes. Escaneo → efecto recibido en la página: 4 ms (WebSocket local; no medido con móvil real). La columna dibujada en el navegador NO se ha comprobado en e2e (solo el evento sin pantalla).
+- Consumo: semana 45 % → 45 % (Sonnet 5.5; `hermes usage` no se movió en el entero).
+- Commit: ver `git log` de auto (R1 trozo 1).
+- Siguiente: resto de R1 (QR en SVG, comprobar la columna en e2e, escuchar en la red de casa), luego R4.

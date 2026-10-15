@@ -16,6 +16,7 @@ export type InstanceOptions = {
   reference?: Welcome["ref"]; // determinism probe sent to every client on join
   features?: readonly ServerPart[]; // game features (J7); none = the wire is exactly the pre-J7 one
   log?: (line: string) => void;
+  sign?: (text: string) => string; // HMAC with the server's secret, for features (api.sign)
 };
 
 /** Inputs wait in a queue; the server applies exactly ONE per tick (none = stand still). */
@@ -42,6 +43,7 @@ export class Instance {
       send: (e, bytes) => this.byEntity[e]?.transport.send(bytes, true),
       tick: () => this.sim.tick,
       log: opts.log ?? (() => {}),
+      sign: opts.sign,
     });
   }
 

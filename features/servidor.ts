@@ -2,6 +2,7 @@
 // Imported by the composition roots (packages/server/src/main.ts, packages/cli/src/describe.ts). Recipe: docs/EXTENDER.md.
 import type { ServerPart } from "../packages/feature/src/index.ts";
 import gestos from "./gestos/server.ts";
+import despertar from "./despertar/server.ts";
 
-const funciones: ServerPart[] = [gestos];
+const funciones: ServerPart[] = [gestos, despertar];
 export default funciones;

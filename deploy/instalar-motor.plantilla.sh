@@ -99,6 +99,10 @@ rm -rf "$PREFIX/new" "$PREFIX/app.old" "$PREFIX/www.old"
 echo "$BUILD" > "$PREFIX/VERSION"
 
 # ---------- systemd service ----------
+# R1: the secret that signs the QR URLs. Made once, kept across reinstalls, readable by root only (systemd reads it).
+if [ ! -f "$PREFIX/secreto.env" ]; then
+  ( umask 077; echo "MOTOR_SECRET=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')" > "$PREFIX/secreto.env" )
+fi
 cat > "/etc/systemd/system/$SERVICE.service" << UNIT
 [Unit]
 Description=numinia-engine instance server ($BUILD)
@@ -110,6 +114,7 @@ User=$USER_NAME
 Group=$USER_NAME
 WorkingDirectory=$PREFIX/app
 Environment=PORT=$PORT HOST=127.0.0.1 STATS_MS=30000 NODE_ENV=production
+EnvironmentFile=$PREFIX/secreto.env
 ExecStart=$PREFIX/node/bin/node packages/server/src/main.ts
 Restart=always
 RestartSec=2
@@ -148,6 +153,10 @@ $SITE {
 	}
 	# /health is public (ok + version); /metrics stays on 127.0.0.1:$PORT (ssh -L to read it from home)
 	handle /health {
+		reverse_proxy 127.0.0.1:$PORT
+	}
+	# R1: the signed URLs a QR opens (never /metrics)
+	handle /e/* {
 		reverse_proxy 127.0.0.1:$PORT
 	}
 	handle {

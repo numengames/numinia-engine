@@ -82,7 +82,19 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     mat.map?.dispose(); mat.dispose();
     labels.delete(t);
   }
+  // beacons (R1): a column of light with a text at a world point; expires on its own
+  const beacons: { group: THREE.Group; until: number }[] = [];
+  const beaconGeo = new THREE.CylinderGeometry(0.6, 0.6, 40, 16, 1, true);
+  const beaconMat = new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  function dropBeacon(b: { group: THREE.Group }): void {
+    world.remove(b.group);
+    for (const ch of b.group.children) { const m = (ch as THREE.Mesh).material as THREE.MeshBasicMaterial; if (m !== beaconMat) { m.map?.dispose(); m.dispose(); } }
+  }
   function updateDecorations(now: number): void {
+    for (let i = beacons.length - 1; i >= 0; i--) {
+      const b = beacons[i];
+      if (now > b.until) { dropBeacon(b); beacons.splice(i, 1); } else b.group.children[1].quaternion.copy(camera.quaternion);
+    }
     for (const [t, d] of labels) {
       const m = meshOf(t);
       if (!m || now > d.until) { dropLabel(t); continue; }
@@ -139,10 +151,27 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** Make an avatar hop for `ms` milliseconds. */
     bounce(t: Target, ms: number): void { bounces.set(t, performance.now() + ms); },
+    /** A column of light with a text at a world point for `ms` milliseconds. */
+    beacon(x: number, z: number, text: string, ms: number): void {
+      const group = new THREE.Group();
+      const col = new THREE.Mesh(beaconGeo, beaconMat); col.position.y = 20;
+      const c = document.createElement("canvas"); c.width = 256; c.height = 64;
+      const g = c.getContext("2d")!;
+      g.fillStyle = "rgba(20,30,40,0.85)"; g.fillRect(0, 0, 256, 64);
+      g.fillStyle = "#ffd27a"; g.font = "bold 26px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText(text.slice(0, 22), 128, 34);
+      const tag = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
+      tag.position.y = 3; tag.renderOrder = 10;
+      group.add(col, tag); group.position.set(x, 0, z);
+      world.add(group);
+      beacons.push({ group, until: performance.now() + ms });
+    },
+    /** Beacons alive right now (for checks). */
+    beaconCount(): number { return beacons.length; },
     /** Who has a label right now (for checks). */
     labels(): Target[] { return [...labels.keys()]; },
     /** True while a label or a bounce is alive: the power policy must keep drawing. */
-    busy(): boolean { return labels.size > 0 || bounces.size > 0; },
+    busy(): boolean { return labels.size > 0 || bounces.size > 0 || beacons.length > 0; },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); },
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */
