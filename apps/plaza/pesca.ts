@@ -7,7 +7,6 @@
 // hand) is view.pesca (packages/render/src/pesca.ts). Everything asked goes through the controller
 // (features/pesca/client.ts): the server decides. No key fires while typing (escribiendo).
 import { escribiendo } from "./escribiendo.ts";
-import { leerAjuste } from "./menu-ajustes.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type Estado = { fase: "nada" | "espera" | "mordisqueo" | "picada" | "pelea"; sitio: string; desde: number; ventana: number; pez: string; tension: number; progreso: number; arrancada: "no" | "aviso" | "si"; recogiendo: boolean; aviso: string; ultimo: { pez: string; cm: number; rareza: string; total: number } | null; cesta: { peces: number; mejor: string; mejorCm: number } };
@@ -56,10 +55,10 @@ const CSS = `
 const TEXTO: Record<Estado["fase"], string> = { nada: "", espera: "Esperando… algo picará", mordisqueo: "Algo mordisquea el cebo", picada: "¡PICA! Recoge ahora", pelea: "Pelea: {pez}" };
 
 /** Two short notes (a catch) or one low one (an escape), made here with the Web Audio API; follows the effects volume. */
-function sonar(que: "exito" | "fallo", ctx: () => AudioContext | null): void {
+function sonar(que: "exito" | "fallo", ctx: () => AudioContext | null, ajuste: (id: string) => unknown): void {
   try {
     const c = ctx(); if (!c) return;
-    const vol = (Number(leerAjuste("general") ?? 80) / 100) * (Number(leerAjuste("efectos") ?? 80) / 100) * 0.25;
+    const vol = (Number(ajuste("general") ?? 80) / 100) * (Number(ajuste("efectos") ?? 80) / 100) * 0.25;
     if (vol <= 0) return;
     const notas: [number, number, number][] = que === "exito" ? [[523, 0, 0.12], [784, 0.12, 0.22]] : [[196, 0, 0.3]];
     for (const [f, t0, dur] of notas) {
@@ -71,7 +70,9 @@ function sonar(que: "exito" | "fallo", ctx: () => AudioContext | null): void {
   } catch { /* no audio here: the panel and the buzz still say it */ }
 }
 
-export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud: HTMLElement }) {
+/** `ajuste` reads a setting (main.ts passes leerAjuste: importing it here would split the settings menu out of the start bundle). */
+export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud: HTMLElement; ajuste?: (id: string) => unknown }) {
+  const ajuste = o.ajuste ?? (() => undefined);
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const tactil = matchMedia("(pointer: coarse)").matches;
   const hud = o.hud;
@@ -108,10 +109,10 @@ export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud
       if (e.fase === "nada" && fase !== "nada") { // the fight just ended: say clearly how
         if (e.ultimo && /^Has pescado/.test(e.aviso)) {
           mostrarResultado("pescado", "¡Pescado!", `🐟 ${e.ultimo.pez} · ${cmTexto(e.ultimo.cm)}`, `${RAREZA[e.ultimo.rareza] ?? e.ultimo.rareza} · En tu cesta: ${e.cesta.peces}`);
-          vibrar([60, 40, 60, 40, 220]); sonar("exito", contexto);
+          vibrar([60, 40, 60, 40, 220]); sonar("exito", contexto, ajuste);
         } else if (e.aviso && !/^Has recogido/.test(e.aviso)) {
           mostrarResultado("escapado", "Se ha escapado", e.aviso.replace(/\.$/, ""), "Vuelve a lanzar la caña");
-          vibrar(120); sonar("fallo", contexto);
+          vibrar(120); sonar("fallo", contexto, ajuste);
         }
       }
       fase = e.fase;

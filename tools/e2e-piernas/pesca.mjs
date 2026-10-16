@@ -1,7 +1,7 @@
 // e2e leg (pesca v2): fishing in a real browser. Tab A waits for the spot's card («lugar: Estanque de la plaza»), walks
 // onto the boardwalk the lazy 3D chunk built (view.pesca.sitio().pantalan), the prompt says «E: pescar», E casts: the HUD
 // appears, the chunk draws one angler; the server bites inside 3-12 s (phase «picada»); A holds F to hook and then plays
-// the one-button fight from the page (reel under 65 % tension, rest over 35 %) until it ends; a fish of the table lands
+// the one-button fight from the page (rest past 70 % tension, reel again under 45 %) until it ends; a fish of the table lands
 // in the basket (estado().ultimo, cesta.peces ≥ 1), «Has pescado» is announced, the HUD shows «¡Pescado!» with the fish,
 // its size and «En tu cesta: 1», and the fish is drawn in A's hand (contar().enMano) — in tab B too (another guest 10 m
 // away: it gets `fin` with the fish, never A's phases). Then the HUD hides. No page errors.
@@ -78,6 +78,7 @@ try {
   await esperar(a, () => /pescar/.test(document.getElementById("interactuar")?.textContent ?? "") && !document.getElementById("interactuar").hidden, null, 6000)
     .catch(async (e) => { out.sinPrompt = await ctl(a, () => { const p = globalThis.__numinia.session.selfPosition(1), b = document.getElementById("interactuar"); return { en: [p.x, p.z], boton: [b.hidden, b.textContent], alcance: globalThis.__numinia.session.features.reachable(p.x, p.z, p.y), sitios: globalThis.__numinia.pesca.sitios(), fase: globalThis.__numinia.pesca.estado().fase }; }); throw e; });
   out.prompt = await prompt(a);
+  const tLanzado = Date.now();
   await a.keyboard.press("KeyE");
   await esperar(a, () => globalThis.__numinia.pesca.estado().fase === "espera", null, 4000);
   nota("caña lanzada");
@@ -87,8 +88,7 @@ try {
   out.dibujo = await ctl(a, () => globalThis.__numinia.view.pesca.contar());
   out.flotadores = await ctl(a, () => globalThis.__numinia.pesca.flotadores().length);
   await a.waitForTimeout(1200); await foto(a, "agua", true); // the float has landed: the first ripple spreads
-  // 3. the bite comes inside the declared wait (3-12 s)
-  const tLanzado = Date.now();
+  // 3. the bite comes inside the declared wait (3-12 s), counted from the cast
   await esperar(a, () => ["picada", "pelea", "nada"].includes(globalThis.__numinia.pesca.estado().fase), null, 14000);
   out.esperaS = Math.round((Date.now() - tLanzado) / 100) / 10;
   const enPicada = await estado(a);
@@ -109,7 +109,9 @@ try {
       max = Math.max(max, e.tension);
       if (e.fase === "nada" || Date.now() - t > 60000) { clearInterval(id); res({ s: Math.round((Date.now() - t) / 100) / 10, maxTension: max, fase: e.fase }); return; }
       if (e.fase !== "pelea") return;
-      if (e.tension > 65 && recogiendo) { recogiendo = false; P.recoger(false); } else if (e.tension < 35 && !recogiendo) { recogiendo = true; P.recoger(true); }
+      // what a person does watching the bar: rest past 70 % (past 55 % if a surge is coming), reel again under 45 %
+      const alta = e.tension > 70 || (e.arrancada !== "no" && e.tension > 55);
+      if (alta && recogiendo) { recogiendo = false; P.recoger(false); } else if (!alta && e.tension < 45 && !recogiendo) { recogiendo = true; P.recoger(true); }
     }, 60);
   }));
   await a.waitForTimeout(700); await foto(a, "pelea");

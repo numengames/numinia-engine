@@ -380,12 +380,12 @@ español del verificador), 403 = pase bueno sin permiso, 404 `agentes-desactivad
 (cerrado, nunca abierto). CORS: solo `https://numinia.com` (responde al `OPTIONS` y pone `Access-Control-Allow-Origin`;
 a otro origen no le pone ninguna cabecera CORS; nunca `*`). El instalador deja pasar `/agentes*` por Caddy.
 
-## Pesca (v1): un minijuego que decide el servidor
+## Pesca (v2): un minijuego que decide el servidor
 
 `features/pesca` es el ejemplo de **minijuego con tiempo**: el servidor lleva el ciclo entero en `api.onTick` (20 Hz) y la
 página solo pide tres cosas (`lanzar { sitio }`, `recoger { activo }`, `soltar`) y anima lo que le cuentan.
 - **Sitio de pesca** = una cosa del mundo (`state` con `at`, ficha `lugar`, `interact: { intent: "lanzar", prompt: "pescar",
-  radius: "radio" }`): «E: pescar» al lado del agua. Por defecto uno («Estanque de la plaza», x 24, z −16, radio 4,
+  radius: "radio" }`): «E: pescar» al lado del agua. Por defecto uno («Estanque de la plaza», x 18, z −14, radio 4,
   `SITIOS_DEFECTO` en `server.ts`); un mundo trae los suyos en `MUNDO_DIR/pesca.json` (`{ "sitios": [{ id, nombre, x, y, z,
   radio }] }`, leído en `features/mundo.ts`). Un pescador por sitio (`ocupado`).
 - **Ciclo** (números en `feature.ts`, de bridge-mind/tideline, MIT): espera 3–12 s → quizá un `mordisqueo` al 45 % → `picada`
@@ -398,12 +398,29 @@ página solo pide tres cosas (`lanzar { sitio }`, `recoger { activo }`, `soltar`
   PRNG del motor (`rngNext`, estado propio de la función, semilla mezclada con el tick del lanzamiento: reproducible, nunca
   `Math.random`). Lo pescado se guarda por invitado en el almacén (`c:<id>`: cuántos y el mayor) y vuelve como `cesta`.
 - **Página**: `features/pesca/client.ts` da el controlador (`window.__numinia.pesca`: `estado()`, `sitios()`, `flotadores()`,
-  `lanzar`, `recoger(activo)`, `pulsar`, `soltar`, `alCambiar`); nada más va en el arranque. Con el primer sitio llegan,
-  perezosos, `apps/plaza/pesca.ts` (HUD: botón grande «Recoger» —mantener = recoger, soltar = descansar—, «Soltar», barras de
-  tensión y progreso, F / X en teclado, `navigator.vibrate` en picada, arrancada y captura) y `packages/render/src/pesca.ts`
-  (caña, sedal de 24 puntos con comba por tensión, flotador bicolor y un disco de agua por sitio; 3 draw calls por pescador).
+  `capturas()`, `lanzar`, `recoger(activo)`, `pulsar`, `soltar`, `alCambiar`); nada más va en el arranque. Con el primer sitio
+  llegan, perezosos, `apps/plaza/pesca.ts` (HUD: botón grande «Recoger» —mantener = recoger, soltar = descansar—, «Soltar»,
+  barras de tensión y progreso, F / X en teclado, `navigator.vibrate` en picada, arrancada y captura; al acabar, 4 s de panel
+  «¡Pescado!» —pez, cm, rareza, «En tu cesta: N», dos notas de Web Audio al volumen de efectos, vibración larga— o «Se ha
+  escapado» con el motivo) y `packages/render/src/pesca.ts` (3D, `view.pesca`).
+- **Sitio que se ve** (v2, `packages/render/src/pesca.ts`, 7 draw calls por sitio): estanque de radio `radio × 0,85` con
+  **agua de un solo draw call** (`MeshStandardNodeMaterial` en TSL: dos capas del mapa de normales procedural de
+  `agua-normales.ts` desplazándose, fresnel hacia el color del cielo, color de profundidad hacia el centro y dos anillos de
+  ondas —uniformes `vec4(x, z, t0, fuerza)`— al caer el flotador, al mordisqueo, a la picada, en cada arrancada y al saltar el
+  pez; sin render-target de reflexión: vale en móvil), orilla de tierra (lathe), 14 piedras y 3 matas de juncos (geometrías
+  fundidas, azar determinista), **pantalán de tablas** hacia el centro de la plaza (`trazaDeSitio`: dirección sitio → origen;
+  `view.pesca.sitio(id).pantalan` = dónde ponerse, dentro del radio) y cartel «Pesca» (lienzo). Caña, sedal y flotador como
+  en v1, pero la caña sale de la **mano derecha del avatar** (`avatares.mano`, hueso `rightHand` del VRM; cápsula = al lado)
+  y el cuerpo **mira al agua** mientras pesca (`avatares.orientar`, solo quieto).
+- **El pez sale y va a la mano** (v2): `fin` lleva `pez, cm, rareza` a quien está a 40 m; el cliente guarda la captura
+  (`capturas()`, `EN_MANO_MS` = 7 s, `olvidar`) y etiqueta al pescador «🐟 Carpa · 23,1 cm»; el 3D hace un pez low-poly
+  (`geometriaDePez`: cuerpo, vientre, cola, aleta dorsal, pectorales, ojos; colores por especie Carpa / Trucha / Lucio;
+  1 draw call; escala = cm / 100) que salta del flotador en arco hasta la mano (`SALTO_MS` 1,3 s) y cuelga de ella, cabeza
+  arriba, hasta que pasan los 7 s o el pescador anda más de `PASO_SUELTA_M` (0,6 m). Lo ven todos los cercanos.
 - **Pruebas**: `test/pesca.test.ts` (sin pantalla: la picada cae en el rango, fuera de ventana se escapa, la tensión sube y baja,
   un pescador sensato captura en 8–25 s, nadie captura sin picada, la simulación no se entera) y la pierna
-  `tools/e2e-piernas/pesca.mjs` (navegador real: E, HUD, chunk 3D, picada, pelea con F, captura, otro invitado no se entera).
-- **Después (v2)**: sedal verlet (river-morning `Rope.ts`, MIT), varios sitios y tablas por hora/clima, sombras de peces,
+  `tools/e2e-piernas/pesca.mjs` (navegador real: andar al pantalán, «E: pescar», HUD, chunk 3D, picada, pelea con F, captura,
+  panel «¡Pescado!», pez en la mano en A y en B —otro invitado a 10 m—, la mano se vacía sola; B nunca recibe las fases de A).
+- **Después (v3)**: pantalán sólido (que el avatar suba a las tablas: hoy son un suelo a ras), mochila/cesta visible,
+  sedal verlet (river-morning `Rope.ts`, MIT), varios sitios y tablas por hora/clima, sombras de peces,
   cebos y cañas, ficha de colección, paso de misión `pesca`, predicción local de la tensión, AR/VR.
