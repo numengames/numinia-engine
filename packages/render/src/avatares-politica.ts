@@ -24,6 +24,15 @@ export function sueloBajo(x: number, z: number, y: number, cajas: ArrayLike<numb
   }
   return g;
 }
+/** N1b: a stair step (up or down, at most this many metres) is drawn as a short climb instead of a 0.37 m pop in one
+ * 50 ms tick (the «step smoothing» of Source and Unreal's character mesh): the drawn height chases the simulated one
+ * with time constant TAU_ESCALON_S. Bigger changes (a fall, a teleport) and the air (`suelo` false) are followed exactly. */
+export const ESCALON_M = 0.45, TAU_ESCALON_S = 0.07;
+export function alturaDibujada(dibujada: number | undefined, objetivo: number, dt: number, suelo: boolean): number {
+  if (dibujada === undefined || !suelo || dt <= 0 || Math.abs(objetivo - dibujada) > ESCALON_M) return objetivo;
+  const d = objetivo - dibujada;
+  return Math.abs(d) < 1e-3 ? objetivo : dibujada + d * (1 - Math.exp(-dt / TAU_ESCALON_S));
+}
 /** Crossfade between clips (s). */
 export const FUNDIDO_S = 0.2;
 

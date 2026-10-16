@@ -102,7 +102,9 @@ export const STEP_UP = fx(0.4);
 export const SOLIDS_MAX = 512;
 /** N1b: walking off a ledge this low (a stair step going down) keeps you on the ground instead of falling (Rapier's
  * «snap-to-ground»): no «in the air» flicker on every step. A jump is never snapped. */
-export const SNAP_DOWN = fx(0.45); // boxes the simulation looks at (the nearest are not chosen: the first 512)
+export const SNAP_DOWN = fx(0.45);
+/** N1b: with solids, a tick's horizontal move is done in pieces of at most this (walking: one, running: two). */
+export const SUB_STEP = fx(0.2) + 1; // boxes the simulation looks at (the nearest are not chosen: the first 512)
 /** Does a body standing at (x, y, z) overlap a box it cannot step onto? */
 function blockedBoxes(s: SimState, x: number, y: number, z: number): boolean {
   const b = s.solids;
@@ -302,17 +304,12 @@ export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_OR
     const len = fxSqrt(fxMul(mx, mx) + fxMul(mz, mz));
     if (len > FX_ONE) { mx = fxDiv(mx, len); mz = fxDiv(mz, len); } // no faster diagonals
     const st = buttons & BTN_RUN ? RUN_STEP : STEP;
-    // N1b: standing on something before this step (only with geometry — solids or a mesh: the flat plaza never needs
-    // it, so the reference fingerprint stands)
+    // N1b: standing on something before this step (only with geometry — solids or a mesh: the flat plaza never needs it, so the reference
+    // fingerprint stands)
     const geo = hasGeometry(s);
     const onGround = geo && VY[e] === 0 && Y[e] === groundHeight(X[e], Z[e], s, Y[e]);
     // H2 historia 3: EMPUJAR's impulse adds to the stick's move and decays by 1/8 every tick it is applied
     // (an exact integer shift: ~0.4 s to all but stop); it slides along the same walls the stick does.
-    const nx = fxClamp(X[e] + fxMul(mx, st) + IX[e], -BOUND, BOUND), nz = fxClamp(Z[e] + fxMul(mz, st) + IZ[e], -BOUND, BOUND);
-    if (!geo || !blocked(s, nx, Y[e], nz)) { X[e] = nx; Z[e] = nz; }
-    else if (!blocked(s, nx, Y[e], Z[e])) X[e] = nx;   // U10/M6 h6: slide along a wall or a too-steep triangle
-    else if (!blocked(s, X[e], Y[e], nz)) Z[e] = nz;
-    IX[e] -= IX[e] >> 3; IZ[e] -= IZ[e] >> 3;
     // vertical: H2 historia 4 — flying has no gravity; SALTAR climbs, BAJAR (additive button) descends, both at
     // walk/run speed, Hyperfy-style. Otherwise J2 as before: jump from the ground, or the one jump in the air,
     // then gravity, then the ground stops the fall (frozen: gravity still runs, so someone caught in the air falls).
@@ -324,6 +321,25 @@ export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_OR
       Y[e] = fxClamp(y, -Y_BOUND, Y_BOUND); VY[e] = 0; AIR[e] = 0; BUF[e] = 0;
       continue;
     }
+    if (!geo) { // the flat plaza: one move, exactly as the reference fingerprint was recorded (push included, as before N1b)
+      X[e] = fxClamp(X[e] + fxMul(mx, st) + IX[e], -BOUND, BOUND); Z[e] = fxClamp(Z[e] + fxMul(mz, st) + IZ[e], -BOUND, BOUND);
+    } else {
+      // N1b: with solids the move (stick + H2's decaying push impulse) is split into pieces of at most SUB_STEP and,
+      // standing, you climb each step between pieces (Quake's step-move, Rapier's autostep): running (0.4 m a tick)
+      // used to hit the NEXT step too and stop dead at the foot of a stair. Integer arithmetic only, so every
+      // machine gets the same bits.
+      const dx = fxMul(mx, st) + IX[e], dz = fxMul(mz, st) + IZ[e], n = Math.max(1, Math.ceil(st / SUB_STEP));
+      const x0 = X[e], z0 = Z[e];
+      for (let k = 1; k <= n; k++) {
+        const nx = fxClamp(x0 + (((dx * k) / n) | 0), -BOUND, BOUND), nz = fxClamp(z0 + (((dz * k) / n) | 0), -BOUND, BOUND);
+        if (!blocked(s, nx, Y[e], nz)) { X[e] = nx; Z[e] = nz; }
+        else if (!blocked(s, nx, Y[e], Z[e])) X[e] = nx;   // U10/M6 h6: slide along a wall or a too-steep triangle
+        else if (!blocked(s, X[e], Y[e], nz)) Z[e] = nz;
+        if (onGround) { const g = groundHeight(X[e], Z[e], s, Y[e]); if (g > Y[e]) Y[e] = g; } // up the step, still on the ground
+      }
+    }
+    IX[e] -= IX[e] >> 3; IZ[e] -= IZ[e] >> 3;
+    // vertical (J2): jump from the ground, or the one jump in the air; then gravity, then the ground stops the fall
     const ground = geo ? groundHeight(X[e], Z[e], s, Y[e]) : 0;
     let y = Y[e], vy = VY[e], air = AIR[e];
     let buf = MODO[e] === MODO_QUIETO ? BUF[e] : (buttons & BTN_JUMP ? JUMP_BUFFER + 1 : BUF[e]);

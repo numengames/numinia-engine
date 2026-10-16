@@ -107,7 +107,8 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     const pos = ancla.position;
     seguir(a.marcha, pos.x, pos.z, dt);
     const altura = pos.y - ALTURA_CAPSULA;
-    a.estado = estadoPor(a.marcha.velocidad, altura - (o.suelo?.(pos.x, pos.z, altura) ?? 0)); // over the ground under you
+    const pies = typeof ancla.userData.yPies === "number" ? ancla.userData.yPies as number : altura; // N1b: the simulated feet, not the smoothed drawing
+    a.estado = estadoPor(a.marcha.velocidad, pies - (o.suelo?.(pos.x, pos.z, pies) ?? 0)); // over the ground under you
     a.cerca = a.clave === "yo" || !desde || Math.hypot(pos.x - desde.x, pos.z - desde.z) <= ANIMAR_HASTA_M;
     if (fallidas.has(a.modelo)) return;
     const p = plantillas.get(a.modelo);

@@ -1027,3 +1027,19 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `avatares/paso-natural` (sobre main e8468e8).
 - Siguiente: que Pablo lo vea; si sigue raro, el arreglo de fondo es un ciclo de trote con más pasos por bucle o
   andar más despacio que 4 m/s (eso cambia la simulación).
+
+## 2026-10-16 16:20 · N1b (3) · escaleras: subir corriendo, peldaños sin tirón · hecho (sesión con Pablo, sin subir)
+- Qué: Pablo: «el problema son las escaleras; haz experimentos de subir y bajar». `work/torre/escaleras-exp.mjs`
+  pasa 11 recorridos por la escalera de la Torre con la simulación real. Hallado: (1) **subiendo corriendo te
+  quedabas clavado en el primer peldaño** (0,4 m por tick: el cuerpo tocaba ya el peldaño siguiente, 0,74 m más
+  alto); ahora, con sólidos, el paso del tick se parte en trozos de ≤ 0,2 m y subes cada peldaño entre trozos
+  (`SUB_STEP`; sin sólidos, el paso de siempre: huella 93b192c8 igual). (2) Cada peldaño saltaba 0,37 m en un tick
+  (50 ms) en pantalla: ahora se dibuja como una subida corta (`alturaDibujada`, 70 ms; en el aire, exacto) y el
+  clip se elige con los pies de la simulación. (3) Fallos del mundo, no del motor: las puertas de la Torre tenían
+  12 m de alto (te caías por la del este a 7 m) y el pretil sobresalía 5 cm (cabezazo a 10 m): arreglado en
+  `work/torre/trazado.mjs` (dinteles a 3 m, pretil sobre el muro).
+- Números: 285 pruebas en verde (nuevas: subir y bajar corriendo; sin el arreglo, subir corriendo falla);
+  experimentos 9/9 sin un tick en el aire (los dos con salto, en el aire como debe ser); build bien.
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `avatares/paso-natural`.
+- Siguiente: rehacer la Torre local con el trazado nuevo y mirarlo en pantalla.

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  ANIMAR_HASTA_M, BOCA_SILENCIO_RMS, CUPO_VRM, TRIANGULOS_MAX, clipPara, cupoVRM, decaerBoca, elegirAvatar, elegirCercanos, estadoPor, girarHacia, nivelBoca, nuevaMarcha, seguir,
+  ANIMAR_HASTA_M, BOCA_SILENCIO_RMS, CUPO_VRM, TRIANGULOS_MAX, alturaDibujada, clipPara, cupoVRM, decaerBoca, elegirAvatar, elegirCercanos, estadoPor, girarHacia, nivelBoca, nuevaMarcha, seguir,
 } from "../packages/render/src/avatares-politica.ts";
 import { TRIANGULOS_MAX_VRM } from "../packages/server/src/vrm.ts";
 
@@ -114,4 +114,14 @@ test("N1b: a jog at walking speed meets a natural step rate half way (no slow-mo
   assert.ok(bajo.ritmo > conPaso.ritmo && bajo.ritmo <= 2);
   assert.equal(clipPara("andar", 0.7, 0.888, natural, hay, duracion)!.clip, "andar"); // a slow walk is untouched
   assert.equal(clipPara("andar", 0.7, 0.888, natural, hay, duracion)!.ritmo, clipPara("andar", 0.7, 0.888, natural, hay)!.ritmo);
+});
+
+test("N1b: a stair step is drawn as a short climb; a jump, a fall or a teleport is followed exactly", () => {
+  let y = alturaDibujada(undefined, 0, 1 / 60, true);
+  y = alturaDibujada(y, 0.37, 1 / 60, true);
+  assert.ok(y > 0.05 && y < 0.2, `a short climb: ${y}`);
+  for (let i = 0; i < 30; i++) y = alturaDibujada(y, 0.37, 1 / 60, true);
+  assert.ok(Math.abs(y - 0.37) < 1e-3);
+  assert.equal(alturaDibujada(0, 0.37, 1 / 60, false), 0.37);  // in the air: exact
+  assert.equal(alturaDibujada(0, 3, 1 / 60, true), 3);          // more than a step: at once
 });
