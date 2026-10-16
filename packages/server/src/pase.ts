@@ -1,7 +1,8 @@
 // pase (H3b): the world pass numinia.com hands a browser, checked here. The contract is the header of numinia-web
 // apps/store/src/lib/world-pass.ts (numinia-web #144): a compact JWS `header.payload.signature`, EdDSA (Ed25519), header
 // {alg:"EdDSA", typ:"numinia-world-pass", kid}, payload {v:1, iss:"numinia.com", aud, sub, org, perm, height, roles, name?,
-// iat, exp} with exactly those fields. Pure: node:crypto only, the clock is passed in, nothing throws. A person's
+// iat, exp} with exactly those fields; an organization's AI agent adds kind:"agent", state:"activa"|"dormida" and a sub a_<32 hex>
+// (all three together, never on a person's pass; ia-organizacion SPEC). Pure: node:crypto only, the clock is passed in, nothing throws. A person's
 // roles in the world come from the pass (roles-mundo.ts maps them into the same `puede` the chat orders use).
 // Config (read at start, `configPase`): MOTOR_PASE_CLAVE = numinia.com's public key (raw 32 bytes base64url, or the JSON of
 // /.well-known/world-pass-key.json), MOTOR_PASE_MUNDO = this world's id (the pass's `aud`), MOTOR_PASE_ORG = optional.
@@ -17,6 +18,7 @@ export const ROLES_PASE_MAX = 5;     // numinia.com sends up to five visible rol
 export const NOMBRE_PASE_MAX = 40;   // characters, for a person's name and a role's name
 const DONDE = "Entra al mundo desde numinia.com para recibir un pase nuevo.";
 const SUB = /^p_[0-9a-f]{32}$/;
+const SUB_IA = /^a_[0-9a-f]{32}$/;   // an organization's AI agent (HMAC of org + agent id; numinia.com keeps the secret)
 const COLOR = /^#[0-9a-f]{6}$/;
 const MUNDO_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const B64URL = /^[A-Za-z0-9_-]*$/;
@@ -24,8 +26,10 @@ const B64URL = /^[A-Za-z0-9_-]*$/;
 /** numinia.com's public key: the raw 32 bytes, its `kid` (first 8 hex digits of their SHA-256) and the key object. */
 export type ClavePase = { kid: string; key: KeyObject };
 /** What the engine keeps from a pass. `dueno`: numinia.com's owner height (Number.MAX_VALUE; JSON cannot say Infinity). */
+export type EstadoIA = "activa" | "dormida";
+/** `kind`/`state` only exist on an organization AI's pass (`kind: "agent"`, `sub` a_…); a person's pass has neither. */
 export type Pase = {
-  sub: string; aud: string; org: string; permisos: Permiso[]; altura: number; dueno: boolean;
+  sub: string; aud: string; org: string; permisos: Permiso[]; altura: number; dueno: boolean; kind?: "agent"; state?: EstadoIA;
   roles: { nombre: string; color: string | null }[]; nombre?: string; iat: number; exp: number;
 };
 export type MotivoPase = "forma" | "cabecera" | "clave" | "firma" | "contenido" | "caducado" | "adelantado" | "mundo" | "organizacion";
@@ -89,6 +93,7 @@ export function configPase(env: Record<string, string | undefined>): { ok: true;
 
 const esTexto = (v: unknown): v is string => typeof v === "string";
 const REQUERIDOS = ["v", "iss", "aud", "sub", "org", "perm", "height", "roles", "iat", "exp"];
+const OPCIONALES = ["name", "kind", "state"];
 
 /** A name shown to everybody: no control characters, one line, short, and never one that says «· IA» (that mark is the server's). */
 function limpiar(texto: string, max: number): string {
@@ -100,8 +105,11 @@ function limpiar(texto: string, max: number): string {
 function leerCarga(json: unknown): Pase | null {
   if (typeof json !== "object" || json === null || Array.isArray(json)) return null;
   const r = json as Record<string, unknown>, claves = Object.keys(r);
-  if (!REQUERIDOS.every((k) => claves.includes(k)) || !claves.every((k) => REQUERIDOS.includes(k) || k === "name")) return null;
-  if (r.v !== 1 || r.iss !== "numinia.com" || !esTexto(r.aud) || !esTexto(r.sub) || !SUB.test(r.sub) || !esTexto(r.org) || r.org === "") return null;
+  if (!REQUERIDOS.every((k) => claves.includes(k)) || !claves.every((k) => REQUERIDOS.includes(k) || OPCIONALES.includes(k))) return null;
+  // an AI's pass: kind "agent" + sub a_… + state, all three together; a person's pass has none of them
+  const ia = r.kind !== undefined;
+  if (ia ? r.kind !== "agent" || !esTexto(r.sub) || !SUB_IA.test(r.sub) || (r.state !== "activa" && r.state !== "dormida") : r.state !== undefined || (esTexto(r.sub) && SUB_IA.test(r.sub))) return null;
+  if (r.v !== 1 || r.iss !== "numinia.com" || !esTexto(r.aud) || !esTexto(r.sub) || !(ia || SUB.test(r.sub)) || !esTexto(r.org) || r.org === "") return null;
   if (!Array.isArray(r.perm) || !r.perm.every(esTexto)) return null;
   if (typeof r.height !== "number" || !(r.height >= 0) || typeof r.iat !== "number" || typeof r.exp !== "number" || !Number.isFinite(r.iat) || !Number.isFinite(r.exp)) return null;
   if (!Array.isArray(r.roles) || r.roles.length > ROLES_PASE_MAX) return null;
@@ -115,8 +123,8 @@ function leerCarga(json: unknown): Pase | null {
   const nombre = esTexto(r.name) ? limpiar(r.name, NOMBRE_PASE_MAX) : "";
   // permissions this engine does not know are dropped (numinia.com may add some), like roles.ts
   const permisos = PERMISOS.filter((p) => (r.perm as string[]).includes(p));
-  const dueno = r.height >= Number.MAX_VALUE;
-  return { sub: r.sub, aud: r.aud, org: r.org, permisos, altura: dueno ? Number.POSITIVE_INFINITY : r.height, dueno, roles, ...(nombre ? { nombre } : {}), iat: r.iat, exp: r.exp };
+  const dueno = r.height >= Number.MAX_VALUE && !ia; // an AI is never an owner, whatever its height says
+  return { sub: r.sub, aud: r.aud, org: r.org, permisos, altura: dueno ? Number.POSITIVE_INFINITY : r.height, dueno, roles, ...(nombre ? { nombre } : {}), ...(ia ? { kind: "agent" as const, state: r.state as EstadoIA } : {}), iat: r.iat, exp: r.exp };
 }
 
 function json(bytes: Buffer): unknown {

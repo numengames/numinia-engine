@@ -90,6 +90,31 @@ test("pase: a signed payload of the wrong shape is refused (extra field, wrong t
   assert.equal(motivo(pase(sinSub)), "contenido");
 });
 
+const SUB_IA = `a_${"cd".repeat(16)}`;
+const cargaIA = (o: Record<string, unknown> = {}) => carga({ sub: SUB_IA, kind: "agent", state: "activa", name: "Ada", height: 0, perm: ["enter-worlds", "build-in-worlds"], ...o });
+
+test("pase: an organization AI's pass (kind agent, state, sub a_…) is read; a person's pass has none of those", () => {
+  const v = verificarPase(pase(cargaIA()), clave, en);
+  assert.ok(v.ok);
+  assert.equal(v.pase.kind, "agent");
+  assert.equal(v.pase.state, "activa");
+  assert.equal(v.pase.sub, SUB_IA);
+  assert.equal(v.pase.dueno, false);
+  const dorm = verificarPase(pase(cargaIA({ state: "dormida", perm: ["enter-worlds"] })), clave, en);
+  assert.ok(dorm.ok && dorm.pase.state === "dormida" && !dorm.pase.permisos.includes("build-in-worlds"));
+  const persona = verificarPase(pase(), clave, en);
+  assert.ok(persona.ok && persona.pase.kind === undefined && persona.pase.state === undefined, "a person's pass is read exactly as before");
+  const casa = verificarPase(pase(cargaIA({ height: Number.MAX_VALUE })), clave, en);
+  assert.ok(casa.ok && !casa.pase.dueno, "an AI is never an owner, whatever its height says");
+});
+
+test("pase: the AI fields come together or not at all; unknown extras are still refused", () => {
+  for (const mala of [cargaIA({ extra: 1 }), cargaIA({ state: "ocupada" }), cargaIA({ state: undefined }), cargaIA({ kind: "bot" }), cargaIA({ sub: SUB }),
+    carga({ sub: SUB_IA }), carga({ state: "activa" }), carga({ kind: "agent" }), cargaIA({ sub: `a_${"cd".repeat(15)}` }), cargaIA({ sub: `a_${"CD".repeat(16)}` })]) {
+    assert.equal(motivo(pase(mala)), "contenido", JSON.stringify(mala).slice(0, 90));
+  }
+});
+
 test("pase: garbage never throws and always says how to fix it", () => {
   for (const basura of ["", "a", "a.b", "a.b.c.d", "…", "???.???.???", "x".repeat(5000), "e30.e30.e30", `${b64("{")}.${b64("{")}.${b64("x")}`]) {
     const v = verificarPase(basura, clave, en);
