@@ -1052,4 +1052,26 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `avatares/paso-natural` (sobre main e8468e8).
 - Siguiente: que Pablo lo vea; si sigue raro, el arreglo de fondo es un ciclo de trote con más pasos por bucle o
   andar más despacio que 4 m/s (eso cambia la simulación).
->>>>>>> 43925a6 (J1: the VRM jog no longer floats in slow motion: step rate met half way between still feet and a natural cadence)
+## 2026-10-16 19:27 · J7b · rueda de movimientos · hecho (sesión con Pablo, sin subir)
+- Qué: Pablo: «coges esos 45 movimientos… la típica rueda». De los 45 clips de Quaternius UAL1 (CC0) entran 33: los 5 de
+  andar y 28 más, en 29 `.vrma` nuevos (el 29.º, el saludo, que UAL1 gratis no trae, es el cuerpo de `Idle_Loop` con el brazo derecho escrito
+  en el conversor). Fuera, con su porqué en `LICENCIAS.md`: pose T, ciclos que se desplazan, gemelos `_RM`, dos poses de
+  un fotograma y dos salidas. 27 movimientos como datos (`features/gestos/movimientos.ts`) en 4 grupos; `gestos` pasa a
+  versión 2 (el `enum` es la lista + `parar`; aditivo, la huella 93b192c8 igual). En el VRM: entrada + bucle (sentarse →
+  sentado), una vez, o quedarse en la última pose; andar o saltar lo termina en todas las pantallas; cada clip se baja
+  la primera vez que alguien cerca lo hace. Rueda: G mantenida (toque = saludar), botón «Movimientos» en táctil, Y en
+  el mando; 8 porciones, anillo de favoritos guardado en el navegador (F), ↑↓ anillos, ←→ 1–8 Intro, Esc; HTML con
+  botones para el lector de pantalla, sin animación con «menos movimiento»; mientras está abierta nadie anda. Aspecto
+  Nocturno (tema.css), sin marca. Por qué G y no otra tecla: es la tecla de los gestos desde J7 y la mano ya está ahí;
+  K/L/U estaban libres pero lejos de WASD.
+- Números: 288 pruebas en verde (6 nuevas en `test/rueda.test.ts`); puertas en verde (tick p99 8,1 ms); build bien
+  (arranque 301 kB, 113,5 kB comprimidos; los clips no van en el paquete). e2e chromium contra servidor propio
+  (8870/5370): `tools/e2e.mjs` OK, pierna avatares OK (295 kB de animaciones al entrar, las mismas de antes), pierna
+  nueva `tools/e2e-piernas/rueda.mjs` OK: A mantiene G, apunta, suelta → baila; B (a 6 m) lo ve bailar; `bailar.vrma`
+  se baja una vez por pestaña y solo entonces; A anda → termina en las dos; teclado, favoritos y Esc bien.
+  Clips nuevos: 29 ficheros, 3,0 MB en el repositorio, 44–243 kB cada uno.
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `avatares/rueda-movimientos` (sobre 4eb6387).
+- Siguiente: probar con un móvil y un mando reales; que los agentes (`packages/agent`) usen la lista entera; que quien
+  llega tarde vea un movimiento en curso (estado con `at`, J9); grabar los que UAL1 no trae (aplaudir, señalar…).
+>>>>>>> 02743c8 (J7b: the movement wheel — 27 moves from UAL1 (CC0) on your VRM, seen by whoever is near)

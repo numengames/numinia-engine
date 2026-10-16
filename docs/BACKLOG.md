@@ -29,6 +29,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | P1 | Ficha técnica: características y límites del motor (humana + `limits.json`) | hecho | sí |
 | J0 | Catálogo de todo lo que espera un jugador (la receta para añadir funciones es de J7) | hecho | sí |
 | J7 | Módulos de juego: añadir una función sin tocar el núcleo, con un ejemplo real (gestos) | hecho | no |
+| J7b | Rueda de movimientos: 27 movimientos de UAL1 (CC0) en una rueda radial (G mantenida, botón táctil, Y del mando), en el VRM y vistos por quien está cerca (Pablo, 16-10) | hecho | no |
 | T1 | Cómo entra cada jugador: el aparato, el navegador, la gráfica, la XR, los cuadros, el ping y la batería de cada sesión, guardados en el servidor (Pablo, 15-10) | hecho | sí |
 | I1 | Identidad de invitado (sin vincular aparatos: Pablo, 15-10, «de momento no») | hecho | no |
 | S4 | Persistencia mínima del mundo (puntos de enlace, inventario, cosas plantadas) | hecho | no |
@@ -373,6 +374,27 @@ pestaña B camina hasta ~25 m de A, A pulsa G, las dos ven el texto. La simulaci
 fijada pasa y la prueba de gestos da la misma huella con y sin funciones. Límites nuevos en `limits.json`
 y `docs/FICHA-TECNICA.md`. Sin hacer (otras filas): estado por cercanía y objetos (J9), guardar (S4),
 identidad (I1), rutas públicas `/e/` en el proxy de casa y en Caddy (R1).
+
+### J7b — Rueda de movimientos (Pablo, 16-10: «coges esos 45 movimientos… la típica rueda»)
+**Hecho (16-10, rama `avatares/rueda-movimientos`, sin subir).** De los 45 clips de Quaternius UAL1 (CC0) se usan 33:
+los 5 de andar (J1) y 28 más, en 29 `.vrma` nuevos en `activos/animaciones/` (`tools/vrma/convertir.mjs`; el saludo, que UAL1 gratis no
+trae, es el cuerpo de `Idle_Loop` con el brazo escrito en `convertir.js`). Fuera a propósito: la pose T, los ciclos que
+se desplazan, los gemelos `_RM`, dos poses de un fotograma y dos salidas (lista en `activos/animaciones/LICENCIAS.md`).
+- **La lista** es datos (`features/gestos/movimientos.ts`): 27 movimientos en 4 grupos (Social, Acciones, Combate,
+  Reacciones), cada uno con sus clips (entrada + bucle: sentarse → sentado), cómo termina (`una`, `bucle`,
+  `quedarse`), un tope (30 s, 60 s los vivos, 10 min las posturas tranquilas) y si es «vivo» (baile) o «tranquilo».
+- **Red:** la misma función `gestos` (versión 2): el `enum` de `hacer` es la lista + `parar`; el servidor la cierra, 1
+  por segundo (3 seguidos), a quien está a 30 m. Formato aditivo: la simulación y la huella 93b192c8 no cambian.
+- **En el avatar** (`render/avatares*.ts`, `view.movimiento`): suena sobre el clip de velocidad; andar o saltar lo
+  termina en todas las pantallas a la vez (todas ven el mismo paso, nadie manda «parar»); vuelve fundido. Cada clip se
+  descarga la primera vez que alguien cerca lo hace (44–243 kB), nunca al entrar. Móvil frío: un movimiento tranquilo
+  dibuja al ritmo de estar quieto; uno vivo, a ritmo normal hasta su tope. Sin VRM (cápsula): un rótulo y un salto.
+- **La rueda** (`apps/plaza/rueda.ts` + `rueda.css`, cuentas en `packages/client/src/rueda.ts`): G mantenida, el botón
+  «Movimientos» en pantallas táctiles, Y en el mando. Ocho porciones; anillos Favoritos (8, guardados en el navegador,
+  F o el botón «Favorito»), Social, Acciones, Combate, Reacciones. Teclas y lector de pantalla: `docs/JUGADOR.md`.
+**Falta / no comprobado:** quien llega tarde no ve un movimiento que ya empezó (los eventos no se guardan); los agentes
+(`packages/agent`) siguen con saludar/bailar; el mando y el dedo arrastrado solo se han probado por código, no con un
+mando ni un móvil reales; Polybot (cabeza enorme, brazos cortos) apenas levanta el antebrazo al saludar.
 
 ### J1 — Avatares VRM de verdad
 `@pixiv/three-vrm` 3.5.5 (MIT, versión exacta). 2–3 VRM CC0 con la licencia comprobada dentro del

@@ -1,0 +1,70 @@
+/* La rueda de movimientos (J7b, apps/plaza/rueda.ts). Nocturno like the rest (tema.css): surfaces #1E1A17/#292420, text
+   #F9EBDC/#C4B5A6, hairlines #3A332D, turquoise = what you point at (interactive), amber = what you are doing now
+   (emphasis). Radii 6 (controls) and 8 (frames); the ring itself is round because it is a wheel. */
+#rueda {
+  position: fixed; left: 50%; top: 50%; z-index: 9; transform: translate(-50%, -50%);
+  width: min(420px, 94vw, calc(100vh - 150px)); min-width: 280px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  font: 13px/1.35 "Geist", system-ui, sans-serif; color: var(--n-texto, #F9EBDC);
+  user-select: none; -webkit-user-select: none; touch-action: none;
+}
+#rueda[hidden] { display: none; }
+
+/* the rings, as tabs: ghost, ink-on-paper when chosen */
+#rueda .pestanas { display: flex; flex-wrap: nowrap; justify-content: center; gap: 2px; padding: 3px; max-width: 100%; overflow-x: auto; scrollbar-width: none; border: 1px solid var(--n-linea, #3A332D); border-radius: 8px; background: var(--n-sup, rgba(30, 26, 23, .9)); }
+#rueda .pestanas button { flex: none; min-height: 32px; padding: 0 9px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--n-texto2, #C4B5A6); font: 600 13px "Geist", system-ui, sans-serif; cursor: pointer; }
+#rueda .pestanas button:hover { color: var(--n-texto, #F9EBDC); border-color: var(--n-linea, #3A332D); }
+#rueda .pestanas button[aria-selected="true"] { background: var(--n-texto, #F9EBDC); color: var(--n-fondo, #14110F); }
+
+/* the disc: an SVG ring of eight slices, the buttons over it, the middle */
+#rueda .disco { position: relative; width: 100%; aspect-ratio: 1; animation: rueda-abre 170ms cubic-bezier(.16, 1, .3, 1); }
+#rueda .disco > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+#rueda svg .fondo { fill: var(--n-fondo, #14110F); } /* the hairline gaps between slices are this, never the world */
+#rueda .porciones path { fill: #1E1A17; stroke: var(--n-linea, #3A332D); stroke-width: 1; cursor: pointer; }
+#rueda .porciones path.vacia { fill: #191512; stroke-dasharray: 3 4; cursor: default; }
+#rueda .porciones path.marcada { fill: #0E3A40; stroke: var(--n-turquesa, #018EA1); stroke-width: 2; }
+#rueda .porciones path.haciendo { stroke: var(--n-ambar, #EFA517); stroke-width: 2; }
+#rueda .ranuras { position: absolute; inset: 0; pointer-events: none; }
+#rueda .ranura {
+  position: absolute; transform: translate(-50%, -50%); width: 25%; min-height: 48px; padding: 4px 2px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  border: 0; border-radius: 6px; background: transparent; color: var(--n-texto, #F9EBDC); font: 600 13px/1.2 "Geist", system-ui, sans-serif;
+  text-align: center; pointer-events: auto; cursor: pointer; text-wrap: balance;
+}
+#rueda .ranura:disabled { cursor: default; }
+#rueda .ranura .num { font: 500 11px/1 "Geist Mono", ui-monospace, monospace; color: var(--n-texto2, #C4B5A6); font-variant-numeric: tabular-nums; }
+#rueda .ranura.marcada .num { color: var(--n-verdemar, #A6DAD5); }
+#rueda .ranura.haciendo .num { color: var(--n-ambar, #EFA517); }
+#rueda .ranura .vacia { font-weight: 400; color: var(--n-texto2, #C4B5A6); opacity: .7; }
+#rueda .ranura .pin { position: absolute; top: 2px; right: 6px; color: var(--n-ambar, #EFA517); }
+
+#rueda .centro {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 42%; aspect-ratio: 1; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; box-sizing: border-box; padding: 10px;
+  background: var(--n-fondo, #14110F); border: 1px solid var(--n-linea, #3A332D); text-align: center;
+}
+#rueda .centro .nombre { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -.01em; color: var(--n-texto, #F9EBDC); text-wrap: balance; }
+#rueda .centro .describe { margin: 0; font-size: 12px; color: var(--n-texto2, #C4B5A6); text-wrap: balance; max-width: 18ch; }
+#rueda .botones-centro { display: flex; gap: 4px; margin-top: 2px; }
+#rueda .centro button { min-height: 30px; padding: 0 8px; display: inline-flex; align-items: center; border: 1px solid var(--n-linea, #3A332D); border-radius: 6px; background: var(--n-elev, #292420); color: var(--n-texto, #F9EBDC); font: 600 12px "Geist", system-ui, sans-serif; cursor: pointer; }
+#rueda .centro button:hover { border-color: var(--n-texto2, #C4B5A6); }
+#rueda .centro button[hidden] { display: none; }
+#rueda .centro .fijar[aria-pressed="true"] { color: var(--n-ambar, #EFA517); }
+#rueda .centro .fijar .icono + span { margin-left: 4px; }
+#rueda.sujeta .botones-centro { visibility: hidden; } /* held: let go to choose; the buttons come with the open wheel */
+
+#rueda .ayuda, #rueda .estado { margin: 0; padding: 5px 10px; border: 1px solid var(--n-linea, #3A332D); border-radius: 8px; background: var(--n-sup, rgba(30, 26, 23, .9)); color: var(--n-texto2, #C4B5A6); font-size: 12px; text-align: center; }
+#rueda .estado { color: var(--n-ambar, #EFA517); }
+#rueda .estado:empty { display: none; }
+#rueda kbd { display: inline-block; min-width: 1.3em; margin: 0 1px; padding: 0 4px; border: 1px solid var(--n-linea, #3A332D); border-radius: 6px; background: var(--n-elev, #292420); color: var(--n-texto, #F9EBDC); font: 500 11px/1.5 "Geist Mono", ui-monospace, monospace; text-align: center; }
+#rueda :focus-visible { outline: 2px solid var(--n-turquesa, #018EA1); outline-offset: 2px; }
+#rueda .ranura:focus-visible { outline: none !important; } /* the focused slice is the marked one: its turquoise edge is the focus ring */
+#rueda .porciones path.marcada { stroke-width: 2.5; }
+
+@keyframes rueda-abre { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { #rueda .disco { animation: none; } }
+html.menos-movimiento #rueda .disco { animation: none; }
+html.alto-contraste #rueda .porciones path { fill: #000; stroke: #fff; }
+html.alto-contraste #rueda .porciones path.marcada { stroke: #ffeb3b; stroke-width: 3; }
+@media (max-width: 420px) { #rueda .ranura { font-size: 12px; } #rueda .centro .describe { display: none; } }
+body.rueda-abierta #help { visibility: hidden; } /* the wheel's own help replaces the line at the foot */

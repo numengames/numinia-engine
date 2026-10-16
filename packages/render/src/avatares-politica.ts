@@ -142,3 +142,46 @@ export function decaerBoca(anterior: number, rms: number | null, factor = 0.55):
   const decaido = anterior * factor;
   return rms === null ? decaido : Math.max(decaido, nivelBoca(rms));
 }
+
+// ---- J7b: moves (the movement wheel) over the speed-driven clips ----
+/** A move as the view plays it (same shape as the feature's MovimientoVista; render does not import packages/feature). */
+export type Movimiento = { id: string; clips: readonly string[]; modo: "una" | "bucle" | "quedarse"; hastaS: number; viva: boolean };
+/** One avatar's move in progress. `desde` = when its first clip started (ms), null while its files are still loading. */
+export type EnCurso = { mov: Movimiento; pedido: number; desde: number | null; serie: number };
+/** A move whose files have not all arrived after this long is dropped (a slow network must not freeze someone later). */
+export const ESPERA_CARGA_MS = 5000;
+let series = 0;
+export const empezarMovimiento = (mov: Movimiento, ahora: number): EnCurso => ({ mov, pedido: ahora, desde: null, serie: ++series });
+
+/** What to play now for a move: `fin` (over: back to the speed-driven clip), `esperar` (files loading: keep what plays)
+ * or a clip with `bucle` (loop it) and `tramo` (which of its clips: a new tramo restarts the action). Walking or jumping
+ * (`estado` other than quieto) ends any move at once, on every screen, because every screen sees the same walk. */
+export function pasoDeMovimiento(e: EnCurso, ahora: number, estado: Estado, duracion: (clip: string) => number | undefined, listo: (clip: string) => boolean):
+  { fin: true } | { fin: false; esperar: true } | { fin: false; esperar: false; clip: string; bucle: boolean; tramo: number; mantener: boolean } {
+  if (estado !== "quieto") return { fin: true };
+  const clips = e.mov.clips;
+  if (!clips.length) return { fin: true };
+  if (e.desde === null) {
+    if (clips.every(listo)) e.desde = ahora;
+    else return ahora - e.pedido > ESPERA_CARGA_MS ? { fin: true } : { fin: false, esperar: true };
+  }
+  let t = (ahora - e.desde) / 1000;
+  if (t > e.mov.hastaS) return { fin: true };
+  for (let i = 0; i < clips.length - 1; i++) { // the lead-in clips play once each (sit down, then sit)
+    const d = duracion(clips[i]) ?? 0;
+    if (t < d) return { fin: false, esperar: false, clip: clips[i], bucle: false, tramo: i, mantener: false };
+    t -= d;
+  }
+  const ultimo = clips.length - 1, d = duracion(clips[ultimo]) ?? 0;
+  if (e.mov.modo === "bucle") return { fin: false, esperar: false, clip: clips[ultimo], bucle: true, tramo: ultimo, mantener: false };
+  if (e.mov.modo === "quedarse") return { fin: false, esperar: false, clip: clips[ultimo], bucle: false, tramo: ultimo, mantener: true };
+  return t < d ? { fin: false, esperar: false, clip: clips[ultimo], bucle: false, tramo: ultimo, mantener: false } : { fin: true };
+}
+
+/** Does a move keep the page drawing? Lively ones and the lead-ins do; a calm loop or a held pose draws at the idle rate. */
+export function movimientoOcupa(e: EnCurso, ahora: number, duracion: (clip: string) => number | undefined): boolean {
+  if (e.mov.viva || e.desde === null) return true;
+  let entrada = 0;
+  for (const c of e.mov.modo === "bucle" ? e.mov.clips.slice(0, -1) : e.mov.clips) entrada += duracion(c) ?? 0;
+  return (ahora - e.desde) / 1000 < entrada + FUNDIDO_S;
+}
