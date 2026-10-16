@@ -27,7 +27,7 @@ import { Pagina } from "./pagina.ts";
 import { infoMotor } from "./version.ts";
 import type { Motor } from "./version.ts";
 import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
-import { lectorAventura } from "./aventura.ts";
+import { leerFicha, lectorAventura } from "./aventura.ts";
 import { crearRoles } from "./roles-mundo.ts";
 import { configPase } from "./pase.ts";
 import type { ConfigPase } from "./pase.ts";
@@ -110,7 +110,10 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const motor: Motor = o.motor ?? (o.version ? { ...infoMotor(), build: o.version } : infoMotor());
   const version = o.version ?? motor.build;
   const born = performance.now();
-  const pagina = o.www ? new Pagina(o.www) : null; // C1: the page from the engine itself (one port per world)
+  // ADR-074: what the world is called, from its own folder (aventura/ficha.json); none = the engine's defaults
+  const { ficha, problemas: fichaMal } = leerFicha(o.aventura ?? null);
+  for (const p of fichaMal) log(`[ficha] no se carga: ${p}`);
+  const pagina = o.www ? new Pagina(o.www, { titulo: ficha?.nombre ?? null }) : null; // C1: the page from the engine itself (one port per world)
 
   const t0 = performance.now();
   const refHash = replayFingerprint(referenceRecording(REFERENCE.seed, REFERENCE.ticks, REFERENCE.n));
@@ -146,6 +149,11 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const agentesSign = signer(o.agentes ?? process.env.MOTOR_AGENTES_SECRET);
   const agentes = agentesSign("probe") ? { sign: agentesSign, nombre: (id: string) => hab.habitantes.find((h) => h.id === id)?.nombre ?? null } : undefined;
   if (hab.habitantes.length) log(`[habitantes] ${hab.habitantes.map((h) => h.nombre).join(", ")}${agentes ? "" : " — sin MOTOR_AGENTES_SECRET: no podrán entrar como IA"}`);
+  // the cover: a picture this server has (library or datos/activos/); one it does not have is said once and left out
+  const [portadaSha, portadaExt] = ficha?.portada?.split(".") ?? [];
+  const portada = portadaSha && activos.buscar(portadaSha, portadaExt) ? `/a/${ficha!.portada}` : null;
+  if (ficha) log(`[ficha] el mundo se llama «${ficha.nombre}»${ficha.portada ? (portada ? `, portada ${portada}` : `; su portada ${ficha.portada} no está en este servidor (súbela al mundo): no la enseño`) : ""}`);
+  const fichaPublica = ficha ? { nombre: ficha.nombre, descripcion: ficha.descripcion, portada: portada ?? undefined } : {};
   if (o.aparicion) log(`[mundo] la gente aparece en el cuadrado de ${2 * o.aparicion.radio} m centrado en (${o.aparicion.x}, ${o.aparicion.z})`);
   const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, activo: (h, ext) => activos.buscar(h, ext) !== null, aventura: lector, agentes, sinVoz: () => !roles.voz, aparicion: o.aparicion ?? null }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz)
   // H9: uploads (PUT /a/<sha256>.<ext>) by whoever may build; the page shows its guest token (I1) to say who it is
@@ -196,10 +204,11 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     const [path, qs = ""] = (req.url ?? "/").split("?");
     const method = req.method ?? "GET";
     if (method === "GET" && path === "/health") return json(res, 200, { ok: true, version, huella: hex(refHash), conectados: inst.conns.length });
-    // C4: what the Worlds room of numinia.com reads (no names, no positions); people only, not the AI inhabitants
+    // C4: what the Worlds room of numinia.com reads (no people's names, no positions); people only, not the AI inhabitants;
+    // with a ficha (ADR-074) also the world's own name, description and cover (/a/<sha256>.<ext>)
     if (method === "GET" && path === "/status") {
       res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "access-control-allow-origin": "*" });
-      return void res.end(JSON.stringify({ uptime: Math.floor((performance.now() - born) / 1000), conectados: inst.conns.filter((c) => !c.who?.id.startsWith("ia-")).length, commitHash: motor.commit ?? undefined, version }));
+      return void res.end(JSON.stringify({ uptime: Math.floor((performance.now() - born) / 1000), conectados: inst.conns.filter((c) => !c.who?.id.startsWith("ia-")).length, commitHash: motor.commit ?? undefined, version, ...fichaPublica }));
     }
     if (method === "GET" && path === "/metrics") return json(res, 200, metrics());
     if (method === "GET" && path === "/sesiones") return json(res, 200, { schema: "numinia-engine/sesiones@1", carpeta: sesiones.dir, resumen: sesiones.resumen(), ahora: sesiones.ahora() });

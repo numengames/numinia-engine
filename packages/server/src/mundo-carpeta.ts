@@ -5,7 +5,9 @@
 //                world's settings (ADR-074, file over app): whether @todos builds (in its roles) and voice on/off
 //                (config.voz). MOTOR_CONSTRUIR / MOTOR_VOZ only seed a world that never stored them; then /construir, /voz
 //   aventura/    the world's OWN adventure (misiones/ pnj/ cosas/ habitantes/ …): a new world gets a copy of the
-//                engine's example once; from then on it is the world's (a newer engine never swaps it)
+//                engine's example once; from then on it is the world's (a newer engine never swaps it).
+//                aventura/ficha.json (ficha@1, optional, aventura.ts) says what the world is called, what it is about
+//                and its cover (<sha256>.png|jpg|webp in datos/activos/ or the library): the page title and /status
 //   entorno/     entorno.json, elementos.json (optional; absent = the house defaults)
 //   sesiones/    how each player entered (T1; never zipped)
 //   claves.env   only for a local run without keys in the environment (mode 600; never zipped)

@@ -261,8 +261,18 @@ mi-aventura/
   misiones/<id>.json   formato "mision@1"
   pnj/<id>.json        formato "pnj@1"     (personas que no son jugadores: hablan y dan misiones)
   cosas/<id>.json      formato "cosa@1"    (cosas que se cogen o se usan)
+  habitantes/<id>.json formato "habitante@1" (IA que viven en el mundo: packages/agent)
+  ficha.json           formato "ficha@1"   (opcional: cómo se llama el mundo, de qué va y su portada)
   *.md                 notas para quien escribe (no se leen)
 ```
+
+**`ficha@1`** (ADR-074: el mundo dice qué es desde su propia carpeta) — `{ "formato": "ficha@1", "nombre": "Plaza de
+ejemplo", "descripcion": "…", "portada": "<sha256>.webp" }`. `nombre` de 1 a 60 caracteres (sin `<` `>` ni saltos de
+línea), `descripcion` hasta 500 caracteres, `portada` = una imagen png, jpg o webp que el servidor ya tiene por su
+sha256 (la biblioteca de la casa o una subida al mundo, en `datos/activos/`, que viaja en el zip; tope 4 MB, el de
+cualquier imagen subida). Aquí, a diferencia de los demás formatos, se miden caracteres y **un campo desconocido se
+guarda** (un motor más nuevo puede añadir alguno). El nombre va al `<title>` de la página y a `GET /status` (`nombre`,
+`descripcion`, `portada` = `/a/<sha256>.<ext>` si el servidor la tiene). Sin ficha, todo como antes.
 
 Reglas para quien escribe (persona o LLM):
 - **Ids** en minúsculas, cifras y guiones (`primeros-pasos`); cada fichero, un `formato` en su primera línea. Un campo

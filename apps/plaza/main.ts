@@ -207,7 +207,8 @@ setInterval(() => { vrBtn.textContent = view.vr.active ? "Salir de VR" : "Entrar
 // <date>», what /health, the installer and the world zip carry) only as the tooltip, for whoever helps with a fault ----
 const versionMotor = document.getElementById("version-motor");
 if (versionMotor) versionMotor.textContent = `v${versionPaquete}`;
-fetch(`${activos}/status`).then((r) => r.json()).then((st: { version?: string }) => {
+fetch(`${activos}/status`).then((r) => r.json()).then((st: { version?: string; nombre?: string }) => {
+  if (st.nombre) document.title = st.nombre; // ADR-074: the world's name (its aventura/ficha.json), also when Caddy or vite serve the page
   if (versionMotor && st.version) versionMotor.title = `build ${st.version}`;
 }).catch(() => {});
 
