@@ -372,6 +372,7 @@ say "listo. Servicio $SERVICE activo, $BUILD."
 if [ -n "$DOMAIN" ]; then WEB="https://$DOMAIN"; else WEB="http://${IP:-<ip-del-servidor>}"; fi
 if [ -n "$DOMAIN" ]; then say "abre $WEB/"; else say "abre $WEB/  (HTTP sin cifrar: solo para pruebas)"; fi
 say "el mundo en un zip (bajar y subir): $WEB/mundo · código: sudo cat $PREFIX/admin.env"
+say "hazte dueño del mundo: entra y escribe en el chat /dueño <ese código> (luego /roles)"
 say "registro: journalctl -u $SERVICE -f · estado: systemctl status $SERVICE"
 [ "$HABITANTES" = 1 ] && say "habitantes IA: journalctl -u $HAB_SERVICE -f (quitarlos: systemctl stop $HAB_SERVICE) · cerebro: $([ -f "$PREFIX/cerebro.env" ] && echo "sí ($(grep -m1 '^CEREBRO_MODELO=' "$PREFIX/cerebro.env" | cut -d= -f2))" || echo "no (ponlo con --clave-ia)")"
 say "construir: $CONSTRUIR (cámbialo con --construir todos|nadie)"

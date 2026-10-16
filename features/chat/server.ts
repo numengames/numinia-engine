@@ -15,13 +15,15 @@ export const NOMBRES_CADA_TICKS = 10;   // each page's names are reviewed every 
 export const NOMBRES_POR_PASO = 8;      // new names per page and pass: the nearest first (a crowd's names arrive over a few passes)
 export const OLVIDO = 1.25;             // a name is forgotten past 24 × 1.25 = 30 m (no flicker at the edge)
 export const ROBOT_TRAS_TICKS = 20;     // someone without identity after 1 s is a robot (headless bots); people identify at once
-export const AYUDA = "Escribe y pulsa Enter: te leen quienes están a menos de 20 m. El botón «Cerca» cambia a «Zona»: toda la zona, como mucho un mensaje cada 5 s. Órdenes: /ayuda (esto). Lo que empieza por / no lo lee nadie más.";
+export const AYUDA = "Escribe y pulsa Enter: te leen quienes están a menos de 20 m. El botón «Cerca» cambia a «Zona»: toda la zona, como mucho un mensaje cada 5 s. Órdenes: /ayuda (esto), /roles (qué eres aquí y qué puedes hacer). Lo que empieza por / no lo lee nadie más.";
+const TICKS_POR_SEGUNDO = 20; // the sim's TICK_HZ (features import only core, schema, feature)
 
 export default serverPart(chat, (api) => {
   const historia: Msg[] = [];
   const zona = new Cubo(RITMO_ZONA_TODOS);
   const llegada = new Map<number, number>();         // entity -> tick it joined
   const conocidos = new Map<number, Set<number>>();  // player -> entities whose name its page holds
+  const callados = new Map<number, number>();        // H3: entity -> tick until which it is silenced (the roles' «silencio»)
   const r2 = NOMBRES_M ** 2, olvido2 = (NOMBRES_M * OLVIDO) ** 2;
 
   /** The name people see: the identity's (I1); a robot's after a second without one; null = not yet. */
@@ -42,6 +44,8 @@ export default serverPart(chat, (api) => {
     const texto = limpiar(String(msg.texto ?? ""));
     if (!texto) return;                                    // empty after cleaning: nothing to say
     if (texto.startsWith("/")) { orden(from, texto.slice(1).trim()); return; }
+    const hasta = callados.get(from);
+    if (hasta !== undefined && api.tick() < hasta) { avisar(from, `Estás en silencio ${Math.ceil((hasta - api.tick()) / TICKS_POR_SEGUNDO / 60)} min más: nadie te lee.`); return; }
     const m = { quien: from, nombre: nombreDe(from) ?? `Robot ${from}`, texto };
     if (canal === "cerca") { api.emit("dicho", m, { near: from, radius: CERCA_M }); return; }
     if (!zona.tomar(api.tick())) { avisar(from, "La zona va muy deprisa: espera unos segundos y vuelve a probar."); return; }
@@ -51,6 +55,13 @@ export default serverPart(chat, (api) => {
   };
   api.on("decir", decir("cerca"));
   api.on("decirZona", decir("zona"));
+  // H3: the world's roles (packages/server/src/roles-mundo.ts) answer orders and silence people through these
+  api.listen("roles", "aviso", (m) => { avisar(Number(m.quien), String(m.texto ?? "")); return true; });
+  api.listen("roles", "silencio", (m) => {
+    const e = Number(m.quien), s = Number(m.segundos);
+    if (s > 0) callados.set(e, api.tick() + s * TICKS_POR_SEGUNDO); else callados.delete(e);
+    return true;
+  });
 
   api.onJoin((e) => {
     llegada.set(e, api.tick());
@@ -62,7 +73,7 @@ export default serverPart(chat, (api) => {
     if (n) for (const [p, s] of conocidos) if (s.has(e)) api.emit("nombre", { quien: e, nombre: n }, { to: p });
   });
   api.onLeave((e) => {
-    llegada.delete(e); conocidos.delete(e);
+    llegada.delete(e); conocidos.delete(e); callados.delete(e);
     for (const [p, s] of conocidos) if (s.delete(e)) api.emit("nombre", { quien: e, nombre: "" }, { to: p });
   });
 
