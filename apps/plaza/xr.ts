@@ -15,7 +15,7 @@ type Misiones = {
   alCambiar(fn: (que: "libro" | "dialogo" | "nota") => void): () => void;
 };
 type Vista = {
-  vr: { active: boolean; dialogo(d: { nombre: string; texto: string; opciones: string[] } | null): void; nota(t: string): void; onElegir(fn: (n: number) => void): unknown; onAtras(fn: () => void): unknown };
+  vr: { active: boolean; pagina: "mision" | "mandos"; dialogo(d: { nombre: string; texto: string; opciones: string[] } | null): void; nota(t: string): void; onElegir(fn: (n: number) => void): unknown; onAtras(fn: () => void): unknown };
   ar: { state: string };
   manos: { reglas(o: { agarrable?: (k: string) => boolean; apuntable?: (k: string) => boolean }): void; on(fn: (e: EventoMano) => void): unknown; vibrar(l: Lado, v?: number, ms?: number): void };
   llevar(key: string, donde: Lado | "yo" | null): void;
@@ -81,6 +81,14 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
   return {
     /** The VR panel's lines: what the trigger does now, the followed quest and its steps. */
     lineasPanel(): string[] {
+      if (view.vr.pagina === "mandos") return [
+        "Mandos (Y: misión · otra vez: ocultar)",
+        "Palanca izquierda: andar · al borde: correr",
+        "Palanca derecha: girar a saltos",
+        "Gatillo: hablar / usar lo que apuntas",
+        "Agarre (o pellizco) junto a algo: cogerlo",
+        "A o X: saltar · B: salir del diálogo",
+      ];
       const out: string[] = [];
       const c = o.interaccion.actual();
       const seg = misiones.libro().find((m) => m.estado === "activa" && m.seguida) ?? misiones.libro().find((m) => m.estado === "activa");

@@ -57,7 +57,8 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J11 | Personas que dan misiones (`pnj@1`: árbol de diálogo, quién da y recibe qué) | hecho | sí |
 | J12 | Ficha de jugador: nombre, aparato y calidad, tiempo, misiones e insignias, ajustes | hecho (falta retrato → H10 e inventario) | sí |
 | J13 | Panel de muñeca en VR: minimapa, lo cercano y la ficha en 3D | pendiente | sí |
-| J14 | Dibujo barato de personas (LOD o una pieza; hoy el robot son 19 llamadas) | pendiente | sí |
+| J18 | VR: menú que sale al girar la muñeca (mano o mando), y pintar y crear objetos con las manos en el mundo, al estilo de las apps de pintura en VR (Pablo, 16-10: «me parece la bomba»; planificar antes de construir) | pendiente (planificar) | no |
+| J14 | Dibujo barato de personas (LOD o una pieza; hoy el robot son 19 llamadas) | en curso (lo que no anima se hornea: el robot, 3 llamadas; falta LOD) | sí |
 | J15 | Marcas «!» y «?» sobre quien tiene algo para ti (por jugador) | pendiente | sí |
 | J16 | Escribir aventuras con un LLM: receta y `node tools/aventura.ts` como comprobación | pendiente | sí |
 | N1 | Entrada táctil, gamepad, cámara en 3.ª persona y pantalla completa (de `docs/JUGADOR.md`) | hecho (sin probar en aparato real) | sí |

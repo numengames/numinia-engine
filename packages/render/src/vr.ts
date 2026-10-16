@@ -92,7 +92,7 @@ export function createVR(h: VRHooks) {
   panel.position.set(-0.55, 1.35, -1.0);
   panel.rotation.y = 0.45;
   rig.add(panel);
-  let panelText = "", panelDelante = false;
+  let panelText = "", panelDelante = false, pagina: "mision" | "mandos" = "mandos";
   function setPanel(lines: string[]): void {
     const t = lines.join("\n");
     if (t === panelText) return; // nothing changed: no texture upload
@@ -185,6 +185,7 @@ export function createVR(h: VRHooks) {
     h.camera.add(vignette, nota);
     h.manos?.montar(rig);
     rig.visible = true;
+    pagina = "mandos"; panel.visible = true; panelDelante = false; // the first thing you see: how the controllers work
     session.addEventListener("end", () => {
       session = null; moveX = moveZ = 0; strength = 0;
       h.camera.remove(vignette, nota); rig.remove(h.camera); rig.visible = false;
@@ -217,8 +218,9 @@ export function createVR(h: VRHooks) {
         }
         if (by && !hs[1]) {
           if (src.handedness === "right") for (const f of oyentes.atras) f();             // B: back
-          else if (panel.visible && panelDelante) { panel.visible = false; }               // Y: hide the panel…
-          else { panel.visible = true; panelDelante = true; delante(panel, 0.8, 0.2); }   // …or bring it in front
+          else if (!panel.visible || !panelDelante) { panel.visible = true; panelDelante = true; pagina = "mision"; delante(panel, 0.8, 0.2); } // Y: the quest in front…
+          else if (pagina === "mision") pagina = "mandos";                                  // …then the controls…
+          else panel.visible = false;                                                         // …then away
         }
         hs[0] = ax; hs[1] = by;
       }
@@ -261,6 +263,8 @@ export function createVR(h: VRHooks) {
     set comfort(v: number) { comfort = Math.max(0, Math.min(1, v)); },
     get yawDegrees() { return yawSteps * SNAP_DEG; },
     get vignetteOpacity() { return strength; },
+    /** What the panel shows now: the quest or the controls (Y goes quest → controls → hidden). */
+    get pagina() { return pagina; },
     /** The rig (your floor in the world): where held things and hands live. */
     rig,
     /** Show a conversation in front of you (null closes it). Answers arrive through onElegir. */
