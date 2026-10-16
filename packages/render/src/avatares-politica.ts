@@ -102,3 +102,31 @@ export function girarHacia(actual: number, objetivo: number, dt: number, tau: nu
   d = Math.atan2(Math.sin(d), Math.cos(d));
   return actual + d * (1 - Math.exp(-dt / tau));
 }
+
+/**
+ * U13: whoever's voice you are hearing right now (an entry in apps/plaza/voz.ts's `voces`, i.e. someone near has
+ * their mic on and is making sound) gets their "aa" mouth shape driven by the volume being decoded for THIS
+ * listener (not the speaker's own level — that is what decides whether playback audio exists at all here; two
+ * listeners at different distances/network conditions can hear a different level of the same speaker). Below
+ * `BOCA_SILENCIO_RMS` (same idea as voz.ts's sender-side SILENCIO) the mouth stays shut: brief noise floor from
+ * the decoder does not twitch it open.
+ */
+export const BOCA_SILENCIO_RMS = 0.012;
+const BOCA_GANANCIA = 6; // how fast RMS saturates the shape fully open (1.0)
+
+/** A decoded voice frame's RMS turned into how open the mouth shape should be (0 closed .. 1 fully open). */
+export function nivelBoca(rms: number): number {
+  return rms <= BOCA_SILENCIO_RMS ? 0 : Math.min(1, (rms - BOCA_SILENCIO_RMS) * BOCA_GANANCIA);
+}
+
+/**
+ * The mouth's level between voice frames. A speaker's frames stop arriving the moment they go quiet (the sender
+ * never transmits silence, see net/voz.ts's own SILENCIO), so a listener has no explicit "stop talking" signal —
+ * the level must fade on its own instead of sticking open at the last word's volume. Call once per tick (U13's
+ * 100 ms interval in voz.ts) with `rms` = the newest decoded frame since the last call, or `null` when none
+ * arrived; `factor` is how much of the previous level survives one tick (lower = closes faster).
+ */
+export function decaerBoca(anterior: number, rms: number | null, factor = 0.55): number {
+  const decaido = anterior * factor;
+  return rms === null ? decaido : Math.max(decaido, nivelBoca(rms));
+}

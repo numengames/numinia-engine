@@ -41,6 +41,7 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
   const avatares = new Map<number | "yo", Avatar>();
   let cargando = 0, errores = 0, cuadros = 0, ultimoRepaso = -Infinity, antes = -1, ocupado = false;
   let conVrm = new Set<number>();
+  const nivelesVoz = new Map<number, number>(); // U13: who you hear right now, 0..1 (apps/plaza/voz.ts pushes this)
   const natural: Partial<Record<Clip, number>> = {};
   for (const [c, a] of Object.entries(cat?.animaciones ?? {})) natural[c as Clip] = a!.pasoPorCadera;
 
@@ -131,6 +132,12 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     if (a.saliente && ahora > a.fundidoHasta) { a.saliente.stop(); a.saliente = undefined; }
     if (a.accion && quiere && quiere.clip === a.clip) a.accion.setEffectiveTimeScale(quiere.ritmo);
     if (a.cerca && !oculto) { c.mixer.update(dt); c.humanoid.update(); } // far ones stand still (cold phones)
+    // U13: your mouth shape is never driven here (you never hear yourself, voz.ts); others' comes from who you hear
+    if (c.boca.length && typeof a.clave === "number") {
+      const nivel = nivelesVoz.get(a.clave) ?? 0;
+      if (nivel > 0) { m.activarBoca(c); m.ponerNivelBoca(c, nivel); }
+      else m.desactivarBoca(c); // cheap no-op once it is already off (the common case)
+    }
   }
 
   return {
@@ -163,9 +170,12 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
         if (!a) { a = { clave: id, modelo: elegirAvatar(id, n), marcha: nuevaMarcha(), estado: "quieto", fundidoHasta: 0, cerca: true }; avatares.set(id, a); }
         actualizar(a, ancla, false, desde, ahora, dt, modulo);
       }
-      for (const [k, a] of avatares) if (!quien.has(k)) { desvestir(a); avatares.delete(k); }
+      for (const [k, a] of avatares) if (!quien.has(k)) { desvestir(a); avatares.delete(k); if (typeof k === "number") nivelesVoz.delete(k); }
       ocupado = cargando > 0 || [...avatares.values()].some((a) => a.copia && a.cerca && (a.estado !== "quieto" || ahora < a.fundidoHasta));
     },
+    /** U13: who you hear right now, 0..1 (apps/plaza/voz.ts, the decoded/receiving side's volume) — `0` or
+     * omitted stops driving that avatar's mouth (it closes on its own next frame, same as not being heard). */
+    nivelVoz(id: number, nivel: number): void { if (nivel > 0) nivelesVoz.set(id, nivel); else nivelesVoz.delete(id); },
     /** Loading, fading, or someone near moving: keep drawing. A near avatar standing idle does not (it breathes at the idle frame rate). */
     busy(): boolean { return ocupado; },
     /** pesca v2: a hand's place in the world (the VRM's raw bone), or null while that player wears a capsule. */
