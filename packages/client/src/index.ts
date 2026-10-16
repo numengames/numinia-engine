@@ -164,9 +164,13 @@ export class ClientSession {
     const p = this.prev, c = this.cur;
     return {
       x: fxToFloat(p.x + (c.x - p.x) * alpha), y: fxToFloat(p.y + (c.y - p.y) * alpha), z: fxToFloat(p.z + (c.z - p.z) * alpha),
-      speed: Math.hypot(fxToFloat(c.x - p.x), fxToFloat(c.z - p.z)) * TICK_HZ, grounded: c.y <= groundHeight(c.x, c.z),
+      speed: Math.hypot(fxToFloat(c.x - p.x), fxToFloat(c.z - p.z)) * TICK_HZ, grounded: c.y <= groundHeight(c.x, c.z, this.local, c.y), // N1b: on a solid too
     };
   }
+
+  /** N1b: the solid boxes your prediction walks against (Q16.16, [x0 y0 z0 x1 y1 z1] each; the same as the server's).
+   * The page hands them to the camera so it does not go through walls. A new array each time they change. */
+  solidos(): Int32Array { return this.local.solids; }
 
   /** Everyone else in metres, interpolated INTERP_TICKS in the past. J2: `y` (height of the feet) and `speed`
    * (horizontal, m/s, over the snapshot interval being drawn). */

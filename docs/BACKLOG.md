@@ -66,7 +66,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J21 | Mundos verticales (Torre de los Alquimistas): `pnj@1` gana `posicion.y` opcional (0–30 m), `cosa@1` sube su tope de 3 a 30; el estado lo lleva (pnj v2, misiones v2) y la página dibuja a esa altura, con el nombre encima | hecho (16-10, rama `torre/aparicion-y-altura`; `test/altura.test.ts`) | sí |
 | J22 | El alcance mira la altura: `api.position` da `y`; `api.within` y el aviso «E:» de la página (`reachable(x, z, y)`) exigen una diferencia de altura ≤ 2,5 m (`ALCANCE_ALTURA_M`) cuando la cosa tiene `y`; `llega_a` admite `y` opcional (0–30) con la misma regla | hecho (16-10, rama `torre/aparicion-y-altura`; sin `y`, todo como antes) | sí |
 | N1 | Entrada táctil, gamepad, cámara en 3.ª persona y pantalla completa (de `docs/JUGADOR.md`) | hecho (sin probar en aparato real) | sí |
-| N1b | Cámara que no atraviesa lo construido (choca con el escenario) | espera a M6 | sí |
+| N1b | Cámara que sigue tu altura (saltos, pisos) y no atraviesa lo sólido (esfera barrida contra las cajas sólidas; lo no sólido, con M6) | hecho | sí |
 | N2 | Menú de ajustes y accesibilidad básica, guardado local (de `docs/JUGADOR.md`) | hecho | sí |
 | N3 | Ajustes dentro de VR: panel 3D legible, con su gemelo HTML | pendiente | sí |
 | N4 | Cambiar teclas (el tipo `tecla` deja de ser solo para ver; choques con las reservadas) | pendiente | sí |

@@ -608,7 +608,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       editor.frame();
       entorno.actualizar(); elementos.actualizar(dtSeconds);
       if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); colocarLlevados(); renderer.render(scene, camera); return; }
-      if (selfXZ) { feet.x = selfXZ.x; feet.z = selfXZ.z; }
+      if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
       cam.update(dtSeconds, selfXZ ? feet : null);
       colocarLlevados();
       renderer.render(scene, camera);

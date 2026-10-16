@@ -42,6 +42,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
   let mandos = 0;                             // gamepads connected: polled only while there is one
   const palanca = { x: 0, z: 0, gx: 0, gy: 0, zoom: 0 };
   let sens = 1, invY = 1;                     // N2 settings: look speed (mouse, finger, stick) and inverted vertical axis
+  let paredesFx: Int32Array | null = null;    // N1b: the last solid boxes given (to convert them only when they change)
 
   // ---- mouse ----
   const soltar = () => {
@@ -166,7 +167,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
       const now = performance.now();
       const s = ultimo ? Math.min(0.1, (now - ultimo) / 1000) : Math.min(0.1, dt); // the real time since the last draw
       ultimo = now;
-      if (target) { pies.x = target.x; pies.y = target.y; pies.z = target.z; }
+      if (target) { pies.x = target.x; pies.y = target.y; pies.z = target.z; orbita.seguir(target.y); } // N1b: and its height
       if (sujetas.size) {
         const T = TECLAS_CAMARA, h = (c: string) => (sujetas.has(c) ? 1 : 0);
         orbita.orbitar((h(T.izquierda) - h(T.derecha)) * GIRO_TECLA * s, (h(T.abajo) - h(T.arriba)) * INCLINA_TECLA * s);
@@ -206,6 +207,16 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
     ajustar(p: { sensibilidad?: number; invertirY?: boolean }): void {
       if (typeof p.sensibilidad === "number" && Number.isFinite(p.sensibilidad)) sens = Math.min(3, Math.max(0.25, p.sensibilidad));
       if (typeof p.invertirY === "boolean") invY = p.invertirY ? -1 : 1;
+    },
+    /** N1b: the solid boxes of the world, as the simulation holds them (Q16.16, [x0 y0 z0 x1 y1 z1] each): the play
+     * camera comes in front of them instead of going through. Cheap to call every frame: converted only when the
+     * array itself changes. */
+    paredes(fx: Int32Array | null | undefined): void {
+      if (!fx || fx === paredesFx) return;
+      paredesFx = fx;
+      const m = new Float32Array(fx.length);
+      for (let i = 0; i < fx.length; i++) m[i] = fx[i] / 65536;
+      orbita.paredes(m);
     },
     /** True when this touch pointer is the camera's (the page's joystick leaves it alone). */
     tieneDedo(pointerId: number): boolean { return dedos.has(pointerId); },

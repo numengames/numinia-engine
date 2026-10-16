@@ -21,7 +21,39 @@ export const CAMARA = {
   rapidez: { giro: 22, mover: 11 },                             // smoothing (1/s): angles; distance and pivot
   rueda: 0.0015,                                                // zoom per wheel pixel: one notch (100 px) ≈ ×1.16
   cursorLejos: 200,                                             // zoom to cursor: farther ground points are not used
+  // N1b: the pivot follows the height of your feet (jumps, stairs, a tower floor) a little behind them, so a jump
+  // does not shake the view (Nesky, «50 game camera mistakes» #44); a jump of more than `saltoAltura` m (a fall, a
+  // teleport) is followed at once.
+  altura: { rapidez: 9, saltoAltura: 6 },
+  // N1b: the camera does not go through solid things. A sphere of `radio` m is swept from the pivot back to the
+  // camera; on a hit the camera comes in at once and goes back out at `vuelta` 1/s (Hyperfy's simpleCamLerp: sphere
+  // 0.2 m, snap in, ease out ×6; Unreal's spring arm: «retract … and spring back»).
+  choque: { radio: 0.2, vuelta: 6 },
 };
+
+/** N1b: how far a sphere of radius `r` travels from `o` along the unit direction `d` before it touches one of the
+ * boxes (metres, [x0 y0 z0 x1 y1 z1] each), at most `max`. Each box is grown by `r` (slab test): exact on the faces,
+ * slightly early on edges, which only keeps the camera a little further from a corner. A box that already holds `o`
+ * is ignored (you stand against it, or inside a thing you may cross): the camera never collapses into your head. */
+export function barrido(o: Punto, d: Punto, max: number, r: number, cajas: ArrayLike<number>): number {
+  let mejor = max;
+  for (let i = 0; i + 5 < cajas.length; i += 6) {
+    const a = [cajas[i] - r, cajas[i + 1] - r, cajas[i + 2] - r], b = [cajas[i + 3] + r, cajas[i + 4] + r, cajas[i + 5] + r];
+    const p = [o.x, o.y, o.z], v = [d.x, d.y, d.z];
+    if (p[0] > a[0] && p[0] < b[0] && p[1] > a[1] && p[1] < b[1] && p[2] > a[2] && p[2] < b[2]) continue; // inside
+    let t0 = 0, t1 = mejor, fuera = false;
+    for (let k = 0; k < 3 && !fuera; k++) {
+      if (Math.abs(v[k]) < 1e-9) { if (p[k] < a[k] || p[k] > b[k]) fuera = true; continue; }
+      let ta = (a[k] - p[k]) / v[k], tb = (b[k] - p[k]) / v[k];
+      if (ta > tb) { const t = ta; ta = tb; tb = t; }
+      if (ta > t0) t0 = ta;
+      if (tb < t1) t1 = tb;
+      if (t0 > t1) fuera = true;
+    }
+    if (!fuera && t0 < mejor) mejor = t0;
+  }
+  return mejor;
+}
 
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 
@@ -52,7 +84,13 @@ export function crearOrbita() {
   let distJuego = meta.dist;          // the play distance to come back to after building
   let terceraAntes = meta.dist;       // the third-person distance to come back to from first person (key V)
   const rango = () => CAMARA[modo];
-  const ojoDe = (pies: Punto) => pies.y + CAMARA.ojo;
+  // N1b: the drawn height of your feet (null until `seguir` is called: then the feet's own height is used) and the
+  // wanted one; the solid boxes (metres); the drawn distance limit a wall set (`lim`, Infinity = free), where the
+  // last sweep hit (`tope`, Infinity = nothing) and the distance wanted on that frame (`quiere`)
+  let alt: number | null = null, altMeta = 0;
+  let cajas: ArrayLike<number> = [];
+  let lim = Infinity, tope = Infinity, quiere = 0;
+  const ojoDe = (pies: Punto) => (alt ?? pies.y) + CAMARA.ojo;
 
   /** The drawn pivot (world) for the avatar's feet at `pies`; never under the ground. */
   function pivote(pies: Punto, p: typeof meta = ahora): Punto {
@@ -153,8 +191,20 @@ export function crearOrbita() {
 
     /** True when the drawn pose has reached the wanted one (nothing to animate). */
     quieta(): boolean {
-      return ahora.yaw === meta.yaw && ahora.pitch === meta.pitch && ahora.dist === meta.dist && ahora.ox === meta.ox && ahora.oy === meta.oy && ahora.oz === meta.oz;
+      return ahora.yaw === meta.yaw && ahora.pitch === meta.pitch && ahora.dist === meta.dist && ahora.ox === meta.ox && ahora.oy === meta.oy && ahora.oz === meta.oz &&
+        (alt === null || alt === altMeta) && (lim === Infinity || lim === tope);
     },
+
+    /** N1b: the height of your feet this frame (metres). The pivot follows it smoothly; a jump of more than
+     * `CAMARA.altura.saltoAltura` (a fall, a teleport, the first frame) is taken at once. */
+    seguir(y: number): void {
+      if (!Number.isFinite(y)) return;
+      altMeta = y;
+      if (alt === null || Math.abs(y - alt) > CAMARA.altura.saltoAltura) alt = y;
+    },
+
+    /** N1b: the solid boxes the play camera must not go through (metres, [x0 y0 z0 x1 y1 z1] each). */
+    paredes(b: ArrayLike<number>): void { cajas = b; },
 
     /** Move the drawn pose toward the wanted one; snaps when close. Returns true while it still moves. */
     paso(dt: number): boolean {
@@ -165,6 +215,14 @@ export function crearOrbita() {
       };
       ir("yaw", kg, 1e-4); ir("pitch", kg, 1e-4);
       ir("dist", km, 1e-3); ir("ox", km, 1e-3); ir("oy", km, 1e-3); ir("oz", km, 1e-3);
+      if (alt !== null) { // N1b: height
+        const d = altMeta - alt, ka = 1 - Math.exp(-dt * CAMARA.altura.rapidez);
+        alt = Math.abs(d) < 1e-3 ? altMeta : alt + d * ka;
+      }
+      if (lim !== Infinity && lim !== tope) { // N1b: the wall is gone (or you turned): back out gently
+        const obj = tope === Infinity ? quiere : tope, kv = 1 - Math.exp(-dt * CAMARA.choque.vuelta);
+        if (obj - lim < 1e-3) lim = tope; else lim += (obj - lim) * kv;
+      }
       if (Math.abs(ahora.yaw) > Math.PI) { // keep the numbers small; both move together, so nothing jumps
         const k = Math.round(ahora.yaw / (2 * Math.PI)) * 2 * Math.PI;
         ahora.yaw -= k; meta.yaw -= k;
@@ -173,12 +231,18 @@ export function crearOrbita() {
     },
 
     /** The drawn camera for the avatar's feet at `pies`. Looking up from low, the camera comes closer instead of
-     * going under the ground (the only collision until physics, M6). */
+     * going under the ground; in play mode (N1b) it comes in front of a solid thing between it and you. */
     pose(pies: Punto, out: Pose): Pose {
       const p = pivote(pies);
       const cy = Math.cos(ahora.yaw), sy = Math.sin(ahora.yaw), cp = Math.cos(ahora.pitch), sp = Math.sin(ahora.pitch);
       let d = ahora.dist;
       if (sp < 0 && d > 0) d = Math.min(d, Math.max(0, (p.y - CAMARA.suelo) / -sp));
+      if (modo === "juego" && d > 0) {
+        const golpe = cajas.length >= 6 ? barrido(p, { x: sy * cp, y: sp, z: cy * cp }, d, CAMARA.choque.radio, cajas) : d;
+        quiere = d; tope = golpe < d ? golpe : Infinity;
+        if (tope < lim) lim = tope; // in at once: never a frame inside the wall
+        d = Math.min(d, lim);
+      } else lim = tope = Infinity;
       out.x = p.x + sy * cp * d; out.y = p.y + sp * d; out.z = p.z + cy * cp * d;
       out.fx = -sy * cp; out.fy = -sp; out.fz = -cy * cp;
       // inside or right next to your own body (first person, or looking up from the feet): render hides it

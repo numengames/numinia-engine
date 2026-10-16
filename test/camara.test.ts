@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { crearOrbita, haciaMundo, rayo, CAMARA, type Pose } from "../packages/render/src/camara-orbita.ts";
+import { crearOrbita, haciaMundo, rayo, barrido, CAMARA, type Pose } from "../packages/render/src/camara-orbita.ts";
 
 const G = Math.PI / 180;
 const pies = { x: 0, y: 0, z: 0 };
@@ -140,4 +140,59 @@ test("V toggles first person and back; reset returns behind the avatar the short
 test("the ray through the screen centre is the camera's forward", () => {
   const r = rayo(0, 0, 60, 1.5, 0.7, 0.2);
   near(r.x, -Math.sin(0.7) * Math.cos(0.2)); near(r.y, -Math.sin(0.2)); near(r.z, -Math.cos(0.7) * Math.cos(0.2));
+});
+
+// ---- N1b: the camera follows your height and does not go through solid things ----
+
+test("N1b: the pivot follows the feet's height (a jump, a tower floor) a little behind, then rests on it", () => {
+  const o = crearOrbita(), alto = { x: 0, y: 1.5, z: 0 };
+  o.seguir(0); asentar(o);
+  o.seguir(1.5);                           // the top of a jump
+  o.paso(1 / 60);
+  const p1 = o.pose(alto, pose());
+  assert.ok(p1.y > CAMARA.ojo + 5.2 && p1.y < CAMARA.ojo + 5.2 + 1.5, `a little behind: ${p1.y}`);
+  asentar(o);
+  near(o.pose(alto, pose()).y, 1.5 + CAMARA.ojo + 5.2, 1e-2);  // then exactly over the new height
+  assert.equal(o.quieta(), true);           // and the page may rest again
+  o.seguir(12); o.paso(1 / 60);             // a teleport to a tower's top (more than saltoAltura): taken at once
+  near(o.pivote({ x: 0, y: 12, z: 0 }).y, 12 + CAMARA.ojo, 1e-9);
+});
+
+test("N1b: a sphere swept against boxes stops at the first face, grown by its radius; a box holding the start is ignored", () => {
+  const caja = [-1, 0, 4, 1, 3, 5];         // a wall 4 m behind (+z)
+  near(barrido({ x: 0, y: 1.6, z: 0 }, { x: 0, y: 0, z: 1 }, 10, 0.2, caja), 3.8);
+  near(barrido({ x: 0, y: 1.6, z: 0 }, { x: 0, y: 0, z: 1 }, 3, 0.2, caja), 3);       // farther than max: max
+  near(barrido({ x: 5, y: 1.6, z: 0 }, { x: 0, y: 0, z: 1 }, 10, 0.2, caja), 10);     // beside it: free
+  near(barrido({ x: 0, y: 1.6, z: 4.5 }, { x: 0, y: 0, z: 1 }, 10, 0.2, caja), 10);   // starting inside: ignored
+});
+
+test("N1b: in play mode a wall behind you pulls the camera in at once, and it eases back out when the wall goes", () => {
+  const o = crearOrbita();
+  o.orbitar(0, -30 * G);                    // level camera, 10.4 m behind along +z
+  asentar(o);
+  const pared = new Float32Array([-3, 0, 4, 3, 6, 4.5]);
+  o.paredes(pared);
+  const p = o.pose(pies, pose());
+  near(p.z, 4 - CAMARA.choque.radio, 1e-6); // in front of the wall on the very first frame
+  asentar(o);
+  assert.equal(o.quieta(), true);           // held against the wall, nothing to animate: the page may rest
+  o.paredes([]);
+  o.pose(pies, pose());                     // the frame that finds the way clear
+  o.paso(1 / 60);
+  const p2 = o.pose(pies, pose());
+  assert.ok(p2.z > 3.8 && p2.z < 10.4, `easing out: ${p2.z}`);
+  asentar(o); o.pose(pies, pose()); asentar(o);
+  near(o.pose(pies, pose()).z, 10.4, 1e-2);
+  assert.equal(o.quieta(), true);
+});
+
+test("N1b: zooming in past a wall does not snap the camera into your head; build mode ignores walls", () => {
+  const o = crearOrbita();
+  o.orbitar(0, -30 * G); asentar(o);
+  o.paredes(new Float32Array([-3, 0, 4, 3, 6, 4.5]));
+  o.pose(pies, pose());
+  o.acercar(0.25);                          // 10.4 → 2.6 m: nearer than the wall
+  for (let i = 0; i < 300; i++) { o.paso(1 / 60); const z = o.pose(pies, pose()).z; assert.ok(z >= 2.6 - 1e-3 && z <= 3.8 + 1e-6, `z ${z}`); }
+  o.cambiarModo("construir"); asentar(o);
+  assert.ok(o.pose(pies, pose()).z > 4.5, "the editor camera flies through walls");
 });

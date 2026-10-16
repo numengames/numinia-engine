@@ -277,6 +277,7 @@ view.loop((now) => {
   const active = now - lastActive < 600;
   if (view.vr.active || view.ar.state !== "off" || view.power.shouldDraw(now, { hidden: document.hidden, active })) {
     view.sync(session.entity >= 0 ? session.selfPosition(acc / TICK_MS) : null, session.remotePositions(now));
+    view.cam.paredes(session.solidos()); // N1b: the camera does not go through solid things
     const t0 = performance.now();
     view.draw(dt / 1000);
     cost = view.lastFrame(); cost.cpuMs = Math.round((performance.now() - t0) * 100) / 100;
