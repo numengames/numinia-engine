@@ -23,6 +23,7 @@ import type { Medio } from "./medios.ts";
 export { sePuedeReproducir } from "./medios.ts";
 export type { Donde, Eje, Herramienta, Fase, Paso, Editor } from "./gizmo.ts";
 import { createAvatares } from "./avatares.ts";
+import { sueloBajo } from "./avatares-politica.ts";
 export type { CatalogoAvatares } from "./avatares.ts";
 import type { CatalogoAvatares } from "./avatares.ts";
 import { createNombres } from "./nombres.ts";
@@ -153,7 +154,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const cenital = crearCenital(renderer, scene, world, backend); // J5: the zone from above (big map) and its footprints
   let selfXZ: { x: number; z: number; y?: number } | null = null;
   // J1: you and the nearest players as VRM humanoids (avatares.ts); the capsules above stay as their anchors
-  const avs = createAvatares({ world, mobile: power.mobile, xr: () => renderer.xr.isPresenting, catalogo: opts.avatares?.catalogo, yo: opts.avatares?.yo, compilar: (o) => renderer.compileAsync(o, camera, scene) });
+  // N1b: the solid boxes in metres (view.solidos): the camera does not go through them, avatars stand on them
+  let cajasM: ArrayLike<number> = [], cajasFx: Int32Array | null = null;
+  const avs = createAvatares({ world, mobile: power.mobile, xr: () => renderer.xr.isPresenting, catalogo: opts.avatares?.catalogo, yo: opts.avatares?.yo, compilar: (o) => renderer.compileAsync(o, camera, scene),
+    suelo: (x, z, y) => sueloBajo(x, z, y, cajasM) });
   // H4 + H12: sky, sun, light, fog, wind and ground come from data (features/entorno), quality from the device tier
   const entorno = crearEntorno({ renderer, scene, world, camera, hemi, sun, ground, grid, hitos, aparato: { mobile: power.mobile, deviceMemoryGB: readCaps().deviceMemoryGB, saveData: readCaps().saveData }, foco: () => selfXZ,
     fichero: (f) => { const i = f.lastIndexOf("."); return (opts.assetUrl ?? ((m: string) => `/a/${m}.glb`))(f.slice(0, i)).replace(/\.glb$/, f.slice(i)); } });
@@ -600,6 +604,16 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** N1: the camera — orbit, zoom, first person, build mode. See camara.ts. */
     cam,
+    /** N1b: the world's solid boxes as the simulation holds them (Q16.16, `session.solidos()`): the camera does not go
+     * through them and an avatar on a stair or a roof walks instead of «jumping». Cheap every frame (converted on change). */
+    solidos(fx: Int32Array | null | undefined): void {
+      if (!fx || fx === cajasFx) return;
+      cajasFx = fx;
+      const m = new Float32Array(fx.length);
+      for (let i = 0; i < fx.length; i++) m[i] = fx[i] / 65536;
+      cajasM = m;
+      cam.paredes(fx);
+    },
     /** Move the camera (N1), then draw. */
     draw(dtSeconds: number): void {
       updateDecorations(performance.now());

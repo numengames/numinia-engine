@@ -357,3 +357,21 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Opus 5.5.
 - Commit: rama `camara/altura-y-paredes`.
 - Siguiente: estudio de físicas, teclas, ajustes en pestañas y mapa (`mmo-browser-study/FISICAS-CAMARA-AJUSTES-MAPA.md`).
+
+## 2026-10-16 15:05 · N1b (2) y versión 0.1.0 · escaleras, tejado y la versión sin marca · hecho (sesión con Pablo)
+- Qué: Pablo, en la Torre: «no anda encima del suelo del tejado, no sabe subir bien las escaleras, se queda como
+  saltando en el aire». Dos causas: (1) el avatar decidía «en el aire» por su altura sobre y 0, así que en el tejado
+  (12 m) y en la escalera hacía la animación de salto todo el rato; ahora se mide sobre el suelo que tiene debajo
+  (`sueloBajo`, las mismas cajas que la simulación; `view.solidos`); (2) al bajar un peldaño caía 0,37 m con la
+  gravedad y pasaba por «en el aire» en cada peldaño: la simulación ahora te pega al suelo si el escalón baja
+  ≤ 0,45 m y no saltas (`SNAP_DOWN`; solo con sólidos, la huella 93b192c8 no cambia). Versión: `package.json` pasa
+  a **0.1.0** (STD-019) y el pie de los ajustes enseña solo `v0.1.0`, sin «Numinia Engine» (el build queda en el
+  rótulo al pasar el ratón); título de la pestaña «Mundo»; política en `docs/VERSIONES.md`. Fila J23 (grabar vídeo
+  desde el mundo, también las IAs) para planificar.
+- Números: 281 pruebas en verde (escaleras: subir 32 peldaños y bajarlos sin un solo tick en el aire; sin el
+  arreglo, bajar fallaba); huella 93b192c8; build bien; cámara en la Torre otra vez bien (15/24 ángulos, sin
+  errores).
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `camara/altura-y-paredes`.
+- Siguiente: que Pablo lo pruebe; después, tiempo de coyote, salto variable y el mando que salta.
+

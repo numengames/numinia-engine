@@ -12,6 +12,18 @@ export const TRIANGULOS_MAX = 10_000;
 export const QUIETO_MS = 0.3, CORRER_MS = 5;
 /** Above the ground by more than this (m): in the air. */
 export const EN_EL_AIRE_M = 0.15;
+/** The height of the ground under (x, z) for feet at `y` (metres), as the simulation finds it (sim groundHeight): the
+ * plaza (0) or the highest top of a solid box (metres, [x0 y0 z0 x1 y1 z1] each) not more than 0.4 m over the feet.
+ * «In the air» is measured from THIS, not from y 0: on a stair or a roof you walk, you do not fly (Pablo, 16-10). */
+export function sueloBajo(x: number, z: number, y: number, cajas: ArrayLike<number>): number {
+  let g = 0;
+  for (let o = 0; o + 5 < cajas.length; o += 6) {
+    if (x < cajas[o] || x > cajas[o + 3] || z < cajas[o + 2] || z > cajas[o + 5]) continue;
+    const top = cajas[o + 4];
+    if (top > g && top <= y + 0.4 + 1e-6) g = top;
+  }
+  return g;
+}
 /** Crossfade between clips (s). */
 export const FUNDIDO_S = 0.2;
 
