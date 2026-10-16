@@ -39,7 +39,7 @@ const shown = () => getComputedStyle(document.getElementById("ar")).display !== 
   const p = await ctx.newPage();
   p.on("pageerror", (e) => errors.push(String(process.env.STACK ? e.stack : e)));
   p.on("console", (m) => { if (m.type() === "error") errors.push("console: " + m.text()); });
-  await p.goto(BASE + (BASE.includes("?") ? "&" : "?") + "armax=6000");
+  await p.goto(BASE + (BASE.includes("?") ? "&" : "?") + "armax=12000");
   await p.waitForFunction(() => globalThis.__numinia?.session.entity >= 0, null, { timeout: 30000 });
   await p.waitForFunction(shown, null, { timeout: 5000 }).catch(() => {});
   results.arButtonShown = await p.evaluate(shown);
@@ -51,14 +51,28 @@ const shown = () => getComputedStyle(document.getElementById("ar")).display !== 
     await p.evaluate(() => { const c = globalThis.__iwer.controllers.right; c.updateButtonValue("trigger", 1); setTimeout(() => c.updateButtonValue("trigger", 0), 150); });
     await p.waitForFunction(() => globalThis.__numinia.view.ar.state === "placed", null, { timeout: 8000 }).catch(() => {});
     results.afterTrigger = await ar();
-    await p.waitForFunction(() => globalThis.__numinia.view.ar.state === "off", null, { timeout: 12000 }).catch(() => {});
+    // J8b: the live plaza in miniature: pillars, you; hands drawn; right stick turns and scales it, left walks you
+    await p.waitForTimeout(400);
+    const mq = () => p.evaluate(() => globalThis.__numinia.view.ar.maqueta());
+    results.maqueta = await mq();
+    results.manos = await p.evaluate(() => { const e = globalThis.__numinia.view.manos.estado(); return [e.izq?.dibujada, e.der?.dibujada]; });
+    const pos0 = await p.evaluate(() => globalThis.__numinia.session.selfPosition(1));
+    await p.evaluate(() => { globalThis.__iwer.controllers.right.updateAxes("thumbstick", 1, -1); globalThis.__iwer.controllers.left.updateAxes("thumbstick", 0, -1); });
+    await p.waitForTimeout(1500);
+    await p.evaluate(() => { globalThis.__iwer.controllers.right.updateAxes("thumbstick", 0, 0); globalThis.__iwer.controllers.left.updateAxes("thumbstick", 0, 0); });
+    results.maquetaTras = await mq();
+    const pos1 = await p.evaluate(() => globalThis.__numinia.session.selfPosition(1));
+    results.andaEnLaMesa = Math.round(Math.hypot(pos1.x - pos0.x, pos1.z - pos0.z) * 10) / 10;
+    await p.waitForFunction(() => globalThis.__numinia.view.ar.state === "off", null, { timeout: 20000 }).catch(() => {});
     results.afterTimeout = await ar();
   }
   await ctx.close();
 }
 await browser.close();
 results.errors = errors;
-const ok = results.noXrButtonHidden && results.arButtonShown && results.afterEnter === "ready" && results.afterTrigger === "placed" && results.afterTimeout === "off" && errors.length === 0;
+const ok = results.noXrButtonHidden && results.arButtonShown && results.afterEnter === "ready" && results.afterTrigger === "placed" && results.afterTimeout === "off" && errors.length === 0
+  && results.maqueta?.pilares >= 20 && results.maqueta.yo && results.manos?.every(Boolean)
+  && results.maquetaTras.escala > results.maqueta.escala && results.maquetaTras.giroGrados !== 0 && results.andaEnLaMesa > 0.5;
 console.log(JSON.stringify(results, null, 1));
 console.log(ok ? "E2E AR OK" : "E2E AR FALLA");
 process.exit(ok ? 0 : 1);

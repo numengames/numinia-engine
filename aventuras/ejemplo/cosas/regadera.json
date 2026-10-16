@@ -1,0 +1,18 @@
+{
+  "formato": "cosa@1",
+  "id": "regadera",
+  "nombre": "Regadera azul",
+  "descripcion": "La regadera de Teo, el jardinero.",
+  "posicion": {
+    "x": -14,
+    "z": 4,
+    "y": 1.0
+  },
+  "radio": 2,
+  "aviso": "coger la regadera",
+  "apariencia": {
+    "escala": 0.3,
+    "color": "#3a7bd5"
+  },
+  "notas": "EJEMPLO del motor (J10). El bloque de la casa, azul, a la altura de la mano."
+}

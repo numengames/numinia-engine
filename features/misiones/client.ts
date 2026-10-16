@@ -22,10 +22,10 @@ export function aspectoPnj(v: Msg): { cuerpo: PlacedObject; nombre: { text: stri
     nombre: { text: String(v.nombre), x: Number(v.x), y: ALTO_NOMBRE * Number(v.escala), z: Number(v.z) },
   };
 }
-/** How a quest thing looks: its model, or the house block (a small crate). */
-export const aspectoCosa = (v: Msg): PlacedObject => {
-  const e = Number(v.escala);
-  return { model: String(v.modelo ?? "") || BLOQUE, x: Number(v.x), y: 0, z: Number(v.z), rx: 0, ry: 0, rz: 0, sx: e, sy: e, sz: e, animate: false };
+/** How a quest thing looks: its model, or the house block (a small crate); at its height (y) and in its colour. */
+export const aspectoCosa = (v: Msg): PlacedObject & { color?: string } => {
+  const e = Number(v.escala), color = String(v.color ?? "");
+  return { model: String(v.modelo ?? "") || BLOQUE, x: Number(v.x), y: Number(v.y) || 0, z: Number(v.z), rx: 0, ry: 0, rz: 0, sx: e, sy: e, sz: e, animate: false, ...(color ? { color } : {}) };
 };
 
 export type PasoVista = { n: number; texto: string; tipo: string; hecho: boolean; x: number; z: number; donde: string; que: string };

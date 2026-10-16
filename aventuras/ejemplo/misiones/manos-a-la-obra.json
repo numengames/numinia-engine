@@ -1,0 +1,38 @@
+{
+  "formato": "mision@1",
+  "id": "manos-a-la-obra",
+  "titulo": "Manos a la obra",
+  "descripcion": "Teo, el jardinero, quiere plantar un jardín. Coge su regadera azul y su saco de semillas, y llévaselos.",
+  "pasos": [
+    {
+      "id": "regadera",
+      "tipo": "coge",
+      "texto": "Coge la regadera azul (al oeste)",
+      "cosa": "regadera"
+    },
+    {
+      "id": "semillas",
+      "tipo": "coge",
+      "texto": "Coge el saco de semillas (al norte)",
+      "cosa": "semillas"
+    },
+    {
+      "id": "teo",
+      "tipo": "habla_con",
+      "texto": "Lleva las dos cosas a Teo",
+      "pnj": "teo"
+    }
+  ],
+  "recompensas": [
+    {
+      "tipo": "insignia",
+      "id": "buena-mano",
+      "nombre": "Buena mano"
+    }
+  ],
+  "textos": {
+    "aceptada": "En VR: acerca la mano a la cosa y aprieta el botón de agarrar.",
+    "completada": "Teo ya puede plantar su jardín."
+  },
+  "notas": "EJEMPLO del motor (J10): dos cosas que se cogen (con la mano en VR; con E, un clic o el botón en pantalla) y se llevan a quien las pidió."
+}

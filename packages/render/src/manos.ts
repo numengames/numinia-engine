@@ -1,0 +1,298 @@
+// Hands in XR (VR and AR): what you see of yourself and how you reach for things. Two kinds of input, per slot:
+//   · a controller (Quest Touch, Pico): a drawn hand holding a small controller; its fingers follow the buttons
+//     (index = trigger, the other three = grip, thumb = touching A/B/X/Y or the stick), and a ray from its tip;
+//   · a tracked hand (hand-tracking): its 25 joints as spheres joined by bones, and a ray; pinching = trigger.
+// Reaching: near a thing that can be taken (the page says which), a halo shows it and the controller buzzes once;
+// grip (or trigger, or a pinch) there = «agarrar». Far away, the ray points: trigger on a panel row, a thing or a
+// person = «panel» / «apuntar»; on nothing = «gatillo» (the page uses what is in reach). render only reports: the
+// page asks the server, which decides. No files are downloaded (no controller profiles from a CDN): primitives only.
+import * as THREE from "three/webgpu";
+
+export type Lado = "izq" | "der";
+export type Panel = { malla: THREE.Mesh; fila(uv: THREE.Vector2): number; encima(n: number): void };
+export type ManosHooks = {
+  renderer: THREE.WebGPURenderer;
+  /** Things that can be reached or pointed at: key + its group (render's placed things). */
+  objetos: () => Iterable<[string, THREE.Object3D]>;
+  /** Names over people (sprites) that can be pointed at: key + sprite. */
+  etiquetas?: () => Iterable<[string, THREE.Object3D]>;
+  /** Interactive 3D panels (dialogue rows), tested before anything else. */
+  paneles?: () => Panel[];
+};
+export type EventoMano =
+  | { tipo: "agarrar"; key: string; lado: Lado }
+  | { tipo: "apuntar"; key: string; lado: Lado }
+  | { tipo: "panel"; fila: number; lado: Lado }
+  | { tipo: "gatillo"; lado: Lado };
+
+/** How far from a thing's surface a hand still takes it (m). */
+export const ALCANCE_M = 0.22;
+/** The ray stops here (m). */
+export const RAYO_M = 12;
+const PIEL = 0xe3b896, MANDO = 0x2b2f36;
+
+const JUNTAS = ["wrist",
+  "thumb-metacarpal", "thumb-phalanx-proximal", "thumb-phalanx-distal", "thumb-tip",
+  "index-finger-metacarpal", "index-finger-phalanx-proximal", "index-finger-phalanx-intermediate", "index-finger-phalanx-distal", "index-finger-tip",
+  "middle-finger-metacarpal", "middle-finger-phalanx-proximal", "middle-finger-phalanx-intermediate", "middle-finger-phalanx-distal", "middle-finger-tip",
+  "ring-finger-metacarpal", "ring-finger-phalanx-proximal", "ring-finger-phalanx-intermediate", "ring-finger-phalanx-distal", "ring-finger-tip",
+  "pinky-finger-metacarpal", "pinky-finger-phalanx-proximal", "pinky-finger-phalanx-intermediate", "pinky-finger-phalanx-distal", "pinky-finger-tip"] as const;
+/** Bones: each joint to the next along its finger, and every metacarpal to the wrist. */
+const HUESOS: [number, number][] = [];
+for (const base of [1, 5, 10, 15, 20]) {
+  HUESOS.push([0, base]);
+  const n = base === 1 ? 4 : 5;
+  for (let k = 0; k < n - 1; k++) HUESOS.push([base + k, base + k + 1]);
+}
+
+type Fuente = { handedness: string; hand?: unknown; targetRayMode?: string; gamepad?: { buttons: { value: number; pressed: boolean; touched: boolean }[]; hapticActuators?: { pulse?(v: number, ms: number): unknown }[] } };
+type Ranura = {
+  i: number; fuente: Fuente | null; lado: Lado | null; esMano: boolean;
+  ctrl: THREE.Group; grip: THREE.Group; hand: THREE.Group & { joints?: Record<string, THREE.Object3D & { jointRadius?: number }> };
+  rayo: THREE.Mesh; punto: THREE.Mesh; manoMando: ReturnType<typeof crearManoMando>; esqueleto: ReturnType<typeof crearEsqueleto>;
+  ancla: THREE.Object3D; halo: THREE.Mesh; candidato: string | null; apuntado: { tipo: "panel" | "cosa"; key: string; fila: number } | null;
+};
+
+/** A drawn hand holding a small controller, in grip space. Fingers bend with `dedos(indice, resto, pulgar)` (0..1). */
+function crearManoMando(mat: THREE.Material, matMando: THREE.Material) {
+  const g = new THREE.Group();
+  // the controller: a handle along the grip's -Z axis tilted down, a ring over the hand
+  const mango = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.02, 0.11, 10), matMando);
+  mango.rotation.x = Math.PI / 2 - 0.35; mango.position.set(0, -0.01, 0.02);
+  const anillo = new THREE.Mesh(new THREE.TorusGeometry(0.038, 0.006, 6, 18), matMando);
+  anillo.position.set(0, 0.03, -0.045); anillo.rotation.x = 0.5;
+  const cara = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.012, 14), matMando);
+  cara.position.set(0, 0.035, -0.02); cara.rotation.x = 0.35;
+  g.add(mango, anillo, cara);
+  // the hand: the back of the palm outside (+X for a right hand; the left one is mirrored by the caller)
+  const palma = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.085, 0.08), mat);
+  palma.position.set(0.035, 0, 0.015); palma.rotation.x = -0.35;
+  g.add(palma);
+  const seg = new THREE.CapsuleGeometry(0.0095, 0.03, 3, 8).rotateX(Math.PI / 2).translate(0, 0, -0.024);
+  type Dedo = { base: THREE.Group; medio: THREE.Group };
+  const dedo = (x: number, y: number, z: number, largo = 1): Dedo => {
+    const base = new THREE.Group(); base.position.set(x, y, z);
+    const a = new THREE.Mesh(seg, mat); a.scale.setScalar(largo); base.add(a);
+    const medio = new THREE.Group(); medio.position.set(0, 0, -0.045 * largo); base.add(medio);
+    medio.add(new THREE.Mesh(seg, mat));
+    palma.parent!.add(base);
+    return { base, medio };
+  };
+  // index (trigger) high and in front; middle, ring and little finger wrap the handle (grip)
+  const indice = dedo(0.03, 0.022, -0.035);
+  const resto = [dedo(0.03, -0.004, -0.03), dedo(0.03, -0.026, -0.022, 0.92), dedo(0.028, -0.046, -0.012, 0.8)];
+  const pulgar = dedo(0.0, 0.04, 0.01, 0.9);
+  pulgar.base.rotation.set(0, 0, 0);
+  const doblar = (d: Dedo, v: number) => { d.base.rotation.y = 0.15 + v * 1.25; d.medio.rotation.y = 0.2 + v * 1.35; }; // towards -X: across the handle
+  function dedos(i: number, r: number, p: number): void {
+    doblar(indice, i);
+    for (const d of resto) doblar(d, 0.35 + r * 0.65);
+    pulgar.base.rotation.x = -0.6 - p * 0.5; pulgar.base.rotation.y = -0.3 - p * 0.35; pulgar.medio.rotation.x = -0.25 - p * 0.4;
+  }
+  dedos(0, 0, 0);
+  return { grupo: g, dedos };
+}
+
+/** A tracked hand: one instanced sphere per joint and one instanced bone between joints (two draw calls). */
+function crearEsqueleto(mat: THREE.Material) {
+  const bolas = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), mat, JUNTAS.length);
+  const huesos = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, 1, 6), mat, HUESOS.length);
+  for (const m of [bolas, huesos]) { m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.count = 0; }
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), S = new THREE.Vector3(), D = new THREE.Vector3(), C = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
+  const pos: THREE.Vector3[] = JUNTAS.map(() => new THREE.Vector3()), rad: number[] = JUNTAS.map(() => 0.008);
+  let vistas = 0;
+  /** Reads the joints (hand space = the parent's space); returns how many were tracked. */
+  function actualizar(joints: Record<string, THREE.Object3D & { jointRadius?: number }> | undefined): number {
+    vistas = 0;
+    if (!joints) { bolas.count = huesos.count = 0; return 0; }
+    const ok: boolean[] = [];
+    JUNTAS.forEach((n, k) => {
+      const j = joints[n];
+      ok[k] = !!j && j.visible;
+      if (!ok[k]) return;
+      pos[k].copy(j!.position); rad[k] = Math.max(0.005, (j!.jointRadius ?? 0.008) * 0.9);
+      M.compose(pos[k], Q.identity(), S.setScalar(rad[k]));
+      bolas.setMatrixAt(vistas++, M);
+    });
+    bolas.count = vistas; bolas.instanceMatrix.needsUpdate = true;
+    let h = 0;
+    for (const [a, b] of HUESOS) {
+      if (!ok[a] || !ok[b]) continue;
+      D.subVectors(pos[b], pos[a]); const l = D.length();
+      if (l < 1e-4) continue;
+      C.addVectors(pos[a], pos[b]).multiplyScalar(0.5);
+      Q.setFromUnitVectors(Y, D.divideScalar(l));
+      const r = Math.min(rad[a], rad[b]) * 0.8;
+      M.compose(C, Q, S.set(r, l, r));
+      huesos.setMatrixAt(h++, M);
+    }
+    huesos.count = h; huesos.instanceMatrix.needsUpdate = true;
+    return vistas;
+  }
+  return { bolas, huesos, actualizar, get vistas() { return vistas; }, punta: (n: (typeof JUNTAS)[number]) => pos[JUNTAS.indexOf(n)] };
+}
+
+export function createManos(h: ManosHooks) {
+  const raiz = new THREE.Group();
+  raiz.name = "manos";
+  const piel = new THREE.MeshStandardMaterial({ color: PIEL, roughness: 0.75, side: THREE.DoubleSide });
+  const plastico = new THREE.MeshStandardMaterial({ color: MANDO, roughness: 0.5 });
+  const rayoMat = new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.75, depthWrite: false });
+  const rayoGeo = new THREE.BoxGeometry(0.003, 0.003, 1).translate(0, 0, -0.5);
+  const puntoGeo = new THREE.SphereGeometry(0.012, 10, 8);
+  const haloMat = new THREE.MeshBasicMaterial({ color: 0xfff1b8, transparent: true, opacity: 0.18, depthWrite: false });
+  const haloGeo = new THREE.SphereGeometry(1, 20, 14);
+  const oyentes = new Set<(e: EventoMano) => void>();
+  const emitir = (e: EventoMano) => { for (const f of oyentes) { try { f(e); } catch (err) { console.warn("[manos]", err); } } };
+  let agarrable: (key: string) => boolean = () => false;
+  let apuntable: (key: string) => boolean = () => false;
+
+  const ranuras: Ranura[] = [0, 1].map((i) => {
+    const ctrl = h.renderer.xr.getController(i), grip = h.renderer.xr.getControllerGrip(i), hand = h.renderer.xr.getHand(i) as Ranura["hand"];
+    const rayo = new THREE.Mesh(rayoGeo, rayoMat); rayo.visible = false; rayo.frustumCulled = false;
+    const punto = new THREE.Mesh(puntoGeo, rayoMat); punto.visible = false;
+    ctrl.add(rayo);
+    const manoMando = crearManoMando(piel, plastico); manoMando.grupo.visible = false; grip.add(manoMando.grupo);
+    const esqueleto = crearEsqueleto(piel); hand.add(esqueleto.bolas, esqueleto.huesos);
+    const ancla = new THREE.Object3D(); ancla.name = `ancla-${i}`;
+    const halo = new THREE.Mesh(haloGeo, haloMat); halo.visible = false; halo.renderOrder = 5;
+    raiz.add(ctrl, grip, hand, punto, ancla, halo);
+    const r: Ranura = { i, fuente: null, lado: null, esMano: false, ctrl, grip, hand, rayo, punto, manoMando, esqueleto, ancla, halo, candidato: null, apuntado: null };
+    ctrl.addEventListener("connected", (e: { data?: Fuente }) => {
+      const f = e.data ?? null;
+      r.fuente = f; r.esMano = !!f?.hand; r.lado = f?.handedness === "left" ? "izq" : f?.handedness === "right" ? "der" : null;
+      manoMando.grupo.scale.x = r.lado === "izq" ? -1 : 1; // the left hand is the right one mirrored
+    });
+    ctrl.addEventListener("disconnected", () => { r.fuente = null; r.lado = null; r.candidato = null; r.apuntado = null; });
+    ctrl.addEventListener("selectstart", () => pulsar(r, "gatillo"));
+    ctrl.addEventListener("squeezestart", () => pulsar(r, "agarre"));
+    return r;
+  });
+
+  function vibrar(r: Ranura, v = 0.35, ms = 25): void { try { void r.fuente?.gamepad?.hapticActuators?.[0]?.pulse?.(v, ms); } catch { /* no haptics here */ } }
+  function pulsar(r: Ranura, como: "gatillo" | "agarre"): void {
+    if (!r.lado || !raiz.parent) return;
+    if (r.candidato) { emitir({ tipo: "agarrar", key: r.candidato, lado: r.lado }); vibrar(r, 0.6, 40); return; }
+    if (como === "agarre") return;
+    const a = r.apuntado;
+    if (a?.tipo === "panel") emitir({ tipo: "panel", fila: a.fila, lado: r.lado });
+    else if (a?.tipo === "cosa") emitir({ tipo: "apuntar", key: a.key, lado: r.lado });
+    else emitir({ tipo: "gatillo", lado: r.lado });
+  }
+
+  const caja = new THREE.Box3(), esfera = new THREE.Sphere(), P = new THREE.Vector3(), O = new THREE.Vector3(), Dir = new THREE.Vector3(), Qw = new THREE.Quaternion();
+  const ray = new THREE.Raycaster(); ray.far = RAYO_M;
+  const uv = new THREE.Vector2();
+
+  /** Where a hand takes things: the controller's grip, or the point between thumb and index tips. In raiz space. */
+  function puntoDeAgarre(r: Ranura): boolean {
+    if (r.esMano) {
+      const j = r.hand.joints;
+      const a = j?.["index-finger-tip"], b = j?.["thumb-tip"], w = j?.wrist;
+      if (!a?.visible || !b?.visible) return false;
+      r.ancla.position.addVectors(a.position, b.position).multiplyScalar(0.5);
+      if (w?.visible) r.ancla.quaternion.copy(w.quaternion);
+      return true;
+    }
+    if (!r.grip.visible) return false;
+    r.ancla.position.copy(r.grip.position); r.ancla.quaternion.copy(r.grip.quaternion);
+    return true;
+  }
+
+  function actualizarRanura(r: Ranura, camara: THREE.Camera | null): void {
+    if (!r.fuente) { // loaded after the inputs connected (entering XR before the prefetch): take the one three gave this slot
+      const xr = h.renderer.xr as unknown as { _controllerInputSources?: (Fuente | null)[] };
+      const f = xr._controllerInputSources?.[r.i];
+      if (f) r.ctrl.dispatchEvent({ type: "connected", data: f } as never);
+    }
+    const conectado = !!r.fuente && !!r.lado;
+    r.manoMando.grupo.visible = conectado && !r.esMano;
+    const vistas = conectado && r.esMano ? r.esqueleto.actualizar(r.hand.joints) : r.esqueleto.actualizar(undefined);
+    r.hand.visible = vistas > 0;
+    if (conectado && !r.esMano) {
+      const b = r.fuente!.gamepad?.buttons ?? [];
+      const pulgar = [3, 4, 5].some((k) => b[k]?.touched || b[k]?.pressed) ? 1 : 0;
+      r.manoMando.dedos(b[0]?.value ?? 0, b[1]?.value ?? 0, pulgar);
+    }
+    // reach: the nearest thing that can be taken, within ALCANCE_M of its bounding sphere
+    const antes = r.candidato;
+    r.candidato = null;
+    const tiene = conectado && puntoDeAgarre(r);
+    r.ancla.updateMatrixWorld();
+    if (tiene) {
+      r.ancla.getWorldPosition(P);
+      let mejor = Infinity;
+      for (const [k, g] of h.objetos()) {
+        if (!agarrable(k) || !g.visible || g.parent?.name?.startsWith("ancla-")) continue;
+        caja.setFromObject(g); if (caja.isEmpty()) continue;
+        caja.getBoundingSphere(esfera);
+        const d = P.distanceTo(esfera.center) - esfera.radius;
+        if (d < ALCANCE_M && d < mejor) { mejor = d; r.candidato = k; r.halo.position.copy(esfera.center); r.halo.scale.setScalar(esfera.radius * 1.15 + 0.03); }
+      }
+    }
+    if (r.candidato && r.candidato !== antes) vibrar(r);
+    if (r.halo.parent && r.candidato) { r.halo.parent.worldToLocal(r.halo.position); r.halo.scale.divideScalar(r.halo.parent.getWorldScale(O).x || 1); }
+    r.halo.visible = !!r.candidato;
+    // the ray: panels first, then things and names; it stops where it hits
+    r.apuntado = null;
+    const rayoVivo = conectado && r.ctrl.visible && !r.candidato;
+    r.rayo.visible = rayoVivo; r.punto.visible = false;
+    if (!rayoVivo) return;
+    r.ctrl.updateMatrixWorld();
+    r.ctrl.getWorldPosition(O); Dir.set(0, 0, -1).applyQuaternion(r.ctrl.getWorldQuaternion(Qw));
+    ray.set(O, Dir);
+    if (camara) ray.camera = camara;
+    let dist = RAYO_M;
+    for (const p of h.paneles?.() ?? []) {
+      if (!p.malla.visible) continue;
+      const hit = ray.intersectObject(p.malla, false)[0];
+      if (hit && hit.distance < dist && hit.uv) { uv.copy(hit.uv); const n = p.fila(uv); dist = hit.distance; r.apuntado = { tipo: "panel", key: "", fila: n }; p.encima(n); }
+    }
+    if (!r.apuntado) {
+      const lista: THREE.Object3D[] = [], claves = new Map<THREE.Object3D, string>();
+      for (const [k, g] of h.objetos()) if (apuntable(k) && g.visible) { lista.push(g); claves.set(g, k); }
+      for (const [k, s] of h.etiquetas?.() ?? []) if (apuntable(k) && s.visible) { lista.push(s); claves.set(s, k); }
+      for (const hit of ray.intersectObjects(lista, true)) {
+        let o: THREE.Object3D | null = hit.object;
+        while (o && !claves.has(o)) o = o.parent;
+        if (o) { dist = hit.distance; r.apuntado = { tipo: "cosa", key: claves.get(o)!, fila: 0 }; break; }
+      }
+    }
+    const escalaMundo = r.ctrl.getWorldScale(O).z || 1;
+    r.rayo.scale.z = dist / escalaMundo;
+    if (r.apuntado) {
+      r.punto.visible = true;
+      r.punto.position.copy(ray.ray.at(dist, P));
+      raiz.worldToLocal(r.punto.position);
+    }
+  }
+
+  return {
+    raiz,
+    /** Put the hands under `padre` (VR: the rig; AR: its root) or take them away (null). */
+    montar(padre: THREE.Object3D | null): void { if (padre) padre.add(raiz); else raiz.parent?.remove(raiz); },
+    /** What a hand may take (quest things that the current step needs) and what the ray may use. */
+    reglas(o: { agarrable?: (key: string) => boolean; apuntable?: (key: string) => boolean }): void { if (o.agarrable) agarrable = o.agarrable; if (o.apuntable) apuntable = o.apuntable; },
+    /** Every frame while presenting. `camara` = the XR camera (sprites need it to be hit). */
+    update(camara: THREE.Camera | null): void { if (!raiz.parent) return; raiz.updateMatrixWorld(); for (const r of ranuras) actualizarRanura(r, camara); },
+    on(fn: (e: EventoMano) => void): () => void { oyentes.add(fn); return () => oyentes.delete(fn); },
+    /** Where a thing held in this hand goes (grip or pinch point), or null if that hand is not here. */
+    ancla(lado: Lado): THREE.Object3D | null { const r = ranuras.find((x) => x.lado === lado && x.fuente); return r ? r.ancla : null; },
+    vibrar(lado: Lado, v = 0.5, ms = 60): void { const r = ranuras.find((x) => x.lado === lado); if (r) vibrar(r, v, ms); },
+    /** For checks: per hand, what is connected and drawn, how bent the fingers are, what it reaches and points at. */
+    estado() {
+      const out: Record<Lado, { tipo: "mando" | "mano"; dibujada: boolean; articulaciones: number; indice: number; resto: number; candidato: string | null; apunta: string | null; rayo: boolean } | null> = { izq: null, der: null };
+      for (const r of ranuras) {
+        if (!r.lado || !r.fuente) continue;
+        const b = r.fuente.gamepad?.buttons ?? [];
+        out[r.lado] = {
+          tipo: r.esMano ? "mano" : "mando", dibujada: r.esMano ? r.esqueleto.vistas > 0 : r.manoMando.grupo.visible, articulaciones: r.esqueleto.vistas,
+          indice: r.esMano ? 0 : b[0]?.value ?? 0, resto: r.esMano ? 0 : b[1]?.value ?? 0,
+          candidato: r.candidato, apunta: r.apuntado ? (r.apuntado.tipo === "panel" ? `panel:${r.apuntado.fila}` : r.apuntado.key) : null, rayo: r.rayo.visible,
+        };
+      }
+      return out;
+    },
+  };
+}
+export type Manos = ReturnType<typeof createManos>;

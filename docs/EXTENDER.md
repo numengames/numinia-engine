@@ -328,6 +328,9 @@ completado antes. Hasta 16 pasos, 16 misiones activas por jugador.
 **`cosa@1`** — `{ "formato": "cosa@1", "id": "caja-de-bruno", "nombre": "Caja de herramientas", "posicion": { "x": 4, "z": 14 },
 "radio": 2, "aviso": "coger la caja", "apariencia": { "escala": 0.45 } }`. Sale «E: coger la caja» solo a quien tiene ahora
 un paso `coge`/`usa` con ella; la cosa sigue en el mundo para los demás (cada uno coge «la suya»).
+Opcionales (J10): `posicion.y` (0–3 m: a la altura de la mano, para cogerla con la mano en VR) y `apariencia.color`
+(«#rrggbb»: el modelo pintado de ese color, para que dos cosas se distingan). Lo cogido en un paso `coge` se dibuja en la
+mano que lo cogió (al lado de tu avatar en pantalla) hasta que la misión termina; luego vuelve a su sitio.
 
 Lo que pasa en el servidor (`features/misiones/server.ts`) y no se puede saltar desde la página:
 - distancias (`api.within`), posiciones (`api.position`, cada 0,2 s y solo de quien espera llegar a un sitio) y el paso

@@ -50,9 +50,11 @@ function world(opts: { storage?: FileStorage } = {}) {
 test("formats: the engine's example adventure loads clean, and both declarations meet the plug's rules", () => {
   const r = cargarAventura(EJEMPLO);
   assert.deepEqual(r.issues, []);
-  assert.deepEqual([...r.aventura.misiones.keys()], ["primeros-pasos"]);
-  assert.deepEqual([...r.aventura.pnjs.keys()], ["alma", "bruno"]);
-  assert.deepEqual([...r.aventura.cosas.keys()], ["caja-de-bruno"]);
+  assert.deepEqual([...r.aventura.misiones.keys()].sort(), ["manos-a-la-obra", "primeros-pasos"]);
+  assert.deepEqual([...r.aventura.pnjs.keys()].sort(), ["alma", "bruno", "teo"]);
+  assert.deepEqual([...r.aventura.cosas.keys()].sort(), ["caja-de-bruno", "regadera", "semillas"]);
+  assert.deepEqual(r.aventura.misiones.get("manos-a-la-obra")!.pasos.map((p) => p.tipo), ["coge", "coge", "habla_con"]);
+  assert.deepEqual(r.aventura.dadores.get("manos-a-la-obra"), ["teo"]);
   assert.deepEqual(r.aventura.misiones.get("primeros-pasos")!.pasos.map((p) => p.tipo), ["llega_a", "habla_con", "coge"]);
   assert.deepEqual(r.aventura.dadores.get("primeros-pasos"), ["alma"]);
   assert.ok(r.aventura.explicitos.get("bruno")!.avanza.has("primeros-pasos"));
@@ -176,6 +178,57 @@ test("the example quest end to end over the plug: talk, accept, arrive, talk, ta
   // B, another guest, never got any of A's quest events (progress goes only to its owner)
   assert.deepEqual(W.events(b, "misiones").filter((e) => e !== "libro"), []);
   assert.equal(b.m.libro().length, 0);
+});
+
+test("J10: «Manos a la obra»: two things taken in order (at hand height, in their colour), then back to Teo", () => {
+  const W = world();
+  const a = W.add();
+  W.pump(3);
+  // the things come at their height and in their colour (cosa@1 posicion.y, apariencia.color)
+  W.place(a, -12, 2); W.pump(12);
+  assert.equal(a.drawn.get("misiones:regadera")?.y, 1);
+  assert.equal((a.drawn.get("misiones:regadera") as PlacedObject & { color?: string })?.color, "#3a7bd5");
+  // Teo gives it
+  W.place(a, -7, 4); W.pump(12);
+  a.m.hablar("teo"); W.pump(2);
+  assert.match(a.m.dialogo()?.texto ?? "", /regadera azul/);
+  a.m.elegir(1); W.pump(2);
+  assert.deepEqual(a.m.libro().map((m) => [m.id, m.paso]), [["manos-a-la-obra", 0]]);
+  a.m.elegir(1); W.pump(2);
+  // the seeds first: not offered, refused
+  assert.equal(a.m.ofrece("misiones", "semillas"), false);
+  W.place(a, -9, -2); W.pump(12);
+  a.m.usar("semillas"); W.pump(2);
+  assert.equal(a.m.libro()[0].paso, 0);
+  // the watering can, then the seeds
+  W.place(a, -13, 4); W.pump(12);
+  assert.equal(a.m.ofrece("misiones", "regadera"), true);
+  a.m.usar("regadera"); W.pump(2);
+  assert.equal(a.m.libro()[0].paso, 1);
+  assert.ok(a.m.libro()[0].lista.some((s) => s.que === "regadera" && s.tipo === "coge" && s.hecho), "the page knows what it carries");
+  W.place(a, -9, -2); W.pump(12);
+  a.m.usar("semillas"); W.pump(2);
+  assert.equal(a.m.libro()[0].paso, 2);
+  // back to Teo: the explicit option completes it
+  W.place(a, -7, 4); W.pump(12);
+  a.m.hablar("teo"); W.pump(2);
+  assert.match(a.m.dialogo()?.texto ?? "", /Traes las dos/);
+  a.m.elegir(1); W.pump(2);
+  assert.deepEqual(a.m.libro().map((m) => [m.id, m.estado]), [["manos-a-la-obra", "hecha"]]);
+  assert.deepEqual(a.m.resumen().insignias, ["Insignia «Buena mano»"]);
+});
+
+test("cosa@1: posicion.y 0-3 and apariencia.color #rrggbb are optional and checked", () => {
+  const base = { formato: "cosa@1", id: "x", nombre: "X", posicion: { x: 0, z: 0 }, aviso: "coger x" };
+  const ok = leerCosa({ ...base, posicion: { x: 1, z: 2, y: 1.2 }, apariencia: { color: "#A0B0C0" } });
+  assert.ok(ok.ok);
+  if (ok.ok) { assert.equal(ok.value.posicion.y, 1.2); assert.equal(ok.value.apariencia.color, "#a0b0c0"); }
+  const sin = leerCosa(base);
+  if (sin.ok) { assert.equal(sin.value.posicion.y, 0); assert.equal(sin.value.apariencia.color, ""); } else assert.fail("plain thing must load");
+  const mal = leerCosa({ ...base, posicion: { x: 0, z: 0, y: 9 }, apariencia: { color: "azul" } });
+  assert.equal(mal.ok, false);
+  const paths = mal.ok ? [] : mal.issues.map((i) => i.path);
+  assert.ok(paths.includes("posicion.y") && paths.includes("apariencia.color"), paths.join(", "));
 });
 
 test("talking to someone whose tree has no explicit option completes a habla_con step by itself; abandon and track", () => {
