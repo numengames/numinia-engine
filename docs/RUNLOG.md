@@ -301,3 +301,23 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Siguiente: que Pablo pegue `work/numinia-engine-publicar-motor.yml` y ponga pública la imagen; P2 (la flota en
   numinia-assets: `user: "10001:10001"`, `data/<id>` 10001 y 700, `copia`/`importar` de la imagen) y P3 (la sala de
   Mundos lee `/status` con `conectados`).
+
+## 2026-10-16 09:48 · rama XR sobre main, botones AR/VR sin WebXR y la versión en los ajustes · hecho
+- Qué: `xr/manos-y-mandos` (7 commits, J10/J8b, WebGL2 en Quest sin XRGPUBinding, manos, página de controles en VR,
+  andar con la mano) rebasada sobre main 6d8c998 (#5 roles, #6 U10/U11, #7 motor en la flota, #8 flujo). Conflictos:
+  `apps/plaza/main.ts` (imports de voz/iconos y xr; `__numinia` con `voz` y `xr`), `render/index.ts` (`Thing` con
+  `color` y los campos de U10/U11; `Slot` con `medio`, `color` y `horneado`; los ficheros de un hueco son
+  `fichero(t)` también al hornear y al pintar; quitar suelta el medio y lo que llevas en la mano) y este RUNLOG.
+  `deploy-check` cuenta ahora la aventura de ejemplo con Teo (2 misiones, 3 personas, 3 cosas).
+  Regresión de main (U10/U11): el botón AR/VR salía en aparatos sin WebXR. Causa: se ocultaban con
+  `#ar { display: none }` (index.html, especificidad 1,0,0) y `tema.css` da `display: inline-flex` a
+  `#barra-arriba > button` (1,0,1), que gana; la regla de ocultar solo miraba `style*="none"`, que nadie ponía.
+  Arreglo: los dos botones nacen con el atributo `hidden` y `main.ts` lo quita solo si el aparato puede;
+  `#barra-arriba > [hidden]` (ya con `!important`) los oculta en la barra.
+  La versión del motor se ve al pie de los ajustes: «Numinia Engine <build> · <fecha>», leída del `/status` del
+  servidor (`version`, la misma de /health, el instalador y el zip del mundo; «dev» con `npm run server`).
+- Números: 265 pruebas, puertas en verde (tick p99 7,5 ms con mil), deploy-check OK. e2e completo: chromium,
+  firefox, AR y VR (`noXrButtonHidden` OK), https y las piernas en verde salvo `constructor` (también falla en
+  main limpio 6d8c998: 1 de 4 en el A/B; en esta rama 5 de 7: más a menudo, sin aclarar) y `mapa` una vez (luego 2 de 2 OK).
+- Commit: este (rama `xr/manos-y-mandos`, sin subir).
+- Siguiente: PR de la rama; volver a probar en las Quest de Pablo tras el rebase.

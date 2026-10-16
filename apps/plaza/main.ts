@@ -186,7 +186,7 @@ const arBtn = document.getElementById("ar") as HTMLButtonElement;
 const arLabel = { off: "Entrar en AR", searching: "Mira una mesa o el suelo… (salir)", ready: "Toca para poner la plaza (salir)", placed: "La plaza en tu mesa · toca para moverla (salir)" };
 view.arSupported().then((ok) => {
   if (!ok) return;
-  arBtn.style.display = "block";
+  arBtn.hidden = false; // the hidden ATTRIBUTE, not a style: the icon bar (tema.css) sets display on its buttons
   arBtn.onclick = () => { if (view.ar.state === "off") void view.ar.enter().then((ok) => { if (!ok) session.report({ k: "xr", modo: "ar", accion: "falla", detalle: view.ar.lastError }); }); else void view.ar.exit(); };
 });
 setInterval(() => { arBtn.textContent = arLabel[view.ar.state]; }, 250);
@@ -195,10 +195,19 @@ setInterval(() => { arBtn.textContent = arLabel[view.ar.state]; }, 250);
 const vrBtn = document.getElementById("vr") as HTMLButtonElement;
 view.vrSupported().then((ok) => {
   if (!ok) return;
-  vrBtn.style.display = "block";
+  vrBtn.hidden = false;
   vrBtn.onclick = () => { if (view.vr.state === "off") void view.vr.enter().then((ok) => { if (!ok) session.report({ k: "xr", modo: "vr", accion: "falla", detalle: view.vr.lastError }); }); else void view.vr.exit(); };
 });
 setInterval(() => { vrBtn.textContent = view.vr.active ? "Salir de VR" : "Entrar en VR"; }, 250);
+
+// ---- the engine's version, at the foot of the settings (Pablo: «que se vea la versión»): the server's /status `version`
+// (build = «<commit>[+cambios] <date>», the one /health, the installer and the world zip carry) ----
+const versionMotor = document.getElementById("version-motor");
+fetch(`${activos}/status`).then((r) => r.json()).then((st: { version?: string }) => {
+  if (!versionMotor || !st.version) return;
+  const [build, ...resto] = st.version.split(" ");
+  versionMotor.textContent = `Numinia Engine ${build}${resto.length ? ` · ${resto.join(" ")}` : ""}`;
+}).catch(() => {});
 
 // ---- N1: full screen — a real button where the browser can do it (not iPhone), hidden while XR presents ----
 const pantalla = document.getElementById("pantalla") as HTMLButtonElement;

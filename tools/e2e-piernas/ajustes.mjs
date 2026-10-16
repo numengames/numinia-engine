@@ -99,6 +99,8 @@ async function pierna(engine) {
     await p.waitForFunction(() => /restablecidos/.test(document.getElementById("ajustes-estado").textContent), null, { timeout: 3000 }).catch(() => {});
     r.restablecido = await potencia(p);
     r.estadoFinal = await p.evaluate(() => document.getElementById("ajustes-estado").textContent);
+    // the engine's version at the foot of the settings, from the server's /status («dev» under npm run server)
+    r.version = await p.evaluate(() => document.getElementById("version-motor")?.textContent ?? "");
     await p.keyboard.press("Escape");
     r.guardadoFinal = await p.evaluate(() => JSON.parse(localStorage.getItem("numinia.ajustes") ?? "{}"));
     await p.evaluate(() => globalThis.__numinia.ajustes.restablecer()); // leave it as it was found
@@ -116,7 +118,7 @@ async function pierna(engine) {
     && r.recargado?.res === 95 && r.recargado?.statsRes === 0.95 && r.guardado?.valores?.["graficos.resolucion"] === 95
     && r.bateriaConB?.ajuste === true && r.bateriaConB?.power === true && r.bateriaOtraVez === false && r.oEscribiendoAbre === false
     && r.agente?.ok === false && r.agente?.issues?.[0]?.path === "graficos.resolucion"
-    && r.tabsHastaRestablecer > 0 && r.restablecido?.res === 100 && r.restablecido?.statsRes === 1 && /restablecidos/.test(r.estadoFinal ?? "")
+    && r.tabsHastaRestablecer > 0 && r.restablecido?.res === 100 && r.restablecido?.statsRes === 1 && /restablecidos/.test(r.estadoFinal ?? "") && /^Numinia Engine \S+/.test(r.version ?? "")
     && r.etiquetas?.controles > 0 && r.etiquetas.sinEtiqueta.length === 0 && r.etiquetas.sinDescripcion.length === 0
     && r.sistemaMenosMovimiento?.capacidad === true && r.sistemaMenosMovimiento?.ajuste === true && r.sistemaMenosMovimiento?.clase === true
     && r.errors.length === 0;

@@ -73,9 +73,9 @@ try {
     await x.arrayBuffer();
   }
   if ((await fetch(`http://127.0.0.1:${PORT}/..%2f..%2fapp%2fbuild.json`).catch(() => null))?.status !== 404) fail("la página deja salir de www/");
-  // C2: a new world got its own adventure (Alma, Bruno, Lía) and its manifest
-  for (const f of ["aventura/pnj/alma.json", "aventura/pnj/bruno.json", "aventura/habitantes/lia.json", "mundo.json"]) if (!existsSync(join(mundo, f))) fail(`el mundo nuevo no tiene ${f}`);
-  if (!/aventura: 1 misiones, 2 personas, 1 cosas/.test(log)) fail(`no leyó la aventura del mundo:\n${log}`);
+  // C2: a new world got its own adventure (Alma, Bruno, Teo, Lía) and its manifest
+  for (const f of ["aventura/pnj/alma.json", "aventura/pnj/bruno.json", "aventura/pnj/teo.json", "aventura/habitantes/lia.json", "mundo.json"]) if (!existsSync(join(mundo, f))) fail(`el mundo nuevo no tiene ${f}`);
+  if (!/aventura: 2 misiones, 3 personas, 3 cosas/.test(log)) fail(`no leyó la aventura del mundo:\n${log}`);
   if (existsSync(join(mundo, "claves.env"))) fail("con claves en el entorno (JWT_SECRET, ADMIN_CODE) no debe escribir claves.env");
   if (log.includes(ADMIN) || log.includes("c".repeat(64))) fail("el registro enseña una clave");
   // H1: the house library is served by its sha256 (the robot, CC0)
@@ -119,5 +119,5 @@ try {
   const puesto = [...gs.features.stateOf("objetos").values()][0];
   if (puesto?.nombre !== "prueba" || !dicho.some((d) => d.startsWith(`${nombre}: eco:`))) fail(`Lía no construyó con el cerebro de eco: objetos ${gs.features.stateOf("objetos").size}, chat ${JSON.stringify(dicho)}\n${habLog}`);
   const fp = log.match(/huella de referencia ([0-9a-f]+)/)?.[1];
-  console.log(`[deploy-check] OK · node ${version} · ${sello.build} (${sello.commit.slice(0, 12)}…) · página ${refs.length} ficheros enlazados, servida por el motor · ${s.stats.snapshots} snapshots en ${Math.round(performance.now() - t0)} ms · huella ${fp} · /health, /status, /metrics, /a/, subidas y /mundo (zip mundo@2 con aventura, compose.yml y arrancar.sh; comprobar OK) · mundo nuevo con su aventura (Alma, Bruno) · habitante «${nombre}» dentro, piensa (eco) y construye (RSS ${m.memoriaMB.rss} MB)`);
+  console.log(`[deploy-check] OK · node ${version} · ${sello.build} (${sello.commit.slice(0, 12)}…) · página ${refs.length} ficheros enlazados, servida por el motor · ${s.stats.snapshots} snapshots en ${Math.round(performance.now() - t0)} ms · huella ${fp} · /health, /status, /metrics, /a/, subidas y /mundo (zip mundo@2 con aventura, compose.yml y arrancar.sh; comprobar OK) · mundo nuevo con su aventura (Alma, Bruno, Teo) · habitante «${nombre}» dentro, piensa (eco) y construye (RSS ${m.memoriaMB.rss} MB)`);
 } finally { stop(); }

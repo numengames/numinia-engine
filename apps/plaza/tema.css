@@ -56,7 +56,7 @@ button .icono + span, button span + .icono { margin-left: 6px; }
 #barra-arriba > * { position: static !important; inset: auto !important; }
 #barra-arriba > button { box-sizing: border-box; min-width: 44px; height: 44px; padding: 0 12px !important; display: inline-flex; align-items: center; justify-content: center; font: 600 13px "Geist", system-ui, sans-serif !important; line-height: 1 !important; }
 #barra-arriba > button.solo-icono { width: 44px; padding: 0 !important; }
-#barra-arriba > #vr[style*="none"], #barra-arriba > #ar[style*="none"], #barra-arriba > [hidden] { display: none !important; }
+#barra-arriba > [hidden] { display: none !important; } /* beats the display above: AR/VR and full screen hide with the hidden attribute */
 #barra-arriba > #construir { display: inline-flex !important; }
 #barra-arriba > #construir[data-oculto] { display: none !important; }
 #barra-arriba > #construir[aria-expanded="true"] { background: var(--n-accion) !important; color: #fff !important; border-color: var(--n-accion) !important; }
@@ -78,3 +78,5 @@ body #panel-construir { top: 64px !important; max-height: calc(100% - 120px) !im
 body #panel-entorno { top: 112px !important; }
 #help { color: var(--n-fondo) !important; }
 @media (min-width: 900px) { #help { max-width: calc(100vw - 440px) !important; } }
+#ajustes .version-motor { margin: 10px 0 0; font: 12px "Geist Mono", ui-monospace, monospace; color: var(--n-texto2); text-align: right; user-select: all; }
+#ajustes .version-motor:empty { display: none; }
