@@ -131,6 +131,18 @@ try {
   await esperar(() => { const e = globalThis.__numinia.view.manos.estado(); return e.izq?.tipo === "mano" && e.izq.articulaciones >= 20 && e.der?.tipo === "mano"; }, null, 6000).catch(() => {});
   out.manos = await manos();
   await foto("5-manos");
+  // walking with tracked hands: the left hand points ahead (-Z), pinch and hold in empty air → you move that way
+  {
+    await ctl(() => { const h = globalThis.__iwer.hands.left; h.position.set(-0.2, 1.3, -0.3); h.quaternion.set(0, 0, 0, 1); });
+    await p.waitForTimeout(300);
+    const a = await yo();
+    await ctl(() => globalThis.__iwer.hands.left.updatePinchValue(1));
+    await p.waitForTimeout(1500);
+    await ctl(() => globalThis.__iwer.hands.left.updatePinchValue(0));
+    await p.waitForTimeout(400);
+    const b = await yo();
+    out.andaConMano = { dx: Math.round((b.x - a.x) * 10) / 10, dz: Math.round((b.z - a.z) * 10) / 10 };
+  }
   const sem = await cosaEn("semillas");
   await caminar(sem.x + 1.0, sem.z, 0.5);
   await poner("mano", "left", { x: sem.x, y: 1.0, z: sem.z });
@@ -164,6 +176,7 @@ try {
     && out.aceptada.some(([id, e]) => id === "manos-a-la-obra" && e === "activa") && out.trasB === false
     && out.candidato === "misiones:regadera" && out.llevaRegadera["misiones:regadera"] === "der"
     && h.izq?.tipo === "mano" && h.izq.articulaciones >= 20 && h.izq.dibujada && h.der?.articulaciones >= 20
+    && out.andaConMano.dz < -1 && Math.abs(out.andaConMano.dx) < Math.abs(out.andaConMano.dz) / 2
     && out.candidatoMano === "misiones:semillas" && out.llevaDos["misiones:semillas"] === "izq" && out.llevaDos["misiones:regadera"] === "der"
     && /Traes las dos/.test(out.entrega) && fin.libro.some(([id, e]) => id === "manos-a-la-obra" && e === "hecha") && Object.keys(fin.llevando).length === 0
     && errors.length === 0;

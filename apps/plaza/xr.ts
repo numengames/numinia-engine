@@ -88,6 +88,7 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
         "Gatillo: hablar / usar lo que apuntas",
         "Agarre (o pellizco) junto a algo: cogerlo",
         "A o X: saltar · B: salir del diálogo",
+        "Sin mandos: pellizca y mantén en el aire = andar adonde apunta la mano",
       ];
       const out: string[] = [];
       const c = o.interaccion.actual();

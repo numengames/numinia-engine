@@ -51,7 +51,11 @@ type Ranura = {
   ctrl: THREE.Group; grip: THREE.Group; hand: THREE.Group & { joints?: Record<string, THREE.Object3D & { jointRadius?: number }> };
   rayo: THREE.Mesh; punto: THREE.Mesh; manoMando: ReturnType<typeof crearManoMando>; esqueleto: ReturnType<typeof crearEsqueleto>;
   ancla: THREE.Object3D; halo: THREE.Mesh; candidato: string | null; apuntado: { tipo: "panel" | "cosa"; key: string; fila: number } | null;
+  /** A tracked hand pinching in empty air since this time (ms), or 0: held past ANDAR_MS it walks. */
+  pellizcoAire: number;
 };
+/** A pinch held this long in empty air (nothing to take, nothing pointed) walks where that hand points. */
+export const ANDAR_MS = 250;
 
 /** Pieces into one geometry (position + normal), each with its own transform: one draw call for all of them. */
 function juntar(piezas: [THREE.BufferGeometry, THREE.Matrix4][]): THREE.BufferGeometry {
@@ -183,14 +187,15 @@ export function createManos(h: ManosHooks) {
     const ancla = new THREE.Object3D(); ancla.name = `ancla-${i}`;
     const halo = new THREE.Mesh(haloGeo, haloMat); halo.visible = false; halo.renderOrder = 5;
     raiz.add(ctrl, grip, hand, punto, ancla, halo);
-    const r: Ranura = { i, fuente: null, lado: null, esMano: false, ctrl, grip, hand, rayo, punto, manoMando, esqueleto, ancla, halo, candidato: null, apuntado: null };
+    const r: Ranura = { i, fuente: null, lado: null, esMano: false, ctrl, grip, hand, rayo, punto, manoMando, esqueleto, ancla, halo, candidato: null, apuntado: null, pellizcoAire: 0 };
     ctrl.addEventListener("connected", (e: { data?: Fuente }) => {
       const f = e.data ?? null;
       r.fuente = f; r.esMano = !!f?.hand; r.lado = f?.handedness === "left" ? "izq" : f?.handedness === "right" ? "der" : null;
       manoMando.grupo.scale.x = r.lado === "izq" ? -1 : 1; // the left hand is the right one mirrored
     });
-    ctrl.addEventListener("disconnected", () => { r.fuente = null; r.lado = null; r.candidato = null; r.apuntado = null; });
-    ctrl.addEventListener("selectstart", () => pulsar(r, "gatillo"));
+    ctrl.addEventListener("disconnected", () => { r.fuente = null; r.lado = null; r.candidato = null; r.apuntado = null; r.pellizcoAire = 0; });
+    ctrl.addEventListener("selectstart", () => { if (r.esMano && !r.candidato && !r.apuntado) r.pellizcoAire = performance.now(); pulsar(r, "gatillo"); });
+    ctrl.addEventListener("selectend", () => { r.pellizcoAire = 0; });
     ctrl.addEventListener("squeezestart", () => pulsar(r, "agarre"));
     return r;
   });
@@ -304,6 +309,17 @@ export function createManos(h: ManosHooks) {
     on(fn: (e: EventoMano) => void): () => void { oyentes.add(fn); return () => oyentes.delete(fn); },
     /** Where a thing held in this hand goes (grip or pinch point), or null if that hand is not here. */
     ancla(lado: Lado): THREE.Object3D | null { const r = ranuras.find((x) => x.lado === lado && x.fuente); return r ? r.ancla : null; },
+    /** Walking with tracked hands: the flattened direction (world, unit) of a hand pinching in empty air for ANDAR_MS. */
+    andar(): [number, number] | null {
+      const ahora = performance.now();
+      for (const r of ranuras) {
+        if (!r.esMano || !r.pellizcoAire || ahora - r.pellizcoAire < ANDAR_MS || !r.ctrl.visible) continue;
+        Dir.set(0, 0, -1).applyQuaternion(r.ctrl.getWorldQuaternion(Qw));
+        const l = Math.hypot(Dir.x, Dir.z);
+        if (l > 0.2) return [Dir.x / l, Dir.z / l];
+      }
+      return null;
+    },
     vibrar(lado: Lado, v = 0.5, ms = 60): void { const r = ranuras.find((x) => x.lado === lado); if (r) vibrar(r, v, ms); },
     /** For checks: per hand, what is connected and drawn, how bent the fingers are, what it reaches and points at. */
     estado() {

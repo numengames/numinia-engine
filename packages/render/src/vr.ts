@@ -9,7 +9,7 @@
 import * as THREE from "three/webgpu";
 import type { Panel } from "./manos.ts";
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
-export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void };
+export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void; andar?(): [number, number] | null };
 
 export const SNAP_DEG = 30;
 export const DEADZONE = 0.2;
@@ -205,7 +205,7 @@ export function createVR(h: VRHooks) {
     let lx = 0, ly = 0, rx = 0, ry = 0;
     for (const src of session.inputSources ?? []) {
       const a = src.gamepad?.axes;
-      if (!a) continue;
+      if (!a || src.hand || a.length < 2) continue; // a tracked hand has no stick: it must not zero the controller's
       const sx = a.length > 3 ? a[2] : a[0], sy = a.length > 3 ? a[3] : a[1];
       if (src.handedness === "left") { lx = deadzone(sx ?? 0); ly = deadzone(sy ?? 0); }
       else if (src.handedness === "right") { rx = deadzone(sx ?? 0); ry = deadzone(sy ?? 0); }
@@ -240,6 +240,8 @@ export function createVR(h: VRHooks) {
     const fx = dir.x / len, fz = dir.z / len;
     moveX = fx * -ly + -fz * lx;
     moveZ = fz * -ly + fx * lx;
+    const conMano = !lx && !ly ? h.manos?.andar?.() : null; // tracked hands: pinch and hold in the air = walk where that hand points
+    if (conMano) { moveX = conMano[0] * 0.7; moveZ = conMano[1] * 0.7; } // walking pace (the edge, 0.9, runs)
     const m = Math.hypot(moveX, moveZ);
     if (m > 1) { moveX /= m; moveZ /= m; }
     // vignette fades in fast while moving or turning, out slowly
