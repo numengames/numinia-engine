@@ -31,6 +31,41 @@ Se detecta por capacidad, nunca por nombre de navegador.
 Máquinas (OVH, sin IVA): VPS-1 3,81 €, VPS-2 7,21 €, SYS-3 (8 núcleos dedicados) 41,99 €. Hasta
 1.000 en una instancia basta un hilo; más allá habría que repartir por regiones.
 
+## Presupuesto de tamaño de mensajes (H3b)
+
+Tope de una trama de la página al servidor: **2048 bytes** (`maxPayload` del WebSocket, `PASE_MAX` en `net`). Solo el mensaje
+PASE usa más de 1024; `wsTransport` corta cualquier otro tipo que pase de 1024, como antes. Subir `maxPayload` hasta 2048 y no más:
+hace falta para que quepa el pase (medido 630–1.813 bytes; un tope de 1.536 no cubriría el peor caso de hoy). Una trama de más de
+2048 la cierra la librería (abuso); un mensaje mal formado, repetido o tardío se cuenta y no cierra nada.
+
+| Mensaje (tipo) | Sentido | Tope | Por qué | Holgura | Mayor tamaño real | Estado |
+|---|---|---|---|---|---|---|
+| INPUT (1) | página → servidor | 6 | fijo: secuencia, dos ejes, botones | 0 (formato fijo) | 6 | medido (`test/mensajes-tope.test.ts`) |
+| PING (3) | página → servidor | 5 | fijo | 0 | 5 | medido (ídem) |
+| IDENTITY (10), petición | página → servidor | 121 | token de invitado (`g1.<id>.<día>.<firma>`) | 74 bytes (61 %) | 47 | medido (`test/mensajes-tope.test.ts`; el tope, en `test/pase-cable.test.ts`) |
+| PASE (12) | página → servidor | 2048 | el pase de numinia.com | 11 % sobre el peor caso emitible | 630 (un rol), **1.813** (5 roles CJK, 8 permisos, nombre de 40) | medido (`test/pase-cable.test.ts`) |
+| REPORT (9) | página → servidor | 1000 | un informe JSON; la página recorta `ua`/`gpu` si no cabe | 20 % sobre lo visto | 799 guardados (entrada) | medido en sesiones locales; **sin medir en aparatos reales** |
+| VOICE (11) | página → servidor | 704 | 4 de cabecera + 700 de trama | 380 bytes (54 %) | 324 (20 ms µ-law) | medido (`test/mensajes-tope.test.ts`) |
+| FEATURE (7), intención | página → servidor | sin tope propio (campos con `maxBytes`) | texto empaquetado por esquema | 820 bytes bajo el corte de 1024 | 204 (`chat.decir`) de 26 intenciones | medido (`test/mensajes-tope.test.ts`) |
+| SNAPSHOT (2) | servidor → página | sin tope (K=50) | 30 de cabecera + 6–8 por visible | — | 330 con K=50 | medido (ídem) |
+| WELCOME (5) | servidor → página | fijo | — | — | 30 | medido (ídem) |
+| CATALOG (6) | servidor → página | sin tope | JSON de todo lo que corre el servidor | — | 32.863 (se manda una vez al entrar) | medido (ídem) |
+| FEATURE (7), evento | servidor → página | sin tope | esquema | — | 902 (`pnj.dialogo`) | medido (ídem) |
+| STATE (8) | servidor → página | sin tope | esquema | — | 393 (`misiones`, calculado) | medido (ídem) |
+
+Los mensajes del servidor a la página no los limita el servidor (el navegador no pone tope); la columna «tope» de la bajada es
+«sin tope». Los tamaños de bajada están aquí porque conviene saberlos, no porque haya un límite que defender.
+
+Atención (no se ha cambiado ningún otro tope):
+- **PASE**: el emisor (`numinia-web` `world-pass.ts`) corta los roles a 40 caracteres pero **no el nombre de la persona**: con
+  200 caracteres el pase mide 2.423 y el motor lo rechaza sin que la persona lo sepa (cae a visitante, sin aviso porque la
+  página no llega a enviarlo). Pedir a numinia.com que corte `name` a 40 (el motor ya lo hace) deja 11 % de holgura.
+- **REPORT**: el informe de entrada guardado ya mide 799 de 1000. Si se añaden campos a `SHAPES` (`sesiones.ts`), mídelo antes;
+  la página ya recorta `ua` y `gpu` a 60 si no cabe.
+- **Intenciones FEATURE**: no tienen tope de trama propio; hoy la mayor es 204 bytes. Una función con un texto largo (p. ej. 1.000
+  bytes) pasaría de 1024 y cerraría la conexión; `defineFeature` no lo avisa todavía.
+- **Evento `pnj.dialogo`** (902 bytes, bajada): cerca de 1024 por convención; sin efecto hoy.
+
 ## Módulos de juego (funciones)
 
 Cada función (gestos, y las que vengan) vive en `features/<id>/` y entra por el enchufe; receta en
