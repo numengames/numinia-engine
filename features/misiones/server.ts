@@ -160,7 +160,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     M = api;
     cargar(api);
     for (const c of A.cosas.values()) {
-      api.state.set(c.id, { nombre: c.nombre, descripcion: c.descripcion, x: c.posicion.x, z: c.posicion.z, radio: c.radio, aviso: c.aviso, modelo: c.apariencia.modelo, escala: c.apariencia.escala }, { at: c.posicion });
+      api.state.set(c.id, { nombre: c.nombre, descripcion: c.descripcion, x: c.posicion.x, z: c.posicion.z, radio: c.radio, aviso: c.aviso, modelo: c.apariencia.modelo, escala: c.apariencia.escala, y: c.posicion.y, color: c.apariencia.color }, { at: { x: c.posicion.x, z: c.posicion.z } });
     }
     api.onIdentify((e) => {
       const antes = claveDe.get(e);

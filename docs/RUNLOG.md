@@ -248,6 +248,13 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: este (rama `ux/edicion-audio-voz`, sin subir).
 - Siguiente: que Pablo lo pruebe; luego VR y móvil (gizmo con el dedo, M22b; voz en VR), silenciar a una persona (F1), medir el coste de los sólidos con 1.000 personas (M6).
 
+## 2026-10-16 04:10 · manos y mandos en VR, la plaza en la mesa en AR (J10 trozo 1, J8b) · hecho (sesión de Pablo con Opus)
+- Qué: Pablo: «que funcione mejor la AR y la VR, una misión nueva en la que tengas que coger dos objetos, que se vean las manos y que los mandos funcionen». VR: `packages/render/src/manos.ts` (perezoso): una mano dibujada en cada mando (los dedos siguen gatillo y agarre), o tus manos con seguimiento (25 articulaciones); halo + vibración junto a lo que se puede coger y agarre/gatillo/pellizco lo coge; rayo + gatillo habla con una persona; diálogo en un panel 3D (rayo, o palanca + A; B sale); notas delante; Y trae el panel de la misión; lo cogido va en la mano que lo cogió. Misión de ejemplo «Manos a la obra» (Teo, regadera azul, saco dorado; `cosa@1` + `posicion.y`, `apariencia.color`). AR: la plaza en miniatura y en vivo sobre la mesa, palancas para girar, escalar y andar, `hit-test` opcional, 20 min en visor. Lo que no anima se hornea en una malla por material (robot 19 → 3 llamadas).
+- Números: 232 pruebas; puertas en verde; e2e completo: chromium, firefox, https, AR, VR, manos y las demás piernas en verde salvo `constructor` (intermitente también en la base: 1 de 3 en la base, 2 de 3 en esta rama); llamadas de dibujo al empezar 65 (base) → 85 con Teo sin hornear → bajo 80 horneando (la pierna `avatares`, roja en la base, pasa); arranque 336,7 → 341,8 kB gz (manos aparte, 3,4 kB).
+- Consumo: semana 65 % (`hermes usage`), Opus 5.5.
+- Commit: este (rama `xr/manos-y-mandos`, sin subir).
+- Siguiente: Pablo lo prueba en el Quest 3 / Pico 4 por https en la red de casa; con lo que vea, arreglos; luego coger en cualquier orden, soltar, arco de teletransporte.
+
 ## 2026-10-16 04:16 · la cara de Numinia, todo a la derecha y quién oye cada sonido (U11) · hecho (sesión de Pablo con Opus)
 - Qué: Pablo, tras probar U10: «las misiones a la derecha y el mapa arriba a la derecha; construir con un icono; la guía de diseño de numinia.org (iconos, paletas, paneles); el vídeo con su burbuja de audio, y si se oye para todo el mundo, para la zona o solo dentro de la burbuja, con su radio». (1) `apps/plaza/tema.css`: valores del Numinia Design System (STD-023, leídos en numinia-archive a4bb4ff4): Nocturno (#14110F, superficies #1E1A17/#292420, texto #F9EBDC/#C4B5A6, líneas #3A332D), foco Turquesa 2 px, acción #017C8D, activo tinta sobre papel, destructivo Grana, radios 6/8, sin sombras, Geist y Geist Mono autoalojadas (`public/fuentes`, OFL). Arriba a la derecha una barra de iconos (ajustes, construir con `crane-tower`, micrófono, pantalla completa, VR, AR); debajo el minimapa; debajo «Misiones» y su libro. `apps/plaza/iconos.ts`: los glifos Phosphor de la casa (`web/src/icons/`), copiados; `microphone` y `microphone-slash` NO están en el subconjunto de STD-023 §11 (decisión pendiente del Oráculo). (2) `objetos` versión 4: `alcance` (burbuja, zona, todos) y `radio` (burbuja de un vídeo, 0,5–200 m); el vídeo dibuja su burbuja al construir; con zona o todos se oye igual en cualquier sitio; sonidos y vídeos van con el reloj de pared (todos oyen el mismo momento). Hoy un mundo es una zona: «zona» y «todos» llegan a la misma gente.
 - Números: 240 pruebas (antes 239); `vite build` OK; capturas a 1280×720 sin errores de página.
@@ -294,3 +301,23 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Siguiente: que Pablo pegue `work/numinia-engine-publicar-motor.yml` y ponga pública la imagen; P2 (la flota en
   numinia-assets: `user: "10001:10001"`, `data/<id>` 10001 y 700, `copia`/`importar` de la imagen) y P3 (la sala de
   Mundos lee `/status` con `conectados`).
+
+## 2026-10-16 09:48 · rama XR sobre main, botones AR/VR sin WebXR y la versión en los ajustes · hecho
+- Qué: `xr/manos-y-mandos` (7 commits, J10/J8b, WebGL2 en Quest sin XRGPUBinding, manos, página de controles en VR,
+  andar con la mano) rebasada sobre main 6d8c998 (#5 roles, #6 U10/U11, #7 motor en la flota, #8 flujo). Conflictos:
+  `apps/plaza/main.ts` (imports de voz/iconos y xr; `__numinia` con `voz` y `xr`), `render/index.ts` (`Thing` con
+  `color` y los campos de U10/U11; `Slot` con `medio`, `color` y `horneado`; los ficheros de un hueco son
+  `fichero(t)` también al hornear y al pintar; quitar suelta el medio y lo que llevas en la mano) y este RUNLOG.
+  `deploy-check` cuenta ahora la aventura de ejemplo con Teo (2 misiones, 3 personas, 3 cosas).
+  Regresión de main (U10/U11): el botón AR/VR salía en aparatos sin WebXR. Causa: se ocultaban con
+  `#ar { display: none }` (index.html, especificidad 1,0,0) y `tema.css` da `display: inline-flex` a
+  `#barra-arriba > button` (1,0,1), que gana; la regla de ocultar solo miraba `style*="none"`, que nadie ponía.
+  Arreglo: los dos botones nacen con el atributo `hidden` y `main.ts` lo quita solo si el aparato puede;
+  `#barra-arriba > [hidden]` (ya con `!important`) los oculta en la barra.
+  La versión del motor se ve al pie de los ajustes: «Numinia Engine <build> · <fecha>», leída del `/status` del
+  servidor (`version`, la misma de /health, el instalador y el zip del mundo; «dev» con `npm run server`).
+- Números: 265 pruebas, puertas en verde (tick p99 7,5 ms con mil), deploy-check OK. e2e completo: chromium,
+  firefox, AR y VR (`noXrButtonHidden` OK), https y las piernas en verde salvo `constructor` (también falla en
+  main limpio 6d8c998: 1 de 4 en el A/B; en esta rama 5 de 7: más a menudo, sin aclarar) y `mapa` una vez (luego 2 de 2 OK).
+- Commit: este (rama `xr/manos-y-mandos`, sin subir).
+- Siguiente: PR de la rama; volver a probar en las Quest de Pablo tras el rebase.

@@ -45,8 +45,8 @@ export const misiones = defineFeature({
   describe: "Misiones: encargos por pasos (llegar a un sitio, hablar con alguien, usar o coger algo, entregarlo) que da una persona y que comprueba el servidor. Tu libro llega solo a ti y se guarda por invitado. Las escribe la aventura (mision@1, cosa@1).",
   store: { describe: "El progreso de cada invitado (`p:<id>`): misiones activas con su paso y lo que lleva cogido, las completadas y la que sigue. Solo le llega a su dueño, como eventos." },
   state: {
-    describe: "Las cosas de las misiones que hay en el mundo (clave = su id): nombre, dónde, a qué distancia se usan (m), el aviso que sale al lado («coger la caja») y su modelo (vacío = el bloque de la casa).",
-    fields: { nombre: { kind: "text", maxBytes: LIM.nombre }, descripcion: DESCRIPCION, x: X, z: X, radio: { kind: "fixed", min: 0.5, max: 16, step: 0.1, default: 2 }, aviso: { kind: "text", maxBytes: LIM.aviso }, modelo: MODELO, escala: ESCALA },
+    describe: "Las cosas de las misiones que hay en el mundo (clave = su id): nombre, dónde (y = altura sobre el suelo, m), a qué distancia se usan (m), el aviso que sale al lado («coger la caja»), su modelo (vacío = el bloque de la casa) y su color («#rrggbb»; vacío = el del modelo).",
+    fields: { nombre: { kind: "text", maxBytes: LIM.nombre }, descripcion: DESCRIPCION, x: X, z: X, radio: { kind: "fixed", min: 0.5, max: 16, step: 0.1, default: 2 }, aviso: { kind: "text", maxBytes: LIM.aviso }, modelo: MODELO, escala: ESCALA, y: { kind: "fixed", min: 0, max: 3, step: 0.01, default: 0 }, color: { kind: "text", maxBytes: 7, default: "" } },
     card: { role: "objeto", name: "{nombre}", description: "{descripcion}", at: ["x", "z"], actions: ["usar"], interact: { intent: "usar", prompt: "{aviso}", radius: "radio", key: "cosa" } },
   },
   intents: {

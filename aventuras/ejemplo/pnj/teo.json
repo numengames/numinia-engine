@@ -1,0 +1,115 @@
+{
+  "formato": "pnj@1",
+  "id": "teo",
+  "nombre": "Teo, el jardinero",
+  "descripcion": "Quiere plantar un jardín en la plaza, pero le faltan su regadera y sus semillas.",
+  "posicion": {
+    "x": -8,
+    "z": 4
+  },
+  "giro": 90,
+  "radio": 3,
+  "dialogo": {
+    "entradas": [
+      {
+        "si": {
+          "mision": "manos-a-la-obra",
+          "estado": "hecha"
+        },
+        "nodo": "gracias"
+      },
+      {
+        "si": {
+          "mision": "manos-a-la-obra",
+          "estado": "activa",
+          "paso": "teo"
+        },
+        "nodo": "entrega"
+      },
+      {
+        "si": {
+          "mision": "manos-a-la-obra",
+          "estado": "activa"
+        },
+        "nodo": "busca"
+      },
+      {
+        "nodo": "hola"
+      }
+    ],
+    "nodos": {
+      "hola": {
+        "texto": "¡Buenas! Soy Teo, el jardinero. Quiero plantar un jardín, pero me faltan dos cosas: mi regadera azul y el saco de semillas dorado. ¿Me las traes?",
+        "opciones": [
+          {
+            "texto": "¡Claro que sí!",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "manos-a-la-obra"
+            },
+            "ir": "suerte"
+          },
+          {
+            "texto": "Ahora no puedo.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "suerte": {
+        "texto": "¡Gracias! La regadera está al oeste y las semillas al norte, cada una sobre su poste. Primero la regadera. En VR, acerca la mano y aprieta el botón de agarrar.",
+        "opciones": [
+          {
+            "texto": "Voy.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "busca": {
+        "texto": "Primero la regadera azul, al oeste; luego el saco dorado, al norte. ¡Cógelos con las manos!",
+        "opciones": [
+          {
+            "texto": "Voy.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "entrega": {
+        "texto": "¡Traes las dos cosas! ¿Me las das?",
+        "opciones": [
+          {
+            "texto": "Aquí tienes.",
+            "accion": {
+              "tipo": "avanzar_paso",
+              "mision": "manos-a-la-obra"
+            },
+            "ir": "gracias"
+          },
+          {
+            "texto": "Un momento.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "gracias": {
+        "texto": "¡Ya puedo plantar! Gracias por echarme una mano… o las dos.",
+        "opciones": [
+          {
+            "texto": "¡De nada!",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "notas": "EJEMPLO del motor (J10): la misión de coger dos cosas con las manos en VR. El paso «lleva las cosas a Teo» se completa al elegir «Aquí tienes» (avanzar_paso)."
+}

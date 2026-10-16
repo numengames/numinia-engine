@@ -10,8 +10,8 @@
     #hud { position: fixed; top: 10px; left: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #eef2f6; white-space: pre; pointer-events: none; }
     #hud b { color: #ffd27a; font-weight: 600; }
     #help { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 20px); text-align: center; color: #23303b; opacity: .8; pointer-events: none; }
-    #vr { position: fixed; top: 56px; right: 10px; display: none; padding: 10px 14px; border: 0; border-radius: 8px; background: #9ad0ff; color: #23303b; font: inherit; font-weight: 600; }
-    #ar { position: fixed; top: 10px; right: 10px; display: none; padding: 10px 14px; border: 0; border-radius: 8px; background: #ffd27a; color: #23303b; font: inherit; font-weight: 600; }
+    #vr { position: fixed; top: 56px; right: 10px; padding: 10px 14px; border: 0; border-radius: 8px; background: #9ad0ff; color: #23303b; font: inherit; font-weight: 600; }
+    #ar { position: fixed; top: 10px; right: 10px; padding: 10px 14px; border: 0; border-radius: 8px; background: #ffd27a; color: #23303b; font: inherit; font-weight: 600; }
     #joy { position: fixed; width: 110px; height: 110px; border-radius: 50%; background: rgba(20,24,30,.25); display: none; pointer-events: none; }
     #knob { position: absolute; left: 35px; top: 35px; width: 40px; height: 40px; border-radius: 50%; background: rgba(20,24,30,.55); }
     #acciones { position: fixed; right: 10px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; }
@@ -71,6 +71,7 @@
     body > :not(canvas):not(#joy) { zoom: var(--ui); } /* «Tamaño de la interfaz»: everything on the screen but the world */
     #ajustes-abrir { position: fixed; top: 10px; right: 10px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #eef2f6; font: inherit; font-size: 22px; line-height: 44px; }
     #ajustes-abrir[hidden] { display: none; }
+    #ar[hidden], #vr[hidden] { display: none; } /* AR/VR start hidden (attribute): only a device that can do it shows them */
     #ar, #vr, #construir { right: 62px; } /* the gear takes the corner: AR, VR and Construir move one button to the left */
     #ajustes { position: fixed; inset: 10px 10px auto auto; margin: 0; width: min(390px, calc(100vw - 20px)); max-height: calc((100vh - 20px) / var(--ui)); overflow: auto; padding: 10px 12px 12px; border: 0; border-radius: 10px; background: rgb(20, 24, 30); color: #eef2f6; box-sizing: border-box; }
     #ajustes::backdrop { background: rgba(10, 14, 20, .25); }
@@ -107,8 +108,8 @@
   <div id="hud">Conectando…</div>
   <div id="barra-arriba" role="toolbar" aria-label="Botones del mundo"></div>
   <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · M: mapa · I: ficha · C: construir · Q: micrófono</div>
-  <button id="ar" type="button">Entrar en AR</button>
-  <button id="vr" type="button">Entrar en VR</button>
+  <button id="ar" type="button" hidden>Entrar en AR</button>
+  <button id="vr" type="button" hidden>Entrar en VR</button>
   <button id="construir" type="button" aria-expanded="false" aria-controls="panel-construir">Construir</button>
   <button id="pantalla" type="button" hidden>Pantalla completa</button>
   <section id="panel-construir" aria-label="Construir" hidden></section>
@@ -139,6 +140,7 @@
     <p id="ajustes-estado" class="estado" role="status" aria-live="polite"></p>
     <div id="ajustes-grupos"></div>
     <div class="pie"><button id="ajustes-restablecer" type="button">Restablecer todo</button></div>
+    <p id="version-motor" class="version-motor"></p>
   </dialog>
   <script type="module" src="./main.ts"></script>
 </body>

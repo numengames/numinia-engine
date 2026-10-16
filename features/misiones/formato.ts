@@ -39,7 +39,9 @@ export type Pnj = {
   formato: "pnj@1"; id: string; nombre: string; descripcion: string; apariencia: Apariencia; posicion: { x: number; z: number };
   giro: number; radio: number; dialogo: { entradas: { si: Condicion[]; nodo: string }[]; nodos: Record<string, Nodo> };
 };
-export type Cosa = { formato: "cosa@1"; id: string; nombre: string; descripcion: string; apariencia: Apariencia; posicion: { x: number; z: number }; radio: number; aviso: string };
+/** A thing's `posicion.y` (optional, metres above the ground: a thing on a table or held up at chest height, reachable
+ * with a hand in VR) and `apariencia.color` (optional «#rrggbb»: the house block in a colour, so two things differ). */
+export type Cosa = { formato: "cosa@1"; id: string; nombre: string; descripcion: string; apariencia: Apariencia & { color: string }; posicion: { x: number; z: number; y: number }; radio: number; aviso: string };
 export type Fichero = { fichero: string; texto: string };
 export type Aventura = {
   misiones: Map<string, Mision>; pnjs: Map<string, Pnj>; cosas: Map<string, Cosa>;
@@ -90,16 +92,16 @@ function lista(v: unknown, path: string, min: number, max: number, is: Issue[], 
 function formato(o: O, esperado: string, is: Issue[]): void {
   if (o.formato !== esperado) is.push({ path: "formato", message: `debe ser "${esperado}" (la primera línea dice qué es el fichero)` });
 }
-function posicion(v: unknown, path: string, is: Issue[]): { x: number; z: number } {
+function posicion(v: unknown, path: string, is: Issue[], otros: string[] = []): { x: number; z: number } {
   const o = objeto(v, path, is);
   if (!o) return { x: 0, z: 0 };
-  campos(o, ["x", "z"], path, is);
+  campos(o, ["x", "z", ...otros], path, is);
   return { x: numero(o.x, en(path, "x"), -MUNDO, MUNDO, is), z: numero(o.z, en(path, "z"), -MUNDO, MUNDO, is) };
 }
-function apariencia(v: unknown, path: string, is: Issue[]): Apariencia {
+function apariencia(v: unknown, path: string, is: Issue[], otros: string[] = []): Apariencia {
   const o = objeto(v, path, is, true);
   if (!o) return { modelo: "", escala: 1 };
-  campos(o, ["modelo", "escala", "vrm"], path, is);
+  campos(o, ["modelo", "escala", "vrm", ...otros], path, is);
   const modelo = o.modelo === undefined ? "" : typeof o.modelo === "string" && SHA.test(o.modelo) ? o.modelo : (is.push({ path: en(path, "modelo"), message: "el sha256 (64 letras hex) de un .glb de la biblioteca (features/objetos/biblioteca.json) o subido; sin él, el de la casa" }), "");
   if (o.vrm !== undefined && !(typeof o.vrm === "string" && SHA.test(o.vrm))) is.push({ path: en(path, "vrm"), message: "el sha256 de un .vrm (reservado: hoy se dibuja el modelo)" });
   return { modelo, escala: numero(o.escala, en(path, "escala"), 0.05, 50, is, 1) };
@@ -234,9 +236,24 @@ export function leerCosa(v: unknown): Result<Cosa> {
   formato(o, FORMATOS.cosa, is);
   return resultado(is, {
     formato: FORMATOS.cosa, id: id(o.id, "id", is), nombre: texto(o.nombre, "nombre", LIM.nombre, is), descripcion: texto(o.descripcion, "descripcion", LIM.descripcionCosa, is, true),
-    apariencia: apariencia(o.apariencia, "apariencia", is), posicion: posicion(o.posicion, "posicion", is), radio: numero(o.radio, "radio", 1, 8, is, 2),
+    apariencia: { ...apariencia(o.apariencia, "apariencia", is, ["color"]), color: color(o.apariencia, is) },
+    posicion: { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is) }, radio: numero(o.radio, "radio", 1, 8, is, 2),
     aviso: texto(o.aviso, "aviso", LIM.aviso, is),
   });
+}
+/** cosa@1 `posicion.y`: metres above the ground, 0–3 (0 when absent). */
+function altura(v: unknown, is: Issue[]): number {
+  const o = typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
+  return o.y === undefined ? 0 : numero(o.y, "posicion.y", 0, 3, is, 0);
+}
+const COLOR = /^#[0-9a-f]{6}$/i;
+/** cosa@1 `apariencia.color`: «#rrggbb» or nothing (the model's own colours). */
+function color(v: unknown, is: Issue[]): string {
+  const c = typeof v === "object" && v !== null ? (v as Record<string, unknown>).color : undefined;
+  if (c === undefined) return "";
+  if (typeof c === "string" && COLOR.test(c)) return c.toLowerCase();
+  is.push({ path: "apariencia.color", message: "un color como «#3a7bd5» (# y seis cifras hexadecimales)" });
+  return "";
 }
 
 // ---------- the whole adventure: each file, then the references between them ----------

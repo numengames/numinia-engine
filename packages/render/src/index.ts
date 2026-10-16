@@ -6,7 +6,9 @@ export { arSupported } from "./ar.ts";
 export type { ARState } from "./ar.ts";
 import { createVR, vrSupported } from "./vr.ts";
 export { vrSupported } from "./vr.ts";
-export type { VRState } from "./vr.ts";
+export type { VRState, DialogoVR } from "./vr.ts";
+import type { Manos, EventoMano } from "./manos.ts";
+export type { EventoMano, Lado } from "./manos.ts";
 import { createPower, readCaps, checkCost } from "./power.ts";
 export { createPower, readCaps, checkCost } from "./power.ts";
 export { limitesGraficos } from "./capacidades.ts"; // N2: max texture size for the capabilities
@@ -36,18 +38,27 @@ export type Backend = "WebGPU" | "WebGL2";
 /** Someone to draw. J2 (optional, additive): `y` = height of the feet in metres (0 = on the plaza), `speed` =
  * horizontal speed in m/s (≈4 walking, ≈8 running) for whoever animates avatars. */
 export type Placed = { id: number; x: number; z: number; y?: number; speed?: number };
-/** H1: a thing in the world (same shape as the feature plug's PlacedObject; render does not import it). Degrees, YXZ. */
-export type Thing = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean;
+/** H1: a thing in the world (same shape as the feature plug's PlacedObject; render does not import it). Degrees, YXZ.
+ * `color` (optional «#rrggbb»): the model painted in that colour (quest things: two blocks that differ). */
+export type Thing = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean; color?: string;
   /** U10 (optional): modelo (.glb, the default), imagen / video (a plane), sonido (a sphere: radius = sx); file extension; hidden while playing; volume 0-1. */
   kind?: "modelo" | "imagen" | "video" | "sonido"; ext?: string; hidden?: boolean; volume?: number;
   /** U11 (optional): who hears it (burbuja: inside the bubble; zona, todos: everyone, at the same volume) and a video's bubble radius (m). */
   reach?: "burbuja" | "zona" | "todos"; radius?: number };
+/** J10: where a thing you carry goes: a hand in XR («izq»/«der»), or beside you on a flat screen («yo»). */
+export type Llevar = "izq" | "der" | "yo";
+/** J10: the biggest side of a thing held in a hand (m). */
+export const EN_MANO_M = 0.16;
 const LOADS_AT_ONCE = 4;   // H1: model files downloading at the same time; the nearest first
 const ANIMATE_WITHIN_M = 40; // H1: farther than this, a model's animation stands still (cold phones)
 
 export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; assetUrl?: (model: string) => string; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number } } = {}) {
   const power = createPower(readCaps(), { battery: opts.battery, maxFps: opts.maxFps });
-  const renderer = new THREE.WebGPURenderer({ antialias: !power.mobile, forceWebGL: !!opts.forceWebGL, powerPreference: power.mobile ? "low-power" : "high-performance" });
+  // XR on a WebGPU backend needs the session's "webgpu" feature (XRGPUBinding); Quest Browser 152 has neither (measured
+  // 16-10 over USB): there a WebGPU page can never enter VR or AR. Devices that can do XR but not XR-on-WebGPU draw
+  // with WebGL2 from the start (the backend cannot change later).
+  const xrSinGpu = typeof (globalThis as { XRGPUBinding?: unknown }).XRGPUBinding === "undefined" && (await vrSupported() || await arSupported());
+  const renderer = new THREE.WebGPURenderer({ antialias: !power.mobile, forceWebGL: !!opts.forceWebGL || xrSinGpu, powerPreference: power.mobile ? "low-power" : "high-performance" });
   await renderer.init();
   const backend: Backend = (renderer as unknown as { backend: { isWebGPUBackend?: boolean } }).backend.isWebGPUBackend ? "WebGPU" : "WebGL2";
   renderer.setPixelRatio(power.pixelRatio());
@@ -100,9 +111,45 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const cam = createCamara(camera, renderer.domElement, { enXR: () => renderer.xr.isPresenting });
   const feet = { x: 0, y: 0, z: 0 };
 
-  const ar = createAR({ renderer, scene, world, domOverlayRoot: document.getElementById("hud") ?? undefined, maxMs: opts.arMaxMs });
+  // J10: your hands in XR (manos.ts, loaded when you enter XR: not in the start bundle). What they may reach are the
+  // placed things (never while AR shows the real room). Until it arrives, `manos` keeps the page's rules and listeners.
+  // three gives a session's inputs only to controller slots that already exist: make both now (cheap, core three).
+  for (const i of [0, 1]) { renderer.xr.getController(i); renderer.xr.getControllerGrip(i); renderer.xr.getHand(i); }
+  let manosReal: Manos | null = null, manosCarga: Promise<Manos> | null = null;
+  const reglasManos: Parameters<Manos["reglas"]>[0] = {}, oyentesManos = new Set<(e: EventoMano) => void>();
+  const cargarManos = () => (manosCarga ??= import("./manos.ts").then(({ createManos }) => {
+    const m = createManos({
+      renderer,
+      *objetos() { if (ar.state !== "off") return; for (const [k, s] of things) yield [k, s.group] as [string, THREE.Object3D]; },
+      *etiquetas() { if (ar.state !== "off") return; for (const [k, s] of tags) yield [k, s] as [string, THREE.Object3D]; },
+      paneles: () => vr.paneles(),
+    });
+    m.reglas(reglasManos);
+    m.on((e) => { for (const f of oyentesManos) f(e); });
+    return (manosReal = m);
+  }));
+  const manos = {
+    cargar: cargarManos,
+    montar: (p: THREE.Object3D | null) => manosReal?.montar(p),
+    update: (c: THREE.Camera | null) => manosReal?.update(c),
+    reglas(o: Parameters<Manos["reglas"]>[0]) { Object.assign(reglasManos, o); manosReal?.reglas(o); },
+    on(fn: (e: EventoMano) => void) { oyentesManos.add(fn); return () => oyentesManos.delete(fn); },
+    ancla: (l: "izq" | "der") => manosReal?.ancla(l) ?? null,
+    andar: () => manosReal?.andar() ?? null,
+    vibrar: (l: "izq" | "der", v?: number, ms?: number) => manosReal?.vibrar(l, v, ms),
+    estado: () => manosReal?.estado() ?? { izq: null, der: null },
+  };
+  const ar = createAR({ renderer, scene, world, domOverlayRoot: document.getElementById("hud") ?? undefined, maxMs: opts.arMaxMs, manos,
+    maqueta: { // J8b: the live plaza in miniature on your table
+      yo: () => selfXZ,
+      *otros() { for (const m of others.values()) yield { x: m.position.x, z: m.position.z, y: m.position.y - 0.85 }; },
+      hitos: () => hitos,
+      *cosas() { for (const [k, s] of things) yield [k, s.want] as [string, { x: number; y: number; z: number }]; },
+    } });
 
-  const vr = createVR({ renderer, scene, camera });
+  const vr = createVR({ renderer, scene, camera, manos });
+  // where XR exists, the hands' code is fetched a few seconds after start, so entering VR/AR does not wait for it
+  void Promise.all([vrSupported(), arSupported()]).then(([v, a]) => { if (v || a) setTimeout(() => { void cargarManos().catch(() => {}); }, 3000); });
   const cenital = crearCenital(renderer, scene, world, backend); // J5: the zone from above (big map) and its footprints
   let selfXZ: { x: number; z: number; y?: number } | null = null;
   // J1: you and the nearest players as VRM humanoids (avatares.ts); the capsules above stay as their anchors
@@ -162,16 +209,112 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // ---- H1: things placed in the world (features/objetos): a model by its sha256, loaded once per file and cloned,
   // the nearest first, never more than LOADS_AT_ONCE downloads at a time ----
   type Gltf = { scene: THREE.Object3D; animations: THREE.AnimationClip[] };
-  type Slot = { group: THREE.Group; want: Thing; model: string; loaded: boolean; failed: boolean; mixer?: THREE.AnimationMixer; medio?: Medio };
+  type Slot = { group: THREE.Group; want: Thing; model: string; loaded: boolean; failed: boolean; mixer?: THREE.AnimationMixer; medio?: Medio; color?: string; horneado?: boolean };
   let verOcultos = false; // U10: while building, hidden spheres of sound are drawn
   const fichero = (t: Thing) => `${t.model}.${t.kind && t.kind !== "modelo" ? t.ext ?? "glb" : "glb"}`; // what a slot draws
+  /** A thing painted in its `color` (materials cloned once per copy; "" puts the model's own back). */
+  function pintar(s: Slot): void {
+    const c = s.want.color ?? "";
+    if (!s.loaded || s.color === c) return;
+    s.color = c;
+    s.group.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const propio = (m.userData.propio ??= m.material) as THREE.Material;
+      if (!c) { m.material = propio; return; }
+      const nuevo = (Array.isArray(propio) ? propio[0] : propio).clone() as THREE.MeshStandardMaterial;
+      if (nuevo.color) nuevo.color.set(c);
+      if ("map" in nuevo) nuevo.map = null;
+      m.material = nuevo;
+    });
+  }
+  // J10: things you carry: in a hand in XR, beside you on a flat screen; back to their place when let go
+  const llevados = new Map<string, Llevar>();
+  const tmpBox = new THREE.Box3(), tmpV = new THREE.Vector3();
+  function soltarLlevado(k: string): void {
+    const s = things.get(k);
+    llevados.delete(k);
+    if (!s) return;
+    if (s.group.parent !== world) world.add(s.group);
+    placeGroup(s);
+  }
+  function colocarLlevados(): void {
+    let i = 0;
+    for (const [k, donde] of llevados) {
+      const s = things.get(k);
+      if (!s) continue;
+      const ancla = donde !== "yo" && renderer.xr.isPresenting ? manos.ancla(donde) : null;
+      if (ancla) {
+        if (s.group.parent !== ancla) {
+          ancla.add(s.group);
+          s.group.position.set(0, 0, 0); s.group.rotation.set(0, 0, 0); s.group.scale.set(s.want.sx, s.want.sy, s.want.sz);
+          s.group.updateMatrixWorld(true);
+          tmpBox.setFromObject(s.group); const lado = Math.max(...tmpBox.getSize(tmpV).toArray()) || 1;
+          const anclaEscala = ancla.getWorldScale(tmpV).x || 1;
+          s.group.scale.multiplyScalar(Math.min(1, EN_MANO_M / lado) / anclaEscala);
+          tmpBox.setFromObject(s.group); tmpBox.getCenter(tmpV); s.group.position.copy(ancla.worldToLocal(tmpV)).negate(); // centred in the hand
+        }
+        continue;
+      }
+      // flat screen (or that hand is not here): beside your avatar at hand height, one each side
+      if (s.group.parent !== world) { world.add(s.group); s.group.rotation.set(0, 0, 0); s.group.scale.set(s.want.sx * 0.6, s.want.sy * 0.6, s.want.sz * 0.6); }
+      if (!selfXZ) continue;
+      const lado = i++ % 2 === 0 ? 1 : -1, yaw = cam.yaw();
+      s.group.position.set(selfXZ.x + Math.cos(yaw) * 0.55 * lado, (selfXZ.y ?? 0) + 0.9, selfXZ.z - Math.sin(yaw) * 0.55 * lado);
+    }
+  }
   const assetUrl = opts.assetUrl ?? ((m: string) => `/a/${m}.glb`);
   // the glTF loader (~26 kB gz) arrives only when the first thing does: a world without things never downloads it
-  type Tools = { load: (url: string) => Promise<Gltf>; clone: (o: THREE.Object3D) => THREE.Object3D };
+  type Merge = (gs: THREE.BufferGeometry[]) => THREE.BufferGeometry | null;
+  type Tools = { load: (url: string) => Promise<Gltf>; clone: (o: THREE.Object3D) => THREE.Object3D; merge: Merge };
   let tools: Promise<Tools> | null = null;
-  const getTools = () => (tools ??= Promise.all([import("three/addons/loaders/GLTFLoader.js"), import("three/addons/utils/SkeletonUtils.js")])
-    .then(([g, u]) => { const l = new g.GLTFLoader(); return { load: (url: string) => l.loadAsync(url) as unknown as Promise<Gltf>, clone: (o: THREE.Object3D) => u.clone(o as never) as unknown as THREE.Object3D }; }));
-  const files = new Map<string, Promise<{ g: Gltf; clone: Tools["clone"] }>>(); // model -> its parsed file, shared by every copy
+  const getTools = () => (tools ??= Promise.all([import("three/addons/loaders/GLTFLoader.js"), import("three/addons/utils/SkeletonUtils.js"), import("three/addons/utils/BufferGeometryUtils.js")])
+    .then(([g, u, b]) => { const l = new g.GLTFLoader(); return { load: (url: string) => l.loadAsync(url) as unknown as Promise<Gltf>, clone: (o: THREE.Object3D) => u.clone(o as never) as unknown as THREE.Object3D, merge: (gs) => b.mergeGeometries(gs as never) as unknown as THREE.BufferGeometry | null }; }));
+  // A model that does not animate (people of the world, quest things) is baked ONCE per file into one mesh per
+  // material, in the pose it comes in: the house robot goes from 19 draw calls to 3. Copies share the geometry.
+  const horneados = new Map<string, { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean }[] | null>();
+  function hornear(model: string, raiz: THREE.Object3D, merge: Merge): { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean }[] | null {
+    if (horneados.has(model)) return horneados.get(model)!;
+    let out: { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean }[] | null = null;
+    try {
+      raiz.updateMatrixWorld(true);
+      const inv = raiz.matrixWorld.clone().invert(), rel = new THREE.Matrix4(), v = new THREE.Vector3();
+      const porMat = new Map<THREE.Material, { gs: THREE.BufferGeometry[]; sombra: boolean }>();
+      let mal = false;
+      raiz.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh || mal) return;
+        if (Array.isArray(m.material)) { mal = true; return; }
+        const src = m.geometry, pos = src.attributes.position;
+        if (!pos) return;
+        const geo = new THREE.BufferGeometry();
+        const p = pos.clone() as THREE.BufferAttribute;
+        const sk = m as THREE.SkinnedMesh;
+        if (sk.isSkinnedMesh && src.attributes.skinIndex) for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(pos, i); sk.applyBoneTransform(i, v); p.setXYZ(i, v.x, v.y, v.z); }
+        geo.setAttribute("position", p);
+        if (src.attributes.uv) geo.setAttribute("uv", src.attributes.uv.clone());
+        if (src.index) geo.setIndex(src.index.clone());
+        geo.applyMatrix4(rel.multiplyMatrices(inv, m.matrixWorld));
+        const g2 = geo.index ? geo.toNonIndexed() : geo;
+        g2.computeVertexNormals();
+        const e = porMat.get(m.material) ?? { gs: [], sombra: false };
+        e.gs.push(g2); e.sombra ||= m.castShadow; porMat.set(m.material, e);
+      });
+      if (!mal && porMat.size) {
+        out = [];
+        for (const [mat, e] of porMat) {
+          if (e.gs.some((x) => !!x.attributes.uv) && !e.gs.every((x) => !!x.attributes.uv)) for (const x of e.gs) x.deleteAttribute("uv"); // all or none
+          const geo = e.gs.length === 1 ? e.gs[0] : merge(e.gs);
+          if (!geo) { out = null; break; }
+          geo.computeBoundingSphere(); geo.computeBoundingBox();
+          out.push({ geo, mat, sombra: e.sombra });
+        }
+      }
+    } catch (err) { console.warn(`[objetos] no pude hornear ${model}:`, err); out = null; }
+    horneados.set(model, out);
+    return out;
+  }
+  const files = new Map<string, Promise<{ g: Gltf; clone: Tools["clone"]; merge: Merge }>>(); // model -> its parsed file, shared by every copy
   const things = new Map<string, Slot>();
   const waiting = new Set<string>();
   let loading = 0, animatingNear = false;
@@ -193,15 +336,20 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       const model = s.model;
       if (s.want.kind && s.want.kind !== "modelo") { cargarMedio(best, s); continue; }
       let file = files.get(model);
-      if (!file) { file = getTools().then(async (t) => ({ g: await t.load(assetUrl(model.replace(/\.glb$/, ""))), clone: t.clone })); files.set(model, file); }
+      if (!file) { file = getTools().then(async (t) => ({ g: await t.load(assetUrl(model.replace(/\.glb$/, ""))), clone: t.clone, merge: t.merge })); files.set(model, file); }
       loading++;
-      file.then(({ g, clone }) => {
+      file.then(({ g, clone, merge }) => {
         const now = things.get(best);
         if (!now || now.model !== model || now.loaded) return; // removed or changed while it downloaded
-        const copy = clone(g.scene);
+        const quieto = !now.want.animate ? hornear(model, g.scene, merge) : null;
+        let copy: THREE.Object3D;
+        if (quieto) { copy = new THREE.Group(); for (const q of quieto) { const m = new THREE.Mesh(q.geo, q.mat); m.castShadow = q.sombra; copy.add(m); } }
+        else copy = clone(g.scene);
+        now.horneado = !!quieto;
         now.group.add(copy);
         if (now.want.animate && g.animations.length) { now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction(g.animations[0]).play(); }
-        now.loaded = true;
+        now.loaded = true; now.color = undefined; pintar(now);
+        if (llevados.has(best) && now.group.parent !== world) { const d = llevados.get(best)!; soltarLlevado(best); llevados.set(best, d); } // re-fit in the hand
       }).catch((e) => {
         const now = things.get(best);
         if (now && now.model === model) now.failed = true;
@@ -391,14 +539,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** H1: put a thing in the world, move it, change its model, or take it away (`null`). */
     place(key: string, t: Thing | null): void {
       const s = things.get(key);
-      if (!t) { if (s) { s.mixer?.stopAllAction(); s.medio?.soltar(); world.remove(s.group); things.delete(key); waiting.delete(key); } return; }
+      if (!t) { if (s) { s.mixer?.stopAllAction(); s.medio?.soltar(); s.group.parent?.remove(s.group); things.delete(key); waiting.delete(key); llevados.delete(key); } return; }
       if (!s) {
         const group = new THREE.Group(); group.name = `objeto:${key}`; world.add(group);
         const ns: Slot = { group, want: t, model: fichero(t), loaded: false, failed: false };
         things.set(key, ns); placeGroup(ns); waiting.add(key); pumpLoads(); return;
       }
-      s.want = t; if (!editor.retiene(key, t)) placeGroup(s);
-      if (s.model !== fichero(t)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpLoads(); }
+      s.want = t; if (!editor.retiene(key, t) && !llevados.has(key)) placeGroup(s);
+      pintar(s);
+      if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpLoads(); } // a baked copy cannot move: load it whole
       else if (!t.animate && s.mixer) { s.mixer.stopAllAction(); s.mixer = undefined; }
     },
     /** H1: things placed, how many have their model drawn, and how many failed to load (for checks). `~` keys = the page's previews, not counted. */
@@ -407,6 +556,17 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       for (const [k, s] of things) { if (k.startsWith("~")) continue; placed++; if (s.loaded) loaded++; if (s.failed) failed++; }
       return { placed, loaded, failed };
     },
+    /** J10: carry a placed thing (`key` as in place): in a hand in XR, beside you on a flat screen; `null` puts it back. */
+    llevar(key: string, donde: Llevar | null): void {
+      if (!donde) { if (llevados.has(key)) soltarLlevado(key); return; }
+      if (llevados.get(key) === donde) return;
+      if (llevados.has(key)) soltarLlevado(key);
+      llevados.set(key, donde);
+    },
+    /** J10: what you carry and where (for checks). */
+    llevando(): Record<string, Llevar> { return Object.fromEntries(llevados); },
+    /** J10: your hands in XR (manos.ts): rules, events, state. */
+    manos,
     /** M22: the builder's hands (packages/render/src/gizmo.ts): select, the point under the pointer, gizmo, hold. */
     editor,
     /** M22: the key of the placed thing under a screen point (client px), or null. */
@@ -447,9 +607,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
       editor.frame();
       entorno.actualizar(); elementos.actualizar(dtSeconds);
-      if (renderer.xr.isPresenting) { ar.update(); vr.update(selfXZ, dtSeconds); renderer.render(scene, camera); return; }
+      if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); colocarLlevados(); renderer.render(scene, camera); return; }
       if (selfXZ) { feet.x = selfXZ.x; feet.z = selfXZ.z; }
       cam.update(dtSeconds, selfXZ ? feet : null);
+      colocarLlevados();
       renderer.render(scene, camera);
     },
     loop(fn: (timeMs: number) => void): void { renderer.setAnimationLoop(fn); },

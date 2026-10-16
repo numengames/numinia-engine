@@ -1,0 +1,18 @@
+{
+  "formato": "cosa@1",
+  "id": "semillas",
+  "nombre": "Saco de semillas",
+  "descripcion": "Las semillas del jardín de Teo.",
+  "posicion": {
+    "x": -9,
+    "z": -3,
+    "y": 1.0
+  },
+  "radio": 2,
+  "aviso": "coger las semillas",
+  "apariencia": {
+    "escala": 0.3,
+    "color": "#e0b030"
+  },
+  "notas": "EJEMPLO del motor (J10). El bloque de la casa, dorado, a la altura de la mano."
+}

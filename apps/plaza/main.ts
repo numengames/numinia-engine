@@ -24,6 +24,7 @@ import { elementos } from "../../features/elementos/client.ts";
 import { montarEntorno } from "./entorno.ts";
 import { montarVoz } from "./voz.ts";
 import { icono } from "./iconos.ts";
+import { montarXR } from "./xr.ts";
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
@@ -97,6 +98,7 @@ const cajaChat = montarChat(chatDePagina, document.getElementById("chat")!);
 // ---- J4/J5: what you can use from close by (E, a click, the prompt button), conversations, the quest book (J) ----
 const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: misiones.ofrece, ocupado: () => !!misiones.dialogo() });
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
+const xr = montarXR({ session, view, misiones, interaccion }); // J10: hands in VR take, point and answer; what you took is in your hand
 montarDialogo(misiones, document.getElementById("dialogo")!, view);
 montarLibro(misiones, {
   boton: document.getElementById("misiones") as HTMLButtonElement, panel: document.getElementById("libro")!, linea: document.getElementById("mision-seguida")!,
@@ -151,6 +153,7 @@ function readAxes(): [number, number] {
   if (pad && (pad[0] || pad[1])) { x = pad[0]; z = pad[1]; }
   [x, z] = haciaMundo(x, z, view.cam.yaw()); // N1: W walks where the camera looks
   if (view.vr.active) { const [vx, vz] = view.vr.axes(); if (vx || vz) { x = vx; z = vz; } }
+  if (view.ar.state === "placed") { const [ax, az] = view.ar.axes(); if (ax || az) { x = ax; z = az; } } // J8b: walk on the table
   return [Math.round(x * STICK_MAX), Math.round(z * STICK_MAX)];
 }
 
@@ -172,7 +175,7 @@ if (matchMedia("(pointer: coarse)").matches) {
 }
 function readButtons(): number {
   let b = 0;
-  if (view.vr.takeJump() || saltoPendiente) { saltoPendiente = false; b |= BTN_JUMP; }
+  if (view.vr.takeJump() || view.ar.takeJump() || saltoPendiente) { saltoPendiente = false; b |= BTN_JUMP; }
   const alBorde = (touch && Math.hypot(touch.dx, touch.dy) >= 0.9) || (view.vr.active && Math.hypot(...view.vr.axes()) >= 0.9);
   if (keys.has("ShiftLeft") || keys.has("ShiftRight") || alBorde) b |= BTN_RUN;
   return b;
@@ -180,10 +183,10 @@ function readButtons(): number {
 
 // ---- AR (J8): the button exists only where the device can do immersive-ar; no WebXR (iPhone) = no button ----
 const arBtn = document.getElementById("ar") as HTMLButtonElement;
-const arLabel = { off: "Entrar en AR", searching: "Busca el suelo… (salir)", ready: "Toca para colocar (salir)", placed: "Colocado (salir)" };
+const arLabel = { off: "Entrar en AR", searching: "Mira una mesa o el suelo… (salir)", ready: "Toca para poner la plaza (salir)", placed: "La plaza en tu mesa · toca para moverla (salir)" };
 view.arSupported().then((ok) => {
   if (!ok) return;
-  arBtn.style.display = "block";
+  arBtn.hidden = false; // the hidden ATTRIBUTE, not a style: the icon bar (tema.css) sets display on its buttons
   arBtn.onclick = () => { if (view.ar.state === "off") void view.ar.enter().then((ok) => { if (!ok) session.report({ k: "xr", modo: "ar", accion: "falla", detalle: view.ar.lastError }); }); else void view.ar.exit(); };
 });
 setInterval(() => { arBtn.textContent = arLabel[view.ar.state]; }, 250);
@@ -192,10 +195,19 @@ setInterval(() => { arBtn.textContent = arLabel[view.ar.state]; }, 250);
 const vrBtn = document.getElementById("vr") as HTMLButtonElement;
 view.vrSupported().then((ok) => {
   if (!ok) return;
-  vrBtn.style.display = "block";
+  vrBtn.hidden = false;
   vrBtn.onclick = () => { if (view.vr.state === "off") void view.vr.enter().then((ok) => { if (!ok) session.report({ k: "xr", modo: "vr", accion: "falla", detalle: view.vr.lastError }); }); else void view.vr.exit(); };
 });
 setInterval(() => { vrBtn.textContent = view.vr.active ? "Salir de VR" : "Entrar en VR"; }, 250);
+
+// ---- the engine's version, at the foot of the settings (Pablo: «que se vea la versión»): the server's /status `version`
+// (build = «<commit>[+cambios] <date>», the one /health, the installer and the world zip carry) ----
+const versionMotor = document.getElementById("version-motor");
+fetch(`${activos}/status`).then((r) => r.json()).then((st: { version?: string }) => {
+  if (!versionMotor || !st.version) return;
+  const [build, ...resto] = st.version.split(" ");
+  versionMotor.textContent = `Numinia Engine ${build}${resto.length ? ` · ${resto.join(" ")}` : ""}`;
+}).catch(() => {});
 
 // ---- N1: full screen — a real button where the browser can do it (not iPhone), hidden while XR presents ----
 const pantalla = document.getElementById("pantalla") as HTMLButtonElement;
@@ -289,11 +301,11 @@ function drawHud() {
     `Tú: ${session.who?.nombre ?? "…"} (avatar ${session.entity}) · conectados a la vista: ${s.visible + 1}\n` +
     `Ping: ${s.rttMs < 0 ? "—" : s.rttMs + " ms"} · correcciones de tu predicción: ${s.corrections}\n` +
     `Huella navegador = servidor: ${det}`;
-  if (view.vr.active) view.vr.setPanel([`${view.backend} · ${fps} fps`, `Conectados: ${s.visible + 1}`, `Ping: ${s.rttMs < 0 ? "—" : s.rttMs + " ms"}`, `Huella ${probe.browser === probe.server ? "✓" : "…"}`]);
+  if (view.vr.active) view.vr.setPanel([...xr.lineasPanel(), `${fps} fps · ${s.visible + 1} conectados · ping ${s.rttMs < 0 ? "—" : s.rttMs + " ms"}`]); // J10: the quest first
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, mapa, ficha, ambiente, elementos, voz };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, mapa, ficha, ambiente, elementos, voz, xr };
 
 // ---- U11: the bar of icon buttons, top right (rightmost first): settings, build, microphone, full screen, VR, AR ----
 {
