@@ -24,7 +24,7 @@ export type Captura = { quien: number; sitio: string; pez: string; cm: number; r
 /** How long a landed fish stays in the hand (ms) unless its angler walks away (the 3D decides that part). */
 export const EN_MANO_MS = 7000;
 /** «23,1 cm»: the fish's size as people write it here. */
-export const cmTexto = (cm: number): string => `${String(cm).replace(".", ",")} cm`;
+export const cmTexto = (cm: number): string => `${String(Math.round(cm * 10) / 10).replace(".", ",")} cm`;
 type Res = { ok: true } | { ok: false; why: string };
 const SIN: Res = { ok: false, why: "la función pesca no está en este servidor" };
 const ahora = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
@@ -95,7 +95,8 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     api.on("tension", (m) => { e.tension = Number(m.tension); e.progreso = Number(m.progreso); e.arrancada = m.arrancada as Estado["arrancada"]; avisar("estado"); });
     api.on("captura", (m) => {
       e.ultimo = { pez: String(m.pez), cm: Number(m.cm), rareza: String(m.rareza), total: Number(m.total) };
-      e.aviso = `Has pescado: ${e.ultimo.pez} de ${e.ultimo.cm} cm`;
+      e.ultimo.cm = Math.round(e.ultimo.cm * 10) / 10; // Q16.16 on the wire: 33.3 arrives as 33.300000000000004
+      e.aviso = `Has pescado: ${e.ultimo.pez} de ${cmTexto(e.ultimo.cm)}`;
       api.view.bounce(api.self(), 1200);
     });
     api.on("escape", (m) => { e.aviso = String(m.texto); });
@@ -106,10 +107,11 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
       if (quien === api.self()) { reposo(); avisar("estado"); }
       avisar("flotadores");
       if (m.resultado === "captura" && m.pez) { // v2: the fish goes to the angler's hand, for everyone near to see
-        const c: Captura = { quien, sitio: String(m.sitio), pez: String(m.pez), cm: Number(m.cm), rareza: String(m.rareza), desde: ahora() };
+        const c: Captura = { quien, sitio: String(m.sitio), pez: String(m.pez), cm: Math.round(Number(m.cm) * 10) / 10, rareza: String(m.rareza), desde: ahora() };
         capturas.set(quien, c);
         api.view.label(quien, `🐟 ${c.pez} · ${cmTexto(c.cm)}`, EN_MANO_MS);
         avisar("capturas");
+        setTimeout(() => olvidar(), EN_MANO_MS + 50); // the hand empties on its own, with no other event needed
       }
     });
     api.on("cesta", (m) => { e.cesta = { peces: Number(m.peces), clases: Number(m.clases), mejor: String(m.mejor ?? ""), mejorCm: Number(m.mejorCm ?? 0) }; avisar("estado"); });

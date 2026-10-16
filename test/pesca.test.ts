@@ -12,7 +12,7 @@ import { signer } from "../packages/server/src/secret.ts";
 import { pesca, ESPERA_S, VENTANA_S, PELEA } from "../features/pesca/feature.ts";
 import { crearPesca, tirarPez, pasoPelea, HZ } from "../features/pesca/server.ts";
 import type { Pez } from "../features/pesca/server.ts";
-import { crearCliente } from "../features/pesca/client.ts";
+import { crearCliente, cmTexto } from "../features/pesca/client.ts";
 import tabla from "../features/pesca/peces.json" with { type: "json" };
 import funciones from "../features/servidor.ts";
 import clientes from "../features/cliente.ts";
@@ -250,8 +250,8 @@ test("pesca v2: the catch reaches whoever is near with the fish (fin: pez, cm, r
   for (const P of [A, B]) {
     const en = P.p.capturas();
     assert.equal(en.length, 1);
-    assert.equal(en[0].quien, A.s.entity); assert.equal(en[0].pez, c[0].pez); assert.equal(en[0].cm, c[0].cm); assert.equal(en[0].rareza, c[0].rareza);
-    assert.ok(P.seen.some((s) => s === `label ${A.s.entity} 🐟 ${c[0].pez} · ${String(c[0].cm).replace(".", ",")} cm`), P.seen.join(" | "));
+    assert.equal(en[0].quien, A.s.entity); assert.equal(en[0].pez, c[0].pez); assert.equal(en[0].cm, Math.round(Number(c[0].cm) * 10) / 10); assert.equal(en[0].rareza, c[0].rareza);
+    assert.ok(P.seen.some((s) => s === `label ${A.s.entity} 🐟 ${c[0].pez} · ${cmTexto(Number(c[0].cm))}`), P.seen.join(" | "));
   }
   assert.equal(C.p.capturas().length, 0);
   // an escape or letting go carries no fish

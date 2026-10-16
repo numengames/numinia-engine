@@ -7,6 +7,7 @@ import { uniform, texture, uv, vec2, normalMap, mix } from "three/tsl";
 import { crearEmisor, pide } from "./particulas.ts";
 import type { EmisorDef, Emisor } from "./particulas.ts";
 import { parpadeo } from "./curvas.ts";
+import { normalesDeAgua } from "./agua-normales.ts";
 import { particulasPara, LUCES_FUEGO, ANIMAR_M, DIBUJAR_M } from "./calidad.ts";
 import type { Entorno } from "./entorno.ts";
 import type { Cuenta } from "./elementos-vista.ts";
@@ -19,21 +20,6 @@ export const LLAMAS: EmisorDef = { forma: "cono", radio: 0.32, ritmo: 60, vida: 
 export const CHISPAS: EmisorDef = { forma: "cono", radio: 0.25, ritmo: 10, vida: [0.8, 1.6], velocidad: [0, 3, 0], dispersion: 0.9, tamano: [[0, 1], [1, 0.3]], tamanoMax: 0.07, giro: [0, 0], color: [[0, 1, 0.9, 0.55], [1, 1, 0.45, 0.1]], alfa: [[0, 1], [0.7, 1], [1, 0]], mezcla: "aditiva", gravedad: -1.4, viento: 0.4, suave: 0.3 };
 export const HUMO: EmisorDef = { forma: "cono", radio: 0.4, ritmo: 9, vida: [4.5, 7.5], velocidad: [0, 1.3, 0], dispersion: 0.22, tamano: [[0, 0.35], [1, 2.6]], tamanoMax: 1.5, giro: [-0.35, 0.35], color: [[0, 0.5, 0.5, 0.5], [1, 0.78, 0.78, 0.78]], alfa: [[0, 0], [0.15, 0.38], [0.7, 0.22], [1, 0]], mezcla: "normal", gravedad: 0.12, viento: 0.6, vagar: 0.8, suave: 0.9 };
 export const POLVO: EmisorDef = { forma: "caja", caja: [14, 3, 14], ritmo: 40, vida: [4, 8], velocidad: [0, 0.05, 0], dispersion: 0.25, tamano: [[0, 0.6], [0.5, 1], [1, 0.8]], tamanoMax: 0.1, giro: [-1, 1], color: [[0, 1, 1, 1], [1, 1, 1, 1]], alfa: [[0, 0], [0.2, 0.6], [0.8, 0.45], [1, 0]], mezcla: "normal", gravedad: -0.05, viento: 1, vagar: 1.2, suave: 0.7 };
-
-/** A tileable water normal map made here (own work, no licence question): a sum of waves with whole frequencies. */
-function normalesDeAgua(lado = 128): THREE.DataTexture {
-  const ondas: [number, number, number, number][] = [[1, 2, 0.5, 0.3], [3, -1, 0.35, 1.7], [-2, 3, 0.3, 4.1], [5, 4, 0.18, 2.2], [-6, 5, 0.12, 0.9], [7, -8, 0.08, 5.3], [11, 9, 0.05, 3.3], [-13, 12, 0.04, 1.1]];
-  const datos = new Uint8Array(lado * lado * 4);
-  for (let y = 0; y < lado; y++) for (let x = 0; x < lado; x++) {
-    let dx = 0, dy = 0;
-    for (const [fx, fy, a, f] of ondas) { const c = Math.cos(2 * Math.PI * ((fx * x) / lado + (fy * y) / lado) + f) * a * 2 * Math.PI; dx += c * fx / 8; dy += c * fy / 8; }
-    const l = Math.hypot(dx, dy, 1), i = (y * lado + x) * 4;
-    datos[i] = Math.round(((-dx / l) * 0.5 + 0.5) * 255); datos[i + 1] = Math.round(((-dy / l) * 0.5 + 0.5) * 255); datos[i + 2] = Math.round(((1 / l) * 0.5 + 0.5) * 255); datos[i + 3] = 255;
-  }
-  const t = new THREE.DataTexture(datos, lado, lado, THREE.RGBAFormat);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.needsUpdate = true;
-  return t;
-}
 
 type Uno = {
   datos: Datos; grupo: THREE.Group; emisores: Emisor[]; radio: number;

@@ -16,8 +16,8 @@ export type Pez = { id: string; nombre: string; rareza: Rareza; peso: number; cm
 export type Sitio = { id: string; nombre: string; x: number; z: number; y?: number; radio?: number };
 /** The server's tick rate (Hz) and its length (s): the fight integrates with it. */
 export const HZ = 20, DT = 1 / HZ;
-/** The default spot of a world without its own pesca.json: by the plaza, where a pond fits (-z is north). */
-export const SITIOS_DEFECTO: Sitio[] = [{ id: "estanque", nombre: "Estanque de la plaza", x: 24, z: -16, y: 0, radio: 4 }];
+/** The default spot of a world without its own pesca.json: north-east of the plaza, between the landmark pillars (r 18 and 27, every 15°) so none stands in the water (-z is north). */
+export const SITIOS_DEFECTO: Sitio[] = [{ id: "estanque", nombre: "Estanque de la plaza", x: 18, z: -14, y: 0, radio: 4 }];
 const TEXTO: Record<(typeof MOTIVOS)[number], string> = {
   tarde: "Se ha ido: tardaste en recoger.",
   rota: "¡El sedal se ha roto! Demasiada tensión.",

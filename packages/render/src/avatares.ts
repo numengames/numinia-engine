@@ -26,6 +26,7 @@ type Avatar = {
   clave: number | "yo"; modelo: number; marcha: Marcha; estado: Estado; copia?: Copia;
   clip?: Clip; accion?: THREE.AnimationAction; saliente?: THREE.AnimationAction; fundidoHasta: number;
   ancla?: THREE.Object3D; mascara?: number; cerca: boolean;
+  rumboFijo?: number; // pesca v2: while fishing the body faces the water (only while standing still)
 };
 
 export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: () => boolean; catalogo?: CatalogoAvatares; yo?: () => number; compilar?: (raiz: THREE.Object3D) => Promise<unknown>; suelo?: (x: number, z: number, y: number) => number }) {
@@ -123,7 +124,7 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     if (a.ancla !== ancla) { if (a.ancla && a.mascara !== undefined) a.ancla.layers.mask = a.mascara; a.ancla = ancla; a.mascara = undefined; }
     if (a.mascara === undefined) { a.mascara = ancla.layers.mask; ancla.layers.mask = 0; }
     c.raiz.position.set(pos.x, altura, pos.z);
-    c.raiz.rotation.y = a.marcha.rumbo;
+    c.raiz.rotation.y = a.rumboFijo !== undefined && a.estado === "quieto" ? a.rumboFijo : a.marcha.rumbo;
     c.raiz.visible = !oculto;
     // keep the old clip until the new one has loaded, then fade (SABER §3.4)
     if (quiere && quiere.clip !== a.clip && hay(quiere.clip)) poner(a, quiere.clip, ahora, m);
@@ -167,6 +168,15 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     },
     /** Loading, fading, or someone near moving: keep drawing. A near avatar standing idle does not (it breathes at the idle frame rate). */
     busy(): boolean { return ocupado; },
+    /** pesca v2: a hand's place in the world (the VRM's raw bone), or null while that player wears a capsule. */
+    mano(clave: number | "yo", lado: "derecha" | "izquierda", out: THREE.Vector3): THREE.Vector3 | null {
+      const c = avatares.get(clave)?.copia;
+      if (!c || !c.raiz.parent) return null;
+      const hueso = c.humanoid.getRawBoneNode(lado === "derecha" ? "rightHand" : "leftHand");
+      return hueso ? hueso.getWorldPosition(out) : null;
+    },
+    /** pesca v2: make a standing avatar face `rumbo` (three's rotation.y; undefined = walk-driven again). */
+    orientar(clave: number | "yo", rumbo: number | undefined): void { const a = avatares.get(clave); if (a) a.rumboFijo = rumbo; },
     /** For checks and the HUD: files, clips, and who wears what. */
     stats(): { cupo: number; modelos: { pedidos: number; cargados: number; fallidos: number }; animaciones: string[]; dibujados: number; errores: number; lista: EstadoAvatar[] } {
       const lista: EstadoAvatar[] = [...avatares.values()].map((a) => ({ id: a.clave, modelo: cat?.modelos[a.modelo]?.nombre ?? "", estado: a.estado, clip: a.clip ?? null, dibujado: !!a.copia?.raiz.visible && !!a.copia?.raiz.parent, cerca: a.cerca }));
