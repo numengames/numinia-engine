@@ -1,0 +1,102 @@
+# publicar-motor (C7 de motor-flota/SPEC.md): on every merge to main, publish the engine as a release a server can
+# install, a world's zip can point at (arrancar.sh) and the fleet can run (the image, pinned by commit).
+#
+# PARA PABLO: este fichero va en .github/workflows/publicar-motor.yml del repo numinia-engine. La App de Ursa no
+# puede escribir ahí (GitHub exige el permiso «Workflows»), así que lo subes tú, desde la web:
+#   Add file → Create new file → nombre `.github/workflows/publicar-motor.yml` → pegar esto → PR.
+# Una sola vez, después de la primera vuelta verde: en github.com/orgs/numengames/packages → numinia-engine →
+# Package settings → Change visibility → Public (para que la flota y cualquiera la bajen sin cuenta).
+#
+# Qué hace, en este orden, y si un paso falla no sigue (nunca hay versión sin su imagen):
+#   npm ci → pruebas → puertas → npm run deploy (el instalador) → deploy-check (lo prueba desempaquetado) →
+#   imagen desde ESE instalador (amd64 + arm64, sin emulación) → ghcr.io/numengames/numinia-engine:sha-<commit> →
+#   procedencia firmada de la imagen Y del instalador → versión motor-<corto> («latest», --target <commit>) con
+#   instalar-motor.sh, SHA256SUMS e imagen.json = {image, commit, build, digest} (tools/publicar-version.sh, que sigue
+#   siendo el camino de emergencia a mano).
+# Seguridad: acciones fijadas por commit (comprobados el 16-10-2026); el token solo escribe versiones y paquetes de
+# este repo y firma la procedencia; no lee ningún secreto propio; checkout sin credenciales guardadas.
+name: publicar-motor
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write       # la versión (release)
+  packages: write       # la imagen en ghcr.io
+  id-token: write       # firmar la procedencia (OIDC)
+  attestations: write   # guardar la procedencia
+
+concurrency:
+  group: publicar-motor
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      IMAGEN: ghcr.io/numengames/numinia-engine
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: dependencias, pruebas y puertas
+        run: |
+          npm ci
+          npm test
+          node tools/gates.mjs
+
+      - name: el instalador y su prueba (una sola vez; la imagen y la versión salen de este fichero)
+        run: |
+          npm run deploy
+          node tools/deploy-check.mjs
+          bash deploy/instalar-motor.sh --version
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: la imagen, desde el instalador (Dockerfile + .dockerignore = solo deploy/instalar-motor.sh)
+        id: imagen
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          build-args: COMMIT=${{ github.sha }}
+          tags: ${{ env.IMAGEN }}:sha-${{ github.sha }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+          push: true
+          provenance: false
+          sbom: false
+
+      - name: procedencia de la imagen
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGEN }}
+          subject-digest: ${{ steps.imagen.outputs.digest }}
+          push-to-registry: true
+
+      - name: procedencia del instalador
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: deploy/instalar-motor.sh
+
+      - name: la versión motor-<corto> (solo ahora, con la imagen ya subida)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLICAR_HECHO: "1"
+          PUBLICAR_DIGEST: ${{ steps.imagen.outputs.digest }}
+        run: bash tools/publicar-version.sh
