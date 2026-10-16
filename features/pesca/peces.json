@@ -1,0 +1,9 @@
+{
+  "schema": "numinia-engine/peces@1",
+  "_doc": "La tabla de peces de la pesca (v1). peso = cuánto pesa en la tabla al echar a suertes (más = más común); cm = talla mínima y máxima; fuerza = cuánto tira (sube la tensión al recoger); heft = cuánto cuesta acercarlo (baja el progreso por segundo al recoger); aguante = segundos hasta que se cansa; arrancadas = cada cuántos segundos tira de golpe [min, max]. Números inspirados en bridge-mind/tideline (MIT), ajustados a una pelea de 8-20 s con un solo botón.",
+  "peces": [
+    { "id": "carpa", "nombre": "Carpa", "rareza": "comun", "peso": 70, "cm": [22, 60], "fuerza": 0.9, "heft": 1.0, "aguante": 12, "arrancadas": [3.5, 6] },
+    { "id": "trucha", "nombre": "Trucha", "rareza": "rara", "peso": 25, "cm": [25, 55], "fuerza": 1.2, "heft": 0.9, "aguante": 10, "arrancadas": [2.5, 4.5] },
+    { "id": "lucio", "nombre": "Lucio", "rareza": "legendaria", "peso": 5, "cm": [50, 110], "fuerza": 1.6, "heft": 1.4, "aguante": 16, "arrancadas": [2, 4] }
+  ]
+}

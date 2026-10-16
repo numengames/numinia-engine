@@ -22,6 +22,7 @@ import { montarMapa } from "./mapa.ts";
 import { montarFicha } from "./ficha.ts";
 import { ambiente } from "../../features/entorno/client.ts";
 import { elementos } from "../../features/elementos/client.ts";
+import { pesca } from "../../features/pesca/client.ts"; // pesca v1: the controller; its HUD (apps/plaza/pesca.ts) and 3D load with the first spot
 import { montarEntorno } from "./entorno.ts";
 import { montarVoz } from "./voz.ts";
 import { icono } from "./iconos.ts";
@@ -90,6 +91,9 @@ montarConstructor(constructor, view, document.getElementById("construir") as HTM
 // ---- H9: drop your own .glb on the world (or «Subir modelo…» in the panel): uploaded by sha256, placed for everyone ----
 montarSoltar({ session, view, puede: () => constructor.estado.puede, origen: activos, billete: () => localStorage.getItem(GUARDA), panel: document.getElementById("panel-construir") });
 montarEntorno(ambiente, elementos, view); // H4/H8: environment and elements, a section of its own while building
+// ---- pesca v1: nothing of it is in the start bundle; the HUD and the 3D arrive with the first fishing spot or float ----
+let pescaHud: Promise<unknown> | null = null;
+pesca.alCambiar(() => { pescaHud ??= import("./pesca.ts").then((m) => m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, ajuste: leerAjuste })).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); });
 
 // ---- U10: the microphone (button or Q): your voice to who is near; theirs from where they stand ----
 const voz = montarVoz({ session, view: { label: (t, text, ms) => view.label(t, text, ms), cam: view.cam }, escribiendo, decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } } });
@@ -98,7 +102,7 @@ const voz = montarVoz({ session, view: { label: (t, text, ms) => view.label(t, t
 const cajaChat = montarChat(chatDePagina, document.getElementById("chat")!);
 
 // ---- J4/J5: what you can use from close by (E, a click, the prompt button), conversations, the quest book (J) ----
-const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: misiones.ofrece, ocupado: () => !!misiones.dialogo() });
+const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k), ocupado: () => !!misiones.dialogo() });
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
 const xr = montarXR({ session, view, misiones, interaccion }); // J10: hands in VR take, point and answer; what you took is in your hand
 montarDialogo(misiones, document.getElementById("dialogo")!, view);
@@ -309,7 +313,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, mapa, ficha, ambiente, elementos, voz, xr };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, mapa, ficha, ambiente, elementos, voz, xr, pesca };
 
 // ---- U11: the bar of icon buttons, top right (rightmost first): settings, build, microphone, full screen, VR, AR ----
 {
