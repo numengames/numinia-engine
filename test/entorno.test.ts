@@ -176,3 +176,24 @@ test("MUNDO_DIR: the server reads a world's entorno.json / elementos.json and sw
   const v = w.pages[0].s.features.stateOf("entorno").get(ZONA)!;
   assert.deepEqual([v.preset, v.suelo], ["atardecer", "arena"]);
 });
+
+test("MUNDO_DIR: pesca.json with valid JSON but no `sitios` array logs why, keeps the house pond", () => {
+  const dir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "mundo-pesca-"));
+  writeFileSync(join(dir, "pesca.json"), JSON.stringify({ spots: ["mal escrito"] }));
+  const log: string[] = [];
+  const leer = leerMundo(dir, (l) => log.push(l));
+  assert.equal(log.length, 0, "valid JSON: no syntax complaint from leerMundo itself");
+  const partes = conMundo(funciones, leer, (l) => log.push(l));
+  assert.match(log.join(" "), /pesca\.json no tiene una lista "sitios"/);
+  const pesca = partes.find((p) => p.feature.id === "pesca")!;
+  assert.equal(pesca, funciones.find((p) => p.feature.id === "pesca"), "falls back to the house default, untouched");
+});
+
+test("MUNDO_DIR: pesca.json with a valid sitios array is used quietly, and conMundo works without a log callback", () => {
+  const dir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "mundo-pesca-ok-"));
+  writeFileSync(join(dir, "pesca.json"), JSON.stringify({ sitios: [{ id: "lago", nombre: "Lago", x: 1, z: 2 }] }));
+  const leer = leerMundo(dir);
+  const partes = conMundo(funciones, leer); // no log arg: must not throw
+  const pesca = partes.find((p) => p.feature.id === "pesca")!;
+  assert.notEqual(pesca, funciones.find((p) => p.feature.id === "pesca"), "swapped for the world's own sitios");
+});

@@ -11,10 +11,13 @@ import type { Sitio } from "./pesca/server.ts";
 import { leerAparicion } from "./entorno/esquema.ts";
 import type { Aparicion } from "./entorno/esquema.ts";
 
-export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) => unknown): ServerPart[] {
+export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) => unknown, log: (l: string) => void = () => {}): ServerPart[] {
   // pesca.json (numinia-engine/pesca@1: { sitios: [{ id, nombre, x, y, z, radio }] }): the world's fishing spots; none = the house default
-  const sitios = (leer("pesca.json") as { sitios?: Sitio[] } | null | undefined)?.sitios;
-  return partes.map((p) => (p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitios) ? crearPesca({ sitios }) : p));
+  const crudo = leer("pesca.json") as { sitios?: unknown } | null | undefined;
+  const sitios = crudo?.sitios;
+  // valid JSON (no syntax error logged by leerMundo) but the wrong shape: say so, same as aparicionDelMundo does for entorno.json.
+  if (crudo !== undefined && !Array.isArray(sitios)) log(`[mundo] pesca.json no tiene una lista "sitios" (uso el estanque de la casa): ${JSON.stringify(crudo).slice(0, 160)}`);
+  return partes.map((p) => (p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitios) ? crearPesca({ sitios: sitios as Sitio[] }) : p));
 }
 
 /** The world's spawn area (entorno.json `aparicion`), or null: no file, no key, or a wrong one (logged, with its path). */

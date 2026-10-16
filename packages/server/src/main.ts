@@ -40,7 +40,7 @@ const srv = await startServer({
   host: env.HOST ?? "127.0.0.1",
   statsMs: Number(env.STATS_MS ?? 30000),
   // SIN_FUNCIONES=1: the bare engine · the world's own environment and elements (entorno.json, elementos.json; H4)
-  features: env.SIN_FUNCIONES === "1" ? [] : leerEntorno ? conMundo(funciones, leerEntorno) : funciones,
+  features: env.SIN_FUNCIONES === "1" ? [] : leerEntorno ? conMundo(funciones, leerEntorno, log) : funciones,
   aparicion: leerEntorno ? aparicionDelMundo(leerEntorno, log) : null,  // where people appear (entorno.json `aparicion`; a tower's floor)
   sesiones: env.SESIONES_DIR || c?.sesiones || "informes/sesiones", // T1: how each player entered
   datos,                                                              // S4: what features keep across restarts
