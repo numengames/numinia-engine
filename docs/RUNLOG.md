@@ -1043,3 +1043,17 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Opus 5.5.
 - Commit: rama `avatares/paso-natural`.
 - Siguiente: rehacer la Torre local con el trazado nuevo y mirarlo en pantalla.
+
+## 2026-10-16 19:22 · J24 · parkour: colgarse y trepar · en curso (subagente, sin subir)
+- Qué: Pablo: «si puedes llegar colgarte como en el Prince of Persia». En la simulación: si saltas hacia una pared y
+  no llegas, empujando hacia ella te agarras al borde y cuelgas; atrás te suelta, de lado te desplaza por el borde,
+  Saltar (o mantener adelante) te sube encima; un muro de hasta 1,2 m se sube de un impulso al saltar contra él.
+  Mismas teclas en teclado, táctil, mando y VR. Estudio en `mmo-browser-study/PARKOUR.md`.
+- Números: 294 pruebas en verde (12 nuevas en `test/parkour.test.ts`); puertas en verde (tick p99 12,9 ms los 1.000);
+  build bien; huella `93b192c8` sin cambiar; Torre: de 450 intentos de salto llegan 127 → 143 (16 salvados, 0
+  perdidos); 200 avatares entre las 126 cajas de la Torre: 0,12 → 0,14 ms por tic. Formato: `Motion` v2 (campo `pk`),
+  bits 3–7 de las banderas del snapshot propio (aditivo; `WIRE_FORMAT` sigue en 2).
+- Consumo: semana 3 % → 3 % · Opus 5.5 (subagente).
+- Commit: rama `parkour/colgarse` (sobre 4eb6387).
+- Siguiente: clips CC0 de colgar y trepar (UAL2 de Quaternius), que los demás vean que cuelgas, probarlo con Pablo en
+  la Torre.

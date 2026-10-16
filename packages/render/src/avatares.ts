@@ -5,7 +5,7 @@
 // hidden from every camera (layers), never `.visible = false`, so those keep working.
 import * as THREE from "three/webgpu";
 import { ANIMAR_HASTA_M, FUNDIDO_S, clipPara, cupoVRM, elegirAvatar, elegirCercanos, estadoPor, nuevaMarcha, seguir } from "./avatares-politica.ts";
-import type { Clip, Estado, Marcha } from "./avatares-politica.ts";
+import type { Clip, Estado, Marcha, Parkour } from "./avatares-politica.ts";
 import type { Copia, Plantilla } from "./avatares-vrm.ts";
 import type { VRMAnimation } from "@pixiv/three-vrm-animation";
 
@@ -29,7 +29,7 @@ type Avatar = {
   rumboFijo?: number; // pesca v2: while fishing the body faces the water (only while standing still)
 };
 
-export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: () => boolean; catalogo?: CatalogoAvatares; yo?: () => number; compilar?: (raiz: THREE.Object3D) => Promise<unknown>; suelo?: (x: number, z: number, y: number) => number }) {
+export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: () => boolean; catalogo?: CatalogoAvatares; yo?: () => number; parkour?: () => Parkour; compilar?: (raiz: THREE.Object3D) => Promise<unknown>; suelo?: (x: number, z: number, y: number) => number }) {
   const cat = o.catalogo;
   const n = cat?.modelos.length ?? 0;
   let vrm: Promise<{ m: Vrm; carga: ReturnType<Vrm["crearCargador"]> }> | null = null;
@@ -107,8 +107,10 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     const pos = ancla.position;
     seguir(a.marcha, pos.x, pos.z, dt);
     const altura = pos.y - ALTURA_CAPSULA;
+    const pk = a.clave === "yo" ? o.parkour?.() ?? null : null; // J24: only your own body knows (others: a later row)
     const pies = typeof ancla.userData.yPies === "number" ? ancla.userData.yPies as number : altura; // N1b: the simulated feet, not the smoothed drawing
-    a.estado = estadoPor(a.marcha.velocidad, pies - (o.suelo?.(pos.x, pos.z, pies) ?? 0)); // over the ground under you
+    a.estado = estadoPor(a.marcha.velocidad, pies - (o.suelo?.(pos.x, pos.z, pies) ?? 0), pk); // over the ground under you
+    if (pk) a.marcha.rumbo = pk.rumbo; // facing the wall
     a.cerca = a.clave === "yo" || !desde || Math.hypot(pos.x - desde.x, pos.z - desde.z) <= ANIMAR_HASTA_M;
     if (fallidas.has(a.modelo)) return;
     const p = plantillas.get(a.modelo);

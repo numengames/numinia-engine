@@ -73,7 +73,7 @@ test("U10: the world box of a solid follows scale, turn and position", () => {
 
 test("U10: a solid wall stops you (server and prediction agree), you slide along it, climb a low step and stand on top", () => {
   const s = createSim(1, 0); spawnAvatar(s, 0);
-  setBody(s, 0, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0 });
+  setBody(s, 0, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0, pk: 0 });
   setSolids(s, solidsFrom([["o:muro", { solido: true, bx0: -5, by0: 0, bz0: -3, bx1: 5, by1: 3, bz1: -2 }]]));
   for (let i = 0; i < 40; i++) step(s, new Int32Array([0, 0, -127, 0])); // walk north 2 s into the wall
   const b = getBody(s, 0);
@@ -82,7 +82,7 @@ test("U10: a solid wall stops you (server and prediction agree), you slide along
   assert.ok(getBody(s, 0).x > fx(3), "did not slide");
   // a low step (0.3 m) is climbed, and you stand on it
   setSolids(s, solidsFrom([["o:escalon", { solido: true, bx0: -20, by0: 0, bz0: 5, bx1: 20, by1: 0.3, bz1: 10 }]]));
-  setBody(s, 0, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0 });
+  setBody(s, 0, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0, pk: 0 });
   for (let i = 0; i < 107; i++) step(s, new Int32Array([0, 0, 127, 0])); // 1.5 m/s, J3
   const e = getBody(s, 0);
   assert.ok(e.z > fx(6) && e.y === fx(0.3), `on the step: z=${e.z / FX_ONE} y=${e.y / FX_ONE}`);

@@ -182,7 +182,8 @@ export const Avatar = defineSchema("Avatar", 1, {
 });
 /** J2: what decides the next vertical step besides the position. H2 (historias 2-4) adds `modo` (MODO_*), `cnt`
  * (ORDER_QUIETO's countdown, ticks left) and `ix`/`iz` (ORDER_EMPUJAR's impulse, metres per tick): all four are 0
- * with no order ever given, so an avatar that never receives one steps exactly as before. */
+ * with no order ever given, so an avatar that never receives one steps exactly as before. J24 adds `pk` (hanging/
+ * climbing: stage << 2 | wall side, 0 = neither). */
 export const Motion = defineSchema("Motion", 2, {
   vy: { kind: "fixed", min: -50, max: 50, step: 1 / 65536 }, // metres per tick (up is +)
   air: { kind: "int", min: 0, max: 1 },                      // 1 = the jump in the air is spent (back to 0 on landing)
@@ -191,16 +192,18 @@ export const Motion = defineSchema("Motion", 2, {
   cnt: { kind: "int", min: 0, max: QUIETO_MAX },             // MODO_QUIETO: ticks left, decided by inputs applied
   ix: { kind: "fixed", min: -2, max: 2, step: 1 / 65536 },   // EMPUJAR's horizontal impulse, m/tick
   iz: { kind: "fixed", min: -2, max: 2, step: 1 / 65536 },
+  pk: { kind: "int", min: 0, max: 31 },                      // J24: hanging / climbing (stage << 2 | wall side), 0 = neither
 });
 
-export type SimState = { world: World; tf: Store; av: Store; mo: Store; tick: number; rng: Uint32Array; solids: Int32Array; mesh: Bvh | null };
+/** `parkour` (J24): grab ledges, hang and climb (on by default; only matters where there are solids). */
+export type SimState = { world: World; tf: Store; av: Store; mo: Store; tick: number; rng: Uint32Array; solids: Int32Array; mesh: Bvh | null; parkour: boolean };
 
 export function createSim(capacity: number, seed: number): SimState {
   const world = new World(capacity);
   const tf = world.register(Transform);
   const av = world.register(Avatar);
   const mo = world.register(Motion);
-  return { world, tf, av, mo, tick: 0, rng: new Uint32Array([seed >>> 0]), solids: new Int32Array(0), mesh: null };
+  return { world, tf, av, mo, tick: 0, rng: new Uint32Array([seed >>> 0]), solids: new Int32Array(0), mesh: null, parkour: true };
 }
 
 /** Where new avatars appear (metres): the square of half-side `radio` centred at (x, z). A vertical world (a tower)
@@ -228,22 +231,111 @@ export function spawnAvatar(s: SimState, owner: number, area?: SpawnArea | null)
 /** J2: everything that decides where an avatar goes next. The server sends it whole to the avatar's owner,
  * so the client's prediction restarts from exactly the server's state. H2's `modo`/`cnt`/`ix`/`iz` (historias 2-4)
  * are NOT here yet: they ride the wire only once the net package carries them (H2 historia 4's cola, out of scope
- * for this story); until then they live in `Motion` only and `getMotionExtra` below reads them for tests/instance. */
-export type Body = { x: number; y: number; z: number; vy: number; air: number; buf: number };
+ * for this story); until then they live in `Motion` only and `getMotionExtra` below reads them for tests/instance.
+ * J24 adds `pk` (hanging/climbing). */
+export type Body = { x: number; y: number; z: number; vy: number; air: number; buf: number; pk: number };
 export function getBody(s: SimState, e: number): Body {
-  return { x: s.tf.cols.x[e], y: s.tf.cols.y[e], z: s.tf.cols.z[e], vy: s.mo.cols.vy[e], air: s.mo.cols.air[e], buf: s.mo.cols.buf[e] };
+  return { x: s.tf.cols.x[e], y: s.tf.cols.y[e], z: s.tf.cols.z[e], vy: s.mo.cols.vy[e], air: s.mo.cols.air[e], buf: s.mo.cols.buf[e], pk: s.mo.cols.pk[e] };
 }
 export function setBody(s: SimState, e: number, b: Body): void {
   s.tf.cols.x[e] = b.x; s.tf.cols.y[e] = b.y; s.tf.cols.z[e] = b.z;
-  s.mo.cols.vy[e] = b.vy; s.mo.cols.air[e] = b.air; s.mo.cols.buf[e] = b.buf;
+  s.mo.cols.vy[e] = b.vy; s.mo.cols.air[e] = b.air; s.mo.cols.buf[e] = b.buf; s.mo.cols.pk[e] = b.pk | 0;
 }
 export const sameBody = (a: Body, b: Body): boolean =>
-  a.x === b.x && a.y === b.y && a.z === b.z && a.vy === b.vy && a.air === b.air && a.buf === b.buf;
+  a.x === b.x && a.y === b.y && a.z === b.z && a.vy === b.vy && a.air === b.air && a.buf === b.buf && a.pk === b.pk;
 /** H2 historias 2-4: the extra motion state an order can set, read for tests and the instance (not yet on the
  * wire; `modo` is one of MODO_*). */
 export type MotionExtra = { modo: number; cnt: number; ix: number; iz: number };
 export function getMotionExtra(s: SimState, e: number): MotionExtra {
   return { modo: s.mo.cols.modo[e], cnt: s.mo.cols.cnt[e], ix: s.mo.cols.ix[e], iz: s.mo.cols.iz[e] };
+}
+
+// ---- J24: parkour. Catch a ledge when a jump falls short and hang from it (Prince of Persia), pull yourself up onto
+// it, and climb a low wall (up to 1.2 m) when you jump running into it (a «mantle»). The probes are the classic ones
+// (ALS's MantleCheck, Unity's LedgeGrabState): a wall in front of you, the top of that wall within reach, and room
+// for the body over the top. With axis-aligned boxes they are a few comparisons, no ray casts. All of it only runs
+// where there are solids, so the flat plaza (and the reference fingerprint) never sees it.
+// The state is one small integer in Motion.pk: stage << 2 | side. Stage 1 = hanging; 7…2 = climbing (counts down
+// one per tick: while above 3 the body rises at vy per tick, at 3 and 2 it moves onto the top); 0 = neither. Side =
+// where the wall is: 0 +x, 1 −x, 2 +z, 3 −z. While hanging, `buf` counts the ticks before «forward» may pull you up
+// (so you see the catch); a jump press pulls you up at once.
+/** How far in front of the body a wall is looked for (one running step: being blocked can leave you this far). */
+export const PK_PROBE = fx(0.4);
+/** Hanging: the feet are this far below the edge (the hands on it, above the head). */
+export const HANG_DROP = fx(1.7);
+/** A falling body catches an edge up to this much above where it would hang (arms reaching up). */
+export const REACH_UP = fx(0.5);
+/** The highest wall a jump running into it climbs at once (a mantle) instead of jumping. */
+export const MANTLE_MAX = fx(1.2);
+/** Sideways along a ledge while hanging («shimmy»): 1 m/s at full stick. */
+export const SHIMMY_STEP = fx(1 / TICK_HZ);
+/** Onto the top: two steps of this (0.5 m) put the centre 0.15 m past the edge. */
+export const CLIMB_FWD = fx(0.25);
+/** Ticks hanging before holding forward pulls you up (150 ms). */
+export const HANG_SETTLE = 3;
+export const PK_HANG = 1, PK_CLIMB = 7, PK_MANTLE = 5;
+const SIDE_X = [1, -1, 0, 0], SIDE_Z = [0, 0, 1, -1];
+const PUSH = FX_ONE >> 2, FIRM = FX_ONE >> 1; // stick toward a wall to catch it; firmly toward / away to climb / let go
+type Ledge = { top: number; side: number; x: number; z: number };
+
+/** The highest box edge in front of a body at (x, z) with its top in [lo, hi]: the face within PK_PROBE of the body,
+ * the centre within the face's span. `side` < 0: any side the stick (mx, mz) pushes toward; else only that side. */
+function findLedge(s: SimState, x: number, z: number, lo: number, hi: number, mx: number, mz: number, side: number): Ledge | null {
+  const b = s.solids;
+  let best: Ledge | null = null;
+  for (let o = 0; o + 5 < b.length; o += 6) {
+    const top = b[o + 4];
+    if (top < lo || top > hi || (best && top <= best.top)) continue;
+    for (let k = 0; k < 4; k++) {
+      if (side >= 0 && k !== side) continue;
+      if (side < 0 && (k === 0 ? mx : k === 1 ? -mx : k === 2 ? mz : -mz) < PUSH) continue;
+      const face = k === 0 ? b[o] : k === 1 ? b[o + 3] : k === 2 ? b[o + 2] : b[o + 5];
+      const d = k === 0 ? face - x : k === 1 ? x - face : k === 2 ? face - z : z - face;
+      if (d < BODY_RADIUS || d > BODY_RADIUS + PK_PROBE) continue;
+      if (k < 2 ? z < b[o + 2] || z > b[o + 5] : x < b[o] || x > b[o + 3]) continue;
+      const hx = k === 0 ? face - BODY_RADIUS : k === 1 ? face + BODY_RADIUS : x;
+      const hz = k === 2 ? face - BODY_RADIUS : k === 3 ? face + BODY_RADIUS : z;
+      best = { top, side: k, x: hx, z: hz };
+      break;
+    }
+  }
+  return best;
+}
+/** Room to go up past the edge and stand on the top, 0.5 m in. */
+function canClimb(s: SimState, l: Ledge): boolean {
+  return !blocked(s, l.x, l.top, l.z) && !blocked(s, l.x + SIDE_X[l.side] * 2 * CLIMB_FWD, l.top, l.z + SIDE_Z[l.side] * 2 * CLIMB_FWD);
+}
+/** Start climbing from feet at `y` to the top `top` in `stage − 3` rising ticks; vy is the rise per tick. The few
+ * 1/65536 m the division leaves go first, so the last rising tick ends exactly on the top. */
+function startClimb(s: SimState, e: number, l: Ledge, y: number, stage: number): void {
+  const n = stage - 3, rise = l.top - y, v = (rise / n) | 0;
+  s.tf.cols.x[e] = l.x; s.tf.cols.z[e] = l.z; s.tf.cols.y[e] = y + (rise - n * v);
+  s.mo.cols.vy[e] = v; s.mo.cols.air[e] = 0; s.mo.cols.buf[e] = 0; s.mo.cols.pk[e] = (stage << 2) | l.side;
+}
+/** One tick of a hanging or climbing body (no gravity). */
+function parkourStep(s: SimState, e: number, mx: number, mz: number, buttons: number): void {
+  const X = s.tf.cols.x, Y = s.tf.cols.y, Z = s.tf.cols.z, VY = s.mo.cols.vy, BUF = s.mo.cols.buf, PK = s.mo.cols.pk;
+  const side = PK[e] & 3, sx = SIDE_X[side], sz = SIDE_Z[side];
+  if (PK[e] >> 2 === PK_HANG) {
+    const top = Y[e] + HANG_DROP, toward = sx * mx + sz * mz, along = sx === 0 ? mx : mz;
+    if (toward <= -FIRM) { PK[e] = 0; VY[e] = 0; BUF[e] = 0; return; }   // let go: stick away from the wall
+    const here: Ledge = { top, side, x: X[e], z: Z[e] };
+    if (((buttons & BTN_JUMP) || (toward >= FIRM && BUF[e] === 0)) && canClimb(s, here)) startClimb(s, e, here, Y[e], PK_CLIMB);
+    else {
+      if (along >= PUSH || along <= -PUSH) {                              // shimmy, while the same edge goes on
+        const nx = sx === 0 ? X[e] + fxMul(along, SHIMMY_STEP) : X[e], nz = sx === 0 ? Z[e] : Z[e] + fxMul(along, SHIMMY_STEP);
+        const l = findLedge(s, nx, nz, top, top, 0, 0, side);
+        if (l && l.x === nx && l.z === nz && !blocked(s, nx, Y[e], nz)) { X[e] = nx; Z[e] = nz; } // same face, same top
+      }
+      if (BUF[e] > 0) BUF[e]--;
+      return;
+    }
+  }
+  const stage = PK[e] >> 2;
+  if (stage > 3) { Y[e] += VY[e]; if (stage === 4) VY[e] = 0; }
+  else { X[e] += sx * CLIMB_FWD; Z[e] += sz * CLIMB_FWD; }
+  PK[e] = stage > 2 ? ((stage - 1) << 2) | side : 0;
+  if (PK[e] === 0) { VY[e] = 0; BUF[e] = 0; s.mo.cols.air[e] = 0; }
 }
 
 /**
@@ -255,7 +347,7 @@ export function getMotionExtra(s: SimState, e: number): MotionExtra {
 export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_ORDERS): void {
   const n = (inputs.length / INPUT_STRIDE) | 0;
   const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => inputs[a * INPUT_STRIDE] - inputs[b * INPUT_STRIDE]);
-  const X = s.tf.cols.x, Y = s.tf.cols.y, Z = s.tf.cols.z, VY = s.mo.cols.vy, AIR = s.mo.cols.air, BUF = s.mo.cols.buf;
+  const X = s.tf.cols.x, Y = s.tf.cols.y, Z = s.tf.cols.z, VY = s.mo.cols.vy, AIR = s.mo.cols.air, BUF = s.mo.cols.buf, PK = s.mo.cols.pk;
   const MODO = s.mo.cols.modo, CNT = s.mo.cols.cnt, IX = s.mo.cols.ix, IZ = s.mo.cols.iz;
   // D-045/H2: orders first (ascending entity, like inputs): the avatar is put there, still, frozen, pushed, seated
   // or flying, on whatever the order says.
@@ -285,6 +377,7 @@ export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_OR
       else if (MODO[e] === MODO_VOLANDO) MODO[e] = MODO_PIE;
     }
   }
+  const pk = s.parkour && s.solids.length > 0; // J24: only where there are walls to catch
   for (const i of order) {
     const o = i * INPUT_STRIDE, e = inputs[o];
     if (!s.world.alive[e] || !s.tf.has[e]) continue;
@@ -303,6 +396,7 @@ export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_OR
     if (MODO[e] === MODO_QUIETO) { mx = 0; mz = 0; }
     const len = fxSqrt(fxMul(mx, mx) + fxMul(mz, mz));
     if (len > FX_ONE) { mx = fxDiv(mx, len); mz = fxDiv(mz, len); } // no faster diagonals
+    if (pk && PK[e] !== 0) { parkourStep(s, e, mx, mz, buttons); continue; } // J24: hanging or climbing
     const st = buttons & BTN_RUN ? RUN_STEP : STEP;
     // N1b: standing on something before this step (only with geometry — solids or a mesh: the flat plaza never needs it, so the reference
     // fingerprint stands)
@@ -346,6 +440,10 @@ export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_OR
     if (onGround && ground < y && y - ground <= SNAP_DOWN) y = ground; // N1b: down a step, still on the ground
     if (buf > 0) {
       buf--;
+      if (y <= ground && pk) { // J24: jumping into a low wall climbs it (a mantle)
+        const l = findLedge(s, X[e], Z[e], y + STEP_UP + 1, y + MANTLE_MAX, mx, mz, -1);
+        if (l && canClimb(s, l) && !blocked(s, l.x, y, l.z)) { startClimb(s, e, l, y, PK_MANTLE); parkourStep(s, e, mx, mz, 0); continue; }
+      }
       if (y <= ground) { vy = JUMP_V; buf = 0; }
       else if (air === 0) { vy = JUMP_V; air = 1; buf = 0; }
     }
@@ -353,6 +451,14 @@ export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_OR
     y += (vy + vy1) >> 1; // the exact parabola for constant gravity: mean of the speeds before and after
     vy = vy1;
     if (y <= ground) { y = ground; vy = 0; air = 0; }
+    else if (pk && vy <= 0) { // J24: falling past an edge in front of you, stick toward it: catch it and hang
+      const l = findLedge(s, X[e], Z[e], y + HANG_DROP, Y[e] + REACH_UP + HANG_DROP, mx, mz, -1); // Y[e]: feet before this tick
+      const h = l ? l.top - HANG_DROP : 0;
+      if (l && h > groundHeight(l.x, l.z, s, h) && !blocked(s, l.x, h, l.z)) {
+        X[e] = l.x; Z[e] = l.z; Y[e] = h; VY[e] = 0; AIR[e] = 0; BUF[e] = HANG_SETTLE; PK[e] = (PK_HANG << 2) | l.side;
+        continue;
+      }
+    }
     Y[e] = y; VY[e] = vy; AIR[e] = air; BUF[e] = buf;
     // H2 historia 2: the countdown is spent by applied INPUTS, not server ticks, so a client that predicts from
     // the same inputs decounts identically.
@@ -381,7 +487,7 @@ export function snapshot(s: SimState): Uint8Array {
     buf[o++] = s.tf.cols.z[id];
     buf[o++] = s.tf.cols.y[id];   // J2
     buf[o++] = s.mo.cols.vy[id];  // J2
-    buf[o++] = s.mo.cols.air[id]; // J2
+    buf[o++] = s.mo.cols.air[id] | (s.mo.cols.pk[id] << 1); // J2; J24: pk in the bits above (0 without walls: same bytes)
     buf[o++] = s.mo.cols.buf[id]; // J2
   }
   for (const id of extra) {
