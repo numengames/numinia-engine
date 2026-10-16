@@ -76,7 +76,7 @@ curl -s localhost:8790/status         # {"uptime":s,"conectados":N,"commitHash":
 curl -s localhost:8790/metrics        # JSON: conectados, tick p50/p99/peor (últimos 10 s), respuesta del tick, bucle, CPU, steal, memoria, kbit/s por persona…
 ```
 
-`/health` y `/status` también se ven desde fuera (`https://<dominio>/health`); `/metrics` solo desde el propio
+`/agentes` (gestión de agentes de fuera para el panel de numinia.com: pase de numinia.com con `manage-organization`, CORS solo `https://numinia.com`; 404 si el mundo no tiene `MOTOR_PASE_CLAVE`) también pasa por Caddy. `/health` y `/status` también se ven desde fuera (`https://<dominio>/health`); `/metrics` solo desde el propio
 servidor. Para leerlo desde casa (8790 ya lo usa la plaza de tu PC): `ssh -L 18790:127.0.0.1:8790 root@IP`
 y abrir `http://localhost:18790/metrics`; el enjambre lo lee con `--metrics http://localhost:18790/metrics`.
 

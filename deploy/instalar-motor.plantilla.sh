@@ -343,6 +343,10 @@ $SITE {
 	handle /mundo* {
 		reverse_proxy 127.0.0.1:$PORT
 	}
+	# ADR-080: numinia.com's panel manages the outside AI agents here (a world pass with manage-organization; CORS only for https://numinia.com)
+	handle /agentes* {
+		reverse_proxy 127.0.0.1:$PORT
+	}
 	handle {
 		root * $PREFIX/www
 		@hashed path /assets/*

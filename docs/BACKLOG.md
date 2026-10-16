@@ -814,7 +814,7 @@ privada se rechaza). Billete `a2.<id>.<ms>.<nonce>.<firma>` firmado por el agent
 nunca modera. Órdenes del dueño en el chat: `/agente añadir <id> <nombre…> <clave> [rol]`, `/agente quitar <id>` (cierra
 con 4003), `/agente`. Llave del agente: `node tools/agente.ts nuevo <id>` (privada 600 en `~/.numinia/agentes/`).
 Puente: `tools/mcp-mundo.ts`, MCP por stdio hecho a mano (sin dependencias), con el cuerpo de P4: mirar, decir, ir_a,
-colocar, mover, borrar, deshacer, oir. Cómo conectar Hermes: `packages/agent/README.md`. **Medido:** pruebas
+colocar, mover, borrar, deshacer, oir. Cómo conectar Hermes: `packages/agent/README.md`. **Puerta HTTP para el panel de numinia.com (hecho):** `GET|POST /agentes` y `DELETE /agentes/<id>` (`packages/server/src/agentes-http.ts`, `test/agentes-http.test.ts`) con el pase H3b (`manage-organization` o dueño; 401/403; 404 sin `MOTOR_PASE_CLAVE`) y CORS solo para `https://numinia.com`; mismo código que `/agente` (`roles-mundo.ts`). **Falta del lado de numinia.com:** la pantalla del panel que las llama, y que el pase de gestión lleve `manage-organization`. **Medido:** pruebas
 `test/puerta.test.ts` y `test/mcp-mundo.test.ts` (el puente como proceso hijo contra un servidor real: coloca, mueve y
 borra en el estado de objetos del servidor; `/agente quitar` lo cierra con 4003 y no vuelve). **Falta:** las herramientas
 servidas por el propio mundo (MCP por HTTPS), proponer cambio y abrir PR (espera a M19), el timbre que despierta a un
