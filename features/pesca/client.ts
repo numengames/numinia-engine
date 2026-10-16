@@ -19,6 +19,12 @@ export type Estado = {
 };
 export type Sitio = { id: string; nombre: string; x: number; y: number; z: number; radio: number; ocupado: boolean };
 export type Flotador = { quien: number; sitio: string; x: number; y: number; z: number };
+/** v2: a fish just landed, held in its angler's hand for a while (the 3D draws it there; everyone near sees it). */
+export type Captura = { quien: number; sitio: string; pez: string; cm: number; rareza: string; desde: number };
+/** How long a landed fish stays in the hand (ms) unless its angler walks away (the 3D decides that part). */
+export const EN_MANO_MS = 7000;
+/** «23,1 cm»: the fish's size as people write it here. */
+export const cmTexto = (cm: number): string => `${String(cm).replace(".", ",")} cm`;
 type Res = { ok: true } | { ok: false; why: string };
 const SIN: Res = { ok: false, why: "la función pesca no está en este servidor" };
 const ahora = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
@@ -28,8 +34,10 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
   let A: ClientApi | null = null;
   const e: Estado = { fase: "nada", sitio: "", desde: 0, ventana: 0, pez: "", fuerza: 0, tension: 0, progreso: 0, arrancada: "no", recogiendo: false, ultimo: null, aviso: "", cesta: { peces: 0, clases: 0, mejor: "", mejorCm: 0 } };
   const flotadores = new Map<number, Flotador>();
-  const oyentes = new Set<(que: "estado" | "flotadores" | "sitios") => void>();
-  const avisar = (que: "estado" | "flotadores" | "sitios") => { for (const fn of oyentes) fn(que); };
+  const capturas = new Map<number, Captura>();
+  const oyentes = new Set<(que: "estado" | "flotadores" | "sitios" | "capturas") => void>();
+  const avisar = (que: "estado" | "flotadores" | "sitios" | "capturas") => { for (const fn of oyentes) fn(que); };
+  const olvidar = (vida = EN_MANO_MS) => { const t = ahora(); let n = 0; for (const [k, c] of capturas) if (t - c.desde >= vida) { capturas.delete(k); n++; } if (n) avisar("capturas"); };
   const fase = (f: Fase) => { e.fase = f; e.desde = ahora(); };
   const reposo = () => { fase("nada"); e.sitio = ""; e.tension = 0; e.progreso = 0; e.arrancada = "no"; e.recogiendo = false; e.pez = ""; };
   let soltando: ReturnType<typeof setTimeout> | null = null;
@@ -40,6 +48,10 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     sitios: (): Sitio[] => (A ? A.state.keys().map((k) => ({ id: k, ...(A!.state.get(k) as Msg) }) as Sitio) : []),
     /** Who is fishing where, near you (yourself included while you fish). */
     flotadores: (): Flotador[] => [...flotadores.values()],
+    /** v2: the fish landed in the last EN_MANO_MS near you (yours included): who holds which, since when. */
+    capturas: (): Captura[] => { olvidar(); return [...capturas.values()]; },
+    /** v2: empty the hands older than `vida` ms (the 3D calls it with 0 for an angler who walked away). */
+    olvidar: (vida = EN_MANO_MS, quien?: number) => { if (quien !== undefined) { if (capturas.delete(quien)) avisar("capturas"); } else olvidar(vida); },
     /** J4: offer the «E: pescar» prompt only while this page is not fishing already. */
     ofrece: (feature: string, _key: string): boolean => feature !== "pesca" || e.fase === "nada",
     lanzar: (sitio?: string): Res => {
@@ -64,7 +76,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
       return r;
     },
     soltar: (): Res => (A ? (e.fase === "nada" ? { ok: false, why: "no estás pescando" } : A.send("soltar", {})) : SIN),
-    alCambiar: (fn: (que: "estado" | "flotadores" | "sitios") => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
+    alCambiar: (fn: (que: "estado" | "flotadores" | "sitios" | "capturas") => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
 
   const parte: ClientPart = clientPart(decl, (raw) => {
@@ -84,7 +96,6 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     api.on("captura", (m) => {
       e.ultimo = { pez: String(m.pez), cm: Number(m.cm), rareza: String(m.rareza), total: Number(m.total) };
       e.aviso = `Has pescado: ${e.ultimo.pez} de ${e.ultimo.cm} cm`;
-      api.view.label(api.self(), `🐟 ${e.ultimo.pez}, ${e.ultimo.cm} cm`, 3500);
       api.view.bounce(api.self(), 1200);
     });
     api.on("escape", (m) => { e.aviso = String(m.texto); });
@@ -94,6 +105,12 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
       flotadores.delete(quien);
       if (quien === api.self()) { reposo(); avisar("estado"); }
       avisar("flotadores");
+      if (m.resultado === "captura" && m.pez) { // v2: the fish goes to the angler's hand, for everyone near to see
+        const c: Captura = { quien, sitio: String(m.sitio), pez: String(m.pez), cm: Number(m.cm), rareza: String(m.rareza), desde: ahora() };
+        capturas.set(quien, c);
+        api.view.label(quien, `🐟 ${c.pez} · ${cmTexto(c.cm)}`, EN_MANO_MS);
+        avisar("capturas");
+      }
     });
     api.on("cesta", (m) => { e.cesta = { peces: Number(m.peces), clases: Number(m.clases), mejor: String(m.mejor ?? ""), mejorCm: Number(m.mejorCm ?? 0) }; avisar("estado"); });
     api.on("rechazado", (m) => { e.aviso = String(m.motivo); avisar("estado"); });

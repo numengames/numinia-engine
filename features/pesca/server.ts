@@ -106,7 +106,8 @@ export const crearPesca = (opts: { sitios?: Sitio[]; peces?: Pez[]; semilla?: nu
     ocupar(p.sitio, false);
     if (motivo) api.emit("escape", { motivo, texto: TEXTO[motivo] }, { to: e });
     const s = sitios.get(p.sitio)!;
-    api.emit("fin", { quien: e, sitio: p.sitio, resultado }, { near: { x: s.x, z: s.z }, radius: CERCA_M });
+    const pez = resultado === "captura" ? { pez: p.pez.nombre, cm: p.pez.cm, rareza: p.pez.rareza } : {}; // v2: the neighbours see the fish in the hand
+    api.emit("fin", { quien: e, sitio: p.sitio, resultado, ...pez }, { near: { x: s.x, z: s.z }, radius: CERCA_M });
   };
 
   api.onIdentify((e) => cesta(e));

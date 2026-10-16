@@ -44,7 +44,7 @@ const PCT = { kind: "int", min: 0, max: 100 } as const;
 
 export const pesca = defineFeature({
   id: "pesca",
-  version: 1,
+  version: 2, // v2: `fin` carries the fish (pez, cm, rareza) so whoever is near sees it in the angler's hand
   level: "base",
   describe: "Pescar en un sitio de pesca: lanzas la caña, esperas, algo mordisquea, pica y peleas con el sedal con un solo botón (recoger sube la tensión y acerca el pez; soltar la baja). El servidor decide cuándo pica, qué pez sale y si lo sacas; lo pescado se guarda por invitado.",
   store: { describe: "Por invitado (`c:<id>`): cuántos peces de cada clase ha sacado y el mayor (cm). Nunca va a las páginas; a su dueño le llega como evento `cesta`." },
@@ -68,7 +68,7 @@ export const pesca = defineFeature({
     captura: { describe: "Has pescado un pez: cuál, cuánto mide, su rareza y cuántos llevas en total. Solo a ti.", fields: { pez: PEZ, cm: CM, rareza: { kind: "enum", values: RAREZAS }, total: { kind: "int", min: 0, max: 100000 } }, announce: { text: "Has pescado: {pez} de {cm} cm.", sound: "exito", importance: 2 } },
     escape: { describe: "El pez se fue, y por qué (tarde = no recogiste a tiempo; rota = tensión 100; escapa = el progreso bajó a 0; agotado = la pelea duró demasiado; lejos = te alejaste). Solo a ti.", fields: { motivo: { kind: "enum", values: MOTIVOS }, texto: { kind: "text", maxBytes: 120 } }, announce: { text: "{texto}", sound: "error", importance: 1 } },
     recogida: { describe: "Recogiste la caña sin nada. Solo a ti.", fields: {}, announce: { text: "Has recogido la caña.", sound: "suave", importance: 0 } },
-    fin: { describe: "Alguien cercano (o tú) dejó de pescar en un sitio: el flotador se quita. resultado = captura | escape | suelto.", fields: { quien: QUIEN, sitio: ID, resultado: { kind: "enum", values: ["captura", "escape", "suelto"] } }, announce: "silent" },
+    fin: { describe: "Alguien cercano (o tú) dejó de pescar en un sitio: el flotador se quita. resultado = captura | escape | suelto; si fue captura, qué pez y cuánto mide (para verlo en su mano).", fields: { quien: QUIEN, sitio: ID, resultado: { kind: "enum", values: ["captura", "escape", "suelto"] }, pez: { ...PEZ, default: "" }, cm: { ...CM, default: 0 }, rareza: { kind: "enum", values: RAREZAS, default: "comun" } }, announce: "silent" },
     cesta: { describe: "Tu cesta (al entrar y tras cada captura): cuántos peces llevas, de cuántas clases, y el mayor. Solo a ti.", fields: { peces: { kind: "int", min: 0, max: 100000 }, clases: { kind: "int", min: 0, max: 64 }, mejor: { kind: "text", maxBytes: 40, default: "" }, mejorCm: { ...CM, default: 0 } }, announce: "silent" },
     rechazado: { describe: "Lo que pediste no se hizo, y por qué.", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
   },
