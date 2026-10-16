@@ -1,6 +1,7 @@
 // misiones — the quest state machine (J5): pure functions over one player's progress. The server feeds them what IT
 // saw (where the player stands, whom it talks to, what it took); a page never completes a step by asking. Same
 // input, same output: no clock, no randomness. Dialogue choice (which node, which options) lives here too.
+import { alAlcanceEnAltura } from "../../packages/feature/src/index.ts";
 import type { Aventura, Condicion, Mision, Nodo, Opcion, Paso, Pnj } from "./formato.ts";
 
 /** An active quest: the index of the step it is on and the things taken for it (for `entrega`). */
@@ -61,7 +62,7 @@ export const opcionesDe = (nodo: Nodo, p: Progreso, a: Aventura): Opcion[] => no
 
 /** What the server saw the player do. */
 export type Suceso =
-  | { tipo: "llega"; x: number; z: number }                  // it stands here (checked a few times a second)
+  | { tipo: "llega"; x: number; z: number; y?: number }      // it stands here (checked a few times a second); y = its feet's height (the ground when absent)
   | { tipo: "habla"; pnj: string }                           // it started talking to this person
   | { tipo: "avanzar"; pnj: string; mision: string }         // it chose an option avanzar_paso
   | { tipo: "entregar"; pnj: string; mision: string }        // it chose an option entregar
@@ -70,7 +71,8 @@ export type Suceso =
 export type Hecho = { mision: string; paso: number; completada: boolean };
 
 function cumplePaso(s: Paso, act: Activa, m: Mision, a: Aventura, x: Suceso): boolean {
-  if (s.tipo === "llega_a") return x.tipo === "llega" && (x.x - s.x) ** 2 + (x.z - s.z) ** 2 <= s.radio ** 2;
+  // llega_a: inside the circle and, when the step names a height, standing at it (± ALCANCE_ALTURA_M: a floor below does not count)
+  if (s.tipo === "llega_a") return x.tipo === "llega" && (x.x - s.x) ** 2 + (x.z - s.z) ** 2 <= s.radio ** 2 && alAlcanceEnAltura(x.y, s.y);
   if (s.tipo === "usa" || s.tipo === "coge") return x.tipo === "usa" && x.cosa === s.cosa;
   if (x.tipo !== "habla" && x.tipo !== "avanzar" && x.tipo !== "entregar") return false;
   if (x.pnj !== s.pnj) return false;

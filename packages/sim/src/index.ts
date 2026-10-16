@@ -95,14 +95,23 @@ export function createSim(capacity: number, seed: number): SimState {
   return { world, tf, av, mo, tick: 0, rng: new Uint32Array([seed >>> 0]), solids: new Int32Array(0) };
 }
 
-/** Spawn an avatar at a seeded random spot, standing on the ground; the position comes from the sim's own RNG. */
-export function spawnAvatar(s: SimState, owner: number): number {
+/** Where new avatars appear (metres): the square of half-side `radio` centred at (x, z). A vertical world (a tower)
+ * declares it in its environment file (`aparicion` in entorno@1); none = the house square below. */
+export type SpawnArea = { x: number; z: number; radio: number };
+/** The house spawn area: a square of half-side 40 m around the origin (the same draws as before, so the reference
+ * fingerprint stands). */
+export const SPAWN_RADIO_M = 40;
+
+/** Spawn an avatar at a seeded random spot of the spawn area, standing on the ground; the position comes from the
+ * sim's own RNG (two draws, whatever the area, so a world with an area replays exactly like one without). */
+export function spawnAvatar(s: SimState, owner: number, area?: SpawnArea | null): number {
   const id = s.world.spawn();
   s.world.add(s.av, id, { owner });
-  const span = 2 * 40 * FX_ONE; // spawn inside a 80 m square
+  const span = fx(2 * (area?.radio ?? SPAWN_RADIO_M)); // spawn inside a square 2 × radio wide (80 m by default)
+  const cx = area ? fx(area.x) : 0, cz = area ? fx(area.z) : 0;
   s.tf.has[id] = 1;
-  s.tf.cols.x[id] = ((rngNext(s.rng) % span) - span / 2) | 0;
-  s.tf.cols.z[id] = ((rngNext(s.rng) % span) - span / 2) | 0;
+  s.tf.cols.x[id] = fxClamp((((rngNext(s.rng) % span) - span / 2) | 0) + cx, -BOUND, BOUND);
+  s.tf.cols.z[id] = fxClamp((((rngNext(s.rng) % span) - span / 2) | 0) + cz, -BOUND, BOUND);
   s.tf.cols.y[id] = groundHeight(s.tf.cols.x[id], s.tf.cols.z[id]);
   s.world.add(s.mo, id);
   return id;

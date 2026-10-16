@@ -11,7 +11,7 @@
 // made once into <mundo>/claves.env (600). Never printed.
 import { startServer } from "./server.ts";
 import funciones from "../../../features/servidor.ts";
-import { conMundo } from "../../../features/mundo.ts";
+import { aparicionDelMundo, conMundo } from "../../../features/mundo.ts";
 import { leerMundo } from "./mundo.ts";
 import { carpetaMundo, claves, escribirManifiesto, sembrar } from "./mundo-carpeta.ts";
 import { infoMotor } from "./version.ts";
@@ -27,13 +27,15 @@ if (c) {
 const k = claves(env, c, log);
 const datos = env.DATOS_DIR || c?.datos || ".run/datos";
 const entorno = env.MUNDO_DIR || c?.entorno || null;
+const leerEntorno = entorno ? leerMundo(entorno) : null; // the world's entorno/ folder (entorno.json, elementos.json; H4)
 
 const srv = await startServer({
   port: Number(env.PORT ?? 8790),
   host: env.HOST ?? "127.0.0.1",
   statsMs: Number(env.STATS_MS ?? 30000),
   // SIN_FUNCIONES=1: the bare engine · the world's own environment and elements (entorno.json, elementos.json; H4)
-  features: env.SIN_FUNCIONES === "1" ? [] : entorno ? conMundo(funciones, leerMundo(entorno)) : funciones,
+  features: env.SIN_FUNCIONES === "1" ? [] : leerEntorno ? conMundo(funciones, leerEntorno) : funciones,
+  aparicion: leerEntorno ? aparicionDelMundo(leerEntorno, log) : null,  // where people appear (entorno.json `aparicion`; a tower's floor)
   sesiones: env.SESIONES_DIR || c?.sesiones || "informes/sesiones", // T1: how each player entered
   datos,                                                              // S4: what features keep across restarts
   construir: env.MOTOR_CONSTRUIR === "todos" ? "todos" : "nadie",     // H1: who may build (H3 roles: @todos' build-in-worlds)

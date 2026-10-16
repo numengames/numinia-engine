@@ -2,7 +2,7 @@
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat, FX_ONE } from "../../core/src/index.ts";
 import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, BTN_JUMP, BTN_RUN, INPUT_STRIDE } from "../../sim/src/index.ts";
-import type { SimState } from "../../sim/src/index.ts";
+import type { SimState, SpawnArea } from "../../sim/src/index.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
@@ -33,6 +33,8 @@ export type InstanceOptions = {
   // P4: AI inhabitants. `sign` checks agent tickets (a secret apart from the guests'); `nombre` = the name the world
   // declares for that inhabitant id (its habitante@1 file), null = this world has no such inhabitant. None = no agents.
   agentes?: { sign: (text: string) => string; nombre: (id: string) => string | null };
+  /** Where new avatars appear (metres; the world's entorno@1 `aparicion`); none = the house square of 40 m around the origin. */
+  aparicion?: SpawnArea | null;
 };
 
 /** Inputs wait in a queue; the server applies exactly ONE per tick (none = that avatar does not advance: J2). */
@@ -58,7 +60,7 @@ export class Instance {
     const tf = this.sim.tf;
     this.features = new ServerRuntime(opts.features ?? [], {
       players: () => this.conns.map((c) => c.entity),
-      position: (e) => (this.sim.world.alive[e] && tf.has[e] ? { x: fxToFloat(tf.cols.x[e]), z: fxToFloat(tf.cols.z[e]) } : null),
+      position: (e) => (this.sim.world.alive[e] && tf.has[e] ? { x: fxToFloat(tf.cols.x[e]), y: fxToFloat(tf.cols.y[e]), z: fxToFloat(tf.cols.z[e]) } : null),
       send: (e, bytes) => this.byEntity[e]?.transport.send(bytes, true),
       tick: () => this.sim.tick,
       log: opts.log ?? (() => {}),
@@ -72,9 +74,9 @@ export class Instance {
     });
   }
 
-  /** A client arrives over any transport: spawn its avatar, say welcome, listen. */
+  /** A client arrives over any transport: spawn its avatar (in the world's spawn area, if it has one), say welcome, listen. */
   connect(t: Transport, owner = this.conns.length): number {
-    const entity = spawnAvatar(this.sim, owner);
+    const entity = spawnAvatar(this.sim, owner, this.opts.aparicion);
     const conn: Conn = { entity, transport: t, viewer: { entity, priority: new Float32Array(this.opts.capacity) }, queue: [], ack: 0, dropped: 0, bad: 0 };
     t.onMessage((bytes) => {
       if (bytes[0] === MSG.INPUT && (bytes.length === 6 || bytes.length === 5)) { // 5 = from before J2 (no buttons)

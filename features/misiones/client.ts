@@ -13,13 +13,14 @@ export const ESCALA_ROBOT = 0.4;
 /** Where a person's name floats: above the head of a 1.8 m figure, scaled with it. */
 export const ALTO_NOMBRE = 2.25;
 
-/** How a person of the world looks TODAY: a library model at its place (the house robot by default), still (no idle
- * animation: phones stay cool). The avatar branch (VRM) replaces this one function. */
+/** How a person of the world looks TODAY: a library model at its place (the house robot by default) and at its height
+ * (`y`: the floor it stands on; 0 = the ground), still (no idle animation: phones stay cool). The avatar branch (VRM)
+ * replaces this one function. */
 export function aspectoPnj(v: Msg): { cuerpo: PlacedObject; nombre: { text: string; x: number; y: number; z: number } } {
-  const propio = String(v.modelo ?? ""), e = Number(v.escala) * (propio ? 1 : ESCALA_ROBOT);
+  const propio = String(v.modelo ?? ""), e = Number(v.escala) * (propio ? 1 : ESCALA_ROBOT), y = Number(v.y) || 0;
   return {
-    cuerpo: { model: propio || ROBOT, x: Number(v.x), y: 0, z: Number(v.z), rx: 0, ry: Number(v.giro), rz: 0, sx: e, sy: e, sz: e, animate: false },
-    nombre: { text: String(v.nombre), x: Number(v.x), y: ALTO_NOMBRE * Number(v.escala), z: Number(v.z) },
+    cuerpo: { model: propio || ROBOT, x: Number(v.x), y, z: Number(v.z), rx: 0, ry: Number(v.giro), rz: 0, sx: e, sy: e, sz: e, animate: false },
+    nombre: { text: String(v.nombre), x: Number(v.x), y: y + ALTO_NOMBRE * Number(v.escala), z: Number(v.z) },
   };
 }
 /** How a quest thing looks: its model, or the house block (a small crate); at its height (y) and in its colour. */

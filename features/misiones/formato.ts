@@ -2,6 +2,8 @@
 //   misiones/<id>.json   mision@1   a quest: steps with conditions, rewards, texts
 //   pnj/<id>.json        pnj@1      a person of the world (PNJ) with a deterministic dialogue tree gated by quest state
 //   cosas/<id>.json      cosa@1     a thing in the world you take or use (the J4 prompt «E: coger la caja»)
+// Vertical worlds: a person and a thing may carry `posicion.y` (metres above the ground) and a `llega_a` step a `y`;
+// reach then also asks for the player's height (packages/feature ALCANCE_ALTURA_M). Absent = the ground, as before.
 // The recipe for authors (people or LLMs) is docs/EXTENDER.md «Misiones y PNJ». Every check returns Result with paths
 // that say how to fix each problem; nothing here throws, touches the network or the world.
 import type { Issue, Result } from "../../packages/core/src/index.ts";
@@ -16,11 +18,12 @@ export const LIM = {
   aviso: 40, textoMision: 200, pasos: 16, opciones: 4, nodos: 64, entradas: 16, recompensas: 8, requisitos: 16,
 } as const;
 export const MUNDO = 2000; // metres: the furthest a person, a thing or a place can be (the wire's range)
+export const ALTURA_MAX = 30; // metres: the highest floor a person (pnj@1 posicion.y) or a place to reach (llega_a y) can be on
 
 export type TipoPaso = (typeof TIPOS_PASO)[number];
 export type Estado = (typeof ESTADOS)[number];
 export type Paso =
-  | { id: string; tipo: "llega_a"; texto: string; x: number; z: number; radio: number; lugar: string }
+  | { id: string; tipo: "llega_a"; texto: string; x: number; z: number; radio: number; lugar: string; y?: number } // y (optional, metres): the floor to reach it from
   | { id: string; tipo: "habla_con"; texto: string; pnj: string }
   | { id: string; tipo: "usa" | "coge"; texto: string; cosa: string }
   | { id: string; tipo: "entrega"; texto: string; cosa: string; pnj: string };
@@ -35,8 +38,9 @@ export type Accion = { tipo: "dar_mision" | "avanzar_paso" | "entregar"; mision:
 export type Opcion = { texto: string; si: Condicion[]; ir?: string; accion?: Accion };
 export type Nodo = { texto: string; opciones: Opcion[] };
 export type Apariencia = { modelo: string; escala: number };
+/** A person's `posicion.y` (optional, metres above the ground, 0–30: the floor of a tower it stands on; 0 when absent). */
 export type Pnj = {
-  formato: "pnj@1"; id: string; nombre: string; descripcion: string; apariencia: Apariencia; posicion: { x: number; z: number };
+  formato: "pnj@1"; id: string; nombre: string; descripcion: string; apariencia: Apariencia; posicion: { x: number; z: number; y: number };
   giro: number; radio: number; dialogo: { entradas: { si: Condicion[]; nodo: string }[]; nodos: Record<string, Nodo> };
 };
 /** A thing's `posicion.y` (optional, metres above the ground: a thing on a table or held up at chest height, reachable
@@ -132,8 +136,10 @@ function paso(v: unknown, path: string, is: Issue[]): Paso {
   const tipo = TIPOS_PASO.includes(o.tipo as TipoPaso) ? (o.tipo as TipoPaso) : (is.push({ path: en(path, "tipo"), message: `uno de: ${TIPOS_PASO.join(", ")}` }), "llega_a" as const);
   const base = { id: id(o.id, en(path, "id"), is), texto: texto(o.texto, en(path, "texto"), LIM.textoPaso, is) };
   if (tipo === "llega_a") {
-    campos(o, ["id", "tipo", "texto", "x", "z", "radio", "lugar"], path, is);
-    return { ...base, tipo, x: numero(o.x, en(path, "x"), -MUNDO, MUNDO, is), z: numero(o.z, en(path, "z"), -MUNDO, MUNDO, is), radio: numero(o.radio, en(path, "radio"), 1, 50, is, 4), lugar: texto(o.lugar, en(path, "lugar"), LIM.lugar, is) };
+    campos(o, ["id", "tipo", "texto", "x", "z", "radio", "lugar", "y"], path, is);
+    const p: Extract<Paso, { tipo: "llega_a" }> = { ...base, tipo, x: numero(o.x, en(path, "x"), -MUNDO, MUNDO, is), z: numero(o.z, en(path, "z"), -MUNDO, MUNDO, is), radio: numero(o.radio, en(path, "radio"), 1, 50, is, 4), lugar: texto(o.lugar, en(path, "lugar"), LIM.lugar, is) };
+    if (o.y !== undefined) p.y = numero(o.y, en(path, "y"), 0, ALTURA_MAX, is); // optional: arriving also means standing at that height (± ALCANCE_ALTURA_M)
+    return p;
   }
   if (tipo === "habla_con") { campos(o, ["id", "tipo", "texto", "pnj"], path, is); return { ...base, tipo, pnj: id(o.pnj, en(path, "pnj"), is) }; }
   if (tipo === "entrega") { campos(o, ["id", "tipo", "texto", "cosa", "pnj"], path, is); return { ...base, tipo, cosa: id(o.cosa, en(path, "cosa"), is), pnj: id(o.pnj, en(path, "pnj"), is) }; }
@@ -221,7 +227,7 @@ export function leerPnj(v: unknown): Result<Pnj> {
   if (entradas.length && entradas[entradas.length - 1].si.length) is.push({ path: `dialogo.entradas[${entradas.length - 1}].si`, message: "la última entrada no lleva «si»: es lo que dice cuando nada más se cumple" });
   return resultado(is, {
     formato: FORMATOS.pnj, id: id(o.id, "id", is), nombre: texto(o.nombre, "nombre", LIM.nombre, is), descripcion: texto(o.descripcion, "descripcion", LIM.descripcionCosa, is, true),
-    apariencia: apariencia(o.apariencia, "apariencia", is), posicion: posicion(o.posicion, "posicion", is), giro: numero(o.giro, "giro", -180, 180, is, 0),
+    apariencia: apariencia(o.apariencia, "apariencia", is), posicion: { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is, ALTURA_MAX) }, giro: numero(o.giro, "giro", -180, 180, is, 0),
     radio: numero(o.radio, "radio", 1, 8, is, 3), dialogo: { entradas, nodos },
   });
 }
@@ -237,14 +243,15 @@ export function leerCosa(v: unknown): Result<Cosa> {
   return resultado(is, {
     formato: FORMATOS.cosa, id: id(o.id, "id", is), nombre: texto(o.nombre, "nombre", LIM.nombre, is), descripcion: texto(o.descripcion, "descripcion", LIM.descripcionCosa, is, true),
     apariencia: { ...apariencia(o.apariencia, "apariencia", is, ["color"]), color: color(o.apariencia, is) },
-    posicion: { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is) }, radio: numero(o.radio, "radio", 1, 8, is, 2),
+    posicion: { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is, ALTURA_MAX) }, radio: numero(o.radio, "radio", 1, 8, is, 2),
     aviso: texto(o.aviso, "aviso", LIM.aviso, is),
   });
 }
-/** cosa@1 `posicion.y`: metres above the ground, 0–3 (0 when absent). */
-function altura(v: unknown, is: Issue[]): number {
+/** `posicion.y` of a person (pnj@1) or a thing (cosa@1): metres above the ground, 0–ALTURA_MAX (a hand's height, a
+ * table, or the floor of a tower); 0 when absent. Both formats share the cap. */
+function altura(v: unknown, is: Issue[], max = ALTURA_MAX): number {
   const o = typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
-  return o.y === undefined ? 0 : numero(o.y, "posicion.y", 0, 3, is, 0);
+  return o.y === undefined ? 0 : numero(o.y, "posicion.y", 0, max, is, 0);
 }
 const COLOR = /^#[0-9a-f]{6}$/i;
 /** cosa@1 `apariencia.color`: «#rrggbb» or nothing (the model's own colours). */

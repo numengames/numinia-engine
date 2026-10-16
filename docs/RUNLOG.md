@@ -321,3 +321,26 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
   main limpio 6d8c998: 1 de 4 en el A/B; en esta rama 5 de 7: más a menudo, sin aclarar) y `mapa` una vez (luego 2 de 2 OK).
 - Commit: este (rama `xr/manos-y-mandos`, sin subir).
 - Siguiente: PR de la rama; volver a probar en las Quest de Pablo tras el rebase.
+
+## 2026-10-16 12:11 · mundos verticales: dónde aparece la gente, personas y cosas con altura, alcance con altura (H15, J21, J22) · hecho (agente hijo de la sesión de Pablo)
+- Qué: tres cambios aditivos para la Torre de los Alquimistas (diseño de Christian), rama `torre/aparicion-y-altura` sobre
+  main d9f964b. (1) `entorno.json` admite `aparicion { x, z, radio }` (radio 1–40 m, x y z ±460): `leerAparicion` en
+  `features/entorno/esquema.ts` (y `validarEntorno` lo comprueba con su ruta), `aparicionDelMundo` en `features/mundo.ts`,
+  `main.ts` → `startServer({ aparicion })` → `InstanceOptions.aparicion` → `spawnAvatar(s, owner, area?)`: el cuadrado
+  de medio lado `radio` centrado en x, z, con las mismas dos tiradas del RNG; sin él, el cuadrado de 40 m de siempre
+  (huella de referencia `93b192c8` intacta). Viaja en la carpeta y el zip del mundo; nunca por el cable. (2) `pnj@1`
+  gana `posicion.y` opcional (0–30 m) y `cosa@1` sube su tope de 3 a 30 (`ALTURA_MAX` en formato.ts); el estado lleva
+  `y` (pnj v2, misiones v2; el almacén del progreso se carga igual) y la página dibuja a esa altura, el nombre encima.
+  (3) `api.position` da `{ x, y, z }`; `api.within` y `features.reachable(x, z, y)` (la página pasa su `y` en
+  `interactuar.ts`) exigen una diferencia de altura ≤ 2,5 m (`ALCANCE_ALTURA_M`, `alAlcanceEnAltura` en
+  packages/feature) cuando la cosa tiene `y`; `llega_a` admite `y` opcional (0–30) con la misma regla (el suceso `llega`
+  lleva la `y` del jugador). Listas de «campo desconocido» con `y`; `docs/EXTENDER.md`, `llms.txt` y los README de
+  sim, instance y feature al día.
+- Números: 272 pruebas (antes 265; `test/altura.test.ts` con 7), puertas en verde (capas 0; determinismo `f719d31b`;
+  26,7 kbit/s; tick p99 13,0 ms con mil); `node tools/aventura.ts aventuras/ejemplo` en orden; la aventura de la
+  Torre (`work/torre/mundo/aventura`: 2 misiones con `y`, 4 personas —una a 12 m—, 3 cosas —una a 13 m—) carga sin
+  problemas (en main daba 32).
+- Consumo: semana 81 % al cerrar (sin medida al empezar). claude-fable-5-1.
+- Commit: este (rama `torre/aparicion-y-altura`, sin subir).
+- Siguiente: PR de la rama; que la conversación abierta se cierre también al cambiar de planta (hoy solo por distancia
+  en el plano; `elegir` sí lo rechaza); `y` en el evento `paso` para que el mapa y la baliza marquen la planta.
