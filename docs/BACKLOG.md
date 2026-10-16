@@ -57,6 +57,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J11 | Personas que dan misiones (`pnj@1`: árbol de diálogo, quién da y recibe qué) | hecho | sí |
 | J12 | Ficha de jugador: nombre, aparato y calidad, tiempo, misiones e insignias, ajustes | hecho (falta retrato → H10 e inventario) | sí |
 | J13 | Panel de muñeca en VR: minimapa, lo cercano y la ficha en 3D | pendiente | sí |
+| J19 | VR: ajuste de «altura de pie» en el motor, por si el suelo que dan las gafas está mal (en el Quest 3S de Pablo, 16-10, los ojos de pie salían a 1,11 m: suelo del visor medio metro alto) | pendiente (deseable, no urgente) | sí |
 | J18 | VR: menú que sale al girar la muñeca (mano o mando), y pintar y crear objetos con las manos en el mundo, al estilo de las apps de pintura en VR (Pablo, 16-10: «me parece la bomba»; planificar antes de construir) | pendiente (planificar) | no |
 | J14 | Dibujo barato de personas (LOD o una pieza; hoy el robot son 19 llamadas) | en curso (lo que no anima se hornea: el robot, 3 llamadas; falta LOD) | sí |
 | J15 | Marcas «!» y «?» sobre quien tiene algo para ti (por jugador) | pendiente | sí |
