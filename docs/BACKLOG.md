@@ -151,6 +151,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | X4 | Nombre del motor (Pablo y Christian, 15-10) | pendiente | no |
 | X5 | Medir temperatura y batería en un Android real (`adb`) | pendiente | no |
 | X6 | GitHub publica el instalador (`motor-<build>` + SHA256SUMS, `tools/publicar-version.sh`) y el servidor se actualiza solo (`--auto-actualizar`) | hecho (falta: el workflow que lo corre en cada fusión; lo sube Pablo: la App no puede escribir `.github/workflows/`) | sí |
+| X7 | Motor en la flota (P1 de `../motor-flota/SPEC.md`; Pablo 16-10: «que el mundo lo lleve todo, bajarlo y arrancarlo en local como con Hyperfy»): carpeta de mundo con su aventura, la página la sirve el motor, `/status`, claves de la flota, dueños atados al código, zip `mundo@2` con `compose.yml` + `arrancar.sh`, imagen (`Dockerfile` desde el instalador) con `copia`/`comprobar`/`importar`, `--desinstalar` | hecho (rama `flota/motor-en-la-flota`, sin subir; falta: el workflow que publica imagen y versión, lo pega Pablo; la flota, P2, en numinia-assets) | no |
 | I2 | Vincular el móvil con el ordenador o el visor (el ordenador enseña un QR, el móvil lo escanea) | necesita aprobación (Pablo, 15-10: de momento no) | no |
 | V2 | Con Pablo, 15 min con las gafas: ¿funcionan `speechSynthesis`, el reconocimiento de voz, «menos movimiento» y la vibración dentro de una sesión inmersiva (Quest 3, Pico 4) y en iPhone? | pendiente | no |
 | W1 | La plaza de entrada: primer mundo, al presupuesto de la Quest, con un portal a un mundo Hyperfy | necesita aprobación (Pablo: qué mundo lo estrena) | no |
@@ -188,6 +189,20 @@ origen). Instrucciones en `deploy/README.md`. **Sin podman ni docker en esta má
 equivalente es `node tools/deploy-check.mjs [node]` (desempaqueta, comprueba la página, arranca el
 servidor desempaquetado en :8793 y un cliente recibe 10 snapshots en ~955 ms; huella `fa94375e`) —
 pasada con Node 24.22.0 y con 26.7.0. **Sin probar:** apt, systemd, Caddy y ufw de verdad (eso es X3).
+
+### X7 — Motor en la flota (P1 de `../motor-flota/SPEC.md`)
+**Por qué:** Pablo (16-10): el motor tiene que ser el mismo y funcionar bien en todas partes (la flota de
+numinia.com, un servidor, en local); un mundo lo lleva todo, se baja y se arranca en local como con Hyperfy.
+**Hecho cuando (C1–C7):** una carpeta es el mundo entero (`MOTOR_MUNDO`: `datos/`, `aventura/` sembrada una vez,
+`entorno/`, `sesiones/`, `mundo.json`); el motor sirve su página en su único puerto (`WWW_DIR`); `/status`; claves de
+la flota (`JWT_SECRET`, `ADMIN_CODE`) o propias, o hechas una vez en `claves.env`; un dueño lo es con el código de
+ahora; el zip `mundo@2` lleva aventura y entorno, y `compose.yml` + `arrancar.sh` + `LEEME.txt`; imagen desde el
+instalador (`Dockerfile`, 10001, `0.0.0.0:8790`) con `copia`, `comprobar`, `importar`; `--desinstalar`; el workflow
+de publicar (imagen, procedencia, versión con `imagen.json`) preparado fuera del repo.
+**Hecho (16-10):** rama `flota/motor-en-la-flota` (sin subir). Números en `docs/RUNLOG.md`. **Sin probar:** la
+instalación real (X3), `docker compose` de verdad (aquí solo hay podman sin proveedor de compose: probado con el
+`podman run` equivalente), el workflow en GitHub, arm64. **Falta (otras piezas):** la flota (P2, numinia-assets),
+la sala de Mundos (P3).
 
 ### P1 — Ficha técnica
 **Por qué:** si alguien técnico decide montar algo en el motor, necesita saber sus límites; dependen

@@ -1,0 +1,3 @@
+# The image is built from the installer only (Dockerfile): nothing else of the repository enters the build.
+*
+!deploy/instalar-motor.sh

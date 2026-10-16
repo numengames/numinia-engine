@@ -17,10 +17,15 @@
 #   Options are saved in /opt/numinia-engine/instalacion.env: a later run without them keeps them (the updater relies on it).
 #   bash instalar-motor.sh --solo-extraer DIR   unpack app/ and www/ into DIR, install nothing (no root)
 #   bash instalar-motor.sh --version            print what is inside
+#   sudo bash instalar-motor.sh --desinstalar   stop and remove the engine's services, its Caddy (masked: 80/443 free)
+#                                               and /opt/numinia-engine; KEEPS the world (/var/lib/numinia-motor);
+#                                               never touches ssh or ufw. Then the fleet's bootstrap can take the machine.
 #
 # What it does: official Node LTS (sha256 checked) in /opt/numinia-engine/node, system user
 # `numinia`, systemd service `numinia-motor` (127.0.0.1:8790, LimitNOFILE, MemoryMax, hardening),
 # Caddy serving the page and passing /ws to the instance, ufw allowing ssh/80/443.
+# The world is ONE folder, /var/lib/numinia-motor (MOTOR_MUNDO): datos/, aventura/ (its own adventure: a copy of the
+# example the first time), entorno/, sesiones/ — the same layout as a container's /mundo.
 # The world as a zip: https://<domain>/mundo downloads it and uploads one, with the administration code that this
 # script makes once in /opt/numinia-engine/admin.env (sudo cat it; it is never printed).
 # P4: a second service `numinia-habitantes` (own system user, localhost only, no route in Caddy) runs the AI
@@ -39,6 +44,7 @@ PORT=8790
 HAB_SERVICE=numinia-habitantes
 HAB_USER=numinia-hab
 ACT_SERVICE=numinia-actualizar
+STATE=/var/lib/numinia-motor   # the world folder (C2): what --desinstalar keeps
 
 say() { printf '\033[1m[motor]\033[0m %s\n' "$*"; }
 die() { printf '\033[31m[motor] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -48,7 +54,7 @@ extract_payload() { # $1 = destination directory
   awk 'found { print } /^__CARGA_DEBAJO__$/ { found = 1 }' "$0" | base64 -d | tar -xz -C "$1"
 }
 
-DOMAIN=""; MEMORY="75%"; FIREWALL=1; ONLY_EXTRACT=""; HABITANTES=1; AUTO=0; CONSTRUIR=todos; CLAVE_IA=""; MODELO_IA=""
+DOMAIN=""; MEMORY="75%"; FIREWALL=1; ONLY_EXTRACT=""; HABITANTES=1; AUTO=0; CONSTRUIR=todos; CLAVE_IA=""; MODELO_IA=""; DESINSTALAR=0
 DADO=" " # the options given on this run; the rest come from instalacion.env when there is one
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -64,8 +70,9 @@ while [ $# -gt 0 ]; do
     --quitar-clave-ia) CLAVE_IA=quitar; shift ;;
     --modelo-ia) MODELO_IA=${2:?falta el modelo, p. ej. --modelo-ia claude-sonnet-5}; shift 2 ;;
     --solo-extraer) ONLY_EXTRACT=${2:?falta la carpeta destino}; shift 2 ;;
+    --desinstalar) DESINSTALAR=1; shift ;;
     --version) echo "numinia-engine $BUILD · Node $NODE_VERSION"; exit 0 ;;
-    -h|--help) sed -n '2,28p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,33p' "$0"; exit 0 ;;
     *) die "opción desconocida '$1'. Usa --help para ver las opciones." ;;
   esac
 done
@@ -73,6 +80,32 @@ done
 if [ -n "$ONLY_EXTRACT" ]; then
   extract_payload "$ONLY_EXTRACT"
   say "extraído en $ONLY_EXTRACT (app/ = servidor, www/ = página). Nada instalado."
+  exit 0
+fi
+
+# ---------- --desinstalar: the machine goes back to having no engine; the world stays ----------
+if [ "$DESINSTALAR" = 1 ]; then
+  [ "$(id -u)" -eq 0 ] || die "hay que ejecutarlo como root: sudo bash $0 --desinstalar"
+  command -v systemctl > /dev/null || die "no hay systemd; no hay nada que desinstalar"
+  say "desinstalo el motor de esta máquina (el mundo se queda en $STATE)"
+  for u in "$ACT_SERVICE.timer" "$ACT_SERVICE.service" "$HAB_SERVICE.service" "$SERVICE.service"; do
+    systemctl disable --now "$u" > /dev/null 2>&1 || true
+    rm -f "/etc/systemd/system/$u"
+  done
+  systemctl daemon-reload
+  systemctl reset-failed > /dev/null 2>&1 || true
+  if [ -n "$(systemctl list-unit-files caddy.service --no-legend 2> /dev/null)" ]; then
+    # 80 and 443 free for the fleet's Caddy (in Docker); masked so neither a reboot nor an apt upgrade starts it again
+    # (instalar-motor.sh unmasks it if the engine is installed here again)
+    systemctl disable --now caddy > /dev/null 2>&1 || true
+    systemctl mask caddy > /dev/null 2>&1 || true
+    say "Caddy del sistema parado, desactivado y enmascarado: los puertos 80 y 443 quedan libres"
+  fi
+  # the program and its keys (secret, administration code, agents' secret, the Claude key): the fleet makes its own
+  rm -rf "$PREFIX"
+  say "quitados: $SERVICE, $HAB_SERVICE, $ACT_SERVICE y $PREFIX (el programa y sus claves)"
+  if [ -d "$STATE" ]; then say "el mundo sigue en $STATE ($(ls "$STATE" 2> /dev/null | tr '\n' ' ')): no lo he tocado"; else say "no había mundo en $STATE"; fi
+  say "no he tocado ssh ni el cortafuegos (ufw). La máquina puede entrar ya en la flota (la línea de alta de la sala de Mundos)."
   exit 0
 fi
 
@@ -137,6 +170,16 @@ install -m 0755 "$PREFIX/new/actualizar.sh" "$PREFIX/actualizar.sh" # the update
 rm -rf "$PREFIX/new" "$PREFIX/app.old" "$PREFIX/www.old"
 echo "$BUILD" > "$PREFIX/VERSION"
 
+# ---------- the world folder (C2): it carries its own adventure ----------
+# A world without one gets a copy of the example once; from then on it is the world's (a newer engine never swaps it).
+# datos/ and sesiones/ stay where they always were; the engine reads them all from MOTOR_MUNDO.
+if [ ! -d "$STATE/aventura" ]; then
+  mkdir -p "$STATE"
+  rm -rf "$STATE/.aventura-nueva"; cp -r "$PREFIX/app/aventuras/ejemplo" "$STATE/.aventura-nueva"
+  chown -R "$USER_NAME:$USER_NAME" "$STATE/.aventura-nueva"; mv "$STATE/.aventura-nueva" "$STATE/aventura"
+  say "mundo: su aventura es una copia de la de ejemplo ($STATE/aventura); desde ahora es suya"
+fi
+
 # ---------- systemd service ----------
 # R1: the secret that signs the QR URLs. Made once, kept across reinstalls, readable by root only (systemd reads it).
 if [ ! -f "$PREFIX/secreto.env" ]; then
@@ -162,7 +205,8 @@ Wants=network-online.target
 User=$USER_NAME
 Group=$USER_NAME
 WorkingDirectory=$PREFIX/app
-Environment=PORT=$PORT HOST=127.0.0.1 STATS_MS=30000 NODE_ENV=production SESIONES_DIR=/var/lib/numinia-motor/sesiones DATOS_DIR=/var/lib/numinia-motor/datos ACTIVOS_DIR=/var/lib/numinia-motor/datos/activos MOTOR_CONSTRUIR=$CONSTRUIR
+Environment=PORT=$PORT HOST=127.0.0.1 STATS_MS=30000 NODE_ENV=production MOTOR_MUNDO=$STATE SESIONES_DIR=$STATE/sesiones DATOS_DIR=/var/lib/numinia-motor/datos ACTIVOS_DIR=/var/lib/numinia-motor/datos/activos MOTOR_CONSTRUIR=$CONSTRUIR
+# C2: the whole world in one folder (datos/, aventura/, entorno/, sesiones/), the same layout as a container's /mundo
 # H1: who may place, move and delete things (--construir todos|nadie; todos = people and AI inhabitants alike, until H3 roles)
 # T1: how each player entered (device, browser, XR, frames), one JSONL per UTC day, 14 days, no IP
 # S4: what the game features keep across restarts (datos/<feature>.json + .jsonl); back it up with the folder
@@ -233,7 +277,8 @@ Wants=$SERVICE.service
 User=$HAB_USER
 Group=$HAB_USER
 WorkingDirectory=$PREFIX/app
-Environment=MOTOR_URL=ws://127.0.0.1:$PORT NODE_ENV=production STATS_MS=300000
+Environment=MOTOR_URL=ws://127.0.0.1:$PORT NODE_ENV=production STATS_MS=300000 AVENTURA_DIR=$STATE/aventura
+# the inhabitants are the ones of the world's OWN adventure (the same folder the engine reads)
 EnvironmentFile=$PREFIX/agentes.env
 EnvironmentFile=-$PREFIX/cerebro.env
 ExecStart=$PREFIX/node/bin/node packages/agent/src/main.ts
@@ -306,6 +351,7 @@ $SITE {
 }
 CADDY
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile > /dev/null 2>&1 || die "Caddy no acepta /etc/caddy/Caddyfile (caddy validate --config /etc/caddy/Caddyfile)"
+systemctl unmask caddy > /dev/null 2>&1 || true # --desinstalar masks it
 systemctl enable caddy > /dev/null 2>&1
 systemctl reload caddy 2> /dev/null || systemctl restart caddy
 

@@ -50,14 +50,20 @@ Qué deja montado:
 | Habitantes IA (P4a) | servicio `numinia-habitantes`, mismo `app/` | usuario `numinia-hab`; solo habla con `127.0.0.1:8790` (`IPAddressDeny=any`); `MemoryMax=256M`, `CPUQuota=50%`; secreto de agentes en `/opt/numinia-engine/agentes.env` (lo lee systemd); quitarlos: `systemctl stop numinia-habitantes` o instalar con `--sin-habitantes` |
 | Servidor de instancia | `/opt/numinia-engine/app`, servicio `numinia-motor` | escucha solo en `127.0.0.1:8790`; usuario `numinia`; `LimitNOFILE=65536`, `MemoryMax=75%` (cámbialo con `--memoria 1G`) |
 | Página | `/opt/numinia-engine/www` | la sirve Caddy |
+| El mundo | `/var/lib/numinia-motor` (`MOTOR_MUNDO`) | `datos/`, `aventura/` (la primera vez, una copia de la de ejemplo; desde entonces es del mundo y los habitantes leen esa), `entorno/`, `sesiones/`, `mundo.json`; reinstalar o actualizar no lo toca |
 | Caddy | `/etc/caddy/Caddyfile` | página + `/ws` al servidor, mismo origen; guarda el Caddyfile anterior en `Caddyfile.antes-del-motor` |
 | Cortafuegos | ufw | abre el puerto de ssh que esté en uso, 22, 80, 443 (tcp y udp); `--sin-cortafuegos` para no tocarlo |
 
-La página busca su servidor en el mismo sitio desde el que se cargó: `wss://<dominio>/ws` con HTTPS,
-`ws://<ip>/ws` sin él. En tu PC (localhost) sigue usando `ws://localhost:8790`. `?server=ws://…` en la
-dirección manda siempre.
+La página construida busca su servidor en el mismo sitio desde el que se cargó: `wss://<dominio>/ws` con HTTPS,
+`ws://<ip>/ws` sin él, y también en `localhost` (un mundo en contenedor o con `arrancar.sh`). La página de
+desarrollo (`npm run dev`) sigue usando `ws://localhost:8790`. `?server=ws://…` en la dirección manda siempre.
 
 Volver a instalar (otra versión) es ejecutar el fichero nuevo: sustituye `app/` y `www/` y reinicia.
+
+Quitarlo de la máquina (p. ej. para pasarla a la flota, que trae su propio Caddy en Docker):
+`sudo bash instalar-motor.sh --desinstalar` para y borra los servicios (`numinia-motor`, `numinia-habitantes`,
+`numinia-actualizar`), para y enmascara Caddy (deja libres 80 y 443) y borra `/opt/numinia-engine`. **Deja el mundo**
+en `/var/lib/numinia-motor` y no toca ssh ni el cortafuegos. Instalar otra vez desenmascara Caddy.
 
 Comandos útiles en el servidor:
 
@@ -66,25 +72,32 @@ systemctl status numinia-motor        # ¿está vivo?
 journalctl -u numinia-motor -f        # cada 30 s: conectados, tick p99, kbit/s por persona
 bash instalar-motor.sh --version      # qué versión lleva el fichero
 curl -s localhost:8790/health         # {"ok":true,"version":…,"huella":"93b192c8","conectados":N}
+curl -s localhost:8790/status         # {"uptime":s,"conectados":N,"commitHash":"<40 hex>","version":"<build>"} (lo lee la sala de Mundos)
 curl -s localhost:8790/metrics        # JSON: conectados, tick p50/p99/peor (últimos 10 s), respuesta del tick, bucle, CPU, steal, memoria, kbit/s por persona…
 ```
 
-`/health` también se ve desde fuera (`https://<dominio>/health`); `/metrics` solo desde el propio
+`/health` y `/status` también se ven desde fuera (`https://<dominio>/health`); `/metrics` solo desde el propio
 servidor. Para leerlo desde casa (8790 ya lo usa la plaza de tu PC): `ssh -L 18790:127.0.0.1:8790 root@IP`
 y abrir `http://localhost:18790/metrics`; el enjambre lo lee con `--metrics http://localhost:18790/metrics`.
 
 ## El mundo en un zip: bajarlo y subirlo
 
 `https://<dominio>/mundo` es una página con dos botones: **Descargar el mundo** (un `.zip`) y **Subir un mundo**
-(sustituye el de ahora por el del zip). Pide el código de administración, que el instalador hace una vez y no
-enseña nunca: `sudo cat /opt/numinia-engine/admin.env` (hasta que lleguen los roles, H3).
+(sustituye el de ahora por el del zip). Pide el código de administración: en un servidor instalado lo hace el
+instalador una vez y no lo enseña nunca (`sudo cat /opt/numinia-engine/admin.env`); en la flota lo da la sala de
+Mundos (`ADMIN_CODE`); en tu PC está en `claves.env`, dentro de la carpeta del mundo. Quien escribe `/dueño <código>`
+en el chat es dueño **con ese código**: si el código cambia, deja de serlo (vuelve a escribirlo con el nuevo).
 
-Qué lleva el zip: `mundo.json` (versión del motor, fecha y cada fichero con sus bytes y su sha256) y `datos/`:
-lo que guardan las funciones (lo construido, las misiones…) y los modelos subidos (`datos/activos/`). No lleva
-quién entró (sesiones), quién subió qué (`subidas.jsonl`) ni el motor (viene de la versión). Al subir, el
-servidor lo comprueba entero antes de tocar nada (zip con contraseña, enlaces, rutas con `..`, bombas de zip,
-ficheros que no son los que dice `mundo.json`: rechazado con el motivo), guarda el mundo de ahora en
-`/var/lib/numinia-motor/datos.antes-<fecha UTC>` (los dos últimos), pone el nuevo y se reinicia (unos segundos).
+Qué lleva el zip (`numinia-engine/mundo@2`): `mundo.json` (el motor que lo hizo — build, commit e imagen —, la fecha
+y cada fichero con sus bytes y su sha256), `datos/` (lo que guardan las funciones y los modelos subidos,
+`datos/activos/`), `aventura/` (las misiones y su gente: el mundo trae su aventura) y `entorno/`; y, para arrancarlo
+uno mismo, `compose.yml` (la imagen exacta de ese motor), `arrancar.sh` (sin Docker: baja ese motor de su versión de
+GitHub, comprueba el sha256 y lo arranca con tu Node) y `LEEME.txt`. Estos tres no son parte del mundo (al subir se
+ignoran). No lleva nunca las claves (`claves.env`), quién entró (sesiones), quién subió qué (`subidas.jsonl`) ni el
+motor. Los zips de ayer (`mundo@1`, solo `datos/`) se siguen leyendo. Al subir, el servidor lo comprueba entero
+antes de tocar nada (zip con contraseña, enlaces, rutas con `..`, bombas de zip, ficheros que no son los que dice
+`mundo.json`: rechazado con el motivo), guarda el mundo de ahora en `/var/lib/numinia-motor/datos.antes-<fecha UTC>`
+(y `aventura.antes-…`, `entorno.antes-…`; los dos últimos), pone el nuevo y se reinicia (unos segundos).
 
 Por terminal, lo mismo:
 
@@ -94,6 +107,43 @@ curl -fsS -H "Authorization: Bearer $MOTOR_ADMIN" http://127.0.0.1:8790/mundo/zi
 curl -fsS -H "Authorization: Bearer $MOTOR_ADMIN" -T mundo.zip http://127.0.0.1:8790/mundo/zip     # subir
 ```
 
+## La imagen: el mismo motor en un contenedor (C1)
+
+`Dockerfile` hace la imagen **a partir del instalador** de ese commit (`deploy/instalar-motor.sh --solo-extraer`, sin
+nada más del repositorio) más el Node fijado en él (versión y sha256 por arquitectura, comprobados otra vez):
+
+```bash
+npm run deploy
+docker build --build-arg COMMIT=$(git rev-parse HEAD) -t ghcr.io/numengames/numinia-engine:sha-$(git rev-parse HEAD) .
+```
+
+Se publica como `ghcr.io/numengames/numinia-engine:sha-<commit de 40>` (amd64 y arm64; el workflow de publicar, que
+pega una persona con permiso). Escucha en `0.0.0.0:8790`: la página (`/`, la sirve el propio motor), `/ws`, `/health`,
+`/status`, `/a/*`, `/mundo*`. Corre como `10001:10001`. **El mundo es la carpeta montada en `/mundo`**
+(`datos/`, `aventura/`, `entorno/`, `sesiones/`, `mundo.json`; la primera vez se siembra la aventura de ejemplo). Las
+claves vienen del entorno: `JWT_SECRET` y `ADMIN_CODE` (el fichero de claves de la flota) o `MOTOR_SECRET` y
+`MOTOR_ADMIN`; sin ellas, el motor las hace una vez en `/mundo/claves.env` (600) y el registro dice dónde están, nunca
+cuáles son. Al subir un mundo por `/mundo`, lo cambia y sale con 75: `restart: on-failure` lo vuelve a arrancar.
+
+```bash
+docker run -d -p 8790:8790 -v /srv/mundos/m1:/mundo --env-file claves.env ghcr.io/numengames/numinia-engine:sha-<commit>
+```
+
+La carpeta tiene que ser de `10001` (`chown 10001:10001`), o arrancar con `--user 0:0`: entonces el motor toma el
+usuario dueño de la carpeta y deja de ser root al momento (con podman o docker sin root, «root» ya eres tú; un root de
+verdad con una carpeta de root no arranca). Es lo que hace el `compose.yml` del zip.
+
+Sus propias herramientas, para que una máquina no tenga que saber las reglas del zip (salen 0 si bien; si no, 1 y una
+línea con el motivo):
+
+```bash
+docker run --rm --network none -v /srv/mundos/m1:/mundo:ro <imagen> copia > mundo.zip      # también en marcha: lo guardado (≤ 1 s)
+docker run --rm --network none -i <imagen> comprobar < mundo.zip                           # ¿es un mundo que este motor lee?
+docker run --rm --network none -i -v /srv/mundos/m2:/mundo <imagen> importar < mundo.zip   # solo en una carpeta VACÍA
+```
+
+Sin contenedor, lo mismo: `node packages/server/src/entrada.ts copia|comprobar|importar` con `MOTOR_MUNDO=<carpeta>`.
+
 ## Ver cómo entra cada jugador (T1)
 
 Cada sesión de un navegador se guarda en `/var/lib/numinia-motor/sesiones/sesiones-<día UTC>.jsonl` (14 días,
@@ -101,7 +151,7 @@ sin IP). Desde el servidor:
 
 ```
 curl -s localhost:8790/sesiones                     # quién está dentro ahora y su último pulso (JSON)
-cd /opt/numinia-engine/app && SESIONES_DIR=/var/lib/numinia-motor/sesiones ../node/bin/node packages/server/src/sesiones-ver.ts
+cd /opt/numinia-engine/app && MOTOR_MUNDO=/var/lib/numinia-motor ../node/bin/node packages/server/src/sesiones-ver.ts
 ```
 
 Desde casa, por el túnel (`ssh -L 18790:localhost:8790 …`): `npm run sesiones -- --url http://localhost:18790`.
@@ -162,5 +212,6 @@ Robots y servidor en la misma máquina (`--en-servidor`) compiten por la CPU: el
 `GET /metrics.prom` (solo desde la propia máquina) da lo mismo en formato Prometheus.
 
 Lo que **no** está probado aún: la instalación real con root, systemd, Caddy y ufw (aquí no hay
-contenedores ni root). La prueba local cubre el fichero, el desempaquetado y el servidor desempaquetado
-con el Node fijado. La prueba real es la tarea X3, con Pablo.
+root). La prueba local cubre el fichero, el desempaquetado y el servidor desempaquetado con el Node fijado, sobre una
+carpeta de mundo nueva y sirviendo su página (`deploy-check`); la imagen se construye y se prueba con podman sin root.
+La prueba real de la instalación es la tarea X3, con Pablo.

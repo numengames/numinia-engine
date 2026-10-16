@@ -4,7 +4,7 @@
 //   /mundo (download the world as a zip, upload one: mundo-zip.ts; only with the administration code)
 import { createServer } from "node:http";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { signer } from "./secret.ts";
 import { randomBytes, randomInt } from "node:crypto";
 import { WebSocketServer } from "ws";
@@ -21,6 +21,9 @@ import { FileStorage } from "./datos.ts";
 import { Activos, BIBLIOTECA } from "./activos.ts";
 import { Subidas } from "./subidas.ts";
 import { CopiaMundo } from "./mundo-zip.ts";
+import { Pagina } from "./pagina.ts";
+import { infoMotor } from "./version.ts";
+import type { Motor } from "./version.ts";
 import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
 import { lectorAventura } from "./aventura.ts";
 import { crearRoles } from "./roles-mundo.ts";
@@ -45,8 +48,13 @@ export type ServerOptions = {
   subir?: { topesMB?: Partial<Record<string, number>>; totalMB?: number }; // H9: smaller caps (tests); default ficheros.ts
   aventura?: string | null;      // J5: the adventure's folder (quests, people, things as text files); default null = none
   agentes?: string;              // P4: the secret that signs AI inhabitants' tickets (env MOTOR_AGENTES_SECRET); none or short = no inhabitants
-  admin?: string;                // the administration code for /mundo (env MOTOR_ADMIN); none or short = /mundo answers 403
+  admin?: string;                // the administration code for /mundo and /dueño (env MOTOR_ADMIN; main.ts also ADMIN_CODE); none or short = /mundo answers 403
   reiniciar?: () => void;        // after a world was uploaded and swapped in: the installed server exits (systemd starts it again)
+  mundo?: string | null;         // C2: the world folder (MOTOR_MUNDO): a world upload swaps datos/ aventura/ entorno/ in it
+  entorno?: string | null;       // the world's entorno/ folder (entorno.json, elementos.json): travels in the world's zip
+  dondeCodigo?: string;          // where the administration code can be read (the /mundo page says it; never the code)
+  www?: string | null;           // C1: the built page (WWW_DIR) served on / by the engine itself; null = none (Caddy or vite serve it)
+  motor?: Motor;                 // build, full commit and image (version.ts); default infoMotor()
   log?: (line: string) => void;
 };
 
@@ -84,16 +92,16 @@ export function wsTransport(ws: WebSocket): Transport {
 }
 
 export function engineVersion(): string {
-  if (process.env.ENGINE_BUILD) return process.env.ENGINE_BUILD;
-  if (existsSync("../VERSION")) return readFileSync("../VERSION", "utf8").trim();
-  return "dev";
+  return infoMotor().build;
 }
 
 export function startServer(o: ServerOptions): Promise<RunningServer> {
   const log = o.log ?? ((l: string) => console.log(l));
   const maxPlayers = o.maxPlayers ?? 1000;
-  const version = o.version ?? engineVersion();
+  const motor: Motor = o.motor ?? (o.version ? { ...infoMotor(), build: o.version } : infoMotor());
+  const version = o.version ?? motor.build;
   const born = performance.now();
+  const pagina = o.www ? new Pagina(o.www) : null; // C1: the page from the engine itself (one port per world)
 
   const t0 = performance.now();
   const refHash = replayFingerprint(referenceRecording(REFERENCE.seed, REFERENCE.ticks, REFERENCE.n));
@@ -110,7 +118,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const construir = o.construir ?? "nadie";
   const sockets = new Map<number, WebSocket>();
   const roles = crearRoles({
-    construir: construir === "todos", admin: o.admin ?? process.env.MOTOR_ADMIN, log,
+    construir: construir === "todos", admin: o.admin ?? process.env.MOTOR_ADMIN, log, firmar: identitySign,
     cerrar: (e) => { sockets.get(e)?.close(CIERRE_ROLES, "fuera"); }, // the reason went out in the chat just before
   });
   const funciones = o.features?.length ? [...o.features, roles.part] : o.features; // no features (bare tests) = the pre-J7 wire
@@ -141,6 +149,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   let apagar: () => Promise<void> = async () => {};
   const copia = new CopiaMundo({
     datos: o.datos ?? null, subidas: o.datos ? (o.subidas ?? null) : null, admin: o.admin ?? process.env.MOTOR_ADMIN, version, log,
+    aventura: o.aventura ?? null, entorno: o.entorno ?? null, mundo: o.mundo ?? null, dondeCodigo: o.dondeCodigo, motor: { ...motor, build: version },
     vaciar: async () => { await datos?.flush(); }, apagar: () => apagar(),
     reiniciar: o.reiniciar ?? (() => log("[mundo] mundo cambiado: reinicia el servidor para usarlo")),
   });
@@ -172,18 +181,24 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     const [path, qs = ""] = (req.url ?? "/").split("?");
     const method = req.method ?? "GET";
     if (method === "GET" && path === "/health") return json(res, 200, { ok: true, version, huella: hex(refHash), conectados: inst.conns.length });
+    // C4: what the Worlds room of numinia.com reads (no names, no positions); people only, not the AI inhabitants
+    if (method === "GET" && path === "/status") {
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "access-control-allow-origin": "*" });
+      return void res.end(JSON.stringify({ uptime: Math.floor((performance.now() - born) / 1000), conectados: inst.conns.filter((c) => !c.who?.id.startsWith("ia-")).length, commitHash: motor.commit ?? undefined, version }));
+    }
     if (method === "GET" && path === "/metrics") return json(res, 200, metrics());
     if (method === "GET" && path === "/sesiones") return json(res, 200, { schema: "numinia-engine/sesiones@1", carpeta: sesiones.dir, resumen: sesiones.resumen(), ahora: sesiones.ahora() });
     if (method === "GET" && path === "/metrics.prom") { res.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8", "cache-control": "no-store" }); return void res.end(toPrometheus(metrics())); }
     if ((method === "GET" || method === "HEAD") && path.startsWith("/a/") && activos.servir(path, res, method === "HEAD", req.headers.range)) return; // H1: files by their sha256
     if ((method === "PUT" || method === "OPTIONS") && path.startsWith("/a/")) return subidas.atender(method, path, req, res); // H9: uploads
     if (copia.atender(method, path, req, res)) return; // the world as a zip
+    if (pagina?.servir(method, path, req, res)) return; // C1: the page (index.html, assets/) when the engine serves it
     if (method !== "GET" && method !== "POST") return json(res, 405, { error: "solo GET o POST" });
     // everything else may be a game feature's route (e.g. the page a QR opens)
     const answer = (body: string) => {
       const r = inst.features.http(method, path, Object.fromEntries(new URLSearchParams(qs)), body);
       if (r) return reply(res, r);
-      json(res, 404, { error: `no existe ${method} ${path}`, hay: ["/health", "/metrics", "/metrics.prom", "/sesiones", ...inst.features.routes(), "WebSocket en cualquier ruta (/ws)"] });
+      json(res, 404, { error: `no existe ${method} ${path}`, hay: ["/health", "/status", "/metrics", "/metrics.prom", "/sesiones", ...inst.features.routes(), "WebSocket en cualquier ruta (/ws)"] });
     };
     if (method === "GET") return answer("");
     let body = "", size = 0;

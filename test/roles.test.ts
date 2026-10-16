@@ -67,10 +67,10 @@ test("roles: a stored list is checked with paths; unknown permissions (numinia.c
 const keeper = (): GuestKeeper => { let t: string | null = null; return { load: () => t, save: (x) => { t = x; } }; };
 
 /** A headless world with chat, objetos and the world's roles: n people with identities. */
-function mundo(n: number, o: { construir?: boolean; storage?: MemoryStorage; reloj?: { ms: number } } = {}) {
+function mundo(n: number, o: { construir?: boolean; storage?: MemoryStorage; reloj?: { ms: number }; admin?: string } = {}) {
   const log: string[] = [], cerradas: number[] = [];
   const reloj = o.reloj ?? { ms: Date.parse("2026-10-15T22:00:00Z") };
-  const roles = crearRoles({ construir: o.construir ?? false, admin: ADMIN, cerrar: (e) => { cerradas.push(e); inst.disconnect(e); }, ahora: () => reloj.ms, log: (l) => log.push(l) });
+  const roles = crearRoles({ construir: o.construir ?? false, admin: o.admin ?? ADMIN, firmar: sign, cerrar: (e) => { cerradas.push(e); inst.disconnect(e); }, ahora: () => reloj.ms, log: (l) => log.push(l) });
   const inst: Instance = new Instance({ seed: 1, capacity: 32, k: 50, snapshotEvery: 2, features: [chatServer, objetosServer, roles.part], log: (l) => log.push(l), identitySign: sign, storage: o.storage, puede: (who, accion) => roles.puede(who, accion) });
   const entrar = (i: number, guardado = keeper()) => {
     const t = inst.join(i), c = crearCliente(() => reloj.ms);
@@ -211,6 +211,24 @@ test("/solo-miembros sí: visitors stay out, members and the world's AIs come in
   assert.equal(W2.roles.soloMiembros, true);
   assert.equal(W2.avisos(B2).length, 0, "a member gets in");
   assert.ok(tiene(W2.roles.acceso(W2.inst.who(B2.s.entity)!.id), "silenciar"));
+});
+
+test("C3: an owner is tied to the administration code it used; after the code changes (the fleet's «change the code») it is not", () => {
+  const storage = new MemoryStorage(), reloj = { ms: Date.parse("2026-10-16T05:00:00Z") };
+  const W = mundo(1, { storage, reloj });
+  const [A] = W.gente;
+  W.pump(3);
+  W.decir(A, `/dueño ${ADMIN}`);
+  const guardado = JSON.stringify(storage.load("roles"));
+  assert.ok(!guardado.includes(ADMIN), "the code itself is never kept (only a fingerprint keyed with the server's secret)");
+  const otra = (admin: string) => { const W2 = mundo(0, { storage, reloj, admin }); const A2 = W2.entrar(1, A.guardado); W2.gente.push(A2); W2.pump(3); return { W2, A2 }; };
+  const igual = otra(ADMIN);
+  assert.equal(igual.W2.roles.acceso(igual.W2.inst.who(igual.A2.s.entity)!.id).dueno, true, "same code: still the owner");
+  const nuevo = otra("otro-codigo-de-la-sala");
+  assert.equal(nuevo.W2.roles.acceso(nuevo.W2.inst.who(nuevo.A2.s.entity)!.id).dueno, false, "a new code: no longer the owner");
+  assert.ok(nuevo.W2.log.some((l) => /otro código de administración/.test(l)));
+  const otraVez = otra(ADMIN);
+  assert.equal(otraVez.W2.roles.acceso(otraVez.W2.inst.who(otraVez.A2.s.entity)!.id).dueno, false, "dropped for good: /dueño again with the code of now");
 });
 
 test("the chat's help names /roles and fits in one notice", () => {

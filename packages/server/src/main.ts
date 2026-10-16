@@ -1,30 +1,56 @@
 // server entry point. Run: node packages/server/src/main.ts   (PORT=8790 HOST=127.0.0.1 by default)
-// One port: WebSocket (any path; Caddy passes /ws) · GET /health · GET /metrics · the features' routes.
+// One port: WebSocket (any path; Caddy passes /ws) · GET /health /status · GET /metrics · /mundo · the features'
+// routes · the page itself when WWW_DIR is set (the container image does; a bare install leaves it to Caddy).
 // Composition root: one of the few files allowed to import features/ (tools/layers.json, "_composition").
+//
+// C2 — the world folder: MOTOR_MUNDO=<folder> (the image: /mundo; the installer: /var/lib/numinia-motor; tools/plaza.sh:
+// .run) holds the whole world — datos/, aventura/ (seeded once from aventuras/ejemplo), entorno/, sesiones/, mundo.json.
+// The old variables still win when set (DATOS_DIR, ACTIVOS_DIR, SESIONES_DIR, AVENTURA_DIR, MUNDO_DIR = the folder of
+// entorno.json/elementos.json). Without MOTOR_MUNDO: .run/datos, informes/sesiones, aventuras/ejemplo, as before.
+// C3 — keys: MOTOR_SECRET or JWT_SECRET; MOTOR_ADMIN or ADMIN_CODE (the fleet's key file); else, with a world folder,
+// made once into <mundo>/claves.env (600). Never printed.
 import { startServer } from "./server.ts";
 import funciones from "../../../features/servidor.ts";
 import { conMundo } from "../../../features/mundo.ts";
 import { leerMundo } from "./mundo.ts";
+import { carpetaMundo, claves, escribirManifiesto, sembrar } from "./mundo-carpeta.ts";
+import { infoMotor } from "./version.ts";
+
+const env = process.env;
+const log = (l: string) => console.log(l);
+const c = env.MOTOR_MUNDO ? carpetaMundo(env.MOTOR_MUNDO) : null;
+if (c) {
+  sembrar(c, log);
+  escribirManifiesto(c, infoMotor());
+  log(`[mundo] carpeta del mundo: ${c.raiz} (datos/, aventura/, entorno/, sesiones/)`);
+}
+const k = claves(env, c, log);
+const datos = env.DATOS_DIR || c?.datos || ".run/datos";
+const entorno = env.MUNDO_DIR || c?.entorno || null;
 
 const srv = await startServer({
-  port: Number(process.env.PORT ?? 8790),
-  host: process.env.HOST ?? "127.0.0.1",
-  statsMs: Number(process.env.STATS_MS ?? 30000),
-  // SIN_FUNCIONES=1: the bare engine · MUNDO_DIR: a world's own environment and elements (entorno.json, elementos.json; H4)
-  features: process.env.SIN_FUNCIONES === "1" ? [] : process.env.MUNDO_DIR ? conMundo(funciones, leerMundo(process.env.MUNDO_DIR)) : funciones,
-  sesiones: process.env.SESIONES_DIR ?? "informes/sesiones",     // T1: how each player entered (installed: /var/lib/numinia-motor/sesiones)
-  datos: process.env.DATOS_DIR ?? ".run/datos",                   // S4: what features keep across restarts (installed: /var/lib/numinia-motor/datos)
-  construir: process.env.MOTOR_CONSTRUIR === "todos" ? "todos" : "nadie", // H1: open building to everyone (home plaza) or nobody (default); H3 = roles
-  subidas: process.env.ACTIVOS_DIR ?? `${process.env.DATOS_DIR ?? ".run/datos"}/activos`, // H9: uploaded files by sha256, next to the saved world (installed: /var/lib/numinia-motor/datos/activos); activos/ is always served
-  aventura: process.env.AVENTURA_DIR === "" ? null : (process.env.AVENTURA_DIR ?? "aventuras/ejemplo"), // J5: quests, people, things (AVENTURA_DIR= for none)
-  // /mundo: a world uploaded as a zip is swapped in, then the process leaves; under systemd (INVOCATION_ID) it is started
-  // again with the new world. By hand (tools/plaza.sh, npm run server) it stays stopped and the log says to restart it.
-  admin: process.env.MOTOR_ADMIN,
-  reiniciar: () => { if (process.env.INVOCATION_ID) process.exit(0); else console.log("[mundo] mundo cambiado y servidor parado: arráncalo otra vez para usarlo"); },
+  port: Number(env.PORT ?? 8790),
+  host: env.HOST ?? "127.0.0.1",
+  statsMs: Number(env.STATS_MS ?? 30000),
+  // SIN_FUNCIONES=1: the bare engine · the world's own environment and elements (entorno.json, elementos.json; H4)
+  features: env.SIN_FUNCIONES === "1" ? [] : entorno ? conMundo(funciones, leerMundo(entorno)) : funciones,
+  sesiones: env.SESIONES_DIR || c?.sesiones || "informes/sesiones", // T1: how each player entered
+  datos,                                                              // S4: what features keep across restarts
+  construir: env.MOTOR_CONSTRUIR === "todos" ? "todos" : "nadie",     // H1: who may build (H3 roles: @todos' build-in-worlds)
+  subidas: env.ACTIVOS_DIR || `${datos}/activos`,                     // H9: uploaded files by sha256, next to the saved world; activos/ is always served
+  aventura: env.AVENTURA_DIR === "" ? null : (env.AVENTURA_DIR ?? c?.aventura ?? "aventuras/ejemplo"), // J5: quests, people, things (AVENTURA_DIR= for none)
+  entorno, mundo: c?.raiz ?? null,
+  secret: k.secreto, admin: k.admin, dondeCodigo: k.dondeCodigo,
+  www: env.WWW_DIR || null,                                           // C1: the built page served by the engine itself
+  // /mundo: a world uploaded as a zip is swapped in, then the process leaves; under systemd (INVOCATION_ID) or in a
+  // container (MOTOR_REINICIO=salir: exit 75, its restart policy — compose.yml «on-failure» — starts it again) it comes
+  // back with the new world. By hand (tools/plaza.sh, npm run server) it stays stopped and the log says to restart it.
+  reiniciar: () => { if (env.INVOCATION_ID) process.exit(0); else if (env.MOTOR_REINICIO === "salir") process.exit(75); else console.log("[mundo] mundo cambiado y servidor parado: arráncalo otra vez para usarlo"); },
 });
 
-// systemd (and tools/plaza.sh) stop the server with SIGTERM: close every connection first so each session
-// that reported gets its closing line written (T1), then leave; never wait more than 2 s.
+// systemd, the container (docker stop) and tools/plaza.sh stop the server with SIGTERM: close every connection first
+// so each session that reported gets its closing line written (T1) and the features' data is flushed, then leave;
+// never wait more than 2 s (a container gets 10 s before SIGKILL).
 for (const sig of ["SIGTERM", "SIGINT"] as const) {
   process.once(sig, () => {
     setTimeout(() => process.exit(0), 2000).unref();
