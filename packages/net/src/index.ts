@@ -8,7 +8,9 @@ import type { Field } from "../../schema/src/index.ts";
 // 6-8 (J7, additive): only a server that runs game features sends them; with no features the wire is unchanged.
 // 9 (T1, additive): REPORT, page -> server: how this player entered and how it is going (JSON, see server/sesiones.ts).
 // 10 (I1, additive): IDENTITY. page -> server: the guest token it kept (or nothing); server -> page: {token, id, nombre}.
-export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8, REPORT: 9, IDENTITY: 10 } as const;
+// 11 (U10, additive): VOICE, a frame of a person's microphone; the server relays it only to who is near (voz.ts).
+export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8, REPORT: 9, IDENTITY: 10, VOICE: 11 } as const;
+export * from "./voz.ts";
 
 /** Wire format version, sent at the end of WELCOME. 1 = everything before J2 (it was never written on the wire);
  * 2 = J2: SNAPSHOT carries height (own vertical state exact, others with height in their own list), INPUT has a

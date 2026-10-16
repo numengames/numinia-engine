@@ -2,9 +2,9 @@
 // Own avatar: predicted with the SAME sim step the server runs, reconciled exactly on each snapshot.
 // Others: drawn slightly in the past, interpolated between snapshots.
 import { fxToFloat } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, TICK_HZ } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, TICK_HZ } from "../../sim/src/index.ts";
 import type { Body, SimState } from "../../sim/src/index.ts";
-import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, encodeIdentityRequest, decodeIdentity, seqNewer } from "../../net/src/index.ts";
+import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, encodeIdentityRequest, decodeIdentity, seqNewer, codificarVozSubida, leerVozBajada } from "../../net/src/index.ts";
 import type { Transport, Welcome } from "../../net/src/index.ts";
 import { ClientRuntime } from "../../feature/src/index.ts";
 import type { ClientPart, ViewHooks } from "../../feature/src/index.ts";
@@ -51,6 +51,7 @@ export class ClientSession {
   stats = { snapshots: 0, corrections: 0, rttMs: -1, visible: 0, lastServerTick: 0 };
   /** Game features (J7): their client parts, the server's catalog, their recent events. */
   readonly features: ClientRuntime;
+  private solidsVersion = -1; // U10: the solid boxes follow the shared state
   /** I1: who the server says you are (guest id + name); null until it answers, or when no keeper was given. */
   who: { id: string; nombre: string } | null = null;
   private readonly keeper?: GuestKeeper;
@@ -73,6 +74,7 @@ export class ClientSession {
     this.pending.push({ seq: this.seq, mx, mz, buttons });
     if (this.pending.length > 64) this.pending.shift();
     this.prev = this.cur;
+    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.local, solidsFrom(this.features.allState())); } // U10: the same walls as the server
     step(this.local, new Int32Array([0, mx, mz, buttons]));
     this.cur = getBody(this.local, 0);
   }
@@ -88,8 +90,21 @@ export class ClientSession {
     return true;
   }
 
+  /** U10: someone near spoke (a frame of their microphone). The page plays it (apps/plaza/voz.ts). */
+  onVoice: ((v: { codec: number; seq: number; entidad: number; trama: Uint8Array }) => void) | null = null;
+  private vozSeq = 0;
+  /** U10: send one compressed frame of your microphone; the server passes it to who is near. false if not joined. */
+  sendVoice(codec: number, trama: Uint8Array): boolean {
+    if (this.entity < 0) return false;
+    const b = codificarVozSubida(codec, (this.vozSeq = (this.vozSeq + 1) & 0xffff), trama);
+    if (!b) return false;
+    this.t.send(b, false);
+    return true;
+  }
+
   handle(bytes: Uint8Array, now: number): void {
     const type = bytes[0];
+    if (type === MSG.VOICE) { const v = leerVozBajada(bytes); if (v) this.onVoice?.(v); return; }
     if (type === MSG.WELCOME) {
       const w = decodeWelcome(bytes);
       this.welcome = w; this.entity = w.entity;

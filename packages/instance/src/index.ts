@@ -1,12 +1,12 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
-import { rngNext, fxToFloat } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, BTN_JUMP, BTN_RUN, INPUT_STRIDE } from "../../sim/src/index.ts";
+import { rngNext, fxToFloat, FX_ONE } from "../../core/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, BTN_JUMP, BTN_RUN, INPUT_STRIDE } from "../../sim/src/index.ts";
 import type { SimState } from "../../sim/src/index.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
-  decodeIdentityRequest, encodeIdentity,
+  decodeIdentityRequest, encodeIdentity, leerVozSubida, codificarVozBajada, VOZ_RADIO_M, VOZ_TRAMAS_S,
 } from "../../net/src/index.ts";
 import { agenteDe, emitir, nombreDe, nuevoId, today, verificar, verificarAgente } from "./identidad.ts";
 import type { Who } from "./identidad.ts";
@@ -28,6 +28,7 @@ export type InstanceOptions = {
   now?: () => number;                      // I1: the clock for token days; default Date.now
   puede?: (who: Who | null, accion: string, entity: number) => boolean; // H1: permissions for features (api.puede); none = nobody may
   activo?: (sha256: string, ext: string) => boolean; // H9: is /a/<sha256>.<ext> on this server (library or uploaded)? (api.activo)
+  sinVoz?: boolean; // U10: true = voice frames are not relayed (MOTOR_VOZ=no)
   aventura?: (carpeta: string) => { fichero: string; texto: string }[]; // J5: the adventure's text files (server/aventura.ts); none = no adventure
   // P4: AI inhabitants. `sign` checks agent tickets (a secret apart from the guests'); `nombre` = the name the world
   // declares for that inhabitant id (its habitante@1 file), null = this world has no such inhabitant. None = no agents.
@@ -42,6 +43,7 @@ type Conn = {
   queue: { seq: number; mx: number; mz: number; buttons: number }[]; ack: number; dropped: number; bad: number;
   who?: Who; // I1: set once the page shows (or asks for) its guest token
   visible?: number[]; // J3: who its last snapshot carried (features ask with api.visible: names over heads)
+  voz?: { desde: number; n: number }; // U10: voice frames this second (rate cap)
 };
 
 export class Instance {
@@ -99,6 +101,8 @@ export class Instance {
         conn.who = { id, nombre: nombreDe(id) };
         t.send(encodeIdentity({ token: ok && !ok.renovar ? token : emitir(sign, id, day), ...conn.who }), true);
         this.features.identify(entity);
+      } else if (bytes[0] === MSG.VOICE) {
+        if (!this.opts.sinVoz) this.relayVoice(conn, bytes);
       } else if (bytes[0] === MSG.REPORT) {
         const r = decodeReport(bytes);
         if (!r) conn.bad++; else this.opts.onReport?.(entity, r); // no listener (tests, bots): ignored
@@ -140,6 +144,7 @@ export class Instance {
       const o = n++ * INPUT_STRIDE;
       inputs[o] = c.entity; inputs[o + 1] = m.mx; inputs[o + 2] = m.mz; inputs[o + 3] = m.buttons; c.ack = m.seq;
     }
+    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.sim, solidsFrom(this.features.allState())); } // U10
     step(this.sim, inputs.subarray(0, n * INPUT_STRIDE)); // authority
     this.features.tick();   // game features: queued intents, then their tick hooks (no effect on the sim)
     if (this.sim.tick % this.opts.snapshotEvery === 0) { // 20 Hz sim, 10 Hz snapshots by default
@@ -155,6 +160,27 @@ export class Instance {
   /** I1: the guest behind a connected entity (null for bots and before the page showed its token). */
   who(entity: number): Who | null { return this.byEntity[entity]?.who ?? null; }
 
+  private solidsVersion = -1;
+  /** U10: who hears a voice frame — players that have the speaker in their area of interest and within VOZ_RADIO_M.
+   * Never everyone, never stored, never decoded. Over VOZ_TRAMAS_S frames a second the rest are dropped. */
+  readonly vozStats = { recibidas: 0, enviadas: 0, descartadas: 0 };
+  private relayVoice(from: Conn, bytes: Uint8Array): void {
+    const v = leerVozSubida(bytes);
+    if (!v) { from.bad++; return; }
+    const now = this.sim.tick, w = (from.voz ??= { desde: now, n: 0 });
+    if (now - w.desde >= 20) { w.desde = now; w.n = 0; } // 20 ticks = 1 s
+    if (++w.n > VOZ_TRAMAS_S) { this.vozStats.descartadas++; return; }
+    this.vozStats.recibidas++;
+    const X = this.sim.tf.cols.x, Z = this.sim.tf.cols.z, e = from.entity, r2 = (VOZ_RADIO_M * FX_ONE) ** 2;
+    let out: Uint8Array | null = null;
+    for (const c of this.conns) {
+      if (c === from || !c.visible?.includes(e)) continue;
+      const dx = X[c.entity] - X[e], dz = Z[c.entity] - Z[e];
+      if (dx * dx + dz * dz > r2) continue;
+      out ??= codificarVozBajada(bytes, e);
+      c.transport.send(out, false); this.vozStats.enviadas++;
+    }
+  }
   hash(): number { return stateHash(this.sim); }
   sentBytes(): number { return this.conns.reduce((n, c) => n + c.transport.sentBytes, 0); }
 }
