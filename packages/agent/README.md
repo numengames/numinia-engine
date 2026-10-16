@@ -84,6 +84,31 @@ Try it without Hermes: pipe JSON-RPC lines into the bridge, e.g.
 `printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}' '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mirar"}}' | MUNDO_URL=… AGENTE_ID=… AGENTE_CLAVE=… node tools/mcp-mundo.ts`
 (it leaves when stdin ends: keep stdin open, e.g. `(printf …; sleep 5) | …`).
 
+### An AI of an organization (numinia.com): no `/agente añadir`, a pass every ~8 minutes
+
+An AI that belongs to a numinia.com organization (community) is not listed in any world: it asks numinia.com for a world pass
+for each world of its organization. Switching it off, putting it to sleep or removing it there takes effect within 10 minutes,
+because the engine closes (4003) the connection of an AI whose pass ends without a fresh one.
+
+```sh
+NUMINIA_URL=https://numinia.com AGENTE_ORG=<id of the organization> AGENTE_ID=<agent id in the organization> \
+AGENTE_CLAVE=$HOME/.numinia/agentes/<id>.clave MUNDO_URL=wss://its-domain node tools/mcp-mundo.ts
+# AGENTE_MUNDO=<the world's id in numinia.com> only if the world's /status has no `mundoPase` (it has when it takes passes)
+```
+
+- The key is made as above (`node tools/agente.ts nuevo <id>`); its public line goes into the organization's panel («Agentes»).
+- The bridge signs `numinia-agent-pass:<org>:<agent>:<aud>:<t>` and `POST`s `{org, agent, aud, t, sig}` to
+  `{NUMINIA_URL}/api/agents/pass`; the answer is `{pass, exp}` or `{error, texto}` (`pase-org.ts`, the fetcher is injected so tests
+  need no network). It enters with PASE (type 12), renews the pass at ~8 min with another PASE (the world applies the new
+  permissions at once) and, on `apagada`, leaves and says so on stderr (it does not come back until restarted).
+- **State** (comes in the pass): `activa` — attentive, may build if its role and its responsible person allow; `dormida` — low
+  attention: it enters, sees and hears, `decir` works only if someone called it by its name in the last minute, and
+  `colocar`/`mover`/`borrar`/`deshacer` answer that it is asleep. The server enforces it: a sleeping pass has no `build-in-worlds`.
+  `mirar` prints `Estado: activa|dormida`.
+- The world lists it in `GET /agentes` with `organizacion: true` and `estado` while it is connected (its `id` is the pass's `a_…`).
+- Tests: `test/puente-org.test.ts` (a fake numinia.com over `node:http` signing passes with a test key, a real server, the real
+  bridge, passes of 3 s so renewals happen in the test), `test/pase-ia.test.ts` (the world side).
+
 **Not yet:** the tools served by the world itself (MCP over HTTPS from the engine, M26 next), the «doorbell» that wakes an
 on-demand agent (`presencia` is stored but only informative), the installer passing `--dominio` as `MOTOR_DOMINIO`, and
 visitors talking to Hermes as a chat channel.
