@@ -4,7 +4,7 @@ The plug for game features (J7): `defineFeature` (a declaration: intents, events
 field described by a schema), the catalog every client receives on join, the schema codec on the wire,
 and the two runtimes that host the features: `ServerRuntime` (inside the instance) and `ClientRuntime`
 (inside the client session). Accessibility is part of every declaration (V1): `spoken` verbs, `announce`
-events, `state.card` things; `announcements`, `cards()` and `view.announce` on the client (a card whose name is empty is decoration and is not listed). Permissions (H1): `api.puede(entity, "construir")` — the server decides (today `MOTOR_CONSTRUIR`; roles with H3). Things with a model: `view.place` / `view.here`. Each state entry is encoded once and resent to whoever enters. How to add a feature: `docs/EXTENDER.md`.
+events, `state.card` things; `announcements`, `cards()` and `view.announce` on the client (a card whose name is empty is decoration and is not listed). Permissions (H1): `api.puede(entity, "construir")` — the server decides (the world's roles, H3; `MOTOR_CONSTRUIR` only seeds a new world). Things with a model: `view.place` / `view.here`. Each state entry is encoded once and resent to whoever enters. How to add a feature: `docs/EXTENDER.md`.
 Things used from close by (J4): `state.card.interact` (verb, prompt, reach, key field), checked by `defineFeature`;
 `api.within(entity, key)` on the server, `features.reachable(x, z, y?)` / `features.use(feature, key)` on the client,
 `view.tag` (a name over a thing). Reach minds the height when the thing's state has a `y`: the player's feet within

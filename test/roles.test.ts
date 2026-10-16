@@ -67,10 +67,10 @@ test("roles: a stored list is checked with paths; unknown permissions (numinia.c
 const keeper = (): GuestKeeper => { let t: string | null = null; return { load: () => t, save: (x) => { t = x; } }; };
 
 /** A headless world with chat, objetos and the world's roles: n people with identities. */
-function mundo(n: number, o: { construir?: boolean; storage?: MemoryStorage; reloj?: { ms: number }; admin?: string } = {}) {
+function mundo(n: number, o: { construir?: boolean; voz?: boolean; storage?: MemoryStorage; reloj?: { ms: number }; admin?: string } = {}) {
   const log: string[] = [], cerradas: number[] = [];
   const reloj = o.reloj ?? { ms: Date.parse("2026-10-15T22:00:00Z") };
-  const roles = crearRoles({ construir: o.construir ?? false, admin: o.admin ?? ADMIN, firmar: sign, cerrar: (e) => { cerradas.push(e); inst.disconnect(e); }, ahora: () => reloj.ms, log: (l) => log.push(l) });
+  const roles = crearRoles({ construir: o.construir ?? false, voz: o.voz, admin: o.admin ?? ADMIN, firmar: sign, cerrar: (e) => { cerradas.push(e); inst.disconnect(e); }, ahora: () => reloj.ms, log: (l) => log.push(l) });
   const inst: Instance = new Instance({ seed: 1, capacity: 32, k: 50, snapshotEvery: 2, features: [chatServer, objetosServer, roles.part], log: (l) => log.push(l), identitySign: sign, storage: o.storage, puede: (who, accion) => roles.puede(who, accion) });
   const entrar = (i: number, guardado = keeper()) => {
     const t = inst.join(i), c = crearCliente(() => reloj.ms);
@@ -211,6 +211,62 @@ test("/solo-miembros sí: visitors stay out, members and the world's AIs come in
   assert.equal(W2.roles.soloMiembros, true);
   assert.equal(W2.avisos(B2).length, 0, "a member gets in");
   assert.ok(tiene(W2.roles.acceso(W2.inst.who(B2.s.entity)!.id), "silenciar"));
+});
+
+test("file over app: MOTOR_CONSTRUIR seeds a new world once; after that its stored roles decide, and /construir todos|nadie changes them", () => {
+  const storage = new MemoryStorage(), reloj = { ms: Date.parse("2026-10-15T22:00:00Z") };
+  const construye = (W: ReturnType<typeof mundo>, p: { s: ClientSession }) => W.roles.puede(W.inst.who(p.s.entity), "construir");
+  const W = mundo(2, { storage, reloj, construir: true });
+  const [A, B] = W.gente;
+  W.pump(3);
+  assert.equal(construye(W, B), true, "a new world takes the seed");
+  assert.equal(W.log.filter((l) => l.includes("mundo sin roles guardados")).length, 1, "said once");
+  W.decir(A, `/dueño ${ADMIN}`);
+  // a restart with the other value: the world keeps what it stored
+  const W2 = mundo(0, { storage, reloj, construir: false });
+  const A2 = W2.entrar(1, A.guardado), B2 = W2.entrar(2, B.guardado); W2.gente.push(A2, B2); W2.pump(3);
+  assert.equal(construye(W2, B2), true, "MOTOR_CONSTRUIR no longer changes a world that has its roles");
+  assert.ok(!W2.log.some((l) => l.includes("mundo sin roles guardados")));
+  assert.ok(W2.log.some((l) => /MOTOR_CONSTRUIR solo vale para un mundo nuevo/.test(l)), "the log says why the variable did nothing");
+  W2.decir(B2, "/construir nadie");
+  assert.match(W2.ultimo(B2), /No tienes permiso para cambiar los ajustes/);
+  W2.decir(A2, "/construir");
+  assert.match(W2.ultimo(A2), /Ahora construye cualquiera/);
+  W2.decir(A2, "/construir nadie");
+  assert.match(W2.ultimo(A2), /construye solo quien tiene un rol/);
+  assert.equal(construye(W2, B2), false, "at once, without a restart");
+  assert.equal(W2.roles.todosConstruyen, false);
+  assert.equal(construye(W2, A2), true, "an owner still builds");
+  const guardado = storage.load("roles")!.store.find(([k]) => k === "roles")![1] as { posicion: number; permisos: string[] }[];
+  assert.ok(!guardado.find((r) => r.posicion === 0)!.permisos.includes("build-in-worlds"), "kept in datos/roles: it travels in the zip");
+  const W3 = mundo(0, { storage, reloj, construir: true });
+  const B3 = W3.entrar(2, B.guardado); W3.gente.push(B3); W3.pump(3);
+  assert.equal(construye(W3, B3), false, "and it holds after another restart with MOTOR_CONSTRUIR=todos");
+});
+
+test("file over app: MOTOR_VOZ seeds a new world once; /voz sí|no changes it at once, survives restarts and keeps unknown settings", () => {
+  const storage = new MemoryStorage(), reloj = { ms: Date.parse("2026-10-15T22:00:00Z") };
+  storage.record("roles", 1, { op: "k", key: "config", value: { soloMiembros: false, deOtroMotor: 7 } }); // a newer engine's setting
+  const W = mundo(2, { storage, reloj, voz: false });
+  const [A, B] = W.gente;
+  W.pump(3);
+  assert.equal(W.roles.voz, false, "a world with no voice setting takes MOTOR_VOZ=no as its seed");
+  assert.equal(W.log.filter((l) => l.includes("mundo sin ajuste de voz guardado")).length, 1);
+  const W2 = mundo(0, { storage, reloj, voz: true });
+  W2.pump(3);
+  assert.equal(W2.roles.voz, false, "a restart without MOTOR_VOZ=no keeps it off");
+  W.decir(B, "/voz sí");
+  assert.match(W.ultimo(B), /No tienes permiso/);
+  W.decir(A, `/dueño ${ADMIN}`);
+  W.decir(A, "/voz sí");
+  assert.match(W.ultimo(A), /la voz de cada micrófono llega/);
+  assert.equal(W.roles.voz, true);
+  const config = storage.load("roles")!.store.find(([k]) => k === "config")![1];
+  assert.deepEqual(config, { soloMiembros: false, deOtroMotor: 7, voz: true }, "fields this engine does not know are kept");
+  const W3 = mundo(0, { storage, reloj, voz: false });
+  W3.pump(3);
+  assert.equal(W3.roles.voz, true, "MOTOR_VOZ=no does not switch an existing world off");
+  assert.ok(!W3.log.some((l) => l.includes("mundo sin ajuste de voz guardado")));
 });
 
 test("C3: an owner is tied to the administration code it used; after the code changes (the fleet's «change the code») it is not", () => {

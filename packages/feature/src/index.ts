@@ -284,8 +284,8 @@ export type ServerApi = {
   /** 24 hex characters: HMAC-SHA256 of `text` with the server's secret (env MOTOR_SECRET, 16+ characters). "" when the server has no secret: refuse whatever needed it. Use it to sign URLs/tokens; features cannot import node:crypto. */
   sign(text: string): string;
   /** H1: may this player do this? Actions today: "construir" (place, move, delete things in the world). The server
-   * decides (MOTOR_CONSTRUIR=todos opens building to everyone, people and agents alike; H3 turns it into roles per
-   * identity). Ask it on every intent that changes the world; never trust the page. */
+   * decides with the world's roles (H3; @todos building or not is stored in the world: MOTOR_CONSTRUIR only seeds a
+   * new one, then /construir). Ask it on every intent that changes the world; never trust the page. */
   puede(entity: number, accion: string): boolean;
   /** H9: is there a file /a/<sha256>.<ext> on this server — the house library or something a builder uploaded?
    * (ext defaults to "glb"). Read-only; ask it before putting a model in the world. */

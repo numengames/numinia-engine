@@ -170,8 +170,10 @@ carpeta; para empezar de cero, parar el servicio y vaciarla.
 
 ## Construir en el mundo (H1)
 
-Por defecto todos construyen en un servidor instalado (personas y habitantes IA), hasta que lleguen los roles (H3).
-Para cerrarlo: `sudo bash instalar-motor.sh --construir nadie` (se guarda; `--construir todos` lo vuelve a abrir). Lo construido se guarda en `datos/objetos.json` + `.jsonl`. Los modelos que
+Por defecto todos construyen en un mundo nuevo instalado (personas y habitantes IA): `--construir nadie` lo empieza cerrado.
+Eso solo siembra el mundo la primera vez; desde entonces lo dicen sus roles, que viven en su carpeta y viajan en su zip
+(`datos/roles`), y lo cambia un dueño en el chat: `/construir nadie` o `/construir todos` (igual `/voz no` | `/voz sí` para
+los micrófonos, que `MOTOR_VOZ=no` solo siembra). Volver a instalar con otro `--construir` ya no cambia un mundo hecho. Lo construido se guarda en `datos/objetos.json` + `.jsonl`. Los modelos que
 se pueden colocar son los de la biblioteca de la casa (`app/activos/`, CC0), servidos en `/a/<sha256>.glb`.
 
 ## El cerebro de los habitantes IA (P5a)

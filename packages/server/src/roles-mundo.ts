@@ -8,6 +8,11 @@
 //   /silenciar <persona> [minutos]  (mute-members; 0 = lift it)    /echar <persona>  (remove-members; 10 min out)
 //   /vetar <persona> <motivo>       (ban-members, for good)        /perdonar <nombre> (ban-members: lifts both)
 //   /solo-miembros sí|no            (manage-organization: visitors stay out)
+//   /construir todos|nadie          (manage-organization: «build-in-worlds» of @todos, so visitors and AIs build or not)
+//   /voz sí|no                      (manage-organization: the microphones are relayed or not; at once, no restart)
+// File over app (numinia-archive ADR-074): what this world IS lives in its store, not in the environment. MOTOR_CONSTRUIR
+// and MOTOR_VOZ only SEED a world that never stored that choice (its first start; the log says so once); from then on
+// a restart with another value changes nothing — an owner changes it with the orders above, and it travels in the zip.
 // <persona> = the name over their head, as it is written. Without a numinia.com pass (H3b, pase.ts) a person here is a guest
 // id: someone who clears their browser comes back as a new guest — a ban holds the identity, not the human. With a pass the
 // person is their numinia.com id (`sub`, opaque): same person on every device, and the pass's permissions/height/roles
@@ -45,11 +50,12 @@ export const rolesFeature = defineFeature({
     silencio: { describe: "Alguien queda en silencio en el chat tantos segundos (0 = vuelve a hablar).", fields: { quien, segundos: { kind: "int", min: 0, max: SILENCIO_MAX_MIN * 60 } }, announce: "silent" },
     cambio: { describe: "Lo que alguien puede hacer ha cambiado (un rol, un dueño): objetos vuelve a decirle si construye.", fields: { quien }, announce: "silent" },
   },
-  store: { describe: "Los roles del mundo (forma de STD-052), quién tiene cada uno, los dueños, los vetados y si es solo para miembros." },
+  store: { describe: "Los roles del mundo (forma de STD-052, con si @todos construye), quién tiene cada uno, los dueños, los vetados y sus ajustes (config: solo para miembros, voz)." },
 });
 
 export type OpcionesRoles = {
-  construir: boolean;                                  // --construir todos: «build-in-worlds» in @todos (set at every start)
+  construir: boolean;                                  // --construir todos (MOTOR_CONSTRUIR): «build-in-worlds» in @todos, only for a world that never stored its roles
+  voz?: boolean;                                       // MOTOR_VOZ (default on): microphones relayed, only for a world that never stored it
   admin?: string;                                      // the administration code; under ADMIN_MIN characters = /dueño answers that there is none
   firmar?: (texto: string) => string;                  // the server's HMAC (secret.ts): ties an owner to THIS code without keeping it
   cerrar?: (entity: number, motivo: string) => void;   // close that connection (the server); none = only told
@@ -83,6 +89,8 @@ export function crearRoles(o: OpcionesRoles) {
   const silencios = new Map<string, number>();         // guest id -> until (ms)
   const intentos = new Map<number, { n: number; hasta: number }>();
   let soloMiembros = false;
+  let voz = o.voz ?? true;                             // without the feature running (bare servers) the seed is the answer
+  let config: Record<string, unknown> = {};            // the world's settings as stored (fields this engine does not know are kept)
   let api: ServerApi | null = null;
   const porCerrar: { e: number; motivo: string }[] = [];
 
@@ -110,21 +118,27 @@ export function crearRoles(o: OpcionesRoles) {
     log(`[pase] ${p.sub} entra con su pase de numinia.com (${p.dueno ? "dueño" : `altura ${p.altura}`}, ${p.permisos.length} permisos)`);
     return { id: p.sub, nombre: p.nombre ?? nombreDe(p.sub) };
   };
+  const todosConstruyen = (): boolean => roles.some((r) => esBase(r) && r.permisos.includes("build-in-worlds"));
 
   /** The question every permission check asks (api.puede, uploads, objetos). A visitor or an AI = @todos. */
   const puede = (who: Who | null, accion: string): boolean => accion in ACCION_PERMISO && tiene(accesoDe(who?.id), accion as Accion);
 
   const part: ServerPart = serverPart(rolesFeature, (a) => {
     api = a;
-    // what was kept (a world zip may bring roles numinia.com gave): checked; a broken list falls back to the template
+    // what was kept (a world zip may bring roles numinia.com gave) is the truth: checked; a broken list falls back to the
+    // template. Only a world with no roles yet takes --construir (MOTOR_CONSTRUIR) as its seed.
     const guardados = a.store.get("roles");
+    let guardadosValen = false;
     if (guardados !== undefined) {
       const r = validarRoles(guardados);
-      if (r.ok) roles = r.value; else log(`[roles] los roles guardados no valen (${r.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}): uso los de STD-052`);
+      if (r.ok) { roles = r.value; guardadosValen = true; } else log(`[roles] los roles guardados no valen (${r.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}): uso los de STD-052`);
     }
-    // --construir decides «build-in-worlds» of @todos at every start (it is the installer's switch)
-    roles = roles.map((r) => (esBase(r) ? { ...r, permisos: o.construir ? [...new Set([...r.permisos, "build-in-worlds" as const])] : r.permisos.filter((p) => p !== "build-in-worlds") } : r));
-    a.store.set("roles", roles);
+    if (!guardadosValen) {
+      a.store.set("roles", roles);
+      log(`[roles] mundo sin roles guardados: empieza con la plantilla y @todos ${o.construir ? "construye" : "no construye"} (MOTOR_CONSTRUIR, solo esta vez; luego /construir todos|nadie)`);
+    } else if (todosConstruyen() !== o.construir) {
+      log(`[roles] este mundo guarda que @todos ${todosConstruyen() ? "construye" : "no construye"}: MOTOR_CONSTRUIR solo vale para un mundo nuevo (cámbialo con /construir todos|nadie)`);
+    }
     const guardados2 = (a.store.get("duenos") as unknown[] | undefined) ?? [];
     let otros = 0;
     for (const d of guardados2) {
@@ -132,12 +146,16 @@ export function crearRoles(o: OpcionesRoles) {
       if (huella && typeof x?.id === "string" && x.codigo === huella) duenos.add(x.id); else otros++;
     }
     if (otros) { a.store.set("duenos", [...duenos].map((id) => ({ id, codigo: huella }))); log(`[roles] ${otros} dueño(s) lo eran con otro código de administración (o sin él): ya no lo son; /dueño <código> con el de ahora`); }
-    soloMiembros = (a.store.get("config") as { soloMiembros?: boolean } | undefined)?.soloMiembros === true;
+    const c = a.store.get("config");
+    config = c && typeof c === "object" && !Array.isArray(c) ? { ...(c as Record<string, unknown>) } : {};
+    soloMiembros = config.soloMiembros === true;
+    if (typeof config.voz === "boolean") voz = config.voz;
+    else { config.voz = voz; a.store.set("config", config); log(`[roles] mundo sin ajuste de voz guardado: voz ${voz ? "sí" : "no"} (MOTOR_VOZ, solo esta vez; luego /voz sí|no)`); }
     for (const k of a.store.keys()) {
       if (k.startsWith("m:")) { const v = a.store.get(k); if (Array.isArray(v)) miembros.set(k.slice(2), v.filter((x) => roles.some((r) => r.id === x))); }
       if (k.startsWith("veto:")) vetos.set(k.slice(5), a.store.get(k) as Veto);
     }
-    log(`[roles] ${roles.map((r) => r.nombre).join(", ")} · ${duenos.size} dueños, ${miembros.size} con rol, ${vetos.size} vetados${soloMiembros ? " · solo para miembros" : ""}`);
+    log(`[roles] ${roles.map((r) => r.nombre).join(", ")} · ${duenos.size} dueños, ${miembros.size} con rol, ${vetos.size} vetados${soloMiembros ? " · solo para miembros" : ""} · @todos ${todosConstruyen() ? "construye" : "no construye"}${voz ? "" : " · sin voz"}`);
 
     const avisar = (e: number, texto: string) => a.emit("aviso", { quien: e, texto: cortar(texto, AVISO_MAX) }, "server");
     const cambio = (e: number) => a.emit("cambio", { quien: e }, "server");
@@ -167,6 +185,12 @@ export function crearRoles(o: OpcionesRoles) {
       return yo;
     };
     const sacar = (e: number, motivo: string) => { avisar(e, motivo); porCerrar.push({ e, motivo }); };
+    const guardarConfig = () => { config = { ...config, soloMiembros, voz }; a.store.set("config", config); };
+    /** The world's settings (manage-organization): may `from` change them? Says why not. */
+    const ajusta = (from: number): boolean => {
+      if (tiene(accesoDe(a.who(from)?.id), "ajustar")) return true;
+      avisar(from, `No tienes permiso para ${ACCION_TEXTO.ajustar}.`); return false;
+    };
 
     const ordenes: Record<string, (from: number, resto: string) => void> = {
       roles: (from) => {
@@ -174,7 +198,7 @@ export function crearRoles(o: OpcionesRoles) {
         const mios = yo.dueno ? "dueño del mundo" : pase ? [...pase.roles.map((r) => r.nombre), "@todos"].join(", ") + " (de numinia.com)" : [...roles.filter((r) => m?.roles.includes(r.id)).map((r) => r.nombre), "@todos"].join(", ");
         const puedo = (Object.keys(ACCION_PERMISO) as Accion[]).filter((x) => tiene(yo, x)).map((x) => ACCION_TEXTO[x]);
         avisar(from, `Eres: ${mios}. Puedes: ${puedo.length ? puedo.join(", ") : "mirar y hablar"}. Roles de este mundo: ${roles.map((r) => r.nombre).join(", ")}${soloMiembros ? " (solo para miembros)" : ""}.`);
-        avisar(from, "Órdenes: /dar y /quitar <persona> <rol> · /silenciar <persona> [minutos] · /echar <persona> · /vetar <persona> <motivo> · /perdonar <nombre> · /solo-miembros sí|no · /dueño <código>");
+        avisar(from, "Órdenes: /dar y /quitar <persona> <rol> · /silenciar <persona> [minutos] · /echar <persona> · /vetar <persona> <motivo> · /perdonar <nombre> · /solo-miembros sí|no · /construir todos|nadie · /voz sí|no · /dueño <código>");
       },
       "dueño": (from, resto) => {
         const w = a.who(from);
@@ -232,12 +256,33 @@ export function crearRoles(o: OpcionesRoles) {
         avisar(from, `${resto.trim()} puede volver a entrar.`);
       },
       "solo-miembros": (from, resto) => {
-        if (!tiene(accesoDe(a.who(from)?.id), "ajustar")) { avisar(from, `No tienes permiso para ${ACCION_TEXTO.ajustar}.`); return; }
+        if (!ajusta(from)) return;
         const v = plano(resto);
         if (v !== "si" && v !== "no") { avisar(from, `Ahora ${soloMiembros ? "solo entran miembros" : "entra cualquiera"}. Escribe /solo-miembros sí o /solo-miembros no.`); return; }
-        soloMiembros = v === "si"; a.store.set("config", { soloMiembros });
+        soloMiembros = v === "si"; guardarConfig();
         log(`[roles] ${a.who(from)?.id}: solo para miembros = ${soloMiembros}`);
         avisar(from, soloMiembros ? "Desde ahora solo entran miembros (quien tiene un rol con «enter-worlds»). Quien ya está dentro sigue." : "Desde ahora entra cualquiera.");
+      },
+      // who may build: «build-in-worlds» of the base role, kept with the roles (datos/roles: it travels in the zip)
+      construir: (from, resto) => {
+        if (!ajusta(from)) return;
+        const v = plano(resto);
+        if (v !== "todos" && v !== "nadie") { avisar(from, `Ahora ${todosConstruyen() ? "construye cualquiera (@todos)" : "construye solo quien tiene un rol con «build-in-worlds»"}. Escribe /construir todos o /construir nadie.`); return; }
+        const si = v === "todos";
+        roles = roles.map((r) => (esBase(r) ? { ...r, permisos: si ? [...new Set([...r.permisos, "build-in-worlds" as const])] : r.permisos.filter((p) => p !== "build-in-worlds") } : r));
+        a.store.set("roles", roles);
+        for (const e of a.players()) cambio(e); // every page and AI learns at once whether it builds
+        log(`[roles] ${a.who(from)?.id}: @todos construye = ${si}`);
+        avisar(from, si ? "Desde ahora construye cualquiera que entre (también las IA del mundo)." : "Desde ahora construye solo quien tiene un rol con «build-in-worlds» (y los dueños).");
+      },
+      // the microphones: relayed or not (the instance asks before every voice frame, so it acts at once)
+      voz: (from, resto) => {
+        if (!ajusta(from)) return;
+        const v = plano(resto);
+        if (v !== "si" && v !== "no") { avisar(from, `Ahora ${voz ? "la voz llega a quien está cerca" : "no se oye ningún micrófono"}. Escribe /voz sí o /voz no.`); return; }
+        voz = v === "si"; guardarConfig();
+        log(`[roles] ${a.who(from)?.id}: voz = ${voz}`);
+        avisar(from, voz ? "Desde ahora la voz de cada micrófono llega a quien está cerca." : "Desde ahora no se oye ningún micrófono en este mundo.");
       },
     };
     ordenes.dueno = ordenes["dueño"];
@@ -300,6 +345,9 @@ export function crearRoles(o: OpcionesRoles) {
     acceso: (id: string | undefined) => accesoDe(id),
     get roles(): readonly Rol[] { return roles; },
     get soloMiembros() { return soloMiembros; },
+    /** Are microphones relayed in this world (the stored setting; MOTOR_VOZ only seeded it)? The instance asks it. */
+    get voz() { return voz; },
+    get todosConstruyen() { return todosConstruyen(); },
     get conectado() { return api !== null; },
   };
 }

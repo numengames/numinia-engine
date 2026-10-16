@@ -90,7 +90,7 @@ sitio, giro, escala y nombre. Medido por `test/objetos.test.ts`.
 |---|---|
 | Objetos por zona | hasta 2.000; la lista entera llega a quien entra |
 | Entrar en una zona llena (2.000) | 186,8 kB en 2.001 mensajes; 0,3 ms del servidor por persona |
-| Quién construye | hoy, todos o nadie (`MOTOR_CONSTRUIR=todos`; instalado, nadie); con H3, por rol (personas y agentes igual) |
+| Quién construye | por rol (H3, personas y agentes igual); @todos sí o no lo guarda el mundo (`MOTOR_CONSTRUIR` solo siembra uno nuevo; luego `/construir todos\|nadie`) |
 | Deshacer | los 50 últimos cambios de cada constructor; un arrastre de menos de 1 s cuenta como uno |
 | Ficheros | `GET /a/<sha256>.glb`, caché de un año; se bajan 4 a la vez, el más cercano primero |
 | Animación | la primera del modelo, en bucle, solo a menos de 40 m (móvil frío) |

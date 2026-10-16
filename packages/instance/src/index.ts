@@ -31,7 +31,7 @@ export type InstanceOptions = {
    * (the world has already told the person why). None = passes are ignored. */
   credencial?: (entity: number, pase: string, invitado: Who) => Who | null;
   activo?: (sha256: string, ext: string) => boolean; // H9: is /a/<sha256>.<ext> on this server (library or uploaded)? (api.activo)
-  sinVoz?: boolean; // U10: true = voice frames are not relayed (MOTOR_VOZ=no)
+  sinVoz?: boolean | (() => boolean); // U10: true = voice frames are not relayed; a function is asked at every frame (the world's /voz)
   aventura?: (carpeta: string) => { fichero: string; texto: string }[]; // J5: the adventure's text files (server/aventura.ts); none = no adventure
   // P4: AI inhabitants. `sign` checks agent tickets (a secret apart from the guests'); `nombre` = the name the world
   // declares for that inhabitant id (its habitante@1 file), null = this world has no such inhabitant. None = no agents.
@@ -101,7 +101,8 @@ export class Instance {
         if (pase === null) conn.bad++;
         else if (this.opts.identitySign && this.opts.credencial) conn.pase = pase; // a world that takes no passes ignores it (the person enters as a guest)
       } else if (bytes[0] === MSG.VOICE) {
-        if (!this.opts.sinVoz) this.relayVoice(conn, bytes);
+        const sinVoz = typeof this.opts.sinVoz === "function" ? this.opts.sinVoz() : this.opts.sinVoz;
+        if (!sinVoz) this.relayVoice(conn, bytes);
       } else if (bytes[0] === MSG.REPORT) {
         const r = decodeReport(bytes);
         if (!r) conn.bad++; else this.opts.onReport?.(entity, r); // no listener (tests, bots): ignored

@@ -1,7 +1,9 @@
 // mundo-carpeta (C2, C3): ONE folder is the whole world — the same in a container (/mundo), a bare install
 // (/var/lib/numinia-motor) and a dev run (tools/plaza.sh: .run). The server finds it in MOTOR_MUNDO.
 //   mundo.json   what this folder is: esquema, the engine that last opened it, when (written at every start)
-//   datos/       what the features keep (+ datos/activos/<sha256>.<ext> = uploads, H9)
+//   datos/       what the features keep (+ datos/activos/<sha256>.<ext> = uploads, H9). datos/roles also keeps the
+//                world's settings (ADR-074, file over app): whether @todos builds (in its roles) and voice on/off
+//                (config.voz). MOTOR_CONSTRUIR / MOTOR_VOZ only seed a world that never stored them; then /construir, /voz
 //   aventura/    the world's OWN adventure (misiones/ pnj/ cosas/ habitantes/ …): a new world gets a copy of the
 //                engine's example once; from then on it is the world's (a newer engine never swaps it)
 //   entorno/     entorno.json, elementos.json (optional; absent = the house defaults)
