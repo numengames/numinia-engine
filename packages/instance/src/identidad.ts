@@ -68,6 +68,33 @@ export function verificarAgente(sign: Sign, token: string, day: number): string 
   return diff === 0 ? parts[1] : null;
 }
 
+// ---------- ADR-080: outside agents (one door: its own Ed25519 key, the world lists its PUBLIC key) ----------
+// ticket = "a2.<agent id>.<utc ms>.<nonce>.<signature>"   nonce: 16 random bytes, base64url (22) · signature: Ed25519,
+// base64url (86), over mensajeAgente(): a fixed, domain-separated text with the world's name (the host the agent dials,
+// «motor.ejemplo.com» or «127.0.0.1:8790»), so a ticket made for one world never opens another. Pure here: the signer
+// and the verifier (node:crypto) live with the agent (packages/agent/src/llave.ts) and the server (server/puerta.ts).
+export const BILLETE2_MAX = 200;           // characters of an a2 ticket (the identity request carries up to IDENTIDAD_MAX)
+export const BILLETE2_VENTANA_MS = 120_000; // a ticket is accepted within ± 2 min of the server's clock, once
+export const NONCE = /^[A-Za-z0-9_-]{22}$/, FIRMA = /^[A-Za-z0-9_-]{86}$/;
+export type Billete2 = { id: string; ms: number; nonce: string; firma: string };
+
+/** What an outside agent signs to enter one world: never reused for anything else (the first line says what it is). */
+export const mensajeAgente = (mundo: string, id: string, ms: number, nonce: string): string =>
+  `numinia-engine/agente@1 entrar\nmundo ${mundo.toLowerCase()}\nid ${id}\nms ${ms}\nnonce ${nonce}`;
+
+/** The parts of an a2 ticket, or null when it is not one (shape only: the signature is checked by the server). */
+export function leerBillete2(token: string): Billete2 | null {
+  if (typeof token !== "string" || token.length > BILLETE2_MAX) return null;
+  const p = token.split(".");
+  if (p.length !== 5 || p[0] !== "a2" || !AGENTE_ID.test(p[1]) || !/^\d{13}$/.test(p[2]) || !NONCE.test(p[3]) || !FIRMA.test(p[4])) return null;
+  return { id: p[1], ms: Number(p[2]), nonce: p[3], firma: p[4] };
+}
+
+/** The world's name inside a ws/wss/http(s) URL: its host (and port when it has one), lower case; "" if it is no URL. */
+export function mundoDeUrl(url: string): string {
+  try { return new URL(url).host.toLowerCase(); } catch { return ""; }
+}
+
 /** The identity an inhabitant gets: id "ia-<id>" (never a guest id: those have no dash) and its name + « · IA». */
 export const agenteDe = (id: string, nombre: string): Agente => ({ id: `ia-${id}`, nombre: `${nombre}${MARCA_IA}`, ia: true });
 

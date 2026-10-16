@@ -38,13 +38,13 @@ const guardian = (): GuestKeeper & { token: string | null } => {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // ---------- the message ----------
-test("PASE: type 12, additive — the wire format number and IDENTITY's 120 bytes are untouched", () => {
+test("PASE: type 12, additive — the wire format number and IDENTITY's cap (200 characters since ADR-080's a2 ticket) are untouched", () => {
   assert.equal(MSG.PASE, 12);
   assert.equal(WIRE_FORMAT, 2, "an additive type does not bump the wire format");
   assert.equal(PASE_MAX, 2048);
   assert.equal(WS_FRAME_MAX, 1024);
-  assert.equal(decodeIdentityRequest(new Uint8Array(122).fill(65).fill(MSG.IDENTITY, 0, 1)), null, "IDENTITY still stops at 121 bytes");
-  assert.equal(encodeIdentityRequest("x".repeat(500)).length, 121);
+  assert.equal(decodeIdentityRequest(new Uint8Array(202).fill(65).fill(MSG.IDENTITY, 0, 1)), null, "IDENTITY still stops at 201 bytes");
+  assert.equal(encodeIdentityRequest("x".repeat(500)).length, 201);
 });
 
 test("PASE: a real pass (5 roles, ~1.3 KB) round-trips; the cap is 2048 bytes with the type byte; garbage is refused without throwing", () => {

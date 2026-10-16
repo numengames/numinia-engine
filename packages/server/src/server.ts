@@ -27,12 +27,14 @@ import { Pagina } from "./pagina.ts";
 import { infoMotor } from "./version.ts";
 import type { Motor } from "./version.ts";
 import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
-import { lectorAventura } from "./aventura.ts";
+import { leerFicha, lectorAventura } from "./aventura.ts";
 import { crearRoles } from "./roles-mundo.ts";
 import { configPase } from "./pase.ts";
+import { crearAgentesHttp } from "./agentes-http.ts";
 import type { ConfigPase } from "./pase.ts";
 import type { Who } from "../../instance/src/index.ts";
 import { leerHabitantes } from "../../agent/src/formato.ts";
+import { crearPuerta } from "./puerta.ts";
 import type { Metrics } from "./metrics.ts";
 
 export type ServerOptions = {
@@ -46,12 +48,14 @@ export type ServerOptions = {
   secret?: string;       // signs QR URLs etc. (api.sign); default: MOTOR_SECRET env; under 16 characters = none
   sesiones?: string | null; // T1: folder for the session log (one JSONL per UTC day); default null = keep in memory only
   datos?: string | null;    // S4: folder where the features' saved state and stores live; default null = memory only
-  construir?: "todos" | "nadie"; // H1: who may build in the world until H3 brings roles; default "nadie" (env MOTOR_CONSTRUIR)
+  construir?: "todos" | "nadie"; // H1/H3: whether @todos builds in a NEW world (its roles are stored after that; /construir); default "nadie" (env MOTOR_CONSTRUIR)
+  voz?: boolean;                 // U10: whether microphones are relayed in a NEW world (stored after that; /voz); default: env MOTOR_VOZ, on unless "no"
   biblioteca?: string | null;    // H1: the house library served at /a/<sha256>.<ext>; default the repo's activos/ (null = none)
   subidas?: string | null;       // H1/H9: folder of uploaded files named <sha256>.<ext>; default null (= no uploads)
   subir?: { topesMB?: Partial<Record<string, number>>; totalMB?: number }; // H9: smaller caps (tests); default ficheros.ts
   aventura?: string | null;      // J5: the adventure's folder (quests, people, things as text files); default null = none
   agentes?: string;              // P4: the secret that signs AI inhabitants' tickets (env MOTOR_AGENTES_SECRET); none or short = no inhabitants
+  dominios?: readonly string[];  // ADR-080: the world's public names an outside agent signs (env MOTOR_DOMINIO, commas); none = the host each connection asks for
   admin?: string;                // the administration code for /mundo and /dueño (env MOTOR_ADMIN; main.ts also ADMIN_CODE); none or short = /mundo answers 403
   pase?: ConfigPase | null;      // H3b: numinia.com's world pass (key, this world's id, org); undefined = read MOTOR_PASE_* from the environment; null = ignore passes
   reiniciar?: () => void;        // after a world was uploaded and swapped in: the installed server exits (systemd starts it again)
@@ -109,7 +113,10 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const motor: Motor = o.motor ?? (o.version ? { ...infoMotor(), build: o.version } : infoMotor());
   const version = o.version ?? motor.build;
   const born = performance.now();
-  const pagina = o.www ? new Pagina(o.www) : null; // C1: the page from the engine itself (one port per world)
+  // ADR-074: what the world is called, from its own folder (aventura/ficha.json); none = the engine's defaults
+  const { ficha, problemas: fichaMal } = leerFicha(o.aventura ?? null);
+  for (const p of fichaMal) log(`[ficha] no se carga: ${p}`);
+  const pagina = o.www ? new Pagina(o.www, { titulo: ficha?.nombre ?? null }) : null; // C1: the page from the engine itself (one port per world)
 
   const t0 = performance.now();
   const refHash = replayFingerprint(referenceRecording(REFERENCE.seed, REFERENCE.ticks, REFERENCE.n));
@@ -122,7 +129,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   let identitySign = signer(secret);
   if (!identitySign("probe")) { identitySign = signer(randomBytes(24).toString("hex")); log("[identidad] sin MOTOR_SECRET: los invitados no se reconocen después de reiniciar"); }
   // H3: the world's roles are numinia.com's (roles.ts, roles-mundo.ts): every permission check asks them; a visitor is
-  // «@todos», whose «build-in-worlds» is the --construir switch (MOTOR_CONSTRUIR)
+  // «@todos», whose «build-in-worlds» the world keeps (--construir / MOTOR_CONSTRUIR only seeds a new world; /construir)
   const construir = o.construir ?? "nadie";
   // H3b: numinia.com's world pass. Settings come from MOTOR_PASE_CLAVE / _MUNDO / _ORG (or `o.pase`); a key that is set but
   // wrong stops the start (fail closed: never a world that thinks it checks passes and does not); no key = passes ignored.
@@ -130,23 +137,32 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   if (!cfgPase.ok) return Promise.reject(new Error(cfgPase.error));
   log(cfgPase.pase ? `[pase] el mundo «${cfgPase.pase.mundo}» acepta pases de numinia.com (clave ${cfgPase.pase.clave.kid}${cfgPase.pase.org ? `, organización ${cfgPase.pase.org}` : ""})` : "[pase] sin MOTOR_PASE_CLAVE: los pases de numinia.com se ignoran (todos entran como invitados)");
   const sockets = new Map<number, WebSocket>();
+  // P4: who may enter as an AI inhabitant = the habitantes/ of the adventure, with a ticket of the agents' secret
+  const lector = lectorAventura(o.aventura ?? null, log);
+  const hab = leerHabitantes(lector("habitantes"));
+  for (const p of hab.problemas) log(`[habitantes] no se carga: ${p}`);
+  // ADR-080: outside agents = the adventure's agentes/ (their public keys); they sign their own a2 tickets
+  const dominios = o.dominios ?? (process.env.MOTOR_DOMINIO ?? "").split(",").filter((d) => d.trim());
+  const puerta = crearPuerta({ aventura: o.aventura ?? null, habitantes: () => new Set(hab.habitantes.map((h) => h.id)), dominios, log });
+  if (puerta.leer()) log(`[agentes] agentes de fuera que pueden entrar: ${puerta.agentes.map((x) => `${x.nombre} (${x.id}${x.rol ? `, rol ${x.rol}` : ""})`).join(", ")}${dominios.length ? ` · el mundo firma como ${dominios.join(", ")}` : ""}`);
   const roles = crearRoles({
-    construir: construir === "todos", admin: o.admin ?? process.env.MOTOR_ADMIN, log, firmar: identitySign, pase: cfgPase.pase,
+    construir: construir === "todos", voz: o.voz ?? process.env.MOTOR_VOZ !== "no", admin: o.admin ?? process.env.MOTOR_ADMIN, log, firmar: identitySign, pase: cfgPase.pase, puerta,
     cerrar: (e) => { sockets.get(e)?.close(CIERRE_ROLES, "fuera"); }, // the reason went out in the chat just before
   });
   const funciones = o.features?.length ? [...o.features, roles.part] : o.features; // no features (bare tests) = the pre-J7 wire
   const puede = (who: Who | null, accion: string) => roles.puede(who, accion);
   const activos = new Activos(o.biblioteca === undefined ? BIBLIOTECA : o.biblioteca, o.subidas ?? null, log);
   if (o.aventura) log(`[aventura] ${o.aventura}${existsSync(o.aventura) ? "" : " (no existe: el mundo arranca sin aventura)"}`);
-  // P4: who may enter as an AI inhabitant = the habitantes/ of the adventure, with a ticket of the agents' secret
-  const lector = lectorAventura(o.aventura ?? null, log);
-  const hab = leerHabitantes(lector("habitantes"));
-  for (const p of hab.problemas) log(`[habitantes] no se carga: ${p}`);
   const agentesSign = signer(o.agentes ?? process.env.MOTOR_AGENTES_SECRET);
   const agentes = agentesSign("probe") ? { sign: agentesSign, nombre: (id: string) => hab.habitantes.find((h) => h.id === id)?.nombre ?? null } : undefined;
   if (hab.habitantes.length) log(`[habitantes] ${hab.habitantes.map((h) => h.nombre).join(", ")}${agentes ? "" : " — sin MOTOR_AGENTES_SECRET: no podrán entrar como IA"}`);
+  // the cover: a picture this server has (library or datos/activos/); one it does not have is said once and left out
+  const [portadaSha, portadaExt] = ficha?.portada?.split(".") ?? [];
+  const portada = portadaSha && activos.buscar(portadaSha, portadaExt) ? `/a/${ficha!.portada}` : null;
+  if (ficha) log(`[ficha] el mundo se llama «${ficha.nombre}»${ficha.portada ? (portada ? `, portada ${portada}` : `; su portada ${ficha.portada} no está en este servidor (súbela al mundo): no la enseño`) : ""}`);
+  const fichaPublica = ficha ? { nombre: ficha.nombre, descripcion: ficha.descripcion, portada: portada ?? undefined } : {};
   if (o.aparicion) log(`[mundo] la gente aparece en el cuadrado de ${2 * o.aparicion.radio} m centrado en (${o.aparicion.x}, ${o.aparicion.z})`);
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, activo: (h, ext) => activos.buscar(h, ext) !== null, aventura: lector, agentes, sinVoz: process.env.MOTOR_VOZ === "no", aparicion: o.aparicion ?? null }); // U10: MOTOR_VOZ=no turns the microphone relay off
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, activo: (h, ext) => activos.buscar(h, ext) !== null, aventura: lector, agentes, externos: { verificar: puerta.verificar }, sinVoz: () => !roles.voz, aparicion: o.aparicion ?? null }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz)
   // H9: uploads (PUT /a/<sha256>.<ext>) by whoever may build; the page shows its guest token (I1) to say who it is
   const subidas = new Subidas({
     dir: o.subidas ?? null, activos, log, topesMB: o.subir?.topesMB, totalMB: o.subir?.totalMB,
@@ -191,20 +207,23 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     res.writeHead(r.status ?? 200, { "content-type": ct, "cache-control": "no-store" });
     res.end(type === "json" ? JSON.stringify(r.body) : String(r.body));
   };
+  const agentesHttp = crearAgentesHttp({ pase: cfgPase.pase, agentes: () => roles.agentes, log });
   const http: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
     const [path, qs = ""] = (req.url ?? "/").split("?");
     const method = req.method ?? "GET";
     if (method === "GET" && path === "/health") return json(res, 200, { ok: true, version, huella: hex(refHash), conectados: inst.conns.length });
-    // C4: what the Worlds room of numinia.com reads (no names, no positions); people only, not the AI inhabitants
+    // C4: what the Worlds room of numinia.com reads (no people's names, no positions); people only, not the AI inhabitants;
+    // with a ficha (ADR-074) also the world's own name, description and cover (/a/<sha256>.<ext>)
     if (method === "GET" && path === "/status") {
       res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "access-control-allow-origin": "*" });
-      return void res.end(JSON.stringify({ uptime: Math.floor((performance.now() - born) / 1000), conectados: inst.conns.filter((c) => !c.who?.id.startsWith("ia-")).length, commitHash: motor.commit ?? undefined, version }));
+      return void res.end(JSON.stringify({ uptime: Math.floor((performance.now() - born) / 1000), conectados: inst.conns.filter((c) => !c.who?.id.startsWith("ia-")).length, commitHash: motor.commit ?? undefined, version, ...fichaPublica }));
     }
     if (method === "GET" && path === "/metrics") return json(res, 200, metrics());
     if (method === "GET" && path === "/sesiones") return json(res, 200, { schema: "numinia-engine/sesiones@1", carpeta: sesiones.dir, resumen: sesiones.resumen(), ahora: sesiones.ahora() });
     if (method === "GET" && path === "/metrics.prom") { res.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8", "cache-control": "no-store" }); return void res.end(toPrometheus(metrics())); }
     if ((method === "GET" || method === "HEAD") && path.startsWith("/a/") && activos.servir(path, res, method === "HEAD", req.headers.range)) return; // H1: files by their sha256
     if ((method === "PUT" || method === "OPTIONS") && path.startsWith("/a/")) return subidas.atender(method, path, req, res); // H9: uploads
+    if (agentesHttp.atender(method, path, req, res)) return; // ADR-080: numinia.com's panel manages the outside agents (pass-authenticated)
     if (copia.atender(method, path, req, res)) return; // the world as a zip
     if (pagina?.servir(method, path, req, res)) return; // C1: the page (index.html, assets/) when the engine serves it
     if (method !== "GET" && method !== "POST") return json(res, 405, { error: "solo GET o POST" });
@@ -212,7 +231,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     const answer = (body: string) => {
       const r = inst.features.http(method, path, Object.fromEntries(new URLSearchParams(qs)), body);
       if (r) return reply(res, r);
-      json(res, 404, { error: `no existe ${method} ${path}`, hay: ["/health", "/status", "/metrics", "/metrics.prom", "/sesiones", ...inst.features.routes(), "WebSocket en cualquier ruta (/ws)"] });
+      json(res, 404, { error: `no existe ${method} ${path}`, hay: ["/health", "/status", "/metrics", "/metrics.prom", "/sesiones", "/agentes", ...inst.features.routes(), "WebSocket en cualquier ruta (/ws)"] });
     };
     if (method === "GET") return answer("");
     let body = "", size = 0;
@@ -228,10 +247,10 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   // maxPayload = PASE_MAX (2048, H3b): the one message that needs more than the old 1024 is the world pass (600-1300 B). The library
   // checks the size before anything is read, so the biggest legal frame has to fit here; wsTransport cuts the others at WS_FRAME_MAX as before.
   const wss = new WebSocketServer({ server: http, maxPayload: PASE_MAX, perMessageDeflate: false });
-  wss.on("connection", (ws) => {
+  wss.on("connection", (ws, req) => {
     if (inst.conns.length >= maxPlayers) { counts.rechazadasLlenas++; ws.close(1013, "instance full"); return; }
     counts.aceptadas++;
-    const entity = inst.connect(wsTransport(ws));
+    const entity = inst.connect(wsTransport(ws), undefined, req.headers.host); // ADR-080: the host an outside agent signs
     sockets.set(entity, ws);
     sesiones.abrir(entity);
     ws.on("close", (code) => { counts.cerradas++; sockets.delete(entity); sesiones.cerrar(entity, { cierre: code }); inst.disconnect(entity); });

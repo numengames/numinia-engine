@@ -1,0 +1,6 @@
+{
+  "formato": "ficha@1",
+  "nombre": "Plaza de ejemplo",
+  "descripcion": "La plaza con la que nace un mundo del motor: Alma, la guía, propone un paseo; Bruno, el farolero, perdió una caja; Teo, el jardinero, pide dos cosas, y Lía, una IA, saluda y construye si el mundo lo deja.",
+  "notas": "EJEMPLO del motor. ficha@1: nombre (1–60 caracteres), descripcion (hasta 500) y portada «<sha256>.png|jpg|webp» de una imagen ya subida al mundo (datos/activos/) o de la biblioteca. La página y GET /status dicen el nombre."
+}

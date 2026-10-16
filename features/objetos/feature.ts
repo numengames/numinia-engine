@@ -1,6 +1,6 @@
 // objetos — declaration (H1, parity with Hyperfy2's blueprints + entities). Things placed in the world that stay:
 // a model (by its sha256), where it is, how it is turned and scaled, its name. Built live by whoever may build
-// (api.puede: today MOTOR_CONSTRUIR=todos opens it to everyone, people and agents alike; H3 makes it roles).
+// (api.puede: the world's roles, H3; whether @todos builds is stored in the world — /construir todos|nadie).
 // The zone's list reaches everyone who enters (no `at`: scenery is seen from afar); changes go to the whole zone.
 import { defineFeature } from "../../packages/feature/src/index.ts";
 import type { Fields } from "../../packages/feature/src/index.ts";

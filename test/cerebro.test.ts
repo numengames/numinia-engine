@@ -31,14 +31,14 @@ const CLAVE = "sk-ant-prueba-0000000000000000000000000000";
 const keeper = (): GuestKeeper => { let t: string | null = null; return { load: () => t, save: (x) => { t = x; } }; };
 const pausa = () => new Promise((r) => setImmediate(r));
 
-function mundo(o: { construir: boolean; cerebro?: Cerebro; topes?: Topes }) {
+function mundo(o: { construir: boolean; cerebro?: Cerebro; topes?: Topes; h?: Habitante }) {
   const inst = new Instance({ seed: 3, capacity: 32, k: 50, snapshotEvery: 2, features: [chatServer, gestosServer, crearObjetos()], log: () => {}, identitySign: guests, now: () => NOW,
     agentes: { sign: agents, nombre: (id) => (id === "lia" ? "Lía" : null) }, puede: (_w, accion) => o.construir && accion === "construir" });
   const pumps: (() => void)[] = [];
   const t = inst.join(0), s = new ClientSession(t, { identity: keeper() }), oye: string[] = [];
   s.features.tap((f, e, m) => { if (f === "chat" && e === "dicho") oye.push(`${m.nombre}: ${m.texto}`); });
   pumps.push(() => { t.flush(); s.tick(0, 0); });
-  const lt = inst.join(0), c = new Cuerpo(lt, emitirAgente(agents, "lia", DAY)), g = new Guion(c, LIA);
+  const lt = inst.join(0), c = new Cuerpo(lt, emitirAgente(agents, "lia", DAY)), g = new Guion(c, o.h ?? LIA);
   pumps.push(() => g.paso());
   const cerebro = o.cerebro ?? cerebroEco();
   const log: string[] = [];
@@ -94,6 +94,28 @@ test("caps: per inhabitant a minute, per person a minute, and per UTC day for ev
   assert.equal(t.uso.llamadas, 6); assert.equal(t.uso.negadas, 3);
 });
 
+test("caps: an inhabitant's own calls a day (habitante@1 cerebro.tope) come on top of the service's", () => {
+  const t = new Topes({ porMinuto: 100, porPersonaMinuto: 100, alDia: 100 });
+  const at = (s: number) => NOW + s * 1000;
+  assert.equal(t.pedir("lia", "Ana", at(0), 2).ok, true); assert.equal(t.pedir("lia", "Bea", at(1), 2).ok, true);
+  assert.match((t.pedir("lia", "Cai", at(2), 2) as { porque: string }).porque, /su tope del día \(2 llamadas/);
+  assert.equal(t.pedir("teo", "Cai", at(3)).ok, true, "another inhabitant has its own count");
+  assert.equal(t.llamadasHoyDe("lia"), 2); assert.equal(t.llamadasHoy, 3);
+  assert.equal(t.pedir("lia", "Cai", Date.parse("2026-10-16T00:00:01Z"), 2).ok, true, "a new UTC day");
+  const pocos = new Topes({ alDia: 1 });
+  assert.equal(pocos.pedir("lia", "Ana", at(0), 50).ok, true);
+  assert.match((pocos.pedir("lia", "Bea", at(1), 50) as { porque: string }).porque, /entre todos/, "the service's cap still holds");
+});
+
+test("Claude's API: an inhabitant's own model goes in the request; without one, the installer's", async () => {
+  const modelos: string[] = [];
+  const falso = (async (_url: string, init: RequestInit) => { modelos.push(JSON.parse(String(init.body)).model); return new Response(JSON.stringify({ content: [] }), { status: 200 }); }) as unknown as typeof fetch;
+  const c = cerebroClaude({ clave: CLAVE, modelo: "claude-sonnet-5", fetch: falso });
+  await c.pensar({ sistema: "", mensajes: [{ role: "user", content: "a" }], herramientas: [], modelo: "claude-haiku-5" });
+  await c.pensar({ sistema: "", mensajes: [{ role: "user", content: "a" }], herramientas: [] });
+  assert.deepEqual(modelos, ["claude-haiku-5", "claude-sonnet-5"]);
+});
+
 test("what goes to the chat: short, no links, no markdown", () => {
   assert.equal(limpiarRespuesta("**Hola**, mira https://x.y/z `aquí`"), "Hola, mira aquí");
   const larga = limpiarRespuesta("Esta es una frase bastante larga que explica cosas. ".repeat(10));
@@ -106,6 +128,35 @@ test("habitante@1: escalón 2 or 4 needs a persona; the example (Lía, E4) passe
   assert.ok(!sin.ok && sin.issues.some((i) => i.path.endsWith("cerebro")));
   assert.equal(validarHabitante({ ...LIA, escalon: 0, cerebro: undefined }).ok, true);
   assert.equal(validarHabitante({ ...LIA, cerebro: { persona: "x", clave: "no" } }).ok, false, "nothing but the persona (a key never lives in the world)");
+});
+
+test("habitante@1 cerebro.modelo and cerebro.tope (ADR-074): optional, checked; anything that looks like a key is refused", () => {
+  const con = (c: Record<string, unknown>) => validarHabitante({ ...LIA, cerebro: { ...LIA.cerebro, ...c } });
+  assert.equal(con({ modelo: "claude-haiku-5", tope: 50 }).ok, true);
+  assert.equal(con({ modelo: "anthropic/claude-x:beta", tope: 10000 }).ok, true);
+  const camino = (r: ReturnType<typeof validarHabitante>) => (r.ok ? [] : r.issues.map((i) => i.path));
+  for (const tope of [0, 10001, 1.5, "50"]) assert.deepEqual(camino(con({ tope })), ["habitante.cerebro.tope"], String(tope));
+  const clave = "sk-ant-api03-" + "Ab3_".repeat(20);
+  for (const modelo of ["", "x", "con espacios", clave, 7]) assert.ok(camino(con({ modelo })).includes("habitante.cerebro.modelo"), String(modelo));
+  assert.deepEqual(camino(validarHabitante({ ...LIA, notas: `mi clave: ${clave}` })), ["habitante.notas"], "a key pasted anywhere in the file");
+  assert.deepEqual(camino(con({ persona: `Eres Lía. ${"Q".repeat(48)}` })), ["habitante.cerebro.persona"], "a long unbroken token looks like a key");
+  assert.equal(validarHabitante(LIA).ok, true, "the example's own texts are not taken for keys");
+});
+
+test("an inhabitant's own model reaches the brain and its own daily cap sends it back to its script", async () => {
+  const h: Habitante = { ...LIA, cerebro: { ...LIA.cerebro!, modelo: "claude-haiku-5", tope: 1 } };
+  const W = mundo({ construir: false, h });
+  await W.preparar();
+  W.decir("Lía, ¿qué tal el día?");
+  await W.vivir(HZ * 3);
+  const vistas = (W.cerebro as ReturnType<typeof cerebroEco>).vistas;
+  assert.equal(vistas.length, 1); assert.equal(vistas[0].modelo, "claude-haiku-5");
+  assert.ok(W.log.some((l) => l.includes("(su modelo: claude-haiku-5)")), W.log.join("\n"));
+  W.decir("Lía, ¿quién eres?");
+  await W.vivir(HZ * 3);
+  assert.equal(vistas.length, 1, "no second call: its cap is one a day");
+  assert.ok(W.log.some((l) => /contesta el guion \(su tope del día \(1 llamadas/.test(l)), W.log.join("\n"));
+  assert.ok(W.oye.some((l) => /Lía · IA: Soy Lía, una inteligencia artificial del motor/.test(l)), W.oye.join("\n"));
 });
 
 test("open world: asked by name, it builds with the verbs of a person (a scaled block is a table) and says so", async () => {

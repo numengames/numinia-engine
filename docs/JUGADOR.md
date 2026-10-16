@@ -135,7 +135,8 @@ sigues y a cuántos metros está. E (o un clic, o el botón en el móvil) habla 
 
 ## 11. Construir en el mundo (M22, como Hyperfy2 y Blender)
 
-Quien tiene permiso (hoy `MOTOR_CONSTRUIR=todos`; roles con H3) abre el modo construir; quien no, no lo ve.
+Quien tiene permiso (su rol; si el mundo deja construir a todos, cualquiera: un dueño lo cambia con `/construir
+todos` o `/construir nadie`) abre el modo construir; quien no, no lo ve.
 Todo cambio pasa por el servidor (`features/objetos`) y llega a todos al momento. Con ratón y teclado:
 
 | Tecla o ratón | Qué hace |

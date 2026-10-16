@@ -7,7 +7,7 @@ import { setBody } from "../packages/sim/src/index.ts";
 import { fx } from "../packages/core/src/index.ts";
 import { VOZ_MULAW, VOZ_TRAMAS_S, aMulaw, deMulaw, codificarVozSubida, leerVozSubida } from "../packages/net/src/index.ts";
 
-function mundo(n: number, opts: { sinVoz?: boolean } = {}) {
+function mundo(n: number, opts: { sinVoz?: boolean | (() => boolean) } = {}) {
   const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, log: () => {}, sinVoz: opts.sinVoz });
   const pages = Array.from({ length: n }, (_, i) => { const t = inst.join(i); const s = new ClientSession(t); const oido: number[] = []; s.onVoice = (v) => oido.push(v.entidad); return { t, s, oido }; });
   const pump = (k = 2) => { for (let i = 0; i < k; i++) { for (const p of pages) p.t.flush(); inst.tick(); for (const p of pages) p.t.flush(); } };
@@ -50,4 +50,15 @@ test("U10 voz: more than the cap per second is dropped; a server without voice r
   setBody(m.inst.sim, m.pages[0].s.entity, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0 });
   m.pump(4); m.pages[0].s.sendVoice(VOZ_MULAW, new Uint8Array(10)); m.pump();
   assert.equal(m.pages[1].oido.length, 0);
+});
+
+test("U10 voz: the world's setting is asked at every frame (/voz acts at once, no restart)", () => {
+  let sin = true;
+  const m = mundo(2, { sinVoz: () => sin });
+  for (const p of m.pages) setBody(m.inst.sim, p.s.entity, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0 });
+  m.pump(4); m.pages[0].s.sendVoice(VOZ_MULAW, new Uint8Array(10)); m.pump();
+  assert.equal(m.pages[1].oido.length, 0);
+  sin = false;
+  m.pages[0].s.sendVoice(VOZ_MULAW, new Uint8Array(10)); m.pump();
+  assert.deepEqual(m.pages[1].oido, [m.pages[0].s.entity]);
 });

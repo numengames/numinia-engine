@@ -144,9 +144,9 @@ en `features.cards()`. Un agente de IA lee lo mismo en el catálogo. Ejemplos: `
 
 ## Cosas colocadas en el mundo y permisos (H1)
 
-- `api.puede(entidad, "construir")` — el servidor dice si esa persona (o agente) puede cambiar el mundo. Hoy lo
-  decide `MOTOR_CONSTRUIR` (`todos` o, por defecto, nadie); con H3 serán roles por identidad; con un pase de numinia.com (H3b,
-  `pase.ts`) los permisos de esa persona son los del pase, en el mismo `puede`. Pregúntalo en cada
+- `api.puede(entidad, "construir")` — el servidor dice si esa persona (o agente) puede cambiar el mundo. Lo
+  deciden los roles del mundo (H3, guardados en su carpeta): `MOTOR_CONSTRUIR=todos` solo siembra un mundo nuevo, y
+  luego un dueño escribe `/construir todos|nadie`; con un pase de numinia.com (H3b, `pase.ts`) los permisos de esa persona son los del pase, en el mismo `puede`. Pregúntalo en cada
   intento que cambie el mundo: la página nunca decide.
 - `view.place?.(clave, { model, x, y, z, rx, ry, rz, sx, sy, sz, animate } | null)` — la página pone, mueve o quita
   una cosa con su modelo (sha256 de un `.glb`; el fichero sale de `/a/<sha256>.glb` del servidor). Giros en grados
@@ -261,8 +261,18 @@ mi-aventura/
   misiones/<id>.json   formato "mision@1"
   pnj/<id>.json        formato "pnj@1"     (personas que no son jugadores: hablan y dan misiones)
   cosas/<id>.json      formato "cosa@1"    (cosas que se cogen o se usan)
+  habitantes/<id>.json formato "habitante@1" (IA que viven en el mundo: packages/agent)
+  ficha.json           formato "ficha@1"   (opcional: cómo se llama el mundo, de qué va y su portada)
   *.md                 notas para quien escribe (no se leen)
 ```
+
+**`ficha@1`** (ADR-074: el mundo dice qué es desde su propia carpeta) — `{ "formato": "ficha@1", "nombre": "Plaza de
+ejemplo", "descripcion": "…", "portada": "<sha256>.webp" }`. `nombre` de 1 a 60 caracteres (sin `<` `>` ni saltos de
+línea), `descripcion` hasta 500 caracteres, `portada` = una imagen png, jpg o webp que el servidor ya tiene por su
+sha256 (la biblioteca de la casa o una subida al mundo, en `datos/activos/`, que viaja en el zip; tope 4 MB, el de
+cualquier imagen subida). Aquí, a diferencia de los demás formatos, se miden caracteres y **un campo desconocido se
+guarda** (un motor más nuevo puede añadir alguno). El nombre va al `<title>` de la página y a `GET /status` (`nombre`,
+`descripcion`, `portada` = `/a/<sha256>.<ext>` si el servidor la tiene). Sin ficha, todo como antes.
 
 Reglas para quien escribe (persona o LLM):
 - **Ids** en minúsculas, cifras y guiones (`primeros-pasos`); cada fichero, un `formato` en su primera línea. Un campo
@@ -352,3 +362,20 @@ Lo que pasa en el servidor (`features/misiones/server.ts`) y no se puede saltar 
 Para agentes y páginas: `window.__numinia.misiones` (`libro()`, `objetivos()`, `resumen()`, `dialogo()`, `hablar`,
 `elegir`, `adios`, `aceptar`, `abandonar`, `seguir`, `usar`); el mapa lee `objetivos()` → `[{ mision, paso, nombre,
 texto, x, z, seguida }]`.
+
+## Agentes de fuera: gestionarlos por HTTP (ADR-080, para el panel de numinia.com)
+
+Lo que el dueño hace en el chat con `/agente añadir|quitar` lo hace también el panel de numinia.com por HTTP, con el mismo
+código (`roles-mundo.ts`, `agentes`) y el mismo fichero (`aventura/agentes/<id>.json`):
+
+| Ruta | Hace | Respuesta |
+|---|---|---|
+| `GET /agentes` | lista | `{ agentes: [{ id, nombre, rol, permisos, presente }] }` (`presente` = conectado ahora) |
+| `POST /agentes` | añade; cuerpo `{ id, nombre, clave, rol? }` | 201 `{ ok, texto, agente }`; 400 datos que no valen, 409 ya existe o es un habitante |
+| `DELETE /agentes/<id>` | quita; si está dentro lo avisa y lo cierra con 4003 | 200 `{ ok, texto }`; 404 no existe |
+
+Entra solo con el pase de numinia.com (H3b): `Authorization: Bearer <pase>`, verificado como en el WebSocket (`aud` = este
+mundo) y con el permiso `manage-organization` o dueño. 401 = sin pase o pase malo (`{ error, texto }`, el `texto` en
+español del verificador), 403 = pase bueno sin permiso, 404 `agentes-desactivado` = el mundo no tiene `MOTOR_PASE_CLAVE`
+(cerrado, nunca abierto). CORS: solo `https://numinia.com` (responde al `OPTIONS` y pone `Access-Control-Allow-Origin`;
+a otro origen no le pone ninguna cabecera CORS; nunca `*`). El instalador deja pasar `/agentes*` por Caddy.

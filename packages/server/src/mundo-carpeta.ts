@@ -1,9 +1,15 @@
 // mundo-carpeta (C2, C3): ONE folder is the whole world — the same in a container (/mundo), a bare install
 // (/var/lib/numinia-motor) and a dev run (tools/plaza.sh: .run). The server finds it in MOTOR_MUNDO.
 //   mundo.json   what this folder is: esquema, the engine that last opened it, when (written at every start)
-//   datos/       what the features keep (+ datos/activos/<sha256>.<ext> = uploads, H9)
+//   datos/       what the features keep (+ datos/activos/<sha256>.<ext> = uploads, H9). datos/roles also keeps the
+//                world's settings (ADR-074, file over app): whether @todos builds (in its roles) and voice on/off
+//                (config.voz). MOTOR_CONSTRUIR / MOTOR_VOZ only seed a world that never stored them; then /construir, /voz
 //   aventura/    the world's OWN adventure (misiones/ pnj/ cosas/ habitantes/ …): a new world gets a copy of the
-//                engine's example once; from then on it is the world's (a newer engine never swaps it)
+//                engine's example once; from then on it is the world's (a newer engine never swaps it).
+//                aventura/ficha.json (ficha@1, optional, aventura.ts) says what the world is called, what it is about
+//                and its cover (<sha256>.png|jpg|webp in datos/activos/ or the library): the page title and /status
+//                aventura/agentes/<id>.json (agente@1, ADR-080): the outside AIs this world lets in, each by its PUBLIC
+//                Ed25519 key (its private key stays where the agent runs); owners add/remove them with /agente añadir|quitar
 //   entorno/     entorno.json, elementos.json (optional; absent = the house defaults)
 //   sesiones/    how each player entered (T1; never zipped)
 //   claves.env   only for a local run without keys in the environment (mode 600; never zipped)

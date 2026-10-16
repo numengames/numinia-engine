@@ -42,7 +42,7 @@ hace falta para que quepa el pase (medido 630–1.813 bytes; un tope de 1.536 no
 |---|---|---|---|---|---|---|
 | INPUT (1) | página → servidor | 6 | fijo: secuencia, dos ejes, botones | 0 (formato fijo) | 6 | medido (`test/mensajes-tope.test.ts`) |
 | PING (3) | página → servidor | 5 | fijo | 0 | 5 | medido (ídem) |
-| IDENTITY (10), petición | página → servidor | 121 | token de invitado (`g1.<id>.<día>.<firma>`) | 74 bytes (61 %) | 47 | medido (`test/mensajes-tope.test.ts`; el tope, en `test/pase-cable.test.ts`) |
+| IDENTITY (10), petición | página → servidor | 201 | token de invitado (`g1.<id>.<día>.<firma>`) o billete `a2.` de un agente de fuera (ADR-080, hasta 200 caracteres) | 823 bytes bajo el corte de 1024 | 47 (invitado) | medido (`test/mensajes-tope.test.ts`; el tope, en `test/pase-cable.test.ts`) |
 | PASE (12) | página → servidor | 2048 | el pase de numinia.com | 11 % sobre el peor caso emitible | 630 (un rol), **1.813** (5 roles CJK, 8 permisos, nombre de 40) | medido (`test/pase-cable.test.ts`) |
 | REPORT (9) | página → servidor | 1000 | un informe JSON; la página recorta `ua`/`gpu` si no cabe | 20 % sobre lo visto | 799 guardados (entrada) | medido en sesiones locales; **sin medir en aparatos reales** |
 | VOICE (11) | página → servidor | 704 | 4 de cabecera + 700 de trama | 380 bytes (54 %) | 324 (20 ms µ-law) | medido (`test/mensajes-tope.test.ts`) |
@@ -90,7 +90,7 @@ sitio, giro, escala y nombre. Medido por `test/objetos.test.ts`.
 |---|---|
 | Objetos por zona | hasta 2.000; la lista entera llega a quien entra |
 | Entrar en una zona llena (2.000) | 186,8 kB en 2.001 mensajes; 0,3 ms del servidor por persona |
-| Quién construye | hoy, todos o nadie (`MOTOR_CONSTRUIR=todos`; instalado, nadie); con H3, por rol (personas y agentes igual) |
+| Quién construye | por rol (H3, personas y agentes igual); @todos sí o no lo guarda el mundo (`MOTOR_CONSTRUIR` solo siembra uno nuevo; luego `/construir todos\|nadie`) |
 | Deshacer | los 50 últimos cambios de cada constructor; un arrastre de menos de 1 s cuenta como uno |
 | Ficheros | `GET /a/<sha256>.glb`, caché de un año; se bajan 4 a la vez, el más cercano primero |
 | Animación | la primera del modelo, en bucle, solo a menos de 40 m (móvil frío) |

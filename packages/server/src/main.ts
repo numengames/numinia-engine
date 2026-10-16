@@ -9,6 +9,8 @@
 // entorno.json/elementos.json). Without MOTOR_MUNDO: .run/datos, informes/sesiones, aventuras/ejemplo, as before.
 // C3 — keys: MOTOR_SECRET or JWT_SECRET; MOTOR_ADMIN or ADMIN_CODE (the fleet's key file); else, with a world folder,
 // made once into <mundo>/claves.env (600). Never printed.
+// ADR-080 — outside agents (aventura/agentes/, agente@1) sign the world's name: MOTOR_DOMINIO=<public host>[,<other>]
+// (e.g. motor.ejemplo.com); unset = the host each connection asks for (fine on a PC).
 import { startServer } from "./server.ts";
 import funciones from "../../../features/servidor.ts";
 import { aparicionDelMundo, conMundo } from "../../../features/mundo.ts";
@@ -42,7 +44,8 @@ const srv = await startServer({
   aparicion: leerEntorno ? aparicionDelMundo(leerEntorno, log) : null,  // where people appear (entorno.json `aparicion`; a tower's floor)
   sesiones: env.SESIONES_DIR || c?.sesiones || "informes/sesiones", // T1: how each player entered
   datos,                                                              // S4: what features keep across restarts
-  construir: env.MOTOR_CONSTRUIR === "todos" ? "todos" : "nadie",     // H1: who may build (H3 roles: @todos' build-in-worlds)
+  construir: env.MOTOR_CONSTRUIR === "todos" ? "todos" : "nadie",     // H1: who may build in a NEW world (then its stored roles: /construir)
+  voz: env.MOTOR_VOZ !== "no",                                        // U10: microphones on in a NEW world (then its stored setting: /voz)
   subidas: env.ACTIVOS_DIR || `${datos}/activos`,                     // H9: uploaded files by sha256, next to the saved world; activos/ is always served
   aventura: env.AVENTURA_DIR === "" ? null : (env.AVENTURA_DIR ?? c?.aventura ?? "aventuras/ejemplo"), // J5: quests, people, things (AVENTURA_DIR= for none)
   entorno, mundo: c?.raiz ?? null,

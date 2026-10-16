@@ -148,7 +148,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | M22 | Constructor en el mundo, en vivo (paridad Hyperfy2): gizmos, duplicar, borrar, deshacer, soltar ficheros, inspector, biblioteca; para personas y agentes de IA, según su rol (el panel mínimo ya existe: H1) | hecho (escritorio; VR y móvil → M22b) | sí |
 | M22b | Constructor en VR y en el móvil (gizmo con el mando y con el dedo) | pendiente | sí |
 | M22c | Constructor: puntos de encaje, selección múltiple y jerarquía | pendiente | sí |
-| M26 | Servidor MCP del motor: leer zona (con el cuerpo de P4), proponer cambio, abrir PR (nunca publica solo) | espera a M19, P4b | sí |
+| M26 | Servidor MCP del motor: leer zona (con el cuerpo de P4), proponer cambio, abrir PR (nunca publica solo). Trozo 1 hecho (ADR-080, rama `agentes/puerta`): la puerta de los agentes de fuera y un puente MCP por stdio junto al agente; falta el MCP servido por el propio mundo (HTTPS) | espera a M19, P4b | sí |
 | O4 | Seguridad: billete firmado para entrar a una instancia, tope de conexiones por IP, exportar y borrar lo tuyo | pendiente | sí |
 | O3 | Observabilidad: panel y alertas sobre `/metrics` del servidor real | espera a X3 | sí |
 | M17 | Voz por cercanía (LiveKit) con tope de voces audibles, DTX y modo escenario | necesita aprobación (Pablo: cuántas voces a la vez, `docs/SABER.md` §5) | no |
@@ -805,6 +805,20 @@ gira un objeto con el gizmo y deshace; la B ve cada paso; un visitante no ve el 
 ### M26 — MCP del motor (espera a M19 y P4b)
 Tres herramientas: leer una zona (con el cuerpo de P4: lo que ve un jugador, no un volcado del servidor), proponer un
 cambio de manifiesto, abrir un PR. Nunca publica sola: la etapa de autonomía la abre Pablo (`docs/SABER.md` §5).
+
+**Trozo 1 hecho (16-10, rama `agentes/puerta`; numinia-archive ADR-080: una sola puerta para la IA que vive fuera).**
+Formato `agente@1` (`aventura/agentes/<id>.json`: id, nombre — el servidor pone « · IA» —, responsable, clave PÚBLICA
+Ed25519 como `ed25519:<base64url de los 32 bytes>`, rol?, presencia?, notas?; `tools/aventura.ts` lo comprueba; una clave
+privada se rechaza). Billete `a2.<id>.<ms>.<nonce>.<firma>` firmado por el agente sobre el nombre del mundo
+(`MOTOR_DOMINIO` o el host al que se conecta), ± 2 min, una sola vez. Lo que puede una IA = su rol ∩ {entrar, construir}:
+nunca modera. Órdenes del dueño en el chat: `/agente añadir <id> <nombre…> <clave> [rol]`, `/agente quitar <id>` (cierra
+con 4003), `/agente`. Llave del agente: `node tools/agente.ts nuevo <id>` (privada 600 en `~/.numinia/agentes/`).
+Puente: `tools/mcp-mundo.ts`, MCP por stdio hecho a mano (sin dependencias), con el cuerpo de P4: mirar, decir, ir_a,
+colocar, mover, borrar, deshacer, oir. Cómo conectar Hermes: `packages/agent/README.md`. **Puerta HTTP para el panel de numinia.com (hecho):** `GET|POST /agentes` y `DELETE /agentes/<id>` (`packages/server/src/agentes-http.ts`, `test/agentes-http.test.ts`) con el pase H3b (`manage-organization` o dueño; 401/403; 404 sin `MOTOR_PASE_CLAVE`) y CORS solo para `https://numinia.com`; mismo código que `/agente` (`roles-mundo.ts`). **Falta del lado de numinia.com:** la pantalla del panel que las llama, y que el pase de gestión lleve `manage-organization`. **Medido:** pruebas
+`test/puerta.test.ts` y `test/mcp-mundo.test.ts` (el puente como proceso hijo contra un servidor real: coloca, mueve y
+borra en el estado de objetos del servidor; `/agente quitar` lo cierra con 4003 y no vuelve). **Falta:** las herramientas
+servidas por el propio mundo (MCP por HTTPS), proponer cambio y abrir PR (espera a M19), el timbre que despierta a un
+agente «a demanda», el instalador pasando `--dominio` como `MOTOR_DOMINIO`, y el chat del mundo como canal de Hermes.
 
 ### O4 — Seguridad (espera a I1 y S4)
 Billete firmado y con caducidad para entrar a una instancia (de I1); tope de conexiones por IP y de mensajes

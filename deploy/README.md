@@ -72,11 +72,11 @@ systemctl status numinia-motor        # ¿está vivo?
 journalctl -u numinia-motor -f        # cada 30 s: conectados, tick p99, kbit/s por persona
 bash instalar-motor.sh --version      # qué versión lleva el fichero
 curl -s localhost:8790/health         # {"ok":true,"version":…,"huella":"93b192c8","conectados":N}
-curl -s localhost:8790/status         # {"uptime":s,"conectados":N,"commitHash":"<40 hex>","version":"<build>"} (lo lee la sala de Mundos)
+curl -s localhost:8790/status         # {"uptime":s,"conectados":N,"commitHash":"<40 hex>","version":"<build>"} (lo lee la sala de Mundos; con aventura/ficha.json, también "nombre", "descripcion", "portada")
 curl -s localhost:8790/metrics        # JSON: conectados, tick p50/p99/peor (últimos 10 s), respuesta del tick, bucle, CPU, steal, memoria, kbit/s por persona…
 ```
 
-`/health` y `/status` también se ven desde fuera (`https://<dominio>/health`); `/metrics` solo desde el propio
+`/agentes` (gestión de agentes de fuera para el panel de numinia.com: pase de numinia.com con `manage-organization`, CORS solo `https://numinia.com`; 404 si el mundo no tiene `MOTOR_PASE_CLAVE`) también pasa por Caddy. `/health` y `/status` también se ven desde fuera (`https://<dominio>/health`); `/metrics` solo desde el propio
 servidor. Para leerlo desde casa (8790 ya lo usa la plaza de tu PC): `ssh -L 18790:127.0.0.1:8790 root@IP`
 y abrir `http://localhost:18790/metrics`; el enjambre lo lee con `--metrics http://localhost:18790/metrics`.
 
@@ -170,8 +170,10 @@ carpeta; para empezar de cero, parar el servicio y vaciarla.
 
 ## Construir en el mundo (H1)
 
-Por defecto todos construyen en un servidor instalado (personas y habitantes IA), hasta que lleguen los roles (H3).
-Para cerrarlo: `sudo bash instalar-motor.sh --construir nadie` (se guarda; `--construir todos` lo vuelve a abrir). Lo construido se guarda en `datos/objetos.json` + `.jsonl`. Los modelos que
+Por defecto todos construyen en un mundo nuevo instalado (personas y habitantes IA): `--construir nadie` lo empieza cerrado.
+Eso solo siembra el mundo la primera vez; desde entonces lo dicen sus roles, que viven en su carpeta y viajan en su zip
+(`datos/roles`), y lo cambia un dueño en el chat: `/construir nadie` o `/construir todos` (igual `/voz no` | `/voz sí` para
+los micrófonos, que `MOTOR_VOZ=no` solo siembra). Volver a instalar con otro `--construir` ya no cambia un mundo hecho. Lo construido se guarda en `datos/objetos.json` + `.jsonl`. Los modelos que
 se pueden colocar son los de la biblioteca de la casa (`app/activos/`, CC0), servidos en `/a/<sha256>.glb`.
 
 ## El cerebro de los habitantes IA (P5a)
@@ -188,7 +190,10 @@ journalctl -u numinia-habitantes -f              # cada respuesta: modelo, token
 La clave queda en `/opt/numinia-engine/cerebro.env` (0640, solo el servicio de habitantes; el motor no la lee) y
 ese servicio solo puede hablar con el motor de la máquina y con Anthropic (`IPAddressAllow`). Topes: 300 llamadas al
 día entre todos (`CEREBRO_DIA_MAX` en ese fichero), 6 por minuto por habitante, 3 por minuto por persona. Sin clave,
-pasado un tope o con el proveedor caído, contestan con su guion.
+pasado un tope o con el proveedor caído, contestan con su guion. El mundo puede decir más en el fichero de cada
+habitante (`aventura/habitantes/<id>.json`, viaja en el zip): `"cerebro": { "persona": …, "modelo": "claude-haiku-4-5",
+"tope": 100 }` = ese habitante piensa con ese modelo (si no, el de la instalación) y hace como mucho 100 llamadas al día
+(UTC), además de los topes de arriba. La clave nunca va ahí: el fichero que lleve algo con pinta de clave no se carga.
 
 ## Subir tus modelos (H9)
 

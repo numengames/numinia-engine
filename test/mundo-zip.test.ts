@@ -146,7 +146,7 @@ test("mundo@2: the adventure and the environment travel; the extras run it (comp
   const z = join(tmp("mundo2-"), "m.zip");
   await aFichero(z, (w) => exportarMundo(w, o, MOTOR));
   const lista = spawnSync("unzip", ["-Z1", z], { encoding: "utf8" }).stdout.trim().split("\n");
-  for (const f of ["aventura/LEEME.md", "aventura/misiones/primeros-pasos.json", "aventura/pnj/alma.json", "aventura/pnj/bruno.json", "aventura/cosas/caja-de-bruno.json", "aventura/habitantes/lia.json", "aventura/pnj/roto.json", "entorno/entorno.json", "compose.yml", "arrancar.sh", "LEEME.txt"]) assert.ok(lista.includes(f), f);
+  for (const f of ["aventura/LEEME.md", "aventura/ficha.json", "aventura/misiones/primeros-pasos.json", "aventura/pnj/alma.json", "aventura/pnj/bruno.json", "aventura/cosas/caja-de-bruno.json", "aventura/habitantes/lia.json", "aventura/pnj/roto.json", "entorno/entorno.json", "compose.yml", "arrancar.sh", "LEEME.txt"]) assert.ok(lista.includes(f), f);
   for (const f of lista) assert.doesNotMatch(f, /claves|sesiones|subidas|grande|Mal Nombre|\.subiendo/, f);
   const z1 = spawnSync("unzip", ["-Z", z, "arrancar.sh"], { encoding: "utf8" }).stdout;
   assert.match(z1, /^-rwxr-xr-x/m, "arrancar.sh is executable once unzipped");

@@ -12,6 +12,8 @@ import { carpetaMundo, claves, escribirManifiesto, sembrar } from "../packages/s
 import { Pagina } from "../packages/server/src/pagina.ts";
 import { arrancar, etiqueta } from "../packages/server/src/mundo-extras.ts";
 import { startServer } from "../packages/server/src/server.ts";
+import { leerFicha, validarFicha } from "../packages/server/src/aventura.ts";
+import { createHash } from "node:crypto";
 import { serverUrl } from "../packages/client/src/index.ts";
 import { webSocketClient } from "../packages/net/src/index.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
@@ -95,6 +97,55 @@ test("C4: /status = {uptime, conectados, commitHash, version} — no names, no p
     assert.ok(Number.isInteger(st.uptime) && st.uptime >= 0);
     t.close();
   } finally { await srv.close(); }
+});
+
+test("ADR-074: aventura/ficha.json names the world — the served page's <title> and /status say it, with a cover the server has", async () => {
+  const aventura = tmp("ficha-"), www = tmp("www-ficha-");
+  writeFileSync(join(www, "index.html"), "<!doctype html><title>Numinia · motor</title><p>hola</p>");
+  const textura = readFileSync(new URL("../activos/texturas/hierba-color.webp", import.meta.url));
+  const sha = createHash("sha256").update(textura).digest("hex");
+  writeFileSync(join(aventura, "ficha.json"), JSON.stringify({ formato: "ficha@1", nombre: " La plaza «de» Ana & Bea ", descripcion: "Un mundo de prueba.", portada: `${sha}.webp`, deUnMotorNuevo: { x: 1 } }));
+  const log: string[] = [];
+  const srv = await startServer({ port: 0, host: "127.0.0.1", log: (l) => log.push(l), statsMs: 60_000, motor: MOTOR, aventura, www });
+  const url = (q: string) => `http://127.0.0.1:${srv.port}${q}`;
+  try {
+    const st = await (await fetch(url("/status"))).json();
+    assert.equal(st.nombre, "La plaza «de» Ana & Bea"); assert.equal(st.descripcion, "Un mundo de prueba."); assert.equal(st.portada, `/a/${sha}.webp`);
+    assert.equal((await fetch(url(st.portada))).status, 200, "the cover is served where every picture of the world is");
+    const raiz = await fetch(url("/")), html = await raiz.text();
+    assert.equal(html, "<!doctype html><title>La plaza «de» Ana &amp; Bea</title><p>hola</p>");
+    assert.equal(raiz.headers.get("content-length"), String(Buffer.byteLength(html)));
+    assert.equal((await fetch(url("/"), { headers: { "if-none-match": raiz.headers.get("etag")! } })).status, 304);
+    assert.ok(log.some((l) => l.includes("[ficha] el mundo se llama «La plaza «de» Ana & Bea»")));
+  } finally { await srv.close(); }
+  // a cover this server does not have: said once, left out; the name still goes
+  writeFileSync(join(aventura, "ficha.json"), JSON.stringify({ formato: "ficha@1", nombre: "Otra", portada: `${"0".repeat(64)}.png` }));
+  const log2: string[] = [];
+  const srv2 = await startServer({ port: 0, host: "127.0.0.1", log: (l) => log2.push(l), statsMs: 60_000, motor: MOTOR, aventura });
+  try {
+    const st = await (await fetch(`http://127.0.0.1:${srv2.port}/status`)).json();
+    assert.equal(st.nombre, "Otra"); assert.equal(st.portada, undefined);
+    assert.ok(log2.some((l) => /no está en este servidor/.test(l)));
+  } finally { await srv2.close(); }
+});
+
+test("ficha@1: checked with paths, never throws; unknown fields kept; a broken or absent ficha = the world as before", () => {
+  const ok = validarFicha({ formato: "ficha@1", nombre: "Plaza", notas: "para personas", nuevo: [1] });
+  assert.ok(ok.ok && ok.value.nuevo !== undefined && ok.value.notas === "para personas");
+  const ko = validarFicha({ formato: "ficha@2", nombre: "x".repeat(61), descripcion: "y".repeat(501), portada: "../../etc/passwd" });
+  assert.ok(!ko.ok);
+  assert.deepEqual(ko.issues.map((i) => i.path), ["ficha.json.formato", "ficha.json.nombre", "ficha.json.descripcion", "ficha.json.portada"]);
+  assert.ok(validarFicha({ formato: "ficha@1", nombre: "ñ".repeat(60), descripcion: "é".repeat(500) }).ok, "limits count characters, not bytes");
+  assert.ok(!validarFicha({ formato: "ficha@1", nombre: "<script>" }).ok);
+  assert.ok(!validarFicha({ formato: "ficha@1", nombre: "a", portada: `${"a".repeat(64)}.glb` }).ok, "a cover is a png, jpg or webp");
+  assert.ok(!validarFicha([]).ok);
+  const d = tmp("ficha-mal-");
+  assert.deepEqual(leerFicha(d), { ficha: null, problemas: [] }, "no ficha: nothing to say");
+  assert.deepEqual(leerFicha(null), { ficha: null, problemas: [] });
+  writeFileSync(join(d, "ficha.json"), "{ roto");
+  assert.match(leerFicha(d).problemas[0], /^ficha\.json: JSON roto/);
+  const ej = leerFicha(new URL("../aventuras/ejemplo", import.meta.url).pathname);
+  assert.equal(ej.ficha?.nombre, "Plaza de ejemplo"); assert.deepEqual(ej.problemas, []);
 });
 
 test("arrancar.sh points at the release the installer is tagged with (its own short commit, any length)", () => {

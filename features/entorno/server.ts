@@ -47,6 +47,7 @@ export const crearEntorno = (mundo?: unknown) => serverPart(entorno, (api) => {
   const avisar = (e: number) => { api.emit("permiso", { construir: api.puede(e, "construir") }, { to: e }); };
   api.onJoin(avisar);
   api.onIdentify((e) => avisar(e));
+  api.listen("roles", "cambio", (m) => { avisar(Number(m.quien)); return true; }); // H3: a role given or taken, /construir
 
   api.on("preset", (from, m) => {
     if (!puede(from)) return;

@@ -11,7 +11,7 @@
 #                  --sin-habitantes   (no AI inhabitants: stops and disables numinia-habitantes if it was there)
 #                  --auto-actualizar  (timer: installs every new release of GitHub by itself, sha256 checked; actualizar.sh)
 #                  --sin-auto-actualizar · --sin-dominio (back to HTTP by IP)
-#                  --construir todos|nadie  (who may place and move things in the world; default todos, until roles: H3)
+#                  --construir todos|nadie  (who may place and move things in a NEW world; default todos; then the world's roles: /construir)
 #                  --clave-ia  (asks, without showing it, the Claude key for the AI inhabitants' brain; checks it with
 #                              Anthropic and keeps it in /opt/numinia-engine/cerebro.env) · --modelo-ia ID · --quitar-clave-ia
 #   Options are saved in /opt/numinia-engine/instalacion.env: a later run without them keeps them (the updater relies on it).
@@ -207,7 +207,8 @@ Group=$USER_NAME
 WorkingDirectory=$PREFIX/app
 Environment=PORT=$PORT HOST=127.0.0.1 STATS_MS=30000 NODE_ENV=production MOTOR_MUNDO=$STATE SESIONES_DIR=$STATE/sesiones DATOS_DIR=/var/lib/numinia-motor/datos ACTIVOS_DIR=/var/lib/numinia-motor/datos/activos MOTOR_CONSTRUIR=$CONSTRUIR
 # C2: the whole world in one folder (datos/, aventura/, entorno/, sesiones/), the same layout as a container's /mundo
-# H1: who may place, move and delete things (--construir todos|nadie; todos = people and AI inhabitants alike, until H3 roles)
+# H1: who may place, move and delete things in a NEW world (--construir todos|nadie; todos = people and AI inhabitants alike);
+# once the world has stored its roles they decide (ADR-074: the world folder is the truth) and an owner types /construir
 # T1: how each player entered (device, browser, XR, frames), one JSONL per UTC day, 14 days, no IP
 # S4: what the game features keep across restarts (datos/<feature>.json + .jsonl); back it up with the folder
 # H9: what builders upload (datos/activos/<sha256>.<ext> + subidas.jsonl: who, when); the server creates it; same backup
@@ -342,6 +343,10 @@ $SITE {
 	handle /mundo* {
 		reverse_proxy 127.0.0.1:$PORT
 	}
+	# ADR-080: numinia.com's panel manages the outside AI agents here (a world pass with manage-organization; CORS only for https://numinia.com)
+	handle /agentes* {
+		reverse_proxy 127.0.0.1:$PORT
+	}
 	handle {
 		root * $PREFIX/www
 		@hashed path /assets/*
@@ -421,7 +426,7 @@ say "el mundo en un zip (bajar y subir): $WEB/mundo · código: sudo cat $PREFIX
 say "hazte dueño del mundo: entra y escribe en el chat /dueño <ese código> (luego /roles)"
 say "registro: journalctl -u $SERVICE -f · estado: systemctl status $SERVICE"
 [ "$HABITANTES" = 1 ] && say "habitantes IA: journalctl -u $HAB_SERVICE -f (quitarlos: systemctl stop $HAB_SERVICE) · cerebro: $([ -f "$PREFIX/cerebro.env" ] && echo "sí ($(grep -m1 '^CEREBRO_MODELO=' "$PREFIX/cerebro.env" | cut -d= -f2))" || echo "no (ponlo con --clave-ia)")"
-say "construir: $CONSTRUIR (cámbialo con --construir todos|nadie)"
+say "construir: $CONSTRUIR para un mundo nuevo (en uno que ya tiene sus roles lo cambia un dueño en el chat: /construir todos|nadie)"
 if [ "$AUTO" = 1 ]; then say "auto-actualizar: sí (pausa: touch $PREFIX/PAUSA · ver: journalctl -u $ACT_SERVICE)"; else say "auto-actualizar: no (actívalo con --auto-actualizar)"; fi
 exit 0
 __CARGA_DEBAJO__
