@@ -6,7 +6,7 @@ import type { SimState, SpawnArea } from "../../sim/src/index.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
-  decodeIdentityRequest, encodeIdentity, leerVozSubida, codificarVozBajada, VOZ_RADIO_M, VOZ_TRAMAS_S,
+  decodeIdentityRequest, decodePase, encodeIdentity, leerVozSubida, codificarVozBajada, VOZ_RADIO_M, VOZ_TRAMAS_S,
 } from "../../net/src/index.ts";
 import { agenteDe, emitir, nombreDe, nuevoId, today, verificar, verificarAgente } from "./identidad.ts";
 import type { Who } from "./identidad.ts";
@@ -27,6 +27,9 @@ export type InstanceOptions = {
   random?: () => number;                   // I1: randomness for new guest ids (the server passes crypto); default Math.random
   now?: () => number;                      // I1: the clock for token days; default Date.now
   puede?: (who: Who | null, accion: string, entity: number) => boolean; // H1: permissions for features (api.puede); none = nobody may
+  /** H3b: a world pass came with the identity. Returns the person it names (the world checked it), or null = stay a guest
+   * (the world has already told the person why). None = passes are ignored. */
+  credencial?: (entity: number, pase: string, invitado: Who) => Who | null;
   activo?: (sha256: string, ext: string) => boolean; // H9: is /a/<sha256>.<ext> on this server (library or uploaded)? (api.activo)
   sinVoz?: boolean; // U10: true = voice frames are not relayed (MOTOR_VOZ=no)
   aventura?: (carpeta: string) => { fichero: string; texto: string }[]; // J5: the adventure's text files (server/aventura.ts); none = no adventure
@@ -44,6 +47,8 @@ type Conn = {
   entity: number; transport: Transport; viewer: Viewer;
   queue: { seq: number; mx: number; mz: number; buttons: number }[]; ack: number; dropped: number; bad: number;
   who?: Who; // I1: set once the page shows (or asks for) its guest token
+  invitado?: string; // H3b: the guest id behind a numinia.com person (the page's guest token still names it: uploads)
+  pase?: string; // H3b: the world pass the page sent (PASE), held until its IDENTITY arrives, then handed to identificar and forgotten
   visible?: number[]; // J3: who its last snapshot carried (features ask with api.visible: names over heads)
   voz?: { desde: number; n: number }; // U10: voice frames this second (rate cap)
 };
@@ -89,20 +94,12 @@ export class Instance {
       } else if (bytes[0] === MSG.IDENTITY && this.opts.identitySign) {
         const token = conn.who ? null : decodeIdentityRequest(bytes); // once per connection
         if (token === null) { conn.bad++; return; }
-        const sign = this.opts.identitySign, day = today(this.opts.now?.());
-        if (token.startsWith("a1.")) { // P4: an AI inhabitant; its name comes from the world and always says « · IA»
-          const ag = this.opts.agentes, id = ag ? verificarAgente(ag.sign, token, day) : null, nombre = id ? ag!.nombre(id) : null;
-          if (!id || !nombre) { conn.bad++; this.opts.log?.(`[agentes] billete de agente rechazado (${id ? `«${id}» no es habitante de este mundo` : "firma o fecha"})`); return; }
-          conn.who = agenteDe(id, nombre);
-          t.send(encodeIdentity({ token, id: conn.who.id, nombre: conn.who.nombre }), true);
-          this.features.identify(entity);
-          return;
-        }
-        const ok = token ? verificar(sign, token, day) : null;
-        const id = ok?.id ?? nuevoId(this.opts.random ?? Math.random);
-        conn.who = { id, nombre: nombreDe(id) };
-        t.send(encodeIdentity({ token: ok && !ok.renovar ? token : emitir(sign, id, day), ...conn.who }), true);
-        this.features.identify(entity);
+        const pase = conn.pase; conn.pase = undefined; // the pass (if the page sent one first) is used once, here
+        this.identificar(entity, token, pase);
+      } else if (bytes[0] === MSG.PASE) { // H3b: before IDENTITY, once. Refused (counted, never thrown, connection kept) when late, repeated or malformed
+        const pase = conn.who || conn.pase !== undefined ? null : decodePase(bytes);
+        if (pase === null) conn.bad++;
+        else if (this.opts.identitySign && this.opts.credencial) conn.pase = pase; // a world that takes no passes ignores it (the person enters as a guest)
       } else if (bytes[0] === MSG.VOICE) {
         if (!this.opts.sinVoz) this.relayVoice(conn, bytes);
       } else if (bytes[0] === MSG.REPORT) {
@@ -116,6 +113,33 @@ export class Instance {
     t.send(encodeWelcome({ entity, tick: this.sim.tick, x: this.sim.tf.cols.x[entity], z: this.sim.tf.cols.z[entity], ref }), true);
     this.features.join(entity); // catalog + shared state, only if this instance runs features
     return entity;
+  }
+
+  /** I1/P4/H3b: who a connection is, once. `token` = the guest token it kept ("" = none) or an agent ticket; `pase` = the
+   * numinia.com world pass it brought, if any (H3b). With a pass the world's `credencial` may name the person (their
+   * numinia.com id, name and roles) instead of the guest; the guest token is still answered, so the browser keeps it.
+   * The wire carries it in PASE (net, type 12), sent before IDENTITY; the message handler above hands it over here. */
+  identificar(entity: number, token: string, pase?: string): void {
+    const conn = this.byEntity[entity];
+    if (!conn || conn.who || !this.opts.identitySign) return;
+    const sign = this.opts.identitySign, day = today(this.opts.now?.());
+    if (token.startsWith("a1.")) { // P4: an AI inhabitant; its name comes from the world and always says « · IA»
+      const ag = this.opts.agentes, id = ag ? verificarAgente(ag.sign, token, day) : null, nombre = id ? ag!.nombre(id) : null;
+      if (!id || !nombre) { conn.bad++; this.opts.log?.(`[agentes] billete de agente rechazado (${id ? `«${id}» no es habitante de este mundo` : "firma o fecha"})`); return; }
+      conn.who = agenteDe(id, nombre);
+      conn.transport.send(encodeIdentity({ token, id: conn.who.id, nombre: conn.who.nombre }), true);
+      this.features.identify(entity);
+      return;
+    }
+    const ok = token ? verificar(sign, token, day) : null;
+    const id = ok?.id ?? nuevoId(this.opts.random ?? Math.random);
+    const invitado: Who = { id, nombre: nombreDe(id) };
+    // a pass the world accepts replaces the guest (same person on two devices = one person); one it refuses leaves the guest
+    const persona = pase !== undefined && this.opts.credencial ? this.opts.credencial(entity, pase, invitado) : null;
+    conn.who = persona ?? invitado;
+    if (persona) conn.invitado = id;
+    conn.transport.send(encodeIdentity({ token: ok && !ok.renovar ? token : emitir(sign, id, day), ...conn.who }), true);
+    this.features.identify(entity);
   }
 
   disconnect(entity: number): void {

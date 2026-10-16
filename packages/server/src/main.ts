@@ -15,9 +15,13 @@ import { aparicionDelMundo, conMundo } from "../../../features/mundo.ts";
 import { leerMundo } from "./mundo.ts";
 import { carpetaMundo, claves, escribirManifiesto, sembrar } from "./mundo-carpeta.ts";
 import { infoMotor } from "./version.ts";
+import { configPase } from "./pase.ts";
 
 const env = process.env;
 const log = (l: string) => console.log(l);
+// H3b: numinia.com's world pass. A key that is set but wrong stops the start here, with what to fix (fail closed).
+const cfgPase = configPase(env);
+if (!cfgPase.ok) { console.error(`[pase] no arranco: ${cfgPase.error}`); process.exit(1); }
 const c = env.MOTOR_MUNDO ? carpetaMundo(env.MOTOR_MUNDO) : null;
 if (c) {
   sembrar(c, log);
@@ -43,6 +47,7 @@ const srv = await startServer({
   aventura: env.AVENTURA_DIR === "" ? null : (env.AVENTURA_DIR ?? c?.aventura ?? "aventuras/ejemplo"), // J5: quests, people, things (AVENTURA_DIR= for none)
   entorno, mundo: c?.raiz ?? null,
   secret: k.secreto, admin: k.admin, dondeCodigo: k.dondeCodigo,
+  pase: cfgPase.pase,                                                 // H3b: MOTOR_PASE_CLAVE / MOTOR_PASE_MUNDO / MOTOR_PASE_ORG (none = passes ignored)
   www: env.WWW_DIR || null,                                           // C1: the built page served by the engine itself
   // /mundo: a world uploaded as a zip is swapped in, then the process leaves; under systemd (INVOCATION_ID) or in a
   // container (MOTOR_REINICIO=salir: exit 75, its restart policy — compose.yml «on-failure» — starts it again) it comes

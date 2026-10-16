@@ -125,6 +125,13 @@ claves vienen del entorno: `JWT_SECRET` y `ADMIN_CODE` (el fichero de claves de 
 `MOTOR_ADMIN`; sin ellas, el motor las hace una vez en `/mundo/claves.env` (600) y el registro dice dónde están, nunca
 cuáles son. Al subir un mundo por `/mundo`, lo cambia y sale con 75: `restart: on-failure` lo vuelve a arrancar.
 
+**Pase de numinia.com (H3b).** Para que el mundo acepte el pase de numinia.com (quién es cada persona y qué puede hacer),
+el entorno del contenedor lleva tres variables: `MOTOR_PASE_CLAVE` (la clave pública de
+`https://numinia.com/.well-known/world-pass-key.json`: el campo `publicKey`, o el documento entero), `MOTOR_PASE_MUNDO` (el id
+de este mundo en numinia.com, el `aud` de sus pases) y, opcional, `MOTOR_PASE_ORG` (la organización: si se pone, el pase tiene
+que ser de ella). Sin `MOTOR_PASE_CLAVE` el motor funciona como siempre y el registro lo dice en una línea; con la clave rota o
+sin `MOTOR_PASE_MUNDO` no arranca y dice qué arreglar. La clave es pública (no es un secreto).
+
 ```bash
 docker run -d -p 8790:8790 -v /srv/mundos/m1:/mundo --env-file claves.env ghcr.io/numengames/numinia-engine:sha-<commit>
 ```

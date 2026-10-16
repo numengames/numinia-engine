@@ -129,6 +129,20 @@ if (SERVER_HTTP) {
     if (!sesiones.ok) await a.waitForTimeout(500);
   }
 }
+// H3b: a page opened with #pass=<token> takes the token out of the address bar at once and still enters (this server has no pass
+// key: the pass is ignored and the person is a guest, exactly as before). The token here is shaped like a pass, signed by nobody.
+const paseFalso = "e30.e30.c2lnbmVkLWJ5LW5vYm9keQ";
+const pase = { hashAntes: `#pass=${paseFalso}`, hashDespues: null, entro: false, invitado: false };
+{
+  const p = await ctx.newPage();
+  p.on("pageerror", (e) => errors.push(String(e)));
+  await p.goto(`${BASE}#pass=${paseFalso}`);
+  await p.waitForFunction(() => globalThis.__numinia?.session.entity >= 0 && globalThis.__numinia.session.who, null, { timeout: 30000 });
+  const s = await p.evaluate(() => ({ hash: location.hash, entity: globalThis.__numinia.session.entity, who: globalThis.__numinia.session.who }));
+  Object.assign(pase, { hashDespues: s.hash, entro: s.entity >= 0, invitado: !!s.who && !s.who.id.startsWith("p_") });
+  await p.close();
+}
+pase.ok = pase.hashDespues === "" && pase.entro && pase.invitado;
 if (process.env.SHOTS === "1") { await a.screenshot({ path: "e2e-a.png" }); await b.screenshot({ path: "e2e-b.png" }); }
 await browser.close();
 
@@ -147,14 +161,14 @@ const result = {
   probe: { browser: A2.probe.browser.toString(16), server: A2.probe.server.toString(16), equal: A2.probe.browser === A2.probe.server, ms: A2.probe.ms },
   tabBSeesTabA: { entity: A.entity, movedZ: Math.round(dz * 100) / 100, expectedZ: -6 },
   costFrame: A2.cost, power: A2.power, costBreaches,
-  corrections: A2.stats.corrections, rttMs: A2.stats.rttMs, visibleFromB: B2.stats.visible, gesture, objetos, sesiones,
+  corrections: A2.stats.corrections, rttMs: A2.stats.rttMs, visibleFromB: B2.stats.visible, gesture, objetos, sesiones, pase,
   identidad: { a: A2.who, b: B2.who }, // I1: two tabs of the same browser are the same guest
   errors,
 };
 // movement: 1.5 s at 4 m/s = 6 m. The https pass failed once at exactly -4.0 (J6 saw a one-off too); likely
 // cause: software GL drops frames under load and the 250 ms dt clamp in the page loses ticks. Past 3.5 m
 // proves the path; corrections === 0 is the real netcode check.
-const ok = result.probe.equal && dz < -3.5 && dz > -7.5 && result.corrections === 0 && costBreaches.length === 0 && gestureOk && objetos.ok && (!sesiones.comprobado || sesiones.ok) && !!A2.who?.id && A2.who.id === B2.who?.id && errors.length === 0;
+const ok = result.probe.equal && dz < -3.5 && dz > -7.5 && result.corrections === 0 && costBreaches.length === 0 && gestureOk && objetos.ok && pase.ok && (!sesiones.comprobado || sesiones.ok) && !!A2.who?.id && A2.who.id === B2.who?.id && errors.length === 0;
 console.log(JSON.stringify(result, null, 1));
 console.log(ok ? "E2E OK" : "E2E FALLA");
 process.exit(ok ? 0 : 1);

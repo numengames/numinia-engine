@@ -4,7 +4,7 @@ import { hex } from "../../packages/core/src/index.ts";
 import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX, BTN_JUMP, BTN_RUN } from "../../packages/sim/src/index.ts";
 import { webSocketClient } from "../../packages/net/src/index.ts";
 import { montarAjustes, leerAjuste } from "./menu-ajustes.ts"; // N2: settings menu + capabilities
-import { ClientSession, serverUrl } from "../../packages/client/src/index.ts";
+import { ClientSession, serverUrl, tomarPaseDeLaDireccion } from "../../packages/client/src/index.ts";
 import { createView, leerAparato, leerBateria, medidorDeCuadros, haciaMundo } from "../../packages/render/src/index.ts";
 import funciones from "../../features/cliente.ts";
 import { constructor } from "../../features/objetos/client.ts";
@@ -40,6 +40,7 @@ const transport = webSocketClient(url);
 const GUARDA = "numinia.invitado";
 const session = new ClientSession(transport, {
   features: funciones,
+  pase: tomarPaseDeLaDireccion(location, history), // H3b: #pass=<token> from numinia.com, out of the address bar at once, sent once connected
   identity: { load: () => localStorage.getItem(GUARDA), save: (t) => localStorage.setItem(GUARDA, t) },
   view: {
     label: (e, text, ms) => view.label(e === session.entity ? "self" : e, text, ms),

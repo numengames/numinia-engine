@@ -8,8 +8,10 @@
 //   /silenciar <persona> [minutos]  (mute-members; 0 = lift it)    /echar <persona>  (remove-members; 10 min out)
 //   /vetar <persona> <motivo>       (ban-members, for good)        /perdonar <nombre> (ban-members: lifts both)
 //   /solo-miembros sí|no            (manage-organization: visitors stay out)
-// <persona> = the name over their head, as it is written. Until the numinia.com pass (H3b) a person here is a guest
-// id: someone who clears their browser comes back as a new guest — a ban holds the identity, not the human.
+// <persona> = the name over their head, as it is written. Without a numinia.com pass (H3b, pase.ts) a person here is a guest
+// id: someone who clears their browser comes back as a new guest — a ban holds the identity, not the human. With a pass the
+// person is their numinia.com id (`sub`, opaque): same person on every device, and the pass's permissions/height/roles
+// REPLACE what this world holds for them (owners by /dueño stay owners).
 // It is a server-side feature built inside packages/server (it needs the server's hands: close a connection, the
 // administration code); it tells other features through server-only events: chat hears «aviso» (an answer only for
 // that person) and «silencio»; objetos hears «cambio» and re-sends who may build.
@@ -17,8 +19,11 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { defineFeature, serverPart } from "../../feature/src/index.ts";
 import type { ServerApi, ServerPart } from "../../feature/src/index.ts";
 import type { Who } from "../../instance/src/index.ts";
-import { ACCION_PERMISO, ACCION_TEXTO, acceso, esBase, noPuedeDar, plano, plantilla, porDebajo, rolPorNombre, tiene, validarRoles } from "./roles.ts";
+import { ACCION_PERMISO, ACCION_TEXTO, PERMISOS, acceso, esBase, noPuedeDar, plano, plantilla, porDebajo, rolPorNombre, tiene, validarRoles } from "./roles.ts";
 import type { Acceso, Accion, Miembro, Rol } from "./roles.ts";
+import { verificarPase } from "./pase.ts";
+import type { ConfigPase, Pase } from "./pase.ts";
+import { nombreDe } from "../../instance/src/identidad.ts";
 import { ADMIN_MIN } from "./secret.ts";
 
 export const ECHADO_MIN = 10;          // someone taken out may come back after this (STD-052 «may come back»)
@@ -50,6 +55,7 @@ export type OpcionesRoles = {
   cerrar?: (entity: number, motivo: string) => void;   // close that connection (the server); none = only told
   ahora?: () => number;                                // the clock (ms) for silences and taking out; default Date.now
   log?: (line: string) => void;
+  pase?: ConfigPase | null;                             // H3b: numinia.com's key, this world's id (+ org): a pass is checked at join; none = passes are ignored
 };
 type Veto = { nombre: string; motivo: string; por: string; cuando: string };
 const esIA = (id: string): boolean => id.startsWith("ia-"); // AI inhabitants (identidad.ts agenteDe): never members, never owners
@@ -82,7 +88,28 @@ export function crearRoles(o: OpcionesRoles) {
 
   const miembroDe = (id: string | undefined): Miembro | null =>
     !id || esIA(id) ? null : duenos.has(id) ? { roles: miembros.get(id) ?? [], dueno: true } : miembros.has(id) ? { roles: miembros.get(id)! } : null;
-  const accesoDe = (id: string | undefined): Acceso => acceso(roles, miembroDe(id));
+  // H3b: a person who came with numinia.com's pass: what the pass says REPLACES what this world holds for them (never adds);
+  // an owner by /dueño stays an owner. Kept while they are connected (the pass is not looked at again inside the session).
+  const pases = new Map<string, { pase: Pase; acceso: Acceso }>();   // person id (the pass's `sub`) -> their pass
+  const deEntidad = new Map<number, string>();                       // entity -> person id, to forget a pass when the last device leaves
+  const pendientes = new Map<number, string>();                      // entity -> why its pass was refused (told once, at identify)
+  const accesoDe = (id: string | undefined): Acceso => {
+    const p = id && !duenos.has(id) ? pases.get(id) : undefined;
+    return p ? p.acceso : acceso(roles, miembroDe(id));
+  };
+
+  /** The world's side of a pass (Instance `credencial`): checks it; a good one names the person, a bad one leaves the guest
+   * and queues one line saying why (the chat shows it right after identify). Without a configured key: passes are ignored. */
+  const credencial = (entity: number, token: string, invitado: Who): Who | null => {
+    if (!o.pase) return null;
+    const v = verificarPase(token, o.pase.clave, { aud: o.pase.mundo, now: Math.floor(ahora() / 1000), org: o.pase.org });
+    if (!v.ok) { pendientes.set(entity, v.texto); log(`[pase] rechazado para ${invitado.id}: ${v.motivo}`); return null; }
+    const p = v.pase;
+    pases.set(p.sub, { pase: p, acceso: p.dueno ? { permisos: new Set(PERMISOS), altura: Number.POSITIVE_INFINITY, dueno: true } : { permisos: new Set(p.permisos), altura: p.altura, dueno: false } });
+    deEntidad.set(entity, p.sub);
+    log(`[pase] ${p.sub} entra con su pase de numinia.com (${p.dueno ? "dueño" : `altura ${p.altura}`}, ${p.permisos.length} permisos)`);
+    return { id: p.sub, nombre: p.nombre ?? nombreDe(p.sub) };
+  };
 
   /** The question every permission check asks (api.puede, uploads, objetos). A visitor or an AI = @todos. */
   const puede = (who: Who | null, accion: string): boolean => accion in ACCION_PERMISO && tiene(accesoDe(who?.id), accion as Accion);
@@ -143,8 +170,8 @@ export function crearRoles(o: OpcionesRoles) {
 
     const ordenes: Record<string, (from: number, resto: string) => void> = {
       roles: (from) => {
-        const w = a.who(from), yo = accesoDe(w?.id), m = miembroDe(w?.id);
-        const mios = yo.dueno ? "dueño del mundo" : [...roles.filter((r) => m?.roles.includes(r.id)).map((r) => r.nombre), "@todos"].join(", ");
+        const w = a.who(from), yo = accesoDe(w?.id), m = miembroDe(w?.id), pase = w && !duenos.has(w.id) ? pases.get(w.id)?.pase : undefined;
+        const mios = yo.dueno ? "dueño del mundo" : pase ? [...pase.roles.map((r) => r.nombre), "@todos"].join(", ") + " (de numinia.com)" : [...roles.filter((r) => m?.roles.includes(r.id)).map((r) => r.nombre), "@todos"].join(", ");
         const puedo = (Object.keys(ACCION_PERMISO) as Accion[]).filter((x) => tiene(yo, x)).map((x) => ACCION_TEXTO[x]);
         avisar(from, `Eres: ${mios}. Puedes: ${puedo.length ? puedo.join(", ") : "mirar y hablar"}. Roles de este mundo: ${roles.map((r) => r.nombre).join(", ")}${soloMiembros ? " (solo para miembros)" : ""}.`);
         avisar(from, "Órdenes: /dar y /quitar <persona> <rol> · /silenciar <persona> [minutos] · /echar <persona> · /vetar <persona> <motivo> · /perdonar <nombre> · /solo-miembros sí|no · /dueño <código>");
@@ -218,6 +245,7 @@ export function crearRoles(o: OpcionesRoles) {
     const darQuitar = (from: number, resto: string, dar: boolean) => {
       const p = persona(from, resto); if (!p) return;
       if (esIA(p.id)) { avisar(from, "Una IA no tiene roles propios: hace lo de @todos y nunca más que quien responde de ella (STD-051)."); return; }
+      if (pases.has(p.id) && !duenos.has(p.id)) { avisar(from, `Los roles de ${p.nombre} vienen de su pase de numinia.com: se cambian allí, no aquí.`); return; }
       const rol = rolPorNombre(roles, p.resto);
       if (!rol) { avisar(from, `¿Qué rol? Los de este mundo: ${roles.map((r) => r.nombre).join(", ")}.`); return; }
       const no = noPuedeDar(accesoDe(a.who(from)?.id), accesoDe(p.id), rol);
@@ -242,17 +270,24 @@ export function crearRoles(o: OpcionesRoles) {
 
     // who comes in: banned, taken out a while ago, or a visitor of a members-only world → told and closed
     a.onIdentify((e, w) => {
+      const rechazo = pendientes.get(e); // a pass that was refused: say why first, then go on as a visitor
+      if (rechazo) { pendientes.delete(e); avisar(e, rechazo); }
       const v = vetos.get(w.id), ech = echados.get(w.id), t = ahora();
       if (v) { sacar(e, `Estás vetado en este mundo: ${v.motivo}`); return; }
       if (ech && t < ech.hasta) { sacar(e, `Te sacaron de este mundo hace poco. Puedes volver dentro de ${Math.ceil((ech.hasta - t) / 60000)} min.`); return; }
       if (ech) echados.delete(w.id);
-      const m = miembroDe(w.id);
-      if (soloMiembros && !esIA(w.id) && !(m && tiene(accesoDe(w.id), "entrar"))) { sacar(e, "Este mundo es solo para sus miembros ahora mismo."); return; }
+      const m = miembroDe(w.id), conPase = pases.has(w.id) && !duenos.has(w.id);
+      // members only: a role with enter-worlds lets you in — here, or on your pass
+      if (soloMiembros && !esIA(w.id) && !((m || conPase) && tiene(accesoDe(w.id), "entrar"))) { sacar(e, "Este mundo es solo para sus miembros ahora mismo."); return; }
       const s = silencios.get(w.id);
       if (s && t < s) a.emit("silencio", { quien: e, segundos: Math.ceil((s - t) / 1000) }, "server");
-      if (m) cambio(e);
+      if (m || conPase) cambio(e);
     });
-    a.onLeave((e) => { intentos.delete(e); });
+    a.onLeave((e) => {
+      intentos.delete(e); pendientes.delete(e);
+      const sub = deEntidad.get(e); deEntidad.delete(e);
+      if (sub && ![...deEntidad.values()].includes(sub)) pases.delete(sub); // the last device of that person left
+    });
     // close on the next tick, after the answer has gone out
     a.onTick(() => {
       while (porCerrar.length) { const c = porCerrar.shift()!; if (o.cerrar) o.cerrar(c.e, c.motivo); }
@@ -260,7 +295,7 @@ export function crearRoles(o: OpcionesRoles) {
   });
 
   return {
-    part, puede,
+    part, puede, credencial,
     /** For tests and the server: what someone with this id may do. */
     acceso: (id: string | undefined) => accesoDe(id),
     get roles(): readonly Rol[] { return roles; },

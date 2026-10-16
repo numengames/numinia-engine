@@ -13,6 +13,7 @@ import { hex } from "../../core/src/index.ts";
 import { REFERENCE, referenceRecording, replayFingerprint, TICK_HZ } from "../../sim/src/index.ts";
 import type { SpawnArea } from "../../sim/src/index.ts";
 import { Instance } from "../../instance/src/index.ts";
+import { MSG, PASE_MAX, WS_FRAME_MAX } from "../../net/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
 import type { HttpReply, ServerPart } from "../../feature/src/index.ts";
 import { buildMetrics, ByteWindow, TickWindow, toPrometheus } from "./metrics.ts";
@@ -28,6 +29,8 @@ import type { Motor } from "./version.ts";
 import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
 import { lectorAventura } from "./aventura.ts";
 import { crearRoles } from "./roles-mundo.ts";
+import { configPase } from "./pase.ts";
+import type { ConfigPase } from "./pase.ts";
 import type { Who } from "../../instance/src/index.ts";
 import { leerHabitantes } from "../../agent/src/formato.ts";
 import type { Metrics } from "./metrics.ts";
@@ -50,6 +53,7 @@ export type ServerOptions = {
   aventura?: string | null;      // J5: the adventure's folder (quests, people, things as text files); default null = none
   agentes?: string;              // P4: the secret that signs AI inhabitants' tickets (env MOTOR_AGENTES_SECRET); none or short = no inhabitants
   admin?: string;                // the administration code for /mundo and /dueño (env MOTOR_ADMIN; main.ts also ADMIN_CODE); none or short = /mundo answers 403
+  pase?: ConfigPase | null;      // H3b: numinia.com's world pass (key, this world's id, org); undefined = read MOTOR_PASE_* from the environment; null = ignore passes
   reiniciar?: () => void;        // after a world was uploaded and swapped in: the installed server exits (systemd starts it again)
   mundo?: string | null;         // C2: the world folder (MOTOR_MUNDO): a world upload swaps datos/ aventura/ entorno/ in it
   entorno?: string | null;       // the world's entorno/ folder (entorno.json, elementos.json): travels in the world's zip
@@ -88,6 +92,8 @@ export function wsTransport(ws: WebSocket): Transport {
   };
   ws.on("message", (data, isBinary) => {
     if (!isBinary || !(data instanceof Buffer)) return; // text frames and fragments are ignored
+    // maxPayload is PASE_MAX (the biggest frame any message has); every other type keeps the old WS_FRAME_MAX: over it, close as the WebSocket library used to
+    if (data.byteLength > WS_FRAME_MAX && data[0] !== MSG.PASE) { ws.close(1009, "message too big"); return; }
     cb(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
   });
   return t;
@@ -118,9 +124,14 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   // H3: the world's roles are numinia.com's (roles.ts, roles-mundo.ts): every permission check asks them; a visitor is
   // «@todos», whose «build-in-worlds» is the --construir switch (MOTOR_CONSTRUIR)
   const construir = o.construir ?? "nadie";
+  // H3b: numinia.com's world pass. Settings come from MOTOR_PASE_CLAVE / _MUNDO / _ORG (or `o.pase`); a key that is set but
+  // wrong stops the start (fail closed: never a world that thinks it checks passes and does not); no key = passes ignored.
+  const cfgPase = o.pase === undefined ? configPase(process.env) : { ok: true as const, pase: o.pase };
+  if (!cfgPase.ok) return Promise.reject(new Error(cfgPase.error));
+  log(cfgPase.pase ? `[pase] el mundo «${cfgPase.pase.mundo}» acepta pases de numinia.com (clave ${cfgPase.pase.clave.kid}${cfgPase.pase.org ? `, organización ${cfgPase.pase.org}` : ""})` : "[pase] sin MOTOR_PASE_CLAVE: los pases de numinia.com se ignoran (todos entran como invitados)");
   const sockets = new Map<number, WebSocket>();
   const roles = crearRoles({
-    construir: construir === "todos", admin: o.admin ?? process.env.MOTOR_ADMIN, log, firmar: identitySign,
+    construir: construir === "todos", admin: o.admin ?? process.env.MOTOR_ADMIN, log, firmar: identitySign, pase: cfgPase.pase,
     cerrar: (e) => { sockets.get(e)?.close(CIERRE_ROLES, "fuera"); }, // the reason went out in the chat just before
   });
   const funciones = o.features?.length ? [...o.features, roles.part] : o.features; // no features (bare tests) = the pre-J7 wire
@@ -135,14 +146,14 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const agentes = agentesSign("probe") ? { sign: agentesSign, nombre: (id: string) => hab.habitantes.find((h) => h.id === id)?.nombre ?? null } : undefined;
   if (hab.habitantes.length) log(`[habitantes] ${hab.habitantes.map((h) => h.nombre).join(", ")}${agentes ? "" : " — sin MOTOR_AGENTES_SECRET: no podrán entrar como IA"}`);
   if (o.aparicion) log(`[mundo] la gente aparece en el cuadrado de ${2 * o.aparicion.radio} m centrado en (${o.aparicion.x}, ${o.aparicion.z})`);
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, activo: (h, ext) => activos.buscar(h, ext) !== null, aventura: lector, agentes, sinVoz: process.env.MOTOR_VOZ === "no", aparicion: o.aparicion ?? null }); // U10: MOTOR_VOZ=no turns the microphone relay off
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, activo: (h, ext) => activos.buscar(h, ext) !== null, aventura: lector, agentes, sinVoz: process.env.MOTOR_VOZ === "no", aparicion: o.aparicion ?? null }); // U10: MOTOR_VOZ=no turns the microphone relay off
   // H9: uploads (PUT /a/<sha256>.<ext>) by whoever may build; the page shows its guest token (I1) to say who it is
   const subidas = new Subidas({
     dir: o.subidas ?? null, activos, log, topesMB: o.subir?.topesMB, totalMB: o.subir?.totalMB,
     quien: (token) => {
       const v = verificar(identitySign, token, today());
       if (!v) return null;
-      const c = inst.conns.find((k) => k.who?.id === v.id); // connected now: its name and entity (H3: roles per identity)
+      const c = inst.conns.find((k) => (k.invitado ?? k.who?.id) === v.id); // connected now: its name and entity (H3: roles per identity; H3b: a numinia.com person is found by the guest token their page still holds)
       return { who: c?.who ?? { id: v.id, nombre: nombreDe(v.id) }, entity: c?.entity ?? -1 };
     },
     puede: (who) => puede(who, "construir"), // the same question every building intent asks (api.puede)
@@ -214,7 +225,9 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     req.on("end", () => (size > MAX_BODY ? json(res, 413, { error: `cuerpo de más de ${MAX_BODY} bytes` }) : answer(body)));
   });
 
-  const wss = new WebSocketServer({ server: http, maxPayload: 1024, perMessageDeflate: false });
+  // maxPayload = PASE_MAX (2048, H3b): the one message that needs more than the old 1024 is the world pass (600-1300 B). The library
+  // checks the size before anything is read, so the biggest legal frame has to fit here; wsTransport cuts the others at WS_FRAME_MAX as before.
+  const wss = new WebSocketServer({ server: http, maxPayload: PASE_MAX, perMessageDeflate: false });
   wss.on("connection", (ws) => {
     if (inst.conns.length >= maxPlayers) { counts.rechazadasLlenas++; ws.close(1013, "instance full"); return; }
     counts.aceptadas++;

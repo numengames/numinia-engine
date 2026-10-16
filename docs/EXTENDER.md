@@ -145,7 +145,8 @@ en `features.cards()`. Un agente de IA lee lo mismo en el catálogo. Ejemplos: `
 ## Cosas colocadas en el mundo y permisos (H1)
 
 - `api.puede(entidad, "construir")` — el servidor dice si esa persona (o agente) puede cambiar el mundo. Hoy lo
-  decide `MOTOR_CONSTRUIR` (`todos` o, por defecto, nadie); con H3 serán roles por identidad. Pregúntalo en cada
+  decide `MOTOR_CONSTRUIR` (`todos` o, por defecto, nadie); con H3 serán roles por identidad; con un pase de numinia.com (H3b,
+  `pase.ts`) los permisos de esa persona son los del pase, en el mismo `puede`. Pregúntalo en cada
   intento que cambie el mundo: la página nunca decide.
 - `view.place?.(clave, { model, x, y, z, rx, ry, rz, sx, sy, sz, animate } | null)` — la página pone, mueve o quita
   una cosa con su modelo (sha256 de un `.glb`; el fichero sale de `/a/<sha256>.glb` del servidor). Giros en grados

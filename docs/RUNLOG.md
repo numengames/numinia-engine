@@ -375,3 +375,19 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `camara/altura-y-paredes`.
 - Siguiente: que Pablo lo pruebe; después, tiempo de coyote, salto variable y el mando que salta.
 
+
+## 2026-10-16 18:58 · H3b (cable) · el pase llega de la página al servidor · hecho (rama `roles/pase-h3b`, sin subir)
+- Qué: Pablo decidió un mensaje nuevo y aditivo para el pase. `PASE` (tipo 12 en `net`) lleva el token con tope propio de
+  2.048 bytes; IDENTITY y sus 120 bytes no se tocan. La página lee `#pass=<token>`, lo quita de la barra con `replaceState` y
+  lo manda antes de IDENTITY; el servidor lo guarda en la conexión y llama a `Instance.identificar(entidad, token, pase)`. Un
+  PASE malo, repetido o tardío se cuenta y se ignora sin cerrar. `maxPayload` del WebSocket: 1024 → 2048, justo lo que mide el
+  mayor mensaje (el pase); `wsTransport` sigue cortando en 1024 cualquier otro tipo. Cambio de formato aditivo (tipo nuevo):
+  `WIRE_FORMAT` sigue en 2 y la huella `93b192c8` no cambia, no hizo falta decidir nada. De paso, presupuesto de tamaño de
+  todos los mensajes en `docs/FICHA-TECNICA.md` y `limits.json` (`test/mensajes-tope.test.ts`).
+- Números: 313 pruebas en verde; un pase mide 630 bytes (un rol) y 1.813 en el peor caso que numinia.com puede emitir hoy
+  (con un nombre de 200 caracteres, 2.423: no cabe y entra como visitante). El informe de entrada guardado más grande: 799 de
+  1.000. Intención más grande de las 26: 204 bytes. e2e chromium y firefox: la página con `#pass=` la quita de la barra y entra.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `roles/pase-h3b` (ver `git log`).
+- Siguiente: que numinia-web corte `name` a 40 en el pase y que la flota añada `MOTOR_PASE_*`; medir el informe de entrada en
+  aparatos reales (T1).
