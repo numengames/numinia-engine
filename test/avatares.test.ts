@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  ANIMAR_HASTA_M, CUPO_VRM, TRIANGULOS_MAX, clipPara, cupoVRM, elegirAvatar, elegirCercanos, estadoPor, girarHacia, nuevaMarcha, seguir,
+  ANIMAR_HASTA_M, BOCA_SILENCIO_RMS, CUPO_VRM, TRIANGULOS_MAX, clipPara, cupoVRM, decaerBoca, elegirAvatar, elegirCercanos, estadoPor, girarHacia, nivelBoca, nuevaMarcha, seguir,
 } from "../packages/render/src/avatares-politica.ts";
 import { TRIANGULOS_MAX_VRM } from "../packages/server/src/vrm.ts";
 
@@ -78,4 +78,27 @@ test("J1 policy: speed and facing come from position deltas, smoothed; a long pa
   assert.equal(m.velocidad, 0);
   assert.equal(m.rumbo, rumbo);
   assert.ok(Math.abs(girarHacia(3, -3, 10, 0.1) - (-3 + 2 * Math.PI)) < 1e-6, "turns the short way across ±π");
+});
+
+test("U13 policy: voice RMS under the silence floor keeps the mouth shut; above it, it opens and saturates at 1", () => {
+  assert.equal(nivelBoca(0), 0);
+  assert.equal(nivelBoca(BOCA_SILENCIO_RMS), 0, "right at the floor: still shut");
+  assert.ok(nivelBoca(BOCA_SILENCIO_RMS + 0.01) > 0);
+  assert.equal(nivelBoca(1), 1, "a very loud frame saturates, never above 1");
+  // monotonic: louder decoded audio never closes the mouth more than quieter audio
+  assert.ok(nivelBoca(0.05) < nivelBoca(0.08));
+});
+
+test("U13 policy: the mouth fades on its own between voice frames instead of sticking open", () => {
+  const abierta = nivelBoca(0.1); // a loud frame just arrived
+  assert.ok(abierta > 0);
+  let nivel = decaerBoca(0, 0.1);
+  assert.equal(nivel, abierta, "the first frame opens it at once");
+  let pasos = 0;
+  while (nivel > 0.01 && pasos < 100) { nivel = decaerBoca(nivel, null); pasos++; } // no more frames arrive: it closes
+  assert.ok(pasos > 0 && pasos < 30, `closed in ${pasos} ticks (100 ms each) without sticking open forever`);
+  assert.equal(decaerBoca(0, null), 0, "silence from the start stays silence");
+  // a frame too quiet to open the mouth on its own still lets the previous level decay by `factor`
+  assert.ok(Math.abs(decaerBoca(0.9, 0.001) - 0.9 * 0.55) < 1e-9);
+  assert.ok(decaerBoca(0.1, 0.1) >= nivelBoca(0.1), "a new frame at least as loud as the kept level wins");
 });

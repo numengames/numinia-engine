@@ -391,3 +391,29 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `roles/pase-h3b` (ver `git log`).
 - Siguiente: que numinia-web corte `name` a 40 en el pase y que la flota añada `MOTOR_PASE_*`; medir el informe de entrada en
   aparatos reales (T1).
+
+## 2026-10-16 21:42 · U13 · la boca se mueve con la voz que oyes (no con la que habla el agente) · hecho (rama `boca/voz-en-vivo`, sin subir)
+- Qué: un buscador propuso met4citizen/TalkingHead (MIT) para «lip-sync del agente de IA». El agente (`packages/agent/`)
+  no tiene voz propia todavía (`docs/FICHA-TECNICA.md`: «voz: aún no implementada»; eso es una decisión de qué TTS usar,
+  aparte), así que no hay nada suyo que sincronizar hoy; lo real y ya en el motor son las voces de la gente
+  (`apps/plaza/voz.ts`, U10). `avatares-vrm.ts` guardaba 16 formas de cara (visemas y parpadeo) de los VRM de la casa pero
+  las descartaba siempre (`sinFormas`, «volverán para voz y expresiones»): ahora, antes de descartarlas, se guarda solo la
+  forma «aa» (`vrm.expressionManager.getExpression("aa")`, VRM0 `blendShapeMaster` preset `a` → índice de morph 13 en los
+  tres avatares de la casa, leído del fichero real, nunca adivinado) y las otras 15 siguen fuera. Por cada copia (jugador)
+  que de verdad se oye cerca, su malla cambia a una variante de geometría con esa única forma (construida una vez por
+  fichero, en caché, nunca tocando la geometría «muda» que comparten los demás) y el peso de «aa» sigue el volumen
+  decodificado — del lado que **recibe y descodifica**, no del que habla (dos oyentes a distinta distancia oyen un volumen
+  distinto del mismo hablante). Sin más frames (el que habla deja de transmitir en silencio, no manda un frame a 0), la
+  boca se cierra sola (`decaerBoca`, factor 0,55 cada 100 ms). Nada de esto toca `packages/agent/`; sin librería nueva
+  (TalkingHead no se usa: cero dependencias, reutiliza los morph targets y la voz que ya existían). Decisiones puras en
+  `avatares-politica.ts` (`nivelBoca`, `decaerBoca`, `BOCA_SILENCIO_RMS`); el enganche cruza capas por un método nuevo
+  (`view.voz(id, nivel)`, como `label`/`bubble`), no por un acoplamiento directo voz↔render.
+- Números: 346 pruebas en verde (antes 344; dos nuevas, U13 puras); puertas en verde (capas 0; huella `f719d31b` igual;
+  26,7 kbit/s; tick p99 8,4 ms con mil — nada de esto toca el servidor ni la red). Bundle: arranque 108,87 kB gz (antes
+  108,61, +0,26 kB), `avatares-vrm` perezoso 66,43 kB gz (antes 66,13, +0,30 kB) — comparado con `npm run build` en main
+  antes de este cambio. No pude ver la boca moverse (sin pantalla en este entorno): la geometría, el índice de morph y
+  el enganche están probados por tipos y por las pruebas puras, pero el resultado visual queda sin confirmar.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `boca/voz-en-vivo` (sin subir; esperando que Pablo revise el diff).
+- Siguiente: que alguien lo mire en un navegador real con dos pestañas y el micrófono; si algún día el agente tiene voz
+  propia, esto mismo (`view.voz`) le sirve en cuanto emita audio decodificable.

@@ -96,7 +96,7 @@ let pescaHud: Promise<unknown> | null = null;
 pesca.alCambiar(() => { pescaHud ??= import("./pesca.ts").then((m) => m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, ajuste: leerAjuste })).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); });
 
 // ---- U10: the microphone (button or Q): your voice to who is near; theirs from where they stand ----
-const voz = montarVoz({ session, view: { label: (t, text, ms) => view.label(t, text, ms), cam: view.cam }, escribiendo, decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } } });
+const voz = montarVoz({ session, view: { label: (t, text, ms) => view.label(t, text, ms), cam: view.cam, voz: (id, nivel) => view.voz(id, nivel) }, escribiendo, decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } } });
 
 // ---- J3: the chat box (Enter opens, Enter sends, Escape closes; a «Chat» button on touch screens) ----
 const cajaChat = montarChat(chatDePagina, document.getElementById("chat")!);

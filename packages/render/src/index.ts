@@ -467,6 +467,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       // J1: VRMs follow the capsules (hops and jumps included); yours hides in first person (camera branch: view.cam)
       avs.sync(self ? selfMesh : null, others, !!(this as unknown as { cam?: { primeraPersona?: () => boolean } }).cam?.primeraPersona?.(), now);
     },
+    /** U13: who you hear right now, 0..1 (apps/plaza/voz.ts; never your own id, voz.ts never hears you). Drives
+     * that avatar's "aa" mouth shape, kept aside at load (J1's avatares-vrm.ts `bocaDe`) just for this. */
+    voz(id: number, nivel: number): void { avs.nivelVoz(id, nivel); },
     /** A short text over an avatar (`"self"` = your own) for `ms` milliseconds. Replaces the previous one. */
     label(t: Target, text: string, ms: number): void {
       dropLabel(t);

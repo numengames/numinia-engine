@@ -5,6 +5,7 @@
 // Codec: Opus through WebCodecs where the browser has it (≈ 24 kbit/s); otherwise µ-law at 16 kHz (128 kbit/s), which
 // every browser can encode. A page that cannot decode Opus (no AudioDecoder) does not hear Opus speakers: it says so.
 import { VOZ_OPUS, VOZ_MULAW, aMulaw, deMulaw } from "../../packages/net/src/index.ts";
+import { decaerBoca } from "../../packages/render/src/avatares-politica.ts";
 import { icono } from "./iconos.ts";
 
 type Sesion = {
@@ -14,7 +15,7 @@ type Sesion = {
   selfPosition(alpha: number): { x: number; y?: number; z: number };
   remotePositions(): { id: number; x: number; y: number; z: number }[];
 };
-type Vista = { label(t: number | "self", text: string, ms: number): void; cam: { yaw(): number } };
+type Vista = { label(t: number | "self", text: string, ms: number): void; cam: { yaw(): number }; voz(id: number, nivel: number): void };
 
 const TRAMA_MS = 20;
 const MULAW_HZ = 16000;
@@ -52,7 +53,7 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
   const contexto = () => (ctx ??= new AudioContext({ latencyHint: "interactive" }));
   addEventListener("pointerdown", () => { void ctx?.resume(); }, { capture: true, passive: true });
   addEventListener("keydown", () => { void ctx?.resume(); }, { capture: true, passive: true });
-  type Voz = { panner: PannerNode; siguiente: number; dec?: AudioDecoder; marca: number; ts: number };
+  type Voz = { panner: PannerNode; siguiente: number; dec?: AudioDecoder; marca: number; ts: number; rmsPendiente: number | null; nivelBoca: number };
   const voces = new Map<number, Voz>();
   const reproducir = (v: Voz, pcm: Float32Array, hz: number) => {
     const c = contexto();
@@ -60,6 +61,10 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
     const src = c.createBufferSource(); src.buffer = buf; src.connect(v.panner);
     const t = Math.max(v.siguiente, c.currentTime + COLA_S);
     src.start(t); v.siguiente = t + buf.duration;
+    // U13: this listener's own decoded volume (not the sender's), for the speaker's mouth shape — a decaerBoca
+    // tick (below) turns it into how open the shape should be, and closes it again once frames stop arriving
+    let rms = 0; for (const s of pcm) rms += s * s; rms = Math.sqrt(rms / pcm.length);
+    v.rmsPendiente = Math.max(v.rmsPendiente ?? 0, rms);
   };
   const vozDe = (entidad: number): Voz => {
     let v = voces.get(entidad);
@@ -67,7 +72,7 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
     const c = contexto();
     const panner = new PannerNode(c, { panningModel: "equalpower", distanceModel: "linear", refDistance: 1, maxDistance: LEJOS_M, rolloffFactor: 1 });
     panner.connect(c.destination);
-    v = { panner, siguiente: 0, marca: 0, ts: 0 };
+    v = { panner, siguiente: 0, marca: 0, ts: 0, rmsPendiente: null, nivelBoca: 0 };
     if (typeof AudioDecoder === "function") {
       const vv = v;
       vv.dec = new AudioDecoder({
@@ -101,8 +106,10 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
     else { L.setPosition(yo.x, (yo.y ?? 0) + 1.6, yo.z); L.setOrientation(fx, 0, fz, 0, 1, 0); }
     const donde = new Map(o.session.remotePositions().map((r) => [r.id, r]));
     for (const [e, v] of voces) {
+      v.nivelBoca = decaerBoca(v.nivelBoca, v.rmsPendiente); v.rmsPendiente = null; // U13: fades on its own between frames
+      o.view.voz(e, v.nivelBoca);
       const r = donde.get(e);
-      if (!r) { if (t > v.siguiente + 5) { v.panner.disconnect(); v.dec?.close(); voces.delete(e); } continue; }
+      if (!r) { if (t > v.siguiente + 5) { v.panner.disconnect(); v.dec?.close(); voces.delete(e); o.view.voz(e, 0); } continue; }
       v.panner.positionX.setValueAtTime(r.x, t); v.panner.positionY.setValueAtTime(r.y + 1.6, t); v.panner.positionZ.setValueAtTime(r.z, t);
     }
   }, 100);
