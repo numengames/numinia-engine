@@ -107,6 +107,17 @@ export function crearCliente() {
       const y = p?.y ?? (tipo === "imagen" || tipo === "video" ? 1.2 : 0); // pictures and screens at eye height
       return enviar("colocar", { modelo: sha, x: entre(a.x, LIMITES.x), y: entre(y, LIMITES.y), z: entre(a.z, LIMITES.z), ry: 0, nombre, decorado: false, tipo, ext });
     },
+    /** U12: make a picture (by its id) a hole whose frame is ancho × alto metres inside (0 × 0 = no longer a hole). */
+    hueco: (id: string, ancho: number, alto: number) => enviar("hueco", { id, ancho, alto }),
+    /** U12: put an image uploaded to this server (sha256 + extension) in a hole; the server measures it and fits it. */
+    rellenar: (id: string, sha: string, ext: string, nombre = "") => enviar("rellenar", { id, modelo: sha, ext, nombre }),
+    /** U12: take the work out of a hole: its card comes back. */
+    vaciar: (id: string) => enviar("vaciar", { id }),
+    /** U12: the zone's holes: where each is, its frame (metres) and whether it holds a work. */
+    huecos: () => lista().filter((o) => Number(o.huecoAncho) > 0 && Number(o.huecoAlto) > 0).map((o) => ({
+      id: o.id, nombre: String(o.nombre ?? ""), x: Number(o.x), y: Number(o.y), z: Number(o.z),
+      ancho: Number(o.huecoAncho), alto: Number(o.huecoAlto), lleno: o.huecoLleno === true, fijado: o.fijado === true,
+    })),
     deshacer: () => enviar("deshacer", {}),
     /** M22: redo what you last undid (until you make a new change). */
     rehacer: () => enviar("rehacer", {}),

@@ -35,6 +35,7 @@ export type InstanceOptions = {
    * (counted, logged, the connection kept until its own pass ends). None = a late PASE is refused as always. */
   renovarPase?: (entity: number, pase: string) => string | null;
   activo?: (sha256: string, ext: string) => boolean; // H9: is /a/<sha256>.<ext> on this server (library or uploaded)? (api.activo)
+  medidas?: (sha256: string, ext: string) => { ancho: number; alto: number } | null; // U12: a picture's pixels (api.medidas)
   sinVoz?: boolean | (() => boolean); // U10: true = voice frames are not relayed; a function is asked at every frame (the world's /voz)
   aventura?: (carpeta: string) => { fichero: string; texto: string }[]; // J5: the adventure's text files (server/aventura.ts); none = no adventure
   // P4: AI inhabitants. `sign` checks agent tickets (a secret apart from the guests'); `nombre` = the name the world
@@ -83,6 +84,7 @@ export class Instance {
       who: (e) => this.byEntity[e]?.who ?? null,
       puede: (e, accion) => !!this.byEntity[e] && (opts.puede?.(this.byEntity[e]?.who ?? null, accion, e) ?? false),
       activo: opts.activo,
+      medidas: opts.medidas,
       visible: (e) => this.byEntity[e]?.visible ?? [],
       aventura: opts.aventura,
     });

@@ -417,3 +417,25 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `boca/voz-en-vivo` (sin subir; esperando que Pablo revise el diff).
 - Siguiente: que alguien lo mire en un navegador real con dos pestañas y el micrófono; si algún día el agente tiene voz
   propia, esto mismo (`view.voz`) le sirve en cuanto emita audio decodificable.
+
+## 2026-10-16 21:49 · U12 · huecos: pinchas el cuadro, eliges tu imagen y se encaja sola · hecho (sesión con Pablo, rama `plantillas/huecos`)
+- Qué: Pablo pidió para las plantillas de mundo (galería, auditorio, sala de rol, salón de eventos) un hueco que el dueño
+  rellena: «pinchas el hueco, eliges tu imagen y se encaja sola», «y que te pida abrir carpeta para cargar el documento».
+  `objetos` versión 5, aditiva: tres campos (`huecoAncho`, `huecoAlto`, `huecoLleno`) y tres verbos (`hueco`, `rellenar`,
+  `vaciar`). El servidor mide la imagen subida por su cabecera (png, jpg con la orientación EXIF, webp: `medidasImagen` en
+  `net`, `api.medidas` nuevo en el enchufe de las features) y la encaja entera, centrada y sin deformar; nunca se fía de lo
+  que diga la página. Vaciar devuelve el cartel. En la página, quien construye ve «E: poner tu obra en este hueco» cerca de
+  uno; E, el botón o un clic abren el selector de ficheros en el mismo gesto. La imagen se reduce a 2.048 px y una JPEG se
+  redibuja sin su EXIF (el GPS de una foto de móvil no llega al mundo). Panel de construir: «Hacer hueco», «Poner obra…»,
+  «Vaciar hueco». Versión **0.2.0** (algo nuevo que no rompe nada, `docs/VERSIONES.md`).
+- Números: 8 pruebas nuevas (`test/huecos.test.ts`), 352 en total; la de coste del chat (`test/chat.test.ts`, p50 de un tick
+  de nombres) pasa sola y falla con la máquina cargada (carga 9: 6,30 ms). Pierna `huecos` en chromium y firefox, cuatro
+  vueltas en verde: E abre el selector, una PNG de 3.000 × 1.000 sube como 2.048 × 683 y queda a escala 0,8 en un marco de
+  2,4 × 1,6; la otra pestaña la ve; un clic en el hueco abre el selector otra vez y una JPEG en retrato queda a 1,6; vaciar
+  devuelve el cartel. Límite publicado: `hole_image_px_max` 4.096 px por lado.
+- Aviso: la pierna `constructor` falla en chromium en esta máquina («deshacer y rehacer llegan a B»: el segundo Ctrl+Z no
+  devuelve el movimiento) también en main sin este cambio (15d092a, dos de dos): no viene de aquí, queda por mirar.
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `plantillas/huecos` (ver `git log`).
+- Siguiente: que el render reduzca las imágenes por nivel (Quest y móvil: 21 huecos llenos de 2.048 px pasan de los 256 MB
+  de textura del nivel B); huecos de modelo y de vídeo; dentro de VR no hay selector de ficheros (hay que salir).

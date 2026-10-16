@@ -96,6 +96,81 @@ export function comprobarFichero(tipo: string, b: Uint8Array): Result<{ tipo: st
 /** The issues of a Result as one line a person reads. */
 export const motivo = (issues: Issue[]): string => issues.map((i) => i.message).join("; ");
 
+// U12: the size in pixels of a picture, read from its first bytes (the server fits a picture into a hole with it, and the
+// page shrinks a big one before uploading). Never throws; null when the bytes do not say (cut short, not that kind).
+export type Medidas = { ancho: number; alto: number };
+const u16be = (b: Uint8Array, i: number) => (b[i] << 8) | b[i + 1];
+const u32be = (b: Uint8Array, i: number) => ((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0;
+const medida = (ancho: number, alto: number): Medidas | null => (ancho >= 1 && alto >= 1 ? { ancho, alto } : null);
+
+/** PNG: the IHDR chunk comes first, right after the 8-byte signature (width and height, big-endian). */
+function medidasPng(b: Uint8Array): Medidas | null {
+  if (b.length < 24 || !MAGIAS.png(b) || String.fromCharCode(b[12], b[13], b[14], b[15]) !== "IHDR") return null;
+  return medida(u32be(b, 16), u32be(b, 20));
+}
+
+/** JPEG: walk the segments to the first frame header (SOFn: height, then width). A phone photo turned by its EXIF
+ * orientation (5–8: a quarter turn) is measured as it is seen, standing. */
+function medidasJpg(b: Uint8Array): Medidas | null {
+  if (!MAGIAS.jpg(b)) return null;
+  let i = 2, girada = false;
+  while (i + 9 <= b.length) {
+    if (b[i] !== 0xff) return null;
+    const m = b[i + 1];
+    if (m === 0xff) { i++; continue; }                                         // fill byte
+    if (m === 0xd8 || m === 0x01 || (m >= 0xd0 && m <= 0xd7)) { i += 2; continue; } // markers without a length
+    if (m === 0xd9 || m === 0xda) return null;                                  // end, or the image data before any frame header
+    const len = u16be(b, i + 2);
+    if (len < 2) return null;
+    if (m === 0xe1) girada = girada || cuartoDeVuelta(b, i + 4, Math.min(b.length, i + 2 + len));
+    if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) {
+      const alto = u16be(b, i + 5), ancho = u16be(b, i + 7);
+      return girada ? medida(alto, ancho) : medida(ancho, alto);
+    }
+    i += 2 + len;
+  }
+  return null;
+}
+/** Inside an APP1 segment: «Exif\0\0», a TIFF header (II or MM), the first IFD; tag 0x0112 (orientation) 5–8 = turned. */
+function cuartoDeVuelta(b: Uint8Array, ini: number, fin: number): boolean {
+  if (fin - ini < 14 || String.fromCharCode(b[ini], b[ini + 1], b[ini + 2], b[ini + 3]) !== "Exif" || b[ini + 4] !== 0 || b[ini + 5] !== 0) return false;
+  const t = ini + 6, le = b[t] === 0x49 && b[t + 1] === 0x49;
+  if (!le && !(b[t] === 0x4d && b[t + 1] === 0x4d)) return false;
+  const u16 = (i: number) => (le ? b[i] | (b[i + 1] << 8) : u16be(b, i));
+  const u32 = (i: number) => (le ? (b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24)) >>> 0 : u32be(b, i));
+  const ifd = t + u32(t + 4);
+  if (ifd + 2 > fin) return false;
+  for (let k = 0, n = u16(ifd); k < n; k++) {
+    const e = ifd + 2 + k * 12;
+    if (e + 12 > fin) return false;
+    if (u16(e) === 0x0112) { const o = u16(e + 8); return o >= 5 && o <= 8; }
+  }
+  return false;
+}
+
+/** WebP: RIFF…WEBP and one first chunk: «VP8 » (lossy), «VP8L» (lossless) or «VP8X» (extended: the canvas). */
+function medidasWebp(b: Uint8Array): Medidas | null {
+  if (b.length < 25 || !MAGIAS.webp(b)) return null;
+  const tipo = String.fromCharCode(b[12], b[13], b[14], b[15]);
+  if (tipo !== "VP8L" && b.length < 30) return null;
+  if (tipo === "VP8X") return medida(1 + (b[24] | (b[25] << 8) | (b[26] << 16)), 1 + (b[27] | (b[28] << 8) | (b[29] << 16)));
+  if (tipo === "VP8L") {
+    if (b[20] !== 0x2f) return null;
+    const v = (b[21] | (b[22] << 8) | (b[23] << 16) | (b[24] << 24)) >>> 0;
+    return medida(1 + (v & 0x3fff), 1 + ((v >>> 14) & 0x3fff));
+  }
+  if (tipo === "VP8 ") {
+    if (b[23] !== 0x9d || b[24] !== 0x01 || b[25] !== 0x2a) return null;
+    return medida((b[26] | (b[27] << 8)) & 0x3fff, (b[28] | (b[29] << 8)) & 0x3fff);
+  }
+  return null;
+}
+
+/** How many pixels a picture measures (png, jpg, webp), from its first bytes; null when it cannot be told. */
+export function medidasImagen(tipo: string, b: Uint8Array): Medidas | null {
+  try { return tipo === "png" ? medidasPng(b) : tipo === "jpg" ? medidasJpg(b) : tipo === "webp" ? medidasWebp(b) : null; } catch { return null; }
+}
+
 // SHA-256 for pages without crypto.subtle (it exists only in secure contexts: https or localhost; a server reached by
 // plain http://IP has none). FIPS 180-4, checked against node:crypto in test/subidas.test.ts.
 const K = new Uint32Array([
