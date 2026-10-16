@@ -1,5 +1,5 @@
 // H3b: a person who arrives with numinia.com's world pass, inside a headless world (the roles feature, chat, objetos).
-// The pass reaches the Instance through `identificar(entity, token, pase)`: the wire does not carry it yet (docs/BACKLOG.md H3b).
+// The pass reaches the Instance through `identificar(entity, token, pase)` (here called directly; the wire that carries it, PASE, is in test/pase-cable.test.ts).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, sign } from "node:crypto";

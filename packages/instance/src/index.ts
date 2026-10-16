@@ -6,7 +6,7 @@ import type { SimState, SpawnArea } from "../../sim/src/index.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
-  decodeIdentityRequest, encodeIdentity, leerVozSubida, codificarVozBajada, VOZ_RADIO_M, VOZ_TRAMAS_S,
+  decodeIdentityRequest, decodePase, encodeIdentity, leerVozSubida, codificarVozBajada, VOZ_RADIO_M, VOZ_TRAMAS_S,
 } from "../../net/src/index.ts";
 import { agenteDe, emitir, nombreDe, nuevoId, today, verificar, verificarAgente } from "./identidad.ts";
 import type { Who } from "./identidad.ts";
@@ -48,6 +48,7 @@ type Conn = {
   queue: { seq: number; mx: number; mz: number; buttons: number }[]; ack: number; dropped: number; bad: number;
   who?: Who; // I1: set once the page shows (or asks for) its guest token
   invitado?: string; // H3b: the guest id behind a numinia.com person (the page's guest token still names it: uploads)
+  pase?: string; // H3b: the world pass the page sent (PASE), held until its IDENTITY arrives, then handed to identificar and forgotten
   visible?: number[]; // J3: who its last snapshot carried (features ask with api.visible: names over heads)
   voz?: { desde: number; n: number }; // U10: voice frames this second (rate cap)
 };
@@ -93,7 +94,12 @@ export class Instance {
       } else if (bytes[0] === MSG.IDENTITY && this.opts.identitySign) {
         const token = conn.who ? null : decodeIdentityRequest(bytes); // once per connection
         if (token === null) { conn.bad++; return; }
-        this.identificar(entity, token);
+        const pase = conn.pase; conn.pase = undefined; // the pass (if the page sent one first) is used once, here
+        this.identificar(entity, token, pase);
+      } else if (bytes[0] === MSG.PASE) { // H3b: before IDENTITY, once. Refused (counted, never thrown, connection kept) when late, repeated or malformed
+        const pase = conn.who || conn.pase !== undefined ? null : decodePase(bytes);
+        if (pase === null) conn.bad++;
+        else if (this.opts.identitySign && this.opts.credencial) conn.pase = pase; // a world that takes no passes ignores it (the person enters as a guest)
       } else if (bytes[0] === MSG.VOICE) {
         if (!this.opts.sinVoz) this.relayVoice(conn, bytes);
       } else if (bytes[0] === MSG.REPORT) {
@@ -112,7 +118,7 @@ export class Instance {
   /** I1/P4/H3b: who a connection is, once. `token` = the guest token it kept ("" = none) or an agent ticket; `pase` = the
    * numinia.com world pass it brought, if any (H3b). With a pass the world's `credencial` may name the person (their
    * numinia.com id, name and roles) instead of the guest; the guest token is still answered, so the browser keeps it.
-   * The wire does not carry a pass yet (see docs/BACKLOG.md H3b): nothing in this file calls it with one. */
+   * The wire carries it in PASE (net, type 12), sent before IDENTITY; the message handler above hands it over here. */
   identificar(entity: number, token: string, pase?: string): void {
     const conn = this.byEntity[entity];
     if (!conn || conn.who || !this.opts.identitySign) return;

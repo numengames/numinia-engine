@@ -9,7 +9,8 @@ import type { Field } from "../../schema/src/index.ts";
 // 9 (T1, additive): REPORT, page -> server: how this player entered and how it is going (JSON, see server/sesiones.ts).
 // 10 (I1, additive): IDENTITY. page -> server: the guest token it kept (or nothing); server -> page: {token, id, nombre}.
 // 11 (U10, additive): VOICE, a frame of a person's microphone; the server relays it only to who is near (voz.ts).
-export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8, REPORT: 9, IDENTITY: 10, VOICE: 11 } as const;
+// 12 (H3b, additive): PASE, numinia.com's world pass (a compact JWS), page -> server, before IDENTITY. Own cap PASE_MAX (2048).
+export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8, REPORT: 9, IDENTITY: 10, VOICE: 11, PASE: 12 } as const;
 export * from "./voz.ts";
 
 /** Wire format version, sent at the end of WELCOME. 1 = everything before J2 (it was never written on the wire);
@@ -296,7 +297,7 @@ export function loopbackPair(): [Transport & { flush(): void }, Transport & { fl
 
 /** Client side over the standard WebSocket API (browsers and Node >= 22 both have it). */
 // ---------- REPORT (T1): one JSON object, at most REPORT_MAX bytes; the server keeps only the keys it knows ----------
-export const REPORT_MAX = 1000; // the server's WebSocket refuses frames over 1024 bytes
+export const REPORT_MAX = 1000; // the server's WebSocket refuses frames over WS_FRAME_MAX (1024) bytes, PASE aside
 /** null when the object does not fit: drop the longest texts and try again. */
 export function encodeReport(report: Record<string, unknown>): Uint8Array | null {
   const json = utf8enc.encode(JSON.stringify(report));
@@ -329,6 +330,30 @@ export function encodeIdentity(i: Identity): Uint8Array {
 export function decodeIdentity(bytes: Uint8Array): Identity | null {
   try { const o = JSON.parse(utf8dec.decode(bytes.subarray(1))); return typeof o?.token === "string" && typeof o?.id === "string" && typeof o?.nombre === "string" ? o : null; }
   catch { return null; }
+}
+
+// ---------- PASE (H3b, additive type 12): numinia.com's world pass, page -> server, before IDENTITY ----------
+// A pass is a compact JWS (header.payload.signature, base64url) of 600-1100 bytes, ~1.3 KB with 5 roles: it does not fit
+// IDENTITY (120 B) nor the old 1024-byte WebSocket frame. Own message, own cap; IDENTITY and its 120 B stay untouched.
+//   page -> server: [12, token as ASCII…]   (once per connection, before IDENTITY; the server answers nothing: IDENTITY's answer says who you are)
+/** Largest PASE frame (type byte included) and, with it, the server's WebSocket maxPayload: the biggest frame any message may have. */
+export const PASE_MAX = 2048;
+/** Largest frame of every other message type: the server's WebSocket used to refuse anything over it (and still does, except PASE). */
+export const WS_FRAME_MAX = 1024;
+const PASE_FORMA = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+/** null when the token is not shaped like a compact JWS or does not fit PASE_MAX (the page then sends nothing). */
+export function encodePase(token: string): Uint8Array | null {
+  if (token.length + 1 > PASE_MAX || !PASE_FORMA.test(token)) return null;
+  const out = new Uint8Array(token.length + 1); out[0] = MSG.PASE;
+  for (let i = 0; i < token.length; i++) out[i + 1] = token.charCodeAt(i);
+  return out;
+}
+/** The token, or null for anything that is not a well-shaped PASE of at most PASE_MAX bytes (never throws). */
+export function decodePase(bytes: Uint8Array): string | null {
+  if (bytes[0] !== MSG.PASE || bytes.length < 6 || bytes.length > PASE_MAX) return null;
+  let s = "";
+  for (let i = 1; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return PASE_FORMA.test(s) ? s : null;
 }
 
 export function webSocketClient(url: string): Transport & { opened: Promise<void>; closed: Promise<void>; close(): void } {

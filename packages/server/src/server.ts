@@ -13,6 +13,7 @@ import { hex } from "../../core/src/index.ts";
 import { REFERENCE, referenceRecording, replayFingerprint, TICK_HZ } from "../../sim/src/index.ts";
 import type { SpawnArea } from "../../sim/src/index.ts";
 import { Instance } from "../../instance/src/index.ts";
+import { MSG, PASE_MAX, WS_FRAME_MAX } from "../../net/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
 import type { HttpReply, ServerPart } from "../../feature/src/index.ts";
 import { buildMetrics, ByteWindow, TickWindow, toPrometheus } from "./metrics.ts";
@@ -91,6 +92,8 @@ export function wsTransport(ws: WebSocket): Transport {
   };
   ws.on("message", (data, isBinary) => {
     if (!isBinary || !(data instanceof Buffer)) return; // text frames and fragments are ignored
+    // maxPayload is PASE_MAX (the biggest frame any message has); every other type keeps the old WS_FRAME_MAX: over it, close as the WebSocket library used to
+    if (data.byteLength > WS_FRAME_MAX && data[0] !== MSG.PASE) { ws.close(1009, "message too big"); return; }
     cb(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
   });
   return t;
@@ -222,7 +225,9 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     req.on("end", () => (size > MAX_BODY ? json(res, 413, { error: `cuerpo de más de ${MAX_BODY} bytes` }) : answer(body)));
   });
 
-  const wss = new WebSocketServer({ server: http, maxPayload: 1024, perMessageDeflate: false });
+  // maxPayload = PASE_MAX (2048, H3b): the one message that needs more than the old 1024 is the world pass (600-1300 B). The library
+  // checks the size before anything is read, so the biggest legal frame has to fit here; wsTransport cuts the others at WS_FRAME_MAX as before.
+  const wss = new WebSocketServer({ server: http, maxPayload: PASE_MAX, perMessageDeflate: false });
   wss.on("connection", (ws) => {
     if (inst.conns.length >= maxPlayers) { counts.rechazadasLlenas++; ws.close(1013, "instance full"); return; }
     counts.aceptadas++;

@@ -4,7 +4,7 @@
 import { fxToFloat } from "../../core/src/index.ts";
 import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, TICK_HZ } from "../../sim/src/index.ts";
 import type { Body, SimState } from "../../sim/src/index.ts";
-import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, encodeIdentityRequest, decodeIdentity, seqNewer, codificarVozSubida, leerVozBajada } from "../../net/src/index.ts";
+import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, encodeIdentityRequest, encodePase, decodeIdentity, seqNewer, codificarVozSubida, leerVozBajada } from "../../net/src/index.ts";
 import type { Transport, Welcome } from "../../net/src/index.ts";
 import { ClientRuntime } from "../../feature/src/index.ts";
 import type { ClientPart, ViewHooks } from "../../feature/src/index.ts";
@@ -38,6 +38,19 @@ export function serverUrl(loc: { protocol: string; hostname: string; host: strin
 /** I1: where the page keeps its guest token between visits (the browser passes localStorage; tests a variable). */
 export type GuestKeeper = { load(): string | null; save(token: string): void };
 
+/** H3b: the world pass from the address (`#pass=<token>`), taken out of it. Returns the token (or null: none, or not shaped like a pass)
+ * and always removes the `pass` parameter from the address bar so it is not kept in history, bookmarks or shared by accident. */
+export function tomarPaseDeLaDireccion(loc: { hash: string; pathname: string; search: string }, hist: { state: unknown; replaceState(state: unknown, title: string, url: string): void }): string | null {
+  if (!loc.hash.includes("pass=")) return null;
+  const params = new URLSearchParams(loc.hash.replace(/^#/, ""));
+  const raw = params.get("pass");
+  if (raw === null) return null;
+  params.delete("pass");
+  const rest = params.toString();
+  try { hist.replaceState(hist.state, "", loc.pathname + loc.search + (rest ? `#${rest}` : "")); } catch { /* no history API: the token stays in the bar, but is still sent */ }
+  return encodePase(raw) ? raw : null;
+}
+
 export class ClientSession {
   readonly t: Transport;
   entity = -1;
@@ -57,10 +70,12 @@ export class ClientSession {
   /** I1: who the server says you are (guest id + name); null until it answers, or when no keeper was given. */
   who: { id: string; nombre: string } | null = null;
   private readonly keeper?: GuestKeeper;
+  private pase: string | null; // H3b: numinia.com's world pass, sent once (before IDENTITY) and then forgotten
 
-  constructor(t: Transport, opts: { features?: readonly ClientPart[]; view?: ViewHooks; identity?: GuestKeeper } = {}) {
+  constructor(t: Transport, opts: { features?: readonly ClientPart[]; view?: ViewHooks; identity?: GuestKeeper; pase?: string | null } = {}) {
     this.t = t;
     this.keeper = opts.identity;
+    this.pase = opts.pase ?? null;
     this.local = createSim(1, 0);
     spawnAvatar(this.local, 0);
     this.features = new ClientRuntime(opts.features ?? [], { send: (b) => this.t.send(b, true), self: () => this.entity, view: opts.view });
@@ -112,7 +127,11 @@ export class ClientSession {
       this.welcome = w; this.entity = w.entity;
       this.setLocal({ x: w.x, y: groundHeight(w.x, w.z), z: w.z, vy: 0, air: 0, buf: 0 }); this.prev = this.cur; // spawned standing
       this.syncClock(w.tick, now, true);
-      if (this.keeper) { let kept: string | null = null; try { kept = this.keeper.load(); } catch { /* private mode */ } this.t.send(encodeIdentityRequest(kept ?? ""), true); }
+      if (this.keeper) {
+        const pase = this.pase && encodePase(this.pase); this.pase = null; // the pass goes first, once; a server that does not know PASE just counts it
+        if (pase) this.t.send(pase, true);
+        let kept: string | null = null; try { kept = this.keeper.load(); } catch { /* private mode */ } this.t.send(encodeIdentityRequest(kept ?? ""), true);
+      }
     } else if (type === MSG.IDENTITY) {
       const i = decodeIdentity(bytes);
       if (i) { this.who = { id: i.id, nombre: i.nombre }; try { this.keeper?.save(i.token); } catch { /* private mode: a new guest next time */ } }
