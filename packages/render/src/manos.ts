@@ -53,41 +53,67 @@ type Ranura = {
   ancla: THREE.Object3D; halo: THREE.Mesh; candidato: string | null; apuntado: { tipo: "panel" | "cosa"; key: string; fila: number } | null;
 };
 
-/** A drawn hand holding a small controller, in grip space. Fingers bend with `dedos(indice, resto, pulgar)` (0..1). */
+/** Pieces into one geometry (position + normal), each with its own transform: one draw call for all of them. */
+function juntar(piezas: [THREE.BufferGeometry, THREE.Matrix4][]): THREE.BufferGeometry {
+  const pos: number[] = [], nor: number[] = [];
+  for (const [geo, m] of piezas) {
+    const g = (geo.index ? geo.toNonIndexed() : geo.clone()).applyMatrix4(m);
+    pos.push(...(g.attributes.position.array as Float32Array)); nor.push(...(g.attributes.normal.array as Float32Array));
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); out.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+  return out;
+}
+const en = (x: number, y: number, z: number, rx = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, 0, 0)), new THREE.Vector3(1, 1, 1));
+
+/** A drawn hand holding a small controller, in grip space, in 3 draw calls (controller, palm, the ten finger bones as
+ * one instanced mesh). Fingers bend with `dedos(indice, resto, pulgar)` (0..1). */
 function crearManoMando(mat: THREE.Material, matMando: THREE.Material) {
   const g = new THREE.Group();
-  // the controller: a handle along the grip's -Z axis tilted down, a ring over the hand
-  const mango = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.02, 0.11, 10), matMando);
-  mango.rotation.x = Math.PI / 2 - 0.35; mango.position.set(0, -0.01, 0.02);
-  const anillo = new THREE.Mesh(new THREE.TorusGeometry(0.038, 0.006, 6, 18), matMando);
-  anillo.position.set(0, 0.03, -0.045); anillo.rotation.x = 0.5;
-  const cara = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.012, 14), matMando);
-  cara.position.set(0, 0.035, -0.02); cara.rotation.x = 0.35;
-  g.add(mango, anillo, cara);
+  // the controller: a handle along the grip's -Z axis tilted down, a ring over the hand, the face with the buttons
+  g.add(new THREE.Mesh(juntar([
+    [new THREE.CylinderGeometry(0.017, 0.02, 0.11, 10), en(0, -0.01, 0.02, Math.PI / 2 - 0.35)],
+    [new THREE.TorusGeometry(0.038, 0.006, 6, 18), en(0, 0.03, -0.045, 0.5)],
+    [new THREE.CylinderGeometry(0.024, 0.024, 0.012, 14), en(0, 0.035, -0.02, 0.35)],
+  ]), matMando));
   // the hand: the back of the palm outside (+X for a right hand; the left one is mirrored by the caller)
   const palma = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.085, 0.08), mat);
   palma.position.set(0.035, 0, 0.015); palma.rotation.x = -0.35;
   g.add(palma);
+  // finger bones: invisible joints that bend; their segments are drawn by one instanced mesh
   const seg = new THREE.CapsuleGeometry(0.0095, 0.03, 3, 8).rotateX(Math.PI / 2).translate(0, 0, -0.024);
+  const huesos = new THREE.InstancedMesh(seg, mat, 10);
+  huesos.frustumCulled = false;
+  huesos.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  g.add(huesos);
+  const segmentos: THREE.Object3D[] = [];
   type Dedo = { base: THREE.Group; medio: THREE.Group };
   const dedo = (x: number, y: number, z: number, largo = 1): Dedo => {
     const base = new THREE.Group(); base.position.set(x, y, z);
-    const a = new THREE.Mesh(seg, mat); a.scale.setScalar(largo); base.add(a);
+    const a = new THREE.Object3D(); a.scale.setScalar(largo); base.add(a);
     const medio = new THREE.Group(); medio.position.set(0, 0, -0.045 * largo); base.add(medio);
-    medio.add(new THREE.Mesh(seg, mat));
-    palma.parent!.add(base);
+    const b = new THREE.Object3D(); medio.add(b);
+    g.add(base); segmentos.push(a, b);
     return { base, medio };
   };
   // index (trigger) high and in front; middle, ring and little finger wrap the handle (grip)
   const indice = dedo(0.03, 0.022, -0.035);
   const resto = [dedo(0.03, -0.004, -0.03), dedo(0.03, -0.026, -0.022, 0.92), dedo(0.028, -0.046, -0.012, 0.8)];
   const pulgar = dedo(0.0, 0.04, 0.01, 0.9);
-  pulgar.base.rotation.set(0, 0, 0);
   const doblar = (d: Dedo, v: number) => { d.base.rotation.y = 0.15 + v * 1.25; d.medio.rotation.y = 0.2 + v * 1.35; }; // towards -X: across the handle
+  const M = new THREE.Matrix4(), inv = new THREE.Matrix4();
+  let antes = "";
   function dedos(i: number, r: number, p: number): void {
+    const firma = `${i.toFixed(2)} ${r.toFixed(2)} ${p}`;
+    if (firma === antes) return; // nothing moved: no upload
+    antes = firma;
     doblar(indice, i);
     for (const d of resto) doblar(d, 0.35 + r * 0.65);
     pulgar.base.rotation.x = -0.6 - p * 0.5; pulgar.base.rotation.y = -0.3 - p * 0.35; pulgar.medio.rotation.x = -0.25 - p * 0.4;
+    g.updateMatrixWorld(true);
+    inv.copy(g.matrixWorld).invert();
+    segmentos.forEach((s, k) => huesos.setMatrixAt(k, M.multiplyMatrices(inv, s.matrixWorld)));
+    huesos.instanceMatrix.needsUpdate = true;
   }
   dedos(0, 0, 0);
   return { grupo: g, dedos };
