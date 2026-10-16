@@ -5,6 +5,7 @@
 // drives it. Its senses are what a player's page has: who is near (the snapshot), their names (chat), what they
 // say (chat) and the cards of the things around (V1). Everything people write is UNTRUSTED (STD-050).
 import { ClientSession } from "../../client/src/index.ts";
+import { encodePase } from "../../net/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
 import type { Msg, CardView } from "../../feature/src/index.ts";
 import { MARCA_IA } from "../../instance/src/identidad.ts";
@@ -30,12 +31,19 @@ export class Cuerpo {
   private ticks = 0;
 
   /** `ticket`: its agent ticket (identidad.ts emitirAgente), shown on joining like a guest shows its token. */
-  constructor(t: Transport, ticket: string) {
-    this.s = new ClientSession(t, { identity: { load: () => ticket, save: () => {} } });
+  constructor(t: Transport, ticket: string, pase?: string) {
+    this.s = new ClientSession(t, { identity: { load: () => ticket, save: () => {} }, pase: pase ?? null });
     this.s.features.tap((feature, event, msg) => this.evento(feature, event, msg));
   }
 
   get entidad(): number { return this.s.entity; }
+  /** ia-organizacion: a fresh numinia.com pass in mid-session (PASE, type 12): the world renews how long it lives and its permissions. */
+  renovarPase(pase: string): boolean {
+    const b = encodePase(pase);
+    if (!b) return false;
+    this.s.t.send(b, true);
+    return true;
+  }
   /** The name the server gave it (with « · IA»), once it answered. */
   get nombre(): string | null { return this.s.who?.nombre ?? null; }
   /** Ticks of this body's own clock (20 Hz, one per paso()). */

@@ -32,9 +32,9 @@ import type { Who } from "../../instance/src/index.ts";
 import { ACCION_PERMISO, ACCION_TEXTO, PERMISOS, acceso, BASE, esBase, noPuedeDar, plano, plantilla, porDebajo, rolPorNombre, tiene, validarRoles } from "./roles.ts";
 import type { Acceso, Accion, Miembro, Permiso, Rol } from "./roles.ts";
 import { verificarPase } from "./pase.ts";
-import type { ConfigPase, Pase } from "./pase.ts";
+import type { ConfigPase, EstadoIA, Pase } from "./pase.ts";
 import { AGENTE } from "./aventura.ts";
-import { MARCA_IA, nombreDe } from "../../instance/src/identidad.ts";
+import { MARCA_IA, agenteDe, nombreDe } from "../../instance/src/identidad.ts";
 import type { Puerta } from "./puerta.ts";
 import { ADMIN_MIN } from "./secret.ts";
 
@@ -45,6 +45,7 @@ export const INTENTOS = 3;             // wrong administration codes per connect
 export const INTENTOS_PAUSA_MIN = 10;
 export const AVISO_MAX = 300;          // bytes (chat's AVISO_MAX)
 const MOTIVO_MAX = 200;
+export const RENOVAR_MIN_MS = 1000;      // an AI may renew its pass at most once a second (a signature check each)
 
 const quien = { kind: "int", min: 0, max: 65535 } as const;
 export const rolesFeature = defineFeature({
@@ -74,7 +75,7 @@ export type OpcionesRoles = {
 type Veto = { nombre: string; motivo: string; por: string; cuando: string };
 /** What the order `/agente` and numinia.com's panel (GET/POST/DELETE /agentes, agentes-http.ts) both do: ONE code path. */
 export type AgenteDato = { id: string; nombre: string; clave: string; rol?: string };
-export type AgenteVista = { id: string; nombre: string; rol: string | null; permisos: string[]; presente: boolean };
+export type AgenteVista = { id: string; nombre: string; rol: string | null; permisos: string[]; presente: boolean; organizacion?: true; estado?: EstadoIA };
 /** `motivo` tells the HTTP door which status to use; `texto` is Spanish and is what the person reads in both doors. */
 export type ResultadoAgente = { ok: true; texto: string; agente?: AgenteVista } | { ok: false; texto: string; motivo: "invalido" | "conflicto" | "no-hay" | "servidor" };
 export type GestionAgentes = {
@@ -122,7 +123,15 @@ export function crearRoles(o: OpcionesRoles) {
   const pases = new Map<string, { pase: Pase; acceso: Acceso }>();   // person id (the pass's `sub`) -> their pass
   const deEntidad = new Map<number, string>();                       // entity -> person id, to forget a pass when the last device leaves
   const pendientes = new Map<number, string>();                      // entity -> why its pass was refused (told once, at identify)
+  // ia-organizacion: an AI of a numinia.com organization comes with a pass (kind "agent") and lives only while it is valid.
+  const pasesIA = new Map<string, Pase>();                              // agent sub (a_…) -> its latest pass
+  const vidaIA = new Map<number, { sub: string; exp: number; ult: number; cerrando?: true }>(); // entity -> pass end (s) and last renewal (ms)
   const accesoDe = (id: string | undefined): Acceso => {
+    const ia = id && esIA(id) ? pasesIA.get(id.slice(3)) : undefined;
+    if (ia) { // the pass already says what it may do (role ∩ responsible, trimmed); asleep never builds, whatever the pass lists
+      const permisos = new Set(ia.permisos.filter((p) => PERMISOS_IA.has(p) && !(ia.state === "dormida" && p === "build-in-worlds")));
+      return { permisos, altura: ia.altura < Number.MAX_VALUE ? ia.altura : BASE, dueno: false };
+    }
     if (id && esIA(id)) { // an outside agent: its role in its file (an inhabitant: @todos), only what an AI may do
       const rol = o.puerta?.agente(id.slice(3))?.rol;
       const base = acceso(roles, rol ? { roles: [rol] } : null);
@@ -139,10 +148,32 @@ export function crearRoles(o: OpcionesRoles) {
     const v = verificarPase(token, o.pase.clave, { aud: o.pase.mundo, now: Math.floor(ahora() / 1000), org: o.pase.org });
     if (!v.ok) { pendientes.set(entity, v.texto); log(`[pase] rechazado para ${invitado.id}: ${v.motivo}`); return null; }
     const p = v.pase;
+    if (p.kind === "agent") { // an organization's AI: not a person, no member list, ends with its pass
+      for (const [e, x] of vidaIA) if (x.sub === p.sub && !x.cerrando) { x.cerrando = true; porCerrar.push({ e, motivo: "esta IA ha entrado desde otro sitio" }); } // one connection per agent
+      pasesIA.set(p.sub, p); vidaIA.set(entity, { sub: p.sub, exp: p.exp, ult: ahora() });
+      log(`[pase] ${p.sub} («${p.nombre ?? "IA"}», IA de la organización ${p.org}) entra ${p.state}, ${p.permisos.length} permisos, el pase vale hasta dentro de ${Math.max(0, p.exp - Math.floor(ahora() / 1000))} s`);
+      return agenteDe(p.sub, p.nombre ?? "IA");
+    }
     pases.set(p.sub, { pase: p, acceso: p.dueno ? { permisos: new Set(PERMISOS), altura: Number.POSITIVE_INFINITY, dueno: true } : { permisos: new Set(p.permisos), altura: p.altura, dueno: false } });
     deEntidad.set(entity, p.sub);
     log(`[pase] ${p.sub} entra con su pase de numinia.com (${p.dueno ? "dueño" : `altura ${p.altura}`}, ${p.permisos.length} permisos)`);
     return { id: p.sub, nombre: p.nombre ?? nombreDe(p.sub) };
+  };
+  /** A fresh pass in mid-session for an organization AI (Instance `renovarPase`): same agent, world and organization, never older
+   * than the one held. Applies its permissions at once (asleep = no building). null = done, else why not. */
+  const renovar = (entity: number, token: string): string | null => {
+    const vida = vidaIA.get(entity), actual = vida ? pasesIA.get(vida.sub) : undefined;
+    if (!vida || !actual || !o.pase) return "esta conexión no entró con un pase de IA de organización";
+    if (ahora() - vida.ult < RENOVAR_MIN_MS) return "renovaciones demasiado seguidas";
+    const v = verificarPase(token, o.pase.clave, { aud: o.pase.mundo, now: Math.floor(ahora() / 1000), org: o.pase.org });
+    if (!v.ok) return `pase rechazado (${v.motivo})`;
+    const p = v.pase;
+    if (p.kind !== "agent" || p.sub !== vida.sub || p.org !== actual.org || p.aud !== actual.aud) return "el pase nuevo es de otro agente, mundo u organización";
+    if (p.iat < actual.iat) return "el pase nuevo es más viejo que el que ya tiene";
+    vida.exp = p.exp; vida.ult = ahora(); pasesIA.set(vida.sub, p);
+    if (p.state !== actual.state || p.permisos.join() !== actual.permisos.join()) log(`[pase] ${p.sub} pasa a ${p.state} (${p.permisos.join(", ") || "sin permisos"})`);
+    if (api) for (const e of vidaIA.keys()) if (vidaIA.get(e)?.sub === vida.sub) api.emit("cambio", { quien: e }, "server"); // objetos tells it again whether it builds
+    return null;
   };
   const todosConstruyen = (): boolean => roles.some((r) => esBase(r) && r.permisos.includes("build-in-worlds"));
 
@@ -215,7 +246,14 @@ export function crearRoles(o: OpcionesRoles) {
     const vistaAgente = (x: { id: string; nombre: string; rol?: string }): AgenteVista =>
       ({ id: x.id, nombre: x.nombre, rol: x.rol ?? null, permisos: [...accesoDe(`ia-${x.id}`).permisos].sort(), presente: conectadoComo(`ia-${x.id}`).length > 0 });
     gestion = {
-      listar: () => (o.puerta?.agentes ?? []).map(vistaAgente),
+      listar: () => {
+        const fuera = (o.puerta?.agentes ?? []).map(vistaAgente), org = new Map<string, AgenteVista>();
+        for (const e of a.players()) { // connected organization AIs (their pass is their registration)
+          const id = a.who(e)?.id, pase = id && esIA(id) ? pasesIA.get(id.slice(3)) : undefined;
+          if (pase && !org.has(pase.sub)) org.set(pase.sub, { id: pase.sub, nombre: pase.nombre ?? "IA", rol: pase.roles[0]?.nombre ?? null, permisos: [...accesoDe(id).permisos].sort(), presente: true, organizacion: true, estado: pase.state });
+        }
+        return [...fuera, ...org.values()];
+      },
       anadir: (responsable, d) => {
         const pu = o.puerta;
         if (!pu) return { ok: false, motivo: "servidor", texto: "Este servidor no tiene puerta para agentes de fuera." };
@@ -410,21 +448,25 @@ export function crearRoles(o: OpcionesRoles) {
       if (soloMiembros && !esIA(w.id) && !((m || conPase) && tiene(accesoDe(w.id), "entrar"))) { sacar(e, "Este mundo es solo para sus miembros ahora mismo."); return; }
       const s = silencios.get(w.id);
       if (s && t < s) a.emit("silencio", { quien: e, segundos: Math.ceil((s - t) / 1000) }, "server");
-      if (m || conPase) cambio(e);
+      if (m || conPase || (esIA(w.id) && pasesIA.has(w.id.slice(3)))) cambio(e);
     });
     a.onLeave((e) => {
       intentos.delete(e); pendientes.delete(e);
+      const vida = vidaIA.get(e); vidaIA.delete(e);
+      if (vida && ![...vidaIA.values()].some((x) => x.sub === vida.sub)) pasesIA.delete(vida.sub);
       const sub = deEntidad.get(e); deEntidad.delete(e);
       if (sub && ![...deEntidad.values()].includes(sub)) pases.delete(sub); // the last device of that person left
     });
     // close on the next tick, after the answer has gone out
     a.onTick(() => {
+      const t = Math.floor(ahora() / 1000); // an organization AI lives only while its pass is valid: no fresh PASE by `exp` = out (4003)
+      for (const [e, x] of vidaIA) if (!x.cerrando && t >= x.exp) { x.cerrando = true; sacar(e, "Tu pase de IA ha caducado y no llegó otro: vuelve a pedirlo a numinia.com."); log(`[pase] ${x.sub} sale: su pase caducó sin renovar`); }
       while (porCerrar.length) { const c = porCerrar.shift()!; if (o.cerrar) o.cerrar(c.e, c.motivo); }
     });
   });
 
   return {
-    part, puede, credencial,
+    part, puede, credencial, renovar,
     /** For tests and the server: what someone with this id may do. */
     acceso: (id: string | undefined) => accesoDe(id),
     get roles(): readonly Rol[] { return roles; },

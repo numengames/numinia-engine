@@ -162,7 +162,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   if (ficha) log(`[ficha] el mundo se llama «${ficha.nombre}»${ficha.portada ? (portada ? `, portada ${portada}` : `; su portada ${ficha.portada} no está en este servidor (súbela al mundo): no la enseño`) : ""}`);
   const fichaPublica = ficha ? { nombre: ficha.nombre, descripcion: ficha.descripcion, portada: portada ?? undefined } : {};
   if (o.aparicion) log(`[mundo] la gente aparece en el cuadrado de ${2 * o.aparicion.radio} m centrado en (${o.aparicion.x}, ${o.aparicion.z})`);
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, activo: (h, ext) => activos.buscar(h, ext) !== null, aventura: lector, agentes, externos: { verificar: puerta.verificar }, sinVoz: () => !roles.voz, aparicion: o.aparicion ?? null }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz)
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, renovarPase: roles.renovar, activo: (h, ext) => activos.buscar(h, ext) !== null, aventura: lector, agentes, externos: { verificar: puerta.verificar }, sinVoz: () => !roles.voz, aparicion: o.aparicion ?? null }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz)
   // H9: uploads (PUT /a/<sha256>.<ext>) by whoever may build; the page shows its guest token (I1) to say who it is
   const subidas = new Subidas({
     dir: o.subidas ?? null, activos, log, topesMB: o.subir?.topesMB, totalMB: o.subir?.totalMB,
@@ -216,7 +216,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     // with a ficha (ADR-074) also the world's own name, description and cover (/a/<sha256>.<ext>)
     if (method === "GET" && path === "/status") {
       res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "access-control-allow-origin": "*" });
-      return void res.end(JSON.stringify({ uptime: Math.floor((performance.now() - born) / 1000), conectados: inst.conns.filter((c) => !c.who?.id.startsWith("ia-")).length, commitHash: motor.commit ?? undefined, version, ...fichaPublica }));
+      return void res.end(JSON.stringify({ uptime: Math.floor((performance.now() - born) / 1000), conectados: inst.conns.filter((c) => !c.who?.id.startsWith("ia-")).length, commitHash: motor.commit ?? undefined, version, ...(cfgPase.pase ? { mundoPase: cfgPase.pase.mundo } : {}), ...fichaPublica }));
     }
     if (method === "GET" && path === "/metrics") return json(res, 200, metrics());
     if (method === "GET" && path === "/sesiones") return json(res, 200, { schema: "numinia-engine/sesiones@1", carpeta: sesiones.dir, resumen: sesiones.resumen(), ahora: sesiones.ahora() });

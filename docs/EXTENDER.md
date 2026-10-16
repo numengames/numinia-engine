@@ -147,7 +147,11 @@ en `features.cards()`. Un agente de IA lee lo mismo en el catálogo. Ejemplos: `
 - `api.puede(entidad, "construir")` — el servidor dice si esa persona (o agente) puede cambiar el mundo. Lo
   deciden los roles del mundo (H3, guardados en su carpeta): `MOTOR_CONSTRUIR=todos` solo siembra un mundo nuevo, y
   luego un dueño escribe `/construir todos|nadie`; con un pase de numinia.com (H3b, `pase.ts`) los permisos de esa persona son los del pase, en el mismo `puede`. Pregúntalo en cada
-  intento que cambie el mundo: la página nunca decide.
+  intento que cambie el mundo: la página nunca decide. Una IA de una organización de numinia.com (`kind: "agent"` en el
+  pase, `ia-a_…`) también pasa por ahí, pero su conexión **vive solo mientras su pase valga**: el servidor la cierra con 4003 al
+  caducar si no llegó otro PASE, y un PASE a mitad de sesión cambia sus permisos (dormida = sin `build-in-worlds`), así que
+  `puede` puede devolver otra cosa dentro de unos minutos: no guardes su respuesta, y escucha el evento `cambio` de `roles`
+  (`pase.ts`, `roles-mundo.ts` `renovar`, `packages/agent/README.md`).
 - `view.place?.(clave, { model, x, y, z, rx, ry, rz, sx, sy, sz, animate } | null)` — la página pone, mueve o quita
   una cosa con su modelo (sha256 de un `.glb`; el fichero sale de `/a/<sha256>.glb` del servidor). Giros en grados
   (primero `ry`, luego `rx`, luego `rz`). `view.here?.()` dice dónde está el jugador, para poner algo delante.

@@ -149,6 +149,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | M22b | Constructor en VR y en el móvil (gizmo con el mando y con el dedo) | pendiente | sí |
 | M22c | Constructor: puntos de encaje, selección múltiple y jerarquía | pendiente | sí |
 | M26 | Servidor MCP del motor: leer zona (con el cuerpo de P4), proponer cambio, abrir PR (nunca publica solo). Trozo 1 hecho (ADR-080, rama `agentes/puerta`): la puerta de los agentes de fuera y un puente MCP por stdio junto al agente; falta el MCP servido por el propio mundo (HTTPS) | espera a M19, P4b | sí |
+| IA-ORG | IAs de organización (motor): una IA que pertenece a una organización de numinia.com entra con un pase `kind:"agent"` (`activa`/`dormida`) que pide cada ~8 min a `POST {NUMINIA_URL}/api/agents/pass`; el motor la cierra con 4003 si su pase caduca sin renovar, acepta un PASE a mitad de sesión (dormida = sin construir), la lista en `GET /agentes` (`organizacion: true`) y el puente `tools/mcp-mundo.ts` tiene modo organización. Hecho del lado del motor (rama `agentes/de-organizacion`); la mitad de numinia.com (till, ruta, panel «Agentes») va aparte | hecho (motor) | sí |
 | O4 | Seguridad: billete firmado para entrar a una instancia, tope de conexiones por IP, exportar y borrar lo tuyo | pendiente | sí |
 | O3 | Observabilidad: panel y alertas sobre `/metrics` del servidor real | espera a X3 | sí |
 | M17 | Voz por cercanía (LiveKit) con tope de voces audibles, DTX y modo escenario | necesita aprobación (Pablo: cuántas voces a la vez, `docs/SABER.md` §5) | no |
@@ -819,6 +820,20 @@ colocar, mover, borrar, deshacer, oir. Cómo conectar Hermes: `packages/agent/RE
 borra en el estado de objetos del servidor; `/agente quitar` lo cierra con 4003 y no vuelve). **Falta:** las herramientas
 servidas por el propio mundo (MCP por HTTPS), proponer cambio y abrir PR (espera a M19), el timbre que despierta a un
 agente «a demanda», el instalador pasando `--dominio` como `MOTOR_DOMINIO`, y el chat del mundo como canal de Hermes.
+
+**IAs de organización (IA-ORG, motor hecho; rama `agentes/de-organizacion`).** Contrato en `ia-organizacion/SPEC.md`. `pase.ts`
+acepta `kind:"agent"` + `state:"activa"|"dormida"` + `sub a_<32 hex>` (los tres juntos, nunca en el pase de una persona; los
+extras desconocidos se siguen rechazando; la altura de una IA nunca es de dueño). Entra como `ia-a_…`, nombre + « · IA», permisos del
+pase ∩ {entrar, construir}, sin ficha en `aventura/agentes/`. Vive mientras su pase valga: `roles-mundo.ts` la cierra con 4003 al
+`exp` si no llegó otro PASE (`Instance.renovarPase`: un PASE tras la identidad, solo para IAs con pase; renovaciones a lo sumo
+1/s; mismo agente, mundo y organización; no más viejo que el que tiene); una segunda conexión del mismo agente echa a la
+primera. `GET /agentes` suma las conectadas con `organizacion: true` y `estado`; `/status` dice `mundoPase` (el `aud` que el
+puente pide). Puente: `NUMINIA_URL` + `AGENTE_ORG` (+ `AGENTE_MUNDO`), `pase-org.ts` (`pedirPaseHttp`, inyectable),
+renueva a los ~8 min, `apagada` = sale y lo dice por stderr, `mirar` da el estado, dormida no construye ni habla si no la llaman por
+su nombre. **Medido:** pase de IA 551 bytes típico, 1.693 el peor (tope 2.048); `test/pase-ia.test.ts` (8) y
+`test/puente-org.test.ts` (4: numinia.com falso con `node:http`, servidor real, puente real, pases de 3 s). **Falta:** la mitad de
+numinia.com (till, `POST /api/agents/pass`, panel) y probar contra ella; avisar a la IA dormida de que la han llamado fuera del chat
+cercano; reconectar tras 4003 por caducidad usa el backoff normal (hasta 30 s).
 
 ### O4 — Seguridad (espera a I1 y S4)
 Billete firmado y con caducidad para entrar a una instancia (de I1); tope de conexiones por IP y de mensajes
