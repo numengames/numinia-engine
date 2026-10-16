@@ -10,6 +10,7 @@
 // The brain (P5a, mente.ts) for inhabitants with escalón 2 or 4 — without a key they answer with their script:
 //   CEREBRO_CLAVE  the provider key (installed: /opt/numinia-engine/cerebro.env, made by `instalar-motor.sh --clave-ia`)
 //   CEREBRO_MODELO the model (default cerebro.ts MODELO_POR_DEFECTO) · CEREBRO_DIA_MAX calls a day for all (300)
+//   (an inhabitant's file may name its own model, cerebro.modelo, and its own calls a day, cerebro.tope: the world's choice)
 //   CEREBRO_MINUTO calls a minute per inhabitant (6) · CEREBRO_ECO=1 the echo brain (QA: no provider, no key)
 //   MOTOR_BIBLIOTECA what it may place (default features/objetos/biblioteca.json, the engine's house library)
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -77,7 +78,8 @@ function reintentar(v: Vivo, porque: string): void {
 for (const v of vivos) await entrar(v);
 log(`${vivos.filter((v) => v.dentro).length} de ${vivos.length} dentro de ${url}: ${habitantes.map((h) => `${h.nombre} (${h.id}, E${h.escalon})`).join(", ")}${copias > 1 ? ` × ${copias} copias` : ""}`);
 const conCerebro = habitantes.filter((h) => h.escalon >= 2);
-if (conCerebro.length) log(cerebro ? `cerebro: ${cerebro.nombre} para ${conCerebro.map((h) => h.nombre).join(", ")} · topes ${topes.porMinuto}/min por habitante, ${topes.porPersonaMinuto}/min por persona, ${topes.alDia}/día · ${biblioteca.length} modelos para colocar`
+const suyo = (h: Habitante) => [h.cerebro?.modelo && `modelo ${h.cerebro.modelo}`, h.cerebro?.tope && `${h.cerebro.tope}/día`].filter(Boolean).join(", ");
+if (conCerebro.length) log(cerebro ? `cerebro: ${cerebro.nombre} para ${conCerebro.map((h) => (suyo(h) ? `${h.nombre} (${suyo(h)})` : h.nombre)).join(", ")} · topes ${topes.porMinuto}/min por habitante, ${topes.porPersonaMinuto}/min por persona, ${topes.alDia}/día · ${biblioteca.length} modelos para colocar`
   : `sin clave de cerebro (CEREBRO_CLAVE): ${conCerebro.map((h) => h.nombre).join(", ")} contestan con su guion`);
 
 // one clock for all: 20 Hz, like a page; the script decides at most a few things per second

@@ -68,7 +68,7 @@ export class Mente {
   /** The script hands over what someone said. true = the brain takes it. */
   private oir(o: Oido): boolean {
     if (this.ocupada) { this.g.hablar("Un momento, {nombre}: termino lo de antes.", o.nombre, this.c.tick, "ocupada"); return true; }
-    const t = this.topes.pedir(this.h.id, o.nombre, this.ahora());
+    const t = this.topes.pedir(this.h.id, o.nombre, this.ahora(), this.h.cerebro?.tope);
     if (!t.ok) { this.log(`${this.h.id}: contesta el guion (${t.porque})`); return false; }
     this.ocupada = true;
     void this.turno(o).catch((e) => this.log(`${this.h.id}: fallo inesperado: ${String((e as Error)?.message ?? e)}`)).finally(() => { this.ocupada = false; });
@@ -82,7 +82,7 @@ export class Mente {
     const pregunta = `${limpia(sinMarca(o.nombre))} te dice: «${limpia(o.texto)}»`;
     let r;
     try {
-      r = await this.cerebro.pensar({ sistema: this.reglas(construye), herramientas: this.herramientas(construye), mensajes: [...charla.m, { role: "user", content: `${this.material(o)}\n\n${pregunta}` }] }, AbortSignal.timeout(ESPERA_MS));
+      r = await this.cerebro.pensar({ sistema: this.reglas(construye), herramientas: this.herramientas(construye), mensajes: [...charla.m, { role: "user", content: `${this.material(o)}\n\n${pregunta}` }], modelo: this.h.cerebro?.modelo }, AbortSignal.timeout(ESPERA_MS));
     } catch (e) {
       this.log(`${this.h.id}: el cerebro no contestó (${String((e as Error)?.message ?? e).slice(0, 120)}); contesta el guion`);
       await this.turnoDeHablar(); this.g.responderGuion(o); return;
@@ -93,7 +93,7 @@ export class Mente {
     let texto = limpiarRespuesta(r.texto);
     if (fallo) texto = limpiarRespuesta(`${texto} (No pude ${fallo.accion}: ${fallo.motivo})`.trim());
     if (!texto) texto = hechos.length ? "Hecho." : this.h.siNoEntiende;
-    this.log(`${this.h.id}: ${this.cerebro.nombre} · ${r.uso.entrada}+${r.uso.cache} entrada (caché) · ${r.uso.salida} salida · acciones ${hechos.map((x) => `${x.accion}${x.ok ? (x.id ? ` → ${x.id}` : "") : " NO"}`).join(", ") || "ninguna"}`);
+    this.log(`${this.h.id}: ${this.cerebro.nombre}${this.h.cerebro?.modelo ? ` (su modelo: ${this.h.cerebro.modelo})` : ""} · ${r.uso.entrada}+${r.uso.cache} entrada (caché) · ${r.uso.salida} salida · acciones ${hechos.map((x) => `${x.accion}${x.ok ? (x.id ? ` → ${x.id}` : "") : " NO"}`).join(", ") || "ninguna"}`);
     await this.turnoDeHablar();
     this.g.hablar(texto, o.nombre, this.c.tick, `cerebro, ${hechos.length} acciones`, o.canal); // answers where it was asked
     charla.m.push({ role: "user", content: pregunta }, { role: "assistant", content: texto });

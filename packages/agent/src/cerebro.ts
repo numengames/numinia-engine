@@ -7,15 +7,18 @@
 //   - The model only PROPOSES: its answer is text plus calls to the tools offered (D4). Policy is code: mente.ts
 //     checks every call against the catalog, the world's permission and the caps, then the body does it as a person
 //     would, and the server checks it again.
-//   - Caps (D8): calls per minute per inhabitant, per person per minute, and per UTC day for the whole service. Over a
-//     cap, or with the model down, the inhabitant answers with its script (E0): it never goes silent.
+//   - Caps (D8): calls per minute per inhabitant, per person per minute, and per UTC day for the whole service — plus,
+//     when its file says so (habitante@1 `cerebro.tope`), per UTC day for that inhabitant. Over a cap, or with the
+//     model down, the inhabitant answers with its script (E0): it never goes silent.
+//   - The model: the installer's (CEREBRO_MODELO), unless the inhabitant's file names its own (`cerebro.modelo`,
+//     sent per request in `Peticion.modelo`).
 // The echo brain (`cerebroEco`) answers without any provider: tests and light QA never call a model.
 export type Rol = "user" | "assistant";
 export type Mensaje = { role: Rol; content: string };
 export type Herramienta = { name: string; description: string; input_schema: { type: "object"; properties: Record<string, unknown>; required?: string[]; additionalProperties?: boolean } };
 export type Llamada = { nombre: string; entrada: Record<string, unknown> };
 export type Pensado = { texto: string; acciones: Llamada[]; uso: { entrada: number; salida: number; cache: number } };
-export type Peticion = { sistema: string; mensajes: Mensaje[]; herramientas: Herramienta[] };
+export type Peticion = { sistema: string; mensajes: Mensaje[]; herramientas: Herramienta[]; modelo?: string }; // modelo: the inhabitant's own (habitante@1)
 
 export interface Cerebro {
   readonly nombre: string;  // what the service log says («claude claude-sonnet-5», «eco»); never the key
@@ -39,7 +42,7 @@ export function cerebroClaude(o: { clave: string; modelo?: string; url?: string;
       const res = await f(`${url}/messages`, {
         method: "POST",
         headers: { "content-type": "application/json", "x-api-key": o.clave, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: modelo, max_tokens: o.maxTokens ?? MAX_TOKENS, system: [{ type: "text", text: p.sistema, cache_control: { type: "ephemeral" } }], tools, messages: alternar(p.mensajes) }),
+        body: JSON.stringify({ model: p.modelo || modelo, max_tokens: o.maxTokens ?? MAX_TOKENS, system: [{ type: "text", text: p.sistema, cache_control: { type: "ephemeral" } }], tools, messages: alternar(p.mensajes) }),
         signal,
       });
       if (!res.ok) throw new Error(`el proveedor contestó HTTP ${res.status}`); // never the body: it may echo what we sent
@@ -95,13 +98,15 @@ export class Topes {
   readonly uso = { llamadas: 0, entrada: 0, salida: 0, cache: 0, negadas: 0 };
   private dia = ""; private hoy = 0;
   private readonly ventanas = new Map<string, number[]>();
+  private readonly hoyDe = new Map<string, number>(); // calls today per inhabitant (its own cap, habitante@1 cerebro.tope)
   constructor(o: { porMinuto?: number; porPersonaMinuto?: number; alDia?: number } = {}) {
     this.porMinuto = o.porMinuto ?? 6; this.porPersonaMinuto = o.porPersonaMinuto ?? 3; this.alDia = o.alDia ?? 300;
   }
-  /** May `habitante` call the model now for `persona`? If yes, it is counted. `ahora` in ms. */
-  pedir(habitante: string, persona: string, ahora = Date.now()): { ok: true } | { ok: false; porque: string } {
+  /** May `habitante` call the model now for `persona`? If yes, it is counted. `ahora` in ms; `suyoAlDia` = that
+   * inhabitant's own calls per UTC day (its file's cerebro.tope), on top of the service's caps. */
+  pedir(habitante: string, persona: string, ahora = Date.now(), suyoAlDia?: number): { ok: true } | { ok: false; porque: string } {
     const d = new Date(ahora).toISOString().slice(0, 10);
-    if (d !== this.dia) { this.dia = d; this.hoy = 0; }
+    if (d !== this.dia) { this.dia = d; this.hoy = 0; this.hoyDe.clear(); }
     const ventana = (k: string, max: number) => {
       const v = (this.ventanas.get(k) ?? []).filter((t) => ahora - t < 60_000);
       this.ventanas.set(k, v);
@@ -109,15 +114,19 @@ export class Topes {
     };
     const no = (porque: string) => { this.uso.negadas++; return { ok: false as const, porque }; };
     if (this.hoy >= this.alDia) return no(`tope del día (${this.alDia} llamadas entre todos)`);
+    const suyas = this.hoyDe.get(habitante) ?? 0;
+    if (suyoAlDia !== undefined && suyas >= suyoAlDia) return no(`su tope del día (${suyoAlDia} llamadas, su fichero)`);
     const h = ventana(`h:${habitante}`, this.porMinuto);
     if (!h) return no(`tope por minuto (${this.porMinuto})`);
     const p = ventana(`p:${habitante}:${persona}`, this.porPersonaMinuto);
     if (!p) return no(`tope por persona (${this.porPersonaMinuto} por minuto)`);
-    h.push(ahora); p.push(ahora); this.hoy++; this.uso.llamadas++;
+    h.push(ahora); p.push(ahora); this.hoy++; this.hoyDe.set(habitante, suyas + 1); this.uso.llamadas++;
     return { ok: true };
   }
   gastado(u: Pensado["uso"]): void { this.uso.entrada += u.entrada; this.uso.salida += u.salida; this.uso.cache += u.cache; }
   get llamadasHoy(): number { return this.hoy; }
+  /** Calls today of one inhabitant. */
+  llamadasHoyDe(habitante: string): number { return this.hoyDe.get(habitante) ?? 0; }
 }
 
 /** What goes to the chat: one or two short lines, no links, no markdown, nothing that looks like a tag. */

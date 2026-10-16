@@ -6,7 +6,9 @@ secret apart from the guests'); the engine gives it the name its world declares 
 then on the server checks its inputs, verbs and rate caps exactly as a person's. `Guion` is escalón E0: walk a route,
 greet who comes near, answer only when called, short orders in code, never answer another AI — no LLM. `Mente`
 (escalones E2/E4, P5a) plugs a brain into that script: when called by name it asks a language model (`cerebro.ts`:
-Claude's Messages API with tools, the key from `CEREBRO_CLAVE`, caps per minute/person/day, an echo brain for tests),
+Claude's Messages API with tools, the key from `CEREBRO_CLAVE`, caps per minute/person/day, an echo brain for tests;
+the inhabitant's file may name its own model, `cerebro.modelo`, and its own calls per UTC day, `cerebro.tope` 1–10000,
+on top of the service's caps — never a key: anything key-like in the file is refused),
 with the rules in the system prompt and what it perceives inside ONE `<material>` block; the model only proposes
 tool calls (gesture, walk, follow, and — if the world lets it build — place/move/scale/delete/undo objects) and code
 checks each one before the body sends it as a person would. No key, a cap or a failure → the script answers. `main.ts` is

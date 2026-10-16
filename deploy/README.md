@@ -190,7 +190,10 @@ journalctl -u numinia-habitantes -f              # cada respuesta: modelo, token
 La clave queda en `/opt/numinia-engine/cerebro.env` (0640, solo el servicio de habitantes; el motor no la lee) y
 ese servicio solo puede hablar con el motor de la máquina y con Anthropic (`IPAddressAllow`). Topes: 300 llamadas al
 día entre todos (`CEREBRO_DIA_MAX` en ese fichero), 6 por minuto por habitante, 3 por minuto por persona. Sin clave,
-pasado un tope o con el proveedor caído, contestan con su guion.
+pasado un tope o con el proveedor caído, contestan con su guion. El mundo puede decir más en el fichero de cada
+habitante (`aventura/habitantes/<id>.json`, viaja en el zip): `"cerebro": { "persona": …, "modelo": "claude-haiku-4-5",
+"tope": 100 }` = ese habitante piensa con ese modelo (si no, el de la instalación) y hace como mucho 100 llamadas al día
+(UTC), además de los topes de arriba. La clave nunca va ahí: el fichero que lleve algo con pinta de clave no se carga.
 
 ## Subir tus modelos (H9)
 

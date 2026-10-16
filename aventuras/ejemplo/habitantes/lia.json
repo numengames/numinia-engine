@@ -32,5 +32,5 @@
     { "si": ["gracias", "adios", "hasta luego"], "dice": "¡A ti, {nombre}! Aquí sigo." }
   ],
   "siNoEntiende": "Ahora mismo no puedo pensar más allá de mis frases. Prueba «Lía, ¿quién eres?» o «Lía, sígueme».",
-  "notas": "EJEMPLO del motor. Escalón 4: con la clave del cerebro (instalar-motor.sh --clave-ia) contesta con un modelo y construye si el mundo deja construir; sin clave, su guion (E0). Entra por el servicio numinia-habitantes (packages/agent)."
+  "notas": "EJEMPLO del motor. Escalón 4: con la clave del cerebro (instalar-motor.sh --clave-ia) contesta con un modelo y construye si el mundo deja construir; sin clave, su guion (E0). Entra por el servicio numinia-habitantes (packages/agent). En cerebro caben también «modelo» (el id de un modelo; si no, el de la instalación) y «tope» (llamadas al día, UTC, de este habitante, 1–10000); nunca una clave."
 }
