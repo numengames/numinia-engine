@@ -30,6 +30,10 @@ export type InstanceOptions = {
   /** H3b: a world pass came with the identity. Returns the person it names (the world checked it), or null = stay a guest
    * (the world has already told the person why). None = passes are ignored. */
   credencial?: (entity: number, pase: string, invitado: Who) => Who | null;
+  /** ia-organizacion: a PASE that arrives AFTER identity, on the connection of an AI that entered with a pass (an organization's
+   * AI lives only while its pass is valid; the bridge sends a fresh one before it ends). Returns null = renewed, or why not
+   * (counted, logged, the connection kept until its own pass ends). None = a late PASE is refused as always. */
+  renovarPase?: (entity: number, pase: string) => string | null;
   activo?: (sha256: string, ext: string) => boolean; // H9: is /a/<sha256>.<ext> on this server (library or uploaded)? (api.activo)
   sinVoz?: boolean | (() => boolean); // U10: true = voice frames are not relayed; a function is asked at every frame (the world's /voz)
   aventura?: (carpeta: string) => { fichero: string; texto: string }[]; // J5: the adventure's text files (server/aventura.ts); none = no adventure
@@ -101,6 +105,9 @@ export class Instance {
         if (token === null) { conn.bad++; return; }
         const pase = conn.pase; conn.pase = undefined; // the pass (if the page sent one first) is used once, here
         this.identificar(entity, token, pase);
+      } else if (bytes[0] === MSG.PASE && conn.who?.ia && this.opts.renovarPase) { // an AI renews its pass in mid-session
+        const nuevo = decodePase(bytes), why = nuevo === null ? "mal formado" : this.opts.renovarPase(entity, nuevo);
+        if (why !== null) { conn.bad++; this.opts.log?.(`[pase] renovación rechazada para ${conn.who.id}: ${why}`); }
       } else if (bytes[0] === MSG.PASE) { // H3b: before IDENTITY, once. Refused (counted, never thrown, connection kept) when late, repeated or malformed
         const pase = conn.who || conn.pase !== undefined ? null : decodePase(bytes);
         if (pase === null) conn.bad++;
