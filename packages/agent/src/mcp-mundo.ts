@@ -63,7 +63,7 @@ export class PuenteMundo {
   private parado = false;
   private cola: Promise<unknown> = Promise.resolve();
   private readonly obras: number[] = [];
-  private readonly privada: KeyObject;
+  private readonly privada: KeyObject | null;
   private readonly log: (l: string) => void;
   private readonly ahora: () => number;
   private readonly abrir: (url: string) => Conexion;
@@ -74,11 +74,12 @@ export class PuenteMundo {
   private temporizador: ReturnType<typeof setTimeout> | null = null;
   private llamada = 0;               // ms of the last time someone called it by name
 
-  constructor(o: { url: string; id: string; privada: KeyObject; biblioteca?: readonly Modelo3D[]; log?: (l: string) => void; ahora?: () => number; abrir?: (url: string) => Conexion;
+  constructor(o: { url: string; id: string; privada?: KeyObject; biblioteca?: readonly Modelo3D[]; log?: (l: string) => void; ahora?: () => number; abrir?: (url: string) => Conexion;
     /** Organization mode: asks numinia.com for the pass (pedirPaseHttp); `mundo` = this world's id in numinia.com (else read from the world's /status). */
     pedirPase?: PedirPase; mundo?: string; renovarMs?: number }) {
-    this.url = o.url; this.id = o.id; this.privada = o.privada; this.mundo = mundoDeUrl(o.url);
+    this.url = o.url; this.id = o.id; this.privada = o.privada ?? null; this.mundo = mundoDeUrl(o.url);
     if (!this.mundo) throw new Error(`MUNDO_URL «${o.url}» no es una URL ws:// o wss://`);
+    if (!this.privada && !o.pedirPase) throw new Error("sin clave privada ni forma de pedir pase: el puente no puede entrar");
     this.biblioteca = o.biblioteca ?? []; this.log = o.log ?? (() => {}); this.ahora = o.ahora ?? Date.now;
     this.abrir = o.abrir ?? webSocketClient;
     this.pedirPase = o.pedirPase ?? null; this.aud = o.mundo ?? null; this.renovarMs = o.renovarMs ?? RENOVAR_PASE_MS;
@@ -105,7 +106,7 @@ export class PuenteMundo {
     const t = this.abrir(this.url);
     this.conexion = t;
     try { await t.opened; } catch { return this.reintentar("no llego al mundo"); }
-    const c = new Cuerpo(t, pase ? "" : firmarBillete({ id: this.id, privada: this.privada, mundo: this.mundo, ahora: this.ahora() }), pase);
+    const c = new Cuerpo(t, pase ? "" : firmarBillete({ id: this.id, privada: this.privada!, mundo: this.mundo, ahora: this.ahora() }), pase);
     if (pase) this.programarRenovacion();
     this.cuerpo = c; this.obra = new Obra(c, this.biblioteca); this.puedeConstruir = false; this.conectado = true;
     c.alOir((o) => this.oir(o.nombre, o.texto, o.canal));
@@ -139,6 +140,12 @@ export class PuenteMundo {
     if (!this.aud) { this.log("[puente] no sé qué mundo de numinia.com es este (su /status no dice mundoPase): ponlo en AGENTE_MUNDO"); return null; }
     const r = await this.pedirPase!(this.aud);
     if (r.ok) { this.paseExp = r.exp; this.estado = estadoDelPase(r.pase) ?? this.estado; return r.pase; }
+    if (r.motivo === "token") {
+      this.final = "numinia.com no acepta mi token (está mal copiado o lo han renovado); no vuelvo a intentarlo: pon el token nuevo del panel «Agentes» y reinicia el puente";
+      this.log(`[puente] ${this.final}${r.texto ? `: ${limpia(r.texto)}` : ""}`);
+      this.conexion?.close();
+      return null;
+    }
     if (r.motivo === "apagada") {
       this.final = "numinia.com me ha apagado (la IA está apagada en su organización); no vuelvo a entrar solo hasta que la enciendan y reinicien el puente";
       this.log(`[puente] ${this.final}${r.texto ? `: ${limpia(r.texto)}` : ""}`);

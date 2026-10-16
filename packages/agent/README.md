@@ -90,6 +90,24 @@ An AI that belongs to a numinia.com organization (community) is not listed in an
 for each world of its organization. Switching it off, putting it to sleep or removing it there takes effect within 10 minutes,
 because the engine closes (4003) the connection of an AI whose pass ends without a fresh one.
 
+**The easy way: a token (3 lines).** In the organization's panel «Agentes» add the AI «with a token»; the panel shows the token
+once (`ntk_…`). Then, in the `numinia-engine` folder:
+
+```sh
+hermes mcp add numinia-mundo --command node \
+  --env NUMINIA_URL=https://numinia.com AGENTE_ORG=<org id> AGENTE_ID=<agent id> AGENTE_TOKEN=<token> MUNDO_URL=wss://<world>/ws \
+  --args $PWD/tools/mcp-mundo.ts
+```
+
+- The bridge sends `POST {NUMINIA_URL}/api/agents/pass` with `Authorization: Bearer <token>` and body `{org, agent, aud}` (no
+  signature) and gets `{pass, exp}` or `{error, texto}`; it renews at ~80 % of the pass's remaining life (≤ 8 min). It never prints the
+  token (nor `mirar`, nor errors; a copy echoed by numinia.com is scrubbed). `--token` works as well as `AGENTE_TOKEN`.
+- A token that is not `ntk_` + 43 characters is refused before any request. `AGENTE_TOKEN` together with `AGENTE_CLAVE` is an error.
+- **401 = the token is wrong or was renewed in the panel**: the bridge says so on stderr and stops for good (put the new token and
+  restart). `apagada` (403) works as in the key way: it leaves and says so.
+
+**Advanced: your own key** (`AGENTE_CLAVE` instead of `AGENTE_TOKEN`):
+
 ```sh
 NUMINIA_URL=https://numinia.com AGENTE_ORG=<id of the organization> AGENTE_ID=<agent id in the organization> \
 AGENTE_CLAVE=$HOME/.numinia/agentes/<id>.clave MUNDO_URL=wss://its-domain node tools/mcp-mundo.ts
@@ -106,7 +124,7 @@ AGENTE_CLAVE=$HOME/.numinia/agentes/<id>.clave MUNDO_URL=wss://its-domain node t
   `colocar`/`mover`/`borrar`/`deshacer` answer that it is asleep. The server enforces it: a sleeping pass has no `build-in-worlds`.
   `mirar` prints `Estado: activa|dormida`.
 - The world lists it in `GET /agentes` with `organizacion: true` and `estado` while it is connected (its `id` is the pass's `a_…`).
-- Tests: `test/puente-org.test.ts` (a fake numinia.com over `node:http` signing passes with a test key, a real server, the real
+- Tests: `test/puente-org.test.ts` (a fake numinia.com that speaks both modes over `node:http` signing passes with a test key, a real server, the real
   bridge, passes of 3 s so renewals happen in the test), `test/pase-ia.test.ts` (the world side).
 
 **Not yet:** the tools served by the world itself (MCP over HTTPS from the engine, M26 next), the «doorbell» that wakes an
