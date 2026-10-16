@@ -32,6 +32,7 @@ import { crearCenital } from "./cenital.ts";
 export type { Huella, ImagenCenital } from "./cenital.ts";
 import { crearEntorno } from "./entorno.ts";
 import { vistaElementos } from "./elementos-vista.ts";
+import { vistaPesca } from "./pesca-vista.ts";
 export type { EntornoDatos } from "./entorno.ts";
 export type { Calidad, Nivel } from "./calidad.ts";
 
@@ -170,6 +171,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const labelGeo = new THREE.PlaneGeometry(1.6, 0.4);
   const meshOf = (t: Target): THREE.Mesh | undefined => (t === "self" ? (selfMesh.visible ? selfMesh : undefined) : others.get(t));
   const nombres = createNombres({ world, camera, avatarOf: meshOf }); // J3: names over heads and speech bubbles
+  // pesca v1: rods, lines and floats of whoever fishes near (lazy: packages/render/src/pesca.ts). "self" hides in first person, so the rod uses the capsule's place anyway
+  const pesca = vistaPesca({ world, posicionDe: (t) => (t === "self" ? selfMesh.position : others.get(t)?.position) ?? null });
   function dropLabel(t: Target): void {
     const d = labels.get(t);
     if (!d) return;
@@ -440,6 +443,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     entorno,
     /** H4/H8: water, fire, smoke and dust (poner, contar) — packages/render/src/elementos.ts, loaded with the first one. */
     elementos,
+    /** pesca v1: fishing spots, floats and my own phase (sitios, flotadores, estado, contar) — packages/render/src/pesca.ts, loaded with the first spot. */
+    pesca,
     /** Place everyone for this frame (J2: at their height). */
     sync(self: { x: number; z: number; y?: number; speed?: number } | null, list: Placed[]): void {
       selfXZ = self;
@@ -594,7 +599,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
     /** U10: draw hidden spheres of sound (while building) or not (while playing). */
     verOcultos(si: boolean): void { verOcultos = si; },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || entorno.ocupado() || elementos.ocupado(); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || entorno.ocupado() || elementos.ocupado() || pesca.ocupado(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); },
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */
@@ -620,7 +625,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       updateThings(dtSeconds);
       selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
       editor.frame();
-      entorno.actualizar(); elementos.actualizar(dtSeconds);
+      entorno.actualizar(); elementos.actualizar(dtSeconds); pesca.actualizar(dtSeconds);
       if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); colocarLlevados(); renderer.render(scene, camera); return; }
       if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
       cam.update(dtSeconds, selfXZ ? feet : null);

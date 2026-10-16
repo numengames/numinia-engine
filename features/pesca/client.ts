@@ -41,7 +41,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     /** Who is fishing where, near you (yourself included while you fish). */
     flotadores: (): Flotador[] => [...flotadores.values()],
     /** J4: offer the «E: pescar» prompt only while this page is not fishing already. */
-    ofrece: (feature: string, _key: string): boolean => feature === "pesca" && e.fase === "nada",
+    ofrece: (feature: string, _key: string): boolean => feature !== "pesca" || e.fase === "nada",
     lanzar: (sitio?: string): Res => {
       if (!A) return SIN;
       const id = sitio ?? pesca.sitios().find((s) => !s.ocupado)?.id;
@@ -97,8 +97,9 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     });
     api.on("cesta", (m) => { e.cesta = { peces: Number(m.peces), clases: Number(m.clases), mejor: String(m.mejor ?? ""), mejorCm: Number(m.mejorCm ?? 0) }; avisar("estado"); });
     api.on("rechazado", (m) => { e.aviso = String(m.motivo); avisar("estado"); });
-    // the touch bar's button and the agents' list: a press reels for a moment (hooks at the bite); nothing while not fishing
-    api.action({ id: "recoger", label: "Recoger", describe: "Recoger el sedal mientras pescas (engancha el pez en la picada; en la pelea sube la tensión).", run: () => { if (e.fase !== "nada") pesca.pulsar(); } });
+    // the touch bar's button, the F key and the agents' list: a press reels for a moment (hooks at the bite); nothing while
+    // not fishing. The page's HUD (apps/plaza/pesca.ts) turns a held F or a held button into recoger(true)…recoger(false).
+    api.action({ id: "recoger", label: "Recoger", key: "KeyF", describe: "Recoger el sedal mientras pescas (engancha el pez en la picada; en la pelea sube la tensión).", run: () => { if (e.fase !== "nada") pesca.pulsar(); } });
   });
 
   return { parts: [parte], pesca };
