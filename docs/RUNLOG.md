@@ -344,3 +344,34 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: este (rama `torre/aparicion-y-altura`, sin subir).
 - Siguiente: PR de la rama; que la conversación abierta se cierre también al cambiar de planta (hoy solo por distancia
   en el plano; `elegir` sí lo rechaza); `y` en el evento `paso` para que el mapa y la baliza marquen la planta.
+
+## 2026-10-16 14:31 · N1b · la cámara sigue tu altura y no atraviesa paredes · hecho (sesión con Pablo)
+- Qué: Pablo saltaba y la cámara no subía con la cabeza, y se metía en las paredes. Causa: `render/index.ts`
+  copiaba solo x y z de tus pies a la cámara (la altura quedaba en 0: en una torre, la cámara a ras del suelo).
+  Ahora el pivote sigue la altura suavizada (9/s; más de 6 m, al momento) y, jugando, una esfera de 0,2 m barrida
+  contra las cajas sólidas acerca la cámara al instante y la devuelve a 6/s (`camara-orbita.ts` `barrido`,
+  `seguir`, `paredes`; la página le da `session.solidos()`). `selfPosition().grounded` ya cuenta los sólidos.
+- Números: 276 pruebas en verde (4 nuevas de cámara); `npm run build` bien. En la Torre local (123 cajas sólidas):
+  al saltar 1,50 m el pivote sube 1,39 m; dando la vuelta entera a la cámara en el vestíbulo, 15 de 24 ángulos la
+  acercan (mínimo 3,96 m de 10,4), sin meterse en la pared (`work/torre/camara-qa.mjs`, fotos `camara-*.png`).
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `camara/altura-y-paredes`.
+- Siguiente: estudio de físicas, teclas, ajustes en pestañas y mapa (`mmo-browser-study/FISICAS-CAMARA-AJUSTES-MAPA.md`).
+
+## 2026-10-16 15:05 · N1b (2) y versión 0.1.0 · escaleras, tejado y la versión sin marca · hecho (sesión con Pablo)
+- Qué: Pablo, en la Torre: «no anda encima del suelo del tejado, no sabe subir bien las escaleras, se queda como
+  saltando en el aire». Dos causas: (1) el avatar decidía «en el aire» por su altura sobre y 0, así que en el tejado
+  (12 m) y en la escalera hacía la animación de salto todo el rato; ahora se mide sobre el suelo que tiene debajo
+  (`sueloBajo`, las mismas cajas que la simulación; `view.solidos`); (2) al bajar un peldaño caía 0,37 m con la
+  gravedad y pasaba por «en el aire» en cada peldaño: la simulación ahora te pega al suelo si el escalón baja
+  ≤ 0,45 m y no saltas (`SNAP_DOWN`; solo con sólidos, la huella 93b192c8 no cambia). Versión: `package.json` pasa
+  a **0.1.0** (STD-019) y el pie de los ajustes enseña solo `v0.1.0`, sin «Numinia Engine» (el build queda en el
+  rótulo al pasar el ratón); título de la pestaña «Mundo»; política en `docs/VERSIONES.md`. Fila J23 (grabar vídeo
+  desde el mundo, también las IAs) para planificar.
+- Números: 281 pruebas en verde (escaleras: subir 32 peldaños y bajarlos sin un solo tick en el aire; sin el
+  arreglo, bajar fallaba); huella 93b192c8; build bien; cámara en la Torre otra vez bien (15/24 ángulos, sin
+  errores).
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `camara/altura-y-paredes`.
+- Siguiente: que Pablo lo pruebe; después, tiempo de coyote, salto variable y el mando que salta.
+

@@ -47,7 +47,10 @@ export function groundHeight(x: number, z: number, s?: SimState, y = 0): number 
 export const BODY_RADIUS = fx(0.35);
 export const BODY_HEIGHT = fx(1.7);
 export const STEP_UP = fx(0.4);
-export const SOLIDS_MAX = 512; // boxes the simulation looks at (the nearest are not chosen: the first 512)
+export const SOLIDS_MAX = 512;
+/** N1b: walking off a ledge this low (a stair step going down) keeps you on the ground instead of falling (Rapier's
+ * «snap-to-ground»): no «in the air» flicker on every step. A jump is never snapped. */
+export const SNAP_DOWN = fx(0.45); // boxes the simulation looks at (the nearest are not chosen: the first 512)
 /** Does a body standing at (x, y, z) overlap a box it cannot step onto? */
 function blocked(s: SimState, x: number, y: number, z: number): boolean {
   const b = s.solids;
@@ -150,6 +153,9 @@ export function step(s: SimState, inputs: Int32Array): void {
     const len = fxSqrt(fxMul(mx, mx) + fxMul(mz, mz));
     if (len > FX_ONE) { mx = fxDiv(mx, len); mz = fxDiv(mz, len); } // no faster diagonals
     const st = buttons & BTN_RUN ? RUN_STEP : STEP;
+    // N1b: standing on something before this step (only with solids: the flat plaza never needs it, so the reference
+    // fingerprint stands)
+    const onGround = s.solids.length > 0 && VY[e] === 0 && Y[e] === groundHeight(X[e], Z[e], s, Y[e]);
     const nx = fxClamp(X[e] + fxMul(mx, st), -BOUND, BOUND), nz = fxClamp(Z[e] + fxMul(mz, st), -BOUND, BOUND);
     if (s.solids.length === 0 || !blocked(s, nx, Y[e], nz)) { X[e] = nx; Z[e] = nz; }
     else if (!blocked(s, nx, Y[e], Z[e])) X[e] = nx;   // U10: slide along a wall
@@ -157,6 +163,7 @@ export function step(s: SimState, inputs: Int32Array): void {
     // vertical (J2): jump from the ground, or the one jump in the air; then gravity, then the ground stops the fall
     const ground = s.solids.length ? groundHeight(X[e], Z[e], s, Y[e]) : 0;
     let y = Y[e], vy = VY[e], air = AIR[e], buf = buttons & BTN_JUMP ? JUMP_BUFFER + 1 : BUF[e];
+    if (onGround && ground < y && y - ground <= SNAP_DOWN) y = ground; // N1b: down a step, still on the ground
     if (buf > 0) {
       buf--;
       if (y <= ground) { vy = JUMP_V; buf = 0; }

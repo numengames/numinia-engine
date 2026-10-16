@@ -209,5 +209,11 @@ Teclas reservadas por otras ramas (no usarlas para la cámara): W A S D y flecha
 H, E, Intro, 1–4, R, T, F, P, X, Y, Z, N, Supr/Retroceso, Ctrl+Z/Ctrl+Y, Esc. Con Ctrl, Alt o Meta, o escribiendo
 en una caja de texto, las teclas de cámara no hacen nada.
 
-**Todavía no:** la cámara no choca con lo construido (solo con el suelo: mirando hacia arriba se acerca en vez de
-meterse bajo tierra; colisión de verdad con la física, M6); el avatar no se gira hacia donde anda (rama avatares).
+**Altura y paredes (N1b):** la cámara sube y baja con tus pies (saltos, escaleras, el piso de una torre), un poco
+por detrás para que el salto no sacuda la vista; una caída o un salto de más de 6 m los sigue al momento. Jugando,
+una esfera de 0,2 m va de tu cabeza hacia la cámara: si toca algo **sólido**, la cámara se pone delante al instante
+y vuelve hacia atrás despacio cuando el camino queda libre (como el `simpleCamLerp` de Hyperfy2 y el «spring arm»
+de Unreal). Construyendo, la cámara atraviesa todo, como en un editor.
+
+**Todavía no:** la cámara no choca con lo que no es sólido (modelos sin la casilla «sólido»; con la física, M6);
+el avatar no se gira hacia donde anda (rama avatares).

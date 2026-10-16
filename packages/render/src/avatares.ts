@@ -28,7 +28,7 @@ type Avatar = {
   ancla?: THREE.Object3D; mascara?: number; cerca: boolean;
 };
 
-export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: () => boolean; catalogo?: CatalogoAvatares; yo?: () => number; compilar?: (raiz: THREE.Object3D) => Promise<unknown> }) {
+export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: () => boolean; catalogo?: CatalogoAvatares; yo?: () => number; compilar?: (raiz: THREE.Object3D) => Promise<unknown>; suelo?: (x: number, z: number, y: number) => number }) {
   const cat = o.catalogo;
   const n = cat?.modelos.length ?? 0;
   let vrm: Promise<{ m: Vrm; carga: ReturnType<Vrm["crearCargador"]> }> | null = null;
@@ -103,7 +103,7 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     const pos = ancla.position;
     seguir(a.marcha, pos.x, pos.z, dt);
     const altura = pos.y - ALTURA_CAPSULA;
-    a.estado = estadoPor(a.marcha.velocidad, altura);
+    a.estado = estadoPor(a.marcha.velocidad, altura - (o.suelo?.(pos.x, pos.z, altura) ?? 0)); // over the ground under you
     a.cerca = a.clave === "yo" || !desde || Math.hypot(pos.x - desde.x, pos.z - desde.z) <= ANIMAR_HASTA_M;
     if (fallidas.has(a.modelo)) return;
     const p = plantillas.get(a.modelo);

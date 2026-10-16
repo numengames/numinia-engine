@@ -1,4 +1,5 @@
 // The PP1 page: one plaza, your capsule, everyone else's, and the determinism probe.
+import { version as versionPaquete } from "../../package.json"; // only this field reaches the page (docs/VERSIONES.md)
 import { hex } from "../../packages/core/src/index.ts";
 import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX, BTN_JUMP, BTN_RUN } from "../../packages/sim/src/index.ts";
 import { webSocketClient } from "../../packages/net/src/index.ts";
@@ -200,13 +201,13 @@ view.vrSupported().then((ok) => {
 });
 setInterval(() => { vrBtn.textContent = view.vr.active ? "Salir de VR" : "Entrar en VR"; }, 250);
 
-// ---- the engine's version, at the foot of the settings (Pablo: «que se vea la versión»): the server's /status `version`
-// (build = «<commit>[+cambios] <date>», the one /health, the installer and the world zip carry) ----
+// ---- the version, at the foot of the settings (Pablo, 16-10: «la versión, 0.1…, sin branding»): the semantic version
+// of package.json (docs/VERSIONES.md, STD-019), nothing else on screen; the server's build (/status `version`, «<commit>
+// <date>», what /health, the installer and the world zip carry) only as the tooltip, for whoever helps with a fault ----
 const versionMotor = document.getElementById("version-motor");
+if (versionMotor) versionMotor.textContent = `v${versionPaquete}`;
 fetch(`${activos}/status`).then((r) => r.json()).then((st: { version?: string }) => {
-  if (!versionMotor || !st.version) return;
-  const [build, ...resto] = st.version.split(" ");
-  versionMotor.textContent = `Numinia Engine ${build}${resto.length ? ` · ${resto.join(" ")}` : ""}`;
+  if (versionMotor && st.version) versionMotor.title = `build ${st.version}`;
 }).catch(() => {});
 
 // ---- N1: full screen — a real button where the browser can do it (not iPhone), hidden while XR presents ----
@@ -277,6 +278,7 @@ view.loop((now) => {
   const active = now - lastActive < 600;
   if (view.vr.active || view.ar.state !== "off" || view.power.shouldDraw(now, { hidden: document.hidden, active })) {
     view.sync(session.entity >= 0 ? session.selfPosition(acc / TICK_MS) : null, session.remotePositions(now));
+    view.solidos(session.solidos()); // N1b: the camera does not go through solid things; avatars stand on them
     const t0 = performance.now();
     view.draw(dt / 1000);
     cost = view.lastFrame(); cost.cpuMs = Math.round((performance.now() - t0) * 100) / 100;
