@@ -341,6 +341,10 @@ export class ServerRuntime {
   private readonly hooks: { join: [string, (e: number) => void][]; leave: [string, (e: number) => void][]; tick: [string, (t: number) => void][]; identify: [string, (e: number, w: { id: string; nombre: string }) => void][] } = { join: [], leave: [], tick: [], identify: [] };
   private readonly routeList: Route[] = [];
   private readonly shared = new Map<string, Map<string, Entry2>>();
+  /** U10: grows on every shared-state change (the instance rebuilds the solid boxes when it moves). */
+  stateVersion = 0;
+  /** U10: every shared-state entry of every feature, as [key, value] (keys prefixed by the feature id). */
+  *allState(): Generator<[string, Msg]> { for (const [f, t] of this.shared) for (const [k, e] of t) yield [`${f}:${k}`, e.value]; }
   private readonly near = new Map<string, { index: NearIndex; pos: number; fields: Fields; table: Map<string, Entry2> }>(); // J9
   private readonly known = new Map<number, Map<string, Set<string>>>(); // J9: player -> feature -> things it has
   private queue: { from: number; entry: Entry; msg: Msg }[] = [];
@@ -432,7 +436,7 @@ export class ServerRuntime {
           if (!v.ok) { log(`state.set('${key}') no cumple su esquema: ${v.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`); return false; }
           const before = table.get(key);
           const bytes = encodeState(pos, key, f.state.fields, v.value);
-          table.set(key, { value: v.value, at: opts?.at, bytes });
+          table.set(key, { value: v.value, at: opts?.at, bytes }); this.stateVersion++;
           if (persist) save(opts?.at ? { op: "s", key, value: v.value, at: opts.at } : { op: "s", key, value: v.value });
           if (opts?.at && index) { // J9: only who is near
             if (before && !before.at) for (const pl of this.host.players()) this.knows(pl, id).add(key); // it was global: everyone had it, the far ones must forget it
@@ -445,6 +449,7 @@ export class ServerRuntime {
         delete: (key) => {
           const before = table.get(key);
           if (!table.delete(key)) return;
+          this.stateVersion++;
           if (persist) save({ op: "sd", key });
           const bytes = encodeState(pos, key, null);
           if (before?.at) { // J9: only those who had it
@@ -691,7 +696,12 @@ export type ViewHooks = {
   elemento?(key: string, valores: Msg | null): void;
 };
 /** H1: a thing in the world as the page draws it. Rotation in degrees, applied yaw (ry), then pitch (rx), then roll (rz). */
-export type PlacedObject = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean };
+export type PlacedObject = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean;
+  /** U10 (optional): what it is (modelo = a .glb; imagen, video: a plane; sonido: a sphere of sound, radius = sx), the file's
+   * extension, hidden while playing (a sphere), and volume 0-1. Without them: a .glb model. */
+  kind?: "modelo" | "imagen" | "video" | "sonido"; ext?: string; hidden?: boolean; volume?: number;
+  /** U11 (optional): who hears it (burbuja: inside the bubble; zona, todos: everyone, at the same volume) and a video's bubble radius (m). */
+  reach?: "burbuja" | "zona" | "todos"; radius?: number };
 export const NO_VIEW: ViewHooks = { label() {}, bounce() {} };
 /** An event as a person hears and reads it (V1). `at` in metres; `who` = the entity it is about. */
 export type Announcement = { feature: string; event: string; text: string; sound: Sound; importance: Importance; at?: { x: number; z: number }; who?: number };
@@ -728,6 +738,10 @@ export class ClientRuntime {
   private readonly listeners = new Map<string, ((msg: Msg) => void)[]>();          // "feature.event"
   private readonly changes = new Map<string, ((k: string, v: Msg | undefined) => void)[]>();
   private readonly mirror = new Map<string, Map<string, Msg>>();
+  /** U10: grows on every shared-state change this page hears (the session rebuilds the solid boxes when it moves). */
+  stateVersion = 0;
+  /** U10: every shared-state entry of every feature, as [key, value] (keys prefixed by the feature id). */
+  *allState(): Generator<[string, Msg]> { for (const [f, t] of this.mirror) for (const [k, v] of t) yield [`${f}:${k}`, v]; }
   private readonly acts: Action[] = [];
   private byIndex: CatalogEntry[] = [];
   private readonly taps: ((feature: string, event: string, msg: Msg) => void)[] = [];
@@ -867,6 +881,7 @@ export class ClientRuntime {
       let table = this.mirror.get(f.id);
       if (!table) this.mirror.set(f.id, (table = new Map()));
       if (s.value) table.set(s.key, s.value); else table.delete(s.key);
+      this.stateVersion++;
       for (const fn of this.changes.get(f.id) ?? []) { try { fn(s.key, s.value ?? undefined); } catch { this.stats.errors++; } }
       return true;
     }

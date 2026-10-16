@@ -51,7 +51,7 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 | Bocadillos | El texto sale sobre el avatar ✔ (J3: 6 s) | motor | Base | sí | P en mundo | bajo | J3 |
 | Susurro y bloqueo personal | Hablar a uno / silenciar a uno | motor | Base | sí | M, G | bajo | F1 |
 | Moderación básica | Silenciar, expulsar, denunciar con contexto | motor | Base | sí | S, roles | bajo | F1 |
-| Voz por cercanía | Hablar por micrófono (WebRTC) | motor | Base | sí | servicio externo, S | alto | Frontera, sin fila |
+| Voz por cercanía | Hablar por micrófono ✔ (U10: botón «Micrófono» o Q; te oye quien está a menos de 30 m; Opus o µ-law por el servidor, nunca a todos, no se graba) | motor | Base | sí / sí / falta en VR | S reenvía, P reproduce con panorama | medio | U10 |
 | Subtítulos y traducción | Accesibilidad y otros idiomas | motor | Mejorado | sí | servidor | medio | Frontera, sin fila |
 
 ## 4. Interactuar
@@ -152,8 +152,16 @@ Todo cambio pasa por el servidor (`features/objetos`) y llega a todos al momento
 | Ctrl + Z · Ctrl + Mayús + Z o Ctrl + Y | Deshacer · rehacer (cada arrastre es un paso) |
 | P | Fijar o soltar (fijado: nadie lo mueve ni lo borra) |
 | F | Encuadrar lo seleccionado (con la cámara nueva, N1) |
-| N | Mostrar u ocultar el inspector (nombre, posición, giro en grados, escala, fijado: Intro aplica) |
+| N | Mostrar u ocultar el inspector (nombre, posición, giro en grados, escala, fijado, sólido, visible, volumen: Intro aplica) |
+| Doble clic jugando | Abre construir con ese objeto seleccionado (U10) |
+| Inspector de un sonido o un vídeo | «Se oye en»: solo dentro de la burbuja, toda la zona o todo el mundo; «Radio de la burbuja (m)» (U11) |
+| Barra sobre el objeto | Coger, Mover, Girar, Escalar, Duplicar y 🗑 Borrar, encima de lo seleccionado (U10) |
 | Botones derecho y central, rueda | La cámara (rama de la cámara, N1) |
+
+U10: además de modelos .glb se suben (botón o soltando el fichero) **imágenes** .png .jpg .webp (un cuadro de pie),
+**pantallas de vídeo** .mp4 .webm (se repiten, todos ven el mismo momento, su sonido se oye al acercarse) y **zonas de
+sonido** .mp3 .ogg (una esfera translúcida: dentro se oye; Escalar cambia su radio; «se ve al jugar» la hace visible o
+invisible; volumen). «Sólido» hace que las personas choquen con un objeto (servidor y página calculan la misma pared).
 
 Sin ratón: el panel tiene botones de verdad para todo (colocar delante de ti, girar, desplazar, subir, escalar,
 duplicar, fijar, borrar, deshacer, rehacer) y el inspector con campos con nombre. Un agente hace lo mismo con

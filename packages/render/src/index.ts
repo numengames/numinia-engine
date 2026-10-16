@@ -16,6 +16,9 @@ import { createCamara } from "./camara.ts";
 export { haciaMundo, TECLAS_CAMARA, CAMARA } from "./camara.ts";
 export type { Camara, ModoCamara } from "./camara.ts";
 import { crearEditor } from "./gizmo.ts";
+import { cargarImagen, cargarVideo, cargarSonido, sePuedeReproducir } from "./medios.ts";
+import type { Medio } from "./medios.ts";
+export { sePuedeReproducir } from "./medios.ts";
 export type { Donde, Eje, Herramienta, Fase, Paso, Editor } from "./gizmo.ts";
 import { createAvatares } from "./avatares.ts";
 export type { CatalogoAvatares } from "./avatares.ts";
@@ -34,7 +37,11 @@ export type Backend = "WebGPU" | "WebGL2";
  * horizontal speed in m/s (≈4 walking, ≈8 running) for whoever animates avatars. */
 export type Placed = { id: number; x: number; z: number; y?: number; speed?: number };
 /** H1: a thing in the world (same shape as the feature plug's PlacedObject; render does not import it). Degrees, YXZ. */
-export type Thing = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean };
+export type Thing = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean;
+  /** U10 (optional): modelo (.glb, the default), imagen / video (a plane), sonido (a sphere: radius = sx); file extension; hidden while playing; volume 0-1. */
+  kind?: "modelo" | "imagen" | "video" | "sonido"; ext?: string; hidden?: boolean; volume?: number;
+  /** U11 (optional): who hears it (burbuja: inside the bubble; zona, todos: everyone, at the same volume) and a video's bubble radius (m). */
+  reach?: "burbuja" | "zona" | "todos"; radius?: number };
 const LOADS_AT_ONCE = 4;   // H1: model files downloading at the same time; the nearest first
 const ANIMATE_WITHIN_M = 40; // H1: farther than this, a model's animation stands still (cold phones)
 
@@ -155,7 +162,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // ---- H1: things placed in the world (features/objetos): a model by its sha256, loaded once per file and cloned,
   // the nearest first, never more than LOADS_AT_ONCE downloads at a time ----
   type Gltf = { scene: THREE.Object3D; animations: THREE.AnimationClip[] };
-  type Slot = { group: THREE.Group; want: Thing; model: string; loaded: boolean; failed: boolean; mixer?: THREE.AnimationMixer };
+  type Slot = { group: THREE.Group; want: Thing; model: string; loaded: boolean; failed: boolean; mixer?: THREE.AnimationMixer; medio?: Medio };
+  let verOcultos = false; // U10: while building, hidden spheres of sound are drawn
+  const fichero = (t: Thing) => `${t.model}.${t.kind && t.kind !== "modelo" ? t.ext ?? "glb" : "glb"}`; // what a slot draws
   const assetUrl = opts.assetUrl ?? ((m: string) => `/a/${m}.glb`);
   // the glTF loader (~26 kB gz) arrives only when the first thing does: a world without things never downloads it
   type Tools = { load: (url: string) => Promise<Gltf>; clone: (o: THREE.Object3D) => THREE.Object3D };
@@ -182,8 +191,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       const s = things.get(best);
       if (!s) continue;
       const model = s.model;
+      if (s.want.kind && s.want.kind !== "modelo") { cargarMedio(best, s); continue; }
       let file = files.get(model);
-      if (!file) { file = getTools().then(async (t) => ({ g: await t.load(assetUrl(model)), clone: t.clone })); files.set(model, file); }
+      if (!file) { file = getTools().then(async (t) => ({ g: await t.load(assetUrl(model.replace(/\.glb$/, ""))), clone: t.clone })); files.set(model, file); }
       loading++;
       file.then(({ g, clone }) => {
         const now = things.get(best);
@@ -196,14 +206,33 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         const now = things.get(best);
         if (now && now.model === model) now.failed = true;
         files.delete(model); // a later placement may try again
-        console.warn(`[objetos] no se pudo cargar ${assetUrl(model)}: ${(e as Error)?.message ?? e}`);
+        console.warn(`[objetos] no se pudo cargar ${assetUrl(model.replace(/\.glb$/, ""))}: ${(e as Error)?.message ?? e}`);
       }).finally(() => { loading--; pumpLoads(); });
     }
   }
+  /** U10: an image, a video or a sphere of sound instead of a .glb (medios.ts). */
+  function cargarMedio(key: string, s: Slot): void {
+    const t = s.want, url = assetUrl(t.model).replace(/\.glb$/, `.${t.ext ?? "glb"}`), model = s.model;
+    if ((t.kind === "video" || t.kind === "sonido") && !sePuedeReproducir(t.ext ?? "")) { s.failed = true; console.warn(`[medios] este navegador no reproduce .${t.ext}`); return; }
+    const p = t.kind === "imagen" ? cargarImagen(url) : t.kind === "video" ? cargarVideo(url, () => verOcultos) : Promise.resolve(cargarSonido(url, () => verOcultos));
+    loading++;
+    p.then((m) => {
+      const now = things.get(key);
+      if (!now || now.model !== model || now.loaded) { m.soltar(); return; }
+      now.group.add(m.obj); now.medio = m; now.loaded = true;
+    }).catch((e) => {
+      const now = things.get(key);
+      if (now && now.model === model) now.failed = true;
+      console.warn(`[medios] no se pudo cargar ${url}: ${(e as Error)?.message ?? e}`);
+    }).finally(() => { loading--; pumpLoads(); });
+  }
+  let mediosSonando = false;
   function updateThings(dt: number): void {
-    animatingNear = false;
+    animatingNear = false; mediosSonando = false;
     const r2 = ANIMATE_WITHIN_M ** 2;
+    const oyente = selfXZ ? { x: selfXZ.x, y: (selfXZ.y ?? 0) + 1.5, z: selfXZ.z } : null;
     for (const s of things.values()) {
+      if (s.medio) { s.medio.actualizar(s.group, oyente, { hidden: !!s.want.hidden, volume: s.want.volume ?? 1, reach: s.want.reach ?? "burbuja", radius: s.want.radius ?? 8 }); if (s.want.kind === "video" && s.medio.sonando()) mediosSonando = true; }
       if (!s.mixer) continue;
       if (distance2(s) <= r2) { s.mixer.update(dt); animatingNear = true; }
     }
@@ -362,14 +391,14 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** H1: put a thing in the world, move it, change its model, or take it away (`null`). */
     place(key: string, t: Thing | null): void {
       const s = things.get(key);
-      if (!t) { if (s) { s.mixer?.stopAllAction(); world.remove(s.group); things.delete(key); waiting.delete(key); } return; }
+      if (!t) { if (s) { s.mixer?.stopAllAction(); s.medio?.soltar(); world.remove(s.group); things.delete(key); waiting.delete(key); } return; }
       if (!s) {
         const group = new THREE.Group(); group.name = `objeto:${key}`; world.add(group);
-        const ns: Slot = { group, want: t, model: t.model, loaded: false, failed: false };
+        const ns: Slot = { group, want: t, model: fichero(t), loaded: false, failed: false };
         things.set(key, ns); placeGroup(ns); waiting.add(key); pumpLoads(); return;
       }
       s.want = t; if (!editor.retiene(key, t)) placeGroup(s);
-      if (s.model !== t.model) { s.mixer?.stopAllAction(); s.mixer = undefined; s.group.clear(); s.model = t.model; s.loaded = false; s.failed = false; waiting.add(key); pumpLoads(); }
+      if (s.model !== fichero(t)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpLoads(); }
       else if (!t.animate && s.mixer) { s.mixer.stopAllAction(); s.mixer = undefined; }
     },
     /** H1: things placed, how many have their model drawn, and how many failed to load (for checks). `~` keys = the page's previews, not counted. */
@@ -399,7 +428,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     nameTags() { return nombres.nameTags(); },
     bubbles() { return nombres.bubbles(); },
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
-    busy(): boolean { return labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || entorno.ocupado() || elementos.ocupado(); },
+    /** U10: draw hidden spheres of sound (while building) or not (while playing). */
+    verOcultos(si: boolean): void { verOcultos = si; },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || entorno.ocupado() || elementos.ocupado(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); },
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */

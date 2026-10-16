@@ -54,7 +54,7 @@ export class Activos {
 
   /** Answer GET /a/<sha256>.<ext> (HEAD: the same headers, no body — H9: a page asks before uploading). Returns
    * false when the path is not an asset path at all. */
-  servir(path: string, res: ServerResponse, head = false): boolean {
+  servir(path: string, res: ServerResponse, head = false, range?: string): boolean {
     const m = RUTA.exec(path);
     if (!m || !SERVIR[m[2]]) return false;
     const ruta = this.buscar(m[1], m[2]);
@@ -63,10 +63,18 @@ export class Activos {
       res.end(head ? undefined : JSON.stringify({ error: `no hay ningún fichero ${m[1]}.${m[2]}` }));
       return true;
     }
-    res.writeHead(200, {
-      "content-type": SERVIR[m[2]], "content-length": String(statSync(ruta).size),
-      "cache-control": "public, max-age=31536000, immutable", "access-control-allow-origin": "*",
-    });
+    const total = statSync(ruta).size, comun = { "content-type": SERVIR[m[2]], "cache-control": "public, max-age=31536000, immutable", "access-control-allow-origin": "*", "accept-ranges": "bytes" };
+    // U10: videos and sounds ask for byte ranges (a browser seeks a video, or will not loop it, without them)
+    const r = range ? /^bytes=(\d*)-(\d*)$/.exec(range.trim()) : null;
+    if (r && (r[1] || r[2])) {
+      let ini = r[1] ? Number(r[1]) : Math.max(0, total - Number(r[2])), fin = r[1] && r[2] ? Number(r[2]) : total - 1;
+      fin = Math.min(fin, total - 1);
+      if (ini > fin || ini >= total) { res.writeHead(416, { ...comun, "content-range": `bytes */${total}` }); res.end(); return true; }
+      res.writeHead(206, { ...comun, "content-range": `bytes ${ini}-${fin}/${total}`, "content-length": String(fin - ini + 1) });
+      if (head) res.end(); else createReadStream(ruta, { start: ini, end: fin }).pipe(res);
+      return true;
+    }
+    res.writeHead(200, { ...comun, "content-length": String(total) });
     if (head) res.end(); else createReadStream(ruta).pipe(res);
     return true;
   }

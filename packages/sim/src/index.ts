@@ -27,8 +27,48 @@ const BTN_KNOWN = BTN_JUMP | BTN_RUN;
 /** Inputs are quadruples [entity, mx, mz, buttons]. */
 export const INPUT_STRIDE = 4;
 
-/** Height of the ground under (x, z), Q16.16. A flat plaza for now: M6 (physics) replaces this one function. */
-export function groundHeight(_x: number, _z: number): number { return 0; }
+/** Height of the ground under (x, z), Q16.16. A flat plaza, plus (U10) the tops of solid things you stand above
+ * when `s` is given: the highest top not more than STEP_UP over your feet `y`. M6 (physics) replaces this. */
+export function groundHeight(x: number, z: number, s?: SimState, y = 0): number {
+  let g = 0;
+  const b = s?.solids;
+  if (!b) return g;
+  for (let o = 0; o + 5 < b.length; o += 6) {
+    if (x < b[o] || x > b[o + 3] || z < b[o + 2] || z > b[o + 5]) continue;
+    const top = b[o + 4];
+    if (top > g && top <= y + STEP_UP) g = top;
+  }
+  return g;
+}
+
+// ---- U10: solid things (a boolean on a placed thing). World geometry, like the ground: NOT part of the state's
+// fingerprint (both sides build it from the same shared state). Boxes are axis-aligned, Q16.16:
+// [x0, y0, z0, x1, y1, z1] per box. An avatar is a column RADIUS wide and HEIGHT tall; it climbs ledges up to STEP_UP.
+export const BODY_RADIUS = fx(0.35);
+export const BODY_HEIGHT = fx(1.7);
+export const STEP_UP = fx(0.4);
+export const SOLIDS_MAX = 512; // boxes the simulation looks at (the nearest are not chosen: the first 512)
+/** Does a body standing at (x, y, z) overlap a box it cannot step onto? */
+function blocked(s: SimState, x: number, y: number, z: number): boolean {
+  const b = s.solids;
+  for (let o = 0; o + 5 < b.length; o += 6) {
+    if (x + BODY_RADIUS <= b[o] || x - BODY_RADIUS >= b[o + 3] || z + BODY_RADIUS <= b[o + 2] || z - BODY_RADIUS >= b[o + 5]) continue;
+    if (y + BODY_HEIGHT <= b[o + 1]) continue;      // the box is above your head
+    if (b[o + 4] <= y + STEP_UP) continue;           // low enough to step onto (or you are on it)
+    return true;
+  }
+  return false;
+}
+/** Replace the solid boxes (both the server and the page call it when the shared state of things changes). */
+export function setSolids(s: SimState, boxes: Int32Array): void { s.solids = boxes; }
+/** The boxes of every value with `solido: true` and its world box (bx0…bz1, metres), at most SOLIDS_MAX, in key order. */
+export function solidsFrom(values: Iterable<[string, Record<string, unknown>]>): Int32Array {
+  const list = [...values].filter(([, v]) => v.solido === true && Number(v.bx1) > Number(v.bx0) && Number(v.bz1) > Number(v.bz0))
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).slice(0, SOLIDS_MAX);
+  const out = new Int32Array(list.length * 6);
+  list.forEach(([, v], i) => { ["bx0", "by0", "bz0", "bx1", "by1", "bz1"].forEach((k, j) => { out[i * 6 + j] = fx(Number(v[k])); }); });
+  return out;
+}
 
 export const Transform = defineSchema("Transform", 2, { // v2 (J2): gains y
   x: { kind: "fixed", min: -500, max: 500, step: 1 / 64 },
@@ -45,14 +85,14 @@ export const Motion = defineSchema("Motion", 1, {
   buf: { kind: "int", min: 0, max: JUMP_BUFFER },            // ticks a jump press may still wait for the ground
 });
 
-export type SimState = { world: World; tf: Store; av: Store; mo: Store; tick: number; rng: Uint32Array };
+export type SimState = { world: World; tf: Store; av: Store; mo: Store; tick: number; rng: Uint32Array; solids: Int32Array };
 
 export function createSim(capacity: number, seed: number): SimState {
   const world = new World(capacity);
   const tf = world.register(Transform);
   const av = world.register(Avatar);
   const mo = world.register(Motion);
-  return { world, tf, av, mo, tick: 0, rng: new Uint32Array([seed >>> 0]) };
+  return { world, tf, av, mo, tick: 0, rng: new Uint32Array([seed >>> 0]), solids: new Int32Array(0) };
 }
 
 /** Spawn an avatar at a seeded random spot, standing on the ground; the position comes from the sim's own RNG. */
@@ -101,10 +141,12 @@ export function step(s: SimState, inputs: Int32Array): void {
     const len = fxSqrt(fxMul(mx, mx) + fxMul(mz, mz));
     if (len > FX_ONE) { mx = fxDiv(mx, len); mz = fxDiv(mz, len); } // no faster diagonals
     const st = buttons & BTN_RUN ? RUN_STEP : STEP;
-    X[e] = fxClamp(X[e] + fxMul(mx, st), -BOUND, BOUND);
-    Z[e] = fxClamp(Z[e] + fxMul(mz, st), -BOUND, BOUND);
+    const nx = fxClamp(X[e] + fxMul(mx, st), -BOUND, BOUND), nz = fxClamp(Z[e] + fxMul(mz, st), -BOUND, BOUND);
+    if (s.solids.length === 0 || !blocked(s, nx, Y[e], nz)) { X[e] = nx; Z[e] = nz; }
+    else if (!blocked(s, nx, Y[e], Z[e])) X[e] = nx;   // U10: slide along a wall
+    else if (!blocked(s, X[e], Y[e], nz)) Z[e] = nz;
     // vertical (J2): jump from the ground, or the one jump in the air; then gravity, then the ground stops the fall
-    const ground = groundHeight(X[e], Z[e]);
+    const ground = s.solids.length ? groundHeight(X[e], Z[e], s, Y[e]) : 0;
     let y = Y[e], vy = VY[e], air = AIR[e], buf = buttons & BTN_JUMP ? JUMP_BUFFER + 1 : BUF[e];
     if (buf > 0) {
       buf--;

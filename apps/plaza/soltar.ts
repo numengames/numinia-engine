@@ -5,7 +5,14 @@
 // → its sha256 → HEAD /a/<sha256>.glb (already there? no upload) → PUT with the guest token (I1) and visible progress
 // → colocar (features/objetos) named after the file, so screen readers and agents hear it. Every step is said in a
 // role=status line; a refusal says why in Spanish. main.ts mounts it with one line; it touches no shared file.
-import { comprobarFichero, motivo, sha256Hex, topeBytes, TOPES_MB } from "../../packages/net/src/ficheros.ts";
+import { comprobarFichero, motivo, sha256Hex, topeBytes, TOPES_MB, TIPOS } from "../../packages/net/src/ficheros.ts";
+import { sePuedeReproducir } from "../../packages/render/src/medios.ts";
+
+/** U10: what each file becomes in the world (features/objetos `tipo`). */
+const CLASE: Record<string, "modelo" | "imagen" | "video" | "sonido"> = { glb: "modelo", png: "imagen", jpg: "imagen", webp: "imagen", mp4: "video", webm: "video", mp3: "sonido", ogg: "sonido" };
+const QUE: Record<string, string> = { modelo: "el modelo", imagen: "la imagen", video: "la pantalla de vídeo", sonido: "la zona de sonido" };
+/** The file picker's filter per button (U10: one button per kind, so each is easy to find). */
+const ACEPTA = { todo: ".glb,.png,.jpg,.jpeg,.webp,.mp4,.webm,.mp3,.ogg", modelo: ".glb,model/gltf-binary", imagen: ".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp", video: ".mp4,.webm,video/mp4,video/webm", sonido: ".mp3,.ogg,audio/mpeg,audio/ogg" };
 
 type Res = { ok: true } | { ok: false; why: string };
 type Msg = Record<string, unknown>;
@@ -56,7 +63,7 @@ const POR_ESTADO: Record<number, string> = {
 export function montarSoltar(o: OpcionesSoltar) {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const capa = document.createElement("div"); capa.id = "soltar"; capa.setAttribute("aria-hidden", "true");
-  capa.innerHTML = "<span>Suelta para subir tu modelo</span>";
+  capa.innerHTML = "<span>Suelta para subir tu modelo, imagen, vídeo o sonido</span>";
   const linea = document.createElement("p"); linea.id = "subida-estado"; linea.setAttribute("role", "status"); linea.setAttribute("aria-live", "polite");
   document.body.append(capa, linea);
   const cuenta = { subidas: 0, yaEstaban: 0, colocadas: 0, rechazadas: 0 };
@@ -74,12 +81,12 @@ export function montarSoltar(o: OpcionesSoltar) {
     const d = new Uint8Array(await sutil.digest("SHA-256", b));
     return Array.from(d, (x) => x.toString(16).padStart(2, "0")).join("");
   };
-  const put = (url: string, b: Uint8Array, billete: string, fichero: string, avance: (f: number) => void) =>
+  const put = (url: string, b: Uint8Array, billete: string, fichero: string, tipo: string, avance: (f: number) => void) =>
     new Promise<{ status: number; error: string }>((ok) => {
       const x = new XMLHttpRequest(); // fetch() has no upload progress
       x.open("PUT", url);
       x.setRequestHeader("authorization", `Bearer ${billete}`);
-      x.setRequestHeader("content-type", "model/gltf-binary");
+      x.setRequestHeader("content-type", tipo);
       x.setRequestHeader("x-nombre-fichero", encodeURIComponent(fichero));
       x.upload.onprogress = (e) => { if (e.lengthComputable) avance(e.loaded / e.total); };
       x.onload = () => { let error = ""; try { error = String(JSON.parse(x.responseText).error ?? ""); } catch { /* not JSON */ } ok({ status: x.status, error }); };
@@ -102,30 +109,32 @@ export function montarSoltar(o: OpcionesSoltar) {
 
   /** One file, from the drop or the button: check, hash, ask, upload, place. */
   async function subir(file: File, donde: { x: number; z: number } | null): Promise<void> {
-    const fichero = file.name, tipo = fichero.split(".").pop()?.toLowerCase() ?? "";
+    const fichero = file.name, crudo = fichero.split(".").pop()?.toLowerCase() ?? "", tipo = crudo === "jpeg" ? "jpg" : crudo, clase = CLASE[tipo];
     if (!o.puede()) return no(fichero, "no puedes construir aquí");
-    if (tipo !== "glb") return no(fichero, "por ahora solo se colocan modelos .glb");
-    if (file.size > topeBytes("glb")) return no(fichero, `pasa de ${TOPES_MB.glb} MB, el tope para .glb`);
+    if (!clase) return no(fichero, "se colocan modelos .glb, imágenes .png .jpg .webp, vídeos .mp4 .webm y sonidos .mp3 .ogg");
+    if ((clase === "video" || clase === "sonido") && !sePuedeReproducir(tipo)) return no(fichero, `este navegador no sabe reproducir .${tipo}; prueba con ${clase === "sonido" ? ".mp3" : ".mp4"}`);
+    if (file.size > topeBytes(tipo)) return no(fichero, `pasa de ${TOPES_MB[tipo]} MB, el tope para .${tipo}`);
     const billete = o.billete();
     if (!billete) return no(fichero, "aún no sé quién eres; espera un segundo y vuelve a probar");
     decir(`Leyendo «${fichero}»…`, true);
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const valido = comprobarFichero("glb", bytes);
+    const valido = comprobarFichero(tipo, bytes);
     if (!valido.ok) return no(fichero, motivo(valido.issues).replace(/\.$/, ""));
-    const sha = await huella(bytes), url = `${o.origen}/a/${sha}.glb`;
+    const sha = await huella(bytes), url = `${o.origen}/a/${sha}.${tipo}`;
     decir(`Comprobando si «${fichero}» ya está en el servidor…`, true);
     const ya = await fetch(url, { method: "HEAD", cache: "no-store" }).then((r) => r.status === 200, () => false);
     if (ya) cuenta.yaEstaban++;
     else {
-      const r = await put(url, bytes, billete, fichero, (f) => decir(`Subiendo «${fichero}»… ${Math.round(f * 100)} %`, true));
+      const r = await put(url, bytes, billete, fichero, TIPOS[tipo], (f) => decir(`Subiendo «${fichero}»… ${Math.round(f * 100)} %`, true));
       if (r.status !== 200 && r.status !== 201) return no(fichero, r.error.replace(/\.$/, "") || POR_ESTADO[r.status] || `el servidor dijo ${r.status}`);
       cuenta.subidas++;
     }
     const sitio = donde ?? delante(), nombre = nombreDeFichero(fichero);
     const acota = (v: number) => Math.max(-2000, Math.min(2000, v));
-    decir(`${ya ? "Ya estaba en el servidor: no hace falta subirlo. " : "Subido. "}Colocando «${nombre}»…`, true);
+    decir(`${ya ? "Ya estaba en el servidor: no hace falta subirlo. " : "Subido. "}Colocando ${QUE[clase]} «${nombre}»…`, true);
     const desde = o.session.features.stats.events;
-    const s = o.session.features.send("objetos", "colocar", { modelo: sha, x: acota(sitio.x), y: 0, z: acota(sitio.z), ry: 0, nombre, decorado: false });
+    const alto = clase === "imagen" || clase === "video" ? 1.2 : 0; // pictures and screens stand at eye height
+    const s = o.session.features.send("objetos", "colocar", { modelo: sha, x: acota(sitio.x), y: alto, z: acota(sitio.z), ry: 0, nombre, decorado: false, tipo: clase, ext: tipo });
     if (!s.ok) return no(fichero, s.why);
     const r = await respuesta(desde);
     if (!r.ok) return no(fichero, r.texto.replace(/\.$/, ""));
@@ -159,15 +168,23 @@ export function montarSoltar(o: OpcionesSoltar) {
   });
 
   // ---- the same without a mouse: a real button in the builder panel ----
-  const fila = document.createElement("div"); fila.className = "fila";
+  const fila = document.createElement("div"); fila.className = "fila"; fila.setAttribute("role", "toolbar"); fila.setAttribute("aria-label", "Subir ficheros");
   const entrada = document.createElement("input");
-  entrada.type = "file"; entrada.accept = ".glb,model/gltf-binary"; entrada.multiple = true; entrada.hidden = true; entrada.id = "subir-fichero";
-  const boton = document.createElement("button");
-  boton.type = "button"; boton.id = "subir-modelo"; boton.textContent = "Subir modelo…";
-  boton.title = `Un .glb tuyo (hasta ${TOPES_MB.glb} MB): se coloca a 3 m delante de ti. También puedes soltarlo sobre el mundo.`;
-  boton.addEventListener("click", () => entrada.click());
+  entrada.type = "file"; entrada.accept = ACEPTA.todo; entrada.multiple = true; entrada.hidden = true; entrada.id = "subir-fichero";
+  const botonDe = (id: string, texto: string, titulo: string, acepta: string) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.id = id; b.textContent = texto; b.title = titulo;
+    b.addEventListener("click", () => { entrada.accept = acepta; entrada.click(); });
+    return b;
+  };
+  fila.append(
+    botonDe("subir-modelo", "Subir modelo…", `Un .glb tuyo (hasta ${TOPES_MB.glb} MB): se coloca a 3 m delante de ti. También puedes soltarlo sobre el mundo.`, ACEPTA.modelo),
+    botonDe("subir-imagen", "Imagen…", `Una imagen .png, .jpg o .webp (hasta ${TOPES_MB.png} MB) en un cuadro de pie, delante de ti.`, ACEPTA.imagen),
+    botonDe("subir-video", "Pantalla de vídeo…", `Un vídeo .mp4 o .webm (hasta ${TOPES_MB.mp4} MB) en una pantalla que lo repite; su sonido se oye al acercarse.`, ACEPTA.video),
+    botonDe("subir-sonido", "Zona de sonido…", `Un sonido .mp3 u .ogg (hasta ${TOPES_MB.mp3} MB): una esfera translúcida; dentro se oye. Su tamaño es el radio; puedes hacerla invisible.`, ACEPTA.sonido),
+    entrada,
+  );
   entrada.addEventListener("change", () => { const fs = Array.from(entrada.files ?? []); entrada.value = ""; void varios(fs, null); });
-  fila.append(boton, entrada);
   o.panel?.append(fila);
   let visible: boolean | null = null;
   const mirarPermiso = () => { const si = o.puede(); if (si !== visible) { visible = si; fila.style.display = si ? "" : "none"; } }; // not `hidden`: the panel's .fila is display:flex

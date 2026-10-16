@@ -10,6 +10,7 @@
 // P), Blender (G / R, X / Y / Z, Shift+D, N, F) and OnCyber's studio (MIT: one undo step per drag; a click is a
 // press that did not move).
 import type { Donde, Editor, Eje } from "../../packages/render/src/index.ts";
+import { icono } from "./iconos.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type Obj = Record<string, unknown> & { id: string };
@@ -23,13 +24,15 @@ type Builder = {
   colocar(id: string): Res; colocarEn(id: string, p: Punto, ry?: number): Res;
   girar(grados: number): Res; subir(metros: number): Res; desplazar(dx: number, dz: number): Res; escalar(factor: number): Res;
   duplicar(): Res; borrar(): Res; fijar(): Res; nombrar(nombre: string, decorado?: boolean): Res; deshacer(): Res; rehacer(): Res;
+  ajustar(c: { oculto?: boolean; volumen?: number; solido?: boolean; caja?: [number, number, number, number, number, number] | null; alcance?: "burbuja" | "zona" | "todos"; radio?: number }): Res;
   seleccionar(id: string): Res; transformar(id: string, t: Partial<Donde>): Res; modo(m: string): Res;
   escuchar(fn: (que: string) => void): () => void;
 };
 type Cam = { modo?(m: "juego" | "construir"): void; frame?(centro: Punto, radio: number): void; bloquear?(on: boolean): void };
 type Vista = {
   renderer: { domElement: HTMLCanvasElement };
-  editor: Editor;
+  editor: Editor & { cajaPropia?(key: string): [number, number, number, number, number, number] | null };
+  verOcultos?(si: boolean): void;
   place(key: string, t: (Donde & { model: string; animate: boolean }) | null): void;
 };
 
@@ -51,6 +54,8 @@ export const AYUDA = [
   "Mayús + D o Ctrl + D: duplicar y coger la copia · Supr o Retroceso: borrar · P: fijar o soltar.",
   "Ctrl + Z: deshacer · Ctrl + Mayús + Z o Ctrl + Y: rehacer · F: encuadrar · N: inspector.",
   "Biblioteca: el modelo sigue al puntero y un clic lo coloca; «Delante de ti» lo coloca sin ratón.",
+  "Doble clic en un objeto mientras juegas: abre construir con él seleccionado. Encima del objeto sale una barra con Mover, Girar, Escalar, Duplicar y Borrar.",
+  "Imagen, Pantalla de vídeo y Zona de sonido (abajo): suben tu fichero y lo ponen delante de ti. La zona de sonido es una esfera: Escalar cambia su radio.",
   "Botones derecho y central del ratón, y la rueda: la cámara (cuando llegue la cámara nueva).",
 ];
 
@@ -111,18 +116,48 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   const nombre = el("input", { type: "text", maxLength: 60 });
   const decorado = el("input", { type: "checkbox" });
   const fijado = el("input", { type: "checkbox" });
+  // U10: solid (people bump into it), visible while playing (spheres of sound) and volume (sound and video)
+  const solido = el("input", { type: "checkbox" });
+  const visible = el("input", { type: "checkbox" });
+  const volumen = el("input", { type: "range", min: "0", max: "1", step: "0.05" });
+  const lSolido = el("label", {}, solido, " sólido (las personas chocan con él)");
+  const lVisible = el("label", {}, visible, " se ve al jugar (si no, solo al construir)");
+  const lVolumen = el("label", {}, "Volumen ", volumen);
+  // U11: who hears it, and the bubble's radius in metres (a sphere's scale; a video's own bubble)
+  const alcance = el("select");
+  for (const [v, t] of [["burbuja", "solo dentro de la burbuja"], ["zona", "toda la zona"], ["todos", "todo el mundo"]]) alcance.append(el("option", { value: v, textContent: t }));
+  const radio = el("input", { type: "number", min: "0.5", max: "200", step: "0.5" });
+  const lAlcance = el("label", {}, "Se oye en ", alcance);
+  const lRadio = el("label", {}, "Radio de la burbuja (m) ", radio);
   const grupo = (leyenda: string, ...hijos: Node[]) => el("fieldset", {}, el("legend", { textContent: leyenda }), ...hijos);
   const datos = el("div", {},
     el("label", {}, "Nombre ", nombre), el("label", {}, decorado, " decorado (sin nombre a propósito)"),
     grupo("Posición (m)", campos.x.l, campos.y.l, campos.z.l),
     grupo("Giro (grados)", campos.rx.l, campos.ry.l, campos.rz.l),
     grupo("Escala", campos.sx.l, campos.sy.l, campos.sz.l, campos.u.l),
-    el("label", {}, fijado, " fijado (nadie lo mueve ni lo borra)"));
+    el("label", {}, fijado, " fijado (nadie lo mueve ni lo borra)"), lSolido, lVisible, lVolumen, lAlcance, lRadio);
   const inspector = el("section", { className: "inspector" }, el("h3", { textContent: "Inspector (N)" }), datos);
   inspector.setAttribute("aria-label", "Inspector del objeto seleccionado: Intro aplica");
   nombre.addEventListener("change", () => responder(c.nombrar(nombre.value.trim(), decorado.checked), "Nombre puesto."));
   decorado.addEventListener("change", () => responder(c.nombrar(decorado.checked ? "" : nombre.value.trim(), decorado.checked)));
   fijado.addEventListener("change", () => { const o = c.objeto(c.estado.seleccionado); if (o && !!o.fijado !== fijado.checked) responder(c.fijar(), fijado.checked ? "Fijado." : "Suelto."); });
+  solido.addEventListener("change", () => {
+    const id = c.estado.seleccionado, caja = solido.checked && id ? ed.cajaPropia?.(id) ?? null : null;
+    if (solido.checked && !caja) { solido.checked = false; return decir("Espera a que se vea el modelo y vuelve a marcarlo."); }
+    responder(c.ajustar({ solido: solido.checked, caja }), solido.checked ? "Sólido: ya no se puede atravesar." : "Ya se puede atravesar.");
+  });
+  visible.addEventListener("change", () => responder(c.ajustar({ oculto: !visible.checked }), visible.checked ? "Se verá al jugar." : "Invisible al jugar (la ves mientras construyes)."));
+  volumen.addEventListener("change", () => responder(c.ajustar({ volumen: volumen.valueAsNumber }), `Volumen ${Math.round(volumen.valueAsNumber * 100)} %.`));
+  alcance.addEventListener("change", () => {
+    const a = alcance.value as "burbuja" | "zona" | "todos";
+    responder(c.ajustar({ alcance: a }), a === "burbuja" ? "Se oye solo dentro de la burbuja." : a === "zona" ? "Lo oye toda la zona, al mismo volumen." : "Lo oye todo el mundo, al mismo volumen.");
+  });
+  radio.addEventListener("change", () => {
+    const id = c.estado.seleccionado, o = c.objeto(id), r = radio.valueAsNumber;
+    if (!o || !Number.isFinite(r)) return decir("Eso no es un número.");
+    const m = Math.max(0.5, Math.min(o.tipo === "sonido" ? 50 : 200, r));
+    responder(o.tipo === "sonido" ? c.transformar(id, { sx: m, sy: m, sz: m }) : c.ajustar({ radio: m }), `Radio de la burbuja: ${m} m.`);
+  });
 
   panel.append(
     el("h2", { textContent: "Construir" }),
@@ -345,7 +380,8 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   }
   /** Toolbar, selection line and inspector follow the shared state. */
   function refrescar(): void {
-    boton.style.display = c.estado.puede ? "block" : "none";
+    boton.style.display = c.estado.puede ? "" : "none";
+    boton.toggleAttribute("data-oculto", !c.estado.puede);
     if (!abierto()) return;
     for (const b of botonesHerr) b.setAttribute("aria-pressed", String(b.dataset.modo === c.estado.modo));
     for (const b of botonesEje) b.setAttribute("aria-pressed", String((b.dataset.eje || null) === eje));
@@ -357,7 +393,15 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     inspector.hidden = !inspectorVisible;
     for (const f of datos.querySelectorAll("fieldset")) f.disabled = !o;
     nombre.disabled = decorado.disabled = fijado.disabled = !o;
+    const tipo = String(o?.tipo ?? "modelo");
+    const suena = tipo === "sonido" || tipo === "video";
+    lSolido.hidden = !o || tipo === "sonido"; lVisible.hidden = !o || tipo !== "sonido"; lVolumen.hidden = lAlcance.hidden = !o || !suena;
+    lRadio.hidden = !o || !suena || (o.alcance ?? "burbuja") !== "burbuja";
     if (!o) return;
+    solido.checked = o.solido === true; visible.checked = o.oculto !== true;
+    if (document.activeElement !== volumen) volumen.value = String(o.volumen ?? 1);
+    if (document.activeElement !== alcance) alcance.value = String(o.alcance ?? "burbuja");
+    if (document.activeElement !== radio) radio.value = String(tipo === "sonido" ? o.sx : (o.radio ?? 8));
     const drawn = agarre?.key === o.id || ed.estado().arrastrando ? ed.dondeEsta(o.id) : null;
     mostrarDonde(drawn ?? (Object.fromEntries(["x", "y", "z", "rx", "ry", "rz", "sx", "sy", "sz"].map((k) => [k, Number(o[k])])) as Donde));
     if (document.activeElement !== nombre) nombre.value = String(o.nombre ?? "");
@@ -392,8 +436,10 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   // ---- opening and closing ----
   function abrir(si: boolean): void {
     panel.hidden = !si;
+    document.body.classList.toggle("construyendo", si); // U10: the minimap steps aside while building
+    view.verOcultos?.(si);                                // U10: hidden spheres of sound show while building
     boton.setAttribute("aria-expanded", String(si));
-    boton.textContent = si ? "Cerrar construir" : "Construir";
+    pintarBoton(si);
     if (si) {
       void ed.cargar();
       if (!c.estado.modo) c.modo("mover");
@@ -413,6 +459,13 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     ed.despertar();
   }
   boton.addEventListener("click", (e) => { abrir(!abierto()); if (e.detail > 0) boton.blur(); });
+  // U11: an icon (the house glyph for production, crane-tower), the words for screen readers and the tooltip
+  function pintarBoton(si: boolean): void {
+    const t = si ? "Cerrar construir (C)" : "Construir (C)";
+    boton.classList.add("solo-icono"); boton.title = t;
+    boton.innerHTML = `${icono(si ? "x" : "crane-tower")}<span class="solo-lector">${t}</span>`;
+  }
+  pintarBoton(false);
 
   // ---- keys: the builder's go first (capture) and stop there; text fields keep theirs ----
   function tecla(e: KeyboardEvent): (() => Res | void) | null {
@@ -498,6 +551,37 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     if (abierto() && e.pointerType !== "mouse" && (ed.estado().arrastrando || agarre || fantasma)) e.stopPropagation();
   });
 
+  // ---- U10: a bar that floats over the selected thing (like OnCyber's): the tools and «Borrar» where you look ----
+  const barra = el("div", { id: "barra-objeto" });
+  barra.setAttribute("role", "toolbar"); barra.setAttribute("aria-label", "Acciones del objeto seleccionado");
+  const bBarra = (t: string, titulo: string, fn: () => Res | void, clase = "") => { const b = boton2(t, titulo, fn); if (clase) b.className = clase; return b; };
+  const herrBarra = HERRAMIENTAS.map(([m, t]) => { const b = bBarra(t, `${t} (las asas de colores)`, () => elegirModo(m)); b.dataset.modo = m; return b; });
+  barra.append(...herrBarra, bBarra("Duplicar", "Hacer una copia (Mayús+D)", () => duplicar()), bBarra("Borrar", "Quitarlo del mundo (Supr; Ctrl+Z lo devuelve)", () => c.borrar(), "peligro"));
+  barra.hidden = true;
+  document.body.append(barra);
+  barra.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch, not a click on the world
+  const colocarBarra = () => {
+    const id = c.estado.seleccionado, o = abierto() && id ? c.objeto(id) : null, d = o ? ed.dondeEsta(id) : null;
+    const p = d ? ed.pantalla(d.x, d.y + Math.max(0.6, d.sy * (o?.tipo === "sonido" ? 1 : 0.5)) + 0.4, d.z) : null;
+    if (!p || p.y < 40 || p.y > innerHeight - 40 || p.x < 0 || p.x > innerWidth) { barra.hidden = true; } else {
+      barra.hidden = false;
+      for (const b of herrBarra) b.setAttribute("aria-pressed", String(b.dataset.modo === c.estado.modo));
+      barra.style.left = `${Math.max(8, Math.min(innerWidth - barra.offsetWidth - 8, p.x - barra.offsetWidth / 2))}px`;
+      barra.style.top = `${Math.max(8, p.y - barra.offsetHeight - 30)}px`;
+    }
+    requestAnimationFrame(colocarBarra);
+  };
+  requestAnimationFrame(colocarBarra);
+
+  // ---- U10: a double click on a thing while playing opens Construir with it selected (the quick way in) ----
+  lienzo.addEventListener("dblclick", (e) => {
+    if (abierto() || !c.estado.puede) return;
+    const k = ed.pick(e.clientX, e.clientY);
+    if (!k) return;
+    abrir(true); c.seleccionar(k);
+    const o = c.objeto(k); decir(`Seleccionado: ${o ? nombreDe(o) : k}. Arrastra las asas de colores para moverlo; «Borrar» lo quita.`);
+  });
+
   // who may build can change (H3 will give roles); the nearest thing changes as you walk
   setInterval(() => { if (!c.estado.puede && abierto()) abrir(false); refrescar(); }, 500);
 }
@@ -523,6 +607,14 @@ function estilo(): void {
 #panel-construir details { margin: 6px 0; }
 #panel-construir summary { cursor: pointer; }
 #panel-construir ul { margin: 4px 0; padding-left: 18px; }
+#panel-construir label[hidden] { display: none; }
+#panel-construir input[type=range] { width: 140px; }
+#barra-objeto { position: fixed; z-index: 6; display: flex; gap: 4px; padding: 4px; border-radius: 8px; background: rgba(20, 24, 30, .86); }
+#barra-objeto[hidden] { display: none; }
+#barra-objeto button { padding: 6px 9px; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; font: 600 12px system-ui, sans-serif; }
+#barra-objeto button[aria-pressed="true"] { background: #ffd27a; }
+#barra-objeto button.peligro { background: #ffb4a8; }
+#barra-objeto button:focus-visible { outline: 3px solid #ffd27a; }
 `;
   document.head.appendChild(s);
 }

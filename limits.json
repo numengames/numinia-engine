@@ -139,6 +139,8 @@
     { "axis": "any", "scope": "all", "key": "upload_max_ktx2", "value": 8, "unit": "MB", "state": "measured", "test": "test/subidas.test.ts", "date": "2026-10-15" },
     { "axis": "any", "scope": "all", "key": "upload_max_hdr", "value": 8, "unit": "MB", "state": "measured", "test": "test/subidas.test.ts", "date": "2026-10-15", "note": "H9: un cielo 2k equirectangular cabe" },
     { "axis": "any", "scope": "all", "key": "upload_max_mp3", "value": 8, "unit": "MB", "state": "measured", "test": "test/subidas.test.ts", "date": "2026-10-15" },
+    { "axis": "any", "scope": "all", "key": "voz_radio_m", "value": 30, "unit": "m", "state": "measured", "test": "test/voz.test.ts", "date": "2026-10-16", "note": "U10: una trama de micrófono llega solo a quien tiene a quien habla en su área de interés y a 30 m o menos; tope 60 tramas/s por persona" },
+    { "axis": "any", "scope": "all", "key": "solidos_max", "value": 512, "unit": "cajas", "state": "estimated", "source": "packages/sim/src/index.ts SOLIDS_MAX: la simulación mira como mucho 512 objetos sólidos (coste por tick sin medir con 1.000 personas)", "date": "2026-10-16" },
     { "axis": "any", "scope": "all", "key": "upload_max_ogg", "value": 8, "unit": "MB", "state": "measured", "test": "test/subidas.test.ts", "date": "2026-10-15" },
     { "axis": "any", "scope": "all", "key": "upload_max_mp4", "value": 32, "unit": "MB", "state": "measured", "test": "test/subidas.test.ts", "date": "2026-10-15", "note": "H9: vídeos cortos en bucle; Hyperfy2 corta en 100 MB en el servidor" },
     { "axis": "any", "scope": "all", "key": "upload_max_webm", "value": 32, "unit": "MB", "state": "measured", "test": "test/subidas.test.ts", "date": "2026-10-15" },

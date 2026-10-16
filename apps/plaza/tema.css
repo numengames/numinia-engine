@@ -1,0 +1,80 @@
+/* tema (U11): the plaza's look from the Numinia Design System (numinia.org/design; values STD-023, rules STD-008).
+   Nocturno: background #14110F, surfaces #1E1A17 / #292420, text #F9EBDC / #C4B5A6, lines #3A332D; Turquesa #018EA1
+   interactive (focus), action fill #017C8D (one per view), Ámbar #EFA517 emphasis, Verdemar #A6DAD5 labels, Grana
+   #D33440 destructive. Two radii only: 6px controls, 8px frames. No shadows in Nocturno. Geist / Geist Mono.
+   Layout (Pablo, 16-10): top right a bar of icon buttons, the map under it, the quests under the map. */
+@font-face { font-family: "Geist"; src: url("/fuentes/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Geist Mono"; src: url("/fuentes/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+:root {
+  --n-fondo: #14110F; --n-sup: rgba(30, 26, 23, .9); --n-elev: #292420; --n-texto: #F9EBDC; --n-texto2: #C4B5A6;
+  --n-linea: #3A332D; --n-turquesa: #018EA1; --n-accion: #017C8D; --n-accion-h: #016E7D; --n-ambar: #EFA517;
+  --n-verdemar: #A6DAD5; --n-grana: #D33440; --n-grana-h: #B02330;
+  --mini: min(150px, 30vmin);
+}
+html, body { font-family: "Geist", system-ui, sans-serif; }
+
+/* ---- frames: one surface, one hairline, 8px ---- */
+#hud, #panel-construir, #libro, #dialogo, #ajustes, #panel-entorno, #chat-lista:not(:empty), #barra-objeto, #mision-seguida,
+#interactuar, .panel-j5, #subida-estado.con-texto {
+  background: var(--n-sup) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea); border-radius: 8px !important; box-shadow: none !important;
+}
+#hud { font-family: "Geist Mono", ui-monospace, monospace; font-size: 12px; color: var(--n-texto2) !important; }
+#hud b { color: var(--n-verdemar); }
+#panel-construir h2, #libro h2, #dialogo h2, #ajustes h2, #panel-entorno h2, .panel-j5 h2 { color: var(--n-texto) !important; font-weight: 600; letter-spacing: -.01em; }
+#panel-construir h3, #libro h3, #panel-entorno h3 { color: var(--n-texto) !important; }
+#panel-construir legend, #ajustes legend, #panel-entorno legend, #panel-construir > p:not(.estado) {
+  font-family: "Geist Mono", ui-monospace, monospace; font-size: .7rem; letter-spacing: .15em; text-transform: uppercase; color: var(--n-verdemar) !important;
+}
+#panel-construir fieldset, #ajustes fieldset { border-color: var(--n-linea) !important; border-radius: 8px !important; }
+#panel-construir .estado, #ajustes .estado, #panel-entorno .estado { color: var(--n-verdemar) !important; }
+#chat-lista b { color: var(--n-verdemar) !important; }
+#chat-lista .aviso { color: var(--n-ambar) !important; }
+#mision-seguida { color: var(--n-ambar) !important; }
+#interactuar { color: var(--n-texto) !important; }
+#mision-nota { background: var(--n-ambar) !important; color: var(--n-fondo) !important; border-radius: 8px !important; }
+
+/* ---- controls: ghost by default, ink-on-paper when active, 6px ---- */
+#panel-construir button, #libro button, #dialogo button:not(.adios), #ajustes button, #panel-entorno button, #minimapa button, .panel-j5 button, #barra-objeto button, #barra-arriba button {
+  background: var(--n-elev) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea) !important; border-radius: 6px !important; font-family: inherit;
+}
+#panel-construir button:hover, #libro button:hover, #dialogo button:not(.adios):hover, #ajustes button:hover, #panel-entorno button:hover, #minimapa button:hover, #barra-objeto button:hover, #barra-arriba button:hover { border-color: var(--n-texto2) !important; }
+#panel-construir button[aria-pressed="true"], #minimapa button[aria-pressed="true"], #barra-objeto button[aria-pressed="true"], #barra-arriba button[aria-pressed="true"], #panel-entorno button[aria-pressed="true"] {
+  background: var(--n-texto) !important; color: var(--n-fondo) !important; border-color: var(--n-texto) !important; font-weight: 600;
+}
+#panel-construir [data-eje="X"] { color: #F35059 !important; } #panel-construir [data-eje="Y"] { color: #8FC46B !important; } #panel-construir [data-eje="Z"] { color: #5D9BD6 !important; }
+#barra-objeto button.peligro, #panel-construir button.peligro { background: var(--n-grana) !important; color: #fff !important; border-color: var(--n-grana) !important; }
+#barra-objeto button.peligro:hover, #panel-construir button.peligro:hover { background: var(--n-grana-h) !important; }
+#panel-construir input, #panel-construir select, #ajustes select, #panel-entorno select, #chat-texto { background: var(--n-fondo) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea) !important; border-radius: 6px !important; }
+#panel-construir input[type=checkbox], #panel-construir input[type=range], #ajustes input[type=checkbox], #ajustes input[type=range], #panel-entorno input[type=range], #panel-entorno input[type=checkbox] { accent-color: var(--n-turquesa) !important; }
+#chat-canal, #chat-boton { background: var(--n-accion) !important; color: #fff !important; border-radius: 6px !important; }
+:focus-visible { outline: 2px solid var(--n-turquesa) !important; outline-offset: 2px !important; }
+.icono { display: block; flex: none; }
+button .icono + span, button span + .icono { margin-left: 6px; }
+
+/* ---- the bar of icon buttons, top right ---- */
+#barra-arriba { position: fixed; top: 10px; right: 10px; z-index: 7; display: flex; flex-direction: row-reverse; gap: 6px; align-items: center; }
+#barra-arriba > * { position: static !important; inset: auto !important; }
+#barra-arriba > button { box-sizing: border-box; min-width: 44px; height: 44px; padding: 0 12px !important; display: inline-flex; align-items: center; justify-content: center; font: 600 13px "Geist", system-ui, sans-serif !important; line-height: 1 !important; }
+#barra-arriba > button.solo-icono { width: 44px; padding: 0 !important; }
+#barra-arriba > #vr[style*="none"], #barra-arriba > #ar[style*="none"], #barra-arriba > [hidden] { display: none !important; }
+#barra-arriba > #construir { display: inline-flex !important; }
+#barra-arriba > #construir[data-oculto] { display: none !important; }
+#barra-arriba > #construir[aria-expanded="true"] { background: var(--n-accion) !important; color: #fff !important; border-color: var(--n-accion) !important; }
+#barra-arriba > #microfono[aria-pressed="true"] { background: var(--n-grana) !important; color: #fff !important; border-color: var(--n-grana) !important; }
+#microfono .nivel { margin-left: 0 !important; }
+
+/* ---- the map under the bar, the quests under the map ---- */
+body #minimapa { top: 64px !important; bottom: auto !important; right: 10px !important; }
+body #minimapa canvas { border: 1px solid var(--n-linea); box-shadow: none !important; }
+body #misiones { left: auto !important; right: 10px !important; bottom: auto !important; top: calc(64px + var(--mini) + 46px) !important; display: inline-flex; align-items: center;
+  background: var(--n-sup) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea) !important; border-radius: 6px !important; }
+body #misiones[aria-expanded="true"] { background: var(--n-texto) !important; color: var(--n-fondo) !important; }
+body #libro { left: auto !important; right: 10px !important; top: calc(64px + var(--mini) + 92px) !important; bottom: auto !important; max-height: calc(100% - var(--mini) - 170px) !important; }
+body #mision-seguida { left: auto !important; right: 10px !important; top: calc(64px + var(--mini) + 92px) !important; max-width: min(320px, calc(100% - 20px)) !important; }
+body:has(#libro:not([hidden])) #mision-seguida { display: none; }
+/* while building the panel owns the right side */
+body.construyendo #minimapa, body.construyendo #misiones, body.construyendo #libro, body.construyendo #mision-seguida { visibility: hidden; }
+body #panel-construir { top: 64px !important; max-height: calc(100% - 120px) !important; }
+body #panel-entorno { top: 112px !important; }
+#help { color: var(--n-fondo) !important; }
+@media (min-width: 900px) { #help { max-width: calc(100vw - 440px) !important; } }

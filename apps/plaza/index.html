@@ -19,6 +19,7 @@
     #construir { position: fixed; top: 102px; right: 10px; display: none; padding: 10px 14px; border: 0; border-radius: 8px; background: #c9b6ff; color: #23303b; font: inherit; font-weight: 600; }
     #pantalla { position: fixed; top: 112px; left: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #eef2f6; font: inherit; font-weight: 600; }
     #panel-construir { position: fixed; top: 150px; right: 10px; width: 300px; max-height: calc(100% - 210px); overflow: auto; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .82); color: #eef2f6; }
+    body.construyendo #minimapa { visibility: hidden; } /* while building the panel owns the right side (the minimap covered «Borrar» and the inspector) */
     #panel-construir h2 { margin: 0 0 4px; font-size: 15px; color: #ffd27a; }
     #panel-construir p { margin: 6px 0 4px; }
     #panel-construir .fila { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -40,6 +41,7 @@
     #chat-boton { align-self: flex-start; }
     #chat-texto:focus-visible, #chat-canal:focus-visible, #chat-boton:focus-visible { outline: 3px solid #ffd27a; }
     #chat .estado { margin: 0; color: #23303b; min-height: 0; }
+    #chat .estado:not(:empty) { padding: 3px 8px; border-radius: 6px; background: rgba(238, 242, 246, .85); }
     /* J4/J5: the prompt «E: hablar con…», the conversation box, the quest book, the tracked step and a short note */
     #interactuar { position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%); padding: 8px 14px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .82); color: #ffd27a; font: inherit; font-weight: 600; }
     #dialogo { position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 20px)); max-height: calc(100% - 90px); overflow: auto; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; background: rgba(20, 24, 30, .9); color: #eef2f6; }
@@ -51,7 +53,8 @@
     #dialogo .adios { margin-top: 8px; background: transparent; color: #eef2f6; text-decoration: underline; }
     #dialogo .estado { margin: 6px 0 0; color: #ffb4a8; min-height: 1em; }
     #misiones { position: fixed; left: 10px; bottom: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: #ffd27a; color: #23303b; font: inherit; font-weight: 600; }
-    #libro { position: fixed; left: 10px; bottom: 52px; width: 320px; max-width: calc(100% - 20px); max-height: calc(100% - 200px); overflow: auto; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .88); color: #eef2f6; }
+    /* the book opens top left, under the HUD and «Pantalla completa», over the chat (it used to open behind the chat) */
+    #libro { position: fixed; left: 10px; top: 156px; z-index: 5; width: 320px; max-width: calc(100% - 20px); max-height: max(160px, calc(100% - 420px)); overflow: auto; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .88); color: #eef2f6; }
     #libro h2 { margin: 0 0 6px; font-size: 15px; color: #ffd27a; }
     #libro h3 { margin: 8px 0 2px; font-size: 14px; }
     #libro p, #libro ol, #libro ul { margin: 2px 0 6px; }
@@ -59,7 +62,7 @@
     #libro li.hecho { color: #9fe0a0; } #libro li.ahora { color: #ffd27a; font-weight: 600; } #libro li.despues { opacity: .7; }
     #libro .fila { display: flex; gap: 6px; }
     #libro button { padding: 5px 9px; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; font: inherit; }
-    #mision-seguida { position: fixed; top: 108px; left: 10px; max-width: calc(100% - 150px); margin: 0; padding: 5px 10px; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #ffd27a; pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #mision-seguida { position: fixed; top: 156px; left: 10px; z-index: 4; max-width: calc(100% - 150px); margin: 0; padding: 5px 10px; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #ffd27a; pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #mision-nota { position: fixed; top: 34%; left: 50%; transform: translateX(-50%); max-width: calc(100% - 40px); padding: 6px 12px; border-radius: 8px; background: rgba(255, 210, 122, .95); color: #23303b; font-weight: 600; text-align: center; pointer-events: none; }
     /* V1: what happens, for screen readers (not shown on screen; the voice of V3 comes later) */
     .solo-lector { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
@@ -98,10 +101,12 @@
     html.alto-contraste :focus-visible { outline: 3px solid #ffeb3b !important; outline-offset: 2px; }
     html.menos-movimiento *, html.menos-movimiento *::before, html.menos-movimiento *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   </style>
+  <link rel="stylesheet" href="./tema.css" /><!-- U11: Numinia Design System (colours, type, icons) and the right-hand layout -->
 </head>
 <body>
   <div id="hud">Conectando…</div>
-  <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · M: mapa · I: ficha · C: construir</div>
+  <div id="barra-arriba" role="toolbar" aria-label="Botones del mundo"></div>
+  <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · M: mapa · I: ficha · C: construir · Q: micrófono</div>
   <button id="ar" type="button">Entrar en AR</button>
   <button id="vr" type="button">Entrar en VR</button>
   <button id="construir" type="button" aria-expanded="false" aria-controls="panel-construir">Construir</button>
