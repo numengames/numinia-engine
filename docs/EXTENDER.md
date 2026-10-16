@@ -379,3 +379,31 @@ mundo) y con el permiso `manage-organization` o dueño. 401 = sin pase o pase ma
 español del verificador), 403 = pase bueno sin permiso, 404 `agentes-desactivado` = el mundo no tiene `MOTOR_PASE_CLAVE`
 (cerrado, nunca abierto). CORS: solo `https://numinia.com` (responde al `OPTIONS` y pone `Access-Control-Allow-Origin`;
 a otro origen no le pone ninguna cabecera CORS; nunca `*`). El instalador deja pasar `/agentes*` por Caddy.
+
+## Pesca (v1): un minijuego que decide el servidor
+
+`features/pesca` es el ejemplo de **minijuego con tiempo**: el servidor lleva el ciclo entero en `api.onTick` (20 Hz) y la
+página solo pide tres cosas (`lanzar { sitio }`, `recoger { activo }`, `soltar`) y anima lo que le cuentan.
+- **Sitio de pesca** = una cosa del mundo (`state` con `at`, ficha `lugar`, `interact: { intent: "lanzar", prompt: "pescar",
+  radius: "radio" }`): «E: pescar» al lado del agua. Por defecto uno («Estanque de la plaza», x 24, z −16, radio 4,
+  `SITIOS_DEFECTO` en `server.ts`); un mundo trae los suyos en `MUNDO_DIR/pesca.json` (`{ "sitios": [{ id, nombre, x, y, z,
+  radio }] }`, leído en `features/mundo.ts`). Un pescador por sitio (`ocupado`).
+- **Ciclo** (números en `feature.ts`, de bridge-mind/tideline, MIT): espera 3–12 s → quizá un `mordisqueo` al 45 % → `picada`
+  con ventana 1,2 s (× rareza) → `recoger { activo: true }` a tiempo engancha → `pelea`: recogiendo sube la tensión (+26 %/s ×
+  fuerza) y el progreso (+13,5 %/s ÷ peso); descansando bajan (−21, −5,5 × fuerza); arrancadas avisadas 0,75 s antes
+  (`tension.arrancada`: no | aviso | si); tensión 100 = `escape rota`, progreso 0 = `escapa`, 55 s = `agotado`, alejarse =
+  `lejos`; progreso 100 = `captura { pez, cm, rareza, total }` («Has pescado: Carpa de 23,1 cm.», sonido `exito`).
+  El estado de la pelea llega a 10 Hz solo al pescador (`tension`). Quien está a 40 m ve el flotador (`lanzado` / `fin`).
+- **Peces**: `features/pesca/peces.json` (1–3 entradas; talla con `azar^1,8`, la fuerza crece con la talla). Azar con el
+  PRNG del motor (`rngNext`, estado propio de la función, semilla mezclada con el tick del lanzamiento: reproducible, nunca
+  `Math.random`). Lo pescado se guarda por invitado en el almacén (`c:<id>`: cuántos y el mayor) y vuelve como `cesta`.
+- **Página**: `features/pesca/client.ts` da el controlador (`window.__numinia.pesca`: `estado()`, `sitios()`, `flotadores()`,
+  `lanzar`, `recoger(activo)`, `pulsar`, `soltar`, `alCambiar`); nada más va en el arranque. Con el primer sitio llegan,
+  perezosos, `apps/plaza/pesca.ts` (HUD: botón grande «Recoger» —mantener = recoger, soltar = descansar—, «Soltar», barras de
+  tensión y progreso, F / X en teclado, `navigator.vibrate` en picada, arrancada y captura) y `packages/render/src/pesca.ts`
+  (caña, sedal de 24 puntos con comba por tensión, flotador bicolor y un disco de agua por sitio; 3 draw calls por pescador).
+- **Pruebas**: `test/pesca.test.ts` (sin pantalla: la picada cae en el rango, fuera de ventana se escapa, la tensión sube y baja,
+  un pescador sensato captura en 8–25 s, nadie captura sin picada, la simulación no se entera) y la pierna
+  `tools/e2e-piernas/pesca.mjs` (navegador real: E, HUD, chunk 3D, picada, pelea con F, captura, otro invitado no se entera).
+- **Después (v2)**: sedal verlet (river-morning `Rope.ts`, MIT), varios sitios y tablas por hora/clima, sombras de peces,
+  cebos y cañas, ficha de colección, paso de misión `pesca`, predicción local de la tensión, AR/VR.
