@@ -56,6 +56,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
   const avisar = (e: number) => { api.emit("permiso", { construir: api.puede(e, "construir") }, { to: e }); };
   api.onJoin(avisar);
   api.onIdentify((e) => avisar(e));
+  api.listen("roles", "cambio", (m) => { avisar(Number(m.quien)); return true; }); // H3: a role given or taken
 
   api.on("colocar", (from, m) => {
     if (!puede(from) || !caben(from)) return;

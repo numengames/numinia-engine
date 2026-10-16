@@ -228,3 +228,16 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Números: 230 pruebas (antes 221: `cerebro` 8, `deploy` 1); puertas en verde (tick p99 8,4 ms); `deploy-check` OK: el servicio empaquetado enchufa el cerebro de eco y Lía coloca un bloque pedido por el chat de zona. Coste estimado con precios leídos hoy (Sonnet 5: 2 $/10 $ por millón de tokens): ≈ 0,004 $ por respuesta con caché; tope de 300 al día ≈ 1,3 $/día como mucho.
 - Commit: este (rama `habitantes/cerebro`).
 - Siguiente: PR #4 → versión → en alchemiststower `sudo bash instalar-motor.sh --dominio alchemiststower.numinia.com --clave-ia` → probar con Claude de verdad. Después: roles (H3), E1, la ficha del habitante (P4b), revisión del contrato del proveedor (D7).
+
+## 2026-10-16 03:25 · H3a · hecho
+- Qué: los roles del mundo son los de numinia.com (STD-051/052), no los de Hyperfy. `packages/server/src/roles.ts`
+  (reglas puras: 17 permisos, plantilla «Comunidad», dueños, `administrator`, altura, quién da qué) y `roles-mundo.ts`
+  (los roles de un mundo en una función del servidor, guardados en datos/, y las órdenes del chat: /roles, /dueño
+  <código de administración>, /dar, /quitar, /silenciar, /echar 10 min, /vetar con motivo, /perdonar,
+  /solo-miembros). Todo permiso (objetos, subidas, Lía) pregunta a los roles; un visitante o una IA = @todos, y
+  `--construir todos` pone «build-in-worlds» en @todos. El chat calla a quien está en silencio; objetos vuelve a
+  decir a la página si construye cuando cambia un rol. Diseño: `../mmo-browser-study/ROLES-MOTOR-Y-NUMINIA.md`.
+- Números: 239 pruebas (9 nuevas), puertas en verde (tick p99 8,1 ms con mil), deploy-check OK (Lía construye).
+- Consumo: Opus 5.5.
+- Commit: rama `roles/std-052`, sin subir.
+- Siguiente: H3b (el pase de numinia.com) y, en el hilo de organizaciones, firmar el pase y el botón «Entrar».

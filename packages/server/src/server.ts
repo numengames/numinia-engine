@@ -23,6 +23,8 @@ import { Subidas } from "./subidas.ts";
 import { CopiaMundo } from "./mundo-zip.ts";
 import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
 import { lectorAventura } from "./aventura.ts";
+import { crearRoles } from "./roles-mundo.ts";
+import type { Who } from "../../instance/src/index.ts";
 import { leerHabitantes } from "../../agent/src/formato.ts";
 import type { Metrics } from "./metrics.ts";
 
@@ -48,6 +50,8 @@ export type ServerOptions = {
   log?: (line: string) => void;
 };
 
+/** WebSocket close code when the world's roles take someone out (taken out, banned, members only): don't reconnect. */
+export const CIERRE_ROLES = 4003;
 /** Largest POST body a feature route accepts. */
 export const MAX_BODY = 4096;
 
@@ -101,9 +105,16 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const secret = o.secret ?? process.env.MOTOR_SECRET;
   let identitySign = signer(secret);
   if (!identitySign("probe")) { identitySign = signer(randomBytes(24).toString("hex")); log("[identidad] sin MOTOR_SECRET: los invitados no se reconocen después de reiniciar"); }
-  // H1: building is open to everyone (people and agents alike) or to nobody, until H3 makes it roles per identity
+  // H3: the world's roles are numinia.com's (roles.ts, roles-mundo.ts): every permission check asks them; a visitor is
+  // «@todos», whose «build-in-worlds» is the --construir switch (MOTOR_CONSTRUIR)
   const construir = o.construir ?? "nadie";
-  const puede = (_who: unknown, accion: string) => accion === "construir" && construir === "todos";
+  const sockets = new Map<number, WebSocket>();
+  const roles = crearRoles({
+    construir: construir === "todos", admin: o.admin ?? process.env.MOTOR_ADMIN, log,
+    cerrar: (e) => { sockets.get(e)?.close(CIERRE_ROLES, "fuera"); }, // the reason went out in the chat just before
+  });
+  const funciones = o.features?.length ? [...o.features, roles.part] : o.features; // no features (bare tests) = the pre-J7 wire
+  const puede = (who: Who | null, accion: string) => roles.puede(who, accion);
   const activos = new Activos(o.biblioteca === undefined ? BIBLIOTECA : o.biblioteca, o.subidas ?? null, log);
   if (o.aventura) log(`[aventura] ${o.aventura}${existsSync(o.aventura) ? "" : " (no existe: el mundo arranca sin aventura)"}`);
   // P4: who may enter as an AI inhabitant = the habitantes/ of the adventure, with a ticket of the agents' secret
@@ -113,7 +124,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const agentesSign = signer(o.agentes ?? process.env.MOTOR_AGENTES_SECRET);
   const agentes = agentesSign("probe") ? { sign: agentesSign, nombre: (id: string) => hab.habitantes.find((h) => h.id === id)?.nombre ?? null } : undefined;
   if (hab.habitantes.length) log(`[habitantes] ${hab.habitantes.map((h) => h.nombre).join(", ")}${agentes ? "" : " — sin MOTOR_AGENTES_SECRET: no podrán entrar como IA"}`);
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: o.features, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, activo: (h, ext) => activos.buscar(h, ext) !== null, aventura: lector, agentes });
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, activo: (h, ext) => activos.buscar(h, ext) !== null, aventura: lector, agentes });
   // H9: uploads (PUT /a/<sha256>.<ext>) by whoever may build; the page shows its guest token (I1) to say who it is
   const subidas = new Subidas({
     dir: o.subidas ?? null, activos, log, topesMB: o.subir?.topesMB, totalMB: o.subir?.totalMB,
@@ -190,8 +201,9 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     if (inst.conns.length >= maxPlayers) { counts.rechazadasLlenas++; ws.close(1013, "instance full"); return; }
     counts.aceptadas++;
     const entity = inst.connect(wsTransport(ws));
+    sockets.set(entity, ws);
     sesiones.abrir(entity);
-    ws.on("close", (code) => { counts.cerradas++; sesiones.cerrar(entity, { cierre: code }); inst.disconnect(entity); });
+    ws.on("close", (code) => { counts.cerradas++; sockets.delete(entity); sesiones.cerrar(entity, { cierre: code }); inst.disconnect(entity); });
     ws.on("error", () => ws.terminate());
   });
 
