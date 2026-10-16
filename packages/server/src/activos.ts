@@ -6,11 +6,12 @@
 // A file never changes under its name, so it is cached for a year; any page may fetch it (models load cross-origin
 // from the plaza's dev server).
 import { createHash } from "node:crypto";
-import { createReadStream, existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { closeSync, createReadStream, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ServerResponse } from "node:http";
-import { TIPOS } from "../../net/src/ficheros.ts";
+import { medidasImagen, TIPOS } from "../../net/src/ficheros.ts";
+import type { Medidas } from "../../net/src/ficheros.ts";
 export { TIPOS } from "../../net/src/ficheros.ts"; // the kinds of file (H9 shares them with the page)
 /** What /a/ serves: every uploadable kind plus .vrma (J1: the house animations; nobody uploads those). */
 export const SERVIR: Record<string, string> = { ...TIPOS, vrma: "model/gltf-binary" };
@@ -19,6 +20,8 @@ export const SERVIR: Record<string, string> = { ...TIPOS, vrma: "model/gltf-bina
 export const BIBLIOTECA = fileURLToPath(new URL("../../../activos", import.meta.url));
 
 const RUTA = /^\/a\/([0-9a-f]{64})\.([a-z0-9]{2,4})$/;
+/** U12: how much of a picture is read to measure it. */
+export const MEDIR_BYTES = 1024 * 1024;
 
 export const sha256 = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex");
 
@@ -50,6 +53,25 @@ export class Activos {
     if (b && b.ext === ext) return b.ruta;
     if (this.subidas) { const r = join(this.subidas, `${hash}.${ext}`); if (existsSync(r)) return r; }
     return null;
+  }
+
+  private readonly medidasVistas = new Map<string, Medidas | null>();
+  /** U12: the size in pixels of a picture this server has (png, jpg, webp), from its first MEDIR_BYTES (a JPEG's
+   * frame header comes after its EXIF and colour segments, 64 KB each at most). Once per file: it never changes under
+   * its name. null = not here, not a picture, or its bytes do not say. */
+  medidas(hash: string, ext: string): Medidas | null {
+    const k = `${hash}.${ext}`;
+    if (this.medidasVistas.has(k)) return this.medidasVistas.get(k)!;
+    const ruta = this.buscar(hash, ext);
+    if (!ruta) return null; // it may be uploaded later: ask again then
+    let m: Medidas | null = null;
+    try {
+      const fd = openSync(ruta, "r"), b = new Uint8Array(Math.min(statSync(ruta).size, MEDIR_BYTES));
+      try { readSync(fd, b, 0, b.length, 0); } finally { closeSync(fd); }
+      m = medidasImagen(ext, b);
+    } catch { m = null; }
+    this.medidasVistas.set(k, m);
+    return m;
   }
 
   /** Answer GET /a/<sha256>.<ext> (HEAD: the same headers, no body — H9: a page asks before uploading). Returns

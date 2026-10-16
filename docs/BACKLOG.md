@@ -76,6 +76,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | U3 | Marcos: formato `marco@1` (id estable, ancla, desplazamiento relativo, visibilidad `requiere`, árbol con nombre hablado y verbo) + pintor de página; el HUD de hoy pasa a marcos | para Opus | no |
 | U10 | Pedido de Pablo (16-10): misiones que se ven (el libro ya no queda tras el chat), barra sobre el objeto con Borrar, asas más grandes, doble clic para editar; imágenes, pantallas de vídeo y zonas de sonido (esfera visible o invisible, volumen); «sólido» (colisión en la simulación); micrófono por cercanía | hecho (escritorio; VR y móvil sin probar) | sí |
 | U11 | Pedido de Pablo (16-10, tras probar U10): misiones a la derecha y mapa arriba a la derecha; botones de icono (casa de numinia.org, Phosphor) y paneles con el Numinia Design System (STD-023: Nocturno, Geist, dos radios); el vídeo lleva burbuja de sonido; quién oye un sonido o un vídeo: solo la burbuja, toda la zona o todo el mundo; radio a mano | hecho (escritorio) | sí |
+| U12 | Pedido de Pablo (16-10, plantillas de mundo): huecos — un cuadro que espera su obra; se pincha (o E cerca), se elige la imagen en el ordenador y el servidor la encaja entera en el marco; vaciarlo devuelve el cartel | hecho (escritorio; VR y móvil sin probar) | sí |
 | U4 | Zona de usuario: quién eres, avatar, misiones e insignias, lo que he construido (lista, cuota, borrar, descargar), privacidad y datos, seguridad; el informe de sesión (T1) pasa a pedir consentimiento | espera a U2 | sí |
 | I3 | «Guardar mi progreso» con una llave de acceso (passkey) del propio motor, sin correo (Pablo, 15-10: camino B); la llave queda unida al invitado | pendiente | sí |
 | U5 | «Editar interfaz»: mover sin arrastrar (cuadrícula 3×3, números, flechas, lista), 5 disposiciones por clase de aparato, copiar y pegar `nl1.` sin código | espera a U3 | sí |
@@ -1097,6 +1098,34 @@ Ver su línea en la cola y la nota de la rama entorno en el RUNLOG del 15-10.
 Diseño aprobado por Pablo el 15-10 (respuesta a su pregunta: camino B, passkey). Las notas 26–35 del estudio son la
 fuente; los números de los addons con código están medidos solo en un PC (nota 29) y son estimados en móvil.
 Orden de Pablo (15-10): primero publicar y probar lo que ya hay; las U se prueban antes en local.
+
+### U12 — Huecos
+Pedido de Pablo (16-10) para las plantillas de mundo (`../mmo-browser-study/PLANTILLAS-MUNDOS.md` §9, «huecos que
+rellena el dueño»: la pieza común de la galería, el auditorio, la sala de rol y el salón de eventos): «pinchas el hueco,
+eliges tu imagen y se encaja sola», «y que te pida abrir carpeta para cargar el documento».
+
+**Hecho (16-10, rama `plantillas/huecos`).** `objetos` versión 5, aditiva: tres campos al final (`huecoAncho`,
+`huecoAlto` en metros, `huecoLleno`) y tres verbos. `hueco` hace de una imagen un hueco con el tamaño de lo de dentro
+de su marco (la imagen de ese momento queda como cartel en el almacén, `v:<id>`; 0 × 0 deja de serlo). `rellenar` pone
+una imagen subida (H9): el servidor la mide por su cabecera (`api.medidas`, nuevo en el enchufe: png, jpg con su
+orientación EXIF, webp; `packages/net/src/ficheros.ts` `medidasImagen`) y la encaja entera, centrada y sin deformarla
+(`encajar`: escala = mín(alto, ancho·py/px), redondeada hacia abajo), también con el hueco fijado; más de 4.096 px por
+lado o tan alargada que quedaría bajo la escala mínima: rechazo con motivo. `vaciar` devuelve el cartel con su nombre.
+Deshacer y rehacer valen en un hueco fijado (su escala es el encaje, no un movimiento); duplicar copia el cartel. Página:
+cerca de un hueco (3 m; hasta 3,5 m por encima o por debajo de los ojos) quien construye ve «E: poner tu obra en este
+hueco» («cambiar la obra…» si ya tiene); E, el botón o un clic en el hueco abren el selector de ficheros en el mismo
+gesto (el navegador no lo abre después de una espera). La imagen pasa por `soltar.ts` (`rellenar`): se reduce a 2.048 px
+el lado largo y una JPEG se redibuja siempre (de pie según su EXIF y sin el EXIF: el GPS de una foto de móvil no llega a
+un mundo público). Panel de construir, con una imagen seleccionada: «Hacer hueco» (el marco = lo que mide ahora),
+«Poner obra…», «Vaciar hueco» (`apps/plaza/huecos.ts`). `interactuar.ts` admite ofertas de la página (`locales`: su uso
+corre en la página) y clics en cosas dibujadas con su clave (`pinchar`). **Medido:** 8 pruebas (`test/huecos.test.ts`);
+pierna `tools/e2e-piernas/huecos.mjs` en chromium y firefox (E abre el selector; una PNG de 3.000 × 1.000 sube como
+2.048 × 683 y queda a escala 0,8 en un marco de 2,4 × 1,6; B la ve; un clic en el hueco abre el selector otra vez y una
+JPEG en retrato queda a 1,6; vaciar devuelve el cartel). Límite `hole_image_px_max` en `limits.json`.
+**Falta:** que el render reduzca las imágenes por nivel (Quest y móvil: unos 15 MB de textura por imagen de 2.048 px,
+21 huecos llenos pasan de los 256 MB del nivel B); huecos de modelo (.glb en una peana) y de vídeo; el selector de
+ficheros no existe dentro de una sesión VR (hay que salir); quién rellena = quien construye (un papel que solo rellene
+huecos espera a H3); la luz por cuadro (escenas).
 
 ### U1 — Pantalla de carga
 Armazón dentro de `index.html` (≤ 14 kB comprimido, letra del sistema, sin lienzo ni `requestAnimationFrame`) y un

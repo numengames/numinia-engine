@@ -247,6 +247,7 @@ export type ServerHost = {
   who?(entity: number): { id: string; nombre: string } | null;  // I1: the guest behind an entity (null for bots)
   puede?(entity: number, accion: string): boolean;              // H1: may this player do this ("construir"…)? none = no. H3 makes it roles
   activo?(sha256: string, ext: string): boolean;                // H9: is there a file /a/<sha256>.<ext> on this server? none = no
+  medidas?(sha256: string, ext: string): { ancho: number; alto: number } | null; // U12: a picture's size in pixels; none = null
   visible?(entity: number): readonly number[];                  // J3: who this player's page draws (its last snapshot); none = []
   aventura?(carpeta: string): { fichero: string; texto: string }[]; // J5: the adventure's text files in one folder (AVENTURA_DIR); none = []
 };
@@ -290,6 +291,9 @@ export type ServerApi = {
   /** H9: is there a file /a/<sha256>.<ext> on this server — the house library or something a builder uploaded?
    * (ext defaults to "glb"). Read-only; ask it before putting a model in the world. */
   activo(sha256: string, ext?: string): boolean;
+  /** U12: how many pixels a picture on this server measures (png, jpg, webp: read from the file's header, never from a
+   * page), or null (not here, not a picture). A phone photo turned by its EXIF orientation is measured standing. */
+  medidas(sha256: string, ext: string): { ancho: number; alto: number } | null;
   /** J3: hear an event of another feature (or your own) on the server, e.g. ("chat", "orden") for commands or
    * ("chat", "dicho") for near chat (an AI inhabitant, P5). Runs inside that emit; return true if you handled it.
    * Text inside is untrusted: never put it in an agent's instructions (STD-050). */
@@ -504,6 +508,7 @@ export class ServerRuntime {
       sign: (text) => this.host.sign?.(text) ?? "",
       puede: (e, accion) => { try { return this.host.puede?.(e, accion) ?? false; } catch { return false; } },
       activo: (sha256, ext = "glb") => { try { return /^[0-9a-f]{64}$/.test(sha256) && (this.host.activo?.(sha256, ext) ?? false); } catch { return false; } },
+      medidas: (sha256, ext) => { try { return /^[0-9a-f]{64}$/.test(sha256) ? this.host.medidas?.(sha256, ext) ?? null : null; } catch { return null; } },
       listen: (feature, event, fn) => {
         if (!this.entries.some((x) => x.feature === feature && x.kind === "event" && x.name === event)) log(`listen('${feature}', '${event}'): este servidor no tiene ese evento (¿falta la función '${feature}'?); no oirás nada`);
         const k = `${feature}.${event}`;

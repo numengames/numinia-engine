@@ -2,15 +2,22 @@
 // library, the zone's limit, names for things that are not decoration, pinned things stay put. Every change is
 // one state entry (no `at`: the whole zone gets it), saved as text (S4), and goes on the undo stack of whoever
 // made it (by identity, I1; bots and agents without one by connection).
+// U12: holes (huecos). `hueco` makes a picture a frame that waits for a work (and keeps that picture as the card it
+// goes back to), `rellenar` puts an uploaded image in it — the server measures its pixels (api.medidas, from the file,
+// never from the page) and fits it whole, centred, never distorted — and `vaciar` brings the card back. They work on
+// a pinned hole too: it stays where it is, only its picture changes.
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg } from "../../packages/feature/src/index.ts";
-import { objetos, PASO, OBJETOS_MAX, DESHACER_MAX, TIPOS, EXTENSIONES } from "./feature.ts";
+import { objetos, PASO, OBJETOS_MAX, DESHACER_MAX, TIPOS, EXTENSIONES, HUECO_MIN_M, HUECO_PX_MAX, ESCALA_MIN, encajar } from "./feature.ts";
 import type { Tipo } from "./feature.ts";
 import biblioteca from "./biblioteca.json" with { type: "json" };
 
 export type Modelo = { id: string; nombre: string; modelo: string; fichero: string; licencia: string };
 type Autor = { autor: string | null; nombre: string | null; cuando: string };
 type Cambio = { id: string; antes: Msg | null; autor?: Autor; tick: number; mover?: boolean };
+/** U12: what a hole shows when it is empty (its card), kept when it became a hole. */
+type Cartel = { modelo: string; ext: string; sx: number; sy: number; sz: number; nombre: string; decorado: boolean };
+const esHueco = (o: Msg | undefined | null) => Number(o?.huecoAncho) > 0 && Number(o?.huecoAlto) > 0;
 
 /** Round to the wire's step and drop float noise, so what is saved is what every page receives. */
 const q = (v: unknown, paso: number) => Number((Math.round(Number(v) / paso) * paso).toFixed(paso < 0.1 ? 2 : 1));
@@ -129,8 +136,9 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
     if (!puede(from) || !caben(from)) return;
     const o = objeto(from, m.id);
     if (!o) return;
-    const id = nuevoId(), c = api.store.get(`c:${String(m.id)}`);
+    const id = nuevoId(), c = api.store.get(`c:${String(m.id)}`), v = api.store.get(`v:${String(m.id)}`);
     if (c) api.store.set(`c:${id}`, c);
+    if (v) api.store.set(`v:${id}`, v); // U12: a copied hole keeps its card
     api.state.set(id, conCaja(id, { ...o, x: q(Math.min(2000, Number(o.x) + 1), PASO.pos), fijado: false }));
     firmar(from, id);
     apuntar(from, { id, antes: null });
@@ -185,10 +193,64 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
     hecho(from, id, "ajustar");
   });
 
+  // ---- U12: holes ----
+  const noEsHueco = (from: number, o: Msg, id: string) => rechazar(from, `«${String(o.nombre || id)}» no es un hueco: un hueco es la imagen de un marco que espera su obra (la marca quien construye).`);
+  api.on("hueco", (from, m) => {
+    if (!puede(from)) return;
+    const o = objeto(from, m.id), id = String(m.id);
+    if (!o) return;
+    const ancho = q(m.ancho, PASO.pos), alto = q(m.alto, PASO.pos);
+    if (ancho === 0 && alto === 0) { // no longer a hole: it keeps the picture it shows now
+      if (!esHueco(o)) return void noEsHueco(from, o, id);
+      apuntar(from, { id, antes: o });
+      api.state.set(id, { ...o, huecoAncho: 0, huecoAlto: 0, huecoLleno: false });
+      api.store.delete(`v:${id}`);
+      return void hecho(from, id, "hueco");
+    }
+    if (o.tipo !== "imagen") return void rechazar(from, "Un hueco es una imagen (el cartel que espera la obra): coloca una imagen y haz de ella el hueco.");
+    if (ancho < HUECO_MIN_M || alto < HUECO_MIN_M) return void rechazar(from, `Un hueco mide al menos ${String(HUECO_MIN_M).replace(".", ",")} m por lado.`);
+    // the picture it shows now is its card, unless it is already a hole (then the card stays the one it had)
+    if (!esHueco(o) || !api.store.get(`v:${id}`)) api.store.set(`v:${id}`, { modelo: String(o.modelo), ext: String(o.ext), sx: Number(o.sx), sy: Number(o.sy), sz: Number(o.sz), nombre: String(o.nombre), decorado: o.decorado === true } satisfies Cartel);
+    apuntar(from, { id, antes: o });
+    api.state.set(id, { ...o, huecoAncho: ancho, huecoAlto: alto, huecoLleno: esHueco(o) && o.huecoLleno === true });
+    hecho(from, id, "hueco");
+  });
+
+  api.on("rellenar", (from, m) => {
+    if (!puede(from)) return;
+    const o = objeto(from, m.id), id = String(m.id);
+    if (!o) return;
+    if (!esHueco(o)) return void noEsHueco(from, o, id);
+    const modelo = String(m.modelo), ext = String(m.ext).toLowerCase(), nombre = String(m.nombre ?? "").trim();
+    if (!EXTENSIONES.imagen.includes(ext)) return void rechazar(from, `En un hueco va una imagen ${EXTENSIONES.imagen.map((e) => `.${e}`).join(", ")}; .${ext} no vale.`);
+    if (!api.activo(modelo, ext)) return void rechazar(from, `Esa imagen .${ext} no se ha subido a este servidor.`);
+    const px = api.medidas(modelo, ext);
+    if (!px) return void rechazar(from, "No sé leer cuántos píxeles mide esa imagen: vuelve a guardarla como .png o .jpg.");
+    if (px.ancho > HUECO_PX_MAX || px.alto > HUECO_PX_MAX) return void rechazar(from, `La imagen mide ${px.ancho} × ${px.alto} px; en un hueco caben hasta ${HUECO_PX_MAX} px por lado.`);
+    const s = encajar(Number(o.huecoAncho), Number(o.huecoAlto), px.ancho, px.alto);
+    if (s < ESCALA_MIN) return void rechazar(from, `La imagen (${px.ancho} × ${px.alto} px) es demasiado alargada para este marco: quedaría de menos de ${Math.round(ESCALA_MIN * 100)} cm.`);
+    apuntar(from, { id, antes: o });
+    api.state.set(id, conCaja(id, { ...o, modelo, ext, sx: s, sy: s, sz: s, huecoLleno: true, ...(nombre ? { nombre, decorado: false } : {}) }));
+    hecho(from, id, "rellenar");
+  });
+
+  api.on("vaciar", (from, m) => {
+    if (!puede(from)) return;
+    const o = objeto(from, m.id), id = String(m.id);
+    if (!o) return;
+    const v = api.store.get(`v:${id}`) as Cartel | undefined;
+    if (!esHueco(o) || !v) return void noEsHueco(from, o, id);
+    if (o.huecoLleno !== true) return void rechazar(from, "Ese hueco ya está vacío.");
+    apuntar(from, { id, antes: o });
+    api.state.set(id, conCaja(id, { ...o, modelo: v.modelo, ext: v.ext, sx: v.sx, sy: v.sy, sz: v.sz, nombre: v.nombre, decorado: v.decorado, huecoLleno: false }));
+    hecho(from, id, "vaciar");
+  });
+
   // M22: undo and redo put a thing back as it was (or take it away) and leave the opposite on the other stack.
-  // A pinned thing stays put for them too, unless what is undone or redone is the pin itself (or its name).
-  const DONDE_CAMPOS = ["x", "y", "z", "rx", "ry", "rz", "sx", "sy", "sz"];
-  const fijadoImpide = (ahora: Msg | undefined, destino: Msg | null) => !!ahora?.fijado && (destino === null || DONDE_CAMPOS.some((k) => ahora[k] !== destino[k]));
+  // A pinned thing stays put for them too, unless what is undone or redone is the pin itself (or its name). A pinned
+  // hole's scale is its picture's fit, not a move: undoing a fill or an emptying is allowed (U12).
+  const DONDE_CAMPOS = ["x", "y", "z", "rx", "ry", "rz", "sx", "sy", "sz"], SITIO = DONDE_CAMPOS.slice(0, 6);
+  const fijadoImpide = (ahora: Msg | undefined, destino: Msg | null) => !!ahora?.fijado && (destino === null || (esHueco(ahora) && esHueco(destino) ? SITIO : DONDE_CAMPOS).some((k) => ahora[k] !== destino[k]));
   const volver = (from: number, de: Map<string, Cambio[]>, a: Map<string, Cambio[]>, accion: "deshacer" | "rehacer") => {
     if (!puede(from)) return;
     const k = quien(from), pila = de.get(k), c = pila?.pop();
