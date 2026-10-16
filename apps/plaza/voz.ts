@@ -5,6 +5,7 @@
 // Codec: Opus through WebCodecs where the browser has it (≈ 24 kbit/s); otherwise µ-law at 16 kHz (128 kbit/s), which
 // every browser can encode. A page that cannot decode Opus (no AudioDecoder) does not hear Opus speakers: it says so.
 import { VOZ_OPUS, VOZ_MULAW, aMulaw, deMulaw } from "../../packages/net/src/index.ts";
+import { icono } from "./iconos.ts";
 
 type Sesion = {
   entity: number;
@@ -22,10 +23,11 @@ const COLA_S = 0.08;         // jitter buffer: a voice starts this late, so late
 const LEJOS_M = 30;
 
 const CSS = `
-#microfono { position: fixed; left: 122px; bottom: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .78); color: #eef2f6; font: inherit; font-weight: 600; }
+#microfono { position: fixed; right: 10px; top: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .78); color: #eef2f6; font: inherit; font-weight: 600; }
 #microfono[aria-pressed="true"] { background: #e05a4f; color: #fff; }
 #microfono:focus-visible { outline: 3px solid #ffd27a; }
-#microfono .nivel { display: inline-block; width: 0; height: 8px; margin-left: 6px; border-radius: 4px; background: #9fe0a0; vertical-align: middle; }
+#microfono { position: relative; }
+#microfono .nivel { position: absolute; left: 6px; bottom: 4px; display: block; width: 0; max-width: 32px; height: 3px; border-radius: 2px; background: #A6DAD5; }
 `;
 
 // the worklet that hands the page 128-sample blocks of the microphone (an inline module: no extra file to serve)
@@ -36,9 +38,9 @@ const WORKLET = `registerProcessor("captura-voz", class extends AudioWorkletProc
 export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: KeyboardEvent): boolean; decir(t: string): void }) {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const boton = document.createElement("button");
-  boton.type = "button"; boton.id = "microfono"; boton.setAttribute("aria-pressed", "false");
+  boton.type = "button"; boton.id = "microfono"; boton.className = "solo-icono"; boton.setAttribute("aria-pressed", "false");
   boton.title = "Micrófono (Q): lo que dices lo oye la gente a menos de 30 m. No se graba.";
-  const texto = document.createElement("span"); texto.textContent = "🎤 Micrófono";
+  const texto = document.createElement("span");
   const nivel = document.createElement("span"); nivel.className = "nivel"; nivel.setAttribute("aria-hidden", "true");
   boton.append(texto, nivel);
   document.body.appendChild(boton);
@@ -80,7 +82,7 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
   o.session.onVoice = (m) => {
     estado.recibidas++;
     const v = vozDe(m.entidad), ahora = performance.now();
-    if (ahora - v.marca > 700) { v.marca = ahora; o.view.label(m.entidad, "🎤", 800); }
+    if (ahora - v.marca > 700) { v.marca = ahora; o.view.label(m.entidad, "habla", 800); }
     if (m.codec === VOZ_MULAW) {
       const pcm = new Float32Array(m.trama.length);
       for (let i = 0; i < pcm.length; i++) pcm[i] = deMulaw(m.trama[i]) / 32768;
@@ -110,7 +112,8 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
   let acumulado = new Float32Array(0), ts = 0;
   const pintar = () => {
     boton.setAttribute("aria-pressed", String(estado.encendido));
-    texto.textContent = estado.encendido ? "🎤 Hablando (Q apaga)" : "🎤 Micrófono";
+    const t = estado.encendido ? "Micrófono encendido: te oyen a menos de 30 m (Q apaga)" : "Micrófono apagado (Q enciende)";
+    texto.innerHTML = `${icono(estado.encendido ? "microphone" : "microphone-slash")}<span class="solo-lector">${t}</span>`; boton.title = t;
   };
   async function encender(): Promise<void> {
     if (!navigator.mediaDevices?.getUserMedia) { o.decir("Este navegador no da el micrófono aquí (hace falta https)."); return; }

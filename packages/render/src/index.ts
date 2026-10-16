@@ -39,7 +39,9 @@ export type Placed = { id: number; x: number; z: number; y?: number; speed?: num
 /** H1: a thing in the world (same shape as the feature plug's PlacedObject; render does not import it). Degrees, YXZ. */
 export type Thing = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean;
   /** U10 (optional): modelo (.glb, the default), imagen / video (a plane), sonido (a sphere: radius = sx); file extension; hidden while playing; volume 0-1. */
-  kind?: "modelo" | "imagen" | "video" | "sonido"; ext?: string; hidden?: boolean; volume?: number };
+  kind?: "modelo" | "imagen" | "video" | "sonido"; ext?: string; hidden?: boolean; volume?: number;
+  /** U11 (optional): who hears it (burbuja: inside the bubble; zona, todos: everyone, at the same volume) and a video's bubble radius (m). */
+  reach?: "burbuja" | "zona" | "todos"; radius?: number };
 const LOADS_AT_ONCE = 4;   // H1: model files downloading at the same time; the nearest first
 const ANIMATE_WITHIN_M = 40; // H1: farther than this, a model's animation stands still (cold phones)
 
@@ -212,7 +214,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   function cargarMedio(key: string, s: Slot): void {
     const t = s.want, url = assetUrl(t.model).replace(/\.glb$/, `.${t.ext ?? "glb"}`), model = s.model;
     if ((t.kind === "video" || t.kind === "sonido") && !sePuedeReproducir(t.ext ?? "")) { s.failed = true; console.warn(`[medios] este navegador no reproduce .${t.ext}`); return; }
-    const p = t.kind === "imagen" ? cargarImagen(url) : t.kind === "video" ? cargarVideo(url) : Promise.resolve(cargarSonido(url, () => verOcultos));
+    const p = t.kind === "imagen" ? cargarImagen(url) : t.kind === "video" ? cargarVideo(url, () => verOcultos) : Promise.resolve(cargarSonido(url, () => verOcultos));
     loading++;
     p.then((m) => {
       const now = things.get(key);
@@ -230,7 +232,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     const r2 = ANIMATE_WITHIN_M ** 2;
     const oyente = selfXZ ? { x: selfXZ.x, y: (selfXZ.y ?? 0) + 1.5, z: selfXZ.z } : null;
     for (const s of things.values()) {
-      if (s.medio) { s.medio.actualizar(s.group, oyente, { hidden: !!s.want.hidden, volume: s.want.volume ?? 1 }); if (s.want.kind === "video" && s.medio.sonando()) mediosSonando = true; }
+      if (s.medio) { s.medio.actualizar(s.group, oyente, { hidden: !!s.want.hidden, volume: s.want.volume ?? 1, reach: s.want.reach ?? "burbuja", radius: s.want.radius ?? 8 }); if (s.want.kind === "video" && s.medio.sonando()) mediosSonando = true; }
       if (!s.mixer) continue;
       if (distance2(s) <= r2) { s.mixer.update(dt); animatingNear = true; }
     }

@@ -154,6 +154,7 @@ Todo cambio pasa por el servidor (`features/objetos`) y llega a todos al momento
 | F | Encuadrar lo seleccionado (con la cámara nueva, N1) |
 | N | Mostrar u ocultar el inspector (nombre, posición, giro en grados, escala, fijado, sólido, visible, volumen: Intro aplica) |
 | Doble clic jugando | Abre construir con ese objeto seleccionado (U10) |
+| Inspector de un sonido o un vídeo | «Se oye en»: solo dentro de la burbuja, toda la zona o todo el mundo; «Radio de la burbuja (m)» (U11) |
 | Barra sobre el objeto | Coger, Mover, Girar, Escalar, Duplicar y 🗑 Borrar, encima de lo seleccionado (U10) |
 | Botones derecho y central, rueda | La cámara (rama de la cámara, N1) |
 

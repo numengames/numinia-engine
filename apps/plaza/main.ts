@@ -23,6 +23,7 @@ import { ambiente } from "../../features/entorno/client.ts";
 import { elementos } from "../../features/elementos/client.ts";
 import { montarEntorno } from "./entorno.ts";
 import { montarVoz } from "./voz.ts";
+import { icono } from "./iconos.ts";
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
@@ -202,9 +203,10 @@ if (document.fullscreenEnabled) {
   const pintar = () => {
     const oculto = view.vr.active || view.ar.state !== "off", texto = document.fullscreenElement ? "Salir de pantalla completa" : "Pantalla completa";
     if (pantalla.hidden !== oculto) pantalla.hidden = oculto;
-    if (pantalla.textContent !== texto) pantalla.textContent = texto;
+    if (pantalla.title !== texto) { pantalla.title = texto; pantalla.innerHTML = `${icono("desktop")}<span class="solo-lector">${texto}</span>`; } // U11: an icon
   };
   pantalla.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
+  pantalla.classList.add("solo-icono");
   pantalla.onclick = () => { if (document.fullscreenElement) void document.exitFullscreen().catch(() => {}); else void document.documentElement.requestFullscreen().catch(() => {}); };
   addEventListener("fullscreenchange", pintar);
   setInterval(pintar, 1000);
@@ -292,6 +294,17 @@ function drawHud() {
 
 // handle for automated checks (tools/e2e.mjs)
 (globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, mapa, ficha, ambiente, elementos, voz };
+
+// ---- U11: the bar of icon buttons, top right (rightmost first): settings, build, microphone, full screen, VR, AR ----
+{
+  const barra = document.getElementById("barra-arriba")!;
+  const gear = document.getElementById("ajustes-abrir")!;
+  gear.classList.add("solo-icono"); gear.innerHTML = `${icono("gear")}<span class="solo-lector">Ajustes</span>`;
+  const mis = document.getElementById("misiones")!;
+  mis.innerHTML = `${icono("scroll", 18)}<span>Misiones</span>`; mis.title = "Misiones (J)";
+  for (const id of ["ajustes-abrir", "construir", "microfono", "pantalla", "vr", "ar"]) { const e = document.getElementById(id); if (e) barra.appendChild(e); }
+  barra.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
+}
 
 // ---- N2: settings and capabilities (menu-ajustes.ts): gear + O, window.__numinia.ajustes / .capacidades. Applied here,
 // before the first frame: the display loop above only draws from the next animation frame on ----

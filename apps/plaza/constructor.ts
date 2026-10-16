@@ -10,6 +10,7 @@
 // P), Blender (G / R, X / Y / Z, Shift+D, N, F) and OnCyber's studio (MIT: one undo step per drag; a click is a
 // press that did not move).
 import type { Donde, Editor, Eje } from "../../packages/render/src/index.ts";
+import { icono } from "./iconos.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type Obj = Record<string, unknown> & { id: string };
@@ -23,7 +24,7 @@ type Builder = {
   colocar(id: string): Res; colocarEn(id: string, p: Punto, ry?: number): Res;
   girar(grados: number): Res; subir(metros: number): Res; desplazar(dx: number, dz: number): Res; escalar(factor: number): Res;
   duplicar(): Res; borrar(): Res; fijar(): Res; nombrar(nombre: string, decorado?: boolean): Res; deshacer(): Res; rehacer(): Res;
-  ajustar(c: { oculto?: boolean; volumen?: number; solido?: boolean; caja?: [number, number, number, number, number, number] | null }): Res;
+  ajustar(c: { oculto?: boolean; volumen?: number; solido?: boolean; caja?: [number, number, number, number, number, number] | null; alcance?: "burbuja" | "zona" | "todos"; radio?: number }): Res;
   seleccionar(id: string): Res; transformar(id: string, t: Partial<Donde>): Res; modo(m: string): Res;
   escuchar(fn: (que: string) => void): () => void;
 };
@@ -122,13 +123,19 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   const lSolido = el("label", {}, solido, " sólido (las personas chocan con él)");
   const lVisible = el("label", {}, visible, " se ve al jugar (si no, solo al construir)");
   const lVolumen = el("label", {}, "Volumen ", volumen);
+  // U11: who hears it, and the bubble's radius in metres (a sphere's scale; a video's own bubble)
+  const alcance = el("select");
+  for (const [v, t] of [["burbuja", "solo dentro de la burbuja"], ["zona", "toda la zona"], ["todos", "todo el mundo"]]) alcance.append(el("option", { value: v, textContent: t }));
+  const radio = el("input", { type: "number", min: "0.5", max: "200", step: "0.5" });
+  const lAlcance = el("label", {}, "Se oye en ", alcance);
+  const lRadio = el("label", {}, "Radio de la burbuja (m) ", radio);
   const grupo = (leyenda: string, ...hijos: Node[]) => el("fieldset", {}, el("legend", { textContent: leyenda }), ...hijos);
   const datos = el("div", {},
     el("label", {}, "Nombre ", nombre), el("label", {}, decorado, " decorado (sin nombre a propósito)"),
     grupo("Posición (m)", campos.x.l, campos.y.l, campos.z.l),
     grupo("Giro (grados)", campos.rx.l, campos.ry.l, campos.rz.l),
     grupo("Escala", campos.sx.l, campos.sy.l, campos.sz.l, campos.u.l),
-    el("label", {}, fijado, " fijado (nadie lo mueve ni lo borra)"), lSolido, lVisible, lVolumen);
+    el("label", {}, fijado, " fijado (nadie lo mueve ni lo borra)"), lSolido, lVisible, lVolumen, lAlcance, lRadio);
   const inspector = el("section", { className: "inspector" }, el("h3", { textContent: "Inspector (N)" }), datos);
   inspector.setAttribute("aria-label", "Inspector del objeto seleccionado: Intro aplica");
   nombre.addEventListener("change", () => responder(c.nombrar(nombre.value.trim(), decorado.checked), "Nombre puesto."));
@@ -141,6 +148,16 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   });
   visible.addEventListener("change", () => responder(c.ajustar({ oculto: !visible.checked }), visible.checked ? "Se verá al jugar." : "Invisible al jugar (la ves mientras construyes)."));
   volumen.addEventListener("change", () => responder(c.ajustar({ volumen: volumen.valueAsNumber }), `Volumen ${Math.round(volumen.valueAsNumber * 100)} %.`));
+  alcance.addEventListener("change", () => {
+    const a = alcance.value as "burbuja" | "zona" | "todos";
+    responder(c.ajustar({ alcance: a }), a === "burbuja" ? "Se oye solo dentro de la burbuja." : a === "zona" ? "Lo oye toda la zona, al mismo volumen." : "Lo oye todo el mundo, al mismo volumen.");
+  });
+  radio.addEventListener("change", () => {
+    const id = c.estado.seleccionado, o = c.objeto(id), r = radio.valueAsNumber;
+    if (!o || !Number.isFinite(r)) return decir("Eso no es un número.");
+    const m = Math.max(0.5, Math.min(o.tipo === "sonido" ? 50 : 200, r));
+    responder(o.tipo === "sonido" ? c.transformar(id, { sx: m, sy: m, sz: m }) : c.ajustar({ radio: m }), `Radio de la burbuja: ${m} m.`);
+  });
 
   panel.append(
     el("h2", { textContent: "Construir" }),
@@ -363,7 +380,8 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   }
   /** Toolbar, selection line and inspector follow the shared state. */
   function refrescar(): void {
-    boton.style.display = c.estado.puede ? "block" : "none";
+    boton.style.display = c.estado.puede ? "" : "none";
+    boton.toggleAttribute("data-oculto", !c.estado.puede);
     if (!abierto()) return;
     for (const b of botonesHerr) b.setAttribute("aria-pressed", String(b.dataset.modo === c.estado.modo));
     for (const b of botonesEje) b.setAttribute("aria-pressed", String((b.dataset.eje || null) === eje));
@@ -376,10 +394,14 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     for (const f of datos.querySelectorAll("fieldset")) f.disabled = !o;
     nombre.disabled = decorado.disabled = fijado.disabled = !o;
     const tipo = String(o?.tipo ?? "modelo");
-    lSolido.hidden = !o || tipo === "sonido"; lVisible.hidden = !o || tipo !== "sonido"; lVolumen.hidden = !o || (tipo !== "sonido" && tipo !== "video");
+    const suena = tipo === "sonido" || tipo === "video";
+    lSolido.hidden = !o || tipo === "sonido"; lVisible.hidden = !o || tipo !== "sonido"; lVolumen.hidden = lAlcance.hidden = !o || !suena;
+    lRadio.hidden = !o || !suena || (o.alcance ?? "burbuja") !== "burbuja";
     if (!o) return;
     solido.checked = o.solido === true; visible.checked = o.oculto !== true;
     if (document.activeElement !== volumen) volumen.value = String(o.volumen ?? 1);
+    if (document.activeElement !== alcance) alcance.value = String(o.alcance ?? "burbuja");
+    if (document.activeElement !== radio) radio.value = String(tipo === "sonido" ? o.sx : (o.radio ?? 8));
     const drawn = agarre?.key === o.id || ed.estado().arrastrando ? ed.dondeEsta(o.id) : null;
     mostrarDonde(drawn ?? (Object.fromEntries(["x", "y", "z", "rx", "ry", "rz", "sx", "sy", "sz"].map((k) => [k, Number(o[k])])) as Donde));
     if (document.activeElement !== nombre) nombre.value = String(o.nombre ?? "");
@@ -417,7 +439,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     document.body.classList.toggle("construyendo", si); // U10: the minimap steps aside while building
     view.verOcultos?.(si);                                // U10: hidden spheres of sound show while building
     boton.setAttribute("aria-expanded", String(si));
-    boton.textContent = si ? "Cerrar construir" : "Construir";
+    pintarBoton(si);
     if (si) {
       void ed.cargar();
       if (!c.estado.modo) c.modo("mover");
@@ -437,6 +459,13 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     ed.despertar();
   }
   boton.addEventListener("click", (e) => { abrir(!abierto()); if (e.detail > 0) boton.blur(); });
+  // U11: an icon (the house glyph for production, crane-tower), the words for screen readers and the tooltip
+  function pintarBoton(si: boolean): void {
+    const t = si ? "Cerrar construir (C)" : "Construir (C)";
+    boton.classList.add("solo-icono"); boton.title = t;
+    boton.innerHTML = `${icono(si ? "x" : "crane-tower")}<span class="solo-lector">${t}</span>`;
+  }
+  pintarBoton(false);
 
   // ---- keys: the builder's go first (capture) and stop there; text fields keep theirs ----
   function tecla(e: KeyboardEvent): (() => Res | void) | null {
@@ -527,7 +556,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   barra.setAttribute("role", "toolbar"); barra.setAttribute("aria-label", "Acciones del objeto seleccionado");
   const bBarra = (t: string, titulo: string, fn: () => Res | void, clase = "") => { const b = boton2(t, titulo, fn); if (clase) b.className = clase; return b; };
   const herrBarra = HERRAMIENTAS.map(([m, t]) => { const b = bBarra(t, `${t} (las asas de colores)`, () => elegirModo(m)); b.dataset.modo = m; return b; });
-  barra.append(...herrBarra, bBarra("Duplicar", "Hacer una copia (Mayús+D)", () => duplicar()), bBarra("🗑 Borrar", "Quitarlo del mundo (Supr)", () => c.borrar(), "peligro"));
+  barra.append(...herrBarra, bBarra("Duplicar", "Hacer una copia (Mayús+D)", () => duplicar()), bBarra("Borrar", "Quitarlo del mundo (Supr; Ctrl+Z lo devuelve)", () => c.borrar(), "peligro"));
   barra.hidden = true;
   document.body.append(barra);
   barra.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch, not a click on the world

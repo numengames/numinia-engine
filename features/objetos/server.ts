@@ -179,7 +179,8 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
       else if (!api.store.get(`c:${id}`)) return void rechazar(from, "Para que sea sólido hace falta su caja: espera a que el modelo se vea y vuelve a marcarlo.");
     }
     apuntar(from, { id, antes: o });
-    const n = { ...o, oculto: m.oculto === true, volumen: q(Math.max(0, Math.min(1, Number(m.volumen))), 0.01), solido };
+    const alcance = ["burbuja", "zona", "todos"].includes(String(m.alcance)) ? String(m.alcance) : "burbuja";
+    const n = { ...o, oculto: m.oculto === true, volumen: q(Math.max(0, Math.min(1, Number(m.volumen))), 0.01), solido, alcance, radio: q(Math.max(0.5, Math.min(200, Number(m.radio) || 8)), 0.1) };
     api.state.set(id, solido ? conCaja(id, n) : { ...n, bx0: 0, by0: 0, bz0: 0, bx1: 0, by1: 0, bz1: 0 });
     hecho(from, id, "ajustar");
   });

@@ -44,6 +44,19 @@ export function dondeDe(g: THREE.Object3D): Donde {
     sx: redondo(g.scale.x, 0.01, 2), sy: redondo(g.scale.y, 0.01, 2), sz: redondo(g.scale.z, 0.01, 2),
   };
 }
+/** U11: the box of what a thing draws, leaving out helpers marked `userData.sinCaja` (a video's bubble of sound). */
+const cajaTmp = new THREE.Box3();
+function cajaDe(g: THREE.Object3D, out: THREE.Box3, precisa = false): THREE.Box3 {
+  out.makeEmpty();
+  g.updateWorldMatrix(true, false);
+  const visitar = (o: THREE.Object3D) => {
+    if (o.userData.sinCaja) return;
+    if ((o as THREE.Mesh).isMesh) { cajaTmp.makeEmpty(); cajaTmp.expandByObject(o, precisa); out.union(cajaTmp); return; }
+    for (const h of o.children) visitar(h);
+  };
+  visitar(g);
+  return out;
+}
 const difGiro = (a: number, b: number) => Math.abs(envolver(a - b));
 /** Same transform, give or take one wire step. */
 export const igualDonde = (a: Donde, b: Donde): boolean =>
@@ -173,7 +186,7 @@ export function crearEditor(ctx: EditorCtx) {
       g.position.set(0, 0, 0); g.quaternion.identity(); g.scale.set(1, 1, 1);
       if (padre) padre.remove(g);
       g.updateMatrixWorld(true);
-      const b = new THREE.Box3().setFromObject(g, true);
+      const b = cajaDe(g, new THREE.Box3(), true);
       g.position.copy(p); g.quaternion.copy(q); g.scale.copy(s);
       if (padre) padre.add(g);
       g.updateMatrixWorld(true);
@@ -219,7 +232,7 @@ export function crearEditor(ctx: EditorCtx) {
       if (soltado && performance.now() > soltado.hasta) { const k = soltado.key; soltado = null; ctx.reponer(k); tocar(); }
       if (tc?.object && !tc.object.parent) tc.detach(); // the thing was taken away while attached
       const g = sel ? ctx.grupo(sel) : undefined;
-      if (g) caja.setFromObject(g);
+      if (g) cajaDe(g, caja);
       marco.visible = !!g && !caja.isEmpty();
     },
   };

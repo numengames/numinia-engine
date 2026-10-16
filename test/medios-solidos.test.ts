@@ -55,6 +55,17 @@ test("U10: a sphere is made invisible and quieter, and cannot be solid; undo bri
   assert.equal(drawn.get(k)!.hidden, false);
 });
 
+test("U11: who hears a sound or a video (bubble, zone, everyone) and a video's bubble radius", () => {
+  const { b, drawn, pump } = world();
+  b.colocarFichero(SHA, "mp4", "Pantalla"); pump();
+  const [k] = drawn.keys();
+  assert.equal(drawn.get(k)!.reach, "burbuja"); assert.equal(drawn.get(k)!.radius, 8);
+  assert.ok(b.ajustar({ alcance: "todos", radio: 15 }).ok); pump();
+  assert.equal(drawn.get(k)!.reach, "todos"); assert.equal(drawn.get(k)!.radius, 15);
+  b.ajustar({ radio: 900 }); pump();
+  assert.equal(drawn.get(k)!.radius, 200); // clamped by the page before asking
+});
+
 test("U10: the world box of a solid follows scale, turn and position", () => {
   const c = cajaEnMundo({ x: 10, y: 0, z: 0, rx: 0, ry: 90, rz: 0, sx: 2, sy: 1, sz: 1 }, [-1, 0, -0.5, 1, 2, 0.5]);
   assert.deepEqual(c, { bx0: 9.5, by0: 0, bz0: -2, bx1: 10.5, by1: 2, bz1: 2 });
