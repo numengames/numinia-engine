@@ -36,6 +36,10 @@ export type InstanceOptions = {
   // P4: AI inhabitants. `sign` checks agent tickets (a secret apart from the guests'); `nombre` = the name the world
   // declares for that inhabitant id (its habitante@1 file), null = this world has no such inhabitant. None = no agents.
   agentes?: { sign: (text: string) => string; nombre: (id: string) => string | null };
+  /** ADR-080: outside agents (a2 tickets, Ed25519, listed in the world's aventura/agentes/). `verificar` gets the ticket
+   * and the host the connection asked for (the WebSocket's Host header; none over loopback) and answers the agent's
+   * id and the name the world gives it (without « · IA»), or null. It logs its own refusals (never the ticket). */
+  externos?: { verificar: (ticket: string, anfitrion: string | undefined) => { id: string; nombre: string } | null };
   /** Where new avatars appear (metres; the world's entorno@1 `aparicion`); none = the house square of 40 m around the origin. */
   aparicion?: SpawnArea | null;
 };
@@ -51,6 +55,7 @@ type Conn = {
   pase?: string; // H3b: the world pass the page sent (PASE), held until its IDENTITY arrives, then handed to identificar and forgotten
   visible?: number[]; // J3: who its last snapshot carried (features ask with api.visible: names over heads)
   voz?: { desde: number; n: number }; // U10: voice frames this second (rate cap)
+  anfitrion?: string; // ADR-080: the host this connection asked for (an outside agent signs the world's name)
 };
 
 export class Instance {
@@ -80,9 +85,9 @@ export class Instance {
   }
 
   /** A client arrives over any transport: spawn its avatar (in the world's spawn area, if it has one), say welcome, listen. */
-  connect(t: Transport, owner = this.conns.length): number {
+  connect(t: Transport, owner = this.conns.length, anfitrion?: string): number {
     const entity = spawnAvatar(this.sim, owner, this.opts.aparicion);
-    const conn: Conn = { entity, transport: t, viewer: { entity, priority: new Float32Array(this.opts.capacity) }, queue: [], ack: 0, dropped: 0, bad: 0 };
+    const conn: Conn = { entity, transport: t, viewer: { entity, priority: new Float32Array(this.opts.capacity) }, queue: [], ack: 0, dropped: 0, bad: 0, anfitrion };
     t.onMessage((bytes) => {
       if (bytes[0] === MSG.INPUT && (bytes.length === 6 || bytes.length === 5)) { // 5 = from before J2 (no buttons)
         conn.queue.push(decodeInput(bytes));
@@ -132,6 +137,14 @@ export class Instance {
       this.features.identify(entity);
       return;
     }
+    if (token.startsWith("a2.")) { // ADR-080: an outside agent signs with its own key; the world lists the public one
+      const r = this.opts.externos?.verificar(token, conn.anfitrion) ?? null;
+      if (!r) { conn.bad++; if (!this.opts.externos) this.opts.log?.("[agentes] billete de agente de fuera rechazado (este servidor no tiene puerta para agentes)"); return; }
+      conn.who = agenteDe(r.id, r.nombre);
+      conn.transport.send(encodeIdentity({ token: "", id: conn.who.id, nombre: conn.who.nombre }), true); // the ticket is never echoed
+      this.features.identify(entity);
+      return;
+    }
     const ok = token ? verificar(sign, token, day) : null;
     const id = ok?.id ?? nuevoId(this.opts.random ?? Math.random);
     const invitado: Who = { id, nombre: nombreDe(id) };
@@ -153,9 +166,9 @@ export class Instance {
   }
 
   /** Convenience for headless runs: a loopback pair whose client end is returned. */
-  join(owner: number): Transport & { flush(): void } {
+  join(owner: number, anfitrion?: string): Transport & { flush(): void } {
     const [server, client] = loopbackPair();
-    this.connect(server, owner);
+    this.connect(server, owner, anfitrion);
     return client;
   }
 

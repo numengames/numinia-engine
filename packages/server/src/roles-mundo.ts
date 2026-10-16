@@ -10,6 +10,11 @@
 //   /solo-miembros sí|no            (manage-organization: visitors stay out)
 //   /construir todos|nadie          (manage-organization: «build-in-worlds» of @todos, so visitors and AIs build or not)
 //   /voz sí|no                      (manage-organization: the microphones are relayed or not; at once, no restart)
+//   /agente añadir <id> <nombre…> <clave> [rol]   /agente quitar <id>   /agente   (manage-organization: the outside
+//                                   AIs this world lets in, ADR-080 — writes/deletes aventura/agentes/<id>.json; puerta.ts)
+// An AI (an inhabitant «ia-<id>» or an outside agent) is never a member nor an owner: its permissions are its role's
+// (an outside agent's `rol`, else @todos) INTERSECTED with enter + build — AIs never moderate, never manage roles or
+// settings, never download the world. It stands at the base height, so any moderator can act on it.
 // File over app (numinia-archive ADR-074): what this world IS lives in its store, not in the environment. MOTOR_CONSTRUIR
 // and MOTOR_VOZ only SEED a world that never stored that choice (its first start; the log says so once); from then on
 // a restart with another value changes nothing — an owner changes it with the orders above, and it travels in the zip.
@@ -24,11 +29,13 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { defineFeature, serverPart } from "../../feature/src/index.ts";
 import type { ServerApi, ServerPart } from "../../feature/src/index.ts";
 import type { Who } from "../../instance/src/index.ts";
-import { ACCION_PERMISO, ACCION_TEXTO, PERMISOS, acceso, esBase, noPuedeDar, plano, plantilla, porDebajo, rolPorNombre, tiene, validarRoles } from "./roles.ts";
-import type { Acceso, Accion, Miembro, Rol } from "./roles.ts";
+import { ACCION_PERMISO, ACCION_TEXTO, PERMISOS, acceso, BASE, esBase, noPuedeDar, plano, plantilla, porDebajo, rolPorNombre, tiene, validarRoles } from "./roles.ts";
+import type { Acceso, Accion, Miembro, Permiso, Rol } from "./roles.ts";
 import { verificarPase } from "./pase.ts";
 import type { ConfigPase, Pase } from "./pase.ts";
-import { nombreDe } from "../../instance/src/identidad.ts";
+import { AGENTE } from "./aventura.ts";
+import { MARCA_IA, nombreDe } from "../../instance/src/identidad.ts";
+import type { Puerta } from "./puerta.ts";
 import { ADMIN_MIN } from "./secret.ts";
 
 export const ECHADO_MIN = 10;          // someone taken out may come back after this (STD-052 «may come back»)
@@ -62,9 +69,12 @@ export type OpcionesRoles = {
   ahora?: () => number;                                // the clock (ms) for silences and taking out; default Date.now
   log?: (line: string) => void;
   pase?: ConfigPase | null;                             // H3b: numinia.com's key, this world's id (+ org): a pass is checked at join; none = passes are ignored
+  puerta?: Pick<Puerta, "agente" | "anadir" | "quitar" | "esHabitante" | "agentes">; // ADR-080: outside agents; none = /agente says there is no door
 };
 type Veto = { nombre: string; motivo: string; por: string; cuando: string };
-const esIA = (id: string): boolean => id.startsWith("ia-"); // AI inhabitants (identidad.ts agenteDe): never members, never owners
+const esIA = (id: string): boolean => id.startsWith("ia-"); // AIs (identidad.ts agenteDe): never members, never owners
+/** What an AI may ever do here, whatever its role says (numinia-archive ADR-080: «nunca moderan»). */
+export const PERMISOS_IA: ReadonlySet<Permiso> = new Set<Permiso>(["enter-worlds", "build-in-worlds"]);
 
 const bytes = new TextEncoder();
 function cortar(s: string, max: number): string {
@@ -102,6 +112,11 @@ export function crearRoles(o: OpcionesRoles) {
   const deEntidad = new Map<number, string>();                       // entity -> person id, to forget a pass when the last device leaves
   const pendientes = new Map<number, string>();                      // entity -> why its pass was refused (told once, at identify)
   const accesoDe = (id: string | undefined): Acceso => {
+    if (id && esIA(id)) { // an outside agent: its role in its file (an inhabitant: @todos), only what an AI may do
+      const rol = o.puerta?.agente(id.slice(3))?.rol;
+      const base = acceso(roles, rol ? { roles: [rol] } : null);
+      return { permisos: new Set([...base.permisos].filter((p) => PERMISOS_IA.has(p))), altura: BASE, dueno: false };
+    }
     const p = id && !duenos.has(id) ? pases.get(id) : undefined;
     return p ? p.acceso : acceso(roles, miembroDe(id));
   };
@@ -198,7 +213,7 @@ export function crearRoles(o: OpcionesRoles) {
         const mios = yo.dueno ? "dueño del mundo" : pase ? [...pase.roles.map((r) => r.nombre), "@todos"].join(", ") + " (de numinia.com)" : [...roles.filter((r) => m?.roles.includes(r.id)).map((r) => r.nombre), "@todos"].join(", ");
         const puedo = (Object.keys(ACCION_PERMISO) as Accion[]).filter((x) => tiene(yo, x)).map((x) => ACCION_TEXTO[x]);
         avisar(from, `Eres: ${mios}. Puedes: ${puedo.length ? puedo.join(", ") : "mirar y hablar"}. Roles de este mundo: ${roles.map((r) => r.nombre).join(", ")}${soloMiembros ? " (solo para miembros)" : ""}.`);
-        avisar(from, "Órdenes: /dar y /quitar <persona> <rol> · /silenciar <persona> [minutos] · /echar <persona> · /vetar <persona> <motivo> · /perdonar <nombre> · /solo-miembros sí|no · /construir todos|nadie · /voz sí|no · /dueño <código>");
+        avisar(from, "Órdenes: /dar y /quitar <persona> <rol> · /silenciar <persona> [minutos] · /echar <persona> · /vetar <persona> <motivo> · /perdonar <nombre> · /solo-miembros sí|no · /construir todos|nadie · /voz sí|no · /agente · /dueño <código>");
       },
       "dueño": (from, resto) => {
         const w = a.who(from);
@@ -284,8 +299,49 @@ export function crearRoles(o: OpcionesRoles) {
         log(`[roles] ${a.who(from)?.id}: voz = ${voz}`);
         avisar(from, voz ? "Desde ahora la voz de cada micrófono llega a quien está cerca." : "Desde ahora no se oye ningún micrófono en este mundo.");
       },
+      // ADR-080: the outside AIs this world lets in, by their public key (aventura/agentes/<id>.json; puerta.ts)
+      agente: (from, resto) => {
+        if (!ajusta(from)) return;
+        const pu = o.puerta;
+        if (!pu) { avisar(from, "Este servidor no tiene puerta para agentes de fuera."); return; }
+        const [verbo = "", ...trozos] = resto.split(/\s+/).filter(Boolean);
+        const v = plano(verbo);
+        if (v === "" || v === "lista") {
+          const ag = pu.agentes;
+          avisar(from, ag.length ? `Agentes de fuera de este mundo: ${ag.map((x) => `${x.id} («${x.nombre}${MARCA_IA}», ${x.rol ? `rol ${x.rol}` : "@todos"})`).join(", ")}.` : "Este mundo no deja entrar a ningún agente de fuera todavía.");
+          avisar(from, "Órdenes: /agente añadir <id> <nombre…> <clave ed25519:…> [rol] · /agente quitar <id>. La clave la da node tools/agente.ts nuevo <id> donde vive el agente.");
+          return;
+        }
+        if (v === "anadir") {
+          const i = trozos.findIndex((t) => t.startsWith("ed25519:"));
+          if (trozos.length < 3 || i < 2) { avisar(from, "Escribe /agente añadir <id> <nombre…> <clave ed25519:…> [rol]. La línea entera te la da node tools/agente.ts nuevo <id>."); return; }
+          const id = trozos[0].toLowerCase(), nombreIA = trozos.slice(1, i).join(" "), rolTexto = trozos.slice(i + 1).join(" ");
+          const rol = rolTexto ? rolPorNombre(roles, rolTexto) : null;
+          if (rolTexto && !rol) { avisar(from, `¿Qué rol? Los de este mundo: ${roles.map((r) => r.nombre).join(", ")}.`); return; }
+          if (pu.esHabitante(id)) { avisar(from, `«${id}» es un habitante de este mundo: a un agente de fuera dale otro id.`); return; }
+          const responsable = a.who(from)?.nombre ?? "dueño del mundo";
+          const no = pu.anadir({ formato: AGENTE, id, nombre: nombreIA, responsable, clave: trozos[i], ...(rol && !esBase(rol) ? { rol: rol.id } : {}), presencia: "a-demanda" });
+          if (no) { avisar(from, `No lo añado: ${no}`); return; }
+          log(`[roles] ${a.who(from)?.id} añade el agente de fuera «${id}»${rol && !esBase(rol) ? ` con el rol ${rol.id}` : ""}`);
+          avisar(from, `Hecho: «${nombreIA}${MARCA_IA}» puede entrar con su clave (aventura/agentes/${id}.json; responde ${responsable}). Hace lo de ${rol && !esBase(rol) ? `«${rol.nombre}»` : "@todos"}, pero una IA solo entra y construye: nunca modera.`);
+          return;
+        }
+        if (v === "quitar") {
+          const id = (trozos[0] ?? "").toLowerCase();
+          if (!id) { avisar(from, "Escribe /agente quitar <id>."); return; }
+          if (pu.esHabitante(id)) { avisar(from, `«${id}» es un habitante (habitantes/${id}.json), no un agente de fuera: se quita en la aventura.`); return; }
+          const no = pu.quitar(id);
+          if (no) { avisar(from, no); return; }
+          for (const e of conectadoComo(`ia-${id}`)) sacar(e, "Este mundo ya no deja entrar a este agente: su clave se ha quitado.");
+          log(`[roles] ${a.who(from)?.id} quita el agente de fuera «${id}»`);
+          avisar(from, `«${id}» ya no puede entrar en este mundo (si estaba dentro, ha salido).`);
+          return;
+        }
+        avisar(from, "Escribe /agente (lista), /agente añadir <id> <nombre…> <clave> [rol] o /agente quitar <id>.");
+      },
     };
     ordenes.dueno = ordenes["dueño"];
+    ordenes.agentes = ordenes.agente;
 
     const darQuitar = (from: number, resto: string, dar: boolean) => {
       const p = persona(from, resto); if (!p) return;

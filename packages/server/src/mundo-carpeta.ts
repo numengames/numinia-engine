@@ -8,6 +8,8 @@
 //                engine's example once; from then on it is the world's (a newer engine never swaps it).
 //                aventura/ficha.json (ficha@1, optional, aventura.ts) says what the world is called, what it is about
 //                and its cover (<sha256>.png|jpg|webp in datos/activos/ or the library): the page title and /status
+//                aventura/agentes/<id>.json (agente@1, ADR-080): the outside AIs this world lets in, each by its PUBLIC
+//                Ed25519 key (its private key stays where the agent runs); owners add/remove them with /agente añadir|quitar
 //   entorno/     entorno.json, elementos.json (optional; absent = the house defaults)
 //   sesiones/    how each player entered (T1; never zipped)
 //   claves.env   only for a local run without keys in the environment (mode 600; never zipped)

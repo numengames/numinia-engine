@@ -312,13 +312,15 @@ export function decodeReport(bytes: Uint8Array): Record<string, unknown> | null 
 }
 
 // ---------- IDENTITY (I1): a guest token, no personal data (instance/identidad.ts) ----------
+/** Characters an identity request carries: a guest token or a1 ticket (≤ 120) or an outside agent's a2 ticket (ADR-080). */
+export const IDENTIDAD_MAX = 200;
 /** page -> server: the token this browser kept, or "" to ask for one. */
 export function encodeIdentityRequest(token: string): Uint8Array {
-  const t = utf8enc.encode(token.slice(0, 120));
+  const t = utf8enc.encode(token.slice(0, IDENTIDAD_MAX));
   const out = new Uint8Array(t.length + 1); out[0] = MSG.IDENTITY; out.set(t, 1); return out;
 }
 export function decodeIdentityRequest(bytes: Uint8Array): string | null {
-  if (bytes[0] !== MSG.IDENTITY || bytes.length > 121) return null;
+  if (bytes[0] !== MSG.IDENTITY || bytes.length > IDENTIDAD_MAX + 1) return null;
   try { return new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(1)); } catch { return null; }
 }
 export type Identity = { token: string; id: string; nombre: string };
@@ -356,14 +358,15 @@ export function decodePase(bytes: Uint8Array): string | null {
   return PASE_FORMA.test(s) ? s : null;
 }
 
-export function webSocketClient(url: string): Transport & { opened: Promise<void>; closed: Promise<void>; close(): void } {
+/** `closed` says the close code and reason (4003 = the world's roles took it out: do not come back by yourself). */
+export function webSocketClient(url: string): Transport & { opened: Promise<void>; closed: Promise<{ code: number; reason: string }>; close(): void } {
   const ws = new WebSocket(url);
   ws.binaryType = "arraybuffer";
   let cb: (b: Uint8Array) => void = () => {};
   const t = {
     sentBytes: 0,
     opened: new Promise<void>((ok, ko) => { ws.addEventListener("open", () => ok()); ws.addEventListener("error", () => ko(new Error(`cannot reach ${url}`))); }),
-    closed: new Promise<void>((ok) => ws.addEventListener("close", () => ok())),
+    closed: new Promise<{ code: number; reason: string }>((ok) => ws.addEventListener("close", (ev) => ok({ code: ev.code, reason: ev.reason }))),
     send(bytes: Uint8Array) { if (ws.readyState === 1) { ws.send(bytes); t.sentBytes += bytes.length; } },
     onMessage(f: (b: Uint8Array) => void) { cb = f; },
     close() { ws.close(); },
