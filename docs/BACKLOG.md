@@ -90,7 +90,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | V7 | Comodidad y seguridad: limitador de destellos (≤ 3/s), modo sentado, «menos movimiento» del sistema; giro a saltos y viñeta ya en J6 | pendiente | sí |
 | H1 | Paridad Hyperfy2: objetos del mundo — colocar un GLB, moverlo, borrarlo, deshacer, en vivo, guardado como texto (sus `blueprints` + `entities`) | hecho | no |
 | H3 | Roles del mundo = los de numinia.com (STD-051/052; Pablo 15-10: «cada organización tiene sus roles; de momento los de Numinia»), no los de Hyperfy. Primer corte (H3a): plantilla «Comunidad» (Administración, Moderación, @todos), dueños con `/dueño <código>`, órdenes `/roles` `/dar` `/quitar` `/silenciar` `/echar` `/vetar` `/perdonar` `/solo-miembros` con la regla de altura; diseño `../mmo-browser-study/ROLES-MOTOR-Y-NUMINIA.md` | hecho (H3a) | sí |
-| H3b | El pase de numinia.com: el motor acepta un pase Ed25519 firmado por numinia.com (persona, organización, mundo, permisos, altura, 10 min, en `#`), clave pública en el instalador; sin pase = visitante | pendiente | sí |
+| H3b | El pase de numinia.com: el motor acepta un pase Ed25519 firmado por numinia.com (persona, organización, mundo, permisos, altura, 10 min, en `#`), clave pública en el instalador; sin pase = visitante. Trozo 1 hecho (servidor: verificador, `MOTOR_PASE_*`, roles por pase); falta el cable (página + mensaje, formato: ver detalle) | pendiente | sí |
 | H3c | Órdenes de Hyperfy que faltan: `/nombre` (nunca acabado en « · IA»), `/aparecer`, `/chat borrar` (con `manage-organization`) | pendiente | sí |
 | H2 | Paridad Hyperfy2: lo que el servidor le hace a un jugador (teletransportar, congelar, frenar, empujar, sentarse, volar, salud) como entradas grabadas de la simulación | para Opus | no |
 | H4 | Paridad Hyperfy2: entorno — cielo, sol, niebla, mapa HDR y viento desde un JSON con esquema (su nodo `Sky`) | hecho | sí |
@@ -895,6 +895,26 @@ cualquiera (Pablo, 15-10: un agente con permiso construye en directo); su identi
 hace queda firmado como suyo (P4a: billete de agente, id `ia-<id>`, nombre con « · IA» que pone el servidor; `/nombre`
 no puede acabar en « · IA»). **Hecho cuando:** test: el enlace hace admin a esa identidad y no sirve dos veces; un
 visitante no construye; el rol sobrevive a un reinicio.
+
+### H3b — El pase de numinia.com (trozo 1 hecho: el servidor; falta el cable)
+Contrato: cabecera de `numinia-web apps/store/src/lib/world-pass.ts` (#144). **Hecho (16-10, rama `roles/pase-h3b`):**
+`packages/server/src/pase.ts` (verificador puro con `node:crypto`, cero dependencias: EdDSA, `typ`, `kid`, firma, forma exacta,
+`iat/exp` con 60 s de margen, `aud` = este mundo, `org` si se fija; los permisos que el motor no conoce se descartan, no fallan;
+devuelve el motivo con el texto que dice cómo arreglarlo) y `configPase`: `MOTOR_PASE_CLAVE` (la clave pública cruda en
+base64url o el JSON de `/.well-known/world-pass-key.json`), `MOTOR_PASE_MUNDO` (el `aud`), `MOTOR_PASE_ORG` (opcional). Sin
+clave: el pase se ignora y el registro lo dice en una línea; con clave rota o sin `MOTOR_PASE_MUNDO`, el servidor no
+arranca y dice qué arreglar. `Instance.identificar(entidad, token, pase?)` + opción `credencial`: un pase bueno nombra a la
+persona (id = `sub`, nombre del pase o «Invitado XXXX»; la misma persona en dos aparatos es una) y sus permisos, altura y roles
+REEMPLAZAN a los que el mundo guarda para ella (`roles-mundo.ts`, el mismo `puede`; los dueños por `/dueño` siguen siéndolo; un
+dueño del pase queda por encima de todos; `/dar` y `/quitar` no tocan a quien viene con pase). Un pase malo o caducado deja un
+visitante y una línea en el chat que dice por qué; con «solo miembros» se entra con `enter-worlds` en el pase. Un pase vale para
+un mundo (`aud`) y diez minutos: dentro de una sesión abierta no se vuelve a mirar (renovarlo dentro queda fuera de alcance).
+Tests: `test/pase.test.ts`, `test/pase-mundo.test.ts`. **Falta (cambio de formato, lo decide Pablo):** que el pase llegue al
+servidor. La petición IDENTITY está limitada a 120 bytes (`net` `decodeIdentityRequest`) y el WebSocket a 1024 (`maxPayload`);
+un pase mide 600–1100 bytes (con 5 roles de 40 caracteres pasa de 1024). Hace falta un mensaje nuevo (aditivo) o subir
+ambos topes, y en la página leer `#pass=<token>`, quitarlo con `history.replaceState` y enviarlo tras pedir la identidad.
+Mientras tanto nadie llama a `identificar` con un pase, así que el motor se comporta como hoy. El instalador de la flota
+debe añadir `MOTOR_PASE_CLAVE`, `MOTOR_PASE_MUNDO` (y `MOTOR_PASE_ORG`) al entorno del contenedor.
 
 ### H4 — Entorno: cielo, luz, niebla y viento
 Su nodo `Sky` (`bg`, `hdr`, `sunDirection`, `sunIntensity`, `sunColor`, `fogNear`, `fogFar`, `fogColor`) y su
