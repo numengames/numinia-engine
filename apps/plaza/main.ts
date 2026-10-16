@@ -27,7 +27,7 @@ import { icono } from "./iconos.ts";
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
-const url = serverUrl(location);
+const url = serverUrl(location, import.meta.env.PROD); // the built page (Caddy or the engine itself) always talks to its own origin
 // H1: files of things in the world come from the instance's server by their sha256 (ws://h:p -> http://h:p/a/<sha256>.glb)
 const activos = new URL(url.replace(/^ws/, "http")).origin;
 const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, assetUrl: (m) => `${activos}/a/${m}.glb`,

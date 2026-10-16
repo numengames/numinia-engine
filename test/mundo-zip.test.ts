@@ -3,12 +3,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, createWriteStream, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { crc32, deflateRawSync } from "node:zlib";
 import { ErrorZip, escribirZip, extraer, leerZip, nombreSeguro } from "../packages/server/src/zip.ts";
-import { cambiarDatos, COPIAS_ANTES, exportarMundo, FALLOS_MAX, importarMundo, inventario, TOPES } from "../packages/server/src/mundo-zip.ts";
+import { cambiarDatos, cambiarPartes, COPIAS_ANTES, exportarMundo, FALLOS_MAX, importarMundo, inventario, leerFuncion, TOPES } from "../packages/server/src/mundo-zip.ts";
+import type { Origen } from "../packages/server/src/mundo-zip.ts";
 import { startServer } from "../packages/server/src/server.ts";
 
 const tmp = (p: string) => mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), p));
@@ -16,6 +17,9 @@ const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
 const BLOQUE = readFileSync(new URL("../activos/casa/bloque.glb", import.meta.url));
 const ADMIN = "codigo-de-administracion-de-prueba";
 const TOPES_PEQUENOS = { entradas: 50, porFichero: 4 * 1048576, total: 8 * 1048576, ratio: 100 };
+const COMMIT = "c57dbb7cc4c51b0834184f1dd47b311e47fde234";
+const MOTOR = { build: "abc1234 2026-10-15", commit: COMMIT, imagen: `ghcr.io/numengames/numinia-engine:sha-${COMMIT}` };
+const soloDatos = (datos: string): Origen => ({ datos, subidas: join(datos, "activos"), aventura: null, entorno: null });
 
 async function aFichero(ruta: string, f: (w: import("node:stream").Writable) => Promise<unknown>) {
   const w = createWriteStream(ruta);
@@ -110,27 +114,89 @@ test("zip: a hostile zip is refused by rule before anything is written", async (
 
 test("mundo: download → upload elsewhere gives the same world; sessions and who-uploaded never travel", async () => {
   const { datos, glb } = mundoDePrueba();
-  assert.deepEqual(inventario(datos, join(datos, "activos")).map((f) => f.ruta), ["datos/misiones.jsonl", "datos/objetos.json", "datos/objetos.jsonl", `datos/activos/${glb}`]);
+  assert.deepEqual(inventario(soloDatos(datos)).map((f) => f.ruta), ["datos/misiones.jsonl", "datos/objetos.json", "datos/objetos.jsonl", `datos/activos/${glb}`]);
   const z = join(tmp("mundo-zip-"), "m.zip");
   let r!: { ficheros: number };
-  await aFichero(z, async (w) => { r = await exportarMundo(w, datos, join(datos, "activos"), "abc1234 2026-10-15"); });
+  await aFichero(z, async (w) => { r = await exportarMundo(w, soloDatos(datos), MOTOR); });
   assert.equal(r.ficheros, 4);
   const lista = spawnSync("unzip", ["-Z1", z], { encoding: "utf8" }).stdout.trim().split("\n");
-  assert.deepEqual(lista, ["mundo.json", "datos/misiones.jsonl", "datos/objetos.json", "datos/objetos.jsonl", `datos/activos/${glb}`]);
+  assert.deepEqual(lista, ["mundo.json", "datos/misiones.jsonl", "datos/objetos.json", "datos/objetos.jsonl", `datos/activos/${glb}`, "compose.yml", "arrancar.sh", "LEEME.txt"]);
   const m = JSON.parse(spawnSync("unzip", ["-p", z, "mundo.json"], { encoding: "utf8" }).stdout);
-  assert.equal(m.schema, "numinia-engine/mundo@1"); assert.equal(m.motor, "abc1234 2026-10-15");
+  assert.equal(m.esquema, "numinia-engine/mundo@2"); assert.deepEqual(m.motor, MOTOR);
+  assert.deepEqual(m.ficheros.map((f: { ruta: string }) => f.ruta), lista.slice(1, 5), "the extras are not part of the world");
   const nuevo = join(tmp("mundo-otro-"), "nuevo");
   const i = await importarMundo(z, nuevo);
-  assert.equal(i.ficheros, 4); assert.equal(i.motor, "abc1234 2026-10-15");
-  assert.deepEqual(readdirSync(nuevo).sort(), ["activos", "misiones.jsonl", "objetos.json", "objetos.jsonl"]);
-  assert.deepEqual(readdirSync(join(nuevo, "activos")), [glb]);
-  for (const f of ["objetos.json", "objetos.jsonl", `activos/${glb}`]) assert.ok(readFileSync(join(nuevo, f)).equals(readFileSync(join(datos, f))), f);
+  assert.equal(i.ficheros, 4); assert.equal(i.motor, "abc1234 2026-10-15"); assert.deepEqual(i.partes, ["datos"]);
+  assert.deepEqual(readdirSync(nuevo).sort(), ["datos"]);
+  assert.deepEqual(readdirSync(join(nuevo, "datos")).sort(), ["activos", "misiones.jsonl", "objetos.json", "objetos.jsonl"]);
+  assert.deepEqual(readdirSync(join(nuevo, "datos", "activos")), [glb]);
+  for (const f of ["objetos.json", "objetos.jsonl", `activos/${glb}`]) assert.ok(readFileSync(join(nuevo, "datos", f)).equals(readFileSync(join(datos, f))), f);
+});
+
+test("mundo@2: the adventure and the environment travel; the extras run it (compose pins the image, arrancar.sh the release)", async () => {
+  const { datos } = mundoDePrueba();
+  const raiz = join(datos, "..");
+  cpSync(new URL("../aventuras/ejemplo", import.meta.url), join(raiz, "aventura"), { recursive: true });
+  writeFileSync(join(raiz, "aventura", "pnj", "roto.json"), "{ no es json");                // the engine skips it; it still travels
+  writeFileSync(join(raiz, "aventura", "pnj", "grande.json"), "x".repeat(70 * 1024));       // too big for the engine: not copied
+  mkdirSync(join(raiz, "aventura", "Mal Nombre")); writeFileSync(join(raiz, "aventura", "Mal Nombre", "a.json"), "{}");
+  mkdirSync(join(raiz, "entorno")); writeFileSync(join(raiz, "entorno", "entorno.json"), JSON.stringify({ schema: "numinia-engine/entorno@1", preset: "atardecer" }));
+  writeFileSync(join(raiz, "claves.env"), "MOTOR_ADMIN=no-viaja-nunca-000000\n"); mkdirSync(join(raiz, "sesiones")); writeFileSync(join(raiz, "sesiones", "s.jsonl"), "{}\n");
+  const o: Origen = { datos, subidas: join(datos, "activos"), aventura: join(raiz, "aventura"), entorno: join(raiz, "entorno") };
+  const z = join(tmp("mundo2-"), "m.zip");
+  await aFichero(z, (w) => exportarMundo(w, o, MOTOR));
+  const lista = spawnSync("unzip", ["-Z1", z], { encoding: "utf8" }).stdout.trim().split("\n");
+  for (const f of ["aventura/LEEME.md", "aventura/misiones/primeros-pasos.json", "aventura/pnj/alma.json", "aventura/pnj/bruno.json", "aventura/cosas/caja-de-bruno.json", "aventura/habitantes/lia.json", "aventura/pnj/roto.json", "entorno/entorno.json", "compose.yml", "arrancar.sh", "LEEME.txt"]) assert.ok(lista.includes(f), f);
+  for (const f of lista) assert.doesNotMatch(f, /claves|sesiones|subidas|grande|Mal Nombre|\.subiendo/, f);
+  const z1 = spawnSync("unzip", ["-Z", z, "arrancar.sh"], { encoding: "utf8" }).stdout;
+  assert.match(z1, /^-rwxr-xr-x/m, "arrancar.sh is executable once unzipped");
+  const compose = spawnSync("unzip", ["-p", z, "compose.yml"], { encoding: "utf8" }).stdout;
+  assert.match(compose, new RegExp(`image: ghcr\\.io/numengames/numinia-engine:sha-${COMMIT}\\n`));
+  assert.match(compose, /- "127\.0\.0\.1:8790:8790"/); assert.match(compose, /- \.:\/mundo:z/); assert.match(compose, /user: "0:0"/);
+  const arrancar = spawnSync("unzip", ["-p", z, "arrancar.sh"], { encoding: "utf8" }).stdout;
+  assert.equal(spawnSync("bash", ["-n", "-c", arrancar]).status, 0, "arrancar.sh is valid bash");
+  assert.match(arrancar, /releases\/download\/motor-\$CORTO/); assert.match(arrancar, new RegExp(`COMMIT=${COMMIT}`)); assert.match(arrancar, /sha256sum/);
+  const leeme = spawnSync("unzip", ["-p", z, "LEEME.txt"], { encoding: "utf8" }).stdout;
+  assert.equal(leeme.trimEnd().split("\n").length, 10, "LEEME.txt: ten lines");
+  // unpacked elsewhere: the same adventure and environment, files the inhabitants' service may read (644)
+  const nuevo = join(tmp("mundo2-otro-"), "nuevo");
+  const i = await importarMundo(z, nuevo);
+  assert.deepEqual(i.partes, ["aventura", "datos", "entorno"]); assert.equal(i.esquema, "numinia-engine/mundo@2");
+  assert.ok(readFileSync(join(nuevo, "aventura", "pnj", "alma.json")).equals(readFileSync(join(raiz, "aventura", "pnj", "alma.json"))));
+  assert.equal(statSync(join(nuevo, "aventura", "pnj", "alma.json")).mode & 0o777, 0o644);
+  assert.ok(existsSync(join(nuevo, "entorno", "entorno.json")));
+  assert.ok(!existsSync(join(nuevo, "compose.yml")) && !existsSync(join(nuevo, "claves.env")));
+});
+
+test("mundo@2: a copy of a RUNNING world is consistent — a journal ends at its last complete line", async () => {
+  const d = tmp("consistente-");
+  writeFileSync(join(d, "objetos.json"), '{"version":1}');
+  writeFileSync(join(d, "objetos.jsonl"), '{"op":"s","key":"o1"}\n{"op":"s","key":"o2"}\n{"op":"s","ke');
+  const par = leerFuncion(join(d, "objetos.json"), join(d, "objetos.jsonl"));
+  assert.equal(par.jsonl!.toString(), '{"op":"s","key":"o1"}\n{"op":"s","key":"o2"}\n');
+  assert.equal(par.json!.toString(), '{"version":1}');
+  assert.equal(leerFuncion(join(d, "otra.json"), join(d, "otra.jsonl")).json, undefined, "a feature that has not saved yet");
+});
+
+test("mundo@1 zips (datos/ only, yesterday's) are still read", async () => {
+  const { datos, glb } = mundoDePrueba();
+  const ficheros = ["objetos.json", "objetos.jsonl", `activos/${glb}`].map((f) => ({ ruta: `datos/${f}`, b: readFileSync(join(datos, f)) }));
+  const m1 = { schema: "numinia-engine/mundo@1", motor: "b7bc3dd 2026-10-15", hecho: "2026-10-15T20:00:00.000Z", ficheros: ficheros.map((f) => ({ ruta: f.ruta, bytes: f.b.length, sha256: sha(f.b) })) };
+  const d = tmp("mundo1-"), z = join(d, "uno.zip");
+  writeFileSync(z, zipCrudo([{ nombre: "mundo.json", datos: Buffer.from(JSON.stringify(m1)) }, ...ficheros.map((f) => ({ nombre: f.ruta, datos: f.b }))]));
+  const i = await importarMundo(z, join(d, "nuevo"));
+  assert.equal(i.esquema, "numinia-engine/mundo@1"); assert.equal(i.motor, "b7bc3dd 2026-10-15"); assert.deepEqual(i.partes, ["datos"]);
+  assert.ok(!existsSync(join(d, "nuevo", "aventura")), "no adventure: the next start seeds the example");
+  // an @1 zip cannot bring an adventure (that is @2)
+  const raro = { ...m1, ficheros: [...m1.ficheros, { ruta: "aventura/pnj/x.json", bytes: 2, sha256: sha(Buffer.from("{}")) }] };
+  writeFileSync(z, zipCrudo([{ nombre: "mundo.json", datos: Buffer.from(JSON.stringify(raro)) }, ...ficheros.map((f) => ({ nombre: f.ruta, datos: f.b })), { nombre: "aventura/pnj/x.json", datos: Buffer.from("{}") }]));
+  await assert.rejects(importarMundo(z, join(d, "otro")), (e: unknown) => e instanceof ErrorZip && e.regla === "ruta");
 });
 
 test("mundo: a zip that is not a world, or not the one its manifest says, is refused and leaves nothing", async () => {
   const { datos, glb } = mundoDePrueba();
   const d = tmp("mundo-mal-"), z = join(d, "bueno.zip");
-  await aFichero(z, (w) => exportarMundo(w, datos, join(datos, "activos"), "v"));
+  await aFichero(z, (w) => exportarMundo(w, soloDatos(datos), MOTOR));
   const m = JSON.parse(spawnSync("unzip", ["-p", z, "mundo.json"], { encoding: "utf8" }).stdout);
   const ficheros = Object.fromEntries(m.ficheros.map((f: { ruta: string }) => [f.ruta, readFileSync(join(datos, f.ruta.slice("datos/".length)))]));
   const con = (cambios: Record<string, Buffer | null>, manifiesto = m) => {
@@ -148,6 +214,11 @@ test("mundo: a zip that is not a world, or not the one its manifest says, is ref
   await prueba(con({ "datos/extra.json": Buffer.from("{}") }), "ruta", /no está en mundo\.json/);
   await prueba(con({ "datos/objetos.jsonl": null }), "cortado", /faltan 1/);
   await prueba(con({ ".env": Buffer.from("MOTOR_SECRET=x") }), "ruta", /no está en mundo\.json/);
+  await prueba(con({ "claves.env": Buffer.from("MOTOR_ADMIN=x") }), "ruta", /no está en mundo\.json/);
+  const fuera = { ...m, ficheros: [...m.ficheros, { ruta: "sesiones/s.jsonl", bytes: 3, sha256: sha(Buffer.from("{}\n")) }] };
+  await prueba(con({ "sesiones/s.jsonl": Buffer.from("{}\n") }, fuera), "ruta", /no es un fichero del mundo/);
+  const hondo = { ...m, ficheros: [...m.ficheros, { ruta: "aventura/a/b/c.json", bytes: 2, sha256: sha(Buffer.from("{}")) }] };
+  await prueba(con({ "aventura/a/b/c.json": Buffer.from("{}") }, hondo), "ruta", /no es un fichero de aventura/);
   const raro = { ...m, ficheros: [...m.ficheros, { ruta: "datos/activos/hola.glb", bytes: 1, sha256: "0" }] };
   await prueba(con({ "datos/activos/hola.glb": Buffer.from("x") }, raro), "ruta", /no es un fichero subido/);
   const falso = Buffer.from(BLOQUE); falso[0] = 0; // a .glb named by its sha256 but not a glb
@@ -169,6 +240,17 @@ test("mundo: the swap keeps the earlier world, only the last few", async () => {
   }
   assert.equal(readFileSync(join(datos, "a.json"), "utf8"), String(COPIAS_ANTES + 3));
   assert.equal(readdirSync(padre).filter((f) => f.startsWith("datos.antes-")).length, COPIAS_ANTES);
+});
+
+test("mundo: a world folder swaps datos/, aventura/ and entorno/ together; a part the zip lacks is left out", async () => {
+  const raiz = tmp("cambio-mundo-");
+  for (const p of ["datos", "aventura", "entorno"]) { mkdirSync(join(raiz, p)); writeFileSync(join(raiz, p, "viejo.json"), "1"); }
+  const nuevo = join(raiz, ".nuevo"); mkdirSync(join(nuevo, "datos"), { recursive: true }); writeFileSync(join(nuevo, "datos", "nuevo.json"), "2");
+  const guardadas = await cambiarPartes(raiz, ["datos", "aventura", "entorno"].map((p) => ({ parte: p, nuevo: join(nuevo, p) })), new Date(Date.UTC(2026, 9, 16, 5, 0, 0)));
+  assert.equal(guardadas.length, 3);
+  assert.deepEqual(readdirSync(join(raiz, "datos")), ["nuevo.json"]);
+  assert.ok(!existsSync(join(raiz, "aventura")) && !existsSync(join(raiz, "entorno")), "an @1 zip: no adventure (seeded at the next start), house environment");
+  assert.ok(existsSync(join(raiz, "aventura.antes-20261016T050000Z", "viejo.json")));
 });
 
 test("/mundo: code required; download by GET and by the page's form; upload swaps the world and restarts", async () => {

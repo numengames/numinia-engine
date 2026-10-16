@@ -66,6 +66,10 @@ function main() {
 
   const dirty = run("git", ["status", "--porcelain"]) ? "+cambios" : "";
   const build = `${run("git", ["rev-parse", "--short", "HEAD"])}${dirty} ${new Date().toISOString().slice(0, 10)}`;
+  // the build stamp the engine reads (packages/server/src/version.ts): /status, the world zip's compose.yml and the
+  // container image (Dockerfile checks it against the commit it is tagged with) all come from these same bytes
+  const commit = run("git", ["rev-parse", "HEAD"]);
+  writeFileSync(join(app, "build.json"), JSON.stringify({ build, commit, limpio: !dirty }, null, 1) + "\n");
   const tgz = join(tmp, "numinia-deploy.tgz");
   run("tar", ["-czf", tgz, "-C", stage, "app", "www", "actualizar.sh"]);
   const payloadB64 = readFileSync(tgz).toString("base64");

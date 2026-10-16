@@ -10,6 +10,10 @@ BOTS="bots.ts --n 8 --url ws://127.0.0.1:$SP"
 HAB="packages/agent/src/main.ts"
 # P4: the agents' secret of the home plaza (a dev value: an installed server makes its own, deploy/)
 export MOTOR_AGENTES_SECRET=${MOTOR_AGENTES_SECRET:-plaza-de-casa-agentes-0001}
+# C2: the plaza is a world folder like any other (.run: datos/, aventura/ seeded once from aventuras/ejemplo, entorno/,
+# sesiones/, claves.env with its administration code). To play the repo's example adventure as you edit it:
+# AVENTURA_DIR=aventuras/ejemplo tools/plaza.sh restart
+export MOTOR_MUNDO=${MOTOR_MUNDO:-$RUN}
 pid_on() { ss -ltnpH "sport = :$1" 2>/dev/null | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2; }
 status() {
   local s p b
@@ -27,7 +31,8 @@ start() {
     setsid nohup nice -n 19 node packages/server/src/$BOTS >> "$RUN/bots.log" 2>&1 < /dev/null &
   fi
   if ! pgrep -f "$HAB" > /dev/null; then
-    MOTOR_URL=ws://127.0.0.1:$SP setsid nohup nice -n 19 node $HAB >> "$RUN/habitantes.log" 2>&1 < /dev/null &
+    # the inhabitants of the world's own adventure (the folder the server reads)
+    MOTOR_URL=ws://127.0.0.1:$SP AVENTURA_DIR=${AVENTURA_DIR:-$MOTOR_MUNDO/aventura} setsid nohup nice -n 19 node $HAB >> "$RUN/habitantes.log" 2>&1 < /dev/null &
   fi
   if [ -z "$(pid_on "$PP")" ]; then
     PLAZA_PORT=$PP setsid nohup nice -n 19 npx vite --config apps/plaza/vite.config.mjs >> "$RUN/vite.log" 2>&1 < /dev/null &

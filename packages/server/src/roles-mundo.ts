@@ -19,6 +19,7 @@ import type { ServerApi, ServerPart } from "../../feature/src/index.ts";
 import type { Who } from "../../instance/src/index.ts";
 import { ACCION_PERMISO, ACCION_TEXTO, acceso, esBase, noPuedeDar, plano, plantilla, porDebajo, rolPorNombre, tiene, validarRoles } from "./roles.ts";
 import type { Acceso, Accion, Miembro, Rol } from "./roles.ts";
+import { ADMIN_MIN } from "./secret.ts";
 
 export const ECHADO_MIN = 10;          // someone taken out may come back after this (STD-052 «may come back»)
 export const SILENCIO_MIN = 10;        // /silenciar without minutes
@@ -44,7 +45,8 @@ export const rolesFeature = defineFeature({
 
 export type OpcionesRoles = {
   construir: boolean;                                  // --construir todos: «build-in-worlds» in @todos (set at every start)
-  admin?: string;                                      // MOTOR_ADMIN; under 16 characters = /dueño answers that there is none
+  admin?: string;                                      // the administration code; under ADMIN_MIN characters = /dueño answers that there is none
+  firmar?: (texto: string) => string;                  // the server's HMAC (secret.ts): ties an owner to THIS code without keeping it
   cerrar?: (entity: number, motivo: string) => void;   // close that connection (the server); none = only told
   ahora?: () => number;                                // the clock (ms) for silences and taking out; default Date.now
   log?: (line: string) => void;
@@ -62,7 +64,11 @@ function cortar(s: string, max: number): string {
 
 export function crearRoles(o: OpcionesRoles) {
   const ahora = o.ahora ?? Date.now, log = o.log ?? (() => {});
-  const clave = o.admin && o.admin.length >= 16 ? createHash("sha256").update(o.admin).digest() : null;
+  const clave = o.admin && o.admin.length >= ADMIN_MIN ? createHash("sha256").update(o.admin).digest() : null;
+  // C3: an owner is tied to the code it used. Kept: a fingerprint of the code — HMAC with the server's secret, so a
+  // world zip (roles.json travels in it) never lets anyone test codes offline. A new code (the fleet's «change the
+  // code») = those owners are no longer owners at the next start.
+  const huella = clave ? (o.firmar?.(`dueño\n${o.admin}`) || createHash("sha256").update(`dueño\n${o.admin}`).digest("hex").slice(0, 24)) : null;
   let roles: Rol[] = plantilla(o.construir);
   const miembros = new Map<string, string[]>();        // guest id -> role ids (besides @todos)
   const duenos = new Set<string>();
@@ -92,7 +98,13 @@ export function crearRoles(o: OpcionesRoles) {
     // --construir decides «build-in-worlds» of @todos at every start (it is the installer's switch)
     roles = roles.map((r) => (esBase(r) ? { ...r, permisos: o.construir ? [...new Set([...r.permisos, "build-in-worlds" as const])] : r.permisos.filter((p) => p !== "build-in-worlds") } : r));
     a.store.set("roles", roles);
-    for (const id of (a.store.get("duenos") as string[] | undefined) ?? []) if (typeof id === "string") duenos.add(id);
+    const guardados2 = (a.store.get("duenos") as unknown[] | undefined) ?? [];
+    let otros = 0;
+    for (const d of guardados2) {
+      const x = d as { id?: unknown; codigo?: unknown };
+      if (huella && typeof x?.id === "string" && x.codigo === huella) duenos.add(x.id); else otros++;
+    }
+    if (otros) { a.store.set("duenos", [...duenos].map((id) => ({ id, codigo: huella }))); log(`[roles] ${otros} dueño(s) lo eran con otro código de administración (o sin él): ya no lo son; /dueño <código> con el de ahora`); }
     soloMiembros = (a.store.get("config") as { soloMiembros?: boolean } | undefined)?.soloMiembros === true;
     for (const k of a.store.keys()) {
       if (k.startsWith("m:")) { const v = a.store.get(k); if (Array.isArray(v)) miembros.set(k.slice(2), v.filter((x) => roles.some((r) => r.id === x))); }
@@ -150,7 +162,7 @@ export function crearRoles(o: OpcionesRoles) {
           log(`[roles] código de administración equivocado (${w.id})`);
           avisar(from, "Ese no es el código de administración."); return;
         }
-        intentos.delete(from); duenos.add(w.id); a.store.set("duenos", [...duenos]);
+        intentos.delete(from); duenos.add(w.id); a.store.set("duenos", [...duenos].map((id) => ({ id, codigo: huella })));
         log(`[roles] ${w.id} («${w.nombre}») es dueño del mundo`);
         cambio(from);
         avisar(from, "Ya eres dueño de este mundo: puedes todo, también dar roles. Escribe /roles para verlo.");

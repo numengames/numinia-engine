@@ -68,6 +68,16 @@ Measured 2026-10-14 on the dev PC: 1,000 connected → tick p99 17–23 ms, 25.5
 Browser check: `tools/auto.sh e2e` (spare ports 8792/5174, chromium + firefox, ~20 s).
 Keep gates light: seconds, one core. Never add a gate that needs a GPU or an LLM to the default run.
 
+## A world is one folder; the engine is one image (motor en la flota, `../motor-flota/SPEC.md` C1–C7)
+- Everything a world is lives in its folder (MOTOR_MUNDO: `datos/`, `aventura/`, `entorno/`, `sesiones/`,
+  `mundo.json`); the same folder runs in the fleet's container (`/mundo`), a bare install (`/var/lib/numinia-motor`),
+  `arrancar.sh` and `tools/plaza.sh` (`.run`). A new kind of world data goes inside it and into the zip (`mundo-zip.ts`
+  PARTES + its rules), never beside it.
+- Keys come from the environment (MOTOR_SECRET|JWT_SECRET, MOTOR_ADMIN|ADMIN_CODE) or `claves.env`; never into a zip,
+  a log line or a test fixture that looks real. The log says WHERE the code is, never what it is.
+- The image is built from the installer only (`Dockerfile`, `.dockerignore`): what the bare install runs, the image
+  runs. `deploy-check` and `test/flota.test.ts` guard both.
+
 ## Style
 Boring code over clever code. Node ≥ 24 runs the `.ts` files directly (type stripping): use only
 erasable TypeScript (no `enum`, no `namespace`, no constructor parameter properties) and import

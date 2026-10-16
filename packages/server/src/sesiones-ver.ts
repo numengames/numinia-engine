@@ -80,7 +80,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(`Conectados ahora con informe: ${filas.length} (${url})\n`);
     console.log(filas.map(describir).join("\n\n") || "(nadie con informe)");
   } else {
-    const where = args.find((a) => !a.startsWith("--") && a !== opt("--dias")) ?? process.env.SESIONES_DIR ?? "informes/sesiones";
+    const where = args.find((a) => !a.startsWith("--") && a !== opt("--dias")) ?? process.env.SESIONES_DIR ?? (process.env.MOTOR_MUNDO ? `${process.env.MOTOR_MUNDO}/sesiones` : "informes/sesiones");
     const filas = agrupar(leerLineas(where, dias));
     console.log(`Sesiones en ${where} (últimos ${dias} días): ${filas.length}\n`);
     console.log(filas.map(describir).join("\n\n") || "(ninguna: ¿ha entrado alguien con un navegador?)");

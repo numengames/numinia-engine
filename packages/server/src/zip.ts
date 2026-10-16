@@ -14,8 +14,8 @@ import type { Writable } from "node:stream";
 import { createInflateRaw, crc32, deflateRawSync } from "node:zlib";
 
 export type EntradaEscribir =
-  | { nombre: string; datos: Uint8Array }  // small: deflated from memory
-  | { nombre: string; ruta: string };      // a file: stored, streamed
+  | { nombre: string; datos: Uint8Array; modo?: number }  // small: deflated from memory (modo: unix permissions, default 0o644)
+  | { nombre: string; ruta: string; modo?: number };      // a file: stored, streamed
 
 export type EntradaLeida = {
   nombre: string;
@@ -80,7 +80,7 @@ export async function escribirZip(w: Writable, entradas: readonly EntradaEscribi
     const c = Buffer.alloc(46);
     c.writeUInt32LE(SIG_CENTRAL, 0); c.writeUInt16LE((3 << 8) | 20, 4); c.writeUInt16LE(20, 6); c.writeUInt16LE(UTF8, 8); c.writeUInt16LE(metodo, 10);
     c.writeUInt16LE(hora, 12); c.writeUInt16LE(fecha, 14); c.writeUInt32LE(crc >>> 0, 16); c.writeUInt32LE(comprimido, 20); c.writeUInt32LE(tamano, 24);
-    c.writeUInt16LE(nombre.length, 28); c.writeUInt32LE((0o100644 << 16) >>> 0, 38); c.writeUInt32LE(off, 42); // regular file, rw-r--r--
+    c.writeUInt16LE(nombre.length, 28); c.writeUInt32LE(((0o100000 | ((e.modo ?? 0o644) & 0o777)) << 16) >>> 0, 38); c.writeUInt32LE(off, 42); // regular file, rw-r--r-- unless said
     central.push(c, nombre);
     await escribir(w, local); await escribir(w, nombre);
     if (cuerpo) await escribir(w, cuerpo);
@@ -156,7 +156,7 @@ export async function leerZip(ruta: string, topes: TopesZip): Promise<EntradaLei
 
 /** Streams one entry of the zip at `ruta` into `destino` (a new file). Calls `cada(trozo)` on every chunk written
  * (to hash it). Throws ErrorZip if it is longer than it says, shorter, or its CRC-32 does not match. */
-export async function extraer(ruta: string, e: EntradaLeida, destino: string, cada: (b: Buffer) => void = () => {}): Promise<void> {
+export async function extraer(ruta: string, e: EntradaLeida, destino: string, cada: (b: Buffer) => void = () => {}, modo = 0o640): Promise<void> {
   const fh = await open(ruta, "r");
   let inicio: number;
   try {
@@ -165,7 +165,7 @@ export async function extraer(ruta: string, e: EntradaLeida, destino: string, ca
     if (h.readUInt32LE(0) !== SIG_LOCAL) throw new ErrorZip("cortado", `«${e.nombre}»: la cabecera local está dañada`);
     inicio = e.cabeceraLocal + 30 + h.readUInt16LE(26) + h.readUInt16LE(28);
   } finally { await fh.close(); }
-  const salida = createWriteStream(destino, { flags: "wx", mode: 0o640 });
+  const salida = createWriteStream(destino, { flags: "wx", mode: modo });
   let n = 0, c = 0;
   try {
     const crudo = () => createReadStream(ruta, { start: inicio, end: inicio + e.comprimido - 1, highWaterMark: 1 << 20 });

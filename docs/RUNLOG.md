@@ -253,3 +253,44 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Números: 240 pruebas (antes 239); `vite build` OK; capturas a 1280×720 sin errores de página.
 - Commit: este (rama `ux/edicion-audio-voz`, sin subir).
 - Siguiente: lo que Pablo diga al probarlo; iconos para Mapa y Ficha; los demás paneles (diálogo, ajustes) repasados con DES-009.
+
+## 2026-10-16 05:23 · X7 · motor en la flota (P1 de `../motor-flota/SPEC.md`) · hecho
+- Qué: Pablo (16-10): «que el motor sea el mismo en la flota, en un servidor y en local; que el mundo lo lleve todo y
+  se pueda bajar y arrancar como con Hyperfy». Una carpeta es el mundo (`MOTOR_MUNDO`; `mundo-carpeta.ts`: `datos/`,
+  `aventura/` sembrada una vez con la de ejemplo y desde entonces suya, `entorno/`, `sesiones/`, `mundo.json`); la
+  usan la imagen (`/mundo`), el instalador (`/var/lib/numinia-motor`, siembra la aventura; los habitantes leen esa) y
+  `tools/plaza.sh` (`.run`); las variables de antes siguen mandando si están. El motor sirve su página en su puerto
+  (`pagina.ts`, `WWW_DIR`: sin `..`, sin ficheros ocultos ni enlaces fuera; `index.html` sin caché, `assets/`
+  inmutables) y la página construida habla con `/ws` de su mismo origen también en localhost. `GET /status` =
+  `{uptime, conectados, commitHash, version}` (`version.ts` lee `app/build.json`, que ahora lleva el commit entero).
+  Claves: `MOTOR_SECRET`|`JWT_SECRET`, `MOTOR_ADMIN`|`ADMIN_CODE` (el fichero de claves de la flota), o hechas una vez
+  en `claves.env` (600); el registro dice dónde está el código, nunca cuál; el código mínimo baja a 12 (la flota los
+  hace de 12 o 16 hex). Un dueño lo es con el código de ahora. Zip `mundo@2` con aventura y entorno, más
+  `compose.yml` (la imagen por su commit), `arrancar.sh` (sin Docker: baja `motor-<corto>`, comprueba el sha256 y lo
+  arranca con tu Node) y `LEEME.txt`; la copia de un mundo en marcha es coherente (cada `.jsonl` hasta su última línea
+  entera; se relee si una foto cambia a medias). `Dockerfile` + `.dockerignore`: la imagen sale SOLO del instalador
+  (`--solo-extraer`) más el Node fijado (sha256), 10001:10001, `0.0.0.0:8790`, `HEALTHCHECK`; `entrada.ts` = servidor o
+  `copia` | `comprobar` | `importar` (`mundo-cli.ts`); con `user: "0:0"` toma el dueño de la carpeta. Tras subir un
+  mundo sale con 75 y `restart: on-failure` lo vuelve a arrancar. Instalador `--desinstalar` (servicios, temporizador
+  y Caddy fuera y enmascarado; el mundo se queda; ssh y ufw sin tocar). `publicar-version.sh` adjunta `imagen.json` y
+  no publica sin la imagen en el registro; el workflow (C7) está preparado fuera del repo para que Pablo lo pegue.
+- CAMBIOS DE FORMATO: zip y carpeta `numinia-engine/mundo@1` → `mundo@2` (nuevo `esquema`, `motor` = {build,
+  commit, imagen}; los `@1` se siguen leyendo). Roles: `duenos` pasa de `[id]` a `[{id, codigo}]`, con `codigo` = HMAC
+  del código con el secreto del servidor (los roles viajan en el zip; un sha256 a secas de un código de 12 hex se
+  rompe sin conexión): los dueños de antes dejan de serlo al primer arranque y vuelven con `/dueño <código>`. `zip.ts`
+  guarda el modo de cada fichero (`arrancar.sh` sale ejecutable).
+- Números: 253 pruebas (antes 239; 14 nuevas: `flota` 9, `mundo-zip` 4, `roles` 1); puertas en verde (tick p99
+  8,1 ms con mil); `deploy-check` OK (página servida por el motor, mundo nuevo con Alma y Bruno, zip `mundo@2`,
+  `comprobar` OK, Lía entra y construye). Imagen con podman 5.8.7 sin root: 218,0 MB, 10001:10001, Node 24.22.0.
+  QA de la imagen (`$TMPDIR/flota-qa.mjs`): mundo nuevo como en la flota (página 6/6, `/status`, 69 snapshots, Alma y
+  Bruno, un objeto, la misión de Alma aceptada); `copia` del mundo en marcha, solo lectura y sin red → otra carpeta →
+  arrancado como dice `compose.yml` (aquí no hay `podman compose`: el `podman run` equivalente) → el mismo mundo,
+  `claves.env` 600 y todo del usuario; subir el zip → sale (75) y vuelve solo; con las claves del mundo, el mismo
+  jugador ve su misión; `comprobar` rechaza `../`, rutas absolutas, 65 MB declarados y lo que no es zip (una línea,
+  salida 1); `importar` rechaza una carpeta con algo y no deja nada si el zip es malo. e2e completo: todo OK salvo la
+  pierna https («movedZ» −1,59 de −6); A/B solo esa pierna: main limpio 0/3, esta rama 2/3 (ya estaba roja).
+- Consumo: semana 74 % al cerrar (sin medida al empezar). Opus 5.5.
+- Commit: este (rama `flota/motor-en-la-flota`, sin subir; nada publicado, ninguna imagen subida).
+- Siguiente: que Pablo pegue `work/numinia-engine-publicar-motor.yml` y ponga pública la imagen; P2 (la flota en
+  numinia-assets: `user: "10001:10001"`, `data/<id>` 10001 y 700, `copia`/`importar` de la imagen) y P3 (la sala de
+  Mundos lee `/status` con `conectados`).

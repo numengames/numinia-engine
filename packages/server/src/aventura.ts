@@ -8,7 +8,8 @@ import { join } from "node:path";
 
 export const AVENTURA_FICHERO_MAX = 64 * 1024; // bytes per file
 export const AVENTURA_FICHEROS_MAX = 500;      // files per folder
-const CARPETA = /^[a-z0-9][a-z0-9-]{0,31}$/, FICHERO = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,80}\.(json|md|txt)$/;
+export const AVENTURA_CARPETA = /^[a-z0-9][a-z0-9-]{0,31}$/, AVENTURA_NOMBRE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,80}\.(json|md|txt)$/;
+const CARPETA = AVENTURA_CARPETA, FICHERO = AVENTURA_NOMBRE;
 
 /** A reader over one adventure folder; `null` = no adventure (every folder is empty). */
 export function lectorAventura(dir: string | null, log: (l: string) => void = () => {}) {
