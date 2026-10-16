@@ -1,12 +1,19 @@
 // entorno — the file format `numinia-engine/entorno@1`: how a world or an adventure ships its environment (and the
 // presets). Nested and readable (colours as "#rrggbb"); a file may say only what it changes over a base. Validation
 // returns Result with error paths in the file's own terms ("sol.altura"), never throws. Pure: no engine, no DOM.
+// The same file may carry `aparicion` (where people appear: a vertical world's floor), read by `leerAparicion` for the
+// server; it is not part of the environment's shared state.
 import type { Issue, Result } from "../../packages/core/src/index.ts";
 import { defineSchema, validate } from "../../packages/schema/src/index.ts";
 import { CAMPOS, entorno } from "./feature.ts";
 
 export const ESQUEMA = "numinia-engine/entorno@1";
 export type Plano = Record<string, unknown>;
+/** `aparicion` (optional, the server's, never on the wire): where people appear, the square of half-side `radio` centred
+ * at (x, z), metres. A vertical world puts it on a floor instead of inside a wall. Absent = the house square (40 m
+ * around the origin). `radio` 1–40; x and z within ±APARICION_XZ_MAX so the square stays inside the plaza (±500). */
+export type Aparicion = { x: number; z: number; radio: number };
+export const APARICION_RADIO_MIN = 1, APARICION_RADIO_MAX = 40, APARICION_XZ_MAX = 460;
 
 /** Flat field (wire) ↔ path in the file. Colours are marked: in the file they are "#rrggbb". */
 export const RUTAS: [campo: string, ruta: string, color?: true][] = [
@@ -37,13 +44,16 @@ export function porDefecto(): Plano {
 
 /**
  * Read an `entorno@1` file (or a preset) over `base` (flat). Unknown keys are ignored (a newer writer's keys survive
- * as information); wrong values are listed with their path in the file and how to fix them.
+ * as information); wrong values are listed with their path in the file and how to fix them. `aparicion` is checked
+ * here too (one check for the whole file) but never enters the flat state: `leerAparicion` gives it to the server.
  */
 export function validarEntorno(json: unknown, base: Plano = porDefecto()): Result<Plano> {
   if (typeof json !== "object" || json === null || Array.isArray(json)) return { ok: false, issues: [{ path: "entorno", message: `un objeto JSON con "schema": "${ESQUEMA}"` }] };
   const issues: Issue[] = [];
   const s = (json as Record<string, unknown>).schema;
   if (s !== undefined && s !== ESQUEMA) issues.push({ path: "entorno.schema", message: `debe ser "${ESQUEMA}" (o no estar, en un preset)` });
+  const ap = leerAparicion(json);
+  if (!ap.ok) issues.push(...ap.issues);
   const plano: Plano = { ...base };
   for (const [campo, ruta, color] of RUTAS) {
     const v = leer(json, ruta);
@@ -61,6 +71,26 @@ export function validarEntorno(json: unknown, base: Plano = porDefecto()): Resul
     }
   }
   return issues.length ? { ok: false, issues } : { ok: true, value: v.ok ? v.value : plano };
+}
+
+/**
+ * The spawn area of an `entorno@1` file: `aparicion: { x, z, radio }` (metres). null when the file has none (the house
+ * square); issues, with their path in the file, when it is there but wrong. Pure; the composition root hands the value
+ * to the instance (`InstanceOptions.aparicion`), so it travels in the world folder and its zip, never on the wire.
+ */
+export function leerAparicion(json: unknown): Result<Aparicion | null> {
+  const a = typeof json === "object" && json !== null && !Array.isArray(json) ? (json as Record<string, unknown>).aparicion : undefined;
+  if (a === undefined || a === null) return { ok: true, value: null };
+  if (typeof a !== "object" || Array.isArray(a)) return { ok: false, issues: [{ path: "entorno.aparicion", message: `un objeto { "x", "z", "radio" } en metros: el cuadrado de medio lado radio (${APARICION_RADIO_MIN}–${APARICION_RADIO_MAX}) centrado en x, z donde aparece la gente` }] };
+  const o = a as Record<string, unknown>, issues: Issue[] = [];
+  const num = (k: string, min: number, max: number) => {
+    const v = o[k];
+    if (typeof v === "number" && Number.isFinite(v) && v >= min && v <= max) return v;
+    issues.push({ path: `entorno.aparicion.${k}`, message: `un número entre ${min} y ${max} (metros)` });
+    return 0;
+  };
+  const x = num("x", -APARICION_XZ_MAX, APARICION_XZ_MAX), z = num("z", -APARICION_XZ_MAX, APARICION_XZ_MAX), radio = num("radio", APARICION_RADIO_MIN, APARICION_RADIO_MAX);
+  return issues.length ? { ok: false, issues } : { ok: true, value: { x, z, radio } };
 }
 
 /** Flat → the readable file (the inverse of validarEntorno; what `restaurar` and tools write). */

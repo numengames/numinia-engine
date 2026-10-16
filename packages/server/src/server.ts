@@ -11,6 +11,7 @@ import { WebSocketServer } from "ws";
 import type { WebSocket } from "ws";
 import { hex } from "../../core/src/index.ts";
 import { REFERENCE, referenceRecording, replayFingerprint, TICK_HZ } from "../../sim/src/index.ts";
+import type { SpawnArea } from "../../sim/src/index.ts";
 import { Instance } from "../../instance/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
 import type { HttpReply, ServerPart } from "../../feature/src/index.ts";
@@ -52,6 +53,7 @@ export type ServerOptions = {
   reiniciar?: () => void;        // after a world was uploaded and swapped in: the installed server exits (systemd starts it again)
   mundo?: string | null;         // C2: the world folder (MOTOR_MUNDO): a world upload swaps datos/ aventura/ entorno/ in it
   entorno?: string | null;       // the world's entorno/ folder (entorno.json, elementos.json): travels in the world's zip
+  aparicion?: SpawnArea | null;  // where people appear (entorno.json `aparicion`, read by the composition root); none = the house square of 40 m
   dondeCodigo?: string;          // where the administration code can be read (the /mundo page says it; never the code)
   www?: string | null;           // C1: the built page (WWW_DIR) served on / by the engine itself; null = none (Caddy or vite serve it)
   motor?: Motor;                 // build, full commit and image (version.ts); default infoMotor()
@@ -132,7 +134,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const agentesSign = signer(o.agentes ?? process.env.MOTOR_AGENTES_SECRET);
   const agentes = agentesSign("probe") ? { sign: agentesSign, nombre: (id: string) => hab.habitantes.find((h) => h.id === id)?.nombre ?? null } : undefined;
   if (hab.habitantes.length) log(`[habitantes] ${hab.habitantes.map((h) => h.nombre).join(", ")}${agentes ? "" : " — sin MOTOR_AGENTES_SECRET: no podrán entrar como IA"}`);
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, activo: (h, ext) => activos.buscar(h, ext) !== null, aventura: lector, agentes, sinVoz: process.env.MOTOR_VOZ === "no" }); // U10: MOTOR_VOZ=no turns the microphone relay off
+  if (o.aparicion) log(`[mundo] la gente aparece en el cuadrado de ${2 * o.aparicion.radio} m centrado en (${o.aparicion.x}, ${o.aparicion.z})`);
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, activo: (h, ext) => activos.buscar(h, ext) !== null, aventura: lector, agentes, sinVoz: process.env.MOTOR_VOZ === "no", aparicion: o.aparicion ?? null }); // U10: MOTOR_VOZ=no turns the microphone relay off
   // H9: uploads (PUT /a/<sha256>.<ext>) by whoever may build; the page shows its guest token (I1) to say who it is
   const subidas = new Subidas({
     dir: o.subidas ?? null, activos, log, topesMB: o.subir?.topesMB, totalMB: o.subir?.totalMB,

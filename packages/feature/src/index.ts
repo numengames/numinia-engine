@@ -40,6 +40,14 @@ export type Card = { role: Role; name: string; description?: string; importance?
 export type Interact = { intent: string; prompt: string; radius: number | string; key: string };
 export const INTERACT_RADIUS_MAX = 16;   // J4: metres
 export const INTERACT_SLACK_M = 1.5;     // J4: the server allows this much more than the page (latency, prediction)
+/** Reach in height (vertical worlds): a thing whose state carries a numeric `y` (metres, its feet or its shelf) is in
+ * reach only when the player's feet are within this many metres of it, so a person one floor up is out of reach from
+ * below. The same number on the server (`api.within`) and on the page (`reachable`); a jump is 1.5 m. */
+export const ALCANCE_ALTURA_M = 2.5;
+/** The height rule: true when the thing has no `y` (any height) or the player stands within ALCANCE_ALTURA_M of it. A
+ * player of unknown height stands on the ground (0). */
+export const alAlcanceEnAltura = (playerY: number | undefined, thingY: unknown): boolean =>
+  typeof thingY !== "number" || !Number.isFinite(thingY) || Math.abs((playerY ?? 0) - thingY) <= ALCANCE_ALTURA_M;
 export type IntentDecl = { describe: string; fields: Fields; rate?: Rate; spoken: string };
 export type EventDecl = { describe: string; fields: Fields; announce: Announce | "silent" };
 export type MessageDecl = { describe: string; fields: Fields; rate?: Rate; spoken?: string; announce?: Announce | "silent" };
@@ -230,7 +238,7 @@ export type StorageOp = { op: "s"; key: string; value: Msg; at?: { x: number; z:
 export interface FeatureStorage { load(feature: string): Saved | null; record(feature: string, version: number, op: StorageOp): void }
 export type ServerHost = {
   players(): readonly number[];                                 // connected entities, join order
-  position(entity: number): { x: number; z: number } | null;    // metres; null if gone
+  position(entity: number): { x: number; y: number; z: number } | null; // metres (y = the feet's height); null if gone
   send(entity: number, bytes: Uint8Array): void;                // reliable, in order
   tick(): number;
   log(line: string): void;
@@ -269,7 +277,8 @@ export type ServerApi = {
   onLeave(fn: (entity: number) => void): void;
   onTick(fn: (tick: number) => void): void;
   players(): readonly number[];
-  position(entity: number): { x: number; z: number } | null;
+  /** Where a player stands, in metres: x, z and `y` (the feet's height; 0 on the flat ground). null if gone. */
+  position(entity: number): { x: number; y: number; z: number } | null;
   tick(): number;
   log(line: string): void;
   /** 24 hex characters: HMAC-SHA256 of `text` with the server's secret (env MOTOR_SECRET, 16+ characters). "" when the server has no secret: refuse whatever needed it. Use it to sign URLs/tokens; features cannot import node:crypto. */
@@ -290,8 +299,9 @@ export type ServerApi = {
   /** J5: the text files an adventure ships in one of its folders (`<AVENTURA_DIR>/<carpeta>/`, sorted by name; the
    * server's own folder, never the page's). Read-only and unvalidated: check them against your format. [] without one. */
   aventura(carpeta: string): { fichero: string; texto: string }[];
-  /** J4: is this player within reach of this thing of yours (its card's interact radius plus INTERACT_SLACK_M)? Ask it
-   * on every intent a thing receives: the page shows the prompt, the server decides. */
+  /** J4: is this player within reach of this thing of yours (its card's interact radius plus INTERACT_SLACK_M, and, when
+   * the thing's state has a `y`, within ALCANCE_ALTURA_M of it in height)? Ask it on every intent a thing receives: the
+   * page shows the prompt, the server decides. */
   within(entity: number, key: string): boolean;
 };
 export type ServerPart = { feature: Feature; side: "server"; setup: (api: ServerApi) => void };
@@ -508,7 +518,7 @@ export class ServerRuntime {
         const s = table.get(key), me = this.host.position(e), it = f.state?.card?.interact;
         if (!s?.at || !me || !it) return false;
         const r = (typeof it.radius === "number" ? it.radius : Number(s.value[it.radius])) + INTERACT_SLACK_M;
-        return (s.at.x - me.x) ** 2 + (s.at.z - me.z) ** 2 <= r * r;
+        return (s.at.x - me.x) ** 2 + (s.at.z - me.z) ** 2 <= r * r && alAlcanceEnAltura(me.y, s.value.y);
       },
       log,
     };
@@ -804,8 +814,9 @@ export class ClientRuntime {
   /** The shared state of one feature as this page knows it (for the page, checks and agents). */
   stateOf(feature: string): ReadonlyMap<string, Msg> { return this.mirror.get(feature) ?? new Map(); }
 
-  /** J4: the things a person at (x, z) can use right now (each within its interact radius), nearest first. */
-  reachable(x: number, z: number): Reachable[] {
+  /** J4: the things a person at (x, z) can use right now (each within its interact radius), nearest first. With `y` (the
+   * feet's height, metres), a thing whose state has a `y` counts only within ALCANCE_ALTURA_M of it (a floor above is out). */
+  reachable(x: number, z: number, y?: number): Reachable[] {
     const out: Reachable[] = [];
     for (const f of this.catalog?.features ?? []) {
       const c = f.state?.card, it = c?.interact;
@@ -813,7 +824,7 @@ export class ClientRuntime {
       for (const [key, v] of this.mirror.get(f.id) ?? []) {
         const r = typeof it.radius === "number" ? it.radius : Number(v[it.radius]);
         const d = Math.hypot(Number(v[c.at[0]]) - x, Number(v[c.at[1]]) - z);
-        if (!(d <= r)) continue;
+        if (!(d <= r) || (y !== undefined && !alAlcanceEnAltura(y, v.y))) continue;
         const vals = { key, ...v };
         out.push({ feature: f.id, key, intent: it.intent, prompt: fillTemplate(it.prompt, vals), name: fillTemplate(c.name, vals).trim(), distance: d });
       }

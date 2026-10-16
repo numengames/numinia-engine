@@ -6,8 +6,10 @@ and the two runtimes that host the features: `ServerRuntime` (inside the instanc
 (inside the client session). Accessibility is part of every declaration (V1): `spoken` verbs, `announce`
 events, `state.card` things; `announcements`, `cards()` and `view.announce` on the client (a card whose name is empty is decoration and is not listed). Permissions (H1): `api.puede(entity, "construir")` — the server decides (today `MOTOR_CONSTRUIR`; roles with H3). Things with a model: `view.place` / `view.here`. Each state entry is encoded once and resent to whoever enters. How to add a feature: `docs/EXTENDER.md`.
 Things used from close by (J4): `state.card.interact` (verb, prompt, reach, key field), checked by `defineFeature`;
-`api.within(entity, key)` on the server, `features.reachable(x, z)` / `features.use(feature, key)` on the client,
-`view.tag` (a name over a thing). An adventure's text files (J5): `api.aventura(carpeta)` (server `AVENTURA_DIR`).
+`api.within(entity, key)` on the server, `features.reachable(x, z, y?)` / `features.use(feature, key)` on the client,
+`view.tag` (a name over a thing). Reach minds the height when the thing's state has a `y`: the player's feet within
+`ALCANCE_ALTURA_M` (2.5 m) of it (`alAlcanceEnAltura`); things without `y` are in reach at any height. `api.position`
+gives `{ x, y, z }`. An adventure's text files (J5): `api.aventura(carpeta)` (server `AVENTURA_DIR`).
 
 - **Does not:** Know any feature (they live in `features/`), touch the simulation or the fingerprint, draw
   (the page lends it `ViewHooks`), open sockets (the instance and the server carry its bytes).

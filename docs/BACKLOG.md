@@ -63,6 +63,8 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J14 | Dibujo barato de personas (LOD o una pieza; hoy el robot son 19 llamadas) | en curso (lo que no anima se hornea: el robot, 3 llamadas; falta LOD) | sí |
 | J15 | Marcas «!» y «?» sobre quien tiene algo para ti (por jugador) | pendiente | sí |
 | J16 | Escribir aventuras con un LLM: receta y `node tools/aventura.ts` como comprobación | pendiente | sí |
+| J21 | Mundos verticales (Torre de los Alquimistas): `pnj@1` gana `posicion.y` opcional (0–30 m), `cosa@1` sube su tope de 3 a 30; el estado lo lleva (pnj v2, misiones v2) y la página dibuja a esa altura, con el nombre encima | hecho (16-10, rama `torre/aparicion-y-altura`; `test/altura.test.ts`) | sí |
+| J22 | El alcance mira la altura: `api.position` da `y`; `api.within` y el aviso «E:» de la página (`reachable(x, z, y)`) exigen una diferencia de altura ≤ 2,5 m (`ALCANCE_ALTURA_M`) cuando la cosa tiene `y`; `llega_a` admite `y` opcional (0–30) con la misma regla | hecho (16-10, rama `torre/aparicion-y-altura`; sin `y`, todo como antes) | sí |
 | N1 | Entrada táctil, gamepad, cámara en 3.ª persona y pantalla completa (de `docs/JUGADOR.md`) | hecho (sin probar en aparato real) | sí |
 | N1b | Cámara que no atraviesa lo construido (choca con el escenario) | espera a M6 | sí |
 | N2 | Menú de ajustes y accesibilidad básica, guardado local (de `docs/JUGADOR.md`) | hecho | sí |
@@ -107,6 +109,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | H13 | Paridad Hyperfy2: nivel de detalle (LOD) de los modelos, generado en la ingesta | espera a M21 | sí |
 | H11 | Paridad Hyperfy2: importar de Hyperfy — `.hyp` → carpeta de app; un mundo entero → carpeta del mundo | espera a M19 | sí |
 | H14 | El mundo en un zip: bajarlo y subirlo en `/mundo` con el código de administración (`mundo-zip.ts`, `zip.ts`); falta: la aventura dentro del zip, la sala de numinia.com | hecho (primer corte) | sí |
+| H15 | Dónde aparece la gente: `aparicion { x, z, radio }` opcional en `entorno.json` (radio 1–40 m, x y z ±460; viaja en la carpeta y el zip del mundo, nunca por el cable) → `InstanceOptions.aparicion` → `spawnAvatar`; sin él, el cuadrado de 40 m de siempre con las mismas tiradas (huella de referencia `93b192c8` intacta) | hecho (16-10, rama `torre/aparicion-y-altura`) | sí |
 | F1 | Amigos, bloqueo y moderación (los roles son H3; toca red y guardado; de `docs/JUGADOR.md`) | para Opus | no |
 | F2 | Portales entre instancias y grupo (toca red e instancias; de `docs/JUGADOR.md`) | para Opus | no |
 | A1 | Página de multitud (50/200/1.000/2.000 robots, completos vs horneados) | pendiente | sí |

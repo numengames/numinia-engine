@@ -99,7 +99,9 @@ export default clientPart(gestos, (api) => {
 - El entorno de la zona (cielo, sol, niebla, viento, suelo) y los elementos (agua, fuego, humo, polvo) llegan a la
   página por `view.entorno?.(valores)` y `view.elemento?.(clave, valores | null)` (H4/H8: `features/entorno`,
   `features/elementos`; el render los lee por nombre de campo). Un mundo trae los suyos en `MUNDO_DIR/entorno.json`
-  y `MUNDO_DIR/elementos.json`.
+  y `MUNDO_DIR/elementos.json`. El mismo `entorno.json` puede decir dónde aparece la gente: `"aparicion": { "x", "z",
+  "radio" }` (metros; el cuadrado de medio lado `radio`, 1–40, centrado en x, z; x y z entre −460 y 460). Sin él, el
+  cuadrado de la casa (40 m alrededor del origen). Es del servidor (viaja en la carpeta y el zip del mundo), no del cable.
 - Un agente usa el mismo camino que una persona: lee el catálogo y envía intentos (P4 hará el SDK).
 
 ## Quién es quién (I1)
@@ -287,7 +289,7 @@ Reglas para quien escribe (persona o LLM):
 
 | Paso | Campos | Se completa cuando |
 |---|---|---|
-| `llega_a` | `x`, `z`, `radio` (1-50, 4), `lugar` (nombre para el mapa) | el servidor ve al jugador a menos de `radio` |
+| `llega_a` | `x`, `z`, `radio` (1-50, 4), `lugar` (nombre para el mapa); opcional `y` (0–30 m: la planta) | el servidor ve al jugador a menos de `radio`; con `y`, además a menos de 2,5 m de esa altura (desde la planta de abajo no cuenta) |
 | `habla_con` | `pnj` | elige en el diálogo de esa persona una respuesta `avanzar_paso` de esta misión; si su árbol no tiene ninguna, basta con hablarle |
 | `usa` | `cosa` | usa la cosa a su alcance (E) |
 | `coge` | `cosa` | la coge a su alcance (E); queda «llevada» para una `entrega` |
@@ -324,16 +326,20 @@ completado antes. Hasta 16 pasos, 16 misiones activas por jugador.
   (completa su `entrega` a esta persona), `despedir`. Sin `ir`, la conversación termina.
 - `apariencia.modelo` vacío = el robot de la casa; `apariencia.vrm` queda reservado (avatares VRM).
 - `radio`: a cuántos metros se le habla (1-8, 3). La conversación se cierra si te alejas 4 m más.
+- Opcional `posicion.y` (0–30 m): la planta en la que está (una torre); se dibuja a esa altura y solo se le habla desde
+  menos de 2,5 m de ella (desde la planta de abajo ni sale «E: hablar con…» ni el servidor lo admite). Sin `y`, el suelo.
 
 **`cosa@1`** — `{ "formato": "cosa@1", "id": "caja-de-bruno", "nombre": "Caja de herramientas", "posicion": { "x": 4, "z": 14 },
 "radio": 2, "aviso": "coger la caja", "apariencia": { "escala": 0.45 } }`. Sale «E: coger la caja» solo a quien tiene ahora
 un paso `coge`/`usa` con ella; la cosa sigue en el mundo para los demás (cada uno coge «la suya»).
-Opcionales (J10): `posicion.y` (0–3 m: a la altura de la mano, para cogerla con la mano en VR) y `apariencia.color`
+Opcionales (J10): `posicion.y` (0–30 m: a la altura de la mano, para cogerla con la mano en VR, o en una planta alta; se
+usa solo desde menos de 2,5 m de esa altura) y `apariencia.color`
 («#rrggbb»: el modelo pintado de ese color, para que dos cosas se distingan). Lo cogido en un paso `coge` se dibuja en la
 mano que lo cogió (al lado de tu avatar en pantalla) hasta que la misión termina; luego vuelve a su sitio.
 
 Lo que pasa en el servidor (`features/misiones/server.ts`) y no se puede saltar desde la página:
-- distancias (`api.within`), posiciones (`api.position`, cada 0,2 s y solo de quien espera llegar a un sitio) y el paso
+- distancias (`api.within`: el radio y, si la persona o la cosa tiene `y`, menos de 2,5 m de altura —
+  `ALCANCE_ALTURA_M`—), posiciones (`api.position`, con `y`, cada 0,2 s y solo de quien espera llegar a un sitio) y el paso
   actual; hablar de lejos, coger algo que no toca o elegir sin conversación se rechaza diciendo por qué;
 - el progreso es **por invitado** (I1) en el almacén (S4, `p:<id>`): sobrevive a los reinicios y llega **solo a su dueño**
   (eventos `libro`, `mision`, `paso`, `aceptada`, `avance`, `completada`); las personas y las cosas llegan con `at` (J9);

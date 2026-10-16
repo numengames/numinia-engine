@@ -5,7 +5,7 @@
 // Convention for features: draw an interactive thing with view.place(`<feature>:<key>`) so a click on it is understood.
 type Res = { ok: true } | { ok: false; why: string };
 type Cerca = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number };
-type Sesion = { entity: number; selfPosition(alpha: number): { x: number; z: number }; features: { reachable(x: number, z: number): Cerca[]; use(feature: string, key: string): Res } };
+type Sesion = { entity: number; selfPosition(alpha: number): { x: number; y: number; z: number }; features: { reachable(x: number, z: number, y?: number): Cerca[]; use(feature: string, key: string): Res } };
 type Vista = { renderer: { domElement: HTMLElement }; pickThing?(x: number, y: number): string | null; cam?: { modo?(): string } };
 
 /** True while the person types in a text box: global keys must not fire (J3's one rule, apps/plaza/escribiendo.ts). */
@@ -22,7 +22,7 @@ export function montarInteraccion(o: { session: Sesion; view: Vista; boton: HTML
   const libre = () => o.session.entity >= 0 && !construyendo(o.view) && !o.ocupado();
   const mirar = () => {
     let c: Cerca | null = null;
-    if (libre()) { const p = o.session.selfPosition(1); c = o.session.features.reachable(p.x, p.z).find((x) => o.ofrece(x.feature, x.key)) ?? null; }
+    if (libre()) { const p = o.session.selfPosition(1); c = o.session.features.reachable(p.x, p.z, p.y).find((x) => o.ofrece(x.feature, x.key)) ?? null; } // y: a person one floor up gets no prompt
     const antes = actual;
     actual = c;
     if (c?.feature === antes?.feature && c?.key === antes?.key && c?.prompt === antes?.prompt) return;

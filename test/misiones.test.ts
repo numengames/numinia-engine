@@ -218,14 +218,16 @@ test("J10: «Manos a la obra»: two things taken in order (at hand height, in th
   assert.deepEqual(a.m.resumen().insignias, ["Insignia «Buena mano»"]);
 });
 
-test("cosa@1: posicion.y 0-3 and apariencia.color #rrggbb are optional and checked", () => {
+test("cosa@1: posicion.y 0-30 (a hand's height or an upper floor) and apariencia.color #rrggbb are optional and checked", () => {
   const base = { formato: "cosa@1", id: "x", nombre: "X", posicion: { x: 0, z: 0 }, aviso: "coger x" };
   const ok = leerCosa({ ...base, posicion: { x: 1, z: 2, y: 1.2 }, apariencia: { color: "#A0B0C0" } });
   assert.ok(ok.ok);
   if (ok.ok) { assert.equal(ok.value.posicion.y, 1.2); assert.equal(ok.value.apariencia.color, "#a0b0c0"); }
   const sin = leerCosa(base);
   if (sin.ok) { assert.equal(sin.value.posicion.y, 0); assert.equal(sin.value.apariencia.color, ""); } else assert.fail("plain thing must load");
-  const mal = leerCosa({ ...base, posicion: { x: 0, z: 0, y: 9 }, apariencia: { color: "azul" } });
+  const alta = leerCosa({ ...base, posicion: { x: 0, z: 0, y: 13 } });
+  assert.ok(alta.ok && alta.value.posicion.y === 13, "a thing on the crown of a tower (vertical worlds)");
+  const mal = leerCosa({ ...base, posicion: { x: 0, z: 0, y: 31 }, apariencia: { color: "azul" } });
   assert.equal(mal.ok, false);
   const paths = mal.ok ? [] : mal.issues.map((i) => i.path);
   assert.ok(paths.includes("posicion.y") && paths.includes("apariencia.color"), paths.join(", "));

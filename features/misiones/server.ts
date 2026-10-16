@@ -128,7 +128,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     P = api;
     cargar(api);
     for (const n of A.pnjs.values()) {
-      api.state.set(n.id, { nombre: n.nombre, descripcion: n.descripcion, x: n.posicion.x, z: n.posicion.z, giro: n.giro, radio: n.radio, modelo: n.apariencia.modelo, escala: n.apariencia.escala }, { at: n.posicion });
+      api.state.set(n.id, { nombre: n.nombre, descripcion: n.descripcion, x: n.posicion.x, z: n.posicion.z, y: n.posicion.y, giro: n.giro, radio: n.radio, modelo: n.apariencia.modelo, escala: n.apariencia.escala }, { at: { x: n.posicion.x, z: n.posicion.z } });
     }
     api.on("hablar", (e, msg) => {
       const n = A.pnjs.get(String(msg.pnj));
@@ -211,7 +211,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
         if ((e + t) % LLEGADA_CADA !== 0) continue;
         const pos = api.position(e);
         if (!pos) continue;
-        const p = prog(e), h = registrar(p, A, { tipo: "llega", x: pos.x, z: pos.z });
+        const p = prog(e), h = registrar(p, A, { tipo: "llega", x: pos.x, z: pos.z, y: pos.y }); // y: a llega_a with a height asks for the right floor
         if (h.length) tras(e, p, h);
       }
       for (const [e, d] of abiertos) {
