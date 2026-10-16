@@ -30,6 +30,7 @@ import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
 import { leerFicha, lectorAventura } from "./aventura.ts";
 import { crearRoles } from "./roles-mundo.ts";
 import { configPase } from "./pase.ts";
+import { crearAgentesHttp } from "./agentes-http.ts";
 import type { ConfigPase } from "./pase.ts";
 import type { Who } from "../../instance/src/index.ts";
 import { leerHabitantes } from "../../agent/src/formato.ts";
@@ -206,6 +207,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     res.writeHead(r.status ?? 200, { "content-type": ct, "cache-control": "no-store" });
     res.end(type === "json" ? JSON.stringify(r.body) : String(r.body));
   };
+  const agentesHttp = crearAgentesHttp({ pase: cfgPase.pase, agentes: () => roles.agentes, log });
   const http: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
     const [path, qs = ""] = (req.url ?? "/").split("?");
     const method = req.method ?? "GET";
@@ -221,6 +223,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     if (method === "GET" && path === "/metrics.prom") { res.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8", "cache-control": "no-store" }); return void res.end(toPrometheus(metrics())); }
     if ((method === "GET" || method === "HEAD") && path.startsWith("/a/") && activos.servir(path, res, method === "HEAD", req.headers.range)) return; // H1: files by their sha256
     if ((method === "PUT" || method === "OPTIONS") && path.startsWith("/a/")) return subidas.atender(method, path, req, res); // H9: uploads
+    if (agentesHttp.atender(method, path, req, res)) return; // ADR-080: numinia.com's panel manages the outside agents (pass-authenticated)
     if (copia.atender(method, path, req, res)) return; // the world as a zip
     if (pagina?.servir(method, path, req, res)) return; // C1: the page (index.html, assets/) when the engine serves it
     if (method !== "GET" && method !== "POST") return json(res, 405, { error: "solo GET o POST" });
@@ -228,7 +231,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     const answer = (body: string) => {
       const r = inst.features.http(method, path, Object.fromEntries(new URLSearchParams(qs)), body);
       if (r) return reply(res, r);
-      json(res, 404, { error: `no existe ${method} ${path}`, hay: ["/health", "/status", "/metrics", "/metrics.prom", "/sesiones", ...inst.features.routes(), "WebSocket en cualquier ruta (/ws)"] });
+      json(res, 404, { error: `no existe ${method} ${path}`, hay: ["/health", "/status", "/metrics", "/metrics.prom", "/sesiones", "/agentes", ...inst.features.routes(), "WebSocket en cualquier ruta (/ws)"] });
     };
     if (method === "GET") return answer("");
     let body = "", size = 0;

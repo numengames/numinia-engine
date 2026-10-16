@@ -72,6 +72,16 @@ export type OpcionesRoles = {
   puerta?: Pick<Puerta, "agente" | "anadir" | "quitar" | "esHabitante" | "agentes">; // ADR-080: outside agents; none = /agente says there is no door
 };
 type Veto = { nombre: string; motivo: string; por: string; cuando: string };
+/** What the order `/agente` and numinia.com's panel (GET/POST/DELETE /agentes, agentes-http.ts) both do: ONE code path. */
+export type AgenteDato = { id: string; nombre: string; clave: string; rol?: string };
+export type AgenteVista = { id: string; nombre: string; rol: string | null; permisos: string[]; presente: boolean };
+/** `motivo` tells the HTTP door which status to use; `texto` is Spanish and is what the person reads in both doors. */
+export type ResultadoAgente = { ok: true; texto: string; agente?: AgenteVista } | { ok: false; texto: string; motivo: "invalido" | "conflicto" | "no-hay" | "servidor" };
+export type GestionAgentes = {
+  listar(): AgenteVista[];
+  anadir(responsable: string, d: AgenteDato): ResultadoAgente;
+  quitar(id: string): ResultadoAgente;
+};
 const esIA = (id: string): boolean => id.startsWith("ia-"); // AIs (identidad.ts agenteDe): never members, never owners
 /** What an AI may ever do here, whatever its role says (numinia-archive ADR-080: «nunca moderan»). */
 export const PERMISOS_IA: ReadonlySet<Permiso> = new Set<Permiso>(["enter-worlds", "build-in-worlds"]);
@@ -102,6 +112,7 @@ export function crearRoles(o: OpcionesRoles) {
   let voz = o.voz ?? true;                             // without the feature running (bare servers) the seed is the answer
   let config: Record<string, unknown> = {};            // the world's settings as stored (fields this engine does not know are kept)
   let api: ServerApi | null = null;
+  let gestion: GestionAgentes | null = null;           // set when the feature starts: the one code path for /agente and the HTTP door
   const porCerrar: { e: number; motivo: string }[] = [];
 
   const miembroDe = (id: string | undefined): Miembro | null =>
@@ -200,6 +211,37 @@ export function crearRoles(o: OpcionesRoles) {
       return yo;
     };
     const sacar = (e: number, motivo: string) => { avisar(e, motivo); porCerrar.push({ e, motivo }); };
+    // ADR-080: managing the outside agents. The chat order and the HTTP door (agentes-http.ts) both call these two.
+    const vistaAgente = (x: { id: string; nombre: string; rol?: string }): AgenteVista =>
+      ({ id: x.id, nombre: x.nombre, rol: x.rol ?? null, permisos: [...accesoDe(`ia-${x.id}`).permisos].sort(), presente: conectadoComo(`ia-${x.id}`).length > 0 });
+    gestion = {
+      listar: () => (o.puerta?.agentes ?? []).map(vistaAgente),
+      anadir: (responsable, d) => {
+        const pu = o.puerta;
+        if (!pu) return { ok: false, motivo: "servidor", texto: "Este servidor no tiene puerta para agentes de fuera." };
+        const id = d.id.toLowerCase(), rolTexto = (d.rol ?? "").trim();
+        const rol = rolTexto ? rolPorNombre(roles, rolTexto) : null;
+        if (rolTexto && !rol) return { ok: false, motivo: "invalido", texto: `¿Qué rol? Los de este mundo: ${roles.map((r) => r.nombre).join(", ")}.` };
+        if (pu.esHabitante(id)) return { ok: false, motivo: "conflicto", texto: `«${id}» es un habitante de este mundo: a un agente de fuera dale otro id.` };
+        const no = pu.anadir({ formato: AGENTE, id, nombre: d.nombre, responsable, clave: d.clave, ...(rol && !esBase(rol) ? { rol: rol.id } : {}), presencia: "a-demanda" });
+        if (no) return { ok: false, motivo: no.startsWith("Ya hay un agente") ? "conflicto" : /^(No he podido|El fichero se guardó|Este mundo no tiene carpeta)/.test(no) ? "servidor" : "invalido", texto: `No lo añado: ${no}` };
+        log(`[roles] ${responsable} añade el agente de fuera «${id}»${rol && !esBase(rol) ? ` con el rol ${rol.id}` : ""}`);
+        const ag = pu.agente(id);
+        return { ok: true, agente: ag ? vistaAgente(ag) : undefined, texto: `Hecho: «${d.nombre}${MARCA_IA}» puede entrar con su clave (aventura/agentes/${id}.json; responde ${responsable}). Hace lo de ${rol && !esBase(rol) ? `«${rol.nombre}»` : "@todos"}, pero una IA solo entra y construye: nunca modera.` };
+      },
+      quitar: (idTexto) => {
+        const pu = o.puerta;
+        if (!pu) return { ok: false, motivo: "servidor", texto: "Este servidor no tiene puerta para agentes de fuera." };
+        const id = idTexto.toLowerCase();
+        if (!id) return { ok: false, motivo: "invalido", texto: "Escribe /agente quitar <id>." };
+        if (pu.esHabitante(id)) return { ok: false, motivo: "conflicto", texto: `«${id}» es un habitante (habitantes/${id}.json), no un agente de fuera: se quita en la aventura.` };
+        const no = pu.quitar(id);
+        if (no) return { ok: false, motivo: no.startsWith("No hay ningún agente") ? "no-hay" : "servidor", texto: no };
+        for (const e of conectadoComo(`ia-${id}`)) sacar(e, "Este mundo ya no deja entrar a este agente: su clave se ha quitado.");
+        log(`[roles] se quita el agente de fuera «${id}»`);
+        return { ok: true, texto: `«${id}» ya no puede entrar en este mundo (si estaba dentro, ha salido).` };
+      },
+    };
     const guardarConfig = () => { config = { ...config, soloMiembros, voz }; a.store.set("config", config); };
     /** The world's settings (manage-organization): may `from` change them? Says why not. */
     const ajusta = (from: number): boolean => {
@@ -315,26 +357,12 @@ export function crearRoles(o: OpcionesRoles) {
         if (v === "anadir") {
           const i = trozos.findIndex((t) => t.startsWith("ed25519:"));
           if (trozos.length < 3 || i < 2) { avisar(from, "Escribe /agente añadir <id> <nombre…> <clave ed25519:…> [rol]. La línea entera te la da node tools/agente.ts nuevo <id>."); return; }
-          const id = trozos[0].toLowerCase(), nombreIA = trozos.slice(1, i).join(" "), rolTexto = trozos.slice(i + 1).join(" ");
-          const rol = rolTexto ? rolPorNombre(roles, rolTexto) : null;
-          if (rolTexto && !rol) { avisar(from, `¿Qué rol? Los de este mundo: ${roles.map((r) => r.nombre).join(", ")}.`); return; }
-          if (pu.esHabitante(id)) { avisar(from, `«${id}» es un habitante de este mundo: a un agente de fuera dale otro id.`); return; }
-          const responsable = a.who(from)?.nombre ?? "dueño del mundo";
-          const no = pu.anadir({ formato: AGENTE, id, nombre: nombreIA, responsable, clave: trozos[i], ...(rol && !esBase(rol) ? { rol: rol.id } : {}), presencia: "a-demanda" });
-          if (no) { avisar(from, `No lo añado: ${no}`); return; }
-          log(`[roles] ${a.who(from)?.id} añade el agente de fuera «${id}»${rol && !esBase(rol) ? ` con el rol ${rol.id}` : ""}`);
-          avisar(from, `Hecho: «${nombreIA}${MARCA_IA}» puede entrar con su clave (aventura/agentes/${id}.json; responde ${responsable}). Hace lo de ${rol && !esBase(rol) ? `«${rol.nombre}»` : "@todos"}, pero una IA solo entra y construye: nunca modera.`);
+          const r = gestion!.anadir(a.who(from)?.nombre ?? "dueño del mundo", { id: trozos[0], nombre: trozos.slice(1, i).join(" "), clave: trozos[i], rol: trozos.slice(i + 1).join(" ") });
+          avisar(from, r.texto);
           return;
         }
         if (v === "quitar") {
-          const id = (trozos[0] ?? "").toLowerCase();
-          if (!id) { avisar(from, "Escribe /agente quitar <id>."); return; }
-          if (pu.esHabitante(id)) { avisar(from, `«${id}» es un habitante (habitantes/${id}.json), no un agente de fuera: se quita en la aventura.`); return; }
-          const no = pu.quitar(id);
-          if (no) { avisar(from, no); return; }
-          for (const e of conectadoComo(`ia-${id}`)) sacar(e, "Este mundo ya no deja entrar a este agente: su clave se ha quitado.");
-          log(`[roles] ${a.who(from)?.id} quita el agente de fuera «${id}»`);
-          avisar(from, `«${id}» ya no puede entrar en este mundo (si estaba dentro, ha salido).`);
+          avisar(from, gestion!.quitar(trozos[0] ?? "").texto);
           return;
         }
         avisar(from, "Escribe /agente (lista), /agente añadir <id> <nombre…> <clave> [rol] o /agente quitar <id>.");
@@ -405,5 +433,7 @@ export function crearRoles(o: OpcionesRoles) {
     get voz() { return voz; },
     get todosConstruyen() { return todosConstruyen(); },
     get conectado() { return api !== null; },
+    /** Outside agents (ADR-080): list/add/remove, the code behind `/agente` and the HTTP door. null until the feature has started. */
+    get agentes(): GestionAgentes | null { return gestion; },
   };
 }
