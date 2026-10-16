@@ -151,7 +151,9 @@ en `features.cards()`. Un agente de IA lee lo mismo en el catálogo. Ejemplos: `
   pase, `ia-a_…`) también pasa por ahí, pero su conexión **vive solo mientras su pase valga**: el servidor la cierra con 4003 al
   caducar si no llegó otro PASE, y un PASE a mitad de sesión cambia sus permisos (dormida = sin `build-in-worlds`), así que
   `puede` puede devolver otra cosa dentro de unos minutos: no guardes su respuesta, y escucha el evento `cambio` de `roles`
-  (`pase.ts`, `roles-mundo.ts` `renovar`, `packages/agent/README.md`).
+  (`pase.ts`, `roles-mundo.ts` `renovar`, `packages/agent/README.md`). Al motor le da igual cómo consiguió el pase la IA: el puente
+  (`tools/mcp-mundo.ts`) lo pide a numinia.com con un **token** (`AGENTE_TOKEN=ntk_…`, `Authorization: Bearer`, lo más fácil) o firmando con
+  su clave (`AGENTE_CLAVE`, avanzado); un 401 con token es final y el token nunca se imprime (`pase-org.ts` `pedirPaseToken`).
 - `view.place?.(clave, { model, x, y, z, rx, ry, rz, sx, sy, sz, animate } | null)` — la página pone, mueve o quita
   una cosa con su modelo (sha256 de un `.glb`; el fichero sale de `/a/<sha256>.glb` del servidor). Giros en grados
   (primero `ry`, luego `rx`, luego `rz`). `view.here?.()` dice dónde está el jugador, para poner algo delante.
