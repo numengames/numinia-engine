@@ -52,15 +52,27 @@ export function estadoPor(velocidad: number, altura: number): Estado {
  * jog cycle, whichever stride is closer to the speed (a short avatar jogs where a tall one walks); a clip that is
  * missing falls back to the nearest one there is.
  */
-export function clipPara(estado: Estado, velocidad: number, cadera: number, natural: Partial<Record<Clip, number>>, hay: (c: Clip) => boolean): { clip: Clip; ritmo: number } | null {
+export function clipPara(estado: Estado, velocidad: number, cadera: number, natural: Partial<Record<Clip, number>>, hay: (c: Clip) => boolean, duracion: Partial<Record<Clip, number>> = {}): { clip: Clip; ritmo: number } | null {
   const orden: Clip[] = estado === "quieto" ? ["quieto"] : estado === "saltar" ? ["saltar", "quieto"]
     : estado === "correr" ? ["correr", "trotar", "andar", "quieto"] : elegirPaso(velocidad / Math.max(0.1, cadera), natural);
   const clip = orden.find(hay);
   if (!clip) return null;
-  const n = natural[clip] ?? 0;
-  const ritmo = n > 0 && clip !== "quieto" && clip !== "saltar" ? Math.min(2, Math.max(0.5, velocidad / (n * Math.max(0.1, cadera)))) : 1;
+  const n = natural[clip] ?? 0, h = Math.max(0.1, cadera);
+  let ritmo = n > 0 && clip !== "quieto" && clip !== "saltar" ? velocidad / (n * h) : 1; // the feet stay still on the ground
+  // N1b (Pablo, 16-10: «va como corriendo despacito»): the house jog and sprint loops take 2 long steps per loop, so
+  // played at the speed that keeps the feet still they bound in slow motion (≈ 90 steps a minute at 4 m/s). Meet a
+  // natural step rate half way (geometric mean): `CADENCIA` steps a second for hips of 0.9 m, faster for shorter legs
+  // (∝ 1/√hips, like a pendulum); the feet slide a little, the gait stops floating.
+  const d = duracion[clip] ?? 0;
+  if ((clip === "trotar" || clip === "correr") && d > 0 && ritmo > 0) {
+    const porCadencia = (CADENCIA[clip] * Math.sqrt(0.9 / h)) / (2 / d);
+    ritmo = Math.sqrt(ritmo * porCadencia);
+  }
+  if (clip !== "quieto" && clip !== "saltar") ritmo = Math.min(2, Math.max(0.5, ritmo));
   return { clip, ritmo };
 }
+/** Steps a second a person of hips 0.9 m takes jogging and sprinting (our choice, ≈ 165 and 190 steps a minute). */
+export const CADENCIA = { trotar: 2.75, correr: 3.15 } as const;
 function elegirPaso(relativa: number, natural: Partial<Record<Clip, number>>): Clip[] {
   const a = natural.andar ?? 0.8, t = natural.trotar ?? 5.2;
   return relativa < Math.sqrt(a * t) ? ["andar", "trotar", "quieto"] : ["trotar", "andar", "quieto"];

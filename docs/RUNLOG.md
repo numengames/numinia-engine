@@ -1014,3 +1014,16 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Siguiente: M17 trozo 2 (LiveKit autoalojado, sala = mundo, JWT HS256, `autoSubscribe` off + `elegirVoces`, DTX/RED,
   escenario como pista sin paneo, cliente perezoso; diseño en `../mmo-browser-study/VOZ-Y-PANTALLA-COMPARTIDA.md`);
   V13 (subtítulos) sigue esperando a M17. Sin probar en navegador real con micrófono (no hay e2e de audio).
+
+## 2026-10-16 15:40 · J1 · el VRM ya no «corre despacito» · hecho (sesión con Pablo, sin subir)
+- Qué: Pablo: «va como corriendo despacito, depende del avatar». Medido en la Torre: andando a 4 m/s suena el trote
+  (`Jog_Fwd_Loop`) al 0,87 de su velocidad, el ritmo que deja los pies quietos en el suelo; pero ese bucle da 2 pasos
+  muy largos (1,17 s), así que a ese ritmo son ≈ 90 pasos por minuto: un trote a cámara lenta. Ahora el trote y el
+  sprint se encuentran a medio camino (media geométrica) con una cadencia natural (`CADENCIA` 2,75 y 3,15 pasos/s
+  para caderas de 0,9 m, más rápida para piernas cortas): Astrodisco anda al 1,19 (≈ 122 pasos/min), los pies
+  resbalan un poco. Andar despacio no cambia. `view.avatares()` da velocidad, ritmo y cadera de cada uno.
+- Números: 282 pruebas en verde; build bien; en la Torre ritmo 0,87 → 1,19 a 4 m/s (`work/torre/paso-qa.mjs`).
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `avatares/paso-natural` (sobre main e8468e8).
+- Siguiente: que Pablo lo vea; si sigue raro, el arreglo de fondo es un ciclo de trote con más pasos por bucle o
+  andar más despacio que 4 m/s (eso cambia la simulación).
