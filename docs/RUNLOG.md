@@ -487,3 +487,20 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `objetos/respetar-fijado` sobre origin/main 84069eb (ver `git log`).
 - Siguiente: Pablo (PR sin ok, hueco de PR libre en numinia-engine): abrir PR; después revisar si la galería/eventos
   u otras plantillas fijan carteles pensando que eso también bloqueaba `hueco` (no lo hacía hasta ahora).
+## 2026-10-16 23:10 · U14 (1) · el aire de cada mundo en su página (`tema` en ficha@1) · hecho (sesión con Pablo, rama `plantillas/eventos`, sin subir)
+- Qué: Pablo pidió la plantilla del salón de eventos, la primera vez con la TRG26 («El vuelo del Maestro»), con el aire
+  de https://www.trgcon.com/. Primer trozo: cada mundo viste su página sin tocar el motor. ficha@1 admite `tema`
+  (aditivo): diez colores «#rrggbb» de los paneles, la letra de los títulos de entre las que trae el motor (`geist`,
+  `geist-mono`, `bebas-neue`; Bebas Neue entra en `apps/plaza/public/fuentes` con su licencia SIL OFL, 13.768 bytes, y
+  el navegador solo la baja si un tema la pide), una sombra desplazada, mayúsculas y botones rectos o en píldora. El
+  servidor lo lee valor a valor (`leerTema` en `packages/server/src/aventura.ts`: lo que no cabe se deja fuera y se dice
+  en el registro, una clave desconocida se ignora) y lo da en `GET /status`; la página lo vuelca en variables CSS que
+  `tema.css` ya lee (`apps/plaza/tema-mundo.ts`; la tinta sobre el botón principal, clara u oscura, la decide el motor).
+  Sin tema, el aire de la casa sin cambio: las medidas de los títulos solo crecen con `[data-tema-titulos]`.
+- Números: 4 pruebas nuevas (`test/tema.test.ts`), 372 en total, 371 en verde con la máquina a carga 16: la que falla es
+  la de siempre (`chat.test.ts`, coste de nombres para 1.000), que pasa sola. Puertas: capas 0, huella f719d31b, 26,7
+  kbit/s, plaza de 1.000 p99 9,1 ms. `npm run build` en verde. En la Nave de la TRG (plantilla fuera del motor): `/status`
+  da los 14 valores, la página carga Bebas Neue y los títulos salen en mayúsculas con sombra rosa (Playwright).
+- Commit: rama `plantillas/eventos` (ver `git log`), sobre `plantillas/huecos` (PR #17).
+- Siguiente: pasos en cualquier orden (`grupo` en mision@1) con su contador; el libro con los estados de la
+  especificación; marcas sobre las personas; secuencia local; cofre de dos aspectos; premio una sola vez.

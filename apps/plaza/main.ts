@@ -28,6 +28,7 @@ import { montarEntorno } from "./entorno.ts";
 import { montarVoz } from "./voz.ts";
 import { icono } from "./iconos.ts";
 import { montarXR } from "./xr.ts";
+import { aplicarTema } from "./tema-mundo.ts"; // a world's look (ficha@1 `tema`): an event's colours and title face
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
@@ -214,8 +215,9 @@ setInterval(() => { vrBtn.textContent = view.vr.active ? "Salir de VR" : "Entrar
 // <date>», what /health, the installer and the world zip carry) only as the tooltip, for whoever helps with a fault ----
 const versionMotor = document.getElementById("version-motor");
 if (versionMotor) versionMotor.textContent = `v${versionPaquete}`;
-fetch(`${activos}/status`).then((r) => r.json()).then((st: { version?: string; nombre?: string }) => {
+fetch(`${activos}/status`).then((r) => r.json()).then((st: { version?: string; nombre?: string; tema?: unknown }) => {
   if (st.nombre) document.title = st.nombre; // ADR-074: the world's name (its aventura/ficha.json), also when Caddy or vite serve the page
+  if (st.tema) aplicarTema(st.tema, document.documentElement); // its look: CSS variables tema.css reads; none = the house's
   if (versionMotor && st.version) versionMotor.title = `build ${st.version}`;
 }).catch(() => {});
 

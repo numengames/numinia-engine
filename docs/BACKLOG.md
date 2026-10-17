@@ -78,6 +78,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | U11 | Pedido de Pablo (16-10, tras probar U10): misiones a la derecha y mapa arriba a la derecha; botones de icono (casa de numinia.org, Phosphor) y paneles con el Numinia Design System (STD-023: Nocturno, Geist, dos radios); el vídeo lleva burbuja de sonido; quién oye un sonido o un vídeo: solo la burbuja, toda la zona o todo el mundo; radio a mano | hecho (escritorio) | sí |
 | U12 | Pedido de Pablo (16-10, plantillas de mundo): huecos — un cuadro que espera su obra; se pincha (o E cerca), se elige la imagen en el ordenador y el servidor la encaja entera en el marco; vaciarlo devuelve el cartel | hecho (escritorio; VR y móvil sin probar) | sí |
 | U13 | Pedido de Pablo (17-10): icono de Numinia en la biblioteca/tienda del Quest que lleve siempre al mundo — `manifest.webmanifest` (nombre Numinia, `display: fullscreen`, iconos 192/512 con el escarabeo Khepri) + enlace en `index.html`; «Guardar en la biblioteca» del navegador crea el icono y abre a pantalla completa, sin barra de direcciones | hecho (comprobado en un Quest real por USB: `Page.getAppManifest`/`getInstallabilityErrors` sin errores) | sí |
+| U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozo 1, el tema, hecho) | no |
 | U4 | Zona de usuario: quién eres, avatar, misiones e insignias, lo que he construido (lista, cuota, borrar, descargar), privacidad y datos, seguridad; el informe de sesión (T1) pasa a pedir consentimiento | espera a U2 | sí |
 | I3 | «Guardar mi progreso» con una llave de acceso (passkey) del propio motor, sin correo (Pablo, 15-10: camino B); la llave queda unida al invitado | pendiente | sí |
 | U5 | «Editar interfaz»: mover sin arrastrar (cuadrícula 3×3, números, flechas, lista), 5 disposiciones por clase de aparato, copiar y pegar `nl1.` sin código | espera a U3 | sí |
@@ -1127,6 +1128,26 @@ JPEG en retrato queda a 1,6; vaciar devuelve el cartel). Límite `hole_image_px_
 21 huecos llenos pasan de los 256 MB del nivel B); huecos de modelo (.glb en una peana) y de vídeo; el selector de
 ficheros no existe dentro de una sesión VR (hay que salir); quién rellena = quien construye (un papel que solo rellene
 huecos espera a H3); la luz por cuadro (escenas).
+
+### U14 — Salón de eventos (la TRG26)
+Pedido de Pablo (16-10): «rescata uno de los templates, el que más funcionalidades nos añada para poder luego hacer el
+resto de los eventos», con la especificación de la Tarugo «TRG26 · El vuelo del Maestro» (un aprendiz, tres artesanos
+que dan una pieza cada uno en cualquier orden, Leonardo que las recibe y vuela, un cofre con el «Sello del Artífice») y el
+modelo de su nave. El aire, como https://www.trgcon.com/. La plantilla vive fuera del motor
+(`../plantillas/eventos/`, `PROGRESO.md`); aquí, lo que pide al motor.
+
+**Trozo 1 hecho (16-10, rama `plantillas/eventos`): el aire de cada mundo.** ficha@1 admite `tema` (aditivo): diez
+colores «#rrggbb» de los paneles, la letra de los títulos de entre las que trae el motor (`geist`, `geist-mono`,
+`bebas-neue`, todas SIL OFL; Bebas Neue entra en `apps/plaza/public/fuentes` con su licencia, 13.768 bytes, y el
+navegador solo la baja si un tema la pide), una sombra desplazada, mayúsculas y botones rectos o en píldora. El servidor
+lo lee valor a valor (`leerTema`: lo que no cabe se deja fuera y se dice; una clave desconocida se ignora) y lo da en
+`GET /status`; la página lo vuelca en variables CSS que `tema.css` ya lee (`apps/plaza/tema-mundo.ts`; la tinta sobre el
+botón principal, clara u oscura, la decide el motor). Sin tema, el aire de la casa sin un píxel de cambio. **Medido:** 4
+pruebas (`test/tema.test.ts`).
+**Falta:** pasos en cualquier orden (`grupo` en mision@1) con su contador; el libro con los estados de la especificación
+(hecho, disponible, bloqueado) y abierto al aceptar; aviso y sonido al conseguir una pieza; marcas sobre las personas
+(«!», ✓) y su oficio bajo el nombre; secuencia local (el vuelo); espera antes del cofre; cofre de dos aspectos; premio
+registrado una sola vez.
 
 ### U1 — Pantalla de carga
 Armazón dentro de `index.html` (≤ 14 kB comprimido, letra del sistema, sin lienzo ni `requestAnimationFrame`) y un

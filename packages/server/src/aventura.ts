@@ -81,6 +81,42 @@ export function leerFicha(dir: string | null): { ficha: Ficha | null; problemas:
   return r.ok ? { ficha: r.value, problemas: [] } : { ficha: null, problemas: r.issues.map((i) => `${i.path}: ${i.message}`) };
 }
 
+// ---------- ficha@1 `tema`: how the world's page looks (an event brings its own colours and title face) ----------
+/** The panels' colours a world may set, each «#rrggbb» (apps/plaza/tema-mundo.ts maps them onto the page). */
+export const TEMA_COLORES = ["fondo", "superficie", "elevado", "texto", "texto2", "linea", "foco", "accion", "enfasis", "etiqueta"] as const;
+/** Title faces the engine ships (apps/plaza/public/fuentes, all SIL OFL 1.1): a world picks one by name, never a file. */
+export const TEMA_LETRAS = ["geist", "geist-mono", "bebas-neue"] as const;
+/** Buttons with the house's 6 px corners or round ends. */
+export const TEMA_FORMAS = ["recta", "pildora"] as const;
+export type Tema = { [k in (typeof TEMA_COLORES)[number]]?: string } & {
+  titulos?: (typeof TEMA_LETRAS)[number]; sombra?: string; mayusculas?: boolean; forma?: (typeof TEMA_FORMAS)[number];
+};
+const HEX = /^#[0-9a-fA-F]{6}$/;
+
+/** A ficha's `tema`, value by value: a bad value is left out and said (the rest still applies), unknown keys are
+ * ignored (a newer engine may add some), no tema = null (the house look). Never throws. */
+export function leerTema(v: unknown): { tema: Tema | null; problemas: string[] } {
+  if (v === undefined) return { tema: null, problemas: [] };
+  if (!v || typeof v !== "object" || Array.isArray(v)) return { tema: null, problemas: ["tema: un objeto { fondo, texto, accion…, titulos, sombra, mayusculas, forma }"] };
+  const o = v as Record<string, unknown>, tema: Tema = {}, problemas: string[] = [];
+  for (const k of TEMA_COLORES) {
+    if (o[k] === undefined) continue;
+    if (typeof o[k] === "string" && HEX.test(o[k] as string)) tema[k] = (o[k] as string).toLowerCase();
+    else problemas.push(`tema.${k}: un color «#rrggbb» (p. ej. «#ff8ebe»)`);
+  }
+  if (o.titulos !== undefined) {
+    if (TEMA_LETRAS.includes(o.titulos as Tema["titulos"] & string)) tema.titulos = o.titulos as Tema["titulos"];
+    else problemas.push(`tema.titulos: una de ${TEMA_LETRAS.join(", ")}`);
+  }
+  if (o.sombra !== undefined) { if (typeof o.sombra === "string" && HEX.test(o.sombra)) tema.sombra = o.sombra.toLowerCase(); else problemas.push("tema.sombra: un color «#rrggbb» (la sombra desplazada de los títulos)"); }
+  if (o.mayusculas !== undefined) { if (typeof o.mayusculas === "boolean") tema.mayusculas = o.mayusculas; else problemas.push("tema.mayusculas: true o false"); }
+  if (o.forma !== undefined) {
+    if (TEMA_FORMAS.includes(o.forma as Tema["forma"] & string)) tema.forma = o.forma as Tema["forma"];
+    else problemas.push(`tema.forma: una de ${TEMA_FORMAS.join(", ")}`);
+  }
+  return { tema: Object.keys(tema).length ? tema : null, problemas };
+}
+
 // ---------- agente@1 (ADR-080): an outside AI this world lets in, by its public key ----------
 export const AGENTE = "agente@1";
 export const AGENTES_CARPETA = "agentes";

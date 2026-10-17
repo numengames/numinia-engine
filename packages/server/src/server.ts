@@ -27,7 +27,7 @@ import { Pagina } from "./pagina.ts";
 import { infoMotor } from "./version.ts";
 import type { Motor } from "./version.ts";
 import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
-import { leerFicha, lectorAventura } from "./aventura.ts";
+import { leerFicha, leerTema, lectorAventura } from "./aventura.ts";
 import { crearRoles } from "./roles-mundo.ts";
 import { configPase } from "./pase.ts";
 import { crearAgentesHttp } from "./agentes-http.ts";
@@ -116,6 +116,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   // ADR-074: what the world is called, from its own folder (aventura/ficha.json); none = the engine's defaults
   const { ficha, problemas: fichaMal } = leerFicha(o.aventura ?? null);
   for (const p of fichaMal) log(`[ficha] no se carga: ${p}`);
+  const { tema, problemas: temaMal } = leerTema(ficha?.tema); // how its page looks (an event's colours and titles); a bad value drops only itself
+  for (const p of temaMal) log(`[ficha] ${p}: lo dejo fuera`);
   const pagina = o.www ? new Pagina(o.www, { titulo: ficha?.nombre ?? null }) : null; // C1: the page from the engine itself (one port per world)
 
   const t0 = performance.now();
@@ -160,7 +162,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const [portadaSha, portadaExt] = ficha?.portada?.split(".") ?? [];
   const portada = portadaSha && activos.buscar(portadaSha, portadaExt) ? `/a/${ficha!.portada}` : null;
   if (ficha) log(`[ficha] el mundo se llama «${ficha.nombre}»${ficha.portada ? (portada ? `, portada ${portada}` : `; su portada ${ficha.portada} no está en este servidor (súbela al mundo): no la enseño`) : ""}`);
-  const fichaPublica = ficha ? { nombre: ficha.nombre, descripcion: ficha.descripcion, portada: portada ?? undefined } : {};
+  const fichaPublica = ficha ? { nombre: ficha.nombre, descripcion: ficha.descripcion, portada: portada ?? undefined, tema: tema ?? undefined } : {};
   if (o.aparicion) log(`[mundo] la gente aparece en el cuadrado de ${2 * o.aparicion.radio} m centrado en (${o.aparicion.x}, ${o.aparicion.z})`);
   const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, renovarPase: roles.renovar, activo: (h, ext) => activos.buscar(h, ext) !== null, medidas: (h, ext) => activos.medidas(h, ext), aventura: lector, agentes, externos: { verificar: puerta.verificar }, sinVoz: () => !roles.voz, aparicion: o.aparicion ?? null }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz)
   // H9: uploads (PUT /a/<sha256>.<ext>) by whoever may build; the page shows its guest token (I1) to say who it is

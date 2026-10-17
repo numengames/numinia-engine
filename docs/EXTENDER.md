@@ -280,6 +280,18 @@ cualquier imagen subida). Aquí, a diferencia de los demás formatos, se miden c
 guarda** (un motor más nuevo puede añadir alguno). El nombre va al `<title>` de la página y a `GET /status` (`nombre`,
 `descripcion`, `portada` = `/a/<sha256>.<ext>` si el servidor la tiene). Sin ficha, todo como antes.
 
+**`tema`** (opcional, dentro de la ficha): cómo se ve la página de ESTE mundo, para que un evento traiga su aire sin
+tocar el motor. Diez colores «#rrggbb» de los paneles — `fondo`, `superficie`, `elevado` (botones), `texto`, `texto2`,
+`linea`, `foco` (lo que se toca), `accion` (el botón principal; la tinta encima, clara u oscura, la elige el motor),
+`enfasis` (la misión seguida y los avisos), `etiqueta` —; `titulos`, la letra de los títulos, una de las que trae el motor
+(`geist`, `geist-mono`, `bebas-neue`; todas SIL OFL, en `apps/plaza/public/fuentes`), nunca un fichero; `sombra`, el color
+de una sombra desplazada en los títulos; `mayusculas` (true/false) y `forma` de los botones (`recta` o `pildora`). Un valor
+que no cabe se deja fuera y se dice en el registro (`[ficha] tema.fondo: …`); el resto se aplica; una clave desconocida
+se ignora. Va en `GET /status` (`tema`) y la página lo vuelca en las variables CSS de `apps/plaza/tema.css`
+(`apps/plaza/tema-mundo.ts`). Sin tema, el aire de la casa. Ejemplo, el de la TRG26: `"tema": { "fondo": "#0b0006",
+"texto": "#e8f8ff", "accion": "#ff8ebe", "enfasis": "#f9ff8e", "foco": "#64f5f0", "titulos": "bebas-neue", "sombra":
+"#ff8ebe", "mayusculas": true, "forma": "pildora" }`.
+
 Reglas para quien escribe (persona o LLM):
 - **Ids** en minúsculas, cifras y guiones (`primeros-pasos`); cada fichero, un `formato` en su primera línea. Un campo
   desconocido es un error (así una tilde de más, `descripción`, no pasa en silencio). `notas` vale en todos.
