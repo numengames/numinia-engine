@@ -1,0 +1,161 @@
+// lucha v1 (L1): the whole slice headless (in-memory world, two pages, pump by 20 Hz ticks). The server decides: reach
+// through `within`, one blow per 0,6 s per player, damage 3-5 from the seeded PRNG, coherence down in the shared state,
+// dissolution at 0 (the creature stops being a solid box: `solidsFrom` drops it), return after REAPARICION_S with full
+// coherence; the same seed gives the same blows; the page draws through view.place and paints the blow.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { fx } from "../packages/core/src/index.ts";
+import { Instance } from "../packages/instance/src/index.ts";
+import { solidsFrom } from "../packages/sim/src/index.ts";
+import { ClientSession } from "../packages/client/src/index.ts";
+import type { GuestKeeper } from "../packages/client/src/index.ts";
+import { signer } from "../packages/server/src/secret.ts";
+import { lucha, DANO_BASE, DANO_VAR, ENFRIAMIENTO_TICKS, REAPARICION_S } from "../features/lucha/feature.ts";
+import { crearLucha, valorDe, tirarDano, HZ, CRIATURAS_DEFECTO } from "../features/lucha/server.ts";
+import { crearCliente, tinte, aspecto } from "../features/lucha/client.ts";
+import { BESTIARIO } from "../features/lucha/bestiario.ts";
+import funciones from "../features/servidor.ts";
+import clientes from "../features/cliente.ts";
+
+const G = { id: "guardian-1", especie: "guardian-crisalida", x: 10, z: 0, y: 0 };
+const KEY = "c:guardian-1";
+const sign = signer("una-clave-de-prueba-larga");
+type Keeper = GuestKeeper & { token: string | null };
+const keeper = (): Keeper => { const k = { token: null as string | null, load: () => k.token, save: (t: string) => { k.token = t; } }; return k; };
+
+/** A headless arena: the lucha server with a known seed, n pages each with its own controller, a pump by ticks. */
+function mundo(n = 2, semilla = 7, criaturas = [G]) {
+  const log: string[] = [];
+  const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [crearLucha({ criaturas, semilla })], log: (l) => log.push(l), identitySign: sign });
+  const pages = Array.from({ length: n }, (_, i) => {
+    const eventos: { event: string; msg: Record<string, unknown> }[] = [];
+    const t = inst.join(i), cli = crearCliente((event, msg) => eventos.push({ event, msg })), seen: string[] = [], k = keeper();
+    const s = new ClientSession(t, { features: [cli.part], identity: k, view: {
+      label: (e, text) => seen.push(`label ${e} ${text}`), bounce: (e) => seen.push(`bounce ${e}`),
+      place: (key, o) => seen.push(`place ${key} ${o ? `${o.sx}x${o.sy}x${o.sz} ${(o as { color?: string }).color}` : "null"}`),
+      tag: (key, t) => seen.push(`tag ${key} ${t ? t.text : "null"}`),
+    } });
+    return { t, s, l: cli.lucha, seen, eventos, k };
+  });
+  const pump = (ticks = 1) => { for (let i = 0; i < ticks; i++) { for (const c of pages) c.t.flush(); inst.tick(); for (const c of pages) c.t.flush(); } };
+  const place = (e: number, x: number, z: number) => { inst.sim.tf.cols.x[e] = fx(x); inst.sim.tf.cols.z[e] = fx(z); };
+  const evs = (c: (typeof pages)[number], ev: string) => c.eventos.filter((x) => x.event === ev).map((x) => x.msg);
+  const estado = () => { for (const [k, v] of inst.features.allState()) if (k === `lucha:${KEY}`) return v; throw new Error("sin criatura"); };
+  return { inst, pages, pump, place, evs, estado, log };
+}
+
+test("lucha: the declaration meets the plug's rules and is in both lists; the sheet is sane", () => {
+  assert.deepEqual(lucha.issues, []);
+  assert.ok(funciones.some((f) => f.feature.id === "lucha") && clientes.some((f) => f.feature.id === "lucha"));
+  const f = BESTIARIO["guardian-crisalida"];
+  assert.ok(f && f.coherenciaMax > 0 && f.caja.ancho > 0 && f.caja.alto > 0 && f.caja.largo > 0 && /^#[0-9a-f]{6}$/i.test(f.color));
+  assert.ok(CRIATURAS_DEFECTO.every((c) => BESTIARIO[c.especie]));
+  assert.equal(valorDe({ id: "x", especie: "no-existe", x: 0, z: 0 }), null);
+});
+
+test("lucha: the creature's value is a solid box the simulation picks up; a dissolved one is not", () => {
+  const v = valorDe(G)!;
+  assert.equal(v.solido, true);
+  assert.ok(Math.abs(Number(v.bx1) - Number(v.bx0) - BESTIARIO[G.especie].caja.ancho) < 1e-9);
+  const cajas = solidsFrom([[KEY, v]]);
+  assert.equal(cajas.length, 6);
+  assert.equal(solidsFrom([[KEY, { ...v, solido: false }]]).length, 0);
+});
+
+test("lucha: a blow within reach lowers coherence by 3-5 and everyone near hears it; out of reach = aire and nothing changes", () => {
+  const W = mundo(2);
+  W.pump();
+  W.pump(2); W.place(W.pages[0].s.entity, 11, 0); W.place(W.pages[1].s.entity, 12, 1); // 1-2 m from the creature's centre
+  W.pump(12);
+  assert.equal(W.estado().coherencia, 40);
+  assert.deepEqual(W.pages[0].l.golpear(), { ok: true });
+  W.pump(2);
+  const g = W.evs(W.pages[0], "golpe");
+  assert.equal(g.length, 1);
+  assert.ok(Number(g[0].dano) >= DANO_BASE && Number(g[0].dano) < DANO_BASE + DANO_VAR, `daño ${g[0].dano}`);
+  assert.equal(W.estado().coherencia, 40 - Number(g[0].dano));
+  assert.equal(W.estado().modo, "alerta");
+  assert.equal(W.evs(W.pages[1], "golpe").length, 1, "the neighbour sees the blow");
+  // far away: aire, coherence untouched
+  W.place(W.pages[1].s.entity, 40, 40);
+  W.pump(12);
+  const antes = W.estado().coherencia;
+  W.pages[1].l.golpear(KEY);
+  W.pump(2);
+  assert.equal(W.evs(W.pages[1], "aire").length, 1);
+  assert.equal(W.estado().coherencia, antes);
+});
+
+test("lucha: two blows in a row — the second is swallowed by the cooldown; after ENFRIAMIENTO_TICKS it counts", () => {
+  const W = mundo(1);
+  W.pump(2);
+  W.place(W.pages[0].s.entity, 11, 0);
+  W.pump(12);
+  W.pages[0].l.golpear(KEY); W.pump(1);
+  W.pages[0].l.golpear(KEY); W.pump(2);
+  assert.equal(W.evs(W.pages[0], "golpe").length, 1);
+  W.pump(ENFRIAMIENTO_TICKS);
+  W.pages[0].l.golpear(KEY); W.pump(2);
+  assert.equal(W.evs(W.pages[0], "golpe").length, 2);
+});
+
+test("lucha: at 0 coherence the creature dissolves (not solid, no prompt), and returns whole after REAPARICION_S", () => {
+  const W = mundo(1);
+  W.pump(2);
+  W.place(W.pages[0].s.entity, 11, 0);
+  W.pump(12);
+  let n = 0;
+  while (W.estado().modo !== "disuelta" && n < 40) { W.pages[0].l.golpear(KEY); W.pump(ENFRIAMIENTO_TICKS); n++; }
+  assert.ok(n >= 8 && n <= 14, `${n} golpes para 40 de coherencia con 3-5 por golpe`);
+  const v = W.estado();
+  assert.equal(v.coherencia, 0); assert.equal(v.solido, false);
+  assert.equal(W.evs(W.pages[0], "disuelta").length, 1);
+  assert.equal(solidsFrom(W.inst.features.allState()).length, 0, "the box is gone from the simulation's solids");
+  assert.equal(W.pages[0].l.ofrece("lucha", KEY), false);
+  W.pages[0].l.golpear(KEY); W.pump(2);
+  assert.equal(W.evs(W.pages[0], "rechazado").length, 1, "nothing to hit");
+  W.pump(REAPARICION_S * HZ + 2);
+  const w = W.estado();
+  assert.equal(w.modo, "quieta"); assert.equal(w.coherencia, 40); assert.equal(w.solido, true);
+  assert.equal(W.evs(W.pages[0], "vuelve").length, 1);
+  assert.equal(solidsFrom(W.inst.features.allState()).length, 6);
+});
+
+test("lucha: same seed, same blows (tirarDano is pure; two worlds with the same inputs give the same damage)", () => {
+  assert.equal(tirarDano(new Uint32Array([42])), tirarDano(new Uint32Array([42])));
+  const run = () => { const W = mundo(1, 99); W.pump(2); W.place(W.pages[0].s.entity, 11, 0); W.pump(12); const d: number[] = []; for (let i = 0; i < 5; i++) { W.pages[0].l.golpear(KEY); W.pump(ENFRIAMIENTO_TICKS); } for (const g of W.evs(W.pages[0], "golpe")) d.push(Number(g.dano)); return d; };
+  const a = run(), b = run();
+  assert.equal(a.length, 5);
+  assert.deepEqual(a, b);
+});
+
+test("lucha: the page draws the creature as the house block scaled to its box, in its colour, with its name; a blow flashes white and shows −N; dissolved = taken away", async () => {
+  assert.equal(tinte("#ffffff", 40, 40), "#ffffff");
+  assert.equal(tinte("#ffffff", 0, 40), "#6e6e6e");
+  const v = valorDe(G)!, a = aspecto(v);
+  assert.equal(a.sx, 2.4); assert.equal(a.sy, 1.2); assert.equal(a.sz, 1.4); assert.equal(a.color, BESTIARIO[G.especie].color);
+  const W = mundo(1);
+  W.pump(2);
+  const p = W.pages[0];
+  assert.ok(p.seen.some((s) => s.startsWith(`place lucha:${KEY} 2.4x1.2x1.4 ${BESTIARIO[G.especie].color}`)), p.seen.join("\n"));
+  assert.ok(p.seen.some((s) => s === `tag lucha:${KEY} Guardián de Crisálida`));
+  W.place(p.s.entity, 11, 0); W.pump(12);
+  p.l.golpear(KEY); W.pump(2);
+  const d = W.evs(p, "golpe")[0].dano;
+  assert.ok(p.seen.some((s) => s === `place lucha:${KEY} 2.4x1.2x1.4 #ffffff`), "flash");
+  assert.ok(p.seen.some((s) => s === `tag lucha:${KEY} Guardián de Crisálida  −${d}`), "−N in the name");
+  await new Promise((r) => setTimeout(r, 120));
+  assert.ok(p.seen.at(-1)!.startsWith(`place lucha:${KEY} 2.4x1.2x1.4 #`) && !p.seen.at(-1)!.endsWith("#ffffff"), "the flash ends in its faded colour");
+  let n = 0;
+  while (W.estado().modo !== "disuelta" && n < 40) { p.l.golpear(KEY); W.pump(ENFRIAMIENTO_TICKS); n++; }
+  assert.ok(p.seen.includes(`place lucha:${KEY} null`) && p.seen.includes(`tag lucha:${KEY} null`));
+  await new Promise((r) => setTimeout(r, 800)); // the −N timer must not bring a dissolved creature back
+  assert.equal(p.seen.at(-1), `tag lucha:${KEY} null`);
+});
+
+test("lucha: a world's lucha.json with an unknown species places nothing and says so; the simulation footprint never notices the feature", () => {
+  const W = mundo(1, 7, [{ id: "raro", especie: "no-existe", x: 0, z: 0 }]);
+  W.pump();
+  assert.ok(W.log.some((l) => l.includes("no está en el bestiario")));
+  assert.equal([...W.inst.features.allState()].length, 0);
+});

@@ -53,6 +53,16 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | P2 | Móvil frío: política de energía del cliente + puerta de coste por cuadro | hecho (sin medir en móvil real → X1) | sí |
 | P3 | Nativo para IA v1: `llms.txt`, mapa, README-contrato por paquete, `npm run describe` | hecho | sí |
 | J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR | hecho (v0.8.0: `features/puertas`, `features/botones`, `features/cogibles`; `MUNDO_DIR/interacciones.json`; sin aparato VR real) | sí |
+| L1 | Lucha, trozo 1: función `lucha` (criatura = estado con coherencia y caja sólida; `golpear` con enfriamiento 12 ticks y daño 3-5 de `rngNext`; `golpe`/`aire`/`disuelta`/`vuelve`; reaparición 20 s), ficha `bestiario.ts` con el Guardián de Crisálida, bloque de la casa escalado a la caja con flash/tinte/«−N», `MUNDO_DIR/lucha.json`; diseño: `mmo-browser-study/SISTEMA-DE-LUCHA-Y-BESTIARIO.md` | hecho (18-10, rama `lucha/trozo-1`) | sí |
+| L2 | Lucha, trozo 2: estados del jugador (Desestabilizado → Colapsado → Aletargado, como el canon: sin puntos de vida) como efectos del servidor sobre la persona (velocidad, HUD, vuelta a `aparicion`), en el `store` por invitado | espera a L1 | sí |
+| L3 | Lucha, trozo 3: la criatura se mueve y golpea — modos quieta/alerta/herida, aggro y vuelta a casa, tope de 8 en alerta por zona, caja sólida que sigue al cuerpo; límites a `limits.json`; `combate: true` por zona en `entorno.json` | espera a L2 | sí |
+| L4 | Lucha, trozo 4: anclajes — acción `lucha.anclaje` para la lógica de objetos (ADR-078), multiplicador de daño y capacidad que se pierde; los tres del Guardián y los del Dragón | espera a L3 | sí |
+| L5 | Lucha, trozo 5: clips `golpear` y `recibir` (CC0/QAL) en la biblioteca VRM de la casa, giro de brazo por código cuando el VRM no los trae, sacudida de cámara al recibir (viñeta en visor) | espera a L1 | sí |
+| L6 | Lucha, trozo 6: golpe a distancia con retardo `1+floor(dist/6)` ticks y trazo dibujado (Ostramir, Thámakar); sin puntería ni balística (ADR-073) | espera a L3 | sí |
+| L7 | Bestiario: las otras 11 fichas de `bestiario.ts` con sus modelos placeholder (caja, cadena de segmentos, instanciado para el enjambre) y pruebas de cada anclaje | espera a L4 | sí |
+| L8 | Lucha: PVP (`objetivo: p:<entidad>`, norma `pvp` del mundo y de la zona, consentimiento) | necesita aprobación (Pablo: ¿hay PVP y dónde?) | no |
+| L9 | Lucha: cerebro de criatura por agente (`cerebro: "agente"`: un pase `kind:"agent"` manda `mover`/`golpear` con las mismas tasas) | espera a L3 y P5b | sí |
+| L10 | Bestiario: encargar o buscar modelos CC0 low-poly con las fichas de aspecto del diseño (12 criaturas, ≤ 3 k triángulos, 1 material, sin esqueleto) | necesita aprobación (Pablo: ¿se encargan o se buscan?) | no |
 | J5 | Libro de misiones, mapa y minimapa con marcadores | hecho (panel en la muñeca en VR → J13) | sí |
 | J11 | Personas que dan misiones (`pnj@1`: árbol de diálogo, quién da y recibe qué) | hecho | sí |
 | J12 | Ficha de jugador: nombre, aparato y calidad, tiempo, misiones e insignias, ajustes | hecho (falta retrato → H10 e inventario) | sí |
