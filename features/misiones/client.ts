@@ -15,12 +15,13 @@ export const ALTO_NOMBRE = 2.25;
 
 /** How a person of the world looks TODAY: a library model at its place (the house robot by default) and at its height
  * (`y`: the floor it stands on; 0 = the ground), still (no idle animation: phones stay cool). The avatar branch (VRM)
- * replaces this one function. */
-export function aspectoPnj(v: Msg): { cuerpo: PlacedObject; nombre: { text: string; x: number; y: number; z: number } } {
-  const propio = String(v.modelo ?? ""), e = Number(v.escala) * (propio ? 1 : ESCALA_ROBOT), y = Number(v.y) || 0;
+ * replaces this one function. U14 (4): its label carries the trade (`oficio`) as a second line and the mark the server
+ * decided for you («!» / «✓», above the name). */
+export function aspectoPnj(v: Msg, marca: Marca = ""): { cuerpo: PlacedObject; nombre: { text: string; sub?: string; mark?: Marca; x: number; y: number; z: number } } {
+  const propio = String(v.modelo ?? ""), e = Number(v.escala) * (propio ? 1 : ESCALA_ROBOT), y = Number(v.y) || 0, oficio = String(v.oficio ?? "");
   return {
     cuerpo: { model: propio || ROBOT, x: Number(v.x), y, z: Number(v.z), rx: 0, ry: Number(v.giro), rz: 0, sx: e, sy: e, sz: e, animate: false },
-    nombre: { text: String(v.nombre), x: Number(v.x), y: y + ALTO_NOMBRE * Number(v.escala), z: Number(v.z) },
+    nombre: { text: String(v.nombre), ...(oficio ? { sub: oficio } : {}), ...(marca ? { mark: marca } : {}), x: Number(v.x), y: y + ALTO_NOMBRE * Number(v.escala), z: Number(v.z) },
   };
 }
 /** How a quest thing looks: its model, or the house block (a small crate); at its height (y) and in its colour. */
@@ -29,10 +30,19 @@ export const aspectoCosa = (v: Msg): PlacedObject & { color?: string } => {
   return { model: String(v.modelo ?? "") || BLOQUE, x: Number(v.x), y: Number(v.y) || 0, z: Number(v.z), rx: 0, ry: 0, rz: 0, sx: e, sy: e, sz: e, animate: false, ...(color ? { color } : {}) };
 };
 
+// ---- U14 (4): marks the server decides for each player: «!» = has something for you now, «✓» = you are done with them ----
+export type Marca = "!" | "✓" | "";
+/** As the `marcas` event brings them: tiene = people with «!», hecho = people with «✓», cosas = things with «!» (ids). */
+export type Marcas = { tiene: string[]; hecho: string[]; cosas: string[] };
+/** A quest thing's label, only while it carries a mark: its name and the «!» over its top (the house block stands 1 m
+ * tall at escala 1; a model of its own, about as tall as its escala). */
+export const etiquetaCosa = (v: Msg): { text: string; mark: Marca; x: number; y: number; z: number } =>
+  ({ text: String(v.nombre), mark: "!", x: Number(v.x), y: (Number(v.y) || 0) + Number(v.escala) + 0.5, z: Number(v.z) });
+
 export type PasoVista = { n: number; texto: string; tipo: string; hecho: boolean; x: number; z: number; donde: string; que: string; grupo: string };
 export type MisionVista = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: PasoVista[] };
 export type Objetivo = { mision: string; paso: number; nombre: string; texto: string; x: number; z: number; seguida: boolean };
-export type Dialogo = { pnj: string; nombre: string; texto: string; opciones: string[] };
+export type Dialogo = { pnj: string; nombre: string; oficio: string; texto: string; opciones: string[] };
 type Res = { ok: true } | { ok: false; why: string };
 
 /** The current block of a quest: the step at `paso` (the first still to do) and, when it has a grupo, the consecutive
@@ -59,6 +69,32 @@ export function crearCliente() {
   const avisar = (que: "libro" | "dialogo" | "nota") => { for (const f of oyentes) { try { f(que); } catch { /* a panel's problem is its own */ } } };
   const nota = (t: string) => { estado.nota = t; avisar("nota"); };
   const sin = (why: string): Res => ({ ok: false, why });
+
+  // U14 (4): the marks the server decided for THIS player. `marcas` is a new frozen object only when they change (a map
+  // can tell by identity); a label is drawn again only for whoever's mark changed, and a quest thing has one only while
+  // it is marked
+  let marcas: Readonly<Marcas> = Object.freeze({ tiene: [], hecho: [], cosas: [] }), marcasFirma = "||";
+  let marcaP = new Map<string, Marca>(), marcaC = new Set<string>();
+  const conRotulo = new Set<string>(); // the quest things that have a label now
+  const marcaDe = (feature: string, key: string): Marca => (feature === "pnj" ? marcaP.get(key) ?? "" : feature === "misiones" && marcaC.has(key) ? "!" : "");
+  const rotularPnj = (key: string) => { const v = P?.state.get(key); if (v) P!.view.tag?.(`pnj:${key}`, aspectoPnj(v, marcaDe("pnj", key)).nombre); };
+  const rotularCosa = (key: string) => {
+    const v = M?.state.get(key), si = !!v && marcaC.has(key);
+    if (si) { conRotulo.add(key); M!.view.tag?.(`misiones:${key}`, etiquetaCosa(v!)); }
+    else if (conRotulo.delete(key)) M?.view.tag?.(`misiones:${key}`, null);
+  };
+  const recibirMarcas = (m: Msg) => {
+    const firma = `${String(m.tiene ?? "")}|${String(m.hecho ?? "")}|${String(m.cosas ?? "")}`;
+    if (firma === marcasFirma) return; // the same as before (every book brings them): nothing to draw
+    const ids = (s: unknown) => String(s ?? "").split(",").filter(Boolean);
+    marcasFirma = firma;
+    marcas = Object.freeze({ tiene: ids(m.tiene), hecho: ids(m.hecho), cosas: ids(m.cosas) });
+    const antesP = marcaP, antesC = marcaC;
+    marcaP = new Map([...marcas.hecho.map((k) => [k, "✓"] as const), ...marcas.tiene.map((k) => [k, "!"] as const)]); // «!» wins
+    marcaC = new Set(marcas.cosas);
+    for (const k of new Set([...antesP.keys(), ...marcaP.keys()])) if (antesP.get(k) !== marcaP.get(k)) rotularPnj(k);
+    for (const k of new Set([...antesC, ...marcaC])) if (antesC.has(k) !== marcaC.has(k)) rotularCosa(k);
+  };
 
   const actual = (m: MisionVista): PasoVista | undefined => m.lista.find((s) => s.n === m.paso);
   const misiones = {
@@ -92,6 +128,14 @@ export function crearCliente() {
     usar: (cosa: string): Res => M?.send("usar", { cosa }) ?? sin("la página aún no ha arrancado"),
     /** Whether the page should offer «E: …» for a thing: quest things only while a step to do now needs them. */
     ofrece: (feature: string, key: string): boolean => feature !== "misiones" || [...libro.values()].some((m) => ahoraDe(m).some((s) => s.que === key && (s.tipo === "coge" || s.tipo === "usa"))),
+
+    /** U14 (4): your marks as the server decided them — tiene = people with «!», hecho = people with «✓», cosas = things
+     * with «!» (ids). The same object until they change. */
+    marcas: (): Readonly<Marcas> => marcas,
+    /** The mark over a person (`pnj`) or a quest thing (`misiones`) for you: "!", "✓" or "" (the map draws it). */
+    marcaDe,
+    /** A person's trade («Carpintero»; "" = none, or not near enough to be known), for the map's list. */
+    oficioDe: (pnj: string): string => String(P?.state.get(pnj)?.oficio ?? ""),
     /** Call `fn` when the book, the conversation or the on-screen note changes; returns how to stop. */
     alCambiar: (fn: (que: "libro" | "dialogo" | "nota") => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
@@ -100,12 +144,12 @@ export function crearCliente() {
     P = a;
     a.state.onChange((key, v) => {
       if (!v) { a.view.place?.(`pnj:${key}`, null); a.view.tag?.(`pnj:${key}`, null); return; }
-      const look = aspectoPnj(v);
+      const look = aspectoPnj(v, marcaDe("pnj", key));
       a.view.place?.(`pnj:${key}`, look.cuerpo);
       a.view.tag?.(`pnj:${key}`, look.nombre);
     });
     a.on("dialogo", (m) => {
-      dialogo = { pnj: String(m.pnj), nombre: String(m.nombre), texto: String(m.texto), opciones: [m.o1, m.o2, m.o3, m.o4].map(String).filter(Boolean) };
+      dialogo = { pnj: String(m.pnj), nombre: String(m.nombre), oficio: String(a.state.get(String(m.pnj))?.oficio ?? ""), texto: String(m.texto), opciones: [m.o1, m.o2, m.o3, m.o4].map(String).filter(Boolean) };
       avisar("dialogo");
     });
     a.on("fin", (m) => { if (dialogo?.pnj === String(m.pnj)) { dialogo = null; avisar("dialogo"); } });
@@ -114,7 +158,10 @@ export function crearCliente() {
 
   const misionesPart = clientPart(misionesDecl, (a) => {
     M = a;
-    a.state.onChange((key, v) => a.view.place?.(`misiones:${key}`, v ? aspectoCosa(v) : null)); // J4: <feature>:<key>, so a click is understood
+    a.state.onChange((key, v) => {
+      a.view.place?.(`misiones:${key}`, v ? aspectoCosa(v) : null); // J4: <feature>:<key>, so a click is understood
+      rotularCosa(key); // U14 (4): a label only while the server marks it for you
+    });
     a.on("libro", () => { libro.clear(); avisar("libro"); });
     a.on("mision", (m) => {
       libro.set(String(m.id), { id: String(m.id), titulo: String(m.titulo), descripcion: String(m.descripcion), estado: m.estado === "hecha" ? "hecha" : "activa", paso: Number(m.paso), pasos: Number(m.pasos), seguida: m.seguida === true, recompensa: String(m.recompensa ?? ""), lista: [] });
@@ -132,6 +179,7 @@ export function crearCliente() {
     a.on("completada", (m) => nota(`¡Misión completada! ${String(m.titulo)}${m.recompensa ? ` · ${String(m.recompensa)}` : ""}`));
     a.on("aviso", (m) => { estado.ultimoAviso = String(m.texto); nota(String(m.texto)); });
     a.on("rechazado", (m) => { estado.ultimoRechazo = String(m.motivo); nota(String(m.motivo)); });
+    a.on("marcas", recibirMarcas); // U14 (4)
   });
 
   const parts: ClientPart[] = [pnjPart, misionesPart];

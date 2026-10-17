@@ -61,7 +61,7 @@ test("formats: recibe, grupo and entrega.cosas load; the plug's declaration grew
   assert.ok(A.explicitos.get("cosimo")!.avanza.has("vuelo"), "an avanzar_paso option may point at a recibe step");
   assert.ok(A.explicitos.get("leonardo")!.entrega.has("vuelo"));
   assert.deepEqual(misionesDecl.issues, []);
-  assert.equal(misionesDecl.version, 3);
+  assert.ok(misionesDecl.version >= 3, "v3 brought grupo and recibe");
   assert.ok((misionesDecl.events!.paso.fields.tipo as { values: readonly string[] }).values.includes("recibe"));
   assert.deepEqual(misionesDecl.events!.paso.fields.grupo, { kind: "text", maxBytes: 40, default: "" });
 });

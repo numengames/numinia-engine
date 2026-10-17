@@ -57,6 +57,14 @@ function forma(g: CanvasRenderingContext2D, t: Tipo, x: number, y: number, s: nu
     case "triangulo": g.moveTo(0, -s * 1.1); g.lineTo(s, s * 0.8); g.lineTo(-s, s * 0.8); g.closePath(); break;
     case "estrella": for (let i = 0; i < 10; i++) { const r = i % 2 ? s * 0.5 : s * 1.25, a = (i * Math.PI) / 5 - Math.PI / 2; if (i) g.lineTo(Math.cos(a) * r, Math.sin(a) * r); else g.moveTo(Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); break;
     case "anillo": g.arc(0, 0, s, 0, Math.PI * 2); g.lineWidth = 3; g.strokeStyle = t.color; g.stroke(); g.beginPath(); g.arc(0, 0, s * 0.35, 0, Math.PI * 2); g.fill(); g.restore(); return;
+    case "exclamacion": // U14 (4): «!» — a warm disc with the mark in ink
+      g.arc(0, 0, s, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.fillStyle = "#1d1406"; g.beginPath(); g.moveTo(-s * 0.2, -s * 0.66); g.lineTo(s * 0.2, -s * 0.66); g.lineTo(s * 0.11, s * 0.16); g.lineTo(-s * 0.11, s * 0.16); g.closePath();
+      g.moveTo(s * 0.17, s * 0.45); g.arc(0, s * 0.45, s * 0.17, 0, Math.PI * 2); g.fill(); g.restore(); return;
+    case "visto": // U14 (4): «✓» — a green disc with a white tick
+      g.arc(0, 0, s, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.beginPath(); g.moveTo(-s * 0.48, s * 0.02); g.lineTo(-s * 0.12, s * 0.38); g.lineTo(s * 0.5, -s * 0.36);
+      g.lineWidth = Math.max(1.5, s * 0.3); g.lineCap = "round"; g.lineJoin = "round"; g.stroke(); g.restore(); return;
     default: g.arc(0, 0, s, 0, Math.PI * 2);
   }
   g.fill(); g.stroke(); g.restore();
@@ -146,16 +154,22 @@ export function montarMapa(h: HostMapa) {
   }
 
   // ---------- the built-in sources ----------
-  let fichas: Marcador[] = [], fichasT = -Infinity;
+  let fichas: Marcador[] = [], fichasT = -Infinity, marcasAntes: unknown = null;
   const nombreDe = (id: number): string => { const n = h.otros().chat?.nombres?.get?.(id); return typeof n === "string" && n ? n : `Persona ${id}`; };
   fuentes.set("tu", () => (yo ? [{ id: "tu", tipo: "tu", nombre: h.session.who?.nombre ?? "Tú", x: yo.x, z: yo.z, yaw: yawYo }] : []));
   fuentes.set("gente", () => h.session.remotePositions().map((r) => ({ id: `p${r.id}`, tipo: "persona", nombre: nombreDe(r.id), x: r.x, z: r.z })));
+  // U14 (4): a person or a quest thing the server marks for you is drawn as «!» or «✓» (misiones.marcaDe), and a
+  // person's trade goes next to the name in the list (misiones.oficioDe); re-read at once when the marks change
   fuentes.set("fichas", () => {
-    const ahora = performance.now();
-    if (ahora - fichasT >= FICHAS_MS) {
-      fichasT = ahora;
+    const ahora = performance.now(), mis = h.otros().misiones, mk = mis?.marcas?.();
+    if (ahora - fichasT >= FICHAS_MS || mk !== marcasAntes) {
+      fichasT = ahora; marcasAntes = mk;
       fichas = [];
-      for (const c of h.session.features.cards()) if (c.at) fichas.push({ id: `c:${c.feature}:${c.key}`, tipo: reg.tipoDeRol(c.role), nombre: c.name, x: c.at.x, z: c.at.z, ...(c.description ? { detalle: c.description } : {}) });
+      for (const c of h.session.features.cards()) {
+        if (!c.at) continue;
+        const marca = mis?.marcaDe?.(c.feature, c.key), oficio = c.feature === "pnj" ? mis?.oficioDe?.(c.key) : "";
+        fichas.push({ id: `c:${c.feature}:${c.key}`, tipo: marca === "!" ? "para-ti" : marca === "✓" ? "hecho" : reg.tipoDeRol(c.role), nombre: oficio ? `${c.name} (${oficio})` : c.name, x: c.at.x, z: c.at.z, ...(c.description ? { detalle: c.description } : {}) });
+      }
     }
     return fichas;
   });

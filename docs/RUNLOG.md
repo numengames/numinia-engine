@@ -564,3 +564,16 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `plantillas/eventos` (ver `git log`), encima de U14 (mapa).
 - Siguiente: las marcas sobre las personas (U14 (4), en paralelo en `plantillas/eventos-marcas`); secuencia local (el
   vuelo); espera antes del cofre; cofre de dos aspectos; premio una sola vez. Sin medir: las marcas en unas Quest de verdad.
+
+## 2026-10-17 01:07 · U14 (4) · marcas «!» y «✓» sobre las personas y las cosas, y el oficio bajo el nombre · hecho (sesión con Pablo, rama `plantillas/eventos-marcas` unida a `plantillas/eventos`, sin subir)
+- Qué: la especificación de la TRG26 pide que cada persona diga si tiene algo para ti («!»), si ya cumpliste con ella
+  («✓») y su oficio, y que no haya «!» en los artesanos antes de hablar con Pietro. El servidor lo decide por jugador
+  (`marcas()` en `maquina.ts`, puro) y lo manda solo a su dueño en el evento `marcas`; la página lo pinta en el rótulo y
+  en los mapas. pnj@1 `oficio` (pnj v3); misiones v4.
+- Números: +7 llamadas de dibujo y +8 texturas con 8 rótulos; 0 lienzos repintados parado; aceptar repinta 4. 5 pruebas
+  nuevas; la suite entera en verde salvo la de siempre bajo carga (`chat.test.ts`), que pasa sola; build en verde. La
+  unión con U14 (3) chocó solo en `tools/e2e-piernas/misiones.mjs` (las dos comprobaciones juntas); después, 55 de 55 en
+  las pruebas de misiones, mapa, entorno, altura y tema, y la pierna e2e `misiones` en verde (motor y página propios).
+- Commit: 11d92dc en `plantillas/eventos-marcas` (worktree `numinia-engine-wt-eventos-b`) y la unión 88e97b7.
+- Siguiente: la secuencia local (el vuelo de Leonardo) con la espera antes del cofre, y el cofre de dos aspectos con el
+  premio registrado una sola vez.

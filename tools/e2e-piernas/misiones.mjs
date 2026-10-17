@@ -132,6 +132,7 @@ try {
     panel: await ctl(a, () => [...document.querySelectorAll("#libro ul.hechas li")].map((li) => li.getAttribute("aria-label"))),
     avisos: await ctl(a, () => globalThis.__numinia.session.features.announcements.filter((x) => x.feature === "misiones").map((x) => x.text)),
     dibujo: await ctl(a, () => ({ objetos: globalThis.__numinia.view.objects(), nombres: globalThis.__numinia.view.tagCount(), coste: globalThis.__numinia.cost() })),
+    marcas: await ctl(a, () => globalThis.__numinia.misiones.marcas()), // U14 (4): Alma and Bruno ✓ once the quest is done
   };
   await foto(a, "4-hecha");
   nota("hecha");
@@ -142,7 +143,7 @@ try {
   await b.waitForTimeout(800);
   out.b = await ctl(b, () => {
     const f = globalThis.__numinia.session.features;
-    return { personas: f.cards().filter((c) => c.feature === "pnj").map((c) => `${c.role}: ${c.name}`), eventos: f.log.filter((e) => e.feature === "misiones" && e.event !== "libro").map((e) => e.event), libro: globalThis.__numinia.misiones.libro().length, who: globalThis.__numinia.session.who.id };
+    return { personas: f.cards().filter((c) => c.feature === "pnj").map((c) => `${c.role}: ${c.name}`), eventos: f.log.filter((e) => e.feature === "misiones" && e.event !== "libro" && e.event !== "marcas").map((e) => e.event), libro: globalThis.__numinia.misiones.libro().length, who: globalThis.__numinia.session.who.id, marcas: globalThis.__numinia.misiones.marcas() };
   });
   out.b.otroInvitado = out.b.who !== (await ctl(a, () => globalThis.__numinia.session.who.id));
   nota("B");
@@ -152,7 +153,9 @@ try {
     && !out.libroAbierto.foco && /^ahora: Visita el pilar dorado/.test(out.libroAbierto.pasos[0] ?? "") && out.libroAbierto.pasos.length === 3 && out.libroAbierto.pasos.slice(1).every((t) => t.startsWith("bloqueado: "))
     && out.pilar.siguiente?.nombre === "Bruno, el farolero" && !!out.bruno.clic && out.bruno.siguiente?.nombre === "Caja de herramientas" && out.caja.prompt === "E: coger la caja"
     && out.hecha.libro[0]?.estado === "hecha" && out.hecha.objetivos.length === 0 && out.hecha.panel.some((t) => t.startsWith("Hecho: Primeros pasos en la plaza"))
-    && out.hecha.dibujo.objetos.failed === 0 && out.b.personas.includes("persona: Alma, la guía") && out.b.eventos.length === 0 && out.b.libro === 0 && out.b.otroInvitado && errors.length === 0;
+    && out.hecha.dibujo.objetos.failed === 0 && out.b.personas.includes("persona: Alma, la guía") && out.b.eventos.length === 0 && out.b.libro === 0 && out.b.otroInvitado && errors.length === 0
+    && out.hecha.marcas.hecho.includes("alma") && out.hecha.marcas.hecho.includes("bruno") && !out.hecha.marcas.tiene.includes("alma") // U14 (4): A is done with them
+    && out.b.marcas.tiene.includes("alma") && out.b.marcas.hecho.length === 0; // B's own marks: Alma still offers it the quest
 } catch (e) { out.error = String(e).split("\n")[0]; }
 await browser.close();
 console.log(JSON.stringify(out, null, 1));

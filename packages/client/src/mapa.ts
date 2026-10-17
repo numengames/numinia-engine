@@ -113,7 +113,7 @@ export function crearLimitador(minMs = 200) {
 }
 
 // ---------- markers and their kinds (a registry: an adventure adds its own) ----------
-export type Forma = "flecha" | "punto" | "cuadrado" | "rombo" | "estrella" | "anillo" | "triangulo";
+export type Forma = "flecha" | "punto" | "cuadrado" | "rombo" | "estrella" | "anillo" | "triangulo" | "exclamacion" | "visto";
 /** How a kind of marker looks and behaves. Shape AND colour: colour alone never tells kinds apart. */
 export type Tipo = {
   nombre: string;    // the legend's word, and what a screen reader says
@@ -131,6 +131,10 @@ export const TIPOS_BASE: Readonly<Record<string, Tipo>> = {
   tu: { nombre: "Tú", color: "#e07a3f", forma: "flecha", tam: 7, orden: 100, enLista: false, alBorde: false },
   destino: { nombre: "Destino", color: "#d6336c", forma: "anillo", tam: 6, orden: 95, enLista: true, alBorde: true },
   objetivo: { nombre: "Objetivo de misión", color: "#e0a800", forma: "estrella", tam: 6, orden: 90, enLista: true, alBorde: true },
+  // U14 (4): a person (or quest thing) the server marks for you: «!» something for you now (drawn over an objective's
+  // star, whose points still show), «✓» you are done with them
+  "para-ti": { nombre: "Algo para ti", color: "#ffb21e", forma: "exclamacion", tam: 5.5, orden: 92, enLista: true, alBorde: false },
+  hecho: { nombre: "Ya hecho", color: "#2f9e44", forma: "visto", tam: 5, orden: 75, enLista: true, alBorde: false },
   persona: { nombre: "Persona", color: "#2f6fd0", forma: "punto", tam: 4, orden: 80, enLista: true, alBorde: false },
   npc: { nombre: "Personaje", color: "#8a3fc0", forma: "rombo", tam: 5, orden: 70, enLista: true, alBorde: false },
   portal: { nombre: "Salida o portal", color: "#0f8a6a", forma: "anillo", tam: 5, orden: 60, enLista: true, alBorde: true },

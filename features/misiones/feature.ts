@@ -14,12 +14,12 @@ const MOTIVO = { kind: "text", maxBytes: 160 } as const;
 
 export const pnj = defineFeature({
   id: "pnj",
-  version: 2, // v2: the state gains `y` (the height a person stands at; vertical worlds)
+  version: 3, // v3: the state gains `oficio` (a person's trade, a smaller line under the name); v2: `y` (the height a person stands at)
   level: "base",
   describe: "Personas del mundo que no son jugadores (PNJ). Se les habla de cerca y contestan con un diálogo de opciones, igual para todos y decidido por el servidor, que cambia según tus misiones. Las escribe la aventura (pnj@1).",
   state: {
-    describe: "Una entrada por persona (clave = su id): nombre, dónde está (y = altura sobre el suelo, m: su planta), hacia dónde mira (grados), a qué distancia se le habla (m, y a menos de 2,5 m de altura) y su modelo (sha256 de un .glb; vacío = el robot de la casa).",
-    fields: { nombre: { kind: "text", maxBytes: LIM.nombre }, descripcion: DESCRIPCION, x: X, z: X, giro: { kind: "fixed", min: -180, max: 180, step: 0.1, default: 0 }, radio: { kind: "fixed", min: 0.5, max: 16, step: 0.1, default: 3 }, modelo: MODELO, escala: ESCALA, y: { kind: "fixed", min: 0, max: ALTURA_MAX, step: 0.01, default: 0 } },
+    describe: "Una entrada por persona (clave = su id): nombre, su oficio (vacío = ninguno; va bajo el nombre), dónde está (y = altura sobre el suelo, m: su planta), hacia dónde mira (grados), a qué distancia se le habla (m, y a menos de 2,5 m de altura) y su modelo (sha256 de un .glb; vacío = el robot de la casa).",
+    fields: { nombre: { kind: "text", maxBytes: LIM.nombre }, descripcion: DESCRIPCION, x: X, z: X, giro: { kind: "fixed", min: -180, max: 180, step: 0.1, default: 0 }, radio: { kind: "fixed", min: 0.5, max: 16, step: 0.1, default: 3 }, modelo: MODELO, escala: ESCALA, y: { kind: "fixed", min: 0, max: ALTURA_MAX, step: 0.01, default: 0 }, oficio: { kind: "text", maxBytes: LIM.oficio, default: "" } },
     card: { role: "persona", name: "{nombre}", description: "{descripcion}", at: ["x", "z"], actions: ["hablar"], interact: { intent: "hablar", prompt: "hablar con {nombre}", radius: "radio", key: "pnj" } },
   },
   intents: {
@@ -40,7 +40,7 @@ export const pnj = defineFeature({
 
 export const misiones = defineFeature({
   id: "misiones",
-  version: 3, // v3: steps in any order (`paso.grupo`), a person gives you a thing (step type «recibe»); v2: a thing's `y` reaches ALTURA_MAX
+  version: 4, // v4: marks for you over people and things (event `marcas`: «!» something for you now, «✓» done); v3: steps in any order (`paso.grupo`), a person gives you a thing (step type «recibe»); v2: a thing's `y` reaches ALTURA_MAX
   level: "base",
   describe: "Misiones: encargos por pasos (llegar a un sitio, hablar con alguien, recibir algo de alguien, usar o coger algo, entregarlo; los de un mismo grupo, en cualquier orden) que da una persona y que comprueba el servidor. Tu libro llega solo a ti y se guarda por invitado. Las escribe la aventura (mision@1, cosa@1).",
   store: { describe: "El progreso de cada invitado (`p:<id>`): misiones activas con su paso, lo que lleva (cogido o recibido) y lo hecho del grupo en curso, las completadas y la que sigue. Solo le llega a su dueño, como eventos." },
@@ -76,5 +76,10 @@ export const misiones = defineFeature({
     },
     aviso: { describe: "Algo de tus misiones que conviene saber (dejaste una, ya no sigues ninguna…).", fields: { texto: { kind: "text", maxBytes: 160 } }, announce: { text: "{texto}", sound: "suave", importance: 1 } },
     rechazado: { describe: "Lo que pediste no se hizo, y por qué.", fields: { motivo: MOTIVO }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
+    marcas: {
+      describe: "Qué personas y cosas tienen marca para ti (tras cada libro; solo a ti). Ids separados por comas: tiene = personas con «!» (te dan una misión que puedes coger o un paso tuyo de ahora es con ellas), hecho = personas con «✓» (ya hiciste lo suyo y no te queda nada con ellas), cosas = cosas con «!» (un paso tuyo de ahora es cogerlas o usarlas).",
+      fields: { tiene: { kind: "text", maxBytes: LIM.marcas, default: "" }, hecho: { kind: "text", maxBytes: LIM.marcas, default: "" }, cosas: { kind: "text", maxBytes: LIM.marcas, default: "" } },
+      announce: "silent",
+    },
   },
 });

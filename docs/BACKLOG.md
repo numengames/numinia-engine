@@ -82,6 +82,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema, y 2, pasos en cualquier orden, hechos) | no |
 | U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema, y 2, pasos en cualquier orden, y el mapa cortado, hechos) | no |
 | U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema; 2, pasos en cualquier orden; el mapa cortado, y 3, el libro con estados, hechos) | no |
+| U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema; 2, pasos en cualquier orden; el mapa cortado; 3, el libro con estados, y 4, las marcas sobre las personas, hechos) | no |
 | U4 | Zona de usuario: quién eres, avatar, misiones e insignias, lo que he construido (lista, cuota, borrar, descargar), privacidad y datos, seguridad; el informe de sesión (T1) pasa a pedir consentimiento | espera a U2 | sí |
 | I3 | «Guardar mi progreso» con una llave de acceso (passkey) del propio motor, sin correo (Pablo, 15-10: camino B); la llave queda unida al invitado | pendiente | sí |
 | U5 | «Editar interfaz»: mover sin arrastrar (cuadrícula 3×3, números, flechas, lista), 5 disposiciones por clase de aparato, copiar y pegar `nl1.` sin código | espera a U3 | sí |
@@ -1190,9 +1191,21 @@ una sola vez y nunca en VR, los avisos con icono, el check en un tema claro y la
 con las marcas de VR en cada momento); la pierna `misiones` del e2e, al día. En el navegador (servidor y página propios,
 Playwright): 22 de 22 comprobaciones en el aire de la casa, en el de la TRG y en un móvil de 390 × 844; en VR (IWER) el
 libro no se abre y el panel dice →→→□□. Arranque: +1,5 kB gz. **Sin medir:** las marcas en unas Quest de verdad.
-**Falta:** marcas sobre las personas («!», ✓) y su oficio bajo el nombre; secuencia local (el vuelo); espera antes del
-cofre; cofre de dos aspectos; premio registrado una sola vez; que V6 dé su sonido a cada aviso (y quite las notas del
-libro).
+**Trozo 4 hecho (17-10, rama `plantillas/eventos-marcas`, unida a `plantillas/eventos`): marcas sobre las personas y
+su oficio.** pnj@1 admite (aditivo) `oficio` (1–40 bytes): segunda línea bajo el nombre, junto al nombre en la
+conversación («Pietro, Aprendiz») y en la lista del mapa («Cosimo (Carpintero)»); `pnj` pasa a v3. El servidor decide
+por jugador las marcas (`marcas(progreso, aventura)` en `maquina.ts`): «!» = te ofrece una misión que puedes coger o es
+la persona de un paso que te falta en el grupo en curso (las cosas, con un `coge`/`usa` pendiente); «✓» = te dio una
+misión o ya hiciste su paso y no le queda nada para ti. Van en el evento silencioso `marcas` (tres listas de ids, ≤ 256
+bytes cada una) solo a las conexiones de su dueño, tras cada libro; `misiones` pasa a v4. La página las pinta en el
+rótulo («!» ámbar, «✓» verde; una cosa de misión solo tiene rótulo mientras lleva «!») y en los dos mapas (tipos
+`para-ti` y `hecho`). Decisión: quien te dio la misión lleva «✓» al aceptarla. **Medido** (960×600, 8 rótulos): +7
+llamadas de dibujo, +8 texturas (un sprite por rótulo, como antes; lienzo de hasta 512×304 px, unos 0,6 MB cada uno);
+lienzos repintados parado: 0; aceptar repinta 4, recibir una pieza 1. 5 pruebas (`test/misiones-marcas.test.ts`, con dos
+invitados en el mismo servidor que no ven las marcas del otro). Tras unir con el trozo 3, la pierna e2e `misiones`
+(libro con estados + marcas de dos invitados) en verde.
+**Falta:** secuencia local (el vuelo); espera antes del cofre; cofre de dos aspectos; premio registrado una sola vez; que
+V6 dé su sonido a cada aviso (y quite las notas del libro).
 
 ### U1 — Pantalla de carga
 Armazón dentro de `index.html` (≤ 14 kB comprimido, letra del sistema, sin lienzo ni `requestAnimationFrame`) y un

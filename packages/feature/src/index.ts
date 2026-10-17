@@ -703,8 +703,10 @@ export type ViewHooks = {
   nameTag?(entity: number, text: string | null): void;
   /** J3: a speech bubble over an avatar for `ms` (several lines; the latest replaces the one before). */
   bubble?(entity: number, text: string, ms: number): void;
-  /** J5: a name that stays over a thing (a person you can talk to), facing whoever looks; `null` takes it away. */
-  tag?(key: string, t: { text: string; x: number; y: number; z: number } | null): void;
+  /** J5: a name that stays over a thing (a person you can talk to), facing whoever looks; `null` takes it away. U14 (4),
+   * optional: `sub` = a second, smaller line under the name (a person's trade); `mark` = «!» (something for you now) or
+   * «✓» (done) above it. The page redraws a label only when its text or mark changes. */
+  tag?(key: string, t: { text: string; x: number; y: number; z: number; sub?: string; mark?: "!" | "✓" | "" } | null): void;
   /** H4: the zone's environment (sky, sun, fog, wind, ground, tone) by field name — features/entorno; render/entorno.ts reads it. */
   entorno?(valores: Msg): void;
   /** H4/H8: an element of the world (water, fire, smoke, dust) by key, or `null` to take it away — features/elementos. */

@@ -302,7 +302,7 @@ Reglas para quien escribe (persona o LLM):
 - **Ids** en minúsculas, cifras y guiones (`primeros-pasos`); cada fichero, un `formato` en su primera línea. Un campo
   desconocido es un error (así una tilde de más, `descripción`, no pasa en silencio). `notas` vale en todos.
 - Los textos se miden en **bytes UTF-8** (una letra con tilde cuenta 2): título ≤ 80, descripción ≤ 300, texto de paso
-  ≤ 160, línea de diálogo ≤ 400, respuesta ≤ 100, aviso ≤ 40, nombre ≤ 60, grupo ≤ 40.
+  ≤ 160, línea de diálogo ≤ 400, respuesta ≤ 100, aviso ≤ 40, nombre ≤ 60, grupo ≤ 40, oficio ≤ 40.
 - Posiciones en metros (`x`, `z`; −z es el norte, hacia donde mira la cámara al llegar), radios en metros.
 - Lo que tenga un problema **no se carga** (y el registro dice por qué); el resto sí.
 
@@ -360,7 +360,7 @@ completado antes. Hasta 16 pasos, 16 misiones activas por jugador.
 **`pnj@1`** — una persona: dónde está y un **árbol de diálogo determinista** que depende de tus misiones:
 
 ```json
-{ "formato": "pnj@1", "id": "bruno", "nombre": "Bruno, el farolero", "descripcion": "Cuida de los faroles.",
+{ "formato": "pnj@1", "id": "bruno", "nombre": "Bruno", "oficio": "Farolero", "descripcion": "Cuida de los faroles.",
   "posicion": { "x": 10, "z": 8 }, "giro": -90, "radio": 3, "apariencia": { "modelo": "<sha256 de un .glb>", "escala": 1 },
   "dialogo": {
     "entradas": [
@@ -388,6 +388,28 @@ completado antes. Hasta 16 pasos, 16 misiones activas por jugador.
 - `radio`: a cuántos metros se le habla (1-8, 3). La conversación se cierra si te alejas 4 m más.
 - Opcional `posicion.y` (0–30 m): la planta en la que está (una torre); se dibuja a esa altura y solo se le habla desde
   menos de 2,5 m de ella (desde la planta de abajo ni sale «E: hablar con…» ni el servidor lo admite). Sin `y`, el suelo.
+- Opcional `oficio` (1–40 bytes, U14 (4)): a qué se dedica («Carpintero», «Tejedora»). Sale en una segunda línea, más
+  pequeña, bajo el nombre que flota sobre la persona; junto al nombre en el título de la conversación, y en la lista del
+  mapa («Cosimo (Carpintero)»). Con oficio, deja el nombre corto: «Cosimo», no «Cosimo, el carpintero». Sin él, una línea.
+
+**Marcas sobre las personas y las cosas («!» y «✓», U14 (4))** — las decide el servidor para cada jugador, con su
+progreso, y le llegan **solo a él** (a todas sus pestañas) tras cada libro (evento `marcas`). La aventura no escribe
+nada: salen de sus misiones.
+- **«!»** (un signo grande en ámbar sobre el nombre) = tiene algo para ti **ahora**: te ofrece una misión que puedes
+  coger ya (sin empezar o repetible, con sus requisitos hechos), o es la persona de un paso tuyo que toca ahora
+  (`habla_con`, `recibe`, `entrega` del bloque en curso; en un `grupo`, todas las que faltan). Una **cosa** de misión
+  lleva «!» cuando un paso que toca ahora es cogerla o usarla (`coge`, `usa`); solo entonces tiene nombre flotando.
+- **«✓»** (verde) = ya hiciste lo suyo: te dio una misión que tienes o terminaste, o fue la persona de un paso hecho, y
+  no te queda **nada** pendiente con ella (ni un paso más adelante en la misión, ni una misión que ofrecerte).
+- Nada, en otro caso: los artesanos de la TRG26 no llevan «!» hasta que aceptas la misión de Pietro, y quien ya
+  terminó contigo nunca vuelve a llevarla (salvo que te ofrezca otra misión).
+- El minimapa y el mapa grande dibujan a esas personas con su marca (disco ámbar con «!», disco verde con «✓»; la
+  estrella del objetivo sigue debajo). Cada lista de ids va en ≤ 256 bytes (≈ 25 ids cortos): si no cabe, se quedan
+  fuera las del final (primero van los pasos de ahora, luego las ofertas; primero las misiones activas, luego las
+  terminadas, la más nueva antes). La regla es una función pura, `marcas(progreso, aventura)` en
+  `features/misiones/maquina.ts`.
+- Coste: un sprite por persona cercana (como antes) y uno por cosa marcada; un rótulo se vuelve a pintar solo cuando
+  cambia su texto o su marca (parado, ninguno).
 
 **`cosa@1`** — `{ "formato": "cosa@1", "id": "caja-de-bruno", "nombre": "Caja de herramientas", "posicion": { "x": 4, "z": 14 },
 "radio": 2, "aviso": "coger la caja", "apariencia": { "escala": 0.45 } }`. Sale «E: coger la caja» solo a quien tiene ahora
@@ -404,7 +426,7 @@ Lo que pasa en el servidor (`features/misiones/server.ts`) y no se puede saltar 
   `ALCANCE_ALTURA_M`—), posiciones (`api.position`, con `y`, cada 0,2 s y solo de quien espera llegar a un sitio) y los
   pasos que tocan; hablar de lejos, coger algo que no toca o elegir sin conversación se rechaza diciendo por qué;
 - el progreso es **por invitado** (I1) en el almacén (S4, `p:<id>`): sobrevive a los reinicios y llega **solo a su dueño**
-  (eventos `libro`, `mision`, `paso`, `aceptada`, `avance`, `completada`); las personas y las cosas llegan con `at` (J9);
+  (eventos `libro`, `mision`, `paso`, `aceptada`, `avance`, `completada`, `marcas`); las personas y las cosas llegan con `at` (J9);
 - **el texto no lo decide un modelo**: el árbol es la política. Si un día un LLM da voz a una persona (P5), solo
   **redacta** la línea escrita (`Frasear` en `server.ts`) siguiendo STD-050: en sus instrucciones solo el papel de la
   persona y las normas de la casa; el nombre del jugador y lo que alguien escribió van en un bloque `<material>`
@@ -413,7 +435,9 @@ Lo que pasa en el servidor (`features/misiones/server.ts`) y no se puede saltar 
 Para agentes y páginas: `window.__numinia.misiones` (`libro()`, `objetivos()`, `resumen()`, `dialogo()`, `hablar`,
 `elegir`, `adios`, `aceptar`, `abandonar`, `seguir`, `usar`); el mapa lee `objetivos()` → `[{ mision, paso, nombre,
 texto, x, z, seguida }]` (uno por paso que toca: en un grupo, todos los que faltan); `resumen().seguida.grupo` =
-`{ nombre, hechos, total }` del grupo en curso de la misión seguida, o `null`.
+`{ nombre, hechos, total }` del grupo en curso de la misión seguida, o `null`. U14 (4): `marcas()` → `{ tiene, hecho,
+cosas }` (ids: personas con «!», personas con «✓», cosas con «!»; el mismo objeto mientras no cambian),
+`marcaDe(feature, clave)` → `"!"`, `"✓"` o `""` (`pnj` o `misiones`), `oficioDe(pnj)` y `dialogo().oficio`.
 
 ## Agentes de fuera: gestionarlos por HTTP (ADR-080, para el panel de numinia.com)
 

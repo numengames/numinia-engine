@@ -7,7 +7,7 @@ import type { ServerApi, ServerPart } from "../../packages/feature/src/index.ts"
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
 import { cargarAventura, corta, LIM } from "./formato.ts";
 import type { Accion, Aventura, Fichero, Mision, Opcion, Pnj } from "./formato.ts";
-import { abandonar, aceptar, esperaLlegada, leerProgreso, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
+import { abandonar, aceptar, enTexto, esperaLlegada, leerProgreso, marcas, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
 import type { Hecho, Progreso } from "./maquina.ts";
 
 /** Ticks between two «has it arrived?» checks of one player (4 = 0.2 s). Only players on a llega_a step are checked. */
@@ -74,9 +74,12 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     const p = prog(e);
     const activas = Object.keys(p.activas).map((id) => A.misiones.get(id)).filter((m): m is Mision => !!m);
     const hechas = p.hechas.map((id) => A.misiones.get(id)).filter((m): m is Mision => !!m).slice(-LIBRO_HECHAS);
+    const mk = marcas(p, A), lim = LIM.marcas; // U14 (4): «!» / «✓» over people and things, for this player only
+    const marcasMsg = { tiene: enTexto(mk.tiene, lim), hecho: enTexto(mk.hecho, lim), cosas: enTexto(mk.cosas, lim) };
     for (const x of solo ? [e] : suyos(e)) {
       M.emit("libro", { activas: activas.length, hechas: hechas.length }, { to: x });
       for (const m of [...activas, ...hechas]) enviarMision(x, p, m);
+      M.emit("marcas", marcasMsg, { to: x });
     }
   };
   /** After steps were completed: save, tell (announced), resend the book, re-arm the arrival checks. A `recibe` step
@@ -132,7 +135,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     P = api;
     cargar(api);
     for (const n of A.pnjs.values()) {
-      api.state.set(n.id, { nombre: n.nombre, descripcion: n.descripcion, x: n.posicion.x, z: n.posicion.z, y: n.posicion.y, giro: n.giro, radio: n.radio, modelo: n.apariencia.modelo, escala: n.apariencia.escala }, { at: { x: n.posicion.x, z: n.posicion.z } });
+      api.state.set(n.id, { nombre: n.nombre, descripcion: n.descripcion, x: n.posicion.x, z: n.posicion.z, y: n.posicion.y, giro: n.giro, radio: n.radio, modelo: n.apariencia.modelo, escala: n.apariencia.escala, oficio: n.oficio }, { at: { x: n.posicion.x, z: n.posicion.z } });
     }
     api.on("hablar", (e, msg) => {
       const n = A.pnjs.get(String(msg.pnj));

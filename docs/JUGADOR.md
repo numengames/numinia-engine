@@ -93,6 +93,13 @@ objeto; cada paso hecho suena con tres notas cortas (al volumen de «Efectos»).
 habla con las personas y coge las cosas. Quien construye, cerca de un hueco (U12),
 pone ahí su obra con E o pinchándolo: se abre el selector de ficheros.
 
+Marcas (U14 (4)): sobre cada persona flota su nombre y, debajo, más pequeño, su oficio («Cosimo» / «Carpintero»).
+Encima, una **«!» ámbar** si tiene algo para ti ahora (te ofrece una misión o te toca un paso con ella) y un **«✓» verde**
+si ya hiciste lo suyo y no te queda nada con ella; sin marca, nada que hacer ahí por ahora. Una cosa de misión lleva
+nombre y «!» solo mientras toca cogerla o usarla. Las marcas son tuyas: las decide el servidor con tu progreso y otro
+jugador ve las suyas. El minimapa y el mapa grande las pintan igual (disco ámbar con «!», disco verde con «✓», encima de
+la estrella del objetivo), y la lista del mapa dice el oficio junto al nombre; la conversación, también.
+
 ## 6. Orientarse
 
 | Cosa | Qué es | Capa | Nivel | Escritorio / móvil / VR | Primitivas | Coste móvil | Fila |

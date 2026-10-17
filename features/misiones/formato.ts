@@ -6,6 +6,7 @@
 // reach then also asks for the player's height (packages/feature ALCANCE_ALTURA_M). Absent = the ground, as before.
 // Steps in any order (U14): consecutive steps with the same `grupo` form a block done in any order; `recibe` = a person
 // gives you a thing; `entrega` may name several things (`cosas`). All optional: files without them read as before.
+// A person may say its trade (pnj@1 `oficio`, U14 (4)): a second, smaller line under the name.
 // The recipe for authors (people or LLMs) is docs/EXTENDER.md «Misiones y PNJ». Every check returns Result with paths
 // that say how to fix each problem; nothing here throws, touches the network or the world.
 import type { Issue, Result } from "../../packages/core/src/index.ts";
@@ -19,6 +20,7 @@ export const LIM = {
   id: 32, titulo: 80, descripcion: 300, textoPaso: 160, lugar: 60, nombre: 60, descripcionCosa: 140, linea: 400, opcion: 100,
   aviso: 40, textoMision: 200, pasos: 16, opciones: 4, nodos: 64, entradas: 16, recompensas: 8, requisitos: 16,
   grupo: 40, cosasEntrega: 8,
+  oficio: 40, marcas: 256, // U14 (4): a person's trade (pnj@1 `oficio`); each id list of the `marcas` event (≈ 25 short ids)
 } as const;
 export const MUNDO = 2000; // metres: the furthest a person, a thing or a place can be (the wire's range)
 export const ALTURA_MAX = 30; // metres: the highest floor a person (pnj@1 posicion.y) or a place to reach (llega_a y) can be on
@@ -50,9 +52,10 @@ export type Accion = { tipo: "dar_mision" | "avanzar_paso" | "entregar"; mision:
 export type Opcion = { texto: string; si: Condicion[]; ir?: string; accion?: Accion };
 export type Nodo = { texto: string; opciones: Opcion[] };
 export type Apariencia = { modelo: string; escala: number };
-/** A person's `posicion.y` (optional, metres above the ground, 0–30: the floor of a tower it stands on; 0 when absent). */
+/** A person's `posicion.y` (optional, metres above the ground, 0–30: the floor of a tower it stands on; 0 when absent).
+ * `oficio` (optional, 1–40 bytes; "" when absent): their trade («Carpintero»), a smaller line under the name (U14 (4)). */
 export type Pnj = {
-  formato: "pnj@1"; id: string; nombre: string; descripcion: string; apariencia: Apariencia; posicion: { x: number; z: number; y: number };
+  formato: "pnj@1"; id: string; nombre: string; oficio: string; descripcion: string; apariencia: Apariencia; posicion: { x: number; z: number; y: number };
   giro: number; radio: number; dialogo: { entradas: { si: Condicion[]; nodo: string }[]; nodos: Record<string, Nodo> };
 };
 /** A thing's `posicion.y` (optional, metres above the ground: a thing on a table or held up at chest height, reachable
@@ -231,7 +234,7 @@ export function leerPnj(v: unknown): Result<Pnj> {
   const is: Issue[] = [];
   const o = objeto(v, "", is);
   if (!o) return resultado(is, null as never);
-  campos(o, ["formato", "id", "nombre", "descripcion", "apariencia", "posicion", "giro", "radio", "dialogo", "notas"], "", is);
+  campos(o, ["formato", "id", "nombre", "oficio", "descripcion", "apariencia", "posicion", "giro", "radio", "dialogo", "notas"], "", is);
   formato(o, FORMATOS.pnj, is);
   const d = objeto(o.dialogo, "dialogo", is) ?? {};
   campos(d, ["entradas", "nodos"], "dialogo", is);
@@ -264,7 +267,7 @@ export function leerPnj(v: unknown): Result<Pnj> {
   });
   if (entradas.length && entradas[entradas.length - 1].si.length) is.push({ path: `dialogo.entradas[${entradas.length - 1}].si`, message: "la última entrada no lleva «si»: es lo que dice cuando nada más se cumple" });
   return resultado(is, {
-    formato: FORMATOS.pnj, id: id(o.id, "id", is), nombre: texto(o.nombre, "nombre", LIM.nombre, is), descripcion: texto(o.descripcion, "descripcion", LIM.descripcionCosa, is, true),
+    formato: FORMATOS.pnj, id: id(o.id, "id", is), nombre: texto(o.nombre, "nombre", LIM.nombre, is), oficio: texto(o.oficio, "oficio", LIM.oficio, is, true), descripcion: texto(o.descripcion, "descripcion", LIM.descripcionCosa, is, true),
     apariencia: apariencia(o.apariencia, "apariencia", is), posicion: { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is, ALTURA_MAX) }, giro: numero(o.giro, "giro", -180, 180, is, 0),
     radio: numero(o.radio, "radio", 1, 8, is, 3), dialogo: { entradas, nodos },
   });

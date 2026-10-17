@@ -177,3 +177,43 @@ export const esperaLlegada = (p: Progreso, a: Aventura): boolean => Object.entri
   const m = a.misiones.get(id);
   return !!m && m.pasos.some((s, n) => s.tipo === "llega_a" && pendiente(m, act, n));
 });
+
+// ---------- marks (U14 (4)): what each person and quest thing means to THIS player — the labels and the maps draw it ----------
+/** `tiene`: people with «!» — they offer you a quest you may take now, or a step of yours to do now (in the current
+ * block of an active quest) is said to them (habla_con, recibe, entrega). `cosas`: things with «!» — a step to do now
+ * is to take or use them (coge, usa). `hecho`: people with «✓» — you already did what they had for you (they gave you a
+ * quest you hold or finished, or a step done was said to them) and nothing of yours is pending with them: no step still
+ * to do in any block (a step later in the quest waits for you: no ✓ yet), no offer. Nothing otherwise. */
+export type Marcas = { tiene: string[]; hecho: string[]; cosas: string[] };
+/** The marks for one player (pure: the server calls it after each book it sends). Each list without repeats and in a
+ * fixed order, the most useful first (steps to do before offers; the active quests' people before the finished ones,
+ * newest first), so a list cut for the wire (enTexto) loses the least. */
+export function marcas(p: Progreso, a: Aventura): Marcas {
+  const tiene = new Set<string>(), cosas = new Set<string>(), espera = new Set<string>(), vistos = new Set<string>();
+  const dieron = (id: string) => { for (const d of a.dadores.get(id) ?? []) vistos.add(d); }; // the givers of a quest you have or had
+  for (const [id, act] of Object.entries(p.activas)) {
+    const m = a.misiones.get(id);
+    if (!m) continue;
+    m.pasos.forEach((s, n) => {
+      if ("pnj" in s) (pasoHecho(m, act, n) ? vistos : espera).add(s.pnj);
+      if (!pendiente(m, act, n)) return;
+      if ("pnj" in s) tiene.add(s.pnj);
+      else if (s.tipo === "usa" || s.tipo === "coge") cosas.add(s.cosa);
+    });
+    dieron(id);
+  }
+  for (const id of [...p.hechas].reverse()) {
+    const m = a.misiones.get(id);
+    if (!m) continue;
+    for (const s of m.pasos) if ("pnj" in s) vistos.add(s.pnj);
+    dieron(id);
+  }
+  for (const m of a.misiones.values()) if (disponible(p, m)) for (const d of a.dadores.get(m.id) ?? []) tiene.add(d);
+  return { tiene: [...tiene], hecho: [...vistos].filter((x) => !tiene.has(x) && !espera.has(x)), cosas: [...cosas] };
+}
+/** An id list as the wire carries it: comma-separated, cut before the id that would pass `max` bytes (ids are ASCII). */
+export function enTexto(ids: readonly string[], max: number): string {
+  let s = "";
+  for (const id of ids) { const t = s ? `${s},${id}` : id; if (t.length > max) break; s = t; }
+  return s;
+}
