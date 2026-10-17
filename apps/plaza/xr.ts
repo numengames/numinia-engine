@@ -91,6 +91,7 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
         "Agarre (o pellizco) junto a algo: cogerlo",
         "A o X: saltar · B: salir del diálogo",
         "Sin mandos: pellizca y mantén en el aire = andar adonde apunta la mano",
+        "Salir: el botón de abajo, pulsa dos veces",
       ];
       const out: string[] = [];
       const c = o.interaccion.actual();

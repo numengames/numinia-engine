@@ -16,6 +16,10 @@ export const SNAP_DEG = 30;
 export const DEADZONE = 0.2;
 /** How long a note stays in front of you (ms). */
 export const NOTA_MS = 3500;
+/** t_ab71cff0: the stick's intention is only trusted this long after the last XR frame (a hidden session has none). */
+export const INTENCION_CADUCA_MS = 1000;
+/** «Salir de VR»: the second press must come within this long of the first (ms). */
+export const SALIR_CONFIRMA_MS = 3000;
 
 type XRLike = { isSessionSupported(mode: string): Promise<boolean>; requestSession(mode: string, init?: object): Promise<any> };
 const xrOf = (): XRLike | null => (typeof navigator !== "undefined" && (navigator as unknown as { xr?: XRLike }).xr) || null;
@@ -111,6 +115,38 @@ export function createVR(h: VRHooks) {
     P.tex.needsUpdate = true;
   }
 
+  // «Salir de VR» (motor-vr t_ad0fe9c3, Pablo: «tendría que poder salir hacia afuera con un botón»): a button under
+  // the panel, pointed at with the ray of a controller or a hand and pressed (trigger / pinch) twice — the first
+  // press asks, the second within SALIR_CONFIRMA_MS leaves — so a stray pinch never throws you out of the world.
+  const S = lienzo(384, 88, 0.3);
+  const salirMalla = S.malla;
+  salirMalla.position.set(0, -0.31, 0.005);
+  panel.add(salirMalla);
+  let salirEncimaEn = 0, salirPideHasta = 0, salirPintado = "";
+  function pintarSalir(): void {
+    const ahora = performance.now(), encimaYa = ahora - salirEncimaEn < 120, pide = ahora < salirPideHasta;
+    const firma = `${encimaYa}|${pide}`;
+    if (firma === salirPintado) return;
+    salirPintado = firma;
+    const sg = S.g;
+    sg.clearRect(0, 0, 384, 88);
+    sg.fillStyle = pide ? "#e07a5f" : encimaYa ? "#ffd27a" : "rgba(20,30,40,0.9)"; sg.fillRect(0, 0, 384, 88);
+    sg.strokeStyle = "#ffd27a"; sg.lineWidth = 4; sg.strokeRect(2, 2, 380, 84);
+    sg.fillStyle = pide || encimaYa ? "#1a2430" : "#ffffff"; sg.font = "bold 34px sans-serif"; sg.textAlign = "center";
+    sg.fillText(pide ? "¿Salir? Pulsa otra vez" : "Salir de VR", 192, 56);
+    sg.textAlign = "start";
+    S.tex.needsUpdate = true;
+  }
+  pintarSalir();
+  const panelSalir: Panel = {
+    malla: salirMalla,
+    fila() { return 1; },
+    encima() { salirEncimaEn = performance.now(); pintarSalir(); },
+    pulsar() {
+      if (performance.now() < salirPideHasta) { salirPideHasta = 0; pintarSalir(); void exit(); return; }
+      salirPideHasta = performance.now() + SALIR_CONFIRMA_MS; pintarSalir();
+    },
+  };
   // the dialogue panel: who talks, what they say, and up to four answers you point at (or move to with the stick)
   const D = lienzo(1024, 680, 1.15);
   const dialogoMalla = D.malla;
@@ -175,6 +211,7 @@ export function createVR(h: VRHooks) {
   let session: any = null;
   let comfort = 0.8; // 0 = off, 1 = strongest
   let moveX = 0, moveZ = 0, turnLatched = false, yawSteps = 0, strength = 0, navLatched = false;
+  let ultimoFotograma = 0; // performance.now() of the last update(): axes() goes stale after INTENCION_CADUCA_MS
   // J2: A (right) or X (left) = jump, like Hyperfy2's A; a press waits here until the page's next tick takes it
   let jumpWanted = false;
   const held = { left: [false, false, false], right: [false, false, false] }; // [A/X, B/Y, -] last frame
@@ -203,6 +240,10 @@ export function createVR(h: VRHooks) {
       h.renderer.xr.enabled = false;
       set("off");
     });
+    // t_ab71cff0: a controller that falls asleep (Quest hands over to tracked hands) or a session that stops being
+    // visible must not leave its last push behind as the intention; the next frame recomputes it from what is there
+    session.addEventListener("inputsourceschange", () => { moveX = moveZ = 0; });
+    session.addEventListener("visibilitychange", () => { moveX = moveZ = 0; });
     set("on");
     return true;
   }
@@ -211,9 +252,11 @@ export function createVR(h: VRHooks) {
   /** Call every frame while presenting; `self` is where the avatar is (metres; J2: the floor rises with its jumps). */
   function update(self: { x: number; z: number; y?: number } | null, dtSeconds: number): void {
     if (!session) return;
+    ultimoFotograma = performance.now();
     if (self) rig.position.set(self.x + empujeX, self.y ?? 0, self.z + empujeZ);
     let lx = 0, ly = 0, rx = 0, ry = 0;
-    for (const src of session.inputSources ?? []) {
+    const visible = (session.visibilityState ?? "visible") === "visible"; // blurred/hidden: the system owns the input
+    for (const src of visible ? session.inputSources ?? [] : []) {
       const a = src.gamepad?.axes;
       if (!a || src.hand || a.length < 2) continue; // a tracked hand has no stick: it must not zero the controller's
       const sx = a.length > 3 ? a[2] : a[0], sy = a.length > 3 ? a[3] : a[1];
@@ -272,7 +315,7 @@ export function createVR(h: VRHooks) {
     const fx = dir.x / len, fz = dir.z / len;
     moveX = fx * -ly + -fz * lx;
     moveZ = fz * -ly + fx * lx;
-    const conMano = !lx && !ly ? h.manos?.andar?.() : null; // tracked hands: pinch and hold in the air = walk where that hand points
+    const conMano = visible && !lx && !ly ? h.manos?.andar?.() : null; // tracked hands: pinch and hold in the air = walk where that hand points
     if (conMano) { moveX = conMano[0] * 0.7; moveZ = conMano[1] * 0.7; } // walking pace (the edge, 0.9, runs)
     const m = Math.hypot(moveX, moveZ);
     if (m > 1) { moveX /= m; moveZ /= m; }
@@ -284,6 +327,7 @@ export function createVR(h: VRHooks) {
     (vignette.material as THREE.MeshBasicMaterial).opacity = strength;
     if (nota.visible && performance.now() > notaHasta) nota.visible = false;
     h.manos?.update(h.renderer.xr.getCamera());
+    if (panel.visible) pintarSalir(); // the highlight fades once the ray leaves; «¿Salir?» goes back after SALIR_CONFIRMA_MS
   }
 
   return {
@@ -294,8 +338,9 @@ export function createVR(h: VRHooks) {
     /** N1c: the world's solid boxes in metres (same array `view.solidos()` converts, e.g. `cajasM` in
      * index.ts): room-scale walking into one now pushes the head back out instead of passing through. */
     paredes(b: Float32Array | null): void { cajas = b && b.length ? b : null; },
-    /** Movement intention in the world frame, each -1..1. */
-    axes(): [number, number] { return [moveX, moveZ]; },
+    /** Movement intention in the world frame, each -1..1. Zero when no XR frame ran lately: a real Quest stops the
+     * session's frames while it is hidden (headset off the head), and the page's tick must not keep the last push. */
+    axes(): [number, number] { return performance.now() - ultimoFotograma > INTENCION_CADUCA_MS ? [0, 0] : [moveX, moveZ]; },
     /** J2: true once per press of A or X since the last call (the page asks on each tick). */
     takeJump(): boolean { const j = jumpWanted; jumpWanted = false; return j; },
     get comfort() { return comfort; },
@@ -317,7 +362,14 @@ export function createVR(h: VRHooks) {
       dialogoMalla.visible = !!session;
     },
     /** The panel the hands may point at (manos.ts asks for it). */
-    paneles(): Panel[] { return dialogo && dialogoMalla.visible ? [panelDialogo] : []; },
+    paneles(): Panel[] { const out: Panel[] = dialogo && dialogoMalla.visible ? [panelDialogo] : []; if (panel.visible) out.push(panelSalir); return out; },
+    /** For checks: where the «Salir de VR» button sits in the world (null while the panel is hidden), and whether it asks. */
+    salirMundo(): { x: number; y: number; z: number; pide: boolean } | null {
+      if (!session || !panel.visible) return null;
+      salirMalla.updateMatrixWorld(true);
+      const q = new THREE.Vector3().setFromMatrixPosition(salirMalla.matrixWorld);
+      return { x: q.x, y: q.y, z: q.z, pide: performance.now() < salirPideHasta };
+    },
     onElegir(fn: (n: number) => void): () => void { oyentes.elegir.add(fn); return () => oyentes.elegir.delete(fn); },
     onAtras(fn: () => void): () => void { oyentes.atras.add(fn); return () => oyentes.atras.delete(fn); },
     /** A short note in front of you for NOTA_MS. */
