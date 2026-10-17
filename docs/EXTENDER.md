@@ -612,3 +612,30 @@ página solo pide tres cosas (`lanzar { sitio }`, `recoger { activo }`, `soltar`
 - **Después (v3)**: pantalán sólido (que el avatar suba a las tablas: hoy son un suelo a ras), mochila/cesta visible,
   sedal verlet (river-morning `Rope.ts`, MIT), varios sitios y tablas por hora/clima, sombras de peces,
   cebos y cañas, ficha de colección, paso de misión `pesca`, predicción local de la tensión, AR/VR.
+
+## Bienes digitales: un objeto que es tuyo (N10)
+
+Al acabar una aventura, un cofre puede dar un **objeto** que es del jugador: el mundo firma un **recibo de propiedad**
+(Ed25519, sin cadena ni cartera ni dinero) y el objeto queda en su **Inventario** (ficha, tecla I), guardado por invitado.
+
+- **En la misión** (`misiones/<id>.json`), una recompensa más:
+  `{ "tipo": "objeto", "id": "farolillo-de-bruno", "nombre": "Farolillo de Bruno", "descripcion": "…", "modelo": "<sha256 de un .glb de activos/>", "licencia": "CC0-1.0" }`.
+  `descripcion`, `modelo` y `licencia` son opcionales. La licencia (SPDX o similar) dice qué derechos tiene el arte:
+  tener el objeto no da los derechos de autor de su obra.
+- **Una vez por misión e invitado**: la concesión (U14, `c:<mision>:<invitado>`, `npm run concesiones`) dispara el evento
+  solo-servidor `misiones.concedido`; la función `bienes` firma el recibo con `api.recibo(…)`, lo guarda (`b:<id>`) y
+  avisa «Es tuyo: …» a todas las pestañas del dueño.
+- **Sin `MOTOR_SECRET` no hay recibos**, así que no hay bienes (la concesión sí se apunta y el registro lo dice). La
+  clave Ed25519 sale del secreto (HKDF), no hay fichero nuevo que guardar; al arrancar, el registro dice
+  `[bienes] los recibos de este mundo los firma ed25519:…`.
+- **El recibo viaja**: «Descargar recibo» baja `recibo-<objeto>-<id>.json`. Cualquiera lo comprueba con la clave que
+  lleva dentro: la propia página (`features/bienes/comprobar.ts`, WebCrypto), otro mundo o una herramienta
+  (`POST /bienes/comprobar`, que dice qué bien es y si lo firmó este mundo, nunca de quién es) y
+  `npm run bienes -- verificar <fichero>`.
+- **Listar y auditar**: `npm run bienes -- <carpeta del mundo>` da un CSV con cada bien y vuelve a comprobar cada firma
+  (un registro tocado a mano sale `MAL`).
+- **Cadena, todavía no**: `packages/server/src/cadena.ts` convierte un recibo en metadatos ERC-721 y en el vale EIP-712
+  sin firmar de una acuñación perezosa (`npm run bienes -- metadatos <recibo>`). No crea claves ni toca ninguna red: qué
+  cadena, quién custodia y quién paga lo decide Pablo. A la cadena nunca va nada de la persona (ni id de invitado, ni
+  nombre, ni hashes de ellos; EDPB 02/2025 v2.0).
+

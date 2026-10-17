@@ -85,7 +85,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   };
 
   // ---- the book: sent whole on entering and after each change, only to its owner ----
-  const recompensa = (m: Mision) => corta(m.recompensas.map((r) => `Insignia «${r.nombre}»`).join(", "), 120);
+  const recompensa = (m: Mision) => corta(m.recompensas.map((r) => `${r.tipo === "objeto" ? "Objeto" : "Insignia"} «${r.nombre}»`).join(", "), 120); // N10: an «objeto» is a digital good of yours
   // `paso` = the first step still to do; inside a grupo the others of its block are to do too (each `paso` says its
   // grupo, and `hecho` is true for what is already done in the block); `espera` = the seconds a step to do still waits
   const enviarMision = (to: number, p: Progreso, m: Mision, t: number) => {
@@ -116,7 +116,10 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     if (!M || !w || !m.recompensas.length) return;
     const k = claveConcesion(m.id, w.id);
     if (M.store.get(k) !== undefined) return; // granted before (another tab, a repeatable quest done again): the first stays
-    if (!M.store.set(k, concesion(m, w, new Date().toISOString()))) M.log(`no pude apuntar la concesión de «${m.id}» a ${w.id}`);
+    const c = concesion(m, w, new Date().toISOString());
+    if (!M.store.set(k, c)) { M.log(`no pude apuntar la concesión de «${m.id}» a ${w.id}`); return; }
+    // N10: each «objeto» reward goes to the server's goods keeper (features/bienes), once — the grant above is the «once»
+    for (const r of m.recompensas) if (r.tipo === "objeto") M.emit("concedido", { jugador: w.id, mision: m.id, objeto: r.id, nombre: r.nombre, descripcion: r.descripcion, modelo: r.modelo, licencia: r.licencia, instante: c.instante }, "server");
   };
 
   /** After steps were completed: save, tell (announced), resend the book, re-arm the arrival checks. A `recibe` step

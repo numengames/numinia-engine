@@ -6,6 +6,7 @@ import { createServer } from "node:http";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { existsSync } from "node:fs";
 import { signer } from "./secret.ts";
+import { crearRecibos } from "./recibos.ts"; // N10: digital goods' ownership receipts
 import { randomBytes, randomInt } from "node:crypto";
 import { WebSocketServer } from "ws";
 import type { WebSocket } from "ws";
@@ -164,7 +165,10 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   if (ficha) log(`[ficha] el mundo se llama «${ficha.nombre}»${ficha.portada ? (portada ? `, portada ${portada}` : `; su portada ${ficha.portada} no está en este servidor (súbela al mundo): no la enseño`) : ""}`);
   const fichaPublica = ficha ? { nombre: ficha.nombre, descripcion: ficha.descripcion, portada: portada ?? undefined, tema: tema ?? undefined } : {};
   if (o.aparicion) log(`[mundo] la gente aparece en el cuadrado de ${2 * o.aparicion.radio} m centrado en (${o.aparicion.x}, ${o.aparicion.z})`);
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, renovarPase: roles.renovar, activo: (h, ext) => activos.buscar(h, ext) !== null, medidas: (h, ext) => activos.medidas(h, ext), aventura: lector, agentes, externos: { verificar: puerta.verificar }, sinVoz: () => !roles.voz, aparicion: o.aparicion ?? null }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz)
+  // N10: digital goods' receipts, signed with a key derived from the world's secret (none without MOTOR_SECRET: no goods)
+  const recibos = crearRecibos(secret, dominios[0]?.trim() || "local");
+  if (recibos) log(`[bienes] los recibos de este mundo los firma ${recibos.emisor}`); else log("[bienes] sin MOTOR_SECRET este mundo no da bienes digitales (no tiene con qué firmar sus recibos)");
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, renovarPase: roles.renovar, activo: (h, ext) => activos.buscar(h, ext) !== null, medidas: (h, ext) => activos.medidas(h, ext), aventura: lector, agentes, externos: { verificar: puerta.verificar }, recibos: recibos ?? undefined, sinVoz: () => !roles.voz, aparicion: o.aparicion ?? null }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz)
   // H9: uploads (PUT /a/<sha256>.<ext>) by whoever may build; the page shows its guest token (I1) to say who it is
   const subidas = new Subidas({
     dir: o.subidas ?? null, activos, log, topesMB: o.subir?.topesMB, totalMB: o.subir?.totalMB,

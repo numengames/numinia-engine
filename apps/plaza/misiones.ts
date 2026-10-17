@@ -136,6 +136,12 @@ export function insigniasDe(recompensa: string): string[] {
   return nombres.length ? nombres : recompensa.trim() ? [recompensa.trim()] : [];
 }
 
+/** N10: each reward in a `completada` text with its kind («Objeto «Brújula»» → objeto; «Insignia «…»» or a bare name → insignia). */
+export function recompensasDe(recompensa: string): { tipo: "insignia" | "objeto"; nombre: string }[] {
+  const xs = [...recompensa.matchAll(/(Objeto|Insignia)?\s*«([^«»]+)»/g)].map((m) => ({ tipo: m[1] === "Objeto" ? "objeto" as const : "insignia" as const, nombre: m[2].trim() })).filter((x) => x.nombre);
+  return xs.length ? xs : insigniasDe(recompensa).map((nombre) => ({ tipo: "insignia" as const, nombre }));
+}
+
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, texto = "", clase = ""): HTMLElementTagNameMap[K] => {
   const e = document.createElement(tag);
   if (texto) e.textContent = texto;
@@ -285,7 +291,7 @@ export function montarLibro(c: Ctl, o: {
     const b = o.banner;
     if (!b) return;
     const partes: HTMLElement[] = [el("p", "Misión completada", "rotulo"), el("p", String(msg.titulo ?? ""), "titulo")];
-    for (const n of insigniasDe(String(msg.recompensa ?? ""))) { const p = el("p", "", "insignia"); p.append(el("span", "Insignia: ", "solo-lector"), n); partes.push(p); }
+    for (const r of recompensasDe(String(msg.recompensa ?? ""))) { const p = el("p", "", r.tipo === "objeto" ? "insignia objeto" : "insignia"); p.append(el("span", r.tipo === "objeto" ? "Objeto, ya es tuyo: " : "Insignia: ", "solo-lector"), r.nombre); partes.push(p); }
     if (msg.texto) partes.push(el("p", String(msg.texto), "solo-lector"));
     b.replaceChildren(...partes);
     b.classList.add("visible");
