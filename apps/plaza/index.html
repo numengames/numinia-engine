@@ -11,8 +11,18 @@
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; background: #c9d8e4; font: 13px/1.45 system-ui, sans-serif; }
     canvas { display: block; touch-action: none; }
-    #hud { position: fixed; top: 10px; left: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #eef2f6; white-space: pre; pointer-events: none; }
+    /* auditoría UI móvil: ancho topado a la pantalla (antes "white-space: pre" nunca envolvía y el
+       texto largo se salía por el borde derecho, oculto bajo el minimapa); cada .linea recorta con "…" */
+    #hud { position: fixed; top: 10px; left: 10px; max-width: calc(100vw - 20px); box-sizing: border-box; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #eef2f6; pointer-events: none; }
     #hud b { color: #ffd27a; font-weight: 600; }
+    #hud .linea { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+    /* en móvil (pantalla estrecha o táctil) el HUD comparte la fila superior con la barra de iconos:
+       se recorta a su ancho disponible y se oculta la línea de depuración (huella navegador=servidor,
+       no esencial para jugar) para que no empuje el HUD contra el minimapa */
+    @media (max-width: 600px), (pointer: coarse) {
+      #hud { max-width: calc(100vw - 220px); font-size: 11px; }
+      #hud .detalle { display: none; }
+    }
     #help { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 20px); text-align: center; color: #23303b; opacity: .8; pointer-events: none; }
     #vr { position: fixed; top: 56px; right: 10px; padding: 10px 14px; border: 0; border-radius: 8px; background: #9ad0ff; color: #23303b; font: inherit; font-weight: 600; }
     #ar { position: fixed; top: 10px; right: 10px; padding: 10px 14px; border: 0; border-radius: 8px; background: #ffd27a; color: #23303b; font: inherit; font-weight: 600; }
@@ -32,6 +42,10 @@
     #panel-construir .estado { color: #ffd27a; min-height: 1.4em; }
     /* J3: the chat box, bottom left: the list is always there (an empty one takes no room), the input opens with Enter */
     #chat { position: fixed; left: 10px; bottom: 34px; width: min(380px, 62vw, calc(100vw - 240px)); display: flex; flex-direction: column; gap: 4px; }
+    /* auditoría UI móvil: en pantalla estrecha o táctil el minimapa/misiones viven arriba a la derecha
+       (no comparten fila con el chat, que está abajo), así que no hace falta reservar 240px a su derecha;
+       antes el campo de texto quedaba en ~80px (el placeholder se cortaba a media palabra) */
+    @media (max-width: 600px), (pointer: coarse) { #chat { width: calc(100vw - 20px); } }
     #chat-lista { margin: 0; padding: 6px 10px; list-style: none; max-height: min(30vh, 210px); overflow-y: auto; border-radius: 8px; background: rgba(20, 24, 30, .62); color: #eef2f6; overflow-wrap: anywhere; }
     #chat-lista:empty { padding: 0; background: transparent; }
     #chat-lista b { color: #9ad0ff; font-weight: 600; }
@@ -105,6 +119,17 @@
     html.alto-contraste #ajustes .describe { opacity: 1; }
     html.alto-contraste :focus-visible { outline: 3px solid #ffeb3b !important; outline-offset: 2px; }
     html.menos-movimiento *, html.menos-movimiento *::before, html.menos-movimiento *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  /* auditoría UI móvil: objetivo táctil mínimo 44x44 px (Apple HIG / Material) para los controles que
+     en escritorio ya iban sobrados de ratón pero en el dedo quedaban en 28-39px: el libro de misiones,
+     saltar/saludar/bailar/recoger, abrir el chat, los botones del minimapa (−/+/N/Mapa/Ficha) y la fila
+     de un ajuste (para que tocar cerca del interruptor, no solo encima del cuadrito de 22px, lo cambie) */
+  @media (pointer: coarse) {
+    #misiones, #chat-boton { min-height: 44px; }
+    #acciones button { min-height: 44px; min-width: 64px; }
+    #minimapa .botones button { min-width: 44px; min-height: 44px; }
+    #ajustes .ajuste { min-height: 44px; padding: 10px 0; }
+    #ajustes .ajuste input[type="checkbox"] { width: 26px; height: 26px; }
+  }
   </style>
   <link rel="stylesheet" href="./tema.css" /><!-- U11: Numinia Design System (colours, type, icons) and the right-hand layout -->
 </head>
