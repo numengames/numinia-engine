@@ -11,7 +11,7 @@ export const SPEED = fx(1.5);                // walking, metres per second (huma
 export const STEP = fxDiv(SPEED, fx(TICK_HZ)); // metres per tick at full stick
 export const RUN_SPEED = fx(4);              // J2: running (Shift; touch/VR stick at its edge), like Hyperfy2 (was 8)
 export const RUN_STEP = fxDiv(RUN_SPEED, fx(TICK_HZ)); // exactly RUN_SPEED/SPEED x STEP
-export const BOUND = fx(500);                // plaza half-size in metres
+export const BOUND = fx(2000);               // N1: half-size of the walkable world in metres (was 500; objects and quests already reached ±2000)
 export const STICK_MAX = 127;                // input axes are int8
 
 // ---- J2: height. The feel is Hyperfy2's (PlayerLocal: gravity 20 m/s², jump height 1.5 m, one more jump in the
@@ -73,10 +73,10 @@ export function solidsFrom(values: Iterable<[string, Record<string, unknown>]>):
   return out;
 }
 
-export const Transform = defineSchema("Transform", 2, { // v2 (J2): gains y
-  x: { kind: "fixed", min: -500, max: 500, step: 1 / 64 },
+export const Transform = defineSchema("Transform", 3, { // v2 (J2): gains y · v3 (N1): x and z ±2000 (BOUND)
+  x: { kind: "fixed", min: -2000, max: 2000, step: 1 / 64 },
   y: { kind: "fixed", min: -500, max: 500, step: 1 / 64 },
-  z: { kind: "fixed", min: -500, max: 500, step: 1 / 64 },
+  z: { kind: "fixed", min: -2000, max: 2000, step: 1 / 64 },
 });
 export const Avatar = defineSchema("Avatar", 1, {
   owner: { kind: "int", min: 0, max: 65535 },

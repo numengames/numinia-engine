@@ -12,9 +12,9 @@ export const ESQUEMA = "numinia-engine/entorno@1";
 export type Plano = Record<string, unknown>;
 /** `aparicion` (optional, the server's, never on the wire): where people appear, the square of half-side `radio` centred
  * at (x, z), metres. A vertical world puts it on a floor instead of inside a wall. Absent = the house square (40 m
- * around the origin). `radio` 1–40; x and z within ±APARICION_XZ_MAX so the square stays inside the plaza (±500). */
+ * around the origin). `radio` 1–40; x and z within ±APARICION_XZ_MAX so the square stays inside the walkable world (sim BOUND, ±2000). */
 export type Aparicion = { x: number; z: number; radio: number };
-export const APARICION_RADIO_MIN = 1, APARICION_RADIO_MAX = 40, APARICION_XZ_MAX = 460;
+export const APARICION_RADIO_MIN = 1, APARICION_RADIO_MAX = 40, APARICION_XZ_MAX = 1960;
 
 /** Flat field (wire) ↔ path in the file. Colours are marked: in the file they are "#rrggbb". */
 export const RUTAS: [campo: string, ruta: string, color?: true][] = [
