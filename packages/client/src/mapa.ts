@@ -32,6 +32,29 @@ export function alBorde(px: number, py: number, cx: number, cy: number, r: numbe
   return { px: cx + (dx / d) * r, py: cy + (dy / d) * r, fuera: true };
 }
 
+/** U14: the canvas transform (a, b, c, d, e, f, for ctx.transform) that lays a picture of the zone — `px` pixels square
+ * over x0..x1 × z0..z1 metres, north up — under a map view, turned and scaled like everything else drawn on it. */
+export function matrizImagen(v: Vista, img: { x0: number; z0: number; x1: number; z1: number; px: number }): [number, number, number, number, number, number] {
+  const c = Math.cos(v.giro), s = Math.sin(v.giro), sx = ((img.x1 - img.x0) / img.px) * v.escala, sz = ((img.z1 - img.z0) / img.px) * v.escala;
+  const o = proyectar(v, img.x0, img.z0);
+  return [sx * c, sx * s, -sz * s, sz * c, o.px, o.py];
+}
+
+/** U14: the segments of a floor plan's cut (x0, z0, x1, z1 in metres, one after another) that show in a view, as map
+ * pixels written into `out` (kept between draws: no garbage at 5 draws a second). Those wholly beyond the canvas edge
+ * (plus `margen` px) are left out. Returns how many were written. */
+export function segmentosEnVista(v: Vista, seg: ArrayLike<number>, out: { [i: number]: number }, margen = 4): number {
+  const c = Math.cos(v.giro), s = Math.sin(v.giro), k = v.escala, w2 = v.ancho / 2, h2 = v.alto / 2, x1 = v.ancho + margen, y1 = v.alto + margen;
+  let n = 0;
+  for (let i = 0; i + 3 < seg.length; i += 4) {
+    const ax = seg[i] - v.cx, az = seg[i + 1] - v.cz, bx = seg[i + 2] - v.cx, bz = seg[i + 3] - v.cz;
+    const apx = w2 + (ax * c - az * s) * k, apy = h2 + (ax * s + az * c) * k, bpx = w2 + (bx * c - bz * s) * k, bpy = h2 + (bx * s + bz * c) * k;
+    if ((apx < -margen && bpx < -margen) || (apy < -margen && bpy < -margen) || (apx > x1 && bpx > x1) || (apy > y1 && bpy > y1)) continue;
+    out[n * 4] = apx; out[n * 4 + 1] = apy; out[n * 4 + 2] = bpx; out[n * 4 + 3] = bpy; n++;
+  }
+  return n;
+}
+
 // ---------- words: what a screen reader says (and what the list shows) ----------
 export const RUMBOS = ["norte", "noreste", "este", "sureste", "sur", "suroeste", "oeste", "noroeste"] as const;
 export type Rumbo = (typeof RUMBOS)[number];

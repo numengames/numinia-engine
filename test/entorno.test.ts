@@ -197,3 +197,33 @@ test("MUNDO_DIR: pesca.json with a valid sitios array is used quietly, and conMu
   const pesca = partes.find((p) => p.feature.id === "pesca")!;
   assert.notEqual(pesca, funciones.find((p) => p.feature.id === "pesca"), "swapped for the world's own sitios");
 });
+
+test("U14 mapa.corte: a world may cut its maps at a height; absent = not cut; out of range is refused with its path; the file's wins at each start", async () => {
+  const base = porDefecto();
+  assert.equal(base.mapaCorte, 0, "absent = 0 = the maps as they always were");
+  const casaV = validarEntorno(casa);
+  assert.equal(casaV.ok && casaV.value.mapaCorte, 0, "the house default does not cut");
+  const r = validarEntorno({ schema: ESQUEMA, mapa: { corte: 6 } }, base);
+  assert.ok(r.ok, JSON.stringify(!r.ok && r.issues));
+  assert.equal(r.ok && r.value.mapaCorte, 6);
+  assert.deepEqual(aFichero(r.ok ? r.value : base).mapa, { corte: 6 }, "it goes back to the file where it came from");
+  for (const malo of [-1, 61, "seis", true]) {
+    const m = validarEntorno({ schema: ESQUEMA, mapa: { corte: malo } }, base);
+    assert.equal(m.ok, false, `corte ${JSON.stringify(malo)} must be refused`);
+    assert.deepEqual(!m.ok && m.issues.map((i) => i.path), ["entorno.mapa.corte"]);
+  }
+  // the page gets it with the rest of the environment
+  const dir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "entorno-corte-"));
+  const s1 = new FileStorage(dir);
+  const w1 = world({ abierto: true, storage: s1, mundo: { schema: ESQUEMA, mapa: { corte: 6 } } });
+  assert.equal(w1.pages[0].s.features.stateOf("entorno").get(ZONA)?.mapaCorte, 6);
+  w1.pages[0].c.preset("tormenta"); w1.pump(); // a preset or a fine value keeps the cut
+  assert.equal(w1.pages[1].s.features.stateOf("entorno").get(ZONA)?.mapaCorte, 6);
+  await s1.flush();
+  // restarted with the file edited: the saved environment stays (tormenta) but where the map is cut is the file's
+  const w2 = world({ abierto: true, storage: new FileStorage(dir), mundo: { schema: ESQUEMA, mapa: { corte: 4.5 } } });
+  const v2 = w2.pages[0].s.features.stateOf("entorno").get(ZONA)!;
+  assert.deepEqual([v2.preset, v2.mapaCorte], ["tormenta", 4.5]);
+  const w3 = world({ abierto: true, storage: new FileStorage(dir), mundo: { schema: ESQUEMA } });
+  assert.equal(w3.pages[0].s.features.stateOf("entorno").get(ZONA)?.mapaCorte, 0, "taken out of the file: not cut");
+});

@@ -2,7 +2,8 @@
 // presets). Nested and readable (colours as "#rrggbb"); a file may say only what it changes over a base. Validation
 // returns Result with error paths in the file's own terms ("sol.altura"), never throws. Pure: no engine, no DOM.
 // The same file may carry `aparicion` (where people appear: a vertical world's floor), read by `leerAparicion` for the
-// server; it is not part of the environment's shared state.
+// server; it is not part of the environment's shared state. `mapa.corte` (U14) is: every page's maps cut the world at
+// that height (a floor plan inside a building), and the world's file says it again at each start (server.ts).
 import type { Issue, Result } from "../../packages/core/src/index.ts";
 import { defineSchema, validate } from "../../packages/schema/src/index.ts";
 import { CAMPOS, entorno } from "./feature.ts";
@@ -28,6 +29,7 @@ export const RUTAS: [campo: string, ruta: string, color?: true][] = [
   ["suelo", "suelo.tipo"], ["sueloColor", "suelo.color", true], ["sueloEscala", "suelo.escala"],
   ["tono", "tono.curva"], ["exposicion", "tono.exposicion"],
   ["hitos", "hitos"], ["rejilla", "rejilla"],
+  ["mapaCorte", "mapa.corte"],
 ];
 
 const SCHEMA = defineSchema("entorno", entorno.version, CAMPOS);

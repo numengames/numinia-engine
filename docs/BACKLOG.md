@@ -80,6 +80,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | U13 | Pedido de Pablo (17-10): icono de Numinia en la biblioteca/tienda del Quest que lleve siempre al mundo — `manifest.webmanifest` (nombre Numinia, `display: fullscreen`, iconos 192/512 con el escarabeo Khepri) + enlace en `index.html`; «Guardar en la biblioteca» del navegador crea el icono y abre a pantalla completa, sin barra de direcciones | hecho (comprobado en un Quest real por USB: `Page.getAppManifest`/`getInstallabilityErrors` sin errores) | sí |
 | U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozo 1, el tema, hecho) | no |
 | U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema, y 2, pasos en cualquier orden, hechos) | no |
+| U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema, y 2, pasos en cualquier orden, y el mapa cortado, hechos) | no |
 | U4 | Zona de usuario: quién eres, avatar, misiones e insignias, lo que he construido (lista, cuota, borrar, descargar), privacidad y datos, seguridad; el informe de sesión (T1) pasa a pedir consentimiento | espera a U2 | sí |
 | I3 | «Guardar mi progreso» con una llave de acceso (passkey) del propio motor, sin correo (Pablo, 15-10: camino B); la llave queda unida al invitado | pendiente | sí |
 | U5 | «Editar interfaz»: mover sin arrastrar (cuadrícula 3×3, números, flechas, lista), 5 disposiciones por clase de aparato, copiar y pegar `nl1.` sin código | espera a U3 | sí |
@@ -1159,6 +1160,18 @@ más cercano); al recibir algo, «Has recibido: Telas ligeras». **Medido:** 8 p
 progreso viejo y la misión entera por el enchufe real); las de misiones de antes, sin tocar, en verde; el progreso a
 mitad del grupo ocupa 127 bytes; el tick de las misiones con 1.000 jugadores, p99 0,3 ms (límite 5). En el navegador
 (servidor y página propios, Playwright): 3 marcas en el mapa y tres «→» en el libro, que pasan a 2 tras Bianca.
+**Trozo «mapa» hecho (17-10, rama `plantillas/eventos-mapa`, unida a `plantillas/eventos`): el mapa de un edificio
+es su planta.** entorno@1 admite (aditivo) `mapa.corte` (m, 0–60; 0 o nada = como antes, comprobado píxel a píxel en la
+plaza por defecto: diferencia máxima 1/255). Con corte, el mapa grande dibuja la zona sin lo que queda por encima (el
+plano cercano de la cámara cenital baja a 80 − corte, igual en WebGL2 y WebGPU, sin sombras en esa foto) y encima las
+paredes, columnas y puertas que corta el plano, sacadas de los triángulos (`packages/render/src/corte.ts`: desde arriba
+una pared cortada queda de canto y no da píxeles); el vidrio en azul claro. El minimapa usa ese dibujo de fondo y deja de
+pintar la huella entera de lo que es más alto que el corte (la Nave salía como un cuadrado amarillo). La foto se hace la
+primera vez que hace falta y luego solo cuando cambia la zona (como mucho cada 5 s), nunca en XR. **Medido** (la Nave de
+la TRG26, SwiftShader): el corte mira 142.194 triángulos y da 3.340 segmentos en 3–6 ms; la foto entera 3–10 s en
+software, casi todo leer los píxeles de la GPU; dos fotos por visita; parado 20 s, ninguna nueva y 58 dibujos 3D frente a
+60 sin corte. 6 pruebas (`test/mapa-corte.test.ts`) y las del esquema en `test/entorno.test.ts`. **Sin medir:** en un
+móvil de verdad. Mientras alguien construye en un mundo cortado, cada página rehace la foto hasta cada 5 s.
 **Falta:** el libro con los estados de la especificación (hecho, disponible, bloqueado) y abierto al aceptar; el icono
 de la pieza conseguida (el aviso y el sonido ya están); marcas sobre las personas («!», ✓) y su oficio bajo el nombre;
 secuencia local (el vuelo); espera antes del cofre; cofre de dos aspectos; premio registrado una sola vez.

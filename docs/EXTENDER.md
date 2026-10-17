@@ -102,6 +102,12 @@ export default clientPart(gestos, (api) => {
   y `MUNDO_DIR/elementos.json`. El mismo `entorno.json` puede decir dónde aparece la gente: `"aparicion": { "x", "z",
   "radio" }` (metros; el cuadrado de medio lado `radio`, 1–40, centrado en x, z; x y z entre −460 y 460). Sin él, el
   cuadrado de la casa (40 m alrededor del origen). Es del servidor (viaja en la carpeta y el zip del mundo), no del cable.
+- Un mundo que es por dentro de un edificio puede cortar sus mapas a una altura, como la planta de un arquitecto:
+  `"mapa": { "corte": 6 }` en el mismo `entorno.json` (metros sobre el suelo, 0–60; sin él o 0, los mapas de siempre).
+  Con corte, el mapa grande dibuja la zona sin lo que queda por encima (el techo, las entreplantas), sin sombras, y
+  encima las paredes, columnas y puertas que corta el plano (tinta; el vidrio en azul claro); el minimapa usa ese mismo
+  dibujo de fondo y no pinta la caja entera de lo que es más alto que el corte. Lo dice el fichero del mundo en cada
+  arranque (U14: `packages/render/src/cenital.ts`, `corte.ts`; `apps/plaza/mapa.ts`).
 - Un agente usa el mismo camino que una persona: lee el catálogo y envía intentos (P4 hará el SDK).
 
 ## Quién es quién (I1)

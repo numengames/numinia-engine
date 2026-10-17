@@ -528,3 +528,16 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `plantillas/eventos` (ver `git log`), encima del trozo 1.
 - Siguiente: el libro con los estados de la especificación; marcas sobre las personas; secuencia local (el vuelo);
   espera antes del cofre; cofre de dos aspectos; premio una sola vez; el icono de la pieza conseguida.
+
+## 2026-10-17 00:21 · U14 (mapa) · el mapa de un edificio es su planta (`mapa.corte` en entorno@1) · hecho (sesión con Pablo, rama `plantillas/eventos-mapa` unida a `plantillas/eventos`, sin subir)
+- Qué: dentro de la Nave de la TRG26 (un solo modelo de 45 × 121 m con tejado a 23 m), el minimapa pintaba su huella
+  entera en amarillo (el primer color liso del modelo) y el mapa grande enseñaba el tejado. Un mundo dice ahora a qué
+  altura se corta su mapa (`"mapa": { "corte": 6 }`): el mapa grande deja fuera lo de arriba y dibuja la sección (paredes,
+  columnas, puertas, vidrio) sacada de los triángulos; el minimapa usa ese dibujo de fondo. Sin corte, nada cambia.
+- Números: sección de 142.194 triángulos → 3.340 segmentos en 3–6 ms; la foto entera 3–10 s en SwiftShader (lectura de
+  píxeles), dos por visita, ninguna parado; 58 dibujos 3D frente a 60. Pruebas: 6 nuevas (`test/mapa-corte.test.ts`) más
+  las del esquema; la suite entera en verde salvo la de siempre bajo carga (`chat.test.ts`, coste de nombres para
+  1.000), que pasa sola; `npm run build` en verde. Fotos en la plantilla: `fotos/mapa-corte-mini.png` y
+  `fotos/mapa-corte-grande.png`.
+- Commit: 1a4b99a en `plantillas/eventos-mapa` (un segundo worktree, en paralelo con U14 (2)) y la unión 8c59e7a.
+- Siguiente: el libro con los estados y las marcas sobre las personas (en paralelo, cada uno en su worktree).

@@ -90,8 +90,8 @@ pone ahí su obra con E o pinchándolo: se abre el selector de ficheros.
 
 | Cosa | Qué es | Capa | Nivel | Escritorio / móvil / VR | Primitivas | Coste móvil | Fila |
 |---|---|---|---|---|---|---|---|
-| Minimapa | Vista pequeña de lo cercano con marcadores ◐ (esquina; norte arriba o gira con la cámara; en VR falta la muñeca) | motor | Base | esquina / esquina / muñeca | P, datos del servidor | medio (redibujar solo al cambiar) | J5 |
-| Mapa grande | El mundo entero ✔ (tecla M: vista cenital generada, destinos, lista HTML con direcciones) | motor | Base | panel | P | bajo | J5 |
+| Minimapa | Vista pequeña de lo cercano con marcadores ◐ (esquina; norte arriba o gira con la cámara; en VR falta la muñeca; un mundo con `mapa.corte` ve de fondo la planta cortada, U14) | motor | Base | esquina / esquina / muñeca | P, datos del servidor | medio (redibujar solo al cambiar) | J5 |
+| Mapa grande | El mundo entero ✔ (tecla M: vista cenital generada, destinos, lista HTML con direcciones; dentro de un edificio, su planta si el mundo dice `mapa.corte`, U14) | motor | Base | panel | P | bajo | J5 |
 | Brújula y marcadores | Dirección hacia un objetivo ✔ (objetivos y destino pegados al borde del minimapa; columna de luz en el mundo) | motor | Base | sí | P | bajo | J5 |
 | Amigos en el mapa | Ver dónde están los míos | motor | Mejorado | sí | M, G | bajo | F1 |
 

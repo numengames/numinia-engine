@@ -545,10 +545,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     waypoint(x: number, z: number, text: string): number { this.beacon(x, z, text, Infinity); waypoints.set(++waypointSeq, beacons.pop()!); return waypointSeq; },
     dropWaypoint(id: number): void { const w = waypoints.get(id); if (w) { dropBeacon(w); waypoints.delete(id); } },
     /** J5: the zone seen from above (the big map's picture), the footprints of what stands in it (the minimap's
-     * landmarks) and a number that changes when they do. Cost and the two ways (gpu, huellas): cenital.ts. */
-    cenital: (o?: { px?: number; incluir?: { x: number; z: number }; modo?: "gpu" | "huellas" }) => cenital.generar(o),
+     * landmarks) and a number that changes when they do. Cost and the two ways (gpu, huellas): cenital.ts.
+     * U14: the picture is cut where the world's environment says (`mapa.corte`, `mapaCorte()`) unless `corte` is given. */
+    cenital: (o?: { px?: number; incluir?: { x: number; z: number }; modo?: "gpu" | "huellas"; corte?: number }) => cenital.generar({ ...o, corte: o?.corte ?? entorno.corte() }),
     huellas: () => cenital.huellas(),
     cenitalVersion: () => cenital.version(),
+    mapaCorte: () => entorno.corte(),
     /** H1: put a thing in the world, move it, change its model, or take it away (`null`). */
     place(key: string, t: Thing | null): void {
       const s = things.get(key);
