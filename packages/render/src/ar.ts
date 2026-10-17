@@ -5,12 +5,31 @@
 // plaza (sideways) and makes it bigger or smaller (up/down); A or X jumps. Anchors keep it still when the device has
 // them. Without hit-test (some headsets) it goes at table height in front of you. Phones: the session ends by itself
 // after AR_MAX_MS (they must stay cool); headsets after AR_MAX_VISOR_MS. iPhone has no WebXR AR: no button there.
+// A minigame can take the session instead of the miniature (`jugar(juego)`, e.g. the dartboard on your real wall:
+// dardos-ar.ts): it gets the surface under the gaze every frame (walls included: the hit pose's y axis is the
+// surface's normal), every press and release with its ray (a tap on a phone, the trigger or a pinch on a headset),
+// and its own group to draw in; the miniature stays hidden. Such a session lasts AR_JUEGO_MS on a phone.
 import * as THREE from "three/webgpu";
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
 export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void };
 
 export const AR_MAX_MS = 90_000;
 export const AR_MAX_VISOR_MS = 20 * 60_000;
+/** A minigame in AR on a phone (a turn of darts takes a while): longer than the miniature, still bounded. */
+export const AR_JUEGO_MS = 5 * 60_000;
+/** A ray in the session's reference space (metres), from a tap, the trigger or a pinch. */
+export type RayoAR = { origen: THREE.Vector3; dir: THREE.Vector3 };
+/** A minigame that takes an AR session (see the header). Every hook gets the XR camera. */
+export type JuegoAR = {
+  readonly root: THREE.Object3D;
+  /** Every frame: the surface under the gaze (pose matrix; its y axis = the surface's normal), or null. */
+  superficie(hit: THREE.Matrix4 | null, cam: THREE.Camera, sinHitTest: boolean): void;
+  pulsar(rayo: RayoAR | null, cam: THREE.Camera): void;
+  soltar(rayo: RayoAR | null, cam: THREE.Camera): void;
+  update(dt: number, cam: THREE.Camera): void;
+  /** The session ended (any reason). */
+  fin(): void;
+};
 /** The miniature's scale at first: 1 m of plaza = 2 cm on your table (the plaza's 40 m radius = 0.8 m). */
 export const ESCALA_MAQUETA = 1 / 50;
 const ESCALA_MIN = 1 / 400, ESCALA_MAX = 1 / 8;
@@ -167,10 +186,33 @@ export function createAR(h: ARHooks) {
     try { lastHit?.createAnchor?.()?.then((a: any) => { anchor = a; }).catch(() => {}); } catch { /* no anchors here */ }
   };
 
+  // ---- a minigame instead of the miniature (jugar) ----
+  let juego: JuegoAR | null = null;
+  const rayoDe = (ev: any): RayoAR | null => {
+    try {
+      const ref = h.renderer.xr.getReferenceSpace?.();
+      const p = ev?.frame && ref ? ev.frame.getPose(ev.inputSource.targetRaySpace, ref) : null;
+      if (!p) return null;
+      const m = new THREE.Matrix4().fromArray(p.transform.matrix);
+      return { origen: new THREE.Vector3().setFromMatrixPosition(m), dir: new THREE.Vector3(0, 0, -1).transformDirection(m) };
+    } catch { return null; }
+  };
+  const pulsado = (ev: any) => { juego?.pulsar(rayoDe(ev), h.renderer.xr.getCamera()); };
+  const soltado = (ev: any) => { juego?.soltar(rayoDe(ev), h.renderer.xr.getCamera()); };
+
   let lastError = ""; // why the last enter() failed (T1 report)
-  async function enter(): Promise<boolean> {
+  /** Enter AR with a minigame instead of the miniature (true if the session started). */
+  async function jugar(j: JuegoAR, maxMs = h.maxMs ?? AR_JUEGO_MS): Promise<boolean> {
+    if (session) return false;
+    juego = j;
+    const ok = await enter(maxMs);
+    if (!ok) juego = null;
+    return ok;
+  }
+  async function enter(maxMs?: number): Promise<boolean> {
     const xr = xrOf();
     if (!xr || session) return false;
+    if (maxMs === undefined) juego = null; // the plain button: the miniature
     const init: Record<string, unknown> = { optionalFeatures: ["hit-test", "anchors", "local-floor", "hand-tracking"] };
     if (h.domOverlayRoot) { (init.optionalFeatures as string[]).push("dom-overlay"); init.domOverlay = { root: h.domOverlayRoot }; }
     try { session = await xr.requestSession("immersive-ar", init); } catch (e) { lastError = String((e as Error)?.message ?? e).slice(0, 160); session = null; return false; }
@@ -183,19 +225,22 @@ export function createAR(h: ARHooks) {
     h.manos?.montar(root);
     try {
       const viewer = await session.requestReferenceSpace("viewer");
-      source = await session.requestHitTestSource({ space: viewer });
+      // a minigame wants walls too: ask for every plane (and meshes/points where the device has them)
+      source = await session.requestHitTestSource(juego ? { space: viewer, entityTypes: ["plane", "point"] } : { space: viewer });
       sinHitTest = false;
     } catch { source = null; sinHitTest = true; } // no hit-test here: the plaza goes in front of you
-    session.addEventListener("select", place); // a tap, the trigger or a pinch: put the plaza where the ring is (again = move it)
+    if (juego) { root.add(juego.root); session.addEventListener("selectstart", pulsado); session.addEventListener("selectend", soltado); }
+    else session.addEventListener("select", place); // a tap, the trigger or a pinch: put the plaza where the ring is (again = move it)
     session.addEventListener("end", () => {
       clearTimeout(timer);
       session = null; source = null; anchor = null; hitMatrix = null; lastHit = null; moveX = moveZ = 0;
       h.scene.background = savedBg; h.scene.fog = savedFog; h.world.visible = true; root.visible = false;
       reticle.visible = false; base.visible = false; h.renderer.xr.enabled = false;
       h.manos?.montar(null);
+      if (juego) { root.remove(juego.root); const j = juego; juego = null; j.fin(); }
       set("off");
     });
-    empezo = performance.now(); visor = false; limiteMs = h.maxMs ?? AR_MAX_MS;
+    empezo = performance.now(); visor = false; limiteMs = maxMs ?? h.maxMs ?? AR_MAX_MS;
     timer = setTimeout(() => { void exit(); }, limiteMs);
     set(sinHitTest ? "ready" : "searching");
     return true;
@@ -211,7 +256,7 @@ export function createAR(h: ARHooks) {
     // a headset (tracked controllers or hands) may stay longer than a phone
     if (!visor && [...(session.inputSources ?? [])].some((s: { targetRayMode?: string }) => s.targetRayMode === "tracked-pointer")) {
       visor = true;
-      if (h.maxMs === undefined) { clearTimeout(timer); limiteMs = AR_MAX_VISOR_MS; timer = setTimeout(() => { void exit(); }, Math.max(1000, limiteMs - (performance.now() - empezo))); }
+      if (h.maxMs === undefined && !juego) { clearTimeout(timer); limiteMs = AR_MAX_VISOR_MS; timer = setTimeout(() => { void exit(); }, Math.max(1000, limiteMs - (performance.now() - empezo))); }
     }
     if (anchor) {
       const p = frame.getPose(anchor.anchorSpace, ref);
@@ -225,6 +270,13 @@ export function createAR(h: ARHooks) {
       reticle.matrix.copy(hitMatrix); reticle.visible = true;
       if (state === "searching") set("ready");
     } else { reticle.visible = false; hitMatrix = null; lastHit = null; }
+    if (juego) { // the minigame draws its own reticle and board; no miniature, no sticks
+      reticle.visible = false;
+      const cam = h.renderer.xr.getCamera();
+      juego.superficie(hitMatrix, cam, sinHitTest); juego.update(dtSeconds, cam);
+      h.manos?.update(cam);
+      return;
+    }
     // sticks (headsets): left walks your avatar on the table, right turns (sideways) and scales (up/down) the plaza
     let lx = 0, ly = 0, rx = 0, ry = 0;
     for (const src of session.inputSources ?? []) {
@@ -258,8 +310,10 @@ export function createAR(h: ARHooks) {
   }
 
   return {
-    enter, exit, update,
+    enter: () => enter(), exit, update, jugar,
     get state() { return state; },
+    /** True while a minigame (not the miniature) has the session. */
+    get jugando() { return !!juego && !!session; },
     /** True whenever the room shows through (mixed reality), by this module's own session or someone else's. */
     activo(): boolean { return state !== "off"; },
     get placed() { return base.visible; },

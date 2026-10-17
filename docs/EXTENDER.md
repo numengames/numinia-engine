@@ -639,3 +639,65 @@ Al acabar una aventura, un cofre puede dar un **objeto** que es del jugador: el 
   cadena, quién custodia y quién paga lo decide Pablo. A la cadena nunca va nada de la persona (ni id de invitado, ni
   nombre, ni hashes de ellos; EDPB 02/2025 v2.0).
 
+## Dardos (v1): una diana en la plaza, en tu móvil y en tu pared (AR)
+
+`features/dardos` es un minijuego que decide el servidor: una diana es una cosa del mundo (igual que un sitio de
+pesca), una tirada son tres dardos, y en cada dardo **el jugador elige adónde apunta y con qué fuerza lanza; el
+servidor decide dónde se clava**. Los mismos verbos en el PC, en el móvil y en AR.
+
+- **Verbos.** `jugar{sitio}` empieza la tirada (la diana queda `ocupado`); `lanzar{sitio, x, y, fuerza}` lanza un
+  dardo: `x, y` = el punto de la cara adonde apuntas, en radios de la diana (0, 0 el centro, y hacia arriba, 1 = el
+  borde exterior del doble); `fuerza` 0-1. Un `lanzar` sin tirada la empieza (un agente puede simplemente lanzar).
+  `salir{}` la deja donde esté (lo lanzado cuenta). Alejarse del radio, desconectarse o 60 s sin lanzar
+  (`TURNO_INACTIVO_S`) la cierran también.
+- **Dónde cae** (`aterrizaje`, pura): con `FUERZA_IDEAL = 0,65` el dardo va recto; más flojo **cae**
+  (`CAIDA = 1,6` radios por unidad de fuerza que falta) y se abre un poco; más fuerte **sube** algo (`SUBIDA = 0,6`)
+  y se abre bastante más (`ABRE_FUERTE`). Encima, un **pulso** (`TEMBLOR = 0,15` radios en un tiro perfecto):
+  un punto uniforme en un disco cuya dirección sale de un hash del tick en que llegó el tiro, quién tiró, qué
+  dardo y qué diana (`azarDe`) — sin `Math.random`: los mismos tiros en los mismos ticks caen en el mismo sitio
+  (la prueba lo fija). Apuntar al centro con la fuerza justa da bull casi siempre y diana (50) ~1 de cada 4.
+- **Puntuación** (`resolverTiro`, `sectorDe`, `polar`, puras; proporciones de una diana real de 451 mm con el radio
+  del doble = 1): `ANILLOS` (dobleBull ≤ 0,0747 = 50, bull ≤ 0,187 = 25, triple 0,582-0,629 = ×3, doble
+  0,953-1,0 = ×2, fuera > 1 = 0) y `SECTORES` (los 20 reales, horario desde arriba). La pintura de la diana
+  (`packages/render/src/diana.ts`, canvas 2D, una sola función para la vista de tiro, la diana 3D de la plaza y la de
+  AR) usa los mismos números: la prueba comprueba que coinciden.
+- **Eventos.** `turno` (solo a ti), `dardo{quien, sitio, numero, x, y, sector, anillo, multiplicador, puntos,
+  tirada, texto}` (a ti y a quien esté a `CERCA_M`: ven caer tus dardos), `fin` (igual; quien se alejó más de
+  `CERCA_M` lo recibe directo), `marcador` (por invitado en el almacén, `d:<id>`: dardos, puntos, mejor dardo,
+  mejor tirada, dianas; al identificarte y tras cada `fin`), `rechazado{motivo}`.
+- **Diana** = cosa del mundo (`state` con `at`, ficha `lugar`, `interact: { intent: "jugar", prompt: "tirar
+  dardos" }`): «E: tirar dardos» al lado. Campos: nombre, x, y, z, radio (desde dónde se tira) y `rumbo` (hacia
+  dónde mira la cara; sin él, hacia el centro de la plaza). Por defecto una (`SITIOS_DEFECTO`, suroeste, lejos de
+  lo demás); un mundo trae las suyas en `MUNDO_DIR/dardos.json` (`{ "sitios": [{ id, nombre, x, y, z, radio,
+  rumbo? }] }`, mismo patrón que `pesca.json`).
+- **Página** (`features/dardos/client.ts` = el controlador: turno, dardos clavados por diana, marcador;
+  `apps/plaza/dardos.ts` = la vista de tiro, perezosa con la primera diana):
+  - **PC**: el ratón mueve la mira (con un pequeño vaivén de pulso); mantener pulsado llena y vacía la barra de
+    fuerza (`potenciaDe`, un ciclo de `CICLO_S = 1,1` s; la marca dorada = recto); soltar lanza. Teclado: flechas
+    apuntan, Espacio mantener/soltar, Esc deja la tirada.
+  - **Móvil**: pones el dedo (la mira va 56 px por encima, que el dedo no la tape) y **lo lanzas hacia arriba**:
+    la fuerza es la velocidad del gesto (`fuerzaDeFlick`, `FLICK_LLENO = 2,6` alturas de la diana por segundo);
+    la mira es donde empezó el gesto. Se mide con las muestras crudas del puntero (`getCoalescedEvents`) y su
+    `timeStamp`, nunca con los cuadros: un móvil lento no cambia la fuerza. El HUD para el toque (no mueve el
+    avatar ni la cámara).
+  - **AR** («En tu pared (AR)», solo donde hay immersive-ar): `view.dardosAR` → `ar.jugar(juego)`: la sesión AR
+    la lleva el minijuego (`JuegoAR` en `packages/render/src/ar.ts`, sin maqueta). Hit-test con `entityTypes:
+    ["plane", "point"]` para encontrar **paredes** (la `y` de la pose del impacto es la normal: casi horizontal =
+    pared → la diana cuelga ahí, de cara a ti; suelo/mesa → se pone de pie con el centro a 1,73 m; sin superficie
+    → a 2,37 m delante, a la altura de los ojos). Un toque o el gatillo la cuelga; luego **mantener y soltar**
+    (pantalla o gatillo): la barra de fuerza junto a la diana, y el dardo sale por el rayo del toque o del mando
+    hacia donde corta la cara. Tamaño real (`RADIO_M = 0,17`). La sesión dura `AR_JUEGO_MS` en un móvil.
+  - **3D en la plaza** (`crearDianas3D`, `view.dardos`): tablero en un poste (`ESCALA_PLAZA = 2,4` veces el
+    tamaño real, para leerla desde la cámara), línea de tiro dorada en el suelo y los dardos clavados de quien
+    tire cerca; los tuyos siguen unos segundos tras la tirada.
+- **Pruebas**: `test/dardos.test.ts` (sin pantalla: cada sector y borde, la geometría de la cara, cómo se dobla
+  un tiro, reparto del pulso, una tirada completa también vista por otro, rechazos, cierres por alejarse,
+  desconectar e inactividad, determinismo entre dos mundos, el controlador de la página, la simulación no se
+  entera, `dardos.json`). `tools/e2e-piernas/dardos.mjs` (navegador real): PC con ratón (1280×800), móvil con
+  gestos táctiles reales (CDP con `timestamp`) y exactos (390×844, `pointer: coarse`), y AR emulado con IWER
+  (Quest 3 y una **pared** a 2,4 m: cuelga la diana, tres dardos con el gatillo, sale).
+- **Límites de hoy**: `announce.sound` es fijo por evento (un 50 no suena distinto: haría falta un selector por
+  campo en el motor). En AR la vista HTML de tiro no se ve en un visor (el marcador vive en la página: el
+  `dom-overlay` de la sesión es `#hud`); la barra 3D sí. Después: diana de pared en el editor del mundo, partidas
+  a 301/501 y «alrededor del reloj», duelos por turnos entre dos jugadores, dardos lanzados con el gesto real del
+  mando (velocidad de la mano en VR).

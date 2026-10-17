@@ -3,7 +3,10 @@
 import * as THREE from "three/webgpu";
 import { createAR, arSupported } from "./ar.ts";
 export { arSupported } from "./ar.ts";
-export type { ARState } from "./ar.ts";
+export type { ARState, JuegoAR, RayoAR } from "./ar.ts";
+export { potenciaDe, ESCALA_PLAZA } from "./dardos.ts";
+export type { DianaAR, Dardo3D } from "./dardos.ts";
+export { pintarDiana, caraAPixel, pixelACara, PINTADA } from "./diana.ts";
 import { createVR, vrSupported } from "./vr.ts";
 export { vrSupported } from "./vr.ts";
 export type { VRState, DialogoVR } from "./vr.ts";
@@ -33,6 +36,8 @@ export type { Huella, ImagenCenital } from "./cenital.ts";
 import { crearEntorno } from "./entorno.ts";
 import { vistaElementos } from "./elementos-vista.ts";
 import { vistaPesca } from "./pesca-vista.ts";
+import { crearDianas3D, crearDianaAR } from "./dardos.ts";
+import type { DianaAR } from "./dardos.ts";
 export type { EntornoDatos } from "./entorno.ts";
 export type { Calidad, Nivel } from "./calidad.ts";
 
@@ -174,6 +179,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // pesca v1: rods, lines and floats of whoever fishes near (lazy: packages/render/src/pesca.ts). "self" hides in first person, so the rod uses the capsule's place anyway
   const pesca = vistaPesca({ world, posicionDe: (t) => (t === "self" ? selfMesh.position : others.get(t)?.position) ?? null,
     manoDe: (t, out) => avs.mano(t === "self" ? "yo" : t, "derecha", out), orientar: (t, rumbo) => avs.orientar(t === "self" ? "yo" : t, rumbo) });
+  const dardos = crearDianas3D({ world }); // dardos v1: the boards near you and the darts in them (dardos.ts)
   function dropLabel(t: Target): void {
     const d = labels.get(t);
     if (!d) return;
@@ -485,6 +491,14 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     elementos,
     /** pesca v1: fishing spots, floats and my own phase (sitios, flotadores, estado, contar) — packages/render/src/pesca.ts, loaded with the first spot. */
     pesca,
+    /** dardos v1: boards near you and their darts (sitios, clavados, linea, contar) — packages/render/src/dardos.ts. */
+    dardos,
+    /** dardos v1 in AR: enter immersive-ar with a real-size board for your wall (dardos.ts crearDianaAR); null if the
+     * session could not start. Press/hold/release throws: `alLanzar` gets aim (board radii) and strength. */
+    async dardosAR(o: { alLanzar: (x: number, y: number, fuerza: number) => void; alColocar?: (pared: boolean) => void }): Promise<DianaAR | null> {
+      const j = crearDianaAR(o);
+      return (await ar.jugar(j)) ? j : null;
+    },
     /** Place everyone for this frame (J2: at their height). */
     sync(self: { x: number; z: number; y?: number; speed?: number } | null, list: Placed[]): void {
       selfXZ = self;

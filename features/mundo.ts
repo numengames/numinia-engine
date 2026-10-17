@@ -7,17 +7,23 @@ import type { ServerPart } from "../packages/feature/src/index.ts";
 import { crearEntorno } from "./entorno/server.ts";
 import { crearElementos } from "./elementos/server.ts";
 import { crearPesca } from "./pesca/server.ts";
-import type { Sitio } from "./pesca/server.ts";
+import type { Sitio as SitioPesca } from "./pesca/server.ts";
+import { crearDardos } from "./dardos/server.ts";
+import type { Sitio as SitioDardos } from "./dardos/server.ts";
 import { leerAparicion } from "./entorno/esquema.ts";
 import type { Aparicion } from "./entorno/esquema.ts";
 
 export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) => unknown, log: (l: string) => void = () => {}): ServerPart[] {
-  // pesca.json (numinia-engine/pesca@1: { sitios: [{ id, nombre, x, y, z, radio }] }): the world's fishing spots; none = the house default
-  const crudo = leer("pesca.json") as { sitios?: unknown } | null | undefined;
-  const sitios = crudo?.sitios;
+  // pesca.json (numinia-engine/pesca@1: { sitios: [{ id, nombre, x, y, z, radio, rumbo? }] }): the world's fishing spots; none = the house default
+  const crudoPesca = leer("pesca.json") as { sitios?: unknown } | null | undefined;
+  const sitiosPesca = crudoPesca?.sitios;
   // valid JSON (no syntax error logged by leerMundo) but the wrong shape: say so, same as aparicionDelMundo does for entorno.json.
-  if (crudo !== undefined && !Array.isArray(sitios)) log(`[mundo] pesca.json no tiene una lista "sitios" (uso el estanque de la casa): ${JSON.stringify(crudo).slice(0, 160)}`);
-  return partes.map((p) => (p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitios) ? crearPesca({ sitios: sitios as Sitio[] }) : p));
+  if (crudoPesca !== undefined && !Array.isArray(sitiosPesca)) log(`[mundo] pesca.json no tiene una lista "sitios" (uso el estanque de la casa): ${JSON.stringify(crudoPesca).slice(0, 160)}`);
+  // dardos.json (numinia-engine/dardos@1: { sitios: [{ id, nombre, x, y, z, radio }] }): the world's dartboards; none = the house default
+  const crudoDardos = leer("dardos.json") as { sitios?: unknown } | null | undefined;
+  const sitiosDardos = crudoDardos?.sitios;
+  if (crudoDardos !== undefined && !Array.isArray(sitiosDardos)) log(`[mundo] dardos.json no tiene una lista "sitios" (uso la diana de la casa): ${JSON.stringify(crudoDardos).slice(0, 160)}`);
+  return partes.map((p) => (p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
 }
 
 /** The world's spawn area (entorno.json `aparicion`), or null: no file, no key, or a wrong one (logged, with its path). */
