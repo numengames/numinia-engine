@@ -22,7 +22,9 @@
     "deploy": "node tools/build-deploy.mjs",
     "enlaces": "node tools/enlaces.ts",
     "bench": "node packages/server/src/bench.ts",
-    "sesiones": "node packages/server/src/sesiones-ver.ts"
+    "sesiones": "node packages/server/src/sesiones-ver.ts",
+    "concesiones": "node packages/server/src/concesiones.ts",
+    "bienes": "node packages/server/src/bienes.ts"
   },
   "dependencies": {
     "@pixiv/three-vrm": "3.5.5",

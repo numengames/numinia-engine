@@ -9,6 +9,7 @@ import misiones from "./misiones/server.ts"; // J5: two features, one engine: pe
 import entorno from "./entorno/server.ts";
 import elementos from "./elementos/server.ts";
 import pesca from "./pesca/server.ts"; // v1: fishing (the server decides the bite, the fish and the catch)
+import bienes from "./bienes/server.ts"; // N10: digital goods — a chest's «objeto» becomes yours (signed receipt, inventory)
 
-const funciones: ServerPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca];
+const funciones: ServerPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes];
 export default funciones;

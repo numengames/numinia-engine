@@ -250,7 +250,15 @@ export type ServerHost = {
   medidas?(sha256: string, ext: string): { ancho: number; alto: number } | null; // U12: a picture's size in pixels; none = null
   visible?(entity: number): readonly number[];                  // J3: who this player's page draws (its last snapshot); none = []
   aventura?(carpeta: string): { fichero: string; texto: string }[]; // J5: the adventure's text files in one folder (AVENTURA_DIR); none = []
+  recibo?(d: BienFirmable): string;                             // N10: a good's ownership receipt signed by the world (server/recibos.ts); none = ""
+  verificarRecibo?(token: string): ReciboLeido;                 // N10: check any world's receipt (its key is inside); none = refused
+  emisor?(): string;                                            // N10: the public key this world signs receipts with; none = ""
 };
+/** N10 (bienes digitales): what a feature asks the world to sign — the good (id = 24 hex, unique per world), its owner
+ * (the guest id), the quest it came from and the instant (ISO 8601 UTC). The world adds v, tipo, mundo and emisor. */
+export type BienFirmable = { id: string; objeto: { id: string; nombre: string; descripcion: string; modelo: string; licencia: string }; dueno: string; mision: string; instante: string };
+/** A receipt read: valid (its payload, its sha256 and whether THIS world signed it) or why not. */
+export type ReciboLeido = { ok: true; recibo: BienFirmable & { v: 1; tipo: "bien"; mundo: string; emisor: string }; huella: string; nuestro: boolean } | { ok: false; motivo: string };
 /** Who gets an event: everyone, one player, the players near a player or a point, or (J3) "server": no page, only
  * the server-side listeners of other features (`api.listen`), e.g. a command typed in the chat. */
 export type Scope = "all" | "server" | { to: number } | { near: number | { x: number; z: number }; radius?: number };
@@ -307,6 +315,13 @@ export type ServerApi = {
    * the thing's state has a `y`, within ALCANCE_ALTURA_M of it in height)? Ask it on every intent a thing receives: the
    * page shows the prompt, the server decides. */
   within(entity: number, key: string): boolean;
+  /** N10: the world's signed proof that a good belongs to `d.dueno` ("nb1.…", Ed25519, packages/server/src/recibos.ts),
+   * or "" when the world has no secret (MOTOR_SECRET): then give no good. No chain, no wallet: a receipt anyone checks. */
+  recibo(d: BienFirmable): string;
+  /** N10: check a receipt from this world or any other (the signer's public key is inside; `nuestro` = signed here). */
+  verificarRecibo(token: string): ReciboLeido;
+  /** N10: the public key this world signs its receipts with («ed25519:<43>»), "" when it signs none. */
+  emisor(): string;
 };
 export type ServerPart = { feature: Feature; side: "server"; setup: (api: ServerApi) => void };
 export const serverPart = (feature: Feature, setup: (api: ServerApi) => void): ServerPart => ({ feature, side: "server", setup });
@@ -506,6 +521,9 @@ export class ServerRuntime {
       position: (e) => this.host.position(e),
       tick: () => this.host.tick(),
       sign: (text) => this.host.sign?.(text) ?? "",
+      recibo: (d) => { try { return this.host.recibo?.(d) ?? ""; } catch (e) { log(`recibo: ${String((e as Error)?.message ?? e)}`); return ""; } },
+      verificarRecibo: (token) => { try { return this.host.verificarRecibo?.(token) ?? { ok: false, motivo: "este mundo no comprueba recibos" }; } catch { return { ok: false, motivo: "no se pudo comprobar" }; } },
+      emisor: () => this.host.emisor?.() ?? "",
       puede: (e, accion) => { try { return this.host.puede?.(e, accion) ?? false; } catch { return false; } },
       activo: (sha256, ext = "glb") => { try { return /^[0-9a-f]{64}$/.test(sha256) && (this.host.activo?.(sha256, ext) ?? false); } catch { return false; } },
       medidas: (sha256, ext) => { try { return /^[0-9a-f]{64}$/.test(sha256) ? this.host.medidas?.(sha256, ext) ?? null : null; } catch { return null; } },
@@ -703,8 +721,10 @@ export type ViewHooks = {
   nameTag?(entity: number, text: string | null): void;
   /** J3: a speech bubble over an avatar for `ms` (several lines; the latest replaces the one before). */
   bubble?(entity: number, text: string, ms: number): void;
-  /** J5: a name that stays over a thing (a person you can talk to), facing whoever looks; `null` takes it away. */
-  tag?(key: string, t: { text: string; x: number; y: number; z: number } | null): void;
+  /** J5: a name that stays over a thing (a person you can talk to), facing whoever looks; `null` takes it away. U14 (4),
+   * optional: `sub` = a second, smaller line under the name (a person's trade); `mark` = «!» (something for you now) or
+   * «✓» (done) above it. The page redraws a label only when its text or mark changes. */
+  tag?(key: string, t: { text: string; x: number; y: number; z: number; sub?: string; mark?: "!" | "✓" | "" } | null): void;
   /** H4: the zone's environment (sky, sun, fog, wind, ground, tone) by field name — features/entorno; render/entorno.ts reads it. */
   entorno?(valores: Msg): void;
   /** H4/H8: an element of the world (water, fire, smoke, dust) by key, or `null` to take it away — features/elementos. */

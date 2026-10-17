@@ -15,6 +15,8 @@ export const ZONA = "zona";
 
 const COLOR = { kind: "int", min: 0, max: 0xffffff } as const;
 const FICHERO = { kind: "text", maxBytes: 72, default: "" } as const; // "<sha256>.<ext>" of a file in /a/, or ""
+/** U14: the highest map cut (m above the ground). The map's camera flies at 80 m: a cut stays well under it. */
+export const CORTE_MAX = 60;
 
 /** The environment as it travels and is saved. Names are the contract with render (packages/render/src/entorno.ts). */
 export const CAMPOS: Fields = {
@@ -49,6 +51,8 @@ export const CAMPOS: Fields = {
   exposicion: { kind: "fixed", min: 0.05, max: 8, step: 0.01, default: 1 },
   hitos: { kind: "bool", default: true },
   rejilla: { kind: "bool", default: false },
+  // U14: the maps cut the world at this height (m), like an architect's floor plan; 0 = not cut (the roofs show)
+  mapaCorte: { kind: "fixed", min: 0, max: CORTE_MAX, step: 0.1, default: 0 },
 };
 
 export const entorno = defineFeature({
@@ -57,7 +61,7 @@ export const entorno = defineFeature({
   level: "base",
   describe: "El entorno de la zona: cielo, sol, luz, niebla, viento, suelo y exposición. Llega a todos al entrar; quien tiene permiso de construir lo cambia en directo con un preset (día, atardecer, noche, niebla, tormenta…) o con valores finos.",
   state: {
-    describe: "Una sola entrada, «zona». Colores en entero 0xRRGGBB; ángulos en grados (altura del sol sobre el horizonte, rumbo desde el norte hacia el este); niebla en metros (lejos 0 = sin niebla; nieblaAuto = su color sale del horizonte del cielo); viento en m/s; sueloEscala 1 = cada textura a su tamaño (suelos.json); imagen y hdr = «<sha256>.<ext>» de /a/ o vacío (vacío: la luz sale del propio cielo).",
+    describe: "Una sola entrada, «zona». Colores en entero 0xRRGGBB; ángulos en grados (altura del sol sobre el horizonte, rumbo desde el norte hacia el este); niebla en metros (lejos 0 = sin niebla; nieblaAuto = su color sale del horizonte del cielo); viento en m/s; sueloEscala 1 = cada textura a su tamaño (suelos.json); imagen y hdr = «<sha256>.<ext>» de /a/ o vacío (vacío: la luz sale del propio cielo); mapaCorte = altura en metros a la que el minimapa y el mapa cortan el mundo, como el plano de un edificio (0 = sin corte: se ven los tejados).",
     fields: CAMPOS,
     persist: true,
   },

@@ -43,6 +43,7 @@ export const crearEntorno = (mundo?: unknown) => serverPart(entorno, (api) => {
     return ok;
   };
   if (!api.state.get(ZONA)) poner(base, false); // nothing saved yet: the world's own
+  else if (Number(actual().mapaCorte ?? 0) !== Number(base.mapaCorte ?? 0)) poner({ ...actual(), mapaCorte: base.mapaCorte }, false); // U14: where the map is cut is the world's file's (no panel sets it): edit the file, restart, it shows
 
   const avisar = (e: number) => { api.emit("permiso", { construir: api.puede(e, "construir") }, { to: e }); };
   api.onJoin(avisar);

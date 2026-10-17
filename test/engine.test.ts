@@ -53,9 +53,9 @@ test("determinism: 10,000 ticks replay to identical fingerprints", () => {
 });
 
 test("determinism: the reference fingerprint is pinned (a change here is a sim format change: ADR)", () => {
-  // 93b192c8 since J2 (height, jump, the jump in the air, running; sim format 2). Before J2: fa94375e.
+  // 7e630965 since J3 (human VR pace: walk 1.5 m/s, run 4 m/s, sim/wire format 3). Before J3: 93b192c8 (format 2, J2).
   const h = replayFingerprint(referenceRecording(REFERENCE.seed, REFERENCE.ticks, REFERENCE.n));
-  assert.equal(hex(h), "93b192c8");
+  assert.equal(hex(h), "7e630965");
 });
 
 test("determinism: input order does not matter", () => {

@@ -5,7 +5,7 @@
 import { escribiendo, construyendo } from "./interactuar.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
-type Dialogo = { pnj: string; nombre: string; texto: string; opciones: string[] };
+type Dialogo = { pnj: string; nombre: string; oficio?: string; texto: string; opciones: string[] };
 type Ctl = { dialogo(): Dialogo | null; elegir(n: number): Res; adios(): Res; estado: { ultimoRechazo: string }; alCambiar(fn: (que: "libro" | "dialogo" | "nota") => void): unknown };
 type Vista = { renderer: { domElement: HTMLElement }; cam?: { modo?(): string } };
 
@@ -33,6 +33,13 @@ export function montarDialogo(c: Ctl, caja: HTMLElement, view: Vista): void {
     mostrado = firma;
     estado.textContent = "";
     nombre.textContent = d.nombre;
+    if (d.oficio) { // U14 (4): the person's trade next to the name, smaller (a screen reader hears «Cosimo, Carpintero»)
+      const coma = document.createElement("span"), oficio = document.createElement("span");
+      coma.className = "solo-lector"; coma.textContent = ", ";
+      oficio.className = "oficio"; oficio.textContent = d.oficio;
+      oficio.style.cssText = "font-size:.72em;font-weight:500;opacity:.8;margin-left:.6em;text-transform:none;letter-spacing:normal";
+      nombre.append(coma, oficio);
+    }
     texto.textContent = d.texto;
     opciones.replaceChildren(...d.opciones.map((t, i) => {
       const b = document.createElement("button");
