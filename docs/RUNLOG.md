@@ -649,3 +649,30 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
   chat bajo carga, como siempre); `npm run build` en verde. La página no se ha probado en un navegador.
 - Commit: ver la rama `noche/director`.
 - Siguiente: probar el panel en escritorio y móvil; corte 2 (dar cosas, mostrar/ocultar, diario).
+
+## 2026-10-18 · N13 · modo foto para compartir · hecho (rama `noche/foto`, desde `tren/motor-2026-10-18`)
+- Qué: P (o el botón de la cámara arriba) esconde toda la interfaz y suelta la cámara en un modo nuevo `"foto"`
+  (`camara-orbita.ts`): libre con correa corta (el pivote a 12 m de tus ojos como mucho, nunca bajo el suelo,
+  de 0,3 a 14 m, nunca primera persona; al salir vuelve exactamente a la cámara de juego). PC: arrastrar encuadra,
+  rueda acerca hacia el cursor, WASD/flechas mueven la cámara (Shift deprisa), Q E bajan y suben, 1-4 filtro, F
+  marco, Intro/Espacio foto, Esc sale; el avatar se queda quieto. Móvil: todos los dedos son de la cámara (la mitad
+  izquierda deja de ser joystick), botón redondo dispara. Filtros = matrices de color dentro de la paleta Nocturno
+  (`foto-nucleo.ts`): las mismas cifras en la vista previa (SVG `feColorMatrix` sobre el canvas) y en el PNG.
+  Marco con el nombre del MUNDO (título de la página) y la fecha; nunca la marca del motor. La foto se dibuja otra
+  vez a hasta 2× (≤ 3200 px) y se lee en la misma tarea (sin `preserveDrawingBuffer`). Después: Compartir (Web Share
+  con el archivo, solo si `canShare({files})`), Guardar, Copiar imagen (escritorio), Copiar enlace. Enlace
+  `#foto=x,y,z,rumbo,inclinación,distancia`: quien lo abre lo ve salir de la barra, el sitio queda como su destino
+  (columna de luz y marcador del mapa) y la cámara gira hacia él; a ≤ 3 m mira como miraba la foto. No te
+  teletransporta: dónde apareces es del servidor (ningún cliente dice dónde está) — si un mundo quiere permitirlo,
+  otra tarjeta. VR: sin botón (la vista del visor no es el canvas de la página; el botón se esconde en XR).
+- Números: `test/foto.test.ts` 8 pruebas (filtros en la línea de la paleta, SVG = PNG, marco, nombre de archivo,
+  enlace ida y vuelta y basura rechazada, rumbo, cámara «foto»). `npm test`: 444, 443 + 1 de coste del chat que
+  falla solo con la máquina cargada (sola pasa). `tools/e2e-piernas/foto.mjs` (servidor + Vite reales) OK en
+  Chromium y Firefox: PC 1280×720 a 2× → PNG 2560×1440 con banda del marco #14110F y píxeles en la línea de
+  Verdemar, descarga = mismos bytes, enlace en el portapapeles, Esc devuelve todo y W vuelve a andar, el enlace en
+  otra pestaña marca el destino y gira la cámara (error < 0,05 rad); móvil 390×844 ×3 (solo Chromium: toques CDP)
+  → un dedo en la mitad izquierda gira la cámara sin moverte, PNG 780×1688, Compartir entrega 1 archivo PNG + el
+  enlace. `tools/e2e.mjs` OK en los dos.
+- Consumo: sin medir · Opus 5.5.
+- Siguiente: probar Compartir en un móvil real (la hoja del sistema); captura en VR (renderizar la cámara XR a un
+  objetivo propio) si se pide.

@@ -34,6 +34,7 @@ import { montarVoz } from "./voz.ts";
 import { icono } from "./iconos.ts";
 import { montarXR } from "./xr.ts";
 import { aplicarTema } from "./tema-mundo.ts"; // a world's look (ficha@1 `tema`): an event's colours and title face
+import { montarFoto } from "./foto.ts"; // N13: photo mode (P): hide the interface, frame, filter, PNG, share, a link to the place
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
@@ -132,6 +133,9 @@ montarLibro(misiones, {
 // from __numinia when present (misiones.objetivos/resumen, ajustes.abrir, chat.nombres) ----
 const otros = () => (globalThis as unknown as { __numinia?: Record<string, unknown> }).__numinia ?? {};
 const mapa = montarMapa({ session, view, otros });
+// ---- N13: photo mode (P or the camera button): the photo owns the screen and the keys; your avatar stands still ----
+const foto = montarFoto({ view, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), mapa, boton: document.getElementById("foto-abrir") as HTMLButtonElement, ocupado: () => dardos.tirando(),
+  decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); } });
 const ficha = montarFicha({ session, view, desde: () => informe.bienvenidaMs, otros }, mapa.botonFicha);
 montarBienes({ bienes, comprobar, ficha, boton: mapa.botonFicha }); // N10: the sheet's «Inventario» = your goods, their receipts
 
@@ -177,6 +181,7 @@ function readAxes(): [number, number] {
   // left held when the headset took over (a touch whose pointerup never comes, a stale Gamepad-API pad, a key)
   // used to keep driving you whenever the VR stick sat at zero: measured on Pablo's Quest, 7.9 m/s in one fixed
   // direction with the controllers asleep and his hands tracked, until the world's edge. Drop them on the way in.
+  if (foto.activo()) { soltarEntradaPlana(); return [0, 0]; } // N13: framing a photo, you stand still (the camera moves instead)
   if (view.vr.active) {
     soltarEntradaPlana();
     const [vx, vz] = view.vr.axes();
@@ -213,6 +218,7 @@ if (matchMedia("(pointer: coarse)").matches) {
 }
 function readButtons(): number {
   let b = 0;
+  if (foto.activo()) { saltoPendiente = false; return 0; } // N13
   if (view.vr.takeJump() || view.ar.takeJump() || saltoPendiente) { saltoPendiente = false; b |= BTN_JUMP; }
   // RUN_EDGE close to 1: most of the stick's travel walks (human pace), only the very end runs
   // (was 0.9 — reached with barely half the throw, so there was no way to just walk).
@@ -351,7 +357,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, mapa, ficha, ambiente, elementos, voz, xr, pesca, bienes, dardos, pescaPagina: () => pescaPagina, dirigir };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, mapa, ficha, ambiente, elementos, voz, xr, pesca, bienes, dardos, pescaPagina: () => pescaPagina, dirigir, foto };
 
 // ---- U11: the bar of icon buttons, top right (rightmost first): settings, build, microphone, full screen, VR, AR ----
 {
@@ -360,7 +366,7 @@ function drawHud() {
   gear.classList.add("solo-icono"); gear.innerHTML = `${icono("gear")}<span class="solo-lector">Ajustes</span>`;
   const mis = document.getElementById("misiones")!;
   mis.innerHTML = `${icono("scroll", 18)}<span>Misiones</span>`; mis.title = "Misiones (J)";
-  for (const id of ["ajustes-abrir", "construir", "microfono", "pantalla", "vr", "ar"]) { const e = document.getElementById(id); if (e) barra.appendChild(e); }
+  for (const id of ["ajustes-abrir", "construir", "microfono", "foto-abrir", "pantalla", "vr", "ar"]) { const e = document.getElementById(id); if (e) barra.appendChild(e); }
   barra.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
 }
 
