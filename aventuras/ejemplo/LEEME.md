@@ -10,6 +10,9 @@ lo que hablar. Las aventuras de verdad viven en su propio repositorio y el servi
 - `misiones/manos-a-la-obra.json`, `pnj/teo.json`, `cosas/regadera.json`, `cosas/semillas.json` (J10): Teo, el
   jardinero, pide dos cosas que están a la altura de la mano (azul y dorada); en VR se cogen con la mano (o el mando) y
   se ven en ella; en pantalla, con E, un clic o el botón.
+- `escenas/taberna.json`, `escenas/tormenta.json` (`escena@1`, N6): dos escenas para quien dirige (permiso «Gestionar
+  rituales»): el panel «Dirigir» (K) o `/escena taberna` en el chat. Una escena pone cielo, luz y niebla sobre el
+  entorno del mundo y puede traer una línea del narrador. `/escenas` las lista, junto a los entornos de la casa.
 - `ficha.json` (`ficha@1`): cómo se llama el mundo y de qué va (la página y `/status` lo dicen); `portada` opcional.
 
 Cómo se escribe una aventura (formatos, reglas, errores): `docs/EXTENDER.md`, «Misiones y personas (PNJ)».

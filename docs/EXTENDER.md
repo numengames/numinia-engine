@@ -551,6 +551,32 @@ cada paso de `libro()` lleva `espera` (los segundos que le faltaban al llegar el
 (cuándo se abre, en el reloj de la página); `secuencia()` (la que suena, o `null`), `alSecuencia(fn)` (oír cuándo
 empieza, cada línea, cada sonido y cuándo acaba) y `cuadro()` (la página la avanza en cada cuadro).
 
+## Escenas y el Director de juego (N6)
+
+Quien **dirige** una aventura o un evento (el Director de Juego, DJ, del manual: presenta escenas y da voz al mundo,
+no decide por nadie) es quien tiene el permiso de la organización **«Gestionar rituales»** (`manage-rituals`, STD-052;
+en la plantilla «Comunidad», Moderación; los dueños y Administración, también). El motor lo llama la acción `dirigir`
+(`packages/server/src/roles.ts`). Una IA no dirige en este corte (`PERMISOS_IA`).
+
+Una aventura trae sus escenas en `escenas/<id>.json` (el id es el nombre del fichero: minúsculas, cifras y guiones):
+
+```json
+{ "schema": "numinia-engine/escena@1", "nombre": "La taberna", "preset": "atardecer",
+  "entorno": { "niebla": { "cerca": 8, "lejos": 60, "color": "#3a2a20", "delCielo": false } },
+  "narracion": "Huele a vino especiado." }
+```
+
+- `nombre` (1–40 bytes) es lo que ve quien dirige. Hace falta `preset` (uno de la casa) o `entorno` (un `entorno@1`
+  parcial, sin `suelo`, `aparicion` ni `mapa`, que son del mundo; caben 512 bytes en JSON compacto), o los dos.
+- Al ponerla: el entorno del mundo, luego el preset y luego lo que cambia la escena. Pasar de una escena a otra no
+  deja restos. Si hay `narracion` (≤ 280 bytes), todos la ven en el cartel del narrador.
+- Los entornos de la casa también son escenas: `/escena noche` vale en cualquier mundo.
+- Quien dirige tiene el botón «Dirigir» (tecla K): escenas, luz y niebla en directo, narrar y «Convocar aquí». En el
+  chat: `/escenas`, `/escena <nombre o número>`, `/narrar <texto>` y `/convocar [texto]`.
+- **Convocar no mueve a nadie**: cada persona recibe «Ir / Ahora no». «Ir» enciende una baliza en el sitio y quien
+  convocó ve cuántas vienen.
+- `node tools/aventura.ts <carpeta>` comprueba las escenas; una mal escrita no se carga y el registro dice por qué.
+
 ## Agentes de fuera: gestionarlos por HTTP (ADR-080, para el panel de numinia.com)
 
 Lo que el dueño hace en el chat con `/agente añadir|quitar` lo hace también el panel de numinia.com por HTTP, con el mismo

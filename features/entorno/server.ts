@@ -35,7 +35,8 @@ export function conSol(v: Plano): Plano {
 export const crearEntorno = (mundo?: unknown) => serverPart(entorno, (api) => {
   const base = conSol(baseDelMundo(mundo, api.log));
   const rechazar = (from: number, motivo: string) => { api.emit("rechazado", { motivo }, { to: from }); return false; };
-  const puede = (from: number) => api.puede(from, "construir") || rechazar(from, "No puedes cambiar el entorno: el mundo está cerrado a construir (lo abre quien lo administra).");
+  // N6: whoever directs (api.puede "dirigir", STD-052 manage-rituals) changes it live too: the director's light and fog
+  const puede = (from: number) => api.puede(from, "construir") || api.puede(from, "dirigir") || rechazar(from, "No puedes cambiar el entorno: el mundo está cerrado a construir (lo abre quien lo administra) y no diriges aquí.");
   const actual = (): Plano => (api.state.get(ZONA) as Plano | undefined) ?? base;
   const poner = (v: Msg, avisar = true) => {
     const ok = api.state.set(ZONA, conSol(v));
@@ -60,6 +61,19 @@ export const crearEntorno = (mundo?: unknown) => serverPart(entorno, (api) => {
   });
   api.on("ajustar", (from, m) => { if (puede(from)) poner(m); });
   api.on("restaurar", (from) => { if (puede(from)) poner(base); });
+  // N6: a director put a scene (features/director checked who and which): the world's own environment, then the
+  // scene's preset, then what the scene changes. Never the ground nor the map cut (the world's). The director announces it.
+  api.listen("director", "aplicar", (m) => {
+    let v: Plano = { ...base, suelo: actual().suelo, sueloColor: actual().sueloColor, sueloEscala: actual().sueloEscala };
+    const nombre = String(m.preset ?? "");
+    const p = nombre ? (presets.presets as Record<string, unknown>)[nombre] : undefined;
+    if (p) { const r = validarEntorno(p, v); if (r.ok) v = { ...r.value, preset: nombre }; }
+    let cambios: unknown = null;
+    try { cambios = m.entorno ? JSON.parse(String(m.entorno)) : null; } catch { cambios = null; }
+    if (cambios) { const r = validarEntorno(cambios, v); if (!r.ok) { api.log(`[entorno] escena con errores (no se pone): ${r.issues[0].path}: ${r.issues[0].message}`); return true; } v = { ...r.value, preset: "propio" }; }
+    poner({ ...v, mapaCorte: base.mapaCorte }, false);
+    return true;
+  });
 
   // the day cycle (hora.cicloMinutos > 0): a whole day in that many minutes, the clock moved every 5 s. The exact clock
   // lives here (the wire carries 0.05 h steps); a builder who sets the time by hand moves it.

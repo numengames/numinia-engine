@@ -119,7 +119,7 @@ test("/dar and /quitar follow STD-051: only with manage-roles, only below your h
   W.decir(B, `/dar ${W.nombre(C)} Moderación`);
   assert.match(W.ultimo(C), /«Moderación»/);
   W.decir(C, "/roles");
-  assert.match(W.avisos(C).at(-2) ?? "", /Eres: Moderación, @todos\. Puedes: entrar si es solo para miembros, silenciar, echar, vetar\./);
+  assert.match(W.avisos(C).at(-2) ?? "", /Eres: Moderación, @todos\. Puedes: entrar si es solo para miembros, silenciar, echar, vetar, dirigir \(escenas, narrar, convocar\)\./);
   W.decir(B, `/quitar ${W.nombre(C)} Moderación`);
   assert.match(W.ultimo(B), /ya no tiene «Moderación»/);
 });

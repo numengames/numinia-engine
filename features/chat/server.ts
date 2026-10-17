@@ -57,6 +57,7 @@ export default serverPart(chat, (api) => {
   api.on("decirZona", decir("zona"));
   // H3: the world's roles (packages/server/src/roles-mundo.ts) answer orders and silence people through these
   api.listen("roles", "aviso", (m) => { avisar(Number(m.quien), String(m.texto ?? "")); return true; });
+  api.listen("director", "aviso", (m) => { avisar(Number(m.quien), String(m.texto ?? "")); return true; }); // N6: /escena, /narrar, /convocar
   api.listen("roles", "silencio", (m) => {
     const e = Number(m.quien), s = Number(m.segundos);
     if (s > 0) callados.set(e, api.tick() + s * TICKS_POR_SEGUNDO); else callados.delete(e);

@@ -639,3 +639,13 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `vr/giro-y-velocidad` (worktree en `work/numinia-engine-wt-vrmotor`, aún sin PR).
 - Siguiente: Pablo prueba en el Quest real: 3 giros a cualquier lado + palanca adelante va hacia donde mira, y
   la marcha normal ya no es un trote. Si Pablo quiere elegir su propio ritmo de movimiento, tarjeta aparte.
+
+## 2026-10-17 22:05 · N6 · corte 1 hecho
+- Qué: el Director de juego (DJ). Dirigir = STD-052 «Gestionar rituales» (sin rol nuevo). Escenas de la aventura
+  (`escena@1`) sobre el entorno del mundo, narrar a todos, convocar con «Ir / Ahora no» (nadie se mueve sin su sí),
+  panel «Dirigir» (K) y órdenes de chat; escenas en la aventura de ejemplo y en las plantillas galería, eventos y
+  auditorio (fuera del repo, `plantillas/escenas.mjs`).
+- Números: 4 pruebas nuevas (`test/director.test.ts`) y una aserción de `roles` al día; 427 de 428 (la de coste del
+  chat bajo carga, como siempre); `npm run build` en verde. La página no se ha probado en un navegador.
+- Commit: ver la rama `noche/director`.
+- Siguiente: probar el panel en escritorio y móvil; corte 2 (dar cosas, mostrar/ocultar, diario).
