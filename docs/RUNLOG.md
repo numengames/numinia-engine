@@ -468,3 +468,27 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Siguiente: Pablo, en el Quest, abre el mundo instalado (p. ej. alchemiststower.numinia.com) en el navegador, menú ⋮ →
   «Guardar en la biblioteca» (o «Añadir a pantalla de inicio»), y confirma que el icono de Numinia aparece en la
   biblioteca y que al pulsarlo el mundo carga a pantalla completa sin barra de direcciones.
+
+## 2026-10-17 17:26 · U14 · hecho (primer corte)
+
+- Qué: mandos del vídeo, lo pequeño primero (`packages/render/src/medios.ts`: `ControlVideo` nuevo — pausar/reanudar,
+  parar, volumen 0–1 propio; `packages/render/src/index.ts`: `view.controlVideo(key)`; `apps/plaza/video-mandos.ts`
+  nuevo, montado en `main.ts` junto a `interactuar.ts`: cerca de un vídeo ofrece «E: pausar/reanudar el vídeo» — el
+  mismo gesto en pantalla plana (E o clic) y en VR (el mando, vía `xr.ts`/`interaccion.usar()`, sin tocar ese
+  fichero); un panel al pie (`#video-mandos`, pantalla plana) añade Parar y un deslizador de mi volumen. TODO lo que
+  hace es MÍO SOLO — nunca toca el reloj compartido ni se manda al servidor — a propósito, por las dos preguntas de
+  fondo que Pablo pidió dejar escritas, no decididas (BACKLOG.md U14): (a) ¿el mando es mío o del mundo (cine
+  compartido)? (b) si es del mundo, qué permiso de la organización (STD-052) lo exige. Después de U14, en tarjetas
+  aparte: U15 (vídeo 360/180, pantalla curva).
+- Números: `npm run build` sin crecer de tamaño (igual 111,78 kB gz del bloque principal); `npm run gates`: 375
+  pruebas en verde (cinco más que la entrada anterior, nuevas en `medios.ts`), capas 0, determinismo, ancho de banda
+  y tick de 1.000 sin cambios.
+- Aviso / sin comprobar: sin leg de e2e con un vídeo real en un navegador de verdad (no hay ninguno hoy en el
+  repo para vídeo — las pruebas unitarias de `medios.ts` no tocan DOM; headless no siempre decodifica mp4). Volumen
+  y «Parar» solo existen en el panel de pantalla plana: en VR no hay `dom-overlay` para mostrar HTML (el panel de
+  muñeca es J13, sin construir). No probado con el mando de un visor real.
+- Consumo: 19% de la semana (sin lectura previa a este turno) · Sonnet 5.5.
+- Commit: rama `video/mandos-propios` (ver `git log`), PR por abrir.
+- Siguiente: Pablo decide (a) y (b) de BACKLOG.md U14 — si pausar/parar pasa a ser del mundo (cine compartido) con
+  permiso de organización, o se queda como está (mío solo); luego, J13 (panel de muñeca en VR) para el volumen y el
+  parar sin salir del visor, y una pierna de e2e (`tools/e2e-piernas/`) con un vídeo real.
