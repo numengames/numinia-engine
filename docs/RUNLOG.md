@@ -863,3 +863,21 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5 (obrero ola 3).
 - Siguiente: si Pablo quiere editar el cableado en vivo (no solo verlo), hace falta mandar los receptores al
   cliente constructor y un camino para reescribir `disparadores.json` con la instancia corriendo.
+
+## 2026-10-17 23:45 · L1 · hecho
+- Qué: sistema de lucha, trozo 1. Función `lucha`: criatura = entrada de estado con coherencia (no vida: se
+  disuelve), modo y caja sólida que la simulación ya respeta (`solido` + bx0…bz1, como `objetos`); `golpear`
+  → `within`, enfriamiento 12 ticks por jugador («tick desde el que puede», sin contadores), daño 3-5 del
+  PRNG del motor mezclando el tick, `golpe`/`aire`/`disuelta`/`vuelve`, reaparición 20 s; ficha
+  `bestiario.ts` con el Guardián de Crisálida (cita del canon, números del motor); la página dibuja el bloque
+  de la casa escalado a la caja y pintado (`view.place`), nombre, flash blanco 80 ms y «−N» 700 ms, tinte a
+  gris con la coherencia; `MUNDO_DIR/lucha.json`. Solo PVE; la criatura no se mueve ni devuelve el golpe.
+  Diseño completo (combate + bestiario de 12 criaturas ancladas al canon, filas L1-L10):
+  `mmo-browser-study/SISTEMA-DE-LUCHA-Y-BESTIARIO.md`. Versión **0.4.0** (menor: algo nuevo).
+- Números: 384 pruebas, 383 en verde + 1 mala conocida (`test/chat.test.ts` coste de nombres, pasa sola:
+  13/13); 8 nuevas en `test/lucha.test.ts`. `npm run layers` ok. Build ok: arranque 111,26 → 112,81 kB gz
+  (+1,55 kB: declaración y controlador, sin 3D nuevo).
+- Consumo: sin medir · Sonnet 5.5 (la sesión de Pablo).
+- Commit: rama `lucha/trozo-1` sobre origin/main 749e99a (ver `git log`).
+- Siguiente: Pablo decide D1-D3 del diseño (PVP; jugador sin vida y con Estados; anclajes multiplican el
+  daño) y si abre PR; después L2 (estados del jugador) y L3 (la criatura se mueve).
