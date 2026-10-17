@@ -102,6 +102,12 @@ export default clientPart(gestos, (api) => {
   y `MUNDO_DIR/elementos.json`. El mismo `entorno.json` puede decir dónde aparece la gente: `"aparicion": { "x", "z",
   "radio" }` (metros; el cuadrado de medio lado `radio`, 1–40, centrado en x, z; x y z entre −460 y 460). Sin él, el
   cuadrado de la casa (40 m alrededor del origen). Es del servidor (viaja en la carpeta y el zip del mundo), no del cable.
+- Un mundo que es por dentro de un edificio puede cortar sus mapas a una altura, como la planta de un arquitecto:
+  `"mapa": { "corte": 6 }` en el mismo `entorno.json` (metros sobre el suelo, 0–60; sin él o 0, los mapas de siempre).
+  Con corte, el mapa grande dibuja la zona sin lo que queda por encima (el techo, las entreplantas), sin sombras, y
+  encima las paredes, columnas y puertas que corta el plano (tinta; el vidrio en azul claro); el minimapa usa ese mismo
+  dibujo de fondo y no pinta la caja entera de lo que es más alto que el corte. Lo dice el fichero del mundo en cada
+  arranque (U14: `packages/render/src/cenital.ts`, `corte.ts`; `apps/plaza/mapa.ts`).
 - Un agente usa el mismo camino que una persona: lee el catálogo y envía intentos (P4 hará el SDK).
 
 ## Quién es quién (I1)
@@ -122,6 +128,9 @@ export default clientPart(gestos, (api) => {
   `/var/lib/numinia-motor/datos/`). Un apagón pierde como mucho el último segundo.
 - Si cambias la forma del estado, sube `version`: lo guardado que ya no cumpla el esquema se descarta y se
   dice en el registro. Ejemplo: `features/despertar` (almacén con la última vez y cuántas veces).
+- Leer lo guardado sin el servidor (herramientas de solo lectura): `leerFoto` y `repetirDiario` (`datos.ts`) pliegan una
+  foto y su diario como al arrancar, y `leerFuncion` (`mundo-zip.ts`) los toma del mismo momento con el servidor en marcha.
+  Así lee `npm run concesiones` (`packages/server/src/concesiones.ts`) las recompensas concedidas (U14 (6)).
 
 ## Lo que toda función declara (accesibilidad, V1: si falta, la función no se carga)
 
@@ -267,6 +276,7 @@ mi-aventura/
   misiones/<id>.json   formato "mision@1"
   pnj/<id>.json        formato "pnj@1"     (personas que no son jugadores: hablan y dan misiones)
   cosas/<id>.json      formato "cosa@1"    (cosas que se cogen o se usan)
+  secuencias/<id>.json formato "secuencia@1" (un momento con guion que solo ve quien lo provoca: U14 (5))
   habitantes/<id>.json formato "habitante@1" (IA que viven en el mundo: packages/agent)
   ficha.json           formato "ficha@1"   (opcional: cómo se llama el mundo, de qué va y su portada)
   *.md                 notas para quien escribe (no se leen)
@@ -280,15 +290,28 @@ cualquier imagen subida). Aquí, a diferencia de los demás formatos, se miden c
 guarda** (un motor más nuevo puede añadir alguno). El nombre va al `<title>` de la página y a `GET /status` (`nombre`,
 `descripcion`, `portada` = `/a/<sha256>.<ext>` si el servidor la tiene). Sin ficha, todo como antes.
 
+**`tema`** (opcional, dentro de la ficha): cómo se ve la página de ESTE mundo, para que un evento traiga su aire sin
+tocar el motor. Diez colores «#rrggbb» de los paneles — `fondo`, `superficie`, `elevado` (botones), `texto`, `texto2`,
+`linea`, `foco` (lo que se toca), `accion` (el botón principal; la tinta encima, clara u oscura, la elige el motor),
+`enfasis` (la misión seguida y los avisos), `etiqueta` —; `titulos`, la letra de los títulos, una de las que trae el motor
+(`geist`, `geist-mono`, `bebas-neue`; todas SIL OFL, en `apps/plaza/public/fuentes`), nunca un fichero; `sombra`, el color
+de una sombra desplazada en los títulos; `mayusculas` (true/false) y `forma` de los botones (`recta` o `pildora`). Un valor
+que no cabe se deja fuera y se dice en el registro (`[ficha] tema.fondo: …`); el resto se aplica; una clave desconocida
+se ignora. Va en `GET /status` (`tema`) y la página lo vuelca en las variables CSS de `apps/plaza/tema.css`
+(`apps/plaza/tema-mundo.ts`). Sin tema, el aire de la casa. Ejemplo, el de la TRG26: `"tema": { "fondo": "#0b0006",
+"texto": "#e8f8ff", "accion": "#ff8ebe", "enfasis": "#f9ff8e", "foco": "#64f5f0", "titulos": "bebas-neue", "sombra":
+"#ff8ebe", "mayusculas": true, "forma": "pildora" }`.
+
 Reglas para quien escribe (persona o LLM):
 - **Ids** en minúsculas, cifras y guiones (`primeros-pasos`); cada fichero, un `formato` en su primera línea. Un campo
   desconocido es un error (así una tilde de más, `descripción`, no pasa en silencio). `notas` vale en todos.
 - Los textos se miden en **bytes UTF-8** (una letra con tilde cuenta 2): título ≤ 80, descripción ≤ 300, texto de paso
-  ≤ 160, línea de diálogo ≤ 400, respuesta ≤ 100, aviso ≤ 40, nombre ≤ 60.
+  ≤ 160, línea de diálogo ≤ 400, respuesta ≤ 100, aviso ≤ 40, nombre ≤ 60, grupo ≤ 40, oficio ≤ 40.
 - Posiciones en metros (`x`, `z`; −z es el norte, hacia donde mira la cámara al llegar), radios en metros.
 - Lo que tenga un problema **no se carga** (y el registro dice por qué); el resto sí.
 
-**`mision@1`** — pasos en orden; cada uno se completa solo cuando el servidor lo ve:
+**`mision@1`** — pasos en orden (o en cualquier orden, los de un mismo `grupo`: abajo); cada uno se completa solo cuando
+el servidor lo ve:
 
 ```json
 { "formato": "mision@1", "id": "primeros-pasos", "titulo": "Primeros pasos en la plaza",
@@ -308,17 +331,132 @@ Reglas para quien escribe (persona o LLM):
 |---|---|---|
 | `llega_a` | `x`, `z`, `radio` (1-50, 4), `lugar` (nombre para el mapa); opcional `y` (0–30 m: la planta) | el servidor ve al jugador a menos de `radio`; con `y`, además a menos de 2,5 m de esa altura (desde la planta de abajo no cuenta) |
 | `habla_con` | `pnj` | elige en el diálogo de esa persona una respuesta `avanzar_paso` de esta misión; si su árbol no tiene ninguna, basta con hablarle |
+| `recibe` | `pnj`, `cosa` | como `habla_con`; esa persona te da la cosa, que queda «llevada» para una `entrega` |
 | `usa` | `cosa` | usa la cosa a su alcance (E) |
 | `coge` | `cosa` | la coge a su alcance (E); queda «llevada» para una `entrega` |
-| `entrega` | `cosa`, `pnj` | la lleva (un `coge` antes en la misma misión) y elige `entregar` (o le habla, si no hay esa respuesta) |
+| `entrega` | `pnj` y `cosa`, o `cosas` (una lista de 1 a 8) | las lleva todas (cada una con un `coge` o un `recibe` antes en la misma misión) y elige `entregar` (o le habla, si no hay esa respuesta); se las da todas a la vez |
+
+**En cualquier orden: `grupo`.** Pasos **seguidos** con el mismo `grupo` (un texto de 1 a 40 bytes) forman un bloque que
+se hace en el orden que quiera el jugador; la misión pasa al siguiente paso cuando están todos. El `grupo` es también el
+nombre del contador que ve arriba de la pantalla. Un `grupo` repetido más adelante, separado, es un error (junta esos
+pasos). Así es la misión de la TRG26: tres artesanos te dan una pieza cada uno, en cualquier orden, y luego llevas las tres
+a Leonardo:
+
+```json
+"pasos": [
+  { "id": "bastidor", "tipo": "recibe", "texto": "Recoge el bastidor de Cosimo", "pnj": "cosimo", "cosa": "bastidor", "grupo": "Piezas reunidas" },
+  { "id": "telas", "tipo": "recibe", "texto": "Recoge las telas de Bianca", "pnj": "bianca", "cosa": "telas", "grupo": "Piezas reunidas" },
+  { "id": "plano", "tipo": "recibe", "texto": "Recoge el plano de Artemisia", "pnj": "artemisia", "cosa": "plano", "grupo": "Piezas reunidas" },
+  { "id": "entrega", "tipo": "entrega", "texto": "Entrega las tres piezas a Leonardo", "pnj": "leonardo", "cosas": ["bastidor", "telas", "plano"] },
+  { "id": "cofre", "tipo": "usa", "texto": "Abre el cofre y recoge tu recompensa", "cosa": "cofre" }
+]
+```
+
+En el libro, cada pieza que le falta sale como «ahora» y la entrega y el cofre con candado hasta que les toca (el libro
+se abre solo al aceptar la misión, en cuanto termina la conversación con quien la da); las tres, en el mapa, y arriba
+«★ El vuelo del Maestro · Piezas reunidas 1/3 · Bianca, a 12 m al norte» (la más cercana); al hablar con cada artesano,
+«Has recibido: <la cosa>» con el icono de objeto (también al coger algo con un paso `coge`) y un sonido corto.
+Hablar dos veces con el mismo no cuenta dos. Leonardo no acepta la entrega hasta que llevas las tres.
+
+**Un momento que solo ves tú y un paso que espera (U14 (5)).** Dos campos opcionales de cualquier paso:
+- `secuencia`: el id de una `secuencia@1` (abajo). Cuando el servidor da ese paso por hecho, manda la secuencia **solo a
+  quien lo hizo** (a todas sus pestañas), y su página la pone: los demás jugadores del mismo servidor siguen viendo a esa
+  persona en su sitio y pueden hacer su propia misión a la vez. Se manda una vez: quien vuelve a entrar no la ve otra vez.
+- `espera` (segundos, 1–60): el paso no se puede hacer hasta que pasan esos segundos desde que le tocó (en un `grupo`,
+  desde que empezó el bloque). Mientras espera sale con candado en el libro y la cuenta atrás («· en 7 s», también arriba
+  de la pantalla), no es objetivo en el mapa y su persona o su cosa no lleva «!»; quien lo intenta antes oye «Todavía no:
+  faltan 7 s para «Abre el cofre…».». Al cumplirse, el servidor le manda el libro y las marcas otra vez (una vez). La
+  cuenta es del reloj del servidor y se guarda con el progreso (`desde`): volver a entrar, o un reinicio, no la reinicia.
+
+Así acaba la TRG26: al darle las tres piezas, Leonardo se pone las alas y vuela (solo para ti), y el cofre se abre
+cuando ha aterrizado:
+
+```json
+{ "id": "entrega", "tipo": "entrega", "texto": "Entrega las tres piezas a Leonardo", "pnj": "leonardo", "cosas": ["bastidor", "telas", "plano"], "secuencia": "vuelo" },
+{ "id": "cofre", "tipo": "usa", "texto": "Abre el cofre y recoge tu recompensa", "cosa": "cofre", "espera": 10 }
+```
+
+**`secuencia@1`** — un momento corto con guion (1–30 s): pistas que se tocan a la vez, cada una con sus tiempos (en
+segundos desde que empieza). Todo pasa **solo en la página** de quien la provoca: la persona se mueve allí, no en el
+servidor; al acabar vuelve exactamente a donde dice el servidor.
+
+```json
+{ "formato": "secuencia@1", "id": "vuelo", "duracion": 9.5,
+  "pistas": [
+    { "tipo": "texto", "t": 0.2, "texto": "¡Eureka! Leonardo se pone las alas…" },
+    { "tipo": "muestra", "modelo": "<sha256 de alas.glb>", "pnj": "leonardo", "offset": { "x": 0, "y": 1.45, "z": -0.16 }, "desde": 0.5, "hasta": 9.5 },
+    { "tipo": "sonido", "t": 0.5, "sonido": "magia" },
+    { "tipo": "mueve", "pnj": "leonardo", "claves": [
+      { "t": 1.5 },
+      { "t": 2.8, "x": -30, "y": 5, "z": -2, "giro": 90 },
+      { "t": 3.8, "x": -26, "y": 6, "z": -6, "giro": 180 },
+      { "t": 4.8, "x": -30, "y": 6.5, "z": -10, "giro": -90 },
+      { "t": 5.8, "x": -34, "y": 6, "z": -6, "giro": 0 },
+      { "t": 6.8, "x": -30, "y": 3, "z": -2, "giro": 90 },
+      { "t": 7.8, "x": -30, "y": 0, "z": -2, "giro": 0 } ] },
+    { "tipo": "texto", "t": 8, "texto": "Leonardo aterriza. En un momento podrás abrir el cofre." } ] }
+```
+
+| Pista | Campos | Qué hace |
+|---|---|---|
+| `mueve` | `pnj`, `claves` (1–12: `t` y, si quieres, `x`, `y` (0–60), `z`, `giro`) | la persona sigue sus claves (posiciones del mundo, en metros; giro en grados) por una curva suave que no se pasa de ninguna (si una clave está en el suelo, no lo atraviesa); lo que una clave no dice es su sitio y su giro del `pnj@1`. Antes de la primera, en su sitio; tras la última, quieta ahí. Una persona, un `mueve` a la vez |
+| `muestra` | `modelo` (sha256 de un .glb), `desde`, `hasta`; y `pnj` con `offset` `{x, y, z}` (±10 m, en su marco: −z es su espalda), o `x`, `y`, `z`; opcionales `giro` (+ el suyo), `escala` (1) | un modelo de más de `desde` a `hasta`: con `pnj` va con esa persona aunque vuele (con su giro y su tamaño) |
+| `texto` | `t`, `texto` (≤ 120 bytes) | la línea sale en la nota de la página y se lee en voz alta (lector de pantalla) |
+| `sonido` | `t`, `sonido` (`suave`, `aviso`, `exito`, `error`, `paso`, `campana`, `magia`) | un sonido de la casa (notas cortas hechas en la página, sin fichero; con el volumen de efectos) |
+
+- Hasta 16 pistas; cada `t`, `desde` y `hasta` dentro de `duracion`; las claves, cada una después de la anterior.
+- Se comprueba al cargar: un `pnj` que no existe es un error (con la lista de los que hay), y también un `modelo` que el
+  servidor no tiene (súbelo arrastrándolo al mundo o cópialo como `datos/activos/<sha256>.glb`; la biblioteca de la casa
+  vale). Un paso que nombra una secuencia que no hay deja fuera su misión (se haría sin su momento).
+- En la página: una secuencia a la vez (si llega otra, espera su turno; como mucho 3 en cola); mientras no suena
+  ninguna, la página no hace nada por cuadro; en VR no mueve la cámara; su código (1,9 kB gz) se baja con la primera
+  que llega. Para comprobaciones y agentes,
+  `__numinia.misiones.secuencia()` → `{ id, t, duracion, personas, modelos, linea, cola }` o `null`.
+- Coste: el servidor la convierte una vez en eventos (`secuencia`, una `pista` por pista y una `clave` por clave: 15
+  eventos y 554 bytes el vuelo de arriba) y los manda solo a ese jugador; las esperas pendientes se miran 5 veces por
+  segundo, solo las de quien tiene una (1.000 jugadores esperando: tick de las funciones p99 ≈ 0,15 ms).
 
 Recompensas: hoy solo insignias (recuerdos de lo hecho; sin economía). `requisitos.misiones`: las que hay que haber
 completado antes. Hasta 16 pasos, 16 misiones activas por jugador.
 
+**La recompensa, apuntada una sola vez (U14 (6)).** Al completar una misión con `recompensas`, el servidor apunta en el
+almacén de `misiones` (S4: `datos/misiones.json` + `.jsonl` del mundo) **una** concesión por jugador y misión, en la clave
+`c:<misión>:<id del jugador>`: `{ "jugador": "<id>", "nombre": "Invitado IJKL", "mision": "vuelo-del-maestro",
+"recompensas": ["sello-artifice"], "instante": "2026-10-17T03:41:12.345Z", "estado": "concedida" }` (el instante en ISO 8601,
+UTC; unos 250 bytes, del tope de 4.096). Se escribe solo si no está y nunca se sobrescribe: pulsar otra vez, reconectar,
+dos pestañas del mismo invitado o dos jugadores a la vez dejan una por jugador. Una misión `repetible` guarda solo la
+**primera** vez (su instante). **Sin identidad (I1) no hay concesión**: una página que no dice quién es (un robot, un agente
+sin billete) completa la misión en su libro de memoria y no queda apuntada; una IA con identidad sí (su nombre acaba en
+« · IA»). No depende de ninguna cartera: si un día se emite un NFT, será un paso aparte que lea estas concesiones. Código:
+`features/misiones/concesion.ts`; `estado` hoy siempre es «concedida».
+
+Para quien organiza: `npm run concesiones -- <carpeta del mundo> [misión]` (o `node packages/server/src/concesiones.ts …`;
+sin carpeta, la de MOTOR_MUNDO; vale también una DATOS_DIR como `.run/datos`) escribe en CSV `jugador,nombre,mision,
+recompensas,instante,estado`, de la más antigua a la más nueva (varias recompensas en una celda, separadas por «;»; un
+nombre que empezaría por `=` `+` `-` `@` lleva delante un apóstrofo, para que la hoja de cálculo no lo tome por una
+fórmula), y por la salida de errores cuántas hay. Solo lee: funciona con el servidor en marcha (lee la foto y el diario del
+mismo momento, como la copia del mundo; lo de la última fracción de segundo sale la vez siguiente). Va dentro del motor
+instalado y de la imagen: `docker exec <contenedor> /opt/numinia-engine/node/bin/node packages/server/src/concesiones.ts /mundo
+> concesiones.csv`.
+
+```
+$ npm run -s concesiones -- mundo vuelo-del-maestro > concesiones.csv
+2 concesiones de «vuelo-del-maestro» en …/mundo/datos
+$ cat concesiones.csv
+jugador,nombre,mision,recompensas,instante,estado
+abcdefghijkl,Invitado IJKL,vuelo-del-maestro,sello-artifice,2026-10-17T03:41:12.345Z,concedida
+mnopqrstuvwx,Invitado UVWX,vuelo-del-maestro,sello-artifice,2026-10-17T03:44:58.020Z,concedida
+```
+
+Quien completa una misión ve en el centro de arriba, unos 4 s, el cartel **«Misión completada»** con su título y la
+insignia (`apps/plaza/misiones.ts`: con el aire del mundo, la letra de los títulos de su `tema`; no quita ni el teclado ni el
+ratón; es una región `aria-live` y el aviso general de `completada` no se repite) y un acorde corto tras las tres notas del
+paso. La insignia queda en su ficha (I) y en su libro.
+
 **`pnj@1`** — una persona: dónde está y un **árbol de diálogo determinista** que depende de tus misiones:
 
 ```json
-{ "formato": "pnj@1", "id": "bruno", "nombre": "Bruno, el farolero", "descripcion": "Cuida de los faroles.",
+{ "formato": "pnj@1", "id": "bruno", "nombre": "Bruno", "oficio": "Farolero", "descripcion": "Cuida de los faroles.",
   "posicion": { "x": 10, "z": 8 }, "giro": -90, "radio": 3, "apariencia": { "modelo": "<sha256 de un .glb>", "escala": 1 },
   "dialogo": {
     "entradas": [
@@ -336,30 +474,68 @@ completado antes. Hasta 16 pasos, 16 misiones activas por jugador.
 
 - Al hablarle, el servidor abre el primer nodo de `entradas` cuyo `si` se cumple; **la última no lleva `si`**.
 - Condiciones (`si`, una o una lista: todas deben cumplirse): `{ "mision", "estado" }` con estado `sin_empezar`,
-  `disponible` (sin empezar y con los requisitos hechos), `activa` (y si quieres `"paso": "<id del paso actual>"` o
-  `"tiene": "<cosa>"`) o `hecha`. Una respuesta con `si` que no se cumple no se ve.
+  `disponible` (sin empezar y con los requisitos hechos), `activa` (y si quieres `"paso": "<id de un paso que toca ahora>"`
+  —en un grupo, uno que aún no has hecho: deja de cumplirse al hacerlo— o `"tiene": "<cosa>"`) o `hecha`. Una respuesta
+  con `si` que no se cumple no se ve.
 - Cada nodo: `texto` y hasta 4 respuestas (teclas 1-4). Una respuesta lleva `ir` (otro nodo), `accion` o las dos:
-  `dar_mision` (la acepta, si puede), `avanzar_paso` (completa su paso `habla_con` con esta persona), `entregar`
-  (completa su `entrega` a esta persona), `despedir`. Sin `ir`, la conversación termina.
+  `dar_mision` (la acepta, si puede), `avanzar_paso` (completa su paso `habla_con` o `recibe` con esta persona),
+  `entregar` (completa su `entrega` a esta persona), `despedir`. Sin `ir`, la conversación termina.
 - `apariencia.modelo` vacío = el robot de la casa; `apariencia.vrm` queda reservado (avatares VRM).
 - `radio`: a cuántos metros se le habla (1-8, 3). La conversación se cierra si te alejas 4 m más.
 - Opcional `posicion.y` (0–30 m): la planta en la que está (una torre); se dibuja a esa altura y solo se le habla desde
   menos de 2,5 m de ella (desde la planta de abajo ni sale «E: hablar con…» ni el servidor lo admite). Sin `y`, el suelo.
+- Opcional `oficio` (1–40 bytes, U14 (4)): a qué se dedica («Carpintero», «Tejedora»). Sale en una segunda línea, más
+  pequeña, bajo el nombre que flota sobre la persona; junto al nombre en el título de la conversación, y en la lista del
+  mapa («Cosimo (Carpintero)»). Con oficio, deja el nombre corto: «Cosimo», no «Cosimo, el carpintero». Sin él, una línea.
+
+**Marcas sobre las personas y las cosas («!» y «✓», U14 (4))** — las decide el servidor para cada jugador, con su
+progreso, y le llegan **solo a él** (a todas sus pestañas) tras cada libro (evento `marcas`). La aventura no escribe
+nada: salen de sus misiones.
+- **«!»** (un signo grande en ámbar sobre el nombre) = tiene algo para ti **ahora**: te ofrece una misión que puedes
+  coger ya (sin empezar o repetible, con sus requisitos hechos), o es la persona de un paso tuyo que toca ahora
+  (`habla_con`, `recibe`, `entrega` del bloque en curso; en un `grupo`, todas las que faltan). Una **cosa** de misión
+  lleva «!» cuando un paso que toca ahora es cogerla o usarla (`coge`, `usa`); solo entonces tiene nombre flotando.
+- **«✓»** (verde) = ya hiciste lo suyo: te dio una misión que tienes o terminaste, o fue la persona de un paso hecho, y
+  no te queda **nada** pendiente con ella (ni un paso más adelante en la misión, ni una misión que ofrecerte).
+- Nada, en otro caso: los artesanos de la TRG26 no llevan «!» hasta que aceptas la misión de Pietro, y quien ya
+  terminó contigo nunca vuelve a llevarla (salvo que te ofrezca otra misión).
+- El minimapa y el mapa grande dibujan a esas personas con su marca (disco ámbar con «!», disco verde con «✓»; la
+  estrella del objetivo sigue debajo). Cada lista de ids va en ≤ 256 bytes (≈ 25 ids cortos): si no cabe, se quedan
+  fuera las del final (primero van los pasos de ahora, luego las ofertas; primero las misiones activas, luego las
+  terminadas, la más nueva antes). La regla es una función pura, `marcas(progreso, aventura)` en
+  `features/misiones/maquina.ts`.
+- Coste: un sprite por persona cercana (como antes) y uno por cosa marcada; un rótulo se vuelve a pintar solo cuando
+  cambia su texto o su marca (parado, ninguno).
 
 **`cosa@1`** — `{ "formato": "cosa@1", "id": "caja-de-bruno", "nombre": "Caja de herramientas", "posicion": { "x": 4, "z": 14 },
 "radio": 2, "aviso": "coger la caja", "apariencia": { "escala": 0.45 } }`. Sale «E: coger la caja» solo a quien tiene ahora
-un paso `coge`/`usa` con ella; la cosa sigue en el mundo para los demás (cada uno coge «la suya»).
+un paso `coge`/`usa` con ella; la cosa sigue en el mundo para los demás (cada uno coge «la suya»). Lo que da una persona
+(`recibe`) también es una `cosa@1`: ponla donde la tiene esa persona (en su mesa); no sale «E» para cogerla.
 Opcionales (J10): `posicion.y` (0–30 m: a la altura de la mano, para cogerla con la mano en VR, o en una planta alta; se
 usa solo desde menos de 2,5 m de esa altura) y `apariencia.color`
 («#rrggbb»: el modelo pintado de ese color, para que dos cosas se distingan). Lo cogido en un paso `coge` se dibuja en la
-mano que lo cogió (al lado de tu avatar en pantalla) hasta que la misión termina; luego vuelve a su sitio.
+mano que lo cogió (al lado de tu avatar en pantalla) hasta que la misión termina; luego vuelve a su sitio (lo recibido en
+un `recibe`, todavía no: se queda en su sitio).
+
+**Una cosa que se ve usada para ti (`apariencia.usada`, U14 (6)).** `"apariencia": { "modelo": "<sha256 del cofre
+cerrado>", "escala": 1, "usada": { "modelo": "<sha256 del cofre abierto>", "escala": 1 } }`: cómo se ve la cosa para **quien
+ya hizo el paso que la usa** (`usa` o `coge`) en una misión que lleva o que terminó. Los demás la siguen viendo como antes,
+y cada uno abre «el suyo». `escala` es opcional (sin ella, la de la cosa); `modelo`, el sha256 de un `.glb` del mundo
+(`datos/activos/<sha256>.glb`) o de la biblioteca. Lo decide la página de cada jugador con **su** libro (los pasos hechos
+y su `que`: `usadasDe` y `aspectoCosa` en `features/misiones/client.ts`); el servidor solo manda los dos aspectos en el
+estado de la cosa (`modeloUsada`, `escalaUsada`: misiones v5). Se recalcula cuando el libro ha llegado entero (no parpadea
+mientras llega) y solo se vuelve a dibujar la cosa cuyo aspecto cambia. El libro trae las 20 misiones terminadas más
+nuevas: una cosa usada en una más vieja vuelve a verse como antes. En la TRG26, el cofre cerrado y, al abrirlo, abierto e
+iluminado solo para quien lo abrió.
 
 Lo que pasa en el servidor (`features/misiones/server.ts`) y no se puede saltar desde la página:
 - distancias (`api.within`: el radio y, si la persona o la cosa tiene `y`, menos de 2,5 m de altura —
-  `ALCANCE_ALTURA_M`—), posiciones (`api.position`, con `y`, cada 0,2 s y solo de quien espera llegar a un sitio) y el paso
-  actual; hablar de lejos, coger algo que no toca o elegir sin conversación se rechaza diciendo por qué;
+  `ALCANCE_ALTURA_M`—), posiciones (`api.position`, con `y`, cada 0,2 s y solo de quien espera llegar a un sitio) y los
+  pasos que tocan; hablar de lejos, coger algo que no toca o elegir sin conversación se rechaza diciendo por qué;
 - el progreso es **por invitado** (I1) en el almacén (S4, `p:<id>`): sobrevive a los reinicios y llega **solo a su dueño**
-  (eventos `libro`, `mision`, `paso`, `aceptada`, `avance`, `completada`); las personas y las cosas llegan con `at` (J9);
+  (eventos `libro`, `mision`, `paso`, `aceptada`, `avance`, `completada`, `marcas`, y U14 (5) `secuencia`, `pista`,
+  `clave`); las personas y las cosas llegan con `at` (J9); U14 (5): un paso con `espera` cuenta con el reloj del servidor
+  (la máquina no tiene reloj: el servidor le pasa `ahora` en cada suceso y guarda `desde` con el progreso);
 - **el texto no lo decide un modelo**: el árbol es la política. Si un día un LLM da voz a una persona (P5), solo
   **redacta** la línea escrita (`Frasear` en `server.ts`) siguiendo STD-050: en sus instrucciones solo el papel de la
   persona y las normas de la casa; el nombre del jugador y lo que alguien escribió van en un bloque `<material>`
@@ -367,7 +543,13 @@ Lo que pasa en el servidor (`features/misiones/server.ts`) y no se puede saltar 
 
 Para agentes y páginas: `window.__numinia.misiones` (`libro()`, `objetivos()`, `resumen()`, `dialogo()`, `hablar`,
 `elegir`, `adios`, `aceptar`, `abandonar`, `seguir`, `usar`); el mapa lee `objetivos()` → `[{ mision, paso, nombre,
-texto, x, z, seguida }]`.
+texto, x, z, seguida }]` (uno por paso que toca: en un grupo, todos los que faltan); `resumen().seguida.grupo` =
+`{ nombre, hechos, total }` del grupo en curso de la misión seguida, o `null`. U14 (4): `marcas()` → `{ tiene, hecho,
+cosas }` (ids: personas con «!», personas con «✓», cosas con «!»; el mismo objeto mientras no cambian),
+`marcaDe(feature, clave)` → `"!"`, `"✓"` o `""` (`pnj` o `misiones`), `oficioDe(pnj)` y `dialogo().oficio`. U14 (5):
+cada paso de `libro()` lleva `espera` (los segundos que le faltaban al llegar el libro; 0 = ya se puede) y `listoEn`
+(cuándo se abre, en el reloj de la página); `secuencia()` (la que suena, o `null`), `alSecuencia(fn)` (oír cuándo
+empieza, cada línea, cada sonido y cuándo acaba) y `cuadro()` (la página la avanza en cada cuadro).
 
 ## Agentes de fuera: gestionarlos por HTTP (ADR-080, para el panel de numinia.com)
 

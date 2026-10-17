@@ -317,12 +317,14 @@ export function crearEntorno(h: EntornoHooks) {
         suelo: { tipo: String(d?.suelo ?? ""), textura: !!sueloMat.map, relieve: !!sueloMat.normalMap, metros: n(d?.sueloMetros) },
         tono: String(d?.tono ?? ""), exposicion: renderer.toneMappingExposure,
         viento: { x: Math.round(viento.x * 100) / 100, z: Math.round(viento.z * 100) / 100, fuerza: n(d?.vientoFuerza) },
-        hitos: h.hitos[0]?.visible ?? false, rejilla: grid.visible,
+        hitos: h.hitos[0]?.visible ?? false, rejilla: grid.visible, mapaCorte: Math.max(0, n(d?.mapaCorte, 0)),
         nivel, calidad: { ...calidad }, aplicados, horneados, cargando,
       };
     },
     /** True while a file is arriving or something just changed: the page must draw. */
     ocupado(): boolean { return cargando > 0 || performance.now() < hastaMs || hornearEn > 0; },
+    /** U14: the height (m) where the world's maps are cut (`mapa.corte`); 0 = not cut. */
+    corte(): number { return Math.max(0, n(d?.mapaCorte, 0)); },
     /** Once per frame, before drawing. */
     actualizar(): void {
       actualizarNivel();

@@ -28,6 +28,7 @@ import { montarEntorno } from "./entorno.ts";
 import { montarVoz } from "./voz.ts";
 import { icono } from "./iconos.ts";
 import { montarXR } from "./xr.ts";
+import { aplicarTema } from "./tema-mundo.ts"; // a world's look (ficha@1 `tema`): an event's colours and title face
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
@@ -63,6 +64,7 @@ const session = new ClientSession(transport, {
     // V1: every announced event reaches screen readers (polite; safety = assertive). V3 adds the engine's own voice.
     announce: (a) => {
       if (a.feature === "chat") return; // J3: the chat box's own list (role=log, polite) reads the chat
+      if (a.feature === "misiones" && a.event === "completada") return; // U14 (6): the «Misión completada» banner (a live region) reads it
       const box = document.getElementById(a.importance >= 3 ? "avisos-urgentes" : "avisos")!;
       const p = document.createElement("p"); p.textContent = a.text; box.appendChild(p);
       while (box.childElementCount > 3) box.firstElementChild!.remove();
@@ -112,6 +114,8 @@ montarDialogo(misiones, document.getElementById("dialogo")!, view);
 montarLibro(misiones, {
   boton: document.getElementById("misiones") as HTMLButtonElement, panel: document.getElementById("libro")!, linea: document.getElementById("mision-seguida")!,
   nota: document.getElementById("mision-nota")!, view, here: () => (session.entity >= 0 ? session.selfPosition(1) : null),
+  oir: (fn) => session.features.tap(fn), ajuste: leerAjuste, // U14 (3): it opens by itself on accepting; a step done = a short sound
+  banner: document.getElementById("mision-completada")!, // U14 (6): «Misión completada»
 });
 
 // ---- J5: minimap (corner), big map (M, «Mapa») and player sheet (I, «Ficha»); other branches' contracts are read
@@ -214,8 +218,9 @@ setInterval(() => { vrBtn.textContent = view.vr.active ? "Salir de VR" : "Entrar
 // <date>», what /health, the installer and the world zip carry) only as the tooltip, for whoever helps with a fault ----
 const versionMotor = document.getElementById("version-motor");
 if (versionMotor) versionMotor.textContent = `v${versionPaquete}`;
-fetch(`${activos}/status`).then((r) => r.json()).then((st: { version?: string; nombre?: string }) => {
+fetch(`${activos}/status`).then((r) => r.json()).then((st: { version?: string; nombre?: string; tema?: unknown }) => {
   if (st.nombre) document.title = st.nombre; // ADR-074: the world's name (its aventura/ficha.json), also when Caddy or vite serve the page
+  if (st.tema) aplicarTema(st.tema, document.documentElement); // its look: CSS variables tema.css reads; none = the house's
   if (versionMotor && st.version) versionMotor.title = `build ${st.version}`;
 }).catch(() => {});
 
@@ -282,8 +287,9 @@ view.loop((now) => {
   if (session.welcome && !informe.bienvenidaMs) informe.bienvenidaMs = Math.round(performance.now());
   if (probe.done && informe.primerCuadroMs && !informe.entrada) void enviarEntrada();
   // power policy (P2): skip the draw when hidden or when nothing changes; the 20 Hz ticks above never skip
+  const enSecuencia = misiones.cuadro(); // U14 (5): a sequence only this player sees moves its people (no work when none plays)
   const sig = lastSig; lastSig = signature();
-  if (sig !== lastSig || keys.size > 0 || touch || view.vr.active || view.ar.state !== "off" || view.busy()) lastActive = now;
+  if (sig !== lastSig || keys.size > 0 || touch || view.vr.active || view.ar.state !== "off" || view.busy() || enSecuencia) lastActive = now;
   const active = now - lastActive < 600;
   if (view.vr.active || view.ar.state !== "off" || view.power.shouldDraw(now, { hidden: document.hidden, active })) {
     view.sync(session.entity >= 0 ? session.selfPosition(acc / TICK_MS) : null, session.remotePositions(now));

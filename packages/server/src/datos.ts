@@ -5,13 +5,43 @@
 // passes COMPACT_AT lines it is folded into a new snapshot (written to .tmp and renamed, so it is never half
 // written; replaying an old journal over a new snapshot is harmless because set/delete are idempotent).
 // The simulation is never saved: avatars are ephemeral; only the features' state and store live here.
+// The fold itself (leerFoto, repetirDiario) is pure, so read-only tools read a world the same way (concesiones.ts).
 import { existsSync, mkdirSync, readFileSync, renameSync } from "node:fs";
 import { appendFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { FeatureStorage, Saved, StorageOp } from "../../feature/src/index.ts";
 
 export const COMPACT_AT = 1000;
-type Mirror = { version: number; state: Map<string, { value: Record<string, unknown>; at?: { x: number; z: number } }>; store: Map<string, unknown>; lines: number };
+/** What one feature keeps, folded: its version, state entries and store entries. */
+export type Plegado = { version: number; state: Map<string, { value: Record<string, unknown>; at?: { x: number; z: number } }>; store: Map<string, unknown> };
+type Mirror = Plegado & { lines: number };
+
+/** Apply one recorded change (set or delete, of state or store). Idempotent: replaying a journal twice gives the same. */
+export function aplicar(m: Plegado, op: StorageOp): void {
+  if (op.op === "s") m.state.set(op.key, op.at ? { value: op.value, at: op.at } : { value: op.value });
+  else if (op.op === "sd") m.state.delete(op.key);
+  else if (op.op === "k") m.store.set(op.key, op.value);
+  else if (op.op === "kd") m.store.delete(op.key);
+}
+/** A snapshot's text over `m`. Throws when it does not read (FileStorage.load sets such a file aside). */
+export function leerFoto(texto: string, m: Plegado): void {
+  const s = JSON.parse(texto);
+  m.version = Number(s.version) || 0;
+  for (const [k, v] of s.state ?? []) m.state.set(k, v);
+  for (const [k, v] of s.store ?? []) m.store.set(k, v);
+}
+/** A journal's text replayed over `m`, line by line, in order; a torn line (a crash mid-write) is skipped and counted. */
+export function repetirDiario(texto: string, m: Plegado): { lineas: number; rotas: number } {
+  let lineas = 0, rotas = 0;
+  for (const line of texto.split("\n")) {
+    if (!line.trim()) continue;
+    let op: StorageOp & { v?: number };
+    try { op = JSON.parse(line); } catch { rotas++; continue; } // a crash mid-line
+    if (op.v) m.version = op.v;
+    aplicar(m, op); lineas++;
+  }
+  return { lineas, rotas };
+}
 
 export class FileStorage implements FeatureStorage {
   readonly dir: string;
@@ -33,10 +63,7 @@ export class FileStorage implements FeatureStorage {
     const snap = this.file(feature, "json");
     if (existsSync(snap)) {
       try {
-        const s = JSON.parse(readFileSync(snap, "utf8"));
-        m.version = Number(s.version) || 0;
-        for (const [k, v] of s.state ?? []) m.state.set(k, v);
-        for (const [k, v] of s.store ?? []) m.store.set(k, v);
+        leerFoto(readFileSync(snap, "utf8"), m);
       } catch (e) {
         const aside = `${snap}.roto-${Date.now()}`;
         try { renameSync(snap, aside); } catch { /* keep going */ }
@@ -45,24 +72,12 @@ export class FileStorage implements FeatureStorage {
     }
     const journal = this.file(feature, "jsonl");
     if (existsSync(journal)) {
-      for (const line of readFileSync(journal, "utf8").split("\n")) {
-        if (!line.trim()) continue;
-        let op: StorageOp & { v?: number };
-        try { op = JSON.parse(line); } catch { this.stats.lineasRotas++; continue; } // a crash mid-line
-        if (op.v) m.version = op.v;
-        this.apply(m, op); m.lines++;
-      }
+      const r = repetirDiario(readFileSync(journal, "utf8"), m);
+      m.lines += r.lineas; this.stats.lineasRotas += r.rotas;
     }
     if (!existsSync(snap) && !existsSync(journal)) return null;
     this.stats.cargadas++;
     return { version: m.version, state: [...m.state], store: [...m.store] };
-  }
-
-  private apply(m: Mirror, op: StorageOp): void {
-    if (op.op === "s") m.state.set(op.key, op.at ? { value: op.value, at: op.at } : { value: op.value });
-    else if (op.op === "sd") m.state.delete(op.key);
-    else if (op.op === "k") m.store.set(op.key, op.value);
-    else if (op.op === "kd") m.store.delete(op.key);
   }
 
   /** A change, kept in memory until the next flush. */
@@ -70,7 +85,7 @@ export class FileStorage implements FeatureStorage {
     let m = this.mirrors.get(feature);
     if (!m) this.mirrors.set(feature, (m = { version, state: new Map(), store: new Map(), lines: 0 }));
     m.version = version;
-    this.apply(m, op);
+    aplicar(m, op);
     const lines = this.pending.get(feature) ?? [];
     lines.push(JSON.stringify({ t: new Date().toISOString(), v: version, ...op }));
     this.pending.set(feature, lines);

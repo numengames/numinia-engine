@@ -168,6 +168,16 @@ Desde casa, por el túnel (`ssh -L 18790:localhost:8790 …`): `npm run sesiones
 `/var/lib/numinia-motor/datos/<función>.json` + `.jsonl` (texto). Para una copia de seguridad basta copiar esa
 carpeta; para empezar de cero, parar el servicio y vaciarla.
 
+## Quién recibió una recompensa (U14 (6))
+
+Cada recompensa de misión concedida a un jugador con identidad queda apuntada una vez en `datos/misiones.*`. En CSV
+(`jugador,nombre,mision,recompensas,instante,estado`), con el servicio en marcha:
+
+```
+cd /opt/numinia-engine/app && ../node/bin/node packages/server/src/concesiones.ts /var/lib/numinia-motor > concesiones.csv
+docker exec <contenedor> /opt/numinia-engine/node/bin/node packages/server/src/concesiones.ts /mundo vuelo-del-maestro > concesiones.csv
+```
+
 ## Construir en el mundo (H1)
 
 Por defecto todos construyen en un mundo nuevo instalado (personas y habitantes IA): `--construir nadie` lo empieza cerrado.

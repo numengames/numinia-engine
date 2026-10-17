@@ -175,9 +175,10 @@ test("the example quest end to end over the plug: talk, accept, arrive, talk, ta
   assert.match(a.m.dialogo()?.texto ?? "", /Ya conoces la plaza/);
   a.m.aceptar("primeros-pasos"); W.pump(2);
   assert.match(a.m.estado.ultimoRechazo, /Ya completaste/);
-  // B, another guest, never got any of A's quest events (progress goes only to its owner)
-  assert.deepEqual(W.events(b, "misiones").filter((e) => e !== "libro"), []);
+  // B, another guest, never got any of A's quest events (progress goes only to its owner); its own marks came on entering (U14 (4))
+  assert.deepEqual(W.events(b, "misiones").filter((e) => e !== "libro" && e !== "marcas"), []);
   assert.equal(b.m.libro().length, 0);
+  assert.deepEqual([[...b.m.marcas().tiene].sort(), b.m.marcas().hecho], [["alma", "teo"], []], "B's own: two people offer it a quest");
 });
 
 test("J10: «Manos a la obra»: two things taken in order (at hand height, in their colour), then back to Teo", () => {

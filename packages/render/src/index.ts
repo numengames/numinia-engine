@@ -123,7 +123,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     const m = createManos({
       renderer,
       *objetos() { if (ar.state !== "off") return; for (const [k, s] of things) yield [k, s.group] as [string, THREE.Object3D]; },
-      *etiquetas() { if (ar.state !== "off") return; for (const [k, s] of tags) yield [k, s] as [string, THREE.Object3D]; },
+      *etiquetas() { if (ar.state !== "off") return; for (const [k, r] of tags) yield [k, r.s] as [string, THREE.Object3D]; },
       paneles: () => vr.paneles(),
     });
     m.reglas(reglasManos);
@@ -404,11 +404,50 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
 
   // ---- J5: names that stay over things (people of the world). Sprites: they face the camera by themselves, so
   // nothing runs per frame; the fog fades the far ones. pickThing tells which thing (or name) is under a screen point.
-  const tags = new Map<string, THREE.Sprite>();
+  // U14 (4): a label may carry a second, smaller line under the name (a person's trade) and a mark above it («!» in a
+  // warm colour: something for you now; «✓» in green: done). Its canvas is drawn again only when its text or mark
+  // changes — a new position just moves it — so standing still costs nothing (tagDraws() counts the canvases drawn).
+  type Rotulo = { s: THREE.Sprite; firma: string };
+  type DatosRotulo = { text: string; x: number; y: number; z: number; sub?: string; mark?: "!" | "✓" | "" };
+  const tags = new Map<string, Rotulo>();
+  let tagDibujos = 0;
+  const ROT_ANCHO = 512, ROT_NOMBRE = 96, ROT_SUB = 48, ROT_MARCA = 160, ROT_M = 2.9 / 512; // px (the name line as before); metres per px
   function dropTag(key: string): void {
-    const s = tags.get(key);
-    if (!s) return;
-    world.remove(s); s.material.map?.dispose(); s.material.dispose(); tags.delete(key);
+    const r = tags.get(key);
+    if (!r) return;
+    world.remove(r.s); r.s.material.map?.dispose(); r.s.material.dispose(); tags.delete(key);
+  }
+  /** The mark as shapes (no font needs to have «✓»), with a dark edge so it reads over any sky or floor: a warm «!» (a
+   * tapered bar and a dot) or a green tick. `h` = its height in px. */
+  function dibujarMarca(g: CanvasRenderingContext2D, mark: "!" | "✓", cx: number, cy: number, h: number): void {
+    g.save(); g.lineJoin = "round"; g.lineCap = "round"; g.strokeStyle = "rgba(16,12,6,0.92)";
+    if (mark === "!") {
+      const top = cy - h / 2, alto = h * 0.64, r = h * 0.12;
+      g.beginPath();
+      g.moveTo(cx - h * 0.15, top); g.lineTo(cx + h * 0.15, top); g.lineTo(cx + h * 0.09, top + alto); g.lineTo(cx - h * 0.09, top + alto); g.closePath();
+      g.moveTo(cx + r, cy + h / 2 - r); g.arc(cx, cy + h / 2 - r, r, 0, Math.PI * 2);
+      g.lineWidth = h * 0.13; g.stroke();
+      g.fillStyle = "#ffb21e"; g.fill();
+    } else {
+      g.beginPath(); g.moveTo(cx - h * 0.38, cy + h * 0.02); g.lineTo(cx - h * 0.1, cy + h * 0.32); g.lineTo(cx + h * 0.42, cy - h * 0.34);
+      g.lineWidth = h * 0.32; g.stroke();
+      g.strokeStyle = "#3fd46a"; g.lineWidth = h * 0.19; g.stroke();
+    }
+    g.restore();
+  }
+  /** A label's canvas, top to bottom: the mark (if any), the name, the trade (if any); the plate behind the two lines. */
+  function dibujarRotulo(t: DatosRotulo): HTMLCanvasElement {
+    const sub = t.sub ?? "", mark = t.mark || "", arriba = mark ? ROT_MARCA : 0;
+    const c = document.createElement("canvas"); c.width = ROT_ANCHO; c.height = arriba + ROT_NOMBRE + (sub ? ROT_SUB : 0);
+    const g = c.getContext("2d")!;
+    g.fillStyle = "rgba(20,30,40,0.78)"; g.fillRect(0, arriba, ROT_ANCHO, c.height - arriba);
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillStyle = "#ffffff"; g.font = "bold 44px sans-serif";
+    g.fillText(t.text.slice(0, 26), ROT_ANCHO / 2, arriba + (sub ? 46 : 50), ROT_ANCHO - 20);
+    if (sub) { g.fillStyle = "#e2edf6"; g.font = "36px sans-serif"; g.fillText(sub.slice(0, 40), ROT_ANCHO / 2, arriba + ROT_NOMBRE + 4, ROT_ANCHO - 24); }
+    if (mark) dibujarMarca(g, mark, ROT_ANCHO / 2, arriba / 2, arriba - 16);
+    tagDibujos++;
+    return c;
   }
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 
@@ -495,7 +534,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       g.fillStyle = "#ffd27a"; g.font = "bold 26px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
       g.fillText(text.slice(0, 22), 128, 34);
       const tag = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
-      tag.position.y = 3; tag.renderOrder = 10;
+      tag.position.y = 4.3; tag.renderOrder = 10; // U14 (4): over a person's label with its trade and mark (its top: ~3.7 m)
       group.add(col, tag); group.position.set(x, 0, z);
       world.add(group);
       beacons.push({ group, until: performance.now() + ms });
@@ -512,28 +551,31 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       const p = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
       return p && p.distanceTo(camera.position) <= 150 ? { x: p.x, z: p.z } : null;
     },
-    /** J5: a name that stays over a thing (`key` as in place), or `null` to take it away. */
-    tag(key: string, t: { text: string; x: number; y: number; z: number } | null): void {
+    /** J5: a name that stays over a thing (`key` as in place), or `null` to take it away. U14 (4): `sub` = a smaller
+     * second line (a person's trade), `mark` = «!» or «✓» above the name. The plate's bottom edge stays where a plain
+     * name's was (just over the head): a trade or a mark grow it upwards. Same text and mark = only moved. */
+    tag(key: string, t: DatosRotulo | null): void {
+      if (!t) { dropTag(key); return; }
+      const firma = `${t.mark || ""}\n${t.text}\n${t.sub ?? ""}`, y = t.y - (ROT_NOMBRE / 2) * ROT_M, antes = tags.get(key);
+      if (antes && antes.firma === firma) { antes.s.position.set(t.x, y, t.z); return; }
       dropTag(key);
-      if (!t) return;
-      const c = document.createElement("canvas"); c.width = 512; c.height = 96;
-      const g = c.getContext("2d")!;
-      g.fillStyle = "rgba(20,30,40,0.78)"; g.fillRect(0, 0, 512, 96);
-      g.fillStyle = "#ffffff"; g.font = "bold 44px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
-      g.fillText(t.text.slice(0, 26), 256, 50);
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
-      s.name = `nombre:${key}`; s.scale.set(2.9, 0.54, 1); s.position.set(t.x, t.y, t.z); s.renderOrder = 10;
-      world.add(s); tags.set(key, s);
+      const c = dibujarRotulo(t), tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+      s.name = `nombre:${key}`; s.center.set(0.5, 0); s.scale.set(ROT_ANCHO * ROT_M, c.height * ROT_M, 1); s.position.set(t.x, y, t.z); s.renderOrder = 10;
+      world.add(s); tags.set(key, { s, firma });
     },
     /** J5: names over things alive right now (for checks). */
     tagCount(): number { return tags.size; },
+    /** U14 (4): label canvases drawn since the page started (for checks: it must not grow while nothing changes). */
+    tagDraws(): number { return tagDibujos; },
     /** J4: the key of the placed thing (or of the thing whose name it is) under a screen point, nearest first; null if none. */
     pickThing(clientX: number, clientY: number): string | null {
       const r = renderer.domElement.getBoundingClientRect();
       if (!r.width || !r.height) return null;
       ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
       ray.setFromCamera(ndc, camera);
-      for (const hit of ray.intersectObjects([...[...things.values()].map((s) => s.group), ...tags.values()], true)) {
+      for (const hit of ray.intersectObjects([...[...things.values()].map((s) => s.group), ...[...tags.values()].map((r) => r.s)], true)) {
         for (let o: THREE.Object3D | null = hit.object; o; o = o.parent) {
           if (o.name.startsWith("objeto:")) return o.name.slice(7);
           if (o.name.startsWith("nombre:")) return o.name.slice(7);
@@ -545,10 +587,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     waypoint(x: number, z: number, text: string): number { this.beacon(x, z, text, Infinity); waypoints.set(++waypointSeq, beacons.pop()!); return waypointSeq; },
     dropWaypoint(id: number): void { const w = waypoints.get(id); if (w) { dropBeacon(w); waypoints.delete(id); } },
     /** J5: the zone seen from above (the big map's picture), the footprints of what stands in it (the minimap's
-     * landmarks) and a number that changes when they do. Cost and the two ways (gpu, huellas): cenital.ts. */
-    cenital: (o?: { px?: number; incluir?: { x: number; z: number }; modo?: "gpu" | "huellas" }) => cenital.generar(o),
+     * landmarks) and a number that changes when they do. Cost and the two ways (gpu, huellas): cenital.ts.
+     * U14: the picture is cut where the world's environment says (`mapa.corte`, `mapaCorte()`) unless `corte` is given. */
+    cenital: (o?: { px?: number; incluir?: { x: number; z: number }; modo?: "gpu" | "huellas"; corte?: number }) => cenital.generar({ ...o, corte: o?.corte ?? entorno.corte() }),
     huellas: () => cenital.huellas(),
     cenitalVersion: () => cenital.version(),
+    mapaCorte: () => entorno.corte(),
     /** H1: put a thing in the world, move it, change its model, or take it away (`null`). */
     place(key: string, t: Thing | null): void {
       const s = things.get(key);

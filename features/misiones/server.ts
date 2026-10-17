@@ -7,8 +7,12 @@ import type { ServerApi, ServerPart } from "../../packages/feature/src/index.ts"
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
 import { cargarAventura, corta, LIM } from "./formato.ts";
 import type { Accion, Aventura, Fichero, Mision, Opcion, Pnj } from "./formato.ts";
-import { abandonar, aceptar, esperaLlegada, leerProgreso, nodoInicial, nuevoProgreso, objetivo, opcionesDe, registrar, seguir } from "./maquina.ts";
+import { abandonar, aceptar, enTexto, esperaLlegada, leerProgreso, marcas, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
 import type { Hecho, Progreso } from "./maquina.ts";
+import { esperando, faltaEspera, pendiente, proximaEspera } from "./maquina.ts"; // U14 (5): steps that wait
+import type { Suceso } from "./maquina.ts";
+import { eventosDe } from "./secuencia.ts"; // U14 (5): a moment only its player sees
+import { claveConcesion, concesion } from "./concesion.ts"; // U14 (6): the reward granted, recorded once
 
 /** Ticks between two «has it arrived?» checks of one player (4 = 0.2 s). Only players on a llega_a step are checked. */
 export const LLEGADA_CADA = 4;
@@ -23,25 +27,29 @@ export const LIBRO_HECHAS = 20;
  * wrote go in one fenced <material> block, rebuilt each time; the answer is checked (length, no new options) and the
  * written line is the fallback. Called only when someone talks (event cadence), never per tick. */
 export type Frasear = (l: { pnj: string; nodo: string; texto: string; jugador: string }) => string;
-export type OpcionesMisiones = { aventura?: { misiones: Fichero[]; pnj: Fichero[]; cosas: Fichero[] }; frasear?: Frasear };
+/** `reloj` (U14 (5)): the server's clock in ms (default Date.now) — steps that wait (`espera`) count with it and it is
+ * saved with the progress, so it must survive restarts; tests pass their own. */
+export type OpcionesMisiones = { aventura?: { misiones: Fichero[]; pnj: Fichero[]; cosas: Fichero[]; secuencias?: Fichero[] }; frasear?: Frasear; reloj?: () => number };
 
 /** One engine behind two features: [pnj, misiones]. `aventura` only for tests; the server reads AVENTURA_DIR. */
 export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
-  let A: Aventura = { misiones: new Map(), pnjs: new Map(), cosas: new Map(), dadores: new Map(), explicitos: new Map() };
+  let A: Aventura = { misiones: new Map(), pnjs: new Map(), cosas: new Map(), secuencias: new Map(), dadores: new Map(), explicitos: new Map() };
   let P: ServerApi | null = null, M: ServerApi | null = null;
   let cargada = false;
   const progresos = new Map<string, Progreso>();      // "g:<guest>" (saved) or "e<entity>" (no identity: memory only)
   const claveDe = new Map<number, string>();          // entity -> its progress key (who() is gone by onLeave)
   const abiertos = new Map<number, { pnj: string; vistas: Opcion[] }>(); // open conversations
   const llegadas = new Set<number>();                 // players whose current step somewhere is llega_a
+  const esperas = new Map<number, number>();          // U14 (5): connection -> when its next wait ends (ms): then its book again, once
+  const ahora = () => (o.reloj ? o.reloj() : Date.now());
 
   const cargar = (api: ServerApi) => {
     if (cargada) return;
     cargada = true;
-    const r = cargarAventura(o.aventura ?? { misiones: api.aventura("misiones"), pnj: api.aventura("pnj"), cosas: api.aventura("cosas") });
+    const r = cargarAventura(o.aventura ?? { misiones: api.aventura("misiones"), pnj: api.aventura("pnj"), cosas: api.aventura("cosas"), secuencias: api.aventura("secuencias") }, { modelo: (sha) => api.activo(sha, "glb") });
     for (const i of r.issues) api.log(`aventura: ${i.path}: ${i.message}`);
     A = r.aventura;
-    if (A.misiones.size + A.pnjs.size + A.cosas.size) api.log(`aventura: ${A.misiones.size} misiones, ${A.pnjs.size} personas, ${A.cosas.size} cosas`);
+    if (A.misiones.size + A.pnjs.size + A.cosas.size) api.log(`aventura: ${A.misiones.size} misiones, ${A.pnjs.size} personas, ${A.cosas.size} cosas${A.secuencias.size ? `, ${A.secuencias.size} secuencias` : ""}`);
   };
 
   // ---- whose progress: per guest (saved), or per connection for bots and agents without identity ----
@@ -56,47 +64,87 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   /** Every connection of the same guest (two tabs of one browser share the book); just this one without identity. */
   const suyos = (e: number): number[] => { const k = claveDe.get(e) ?? clave(e); return k.startsWith("g:") ? (M?.players() ?? []).filter((x) => claveDe.get(x) === k) : [e]; };
   const revisarLlegadas = (e: number) => { const p = prog(e), espera = esperaLlegada(p, A); for (const x of suyos(e)) { if (espera) llegadas.add(x); else llegadas.delete(x); } };
+  /** U14 (5): when this player's next wait ends, for each of its connections (the tick sends them the book then). */
+  const revisarEsperas = (e: number) => { const vence = proximaEspera(prog(e), A, ahora()); for (const x of suyos(e)) { if (vence === null) esperas.delete(x); else esperas.set(x, vence); } };
+  /** U14 (5): «Todavía no: faltan 7 s para «Abre el cofre…».» — when someone tries a step that still waits. */
+  const todaviaNo = (w: { mision: string; paso: number; faltaMs: number }) => {
+    const s = Math.max(1, Math.ceil(w.faltaMs / 1000)), texto = A.misiones.get(w.mision)?.pasos[w.paso]?.texto ?? "";
+    return corta(`Todavía no: ${s === 1 ? "falta 1 s" : `faltan ${s} s`} para «${texto}».`, 160);
+  };
+  /** U14 (5): the steps just done that name a sequence send it to this player's pages alone — once: a page that comes
+   * back later never sees it again. Each sequence is turned into its events once. */
+  const cifradas = new Map<string, ReturnType<typeof eventosDe>>();
+  const reproducir = (e: number, hechos: Hecho[]) => {
+    for (const h of hechos) {
+      const id = A.misiones.get(h.mision)?.pasos[h.paso]?.secuencia, s = id ? A.secuencias.get(id) : undefined;
+      if (!s || !M) continue;
+      let evs = cifradas.get(s.id);
+      if (!evs) cifradas.set(s.id, (evs = eventosDe(s, A.pnjs)));
+      for (const x of suyos(e)) for (const [ev, msg] of evs) M.emit(ev, msg, { to: x });
+    }
+  };
 
   // ---- the book: sent whole on entering and after each change, only to its owner ----
   const recompensa = (m: Mision) => corta(m.recompensas.map((r) => `Insignia «${r.nombre}»`).join(", "), 120);
-  const enviarMision = (to: number, p: Progreso, m: Mision) => {
-    const act = p.activas[m.id], hecha = !act, ahora = hecha ? m.pasos.length : Math.min(act.paso, m.pasos.length - 1);
+  // `paso` = the first step still to do; inside a grupo the others of its block are to do too (each `paso` says its
+  // grupo, and `hecho` is true for what is already done in the block); `espera` = the seconds a step to do still waits
+  const enviarMision = (to: number, p: Progreso, m: Mision, t: number) => {
+    const act = p.activas[m.id], hecha = !act, ahora = hecha ? m.pasos.length : Math.min(primerPendiente(m, act), m.pasos.length - 1);
     M!.emit("mision", { id: m.id, titulo: m.titulo, descripcion: m.descripcion, estado: hecha ? "hecha" : "activa", paso: ahora, pasos: m.pasos.length, seguida: p.seguida === m.id, recompensa: recompensa(m) }, { to });
     m.pasos.forEach((s, n) => {
-      const ob = objetivo(s, A);
-      M!.emit("paso", { mision: m.id, n, texto: s.texto, tipo: s.tipo, hecho: hecha || n < ahora, x: ob.x, z: ob.z, donde: corta(ob.nombre, LIM.lugar), que: ob.que }, { to });
+      const ob = objetivo(s, A), espera = !hecha && pendiente(m, act, n) ? Math.ceil(faltaEspera(m, act, n, t) / 1000) : 0;
+      M!.emit("paso", { mision: m.id, n, texto: s.texto, tipo: s.tipo, hecho: hecha || pasoHecho(m, act, n), x: ob.x, z: ob.z, donde: corta(ob.nombre, LIM.lugar), que: ob.que, grupo: s.grupo ?? "", espera }, { to });
     });
   };
   const enviarLibro = (e: number, solo = false) => {
     if (!M) return;
-    const p = prog(e);
+    const p = prog(e), t = ahora();
     const activas = Object.keys(p.activas).map((id) => A.misiones.get(id)).filter((m): m is Mision => !!m);
     const hechas = p.hechas.map((id) => A.misiones.get(id)).filter((m): m is Mision => !!m).slice(-LIBRO_HECHAS);
+    const mk = marcas(p, A, t), lim = LIM.marcas; // U14 (4): «!» / «✓» over people and things, for this player only (U14 (5): not on a step that still waits)
+    const marcasMsg = { tiene: enTexto(mk.tiene, lim), hecho: enTexto(mk.hecho, lim), cosas: enTexto(mk.cosas, lim) };
     for (const x of solo ? [e] : suyos(e)) {
       M.emit("libro", { activas: activas.length, hechas: hechas.length }, { to: x });
-      for (const m of [...activas, ...hechas]) enviarMision(x, p, m);
+      for (const m of [...activas, ...hechas]) enviarMision(x, p, m, t);
+      M.emit("marcas", marcasMsg, { to: x });
     }
   };
-  /** After steps were completed: save, tell (announced), resend the book, re-arm the arrival checks. */
+  /** U14 (6): a quest with rewards completed by someone with identity: ONE grant record (concesion.ts), written only if
+   * its key is absent — never over it. Without identity (I1) nothing is recorded, like its progress. */
+  const conceder = (e: number, m: Mision) => {
+    const w = M?.who(e);
+    if (!M || !w || !m.recompensas.length) return;
+    const k = claveConcesion(m.id, w.id);
+    if (M.store.get(k) !== undefined) return; // granted before (another tab, a repeatable quest done again): the first stays
+    if (!M.store.set(k, concesion(m, w, new Date().toISOString()))) M.log(`no pude apuntar la concesión de «${m.id}» a ${w.id}`);
+  };
+
+  /** After steps were completed: save, tell (announced), resend the book, re-arm the arrival checks. A `recibe` step
+   * says what you got («Has recibido: …»). */
   const tras = (e: number, p: Progreso, hechos: Hecho[]) => {
     guardar(e, p);
     for (const h of hechos) {
-      const m = A.misiones.get(h.mision)!;
+      const m = A.misiones.get(h.mision)!, s = m.pasos[h.paso];
+      const texto = s.tipo === "recibe" ? corta(`Has recibido: ${A.cosas.get(s.cosa)?.nombre ?? s.cosa}`, LIM.textoPaso) : s.texto;
+      if (h.completada) conceder(e, m); // before anyone hears «completada»: the record exists when the page says it
       for (const x of suyos(e)) {
-        M!.emit("avance", { mision: m.id, texto: m.pasos[h.paso].texto }, { to: x });
+        M!.emit("avance", { mision: m.id, texto }, { to: x });
         if (h.completada) M!.emit("completada", { mision: m.id, titulo: m.titulo, texto: m.textos.completada, recompensa: recompensa(m) }, { to: x });
       }
     }
     enviarLibro(e);
     revisarLlegadas(e);
+    revisarEsperas(e); // U14 (5): a new block may start a wait
+    reproducir(e, hechos); // U14 (5): a step that names a sequence plays it for this player
   };
   const tomar = (e: number, p: Progreso, m: Mision): { ok: true } | { ok: false; motivo: string } => {
-    const r = aceptar(p, m, A);
+    const r = aceptar(p, m, A, ahora());
     if (!r.ok) return r;
     guardar(e, p);
     for (const x of suyos(e)) M!.emit("aceptada", { mision: m.id, titulo: m.titulo, texto: m.textos.aceptada }, { to: x });
     enviarLibro(e);
     revisarLlegadas(e);
+    revisarEsperas(e);
     return r;
   };
   const rechazarP = (e: number, motivo: string) => { P?.emit("rechazado", { motivo: corta(motivo, 160) }, { to: e }); };
@@ -118,8 +166,9 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     if (!m) return { ok: false, motivo: "Esa misión ya no existe." };
     const p = prog(e);
     if (ac.tipo === "dar_mision") return tomar(e, p, m);
-    const h = registrar(p, A, ac.tipo === "avanzar_paso" ? { tipo: "avanzar", pnj: n.id, mision: m.id } : { tipo: "entregar", pnj: n.id, mision: m.id });
-    if (!h.length) return { ok: false, motivo: ac.tipo === "avanzar_paso" ? "Eso ahora no toca." : `No llevas lo que ${n.nombre} espera.` };
+    const x: Suceso = ac.tipo === "avanzar_paso" ? { tipo: "avanzar", pnj: n.id, mision: m.id, ahora: ahora() } : { tipo: "entregar", pnj: n.id, mision: m.id, ahora: ahora() };
+    const h = registrar(p, A, x);
+    if (!h.length) { const w = esperando(p, A, x); return { ok: false, motivo: w ? todaviaNo(w) : ac.tipo === "avanzar_paso" ? "Eso ahora no toca." : `No llevas lo que ${n.nombre} espera.` }; }
     tras(e, p, h);
     return { ok: true };
   };
@@ -128,15 +177,16 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     P = api;
     cargar(api);
     for (const n of A.pnjs.values()) {
-      api.state.set(n.id, { nombre: n.nombre, descripcion: n.descripcion, x: n.posicion.x, z: n.posicion.z, y: n.posicion.y, giro: n.giro, radio: n.radio, modelo: n.apariencia.modelo, escala: n.apariencia.escala }, { at: { x: n.posicion.x, z: n.posicion.z } });
+      api.state.set(n.id, { nombre: n.nombre, descripcion: n.descripcion, x: n.posicion.x, z: n.posicion.z, y: n.posicion.y, giro: n.giro, radio: n.radio, modelo: n.apariencia.modelo, escala: n.apariencia.escala, oficio: n.oficio }, { at: { x: n.posicion.x, z: n.posicion.z } });
     }
     api.on("hablar", (e, msg) => {
       const n = A.pnjs.get(String(msg.pnj));
       if (!n) return rechazarP(e, "No hay nadie así por aquí.");
       if (!api.within(e, n.id)) return rechazarP(e, `Acércate a ${n.nombre} para hablar.`);
-      const p = prog(e);
-      const h = registrar(p, A, { tipo: "habla", pnj: n.id }); // steps that complete just by talking
+      const p = prog(e), x: Suceso = { tipo: "habla", pnj: n.id, ahora: ahora() };
+      const h = registrar(p, A, x); // steps that complete just by talking
       if (h.length) tras(e, p, h);
+      else { const w = esperando(p, A, x); if (w) M?.emit("aviso", { texto: todaviaNo(w) }, { to: e }); } // U14 (5): it still waits
       abrir(e, n, nodoInicial(n, p, A));
     });
     api.on("elegir", (e, msg) => {
@@ -160,7 +210,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     M = api;
     cargar(api);
     for (const c of A.cosas.values()) {
-      api.state.set(c.id, { nombre: c.nombre, descripcion: c.descripcion, x: c.posicion.x, z: c.posicion.z, radio: c.radio, aviso: c.aviso, modelo: c.apariencia.modelo, escala: c.apariencia.escala, y: c.posicion.y, color: c.apariencia.color }, { at: { x: c.posicion.x, z: c.posicion.z } });
+      api.state.set(c.id, { nombre: c.nombre, descripcion: c.descripcion, x: c.posicion.x, z: c.posicion.z, radio: c.radio, aviso: c.aviso, modelo: c.apariencia.modelo, escala: c.apariencia.escala, y: c.posicion.y, color: c.apariencia.color, modeloUsada: c.apariencia.usada?.modelo ?? "", escalaUsada: c.apariencia.usada?.escala ?? c.apariencia.escala }, { at: { x: c.posicion.x, z: c.posicion.z } }); // U14 (6): the used look travels with it; each page picks by its own book
     }
     api.onIdentify((e) => {
       const antes = claveDe.get(e);
@@ -168,10 +218,11 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       clave(e);
       enviarLibro(e, true);
       revisarLlegadas(e);
+      revisarEsperas(e); // U14 (5): a wait saved with the progress keeps counting across a reconnection
     });
     api.onLeave((e) => {
       const k = claveDe.get(e);
-      claveDe.delete(e); llegadas.delete(e);
+      claveDe.delete(e); llegadas.delete(e); esperas.delete(e);
       if (k && ![...claveDe.values()].includes(k)) progresos.delete(k); // saved in the store already
     });
     api.on("aceptar", (e, msg) => {
@@ -189,6 +240,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       for (const x of suyos(e)) api.emit("aviso", { texto: corta(`Has dejado «${A.misiones.get(id)?.titulo ?? id}».`, 160) }, { to: x });
       enviarLibro(e);
       revisarLlegadas(e);
+      revisarEsperas(e);
     });
     api.on("seguir", (e, msg) => {
       const p = prog(e), id = String(msg.mision);
@@ -200,19 +252,29 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       const c = A.cosas.get(String(msg.cosa));
       if (!c) return rechazarM(e, "No hay nada así por aquí.");
       if (!api.within(e, c.id)) return rechazarM(e, `Acércate más a ${c.nombre}.`);
-      const p = prog(e);
-      const h = registrar(p, A, { tipo: "usa", cosa: c.id });
-      if (!h.length) return rechazarM(e, `Ahora no te hace falta ${c.nombre}.`);
+      const p = prog(e), x: Suceso = { tipo: "usa", cosa: c.id, ahora: ahora() };
+      const h = registrar(p, A, x);
+      if (!h.length) { const w = esperando(p, A, x); return rechazarM(e, w ? todaviaNo(w) : `Ahora no te hace falta ${c.nombre}.`); } // U14 (5): too early
       tras(e, p, h);
     });
-    // cheap per tick: only players on a llega_a step, each one every LLEGADA_CADA ticks; open conversations likewise
+    // cheap per tick: only players on a llega_a step, each one every LLEGADA_CADA ticks; open conversations likewise;
+    // U14 (5): and the connections with a wait, whose book (with its marks) goes again once, when the wait ends
     api.onTick((t) => {
       for (const e of llegadas) {
         if ((e + t) % LLEGADA_CADA !== 0) continue;
         const pos = api.position(e);
         if (!pos) continue;
-        const p = prog(e), h = registrar(p, A, { tipo: "llega", x: pos.x, z: pos.z, y: pos.y }); // y: a llega_a with a height asks for the right floor
+        const p = prog(e), h = registrar(p, A, { tipo: "llega", x: pos.x, z: pos.z, y: pos.y, ahora: ahora() }); // y: a llega_a with a height asks for the right floor
         if (h.length) tras(e, p, h);
+      }
+      if (esperas.size && t % LLEGADA_CADA === 0) {
+        const ya = ahora();
+        for (const [e, vence] of esperas) {
+          if (ya < vence) continue;
+          enviarLibro(e, true); // this connection only: each of the player's tabs has its own entry
+          const otra = proximaEspera(prog(e), A, ya);
+          if (otra === null) esperas.delete(e); else esperas.set(e, otra);
+        }
       }
       for (const [e, d] of abiertos) {
         if ((e + t) % LLEGADA_CADA !== 0) continue;
