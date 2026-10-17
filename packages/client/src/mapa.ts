@@ -140,6 +140,7 @@ export const TIPOS_BASE: Readonly<Record<string, Tipo>> = {
   "para-ti": { nombre: "Algo para ti", color: "#ffb21e", forma: "exclamacion", tam: 5.5, orden: 92, enLista: true, alBorde: false },
   hecho: { nombre: "Ya hecho", color: "#2f9e44", forma: "visto", tam: 5, orden: 75, enLista: true, alBorde: false },
   persona: { nombre: "Persona", color: "#2f6fd0", forma: "punto", tam: 4, orden: 80, enLista: true, alBorde: false },
+  agente: { nombre: "Agente (IA)", color: "#14897a", forma: "rombo", tam: 4, orden: 75, enLista: true, alBorde: false },
   npc: { nombre: "Personaje", color: "#8a3fc0", forma: "rombo", tam: 5, orden: 70, enLista: true, alBorde: false },
   portal: { nombre: "Salida o portal", color: "#0f8a6a", forma: "anillo", tam: 5, orden: 60, enLista: true, alBorde: true },
   elemento: { nombre: "Elemento (agua, fuego…)", color: "#1679a8", forma: "triangulo", tam: 5, orden: 50, enLista: true, alBorde: false },

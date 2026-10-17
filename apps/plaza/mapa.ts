@@ -14,6 +14,7 @@ import { proyectar, desproyectar, anguloFlecha, anguloBorde, yawDePaso, alBorde,
 import type { Vista, Marcador, Tipo, Fuente, Entrada } from "../../packages/client/src/mapa.ts";
 import type { ImagenCenital, Huella } from "../../packages/render/src/index.ts";
 import { bajoElCorte } from "../../packages/render/src/corte.ts";
+import { MARCA_IA } from "../../packages/instance/src/identidad.ts";
 import { crearDialogo, anunciar } from "./paneles.ts";
 import "./mapa.css";
 
@@ -156,8 +157,11 @@ export function montarMapa(h: HostMapa) {
   // ---------- the built-in sources ----------
   let fichas: Marcador[] = [], fichasT = -Infinity, marcasAntes: unknown = null;
   const nombreDe = (id: number): string => { const n = h.otros().chat?.nombres?.get?.(id); return typeof n === "string" && n ? n : `Persona ${id}`; };
+  // AGW-007/J5: the server is the one that ever adds the IA marker to a name — a client that sees it may
+  // trust it. Groups AI inhabitants and organization agents apart from people on the map and its list.
+  const esIA = (nombre: string): boolean => nombre.endsWith(MARCA_IA);
   fuentes.set("tu", () => (yo ? [{ id: "tu", tipo: "tu", nombre: h.session.who?.nombre ?? "Tú", x: yo.x, z: yo.z, yaw: yawYo }] : []));
-  fuentes.set("gente", () => h.session.remotePositions().map((r) => ({ id: `p${r.id}`, tipo: "persona", nombre: nombreDe(r.id), x: r.x, z: r.z })));
+  fuentes.set("gente", () => h.session.remotePositions().map((r) => { const nombre = nombreDe(r.id); return { id: `p${r.id}`, tipo: esIA(nombre) ? "agente" : "persona", nombre, x: r.x, z: r.z }; }));
   // U14 (4): a person or a quest thing the server marks for you is drawn as «!» or «✓» (misiones.marcaDe), and a
   // person's trade goes next to the name in the list (misiones.oficioDe); re-read at once when the marks change
   fuentes.set("fichas", () => {
