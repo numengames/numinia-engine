@@ -609,3 +609,33 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: 2f19747 en `plantillas/eventos-cofre` (worktree `numinia-engine-wt-eventos-b`) y la unión b70ff3a.
 - Siguiente: el vuelo y el cofre en la aventura de la plantilla, el recorrido entero en el navegador con una foto por
   fase y el coste en Quest.
+
+## 2026-10-17 · motor-vr (vr/giro-y-velocidad) · hecho (rama `vr/giro-y-velocidad`, sobre `pwa/manifest-biblioteca-quest`)
+- Qué: dos cosas que Pablo notó llevando el visor. (1) «el mando se vuelve loco»: tras un giro con la palanca
+  (snap turn), empujar hacia delante a veces iba hacia un lado que no era. Causa real: `vr.ts` leía
+  `h.renderer.xr.getCamera().getWorldDirection()` para saber hacia dónde es «delante», pero esa cámara XR solo
+  se refresca dentro de `renderer.render()`, que corre DESPUÉS de `vr.update()` en el bucle — así que siempre
+  usaba la orientación del fotograma anterior (iba un giro por detrás). Arreglo: forzar `rig.updateMatrixWorld(true)`
+  + `h.renderer.xr.updateCamera(h.camera)` a mano, dentro de `vr.update()`, antes de leer la dirección — así usa
+  el giro de EXACTAMENTE este fotograma, no el de antes. Confirmado con el emulador IWER (sin XR real, no hacía
+  falta Quest): antes del arreglo, girar 3 veces a la derecha o 3 a la izquierda y luego ir recto daba SIEMPRE el
+  mismo rumbo (0,-1, como si no hubiera giro); después, van a lados opuestos y simétricos. (2) la marcha iba
+  siempre a la carrera: el umbral de «palanca al borde = correr» estaba en 0,9 de recorrido, que una palanca
+  real alcanza con poco más de la mitad del viaje — así que casi nunca se podía simplemente andar. Subido a 0,97
+  (`apps/plaza/main.ts`), y además `packages/sim/src/index.ts` ahora anda a 1,5 m/s y corre a 4 m/s (antes 4/8,
+  pensado para mando de escritorio, no para caminar de pie). Esto cambia la huella de referencia determinista
+  (CAMBIO DE FORMATO, `AGENTS.md`): `93b192c8` → **`7e630965`** (formato de simulación 3). El modo de movimiento
+  como opción de Pablo (otra velocidad, otro estilo) queda para otra tarjeta; aquí solo velocidad y recorrido.
+- Números: `tools/e2e-vr.mjs` ahora también gira 3 veces a cada lado y empuja delante, y comprueba que los dos
+  desplazamientos resultantes son opuestos (antes solo probaba con giro = 0, por eso no pescaba el bug) — pasa
+  en vivo (servidor + Vite reales, emulador IWER): `deltaAfterRight3`/`deltaAfterLeft3` opuestos y simétricos.
+  `npm run gates`: 375 pruebas en verde (6 tests que dependían del ritmo de 4 m/s — escaleras, deslizar junto a
+  un muro, seguir a una persona, ver a otro corriendo — llevados a los números de 1,5/4 m/s; sin tocar la lógica
+  que prueban). `tools/e2e.mjs` (teclado, servidor+Vite reales): OK, 0 correcciones, ~2 m en 1,5 s (antes 6 m).
+  `tools/e2e-vr.mjs`: OK. Aviso: al reiniciar el servidor de este turno con `pkill -f "npm run server"`, el patrón
+  cazó también procesos de OTRAS tareas en otros worktrees (no solo el mío) — no volví a usar `pkill` por patrón
+  ancho; para parar un servidor de turno, mejor el PID exacto o `fuser -k <puerto>/tcp`.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `vr/giro-y-velocidad` (worktree en `work/numinia-engine-wt-vrmotor`, aún sin PR).
+- Siguiente: Pablo prueba en el Quest real: 3 giros a cualquier lado + palanca adelante va hacia donde mira, y
+  la marcha normal ya no es un trote. Si Pablo quiere elegir su propio ritmo de movimiento, tarjeta aparte.

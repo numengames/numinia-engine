@@ -7,10 +7,10 @@ import { World } from "../../ecs/src/index.ts";
 import type { Store } from "../../ecs/src/index.ts";
 
 export const TICK_HZ = 20;
-export const SPEED = fx(4);                  // walking, metres per second
+export const SPEED = fx(1.5);                // walking, metres per second (human pace; was 4 — too fast to ever just walk)
 export const STEP = fxDiv(SPEED, fx(TICK_HZ)); // metres per tick at full stick
-export const RUN_SPEED = fx(8);              // J2: running (Shift; touch/VR stick at its edge), like Hyperfy2
-export const RUN_STEP = fxDiv(RUN_SPEED, fx(TICK_HZ)); // exactly 2 x STEP
+export const RUN_SPEED = fx(4);              // J2: running (Shift; touch/VR stick at its edge), like Hyperfy2 (was 8)
+export const RUN_STEP = fxDiv(RUN_SPEED, fx(TICK_HZ)); // exactly RUN_SPEED/SPEED x STEP
 export const BOUND = fx(500);                // plaza half-size in metres
 export const STICK_MAX = 127;                // input axes are int8
 

@@ -71,7 +71,7 @@ Comandos útiles en el servidor:
 systemctl status numinia-motor        # ¿está vivo?
 journalctl -u numinia-motor -f        # cada 30 s: conectados, tick p99, kbit/s por persona
 bash instalar-motor.sh --version      # qué versión lleva el fichero
-curl -s localhost:8790/health         # {"ok":true,"version":…,"huella":"93b192c8","conectados":N}
+curl -s localhost:8790/health         # {"ok":true,"version":…,"huella":"7e630965","conectados":N}
 curl -s localhost:8790/status         # {"uptime":s,"conectados":N,"commitHash":"<40 hex>","version":"<build>"} (lo lee la sala de Mundos; con aventura/ficha.json, también "nombre", "descripcion", "portada")
 curl -s localhost:8790/metrics        # JSON: conectados, tick p50/p99/peor (últimos 10 s), respuesta del tick, bucle, CPU, steal, memoria, kbit/s por persona…
 ```

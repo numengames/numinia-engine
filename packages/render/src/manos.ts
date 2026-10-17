@@ -9,7 +9,9 @@
 import * as THREE from "three/webgpu";
 
 export type Lado = "izq" | "der";
-export type Panel = { malla: THREE.Mesh; fila(uv: THREE.Vector2): number; encima(n: number): void };
+export type Panel = { malla: THREE.Mesh; fila(uv: THREE.Vector2): number; encima(n: number): void;
+  /** A panel that acts by itself (the «Salir de VR» button): pressing on it calls this instead of telling the page. */
+  pulsar?(n: number): void };
 export type ManosHooks = {
   renderer: THREE.WebGPURenderer;
   /** Things that can be reached or pointed at: key + its group (render's placed things). */
@@ -50,7 +52,7 @@ type Ranura = {
   i: number; fuente: Fuente | null; lado: Lado | null; esMano: boolean;
   ctrl: THREE.Group; grip: THREE.Group; hand: THREE.Group & { joints?: Record<string, THREE.Object3D & { jointRadius?: number }> };
   rayo: THREE.Mesh; punto: THREE.Mesh; manoMando: ReturnType<typeof crearManoMando>; esqueleto: ReturnType<typeof crearEsqueleto>;
-  ancla: THREE.Object3D; halo: THREE.Mesh; candidato: string | null; apuntado: { tipo: "panel" | "cosa"; key: string; fila: number } | null;
+  ancla: THREE.Object3D; halo: THREE.Mesh; candidato: string | null; apuntado: { tipo: "panel" | "cosa"; key: string; fila: number; panel?: Panel } | null;
   /** A tracked hand pinching in empty air since this time (ms), or 0: held past ANDAR_MS it walks. */
   pellizcoAire: number;
 };
@@ -206,7 +208,8 @@ export function createManos(h: ManosHooks) {
     if (r.candidato) { emitir({ tipo: "agarrar", key: r.candidato, lado: r.lado }); vibrar(r, 0.6, 40); return; }
     if (como === "agarre") return;
     const a = r.apuntado;
-    if (a?.tipo === "panel") emitir({ tipo: "panel", fila: a.fila, lado: r.lado });
+    if (a?.tipo === "panel" && a.panel?.pulsar) { a.panel.pulsar(a.fila); vibrar(r, 0.5, 40); }
+    else if (a?.tipo === "panel") emitir({ tipo: "panel", fila: a.fila, lado: r.lado });
     else if (a?.tipo === "cosa") emitir({ tipo: "apuntar", key: a.key, lado: r.lado });
     else emitir({ tipo: "gatillo", lado: r.lado });
   }
@@ -277,7 +280,7 @@ export function createManos(h: ManosHooks) {
     for (const p of h.paneles?.() ?? []) {
       if (!p.malla.visible) continue;
       const hit = ray.intersectObject(p.malla, false)[0];
-      if (hit && hit.distance < dist && hit.uv) { uv.copy(hit.uv); const n = p.fila(uv); dist = hit.distance; r.apuntado = { tipo: "panel", key: "", fila: n }; p.encima(n); }
+      if (hit && hit.distance < dist && hit.uv) { uv.copy(hit.uv); const n = p.fila(uv); dist = hit.distance; r.apuntado = { tipo: "panel", key: "", fila: n, panel: p }; p.encima(n); }
     }
     if (!r.apuntado) {
       const lista: THREE.Object3D[] = [], claves = new Map<THREE.Object3D, string>();

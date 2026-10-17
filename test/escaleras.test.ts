@@ -34,13 +34,13 @@ function andar(z0: number, mz: number, ticks: number) {
 }
 
 test("N1b: up the stair, every tick on the ground, to the top", () => {
-  const r = andar(12, -127, 97); // 4.85 s walking north: onto the top step (z −7.4)
+  const r = andar(12, -127, 259); // 12.95 s walking north (1.5 m/s, J3): onto the top step (z −7.4)
   assert.equal(r.enElAire, 0, "never in the air going up");
   assert.ok(Math.abs(r.maxY - PELDANOS * SUBIDA) < 0.01, `reaches the top step: ${r.maxY}`);
 });
 
 test("N1b: down the stair, every tick on the ground (snap-to-ground), to the bottom", () => {
-  const r = andar(11 - FONDO * (PELDANOS - 1), 127, 120); // from the top step, walking south
+  const r = andar(11 - FONDO * (PELDANOS - 1), 127, 325); // from the top step, walking south (1.5 m/s, J3)
   assert.equal(r.enElAire, 0, "never in the air going down");
   assert.ok(r.y < 0.01, `reaches the plaza: ${r.y}`);
 });

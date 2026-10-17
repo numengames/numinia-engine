@@ -154,8 +154,23 @@ addEventListener("pointermove", (e) => {
 });
 const endTouch = (e: PointerEvent) => { if (touch && e.pointerId === touch.id) { touch = null; joy.style.display = "none"; } };
 addEventListener("pointerup", endTouch); addEventListener("pointercancel", endTouch);
+/** Let go of everything the flat page holds (keys, the touch stick): the headset took over or the tab went away. */
+function soltarEntradaPlana(): void {
+  if (keys.size) keys.clear();
+  if (touch) { touch = null; joy.style.display = "none"; }
+}
+addEventListener("visibilitychange", () => { if (document.hidden) soltarEntradaPlana(); });
 
 function readAxes(): [number, number] {
+  // motor-vr t_ab71cff0: while the headset presents, ITS input is the only source of movement. A flat-page input
+  // left held when the headset took over (a touch whose pointerup never comes, a stale Gamepad-API pad, a key)
+  // used to keep driving you whenever the VR stick sat at zero: measured on Pablo's Quest, 7.9 m/s in one fixed
+  // direction with the controllers asleep and his hands tracked, until the world's edge. Drop them on the way in.
+  if (view.vr.active) {
+    soltarEntradaPlana();
+    const [vx, vz] = view.vr.axes();
+    return [Math.round(vx * STICK_MAX), Math.round(vz * STICK_MAX)];
+  }
   let x = 0, z = 0;
   if (keys.has("KeyA") || keys.has("ArrowLeft")) x -= 1;
   if (keys.has("KeyD") || keys.has("ArrowRight")) x += 1;
@@ -165,7 +180,6 @@ function readAxes(): [number, number] {
   const pad = view.cam.mando(); // N1: a gamepad's left stick
   if (pad && (pad[0] || pad[1])) { x = pad[0]; z = pad[1]; }
   [x, z] = haciaMundo(x, z, view.cam.yaw()); // N1: W walks where the camera looks
-  if (view.vr.active) { const [vx, vz] = view.vr.axes(); if (vx || vz) { x = vx; z = vz; } }
   if (view.ar.state === "placed") { const [ax, az] = view.ar.axes(); if (ax || az) { x = ax; z = az; } } // J8b: walk on the table
   return [Math.round(x * STICK_MAX), Math.round(z * STICK_MAX)];
 }
@@ -189,7 +203,11 @@ if (matchMedia("(pointer: coarse)").matches) {
 function readButtons(): number {
   let b = 0;
   if (view.vr.takeJump() || view.ar.takeJump() || saltoPendiente) { saltoPendiente = false; b |= BTN_JUMP; }
-  const alBorde = (touch && Math.hypot(touch.dx, touch.dy) >= 0.9) || (view.vr.active && Math.hypot(...view.vr.axes()) >= 0.9);
+  // RUN_EDGE close to 1: most of the stick's travel walks (human pace), only the very end runs
+  // (was 0.9 — reached with barely half the throw, so there was no way to just walk).
+  const RUN_EDGE = 0.97;
+  if (view.vr.active) { if (Math.hypot(...view.vr.axes()) >= RUN_EDGE) b |= BTN_RUN; return b; } // in VR only the headset's stick runs
+  const alBorde = touch && Math.hypot(touch.dx, touch.dy) >= RUN_EDGE;
   if (keys.has("ShiftLeft") || keys.has("ShiftRight") || alBorde) b |= BTN_RUN;
   return b;
 }
