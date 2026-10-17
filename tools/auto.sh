@@ -62,6 +62,10 @@ case "${1:-status}" in
     # VR leg (J6): IWER Quest 3, stick moves, snap turn, vignette, exit
     if BASE="http://127.0.0.1:$VP/?webgl2&server=ws://127.0.0.1:$SP" timeout 120 taskset -c "$CPUS" nice -n 19 node tools/e2e-vr.mjs > "$L-vr.log" 2>&1
     then echo "e2e VR (IWER) OK"; else echo "e2e VR FALLA"; tail -15 "$L-vr.log"; rc=1; fi
+    # Mixed reality from the session, not the button (bug found live, 17-10): a plain VR session the device
+    # serves as alpha-blend must still hide the world and mark ar.activo() — no AR button involved
+    if BASE="http://127.0.0.1:$VP/?webgl2&server=ws://127.0.0.1:$SP" timeout 120 taskset -c "$CPUS" nice -n 19 node tools/e2e-mezclada.mjs > "$L-mezclada.log" 2>&1
+    then echo "e2e realidad mezclada (IWER) OK"; else echo "e2e realidad mezclada FALLA"; tail -15 "$L-mezclada.log"; rc=1; fi
     # One leg per area: every tools/e2e-piernas/*.mjs (one file each, so work done in parallel never collides here).
     # Each gets BASE (with ?webgl2 and ?server=) and SERVER_HTTP, prints what it saw and exits 0 only when right.
     for f in tools/e2e-piernas/*.mjs; do

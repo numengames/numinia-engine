@@ -28,7 +28,7 @@ export async function arSupported(): Promise<boolean> {
   try { return await xr.isSessionSupported("immersive-ar"); } catch { return false; }
 }
 
-export type ARState = "off" | "searching" | "ready" | "placed";
+export type ARState = "off" | "searching" | "ready" | "placed" | "mezclada";
 /** What the miniature shows, read every frame (render's own lists: no copies kept). */
 export type Maqueta = {
   yo: () => { x: number; z: number; y?: number } | null;
@@ -116,6 +116,34 @@ export function createAR(h: ARHooks) {
   let state: ARState = "off";
   let session: any = null, source: any = null, anchor: any = null, timer: ReturnType<typeof setTimeout> | undefined;
   let savedBg: THREE.Scene["background"] = null, savedFog: THREE.Scene["fog"] = null;
+  // The AR rule ("the room shows through: hide the world so it doesn't collide with it") must come from the
+  // session ITSELF (environmentBlendMode), not from which button opened it. A device can serve an immersive-vr
+  // session (vr.ts's own `enter()`) as alpha-blend passthrough — ar.ts never ran, so `session` above stays null,
+  // but the room is still mixed in. `sincronizarExterna` below watches the renderer's actual session every frame
+  // and reconciles world/state the same way, whoever asked for that session.
+  let extSession: any = null, extHidden = false;
+  let extSavedBg: THREE.Scene["background"] = null, extSavedFog: THREE.Scene["fog"] = null;
+  const esMezclada = (s: any): boolean => !!s && s.environmentBlendMode !== undefined && s.environmentBlendMode !== "opaque";
+  function sincronizarExterna(): void {
+    const s = h.renderer.xr.getSession() as any;
+    if (!s || s === session) { // our own AR session (handled by enter/exit above) or no session at all
+      if (extHidden) { h.scene.background = extSavedBg; h.scene.fog = extSavedFog; h.world.visible = true; extHidden = false; if (state === "mezclada") set("off"); }
+      extSession = null;
+      return;
+    }
+    if (s === extSession) return; // already reconciled for this session
+    extSession = s;
+    if (!esMezclada(s)) return; // a plain opaque session (normal VR): nothing of ours to do
+    extSavedBg = h.scene.background; extSavedFog = h.scene.fog;
+    h.scene.background = null; h.scene.fog = null; h.world.visible = false; extHidden = true;
+    set("mezclada");
+    s.addEventListener("end", () => {
+      if (extSession !== s) return;
+      if (extHidden) { h.scene.background = extSavedBg; h.scene.fog = extSavedFog; h.world.visible = true; extHidden = false; }
+      extSession = null;
+      if (state === "mezclada") set("off");
+    });
+  }
   let hitMatrix: THREE.Matrix4 | null = null, lastHit: any = null, sinHitTest = false, visor = false, limiteMs = AR_MAX_MS;
   let moveX = 0, moveZ = 0, jumpWanted = false, empezo = 0;
   const held = { left: false, right: false };
@@ -176,6 +204,7 @@ export function createAR(h: ARHooks) {
 
   /** Call every frame while presenting. */
   function update(dtSeconds = 1 / 60): void {
+    sincronizarExterna(); // mixed reality must come from the session, regardless of whether this module started it
     const frame = h.renderer.xr.getFrame?.();
     const ref = h.renderer.xr.getReferenceSpace?.();
     if (!session || !frame || !ref) return;
@@ -231,6 +260,8 @@ export function createAR(h: ARHooks) {
   return {
     enter, exit, update,
     get state() { return state; },
+    /** True whenever the room shows through (mixed reality), by this module's own session or someone else's. */
+    activo(): boolean { return state !== "off"; },
     get placed() { return base.visible; },
     get lastError() { return lastError; },
     /** Movement intention for your avatar, plaza frame, each -1..1 (only while the plaza stands on your table). */
