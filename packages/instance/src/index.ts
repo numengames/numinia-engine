@@ -13,7 +13,7 @@ import type { Who } from "./identidad.ts";
 export type { Who } from "./identidad.ts";
 import type { Transport, Viewer, Welcome } from "../../net/src/index.ts";
 import { ServerRuntime } from "../../feature/src/index.ts";
-import type { FeatureStorage, ServerPart } from "../../feature/src/index.ts";
+import type { BienFirmable, FeatureStorage, ReciboLeido, ServerPart } from "../../feature/src/index.ts";
 
 export type InstanceOptions = {
   seed: number; capacity: number; k: number; snapshotEvery: number;
@@ -47,6 +47,8 @@ export type InstanceOptions = {
   externos?: { verificar: (ticket: string, anfitrion: string | undefined) => { id: string; nombre: string } | null };
   /** Where new avatars appear (metres; the world's entorno@1 `aparicion`); none = the house square of 40 m around the origin. */
   aparicion?: SpawnArea | null;
+  /** N10: the world's receipts for digital goods (server/recibos.ts crearRecibos); none = features get "" and refusals. */
+  recibos?: { emisor: string; firmar(d: BienFirmable): string; verificar(token: string): ReciboLeido };
 };
 
 /** Inputs wait in a queue; the server applies exactly ONE per tick (none = that avatar does not advance: J2). */
@@ -87,6 +89,9 @@ export class Instance {
       medidas: opts.medidas,
       visible: (e) => this.byEntity[e]?.visible ?? [],
       aventura: opts.aventura,
+      recibo: opts.recibos ? (d) => opts.recibos!.firmar(d) : undefined,
+      emisor: opts.recibos ? () => opts.recibos!.emisor : undefined,
+      verificarRecibo: opts.recibos ? (t) => { const l = opts.recibos!.verificar(t); return l.ok ? { ...l, nuestro: l.nuestro === true } : l; } : undefined,
     });
   }
 

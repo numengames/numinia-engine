@@ -46,7 +46,7 @@ export const pnj = defineFeature({
 
 export const misiones = defineFeature({
   id: "misiones",
-  version: 5, // v5: a step may wait (`paso.espera`: seconds left) and a done step may play a moment only you see (events secuencia, pista, clave); and a quest thing's used look (state `modeloUsada`, `escalaUsada`: cosa@1 apariencia.usada, U14 (6)); v4: marks for you over people and things (event `marcas`: «!» something for you now, «✓» done); v3: steps in any order (`paso.grupo`), a person gives you a thing (step type «recibe»); v2: a thing's `y` reaches ALTURA_MAX
+  version: 6, // v6: a reward may be an «objeto» (a digital good, N10): event `concedido` goes to the server only (features/bienes signs and keeps it); v5: a step may wait (`paso.espera`: seconds left) and a done step may play a moment only you see (events secuencia, pista, clave); and a quest thing's used look (state `modeloUsada`, `escalaUsada`: cosa@1 apariencia.usada, U14 (6)); v4: marks for you over people and things (event `marcas`: «!» something for you now, «✓» done); v3: steps in any order (`paso.grupo`), a person gives you a thing (step type «recibe»); v2: a thing's `y` reaches ALTURA_MAX
   level: "base",
   describe: "Misiones: encargos por pasos (llegar a un sitio, hablar con alguien, recibir algo de alguien, usar o coger algo, entregarlo; los de un mismo grupo, en cualquier orden) que da una persona y que comprueba el servidor. Un paso puede esperar unos segundos antes de poder hacerse y, al hacerse, poner una secuencia que solo ves tú. Tu libro llega solo a ti y se guarda por invitado. Las escribe la aventura (mision@1, cosa@1, secuencia@1).",
   store: { describe: "El progreso de cada invitado (`p:<id>`): misiones activas con su paso, lo que lleva (cogido o recibido) y lo hecho del grupo en curso, las completadas y la que sigue. Solo le llega a su dueño, como eventos. Y cada recompensa concedida, una sola vez (`c:<misión>:<id>`: jugador, nombre, misión, recompensas, instante, estado), que lista `npm run concesiones`." },
@@ -75,6 +75,11 @@ export const misiones = defineFeature({
     },
     aceptada: { describe: "Aceptaste una misión.", fields: { mision: ID, titulo: { kind: "text", maxBytes: LIM.titulo }, texto: { kind: "text", maxBytes: LIM.textoMision, default: "" } }, announce: { text: "Misión nueva: {titulo}. {texto}", sound: "magia", importance: 1 } },
     avance: { describe: "Hiciste un paso de una misión (si alguien te dio algo: «Has recibido: …»).", fields: { mision: ID, texto: { kind: "text", maxBytes: LIM.textoPaso } }, announce: { text: "Hecho: {texto}", sound: "exito", importance: 1 } },
+    concedido: {
+      describe: "N10: un objeto de recompensa concedido a un invitado (una vez por misión e invitado, cuando se apunta su concesión). Solo para el servidor: la función bienes firma su recibo de propiedad y lo guarda en el inventario de su dueño.",
+      fields: { jugador: { kind: "text", maxBytes: 64 }, mision: ID, objeto: ID, nombre: { kind: "text", maxBytes: LIM.nombre }, descripcion: DESCRIPCION, modelo: MODELO, licencia: { kind: "text", maxBytes: 40, default: "" }, instante: { kind: "text", maxBytes: 32 } },
+      announce: "silent",
+    },
     completada: {
       describe: "Completaste una misión (y lo que te llevas).",
       fields: { mision: ID, titulo: { kind: "text", maxBytes: LIM.titulo }, texto: { kind: "text", maxBytes: LIM.textoMision, default: "" }, recompensa: { kind: "text", maxBytes: 120, default: "" } },

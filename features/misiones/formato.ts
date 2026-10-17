@@ -48,7 +48,14 @@ export type Paso = PasoBase & (
 );
 /** What an entrega asks for (its `cosa` or its `cosas`); for coge, usa and recibe, their one thing; else nothing. */
 export const cosasDe = (s: Paso): string[] => ("cosas" in s ? s.cosas : "cosa" in s ? [s.cosa] : []);
-export type Recompensa = { tipo: "insignia"; id: string; nombre: string };
+/** A quest's reward: an `insignia` (a memory of what you did) or, N10, an `objeto` — a digital good that becomes YOURS: the
+ * world signs a receipt of ownership (features/bienes) and it waits in your inventory. `descripcion`, `modelo` (sha256 of a
+ * .glb: how it looks) and `licencia` (what you may do with its art: «CC0-1.0», «CC-BY-4.0»…; owning ≠ the copyright) are
+ * optional and travel inside the receipt. */
+export type Recompensa = { tipo: "insignia"; id: string; nombre: string } | { tipo: "objeto"; id: string; nombre: string; descripcion: string; modelo: string; licencia: string };
+export const TIPOS_RECOMPENSA = ["insignia", "objeto"] as const;
+/** N10: a licence as a short SPDX-like id (letters, digits, . - +), at most 40 characters. */
+export const LICENCIA = /^[A-Za-z0-9][A-Za-z0-9.+-]{0,39}$/;
 export type Mision = {
   formato: "mision@1"; id: string; titulo: string; descripcion: string; requisitos: { misiones: string[] }; pasos: Paso[];
   recompensas: Recompensa[]; textos: { aceptada: string; completada: string }; repetible: boolean;
@@ -216,10 +223,13 @@ export function leerMision(v: unknown): Result<Mision> {
   gruposSeguidos(pasos, is);
   const recompensas = lista(o.recompensas, "recompensas", 0, LIM.recompensas, is, true).map((r, i) => {
     const p = en("recompensas", i), ro = objeto(r, p, is) ?? {};
+    if (ro.tipo === "objeto") return objetoRecompensa(ro, p, is);
     campos(ro, ["tipo", "id", "nombre"], p, is);
-    if (ro.tipo !== "insignia") is.push({ path: en(p, "tipo"), message: "hoy solo \"insignia\" (un recuerdo de lo hecho; sin economía)" });
+    if (ro.tipo !== "insignia") is.push({ path: en(p, "tipo"), message: "\"insignia\" (un recuerdo de lo hecho) u \"objeto\" (un bien digital que pasa a ser de quien completa: recibo firmado e inventario)" });
     return { tipo: "insignia" as const, id: id(ro.id, en(p, "id"), is), nombre: texto(ro.nombre, en(p, "nombre"), LIM.nombre, is) };
   });
+  const ids = new Set<string>();
+  recompensas.forEach((r, i) => { if (r.id && ids.has(r.id)) is.push({ path: en(en("recompensas", i), "id"), message: `«${r.id}» ya es otra recompensa de esta misión: cada una, un id distinto` }); ids.add(r.id); });
   const tx = objeto(o.textos, "textos", is, true) ?? {};
   campos(tx, ["aceptada", "completada"], "textos", is);
   if (o.repetible !== undefined && typeof o.repetible !== "boolean") is.push({ path: "repetible", message: "true o false" });
@@ -230,6 +240,15 @@ export function leerMision(v: unknown): Result<Mision> {
     pasos, recompensas, repetible: o.repetible === true,
     textos: { aceptada: texto(tx.aceptada, "textos.aceptada", LIM.textoMision, is, true), completada: texto(tx.completada, "textos.completada", LIM.textoMision, is, true) },
   });
+}
+
+/** N10: `{ "tipo": "objeto", "id", "nombre", "descripcion"?, "modelo"?: "<sha256 de un .glb>", "licencia"?: "CC0-1.0" }`. */
+function objetoRecompensa(ro: Record<string, unknown>, p: string, is: Issue[]): Recompensa {
+  campos(ro, ["tipo", "id", "nombre", "descripcion", "modelo", "licencia"], p, is);
+  let modelo = "", licencia = "";
+  if (ro.modelo !== undefined) { if (typeof ro.modelo === "string" && SHA.test(ro.modelo)) modelo = ro.modelo; else is.push({ path: en(p, "modelo"), message: "el sha256 (64 letras hex) del .glb del objeto (subido al mundo o de la biblioteca)" }); }
+  if (ro.licencia !== undefined) { if (typeof ro.licencia === "string" && LICENCIA.test(ro.licencia)) licencia = ro.licencia; else is.push({ path: en(p, "licencia"), message: "la licencia de su arte como un id corto (\"CC0-1.0\", \"CC-BY-4.0\"): tener el objeto no da los derechos de su obra" }); }
+  return { tipo: "objeto", id: id(ro.id, en(p, "id"), is), nombre: texto(ro.nombre, en(p, "nombre"), LIM.nombre, is), descripcion: texto(ro.descripcion, en(p, "descripcion"), LIM.descripcionCosa, is, true), modelo, licencia };
 }
 
 // ---------- secuencia@1 (U14 (5)): a short scripted moment that only the player who caused it sees ----------

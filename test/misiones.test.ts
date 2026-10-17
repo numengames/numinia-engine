@@ -167,7 +167,7 @@ test("the example quest end to end over the plug: talk, accept, arrive, talk, ta
   a.s.features.use("misiones", "caja-de-bruno"); W.pump(2);
   assert.deepEqual(a.m.libro().map((m) => [m.id, m.estado, m.lista.every((s) => s.hecho)]), [["primeros-pasos", "hecha", true]]);
   assert.deepEqual(a.m.objetivos(), []);
-  assert.deepEqual(a.m.resumen().insignias, ["Insignia «Conoce la plaza»"]);
+  assert.deepEqual(a.m.resumen().insignias, ["Insignia «Conoce la plaza», Objeto «Farolillo de Bruno»"]); // N10: the example quest also gives a good of yours
   assert.ok(a.s.features.announcements.some((x) => x.importance === 2 && x.text.startsWith("Misión completada: Primeros pasos en la plaza")));
   // done: Alma says thanks; accepting again is refused
   W.place(a, 2, -2); W.pump(12);

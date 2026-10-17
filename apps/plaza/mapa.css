@@ -43,3 +43,16 @@
   #mapa-grande .lienzo { flex: 0 0 55vh; }
   #mapa-grande aside { flex: none; min-width: 0; overflow: visible; }
 }
+/* N10: the sheet's «Inventario» (apps/plaza/bienes.ts) and the gold dot on «Ficha» when a good arrives */
+[data-novedad] { position: relative; }
+[data-novedad]::after { content: ""; position: absolute; top: 2px; right: 2px; width: 9px; height: 9px; border-radius: 50%; background: #ffd27a; box-shadow: 0 0 6px #ffd27a; }
+.panel-j5 ul.bienes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.panel-j5 li.bien { display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; background: rgba(255, 210, 122, .08); border: 1px solid rgba(255, 210, 122, .28); }
+.panel-j5 li.bien .nombre { font-size: 15px; color: #ffd27a; }
+.panel-j5 li.bien .origen, .panel-j5 li.bien .licencia { font-size: 12px; color: #c9d3dc; }
+.panel-j5 li.bien .firma.ok { color: #9fe8a8; }
+.panel-j5 li.bien .firma.mal { color: #ff9a9e; }
+.panel-j5 li.bien button { justify-self: start; margin-top: 4px; }
+.panel-j5 .traer { margin-top: 10px; font-size: 12px; color: #c9d3dc; }
+.panel-j5 .veredicto.ok { color: #9fe8a8; }
+.panel-j5 .veredicto.mal { color: #ff9a9e; }

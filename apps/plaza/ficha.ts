@@ -134,6 +134,6 @@ export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
     pintar: (c) => { const r = resumen(), i = r && typeof r === "object" && !Array.isArray(r) ? (r as Record<string, unknown>).insignias : null; listaDe(c, Array.isArray(i) ? i : [], "Aún no tienes insignias."); },
   });
   api.seccion("avatar", { titulo: "Avatar", orden: 60, pintar: (c) => parrafo(c, "Próximamente (fila H10): ver y elegir aquí tu avatar, con su retrato.") });
-  api.seccion("inventario", { titulo: "Inventario", orden: 70, pintar: (c) => parrafo(c, "Próximamente: lo que llevas encima, guardado en el servidor.") });
+  api.seccion("inventario", { titulo: "Inventario", orden: 70, pintar: (c) => parrafo(c, "Este mundo no tiene la función bienes: aquí no se guardan objetos tuyos.") }); // N10: apps/plaza/bienes.ts replaces it
   return api;
 }

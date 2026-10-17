@@ -9,6 +9,7 @@ import misiones from "./misiones/client.ts"; // J5: two features: people (pnj) a
 import entorno from "./entorno/client.ts";
 import elementos from "./elementos/client.ts";
 import pesca from "./pesca/client.ts"; // v1: fishing (rod, float and the big «Recoger» button live in apps/plaza/pesca.ts)
+import bienes from "./bienes/client.ts"; // N10: digital goods — a chest's «objeto» becomes yours (signed receipt, inventory)
 
-const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca];
+const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes];
 export default funciones;
