@@ -577,3 +577,21 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: 11d92dc en `plantillas/eventos-marcas` (worktree `numinia-engine-wt-eventos-b`) y la unión 88e97b7.
 - Siguiente: la secuencia local (el vuelo de Leonardo) con la espera antes del cofre, y el cofre de dos aspectos con el
   premio registrado una sola vez.
+
+## 2026-10-17 02:28 · U14 (5) · un momento que solo ve quien lo provoca (secuencia@1) y un paso que espera (espera) · hecho (sesión con Pablo, rama `plantillas/eventos`, sin subir)
+- Qué: la especificación de la TRG26 pide que, al entregar las tres piezas, Leonardo se ponga las alas y vuele solo para
+  quien se las dio (los demás siguen jugando su misión con él en su sitio) y que el cofre no se abra antes del vuelo.
+  Fichero nuevo de aventura `secuencias/<id>.json` (pistas `mueve`, `muestra`, `texto`, `sonido`; 1–30 s), y en cualquier
+  paso `secuencia` (se manda una vez, solo a quien lo hizo) y `espera` (1–60 s desde que empezó su bloque; la máquina
+  sigue pura: el servidor le pasa la hora). El reproductor de la página va en su propio trozo, que solo se baja con la
+  primera secuencia. misiones v5.
+- Números: 8 pruebas nuevas (`test/misiones-secuencia.test.ts`), 406 de 407 en la suite (la de siempre bajo carga,
+  `chat.test.ts`); las de misiones y altura, 44 de 44; las otras cuatro puertas en verde (capas 0, f719d31b, 26,7 kbit/s,
+  plaza de 1.000 p99 7,2 ms); `npm run build` en verde. Con 1.000 jugadores esperando, el tick de las misiones p99 0,14
+  ms. En el navegador, dos invitados: A ve las alas, el vuelo y el aterrizaje; B, a Leonardo quieto; el cofre dice
+  «Todavía no: faltan 10 s» y su «!» sale a los 10,0–10,2 s. Fotos en la plantilla: `fotos/vuelo-1…4`.
+- Nota: el agente que lo hizo se quedó sin pasos antes de escribir esta entrada y de hacer el commit; los cerró la sesión
+  (build y pruebas de misiones repetidos antes del commit).
+- Commit: rama `plantillas/eventos` (ver `git log`).
+- Siguiente: unir el cofre de dos aspectos y el premio registrado (U14 (6), rama `plantillas/eventos-cofre`) y poner el
+  vuelo y el cofre en la aventura de la plantilla.

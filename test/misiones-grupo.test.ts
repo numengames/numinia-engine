@@ -77,7 +77,7 @@ test("formats: a grupo split in two places, a missing person or thing, a thing n
   const largo = leerMision(mision([{ ...PASOS[0], grupo: "á".repeat(21) }]));
   assert.ok(!largo.ok && largo.issues.some((i) => i.path === "pasos[0].grupo" && /bytes/.test(i.message)));
   const raro = leerMision(mision([{ ...PASOS[0], cosas: ["telas"] }]));
-  assert.ok(!raro.ok && raro.issues.some((i) => i.path === "pasos[0].cosas" && /aquí van: id, tipo, texto, pnj, cosa, grupo\)/.test(i.message)), JSON.stringify(raro));
+  assert.ok(!raro.ok && raro.issues.some((i) => i.path === "pasos[0].cosas" && /aquí van: id, tipo, texto, pnj, cosa, grupo, secuencia, espera\)/.test(i.message)), JSON.stringify(raro));
   // entrega: cosa or cosas, never both, never neither; 1-8 things, each once
   const entrega = (x: object) => { const r = leerMision(mision([PASOS[0], { id: "e", tipo: "entrega", texto: "Entrega", pnj: "leonardo", ...x }])); return r.ok ? [] : r.issues.map((i) => `${i.path}: ${i.message}`); };
   assert.ok(entrega({ cosa: "bastidor", cosas: ["bastidor"] }).some((s) => s.startsWith("pasos[1].cosa:") && /no las dos/.test(s)));

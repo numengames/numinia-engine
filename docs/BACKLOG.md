@@ -83,6 +83,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema, y 2, pasos en cualquier orden, y el mapa cortado, hechos) | no |
 | U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema; 2, pasos en cualquier orden; el mapa cortado, y 3, el libro con estados, hechos) | no |
 | U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema; 2, pasos en cualquier orden; el mapa cortado; 3, el libro con estados, y 4, las marcas sobre las personas, hechos) | no |
+| U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema; 2, pasos en cualquier orden; el mapa cortado; 3, el libro con estados; 4, las marcas sobre las personas, y 5, la secuencia que solo ve quien la provoca y la espera antes de un paso, hechos) | no |
 | U4 | Zona de usuario: quién eres, avatar, misiones e insignias, lo que he construido (lista, cuota, borrar, descargar), privacidad y datos, seguridad; el informe de sesión (T1) pasa a pedir consentimiento | espera a U2 | sí |
 | I3 | «Guardar mi progreso» con una llave de acceso (passkey) del propio motor, sin correo (Pablo, 15-10: camino B); la llave queda unida al invitado | pendiente | sí |
 | U5 | «Editar interfaz»: mover sin arrastrar (cuadrícula 3×3, números, flechas, lista), 5 disposiciones por clase de aparato, copiar y pegar `nl1.` sin código | espera a U3 | sí |
@@ -1204,8 +1205,29 @@ llamadas de dibujo, +8 texturas (un sprite por rótulo, como antes; lienzo de ha
 lienzos repintados parado: 0; aceptar repinta 4, recibir una pieza 1. 5 pruebas (`test/misiones-marcas.test.ts`, con dos
 invitados en el mismo servidor que no ven las marcas del otro). Tras unir con el trozo 3, la pierna e2e `misiones`
 (libro con estados + marcas de dos invitados) en verde.
-**Falta:** secuencia local (el vuelo); espera antes del cofre; cofre de dos aspectos; premio registrado una sola vez; que
-V6 dé su sonido a cada aviso (y quite las notas del libro).
+**Trozo 5 hecho (17-10, rama `plantillas/eventos`): un momento que solo ve quien lo provoca y un paso que espera.**
+Fichero nuevo de aventura `secuencias/<id>.json` (`secuencia@1`, 1–30 s): pistas `mueve` (una persona sigue sus claves,
+posiciones del mundo, por una curva monótona que no se pasa de ninguna: si aterriza en el suelo no lo atraviesa),
+`muestra` (un .glb de más, sobre una persona —con su giro y su tamaño, aunque vuele— o en un sitio), `texto` (la nota de
+la página, leída en voz alta) y `sonido` (los de la casa, notas Web Audio sin fichero). Se comprueba al cargar: una
+persona o un modelo que el servidor no tiene es un error con lo que hay (y la misión que la nombra no carga). mision@1
+admite (aditivo) en cualquier paso `secuencia` (se manda al hacerlo, solo a las conexiones de quien lo hizo, una vez:
+volver a entrar no la repite) y `espera` (1–60 s desde que empezó su bloque). La máquina sigue pura: el servidor le pasa
+`ahora` en cada suceso y el progreso guarda `desde` (solo las misiones con esperas; lo guardado antes no espera nunca);
+quien lo intenta antes oye «Todavía no: faltan 7 s para «…».»; mientras, candado y cuenta atrás en el libro y arriba,
+sin objetivo ni «!»; al cumplirse, el libro y las marcas otra vez, una vez (las conexiones con una espera se miran 5 veces
+por segundo). `misiones` pasa a v5 (`paso.espera` y los eventos silenciosos `secuencia`, `pista`, `clave`). En la página
+(`features/misiones/secuencia.ts`, su propio trozo: se baja con la primera secuencia) una a la vez (las siguientes
+esperan, hasta 3), nada por cuadro mientras no suena ninguna, sin tocar la cámara (VR); al acabar cada persona vuelve a
+donde dice el servidor. `__numinia.misiones.secuencia()`. **Medido:** 8 pruebas (`test/misiones-secuencia.test.ts`:
+formatos con sus rutas, la máquina con tiempos inyectados —antes no, después sí, el bloque, `desde` guardado y leído,
+progreso viejo—, el reproductor puro y el enchufe real con dos invitados, reconexión y reinicio a mitad de la espera);
+tick de las misiones con 1.000 jugadores esperando: p99 0,14 ms (límite 5), y al abrirse un libro cada uno y nada más; el
+vuelo, 15 eventos y 554 bytes solo para su dueño; arranque +1,8 kB gz (el reproductor, 1,9 kB gz aparte). En el
+navegador (servidor y página propios, dos invitados): A ve las alas, el vuelo y el aterrizaje; B, a la vez, a Leonardo
+quieto en su sitio; un evento `secuencia` cada uno; el cofre «Todavía no: faltan 10 s» y su «!» a los 10,0–10,2 s.
+**Falta:** cofre de dos aspectos; premio registrado una sola vez; que V6 dé su sonido a cada aviso (y quite las notas del
+libro y de las secuencias); poner el vuelo en la aventura de la plantilla (`../plantillas/eventos/notas-vuelo.md`).
 
 ### U1 — Pantalla de carga
 Armazón dentro de `index.html` (≤ 14 kB comprimido, letra del sistema, sin lienzo ni `requestAnimationFrame`) y un

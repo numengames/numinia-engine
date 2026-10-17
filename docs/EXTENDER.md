@@ -273,6 +273,7 @@ mi-aventura/
   misiones/<id>.json   formato "mision@1"
   pnj/<id>.json        formato "pnj@1"     (personas que no son jugadores: hablan y dan misiones)
   cosas/<id>.json      formato "cosa@1"    (cosas que se cogen o se usan)
+  secuencias/<id>.json formato "secuencia@1" (un momento con guion que solo ve quien lo provoca: U14 (5))
   habitantes/<id>.json formato "habitante@1" (IA que viven en el mundo: packages/agent)
   ficha.json           formato "ficha@1"   (opcional: cómo se llama el mundo, de qué va y su portada)
   *.md                 notas para quien escribe (no se leen)
@@ -354,6 +355,64 @@ se abre solo al aceptar la misión, en cuanto termina la conversación con quien
 «Has recibido: <la cosa>» con el icono de objeto (también al coger algo con un paso `coge`) y un sonido corto.
 Hablar dos veces con el mismo no cuenta dos. Leonardo no acepta la entrega hasta que llevas las tres.
 
+**Un momento que solo ves tú y un paso que espera (U14 (5)).** Dos campos opcionales de cualquier paso:
+- `secuencia`: el id de una `secuencia@1` (abajo). Cuando el servidor da ese paso por hecho, manda la secuencia **solo a
+  quien lo hizo** (a todas sus pestañas), y su página la pone: los demás jugadores del mismo servidor siguen viendo a esa
+  persona en su sitio y pueden hacer su propia misión a la vez. Se manda una vez: quien vuelve a entrar no la ve otra vez.
+- `espera` (segundos, 1–60): el paso no se puede hacer hasta que pasan esos segundos desde que le tocó (en un `grupo`,
+  desde que empezó el bloque). Mientras espera sale con candado en el libro y la cuenta atrás («· en 7 s», también arriba
+  de la pantalla), no es objetivo en el mapa y su persona o su cosa no lleva «!»; quien lo intenta antes oye «Todavía no:
+  faltan 7 s para «Abre el cofre…».». Al cumplirse, el servidor le manda el libro y las marcas otra vez (una vez). La
+  cuenta es del reloj del servidor y se guarda con el progreso (`desde`): volver a entrar, o un reinicio, no la reinicia.
+
+Así acaba la TRG26: al darle las tres piezas, Leonardo se pone las alas y vuela (solo para ti), y el cofre se abre
+cuando ha aterrizado:
+
+```json
+{ "id": "entrega", "tipo": "entrega", "texto": "Entrega las tres piezas a Leonardo", "pnj": "leonardo", "cosas": ["bastidor", "telas", "plano"], "secuencia": "vuelo" },
+{ "id": "cofre", "tipo": "usa", "texto": "Abre el cofre y recoge tu recompensa", "cosa": "cofre", "espera": 10 }
+```
+
+**`secuencia@1`** — un momento corto con guion (1–30 s): pistas que se tocan a la vez, cada una con sus tiempos (en
+segundos desde que empieza). Todo pasa **solo en la página** de quien la provoca: la persona se mueve allí, no en el
+servidor; al acabar vuelve exactamente a donde dice el servidor.
+
+```json
+{ "formato": "secuencia@1", "id": "vuelo", "duracion": 9.5,
+  "pistas": [
+    { "tipo": "texto", "t": 0.2, "texto": "¡Eureka! Leonardo se pone las alas…" },
+    { "tipo": "muestra", "modelo": "<sha256 de alas.glb>", "pnj": "leonardo", "offset": { "x": 0, "y": 1.45, "z": -0.16 }, "desde": 0.5, "hasta": 9.5 },
+    { "tipo": "sonido", "t": 0.5, "sonido": "magia" },
+    { "tipo": "mueve", "pnj": "leonardo", "claves": [
+      { "t": 1.5 },
+      { "t": 2.8, "x": -30, "y": 5, "z": -2, "giro": 90 },
+      { "t": 3.8, "x": -26, "y": 6, "z": -6, "giro": 180 },
+      { "t": 4.8, "x": -30, "y": 6.5, "z": -10, "giro": -90 },
+      { "t": 5.8, "x": -34, "y": 6, "z": -6, "giro": 0 },
+      { "t": 6.8, "x": -30, "y": 3, "z": -2, "giro": 90 },
+      { "t": 7.8, "x": -30, "y": 0, "z": -2, "giro": 0 } ] },
+    { "tipo": "texto", "t": 8, "texto": "Leonardo aterriza. En un momento podrás abrir el cofre." } ] }
+```
+
+| Pista | Campos | Qué hace |
+|---|---|---|
+| `mueve` | `pnj`, `claves` (1–12: `t` y, si quieres, `x`, `y` (0–60), `z`, `giro`) | la persona sigue sus claves (posiciones del mundo, en metros; giro en grados) por una curva suave que no se pasa de ninguna (si una clave está en el suelo, no lo atraviesa); lo que una clave no dice es su sitio y su giro del `pnj@1`. Antes de la primera, en su sitio; tras la última, quieta ahí. Una persona, un `mueve` a la vez |
+| `muestra` | `modelo` (sha256 de un .glb), `desde`, `hasta`; y `pnj` con `offset` `{x, y, z}` (±10 m, en su marco: −z es su espalda), o `x`, `y`, `z`; opcionales `giro` (+ el suyo), `escala` (1) | un modelo de más de `desde` a `hasta`: con `pnj` va con esa persona aunque vuele (con su giro y su tamaño) |
+| `texto` | `t`, `texto` (≤ 120 bytes) | la línea sale en la nota de la página y se lee en voz alta (lector de pantalla) |
+| `sonido` | `t`, `sonido` (`suave`, `aviso`, `exito`, `error`, `paso`, `campana`, `magia`) | un sonido de la casa (notas cortas hechas en la página, sin fichero; con el volumen de efectos) |
+
+- Hasta 16 pistas; cada `t`, `desde` y `hasta` dentro de `duracion`; las claves, cada una después de la anterior.
+- Se comprueba al cargar: un `pnj` que no existe es un error (con la lista de los que hay), y también un `modelo` que el
+  servidor no tiene (súbelo arrastrándolo al mundo o cópialo como `datos/activos/<sha256>.glb`; la biblioteca de la casa
+  vale). Un paso que nombra una secuencia que no hay deja fuera su misión (se haría sin su momento).
+- En la página: una secuencia a la vez (si llega otra, espera su turno; como mucho 3 en cola); mientras no suena
+  ninguna, la página no hace nada por cuadro; en VR no mueve la cámara; su código (1,9 kB gz) se baja con la primera
+  que llega. Para comprobaciones y agentes,
+  `__numinia.misiones.secuencia()` → `{ id, t, duracion, personas, modelos, linea, cola }` o `null`.
+- Coste: el servidor la convierte una vez en eventos (`secuencia`, una `pista` por pista y una `clave` por clave: 15
+  eventos y 554 bytes el vuelo de arriba) y los manda solo a ese jugador; las esperas pendientes se miran 5 veces por
+  segundo, solo las de quien tiene una (1.000 jugadores esperando: tick de las funciones p99 ≈ 0,15 ms).
+
 Recompensas: hoy solo insignias (recuerdos de lo hecho; sin economía). `requisitos.misiones`: las que hay que haber
 completado antes. Hasta 16 pasos, 16 misiones activas por jugador.
 
@@ -426,7 +485,9 @@ Lo que pasa en el servidor (`features/misiones/server.ts`) y no se puede saltar 
   `ALCANCE_ALTURA_M`—), posiciones (`api.position`, con `y`, cada 0,2 s y solo de quien espera llegar a un sitio) y los
   pasos que tocan; hablar de lejos, coger algo que no toca o elegir sin conversación se rechaza diciendo por qué;
 - el progreso es **por invitado** (I1) en el almacén (S4, `p:<id>`): sobrevive a los reinicios y llega **solo a su dueño**
-  (eventos `libro`, `mision`, `paso`, `aceptada`, `avance`, `completada`, `marcas`); las personas y las cosas llegan con `at` (J9);
+  (eventos `libro`, `mision`, `paso`, `aceptada`, `avance`, `completada`, `marcas`, y U14 (5) `secuencia`, `pista`,
+  `clave`); las personas y las cosas llegan con `at` (J9); U14 (5): un paso con `espera` cuenta con el reloj del servidor
+  (la máquina no tiene reloj: el servidor le pasa `ahora` en cada suceso y guarda `desde` con el progreso);
 - **el texto no lo decide un modelo**: el árbol es la política. Si un día un LLM da voz a una persona (P5), solo
   **redacta** la línea escrita (`Frasear` en `server.ts`) siguiendo STD-050: en sus instrucciones solo el papel de la
   persona y las normas de la casa; el nombre del jugador y lo que alguien escribió van en un bloque `<material>`
@@ -437,7 +498,10 @@ Para agentes y páginas: `window.__numinia.misiones` (`libro()`, `objetivos()`, 
 texto, x, z, seguida }]` (uno por paso que toca: en un grupo, todos los que faltan); `resumen().seguida.grupo` =
 `{ nombre, hechos, total }` del grupo en curso de la misión seguida, o `null`. U14 (4): `marcas()` → `{ tiene, hecho,
 cosas }` (ids: personas con «!», personas con «✓», cosas con «!»; el mismo objeto mientras no cambian),
-`marcaDe(feature, clave)` → `"!"`, `"✓"` o `""` (`pnj` o `misiones`), `oficioDe(pnj)` y `dialogo().oficio`.
+`marcaDe(feature, clave)` → `"!"`, `"✓"` o `""` (`pnj` o `misiones`), `oficioDe(pnj)` y `dialogo().oficio`. U14 (5):
+cada paso de `libro()` lleva `espera` (los segundos que le faltaban al llegar el libro; 0 = ya se puede) y `listoEn`
+(cuándo se abre, en el reloj de la página); `secuencia()` (la que suena, o `null`), `alSecuencia(fn)` (oír cuándo
+empieza, cada línea, cada sonido y cuándo acaba) y `cuadro()` (la página la avanza en cada cuadro).
 
 ## Agentes de fuera: gestionarlos por HTTP (ADR-080, para el panel de numinia.com)
 

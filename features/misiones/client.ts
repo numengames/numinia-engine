@@ -1,10 +1,12 @@
 // misiones — client part (J5): draws the people (pnj) and the quest things, keeps THIS player's quest book (built from
 // events that reach only them) and offers one small controller that the page (apps/plaza: dialogue box, book, prompt)
 // and agents use. It only asks: the server decides every step.
+// U14 (5): it also plays the sequences the server sends this player alone (secuencia.ts) and counts down a step's wait.
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg, PlacedObject } from "../../packages/feature/src/index.ts";
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
 import biblioteca from "../objetos/biblioteca.json" with { type: "json" };
+import type { Escenario, Pose, SecuenciaVista, SucesoSecuencia } from "./secuencia.ts"; // U14 (5): a moment only you see (loaded when one comes)
 
 const modelo = (id: string) => biblioteca.modelos.find((m) => m.id === id)?.modelo ?? "";
 const ROBOT = modelo("robot"), BLOQUE = modelo("bloque");
@@ -39,7 +41,9 @@ export type Marcas = { tiene: string[]; hecho: string[]; cosas: string[] };
 export const etiquetaCosa = (v: Msg): { text: string; mark: Marca; x: number; y: number; z: number } =>
   ({ text: String(v.nombre), mark: "!", x: Number(v.x), y: (Number(v.y) || 0) + Number(v.escala) + 0.5, z: Number(v.z) });
 
-export type PasoVista = { n: number; texto: string; tipo: string; hecho: boolean; x: number; z: number; donde: string; que: string; grupo: string };
+/** `espera` (U14 (5)): the seconds this step still waited when the book came (0 = it may be done); `listoEn` = when it
+ * opens on this page's clock (ms; 0 = no wait). The server sends the book again when it opens. */
+export type PasoVista = { n: number; texto: string; tipo: string; hecho: boolean; x: number; z: number; donde: string; que: string; grupo: string; espera: number; listoEn: number };
 export type MisionVista = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: PasoVista[] };
 export type Objetivo = { mision: string; paso: number; nombre: string; texto: string; x: number; z: number; seguida: boolean };
 export type Dialogo = { pnj: string; nombre: string; oficio: string; texto: string; opciones: string[] };
@@ -56,11 +60,17 @@ export function bloqueDe(m: MisionVista): PasoVista[] {
   while (b < m.lista.length && m.lista[b].grupo === g && m.lista[b].n === m.lista[b - 1].n + 1) b++;
   return m.lista.slice(a, b);
 }
-/** What is to do now in an active quest: every step of its current block not done yet (outside a grupo, just one). */
-export const ahoraDe = (m: MisionVista): PasoVista[] => (m.estado === "activa" ? bloqueDe(m).filter((s) => !s.hecho) : []);
+/** What is to do now in an active quest: every step of its current block not done yet (outside a grupo, just one) and
+ * not waiting (U14 (5): a step with `espera` left is locked until the server says it opened). */
+export const ahoraDe = (m: MisionVista): PasoVista[] => porHacer(m).filter((s) => !(s.espera > 0));
+/** U14 (5): the steps of the current block not done yet, waiting or not: what the page lets you try (one that still
+ * waits answers «Todavía no: …», so pressing E on the chest during the flight says why). */
+export const porHacer = (m: MisionVista): PasoVista[] => (m.estado === "activa" ? bloqueDe(m).filter((s) => !s.hecho) : []);
 
-/** One per page (tests make one per client). `misiones` is what the page's panels and an agent call. */
-export function crearCliente() {
+/** One per page (tests make one per client). `misiones` is what the page's panels and an agent call. `reloj` (U14 (5),
+ * ms): the page's clock, for the countdowns and the sequences (tests pass their own). */
+export function crearCliente(o: { reloj?: () => number } = {}) {
+  const reloj = o.reloj ?? (() => performance.now());
   let P: ClientApi | null = null, M: ClientApi | null = null;
   const libro = new Map<string, MisionVista>();
   let dialogo: Dialogo | null = null;
@@ -70,6 +80,41 @@ export function crearCliente() {
   const nota = (t: string) => { estado.nota = t; avisar("nota"); };
   const sin = (why: string): Res => ({ ok: false, why });
 
+  // ---- U14 (5): a sequence only this player sees (secuencia.ts): the people it moves are drawn on this page alone and
+  // stand again where the server says when it ends; its extra models; its lines go to the note and, with its sounds, to
+  // whoever listens (the page reads the lines aloud and plays the sounds). The player is its own chunk, loaded when the
+  // first sequence arrives (a page that never sees one never fetches it); what arrives meanwhile waits, in order. ----
+  const oyentesSec = new Set<(s: SucesoSecuencia) => void>();
+  const conPose = (v: Msg, pose: Pose | null): Msg => (pose ? { ...v, x: pose.x, y: pose.y, z: pose.z, giro: pose.giro } : v);
+  const escenario: Escenario = {
+    reloj,
+    persona: (pnj) => { const v = P?.state.get(pnj); return v ? { x: Number(v.x), y: Number(v.y) || 0, z: Number(v.z), giro: Number(v.giro) || 0, escala: Number(v.escala) || 1 } : null; },
+    moverPersona: (pnj, pose) => {
+      const v = P?.state.get(pnj);
+      if (!v || !P) return; // not drawn on this page (any more): nothing to move, nothing to put back
+      const look = aspectoPnj(conPose(v, pose), marcaDe("pnj", pnj));
+      P.view.place?.(`pnj:${pnj}`, look.cuerpo);
+      P.view.tag?.(`pnj:${pnj}`, look.nombre);
+    },
+    colocar: (key, x) => (M ?? P)?.view.place?.(key, x),
+    oir: (s) => {
+      if (s.tipo === "texto") nota(s.texto);
+      for (const f of oyentesSec) { try { f(s); } catch { /* a listener's problem is its own */ } }
+    },
+  };
+  let rep: ReturnType<typeof import("./secuencia.ts").crearReproductor> | null = null;
+  let piezas: ReturnType<typeof import("./secuencia.ts").montador> | null = null;
+  let cargando: Promise<unknown> | null = null;
+  const esperan: [string, Msg][] = [];
+  const recibirSec = (ev: string, m: Msg): void => {
+    if (rep && piezas) { const s = piezas.recibir(ev, m); if (s) rep.poner(s); return; }
+    esperan.push([ev, m]);
+    cargando ??= import("./secuencia.ts").then((x) => {
+      piezas = x.montador(); rep = x.crearReproductor(escenario);
+      for (const [e, msg] of esperan.splice(0)) recibirSec(e, msg);
+    }).catch((e) => { cargando = null; esperan.length = 0; console.warn(`[misiones] no se pudo cargar la secuencia: ${(e as Error)?.message ?? e}`); });
+  };
+
   // U14 (4): the marks the server decided for THIS player. `marcas` is a new frozen object only when they change (a map
   // can tell by identity); a label is drawn again only for whoever's mark changed, and a quest thing has one only while
   // it is marked
@@ -77,7 +122,7 @@ export function crearCliente() {
   let marcaP = new Map<string, Marca>(), marcaC = new Set<string>();
   const conRotulo = new Set<string>(); // the quest things that have a label now
   const marcaDe = (feature: string, key: string): Marca => (feature === "pnj" ? marcaP.get(key) ?? "" : feature === "misiones" && marcaC.has(key) ? "!" : "");
-  const rotularPnj = (key: string) => { const v = P?.state.get(key); if (v) P!.view.tag?.(`pnj:${key}`, aspectoPnj(v, marcaDe("pnj", key)).nombre); };
+  const rotularPnj = (key: string) => { const v = P?.state.get(key); if (v) P!.view.tag?.(`pnj:${key}`, aspectoPnj(conPose(v, rep?.poseDe(key) ?? null), marcaDe("pnj", key)).nombre); }; // U14 (5): where a sequence has it
   const rotularCosa = (key: string) => {
     const v = M?.state.get(key), si = !!v && marcaC.has(key);
     if (si) { conRotulo.add(key); M!.view.tag?.(`misiones:${key}`, etiquetaCosa(v!)); }
@@ -126,8 +171,17 @@ export function crearCliente() {
     abandonar: (mision: string): Res => M?.send("abandonar", { mision }) ?? sin("la página aún no ha arrancado"),
     seguir: (mision: string): Res => M?.send("seguir", { mision }) ?? sin("la página aún no ha arrancado"),
     usar: (cosa: string): Res => M?.send("usar", { cosa }) ?? sin("la página aún no ha arrancado"),
-    /** Whether the page should offer «E: …» for a thing: quest things only while a step to do now needs them. */
-    ofrece: (feature: string, key: string): boolean => feature !== "misiones" || [...libro.values()].some((m) => ahoraDe(m).some((s) => s.que === key && (s.tipo === "coge" || s.tipo === "usa"))),
+    /** Whether the page should offer «E: …» for a thing: quest things only while a step to do now needs them (U14 (5):
+     * also while that step still waits — trying it says how long is left). */
+    ofrece: (feature: string, key: string): boolean => feature !== "misiones" || [...libro.values()].some((m) => porHacer(m).some((s) => s.que === key && (s.tipo === "coge" || s.tipo === "usa"))),
+    /** U14 (5): the sequence playing now (id, second, length, the people it moves, the extra models shown, its last line,
+     * how many wait behind it), or null. */
+    secuencia: (): SecuenciaVista | null => rep?.ahora() ?? null,
+    /** U14 (5): advance the sequence to now. The page calls it every frame and keeps drawing while it answers true; with
+     * none playing it answers false at once and does nothing. It never touches the camera. */
+    cuadro: (): boolean => rep?.cuadro() ?? false,
+    /** U14 (5): hear a sequence start, say a line, ask for a house sound and end; returns how to stop. */
+    alSecuencia: (fn: (s: SucesoSecuencia) => void) => { oyentesSec.add(fn); return () => oyentesSec.delete(fn); },
 
     /** U14 (4): your marks as the server decided them — tiene = people with «!», hecho = people with «✓», cosas = things
      * with «!» (ids). The same object until they change. */
@@ -144,7 +198,7 @@ export function crearCliente() {
     P = a;
     a.state.onChange((key, v) => {
       if (!v) { a.view.place?.(`pnj:${key}`, null); a.view.tag?.(`pnj:${key}`, null); return; }
-      const look = aspectoPnj(v, marcaDe("pnj", key));
+      const look = aspectoPnj(conPose(v, rep?.poseDe(key) ?? null), marcaDe("pnj", key)); // U14 (5): a sequence playing keeps it where it has it
       a.view.place?.(`pnj:${key}`, look.cuerpo);
       a.view.tag?.(`pnj:${key}`, look.nombre);
     });
@@ -158,6 +212,7 @@ export function crearCliente() {
 
   const misionesPart = clientPart(misionesDecl, (a) => {
     M = a;
+    for (const ev of ["secuencia", "pista", "clave"]) a.on(ev, (m) => recibirSec(ev, m)); // U14 (5)
     a.state.onChange((key, v) => {
       a.view.place?.(`misiones:${key}`, v ? aspectoCosa(v) : null); // J4: <feature>:<key>, so a click is understood
       rotularCosa(key); // U14 (4): a label only while the server marks it for you
@@ -170,7 +225,8 @@ export function crearCliente() {
     a.on("paso", (m) => {
       const mv = libro.get(String(m.mision));
       if (!mv) return;
-      const s: PasoVista = { n: Number(m.n), texto: String(m.texto), tipo: String(m.tipo), hecho: m.hecho === true, x: Number(m.x), z: Number(m.z), donde: String(m.donde), que: String(m.que ?? ""), grupo: String(m.grupo ?? "") };
+      const espera = Math.max(0, Number(m.espera ?? 0) || 0); // U14 (5): seconds left; counted down here, the server resends the book when it opens
+      const s: PasoVista = { n: Number(m.n), texto: String(m.texto), tipo: String(m.tipo), hecho: m.hecho === true, x: Number(m.x), z: Number(m.z), donde: String(m.donde), que: String(m.que ?? ""), grupo: String(m.grupo ?? ""), espera, listoEn: espera ? reloj() + espera * 1000 : 0 };
       mv.lista = [...mv.lista.filter((x) => x.n !== s.n), s].sort((p, q) => p.n - q.n);
       avisar("libro");
     });

@@ -1,6 +1,6 @@
 // aventura (J5): the text files an adventure ships (quests, people, things…), read at startup from AVENTURA_DIR.
 // Layout: <dir>/<carpeta>/*.json|*.md|*.txt. Each feature reads its own folders through api.aventura(carpeta) and
-// checks them against its format (features/misiones reads misiones/, pnj/ and cosas/). The engine ships an EXAMPLE
+// checks them against its format (features/misiones reads misiones/, pnj/, cosas/ and secuencias/). The engine ships an EXAMPLE
 // in aventuras/ejemplo/ (the default of `npm run server`); a real adventure lives in its own repository and the
 // server is pointed at it. Files are read once per call and never served to pages.
 // One file sits at the adventure's root: ficha.json (ficha@1, optional) — what the world is called, one paragraph about

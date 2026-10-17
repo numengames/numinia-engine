@@ -100,6 +100,14 @@ nombre y «!» solo mientras toca cogerla o usarla. Las marcas son tuyas: las de
 jugador ve las suyas. El minimapa y el mapa grande las pintan igual (disco ámbar con «!», disco verde con «✓», encima de
 la estrella del objetivo), y la lista del mapa dice el oficio junto al nombre; la conversación, también.
 
+Momentos y esperas (U14 (5)): al hacer ciertos pasos ves un momento que es **solo tuyo** — en la TRG26, al darle las
+tres piezas, Leonardo se pone las alas, sube, da una vuelta y aterriza en su sitio (unos 9 s, con sus líneas en el aviso
+del centro, que el lector de pantalla también lee, y un par de sonidos cortos). Los demás jugadores lo siguen viendo en su
+sitio y pueden hacer su misión a la vez; si sales y vuelves no se repite. Algún paso **espera** unos segundos antes de
+poder hacerse (el cofre, hasta que Leonardo aterriza): mientras, sale con candado y la cuenta atrás en el libro y en la
+línea de arriba («· en 7 s»), sin «!» ni objetivo en el mapa; si lo intentas antes, el aviso dice cuánto falta. Cuando
+se abre, sale su «!». En VR la cámara no se mueve: el momento pasa delante de ti.
+
 ## 6. Orientarse
 
 | Cosa | Qué es | Capa | Nivel | Escritorio / móvil / VR | Primitivas | Coste móvil | Fila |

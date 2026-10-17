@@ -2,8 +2,8 @@
 //   pnj       people of the world (PNJ): talk to them from close by; their dialogue depends on your quests
 //   misiones  your quest book (only to you, saved by guest) and the quest things in the world (take or use)
 // What exists (quests, people, things) comes from the adventure's text files (formato.ts; docs/EXTENDER.md).
-import { defineFeature } from "../../packages/feature/src/index.ts";
-import { ALTURA_MAX, LIM, MUNDO, TIPOS_PASO } from "./formato.ts";
+import { defineFeature, SOUNDS } from "../../packages/feature/src/index.ts";
+import { ALTURA_MAX, ESPERA_MAX, LIM, LIM_SECUENCIA, MUNDO, TIPOS_PASO, TIPOS_PISTA } from "./formato.ts";
 
 const ID = { kind: "text", maxBytes: LIM.id } as const;
 const X = { kind: "fixed", min: -MUNDO, max: MUNDO, step: 0.01 } as const;
@@ -11,6 +11,12 @@ const MODELO = { kind: "text", maxBytes: 64, default: "" } as const;
 const ESCALA = { kind: "fixed", min: 0.05, max: 50, step: 0.01, default: 1 } as const;
 const DESCRIPCION = { kind: "text", maxBytes: LIM.descripcionCosa, default: "" } as const;
 const MOTIVO = { kind: "text", maxBytes: 160 } as const;
+// U14 (5): a sequence's numbers on the wire — a moment (s), a height, an offset over a person (m), a yaw (degrees)
+const X0 = { ...X, default: 0 } as const;
+const MOMENTO = { kind: "fixed", min: 0, max: LIM_SECUENCIA.duracion, step: 0.01, default: 0 } as const;
+const ALTO_SEC = { kind: "fixed", min: 0, max: LIM_SECUENCIA.alto, step: 0.01, default: 0 } as const;
+const DESPLAZA = { kind: "fixed", min: -LIM_SECUENCIA.desplazamiento, max: LIM_SECUENCIA.desplazamiento, step: 0.01, default: 0 } as const;
+const GIRO = { kind: "fixed", min: -180, max: 180, step: 0.1, default: 0 } as const;
 
 export const pnj = defineFeature({
   id: "pnj",
@@ -40,9 +46,9 @@ export const pnj = defineFeature({
 
 export const misiones = defineFeature({
   id: "misiones",
-  version: 4, // v4: marks for you over people and things (event `marcas`: «!» something for you now, «✓» done); v3: steps in any order (`paso.grupo`), a person gives you a thing (step type «recibe»); v2: a thing's `y` reaches ALTURA_MAX
+  version: 5, // v5: a step may wait (`paso.espera`: seconds left) and a done step may play a moment only you see (events secuencia, pista, clave); v4: marks for you over people and things (event `marcas`: «!» something for you now, «✓» done); v3: steps in any order (`paso.grupo`), a person gives you a thing (step type «recibe»); v2: a thing's `y` reaches ALTURA_MAX
   level: "base",
-  describe: "Misiones: encargos por pasos (llegar a un sitio, hablar con alguien, recibir algo de alguien, usar o coger algo, entregarlo; los de un mismo grupo, en cualquier orden) que da una persona y que comprueba el servidor. Tu libro llega solo a ti y se guarda por invitado. Las escribe la aventura (mision@1, cosa@1).",
+  describe: "Misiones: encargos por pasos (llegar a un sitio, hablar con alguien, recibir algo de alguien, usar o coger algo, entregarlo; los de un mismo grupo, en cualquier orden) que da una persona y que comprueba el servidor. Un paso puede esperar unos segundos antes de poder hacerse y, al hacerse, poner una secuencia que solo ves tú. Tu libro llega solo a ti y se guarda por invitado. Las escribe la aventura (mision@1, cosa@1, secuencia@1).",
   store: { describe: "El progreso de cada invitado (`p:<id>`): misiones activas con su paso, lo que lleva (cogido o recibido) y lo hecho del grupo en curso, las completadas y la que sigue. Solo le llega a su dueño, como eventos." },
   state: {
     describe: "Las cosas de las misiones que hay en el mundo (clave = su id): nombre, dónde (y = altura sobre el suelo, m: una mesa o una planta alta), a qué distancia se usan (m, y a menos de 2,5 m de altura), el aviso que sale al lado («coger la caja»), su modelo (vacío = el bloque de la casa) y su color («#rrggbb»; vacío = el del modelo).",
@@ -63,8 +69,8 @@ export const misiones = defineFeature({
       announce: "silent",
     },
     paso: {
-      describe: "Un paso de una misión de tu libro y dónde está su objetivo (x, z, donde = su nombre; que = el id de la persona o la cosa). Los pasos seguidos con el mismo grupo se hacen en cualquier orden (grupo = el nombre de su contador; vacío = ninguno).",
-      fields: { mision: ID, n: { kind: "int", min: 0, max: LIM.pasos - 1 }, texto: { kind: "text", maxBytes: LIM.textoPaso }, tipo: { kind: "enum", values: TIPOS_PASO }, hecho: { kind: "bool" }, x: X, z: X, donde: { kind: "text", maxBytes: LIM.lugar }, que: { kind: "text", maxBytes: LIM.id, default: "" }, grupo: { kind: "text", maxBytes: LIM.grupo, default: "" } },
+      describe: "Un paso de una misión de tu libro y dónde está su objetivo (x, z, donde = su nombre; que = el id de la persona o la cosa). Los pasos seguidos con el mismo grupo se hacen en cualquier orden (grupo = el nombre de su contador; vacío = ninguno). espera = cuántos segundos faltan para poder hacerlo (0 = ya se puede; la página descuenta sola y el servidor manda el libro otra vez cuando se abre).",
+      fields: { mision: ID, n: { kind: "int", min: 0, max: LIM.pasos - 1 }, texto: { kind: "text", maxBytes: LIM.textoPaso }, tipo: { kind: "enum", values: TIPOS_PASO }, hecho: { kind: "bool" }, x: X, z: X, donde: { kind: "text", maxBytes: LIM.lugar }, que: { kind: "text", maxBytes: LIM.id, default: "" }, grupo: { kind: "text", maxBytes: LIM.grupo, default: "" }, espera: { kind: "int", min: 0, max: ESPERA_MAX, default: 0 } },
       announce: "silent",
     },
     aceptada: { describe: "Aceptaste una misión.", fields: { mision: ID, titulo: { kind: "text", maxBytes: LIM.titulo }, texto: { kind: "text", maxBytes: LIM.textoMision, default: "" } }, announce: { text: "Misión nueva: {titulo}. {texto}", sound: "magia", importance: 1 } },
@@ -79,6 +85,23 @@ export const misiones = defineFeature({
     marcas: {
       describe: "Qué personas y cosas tienen marca para ti (tras cada libro; solo a ti). Ids separados por comas: tiene = personas con «!» (te dan una misión que puedes coger o un paso tuyo de ahora es con ellas), hecho = personas con «✓» (ya hiciste lo suyo y no te queda nada con ellas), cosas = cosas con «!» (un paso tuyo de ahora es cogerlas o usarlas).",
       fields: { tiene: { kind: "text", maxBytes: LIM.marcas, default: "" }, hecho: { kind: "text", maxBytes: LIM.marcas, default: "" }, cosas: { kind: "text", maxBytes: LIM.marcas, default: "" } },
+      announce: "silent",
+    },
+    // U14 (5): a scripted moment (secuencia@1) for you alone, when you do a step that names one: a header, one `pista`
+    // per track and, after each `mueve`, its keys. The page plays it (secuencia.ts) and shows its lines as notes.
+    secuencia: {
+      describe: "Empieza una secuencia que solo ves tú (la puso un paso que acabas de hacer): cuánto dura (s) y cuántas pistas llegan detrás. Al acabar, cada persona vuelve a donde dice el servidor.",
+      fields: { id: ID, duracion: { kind: "fixed", min: 1, max: LIM_SECUENCIA.duracion, step: 0.01 }, pistas: { kind: "int", min: 1, max: LIM_SECUENCIA.pistas } },
+      announce: "silent",
+    },
+    pista: {
+      describe: "Una pista de la secuencia (n desde 0), según su tipo: mueve = la persona pnj sigue sus claves (llegan detrás: claves = cuántas); muestra = el modelo de desde a hasta (s), sobre la persona pnj (ox, oy, oz en su marco, su giro + giro, su tamaño × escala) o en x, y, z; texto = la línea texto en t (s), como aviso; sonido = el sonido de la casa sonido en t.",
+      fields: { secuencia: ID, n: { kind: "int", min: 0, max: LIM_SECUENCIA.pistas - 1 }, tipo: { kind: "enum", values: TIPOS_PISTA }, pnj: { kind: "text", maxBytes: LIM.id, default: "" }, claves: { kind: "int", min: 0, max: LIM_SECUENCIA.claves, default: 0 }, modelo: MODELO, x: X0, y: ALTO_SEC, z: X0, ox: DESPLAZA, oy: DESPLAZA, oz: DESPLAZA, giro: GIRO, escala: ESCALA, desde: MOMENTO, hasta: MOMENTO, t: MOMENTO, texto: { kind: "text", maxBytes: LIM_SECUENCIA.texto, default: "" }, sonido: { kind: "enum", values: SOUNDS, default: "suave" } },
+      announce: "silent",
+    },
+    clave: {
+      describe: "Una clave de una pista mueve: dónde está esa persona en el segundo t (metros del mundo, giro en grados). Entre claves, una curva suave que no se pasa de ninguna; antes de la primera, en su sitio; tras la última, quieta ahí.",
+      fields: { secuencia: ID, pista: { kind: "int", min: 0, max: LIM_SECUENCIA.pistas - 1 }, t: MOMENTO, x: X, y: ALTO_SEC, z: X, giro: GIRO },
       announce: "silent",
     },
   },

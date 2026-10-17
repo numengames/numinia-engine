@@ -1,13 +1,17 @@
 // misiones — the quest state machine (J5): pure functions over one player's progress. The server feeds them what IT
 // saw (where the player stands, whom it talks to, what it took); a page never completes a step by asking. Same
-// input, same output: no clock, no randomness. Dialogue choice (which node, which options) lives here too.
+// input, same output: no clock of its own, no randomness. Dialogue choice (which node, which options) lives here too.
+// U14 (5): a step may wait (mision@1 `espera`): the server passes its clock in each event (`ahora`, ms) and an active
+// quest keeps `desde`, when its current block became the one to do; a step that still waits is not done, not offered
+// («!») and the server says «Todavía no» when someone tries.
 import { alAlcanceEnAltura } from "../../packages/feature/src/index.ts";
 import { cosasDe, LIM } from "./formato.ts";
 import type { Aventura, Condicion, Mision, Nodo, Opcion, Paso, Pnj } from "./formato.ts";
 
 /** An active quest: the index of the step it is on (the first of its block), the things it carries (taken or given,
- * for `entrega`) and the ids of the steps already done inside the current block (`grupo`; empty outside blocks). */
-export type Activa = { paso: number; tiene: string[]; hechos: string[] };
+ * for `entrega`) and the ids of the steps already done inside the current block (`grupo`; empty outside blocks).
+ * U14 (5): `desde` = when that block became the one to do (ms of the server's clock; absent = no wait counts). */
+export type Activa = { paso: number; tiene: string[]; hechos: string[]; desde?: number };
 /** One player's quests, as the server keeps it (store `p:<guest>`). Plain JSON. */
 export type Progreso = { v: 1; activas: Record<string, Activa>; hechas: string[]; seguida: string };
 export const ACTIVAS_MAX = 16;
@@ -18,16 +22,17 @@ export const nuevoProgreso = (): Progreso => ({ v: 1, activas: {}, hechas: [], s
 const ID = /^[a-z0-9][a-z0-9-]{0,31}$/;
 const ids = (v: unknown, max: number): string[] => (Array.isArray(v) ? v.filter((c): c is string => typeof c === "string" && ID.test(c)).slice(0, max) : []);
 /** Progress as it comes back from the store: whatever does not fit is dropped, never thrown. Saved before `hechos`
- * existed = nothing done inside a block yet. */
+ * existed = nothing done inside a block yet; saved before `desde` existed (U14 (5)) = no wait counts. */
 export function leerProgreso(v: unknown): Progreso {
   const p = nuevoProgreso();
   if (typeof v !== "object" || v === null) return p;
   const o = v as Record<string, unknown>;
   if (typeof o.activas === "object" && o.activas !== null) {
     for (const [id, a] of Object.entries(o.activas as Record<string, unknown>).slice(0, ACTIVAS_MAX)) {
-      const x = a as { paso?: unknown; tiene?: unknown; hechos?: unknown };
+      const x = a as { paso?: unknown; tiene?: unknown; hechos?: unknown; desde?: unknown };
       if (!ID.test(id) || typeof x !== "object" || x === null || !Number.isInteger(x.paso) || Number(x.paso) < 0) continue;
       p.activas[id] = { paso: Number(x.paso), tiene: ids(x.tiene, 16), hechos: [...new Set(ids(x.hechos, LIM.pasos))] };
+      if (typeof x.desde === "number" && Number.isFinite(x.desde) && x.desde >= 0) p.activas[id].desde = x.desde;
     }
   }
   if (Array.isArray(o.hechas)) p.hechas = o.hechas.filter((h): h is string => typeof h === "string" && ID.test(h)).slice(-HECHAS_MAX);
@@ -52,6 +57,32 @@ export const pasoHecho = (m: Mision, act: Activa, n: number): boolean => n < act
 export function primerPendiente(m: Mision, act: Activa): number {
   for (let n = act.paso, fin = finBloque(m, act.paso); n < fin; n++) if (!act.hechos.includes(m.pasos[n].id)) return n;
   return act.paso;
+}
+
+// ---------- waits (U14 (5)): a step with `espera` opens that many seconds after its block became the one to do ----------
+/** Whether a quest has any step that waits: only those keep `desde` (the others' saved progress does not change). */
+const conEsperas = (m: Mision): boolean => m.pasos.some((s) => s.espera !== undefined);
+/** Milliseconds step `n` still waits at `ahora` (the server's clock): 0 = it may be done. No `espera`, or progress saved
+ * before `desde` existed, never waits; without a clock (`ahora` absent) no time has passed. */
+export function faltaEspera(m: Mision, act: Activa, n: number, ahora?: number): number {
+  const s = m.pasos[n];
+  if (!s?.espera || act.desde === undefined) return 0;
+  return Math.max(0, act.desde + s.espera * 1000 - (ahora ?? act.desde));
+}
+/** When the next wait of this player ends (ms of the server's clock), or null when no step to do now is waiting: the
+ * server resends the book and the marks then, once. */
+export function proximaEspera(p: Progreso, a: Aventura, ahora: number): number | null {
+  let min: number | null = null;
+  for (const [id, act] of Object.entries(p.activas)) {
+    const m = a.misiones.get(id);
+    if (!m) continue;
+    for (let n = act.paso, fin = finBloque(m, act.paso); n < fin; n++) {
+      if (act.hechos.includes(m.pasos[n].id)) continue;
+      const falta = faltaEspera(m, act, n, ahora);
+      if (falta > 0 && (min === null || ahora + falta < min)) min = ahora + falta;
+    }
+  }
+  return min;
 }
 
 export type EstadoMision = "sin_empezar" | "activa" | "hecha";
@@ -83,13 +114,15 @@ export const nodoInicial = (n: Pnj, p: Progreso, a: Aventura): string => (n.dial
 /** The options this player sees in a node (in order; those whose conditions fail are hidden). */
 export const opcionesDe = (nodo: Nodo, p: Progreso, a: Aventura): Opcion[] => nodo.opciones.filter((o) => cumple(p, o.si, a)).slice(0, 4);
 
-/** What the server saw the player do. */
-export type Suceso =
+/** What the server saw the player do. U14 (5): `ahora` = the server's clock (ms) when it saw it; steps that wait
+ * (mision@1 `espera`) are measured against it. */
+export type Suceso = (
   | { tipo: "llega"; x: number; z: number; y?: number }      // it stands here (checked a few times a second); y = its feet's height (the ground when absent)
   | { tipo: "habla"; pnj: string }                           // it started talking to this person
   | { tipo: "avanzar"; pnj: string; mision: string }         // it chose an option avanzar_paso
   | { tipo: "entregar"; pnj: string; mision: string }        // it chose an option entregar
-  | { tipo: "usa"; cosa: string };                           // it took or used this thing
+  | { tipo: "usa"; cosa: string }                            // it took or used this thing
+) & { ahora?: number };
 /** A step completed: which quest, which step (index) and whether that finished the quest. */
 export type Hecho = { mision: string; paso: number; completada: boolean };
 
@@ -112,7 +145,8 @@ function completar(p: Progreso, m: Mision): void {
 }
 
 /** Apply what the player did: completes at most one step per active quest — the first of its current block's pending
- * steps (in file order) that this matches; the quest moves past the block when all of it is done. Changes `p`. */
+ * steps (in file order) that this matches and that no longer waits (U14 (5): `espera`, against `x.ahora`); the quest
+ * moves past the block when all of it is done, and the next block starts counting then (`desde`). Changes `p`. */
 export function registrar(p: Progreso, a: Aventura, x: Suceso): Hecho[] {
   const out: Hecho[] = [];
   for (const [id, act] of Object.entries(p.activas)) {
@@ -120,13 +154,16 @@ export function registrar(p: Progreso, a: Aventura, x: Suceso): Hecho[] {
     if (!m) continue;
     const fin = finBloque(m, act.paso);
     let n = act.paso;
-    while (n < fin && (act.hechos.includes(m.pasos[n].id) || !cumplePaso(m.pasos[n], act, m, a, x))) n++;
+    while (n < fin && (act.hechos.includes(m.pasos[n].id) || faltaEspera(m, act, n, x.ahora) > 0 || !cumplePaso(m.pasos[n], act, m, a, x))) n++;
     if (n >= fin) continue;
     const s = m.pasos[n];
     if ((s.tipo === "coge" || s.tipo === "recibe") && !act.tiene.includes(s.cosa)) act.tiene.push(s.cosa);
     if (s.tipo === "entrega") { const dadas = cosasDe(s); act.tiene = act.tiene.filter((c) => !dadas.includes(c)); }
     act.hechos.push(s.id);
-    if (m.pasos.slice(act.paso, fin).every((q) => act.hechos.includes(q.id))) { act.paso = fin; act.hechos = []; } // the whole block: on to the next
+    if (m.pasos.slice(act.paso, fin).every((q) => act.hechos.includes(q.id))) { // the whole block: on to the next, which starts counting now
+      act.paso = fin; act.hechos = [];
+      if (x.ahora !== undefined && conEsperas(m)) act.desde = x.ahora; else delete act.desde;
+    }
     const completada = act.paso >= m.pasos.length;
     out.push({ mision: id, paso: n, completada });
     if (completada) completar(p, m);
@@ -134,17 +171,34 @@ export function registrar(p: Progreso, a: Aventura, x: Suceso): Hecho[] {
   return out;
 }
 
+/** U14 (5): the first step to do now that this event would complete but that still waits (its quest, its index and
+ * how long, ms) — what the server says when someone tries too early («Todavía no: …»); null when none. */
+export function esperando(p: Progreso, a: Aventura, x: Suceso): { mision: string; paso: number; faltaMs: number } | null {
+  for (const [id, act] of Object.entries(p.activas)) {
+    const m = a.misiones.get(id);
+    if (!m) continue;
+    for (let n = act.paso, fin = finBloque(m, act.paso); n < fin; n++) {
+      if (act.hechos.includes(m.pasos[n].id)) continue;
+      const falta = faltaEspera(m, act, n, x.ahora);
+      if (falta > 0 && cumplePaso(m.pasos[n], act, m, a, x)) return { mision: id, paso: n, faltaMs: falta };
+    }
+  }
+  return null;
+}
+
 type Res = { ok: true } | { ok: false; motivo: string };
 const no = (motivo: string): Res => ({ ok: false, motivo });
 
-/** Take a quest (from a person who offers it: the server checks who and how close). Tracks it if nothing is tracked. */
-export function aceptar(p: Progreso, m: Mision, a: Aventura): Res {
+/** Take a quest (from a person who offers it: the server checks who and how close). Tracks it if nothing is tracked.
+ * U14 (5): `ahora` (the server's clock, ms) starts the first block's wait, if one of its steps has `espera`. */
+export function aceptar(p: Progreso, m: Mision, a: Aventura, ahora?: number): Res {
   if (p.activas[m.id]) return no(`Ya tienes «${m.titulo}» en tu libro.`);
   if (p.hechas.includes(m.id) && !m.repetible) return no(`Ya completaste «${m.titulo}».`);
   const falta = m.requisitos.misiones.filter((r) => !p.hechas.includes(r)).map((r) => `«${a.misiones.get(r)?.titulo ?? r}»`);
   if (falta.length) return no(`Antes tienes que completar ${falta.join(", ")}.`);
   if (Object.keys(p.activas).length >= ACTIVAS_MAX) return no(`Ya llevas ${ACTIVAS_MAX} misiones: termina o deja alguna.`);
   p.activas[m.id] = { paso: 0, tiene: [], hechos: [] };
+  if (ahora !== undefined && conEsperas(m)) p.activas[m.id].desde = ahora;
   if (!p.seguida) p.seguida = m.id;
   return { ok: true };
 }
@@ -187,8 +241,9 @@ export const esperaLlegada = (p: Progreso, a: Aventura): boolean => Object.entri
 export type Marcas = { tiene: string[]; hecho: string[]; cosas: string[] };
 /** The marks for one player (pure: the server calls it after each book it sends). Each list without repeats and in a
  * fixed order, the most useful first (steps to do before offers; the active quests' people before the finished ones,
- * newest first), so a list cut for the wire (enTexto) loses the least. */
-export function marcas(p: Progreso, a: Aventura): Marcas {
+ * newest first), so a list cut for the wire (enTexto) loses the least. U14 (5): a step that still waits at `ahora`
+ * (the server's clock) marks nothing yet — its person keeps neither «!» nor «✓» until it opens. */
+export function marcas(p: Progreso, a: Aventura, ahora?: number): Marcas {
   const tiene = new Set<string>(), cosas = new Set<string>(), espera = new Set<string>(), vistos = new Set<string>();
   const dieron = (id: string) => { for (const d of a.dadores.get(id) ?? []) vistos.add(d); }; // the givers of a quest you have or had
   for (const [id, act] of Object.entries(p.activas)) {
@@ -196,7 +251,7 @@ export function marcas(p: Progreso, a: Aventura): Marcas {
     if (!m) continue;
     m.pasos.forEach((s, n) => {
       if ("pnj" in s) (pasoHecho(m, act, n) ? vistos : espera).add(s.pnj);
-      if (!pendiente(m, act, n)) return;
+      if (!pendiente(m, act, n) || faltaEspera(m, act, n, ahora) > 0) return;
       if ("pnj" in s) tiene.add(s.pnj);
       else if (s.tipo === "usa" || s.tipo === "coge") cosas.add(s.cosa);
     });

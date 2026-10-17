@@ -9,12 +9,14 @@
 // itself when you accept a quest, once the conversation has closed — never in VR (its panel lists the same states) and
 // without taking the keyboard (you keep walking; J or «Cerrar» closes it). Getting a thing puts its icon in the note,
 // and every step done plays a short positive sound.
+// U14 (5): a step that still waits shows locked with its countdown («· en 7 s», in the book and the top line), and a
+// sequence the server sent you (features/misiones/secuencia.ts) has its lines read aloud and its house sounds played.
 import { escribiendo } from "./interactuar.ts";
 import { icono } from "./iconos.ts";
 import { anunciar } from "./paneles.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
-type Paso = { n: number; texto: string; hecho: boolean; donde: string; tipo?: string };
+type Paso = { n: number; texto: string; hecho: boolean; donde: string; tipo?: string; espera?: number; listoEn?: number };
 type Mision = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: Paso[] };
 type Objetivo = { mision: string; paso: number; nombre: string; texto: string; x: number; z: number; seguida: boolean };
 type Grupo = { nombre: string; hechos: number; total: number };
@@ -23,6 +25,7 @@ type Ctl = {
   resumen(): { seguida: { mision: string; grupo: Grupo | null } | null };
   dialogo(): unknown;
   alCambiar(fn: (que: "libro" | "dialogo" | "nota") => void): unknown;
+  alSecuencia?(fn: (s: { tipo: string; texto?: string; sonido?: string }) => void): unknown; // U14 (5)
 };
 type Lugar = { beacon(x: number, z: number, text: string, ms: number): void; vr?: { active: boolean } };
 /** Hear every event the server sends this page (main.ts: session.features.tap): the book wants «aceptada» and «avance». */
@@ -44,7 +47,7 @@ export const ESTADOS: Record<EstadoPaso, { dice: string; icono: string; vr: stri
  * quest's current block (a grupo: several at once). */
 export const ahorasDe = (obs: readonly { mision: string; paso: number }[]): Set<string> => new Set(obs.map((x) => `${x.mision}:${x.paso}`));
 /** Done (or the quest is complete: all its steps are done); to do now; otherwise locked: still to do, after the current
- * block (it opens when the block before it is done). */
+ * block (it opens when the block before it is done) or, U14 (5), in it but still waiting (`espera`: it opens by itself). */
 export function estadoPaso(m: { id: string; estado: string }, s: { n: number; hecho: boolean }, ahoras: ReadonlySet<string>): EstadoPaso {
   if (s.hecho || m.estado === "hecha") return "hecho";
   return ahoras.has(`${m.id}:${s.n}`) ? "ahora" : "bloqueado";
@@ -72,26 +75,45 @@ export function esObjeto(texto: string, m: { lista: readonly Paso[] } | undefine
   return /^Has recibido: /.test(texto) || !!m?.lista.some((s) => s.tipo === "coge" && s.texto === texto);
 }
 
-/** The short positive sound of a step done (its `avance` announcement declares «exito»; until V6 gives every
- * announcement its own sound, the book plays this one): three rising notes made here with the Web Audio API, at the
- * settings' general × effects volume (0 = silent). Returns whether it sounded. */
-export function sonarExito(ctx: () => AudioContext | null, ajuste: (id: string) => unknown): boolean {
+/** The house sounds as short Web Audio notes, made here (no file), until V6 gives every announcement its real sound:
+ * per sound a wave and its notes [Hz, start s, length s]. «exito» is a step done (U14 (3)); a sequence (U14 (5)) may ask
+ * for any of the engine's sounds (packages/feature SOUNDS). */
+export const NOTAS_CASA: Record<string, { onda: OscillatorType; notas: [number, number, number][] }> = {
+  exito: { onda: "triangle", notas: [[523.25, 0, 0.1], [659.25, 0.08, 0.1], [783.99, 0.16, 0.24]] },
+  magia: { onda: "sine", notas: [[783.99, 0, 0.14], [1046.5, 0.07, 0.14], [1318.51, 0.14, 0.16], [1567.98, 0.21, 0.4]] },
+  campana: { onda: "sine", notas: [[880, 0, 1.1], [1760, 0, 0.5], [2637, 0, 0.25]] },
+  suave: { onda: "sine", notas: [[659.25, 0, 0.22]] },
+  aviso: { onda: "triangle", notas: [[880, 0, 0.12], [880, 0.18, 0.12]] },
+  error: { onda: "triangle", notas: [[233.08, 0, 0.14], [196, 0.14, 0.26]] },
+  paso: { onda: "triangle", notas: [[392, 0, 0.07]] },
+};
+/** Play one house sound at the settings' general × effects volume (0 = silent). Returns whether it sounded. */
+export function sonarCasa(ctx: () => AudioContext | null, ajuste: (id: string) => unknown, sonido = "exito"): boolean {
   try {
-    const vol = (Number(ajuste("general") ?? 80) / 100) * (Number(ajuste("efectos") ?? 80) / 100) * 0.2;
-    if (!(vol > 0)) return false;
+    const vol = (Number(ajuste("general") ?? 80) / 100) * (Number(ajuste("efectos") ?? 80) / 100) * 0.2, s = NOTAS_CASA[sonido];
+    if (!(vol > 0) || !s) return false;
     const c = ctx();
     if (!c) return false;
     if (c.state === "suspended") void c.resume().catch(() => {});
     const t = c.currentTime;
-    for (const [f, t0, dur] of [[523.25, 0, 0.1], [659.25, 0.08, 0.1], [783.99, 0.16, 0.24]]) {
+    for (const [f, t0, dur] of s.notas) {
       const o = c.createOscillator(), g = c.createGain();
-      o.type = "triangle"; o.frequency.value = f;
+      o.type = s.onda; o.frequency.value = f;
       g.gain.setValueAtTime(0, t + t0); g.gain.linearRampToValueAtTime(vol, t + t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.001, t + t0 + dur);
       o.connect(g).connect(c.destination); o.start(t + t0); o.stop(t + t0 + dur + 0.05);
     }
     return true;
   } catch { return false; } // no audio here: the note and the screen reader still say it
 }
+/** The short positive sound of a step done (its `avance` announcement declares «exito»; until V6 gives every
+ * announcement its own sound, the book plays this one): three rising notes. Returns whether it sounded. */
+export function sonarExito(ctx: () => AudioContext | null, ajuste: (id: string) => unknown): boolean {
+  return sonarCasa(ctx, ajuste, "exito");
+}
+/** U14 (5): how many seconds a step still waits on this page's clock — 0 = none; at least 1 until the server sends the
+ * book that opens it. */
+export const segundosDe = (s: { espera?: number; listoEn?: number }, ahora = performance.now()): number =>
+  (s.espera ? Math.max(1, Math.ceil(((s.listoEn ?? 0) - ahora) / 1000)) : 0);
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, texto = "", clase = ""): HTMLElementTagNameMap[K] => {
   const e = document.createElement(tag);
@@ -108,17 +130,18 @@ export function rumbo(dx: number, dz: number): string {
 }
 
 /** One row of the book: the mark (an icon or the «now» dot, hidden from screen readers), the state in words for them,
- * the step and, while it is to do now, where. */
+ * the step and, while it is to do now, where; while it waits (U14 (5)), in how long it opens. */
 function filaPaso(s: Paso, e: EstadoPaso): HTMLLIElement {
-  const d = ESTADOS[e], donde = e === "ahora" ? s.donde : "";
+  const d = ESTADOS[e], donde = e === "ahora" ? s.donde : "", falta = e === "bloqueado" ? segundosDe(s) : 0;
   const li = el("li", "", `paso ${e}`);
   li.dataset.estado = e;
-  li.setAttribute("aria-label", `${d.dice}: ${s.texto}${donde ? ` (${donde})` : ""}`);
+  li.setAttribute("aria-label", `${d.dice}: ${s.texto}${donde ? ` (${donde})` : ""}${falta ? ` (se abre en ${falta} s)` : ""}`);
   const marca = el("span", "", "marca");
   marca.setAttribute("aria-hidden", "true");
   if (d.icono) marca.innerHTML = icono(d.icono, 16); // a fixed house glyph, never text from the wire
   li.append(marca, el("span", `${d.dice}: `, "solo-lector"), el("span", s.texto, "texto"));
   if (donde) { const lugar = el("span", "", "donde"); lugar.append(el("span", " (", "solo-lector"), donde, el("span", ")", "solo-lector")); li.append(lugar); }
+  if (falta) li.append(el("span", ` · en ${falta} s`, "donde espera"));
   return li;
 }
 
@@ -216,6 +239,10 @@ export function montarLibro(c: Ctl, o: {
       const cerca = yo ? obs.reduce((a, b) => (Math.hypot(b.x - yo.x, b.z - yo.z) < Math.hypot(a.x - yo.x, a.z - yo.z) ? b : a)) : null;
       t = `★ ${m.titulo} · ${g.nombre} ${g.hechos}/${g.total}${cerca && yo ? ` · ${cerca.nombre.split(",")[0]}, ${rumbo(cerca.x - yo.x, cerca.z - yo.z)}` : ""}`;
     } else if (m) t = `★ ${m.titulo} (${obs[0].paso + 1}/${m.pasos}): ${obs[0].texto}${yo ? ` · ${rumbo(obs[0].x - yo.x, obs[0].z - yo.z)}` : ""}`;
+    else { // U14 (5): the tracked quest's next step still waits: how long
+      const seg = c.libro().find((x) => x.seguida && x.estado === "activa"), s = seg?.lista.find((x) => x.n === seg.paso), falta = s ? segundosDe(s) : 0;
+      if (seg && s && falta) t = `★ ${seg.titulo} (${s.n + 1}/${seg.pasos}): ${s.texto} · en ${falta} s`;
+    }
     if (o.linea.textContent !== t) o.linea.textContent = t;
     o.linea.hidden = !t;
   };
@@ -235,9 +262,19 @@ export function montarLibro(c: Ctl, o: {
       if (o.ajuste) sonarExito(contexto, o.ajuste);
     }
   });
+  // U14 (5): a sequence's lines are read aloud (the note itself is hidden from screen readers) and its sounds play
+  c.alSecuencia?.((s) => {
+    if (s.tipo === "texto" && s.texto) anunciar(s.texto);
+    if (s.tipo === "sonido" && s.sonido && o.ajuste) sonarCasa(contexto, o.ajuste, s.sonido);
+  });
+  let esperas = ""; // U14 (5): the countdowns shown in the open book
   setInterval(() => {
     if (!o.nota.hidden && performance.now() > notaHasta) o.nota.hidden = true;
     linea();
+    if (!o.panel.hidden) {
+      const f = c.libro().flatMap((m) => m.lista.map((s) => segundosDe(s))).join(",");
+      if (f !== esperas) { esperas = f; if (/[1-9]/.test(f)) pintar(); }
+    }
   }, 250);
   return { abrir, pintar };
 }
