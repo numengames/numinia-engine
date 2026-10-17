@@ -34,7 +34,7 @@ test("server: /health, /metrics and a real WebSocket client on the same port", a
   try {
     const base = `http://127.0.0.1:${srv.port}`;
     const h = await (await fetch(`${base}/health`)).json();
-    assert.deepEqual(h, { ok: true, version: "prueba", huella: "93b192c8", conectados: 0 });
+    assert.deepEqual(h, { ok: true, version: "prueba", huella: "7e630965", conectados: 0 });
 
     const t = webSocketClient(`ws://127.0.0.1:${srv.port}/ws`);
     const s = new ClientSession(t);
@@ -63,6 +63,6 @@ test("server: /health, /metrics and a real WebSocket client on the same port", a
     assert.equal(nf.status, 404);
     assert.ok((await nf.json()).hay.includes("/metrics"));
     t.close();
-    assert.ok(lines.some((l) => l.includes("huella de referencia 93b192c8")));
+    assert.ok(lines.some((l) => l.includes("huella de referencia 7e630965")));
   } finally { await srv.close(); }
 });

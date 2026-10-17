@@ -234,7 +234,15 @@ export function createVR(h: VRHooks) {
     if (Math.abs(rx) > 0.6) {
       if (!turnLatched) { turnLatched = true; yawSteps += rx > 0 ? -1 : 1; rig.rotation.y = yawSteps * (SNAP_DEG * Math.PI) / 180; turned = true; }
     } else turnLatched = false;
-    // movement in the direction the head looks (flattened), stick up = forward
+    // movement in the direction the head looks (flattened), stick up = forward.
+    // The XR camera (h.renderer.xr.getCamera()) is only refreshed by three.js's own updateCamera()
+    // call inside renderer.render(), which runs AFTER this update() this frame: reading it here would
+    // use last frame's rig rotation, so right after a snap turn (rig.rotation.y just changed above)
+    // the move direction would lag — and since snap turn is a single instant step, a player who turns
+    // then immediately pushes the stick can walk a step or more in the stale (pre-turn) direction.
+    // Force both updates now, with THIS frame's rig rotation already applied, before reading direction.
+    rig.updateMatrixWorld(true);
+    h.renderer.xr.updateCamera(h.camera);
     h.renderer.xr.getCamera().getWorldDirection(dir);
     const len = Math.hypot(dir.x, dir.z) || 1;
     const fx = dir.x / len, fz = dir.z / len;

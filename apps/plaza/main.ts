@@ -189,7 +189,10 @@ if (matchMedia("(pointer: coarse)").matches) {
 function readButtons(): number {
   let b = 0;
   if (view.vr.takeJump() || view.ar.takeJump() || saltoPendiente) { saltoPendiente = false; b |= BTN_JUMP; }
-  const alBorde = (touch && Math.hypot(touch.dx, touch.dy) >= 0.9) || (view.vr.active && Math.hypot(...view.vr.axes()) >= 0.9);
+  // RUN_EDGE close to 1: most of the stick's travel walks (human pace), only the very end runs
+  // (was 0.9 — reached with barely half the throw, so there was no way to just walk).
+  const RUN_EDGE = 0.97;
+  const alBorde = (touch && Math.hypot(touch.dx, touch.dy) >= RUN_EDGE) || (view.vr.active && Math.hypot(...view.vr.axes()) >= RUN_EDGE);
   if (keys.has("ShiftLeft") || keys.has("ShiftRight") || alBorde) b |= BTN_RUN;
   return b;
 }

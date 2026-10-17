@@ -78,12 +78,12 @@ test("U10: a solid wall stops you (server and prediction agree), you slide along
   for (let i = 0; i < 40; i++) step(s, new Int32Array([0, 0, -127, 0])); // walk north 2 s into the wall
   const b = getBody(s, 0);
   assert.ok(b.z >= fx(-2 + 0.35) - 1, `went through the wall: z=${b.z / FX_ONE}`);
-  for (let i = 0; i < 30; i++) step(s, new Int32Array([0, 127, -127, 0])); // diagonal: slides east along it
+  for (let i = 0; i < 80; i++) step(s, new Int32Array([0, 127, -127, 0])); // diagonal: slides east along it (1.5 m/s, J3)
   assert.ok(getBody(s, 0).x > fx(3), "did not slide");
   // a low step (0.3 m) is climbed, and you stand on it
   setSolids(s, solidsFrom([["o:escalon", { solido: true, bx0: -20, by0: 0, bz0: 5, bx1: 20, by1: 0.3, bz1: 10 }]]));
   setBody(s, 0, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0 });
-  for (let i = 0; i < 40; i++) step(s, new Int32Array([0, 0, 127, 0]));
+  for (let i = 0; i < 107; i++) step(s, new Int32Array([0, 0, 127, 0])); // 1.5 m/s, J3
   const e = getBody(s, 0);
   assert.ok(e.z > fx(6) && e.y === fx(0.3), `on the step: z=${e.z / FX_ONE} y=${e.y / FX_ONE}`);
   // solids never change the reference fingerprint (they are world geometry, not state)

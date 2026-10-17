@@ -165,10 +165,10 @@ const result = {
   identidad: { a: A2.who, b: B2.who }, // I1: two tabs of the same browser are the same guest
   errors,
 };
-// movement: 1.5 s at 4 m/s = 6 m. The https pass failed once at exactly -4.0 (J6 saw a one-off too); likely
-// cause: software GL drops frames under load and the 250 ms dt clamp in the page loses ticks. Past 3.5 m
-// proves the path; corrections === 0 is the real netcode check.
-const ok = result.probe.equal && dz < -3.5 && dz > -7.5 && result.corrections === 0 && costBreaches.length === 0 && gestureOk && objetos.ok && pase.ok && (!sesiones.comprobado || sesiones.ok) && !!A2.who?.id && A2.who.id === B2.who?.id && errors.length === 0;
+// movement: 1.5 s at 1.5 m/s (human walking pace, J3) = 2.25 m. The https pass failed once at exactly -4.0 (J6 saw a
+// one-off too, back when walk was 4 m/s); likely cause: software GL drops frames under load and the 250 ms dt clamp
+// in the page loses ticks. Past 1 m proves the path; corrections === 0 is the real netcode check.
+const ok = result.probe.equal && dz < -1 && dz > -3.75 && result.corrections === 0 && costBreaches.length === 0 && gestureOk && objetos.ok && pase.ok && (!sesiones.comprobado || sesiones.ok) && !!A2.who?.id && A2.who.id === B2.who?.id && errors.length === 0;
 console.log(JSON.stringify(result, null, 1));
 console.log(ok ? "E2E OK" : "E2E FALLA");
 process.exit(ok ? 0 : 1);
