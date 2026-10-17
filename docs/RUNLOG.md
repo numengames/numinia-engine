@@ -504,3 +504,27 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `plantillas/eventos` (ver `git log`), sobre `plantillas/huecos` (PR #17).
 - Siguiente: pasos en cualquier orden (`grupo` en mision@1) con su contador; el libro con los estados de la
   especificación; marcas sobre las personas; secuencia local; cofre de dos aspectos; premio una sola vez.
+
+## 2026-10-16 23:56 · U14 (2) · pasos en cualquier orden (`grupo`), una persona te da una cosa (`recibe`) y entregar varias a la vez (`entrega.cosas`) · hecho (sesión con Pablo, rama `plantillas/eventos`, sin subir)
+- Qué: lo que la misión de la TRG26 pedía y mision@1 no sabía decir (un aprendiz da la misión; tres artesanos te dan una
+  pieza cada uno, en cualquier orden; luego llevas las tres a Leonardo; luego el cofre). Todo aditivo: `grupo` en
+  cualquier paso (los pasos seguidos con el mismo grupo, en cualquier orden; el mismo grupo en dos sitios separados es un
+  error que dice «junta esos pasos»), paso `recibe` (como `habla_con`, y la cosa queda «llevada»; también vale una
+  respuesta `avanzar_paso`) y `entrega` con `cosas` (1–8; «para entregar X antes hay que tenerla» acepta un `recibe`).
+  El progreso guarda `hechos` (ids del grupo en curso, ≤ 16; lo guardado antes carga con `[]`); `registrar` completa como
+  mucho un paso por misión y suceso (el primero que encaja, en el orden del fichero) y salta el grupo cuando está entero;
+  la condición `paso` de un diálogo vale mientras ese paso falta. `misiones` v3: el evento `paso` lleva `grupo` y el tipo
+  `recibe`. En la página: «ahora» (→) en cada paso que falta del grupo (libro, mapa, VR), arriba «★ El vuelo del Maestro ·
+  Piezas reunidas 1/3 · Artemisia, a 7 m al sureste» y, al recibir, «Has recibido: Telas ligeras» (lo dice el servidor
+  en el `avance`). EXTENDER «Misiones y personas» (la tabla, el grupo con su ejemplo) y llms.txt.
+- Números: 8 pruebas nuevas (`test/misiones-grupo.test.ts`), 380 en total, 379 en verde con la máquina a carga 10–21: la
+  que falla es la de siempre (`chat.test.ts`, coste de nombres para 1.000), que pasa sola (13 de 13); las de misiones de
+  antes, sin tocar (en `altura.test.ts` cambian la versión, 2 → 3, y la lista de campos que admite un paso, que ahora
+  dice `grupo`). Puertas: capas 0, huella f719d31b, 26,7 kbit/s, plaza de 1.000 p99 8,5 ms (unitarias: 379 de 380, la
+  misma). Tick de las misiones con 1.000 jugadores esperando llegar: p99 0,3 ms (límite 5). Progreso a mitad del grupo:
+  127 bytes. `npm run build` en verde. En el navegador (servidor 8885 y página 5325 propios, Playwright, la misión de la
+  TRG en una carpeta de prueba; `node tools/aventura.ts`: «Todo en orden»): 3 marcas en el mapa y tres «→», tras Bianca
+  «✓ Has recibido: Telas ligeras», 1/3 y 2 marcas; sin errores en la página.
+- Commit: rama `plantillas/eventos` (ver `git log`), encima del trozo 1.
+- Siguiente: el libro con los estados de la especificación; marcas sobre las personas; secuencia local (el vuelo);
+  espera antes del cofre; cofre de dos aspectos; premio una sola vez; el icono de la pieza conseguida.

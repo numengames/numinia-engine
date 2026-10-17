@@ -9,6 +9,7 @@ type EventoMano = { tipo: "agarrar"; key: string; lado: Lado } | { tipo: "apunta
 type Misiones = {
   estado: { nota: string };
   libro(): { id: string; estado: string; titulo: string; paso: number; pasos: number; seguida: boolean; lista: { n: number; texto: string; tipo: string; hecho: boolean; que: string }[] }[];
+  objetivos(): { mision: string; paso: number }[];
   dialogo(): { pnj: string; nombre: string; texto: string; opciones: string[] } | null;
   elegir(n: number): Res; adios(): Res; usar(cosa: string): Res;
   ofrece(feature: string, key: string): boolean;
@@ -95,7 +96,10 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
       const seg = misiones.libro().find((m) => m.estado === "activa" && m.seguida) ?? misiones.libro().find((m) => m.estado === "activa");
       out.push(seg ? seg.titulo : "Sin misión: habla con alguien");
       if (c) out.push(`Gatillo: ${c.prompt}`);
-      if (seg) for (const s of seg.lista.slice(0, 5)) out.push(`${s.hecho ? "✓" : s.n === seg.paso ? "→" : "·"} ${s.texto}`);
+      if (seg) { // → every step to do now (a grupo's block: several, in any order)
+        const ahora = new Set(misiones.objetivos().filter((x) => x.mision === seg.id).map((x) => x.paso));
+        for (const s of seg.lista.slice(0, 5)) out.push(`${s.hecho ? "✓" : ahora.has(s.n) ? "→" : "·"} ${s.texto}`);
+      }
       return out;
     },
     enMano: () => Object.fromEntries(enMano),

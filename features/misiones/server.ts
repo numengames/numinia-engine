@@ -7,7 +7,7 @@ import type { ServerApi, ServerPart } from "../../packages/feature/src/index.ts"
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
 import { cargarAventura, corta, LIM } from "./formato.ts";
 import type { Accion, Aventura, Fichero, Mision, Opcion, Pnj } from "./formato.ts";
-import { abandonar, aceptar, esperaLlegada, leerProgreso, nodoInicial, nuevoProgreso, objetivo, opcionesDe, registrar, seguir } from "./maquina.ts";
+import { abandonar, aceptar, esperaLlegada, leerProgreso, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
 import type { Hecho, Progreso } from "./maquina.ts";
 
 /** Ticks between two «has it arrived?» checks of one player (4 = 0.2 s). Only players on a llega_a step are checked. */
@@ -59,12 +59,14 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
 
   // ---- the book: sent whole on entering and after each change, only to its owner ----
   const recompensa = (m: Mision) => corta(m.recompensas.map((r) => `Insignia «${r.nombre}»`).join(", "), 120);
+  // `paso` = the first step still to do; inside a grupo the others of its block are to do too (each `paso` says its
+  // grupo, and `hecho` is true for what is already done in the block)
   const enviarMision = (to: number, p: Progreso, m: Mision) => {
-    const act = p.activas[m.id], hecha = !act, ahora = hecha ? m.pasos.length : Math.min(act.paso, m.pasos.length - 1);
+    const act = p.activas[m.id], hecha = !act, ahora = hecha ? m.pasos.length : Math.min(primerPendiente(m, act), m.pasos.length - 1);
     M!.emit("mision", { id: m.id, titulo: m.titulo, descripcion: m.descripcion, estado: hecha ? "hecha" : "activa", paso: ahora, pasos: m.pasos.length, seguida: p.seguida === m.id, recompensa: recompensa(m) }, { to });
     m.pasos.forEach((s, n) => {
       const ob = objetivo(s, A);
-      M!.emit("paso", { mision: m.id, n, texto: s.texto, tipo: s.tipo, hecho: hecha || n < ahora, x: ob.x, z: ob.z, donde: corta(ob.nombre, LIM.lugar), que: ob.que }, { to });
+      M!.emit("paso", { mision: m.id, n, texto: s.texto, tipo: s.tipo, hecho: hecha || pasoHecho(m, act, n), x: ob.x, z: ob.z, donde: corta(ob.nombre, LIM.lugar), que: ob.que, grupo: s.grupo ?? "" }, { to });
     });
   };
   const enviarLibro = (e: number, solo = false) => {
@@ -77,13 +79,15 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       for (const m of [...activas, ...hechas]) enviarMision(x, p, m);
     }
   };
-  /** After steps were completed: save, tell (announced), resend the book, re-arm the arrival checks. */
+  /** After steps were completed: save, tell (announced), resend the book, re-arm the arrival checks. A `recibe` step
+   * says what you got («Has recibido: …»). */
   const tras = (e: number, p: Progreso, hechos: Hecho[]) => {
     guardar(e, p);
     for (const h of hechos) {
-      const m = A.misiones.get(h.mision)!;
+      const m = A.misiones.get(h.mision)!, s = m.pasos[h.paso];
+      const texto = s.tipo === "recibe" ? corta(`Has recibido: ${A.cosas.get(s.cosa)?.nombre ?? s.cosa}`, LIM.textoPaso) : s.texto;
       for (const x of suyos(e)) {
-        M!.emit("avance", { mision: m.id, texto: m.pasos[h.paso].texto }, { to: x });
+        M!.emit("avance", { mision: m.id, texto }, { to: x });
         if (h.completada) M!.emit("completada", { mision: m.id, titulo: m.titulo, texto: m.textos.completada, recompensa: recompensa(m) }, { to: x });
       }
     }

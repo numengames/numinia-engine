@@ -40,10 +40,10 @@ export const pnj = defineFeature({
 
 export const misiones = defineFeature({
   id: "misiones",
-  version: 2, // v2: a thing's `y` reaches ALTURA_MAX (an upper floor), not only a hand's height
+  version: 3, // v3: steps in any order (`paso.grupo`), a person gives you a thing (step type «recibe»); v2: a thing's `y` reaches ALTURA_MAX
   level: "base",
-  describe: "Misiones: encargos por pasos (llegar a un sitio, hablar con alguien, usar o coger algo, entregarlo) que da una persona y que comprueba el servidor. Tu libro llega solo a ti y se guarda por invitado. Las escribe la aventura (mision@1, cosa@1).",
-  store: { describe: "El progreso de cada invitado (`p:<id>`): misiones activas con su paso y lo que lleva cogido, las completadas y la que sigue. Solo le llega a su dueño, como eventos." },
+  describe: "Misiones: encargos por pasos (llegar a un sitio, hablar con alguien, recibir algo de alguien, usar o coger algo, entregarlo; los de un mismo grupo, en cualquier orden) que da una persona y que comprueba el servidor. Tu libro llega solo a ti y se guarda por invitado. Las escribe la aventura (mision@1, cosa@1).",
+  store: { describe: "El progreso de cada invitado (`p:<id>`): misiones activas con su paso, lo que lleva (cogido o recibido) y lo hecho del grupo en curso, las completadas y la que sigue. Solo le llega a su dueño, como eventos." },
   state: {
     describe: "Las cosas de las misiones que hay en el mundo (clave = su id): nombre, dónde (y = altura sobre el suelo, m: una mesa o una planta alta), a qué distancia se usan (m, y a menos de 2,5 m de altura), el aviso que sale al lado («coger la caja»), su modelo (vacío = el bloque de la casa) y su color («#rrggbb»; vacío = el del modelo).",
     fields: { nombre: { kind: "text", maxBytes: LIM.nombre }, descripcion: DESCRIPCION, x: X, z: X, radio: { kind: "fixed", min: 0.5, max: 16, step: 0.1, default: 2 }, aviso: { kind: "text", maxBytes: LIM.aviso }, modelo: MODELO, escala: ESCALA, y: { kind: "fixed", min: 0, max: ALTURA_MAX, step: 0.01, default: 0 }, color: { kind: "text", maxBytes: 7, default: "" } },
@@ -58,17 +58,17 @@ export const misiones = defineFeature({
   events: {
     libro: { describe: "Llega tu libro entero (al entrar y tras cada cambio): olvida el anterior; detrás vienen sus misiones y sus pasos.", fields: { activas: { kind: "int", min: 0, max: 64 }, hechas: { kind: "int", min: 0, max: 1000 } }, announce: "silent" },
     mision: {
-      describe: "Una misión de tu libro: activa (paso = el que toca, desde 0) o hecha; seguida = la que marcas.",
+      describe: "Una misión de tu libro: activa (paso = el primero que toca, desde 0) o hecha; seguida = la que marcas.",
       fields: { id: ID, titulo: { kind: "text", maxBytes: LIM.titulo }, descripcion: { kind: "text", maxBytes: LIM.descripcion }, estado: { kind: "enum", values: ["activa", "hecha"] }, paso: { kind: "int", min: 0, max: LIM.pasos }, pasos: { kind: "int", min: 1, max: LIM.pasos }, seguida: { kind: "bool" }, recompensa: { kind: "text", maxBytes: 120, default: "" } },
       announce: "silent",
     },
     paso: {
-      describe: "Un paso de una misión de tu libro y dónde está su objetivo (x, z, donde = su nombre; que = el id de la persona o la cosa).",
-      fields: { mision: ID, n: { kind: "int", min: 0, max: LIM.pasos - 1 }, texto: { kind: "text", maxBytes: LIM.textoPaso }, tipo: { kind: "enum", values: TIPOS_PASO }, hecho: { kind: "bool" }, x: X, z: X, donde: { kind: "text", maxBytes: LIM.lugar }, que: { kind: "text", maxBytes: LIM.id, default: "" } },
+      describe: "Un paso de una misión de tu libro y dónde está su objetivo (x, z, donde = su nombre; que = el id de la persona o la cosa). Los pasos seguidos con el mismo grupo se hacen en cualquier orden (grupo = el nombre de su contador; vacío = ninguno).",
+      fields: { mision: ID, n: { kind: "int", min: 0, max: LIM.pasos - 1 }, texto: { kind: "text", maxBytes: LIM.textoPaso }, tipo: { kind: "enum", values: TIPOS_PASO }, hecho: { kind: "bool" }, x: X, z: X, donde: { kind: "text", maxBytes: LIM.lugar }, que: { kind: "text", maxBytes: LIM.id, default: "" }, grupo: { kind: "text", maxBytes: LIM.grupo, default: "" } },
       announce: "silent",
     },
     aceptada: { describe: "Aceptaste una misión.", fields: { mision: ID, titulo: { kind: "text", maxBytes: LIM.titulo }, texto: { kind: "text", maxBytes: LIM.textoMision, default: "" } }, announce: { text: "Misión nueva: {titulo}. {texto}", sound: "magia", importance: 1 } },
-    avance: { describe: "Hiciste un paso de una misión.", fields: { mision: ID, texto: { kind: "text", maxBytes: LIM.textoPaso } }, announce: { text: "Hecho: {texto}", sound: "exito", importance: 1 } },
+    avance: { describe: "Hiciste un paso de una misión (si alguien te dio algo: «Has recibido: …»).", fields: { mision: ID, texto: { kind: "text", maxBytes: LIM.textoPaso } }, announce: { text: "Hecho: {texto}", sound: "exito", importance: 1 } },
     completada: {
       describe: "Completaste una misión (y lo que te llevas).",
       fields: { mision: ID, titulo: { kind: "text", maxBytes: LIM.titulo }, texto: { kind: "text", maxBytes: LIM.textoMision, default: "" }, recompensa: { kind: "text", maxBytes: 120, default: "" } },

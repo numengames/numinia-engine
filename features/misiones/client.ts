@@ -29,11 +29,25 @@ export const aspectoCosa = (v: Msg): PlacedObject & { color?: string } => {
   return { model: String(v.modelo ?? "") || BLOQUE, x: Number(v.x), y: Number(v.y) || 0, z: Number(v.z), rx: 0, ry: 0, rz: 0, sx: e, sy: e, sz: e, animate: false, ...(color ? { color } : {}) };
 };
 
-export type PasoVista = { n: number; texto: string; tipo: string; hecho: boolean; x: number; z: number; donde: string; que: string };
+export type PasoVista = { n: number; texto: string; tipo: string; hecho: boolean; x: number; z: number; donde: string; que: string; grupo: string };
 export type MisionVista = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: PasoVista[] };
 export type Objetivo = { mision: string; paso: number; nombre: string; texto: string; x: number; z: number; seguida: boolean };
 export type Dialogo = { pnj: string; nombre: string; texto: string; opciones: string[] };
 type Res = { ok: true } | { ok: false; why: string };
+
+/** The current block of a quest: the step at `paso` (the first still to do) and, when it has a grupo, the consecutive
+ * steps around it with the same grupo, done or not (U14: those are done in any order). */
+export function bloqueDe(m: MisionVista): PasoVista[] {
+  const i = m.lista.findIndex((s) => s.n === m.paso), g = m.lista[i]?.grupo;
+  if (i < 0) return [];
+  if (!g) return [m.lista[i]];
+  let a = i, b = i + 1;
+  while (a > 0 && m.lista[a - 1].grupo === g && m.lista[a - 1].n === m.lista[a].n - 1) a--;
+  while (b < m.lista.length && m.lista[b].grupo === g && m.lista[b].n === m.lista[b - 1].n + 1) b++;
+  return m.lista.slice(a, b);
+}
+/** What is to do now in an active quest: every step of its current block not done yet (outside a grupo, just one). */
+export const ahoraDe = (m: MisionVista): PasoVista[] => (m.estado === "activa" ? bloqueDe(m).filter((s) => !s.hecho) : []);
 
 /** One per page (tests make one per client). `misiones` is what the page's panels and an agent call. */
 export function crearCliente() {
@@ -51,19 +65,19 @@ export function crearCliente() {
     estado,
     /** The book as it arrived: active quests first, then the completed ones. */
     libro: (): MisionVista[] => [...libro.values()],
-    /** Where each active quest's current step points (for the map: mapa reads this). */
-    objetivos: (): Objetivo[] => [...libro.values()].filter((m) => m.estado === "activa").flatMap((m) => {
-      const s = actual(m);
-      return s ? [{ mision: m.id, paso: s.n, nombre: s.donde, texto: s.texto, x: s.x, z: s.z, seguida: m.seguida }] : [];
-    }),
-    /** For the player sheet: how many, the badges, and what is being followed. */
+    /** Where each active quest's steps to do now point — every one of its current block (for the map: mapa reads this). */
+    objetivos: (): Objetivo[] => [...libro.values()].flatMap((m) => ahoraDe(m).map((s) => ({ mision: m.id, paso: s.n, nombre: s.donde, texto: s.texto, x: s.x, z: s.z, seguida: m.seguida }))),
+    /** For the player sheet: how many, the badges, and what is being followed (with its grupo's counter, if any). */
     resumen: () => {
-      const todas = [...libro.values()], seg = todas.find((m) => m.seguida && m.estado === "activa"), s = seg && actual(seg);
+      const todas = [...libro.values()], seg = todas.find((m) => m.seguida && m.estado === "activa"), s = seg && actual(seg), b = seg ? bloqueDe(seg) : [];
       return {
         activas: todas.filter((m) => m.estado === "activa").length,
         hechas: todas.filter((m) => m.estado === "hecha").length,
         insignias: todas.filter((m) => m.estado === "hecha" && m.recompensa).map((m) => m.recompensa),
-        seguida: seg ? { mision: seg.id, titulo: seg.titulo, paso: seg.paso + 1, pasos: seg.pasos, texto: s?.texto ?? "", donde: s?.donde ?? "" } : null,
+        seguida: seg ? {
+          mision: seg.id, titulo: seg.titulo, paso: seg.paso + 1, pasos: seg.pasos, texto: s?.texto ?? "", donde: s?.donde ?? "",
+          grupo: b[0]?.grupo ? { nombre: b[0].grupo, hechos: b.filter((x) => x.hecho).length, total: b.length } : null,
+        } : null,
       };
     },
     /** The conversation open right now (null = none). */
@@ -76,8 +90,8 @@ export function crearCliente() {
     abandonar: (mision: string): Res => M?.send("abandonar", { mision }) ?? sin("la página aún no ha arrancado"),
     seguir: (mision: string): Res => M?.send("seguir", { mision }) ?? sin("la página aún no ha arrancado"),
     usar: (cosa: string): Res => M?.send("usar", { cosa }) ?? sin("la página aún no ha arrancado"),
-    /** Whether the page should offer «E: …» for a thing: quest things only while a current step needs them. */
-    ofrece: (feature: string, key: string): boolean => feature !== "misiones" || [...libro.values()].some((m) => m.estado === "activa" && actual(m)?.que === key && (actual(m)?.tipo === "coge" || actual(m)?.tipo === "usa")),
+    /** Whether the page should offer «E: …» for a thing: quest things only while a step to do now needs them. */
+    ofrece: (feature: string, key: string): boolean => feature !== "misiones" || [...libro.values()].some((m) => ahoraDe(m).some((s) => s.que === key && (s.tipo === "coge" || s.tipo === "usa"))),
     /** Call `fn` when the book, the conversation or the on-screen note changes; returns how to stop. */
     alCambiar: (fn: (que: "libro" | "dialogo" | "nota") => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
@@ -109,7 +123,7 @@ export function crearCliente() {
     a.on("paso", (m) => {
       const mv = libro.get(String(m.mision));
       if (!mv) return;
-      const s: PasoVista = { n: Number(m.n), texto: String(m.texto), tipo: String(m.tipo), hecho: m.hecho === true, x: Number(m.x), z: Number(m.z), donde: String(m.donde), que: String(m.que ?? "") };
+      const s: PasoVista = { n: Number(m.n), texto: String(m.texto), tipo: String(m.tipo), hecho: m.hecho === true, x: Number(m.x), z: Number(m.z), donde: String(m.donde), que: String(m.que ?? ""), grupo: String(m.grupo ?? "") };
       mv.lista = [...mv.lista.filter((x) => x.n !== s.n), s].sort((p, q) => p.n - q.n);
       avisar("libro");
     });

@@ -2,14 +2,18 @@
 // «Seguir» (a column of light over the target, and the map gets it from objetivos()), «Abandonar», and the completed
 // ones with what they gave. Plus a small line with the tracked step at the top of the screen and a short note when
 // something happens. Everything is real HTML (buttons, headings, lists): keyboards and screen readers use it as is.
+// Steps of a grupo (U14) are done in any order: all the ones still to do of the current block show as «now», and the
+// top line shows the block's counter («Piezas reunidas 1/3») and the nearest of them.
 import { escribiendo } from "./interactuar.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type Paso = { n: number; texto: string; hecho: boolean; donde: string };
 type Mision = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: Paso[] };
 type Objetivo = { mision: string; paso: number; nombre: string; texto: string; x: number; z: number; seguida: boolean };
+type Grupo = { nombre: string; hechos: number; total: number };
 type Ctl = {
   libro(): Mision[]; objetivos(): Objetivo[]; seguir(id: string): Res; abandonar(id: string): Res; estado: { nota: string };
+  resumen(): { seguida: { mision: string; grupo: Grupo | null } | null };
   alCambiar(fn: (que: "libro" | "dialogo" | "nota") => void): unknown;
 };
 type Lugar = { beacon(x: number, z: number, text: string, ms: number): void };
@@ -36,6 +40,7 @@ export function montarLibro(c: Ctl, o: { boton: HTMLButtonElement; panel: HTMLEl
   const pintar = () => {
     if (o.panel.hidden) return;
     const libro = c.libro(), activas = libro.filter((m) => m.estado === "activa"), hechas = libro.filter((m) => m.estado === "hecha");
+    const ahoras = new Set(c.objetivos().map((x) => `${x.mision}:${x.paso}`)); // every step to do now (a grupo: several)
     const partes: HTMLElement[] = [el("h2", "Misiones")];
     if (!libro.length) partes.push(el("p", "Aún no tienes misiones. Habla con la gente de la plaza: acércate y pulsa E."));
     for (const m of activas) {
@@ -43,7 +48,7 @@ export function montarLibro(c: Ctl, o: { boton: HTMLButtonElement; panel: HTMLEl
       art.append(el("h3", m.titulo), el("p", m.descripcion, "descripcion"));
       const ol = el("ol");
       for (const s of m.lista) {
-        const ahora = !s.hecho && s.n === m.paso;
+        const ahora = !s.hecho && ahoras.has(`${m.id}:${s.n}`);
         const li = el("li", `${s.hecho ? "✓" : ahora ? "→" : "·"} ${s.texto}${ahora && s.donde ? ` (${s.donde})` : ""}`, s.hecho ? "hecho" : ahora ? "ahora" : "despues");
         li.setAttribute("aria-label", `${s.hecho ? "Hecho" : ahora ? "Ahora" : "Después"}: ${s.texto}`);
         ol.append(li);
@@ -90,10 +95,16 @@ export function montarLibro(c: Ctl, o: { boton: HTMLButtonElement; panel: HTMLEl
   let notaHasta = 0;
   // the tracked step in one line (on each change of the book and 4 times a second for the distance, only when the text
   // changes; not a live region: the distance changes too often to be read aloud — the book and the announcements carry
-  // it for screen readers)
+  // it for screen readers). Inside a grupo: «★ Título · Piezas reunidas 1/3 · Bianca, a 12 m al norte» (the nearest of
+  // its steps to do, by the short name: «Bianca, la tejedora» → «Bianca», so the line stays short).
   const linea = () => {
-    const ob = c.objetivos().find((x) => x.seguida), m = ob && c.libro().find((x) => x.id === ob.mision), yo = o.here();
-    const t = ob && m ? `★ ${m.titulo} (${ob.paso + 1}/${m.pasos}): ${ob.texto}${yo ? ` · ${rumbo(ob.x - yo.x, ob.z - yo.z)}` : ""}` : "";
+    const obs = c.objetivos().filter((x) => x.seguida), m = obs[0] && c.libro().find((x) => x.id === obs[0].mision), yo = o.here();
+    const g = m && c.resumen().seguida?.grupo;
+    let t = "";
+    if (m && g) {
+      const cerca = yo ? obs.reduce((a, b) => (Math.hypot(b.x - yo.x, b.z - yo.z) < Math.hypot(a.x - yo.x, a.z - yo.z) ? b : a)) : null;
+      t = `★ ${m.titulo} · ${g.nombre} ${g.hechos}/${g.total}${cerca && yo ? ` · ${cerca.nombre.split(",")[0]}, ${rumbo(cerca.x - yo.x, cerca.z - yo.z)}` : ""}`;
+    } else if (m) t = `★ ${m.titulo} (${obs[0].paso + 1}/${m.pasos}): ${obs[0].texto}${yo ? ` · ${rumbo(obs[0].x - yo.x, obs[0].z - yo.z)}` : ""}`;
     if (o.linea.textContent !== t) o.linea.textContent = t;
     o.linea.hidden = !t;
   };

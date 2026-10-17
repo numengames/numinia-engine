@@ -296,11 +296,12 @@ Reglas para quien escribe (persona o LLM):
 - **Ids** en minúsculas, cifras y guiones (`primeros-pasos`); cada fichero, un `formato` en su primera línea. Un campo
   desconocido es un error (así una tilde de más, `descripción`, no pasa en silencio). `notas` vale en todos.
 - Los textos se miden en **bytes UTF-8** (una letra con tilde cuenta 2): título ≤ 80, descripción ≤ 300, texto de paso
-  ≤ 160, línea de diálogo ≤ 400, respuesta ≤ 100, aviso ≤ 40, nombre ≤ 60.
+  ≤ 160, línea de diálogo ≤ 400, respuesta ≤ 100, aviso ≤ 40, nombre ≤ 60, grupo ≤ 40.
 - Posiciones en metros (`x`, `z`; −z es el norte, hacia donde mira la cámara al llegar), radios en metros.
 - Lo que tenga un problema **no se carga** (y el registro dice por qué); el resto sí.
 
-**`mision@1`** — pasos en orden; cada uno se completa solo cuando el servidor lo ve:
+**`mision@1`** — pasos en orden (o en cualquier orden, los de un mismo `grupo`: abajo); cada uno se completa solo cuando
+el servidor lo ve:
 
 ```json
 { "formato": "mision@1", "id": "primeros-pasos", "titulo": "Primeros pasos en la plaza",
@@ -320,9 +321,30 @@ Reglas para quien escribe (persona o LLM):
 |---|---|---|
 | `llega_a` | `x`, `z`, `radio` (1-50, 4), `lugar` (nombre para el mapa); opcional `y` (0–30 m: la planta) | el servidor ve al jugador a menos de `radio`; con `y`, además a menos de 2,5 m de esa altura (desde la planta de abajo no cuenta) |
 | `habla_con` | `pnj` | elige en el diálogo de esa persona una respuesta `avanzar_paso` de esta misión; si su árbol no tiene ninguna, basta con hablarle |
+| `recibe` | `pnj`, `cosa` | como `habla_con`; esa persona te da la cosa, que queda «llevada» para una `entrega` |
 | `usa` | `cosa` | usa la cosa a su alcance (E) |
 | `coge` | `cosa` | la coge a su alcance (E); queda «llevada» para una `entrega` |
-| `entrega` | `cosa`, `pnj` | la lleva (un `coge` antes en la misma misión) y elige `entregar` (o le habla, si no hay esa respuesta) |
+| `entrega` | `pnj` y `cosa`, o `cosas` (una lista de 1 a 8) | las lleva todas (cada una con un `coge` o un `recibe` antes en la misma misión) y elige `entregar` (o le habla, si no hay esa respuesta); se las da todas a la vez |
+
+**En cualquier orden: `grupo`.** Pasos **seguidos** con el mismo `grupo` (un texto de 1 a 40 bytes) forman un bloque que
+se hace en el orden que quiera el jugador; la misión pasa al siguiente paso cuando están todos. El `grupo` es también el
+nombre del contador que ve arriba de la pantalla. Un `grupo` repetido más adelante, separado, es un error (junta esos
+pasos). Así es la misión de la TRG26: tres artesanos te dan una pieza cada uno, en cualquier orden, y luego llevas las tres
+a Leonardo:
+
+```json
+"pasos": [
+  { "id": "bastidor", "tipo": "recibe", "texto": "Recoge el bastidor de Cosimo", "pnj": "cosimo", "cosa": "bastidor", "grupo": "Piezas reunidas" },
+  { "id": "telas", "tipo": "recibe", "texto": "Recoge las telas de Bianca", "pnj": "bianca", "cosa": "telas", "grupo": "Piezas reunidas" },
+  { "id": "plano", "tipo": "recibe", "texto": "Recoge el plano de Artemisia", "pnj": "artemisia", "cosa": "plano", "grupo": "Piezas reunidas" },
+  { "id": "entrega", "tipo": "entrega", "texto": "Entrega las tres piezas a Leonardo", "pnj": "leonardo", "cosas": ["bastidor", "telas", "plano"] },
+  { "id": "cofre", "tipo": "usa", "texto": "Abre el cofre y recoge tu recompensa", "cosa": "cofre" }
+]
+```
+
+El jugador ve en el libro una → en cada pieza que le falta, las tres en el mapa y arriba «★ El vuelo del Maestro · Piezas
+reunidas 1/3 · Bianca, a 12 m al norte» (la más cercana); al hablar con cada artesano, «✓ Has recibido: <la cosa>».
+Hablar dos veces con el mismo no cuenta dos. Leonardo no acepta la entrega hasta que llevas las tres.
 
 Recompensas: hoy solo insignias (recuerdos de lo hecho; sin economía). `requisitos.misiones`: las que hay que haber
 completado antes. Hasta 16 pasos, 16 misiones activas por jugador.
@@ -348,11 +370,12 @@ completado antes. Hasta 16 pasos, 16 misiones activas por jugador.
 
 - Al hablarle, el servidor abre el primer nodo de `entradas` cuyo `si` se cumple; **la última no lleva `si`**.
 - Condiciones (`si`, una o una lista: todas deben cumplirse): `{ "mision", "estado" }` con estado `sin_empezar`,
-  `disponible` (sin empezar y con los requisitos hechos), `activa` (y si quieres `"paso": "<id del paso actual>"` o
-  `"tiene": "<cosa>"`) o `hecha`. Una respuesta con `si` que no se cumple no se ve.
+  `disponible` (sin empezar y con los requisitos hechos), `activa` (y si quieres `"paso": "<id de un paso que toca ahora>"`
+  —en un grupo, uno que aún no has hecho: deja de cumplirse al hacerlo— o `"tiene": "<cosa>"`) o `hecha`. Una respuesta
+  con `si` que no se cumple no se ve.
 - Cada nodo: `texto` y hasta 4 respuestas (teclas 1-4). Una respuesta lleva `ir` (otro nodo), `accion` o las dos:
-  `dar_mision` (la acepta, si puede), `avanzar_paso` (completa su paso `habla_con` con esta persona), `entregar`
-  (completa su `entrega` a esta persona), `despedir`. Sin `ir`, la conversación termina.
+  `dar_mision` (la acepta, si puede), `avanzar_paso` (completa su paso `habla_con` o `recibe` con esta persona),
+  `entregar` (completa su `entrega` a esta persona), `despedir`. Sin `ir`, la conversación termina.
 - `apariencia.modelo` vacío = el robot de la casa; `apariencia.vrm` queda reservado (avatares VRM).
 - `radio`: a cuántos metros se le habla (1-8, 3). La conversación se cierra si te alejas 4 m más.
 - Opcional `posicion.y` (0–30 m): la planta en la que está (una torre); se dibuja a esa altura y solo se le habla desde
@@ -360,16 +383,18 @@ completado antes. Hasta 16 pasos, 16 misiones activas por jugador.
 
 **`cosa@1`** — `{ "formato": "cosa@1", "id": "caja-de-bruno", "nombre": "Caja de herramientas", "posicion": { "x": 4, "z": 14 },
 "radio": 2, "aviso": "coger la caja", "apariencia": { "escala": 0.45 } }`. Sale «E: coger la caja» solo a quien tiene ahora
-un paso `coge`/`usa` con ella; la cosa sigue en el mundo para los demás (cada uno coge «la suya»).
+un paso `coge`/`usa` con ella; la cosa sigue en el mundo para los demás (cada uno coge «la suya»). Lo que da una persona
+(`recibe`) también es una `cosa@1`: ponla donde la tiene esa persona (en su mesa); no sale «E» para cogerla.
 Opcionales (J10): `posicion.y` (0–30 m: a la altura de la mano, para cogerla con la mano en VR, o en una planta alta; se
 usa solo desde menos de 2,5 m de esa altura) y `apariencia.color`
 («#rrggbb»: el modelo pintado de ese color, para que dos cosas se distingan). Lo cogido en un paso `coge` se dibuja en la
-mano que lo cogió (al lado de tu avatar en pantalla) hasta que la misión termina; luego vuelve a su sitio.
+mano que lo cogió (al lado de tu avatar en pantalla) hasta que la misión termina; luego vuelve a su sitio (lo recibido en
+un `recibe`, todavía no: se queda en su sitio).
 
 Lo que pasa en el servidor (`features/misiones/server.ts`) y no se puede saltar desde la página:
 - distancias (`api.within`: el radio y, si la persona o la cosa tiene `y`, menos de 2,5 m de altura —
-  `ALCANCE_ALTURA_M`—), posiciones (`api.position`, con `y`, cada 0,2 s y solo de quien espera llegar a un sitio) y el paso
-  actual; hablar de lejos, coger algo que no toca o elegir sin conversación se rechaza diciendo por qué;
+  `ALCANCE_ALTURA_M`—), posiciones (`api.position`, con `y`, cada 0,2 s y solo de quien espera llegar a un sitio) y los
+  pasos que tocan; hablar de lejos, coger algo que no toca o elegir sin conversación se rechaza diciendo por qué;
 - el progreso es **por invitado** (I1) en el almacén (S4, `p:<id>`): sobrevive a los reinicios y llega **solo a su dueño**
   (eventos `libro`, `mision`, `paso`, `aceptada`, `avance`, `completada`); las personas y las cosas llegan con `at` (J9);
 - **el texto no lo decide un modelo**: el árbol es la política. Si un día un LLM da voz a una persona (P5), solo
@@ -379,7 +404,8 @@ Lo que pasa en el servidor (`features/misiones/server.ts`) y no se puede saltar 
 
 Para agentes y páginas: `window.__numinia.misiones` (`libro()`, `objetivos()`, `resumen()`, `dialogo()`, `hablar`,
 `elegir`, `adios`, `aceptar`, `abandonar`, `seguir`, `usar`); el mapa lee `objetivos()` → `[{ mision, paso, nombre,
-texto, x, z, seguida }]`.
+texto, x, z, seguida }]` (uno por paso que toca: en un grupo, todos los que faltan); `resumen().seguida.grupo` =
+`{ nombre, hechos, total }` del grupo en curso de la misión seguida, o `null`.
 
 ## Agentes de fuera: gestionarlos por HTTP (ADR-080, para el panel de numinia.com)
 

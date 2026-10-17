@@ -79,6 +79,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | U12 | Pedido de Pablo (16-10, plantillas de mundo): huecos — un cuadro que espera su obra; se pincha (o E cerca), se elige la imagen en el ordenador y el servidor la encaja entera en el marco; vaciarlo devuelve el cartel | hecho (escritorio; VR y móvil sin probar) | sí |
 | U13 | Pedido de Pablo (17-10): icono de Numinia en la biblioteca/tienda del Quest que lleve siempre al mundo — `manifest.webmanifest` (nombre Numinia, `display: fullscreen`, iconos 192/512 con el escarabeo Khepri) + enlace en `index.html`; «Guardar en la biblioteca» del navegador crea el icono y abre a pantalla completa, sin barra de direcciones | hecho (comprobado en un Quest real por USB: `Page.getAppManifest`/`getInstallabilityErrors` sin errores) | sí |
 | U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozo 1, el tema, hecho) | no |
+| U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema, y 2, pasos en cualquier orden, hechos) | no |
 | U4 | Zona de usuario: quién eres, avatar, misiones e insignias, lo que he construido (lista, cuota, borrar, descargar), privacidad y datos, seguridad; el informe de sesión (T1) pasa a pedir consentimiento | espera a U2 | sí |
 | I3 | «Guardar mi progreso» con una llave de acceso (passkey) del propio motor, sin correo (Pablo, 15-10: camino B); la llave queda unida al invitado | pendiente | sí |
 | U5 | «Editar interfaz»: mover sin arrastrar (cuadrícula 3×3, números, flechas, lista), 5 disposiciones por clase de aparato, copiar y pegar `nl1.` sin código | espera a U3 | sí |
@@ -1144,10 +1145,23 @@ lo lee valor a valor (`leerTema`: lo que no cabe se deja fuera y se dice; una cl
 `GET /status`; la página lo vuelca en variables CSS que `tema.css` ya lee (`apps/plaza/tema-mundo.ts`; la tinta sobre el
 botón principal, clara u oscura, la decide el motor). Sin tema, el aire de la casa sin un píxel de cambio. **Medido:** 4
 pruebas (`test/tema.test.ts`).
-**Falta:** pasos en cualquier orden (`grupo` en mision@1) con su contador; el libro con los estados de la especificación
-(hecho, disponible, bloqueado) y abierto al aceptar; aviso y sonido al conseguir una pieza; marcas sobre las personas
-(«!», ✓) y su oficio bajo el nombre; secuencia local (el vuelo); espera antes del cofre; cofre de dos aspectos; premio
-registrado una sola vez.
+
+**Trozo 2 hecho (16-10, rama `plantillas/eventos`): pasos en cualquier orden.** mision@1 admite (aditivo) `grupo` en
+cualquier paso: los pasos seguidos con el mismo grupo se hacen en el orden que quiera el jugador y la misión pasa cuando
+están todos (el mismo grupo en dos sitios separados es un error que dice cómo arreglarlo); el grupo es también el nombre
+de su contador. Paso nuevo `recibe` (una persona te da una cosa: se completa como `habla_con` y la cosa queda «llevada»)
+y `entrega` con `cosas` (de 1 a 8, todas a la vez). El progreso guarda `hechos` (los pasos hechos del grupo en curso; lo
+guardado antes carga como «nada hecho»); la máquina completa como mucho un paso por misión y suceso, sin reloj ni azar.
+`misiones` pasa a v3 (el evento `paso` lleva `grupo`). En la página, cada paso que falta del grupo sale como «ahora» en
+el libro, en el mapa y en VR, y arriba «★ El vuelo del Maestro · Piezas reunidas 1/3 · Artemisia, a 7 m al sureste» (el
+más cercano); al recibir algo, «Has recibido: Telas ligeras». **Medido:** 8 pruebas (`test/misiones-grupo.test.ts`: las 6
+órdenes, sin dobles, recarga a mitad del grupo, la entrega con 2 de 3 no, las condiciones, los errores con su ruta, el
+progreso viejo y la misión entera por el enchufe real); las de misiones de antes, sin tocar, en verde; el progreso a
+mitad del grupo ocupa 127 bytes; el tick de las misiones con 1.000 jugadores, p99 0,3 ms (límite 5). En el navegador
+(servidor y página propios, Playwright): 3 marcas en el mapa y tres «→» en el libro, que pasan a 2 tras Bianca.
+**Falta:** el libro con los estados de la especificación (hecho, disponible, bloqueado) y abierto al aceptar; el icono
+de la pieza conseguida (el aviso y el sonido ya están); marcas sobre las personas («!», ✓) y su oficio bajo el nombre;
+secuencia local (el vuelo); espera antes del cofre; cofre de dos aspectos; premio registrado una sola vez.
 
 ### U1 — Pantalla de carga
 Armazón dentro de `index.html` (≤ 14 kB comprimido, letra del sistema, sin lienzo ni `requestAnimationFrame`) y un
