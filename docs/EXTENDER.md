@@ -410,9 +410,8 @@ página solo pide tres cosas (`lanzar { sitio }`, `recoger { activo }`, `soltar`
   «¡Pescado!» —pez, cm, rareza, «En tu cesta: N», dos notas de Web Audio al volumen de efectos, vibración larga— o «Se ha
   escapado» con el motivo) y `packages/render/src/pesca.ts` (3D, `view.pesca`).
 - **Sitio que se ve** (v2, `packages/render/src/pesca.ts`, 7 draw calls por sitio): estanque de radio `radio × 0,85` con
-  **agua de un solo draw call** (`MeshStandardNodeMaterial` en TSL: dos capas del mapa de normales procedural de
-  `agua-normales.ts` desplazándose, fresnel hacia el color del cielo, color de profundidad hacia el centro y dos anillos de
-  ondas —uniformes `vec4(x, z, t0, fuerza)`— al caer el flotador, al mordisqueo, a la picada, en cada arrancada y al saltar el
+  **agua de un solo draw call** (el agua estilizada del motor, `agua-estilo.ts`, ver «Agua» más abajo, con dos anillos de
+  ondas pálidos —uniformes `vec4(x, z, t0, fuerza)`— al caer el flotador, al mordisqueo, a la picada, en cada arrancada y al saltar el
   pez; sin render-target de reflexión: vale en móvil), orilla de tierra (lathe), 14 piedras y 3 matas de juncos (geometrías
   fundidas, azar determinista), **pantalán de tablas** hacia el centro de la plaza (`trazaDeSitio`: dirección sitio → origen;
   `view.pesca.sitio(id).pantalan` = dónde ponerse, dentro del radio) y cartel «Pesca» (lienzo). Caña, sedal y flotador como
@@ -430,3 +429,27 @@ página solo pide tres cosas (`lanzar { sitio }`, `recoger { activo }`, `soltar`
 - **Después (v3)**: pantalán sólido (que el avatar suba a las tablas: hoy son un suelo a ras), mochila/cesta visible,
   sedal verlet (river-morning `Rope.ts`, MIT), varios sitios y tablas por hora/clima, sombras de peces,
   cebos y cañas, ficha de colección, paso de misión `pesca`, predicción local de la tensión, AR/VR.
+
+## Agua (N2): estilizada, de color plano, un solo draw call
+
+`packages/render/src/agua-estilo.ts` es el agua de todo el motor: el elemento `agua` (estanques, fuentes, los mares de las
+plantillas) y el estanque de la pesca. Material de nodos TSL (vale en WebGPU y en WebGL2), **sin textura, sin render-target
+y sin pasada extra de escena**: un draw call por agua en todos los niveles; lo que cuesta es ALU por píxel. Iluminada por la
+escena (Lambert), así que de noche se oscurece sola.
+
+- **Siempre** (también en D): bandas planas de color (orilla turquesa · el color del constructor · hondo), espuma de orilla
+  blanca y fresnel escalonado hacia el color del horizonte (`entorno.aguaLuz.cielo`: el de la niebla o el del cielo).
+- **Por nivel** (`calidad.ts` → `DETALLE_AGUA`, `detalleAgua(nivel, agua)`):
+
+| Nivel | olas (celdas máx.) | espuma viva | líneas de luz | cáusticas | destellos |
+|---|---|---|---|---|---|
+| A sencilla / con destellos | 48 / 96 | sí | sí | sí | no / sí |
+| B (Quest en XR) | 32 | sí | sí | no | no |
+| C (móvil) | 24 | sí | sí | no | no |
+| D (móvil viejo) | 0 (un quad) | no | no | no | no |
+
+- Las **olas** son de vértice (baratas: vértices, no píxeles), solo en agua de ≥ `OLAS_DESDE_M` (12 m) de lado corto, se
+  apagan hacia la orilla para que el borde no se mueva y solo suben (nunca se hunden bajo el suelo).
+- La opción «Agua» del menú: «Sencilla» / «Con destellos»; ya no hay `WaterMesh` reflectante (`view.elementos.contar().reflejos`
+  queda en 0; `aguaDetalle` dice qué dibuja el agua en este nivel).
+- Pruebas: `test/agua.test.ts`.

@@ -60,8 +60,8 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
   },
   {
     grupo: "graficos", id: "agua", tipo: "eleccion", nombre: "Agua", requiere: ["entorno.agua"],
-    describe: "Agua sencilla o con reflejos (los reflejos dibujan la escena otra vez).",
-    opciones: [{ valor: "simple", nombre: "Sencilla" }, { valor: "reflejos", nombre: "Con reflejos" }],
+    describe: "Agua sencilla o con destellos del sol (los dos son el agua de color plano del motor; nunca dibujan la escena otra vez).",
+    opciones: [{ valor: "simple", nombre: "Sencilla" }, { valor: "reflejos", nombre: "Con destellos" }],
     defecto: { valor: "simple", nivel: { A: "reflejos" } },
   },
   {

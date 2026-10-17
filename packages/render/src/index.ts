@@ -33,6 +33,7 @@ export type { Huella, ImagenCenital } from "./cenital.ts";
 import { crearEntorno } from "./entorno.ts";
 import { vistaElementos } from "./elementos-vista.ts";
 import { vistaPesca } from "./pesca-vista.ts";
+import { detalleAgua } from "./calidad.ts";
 export type { EntornoDatos } from "./entorno.ts";
 export type { Calidad, Nivel } from "./calidad.ts";
 
@@ -173,7 +174,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const nombres = createNombres({ world, camera, avatarOf: meshOf }); // J3: names over heads and speech bubbles
   // pesca v1: rods, lines and floats of whoever fishes near (lazy: packages/render/src/pesca.ts). "self" hides in first person, so the rod uses the capsule's place anyway
   const pesca = vistaPesca({ world, posicionDe: (t) => (t === "self" ? selfMesh.position : others.get(t)?.position) ?? null,
-    manoDe: (t, out) => avs.mano(t === "self" ? "yo" : t, "derecha", out), orientar: (t, rumbo) => avs.orientar(t === "self" ? "yo" : t, rumbo) });
+    manoDe: (t, out) => avs.mano(t === "self" ? "yo" : t, "derecha", out), orientar: (t, rumbo) => avs.orientar(t === "self" ? "yo" : t, rumbo),
+    agua: { luz: entorno.aguaLuz, detalle: () => detalleAgua(entorno.nivel, entorno.calidadActual.agua) } }); // N2: the pond's water follows the tier
   function dropLabel(t: Target): void {
     const d = labels.get(t);
     if (!d) return;
