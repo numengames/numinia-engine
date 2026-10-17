@@ -468,3 +468,22 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Siguiente: Pablo, en el Quest, abre el mundo instalado (p. ej. alchemiststower.numinia.com) en el navegador, menú ⋮ →
   «Guardar en la biblioteca» (o «Añadir a pantalla de inicio»), y confirma que el icono de Numinia aparece en la
   biblioteca y que al pulsarlo el mundo carga a pantalla completa sin barra de direcciones.
+
+## 2026-10-17 11:30 · objetos/respetar-fijado · hecho
+- Qué: `fijado` protegía el sitio (mover/girar/borrar lo rechazaban) pero no el contenido: cualquiera con
+  `construir` podía pinchar «Hacer hueco» sobre CUALQUIER imagen fijada (un rótulo, un cartel oficial) y
+  convertirla en un U12 editable por cualquiera, pese a estar fijada. Hallado en vivo en el tablero del
+  Ayuntamiento (plantilla, worktree aparte). `hueco` ahora rechaza con «Está fijado: suéltalo antes de hacerle
+  un hueco.» cuando `o.fijado === true`, igual que mover/girar/borrar; hay que desfijarla primero (quien la
+  construyó o un rango superior). `rellenar`/`vaciar` NO cambian: un hueco ya fijado sigue aceptando obra nueva
+  a propósito (el diseño U12 es un marco pinchado en la pared que cualquiera rellena con su foto — eso lo
+  cubre ya `test/huecos.test.ts` «a pinned hole takes a work and gives it back»). Versión **0.3.1** (parche:
+  cierra un agujero de seguridad, no cambia ningún contrato).
+- Números: 376 pruebas, 375 en verde + 1 mala conocida (`test/chat.test.ts` coste de nombres con la máquina
+  cargada, el mismo aviso de la entrada de las 21:49 del 16-10 — no toca este código); nueva prueba «a pinned
+  picture cannot be turned into a hole» en verde. Puertas: 1 roja (la misma prueba), capas/determinismo/ancho
+  de banda/tick en verde.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `objetos/respetar-fijado` sobre origin/main 84069eb (ver `git log`).
+- Siguiente: Pablo (PR sin ok, hueco de PR libre en numinia-engine): abrir PR; después revisar si la galería/eventos
+  u otras plantillas fijan carteles pensando que eso también bloqueaba `hueco` (no lo hacía hasta ahora).
