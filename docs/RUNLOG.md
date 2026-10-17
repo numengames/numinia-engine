@@ -439,3 +439,32 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `plantillas/huecos` (ver `git log`).
 - Siguiente: que el render reduzca las imágenes por nivel (Quest y móvil: 21 huecos llenos de 2.048 px pasan de los 256 MB
   de textura del nivel B); huecos de modelo y de vídeo; dentro de VR no hay selector de ficheros (hay que salir).
+
+## 2026-10-17 09:48 · U13 · icono de Numinia en la biblioteca del Quest · hecho (rama `pwa/manifest-biblioteca-quest`)
+- Qué: Pablo quería entrar sin escribir en el navegador — un icono con el logotipo de Numinia en la biblioteca/tienda del
+  Quest que lleve siempre al mundo. `apps/plaza/public/manifest.webmanifest` (`name`/`short_name` «Numinia», `display:
+  fullscreen`, `start_url`/`scope` «/» — cada instalación del motor sirve su propia dirección como su propio origen, así
+  que no hace falta fijar un mundo por parámetro), dos iconos 192/512 (`apps/plaza/public/iconos/numinia-{192,512}.webp`,
+  el escarabeo Khepri de numinia-web en ámbar #ffd27a sobre fondo oscuro #14181e del HUD del motor, generados con `sharp`
+  desde `packages/ui/src/assets/brand/Khepri_Logo.svg`) y `<link rel="manifest">` + `<link rel="icon">` +
+  `<meta name="theme-color">` en `index.html`. El `<title>Mundo</title>` de la página no cambia (el motor no lleva marca
+  en su interfaz); la marca vive solo en el manifest, que es lo que ve la biblioteca del aparato, no la página. Versión
+  **0.3.0** (algo nuevo que no rompe nada).
+- Números: `npm run build` sirve `manifest.webmanifest` con `content-type: application/manifest+json` (ya lo sabía
+  `packages/server/src/pagina.ts`, sin tocar el servidor) y los dos iconos. 369 de 370 pruebas en verde (la de coste del
+  chat de `test/chat.test.ts` falla sola con la máquina cargada, aviso ya conocido de la entrada de las 21:49 del 16-10;
+  vuelve a pasar en una repetición suelta). Comprobado en un Quest 3S real por USB (adb reverse 5173/8790 + CDP por
+  `chrome_devtools_remote`): `Page.getAppManifest` → `errors: []` y el manifest aparece analizado con `display: kFullscreen`,
+  los dos iconos y `name: Numinia`; `Page.getInstallabilityErrors` → `installabilityErrors: []` (el mismo criterio que usa
+  Chromium — y por tanto el navegador del Quest — para decidir si «Guardar en la biblioteca»/«Añadir a pantalla de inicio»
+  puede crear el icono).
+- Aviso / sin comprobar: no se pulsó a mano el menú del navegador del Quest para ver el icono aparecer en la biblioteca
+  de verdad (automatizar los tres puntos del navegador por `uiautomator` resultó fràgil — la resolución lógica cambiaba
+  entre capturas, 1280×800 vs 3664×1920 — y no quise andar tocando al azar la pantalla de las gafas de Pablo); con cero
+  errores de instalabilidad medidos por el propio Chromium, falta solo el gesto físico. Publicar de verdad en la Meta
+  Store (revisión de Meta) es otra cosa aparte, no esto.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `pwa/manifest-biblioteca-quest` (ver `git log`).
+- Siguiente: Pablo, en el Quest, abre el mundo instalado (p. ej. alchemiststower.numinia.com) en el navegador, menú ⋮ →
+  «Guardar en la biblioteca» (o «Añadir a pantalla de inicio»), y confirma que el icono de Numinia aparece en la
+  biblioteca y que al pulsarlo el mundo carga a pantalla completa sin barra de direcciones.
