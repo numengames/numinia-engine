@@ -25,6 +25,21 @@ export type Captura = { quien: number; sitio: string; pez: string; cm: number; r
 export const EN_MANO_MS = 7000;
 /** «23,1 cm»: the fish's size as people write it here. */
 export const cmTexto = (cm: number): string => `${String(Math.round(cm * 10) / 10).replace(".", ",")} cm`;
+/** N4: what to DO now, in a few words (the HUD, the VR gauge on the rod, the agents read the same line). Coaching beats a
+ * bare phase name: in the fight it says when to reel and when to ease off, before the line snaps. */
+export function consejo(e: { fase: Fase; tension: number; arrancada: "no" | "aviso" | "si"; pez: string }): string {
+  switch (e.fase) {
+    case "nada": return "";
+    case "espera": return "Esperando… algo picará";
+    case "mordisqueo": return "Algo mordisquea el cebo… espera";
+    case "picada": return "¡PICA! Recoge ahora";
+    case "pelea":
+      if (e.arrancada === "aviso") return `¡${e.pez || "El pez"} va a tirar! Afloja`;
+      if (e.arrancada === "si") return "¡Arrancada! Afloja y deja que tire";
+      if (e.tension >= 80) return "¡Afloja, que se rompe el sedal!";
+      return `Pelea: ${e.pez} · recoge sin pasarte`;
+  }
+}
 type Res = { ok: true } | { ok: false; why: string };
 const SIN: Res = { ok: false, why: "la función pesca no está en este servidor" };
 const ahora = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
@@ -44,6 +59,8 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
 
   const pesca = {
     estado: (): Readonly<Estado> => e,
+    /** N4: what to do now in a few words (empty while not fishing). */
+    consejo: (): string => consejo(e),
     /** The fishing spots this page knows (state entries within reach of the area of interest). */
     sitios: (): Sitio[] => (A ? A.state.keys().map((k) => ({ id: k, ...(A!.state.get(k) as Msg) }) as Sitio) : []),
     /** Who is fishing where, near you (yourself included while you fish). */

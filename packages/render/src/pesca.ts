@@ -18,13 +18,19 @@ export type Sitio3D = { id: string; x: number; y: number; z: number; radio: numb
 export type Flotador3D = { quien: number; x: number; y: number; z: number };
 export type Captura3D = { quien: number; pez: string; cm: number; rareza: string; desde: number };
 export type Fase = "nada" | "espera" | "mordisqueo" | "picada" | "pelea";
-export type Estado3D = { fase: Fase; desde: number; tension: number; progreso: number; arrancada: "no" | "aviso" | "si" };
+export type Estado3D = { fase: Fase; desde: number; tension: number; progreso: number; arrancada: "no" | "aviso" | "si"; texto?: string };
 export type Quien = number | "self";
 export type Ayudas = { world: THREE.Group; posicionDe: (quien: Quien) => THREE.Vector3 | null; manoDe?: (quien: Quien, out: THREE.Vector3) => THREE.Vector3 | null; orientar?: (quien: Quien, rumbo: number | undefined) => void;
   /** N2: the scene's light for the water and the water detail of this tier (without them: the house light, tier C's detail). */
   agua?: { luz: LuzAgua; detalle: () => DetalleAgua } };
 
 const PUNTOS = 24, LARGO_CANA = 2.0, ALTO_MANO = 1.05, LADO_MANO = 0.32, LANZAMIENTO_MS = 900;
+/** N4 (VR): the rod in a real hand points along the hand's forward (-Z) raised this much (rad); the handle sticks out
+ * behind the hand this much (m). Where the rod rests on its holder, a hand within AGARRE_M of the handle takes it. */
+export const INCLINA_CANA = 0.45, MANGO_M = 0.28, AGARRE_M = 0.3;
+/** N4 (given later through view.pesca.conManos): where a real hand holds things in VR (the grip or the pinch point; null
+ * outside VR or without that hand), and the camera that draws now (the XR one in VR; the gauge on the rod faces it). */
+export type AyudasVR = { ancla?: (lado: "izq" | "der") => THREE.Object3D | null; camara?: () => THREE.Camera };
 /** The fish's flight from the water to the hand (ms) and how far an angler may step before the fish is put away (m). */
 export const SALTO_MS = 1300, PASO_SUELTA_M = 0.6;
 const sag = (dist: number, tension: number) => dist * 0.085 * (1 - tension * 0.85);
@@ -88,15 +94,15 @@ export function geometriaDePez(especie: string): THREE.BufferGeometry {
   return fundir(partes);
 }
 
-type Angler = { grupo: THREE.Group; cana: THREE.Mesh; sedal: THREE.Line; flotador: THREE.Group; destino: THREE.Vector3; quien: Quien; nacido: number; pos: Float32Array; cayo: boolean };
+type Angler = { grupo: THREE.Group; cana: THREE.Mesh; sedal: THREE.Line; flotador: THREE.Group; destino: THREE.Vector3; quien: Quien; nacido: number; pos: Float32Array; cayo: boolean; sedalMat: THREE.LineBasicMaterial };
 type Pez3D = { grupo: THREE.Group; malla: THREE.Mesh; quien: Quien; desde: number; origen: THREE.Vector3; donde: THREE.Vector3; largo: number; guardado: boolean };
 type Onda = { value: THREE.Vector4 };
 type Estanque = { grupo: THREE.Group; agua: THREE.Mesh; ondas: [Onda, Onda]; turno: number; s: Sitio3D; pantalan: { x: number; z: number }; rumbo: number };
 
-export function crearPesca(h: Ayudas) {
+export function crearPesca(h: Ayudas & AyudasVR) {
   const canaGeo = new THREE.CylinderGeometry(0.018, 0.045, LARGO_CANA, 6); canaGeo.translate(0, LARGO_CANA / 2, 0); // base at the origin, tip up +y
   const canaMat = new THREE.MeshStandardMaterial({ color: 0x9a6b3a, roughness: 0.75 });
-  const sedalMat = new THREE.LineBasicMaterial({ color: 0xf2f2f2, transparent: true, opacity: 0.85 });
+  const SEDAL = new THREE.Color(0xf2f2f2), TENSO = new THREE.Color(0xff3b30); // N4: my line reddens as it nears breaking
   const rojo = new THREE.MeshStandardMaterial({ color: 0xd62828, roughness: 0.5 }), blanco = new THREE.MeshStandardMaterial({ color: 0xf4f4f4, roughness: 0.5 });
   const bolaGeo = new THREE.SphereGeometry(0.11, 10, 8);
   const pezMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.2, side: THREE.DoubleSide });
@@ -175,6 +181,7 @@ export function crearPesca(h: Ayudas) {
     const cana = new THREE.Mesh(canaGeo, canaMat); cana.castShadow = false; grupo.add(cana);
     const pos = new Float32Array(PUNTOS * 3);
     const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    const sedalMat = new THREE.LineBasicMaterial({ color: SEDAL, transparent: true, opacity: 0.85 });
     const sedal = new THREE.Line(geo, sedalMat); sedal.frustumCulled = false; grupo.add(sedal);
     const flotador = new THREE.Group();
     const arriba = new THREE.Mesh(bolaGeo, rojo); arriba.scale.set(1, 0.6, 1); arriba.position.y = 0.06; flotador.add(arriba);
@@ -182,9 +189,9 @@ export function crearPesca(h: Ayudas) {
     const palito = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.25, 4), blanco); palito.position.y = 0.2; flotador.add(palito);
     grupo.add(flotador);
     h.world.add(grupo);
-    return { grupo, cana, sedal, flotador, destino: destino.clone(), quien, nacido: performance.now(), pos, cayo: false };
+    return { grupo, cana, sedal, flotador, destino: destino.clone(), quien, nacido: performance.now(), pos, cayo: false, sedalMat };
   };
-  const quitar = (a: Angler) => { h.world.remove(a.grupo); a.sedal.geometry.dispose(); ultimoFlotador.set(a.quien, a.flotador.position.clone()); };
+  const quitar = (a: Angler) => { h.world.remove(a.grupo); a.sedal.geometry.dispose(); a.sedalMat.dispose(); ultimoFlotador.set(a.quien, a.flotador.position.clone()); };
   const nuevoPez = (c: Captura3D, quien: Quien, origen: THREE.Vector3): Pez3D => {
     let g = pezGeos.get(c.pez); if (!g) { g = geometriaDePez(c.pez); pezGeos.set(c.pez, g); }
     const largo = Math.max(0.12, c.cm / 100);
@@ -196,6 +203,7 @@ export function crearPesca(h: Ayudas) {
   /** The right hand of an angler: the avatar's bone when it wears one, else beside the capsule, at hand height. */
   let manoReal = false; // whether my own hand was the avatar's bone in the last frame (for checks)
   function mano(quien: Quien, p: THREE.Vector3, haciaX: number, haciaZ: number, out: THREE.Vector3): THREE.Vector3 {
+    if (quien === "self" && sujeta) { const a = h.ancla?.(sujeta); if (a) { a.getWorldPosition(out); manoReal = true; return h.world.worldToLocal(out); } } // N4: my real hand in VR
     const real = h.manoDe?.(quien, out);
     if (quien === "self") manoReal = !!real;
     if (real) return real;
@@ -205,21 +213,130 @@ export function crearPesca(h: Ayudas) {
   const mirar = (quien: Quien, x: number, z: number) => { const p = h.posicionDe(quien); if (!p) return; h.orientar?.(quien, Math.atan2(x - p.x, z - p.z)); caras.add(quien); };
   const dejarDeMirar = (quien: Quien) => { if (caras.delete(quien)) h.orientar?.(quien, undefined); };
 
+  // ---- N4 (VR): a rod on a holder at every boardwalk, taken with a real hand; the gauge on the rod while you fish ----
+  type Soporte = { cana: THREE.Mesh; mat: THREE.MeshStandardMaterial; agarre: THREE.Vector3 };
+  const soportes = new Map<string, Soporte>();
+  let sujeta: "izq" | "der" | null = null, tomadaDe = "", resaltado = "";
+  const ocupados = new Set<string>(); // someone fishes there: its rod is in use, the holder stands empty
+  const verSoportes = () => { for (const [id, s] of soportes) s.cana.visible = id !== tomadaDe && !ocupados.has(id); };
+  /** The holder: a post on the boardwalk's edge, beside where you stand to fish, with the rod standing in a tube (2 draw calls). */
+  function nuevoSoporte(e: Estanque): void {
+    const { R, dir } = trazaDeSitio(e.s);
+    const d = R * 0.7, lado = 0.62, x = dir.x * d - dir.y * lado, z = dir.y * d + dir.x * lado;
+    const poste = new THREE.Mesh(fundir([
+      pieza(new THREE.BoxGeometry(0.08, 0.95, 0.08), hex(0x4a3320), M(x, 0.47, z)),
+      pieza(new THREE.CylinderGeometry(0.04, 0.035, 0.24, 8), hex(0x2f2a24), M(x, 0.92, z)),
+    ]), maderaMat);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x9a6b3a, roughness: 0.75, emissive: 0x000000 });
+    const cana = new THREE.Mesh(canaGeo.clone(), mat); cana.name = "cana-soporte";
+    cana.position.set(x, 0.82, z); cana.quaternion.setFromUnitVectors(up, tmp.set(-dir.x * 0.26, 0.966, -dir.y * 0.26).normalize()); // leaning over the water
+    e.grupo.add(poste, cana);
+    soportes.set(e.s.id, { cana, mat, agarre: new THREE.Vector3(x, 1.04, z) });
+  }
+  const anclaQ = new THREE.Quaternion(), dirCana = new THREE.Vector3(), baseMano = new THREE.Vector3(), puntaMano = new THREE.Vector3();
+  /** My rod in my real hand (VR): its base and tip in world-group coordinates; false when no hand holds it. */
+  function canaEnMano(): boolean {
+    if (!sujeta) return false;
+    const a = h.ancla?.(sujeta);
+    if (!a) return false;
+    a.updateWorldMatrix(true, false);
+    a.getWorldPosition(baseMano); a.getWorldQuaternion(anclaQ);
+    dirCana.set(0, Math.sin(INCLINA_CANA), -Math.cos(INCLINA_CANA)).applyQuaternion(anclaQ);
+    baseMano.addScaledVector(dirCana, -MANGO_M);
+    puntaMano.copy(baseMano).addScaledVector(dirCana, LARGO_CANA);
+    h.world.updateWorldMatrix(true, false);
+    h.world.worldToLocal(baseMano); h.world.worldToLocal(puntaMano);
+    dirCana.subVectors(puntaMano, baseMano).normalize();
+    return true;
+  }
+  const canaMano = new THREE.Mesh(canaGeo, canaMat); canaMano.visible = false; canaMano.name = "cana-mano"; h.world.add(canaMano);
+  // the gauge: what to do (one line) and two bars (tension, fish brought in), on a small card above the rod's hand
+  const lienzoMedidor = document.createElement("canvas"); lienzoMedidor.width = 320; lienzoMedidor.height = 140;
+  const gm = lienzoMedidor.getContext("2d");
+  const texMedidor = new THREE.CanvasTexture(lienzoMedidor); texMedidor.colorSpace = THREE.SRGBColorSpace;
+  const medidor = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.13), new THREE.MeshBasicMaterial({ map: texMedidor, transparent: true, depthTest: false }));
+  medidor.renderOrder = 10; medidor.visible = false; medidor.name = "medidor-pesca"; h.world.add(medidor);
+  let claveMedidor = "";
+  function pintarMedidor(e: Estado3D): void {
+    const clave = `${e.fase}|${e.texto ?? ""}|${Math.round(e.tension / 3)}|${Math.round(e.progreso / 3)}|${e.arrancada}`;
+    if (clave === claveMedidor || !gm) return;
+    claveMedidor = clave;
+    const W = 320, H = 140, alta = e.tension >= 80, picada = e.fase === "picada";
+    gm.clearRect(0, 0, W, H);
+    gm.fillStyle = "rgba(20,24,30,0.86)"; gm.beginPath(); gm.roundRect?.(0, 0, W, H, 18); if (!gm.roundRect) gm.rect(0, 0, W, H); gm.fill();
+    gm.fillStyle = picada || alta || e.arrancada !== "no" ? "#ff8a5b" : "#ffd27a"; gm.font = `bold ${picada ? 34 : 26}px system-ui, sans-serif`; gm.textAlign = "center"; gm.textBaseline = "middle";
+    const t = e.texto ?? "", corto = t.length > 26 ? t.slice(0, 25) + "…" : t;
+    gm.fillText(corto, W / 2, e.fase === "pelea" ? 30 : H / 2);
+    if (e.fase === "pelea") {
+      const barra = (y: number, v: number, color: string, nombre: string) => {
+        gm.fillStyle = "rgba(255,255,255,0.16)"; gm.fillRect(20, y, W - 40, 26);
+        gm.fillStyle = color; gm.fillRect(20, y, ((W - 40) * Math.max(0, Math.min(100, v))) / 100, 26);
+        gm.fillStyle = "#eef2f6"; gm.font = "bold 18px system-ui, sans-serif"; gm.textAlign = "left"; gm.fillText(nombre, 26, y + 14);
+      };
+      barra(62, e.tension, alta ? "#e5484d" : "#f0c35b", "Tensión");
+      barra(100, e.progreso, "#7bd389", "Pez");
+    }
+    texMedidor.needsUpdate = true;
+  }
+
   return {
     /** The fishing spots this page knows: a pond, its bank, boardwalk and sign at each. */
     sitios(lista: Sitio3D[]): void {
       const vivos = new Set(lista.map((s) => s.id));
-      for (const [id, e] of estanques) if (!vivos.has(id)) { quitarEstanque(e); estanques.delete(id); }
+      for (const [id, e] of estanques) if (!vivos.has(id)) { quitarEstanque(e); estanques.delete(id); soportes.delete(id); }
+      ocupados.clear(); for (const s of lista as (Sitio3D & { ocupado?: boolean })[]) if (s.ocupado) ocupados.add(s.id); // N4: the client's spots say who fishes
       for (const s of lista) {
         let e = estanques.get(s.id);
-        if (e && (e.s.x !== s.x || e.s.z !== s.z || e.s.radio !== s.radio)) { quitarEstanque(e); e = undefined; }
-        if (!e) { e = nuevoEstanque(s); estanques.set(s.id, e); }
+        if (e && (e.s.x !== s.x || e.s.z !== s.z || e.s.radio !== s.radio)) { quitarEstanque(e); soportes.delete(s.id); e = undefined; }
+        if (!e) { e = nuevoEstanque(s); estanques.set(s.id, e); nuevoSoporte(e); }
         e.grupo.position.set(s.x, s.y, s.z);
       }
+      verSoportes();
     },
     /** Where to stand to fish at a spot (on the boardwalk) and which way the water is; null if the spot is unknown. */
     sitio(id: string): { x: number; z: number; radio: number; pantalan: { x: number; z: number }; rumbo: number } | null {
       const e = estanques.get(id); return e ? { x: e.s.x, z: e.s.z, radio: e.s.radio, pantalan: e.pantalan, rumbo: e.rumbo } : null;
+    },
+    /** N4: the handle of the rod on a spot's holder (world-group coordinates), or null if the spot is unknown. */
+    soporte(id: string): { x: number; y: number; z: number } | null {
+      const e = estanques.get(id), s = soportes.get(id);
+      return e && s ? { x: e.grupo.position.x + s.agarre.x, y: e.grupo.position.y + s.agarre.y, z: e.grupo.position.z + s.agarre.z } : null;
+    },
+    /** N4 (VR): my rod is in this real hand (taken from the holder of `sitio`), or back on its holder (null). */
+    sujetar(lado: "izq" | "der" | null, sitio = ""): void {
+      sujeta = lado; tomadaDe = lado ? sitio : "";
+      verSoportes();
+    },
+    /** N4: glow the rod on that spot's holder (a hand is close enough to take it); "" = none. */
+    resaltar(id: string): void {
+      if (id === resaltado) return;
+      resaltado = id;
+      for (const [k, s] of soportes) s.mat.emissive.setHex(k === id ? 0x6b4a10 : 0x000000);
+    },
+    /** N4 (VR): the real hand nearest a holder's rod handle, within AGARRE_M (so a grip or a pinch there takes it), or null. */
+    alAlcance(conTomada = false): { lado: "izq" | "der"; sitio: string; d: number } | null { // conTomada: also the holder my rod came from (to put it back)
+      let mejor: { lado: "izq" | "der"; sitio: string; d: number } | null = null;
+      h.world.updateWorldMatrix(true, false);
+      for (const lado of ["der", "izq"] as const) {
+        const a = h.ancla?.(lado); if (!a) continue;
+        a.getWorldPosition(tmp); h.world.worldToLocal(tmp);
+        for (const [id, s] of soportes) {
+          const e = estanques.get(id); if (!e || (id === tomadaDe && !(conTomada && lado === sujeta)) || (ocupados.has(id) && id !== tomadaDe)) continue;
+          const d = tmp2.copy(s.agarre).add(e.grupo.position).distanceTo(tmp);
+          if (d <= AGARRE_M && (!mejor || d < mejor.d)) mejor = { lado, sitio: id, d };
+        }
+      }
+      return mejor;
+    },
+    /** N4: where the drawing camera looks, flattened, in world-group coordinates (the cast goes that way). */
+    mirada(): { x: number; z: number } | null {
+      const c = h.camara?.(); if (!c) return null;
+      c.getWorldDirection(tmp); h.world.getWorldQuaternion(q).invert(); tmp.applyQuaternion(q);
+      const l = Math.hypot(tmp.x, tmp.z); return l > 0.1 ? { x: tmp.x / l, z: tmp.z / l } : null;
+    },
+    /** N4: a point of the rod in my real hand 1 m out from the hand (world-group coordinates; the gestures read it), or null. */
+    punta(): { x: number; y: number; z: number } | null { // 1 m along the rod: the lever the gesture thresholds are tuned for
+      return canaEnMano() ? { x: baseMano.x + dirCana.x * (MANGO_M + 1), y: baseMano.y + dirCana.y * (MANGO_M + 1), z: baseMano.z + dirCana.z * (MANGO_M + 1) } : null;
     },
     /** Who fishes where now (yourself included). `yo` = my entity, so my own rod follows "self". */
     flotadores(lista: Flotador3D[], yo: number): void {
@@ -271,13 +388,17 @@ export function crearPesca(h: Ayudas) {
         const fase = mio ? estado.fase : "espera", tension = mio && fase === "pelea" ? estado.tension / 100 : 0.1, progreso = mio && fase === "pelea" ? estado.progreso / 100 : 0;
         // the rod: in the right hand (the avatar's, or beside the capsule), pointed at the float, lowered by tension
         const dX = a.destino.x - p.x, dZ = a.destino.z - p.z;
-        const m = mano(a.quien, p, dX, dZ, tmp);
+        const enMano = mio && canaEnMano(); // N4 (VR): my rod is where my real hand holds it
+        const m = enMano ? tmp.copy(baseMano) : mano(a.quien, p, dX, dZ, tmp);
         a.cana.position.copy(m);
-        const haciaX = a.destino.x - m.x, haciaZ = a.destino.z - m.z, hd = Math.hypot(haciaX, haciaZ) || 1;
-        const pitch = THREE.MathUtils.lerp(0.95, 0.45, tension); // radians from vertical: 55° up at rest, 25° when the line is tight
-        tip.set((haciaX / hd) * Math.sin(pitch), Math.cos(pitch), (haciaZ / hd) * Math.sin(pitch));
-        a.cana.quaternion.copy(q.setFromUnitVectors(up, tip));
-        tip.multiplyScalar(LARGO_CANA).add(m); // the tip, where the line starts
+        if (enMano) { a.cana.quaternion.copy(q.setFromUnitVectors(up, dirCana)); tip.copy(puntaMano); }
+        else {
+          const haciaX = a.destino.x - m.x, haciaZ = a.destino.z - m.z, hd = Math.hypot(haciaX, haciaZ) || 1;
+          const pitch = THREE.MathUtils.lerp(0.95, 0.45, tension); // radians from vertical: 55° up at rest, 25° when the line is tight
+          tip.set((haciaX / hd) * Math.sin(pitch), Math.cos(pitch), (haciaZ / hd) * Math.sin(pitch));
+          a.cana.quaternion.copy(q.setFromUnitVectors(up, tip));
+          tip.multiplyScalar(LARGO_CANA).add(m); // the tip, where the line starts
+        }
         // the float: a cast arc for the first second (a ripple when it lands), then bobbing; mine dips, sinks and comes in
         const t = (now - a.nacido) / LANZAMIENTO_MS;
         const f = a.flotador.position;
@@ -301,6 +422,17 @@ export function crearPesca(h: Ayudas) {
           pos[i * 3] = tip.x + (f.x - tip.x) * k; pos[i * 3 + 1] = tip.y + (f.y - tip.y) * k - Math.sin(k * Math.PI) * s; pos[i * 3 + 2] = tip.z + (f.z - tip.z) * k;
         }
         (a.sedal.geometry.getAttribute("position") as THREE.BufferAttribute).needsUpdate = true;
+        a.sedalMat.color.copy(SEDAL).lerp(TENSO, mio && fase === "pelea" ? THREE.MathUtils.clamp((tension - 0.6) / 0.35, 0, 1) : 0);
+      }
+      // N4 (VR): the rod in my hand before casting, and the gauge above it while I fish
+      const conCana = canaEnMano();
+      canaMano.visible = conCana && !anglers.has("self");
+      if (canaMano.visible) { canaMano.position.copy(baseMano); canaMano.quaternion.copy(q.setFromUnitVectors(up, dirCana)); }
+      medidor.visible = conCana && estado.fase !== "nada" && anglers.has("self");
+      if (medidor.visible) {
+        pintarMedidor(estado);
+        medidor.position.copy(baseMano).addScaledVector(dirCana, 0.5); medidor.position.y += 0.2;
+        const c = h.camara?.(); if (c) { c.getWorldPosition(tmp2); medidor.lookAt(tmp2); }
       }
       // the landed fish: a jump out of the water along an arc to the hand (SALTO_MS), then hanging from it, head up,
       // swaying; put away once the angler walks (PASO_SUELTA_M) or the page forgets it (capturas)
@@ -331,6 +463,7 @@ export function crearPesca(h: Ayudas) {
     },
     /** True while someone fishes, a fish flies or hangs, or a ripple still spreads — keeps the frame loop awake. */
     ocupado: (): boolean => anglers.size > 0 || [...peces.values()].some((p) => !p.guardado) || [...estanques.values()].some((e) => e.ondas.some((o) => tiempo.value - o.value.z < 4)),
-    contar: () => ({ pescadores: anglers.size, sitios: estanques.size, peces: [...peces.values()].filter((p) => p.grupo.visible).length, enMano: [...peces.values()].filter((p) => p.grupo.visible && performance.now() - p.desde >= SALTO_MS).map((p) => (p.quien === "self" ? self : p.quien)), manoReal, cargado: true }),
+    contar: () => ({ pescadores: anglers.size, sitios: estanques.size, peces: [...peces.values()].filter((p) => p.grupo.visible).length, enMano: [...peces.values()].filter((p) => p.grupo.visible && performance.now() - p.desde >= SALTO_MS).map((p) => (p.quien === "self" ? self : p.quien)), manoReal, cargado: true,
+      soportes: soportes.size, sujeta, canaMano: canaMano.visible, medidor: medidor.visible, medidorTexto: medidor.visible ? estado.texto ?? "" : "", resaltado }),
   };
 }
