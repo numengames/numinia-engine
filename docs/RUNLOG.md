@@ -595,3 +595,17 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `plantillas/eventos` (ver `git log`).
 - Siguiente: unir el cofre de dos aspectos y el premio registrado (U14 (6), rama `plantillas/eventos-cofre`) y poner el
   vuelo y el cofre en la aventura de la plantilla.
+
+## 2026-10-17 02:31 · U14 (6) · el cofre de dos aspectos, el premio apuntado una sola vez y «Misión completada» · hecho (sesión con Pablo, rama `plantillas/eventos-cofre` unida a `plantillas/eventos`, sin subir)
+- Qué: la especificación de la TRG26 pide un cofre que se abra solo para quien lo abre, el «Sello del Artífice · TRG26»
+  concedido una vez y apuntado (jugador, misión, instante, estado) sin depender de ninguna cartera, y «Misión
+  completada». cosa@1 `apariencia.usada`; la concesión en el almacén (`c:<misión>:<id>`, nunca se sobrescribe);
+  `npm run concesiones` para la organización (CSV); el cartel con su acorde.
+- Números: 9 pruebas nuevas; en su rama 407 de 408 (la de siempre bajo carga) y `MISIONES OK`. Al unir con U14 (5)
+  chocaron siete ficheros (los sonidos de la página: las notas de la casa del trozo 5 y el acorde del 6 en una sola
+  función; el comentario de la versión v5; `crearCliente` con el reloj del 5 y `usadasDe` del 6; el texto de `llms.txt`
+  y de `docs/JUGADOR.md`; una aserción de versión). Después: 72 de 72 en las pruebas de misiones, mapa, entorno, altura
+  y tema, y la pierna e2e `misiones` en verde contra un motor y una página propios (8889/5329).
+- Commit: 2f19747 en `plantillas/eventos-cofre` (worktree `numinia-engine-wt-eventos-b`) y la unión b70ff3a.
+- Siguiente: el vuelo y el cofre en la aventura de la plantilla, el recorrido entero en el navegador con una foto por
+  fase y el coste en Quest.

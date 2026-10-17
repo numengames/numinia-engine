@@ -84,6 +84,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema; 2, pasos en cualquier orden; el mapa cortado, y 3, el libro con estados, hechos) | no |
 | U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema; 2, pasos en cualquier orden; el mapa cortado; 3, el libro con estados, y 4, las marcas sobre las personas, hechos) | no |
 | U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema; 2, pasos en cualquier orden; el mapa cortado; 3, el libro con estados; 4, las marcas sobre las personas, y 5, la secuencia que solo ve quien la provoca y la espera antes de un paso, hechos) | no |
+| U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema; 2, pasos en cualquier orden; el mapa cortado; 3, el libro con estados; 4, las marcas sobre las personas, 5, la secuencia que solo ve quien la provoca y la espera antes de un paso, y 6, el cofre de dos aspectos y el premio apuntado una vez, hechos; falta la plantilla) | no |
 | U4 | Zona de usuario: quién eres, avatar, misiones e insignias, lo que he construido (lista, cuota, borrar, descargar), privacidad y datos, seguridad; el informe de sesión (T1) pasa a pedir consentimiento | espera a U2 | sí |
 | I3 | «Guardar mi progreso» con una llave de acceso (passkey) del propio motor, sin correo (Pablo, 15-10: camino B); la llave queda unida al invitado | pendiente | sí |
 | U5 | «Editar interfaz»: mover sin arrastrar (cuadrícula 3×3, números, flechas, lista), 5 disposiciones por clase de aparato, copiar y pegar `nl1.` sin código | espera a U3 | sí |
@@ -1226,8 +1227,22 @@ tick de las misiones con 1.000 jugadores esperando: p99 0,14 ms (límite 5), y a
 vuelo, 15 eventos y 554 bytes solo para su dueño; arranque +1,8 kB gz (el reproductor, 1,9 kB gz aparte). En el
 navegador (servidor y página propios, dos invitados): A ve las alas, el vuelo y el aterrizaje; B, a la vez, a Leonardo
 quieto en su sitio; un evento `secuencia` cada uno; el cofre «Todavía no: faltan 10 s» y su «!» a los 10,0–10,2 s.
-**Falta:** cofre de dos aspectos; premio registrado una sola vez; que V6 dé su sonido a cada aviso (y quite las notas del
-libro y de las secuencias); poner el vuelo en la aventura de la plantilla (`../plantillas/eventos/notas-vuelo.md`).
+**Trozo 6 hecho (17-10, rama `plantillas/eventos-cofre`, unida a `plantillas/eventos`): una cosa que se ve usada para
+ti y un premio apuntado una sola vez.** cosa@1 admite (aditivo) `apariencia.usada` { modelo, escala? }: la cosa se ve así
+para quien ya hizo su paso `usa`/`coge` (lo decide cada página con su propio libro: el cofre de la TRG26 sale abierto solo
+para quien lo abrió; los demás lo ven cerrado y abren el suyo). Al completar una misión con `recompensas`, el servidor
+apunta una concesión por invitado con identidad en el almacén de misiones (`c:<misión>:<id>` = jugador, nombre, misión,
+recompensas, instante en UTC, estado «concedida»; nunca se sobrescribe; una repetible cuenta la primera vez; sin
+identidad, nada), y `npm run concesiones -- <carpeta del mundo> [misión]` la saca en CSV para la organización, solo
+lectura y con el servidor en marcha (`packages/server/src/datos.ts` lee la foto y el diario como el servidor). En la
+página, el cartel «Misión completada» (unos 4 s, aria-live, sin quitar el teclado) con un acorde. misiones v5 (el mismo
+salto que el trozo 5). **Medido:** 9 pruebas (`test/misiones-cofre.test.ts`: la concesión una sola vez tras repetir,
+dos pestañas, dos invitados a la vez, reconexión y reinicio; sin identidad, nada; el CSV; el aspecto por jugador por el
+enchufe real); en el navegador, el cofre abierto para A y cerrado para B a la vez. Unido con el trozo 5 (chocaron los
+sonidos de la página, el comentario de la versión y dos líneas de documentación): 72 de 72 en las pruebas de misiones,
+mapa, entorno, altura y tema; la pierna e2e `misiones` en verde.
+**Falta:** poner el vuelo y el cofre en la aventura de la plantilla (`../plantillas/eventos/notas-vuelo.md`,
+`notas-cofre.md`); que V6 dé su sonido a cada aviso (y quite las notas del libro y de las secuencias).
 
 ### U1 — Pantalla de carga
 Armazón dentro de `index.html` (≤ 14 kB comprimido, letra del sistema, sin lienzo ni `requestAnimationFrame`) y un

@@ -47,6 +47,17 @@ html, body { font-family: "Geist", system-ui, sans-serif; }
 #interactuar { color: var(--n-texto) !important; }
 #mision-nota { z-index: 6; background: var(--n-ambar) !important; color: var(--n-enfasis-tinta, var(--n-fondo)) !important; border-radius: 8px !important; } /* over the open book (a phone) */
 #mision-nota .objeto { display: inline-block; vertical-align: -4px; margin-right: 6px; } /* «Has recibido: …»: the item icon */
+/* U14 (6): «Misión completada» — a banner high in the middle (over nothing you click: pointer-events none), in the
+   world's look: its title face, uppercase and offset shadow when a tema sets them (trgcon), its emphasis colour on top.
+   Always in the page as a live region; empty = no box at all */
+#mision-completada { position: fixed; top: max(58px, 11%); left: 50%; z-index: 8; transform: translate(-50%, -8px); width: max-content; max-width: min(460px, calc(100% - 32px)); box-sizing: border-box; text-align: center; pointer-events: none; opacity: 0; transition: opacity .3s ease, transform .3s ease; }
+#mision-completada:not(:empty) { padding: 12px 28px 14px; background: var(--n-sup); color: var(--n-texto); border: 1px solid var(--n-linea); border-top: 3px solid var(--n-ambar); border-radius: 8px; }
+#mision-completada.visible { opacity: 1; transform: translate(-50%, 0); }
+#mision-completada p { margin: 0; }
+#mision-completada .rotulo { font-family: var(--n-titulos); font-weight: var(--n-titulos-peso); letter-spacing: var(--n-titulos-espacio); text-transform: var(--n-titulos-mayus); text-shadow: var(--n-titulos-sombra); font-size: calc(22px * var(--n-titulos-escala)); line-height: 1.05; color: var(--n-ambar); }
+#mision-completada .titulo { margin-top: 4px; font-size: 15px; font-weight: 600; }
+#mision-completada .insignia { margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--n-verdemar); }
+#mision-completada .insignia::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--n-ambar); box-shadow: 0 0 0 2px var(--n-sup), 0 0 0 3px var(--n-ambar); } /* a small seal (no glyph: the house icons have none) */
 
 /* ---- the quest book's steps (U14 (3), the TRG26 spec's states): done = a green check, dimmed; now = a dot in the
    world's emphasis colour on a faint band of it, at full strength; locked = a lock, dimmed. Colours are variables, so a

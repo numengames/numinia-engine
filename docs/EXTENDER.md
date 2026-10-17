@@ -128,6 +128,9 @@ export default clientPart(gestos, (api) => {
   `/var/lib/numinia-motor/datos/`). Un apagón pierde como mucho el último segundo.
 - Si cambias la forma del estado, sube `version`: lo guardado que ya no cumpla el esquema se descarta y se
   dice en el registro. Ejemplo: `features/despertar` (almacén con la última vez y cuántas veces).
+- Leer lo guardado sin el servidor (herramientas de solo lectura): `leerFoto` y `repetirDiario` (`datos.ts`) pliegan una
+  foto y su diario como al arrancar, y `leerFuncion` (`mundo-zip.ts`) los toma del mismo momento con el servidor en marcha.
+  Así lee `npm run concesiones` (`packages/server/src/concesiones.ts`) las recompensas concedidas (U14 (6)).
 
 ## Lo que toda función declara (accesibilidad, V1: si falta, la función no se carga)
 
@@ -416,6 +419,40 @@ servidor; al acabar vuelve exactamente a donde dice el servidor.
 Recompensas: hoy solo insignias (recuerdos de lo hecho; sin economía). `requisitos.misiones`: las que hay que haber
 completado antes. Hasta 16 pasos, 16 misiones activas por jugador.
 
+**La recompensa, apuntada una sola vez (U14 (6)).** Al completar una misión con `recompensas`, el servidor apunta en el
+almacén de `misiones` (S4: `datos/misiones.json` + `.jsonl` del mundo) **una** concesión por jugador y misión, en la clave
+`c:<misión>:<id del jugador>`: `{ "jugador": "<id>", "nombre": "Invitado IJKL", "mision": "vuelo-del-maestro",
+"recompensas": ["sello-artifice"], "instante": "2026-10-17T03:41:12.345Z", "estado": "concedida" }` (el instante en ISO 8601,
+UTC; unos 250 bytes, del tope de 4.096). Se escribe solo si no está y nunca se sobrescribe: pulsar otra vez, reconectar,
+dos pestañas del mismo invitado o dos jugadores a la vez dejan una por jugador. Una misión `repetible` guarda solo la
+**primera** vez (su instante). **Sin identidad (I1) no hay concesión**: una página que no dice quién es (un robot, un agente
+sin billete) completa la misión en su libro de memoria y no queda apuntada; una IA con identidad sí (su nombre acaba en
+« · IA»). No depende de ninguna cartera: si un día se emite un NFT, será un paso aparte que lea estas concesiones. Código:
+`features/misiones/concesion.ts`; `estado` hoy siempre es «concedida».
+
+Para quien organiza: `npm run concesiones -- <carpeta del mundo> [misión]` (o `node packages/server/src/concesiones.ts …`;
+sin carpeta, la de MOTOR_MUNDO; vale también una DATOS_DIR como `.run/datos`) escribe en CSV `jugador,nombre,mision,
+recompensas,instante,estado`, de la más antigua a la más nueva (varias recompensas en una celda, separadas por «;»; un
+nombre que empezaría por `=` `+` `-` `@` lleva delante un apóstrofo, para que la hoja de cálculo no lo tome por una
+fórmula), y por la salida de errores cuántas hay. Solo lee: funciona con el servidor en marcha (lee la foto y el diario del
+mismo momento, como la copia del mundo; lo de la última fracción de segundo sale la vez siguiente). Va dentro del motor
+instalado y de la imagen: `docker exec <contenedor> /opt/numinia-engine/node/bin/node packages/server/src/concesiones.ts /mundo
+> concesiones.csv`.
+
+```
+$ npm run -s concesiones -- mundo vuelo-del-maestro > concesiones.csv
+2 concesiones de «vuelo-del-maestro» en …/mundo/datos
+$ cat concesiones.csv
+jugador,nombre,mision,recompensas,instante,estado
+abcdefghijkl,Invitado IJKL,vuelo-del-maestro,sello-artifice,2026-10-17T03:41:12.345Z,concedida
+mnopqrstuvwx,Invitado UVWX,vuelo-del-maestro,sello-artifice,2026-10-17T03:44:58.020Z,concedida
+```
+
+Quien completa una misión ve en el centro de arriba, unos 4 s, el cartel **«Misión completada»** con su título y la
+insignia (`apps/plaza/misiones.ts`: con el aire del mundo, la letra de los títulos de su `tema`; no quita ni el teclado ni el
+ratón; es una región `aria-live` y el aviso general de `completada` no se repite) y un acorde corto tras las tres notas del
+paso. La insignia queda en su ficha (I) y en su libro.
+
 **`pnj@1`** — una persona: dónde está y un **árbol de diálogo determinista** que depende de tus misiones:
 
 ```json
@@ -479,6 +516,17 @@ usa solo desde menos de 2,5 m de esa altura) y `apariencia.color`
 («#rrggbb»: el modelo pintado de ese color, para que dos cosas se distingan). Lo cogido en un paso `coge` se dibuja en la
 mano que lo cogió (al lado de tu avatar en pantalla) hasta que la misión termina; luego vuelve a su sitio (lo recibido en
 un `recibe`, todavía no: se queda en su sitio).
+
+**Una cosa que se ve usada para ti (`apariencia.usada`, U14 (6)).** `"apariencia": { "modelo": "<sha256 del cofre
+cerrado>", "escala": 1, "usada": { "modelo": "<sha256 del cofre abierto>", "escala": 1 } }`: cómo se ve la cosa para **quien
+ya hizo el paso que la usa** (`usa` o `coge`) en una misión que lleva o que terminó. Los demás la siguen viendo como antes,
+y cada uno abre «el suyo». `escala` es opcional (sin ella, la de la cosa); `modelo`, el sha256 de un `.glb` del mundo
+(`datos/activos/<sha256>.glb`) o de la biblioteca. Lo decide la página de cada jugador con **su** libro (los pasos hechos
+y su `que`: `usadasDe` y `aspectoCosa` en `features/misiones/client.ts`); el servidor solo manda los dos aspectos en el
+estado de la cosa (`modeloUsada`, `escalaUsada`: misiones v5). Se recalcula cuando el libro ha llegado entero (no parpadea
+mientras llega) y solo se vuelve a dibujar la cosa cuyo aspecto cambia. El libro trae las 20 misiones terminadas más
+nuevas: una cosa usada en una más vieja vuelve a verse como antes. En la TRG26, el cofre cerrado y, al abrirlo, abierto e
+iluminado solo para quien lo abrió.
 
 Lo que pasa en el servidor (`features/misiones/server.ts`) y no se puede saltar desde la página:
 - distancias (`api.within`: el radio y, si la persona o la cosa tiene `y`, menos de 2,5 m de altura —

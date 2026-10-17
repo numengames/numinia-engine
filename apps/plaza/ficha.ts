@@ -124,7 +124,9 @@ export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
       if (Array.isArray(r)) return listaDe(c, r, "No llevas ninguna misión.");
       const o = r as Record<string, unknown>, activas = o.activas ?? o.enCurso ?? o.misiones ?? [];
       const hechas = o.hechas ?? o.completadas;
-      listaDe(c, Array.isArray(activas) ? activas : [activas], "No llevas ninguna misión.", hechas === undefined ? "" : `Terminadas: ${Array.isArray(hechas) ? hechas.length : String(hechas)}`);
+      // the quests' resumen gives a count of active ones (a bare «• 0» was listed): a count says «N en curso», 0 says nothing
+      const lista = typeof activas === "number" ? (activas > 0 ? [`${activas} en curso`] : []) : Array.isArray(activas) ? activas : [activas];
+      listaDe(c, lista, "No llevas ninguna misión.", hechas === undefined ? "" : `Terminadas: ${Array.isArray(hechas) ? hechas.length : String(hechas)}`);
     },
   });
   api.seccion("insignias", {

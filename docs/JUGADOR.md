@@ -108,6 +108,14 @@ poder hacerse (el cofre, hasta que Leonardo aterriza): mientras, sale con candad
 línea de arriba («· en 7 s»), sin «!» ni objetivo en el mapa; si lo intentas antes, el aviso dice cuánto falta. Cuando
 se abre, sale su «!». En VR la cámara no se mueve: el momento pasa delante de ti.
 
+Al terminar una misión (U14 (6)), arriba en el centro aparece unos 4 segundos el cartel **«Misión completada»** con el
+título de la misión y la insignia ganada, con los colores y la letra de títulos del mundo, y suena un acorde corto tras
+las tres notas del paso (al volumen de «Efectos»; a 0, en silencio). No quita el teclado ni el ratón: sigues andando; el
+lector de pantalla lo oye una vez (el aviso pequeño del centro se aparta mientras se ve). La insignia queda en tu libro y
+en tu ficha (I); si tu navegador tiene identidad, queda además apuntada una vez en el mundo, para que la organización sepa
+a quién se la dio. Una cosa de misión puede verse distinta para ti cuando ya la usaste (el cofre de la TRG26, abierto
+solo para quien lo abrió): los demás la siguen viendo como antes y abren la suya.
+
 ## 6. Orientarse
 
 | Cosa | Qué es | Capa | Nivel | Escritorio / móvil / VR | Primitivas | Coste móvil | Fila |

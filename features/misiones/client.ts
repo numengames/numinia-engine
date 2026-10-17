@@ -26,10 +26,11 @@ export function aspectoPnj(v: Msg, marca: Marca = ""): { cuerpo: PlacedObject; n
     nombre: { text: String(v.nombre), ...(oficio ? { sub: oficio } : {}), ...(marca ? { mark: marca } : {}), x: Number(v.x), y: y + ALTO_NOMBRE * Number(v.escala), z: Number(v.z) },
   };
 }
-/** How a quest thing looks: its model, or the house block (a small crate); at its height (y) and in its colour. */
-export const aspectoCosa = (v: Msg): PlacedObject & { color?: string } => {
-  const e = Number(v.escala), color = String(v.color ?? "");
-  return { model: String(v.modelo ?? "") || BLOQUE, x: Number(v.x), y: Number(v.y) || 0, z: Number(v.z), rx: 0, ry: 0, rz: 0, sx: e, sy: e, sz: e, animate: false, ...(color ? { color } : {}) };
+/** How a quest thing looks: its model, or the house block (a small crate); at its height (y) and in its colour. U14 (6):
+ * `usada` = this player has used it (usadasDe): then its used look (cosa@1 apariencia.usada — the chest open), if any. */
+export const aspectoCosa = (v: Msg, usada = false): PlacedObject & { color?: string } => {
+  const otro = usada ? String(v.modeloUsada ?? "") : "", e = Number(otro ? v.escalaUsada : v.escala), color = String(v.color ?? "");
+  return { model: otro || String(v.modelo ?? "") || BLOQUE, x: Number(v.x), y: Number(v.y) || 0, z: Number(v.z), rx: 0, ry: 0, rz: 0, sx: e, sy: e, sz: e, animate: false, ...(color ? { color } : {}) };
 };
 
 // ---- U14 (4): marks the server decides for each player: «!» = has something for you now, «✓» = you are done with them ----
@@ -66,6 +67,14 @@ export const ahoraDe = (m: MisionVista): PasoVista[] => porHacer(m).filter((s) =
 /** U14 (5): the steps of the current block not done yet, waiting or not: what the page lets you try (one that still
  * waits answers «Todavía no: …», so pressing E on the chest during the flight says why). */
 export const porHacer = (m: MisionVista): PasoVista[] => (m.estado === "activa" ? bloqueDe(m).filter((s) => !s.hecho) : []);
+
+/** U14 (6): the quest things THIS player has used — a `usa` or `coge` step done in a quest of their book (active or
+ * completed), by the thing's id. Pure: from the player's own book, so two players on one server see a thing differently. */
+export function usadasDe(libro: Iterable<MisionVista>): Set<string> {
+  const out = new Set<string>();
+  for (const m of libro) for (const s of m.lista) if ((s.tipo === "usa" || s.tipo === "coge") && s.que && (s.hecho || m.estado === "hecha")) out.add(s.que);
+  return out;
+}
 
 /** One per page (tests make one per client). `misiones` is what the page's panels and an agent call. `reloj` (U14 (5),
  * ms): the page's clock, for the countdowns and the sequences (tests pass their own). */
@@ -141,6 +150,23 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     for (const k of new Set([...antesC, ...marcaC])) if (antesC.has(k) !== marcaC.has(k)) rotularCosa(k);
   };
 
+  // U14 (6): the quest things you used look «used» for you (cosa@1 apariencia.usada: the chest open); the others' pages
+  // decide from their own books. Worked out again only once a book has arrived WHOLE (`libro` says how many quests come,
+  // each `mision` how many steps), so a thing never flips back and forth while a book arrives; a thing is drawn again
+  // only when its look changes, and only if it has a used look at all. Quests are counted as they come, not by id: a
+  // repeatable quest done and taken again comes twice under one id
+  let usadas: ReadonlySet<string> = new Set(), esperadas = -1, llegadas = 0;
+  const libroEntero = () => esperadas >= 0 && llegadas >= esperadas && [...libro.values()].every((m) => m.lista.length === m.pasos);
+  const revisarUsadas = () => {
+    if (!libroEntero()) return;
+    const antes = usadas, ahora = usadasDe(libro.values());
+    usadas = ahora;
+    for (const k of new Set([...antes, ...ahora])) {
+      const v = M?.state.get(k);
+      if (antes.has(k) !== ahora.has(k) && v && String(v.modeloUsada ?? "")) M!.view.place?.(`misiones:${k}`, aspectoCosa(v, ahora.has(k)));
+    }
+  };
+
   const actual = (m: MisionVista): PasoVista | undefined => m.lista.find((s) => s.n === m.paso);
   const misiones = {
     estado,
@@ -188,6 +214,8 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     marcas: (): Readonly<Marcas> => marcas,
     /** The mark over a person (`pnj`) or a quest thing (`misiones`) for you: "!", "✓" or "" (the map draws it). */
     marcaDe,
+    /** U14 (6): the quest things you have used (they show their used look for you, if they have one), by id. */
+    usadas: (): string[] => [...usadas],
     /** A person's trade («Carpintero»; "" = none, or not near enough to be known), for the map's list. */
     oficioDe: (pnj: string): string => String(P?.state.get(pnj)?.oficio ?? ""),
     /** Call `fn` when the book, the conversation or the on-screen note changes; returns how to stop. */
@@ -214,11 +242,12 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     M = a;
     for (const ev of ["secuencia", "pista", "clave"]) a.on(ev, (m) => recibirSec(ev, m)); // U14 (5)
     a.state.onChange((key, v) => {
-      a.view.place?.(`misiones:${key}`, v ? aspectoCosa(v) : null); // J4: <feature>:<key>, so a click is understood
+      a.view.place?.(`misiones:${key}`, v ? aspectoCosa(v, usadas.has(key)) : null); // J4: <feature>:<key>, so a click is understood; U14 (6): your look of it
       rotularCosa(key); // U14 (4): a label only while the server marks it for you
     });
-    a.on("libro", () => { libro.clear(); avisar("libro"); });
+    a.on("libro", (m) => { libro.clear(); esperadas = Number(m.activas) + Number(m.hechas); llegadas = 0; avisar("libro"); revisarUsadas(); });
     a.on("mision", (m) => {
+      llegadas++;
       libro.set(String(m.id), { id: String(m.id), titulo: String(m.titulo), descripcion: String(m.descripcion), estado: m.estado === "hecha" ? "hecha" : "activa", paso: Number(m.paso), pasos: Number(m.pasos), seguida: m.seguida === true, recompensa: String(m.recompensa ?? ""), lista: [] });
       avisar("libro");
     });
@@ -229,6 +258,7 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
       const s: PasoVista = { n: Number(m.n), texto: String(m.texto), tipo: String(m.tipo), hecho: m.hecho === true, x: Number(m.x), z: Number(m.z), donde: String(m.donde), que: String(m.que ?? ""), grupo: String(m.grupo ?? ""), espera, listoEn: espera ? reloj() + espera * 1000 : 0 };
       mv.lista = [...mv.lista.filter((x) => x.n !== s.n), s].sort((p, q) => p.n - q.n);
       avisar("libro");
+      revisarUsadas(); // U14 (6): the book's last step has arrived → the used looks
     });
     a.on("aceptada", (m) => nota(`Misión nueva: ${String(m.titulo)}`));
     a.on("avance", (m) => nota(`✓ ${String(m.texto)}`));

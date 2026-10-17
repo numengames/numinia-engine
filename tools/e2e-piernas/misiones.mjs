@@ -125,6 +125,9 @@ try {
   out.caja.prompt = await prompt(a);
   await a.keyboard.press("KeyE");
   await esperar(a, () => globalThis.__numinia.misiones.libro()[0]?.estado === "hecha", null, 5000);
+  // U14 (6): «Misión completada» — the banner with the quest's title and its insignia: a polite live region, no clicks
+  await esperar(a, () => document.getElementById("mision-completada")?.classList.contains("visible"), null, 5000);
+  out.banner = await ctl(a, () => { const b = document.getElementById("mision-completada"); return { texto: b.textContent, rol: b.getAttribute("role"), vivo: b.getAttribute("aria-live"), clic: getComputedStyle(b).pointerEvents }; });
   await a.keyboard.press("KeyJ");
   await esperar(a, () => !document.getElementById("libro").hidden, null, 3000);
   out.hecha = {
@@ -155,7 +158,8 @@ try {
     && out.hecha.libro[0]?.estado === "hecha" && out.hecha.objetivos.length === 0 && out.hecha.panel.some((t) => t.startsWith("Hecho: Primeros pasos en la plaza"))
     && out.hecha.dibujo.objetos.failed === 0 && out.b.personas.includes("persona: Alma, la guía") && out.b.eventos.length === 0 && out.b.libro === 0 && out.b.otroInvitado && errors.length === 0
     && out.hecha.marcas.hecho.includes("alma") && out.hecha.marcas.hecho.includes("bruno") && !out.hecha.marcas.tiene.includes("alma") // U14 (4): A is done with them
-    && out.b.marcas.tiene.includes("alma") && out.b.marcas.hecho.length === 0; // B's own marks: Alma still offers it the quest
+    && out.b.marcas.tiene.includes("alma") && out.b.marcas.hecho.length === 0 // B's own marks: Alma still offers it the quest
+    && /^Misión completada/.test(out.banner.texto) && /Primeros pasos/.test(out.banner.texto) && /Conoce la plaza/.test(out.banner.texto) && out.banner.rol === "status" && out.banner.vivo === "polite" && out.banner.clic === "none"; // U14 (6)
 } catch (e) { out.error = String(e).split("\n")[0]; }
 await browser.close();
 console.log(JSON.stringify(out, null, 1));

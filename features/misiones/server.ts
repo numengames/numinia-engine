@@ -12,6 +12,7 @@ import type { Hecho, Progreso } from "./maquina.ts";
 import { esperando, faltaEspera, pendiente, proximaEspera } from "./maquina.ts"; // U14 (5): steps that wait
 import type { Suceso } from "./maquina.ts";
 import { eventosDe } from "./secuencia.ts"; // U14 (5): a moment only its player sees
+import { claveConcesion, concesion } from "./concesion.ts"; // U14 (6): the reward granted, recorded once
 
 /** Ticks between two «has it arrived?» checks of one player (4 = 0.2 s). Only players on a llega_a step are checked. */
 export const LLEGADA_CADA = 4;
@@ -108,6 +109,16 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       M.emit("marcas", marcasMsg, { to: x });
     }
   };
+  /** U14 (6): a quest with rewards completed by someone with identity: ONE grant record (concesion.ts), written only if
+   * its key is absent — never over it. Without identity (I1) nothing is recorded, like its progress. */
+  const conceder = (e: number, m: Mision) => {
+    const w = M?.who(e);
+    if (!M || !w || !m.recompensas.length) return;
+    const k = claveConcesion(m.id, w.id);
+    if (M.store.get(k) !== undefined) return; // granted before (another tab, a repeatable quest done again): the first stays
+    if (!M.store.set(k, concesion(m, w, new Date().toISOString()))) M.log(`no pude apuntar la concesión de «${m.id}» a ${w.id}`);
+  };
+
   /** After steps were completed: save, tell (announced), resend the book, re-arm the arrival checks. A `recibe` step
    * says what you got («Has recibido: …»). */
   const tras = (e: number, p: Progreso, hechos: Hecho[]) => {
@@ -115,6 +126,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     for (const h of hechos) {
       const m = A.misiones.get(h.mision)!, s = m.pasos[h.paso];
       const texto = s.tipo === "recibe" ? corta(`Has recibido: ${A.cosas.get(s.cosa)?.nombre ?? s.cosa}`, LIM.textoPaso) : s.texto;
+      if (h.completada) conceder(e, m); // before anyone hears «completada»: the record exists when the page says it
       for (const x of suyos(e)) {
         M!.emit("avance", { mision: m.id, texto }, { to: x });
         if (h.completada) M!.emit("completada", { mision: m.id, titulo: m.titulo, texto: m.textos.completada, recompensa: recompensa(m) }, { to: x });
@@ -198,7 +210,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     M = api;
     cargar(api);
     for (const c of A.cosas.values()) {
-      api.state.set(c.id, { nombre: c.nombre, descripcion: c.descripcion, x: c.posicion.x, z: c.posicion.z, radio: c.radio, aviso: c.aviso, modelo: c.apariencia.modelo, escala: c.apariencia.escala, y: c.posicion.y, color: c.apariencia.color }, { at: { x: c.posicion.x, z: c.posicion.z } });
+      api.state.set(c.id, { nombre: c.nombre, descripcion: c.descripcion, x: c.posicion.x, z: c.posicion.z, radio: c.radio, aviso: c.aviso, modelo: c.apariencia.modelo, escala: c.apariencia.escala, y: c.posicion.y, color: c.apariencia.color, modeloUsada: c.apariencia.usada?.modelo ?? "", escalaUsada: c.apariencia.usada?.escala ?? c.apariencia.escala }, { at: { x: c.posicion.x, z: c.posicion.z } }); // U14 (6): the used look travels with it; each page picks by its own book
     }
     api.onIdentify((e) => {
       const antes = claveDe.get(e);

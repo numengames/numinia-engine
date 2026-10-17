@@ -67,8 +67,10 @@ export type Pnj = {
   giro: number; radio: number; dialogo: { entradas: { si: Condicion[]; nodo: string }[]; nodos: Record<string, Nodo> };
 };
 /** A thing's `posicion.y` (optional, metres above the ground: a thing on a table or held up at chest height, reachable
- * with a hand in VR) and `apariencia.color` (optional «#rrggbb»: the house block in a colour, so two things differ). */
-export type Cosa = { formato: "cosa@1"; id: string; nombre: string; descripcion: string; apariencia: Apariencia & { color: string }; posicion: { x: number; z: number; y: number }; radio: number; aviso: string };
+ * with a hand in VR) and `apariencia.color` (optional «#rrggbb»: the house block in a colour, so two things differ).
+ * `apariencia.usada` (optional, U14 (6)): how it looks for a player once THEY did the step that uses it (`usa`/`coge`)
+ * in a quest they have or finished — the open chest; absent when the file does not say it. */
+export type Cosa = { formato: "cosa@1"; id: string; nombre: string; descripcion: string; apariencia: Apariencia & { color: string; usada?: Apariencia }; posicion: { x: number; z: number; y: number }; radio: number; aviso: string };
 export type Fichero = { fichero: string; texto: string };
 export type Aventura = {
   misiones: Map<string, Mision>; pnjs: Map<string, Pnj>; cosas: Map<string, Cosa>;
@@ -397,9 +399,10 @@ export function leerCosa(v: unknown): Result<Cosa> {
   if (!o) return resultado(is, null as never);
   campos(o, ["formato", "id", "nombre", "descripcion", "apariencia", "posicion", "radio", "aviso", "notas"], "", is);
   formato(o, FORMATOS.cosa, is);
+  const ap = apariencia(o.apariencia, "apariencia", is, ["color", "usada"]), usada = usadaDe(o.apariencia, ap.escala, is);
   return resultado(is, {
     formato: FORMATOS.cosa, id: id(o.id, "id", is), nombre: texto(o.nombre, "nombre", LIM.nombre, is), descripcion: texto(o.descripcion, "descripcion", LIM.descripcionCosa, is, true),
-    apariencia: { ...apariencia(o.apariencia, "apariencia", is, ["color"]), color: color(o.apariencia, is) },
+    apariencia: { ...ap, color: color(o.apariencia, is), ...(usada ? { usada } : {}) },
     posicion: { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is, ALTURA_MAX) }, radio: numero(o.radio, "radio", 1, 8, is, 2),
     aviso: texto(o.aviso, "aviso", LIM.aviso, is),
   });
@@ -418,6 +421,19 @@ function color(v: unknown, is: Issue[]): string {
   if (typeof c === "string" && COLOR.test(c)) return c.toLowerCase();
   is.push({ path: "apariencia.color", message: "un color como «#3a7bd5» (# y seis cifras hexadecimales)" });
   return "";
+}
+
+/** cosa@1 `apariencia.usada` (U14 (6)): `{ "modelo": "<sha256 of a .glb>", "escala"? }` = how the thing looks for a
+ * player once they did the step that uses it (`usa` or `coge`) — the chest open for YOU while the others still see it
+ * closed. `escala` is the thing's own when absent. The page decides it from that player's own book (client.ts). */
+function usadaDe(v: unknown, escala: number, is: Issue[]): Apariencia | undefined {
+  const u = typeof v === "object" && v !== null ? (v as Record<string, unknown>).usada : undefined;
+  if (u === undefined) return undefined;
+  const p = "apariencia.usada";
+  if (!esObjeto(u)) { is.push({ path: p, message: "un objeto { \"modelo\": \"<sha256 de un .glb>\", \"escala\": 1 }: cómo se ve la cosa cuando ya la has usado (el cofre abierto)" }); return undefined; }
+  campos(u, ["modelo", "escala"], p, is);
+  if (typeof u.modelo !== "string" || !SHA.test(u.modelo)) { is.push({ path: en(p, "modelo"), message: "el sha256 (64 letras hex) del .glb de cómo se ve ya usada (subido al mundo o de la biblioteca)" }); return undefined; }
+  return { modelo: u.modelo, escala: numero(u.escala, en(p, "escala"), 0.05, 50, is, escala) };
 }
 
 // ---------- the whole adventure: each file, then the references between them ----------
