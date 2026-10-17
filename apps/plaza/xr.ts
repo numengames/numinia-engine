@@ -3,6 +3,7 @@
 // ray + trigger on a person or a thing = talk to it / use it; the trigger on nothing = whatever is in reach (the
 // prompt's thing). Conversations show on a panel in front of you (answer with the ray, or the stick + A; B leaves).
 // What you took is drawn in the hand that took it (beside you on a flat screen) until the quest ends.
+import { ESTADOS, ahorasDe, estadoPaso } from "./misiones.ts"; // U14 (3): a step's state, the same as in the book
 type Res = { ok: true } | { ok: false; why: string };
 type Lado = "izq" | "der";
 type EventoMano = { tipo: "agarrar"; key: string; lado: Lado } | { tipo: "apuntar"; key: string; lado: Lado } | { tipo: "panel"; fila: number; lado: Lado } | { tipo: "gatillo"; lado: Lado };
@@ -96,9 +97,9 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
       const seg = misiones.libro().find((m) => m.estado === "activa" && m.seguida) ?? misiones.libro().find((m) => m.estado === "activa");
       out.push(seg ? seg.titulo : "Sin misión: habla con alguien");
       if (c) out.push(`Gatillo: ${c.prompt}`);
-      if (seg) { // → every step to do now (a grupo's block: several, in any order)
-        const ahora = new Set(misiones.objetivos().filter((x) => x.mision === seg.id).map((x) => x.paso));
-        for (const s of seg.lista.slice(0, 5)) out.push(`${s.hecho ? "✓" : ahora.has(s.n) ? "→" : "·"} ${s.texto}`);
+      if (seg) { // the spec's three states (misiones.ts): ✓ done, → to do now (a grupo's block: several, in any order), □ locked
+        const ahoras = ahorasDe(misiones.objetivos());
+        for (const s of seg.lista.slice(0, 5)) out.push(`${ESTADOS[estadoPaso(seg, s, ahoras)].vr} ${s.texto}`);
       }
       return out;
     },

@@ -81,9 +81,16 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 | Eventos programados | Algo pasa a una hora | ciudad | Mejorado | — | S, calendario | bajo | Frontera, sin fila |
 
 Libro de misiones (J5, rama `misiones`): la máquina, los formatos y los paneles son del motor; las misiones, de la
-aventura (`AVENTURA_DIR`). Tecla J o botón «Misiones»: activas con sus pasos (✓ hecho, → ahora), «Seguir» (columna de
-luz sobre el objetivo y el mapa lo marca), «Abandonar», y las hechas con su insignia. Arriba, una línea con el paso que
-sigues y a cuántos metros está. E (o un clic, o el botón en el móvil) habla con las personas y coge las cosas. Quien construye, cerca de un hueco (U12),
+aventura (`AVENTURA_DIR`). Tecla J o botón «Misiones» (y «Cerrar» dentro): activas con sus pasos, cada uno en uno de los
+tres estados de la especificación de la TRG26 (U14): hecho (check verde, texto atenuado), ahora (un punto del color de
+énfasis del mundo sobre una franja suya, el texto entero y dónde está; en un grupo, todos los que faltan del bloque) y
+bloqueado (candado, texto atenuado: va después del bloque en curso); el lector de pantalla oye «Hecho», «Ahora» o
+«Bloqueado». Se abre solo al aceptar una misión, en cuanto se cierra la conversación que te la dio (escritorio y móvil;
+en VR no: su panel lleva las mismas marcas ✓ → □), y sin quitarte el teclado: sigues andando. «Seguir» (columna de luz
+sobre el objetivo y el mapa lo marca), «Abandonar», y las hechas con su check y su insignia. Arriba, una línea con el
+paso que sigues y a cuántos metros está. Al conseguir algo (te lo dan o lo coges), el aviso del centro lleva el icono de
+objeto; cada paso hecho suena con tres notas cortas (al volumen de «Efectos»). E (o un clic, o el botón en el móvil)
+habla con las personas y coge las cosas. Quien construye, cerca de un hueco (U12),
 pone ahí su obra con E o pinchándolo: se abre el selector de ficheros.
 
 ## 6. Orientarse

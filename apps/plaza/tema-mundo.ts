@@ -32,7 +32,10 @@ export function aplicarTema(t: unknown, raiz: Raiz): number {
   const pon = (k: string, v: string) => { raiz.style.setProperty(k, v); n++; };
   for (const [clave, vars] of Object.entries(VARIABLES)) { const c = color(o[clave]); if (c) for (const x of vars) pon(x, c); }
   const sup = color(o.superficie);
-  if (sup) { const [r, g, b] = rgb(sup); pon("--n-sup", `rgba(${r}, ${g}, ${b}, .92)`); }
+  if (sup) {
+    const [r, g, b] = rgb(sup); pon("--n-sup", `rgba(${r}, ${g}, ${b}, .92)`);
+    if (tinta(sup) !== "#ffffff") pon("--n-hecho", "#1f6b5f"); // a light surface: the book's done check in the house's dark success green
+  }
   const accion = color(o.accion);
   if (accion) pon("--n-accion-tinta", tinta(accion, color(o.fondo) ?? "#14110f"));
   const enfasis = color(o.enfasis);

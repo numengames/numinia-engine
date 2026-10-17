@@ -1,6 +1,7 @@
 // e2e leg (J5 + the J4 core): the engine's EXAMPLE quest in a real browser. Tab A walks to Alma, the prompt says
-// «E: hablar con Alma, la guía», E opens the conversation, the digits pick the answers, it accepts; the book and
-// objetivos() point at the golden pillar; A walks there, then to Bruno (E, 1), then to the box (E: coger la caja);
+// «E: hablar con Alma, la guía», E opens the conversation, the digits pick the answers, it accepts; when the conversation
+// closes the book opens by itself (U14 (3): the focus stays out of it; the pillar «ahora», the rest locked) and J closes
+// it; objetivos() points at the golden pillar; A walks there, then to Bruno (E, 1), then to the box (E: coger la caja);
 // the book shows the quest done. Tab B (another browser context = another guest) sees the people (cards) and never
 // gets A's quest events. Restartable: fresh contexts every run, so a fresh guest (the server keeps old guests' books).
 // Needs the server + page running (tools/auto.sh e2e starts them). Env: BASE, SERVER_HTTP; SHOTS=<folder> saves pictures.
@@ -81,13 +82,13 @@ try {
   // J5's «Hecho cuando»: the map marks the quest's objective (the minimap gathers markers every 200 ms)
   await esperar(a, () => (globalThis.__numinia.mapa?.contar?.().objetivo ?? 0) >= 1, null, 3000).catch(() => {});
   out.aceptada.mapaObjetivo = await ctl(a, () => globalThis.__numinia.mapa?.contar?.().objetivo ?? 0);
-  await a.keyboard.press("Digit1"); // «¡Hasta luego!»
+  await a.keyboard.press("Digit1"); // «¡Hasta luego!»: the conversation closes and the book opens by itself (U14 (3))
   await esperar(a, () => document.getElementById("dialogo").hidden, null, 5000);
-  await a.keyboard.press("KeyJ");
   await esperar(a, () => !document.getElementById("libro").hidden, null, 3000);
-  out.libroAbierto = await ctl(a, () => [...document.querySelectorAll("#libro li")].map((li) => li.textContent));
+  out.libroAbierto = await ctl(a, () => ({ foco: document.getElementById("libro").contains(document.activeElement), pasos: [...document.querySelectorAll("#libro li.paso")].map((li) => `${li.dataset.estado}: ${li.querySelector(".texto")?.textContent}`) }));
   await foto(a, "3-libro");
-  await a.keyboard.press("KeyJ");
+  await a.keyboard.press("KeyJ"); // J closes it
+  await esperar(a, () => document.getElementById("libro").hidden, null, 3000);
   nota("aceptada");
   // 2. the golden pillar: the server sees A arrive
   const ob1 = (await objetivos(a))[0];
@@ -128,7 +129,7 @@ try {
   await esperar(a, () => !document.getElementById("libro").hidden, null, 3000);
   out.hecha = {
     libro: await libro(a), objetivos: await objetivos(a), resumen: await ctl(a, () => globalThis.__numinia.misiones.resumen()),
-    panel: await ctl(a, () => [...document.querySelectorAll("#libro li")].map((li) => li.textContent)),
+    panel: await ctl(a, () => [...document.querySelectorAll("#libro ul.hechas li")].map((li) => li.getAttribute("aria-label"))),
     avisos: await ctl(a, () => globalThis.__numinia.session.features.announcements.filter((x) => x.feature === "misiones").map((x) => x.text)),
     dibujo: await ctl(a, () => ({ objetos: globalThis.__numinia.view.objects(), nombres: globalThis.__numinia.view.tagCount(), coste: globalThis.__numinia.cost() })),
   };
@@ -148,9 +149,9 @@ try {
   const ob1ok = ob1 && ob1.x === 18 && ob1.z === 0 && ob1.nombre === "Pilar dorado";
   ok = out.alma.card.role === "persona" && /^E: hablar con Alma, la guía$/.test(out.alma.prompt) && out.alma.dialogo.opciones.length === 2 && /^1\. /.test(out.alma.dialogo.foco ?? "")
     && out.aceptada.libro[0]?.seguida === true && ob1ok && out.aceptada.balizas > 0 && out.aceptada.mapaObjetivo >= 1 && /Primeros pasos/.test(out.aceptada.linea)
-    && out.libroAbierto.some((t) => t.startsWith("→ Visita el pilar dorado"))
+    && !out.libroAbierto.foco && /^ahora: Visita el pilar dorado/.test(out.libroAbierto.pasos[0] ?? "") && out.libroAbierto.pasos.length === 3 && out.libroAbierto.pasos.slice(1).every((t) => t.startsWith("bloqueado: "))
     && out.pilar.siguiente?.nombre === "Bruno, el farolero" && !!out.bruno.clic && out.bruno.siguiente?.nombre === "Caja de herramientas" && out.caja.prompt === "E: coger la caja"
-    && out.hecha.libro[0]?.estado === "hecha" && out.hecha.objetivos.length === 0 && out.hecha.panel.some((t) => t.startsWith("✓ Primeros pasos en la plaza"))
+    && out.hecha.libro[0]?.estado === "hecha" && out.hecha.objetivos.length === 0 && out.hecha.panel.some((t) => t.startsWith("Hecho: Primeros pasos en la plaza"))
     && out.hecha.dibujo.objetos.failed === 0 && out.b.personas.includes("persona: Alma, la guía") && out.b.eventos.length === 0 && out.b.libro === 0 && out.b.otroInvitado && errors.length === 0;
 } catch (e) { out.error = String(e).split("\n")[0]; }
 await browser.close();

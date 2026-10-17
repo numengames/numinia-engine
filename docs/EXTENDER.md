@@ -348,8 +348,10 @@ a Leonardo:
 ]
 ```
 
-El jugador ve en el libro una → en cada pieza que le falta, las tres en el mapa y arriba «★ El vuelo del Maestro · Piezas
-reunidas 1/3 · Bianca, a 12 m al norte» (la más cercana); al hablar con cada artesano, «✓ Has recibido: <la cosa>».
+En el libro, cada pieza que le falta sale como «ahora» y la entrega y el cofre con candado hasta que les toca (el libro
+se abre solo al aceptar la misión, en cuanto termina la conversación con quien la da); las tres, en el mapa, y arriba
+«★ El vuelo del Maestro · Piezas reunidas 1/3 · Bianca, a 12 m al norte» (la más cercana); al hablar con cada artesano,
+«Has recibido: <la cosa>» con el icono de objeto (también al coger algo con un paso `coge`) y un sonido corto.
 Hablar dos veces con el mismo no cuenta dos. Leonardo no acepta la entrega hasta que llevas las tres.
 
 Recompensas: hoy solo insignias (recuerdos de lo hecho; sin economía). `requisitos.misiones`: las que hay que haber

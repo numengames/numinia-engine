@@ -81,6 +81,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozo 1, el tema, hecho) | no |
 | U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema, y 2, pasos en cualquier orden, hechos) | no |
 | U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema, y 2, pasos en cualquier orden, y el mapa cortado, hechos) | no |
+| U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema; 2, pasos en cualquier orden; el mapa cortado, y 3, el libro con estados, hechos) | no |
 | U4 | Zona de usuario: quién eres, avatar, misiones e insignias, lo que he construido (lista, cuota, borrar, descargar), privacidad y datos, seguridad; el informe de sesión (T1) pasa a pedir consentimiento | espera a U2 | sí |
 | I3 | «Guardar mi progreso» con una llave de acceso (passkey) del propio motor, sin correo (Pablo, 15-10: camino B); la llave queda unida al invitado | pendiente | sí |
 | U5 | «Editar interfaz»: mover sin arrastrar (cuadrícula 3×3, números, flechas, lista), 5 disposiciones por clase de aparato, copiar y pegar `nl1.` sin código | espera a U3 | sí |
@@ -1172,9 +1173,26 @@ la TRG26, SwiftShader): el corte mira 142.194 triángulos y da 3.340 segmentos e
 software, casi todo leer los píxeles de la GPU; dos fotos por visita; parado 20 s, ninguna nueva y 58 dibujos 3D frente a
 60 sin corte. 6 pruebas (`test/mapa-corte.test.ts`) y las del esquema en `test/entorno.test.ts`. **Sin medir:** en un
 móvil de verdad. Mientras alguien construye en un mundo cortado, cada página rehace la foto hasta cada 5 s.
-**Falta:** el libro con los estados de la especificación (hecho, disponible, bloqueado) y abierto al aceptar; el icono
-de la pieza conseguida (el aviso y el sonido ya están); marcas sobre las personas («!», ✓) y su oficio bajo el nombre;
-secuencia local (el vuelo); espera antes del cofre; cofre de dos aspectos; premio registrado una sola vez.
+**Trozo 3 hecho (17-10, rama `plantillas/eventos`): el libro con los estados de la especificación.** Cada paso sale en
+uno de tres estados, igual de claros en el aire de la casa y en el de cada mundo (todo son variables de `tema.css`):
+hecho (check verde, el «poco común» de la casa, y texto atenuado; sobre una superficie clara de tema, el verde oscuro de
+éxito), ahora (un punto del color de énfasis del mundo sobre una franja suya, texto entero y dónde; en un grupo, todos
+los que faltan del bloque) y bloqueado (candado `lock-key` y texto atenuado, aún a 4,5:1). El lector oye «Hecho»,
+«Ahora» o «Bloqueado»; el panel de VR lleva ✓ → □ (sin fuente de emoji). El estado sale de `objetivos()` (`estadoPaso`
+en `apps/plaza/misiones.ts`; `features/misiones` no cambia). El libro se abre solo al aceptar una misión, cuando se
+cierra la conversación que la dio (escritorio y móvil, nunca en VR), sin llevarse el foco (WASD sigue andando) y
+diciéndoselo al lector; lleva «Cerrar (J)». Al conseguir algo (`recibe` o `coge`), el aviso lleva el icono `package`
+(los dos iconos, del subconjunto de la casa) y queda por encima del libro (en el móvil lo tapaba). El sonido: el `avance`
+declaraba «exito» pero la página no tocaba nada (los sonidos de los avisos llegan con V6); ahora cada paso hecho suena
+con tres notas cortas (Web Audio, sin fichero) al volumen general × «Efectos». **Medido:** 7 pruebas
+(`test/misiones-libro.test.ts`: los estados en un bloque y fuera, dos misiones sin mezclarse, la misión hecha, abrirse
+una sola vez y nunca en VR, los avisos con icono, el check en un tema claro y la misión de la TRG por el enchufe real
+con las marcas de VR en cada momento); la pierna `misiones` del e2e, al día. En el navegador (servidor y página propios,
+Playwright): 22 de 22 comprobaciones en el aire de la casa, en el de la TRG y en un móvil de 390 × 844; en VR (IWER) el
+libro no se abre y el panel dice →→→□□. Arranque: +1,5 kB gz. **Sin medir:** las marcas en unas Quest de verdad.
+**Falta:** marcas sobre las personas («!», ✓) y su oficio bajo el nombre; secuencia local (el vuelo); espera antes del
+cofre; cofre de dos aspectos; premio registrado una sola vez; que V6 dé su sonido a cada aviso (y quite las notas del
+libro).
 
 ### U1 — Pantalla de carga
 Armazón dentro de `index.html` (≤ 14 kB comprimido, letra del sistema, sin lienzo ni `requestAnimationFrame`) y un

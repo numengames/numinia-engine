@@ -541,3 +541,26 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
   `fotos/mapa-corte-grande.png`.
 - Commit: 1a4b99a en `plantillas/eventos-mapa` (un segundo worktree, en paralelo con U14 (2)) y la unión 8c59e7a.
 - Siguiente: el libro con los estados y las marcas sobre las personas (en paralelo, cada uno en su worktree).
+
+## 2026-10-17 01:01 · U14 (3) · el libro dice hecho / ahora / bloqueado y se abre solo al aceptar · hecho (sesión con Pablo, rama `plantillas/eventos`, sin subir)
+- Qué: lo que la especificación de la TRG26 pide al libro (§3 y §6), para cualquier mundo. Cada paso sale en uno de tres
+  estados: hecho (check verde y texto atenuado), ahora (un punto del color de énfasis del mundo sobre una franja suya, el
+  texto entero y dónde; en un grupo, todos los que faltan del bloque) y bloqueado (candado y texto atenuado: va después
+  del bloque en curso). El lector de pantalla oye «Hecho», «Ahora» o «Bloqueado»; el panel de VR lleva ✓ → □. El libro se
+  abre solo al aceptar una misión, en cuanto se cierra la conversación que la dio (escritorio y móvil; en VR no), sin
+  llevarse el foco: WASD sigue andando, y J o su nuevo «Cerrar» lo cierran. «Has recibido: …» (y coger algo) lleva el
+  icono de objeto; candado y objeto son `lock-key` y `package`, del subconjunto de iconos de la casa. El sonido corto que
+  el aviso `avance` declaraba («exito») no sonaba (la página no toca los sonidos de los avisos hasta V6): ahora el libro
+  toca tres notas (Web Audio, sin fichero) al volumen general × «Efectos». En el móvil el aviso quedaba debajo del libro:
+  ahora va encima. La línea de arriba, igual. Sin cambios en `features/misiones` (el estado sale de `objetivos()`).
+- Números: 7 pruebas nuevas (`test/misiones-libro.test.ts`), 394 en total: en verde las 394 en una pasada y 393 en las
+  puertas con la máquina a carga 9 (la de siempre, `chat.test.ts`, coste de nombres para 1.000, que pasa sola: 13 de 13).
+  Puertas: capas 0, huella f719d31b, 26,7 kbit/s, plaza de 1.000 p99 7,2 ms. `npm run build` en verde; el arranque crece
+  1,2 kB gz de JS y 0,35 kB gz de CSS. En el navegador (servidor 8885 y página 5325 propios, Playwright, la misión de la TRG
+  en una carpeta de prueba): 22 de 22 comprobaciones en el aire de la casa, en el de la TRG y en un móvil de 390 × 844;
+  las piernas `misiones` (al día con lo nuevo) y `manos` del e2e, en verde contra ese servidor; en VR (IWER) el libro no
+  se abre y el panel dice →→→□□. Fotos en la plantilla: `fotos/libro-1-recien-aceptada.png`, `libro-2-una-pieza.png`,
+  `libro-3-tres-piezas.png` y `libro-4-aire-trg.png`.
+- Commit: rama `plantillas/eventos` (ver `git log`), encima de U14 (mapa).
+- Siguiente: las marcas sobre las personas (U14 (4), en paralelo en `plantillas/eventos-marcas`); secuencia local (el
+  vuelo); espera antes del cofre; cofre de dos aspectos; premio una sola vez. Sin medir: las marcas en unas Quest de verdad.

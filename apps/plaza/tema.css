@@ -11,6 +11,7 @@
   --n-fondo: #14110F; --n-sup: rgba(30, 26, 23, .9); --n-elev: #292420; --n-texto: #F9EBDC; --n-texto2: #C4B5A6;
   --n-linea: #3A332D; --n-turquesa: #018EA1; --n-accion: #017C8D; --n-accion-h: #016E7D; --n-ambar: #EFA517;
   --n-verdemar: #A6DAD5; --n-grana: #D33440; --n-grana-h: #B02330;
+  --n-hecho: #8FC46B; /* U14 (3): a done step's check, green as the TRG26 spec asks (the house «poco común»); on a light tema surface, darker (tema-mundo.ts) */
   --mini: min(150px, 30vmin);
   /* what a world's tema can change besides the colours (ficha@1 `tema`): these values ARE the house look */
   --n-titulos: "Geist", system-ui, sans-serif; --n-titulos-peso: 600; --n-titulos-espacio: -.01em; --n-titulos-escala: 1;
@@ -44,7 +45,27 @@ html, body { font-family: "Geist", system-ui, sans-serif; }
 #chat-lista .aviso { color: var(--n-ambar) !important; }
 #mision-seguida { color: var(--n-ambar) !important; }
 #interactuar { color: var(--n-texto) !important; }
-#mision-nota { background: var(--n-ambar) !important; color: var(--n-enfasis-tinta, var(--n-fondo)) !important; border-radius: 8px !important; }
+#mision-nota { z-index: 6; background: var(--n-ambar) !important; color: var(--n-enfasis-tinta, var(--n-fondo)) !important; border-radius: 8px !important; } /* over the open book (a phone) */
+#mision-nota .objeto { display: inline-block; vertical-align: -4px; margin-right: 6px; } /* «Has recibido: …»: the item icon */
+
+/* ---- the quest book's steps (U14 (3), the TRG26 spec's states): done = a green check, dimmed; now = a dot in the
+   world's emphasis colour on a faint band of it, at full strength; locked = a lock, dimmed. Colours are variables, so a
+   world's tema dresses them too ---- */
+#libro .cabeza { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
+#libro .cabeza h2 { margin: 0 !important; }
+#libro .cabeza .cerrar { padding: 3px 10px !important; font-size: 12px; }
+#libro ol.pasos, #libro ul.hechas { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+#libro li.paso { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 8px; align-items: start; padding: 3px 8px; border-radius: 6px; }
+#libro li.paso > .marca { grid-column: 1; height: 1.45em; display: flex; align-items: center; justify-content: center; }
+#libro li.paso > .texto, #libro li.paso > .donde { grid-column: 2; min-width: 0; }
+#libro li.paso > .donde { font-size: 12px; font-weight: 400; color: var(--n-verdemar); }
+#libro li.paso.hecho { color: var(--n-texto2); }
+#libro li.paso.hecho > .texto { opacity: .85; }
+#libro li.paso.hecho > .marca { color: var(--n-hecho); }
+#libro li.paso.ahora { color: var(--n-texto); font-weight: 600; background: color-mix(in srgb, var(--n-ambar) 14%, transparent); }
+#libro li.paso.ahora > .marca::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--n-ambar); outline: 2px solid color-mix(in srgb, var(--n-ambar) 45%, transparent); outline-offset: 2px; }
+#libro li.paso.bloqueado { color: var(--n-texto2); }
+#libro li.paso.bloqueado > .texto, #libro li.paso.bloqueado > .marca { opacity: .75; } /* dimmed, still ≥ 4.5:1 on the house surface */
 
 /* ---- controls: ghost by default, ink-on-paper when active, 6px (a world's tema may round them: --n-r-control) ---- */
 #panel-construir button, #libro button, #dialogo button:not(.adios), #ajustes button, #panel-entorno button, #minimapa button, .panel-j5 button, #barra-objeto button, #barra-arriba button {
