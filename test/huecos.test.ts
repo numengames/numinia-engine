@@ -161,6 +161,19 @@ test("U12: a pinned hole takes a work and gives it back (undo, empty); copying a
   assert.equal(w.obj(copia).modelo, SHA.cartel);
 });
 
+test("U12: a pinned picture cannot be turned into a hole (fijado protects the content too, not just the spot)", () => {
+  const w = world(), id = conCartel(w);
+  w.b.seleccionar(id); w.b.fijar(); w.pump();
+  assert.equal(w.obj(id).fijado, true);
+  w.b.hueco(id, 2.4, 1.6); w.pump();
+  assert.match(w.ultimo(), /Está fijado/);
+  assert.equal(w.b.huecos().length, 0, "an official sign stays a plain picture, not an editable hole");
+  // unpin it first, same as mover/girar/borrar: then the owner may make it a hole
+  w.b.fijar(); w.pump();
+  assert.ok(w.b.hueco(id, 2.4, 1.6).ok); w.pump();
+  assert.equal(w.b.huecos().length, 1);
+});
+
 test("U12: the server measures a picture it has once (library or uploads); nothing else", () => {
   const dir = mkdtempSync(join(tmpdir(), "huecos-")), b = jpg(1600, 1200, 6), h = sha256(b);
   writeFileSync(join(dir, `${h}.jpg`), b);

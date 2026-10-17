@@ -199,6 +199,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
     if (!puede(from)) return;
     const o = objeto(from, m.id), id = String(m.id);
     if (!o) return;
+    if (o.fijado) return void rechazar(from, "Está fijado: suéltalo antes de hacerle un hueco.");
     const ancho = q(m.ancho, PASO.pos), alto = q(m.alto, PASO.pos);
     if (ancho === 0 && alto === 0) { // no longer a hole: it keeps the picture it shows now
       if (!esHueco(o)) return void noEsHueco(from, o, id);
