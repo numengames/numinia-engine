@@ -211,12 +211,29 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const http: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
     const [path, qs = ""] = (req.url ?? "/").split("?");
     const method = req.method ?? "GET";
-    if (method === "GET" && path === "/health") return json(res, 200, { ok: true, version, huella: hex(refHash), conectados: inst.conns.length });
+    if (method === "GET" && path === "/health") {
+      const personas = inst.conns.filter((c) => !c.who?.id.startsWith("ia-")).length, total = inst.conns.length;
+      return json(res, 200, { ok: true, version, huella: hex(refHash), conectados: total, personas, agentes: total - personas });
+    }
     // C4: what the Worlds room of numinia.com reads (no people's names, no positions); people only, not the AI inhabitants;
     // with a ficha (ADR-074) also the world's own name, description and cover (/a/<sha256>.<ext>)
+    // STD personas/agentes (Pablo, 17-10): `conectados` stays people-only (numinia.com's room reads it as the room's
+    // size); `agentes` and `total` are new. `agentesDe` says whose each agent is: a world inhabitant (habitante, P4,
+    // never anyone's but the world's own) or one of numinia.com's organizations (ADR-080, a signed pass), by org id.
     if (method === "GET" && path === "/status") {
+      const agentesConectados = inst.conns.filter((c) => c.who?.id.startsWith("ia-"));
+      const personas = inst.conns.length - agentesConectados.length;
+      const agentesDe: { habitante: number; organizacion: Record<string, number> } = { habitante: 0, organizacion: {} };
+      for (const c of agentesConectados) {
+        const org = roles.organizacionDeAgente(c.who!.id);
+        if (org) agentesDe.organizacion[org] = (agentesDe.organizacion[org] ?? 0) + 1; else agentesDe.habitante++;
+      }
       res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "access-control-allow-origin": "*" });
-      return void res.end(JSON.stringify({ uptime: Math.floor((performance.now() - born) / 1000), conectados: inst.conns.filter((c) => !c.who?.id.startsWith("ia-")).length, commitHash: motor.commit ?? undefined, version, ...(cfgPase.pase ? { mundoPase: cfgPase.pase.mundo } : {}), ...fichaPublica }));
+      return void res.end(JSON.stringify({
+        uptime: Math.floor((performance.now() - born) / 1000), conectados: personas, agentes: agentesConectados.length,
+        total: inst.conns.length, agentesDe, commitHash: motor.commit ?? undefined, version,
+        ...(cfgPase.pase ? { mundoPase: cfgPase.pase.mundo } : {}), ...fichaPublica,
+      }));
     }
     if (method === "GET" && path === "/metrics") return json(res, 200, metrics());
     if (method === "GET" && path === "/sesiones") return json(res, 200, { schema: "numinia-engine/sesiones@1", carpeta: sesiones.dir, resumen: sesiones.resumen(), ahora: sesiones.ahora() });

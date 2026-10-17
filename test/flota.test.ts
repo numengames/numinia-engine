@@ -83,7 +83,7 @@ test("C1: the page — files under WWW_DIR only, right types, index.html revalid
   } finally { await srv.close(); }
 });
 
-test("C4: /status = {uptime, conectados, commitHash, version} — no names, no positions; open to the room", async () => {
+test("C4 + personas/agentes: /status = {uptime, conectados, agentes, total, agentesDe, commitHash, version} — no names, no positions; open to the room", async () => {
   const srv = await startServer({ port: 0, host: "127.0.0.1", log: () => {}, statsMs: 60_000, motor: MOTOR });
   try {
     const t = webSocketClient(`ws://127.0.0.1:${srv.port}/ws`), s = new ClientSession(t);
@@ -92,9 +92,14 @@ test("C4: /status = {uptime, conectados, commitHash, version} — no names, no p
     const r = await fetch(`http://127.0.0.1:${srv.port}/status`);
     assert.equal(r.headers.get("access-control-allow-origin"), "*");
     const st = await r.json();
-    assert.deepEqual(Object.keys(st).sort(), ["commitHash", "conectados", "uptime", "version"]);
-    assert.equal(st.conectados, 1); assert.equal(st.commitHash, COMMIT); assert.equal(st.version, "c57dbb7 2026-10-16");
+    assert.deepEqual(Object.keys(st).sort(), ["agentes", "agentesDe", "commitHash", "conectados", "total", "uptime", "version"]);
+    assert.equal(st.conectados, 1); assert.equal(st.agentes, 0); assert.equal(st.total, 1);
+    assert.deepEqual(st.agentesDe, { habitante: 0, organizacion: {} });
+    assert.equal(st.commitHash, COMMIT); assert.equal(st.version, "c57dbb7 2026-10-16");
     assert.ok(Number.isInteger(st.uptime) && st.uptime >= 0);
+    const h = await (await fetch(`http://127.0.0.1:${srv.port}/health`)).json();
+    assert.deepEqual(Object.keys(h).sort(), ["agentes", "conectados", "huella", "ok", "personas", "version"]);
+    assert.equal(h.conectados, 1); assert.equal(h.personas, 1); assert.equal(h.agentes, 0);
     t.close();
   } finally { await srv.close(); }
 });

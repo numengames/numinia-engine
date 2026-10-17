@@ -109,6 +109,7 @@ export const TIPOS_BASE: Readonly<Record<string, Tipo>> = {
   destino: { nombre: "Destino", color: "#d6336c", forma: "anillo", tam: 6, orden: 95, enLista: true, alBorde: true },
   objetivo: { nombre: "Objetivo de misión", color: "#e0a800", forma: "estrella", tam: 6, orden: 90, enLista: true, alBorde: true },
   persona: { nombre: "Persona", color: "#2f6fd0", forma: "punto", tam: 4, orden: 80, enLista: true, alBorde: false },
+  agente: { nombre: "Agente (IA)", color: "#14897a", forma: "rombo", tam: 4, orden: 75, enLista: true, alBorde: false },
   npc: { nombre: "Personaje", color: "#8a3fc0", forma: "rombo", tam: 5, orden: 70, enLista: true, alBorde: false },
   portal: { nombre: "Salida o portal", color: "#0f8a6a", forma: "anillo", tam: 5, orden: 60, enLista: true, alBorde: true },
   elemento: { nombre: "Elemento (agua, fuego…)", color: "#1679a8", forma: "triangulo", tam: 5, orden: 50, enLista: true, alBorde: false },
