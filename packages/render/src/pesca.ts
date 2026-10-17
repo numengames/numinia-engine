@@ -2,14 +2,17 @@
 // bank with stones and reeds, a boardwalk of planks into the water and a «Pesca» sign —, the rod, line and float of
 // everyone fishing near you, and the fish you land: it jumps out of the water, flies along the line into the angler's
 // right hand and hangs there a few seconds (everyone near sees it, with the label the page puts over the head).
-// Procedural, no .glb. Water = ONE draw call: two layers of a tileable normal map drifting, a fresnel toward the sky
-// colour, a depth colour darkening toward the centre, and two rings of ripples (float landing, bite, jump) perturbing
-// the normal; no reflection render-target (phones). Per spot: 7 draw calls (water, bank, stones, reeds, boardwalk,
+// Procedural, no .glb. Water = ONE draw call: the engine's stylised water (agua-estilo.ts: flat shallow/deep bands,
+// shore foam, stepped fresnel toward the horizon, caustics/streaks by tier) plus two pale rings of ripples (float
+// landing, bite, jump); no texture, no reflection render-target (phones). Per spot: 7 draw calls (water, bank, stones, reeds, boardwalk,
 // sign, its text); per angler: 3 (rod, line, float); per landed fish: 1 (body, tail, fins and eyes merged, vertex
 // colours by species). The page's chunk (apps/plaza/pesca.ts) loads this with the first spot.
 import * as THREE from "three/webgpu";
-import { uniform, texture, uv, vec2, vec3, vec4, float, normalMap, mix, positionWorld, positionViewDirection, normalView, dot, pow, oneMinus, length, exp, abs, sin, smoothstep, clamp, max, Fn } from "three/tsl";
-import { normalesDeAgua } from "./agua-normales.ts";
+import { uniform } from "three/tsl";
+import { materialDeAgua as aguaEstilo, geometriaDeAgua } from "./agua-estilo.ts";
+import type { LuzAgua } from "./agua-estilo.ts";
+import { detalleAgua, OLAS_DESDE_M } from "./calidad.ts";
+import type { DetalleAgua } from "./calidad.ts";
 
 export type Sitio3D = { id: string; x: number; y: number; z: number; radio: number };
 export type Flotador3D = { quien: number; x: number; y: number; z: number };
@@ -17,7 +20,9 @@ export type Captura3D = { quien: number; pez: string; cm: number; rareza: string
 export type Fase = "nada" | "espera" | "mordisqueo" | "picada" | "pelea";
 export type Estado3D = { fase: Fase; desde: number; tension: number; progreso: number; arrancada: "no" | "aviso" | "si" };
 export type Quien = number | "self";
-export type Ayudas = { world: THREE.Group; posicionDe: (quien: Quien) => THREE.Vector3 | null; manoDe?: (quien: Quien, out: THREE.Vector3) => THREE.Vector3 | null; orientar?: (quien: Quien, rumbo: number | undefined) => void };
+export type Ayudas = { world: THREE.Group; posicionDe: (quien: Quien) => THREE.Vector3 | null; manoDe?: (quien: Quien, out: THREE.Vector3) => THREE.Vector3 | null; orientar?: (quien: Quien, rumbo: number | undefined) => void;
+  /** N2: the scene's light for the water and the water detail of this tier (without them: the house light, tier C's detail). */
+  agua?: { luz: LuzAgua; detalle: () => DetalleAgua } };
 
 const PUNTOS = 24, LARGO_CANA = 2.0, ALTO_MANO = 1.05, LADO_MANO = 0.32, LANZAMIENTO_MS = 900;
 /** The fish's flight from the water to the hand (ms) and how far an angler may step before the fish is put away (m). */
@@ -98,7 +103,6 @@ export function crearPesca(h: Ayudas) {
   const pezGeos = new Map<string, THREE.BufferGeometry>();
   const tierraMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true });
   const maderaMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
-  const normales = normalesDeAgua();
   const tiempo = uniform(0);
   const anglers = new Map<Quien, Angler>();
   const ultimoFlotador = new Map<Quien, THREE.Vector3>(); // where the float was when the angler stopped (the fish jumps from there)
@@ -109,38 +113,18 @@ export function crearPesca(h: Ayudas) {
   let mordisqueoEn = 0, arrancadaVista: Estado3D["arrancada"] = "no";
   const up = new THREE.Vector3(0, 1, 0), tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tip = new THREE.Vector3(), q = new THREE.Quaternion();
 
-  // ---- the water: one node material per pond (each pond has its own ripple uniforms) ----
-  function materialDeAgua(ondas: [Onda, Onda]): THREE.MeshStandardNodeMaterial {
-    const mat = new THREE.MeshStandardNodeMaterial({ roughness: 0.12, metalness: 0, transparent: true });
-    const rep = vec2(2, 2); // a 3.4 m tile: fine enough to ripple, coarse enough not to shimmer at 640×400
-    const a = texture(normales, uv().mul(rep).add(vec2(tiempo.mul(0.019), tiempo.mul(0.011))));
-    const b = texture(normales, uv().mul(rep).mul(0.71).sub(vec2(tiempo.mul(0.014), tiempo.mul(-0.009))));
-    // a ring leaving the point (x, z) since t0 with strength w: a bump on the normal that fades in 4 s
-    const onda = (o: Onda) => {
-      const u = o as unknown as ReturnType<typeof vec4>;
-      const edad = tiempo.sub(u.z);
-      const dxz = positionWorld.xz.sub(u.xy), d = length(dxz);
-      const amp = u.w.mul(exp(edad.mul(-1.4))).mul(exp(abs(d.sub(edad.mul(1.7))).mul(-2.2))).mul(smoothstep(0, 0.05, edad)).mul(smoothstep(-0.1, 0.1, edad.negate().add(4)));
-      return dxz.div(max(d, 0.02)).mul(sin(d.mul(22).sub(edad.mul(16)))).mul(amp).mul(0.35);
-    };
-    const base = mix(a, b, 0.5);
-    const n = base.xy.add(onda(ondas[0])).add(onda(ondas[1]));
-    mat.normalNode = normalMap(vec4(n, base.z, 1), vec2(0.6, 0.6));
-    // depth colour toward the centre, fresnel toward the sky at the edges (what a pond looks like, without reflecting the scene)
-    const borde = length(uv().sub(0.5)).mul(2);                                      // 0 centre … 1 shore
-    const fondo = mix(vec3(0.05, 0.16, 0.2), vec3(0.12, 0.36, 0.42), smoothstep(0.25, 1, borde));
-    const fresnel = pow(oneMinus(clamp(dot(normalView, positionViewDirection), 0, 1)), 3);
-    mat.colorNode = mix(fondo, vec3(0.62, 0.78, 0.9), fresnel.mul(0.55));
-    mat.opacityNode = mix(float(0.86), float(0.98), fresnel);
-    return mat;
-  }
+  // ---- the water: one node material per pond (each pond has its own ripple uniforms), rebuilt when the tier changes ----
+  const detalle = (): DetalleAgua => h.agua?.detalle() ?? detalleAgua("C", "simple");
+  let detalleVisto = JSON.stringify(detalle());
+  const AGUA_ESTANQUE = 0x2a8a96;
+  const materialDeAgua = (R: number, ondas: [Onda, Onda]) => aguaEstilo({ color: AGUA_ESTANQUE, forma: { tipo: "circulo", radio: R }, detalle: detalle(), tiempo: tiempo as unknown as { value: number }, luz: h.agua?.luz, ondas, bordeOculto: 0.2 }, OLAS_DESDE_M);
 
   function nuevoEstanque(s: Sitio3D): Estanque {
     const { R, dir, pantalan, rumbo } = trazaDeSitio(s);
     const grupo = new THREE.Group(); grupo.name = `pesca:${s.id}`;
     const ondas: [Onda, Onda] = [uniform(new THREE.Vector4(0, 0, -99, 0)) as unknown as Onda, uniform(new THREE.Vector4(0, 0, -99, 0)) as unknown as Onda];
-    const agua = new THREE.Mesh(new THREE.CircleGeometry(R, 40), materialDeAgua(ondas));
-    agua.rotation.x = -Math.PI / 2; agua.position.y = 0.02; agua.receiveShadow = true; agua.userData.sinSombra = true; agua.name = "agua"; grupo.add(agua);
+    const agua = new THREE.Mesh(geometriaDeAgua({ tipo: "circulo", radio: R }, detalle(), OLAS_DESDE_M), materialDeAgua(R, ondas));
+    agua.position.y = 0.02; agua.receiveShadow = true; agua.userData.sinSombra = true; agua.name = "agua"; grupo.add(agua);
     // the bank: an earth ring rising from the water's edge and falling back to the ground
     const perfil = [new THREE.Vector2(R - 0.2, 0), new THREE.Vector2(R + 0.15, 0.1), new THREE.Vector2(R + 0.75, 0.14), new THREE.Vector2(R + 1.4, 0.01)];
     const orilla = new THREE.Mesh(pieza(new THREE.LatheGeometry(perfil, 36), hex(0x6b5a3e), undefined, 0.2), tierraMat); orilla.receiveShadow = true; grupo.add(orilla);
@@ -277,6 +261,8 @@ export function crearPesca(h: Ayudas) {
     actualizar(dt: number): void {
       const now = performance.now();
       tiempo.value += Math.min(0.1, dt);
+      const det = JSON.stringify(detalle()); // the tier or the water choice changed (settings, entering VR): new water shader
+      if (det !== detalleVisto) { detalleVisto = det; for (const e of estanques.values()) { const viejo = e.agua.material as THREE.Material; e.agua.material = materialDeAgua(trazaDeSitio(e.s).R, e.ondas); viejo.dispose(); } }
       for (const a of anglers.values()) {
         const p = h.posicionDe(a.quien);
         a.grupo.visible = !!p;

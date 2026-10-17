@@ -4,7 +4,7 @@ import type * as THREE from "three/webgpu";
 import type { Entorno } from "./entorno.ts";
 
 type Datos = Record<string, unknown>;
-export type Cuenta = { agua: number; fuego: number; humo: number; polvo: number; particulas: number; emisores: number; luces: number; animando: number; reflejos: number; cargado: boolean };
+export type Cuenta = { agua: number; fuego: number; humo: number; polvo: number; particulas: number; emisores: number; luces: number; animando: number; reflejos: number; aguaDetalle: string; cargado: boolean };
 type Real = { poner(k: string, v: Datos | null): void; actualizar(dt: number): void; ocupado(): boolean; contar(): Cuenta };
 
 export function vistaElementos(h: { renderer: THREE.WebGPURenderer; scene: THREE.Scene; world: THREE.Group; camera: THREE.PerspectiveCamera; entorno: Entorno }) {
@@ -25,6 +25,6 @@ export function vistaElementos(h: { renderer: THREE.WebGPURenderer; scene: THREE
     /** True while something near and on screen moves (fire, water, dust) or the code is arriving. */
     ocupado(): boolean { return real ? real.ocupado() : pendientes.size > 0 && !fallo; },
     /** What is drawn now (for checks): elements by type, particles, emitters, fire lights, animating ones. */
-    contar(): Cuenta { return real?.contar() ?? { agua: 0, fuego: 0, humo: 0, polvo: 0, particulas: 0, emisores: 0, luces: 0, animando: 0, reflejos: 0, cargado: false }; },
+    contar(): Cuenta { return real?.contar() ?? { agua: 0, fuego: 0, humo: 0, polvo: 0, particulas: 0, emisores: 0, luces: 0, animando: 0, reflejos: 0, aguaDetalle: "", cargado: false }; },
   };
 }

@@ -42,6 +42,27 @@ export const SOMBRA_PX: Record<Sombras, number> = { no: 0, baja: 512, media: 102
 export const HDR_PX = 256;
 /** The sky baked into environment light: without its sun disc it is smooth, so a small cube is enough (and cheap to redo). */
 export const CIELO_LUZ_PX = 64;
+/** What the stylised water (agua-estilo.ts) draws, per tier and water choice. Every tier gets the flat colour bands, the
+ * shore foam and the stepped fresnel toward the sky (a few ALU, no texture, no extra pass); more costly touches climb with
+ * the tier: `olas` = most grid cells per side for vertex waves on big water (0 = flat), `espumaViva` = the foam breathes
+ * and a broken second line runs to the shore, `lineas` = Wind Waker-like light streaks drifting on the surface,
+ * `causticas` = fake caustic cells in the shallows, `destellos` = stepped sun glints (the «reflejos» choice). */
+export type DetalleAgua = { olas: number; espumaViva: boolean; lineas: boolean; causticas: boolean; destellos: boolean };
+export const DETALLE_AGUA: Record<Nivel, Record<Agua, DetalleAgua>> = {
+  A: { simple: { olas: 48, espumaViva: true, lineas: true, causticas: true, destellos: false }, reflejos: { olas: 96, espumaViva: true, lineas: true, causticas: true, destellos: true } },
+  // Quest in XR: stereo at 72-90 Hz is fill-bound, so per-pixel extras stay off; vertex waves are cheap (vertices, not pixels)
+  B: { simple: { olas: 32, espumaViva: true, lineas: true, causticas: false, destellos: false }, reflejos: { olas: 32, espumaViva: true, lineas: true, causticas: false, destellos: false } },
+  C: { simple: { olas: 24, espumaViva: true, lineas: true, causticas: false, destellos: false }, reflejos: { olas: 24, espumaViva: true, lineas: true, causticas: false, destellos: false } },
+  D: { simple: { olas: 0, espumaViva: false, lineas: false, causticas: false, destellos: false }, reflejos: { olas: 0, espumaViva: false, lineas: false, causticas: false, destellos: false } },
+};
+/** The water detail for this tier and choice (a choice above the tier's ceiling gets the ceiling's). */
+export function detalleAgua(n: Nivel, a: Agua): DetalleAgua {
+  const t = TECHO_POR_NIVEL[n].agua;
+  return { ...DETALLE_AGUA[n][AGUAS.indexOf(a) > AGUAS.indexOf(t) ? t : a] };
+}
+/** Water smaller than this (m, shorter side) stays flat: waves on a fountain or a pond look wrong and cost vertices. */
+export const OLAS_DESDE_M = 12;
+
 /** Animated elements (fire, water, dust) move only this near and on screen; farther they stand still (cold phones). */
 export const ANIMAR_M = 40;
 /** Farther than this an element is not drawn at all. */
