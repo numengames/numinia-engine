@@ -8,6 +8,7 @@
 // moves through a dialogue's answers (A or the trigger chooses).
 import * as THREE from "three/webgpu";
 import type { Panel } from "./manos.ts";
+import { empujaFuera } from "./vr-paredes.ts";
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
 export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void; andar?(): [number, number] | null };
 
@@ -161,6 +162,15 @@ export function createVR(h: VRHooks) {
   const nota = N.malla; nota.visible = false; nota.position.set(0, -0.22, -0.9); (nota.material as THREE.MeshBasicMaterial).depthTest = false;
   let notaHasta = 0, notaTexto = "";
 
+  // N1c: room-scale walking (the player's real steps) moves the head INSIDE the rig via the headset's own
+  // tracking — the sim never sees it (only the stick feeds `step()`), so until now a real step walked the
+  // eye straight through a column or wall. `empuje` is the correction accumulated so far, applied on top
+  // of the sim's `self` position every frame (that position keeps getting reset by the stick/server each
+  // tick, so the push must be re-added, not stored on self).
+  let cajas: Float32Array | null = null;
+  let empujeX = 0, empujeZ = 0, chocaHasta = 0;
+  const cabeza = new THREE.Vector3();
+
   let state: VRState = "off";
   let session: any = null;
   let comfort = 0.8; // 0 = off, 1 = strongest
@@ -201,7 +211,7 @@ export function createVR(h: VRHooks) {
   /** Call every frame while presenting; `self` is where the avatar is (metres; J2: the floor rises with its jumps). */
   function update(self: { x: number; z: number; y?: number } | null, dtSeconds: number): void {
     if (!session) return;
-    if (self) rig.position.set(self.x, self.y ?? 0, self.z);
+    if (self) rig.position.set(self.x + empujeX, self.y ?? 0, self.z + empujeZ);
     let lx = 0, ly = 0, rx = 0, ry = 0;
     for (const src of session.inputSources ?? []) {
       const a = src.gamepad?.axes;
@@ -243,7 +253,21 @@ export function createVR(h: VRHooks) {
     // Force both updates now, with THIS frame's rig rotation already applied, before reading direction.
     rig.updateMatrixWorld(true);
     h.renderer.xr.updateCamera(h.camera);
-    h.renderer.xr.getCamera().getWorldDirection(dir);
+    const xrCam = h.renderer.xr.getCamera();
+    // N1c: the real head position now (room-scale walking moved it inside the rig, outside the sim's
+    // knowledge) — push it back out of any solid it stepped into, on top of this frame's rig position.
+    if (self && cajas) {
+      cabeza.setFromMatrixPosition(xrCam.matrixWorld);
+      const [dx, dz] = empujaFuera(cabeza.x, cabeza.z, self.y ?? 0, cajas);
+      if (dx || dz) {
+        empujeX += dx; empujeZ += dz;
+        rig.position.x += dx; rig.position.z += dz;
+        rig.updateMatrixWorld(true);
+        h.renderer.xr.updateCamera(h.camera); // re-read the pose from the now-pushed rig before using it below
+        chocaHasta = performance.now() + 220; // the dark pulse that tells you the wall stopped you
+      }
+    }
+    xrCam.getWorldDirection(dir);
     const len = Math.hypot(dir.x, dir.z) || 1;
     const fx = dir.x / len, fz = dir.z / len;
     moveX = fx * -ly + -fz * lx;
@@ -252,9 +276,11 @@ export function createVR(h: VRHooks) {
     if (conMano) { moveX = conMano[0] * 0.7; moveZ = conMano[1] * 0.7; } // walking pace (the edge, 0.9, runs)
     const m = Math.hypot(moveX, moveZ);
     if (m > 1) { moveX /= m; moveZ /= m; }
-    // vignette fades in fast while moving or turning, out slowly
+    // vignette fades in fast while moving or turning, out slowly; a wall push forces it fully dark for an
+    // instant regardless of the comfort setting (safety feedback, not a comfort option)
     const want = (m > 0 || turned ? 1 : 0) * comfort;
     strength += (want - strength) * Math.min(1, dtSeconds * (want > strength ? 12 : 3));
+    if (performance.now() < chocaHasta) strength = 1;
     (vignette.material as THREE.MeshBasicMaterial).opacity = strength;
     if (nota.visible && performance.now() > notaHasta) nota.visible = false;
     h.manos?.update(h.renderer.xr.getCamera());
@@ -265,6 +291,9 @@ export function createVR(h: VRHooks) {
     get state() { return state; },
     get lastError() { return lastError; },
     get active() { return state === "on"; },
+    /** N1c: the world's solid boxes in metres (same array `view.solidos()` converts, e.g. `cajasM` in
+     * index.ts): room-scale walking into one now pushes the head back out instead of passing through. */
+    paredes(b: Float32Array | null): void { cajas = b && b.length ? b : null; },
     /** Movement intention in the world frame, each -1..1. */
     axes(): [number, number] { return [moveX, moveZ]; },
     /** J2: true once per press of A or X since the last call (the page asks on each tick). */

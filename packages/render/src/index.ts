@@ -666,6 +666,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       for (let i = 0; i < fx.length; i++) m[i] = fx[i] / 65536;
       cajasM = m;
       cam.paredes(fx);
+      vr.paredes(cajasM as Float32Array); // N1c: real room-scale walking also stops at a wall now
     },
     /** Move the camera (N1), then draw. */
     draw(dtSeconds: number): void {
