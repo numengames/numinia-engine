@@ -27,7 +27,8 @@
     "sesiones": "node packages/server/src/sesiones-ver.ts",
     "concesiones": "node packages/server/src/concesiones.ts",
     "bienes": "node packages/server/src/bienes.ts",
-    "optimizar": "node packages/server/src/optimizar-cli.ts"
+    "optimizar": "node packages/server/src/optimizar-cli.ts",
+    "sonidos": "node tools/sonidos-catalogo.ts"
   },
   "dependencies": {
     "@gltf-transform/core": "4.5.1",

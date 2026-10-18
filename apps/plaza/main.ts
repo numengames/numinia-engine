@@ -24,7 +24,9 @@ import { misiones } from "../../features/misiones/client.ts";
 import { montarInteraccion, construyendo } from "./interactuar.ts";
 import { montarDialogo } from "./dialogo.ts";
 import { montarVerNombres } from "./nombres-ver.ts";
-import { montarLibro } from "./misiones.ts";
+import { montarLibro, ponerCatalogoCasa } from "./misiones.ts";
+import { anunciar } from "./paneles.ts"; // S6: el texto accesible de cada sonido (XAUR)
+import { crearSonidos, ponerSonidos, RUTA_TABLA, sonidos } from "../../packages/render/src/audio/sonidos.ts"; // S6: the house catalogue (its table comes from /sonidos.json; the files are served by their sha256)
 import { montarMapa } from "./mapa.ts";
 import { montarFicha } from "./ficha.ts";
 import { montarInventario, resumenTexto } from "./inventario.ts"; // Y1: the Inventario panel (L)
@@ -70,6 +72,16 @@ const hud = document.getElementById("hud")!;
 const url = serverUrl(location, import.meta.env.PROD); // the built page (Caddy or the engine itself) always talks to its own origin
 // H1: files of things in the world come from the instance's server by their sha256 (ws://h:p -> http://h:p/a/<sha256>.glb)
 const activos = new URL(url.replace(/^ws/, "http")).origin;
+// S6: the house sound catalogue — one small JSON from the INSTANCE'S server (`${activos}/sonidos.json`, the same
+// origin the files come from: that way `dev:lan`, Caddy or a world on another host need no extra proxy rule), and
+// from then on the seven notices are FILES on the «interfaz» bus with no panner. Until the table lands, `sonarCasa`
+// keeps its oscillator notes, and every notice keeps its text in the live region either way (XAUR, WCAG 2.2).
+const catalogoSonidos = ponerSonidos(crearSonidos({ ruta: `${activos}${RUTA_TABLA}` }));
+ponerCatalogoCasa(catalogoSonidos);
+void catalogoSonidos.cargar().then((hay) => {
+  // los ocho avisos, descodificados ya: el primer «Misión completada» no llega tarde (son 18 kB entre todos)
+  if (hay) void catalogoSonidos.precargar(Object.values(catalogoSonidos.tabla()?.casa ?? {}));
+});
 // H7: the world's settings (its aventura/ficha.json, served by GET /status): its name on the entry screen and the tab,
 // everyone's avatar when it names one, how many fit (`aforo`). Asked once, before the first draw, but never waited for
 // long: a slow or absent /status leaves the house defaults (the tab name and the look are fixed again below when it answers).
@@ -110,6 +122,14 @@ const session = new ClientSession(transport, {
     fundido: (ms) => { const f = document.getElementById("fundido")!; f.style.transition = "none"; f.style.opacity = "1"; f.offsetHeight; f.style.transition = `opacity ${ms}ms ease-out`; f.style.opacity = "0"; f.dataset.ultimo = String(Date.now()); },
     // J7b: the moves of the wheel, played on the avatar's VRM (false = a capsule: the feature shows a label)
     movimiento: (e, m) => view.movimiento(e === session.entity ? "self" : e, m),
+    // S6: a sound the SERVER chose (features/sonido): its id and its seed, so every page plays the same variant at
+    // the same instant. `donde: null` = in the head, with no panner (the notices and the interface). The accessible
+    // text ALWAYS reaches the notices region, whether the file played or not (XAUR: no sound without its text).
+    sonido: (s) => {
+      const son = sonidos().suena(s);
+      if (s.texto) anunciar(s.texto);
+      return son;
+    },
     // V1: every announced event reaches screen readers (polite; safety = assertive). V3 adds the engine's own voice.
     announce: (a) => {
       if (a.feature === "chat") return; // J3: the chat box's own list (role=log, polite) reads the chat

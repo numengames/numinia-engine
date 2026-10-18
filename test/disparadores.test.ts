@@ -15,6 +15,10 @@ import { disparadores, DISPARADORES_MAX, RECEPTORES_MAX, TICK_HZ } from "../feat
 import { crearDisparadores, leerDisparador, leerDisparadores, leerReceptor, serializarDisparadores } from "../features/disparadores/server.ts";
 import { crearCliente as clienteDisparadores, tapa } from "../features/disparadores/client.ts";
 import { crearObjetos } from "../features/objetos/server.ts";
+// S6: la acción «suena» del cable ya no la resuelve el cable: la oye la pieza `sonido`, que busca el nombre en el
+// catálogo de la casa (los siete avisos de siempre siguen valiendo) y manda `sonido.suena` con su fichero y su texto.
+import { crearSonido } from "../features/sonido/server.ts";
+import { crearCliente as clienteSonido } from "../features/sonido/client.ts";
 import { crearCliente as clienteObjetos } from "../features/objetos/client.ts";
 import { crearMisiones } from "../features/misiones/server.ts";
 import { crearSuelo } from "../features/suelo/server.ts";
@@ -185,13 +189,14 @@ test("D-041 historia 4: da_paso starts and jumps a mission, abre_enlace asks the
       ...crearMisiones({ aventura: { misiones: [{ fichero: "m1.json", texto: JSON.stringify(MIS) }], pnj: [], cosas: [] } }),
       crearSuelo({ minimo: -500 }),
       crearDisparadores({ disparadores: leido.disparadores }),
+      crearSonido(),
     ],
     identitySign: sign,
   });
   const t = inst.join(0);
   inst.sim.tf.cols.x[t.id ?? 0] = fx(0); inst.sim.tf.cols.z[t.id ?? 0] = fx(0); // next to the button (default spawn is far off)
-  const d = clienteDisparadores();
-  const s = new ClientSession(t, { identity: keeper(), features: [...d.parts], view: { label() {}, bounce() {}, place() {}, here: () => ({ x: 0, y: 0, z: 0 }) } });
+  const d = clienteDisparadores(), son = clienteSonido();
+  const s = new ClientSession(t, { identity: keeper(), features: [...d.parts, son.part], view: { label() {}, bounce() {}, place() {}, here: () => ({ x: 0, y: 0, z: 0 }) } });
   const pump = (n = 2) => { for (let i = 0; i < n; i++) { t.flush(); inst.tick(); t.flush(); } };
   pump(3);
   assert.ok(d.disparadores.pulsar("cable").ok); pump(3);
@@ -201,9 +206,14 @@ test("D-041 historia 4: da_paso starts and jumps a mission, abre_enlace asks the
   // abre_enlace: only the presser is asked (never a broadcast)
   assert.equal(eventos(s, "disparadores", "enlace").length, 1);
   assert.equal(eventos(s, "disparadores", "enlace").at(-1)?.msg.enlace, "https://numen.games");
-  // suena: reaches whoever is near the trigger (CERCA_M), the world's own sound name travels in the text
-  assert.equal(eventos(s, "disparadores", "sonido").length, 1);
-  assert.equal(eventos(s, "disparadores", "sonido").at(-1)?.msg.sonido, "campana");
+  // suena (S6): the sound piece owns it now — the house name «campana» resolves to its catalogue id, with its seed
+  // and its accessible text, and reaches whoever is near. The cable itself no longer emits any sound event.
+  assert.equal(eventos(s, "disparadores", "sonido").length, 0, "el cable ya no resuelve «suena» por su cuenta");
+  const son2 = eventos(s, "sonido", "suena");
+  assert.equal(son2.length, 1);
+  assert.equal(son2.at(-1)?.msg.sonido, "ui-cuenta-atras"); // «campana» es el nombre de casa; el fichero es ui-cuenta-atras
+  assert.ok(Number(son2.at(-1)?.msg.semilla) >= 0, "el servidor manda la semilla");
+  assert.ok(String(son2.at(-1)?.msg.texto).length > 3, "y el texto para quien no oye");
   // vuelve_a_seguro: the instance answered without throwing (suelo narrates it even without sueloMinimo)
   assert.doesNotThrow(() => d.disparadores.pulsar("cable"));
 });
@@ -284,30 +294,31 @@ test("D-041 h5: a lock that opens fires the cable's «senal» (cerradura.abierta
   const SENAL_DISP = { id: "s-abre", nombre: "Al abrir", tipo: "senal", senal: "cofre-abierto", receptores: [{ accion: "suena", sonido: "campana" }] };
   const leido = leerDisparadores({ disparadores: [SENAL_DISP] });
   const log: string[] = [];
-  const inst = new Instance({ seed: 1, capacity: 8, k: 50, snapshotEvery: 2, features: [chatServer, crearCerradura(), crearDisparadores({ disparadores: leido.disparadores })], log: (l) => log.push(l), identitySign: sign, puede: () => true });
+  const inst = new Instance({ seed: 1, capacity: 8, k: 50, snapshotEvery: 2, features: [chatServer, crearCerradura(), crearDisparadores({ disparadores: leido.disparadores }), crearSonido()], log: (l) => log.push(l), identitySign: sign, puede: () => true });
   const t = inst.join(0);
-  const dCli = clienteDisparadores(), cCli = clienteCerradura();
-  const s = new ClientSession(t, { identity: keeper(), features: [...dCli.parts, cCli.part] });
+  const dCli = clienteDisparadores(), cCli = clienteCerradura(), sCli = clienteSonido();
+  const s = new ClientSession(t, { identity: keeper(), features: [...dCli.parts, cCli.part, sCli.part] });
   const pump = (n = 2) => { for (let i = 0; i < n; i++) { t.flush(); inst.tick(); t.flush(); } };
   pump(2);
   cCli.cerradura.poner({ id: "cofre", metodo: "codigo", codigo: "1234", nombre: "Cofre", x: 0, z: 0, evento: "cofre-abierto" }); pump(2);
   cCli.cerradura.abrir("cofre", "1234"); pump(3);
   assert.equal(cCli.cerradura.estado.ultimaAbierta, "cofre");
-  assert.equal(eventos(s, "disparadores", "sonido").length, 1, "the senal disparador fired its own receiver (suena)");
-  assert.equal(eventos(s, "disparadores", "sonido").at(-1)?.msg.sonido, "campana");
+  // S6: el receptor del disparador por señal suena, y lo que llega es el fichero del catálogo (campana → cuenta atrás)
+  assert.equal(eventos(s, "sonido", "suena").length, 1, "the senal disparador fired its own receiver (suena)");
+  assert.equal(eventos(s, "sonido", "suena").at(-1)?.msg.sonido, "ui-cuenta-atras");
 });
 
 test("D-041 h5: a movedor's arrival fires the cable's «senal» (movedores.llegada.evento)", () => {
   const PLAT: MovedorFichero = { id: "plat1", nombre: "Plataforma", modelo: "hash", tipo: "vaiven", ax: 0, ay: 0, az: 0, arx: 0, ary: 0, arz: 0, bx: 0, by: 2, bz: 0, brx: 0, bry: 0, brz: 0, sx: 1, sy: 1, sz: 1, duracion: 0.2, espera: 0, radio: 2.5, evento: "plat-llega", empiezaEn: "a" };
-  const SENAL_DISP = { id: "s-llega", nombre: "Al llegar", tipo: "senal", senal: "plat-llega", un_solo_uso: true, receptores: [{ accion: "suena", sonido: "din" }] };
+  const SENAL_DISP = { id: "s-llega", nombre: "Al llegar", tipo: "senal", senal: "plat-llega", un_solo_uso: true, receptores: [{ accion: "suena", sonido: "paso" }] };
   const leido = leerDisparadores({ disparadores: [SENAL_DISP] });
   const log: string[] = [];
-  const inst = new Instance({ seed: 1, capacity: 8, k: 50, snapshotEvery: 2, features: [chatServer, crearMovedores({ movedores: [PLAT] }), crearDisparadores({ disparadores: leido.disparadores })], log: (l) => log.push(l), identitySign: sign });
+  const inst = new Instance({ seed: 1, capacity: 8, k: 50, snapshotEvery: 2, features: [chatServer, crearMovedores({ movedores: [PLAT] }), crearDisparadores({ disparadores: leido.disparadores }), crearSonido()], log: (l) => log.push(l), identitySign: sign });
   const t = inst.join(0);
-  const dCli = clienteDisparadores();
-  const s = new ClientSession(t, { identity: keeper(), features: [...dCli.parts] });
+  const dCli = clienteDisparadores(), sCli = clienteSonido();
+  const s = new ClientSession(t, { identity: keeper(), features: [...dCli.parts, sCli.part] });
   const pump = (n = 2) => { for (let i = 0; i < n; i++) { t.flush(); inst.tick(); t.flush(); } };
   pump(10); // vaiven rides A→B on its own (duracion 0.2 s = 4 ticks)
-  assert.equal(eventos(s, "disparadores", "sonido").length, 1, "the movedor's own arrival rang the cable, no button or zone involved");
-  assert.equal(eventos(s, "disparadores", "sonido").at(-1)?.msg.sonido, "din");
+  assert.equal(eventos(s, "sonido", "suena").length, 1, "the movedor's own arrival rang the cable, no button or zone involved");
+  assert.equal(eventos(s, "sonido", "suena").at(-1)?.msg.sonido, "ui-pulsar"); // S6: «paso» es el nombre de casa; el fichero es ui-pulsar
 });
