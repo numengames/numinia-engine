@@ -21,9 +21,9 @@ test("the table is well formed and every panel names its selector once", () => {
   assert.ok(validarMarcos([{ id: "z", selector: "#z", densidad: "normal", cuando: "siempre", segundos: 6, nombre: "z" }])[0].includes("al_cambiar"));
 });
 
-test("levels: Mínimo shows the «now» line, the contextual action and the folded chat — and nothing else", () => {
+test("levels: Mínimo shows the «now» line, the notices, the contextual action and the folded chat — and nothing else", () => {
   assert.deepEqual(DENSIDADES, ["minimo", "normal", "completo"]);
-  assert.deepEqual(marcosVisibles("minimo"), ["hud.ahora", "hud.accion", "hud.chat.pastilla"]);
+  assert.deepEqual(marcosVisibles("minimo"), ["hud.ahora", "hud.avisos", "hud.accion", "hud.chat", "hud.chat.pastilla"]);
   const normal = marcosVisibles("normal"), completo = marcosVisibles("completo");
   for (const m of ["hud.barra", "hud.reloj", "hud.minimapa", "hud.misiones", "hud.acciones", "hud.chat.lineas"]) assert.ok(normal.includes(m), `${m} in Normal`);
   assert.ok(!normal.includes("hud.ayuda") && completo.includes("hud.ayuda"), "the key line is Completo's");

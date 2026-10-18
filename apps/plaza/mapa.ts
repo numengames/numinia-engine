@@ -240,7 +240,7 @@ export function montarMapa(h: HostMapa) {
   });
   // on touch screens the features' buttons live in the bottom-right corner: sit to their left
   const acciones = document.getElementById("acciones");
-  const sitio = () => { mini.style.right = acciones && acciones.childElementCount ? `${acciones.offsetWidth + 20}px` : ""; };
+  const sitio = () => { if (!matchMedia("(pointer: coarse)").matches) return; /* U3: on a mouse screen the frame table places the map */ mini.style.right = acciones && acciones.childElementCount ? `${acciones.offsetWidth + 20}px` : ""; };
   if (acciones && typeof ResizeObserver === "function") new ResizeObserver(sitio).observe(acciones);
   sitio();
 

@@ -32,7 +32,7 @@ export const leerAjuste = (id: string): Valor | undefined => activo?.get(id);
 
 /** Typing in a box belongs to the box, not to the world: J3's one rule for every key listener of the page. */
 import { escribiendo } from "./escribiendo.ts";
-import { montarDensidad } from "./densidad.ts"; // U20: the density dial
+import { montarMarcos } from "./marcos.ts"; // U20 + U3: the density dial, the frames, the clock, the notices
 export { escribiendo };
 /** Inside the menu, O closes it unless the key is text being typed. */
 const escribeTexto = (t: EventTarget | null): boolean => {
@@ -126,7 +126,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   a.alAplicar("accesibilidad.anunciar", (v) => { $("avisos")?.setAttribute("aria-live", v === true ? "polite" : "off"); }); // safety notices (assertive) always
   a.alAplicar("interfaz.tamano", (v) => { html.style.setProperty("--ui", String(Number(v) / 100)); });
   a.alAplicar("interfaz.ayuda", (v) => { const h = $("help"); if (h) h.hidden = v !== true; });
-  montarDensidad(a); // U20: which panels show at Mínimo / Normal / Completo (key U); the panels' look is tema.css
+  montarMarcos(a); // U20 + U3: which panels show at Mínimo / Normal / Completo (key U) and where each sits (the table of densidad.ts)
   // V7 «menos movimiento»: the features' hops are skipped (their label and announcement still say what happened)
   const rebote = view.bounce;
   view.bounce = (...args: Parameters<View["bounce"]>) => { if (a.get("accesibilidad.menosMovimiento") !== true) rebote(...args); };

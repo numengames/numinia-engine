@@ -128,6 +128,16 @@ if (esTactil()) {
     bar.appendChild(b);
   }
 } else if (acts.length) {
+  // U3: the action bar (bottom centre) also lists them on a desktop: a chip with the name and its key; the key still does the work
+  const bar = document.getElementById("acciones")!;
+  for (const a of acts) {
+    const b = document.createElement("button");
+    b.type = "button"; b.title = a.describe ?? ""; if (a.key) b.setAttribute("aria-keyshortcuts", a.key.replace(/^Key/, ""));
+    const t = document.createElement("span"); t.textContent = a.label; b.append(t);
+    if (a.key) { const k = document.createElement("kbd"); k.textContent = a.key.replace(/^Key/, ""); b.append(k); }
+    b.addEventListener("click", () => { a.run(); b.blur(); });
+    bar.appendChild(b);
+  }
   document.getElementById("help")!.textContent += " · " + acts.map((a) => `${(a.key ?? "").replace(/^Key/, "")} ${a.label.toLowerCase()}`).join(" · ");
 }
 

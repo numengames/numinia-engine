@@ -6,7 +6,11 @@ import { escribiendo } from "./escribiendo.ts";
 export { escribiendo };
 
 /** Say something politely to screen readers (the page's aria-live region, as the features' announcements do). */
+const oyentes: Array<(texto: string) => void> = [];
+/** Whoever shows notices to eyes (U3: the stack at the top) hears what is said to ears. */
+export function alAnunciar(fn: (texto: string) => void): void { oyentes.push(fn); }
 export function anunciar(texto: string): void {
+  for (const fn of oyentes) try { fn(texto); } catch { /* a sighted twin never breaks the announcement */ }
   const box = document.getElementById("avisos");
   if (!box) return;
   const p = document.createElement("p"); p.textContent = texto; box.appendChild(p);

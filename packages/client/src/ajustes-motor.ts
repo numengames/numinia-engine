@@ -126,6 +126,11 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     opciones: [{ valor: "minimo", nombre: "Mínimo" }, { valor: "normal", nombre: "Normal" }, { valor: "completo", nombre: "Completo" }],
     defecto: "normal",
   },
+  {
+    grupo: "interfaz", id: "hora", tipo: "eleccion", nombre: "Hora del reloj",
+    describe: "El reloj junto al minimapa: la hora de tu aparato o la hora universal (UTC), la misma para todos.",
+    opciones: [{ valor: "local", nombre: "Local" }, { valor: "utc", nombre: "UTC" }], defecto: "local",
+  },
   { grupo: "interfaz", id: "ayuda", tipo: "bool", nombre: "Ayuda de teclas", describe: "La línea de abajo que dice qué tecla hace qué.", defecto: true },
   // U25: the device profile, forced (development or ?debug only: `desarrollo`). The page decides it once before the
   // first frame (packages/client/src/aparato.ts), so a change reloads the page. ?aparato=… does the same for one load.
