@@ -3,7 +3,10 @@
 // grows with the distance (up to ×3) so it keeps its size on screen. Text from people is only painted with
 // fillText, never parsed as HTML. Where everything sits is ONE function, `setTop`: today the capsule's top; the
 // VRM avatars (J1) pass the head bone's height instead.
+// U22: a name shows only over whoever you look at or who speaks (all of them while `todos` is held: Alt, a button), and no
+// plate takes more than 8° (name) / 30° (bubble) of your view, near or far, on screen or in VR (carteles.ts).
 import * as THREE from "three/webgpu";
+import { escalaAcotada, nombreVisible, NOMBRE_GRADOS_MAX, DIALOGO_GRADOS_MAX, type Mirable } from "./carteles.ts";
 
 export type Target = number | "self";
 export const NOMBRE_VISIBLE_M = 24;     // names are drawn for avatars this close to you (the server sends them up to 24 m)
@@ -14,7 +17,7 @@ const CRECE_DESDE_M = 8, CRECE_MAX = 3; // plates keep their size on screen beyo
 const NOMBRE_ALTO_M = 0.26, BOCADILLO_ANCHO_M = 2.6, HUECO_M = 0.06; // letters ~0.17 m tall in both: ~1° at 10 m
 
 type Top = (t: Target, avatar: THREE.Object3D) => number;
-type Plate = { mesh: THREE.Mesh; text: string; h: number };
+type Plate = { mesh: THREE.Mesh; text: string; h: number; w: number };
 
 /** A plate of text: dark rounded background, light letters (names) or a white bubble with dark letters. */
 function plate(canvas: HTMLCanvasElement, widthM: number): THREE.Mesh {
@@ -54,7 +57,8 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
   const bubbles = new Map<Target, Plate & { until: number }>();
   let top: Top = (_t, m) => m.position.y + 0.85;       // the capsule: its centre + half its height (index.ts draws it at y 0.85)
   const cam = new THREE.Vector3(), camQ = new THREE.Quaternion();
-  const scaleAt = (x: number, y: number, z: number) => Math.min(CRECE_MAX, Math.max(1, Math.hypot(x - cam.x, y - cam.y, z - cam.z) / CRECE_DESDE_M));
+  const distTo = (x: number, y: number, z: number) => Math.hypot(x - cam.x, y - cam.y, z - cam.z);
+  const scaleAt = (x: number, y: number, z: number) => Math.min(CRECE_MAX, Math.max(1, distTo(x, y, z) / CRECE_DESDE_M));
 
   function drop(map: Map<Target, Plate>, t: Target): void {
     const p = map.get(t);
@@ -73,7 +77,7 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
     g.fillStyle = "#f4f7fb"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, c.width / 2, c.height / 2 + 2);
     const mesh = plate(c, (NOMBRE_ALTO_M * c.width) / c.height);
     o.world.add(mesh);
-    return { mesh, text, h: NOMBRE_ALTO_M };
+    return { mesh, text, h: NOMBRE_ALTO_M, w: (NOMBRE_ALTO_M * c.width) / c.height };
   }
   function bubbleplate(text: string): Plate {
     const c = document.createElement("canvas"), g = c.getContext("2d")!;
@@ -90,7 +94,7 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
     const w = (BOCADILLO_ANCHO_M * c.width) / W;
     const mesh = plate(c, w);
     o.world.add(mesh);
-    return { mesh, text, h: (w * c.height) / c.width };
+    return { mesh, text, h: (w * c.height) / c.width, w };
   }
 
   /** Height of the name plate shown over this avatar (0 = none), at its current scale. */
@@ -117,7 +121,17 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
       const b = bubbles.get(t);
       return top(t, avatar) + HUECO_M + nameHeight(t) + (b?.mesh.visible ? b.h * b.mesh.scale.y + HUECO_M : 0) + 0.22;
     },
-    update(now: number): void {
+    /** Who may be looked at: the avatars that have a name (never yourself), as vertical segments feet-to-head. */
+    candidatos(): Mirable<Target>[] {
+      const out: Mirable<Target>[] = [];
+      for (const t of texts.keys()) {
+        const a = t === "self" ? undefined : o.avatarOf(t);
+        if (a) { const h = top(t, a); out.push({ clave: t, x: a.position.x, z: a.position.z, pies: h - 1.8, cabeza: h }); }
+      }
+      return out;
+    },
+    /** `todos`: everybody's name (Alt held). `mirado`: the avatar looked at (from carteles.elegirMirado). Whoever has a bubble speaks. */
+    update(now: number, ver: { todos: boolean; mirado: Target | null } = { todos: true, mirado: null }): void {
       o.camera.getWorldPosition(cam); o.camera.getWorldQuaternion(camQ);
       const me = o.avatarOf("self");
       const far = (a: THREE.Object3D, m: number) => !!me && (a.position.x - me.position.x) ** 2 + (a.position.z - me.position.z) ** 2 > m * m;
@@ -126,7 +140,7 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
       for (const [t, text] of texts) {
         const a = t === "self" ? undefined : o.avatarOf(t); // your own name is never drawn over you
         const p = tags.get(t);
-        if (!a || far(a, NOMBRE_VISIBLE_M)) { if (p) p.mesh.visible = false; continue; }
+        if (!a || far(a, NOMBRE_VISIBLE_M) || !nombreVisible({ todos: ver.todos, mirado: ver.mirado === t, habla: bubbles.has(t) })) { if (p) p.mesh.visible = false; continue; }
         shown.push({ t, a, d: me ? (a.position.x - me.position.x) ** 2 + (a.position.z - me.position.z) ** 2 : 0 });
         if (!p) tags.set(t, nameplate(text));
       }
@@ -135,7 +149,7 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
         const p = tags.get(t)!;
         p.mesh.visible = i < NOMBRES_DIBUJADOS;
         if (!p.mesh.visible) return;
-        const y0 = top(t, a) + HUECO_M, s = scaleAt(a.position.x, y0, a.position.z);
+        const y0 = top(t, a) + HUECO_M, s = escalaAcotada(scaleAt(a.position.x, y0, a.position.z), p.h, distTo(a.position.x, y0, a.position.z), NOMBRE_GRADOS_MAX);
         p.mesh.scale.setScalar(s);
         p.mesh.position.set(a.position.x, y0 + (p.h * s) / 2, a.position.z);
         p.mesh.quaternion.copy(camQ);
@@ -144,7 +158,7 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
         const a = o.avatarOf(t);
         if (now > b.until) { drop(bubbles, t); continue; }
         if (!a || (t !== "self" && far(a, BOCADILLO_VISIBLE_M))) { b.mesh.visible = false; continue; }
-        const y0 = top(t, a) + HUECO_M + nameHeight(t) + HUECO_M, s = Math.min(2.5, scaleAt(a.position.x, y0, a.position.z));
+        const y0 = top(t, a) + HUECO_M + nameHeight(t) + HUECO_M, s = escalaAcotada(Math.min(2.5, scaleAt(a.position.x, y0, a.position.z)), b.w, distTo(a.position.x, y0, a.position.z), DIALOGO_GRADOS_MAX);
         b.mesh.visible = true;
         b.mesh.scale.setScalar(s);
         b.mesh.position.set(a.position.x, y0 + (b.h * s) / 2, a.position.z);

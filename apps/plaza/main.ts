@@ -19,6 +19,7 @@ import { escribiendo } from "./escribiendo.ts";
 import { misiones } from "../../features/misiones/client.ts";
 import { montarInteraccion } from "./interactuar.ts";
 import { montarDialogo } from "./dialogo.ts";
+import { montarVerNombres } from "./nombres-ver.ts";
 import { montarLibro } from "./misiones.ts";
 import { montarMapa } from "./mapa.ts";
 import { montarFicha } from "./ficha.ts";
@@ -162,6 +163,8 @@ const interaccion = montarInteraccion({ session, view, boton: document.getElemen
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
 const xr = montarXR({ session, view, misiones, interaccion }); // J10: hands in VR take, point and answer; what you took is in your hand
 montarDialogo(misiones, document.getElementById("dialogo")!, view);
+montarVerNombres(view); // U22: Alt / «Nombres» button / gamepad Back: every name; otherwise only who you look at and who speaks
+misiones.alCambiar((que) => { if (que === "dialogo") view.hablando(misiones.dialogo() ? `pnj:${misiones.dialogo()!.pnj}` : null); }); // U22: the one you talk to shows its name
 montarLibro(misiones, {
   boton: document.getElementById("misiones") as HTMLButtonElement, panel: document.getElementById("libro")!, linea: document.getElementById("mision-seguida")!,
   nota: document.getElementById("mision-nota")!, view, here: () => (session.entity >= 0 ? session.selfPosition(1) : null),
