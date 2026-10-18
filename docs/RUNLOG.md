@@ -1899,3 +1899,9 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Qué (Pablo, 2026-10-27): desde ya cada PR lleva su misión (`Mission: MIS-123`) o la etiqueta `Mission: jazz`. El motor no tenía plantilla de PR; ahora `.github/PULL_REQUEST_TEMPLATE.md` pide esa línea, el tamaño y el número de versión movido.
 - Números: sin código ni pruebas tocadas; solo plantilla, versión y este diario.
 - Versión 0.96.1 (0.96.0 en main).
+
+## 2026-10-30 18:05 · M17 tope de voces y modo escenario (MIS-209) · hecho
+- Qué: el trozo 1 de M17 (rama vieja `voz/tope-y-escenario`, nunca entró en main) se pasa a main actual. Cada oyente recibe como mucho las 8 voces más cercanas (D-024, punto de partida 8); quien sube la moderación con `/escenario` se oye en todo el mundo, sin paneo, y no cuenta para el tope. Al fusionar con lo nuevo: las burbujas (los de tu burbuja cuentan aunque estén lejos), el silenciado/bloqueo (una voz que no puedes oír no gasta un hueco del tope), el bus `voz-gente` y el deslizador de volumen. LiveKit (trozo 2) sigue sin hacer.
+- Números: `test/voz.test.ts` con el tope (1 oyente + 10 hablantes oye exactamente 8), el escenario a 100 y 200 m y el ancho de banda. Medido: **34,4 kbit/s por voz** de bajada (Opus 32 kbit/s + cabecera), **275,2 kbit/s como máximo** con 8 voces (sin tope, 12 hablantes serían 412,8); una voz de escenario 34,4 kbit/s por oyente. Puertas verdes: 2707 pruebas, tamaño 618 kB gz. Navegador real con dos pestañas: probado el 30-10 en la rama vieja (MIS-232).
+- Consumo: sin medir · Sonnet 5.5.
+- Versión 0.99.0 (0.98.0 en main). Cambio aditivo: bit alto del byte de códec de bajada.

@@ -8,7 +8,7 @@ import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import {
   MSG, SILENCIO_MS, SILENCIO_OCULTA_MS, decodeLatido, buildGrid, selectVisible, encodeSnapshot, cuantizar, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
-  decodeIdentityRequest, decodePase, encodeIdentity, leerVozSubida, codificarVozBajada, VOZ_RADIO_M, VOZ_TRAMAS_S,
+  decodeIdentityRequest, decodePase, encodeIdentity, leerVozSubida, codificarVozBajada, elegirVoces, VOZ_RADIO_M, VOZ_TRAMAS_S, VOZ_TOPE,
   encodeCondiciones, decodeAceptar, encodeLeyendo, LEYENDO_POR_MENSAJE,
 } from "../../net/src/index.ts";
 import { agenteDe, emitir, nombreDe, nuevoId, today, verificar, verificarAgente } from "./identidad.ts";
@@ -46,6 +46,9 @@ export type InstanceOptions = {
   trazoPuntos?: (sha256: string) => number | null; // J18b: points in a stroke file (api.trazoPuntos)
   sinVoz?: boolean | (() => boolean); // U10: true = voice frames are not relayed; a function is asked at every frame (the world's /voz)
   oye?: (de: number, a: number) => boolean; // F1: may entity `a` hear entity `de`? Asked per listener and frame (a muted speaker, a personal block); none = yes
+  /** M17: is this entity on stage (moderation's /escenario)? Asked per frame. Its voice goes to EVERY connected page with the
+   * VOZ_ESCENARIO flag, whatever the distance. None = nobody is ever on stage. */
+  escenario?: (entity: number) => boolean;
   aventura?: (carpeta: string) => { fichero: string; texto: string }[]; // J5: the adventure's text files (server/aventura.ts); none = no adventure
   // P4: AI inhabitants. `sign` checks agent tickets (a secret apart from the guests'); `nombre` = the name the world
   // declares for that inhabitant id (its habitante@1 file), null = this world has no such inhabitant. None = no agents.
@@ -142,6 +145,8 @@ type Conn = {
   voz?: { desde: number; n: number }; // U10: voice frames this second (rate cap)
   /** dardos enlazados (net/enlace.ts): a «visita de enlace» — takes part in these features only, has no visible avatar, never moves, gets no snapshots/voice. */
   enlace?: readonly string[];
+  vozUltima?: number; // M17: tick of its last accepted voice frame ("speaking now" = within the last 20 ticks)
+  vozOidas?: { tick: number; considerados: Set<number>; elegidas: Set<number> }; // M17: which speakers this listener hears, recomputed at most every 10 ticks
   anfitrion?: string; // ADR-080: the host this connection asked for (an outside agent signs the world's name)
   leyendo?: true; // condiciones/c5: the others have been told this person is reading the norms (set once identified and still behind the gate; cleared on accepting or leaving)
   admitido?: true; // condiciones/c2: the gate let this connection through (it accepted, or it is an AI); a connection never goes back
@@ -666,8 +671,15 @@ export class Instance {
       .finally(() => { this.mallaBuilding = false; });
   }
   /** U10: who hears a voice frame — players that have the speaker in their area of interest and within VOZ_RADIO_M.
-   * Never everyone, never stored, never decoded. Over VOZ_TRAMAS_S frames a second the rest are dropped. */
-  readonly vozStats = { recibidas: 0, enviadas: 0, descartadas: 0, burbuja: 0 };
+   * Never everyone, never stored, never decoded. Over VOZ_TRAMAS_S frames a second the rest are dropped.
+   * M17 trozo 1: a listener hears at most VOZ_TOPE voices at once — the nearest speakers that spoke in the last second
+   * (`elegirVoces`, pure, in net/voz.ts). The chosen set is cached per listener and recomputed when a speaker it has not
+   * considered starts, or every 10 ticks (half a second): cost O(listeners × speakers), small, never per frame.
+   * Stage (`escenario`): the DOCUMENTED EXCEPTION to AGENTS rule 4 («never broadcast to everyone»). A speaker whom
+   * moderation put on stage (/escenario, roles-mundo.ts) is heard by every connected page, whatever its area of interest
+   * or distance, with the VOZ_ESCENARIO flag so the page plays it unpanned: one or two voices for all — the same fan-out
+   * as the zone chat, only for whoever moderation chose, never for the crowd. Stage voices do not count against the cap. */
+  readonly vozStats = { recibidas: 0, enviadas: 0, descartadas: 0, burbuja: 0, escenario: 0 };
   /** burbujas: which bubble each person is in, kept up to date by the feature once per tick (none = the world has no bubbles). */
   private burbujas: VozBurbujas | null = null;
   private relayVoice(from: Conn, bytes: Uint8Array): void {
@@ -677,7 +689,15 @@ export class Instance {
     if (now - w.desde >= 20) { w.desde = now; w.n = 0; } // 20 ticks = 1 s
     if (++w.n > VOZ_TRAMAS_S) { this.vozStats.descartadas++; return; }
     this.vozStats.recibidas++;
-    const X = this.sim.tf.cols.x, Z = this.sim.tf.cols.z, e = from.entity, r2 = (VOZ_RADIO_M * FX_ONE) ** 2;
+    from.vozUltima = now;
+    const e = from.entity;
+    if (this.opts.escenario?.(e)) { // stage: everyone connected, unpanned (see above)
+      const out = codificarVozBajada(bytes, e, true);
+      for (const c of this.conns) { if (c === from) continue; c.transport.send(out, false); this.vozStats.enviadas++; }
+      this.vozStats.escenario++;
+      return;
+    }
+    const X = this.sim.tf.cols.x, Z = this.sim.tf.cols.z, r2 = (VOZ_RADIO_M * FX_ONE) ** 2;
     const B = this.burbujas, bh = B ? B.de(e) : -1; // the speaker's bubble, once per frame; the listener's is one lookup each (the table is worked out per tick)
     let out: Uint8Array | null = null;
     for (const c of this.conns) {
@@ -694,9 +714,28 @@ export class Instance {
         if (dx * dx + dz * dz > r2) continue;
       }
       if (this.opts.oye && !this.opts.oye(e, c.entity)) continue; // F1: silenced by the world's roles, or blocked by this listener
+      if (!this.elegida(c, e, now)) continue;
       out ??= codificarVozBajada(bytes, e);
       c.transport.send(out, false); this.vozStats.enviadas++;
     }
+  }
+  /** M17: does listener `c` hear speaker `e` now? Among the VOZ_TOPE nearest of those speaking in the last second. */
+  private elegida(c: Conn, e: number, now: number): boolean {
+    let o = c.vozOidas;
+    if (!o || now - o.tick >= 10 || !o.considerados.has(e)) {
+      const X = this.sim.tf.cols.x, Z = this.sim.tf.cols.z, visible = c.visible ?? [];
+      const hablantes: { id: number; x: number; z: number; escenario: boolean; visible: boolean; sala?: boolean }[] = [];
+      const B = this.burbujas, bo = B ? B.de(c.entity) : -1;
+      for (const h of this.conns) {
+        if (h === c || h.vozUltima === undefined || now - h.vozUltima >= 20) continue;
+        if (this.opts.oye && !this.opts.oye(h.entity, c.entity)) continue; // a silenced or blocked voice takes no slot of the cap
+        const mismaBurbuja = B !== null && bo >= 0 && B.de(h.entity) === bo; // the bubble is the room: heard whatever the distance
+        hablantes.push({ id: h.entity, x: fxToFloat(X[h.entity]), z: fxToFloat(Z[h.entity]), escenario: this.opts.escenario?.(h.entity) ?? false, visible: mismaBurbuja || visible.includes(h.entity), sala: mismaBurbuja });
+      }
+      const oyente = { x: fxToFloat(X[c.entity]), z: fxToFloat(Z[c.entity]) };
+      o = c.vozOidas = { tick: now, considerados: new Set(hablantes.map((h) => h.id)), elegidas: new Set(elegirVoces(oyente, hablantes, VOZ_TOPE, VOZ_RADIO_M)) };
+    }
+    return o.elegidas.has(e);
   }
   hash(): number { return stateHash(this.sim); }
   sentBytes(): number { return this.conns.reduce((n, c) => n + c.transport.sentBytes, 0); }

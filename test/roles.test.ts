@@ -121,9 +121,40 @@ test("/dar and /quitar follow STD-051: only with manage-roles, only below your h
   W.decir(B, `/dar ${W.nombre(C)} Moderación`);
   assert.match(W.ultimo(C), /«Moderación»/);
   W.decir(C, "/roles");
-  assert.match(W.avisos(C).at(-2) ?? "", /Eres: Moderación, @todos\. Puedes: entrar si es solo para miembros, silenciar, echar, vetar, dirigir \(escenas, narrar, convocar\)\./);
+  assert.match(W.avisos(C).at(-2) ?? "", /Eres: Moderación, @todos\. Puedes: entrar si es solo para miembros, silenciar, echar, vetar, dirigir \(escenas, narrar, convocar\), subir y bajar a alguien del escenario\./);
   W.decir(B, `/quitar ${W.nombre(C)} Moderación`);
   assert.match(W.ultimo(B), /ya no tiene «Moderación»/);
+});
+
+test("M17 /escenario: moderation (manage-rituals) puts people on stage — itself too —, everyone is told, the instance asks per id; not stored", () => {
+  const W = mundo(3);
+  const [A, B, C] = W.gente;
+  W.pump(3);
+  W.decir(C, `/escenario ${W.nombre(B)}`);
+  assert.match(W.ultimo(C), /No tienes permiso para subir y bajar a alguien del escenario/);
+  W.decir(C, "/escenario");
+  assert.match(W.ultimo(C), /No hay nadie en el escenario/, "the list is open to everyone");
+  W.decir(A, `/dueño ${ADMIN}`);
+  W.decir(A, `/dar ${W.nombre(C)} Moderación`);
+  W.decir(C, `/escenario ${W.nombre(B)}`);
+  assert.equal(W.roles.enEscenario(W.inst.who(B.s.entity)?.id), true);
+  assert.equal(W.roles.enEscenario(W.inst.who(A.s.entity)?.id), false);
+  for (const p of W.gente) assert.match(W.ultimo(p), new RegExp(`${W.nombre(B)} sube al escenario: su voz la oye todo el mundo`), "the whole zone is told");
+  W.decir(C, `/escenario ${W.nombre(C)}`);
+  assert.equal(W.roles.enEscenario(W.inst.who(C.s.entity)?.id), true, "you may put yourself on stage");
+  W.decir(C, `/escenario ${W.nombre(B)}`);
+  assert.match(W.ultimo(C), /ya está en el escenario/);
+  W.decir(A, "/escenario");
+  assert.match(W.avisos(A).at(-2) ?? "", new RegExp(`En el escenario: ${W.nombre(B)}, ${W.nombre(C)}\\.`));
+  W.decir(C, `/escenario quitar ${W.nombre(B)}`);
+  assert.equal(W.roles.enEscenario(W.inst.who(B.s.entity)?.id), false);
+  assert.match(W.ultimo(B), /baja del escenario/);
+  W.decir(C, `/escenario quitar ${W.nombre(B)}`);
+  assert.match(W.ultimo(C), /no está en el escenario/);
+  W.decir(A, "/escenario nadie");
+  assert.equal(W.roles.enEscenario(W.inst.who(C.s.entity)?.id), false);
+  assert.match(W.ultimo(A), /vacía el escenario/);
+  assert.equal(W.inst.features.allState().some((s: unknown) => JSON.stringify(s).includes("escenario")), false, "nothing about the stage is stored");
 });
 
 test("building: --construir sets @todos; a role with «build-in-worlds» opens it for one person and objetos tells the page", () => {
