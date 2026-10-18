@@ -676,3 +676,19 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Opus 5.5.
 - Siguiente: probar Compartir en un móvil real (la hoja del sistema); captura en VR (renderizar la cámara XR a un
   objetivo propio) si se pide.
+
+## 2026-10-18 03:45 · N11 · el tren de la noche, listo para main · versión 0.4.0 (rama `noche/version`, desde `tren/motor-2026-10-18`)
+
+- Qué: el tren `tren/motor-2026-10-18` junta lo de la noche del 17 al 18: eventos U14 (#23), VR giro y velocidad
+  (#24), bienes digitales (#25), dardos (#27), agua estilizada (#28), pesca en todas partes (#29), Director de juego
+  (#30), rendimiento para Quest (#31), mundo de ±2000 m (#32), modo foto (#33) y e2e al día con #24 (#34). Cada PR
+  entró al tren tras rebase, `npm test`, `npm run build` y las piernas de lo que tocaba.
+- Versión **0.3.1 → 0.4.0** (menor). Hay cosas nuevas, y antes de 1.0.0 una ruptura sube el menor: #32 cambia un
+  mensaje de red (Transform@3, posiciones hasta ±2000 m con 16 bits por eje). Página y servidor tienen que ser del
+  mismo build (los mundos guardados se abren igual). #24 cambia las velocidades de andar (4 → 1,5 m/s) y de correr
+  (8 → 4 m/s).
+- Números (punta del tren, máquina con load 10-35): `npm test` 478 de 479 en verde; el que falla es «cost: names
+  for 1,000 players», por tiempo con carga, y solo pasa. `npm run build` OK. e2e: todas las piernas en orden (`base ar
+  vr mezclada` + 16), 17 de 20 en verde con load 24; `vr`, `foto` y `pesca`, repetidas con load 14, OK.
+- Consumo: sin medir · Opus 5.5.
+- Siguiente: lo fusiona Pablo. Tras desplegar, mirar `/status` (versión 0.4.0) y entrar a la plaza en el Quest.
