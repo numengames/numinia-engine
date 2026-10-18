@@ -4,14 +4,18 @@
 // (arranca, para, suma, reinicia, pulsar), who may give them (todos / dirige) and the chat order.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fx } from "../packages/core/src/index.ts";
 import { Instance } from "../packages/instance/src/index.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
 import type { GuestKeeper } from "../packages/client/src/index.ts";
 import { signer } from "../packages/server/src/secret.ts";
+import { FileStorage } from "../packages/server/src/datos.ts";
 import { conMundo } from "../features/mundo.ts";
 import chatServer from "../features/chat/server.ts";
-import { contadores, leerContadores, formato, ALCANCE_M, PUBLICA_CADA_TICKS, CONTADORES_MAX } from "../features/contadores/feature.ts";
+import { contadores, leerContadores, formato, ALCANCE_M, PUBLICA_CADA_TICKS, CONTADORES_MAX, EQUIPOS_MAX } from "../features/contadores/feature.ts";
 import type { ContadorFichero } from "../features/contadores/feature.ts";
 import { crearContadores, hitoDe } from "../features/contadores/server.ts";
 import { crearCliente } from "../features/contadores/client.ts";
@@ -22,16 +26,17 @@ import paginas from "../features/cliente.ts";
 
 const sign = signer("una-clave-de-prueba-larga");
 const keeper = (): GuestKeeper => { let t: string | null = null; return { load: () => t, save: (x) => { t = x; } }; };
-const SALA: ContadorFichero = { id: "sala", nombre: "Sala 1", tipo: "cuenta_atras", x: 0, z: 0, inicio: 5, tope: 0, donde: "ambos", evento: "sala-a-cero", manda: "todos" };
-const MARCADOR: ContadorFichero = { id: "marcador", nombre: "Equipo rojo", tipo: "contador", x: 10, z: 0, inicio: 0, tope: 3, donde: "panel", evento: "rojo-gana", manda: "todos" };
-const RELOJ: ContadorFichero = { id: "reloj", nombre: "Reloj del mundo", tipo: "reloj", x: 0, z: 10, inicio: 0, tope: 0, donde: "cartel", evento: "", manda: "dirige" };
+const SALA: ContadorFichero = { id: "sala", nombre: "Sala 1", tipo: "cuenta_atras", x: 0, z: 0, inicio: 5, tope: 0, donde: "ambos", evento: "sala-a-cero", manda: "todos", variante: "ninguna" };
+const MARCADOR: ContadorFichero = { id: "marcador", nombre: "Equipo rojo", tipo: "contador", x: 10, z: 0, inicio: 0, tope: 3, donde: "panel", evento: "rojo-gana", manda: "todos", variante: "ninguna" };
+const RELOJ: ContadorFichero = { id: "reloj", nombre: "Reloj del mundo", tipo: "reloj", x: 0, z: 10, inicio: 0, tope: 0, donde: "cartel", evento: "", manda: "dirige", variante: "ninguna" };
+const MARCADORES: ContadorFichero = { id: "marcadores", nombre: "Marcador del equipo", tipo: "contador", x: 20, z: 0, inicio: 0, tope: 5, donde: "panel", evento: "equipo-gana", manda: "todos", variante: "equipo" };
 
 /** A stand-in for the cable (D-041): a server part that hears ("contadores", "llegada") and keeps the event names. */
 const cable = (oidos: string[]): ServerPart => serverPart(defineFeature({ id: "cable-prueba", version: 1, level: "base", describe: "oye llegadas", intents: {}, events: {} }), (api) => { api.listen("contadores", "llegada", (m) => { oidos.push(String(m.evento)); return true; }); });
 
-function mundo(n: number, lista = [SALA, MARCADOR, RELOJ], dirige = (_who: unknown, accion: string) => accion === "dirigir") {
+function mundo(n: number, lista = [SALA, MARCADOR, RELOJ], dirige = (_who: unknown, accion: string) => accion === "dirigir", storage?: FileStorage) {
   const log: string[] = [], oidos: string[] = [];
-  const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [chatServer, crearContadores({ contadores: lista }), cable(oidos)], log: (l) => log.push(l), identitySign: sign, puede: dirige });
+  const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [chatServer, crearContadores({ contadores: lista }), cable(oidos)], log: (l) => log.push(l), identitySign: sign, puede: dirige, storage });
   const pages = Array.from({ length: n }, (_, i) => {
     const t = inst.join(i), cli = crearCliente();
     const cambios: string[] = [];
@@ -216,4 +221,54 @@ test("the chat order: /contador <id> arranca|para|suma n|reinicia, and /contador
   pump(40); // the chat's own rate limit
   di("/contadores");
   assert.match(a.c.aviso(), /marcador \(Equipo rojo\): 1 \/ 3/);
+});
+
+test("h3 persist: the value and whether it runs survive a restart (saved, not reset to inicio)", async () => {
+  const dir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "contadores-"));
+  const s1 = new FileStorage(dir);
+  const w1 = mundo(1, [SALA, MARCADOR, RELOJ], undefined, s1);
+  w1.pump(3); w1.place(w1.pages[0].s.entity, 10, 1); w1.pump(2);
+  w1.pages[0].c.suma("marcador", 2); w1.pump(2);
+  assert.equal(w1.pages[0].c.uno("marcador")!.valor, 2);
+  w1.place(w1.pages[0].s.entity, 0, 1); w1.pump(2);
+  w1.pages[0].c.arranca("sala"); w1.pump(PUBLICA_CADA_TICKS + 2); // the countdown is at 4, running
+  assert.equal(w1.pages[0].c.uno("sala")!.valor, 4); assert.equal(w1.pages[0].c.uno("sala")!.marcha, true);
+  await s1.flush();
+  const w2 = mundo(1, [SALA, MARCADOR, RELOJ], undefined, new FileStorage(dir));
+  w2.pump(3); w2.place(w2.pages[0].s.entity, 10, 1); w2.pump(2);
+  assert.equal(w2.pages[0].c.uno("marcador")!.valor, 2, "the server did not come back with inicio (0)");
+  w2.place(w2.pages[0].s.entity, 0, 1); w2.pump(2);
+  assert.equal(w2.pages[0].c.uno("sala")!.valor, 4, "the countdown kept its value");
+  assert.equal(w2.pages[0].c.uno("sala")!.marcha, true, "and kept running: it loses another second from here");
+});
+
+test("h3 variante equipo: a free team name, one value per team, same id; the roster has a cap", () => {
+  const { pages: [a], pump, place } = mundo(1, [MARCADORES]);
+  pump(3); place(a.s.entity, 20, 1); pump(2);
+  assert.ok(a.c.suma("marcadores", 1, "rojo").ok);
+  assert.ok(a.c.suma("marcadores", 1, "azul").ok);
+  pump(2);
+  assert.equal(a.c.uno("marcadores:rojo")!.valor, 1); assert.equal(a.c.uno("marcadores:rojo")!.equipo, "rojo");
+  assert.equal(a.c.uno("marcadores:azul")!.valor, 1, "each team keeps its own value under the same id");
+  a.c.suma("marcadores", 2, "rojo"); pump(2);
+  assert.equal(a.c.uno("marcadores:rojo")!.valor, 3);
+  assert.equal(a.c.uno("marcadores:azul")!.valor, 1, "the other team's value did not move");
+  // a wrong team name is refused, not created
+  a.c.suma("marcadores", 1, "Rojo Fuerte"); pump(2);
+  assert.match(a.c.aviso(), /Di el equipo/);
+  // the roster cap: EQUIPOS_MAX teams per counter, no more (rojo and azul already count as two)
+  for (let i = 0; i < EQUIPOS_MAX - 2; i++) { a.c.suma("marcadores", 1, `e${i}`); pump(2); }
+  a.c.suma("marcadores", 1, "de-mas"); pump(2);
+  assert.match(a.c.aviso(), new RegExp(`ya tiene ${EQUIPOS_MAX} equipos`));
+});
+
+test("h3 variante equipo: the chat order takes id:equipo, and /contadores lists every team", () => {
+  const { pages: [a], pump, place } = mundo(1, [MARCADORES]);
+  pump(3); place(a.s.entity, 20, 1); pump(2);
+  const di = (t: string) => { a.s.features.send("chat", "decir", { texto: t, alcance: "cerca" }); pump(3); };
+  di("/contador marcadores:verde suma 2");
+  assert.equal(a.c.uno("marcadores:verde")!.valor, 2);
+  pump(40); // the chat's own rate limit
+  di("/contadores");
+  assert.match(a.c.aviso(), /marcadores:verde \(Marcador del equipo\): 2 \/ 5/);
 });

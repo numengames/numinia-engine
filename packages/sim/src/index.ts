@@ -5,7 +5,7 @@ import { fx, fxMul, fxSqrt, fxDiv, fxClamp, fnv1a, rngNext, FX_ONE } from "../..
 import { defineSchema } from "../../schema/src/index.ts";
 import { World } from "../../ecs/src/index.ts";
 import type { Store } from "../../ecs/src/index.ts";
-import { rayBvh } from "./bvh.ts";
+import { rayBvh, boxBvh, triNormal, triAabb } from "./bvh.ts";
 import type { Bvh } from "./bvh.ts";
 export { buildBvh, rayBvh, bvhFingerprint, quantizeTriangles, BVH_UNIT, BVH_LEAF, TRI_STRIDE, NODE_STRIDE } from "./bvh.ts";
 export type { Bvh, Hit } from "./bvh.ts";
@@ -31,10 +31,14 @@ export const BTN_JUMP = 1, BTN_RUN = 2;
 const BTN_KNOWN = BTN_JUMP | BTN_RUN;
 /** Inputs are quadruples [entity, mx, mz, buttons]. */
 export const INPUT_STRIDE = 4;
-/** D-045: orders are quadruples [entity, x, y, z] (Q16.16): the server puts an avatar somewhere on purpose (back to its
- * last safe spot after a fall). They are applied inside `step`, before the inputs, and a replay carries them tick by
- * tick, so the fingerprint of a run with orders is reproducible; a run with none steps exactly as before. */
-export const ORDER_STRIDE = 4;
+/** H2: orders are sextuples [entity, tipo, a, b, c, d] (Int32; positions are Q16.16): the server makes an avatar do
+ * something on purpose (D-045's "put somewhere" was the first one). They are applied inside `step`, before the
+ * inputs, and a replay carries them tick by tick, so the fingerprint of a run with orders is reproducible; a run
+ * with none steps exactly as before. `tipo` ORDER_PONER (1, D-045's quadruple: a,b,c = x,y,z, d unused) puts the
+ * avatar there, still (vy 0, jump spent cleared); more types (QUIETO, EMPUJAR, SENTAR, VOLAR) land in later H2
+ * stories, each adding a branch here without moving PONER. */
+export const ORDER_STRIDE = 6;
+export const ORDER_PONER = 1;
 const NO_ORDERS = new Int32Array(0);
 /** True when the avatar stands on its floor (vertical speed 0, feet at the ground under it). */
 export function onFloor(s: SimState, e: number): boolean {
@@ -45,7 +49,9 @@ export function onFloor(s: SimState, e: number): boolean {
 /** Height of the ground under (x, z), Q16.16. A flat plaza, plus (U10) the tops of solid things you stand above
  * when `s` is given: the highest top not more than STEP_UP over your feet `y`; plus (M6) the world mesh when `s` has
  * one: a ray straight down from STEP_UP over the feet (so a step up to STEP_UP counts as ground) to the bottom of
- * the world. Without solids and without a mesh nothing is looked at (the reference fingerprint never sees them). */
+ * the world — only when the hit triangle is walkable (h6: a wall or a ceiling under your feet is not floor, even if
+ * the ray reaches it first). Without solids and without a mesh nothing is looked at (the reference fingerprint never
+ * sees them). */
 export function groundHeight(x: number, z: number, s?: SimState, y = 0): number {
   let g = 0;
   if (!s) return g;
@@ -59,12 +65,15 @@ export function groundHeight(x: number, z: number, s?: SimState, y = 0): number 
   if (m) {
     const top = y + STEP_UP;
     const h = rayBvh(m, x, top, z, 0, -FX_ONE, 0, top + MESH_FLOOR);
-    if (h && h.y > g) g = h.y;
+    if (h && h.y > g && triNormal(m, h.tri).ny >= MAX_SLOPE_COS) g = h.y;
   }
   return g;
 }
 /** How far under the feet a world mesh is still ground (the `Transform` floor, 500 m). */
 const MESH_FLOOR = fx(500);
+/** M6 h6: a triangle whose up-facing normal is below this (Rapier's default character-controller slope limit, 50°)
+ * is a wall or a ceiling, never a floor or a ramp to walk up. cos(50°) in Q16.16. */
+export const MAX_SLOPE_COS = 42126;
 /** Does the state have any geometry (solid boxes or a mesh) that the step must look at? */
 const hasGeometry = (s: SimState): boolean => s.solids.length > 0 || s.mesh !== null;
 
@@ -79,7 +88,7 @@ export const SOLIDS_MAX = 512;
  * «snap-to-ground»): no «in the air» flicker on every step. A jump is never snapped. */
 export const SNAP_DOWN = fx(0.45); // boxes the simulation looks at (the nearest are not chosen: the first 512)
 /** Does a body standing at (x, y, z) overlap a box it cannot step onto? */
-function blocked(s: SimState, x: number, y: number, z: number): boolean {
+function blockedBoxes(s: SimState, x: number, y: number, z: number): boolean {
   const b = s.solids;
   for (let o = 0; o + 5 < b.length; o += 6) {
     if (x + BODY_RADIUS <= b[o] || x - BODY_RADIUS >= b[o + 3] || z + BODY_RADIUS <= b[o + 2] || z - BODY_RADIUS >= b[o + 5]) continue;
@@ -88,6 +97,25 @@ function blocked(s: SimState, x: number, y: number, z: number): boolean {
     return true;
   }
   return false;
+}
+/** M6 h5-h6: does a body standing at (x, y, z) overlap a mesh triangle too steep to stand on (a wall or a ceiling)?
+ * Walkable triangles (slope within MAX_SLOPE_COS) never block: groundHeight's ray already stands you on them. */
+function blockedMesh(s: SimState, x: number, y: number, z: number): boolean {
+  const m = s.mesh;
+  if (!m) return false;
+  const x0 = x - BODY_RADIUS, x1 = x + BODY_RADIUS, z0 = z - BODY_RADIUS, z1 = z + BODY_RADIUS;
+  for (const tri of boxBvh(m, x0, y, z0, x1, y + BODY_HEIGHT, z1)) {
+    if (triNormal(m, tri).ny >= MAX_SLOPE_COS) continue; // a floor or a walkable ramp, not a wall
+    const t = triAabb(m, tri);
+    if (y + BODY_HEIGHT <= t.y0) continue; // triangle above the head
+    if (t.y1 <= y + STEP_UP) continue;      // low enough to step onto
+    return true;
+  }
+  return false;
+}
+/** Does a body standing at (x, y, z) overlap anything (box or mesh triangle) it cannot stand on or step onto? */
+function blocked(s: SimState, x: number, y: number, z: number): boolean {
+  return blockedBoxes(s, x, y, z) || blockedMesh(s, x, y, z);
 }
 /** N16 (teletransporte): a free spot to put a body near (x, z), Q16.16, or null. `radios` (metres) are the rings tried
  * in order (0 = the point itself), eight headings each (45° apart) starting at heading `rumbo` (0-7, 0 = +z, 2 = +x) so
@@ -106,7 +134,7 @@ export function sitioLibre(s: SimState, x: number, y: number, z: number, radios:
       const px = x + fxMul(R, dx), pz = z + fxMul(R, dz);
       if (px < -lim || px > lim || pz < -lim || pz > lim) continue;
       const g = groundHeight(px, pz, s, y);
-      if (y - g > bajo || (s.solids.length > 0 && blocked(s, px, g, pz))) continue;
+      if (y - g > bajo || (hasGeometry(s) && blocked(s, px, g, pz))) continue;
       return { x: px, y: g, z: pz };
     }
   }
@@ -200,10 +228,12 @@ export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_OR
   const no = (orders.length / ORDER_STRIDE) | 0;
   const oo = Array.from({ length: no }, (_, i) => i).sort((a, b) => orders[a * ORDER_STRIDE] - orders[b * ORDER_STRIDE]);
   for (const i of oo) {
-    const o = i * ORDER_STRIDE, e = orders[o];
+    const o = i * ORDER_STRIDE, e = orders[o], tipo = orders[o + 1];
     if (!s.world.alive[e] || !s.tf.has[e]) continue;
-    X[e] = fxClamp(orders[o + 1], -BOUND, BOUND); Y[e] = fxClamp(orders[o + 2], -Y_BOUND, Y_BOUND); Z[e] = fxClamp(orders[o + 3], -BOUND, BOUND);
-    VY[e] = 0; AIR[e] = 0; BUF[e] = 0;
+    if (tipo === ORDER_PONER) {
+      X[e] = fxClamp(orders[o + 2], -BOUND, BOUND); Y[e] = fxClamp(orders[o + 3], -Y_BOUND, Y_BOUND); Z[e] = fxClamp(orders[o + 4], -BOUND, BOUND);
+      VY[e] = 0; AIR[e] = 0; BUF[e] = 0;
+    }
   }
   for (const i of order) {
     const o = i * INPUT_STRIDE, e = inputs[o];
@@ -220,8 +250,8 @@ export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_OR
     const geo = hasGeometry(s);
     const onGround = geo && VY[e] === 0 && Y[e] === groundHeight(X[e], Z[e], s, Y[e]);
     const nx = fxClamp(X[e] + fxMul(mx, st), -BOUND, BOUND), nz = fxClamp(Z[e] + fxMul(mz, st), -BOUND, BOUND);
-    if (s.solids.length === 0 || !blocked(s, nx, Y[e], nz)) { X[e] = nx; Z[e] = nz; }
-    else if (!blocked(s, nx, Y[e], Z[e])) X[e] = nx;   // U10: slide along a wall
+    if (!geo || !blocked(s, nx, Y[e], nz)) { X[e] = nx; Z[e] = nz; }
+    else if (!blocked(s, nx, Y[e], Z[e])) X[e] = nx;   // U10/M6 h6: slide along a wall or a too-steep triangle
     else if (!blocked(s, X[e], Y[e], nz)) Z[e] = nz;
     // vertical (J2): jump from the ground, or the one jump in the air; then gravity, then the ground stops the fall
     const ground = geo ? groundHeight(X[e], Z[e], s, Y[e]) : 0;
