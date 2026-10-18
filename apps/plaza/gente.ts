@@ -8,6 +8,7 @@ import type { Cambio, Persona } from "../../features/teletransporte/client.ts";
 import { crearDialogo, anunciar } from "./paneles.ts";
 import { icono } from "./iconos.ts";
 
+type Orden = (texto: string) => { ok: boolean; why?: string };
 type Viajar = {
   estado: { gente: Persona[]; todos: number; puede: boolean; encontrable: boolean; viaje: { ok: boolean; texto: string } | null };
   activo(): boolean; foto(): boolean;
@@ -25,8 +26,9 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLEl
   const e = Object.assign(document.createElement(tag), props); e.append(...hijos); return e;
 };
 
-export function montarGente(o: { viajar: Viajar; barra: HTMLElement | null }) {
+export function montarGente(o: { viajar: Viajar; barra: HTMLElement | null; orden?: Orden }) {
   const { viajar } = o;
+  const bloqueados = new Set<number>(); // F1: whom this page asked to block (the server keeps the truth by identity; a reload starts the marks blank)
   const boton = el("button", { type: "button", id: "gente-abrir", className: "solo-icono", title: "Gente conectada (L)" });
   boton.innerHTML = `${icono("users")}<span class="solo-lector">Gente conectada</span>`; // constants only
   const foto = document.getElementById("foto-abrir");
@@ -60,6 +62,20 @@ export function montarGente(o: { viajar: Viajar; barra: HTMLElement | null }) {
       b.disabled = !activo;
       b.addEventListener("click", () => { const r = viajar.ir(p.quien); if (!r.ok) { estadoP.textContent = r.why ?? "No se pudo."; return; } estadoP.textContent = `Vas con ${p.nombre}…`; panel.cerrar(); });
       const li = el("li", {}, el("span", { className: "nombre", textContent: p.nombre }), b);
+      if (o.orden) { // F1: stop reading and hearing this person (only for me), or start again
+        const esta = bloqueados.has(p.quien);
+        const s = el("button", { type: "button", textContent: esta ? "Oír" : "Silenciar", className: "gente-silenciar" });
+        s.setAttribute("aria-label", esta ? `Volver a leer y oír a ${p.nombre}` : `Dejar de leer y oír a ${p.nombre} (solo para ti)`);
+        s.setAttribute("aria-pressed", esta ? "true" : "false");
+        s.addEventListener("click", () => {
+          const r = o.orden!(`/${esta ? "desbloquear" : "bloquear"} ${p.nombre}`);
+          if (!r.ok) { estadoP.textContent = r.why ?? "No se pudo."; return; }
+          if (esta) bloqueados.delete(p.quien); else bloqueados.add(p.quien);
+          estadoP.textContent = esta ? `Vuelves a leer y oír a ${p.nombre}.` : `Ya no lees ni oyes a ${p.nombre}; los demás sí.`;
+          pintar();
+        });
+        li.append(s);
+      }
       li.dataset.quien = String(p.quien);
       return li;
     }) : [el("li", { className: "vacio", textContent: "No hay nadie más conectado ahora en este mundo." })]));

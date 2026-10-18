@@ -37,6 +37,7 @@ export type InstanceOptions = {
   activo?: (sha256: string, ext: string) => boolean; // H9: is /a/<sha256>.<ext> on this server (library or uploaded)? (api.activo)
   medidas?: (sha256: string, ext: string) => { ancho: number; alto: number } | null; // U12: a picture's pixels (api.medidas)
   sinVoz?: boolean | (() => boolean); // U10: true = voice frames are not relayed; a function is asked at every frame (the world's /voz)
+  oye?: (de: number, a: number) => boolean; // F1: may entity `a` hear entity `de`? Asked per listener and frame (a muted speaker, a personal block); none = yes
   aventura?: (carpeta: string) => { fichero: string; texto: string }[]; // J5: the adventure's text files (server/aventura.ts); none = no adventure
   // P4: AI inhabitants. `sign` checks agent tickets (a secret apart from the guests'); `nombre` = the name the world
   // declares for that inhabitant id (its habitante@1 file), null = this world has no such inhabitant. None = no agents.
@@ -307,6 +308,7 @@ export class Instance {
       if (c === from || !c.visible?.includes(e)) continue;
       const dx = X[c.entity] - X[e], dz = Z[c.entity] - Z[e];
       if (dx * dx + dz * dz > r2) continue;
+      if (this.opts.oye && !this.opts.oye(e, c.entity)) continue; // F1: silenced by the world's roles, or blocked by this listener
       out ??= codificarVozBajada(bytes, e);
       c.transport.send(out, false); this.vozStats.enviadas++;
     }

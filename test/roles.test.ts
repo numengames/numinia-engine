@@ -7,6 +7,7 @@ import type { GuestKeeper } from "../packages/client/src/index.ts";
 import { signer } from "../packages/server/src/secret.ts";
 import { TICK_HZ } from "../packages/sim/src/index.ts";
 import { fx } from "../packages/core/src/index.ts";
+import { VOZ_MULAW } from "../packages/net/src/index.ts";
 import type { FeatureStorage, Saved, StorageOp } from "../packages/feature/src/index.ts";
 
 /** What the server's datos/ keeps, in memory: a restart = a new instance over the same object. */
@@ -71,11 +72,12 @@ function mundo(n: number, o: { construir?: boolean; voz?: boolean; storage?: Mem
   const log: string[] = [], cerradas: number[] = [];
   const reloj = o.reloj ?? { ms: Date.parse("2026-10-15T22:00:00Z") };
   const roles = crearRoles({ construir: o.construir ?? false, voz: o.voz, admin: o.admin ?? ADMIN, firmar: sign, cerrar: (e) => { cerradas.push(e); inst.disconnect(e); }, ahora: () => reloj.ms, log: (l) => log.push(l) });
-  const inst: Instance = new Instance({ seed: 1, capacity: 32, k: 50, snapshotEvery: 2, features: [chatServer, objetosServer, roles.part], log: (l) => log.push(l), identitySign: sign, storage: o.storage, puede: (who, accion) => roles.puede(who, accion) });
+  const inst: Instance = new Instance({ seed: 1, capacity: 32, k: 50, snapshotEvery: 2, features: [chatServer, objetosServer, roles.part], log: (l) => log.push(l), identitySign: sign, storage: o.storage, puede: (who, accion) => roles.puede(who, accion), sinVoz: () => !roles.voz, oye: (de, a) => roles.oye(inst.who(de), inst.who(a)) }); // F1: the server's wiring
   const entrar = (i: number, guardado = keeper()) => {
     const t = inst.join(i), c = crearCliente(() => reloj.ms);
     const s = new ClientSession(t, { features: [c.part, objetosCliente], identity: guardado, view: { label() {}, bounce() {} } });
-    return { t, s, chat: c.chat, guardado };
+    const oido: number[] = []; s.onVoice = (v) => oido.push(v.entidad); // F1: voice frames this page received (by speaker entity)
+    return { t, s, chat: c.chat, guardado, oido };
   };
   const gente = Array.from({ length: n }, (_, i) => entrar(i));
   const pump = (ticks = 2) => { for (let k = 0; k < ticks; k++) { for (const c of gente) c.t.flush(); inst.tick(); for (const c of gente) c.t.flush(); reloj.ms += 1000 / TICK_HZ; } };
@@ -290,4 +292,91 @@ test("C3: an owner is tied to the administration code it used; after the code ch
 test("the chat's help names /roles and fits in one notice", () => {
   assert.match(AYUDA, /\/roles/);
   assert.ok(new TextEncoder().encode(AYUDA).length <= 300, `${new TextEncoder().encode(AYUDA).length} bytes`);
+});
+
+/** F1: everyone at the same spot (chat within 20 m, voice within 30 m, in everyone's area of interest). */
+function juntos(W: ReturnType<typeof mundo>) {
+  for (const p of W.gente) { W.inst.sim.tf.cols.x[p.s.entity] = fx(1); W.inst.sim.tf.cols.z[p.s.entity] = fx(1); }
+  W.pump(4);
+}
+const habla = (W: ReturnType<typeof mundo>, p: ReturnType<typeof mundo>["gente"][number]) => { for (const q of W.gente) q.oido.length = 0; assert.ok(p.s.sendVoice(VOZ_MULAW, new Uint8Array(40).fill(7))); W.pump(2); };
+
+test("F1 /silenciar also mutes the voice; /hablar lifts it; the silence survives a restart and the person is told again", () => {
+  const storage = new MemoryStorage(), reloj = { ms: Date.parse("2026-10-15T22:00:00Z") };
+  const W = mundo(3, { storage, reloj });
+  const [A, B, C] = W.gente;
+  W.pump(3);
+  W.decir(A, `/dueño ${ADMIN}`);
+  W.decir(A, `/dar ${W.nombre(B)} Moderación`);
+  juntos(W);
+  habla(W, C);
+  assert.deepEqual([A.oido, B.oido], [[C.s.entity], [C.s.entity]], "before: both hear C");
+  W.decir(B, `/silenciar ${W.nombre(C)} 30`);
+  assert.match(W.ultimo(C), /te ha silenciado 30 min: nadie te lee en el chat ni te oye por voz/);
+  assert.match(W.ultimo(B), /queda en silencio 30 min \(chat y voz\)/);
+  habla(W, C);
+  assert.deepEqual([A.oido, B.oido], [[], []], "silenced: nobody hears C");
+  habla(W, A);
+  assert.deepEqual(C.oido, [A.s.entity], "C still hears the others");
+  // a restart: the same store, new instance; C comes back and is still silent
+  const W2 = mundo(0, { storage, reloj });
+  const A2 = W2.entrar(1, A.guardado), B2 = W2.entrar(2, B.guardado), C2 = W2.entrar(3, C.guardado); W2.gente.push(A2, B2, C2); W2.pump(3);
+  assert.match(W2.avisos(C2).join("|"), /Sigues en silencio 30 min más/);
+  juntos(W2);
+  W2.decir(C2, "hola");
+  assert.match(W2.ultimo(C2), /Estás en silencio/);
+  assert.ok(!A2.chat.lineas.some((l) => l.texto === "hola"));
+  habla(W2, C2);
+  assert.deepEqual(A2.oido, [], "still not heard after the restart");
+  W2.decir(B2, `/hablar ${W2.nombre(C2)}`);
+  assert.match(W2.ultimo(C2), /te ha devuelto la palabra/);
+  W2.decir(C2, "ya");
+  assert.ok(A2.chat.lineas.some((l) => l.texto === "ya"));
+  habla(W2, C2);
+  assert.deepEqual(A2.oido, [C2.s.entity]);
+  W2.decir(B2, `/hablar ${W2.nombre(C2)}`);
+  assert.match(W2.ultimo(B2), /no estaba en silencio/);
+});
+
+test("F1 /bloquear: A stops reading and hearing B, C still does, B is not told; it survives a reload; /desbloquear undoes it", () => {
+  const storage = new MemoryStorage(), reloj = { ms: Date.parse("2026-10-15T22:00:00Z") };
+  const W = mundo(3, { storage, reloj });
+  const [A, B, C] = W.gente;
+  W.pump(3);
+  juntos(W);
+  W.decir(C, `/bloquear ${W.nombre(C)}`);
+  assert.match(W.ultimo(C), /no te lo puedes hacer a ti/);
+  const avisosB = W.avisos(B).length;
+  W.decir(A, `/bloquear ${W.nombre(B)}`);
+  assert.match(W.ultimo(A), /no lees ni oyes a/);
+  assert.equal(W.avisos(B).length, avisosB, "the blocked person is not told");
+  assert.deepEqual(W.roles.bloqueados(W.inst.who(A.s.entity)!.id), [W.inst.who(B.s.entity)!.id]);
+  W.decir(B, "cerca");
+  B.chat.decir("zona", "zona"); W.pump(TICK_HZ + 2);
+  assert.ok(!A.chat.lineas.some((l) => l.texto === "cerca" || l.texto === "zona"), "A reads nothing from B");
+  assert.ok(C.chat.lineas.some((l) => l.texto === "cerca") && C.chat.lineas.some((l) => l.texto === "zona"), "C reads both");
+  habla(W, B);
+  assert.deepEqual([A.oido, C.oido], [[], [B.s.entity]], "A does not hear B, C does");
+  habla(W, A);
+  assert.deepEqual(B.oido, [A.s.entity], "B still hears A: a block is one-way");
+  W.decir(A, `/bloquear ${W.nombre(B)}`);
+  assert.match(W.ultimo(A), /Ya no lees/);
+  // a reload of both pages (new entities, same identities): the block holds
+  const W2 = mundo(0, { storage, reloj });
+  const A2 = W2.entrar(1, A.guardado), B2 = W2.entrar(2, B.guardado), C2 = W2.entrar(3, C.guardado); W2.gente.push(A2, B2, C2); W2.pump(3);
+  juntos(W2);
+  W2.decir(B2, "otra vez");
+  assert.ok(!A2.chat.lineas.some((l) => l.texto === "otra vez"));
+  assert.ok(C2.chat.lineas.some((l) => l.texto === "otra vez"));
+  habla(W2, B2);
+  assert.deepEqual([A2.oido, C2.oido], [[], [B2.s.entity]]);
+  W2.decir(A2, `/desbloquear ${W2.nombre(B2)}`);
+  assert.match(W2.ultimo(A2), /Vuelves a leer y oír/);
+  W2.decir(B2, "de vuelta");
+  assert.ok(A2.chat.lineas.some((l) => l.texto === "de vuelta"));
+  habla(W2, B2);
+  assert.deepEqual(A2.oido, [B2.s.entity]);
+  W2.decir(A2, `/desbloquear ${W2.nombre(B2)}`);
+  assert.match(W2.ultimo(A2), /No tenías bloqueado/);
+  assert.deepEqual(W2.roles.bloqueados(W2.inst.who(A2.s.entity)!.id), []);
 });
