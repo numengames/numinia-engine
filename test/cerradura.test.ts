@@ -41,7 +41,7 @@ test("code lock: the builder sets it, the right digits open it, the code never r
   W.pump();
   A.c.poner({ id: "puerta1", metodo: "codigo", codigo: "1234", nombre: "Puerta del sótano", x: 1, z: 2 });
   W.pump();
-  assert.deepEqual(A.c.cerradura("puerta1"), { id: "puerta1", metodo: "codigo", abierta: false, nombre: "Puerta del sótano", x: 1, y: 0, z: 2 });
+  assert.deepEqual(A.c.cerradura("puerta1"), { id: "puerta1", metodo: "codigo", abierta: false, nombre: "Puerta del sótano", x: 1, y: 0, z: 2, evento: "" });
   assert.ok(!("codigo" in (B.s.features.stateOf("cerradura").get("puerta1") ?? {})), "the code is never a state field");
 
   B.c.abrir("puerta1", "0000");
