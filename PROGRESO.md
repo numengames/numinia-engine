@@ -109,3 +109,40 @@ pantalla de verdad). Antes de dar esto por cerrado falta:
   con el dedo de verdad (con ratón emulado no se vio overlap, pero no es lo
   mismo).
 - Medir con dpr distintos a 2.6-3 (hay Android con dpr 2 o menor).
+
+# PROGRESO · constructor/tactil-minimo (M22b-1)
+
+Rama `constructor/tactil-minimo` desde `origin/main` 749e99a · worktree `work/numinia-engine-wt-constructor-tactil` · 18-10-2026.
+Diseño del que sale: `work/mmo-browser-study/MODO-CONSTRUCTOR-MOVIL-VR.md` (M22b entero: móvil + VR, 5 historias).
+
+## Historias
+- [x] M22b-1 Táctil mínimo: toque selecciona, arrastrar mueve, sin asas en «mover», botones ≥ 44 px, hoja inferior en teléfono estrecho. Pierna e2e por CDP. SemVer 0.11.0. (esta rama)
+- [ ] M22b-2 Dos dedos giran / pellizcan / suben; retícula + «Colocar aquí»; pulsación larga = inspector; radio de gracia; TC apagado del todo en táctil; hoja 3 estados; `#barra-objeto` que quepa en 360 px.
+- [ ] M22b-3 VR con mando (`pickRayo`, `soltar`/`palanca`, `constructor-xr.ts`, barra 3D, fila «Construir» en el reloj).
+- [ ] M22b-4 VR con manos + cara «Construir» del reloj.
+- [ ] M22b-5 Prueba real en iPhone / Android / Quest 3S con Pablo.
+
+## Qué hay (ficheros)
+- `apps/plaza/constructor.ts`: capa de dedo (`document`, captura): `pointerdown` con `pointerType !== "mouse"` sobre el canvas → `ed.pick`; si hay cosa: `stopPropagation`, `setPointerCapture`, `cam.bloquear(true)`, `c.seleccionar`. `pointermove` > 6 px → `ed.sostener`, desfase = cosa − `puntoBajo(toque inicial)`; cada movimiento `ed.poner(puntoBajo + desfase)` con el paso del panel y `programarEnvio` (≤ 8/s). `pointerup/cancel` → `terminarEnvio`, `ed.sostener(null, final)`, `cam.bloquear(false)`. `tactil` (media query o primer toque) apaga TransformControls en «mover». Ayuda nueva en el panel. CSS ≥ 44 px en `(pointer: coarse)`.
+- `apps/plaza/tema.css`: `(pointer: coarse) and (max-width: 700px)`: `#panel-construir` hoja inferior ≤ 38 vh; `#panel-entorno` tira 46 vw × 22 vh arriba a la izquierda.
+- `tools/e2e-piernas/constructor-tactil.mjs`: pierna nueva (chromium, `Input.dispatchTouchEvent`, viewport 420×800 `hasTouch`+`isMobile`).
+- `docs/BACKLOG.md` (M22b partida en M22b-1..5 + «Hecho M22b-1»), `docs/JUGADOR.md` (fila «Con el dedo»), `docs/RUNLOG.md`, `package.json` + lock 0.11.0.
+
+## Medido
+- `npm test`: 376/376. `npm run gates`: todo en verde (tick p99 12,3 ms; 26,7 kbit/s).
+- `constructor-tactil.mjs`: 8/8 (toque selecciona, yaw 0→0; arrastre 150 px = 5,2 m, B lo ve; sin asas; vacío deselecciona; deshacer en B; borrar).
+- `constructor.mjs` (ratón, chromium): 11/11. Firefox no se corrió aquí (máquina con carga 19 por la otra sesión; `tools/auto.sh e2e` lo corre).
+
+## NO probado
+- Ningún teléfono ni Quest real. Solo chromium con emulación táctil (`pointer: coarse`, 1 punto de contacto): el `dblclick` táctil, `navigator.vibrate`, Safari iOS (sus `pointer` events sobre canvas, el rebote de scroll) y Android Chrome quedan para M22b-5.
+- Dos dedos a la vez (la capa se traga el segundo dedo mientras arrastras; no hace nada con él hasta M22b-2).
+
+## Defectos conocidos (se envían así; M22b-2)
+- `#barra-objeto` (5 botones ≥ 44 px) se sale por la derecha en 420 px: «Borrar» queda cortado.
+- Los botones de acción del móvil (Saltar, Saludar, Bailar, Recoger) se montan sobre la hoja inferior.
+- El HUD de depuración (arriba a la izquierda) pisa la tira de entorno.
+- Un arrastre corto mueve mucho si la cosa está lejos (es geometría de rayo: 150 px ≈ 5 m a 10 m de distancia); habrá que medir en mano si molesta.
+
+## Cómo seguir
+- PR: `work/pr-constructor-tactil.sh` (NO lanzado; cuerpo en `work/numinia-engine-PR-constructor-tactil-body.md`). Puede chocar en `package.json`/`BACKLOG.md`/`RUNLOG.md` con el tren `tren/motor-2026-10-18` si entra antes: resolver tomando los dos.
+- Correr la pierna sola: servidor `PORT=8796 MOTOR_CONSTRUIR=todos DATOS_DIR=/tmp/x node packages/server/src/main.ts`, vite `PLAZA_PORT=5231 npx vite --config apps/plaza/vite.config.mjs --strictPort`, y `BASE="http://127.0.0.1:5231/?webgl2&server=ws://127.0.0.1:8796" node tools/e2e-piernas/constructor-tactil.mjs`. Ojo: si el puerto de vite ya lo usa otro worktree, vite muere y pruebas contra el código de otro (me pasó con 5178).
