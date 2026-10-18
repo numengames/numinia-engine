@@ -40,6 +40,8 @@ import { crearDianas3D, crearDianaAR } from "./dardos.ts";
 import type { DianaAR } from "./dardos.ts";
 import { detalleAgua } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
+import { fundirAnimado } from "./fundir.ts";
+import type { Fundido } from "./fundir.ts";
 import type { Parte } from "./lotes.ts";
 import { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 export { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
@@ -253,6 +255,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (!c) { m.material = propio; return; }
       const nuevo = (Array.isArray(propio) ? propio[0] : propio).clone() as THREE.MeshStandardMaterial;
       if (nuevo.color) nuevo.color.set(c);
+      if (m.userData.fundido?.colores) nuevo.vertexColors = false; // N15: its colours live in the vertices; painted, one colour
       if ("map" in nuevo) nuevo.map = null;
       m.material = nuevo;
     });
@@ -364,6 +367,16 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     enteros.set(model, out);
     return out;
   }
+  // N15: a model that animates is fused ONCE per file (fundir.ts): one skinned mesh per look sharing one skeleton, so
+  // each copy costs 1-3 draw calls instead of one per piece (the house robot: 19 -> 1). Looks and moves the same.
+  const fundidos = new Map<string, Fundido | null>();
+  function fundido(model: string, g: Gltf, clone: Tools["clone"]): Fundido | null {
+    if (fundidos.has(model)) return fundidos.get(model)!;
+    let f: Fundido | null = null;
+    try { f = g.animations.length ? fundirAnimado(clone(g.scene), g.animations) : null; } catch (err) { console.warn(`[objetos] no pude fundir ${model}:`, err); f = null; }
+    fundidos.set(model, f);
+    return f;
+  }
   const files = new Map<string, Promise<{ g: Gltf; clone: Tools["clone"]; merge: Merge }>>(); // model -> its parsed file, shared by every copy
   const things = new Map<string, Slot>();
   const waiting = new Set<string>();
@@ -393,12 +406,13 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         if (!now || now.model !== model || now.loaded) return; // removed or changed while it downloaded
         const quieto = !now.want.animate ? hornear(model, g.scene, merge) : null;
         let copy: THREE.Object3D;
+        const fu = !quieto && now.want.animate ? fundido(model, g, clone) : null;
         if (quieto) { copy = new THREE.Group(); for (const q of quieto) { const m = new THREE.Mesh(q.geo, q.mat); m.castShadow = q.sombra; copy.add(m); } }
-        else copy = clone(g.scene);
+        else copy = clone(fu ? fu.escena : g.scene);
         now.horneado = !!quieto; now.partes = quieto ?? partesEnteras(model, g) ?? undefined;
         now.radio = radioDe(copy) * (now.want.animate ? 1.5 : 1); // an animation may reach out of its rest pose
         now.group.add(copy);
-        if (now.want.animate && g.animations.length) { now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction(g.animations[0]).play(); }
+        if (now.want.animate && g.animations.length) { now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction((fu ? fu.clips : g.animations)[0]).play(); }
         now.loaded = true; now.color = undefined; pintar(now);
         if (llevados.has(best) && now.group.parent !== world) { const d = llevados.get(best)!; soltarLlevado(best); llevados.set(best, d); } // re-fit in the hand
       }).catch((e) => {
