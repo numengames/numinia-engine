@@ -1125,3 +1125,20 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `ko/t_32744f07-v2` sobre `origin/tren/motor-2026-10-18-6`, PR #145.
 - Siguiente: la siguiente historia de L2 (HUD, velocidad, vuelta a `aparicion`, estado compartido por
   invitado) cuando la pida el tablero; L3 (la criatura se mueve y persigue) sigue esperando a L2 entero.
+
+## 2026-10-18 19:30 · constructor/anclar-explicar · hecho
+- Qué: el botón «fijar» del constructor se renombra a «Anclar / soltar» (con icono) y lleva un tooltip claro
+  (t_72b0bdab), porque Pablo (vídeo 18-10): «fijar no se entiende». Renombrado en `apps/plaza/constructor.ts`
+  (botón con icono `push-pin` de Phosphor, `boton2` ahora acepta un icono opcional), tooltip explícito («Anclar:
+  nadie lo mueve, gira ni borra hasta que lo sueltes (P)»), etiqueta del checkbox del inspector, texto de ayuda
+  del constructor y los mensajes de estado del cliente (cogido/arrastrado) usan «anclado». Los mensajes de
+  rechazo del servidor (`features/objetos/server.ts`) siguen diciendo «fijado»: varias pruebas
+  (`test/objetos.test.ts`, `test/huecos.test.ts`) comprueban ese texto exacto; cambiarlo junto con las pruebas
+  se deja para otra tarjeta si se quiere, por no ensanchar esta historia de 20 min. El campo de datos y el
+  verbo de red siguen llamándose `fijado`/`fijar` (wire/schema sin tocar, D-055 no aplica aquí: es puro texto
+  de interfaz). `docs/JUGADOR.md` actualizado con el mismo texto.
+- Números: `npm test` y `npm run build` en verde (ver comprobado en el PR).
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `constructor/anclar-explicar` sobre `origin/tren/motor-2026-10-18-6`.
+- Siguiente: nada pendiente de esta tarjeta; si se quiere, extender el mismo nombre a `rueda.ts` («Fijar en
+  favoritos», uso distinto, no tocado aquí).
