@@ -48,6 +48,24 @@ class VrmaPlugin {
   }
 }
 
+// UAL1 (free) has no wave, the one gesture every game has (../movimientos/LISTA.md, 9 of 9). `saludo: true` makes one
+// from another clip: its body as it is, the right arm replaced by a wave written here (upper arm out and a little
+// forward, forearm up with the palm to the front, swinging ±22° twice a second, eased in and out). Same frame as above:
+// +X = the avatar's left (the right arm points to −X), +Y up, +Z forward; rotations local to the parent bone.
+const RAD = Math.PI / 180;
+const SALUDO_HUESOS = { upperarm_r: true, lowerarm_r: true };
+const qe = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x * RAD, y * RAD, z * RAD, "YZX"));
+function brazoQueSaluda(t, dur) {
+  const sube = Math.max(0, Math.min(1, t / 0.35, (dur - t) / 0.35)); // 0 → 1 over the first 0.35 s, back over the last
+  const peso = sube * sube * (3 - 2 * sube);
+  const vaiven = Math.sin(2 * Math.PI * 1.8 * t) * 22;
+  return {
+    peso, // how much of the wave over the source clip's own arm
+    upperarm_r: qe(0, 20, 15),                // out to the side, 15° below the shoulder, 20° forward
+    lowerarm_r: qe(-90, 0, -105 + vaiven),    // palm to the front, forearm up, swinging
+  };
+}
+
 window.convertir = async (fbxUrl, wanted) => {
   const fbx = new FBXLoader().parse(await (await fetch(fbxUrl)).arrayBuffer(), "");
   const report = { clipsInFile: fbx.animations.length, missingBones: [], clips: {} };
@@ -84,8 +102,9 @@ window.convertir = async (fbxUrl, wanted) => {
   report.rest = { hipHeight: +hipHeight.toFixed(4), unit, facing: fwd.toArray().map((n) => +n.toFixed(3)) };
 
   const files = {};
-  for (const { name, clip: clipName } of wanted) {
-    const clip = findClip(fbx, clipName);
+  for (const { name, clip: clipName, saludo, hasta } of wanted) {
+    const fuente = findClip(fbx, clipName);
+    const clip = fuente && hasta ? Object.assign(fuente.clone(), { duration: Math.min(hasta, fuente.duration) }) : fuente;
     if (!clip) { report.clips[name] = { error: `no clip ${clipName} in the file` }; continue; }
     const frames = Math.max(2, Math.round(clip.duration * FPS) + 1);
     const times = new Float32Array(frames);
@@ -104,6 +123,7 @@ window.convertir = async (fbxUrl, wanted) => {
         const p = parentOf[n];
         const local = p ? D[p].clone().invert().multiply(D[n]) : D[n].clone();
         const arr = rot[n];
+        if (saludo && n in SALUDO_HUESOS) { const b = brazoQueSaluda(t, clip.duration); local.slerp(b[n], b.peso); }
         if (i > 0) { const prev = new THREE.Quaternion().fromArray(arr, (i - 1) * 4); if (prev.dot(local) < 0) local.set(-local.x, -local.y, -local.z, -local.w); }
         local.toArray(arr, i * 4);
       }
@@ -139,7 +159,7 @@ window.convertir = async (fbxUrl, wanted) => {
     files[name] = btoa(bin);
     const speed = slideFrames ? Math.max(0, slide / slideFrames) : 0;
     report.clips[name] = {
-      from: clipName, duration: +clip.duration.toFixed(3), frames, tracks: tracks.length, bytes: glb.length,
+      from: saludo ? `${clipName} + saludo` : clipName, duration: +clip.duration.toFixed(3), frames, tracks: tracks.length, bytes: glb.length,
       speedMs: +speed.toFixed(3), speedPerHipHeight: +(speed / hipHeight).toFixed(3), minToeY: +minFootY.toFixed(3),
     };
   }
