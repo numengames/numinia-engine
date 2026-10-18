@@ -16,8 +16,10 @@ export type Opciones = { hidden: boolean; volume: number; reach: Alcance; radius
  * decided: see docs/BACKLOG.md U14 «¿el mando es mío o del mundo?»). Pausing here freezes the picture for ME ONLY;
  * everyone else keeps watching on the shared clock. `volumen` is a 0–1 multiplier over the bubble's own volume. */
 export type ControlVideo = { pausado(): boolean; alternarPausa(): void; parar(): void; volumen(): number; fijarVolumen(v: number): void };
-/** One drawn medium: what to add to the thing's group, what to call every frame, and how to let go of it. */
-export type Medio = { obj: THREE.Object3D; actualizar(grupo: THREE.Object3D, oyente: Punto | null, o: Opciones): void; soltar(): void; sonando(): boolean; controlVideo?: ControlVideo };
+/** One drawn medium: what to add to the thing's group, what to call every frame, and how to let go of it.
+ * `enVivo` (M18, video only): show a live MediaStream on the screen instead of the file (this page only; nothing is sent),
+ * `null` puts the file back. */
+export type Medio = { obj: THREE.Object3D; actualizar(grupo: THREE.Object3D, oyente: Punto | null, o: Opciones): void; soltar(): void; sonando(): boolean; controlVideo?: ControlVideo; enVivo?(stream: MediaStream | null): void };
 
 const VIDEO_PAUSA_M = 40;      // farther than this (plus its bubble) a bubble video stands still: no decoding
 const BORDE = 0.8;             // full volume up to 80 % of the radius, then fades to the edge
@@ -102,10 +104,28 @@ export async function cargarVideo(url: string, verOcultos: () => boolean = () =>
     volumen: () => miVolumen,
     fijarVolumen(x) { miVolumen = Math.max(0, Math.min(1, x)); },
   };
+  // M18: a live stream (your shared screen) on the plane instead of the file, only on this page. The plane keeps the
+  // file's proportion (the thing's box does not change); the file keeps playing underneath so the shared clock holds.
+  const material = pantalla.material as THREE.MeshBasicMaterial;
+  let vivo: { v: HTMLVideoElement; tex: THREE.VideoTexture } | null = null;
+  const quitarVivo = () => {
+    if (!vivo) return;
+    vivo.v.pause(); vivo.v.srcObject = null; vivo.tex.dispose(); vivo = null;
+    material.map = tex; material.needsUpdate = true;
+  };
   return {
     obj,
     controlVideo,
-    sonando: () => !v.paused,
+    sonando: () => !v.paused || !!vivo,
+    enVivo(stream) {
+      quitarVivo();
+      if (!stream) return;
+      const lv = document.createElement("video");
+      lv.muted = true; lv.playsInline = true; lv.autoplay = true; lv.setAttribute("playsinline", ""); lv.srcObject = stream;
+      void lv.play().catch(() => {});
+      const lt = new THREE.VideoTexture(lv); lt.colorSpace = THREE.SRGBColorSpace;
+      material.map = lt; material.needsUpdate = true; vivo = { v: lv, tex: lt };
+    },
     actualizar(g, oyente, o) {
       const r = Math.max(0.5, o.radius);
       burbuja.visible = o.reach === "burbuja" && verOcultos();
@@ -120,7 +140,7 @@ export async function cargarVideo(url: string, verOcultos: () => boolean = () =>
       if (vol <= 0.001) { quiereSonar = false; v.muted = true; }
       v.volume = vol;
     },
-    soltar() { v.pause(); v.removeAttribute("src"); v.load(); tex.dispose(); (pantalla.material as THREE.Material).dispose(); pantalla.geometry.dispose(); soltarEsfera(burbuja); },
+    soltar() { quitarVivo(); v.pause(); v.removeAttribute("src"); v.load(); tex.dispose(); (pantalla.material as THREE.Material).dispose(); pantalla.geometry.dispose(); soltarEsfera(burbuja); },
   };
 }
 
