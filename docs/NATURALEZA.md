@@ -575,3 +575,79 @@ prado de noche, las 12 luciérnagas en fila (identificación: se distinguen ≥ 
 geometría y los roles están aislados en `geometriaMariposa`. Las luciérnagas de día no se dibujan (no hay llamada de dibujo).
 
 **Pruebas:** `test/naturaleza-mariposas.test.ts` (13).
+
+
+## F3 · Aves electrónicas: 12 razas, 4 cuerpos, una sola llamada de dibujo (`naturaleza/aves.ts`)
+
+`crearAves(h:{vientoU, nivel, camara?, hora(), tabla}, fuente:{semilla, alturaEn, zonaEn}, op?)` → `{ mallas, malla, actualizar(camara, tReloj), llenarTodo, exponer, fijarReloj, visibles, lideres, estadisticas, dispose, especies, plazas, lejosM, anillo, geometria }`.
+No se cablea en `naturaleza.ts` (lo hace F4): el padre añade `aves.mallas` a la escena y llama `actualizar(camara, tReloj)` cada frame
+(`tReloj` = reloj del mundo en segundos). `op`: `escena`, `nivel`, `densidad`, `especies` (lista blanca del mundo), `presupuestoMs`, `plazas`, `lejosM`.
+
+**Qué se dibuja.** TODAS las aves del mundo son UNA malla instanciada: **1 llamada de dibujo en los cuatro niveles** (medido a nivel GL con la
+página de fotos: la escena vacía hace 1, con las aves 2; sin texturas, sin luces, sin sombras, sin segunda pasada: `forceSinglePass`). Sin segunda
+malla de lejos: la silueta lejana es la MISMA malla con otra pose (ver LOD).
+
+**Un ave = 39 triángulos** (no indexada, 117 vértices, atributos `position, aF, aK, aC, aU` + por instancia `iA, iB, iC`): torso 9 (dos anillos de 3
+caras: lomo con arista y vientre plano), cuello 6, cabeza 6 + pico 3, **dos ojos** 2 (triángulo en cada cara lateral, emisivo), abanico de cola 3,
+dos alas de 4 (dos paneles internos, panel externo y pluma de borde de fuga), dos patas 2 (rastros que en la grulla llegan lejos tras la cola).
+Se construye UNA vez en pose neutra; el vertex shader la estira a cada silueta con una fila de la tabla por raza (11 `vec4`, `NK`):
+
+| Plan | Razas | Silueta |
+|---|---|---|
+| `cantor` | gorrion-laton, paloma-engranajes, estornino-cobre, petirrojo-valvula, colibri-filamento, mirlo-lente | cuerpo corto, cabeza redonda, pico corto (el colibrí: pico casi tan largo como el cuerpo y alas pequeñas a 24 Hz; el mirlo: cola larga; el petirrojo: pecho hinchado) |
+| `dardo` | golondrina-bobina, martin-zafiro | alas largas barridas hacia atrás, cola en horquilla (golondrina) o corta y cabeza grande con pico largo (martín) |
+| `rapaz` | buho-relojeria, cuervo-hierro, aguila-cuarzo | alas anchas y romas, cola corta; búho: cabeza enorme sin cuello; águila: alas muy anchas, planeo casi continuo |
+| `zancuda` | grulla-mercurio | cuello largo, pico largo, patas largas tras la cola, alas largas y estrechas |
+
+Una raza que la tabla del mundo trae y no está en `RAZAS_AVE` cae en un plan por tamaño y velocidad (`planPorTamano`): el motor no se rompe con razas nuevas.
+
+**Dónde está (cero CPU por ave).** La posición sale del shader: es `trayectoria` de F1 portada 1:1 a TSL (Lissajous alrededor del ancla, mismas fases y
+radios), con ancla y fase por instancia. `trayectoriaAve` es el gemelo en CPU (para tests y `lideres`; con `hover = 0` es idéntica a F1, un test lo fija).
+- **Rumbo**: la derivada de la trayectoria. **Alabeo**: giro coordinado `atan(v·ω/g)` con la curvatura de la trayectoria (× un factor por plan: rapaces y
+  grulla se inclinan más, el cantor poco). **Cabeceo**: velocidad vertical.
+- **Alas**: batido en el shader con frecuencia y amplitud por plan, con retraso de la punta y un segundo armónico. Rapaces y grulla baten en ráfagas
+  (`glide` 0,8–0,95) y planean entre ellas; el cantor hace **vuelo en arcos** (bate subiendo, pliega las alas cayendo, ciclo de 0,8 s); el colibrí
+  **se cierne** (la trayectoria se recorre a «arranca-y-para», ciclo de 4 s, cabeceo hacia arriba). El viento (`vientoU`) añade un temblor a la punta del ala.
+- **Bandadas** (`n` de F1): los miembros comparten la trayectoria del líder; el desfase se calcula en el shader del índice de miembro: **V** (grulla)
+  o **nube** (secuencia R2 de la proporción áurea + un vaivén lento). `desfaseMiembro` es el gemelo en CPU.
+- **Altura**: al leer una celda se muestrean 16 puntos de la trayectoria contra `alturaEn` y se sube el ancla hasta que todo el lazo queda a ≥ `max(2, 1,6·tamaño)` m
+  del suelo (+ el arco del cantor y el radio de nube de las bandadas). Un test lo comprueba en 6 instantes de la ventana y en los 4 niveles.
+- **Aparecer/desaparecer**: escala por `fundido` de F1 (4 s en los bordes de la ventana de 120 s), 1,5 s de entrada para un ave que se une al banco, y
+  desvanecido por distancia solo muy lejos (`lejosM + 14 … + 30`), nunca a la vista.
+
+**Quién y cuándo se recalcula (igual que el anillo de hierba).** `habitantes` de F1 decide quién vive en cada celda de 32 m y ventana de 120 s. Las
+celdas alrededor de la cámara se piden UNA vez, por orden de cercanía, con presupuesto `presupuestoMs` (0,3 ms) por frame y caché; los búferes de
+instancia se reconstruyen desde la caché solo cuando llega una celda, cuando la cámara cruza una celda o cambia la ventana o el tramo del día. Un
+frame normal solo escribe dos uniformes. Tope de entradas por nivel = `FAUNA_POR_NIVEL.enVista.pajaro` (una bandada es UNA entrada), cada una con
+hasta 8 aves: **plazas** = `enVista.pajaro × 8` = A 128 · B 80 · C 56 · D 24.
+
+**Lejos (LOD) sin segunda malla.** Cada vértice lleva una segunda pose («lejana»); a más de `LEJOS_POR_NIVEL` (A 60 · B 48 · C 42 · D 32 m) el shader
+la mezcla en 10 m: queda un cuerpo + dos alas + cola de **7 triángulos** y los otros 32 colapsan a un punto (triángulos degenerados: no cuestan
+fragmentos). Es el mismo disco, así que no hay segunda llamada ni «salto» de malla.
+
+**Aspecto.** Color plano facetado (Phong con `flatShading` y brillo suave = metal cepillado), dos tonos por plumaje (lomo y punta de ala `ala`, vientre
+`cuerpo`), una **línea de circuito** a lo largo del lomo, las alas y la cola en el color `circuito` por donde corre una luz, **dos ojos** y una lámpara
+de pecho en el color `luz` de la raza con su ritmo (`fijo, latido, parpadeo, onda, respiro, estrobo, morse, prisma`). El brillo es emisivo (no recibe
+luz), así que sobrevive al ocaso y a la niebla.
+
+**Cifras (medidas).**
+| Nivel | Plazas | Triángulos del peor caso (todas lejos = 7 cada una, todas cerca = 39) | Llamadas |
+|---|---|---|---|
+| A | 128 | ≤ 4 992 (≤ 6 000) | 1 |
+| B | 80 | ≤ 3 120 (≤ 4 000) | 1 |
+| C | 56 | ≤ 2 184 (≤ 3 000 estim. del presupuesto) | 1 |
+| D | 24 | ≤ 936 (≤ 1 500) | 1 |
+
+En la escena de la foto de bandadas (nivel A, 75 aves, 16 entradas) se envían 2 925 triángulos; los que rasterizan de verdad (cerca 52 × 39 + lejos 18 × 7)
+son 2 154. CPU: un frame estable < 0,3 ms (test: máximo de 300 frames); leer las 21 celdas del anillo A cuesta ~1–2 ms repartidos por el presupuesto
+(0,3 ms por frame); reconstruir el banco es un volcado de ≤ 128 filas.
+
+**Pruebas:** `test/naturaleza-aves.test.ts` (10: tabla/planos de las 12 razas, geometría 39/7 triángulos, gemelo CPU de `trayectoria`, desfases de
+bandada, 1 malla por nivel, topes y altura mínima por nivel, refresco solo al cruzar celda/ventana, CPU, lista blanca y densidad, dispose).
+**Fotos** (`work/naturaleza/fotos/f3-*.png`, página `.run/f3`, puerto 5408): `f3-12-razas` (las 12 en 3/4), `f3-linea-peq` / `f3-linea-grandes` (perfil),
+`f3-bandada-suelo` (bandada desde 1,7 m), `f3-planeo-abajo` (águila y grulla desde abajo), `f3-buhos-ocaso` (búhos y cuervo al anochecer).
+
+**Límites conocidos / para F4.** (1) Falta cablear en `naturaleza.ts`; `lejosM` de A/B/C/D no escala con la calidad de la cámara. (2) Las razas de una
+tabla de mundo con más de 16 aves distintas se recortan a 16 (el `uniformArray`). (3) Sin sombra ni colisión; las aves no esquivan árboles (la
+altura mínima basta sobre el relieve, no sobre las copas: las copas de N2 no entran en `alturaEn`). (4) El brillo del circuito a mediodía es sutil; el
+de los ojos y la lámpara se ve sobre todo al anochecer. (5) «Dibujadas ahora, se cambiarán»: toda la forma vive en `geometriaAve` + `PLANES`/`RAZAS_AVE`.
