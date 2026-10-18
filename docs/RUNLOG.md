@@ -6,6 +6,18 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 15-10 están en hora de Madrid
 (CEST, UTC+2); desde la de las 10:08, en UTC.
 
+## 2026-10-18 14:52 · h2-ordenes h1 · hecho
+- Qué: H2 historia 1 (sim: orden tipada). `ORDER_STRIDE` pasa de 4 a 6: una orden es `[entidad, tipo, a, b, c, d]`;
+  `ORDER_PONER` (1) es lo de D-045 (#53) con un byte de tipo delante, mismo efecto (sitio fijo, vy 0, salto limpio).
+  `Instance.volverASeguro` emite `ORDER_PONER`; `api.teletransportar`/`volverASeguro` no cambian su contrato. Base
+  para QUIETO/EMPUJAR/SENTAR/VOLAR (h2-h2..h2-h4).
+- Números: `test/ordenes.test.ts` nuevo (3 pruebas); `test/suelo.test.ts` sigue verde con el formato nuevo; huella
+  de referencia (sim 3) sigue en `0x7e630965` sin órdenes. `npm test`: mismos 23 fallos preexistentes (falta el
+  paquete `ws`, no instalado en este worktree) antes y después del cambio; nada roto por esta historia.
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `h2-ordenes/ola3`, PR contra `tren/motor-2026-10-18-5`.
+- Siguiente: h2 historia 2 (sim: QUIETO).
+
 ## 2026-10-14 23:40 · arranque · hecho
 - Qué: PP0 (arquitectura) y PP1 (esqueleto que anda) hechos; PP2 parte 1 (mil en una plaza) hecha;
   módulo de multitud escrito sin probar; montados los raíles del turno desatendido (`tools/auto.sh`,
