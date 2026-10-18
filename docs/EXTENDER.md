@@ -900,9 +900,15 @@ poste, la caja en el suelo.
   con `aria-live="off"`, estado) y los botones (44 px) solo cuando estás al alcance: Arrancar/Parar y Reiniciar, o +1 / −1
   / Reiniciar en un marcador.
 - **Chat:** `/contador sala arranca|para|suma 3|resta 1|reinicia`, `/contadores` (la lista con sus valores).
-- **Lo que no hace (todavía, historia 3):** guardar el valor entre reinicios del servidor (`persist`), un contador por
-  persona o por equipo con nombre libre, poner o quitar contadores desde dentro del mundo (hoy, solo el fichero), y el
-  cable que conecte `llegada` con otra pieza (D-041, otro agente).
+- **Lo que no hace (todavía):** un contador por persona (hoy solo id y, con `variante: "equipo"`, por equipo), poner o quitar
+  contadores desde dentro del mundo (hoy, solo el fichero), y el cable que conecte `llegada` con otra pieza (D-041, otro agente).
+- **h3 (persist, variante equipo):** `state.persist: true` (S4) — el valor y si está en marcha sobreviven a un reinicio del
+  servidor; al arrancar, un contador recupera lo guardado (no vuelve a `inicio`) y, si no hay nada guardado, usa el fichero.
+  Un contador con `"variante": "equipo"` en el fichero deja de ser un solo valor: la orden lleva además `equipo` (1-16 letras
+  minúsculas, cifras o guiones — un nombre libre, no una lista que el fichero tenga que declarar) y el servidor crea ese
+  equipo la primera vez que se nombra, hasta `EQUIPOS_MAX` (8) equipos por contador; cada equipo vive bajo la clave
+  `<id>:<equipo>` (estado, cartel y chat: `/contador marcador:rojo suma`). Sin `equipo` o con uno de más, se rechaza
+  («Di el equipo…» / «ya tiene 8 equipos»).
 ## El cable (D-041, v1): disparadores que un mundo escribe en datos, sin código
 
 La pieza `disparadores@1` (`features/disparadores`) es el cable del mundo: un constructor (o un agente que escribe JSON)
