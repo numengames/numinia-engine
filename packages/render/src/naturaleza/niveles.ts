@@ -18,10 +18,11 @@ export type NaturalezaNivel = {
 };
 
 export const NATURALEZA_POR_NIVEL: Record<Nivel, NaturalezaNivel> = {
-  A: { arbolesCerca: 110, arbolesVisibles: 650, arbolesCercaM: 55, arbolesLejosM: 240, arbolesAletean: true },
-  B: { arbolesCerca: 45, arbolesVisibles: 400, arbolesCercaM: 40, arbolesLejosM: 170, arbolesAletean: true },
-  C: { arbolesCerca: 45, arbolesVisibles: 400, arbolesCercaM: 40, arbolesLejosM: 170, arbolesAletean: true },
-  D: { arbolesCerca: 20, arbolesVisibles: 170, arbolesCercaM: 26, arbolesLejosM: 110, arbolesAletean: false },
+  // N4 retune: terrain + trees + grass share ONE budget (see PRESUPUESTO_NATURALEZA below); the first values were N2's alone.
+  A: { arbolesCerca: 55, arbolesVisibles: 340, arbolesCercaM: 45, arbolesLejosM: 220, arbolesAletean: true },
+  B: { arbolesCerca: 28, arbolesVisibles: 245, arbolesCercaM: 34, arbolesLejosM: 150, arbolesAletean: true },
+  C: { arbolesCerca: 28, arbolesVisibles: 245, arbolesCercaM: 34, arbolesLejosM: 150, arbolesAletean: true },
+  D: { arbolesCerca: 12, arbolesVisibles: 100, arbolesCercaM: 22, arbolesLejosM: 100, arbolesAletean: false },
 };
 
 // ---- grass (N3, hierba.ts) ----
@@ -40,8 +41,17 @@ export type HierbaNivel = {
   presupuestoMs: number;
 };
 export const HIERBA_POR_NIVEL: Record<Nivel, HierbaNivel> = {
-  A: { radio: 38, tuftsMax: 14000, celda: 8, floresMax: 0.07, aleteo: true, presupuestoMs: 0.4 },
-  B: { radio: 22, tuftsMax: 7000, celda: 8, floresMax: 0.06, aleteo: true, presupuestoMs: 0.4 },
-  C: { radio: 22, tuftsMax: 7000, celda: 8, floresMax: 0.06, aleteo: true, presupuestoMs: 0.4 },
-  D: { radio: 14, tuftsMax: 3000, celda: 7, floresMax: 0.05, aleteo: false, presupuestoMs: 0.3 },
+  // N4 retune (was 14000 / 7000 / 7000 / 3000 tufts): the grass gives room to the terrain and the trees. D has no flowers (one draw call less).
+  A: { radio: 38, tuftsMax: 5600, celda: 8, floresMax: 0.08, aleteo: true, presupuestoMs: 0.4 },
+  B: { radio: 22, tuftsMax: 3200, celda: 8, floresMax: 0.05, aleteo: true, presupuestoMs: 0.4 },
+  C: { radio: 22, tuftsMax: 3200, celda: 8, floresMax: 0.05, aleteo: true, presupuestoMs: 0.4 },
+  D: { radio: 14, tuftsMax: 1700, celda: 7, floresMax: 0, aleteo: false, presupuestoMs: 0.3 },
 };
+
+// ---- N4: the whole nature piece (naturaleza.ts) ----
+/** The brief's hard limits for ALL nature together: triangles sent (terrain + trees + grass) and draw calls (water included). */
+export const PRESUPUESTO_NATURALEZA: Record<Nivel, { triangulos: number; llamadas: number }> = {
+  A: { triangulos: 60000, llamadas: 12 }, B: { triangulos: 35000, llamadas: 10 }, C: { triangulos: 35000, llamadas: 10 }, D: { triangulos: 15000, llamadas: 8 },
+};
+/** Most trees the scatter plants in the whole world per tier (memory + the O(n) near/far split): thinned evenly above it. */
+export const ARBOLES_MAX_POR_NIVEL: Record<Nivel, number> = { A: 1100, B: 750, C: 750, D: 300 };

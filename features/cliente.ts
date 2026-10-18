@@ -19,6 +19,7 @@ import web from "./web/client.ts";
 import puertas from "./puertas/client.ts"; // J4: the slab on its hinge
 import botones from "./botones/client.ts"; // J4: the cap on its post
 import cogibles from "./cogibles/client.ts"; // J4: on the floor or in a hand (view.lleva); «Soltar» = Q
+import naturaleza from "./naturaleza/client.ts"; // N4: relief, trees and grass (built by packages/render/src/naturaleza/naturaleza.ts)
 import suelo from "./suelo/client.ts"; // D-045: the fade when the server puts you back on a safe spot
 import contadores from "./contadores/client.ts"; // D-044: timers and counters (the sign is a label sprite; the panel lives in apps/plaza/contadores.ts)
 import disparadores from "./disparadores/client.ts"; // D-041: the cable — a button on its post; the page only asks `pulsar`
@@ -26,5 +27,5 @@ import cerradura from "./cerradura/client.ts"; // D-042: the lock's data and its
 import movedores from "./movedores/client.ts"; // D-043: the model wherever the server says, right now (`view.place`)
 import lucha from "./lucha/client.ts"; // L1: creatures drawn as the house block through view.place; «E: golpear»
 import inventario from "./inventario/client.ts"; // Y1: the Reserva (panel in apps/plaza/inventario.ts)
-const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores, cerradura, movedores, inventario];
+const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, naturaleza, contadores, disparadores, cerradura, movedores, inventario];
 export default funciones;

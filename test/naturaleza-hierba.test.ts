@@ -23,7 +23,7 @@ const viento = () => ({ vientoU: uniform(new THREE.Vector3(2, 0, 1)) });
 test("placement is a pure function of (seed, cell): same tufts, same flowers, any order", () => {
   const n = HIERBA_POR_NIVEL.A;
   const a = tuftsDeCelda(SEMILLA, 3, -2, fuente, n), b = tuftsDeCelda(SEMILLA, 3, -2, fuente, n);
-  assert.ok(a.length > 20, `${a.length} tufts in a plain cell`);
+  assert.ok(a.length > 10, `${a.length} tufts in a plain cell`);
   assert.equal(clave(a), clave(b));
   tuftsDeCelda(SEMILLA, 9, 9, fuente, n); // another cell in between changes nothing
   assert.equal(clave(tuftsDeCelda(SEMILLA, 3, -2, fuente, n)), clave(a));
@@ -116,7 +116,7 @@ test("CPU: refilling is spread over frames within the budget (each call ≈ pres
   const tiempos: number[] = [];
   let frames = 0;
   do { const t0 = performance.now(); h.actualizar(cam, frames * 0.016); tiempos.push(performance.now() - t0); frames++; } while (h.estadisticas().pendientes && frames < 5000);
-  assert.ok(frames > 5, `the first fill spreads over ${frames} frames`);
+  assert.ok(frames > 2, `the first fill spreads over ${frames} frames`);
   // walking: a border crossing every 8 m; the spikes stay small
   const paseo: number[] = [];
   for (let i = 0; i < 200; i++) { cam.position.x += 0.5; const t0 = performance.now(); h.actualizar(cam, frames++ * 0.016); paseo.push(performance.now() - t0); }

@@ -34,7 +34,11 @@ import type { Nivel } from "../calidad.ts";
 import type { Zona } from "./terreno.ts";
 
 /** What the grass needs from the terrain: the height and the zone at a world point (bind the seed: terreno.ts `crearTerreno().alturaEn`). */
-export type Fuente = { alturaEn: (x: number, z: number) => number; zonaEn: (x: number, z: number) => Zona };
+export type Fuente = {
+  alturaEn: (x: number, z: number) => number; zonaEn: (x: number, z: number) => Zona;
+  /** N4: the world's palette (hex): meadow, forest floor and dry patches over the house colours. */
+  colores?: { prado?: number; bosque?: number; seco?: number };
+};
 
 /** Palette (linear via THREE.Color): the brief's warm meadow green, a deeper forest green, a yellowing patch, three flowers. */
 export const PALETA_HIERBA = { prado: 0x9bc25a, bosque: 0x558c3b, seco: 0xc9cf62, flores: [0xfaf6ea, 0xffd84a, 0xf28fb5] as number[] };
@@ -51,7 +55,7 @@ const azar = (s: number, cx: number, cz: number, k: number, canal: number) => ha
 
 const cPrado = new THREE.Color(PALETA_HIERBA.prado), cBosque = new THREE.Color(PALETA_HIERBA.bosque), cSeco = new THREE.Color(PALETA_HIERBA.seco);
 const cFlores = PALETA_HIERBA.flores.map((h) => new THREE.Color(h));
-const tmp = new THREE.Color();
+const tmp = new THREE.Color(), tmp2 = new THREE.Color(), tmp3 = new THREE.Color(), tmp4 = new THREE.Color();
 
 /** One placed tuft: world position (y = ground), yaw, scale, linear colour. Written by `tuftDe`/`florDe` into a scratch. */
 export type Pieza = { x: number; y: number; z: number; giro: number; escala: number; r: number; g: number; b: number };
@@ -75,8 +79,9 @@ export function tuftDe(semilla: number, cx: number, cz: number, k: number, f: Fu
   const y = f.alturaEn(x, z);
   if (azar(semilla, cx, cz, k, 5) >= 1 - paso(0.45, 0.95, pendiente(f, x, z, y))) return false; // steep ground: thinner
   const claro = valor2(semilla + 11, x * 0.06, z * 0.06), fino = valor2(semilla + 23, x * 0.11, z * 0.11), seco = paso(0.62, 0.9, valor2(semilla + 37, x * 0.03, z * 0.03));
-  tmp.copy(zona === "prado" ? cPrado : cBosque);
-  if (zona === "prado") tmp.lerp(cSeco, seco * 0.55);
+  const pal = f.colores, cp = pal?.prado !== undefined ? tmp2.set(pal.prado) : cPrado;
+  tmp.copy(zona === "prado" ? cp : pal?.bosque !== undefined ? tmp3.set(pal.bosque) : cBosque);
+  if (zona === "prado") tmp.lerp(pal?.seco !== undefined ? tmp4.set(pal.seco) : cSeco, seco * 0.55);
   // a slow large-scale light/dark patchiness, a finer one and a per-tuft jitter
   const luz = (0.66 + 0.5 * claro + (fino - 0.5) * 0.14) * (0.88 + 0.24 * azar(semilla, cx, cz, k, 7));
   out.x = x; out.y = y; out.z = z; out.giro = azar(semilla, cx, cz, k, 6) * TAU;

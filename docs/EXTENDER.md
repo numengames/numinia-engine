@@ -1000,6 +1000,14 @@ escena (Lambert), así que de noche se oscurece sola.
   queda en 0; `aguaDetalle` dice qué dibuja el agua en este nivel).
 - Pruebas: `test/agua.test.ts`.
 
+## Naturaleza (N4): relieve, árboles y hierba que enciende un fichero
+
+`features/naturaleza` es la pieza más corta de copiar para «el servidor solo guarda y manda un fichero del mundo; la página construye»:
+`MUNDO_DIR/naturaleza.json` (`numinia-engine/naturaleza@1`: `activa`, `semilla`, `tamano`, `plaza`, `densidad: { arboles, hierba }`,
+`estanque`, `paleta`; todo opcional, claves de más rechazadas con cómo arreglarlas) → `features/mundo.ts` lo valida (si está mal, lo dice en
+el log y el mundo sigue plano) → la página llama a `view.naturaleza.aplicar(datos)`. Sin el fichero no cambia nada. Detalle, números y
+la advertencia de que aún no hay colisión con el terreno (N5): `docs/NATURALEZA.md` sección N4.
+
 ## Enrutador de capas (U2, H1: la pieza, aún sin enchufar)
 
 `apps/plaza/capas.ts` es la pieza que decidirá quién es dueño de Esc, «atrás», B y Start: cada cosa que se puede cerrar registra una capa (`registrar({ id, rango, abierta, cerrar })`, o `vigilar(dialog)` para un `<dialog>` nativo) y el enrutador cierra la de arriba (cambiar tecla › escribir › panel › modo › menú); sin capas abiertas llama a `alVaciarse`, que es donde se abrirá el menú. Hoy **no está conectada a ningún módulo** (nadie llama a `montarCapas()`, así que no cambia el comportamiento de Esc); migrar las escuchas de teclado y los dueños de Esc actuales es la historia siguiente. Pruebas: `test/capas.test.ts`.

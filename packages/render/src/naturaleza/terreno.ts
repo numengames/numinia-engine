@@ -22,13 +22,15 @@ export const ZONAS: readonly Zona[] = ["prado", "bosque", "arena", "roca", "oril
 export const PALETA_TERRENO: Record<Zona, number> = { prado: 0x9bc25a, bosque: 0x4f8a3c, arena: 0xe6d3a1, roca: 0x8a8594, orilla: 0xb8a878 };
 
 /** Grid cells per side by device tier (A desktop · B Quest · C mid phone · D old phone). Triangles = 2·n² + skirt (8·n). */
-export const CELDAS_TERRENO: Record<Nivel, number> = { A: 96, B: 64, C: 48, D: 32 };
+export const CELDAS_TERRENO: Record<Nivel, number> = { A: 72, B: 48, C: 40, D: 28 };
 
 export type OpcionesRelieve = {
   /** World side in metres the pond is placed against (default 200). */
   tamano?: number;
   /** Radius (m) of the almost flat disc around the origin, the spawn (default 12). */
   plaza?: number;
+  /** N4: no pond at all (no basin, no sand belt): a world that says `estanque: false`. */
+  sinEstanque?: boolean;
 };
 const TAMANO = 200, PLAZA = 12, AGUA = -0.2;
 /** Height (m) of the pond's water surface; the basin is carved below it. */
@@ -63,10 +65,10 @@ function campo(semilla: number, x: number, z: number, op?: OpcionesRelieve, conP
   h *= wp * (1 - 0.85 * sstep(tam * 0.34, tam * 0.5, Math.max(Math.abs(x), Math.abs(z)))); // the border settles low: a calm edge under the fog
   // pond basin with a gentle approach
   const e = estanqueDe(semilla, tam);
-  const dpr = Math.hypot(x - e.x, z - e.z) / e.radio + simplex2(semilla + 31, x * 0.07, z * 0.07) * 0.1;
+  const dpr = op?.sinEstanque ? 99 : Math.hypot(x - e.x, z - e.z) / e.radio + simplex2(semilla + 31, x * 0.07, z * 0.07) * 0.1;
   // the bank: a bowl under the water, then a gentle slope rising with the distance; the land never stands above it (smooth min)
   const banco = AGUA - 1.45 + 1.4 * sstep(0, 1.05, dpr) + Math.max(0, dpr - 1.05) * 1.3;
-  h = -maxSuave(-h, -banco, 1.0);
+  if (!op?.sinEstanque) h = -maxSuave(-h, -banco, 1.0);
   if (!conPesos) return { h, w: W, valle: 0 };
   // ---- zones (soft weights, priority: orilla > arena > roca > bosque > prado) ----
   const rocoso = sstep(0.6, 2.2, cima * wpRoca);
@@ -105,6 +107,12 @@ export type OpcionesTerreno = {
   niebla?: number;
   /** Add the mesh to this parent (scene or group); dispose() removes it. */
   escena?: THREE.Object3D;
+  /** N4: no pond (see OpcionesRelieve.sinEstanque). */
+  sinEstanque?: boolean;
+  /** N4: colours (hex) over the house palette, per zone: the world's palette (verano / otoño / primavera) changes the meadow only. */
+  colores?: Partial<Record<Zona, number>>;
+  /** N4: draw the mesh with shadows from the sun (tier A only: the caller decides). */
+  recibeSombra?: boolean;
 };
 export type Terreno = {
   malla: THREE.Mesh;
@@ -121,12 +129,12 @@ export const triangulosDeTerreno = (n: number) => 2 * n * n + 8 * n;
 
 /** Build the terrain: ONE mesh, flat-shaded, vertex colours, no texture. */
 export function crearTerreno(o: OpcionesTerreno): Terreno {
-  const nivel = o.nivel ?? "A", n = CELDAS_TERRENO[nivel], tam = o.tamano ?? TAMANO, op: OpcionesRelieve = { tamano: tam, plaza: o.plaza ?? PLAZA };
+  const nivel = o.nivel ?? "A", n = CELDAS_TERRENO[nivel], tam = o.tamano ?? TAMANO, op: OpcionesRelieve = { tamano: tam, plaza: o.plaza ?? PLAZA, sinEstanque: o.sinEstanque };
   const s = o.semilla, mitad = tam / 2, paso = tam / n;
   const nv = n + 1;
   // sample heights, colours once per lattice vertex
   const H = new Float32Array(nv * nv), C = new Float32Array(nv * nv * 3);
-  const cz = (Object.keys(PALETA_TERRENO) as Zona[]).map((k) => new THREE.Color(PALETA_TERRENO[k]));
+  const cz = (Object.keys(PALETA_TERRENO) as Zona[]).map((k) => new THREE.Color(o.colores?.[k] ?? PALETA_TERRENO[k]));
   const orden = ZONAS.map((k) => cz[(Object.keys(PALETA_TERRENO) as Zona[]).indexOf(k)]);
   const niebla = new THREE.Color(o.niebla ?? 0xbcd6ee);
   const borde = tam * 0.14;
@@ -187,6 +195,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
   mat.name = "terreno-naturaleza";
   const malla = new THREE.Mesh(g, mat);
   malla.name = "terreno-naturaleza";
+  malla.userData.sinSombra = true; malla.receiveShadow = !!o.recibeSombra;
   malla.matrixAutoUpdate = false; malla.updateMatrix(); // never moves: no per-frame matrix work
   o.escena?.add(malla);
   const e = estanqueDe(s, tam);

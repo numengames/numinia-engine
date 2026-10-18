@@ -169,3 +169,68 @@ procedural por semilla, dos variantes con la misma topología mezcladas en el sh
 positivo, determinismo, esferas de recorte, topes por nivel, coste del reparto, grafo del material de viento).
 
 **Fotos:** `work/naturaleza/fotos/n2-arboles-{linea,suelo,aire,viento-0,viento-fuerte}.png` (página en `.run/n2/`, puerto 5402).
+
+## N4 · Una sola pieza: `naturaleza.json` enciende relieve + árboles + hierba
+
+**Qué es.** `packages/render/src/naturaleza/naturaleza.ts` (`crearNaturaleza(h)`, expuesta como `view.naturaleza`) es la pieza que un mundo
+enciende (R-1): construye el terreno (N1), los árboles (N2), la hierba (N3) y el agua del estanque como **un solo conjunto con un solo
+presupuesto**, esconde el suelo plano **solo mientras está encendida** y, al apagarla, libera geometrías y materiales y devuelve el suelo.
+`aplicar(datos)` es idempotente (mismos datos y mismo nivel de aparato = no hace nada; datos nuevos = reconstruye sin dejar restos; dos
+llamadas seguidas: gana la última). `actualizar(dt)` mueve el viento y empuja la hierba con el jugador local (`yo`); si el aparato cambia de
+nivel (VR dentro/fuera) se reconstruye para el nuevo. **Sin `naturaleza.json` no se crea ni un objeto ni se descarga un módulo**: los módulos
+pesados se importan en el primer `aplicar` que pide encender.
+
+**El fichero** (`MUNDO_DIR/naturaleza.json`, `numinia-engine/naturaleza@1`, todo opcional; el fichero mismo es el interruptor):
+```json
+{ "schema": "numinia-engine/naturaleza@1", "activa": true, "semilla": 1234, "tamano": 200, "plaza": 12,
+  "densidad": { "arboles": 1, "hierba": 1 }, "estanque": true, "paleta": "verano" }
+```
+`semilla` 0–2147483647 (mismo número = mismo paisaje) · `tamano` 100–400 m · `plaza` 4–40 m de radio llano y sin árboles ·
+`densidad.arboles` / `.hierba` 0–1 (fracción de lo que aguanta el aparato) · `estanque` · `paleta` `verano`|`otono`|`primavera`.
+Claves desconocidas o valores malos se rechazan **con su ruta y cómo arreglarlos** (`features/naturaleza/esquema.ts`, todos a la vez). Un
+fichero malo se registra en el log del servidor (`[mundo] naturaleza.json no se usa (suelo plano): …`) y el mundo sigue con el suelo de siempre.
+El servidor solo guarda y manda el dato ya comprobado (feature `naturaleza`, una entrada de estado `mundo`); cada página construye el mismo paisaje.
+
+**Esparcido** (`esparcir.ts`, puro, probado): rejilla con jitter (una candidata por cuadrado de 2,2 m movida por un hash de la semilla; es
+función de la celda, no del orden) + pasada voraz con rejilla hash para la separación mínima (0,85 × la suma de radios de especie).
+Por zona: **bosque** denso (pino/roble/abedul/arbusto), **prado** = manchas (ruido lento) + árboles sueltos, **orilla** pocos arbustos, **roca**
+solo arbustos en su borde, **arena** nada; nada en la plaza (+2,5 m), en el estanque (×1,25), en pendiente > 1,05 ni a 7 m del borde del
+mundo. Por encima del tope del nivel (`ARBOLES_MAX_POR_NIVEL`: 1100/750/750/300) se aclara parejo con un hash, sin cortar un lado del mundo.
+
+**Paletas** (solo hojas y prado): `otono` pone ~82-88 % de robles y abedules en su segundo juego de color (naranja/amarillo) y tiñe prado,
+suelo de bosque y hierba (`COLORES_PALETA`); `primavera` verde fresco y 72 % de arbustos con flor. Las posiciones no cambian con la paleta.
+
+**Presupuesto** (`PRESUPUESTO_NATURALEZA` en `niveles.ts`; se reparte entre las tres piezas). Medido con `node tools/naturaleza-medir.ts`
+(piezas reales, desde el punto de aparición, triángulos enviados a la GPU, sin navegador) y confirmado en la página real
+(`view.naturaleza.estadisticas()`, semilla 1234):
+
+| nivel | terreno | árboles (plantados / dibujados) | hierba (enviados / vivos) | **total** | tope | llamadas | tope |
+|---|---|---|---|---|---|---|---|
+| A | 10 944 | 18 528 (1085 / 314) | 18 857 / 14 633 | **48 329** | 60 000 | 9 | 12 |
+| B | 4 992 | 12 128 (738 / 229) | 10 260 / 9 401 | **27 380** | 35 000 | 9 | 10 |
+| C | 3 520 | 12 128 | 10 260 / 9 401 | **25 908** | 35 000 | 9 | 10 |
+| D | 1 792 | 5 068 (295 / 97) | 4 995 / 4 980 | **11 855** | 15 000 | 8 | 8 |
+
+Reajuste frente a N1–N3 (que iban cada una con su tope): `arbolesVisibles` 650/400/400/170 → 340/245/245/100 (y cerca/cerca-M/lejos-M a
+la baja), `floresMax` de la hierba A 0,06 → 0,08, y se cambió el número de matas por celda que esperan dos tests de N3 (>10 en una celda llana;
+el relleno inicial tarda >2 fotogramas). Llamadas: terreno 1 + árboles ≤ 5 (una por especie y LOD) + hierba ≤ 2 + agua 1. Construir de golpe
+en el CPU (una vez, al cargar): terreno 25 ms + esparcido 20 ms + árboles 7 ms + hierba 27 ms en A (portátil cargado); en D ~19 ms.
+
+**Sin colisión todavía (N5).** El terreno aún no es sólido para la simulación (`packages/sim` intacto): el avatar sigue pisando el suelo plano
+a altura 0. Cerca de la plaza (radio llano, y por eso el punto de aparición sigue en altura 0) coincide con el relieve; lejos, en lomas y
+cuencas, el avatar **flota o se hunde** respecto a lo dibujado hasta N5. Probado andando con el avatar real: pasea por el prado a y = 0,00 sin caerse.
+
+**Tamaño de la página.** `npm run tamano`: 489,0 kB gz (era 482,5 antes de N4, ya sobre el tope de 480): N4 añade ~6,5 kB al arranque
+(`naturaleza.ts` + la declaración de la feature); los módulos del paisaje van en trozos perezosos que no cuentan.
+
+**Copiado / cambiado / combinado.** Rejilla con jitter y comprobación voraz de distancia en rejilla hash: la técnica interior del muestreo
+Poisson-disc de Bridson (SIGGRAPH 2007) y el reparto por bioma del tutorial de mapas con ruido de Red Blob Games (solo la idea). Cambiado:
+candidatas por hash de celda (independientes del orden), separación por pares de especie, tope por nivel. Combinado: `terreno.ts`, `arboles.ts`,
+`hierba.ts`, `agua-estilo.ts` y el viento de `entorno.ts`.
+
+**Pruebas:** `test/naturaleza-n4.test.ts` (17: esquema y errores, defectos iguales en servidor y página, cómo viaja con `conMundo` (log del
+fichero malo, parte de la casa intacta sin fichero), servidor → página una sola vez, esparcido puro y reglas por zona, bosque vs prado,
+topes por nivel, paletas, presupuesto en el peor caso, apagar devuelve el suelo y libera todo, `aplicar` idempotente, tope real desde la aparición).
+
+**Fotos:** `work/naturaleza/fotos/n4-{plaza,bosque,estanque,cresta,otono,otono-aire}.png`; mundo de prueba `work/naturaleza/mundo-demo/`
+(`entorno/naturaleza.json` + `entorno/entorno.json` con hora fija de día), servidor 8901 / página 5404.

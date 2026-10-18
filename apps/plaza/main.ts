@@ -103,6 +103,9 @@ const session = new ClientSession(transport, {
     tag: (key, t) => view.tag(key, t),
     // H4/H8: the zone's environment and its elements (water, fire, smoke, dust)
     entorno: (v) => view.entorno.aplicar(v),
+
+    naturaleza: (v) => void view.naturaleza.aplicar(v), // N4
+
     elemento: (k, v) => view.elementos.poner(k, v),
     // N18: what each person wears (features/bienes): a good's model in a hand or on the head
     lleva: (e, v) => view.vestir(e === session.entity ? "self" : e, v),

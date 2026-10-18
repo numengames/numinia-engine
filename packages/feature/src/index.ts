@@ -820,6 +820,8 @@ export type ViewHooks = {
   tag?(key: string, t: { text: string; x: number; y: number; z: number; sub?: string; mark?: "!" | "✓" | "" } | null): void;
   /** H4: the zone's environment (sky, sun, fog, wind, ground, tone) by field name — features/entorno; render/entorno.ts reads it. */
   entorno?(valores: Msg): void;
+  /** N4: the world's low-poly nature (relief, trees, grass) by field name — features/naturaleza; render/naturaleza/naturaleza.ts builds it. */
+  naturaleza?(valores: Msg): void;
   /** H4/H8: an element of the world (water, fire, smoke, dust) by key, or `null` to take it away — features/elementos. */
   elemento?(key: string, valores: Msg | null): void;
   /** N18: what a person wears — a model by its sha256 in a hand or on the head (features/bienes) — or `null` to take it off. */
