@@ -138,6 +138,9 @@
   <div id="hud">Conectando…</div>
   <p id="mundo-lleno" role="alert" hidden></p><!-- H7: the world is full (ficha `aforo`): the door's reason, read at once by screen readers -->
   <div id="barra-arriba" role="toolbar" aria-label="Botones del mundo"></div>
+  <!-- t_5cff4f06: the city, top left (HUD simétrico: mirrors the gear's corner); hidden until a world's
+       mundo.ajustes.json sets ciudadUrl (ciudad-logica.ts). The engine names no city here: main.ts fills the text. -->
+  <button id="volver-ciudad" type="button" hidden></button>
   <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · M: mapa · I: ficha · C: construir · Q: micrófono · L: gente · P: foto · K: Graboso</div>
   <button id="ar" type="button" hidden>Entrar en AR</button>
   <button id="vr" type="button" hidden>Entrar en VR</button>
