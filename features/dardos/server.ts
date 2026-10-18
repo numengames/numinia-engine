@@ -89,7 +89,7 @@ export const rumboHaciaElCentro = (x: number, z: number): number => (Math.hypot(
 type Tirada = { sitio: string; dardos: number; puntos: number; ultimo: number; remoto: boolean };
 type Marcador = { dardos: number; puntos: number; mejorDardo: number; mejorTirada: number; dianas: number };
 /** A duel in progress (or waiting for its rival) on one board. jug[0] = host, jug[1] = guest (-1 until they join; entity 0 is a real player). */
-type Partida = { sitio: string; jug: [number, number]; estado: "espera" | "juego"; turnos: number; puntos: [number, number]; ultimo: number; rondas: number };
+type Partida = { sitio: string; jug: [number, number]; estado: "espera" | "juego"; pared: [boolean, boolean]; turnos: number; puntos: [number, number]; ultimo: number; rondas: number };
 const hashTexto = (s: string): number => { let h = 0; for (let i = 0; i < s.length; i++) h = Math.imul(h, 31) + s.charCodeAt(i) | 0; return h; };
 /** A person's name for a field declared `text`: control characters out, spaces collapsed, cut to `max` UTF-8 bytes. */
 export function limpiarNombre(s: string, max = 40): string {
@@ -147,7 +147,7 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     marcador(e);
   };
   const nombreDe = (e: number): string => (e >= 0 ? limpiarNombre(api.who(e)?.nombre ?? "") : "");
-  const pares = (P: Partida) => ({ a: P.jug[0], nombreA: nombreDe(P.jug[0]), puntosA: P.puntos[0], b: Math.max(0, P.jug[1]), nombreB: nombreDe(P.jug[1]), puntosB: P.puntos[1] });
+  const pares = (P: Partida) => ({ a: P.jug[0], nombreA: nombreDe(P.jug[0]), puntosA: P.puntos[0], b: Math.max(0, P.jug[1]), nombreB: nombreDe(P.jug[1]), puntosB: P.puntos[1], paredA: P.pared[0], paredB: P.pared[1] });
   const turnoDeP = (P: Partida): number => (P.estado === "juego" ? P.jug[P.turnos % 2] : -1);
   const emitirDuelo = (P: Partida): void => {
     const s = sitios.get(P.sitio)!;
@@ -197,14 +197,14 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     if (!remoto && !api.within(e, id)) return `Acércate a la línea de tiro de ${s.nombre}.`;
     const P = partidas.get(id);
     if (!P) {
-      const nueva: Partida = { sitio: id, jug: [e, -1], estado: "espera", turnos: 0, puntos: [0, 0], ultimo: api.tick(), rondas: rondasDe(s.rondas) };
+      const nueva: Partida = { sitio: id, jug: [e, -1], estado: "espera", pared: [remoto, false], turnos: 0, puntos: [0, 0], ultimo: api.tick(), rondas: rondasDe(s.rondas) };
       partidas.set(id, nueva); enPartida.set(e, id);
       poner(id, { espera: true, jugadores: 1 });
       emitirDuelo(nueva);
       return null;
     }
     if (P.estado !== "espera") return "Ya hay un duelo en marcha en esta diana.";
-    P.jug[1] = e; P.estado = "juego"; enPartida.set(e, id);
+    P.jug[1] = e; P.pared[1] = remoto; P.estado = "juego"; enPartida.set(e, id);
     poner(id, { espera: false, jugadores: 2, ocupado: true });
     empezarTurnoDuelo(P);
     return null;

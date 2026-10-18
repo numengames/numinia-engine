@@ -5,6 +5,8 @@ import { envolverDuelo } from "../../packages/render/src/dardos-duelo-ar.ts";
 import { panelDe, puedeLanzar } from "../../packages/render/src/dardos-duelo.ts";
 import type { DueloV } from "../../packages/render/src/dardos-duelo.ts";
 import type { DianaAR } from "../../packages/render/src/index.ts";
+import { crearLetreroPlaza } from "../../packages/render/src/dardos-duelo-plaza-3d.ts"; // AR-D4: the sign over the plaza board
+import type { PlazaDianas } from "../../packages/render/src/dardos-duelo-plaza-3d.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type SitioV = { id: string; ocupado?: boolean; duelo?: boolean; remoto?: boolean; rondas?: number; espera?: boolean };
@@ -12,6 +14,7 @@ type SitioV = { id: string; ocupado?: boolean; duelo?: boolean; remoto?: boolean
 export type Ctl = {
   sitios(): SitioV[]; duelo(): DueloV | null; jugar(sitio?: string, desde?: "sitio" | "pared"): Res;
   lanzar(x: number, y: number, fuerza: number, sitio?: string): Res; salir(): Res; clavados(sitio?: string): unknown[];
+  alCambiar?(fn: (que: string) => void): () => void;
 };
 
 /** The board an AR wall joins: the first one that takes remote players in a duel, one with somebody waiting first. */
@@ -28,12 +31,25 @@ export function lineaDuelo(d: DueloV | null, rondas: number): string {
   return [p.fase === "espera" ? "" : marc, p.ronda, p.pie].filter(Boolean).join(" · ");
 }
 
-export function montarDuelo(o: { dardos: Ctl; entity: () => number; hud: HTMLElement; fijarSitio: (id: string) => void; avisar: (texto: string) => void; alTerminar: () => void }) {
+export function montarDuelo(o: { dardos: Ctl; plaza?: Partial<PlazaDianas>; entity: () => number; hud: HTMLElement; fijarSitio: (id: string) => void; avisar: (texto: string) => void; alTerminar: () => void }) {
   const { dardos } = o;
   const linea = document.createElement("p"); linea.className = "duelo"; linea.hidden = true;
   linea.setAttribute("style", "margin:0;font-size:14px;font-weight:700;color:#ffd27a;text-align:center");
   o.hud.querySelector(".resultado")?.after(linea);
   let activo = false, sitio = "", ar: ReturnType<typeof envolverDuelo> | null = null, rondas = 3;
+  // AR-D4: in the plaza, the 3D board of the duel gets a scoreboard sign (any bystander sees it) and its remote darts fly in
+  const letrero = o.plaza?.grupo && o.plaza.malla && o.plaza.alFotograma ? crearLetreroPlaza(o.plaza as PlazaDianas) : null;
+  const sign = (): void => {
+    const d = dardos.duelo();
+    letrero?.duelo(d, (d && dardos.sitios().find((s) => s.id === d.sitio)?.rondas) || 3);
+  };
+  if (letrero) {
+    dardos.alCambiar?.((que) => {
+      if (que === "clavados") letrero.llegan(dardos.clavados() as never, dardos.duelo());
+      else if (que === "sitios") sign(); // a board appeared or went: the sign follows it
+    });
+    sign();
+  }
   const hayPartida = (): boolean => { const d = dardos.duelo(); return !!d && d.yo && !d.fin; };
 
   /** Placing the board on the wall = joining the duel board (if there is one); else this AR session is plain v1. */
@@ -66,7 +82,7 @@ export function montarDuelo(o: { dardos: Ctl; entity: () => number; hud: HTMLEle
     cambio(): void {
       const d = dardos.duelo(), t = lineaDuelo(d, rondas);
       linea.textContent = t; linea.hidden = !t;
-      ar?.refrescar();
+      ar?.refrescar(); sign();
       if (!d) o.alTerminar();
     },
     /** True while a live match of mine is going (the HUD stays open for it). */

@@ -79,7 +79,13 @@ export function crearDianas3D(h: { world: THREE.Object3D }) {
     h.world.add(g);
     return { g, face, dardos: new Map(), s };
   };
+  const ganchos = new Set<(dt: number) => void>();
   return {
+    /** AR-D4 handles (dardos-duelo-plaza-3d.ts): a board's group and face, one stuck dart's mesh, and a per-frame hook. */
+    grupo: (id: string) => { const d = dianas.get(id); return d ? { g: d.g, face: d.face } : null; },
+    malla: (id: string, quien: number, numero: number): THREE.Object3D | null => dianas.get(id)?.dardos.get(`${quien}:${numero}`) ?? null,
+    alFotograma(fn: (dt: number) => void): () => void { ganchos.add(fn); return () => ganchos.delete(fn); },
+    actualizar(dt: number): void { for (const fn of ganchos) fn(dt); },
     sitios(lista: Sitio3D[]): void {
       const vivos = new Set(lista.map((s) => s.id));
       for (const [id, d] of dianas) if (!vivos.has(id)) { h.world.remove(d.g); dianas.delete(id); }

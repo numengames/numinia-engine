@@ -85,13 +85,13 @@ export const dardos = defineFeature({
       announce: "silent",
     },
     duelo: {
-      describe: "El duelo cambió (turno nuevo o un dardo cayó): diana, ronda (0 = esperando rival), de quién es el turno (0 = de nadie aún) y los dos jugadores: entidad, nombre y puntos (a/b; el segundo vale 0 mientras se espera). A los dos jugadores, vean donde vean, y a quien esté cerca de la diana.",
-      fields: { sitio: ID, ronda: { kind: "int", min: 0, max: RONDAS_MAX }, turnoDe: QUIEN, a: QUIEN, nombreA: NOMBRE, puntosA: DUELO_PUNTOS, b: QUIEN, nombreB: NOMBRE, puntosB: DUELO_PUNTOS },
+      describe: "El duelo cambió (turno nuevo o un dardo cayó): diana, ronda (0 = esperando rival), de quién es el turno (0 = de nadie aún) y los dos jugadores: entidad, nombre y puntos (a/b; el segundo vale 0 mientras se espera) y si cada uno juega desde su pared de AR (paredA/paredB). A los dos jugadores, vean donde vean, y a quien esté cerca de la diana.",
+      fields: { sitio: ID, ronda: { kind: "int", min: 0, max: RONDAS_MAX }, turnoDe: QUIEN, a: QUIEN, nombreA: NOMBRE, puntosA: DUELO_PUNTOS, b: QUIEN, nombreB: NOMBRE, puntosB: DUELO_PUNTOS, paredA: { kind: "bool", default: false }, paredB: { kind: "bool", default: false } },
       announce: "silent",
     },
     finduelo: {
       describe: "El duelo terminó: diana, ganador (entidad; 0 = empate), empate, abandono (el otro se fue o se quedó sin tirar y gana por defecto), los dos jugadores con sus puntos y una frase. A los dos jugadores y a quien esté cerca.",
-      fields: { sitio: ID, ganador: QUIEN, empate: { kind: "bool", default: false }, abandono: { kind: "bool", default: false }, a: QUIEN, nombreA: NOMBRE, puntosA: DUELO_PUNTOS, b: QUIEN, nombreB: NOMBRE, puntosB: DUELO_PUNTOS, texto: { kind: "text", maxBytes: 120 } },
+      fields: { sitio: ID, ganador: QUIEN, empate: { kind: "bool", default: false }, abandono: { kind: "bool", default: false }, a: QUIEN, nombreA: NOMBRE, puntosA: DUELO_PUNTOS, b: QUIEN, nombreB: NOMBRE, puntosB: DUELO_PUNTOS, paredA: { kind: "bool", default: false }, paredB: { kind: "bool", default: false }, texto: { kind: "text", maxBytes: 120 } },
       announce: { text: "{texto}", sound: "suave", importance: 2 },
     },
     rechazado: { describe: "Lo que pediste no se hizo, y por qué.", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },

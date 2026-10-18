@@ -21,7 +21,8 @@ export type Estado = {
   aviso: string;              // the last rejection
   marcador: { dardos: number; puntos: number; mejorDardo: number; mejorTirada: number; dianas: number };
 };
-export type Jugador = { entity: number; nombre: string; puntos: number };
+/** `pared`: this player joined from a real wall (AR) instead of the board's throwing line. */
+export type Jugador = { entity: number; nombre: string; puntos: number; pared?: boolean };
 export type FinDuelo = { ganador: number | null; empate: boolean; abandono: boolean; texto: string; gane: boolean; cuando: number };
 /** The match as this page sees it. Wire entity 0 is a real player: read `empate` / `ronda`, never `ganador === 0`. */
 export type Duelo = {
@@ -59,8 +60,8 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
   const soyDe = (d: DatosDuelo): boolean => !!A && (d.a.entity === A.self() || (d.ronda > 0 && d.b !== null && d.b.entity === A.self()));
   const tomar = (m: Msg, ronda: number, fin: FinDuelo | null): DatosDuelo => ({
     sitio: String(m.sitio), ronda, turnoDe: Number(m.turnoDe ?? 0),
-    a: { entity: Number(m.a), nombre: String(m.nombreA), puntos: Number(m.puntosA) },
-    b: ronda > 0 || fin ? { entity: Number(m.b), nombre: String(m.nombreB), puntos: Number(m.puntosB) } : null, fin,
+    a: { entity: Number(m.a), nombre: String(m.nombreA), puntos: Number(m.puntosA), pared: m.paredA === true },
+    b: ronda > 0 || fin ? { entity: Number(m.b), nombre: String(m.nombreB), puntos: Number(m.puntosB), pared: m.paredB === true } : null, fin,
   });
 
   const dardos = {
@@ -136,7 +137,8 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
         }
         if (D && !D.fin && D.ronda === 0 && D.sitio === String(m.sitio)) { D = null; avisar("duelo"); } // a host nobody joined gave up
         avisar("estado");
-      } else if (!enJuego(String(m.sitio))) { clavados.delete(quien); avisar("clavados"); } // in a match the rival's darts stay till their next turn
+      } else if (D && !D.fin && D.ronda === 0 && D.sitio === String(m.sitio) && D.a.entity === quien) { D = null; avisar("duelo"); } // a bystander: the host nobody joined gave up (the sign must not wait forever)
+      else if (!enJuego(String(m.sitio))) { clavados.delete(quien); avisar("clavados"); } // in a match the rival's darts stay till their next turn
     });
     api.on("marcador", (m) => { e.marcador = { dardos: Number(m.dardos), puntos: Number(m.puntos), mejorDardo: Number(m.mejorDardo), mejorTirada: Number(m.mejorTirada), dianas: Number(m.dianas) }; avisar("estado"); });
     api.on("duelo", (m) => {

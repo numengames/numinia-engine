@@ -74,7 +74,7 @@ test("duelo: the host waits (`espera`), a second player starts the match, a thir
   W.montar(); W.place(E, 9, 1); W.pump(2);
   assert.equal(W.jugar(A).ok, true); W.pump(2);
   assert.deepEqual([W.estado(C)?.espera, W.estado(C)?.jugadores, W.estado(C)?.ocupado], [true, 1, false], "every page can read «esperando rival»");
-  assert.deepEqual(W.evs(A, "duelo").at(-1), { sitio: "duelo", ronda: 0, turnoDe: 0, a: A.s.entity, nombreA: A.s.who!.nombre, puntosA: 0, b: 0, nombreB: "", puntosB: 0 });
+  assert.deepEqual(W.evs(A, "duelo").at(-1), { sitio: "duelo", ronda: 0, turnoDe: 0, a: A.s.entity, nombreA: A.s.who!.nombre, puntosA: 0, b: 0, nombreB: "", puntosB: 0, paredA: false, paredB: false });
   W.lanzar(A); W.pump();
   assert.match(W.ultimoRechazo(A), /Espera a tu rival/);
   // B on a wall 500 m away cannot join a board that is not `remoto` (nor without saying `desde`), but can join this one
@@ -86,6 +86,8 @@ test("duelo: the host waits (`espera`), a second player starts the match, a thir
   W.jugar(E); W.pump(); assert.match(W.ultimoRechazo(E), /Ya hay un duelo en marcha/);
   const d = W.evs(B, "duelo").at(-1)!;
   assert.deepEqual([d.ronda, d.turnoDe, d.a, d.b], [1, A.s.entity, A.s.entity, B.s.entity]);
+  assert.deepEqual([d.paredA, d.paredB], [false, true], "the server says who joined from a wall (AR-D4)");
+  assert.deepEqual([W.evs(C, "duelo").at(-1)!.paredA, W.evs(C, "duelo").at(-1)!.paredB], [false, true], "…and a bystander hears it too");
   assert.equal(W.evs(C, "duelo").length >= 1, true, "a bystander at the board sees the match");
   assert.equal(W.evs(D, "duelo").length, 0, "…and one far away does not");
 });
