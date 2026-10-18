@@ -153,6 +153,8 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | V11 | Baja visión: contraste por función, contornos en lo importante, lupa, texto a 200 % (coste medido) | pendiente | sí |
 | V14 | Página compañera accesible: el móvil o el PC muestra lo que pasa en las gafas (chat, avisos, lista) | espera a V4 | sí |
 | M18 | Medios: vídeo en pantallas del mundo sincronizado con el reloj del servidor (función J7) | pendiente | sí |
+| M18b | El Graboso: la reliquia que graba lo que ves (cabeza de oso de nube translúcida; K la saca y graba, 30 s–1 min con tope duro, clip descargable) | hecho (v1, rama `objetos/graboso`; falta: conectar con Y1, voces de otros, modelo fino, VR) | no |
+| M18c | Compartir el clip del Graboso: subirlo al mundo (`PUT /a/`, H9) y reproducirlo en una pantalla (M18); aviso a quien sale («X ha sacado el Graboso») — **confirmado por Pablo (18-10): sí, avisar** | espera a M18 | sí |
 | V8 | Perfil de accesibilidad en la identidad, aplicado antes del primer fotograma en cualquier aparato | pendiente | sí |
 | P5a | El puente nuevo y el primer cerebro (E2 contesta, E4 construye si el mundo deja): clave sin eco (`--clave-ia`), topes, `<material>`, herramientas comprobadas en código | hecho (primer corte; falta: E1, probarlo con Claude en el VPS, D7 revisión del contrato) | no |
 | P5b | Iniciativa por evento (E3), gestos con clips, persona en `.md`, medidor de consumo por habitante y por mundo | espera a P5a | sí |
@@ -750,6 +752,38 @@ Pantalla de vídeo en el mundo; la reproducción sigue el reloj del servidor (to
 solo se reproduce si está cerca y a la vista (móvil frío).
 **Paridad Hyperfy2 (15-10):** como su nodo `Video`: fichero o URL, bucle, ajuste a la pantalla, con o sin luz,
 audio espacial por el mezclador de V6; y la pantalla compartida de alguien (con M17).
+
+### M18b — El Graboso (misión y objeto, pedido de Pablo 18-10)
+Objeto de lore: una cabeza de oso electrónico con textura de nube translúcida, llamada **el Graboso**. Se
+saca del inventario cuando quieres (apoyado en Y1, el inventario nuevo) y, mientras está fuera, grava vídeo
++ audio del mundo en clips cortos (**30 s a 1 min**, con tope duro). Misión principal: hacer vídeos de
+dentro de los mundos — enlaza con M17/M18 (mismo pipeline de audio/vídeo) sin depender de que estén
+terminados; el Graboso grava lo que la propia cámara del jugador ve, no necesita voz por cercanía para
+funcionar en su versión mínima. Grabación guardada: fichero descargable o compartible (a definir con quien
+construya M17, para no grabar sesiones privadas de otros sin avisar — revisar permisos/consentimiento).
+**Hecho cuando:** sacas el Graboso del inventario, aparece sobre tu hombro/mano, grabas un clip de verdad
+(canvas + micrófono si el navegador lo permite), se corta solo al llegar al tope, y puedes descargarlo o
+verlo de nuevo.
+
+**Hecho (18-10, v1, rama `objetos/graboso`, diseño `../mmo-browser-study/GRABOSO-DISENO.md`).** Lore encajado
+como Reliquia (manual, Fragmento 2: «no se usan: se invocan»; complemento de la Lira de Nyx, que *reproduce*;
+el Graboso *registra*). **K** o el botón «Graboso» de la barra lo saca y empieza a grabar en el acto (la cabeza
+visible *es* el aviso: piloto rojo que late); K otra vez, el botón o el tope lo guardan y el clip queda.
+Vídeo = `canvas.captureStream(30)` del lienzo del motor; audio = tu micrófono con permiso (negado → clip sin
+sonido, dicho en voz alta); `MediaRecorder` webm vp9/vp8+opus o mp4, el primero que haya; trozos de 1 s.
+Tope 30/45/60 s (selector; 60 por defecto; `recortarTope` nunca deja salir de 30–60); un clip más corto sale
+igual marcado «corto» (la misión pide 30). Píldora arriba «● 0:12 / 1:00» → «Clip 0:42 · Descargar · Ver ·
+Quitar»; descarga local `graboso-AAAA-MM-DD-HH-MM-SS.webm` (UTC); solo el último clip, en memoria. La cabeza:
+`packages/render/src/graboso.ts` (carga perezosa; esfera + orejas + hocico + ojos + antena con piloto; nube
+pintada en un canvas con xorshift, material translúcido) sobre el hombro derecho. Lógica pura
+`packages/client/src/graboso.ts`; página `apps/plaza/graboso.ts`. **Medido:** 13 pruebas
+(`test/graboso.test.ts`); pierna `tools/e2e-piernas/graboso.mjs` en chromium real (micrófono falso): clip
+webm de 3,4 s y 236 kB con cabecera EBML, con sonido, descargable, visible en el `<video>`, cabeza fuera y
+guardada, K no actúa en el chat. **Falta:** conectar con Y1 cuando se fusione (hoy acceso directo: todo
+jugador lo tiene; después solo quien porta la reliquia `clase: "graboso"`, e «Invocar» en el panel L); las
+voces de otros (U10) en el audio (`MediaStreamAudioDestinationNode` compartido, V6/M17); modelo fino de la
+cabeza (GLB CC0 en `activos/`); sacarlo en VR (N3); compartir/subir (M18c); consentimiento: avisar a quien
+sale (decisión de Pablo, diseño §6).
 
 ### P5 — El cerebro (diseño: `../mmo-browser-study/DISENO-IAS-MOTOR.md` §4–§5)
 **P5a (para Opus).** Lo que enseñó el agente de Hyperfy (`docs/SABER.md` §3.5) llevado al servicio de habitantes: un

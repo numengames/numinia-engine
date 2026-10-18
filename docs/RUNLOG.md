@@ -983,3 +983,27 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
   Defectos conocidos: `#barra-objeto` se sale por la derecha en 420 px; los botones de acción (Saltar, Saludar…) se
   montan sobre la hoja; el HUD de depuración pisa la tira de entorno; `dblclick` táctil para abrir construir sin
   probar. Siguiente: M22b-2 (dos dedos giran/escalan, retícula de colocar, hoja en 3 estados), M22b-3 (VR con mando).
+
+## 2026-10-18 01:55 · M18b · El Graboso: la reliquia que graba lo que ves · hecho (rama `objetos/graboso`)
+- Qué: Pablo escribió la fila M18b esta madrugada (cabeza de oso electrónico de nube translúcida; sacarla y
+  grabar vídeo + audio del mundo, 30 s–1 min con tope duro; misión «hacer vídeos de dentro de los mundos»).
+  Diseño primero (`../mmo-browser-study/GRABOSO-DISENO.md`: Reliquia según el manual 06 — se invoca, no se
+  usa; complemento de la Lira de Nyx), luego la v1: botón «Graboso» en la barra y tecla K; la cabeza sale
+  sobre el hombro derecho (esfera + orejas + hocico + ojos + antena con piloto rojo que late, nube pintada en
+  un canvas, material translúcido; carga perezosa, 2,5 kB) y graba en el acto: `canvas.captureStream(30)` +
+  micrófono con permiso (negado → sin sonido, dicho) por `MediaRecorder` (webm vp9/vp8+opus o mp4); tope
+  30/45/60 s (60 por defecto; `recortarTope` nunca sale de 30–60); K, el botón o el tope guardan; píldora
+  «● 0:12 / 1:00» → «Clip 0:42 · Descargar · Ver · Quitar»; descarga local `graboso-<UTC>.webm`; solo el
+  último clip, en memoria. Y1 no está fusionado: acceso directo (todo jugador lo tiene), documentado como «a
+  conectar con Y1». Versión **0.4.0** (menor: algo nuevo).
+- Números: 389 pruebas (13 nuevas), 389 en verde; puertas en verde (26,7 kbit/s, p99 8,4 ms). Pierna e2e nueva
+  `tools/e2e-piernas/graboso.mjs` en chromium real con micrófono falso: 18/18 (clip webm 3,4 s / 236 kB con
+  cabecera EBML, con sonido, descargable, `<video>` con el blob, cabeza fuera y guardada, K no actúa en el chat).
+- Aviso: con mis servidores de desarrollo encendidos cayó la prueba de coste de nombres de `chat.test.ts` (la
+  mala conocida de la máquina cargada); apagados, 389/389. Y1 también sube a 0.4.0: la segunda en entrar a
+  main sube a 0.5.0.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `objetos/graboso` sobre origin/main 749e99a (ver `git log`). Sin push ni PR: `../pr-graboso-motor.sh`.
+- Siguiente: Pablo decide la PR (hueco de PR único en numinia-engine; Y1 también espera) y el consentimiento
+  (§6 del diseño: avisar a quien sale «X ha sacado el Graboso»). Después: conectar con Y1, voces de otros en
+  el clip, modelo fino, VR, compartir (M18c).
