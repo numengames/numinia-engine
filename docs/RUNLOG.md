@@ -775,58 +775,17 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
   grep de ficheros (`test(` × 537) coincide hoy con el reporter.
 - Consumo: sin medir · Fable 5.1.
 - Siguiente: el recorte D2 (alias de three −24,5 kB, mapa/ficha/menú perezosos) y bajar `TOPE_GZ` con cada recorte.
-## 2026-10-18 12:51 · F1a silenciar · hecho
-- Qué: `/silenciar <persona> [min]` calla también la voz (la instancia pregunta `oye(de, a)` por trama y oyente) y se
-  guarda en el store de roles (`silencios`), así sobrevive a un reinicio y al volver se avisa «Sigues en silencio»;
-  `/hablar <persona>` lo levanta. Bloqueo personal `/bloquear` y `/desbloquear <persona>`: quien bloquea no lee ni oye
-  a esa persona (el resto sí); guardado por identidad (`b:<id>`); evento servidor «bloqueo» → el chat filtra con
-  `except` en el alcance; botón «Silenciar/Oír» por persona en el panel Gente. Avisos del servidor también al
-  `#avisos` (role=status) cuando el chat está cerrado.
-- Números: 540 tests (+3), build ok, layers ok. `blocks_per_person` 200 en limits.json. Sin e2e de navegador.
-- Consumo: sin medir · Fable 5.1 (subagente).
-- Commit: feat/mute-a-person → tren/motor-2026-10-18-3.
-- Siguiente: F1b (amigos, denunciar); marcar en Gente el estado real de bloqueo al recargar (hoy la marca es local).
-## 2026-10-18 12:56 · contadores · hecho (historias 1-2 de D-044)
-- Qué: pieza `contadores` (temporizador, contador y reloj que todos ven): el servidor lleva el reloj y publica el
-  valor una vez por segundo solo a quien está en la zona (estado con `at`); fichero `contadores.json` con esquema y
-  cada línea mal formada fuera con su motivo; intenciones arranca/para/suma/reinicia/pulsar; evento `llegada` con el
-  nombre del `evento` para el cable (D-041); hitos anunciados (aria-live); cartel 3D con el rótulo sprite existente;
-  panel HTML accesible en `apps/plaza/contadores.ts`; tres filas en `limits.json`; sección en EXTENDER.
-- Números: `test/contadores.test.ts` 9/9; `npm test` 535/536 (la que falla, `carga-rapida`, es por un `node_modules`
-  sin `@gltf-transform/core`, no por este cambio); `layers` y `build` en verde. Sin e2e de navegador.
-- Consumo: sin medir · Fable 5.1 (subagente).
-- Commit: rama `feat/shared-timers-counters` sobre `tren/motor-2026-10-18-3`; sin subir versión (la pone el tren).
-- Siguiente: historia 3 (persistir el valor, contadores por equipo, alta desde el mundo) y el cable de D-041.
-## 2026-10-18 12:50 · H7 · hecho (primer corte)
-- Qué: ajustes del mundo en `aventura/ficha.json`: `avatar` (uno de la casa, lo llevan todos) y `aforo` (1–1000,
-  `limits.json` `world_people_cap`); el servidor los valida con motivo, los publica en `GET /status`, pone el nombre
-  en la pestaña y en la pantalla de entrada, y con el mundo lleno cierra con 4004 «lleno n/aforo»; la página enseña
-  el aviso (`#mundo-lleno`, `role=alert`). Sin panel: se editan en el fichero.
-- Números: `test/ajustes-mundo.test.ts` (4 pruebas) + `flota.test.ts` ajustado; `npm test` y `npm run build` (ver el PR).
-- Consumo: sin medir · Fable 5.1.
-- Siguiente: panel de administración por rol (H3) para editarlos en marcha; escenario base (M6).
-## 2026-10-18 12:52 · M6 h1-h2 · hecho
-- Qué: esquema de colisión por objeto (`objetos` v6, `colision: ninguna | caja | malla`, aditivo: `solido` sigue
-  siendo la caja) y extracción de triángulos de un .glb en el servidor sin three (`colision-glb.ts`: transformaciones
-  de nodos, índices o no, cuantización KHR, meshopt descodificado; Draco, sparse y buffers externos rechazados con
-  motivo; cuenta y tope). Rama `feat/m6-collision-schema-glb` al tren `tren/motor-2026-10-18-3`.
-- Números: 9 pruebas nuevas (bloque 12, farolillo 220, RobotExpressive 3.237 triángulos; copia meshopt igual a < 1 cm);
-  `npm test` en verde salvo la de carga conocida (misiones tick p99) con load 23; versión sin tocar (la sube el tren).
-- Consumo: sin medir · Fable 5.1.
-- Siguiente: h3 BVH entero en `packages/sim/src/bvh.ts` (DISENO-M6 §4).
-## 2026-10-18 12:53 · M6 h3-h4 · hecho
-- Qué: BVH entero (`packages/sim/src/bvh.ts`: triángulos a 1/64 m en `Int32Array`, árbol plano, hojas ≤ 8,
-  partición por centro con mediana de reserva, huella FNV-1a del árbol) y rayo contra él (Möller–Trumbore en
-  enteros: punto, normal hacia el rayo, triángulo, distancia). `setMesh` hace que la malla sea suelo en
-  `groundHeight` (rayo hacia abajo desde STEP_UP sobre los pies); sin malla ni cajas no se consulta nada.
-- Números: 49.928 triángulos construidos en 7,4 ms (mejor de 3, Node); huella del árbol y acierto del rayo
-  idénticos en Node y Chromium (`test/bvh.test.ts`); 546 pruebas en verde; huella de referencia `7e630965` intacta.
-- Consumo: sin medir · Fable 5.1 (subagente).
-- Commit: rama `feat/m6-integer-bvh-ray` contra `tren/motor-2026-10-18-3`.
-- Siguiente: historias 5-6 (pared y pendiente contra triángulos), 9 (la página construye el mismo BVH del GLB).
-## 2026-10-18 12:58 · D-041 cable h1-h2 · hecho
-- **Qué:** la pieza `disparadores@1` (`features/disparadores`): lectura con esquema de `MUNDO_DIR/disparadores.json` (cada línea mala fuera con su motivo, como `interacciones.json`), disparadores de **zona** (entrar) y **botón** (`pulsar` por la carta `interact`, «E: pulsar») que decide el servidor con cooldown y un solo uso, evento `disparado` a los cercanos y `senal`/`accion` solo servidor (una `accion` por receptor); `features/objetos` oye `muestra`/`oculta` (por id o nombre) y la página deja de dibujar un modelo oculto al jugar (`packages/render`, 2 líneas). Rama sobre el tren; trae la regla «radio 0 no se ofrece» de #50 idéntica para que la fusión sea limpia.
-- **Números:** `test/disparadores.test.ts`, 6 pruebas (declaración + limits.json, lectura línea a línea y topes, conMundo, botón: alcance/rechazo/cooldown/«todavía no»/receptor muestra, zona: una vez por entrada/un solo uso/receptor oculta/receptor sin dueño en el registro, huella de la simulación igual); suite entera 543/543; build OK.
-- **Consumo:** subagente; no medido.
-- **Commit:** este PR.
-- **Siguiente:** historias 3-6 del cable (teletransporta, da_paso, abre_enlace, suena; etiqueta de zona y botón móvil; catálogo y ejemplo en la plaza).
+## 2026-10-18 13:10 · tren 3, integración en un solo PR · hecho · versión 0.9.0 (rama `tren3/integracion`, desde `main` 39a9f73)
+- Qué: los seis PRs que el tren 3 dejó abiertos y en conflicto entre sí (#52 silenciar, #54 contadores, #55 ajustes del
+  mundo, #56 colisión por objeto + GLB, #57 BVH entero y rayo, #58 cable `disparadores@1`) más `tren/motor-2026-10-18-3`
+  (#51 medidas, #53 suelo D-045), fusionados en este orden sobre `main` (que ya traía J4, 0.8.0). Un solo número:
+  0.8.0 → 0.9.0 (cosas nuevas que no rompen nada). Conflictos: solo registros (`features/cliente|servidor|mundo.ts`,
+  `packages/server/src/server.ts`, `limits.json`, EXTENDER, RUNLOG), resueltos conservando los dos lados.
+- Lo que aporta cada uno: F1a `/silenciar` también calla la voz (`oye`), se guarda con el mundo y `/bloquear` es
+  personal; D-044 temporizador, contador y reloj que todos ven (`contadores.json`, una vez por segundo a la zona);
+  H7 `avatar` y `aforo` en `ficha.json` (mundo lleno → cierre 4004); M6 h1-h4 esquema `colision` (objetos v6),
+  triángulos de un .glb en el servidor, BVH entero y rayo en enteros; D-041 `disparadores@1` (zona y botón con
+  cooldown y un solo uso, receptores muestra/oculta).
+- Números: ver el cuerpo del PR (`npm test`, `npm run layers`).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Siguiente: M6 historias 5-6 y 9; F1b; contadores historia 3; cable historias 3-6.
