@@ -10,7 +10,7 @@
   ],
   "recompensas": [
     { "tipo": "insignia", "id": "conoce-la-plaza", "nombre": "Conoce la plaza" },
-    { "tipo": "objeto", "id": "farolillo-de-bruno", "nombre": "Farolillo de Bruno", "descripcion": "Un farolillo de latón que Bruno te regala. Es tuyo: lleva su recibo firmado por este mundo.", "licencia": "CC0-1.0" }
+    { "tipo": "objeto", "id": "farolillo-de-bruno", "nombre": "Farolillo de Bruno", "descripcion": "Un farolillo de latón que Bruno te regala. Es tuyo: lleva su recibo firmado por este mundo.", "modelo": "911db167762103bbf472a72941f59c22f0c8953d631185b3225d89d87e89baaa", "licencia": "CC0-1.0" }
   ],
   "textos": {
     "aceptada": "Lo tienes en tu libro de misiones (tecla J).",

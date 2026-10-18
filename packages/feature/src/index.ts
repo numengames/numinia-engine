@@ -729,6 +729,8 @@ export type ViewHooks = {
   entorno?(valores: Msg): void;
   /** H4/H8: an element of the world (water, fire, smoke, dust) by key, or `null` to take it away — features/elementos. */
   elemento?(key: string, valores: Msg | null): void;
+  /** N18: what a person wears — a model by its sha256 in a hand or on the head (features/bienes) — or `null` to take it off. */
+  lleva?(entity: number, p: { model: string; donde: "mano" | "cabeza"; nombre?: string } | null): void;
 };
 /** H1: a thing in the world as the page draws it. Rotation in degrees, applied yaw (ry), then pitch (rx), then roll (rz). */
 export type PlacedObject = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean;

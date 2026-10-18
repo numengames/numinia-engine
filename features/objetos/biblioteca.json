@@ -12,6 +12,15 @@
       "fuente": "tools/hacer-bloque.mjs"
     },
     {
+      "id": "farolillo",
+      "nombre": "Farolillo",
+      "modelo": "911db167762103bbf472a72941f59c22f0c8953d631185b3225d89d87e89baaa",
+      "fichero": "activos/casa/farolillo.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia)",
+      "fuente": "tools/hacer-farolillo.mjs"
+    },
+    {
       "id": "robot",
       "nombre": "Robot",
       "modelo": "047f5e5fb3bb6d378bd1df16ca6137f2a596c99b3a1b5690b4020c05aaf6f319",
