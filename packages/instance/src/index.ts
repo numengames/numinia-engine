@@ -59,12 +59,33 @@ export type InstanceOptions = {
    * "build-in-worlds")) or "todos". A feature can still grant it to one avatar (`concederVuelo`) whatever this says. */
   vuelo?: "nadie" | "constructores" | "todos";
   /** M6 h8: builds (or refreshes) the world's collision mesh from the shared state's `malla` things, off the sim
-   * tick (fetching and parsing a .glb is not a 20 Hz operation): called again whenever the shared state version
-   * changes, never twice at once. Returns null when there is nothing to build (no `malla` thing, or none readable).
-   * None = the world never gets a mesh (`sim.mesh` stays null, same as before M6: darts, fishing and walking into a
-   * `malla` wall all answer as if there is nothing there). packages/server/src/colision-mundo.ts builds the real one. */
-  construirMalla?: (objetos: Iterable<[string, Record<string, unknown>]>) => Promise<Bvh | null>;
+   * tick (fetching and parsing a .glb is not a 20 Hz operation), never twice at once. It gets only the entries whose
+   * value says `colision: "malla"` (`entradasMalla`), and is called again only when those change (`huellaMalla`, D2)
+   * — or, after a build that `faltaAlgo()` says could not read some .glb (or a build that threw), on the next change
+   * of any kind, so a file that arrives later still gets in. Returns null when there is nothing to build (no `malla`
+   * thing, or none readable). None = the world never gets a mesh (`sim.mesh` stays null, same as before M6: darts,
+   * fishing and walking into a `malla` wall all answer as if there is nothing there). packages/server/src/colision-mundo.ts
+   * builds the real one. */
+  construirMalla?: ConstruirMalla;
 };
+/** M6 h8 / D2: the world's mesh builder (InstanceOptions.construirMalla). `faltaAlgo` (optional): did the last build
+ * skip a `malla` thing because its file could not be read (yet)? Then any change retries, like before D2. */
+export type ConstruirMalla = ((objetos: Iterable<[string, Record<string, unknown>]>) => Promise<Bvh | null>) & { faltaAlgo?: () => boolean };
+/** D2: the shared-state entries the world's mesh is made of — every one whose value says `colision: "malla"`, in
+ * state order (the builder's whole input: colision-mundo.ts reads nothing else). */
+export function entradasMalla(estado: Iterable<[string, Record<string, unknown>]>): [string, Record<string, unknown>][] {
+  const out: [string, Record<string, unknown>][] = [];
+  for (const e of estado) if (e[1].colision === "malla") out.push(e);
+  return out;
+}
+/** D2: a fingerprint of exactly what the mesh is built from (key and whole value of each `malla` entry, in order).
+ * A counter ticking, a box moving or a chat line leaves it the same: no rebuild. A `malla` thing added, removed,
+ * moved, turned, rescaled or given another model changes it. */
+export function huellaMalla(entradas: readonly [string, Record<string, unknown>][]): string {
+  let h = "";
+  for (const [k, v] of entradas) h += `${k}\u0000${JSON.stringify(v)}\u0001`;
+  return h;
+}
 export type Suelo = { minimo: number; vuelta?: { x: number; y: number; z: number; siempre?: boolean } | null };
 /** D-045: how often (ticks) the last safe spot is kept: 10 = every half second. */
 export const SEGURO_CADA = 10;
@@ -329,7 +350,7 @@ export class Instance {
       inputs[o] = c.entity; inputs[o + 1] = m.mx; inputs[o + 2] = m.mz; inputs[o + 3] = m.buttons; c.ack = m.seq;
     }
     if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.sim, solidsFrom(this.features.allState())); } // U10
-    if (this.opts.construirMalla && !this.mallaBuilding && this.features.stateVersion !== this.mallaVersion) this.reconstruirMalla();
+    if (this.opts.construirMalla && !this.mallaBuilding && this.features.stateVersion !== this.mallaVersion) this.quizaMalla(); // M6 h8, D2: only if a malla entry changed
     // H2 historia 5: at most ORDENES_TICK_MAX orders go into this step; the rest stay queued, in order, for the next one.
     const capInts = ORDENES_TICK_MAX * ORDER_STRIDE;
     const take = this.ordenes.slice(0, capInts); this.ordenes = this.ordenes.slice(capInts);
@@ -391,16 +412,31 @@ export class Instance {
   private solidsVersion = -1;
   private mallaVersion = -1;
   private mallaBuilding = false;
+  /** D2: `huellaMalla` of the last build started (null = none yet: the first change always builds, as before). */
+  private mallaHuella: string | null = null;
+  /** D2: the last build could not read some file, or threw: the next change of any kind builds again. */
+  private mallaReintentar = false;
+  /** Rebuilds a mesh started (bench / tests: how often the world's mesh is redone). */
+  mallasConstruidas = 0;
+  /** M6 h8 + D2: the state moved on since the last look. Rebuild the mesh only if what it is made of changed
+   * (`huellaMalla`) or the last build left something out; otherwise just remember this version. */
+  private quizaMalla(): void {
+    this.mallaVersion = this.features.stateVersion;
+    const entradas = entradasMalla(this.features.allState()), huella = huellaMalla(entradas);
+    if (huella === this.mallaHuella && !this.mallaReintentar) return;
+    this.mallaHuella = huella; this.mallaReintentar = false;
+    this.reconstruirMalla(entradas);
+  }
   /** M6 h8: rebuilds the world's collision mesh off the tick (async: fetching and parsing .glb files is not a 20 Hz
    * job). Captures the state version before starting; if the state moved on again while building, the next tick's
-   * check (`stateVersion !== mallaVersion`) sees it and starts over — never two builds in flight at once. Not part
+   * check (`stateVersion !== mallaVersion`) sees it and looks again — never two builds in flight at once. Not part
    * of the fingerprint: `setMesh` is the same no-op-on-replay side door `setSolids` already uses for U10's boxes. */
-  private reconstruirMalla(): void {
-    const version = this.features.stateVersion, snapshot = [...this.features.allState()];
-    this.mallaVersion = version; this.mallaBuilding = true;
-    this.opts.construirMalla!(snapshot)
-      .then((mesh) => { setMesh(this.sim, mesh); })
-      .catch((e) => { this.opts.log?.(`[malla] no se pudo construir la malla del mundo: ${String((e as Error)?.message ?? e)}`); })
+  private reconstruirMalla(entradas: [string, Record<string, unknown>][]): void {
+    const construir = this.opts.construirMalla!;
+    this.mallaBuilding = true; this.mallasConstruidas++;
+    construir(entradas)
+      .then((mesh) => { setMesh(this.sim, mesh); if (construir.faltaAlgo?.()) this.mallaReintentar = true; })
+      .catch((e) => { this.mallaReintentar = true; this.opts.log?.(`[malla] no se pudo construir la malla del mundo: ${String((e as Error)?.message ?? e)}`); })
       .finally(() => { this.mallaBuilding = false; });
   }
   /** U10: who hears a voice frame — players that have the speaker in their area of interest and within VOZ_RADIO_M.
