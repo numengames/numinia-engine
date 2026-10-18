@@ -5,10 +5,10 @@ import { mkdtempSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { encodeReport, decodeReport, MSG, REPORT_MAX } from "../packages/net/src/index.ts";
-import { Sesiones, limpiar, SHAPES, KEEP_DAYS, TEXT_MAX } from "../packages/server/src/sesiones.ts";
+import { Sesiones, limpiar, SHAPES, KEEP_DAYS, TEXT_MAX, CONTEO_MAX } from "../packages/server/src/sesiones.ts";
 import { agrupar, describir } from "../packages/server/src/sesiones-ver.ts";
 import { startServer } from "../packages/server/src/server.ts";
-import { nombreNavegador, claseAparato, nombreSistema, medidorDeCuadros } from "../packages/render/src/sesion.ts";
+import { nombreNavegador, claseAparato, nombreSistema, medidorDeCuadros, CONGELACION_MS, LARGO_MS } from "../packages/render/src/sesion.ts";
 
 const tmp = () => mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "sesiones-"));
 
@@ -130,4 +130,101 @@ test("frame meter: percentiles per window, lost frames against the target of the
   assert.equal(w.cuadros, 100); assert.equal(w.perdidos, 1);
   assert.equal(w.cuadroMs.p50, 13.9); assert.equal(w.cuadroMs.peor, 30);
   assert.equal(m.ventana().cuadros, 0, "a new window starts empty");
+});
+
+// ---- B5: what the pulse used to hide (freezes ≥ 1 s), what the GPU was asked, and the byte budget ----
+test("B5: a gap of 1 s or more with the page visible is a freeze, counted apart; a hidden page or an XR switch is a pause", () => {
+  const m = medidorDeCuadros();
+  for (let i = 0; i < 10; i++) m.cuadro(16.7, 2, 60);
+  m.cuadro(CONGELACION_MS, 2, 60); m.cuadro(2400, 2, 60); // two freezes (the shader stalls seen in the headset)
+  m.cuadro(16.7, 2, 60);
+  m.pausa(); m.cuadro(30_000, 2, 60);                    // came back from a hidden tab: not a freeze
+  m.cuadro(16.7, 2, 60, { xr: false }); m.cuadro(16.7, 2, 72, { xr: true }); // entering XR swaps loops…
+  m.cuadro(1500, 2, 72, { xr: true });                   // …but this is the second XR frame: a freeze
+  const w = m.ventana();
+  assert.deepEqual(w.congelado, { n: 3, ms: 4900, peor: 2400 });
+  assert.equal(w.cuadros, 13, "freezes stay out of cuadroMs/perdidos, as before");
+  assert.equal(w.cuadroMs.peor, 16.7); assert.equal(w.perdidos, 0);
+  const m2 = medidorDeCuadros();
+  m2.cuadro(16.7, 2, 60, { xr: false }); m2.cuadro(3000, 2, 72, { xr: true });
+  assert.equal(m2.ventana().congelado, undefined, "the gap while XR starts is not a freeze");
+  assert.equal(m.ventana().congelado, undefined, "a new window starts without freezes");
+});
+
+test(`B5: a long frame is lost (over 1.5× the target) AND over ${LARGO_MS} ms; a slow target is not a stall`, () => {
+  const m = medidorDeCuadros();
+  m.cuadro(30, 2, 60);   // lost at 60 fps, not long
+  m.cuadro(80, 2, 60);   // lost and long
+  m.cuadro(125, 2, 8);   // 8 fps on purpose (battery, nothing moves): neither
+  m.cuadro(200, 2, 8);   // lost at 8 fps and over 50 ms: long
+  const w = m.ventana();
+  assert.equal(w.perdidos, 3); assert.equal(w.largos, 2);
+});
+
+test("B5: draw calls, triangles, programs, pixel-ratio changes and Long Animation Frames, only when known", () => {
+  const m = medidorDeCuadros();
+  const bare = m.ventana();
+  for (const k of ["dc", "kTri", "programas", "programasNuevos", "cambiosRes", "ratio", "loaf", "congelado"]) assert.ok(!(k in bare), `${k} absent when unknown`);
+  assert.equal(bare.largos, 0);
+  m.cuadro(16, 1, 60, { dc: 103, tri: 316_000, programas: 30, ratio: 1 });
+  m.cuadro(16, 1, 60, { dc: 108, tri: 317_400, programas: 33, ratio: 0.85 });
+  m.cuadro(16, 1, 60, { dc: 42, tri: 15_700, programas: 33, ratio: 0.72 });
+  m.loaf(120, 70); m.loaf(400, 20);
+  const w = m.ventana();
+  assert.deepEqual(w.dc, { p50: 103, peor: 108 });
+  assert.deepEqual(w.kTri, { p50: 316, peor: 317.4 });
+  assert.equal(w.programas, 33); assert.equal(w.programasNuevos, 3);
+  assert.equal(w.cambiosRes, 2); assert.equal(w.ratio, 0.72);
+  assert.deepEqual(w.loaf, { n: 2, bloqMs: 90, peorMs: 400 }, "peorMs = the longest frame, bloqMs = the blocking summed");
+  m.cuadro(16, 1, 60, { programas: 35, ratio: 0.72 });
+  const w2 = m.ventana();
+  assert.equal(w2.programasNuevos, 2, "new programs counted from the end of the last window");
+  assert.equal(w2.cambiosRes, 0);
+  assert.deepEqual(w2.loaf, { n: 0, bloqMs: 0, peorMs: 0 }, "once seen, LoAF is reported as zero rather than absent");
+});
+
+test("B5: the server keeps the new pulse fields with their types; counts must be whole and not negative", () => {
+  const out = limpiar(SHAPES.pulso, {
+    largos: 3, congelado: { n: 2, ms: 3400.4, peor: 2100, otro: 1 }, dc: { p50: 103, peor: 113, p99: 1 }, kTri: { p50: 316.1, peor: 317 },
+    programas: 41, programasNuevos: -1, cambiosRes: 1.5, ratio: 0.85, loaf: { n: 1e9, bloqMs: 450, peorMs: "x" },
+  });
+  assert.deepEqual(out, {
+    largos: 3, congelado: { n: 2, ms: 3400.4, peor: 2100 }, dc: { p50: 103, peor: 113 }, kTri: { p50: 316.1, peor: 317 },
+    programas: 41, ratio: 0.85, loaf: { n: CONTEO_MAX, bloqMs: 450 },
+  });
+});
+
+/** The most loaded pulse the page can send: every field present, VR, battery, the widest numbers each can take. */
+const PULSO_MAS_CARGADO = {
+  k: "pulso", modo: "plano", cuadros: 9999, cuadroMs: { p50: 999.9, p99: 999.9, peor: 999.9 }, perdidos: 9999,
+  costeMs: { p50: 999.99, p99: 999.99, peor: 999.99 }, largos: 9999, objetivoFps: 120, hzXR: 120, escala: 0.52, modoBateria: false,
+  rttMs: 99999, correcciones: 999999, visibles: 999, oculta: false, bateria: { nivel: 0.99, cargando: false }, errores: 9999, memoriaMB: 99999,
+  congelado: { n: 99, ms: 999999, peor: 99999 }, dc: { p50: 9999, peor: 9999 }, kTri: { p50: 9999.9, peor: 9999.9 },
+  programas: 9999, programasNuevos: 9999, cambiosRes: 999, ratio: 1.31, loaf: { n: 999, bloqMs: 999999, peorMs: 99999 },
+};
+
+test("B5: the most loaded pulse stays under 700 of the REPORT_MAX bytes and survives the server untouched", () => {
+  const bytes = encodeReport(PULSO_MAS_CARGADO)!;
+  assert.ok(bytes, "it encodes");
+  assert.ok(bytes.length <= 700, `pulse is ${bytes.length} bytes (budget 700 of ${REPORT_MAX})`);
+  const { k: _k, ...rest } = PULSO_MAS_CARGADO;
+  assert.deepEqual(limpiar(SHAPES.pulso, decodeReport(bytes)), rest, "every field it sends is a field the server keeps");
+});
+
+test("B5: a session's freezes add up in its closing line and in GET /sesiones' summary", async () => {
+  const dir = tmp();
+  const s = new Sesiones({ dir, now: () => Date.parse("2026-10-18T15:00:00Z") });
+  s.abrir(1); s.abrir(2); s.abrir(3);
+  s.informe(1, { k: "pulso", cuadros: 600, congelado: { n: 2, ms: 3100, peor: 2000 }, largos: 4, cambiosRes: 2, programas: 31, loaf: { n: 5, bloqMs: 900, peorMs: 400 } });
+  s.informe(1, { k: "pulso", cuadros: 600, congelado: { n: 1, ms: 1200, peor: 1200 }, largos: 1, programas: 33 });
+  s.informe(2, { k: "pulso", cuadros: 600, largos: 0 });                 // a session without stalls
+  s.informe(3, { k: "pulso", cuadros: 600, congelado: { n: -3, ms: -1 } }); // nonsense: dropped, adds nothing
+  const r = s.resumen().cliente as Record<string, number>;
+  assert.equal(r.congelaciones, 3); assert.equal(r.sesionesConCongelacion, 1); assert.equal(r.congeladoPeorMs, 2000);
+  assert.equal(r.largos, 5); assert.equal(r.cambiosRes, 2); assert.equal(r.loaf, 5); assert.equal(r.programasMax, 33); assert.equal(r.pulsos, 4);
+  s.cerrar(1); s.cerrar(2);
+  await s.vaciar();
+  const sale = readFileSync(join(dir, "sesiones-2026-10-18.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((l) => l.k === "sale");
+  assert.deepEqual(sale[0].cliente, { pulsos: 2, congelaciones: 3, congeladoMs: 4300, congeladoPeorMs: 2000, largos: 5, cambiosRes: 2, loaf: 5, programasMax: 33 });
+  assert.equal(sale[1].cliente.congelaciones, 0);
 });
