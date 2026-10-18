@@ -17,7 +17,7 @@ type Misiones = {
   alCambiar(fn: (que: "libro" | "dialogo" | "nota") => void): () => void;
 };
 type Vista = {
-  vr: { active: boolean; pagina: "mision" | "mandos"; dialogo(d: { nombre: string; texto: string; opciones: string[] } | null): void; nota(t: string): void; onElegir(fn: (n: number) => void): unknown; onAtras(fn: () => void): unknown };
+  vr: { active: boolean; pagina: "mision" | "mandos" | "ajustes"; dialogo(d: { nombre: string; texto: string; opciones: string[] } | null): void; nota(t: string): void; onElegir(fn: (n: number) => void): unknown; onAtras(fn: () => void): unknown };
   ar: { state: string };
   manos: { reglas(o: { agarrable?: (k: string) => boolean; apuntable?: (k: string) => boolean }): void; on(fn: (e: EventoMano) => void): unknown; vibrar(l: Lado, v?: number, ms?: number): void };
   llevar(key: string, donde: Lado | "yo" | null): void;
@@ -94,6 +94,12 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
         "A o X: saltar · B: salir del diálogo",
         "Sin mandos: pellizca y mantén en el aire = andar adonde apunta la mano",
         "Salir: el botón de abajo, pulsa dos veces",
+      ];
+      if (view.vr.pagina === "ajustes") return [ // MVL1: ajustes dentro de VR, sin quitarte las gafas
+        "Ajustes (Y: ocultar)",
+        "Apunta al botón de abajo con el gatillo",
+        "para cambiar el confort de movimiento",
+        "(la viñeta: bajo, medio o alto).",
       ];
       const out: string[] = [];
       const c = o.interaccion.actual();

@@ -75,6 +75,10 @@ const redondear = (v: number, paso: number) => Number((Math.round(v / paso) * pa
 const esEntrada = (t: EventTarget | null) => t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
 const nombreDe = (o: Obj) => String(o.nombre ?? "") || "(decorado)";
 const fmt = (v: unknown) => String(Math.round(Number(v) * 100) / 100);
+/** Backlog (PROGRESO-M22c.md): an empty library used to look like an editor bug. If it is empty AND the player has no
+ * build role, say why (instead of a silent blank list); otherwise "" (an empty library for any other reason is not this). */
+export const SIN_ROL_CONSTRUIR = "No tienes permiso para construir en este mundo (pide el rol a quien lo administra).";
+export const avisoBiblioteca = (biblioteca: readonly unknown[], puede: boolean): string => (biblioteca.length === 0 && !puede ? SIN_ROL_CONSTRUIR : "");
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...hijos: (Node | string)[]): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -93,6 +97,10 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   const estado = el("p", { className: "estado" });
   estado.setAttribute("role", "status");
   const decir = (t: string) => { estado.textContent = t; };
+  // Backlog M22c: an empty library with no build role looked like an editor bug; say why instead.
+  const avisoLib = el("p", { className: "aviso-biblioteca" });
+  avisoLib.setAttribute("role", "status");
+  avisoLib.hidden = true;
   const responder = (r: Res, bien = "Hecho.") => decir(r.ok ? bien : `No: ${r.why}`);
   const boton2 = (texto: string, titulo: string, fn: () => Res | void) => {
     const b = el("button", { type: "button", textContent: texto, title: titulo });
@@ -179,6 +187,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     fila("Herramienta", ...botonesHerr),
     fila("Ejes", ...botonesEje, botonEspacio),
     fila("", el("label", {}, "Paso ", selPos), el("label", {}, "Giro ", selGiro)),
+    avisoLib,
     el("p", { textContent: "Biblioteca (sigue al puntero; clic en el mundo para colocarlo):" }),
     fila("Biblioteca", ...c.biblioteca.map((m) => boton2(m.nombre, `${m.nombre}: llévalo con el ratón y haz clic donde lo quieras (Esc cancela)`, () => empezarFantasma(m)))),
     el("p", { textContent: "Delante de ti:" }),
@@ -433,6 +442,8 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   function refrescar(): void {
     boton.style.display = c.estado.puede ? "" : "none";
     boton.toggleAttribute("data-oculto", !c.estado.puede);
+    const aviso = avisoBiblioteca(c.biblioteca, c.estado.puede);
+    avisoLib.textContent = aviso; avisoLib.hidden = !aviso;
     if (!abierto()) return;
     for (const b of botonesHerr) b.setAttribute("aria-pressed", String(b.dataset.modo === c.estado.modo));
     for (const b of botonesEje) b.setAttribute("aria-pressed", String((b.dataset.eje || null) === eje));
@@ -705,6 +716,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
 
   // who may build can change (H3 will give roles); the nearest thing changes as you walk
   setInterval(() => { if (!c.estado.puede && abierto()) abrir(false); refrescar(); }, 500);
+  refrescar(); // set the button's visibility and the library's warning right away (not after the first tick)
 }
 
 function estilo(): void {
@@ -729,6 +741,8 @@ function estilo(): void {
 #panel-construir summary { cursor: pointer; }
 #panel-construir ul { margin: 4px 0; padding-left: 18px; }
 #panel-construir label[hidden] { display: none; }
+#panel-construir .aviso-biblioteca { color: #ffb4a8; font-weight: 600; }
+#panel-construir .aviso-biblioteca[hidden] { display: none; }
 #panel-construir input[type=range] { width: 140px; }
 #barra-objeto { position: fixed; z-index: 6; display: flex; gap: 4px; padding: 4px; border-radius: 8px; background: rgba(20, 24, 30, .86); }
 #barra-objeto[hidden] { display: none; }

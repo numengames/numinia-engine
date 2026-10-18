@@ -4,13 +4,14 @@
 // coherence; the same seed gives the same blows; the page draws through view.place and paints the blow.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { fx } from "../packages/core/src/index.ts";
 import { Instance } from "../packages/instance/src/index.ts";
 import { solidsFrom } from "../packages/sim/src/index.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
 import type { GuestKeeper } from "../packages/client/src/index.ts";
 import { signer } from "../packages/server/src/secret.ts";
-import { lucha, DANO_BASE, DANO_VAR, ENFRIAMIENTO_TICKS, REAPARICION_S } from "../features/lucha/feature.ts";
+import { lucha, DANO_BASE, DANO_VAR, ENFRIAMIENTO_TICKS, REAPARICION_S, VIDA_JUGADOR_MAX, REAPARICION_JUGADOR_TICKS } from "../features/lucha/feature.ts";
 import { crearLucha, valorDe, tirarDano, HZ, CRIATURAS_DEFECTO } from "../features/lucha/server.ts";
 import { crearCliente, tinte, aspecto } from "../features/lucha/client.ts";
 import { BESTIARIO } from "../features/lucha/bestiario.ts";
@@ -159,3 +160,61 @@ test("lucha: a world's lucha.json with an unknown species places nothing and say
   assert.ok(W.log.some((l) => l.includes("no está en el bestiario")));
   assert.equal([...W.inst.features.allState()].length, 0);
 });
+
+test("lucha L2 trozo 1: every blow lands, the creature strikes back — herido, then caído at 0, then reaparece whole after REAPARICION_JUGADOR_TICKS", () => {
+  // a tiny respawn (1 tick) so the same creature keeps fighting back long enough to fell VIDA_JUGADOR_MAX
+  const W = mundo(1, 7, [{ ...G, reaparicion: 0.05 }]);
+  W.pump(2);
+  W.place(W.pages[0].s.entity, 11, 0);
+  W.pump(12);
+  let n = 0;
+  while (W.evs(W.pages[0], "jugadorCaido").length === 0 && n < 60) {
+    if (W.estado().modo === "disuelta") { W.pump(2); continue; } // wait out the instant respawn
+    W.pages[0].l.golpear(KEY);
+    W.pump(ENFRIAMIENTO_TICKS);
+    n++;
+  }
+  const heridos = W.evs(W.pages[0], "jugadorHerido");
+  assert.ok(heridos.length >= 10, `varios golpes para bajar ${VIDA_JUGADOR_MAX} de vida con 3-5 por golpe (fueron ${heridos.length})`);
+  // vida suma: cada golpe resta lo mismo que sufrió la criatura, y nunca baja de 0
+  let vidaEsperada = VIDA_JUGADOR_MAX;
+  for (const h of heridos) { vidaEsperada = Math.max(0, vidaEsperada - Number(h.dano)); assert.equal(Number(h.vida), vidaEsperada); }
+  assert.equal(vidaEsperada, 0, "la secuencia debe terminar con el jugador caído");
+  assert.equal(W.evs(W.pages[0], "jugadorCaido").length, 1);
+  // caído: no puede golpear
+  W.pages[0].l.golpear(KEY); W.pump(2);
+  const rechazos = W.evs(W.pages[0], "rechazado");
+  assert.ok(rechazos.some((r) => String(r.motivo).includes("caído")));
+  // reaparece tras REAPARICION_JUGADOR_TICKS, entero, y vuelve a poder golpear
+  W.pump(REAPARICION_JUGADOR_TICKS + 2);
+  assert.equal(W.evs(W.pages[0], "jugadorVuelve").length, 1);
+  if (W.estado().modo === "disuelta") W.pump(2);
+  W.pages[0].l.golpear(KEY); W.pump(2);
+  assert.equal(W.evs(W.pages[0], "jugadorHerido").length, heridos.length + 1, "puede golpear (y le golpean) otra vez");
+});
+
+test("lucha L2 trozo 1: mismo hash en dos mundos — misma semilla, mismos golpes, mismo rastro de vida del jugador", () => {
+  const run = () => {
+    const W = mundo(1, 55, [{ ...G, reaparicion: 0.05 }]);
+    W.pump(2);
+    W.place(W.pages[0].s.entity, 11, 0);
+    W.pump(12);
+    for (let i = 0; i < 20; i++) {
+      if (W.estado().modo === "disuelta") { W.pump(2); continue; }
+      W.pages[0].l.golpear(KEY);
+      W.pump(ENFRIAMIENTO_TICKS);
+    }
+    const heridos = W.evs(W.pages[0], "jugadorHerido");
+    const caido = W.evs(W.pages[0], "jugadorCaido").length;
+    if (caido) W.pump(REAPARICION_JUGADOR_TICKS + 2);
+    const vuelve = W.evs(W.pages[0], "jugadorVuelve").length;
+    return { heridos, caido, vuelve };
+  };
+  const hash = (r: ReturnType<typeof run>) => createHash("sha256").update(JSON.stringify(r)).digest("hex");
+  const a = run(), b = run();
+  assert.deepEqual(a, b);
+  assert.ok(a.caido === 1, "la vida debe caer a 0 en esta carrera para que la comparación demuestre herido → caído → reaparece");
+  assert.equal(hash(a), hash(b), "el mismo seguimiento (herido → caído → reaparece) da el mismo hash en dos mundos");
+});
+
+

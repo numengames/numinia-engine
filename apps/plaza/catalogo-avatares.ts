@@ -8,7 +8,7 @@ import type { CatalogoAvatares } from "../../packages/render/src/index.ts";
 export function catalogoDeAvatares(origen: string, params: URLSearchParams, avatar?: string): CatalogoAvatares | undefined {
   if (params.has("sinavatares")) return undefined;
   const animaciones: CatalogoAvatares["animaciones"] = {};
-  for (const [clip, a] of Object.entries(catalogo.animaciones)) animaciones[clip as keyof CatalogoAvatares["animaciones"]] = { url: `${origen}/a/${a.sha256}.vrma`, pasoPorCadera: a.pasoPorCadera };
+  for (const [clip, a] of Object.entries(catalogo.animaciones)) animaciones[clip as keyof CatalogoAvatares["animaciones"]] = { url: `${origen}/a/${a.sha256}.vrma`, pasoPorCadera: a.pasoPorCadera, duracion: a.duracion };
   return { modelos: modelosDelMundo(catalogo.modelos, avatar).map((m) => ({ nombre: m.nombre, url: `${origen}/a/${m.sha256}.vrm` })), animaciones };
 }
 
