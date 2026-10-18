@@ -25,7 +25,7 @@ import { cargarAventura, leerMision } from "../features/misiones/formato.ts";
 import type { Fichero } from "../features/misiones/formato.ts";
 import { crearMisiones } from "../features/misiones/server.ts";
 import { crearCliente as crearMisionesCliente } from "../features/misiones/client.ts";
-import { crearBienes } from "../features/bienes/server.ts";
+import { crearBienes, leerConfianza, INDICE_PAGINA } from "../features/bienes/server.ts";
 import { crearCliente as crearBienesCliente, ficheroRecibo, reciboDe } from "../features/bienes/client.ts";
 import { bienes as bienesDecl, partir, unir, TROZO, TROZOS } from "../features/bienes/feature.ts";
 import { comprobar } from "../features/bienes/comprobar.ts";
@@ -107,18 +107,21 @@ const aventura = () => ({ misiones: [fich("misiones", MISION)], pnj: [fich("pnj"
 type Keeper = GuestKeeper & { token: string | null };
 const keeper = (): Keeper => { const k = { token: null as string | null, load: () => k.token, save: (t: string) => { k.token = t; } }; return k; };
 
-function mundo(o: { storage?: FileStorage; secreto?: string | null } = {}) {
+function mundo(o: { storage?: FileStorage; secreto?: string | null; confianza?: string; modelos?: string[] } = {}) {
   const secreto = o.secreto === undefined ? SECRETO : o.secreto;
   const logs: string[] = [];
   const recibos = secreto ? crearRecibos(secreto, "mundo.test") ?? undefined : undefined;
-  const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [...crearMisiones({ aventura: aventura() }), crearBienes()], log: (l) => logs.push(l), identitySign: signer("guest-tokens-secret-xx"), sign: signer(secreto ?? undefined), recibos, storage: o.storage });
+  const confianza = () => (o.confianza === undefined ? [] : [{ fichero: "bienes/confianza.json", texto: o.confianza }]);
+  const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [...crearMisiones({ aventura: aventura() }), crearBienes({ confianza })], log: (l) => logs.push(l), identitySign: signer("guest-tokens-secret-xx"), sign: signer(secreto ?? undefined), recibos, storage: o.storage,
+    activo: (sha) => (o.modelos ?? [MODELO]).includes(sha) });
   const paginas: { t: ReturnType<Instance["join"]> }[] = [];
   let n = 0;
-  const abrir = (k?: Keeper) => {
-    const t = inst.join(n++), mc = crearMisionesCliente(), bc = crearBienesCliente(), oidos: string[] = [];
-    const s = new ClientSession(t, { features: [...mc.parts, ...bc.parts], ...(k ? { identity: k } : {}), view: { label() {}, bounce() {}, tag() {}, place() {} } });
+  const abrir = (k?: Keeper, guarda?: { load(): string | null; save(t: string): void }) => {
+    const t = inst.join(n++), mc = crearMisionesCliente(), bc = crearBienesCliente({ guarda: guarda ?? null }), oidos: string[] = [];
+    const lleva = new Map<number, string>(); // N18: what this page draws on each avatar
+    const s = new ClientSession(t, { features: [...mc.parts, ...bc.parts], ...(k ? { identity: k } : {}), view: { label() {}, bounce() {}, tag() {}, place() {}, lleva: (e, p) => { if (p) lleva.set(e, `${p.donde}:${p.model.slice(0, 4)}`); else lleva.delete(e); } } });
     s.features.tap((f, ev) => { if (f === "bienes") oidos.push(ev); });
-    const p = { s, t, m: mc.misiones, b: bc.bienes, oidos };
+    const p = { s, t, m: mc.misiones, b: bc.bienes, oidos, lleva };
     paginas.push(p);
     return p;
   };
@@ -142,7 +145,7 @@ test("the chest gives a good: «Es tuyo», one valid receipt in its owner's inve
   assert.ok(a.oidos.includes("recibido"));
   const [bien] = a.b.lista();
   assert.equal(a.b.lista().length, 1);
-  assert.deepEqual({ ...bien, id: "…", recibo: "…", instante: "…" }, { id: "…", objeto: "brujula-artifice", nombre: "Brújula del Artífice", descripcion: "Apunta siempre a la próxima aventura.", modelo: MODELO, licencia: "CC0-1.0", mundo: "mundo.test", mision: "cofre-final", instante: "…", recibo: "…" });
+  assert.deepEqual({ ...bien, id: "…", recibo: "…", instante: "…" }, { id: "…", ajeno: false, verse: true, objeto: "brujula-artifice", nombre: "Brújula del Artífice", descripcion: "Apunta siempre a la próxima aventura.", modelo: MODELO, licencia: "CC0-1.0", mundo: "mundo.test", mision: "cofre-final", instante: "…", recibo: "…" });
   const l = leerRecibo(bien.recibo);
   assert.ok(l.ok, "the page holds a receipt anyone can check");
   assert.equal(l.recibo.dueno, a.s.who!.id); assert.equal(l.recibo.id, bien.id); assert.match(bien.id, /^[0-9a-f]{24}$/);
@@ -226,4 +229,141 @@ test("chain-ready, nothing personal: ERC-721 metadata and the EIP-712 voucher ca
   assert.equal((v.domain as { chainId: number }).chainId, REDES_PRUEBA["base-sepolia"]);
   assert.equal((v.message as { to: unknown }).to, null, "the wallet is the owner's choice, at claim time");
   assert.match(String(v.nota), /Sin firmar/);
+});
+
+// ---------- N18: wear it, the index, receipts from other worlds ----------
+const espera = async (W: ReturnType<typeof mundo>, p: Promise<unknown>) => { let hecho = false; void p.finally(() => { hecho = true; }); for (let i = 0; i < 40 && !hecho; i++) { W.pump(1); await new Promise((r) => setTimeout(r, 1)); } return p; };
+
+test("N18 wear: your good in a hand or on your head, seen by every page; refused when not yours or without a model here; back on when you return; off when you leave", async () => {
+  const dir = nuevaCarpeta("bienes-llevar");
+  const st = new FileStorage(dir), W = mundo({ storage: st });
+  const kA = keeper(), kB = keeper();
+  const a = W.abrir(kA), b = W.abrir(kB); W.pump(3);
+  W.abrirCofre(a);
+  const [bien] = a.b.lista();
+  assert.equal(bien.verse, true, "this server has its model"); assert.equal(bien.ajeno, false);
+  assert.ok(a.b.llevar(bien.id, "mano").ok); W.pump(3);
+  assert.deepEqual(a.b.puesto(), { modelo: MODELO, donde: "mano", nombre: "Brújula del Artífice" });
+  assert.equal(b.lleva.get(a.s.entity), "mano:bbbb", "the other guest's page draws it on A");
+  assert.equal(a.lleva.get(a.s.entity), "mano:bbbb", "and A's own page on A");
+  assert.equal(b.b.puestos()[a.s.entity]?.donde, "mano");
+  a.b.llevar(bien.id, "cabeza"); W.pump(3);
+  assert.equal(b.lleva.get(a.s.entity), "cabeza:bbbb");
+  // B cannot wear A's good (it is not B's), the server says why
+  b.b.llevar(bien.id, "mano"); W.pump(3);
+  assert.equal(b.b.puesto(), null); assert.ok(b.oidos.includes("aviso"));
+  assert.ok(b.s.features.announcements.some((x) => x.feature === "bienes" && /no es tuyo/.test(x.text)), "«Ese objeto no es tuyo en este mundo.»");
+  // a second tab of A wears it too; leaving takes it off that avatar; coming back puts it back on
+  const a2 = W.abrir(kA); W.pump(3);
+  assert.equal(b.lleva.get(a2.s.entity), "cabeza:bbbb", "what you wear comes back on every tab of yours");
+  const ea = a.s.entity;
+  W.cerrar(a);
+  assert.equal(b.lleva.has(ea), false, "gone with the avatar");
+  a2.b.quitar(); W.pump(3);
+  assert.equal(b.lleva.has(a2.s.entity), false); assert.equal(a2.b.puesto(), null);
+  a2.b.llevar(bien.id, "mano"); W.pump(3);
+  await st.flush();
+  const W2 = mundo({ storage: new FileStorage(dir) }), c = W2.abrir(kB); W2.pump(2);
+  const a3 = W2.abrir(kA); W2.pump(3);
+  assert.equal(c.lleva.get(a3.s.entity), "mano:bbbb", "kept across a restart");
+  // a world without the model's file: the good is there, but it cannot be worn (and the page knows it)
+  const W3 = mundo({ storage: new FileStorage(dir), modelos: [] }), a4 = W3.abrir(kA); W3.pump(3);
+  assert.equal(a4.b.lista()[0]?.verse, false);
+  assert.equal(a4.lleva.size, 0, "not put back on without its model");
+  a4.b.llevar(bien.id, "mano"); W3.pump(3);
+  assert.equal(a4.b.puesto(), null); assert.ok(a4.oidos.includes("aviso"));
+});
+
+test("N18 index: entering reads your goods through d:<guest>, not every good of the world; an old world is indexed once", async () => {
+  const dir = nuevaCarpeta("bienes-indice");
+  const st = new FileStorage(dir), W = mundo({ storage: st });
+  const kA = keeper(); const a = W.abrir(kA); W.pump(3);
+  W.abrirCofre(a);
+  const [bien] = a.b.lista(), yo = a.s.who!.id;
+  await st.flush();
+  const k = (key: string, value: unknown) => JSON.stringify({ t: "x", v: 2, op: "k", key, value });
+  const hex = (i: number) => i.toString(16).padStart(24, "0");
+  const ajenoDeA = { id: hex(999), recibo: "nb1.x.y", dueno: yo, objeto: "o", nombre: "Sin índice", mundo: "m", mision: "x", instante: "2026-01-01T00:00:00Z" };
+  // 300 goods of other guests + one of A's written by hand WITHOUT its index entry
+  appendFileSync(join(dir, "bienes.jsonl"), [...Array.from({ length: 300 }, (_, i) => k(`b:${hex(i)}`, { ...ajenoDeA, id: hex(i), dueno: `otro${i}`, nombre: "Otro" })), k(`b:${hex(999)}`, ajenoDeA)].join("\n") + "\n");
+  const W2 = mundo({ storage: new FileStorage(dir) });
+  const a2 = W2.abrir(kA); W2.pump(3);
+  assert.deepEqual(a2.b.lista().map((x) => x.id), [bien.id], "only what the index lists: the inventory never walks the world's goods");
+  assert.ok(!W2.logs.some((l) => /índice por dueño/.test(l)), "already indexed: no pass on start");
+  // a world from before the index (N10): no `i`, no d:* — indexed once on start, then A gets both
+  appendFileSync(join(dir, "bienes.jsonl"), [JSON.stringify({ t: "x", v: 2, op: "kd", key: "i" }), JSON.stringify({ t: "x", v: 2, op: "kd", key: `d:${yo}` })].join("\n") + "\n");
+  const st3 = new FileStorage(dir), W3 = mundo({ storage: st3 });
+  assert.ok(W3.logs.some((l) => /índice por dueño: 302 bienes indexados \(una vez\)/.test(l)), W3.logs.join("\n"));
+  const a3 = W3.abrir(kA); W3.pump(3);
+  assert.deepEqual(a3.b.lista().map((x) => x.nombre).sort(), ["Brújula del Artífice", "Sin índice"]);
+  await st3.flush();
+  const W4 = mundo({ storage: new FileStorage(dir) });
+  assert.ok(!W4.logs.some((l) => /índice por dueño/.test(l)), "once: not again on the next start");
+  // pages: a guest with more than INDICE_PAGINA goods spreads over d:<guest>~2
+  const muchos = Array.from({ length: INDICE_PAGINA + 5 }, (_, i) => `b:${hex(5000 + i)}`);
+  appendFileSync(join(dir, "bienes.jsonl"), [...muchos.map((key, i) => k(key, { ...ajenoDeA, id: hex(5000 + i), nombre: `N${i}`, instante: `2026-02-01T00:00:${String(i % 60).padStart(2, "0")}Z` })), JSON.stringify({ t: "x", v: 2, op: "kd", key: "i" })].join("\n") + "\n");
+  const W5 = mundo({ storage: new FileStorage(dir) }), a5 = W5.abrir(kA); W5.pump(3);
+  assert.equal(a5.b.lista().length, 2 + INDICE_PAGINA + 5);
+});
+
+test("N18 receipts from another world: checked always; an untrusted signer = «de otro mundo» (remembered in this browser, not yours here); a trusted one = yours here, once, for one person", async () => {
+  const otro = crearRecibos(OTRO, "otro.mundo")!;
+  const ajeno = otro.firmar(datos({ objeto: { id: "brujula", nombre: "Brújula de fuera", descripcion: "De otro mundo.", modelo: MODELO, licencia: "CC0-1.0" } }));
+  // 1) this world trusts nobody (the default): real, shown as from another world, never given
+  const mem: Record<string, string> = {};
+  const guarda = (k: string) => ({ load: () => mem[k] ?? null, save: (t: string) => { mem[k] = t; } });
+  const W = mundo({ confianza: JSON.stringify({ formato: "confianza@1", emisores: [] }) });
+  const a = W.abrir(keeper(), guarda("a")); W.pump(3);
+  const r1 = await espera(W, a.b.traer(ficheroRecibo({ id: "0".repeat(24), objeto: "brujula", nombre: "x", descripcion: "", modelo: "", licencia: "", mundo: "otro.mundo", mision: "m", instante: "", recibo: ajeno, ajeno: false, verse: false }).texto)) as Awaited<ReturnType<typeof a.b.traer>>;
+  assert.equal(r1.ok, true); assert.equal(r1.confia, false); assert.equal(r1.dado, false);
+  assert.match(r1.motivo, /no confía en quien lo firmó.*de otro mundo/);
+  assert.deepEqual(a.b.lista(), [], "never given here");
+  assert.deepEqual(a.b.otros().map((x) => [x.nombre, x.mundo]), [["Brújula de fuera", "otro.mundo"]]);
+  const a2 = W.abrir(keeper(), guarda("a")); W.pump(3);
+  assert.equal(a2.b.otros().length, 1, "remembered in this browser");
+  a2.b.olvidar(ajeno); assert.equal(a2.b.otros().length, 0);
+  // a tampered one never reaches the server
+  const roto = ajeno.slice(0, 50) + (ajeno[50] === "A" ? "B" : "A") + ajeno.slice(51);
+  const r0 = await espera(W, a.b.traer(roto)) as Awaited<ReturnType<typeof a.b.traer>>;
+  assert.equal(r0.ok, false);
+  // the server refuses a tampered one sent by hand too (pieces of an edited receipt)
+  // 2) this world trusts that signer (its file): yours here, «de otro mundo», wearable; a second guest cannot take it
+  const W2 = mundo({ confianza: JSON.stringify({ formato: "confianza@1", emisores: [{ emisor: otro.emisor, nombre: "Otro Mundo", nota: "prueba" }] }) });
+  const kA = keeper(), x = W2.abrir(kA, guarda("x")), y = W2.abrir(keeper(), guarda("y")); W2.pump(3);
+  const r2 = await espera(W2, x.b.traer(ajeno)) as Awaited<ReturnType<typeof x.b.traer>>;
+  assert.equal(r2.ok, true); assert.equal(r2.confia, true); assert.equal(r2.dado, true, r2.motivo);
+  assert.match(r2.motivo, /Otro Mundo.*confía/);
+  W2.pump(2);
+  const [b] = x.b.lista();
+  assert.equal(b?.nombre, "Brújula de fuera"); assert.equal(b.ajeno, true); assert.equal(b.mundo, "otro.mundo"); assert.equal(b.recibo, ajeno, "the same receipt, signed there");
+  assert.deepEqual(x.b.otros(), [], "not «just seen»: it is yours");
+  assert.match((await x.b.comprobar(ajeno)).motivo, /confía en quien lo firmó y aquí es tuyo/);
+  x.b.llevar(b.id, "cabeza"); W2.pump(3);
+  assert.equal(y.lleva.get(x.s.entity), "cabeza:bbbb", "worn and seen like any good");
+  const r3 = await espera(W2, x.b.traer(ajeno)) as Awaited<ReturnType<typeof x.b.traer>>;
+  assert.match(r3.motivo, /ya estaba en tu inventario/); assert.equal(x.b.lista().length, 1, "never twice");
+  const r4 = await espera(W2, y.b.traer(ajeno)) as Awaited<ReturnType<typeof y.b.traer>>;
+  assert.equal(r4.dado, false); assert.match(r4.motivo, /otra persona/); assert.deepEqual(y.b.lista(), []);
+  // kept with its owner when they come back; the route says it is trusted, not who has it
+  const x2 = W2.abrir(kA); W2.pump(3);
+  assert.equal(x2.b.lista()[0]?.ajeno, true);
+  const h = W2.inst.features.http("POST", "/bienes/comprobar", {}, ajeno) as { body: Record<string, unknown> };
+  assert.equal(h.body.nuestro, false); assert.equal(h.body.confiado, true); assert.ok(!JSON.stringify(h.body).includes(x.s.who!.id));
+  // our own receipt brought back: nothing new
+  W2.abrirCofre(x2);
+  const propio = x2.b.lista().find((z) => !z.ajeno)!;
+  const r5 = await espera(W2, x2.b.traer(propio.recibo)) as Awaited<ReturnType<typeof x2.b.traer>>;
+  assert.equal(r5.nuestro, true); assert.equal(x2.b.lista().length, 2);
+});
+
+test("N18 trust file: confianza@1 read leniently; a bad key is reported, never trusted", () => {
+  const k = crearRecibos(OTRO, "x")!.emisor;
+  assert.deepEqual(leerConfianza(JSON.stringify({ formato: "confianza@1", emisores: [] })), { emisores: [], problemas: [] });
+  assert.deepEqual(leerConfianza(JSON.stringify([k])).emisores, [{ emisor: k, nombre: "" }]);
+  const c = leerConfianza(JSON.stringify({ formato: "confianza@1", emisores: [{ emisor: "ed25519:corta" }, { emisor: k, nombre: "Otro" }] }));
+  assert.deepEqual(c.emisores, [{ emisor: k, nombre: "Otro" }]); assert.equal(c.problemas.length, 1);
+  assert.deepEqual(leerConfianza("{").emisores, []);
+  // the example world ships the file, empty: trusting is the world's decision
+  const f = JSON.parse(readFileSync(fileURLToPath(new URL("../aventuras/ejemplo/bienes/confianza.json", import.meta.url)), "utf8"));
+  assert.equal(f.formato, "confianza@1"); assert.deepEqual(f.emisores, []);
 });

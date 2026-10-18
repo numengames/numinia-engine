@@ -54,5 +54,17 @@
 .panel-j5 li.bien .firma.mal { color: #ff9a9e; }
 .panel-j5 li.bien button { justify-self: start; margin-top: 4px; }
 .panel-j5 .traer { margin-top: 10px; font-size: 12px; color: #c9d3dc; }
+/* N18: wear it, see it in 3D, receipts from other worlds */
+.panel-j5 li.bien .acciones { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.panel-j5 li.bien .acciones button { margin-top: 0; min-height: 36px; }
+.panel-j5 li.bien .puesto { font-size: 12px; color: #9fe8a8; }
+.panel-j5 li.bien .sin-modelo { font-size: 12px; color: #c9d3dc; font-style: italic; }
+.panel-j5 li.bien .sello { justify-self: start; font-size: 11px; padding: 1px 7px; border-radius: 999px; color: #0b1622; background: #8fd3ff; }
+.panel-j5 li.bien.ajeno { background: rgba(143, 211, 255, .08); border-color: rgba(143, 211, 255, .35); }
+.panel-j5 li.bien.visto { opacity: .85; }
+.panel-j5 canvas.vitrina { width: 100%; max-width: 360px; aspect-ratio: 8 / 5; height: auto; border-radius: 8px; background: radial-gradient(circle at 50% 40%, #2a3440, #11161c); cursor: grab; margin-top: 6px; }
+.panel-j5 canvas.vitrina:focus-visible { outline: 2px solid #ffd27a; outline-offset: 2px; }
+.panel-j5 .otros-titulo { margin: 12px 0 2px; font-size: 13px; color: #8fd3ff; }
+.panel-j5 .nota { font-size: 12px; color: #c9d3dc; margin: 0 0 6px; }
 .panel-j5 .veredicto.ok { color: #9fe8a8; }
 .panel-j5 .veredicto.mal { color: #ff9a9e; }

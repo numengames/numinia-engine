@@ -67,6 +67,8 @@ const session = new ClientSession(transport, {
     // H4/H8: the zone's environment and its elements (water, fire, smoke, dust)
     entorno: (v) => view.entorno.aplicar(v),
     elemento: (k, v) => view.elementos.poner(k, v),
+    // N18: what each person wears (features/bienes): a good's model in a hand or on the head
+    lleva: (e, v) => view.vestir(e === session.entity ? "self" : e, v),
     // V1: every announced event reaches screen readers (polite; safety = assertive). V3 adds the engine's own voice.
     announce: (a) => {
       if (a.feature === "chat") return; // J3: the chat box's own list (role=log, polite) reads the chat
@@ -137,7 +139,7 @@ const mapa = montarMapa({ session, view, otros });
 const foto = montarFoto({ view, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), mapa, boton: document.getElementById("foto-abrir") as HTMLButtonElement, ocupado: () => dardos.tirando(),
   decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); } });
 const ficha = montarFicha({ session, view, desde: () => informe.bienvenidaMs, otros }, mapa.botonFicha);
-montarBienes({ bienes, comprobar, ficha, boton: mapa.botonFicha }); // N10: the sheet's «Inventario» = your goods, their receipts
+montarBienes({ bienes, comprobar, ficha, boton: mapa.botonFicha, vitrina: (cv, model) => view.vitrina(cv, model) }); // N10: the sheet's «Inventario» = your goods, their receipts
 
 // ---- determinism probe: replay the reference run here and compare with the server's number ----
 const probe = { browser: -1, server: -1, ms: 0, done: false };

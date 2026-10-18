@@ -8,6 +8,10 @@ export { potenciaDe, ESCALA_PLAZA } from "./dardos.ts";
 export type { DianaAR, Dardo3D } from "./dardos.ts";
 export { pintarDiana, caraAPixel, pixelACara, PINTADA } from "./diana.ts";
 import { createVR, vrSupported } from "./vr.ts";
+import { crearPuestos } from "./puestos.ts";
+import { crearVitrina } from "./vitrina.ts";
+export type { Vitrina } from "./vitrina.ts";
+export type { Donde as DondePuesto } from "./puestos.ts";
 export { vrSupported } from "./vr.ts";
 export type { VRState, DialogoVR } from "./vr.ts";
 import type { Manos, EventoMano } from "./manos.ts";
@@ -187,6 +191,18 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     manoDe: (t, out) => avs.mano(t === "self" ? "yo" : t, "derecha", out), orientar: (t, rumbo) => avs.orientar(t === "self" ? "yo" : t, rumbo),
     agua: { luz: entorno.aguaLuz, detalle: () => detalleAgua(entorno.nivel, entorno.calidadActual.agua) } }); // N2: the pond's water follows the tier
   const dardos = crearDianas3D({ world }); // dardos v1: the boards near you and the darts in them (dardos.ts)
+  // N18: what people wear (features/bienes): a good's model in the right hand or on the head, on the VRM's bone or the capsule
+  const plantillasPuestos = new Map<string, Promise<THREE.Object3D>>();
+  const puestos = crearPuestos({ world,
+    cargar: (model) => {
+      let t = plantillasPuestos.get(model);
+      if (!t) { t = getTools().then(async (h) => (await h.load(assetUrl(model))).scene as THREE.Object3D); plantillasPuestos.set(model, t); t.catch(() => plantillasPuestos.delete(model)); }
+      return t.then(async (raiz) => (await getTools()).clone(raiz));
+    },
+    cuerpo: (q) => (q === "self" ? (selfMesh.visible ? selfMesh : null) : others.get(q) ?? null),
+    visible: (q) => (q === "self" ? selfMat.visible : true),
+    hueso: (q, donde, out) => (donde === "mano" ? avs.mano(q === "self" ? "yo" : q, "derecha", out) : avs.cabeza(q === "self" ? "yo" : q, out)),
+    rumbo: (q) => avs.rumbo(q === "self" ? "yo" : q) });
   function dropLabel(t: Target): void {
     const d = labels.get(t);
     if (!d) return;
@@ -741,6 +757,13 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** J10: what you carry and where (for checks). */
     llevando(): Record<string, Llevar> { return Object.fromEntries(llevados); },
+    /** N18: put one of a person's goods (a model by its sha256) in their right hand or on their head, for everyone who
+     * sees them (`"self"` = you); `null` takes it off. features/bienes decides who wears what (view.lleva). */
+    vestir(t: Target, p: { model: string; donde: "mano" | "cabeza"; nombre?: string } | null): void { puestos.poner(t, p); },
+    /** N18: a model (sha256) turning in its own small canvas — the sheet's «ver en 3D». Close it when it goes away. */
+    vitrina(canvas: HTMLCanvasElement, model: string) { return crearVitrina(canvas, async () => (await getTools()).load(assetUrl(model)).then((g) => g.scene as THREE.Object3D), { pixelRatio: renderer.getPixelRatio() }); },
+    /** N18 (for checks): who wears what, loaded, drawn this frame, and at what height. */
+    puestos(): ReturnType<typeof puestos.estado> { return puestos.estado(); },
     /** J10: your hands in XR (manos.ts): rules, events, state. */
     manos,
     /** M22: the builder's hands (packages/render/src/gizmo.ts): select, the point under the pointer, gizmo, hold. */
@@ -794,11 +817,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
       editor.frame();
       entorno.actualizar(); elementos.actualizar(dtSeconds);
-      if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); dibujarCuadro(); return; } // N4: after the hands moved, so a held rod does not trail a frame
+      if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); dibujarCuadro(); return; } // N4: after the hands moved, so a held rod does not trail a frame
       pesca.actualizar(dtSeconds);
       if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
       cam.update(dtSeconds, selfXZ ? feet : null);
       colocarLlevados();
+      puestos.actualizar(); // N18: after the avatars moved (sync), so a lantern does not trail its hand
       dibujarCuadro();
     },
     /** N12 (for checks): the last frame — from which distance the fog covers everything (m; Infinity = no fog), how

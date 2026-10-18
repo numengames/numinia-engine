@@ -8,3 +8,7 @@
 Una pierna abre sus pestañas (copia `open()` de `tools/e2e.mjs`), comprueba lo suyo, deja el mundo como lo
 encontró (borra lo que coloca), imprime en JSON lo que vio y sale con 0 solo si todo está bien.
 Un fichero por área: así el trabajo en paralelo no choca en `tools/e2e.mjs` ni en `tools/auto.sh`.
+
+Excepción: `bienes.mjs` (N18) arranca **su propio** servidor y página (8796/5178; `E2E_SERVER_PORT`/`E2E_VITE_PORT`)
+porque necesita un mundo que firme (`MOTOR_SECRET`) y una copia de la aventura con `bienes/confianza.json` que confíe
+en un mundo de prueba; ignora `BASE` y lo borra todo al salir.

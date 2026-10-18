@@ -37,11 +37,12 @@ export function leerBienes(carpeta: string): { donde: string; filas: FilaBien[];
   const filas: FilaBien[] = [];
   let malas = 0;
   for (const [k, v] of m.store) {
-    if (!k.startsWith("b:") || !v || typeof v !== "object") continue;
+    const ajeno = k.startsWith("f:"); // N18: brought from a world this one trusts (signed there; the owner is a guest here)
+    if (!(k.startsWith("b:") || ajeno) || !v || typeof v !== "object") continue;
     const o = v as Record<string, unknown>, l = leerRecibo(o.recibo);
-    const coincide = l.ok && l.recibo.id === k.slice(2) && l.recibo.dueno === o.dueno && l.recibo.objeto.id === o.objeto && l.recibo.objeto.nombre === o.nombre;
+    const coincide = l.ok && (ajeno ? l.huella.startsWith(k.slice(2)) : l.recibo.id === k.slice(2) && l.recibo.dueno === o.dueno) && l.recibo.objeto.id === o.objeto && l.recibo.objeto.nombre === o.nombre;
     if (!coincide) malas++;
-    filas.push({ id: k.slice(2), nombre: String(o.nombre ?? ""), objeto: String(o.objeto ?? ""), dueno: String(o.dueno ?? ""), mision: String(o.mision ?? ""), mundo: String(o.mundo ?? ""), instante: String(o.instante ?? ""), firma: coincide ? "valida" : `MAL: ${l.ok ? "el registro no dice lo mismo que su recibo" : l.motivo}` });
+    filas.push({ id: ajeno ? k : k.slice(2), nombre: String(o.nombre ?? ""), objeto: String(o.objeto ?? ""), dueno: String(o.dueno ?? ""), mision: String(o.mision ?? ""), mundo: String(o.mundo ?? ""), instante: String(o.instante ?? ""), firma: coincide ? "valida" : `MAL: ${l.ok ? "el registro no dice lo mismo que su recibo" : l.motivo}` });
   }
   filas.sort((a, b) => a.instante.localeCompare(b.instante) || a.id.localeCompare(b.id));
   return { donde: d, filas, malas };

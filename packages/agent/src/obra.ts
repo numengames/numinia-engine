@@ -20,6 +20,7 @@ export type AccionObra = (typeof ACCIONES_OBRA)[number];
 const COMO_ES: Record<string, string> = {
   bloque: "cubo de 1 × 1 × 1 m apoyado en el suelo (su base queda en y); escalado sirve para mesas, bancos, paredes, escalones, columnas",
   robot: "un robot de juguete, figura decorativa",
+  farolillo: "un farolillo de latón de 30 cm que brilla, para una mesa, un poste o el suelo",
 };
 export { COMO_ES };
 

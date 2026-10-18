@@ -93,7 +93,7 @@ test("the bridge over a real world: key from tools/agente.ts, initialize → too
     v = objetos().get(id)!;
     assert.deepEqual([r2(v.x), r2(v.ry), r2(v.sx), r2(v.sz)], [Math.round(x0) + 3, 45, 2, 2], "mover merges: the scale stays");
     assert.equal((await usar("colocar", { modelo: "bloque", x: x0 + 100, z: z0 })).error, true, "farther than 40 m");
-    assert.match((await usar("colocar", { modelo: "nave", x: x0, z: z0 })).texto, /uno de: bloque, robot/);
+    assert.match((await usar("colocar", { modelo: "nave", x: x0, z: z0 })).texto, /uno de: bloque, farolillo, robot/);
     assert.equal((await pedir("tools/call", { name: "volar" })).error.code, -32602);
     const borrado = await usar("borrar", { id });
     assert.equal(borrado.error, false, borrado.texto);
