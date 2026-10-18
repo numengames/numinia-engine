@@ -133,7 +133,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | H7 | Paridad Hyperfy2: ajustes del mundo — título, descripción, imagen, escenario, avatar por defecto, abierto a construir, límite de personas | hecho (primer corte: fichero `ficha.json` con avatar y aforo, aviso al lleno; falta el panel) | sí |
 | H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | hecho | sí |
 | H13 | Paridad Hyperfy2: nivel de detalle (LOD) de los modelos, generado en la ingesta | espera a M21 | sí |
-| H11 | Paridad Hyperfy2: importar de Hyperfy — `.hyp` → carpeta de app; un mundo entero → carpeta del mundo | espera a M19 | sí |
+| H11 | Paridad Hyperfy2: importar de Hyperfy — `.hyp` → carpeta de app; un mundo entero → carpeta del mundo | en curso (la mitad `db.sqlite`+`assets/` → carpeta del mundo, hecha; la mitad `.hyp` → carpeta de app sigue esperando a M19) | sí |
 | H14 | El mundo en un zip: bajarlo y subirlo en `/mundo` con el código de administración (`mundo-zip.ts`, `zip.ts`); falta: la aventura dentro del zip, la sala de numinia.com | hecho (primer corte) | sí |
 | H15 | Dónde aparece la gente: `aparicion { x, z, radio }` opcional en `entorno.json` (radio 1–40 m, x y z ±460; viaja en la carpeta y el zip del mundo, nunca por el cable) → `InstanceOptions.aparicion` → `spawnAvatar`; sin él, el cuadrado de 40 m de siempre con las mismas tiradas (huella de referencia `93b192c8` intacta) | hecho (16-10, rama `torre/aparicion-y-altura`) | sí |
 | F1 | Amigos, bloqueo y moderación (los roles son H3; toca red y guardado; de `docs/JUGADOR.md`). Primer corte (F1a, 18-10): `/silenciar` calla chat Y voz, se guarda con el mundo y sobrevive reinicios; `/hablar <persona>` lo levanta; bloqueo personal `/bloquear` `/desbloquear <persona>` (solo para quien bloquea: ni chat ni voz; guardado por identidad) y botón «Silenciar/Oír» en Gente; aviso accesible al silenciado. Sin tocar el tope de voces (D-024). Queda: amigos, denunciar | hecho (F1a) | sí |
@@ -1135,6 +1135,7 @@ una función puede poner un avatar solo para la sesión (su `setSessionAvatar`).
 pestaña A cambia de avatar, la B lo ve, y al volver A sigue con él.
 Validar cada VRM subido con `packages/server/src/vrm.ts` (`revisarAvatar`: CC0 dentro del fichero, ≤ 10.000 triángulos; hecho en J1).
 
+### H11 — Importar de Hyperfy (en curso; la mitad `.hyp` sigue esperando a M19)
 **Hecho (18-10, rama `ko/t_fb4535c8`).** Función nueva `features/avatar/` (R-1): intent `elegir` (tipo casa+índice,
 o subido+sha256 de un `.vrm` ya en `/a/`), guardado por identidad (`store`, S4) y espejado a la entidad conectada
 como `state` compartido (todos lo ven; al identificarte, I1 te devuelve tu elección). El servidor solo confía en
@@ -1160,6 +1161,24 @@ API no es la nuestra). Un mundo entero (su `db.sqlite`: tablas `config`, `bluepr
 `assets/`) → carpeta del mundo (H1, H7). Solo contenido nuestro o con licencia: los 351 `.hyp` de `hyperfy-apps`
 no tienen. **Hecho cuando:** test con un `.hyp` propio de prueba y un `db.sqlite` mínimo; informe de lo traído y
 de lo que queda por portar.
+
+**Hecho (18-10, la mitad `db.sqlite`+`assets/` → carpeta del mundo).** `packages/server/src/importar-hyperfy.ts`
+(`importarMundoHyperfy`) lee `config`/`blueprints`/`entities` de un `db.sqlite` con `node:sqlite` (sin dependencia
+nueva), resuelve el modelo de cada blueprint (`asset://<sha256>.<ext>`), copia el fichero a `datos/activos/` (lo
+que H9 sirve por `/a/<sha256>.<ext>`), convierte la posición y el cuaternión de cada entidad a los campos de H1
+(`x,y,z,rx,ry,rz,sx,sy,sz`, grados, orden yaw→pitch→roll como three.js) y escribe `datos/objetos.json` en el
+formato exacto que `FileStorage` carga al arrancar — sin importar `features/objetos` desde `packages/` (regla de
+capas): los valores por defecto están a mano y una prueba (`OBJETOS_VERSION`) avisa si el número de versión de la
+función se mueve sin tocar aquí. Los ajustes (H7) van a `aventura/ficha.json` (nombre, descripción, portada,
+aforo). CLI: `node tools/importar-hyperfy.ts <db.sqlite> <assets/> <carpeta destino>`; escribe también el informe
+de lo traído (`informe-importacion.json` + `.txt`): blueprints y entidades leídos, objetos importados y omitidos
+(con el motivo de cada uno), activos copiados y que faltan, si la ficha se importó. **Medido:**
+`test/importar-hyperfy.test.ts` (5 pruebas): un `db.sqlite` mínimo de prueba (3 entidades: una completa, una con
+el fichero que falta, una con blueprint que no existe) produce la carpeta del mundo y el informe cuenta cada
+caso; la prueba fuerte arranca de verdad la función `objetos` real (`Instance` + `FileStorage`) sobre el
+`datos/objetos.json` escrito y comprueba que la silla aparece en su sitio, giro y escala exactos — no solo que el
+JSON tiene buena pinta. **Falta:** la mitad `.hyp` → carpeta de app (M19), portar los scripts de las apps (no es
+nuestra API), probar contra un `db.sqlite` real de un mundo Hyperfy existente (de momento solo el de prueba).
 
 ### H12 — Calidad gráfica
 Sombras (no, baja, media, alta) y posprocesado (bloom, antialias), como sus ajustes, decididos por nivel de
