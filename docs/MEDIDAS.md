@@ -135,7 +135,7 @@ comprobado en `test/sesiones.test.ts`.
 ## Tamaño de la página: lo que baja antes de dibujar (D2)
 
 **Una sola cifra: 434,9 kB gz (434.850 bytes), medida el 18-10-2026 en `5362797` con `npm run tamano`.** Meta D2: 300 kB. Tope
-de la puerta hoy: 480 kB (la medida + 10 %, redondeado; `TOPE_GZ` en `tools/tamano.mjs`). La puerta corre también en `npm run gates`.
+de la puerta hoy: 1 MB (decisión de Pablo 18-10; antes 480 kB, la medida + 10 %; `TOPE_GZ` en `tools/tamano.mjs`). La puerta corre también en `npm run gates`.
 
 Qué entra (y por eso la cifra es comparable de una medida a otra): `dist/plaza/index.html` y lo que ese HTML referencia antes de
 ejecutar `main.ts`: la hoja `<link rel="stylesheet">`, el `<script type="module">` de entrada y cada `<link rel="modulepreload">`
