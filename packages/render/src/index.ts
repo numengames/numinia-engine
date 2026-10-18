@@ -22,6 +22,9 @@ export { limitesGraficos } from "./capacidades.ts"; // N2: max texture size for 
 export type { FrameCost } from "./power.ts";
 export { leerAparato, leerBateria, medidorDeCuadros } from "./sesion.ts";
 import { createCamara } from "./camara.ts";
+// S5: the engine's one listener — the only place the AudioListener moves (audio/oyente.ts). Type-only here: the
+// module itself is loaded lazily below, so it costs the start bundle nothing (D2, and the cap is already tight).
+import type { Oyente, Camara as CamaraOyente } from "./audio/oyente.ts";
 export { haciaMundo, TECLAS_CAMARA, CAMARA } from "./camara.ts";
 export type { Camara, ModoCamara } from "./camara.ts";
 import { crearEditor } from "./gizmo.ts";
@@ -144,6 +147,30 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // N1: the camera (mouse, keys, touch, gamepad; play and build modes) — packages/render/src/camara.ts
   const cam = createCamara(camera, renderer.domElement, { enXR: () => renderer.xr.isPresenting });
   const feet = { x: 0, y: 0, z: 0 };
+
+  // S5: THE listener. One per page, moved from one place only (audio/oyente.ts) and from the draw loop below:
+  // outside XR it follows this camera (position AND orientation — before S5 nothing followed the head); inside an
+  // immersive session it follows the headset's real pose (`XRFrame.getViewerPose`), centred between the two eyes,
+  // brought into world coordinates by the rig the camera hangs from. WebXR says nothing about audio: this copy is
+  // entirely ours (work/motor-ar/sonido/raw/02-web-audio-y-aparatos.md §e). Measured cost: 0.21 µs/frame flat,
+  // 0.43 µs in XR (≈0.004 % of a 90 Hz frame), so it runs every frame — no need to drop it to 30 Hz.
+  let oyente: Oyente | null = null;
+  void import("./audio/oyente.ts").then(({ crearOyente }) => {
+    oyente = crearOyente({
+      camara: () => camera as unknown as CamaraOyente,
+      xr: {
+        presentando: () => renderer.xr.isPresenting,
+        fotograma: () => (renderer.xr.getFrame?.() ?? null) as never,
+        espacio: () => renderer.xr.getReferenceSpace?.() ?? null,
+      },
+    });
+  }).catch(() => { /* no listener: everything else still draws and the voice still plays, just not head-tracked */ });
+  // entering and leaving an immersive session: attended at once, so the sound never lags a frame behind the eyes
+  // (on leaving, the listener goes back to the flat camera).
+  try {
+    renderer.xr.addEventListener?.("sessionstart", () => oyente?.alEntrarXR());
+    renderer.xr.addEventListener?.("sessionend", () => oyente?.alSalirXR());
+  } catch { /* a renderer without those events: the loop notices the change by itself */ }
 
   // J10: your hands in XR (manos.ts, loaded when you enter XR: not in the start bundle). What they may reach are the
   // placed things (never while AR shows the real room). Until it arrives, `manos` keeps the page's rules and listeners.
@@ -738,10 +765,11 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
     editor.frame();
     entorno.actualizar(); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds);
-    if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); dibujarCuadro(); return; } // N4: after the hands moved, so a held rod does not trail a frame
+    if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // N4: after the hands moved, so a held rod does not trail a frame · S5: after vr.update pushed the rig, so the listener reads this frame's head pose
     pesca.actualizar(dtSeconds);
     if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
     cam.update(dtSeconds, selfXZ ? feet : null);
+    oyente?.actualizar(); // S5: right after the camera moved — the listener is where you hear from, nothing else
     colocarLlevados();
     puestos.actualizar(); // N18: after the avatars moved (sync), so a lantern does not trail its hand
     dibujarCuadro();
@@ -999,6 +1027,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** N1: the camera — orbit, zoom, first person, build mode. See camara.ts. */
     cam,
+    /** S5: the engine's one audio listener (it already runs every frame; this is for reading it). `null` only in
+     * the instant between the first frame and its lazy module arriving. */
+    oyente: (): Oyente | null => oyente,
     /** N1b: the world's solid boxes as the simulation holds them (Q16.16, `session.solidos()`): the camera does not go
      * through them and an avatar on a stair or a roof walks instead of «jumping». Cheap every frame (converted on change). */
     solidos(fx: Int32Array | null | undefined): void {
