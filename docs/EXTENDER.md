@@ -891,7 +891,7 @@ comporta exactamente como en v1. Es una pieza del motor: cualquier mundo la acti
   - *HUD de la página* (PC y móvil): una línea `.duelo` bajo el resultado, «Ana 12 – Luis (tú) 9 · Ronda 2/3 · Es el
     turno de Ana». El HUD se queda abierto mientras dura tu partida (también entre turnos) y «Dejarlo» sale de ella.
   - *Pruebas*: `test/dardos-duelo-ar.test.ts` (texto del marcador, turnos, vuelo, gating, diana elegida, línea del
-    HUD, `salir()` en turno ajeno). El e2e de AR con dos jugadores es la historia D5.
+    HUD, `salir()` en turno ajeno). El e2e con dos jugadores es `tools/e2e-piernas/dardos-duelo.mjs` (historia D5, abajo).
 - **El duelo visto desde el mundo** (historia AR-D4). Quien camina por la plaza junto a la diana 3D ve el duelo de
   *esa* diana, juegue o mire:
   - *Campo nuevo en el cable.* `duelo` y `finduelo` suman `paredA` y `paredB` (bool, planos, por defecto `false`):
@@ -918,6 +918,20 @@ comporta exactamente como en v1. Es una pieza del motor: cualquier mundo la acti
   - *Pruebas*: `test/dardos-duelo-plaza.test.ts` (textos, etiqueta, invitación, qué dardos vuelan, el arco, el campo
     de cable y el controlador visto por un curioso y por quien juega junto a la diana). El letrero pintado a PNG y el
     arco medido en un navegador (`work/motor-ar/capturas/duelo-plaza-letrero-*.png`).
+- **Prueba en navegadores de verdad** (historia AR-D5, `tools/e2e-piernas/dardos-duelo.mjs`). Un PC (1280×800, ratón) y
+  una Quest 3 emulada con una pared (IWER) juegan el duelo entero en un mundo desechable con una diana
+  `{duelo, remoto, rondas: 1}` y la aparición a 45 m de ella (el jugador de pared queda fuera de `CERCA_M` + radio:
+  solo le llega lo del duelo). Comprueba: el letrero de espera sobre la diana 3D; B cuelga la diana y entra
+  `desde: "pared"`; A lee su nombre y «En su pared (AR)», B lee en el panel AR de quién es el turno; tira B
+  fuera de turno (no se envía nada) y A fuera de turno («No es tu turno»); cada dardo cae en las dos pantallas; los
+  puntos y el veredicto (Ganas/Pierdes/Empate) coinciden con el servidor; B sale de AR limpio; y una segunda
+  partida en la que B sale de AR a mitad: A gana por abandono («tu rival se fue»). Sin errores de página. **Lenta**
+  (~2-3 min con la máquina cargada, arranca su servidor y página en 8799/5181): no va en la batería rápida
+  (`tools/auto.sh e2e` la salta, `E2E_LENTAS=1` la incluye); se corre sola con `node tools/e2e-piernas/dardos-duelo.mjs`
+  (`SHOTS=<carpeta>` guarda capturas de A; en AR no se pintan fotos: IWER no dibuja). Para leer lo que ven las
+  tres vistas hay un gancho de solo lectura, `__numinia.dardosHud.duelo()` (`linea`, `letrero`, `panelAR`).
+  Quien juega desde una pared lejana no tiene diana junto a la que pulsar «E»: la prueba abre la vista de
+  dardos con `__numinia.dardosHud.abrir()`; un botón real para ello queda pendiente.
 - **Aún no**: contadores `duelos`/`ganados` en el marcador por invitado (cambiaría el evento `marcador` que
   fija `test/dardos.test.ts`) y lanzar con el gesto real en VR.
 

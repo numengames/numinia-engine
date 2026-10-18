@@ -1056,3 +1056,21 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5.
 - Commit: rama `ar/duelo-servidor` (ver `git log`). Sin push ni PR.
 - Siguiente: AR-D5 (e2e con dos jugadores, incluida la plaza).
+
+## 2026-10-18 18:50 UTC · AR-D5 · hecho
+- Qué: la pierna e2e `tools/e2e-piernas/dardos-duelo.mjs`: dos navegadores de verdad (PC y Quest 3 emulada con una pared)
+  juegan el duelo entero en un mundo desechable (diana `torre` con `duelo`, `remoto`, `rondas: 1`; aparición a 45 m).
+  26 comprobaciones: letrero de espera, entrada `desde pared` con B fuera de alcance, nombre y «En su pared (AR)» en A,
+  turno en el panel AR de B, tiros fuera de turno de los dos lados, dardos en las dos pantallas, puntos y veredicto
+  iguales al servidor, salida de AR limpia, y la variante de abandono. Ganchos de solo lectura `dardosHud.duelo()`.
+  Propuesta `dardos.json` de la Torre en `work/motor-ar/PRUEBA-TORRE-duelo/` (sin tocar el mundo).
+- Arreglos que salieron: (1) `cerradura.ts`: el teclado de la cerradura tenía `display: grid` en línea, que le gana a
+  `hidden`: en el ordenador quedaba un teclado a pantalla completa tapando la página y el ratón (en el móvil lo tapaba
+  una regla global); ahora se muestra y oculta con `display`. (2) La línea del HUD de la página usaba 3 rondas para
+  quien no colgó la diana en la pared («Ronda 1/3» en una diana de 1); ahora lee las rondas de la diana.
+- Números: 26/26 comprobaciones, sin errores de página, ~120-145 s con la máquina a carga 40+. Una vez falló por un
+  anfitrión esperando solo >60 s (se cancela, es la regla): la pierna abre a B antes de que A pulse E.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `ar/duelo-servidor` (ver `git log`). Sin push ni PR.
+- Siguiente: botón real para que quien está lejos abra la vista de dardos (hoy solo el gancho de prueba); el etiquetado
+  «Salir de AR» del botón no se refresca al salir de AR hasta el siguiente cambio de estado.

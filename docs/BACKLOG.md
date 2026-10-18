@@ -193,6 +193,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | AR-D2 | Duelo de dardos, controlador: `dardos.duelo()` (turno, `miTurno`, rival, puntos, `fin` con `gane`/`empate`/`abandono`), dardos del rival en `clavados()`, `alCambiar("duelo")` | hecho (rama `ar/duelo-servidor`, sin PR) | no |
 | AR-D3 | Duelo de dardos, vista: marcador 3D, dardos del rival en vuelo, turnos y salida limpia en la diana de pared (AR) y una línea en el HUD de la página | hecho (rama `ar/duelo-servidor`, sin PR) | no |
 | AR-D4 | Duelo de dardos, lado mundo virtual: letrero con marcador sobre la diana 3D de la plaza (nombres, puntos, ronda, turno, «Esperando rival — ¿juegas desde tu pared (AR)?», resultado), etiqueta «En su pared (AR)» (campos `paredA`/`paredB` en `duelo`/`finduelo`) y dardos del jugador remoto en arco | hecho (rama `ar/duelo-servidor`, sin PR) | no |
+| AR-D5 | Duelo de dardos, e2e en navegadores de verdad: PC en el mundo + Quest 3 emulada en su pared (IWER) juegan la partida entera (turnos, fuera de turno, dardos en las dos pantallas, puntos, veredicto, abandono); `tools/e2e-piernas/dardos-duelo.mjs` (lenta: fuera de la batería rápida) y propuesta `dardos.json` para la Torre | hecho (rama `ar/duelo-servidor`, sin PR) | no |
 | O5 | ADR y SYS del motor en la Summa (numinia.org) | necesita aprobación (Pablo) | no |
 
 **Punto de parada «accesible» (como los PP de `CONSTRUIR.md`):** con V1, V3, V4, V5, V6 y V7 hechas, una

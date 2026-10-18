@@ -138,6 +138,11 @@ try {
   // ------------------------------------------------------------------------------------------ 1) A waits at the board
   const a = await abrir("A", { viewport: { width: 1280, height: 800 } });
   const ea = await entidad(a);
+  // B loads first and waits at its spawn: a host who waits alone for 60 s is cancelled (TURNO_INACTIVO_S), and loading is the slow part
+  const b = await abrir("B", { viewport: { width: 640, height: 400 } }, INIT_AR);
+  const eb = await entidad(b);
+  const pb = await yo(b);
+  res.bLejos = Math.round(Math.hypot(pb.x - TABLERO.x, pb.z - TABLERO.z) * 10) / 10;
   await esperar(a, () => globalThis.__numinia.view.dardos.linea("torre"), null, 20000);
   const linea = await ctl(a, () => globalThis.__numinia.view.dardos.linea("torre"));
   const dist = await caminar(a, linea.x + 0.7 * Math.sin(linea.rumbo), linea.z + 0.7 * Math.cos(linea.rumbo), 0.4); // the line is 2.6 m from the board and the radius is 3: stand a little inside it
@@ -155,10 +160,6 @@ try {
   nota("A espera rival", res.letreroEspera);
 
   // ------------------------------------------------------------------------------------------ 2) B joins from its wall
-  const b = await abrir("B", { viewport: { width: 640, height: 400 } }, INIT_AR);
-  const eb = await entidad(b);
-  const pb = await yo(b);
-  res.bLejos = Math.round(Math.hypot(pb.x - TABLERO.x, pb.z - TABLERO.z) * 10) / 10;
   nota("B dentro, lejos", { eb, lejos: res.bLejos });
   await bEnPared(b);
   nota("B colgó la diana", await arEstado(b));
