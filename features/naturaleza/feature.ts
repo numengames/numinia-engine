@@ -16,7 +16,7 @@ export const naturaleza = defineFeature({
   level: "base",
   describe: "Naturaleza low poly de un mundo (relieve, árboles, hierba, estanque) a partir de una semilla. La enciende naturaleza.json; sin él no cambia nada.",
   state: {
-    describe: "Una entrada, «mundo»: activa, semilla, tamano y plaza (metros), arboles y hierba (0 a 1), estanque y paleta (verano, otono, primavera).",
+    describe: "Una entrada, «mundo»: activa, semilla, tamano y plaza (metros), arboles y hierba (0 a 1), estanque y paleta (verano, otono, primavera); fauna (bool), faunaDensidad (0 a 1) y faunaEspecies (ids separados por comas; vacío = todas).",
     fields: {
       activa: { kind: "bool" },
       semilla: { kind: "int", min: 0, max: 2147483647 },
@@ -26,6 +26,9 @@ export const naturaleza = defineFeature({
       hierba: { kind: "fixed", min: 0, max: 1, step: 0.01 },
       estanque: { kind: "bool" },
       paleta: { kind: "enum", values: PALETAS },
+      fauna: { kind: "bool", default: true },
+      faunaDensidad: { kind: "fixed", min: 0, max: 1, step: 0.01, default: 1 },
+      faunaEspecies: { kind: "text", maxBytes: 512, default: "" },
     },
   },
   intents: {},

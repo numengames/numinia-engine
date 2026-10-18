@@ -14,5 +14,5 @@
   "agent": ["core", "schema", "ecs", "sim", "net", "feature", "client", "instance"],
   "server": ["core", "schema", "ecs", "sim", "net", "instance", "feature", "client", "agent", "relieve"],
   "cli": ["core", "schema", "ecs", "sim", "net", "instance", "feature"],
-  "features": ["core", "schema", "feature"]
+  "features": ["core", "schema", "feature", "relieve"]
 }

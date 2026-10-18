@@ -4,11 +4,13 @@
 import { serverPart } from "../../packages/feature/src/index.ts";
 import { naturaleza, MUNDO } from "./feature.ts";
 import type { NaturalezaMundo } from "./esquema.ts";
+import type { TablaFauna } from "../../packages/relieve/src/fauna.ts";
+import { FAUNA_CASA } from "./fauna-casa.ts";
 
-export const crearNaturaleza = (mundo: NaturalezaMundo | null = null) => serverPart(naturaleza, (api) => {
+export const crearNaturaleza = (mundo: NaturalezaMundo | null = null, fauna?: TablaFauna) => serverPart(naturaleza, (api) => {
   if (!mundo) return;
   api.state.set(MUNDO, { ...mundo });
-  api.log(`naturaleza: ${mundo.activa ? "encendida" : "apagada"} (semilla ${mundo.semilla}, ${mundo.tamano} m, plaza ${mundo.plaza} m, árboles ${mundo.arboles}, hierba ${mundo.hierba}, ${mundo.estanque ? "con" : "sin"} estanque, paleta ${mundo.paleta})`);
+  api.log(`naturaleza: ${mundo.activa ? "encendida" : "apagada"} (semilla ${mundo.semilla}, ${mundo.tamano} m, plaza ${mundo.plaza} m, árboles ${mundo.arboles}, hierba ${mundo.hierba}, ${mundo.estanque ? "con" : "sin"} estanque, paleta ${mundo.paleta}, fauna ${mundo.fauna ? `${(fauna ?? FAUNA_CASA).especies.length} especies${fauna ? " del mundo" : ""}, densidad ${mundo.faunaDensidad}${mundo.faunaEspecies ? `, solo ${mundo.faunaEspecies}` : ""}` : "apagada"})`);
 });
 
 export default crearNaturaleza();

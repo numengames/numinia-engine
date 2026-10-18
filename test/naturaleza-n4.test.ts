@@ -37,7 +37,7 @@ test("naturaleza.json: an empty object is valid and gets the defaults; the rende
 
 test("naturaleza.json: every key can be set; the nested density flattens", () => {
   const r = leerNaturaleza({ schema: ESQUEMA, activa: true, semilla: 77, tamano: 160, plaza: 9, densidad: { arboles: 0.4, hierba: 0.25 }, estanque: false, paleta: "otono" });
-  assert.deepEqual(r.ok && r.value, { activa: true, semilla: 77, tamano: 160, plaza: 9, arboles: 0.4, hierba: 0.25, estanque: false, paleta: "otono" });
+  assert.deepEqual(r.ok && r.value, { activa: true, semilla: 77, tamano: 160, plaza: 9, arboles: 0.4, hierba: 0.25, estanque: false, paleta: "otono", fauna: true, faunaDensidad: 1, faunaEspecies: "" });
   const parcial = leerNaturaleza({ densidad: { hierba: 0 } });
   assert.ok(parcial.ok && parcial.value.hierba === 0 && parcial.value.arboles === 1);
 });
@@ -96,7 +96,7 @@ test("server + page: the world's data reaches the view once; a world without the
   assert.ok(v.ok);
   const con = llega(v.ok ? v.value : null);
   assert.equal(con.vistas.length, 1);
-  assert.deepEqual(con.vistas[0], { activa: true, semilla: 99, tamano: 200, plaza: 12, arboles: 0.5, hierba: 1, estanque: true, paleta: "primavera" });
+  assert.deepEqual(con.vistas[0], { activa: true, semilla: 99, tamano: 200, plaza: 12, arboles: 0.5, hierba: 1, estanque: true, paleta: "primavera", fauna: true, faunaDensidad: 1, faunaEspecies: "" });
   assert.match(con.log.join(" "), /naturaleza: encendida \(semilla 99/);
   assert.equal(llega(null).vistas.length, 0, "no file: the page's view is never called");
 });

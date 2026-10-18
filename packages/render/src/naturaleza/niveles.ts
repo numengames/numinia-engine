@@ -55,3 +55,7 @@ export const PRESUPUESTO_NATURALEZA: Record<Nivel, { triangulos: number; llamada
 };
 /** Most trees the scatter plants in the whole world per tier (memory + the O(n) near/far split): thinned evenly above it. */
 export const ARBOLES_MAX_POR_NIVEL: Record<Nivel, number> = { A: 1100, B: 750, C: 750, D: 300 };
+
+// ---- F1: the fauna (butterflies, fireflies, birds): who is in view per tier. The numbers live in relieve/fauna.ts (the server and the pages must
+// agree on them, and relieve is the layer both can import); re-exported here so the render stories read every tier table from niveles.ts.
+export { FAUNA_POR_NIVEL } from "../../../relieve/src/fauna.ts";

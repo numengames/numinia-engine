@@ -19,10 +19,12 @@ import { HIERBA_POR_NIVEL } from "./niveles.ts";
 /** What the page receives from features/naturaleza (flat, validated on the server). Every field optional: defaults below. */
 export type NaturalezaDatos = {
   activa?: boolean; semilla?: number; tamano?: number; plaza?: number; arboles?: number; hierba?: number; estanque?: boolean; paleta?: string;
+  /** F1: the fauna switch, its density 0–1 and the allow-list of species ids joined by commas ("" = all). */
+  fauna?: boolean; faunaDensidad?: number; faunaEspecies?: string;
 };
-export type NaturalezaNormal = { activa: boolean; semilla: number; tamano: number; plaza: number; arboles: number; hierba: number; estanque: boolean; paleta: Paleta };
+export type NaturalezaNormal = { activa: boolean; semilla: number; tamano: number; plaza: number; arboles: number; hierba: number; estanque: boolean; paleta: Paleta; fauna: boolean; faunaDensidad: number; faunaEspecies: string };
 /** Defaults: kept equal to features/naturaleza/esquema.ts `DEFECTOS` (a test compares them). */
-export const DEFECTOS_NATURALEZA: NaturalezaNormal = { activa: true, semilla: 1234, tamano: 200, plaza: 12, arboles: 1, hierba: 1, estanque: true, paleta: "verano" };
+export const DEFECTOS_NATURALEZA: NaturalezaNormal = { activa: true, semilla: 1234, tamano: 200, plaza: 12, arboles: 1, hierba: 1, estanque: true, paleta: "verano", fauna: true, faunaDensidad: 1, faunaEspecies: "" };
 
 const num = (v: unknown, d: number, a: number, b: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(b, Math.max(a, v)) : d);
 /** Clamp whatever arrives into a usable set (the server already validated; this keeps the page safe against a newer/older server). */
@@ -32,6 +34,7 @@ export function normalizar(d: NaturalezaDatos): NaturalezaNormal {
     activa: d.activa !== false, semilla: Math.round(num(d.semilla, D.semilla, 0, 2147483647)), tamano: Math.round(num(d.tamano, D.tamano, 100, 400)), plaza: Math.round(num(d.plaza, D.plaza, 4, 40)),
     arboles: num(d.arboles, D.arboles, 0, 1), hierba: num(d.hierba, D.hierba, 0, 1), estanque: d.estanque !== false,
     paleta: d.paleta === "otono" || d.paleta === "primavera" ? d.paleta : "verano",
+    fauna: d.fauna !== false, faunaDensidad: num(d.faunaDensidad, D.faunaDensidad, 0, 1), faunaEspecies: typeof d.faunaEspecies === "string" ? d.faunaEspecies.slice(0, 512) : "",
   };
 }
 
