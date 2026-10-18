@@ -338,6 +338,14 @@ export function createManos(h: ManosHooks) {
       return { gatillo: b[0]?.value ?? 0, agarre: b[1]?.value ?? 0, mano: false };
     },
     vibrar(lado: Lado, v = 0.5, ms = 60): void { const r = ranuras.find((x) => x.lado === lado); if (r) vibrar(r, v, ms); },
+    /** M22b-3: this hand's ray now (world space), or null when it is not drawn (no controller, or holding something close). For
+     * features that pick their own things along it (the builder) instead of waiting for `apuntado`'s own list. */
+    rayoDe(lado: Lado): { origen: { x: number; y: number; z: number }; dir: { x: number; y: number; z: number } } | null {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente);
+      if (!r || !r.rayo.visible) return null;
+      r.ctrl.getWorldPosition(O); Dir.set(0, 0, -1).applyQuaternion(r.ctrl.getWorldQuaternion(Qw));
+      return { origen: { x: O.x, y: O.y, z: O.z }, dir: { x: Dir.x, y: Dir.y, z: Dir.z } };
+    },
     /** For checks: per hand, what is connected and drawn, how bent the fingers are, what it reaches and points at. */
     estado() {
       const out: Record<Lado, { tipo: "mando" | "mano"; dibujada: boolean; articulaciones: number; indice: number; resto: number; candidato: string | null; apunta: string | null; rayo: boolean } | null> = { izq: null, der: null };

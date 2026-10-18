@@ -11,6 +11,7 @@ import funciones from "../../features/cliente.ts";
 import { constructor } from "../../features/objetos/client.ts";
 import { chatDePagina } from "../../features/chat/client.ts";
 import { montarConstructor } from "./constructor.ts";
+import { montarConstructorVR } from "./constructor-xr.ts";
 import { montarSoltar } from "./soltar.ts";
 import { montarHuecos } from "./huecos.ts";
 import { montarEnlaces } from "./enlaces.ts"; // J4: click on a thing with a link opens it (new tab, after confirming)
@@ -154,6 +155,8 @@ if (esTactil()) {
 
 // ---- H1 + M22: the builder, for whoever may build (the server says so on entering): panel, gizmo, grab ----
 montarConstructor(constructor, view, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!);
+// ---- M22b-3: the same builder, picked and moved with a VR controller's ray instead of a mouse ----
+const constructorVR = montarConstructorVR(constructor, view);
 // ---- H9: drop your own .glb on the world (or «Subir modelo…» in the panel): uploaded by sha256, placed for everyone ----
 const soltar = montarSoltar({ session, view, puede: () => constructor.estado.puede, origen: activos, billete: () => localStorage.getItem(GUARDA), panel: document.getElementById("panel-construir") });
 // ---- U12: holes — click one (or E near it) and choose your picture: it goes up and the server fits it into the frame ----
@@ -454,7 +457,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, ambiente, elementos, voz, compartir, xr, pesca, lucha, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, ambiente, elementos, voz, compartir, xr, pesca, lucha, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso };
 
 // ---- U11: the bar of icon buttons, top right (rightmost first): settings, build, microphone, share screen (M18), full screen, VR, AR ----
 {
