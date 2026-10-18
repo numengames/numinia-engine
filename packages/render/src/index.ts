@@ -16,8 +16,8 @@ export { vrSupported } from "./vr.ts";
 export type { VRState, DialogoVR } from "./vr.ts";
 import type { Manos, EventoMano } from "./manos.ts";
 export type { EventoMano, Lado } from "./manos.ts";
-import { createPower, readCaps, checkCost } from "./power.ts";
-export { createPower, readCaps, checkCost } from "./power.ts";
+import { createPower, readCaps, checkCost, conClase } from "./power.ts";
+export { createPower, readCaps, checkCost, conClase } from "./power.ts";
 export { limitesGraficos } from "./capacidades.ts"; // N2: max texture size for the capabilities
 export type { FrameCost } from "./power.ts";
 export { leerAparato, leerBateria, medidorDeCuadros } from "./sesion.ts";
@@ -77,8 +77,9 @@ export const EN_MANO_M = 0.16;
 const LOADS_AT_ONCE = 4;   // H1: model files downloading at the same time; the nearest first
 const ANIMATE_WITHIN_M = 40; // H1: farther than this, a model's animation stands still (cold phones)
 
-export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; assetUrl?: (model: string) => string; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number } } = {}) {
-  const power = createPower(readCaps(), { battery: opts.battery, maxFps: opts.maxFps });
+export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number } } = {}) {
+  // U25: `movil` = the device class a forced profile declares (?aparato, development only); undefined = read the device
+  const power = createPower(conClase(readCaps(), opts.movil), { battery: opts.battery, maxFps: opts.maxFps });
   // XR on a WebGPU backend needs the session's "webgpu" feature (XRGPUBinding); Quest Browser 152 has neither (measured
   // 16-10 over USB): there a WebGPU page can never enter VR or AR. Devices that can do XR but not XR-on-WebGPU draw
   // with WebGL2 from the start (the backend cannot change later).

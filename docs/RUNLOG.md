@@ -748,3 +748,11 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Números: `npm run gates` en verde (ver el cuerpo del PR).
 - Consumo: sin medir · Sonnet 5.5.
 - Siguiente: los encargos de los agentes de noche deben repetir la regla del inglés (ver el cuerpo del PR).
+
+## 2026-10-18 11:27 · ux · hecho
+- Qué: integración de dos ramas de la ola 1 de interfaz: U25 (perfil de aparato forzable: `?aparato=` /
+  ajuste, `aparato.ts`) y U23+U26 (estadísticas apagadas salvo escritorio con `?debug`; pulsaciones con estado
+  pulsado y vibración opcional). Conflictos: versión y `capacidades.ts` (se quedan `debug` y las de U25).
+- Versión **0.6.1 → 0.7.0** (menor): ajustes y capacidades nuevos, nada se rompe. (Las ramas traían 0.6.0 y
+  0.6.1; `main` ya había tomado esos números con #46 y #47.)
+- Consumo: sin medir · Sonnet 5.5.

@@ -14,6 +14,7 @@
 import { escribiendo } from "./interactuar.ts";
 import { icono } from "./iconos.ts";
 import { anunciar } from "./paneles.ts";
+import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
 
 type Res = { ok: true } | { ok: false; why: string };
 type Paso = { n: number; texto: string; hecho: boolean; donde: string; tipo?: string; espera?: number; listoEn?: number };
@@ -179,7 +180,7 @@ export function montarLibro(c: Ctl, o: {
   banner?: HTMLElement;
 }) {
   const balizar = (ob: Objetivo | undefined) => { if (ob) o.view.beacon(ob.x, ob.z, ob.nombre, BALIZA_MS); };
-  const tactil = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+  const tactil = esTactil();
   // the head stays (its close button keeps its focus across repaints); the body is drawn again on every change
   const titulo = el("h2", "Misiones"), cerrar = el("button", tactil ? "Cerrar" : "Cerrar (J)", "cerrar"), cuerpo = el("div", "", "cuerpo");
   const cabeza = el("header", "", "cabeza");

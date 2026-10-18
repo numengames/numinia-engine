@@ -233,7 +233,36 @@ test("the plaza's own file is valid", () => {
   const plaza = JSON.parse(readFileSync(new URL("../apps/plaza/mundo.ajustes.json", import.meta.url), "utf8"));
   const a = registro(escritorio());
   assert.equal(a.aplicarMundo(plaza).ok, true);
-  assert.equal(a.get("graficos.estadisticas"), true, "the plaza is the engine's test bench: stats on");
+  assert.equal(a.get("graficos.estadisticas"), false, "U23: the plaza no longer forces the statistics on");
+  const d = registro({ ...escritorio(), debug: true });
+  assert.equal(d.aplicarMundo(plaza).ok, true);
+  assert.equal(d.get("graficos.estadisticas"), true, "U23: a desktop with ?debug still gets them");
+});
+
+test("U23: statistics off by default; on only on a desktop opened with ?debug; a phone never, unless chosen", () => {
+  const conUrl = (search: string, coarse = false) => leerNavegador({ ...navegador({ coarse, memoria: coarse ? 4 : 8 }), location: { search } });
+  assert.equal(escritorio().debug, false, "no ?debug: no debug");
+  assert.equal(conUrl("?webgl2&debug").debug, true);
+  assert.equal(conUrl("?debug=1").debug, true);
+  assert.equal(conUrl("?debug=0").debug, false, "?debug=0 says no");
+  assert.equal(conUrl("?debug=no").debug, false);
+  assert.equal(registro(escritorio()).get("graficos.estadisticas"), false, "desktop, no ?debug: off");
+  assert.equal(registro(movil()).get("graficos.estadisticas"), false, "phone: off");
+  assert.equal(registro(conUrl("?debug")).get("graficos.estadisticas"), true, "desktop + ?debug: on");
+  assert.equal(registro(conUrl("?debug", true)).get("graficos.estadisticas"), false, "phone + ?debug: still off (it would cover the icon bar)");
+  const g = memoria(), m = registro(movil(), g);
+  m.set("graficos.estadisticas", true);
+  assert.equal(registro(movil(), g).get("graficos.estadisticas"), true, "a person who turns them on keeps them");
+});
+
+test("U26: «Vibrar al tocar un botón» exists only where the device can vibrate and has a touch screen, on by default", () => {
+  const vibra = (coarse: boolean) => ({ ...navegador({ coarse, memoria: 4 }), navigator: { ...navegador({ coarse, memoria: 4 }).navigator, vibrate: () => true } });
+  const tel = registro(leerNavegador(vibra(true)));
+  assert.equal(tel.get("interfaz.vibrar"), true);
+  const vis = (a: ReturnType<typeof registro>) => a.lista().find((v) => v.id === "interfaz.vibrar")?.visible;
+  assert.equal(vis(tel), true, "shown on a phone that vibrates");
+  assert.equal(vis(registro(escritorio())), false, "hidden on a desktop");
+  assert.equal(vis(registro(leerNavegador(vibra(false)))), false, "hidden without a touch screen");
 });
 
 test("power: quality caps the pixel ratio and the fps, resolution shrinks the ratio, battery still wins", () => {

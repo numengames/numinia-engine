@@ -17,6 +17,11 @@ export function readCaps(): Caps {
 }
 
 export const isMobileClass = (c: Caps): boolean => c.coarsePointer || c.deviceMemoryGB <= 4;
+/** U25: the capabilities with the device class a forced profile declares (true phone, false desktop, undefined = as read). */
+export function conClase(c: Caps, movil: boolean | undefined): Caps {
+  if (movil === undefined) return c;
+  return movil ? { ...c, coarsePointer: true } : { ...c, coarsePointer: false, deviceMemoryGB: Math.max(c.deviceMemoryGB, 8) };
+}
 
 /** N2: the person's quality choice (settings menu). `auto` = by device class, as above. */
 export type Calidad = "auto" | "baja" | "media" | "alta";

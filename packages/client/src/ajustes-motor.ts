@@ -49,7 +49,9 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
   },
   {
     grupo: "graficos", id: "estadisticas", tipo: "bool", nombre: "Estadísticas en pantalla",
-    describe: "Dibujo, cuadros por segundo, ping y huella, arriba a la izquierda.", defecto: false,
+    describe: "Dibujo, cuadros por segundo, ping y huella, arriba a la izquierda. Apagadas salvo en escritorio con ?debug.",
+    // U23: off for everyone (a phone never gets four lines over its icon bar); a desktop opened with ?debug starts with them on
+    defecto: { valor: false, si: [{ requiere: ["debug", "!movil"], valor: true }] },
   },
   // the environment (H4, view.entorno.calidad): shown only where the environment exists and offers each one
   {
@@ -112,7 +114,20 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     grupo: "interfaz", id: "tamano", tipo: "numero", min: 75, max: 200, paso: 25, unidad: "%", nombre: "Tamaño de la interfaz",
     describe: "Escala de botones, paneles y textos de la pantalla (no la del mundo).", defecto: 100,
   },
+  {
+    // U26: a short tick when a finger presses a button of the screen (apps/plaza/pulsaciones.ts); only where it can vibrate
+    grupo: "interfaz", id: "vibrar", tipo: "bool", nombre: "Vibrar al tocar un botón", requiere: ["vibracion", "tactil"],
+    describe: "Un toque corto del aparato al pulsar un botón de la pantalla con el dedo.", defecto: true,
+  },
   { grupo: "interfaz", id: "ayuda", tipo: "bool", nombre: "Ayuda de teclas", describe: "La línea de abajo que dice qué tecla hace qué.", defecto: true },
+  // U25: the device profile, forced (development or ?debug only: `desarrollo`). The page decides it once before the
+  // first frame (packages/client/src/aparato.ts), so a change reloads the page. ?aparato=… does the same for one load.
+  {
+    grupo: "interfaz", id: "aparato", tipo: "eleccion", nombre: "Aparato (desarrollo)", requiere: ["desarrollo"],
+    describe: "Para qué aparato se dispone la interfaz. Automático: el tuyo. Un móvil elegido en un escritorio se dibuja dentro de un marco de 390×844.",
+    opciones: [{ valor: "auto", nombre: "Automático" }, { valor: "escritorio", nombre: "Escritorio" }, { valor: "movil-vertical", nombre: "Móvil vertical" }, { valor: "movil-horizontal", nombre: "Móvil horizontal" }, { valor: "vr", nombre: "Visor VR" }],
+    defecto: "auto", nota: "Recarga la página al cambiarlo. Solo en desarrollo o con ?\u2060debug.",
+  },
   // ---- Privacidad (T1: Pablo records sessions to learn from real devices; the person can say no) ----
   {
     grupo: "privacidad", id: "informe", tipo: "bool", nombre: "Enviar el informe de la sesión",

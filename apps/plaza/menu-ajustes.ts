@@ -13,6 +13,8 @@ import { limitesGraficos } from "../../packages/render/src/index.ts";
 import type { createView } from "../../packages/render/src/index.ts";
 import type { Calidad } from "../../packages/render/src/power.ts";
 import mundoPlaza from "./mundo.ajustes.json";
+import { AJUSTE_APARATO, capacidadesDelPerfil, nivelDelPerfil } from "../../packages/client/src/aparato.ts";
+import { perfil, desarrollo, origenPerfil, cambiarAparato } from "./perfil-aparato.ts"; // U25
 
 type View = Awaited<ReturnType<typeof createView>>;
 /** Contracts of branches built in parallel (N1 camera, H4 environment): optional until they are merged. */
@@ -62,14 +64,16 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
     return out;
   };
   const nivelUrl = (params.get("nivel") ?? "").toUpperCase() as Nivel;
+  // U25: the device profile (perfil-aparato.ts) adds its class and, when forced, the pointers and power class it declares
   const caps = crearCapacidades(
-    { ...leerNavegador(), backend: view.backend, movil: view.power.mobile, ...limitesGraficos(view.renderer), camara: typeof extra.cam?.ajustar === "function", ...entornoCaps() },
-    { nivel: NIVELES.includes(nivelUrl) ? nivelUrl : undefined },
+    { ...leerNavegador(), backend: view.backend, movil: view.power.mobile, ...limitesGraficos(view.renderer), camara: typeof extra.cam?.ajustar === "function", ...entornoCaps(), ...capacidadesDelPerfil(perfil()), desarrollo },
+    { nivel: NIVELES.includes(nivelUrl) ? nivelUrl : nivelDelPerfil(perfil()) },
   );
   view.vrSupported().then((v) => caps.poner({ xrVr: v }), () => {});
   view.arSupported().then((v) => caps.poner({ xrAr: v }), () => {});
   for (const [id, q] of Object.entries(CONSULTAS)) {
     if (id === "punteroGrueso") continue; // the device class (movil) stays power.ts's, decided once
+    if (id === "raton" && perfil().forzado) continue; // U25: a forced profile declares its pointers
     try { matchMedia(q).addEventListener("change", (ev) => caps.poner({ [id]: ev.matches })); } catch { /* old browser: read once */ }
   }
   addEventListener("gamepadconnected", () => caps.poner({ mando: true }));
@@ -87,6 +91,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   }
   a.aplicarMundo(mundoPlaza);
   if (params.has("bateria")) a.forzar("graficos.bateria", true); // this load only, as before (?bateria)
+  if (origenPerfil() === "url") a.forzar(AJUSTE_APARATO, perfil().eleccion); // U25: the menu shows the profile the URL forced
   const fpsUrl = Number(params.get("fps")) || 0;                  // ?fps=N is what «Automático» means while it is there
   activo = a;
 
@@ -132,6 +137,8 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
     setTimeout(() => { if (view.power.battery !== a.get("graficos.bateria")) a.set("graficos.bateria", view.power.battery); }, 0);
   });
   a.aplicarTodo(); // before the first frame
+  // U25: the profile is decided once, before the first frame: choosing another one reloads the page with it
+  a.alCambiar((id, v) => { if (id === AJUSTE_APARATO && typeof v === "string" && v !== perfil().eleccion && a.lista().some((x) => x.id === id && x.elegido)) cambiarAparato(v as never); });
 
   // ---- 4. the menu ----
   const dlg = $("ajustes") as HTMLDialogElement | null, boton = $("ajustes-abrir") as HTMLButtonElement | null;

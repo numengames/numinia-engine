@@ -11,6 +11,7 @@
 import { escribiendo } from "./escribiendo.ts";
 import { pintarDiana, caraAPixel, pixelACara, potenciaDe, PINTADA } from "../../packages/render/src/index.ts";
 import type { DianaAR } from "../../packages/render/src/index.ts";
+import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
 
 type Res = { ok: true } | { ok: false; why: string };
 type Dardo = { quien: number; sitio: string; numero: number; x: number; y: number; sector: number; anillo: string; puntos: number; tirada: number; texto: string; cuando: number };
@@ -73,7 +74,7 @@ export function montarDardos(o: { dardos: Dardos; view: Vista; session: { entity
   const canvas = $<HTMLCanvasElement>("canvas"), tablero = $<HTMLDivElement>(".tablero"), ctx = canvas.getContext("2d")!;
   const fondo = document.createElement("canvas"); fondo.width = fondo.height = canvas.width; pintarDiana(fondo.getContext("2d")!, fondo.width);
   const PX = canvas.width;
-  const tactil = matchMedia("(pointer: coarse)").matches;
+  const tactil = esTactil();
   $<HTMLParagraphElement>(".pista").textContent = tactil
     ? "Pon el dedo en la diana y lánzalo hacia arriba: cuanto más rápido, más fuerte."
     : "Apunta con el ratón · mantén pulsado para cargar · suelta en la marca dorada para un tiro recto.";

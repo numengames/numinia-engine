@@ -12,6 +12,7 @@ type Vista = { renderer: { domElement: HTMLElement }; pickThing?(x: number, y: n
 
 /** True while the person types in a text box: global keys must not fire (J3's one rule, apps/plaza/escribiendo.ts). */
 import { escribiendo } from "./escribiendo.ts";
+import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
 export { escribiendo };
 /** Building: the build panel is open or the camera is in build mode (there clicks select things and digits are tools). */
 export const construyendo = (view: Vista): boolean => !(document.getElementById("panel-construir")?.hidden ?? true) || view.cam?.modo?.() === "construir";
@@ -21,7 +22,7 @@ export function montarInteraccion(o: {
   session: Sesion; view: Vista; boton: HTMLButtonElement; ofrece: (feature: string, key: string) => boolean; ocupado: () => boolean;
   locales?: (x: number, z: number, y?: number) => Cerca[]; pinchar?: (key: string) => boolean;
 }) {
-  const tactil = matchMedia("(pointer: coarse)").matches;
+  const tactil = esTactil();
   let actual: Cerca | null = null, ultimo: Res | null = null;
   const usar = (c: Cerca | null): Res => (ultimo = !c ? { ok: false, why: "no hay nada al alcance" } : c.local ? c.local() : o.session.features.use(c.feature, c.key));
   const libre = () => o.session.entity >= 0 && !construyendo(o.view) && !o.ocupado();
