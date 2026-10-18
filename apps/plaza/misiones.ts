@@ -16,6 +16,7 @@ import { icono } from "./iconos.ts";
 import { anunciar } from "./paneles.ts";
 import { esTactil, perfil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
 import { cercaDeAlguien } from "../../packages/client/src/movil.ts"; // U24: no «pulsa E» on a phone
+import { audio } from "../../packages/render/src/audio/nucleo.ts"; // S1: one audio graph for the whole engine
 
 type Res = { ok: true } | { ok: false; why: string };
 type Paso = { n: number; texto: string; hecho: boolean; donde: string; tipo?: string; espera?: number; listoEn?: number };
@@ -94,35 +95,40 @@ export const NOTAS_EXITO: readonly (readonly [number, number, number])[] = NOTAS
 /** U14 (6): «Misión completada» — a C major chord (C5 E5 G5 C6) held under a second, coming in just after the three
  * notes of the step that completed the quest (both arrive in the same moment): one short fanfare, no file to load. */
 export const ACORDE_COMPLETADA: readonly (readonly [number, number, number])[] = [[523.25, 0.3, 0.9], [659.25, 0.3, 0.9], [783.99, 0.3, 0.9], [1046.5, 0.3, 0.9]];
-/** Play one house sound at the settings' general × effects volume (0 = silent). Returns whether it sounded. */
-export function sonarCasa(ctx: () => AudioContext | null, ajuste: (id: string) => unknown, sonido = "exito"): boolean {
+/** Play one house sound at the settings' general × effects volume (0 = silent). Returns whether it sounded.
+ *  `salida` (S1) is the audio core's «interfaz» bus: when it is there, the person's volume lives in the graph's VCA
+ *  (packages/render/src/audio/nucleo.ts) and is not applied twice here. */
+export function sonarCasa(ctx: () => AudioContext | null, ajuste: (id: string) => unknown, sonido = "exito", salida?: (c: AudioContext) => AudioNode | null): boolean {
   const s = NOTAS_CASA[sonido];
-  return !!s && sonar(ctx, ajuste, s.onda, s.notas, 0.2);
+  return !!s && sonar(ctx, ajuste, s.onda, s.notas, 0.2, salida);
 }
-export function sonarCompletada(ctx: () => AudioContext | null, ajuste: (id: string) => unknown): boolean {
-  return sonar(ctx, ajuste, "triangle", ACORDE_COMPLETADA, 0.07); // four notes at once: each one softer
+export function sonarCompletada(ctx: () => AudioContext | null, ajuste: (id: string) => unknown, salida?: (c: AudioContext) => AudioNode | null): boolean {
+  return sonar(ctx, ajuste, "triangle", ACORDE_COMPLETADA, 0.07, salida); // four notes at once: each one softer
 }
-function sonar(ctx: () => AudioContext | null, ajuste: (id: string) => unknown, onda: OscillatorType, notas: readonly (readonly [number, number, number])[], fuerza: number): boolean {
+function sonar(ctx: () => AudioContext | null, ajuste: (id: string) => unknown, onda: OscillatorType, notas: readonly (readonly [number, number, number])[], fuerza: number, salida?: (c: AudioContext) => AudioNode | null): boolean {
   try {
-    const vol = (Number(ajuste("general") ?? 80) / 100) * (Number(ajuste("efectos") ?? 80) / 100) * fuerza;
-    if (!(vol > 0)) return false;
     const c = ctx();
     if (!c) return false;
+    const destino = salida?.(c) ?? null;
+    // the ids carry their group («sonido.general», not «general»): the settings registry indexes them as
+    // `${grupo}.${nombre}` (packages/client/src/ajustes.ts), so a bare name read undefined and nothing ever moved
+    const vol = destino ? fuerza : (Number(ajuste("sonido.general") ?? 80) / 100) * (Number(ajuste("sonido.efectos") ?? 80) / 100) * fuerza;
+    if (!(vol > 0)) return false;
     if (c.state === "suspended") void c.resume().catch(() => {});
     const t = c.currentTime;
     for (const [f, t0, dur] of notas) {
       const o = c.createOscillator(), g = c.createGain();
       o.type = onda; o.frequency.value = f;
       g.gain.setValueAtTime(0, t + t0); g.gain.linearRampToValueAtTime(vol, t + t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.001, t + t0 + dur);
-      o.connect(g).connect(c.destination); o.start(t + t0); o.stop(t + t0 + dur + 0.05);
+      o.connect(g).connect(destino ?? c.destination); o.start(t + t0); o.stop(t + t0 + dur + 0.05);
     }
     return true;
   } catch { return false; } // no audio here: the note and the screen reader still say it
 }
 /** The short positive sound of a step done (its `avance` announcement declares «exito»; until V6 gives every
  * announcement its own sound, the book plays this one): three rising notes. Returns whether it sounded. */
-export function sonarExito(ctx: () => AudioContext | null, ajuste: (id: string) => unknown): boolean {
-  return sonarCasa(ctx, ajuste, "exito");
+export function sonarExito(ctx: () => AudioContext | null, ajuste: (id: string) => unknown, salida?: (c: AudioContext) => AudioNode | null): boolean {
+  return sonarCasa(ctx, ajuste, "exito", salida);
 }
 /** U14 (5): how many seconds a step still waits on this page's clock — 0 = none; at least 1 until the server sends the
  * book that opens it. */
@@ -283,8 +289,9 @@ export function montarLibro(c: Ctl, o: {
     if (que === "nota" && c.estado.nota) mostrarNota(c.estado.nota);
   });
   // the server's events after the controller has taken them (listeners run before taps): its note is already set
-  let audio: AudioContext | null = null;
-  const contexto = () => { try { return (audio ??= new AudioContext()); } catch { return null; } };
+  // S1: the house avisos go out through the audio core's «interfaz» bus — one graph, one context, never their own
+  const contexto = () => audio().ctx();
+  const salida = () => audio().bus("interfaz");
   // U14 (6): «Misión completada» — the banner: what you finished and what you got, in the world's look (tema.css); it
   // takes neither the keyboard nor a click, it is read once by screen readers (main.ts leaves this event out of the
   // general announcements) and the small note that says the same steps aside while it shows
@@ -305,14 +312,14 @@ export function montarLibro(c: Ctl, o: {
     if (event === "aceptada") { solo.aceptada(); quizasAbrir(); }
     if (event === "avance") {
       if (esObjeto(String(msg.texto ?? ""), c.libro().find((m) => m.id === String(msg.mision)))) mostrarNota(c.estado.nota, true);
-      if (o.ajuste) sonarExito(contexto, o.ajuste);
+      if (o.ajuste) sonarExito(contexto, o.ajuste, salida);
     }
-    if (event === "completada") { mostrarCompletada(msg); if (o.ajuste) sonarCompletada(contexto, o.ajuste); }
+    if (event === "completada") { mostrarCompletada(msg); if (o.ajuste) sonarCompletada(contexto, o.ajuste, salida); }
   });
   // U14 (5): a sequence's lines are read aloud (the note itself is hidden from screen readers) and its sounds play
   c.alSecuencia?.((s) => {
     if (s.tipo === "texto" && s.texto) anunciar(s.texto);
-    if (s.tipo === "sonido" && s.sonido && o.ajuste) sonarCasa(contexto, o.ajuste, s.sonido);
+    if (s.tipo === "sonido" && s.sonido && o.ajuste) sonarCasa(contexto, o.ajuste, s.sonido, salida);
   });
   let esperas = ""; // U14 (5): the countdowns shown in the open book
   setInterval(() => {

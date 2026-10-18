@@ -31,10 +31,11 @@ export { sePuedeReproducir } from "./medios.ts";
 export type { ControlVideo } from "./medios.ts";
 export type { Donde, Eje, Herramienta, Fase, Paso, Editor } from "./gizmo.ts";
 import { createAvatares } from "./avatares.ts";
-import { sueloBajo, alturaDibujada, ESCALON_M } from "./avatares-politica.ts";
+import { sueloBajo } from "./avatares-politica.ts";
 import { prepararGltf, usarRenderer } from "./gltf.ts";
 import { ordenCarga, puedeEmpezar } from "./carga-orden.ts";
-import type { Parkour } from "./avatares-politica.ts";
+import type { Movimiento } from "./avatares-politica.ts";
+export type { Movimiento } from "./avatares-politica.ts";
 export type { CatalogoAvatares } from "./avatares.ts";
 import type { CatalogoAvatares } from "./avatares.ts";
 import { createNombres, NOMBRE_VISIBLE_M } from "./nombres.ts";
@@ -84,7 +85,7 @@ export const EN_MANO_M = 0.16;
 const LOADS_AT_ONCE = 4;   // H1: model files downloading at the same time; the nearest first
 const ANIMATE_WITHIN_M = 40; // H1: farther than this, a model's animation stands still (cold phones)
 
-export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number; parkour?: () => Parkour } } = {}) {
+export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number; eleccion?: (clave: number | "yo") => number | undefined } } = {}) {
   // U25: `movil` = the device class a forced profile declares (?aparato, development only); undefined = read the device
   const power = createPower(conClase(readCaps(), opts.movil), { battery: opts.battery, maxFps: opts.maxFps });
   // XR on a WebGPU backend needs the session's "webgpu" feature (XRGPUBinding); Quest Browser 152 has neither (measured
@@ -169,9 +170,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     reglas(o: Parameters<Manos["reglas"]>[0]) { Object.assign(reglasManos, o); manosReal?.reglas(o); },
     on(fn: (e: EventoMano) => void) { oyentesManos.add(fn); return () => oyentesManos.delete(fn); },
     ancla: (l: "izq" | "der") => manosReal?.ancla(l) ?? null,
+    rayo: (l: "izq" | "der") => manosReal?.rayo(l) ?? null,
     andar: () => manosReal?.andar() ?? null,
+    dirMando: (l: "izq" | "der") => manosReal?.dirMando(l) ?? null,
     vibrar: (l: "izq" | "der", v?: number, ms?: number) => manosReal?.vibrar(l, v, ms),
     entrada: (l: "izq" | "der") => manosReal?.entrada(l) ?? null,
+    rayoDe: (l: "izq" | "der") => manosReal?.rayoDe(l) ?? null,
     estado: () => manosReal?.estado() ?? { izq: null, der: null },
   };
   const ar = createAR({ renderer, scene, world, domOverlayRoot: document.getElementById("hud") ?? undefined, maxMs: opts.arMaxMs, manos,
@@ -190,9 +194,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // J1: you and the nearest players as VRM humanoids (avatares.ts); the capsules above stay as their anchors
   // N1b: the solid boxes in metres (view.solidos): the camera does not go through them, avatars stand on them
   let cajasM: ArrayLike<number> = [], cajasFx: Int32Array | null = null;
-  let yYo: number | undefined, ultimoSync = 0; // N1b: your drawn feet height (stair smoothing) and the last sync time
-  const avs = createAvatares({ world, mobile: power.mobile, xr: () => renderer.xr.isPresenting, catalogo: opts.avatares?.catalogo, yo: opts.avatares?.yo, parkour: opts.avatares?.parkour, compilar: (o) => renderer.compileAsync(o, camera, scene),
-    suelo: (x, z, y) => sueloBajo(x, z, y, cajasM) });
+  const avs = createAvatares({ world, mobile: power.mobile, xr: () => renderer.xr.isPresenting, catalogo: opts.avatares?.catalogo, yo: opts.avatares?.yo, compilar: (o) => renderer.compileAsync(o, camera, scene),
+    suelo: (x, z, y) => sueloBajo(x, z, y, cajasM), eleccion: opts.avatares?.eleccion });
   // H4 + H12: sky, sun, light, fog, wind and ground come from data (features/entorno), quality from the device tier
   const entorno = crearEntorno({ renderer, scene, world, camera, hemi, sun, ground, grid, hitos, aparato: { mobile: power.mobile, deviceMemoryGB: readCaps().deviceMemoryGB, saveData: readCaps().saveData }, foco: () => selfXZ,
     fichero: (f) => { const i = f.lastIndexOf("."); return (opts.assetUrl ?? ((m: string) => `/a/${m}.glb`))(f.slice(0, i)).replace(/\.glb$/, f.slice(i)); } });
@@ -224,6 +227,24 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     hueso: (q, donde, out) => (donde === "mano" ? avs.mano(q === "self" ? "yo" : q, "derecha", out) : avs.cabeza(q === "self" ? "yo" : q, out)),
     rumbo: (q) => avs.rumbo(q === "self" ? "yo" : q) });
   const web = crearPantallasWeb({ world, camera, enXR: () => renderer.xr.isPresenting, cajas: () => cajasM }); // N17: web screens (web.ts)
+  // M18b: the Graboso, the relic that records, over your right shoulder (lazy: packages/render/src/graboso.ts, fetched at the first invocation)
+  const grabosoPos = new THREE.Vector3();
+  let graboso3d: import("./graboso.ts").Graboso3D | null = null, grabosoCarga: Promise<void> | null = null;
+  const grabosoQuiere = { fuera: false, grabando: false };
+  const graboso = {
+    /** Out (true) or kept (false). The first call downloads the mesh's code. */
+    mostrar(si: boolean): void {
+      grabosoQuiere.fuera = si;
+      if (graboso3d) { graboso3d.mostrar(si); return; }
+      if (!si) return;
+      grabosoCarga ??= import("./graboso.ts").then((m) => {
+        graboso3d = m.crearGraboso({ world, posicion: () => (selfXZ ? grabosoPos.set(selfXZ.x, selfXZ.y ?? 0, selfXZ.z) : null), yaw: () => cam.yaw() });
+        graboso3d.mostrar(grabosoQuiere.fuera); graboso3d.grabando(grabosoQuiere.grabando);
+      }).catch((e) => console.warn(`[graboso] no se pudo cargar: ${(e as Error)?.message ?? e}`));
+    },
+    grabando(si: boolean): void { grabosoQuiere.grabando = si; graboso3d?.grabando(si); },
+    visible(): boolean { return graboso3d?.visible() ?? false; },
+  };
   const ancestros = crearSalon({ world, camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera) }); // ancestros v1: the hall and the hologram of the tribute to Asimov (ancestros.ts)
   function dropLabel(t: Target): void {
     const d = labels.get(t);
@@ -721,7 +742,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     updateThings(dtSeconds);
     selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
     editor.frame();
-    entorno.actualizar(); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds);
+    entorno.actualizar(); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ);
     if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); dibujarCuadro(); return; } // N4: after the hands moved, so a held rod does not trail a frame
     pesca.actualizar(dtSeconds);
     if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
@@ -780,26 +801,18 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       const j = crearDianaAR(o);
       return (await ar.jugar(j)) ? j : null;
     },
+    /** M18b: the Graboso over your shoulder (mostrar, grabando, visible) — packages/render/src/graboso.ts, loaded when first invoked. */
+    graboso,
     /** Place everyone for this frame (J2: at their height). */
-    sync(self: { x: number; z: number; y?: number; speed?: number; grounded?: boolean } | null, list: Placed[]): void {
+    sync(self: { x: number; z: number; y?: number; speed?: number } | null, list: Placed[]): void {
       selfXZ = self;
-      const t = performance.now(), dtS = ultimoSync ? Math.min(0.1, (t - ultimoSync) / 1000) : 0;
-      ultimoSync = t;
-      // N1b: a stair step is drawn as a short climb (alturaDibujada); `yPies` keeps the simulated feet for the clip choice
-      if (self) {
-        const y = self.y ?? 0;
-        yYo = alturaDibujada(yYo, y, dtS, self.grounded !== false);
-        selfMesh.visible = true; selfMesh.position.set(self.x, yYo + 0.85, self.z); selfMesh.userData.yPies = y;
-      } else yYo = undefined;
+      if (self) { selfMesh.visible = true; selfMesh.position.set(self.x, (self.y ?? 0) + 0.85, self.z); }
       const seen = new Set<number>();
       for (const o of list) {
         seen.add(o.id);
         let m = others.get(o.id);
         if (!m) { m = new THREE.Mesh(bodyGeo, otherMat); world.add(m); others.set(o.id, m); }
-        const y = o.y ?? 0, antes = m.userData.yDibujada as number | undefined;
-        const yd = alturaDibujada(antes, y, dtS, y - sueloBajo(o.x, o.z, y, cajasM) <= ESCALON_M); // near the ground: a step, not a jump
-        m.userData.yDibujada = yd; m.userData.yPies = y;
-        m.position.set(o.x, yd + 0.85, o.z);
+        m.position.set(o.x, (o.y ?? 0) + 0.85, o.z);
       }
       for (const [id, m] of others) if (!seen.has(id)) { world.remove(m); others.delete(id); }
       const now = performance.now();
@@ -922,6 +935,20 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** U-mandos: a video's own, per-person pause/stop/volume (medios.ts `ControlVideo`), or `null` when `key` is not
      * a loaded video. Never touches the shared clock: it only changes what THIS person sees and hears. */
     controlVideo(key: string): ControlVideo | null { return things.get(key)?.medio?.controlVideo ?? null; },
+    /** M18: the video screens drawn right now (their file loaded) and where they stand, for the page to pick the nearest. */
+    pantallas(): { key: string; x: number; y: number; z: number }[] {
+      const r: { key: string; x: number; y: number; z: number }[] = [];
+      for (const [k, s] of things) if (s.want.kind === "video" && s.loaded && s.medio?.enVivo) r.push({ key: k, x: s.want.x, y: s.want.y, z: s.want.z });
+      return r;
+    },
+    /** M18: show a live MediaStream (your shared screen) on a video screen, on this page only — nothing is sent anywhere;
+     * `null` puts the file back. False when there is no loaded video screen with that key. */
+    pantallaEnVivo(key: string, stream: MediaStream | null): boolean {
+      const s = things.get(key);
+      if (!s?.loaded || !s.medio?.enVivo) return false;
+      s.medio.enVivo(stream);
+      return true;
+    },
     /** J10: carry a placed thing (`key` as in place): in a hand in XR, beside you on a flat screen; `null` puts it back. */
     llevar(key: string, donde: Llevar | null): void {
       if (!donde) { if (llevados.has(key)) soltarLlevado(key); return; }
@@ -950,6 +977,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     labels(): Target[] { return [...labels.keys()]; },
     /** J1: VRM avatars (for checks): files loaded, clips, who wears which avatar and which clip plays. */
     avatares(): ReturnType<typeof avs.stats> { return avs.stats(); },
+    /** J7b: play a move (the wheel's) on an avatar's VRM, or stop it (`null`); false = no VRM there (show a label). */
+    movimiento(t: Target, mov: Movimiento | null): boolean { return avs.movimiento(t === "self" ? "yo" : t, mov); },
     /** J3: the name over an avatar (`null` takes it away); drawn for the nearest 32 within 24 m, never over yourself. */
     nameTag(t: Target, text: string | null): void { nombres.nameTag(t, text); },
     /** J3: a speech bubble over an avatar for `ms` (wrapped, up to 6 lines); the latest replaces the one before. */
@@ -967,11 +996,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
     /** U10: draw hidden spheres of sound (while building) or not (while playing). */
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado() || ancestros.ocupado(selfXZ); },
-    /** U1: files of things in the world that are downloading or waiting their turn (the loading screen's «mundo» phase). */
-    cargando(): number { return loading + waiting.size; },
-    /** U1: compile the materials of what the scene holds now, before the first frame (the loading screen's «preparar» phase). Never rejects. */
-    preparar(): Promise<void> { return Promise.resolve(renderer.compileAsync(scene, camera)).then(() => undefined, () => undefined); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */

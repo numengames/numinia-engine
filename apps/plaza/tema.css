@@ -118,6 +118,12 @@ button .icono + span, button span + .icono { margin-left: 6px; }
 #barra-arriba > #microfono[aria-pressed="true"] { background: var(--n-grana) !important; color: #fff !important; border-color: var(--n-grana) !important; }
 #microfono .nivel { margin-left: 0 !important; }
 
+/* ---- t_5cff4f06: the corner button that leaves for the city, top left — the gear's exact mirror on the right
+   (same frame, same 44x44, same radius); hidden (the attribute) where a world sets no ciudadUrl ---- */
+#volver-ciudad { position: fixed; top: 10px; left: 10px; z-index: 7; width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: var(--n-sup) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea) !important; border-radius: var(--n-r-control) !important; }
+#volver-ciudad[hidden] { display: none !important; }
+#volver-ciudad:hover { border-color: var(--n-texto2) !important; }
+
 /* ---- the map under the bar, the quests under the map ---- */
 body #minimapa { top: 64px !important; bottom: auto !important; right: 10px !important; }
 body #minimapa canvas { border: 1px solid var(--n-linea); box-shadow: none !important; }
@@ -295,13 +301,3 @@ html[data-densidad-nivel="minimo"] #avisos-pila p:not(:last-child), html[data-de
 }
 /* U24 × U3: on a phone layout the notices sit under the «Ahora» line's row (top left holds it, top right the gear and the map) */
 html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 12px)); top: calc(var(--st, 0px) + 8px + 52px + 6px); transform: none; width: min(300px, calc(100vw - var(--sl, 0px) - var(--sr, 0px) - 2 * var(--m, 12px))); }
-
-/* combate nivel 2: Carga bar + ability buttons (apps/plaza/combate.ts) */
-#combate-hud { position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%); z-index: 6; width: min(94vw, 360px); display: grid; gap: 6px; }
-#combate-hud[hidden] { display: none; }
-#combate-hud .barra { position: relative; height: 18px; border-radius: 9px; background: var(--n-sup); border: 1px solid var(--n-linea); overflow: hidden; }
-#combate-hud .relleno { height: 100%; width: 0; background: var(--n-turquesa, #3fd1c6); transition: width .15s; }
-#combate-hud .texto { position: absolute; inset: 0; display: grid; place-items: center; font: 600 12px system-ui, sans-serif; color: var(--n-texto); }
-#combate-hud .botones { display: flex; gap: 6px; }
-#combate-hud button { flex: 1; min-height: 40px; border-radius: 8px; border: 1px solid var(--n-linea); background: var(--n-sup); color: var(--n-texto); font: 600 12px system-ui, sans-serif; opacity: .55; }
-#combate-hud button.lista { opacity: 1; border-color: var(--n-ambar); }

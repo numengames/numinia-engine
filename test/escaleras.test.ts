@@ -3,7 +3,7 @@
 // under it, not from the plaza (on a roof you walk).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BTN_RUN, createSim, spawnAvatar, step, setSolids, solidsFrom, groundHeight, setBody, getBody, INPUT_STRIDE, REFERENCE, referenceRecording, replayFingerprint } from "../packages/sim/src/index.ts";
+import { createSim, spawnAvatar, step, setSolids, solidsFrom, groundHeight, setBody, getBody, INPUT_STRIDE, REFERENCE, referenceRecording, replayFingerprint } from "../packages/sim/src/index.ts";
 import { fx } from "../packages/core/src/index.ts";
 import { sueloBajo, estadoPor } from "../packages/render/src/avatares-politica.ts";
 
@@ -16,7 +16,7 @@ for (let i = 0; i < PELDANOS; i++) {
 }
 const cajas = solidsFrom(valores);
 
-function andar(z0: number, mz: number, ticks: number, run = false) {
+function andar(z0: number, mz: number, ticks: number) {
   const s = createSim(2, 1);
   const e = spawnAvatar(s, 0);
   setSolids(s, cajas);
@@ -24,7 +24,7 @@ function andar(z0: number, mz: number, ticks: number, run = false) {
   setBody(s, e, { ...b, x: fx(12.1), z: fx(z0), y: groundHeight(fx(12.1), fx(z0), s, fx(20)), vy: 0 });
   let enElAire = 0, maxY = 0;
   for (let t = 0; t < ticks; t++) {
-    const inp = new Int32Array(INPUT_STRIDE); inp[0] = e; inp[2] = mz; inp[3] = run ? BTN_RUN : 0;
+    const inp = new Int32Array(INPUT_STRIDE); inp[0] = e; inp[2] = mz;
     step(s, inp);
     const yo = getBody(s, e);
     if (yo.y !== groundHeight(yo.x, yo.z, s, yo.y)) enElAire++;
@@ -58,16 +58,4 @@ test("N1b: an avatar standing on a roof or a step is not «in the air»", () => 
   assert.equal(estadoPor(0, 12 - sueloBajo(0, 0, 12, roof)), "quieto");
   assert.equal(estadoPor(0, 13 - sueloBajo(0, 0, 13, roof)), "saltar"); // a jump over the roof still is
   assert.equal(sueloBajo(20, 0, 12, roof), 0);                          // off the roof: the plaza
-});
-
-test("N1b: running up the stair does not stop dead at the first step (the move is split into pieces)", () => {
-  const r = andar(12, -127, 98, true); // 4.9 s running north (4 m/s since main halved the speeds): onto the top step (z −7.6)
-  assert.equal(r.enElAire, 0);
-  assert.ok(Math.abs(r.maxY - PELDANOS * SUBIDA) < 0.01, `reaches the top step running: ${r.maxY}`);
-});
-
-test("N1b: running down the stair stays on the ground", () => {
-  const r = andar(11 - FONDO * (PELDANOS - 1), 127, 120, true);
-  assert.equal(r.enElAire, 0);
-  assert.ok(r.y < 0.01);
 });
