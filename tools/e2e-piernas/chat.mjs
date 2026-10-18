@@ -51,6 +51,7 @@ try {
   out.distanciaAB = d0 ? Math.round(Math.hypot(d0.dx, d0.dz) * 10) / 10 : null;
   checks.cerca = out.distanciaAB !== null && out.distanciaAB <= 18;
 
+  await b.evaluate(() => globalThis.__numinia.view.verNombres(true)); // U22: names show over who you look at; this leg checks that the name arrives, so ask for all of them
   // A's name over A's head, drawn in B (the server sends it within 24 m; the page draws the nearest)
   await b.waitForFunction((w) => globalThis.__numinia.view.nameTags().some((t) => t.target === w.entity && t.text === w.who.nombre && t.drawn), A, { timeout: 8000 }).catch(() => {});
   out.nombreEnB = await b.evaluate((w) => globalThis.__numinia.view.nameTags().find((t) => t.target === w) ?? null, A.entity);

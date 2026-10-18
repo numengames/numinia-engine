@@ -16,6 +16,8 @@ import type { ImagenCenital, Huella } from "../../packages/render/src/index.ts";
 import { bajoElCorte } from "../../packages/render/src/corte.ts";
 import { MARCA_IA } from "../../packages/instance/src/identidad.ts";
 import { crearDialogo, anunciar } from "./paneles.ts";
+import { perfil } from "./perfil-aparato.ts";
+import { esMovil } from "../../packages/client/src/movil.ts"; // U24
 import "./mapa.css";
 
 type Vec = { x: number; z: number };
@@ -240,7 +242,7 @@ export function montarMapa(h: HostMapa) {
   });
   // on touch screens the features' buttons live in the bottom-right corner: sit to their left
   const acciones = document.getElementById("acciones");
-  const sitio = () => { mini.style.right = acciones && acciones.childElementCount ? `${acciones.offsetWidth + 20}px` : ""; };
+  const sitio = () => { if (!matchMedia("(pointer: coarse)").matches) return; /* U3: on a mouse screen the frame table places the map */ mini.style.right = acciones && acciones.childElementCount ? `${acciones.offsetWidth + 20}px` : ""; };
   if (acciones && typeof ResizeObserver === "function") new ResizeObserver(sitio).observe(acciones);
   sitio();
 
@@ -253,6 +255,7 @@ export function montarMapa(h: HostMapa) {
   };
   function pintarMini(v: Vista, ms: Marcador[]): void {
     const g = lm.g, t = lm.ancho, c = t / 2, r = c - 2;
+    if (t < 8) return; // U20: hidden by the density dial (Mínimo) it has no size: draw nothing (and no negative radius)
     g.clearRect(0, 0, t, t);
     g.save(); g.beginPath(); g.arc(c, c, r, 0, Math.PI * 2); g.clip();
     if (corte > 0 && imagen && imagen.corte > 0) { // U14: the floor plan (picture + cut) instead of footprints
@@ -293,7 +296,7 @@ export function montarMapa(h: HostMapa) {
     for (const [id, ti] of reg.tipos()) if (n[id] && ti.enLista) partes.push(`${n[id]} ${ti.nombre.toLowerCase()}`);
     const cerca = cercanos(ms, yo, reg, 3).map((e) => `${e.nombre} (${reg.tipo(e.tipo).nombre.toLowerCase()}), ${e.texto}`);
     const t = `Minimapa, ${gira ? "gira con la cámara" : "norte arriba"}, ${RADIOS[zoom]} m alrededor: ${partes.join(", ") || "nada cerca"}.` +
-      (cerca.length ? ` Lo más cerca: ${cerca.join("; ")}.` : "") + (destino ? ` Destino: ${destino.nombre}, ${enPalabras(destino.x - yo.x, destino.z - yo.z)}.` : "") + " Pulsa M para el mapa y la lista.";
+      (cerca.length ? ` Lo más cerca: ${cerca.join("; ")}.` : "") + (destino ? ` Destino: ${destino.nombre}, ${enPalabras(destino.x - yo.x, destino.z - yo.z)}.` : "") + (esMovil(perfil().clase) ? " Toca el minimapa para el mapa y la lista." : " Pulsa M para el mapa y la lista.");
     if (t !== textoAntes) { miniTexto.textContent = t; textoAntes = t; }
   }
 

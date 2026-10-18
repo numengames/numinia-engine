@@ -3,6 +3,8 @@
 // a screen reader lands in it; the line itself reaches screen readers once, through the engine's announcements (the
 // polite #avisos region, V1), so the box does not repeat it. It only asks: features/misiones decides on the server.
 import { escribiendo, construyendo } from "./interactuar.ts";
+import { perfil } from "./perfil-aparato.ts";
+import { conGlifo, esMovil } from "../../packages/client/src/movil.ts"; // U24: a phone names no key: «Despedirse», answers without a digit
 
 type Res = { ok: true } | { ok: false; why: string };
 type Dialogo = { pnj: string; nombre: string; oficio?: string; texto: string; opciones: string[] };
@@ -13,7 +15,7 @@ export function montarDialogo(c: Ctl, caja: HTMLElement, view: Vista): void {
   const nombre = document.createElement("h2"), texto = document.createElement("p"), opciones = document.createElement("div");
   const estado = document.createElement("p"), adios = document.createElement("button");
   nombre.id = "dialogo-nombre"; texto.className = "texto"; opciones.className = "opciones"; estado.className = "estado";
-  adios.type = "button"; adios.className = "adios"; adios.textContent = "Adiós (Esc)";
+  adios.type = "button"; adios.className = "adios"; adios.textContent = esMovil(perfil().clase) ? "Despedirse" : conGlifo(perfil().clase, "cerrar", "Adiós");
   caja.setAttribute("role", "dialog"); caja.setAttribute("aria-labelledby", "dialogo-nombre");
   caja.append(nombre, texto, opciones, estado, adios);
   caja.addEventListener("pointerdown", (ev) => ev.stopPropagation()); // a tap here is not a joystick touch
@@ -43,7 +45,7 @@ export function montarDialogo(c: Ctl, caja: HTMLElement, view: Vista): void {
     texto.textContent = d.texto;
     opciones.replaceChildren(...d.opciones.map((t, i) => {
       const b = document.createElement("button");
-      b.type = "button"; b.textContent = `${i + 1}. ${t}`; b.dataset.n = String(i + 1);
+      b.type = "button"; b.textContent = esMovil(perfil().clase) ? t : `${i + 1}. ${t}`; b.dataset.n = String(i + 1);
       b.addEventListener("click", () => c.elegir(i + 1));
       return b;
     }));

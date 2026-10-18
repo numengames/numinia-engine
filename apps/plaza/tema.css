@@ -126,13 +126,12 @@ body #misiones { left: auto !important; right: 10px !important; bottom: auto !im
 body #misiones[aria-expanded="true"] { background: var(--n-texto) !important; color: var(--n-fondo) !important; }
 body #libro { left: auto !important; right: 10px !important; top: calc(64px + var(--mini) + 4px + var(--botones-alto) + 11px + var(--mis-alto) + 9px) !important; bottom: auto !important; max-height: calc(100% - var(--mini) - 170px) !important; }
 body #mision-seguida { left: auto !important; right: 10px !important; top: calc(64px + var(--mini) + 4px + var(--botones-alto) + 11px + var(--mis-alto) + 9px) !important; max-width: min(320px, calc(100% - 20px)) !important; }
-body:has(#libro:not([hidden])) #mision-seguida { display: none; }
+@media (max-width: 899px) { body:has(#libro:not([hidden])) #mision-seguida { display: none; } } /* U3: on a wide screen the «now» line is top left, far from the book */
 /* while building the panel owns the right side */
-body.construyendo #minimapa, body.construyendo #misiones, body.construyendo #libro, body.construyendo #mision-seguida { visibility: hidden; }
+body.construyendo #reloj, body.construyendo #minimapa, body.construyendo #misiones, body.construyendo #libro, body.construyendo #mision-seguida { visibility: hidden; }
 body #panel-construir { top: 64px !important; max-height: calc(100% - 120px) !important; }
 body #panel-entorno { top: 112px !important; }
-#help { color: var(--n-fondo) !important; }
-@media (min-width: 900px) { #help { max-width: calc(100vw - 440px) !important; } }
+#help { color: var(--n-fondo) !important; } /* narrow screens: dark text on the sky, as before */
 #ajustes .version-motor { margin: 10px 0 0; font: 12px "Geist Mono", ui-monospace, monospace; color: var(--n-texto2); text-align: right; user-select: all; }
 #ajustes .version-motor:empty { display: none; }
 
@@ -223,3 +222,67 @@ button[data-pulsado]:is(#u26#u26, button):not(:disabled), [role="button"][data-p
   transform: scale(.94); transition: transform 60ms ease-out;
 }
 html.menos-movimiento [data-pulsado]:is(#u26#u26, button, [role="button"]) { transform: none !important; }
+
+/* ---- U20: the density dial. apps/plaza/densidad.ts stamps each panel with data-densidad (the lowest level that shows it),
+   data-cuando and data-solo, and puts the level on <html data-densidad-nivel>. Hiding is only this CSS (nothing per frame);
+   a frame U3 builds declares the same attributes and needs no new rule. ---- */
+html[data-densidad-nivel="minimo"] [data-densidad="normal"], html[data-densidad-nivel="minimo"] [data-densidad="completo"],
+html[data-densidad-nivel="normal"] [data-densidad="completo"] { display: none !important; }
+html[data-densidad-nivel="minimo"] [data-solo]:not([data-solo~="minimo"]), html[data-densidad-nivel="normal"] [data-solo]:not([data-solo~="normal"]),
+html[data-densidad-nivel="completo"] [data-solo]:not([data-solo~="completo"]) { display: none !important; }
+/* a touch screen has no key O: in Mínimo the bar keeps only the gear, so the dial can always be turned back */
+/* U25: touch = html.tactil (a forced profile too), not the media query */
+html.tactil[data-densidad-nivel="minimo"] #barra-arriba[data-densidad] { display: flex !important; }
+html.tactil[data-densidad-nivel="minimo"] #barra-arriba > :not(#ajustes-abrir) { display: none !important; }
+/* al_cambiar: the chat's lines show with each new line and fade after 6 s in Normal (Mínimo: folded to the pill; Completo: fixed,
+   a taller list). «Menos movimiento»: nothing fades, it stays fixed. The open box (Enter) or the pointer over it keeps it shown. */
+html[data-densidad-nivel="normal"] #chat-lista { max-height: calc(4 * 1.45em); } /* four lines (the box adds its own padding); wide screens: the 440×150 box below */
+html[data-densidad-nivel="normal"]:not(.menos-movimiento) #chat-lista[data-cuando="al_cambiar"]:not(.reciente):not(:hover) { opacity: 0; pointer-events: none; transition: opacity .6s ease; }
+html[data-densidad-nivel="normal"]:not(.menos-movimiento) #chat:has(#chat-form:not([hidden])) #chat-lista[data-cuando="al_cambiar"] { opacity: 1; pointer-events: auto; }
+@media (max-width: 899px) {
+  html[data-densidad-nivel="completo"] #chat { width: min(440px, 62vw, calc(100vw - 240px)); }
+  html[data-densidad-nivel="completo"] #chat-lista { max-height: min(300px, 38vh); }
+}
+#chat-boton[data-solo] { align-self: flex-start; }
+
+/* ---- U3 (minimum): the frames. Where each panel sits and its glass come from the table (densidad.ts → cssMarcos → <style id="marcos">);
+   what follows is only what the boxes hold: their padding, type and the few panels the table does not own. Wide screens (≥ 900 px); narrower
+   ones keep the flowing layout above. Glass = 55 % surface + blur + hairline, off at «Baja» quality (data-sin-cristal) and in high contrast. ---- */
+@media (min-width: 900px) {
+  body #mision-seguida { padding: 5px 14px !important; line-height: 26px; }
+  #reloj { z-index: 4; display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 82px; padding: 0 10px; margin: 0; pointer-events: auto; font: 12px/1 "Geist Mono", ui-monospace, monospace; letter-spacing: .05em; white-space: nowrap; }
+  #reloj svg { flex: none; stroke: var(--n-verdemar); fill: none; stroke-width: 1.6; }
+  body #minimapa canvas { width: min(152px, 30vmin); height: min(152px, 30vmin); }
+  body #minimapa { align-items: flex-end; }
+  body #libro { right: 16px !important; top: 340px !important; width: 292px !important; max-height: calc(100% - 356px) !important; }
+  body #hud { top: 60px; left: 16px; }
+  /* the chat: a 440×150 box in Normal (lines settle at the bottom), a taller one in Completo; empty = no box */
+  html[data-densidad-nivel="normal"] #chat-lista:not(:empty), html[data-densidad-nivel="completo"] #chat-lista:not(:empty) { display: flex; flex-direction: column; box-sizing: border-box; max-height: none; padding: 10px 14px; line-height: 1.45; }
+  html[data-densidad-nivel="normal"] #chat-lista:not(:empty) { height: 150px; }
+  html[data-densidad-nivel="completo"] #chat-lista:not(:empty) { height: 252px; }
+  #chat-lista:not(:empty) > :first-child { margin-top: auto; }
+  #chat-lista:not(:empty) > * { flex: none; }
+  /* the action bar: one chip per action, name above its key */
+  html body #acciones { flex-direction: row; align-items: stretch; gap: 8px; padding: 12px; }
+  #acciones button { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0 6px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-elev); color: var(--n-texto); font: 600 13px "Geist", system-ui, sans-serif; cursor: pointer; }
+  #acciones button:hover { border-color: var(--n-texto2); }
+  #acciones kbd { padding: 1px 6px; border: 1px solid var(--n-linea); border-radius: 4px; color: var(--n-texto2); font: 11px/1.3 "Geist Mono", ui-monospace, monospace; }
+  /* the key help: a framed list, not a loose line */
+  #help { padding: 10px 14px; text-align: left; font-size: 12px; line-height: 1.55; opacity: 1; white-space: normal; }
+}
+/* the notices' stack: one row per notice, the older ones above; Mínimo and Normal show only the newest (the wireframe), Completo the stack of three */
+#avisos-pila { z-index: 7; pointer-events: none; font-size: 13px; overflow: hidden; }
+#avisos-pila p { margin: 0; padding: 9px 14px; line-height: 20px; min-height: 38px; box-sizing: border-box; color: var(--n-texto); opacity: 1; transition: opacity .4s ease; }
+#avisos-pila p + p { border-top: 1px solid rgba(249, 235, 220, .12); }
+#avisos-pila p.saliendo { opacity: 0; }
+html[data-densidad-nivel="minimo"] #avisos-pila p:not(:last-child), html[data-densidad-nivel="normal"] #avisos-pila p:not(:last-child) { display: none; }
+@media (max-width: 899px) { #avisos-pila { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); width: min(440px, calc(100vw - 120px)); } #reloj { display: none; } } /* phones: their own story (D2) */
+/* U3 × U20 under 900 px on a desktop-class screen (the marcos sheet is off there): the notices leave the top bar's corner,
+   and the «E: …» prompt rides over the chat box instead of under it */
+@media (max-width: 899px) {
+  html:not([data-aparato^="movil"]) #avisos-pila { left: 10px; transform: none; width: min(440px, calc(100vw - 274px)); }
+  html:not([data-aparato^="movil"])[data-densidad-nivel="normal"] #interactuar { bottom: 180px; }
+  html:not([data-aparato^="movil"])[data-densidad-nivel="completo"] #interactuar { bottom: 220px; }
+}
+/* U24 × U3: on a phone layout the notices sit under the «Ahora» line's row (top left holds it, top right the gear and the map) */
+html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 12px)); top: calc(var(--st, 0px) + 8px + 52px + 6px); transform: none; width: min(300px, calc(100vw - var(--sl, 0px) - var(--sr, 0px) - 2 * var(--m, 12px))); }

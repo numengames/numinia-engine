@@ -76,7 +76,7 @@ export function montarChat(chat: Chat, raiz: HTMLElement) {
     e.preventDefault();
     abrir(e.key === "/" ? "/" : "");
   });
-  if (tactil) boton.hidden = false;
+  if (tactil) { boton.hidden = false; input.placeholder = "Escribe aquí…"; } // U24: a phone says no «pulsa Enter»
   boton.addEventListener("click", () => (form.hidden ? abrir() : cerrar()));
   raiz.addEventListener("pointerdown", (e) => e.stopPropagation()); // a touch on the chat is not a joystick
   return { abrir, cerrar, get abierto() { return !form.hidden; } };

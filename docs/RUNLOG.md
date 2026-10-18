@@ -789,3 +789,8 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Números: ver el cuerpo del PR (`npm test`, `npm run layers`).
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Siguiente: M6 historias 5-6 y 9; F1b; contadores historia 3; cable historias 3-6.
+## 2026-10-18 12:30 · ux · hecho
+- Qué: integración 2 de la ola 1 de interfaz: U22 (carteles acotados: el nombre solo del que miras y de quien habla; Alt / «Nombres» / Atrás), U20 (dial de densidad Mínimo · Normal · Completo, tecla U), U3 mínimo (marcos con caja, reloj, pila de avisos) y U24 (disposición móvil: seis controles, una acción). Probadas juntas a 1600×900 y 880×600 y con `?aparato=movil-vertical/horizontal`. Conflictos: `tema.css` y `ajustes-motor.ts` (se quedan los dos lados).
+- Choques arreglados en un commit aparte: «Nombres» pasa al menú «…» en móvil; los avisos no tapan la barra ni el minimapa; el engranaje de Mínimo con perfil táctil forzado.
+- Versión **0.9.0 → 0.10.0** (menor): ajustes y piezas nuevos, nada se rompe. Las ramas traían 0.6.2–0.6.5 y 0.8.0; rebasada sobre `main` 0.9.0 (#49, #50, #60), una sola subida (`docs/VERSIONES.md`).
+- Consumo: sin medir · Sonnet 5.5.

@@ -35,7 +35,8 @@ import { prepararGltf, usarRenderer } from "./gltf.ts";
 import { ordenCarga, puedeEmpezar } from "./carga-orden.ts";
 export type { CatalogoAvatares } from "./avatares.ts";
 import type { CatalogoAvatares } from "./avatares.ts";
-import { createNombres } from "./nombres.ts";
+import { createNombres, NOMBRE_VISIBLE_M } from "./nombres.ts";
+import { elegirMirado, escalaAcotada, nombreVisible, NOMBRE_GRADOS_MAX, type Mirable } from "./carteles.ts";
 export { NOMBRE_VISIBLE_M, NOMBRES_DIBUJADOS, BOCADILLO_VISIBLE_M } from "./nombres.ts";
 import { crearCenital } from "./cenital.ts";
 export type { Huella, ImagenCenital } from "./cenital.ts";
@@ -250,7 +251,30 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       d.mesh.position.set(m.position.x, nombres.above(t, m), m.position.z); // over the name and the bubble, if any (J3)
       d.mesh.quaternion.copy(camera.quaternion); // always faces whoever looks
     }
-    nombres.update(now);
+    updateRotulos(now);
+  }
+
+  // ---- U22: who shows a name. The one in the middle of your view (a person, or a name over a thing), whoever speaks,
+  // everybody while `verTodos` is held (Alt, a touch button, a gamepad button). 
+  // Size: a plate never takes more than 8° of the view (carteles.ts), so near the person it shrinks instead of filling the screen.
+  let verTodos = false, hablando: string | null = null, miradoPrevio: string | null = null, rotulosPendiente = true;
+  const ojoC = new THREE.Vector3(), alanteC = new THREE.Vector3(), qC = new THREE.Quaternion();
+  function updateRotulos(now: number): void {
+    rotulosPendiente = false;
+    camera.getWorldPosition(ojoC); camera.getWorldQuaternion(qC); alanteC.set(0, 0, -1).applyQuaternion(qC);
+    const cand: Mirable<string>[] = nombres.candidatos().map((c) => ({ ...c, clave: `a:${String(c.clave)}` }));
+    for (const [k, r] of tags) cand.push({ clave: `t:${k}`, x: r.x, z: r.z, pies: r.y - 2.2, cabeza: r.y });
+    const mirado = verTodos ? null : elegirMirado(ojoC, alanteC, cand, miradoPrevio, NOMBRE_VISIBLE_M);
+    miradoPrevio = mirado;
+    nombres.update(now, { todos: verTodos, mirado: mirado?.startsWith("a:") ? (mirado.slice(2) === "self" ? "self" : Number(mirado.slice(2))) : null });
+    const alto = ROT_NOMBRE * ROT_M;
+    for (const [k, r] of tags) {
+      const d = Math.hypot(r.x - ojoC.x, r.y - ojoC.y, r.z - ojoC.z);
+      r.s.visible = nombreVisible({ todos: verTodos && d <= NOMBRE_VISIBLE_M, mirado: mirado === `t:${k}`, habla: hablando === k }); // (a «!» / «✓» mark does not keep the plate on: the story asks for the one you look at and who speaks)
+      if (!r.s.visible) continue;
+      const e = escalaAcotada(1, alto, d, NOMBRE_GRADOS_MAX); // whole plate (mark, trade) shrinks with its name line
+      r.s.scale.set(ROT_ANCHO * ROT_M * e, r.s.userData.alto * e, 1);
+    }
   }
 
   addEventListener("resize", () => {
@@ -506,7 +530,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // U14 (4): a label may carry a second, smaller line under the name (a person's trade) and a mark above it («!» in a
   // warm colour: something for you now; «✓» in green: done). Its canvas is drawn again only when its text or mark
   // changes — a new position just moves it — so standing still costs nothing (tagDraws() counts the canvases drawn).
-  type Rotulo = { s: THREE.Sprite; firma: string };
+  type Rotulo = { s: THREE.Sprite; firma: string; x: number; y: number; z: number; marca: boolean };
   type DatosRotulo = { text: string; x: number; y: number; z: number; sub?: string; mark?: "!" | "✓" | "" };
   const tags = new Map<string, Rotulo>();
   let tagDibujos = 0;
@@ -742,13 +766,14 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     tag(key: string, t: DatosRotulo | null): void {
       if (!t) { dropTag(key); return; }
       const firma = `${t.mark || ""}\n${t.text}\n${t.sub ?? ""}`, y = t.y - (ROT_NOMBRE / 2) * ROT_M, antes = tags.get(key);
-      if (antes && antes.firma === firma) { antes.s.position.set(t.x, y, t.z); return; }
+      if (antes && antes.firma === firma) { antes.s.position.set(t.x, y, t.z); antes.x = t.x; antes.y = t.y; antes.z = t.z; return; }
       dropTag(key);
       const c = dibujarRotulo(t), tex = new THREE.CanvasTexture(c);
       tex.colorSpace = THREE.SRGBColorSpace;
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
-      s.name = `nombre:${key}`; s.center.set(0.5, 0); s.scale.set(ROT_ANCHO * ROT_M, c.height * ROT_M, 1); s.position.set(t.x, y, t.z); s.renderOrder = 10;
-      world.add(s); tags.set(key, { s, firma });
+      s.name = `nombre:${key}`; s.center.set(0.5, 0); s.userData.alto = c.height * ROT_M; s.scale.set(ROT_ANCHO * ROT_M, c.height * ROT_M, 1); s.position.set(t.x, y, t.z); s.renderOrder = 10;
+      s.visible = false; // U22: shown by updateRotulos (looked at, speaking, marked, or «todos»)
+      world.add(s); tags.set(key, { s, firma, x: t.x, y: t.y, z: t.z, marca: !!t.mark });
     },
     /** J5: names over things alive right now (for checks). */
     tagCount(): number { return tags.size; },
@@ -833,13 +858,17 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** J3: where names, bubbles and labels sit — world y of the top of the drawn avatar. Default: the capsule's top
      * (centre y + 0.85); VRM avatars (J1) pass their head bone's height. */
     setHeadTop(fn: (t: Target, avatar: THREE.Object3D) => number): void { nombres.setTop(fn); },
+    /** U22: show everybody's name (true while Alt, a touch button or a gamepad button is held), or only the one you look at and who speaks. */
+    verNombres(todos: boolean): void { if (verTodos !== todos) { verTodos = todos; rotulosPendiente = true; } },
+    /** U22: the key of the person you talk to (a name over a thing, as in `tag`: «pnj:alma»), shown while the dialogue lasts; null = none. */
+    hablando(clave: string | null): void { if (hablando !== clave) { hablando = clave; rotulosPendiente = true; } },
     /** J3: names and bubbles the page holds, and whether each is drawn now (for checks). */
     nameTags() { return nombres.nameTags(); },
     bubbles() { return nombres.bubbles(); },
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
     /** U10: draw hidden spheres of sound (while building) or not (while playing). */
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado(); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); },
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */

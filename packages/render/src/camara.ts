@@ -44,7 +44,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
   const sujetas = new Set<string>();          // turn/tilt keys held (by code)
   let mandos = 0;                             // gamepads connected: polled only while there is one
   const palanca = { x: 0, z: 0, gx: 0, gy: 0, zoom: 0 };
-  let sens = 1, invY = 1;                     // N2 settings: look speed (mouse, finger, stick) and inverted vertical axis
+  let sens = 1, invY = 1, zonaAndar = 0.5;                     // N2 settings: look speed (mouse, finger, stick) and inverted vertical axis
   let paredesFx: Int32Array | null = null;    // N1b: the last solid boxes given (to convert them only when they change)
 
   // ---- mouse ----
@@ -86,7 +86,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
   // ---- touch: right half orbits, two fingers pinch ----
   function tactil(e: PointerEvent): void {
     const r = dom.getBoundingClientRect();
-    if (dedos.size === 0 && e.clientX < r.left + r.width / 2 && orbita.modo !== "foto") return; // the left half is the joystick (not in a photo: you stand still)
+    if ((dedos.size === 0 || zonaAndar < 0.5) && e.clientX < r.left + r.width * zonaAndar && orbita.modo !== "foto") return; // the left half (a phone layout: third) is the joystick — there a finger that starts in it never joins the camera, so walking works while a finger looks (not in a photo: you stand still)
     if (dedos.size >= 2) return;
     dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pinza = dedos.size === 2 ? medir() : null;
@@ -217,7 +217,8 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
     /** Play mode: first person ↔ third person. */
     alternarVista(): void { orbita.alternarVista(); },
     /** N2 (settings menu): look speed for mouse, finger and stick (1 = as shipped, 0.25–3) and the inverted vertical axis. */
-    ajustar(p: { sensibilidad?: number; invertirY?: boolean }): void {
+    ajustar(p: { sensibilidad?: number; invertirY?: boolean; zonaAndar?: number }): void {
+      if (typeof p.zonaAndar === "number" && Number.isFinite(p.zonaAndar)) zonaAndar = Math.min(0.5, Math.max(0.15, p.zonaAndar)); // U24: the walking joystick's share of the width (a phone: the left third)
       if (typeof p.sensibilidad === "number" && Number.isFinite(p.sensibilidad)) sens = Math.min(3, Math.max(0.25, p.sensibilidad));
       if (typeof p.invertirY === "boolean") invY = p.invertirY ? -1 : 1;
     },

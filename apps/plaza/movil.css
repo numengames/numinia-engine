@@ -1,0 +1,169 @@
+/* U24 — la disposición móvil (REDISENO-INTERFAZ-PC-MOVIL-VR §7 U24; maqueta aprobada: work/ux/d2-movil).
+   Todo va bajo html[data-aparato^="movil"] (perfil-aparato.ts: movil-vertical y movil-horizontal, también forzados con
+   ?aparato=…): escritorio y VR no ven ni una regla de aquí. Presupuesto jugando: joystick (tercio izquierdo), mirar
+   (arrastre), UNA acción grande, «…», ⚙ + mapa, chat. Táctil: ≥ 44 pt lo frecuente, ≥ 28 lo secundario; todo dentro de las
+   zonas seguras (env() en un aparato; en un perfil forzado en PC las simula apps/plaza/movil.ts con --zs-*). Cristal:
+   50–55 % de opacidad + 12 px de desenfoque + borde de 1 px; sin desenfoque donde el sistema pide menos transparencia.
+   Las clases de estado las pone movil.ts en <body>: con-panel, hablando, chat-abierto, pescando. */
+html[data-aparato^="movil"] {
+  --st: max(env(safe-area-inset-top, 0px), var(--zs-t, 0px)); --sb: max(env(safe-area-inset-bottom, 0px), var(--zs-b, 0px));
+  --sl: max(env(safe-area-inset-left, 0px), var(--zs-l, 0px)); --sr: max(env(safe-area-inset-right, 0px), var(--zs-r, 0px));
+  --m: 12px;
+  --cr: rgba(20, 17, 15, .55); --cr-fuerte: rgba(20, 17, 15, .84); --cr-borde: rgba(249, 235, 220, .14); --cr-blur: blur(12px) saturate(120%);
+  touch-action: none; overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+}
+html[data-aparato^="movil"] input, html[data-aparato^="movil"] textarea { -webkit-user-select: text; user-select: text; }
+html[data-aparato^="movil"] [hidden] { display: none !important; }
+
+/* ---- lo que ya no se dibuja en el móvil: ayudas de teclado, barra de iconos (salvo ⚙), botones sueltos, depuración ---- */
+html[data-aparato^="movil"] #help, html[data-aparato^="movil"] #acciones, html[data-aparato^="movil"] #interactuar, html[data-aparato^="movil"] #misiones, html[data-aparato^="movil"] #chat-boton, html[data-aparato^="movil"] #saltar { display: none !important; }
+html[data-aparato^="movil"] #hud { display: none; }
+html[data-aparato^="movil"].depura #hud { display: block; top: calc(var(--st) + 70px); left: calc(var(--sl) + var(--m)); max-width: min(300px, 72vw); white-space: pre-wrap; font-size: 11px; z-index: 6; }
+html[data-aparato^="movil"] #barra-arriba > :not(#ajustes-abrir) { display: none !important; }
+
+/* ---- cristal ---- */
+html[data-aparato^="movil"] .cristal-movil, html[data-aparato^="movil"] #barra-arriba > #ajustes-abrir, html[data-aparato^="movil"] #mision-seguida, html[data-aparato^="movil"] #minimapa, html[data-aparato^="movil"] #mas, html[data-aparato^="movil"] #mas-menu, html[data-aparato^="movil"] #chat-pill, html[data-aparato^="movil"] #hoja-msg, html[data-aparato^="movil"] #dialogo, html[data-aparato^="movil"] #chat[data-estado="completo"] {
+  background: var(--cr) !important; -webkit-backdrop-filter: var(--cr-blur); backdrop-filter: var(--cr-blur); border: 1px solid var(--cr-borde) !important; color: var(--n-texto);
+}
+@media (prefers-reduced-transparency: reduce) { M #barra-arriba > #ajustes-abrir, html[data-aparato^="movil"] #mision-seguida, html[data-aparato^="movil"] #minimapa, html[data-aparato^="movil"] #mas, html[data-aparato^="movil"] #mas-menu, html[data-aparato^="movil"] #chat-pill, html[data-aparato^="movil"] #hoja-msg, html[data-aparato^="movil"] #dialogo, html[data-aparato^="movil"] #chat[data-estado="completo"] { background: var(--cr-fuerte) !important; -webkit-backdrop-filter: none; backdrop-filter: none; } }
+
+/* ---- pulsado visible en TODO botón del HUD (U26) ---- */
+html[data-aparato^="movil"] .tocable { transition: transform .08s ease-out, background-color .08s, border-color .08s; }
+html[data-aparato^="movil"] .tocable.pulsado, html[data-aparato^="movil"] #accion.pulsado, html[data-aparato^="movil"] #barra-arriba > #ajustes-abrir.pulsado, html[data-aparato^="movil"] #minimapa.pulsado { transform: scale(.93); background-color: rgba(1, 142, 161, .62) !important; border-color: var(--n-verdemar) !important; }
+html[data-aparato^="movil"] #accion.pulsado { background-color: #016f7e !important; transform: scale(.92); }
+
+/* ---- arriba a la izquierda: la línea de «ahora» (solo lectura) ---- */
+html[data-aparato^="movil"] body #mision-seguida {
+  position: fixed; top: calc(var(--st) + 8px) !important; left: calc(var(--sl) + var(--m)) !important; right: auto !important; z-index: 6;
+  width: 238px; max-width: calc(100vw - var(--sl) - var(--sr) - 2 * var(--m) - 64px - 44px - 20px) !important; min-height: 52px; box-sizing: border-box;
+  padding: 7px 10px 8px 10px; border-radius: 8px !important; margin: 0; pointer-events: none;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal !important; text-overflow: clip;
+  color: var(--n-texto) !important; font-size: 13.5px; font-weight: 550; line-height: 1.3;
+}
+html[data-aparato^="movil"] body #mision-seguida::before { content: "Ahora"; display: block; font: 600 10px/1.2 "Geist Mono", ui-monospace, monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--n-ambar); padding-bottom: 2px; }
+
+/* ---- arriba a la derecha: ⚙ y el mapa (el minimapa plegado; tocarlo abre el mapa grande, donde viven −, + y N) ---- */
+html[data-aparato^="movil"] #barra-arriba { top: calc(var(--st) + 18px); right: calc(var(--sr) + var(--m) + 62px + 8px); z-index: 7; }
+html[data-aparato^="movil"] #barra-arriba > #ajustes-abrir { width: 44px; height: 44px; min-width: 44px; padding: 0 !important; border-radius: 50% !important; display: grid !important; place-items: center; }
+html[data-aparato^="movil"] body #minimapa { top: calc(var(--st) + 8px) !important; right: calc(var(--sr) + var(--m)) !important; bottom: auto !important; left: auto !important; width: 62px; height: 62px; padding: 0; border-radius: 50%; overflow: hidden; z-index: 6; gap: 0; align-items: center; justify-content: center; }
+html[data-aparato^="movil"] #minimapa canvas { width: 62px !important; height: 62px !important; border: 0 !important; box-shadow: none !important; }
+html[data-aparato^="movil"] #minimapa .botones { display: none !important; }
+
+/* ---- abajo a la derecha: UNA acción contextual grande + «…» ---- */
+html[data-aparato^="movil"] #accion {
+  position: fixed; right: calc(var(--sr) + 16px); bottom: calc(var(--sb) + 16px); z-index: 6; width: 88px; height: 88px; border-radius: 50%; padding: 0;
+  background: rgba(1, 142, 161, .78); border: 1px solid rgba(166, 218, 213, .55); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-align: center; font: inherit;
+}
+html[data-aparato^="movil"] #accion .lbl { font-size: 12px; font-weight: 650; line-height: 1.1; max-width: 76px; color: #fff; }
+html[data-aparato^="movil"] #accion svg { width: 32px; height: 32px; }
+html[data-aparato^="movil"] #accion[data-tipo="saltar"] { background: rgba(42, 36, 32, .72); border-color: var(--n-linea); } /* nada cerca: salta; el turquesa es de cuando hay algo que hacer */
+html[data-aparato^="movil"] #mas { position: fixed; right: calc(var(--sr) + 16px + 88px - 34px); bottom: calc(var(--sb) + 16px + 88px + 14px); z-index: 6; width: 48px; height: 48px; padding: 0; border-radius: 50%; display: grid; place-items: center; color: var(--n-texto); }
+html[data-aparato^="movil"] #mas-menu { position: fixed; right: calc(var(--sr) + 16px); bottom: calc(var(--sb) + 16px + 88px + 14px + 48px + 10px); z-index: 7; border-radius: 8px; padding: 8px; display: grid; grid-template-columns: repeat(3, 64px); gap: 6px; transform-origin: 100% 100%; }
+html[data-aparato^="movil"] #mas-menu button { height: 64px; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0; font: 12px "Geist", system-ui, sans-serif; color: var(--n-texto); background: rgba(42, 36, 32, .6); border: 1px solid var(--cr-borde); }
+html[data-aparato^="movil"] #mas-menu .extra { display: none; }
+html[data-aparato^="movil"] #mas-menu.ampliado .extra { display: flex; }
+
+/* ---- abajo a la izquierda: el chat en tres estados (icono · una línea · entero) ---- */
+html[data-aparato^="movil"] body #chat { position: fixed; left: calc(var(--sl) + var(--m)); bottom: calc(var(--sb) + 16px); z-index: 6; width: 262px; max-width: calc(100vw - var(--sl) - var(--sr) - 2 * var(--m)); gap: 0; }
+html[data-aparato^="movil"] #chat-pill { display: flex; align-items: center; gap: 8px; width: 100%; height: 52px; box-sizing: border-box; padding: 0 14px 0 13px; border-radius: 26px; position: relative; font: 13px "Geist", system-ui, sans-serif; color: var(--n-texto); text-align: left; }
+html[data-aparato^="movil"] #chat-pill .linea { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html[data-aparato^="movil"] #chat-pill .linea b { color: var(--n-verdemar); font-weight: 600; }
+html[data-aparato^="movil"] #chat-pill .burbuja { position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--n-ambar); color: var(--n-fondo); font: 700 11px/18px "Geist Mono", ui-monospace, monospace; text-align: center; padding: 0 4px; box-sizing: border-box; }
+html[data-aparato^="movil"] #chat[data-estado="oculto"] { width: 52px; }
+html[data-aparato^="movil"] #chat[data-estado="oculto"] #chat-pill { padding: 0; justify-content: center; }
+html[data-aparato^="movil"] #chat:not([data-estado="completo"]) :is(#chat-cab, #chat-lista, #chat-form, #chat-estado, #chat-ayuda) { display: none !important; }
+html[data-aparato^="movil"] #chat[data-estado="completo"] { width: min(calc(100vw - var(--sl) - var(--sr) - 2 * var(--m)), 380px); height: min(50vh, 400px); border-radius: 8px; overflow: hidden; }
+html[data-aparato^="movil"] #chat[data-estado="completo"] #chat-pill { display: none; }
+html[data-aparato^="movil"] #chat-cab { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--cr-borde); }
+html[data-aparato^="movil"] #chat-cab h2 { flex: 1; margin: 0; font-size: 15px; font-weight: 650; }
+html[data-aparato^="movil"] #chat-cab button, html[data-aparato^="movil"] #chat-enviar { width: 44px; height: 44px; padding: 0; border-radius: 6px; display: grid; place-items: center; background: rgba(42, 36, 32, .6) !important; border: 1px solid var(--cr-borde) !important; color: var(--n-texto) !important; }
+html[data-aparato^="movil"] #chat[data-estado="completo"] #chat-lista { flex: 1; max-height: none; min-height: 0; margin: 0; padding: 8px 6px; border: 0 !important; background: transparent !important; border-radius: 0 !important; font-size: 14px; touch-action: pan-y; }
+html[data-aparato^="movil"] #chat-lista li { padding: 7px 8px; border-radius: 6px; position: relative; overflow: hidden; -webkit-touch-callout: none; }
+html[data-aparato^="movil"] #chat-lista li.mantener { background: rgba(239, 165, 23, .12); }
+html[data-aparato^="movil"] #chat-lista li.mantener::before { content: ""; position: absolute; left: 0; bottom: 0; height: 2px; background: var(--n-ambar); width: 0; animation: u24-carga .55s linear forwards; }
+@keyframes u24-carga { to { width: 100%; } }
+html[data-aparato^="movil"] #chat-ayuda { margin: 0; padding: 0 14px 8px; font-size: 11.5px; color: var(--n-texto2); }
+html[data-aparato^="movil"] #chat-form { display: flex; gap: 8px; padding: 8px; border-top: 1px solid var(--cr-borde); align-items: stretch; }
+html[data-aparato^="movil"] #chat-texto { height: 44px; box-sizing: border-box; font-size: 16px; /* 16 px: iOS no hace zoom al enfocar */ padding: 0 12px; }
+html[data-aparato^="movil"] #chat-canal { height: 44px; min-width: 56px; }
+html[data-aparato^="movil"] #chat .estado { padding: 0 14px 6px; margin: 0; }
+
+/* hoja de «Denunciar» (pulsación larga sobre un mensaje) */
+html[data-aparato^="movil"] #hoja-msg { position: fixed; left: calc(var(--sl) + var(--m)); right: calc(var(--sr) + var(--m)); bottom: calc(var(--sb) + 16px); max-width: 380px; z-index: 9; padding: 6px; border-radius: 8px; display: flex; flex-direction: column; }
+html[data-aparato^="movil"] #hoja-msg .quien { font-size: 12px; color: var(--n-texto2); padding: 8px 10px 6px; }
+html[data-aparato^="movil"] #hoja-msg button { height: 48px; border-radius: 6px; text-align: left; padding: 0 12px; font: 15px "Geist", system-ui, sans-serif; color: var(--n-texto); background: transparent; border: 0; }
+html[data-aparato^="movil"] #hoja-msg button.peligro { color: #F2A08F; }
+html[data-aparato^="movil"] #avisos-movil { position: fixed; left: 50%; transform: translateX(-50%); top: calc(var(--st) + 84px); z-index: 9; display: flex; flex-direction: column; gap: 6px; align-items: center; pointer-events: none; }
+html[data-aparato^="movil"] .aviso-movil { padding: 6px 12px; border-radius: 6px; font-size: 13px; background: var(--cr-fuerte); border: 1px solid var(--cr-borde); color: var(--n-texto); max-width: 300px; text-align: center; }
+
+/* ---- el joystick: flotante en el tercio izquierdo; el fantasma enseña dónde ---- */
+html[data-aparato^="movil"] #joy { width: 130px; height: 130px; background: rgba(20, 17, 15, .30); border: 1.5px solid rgba(249, 235, 220, .55); box-sizing: border-box; z-index: 5; }
+html[data-aparato^="movil"] #knob { left: 38px; top: 38px; width: 54px; height: 54px; background: rgba(249, 235, 220, .82); border: 1px solid #fff; box-sizing: border-box; }
+html[data-aparato^="movil"] #joy-fantasma { position: fixed; left: calc(var(--sl) + 16px); bottom: calc(var(--sb) + 16px + 52px + 28px); width: 130px; height: 130px; border-radius: 50%; border: 1.5px dashed rgba(249, 235, 220, .55); display: grid; place-items: center; pointer-events: none; color: rgba(249, 235, 220, .85); font-size: 12px; text-shadow: 0 0 6px rgba(20, 17, 15, .9); z-index: 4; transition: opacity .2s; }
+html[data-aparato^="movil"] #joy-fantasma::after { content: ""; position: absolute; width: 40px; height: 40px; border-radius: 50%; background: rgba(249, 235, 220, .18); border: 1px solid rgba(249, 235, 220, .35); }
+html[data-aparato^="movil"] #joy-fantasma span { position: relative; top: 36px; }
+html[data-aparato^="movil"] #joy-fantasma.oculto { opacity: 0; }
+html[data-aparato^="movil"] #pista-mirar { position: fixed; right: calc(var(--sr) + 22%); top: 46%; color: rgba(249, 235, 220, .8); font-size: 12px; pointer-events: none; text-shadow: 0 0 6px rgba(20, 17, 15, .9); transition: opacity .5s; z-index: 4; }
+html[data-aparato^="movil"] #pista-mirar.se-va { opacity: 0; }
+
+/* ---- diálogo con un personaje: el bocadillo y las respuestas, grandes; nada de movimiento debajo ---- */
+html[data-aparato^="movil"] body #dialogo { left: calc(var(--sl) + var(--m)) !important; right: calc(var(--sr) + var(--m)) !important; bottom: calc(var(--sb) + 16px + 52px + 14px) !important; width: auto !important; transform: none !important; max-height: calc(100dvh - var(--st) - var(--sb) - 160px); border-radius: 8px !important; padding: 10px 12px 12px; z-index: 6; }
+html[data-aparato^="movil"] #dialogo h2 { font-size: 11px !important; letter-spacing: .06em; text-transform: uppercase; color: var(--n-ambar) !important; font-family: "Geist Mono", ui-monospace, monospace; margin: 0 0 3px; }
+html[data-aparato^="movil"] #dialogo .texto { font-size: 15px; line-height: 1.35; margin: 0 0 10px; }
+html[data-aparato^="movil"] #dialogo .opciones { gap: 8px; }
+html[data-aparato^="movil"] #dialogo .opciones button { min-height: 48px; border-radius: 6px !important; padding: 0 14px; font-size: 15px; background: rgba(1, 142, 161, .30) !important; border: 1px solid rgba(166, 218, 213, .55) !important; }
+html[data-aparato^="movil"] #dialogo .adios { min-height: 48px; width: 100%; margin-top: 8px; text-decoration: none; background: rgba(42, 36, 32, .75) !important; border: 1px solid rgba(249, 235, 220, .28) !important; border-radius: 6px; color: var(--n-texto2) !important; padding: 0 14px; font-size: 15px; }
+
+/* ---- paneles: el mapa grande (con «Mapa | Misiones»), el libro y los ajustes ocupan la pantalla dentro de las zonas seguras ---- */
+html[data-aparato^="movil"] #mapa-grande, html[data-aparato^="movil"] .panel-j5 { position: fixed; inset: calc(var(--st) + 8px) calc(var(--sr) + 8px) calc(var(--sb) + 8px) calc(var(--sl) + 8px); margin: 0; width: auto; max-width: none; height: auto; max-height: none; border: 1px solid var(--cr-borde); background: rgba(20, 17, 15, .86) !important; }
+html[data-aparato^="movil"] .panel-j5::backdrop { background: rgba(20, 17, 15, .35); }
+html[data-aparato^="movil"] .panel-j5 header { padding: 4px 8px 4px 10px; }
+html[data-aparato^="movil"] .panel-j5 header .cerrar, html[data-aparato^="movil"] .panel-j5 button { min-height: 44px; min-width: 44px; }
+html[data-aparato^="movil"] #mapa-grande .controles { gap: 8px; }
+html[data-aparato^="movil"] #mapa-grande .controles button { width: 46px; height: 46px; padding: 0; font-size: 20px; }
+html[data-aparato^="movil"] .panel-j5 .pestanas { display: flex; gap: 4px; flex: 1; }
+html[data-aparato^="movil"] .panel-j5 .pestanas button { height: 44px; min-width: 64px; padding: 0 12px; border-radius: 6px; font-size: 13px; color: var(--n-texto2) !important; border: 1px solid transparent !important; background: transparent !important; }
+html[data-aparato^="movil"] .panel-j5 .pestanas button[aria-selected="true"] { color: var(--n-texto) !important; border-color: rgba(249, 235, 220, .28) !important; background: rgba(42, 36, 32, .7) !important; }
+html[data-aparato^="movil"] body #libro { position: fixed; inset: calc(var(--st) + 8px) calc(var(--sr) + 8px) calc(var(--sb) + 8px) calc(var(--sl) + 8px) !important; width: auto !important; max-width: none !important; max-height: none !important; z-index: 8; background: rgba(20, 17, 15, .88) !important; -webkit-backdrop-filter: var(--cr-blur); backdrop-filter: var(--cr-blur); }
+html[data-aparato^="movil"] #libro .cabeza .cerrar, html[data-aparato^="movil"] #libro button { min-height: 44px; min-width: 44px; padding: 0 12px !important; }
+html[data-aparato^="movil"] body #ajustes { inset: calc(var(--st) + 8px) calc(var(--sr) + 8px) auto calc(var(--sl) + 8px); width: auto; max-height: calc(100dvh - var(--st) - var(--sb) - 16px); }
+html[data-aparato^="movil"] #ajustes button { min-height: 44px; }
+html[data-aparato^="movil"] #ajustes .ajuste select { min-height: 44px; }
+
+/* ---- mensajes y avisos con sitio propio: ninguno pisa los seis controles ---- */
+html[data-aparato^="movil"] #pesca-hud { bottom: calc(var(--sb) + 16px + 52px + 14px); z-index: 5; }
+html[data-aparato^="movil"] #dados-torre { bottom: calc(var(--sb) + 16px + 88px + 14px + 48px + 10px) !important; right: calc(var(--sr) + 12px); }
+html[data-aparato^="movil"] body #mision-nota { top: calc(var(--st) + 84px); }
+
+/* ---- lo que se esconde según el estado ---- */
+html[data-aparato^="movil"] body.con-panel :is(#mision-seguida, #barra-arriba, #minimapa, #accion, #mas, #mas-menu, #chat, #joy-fantasma, #pista-mirar, #dialogo) { visibility: hidden; }
+html[data-aparato^="movil"] body.chat-abierto :is(#accion, #mas, #mas-menu, #pista-mirar) { visibility: hidden; }
+html[data-aparato^="movil"]:not([data-aparato="movil-horizontal"]) body.chat-abierto #joy-fantasma { visibility: hidden; }
+html[data-aparato^="movil"] body.hablando :is(#accion, #mas, #mas-menu, #joy-fantasma, #pista-mirar) { visibility: hidden; }
+html[data-aparato^="movil"] body.pescando :is(#accion, #mas, #mas-menu, #joy-fantasma, #pista-mirar) { visibility: hidden; }
+html[data-aparato^="movil"] body.construyendo :is(#accion, #mas, #mas-menu, #joy-fantasma, #pista-mirar, #mision-seguida) { visibility: hidden; }
+
+/* ---- horizontal ---- */
+html[data-aparato="movil-horizontal"] body #mision-seguida { width: 260px; min-height: 44px; padding: 5px 10px 6px; font-size: 13px; line-height: 1.25; }
+html[data-aparato="movil-horizontal"] body #minimapa, html[data-aparato="movil-horizontal"] #minimapa canvas { width: 58px !important; height: 58px !important; }
+html[data-aparato="movil-horizontal"] #barra-arriba { top: calc(var(--st) + 8px); right: calc(var(--sr) + var(--m) + 58px + 8px); }
+html[data-aparato="movil-horizontal"] body #chat { left: 50%; transform: translateX(-50%); bottom: calc(var(--sb) + 10px); width: 300px; }
+html[data-aparato="movil-horizontal"] #chat-pill { height: 46px; border-radius: 23px; }
+html[data-aparato="movil-horizontal"] #chat.tocable.pulsado, html[data-aparato="movil-horizontal"] #chat-pill.pulsado { transform: scale(.95); }
+html[data-aparato="movil-horizontal"] body #chat[data-estado="oculto"] { width: 46px; }
+html[data-aparato="movil-horizontal"] body #chat[data-estado="completo"] { left: auto; transform: none; right: calc(var(--sr) + var(--m)); top: calc(var(--st) + 74px); bottom: calc(var(--sb) + 8px); width: min(360px, 46vw); height: auto; }
+html[data-aparato="movil-horizontal"] #chat-ayuda { display: none !important; }
+html[data-aparato="movil-horizontal"] #chat-cab { padding: 4px 6px 4px 12px; }
+html[data-aparato="movil-horizontal"] #chat-form { padding: 6px; }
+html[data-aparato="movil-horizontal"] #joy-fantasma { bottom: calc(var(--sb) + 34px); left: calc(var(--sl) + 34px); width: 120px; height: 120px; }
+html[data-aparato="movil-horizontal"] #accion { width: 84px; height: 84px; bottom: calc(var(--sb) + 22px); right: calc(var(--sr) + 22px); }
+html[data-aparato="movil-horizontal"] #mas { width: 44px; height: 44px; right: calc(var(--sr) + 22px + 84px + 14px); bottom: calc(var(--sb) + 22px + 84px - 44px); }
+html[data-aparato="movil-horizontal"] #mas-menu { bottom: calc(var(--sb) + 22px + 84px + 12px); right: calc(var(--sr) + 22px); grid-template-columns: repeat(5, 68px); }
+html[data-aparato="movil-horizontal"] #mas-menu button { height: 58px; }
+html[data-aparato="movil-horizontal"] #hoja-msg { left: auto; right: calc(var(--sr) + var(--m)); width: 300px; }
+html[data-aparato="movil-horizontal"] body #dialogo { left: auto !important; right: calc(var(--sr) + var(--m)) !important; width: 330px !important; bottom: calc(var(--sb) + 10px) !important; max-height: calc(100dvh - var(--st) - var(--sb) - 20px); }
+html[data-aparato="movil-horizontal"] body.hablando #chat { left: calc(var(--sl) + var(--m)); transform: none; }
+html[data-aparato="movil-horizontal"] #dialogo .opciones button, html[data-aparato="movil-horizontal"] #dialogo .adios { min-height: 44px; }
+html[data-aparato="movil-horizontal"] #dados-torre { bottom: calc(var(--sb) + 22px + 84px + 12px) !important; }
+html[data-aparato="movil-horizontal"] #pesca-hud { bottom: calc(var(--sb) + 10px + 46px + 10px); }
+@media (prefers-reduced-motion: reduce) { html[data-aparato^="movil"] * { transition: none !important; animation: none !important; } }

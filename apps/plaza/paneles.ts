@@ -3,10 +3,16 @@
 
 /** Typing never moves you (J3's one rule for every key listener of the page). */
 import { escribiendo } from "./escribiendo.ts";
+import { perfil } from "./perfil-aparato.ts";
+import { esMovil } from "../../packages/client/src/movil.ts"; // U24: a phone names no key
 export { escribiendo };
 
 /** Say something politely to screen readers (the page's aria-live region, as the features' announcements do). */
+const oyentes: Array<(texto: string) => void> = [];
+/** Whoever shows notices to eyes (U3: the stack at the top) hears what is said to ears. */
+export function alAnunciar(fn: (texto: string) => void): void { oyentes.push(fn); }
 export function anunciar(texto: string): void {
+  for (const fn of oyentes) try { fn(texto); } catch { /* a sighted twin never breaks the announcement */ }
   const box = document.getElementById("avisos");
   if (!box) return;
   const p = document.createElement("p"); p.textContent = texto; box.appendChild(p);
@@ -25,7 +31,7 @@ export function crearDialogo(o: { id: string; titulo: string; tecla: string; bot
   const h2 = document.createElement("h2"); h2.id = `${o.id}-titulo`; h2.textContent = o.titulo;
   const cerrarB = document.createElement("button"); cerrarB.type = "button"; cerrarB.className = "cerrar";
   const letra = o.tecla.replace(/^Key/, "");
-  cerrarB.textContent = `Cerrar (${letra})`; cerrarB.setAttribute("aria-keyshortcuts", `${letra} Escape`);
+  cerrarB.textContent = esMovil(perfil().clase) ? "Cerrar" : `Cerrar (${letra})`; cerrarB.setAttribute("aria-keyshortcuts", `${letra} Escape`);
   cabeza.append(h2, cerrarB);
   const cuerpo = document.createElement("div"); cuerpo.className = "cuerpo";
   dialog.append(cabeza, cuerpo);

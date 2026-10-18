@@ -12,7 +12,8 @@ type Vista = { renderer: { domElement: HTMLElement }; pickThing?(x: number, y: n
 
 /** True while the person types in a text box: global keys must not fire (J3's one rule, apps/plaza/escribiendo.ts). */
 import { escribiendo } from "./escribiendo.ts";
-import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
+import { esTactil, perfil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
+import { ayudaDe, glifoDe } from "../../packages/client/src/movil.ts"; // U24: the glyph each device names (touch: none)
 export { escribiendo };
 /** Building: the build panel is open or the camera is in build mode (there clicks select things and digits are tools). */
 export const construyendo = (view: Vista): boolean => !(document.getElementById("panel-construir")?.hidden ?? true) || view.cam?.modo?.() === "construir";
@@ -37,7 +38,7 @@ export function montarInteraccion(o: {
     actual = c;
     if (c?.feature === antes?.feature && c?.key === antes?.key && c?.prompt === antes?.prompt) return;
     o.boton.hidden = !c;
-    if (c) { o.boton.textContent = tactil ? conMayuscula(c.prompt) : `E: ${c.prompt}`; o.boton.setAttribute("aria-label", `${conMayuscula(c.prompt)} (tecla E)`); }
+    if (c) { const g = glifoDe(perfil().clase, "interactuar"); o.boton.textContent = tactil ? conMayuscula(c.prompt) : ayudaDe(perfil().clase, "interactuar", c.prompt); o.boton.setAttribute("aria-label", g ? `${conMayuscula(c.prompt)} (tecla ${g})` : conMayuscula(c.prompt)); }
   };
   setInterval(mirar, 200);
   addEventListener("keydown", (e) => {

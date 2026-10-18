@@ -19,6 +19,7 @@ import { escribiendo } from "./escribiendo.ts";
 import { misiones } from "../../features/misiones/client.ts";
 import { montarInteraccion } from "./interactuar.ts";
 import { montarDialogo } from "./dialogo.ts";
+import { montarVerNombres } from "./nombres-ver.ts";
 import { montarLibro } from "./misiones.ts";
 import { montarMapa } from "./mapa.ts";
 import { montarFicha } from "./ficha.ts";
@@ -45,6 +46,7 @@ import { montarXR } from "./xr.ts";
 import { aplicarTema } from "./tema-mundo.ts"; // a world's look (ficha@1 `tema`): an event's colours and title face
 import { montarFoto } from "./foto.ts"; // N13: photo mode (P): hide the interface, frame, filter, PNG, share, a link to the place
 import { esTactil, perfil, montarMarco } from "./perfil-aparato.ts"; // U25: the device profile (touch, small screen, VR), one answer for the whole page
+import { esMovil, enZonaAndar, ZONA_ANDAR_MOVIL } from "../../packages/client/src/movil.ts"; // U24: the phone layout (apps/plaza/movil.ts) and its rules
 
 const params = new URLSearchParams(location.search);
 // U25: a phone profile forced on a desktop (?aparato=movil-vertical, development or ?debug): this page becomes a frame
@@ -61,6 +63,7 @@ type Estado = { version?: string; nombre?: string; tema?: unknown; avatar?: stri
 const estadoP: Promise<Estado | null> = fetch(`${activos}/status`).then((r) => r.json() as Promise<Estado>).catch(() => null);
 const estado = await Promise.race([estadoP, new Promise<null>((ok) => setTimeout(() => ok(null), 1500))]);
 if (estado?.nombre) { document.title = estado.nombre; hud.textContent = `Conectando a «${estado.nombre}»…`; }
+const enMovil = esMovil(perfil().clase); // U24: the phone layout: the joystick owns the left third, a bigger stick, the rest of the screen looks
 const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, movil: perfil().forzado ? perfil().movil : undefined, assetUrl: (m) => `${activos}/a/${m}.glb`,
   avatares: { catalogo: catalogoDeAvatares(activos, params, estado?.avatar), yo: () => session.entity } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar
 const transport = webSocketClient(url);
@@ -127,6 +130,16 @@ if (esTactil()) {
     bar.appendChild(b);
   }
 } else if (acts.length) {
+  // U3: the action bar (bottom centre) also lists them on a desktop: a chip with the name and its key; the key still does the work
+  const bar = document.getElementById("acciones")!;
+  for (const a of acts) {
+    const b = document.createElement("button");
+    b.type = "button"; b.title = a.describe ?? ""; if (a.key) b.setAttribute("aria-keyshortcuts", a.key.replace(/^Key/, ""));
+    const t = document.createElement("span"); t.textContent = a.label; b.append(t);
+    if (a.key) { const k = document.createElement("kbd"); k.textContent = a.key.replace(/^Key/, ""); b.append(k); }
+    b.addEventListener("click", () => { a.run(); b.blur(); });
+    bar.appendChild(b);
+  }
   document.getElementById("help")!.textContent += " · " + acts.map((a) => `${(a.key ?? "").replace(/^Key/, "")} ${a.label.toLowerCase()}`).join(" · ");
 }
 
@@ -162,6 +175,8 @@ const interaccion = montarInteraccion({ session, view, boton: document.getElemen
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
 const xr = montarXR({ session, view, misiones, interaccion }); // J10: hands in VR take, point and answer; what you took is in your hand
 montarDialogo(misiones, document.getElementById("dialogo")!, view);
+const nombres = montarVerNombres(view); // U22: Alt / «Nombres» button / gamepad Back: every name; otherwise only who you look at and who speaks
+misiones.alCambiar((que) => { if (que === "dialogo") view.hablando(misiones.dialogo() ? `pnj:${misiones.dialogo()!.pnj}` : null); }); // U22: the one you talk to shows its name
 montarLibro(misiones, {
   boton: document.getElementById("misiones") as HTMLButtonElement, panel: document.getElementById("libro")!, linea: document.getElementById("mision-seguida")!,
   nota: document.getElementById("mision-nota")!, view, here: () => (session.entity >= 0 ? session.selfPosition(1) : null),
@@ -179,6 +194,8 @@ const foto = montarFoto({ view, yo: () => (session.entity >= 0 ? session.selfPos
   decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); } });
 const ficha = montarFicha({ session, view, desde: () => informe.bienvenidaMs, otros }, mapa.botonFicha);
 montarBienes({ bienes, comprobar, ficha, boton: mapa.botonFicha, vitrina: (cv, model) => view.vitrina(cv, model) }); // N10: the sheet's «Inventario» = your goods, their receipts
+// ---- U24: the phone layout (six controls while playing): only a phone profile loads it, desktop and VR never see it ----
+if (enMovil) import("./movil.ts").then((m) => m.montarMovil({ interaccion, acciones: acts, saltar: pedirSalto, cajaChat, mapa, misiones, pesca, nombres, simulada: perfil().forzado && !matchMedia("(pointer: coarse)").matches })).catch((e) => console.warn(`[movil] no se pudo montar la disposición móvil: ${(e as Error)?.message ?? e}`));
 
 // ---- determinism probe: replay the reference run here and compare with the server's number ----
 const probe = { browser: -1, server: -1, ms: 0, done: false };
@@ -196,17 +213,20 @@ addEventListener("keydown", (e) => { if (!escribiendo(e)) keys.add(e.code); }); 
 addEventListener("keyup", (e) => keys.delete(e.code)); // always: a key let go inside a box must not stay held
 addEventListener("blur", () => keys.clear());
 const joy = document.getElementById("joy")!, knob = document.getElementById("knob")!;
+const JOY = enMovil ? { d: 130, k: 54, max: 52 } : { d: 110, k: 40, max: 45 };
+if (enMovil) view.cam.ajustar({ zonaAndar: ZONA_ANDAR_MOVIL });
 let touch: { id: number; x: number; y: number; dx: number; dy: number } | null = null;
 addEventListener("pointerdown", (e) => {
   if (e.pointerType === "mouse" || touch || view.cam.tieneDedo(e.pointerId)) return; // N1: right-half fingers turn the camera
+  if (enMovil && !enZonaAndar(e.clientX, 0, innerWidth, ZONA_ANDAR_MOVIL)) return; // U24: outside the left third only the camera listens
   touch = { id: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, dy: 0 };
-  joy.style.display = "block"; joy.style.left = `${e.clientX - 55}px`; joy.style.top = `${e.clientY - 55}px`;
+  joy.style.display = "block"; joy.style.left = `${e.clientX - JOY.d / 2}px`; joy.style.top = `${e.clientY - JOY.d / 2}px`;
 });
 addEventListener("pointermove", (e) => {
   if (!touch || e.pointerId !== touch.id) return;
-  const dx = e.clientX - touch.x, dy = e.clientY - touch.y, len = Math.hypot(dx, dy), max = 45, k = len > max ? max / len : 1;
+  const dx = e.clientX - touch.x, dy = e.clientY - touch.y, len = Math.hypot(dx, dy), max = JOY.max, k = len > max ? max / len : 1;
   touch.dx = (dx * k) / max; touch.dy = (dy * k) / max;
-  knob.style.left = `${35 + touch.dx * max}px`; knob.style.top = `${35 + touch.dy * max}px`;
+  knob.style.left = `${(JOY.d - JOY.k) / 2 + touch.dx * max}px`; knob.style.top = `${(JOY.d - JOY.k) / 2 + touch.dy * max}px`;
 });
 const endTouch = (e: PointerEvent) => { if (touch && e.pointerId === touch.id) { touch = null; joy.style.display = "none"; } };
 addEventListener("pointerup", endTouch); addEventListener("pointercancel", endTouch);
@@ -249,6 +269,7 @@ addEventListener("keydown", (e) => {
   e.preventDefault(); // no scrolling, no clicking the focused button
   if (!e.repeat) saltoPendiente = true;
 });
+const pedirSalto = (): void => { saltoPendiente = true; }; // U24: the phone's big button (when nothing is near) and «…» jump through this
 if (esTactil()) {
   const b = document.createElement("button");
   b.type = "button"; b.id = "saltar"; b.textContent = "Saltar"; b.title = "Saltar (otra vez en el aire: más alto)";
