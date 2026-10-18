@@ -1,7 +1,7 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX } from "../../sim/src/index.ts";
 import type { SimState, SpawnArea } from "../../sim/src/index.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
@@ -13,7 +13,7 @@ import type { Who } from "./identidad.ts";
 export type { Who } from "./identidad.ts";
 import type { Transport, Viewer, Welcome } from "../../net/src/index.ts";
 import { ServerRuntime } from "../../feature/src/index.ts";
-import type { BienFirmable, FeatureStorage, ReciboLeido, ServerPart, RayHit } from "../../feature/src/index.ts";
+import type { BienFirmable, FeatureStorage, ReciboLeido, ServerPart, RayHit, Orden } from "../../feature/src/index.ts";
 
 export type InstanceOptions = {
   seed: number; capacity: number; k: number; snapshotEvery: number;
@@ -55,6 +55,9 @@ export type InstanceOptions = {
    * floor at or over that height), or on `vuelta` (a fixed point; `siempre` = always there). None = no void: nobody is
    * ever moved on their own (the reference fingerprint stands). */
   suelo?: Suelo | null;
+  /** H2 historia 5/8: who may fly by default — "nadie" (default, nothing written), "constructores" (puede(e,
+   * "build-in-worlds")) or "todos". A feature can still grant it to one avatar (`concederVuelo`) whatever this says. */
+  vuelo?: "nadie" | "constructores" | "todos";
 };
 export type Suelo = { minimo: number; vuelta?: { x: number; y: number; z: number; siempre?: boolean } | null };
 /** D-045: how often (ticks) the last safe spot is kept: 10 = every half second. */
@@ -64,6 +67,9 @@ export type Vuelta = { entity: number; x: number; y: number; z: number; motivo: 
 
 /** Inputs wait in a queue; the server applies exactly ONE per tick (none = that avatar does not advance: J2). */
 export const MAX_QUEUE = 8;
+/** H2 historia 5: at most this many orders (api.ordenar, D-045's own volverASeguro included) go into one step; the
+ * rest wait their turn, in order, next tick (1,280 orders/s: 1,000 avatars frozen at once take 16 ticks, 0.8 s). */
+export const ORDENES_TICK_MAX = 64;
 /** M6 h12: a ray starts this high over the feet — between standing (BODY_HEIGHT 1.7 m) and a stooped look. */
 const EYE_HEIGHT = fx(1.6);
 
@@ -109,6 +115,7 @@ export class Instance {
       volverASeguro: (e) => this.volverASeguro(e, "pedido"),
       vueltas: () => this.vueltas.splice(0),
       rayo: (e, dir, max) => this.rayo(e, dir, max),
+      ordenar: (e, orden) => this.ordenar(e, orden),
     });
     this.seguro = new Int32Array(opts.capacity * 3); this.tieneSeguro = new Uint8Array(opts.capacity);
   }
@@ -119,6 +126,8 @@ export class Instance {
   private readonly pendiente = new Set<number>();
   private readonly vueltas: Vuelta[] = [];
   private avisado = false;
+  /** H2 historia 5: avatars a feature has granted flight to, whatever entorno.json's `vuelo` says (forgotten on leave). */
+  private readonly concedidosVuelo = new Set<number>();
   /** Keep where this avatar stands as its safe spot, if it stands on a floor at or over the world's minimum. */
   private guardarSeguro(e: number): void {
     const s = this.sim;
@@ -146,6 +155,66 @@ export class Instance {
     this.ordenes.push(entity, ORDER_PONER, d.x, d.y, d.z, 0); this.pendiente.add(entity);
     this.vueltas.push({ entity, x: fxToFloat(d.x), y: fxToFloat(d.y), z: fxToFloat(d.z), motivo });
     return true;
+  }
+
+  /** H2 historia 5: may this avatar fly — the world's `vuelo` (none = "nadie") or a feature's grant (`concederVuelo`),
+   * whichever says yes. "constructores" reuses STD-052's `build-in-worlds` permission (no new role). */
+  puedeVolar(entity: number): boolean {
+    if (this.concedidosVuelo.has(entity)) return true;
+    const vuelo = this.opts.vuelo ?? "nadie";
+    if (vuelo === "todos") return true;
+    if (vuelo === "constructores") return this.opts.puede?.(this.byEntity[entity]?.who ?? null, "build-in-worlds", entity) ?? false;
+    return false;
+  }
+  /** H2 historia 5: a feature grants (or takes back) flight for one avatar, regardless of the world's `vuelo`
+   * (a potion, a rank…). Forgotten when the avatar leaves. */
+  concederVuelo(entity: number, concede = true): void {
+    if (concede) this.concedidosVuelo.add(entity); else this.concedidosVuelo.delete(entity);
+  }
+  /** H2 historia 5: `api.ordenar` — make a connected avatar do something on purpose (QUIETO/EMPUJAR/SENTAR/VOLAR, or
+   * PONER/the near spot of `teletransportar`). Queues for the next step (recorded, replayable); the queue itself is
+   * capped per tick (ORDENES_TICK_MAX, the rest wait their turn). Returns false when the avatar is gone, a number is
+   * out of range, or (`volar: true`) it has no permission (said once in the log); never throws. */
+  ordenar(entity: number, orden: Orden): boolean {
+    const s = this.sim;
+    if (!this.byEntity[entity] || !s.world.alive[entity] || !s.tf.has[entity]) return false;
+    const finite = (...ns: number[]) => ns.every((n) => Number.isFinite(n));
+    if ("poner" in orden) {
+      const { x, y, z } = orden.poner;
+      if (!finite(x, y, z)) return false;
+      this.ordenes.push(entity, ORDER_PONER, fx(x), fx(y), fx(z), 0);
+      return true;
+    }
+    if ("cerca" in orden) {
+      return this.teletransportar(entity, orden.cerca, { radios: orden.radios, rumbo: orden.rumbo, caida: orden.caida }) !== null;
+    }
+    if ("quieto" in orden) {
+      if (!finite(orden.quieto) || orden.quieto <= 0) return false;
+      const ticks = Math.min(QUIETO_MAX, Math.round(orden.quieto * 20)); // TICK_HZ
+      this.ordenes.push(entity, ORDER_QUIETO, ticks, 0, 0, 0);
+      return true;
+    }
+    if ("empujar" in orden) {
+      const { vx, vy, vz } = orden.empujar;
+      if (!finite(vx, vy, vz)) return false;
+      this.ordenes.push(entity, ORDER_EMPUJAR, fx(vx), fx(vy), fx(vz), 0);
+      return true;
+    }
+    if ("sentar" in orden) {
+      const { x, y, z, rumbo = 0 } = orden.sentar;
+      if (!finite(x, y, z, rumbo)) return false;
+      this.ordenes.push(entity, ORDER_SENTAR, fx(x), fx(y), fx(z), Math.round(rumbo * 64) | 0);
+      return true;
+    }
+    if ("volar" in orden) {
+      if (orden.volar && !this.puedeVolar(entity)) {
+        this.opts.log?.(`[ordenes] VOLAR rechazado (sin permiso): entidad ${entity}`);
+        return false;
+      }
+      this.ordenes.push(entity, ORDER_VOLAR, orden.volar ? 1 : 0, 0, 0, 0);
+      return true;
+    }
+    return false;
   }
 
   /** A client arrives over any transport: spawn its avatar (in the world's spawn area, if it has one), say welcome, listen. */
@@ -254,9 +323,12 @@ export class Instance {
       inputs[o] = c.entity; inputs[o + 1] = m.mx; inputs[o + 2] = m.mz; inputs[o + 3] = m.buttons; c.ack = m.seq;
     }
     if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.sim, solidsFrom(this.features.allState())); } // U10
-    const ordenes = this.ordenes.length ? Int32Array.from(this.ordenes) : undefined; this.ordenes = []; this.pendiente.clear();
-    if (ordenes) this.opts.log?.(`[suelo] tick ${this.sim.tick}: ${ordenes.length / ORDER_STRIDE} orden(es) de vuelta a sitio seguro`);
-    step(this.sim, inputs.subarray(0, n * INPUT_STRIDE), ordenes); // authority (D-045: orders first, recorded with the inputs)
+    // H2 historia 5: at most ORDENES_TICK_MAX orders go into this step; the rest stay queued, in order, for the next one.
+    const capInts = ORDENES_TICK_MAX * ORDER_STRIDE;
+    const take = this.ordenes.slice(0, capInts); this.ordenes = this.ordenes.slice(capInts);
+    const ordenes = take.length ? Int32Array.from(take) : undefined; this.pendiente.clear();
+    if (ordenes) this.opts.log?.(`[suelo] tick ${this.sim.tick}: ${ordenes.length / ORDER_STRIDE} orden(es) aplicada(s)${this.ordenes.length ? `, ${this.ordenes.length / ORDER_STRIDE} esperando` : ""}`);
+    step(this.sim, inputs.subarray(0, n * INPUT_STRIDE), ordenes); // authority (D-045/H2: orders first, recorded with the inputs)
     if (this.sim.tick % SEGURO_CADA === 0) { // D-045: every half second, keep the safe spot; under the floor, order the return
       const s = this.sim, min = this.opts.suelo ? fx(this.opts.suelo.minimo) : null;
       for (const c of this.conns) {
