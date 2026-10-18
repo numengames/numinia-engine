@@ -318,6 +318,17 @@ export function createManos(h: ManosHooks) {
     on(fn: (e: EventoMano) => void): () => void { oyentes.add(fn); return () => oyentes.delete(fn); },
     /** Where a thing held in this hand goes (grip or pinch point), or null if that hand is not here. */
     ancla(lado: Lado): THREE.Object3D | null { const r = ranuras.find((x) => x.lado === lado && x.fuente); return r ? r.ancla : null; },
+    /** This hand's ray right now (world space, plain numbers — not a page's job to hold onto a THREE.Vector3), or
+     * null if that hand is not here. For a feature that needs its own aim at the exact moment a button changed
+     * (dardos-vr.ts: the throw, read on `gatillo_fin`), not through the generic reach/point pipeline above (which
+     * only reports keys it was given rules for). */
+    rayo(lado: Lado): { origen: { x: number; y: number; z: number }; dir: { x: number; y: number; z: number } } | null {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente);
+      if (!r || !r.ctrl.visible) return null;
+      r.ctrl.updateMatrixWorld();
+      const o = r.ctrl.getWorldPosition(new THREE.Vector3()), d = new THREE.Vector3(0, 0, -1).applyQuaternion(r.ctrl.getWorldQuaternion(new THREE.Quaternion()));
+      return { origen: { x: o.x, y: o.y, z: o.z }, dir: { x: d.x, y: d.y, z: d.z } };
+    },
     /** Walking with tracked hands: the flattened direction (world, unit) of a hand pinching in empty air for ANDAR_MS. */
     andar(): [number, number] | null {
       const ahora = performance.now();
