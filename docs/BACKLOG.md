@@ -53,6 +53,16 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | P2 | Móvil frío: política de energía del cliente + puerta de coste por cuadro | hecho (sin medir en móvil real → X1) | sí |
 | P3 | Nativo para IA v1: `llms.txt`, mapa, README-contrato por paquete, `npm run describe` | hecho | sí |
 | J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR | hecho (v0.8.0: `features/puertas`, `features/botones`, `features/cogibles`; `MUNDO_DIR/interacciones.json`; sin aparato VR real) | sí |
+| L1 | Lucha, trozo 1: función `lucha` (criatura = estado con coherencia y caja sólida; `golpear` con enfriamiento 12 ticks y daño 3-5 de `rngNext`; `golpe`/`aire`/`disuelta`/`vuelve`; reaparición 20 s), ficha `bestiario.ts` con el Guardián de Crisálida, bloque de la casa escalado a la caja con flash/tinte/«−N», `MUNDO_DIR/lucha.json`; diseño: `mmo-browser-study/SISTEMA-DE-LUCHA-Y-BESTIARIO.md` | hecho (18-10, rama `lucha/trozo-1`) | sí |
+| L2 | Lucha, trozo 2: estados del jugador (Desestabilizado → Colapsado → Aletargado, como el canon: sin puntos de vida) como efectos del servidor sobre la persona (velocidad, HUD, vuelta a `aparicion`), en el `store` por invitado | espera a L1 | sí |
+| L3 | Lucha, trozo 3: la criatura se mueve y golpea — modos quieta/alerta/herida, aggro y vuelta a casa, tope de 8 en alerta por zona, caja sólida que sigue al cuerpo; límites a `limits.json`; `combate: true` por zona en `entorno.json` | espera a L2 | sí |
+| L4 | Lucha, trozo 4: anclajes — acción `lucha.anclaje` para la lógica de objetos (ADR-078), multiplicador de daño y capacidad que se pierde; los tres del Guardián y los del Dragón | espera a L3 | sí |
+| L5 | Lucha, trozo 5: clips `golpear` y `recibir` (CC0/QAL) en la biblioteca VRM de la casa, giro de brazo por código cuando el VRM no los trae, sacudida de cámara al recibir (viñeta en visor) | espera a L1 | sí |
+| L6 | Lucha, trozo 6: golpe a distancia con retardo `1+floor(dist/6)` ticks y trazo dibujado (Ostramir, Thámakar); sin puntería ni balística (ADR-073) | espera a L3 | sí |
+| L7 | Bestiario: las otras 11 fichas de `bestiario.ts` con sus modelos placeholder (caja, cadena de segmentos, instanciado para el enjambre) y pruebas de cada anclaje | espera a L4 | sí |
+| L8 | Lucha: PVP (`objetivo: p:<entidad>`, norma `pvp` del mundo y de la zona, consentimiento) | necesita aprobación (Pablo: ¿hay PVP y dónde?) | no |
+| L9 | Lucha: cerebro de criatura por agente (`cerebro: "agente"`: un pase `kind:"agent"` manda `mover`/`golpear` con las mismas tasas) | espera a L3 y P5b | sí |
+| L10 | Bestiario: encargar o buscar modelos CC0 low-poly con las fichas de aspecto del diseño (12 criaturas, ≤ 3 k triángulos, 1 material, sin esqueleto) | necesita aprobación (Pablo: ¿se encargan o se buscan?) | no |
 | J5 | Libro de misiones, mapa y minimapa con marcadores | hecho (panel en la muñeca en VR → J13) | sí |
 | J11 | Personas que dan misiones (`pnj@1`: árbol de diálogo, quién da y recibe qué) | hecho | sí |
 | J12 | Ficha de jugador: nombre, aparato y calidad, tiempo, misiones e insignias, ajustes | hecho (falta retrato → H10 e inventario) | sí |
@@ -66,6 +76,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J21 | Mundos verticales (Torre de los Alquimistas): `pnj@1` gana `posicion.y` opcional (0–30 m), `cosa@1` sube su tope de 3 a 30; el estado lo lleva (pnj v2, misiones v2) y la página dibuja a esa altura, con el nombre encima | hecho (16-10, rama `torre/aparicion-y-altura`; `test/altura.test.ts`) | sí |
 | J22 | El alcance mira la altura: `api.position` da `y`; `api.within` y el aviso «E:» de la página (`reachable(x, z, y)`) exigen una diferencia de altura ≤ 2,5 m (`ALCANCE_ALTURA_M`) cuando la cosa tiene `y`; `llega_a` admite `y` opcional (0–30) con la misma regla | hecho (16-10, rama `torre/aparicion-y-altura`; sin `y`, todo como antes) | sí |
 | J23 | Grabar vídeo desde dentro del mundo para compartirlo (la vista del juego y su sonido, sin la interfaz si se quiere), y que una IA conectada también pueda grabar lo que ve para analizar partidas (Pablo, 16-10: «no es ahora») | pendiente (planificar) | sí |
+| E1 | Simulador de economías de juego (herramienta de diseño, `tools/economia/`): diagrama como datos + N ticks deterministas; modelos de la Tabla de Prestigio y del ritmo de Reliquias; método en `../mmo-browser-study/MAQUINACIONES-APRENDIZAJE.md` (Pablo, 18-10) | hecho (sin conectar al motor; falta el modelo de daño y, si hace falta, un editor visual propio) | sí |
 | N1 | Entrada táctil, gamepad, cámara en 3.ª persona y pantalla completa (de `docs/JUGADOR.md`) | hecho (sin probar en aparato real) | sí |
 | N1b | Cámara que sigue tu altura (saltos, pisos) y no atraviesa lo sólido (esfera barrida contra las cajas sólidas; lo no sólido, con M6); bajar escalones sin «caer» (pegarse al suelo, 0,45 m) y el avatar no «salta» sobre un tejado o una escalera | hecho | sí |
 | N2 | Menú de ajustes y accesibilidad básica, guardado local (de `docs/JUGADOR.md`) | hecho | sí |
@@ -153,7 +164,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | M9 | WebTransport como escalón de arriba detrás de la misma interfaz que WebSocket | para Opus | no |
 | M22 | Constructor en el mundo, en vivo (paridad Hyperfy2): gizmos, duplicar, borrar, deshacer, soltar ficheros, inspector, biblioteca; para personas y agentes de IA, según su rol (el panel mínimo ya existe: H1) | hecho (escritorio; VR y móvil → M22b) | sí |
 | M22b | Constructor en VR y en el móvil (gizmo con el mando y con el dedo) | pendiente | sí |
-| M22c | Constructor: puntos de encaje, selección múltiple y jerarquía | pendiente | sí |
+| M22c | Constructor: puntos de encaje, selección múltiple y jerarquía | en progreso (encaje + selección múltiple + mover/borrar en grupo, deshacer atómico; faltan caja de arrastre y jerarquía) | sí |
 | M26 | Servidor MCP del motor: leer zona (con el cuerpo de P4), proponer cambio, abrir PR (nunca publica solo). Trozo 1 hecho (ADR-080, rama `agentes/puerta`): la puerta de los agentes de fuera y un puente MCP por stdio junto al agente; falta el MCP servido por el propio mundo (HTTPS) | espera a M19, P4b | sí |
 | IA-ORG | IAs de organización (motor): una IA que pertenece a una organización de numinia.com entra con un pase `kind:"agent"` (`activa`/`dormida`) que pide cada ~8 min a `POST {NUMINIA_URL}/api/agents/pass`; el motor la cierra con 4003 si su pase caduca sin renovar, acepta un PASE a mitad de sesión (dormida = sin construir), la lista en `GET /agentes` (`organizacion: true`) y el puente `tools/mcp-mundo.ts` tiene modo organización. Hecho del lado del motor (rama `agentes/de-organizacion`); la mitad de numinia.com (till, ruta, panel «Agentes») va aparte | hecho (motor). Corte 2 (rama `agentes/token`): el puente acepta `AGENTE_TOKEN` (`ntk_…`, `Authorization: Bearer`, cuerpo `{org, agent, aud}`) en vez de la clave; 401 = final; el token nunca se imprime | sí |
 | O4 | Seguridad: billete firmado para entrar a una instancia, tope de conexiones por IP, exportar y borrar lo tuyo | pendiente | sí |
@@ -1065,8 +1076,22 @@ La cámara de N1 se acerca cuando algo construido queda entre ella y tu avatar (
 ### M22b — Constructor en VR y en el móvil
 En VR, el rayo del mando selecciona y el gatillo arrastra el gizmo (o coge la cosa con la mano); en el móvil, un dedo sobre un asa la arrastra y dos dedos giran la cámara (N1). Mismas órdenes de `features/objetos`. **Hecho cuando:** e2e con IWER mueve un bloque con el mando; e2e táctil por CDP mueve otro con el dedo.
 
-### M22c — Encajes, selección múltiple y jerarquía
+### M22c — Encajes, selección múltiple y jerarquía (en progreso, rama `constructor/encajes-seleccion-jerarquia`)
 Puntos de encaje (su nodo `Snap`), seleccionar varias cosas y moverlas juntas, agrupar (jerarquía de nodos, su `NodeHierarchy`). **Hecho cuando:** e2e: dos bloques encajan cara con cara; tres seleccionados se mueven a la vez y deshacer los devuelve en un paso.
+
+Hecho en esta pasada (`features/objetos`, `packages/render/src/{gizmo,encaje}.ts`, `apps/plaza/constructor.ts`; tests en `test/objetos.test.ts` y `test/encaje.test.ts`, todos en verde):
+- **Encaje cara con cara**: arrastrando un objeto con un eje elegido (X/Y/Z), si su cara queda a menos de 25 cm de la de otro objeto (y se enfrentan en los otros dos ejes), encaja exacto. Geometría pura en `packages/render/src/encaje.ts` (3 tests unitarios), enganchada en `gizmo.ts` sobre `TransformControls`.
+- **Selección múltiple**: Mayús+clic suma/quita del grupo (`features/objetos/client.ts`: `estado.seleccionados`, `seleccionarVarios`, `alternarSeleccion`); el último clicado es el primario (gizmo e inspector). Contorno azul claro sobre cada secundario (`gizmo.outlineVarios`).
+- **Mover el grupo como una unidad**: arrastrar el gizmo del primario mueve a todos los seleccionados (traslación, en vivo); al soltar, todos llegan al servidor con un `lote` compartido (campo nuevo del intent `mover`) que el servidor junta en **un solo paso de deshacer/rehacer** (antes cada `mover` tenía su propio paso).
+- **Borrar el grupo**: Supr/Retroceso con varios seleccionados los borra juntos, mismo mecanismo de `lote`; un deshacer los devuelve a todos.
+- Versión del feature `objetos` subida a 6 (campo `lote`, opcional, en `mover`/`borrar`/`fijar`); compatible con páginas viejas (por defecto `""`, sin agrupar).
+
+Queda para otra pasada (no roto, solo no empezado):
+- **Caja de arrastre** (rubber-band: soltar el ratón sobre el vacío y arrastrar para seleccionar varios por pantalla) — hoy solo Mayús+clic uno a uno.
+- **Girar/escalar el grupo como unidad** — hoy el movimiento en grupo es solo traslación; girar o escalar con varios seleccionados solo toca al primario.
+- **Panel de jerarquía**: el motor no tiene todavía padre-hijo entre objetos (cada cosa colocada es independiente); un panel de verdad necesita ese dato en el esquema antes de tener sentido — no se ha simulado con una lista plana para no prometer una jerarquía que no existe.
+- El e2e con Playwright de «dos bloques encajan + tres seleccionados se deshacen en un paso» (el de BACKLOG) no se ha grabado todavía: lo cubierto hoy es con tests de Node (`node --test`), no con el navegador real.
+
 
 ### H9b — Limpiar subidas y cupo por identidad (espera a H3)
 Borrar los ficheros subidos que ninguna cosa usa (tras un plazo), cupo de MB por identidad y por rol, y que quien administra vea quién subió qué (`subidas.jsonl`). **Hecho cuando:** test: un fichero sin uso se borra tras el plazo; una identidad sobre su cupo recibe 507.

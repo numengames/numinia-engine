@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { crearOrbita, haciaMundo, rayo, barrido, CAMARA, type Pose } from "../packages/render/src/camara-orbita.ts";
+import { crearOrbita, haciaMundo, zonaMuertaRadial, rayo, barrido, CAMARA, type Pose } from "../packages/render/src/camara-orbita.ts";
 
 const G = Math.PI / 180;
 const pies = { x: 0, y: 0, z: 0 };
@@ -195,4 +195,19 @@ test("N1b: zooming in past a wall does not snap the camera into your head; build
   for (let i = 0; i < 300; i++) { o.paso(1 / 60); const z = o.pose(pies, pose()).z; assert.ok(z >= 2.6 - 1e-3 && z <= 3.8 + 1e-6, `z ${z}`); }
   o.cambiarModo("construir"); asentar(o);
   assert.ok(o.pose(pies, pose()).z > 4.5, "the editor camera flies through walls");
+});
+
+test("the stick's dead zone is a circle: nothing inside, direction kept outside, 1 at the rim", () => {
+  assert.deepEqual(zonaMuertaRadial(0.1, 0.1, 0.15), [0, 0]);   // 0.141 long: inside
+  assert.deepEqual(zonaMuertaRadial(0, 0, 0.15), [0, 0]);
+  // a diagonal push keeps its angle (per-axis zones bent it toward the axes)
+  const [x, y] = zonaMuertaRadial(0.3, 0.4, 0.15);               // length 0.5 → (0.5-0.15)/0.85
+  near(Math.hypot(x, y), 0.35 / 0.85); near(x / y, 0.75);
+  // an axis under the old per-axis 0.15 but with the other axis pushed still counts
+  assert.ok(zonaMuertaRadial(0.1, 0.9, 0.15)[0] > 0);
+  // full travel, even a corner of the square gate, is 1 at most
+  near(Math.hypot(...zonaMuertaRadial(1, 0, 0.15)), 1); near(Math.hypot(...zonaMuertaRadial(1, 1, 0.15)), 1);
+  // zone 0 = raw; a silly zone is capped, never divides by zero
+  assert.deepEqual(zonaMuertaRadial(0.5, 0, 0), [0.5, 0]);
+  assert.ok(Number.isFinite(zonaMuertaRadial(1, 0, 5)[0]));
 });
