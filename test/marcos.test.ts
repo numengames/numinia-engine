@@ -38,7 +38,7 @@ test("the wireframe's boxes at 1600×900: «now» top left, map + clock top righ
 });
 
 test("no overlap at 1600×900 and at 1280×720 between the frames that show together at each level", () => {
-  const conAlto: Record<string, number> = { "hud.reloj": 28, "hud.minimapa": 152 + 34, "hud.barra": 44, "hud.chat": 150, "hud.avisos": 38, "hud.ayuda": 100 };
+  const conAlto: Record<string, number> = { "hud.reloj": 28, "hud.minimapa": 152 + 34, "hud.barra": 44, "hud.chat": 150, "hud.avisos": 38, "hud.ayuda": 100, "hud.objetivo": 92 };
   const conAncho: Record<string, number> = { "hud.reloj": 82, "hud.minimapa": 190, "hud.barra": 460 }; // what the content takes (no width in the table)
   for (const [W, H] of [[1600, 900], [1280, 720]] as const) for (const n of ["minimo", "normal", "completo"] as const) {
     const cajas = marcosVisibles(n).map((id) => [id, cajaDe(marco(id), n)] as const).filter(([, c]) => c).map(([id, c]) => {
@@ -136,4 +136,14 @@ test("the key help reads on a light floor: its colour comes with the glass, not 
   assert.equal(ayuda.densidad, "completo");
   assert.ok(css.includes("body #help:not(:empty){background:rgba(30,26,23,.55) !important;") && css.includes("color:var(--n-texto) !important"));
   assert.ok(css.includes("html.alto-contraste[data-densidad-nivel] body #help"), "high contrast: black on white edge, no glass");
+});
+
+test("M5: Objetivo and Habilidades are frames of the table (movable and hideable), Normal and up, with their elements in the page", async () => {
+  for (const [id, sel] of [["hud.objetivo", "#objetivo"], ["hud.habilidades", "#habilidades"]]) {
+    const m = marco(id);
+    assert.equal(m.selector, sel); assert.ok(m.caja && m.densidad === "normal");
+    assert.ok(leer("apps/plaza/index.html").includes(`id="${sel.slice(1)}"`), `${sel} in the page`);
+  }
+  const { porcentaje } = await import("../apps/plaza/objetivo.ts");
+  assert.deepEqual([porcentaje(38, 100), porcentaje(-5, 100), porcentaje(500, 100), porcentaje(3, 0)], [38, 0, 100, 0]);
 });
