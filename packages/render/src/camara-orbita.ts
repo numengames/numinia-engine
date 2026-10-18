@@ -289,3 +289,13 @@ export function crearOrbita() {
 }
 
 export type Orbita = ReturnType<typeof crearOrbita>;
+
+/** Radial dead zone for a gamepad stick: inside the circle of radius `zona` nothing; outside, the length is rescaled so it
+ * grows from 0 at the edge of the zone to 1 at the rim, and the direction is kept (per-axis zones bend diagonals). */
+export function zonaMuertaRadial(x: number, y: number, zona: number): [number, number] {
+  const z = Math.min(0.9, Math.max(0, Number.isFinite(zona) ? zona : 0));
+  const m = Math.hypot(x, y);
+  if (!(m > z) || m === 0) return [0, 0];
+  const k = Math.min(1, (m - z) / (1 - z)) / m;
+  return [x * k, y * k];
+}

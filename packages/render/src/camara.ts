@@ -9,15 +9,16 @@
 // camera's (one orbits, two pinch and pan), the left stick walks the pivot; the page moves it with `desplazar`. Phones stay cool: `ocupada()` is true only
 // while a drag, a held key, a stick or the smoothing moves something; then the page may stop drawing.
 import type * as THREE from "three/webgpu";
-import { crearOrbita, CAMARA, type ModoCamara, type Pose, type Punto } from "./camara-orbita.ts";
+import { crearOrbita, zonaMuertaRadial, CAMARA, type ModoCamara, type Pose, type Punto } from "./camara-orbita.ts";
 export { haciaMundo, CAMARA } from "./camara-orbita.ts";
 export type { ModoCamara, Punto } from "./camara-orbita.ts";
+export { zonaMuertaRadial } from "./camara-orbita.ts";
 
 const RATON = 0.0055;           // radians per pixel of mouse drag (≈ 0.3°)
 const UMBRAL_PX = 5;            // a left press that moves less than this is a click, not a drag
 const GIRO_TECLA = 1.75;        // rad/s while a turn key is held (≈ 100°/s)
 const INCLINA_TECLA = 1.05;     // rad/s while a tilt key is held (≈ 60°/s)
-const PALANCA = { giro: 2.6, inclina: 1.6, zoom: 2.2, muerta: 0.15 }; // gamepad: rad/s, rad/s, ×/s, dead zone
+const PALANCA = { giro: 2.6, inclina: 1.6, zoom: 2.2 }; // gamepad: rad/s, rad/s, ×/s
 const FOTO_MS = 3;              // N13: photo mode, the pivot's walking pace (m/s) with the left stick
 // Keys (free ones: see the reserved list in docs/JUGADOR.md). Turn and tilt act while held; zoom per press/repeat.
 export const TECLAS_CAMARA = {
@@ -31,7 +32,6 @@ const esTexto = (t: EventTarget | null) => {
   const e = t as HTMLElement | null;
   return !!e && (e.tagName === "INPUT" || e.tagName === "TEXTAREA" || e.tagName === "SELECT" || e.isContentEditable);
 };
-const muerta = (v: number) => (Math.abs(v) < PALANCA.muerta ? 0 : (v - Math.sign(v) * PALANCA.muerta) / (1 - PALANCA.muerta));
 
 export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, opts: CamaraOpts = {}) {
   const orbita = crearOrbita();
@@ -42,6 +42,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
   const dedos = new Map<number, { x: number; y: number }>();
   let pinza: { d: number; x: number; y: number } | null = null;
   const sujetas = new Set<string>();          // turn/tilt keys held (by code)
+  let zonaMuerta = 0.15;                        // gamepad dead zone (radius, 0–0.5; the setting «Zona muerta»)
   let mandos = 0;                             // gamepads connected: polled only while there is one
   const palanca = { x: 0, z: 0, gx: 0, gy: 0, zoom: 0 };
   let sens = 1, invY = 1, zonaAndar = 0.5;                     // N2 settings: look speed (mouse, finger, stick) and inverted vertical axis
@@ -158,8 +159,8 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
     if (!mandos || typeof navigator.getGamepads !== "function") return;
     for (const g of navigator.getGamepads()) {
       if (!g || !g.connected || g.axes.length < 2) continue;
-      palanca.x = muerta(g.axes[0]); palanca.z = muerta(g.axes[1]);
-      if (g.axes.length >= 4) { palanca.gx = muerta(g.axes[2]); palanca.gy = muerta(g.axes[3]); }
+      [palanca.x, palanca.z] = zonaMuertaRadial(g.axes[0], g.axes[1], zonaMuerta);
+      if (g.axes.length >= 4) [palanca.gx, palanca.gy] = zonaMuertaRadial(g.axes[2], g.axes[3], zonaMuerta);
       palanca.zoom = (g.buttons[5]?.pressed ? 1 : 0) - (g.buttons[4]?.pressed ? 1 : 0);
       return; // the first pad that is there
     }
@@ -217,7 +218,8 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
     /** Play mode: first person ↔ third person. */
     alternarVista(): void { orbita.alternarVista(); },
     /** N2 (settings menu): look speed for mouse, finger and stick (1 = as shipped, 0.25–3) and the inverted vertical axis. */
-    ajustar(p: { sensibilidad?: number; invertirY?: boolean; zonaAndar?: number }): void {
+    ajustar(p: { sensibilidad?: number; invertirY?: boolean; zonaAndar?: number; zonaMuerta?: number }): void {
+      if (typeof p.zonaMuerta === "number" && Number.isFinite(p.zonaMuerta)) zonaMuerta = Math.min(0.5, Math.max(0, p.zonaMuerta)); // radial, a share of the stick's travel
       if (typeof p.zonaAndar === "number" && Number.isFinite(p.zonaAndar)) zonaAndar = Math.min(0.5, Math.max(0.15, p.zonaAndar)); // U24: the walking joystick's share of the width (a phone: the left third)
       if (typeof p.sensibilidad === "number" && Number.isFinite(p.sensibilidad)) sens = Math.min(3, Math.max(0.25, p.sensibilidad));
       if (typeof p.invertirY === "boolean") invY = p.invertirY ? -1 : 1;
