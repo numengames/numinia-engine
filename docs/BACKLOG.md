@@ -165,7 +165,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | P5a | El puente nuevo y el primer cerebro (E2 contesta, E4 construye si el mundo deja): clave sin eco (`--clave-ia`), topes, `<material>`, herramientas comprobadas en código | hecho (primer corte; falta: E1, probarlo con Claude en el VPS, D7 revisión del contrato) | no |
 | P5b | Iniciativa por evento (E3), gestos con clips, persona en `.md`, medidor de consumo por habitante y por mundo | espera a P5a | sí |
 | V12 | Guía IA: un agente que acompaña, describe y lleva (primero desde datos) | espera a P4b | sí |
-| M6 | Colisión con el escenario y física básica: malla GLB (trimesh + BVH propio en enteros, sin cambiar la huella), zonas que disparan, rayos; Rapier solo si hacen falta dinámicos | en curso (h1-h7 hechas 18-10) | no |
+| M6 | Colisión con el escenario y física básica: malla GLB (trimesh + BVH propio en enteros, sin cambiar la huella), zonas que disparan, rayos; Rapier solo si hacen falta dinámicos | en curso (h1-h7, h12 rayo, h13 zonas entra/sale + overlapSphere hechas 18-10) | no |
 | M6b | Terreno con altura (relieve y suelos pintados por capas) | espera a M6 | no |
 | M10 | Servidor de instancia completo: regiones en hilos (horizonte de 5.000) y copias cuando se llena | para Opus | no |
 | V9 | Mapa de caminos (navmesh) en el servidor + guía paso a paso + «mírame al objetivo» + escáner direccional | para Opus | no |
