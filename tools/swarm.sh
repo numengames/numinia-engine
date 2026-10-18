@@ -6,7 +6,10 @@
 #   tools/swarm.sh --url wss://motor.ejemplo.com/ws --n 200 --secs 30 [--metrics http://…/metrics]
 #   tools/swarm.sh --en-servidor --n 500 --secs 30
 # Profiles (stairs, soak, join storm) and the report: see docs/MEDIDAS.md. Env: SWARM_CPUS (default 3-5) · SWARM_MAX seconds (default 3900).
-# Light by design: server on one core, bots on two, nice 19, everything stops by itself.
+# Light by design: server on one core, bots on two, everything stops by itself.
+# The SERVER (local mode) gets a core the agents do not use (AGENTS.md sends heavy work to 2-5) and normal priority:
+# on core 2 with nice 19 it measured the neighbours (D3). SRV_CPUS (default 6; unpinned if the machine has fewer cores)
+# · SRV_NICE (default 0). The bots stay nice 19: their own saturation is judged by the report.
 set -u
 cd "$(dirname "$0")/.."
 case "${1:-}" in
@@ -14,7 +17,9 @@ case "${1:-}" in
 esac
 N=${1:-1000}; SECS=${2:-30}; PORT=${3:-8791}
 LOG=${TMPDIR:-/tmp}/swarm-$PORT
-PORT=$PORT STATS_MS=8000 timeout $((SECS + 6)) taskset -c 2 nice -n 19 node packages/server/src/main.ts > "$LOG-server.log" 2>&1 &
+SRV_CPUS=${SRV_CPUS:-6}; FIJA=(taskset -c "$SRV_CPUS")
+[ "${SRV_CPUS%%[,-]*}" -lt "$(nproc --all)" ] 2>/dev/null || FIJA=()
+PORT=$PORT STATS_MS=8000 timeout $((SECS + 6)) "${FIJA[@]}" nice -n "${SRV_NICE:-0}" node packages/server/src/main.ts > "$LOG-server.log" 2>&1 &
 sleep 1.5
 HALF=$((N / 2))
 timeout "$SECS" taskset -c 3 nice -n 19 node packages/server/src/bots.ts --n "$HALF" --url "ws://127.0.0.1:$PORT" > "$LOG-bots1.log" 2>&1 &

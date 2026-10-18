@@ -71,11 +71,15 @@ export function onFloor(s: SimState, e: number): boolean {
 export function groundHeight(x: number, z: number, s?: SimState, y = 0): number {
   let g = 0;
   if (!s) return g;
-  const b = s.solids;
-  for (let o = 0; o + 5 < b.length; o += 6) {
-    if (x < b[o] || x > b[o + 3] || z < b[o + 2] || z > b[o + 5]) continue;
-    const top = b[o + 4];
-    if (top > g && top <= y + STEP_UP) g = top;
+  const grid = solidGrid(s);
+  if (grid) {
+    const k0 = cellOf(x), k1 = cellOf(z);
+    for (let p = grid.starts[cellKey(k0, k1)]; p < grid.starts[cellKey(k0, k1) + 1]; p++) {
+      const o = grid.boxes[p], b = s.solids;
+      if (x < b[o] || x > b[o + 3] || z < b[o + 2] || z > b[o + 5]) continue;
+      const top = b[o + 4];
+      if (top > g && top <= y + STEP_UP) g = top;
+    }
   }
   const m = s.mesh;
   if (m) {
@@ -103,14 +107,72 @@ export const SOLIDS_MAX = 512;
 /** N1b: walking off a ledge this low (a stair step going down) keeps you on the ground instead of falling (Rapier's
  * «snap-to-ground»): no «in the air» flicker on every step. A jump is never snapped. */
 export const SNAP_DOWN = fx(0.45); // boxes the simulation looks at (the nearest are not chosen: the first 512)
+
+// ---- N1 h1: a uniform grid over `solids`, consulted by cell instead of scanning the whole list on every avatar
+// move. Cell = 32 m. Built once per `solids` array (cached by its identity: `setSolids` always hands a fresh array,
+// the grid is derived data, never part of the state's fingerprint) with a CSR layout (two typed arrays, no
+// Map/Set: AGENTS.md's determinism contract bans iterating them to decide anything, and this is a decision path).
+// `cellOf` clamps to the grid's radius, comfortably past BOUND (±2000 m / 32 m ≈ ±62.5 cells), so a box anywhere
+// in the world lands in a real cell instead of falling off the edge of the grid.
+const GRID_CELL = fx(32);
+const GRID_RADIUS = 64;
+const GRID_DIM = GRID_RADIUS * 2 + 1;
+const GRID_CELLS = GRID_DIM * GRID_DIM;
+function cellOf(v: number): number {
+  const c = Math.floor(v / GRID_CELL);
+  return c < -GRID_RADIUS ? -GRID_RADIUS : c > GRID_RADIUS ? GRID_RADIUS : c;
+}
+function cellKey(cx: number, cz: number): number { return (cx + GRID_RADIUS) * GRID_DIM + (cz + GRID_RADIUS); }
+type SolidGrid = { starts: Int32Array; boxes: Int32Array };
+const gridCache = new WeakMap<Int32Array, SolidGrid>();
+/** Builds the grid for `b` (one entry per box: [bx0,by0,bz0,bx1,by1,bz1]), a box in every cell its footprint
+ * touches so a query never misses one that straddles a cell border. */
+function buildGrid(b: Int32Array): SolidGrid {
+  const n = (b.length / 6) | 0;
+  const starts = new Int32Array(GRID_CELLS + 1);
+  for (let i = 0; i < n; i++) {
+    const o = i * 6;
+    const cx0 = cellOf(b[o]), cx1 = cellOf(b[o + 3]), cz0 = cellOf(b[o + 2]), cz1 = cellOf(b[o + 5]);
+    for (let cx = cx0; cx <= cx1; cx++) for (let cz = cz0; cz <= cz1; cz++) starts[cellKey(cx, cz) + 1]++;
+  }
+  for (let k = 0; k < GRID_CELLS; k++) starts[k + 1] += starts[k];
+  const cursor = starts.slice(0, GRID_CELLS);
+  const boxes = new Int32Array(starts[GRID_CELLS]);
+  for (let i = 0; i < n; i++) {
+    const o = i * 6;
+    const cx0 = cellOf(b[o]), cx1 = cellOf(b[o + 3]), cz0 = cellOf(b[o + 2]), cz1 = cellOf(b[o + 5]);
+    for (let cx = cx0; cx <= cx1; cx++) for (let cz = cz0; cz <= cz1; cz++) {
+      const k = cellKey(cx, cz);
+      boxes[cursor[k]++] = o;
+    }
+  }
+  return { starts, boxes };
+}
+/** The grid for `s.solids`, built once and cached by the array's own identity, or null with no solids at all. */
+function solidGrid(s: SimState): SolidGrid | null {
+  const b = s.solids;
+  if (b.length === 0) return null;
+  let g = gridCache.get(b);
+  if (!g) { g = buildGrid(b); gridCache.set(b, g); }
+  return g;
+}
 /** Does a body standing at (x, y, z) overlap a box it cannot step onto? */
 function blockedBoxes(s: SimState, x: number, y: number, z: number): boolean {
+  const grid = solidGrid(s);
+  if (!grid) return false;
   const b = s.solids;
-  for (let o = 0; o + 5 < b.length; o += 6) {
-    if (x + BODY_RADIUS <= b[o] || x - BODY_RADIUS >= b[o + 3] || z + BODY_RADIUS <= b[o + 2] || z - BODY_RADIUS >= b[o + 5]) continue;
-    if (y + BODY_HEIGHT <= b[o + 1]) continue;      // the box is above your head
-    if (b[o + 4] <= y + STEP_UP) continue;           // low enough to step onto (or you are on it)
-    return true;
+  const cx0 = cellOf(x - BODY_RADIUS), cx1 = cellOf(x + BODY_RADIUS), cz0 = cellOf(z - BODY_RADIUS), cz1 = cellOf(z + BODY_RADIUS);
+  for (let cx = cx0; cx <= cx1; cx++) {
+    for (let cz = cz0; cz <= cz1; cz++) {
+      const k = cellKey(cx, cz);
+      for (let p = grid.starts[k]; p < grid.starts[k + 1]; p++) {
+        const o = grid.boxes[p];
+        if (x + BODY_RADIUS <= b[o] || x - BODY_RADIUS >= b[o + 3] || z + BODY_RADIUS <= b[o + 2] || z - BODY_RADIUS >= b[o + 5]) continue;
+        if (y + BODY_HEIGHT <= b[o + 1]) continue;      // the box is above your head
+        if (b[o + 4] <= y + STEP_UP) continue;           // low enough to step onto (or you are on it)
+        return true;
+      }
+    }
   }
   return false;
 }

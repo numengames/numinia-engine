@@ -1008,6 +1008,23 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
   (§6 del diseño: avisar a quien sale «X ha sacado el Graboso»). Después: conectar con Y1, voces de otros en
   el clip, modelo fino, VR, compartir (M18c).
 
+## 2026-10-18 17:54 · ko-t_e8a450a4 · hecho (mitad)
+- Qué: H11 (importar de Hyperfy), la mitad `db.sqlite`+`assets/` → carpeta del mundo (la otra mitad, `.hyp` →
+  carpeta de app, sigue esperando a M19, que está «para Opus»; no se ha tocado). `packages/server/src/importar-hyperfy.ts`
+  lee `config`/`blueprints`/`entities` con `node:sqlite` (sin dependencia nueva), resuelve cada `asset://<sha256>.<ext>`,
+  copia el fichero a `datos/activos/`, convierte posición y cuaternión a los campos de H1 (grados, orden yaw→pitch→roll)
+  y escribe `datos/objetos.json` tal cual lo lee `FileStorage` al arrancar (a mano, sin importar `features/objetos`
+  desde `packages/`: lo prohíbe la regla de capas). H7: `aventura/ficha.json` con nombre/descripción/portada/aforo.
+  CLI `tools/importar-hyperfy.ts`; informe de lo traído (`informe-importacion.json`+`.txt`): leídos, importados,
+  omitidos con motivo, activos copiados/que faltan.
+- Números: `test/importar-hyperfy.test.ts` nuevo (5 pruebas, todas en verde); `npm test`: 777 bien, 0 mal;
+  `npm run gates`: todas las puertas en verde (capas 0, determinismo igual, ancho de banda 26,6 kbit/s, plaza de
+  1.000 p99 15,4 ms, página 469,1 kB). La prueba fuerte arranca de verdad la función `objetos` (`Instance` +
+  `FileStorage`) sobre lo que escribe el importador y comprueba la cosa en su sitio, giro y escala exactos.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `ko/t_e8a450a4` sobre `origin/tren/motor-2026-10-18-6`.
+- Siguiente: probar contra un `db.sqlite` real de un mundo Hyperfy (de momento solo el fijo de prueba); la mitad
+  `.hyp` → carpeta de app espera a M19.
 ## 2026-10-18 17:25 UTC — arreglo: el teclado de la cerradura tapaba el mundo desde que carga (0.14.1)
 - Visto por Pablo en vídeo (Alchemist Tower, v0.11): el teclado de la cerradura (D-042) sale al cargar, sin nombre, y ni «Abrir» ni «Cerrar» lo quitan: la capa ocupa toda la pantalla y el jugador queda bloqueado.
 - Causa: la capa llevaba `display: grid` en línea; un estilo en línea gana al atributo `hidden`, así que `capa.hidden = true` no la escondía nunca.
@@ -1074,3 +1091,54 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `avatares/rueda-movimientos` (sobre 4eb6387).
 - Siguiente: probar con un móvil y un mando reales; que los agentes (`packages/agent`) usen la lista entera; que quien
   llega tarde vea un movimiento en curso (estado con `at`, J9); grabar los que UAL1 no trae (aplaudir, señalar…).
+## 2026-10-16 21:09 · R1 trozo «imprimir los QR como SVG» · hecho (historia en sombra, Doulos; nada sube a origin)
+- Qué: solo el trozo de «Falta de R1» pedido: `npm run enlaces -- qr [base] [carpeta]` ahora escribe un
+  `<carpeta>/<id>.svg` por punto de `enlaces.json` (carpeta por defecto `qr/`, añadida a `.gitignore`) y sigue
+  imprimiendo id, nombre y ruta; sin ese argumento se comporta igual que antes (id, nombre, URL firmada). El
+  resto de «Falta de R1» (escuchar en la red de casa, comprobar la columna en un navegador real, medir con un
+  móvil real) queda sin tocar, como pedía la tarea.
+- Números: 252 pruebas (antes 249; 3 nuevas en `test/enlaces.test.ts`: modo normal, modo `qr` con SVGs válidos,
+  y el aviso sin `MOTOR_SECRET` en ambos modos); puertas en verde (capas 0, determinismo igual, ancho de banda
+  26,7 kbit/s, tick p99 7,6 ms con mil). e2e y `tools/auto.sh` no se han tocado ni corrido (no tocan a esta rama).
+- Consumo: no aplica (prueba de Doulos en un worktree desechable, sin `hermes usage` en este perfil); modelo
+  Sonnet 5.
+- Commit: este (rama `doulos/sombra-r1-qr`, solo local; no sube a origin, no hay PR).
+- Siguiente: el resto de «Falta de R1» (modo LAN del servidor, comprobación visual real de la columna, medición
+  con móvil real) sigue pendiente para quien tome la fila R1.
+
+## 2026-10-18 18:21 · lucha-l2-estados-jugador · hecho (trozo 1)
+- Qué: L2, primera historia: vida del jugador en memoria del servidor (`features/lucha/server.ts`). Cada golpe
+  que el jugador aterriza, la criatura golpea de vuelta con la misma tirada (`DANO_BASE..DANO_BASE+DANO_VAR-1`,
+  PRNG con semilla: reproducible); `VIDA_JUGADOR_MAX` (50, por encima de lo que cuesta matar al Guardián de
+  Crisálida en una pelea normal: no rompe el combate de L1) baja en memoria, sin estado compartido ni HUD (eso
+  es la siguiente historia de L2, con el diseño de canon Desestabilizado→Colapsado→Aletargado de
+  `docs/BACKLOG.md` fila L2). A 0, el jugador cae (`caido`): `golpear` se rechaza hasta que pasan
+  `REAPARICION_JUGADOR_TICKS` (100 = 5 s a 20 Hz), y entonces vuelve entero. Eventos nuevos `jugadorHerido`,
+  `jugadorCaido`, `jugadorVuelve` (solo al propio jugador); `client.ts` los escucha para que las pruebas los
+  vean (sin dibujar nada aún, por diseño).
+- Números: `test/lucha.test.ts` 10/10 (2 nuevas: herido→caído→reaparece, y mismo seguimiento con sha256 igual
+  en dos mundos con la misma semilla). `npm test` con `node_modules` enlazado del clon base: 773/774 (el único
+  rojo, `misiones-secuencia.test.ts` p99 de un gate de carga, es el conocido por contención de CPU — solo,
+  8/8 verde; sin ese enlace, los 23 fallos preexistentes por falta del paquete `ws` en este worktree, iguales
+  antes y después). `npm run build`: verde (842 ms).
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `ko/t_32744f07-v2` sobre `origin/tren/motor-2026-10-18-6`, PR #145.
+- Siguiente: la siguiente historia de L2 (HUD, velocidad, vuelta a `aparicion`, estado compartido por
+  invitado) cuando la pida el tablero; L3 (la criatura se mueve y persigue) sigue esperando a L2 entero.
+
+## 2026-10-18 19:30 · constructor/anclar-explicar · hecho
+- Qué: el botón «fijar» del constructor se renombra a «Anclar / soltar» (con icono) y lleva un tooltip claro
+  (t_72b0bdab), porque Pablo (vídeo 18-10): «fijar no se entiende». Renombrado en `apps/plaza/constructor.ts`
+  (botón con icono `push-pin` de Phosphor, `boton2` ahora acepta un icono opcional), tooltip explícito («Anclar:
+  nadie lo mueve, gira ni borra hasta que lo sueltes (P)»), etiqueta del checkbox del inspector, texto de ayuda
+  del constructor y los mensajes de estado del cliente (cogido/arrastrado) usan «anclado». Los mensajes de
+  rechazo del servidor (`features/objetos/server.ts`) siguen diciendo «fijado»: varias pruebas
+  (`test/objetos.test.ts`, `test/huecos.test.ts`) comprueban ese texto exacto; cambiarlo junto con las pruebas
+  se deja para otra tarjeta si se quiere, por no ensanchar esta historia de 20 min. El campo de datos y el
+  verbo de red siguen llamándose `fijado`/`fijar` (wire/schema sin tocar, D-055 no aplica aquí: es puro texto
+  de interfaz). `docs/JUGADOR.md` actualizado con el mismo texto.
+- Números: `npm test` y `npm run build` en verde (ver comprobado en el PR).
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `constructor/anclar-explicar` sobre `origin/tren/motor-2026-10-18-6`.
+- Siguiente: nada pendiente de esta tarjeta; si se quiere, extender el mismo nombre a `rueda.ts` («Fijar en
+  favoritos», uso distinto, no tocado aquí).

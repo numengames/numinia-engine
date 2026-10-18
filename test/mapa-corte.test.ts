@@ -85,3 +85,12 @@ test("the cut's segments in view come out as map pixels; those beyond the edge a
   assert.equal(segmentosEnVista(v, new Float32Array([-200, 0, 200, 0]), out), 1);
   assert.equal(segmentosEnVista(v, new Float32Array(0), out), 0);
 });
+
+test("E4: the minimap's cut goes out as whole quarter pixels in a reused Int32Array (no heap number per canvas call)", () => {
+  const v: Vista = { cx: 0, cz: 0, escala: 2, giro: 0.4, ancho: 100, alto: 100 };
+  const seg = new Float32Array([0, 0, 10, 0, 500, 500, 510, 500]);
+  const out = new Int32Array(8);
+  assert.equal(segmentosEnVista(v, seg, out, 4, 4), 1);
+  const a = proyectar(v, 0, 0), b = proyectar(v, 10, 0);
+  for (const [q, p] of [[out[0], a.px], [out[1], a.py], [out[2], b.px], [out[3], b.py]]) assert.ok(Number.isInteger(q) && Math.abs(q / 4 - p) <= 0.25, `${q / 4} ≈ ${p}`);
+});

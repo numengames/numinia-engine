@@ -1,7 +1,9 @@
 // bench: how fast is THIS machine's core at the engine's real job, with no network and no bots process?
 // A plaza of N people inside one Instance, ticked in a tight loop; prints one JSON line on stdout (and a short
 // human summary on stderr).
-//   node packages/server/src/bench.ts [--bots 1000] [--ticks 460] [--warmup 60] [--rounds 5]
+//   node packages/server/src/bench.ts [--bots 1000] [--ticks 460] [--warmup 60] [--rounds 5] [--escena plaza|piezas] [--sin solidos,malla,…]
+// --escena piezas (C3, bench-piezas.ts): the same method on a world with the engine's pieces on (solids, mesh, cable,
+// timers, objects, movers, locks) and the cost per piece; the default (plaza) scene is unchanged.
 // Run it on every candidate machine BEFORE the load test: two machines with the same index will carry the
 // same number of people (the swarm then adds the network, Caddy and the neighbours on top).
 // Compare two runs (base vs new) with `node tools/banco-comparar.mjs base.json nuevo.json`.
@@ -135,7 +137,7 @@ export function banco(o: { bots: number; ticks: number; warmup: number; rounds: 
 }
 
 const r2 = (x: number) => Math.round(x * 100) / 100, r3 = (x: number) => Math.round(x * 1000) / 1000, r4 = (x: number) => Math.round(x * 10000) / 10000;
-const pct = (x: number) => `${(x * 100).toFixed(1)} %`;
+export const pct = (x: number) => `${(x * 100).toFixed(1)} %`;
 
 /** Run as a command (not imported): argv[1] is this file, also through a symlinked folder (/home → /var/home). */
 const esOrden = (): boolean => { try { return !!process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url); } catch { return false; } };
@@ -145,6 +147,10 @@ if (esOrden()) {
   if (!(o.ticks - o.warmup >= 2 * SNAPSHOT_EVERY) || !(o.rounds >= 1) || !(o.bots >= 1)) {
     console.error("bench: hacen falta --ticks ≥ --warmup + 4, --rounds ≥ 1 y --bots ≥ 1"); process.exit(2);
   }
+  const escena = (() => { const i = process.argv.indexOf("--escena"); return i > 0 ? String(process.argv[i + 1]) : "plaza"; })();
+  if (escena !== "plaza" && escena !== "piezas") { console.error(`bench: escena «${escena}» no existe (plaza, piezas)`); process.exit(2); }
+  if (escena === "piezas") void import("./bench-piezas.ts").then((m) => m.ordenPiezas(o, process.argv)); // not awaited: bench-piezas imports this module back
+  else {
   const r = banco(o);
   console.log(JSON.stringify(r));
   const m = r.metricas, l = (n: string, x: Rondas) => `  ${n.padEnd(22)} ${x.mediana.toFixed(2).padStart(7)} ms   (${x.min.toFixed(2)}–${x.max.toFixed(2)}, dispersión ${pct(x.dispersion)})`;
@@ -155,4 +161,5 @@ if (esOrden()) {
     `  margen: el tick con envío cabe ${r.margenSobreElTick} veces en 50 ms; el ciclo, ${r.margenSobreElCiclo} veces en 100 ms · huella ${r.huella}`,
     ...r.avisos.map((a) => `  ⚠ ${a}`),
   ].join("\n"));
+  }
 }

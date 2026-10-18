@@ -30,7 +30,10 @@ type Avatar = {
   rumboFijo?: number; // pesca v2: while fishing the body faces the water (only while standing still)
 };
 
-export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: () => boolean; catalogo?: CatalogoAvatares; yo?: () => number; compilar?: (raiz: THREE.Object3D) => Promise<unknown>; suelo?: (x: number, z: number, y: number) => number }) {
+export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: () => boolean; catalogo?: CatalogoAvatares; yo?: () => number; compilar?: (raiz: THREE.Object3D) => Promise<unknown>; suelo?: (x: number, z: number, y: number) => number;
+  /** H10: which house avatar (index into `catalogo.modelos`, possibly grown with uploads by the caller) this player
+   * wears right now, or undefined to keep the old per-entity default (`elegirAvatar`). Asked every sync(). */
+  eleccion?: (clave: number | "yo") => number | undefined }) {
   const cat = o.catalogo;
   const n = cat?.modelos.length ?? 0;
   let vrm: Promise<{ m: Vrm; carga: ReturnType<Vrm["crearCargador"]> }> | null = null;
@@ -175,7 +178,7 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
       const quien = new Set<number | "yo">();
       if (yo) {
         quien.add("yo");
-        const modelo = elegirAvatar(Math.max(0, o.yo?.() ?? 0), n);
+        const modelo = o.eleccion?.("yo") ?? elegirAvatar(Math.max(0, o.yo?.() ?? 0), n);
         let a = avatares.get("yo");
         if (a && a.modelo !== modelo) { desvestir(a); avatares.delete("yo"); a = undefined; }
         if (!a) { a = { clave: "yo", modelo, marcha: nuevaMarcha(), estado: "quieto", fundidoHasta: 0, cerca: true }; avatares.set("yo", a); }
@@ -185,8 +188,10 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
         const ancla = otros.get(id);
         if (!ancla) continue;
         quien.add(id);
+        const modelo = o.eleccion?.(id) ?? elegirAvatar(id, n);
         let a = avatares.get(id);
-        if (!a) { a = { clave: id, modelo: elegirAvatar(id, n), marcha: nuevaMarcha(), estado: "quieto", fundidoHasta: 0, cerca: true }; avatares.set(id, a); }
+        if (a && a.modelo !== modelo) { desvestir(a); avatares.delete(id); a = undefined; } // H10: someone else just changed avatar
+        if (!a) { a = { clave: id, modelo, marcha: nuevaMarcha(), estado: "quieto", fundidoHasta: 0, cerca: true }; avatares.set(id, a); }
         actualizar(a, ancla, false, desde, ahora, dt, modulo);
       }
       for (const [k, a] of avatares) if (!quien.has(k)) { desvestir(a); avatares.delete(k); if (typeof k === "number") nivelesVoz.delete(k); }

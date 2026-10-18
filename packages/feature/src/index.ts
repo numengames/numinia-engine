@@ -261,8 +261,22 @@ export function decodeState(bytes: Uint8Array, fieldsOf: (pos: number) => Fields
 export type Saved = { version: number; state: [string, { value: Msg; at?: { x: number; z: number } }][]; store: [string, unknown][] };
 export type StorageOp = { op: "s"; key: string; value: Msg; at?: { x: number; z: number } } | { op: "sd"; key: string } | { op: "k"; key: string; value: unknown } | { op: "kd"; key: string };
 export interface FeatureStorage { load(feature: string): Saved | null; record(feature: string, version: number, op: StorageOp): void }
+/** E6: the fields the simulation's solid boxes are made of (U10's `solidsFrom`: `solido: true` and the world box). */
+const CAJA = ["bx0", "by0", "bz0", "bx1", "by1", "bz1"] as const;
+/** E6: what of a state value the solid boxes see: null when it is not `solido: true`, else its box numbers as one
+ * string. `solidsFrom` reads nothing else (besides the key, which a set or delete never changes), so two values with
+ * the same `cajaSolida` give the same boxes. Kept per entry when it is set, so a piece that edits the object it got
+ * from `state.get` in place and sets it again still counts as a change. */
+export function cajaSolida(v: Msg | undefined): string | null {
+  if (v?.solido !== true) return null;
+  let s = "";
+  for (const k of CAJA) s += `${String(v[k])}\u0000`;
+  return s;
+}
 export type ServerHost = {
-  players(): readonly number[];                                 // connected entities, join order
+  /** Connected entities, join order. Read-only: the instance hands out one shared (frozen) array, rebuilt only when
+   * someone joins or leaves (E6), so the runtime's own walks copy nothing. */
+  players(): readonly number[];
   position(entity: number): { x: number; y: number; z: number } | null; // metres (y = the feet's height); null if gone
   send(entity: number, bytes: Uint8Array): void;                // reliable, in order
   tick(): number;
@@ -399,7 +413,7 @@ export type ServerPart = { feature: Feature; side: "server"; setup: (api: Server
 export const serverPart = (feature: Feature, setup: (api: ServerApi) => void): ServerPart => ({ feature, side: "server", setup });
 
 type Route = { method: string; parts: string[]; feature: string; fn: (req: HttpRequest) => HttpReply };
-type Entry2 = { value: Msg; at?: { x: number; z: number }; bytes?: Uint8Array }; // bytes: the STATE message, encoded once (H1: a zone's list goes to everyone who enters)
+type Entry2 = { value: Msg; at?: { x: number; z: number }; bytes?: Uint8Array; caja?: string | null }; // bytes: the STATE message, encoded once (H1: a zone's list goes to everyone who enters) · caja: its `cajaSolida` (E6)
 
 /** J9: the things one feature has put in the world, in square cells as wide as its radius, so "what is near
  * this player" looks at 9 cells instead of every thing. */
@@ -431,22 +445,39 @@ export class NearIndex {
   }
 }
 
+/** B2: what one feature's hook cost in the LAST tick (ms, wall clock) and how often it threw since start. The instance's
+ * server reads these right after each tick (server/metrics.ts CosteTick); nothing here keeps history. */
+export type CosteGancho = { pieza: string; gancho: "intent" | "tick" | "vuelta" | "cerca"; ms: number; errores: number };
+
 export class ServerRuntime {
   readonly catalog: Catalog;
+  /** B2: one slot per feature and hook kind that runs inside tick(), in registration order (see CosteGancho). */
+  readonly costes: CosteGancho[] = [];
+  private readonly costeDe = new Map<string, CosteGancho>();
+  private coste(pieza: string, gancho: CosteGancho["gancho"]): CosteGancho {
+    const k = `${pieza}\u0000${gancho}`;
+    let c = this.costeDe.get(k);
+    if (!c) { c = { pieza, gancho, ms: 0, errores: 0 }; this.costeDe.set(k, c); this.costes.push(c); }
+    return c;
+  }
   readonly active: boolean;
   readonly stats = { received: 0, dropped: 0, bad: 0, events: 0, errors: 0 };
   private readonly host: ServerHost;
   private readonly entries: Entry[];
   private readonly catalogBytes: Uint8Array;
-  private readonly handlers = new Map<number, { feature: string; fn: (from: number, msg: Msg) => void }>();
-  private readonly hooks: { join: [string, (e: number) => void][]; leave: [string, (e: number) => void][]; tick: [string, (t: number) => void][]; identify: [string, (e: number, w: { id: string; nombre: string }) => void][]; vuelta: [string, (v: Vuelta) => void][] } = { join: [], leave: [], tick: [], identify: [], vuelta: [] };
+  private readonly handlers = new Map<number, { feature: string; fn: (from: number, msg: Msg) => void; coste: CosteGancho }>();
+  private readonly hooks: { join: [string, (e: number) => void][]; leave: [string, (e: number) => void][]; tick: [string, (t: number) => void, CosteGancho][]; identify: [string, (e: number, w: { id: string; nombre: string }) => void][]; vuelta: [string, (v: Vuelta) => void, CosteGancho][] } = { join: [], leave: [], tick: [], identify: [], vuelta: [] };
   private readonly routeList: Route[] = [];
   private readonly shared = new Map<string, Map<string, Entry2>>();
-  /** U10: grows on every shared-state change (the instance rebuilds the solid boxes when it moves). */
+  /** U10: grows on every shared-state change (the instance looks at the mesh's entries again when it moves, D2). */
   stateVersion = 0;
+  /** E6: grows only on a shared-state change the solid boxes can see: a thing that is or was `solido: true` set with
+   * another box (`cajaSolida`), turned solid or not, or deleted. A counter ticking, a door's text or a creature losing
+   * coherencia leaves it alone, so the instance redoes `solidsFrom` only when this moves. */
+  solidsVersion = 0;
   /** U10: every shared-state entry of every feature, as [key, value] (keys prefixed by the feature id). */
   *allState(): Generator<[string, Msg]> { for (const [f, t] of this.shared) for (const [k, e] of t) yield [`${f}:${k}`, e.value]; }
-  private readonly near = new Map<string, { index: NearIndex; pos: number; fields: Fields; table: Map<string, Entry2> }>(); // J9
+  private readonly near = new Map<string, { index: NearIndex; pos: number; fields: Fields; table: Map<string, Entry2>; coste: CosteGancho }>(); // J9
   private readonly known = new Map<number, Map<string, Set<string>>>(); // J9: player -> feature -> things it has
   private queue: { from: number; entry: Entry; msg: Msg }[] = [];
   private readonly waiting = new Map<number, number>();
@@ -469,8 +500,11 @@ export class ServerRuntime {
     this.active = built.used.length > 0;
   }
 
+  /** B2: errors per feature since start, every hook and setup included (the log only says the first one per hook). */
+  readonly erroresDe = new Map<string, number>();
   private fail(feature: string, where: string, e: unknown): void {
     this.stats.errors++;
+    this.erroresDe.set(feature, (this.erroresDe.get(feature) ?? 0) + 1);
     const key = `${feature}:${where}`;
     if (!this.failed.has(key)) { this.failed.add(key); this.host.log(`[funciones] '${feature}' falló ${where}: ${String((e as Error)?.message ?? e)} (el resto sigue)`); }
   }
@@ -509,7 +543,7 @@ export class ServerRuntime {
     const table = new Map<string, Entry2>();
     this.shared.set(id, table);
     const index = f.state ? new NearIndex(f.state.radius ?? STATE_RADIUS_M) : null;
-    if (index && f.state) this.near.set(id, { index, pos, fields: f.state.fields, table });
+    if (index && f.state) this.near.set(id, { index, pos, fields: f.state.fields, table, coste: this.coste(id, "cerca") });
     // S4: bring back what was saved. State values are checked against today's schema: a value that no longer
     // fits (the feature changed shape) is dropped and counted, never sent to anyone.
     const persist = !!f.state?.persist, keeps = persist || !!f.store, storage = this.host.storage;
@@ -518,7 +552,7 @@ export class ServerRuntime {
     const box = new Map<string, unknown>(f.store && saved ? saved.store : []);
     if (saved && persist && stateSchema) {
       let dropped = 0;
-      for (const [k, s] of saved.state) { const v = validate(stateSchema, s.value); if (v.ok) { table.set(k, s.at ? { value: v.value, at: s.at } : { value: v.value }); if (s.at) index?.put(k, s.at); } else dropped++; }
+      for (const [k, s] of saved.state) { const v = validate(stateSchema, s.value); if (v.ok) { table.set(k, s.at ? { value: v.value, at: s.at, caja: cajaSolida(v.value) } : { value: v.value, caja: cajaSolida(v.value) }); if (s.at) index?.put(k, s.at); } else dropped++; }
       if (dropped) log(`${dropped} claves guardadas ya no cumplen el esquema (versión ${saved.version} → ${f.version}): no se cargan`);
     }
     if (saved) log(`recupero lo guardado: ${table.size} claves de estado, ${box.size} del almacén`);
@@ -529,7 +563,7 @@ export class ServerRuntime {
       on: (intent, fn) => {
         const e = this.entry(id, "intent", intent);
         if (!e) { log(`on('${intent}'): no está declarado en intents (hay: ${Object.keys(f.intents ?? {}).join(", ") || "ninguno"})`); return; }
-        this.handlers.set(e.index, { feature: id, fn });
+        this.handlers.set(e.index, { feature: id, fn, coste: this.coste(id, "intent") });
       },
       emit: (event, msg, scope) => {
         const e = this.entry(id, "event", event);
@@ -552,7 +586,9 @@ export class ServerRuntime {
           if (!v.ok) { log(`state.set('${key}') no cumple su esquema: ${v.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`); return false; }
           const before = table.get(key);
           const bytes = encodeState(pos, key, f.state.fields, v.value);
-          table.set(key, { value: v.value, at: opts?.at, bytes }); this.stateVersion++;
+          const caja = cajaSolida(v.value);
+          table.set(key, { value: v.value, at: opts?.at, bytes, caja }); this.stateVersion++;
+          if ((before?.caja ?? null) !== caja) this.solidsVersion++; // E6: the boxes changed
           if (persist) save(opts?.at ? { op: "s", key, value: v.value, at: opts.at } : { op: "s", key, value: v.value });
           if (opts?.at && index) { // J9: only who is near
             if (before && !before.at) for (const pl of this.host.players()) this.knows(pl, id).add(key); // it was global: everyone had it, the far ones must forget it
@@ -566,6 +602,7 @@ export class ServerRuntime {
           const before = table.get(key);
           if (!table.delete(key)) return;
           this.stateVersion++;
+          if (before?.caja != null) this.solidsVersion++; // E6: a solid went away
           if (persist) save({ op: "sd", key });
           const bytes = encodeState(pos, key, null);
           if (before?.at) { // J9: only those who had it
@@ -603,10 +640,10 @@ export class ServerRuntime {
       onIdentify: (fn) => { this.hooks.identify.push([id, fn]); },
       who: (e) => this.host.who?.(e) ?? null,
       onLeave: (fn) => { this.hooks.leave.push([id, fn]); },
-      onTick: (fn) => { this.hooks.tick.push([id, fn]); },
-      onVuelta: (fn) => { this.hooks.vuelta.push([id, fn]); },
+      onTick: (fn) => { this.hooks.tick.push([id, fn, this.coste(id, "tick")]); },
+      onVuelta: (fn) => { this.hooks.vuelta.push([id, fn, this.coste(id, "vuelta")]); },
       volverASeguro: (e) => { try { return this.host.volverASeguro?.(e) ?? false; } catch (x) { log(`volverASeguro: ${String((x as Error)?.message ?? x)}`); return false; } },
-      players: () => this.host.players(),
+      players: () => this.host.players().slice(), // E6: a piece still gets its own array (the host's may be a shared, frozen view)
       position: (e) => this.host.position(e),
       tick: () => this.host.tick(),
       sign: (text) => this.host.sign?.(text) ?? "",
@@ -712,15 +749,18 @@ export class ServerRuntime {
   /** Called once per tick by the instance, after the simulation step: intents in arrival order, then tick hooks. */
   tick(): void {
     if (!this.active) return;
+    for (const c of this.costes) c.ms = 0; // B2: each slot says what THIS tick cost (performance.now() around each hook)
     const q = this.queue; this.queue = []; this.waiting.clear();
     for (const it of q) {
       const h = this.handlers.get(it.entry.index);
       if (!h) continue;
-      try { h.fn(it.from, it.msg); } catch (e) { this.fail(h.feature, `en on('${it.entry.name}')`, e); }
+      const a = performance.now();
+      try { h.fn(it.from, it.msg); } catch (e) { h.coste.errores++; this.fail(h.feature, `en on('${it.entry.name}')`, e); }
+      h.coste.ms += performance.now() - a;
     }
     const t = this.host.tick();
-    if (this.hooks.vuelta.length) for (const v of this.host.vueltas?.() ?? []) for (const [id, fn] of this.hooks.vuelta) { try { fn(v); } catch (e) { this.fail(id, "en onVuelta", e); } } // D-045
-    for (const [id, fn] of this.hooks.tick) { try { fn(t); } catch (e) { this.fail(id, "en onTick", e); } }
+    if (this.hooks.vuelta.length) for (const v of this.host.vueltas?.() ?? []) for (const [id, fn, c] of this.hooks.vuelta) { const a = performance.now(); try { fn(v); } catch (e) { c.errores++; this.fail(id, "en onVuelta", e); } c.ms += performance.now() - a; } // D-045
+    for (const [id, fn, c] of this.hooks.tick) { const a = performance.now(); try { fn(t); } catch (e) { c.errores++; this.fail(id, "en onTick", e); } c.ms += performance.now() - a; }
     this.refreshNear(t % STATE_REFRESH_TICKS); // a tenth of the players each tick: each one every 0.5 s, no spike
   }
 
@@ -750,6 +790,7 @@ export class ServerRuntime {
     let sent = 0;
     for (const [id, n] of this.near) {
       if (n.index.size === 0) continue;
+      const a = performance.now();
       const r2 = n.index.radius ** 2, f2 = (n.index.radius * FORGET_FACTOR) ** 2;
       const players = this.host.players();
       for (let i = 0; i < players.length; i++) {
@@ -768,6 +809,7 @@ export class ServerRuntime {
           if (s.at && (s.at.x - me.x) ** 2 + (s.at.z - me.z) ** 2 <= r2) { mine.add(key); this.host.send(p, encodeState(n.pos, key, n.fields, s.value)); sent++; }
         }
       }
+      n.coste.ms += performance.now() - a;
     }
     return sent;
   }
