@@ -12,6 +12,7 @@ import { FILTROS, filtro, valoresSvg, aplicarMatriz, marco, nombreArchivo, enlac
 import { escribiendo } from "./escribiendo.ts";
 import { icono } from "./iconos.ts";
 import "./foto.css";
+import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
 
 type Punto = { x: number; y: number; z: number };
 type Vista = {
@@ -40,7 +41,7 @@ const PASAN = new Set(["Comma", "Period", "PageUp", "PageDown", "Home", "NumpadA
 const MUEVE: Record<string, [number, number, number]> = {
   KeyW: [0, 1, 0], ArrowUp: [0, 1, 0], KeyS: [0, -1, 0], ArrowDown: [0, -1, 0], KeyA: [-1, 0, 0], ArrowLeft: [-1, 0, 0], KeyD: [1, 0, 0], ArrowRight: [1, 0, 0], KeyQ: [0, 0, -1], KeyE: [0, 0, 1],
 };
-const tactil = () => matchMedia("(pointer: coarse)").matches;
+const tactil = esTactil; // U25: the page's one answer (perfil-aparato.ts)
 const css = (v: string, si: string) => getComputedStyle(document.documentElement).getPropertyValue(v).trim() || si;
 
 export function montarFoto(o: FotoOpts) {

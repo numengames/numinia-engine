@@ -9,6 +9,7 @@
 import { escribiendo } from "./escribiendo.ts";
 import { montarPescaManos } from "./pesca-vr.ts"; // N4: the rod in your hand in VR, and a gamepad
 import { consejo } from "../../features/pesca/client.ts";
+import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
 
 type Res = { ok: true } | { ok: false; why: string };
 type Estado = { fase: "nada" | "espera" | "mordisqueo" | "picada" | "pelea"; sitio: string; desde: number; ventana: number; pez: string; tension: number; progreso: number; arrancada: "no" | "aviso" | "si"; recogiendo: boolean; aviso: string; ultimo: { pez: string; cm: number; rareza: string; total: number } | null; cesta: { peces: number; mejor: string; mejorCm: number } };
@@ -77,7 +78,7 @@ function sonar(que: "exito" | "fallo", ctx: () => AudioContext | null, ajuste: (
 export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud: HTMLElement; ajuste?: (id: string) => unknown; interaccion?: () => Manos["interaccion"] }) {
   const ajuste = o.ajuste ?? (() => undefined);
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
-  const tactil = matchMedia("(pointer: coarse)").matches;
+  const tactil = esTactil();
   const hud = o.hud;
   hud.setAttribute("aria-label", "Pesca");
   hud.innerHTML = `<div class="que" role="status"></div>

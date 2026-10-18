@@ -3,6 +3,7 @@
 // read line by line. A «Chat» button on touch screens. What people write goes in with textContent only, never HTML.
 // main.ts passes the chat of features/chat/client.ts (only composition roots import features/).
 import { escribiendo } from "./escribiendo.ts";
+import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
 
 type Linea = { tipo: "cerca" | "zona" | "antes" | "aviso"; quien: number; nombre: string; texto: string; tuyo: boolean };
 type Res = { ok: true } | { ok: false; why: string };
@@ -14,7 +15,7 @@ export function montarChat(chat: Chat, raiz: HTMLElement) {
   const $ = <T extends HTMLElement>(sel: string) => raiz.querySelector(sel) as T;
   const lista = $<HTMLOListElement>("#chat-lista"), form = $<HTMLFormElement>("#chat-form"), input = $<HTMLInputElement>("#chat-texto");
   const canalBtn = $<HTMLButtonElement>("#chat-canal"), estado = $<HTMLElement>("#chat-estado"), boton = $<HTMLButtonElement>("#chat-boton");
-  const tactil = matchMedia("(pointer: coarse)").matches;
+  const tactil = esTactil();
   let canal: "cerca" | "zona" = "cerca";
   let silencio: ReturnType<typeof setTimeout> | undefined;
 

@@ -35,6 +35,12 @@ export const CAPACIDADES: Record<string, string> = {
   vibracion: "Puede vibrar (navigator.vibrate).",
   voz: "Puede hablar con la voz del sistema (speechSynthesis; V3).",
   webTransport: "Tiene WebTransport (M9).",
+  aparato: "Clase de disposición de la interfaz: escritorio, movil-vertical, movil-horizontal o vr (U25, aparato.ts). ?aparato=X la fuerza en desarrollo.",
+  aparatoForzado: "La clase de aparato la fijó una persona (?aparato o el ajuste), no el aparato: tactil, punteroGrueso, raton y movil son los declarados.",
+  pantallaPequena: "Pantalla de móvil: el lado corto de la ventana mide menos de 600 px CSS (o lo declara el perfil forzado).",
+  interfazTactil: "La interfaz enseña los mandos táctiles (joystick, «Saltar», botones de acción).",
+  desarrollo: "Página de desarrollo (vite dev) o abierta con ?debug: enseña los ajustes de desarrollo.",
+  debug: "La página se abrió con ?debug (quien desarrolla): en escritorio enseña las estadísticas por defecto (U23).",
 };
 
 type MQ = { matches: boolean };
@@ -49,6 +55,7 @@ export type Entorno = {
   document?: { fullscreenEnabled?: boolean };
   speechSynthesis?: unknown;
   WebTransport?: unknown;
+  location?: { search?: string };
 };
 
 /** The media queries behind the preference capabilities (the page listens to their changes). */
@@ -63,6 +70,14 @@ export const CONSULTAS = {
 /** Is a gamepad connected right now? */
 export function hayMando(nav: Entorno["navigator"]): boolean {
   try { return Array.from(nav?.getGamepads?.() ?? []).some((g) => !!g); } catch { return false; }
+}
+
+/** ?debug in the address (U23); «?debug=0» or «?debug=no» say no. Never throws. */
+export function hayDebug(search: string | undefined): boolean {
+  try {
+    const p = new URLSearchParams(search ?? "");
+    return p.has("debug") && !["0", "no", "false"].includes((p.get("debug") ?? "").toLowerCase());
+  } catch { return false; }
 }
 
 /** Same rule as render/power.ts `isMobileClass` (the page passes power's own value to keep one source). */
@@ -87,6 +102,7 @@ export function leerNavegador(env: Entorno = globalThis as unknown as Entorno): 
     bateriaApi: typeof nav.getBattery === "function", ahorroDatos: !!nav.connection?.saveData,
     dpr: Number(env.devicePixelRatio) || 1, maxTextura: 0, pantallaCompleta: !!env.document?.fullscreenEnabled,
     vibracion: typeof nav.vibrate === "function", voz: !!env.speechSynthesis, webTransport: typeof env.WebTransport === "function",
+    debug: hayDebug(env.location?.search),
   };
   c.movil = esMovil(c);
   c.nivel = nivelAparato(c);

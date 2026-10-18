@@ -26,6 +26,11 @@ html, body { font-family: "Geist", system-ui, sans-serif; }
 }
 #hud { font-family: "Geist Mono", ui-monospace, monospace; font-size: 12px; color: var(--n-texto2) !important; }
 #hud b { color: var(--n-verdemar); }
+/* U23: on a phone or a narrow window the statistics (when someone turns them on) sit UNDER the icon bar, never on it,
+   and stop short of the minimap; a line too long ends in «…» instead of running under the map */
+@media (max-width: 900px), (pointer: coarse) {
+  #hud { top: 64px !important; box-sizing: border-box; max-width: calc(100vw - var(--mini) - 30px); overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
+}
 #panel-construir h2, #libro h2, #dialogo h2, #ajustes h2, #panel-entorno h2, .panel-j5 h2 {
   color: var(--n-texto) !important; font-family: var(--n-titulos); font-weight: var(--n-titulos-peso); letter-spacing: var(--n-titulos-espacio);
   text-shadow: var(--n-titulos-sombra); text-transform: var(--n-titulos-mayus);
@@ -190,5 +195,14 @@ body #panel-entorno { top: 112px !important; }
 #dados-torre button:hover, #dados-torre button:focus-visible { border-color: var(--n-turquesa, #3fd1c6); }
 #dados-torre .secreto { display: block; margin: 6px 0 4px; font-size: 12px; }
 #dados-torre .ultima { color: var(--n-texto2); }
-@media (pointer: coarse) { #dados-torre { bottom: 180px; } #dados-torre button { min-height: 44px; } }
+html.tactil #dados-torre { bottom: 180px; } html.tactil #dados-torre button { min-height: 44px; } /* U25: touch layout = perfil-aparato.ts (html.tactil), not the media query */
 @media (prefers-reduced-motion: reduce) { #dados-carta, #dados-carta.cae .dado { transition: none; animation: none; } }
+
+/* ---- U26: a press you can see (pulsaciones.ts sets data-pulsado while the finger is down, ≥ 120 ms) ----
+   The :is(#u26#u26, …) only lifts the specificity to two ids, above the bar's own !important colours
+   (#barra-arriba > #microfono[aria-pressed]); it matches every button. «Menos movimiento»: colour only, no shrink. */
+button[data-pulsado]:is(#u26#u26, button):not(:disabled), [role="button"][data-pulsado]:is(#u26#u26, [role="button"]) {
+  background: var(--n-accion-h) !important; color: var(--n-accion-tinta) !important; border-color: var(--n-turquesa) !important;
+  transform: scale(.94); transition: transform 60ms ease-out;
+}
+html.menos-movimiento [data-pulsado]:is(#u26#u26, button, [role="button"]) { transform: none !important; }
