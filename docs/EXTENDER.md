@@ -608,6 +608,29 @@ página solo pide tres cosas (`lanzar { sitio }`, `recoger { activo }`, `soltar`
   un pescador sensato captura en 8–25 s, nadie captura sin picada, la simulación no se entera) y la pierna
   `tools/e2e-piernas/pesca.mjs` (navegador real: andar al pantalán, «E: pescar», HUD, chunk 3D, picada, pelea con F, captura,
   panel «¡Pescado!», pez en la mano en A y en B —otro invitado a 10 m—, la mano se vacía sola; B nunca recibe las fases de A).
+- **En todas partes (N4)**: el mismo minijuego con cada entrada; todo sigue pasando por el controlador (el servidor decide).
+  - **Móvil**: tocar «Pescar», mantener «Recoger». El HUD deja libre la columna de botones de la derecha («Saltar»…;
+    `hacerSitio()` mide `#acciones`), con el botón grande ≥ 48 px.
+  - **Mando en PC** (`apps/plaza/pesca-vr.ts`, mando estándar): A en el aviso «pescar» lanza; A o RT mantenidos
+    recogen; B suelta. La pista del HUD cambia a «Mantén A (o RT)…» cuando hay un mando conectado.
+  - **VR**: cada pantalán tiene una **caña en un soporte** (poste + tubo, 2 draw calls). La mano (mando o mano seguida)
+    junto al mango la ilumina; con el agarre (o un pellizco) la coges y queda en tu mano real (`view.manos.ancla`).
+    **Lanzar** = un golpe de muñeca hacia delante (hacia donde miras); **tirón** = levantar la caña de golpe (engancha en
+    la picada; en la pelea da un tirón); el gatillo (o mantener el pellizco) recoge. Los gestos están en
+    `features/pesca/gestos.ts`, que es puro: mide la velocidad de un punto de la caña a 1 m de la mano dentro de una
+    ventana de 140 ms y exige además 0,3 m de recorrido, así que un pellizco o un salto de las articulaciones no cuenta
+    como lance. Sigue funcionando igual con la tasa de cuadros de cualquier visor. La caña **vibra**: un toque cuando
+    mordisquean, un golpe fuerte en la picada, un aviso antes de la arrancada, y en la pelea un zumbido que crece con
+    la tensión. Encima de la caña hay un **medidor** (lienzo) con la misma frase que el HUD (`consejo()` en
+    `client.ts`: «¡Afloja, que se rompe el sedal!»…) y las barras de tensión y pez; el sedal propio se pone rojo
+    cuando va a romperse. Para devolver la caña: otra vez el agarre, o pellizcar junto al soporte; también vuelve
+    sola si te alejas más de 6 m. La mano que tiene la caña, o que está en el mango, no apunta con el rayo ni «usa»
+    cosas (`manos.reglas({ ocupada })`), para que el pellizco con el que coges la caña no lance desde el aviso.
+    Si alguien pesca en ese sitio, el soporte se ve vacío.
+  - **Pruebas**: `test/pesca-gestos.test.ts` y la pierna `tools/e2e-piernas/pesca-todas.mjs`. La pierna hace tres
+    pasadas: móvil 390×844 táctil (tocar, un toque real mantenido, encaje del HUD), PC con un mando emulado y VR con IWER
+    (soporte, agarre, lance, tirón, pelea con gatillo, vibración, medidor, devolver; luego con manos seguidas: pellizco
+    para coger, lance y pellizco para devolver).
 - **Después (v3)**: pantalán sólido (que el avatar suba a las tablas: hoy son un suelo a ras), mochila/cesta visible,
   sedal verlet (river-morning `Rope.ts`, MIT), varios sitios y tablas por hora/clima, sombras de peces,
   cebos y cañas, ficha de colección, paso de misión `pesca`, predicción local de la tensión, AR/VR.

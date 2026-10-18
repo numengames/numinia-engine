@@ -145,6 +145,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     ancla: (l: "izq" | "der") => manosReal?.ancla(l) ?? null,
     andar: () => manosReal?.andar() ?? null,
     vibrar: (l: "izq" | "der", v?: number, ms?: number) => manosReal?.vibrar(l, v, ms),
+    entrada: (l: "izq" | "der") => manosReal?.entrada(l) ?? null,
     estado: () => manosReal?.estado() ?? { izq: null, der: null },
   };
   const ar = createAR({ renderer, scene, world, domOverlayRoot: document.getElementById("hud") ?? undefined, maxMs: opts.arMaxMs, manos,
@@ -190,6 +191,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     mat.map?.dispose(); mat.dispose();
     labels.delete(t);
   }
+  // N4: the rod in your real hand in VR, and the gauge facing the camera that draws
+  pesca.conManos({ ancla: (l) => (renderer.xr.isPresenting && vr.active ? manos.ancla(l) : null), camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera) });
+
   // beacons (R1): a column of light with a text at a world point; expires on its own
   const beacons: { group: THREE.Group; until: number }[] = [];
   const beaconGeo = new THREE.CylinderGeometry(0.6, 0.6, 40, 16, 1, true);
@@ -690,8 +694,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       updateThings(dtSeconds);
       selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
       editor.frame();
-      entorno.actualizar(); elementos.actualizar(dtSeconds); pesca.actualizar(dtSeconds);
-      if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); colocarLlevados(); renderer.render(scene, camera); return; }
+      entorno.actualizar(); elementos.actualizar(dtSeconds);
+      if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); renderer.render(scene, camera); return; } // N4: after the hands moved, so a held rod does not trail a frame
+      pesca.actualizar(dtSeconds);
       if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
       cam.update(dtSeconds, selfXZ ? feet : null);
       colocarLlevados();
