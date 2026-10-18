@@ -9,6 +9,7 @@
 import { triangulosDeGlb, TRIANGULOS_MAX_MALLA } from "./colision-glb.ts";
 import { quantizeTriangles, buildBvh } from "../../sim/src/index.ts";
 import type { Bvh } from "../../sim/src/index.ts";
+import type { ConstruirMalla } from "../../instance/src/index.ts";
 import { transformarPuntos } from "../../feature/src/index.ts";
 
 /** Reads the bytes of /a/<sha256>.<ext> on this server (the house library or an upload), or null — the server's own
@@ -25,8 +26,10 @@ const esSha256 = (s: string): boolean => /^[0-9a-f]{64}$/.test(s);
 /** Builds the `construirMalla` the instance calls (InstanceOptions): one BVH from every readable `malla` thing in
  * the shared state, or null when there is none (or none of them could be read). Never throws: a thing whose .glb
  * cannot be read or parsed is skipped (logged by the caller through `instance`'s own catch), the rest still builds. */
-export function construirMalla(leerActivo: LeerActivo): (objetos: Iterable<[string, Record<string, unknown>]>) => Promise<Bvh | null> {
-  return async (objetos) => {
+export function construirMalla(leerActivo: LeerActivo): ConstruirMalla {
+  let falta = false; // D2: the last build skipped a thing whose file was not here (yet): the instance retries on any change
+  const construir = async (objetos: Iterable<[string, Record<string, unknown>]>): Promise<Bvh | null> => {
+    falta = false;
     const candidatos = [...objetos].filter(([, v]) => v.colision === "malla").slice(0, MALLA_OBJETOS_MAX);
     if (!candidatos.length) return null;
     const vertices: number[] = [], indices: number[] = [];
@@ -34,7 +37,7 @@ export function construirMalla(leerActivo: LeerActivo): (objetos: Iterable<[stri
       const modelo = String(o.modelo ?? ""), ext = String(o.ext ?? "glb");
       if (!esSha256(modelo)) continue; // a house-library id (not a hash) has no file to read: no malla for it yet
       const bytes = leerActivo(modelo, ext);
-      if (!bytes) continue; // uploaded elsewhere, or not on this server (yet)
+      if (!bytes) { falta = true; continue; } // uploaded elsewhere, or not on this server (yet)
       const r = await triangulosDeGlb(bytes, { max: TRIANGULOS_MAX_MALLA });
       if (!r.ok) continue; // Draco, sparse, too many triangles… skip this one thing, keep the rest
       const base = vertices.length / 3, mundo = transformarPuntos(r.value.vertices, o);
@@ -44,4 +47,5 @@ export function construirMalla(leerActivo: LeerActivo): (objetos: Iterable<[stri
     if (!indices.length) return null;
     return buildBvh(quantizeTriangles(Float64Array.from(vertices), Uint32Array.from(indices)));
   };
+  return Object.assign(construir, { faltaAlgo: () => falta });
 }

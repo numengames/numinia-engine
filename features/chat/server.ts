@@ -25,10 +25,14 @@ export default serverPart(chat, (api) => {
   const conocidos = new Map<number, Set<number>>();  // player -> entities whose name its page holds
   const callados = new Map<number, number>();        // H3: entity -> tick until which it is silenced (the roles' «silencio»)
   const bloqueados = new Map<number, Set<number>>(); // F1: listener entity -> speakers it does not read (the roles' «bloqueo»)
+  const nombresPropios = new Map<number, string>();  // H3c: entity -> name chosen with /nombre (roles-mundo.ts), overrides the identity's
   const r2 = NOMBRES_M ** 2, olvido2 = (NOMBRES_M * OLVIDO) ** 2;
 
-  /** The name people see: the identity's (I1); a robot's after a second without one; null = not yet. */
+  /** The name people see: a chosen one (H3c /nombre) first, else the identity's (I1); a robot's after a second
+   * without one; null = not yet. */
   const nombreDe = (e: number): string | null => {
+    const propio = nombresPropios.get(e);
+    if (propio) return propio;
     const w = api.who(e);
     if (w) return limpiar(w.nombre, NOMBRE_MAX) || `Persona ${e}`;
     const t = llegada.get(e);
@@ -74,6 +78,16 @@ export default serverPart(chat, (api) => {
     if (s > 0) callados.set(e, api.tick() + s * TICKS_POR_SEGUNDO); else callados.delete(e);
     return true;
   });
+  // H3c: /nombre (roles-mundo.ts) — a chosen name, over heads and in what they say, until they leave or choose another.
+  api.listen("roles", "nombreCambiado", (m) => {
+    const e = Number(m.quien), n = limpiar(String(m.nombre ?? ""), NOMBRE_MAX);
+    if (!n) return true;
+    nombresPropios.set(e, n);
+    for (const [p, s] of conocidos) if (s.has(e)) api.emit("nombre", { quien: e, nombre: n }, { to: p });
+    return true;
+  });
+  // H3c: /chat borrar (roles-mundo.ts, manage-organization) — the zone's history, empty for whoever enters next.
+  api.listen("roles", "borrarHistorial", () => { historia.length = 0; return true; });
 
   api.onJoin((e) => {
     llegada.set(e, api.tick());
@@ -85,7 +99,7 @@ export default serverPart(chat, (api) => {
     if (n) for (const [p, s] of conocidos) if (s.has(e)) api.emit("nombre", { quien: e, nombre: n }, { to: p });
   });
   api.onLeave((e) => {
-    llegada.delete(e); conocidos.delete(e); callados.delete(e); bloqueados.delete(e);
+    llegada.delete(e); conocidos.delete(e); callados.delete(e); bloqueados.delete(e); nombresPropios.delete(e);
     for (const s of bloqueados.values()) s.delete(e);
     for (const [p, s] of conocidos) if (s.delete(e)) api.emit("nombre", { quien: e, nombre: "" }, { to: p });
   });

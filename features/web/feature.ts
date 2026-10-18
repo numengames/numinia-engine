@@ -20,6 +20,8 @@ export const TEXTO_MAX = 200;
 export const PANTALLAS_MAX = 24;
 /** Most domains on a world's allow-list. */
 export const DOMINIOS_MAX = 32;
+/** Longest one domain of the allow-list takes (host, optional :port). DNS allows up to 253 + a port. */
+export const DOMINIO_TXT_MAX = 260;
 /** A screen's size in metres (its width; its height follows `alto`). */
 export const ANCHO_M = { min: 0.5, max: 12, defecto: 3.2 } as const;
 export const ALTO_M = { min: 0.3, max: 8, defecto: 1.8 } as const;
@@ -37,12 +39,14 @@ const TITULO = { kind: "text", maxBytes: TITULO_MAX } as const;
 const TEXTO = { kind: "text", maxBytes: TEXTO_MAX, default: "" } as const;
 const ANCHO = { kind: "fixed", min: ANCHO_M.min, max: ANCHO_M.max, step: 0.01, default: ANCHO_M.defecto } as const;
 const ALTO = { kind: "fixed", min: ALTO_M.min, max: ALTO_M.max, step: 0.01, default: ALTO_M.defecto } as const;
+const DOMINIO = { kind: "text", maxBytes: DOMINIO_TXT_MAX } as const;
 
 export const web = defineFeature({
   id: "web",
-  version: 1,
+  version: 2,
   level: "base",
-  describe: "Pantallas web: un panel del mundo que muestra una página web de verdad. En ordenador y móvil se lee y se pulsa dentro del mundo; en VR muestra una vista previa y un botón para abrirla fuera. Solo sitios de la lista del mundo; solo los dueños y quien dirige ponen o quitan pantallas.",
+  describe: "Pantallas web: un panel del mundo que muestra una página web de verdad. En ordenador y móvil se lee y se pulsa dentro del mundo; en VR muestra una vista previa y un botón para abrirla fuera. Solo sitios de la lista del mundo; solo los dueños y quien dirige ponen o quitan pantallas, y añaden o quitan dominios de la lista en caliente.",
+  store: { describe: "Dominios añadidos a la lista de sitios permitidos desde dentro del mundo (N17 corte 2): clave = firma del dominio (api.sign), valor = el dominio normalizado. No incluye los de entorno/web.json (esos no se quitan desde aquí)." },
   state: {
     describe: "Una entrada por pantalla (clave = su id). url = la página (https; sitios de la lista del mundo); titulo = lo que dice el lector de pantalla; texto = la vista previa (VR, o si el sitio no se deja enmarcar); x, y (centro), z en metros y ry en grados (hacia dónde mira); ancho × alto en metros; marco = lo que el servidor sabe de si el sitio se deja mostrar dentro de otra página («?», «si», «no» o la lista frame-ancestors del sitio); fichero = viene de entorno/web.json (no se quita desde el mundo).",
     fields: { url: URL_F, titulo: TITULO, texto: TEXTO, x: POS, y: Y, z: POS, ry: GIRO, ancho: ANCHO, alto: ALTO, marco: { kind: "text", maxBytes: MARCO_MAX, default: "?" }, fichero: { kind: "bool", default: false } },
@@ -57,12 +61,25 @@ export const web = defineFeature({
       rate: { perSecond: 2, burst: 4 },
     },
     quitar: { describe: "Quitar una pantalla web del mundo (las de entorno/web.json no: se quitan del fichero). Solo dueños y quien dirige.", spoken: "quitar una pantalla web", fields: { id: ID }, rate: { perSecond: 2, burst: 4 } },
+    dominioPoner: {
+      describe: "Añadir un dominio a la lista de sitios permitidos de este mundo, en caliente (sin tocar entorno/web.json ni reiniciar el servidor). Hasta DOMINIOS_MAX dominios en total entre el fichero y los añadidos aquí; persiste como las pantallas puestas (S4). Solo dueños y quien dirige.",
+      spoken: "añadir un dominio permitido",
+      fields: { dominio: DOMINIO },
+      rate: { perSecond: 1, burst: 3 },
+    },
+    dominioQuitar: {
+      describe: "Quitar un dominio añadido en caliente desde el mundo (los de entorno/web.json no se quitan así: se quitan del fichero). Solo dueños y quien dirige.",
+      spoken: "quitar un dominio permitido",
+      fields: { dominio: DOMINIO },
+      rate: { perSecond: 1, burst: 3 },
+    },
   },
   events: {
     permiso: { describe: "Si puedes poner y quitar pantallas web aquí (llega al entrar, al identificarte y cuando cambian tus roles).", fields: { poner: { kind: "bool" } }, announce: "silent" },
     hecho: { describe: "Tu pantalla se puso o se quitó.", fields: { id: ID, accion: { kind: "enum", values: ["poner", "quitar"] } }, announce: { text: "Pantalla web: hecho", sound: "suave", importance: 1 } },
     rechazado: { describe: "Lo que pediste con las pantallas web no se hizo, y por qué.", fields: { motivo: { kind: "text", maxBytes: 200 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
     aviso: { describe: "Para el chat (solo en el servidor): la respuesta a una orden /web, solo para quien la escribió.", fields: { quien: { kind: "int", min: 0, max: 1_000_000 }, texto: { kind: "text", maxBytes: 300 } }, announce: "silent" },
+    dominioHecho: { describe: "Un dominio se añadió o se quitó de la lista de sitios permitidos, en caliente.", fields: { dominio: DOMINIO, accion: { kind: "enum", values: ["poner", "quitar"] } }, announce: { text: "Dominio permitido: {accion} {dominio}", sound: "suave", importance: 1 } },
   },
 });
 
