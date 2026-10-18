@@ -223,3 +223,28 @@ test("lucha h1: out of reach = aire and no Carga spent; unknown ability / creatu
   p.l.habilidad("corte-breve", "c:nada"); W.pump(2);
   assert.equal(W.evs(p, "rechazado").length, 1);
 });
+
+// ---- combate nivel 2, h2: the Carga bar follows the server's `carga` ----
+import { vistaCarga } from "../features/lucha/habilidades.ts";
+
+test("lucha h2: the bar view is clamped and says which abilities are affordable", () => {
+  assert.deepEqual(vistaCarga(0), { pct: 0, texto: "Carga 0/100", listas: { "corte-breve": true, "incision-semantica": false, "discontinuidad": false } });
+  assert.equal(vistaCarga(30).listas["incision-semantica"], true);
+  assert.equal(vistaCarga(54).listas["discontinuidad"], false);
+  assert.equal(vistaCarga(55).listas["discontinuidad"], true);
+  assert.equal(vistaCarga(250).pct, 100);
+  assert.equal(vistaCarga(NaN).pct, 0);
+});
+
+test("lucha h2: Corte Breve raises the page's bar by 12, Incisión Semántica lowers it by 30; the page is told on each change", () => {
+  const W = mundo(1, 7, [{ ...G, reaparicion: 0.05 }]);
+  const p = W.pages[0];
+  let avisos = 0; p.l.alCambiar(() => { avisos++; });
+  W.pump(2); W.place(p.s.entity, 11, 0); W.pump(12);
+  for (let i = 0; i < 3; i++) { p.l.habilidad("corte-breve"); W.pump(20); }
+  assert.equal(vistaCarga(p.l.carga()).pct, 36);
+  const antes = avisos;
+  p.l.habilidad("incision-semantica"); W.pump(2);
+  assert.equal(vistaCarga(p.l.carga()).pct, 6, "36 − 30");
+  assert.ok(avisos > antes, "the bar is repainted");
+});
