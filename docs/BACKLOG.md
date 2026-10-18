@@ -125,7 +125,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | H9 | Paridad Hyperfy2: subir ficheros arrastrando — por hash, con tope, solo quien construye | hecho | sí |
 | H9b | Subidas: borrar lo que nadie usa y cupo por identidad | espera a H3 | sí |
 | H7 | Paridad Hyperfy2: ajustes del mundo — título, descripción, imagen, escenario, avatar por defecto, abierto a construir, límite de personas | hecho (primer corte: fichero `ficha.json` con avatar y aforo, aviso al lleno; falta el panel) | sí |
-| H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | pendiente | sí |
+| H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | hecho | sí |
 | H13 | Paridad Hyperfy2: nivel de detalle (LOD) de los modelos, generado en la ingesta | espera a M21 | sí |
 | H11 | Paridad Hyperfy2: importar de Hyperfy — `.hyp` → carpeta de app; un mundo entero → carpeta del mundo | espera a M19 | sí |
 | H14 | El mundo en un zip: bajarlo y subirlo en `/mundo` con el código de administración (`mundo-zip.ts`, `zip.ts`); falta: la aventura dentro del zip, la sala de numinia.com | hecho (primer corte) | sí |
@@ -1086,6 +1086,23 @@ licencia leídos). Se guarda con tu identidad (I1) y lo ven todos; el avatar por
 una función puede poner un avatar solo para la sesión (su `setSessionAvatar`). **Hecho cuando:** e2e: la
 pestaña A cambia de avatar, la B lo ve, y al volver A sigue con él.
 Validar cada VRM subido con `packages/server/src/vrm.ts` (`revisarAvatar`: CC0 dentro del fichero, ≤ 10.000 triángulos; hecho en J1).
+
+**Hecho (18-10, rama `ko/t_fb4535c8`).** Función nueva `features/avatar/` (R-1): intent `elegir` (tipo casa+índice,
+o subido+sha256 de un `.vrm` ya en `/a/`), guardado por identidad (`store`, S4) y espejado a la entidad conectada
+como `state` compartido (todos lo ven; al identificarte, I1 te devuelve tu elección). El servidor solo confía en
+`api.activo` para un subido (el tamaño y la licencia los comprueba la página antes de subir, `vrm.ts` `revisarAvatar`,
+igual que el catálogo de la casa). Botón «Avatar» (top-right, para cualquier visitante, no solo quien construye,
+`apps/plaza/avatar.ts`): lista los avatares de la casa y «Subir tu .vrm…» (mismo camino que H9: hash, HEAD, PUT con
+el billete). `packages/render/src/avatares.ts` gana un gancho `eleccion(clave)` que sustituye el índice fijo por
+entidad (`elegirAvatar`) cuando hay una elección, para ti y para los demás (antes solo se recalculaba para «yo»: B no
+veía cambiar de avatar a A — corregido aquí). Un `.vrm` subido se añade una vez al mismo `catalogo.modelos` que los
+de la casa: `avatares.ts` no necesita un camino nuevo para dibujarlo. **Medido:** 4 pruebas nuevas
+(`test/avatar.test.ts`: elegir y ver el cambio, subido rechazado si no está en el servidor, sobrevive un reinicio);
+`npm test` en verde salvo una puerta de rendimiento ya roja antes de este cambio (`misiones-secuencia.test.ts`,
+flaky en esta máquina); `npm run layers` y `npm run build` en verde (471,5 kB gz, dentro de los 480 del gate D2: el
+`.vrm` grande sigue en el trozo diferido de `avatares-vrm.ts`). **Falta:** e2e real con dos pestañas de Playwright
+(se verificó con la instancia en memoria, no con el navegador); revisarAvatar repetido en el servidor (hoy solo la
+página lo comprueba antes de subir); limpiar un `.vrm` subido que nadie usa ya (H9b).
 
 ### H11 — Importar de Hyperfy (espera a M19)
 Para traer los mundos Numinia de hoy. Un `.hyp` (4 bytes con el tamaño de la cabecera + JSON + ficheros; ver
