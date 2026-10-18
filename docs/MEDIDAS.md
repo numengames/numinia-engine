@@ -44,7 +44,7 @@ Cada orden escribe un informe `informes/AAAA-MM-DD-HH-MM-<etiqueta>.json` (para 
 ## Cuándo pasa un nivel (`packages/server/src/puertas.ts`)
 
 Pasa si: **tick p99 ≤ 25 ms**, **respuesta p99 ≤ 50 ms**, 0 fallos, 0 caídas, ≥ 99 % conectaron, 0 rechazadas por «instancia llena» **y** la medida es fiable:
-**steal ≤ 2 %** y los robots no están saturados (bucle de los robots p99 ≤ 20 ms y CPU ≤ 85 % por proceso). Si la medida no es fiable el veredicto es **NO FIABLE**, no «no pasa»: se repite con otra máquina de robots.
+**steal ≤ 2 %**, **espera de CPU ≤ 2 %** y los robots no están saturados (bucle de los robots p99 ≤ 20 ms y CPU ≤ 85 % por proceso). Si la medida no es fiable el veredicto es **NO FIABLE**, no «no pasa», y el informe entero lo dice arriba con el motivo: se repite con otra máquina de robots o con el servidor en un núcleo libre (`tools/swarm.sh` local lo pone en el 6 con prioridad normal, `SRV_CPUS`; los agentes usan el 2-5).
 Los umbrales son de la casa; los que tengan fuente externa la citan en el estudio. Para el RTT y los huecos no hay umbral todavía: primero se mide.
 
 ## El banco de CPU por dentro (`bench@2`) y cómo comparar dos pasadas

@@ -5,6 +5,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Hist, median } from "../packages/server/src/hist.ts";
+import { maquinaNoFiable, PUERTAS } from "../packages/server/src/puertas.ts";
 import { parseProcStat, parseSchedstat, Runtime } from "../packages/server/src/runtime.ts";
 import { startServer } from "../packages/server/src/server.ts";
 
@@ -116,5 +117,27 @@ test("swarm: a real run against a real server writes a report with server and cl
     assert.equal(typeof r.veredicto.pasa, "boolean");
     assert.ok(Array.isArray(r.veredicto.motivos) && Array.isArray(r.veredicto.avisos));
     assert.ok(readdirSync(out).some((f) => f.endsWith(".md")));
+    // E7: the server's CPU wait is in the report and decides the report's reliability with the same rule as the level.
+    if (process.platform === "linux") assert.equal(typeof r.servidor.esperaCpuMaxPct, "number", JSON.stringify(r.servidor));
+    assert.equal(typeof rep.fiable, "boolean");
+    assert.equal(rep.fiable, rep.resultados.every((x: { veredicto: { fiable: boolean } }) => x.veredicto.fiable));
+    assert.equal(r.veredicto.fiable === false, r.veredicto.avisos.some((a: string) => a.startsWith("NO FIABLE")));
+    if (r.servidor.esperaCpuMaxPct > PUERTAS.esperaCpuMaxPct) {
+      assert.equal(rep.fiable, false);
+      assert.match(readFileSync(join(out, json[0].replace(/json$/, "md")), "utf8"), /NO FIABLE[\s\S]*espera de CPU/);
+    }
   } finally { await srv.close(); rmSync(out, { recursive: true, force: true }); }
+});
+
+test("E7: a measurement with the server's CPU wait or steal above 2 % is of the machine (NO FIABLE, with the reason)", () => {
+  assert.equal(PUERTAS.esperaCpuMaxPct, 2);
+  assert.deepEqual(maquinaNoFiable({ stealMaxPct: 0, esperaCpuMaxPct: 0.7 }), []);
+  assert.deepEqual(maquinaNoFiable({ stealMaxPct: 0, esperaCpuMaxPct: 2 }), [], "2 % exactly still passes, like steal");
+  assert.deepEqual(maquinaNoFiable({ stealMaxPct: 0, esperaCpuMaxPct: null }), [], "unknown is not a reason (it is a warning)");
+  const w = maquinaNoFiable({ stealMaxPct: 0, esperaCpuMaxPct: 3.73 });
+  assert.equal(w.length, 1);
+  assert.match(w[0], /espera de CPU 3\.73 % > 2 %.*máquina/);
+  const both = maquinaNoFiable({ stealMaxPct: 2.5, esperaCpuMaxPct: 5 });
+  assert.equal(both.length, 2);
+  assert.match(both[0], /^steal 2\.5 %/);
 });
