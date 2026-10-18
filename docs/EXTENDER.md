@@ -903,6 +903,39 @@ poste, la caja en el suelo.
 - **Lo que no hace (todavía, historia 3):** guardar el valor entre reinicios del servidor (`persist`), un contador por
   persona o por equipo con nombre libre, poner o quitar contadores desde dentro del mundo (hoy, solo el fichero), y el
   cable que conecte `llegada` con otra pieza (D-041, otro agente).
+## El cable (D-041, v1): disparadores que un mundo escribe en datos, sin código
+
+La pieza `disparadores@1` (`features/disparadores`) es el cable del mundo: un constructor (o un agente que escribe JSON)
+conecta «cuando pase esto, haz aquello» en `MUNDO_DIR/disparadores.json` (`numinia-engine/disparadores@1`) y **nadie
+decide nada en su página**: el servidor vigila quién entra en cada zona (`api.onTick`, una distancia por persona y
+disparador), comprueba el alcance de cada pulsación (`api.within`), cuenta el cooldown en ticks y el «un solo uso»,
+avisa a los cercanos (`disparado`, `CERCA_M = 30`) y emite **una acción por receptor** como evento con alcance
+`"server"` (`accion`): la función dueña de esa acción la oye con `api.listen("disparadores", "accion", …)` y devuelve
+`true`. Hoy `features/objetos` hace `muestra` / `oculta` (pone `oculto` al objeto por id o por nombre exacto; la página no
+dibuja un modelo oculto al jugar y sí al construir); `teletransporta`, `da_paso`, `abre_enlace` y `suena` llegan en sus
+historias: mientras tanto el registro dice `nadie hace «teletransporta» en este servidor` en vez de callar.
+
+- **El fichero:** `{ "disparadores": [{ id, nombre, tipo: "zona" | "boton", x, y?, z, radio?, frase?, cooldown?, un_solo_uso?,
+  receptores: [{ accion, … }] }] }`. `id` es `[a-z0-9-]{1,16}`; `radio` es el de la zona (0,5-64 m, 3 por defecto) o desde
+  cuánto se pulsa el botón (1-16 m, 2); `frase` es lo que ve quien se acerca al botón («E: pulsar», en el ordenador,
+  el móvil y el visor; por defecto `pulsar <nombre>`); `cooldown` 0-3600 s; `un_solo_uso` gasta el disparador para
+  siempre (el botón deja de ofrecerse: su `alcance` pasa a 0). Receptores (hasta 8; una línea mala tira el disparador
+  entero, y el registro dice cuál): `{ "accion": "muestra" | "oculta", "objeto": "<id o nombre>" }`,
+  `{ "accion": "teletransporta", "x", "y"?, "z" }`, `{ "accion": "da_paso", "mision", "paso" }`, `{ "accion": "abre_enlace",
+  "enlace": "https://…" }`, `{ "accion": "suena", "sonido" }`. Hasta 64 disparadores por mundo; sin fichero no hay ninguno y
+  el motor no cambia (la huella de la simulación es la misma: `test/disparadores.test.ts`).
+- **Estado por disparador:** `nombre, tipo, x, y, z, radio, alcance, frase, cooldown, unSoloUso, usos, enEspera, agotado`;
+  intención `pulsar {disparador}` (2/s, ráfaga 4); eventos `disparado` (cercanos), `senal` y `accion` (solo servidor) y
+  `rechazado` («Acércate…», «Todavía no: … espera N s», «… ya se usó»). Una zona nunca regaña: si está en espera o
+  gastada, entrar no hace nada; se dispara al **entrar** (una vez por entrada, por persona) y salir y volver a entrar
+  vuelve a contar si el cooldown pasó.
+- **Ejemplo mínimo (botón que enciende una farola oculta):** `{ "disparadores": [{ "id": "rojo", "nombre": "Botón rojo",
+  "tipo": "boton", "x": 12, "z": 0, "frase": "E: pulsar", "cooldown": 5, "receptores": [{ "accion": "muestra", "objeto":
+  "Farola" }] }] }` con un objeto llamado «Farola» marcado como invisible al jugar en el constructor.
+- **Lo que no hace (todavía):** los receptores de las historias 3-4 (`teletransporta`, `da_paso`, `abre_enlace`, `suena`),
+  la etiqueta flotante de la zona y el botón móvil (historia 5), el catálogo para agentes y el ejemplo en la plaza
+  (historia 6), y disparadores que no sean zona o botón (la cerradura de D-042, el temporizador de D-044 son emisores
+  nuevos de este mismo cable).
 
 ## Agua (N2): estilizada, de color plano, un solo draw call
 

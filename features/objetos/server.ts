@@ -96,6 +96,17 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
   api.onJoin(avisar);
   api.onIdentify((e) => avisar(e));
   api.listen("roles", "cambio", (m) => { avisar(Number(m.quien)); return true; }); // H3: a role given or taken
+  // D-041 (the cable): a receiver `muestra` / `oculta` names one of our things by id or by exact name; the world's own
+  // file asked for it, so no builder permission is checked. `oculto` = not drawn while playing (seen while building).
+  api.listen("disparadores", "accion", (m) => {
+    if (m.accion !== "muestra" && m.accion !== "oculta") return false;
+    const ref = String(m.objeto ?? ""), id = api.state.get(ref) ? ref : api.state.keys().find((k) => String(api.state.get(k)?.nombre ?? "") === ref);
+    const o = id ? api.state.get(id) : undefined;
+    if (!id || !o) { api.log(`[objetos] el cable pide ${m.accion} «${ref.slice(0, 60)}» y no hay tal objeto`); return true; }
+    const oculto = m.accion === "oculta";
+    if (o.oculto !== oculto) api.state.set(id, { ...o, oculto });
+    return true;
+  });
 
   api.on("colocar", (from, m) => {
     if (!puede(from) || !caben(from)) return;

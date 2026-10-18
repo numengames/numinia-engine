@@ -21,5 +21,6 @@ import botones from "./botones/client.ts"; // J4: the cap on its post
 import cogibles from "./cogibles/client.ts"; // J4: on the floor or in a hand (view.lleva); «Soltar» = Q
 import suelo from "./suelo/client.ts"; // D-045: the fade when the server puts you back on a safe spot
 import contadores from "./contadores/client.ts"; // D-044: timers and counters (the sign is a label sprite; the panel lives in apps/plaza/contadores.ts)
-const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores];
+import disparadores from "./disparadores/client.ts"; // D-041: the cable — a button on its post; the page only asks `pulsar`
+const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores];
 export default funciones;

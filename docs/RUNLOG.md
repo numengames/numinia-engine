@@ -824,3 +824,9 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Fable 5.1 (subagente).
 - Commit: rama `feat/m6-integer-bvh-ray` contra `tren/motor-2026-10-18-3`.
 - Siguiente: historias 5-6 (pared y pendiente contra triángulos), 9 (la página construye el mismo BVH del GLB).
+## 2026-10-18 12:58 · D-041 cable h1-h2 · hecho
+- **Qué:** la pieza `disparadores@1` (`features/disparadores`): lectura con esquema de `MUNDO_DIR/disparadores.json` (cada línea mala fuera con su motivo, como `interacciones.json`), disparadores de **zona** (entrar) y **botón** (`pulsar` por la carta `interact`, «E: pulsar») que decide el servidor con cooldown y un solo uso, evento `disparado` a los cercanos y `senal`/`accion` solo servidor (una `accion` por receptor); `features/objetos` oye `muestra`/`oculta` (por id o nombre) y la página deja de dibujar un modelo oculto al jugar (`packages/render`, 2 líneas). Rama sobre el tren; trae la regla «radio 0 no se ofrece» de #50 idéntica para que la fusión sea limpia.
+- **Números:** `test/disparadores.test.ts`, 6 pruebas (declaración + limits.json, lectura línea a línea y topes, conMundo, botón: alcance/rechazo/cooldown/«todavía no»/receptor muestra, zona: una vez por entrada/un solo uso/receptor oculta/receptor sin dueño en el registro, huella de la simulación igual); suite entera 543/543; build OK.
+- **Consumo:** subagente; no medido.
+- **Commit:** este PR.
+- **Siguiente:** historias 3-6 del cable (teletransporta, da_paso, abre_enlace, suena; etiqueta de zona y botón móvil; catálogo y ejemplo en la plaza).

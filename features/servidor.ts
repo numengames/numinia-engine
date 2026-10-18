@@ -21,5 +21,6 @@ import botones from "./botones/server.ts"; // J4: buttons the server counts; a s
 import cogibles from "./cogibles/server.ts"; // J4: things anyone picks up and puts down; drawn in the carrier's hand
 import suelo from "./suelo/server.ts"; // D-045: back to the last safe spot after a fall (the instance does it; this tells the page)
 import contadores from "./contadores/server.ts"; // D-044: timers and counters everyone sees (the server keeps the clock, publishes once a second to the zone)
-const funciones: ServerPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores];
+import disparadores from "./disparadores/server.ts"; // D-041: the cable — zone and button triggers a world wires in disparadores.json; one server-only `accion` per receiver
+const funciones: ServerPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores];
 export default funciones;
