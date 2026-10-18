@@ -12,7 +12,8 @@ export type Receptor =
   | { accion: "teletransporta"; x: number; y: number; z: number }
   | { accion: "da_paso"; mision: string; paso: number }
   | { accion: "abre_enlace"; enlace: string }
-  | { accion: "suena"; sonido: string };
+  | { accion: "suena"; sonido: string }
+  | { accion: "vuelve_a_seguro" };
 export type Disparador = { id: string; nombre: string; tipo: "zona" | "boton"; x: number; y: number; z: number; radio: number; alcance: number; frase: string; cooldown: number; unSoloUso: boolean; receptores: Receptor[] };
 export const ID_RE = /^[a-z0-9][a-z0-9-]{0,15}$/;
 const MISION_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/;
@@ -52,6 +53,8 @@ export function leerReceptor(r: unknown): Receptor | string {
       if (!/^[a-z0-9_-]{1,32}$/.test(sonido)) return "suena: «sonido» es un nombre corto (minúsculas, cifras, guiones)";
       return { accion, sonido };
     }
+    case "vuelve_a_seguro":
+      return { accion };
   }
 }
 
@@ -162,6 +165,34 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[] } = {}) =>
         if (esta && !s.has(e)) { s.add(e); disparar(d, e); }
         else if (!esta && s.has(e)) s.delete(e);
       }
+    }
+  });
+
+  // D-041 historias 3-4: the cable's own receivers (no other feature owns moving someone or sounding a note);
+  // `da_paso` goes to features/misiones instead, with its own api.listen there. A receiver here is server-only
+  // (quien = 0 would mean nobody in particular; today every firing names a real entity).
+  api.listen("disparadores", "accion", (m) => {
+    const quien = Number(m.quien);
+    switch (String(m.accion)) {
+      case "teletransporta": {
+        const donde = api.teletransportar(quien, { x: Number(m.x), y: Number(m.y), z: Number(m.z) }, { radios: [0, 1, 2], caida: 1 });
+        if (donde) api.emit("teletransportado", { quien, x: donde.x, y: donde.y, z: donde.z }, { to: quien });
+        else api.log(`[disparadores] teletransporta: sin sitio libre cerca de (${m.x}, ${m.y}, ${m.z})`);
+        return true;
+      }
+      case "vuelve_a_seguro":
+        api.volverASeguro(quien);
+        return true;
+      case "suena": {
+        const d = lista.get(String(m.disparador));
+        api.emit("sonido", { sonido: String(m.sonido).slice(0, 32) }, { near: { x: d?.x ?? 0, z: d?.z ?? 0 }, radius: CERCA_M });
+        return true;
+      }
+      case "abre_enlace":
+        api.emit("enlace", { quien, enlace: String(m.enlace) }, { to: quien });
+        return true;
+      default:
+        return false;
     }
   });
 });

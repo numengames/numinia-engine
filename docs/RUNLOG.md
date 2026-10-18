@@ -794,7 +794,6 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Choques arreglados en un commit aparte: «Nombres» pasa al menú «…» en móvil; los avisos no tapan la barra ni el minimapa; el engranaje de Mínimo con perfil táctil forzado.
 - Versión **0.9.0 → 0.10.0** (menor): ajustes y piezas nuevos, nada se rompe. Las ramas traían 0.6.2–0.6.5 y 0.8.0; rebasada sobre `main` 0.9.0 (#49, #50, #60), una sola subida (`docs/VERSIONES.md`).
 - Consumo: sin medir · Sonnet 5.5.
-
 ## 2026-10-18 14:57 · contadores-h3 · hecho
 - Qué: D-044 historia 3. `features/contadores` gana `state.persist: true` (S4): el valor y si está en marcha
   sobreviven a un reinicio (al arrancar lee lo guardado antes de usar `inicio` del fichero). Contador
@@ -808,3 +807,17 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.
 - Commit: ver `git log` (rama `contadores-h3/ola3`).
 - Siguiente: contadores — un contador por persona, piezas desde dentro del mundo; cable D-041.
+## 2026-10-18 15:10 · obrero ola3, cable-h3-4 · hecho
+- Qué: cable `disparadores` historias 3-4 (D-041): los cinco receptores que hasta hoy se oían en el log y se
+  tiraban («nadie hace X») ahora ejecutan de verdad: `teletransporta` (sin animación, hueco libre cerca con
+  `api.teletransportar`) y `vuelve_a_seguro` (`api.volverASeguro`, el mismo verbo que D-045) los oye el propio
+  `disparadores` porque son primitivas del host, no de una función; `suena` emite un evento propio (el motor
+  solo tiene un aviso fijo hoy, el nombre que pide el mundo viaja en el texto para quien lee en vez de oír);
+  `abre_enlace` pregunta solo a quien lo pulsó, nunca abre nada sin que la página confirme antes; `da_paso`
+  (mision, paso) lo oye `features/misiones` (`api.listen`), toma la misión si hacía falta y salta de un golpe
+  al paso pedido, sin retroceder nunca. De paso, `vuelve_a_seguro` entra en `ACCIONES` (cambio aditivo).
+- Números: `npm test` sobre `test/disparadores.test.ts` + `misiones*.test.ts` + `suelo.test.ts` +
+  `teletransporte.test.ts`: 59 pruebas, 59 en verde. El resto de `npm test` (23 ficheros) falla igual con y sin
+  esta rama por falta del paquete `three` en este entorno — nada tocado por esta historia.
+- Consumo: sin medir · Sonnet 5.
+- Siguiente: cable historias 5-6 (botón/zona con fases, etiqueta en móvil) quedan para otro obrero.

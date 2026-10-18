@@ -19,7 +19,11 @@ export const tapa = (v: Pick<Disparador, "x" | "y" | "z" | "enEspera" | "agotado
 export function crearCliente() {
   let A: ClientApi | null = null;
   const oyentes = new Set<(id: string) => void>();
+  // D-041 historias 3-4: what the three receivers that only this page hears last did (for tests and agents; the
+  // player hears/reads it through the normal announce — `teletransportado`, `enlace`, `sonido`).
+  const estado = { ultimoEnlace: "", ultimoTeletransporte: null as { x: number; y: number; z: number } | null, ultimoSonido: "" };
   const disparadores = {
+    estado,
     lista: (): Disparador[] => (A ? A.state.keys().map((k) => ({ id: k, ...(A!.state.get(k) as Msg) }) as Disparador) : []),
     pulsar: (id: string): Res => (A ? A.send("pulsar", { disparador: id }) : SIN),
     alCambiar: (fn: (id: string) => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
@@ -34,6 +38,16 @@ export function crearCliente() {
       for (const fn of oyentes) fn(key);
     });
     api.on("disparado", (m) => { if (Number(m.quien)) api.view.bounce(Number(m.quien), 300); });
+    // D-041 historia 4: the page only ASKS before opening a world-wired link (abre_enlace); it never auto-navigates.
+    api.on("enlace", (m) => {
+      const enlace = String(m.enlace ?? "");
+      if (typeof window !== "undefined" && typeof window.confirm === "function" && window.confirm(`¿Abrir este enlace en una pestaña nueva?\n${enlace}`)) {
+        window.open(enlace, "_blank", "noopener,noreferrer");
+      }
+      estado.ultimoEnlace = enlace;
+    });
+    api.on("teletransportado", (m) => { estado.ultimoTeletransporte = { x: Number(m.x), y: Number(m.y), z: Number(m.z) }; });
+    api.on("sonido", (m) => { estado.ultimoSonido = String(m.sonido ?? ""); });
   });
   return { parts: [parte], disparadores };
 }
