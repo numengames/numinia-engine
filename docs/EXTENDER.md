@@ -79,7 +79,7 @@ export default clientPart(gestos, (api) => {
     if (msg.gesto === "bailar") api.view.bounce(Number(msg.quien), 2000);
   });
   api.action({ id: "saludar", label: "Saludar", key: "KeyG", run: () => api.send("hacer", { gesto: "saludar" }) });
-  api.action({ id: "bailar", label: "Bailar", key: "KeyH", run: () => api.send("hacer", { gesto: "bailar" }) });
+  api.action({ id: "bailar", label: "Bailar", key: "KeyR", run: () => api.send("hacer", { gesto: "bailar" }) });
 });
 ```
 
@@ -440,7 +440,8 @@ servidor; al acabar vuelve exactamente a donde dice el servidor.
   eventos y 554 bytes el vuelo de arriba) y los manda solo a ese jugador; las esperas pendientes se miran 5 veces por
   segundo, solo las de quien tiene una (1.000 jugadores esperando: tick de las funciones p99 ≈ 0,15 ms).
 
-Recompensas: hoy solo insignias (recuerdos de lo hecho; sin economía). `requisitos.misiones`: las que hay que haber
+Recompensas: `insignia` (un recuerdo de lo hecho) o `semilla` (`{ "tipo": "semilla", "color": "verde", "n": 1 }`: una
+Semilla del Conocimiento al inventario de quien la completa, Y1); sin economía. `requisitos.misiones`: las que hay que haber
 completado antes. Hasta 16 pasos, 16 misiones activas por jugador.
 
 **La recompensa, apuntada una sola vez (U14 (6)).** Al completar una misión con `recompensas`, el servidor apunta en el
@@ -601,7 +602,27 @@ Una aventura trae sus escenas en `escenas/<id>.json` (el id es el nombre del fic
   convocó ve cuántas vienen.
 - `node tools/aventura.ts <carpeta>` comprueba las escenas; una mal escrita no se carga y el registro dice por qué.
 
-## Agentes de fuera: gestionarlos por HTTP (ADR-080, para el panel de numinia.com)
+## El Inventario (Y1): dar objetos a una persona desde tu función
+
+El inventario (`features/inventario`) guarda por invitado lo que posee (`api.store`, clave `i:<quien.id>`, S4) y se
+lo manda entero solo a él (`lista` + un `objeto` por cada uno). El canon manda los límites: **1 arma** contigo, **3
+reliquias** contigo, el resto en la Reserva; los **tokens** (Semillas del Conocimiento por color) apilan y no se portan.
+
+Tu función no importa el inventario ni él a ti: declaras en tus `events` uno tuyo, p. ej.
+
+```ts
+otorga: { describe: "Solo en el servidor: doy un objeto a quien (entidad).", announce: "silent",
+  fields: { quien: { kind: "int", min: 0, max: 65535 }, tipo: { kind: "enum", values: ["arma", "reliquia", "token"] },
+            clase: { kind: "text", maxBytes: 32 }, nombre: { kind: "text", maxBytes: 40 },
+            color: { kind: "enum", values: ["", "verde", "azul", "plateada", "dorada", "roja"] }, n: { kind: "int", min: 1, max: 999, default: 1 } } }
+```
+
+y lo emites con `api.emit("otorga", { quien: e, tipo: "token", clase: "semilla", nombre: "Semilla verde", color: "verde", n: 1 }, "server")`:
+ninguna página lo recibe; el inventario lo oye (`api.listen`, lista `DONANTES` en `features/inventario/server.ts`: añade
+tu `[id, "otorga"]`) y se lo da a esa persona, que oye «Recibes Semilla verde». Lo que una misión da va en su
+`recompensas` (arriba). Reglas puras para probar sin red: `features/inventario/reglas.ts` (`dar`, `quitar`, `equipar`,
+`desequipar`, `leerInventario`). Panel de la página: `apps/plaza/inventario.ts` (R); resumen en la ficha (I, sección «Reserva»).
+
 
 Lo que el dueño hace en el chat con `/agente añadir|quitar` lo hace también el panel de numinia.com por HTTP, con el mismo
 código (`roles-mundo.ts`, `agentes`) y el mismo fichero (`aventura/agentes/<id>.json`):

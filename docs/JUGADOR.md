@@ -77,9 +77,9 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 | Cosa | Qué es | Capa | Nivel | Escritorio / móvil / VR | Primitivas | Coste móvil | Fila |
 |---|---|---|---|---|---|---|---|
 | Libro de misiones | Qué tengo que hacer y por dónde voy | ciudad | Base | panel / panel / panel 3D | C, S, G, P | bajo | J5 |
-| Inventario | Lo que llevo, que no se pierde | motor | Base | panel | C, G | bajo | S4, J4 |
+| Inventario | Lo que llevo, que no se pierde ✓ (tecla R: 1 arma y 3 reliquias contigo, el resto en la Reserva; Semillas por color) | motor | Base | panel | C, G | bajo | Y1 (S4, J4) |
 | Sellos y logros | Recuerdo de lo hecho | ciudad | Base | panel | G, P | bajo | J5 |
-| Ficha de jugador | Quién soy, mi aparato y calidad, tiempo conectado, misiones, insignias, ajustes ◐ (tecla I; avatar e inventario, próximamente) | motor | Base | panel / panel / — | P | bajo | J11 (propuesta) |
+| Ficha de jugador | Quién soy, mi aparato y calidad, tiempo conectado, misiones, insignias, ajustes ◐ (tecla I; avatar próximamente; el inventario resume aquí y vive en R) | motor | Base | panel / panel / — | P | bajo | J11 (propuesta) |
 | Persistencia | Volver y encontrar lo mío | motor | Base | — | G | bajo | S4 |
 | Eventos programados | Algo pasa a una hora | ciudad | Mejorado | — | S, calendario | bajo | Frontera, sin fila |
 

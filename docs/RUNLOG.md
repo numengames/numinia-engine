@@ -1012,3 +1012,31 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Visto por Pablo en vídeo (Alchemist Tower, v0.11): el teclado de la cerradura (D-042) sale al cargar, sin nombre, y ni «Abrir» ni «Cerrar» lo quitan: la capa ocupa toda la pantalla y el jugador queda bloqueado.
 - Causa: la capa llevaba `display: grid` en línea; un estilo en línea gana al atributo `hidden`, así que `capa.hidden = true` no la escondía nunca.
 - Arreglo: la capa nace con `display: none`; abrir pone `grid`, cerrar vuelve a `none`. Prueba nueva `test/cerradura-teclado-oculto.test.ts` (falla con el código viejo, pasa con el nuevo). Versión 0.14.1 (parche).
+## 2026-10-18 01:15 · Y1 · El Inventario v1 · hecho (rama `inventario/version-1`, rebasada sobre main 0.10.0)
+- Qué: el cimiento que faltaba (Pablo, 18-10). `features/inventario/` (reglas puras `reglas.ts` + servidor + cliente):
+  un objeto es {id, tipo arma/reliquia/token, clase, nombre, icono, color, valor, n, portado}; límites del canon
+  leídos del manual (lore 06, Fragmento 2): 1 arma contigo, 3 reliquias contigo, el resto en la Reserva; los tokens
+  (Semillas por color, valor 1-5 de Prestigio) apilan y no se portan. Guardado por invitado en `api.store`
+  (`i:<quien.id>`, S4), enviado entero solo al dueño (todas sus pestañas). Puerta para dar objetos sin acoplar
+  funciones: cualquier función emite su `otorga` con `scope: "server"` y el inventario lo oye (`api.listen`, J3).
+  `misiones` lo usa: `recompensas` admite `{ "tipo": "semilla", "color": "verde" }` (la misión de ejemplo lo lleva)
+  → al completarla, «Recibes Semilla verde». Panel `apps/plaza/inventario.ts` (tecla R, botón en la barra de arriba):
+  «Llevas contigo» y «Reserva», icono de la casa por fila, «Llevar/Guardar» en armas y reliquias; la ficha (I)
+  resume. Versión **0.10.0 → 0.11.0** (menor: función nueva, nada roto). Diseño: `work/mmo-browser-study/INVENTARIO-DISENO.md`.
+  Honestidad: la «pregunta en un sitio real» de R2 NO existía como función; lo que había era `despertar` (QR).
+  Hoy la Semilla entra por la misión completada; R2 usará la misma puerta `otorga`.
+- Números: 8 pruebas nuevas (`test/inventario.test.ts`), 384 en total, 383 en verde + la mala conocida de
+  `test/chat.test.ts` (coste de nombres; la máquina a carga 26; sola pasa). Puertas: capas, determinismo (huella
+  f719d31b intacta), ancho de banda 26,7 kbit/s, tick p99 11,2 ms OK. 1.000 personas entran con 8 objetos cada
+  una: 59 ms en total. Una Reserva llena (24) con nombres largos cabe en una clave de S4 (≤ 4.096 bytes).
+  `npm run build` OK. e2e real (chromium, pierna `misiones.mjs` ampliada): la Semilla aparece en el panel R con su
+  icono, sin botón (token), la ficha dice «1 objeto · Semillas: 1 punto de Prestigio», otro invitado no la ve.
+- Consumo: sin medir · Fable 5.1 (sesión de Pablo).
+- Commit: rama `inventario/version-1` sobre origin/main 749e99a (ver `git log`). Sin push ni PR (Pablo decide).
+- Siguiente: Y2 (llevar de verdad: mano del avatar, ficha V1; arrastrar y soltar), Y3 (`objeto@1` por aventura y
+  `coge` que da armas/reliquias), iconos propios (Phosphor `backpack`/`sword`/`plant`: decisión del Oráculo).
+- Solapes con `bienes` (N10/N18, ya en main), resueltos dejando lo de main intacto: (1) la sección «Inventario» de la ficha es de
+  `bienes` (`apps/plaza/bienes.ts`); la Reserva va en otra sección, «Reserva» (orden 71). (2) La tecla L ya es «Gente» y H es «Bailar»:
+  el panel usa R (con `noConstruyendo` en `crearDialogo`: el constructor usa R). (3) `bienes` = cosas con recibo firmado que salen de un
+  cofre (`concedido`); `inventario` = armas/reliquias/tokens de la Reserva (`otorga`): dos almacenes y dos eventos de servidor distintos,
+  sin cruce. Si algún día un `objeto` de `bienes` debe poder llevarse como reliquia, hay que decidirlo (no se hizo).

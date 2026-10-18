@@ -23,4 +23,4 @@ export const claveConcesion = (mision: string, jugador: string): string => `${PR
 /** The record of `quien` completing `m` at `instante` (ISO 8601 UTC): who (id and the name they had), which quest, the
  * ids of its rewards, when, and its state. */
 export const concesion = (m: Mision, quien: { id: string; nombre: string }, instante: string): Concesion =>
-  ({ jugador: quien.id, nombre: corta(quien.nombre, LIM.nombre), mision: m.id, recompensas: m.recompensas.map((r) => r.id), instante, estado: CONCEDIDA });
+  ({ jugador: quien.id, nombre: corta(quien.nombre, LIM.nombre), mision: m.id, recompensas: m.recompensas.map((r) => (r.tipo === "semilla" ? `semilla:${r.color}` : r.id)), instante, estado: CONCEDIDA });

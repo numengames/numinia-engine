@@ -47,6 +47,11 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J3c | Escribir en VR (teclado del sistema o dictado) para el chat | pendiente | sí |
 | R2 | Realidad cruzada 2 «Semilla del Conocimiento»: pregunta en un sitio real → semilla que se planta en el mundo | pendiente | sí |
 | R3 | Realidad cruzada 3 «Célula del Prisma» + herramienta del DJ para marcar puntos reales | pendiente | sí |
+| Y1 | El Inventario v1: objeto (arma / reliquia / token), Reserva por invitado sobre S4, puerta `otorga` para que otras funciones den objetos, Semilla del Conocimiento al completar una misión, panel R (Pablo, 18-10: el cimiento que faltaba) | hecho | sí |
+| Y2 | Inventario: llevar de verdad — el arma portada en la mano del avatar, la reliquia como ficha V1; arrastrar y soltar en el panel | pendiente | sí |
+| Y3 | Inventario: armas y reliquias de una aventura (`objeto@1` en `aventuras/<x>/objetos/`, con Competencia y Factor de Riesgo del canon) y `coge` que las da | pendiente | sí |
+| Y4 | Inventario: bloquear un objeto para que ningún orden automático lo toque | espera a Y2 | sí |
+| Y5 | Inventario: consumir Semillas (Tabla de Prestigio del canon) y Células del Prisma | espera a R2 | sí |
 | R4 | Realidad cruzada 4 «Caza de invisibles»: la cámara, el color y la hora deciden qué aparece | pendiente | sí |
 | J10 | VR: teletransporte con arco, manos (hand-tracking) y viñeta ajustable desde un menú; resto de J6 (antes «J6b»: `auto.sh` solo reconoce letra + cifras) | en curso (manos, mandos, coger con la mano, diálogo en 3D y misión «Manos a la obra» hechos, emulados; faltan arco y viñeta en menú) | sí |
 | J8b | AR: la plaza en miniatura y en vivo sobre tu mesa (gente, personas, cosas), manos y mandos, palancas para girar, escalar y andar | hecho (emulado; falta probar en Quest 3, Pico 4 y Android) | sí |
@@ -65,7 +70,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | L10 | Bestiario: encargar o buscar modelos CC0 low-poly con las fichas de aspecto del diseño (12 criaturas, ≤ 3 k triángulos, 1 material, sin esqueleto) | necesita aprobación (Pablo: ¿se encargan o se buscan?) | no |
 | J5 | Libro de misiones, mapa y minimapa con marcadores | hecho (panel en la muñeca en VR → J13) | sí |
 | J11 | Personas que dan misiones (`pnj@1`: árbol de diálogo, quién da y recibe qué) | hecho | sí |
-| J12 | Ficha de jugador: nombre, aparato y calidad, tiempo, misiones e insignias, ajustes | hecho (falta retrato → H10 e inventario) | sí |
+| J12 | Ficha de jugador: nombre, aparato y calidad, tiempo, misiones e insignias, ajustes | hecho (falta retrato → H10; el inventario llegó con Y1) | sí |
 | J13 | Panel de muñeca en VR: minimapa, lo cercano y la ficha en 3D | pendiente | sí |
 | J19 | VR: ajuste de «altura de pie» en el motor, por si el suelo que dan las gafas está mal (en el Quest 3S de Pablo, 16-10, los ojos de pie salían a 1,11 m: suelo del visor medio metro alto) | pendiente (deseable, no urgente) | sí |
 | J20 | Ajuste (N2): en VR, andar hacia donde miras (hoy) o hacia donde apunta el mando izquierdo (Pablo, 16-10: preferencia de cada uno) | pendiente | sí |
@@ -558,7 +563,7 @@ nunca en el repositorio.
 
 ### R2 — Semilla del Conocimiento
 **Ya hay (15-10):** identidad de invitado (I1: `api.onIdentify`, `api.who`) y guardado (S4: `state.persist`,
-`api.store` por `quien.id`). Lo que se planta es algo en el mundo: lleva `state.card` (V1).
+`api.store` por `quien.id`). **Y 18-10:** el inventario (Y1) con su puerta `otorga`: la Semilla ya tiene dónde caer. Lo que se planta es algo en el mundo: lleva `state.card` (V1).
 El punto hace una pregunta que solo se responde estando allí; la respuesta la fija el DJ (un agente puede
 redactar la pregunta desde la ficha `.md` del sitio, nunca decidir si se acierta). Acierto → Semilla en
 el inventario de la persona (I1); en el mundo digital se planta, crece con el tiempo real y los demás la
@@ -567,7 +572,20 @@ ven (S4). Base: Semillas del Conocimiento del manual (`lore/game/manual/es/06-in
 vinculada (sin I2, que está aparcada: en la misma pestaña o desde otra con la misma identidad); después de
 reiniciar el servidor sigue plantada.
 
-### R3 — Célula del Prisma + herramienta del DJ
+### Y1 — El Inventario v1 (hecho, 18-10)
+**Qué hay:** `features/inventario/` (reglas puras en `reglas.ts`, servidor, cliente), panel `apps/plaza/inventario.ts`
+(tecla R, botón junto a «Misiones»), resumen en la ficha (I). Lo que dice el canon (`lore/game/manual/es/06-inventario-y-bestiario.md`,
+Fragmento 2) manda: un arma contigo, tres reliquias contigo, el resto en tu Reserva; los tokens (Semillas por color)
+apilan y no se portan. Guardado por invitado en `api.store` (`i:<quien.id>`, S4); nada toca la simulación.
+**La puerta:** cualquier función da objetos emitiendo su propio evento `otorga` con `scope: "server"` (`{ quien,
+tipo, clase, nombre, color, n }`); el inventario lo oye con `api.listen` (J3). Hoy lo emite `misiones` cuando una
+misión completada lleva `{ "tipo": "semilla", "color": "verde" }` en `recompensas` (la de ejemplo lo hace). R2
+(pregunta en un sitio real) usará la misma puerta: hoy esa pregunta NO existe aún.
+**Límites publicados:** `inventario_*` en `limits.json`. **Pruebas:** `test/inventario.test.ts` (8).
+**Falta (Y2-Y5):** llevar de verdad (mano, ficha V1), arrastrar y soltar, catálogo `objeto@1` por aventura, bloquear,
+consumir Semillas; iconos propios (Phosphor `backpack`, `sword`, `plant` no están en el subconjunto de la casa:
+decisión del Oráculo, STD-023 §11).
+
 Página para directores de juego: soltar un punto en el mapa (zona de 30–50 m), elegir la prueba final (QR
 escondido o pregunta), imprimir el QR y esconder una Célula en su hueco digital. En el móvil, el mapa
 avisa «algo late en esta zona»; al llegar se hace la prueba; quien la encuentra se la lleva y en el mundo
