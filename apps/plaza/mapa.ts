@@ -10,7 +10,7 @@
 // that height (view.cenital) as the minimap's background too, and the cut's walls and columns as lines over it. The
 // picture is made when the minimap first needs it, then again only when the zone changes (at most every IMAGEN_MS),
 // never in XR (this clock stops there); until it exists, the minimap draws only what stands under the cut.
-import { proyectar, desproyectar, anguloFlecha, anguloBorde, yawDePaso, alBorde, enPalabras, crearLimitador, crearRegistro, reunir, contar, cercanos, firma, matrizImagen, segmentosEnVista } from "../../packages/client/src/mapa.ts";
+import { proyectar, desproyectar, anguloFlecha, anguloBorde, yawDePaso, enPalabras, crearLimitador, crearRegistro, reunir, contar, cercanos, firma, matrizImagen, segmentosEnVista } from "../../packages/client/src/mapa.ts";
 import type { Vista, Marcador, Tipo, Fuente, Entrada } from "../../packages/client/src/mapa.ts";
 import type { ImagenCenital, Huella } from "../../packages/render/src/index.ts";
 import { bajoElCorte } from "../../packages/render/src/corte.ts";
@@ -23,7 +23,7 @@ import "./mapa.css";
 type Vec = { x: number; z: number };
 type Ficha = { feature: string; key: string; role: string; name: string; description?: string; at?: Vec };
 export type HostMapa = {
-  session: { entity: number; selfPosition(alpha: number): Vec; remotePositions(): { id: number; x: number; z: number }[]; features: { cards(): Ficha[] }; who: { id: string; nombre: string } | null };
+  session: { entity: number; selfPosition(alpha: number): Vec; remotePositions(): { id: number; x: number; z: number }[]; features: { cards(): Ficha[]; stateVersion?: number; catalog?: unknown }; who: { id: string; nombre: string } | null };
   view: {
     power: { mobile: boolean };
     vr: { active: boolean }; ar: { state: string };
@@ -47,8 +47,10 @@ const TEXTO_MS = 2000;             // the minimap's text twin, at most every 2 s
 const LISTA_MS = 1000;             // the big map's list, at most once a second while open
 const RADIOS = [15, 30, 60, 120];  // minimap zoom: metres from the centre to the edge
 const LLEGADA_M = 2.5;             // a waypoint this close is reached (and cleared, with a notice)
+const ESTABLE_MS = 1500, ESPERA_MAX_MS = 10_000; // E4: a cut world's minimap picture waits until the zone stood still this long (at most ESPERA_MAX_MS)
 const IMAGEN_MS = 5000;            // the zone's picture is regenerated at most every 5 s, only while the big map is open (U14: or, in a world cut with mapa.corte, when its minimap's zone changed)
 const SUELO = "#b7c6ab";
+const CUARTOS = 4;                 // E4: the cut's lines go to the canvas in whole quarter pixels (see corteEnMapa)
 
 /** Draw one marker shape centred at (x, y), half-size `s`, turned `ang` (arrows only). */
 function forma(g: CanvasRenderingContext2D, t: Tipo, x: number, y: number, s: number, ang = 0): void {
@@ -100,16 +102,20 @@ function imagenEnMapa(g: CanvasRenderingContext2D, v: Vista, img: ImagenCenital)
 
 /** U14: a floor plan's cut over the picture — walls and columns in ink with a light edge (they read on dark floors and
  * light ones), glass in pale blue; only the segments in view (a few hundred on the minimap) are drawn. */
-function corteEnMapa(g: CanvasRenderingContext2D, v: Vista, img: ImagenCenital, buf: { a: Float32Array }): void {
+function corteEnMapa(g: CanvasRenderingContext2D, v: Vista, img: ImagenCenital, buf: { a: Int32Array }): void {
   const ancho = Math.max(1.25, Math.min(3, v.escala * 0.2));
   const trazar = (seg: Float32Array | undefined, estilos: [string, number][]) => {
     if (!seg?.length) return;
-    if (buf.a.length < seg.length) buf.a = new Float32Array(seg.length);
-    const n = segmentosEnVista(v, seg, buf.a), a = buf.a;
+    if (buf.a.length < seg.length) buf.a = new Int32Array(seg.length);
+    // E4: whole quarter pixels under a ×¼ scale (segmentosEnVista): small integers reach the canvas without a new heap
+    // number per argument; a quarter of a CSS pixel is below what a line's antialiasing shows
+    const n = segmentosEnVista(v, seg, buf.a, 4, CUARTOS), a = buf.a;
     if (!n) return;
+    g.save(); g.scale(1 / CUARTOS, 1 / CUARTOS);
     g.beginPath();
     for (let i = 0; i < n * 4; i += 4) { g.moveTo(a[i], a[i + 1]); g.lineTo(a[i + 2], a[i + 3]); }
-    for (const [color, w] of estilos) { g.strokeStyle = color; g.lineWidth = w; g.stroke(); }
+    for (const [color, w] of estilos) { g.strokeStyle = color; g.lineWidth = w * CUARTOS; g.stroke(); }
+    g.restore();
   };
   g.save(); g.lineCap = "round"; g.lineJoin = "round";
   trazar(img.cristal, [["rgba(150,215,255,0.85)", ancho]]);
@@ -167,11 +173,16 @@ export function montarMapa(h: HostMapa) {
   fuentes.set("tu", () => (yo ? [{ id: "tu", tipo: "tu", nombre: h.session.who?.nombre ?? "Tú", x: yo.x, z: yo.z, yaw: yawYo }] : []));
   fuentes.set("gente", () => h.session.remotePositions().map((r) => { const nombre = nombreDe(r.id); return { id: `p${r.id}`, tipo: esIA(nombre) ? "agente" : "persona", nombre, x: r.x, z: r.z }; }));
   // U14 (4): a person or a quest thing the server marks for you is drawn as «!» or «✓» (misiones.marcaDe), and a
-  // person's trade goes next to the name in the list (misiones.oficioDe); re-read at once when the marks change
+  // person's trade goes next to the name in the list (misiones.oficioDe); re-read at once when the marks change.
+  // E4: the cards are rebuilt only when something they come from changed — the shared state (`stateVersion`), the
+  // catalog, the misiones contract or its marks — at most once a second; before, every second (3,6 MB / 10 s in a
+  // template with 226 things, and nothing had moved). A page without `stateVersion` keeps the old once-a-second.
+  let fichasV: unknown = NaN, fichasCat: unknown = null, fichasMis: unknown = null;
   fuentes.set("fichas", () => {
-    const ahora = performance.now(), mis = h.otros().misiones, mk = mis?.marcas?.();
-    if (ahora - fichasT >= FICHAS_MS || mk !== marcasAntes) {
-      fichasT = ahora; marcasAntes = mk;
+    const ahora = performance.now(), mis = h.otros().misiones, mk = mis?.marcas?.(), fs = h.session.features;
+    const v = fs.stateVersion ?? ahora, cambio = v !== fichasV || fs.catalog !== fichasCat || mis !== fichasMis;
+    if ((cambio && ahora - fichasT >= FICHAS_MS) || mk !== marcasAntes) {
+      fichasT = ahora; marcasAntes = mk; fichasV = v; fichasCat = fs.catalog; fichasMis = mis;
       fichas = [];
       for (const c of h.session.features.cards()) {
         if (!c.at) continue;
@@ -190,7 +201,11 @@ export function montarMapa(h: HostMapa) {
   let destino: { id: string; nombre: string; x: number; z: number; baliza: number; lejos: boolean } | null = null;
   fuentes.set("destino", () => (destino ? [{ id: "destino", tipo: "destino", nombre: destino.nombre, x: destino.x, z: destino.z }] : []));
   const alBordeDe = (tipo: string) => reg.tipo(tipo).alBorde;
-  const porOrden = (ms: Marcador[]) => [...ms].sort((a, b) => reg.tipo(a.tipo).orden - reg.tipo(b.tipo).orden);
+  // E4: one array kept between draws (the minimap sorts five times a second while you walk); sort is stable, as before
+  const ordenados: Marcador[] = [], porOrdenDe = (a: Marcador, b: Marcador) => reg.tipo(a.tipo).orden - reg.tipo(b.tipo).orden;
+  const porOrden = (ms: readonly Marcador[]): Marcador[] => { ordenados.length = 0; for (const m of ms) ordenados.push(m); return ordenados.sort(porOrdenDe); };
+  const flechas = new WeakMap<Tipo, Tipo>(); // a kind pinned to the minimap's edge is drawn as its arrow (one copy per kind)
+  const comoFlecha = (t: Tipo): Tipo => { let f = flechas.get(t); if (!f) flechas.set(t, (f = { ...t, forma: "flecha" })); return f; };
 
   // ---------- the waypoint ----------
   const limMini = crearLimitador(PASO_MS), limGrande = crearLimitador(PASO_MS);
@@ -249,8 +264,8 @@ export function montarMapa(h: HostMapa) {
   sitio();
 
   let huellas: Huella[] = [], huellasBajas: Huella[] = [], huellasV = NaN, corte = 0;
-  let imagen: ImagenCenital | null = null, imagenV = NaN, imagenT = -Infinity, generando = false, imagenes = 0;
-  const bufMini = { a: new Float32Array(0) }, bufGrande = { a: new Float32Array(0) };
+  let imagen: ImagenCenital | null = null, imagenV = NaN, imagenT = -Infinity, generando = false, imagenes = 0, vCambioT = -Infinity, pedidaT = NaN;
+  const bufMini = { a: new Int32Array(0) }, bufGrande = { a: new Int32Array(0) };
   const vistaMini = (): Vista => {
     const t = lm.ancho;
     return { cx: yo!.x, cz: yo!.z, escala: (t / 2 - 4) / RADIOS[zoom], giro: gira ? yawYo : 0, ancho: t, alto: t };
@@ -269,17 +284,19 @@ export function montarMapa(h: HostMapa) {
       rejilla(g, v, 10);
       for (const hu of corte > 0 ? huellasBajas : huellas) huella(g, v, hu);
     }
-    const vistos: Record<string, number> = {};
+    const vistos: Record<string, number> = {}, cg = Math.cos(v.giro), sg = Math.sin(v.giro);
     for (const m of porOrden(ms)) {
       const ti = reg.tipo(m.tipo);
-      let p = proyectar(v, m.x, m.z);
-      const b = alBorde(p.px, p.py, c, c, r - ti.tam - 2);
+      // E4: proyectar and alBorde inlined (no two objects per marker and draw)
+      const dx = m.x - v.cx, dz = m.z - v.cz;
+      let px = c + (dx * cg - dz * sg) * v.escala, py = c + (dx * sg + dz * cg) * v.escala;
+      const rb = r - ti.tam - 2, ex = px - c, ey = py - c, d = Math.hypot(ex, ey), fuera = d > rb;
       let dibujo = ti, ang = m.tipo === "tu" ? anguloFlecha(v.giro, m.yaw ?? 0) : 0;
-      if (b.fuera) {
+      if (fuera) {
         if (!ti.alBorde) continue;
-        p = b; ang = anguloBorde(b.px, b.py, c, c); dibujo = { ...ti, forma: "flecha" }; // GPS-style: point the way, not just a pinned dot
+        px = c + (ex / d) * rb; py = c + (ey / d) * rb; ang = anguloBorde(px, py, c, c); dibujo = comoFlecha(ti); // GPS-style: point the way, not just a pinned dot
       }
-      forma(g, dibujo, p.px, p.py, b.fuera ? ti.tam * 0.8 : ti.tam, ang);
+      forma(g, dibujo, px, py, fuera ? ti.tam * 0.8 : ti.tam, ang);
       vistos[m.tipo] = (vistos[m.tipo] ?? 0) + 1;
     }
     g.restore();
@@ -538,12 +555,18 @@ export function montarMapa(h: HostMapa) {
     const v = h.view.cenitalVersion?.() ?? 0, c = h.view.mapaCorte?.() ?? 0;
     if (v !== huellasV || c !== corte) {
       if (c !== corte) imagenV = NaN; // U14: another cut is another picture
-      huellasV = v; corte = c; huellas = h.view.huellas?.() ?? []; huellasBajas = bajoElCorte(huellas, corte);
+      huellasV = v; corte = c; huellas = h.view.huellas?.() ?? []; huellasBajas = bajoElCorte(huellas, corte); vCambioT = ahora;
       limMini.forzar(); limGrande.forzar();
     }
     // U14: a cut world's minimap shows the zone's picture: made the first time, then only when the zone changed (at
-    // most every IMAGEN_MS). Never in XR: this clock returns above while it lasts.
-    if (corte > 0 && v !== imagenV) void generarImagen(false);
+    // most every IMAGEN_MS). Never in XR: this clock returns above while it lasts. E4: and only once the zone has stood
+    // still for ESTABLE_MS (or waited ESPERA_MAX_MS): reading the picture back waits for the GPU (≈0,2-0,4 s of a
+    // frozen page in software GL), and while the models arrive the zone changes every look — the TRG26 template made
+    // two pictures on entering, the first without its models; now one.
+    if (corte > 0 && v !== imagenV) {
+      if (Number.isNaN(pedidaT)) pedidaT = ahora;
+      if (ahora - vCambioT >= ESTABLE_MS || ahora - pedidaT >= ESPERA_MAX_MS) { pedidaT = NaN; void generarImagen(false); }
+    }
     if (lm.ajustar()) limMini.forzar();
     const vm = vistaMini();
     if (limMini.debe(ahora, `${firma(vm, ultimos, alBordeDe)}|${huellasV}|${imagenes}`)) pintarMini(vm, ultimos);
@@ -560,9 +583,9 @@ export function montarMapa(h: HostMapa) {
     botonFicha: bFicha,
     registro: reg,
     /** Add or change a kind of marker (an adventure's own). */
-    registrar: reg.registrar,
-    /** Draw cards of a role as a kind. */
-    rol: reg.rol,
+    registrar: (id: string, t: Parameters<typeof reg.registrar>[1]): void => { reg.registrar(id, t); fichasV = NaN; limMini.forzar(); limGrande.forzar(); },
+    /** Draw cards of a role as a kind (E4: the cards are re-read: they are no longer rebuilt every second). */
+    rol: (role: string, tipo: string): void => { reg.rol(role, tipo); fichasV = NaN; limMini.forzar(); limGrande.forzar(); },
     /** Add (or replace) a source of markers: a function returning [{ id, tipo, nombre, x, z, detalle? }]. */
     fuente(id: string, f: Fuente): void { fuentes.set(id, f); limMini.forzar(); },
     quitarFuente(id: string): void { fuentes.delete(id); limMini.forzar(); },

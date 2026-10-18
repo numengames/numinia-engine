@@ -46,15 +46,18 @@ export function matrizImagen(v: Vista, img: { x0: number; z0: number; x1: number
 
 /** U14: the segments of a floor plan's cut (x0, z0, x1, z1 in metres, one after another) that show in a view, as map
  * pixels written into `out` (kept between draws: no garbage at 5 draws a second). Those wholly beyond the canvas edge
- * (plus `margen` px) are left out. Returns how many were written. */
-export function segmentosEnVista(v: Vista, seg: ArrayLike<number>, out: { [i: number]: number }, margen = 4): number {
-  const c = Math.cos(v.giro), s = Math.sin(v.giro), k = v.escala, w2 = v.ancho / 2, h2 = v.alto / 2, x1 = v.ancho + margen, y1 = v.alto + margen;
+ * (plus `margen` px) are left out. Returns how many were written. E4: `k` multiplies what is written — the minimap
+ * passes an Int32Array and 4 (quarter pixels, drawn under a ×¼ scale) so the canvas gets small integers, which V8
+ * hands over as they are; a fractional coordinate becomes a new heap number per moveTo/lineTo argument (≈1 MB every
+ * 10 s walking in the TRG26 template). */
+export function segmentosEnVista(v: Vista, seg: ArrayLike<number>, out: { [i: number]: number }, margen = 4, k = 1): number {
+  const c = Math.cos(v.giro), s = Math.sin(v.giro), e = v.escala, w2 = v.ancho / 2, h2 = v.alto / 2, x1 = v.ancho + margen, y1 = v.alto + margen;
   let n = 0;
   for (let i = 0; i + 3 < seg.length; i += 4) {
     const ax = seg[i] - v.cx, az = seg[i + 1] - v.cz, bx = seg[i + 2] - v.cx, bz = seg[i + 3] - v.cz;
-    const apx = w2 + (ax * c - az * s) * k, apy = h2 + (ax * s + az * c) * k, bpx = w2 + (bx * c - bz * s) * k, bpy = h2 + (bx * s + bz * c) * k;
+    const apx = w2 + (ax * c - az * s) * e, apy = h2 + (ax * s + az * c) * e, bpx = w2 + (bx * c - bz * s) * e, bpy = h2 + (bx * s + bz * c) * e;
     if ((apx < -margen && bpx < -margen) || (apy < -margen && bpy < -margen) || (apx > x1 && bpx > x1) || (apy > y1 && bpy > y1)) continue;
-    out[n * 4] = apx; out[n * 4 + 1] = apy; out[n * 4 + 2] = bpx; out[n * 4 + 3] = bpy; n++;
+    out[n * 4] = apx * k; out[n * 4 + 1] = apy * k; out[n * 4 + 2] = bpx * k; out[n * 4 + 3] = bpy * k; n++;
   }
   return n;
 }
@@ -209,11 +212,12 @@ export function cercanos(ms: readonly Marcador[], yo: { x: number; z: number }, 
  * (`alBorde(tipo)`), the turn in 2° steps and the zoom. Same text = same picture = no redraw. */
 export function firma(v: Vista, ms: readonly Marcador[], alBordeDe: (tipo: string) => boolean = () => false, margen = 16): string {
   let s = `${Math.round(v.cx * v.escala)},${Math.round(v.cz * v.escala)}|${Math.round((v.giro * 90) / Math.PI)}|${v.escala.toFixed(3)}|${Math.round(v.ancho)}x${Math.round(v.alto)}|`;
+  const c = Math.cos(v.giro), sn = Math.sin(v.giro), w2 = v.ancho / 2, h2 = v.alto / 2; // E4: proyectar inlined (no object per marker, 5 times a second)
   for (const m of ms) {
-    const p = proyectar(v, m.x, m.z), px = Math.round(p.px), py = Math.round(p.py);
+    const dx = m.x - v.cx, dz = m.z - v.cz, qx = w2 + (dx * c - dz * sn) * v.escala, qy = h2 + (dx * sn + dz * c) * v.escala, px = Math.round(qx), py = Math.round(qy);
     const dentro = px >= -margen && py >= -margen && px <= v.ancho + margen && py <= v.alto + margen;
     if (dentro) s += `${m.tipo}${px},${py}${m.yaw === undefined ? "" : "^" + Math.round((m.yaw * 60) / Math.PI)};`;
-    else if (alBordeDe(m.tipo)) s += `${m.tipo}~${Math.round(Math.atan2(p.py - v.alto / 2, p.px - v.ancho / 2) * 30)};`;
+    else if (alBordeDe(m.tipo)) s += `${m.tipo}~${Math.round(Math.atan2(qy - h2, qx - w2) * 30)};`;
   }
   return s;
 }

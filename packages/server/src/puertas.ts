@@ -4,7 +4,8 @@ export const PUERTAS = {
   respuestaP99Ms: 50,         // lateness + duration p99: the answer of a tick must be ready before the next one is due
   stealMaxPct: 2,             // hypervisor steal: above this the machine is not ours alone and the number is not reliable
   esperaCpuMaxPct: 2,         // main-thread run-queue wait (D3): above this other processes had the server's core; same rule as steal
-  generadorBucleP99Ms: 20,    // the bots' own event-loop delay: above a bot tick (50 ms / 2.5) the generator is the bottleneck
+  generadorBucleP99Ms: 20,    // the bots' own event-loop delay: above a bot tick (50 ms / 2.5) the generator is the bottleneck.
+                              // E4: the real delay (bucleRealP99Ms, without the monitor's +10 ms of resolution); before, 20 meant 10
   generadorCpuPct: 85,        // one bot process above this % of a core is saturated
   remojoMBporHora: 5,         // soak: RSS slope above this is flagged as a possible leak
 } as const;
