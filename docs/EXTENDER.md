@@ -102,6 +102,12 @@ export default clientPart(gestos, (api) => {
   y `MUNDO_DIR/elementos.json`. El mismo `entorno.json` puede decir dónde aparece la gente: `"aparicion": { "x", "z",
   "radio" }` (metros; el cuadrado de medio lado `radio`, 1–40, centrado en x, z; x y z entre −460 y 460). Sin él, el
   cuadrado de la casa (40 m alrededor del origen). Es del servidor (viaja en la carpeta y el zip del mundo), no del cable.
+  `"aparicionFoto": true` (N16, apagado si no está) deja que quien abre el enlace de una foto (`#foto=`) aparezca en
+  su sitio (el servidor busca un sitio libre allí; si no hay, la columna de luz le guía como siempre).
+- Una función puede mover a un jugador a propósito con `api.teletransportar(e, { x, y, z }, { radios, rumbo, caida })`
+  (N16): la instancia busca el primer sitio libre cerca (dentro del mundo, en un suelo como mucho `caida` m más
+  abajo, sin sólidos; anillos `radios` en metros, ocho rumbos desde `rumbo` 0-7) y devuelve dónde quedó, o null sin
+  mover nada. Decide antes si puede ir (permisos, ritmo): la instancia solo comprueba el sitio.
 - Un mundo que es por dentro de un edificio puede cortar sus mapas a una altura, como la planta de un arquitecto:
   `"mapa": { "corte": 6 }` en el mismo `entorno.json` (metros sobre el suelo, 0–60; sin él o 0, los mapas de siempre).
   Con corte, el mapa grande dibuja la zona sin lo que queda por encima (el techo, las entreplantas), sin sombras, y

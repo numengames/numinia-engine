@@ -253,7 +253,10 @@ export type ServerHost = {
   recibo?(d: BienFirmable): string;                             // N10: a good's ownership receipt signed by the world (server/recibos.ts); none = ""
   verificarRecibo?(token: string): ReciboLeido;                 // N10: check any world's receipt (its key is inside); none = refused
   emisor?(): string;                                            // N10: the public key this world signs receipts with; none = ""
+  teletransportar?(entity: number, cerca: { x: number; y: number; z: number }, o?: Teletransporte): { x: number; y: number; z: number } | null; // N16: the instance moves an avatar to a free spot; none = null
 };
+/** N16: how the instance looks for a free spot (rings in metres, 0 = the point; heading 0-7 from +z; most metres down). */
+export type Teletransporte = { radios?: readonly number[]; rumbo?: number; caida?: number };
 /** N10 (bienes digitales): what a feature asks the world to sign — the good (id = 24 hex, unique per world), its owner
  * (the guest id), the quest it came from and the instant (ISO 8601 UTC). The world adds v, tipo, mundo and emisor. */
 export type BienFirmable = { id: string; objeto: { id: string; nombre: string; descripcion: string; modelo: string; licencia: string }; dueno: string; mision: string; instante: string };
@@ -322,6 +325,10 @@ export type ServerApi = {
   verificarRecibo(token: string): ReciboLeido;
   /** N10: the public key this world signs its receipts with («ed25519:<43>»), "" when it signs none. */
   emisor(): string;
+  /** N16: put this player at the first free spot near `cerca` (metres): the INSTANCE moves the avatar (the only door into
+   * the simulation a feature has: inside the world, on a floor at most `caida` m below, overlapping no solid). Returns where
+   * it stands, or null (gone, no free spot, a server without it): nothing moved. Decide first whether they may go. */
+  teletransportar(entity: number, cerca: { x: number; y: number; z: number }, o?: Teletransporte): { x: number; y: number; z: number } | null;
 };
 export type ServerPart = { feature: Feature; side: "server"; setup: (api: ServerApi) => void };
 export const serverPart = (feature: Feature, setup: (api: ServerApi) => void): ServerPart => ({ feature, side: "server", setup });
@@ -524,6 +531,7 @@ export class ServerRuntime {
       recibo: (d) => { try { return this.host.recibo?.(d) ?? ""; } catch (e) { log(`recibo: ${String((e as Error)?.message ?? e)}`); return ""; } },
       verificarRecibo: (token) => { try { return this.host.verificarRecibo?.(token) ?? { ok: false, motivo: "este mundo no comprueba recibos" }; } catch { return { ok: false, motivo: "no se pudo comprobar" }; } },
       emisor: () => this.host.emisor?.() ?? "",
+      teletransportar: (e, cerca, o) => { try { return this.host.teletransportar?.(e, cerca, o) ?? null; } catch (x) { log(`teletransportar: ${String((x as Error)?.message ?? x)}`); return null; } },
       puede: (e, accion) => { try { return this.host.puede?.(e, accion) ?? false; } catch { return false; } },
       activo: (sha256, ext = "glb") => { try { return /^[0-9a-f]{64}$/.test(sha256) && (this.host.activo?.(sha256, ext) ?? false); } catch { return false; } },
       medidas: (sha256, ext) => { try { return /^[0-9a-f]{64}$/.test(sha256) ? this.host.medidas?.(sha256, ext) ?? null : null; } catch { return null; } },

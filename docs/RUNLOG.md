@@ -676,3 +676,25 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Opus 5.5.
 - Siguiente: probar Compartir en un móvil real (la hoja del sistema); captura en VR (renderizar la cámara XR a un
   objetivo propio) si se pide.
+
+## 2026-10-18 · N16 · teletransporte: ir junto a quien está, aparecer donde la foto, el «rayo» · hecho (rama `noche/teletransporte`, desde `tren/motor-2026-10-18-2`)
+- Qué: camino A de Pablo (17-10): «ir con quien está conectado ahora», sin cuenta. Panel «Gente» (L o el botón de
+  personas; `apps/plaza/gente.ts`) con quien está ahora en este mundo y «Ir»; `/ir <nombre>` hace lo mismo (sirve en
+  VR). `features/teletransporte`: el servidor decide — mismo mundo, un viaje cada 10 s, sitio libre a 1,2–3 m de la
+  persona en su suelo y sin sólidos (`sitioLibre` de la sim, enteros Q16.16, ocho rumbos por anillo empezando por el
+  lado del que vienes) vía `api.teletransportar`; si no hay sitio, no te mueve y lo dice. `/encontrable no` te quita
+  de la lista; `/teletransporte no|sí` (dueños, administración, quien dirige: `ajustar` o `dirigir`) lo apaga para el
+  mundo y se guarda. `entorno.json` `"aparicionFoto": true` (apagado por defecto): quien abre un enlace `#foto=`
+  aparece en su sitio (una vez, al entrar, ±460 m, suelo hasta 2 m abajo); si no, la guía de N13 como siempre.
+  Efecto: `packages/render/src/teletransporte.ts` — tres variantes al azar elegidas por el servidor (todos ven la
+  misma): colapsa al centro, haz desde los pies, bloques digitales; carcasa aditiva + haz + chispas instanciadas,
+  2–3 draw calls durante 1,4 s; tope 6/3/3/0 luces (A/B/C/D), en el nivel D ninguna. El cuerpo se esconde entre el
+  corte de salida y el de llegada (nadie lo ve deslizarse). Fórmulas de máscara en `teletransporte-politica.ts`.
+- Números: `test/teletransporte.test.ts` 9 pruebas. `npm test`: 488, 487 + 1 de coste (`cercania`) que falla solo
+  con la máquina a carga ~30 (sola pasa, como `chat`). Puertas: todas OK salvo esa. `tools/e2e-piernas/teletransporte.mjs`
+  OK (10/10, servidor + Vite reales, Chromium): PC lista/Ir/«Espera», `/ir`, nivel D sin luz, móvil 390×844 táctil
+  (botones ≥ 44 px), enlace de foto en mundo sin permiso = guía, mundo con `aparicionFoto` = apareces (≤ 3 m), VR
+  IWER Quest 3 `/ir` con tope 3 luces y el rig a su lado. `tools/e2e.mjs`, `e2e-vr.mjs`, `e2e-piernas/chat.mjs` OK;
+  `e2e-piernas/foto.mjs`: «quieto» falla por velocidad de la cámara bajo carga (0,75 m, pide > 0,8; código no tocado).
+- Consumo: sin medir · Opus 5.5.
+- Siguiente: amigos guardados (espera a la identidad, F1); menú de muñeca en VR para «Gente»; probar en Quest real.

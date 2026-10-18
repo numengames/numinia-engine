@@ -186,6 +186,8 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
       return hueso ? hueso.getWorldPosition(out) : null;
     },
     /** N12: the VRM copies in the world right now (index.ts hides the ones the fog covers while the frame is drawn). */
+    /** N16: the root of someone's VRM (null while they wear a capsule), to hide it for a frame. */
+    raiz(clave: number | "yo"): THREE.Object3D | null { return avatares.get(clave)?.copia?.raiz ?? null; },
     *raices(): Iterable<THREE.Object3D> { for (const a of avatares.values()) if (a.copia?.raiz.parent) yield a.copia.raiz; },
     /** pesca v2: make a standing avatar face `rumbo` (three's rotation.y; undefined = walk-driven again). */
     orientar(clave: number | "yo", rumbo: number | undefined): void { const a = avatares.get(clave); if (a) a.rumboFijo = rumbo; },

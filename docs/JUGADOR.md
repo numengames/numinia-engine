@@ -43,6 +43,7 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 | Gestos y emotes | Saludar, bailar con una tecla | motor | Base | tecla / botón / gesto | M, C | bajo | J7 (ejemplo) |
 | Multitud lejana | Cientos de cuerpos baratos ◐ | motor | Base | sí | render instanciado | medio | A1, A4 |
 | Modo foto | Una foto bonita del mundo para compartir ✔ (N13: P o el botón de la cámara; la interfaz se esconde, cámara libre a 12 m de ti, filtros Ámbar / Verdemar / Tinta dentro de la paleta, marco con el nombre del MUNDO; PNG a 2×: Compartir (Web Share, con el archivo) / Guardar / Copiar imagen / Copiar enlace `#foto=x,y,z,rumbo,inclinación,distancia`: quien lo abre recibe ese sitio como destino y la cámara mirando hacia él, y al llegar mira como la foto) | motor | Base | sí / sí / no en VR | P, cámara | ninguno hasta pulsar P | N13 |
+| Ir con alguien | Ir junto a quien está conectado ahora ✔ (N16: «Gente» con L o el botón de personas, o `/ir <nombre>` en el chat; te lleva un haz de luz —tres variantes al azar— y apareces a su lado; un viaje cada 10 s; `/encontrable no` para que no vengan; dueños y quien dirige lo apagan con `/teletransporte no`; con `aparicionFoto` en el mundo, el enlace de una foto te pone en su sitio) | motor | Base | sí / sí / `/ir` en VR | M, servidor mueve | ninguno (la luz solo 1,4 s; apagada en el nivel D) | N16 |
 
 ## 3. Comunicarse
 

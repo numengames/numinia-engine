@@ -56,6 +56,8 @@ export function validarEntorno(json: unknown, base: Plano = porDefecto()): Resul
   if (s !== undefined && s !== ESQUEMA) issues.push({ path: "entorno.schema", message: `debe ser "${ESQUEMA}" (o no estar, en un preset)` });
   const ap = leerAparicion(json);
   if (!ap.ok) issues.push(...ap.issues);
+  const af = leerAparicionFoto(json);
+  if (!af.ok) issues.push(...af.issues);
   const plano: Plano = { ...base };
   for (const [campo, ruta, color] of RUTAS) {
     const v = leer(json, ruta);
@@ -93,6 +95,18 @@ export function leerAparicion(json: unknown): Result<Aparicion | null> {
   };
   const x = num("x", -APARICION_XZ_MAX, APARICION_XZ_MAX), z = num("z", -APARICION_XZ_MAX, APARICION_XZ_MAX), radio = num("radio", APARICION_RADIO_MIN, APARICION_RADIO_MAX);
   return issues.length ? { ok: false, issues } : { ok: true, value: { x, z, radio } };
+}
+
+/**
+ * N16: `aparicionFoto: true` lets whoever opens a photo's link (N13 `#foto=`) appear at the place it names instead of
+ * the spawn area (the server checks a free spot there; features/teletransporte). Off when absent: a world opts in.
+ * Like `aparicion`, the server's, never on the wire as environment (the feature says it in its own state).
+ */
+export function leerAparicionFoto(json: unknown): Result<boolean> {
+  const a = typeof json === "object" && json !== null && !Array.isArray(json) ? (json as Record<string, unknown>).aparicionFoto : undefined;
+  if (a === undefined || a === null) return { ok: true, value: false };
+  if (typeof a !== "boolean") return { ok: false, issues: [{ path: "entorno.aparicionFoto", message: "true (quien abre el enlace de una foto aparece en su sitio) o false (aparece en el sitio de siempre y la luz le guía)" }] };
+  return { ok: true, value: a };
 }
 
 /** Flat → the readable file (the inverse of validarEntorno; what `restaurar` and tools write). */

@@ -5,7 +5,8 @@
 // picture, drawn again at up to 2× and saved as PNG: «Compartir» (Web Share with the file, on phones), «Guardar»,
 // «Copiar imagen», «Copiar enlace» (`#foto=…`, foto-nucleo.ts). Opening such a link marks the place as your waypoint,
 // turns the camera toward it, and once there looks the way the photo looked. Where you appear is the server's (no
-// client says where it stands): today the waypoint leads you there. Nothing of this runs until P is pressed, and
+// client says where it stands): the waypoint leads you there, or (N16) the world puts you there if its entorno.json
+// says `aparicionFoto: true` (features/teletransporte: the server finds a free spot; the light takes you). Nothing of this runs until P is pressed, and
 // nothing draws while you hold still (phones stay cool). Not in XR: the headset's view is not this page's canvas.
 import { FILTROS, filtro, valoresSvg, aplicarMatriz, marco, nombreArchivo, enlaceSitio, tomarSitioDeLaDireccion, rumboHacia, type Sitio, type Filtro } from "./foto-nucleo.ts";
 import { escribiendo } from "./escribiendo.ts";
@@ -28,6 +29,8 @@ export type FotoOpts = {
   decir: (texto: string) => void;                           // a short notice (screen readers too)
   boton: HTMLButtonElement;
   ocupado?: () => boolean;                                  // something else holds the keys (a dartboard in hand): P waits
+  /** N16: whether this world puts you at a photo's place (null = not known yet) and the asking (the server decides). */
+  aparecer?: { puede(): boolean | null; pedir(s: Sitio): void };
 };
 
 const MAX_LADO = 3200;          // px: the saved picture's longest side at most (a 4K phone at 2× would be 7680)
@@ -286,11 +289,24 @@ export function montarFoto(o: FotoOpts) {
 
   // ---- a photo's link opened: lead to the place, then look the way the photo looked ----
   const llegada = tomarSitioDeLaDireccion(location, history);
-  let guia: Sitio | null = llegada, guiaEstado: "esperando" | "en-camino" | "llegado" | "ninguna" = llegada ? "esperando" : "ninguna";
+  let guia: Sitio | null = llegada, guiaEstado: "esperando" | "apareciendo" | "en-camino" | "llegado" | "ninguna" = llegada ? "esperando" : "ninguna";
   if (llegada) {
+    let vueltas = 0, pedida = false;
     const t = setInterval(() => {
       const yo = o.yo();
       if (!yo || !guia) return;
+      vueltas++;
+      // N16: a world that allows it puts you at the photo's place (the light takes you there); else, or if it found no
+      // room there, the waypoint leads you. The world's answer may come a moment after the welcome: wait up to ~2 s.
+      if (guiaEstado === "esperando" && o.aparecer && !pedida) {
+        const p = o.aparecer.puede();
+        if (p === null && vueltas < 5) return;
+        if (p) { guiaEstado = "apareciendo"; vueltas = 0; pedida = true; o.aparecer.pedir(guia); o.decir("Te han pasado una foto de este mundo: apareces donde se hizo."); return; }
+      }
+      if (guiaEstado === "apareciendo" && Math.hypot(yo.x - guia.x, yo.z - guia.z) > LLEGADA_M) {
+        if (vueltas < 10) return; // ~4 s: the light takes 0.6 s; more = the server found no room
+        guiaEstado = "esperando";
+      }
       if (guiaEstado === "esperando") {
         guiaEstado = "en-camino";
         if (o.mapa?.marcarDestino) o.mapa.marcarDestino({ id: "foto", nombre: "el sitio de la foto", x: guia.x, z: guia.z }); else view.waypoint?.(guia.x, guia.z, "Aquí se hizo la foto");

@@ -153,3 +153,13 @@ body #panel-entorno { top: 112px !important; }
 #panel-director input[type="text"] { width: 100%; box-sizing: border-box; min-height: 44px; margin: 4px 0 8px; padding: 0 10px; border: 1px solid var(--n-linea); border-radius: 6px; background: rgba(0,0,0,.25); color: var(--n-texto); font: inherit; }
 #panel-director input[type="range"] { width: 100%; min-height: 44px; }
 @media (prefers-reduced-motion: reduce) { #narrador { transition: none; } }
+/* N16: «Gente» — who is connected now, and «Ir» */
+#gente .gente-lista { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; max-height: min(50vh, 420px); overflow: auto; }
+#gente .gente-lista li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 4px 4px 8px; border: 1px solid var(--n-linea); border-radius: 6px; }
+#gente .gente-lista li.vacio { border: 0; color: var(--n-texto2); padding: 4px 0; }
+#gente .gente-lista .nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#gente .opcion { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+#gente .opcion[hidden] { display: none; }
+#gente .opcion input { width: 20px; height: 20px; }
+#gente .nota, #gente .estado { color: var(--n-texto2); margin: 4px 0; }
+#gente .gente-lista button { min-height: 44px; min-width: 64px; }

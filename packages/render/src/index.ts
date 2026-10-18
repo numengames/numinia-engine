@@ -44,8 +44,10 @@ import { fundirAnimado } from "./fundir.ts";
 import type { Fundido } from "./fundir.ts";
 import type { Parte } from "./lotes.ts";
 import { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
+import { crearTeletransporte } from "./teletransporte.ts";
 export { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 export type { EntornoDatos } from "./entorno.ts";
+export type { Luz } from "./teletransporte.ts";
 export type { Calidad, Nivel } from "./calidad.ts";
 
 export type Backend = "WebGPU" | "WebGL2";
@@ -176,6 +178,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const entorno = crearEntorno({ renderer, scene, world, camera, hemi, sun, ground, grid, hitos, aparato: { mobile: power.mobile, deviceMemoryGB: readCaps().deviceMemoryGB, saveData: readCaps().saveData }, foco: () => selfXZ,
     fichero: (f) => { const i = f.lastIndexOf("."); return (opts.assetUrl ?? ((m: string) => `/a/${m}.glb`))(f.slice(0, i)).replace(/\.glb$/, f.slice(i)); } });
   const elementos = vistaElementos({ renderer, scene, world, camera, entorno }); // H4/H8: water, fire, smoke, dust (lazy)
+  const tele = crearTeletransporte({ world, nivel: () => entorno.nivel }); // N16: the light of a trip (none on tier D)
 
   // feature decorations (J7): a text label over an avatar and a short bounce; both expire on their own
   type Target = number | "self";
@@ -515,7 +518,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // object is as it was, so picking, the map, footprints, hands and the gizmo never see any of this.
   const lotes = crearLotes(world);
   const capsulasParte: Parte[] = [{ geo: bodyGeo, mat: otherMat, sombra: false }];
-  const ojo = new THREE.Vector3(), ocultosCuadro: THREE.Object3D[] = [];
+  const ojo = new THREE.Vector3(), ocultosCuadro: THREE.Object3D[] = [], enLuz = new Set<number | "self">();
   const porLote = new Map<string, { partes: Parte[]; color: string; slots: Slot[] }>();
   const capsulasCuadro: THREE.Mesh[] = [], matricesTmp: THREE.Matrix4[] = [];
   let dibujoUltimo = { lejos: Infinity, niebla: 0, instanciadas: 0, lotes: 0 };
@@ -550,7 +553,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       instanciadas += v.slots.length; nLotes++;
     }
     capsulasCuadro.length = 0;
-    for (const m of others.values()) {
+    // N16: whoever the light holds is not there (nor slides across while the server moves them)
+    enLuz.clear();
+    for (const k of tele.ocultos()) enLuz.add(k);
+    if (enLuz.has("self") && selfMesh.visible) ocultar(selfMesh);
+    for (const [id, m] of others) {
+      if (enLuz.has(id)) { if (m.visible) ocultar(m); continue; }
       if (m.layers.mask === 0) continue; // wears a VRM (avatares.ts hides the capsule this way)
       if (tapa(m, 1)) { ocultar(m); niebla++; continue; }
       capsulasCuadro.push(m);
@@ -562,6 +570,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     }
     lotes.terminar();
     for (const r of avs.raices()) if (r.visible && tapa(r, 2)) { ocultar(r); niebla++; }
+    for (const k of enLuz) { const r = avs.raiz(k === "self" ? "yo" : k); if (r?.visible) ocultar(r); }
     for (const r of tags.values()) if (r.s.visible && tapa(r.s, 3)) { ocultar(r.s); niebla++; }
     lotes.raiz.visible = true;
     dibujoUltimo = { lejos, niebla, instanciadas, lotes: nLotes };
@@ -608,6 +617,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     entorno,
     /** H4/H8: water, fire, smoke and dust (poner, contar) — packages/render/src/elementos.ts, loaded with the first one. */
     elementos,
+    /** N16: the light of a trip (lanzar, estado) — packages/render/src/teletransporte.ts; the body hides meanwhile. */
+    teletransporte: { lanzar: tele.lanzar, estado: tele.estado },
     /** pesca v1: fishing spots, floats and my own phase (sitios, flotadores, estado, contar) — packages/render/src/pesca.ts, loaded with the first spot. */
     pesca,
     /** dardos v1: boards near you and their darts (sitios, clavados, linea, contar) — packages/render/src/dardos.ts. */
@@ -780,7 +791,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
     /** U10: draw hidden spheres of sound (while building) or not (while playing). */
     verOcultos(si: boolean): void { verOcultos = si; },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || entorno.ocupado() || elementos.ocupado() || pesca.ocupado(); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); },
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */
@@ -807,7 +818,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       updateThings(dtSeconds);
       selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
       editor.frame();
-      entorno.actualizar(); elementos.actualizar(dtSeconds);
+      entorno.actualizar(); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds);
       if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); dibujarCuadro(); return; } // N4: after the hands moved, so a held rod does not trail a frame
       pesca.actualizar(dtSeconds);
       if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
