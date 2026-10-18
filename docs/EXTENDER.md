@@ -104,6 +104,15 @@ export default clientPart(gestos, (api) => {
   cuadrado de la casa (40 m alrededor del origen). Es del servidor (viaja en la carpeta y el zip del mundo), no del cable.
   `"aparicionFoto": true` (N16, apagado si no está) deja que quien abre el enlace de una foto (`#foto=`) aparezca en
   su sitio (el servidor busca un sitio libre allí; si no hay, la columna de luz le guía como siempre).
+- El mismo `entorno.json` puede tener **vacío** (D-045, `features/suelo`): `"sueloMinimo": -4` (metros, −500…500) es
+  la altura bajo la cual se ha caído; el servidor guarda cada medio segundo (`SEGURO_CADA` ticks) dónde pisaba suelo
+  cada persona y, al bajar de ahí, la recoloca en ese sitio **dentro del paso de simulación** (una orden grabada con
+  las entradas: la repetición la reproduce; sin `sueloMinimo` nadie se mueve solo y la huella de referencia no cambia).
+  Opcional `"vuelta": { "x", "y", "z", "siempre": true }`: un punto fijo al que volver mientras no se conoce un sitio
+  seguro (con `siempre`, siempre). La página hace un fundido (`view.fundido(ms)`) y el evento `suelo.vuelta` (importancia
+  2) lo lee el lector de pantalla: «Has vuelto a un sitio seguro». El cable (D-041) y quien se queda atascado piden lo
+  mismo con la intención `suelo.volver` (la acción «vuelve_a_seguro»; una vez cada 5 s); una función del servidor, con
+  `api.volverASeguro(e)` o `api.onVuelta(cb)`. Prueba sin pantalla: `test/suelo.test.ts`; con hueco: `tools/e2e-piernas/suelo.mjs`.
 - Una función puede mover a un jugador a propósito con `api.teletransportar(e, { x, y, z }, { radios, rumbo, caida })`
   (N16): la instancia busca el primer sitio libre cerca (dentro del mundo, en un suelo como mucho `caida` m más
   abajo, sin sólidos; anillos `radios` en metros, ocho rumbos desde `rumbo` 0-7) y devuelve dónde quedó, o null sin
