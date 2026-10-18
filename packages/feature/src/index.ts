@@ -264,7 +264,7 @@ export type BienFirmable = { id: string; objeto: { id: string; nombre: string; d
 export type ReciboLeido = { ok: true; recibo: BienFirmable & { v: 1; tipo: "bien"; mundo: string; emisor: string }; huella: string; nuestro: boolean } | { ok: false; motivo: string };
 /** Who gets an event: everyone, one player, the players near a player or a point, or (J3) "server": no page, only
  * the server-side listeners of other features (`api.listen`), e.g. a command typed in the chat. */
-export type Scope = "all" | "server" | { to: number } | { near: number | { x: number; z: number }; radius?: number };
+export type Scope = "all" | "server" | { to: number } | { all: true; except: number[] } | { near: number | { x: number; z: number }; radius?: number; except?: number[] }; // F1 `except`: these players never get it (someone they blocked)
 export const LISTEN_DEPTH = 4;            // J3: events that trigger events that trigger events… stop here
 export type HttpRequest = { method: "GET" | "POST"; path: string; params: Record<string, string>; query: Record<string, string>; body: string };
 export type HttpReply = { status?: number; type?: "json" | "html" | "text"; body: unknown };
@@ -416,10 +416,12 @@ export class ServerRuntime {
     if (typeof scope === "object" && "to" in scope) return this.host.position(scope.to) ? [scope.to] : []; // in the world = connected; no list scan (J3 sends names one by one)
     const all = this.host.players();
     if (scope === "all") return all.slice();
+    const except = scope.except?.length ? scope.except : null;
+    if ("all" in scope) return except ? all.filter((e) => !except.includes(e)) : all.slice();
     const c = typeof scope.near === "number" ? this.host.position(scope.near) : scope.near;
     if (!c) return [];
     const r2 = (scope.radius ?? NEAR_RADIUS_M) ** 2;
-    return all.filter((e) => { const p = this.host.position(e); return !!p && (p.x - c.x) ** 2 + (p.z - c.z) ** 2 <= r2; });
+    return all.filter((e) => { if (except?.includes(e)) return false; const p = this.host.position(e); return !!p && (p.x - c.x) ** 2 + (p.z - c.z) ** 2 <= r2; });
   }
 
   private api(f: Feature): ServerApi {

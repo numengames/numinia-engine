@@ -119,7 +119,7 @@ montarEntorno(ambiente, elementos, view); // H4/H8: environment and elements, a 
 montarDados({ dados, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) }); // dados v1: the dice card everyone near sees, the dice buttons beside a tower
 montarDirector({ dj: dirigir, ambiente, view }); // N6: the Game Director (who may direct: STD-052 manage-rituals): scenes, narrator, summons
 // ---- N16: «Gente» (L): go next to someone connected now; the light of every trip near you (none on tier D) ----
-const gente = montarGente({ viajar, barra: document.getElementById("barra-arriba") });
+const gente = montarGente({ viajar, barra: document.getElementById("barra-arriba"), orden: (t) => chatDePagina.decir(t) }); // F1: «Silenciar»/«Oír» per person = /bloquear and /desbloquear
 viajar.alDestello((d) => view.teletransporte.lanzar({ ...d, clave: d.quien === session.entity ? "self" : d.quien }));
 const webPagina = montarWeb({ web: pantallasWeb, view }); // N17: web screens — iframe in the world (PC/phone), card + «Abrir fuera» in VR
 // ---- pesca v1: nothing of it is in the start bundle; the HUD and the 3D arrive with the first fishing spot or float ----

@@ -5,7 +5,11 @@
 //   /roles                          what you are and may do here, and the world's roles
 //   /dueño <código>                 become an owner with the administration code (MOTOR_ADMIN; 3 tries per 10 min)
 //   /dar <persona> <rol>            /quitar <persona> <rol>        (manage-roles, only below your own height)
-//   /silenciar <persona> [minutos]  (mute-members; 0 = lift it)    /echar <persona>  (remove-members; 10 min out)
+//   /silenciar <persona> [minutos]  (mute-members: chat AND voice; stored, survives a restart; 0 = lift it)
+//   /hablar <persona>               (mute-members: the same as /silenciar <persona> 0)
+//   /bloquear <persona>             (anyone: YOU stop reading and hearing that person; the rest still do; stored by identity)
+//   /desbloquear <persona>          (anyone: read and hear them again)
+//   /echar <persona>                (remove-members; 10 min out)
 //   /vetar <persona> <motivo>       (ban-members, for good)        /perdonar <nombre> (ban-members: lifts both)
 //   /solo-miembros sí|no            (manage-organization: visitors stay out)
 //   /construir todos|nadie          (manage-organization: «build-in-worlds» of @todos, so visitors and AIs build or not)
@@ -24,7 +28,9 @@
 // REPLACE what this world holds for them (owners by /dueño stay owners).
 // It is a server-side feature built inside packages/server (it needs the server's hands: close a connection, the
 // administration code); it tells other features through server-only events: chat hears «aviso» (an answer only for
-// that person) and «silencio»; objetos hears «cambio» and re-sends who may build.
+// that person), «silencio» and «bloqueo» (F1: who stopped reading whom); objetos hears «cambio» and re-sends who may build.
+// Voice (F1): the instance asks `oye(de, a)` before relaying each voice frame to each listener, so a silenced person is
+// not heard by anyone and a blocked one not by who blocked them. The world's roles decide; pages only see the result.
 import { createHash, timingSafeEqual } from "node:crypto";
 import { defineFeature, serverPart } from "../../feature/src/index.ts";
 import type { ServerApi, ServerPart } from "../../feature/src/index.ts";
@@ -41,6 +47,7 @@ import { ADMIN_MIN } from "./secret.ts";
 export const ECHADO_MIN = 10;          // someone taken out may come back after this (STD-052 «may come back»)
 export const SILENCIO_MIN = 10;        // /silenciar without minutes
 export const SILENCIO_MAX_MIN = 1440;  // one day
+export const BLOQUEOS_MAX = 200;       // people one person may block (limits.json `blocks_per_person`)
 export const INTENTOS = 3;             // wrong administration codes per connection before a pause
 export const INTENTOS_PAUSA_MIN = 10;
 export const AVISO_MAX = 300;          // bytes (chat's AVISO_MAX)
@@ -55,10 +62,11 @@ export const rolesFeature = defineFeature({
   describe: "Roles del mundo, los mismos que numinia.com (STD-052): @todos, Moderación, Administración y dueños. Se cambian con órdenes en el chat (/roles para verlas).",
   events: {
     aviso: { describe: "Respuesta a una orden de roles, solo para quien la escribió (el chat la muestra).", fields: { quien, texto: { kind: "text", maxBytes: AVISO_MAX } }, announce: "silent" },
-    silencio: { describe: "Alguien queda en silencio en el chat tantos segundos (0 = vuelve a hablar).", fields: { quien, segundos: { kind: "int", min: 0, max: SILENCIO_MAX_MIN * 60 } }, announce: "silent" },
+    silencio: { describe: "Alguien queda en silencio en el chat y la voz tantos segundos (0 = vuelve a hablar).", fields: { quien, segundos: { kind: "int", min: 0, max: SILENCIO_MAX_MIN * 60 } }, announce: "silent" },
+    bloqueo: { describe: "F1: `quien` deja de leer (si = 1) o vuelve a leer (si = 0) lo que dice `a`; el chat no le reenvía sus líneas.", fields: { quien, a: quien, si: { kind: "int", min: 0, max: 1 } }, announce: "silent" },
     cambio: { describe: "Lo que alguien puede hacer ha cambiado (un rol, un dueño): objetos vuelve a decirle si construye.", fields: { quien }, announce: "silent" },
   },
-  store: { describe: "Los roles del mundo (forma de STD-052, con si @todos construye), quién tiene cada uno, los dueños, los vetados y sus ajustes (config: solo para miembros, voz)." },
+  store: { describe: "Los roles del mundo (forma de STD-052, con si @todos construye), quién tiene cada uno, los dueños, los vetados, los silenciados (hasta cuándo), a quién ha bloqueado cada persona y sus ajustes (config: solo para miembros, voz)." },
 });
 
 export type OpcionesRoles = {
@@ -107,7 +115,8 @@ export function crearRoles(o: OpcionesRoles) {
   const duenos = new Set<string>();
   const vetos = new Map<string, Veto>();
   const echados = new Map<string, { nombre: string; hasta: number }>();
-  const silencios = new Map<string, number>();         // guest id -> until (ms)
+  const silencios = new Map<string, number>();         // guest id -> until (ms); stored («silencios»), so a restart does not lift a silence
+  const bloqueos = new Map<string, Set<string>>();     // F1: listener id -> ids they blocked; stored («b:<id>»), so a reload keeps it
   const intentos = new Map<number, { n: number; hasta: number }>();
   let soloMiembros = false;
   let voz = o.voz ?? true;                             // without the feature running (bare servers) the seed is the answer
@@ -211,7 +220,10 @@ export function crearRoles(o: OpcionesRoles) {
     for (const k of a.store.keys()) {
       if (k.startsWith("m:")) { const v = a.store.get(k); if (Array.isArray(v)) miembros.set(k.slice(2), v.filter((x) => roles.some((r) => r.id === x))); }
       if (k.startsWith("veto:")) vetos.set(k.slice(5), a.store.get(k) as Veto);
+      if (k.startsWith("b:")) { const v = a.store.get(k); if (Array.isArray(v)) bloqueos.set(k.slice(2), new Set(v.filter((x): x is string => typeof x === "string").slice(0, BLOQUEOS_MAX))); }
     }
+    const silGuardados = a.store.get("silencios");
+    if (Array.isArray(silGuardados)) for (const s of silGuardados as { id?: unknown; hasta?: unknown }[]) if (typeof s?.id === "string" && typeof s.hasta === "number" && s.hasta > ahora()) silencios.set(s.id, s.hasta);
     log(`[roles] ${roles.map((r) => r.nombre).join(", ")} · ${duenos.size} dueños, ${miembros.size} con rol, ${vetos.size} vetados${soloMiembros ? " · solo para miembros" : ""} · @todos ${todosConstruyen() ? "construye" : "no construye"}${voz ? "" : " · sin voz"}`);
 
     const avisar = (e: number, texto: string) => a.emit("aviso", { quien: e, texto: cortar(texto, AVISO_MAX) }, "server");
@@ -219,6 +231,16 @@ export function crearRoles(o: OpcionesRoles) {
     const guardarMiembro = (id: string) => { const r = miembros.get(id) ?? []; if (r.length) a.store.set(`m:${id}`, r); else { miembros.delete(id); a.store.delete(`m:${id}`); } };
     const nombre = (e: number) => a.who(e)?.nombre ?? `Robot ${e}`;
     const conectadoComo = (id: string) => a.players().filter((e) => a.who(e)?.id === id);
+    const guardarSilencios = () => a.store.set("silencios", [...silencios].filter(([, h]) => h > ahora()).map(([id, hasta]) => ({ id, hasta })));
+    /** F1: tell the chat who stops/starts reading whom, for every connected device of both. */
+    const avisarBloqueo = (oyente: string, hablante: string, si: boolean) => { for (const q of conectadoComo(oyente)) for (const h of conectadoComo(hablante)) a.emit("bloqueo", { quien: q, a: h, si: si ? 1 : 0 }, "server"); };
+    const silenciar = (from: number, p: { id: string; nombre: string }, min: number) => {
+      if (min === 0) silencios.delete(p.id); else silencios.set(p.id, ahora() + min * 60000);
+      guardarSilencios();
+      for (const e of conectadoComo(p.id)) { a.emit("silencio", { quien: e, segundos: min * 60 }, "server"); avisar(e, min ? `${nombre(from)} te ha silenciado ${min} min: nadie te lee en el chat ni te oye por voz.` : `${nombre(from)} te ha devuelto la palabra: ya te leen y te oyen.`); }
+      log(`[roles] ${a.who(from)?.id} silencia a ${p.id} ${min} min`);
+      avisar(from, min ? `${p.nombre} queda en silencio ${min} min (chat y voz).` : `${p.nombre} puede volver a hablar.`);
+    };
 
     /** <persona> at the start of `resto`: the longest name of someone connected that it begins with. */
     const persona = (from: number, resto: string): { e: number; id: string; nombre: string; resto: string } | null => {
@@ -293,7 +315,7 @@ export function crearRoles(o: OpcionesRoles) {
         const mios = yo.dueno ? "dueño del mundo" : pase ? [...pase.roles.map((r) => r.nombre), "@todos"].join(", ") + " (de numinia.com)" : [...roles.filter((r) => m?.roles.includes(r.id)).map((r) => r.nombre), "@todos"].join(", ");
         const puedo = (Object.keys(ACCION_PERMISO) as Accion[]).filter((x) => tiene(yo, x)).map((x) => ACCION_TEXTO[x]);
         avisar(from, `Eres: ${mios}. Puedes: ${puedo.length ? puedo.join(", ") : "mirar y hablar"}. Roles de este mundo: ${roles.map((r) => r.nombre).join(", ")}${soloMiembros ? " (solo para miembros)" : ""}.`);
-        avisar(from, "Órdenes: /dar y /quitar <persona> <rol> · /silenciar <persona> [minutos] · /echar <persona> · /vetar <persona> <motivo> · /perdonar <nombre> · /solo-miembros sí|no · /construir todos|nadie · /voz sí|no · /agente · /dueño <código>");
+        avisar(from, "Órdenes: /dar y /quitar <persona> <rol> · /silenciar <persona> [minutos] · /hablar <persona> · /echar <persona> · /vetar <persona> <motivo> · /perdonar <nombre> · /solo-miembros sí|no · /construir todos|nadie · /voz sí|no · /agente · /dueño <código>");
       },
       "dueño": (from, resto) => {
         const w = a.who(from);
@@ -319,10 +341,32 @@ export function crearRoles(o: OpcionesRoles) {
         const p = persona(from, resto); if (!p || !sobre(from, "silenciar", p)) return;
         const min = p.resto === "" ? SILENCIO_MIN : Number(p.resto);
         if (!(Number.isInteger(min) && min >= 0 && min <= SILENCIO_MAX_MIN)) { avisar(from, `Minutos: un número de 0 a ${SILENCIO_MAX_MIN} (0 = que vuelva a hablar).`); return; }
-        if (min === 0) silencios.delete(p.id); else silencios.set(p.id, ahora() + min * 60000);
-        for (const e of conectadoComo(p.id)) { a.emit("silencio", { quien: e, segundos: min * 60 }, "server"); avisar(e, min ? `${nombre(from)} te ha silenciado ${min} min en el chat.` : `${nombre(from)} te ha devuelto la palabra.`); }
-        log(`[roles] ${a.who(from)?.id} silencia a ${p.id} ${min} min`);
-        avisar(from, min ? `${p.nombre} queda en silencio ${min} min.` : `${p.nombre} puede volver a hablar.`);
+        silenciar(from, p, min);
+      },
+      hablar: (from, resto) => {
+        const p = persona(from, resto); if (!p || !sobre(from, "silenciar", p)) return;
+        if (!silencios.has(p.id)) { avisar(from, `${p.nombre} no estaba en silencio.`); return; }
+        silenciar(from, p, 0);
+      },
+      // F1: a personal block — no permission needed; it only changes what YOU read and hear
+      bloquear: (from, resto) => {
+        const w = a.who(from); if (!w) { avisar(from, "Primero hace falta que el mundo sepa quién eres (recarga la página)."); return; }
+        const p = persona(from, resto); if (!p) return;
+        const mios = bloqueos.get(w.id) ?? new Set<string>();
+        if (mios.has(p.id)) { avisar(from, `Ya no lees ni oyes a ${p.nombre}. /desbloquear ${p.nombre} para volver a hacerlo.`); return; }
+        if (mios.size >= BLOQUEOS_MAX) { avisar(from, `Ya has bloqueado a ${BLOQUEOS_MAX} personas: desbloquea a alguien primero.`); return; }
+        mios.add(p.id); bloqueos.set(w.id, mios); a.store.set(`b:${w.id}`, [...mios]);
+        avisarBloqueo(w.id, p.id, true);
+        avisar(from, `Desde ahora no lees ni oyes a ${p.nombre}; los demás sí. /desbloquear ${p.nombre} lo deshace.`);
+      },
+      desbloquear: (from, resto) => {
+        const w = a.who(from); if (!w) { avisar(from, "Primero hace falta que el mundo sepa quién eres (recarga la página)."); return; }
+        const p = persona(from, resto); if (!p) return;
+        const mios = bloqueos.get(w.id);
+        if (!mios?.delete(p.id)) { avisar(from, `No tenías bloqueado a ${p.nombre}.`); return; }
+        if (mios.size) a.store.set(`b:${w.id}`, [...mios]); else { bloqueos.delete(w.id); a.store.delete(`b:${w.id}`); }
+        avisarBloqueo(w.id, p.id, false);
+        avisar(from, `Vuelves a leer y oír a ${p.nombre}.`);
       },
       echar: (from, resto) => {
         const p = persona(from, resto); if (!p || !sobre(from, "echar", p)) return;
@@ -447,7 +491,14 @@ export function crearRoles(o: OpcionesRoles) {
       // members only: a role with enter-worlds lets you in — here, or on your pass
       if (soloMiembros && !esIA(w.id) && !((m || conPase) && tiene(accesoDe(w.id), "entrar"))) { sacar(e, "Este mundo es solo para sus miembros ahora mismo."); return; }
       const s = silencios.get(w.id);
-      if (s && t < s) a.emit("silencio", { quien: e, segundos: Math.ceil((s - t) / 1000) }, "server");
+      if (s && t < s) { a.emit("silencio", { quien: e, segundos: Math.ceil((s - t) / 1000) }, "server"); avisar(e, `Sigues en silencio ${Math.ceil((s - t) / 60000)} min más: nadie te lee en el chat ni te oye por voz.`); }
+      // F1: the chat learns the blocks this device holds and the ones that hold it (entities are new on every connection)
+      for (const otro of a.players()) {
+        if (otro === e) continue;
+        const ow = a.who(otro); if (!ow) continue;
+        if (bloqueos.get(w.id)?.has(ow.id)) a.emit("bloqueo", { quien: e, a: otro, si: 1 }, "server");
+        if (bloqueos.get(ow.id)?.has(w.id)) a.emit("bloqueo", { quien: otro, a: e, si: 1 }, "server");
+      }
       if (m || conPase || (esIA(w.id) && pasesIA.has(w.id.slice(3)))) cambio(e);
     });
     a.onLeave((e) => {
@@ -476,6 +527,13 @@ export function crearRoles(o: OpcionesRoles) {
     get soloMiembros() { return soloMiembros; },
     /** Are microphones relayed in this world (the stored setting; MOTOR_VOZ only seeded it)? The instance asks it. */
     get voz() { return voz; },
+    /** F1: may `a` hear `de`? No while `de` is silenced by the world's roles, or while `a` has blocked `de`. The instance asks it per voice frame and listener. */
+    oye(de: Who | null, a: Who | null): boolean {
+      if (de) { const s = silencios.get(de.id); if (s !== undefined && ahora() < s) return false; }
+      return !(de && a && bloqueos.get(a.id)?.has(de.id));
+    },
+    /** F1: for tests and /status: whom this id has blocked. */
+    bloqueados: (id: string): readonly string[] => [...(bloqueos.get(id) ?? [])],
     get todosConstruyen() { return todosConstruyen(); },
     get conectado() { return api !== null; },
     /** Outside agents (ADR-080): list/add/remove, the code behind `/agente` and the HTTP door. null until the feature has started. */

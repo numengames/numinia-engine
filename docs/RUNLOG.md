@@ -756,3 +756,15 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Versión **0.6.1 → 0.7.0** (menor): ajustes y capacidades nuevos, nada se rompe. (Las ramas traían 0.6.0 y
   0.6.1; `main` ya había tomado esos números con #46 y #47.)
 - Consumo: sin medir · Sonnet 5.5.
+
+## 2026-10-18 12:51 · F1a silenciar · hecho
+- Qué: `/silenciar <persona> [min]` calla también la voz (la instancia pregunta `oye(de, a)` por trama y oyente) y se
+  guarda en el store de roles (`silencios`), así sobrevive a un reinicio y al volver se avisa «Sigues en silencio»;
+  `/hablar <persona>` lo levanta. Bloqueo personal `/bloquear` y `/desbloquear <persona>`: quien bloquea no lee ni oye
+  a esa persona (el resto sí); guardado por identidad (`b:<id>`); evento servidor «bloqueo» → el chat filtra con
+  `except` en el alcance; botón «Silenciar/Oír» por persona en el panel Gente. Avisos del servidor también al
+  `#avisos` (role=status) cuando el chat está cerrado.
+- Números: 540 tests (+3), build ok, layers ok. `blocks_per_person` 200 en limits.json. Sin e2e de navegador.
+- Consumo: sin medir · Fable 5.1 (subagente).
+- Commit: feat/mute-a-person → tren/motor-2026-10-18-3.
+- Siguiente: F1b (amigos, denunciar); marcar en Gente el estado real de bloqueo al recargar (hoy la marca es local).

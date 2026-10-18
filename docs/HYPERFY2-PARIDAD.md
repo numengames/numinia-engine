@@ -75,7 +75,7 @@ por capacidad, con lo que Hyperfy2 tiene, lo que tenemos hoy y la fila de `docs/
 | Chat de texto | un canal para todo el mundo; los 50 últimos al entrar | no | ✘ | J3 |
 | Bocadillos sobre quien habla | sí | no | ✘ | J3 |
 | Órdenes con barra | `/admin <código>`, `/name`, `/spawn set\|clear`, `/chat clear`, `/server stats`; las apps reciben `command` | no | ✘ | J3 + H3 |
-| Voz por cercanía | LiveKit, espacial, silenciar | no | ✘ | M17 (necesita aprobación) |
+| Voz por cercanía | LiveKit, espacial, silenciar | relé µ-law a 30 m (U10); silenciar por moderación y bloqueo personal también callan la voz (F1a) | ◐ | M17 (necesita aprobación) |
 | Compartir pantalla | LiveKit → una pantalla `Video` del mundo (`screenId`) | no | ✘ | M17 + M18 |
 
 ### 3.3 El mundo que se ve y se oye
