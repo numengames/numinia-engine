@@ -81,7 +81,7 @@ fila**: casi todo lo que vas a preguntarte ya se contestó, con número o con fu
 | Conversión de animaciones (UAL1 de Quaternius, CC0) | caderas 0,916 → 0,533 → 0,917 m al sentarse y levantarse, 0 errores | Defectos conocidos en §3.4 |
 | Misiones: 1.000 jugadores esperando llegar a un sitio | tick de las funciones p99 0,18 ms (p50 0,09) | `test/misiones.test.ts`, 15-10 |
 | Entorno por nivel (A mira una hoguera y un estanque) | A 64–67 llamadas, ~2.200 triángulos; D 12–22 llamadas, ~2.400 | WebGL2 por SwiftShader: los ms no valen para un móvil (15-10) |
-| Arranque de la página tras la ola 2 | 342 kB gz (tope 300) | `npm run build`, 15-10; plan en BACKLOG D2 |
+| Arranque de la página (lo que baja antes de dibujar) | 434,9 kB gz (meta 300, tope de la puerta 480) | `npm run tamano`, 18-10; qué entra en `docs/MEDIDAS.md`; plan en BACKLOG D2 (342 el 15-10 contaba menos ficheros) |
 
 **Hechos de plataforma (oct-2026), comprobados en fuente:**
 - WebGPU dentro de XR solo es producción en Vision Pro; en Quest es experimental (v146–v152, tras banderas) → en Quest, backend WebGL2.

@@ -62,6 +62,40 @@ corrige allí (y en `docs/SABER.md` §2) con la fecha y el aparato.
 
 `GET /metrics.prom` da los mismos números en el formato de texto de Prometheus (nombres con unidades base y `_total` en los contadores, como pide su guía de nombres), para Grafana o cualquier recolector. Sigue sin ser público: Caddy solo expone `/ws` y `/health`.
 
+## Tamaño de la página: lo que baja antes de dibujar (D2)
+
+**Una sola cifra: 434,9 kB gz (434.850 bytes), medida el 18-10-2026 en `5362797` con `npm run tamano`.** Meta D2: 300 kB. Tope
+de la puerta hoy: 480 kB (la medida + 10 %, redondeado; `TOPE_GZ` en `tools/tamano.mjs`). La puerta corre también en `npm run gates`.
+
+Qué entra (y por eso la cifra es comparable de una medida a otra): `dist/plaza/index.html` y lo que ese HTML referencia antes de
+ejecutar `main.ts`: la hoja `<link rel="stylesheet">`, el `<script type="module">` de entrada y cada `<link rel="modulepreload">`
+(el grafo de imports estáticos que escribe Vite). Cada fichero se comprime solo con gzip nivel 9 (`node:zlib`), como lo serviría el
+servidor web (Caddy sirve gzip/zstd, no brotli). **No entra:** los trozos perezosos (`import()`: avatares VRM, cielo, agua, gizmo,
+manos, pesca…), el transcodificador Basis (solo con texturas KTX2), iconos, manifiesto y los ficheros del mundo (.glb, .vrm, .vrma).
+
+| Fichero | gz -9 |
+|---|---|
+| `three.tsl` | 189,6 kB |
+| `index` (entrada) | 98,2 kB |
+| `three.core` | 68,5 kB |
+| `src` (paquetes del motor) | 45,5 kB |
+| `client` | 10,2 kB |
+| `escribiendo` | 10,0 kB |
+| `index.css` | 6,2 kB |
+| `index.html` | 3,9 kB |
+| `gltf` | 1,9 kB |
+| `calidad` | 0,8 kB |
+| **Total** | **434,9 kB** |
+
+Cifras anteriores (históricas, no comparables entre sí porque cada una contaba ficheros distintos): 342 kB (15-10, solo los .js del
+arranque de entonces), 423,3 kB (18-10, diseño M6: sin html ni css, gzip por defecto de Vite). Desde hoy manda esta sección.
+
+## Pruebas unitarias: cuántas y cuánto tardan
+
+**Una sola cifra: 537 pruebas, 537 en verde, 26,5 s** (`npm test` en `5362797`, 18-10-2026, Ryzen 9 7950X con carga 5; la cuenta
+sale de la línea `ℹ tests N` del reporter de `node --test`, no de un grep). La cifra de cada turno del RUNLOG es la de su rama en su
+momento; cuando una entrada diga otra cosa, manda la más nueva.
+
 ## Reglas del método
 
 1. Calentamiento descartado (el JIT y la ráfaga de conexión); 10 s o 1 s por cada 100 robots, lo que sea mayor.

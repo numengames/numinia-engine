@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkLayers } from "./layers.mjs";
 import { runHeadless } from "../packages/cli/src/run.ts";
+import { medirArranque, construir, TOPE_GZ } from "./tamano.mjs";
 
 const root = join(fileURLToPath(import.meta.url), "../..");
 const rows = [];
@@ -43,6 +44,12 @@ gate("ancho de banda (K=50, 10 Hz)", "≤ 70 kbit/s por persona", () => {
 gate("plaza de 1.000, un hilo", "tick p99 ≤ 25 ms", () => {
   const r = runHeadless({ ticks: 100, seed: 7, bots: 1000, k: 50, warmup: 20 });
   return [r.tickP99ms <= 25, `p50 ${r.tickP50ms} ms · p99 ${r.tickP99ms} ms`];
+});
+
+gate("tamaño de la página (D2)", `≤ ${TOPE_GZ / 1000} kB gz antes de dibujar`, () => {
+  construir();
+  const m = medirArranque();
+  return [m.pasa, `${(m.totalGz / 1000).toFixed(1)} kB gz en ${m.ficheros.length} ficheros (meta 300)`];
 });
 
 const w = (s, n) => String(s).padEnd(n);

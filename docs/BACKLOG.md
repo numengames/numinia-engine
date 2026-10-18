@@ -128,7 +128,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | A3 | Normales horneadas en la animación de textura (luz correcta al girar) | pendiente | sí |
 | A4 | Robots en la plaza: cercanos completos, lejanos horneados | pendiente | sí |
 | B3 | Telemetría en el visor: p99 de cuadro y cuadros perdidos | hecho (dentro de T1; sin probar en un visor real → X1) | sí |
-| D2 | Puerta de tamaño del cliente (≤ 300 kB comprimido) | pendiente (hoy 342 kB al arrancar: pasado) | sí |
+| D2 | Puerta de tamaño del cliente (meta ≤ 300 kB comprimido) | puerta hecha (18-10: `npm run tamano` y en `gates`, tope 480 kB); recorte pendiente (hoy 434,9 kB) | sí |
 | D3 | Fuzz de todos los decodificadores de red | pendiente | sí |
 | D4 | Los mensajes del núcleo (entrada, snapshot, bienvenida) salen del esquema, como ya los de las funciones (J7) | para Opus | no |
 | M16 | Carga de zonas: manifiesto por zona (arranque / fondo / perezoso), sha256 por fichero, caché del navegador por hash | pendiente | sí |
@@ -1075,7 +1075,7 @@ Tope de mensajes cercanos por oyente y por segundo, y los nombres más cercanos 
 En una sesión inmersiva, un botón abre el teclado del sistema (o el dictado si existe) para el chat; si no hay teclado, frases rápidas. **Hecho cuando:** e2e con IWER manda una frase rápida; probado en Quest (X1).
 
 ### D2 — Peso del cliente al arrancar
-Tras la ola 2 (15-10) la página baja **342 kB gz** antes de dibujar (tope 300): `index` 84,6 + `three.core` 66,8 + `three.tsl` 188,9 + `calidad` 1,4 + `avatares-politica` 0,7. La mayor parte es TSL de three que solo usan piezas perezosas (cielo, agua, partículas), y el empaquetador lo pone en el trozo común. Medido por la rama entorno: alias de `three`, `three/webgpu` y `three/tsl` a sus fuentes en `vite.config.mjs` = −24,5 kB; además, mapa grande y ficha perezosos (~7 kB) y el dibujo del menú de ajustes al abrirlo (~4 kB). La pantalla de carga decide qué baja primero. **Hecho cuando:** una puerta mide el arranque en cada `npm run gates` y falla por encima de 300 kB.
+**Hecho, la puerta (18-10).** `tools/tamano.mjs` (`npm run tamano`, y una fila en `npm run gates`) mide lo que baja la página antes de dibujar (html + css + entrada + `modulepreload`, gzip -9 cada uno; qué entra y qué no, en `docs/MEDIDAS.md`): **434,9 kB gz** en `5362797`. Tope de la puerta 480 kB (medida + 10 %) para que pase hoy y pare cualquier subida; la meta sigue siendo 300: cada recorte baja el tope. **Falta:** el recorte (los pasos de abajo). Histórico (15-10, contaba solo los .js de entonces): la página bajaba 342 kB gz: `index` 84,6 + `three.core` 66,8 + `three.tsl` 188,9 + `calidad` 1,4 + `avatares-politica` 0,7. La mayor parte es TSL de three que solo usan piezas perezosas (cielo, agua, partículas), y el empaquetador lo pone en el trozo común. Medido por la rama entorno: alias de `three`, `three/webgpu` y `three/tsl` a sus fuentes en `vite.config.mjs` = −24,5 kB; además, mapa grande y ficha perezosos (~7 kB) y el dibujo del menú de ajustes al abrirlo (~4 kB). La pantalla de carga decide qué baja primero. **Hecho cuando:** una puerta mide el arranque en cada `npm run gates` y falla por encima de 300 kB.
 
 ### N3 — Ajustes dentro de VR
 Hoy el menú se oculta en XR. Un panel 3D legible (J6) con su gemelo HTML, con los mismos datos del registro. **Hecho cuando:** e2e con IWER cambia la sensibilidad desde el panel 3D.
