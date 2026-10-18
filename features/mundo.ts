@@ -15,6 +15,12 @@ import type { Torre as TorreDados } from "./dados/server.ts";
 import { leerAparicion, leerAparicionFoto } from "./entorno/esquema.ts";
 import { crearTeletransporte } from "./teletransporte/server.ts";
 import { crearWeb } from "./web/server.ts";
+import { crearPuertas } from "./puertas/server.ts";
+import type { Puerta } from "./puertas/server.ts";
+import { crearBotones } from "./botones/server.ts";
+import type { Boton } from "./botones/server.ts";
+import { crearCogibles } from "./cogibles/server.ts";
+import type { Cosa as CosaCogible } from "./cogibles/server.ts";
 import { leerWebMundo } from "./web/feature.ts";
 import type { Aparicion } from "./entorno/esquema.ts";
 
@@ -41,7 +47,12 @@ export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) 
   const crudoWeb = leer("web.json");
   const leidoWeb = crudoWeb === undefined ? null : leerWebMundo(crudoWeb);
   for (const pr of leidoWeb?.problemas ?? []) log(`[mundo] web.json: ${pr.path}: ${pr.message} (esa parte no se usa)`);
-  return partes.map((p) => (p.feature.id === "web" && leidoWeb ? crearWeb(leidoWeb.valor) : p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
+  // interacciones.json (numinia-engine/interacciones@1: { puertas: [{ id, nombre, x, y?, z, ry?, ancho?, alto?, radio?, cierraEn?, abierta? }],
+  // botones: [{ id, nombre, x, y?, z, radio?, puerta? }], cosas: [{ id, nombre, x, y?, z, modelo?, escala?, radio? }] }): J4; none = nothing placed
+  const crudoInter = leer("interacciones.json") as { puertas?: unknown; botones?: unknown; cosas?: unknown } | null | undefined;
+  const inter = { puertas: crudoInter?.puertas, botones: crudoInter?.botones, cosas: crudoInter?.cosas };
+  if (crudoInter !== undefined && !Array.isArray(inter.puertas) && !Array.isArray(inter.botones) && !Array.isArray(inter.cosas)) log(`[mundo] interacciones.json no tiene ninguna lista "puertas", "botones" o "cosas" (no pongo nada): ${JSON.stringify(crudoInter).slice(0, 160)}`);
+  return partes.map((p) => (p.feature.id === "puertas" && Array.isArray(inter.puertas) ? crearPuertas({ puertas: inter.puertas as Puerta[] }) : p.feature.id === "botones" && Array.isArray(inter.botones) ? crearBotones({ botones: inter.botones as Boton[] }) : p.feature.id === "cogibles" && Array.isArray(inter.cosas) ? crearCogibles({ cosas: inter.cosas as CosaCogible[] }) : p.feature.id === "web" && leidoWeb ? crearWeb(leidoWeb.valor) : p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
 }
 
 /** The world's spawn area (entorno.json `aparicion`), or null: no file, no key, or a wrong one (logged, with its path). */
