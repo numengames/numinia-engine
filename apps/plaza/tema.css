@@ -118,6 +118,12 @@ button .icono + span, button span + .icono { margin-left: 6px; }
 #barra-arriba > #microfono[aria-pressed="true"] { background: var(--n-grana) !important; color: #fff !important; border-color: var(--n-grana) !important; }
 #microfono .nivel { margin-left: 0 !important; }
 
+/* ---- t_5cff4f06: the corner button that leaves for the city, top left — the gear's exact mirror on the right
+   (same frame, same 44x44, same radius); hidden (the attribute) where a world sets no ciudadUrl ---- */
+#volver-ciudad { position: fixed; top: 10px; left: 10px; z-index: 7; width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: var(--n-sup) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea) !important; border-radius: var(--n-r-control) !important; }
+#volver-ciudad[hidden] { display: none !important; }
+#volver-ciudad:hover { border-color: var(--n-texto2) !important; }
+
 /* ---- the map under the bar, the quests under the map ---- */
 body #minimapa { top: 64px !important; bottom: auto !important; right: 10px !important; }
 body #minimapa canvas { border: 1px solid var(--n-linea); box-shadow: none !important; }

@@ -14,3 +14,6 @@ porque necesita un mundo que firme (`MOTOR_SECRET`) y una copia de la aventura c
 en un mundo de prueba; ignora `BASE` y lo borra todo al salir. Igual `suelo.mjs` (D-045, 8797/5179): un mundo
 desechable con `sueloMinimo: 1`, un punto de vuelta y una plataforma sólida a 3 m con un hueco alrededor; nada de
 producción.
+
+Lo que una pierna necesita como fixture (p. ej. `datos/pantalla.webm`, un segundo de vídeo de 667 bytes para la pierna
+`pantalla`) va en `datos/`: el bucle solo ejecuta `*.mjs`.

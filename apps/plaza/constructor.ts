@@ -59,7 +59,7 @@ export const AYUDA = [
   "2 o G mover · 3 o R girar · 4 escalar: arrastra las asas X roja, Y verde, Z azul.",
   "X, Y o Z: solo ese eje (otra vez: todos) · T: ejes del objeto o del mundo.",
   "Con paso: 0,5 m, 15°, escala 0,1 (cámbialo abajo); Ctrl mantenido: libre.",
-  "Mayús + D o Ctrl + D: duplicar y coger la copia · Supr o Retroceso: borrar · P: fijar o soltar.",
+  "Mayús + D o Ctrl + D: duplicar y coger la copia · Supr o Retroceso: borrar · P: anclar o soltar (un objeto anclado no se puede mover, girar ni borrar hasta soltarlo).",
   "Mayús + clic: suma o quita del grupo seleccionado (varios a la vez); el gizmo los mueve juntos, Supr los borra juntos, Ctrl+Z los deshace juntos.",
   "Al mover un solo objeto con un eje elegido (X/Y/Z): si su cara queda a menos de 25 cm de otro objeto, encaja cara con cara.",
   "Ctrl + Z: deshacer · Ctrl + Mayús + Z o Ctrl + Y: rehacer · F: encuadrar · N: inspector.",
@@ -75,6 +75,10 @@ const redondear = (v: number, paso: number) => Number((Math.round(v / paso) * pa
 const esEntrada = (t: EventTarget | null) => t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
 const nombreDe = (o: Obj) => String(o.nombre ?? "") || "(decorado)";
 const fmt = (v: unknown) => String(Math.round(Number(v) * 100) / 100);
+/** Backlog (PROGRESO-M22c.md): an empty library used to look like an editor bug. If it is empty AND the player has no
+ * build role, say why (instead of a silent blank list); otherwise "" (an empty library for any other reason is not this). */
+export const SIN_ROL_CONSTRUIR = "No tienes permiso para construir en este mundo (pide el rol a quien lo administra).";
+export const avisoBiblioteca = (biblioteca: readonly unknown[], puede: boolean): string => (biblioteca.length === 0 && !puede ? SIN_ROL_CONSTRUIR : "");
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...hijos: (Node | string)[]): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -93,9 +97,16 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   const estado = el("p", { className: "estado" });
   estado.setAttribute("role", "status");
   const decir = (t: string) => { estado.textContent = t; };
+  // Backlog M22c: an empty library with no build role looked like an editor bug; say why instead.
+  const avisoLib = el("p", { className: "aviso-biblioteca" });
+  avisoLib.setAttribute("role", "status");
+  avisoLib.hidden = true;
   const responder = (r: Res, bien = "Hecho.") => decir(r.ok ? bien : `No: ${r.why}`);
-  const boton2 = (texto: string, titulo: string, fn: () => Res | void) => {
-    const b = el("button", { type: "button", textContent: texto, title: titulo });
+  const boton2 = (texto: string, titulo: string, fn: () => Res | void, iconoNombre?: string) => {
+    const b = el("button", { type: "button", title: titulo });
+    // iconoNombre is always a hardcoded literal from our own callers (never user input); same pattern as the
+    // house-icon button above (U11). icono() only emits the fixed house-icon SVGs from iconos.ts.
+    if (iconoNombre) { b.innerHTML = `${icono(iconoNombre)} `; b.append(texto); } else b.textContent = texto;
     // after a mouse click the focus goes back to the page: Space (jump) must not press «Borrar» again
     b.addEventListener("click", (e) => { const r = fn(); if (r) responder(r); if (e.detail > 0) b.blur(); });
     return b;
@@ -149,12 +160,12 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     grupo("Posición (m)", campos.x.l, campos.y.l, campos.z.l),
     grupo("Giro (grados)", campos.rx.l, campos.ry.l, campos.rz.l),
     grupo("Escala", campos.sx.l, campos.sy.l, campos.sz.l, campos.u.l),
-    el("label", {}, fijado, " fijado (nadie lo mueve ni lo borra)"), lSolido, lVisible, lVolumen, lAlcance, lRadio, lEnlace);
+    el("label", {}, fijado, " anclado (nadie lo mueve, gira ni borra hasta que lo sueltes)"), lSolido, lVisible, lVolumen, lAlcance, lRadio, lEnlace);
   const inspector = el("section", { className: "inspector" }, el("h3", { textContent: "Inspector (N)" }), datos);
   inspector.setAttribute("aria-label", "Inspector del objeto seleccionado: Intro aplica");
   nombre.addEventListener("change", () => responder(c.nombrar(nombre.value.trim(), decorado.checked), "Nombre puesto."));
   decorado.addEventListener("change", () => responder(c.nombrar(decorado.checked ? "" : nombre.value.trim(), decorado.checked)));
-  fijado.addEventListener("change", () => { const o = c.objeto(c.estado.seleccionado); if (o && !!o.fijado !== fijado.checked) responder(c.fijar(), fijado.checked ? "Fijado." : "Suelto."); });
+  fijado.addEventListener("change", () => { const o = c.objeto(c.estado.seleccionado); if (o && !!o.fijado !== fijado.checked) responder(c.fijar(), fijado.checked ? "Anclado." : "Suelto."); });
   solido.addEventListener("change", () => {
     const id = c.estado.seleccionado, caja = solido.checked && id ? ed.cajaPropia?.(id) ?? null : null;
     if (solido.checked && !caja) { solido.checked = false; return decir("Espera a que se vea el modelo y vuelve a marcarlo."); }
@@ -179,6 +190,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     fila("Herramienta", ...botonesHerr),
     fila("Ejes", ...botonesEje, botonEspacio),
     fila("", el("label", {}, "Paso ", selPos), el("label", {}, "Giro ", selGiro)),
+    avisoLib,
     el("p", { textContent: "Biblioteca (sigue al puntero; clic en el mundo para colocarlo):" }),
     fila("Biblioteca", ...c.biblioteca.map((m) => boton2(m.nombre, `${m.nombre}: llévalo con el ratón y haz clic donde lo quieras (Esc cancela)`, () => empezarFantasma(m)))),
     el("p", { textContent: "Delante de ti:" }),
@@ -186,7 +198,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     sel,
     fila("Acciones",
       boton2("Duplicar", "Hacer una copia y cogerla (Mayús+D o Ctrl+D)", () => duplicar()),
-      boton2("Fijar / soltar", "Fijado: nadie lo mueve ni lo borra (P)", () => c.fijar()),
+      boton2("Anclar / soltar", "Anclar: nadie lo mueve, gira ni borra hasta que lo sueltes (P)", () => c.fijar(), "push-pin"),
       boton2("Borrar", "Quitarlo del mundo; con varios seleccionados, los borra juntos (Supr o Retroceso)", () => borrarSeleccion()),
       boton2("Deshacer", "Deshacer tu último cambio (Ctrl+Z)", () => c.deshacer()),
       boton2("Rehacer", "Rehacer lo deshecho (Ctrl+Mayús+Z o Ctrl+Y)", () => c.rehacer()),
@@ -273,7 +285,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   function empezarAgarre(key: string): void {
     const o = c.objeto(key), antes = ed.dondeEsta(key);
     if (!o || !antes) return;
-    if (o.fijado) return decir("Está fijado: suéltalo (P) antes de cogerlo.");
+    if (o.fijado) return decir("Está anclado: suéltalo (P) antes de cogerlo.");
     if (agarre) soltarAgarre(false);
     agarre = { key, antes };
     ed.sostener(key);
@@ -433,6 +445,8 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   function refrescar(): void {
     boton.style.display = c.estado.puede ? "" : "none";
     boton.toggleAttribute("data-oculto", !c.estado.puede);
+    const aviso = avisoBiblioteca(c.biblioteca, c.estado.puede);
+    avisoLib.textContent = aviso; avisoLib.hidden = !aviso;
     if (!abierto()) return;
     for (const b of botonesHerr) b.setAttribute("aria-pressed", String(b.dataset.modo === c.estado.modo));
     for (const b of botonesEje) b.setAttribute("aria-pressed", String((b.dataset.eje || null) === eje));
@@ -440,7 +454,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     botonEspacio.setAttribute("aria-pressed", String(local));
     const o = c.objeto(c.estado.seleccionado), cerca = o ? null : c.seleccion();
     const grupo = c.estado.seleccionados.length > 1 ? ` · ${c.estado.seleccionados.length} seleccionados (Supr los borra juntos, el gizmo los mueve juntos)` : "";
-    sel.textContent = o ? `Seleccionado: ${nombreDe(o)} · ${o.id}${o.fijado ? " · fijado" : ""}${grupo}`
+    sel.textContent = o ? `Seleccionado: ${nombreDe(o)} · ${o.id}${o.fijado ? " · anclado" : ""}${grupo}`
       : cerca ? `Nada seleccionado; los botones usan lo más cercano: ${nombreDe(cerca)} · ${cerca.id}` : "Nada seleccionado: haz clic en un objeto.";
     inspector.hidden = !inspectorVisible;
     for (const f of datos.querySelectorAll("fieldset")) f.disabled = !o;
@@ -637,7 +651,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
       if (Math.hypot(e.clientX - dedo.x0, e.clientY - dedo.y0) <= CLIC_PX) return;
       const o = c.objeto(dedo.key);
       if (!o) return;
-      if (o.fijado) return decir("Está fijado: suéltalo («Fijar / soltar») antes de moverlo.");
+      if (o.fijado) return decir("Está anclado: suéltalo («Anclar / soltar») antes de moverlo.");
       const p0 = ed.puntoBajo(dedo.x0, dedo.y0, dedo.key); // the ground (or thing) behind the first touch: the drag is measured there
       if (!p0) return;
       dedo.desfase = { x: dedo.antes.x - p0.x, z: dedo.antes.z - p0.z };
@@ -705,6 +719,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
 
   // who may build can change (H3 will give roles); the nearest thing changes as you walk
   setInterval(() => { if (!c.estado.puede && abierto()) abrir(false); refrescar(); }, 500);
+  refrescar(); // set the button's visibility and the library's warning right away (not after the first tick)
 }
 
 function estilo(): void {
@@ -729,6 +744,8 @@ function estilo(): void {
 #panel-construir summary { cursor: pointer; }
 #panel-construir ul { margin: 4px 0; padding-left: 18px; }
 #panel-construir label[hidden] { display: none; }
+#panel-construir .aviso-biblioteca { color: #ffb4a8; font-weight: 600; }
+#panel-construir .aviso-biblioteca[hidden] { display: none; }
 #panel-construir input[type=range] { width: 140px; }
 #barra-objeto { position: fixed; z-index: 6; display: flex; gap: 4px; padding: 4px; border-radius: 8px; background: rgba(20, 24, 30, .86); }
 #barra-objeto[hidden] { display: none; }

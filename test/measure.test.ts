@@ -75,13 +75,17 @@ test("server: the extra /metrics numbers and /metrics.prom in Prometheus text fo
     const types = new Map<string, string>();
     for (const l of lines) {
       if (l.startsWith("# HELP ")) continue;
-      const t = l.match(/^# TYPE ([a-z_:][a-z0-9_:]*) (gauge|counter)$/);
+      const t = l.match(/^# TYPE ([a-z_:][a-z0-9_:]*) (gauge|counter|histogram)$/);
       if (t) { types.set(t[1], t[2]); continue; }
-      const s = l.match(/^([a-z_:][a-z0-9_:]*)(\{[a-z_]+="[a-z_]+"(,[a-z_]+="[a-z_]+")*\})? (-?[0-9.]+(e[+-]?[0-9]+)?)$/);
+      // label values: snake_case words, feature ids (a-z0-9-) and bucket edges (le="0.025", le="+Inf")
+      const s = l.match(/^([a-z_:][a-z0-9_:]*)(\{[a-z_]+="[A-Za-z0-9_.+-]+"(,[a-z_]+="[A-Za-z0-9_.+-]+")*\})? (-?[0-9.]+(e[+-]?[0-9]+)?)$/);
       assert.ok(s, `not a valid sample line: ${l}`);
-      assert.ok(types.has(s[1]), `${s[1]} has no # TYPE before it`);
+      const family = types.has(s[1]) ? s[1] : s[1].replace(/_(bucket|sum|count)$/, "");
+      assert.ok(types.has(family), `${s[1]} has no # TYPE before it`);
+      if (family !== s[1]) assert.equal(types.get(family), "histogram", `${s[1]}: only histograms have _bucket/_sum/_count`);
     }
     for (const [name, type] of types) assert.equal(type === "counter", name.endsWith("_total"), `${name}: counters end in _total and only they do`);
+    assert.ok(types.get("numinia_tick_seconds") === "histogram" && types.get("numinia_tick_phase_seconds") === "histogram", "B2 histograms");
     assert.ok(types.has("process_cpu_seconds_total") && types.has("nodejs_eventloop_lag_p99_seconds"));
     if (process.platform === "linux") assert.ok(types.has("numinia_mainthread_cpu_wait_seconds_total") && types.has("numinia_mainthread_cpu_wait_ratio"), "D3: CPU wait exported");
     assert.ok(!lines.some((l) => /NaN|undefined|Infinity/.test(l)));
