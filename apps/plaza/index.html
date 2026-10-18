@@ -71,6 +71,14 @@
     #dialogo .adios { margin-top: 8px; background: transparent; color: #eef2f6; text-decoration: underline; }
     #dialogo .estado { margin: 6px 0 0; color: #ffb4a8; min-height: 1em; }
     #misiones { position: fixed; left: 10px; bottom: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: #ffd27a; color: #23303b; font: inherit; font-weight: 600; }
+    #inventario-abrir { position: fixed; left: 130px; bottom: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: #ffd27a; color: #23303b; font: inherit; font-weight: 600; }
+    #inventario .resumen { color: #9ad0ff; }
+    #inventario ul.objetos { list-style: none; padding: 0; margin: 4px 0; }
+    #inventario li.objeto { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(238, 242, 246, .1); }
+    #inventario li.objeto .icono-objeto { display: inline-flex; width: 22px; justify-content: center; color: #ffd27a; }
+    #inventario li.objeto .nombre { flex: 1 1 auto; }
+    #inventario li.objeto .detalle { opacity: .7; font-size: 12px; }
+    #inventario p.vacio { opacity: .7; }
     /* the book opens top left, under the HUD and «Pantalla completa», over the chat (it used to open behind the chat) */
     #libro { position: fixed; left: 10px; top: 156px; z-index: 5; width: 320px; max-width: calc(100% - 20px); max-height: max(160px, calc(100% - 420px)); overflow: auto; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .88); color: #eef2f6; }
     #libro h2 { margin: 0 0 6px; font-size: 15px; color: #ffd27a; }
@@ -84,6 +92,15 @@
     #mision-nota { position: fixed; top: 34%; left: 50%; transform: translateX(-50%); max-width: calc(100% - 40px); padding: 6px 12px; border-radius: 8px; background: rgba(255, 210, 122, .95); color: #23303b; font-weight: 600; text-align: center; pointer-events: none; }
     /* V1: what happens, for screen readers (not shown on screen; the voice of V3 comes later) */
     #fundido { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 40; } /* D-045: the fade when the server puts you back on a safe spot (features/suelo) */
+    /* MVL3 step 1: the 2D "Cargando" screen (moon + running dots), plain HTML so it paints before any script
+       runs — no black flash before the world. The 3D build-up sequence for heavy loads is a later step. */
+    #carga { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: #10141b; color: #eef2f6; transition: opacity .5s ease; }
+    #carga[hidden] { display: none; }
+    #carga.ida { opacity: 0; pointer-events: none; }
+    #carga .c-texto { margin: 14px 0 0; font: 16px/1 system-ui, sans-serif; letter-spacing: .04em; text-align: center; }
+    #carga .c-puntos::after { content: ""; animation: c-puntos 1.4s steps(4, end) infinite; }
+    @keyframes c-puntos { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } 100% { content: ""; } }
+    @media (prefers-reduced-motion: reduce) { #carga { transition: none; } #carga .c-puntos::after { animation: none; content: "…"; } }
     .solo-lector { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
     /* N2: the settings menu (a real <dialog>: keyboard, touch and screen readers) and what its settings change */
     :root { --ui: 1; }
@@ -135,13 +152,22 @@
   <link rel="stylesheet" href="./tema.css" /><!-- U11: Numinia Design System (colours, type, icons) and the right-hand layout -->
 </head>
 <body>
+  <div id="carga" aria-hidden="true"><!-- MVL3 step 1: moon + running dots, gone by main.ts once the first frame is drawn -->
+    <div class="c-caja">
+      <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <defs><mask id="c-luna-mask"><rect width="64" height="64" fill="#fff" /><circle cx="40" cy="24" r="22" fill="#000" /></mask></defs>
+        <circle cx="32" cy="32" r="26" fill="#eef2f6" mask="url(#c-luna-mask)" />
+      </svg>
+      <p class="c-texto">Cargando<span class="c-puntos"></span></p>
+    </div>
+  </div>
   <div id="hud">Conectando…</div>
   <p id="mundo-lleno" role="alert" hidden></p><!-- H7: the world is full (ficha `aforo`): the door's reason, read at once by screen readers -->
   <div id="barra-arriba" role="toolbar" aria-label="Botones del mundo"></div>
   <!-- t_5cff4f06: the city, top left (HUD simétrico: mirrors the gear's corner); hidden until a world's
        mundo.ajustes.json sets ciudadUrl (ciudad-logica.ts). The engine names no city here: main.ts fills the text. -->
   <button id="volver-ciudad" type="button" hidden></button>
-  <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · M: mapa · I: ficha · C: construir · Q: micrófono · L: gente · P: foto · K: Graboso</div>
+  <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · R: inventario · M: mapa · I: ficha · C: construir · Q: micrófono · L: gente · P: foto · K: Graboso</div>
   <button id="ar" type="button" hidden>Entrar en AR</button>
   <button id="vr" type="button" hidden>Entrar en VR</button>
   <button id="construir" type="button" aria-expanded="false" aria-controls="panel-construir">Construir</button>
@@ -151,6 +177,7 @@
   <button id="interactuar" type="button" hidden></button>
   <section id="dialogo" hidden></section>
   <button id="misiones" type="button" aria-expanded="false" aria-controls="libro">Misiones (J)</button>
+  <button id="inventario-abrir" type="button" aria-expanded="false" aria-controls="inventario">Inventario (R)</button>
   <section id="libro" aria-label="Libro de misiones" hidden></section>
   <p id="mision-seguida" hidden></p>
   <p id="mision-nota" aria-hidden="true" hidden></p>

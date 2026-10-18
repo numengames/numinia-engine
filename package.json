@@ -1,7 +1,7 @@
 {
   "name": "numinia-engine",
   "private": true,
-  "version": "0.14.0",
+  "version": "0.15.0",
   "license": "AGPL-3.0-only",
   "type": "module",
   "engines": {
@@ -39,6 +39,7 @@
     "@pixiv/three-vrm-animation": "3.5.5",
     "meshoptimizer": "1.3.0",
     "ndarray-pixels": "file:tools/vacio/ndarray-pixels",
+    "qrcode-svg": "1.1.0",
     "three": "^0.186.1",
     "ws": "^8.22.0"
   },

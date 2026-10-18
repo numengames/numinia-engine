@@ -7,8 +7,10 @@ import { montarAjustes, leerAjuste } from "./menu-ajustes.ts"; // N2: settings m
 import { montarCiudad } from "./ciudad.ts"; // t_5cff4f06: the corner button back to the city (a world's own ciudadUrl)
 import mundoPlaza from "./mundo.ajustes.json";
 import { montarPulsaciones } from "./pulsaciones.ts"; // U26: a press you can see (and feel) on every button
+import { carga } from "./carga.ts"; // MVL3 step 1: fades out the 2D "Cargando" screen once the first frame is drawn
 import { ClientSession, serverUrl, tomarPaseDeLaDireccion } from "../../packages/client/src/index.ts";
 import { createView, leerAparato, leerBateria, medidorDeCuadros, haciaMundo } from "../../packages/render/src/index.ts";
+import { mensajeFalloAR } from "../../packages/render/src/ar.ts"; // J8: a clear sentence when AR fails to start
 import funciones from "../../features/cliente.ts";
 import { constructor } from "../../features/objetos/client.ts";
 import { chatDePagina } from "../../features/chat/client.ts";
@@ -29,6 +31,8 @@ import { montarVerNombres } from "./nombres-ver.ts";
 import { montarLibro } from "./misiones.ts";
 import { montarMapa } from "./mapa.ts";
 import { montarFicha } from "./ficha.ts";
+import { montarInventario, resumenTexto } from "./inventario.ts"; // Y1: the Inventario panel (L)
+import { inventarioCtl } from "../../features/inventario/client.ts";
 import { ambiente } from "../../features/entorno/client.ts";
 import { elementos } from "../../features/elementos/client.ts";
 import { dardos } from "../../features/dardos/client.ts"; // dardos v1: the controller; its throwing view (apps/plaza/dardos.ts) loads with the first board
@@ -53,6 +57,9 @@ import { montarVoz } from "./voz.ts";
 import { montarPantalla } from "./pantalla.ts";
 import { montarGraboso } from "./graboso.ts"; // M18b: the relic that records what you see (K)
 import { icono } from "./iconos.ts";
+import { gestosDePagina } from "../../features/gestos/client.ts";
+import { FAVORITOS_INICIALES } from "../../features/gestos/movimientos.ts";
+import { montarRueda } from "./rueda.ts";
 import { montarXR } from "./xr.ts";
 import { aplicarTema } from "./tema-mundo.ts"; // a world's look (ficha@1 `tema`): an event's colours and title face
 import { montarFoto } from "./foto.ts"; // N13: photo mode (P): hide the interface, frame, filter, PNG, share, a link to the place
@@ -105,6 +112,8 @@ const session = new ClientSession(transport, {
     lleva: (e, v) => view.vestir(e === session.entity ? "self" : e, v),
     // D-045: a fade when the server puts me back on a safe spot (features/suelo); the live region reads the announcement
     fundido: (ms) => { const f = document.getElementById("fundido")!; f.style.transition = "none"; f.style.opacity = "1"; f.offsetHeight; f.style.transition = `opacity ${ms}ms ease-out`; f.style.opacity = "0"; f.dataset.ultimo = String(Date.now()); },
+    // J7b: the moves of the wheel, played on the avatar's VRM (false = a capsule: the feature shows a label)
+    movimiento: (e, m) => view.movimiento(e === session.entity ? "self" : e, m),
     // V1: every announced event reaches screen readers (polite; safety = assertive). V3 adds the engine's own voice.
     announce: (a) => {
       if (a.feature === "chat") return; // J3: the chat box's own list (role=log, polite) reads the chat
@@ -134,7 +143,7 @@ addEventListener("keydown", (e) => { if (!e.repeat && !escribiendo(e)) acts.find
 if (esTactil()) {
   document.getElementById("help")!.textContent = "Dedo a la izquierda: andar · a la derecha: mirar · dos dedos: acercar"; // N1: the touch map only
   const bar = document.getElementById("acciones")!;
-  for (const a of acts) {
+  for (const a of acts.filter((x) => x.feature !== "gestos")) { // J7b: on touch the gestures live in the wheel's button (rueda.ts)
     const b = document.createElement("button");
     b.type = "button"; b.textContent = a.label; b.title = a.describe ?? "";
     b.addEventListener("pointerdown", (ev) => { ev.stopPropagation(); a.run(); }); // not a joystick touch
@@ -151,7 +160,7 @@ if (esTactil()) {
     b.addEventListener("click", () => { a.run(); b.blur(); });
     bar.appendChild(b);
   }
-  document.getElementById("help")!.textContent += " · " + acts.map((a) => `${(a.key ?? "").replace(/^Key/, "")} ${a.label.toLowerCase()}`).join(" · ");
+  document.getElementById("help")!.textContent += " · " + acts.map((a) => `${(a.key ?? "").replace(/^Key/, "")} ${a.label.toLowerCase()}`).join(" · ") + " · G (mantén): movimientos";
 }
 
 // ---- H1 + M22: the builder, for whoever may build (the server says so on entering): panel, gizmo, grab ----
@@ -214,6 +223,9 @@ montarLibro(misiones, {
   banner: document.getElementById("mision-completada")!, // U14 (6): «Misión completada»
 });
 
+// ---- Y1: the Inventario panel (L, «Inventario»): what you carry and your Reserva; the sheet shows its summary ----
+const inventario = montarInventario(inventarioCtl, document.getElementById("inventario-abrir") as HTMLButtonElement);
+
 // ---- J5: minimap (corner), big map (M, «Mapa») and player sheet (I, «Ficha»); other branches' contracts are read
 // from __numinia when present (misiones.objetivos/resumen, ajustes.abrir, chat.nombres) ----
 const otros = () => (globalThis as unknown as { __numinia?: Record<string, unknown> }).__numinia ?? {};
@@ -267,7 +279,13 @@ function soltarEntradaPlana(): void {
 }
 addEventListener("visibilitychange", () => { if (document.hidden) soltarEntradaPlana(); });
 
+// ---- J7b: the movement wheel (hold G, «Movimientos» on touch, Y on a gamepad); while open nobody walks ----
+const avisar = (t: string) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); };
+const rueda = montarRueda({ gestos: gestosDePagina, favoritosIniciales: FAVORITOS_INICIALES, aviso: avisar,
+  haciendo: () => view.avatares().lista.find((a) => a.id === "yo")?.movimiento ?? null });
+
 function readAxes(): [number, number] {
+  if (rueda.abierta()) return [0, 0]; // J7b: choosing a move never walks (walking would end it)
   // motor-vr t_ab71cff0: while the headset presents, ITS input is the only source of movement. A flat-page input
   // left held when the headset took over (a touch whose pointerup never comes, a stale Gamepad-API pad, a key)
   // used to keep driving you whenever the VR stick sat at zero: measured on Pablo's Quest, 7.9 m/s in one fixed
@@ -311,7 +329,7 @@ if (esTactil()) {
 function readButtons(): number {
   let b = 0;
   if (foto.activo()) { saltoPendiente = false; return 0; } // N13
-  if (view.vr.takeJump() || view.ar.takeJump() || saltoPendiente) { saltoPendiente = false; b |= BTN_JUMP; }
+  if (view.vr.takeJump() || view.ar.takeJump() || saltoPendiente) { saltoPendiente = false; if (!rueda.abierta()) b |= BTN_JUMP; }
   // RUN_EDGE close to 1: most of the stick's travel walks (human pace), only the very end runs
   // (was 0.9 — reached with barely half the throw, so there was no way to just walk).
   const RUN_EDGE = 0.97;
@@ -324,10 +342,11 @@ function readButtons(): number {
 // ---- AR (J8): the button exists only where the device can do immersive-ar; no WebXR (iPhone) = no button ----
 const arBtn = document.getElementById("ar") as HTMLButtonElement;
 const arLabel = { off: "Entrar en AR", searching: "Mira una mesa o el suelo… (salir)", ready: "Toca para poner la plaza (salir)", placed: "La plaza en tu mesa · toca para moverla (salir)", mezclada: "Realidad mezclada (por VR)" };
+const decirAviso = (t: string) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); };
 view.arSupported().then((ok) => {
   if (!ok) return;
   arBtn.hidden = false; // the hidden ATTRIBUTE, not a style: the icon bar (tema.css) sets display on its buttons
-  arBtn.onclick = () => { if (view.ar.state === "off") void view.ar.enter().then((ok) => { if (!ok) session.report({ k: "xr", modo: "ar", accion: "falla", detalle: view.ar.lastError }); }); else void view.ar.exit(); };
+  arBtn.onclick = () => { if (view.ar.state === "off") void view.ar.enter().then((ok) => { if (!ok) { session.report({ k: "xr", modo: "ar", accion: "falla", detalle: view.ar.lastError }); decirAviso(mensajeFalloAR(view.ar.lastErrorName)); } }); else void view.ar.exit(); };
 });
 setInterval(() => { arBtn.textContent = view.ar.jugando ? "Dardos en tu pared (salir)" : arLabel[view.ar.state]; }, 250); // dardos v1: a minigame may hold the AR session
 
@@ -433,7 +452,7 @@ view.loop((now) => {
     const xr = view.vr.active || view.ar.state !== "off";
     if (lastDrawAt) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active), { dc: cost.calls, tri: cost.triangles, programas: (cost as { programs?: number }).programs, ratio: view.power.pixelRatio(), xr });
     lastDrawAt = now;
-    if (session.welcome && !informe.primerCuadroMs) informe.primerCuadroMs = Math.round(performance.now());
+    if (session.welcome && !informe.primerCuadroMs) { informe.primerCuadroMs = Math.round(performance.now()); carga.ocultar(); } // MVL3 step 1: world visible, fade the "Cargando" screen away
   }
   if (now - fpsT >= 500) { fps = Math.round((frames * 1000) / (now - fpsT)); frames = 0; fpsT = now; drawHud(); }
 });
@@ -456,7 +475,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, ambiente, elementos, voz, compartir, xr, pesca, lucha, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, ambiente, elementos, voz, compartir, xr, pesca, lucha, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda };
 
 // ---- t_5cff4f06: the corner button back to the city, top left (HUD simétrico: the gear's mirror on the right);
 // hidden unless this world's mundo.ajustes.json sets ciudadUrl ----
@@ -469,7 +488,9 @@ montarCiudad({ mundo: mundoPlaza, boton: document.getElementById("volver-ciudad"
   gear.classList.add("solo-icono"); gear.innerHTML = `${icono("gear")}<span class="solo-lector">Ajustes</span>`;
   const mis = document.getElementById("misiones")!;
   mis.innerHTML = `${icono("scroll", 18)}<span>Misiones</span>`; mis.title = "Misiones (J)";
-  for (const id of ["ajustes-abrir", "construir", "microfono", "compartir-pantalla", "gente-abrir", "foto-abrir", "graboso", "pantalla", "vr", "ar"]) { const e = document.getElementById(id); if (e) barra.appendChild(e); }
+  const invB = document.getElementById("inventario-abrir")!;
+  invB.classList.add("solo-icono"); invB.innerHTML = `${icono("copy")}<span class="solo-lector">Inventario</span>`; invB.title = "Inventario (R)";
+  for (const id of ["ajustes-abrir", "construir", "microfono", "compartir-pantalla", "gente-abrir", "inventario-abrir", "foto-abrir", "graboso", "pantalla", "vr", "ar"]) { const e = document.getElementById(id); if (e) barra.appendChild(e); }
   barra.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
 }
 

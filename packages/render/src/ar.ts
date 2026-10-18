@@ -47,6 +47,28 @@ export async function arSupported(): Promise<boolean> {
   try { return await xr.isSessionSupported("immersive-ar"); } catch { return false; }
 }
 
+/**
+ * A clear sentence for people when entering AR fails, from the DOMException `name` that `requestSession` or
+ * `isSessionSupported` rejected with (pure: no DOM, easy to test). Brave/Chromium on Android can answer
+ * "this site can't ask for permission" right after the person taps Permitir — that is Android blocking the
+ * camera permission itself (an overlay app, denied forever, or no camera at all), not something this page
+ * controls; the best we can do is name the real reason instead of leaving the browser's raw text on screen.
+ */
+export function mensajeFalloAR(nombreError: string): string {
+  switch (nombreError) {
+    case "NotAllowedError":
+      return "El sistema no deja dar permiso de cámara para la AR ahora mismo (puede estar ya denegado o bloqueado por otra app). Revisa los permisos de cámara del navegador para este sitio y vuelve a intentarlo.";
+    case "NotSupportedError":
+      return "Este navegador o aparato no soporta la realidad aumentada (WebXR AR).";
+    case "SecurityError":
+      return "El navegador bloqueó la AR por seguridad (sitio sin HTTPS o cargado dentro de un marco sin permiso).";
+    case "InvalidStateError":
+      return "Ya hay una sesión de AR abierta; sal de ella antes de entrar de nuevo.";
+    default:
+      return "No se pudo entrar en AR. Vuelve a intentarlo o prueba desde otro navegador.";
+  }
+}
+
 export type ARState = "off" | "searching" | "ready" | "placed" | "mezclada";
 /** What the miniature shows, read every frame (render's own lists: no copies kept). */
 export type Maqueta = {
@@ -200,7 +222,7 @@ export function createAR(h: ARHooks) {
   const pulsado = (ev: any) => { juego?.pulsar(rayoDe(ev), h.renderer.xr.getCamera()); };
   const soltado = (ev: any) => { juego?.soltar(rayoDe(ev), h.renderer.xr.getCamera()); };
 
-  let lastError = ""; // why the last enter() failed (T1 report)
+  let lastError = "", lastErrorName = ""; // why the last enter() failed (T1 report + mensajeFalloAR for people)
   /** Enter AR with a minigame instead of the miniature (true if the session started). */
   async function jugar(j: JuegoAR, maxMs = h.maxMs ?? AR_JUEGO_MS): Promise<boolean> {
     if (session) return false;
@@ -209,13 +231,21 @@ export function createAR(h: ARHooks) {
     if (!ok) juego = null;
     return ok;
   }
+  // The gesture rule (Brave/Chromium): `requestSession` must run inside the click's own call stack, with no
+  // `await` before it — otherwise the browser treats the permission ask as unsolicited and some builds answer
+  // with "this site can't ask for permission" even right after the person tapped Permitir. `enter()` is `async`
+  // only so its CALLER can await the result; everything before the `requestSession` call below is synchronous.
   async function enter(maxMs?: number): Promise<boolean> {
     const xr = xrOf();
     if (!xr || session) return false;
     if (maxMs === undefined) juego = null; // the plain button: the miniature
     const init: Record<string, unknown> = { optionalFeatures: ["hit-test", "anchors", "local-floor", "hand-tracking"] };
     if (h.domOverlayRoot) { (init.optionalFeatures as string[]).push("dom-overlay"); init.domOverlay = { root: h.domOverlayRoot }; }
-    try { session = await xr.requestSession("immersive-ar", init); } catch (e) { lastError = String((e as Error)?.message ?? e).slice(0, 160); session = null; return false; }
+    try { session = await xr.requestSession("immersive-ar", init); } catch (e) {
+      lastError = String((e as Error)?.message ?? e).slice(0, 160);
+      lastErrorName = String((e as { name?: string })?.name ?? "");
+      session = null; return false;
+    }
     h.renderer.xr.enabled = true;
     h.renderer.xr.setReferenceSpaceType("local");
     await h.renderer.xr.setSession(session);
@@ -318,6 +348,8 @@ export function createAR(h: ARHooks) {
     activo(): boolean { return state !== "off"; },
     get placed() { return base.visible; },
     get lastError() { return lastError; },
+    /** The DOMException `name` behind lastError (`""` if none, or the browser didn't give one); see mensajeFalloAR. */
+    get lastErrorName() { return lastErrorName; },
     /** Movement intention for your avatar, plaza frame, each -1..1 (only while the plaza stands on your table). */
     axes(): [number, number] { return [moveX, moveZ]; },
     /** True once per press of A or X since the last call. */

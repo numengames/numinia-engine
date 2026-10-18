@@ -29,7 +29,7 @@ export function montarCerradura(o: OpcionesCerradura) {
   capa.setAttribute("role", "dialog");
   capa.setAttribute("aria-modal", "true");
   capa.setAttribute("aria-label", "Teclado de la cerradura");
-  Object.assign(capa.style, { position: "fixed", inset: "0", display: "grid", placeItems: "center", background: "rgba(10,14,20,.55)", zIndex: "30" });
+  Object.assign(capa.style, { position: "fixed", inset: "0", display: "none", placeItems: "center", background: "rgba(10,14,20,.55)", zIndex: "30" });
   const caja = document.createElement("div");
   Object.assign(caja.style, { width: "min(260px, 88vw)", padding: "18px", borderRadius: "12px", background: "#1b222c", color: "#eef2f6", font: "16px/1.4 system-ui, sans-serif", textAlign: "center" });
   const titulo = document.createElement("div");
@@ -63,7 +63,7 @@ export function montarCerradura(o: OpcionesCerradura) {
   capa.append(caja);
   document.body.append(capa);
 
-  const cerrarTeclado = () => { capa.hidden = true; abierto = null; digitos = ""; aviso.textContent = ""; };
+  const cerrarTeclado = () => { capa.hidden = true; capa.style.display = "none"; abierto = null; digitos = ""; aviso.textContent = ""; };
   cerrar.addEventListener("click", cerrarTeclado);
   capa.addEventListener("click", (e) => { if (e.target === capa) cerrarTeclado(); });
   addEventListener("keydown", (e) => { if (!capa.hidden && e.code === "Escape") cerrarTeclado(); });
@@ -74,7 +74,7 @@ export function montarCerradura(o: OpcionesCerradura) {
     if (!l) return { ok: false, why: `«${id}» no es una cerradura` };
     abierto = id; digitos = ""; aviso.textContent = ""; refrescarPantalla();
     titulo.textContent = l.nombre;
-    capa.hidden = false;
+    capa.hidden = false; capa.style.display = "grid"; // an inline display beats the [hidden] attribute, so show/hide drives display too
     return { ok: true };
   };
   c.alCambiar((que) => {
