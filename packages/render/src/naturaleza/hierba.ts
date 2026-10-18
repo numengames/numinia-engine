@@ -5,8 +5,8 @@
 // HOW IT WORKS (and why it is not «all on the GPU»):
 //  - The terrain height and the zone are JavaScript functions of (x, z) (terreno.ts), so a vertex shader cannot ask
 //    «is this sand?». Placement therefore runs on the CPU, but ONCE per cell: the world is cut into square cells; a ring
-//    of cells around the camera owns fixed slots in two instance buffers (a toroidal map: slot = (cx mod G, cz mod G)), so
-//    when the camera crosses a cell border only the cells entering the ring are refilled (≤ 0.4 ms of CPU per frame,
+//    of cells around the camera owns fixed slots in two instance buffers (a pool: a cell that leaves the ring frees its slot,
+//    one that enters takes a free one), so when the camera crosses a cell border only the cells entering the ring are refilled (≤ 0.4 ms of CPU per frame,
 //    resumable, nearest first) and everything else stays untouched. There is NO per-frame loop over instances.
 //  - Placement is a pure function of (semilla, cell x, cell z, candidate k): same seed → same tuft in the same place,
 //    on every device, the server included (tuftDe / florDe below; tested without any GPU).
@@ -37,11 +37,11 @@ import type { Zona } from "./terreno.ts";
 export type Fuente = { alturaEn: (x: number, z: number) => number; zonaEn: (x: number, z: number) => Zona };
 
 /** Palette (linear via THREE.Color): the brief's warm meadow green, a deeper forest green, a yellowing patch, three flowers. */
-export const PALETA_HIERBA = { prado: 0x9bc25a, bosque: 0x5d9440, seco: 0xc9cf62, flores: [0xfaf6ea, 0xffd84a, 0xf28fb5] as number[] };
+export const PALETA_HIERBA = { prado: 0x9bc25a, bosque: 0x558c3b, seco: 0xc9cf62, flores: [0xfaf6ea, 0xffd84a, 0xf28fb5] as number[] };
 /** Share of the meadow's candidates kept under trees. */
 export const DENSIDAD_BOSQUE = 0.4;
 /** Height (m) of a tuft at scale 1, and of a flower. */
-export const ALTO_TUFT = 0.62, ALTO_FLOR = 0.55;
+export const ALTO_TUFT = 0.78, ALTO_FLOR = 0.85;
 const TAU = Math.PI * 2;
 const R2A = 0.7548776662466927, R2B = 0.5698402909980532;
 const frac = (v: number) => v - Math.floor(v);
@@ -74,11 +74,11 @@ export function tuftDe(semilla: number, cx: number, cz: number, k: number, f: Fu
   if (z2 !== "prado" && z2 !== "bosque" && azar(semilla, cx, cz, k, 4) < 0.6) return false;
   const y = f.alturaEn(x, z);
   if (azar(semilla, cx, cz, k, 5) >= 1 - paso(0.45, 0.95, pendiente(f, x, z, y))) return false; // steep ground: thinner
-  const claro = valor2(semilla + 11, x * 0.045, z * 0.045), fino = valor2(semilla + 23, x * 0.11, z * 0.11), seco = paso(0.62, 0.9, valor2(semilla + 37, x * 0.03, z * 0.03));
+  const claro = valor2(semilla + 11, x * 0.06, z * 0.06), fino = valor2(semilla + 23, x * 0.11, z * 0.11), seco = paso(0.62, 0.9, valor2(semilla + 37, x * 0.03, z * 0.03));
   tmp.copy(zona === "prado" ? cPrado : cBosque);
-  if (zona === "prado") tmp.lerp(cSeco, seco * 0.45);
+  if (zona === "prado") tmp.lerp(cSeco, seco * 0.55);
   // a slow large-scale light/dark patchiness, a finer one and a per-tuft jitter
-  const luz = (0.8 + 0.36 * claro + (fino - 0.5) * 0.1) * (0.92 + 0.16 * azar(semilla, cx, cz, k, 7));
+  const luz = (0.66 + 0.5 * claro + (fino - 0.5) * 0.14) * (0.88 + 0.24 * azar(semilla, cx, cz, k, 7));
   out.x = x; out.y = y; out.z = z; out.giro = azar(semilla, cx, cz, k, 6) * TAU;
   const alto = 0.8 + 0.6 * azar(semilla, cx, cz, k, 8);
   out.escala = zona === "prado" ? alto : alto * 0.82;
@@ -131,9 +131,9 @@ export function geometriaTuft(hojas = 3): THREE.BufferGeometry {
   const alturas = [1, 0.78, 0.9, 0.7, 0.95];
   for (let i = 0; i < hojas; i++) {
     const a = (i / hojas) * TAU + 0.35 + i * 0.1, rx = Math.cos(a), rz = Math.sin(a), tx = -rz, tz = rx, h = alturas[i % 5];
-    const w = 0.2, b0 = 0.05, b1 = 0.26 * h;
+    const w = 0.3, b0 = 0.06, b1 = 0.42 * h;
     pos.push(rx * b0 - tx * w, 0, rz * b0 - tz * w, rx * b0 + tx * w, 0, rz * b0 + tz * w, rx * b1 + tx * 0.04, h, rz * b1 + tz * 0.04);
-    col.push(0.5, 0.6, 0.44, 0.5, 0.6, 0.44, 1.12, 1.14, 0.8);
+    col.push(0.55, 0.68, 0.45, 0.55, 0.68, 0.45, 0.9, 1.08, 0.5);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
@@ -146,7 +146,7 @@ export function geometriaFlor(): THREE.BufferGeometry {
   const pos: number[] = [], col: number[] = [], cab: number[] = [];
   pos.push(-0.035, 0, 0, 0.035, 0, 0, 0.05, 0.84, 0.02);
   col.push(0.1, 0.22, 0.05, 0.1, 0.22, 0.05, 0.24, 0.45, 0.1); cab.push(0, 0, 0);
-  const r = 0.11, y0 = 0.76, y1 = 1.04, c = [[r, 0], [0, r], [-r, 0], [0, -r]];
+  const r = 0.2, y0 = 0.72, y1 = 1.04, c = [[r, 0], [0, r], [-r, 0], [0, -r]];
   for (let i = 0; i < 4; i++) {
     const [ax, az] = c[i], [bx, bz] = c[(i + 1) % 4];
     pos.push(0.05 + ax, y0, 0.02 + az, 0.05 + bx, y0, 0.02 + bz, 0.05, y1, 0.02);
@@ -177,7 +177,7 @@ export function materialHierba(e: Entrada): THREE.MeshLambertNodeMaterial {
   const cam = e.camara as unknown as ReturnType<typeof vec3>;
   // ---- distance fade: dithered thinning (every tuft has its own threshold) and shrink to 0 at the edge: no popping ----
   const dist = length(bxz.sub(cam.xz));
-  const queda = oneMinus(smoothstep(e.radio * 0.55, e.radio, dist)) as N;
+  const queda = oneMinus(smoothstep(e.radio * 0.7, e.radio, dist)) as N;
   const k = esc0.mul(clamp(queda.sub(rnd.mul(0.8)).mul(5), 0, 1)) as N;
   const alto = k.mul(e.tam) as N;
   const p = positionLocal as unknown as ReturnType<typeof vec3>;
@@ -209,9 +209,9 @@ export function materialHierba(e: Entrada): THREE.MeshLambertNodeMaterial {
     const dd = length(d) as N;
     const nivelY = oneMinus(smoothstep(1.5, 3, abs(base.y.sub(m.y)))) as N;
     const infl = oneMinus(smoothstep(0, m.w, dd)).mul(nivelY) as N;
-    const f = infl.mul(alto).mul(w).mul(0.95).div(max(dd, 0.05)) as N;
+    const f = infl.mul(alto).mul(w).mul(1.4).div(max(dd, 0.05)) as N;
     dx = dx.add(d.x.mul(f)) as N; dz = dz.add(d.y.mul(f)) as N;
-    aplasta = aplasta.add(infl.mul(w).mul(0.4)) as N;
+    aplasta = aplasta.add(infl.mul(w).mul(0.55)) as N;
   }
   const cg = cos(giro) as N, sg = sin(giro) as N;
   const lx = p.x.mul(e.tam).mul(k) as N, lz = p.z.mul(e.tam).mul(k) as N;
@@ -222,7 +222,7 @@ export function materialHierba(e: Entrada): THREE.MeshLambertNodeMaterial {
   const tinte = iCol.xyz as unknown as ReturnType<typeof vec3>;
   const brillo = gust.mul(S.mul(0.5).add(0.12)).toVarying("hierba_racha") as N;
   const albedo = e.flor ? mix(vc, vc.mul(tinte), attribute("cab", "float") as unknown as N) : vc.mul(tinte);
-  mat.colorNode = (albedo as unknown as ReturnType<typeof vec3>).mul(brillo.mul(0.22).add(0.92));
+  mat.colorNode = (albedo as unknown as ReturnType<typeof vec3>).mul(brillo.mul(0.4).add(0.88));
   // a soft, nearly upward normal on every blade: the meadow reads as one lit surface, not as spikes
   mat.normalNode = transformNormalToView(vec3(0, 1, 0));
   return mat;
@@ -250,13 +250,12 @@ export type EstadisticasHierba = {
   pendientes: number; msUltimo: number; msMax: number; celdasLlenadas: number;
 };
 const LEJOS = 1e6;
-const modulo = (a: number, n: number) => ((a % n) + n) % n;
 
 export function crearHierba(h: HierbaH, fuente: Fuente, op: OpcionesHierba) {
   const nivel = op.nivel ?? h.nivel ?? "A";
   const cfg: HierbaNivel = { ...HIERBA_POR_NIVEL[nivel], ...op.tabla };
-  const a = anillo(cfg), G = a.lado, hojas = op.hojas ?? 3;
-  const nTuft = a.capTuft * G * G, nFlor = a.capFlor * G * G;       // slots of the whole square map (corner slots stay empty)
+  const a = anillo(cfg), hojas = op.hojas ?? 3;
+  const nSlots = a.celdas.length, nTuft = a.capTuft * nSlots, nFlor = a.capFlor * nSlots;
   const uT = uniform(0), uCam = uniform(new THREE.Vector3(LEJOS, 0, LEJOS));
   const uP = [0, 1, 2, 3].map(() => uniform(new THREE.Vector4(LEJOS, 0, LEJOS, 0.8)));
   const grupo = new THREE.Group(); grupo.name = "hierba";
@@ -280,7 +279,7 @@ export function crearHierba(h: HierbaH, fuente: Fuente, op: OpcionesHierba) {
 
   // slot state: which cell it holds, how far its fill got, how many it holds
   type Slot = { cx: number; cz: number; k: number; nT: number; nF: number; hecho: boolean; vivo: boolean };
-  const slots: Slot[] = Array.from({ length: G * G }, () => ({ cx: 0, cz: 0, k: 0, nT: 0, nF: 0, hecho: true, vivo: false }));
+  const slots: Slot[] = Array.from({ length: nSlots }, () => ({ cx: 0, cz: 0, k: 0, nT: 0, nF: 0, hecho: true, vivo: false }));
   let cxA = NaN, czA = NaN, cola: number[] = [], vivosT = 0, vivosF = 0, llenadas = 0, msUltimo = 0, msMax = 0;
   const sucios = new Set<number>();
   const pieza = nuevaPieza();
@@ -293,20 +292,23 @@ export function crearHierba(h: HierbaH, fuente: Fuente, op: OpcionesHierba) {
     sucios.add(s);
   };
   const recentrar = (cx0: number, cz0: number) => {
-    const quiere = new Map<number, { cx: number; cz: number }>();
-    for (const c of a.celdas) { const cx = cx0 + c.dx, cz = cz0 + c.dz; quiere.set(modulo(cx, G) + modulo(cz, G) * G, { cx, cz }); }
-    cola = [];
-    for (let s = 0; s < G * G; s++) {
-      const q = quiere.get(s), st = slots[s];
-      if (q && st.vivo && st.cx === q.cx && st.cz === q.cz) { if (!st.hecho) cola.push(s); continue; }
+    const quiere = new Map<string, { cx: number; cz: number }>(), tienen = new Map<string, number>();
+    for (const c of a.celdas) quiere.set(`${cx0 + c.dx},${cz0 + c.dz}`, { cx: cx0 + c.dx, cz: cz0 + c.dz });
+    const libres: number[] = [];
+    for (let s = 0; s < nSlots; s++) {
+      const st = slots[s], k = `${st.cx},${st.cz}`;
+      if (st.vivo && quiere.has(k)) { tienen.set(k, s); continue; }
       if (st.vivo || st.nT || st.nF) limpiar(s);
-      if (!q) { st.vivo = false; st.hecho = true; continue; }
-      st.cx = q.cx; st.cz = q.cz; st.vivo = true; st.hecho = false; st.k = 0;
+      st.vivo = false; st.hecho = true; libres.push(s);
+    }
+    for (const [k, q] of quiere) {            // the cells entering the ring take the slots the leaving ones freed
+      if (tienen.has(k)) continue;
+      const s = libres.pop()!, st = slots[s];
+      st.cx = q.cx; st.cz = q.cz; st.vivo = true; st.hecho = false; st.k = 0; tienen.set(k, s);
     }
     // nearest first so the ground at the player's feet grows before the far edge
     const d = (s: number) => Math.hypot(slots[s].cx - cx0, slots[s].cz - cz0);
-    for (let s = 0; s < G * G; s++) if (slots[s].vivo && !slots[s].hecho && !cola.includes(s)) cola.push(s);
-    cola.sort((p, q) => d(p) - d(q));
+    cola = [...tienen.values()].filter((s) => !slots[s].hecho).sort((p, q) => d(p) - d(q));
     const c = T.g.boundingSphere!.center; c.set((cx0 + 0.5) * cfg.celda, 4, (cz0 + 0.5) * cfg.celda);
     if (F) F.g.boundingSphere!.center.copy(c);
   };
@@ -374,7 +376,7 @@ export function crearHierba(h: HierbaH, fuente: Fuente, op: OpcionesHierba) {
       let c = 0;
       for (let i = 0; i < n; i++) {
         const esc = col[i * 4 + 3]; if (esc <= 0) continue;
-        const d = Math.hypot(pos[i * 4] - x, pos[i * 4 + 2] - z), q = 1 - paso(cfg.radio * 0.55, cfg.radio, d), rnd = pos[i * 4 + 3] / TAU;
+        const d = Math.hypot(pos[i * 4] - x, pos[i * 4 + 2] - z), q = 1 - paso(cfg.radio * 0.7, cfg.radio, d), rnd = pos[i * 4 + 3] / TAU;
         if (Math.min(1, Math.max(0, (q - rnd * 0.8) * 5)) > 0) c++;
       }
       return c;
