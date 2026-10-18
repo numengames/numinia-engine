@@ -30,6 +30,8 @@ import { montarBienes } from "./bienes.ts";
 import { montarEntorno } from "./entorno.ts";
 import { montarDirector } from "./director.ts";
 import { dirigir } from "../../features/director/client.ts";
+import { montarGente } from "./gente.ts";
+import { viajar } from "../../features/teletransporte/client.ts";
 import { montarVoz } from "./voz.ts";
 import { icono } from "./iconos.ts";
 import { montarXR } from "./xr.ts";
@@ -106,6 +108,9 @@ const soltar = montarSoltar({ session, view, puede: () => constructor.estado.pue
 const huecos = montarHuecos({ constructor, view, rellenar: soltar.rellenar, decir: (t) => soltar.decir(t), panel: document.getElementById("panel-construir") });
 montarEntorno(ambiente, elementos, view); // H4/H8: environment and elements, a section of its own while building
 montarDirector({ dj: dirigir, ambiente, view }); // N6: the Game Director (who may direct: STD-052 manage-rituals): scenes, narrator, summons
+// ---- N16: «Gente» (L): go next to someone connected now; the light of every trip near you (none on tier D) ----
+const gente = montarGente({ viajar, barra: document.getElementById("barra-arriba") });
+viajar.alDestello((d) => view.teletransporte.lanzar({ ...d, clave: d.quien === session.entity ? "self" : d.quien }));
 // ---- pesca v1: nothing of it is in the start bundle; the HUD and the 3D arrive with the first fishing spot or float ----
 let pescaHud: Promise<unknown> | null = null, pescaPagina: unknown = null; // N4: pescaPagina.manos (VR rod, gamepad) for the e2e
 pesca.alCambiar(() => { pescaHud ??= import("./pesca.ts").then((m) => (pescaPagina = m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, ajuste: leerAjuste, interaccion: () => interaccion }))).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); });
@@ -137,6 +142,7 @@ const otros = () => (globalThis as unknown as { __numinia?: Record<string, unkno
 const mapa = montarMapa({ session, view, otros });
 // ---- N13: photo mode (P or the camera button): the photo owns the screen and the keys; your avatar stands still ----
 const foto = montarFoto({ view, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), mapa, boton: document.getElementById("foto-abrir") as HTMLButtonElement, ocupado: () => dardos.tirando(),
+  aparecer: { puede: () => (viajar.estado.recibido ? viajar.foto() : null), pedir: (s) => { viajar.aparecerEnFoto(s.x, s.y, s.z); } }, // N16: the world may put you at the photo's place
   decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); } });
 const ficha = montarFicha({ session, view, desde: () => informe.bienvenidaMs, otros }, mapa.botonFicha);
 montarBienes({ bienes, comprobar, ficha, boton: mapa.botonFicha, vitrina: (cv, model) => view.vitrina(cv, model) }); // N10: the sheet's «Inventario» = your goods, their receipts
@@ -359,7 +365,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, mapa, ficha, ambiente, elementos, voz, xr, pesca, bienes, dardos, pescaPagina: () => pescaPagina, dirigir, foto };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, mapa, ficha, ambiente, elementos, voz, xr, pesca, bienes, dardos, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente };
 
 // ---- U11: the bar of icon buttons, top right (rightmost first): settings, build, microphone, full screen, VR, AR ----
 {
@@ -368,7 +374,7 @@ function drawHud() {
   gear.classList.add("solo-icono"); gear.innerHTML = `${icono("gear")}<span class="solo-lector">Ajustes</span>`;
   const mis = document.getElementById("misiones")!;
   mis.innerHTML = `${icono("scroll", 18)}<span>Misiones</span>`; mis.title = "Misiones (J)";
-  for (const id of ["ajustes-abrir", "construir", "microfono", "foto-abrir", "pantalla", "vr", "ar"]) { const e = document.getElementById(id); if (e) barra.appendChild(e); }
+  for (const id of ["ajustes-abrir", "construir", "microfono", "gente-abrir", "foto-abrir", "pantalla", "vr", "ar"]) { const e = document.getElementById(id); if (e) barra.appendChild(e); }
   barra.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
 }
 
