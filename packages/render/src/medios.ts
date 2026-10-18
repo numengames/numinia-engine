@@ -12,8 +12,12 @@ export type Tipo = "modelo" | "imagen" | "video" | "sonido";
 export type Alcance = "burbuja" | "zona" | "todos";
 type Punto = { x: number; y: number; z: number };
 export type Opciones = { hidden: boolean; volume: number; reach: Alcance; radius: number };
+/** U-mandos: a video's own, per-person controls — never synced, never sent to the server (ADR candidate, not
+ * decided: see docs/BACKLOG.md U14 «¿el mando es mío o del mundo?»). Pausing here freezes the picture for ME ONLY;
+ * everyone else keeps watching on the shared clock. `volumen` is a 0–1 multiplier over the bubble's own volume. */
+export type ControlVideo = { pausado(): boolean; alternarPausa(): void; parar(): void; volumen(): number; fijarVolumen(v: number): void };
 /** One drawn medium: what to add to the thing's group, what to call every frame, and how to let go of it. */
-export type Medio = { obj: THREE.Object3D; actualizar(grupo: THREE.Object3D, oyente: Punto | null, o: Opciones): void; soltar(): void; sonando(): boolean };
+export type Medio = { obj: THREE.Object3D; actualizar(grupo: THREE.Object3D, oyente: Punto | null, o: Opciones): void; soltar(): void; sonando(): boolean; controlVideo?: ControlVideo };
 
 const VIDEO_PAUSA_M = 40;      // farther than this (plus its bubble) a bubble video stands still: no decoding
 const BORDE = 0.8;             // full volume up to 80 % of the radius, then fades to the edge
@@ -88,20 +92,30 @@ export async function cargarVideo(url: string, verOcultos: () => boolean = () =>
   burbuja.userData.sinCaja = true; // not part of the screen's box (selection outline, «sólido»)
   const obj = new THREE.Group(); obj.add(pantalla, burbuja);
   let quiereSonar = false, ultimaSincro = 0;
-  const reproducir = () => { sincronizar(v); void v.play().catch(() => trasGesto(reproducir)); };
+  // U-mandos: ME alone — pausing or lowering volume here never touches the shared clock or anyone else's screen.
+  let miPausa = false, miVolumen = 1;
+  const reproducir = () => { if (miPausa) return; sincronizar(v); void v.play().catch(() => trasGesto(reproducir)); };
+  const controlVideo: ControlVideo = {
+    pausado: () => miPausa,
+    alternarPausa() { miPausa = !miPausa; if (miPausa) v.pause(); else reproducir(); },
+    parar() { miPausa = true; v.pause(); v.currentTime = 0; },
+    volumen: () => miVolumen,
+    fijarVolumen(x) { miVolumen = Math.max(0, Math.min(1, x)); },
+  };
   return {
     obj,
+    controlVideo,
     sonando: () => !v.paused,
     actualizar(g, oyente, o) {
       const r = Math.max(0.5, o.radius);
       burbuja.visible = o.reach === "burbuja" && verOcultos();
       burbuja.scale.set(r / (g.scale.x || 1), r / (g.scale.y || 1), r / (g.scale.z || 1)); // metres, whatever the screen's scale
       const d = oyente ? distancia(g, oyente) : Infinity;
-      if (o.reach === "burbuja" && d > VIDEO_PAUSA_M + r) { if (!v.paused) v.pause(); return; }
+      if (miPausa || (o.reach === "burbuja" && d > VIDEO_PAUSA_M + r)) { if (!v.paused) v.pause(); return; }
       if (v.paused) reproducir();
       const ahora = performance.now();
       if (ahora - ultimaSincro > 10_000) { ultimaSincro = ahora; sincronizar(v); }
-      const vol = volumenEn(d, r, o);
+      const vol = volumenEn(d, r, o) * miVolumen;
       if (vol > 0.001 && !quiereSonar) { quiereSonar = true; trasGesto(() => { if (quiereSonar) v.muted = false; }); }
       if (vol <= 0.001) { quiereSonar = false; v.muted = true; }
       v.volume = vol;
