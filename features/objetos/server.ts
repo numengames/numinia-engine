@@ -8,7 +8,7 @@
 // a pinned hole too: it stays where it is, only its picture changes.
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg } from "../../packages/feature/src/index.ts";
-import { objetos, PASO, OBJETOS_MAX, DESHACER_MAX, TIPOS, EXTENSIONES, HUECO_MIN_M, HUECO_PX_MAX, ESCALA_MIN, encajar, colisionDe } from "./feature.ts";
+import { objetos, PASO, OBJETOS_MAX, DESHACER_MAX, TIPOS, EXTENSIONES, HUECO_MIN_M, HUECO_PX_MAX, ESCALA_MIN, encajar, colisionDe, motivoEnlace } from "./feature.ts";
 import type { Tipo, Colision } from "./feature.ts";
 import biblioteca from "./biblioteca.json" with { type: "json" };
 
@@ -216,9 +216,11 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
       if (c[3] - c[0] > 0.01 && c[4] - c[1] > 0.01 && c[5] - c[2] > 0.01) api.store.set(`c:${id}`, c);
       else if (!api.store.get(`c:${id}`)) return void rechazar(from, "Para que sea sólido hace falta su caja: espera a que el modelo se vea y vuelve a marcarlo.");
     }
+    const enlace = String(m.enlace ?? "").trim(), motivo = motivoEnlace(enlace);
+    if (motivo) return void rechazar(from, motivo);
     apuntar(from, { id, antes: o });
     const alcance = ["burbuja", "zona", "todos"].includes(String(m.alcance)) ? String(m.alcance) : "burbuja";
-    const n = { ...o, oculto: m.oculto === true, volumen: q(Math.max(0, Math.min(1, Number(m.volumen))), 0.01), solido, colision, alcance, radio: q(Math.max(0.5, Math.min(200, Number(m.radio) || 8)), 0.1) };
+    const n = { ...o, oculto: m.oculto === true, volumen: q(Math.max(0, Math.min(1, Number(m.volumen))), 0.01), solido, colision, alcance, radio: q(Math.max(0.5, Math.min(200, Number(m.radio) || 8)), 0.1), enlace };
     api.state.set(id, solido ? conCaja(id, n) : { ...n, bx0: 0, by0: 0, bz0: 0, bx1: 0, by1: 0, bz1: 0 });
     hecho(from, id, "ajustar");
   });

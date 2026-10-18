@@ -24,7 +24,7 @@ type Builder = {
   colocar(id: string): Res; colocarEn(id: string, p: Punto, ry?: number): Res;
   girar(grados: number): Res; subir(metros: number): Res; desplazar(dx: number, dz: number): Res; escalar(factor: number): Res;
   duplicar(): Res; borrar(): Res; fijar(): Res; nombrar(nombre: string, decorado?: boolean): Res; deshacer(): Res; rehacer(): Res;
-  ajustar(c: { oculto?: boolean; volumen?: number; solido?: boolean; caja?: [number, number, number, number, number, number] | null; alcance?: "burbuja" | "zona" | "todos"; radio?: number }): Res;
+  ajustar(c: { oculto?: boolean; volumen?: number; solido?: boolean; caja?: [number, number, number, number, number, number] | null; alcance?: "burbuja" | "zona" | "todos"; radio?: number; enlace?: string }): Res;
   seleccionar(id: string): Res; transformar(id: string, t: Partial<Donde>, lote?: string): Res; modo(m: string): Res;
   /** M22c: seleccionar varios (reemplaza), sumar/quitar uno (shift+clic), borrar por id con un lote (deshacer agrupado). */
   seleccionarVarios(ids: string[]): Res; alternarSeleccion(id: string): Res;
@@ -134,13 +134,16 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   const radio = el("input", { type: "number", min: "0.5", max: "200", step: "0.5" });
   const lAlcance = el("label", {}, "Se oye en ", alcance);
   const lRadio = el("label", {}, "Radio de la burbuja (m) ", radio);
+  // J4: the address a click opens, in a new tab, after confirming; "" = nothing to open
+  const enlace = el("input", { type: "url", maxLength: 300, placeholder: "https://…" });
+  const lEnlace = el("label", {}, "Enlace al hacer clic ", enlace);
   const grupo = (leyenda: string, ...hijos: Node[]) => el("fieldset", {}, el("legend", { textContent: leyenda }), ...hijos);
   const datos = el("div", {},
     el("label", {}, "Nombre ", nombre), el("label", {}, decorado, " decorado (sin nombre a propósito)"),
     grupo("Posición (m)", campos.x.l, campos.y.l, campos.z.l),
     grupo("Giro (grados)", campos.rx.l, campos.ry.l, campos.rz.l),
     grupo("Escala", campos.sx.l, campos.sy.l, campos.sz.l, campos.u.l),
-    el("label", {}, fijado, " fijado (nadie lo mueve ni lo borra)"), lSolido, lVisible, lVolumen, lAlcance, lRadio);
+    el("label", {}, fijado, " fijado (nadie lo mueve ni lo borra)"), lSolido, lVisible, lVolumen, lAlcance, lRadio, lEnlace);
   const inspector = el("section", { className: "inspector" }, el("h3", { textContent: "Inspector (N)" }), datos);
   inspector.setAttribute("aria-label", "Inspector del objeto seleccionado: Intro aplica");
   nombre.addEventListener("change", () => responder(c.nombrar(nombre.value.trim(), decorado.checked), "Nombre puesto."));
@@ -163,6 +166,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     const m = Math.max(0.5, Math.min(o.tipo === "sonido" ? 50 : 200, r));
     responder(o.tipo === "sonido" ? c.transformar(id, { sx: m, sy: m, sz: m }) : c.ajustar({ radio: m }), `Radio de la burbuja: ${m} m.`);
   });
+  enlace.addEventListener("change", () => responder(c.ajustar({ enlace: enlace.value.trim() }), enlace.value.trim() ? "Enlace puesto: un clic en el objeto lo abrirá." : "Enlace quitado."));
 
   panel.append(
     el("h2", { textContent: "Construir" }),
@@ -435,11 +439,13 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     const suena = tipo === "sonido" || tipo === "video";
     lSolido.hidden = !o || tipo === "sonido"; lVisible.hidden = !o || tipo !== "sonido"; lVolumen.hidden = lAlcance.hidden = !o || !suena;
     lRadio.hidden = !o || !suena || (o.alcance ?? "burbuja") !== "burbuja";
+    lEnlace.hidden = !o;
     if (!o) return;
     solido.checked = o.solido === true; visible.checked = o.oculto !== true;
     if (document.activeElement !== volumen) volumen.value = String(o.volumen ?? 1);
     if (document.activeElement !== alcance) alcance.value = String(o.alcance ?? "burbuja");
     if (document.activeElement !== radio) radio.value = String(tipo === "sonido" ? o.sx : (o.radio ?? 8));
+    if (document.activeElement !== enlace) enlace.value = String(o.enlace ?? "");
     const drawn = agarre?.key === o.id || ed.estado().arrastrando ? ed.dondeEsta(o.id) : null;
     mostrarDonde(drawn ?? (Object.fromEntries(["x", "y", "z", "rx", "ry", "rz", "sx", "sy", "sz"].map((k) => [k, Number(o[k])])) as Donde));
     if (document.activeElement !== nombre) nombre.value = String(o.nombre ?? "");
