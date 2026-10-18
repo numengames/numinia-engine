@@ -10,6 +10,7 @@ import type { Ajustes, Grupo, Lectura, Nivel, Valor, Vista } from "../../package
 import type { ClientSession } from "../../packages/client/src/index.ts";
 import type { ClientPart } from "../../packages/feature/src/index.ts";
 import { limitesGraficos } from "../../packages/render/src/index.ts";
+import { audio } from "../../packages/render/src/audio/nucleo.ts"; // S1: «Sonido» moves the audio graph's VCAs
 import type { createView } from "../../packages/render/src/index.ts";
 import type { Calidad } from "../../packages/render/src/power.ts";
 import mundoPlaza from "./mundo.ajustes.json";
@@ -122,6 +123,9 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   a.alAplicar("controles.invertirY", camara);
   const zona = (_: Valor, l: Lectura) => extra.cam?.ajustar?.({ zonaMuerta: Number(l.get("controles.zonaMuerta")) / 100 });
   a.alAplicar("controles.zonaMuerta", zona);
+  // t_bf8947cf (MVL1): the VR rig always exists (unlike cam/entorno, built in parallel branches), so this
+  // writes straight to view.vr instead of going through Contratos.
+  a.alAplicar("controles.modoMovimientoVR", (v) => { view.vr.modoMovimiento = v as "mirada" | "mando" | "cuerpo"; });
   a.alAplicar("accesibilidad.menosMovimiento", (v) => { html.classList.toggle("menos-movimiento", v === true); });
   a.alAplicar("accesibilidad.textoGrande", (v) => { html.classList.toggle("texto-grande", v === true); });
   a.alAplicar("accesibilidad.altoContraste", (v) => { html.classList.toggle("alto-contraste", v === true); });
@@ -140,6 +144,11 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
     if (e.code !== "KeyB" || escribiendo(e)) return;
     setTimeout(() => { if (view.power.battery !== a.get("graficos.bateria")) a.set("graficos.bateria", view.power.battery); }, 0);
   });
+  // S1: the four «Sonido» sliders ARE the VCAs of the audio graph (packages/render/src/audio/nucleo.ts). This does
+  // not build the graph by itself: it only remembers the volumes, which the core applies when something first sounds.
+  const sonido = () => audio().aplicarAjustes((id) => a.get(id));
+  a.alCambiar((id) => { if (id.startsWith("sonido.")) sonido(); });
+  sonido();
   a.aplicarTodo(); // before the first frame
   // U25: the profile is decided once, before the first frame: choosing another one reloads the page with it
   a.alCambiar((id, v) => { if (id === AJUSTE_APARATO && typeof v === "string" && v !== perfil().eleccion && a.lista().some((x) => x.id === id && x.elegido)) cambiarAparato(v as never); });

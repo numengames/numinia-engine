@@ -11,7 +11,7 @@ import type { ServerPart, ClientPart } from "../packages/feature/src/index.ts";
 import { Instance } from "../packages/instance/src/index.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
 import { startServer } from "../packages/server/src/server.ts";
-import { gestos } from "../features/gestos/feature.ts";
+import { gestos, GESTOS } from "../features/gestos/feature.ts";
 import gestosServer from "../features/gestos/server.ts";
 import gestosClient from "../features/gestos/client.ts";
 import funciones from "../features/servidor.ts";
@@ -65,7 +65,9 @@ test("catalog: fixed numbering, schemas and descriptions inside; what agents rea
   const { catalog, entries } = buildCatalog(funciones.map((f) => f.feature));
   const g = catalog.features.find((f) => f.id === "gestos")!;
   assert.equal(g.intents[0].name, "hacer");
-  assert.deepEqual(g.intents[0].fields.gesto, { kind: "enum", values: ["saludar", "bailar"] });
+  assert.deepEqual(g.intents[0].fields.gesto, { kind: "enum", values: GESTOS }); // J7b: the moves of the wheel + «parar»
+  assert.deepEqual(GESTOS.slice(0, 3), ["saludar", "hablar", "bailar"]);
+  assert.equal(GESTOS.at(-1), "parar");
   assert.ok(g.describe && g.intents[0].describe && g.events[0].describe);
   assert.deepEqual(entries.map((e) => e.index), entries.map((_, i) => i));
   assert.deepEqual(decodeCatalog(encodeCatalog(catalog)), catalog);
@@ -215,12 +217,12 @@ test("a feature that throws is isolated: logged once, counted, the instance and 
 });
 
 test("versions and absences: a newer page reads the server's messages; no features = the pre-J7 wire", () => {
-  const v2 = clientPart(defineFeature({ ...gestos, version: 2 }), (api) => api.on("hecho", () => {}));
+  const v2 = clientPart(defineFeature({ ...gestos, version: gestos.version + 1 }), (api) => api.on("hecho", () => {})); // J7b: gestos is 2 now
   const W = world([gestosServer], 1, [v2]);
   W.pump();
   W.clients[0].s.features.send("gestos", "hacer", { gesto: "bailar" });
   W.pump();
-  assert.ok(W.clients[0].s.features.warnings.some((w) => w.includes("versión 2, en el servidor 1")));
+  assert.ok(W.clients[0].s.features.warnings.some((w) => w.includes(`versión ${gestos.version + 1}, en el servidor ${gestos.version}`)));
   assert.equal(W.clients[0].s.features.log.length, 1);
 
   const bare = new Instance({ seed: 1, capacity: 4, k: 50, snapshotEvery: 2 });

@@ -934,3 +934,211 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Siguiente: Pablo decide (a) y (b) de BACKLOG.md U14 — si pausar/parar pasa a ser del mundo (cine compartido) con
   permiso de organización, o se queda como está (mío solo); luego, J13 (panel de muñeca en VR) para el volumen y el
   parar sin salir del visor, y una pierna de e2e (`tools/e2e-piernas/`) con un vídeo real.
+
+## 2026-10-18 16:09 · j4-usar-mantener-pulsado · hecho
+- Qué: J4 «E: usar» con mantener pulsado (puerta, botón, objeto que se coge). `Interact`/`Reachable` (packages/feature)
+  ganan `hold?: number` (segundos; sin él, como antes, se usa al instante). Las tres declaraciones de PR #50
+  (`features/puertas`, `features/botones`, `features/cogibles`) ponen su propio `MANTENER_S` (0.6/0.5/0.4 s) en
+  `card.interact.hold`; el servidor no cambia (el intent sigue siendo el mismo, solo cambia CUÁNDO la página lo manda).
+  `apps/plaza/interactuar.ts`: E, el botón de acción (móvil) y un clic en el botón ya no disparan al instante si el
+  objetivo tiene `hold` — empiezan a «mantener» (`--progreso` 0..1 en CSS, clase `.manteniendo`, un anillo cónico junto
+  al texto en `index.html`/`tema.css`) y solo usan la cosa al llegar a 1; soltar antes, o que el objetivo cambie,
+  cancela sin mandar nada. `apps/plaza/xr.ts` + `packages/render/src/manos.ts`: un nuevo evento `gatillo_fin` (en
+  `selectend`) deja que el gatillo de VR también sea mantener-y-soltar, con la misma función compartida
+  (`interaccion.mantener.empezar/soltar`).
+- Números: `npm test` 746/746 verdes (3 nuevas en `test/mantener-pulsado.test.ts`: la aritmética pura de
+  `fraccionMantenida`, que las tres declaraciones llevan su `hold`, y que `reachable()` lo manda igual a dos
+  `ClientSession` — «la otra pestaña lo ve igual»). `npm run build` verde (bundle principal sin cambio apreciable:
+  el cambio es CSS + unas líneas de JS). Versión 0.11.0 → 0.12.0 (función nueva, nada se rompe).
+- Aviso / sin comprobar: sin pierna de e2e con un navegador real (Playwright) sosteniendo E/el botón/el gatillo los
+  milisegundos exactos — no existe aún una pierna para puertas/botones/cogibles (PR #50 tampoco trajo una); la
+  cobertura de «la otra pestaña lo ve igual» es la prueba headless multi-página de siempre. El anillo de progreso
+  no se ha visto en un visor real (VR): el mantener-y-soltar está cableado (gatillo_fin) pero sin un dibujo propio
+  en el panel de muñeca (eso es J13, sin construir). Un clic directo sobre la cosa en pantalla (no E, no el botón)
+  sigue siendo instantáneo a propósito (fuera de alcance de esta historia pequeña).
+- Consumo: sin lectura previa a este turno · Sonnet 5.
+- Commit: rama `j4/usar-mantener-pulsado` sobre `tren/motor-2026-10-18-5` (ver `git log`), PR al tren.
+- Siguiente: una pierna de e2e real (Playwright) para los tres casos; dibujar el anillo también en el panel de
+  muñeca de VR (J13); decidir si el clic directo sobre la cosa también debería pedir mantener pulsado.
+## 2026-10-18 03:20 · M22b-1 · constructor táctil mínimo: toque selecciona, arrastrar mueve · hecho (rama `constructor/tactil-minimo`)
+- Qué: primera pieza del constructor en el móvil, como EXTENSIÓN del de M22 (mismo `features/objetos/client.ts`,
+  mismo `gizmo.ts`, mismo `programarEnvio`): solo cambia la entrada. En `apps/plaza/constructor.ts` una capa de
+  dedo en `document` (fase de captura): un toque sobre una cosa la selecciona; arrastrarla la mueve por el suelo y
+  por encima de otras cosas conservando el desfase dedo-cosa (`ed.puntoBajo` + `ed.poner` + `ed.sostener`); la
+  cámara se bloquea mientras (`cam.bloquear`) y el joystick no ve ese dedo; en «mover» táctil no se cargan las asas
+  de TransformControls (la cosa es la asa); botones ≥ 44 px con `(pointer: coarse)`. Hallazgo al medir: en un
+  teléfono de 420 px el panel de construir (320) y el de entorno (270) tapaban el mundo ENTERO — no se podía tocar
+  nada. `apps/plaza/tema.css` (que manda con `!important`): hoja inferior ≤ 38 vh para construir y tira arriba a la
+  izquierda para entorno en `(pointer: coarse) and (max-width: 700px)`. Diseño completo de móvil + VR (M22b-1..5,
+  comparativa con cluster World Craft y el ClientBuilder de Hyperfy, puntuaciones):
+  `work/mmo-browser-study/MODO-CONSTRUCTOR-MOVIL-VR.md`. Versión **0.11.0** (menor: entrada nueva, nada roto).
+- Números: 376 pruebas en verde; puertas todas en verde (tick p99 12,3 ms, 26,7 kbit/s). Pierna nueva
+  `tools/e2e-piernas/constructor-tactil.mjs` (chromium, toques reales por CDP, 420×800, dos pestañas): 8 pasos en
+  verde — toque selecciona con la cámara quieta (yaw 0 → 0), arrastre de 150 px mueve el bloque 5,2 m y B lo ve,
+  sin asas, toque en el vacío deselecciona, deshacer devuelve en B, borrar. La pierna de ratón `constructor.mjs`
+  sigue en verde en chromium.
+- Consumo: sin medir · claude-fable-5-1.
+- Commit: rama `constructor/tactil-minimo` sobre origin/main 749e99a.
+- NO probado en un teléfono real (solo la emulación táctil de chromium: `pointer: coarse`, `maxTouchPoints 1`).
+  Defectos conocidos: `#barra-objeto` se sale por la derecha en 420 px; los botones de acción (Saltar, Saludar…) se
+  montan sobre la hoja; el HUD de depuración pisa la tira de entorno; `dblclick` táctil para abrir construir sin
+  probar. Siguiente: M22b-2 (dos dedos giran/escalan, retícula de colocar, hoja en 3 estados), M22b-3 (VR con mando).
+
+## 2026-10-18 01:55 · M18b · El Graboso: la reliquia que graba lo que ves · hecho (rama `objetos/graboso`)
+- Qué: Pablo escribió la fila M18b esta madrugada (cabeza de oso electrónico de nube translúcida; sacarla y
+  grabar vídeo + audio del mundo, 30 s–1 min con tope duro; misión «hacer vídeos de dentro de los mundos»).
+  Diseño primero (`../mmo-browser-study/GRABOSO-DISENO.md`: Reliquia según el manual 06 — se invoca, no se
+  usa; complemento de la Lira de Nyx), luego la v1: botón «Graboso» en la barra y tecla K; la cabeza sale
+  sobre el hombro derecho (esfera + orejas + hocico + ojos + antena con piloto rojo que late, nube pintada en
+  un canvas, material translúcido; carga perezosa, 2,5 kB) y graba en el acto: `canvas.captureStream(30)` +
+  micrófono con permiso (negado → sin sonido, dicho) por `MediaRecorder` (webm vp9/vp8+opus o mp4); tope
+  30/45/60 s (60 por defecto; `recortarTope` nunca sale de 30–60); K, el botón o el tope guardan; píldora
+  «● 0:12 / 1:00» → «Clip 0:42 · Descargar · Ver · Quitar»; descarga local `graboso-<UTC>.webm`; solo el
+  último clip, en memoria. Y1 no está fusionado: acceso directo (todo jugador lo tiene), documentado como «a
+  conectar con Y1». Versión **0.4.0** (menor: algo nuevo).
+- Números: 389 pruebas (13 nuevas), 389 en verde; puertas en verde (26,7 kbit/s, p99 8,4 ms). Pierna e2e nueva
+  `tools/e2e-piernas/graboso.mjs` en chromium real con micrófono falso: 18/18 (clip webm 3,4 s / 236 kB con
+  cabecera EBML, con sonido, descargable, `<video>` con el blob, cabeza fuera y guardada, K no actúa en el chat).
+- Aviso: con mis servidores de desarrollo encendidos cayó la prueba de coste de nombres de `chat.test.ts` (la
+  mala conocida de la máquina cargada); apagados, 389/389. Y1 también sube a 0.4.0: la segunda en entrar a
+  main sube a 0.5.0.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `objetos/graboso` sobre origin/main 749e99a (ver `git log`). Sin push ni PR: `../pr-graboso-motor.sh`.
+- Siguiente: Pablo decide la PR (hueco de PR único en numinia-engine; Y1 también espera) y el consentimiento
+  (§6 del diseño: avisar a quien sale «X ha sacado el Graboso»). Después: conectar con Y1, voces de otros en
+  el clip, modelo fino, VR, compartir (M18c).
+
+## 2026-10-18 17:54 · ko-t_e8a450a4 · hecho (mitad)
+- Qué: H11 (importar de Hyperfy), la mitad `db.sqlite`+`assets/` → carpeta del mundo (la otra mitad, `.hyp` →
+  carpeta de app, sigue esperando a M19, que está «para Opus»; no se ha tocado). `packages/server/src/importar-hyperfy.ts`
+  lee `config`/`blueprints`/`entities` con `node:sqlite` (sin dependencia nueva), resuelve cada `asset://<sha256>.<ext>`,
+  copia el fichero a `datos/activos/`, convierte posición y cuaternión a los campos de H1 (grados, orden yaw→pitch→roll)
+  y escribe `datos/objetos.json` tal cual lo lee `FileStorage` al arrancar (a mano, sin importar `features/objetos`
+  desde `packages/`: lo prohíbe la regla de capas). H7: `aventura/ficha.json` con nombre/descripción/portada/aforo.
+  CLI `tools/importar-hyperfy.ts`; informe de lo traído (`informe-importacion.json`+`.txt`): leídos, importados,
+  omitidos con motivo, activos copiados/que faltan.
+- Números: `test/importar-hyperfy.test.ts` nuevo (5 pruebas, todas en verde); `npm test`: 777 bien, 0 mal;
+  `npm run gates`: todas las puertas en verde (capas 0, determinismo igual, ancho de banda 26,6 kbit/s, plaza de
+  1.000 p99 15,4 ms, página 469,1 kB). La prueba fuerte arranca de verdad la función `objetos` (`Instance` +
+  `FileStorage`) sobre lo que escribe el importador y comprueba la cosa en su sitio, giro y escala exactos.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `ko/t_e8a450a4` sobre `origin/tren/motor-2026-10-18-6`.
+- Siguiente: probar contra un `db.sqlite` real de un mundo Hyperfy (de momento solo el fijo de prueba); la mitad
+  `.hyp` → carpeta de app espera a M19.
+## 2026-10-18 17:25 UTC — arreglo: el teclado de la cerradura tapaba el mundo desde que carga (0.14.1)
+- Visto por Pablo en vídeo (Alchemist Tower, v0.11): el teclado de la cerradura (D-042) sale al cargar, sin nombre, y ni «Abrir» ni «Cerrar» lo quitan: la capa ocupa toda la pantalla y el jugador queda bloqueado.
+- Causa: la capa llevaba `display: grid` en línea; un estilo en línea gana al atributo `hidden`, así que `capa.hidden = true` no la escondía nunca.
+- Arreglo: la capa nace con `display: none`; abrir pone `grid`, cerrar vuelve a `none`. Prueba nueva `test/cerradura-teclado-oculto.test.ts` (falla con el código viejo, pasa con el nuevo). Versión 0.14.1 (parche).
+## 2026-10-18 01:15 · Y1 · El Inventario v1 · hecho (rama `inventario/version-1`, rebasada sobre main 0.10.0)
+- Qué: el cimiento que faltaba (Pablo, 18-10). `features/inventario/` (reglas puras `reglas.ts` + servidor + cliente):
+  un objeto es {id, tipo arma/reliquia/token, clase, nombre, icono, color, valor, n, portado}; límites del canon
+  leídos del manual (lore 06, Fragmento 2): 1 arma contigo, 3 reliquias contigo, el resto en la Reserva; los tokens
+  (Semillas por color, valor 1-5 de Prestigio) apilan y no se portan. Guardado por invitado en `api.store`
+  (`i:<quien.id>`, S4), enviado entero solo al dueño (todas sus pestañas). Puerta para dar objetos sin acoplar
+  funciones: cualquier función emite su `otorga` con `scope: "server"` y el inventario lo oye (`api.listen`, J3).
+  `misiones` lo usa: `recompensas` admite `{ "tipo": "semilla", "color": "verde" }` (la misión de ejemplo lo lleva)
+  → al completarla, «Recibes Semilla verde». Panel `apps/plaza/inventario.ts` (tecla R, botón en la barra de arriba):
+  «Llevas contigo» y «Reserva», icono de la casa por fila, «Llevar/Guardar» en armas y reliquias; la ficha (I)
+  resume. Versión **0.10.0 → 0.11.0** (menor: función nueva, nada roto). Diseño: `work/mmo-browser-study/INVENTARIO-DISENO.md`.
+  Honestidad: la «pregunta en un sitio real» de R2 NO existía como función; lo que había era `despertar` (QR).
+  Hoy la Semilla entra por la misión completada; R2 usará la misma puerta `otorga`.
+- Números: 8 pruebas nuevas (`test/inventario.test.ts`), 384 en total, 383 en verde + la mala conocida de
+  `test/chat.test.ts` (coste de nombres; la máquina a carga 26; sola pasa). Puertas: capas, determinismo (huella
+  f719d31b intacta), ancho de banda 26,7 kbit/s, tick p99 11,2 ms OK. 1.000 personas entran con 8 objetos cada
+  una: 59 ms en total. Una Reserva llena (24) con nombres largos cabe en una clave de S4 (≤ 4.096 bytes).
+  `npm run build` OK. e2e real (chromium, pierna `misiones.mjs` ampliada): la Semilla aparece en el panel R con su
+  icono, sin botón (token), la ficha dice «1 objeto · Semillas: 1 punto de Prestigio», otro invitado no la ve.
+- Consumo: sin medir · Fable 5.1 (sesión de Pablo).
+- Commit: rama `inventario/version-1` sobre origin/main 749e99a (ver `git log`). Sin push ni PR (Pablo decide).
+- Siguiente: Y2 (llevar de verdad: mano del avatar, ficha V1; arrastrar y soltar), Y3 (`objeto@1` por aventura y
+  `coge` que da armas/reliquias), iconos propios (Phosphor `backpack`/`sword`/`plant`: decisión del Oráculo).
+- Solapes con `bienes` (N10/N18, ya en main), resueltos dejando lo de main intacto: (1) la sección «Inventario» de la ficha es de
+  `bienes` (`apps/plaza/bienes.ts`); la Reserva va en otra sección, «Reserva» (orden 71). (2) La tecla L ya es «Gente» y H es «Bailar»:
+  el panel usa R (con `noConstruyendo` en `crearDialogo`: el constructor usa R). (3) `bienes` = cosas con recibo firmado que salen de un
+  cofre (`concedido`); `inventario` = armas/reliquias/tokens de la Reserva (`otorga`): dos almacenes y dos eventos de servidor distintos,
+  sin cruce. Si algún día un `objeto` de `bienes` debe poder llevarse como reliquia, hay que decidirlo (no se hizo).
+## 2026-10-16 15:40 · J1 · el VRM ya no «corre despacito» · hecho (sesión con Pablo, sin subir)
+- Qué: Pablo: «va como corriendo despacito, depende del avatar». Medido en la Torre: andando a 4 m/s suena el trote
+  (`Jog_Fwd_Loop`) al 0,87 de su velocidad, el ritmo que deja los pies quietos en el suelo; pero ese bucle da 2 pasos
+  muy largos (1,17 s), así que a ese ritmo son ≈ 90 pasos por minuto: un trote a cámara lenta. Ahora el trote y el
+  sprint se encuentran a medio camino (media geométrica) con una cadencia natural (`CADENCIA` 2,75 y 3,15 pasos/s
+  para caderas de 0,9 m, más rápida para piernas cortas): Astrodisco anda al 1,19 (≈ 122 pasos/min), los pies
+  resbalan un poco. Andar despacio no cambia. `view.avatares()` da velocidad, ritmo y cadera de cada uno.
+- Números: 282 pruebas en verde; build bien; en la Torre ritmo 0,87 → 1,19 a 4 m/s (`work/torre/paso-qa.mjs`).
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `avatares/paso-natural` (sobre main e8468e8).
+- Siguiente: que Pablo lo vea; si sigue raro, el arreglo de fondo es un ciclo de trote con más pasos por bucle o
+  andar más despacio que 4 m/s (eso cambia la simulación).
+## 2026-10-16 19:27 · J7b · rueda de movimientos · hecho (sesión con Pablo, sin subir)
+- Qué: Pablo: «coges esos 45 movimientos… la típica rueda». De los 45 clips de Quaternius UAL1 (CC0) entran 33: los 5 de
+  andar y 28 más, en 29 `.vrma` nuevos (el 29.º, el saludo, que UAL1 gratis no trae, es el cuerpo de `Idle_Loop` con el brazo derecho escrito
+  en el conversor). Fuera, con su porqué en `LICENCIAS.md`: pose T, ciclos que se desplazan, gemelos `_RM`, dos poses de
+  un fotograma y dos salidas. 27 movimientos como datos (`features/gestos/movimientos.ts`) en 4 grupos; `gestos` pasa a
+  versión 2 (el `enum` es la lista + `parar`; aditivo, la huella 93b192c8 igual). En el VRM: entrada + bucle (sentarse →
+  sentado), una vez, o quedarse en la última pose; andar o saltar lo termina en todas las pantallas; cada clip se baja
+  la primera vez que alguien cerca lo hace. Rueda: G mantenida (toque = saludar), botón «Movimientos» en táctil, Y en
+  el mando; 8 porciones, anillo de favoritos guardado en el navegador (F), ↑↓ anillos, ←→ 1–8 Intro, Esc; HTML con
+  botones para el lector de pantalla, sin animación con «menos movimiento»; mientras está abierta nadie anda. Aspecto
+  Nocturno (tema.css), sin marca. Por qué G y no otra tecla: es la tecla de los gestos desde J7 y la mano ya está ahí;
+  K/L/U estaban libres pero lejos de WASD.
+- Números: 288 pruebas en verde (6 nuevas en `test/rueda.test.ts`); puertas en verde (tick p99 8,1 ms); build bien
+  (arranque 301 kB, 113,5 kB comprimidos; los clips no van en el paquete). e2e chromium contra servidor propio
+  (8870/5370): `tools/e2e.mjs` OK, pierna avatares OK (295 kB de animaciones al entrar, las mismas de antes), pierna
+  nueva `tools/e2e-piernas/rueda.mjs` OK: A mantiene G, apunta, suelta → baila; B (a 6 m) lo ve bailar; `bailar.vrma`
+  se baja una vez por pestaña y solo entonces; A anda → termina en las dos; teclado, favoritos y Esc bien.
+  Clips nuevos: 29 ficheros, 3,0 MB en el repositorio, 44–243 kB cada uno.
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `avatares/rueda-movimientos` (sobre 4eb6387).
+- Siguiente: probar con un móvil y un mando reales; que los agentes (`packages/agent`) usen la lista entera; que quien
+  llega tarde vea un movimiento en curso (estado con `at`, J9); grabar los que UAL1 no trae (aplaudir, señalar…).
+## 2026-10-16 21:09 · R1 trozo «imprimir los QR como SVG» · hecho (historia en sombra, Doulos; nada sube a origin)
+- Qué: solo el trozo de «Falta de R1» pedido: `npm run enlaces -- qr [base] [carpeta]` ahora escribe un
+  `<carpeta>/<id>.svg` por punto de `enlaces.json` (carpeta por defecto `qr/`, añadida a `.gitignore`) y sigue
+  imprimiendo id, nombre y ruta; sin ese argumento se comporta igual que antes (id, nombre, URL firmada). El
+  resto de «Falta de R1» (escuchar en la red de casa, comprobar la columna en un navegador real, medir con un
+  móvil real) queda sin tocar, como pedía la tarea.
+- Números: 252 pruebas (antes 249; 3 nuevas en `test/enlaces.test.ts`: modo normal, modo `qr` con SVGs válidos,
+  y el aviso sin `MOTOR_SECRET` en ambos modos); puertas en verde (capas 0, determinismo igual, ancho de banda
+  26,7 kbit/s, tick p99 7,6 ms con mil). e2e y `tools/auto.sh` no se han tocado ni corrido (no tocan a esta rama).
+- Consumo: no aplica (prueba de Doulos en un worktree desechable, sin `hermes usage` en este perfil); modelo
+  Sonnet 5.
+- Commit: este (rama `doulos/sombra-r1-qr`, solo local; no sube a origin, no hay PR).
+- Siguiente: el resto de «Falta de R1» (modo LAN del servidor, comprobación visual real de la columna, medición
+  con móvil real) sigue pendiente para quien tome la fila R1.
+
+## 2026-10-18 18:21 · lucha-l2-estados-jugador · hecho (trozo 1)
+- Qué: L2, primera historia: vida del jugador en memoria del servidor (`features/lucha/server.ts`). Cada golpe
+  que el jugador aterriza, la criatura golpea de vuelta con la misma tirada (`DANO_BASE..DANO_BASE+DANO_VAR-1`,
+  PRNG con semilla: reproducible); `VIDA_JUGADOR_MAX` (50, por encima de lo que cuesta matar al Guardián de
+  Crisálida en una pelea normal: no rompe el combate de L1) baja en memoria, sin estado compartido ni HUD (eso
+  es la siguiente historia de L2, con el diseño de canon Desestabilizado→Colapsado→Aletargado de
+  `docs/BACKLOG.md` fila L2). A 0, el jugador cae (`caido`): `golpear` se rechaza hasta que pasan
+  `REAPARICION_JUGADOR_TICKS` (100 = 5 s a 20 Hz), y entonces vuelve entero. Eventos nuevos `jugadorHerido`,
+  `jugadorCaido`, `jugadorVuelve` (solo al propio jugador); `client.ts` los escucha para que las pruebas los
+  vean (sin dibujar nada aún, por diseño).
+- Números: `test/lucha.test.ts` 10/10 (2 nuevas: herido→caído→reaparece, y mismo seguimiento con sha256 igual
+  en dos mundos con la misma semilla). `npm test` con `node_modules` enlazado del clon base: 773/774 (el único
+  rojo, `misiones-secuencia.test.ts` p99 de un gate de carga, es el conocido por contención de CPU — solo,
+  8/8 verde; sin ese enlace, los 23 fallos preexistentes por falta del paquete `ws` en este worktree, iguales
+  antes y después). `npm run build`: verde (842 ms).
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `ko/t_32744f07-v2` sobre `origin/tren/motor-2026-10-18-6`, PR #145.
+- Siguiente: la siguiente historia de L2 (HUD, velocidad, vuelta a `aparicion`, estado compartido por
+  invitado) cuando la pida el tablero; L3 (la criatura se mueve y persigue) sigue esperando a L2 entero.
+
+## 2026-10-18 19:30 · constructor/anclar-explicar · hecho
+- Qué: el botón «fijar» del constructor se renombra a «Anclar / soltar» (con icono) y lleva un tooltip claro
+  (t_72b0bdab), porque Pablo (vídeo 18-10): «fijar no se entiende». Renombrado en `apps/plaza/constructor.ts`
+  (botón con icono `push-pin` de Phosphor, `boton2` ahora acepta un icono opcional), tooltip explícito («Anclar:
+  nadie lo mueve, gira ni borra hasta que lo sueltes (P)»), etiqueta del checkbox del inspector, texto de ayuda
+  del constructor y los mensajes de estado del cliente (cogido/arrastrado) usan «anclado». Los mensajes de
+  rechazo del servidor (`features/objetos/server.ts`) siguen diciendo «fijado»: varias pruebas
+  (`test/objetos.test.ts`, `test/huecos.test.ts`) comprueban ese texto exacto; cambiarlo junto con las pruebas
+  se deja para otra tarjeta si se quiere, por no ensanchar esta historia de 20 min. El campo de datos y el
+  verbo de red siguen llamándose `fijado`/`fijar` (wire/schema sin tocar, D-055 no aplica aquí: es puro texto
+  de interfaz). `docs/JUGADOR.md` actualizado con el mismo texto.
+- Números: `npm test` y `npm run build` en verde (ver comprobado en el PR).
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `constructor/anclar-explicar` sobre `origin/tren/motor-2026-10-18-6`.
+- Siguiente: nada pendiente de esta tarjeta; si se quiere, extender el mismo nombre a `rueda.ts` («Fijar en
+  favoritos», uso distinto, no tocado aquí).

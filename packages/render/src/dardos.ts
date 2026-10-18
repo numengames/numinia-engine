@@ -21,6 +21,20 @@ export const IDEAL = 0.65;
 /** One full fill of the power bar (s); it then empties at the same pace and fills again. */
 export const CICLO_S = 1.1;
 
+/** Where a ray meets a board face's plane (z = 0, the face's own space), in board radii (x right, y up). Shared by
+ * the plaza's miniature boards and the AR board on your wall (ar.ts had its own copy; motor-vr t_5f6ff048). Null if
+ * the ray is parallel to the face or points away from it. Pure: `invCara` is the face's world matrix, inverted. */
+export function rayoEnCara(invCara: THREE.Matrix4, origen: THREE.Vector3, dir: THREE.Vector3): { x: number; y: number } | null {
+  const o0 = origen.clone().applyMatrix4(invCara);
+  const d0 = dir.clone().transformDirection(invCara);
+  if (Math.abs(d0.z) < 1e-4) return null;
+  const t = -o0.z / d0.z;
+  if (t <= 0) return null;
+  const p = o0.addScaledVector(d0, t);
+  const c = (v: number) => Math.max(-3, Math.min(3, v / RADIO_M));
+  return { x: c(p.x), y: c(p.y) };
+}
+
 let texturaComun: THREE.CanvasTexture | null = null;
 function texturaDiana(): THREE.CanvasTexture {
   if (texturaComun) return texturaComun;
@@ -108,6 +122,14 @@ export function crearDianas3D(h: { world: THREE.Object3D }) {
       const a = (d.s.rumbo * Math.PI) / 180, L = LINEA_M * 1.1;
       return { x: d.s.x + Math.sin(a) * L, z: d.s.z + Math.cos(a) * L, rumbo: a + Math.PI };
     },
+    /** VR (J10, motor-vr t_5f6ff048): where a hand's ray meets this board's face (board radii), or null (no board,
+     * or the ray does not reach the face). `dardos-vr.ts` throws along whichever controller's ray sent this; plain
+     * numbers in, not a THREE.Vector3 (a page never needs to import three for this). */
+    apuntar(id: string, origen: { x: number; y: number; z: number }, dir: { x: number; y: number; z: number }): { x: number; y: number } | null {
+      const d = dianas.get(id); if (!d) return null;
+      d.face.updateMatrixWorld();
+      return rayoEnCara(new THREE.Matrix4().copy(d.face.matrixWorld).invert(), new THREE.Vector3(origen.x, origen.y, origen.z), new THREE.Vector3(dir.x, dir.y, dir.z));
+    },
     contar: () => ({ dianas: dianas.size, dardos: [...dianas.values()].reduce((n, d) => n + d.dardos.size, 0) }),
   };
 }
@@ -173,13 +195,7 @@ export function crearDianaAR(o: { alLanzar: (x: number, y: number, fuerza: numbe
   /** Where a ray meets the board's face, in board radii (x right, y up), or null (parallel / behind you). */
   function enLaCara(r: RayoAR): { x: number; y: number } | null {
     diana.updateMatrixWorld();
-    const inv = M.copy(face.matrixWorld).invert();
-    const o0 = r.origen.clone().applyMatrix4(inv), d0 = r.dir.clone().transformDirection(inv);
-    if (Math.abs(d0.z) < 1e-4) return null;
-    const t = -o0.z / d0.z; if (t <= 0) return null;
-    const p = o0.addScaledVector(d0, t);
-    const c = (v: number) => Math.max(-3, Math.min(3, v / RADIO_M));
-    return { x: c(p.x), y: c(p.y) };
+    return rayoEnCara(M.copy(face.matrixWorld).invert(), r.origen, r.dir);
   }
   const rayoMirada = (cam: THREE.Camera): RayoAR => { const d = new THREE.Vector3(); cam.getWorldDirection(d); return { origen: new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld), dir: d }; };
 

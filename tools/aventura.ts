@@ -30,5 +30,8 @@ const fi = leerFicha(dir); // ADR-074: what the world is called (aventura/ficha.
 console.log(fi.ficha ? `  ficha: «${fi.ficha.nombre}»${fi.ficha.portada ? `, portada ${fi.ficha.portada} (el servidor mira al arrancar que la tiene)` : ""}` : "  sin ficha.json (la página y /status no dicen cómo se llama el mundo)");
 const problemas = [...r.issues.map((i) => `${i.path}: ${i.message}`), ...h.problemas, ...ag.problemas, ...malas, ...fi.problemas];
 for (const p of problemas) console.log(`  ✗ ${p}`);
+// Pedido de Pablo (motor-vr t_5eb6d923): un mundo sin ninguna misión se queda sin hilo conductor del que colgar lo
+// demás — un aviso, no un error (una aventura vacía de verdad sigue cargando: misiones/ ausente no rompe nada).
+if (a.misiones.size === 0) console.log("  ⚠ sin ninguna misión: este mundo no tiene hilo conductor (la plantilla trae «Primeros pasos»; aventuras/ejemplo/misiones/primeros-pasos.json)");
 console.log(problemas.length ? `${problemas.length} problema(s): lo que los tiene no se carga.` : "Todo en orden.");
 process.exit(problemas.length ? 1 : 0);

@@ -3,5 +3,6 @@
   "mundo": "plaza",
   "nombre": "La plaza",
   "describe": "La plaza de pruebas del motor. Sus números (estadísticas) salen con ?debug en escritorio o desde los ajustes.",
-  "defectos": {}
+  "defectos": {},
+  "ciudadUrl": "https://numinia.com"
 }

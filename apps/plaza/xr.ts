@@ -6,7 +6,7 @@
 import { ESTADOS, ahorasDe, estadoPaso } from "./misiones.ts"; // U14 (3): a step's state, the same as in the book
 type Res = { ok: true } | { ok: false; why: string };
 type Lado = "izq" | "der";
-type EventoMano = { tipo: "agarrar"; key: string; lado: Lado } | { tipo: "apuntar"; key: string; lado: Lado } | { tipo: "panel"; fila: number; lado: Lado } | { tipo: "gatillo"; lado: Lado };
+type EventoMano = { tipo: "agarrar"; key: string; lado: Lado } | { tipo: "apuntar"; key: string; lado: Lado } | { tipo: "panel"; fila: number; lado: Lado } | { tipo: "gatillo"; lado: Lado } | { tipo: "gatillo_fin"; lado: Lado };
 type Misiones = {
   estado: { nota: string };
   libro(): { id: string; estado: string; titulo: string; paso: number; pasos: number; seguida: boolean; lista: { n: number; texto: string; tipo: string; hecho: boolean; que: string }[] }[];
@@ -17,14 +17,14 @@ type Misiones = {
   alCambiar(fn: (que: "libro" | "dialogo" | "nota") => void): () => void;
 };
 type Vista = {
-  vr: { active: boolean; pagina: "mision" | "mandos"; dialogo(d: { nombre: string; texto: string; opciones: string[] } | null): void; nota(t: string): void; onElegir(fn: (n: number) => void): unknown; onAtras(fn: () => void): unknown };
+  vr: { active: boolean; pagina: "mision" | "mandos" | "ajustes"; dialogo(d: { nombre: string; texto: string; opciones: string[] } | null): void; nota(t: string): void; onElegir(fn: (n: number) => void): unknown; onAtras(fn: () => void): unknown };
   ar: { state: string };
   manos: { reglas(o: { agarrable?: (k: string) => boolean; apuntable?: (k: string) => boolean }): void; on(fn: (e: EventoMano) => void): unknown; vibrar(l: Lado, v?: number, ms?: number): void };
   llevar(key: string, donde: Lado | "yo" | null): void;
   llevando(): Record<string, string>;
 };
 type Sesion = { features: { use(feature: string, key: string): Res } };
-type Interaccion = { actual(): { prompt: string } | null; usar(): Res; mirar(): void };
+type Interaccion = { actual(): { prompt: string } | null; usar(): Res; mirar(): void; mantener: { empezar(): void; soltar(): void } };
 
 const partir = (k: string): [string, string] => { const i = k.indexOf(":"); return i < 1 ? ["", ""] : [k.slice(0, i), k.slice(i + 1)]; };
 
@@ -50,7 +50,9 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
       decir(session.features.use(f, key));
     } else if (e.tipo === "panel") {
       if (e.fila) decir(misiones.elegir(e.fila));
-    } else if (o.interaccion.actual()) decir(o.interaccion.usar());
+    } else if (e.tipo === "gatillo_fin") {
+      o.interaccion.mantener.soltar(); // J4: releasing the trigger before a held `hold` finishes cancels it
+    } else if (o.interaccion.actual()) o.interaccion.mantener.empezar(); // J4: fires at once, or starts the hold
   });
   view.vr.onElegir((n) => { decir(misiones.elegir(n)); });
   view.vr.onAtras(() => { if (misiones.dialogo()) misiones.adios(); });
@@ -92,6 +94,12 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
         "A o X: saltar · B: salir del diálogo",
         "Sin mandos: pellizca y mantén en el aire = andar adonde apunta la mano",
         "Salir: el botón de abajo, pulsa dos veces",
+      ];
+      if (view.vr.pagina === "ajustes") return [ // MVL1: ajustes dentro de VR, sin quitarte las gafas
+        "Ajustes (Y: ocultar)",
+        "Apunta al botón de abajo con el gatillo",
+        "para cambiar el confort de movimiento",
+        "(la viñeta: bajo, medio o alto).",
       ];
       const out: string[] = [];
       const c = o.interaccion.actual();

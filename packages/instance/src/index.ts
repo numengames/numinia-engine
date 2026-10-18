@@ -87,6 +87,10 @@ export function huellaMalla(entradas: readonly [string, Record<string, unknown>]
   return h;
 }
 export type Suelo = { minimo: number; vuelta?: { x: number; y: number; z: number; siempre?: boolean } | null };
+/** B2: the phases of Instance.tick(), in order (Instance.fasesMs): inputs in, solid boxes rebuilt (only when a feature's
+ * shared state changed), the simulation step, the safe-spot pass, the features (server/metrics.ts splits it by feature),
+ * the snapshots out. */
+export const FASES_TICK = ["entradas", "solidos", "simulacion", "seguro", "piezas", "instantaneas"] as const;
 /** D-045: how often (ticks) the last safe spot is kept: 10 = every half second. */
 export const SEGURO_CADA = 10;
 /** D-045: a return the instance made (the feature `suelo` tells the page). `motivo`: caida = under the floor, pedido = asked. */
@@ -337,7 +341,13 @@ export class Instance {
     return client;
   }
 
+  /** B2: what each phase of the LAST tick cost, in ms (wall clock), in the order of FASES_TICK. The server copies it into
+   * its windows right after tick() (server/metrics.ts); nothing here keeps history and nothing here touches the sim. */
+  readonly fasesMs = new Float64Array(FASES_TICK.length);
+
   tick(): void {
+    const f = this.fasesMs;
+    let a = performance.now(), b = a;
     for (const c of this.conns) c.transport.flush?.();
     // only avatars whose input arrived advance this tick (gravity too): one input = one step of the owner's clock,
     // so the owner's prediction stays exact when an input comes late (J2)
@@ -349,14 +359,17 @@ export class Instance {
       const o = n++ * INPUT_STRIDE;
       inputs[o] = c.entity; inputs[o + 1] = m.mx; inputs[o + 2] = m.mz; inputs[o + 3] = m.buttons; c.ack = m.seq;
     }
+    b = performance.now(); f[0] = b - a; a = b; // entradas
     if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.sim, solidsFrom(this.features.allState())); } // U10
     if (this.opts.construirMalla && !this.mallaBuilding && this.features.stateVersion !== this.mallaVersion) this.quizaMalla(); // M6 h8, D2: only if a malla entry changed
+    b = performance.now(); f[1] = b - a; a = b; // solidos
     // H2 historia 5: at most ORDENES_TICK_MAX orders go into this step; the rest stay queued, in order, for the next one.
     const capInts = ORDENES_TICK_MAX * ORDER_STRIDE;
     const take = this.ordenes.slice(0, capInts); this.ordenes = this.ordenes.slice(capInts);
     const ordenes = take.length ? Int32Array.from(take) : undefined; this.pendiente.clear();
     if (ordenes) this.opts.log?.(`[suelo] tick ${this.sim.tick}: ${ordenes.length / ORDER_STRIDE} orden(es) aplicada(s)${this.ordenes.length ? `, ${this.ordenes.length / ORDER_STRIDE} esperando` : ""}`);
     step(this.sim, inputs.subarray(0, n * INPUT_STRIDE), ordenes); // authority (D-045/H2: orders first, recorded with the inputs)
+    b = performance.now(); f[2] = b - a; a = b; // simulacion
     if (this.sim.tick % SEGURO_CADA === 0) { // D-045: every half second, keep the safe spot; under the floor, order the return
       const s = this.sim, min = this.opts.suelo ? fx(this.opts.suelo.minimo) : null;
       for (const c of this.conns) {
@@ -364,7 +377,9 @@ export class Instance {
         else this.guardarSeguro(c.entity);
       }
     }
+    b = performance.now(); f[3] = b - a; a = b; // seguro
     this.features.tick();   // game features: queued intents, then their tick hooks (no effect on the sim)
+    b = performance.now(); f[4] = b - a; a = b; // piezas
     if (this.sim.tick % this.opts.snapshotEvery === 0) { // 20 Hz sim, 10 Hz snapshots by default
       const grid = buildGrid(this.sim);
       for (const c of this.conns) {
@@ -373,6 +388,7 @@ export class Instance {
         c.transport.send(encodeSnapshot(this.sim, c.entity, c.ack, visible), false);
       }
     }
+    f[5] = performance.now() - a; // instantaneas
   }
 
   /** N16: move a connected avatar on purpose (a feature asked: «ir con», a photo's place) to the first free spot near

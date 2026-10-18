@@ -41,7 +41,7 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 | Avatar de verdad (VRM) | Cuerpo humanoide con animación | motor | Mejorado | tope 60 / 12 / 25 | C avatar, carga de asset | alto | J1 |
 | Nombre sobre la cabeza | Etiqueta con el nombre ✔ (J3: el de la identidad, a 24 m) | motor | Base | sí / sí / sí | P en mundo | bajo | J3 |
 | Elegir / cambiar avatar | Escoger cuerpo y nombre | ciudad | Base | menú | M, G | bajo | I1 |
-| Gestos y emotes | Saludar, bailar con una tecla | motor | Base | tecla / botón / gesto | M, C | bajo | J7 (ejemplo) |
+| Gestos y emotes | Saludar, bailar… ✔ 27 movimientos en una rueda (J7b: G mantenida, botón «Movimientos», Y del mando; ver § Rueda) | motor | Base | tecla / botón / mando (en VR falta) | M, C | bajo (cada clip se baja al usarlo) | J7, J7b |
 | Multitud lejana | Cientos de cuerpos baratos ◐ | motor | Base | sí | render instanciado | medio | A1, A4 |
 | Modo foto | Una foto bonita del mundo para compartir ✔ (N13: P o el botón de la cámara; la interfaz se esconde, cámara libre a 12 m de ti, filtros Ámbar / Verdemar / Tinta dentro de la paleta, marco con el nombre del MUNDO; PNG a 2×: Compartir (Web Share, con el archivo) / Guardar / Copiar imagen / Copiar enlace `#foto=x,y,z,rumbo,inclinación,distancia`: quien lo abre recibe ese sitio como destino y la cámara mirando hacia él, y al llegar mira como la foto) | motor | Base | sí / sí / no en VR | P, cámara | ninguno hasta pulsar P | N13 |
 | Ir con alguien | Ir junto a quien está conectado ahora ✔ (N16: «Gente» con L o el botón de personas, o `/ir <nombre>` en el chat; te lleva un haz de luz —tres variantes al azar— y apareces a su lado; un viaje cada 10 s; `/encontrable no` para que no vengan; dueños y quien dirige lo apagan con `/teletransporte no`; con `aparicionFoto` en el mundo, el enlace de una foto te pone en su sitio) | motor | Base | sí / sí / `/ir` en VR | M, servidor mueve | ninguno (la luz solo 1,4 s; apagada en el nivel D) | N16 |
@@ -77,9 +77,9 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 | Cosa | Qué es | Capa | Nivel | Escritorio / móvil / VR | Primitivas | Coste móvil | Fila |
 |---|---|---|---|---|---|---|---|
 | Libro de misiones | Qué tengo que hacer y por dónde voy | ciudad | Base | panel / panel / panel 3D | C, S, G, P | bajo | J5 |
-| Inventario | Lo que llevo, que no se pierde | motor | Base | panel | C, G | bajo | S4, J4 |
+| Inventario | Lo que llevo, que no se pierde ✓ (tecla R: 1 arma y 3 reliquias contigo, el resto en la Reserva; Semillas por color) | motor | Base | panel | C, G | bajo | Y1 (S4, J4) |
 | Sellos y logros | Recuerdo de lo hecho | ciudad | Base | panel | G, P | bajo | J5 |
-| Ficha de jugador | Quién soy, mi aparato y calidad, tiempo conectado, misiones, insignias, ajustes ◐ (tecla I; avatar e inventario, próximamente) | motor | Base | panel / panel / — | P | bajo | J11 (propuesta) |
+| Ficha de jugador | Quién soy, mi aparato y calidad, tiempo conectado, misiones, insignias, ajustes ◐ (tecla I; avatar próximamente; el inventario resume aquí y vive en R) | motor | Base | panel / panel / — | P | bajo | J11 (propuesta) |
 | Persistencia | Volver y encontrar lo mío | motor | Base | — | G | bajo | S4 |
 | Eventos programados | Algo pasa a una hora | ciudad | Mejorado | — | S, calendario | bajo | Frontera, sin fila |
 
@@ -186,12 +186,13 @@ Todo cambio pasa por el servidor (`features/objetos`) y llega a todos al momento
 | Mayús + D o Ctrl + D | Duplicar: la copia queda seleccionada y cogida |
 | Supr o Retroceso | Borrar |
 | Ctrl + Z · Ctrl + Mayús + Z o Ctrl + Y | Deshacer · rehacer (cada arrastre es un paso) |
-| P | Fijar o soltar (fijado: nadie lo mueve ni lo borra) |
+| P | Anclar o soltar (anclado: nadie lo mueve, gira ni borra hasta que lo sueltes) |
 | F | Encuadrar lo seleccionado (con la cámara nueva, N1) |
 | N | Mostrar u ocultar el inspector (nombre, posición, giro en grados, escala, fijado, sólido, visible, volumen: Intro aplica) |
 | Doble clic jugando | Abre construir con ese objeto seleccionado (U10) |
 | Inspector de un sonido o un vídeo | «Se oye en»: solo dentro de la burbuja, toda la zona o todo el mundo; «Radio de la burbuja (m)» (U11) |
 | Barra sobre el objeto | Coger, Mover, Girar, Escalar, Duplicar y 🗑 Borrar, encima de lo seleccionado (U10) |
+| Con el dedo (móvil) | Toca un objeto: lo seleccionas; arrástralo: lo mueves por el suelo y por encima de otras cosas (el dedo no lo tapa: se queda donde lo cogiste). Un dedo en el vacío mueve la cámara, dos la acercan. En «Mover» no hay asas: el objeto es la asa. Girar y escalar: los botones de encima y «Pasos con botones» (dos dedos llegan en M22b-2). El panel es una hoja abajo (M22b-1) |
 | Botones derecho y central, rueda | La cámara (rama de la cámara, N1) |
 
 U10: además de modelos .glb se suben (botón o soltando el fichero) **imágenes** .png .jpg .webp (un cuadro de pie),
@@ -202,6 +203,31 @@ invisible; volumen). «Sólido» hace que las personas choquen con un objeto (se
 Sin ratón: el panel tiene botones de verdad para todo (colocar delante de ti, girar, desplazar, subir, escalar,
 duplicar, fijar, borrar, deshacer, rehacer) y el inspector con campos con nombre. Un agente hace lo mismo con
 `window.__numinia.constructor` (`seleccionar`, `transformar`, `colocarEn`, `modo`, `rehacer`…).
+
+## Rueda de movimientos (J7b)
+
+Mantén **G** y sale una rueda de ocho movimientos en el centro de la pantalla. Mueve el ratón hacia uno y suelta G: lo
+haces, y lo ve quien esté a menos de 30 m. Si sueltas sin apuntar, la rueda se queda abierta para elegir con calma.
+Un toque corto de G sigue siendo saludar; H sigue siendo bailar. **Andar o saltar termina el movimiento** (en todas las
+pantallas a la vez); los bucles se acaban solos (1 minuto los vivos, 10 los tranquilos, como sentarse).
+
+| Hacer | Teclado y ratón | Pantalla táctil | Mando |
+|---|---|---|---|
+| Abrir | mantener G | botón «Movimientos» (toque) | mantener Y |
+| Elegir y hacer de un gesto | apuntar con el ratón y soltar G | arrastrar el dedo desde el botón y soltar | palanca izquierda y soltar Y |
+| Elegir con calma | ← → (las porciones), 1–8, clic | tocar una porción | cruceta ← →, A |
+| Cambiar de anillo | ↑ ↓, RePág / AvPág, clic en la pestaña | tocar la pestaña | LB / RB |
+| Fijar o quitar de favoritos | F, o el botón «Favorito» del centro | botón «Favorito» | — |
+| Parar lo que haces | 0, o «Parar» en el centro | «Parar» | — |
+| Cerrar | Esc, o un clic fuera | tocar fuera | B |
+
+Anillos: **Favoritos** (los tuyos, ocho, guardados en este navegador; al principio saludar, bailar, hablar,
+sentarse, agacharse, conjurar, manos arriba y hacerse el muerto), **Social**, **Acciones**, **Combate** y **Reacciones**.
+Mientras la rueda está abierta, las teclas del mundo (WASD, Espacio, E…) no hacen nada: elegir no te mueve. Es HTML de
+verdad: cada porción es un botón con su nombre y su descripción para el lector de pantalla, la porción marcada lleva el
+borde turquesa (también es el foco), y con «menos movimiento» se abre sin animación. Un agente usa el verbo `hacer` de
+`gestos` con cualquiera de la lista (`npm run describe -- --catalogo`), o `window.__numinia.gestos.hacer(id)` y
+`window.__numinia.rueda` en la página.
 
 ## Qué falta en la cola
 
@@ -241,8 +267,9 @@ izquierdo solo es del constructor (elegir, mover con el gizmo). F (del construct
 vuelve sobre tu avatar; al cerrar construir, la cámara vuelve sola detrás de ti. Si andas mientras construyes,
 la vista viaja contigo. En el móvil, dos dedos también desplazan.
 
-Teclas reservadas por otras ramas (no usarlas para la cámara): W A S D y flechas, Espacio, Mayús, C, Tab, B, G,
-H, E, Intro, 1–4, R, T, F, P, X, Y, Z, N, Supr/Retroceso, Ctrl+Z/Ctrl+Y, Esc. Con Ctrl, Alt o Meta, o escribiendo
+Teclas reservadas por otras ramas (no usarlas para la cámara): W A S D y flechas, Espacio, Mayús, C, Tab, B, G
+(toque: saludar; mantenida: la rueda de movimientos, J7b; construyendo es del constructor), H, E, Intro, 1–4, R, T, F,
+P, X, Y, Z, N, Supr/Retroceso, Ctrl+Z/Ctrl+Y, Esc. Con Ctrl, Alt o Meta, o escribiendo
 en una caja de texto, las teclas de cámara no hacen nada.
 
 **Altura y paredes (N1b):** la cámara sube y baja con tus pies (saltos, escaleras, el piso de una torre), un poco

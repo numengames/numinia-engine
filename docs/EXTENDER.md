@@ -79,7 +79,7 @@ export default clientPart(gestos, (api) => {
     if (msg.gesto === "bailar") api.view.bounce(Number(msg.quien), 2000);
   });
   api.action({ id: "saludar", label: "Saludar", key: "KeyG", run: () => api.send("hacer", { gesto: "saludar" }) });
-  api.action({ id: "bailar", label: "Bailar", key: "KeyH", run: () => api.send("hacer", { gesto: "bailar" }) });
+  api.action({ id: "bailar", label: "Bailar", key: "KeyR", run: () => api.send("hacer", { gesto: "bailar" }) });
 });
 ```
 
@@ -440,7 +440,8 @@ servidor; al acabar vuelve exactamente a donde dice el servidor.
   eventos y 554 bytes el vuelo de arriba) y los manda solo a ese jugador; las esperas pendientes se miran 5 veces por
   segundo, solo las de quien tiene una (1.000 jugadores esperando: tick de las funciones p99 ≈ 0,15 ms).
 
-Recompensas: hoy solo insignias (recuerdos de lo hecho; sin economía). `requisitos.misiones`: las que hay que haber
+Recompensas: `insignia` (un recuerdo de lo hecho) o `semilla` (`{ "tipo": "semilla", "color": "verde", "n": 1 }`: una
+Semilla del Conocimiento al inventario de quien la completa, Y1); sin economía. `requisitos.misiones`: las que hay que haber
 completado antes. Hasta 16 pasos, 16 misiones activas por jugador.
 
 **La recompensa, apuntada una sola vez (U14 (6)).** Al completar una misión con `recompensas`, el servidor apunta en el
@@ -601,7 +602,27 @@ Una aventura trae sus escenas en `escenas/<id>.json` (el id es el nombre del fic
   convocó ve cuántas vienen.
 - `node tools/aventura.ts <carpeta>` comprueba las escenas; una mal escrita no se carga y el registro dice por qué.
 
-## Agentes de fuera: gestionarlos por HTTP (ADR-080, para el panel de numinia.com)
+## El Inventario (Y1): dar objetos a una persona desde tu función
+
+El inventario (`features/inventario`) guarda por invitado lo que posee (`api.store`, clave `i:<quien.id>`, S4) y se
+lo manda entero solo a él (`lista` + un `objeto` por cada uno). El canon manda los límites: **1 arma** contigo, **3
+reliquias** contigo, el resto en la Reserva; los **tokens** (Semillas del Conocimiento por color) apilan y no se portan.
+
+Tu función no importa el inventario ni él a ti: declaras en tus `events` uno tuyo, p. ej.
+
+```ts
+otorga: { describe: "Solo en el servidor: doy un objeto a quien (entidad).", announce: "silent",
+  fields: { quien: { kind: "int", min: 0, max: 65535 }, tipo: { kind: "enum", values: ["arma", "reliquia", "token"] },
+            clase: { kind: "text", maxBytes: 32 }, nombre: { kind: "text", maxBytes: 40 },
+            color: { kind: "enum", values: ["", "verde", "azul", "plateada", "dorada", "roja"] }, n: { kind: "int", min: 1, max: 999, default: 1 } } }
+```
+
+y lo emites con `api.emit("otorga", { quien: e, tipo: "token", clase: "semilla", nombre: "Semilla verde", color: "verde", n: 1 }, "server")`:
+ninguna página lo recibe; el inventario lo oye (`api.listen`, lista `DONANTES` en `features/inventario/server.ts`: añade
+tu `[id, "otorga"]`) y se lo da a esa persona, que oye «Recibes Semilla verde». Lo que una misión da va en su
+`recompensas` (arriba). Reglas puras para probar sin red: `features/inventario/reglas.ts` (`dar`, `quitar`, `equipar`,
+`desequipar`, `leerInventario`). Panel de la página: `apps/plaza/inventario.ts` (R); resumen en la ficha (I, sección «Reserva»).
+
 
 Lo que el dueño hace en el chat con `/agente añadir|quitar` lo hace también el panel de numinia.com por HTTP, con el mismo
 código (`roles-mundo.ts`, `agentes`) y el mismo fichero (`aventura/agentes/<id>.json`):
@@ -867,9 +888,18 @@ poste, la caja en el suelo.
   (la huella de la simulación es la misma con y sin las tres; lo mide `test/interacciones.test.ts`). Un ejemplo
   mínimo: `{ "puertas": [{ "id": "norte", "nombre": "Puerta norte", "x": 6, "z": 0, "cierraEn": 10 }], "botones": [{ "id":
   "rojo", "nombre": "Botón rojo", "x": 12, "z": 0, "puerta": "norte" }], "cosas": [{ "id": "caja", "nombre": "Caja", "x": -6, "z": 0 }] }`.
+- **Mantener pulsado (J4, v2):** `card.interact.hold` (segundos; opcional en `Interact`/`Reachable`,
+  `packages/feature/src/index.ts`) hace que la página NO use la cosa al instante: E, el botón de acción (móvil) o el
+  gatillo en VR deben mantenerse ese tiempo (un anillo de progreso —`--progreso` 0..1— crece en `#interactuar`,
+  `apps/plaza/interactuar.ts`) antes de mandar el intent; soltar antes, o que el objetivo cambie, cancela sin mandar
+  nada. `puertas`/`botones`/`cogibles` (su `coger`, no su `soltar`) ya lo llevan (`MANTENER_S` en cada `feature.ts`);
+  el servidor no sabe nada de esto — solo decide CUÁNDO llega el intent, igual que siempre. En VR, el gatillo emite
+  un evento de más al soltar (`gatillo_fin`, `packages/render/src/manos.ts`/`apps/plaza/xr.ts`) para poder cancelar
+  un mantener a medias.
 - **Lo que no hace (todavía):** paredes que paren a quien no abre la puerta (es dibujo, no colisión: J6), botones
   con otra acción que una puerta (la señal ya existe; que otra función la escuche es una línea), coger con la mano
-  física en VR (hoy, rayo y gatillo como el resto; J10 lo hace para las cosas de misión), y llevar más de una cosa.
+  física en VR (hoy, rayo y gatillo como el resto; J10 lo hace para las cosas de misión), llevar más de una cosa, y
+  un anillo de progreso propio en el panel de muñeca de VR (J13).
 ## Contadores (v1, D-044): temporizador y contador que todos ven
 
 `features/contadores` es la pieza del reloj de la sala de escape, del marcador del equipo y del reloj del mundo:
@@ -945,6 +975,38 @@ historias: mientras tanto el registro dice `nadie hace «teletransporta» en est
   instancia — el campo `receptores` del estado viaja a toda página, como el resto de la ficha; no es un secreto
   como el código de una cerradura). Crear o borrar disparadores enteros sigue siendo editar el fichero antes de
   arrancar.
+
+## Salón de los Ancestros y el tributo a Asimov (ancestros v1)
+
+`features/ancestros` es el Salón de los Ancestros del Ateneo (el Ayuntamiento de Numinia, donde el Consejo de Sabios
+expone y prueba sus proyectos: `numinia-archive/lore/game/manual/es/05-geografia-y-cultura-de-numinia.md`) y, dentro,
+un homenaje a Isaac Asimov. Todo lo decide el servidor; la página dibuja y pregunta.
+
+- **La sala:** cuatro muros de piedra con puerta al sur (hacia la plaza), en `SALON` (`x: 0, z: -48`, 12 m de lado,
+  4 m de alto). Cada muro es una cosa del estado con `solido` y su caja `bx0…bz1`: **la misma caja la lee la simulación**
+  (`solidsFrom`), así que lo que ves es lo que te para, sin tocar `packages/sim`. Los muros no tienen nombre: ni ficha
+  ni rótulo, solo decorado.
+- **El holograma** («asimov»): una cosa con ficha (`objeto`, acción `hablar`) e `interact` a `radio` m (3). En 3D
+  (`packages/render/src/ancestros.ts`) es un **busto que evoca sin imitar**: pedestal, cono de luz y cabeza + hombros de
+  geometría simple en cian translúcido con una malla encima. Nada de .glb ni de modelos realistas.
+- **Cercanía:** el servidor mira cada `CADA_TICKS` quién está a `DESPIERTA_M` (8 m) de cada holograma (el mismo patrón
+  de las misiones con `llega_a`), pone `encendido` en el estado (lo ven todos) y avisa **solo a quien llegó**
+  (`despierta`). Con histéresis: se apaga a `DUERME_M` (10 m), para que nadie lo haga parpadear en el borde. Encendido,
+  en la página se vuelve hacia ti y titila; es lo único que cuesta un cuadro, y solo si estás a `VIVO_M` (40 m).
+- **Hablar** (`E` o pinchar su nombre): el servidor dice la **siguiente de las Tres Leyes** (1, 2, 3, 1… por holograma,
+  igual para todos, sin azar) y, al lado, **una de nuestras cuatro reglas AGW** elegidas (`NUESTRAS`: AGW-007, 003, 006,
+  012; rotan solas). Evento `dice` a quien habló y a quien está a `CERCA_M` (14 m): el anuncio lo lee en voz al lector
+  de pantalla; la página pone una placa sobre su cabeza (9 s) y, a quien le habló, el panel `#ancestros-panel` (Esc o
+  «Cerrar»). Lejos: `rechazado` con el motivo.
+- **Los dos paneles** detrás del holograma (las Tres Leyes · «Las nuestras, 80 años después») los pinta la página una
+  vez por texto (`view.ancestros.paneles`), con los textos que la función le da (`ancestros.textos`), para que un agente
+  lea lo mismo.
+- **Voz:** ninguna. No hay TTS propio del motor (V3) y **queda prohibido clonar la voz real de Asimov** (derechos de
+  su patrimonio). Cuando V3 exista, que lea el texto con una voz genérica grave y pausada de narrador. El rótulo del
+  holograma, la ficha y el panel dicen siempre «dramatización, no una grabación».
+- **Lo que no hace (todavía):** más hologramas de otros Ancestros (basta con pasar `hologramas` a `crearAncestros`),
+  un fichero `MUNDO_DIR/ancestros.json` como el de las torres de dados, techo y luz propia en la sala, y una pose
+  del busto que siga tu altura.
 
 ## Agua (N2): estilizada, de color plano, un solo draw call
 
