@@ -253,6 +253,7 @@ export function montarMapa(h: HostMapa) {
   };
   function pintarMini(v: Vista, ms: Marcador[]): void {
     const g = lm.g, t = lm.ancho, c = t / 2, r = c - 2;
+    if (t < 8) return; // U20: hidden by the density dial (Mínimo) it has no size: draw nothing (and no negative radius)
     g.clearRect(0, 0, t, t);
     g.save(); g.beginPath(); g.arc(c, c, r, 0, Math.PI * 2); g.clip();
     if (corte > 0 && imagen && imagen.corte > 0) { // U14: the floor plan (picture + cut) instead of footprints

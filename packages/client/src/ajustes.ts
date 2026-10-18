@@ -16,6 +16,7 @@ import { GRUPOS_MOTOR } from "./ajustes-motor.ts";
 export * from "../../feature/src/ajustes.ts";
 export * from "./capacidades.ts";
 export { AJUSTES_MOTOR, GRUPOS_MOTOR } from "./ajustes-motor.ts";
+export * from "./densidad.ts"; // U20: the density dial (levels, the table of panels)
 
 export type Origen = { de: "motor" } | { de: "funcion" | "mundo"; id: string; nombre?: string; describe?: string };
 /** A setting as the menu and agents read it (plain JSON). */

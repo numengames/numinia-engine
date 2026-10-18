@@ -32,6 +32,7 @@ export const leerAjuste = (id: string): Valor | undefined => activo?.get(id);
 
 /** Typing in a box belongs to the box, not to the world: J3's one rule for every key listener of the page. */
 import { escribiendo } from "./escribiendo.ts";
+import { montarDensidad } from "./densidad.ts"; // U20: the density dial
 export { escribiendo };
 /** Inside the menu, O closes it unless the key is text being typed. */
 const escribeTexto = (t: EventTarget | null): boolean => {
@@ -125,6 +126,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   a.alAplicar("accesibilidad.anunciar", (v) => { $("avisos")?.setAttribute("aria-live", v === true ? "polite" : "off"); }); // safety notices (assertive) always
   a.alAplicar("interfaz.tamano", (v) => { html.style.setProperty("--ui", String(Number(v) / 100)); });
   a.alAplicar("interfaz.ayuda", (v) => { const h = $("help"); if (h) h.hidden = v !== true; });
+  montarDensidad(a); // U20: which panels show at Mínimo / Normal / Completo (key U); the panels' look is tema.css
   // V7 «menos movimiento»: the features' hops are skipped (their label and announcement still say what happened)
   const rebote = view.bounce;
   view.bounce = (...args: Parameters<View["bounce"]>) => { if (a.get("accesibilidad.menosMovimiento") !== true) rebote(...args); };
@@ -151,7 +153,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   };
   Object.assign(o.numinia, { ajustes: api, capacidades: caps.valores });
   const help = $("help");
-  if (help && !caps.valores.punteroGrueso) help.textContent += " · O ajustes";
+  if (help && !caps.valores.punteroGrueso) help.textContent += " · O ajustes · U densidad";
   if (!dlg || !boton || !lista || !estado) { console.warn("[ajustes] faltan #ajustes, #ajustes-abrir, #ajustes-grupos o #ajustes-estado en la página"); return api; }
 
   let espera: ReturnType<typeof setTimeout> | undefined;

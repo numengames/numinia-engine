@@ -223,3 +223,26 @@ button[data-pulsado]:is(#u26#u26, button):not(:disabled), [role="button"][data-p
   transform: scale(.94); transition: transform 60ms ease-out;
 }
 html.menos-movimiento [data-pulsado]:is(#u26#u26, button, [role="button"]) { transform: none !important; }
+
+/* ---- U20: the density dial. apps/plaza/densidad.ts stamps each panel with data-densidad (the lowest level that shows it),
+   data-cuando and data-solo, and puts the level on <html data-densidad-nivel>. Hiding is only this CSS (nothing per frame);
+   a frame U3 builds declares the same attributes and needs no new rule. ---- */
+html[data-densidad-nivel="minimo"] [data-densidad="normal"], html[data-densidad-nivel="minimo"] [data-densidad="completo"],
+html[data-densidad-nivel="normal"] [data-densidad="completo"] { display: none !important; }
+html[data-densidad-nivel="minimo"] [data-solo]:not([data-solo~="minimo"]), html[data-densidad-nivel="normal"] [data-solo]:not([data-solo~="normal"]),
+html[data-densidad-nivel="completo"] [data-solo]:not([data-solo~="completo"]) { display: none !important; }
+/* a touch screen has no key O: in Mínimo the bar keeps only the gear, so the dial can always be turned back */
+@media (pointer: coarse) {
+  html[data-densidad-nivel="minimo"] #barra-arriba[data-densidad] { display: flex !important; }
+  html[data-densidad-nivel="minimo"] #barra-arriba > :not(#ajustes-abrir) { display: none !important; }
+}
+/* al_cambiar: the chat's lines show with each new line and fade after 6 s in Normal (Mínimo: folded to the pill; Completo: fixed,
+   a taller list). «Menos movimiento»: nothing fades, it stays fixed. The open box (Enter) or the pointer over it keeps it shown. */
+html[data-densidad-nivel="normal"] #chat-lista { max-height: calc(4 * 1.45em); } /* four lines (the box adds its own padding) */
+html[data-densidad-nivel="normal"]:not(.menos-movimiento) #chat-lista[data-cuando="al_cambiar"]:not(.reciente):not(:hover) { opacity: 0; pointer-events: none; transition: opacity .6s ease; }
+html[data-densidad-nivel="normal"]:not(.menos-movimiento) #chat:has(#chat-form:not([hidden])) #chat-lista[data-cuando="al_cambiar"] { opacity: 1; pointer-events: auto; }
+html[data-densidad-nivel="completo"] #chat { width: min(440px, 62vw, calc(100vw - 240px)); }
+html[data-densidad-nivel="completo"] #chat-lista { max-height: min(300px, 38vh); }
+/* the key line sits right of the tall chat, not under it */
+@media (min-width: 900px) { html[data-densidad-nivel="completo"] #help { left: 470px; transform: none; text-align: left; max-width: calc(100vw - 500px) !important; } }
+#chat-boton[data-solo] { align-self: flex-start; }

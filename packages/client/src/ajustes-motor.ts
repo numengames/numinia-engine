@@ -92,6 +92,7 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     describe: "Mover el ratón o la palanca hacia arriba mira hacia abajo, como en un avión.", defecto: false, requiere: ["camara"],
   },
   { grupo: "controles", id: "teclaAjustes", tipo: "tecla", soloVer: true, nombre: "Abrir y cerrar los ajustes", describe: "La tecla que abre este menú. Escape también lo cierra.", defecto: "KeyO" },
+  { grupo: "controles", id: "teclaDensidad", tipo: "tecla", soloVer: true, nombre: "Cambiar la densidad de interfaz", describe: "La tecla que pasa de Mínimo a Normal, a Completo y vuelta.", defecto: "KeyU" },
   { grupo: "controles", id: "teclaBateria", tipo: "tecla", soloVer: true, nombre: "Modo batería", describe: "La tecla que enciende y apaga el modo batería.", defecto: "KeyB" },
   // ---- Accesibilidad (V7, V11, V1): the system's preferences are the first defaults ----
   {
@@ -118,6 +119,12 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     // U26: a short tick when a finger presses a button of the screen (apps/plaza/pulsaciones.ts); only where it can vibrate
     grupo: "interfaz", id: "vibrar", tipo: "bool", nombre: "Vibrar al tocar un botón", requiere: ["vibracion", "tactil"],
     describe: "Un toque corto del aparato al pulsar un botón de la pantalla con el dedo.", defecto: true,
+  },
+  {
+    grupo: "interfaz", id: "densidad", tipo: "eleccion", nombre: "Densidad de interfaz",
+    describe: "Cuánto se ve mientras juegas. Mínimo: la misión de ahora, el chat plegado y la acción de lo que miras. Cambia al vuelo con U.",
+    opciones: [{ valor: "minimo", nombre: "Mínimo" }, { valor: "normal", nombre: "Normal" }, { valor: "completo", nombre: "Completo" }],
+    defecto: "normal",
   },
   { grupo: "interfaz", id: "ayuda", tipo: "bool", nombre: "Ayuda de teclas", describe: "La línea de abajo que dice qué tecla hace qué.", defecto: true },
   // U25: the device profile, forced (development or ?debug only: `desarrollo`). The page decides it once before the
