@@ -10,7 +10,7 @@
 // that height (view.cenital) as the minimap's background too, and the cut's walls and columns as lines over it. The
 // picture is made when the minimap first needs it, then again only when the zone changes (at most every IMAGEN_MS),
 // never in XR (this clock stops there); until it exists, the minimap draws only what stands under the cut.
-import { proyectar, desproyectar, anguloFlecha, yawDePaso, alBorde, enPalabras, crearLimitador, crearRegistro, reunir, contar, cercanos, firma, matrizImagen, segmentosEnVista } from "../../packages/client/src/mapa.ts";
+import { proyectar, desproyectar, anguloFlecha, anguloBorde, yawDePaso, alBorde, enPalabras, crearLimitador, crearRegistro, reunir, contar, cercanos, firma, matrizImagen, segmentosEnVista } from "../../packages/client/src/mapa.ts";
 import type { Vista, Marcador, Tipo, Fuente, Entrada } from "../../packages/client/src/mapa.ts";
 import type { ImagenCenital, Huella } from "../../packages/render/src/index.ts";
 import { bajoElCorte } from "../../packages/render/src/corte.ts";
@@ -265,8 +265,12 @@ export function montarMapa(h: HostMapa) {
       const ti = reg.tipo(m.tipo);
       let p = proyectar(v, m.x, m.z);
       const b = alBorde(p.px, p.py, c, c, r - ti.tam - 2);
-      if (b.fuera) { if (!ti.alBorde) continue; p = b; }
-      forma(g, ti, p.px, p.py, b.fuera ? ti.tam * 0.8 : ti.tam, m.tipo === "tu" ? anguloFlecha(v.giro, m.yaw ?? 0) : 0);
+      let dibujo = ti, ang = m.tipo === "tu" ? anguloFlecha(v.giro, m.yaw ?? 0) : 0;
+      if (b.fuera) {
+        if (!ti.alBorde) continue;
+        p = b; ang = anguloBorde(b.px, b.py, c, c); dibujo = { ...ti, forma: "flecha" }; // GPS-style: point the way, not just a pinned dot
+      }
+      forma(g, dibujo, p.px, p.py, b.fuera ? ti.tam * 0.8 : ti.tam, ang);
       vistos[m.tipo] = (vistos[m.tipo] ?? 0) + 1;
     }
     g.restore();

@@ -32,6 +32,10 @@ export function alBorde(px: number, py: number, cx: number, cy: number, r: numbe
   return { px: cx + (dx / d) * r, py: cy + (dy / d) * r, fuera: true };
 }
 
+/** Screen angle (rad, clockwise from up, for `forma`'s «flecha») an edge-pinned marker points: from the map's centre
+ * (cx, cy) toward where it really is (px, py) — a GPS-style «go this way», not just a static dot at the rim. */
+export const anguloBorde = (px: number, py: number, cx: number, cy: number): number => Math.atan2(px - cx, -(py - cy));
+
 /** U14: the canvas transform (a, b, c, d, e, f, for ctx.transform) that lays a picture of the zone — `px` pixels square
  * over x0..x1 × z0..z1 metres, north up — under a map view, turned and scaled like everything else drawn on it. */
 export function matrizImagen(v: Vista, img: { x0: number; z0: number; x1: number; z1: number; px: number }): [number, number, number, number, number, number] {
