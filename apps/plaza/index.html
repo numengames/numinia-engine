@@ -4,10 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
   <title>Mundo</title>
-  <!-- Guardar en la biblioteca del Quest (o «Añadir a pantalla de inicio»): icono + apertura a pantalla completa sin barra de direcciones -->
-  <link rel="manifest" href="./manifest.webmanifest" />
-  <link rel="icon" href="./iconos/numinia-192.webp" type="image/webp" />
-  <meta name="theme-color" content="#14181e" />
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; background: #c9d8e4; font: 13px/1.45 system-ui, sans-serif; }
     canvas { display: block; touch-action: none; }
@@ -158,6 +154,7 @@
   <div id="avisos-pila" aria-hidden="true"></div><!-- U3: the notices of #avisos, for eyes: ≤ 3, 6 s (avisos.ts) -->
   <section id="pesca-hud" hidden></section>
   <section id="dardos-hud" hidden></section>
+  <section id="video-mandos" hidden></section>
   <div id="joy"><div id="knob"></div></div>
   <section id="chat" aria-label="Chat">
     <ol id="chat-lista" role="log" aria-live="polite" aria-label="Mensajes del chat"></ol>
