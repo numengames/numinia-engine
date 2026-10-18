@@ -192,6 +192,7 @@ Todo cambio pasa por el servidor (`features/objetos`) y llega a todos al momento
 | Doble clic jugando | Abre construir con ese objeto seleccionado (U10) |
 | Inspector de un sonido o un vídeo | «Se oye en»: solo dentro de la burbuja, toda la zona o todo el mundo; «Radio de la burbuja (m)» (U11) |
 | Barra sobre el objeto | Coger, Mover, Girar, Escalar, Duplicar y 🗑 Borrar, encima de lo seleccionado (U10) |
+| Con el dedo (móvil) | Toca un objeto: lo seleccionas; arrástralo: lo mueves por el suelo y por encima de otras cosas (el dedo no lo tapa: se queda donde lo cogiste). Un dedo en el vacío mueve la cámara, dos la acercan. En «Mover» no hay asas: el objeto es la asa. Girar y escalar: los botones de encima y «Pasos con botones» (dos dedos llegan en M22b-2). El panel es una hoja abajo (M22b-1) |
 | Botones derecho y central, rueda | La cámara (rama de la cámara, N1) |
 
 U10: además de modelos .glb se suben (botón o soltando el fichero) **imágenes** .png .jpg .webp (un cuadro de pie),
