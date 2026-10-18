@@ -15,7 +15,7 @@ export const DISPARADORES_MAX = 64;
 export const RECEPTORES_MAX = 8;
 export const COOLDOWN_MAX_S = 3600;
 export const TICK_HZ = 20;
-export const ACCIONES = ["muestra", "oculta", "teletransporta", "da_paso", "abre_enlace", "suena"] as const;
+export const ACCIONES = ["muestra", "oculta", "teletransporta", "da_paso", "abre_enlace", "suena", "vuelve_a_seguro"] as const;
 export type Accion = (typeof ACCIONES)[number];
 
 const ID = { kind: "text", maxBytes: 16 } as const;
@@ -65,5 +65,22 @@ export const disparadores = defineFeature({
       announce: "silent",
     },
     rechazado: { describe: "No disparó, y por qué (lejos, todavía no, ya se usó, no hay tal disparador).", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
+    // D-041 historias 3-4: the cable's own actions (no other feature owns moving someone or sounding a note); `da_paso`
+    // goes to features/misiones instead (api.listen), so it has no event here.
+    teletransportado: {
+      describe: "El receptor «teletransporta» te ha puesto en otro sitio del mundo. Solo para quien se movió.",
+      fields: { quien: QUIEN, x: X, y: Y, z: X },
+      announce: { text: "Has aparecido en otro sitio.", sound: "magia", importance: 1, who: "quien" },
+    },
+    enlace: {
+      describe: "El receptor «abre_enlace» te pregunta si quieres abrir una dirección web en una pestaña nueva. Solo para quien lo disparó; la página pregunta antes de abrir nada.",
+      fields: { quien: QUIEN, enlace: { kind: "text", maxBytes: 200 } },
+      announce: { text: "¿Abrir este enlace? {enlace}", sound: "aviso", importance: 1, who: "quien" },
+    },
+    sonido: {
+      describe: "El receptor «suena» ha sonado, para quien esté cerca del disparador (CERCA_M). El motor hoy tiene un aviso fijo; el nombre que pidió el mundo viaja en el texto para quien lee en vez de oír.",
+      fields: { sonido: { kind: "text", maxBytes: 32 } },
+      announce: { text: "Suena: {sonido}.", sound: "aviso", importance: 0 },
+    },
   },
 });

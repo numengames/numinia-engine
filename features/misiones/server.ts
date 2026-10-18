@@ -7,7 +7,7 @@ import type { ServerApi, ServerPart } from "../../packages/feature/src/index.ts"
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
 import { cargarAventura, corta, LIM } from "./formato.ts";
 import type { Accion, Aventura, Fichero, Mision, Opcion, Pnj } from "./formato.ts";
-import { abandonar, aceptar, enTexto, esperaLlegada, leerProgreso, marcas, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
+import { abandonar, aceptar, enTexto, esperaLlegada, HECHAS_MAX, leerProgreso, marcas, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
 import type { Hecho, Progreso } from "./maquina.ts";
 import { esperando, faltaEspera, pendiente, proximaEspera } from "./maquina.ts"; // U14 (5): steps that wait
 import type { Suceso } from "./maquina.ts";
@@ -227,6 +227,35 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       const k = claveDe.get(e);
       claveDe.delete(e); llegadas.delete(e); esperas.delete(e);
       if (k && ![...claveDe.values()].includes(k)) progresos.delete(k); // saved in the store already
+    });
+    // D-041 historia 4: the cable's receiver `da_paso` names a mission and a step and jumps straight there (taking the
+    // quest first if `quien` did not have it), unlike the natural play path above: the world's own file asked for
+    // it, so no door, no person and no distance are checked. Never goes backwards; a mission already done is left as is.
+    api.listen("disparadores", "accion", (m) => {
+      if (m.accion !== "da_paso") return false;
+      const mis = A.misiones.get(String(m.mision));
+      const e = Number(m.quien);
+      if (!mis) { api.log(`[disparadores→misiones] el cable pide da_paso de «${String(m.mision).slice(0, 32)}» y no existe esa misión`); return true; }
+      let p = prog(e);
+      if (!p.activas[mis.id] && !p.hechas.includes(mis.id)) {
+        const r = tomar(e, p, mis);
+        if (!r.ok) { api.log(`[disparadores→misiones] el cable no pudo darle «${mis.id}» a e${e}: ${r.motivo}`); return true; }
+        p = prog(e); // tomar saved it; re-read so `act` below sees the just-accepted quest
+      }
+      const act = p.activas[mis.id];
+      if (!act) return true; // already finished: nothing to jump to
+      const destino = Math.max(0, Math.min(Math.round(Number(m.paso)), mis.pasos.length));
+      if (destino <= act.paso) return true; // the cable only moves a quest forward
+      act.paso = destino; act.hechos = [];
+      const completada = destino >= mis.pasos.length;
+      if (completada) {
+        delete p.activas[mis.id];
+        if (!p.hechas.includes(mis.id)) p.hechas.push(mis.id);
+        if (p.hechas.length > HECHAS_MAX) p.hechas.splice(0, p.hechas.length - HECHAS_MAX);
+        if (p.seguida === mis.id) p.seguida = Object.keys(p.activas)[0] ?? "";
+      }
+      tras(e, p, [{ mision: mis.id, paso: destino - 1, completada }]);
+      return true;
     });
     api.on("aceptar", (e, msg) => {
       const m = A.misiones.get(String(msg.mision));

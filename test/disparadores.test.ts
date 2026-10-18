@@ -16,6 +16,8 @@ import { crearDisparadores, leerDisparador, leerDisparadores, leerReceptor } fro
 import { crearCliente as clienteDisparadores, tapa } from "../features/disparadores/client.ts";
 import { crearObjetos } from "../features/objetos/server.ts";
 import { crearCliente as clienteObjetos } from "../features/objetos/client.ts";
+import { crearMisiones } from "../features/misiones/server.ts";
+import { crearSuelo } from "../features/suelo/server.ts";
 import funciones from "../features/servidor.ts";
 import paginas from "../features/cliente.ts";
 import limits from "../limits.json" with { type: "json" };
@@ -62,6 +64,7 @@ test("D-041: each line of disparadores.json is checked, and a bad one is left ou
   assert.match(String(leerReceptor({ accion: "da_paso", mision: "La Misión" })), /mision/);
   assert.match(String(leerReceptor({ accion: "muestra" })), /objeto/);
   assert.deepEqual(leerReceptor({ accion: "teletransporta", x: 9999, z: 2 }), { accion: "teletransporta", x: 2000, y: 0, z: 2 });
+  assert.deepEqual(leerReceptor({ accion: "vuelve_a_seguro" }), { accion: "vuelve_a_seguro" });
   const d = leerDisparador({ id: "ok", tipo: "boton", x: 1, z: 2, radio: 99, cooldown: 99999, un_solo_uso: "sí", receptores: [{ accion: "suena", sonido: "din" }] });
   assert.ok(typeof d === "object");
   assert.deepEqual({ alcance: d.alcance, radio: d.radio, cooldown: d.cooldown, unSoloUso: d.unSoloUso, frase: d.frase }, { alcance: 16, radio: 0.5, cooldown: 3600, unSoloUso: false, frase: "pulsar Botón" });
@@ -118,7 +121,7 @@ test("D-041 button: pressed from close by, refused from afar, cooldown says «to
   assert.ok(log.some((l) => /\[disparadores\] .* pulsa Botón rojo \(1\)/.test(l)), log.join("\n"));
 });
 
-test("D-041 zone: entering fires once per entry, one use only spends it, a receiver nobody owns is logged", () => {
+test("D-041 zone: entering fires once per entry, one use only spends it, and its receivers (oculta, teletransporta) both run", () => {
   const { pages: [a, b], pump, place, log } = mundo(2);
   pump(3);
   assert.ok(a.o.colocar("bloque").ok); pump(2);
@@ -131,18 +134,71 @@ test("D-041 zone: entering fires once per entry, one use only spends it, a recei
   assert.match(String(eventos(a.s, "disparadores", "disparado").at(-1)?.msg.texto), / entra en Umbral$/);
   assert.equal(eventos(b.s, "disparadores", "disparado").length, 1, "b, 20 m away, hears it (CERCA_M)");
   assert.equal(farola(b.s)?.oculto, true, "the receiver `oculta` hid the lamp");
-  assert.ok(log.some((l) => /nadie hace «teletransporta»/.test(l)), "the receiver of a later story is said, not dropped");
+  // D-041 historia 3: the zone's other receiver, `teletransporta`, really moves whoever entered
+  assert.equal(eventos(a.s, "disparadores", "teletransportado").length, 1, "the receiver `teletransporta` really moved a");
+  const ta = eventos(a.s, "disparadores", "teletransportado").at(-1)!.msg;
+  assert.ok(Math.abs(Number(ta.x) - 1) <= 2 && Math.abs(Number(ta.z) - 2) <= 2, `landed near (1, 2): got (${ta.x}, ${ta.z})`);
+  assert.equal(eventos(b.s, "disparadores", "teletransportado").length, 0, "only the one who entered is moved");
   // leave and come back: spent
   place(a.s.entity, 0, 0); pump(2); place(a.s.entity, -20, 0); pump(3);
   assert.equal(z().usos, 1, "one use only");
   assert.equal(eventos(a.s, "disparadores", "rechazado").length, 0, "a zone never nags");
 });
 
-test("D-041: the simulation never hears of it (its fingerprint is the same with and without the cable)", () => {
-  const con = mundo(2), sin = (() => { const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [chatServer], identitySign: sign }); const ts = [inst.join(0), inst.join(1)]; return { inst, pump: (n = 2) => { for (let i = 0; i < n; i++) { for (const t of ts) t.flush(); inst.tick(); for (const t of ts) t.flush(); } }, place: (e: number, x: number, z: number) => { inst.sim.tf.cols.x[e] = fx(x); inst.sim.tf.cols.z[e] = fx(z); } }; })();
+test("D-041: the cable's bookkeeping never touches the simulation (same fingerprint with and without it, a trigger that only shows/hides an object)", () => {
+  const con = mundo(2, [BOTON]), sin = (() => { const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [chatServer], identitySign: sign }); const ts = [inst.join(0), inst.join(1)]; return { inst, pump: (n = 2) => { for (let i = 0; i < n; i++) { for (const t of ts) t.flush(); inst.tick(); for (const t of ts) t.flush(); } }, place: (e: number, x: number, z: number) => { inst.sim.tf.cols.x[e] = fx(x); inst.sim.tf.cols.z[e] = fx(z); } }; })();
   con.pump(3); sin.pump(3);
   con.place(con.pages[0].s.entity, 12.5, 0.5); sin.place(con.pages[0].s.entity, 12.5, 0.5); con.pump(2); sin.pump(2);
   con.pages[0].d.pulsar("rojo"); con.pump(4); sin.pump(4);
   con.place(con.pages[0].s.entity, -20, 0); sin.place(con.pages[0].s.entity, -20, 0); con.pump(4); sin.pump(4);
   assert.equal(con.inst.hash(), sin.inst.hash());
+});
+
+test("D-041 historia 4: da_paso starts and jumps a mission, abre_enlace asks the presser, suena reaches who is near, vuelve_a_seguro asks the instance", () => {
+  const MIS = {
+    formato: "mision@1", id: "m1", titulo: "Prueba", descripcion: "d",
+    textos: { aceptada: "Vamos", completada: "Fin" },
+    pasos: [
+      { id: "p0", tipo: "llega_a", texto: "Paso 1", x: 0, z: 0, lugar: "aquí" },
+      { id: "p1", tipo: "llega_a", texto: "Paso 2", x: 0, z: 0, lugar: "aquí" },
+    ],
+  };
+  const leido = leerDisparadores({
+    disparadores: [{
+      id: "cable", nombre: "Cable", tipo: "boton", x: 0, z: 0, receptores: [
+        { accion: "da_paso", mision: "m1", paso: 2 },
+        { accion: "abre_enlace", enlace: "https://numen.games" },
+        { accion: "suena", sonido: "campana" },
+        { accion: "vuelve_a_seguro" },
+      ],
+    }],
+  });
+  const inst = new Instance({
+    seed: 1, capacity: 8, k: 50, snapshotEvery: 2,
+    features: [
+      chatServer,
+      ...crearMisiones({ aventura: { misiones: [{ fichero: "m1.json", texto: JSON.stringify(MIS) }], pnj: [], cosas: [] } }),
+      crearSuelo({ minimo: -500 }),
+      crearDisparadores({ disparadores: leido.disparadores }),
+    ],
+    identitySign: sign,
+  });
+  const t = inst.join(0);
+  inst.sim.tf.cols.x[t.id ?? 0] = fx(0); inst.sim.tf.cols.z[t.id ?? 0] = fx(0); // next to the button (default spawn is far off)
+  const d = clienteDisparadores();
+  const s = new ClientSession(t, { identity: keeper(), features: [...d.parts], view: { label() {}, bounce() {}, place() {}, here: () => ({ x: 0, y: 0, z: 0 }) } });
+  const pump = (n = 2) => { for (let i = 0; i < n; i++) { t.flush(); inst.tick(); t.flush(); } };
+  pump(3);
+  assert.ok(d.disparadores.pulsar("cable").ok); pump(3);
+  // da_paso: a mission with no prior progress is taken and jumped straight to its last step (so it completes)
+  assert.equal(eventos(s, "misiones", "aceptada").length, 1, "da_paso takes the quest first");
+  assert.equal(eventos(s, "misiones", "completada").length, 1, "paso 2 of a 2-step quest completes it");
+  // abre_enlace: only the presser is asked (never a broadcast)
+  assert.equal(eventos(s, "disparadores", "enlace").length, 1);
+  assert.equal(eventos(s, "disparadores", "enlace").at(-1)?.msg.enlace, "https://numen.games");
+  // suena: reaches whoever is near the trigger (CERCA_M), the world's own sound name travels in the text
+  assert.equal(eventos(s, "disparadores", "sonido").length, 1);
+  assert.equal(eventos(s, "disparadores", "sonido").at(-1)?.msg.sonido, "campana");
+  // vuelve_a_seguro: the instance answered without throwing (suelo narrates it even without sueloMinimo)
+  assert.doesNotThrow(() => d.disparadores.pulsar("cable"));
 });

@@ -836,6 +836,20 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.
 - Commit: ver `git log` (rama `contadores-h3/ola3`).
 - Siguiente: contadores — un contador por persona, piezas desde dentro del mundo; cable D-041.
+## 2026-10-18 15:10 · obrero ola3, cable-h3-4 · hecho
+- Qué: cable `disparadores` historias 3-4 (D-041): los cinco receptores que hasta hoy se oían en el log y se
+  tiraban («nadie hace X») ahora ejecutan de verdad: `teletransporta` (sin animación, hueco libre cerca con
+  `api.teletransportar`) y `vuelve_a_seguro` (`api.volverASeguro`, el mismo verbo que D-045) los oye el propio
+  `disparadores` porque son primitivas del host, no de una función; `suena` emite un evento propio (el motor
+  solo tiene un aviso fijo hoy, el nombre que pide el mundo viaja en el texto para quien lee en vez de oír);
+  `abre_enlace` pregunta solo a quien lo pulsó, nunca abre nada sin que la página confirme antes; `da_paso`
+  (mision, paso) lo oye `features/misiones` (`api.listen`), toma la misión si hacía falta y salta de un golpe
+  al paso pedido, sin retroceder nunca. De paso, `vuelve_a_seguro` entra en `ACCIONES` (cambio aditivo).
+- Números: `npm test` sobre `test/disparadores.test.ts` + `misiones*.test.ts` + `suelo.test.ts` +
+  `teletransporte.test.ts`: 59 pruebas, 59 en verde. El resto de `npm test` (23 ficheros) falla igual con y sin
+  esta rama por falta del paquete `three` en este entorno — nada tocado por esta historia.
+- Consumo: sin medir · Sonnet 5.
+- Siguiente: cable historias 5-6 (botón/zona con fases, etiqueta en móvil) quedan para otro obrero.
 ## 2026-10-18 · cable-h5-6 · hecho (rama `cable-h5-6/ola3`)
 - Qué: cable (D-041), historias 5-6. Vista del constructor: `apps/plaza/cable.ts` añade al panel de construir una
   lista de solo lectura de los disparadores del mundo (nombre, tipo, en espera/agotado/listo, usos) con un botón
