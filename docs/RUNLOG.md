@@ -1007,3 +1007,24 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Siguiente: Pablo decide la PR (hueco de PR único en numinia-engine; Y1 también espera) y el consentimiento
   (§6 del diseño: avisar a quien sale «X ha sacado el Graboso»). Después: conectar con Y1, voces de otros en
   el clip, modelo fino, VR, compartir (M18c).
+
+## 2026-10-18 18:21 · lucha-l2-estados-jugador · hecho (trozo 1)
+- Qué: L2, primera historia: vida del jugador en memoria del servidor (`features/lucha/server.ts`). Cada golpe
+  que el jugador aterriza, la criatura golpea de vuelta con la misma tirada (`DANO_BASE..DANO_BASE+DANO_VAR-1`,
+  PRNG con semilla: reproducible); `VIDA_JUGADOR_MAX` (50, por encima de lo que cuesta matar al Guardián de
+  Crisálida en una pelea normal: no rompe el combate de L1) baja en memoria, sin estado compartido ni HUD (eso
+  es la siguiente historia de L2, con el diseño de canon Desestabilizado→Colapsado→Aletargado de
+  `docs/BACKLOG.md` fila L2). A 0, el jugador cae (`caido`): `golpear` se rechaza hasta que pasan
+  `REAPARICION_JUGADOR_TICKS` (100 = 5 s a 20 Hz), y entonces vuelve entero. Eventos nuevos `jugadorHerido`,
+  `jugadorCaido`, `jugadorVuelve` (solo al propio jugador); `client.ts` los escucha para que las pruebas los
+  vean (sin dibujar nada aún, por diseño).
+- Números: `test/lucha.test.ts` 10/10 (2 nuevas: herido→caído→reaparece, y mismo seguimiento con sha256 igual
+  en dos mundos con la misma semilla). `npm test` con `node_modules` enlazado del clon base: 773/774 (el único
+  rojo, `misiones-secuencia.test.ts` p99 de un gate de carga, es el conocido por contención de CPU — solo,
+  8/8 verde; sin ese enlace, los 23 fallos preexistentes por falta del paquete `ws` en este worktree, iguales
+  antes y después). `npm run build`: verde (842 ms).
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `ko/t_32744f07` sobre `origin/tren/motor-2026-10-18-6`, PR contra ese tren.
+- Siguiente: la siguiente historia de L2 (HUD, velocidad, vuelta a `aparicion`, estado compartido por
+  invitado) cuando la pida el tablero; L3 (la criatura se mueve y persigue) sigue esperando a L2 entero.
+
