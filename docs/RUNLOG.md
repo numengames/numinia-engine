@@ -794,3 +794,16 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Choques arreglados en un commit aparte: «Nombres» pasa al menú «…» en móvil; los avisos no tapan la barra ni el minimapa; el engranaje de Mínimo con perfil táctil forzado.
 - Versión **0.9.0 → 0.10.0** (menor): ajustes y piezas nuevos, nada se rompe. Las ramas traían 0.6.2–0.6.5 y 0.8.0; rebasada sobre `main` 0.9.0 (#49, #50, #60), una sola subida (`docs/VERSIONES.md`).
 - Consumo: sin medir · Sonnet 5.5.
+## 2026-10-18 · cable-h5-6 · hecho (rama `cable-h5-6/ola3`)
+- Qué: cable (D-041), historias 5-6. Vista del constructor: `apps/plaza/cable.ts` añade al panel de construir una
+  lista de solo lectura de los disparadores del mundo (nombre, tipo, en espera/agotado/listo, usos) con un botón
+  «Probar» para disparar un botón sin acercarse (para comprobar el cableado). Editar los receptores sigue siendo
+  editar `disparadores.json` antes de arrancar: el servidor no lo reescribe en marcha y la página no recibe los
+  receptores (no son un secreto, solo no viajan todavía); la duda de si merece la pena un editor en vivo queda en
+  `PREGUNTAS-cable-h5-6.md` para Pablo. E2E de extremo a extremo: `tools/e2e-piernas/cable.mjs`, mundo propio
+  (8798/5180) con un botón que muestra una «Farola» oculta — pulsar, ver el cambio en dos pestañas, el cooldown
+  rechazando un segundo disparo y «Probar» desde el panel disparándolo de nuevo tras esperar.
+- Números: `npm test` 625/625 en verde; `npm run build` verde; e2e (`node tools/e2e-piernas/cable.mjs`) OK.
+- Consumo: sin medir · Sonnet 5 (obrero ola 3).
+- Siguiente: si Pablo quiere editar el cableado en vivo (no solo verlo), hace falta mandar los receptores al
+  cliente constructor y un camino para reescribir `disparadores.json` con la instancia corriendo.
