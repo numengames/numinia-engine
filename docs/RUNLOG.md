@@ -812,3 +812,16 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Siguiente: cable (D-041) todavía no tiene un receptor `mueve` para disparar un movedor desde un botón o una zona
   (lo deja para la historia del cable, que toca `ACCIONES` en `features/disparadores/feature.ts`); medir el coste
   real de publicar varios movedores a la vez bajo carga (PUBLICA_CADA_TICKS=4 es una estimación, no una medida).
+## 2026-10-18 14:57 · contadores-h3 · hecho
+- Qué: D-044 historia 3. `features/contadores` gana `state.persist: true` (S4): el valor y si está en marcha
+  sobreviven a un reinicio (al arrancar lee lo guardado antes de usar `inicio` del fichero). Contador
+  `"variante": "equipo"` (campo nuevo en `contadores.json`, por defecto `ninguna`): cada orden lleva `equipo`
+  (1-16 letras minúsculas/cifras/guiones, nombre libre — no una lista que declare el fichero) y el servidor
+  crea ese equipo la primera vez que se nombra, clave `id:equipo`, hasta `EQUIPOS_MAX` (8) por contador; el chat
+  toma `/contador <id>:<equipo> …`. Queda sin hacer (EXTENDER.md): un contador por persona, poner/quitar
+  contadores desde dentro del mundo, y el cable (D-041) con `llegada`.
+- Números: 12 pruebas de `contadores.test.ts` (antes 9), 628 en total (627 bien + 1 flaky de `misiones.test.ts`,
+  ajeno: p99 de carga, reproducido en verde aislado); capas OK; bandwidth y plaza de 1.000 OK.
+- Consumo: sin medir · Sonnet 5.
+- Commit: ver `git log` (rama `contadores-h3/ola3`).
+- Siguiente: contadores — un contador por persona, piezas desde dentro del mundo; cable D-041.
