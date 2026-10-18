@@ -85,7 +85,10 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   };
 
   // ---- the book: sent whole on entering and after each change, only to its owner ----
-  const recompensa = (m: Mision) => corta(m.recompensas.map((r) => `${r.tipo === "objeto" ? "Objeto" : "Insignia"} «${r.nombre}»`).join(", "), 120); // N10: an «objeto» is a digital good of yours
+  const nombreSemilla = (r: { color: string; n: number }) => `Semilla ${r.color}${r.n > 1 ? ` ×${r.n}` : ""}`;
+  /** Y1: what goes to the inventory (misiones never stores objects): one server-only `otorga` per Semilla reward; whoever listens (inventario) keeps it. */
+  const otorgar = (e: number, m: Mision) => { for (const r of m.recompensas) if (r.tipo === "semilla") M!.emit("otorga", { quien: e, tipo: "token", clase: "semilla", nombre: `Semilla ${r.color}`, color: r.color, n: r.n }, "server"); };
+  const recompensa = (m: Mision) => corta(m.recompensas.map((r) => (r.tipo === "semilla" ? nombreSemilla(r) : `${r.tipo === "objeto" ? "Objeto" : "Insignia"} «${r.nombre}»`)).join(", "), 120); // N10: an «objeto» is a digital good of yours
   // `paso` = the first step still to do; inside a grupo the others of its block are to do too (each `paso` says its
   // grupo, and `hecho` is true for what is already done in the block); `espera` = the seconds a step to do still waits
   const enviarMision = (to: number, p: Progreso, m: Mision, t: number) => {
@@ -134,6 +137,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
         M!.emit("avance", { mision: m.id, texto }, { to: x });
         if (h.completada) M!.emit("completada", { mision: m.id, titulo: m.titulo, texto: m.textos.completada, recompensa: recompensa(m) }, { to: x });
       }
+      if (h.completada) otorgar(e, m);
     }
     enviarLibro(e);
     revisarLlegadas(e);

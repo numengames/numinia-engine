@@ -4,6 +4,7 @@
 // Sections come from a registry: a feature or an adventure adds its own with `__numinia.ficha.seccion(id, {...})`.
 import { duracion } from "../../packages/client/src/mapa.ts";
 import { crearDialogo, anunciar } from "./paneles.ts";
+import { resumenTexto } from "./inventario.ts";
 
 export type HostFicha = {
   session: { entity: number; who: { id: string; nombre: string } | null; stats: { rttMs: number; visible: number } };
@@ -135,5 +136,12 @@ export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
   });
   api.seccion("avatar", { titulo: "Avatar", orden: 60, pintar: (c) => parrafo(c, "Próximamente (fila H10): ver y elegir aquí tu avatar, con su retrato.") });
   api.seccion("inventario", { titulo: "Inventario", orden: 70, pintar: (c) => parrafo(c, "Este mundo no tiene la función bienes: aquí no se guardan objetos tuyos.") }); // N10: apps/plaza/bienes.ts replaces it
+  api.seccion("reserva", {
+    titulo: "Reserva", orden: 71, vivo: true,
+    pintar: (c) => { // Y1: the summary from the inventario contract; the whole Reserva is the R panel
+      const i = h.otros().inventario, r = typeof i?.resumen === "function" ? i.resumen() : null;
+      parrafo(c, r ? resumenTexto(r) + " Pulsa R para verlo entero." : "Este servidor no lleva inventario.");
+    },
+  });
   return api;
 }
