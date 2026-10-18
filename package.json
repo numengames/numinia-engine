@@ -23,6 +23,7 @@
     "deploy": "node tools/build-deploy.mjs",
     "enlaces": "node tools/enlaces.ts",
     "bench": "node packages/server/src/bench.ts",
+    "ci:gates": "node tools/ci-gates.mjs",
     "sesiones": "node packages/server/src/sesiones-ver.ts",
     "concesiones": "node packages/server/src/concesiones.ts",
     "bienes": "node packages/server/src/bienes.ts",

@@ -40,6 +40,8 @@ import { dados } from "../../features/dados/client.ts"; // dados v1: dice the se
 import { montarDados } from "./dados.ts";
 import { contadores } from "../../features/contadores/client.ts"; // D-044: timers and counters everyone sees
 import { montarContadores } from "./contadores.ts";
+import { cerraduras } from "../../features/cerradura/client.ts"; // D-042: a lock that opens with a code (keypad) or a key
+import { montarCerradura } from "./cerradura.ts";
 import { pantallasWeb } from "../../features/web/client.ts"; // N17: web screens (the controller)
 import { montarWeb } from "./web.ts";
 import { montarVoz } from "./voz.ts";
@@ -152,6 +154,8 @@ const soltar = montarSoltar({ session, view, puede: () => constructor.estado.pue
 // ---- U12: holes — click one (or E near it) and choose your picture: it goes up and the server fits it into the frame ----
 const huecos = montarHuecos({ constructor, view, rellenar: soltar.rellenar, decir: (t) => soltar.decir(t), panel: document.getElementById("panel-construir") });
 const cable = montarCable({ constructor, disparadores, decir: (t) => soltar.decir(t), panel: document.getElementById("panel-construir") });
+// ---- D-042: a code lock opens its own keypad (HTML); a key lock keeps the plain J4 flow ----
+const cerradurasPagina = montarCerradura({ cerradura: cerraduras });
 montarEntorno(ambiente, elementos, view); // H4/H8: environment and elements, a section of its own while building
 montarDados({ dados, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) }); // dados v1: the dice card everyone near sees, the dice buttons beside a tower
 const contadoresPagina = montarContadores({ contadores, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) }); // D-044: the counters' panel (the sign in the world is the feature's own label)
@@ -174,7 +178,7 @@ const voz = montarVoz({ session, view: { label: (t, text, ms) => view.label(t, t
 const cajaChat = montarChat(chatDePagina, document.getElementById("chat")!);
 
 // ---- J4/J5: what you can use from close by (E, a click, the prompt button), conversations, the quest book (J) ----
-const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: huecos.cerca, pinchar: huecos.pinchar });
+const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k) && cerradurasPagina.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: (x, z, y) => [...huecos.cerca(x, z, y), ...cerradurasPagina.cerca(x, z)], pinchar: huecos.pinchar });
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
 const xr = montarXR({ session, view, misiones, interaccion }); // J10: hands in VR take, point and answer; what you took is in your hand
 montarDialogo(misiones, document.getElementById("dialogo")!, view);

@@ -1,7 +1,7 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER } from "../../sim/src/index.ts";
 import type { SimState, SpawnArea } from "../../sim/src/index.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
@@ -112,7 +112,7 @@ export class Instance {
 
   // ---- D-045: the last safe spot of each avatar, the orders waiting for the next step, the returns made ----
   private readonly seguro: Int32Array; private readonly tieneSeguro: Uint8Array;
-  private ordenes: number[] = []; // [entity, x, y, z] Q16.16, applied by the next step (recorded: part of the replay)
+  private ordenes: number[] = []; // [entity, tipo, a, b, c, d] Q16.16, applied by the next step (recorded: part of the replay)
   private readonly pendiente = new Set<number>();
   private readonly vueltas: Vuelta[] = [];
   private avisado = false;
@@ -140,7 +140,7 @@ export class Instance {
     if (!this.byEntity[entity] || !s.world.alive[entity] || !s.tf.has[entity] || this.pendiente.has(entity)) return false;
     const d = this.destinoSeguro(entity);
     if (!d) { if (!this.avisado) { this.avisado = true; this.opts.log?.("[suelo] no hay sitio seguro al que volver (ni última posición ni «vuelta» en entorno.json)"); } return false; }
-    this.ordenes.push(entity, d.x, d.y, d.z); this.pendiente.add(entity);
+    this.ordenes.push(entity, ORDER_PONER, d.x, d.y, d.z, 0); this.pendiente.add(entity);
     this.vueltas.push({ entity, x: fxToFloat(d.x), y: fxToFloat(d.y), z: fxToFloat(d.z), motivo });
     return true;
   }

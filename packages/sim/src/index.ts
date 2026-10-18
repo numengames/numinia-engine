@@ -31,10 +31,14 @@ export const BTN_JUMP = 1, BTN_RUN = 2;
 const BTN_KNOWN = BTN_JUMP | BTN_RUN;
 /** Inputs are quadruples [entity, mx, mz, buttons]. */
 export const INPUT_STRIDE = 4;
-/** D-045: orders are quadruples [entity, x, y, z] (Q16.16): the server puts an avatar somewhere on purpose (back to its
- * last safe spot after a fall). They are applied inside `step`, before the inputs, and a replay carries them tick by
- * tick, so the fingerprint of a run with orders is reproducible; a run with none steps exactly as before. */
-export const ORDER_STRIDE = 4;
+/** H2: orders are sextuples [entity, tipo, a, b, c, d] (Int32; positions are Q16.16): the server makes an avatar do
+ * something on purpose (D-045's "put somewhere" was the first one). They are applied inside `step`, before the
+ * inputs, and a replay carries them tick by tick, so the fingerprint of a run with orders is reproducible; a run
+ * with none steps exactly as before. `tipo` ORDER_PONER (1, D-045's quadruple: a,b,c = x,y,z, d unused) puts the
+ * avatar there, still (vy 0, jump spent cleared); more types (QUIETO, EMPUJAR, SENTAR, VOLAR) land in later H2
+ * stories, each adding a branch here without moving PONER. */
+export const ORDER_STRIDE = 6;
+export const ORDER_PONER = 1;
 const NO_ORDERS = new Int32Array(0);
 /** True when the avatar stands on its floor (vertical speed 0, feet at the ground under it). */
 export function onFloor(s: SimState, e: number): boolean {
@@ -200,10 +204,12 @@ export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_OR
   const no = (orders.length / ORDER_STRIDE) | 0;
   const oo = Array.from({ length: no }, (_, i) => i).sort((a, b) => orders[a * ORDER_STRIDE] - orders[b * ORDER_STRIDE]);
   for (const i of oo) {
-    const o = i * ORDER_STRIDE, e = orders[o];
+    const o = i * ORDER_STRIDE, e = orders[o], tipo = orders[o + 1];
     if (!s.world.alive[e] || !s.tf.has[e]) continue;
-    X[e] = fxClamp(orders[o + 1], -BOUND, BOUND); Y[e] = fxClamp(orders[o + 2], -Y_BOUND, Y_BOUND); Z[e] = fxClamp(orders[o + 3], -BOUND, BOUND);
-    VY[e] = 0; AIR[e] = 0; BUF[e] = 0;
+    if (tipo === ORDER_PONER) {
+      X[e] = fxClamp(orders[o + 2], -BOUND, BOUND); Y[e] = fxClamp(orders[o + 3], -Y_BOUND, Y_BOUND); Z[e] = fxClamp(orders[o + 4], -BOUND, BOUND);
+      VY[e] = 0; AIR[e] = 0; BUF[e] = 0;
+    }
   }
   for (const i of order) {
     const o = i * INPUT_STRIDE, e = inputs[o];
