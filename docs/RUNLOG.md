@@ -1074,3 +1074,30 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `avatares/rueda-movimientos` (sobre 4eb6387).
 - Siguiente: probar con un móvil y un mando reales; que los agentes (`packages/agent`) usen la lista entera; que quien
   llega tarde vea un movimiento en curso (estado con `at`, J9); grabar los que UAL1 no trae (aplaudir, señalar…).
+
+## 2026-10-18 19:10 · sonido S3 · hecho
+- Qué: el pool de voces espacializadas (`packages/render/src/audio/voces.ts`, sobre el núcleo de S1). Cada disparo
+  construye su cadena `AudioBufferSourceNode → GainNode → BiquadFilter(lowpass) → PannerNode → bus`; el lowpass nace
+  transparente (22.050 Hz) porque el aire y la oclusión de S11 son exactamente ese filtro. Nada de
+  `THREE.PositionalAudio`: fuerza `panningModel "HRTF"` y su oyente, hijo de la cámara estéreo, tartamudea en VR
+  (three.js #20920); de three.js copiamos solo el patrón de sacar la transformación y el `buffer.slice(0)` antes de
+  `decodeAudioData` (que detacha el ArrayBuffer). Defectos del emisor de Hyperfy v2 (`inverse`, ref 1 m, max 40 m,
+  rolloff 3, cono omni en radianes → grados), con `refDistance > 0` validado: con 0 el modelo `inverse` deja la voz
+  muda para siempre (trampa del spec). Tope de voces por aparato de `limits.json` (`audio_sources` A32/B16/C8/D4) con
+  virtualización NUESTRA (Web Audio no virtualiza): al llegar al tope no se mata, se para guardando el desplazamiento
+  y se reanuda por donde iba; prioridad efectiva `prioridad − 10·(d/maxDistance)` (Priority Distance Factor de Wwise),
+  histéresis de 1 para que dos voces iguales no se releven sin parar, y música y ambiente nunca se roban. HRTF
+  racionado con `audio_hrtf_max` (A24/B16/C12/D6, nuevo y `estimated`): solo las N más cercanas, conmutando con rampa
+  de 8 ms para que no haga clic. Variantes con pesos y variación de tono/volumen a partir de la SEMILLA DEL SERVIDOR
+  (xorshift32 + FNV-1a del id): todos los clientes oyen la misma variante. Cooldown por id (50 ms de defecto) para que
+  veinte disparos juntos no revienten la mezcla. Caché de `AudioBuffer` por URI con tope de 8 MB; las camas largas no
+  se descodifican, van por `MediaElementAudioSourceNode`. `parar`/`pararTodo`/`mover` desconectan los nodos a mano
+  (Web Audio no tiene `dispose()`). El oyente queda escrito (nueve `AudioParam` donde existan, `setPosition`/
+  `setOrientation` en la API vieja) pero SIN enganchar a cámara ni XR: eso es S5.
+- Números: `test/audio-voces.test.ts` nuevo, 14 pruebas en verde. Peso: 482.518 B gz antes de dibujar, los MISMOS que
+  antes del cambio (+0 B: nadie importa `voces.ts` todavía, el empaquetador lo deja fuera). Tres puertas en rojo
+  (pruebas, tick p99, tamaño) que ya están en rojo igual en `origin/main` (ahí 480,9 kB gz > 480 de tope y p99 69 ms):
+  no las toco.
+- Consumo: sin medir · Opus 5.
+- Commit: rama `sonido/voces`, PR contra `sonido/nucleo` (no contra `main`).
+- Siguiente: S4 (migrar `medios.ts` al núcleo) y S5 (enganchar el oyente a la cámara y a la pose del visor).
