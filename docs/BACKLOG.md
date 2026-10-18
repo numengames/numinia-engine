@@ -131,7 +131,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | H9 | Paridad Hyperfy2: subir ficheros arrastrando — por hash, con tope, solo quien construye | hecho | sí |
 | H9b | Subidas: borrar lo que nadie usa y cupo por identidad | espera a H3 | sí |
 | H7 | Paridad Hyperfy2: ajustes del mundo — título, descripción, imagen, escenario, avatar por defecto, abierto a construir, límite de personas | hecho (primer corte: fichero `ficha.json` con avatar y aforo, aviso al lleno; falta el panel) | sí |
-| H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | pendiente | sí |
+| H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | hecho | sí |
 | H13 | Paridad Hyperfy2: nivel de detalle (LOD) de los modelos, generado en la ingesta | espera a M21 | sí |
 | H11 | Paridad Hyperfy2: importar de Hyperfy — `.hyp` → carpeta de app; un mundo entero → carpeta del mundo | espera a M19 | sí |
 | H14 | El mundo en un zip: bajarlo y subirlo en `/mundo` con el código de administración (`mundo-zip.ts`, `zip.ts`); falta: la aventura dentro del zip, la sala de numinia.com | hecho (primer corte) | sí |
@@ -175,7 +175,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | M22 | Constructor en el mundo, en vivo (paridad Hyperfy2): gizmos, duplicar, borrar, deshacer, soltar ficheros, inspector, biblioteca; para personas y agentes de IA, según su rol (el panel mínimo ya existe: H1) | hecho (escritorio; VR y móvil → M22b) | sí |
 | M22b | Constructor en el móvil y en VR — se parte: M22b-1 táctil mínimo (toque selecciona, arrastrar mueve) · M22b-2 gestos de dos dedos, retícula de colocar y hoja inferior · M22b-3 VR con mando · M22b-4 VR con manos y cara «Construir» del reloj · M22b-5 prueba real. Diseño: `work/mmo-browser-study/MODO-CONSTRUCTOR-MOVIL-VR.md` | en curso (M22b-1 hecha 18-10, rama `constructor/tactil-minimo`) | sí |
 | M22b-2 | Móvil: dos dedos giran (Y) / pellizcan (escala) / suben (Y) sobre la cosa tocada y el modo desambigua; colocar de la biblioteca con retícula central + «Colocar aquí» (cluster World Craft); pulsación larga = inspector; radio de gracia 12 px; TransformControls apagado del todo en táctil; hoja inferior oculto·barra·completo y `#barra-objeto` que quepa en 360 px; la barra flotante solo se recoloca con el constructor abierto | espera a M22b-1 | sí |
-| M22b-3 | VR con mando: `pickRayo`/`puntoBajoRayo` en gizmo.ts; `soltar`/`palanca`/fin de agarre en manos.ts; `apps/plaza/constructor-xr.ts`: gatillo corto selecciona, mantenido coge al final del rayo, palanca acerca/aleja y gira, agarre+palanca escala, A duplica, B devuelve; barra flotante 3D a 1,1 m (Panel); fila «Construir» en el menú de muñeca (J18) | espera a M22b-1, J18 | sí |
+| M22b-3 | VR con mando: `pickRayo`/`puntoBajoRayo` en gizmo.ts; `soltar`/`palanca`/fin de agarre en manos.ts; `apps/plaza/constructor-xr.ts`: gatillo corto selecciona, mantenido coge al final del rayo, palanca acerca/aleja y gira, agarre+palanca escala, A duplica, B devuelve; barra flotante 3D a 1,1 m (Panel); fila «Construir» en el menú de muñeca (J18) | en curso (primer corte 18-10: `pickRayo`/`puntoBajoRayo`, seleccionar+coger+mover+soltar con el gatillo, duplicar con el agarre; e2e IWER `tools/e2e-piernas/constructor-vr.mjs`; falta girar/escalar con la palanca, borrar, la barra 3D y la fila del reloj — esa espera a J18) | sí |
 | M22b-4 | VR con manos: pellizco a < 22 cm coge en la mano (sigue posición y giro Y), dos manos escalan, abrir posa; cara «Construir» del reloj con losetas de la biblioteca, Deshacer/Rehacer, Paso; loseta → fantasma a 2 m o cosa en la mano | espera a M22b-3 | sí |
 | M22b-5 | Constructor: 10 min en iPhone, Android y Quest 3S con Pablo (tamaños en mm, umbrales de gesto 6 %/8°, si llega `dblclick` táctil, `vibrate`, gatillo corto/mantenido) → números a `limits.json` | espera a M22b-2, M22b-3 | no |
 | M22c | Constructor: puntos de encaje, selección múltiple y jerarquía | en progreso (encaje + selección múltiple + mover/borrar en grupo, deshacer atómico; faltan caja de arrastre y jerarquía) | sí |
@@ -1134,6 +1134,23 @@ licencia leídos). Se guarda con tu identidad (I1) y lo ven todos; el avatar por
 una función puede poner un avatar solo para la sesión (su `setSessionAvatar`). **Hecho cuando:** e2e: la
 pestaña A cambia de avatar, la B lo ve, y al volver A sigue con él.
 Validar cada VRM subido con `packages/server/src/vrm.ts` (`revisarAvatar`: CC0 dentro del fichero, ≤ 10.000 triángulos; hecho en J1).
+
+**Hecho (18-10, rama `ko/t_fb4535c8`).** Función nueva `features/avatar/` (R-1): intent `elegir` (tipo casa+índice,
+o subido+sha256 de un `.vrm` ya en `/a/`), guardado por identidad (`store`, S4) y espejado a la entidad conectada
+como `state` compartido (todos lo ven; al identificarte, I1 te devuelve tu elección). El servidor solo confía en
+`api.activo` para un subido (el tamaño y la licencia los comprueba la página antes de subir, `vrm.ts` `revisarAvatar`,
+igual que el catálogo de la casa). Botón «Avatar» (top-right, para cualquier visitante, no solo quien construye,
+`apps/plaza/avatar.ts`): lista los avatares de la casa y «Subir tu .vrm…» (mismo camino que H9: hash, HEAD, PUT con
+el billete). `packages/render/src/avatares.ts` gana un gancho `eleccion(clave)` que sustituye el índice fijo por
+entidad (`elegirAvatar`) cuando hay una elección, para ti y para los demás (antes solo se recalculaba para «yo»: B no
+veía cambiar de avatar a A — corregido aquí). Un `.vrm` subido se añade una vez al mismo `catalogo.modelos` que los
+de la casa: `avatares.ts` no necesita un camino nuevo para dibujarlo. **Medido:** 4 pruebas nuevas
+(`test/avatar.test.ts`: elegir y ver el cambio, subido rechazado si no está en el servidor, sobrevive un reinicio);
+`npm test` en verde salvo una puerta de rendimiento ya roja antes de este cambio (`misiones-secuencia.test.ts`,
+flaky en esta máquina); `npm run layers` y `npm run build` en verde (471,5 kB gz, dentro de los 480 del gate D2: el
+`.vrm` grande sigue en el trozo diferido de `avatares-vrm.ts`). **Falta:** e2e real con dos pestañas de Playwright
+(se verificó con la instancia en memoria, no con el navegador); revisarAvatar repetido en el servidor (hoy solo la
+página lo comprueba antes de subir); limpiar un `.vrm` subido que nadie usa ya (H9b).
 
 ### H11 — Importar de Hyperfy (espera a M19)
 Para traer los mundos Numinia de hoy. Un `.hyp` (4 bytes con el tamaño de la cabecera + JSON + ficheros; ver

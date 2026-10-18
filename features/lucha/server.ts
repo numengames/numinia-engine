@@ -1,13 +1,16 @@
-// lucha — server part (v1, L1). The server owns the fight: it places the creatures (a world's lucha.json or the house
-// default), checks reach with the engine's `within`, keeps one cooldown per player as «the tick it may hit again» (no
-// counter ticks down), rolls damage with the engine's seeded PRNG (core rngNext — never Math.random, never Date), lowers
-// coherence in the shared state, dissolves the creature at 0 (it stops being solid: the simulation rebuilds its boxes from
-// the state, as with objetos) and invokes it again REAPARICION_S later. No work when nothing changes: the tick hook only
-// looks at the (usually empty) list of dissolved creatures and returns. The creature does not move or strike yet (L3).
+// lucha — server part (v1, L1 + L2 trozo 1). The server owns the fight: it places the creatures (a world's lucha.json or
+// the house default), checks reach with the engine's `within`, keeps one cooldown per player as «the tick it may hit
+// again» (no counter ticks down), rolls damage with the engine's seeded PRNG (core rngNext — never Math.random, never
+// Date), lowers coherence in the shared state, dissolves the creature at 0 (it stops being solid: the simulation
+// rebuilds its boxes from the state, as with objetos) and invokes it again REAPARICION_S later. No work when nothing
+// changes: the tick hook only looks at the (usually empty) lists of dissolved creatures and fallen players and returns.
+// The creature does not move or chase yet (L3) — but every blow a player lands, it strikes back: the player's own life,
+// kept in server memory only (no shared state, no HUD yet: that is L2's next story), goes down by the same roll. At 0
+// the player falls (`caido`): `golpear` is refused until REAPARICION_JUGADOR_TICKS pass, then they come back whole.
 import { rngNext } from "../../packages/core/src/index.ts";
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
-import { lucha, DANO_BASE, DANO_VAR, ENFRIAMIENTO_TICKS, REAPARICION_S, VER_M } from "./feature.ts";
+import { lucha, DANO_BASE, DANO_VAR, ENFRIAMIENTO_TICKS, REAPARICION_S, VER_M, VIDA_JUGADOR_MAX, REAPARICION_JUGADOR_TICKS } from "./feature.ts";
 import { BESTIARIO } from "./bestiario.ts";
 
 /** The server's tick rate (Hz): cooldown and return are counted in ticks of it. */
@@ -35,7 +38,9 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number } = 
   const rng = new Uint32Array([(opts.semilla ?? 0x10c4a) >>> 0]);
   const criaturas = new Map<string, Criatura>();
   const puedeDesde = new Map<number, number>();   // player → first tick a blow counts again
-  const vuelven = new Map<string, number>();      // dissolved creature → tick it returns
+  const vuelven = new Map<string, number>();       // dissolved creature → tick it returns
+  const vida = new Map<number, number>();          // player → life left (server memory only, L2 trozo 1)
+  const caidos = new Map<number, number>();        // fallen player → tick they come back whole
 
   const lista = (opts.criaturas ?? CRIATURAS_DEFECTO).filter((c) => /^[a-z0-9-]{1,30}$/.test(String(c.id)) && Number.isFinite(c.x) && Number.isFinite(c.z));
   for (const c of lista) {
@@ -49,9 +54,10 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number } = 
   const poner = (key: string, v: Msg) => { const c = criaturas.get(key)!; api.state.set(key, v, { at: { x: c.x, z: c.z } }); };
   const cerca = (key: string) => { const c = criaturas.get(key)!; return { near: { x: c.x, z: c.z }, radius: VER_M }; };
 
-  api.onLeave((e) => puedeDesde.delete(e));
+  api.onLeave((e) => { puedeDesde.delete(e); vida.delete(e); caidos.delete(e); });
 
   api.on("golpear", (e, m) => {
+    if (caidos.has(e)) return rechazar(e, "Estás caído: espera a recuperarte.");
     const key = String(m.objetivo), v = api.state.get(key);
     if (!v || !criaturas.has(key)) return rechazar(e, `No hay ninguna criatura «${key}».`);
     const t = api.tick();
@@ -64,24 +70,37 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number } = 
     if (queda > 0) {
       poner(key, { ...v, coherencia: queda, modo: "alerta" });
       api.emit("golpe", { objetivo: key, de: e, dano, queda }, cerca(key));
-      return;
+    } else {
+      poner(key, { ...v, coherencia: 0, modo: "disuelta", solido: false });
+      api.emit("golpe", { objetivo: key, de: e, dano, queda: 0 }, cerca(key));
+      api.emit("disuelta", { objetivo: key, de: e }, cerca(key));
+      const s = criaturas.get(key)!.reaparicion ?? REAPARICION_S;
+      if (s > 0) vuelven.set(key, t + Math.round(s * HZ));
     }
-    poner(key, { ...v, coherencia: 0, modo: "disuelta", solido: false });
-    api.emit("golpe", { objetivo: key, de: e, dano, queda: 0 }, cerca(key));
-    api.emit("disuelta", { objetivo: key, de: e }, cerca(key));
-    const s = criaturas.get(key)!.reaparicion ?? REAPARICION_S;
-    if (s > 0) vuelven.set(key, t + Math.round(s * HZ));
+    // L2 trozo 1: the creature strikes back with the same roll (the fight's PRNG stream: still replayable).
+    const vidaAntes = vida.get(e) ?? VIDA_JUGADOR_MAX, vidaDespues = Math.max(0, vidaAntes - dano);
+    vida.set(e, vidaDespues);
+    api.emit("jugadorHerido", { dano, vida: vidaDespues }, { to: e });
+    if (vidaDespues === 0) {
+      caidos.set(e, t + REAPARICION_JUGADOR_TICKS);
+      api.emit("jugadorCaido", {}, { to: e });
+    }
   });
 
   api.onTick((t) => {
-    if (vuelven.size === 0) return;                                // nothing dissolved: nothing to do
-    for (const [key, en] of vuelven) {
+    if (vuelven.size > 0) for (const [key, en] of vuelven) {
       if (t < en) continue;
       vuelven.delete(key);
       const v = valorDe(criaturas.get(key)!);
       if (!v) continue;
       poner(key, v);
       api.emit("vuelve", { objetivo: key }, cerca(key));
+    }
+    if (caidos.size > 0) for (const [e, en] of caidos) {
+      if (t < en) continue;
+      caidos.delete(e);
+      vida.set(e, VIDA_JUGADOR_MAX);
+      api.emit("jugadorVuelve", {}, { to: e });
     }
   });
 });

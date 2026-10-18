@@ -84,6 +84,10 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     a.on("disuelta", (m) => { espia?.("disuelta", m); limpiar(String(m.objetivo)); });
     a.on("vuelve", (m) => { espia?.("vuelve", m); });
     a.on("rechazado", (m) => { espia?.("rechazado", m); ultimo = String(m.motivo); avisar(); });
+    // L2 trozo 1: the player's own life stays server-memory-only for now (no HUD yet); just pipe through for tests.
+    a.on("jugadorHerido", (m) => { espia?.("jugadorHerido", m); });
+    a.on("jugadorCaido", (m) => { espia?.("jugadorCaido", m); });
+    a.on("jugadorVuelve", (m) => { espia?.("jugadorVuelve", m); });
   });
   return { part, lucha };
 }

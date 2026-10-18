@@ -1,9 +1,11 @@
-// lucha — declaration (v1, L1). A creature is a thing of the world (state entry WITH `at`, a card and `interact`, like a
-// fishing spot): it has coherence instead of hit points (in Numinia a creature is dissolved, not killed), a solid box the
-// simulation already honours (`solido: true` + bx0…bz1, as objetos does), and you hit it with ONE verb (golpear). The
-// SERVER decides reach, cooldown and damage with the engine's seeded PRNG; the page only asks and shows. PVE only: the
-// target is always a creature (PVP is Pablo's decision, not this file's). In this slice the creature neither moves nor
-// strikes back. Design: mmo-browser-study/SISTEMA-DE-LUCHA-Y-BESTIARIO.md §1; recipe: docs/EXTENDER.md.
+// lucha — declaration (v1, L1 + L2 trozo 1). A creature is a thing of the world (state entry WITH `at`, a card and
+// `interact`, like a fishing spot): it has coherence instead of hit points (in Numinia a creature is dissolved, not
+// killed), a solid box the simulation already honours (`solido: true` + bx0…bz1, as objetos does), and you hit it
+// with ONE verb (golpear). The SERVER decides reach, cooldown and damage with the engine's seeded PRNG; the page
+// only asks and shows. PVE only: the target is always a creature (PVP is Pablo's decision, not this file's). In
+// this slice the creature neither moves nor chases (L3) — but every blow you land, it strikes back: your own life
+// (server memory only, L2 trozo 1) goes down the same way, and at 0 you fall (`caido`) until you come back whole.
+// Design: mmo-browser-study/SISTEMA-DE-LUCHA-Y-BESTIARIO.md §1; recipe: docs/EXTENDER.md.
 import { defineFeature } from "../../packages/feature/src/index.ts";
 
 /** Melee reach (m) beyond the creature's own radius; the J4 slack is added by `within`. */
@@ -18,12 +20,21 @@ export const REAPARICION_S = 20;
 export const VER_M = 40;
 export const MODOS = ["quieta", "alerta", "disuelta"] as const;
 
+/** L2 trozo 1: the player's own life, in server memory only (not shared state yet — that is the HUD story). Every
+ * blow a player lands, the creature strikes back for the same DANO_BASE..DANO_BASE+DANO_VAR-1 roll (same seeded
+ * PRNG stream: replayable). At 0 the player falls (`caido`): no more `golpear` until REAPARICION_JUGADOR_TICKS pass,
+ * then they come back whole. */
+export const VIDA_JUGADOR_MAX = 50;
+/** Ticks a fallen player waits before coming back whole (5 s at HZ=20). */
+export const REAPARICION_JUGADOR_TICKS = 100;
+
 const ID = { kind: "text", maxBytes: 32 } as const;
 const X = { kind: "fixed", min: -2000, max: 2000, step: 0.01 } as const;
 const Y = { kind: "fixed", min: -100, max: 500, step: 0.01, default: 0 } as const;
 const QUIEN = { kind: "int", min: 0, max: 65535 } as const;
 const COH = { kind: "int", min: 0, max: 200 } as const;
 const DANO = { kind: "int", min: 0, max: 20 } as const;
+const VIDA = { kind: "int", min: 0, max: VIDA_JUGADOR_MAX } as const;
 
 export const lucha = defineFeature({
   id: "lucha",
@@ -53,5 +64,8 @@ export const lucha = defineFeature({
     disuelta: { describe: "La criatura se ha disuelto (coherencia 0): deja de ser sólida y desaparece un rato. A quien está a 40 m.", fields: { objetivo: ID, de: QUIEN }, announce: { text: "La criatura se disuelve.", sound: "magia", importance: 2 } },
     vuelve: { describe: "Una criatura disuelta vuelve, entera. A quien está a 40 m.", fields: { objetivo: ID }, announce: { text: "Algo vuelve a tomar forma.", sound: "aviso", importance: 1 } },
     rechazado: { describe: "Lo que pediste no se hizo, y por qué.", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
+    jugadorHerido: { describe: "L2 trozo 1: la criatura te golpea de vuelta cuando la golpeas: cuánto daño y cuánta vida te queda (en memoria del servidor, sin HUD aún). Solo a ti.", fields: { dano: DANO, vida: VIDA }, announce: { text: "Te golpean: −{dano}, te quedan {vida}.", sound: "paso", importance: 1 } },
+    jugadorCaido: { describe: "Tu vida llega a 0: caes. No puedes golpear hasta que te recuperes. Solo a ti.", fields: {}, announce: { text: "Caes.", sound: "error", importance: 2 } },
+    jugadorVuelve: { describe: "Te recuperas del todo tras caer. Solo a ti.", fields: {}, announce: { text: "Te recuperas.", sound: "aviso", importance: 1 } },
   },
 });
