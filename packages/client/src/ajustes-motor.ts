@@ -95,6 +95,12 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     grupo: "controles", id: "zonaMuerta", tipo: "numero", min: 0, max: 50, paso: 5, unidad: "%", nombre: "Zona muerta del mando",
     describe: "Cuánto hay que mover una palanca antes de que cuente. Más: ignora el temblor de palancas gastadas; menos: respuesta más fina.", defecto: 15, requiere: ["camara", "mando"],
   },
+  {
+    grupo: "controles", id: "modoMovimientoVR", tipo: "eleccion", nombre: "Dirección al andar en VR",
+    describe: "Hacia dónde tira la palanca izquierda del visor: tu mirada, tu mando, o tu cuerpo (mirar no cambia el rumbo).",
+    opciones: [{ valor: "mirada", nombre: "Según la mirada" }, { valor: "mando", nombre: "Según el mando" }, { valor: "cuerpo", nombre: "De lado (según el cuerpo)" }],
+    defecto: "mirada", requiere: ["xrVr"],
+  },
   { grupo: "controles", id: "teclaAjustes", tipo: "tecla", soloVer: true, nombre: "Abrir y cerrar los ajustes", describe: "La tecla que abre este menú. Escape también lo cierra.", defecto: "KeyO" },
   { grupo: "controles", id: "teclaDensidad", tipo: "tecla", soloVer: true, nombre: "Cambiar la densidad de interfaz", describe: "La tecla que pasa de Mínimo a Normal, a Completo y vuelta.", defecto: "KeyU" },
   { grupo: "controles", id: "teclaBateria", tipo: "tecla", soloVer: true, nombre: "Modo batería", describe: "La tecla que enciende y apaga el modo batería.", defecto: "KeyB" },
