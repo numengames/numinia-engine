@@ -60,7 +60,27 @@ corrige allí (y en `docs/SABER.md` §2) con la fecha y el aparato.
 
 ## Otras formas de leer el servidor
 
-`GET /metrics.prom` da los mismos números en el formato de texto de Prometheus (nombres con unidades base y `_total` en los contadores, como pide su guía de nombres), para Grafana o cualquier recolector. Sigue sin ser público: Caddy solo expone `/ws` y `/health`.
+`GET /metrics.prom` da los mismos números en el formato de texto de Prometheus (nombres con unidades base y `_total` en los contadores, como pide su guía de nombres), para VictoriaMetrics, Prometheus o cualquier recolector. Si quien pregunta manda `Accept: application/openmetrics-text`, la respuesta es **OpenMetrics 1.0** (mismas cifras; las familias de contador sin `_total`, y termina en `# EOF`); si no, texto 0.0.4 como siempre. Sigue sin ser público: Caddy solo expone `/ws` y `/health`.
+
+**Por qué va lento (B2).** `/metrics` (esquema `metrics@1`: todo lo nuevo se añade, nada cambia de nombre) dice dónde se va el tiempo de cada tick, en ms, sobre los mismos 200 ticks (10 s) que `tickMs`:
+
+| Campo | Qué es |
+|---|---|
+| `fasesTickMs.<fase>` `{p50,p99,peor}` | cada fase de `Instance.tick()`: `entradas` (leer lo que mandó cada uno), `solidos` (rehacer las cajas sólidas, solo cuando una pieza cambia su estado), `simulacion` (el paso), `seguro` (el sitio seguro del suelo, cada medio segundo), `piezas` (todas las piezas juntas), `instantaneas` (lo que se manda, cada dos ticks) |
+| `piezas.<id>` | una entrada por pieza que hace algo dentro del tick, **la más cara primero** (por el p99 de `totalMs`): `totalMs` (la suma de sus ganchos en un tick), `tickMs` (`onTick`), `intentMs` (sus `on(…)`), `vueltaMs` (`onVuelta`), `cercaMs` (mandar sus cosas a quien se acerca) y `errores` (desde el arranque; el log solo dice el primero de cada gancho) |
+| `piezasTotales` | intenciones aceptadas, `descartados` (límite de ritmo), `malos` (mal formados) y errores de todas las piezas, desde el arranque |
+| `proceso.bucleRealMs` | el retraso del bucle de eventos **de verdad**: `bucleMs` menos la resolución del muestreo (`bucleResolucionMs`, 10). cada muestra incluye la resolución (medido con Node 24 en el PC: un servidor sin nadie da `bucleMs.p50` 10,06 y `bucleRealMs.p50` 0,06; con `resolution: 1` el suelo pasa a 1 ms, no a 0, y despierta el proceso 1.000 veces por segundo en vez de 100). `bucleMs` se queda igual para no romper a quien lo lea: **los umbrales se leen sobre `bucleRealMs`** |
+| `proceso.gcAcumulado` | pausas de GC y sus ms **desde el arranque** (nunca baja), y lo mismo por tipo (`minor`, `minor_mark_sweep`, `major`, `incremental`, `weakcb`). `proceso.gc` sigue siendo la ventana de 10 s |
+| `memoriaBytes` | `memoriaMB` en bytes exactos (lo que usa `/metrics.prom`) |
+
+En `/metrics.prom`, histogramas acumulados desde el arranque con **los mismos bordes fijos** (s): 0,0001 · 0,00025 · 0,0005 · 0,001 · 0,0025 · 0,005 · 0,01 · **0,025** (medio tick: el presupuesto del tick) · **0,05** (un tick: el de la respuesta) · 0,1 · 0,25 · 1. Se pueden sumar entre raspados y entre mundos (los percentiles no): `numinia_tick_seconds`, `numinia_tick_phase_seconds{phase}`, `numinia_feature_hook_seconds{feature,hook}` (`hook` = intent, tick, vuelta, cerca), `nodejs_gc_duration_seconds{kind}`. Contadores nuevos: `numinia_feature_errors_total{feature}`, `numinia_feature_intents_total{result}` (accepted, dropped, bad), `numinia_gc_pauses_total`. Cardinalidad: unas 50 parejas pieza-gancho en la plaza de serie, ~1.000 líneas y ~78 kB por raspado.
+
+Tres arreglos de medida (los encontró R4, `HUECOS-METRICAS.md`):
+- **`numinia_gc_pause_seconds_total` ya es un contador de verdad**: suma desde el arranque. Antes valía la última ventana de 10 s, subía y bajaba, y `rate()` lo habría leído como reinicios. La ventana sigue en `numinia_gc_pause_window_seconds` (gauge).
+- **Bucle sin los 10 ms de serie**: `numinia_eventloop_delay_p99_seconds` y `_max_seconds` restan la resolución. `nodejs_eventloop_lag_p99_seconds` sigue igual (así lo da también prom-client) y su `# HELP` lo dice.
+- **Nombres y unidades**: `process_resident_memory_bytes` y `nodejs_heap_size_used_bytes` son bytes exactos (antes MB redondeados × 1.048.576); `numinia_players` dice en su ayuda que cuenta personas **y** agentes; los percentiles en gauge (`numinia_tick_duration_p99_seconds`…) avisan en su ayuda de que no se pueden sumar y remiten al histograma.
+
+Lo que cuestan los cronómetros: un `performance.now()` antes y después de cada fase y de cada gancho de pieza (31 por tick en la plaza de serie con 50 robots, ~40 ns cada uno ≈ 1,3 µs, **~0,5 % de un tick de 0,25 ms**), y 1,3–1,6 µs fuera del tick para guardarlo en las ventanas. `npm run bench` (1.000 personas, sin piezas) da la misma huella y p50 dentro del ruido (mediana de 4 pasadas alternas: 6,87 ms antes, 6,96 después, +1,4 %, con la máquina a carga 16–21); 50 robots locales por WebSocket: tick p50 0,68 → 0,64 ms (ruido).
 
 ## Tamaño de la página: lo que baja antes de dibujar (D2)
 

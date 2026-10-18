@@ -13,12 +13,12 @@ import type { WebSocket } from "ws";
 import { hex } from "../../core/src/index.ts";
 import { REFERENCE, referenceRecording, replayFingerprint, TICK_HZ } from "../../sim/src/index.ts";
 import type { SpawnArea } from "../../sim/src/index.ts";
-import { Instance } from "../../instance/src/index.ts";
+import { FASES_TICK, Instance } from "../../instance/src/index.ts";
 import type { Suelo } from "../../instance/src/index.ts";
 import { CIERRE_LLENO, MSG, PASE_MAX, WS_FRAME_MAX } from "../../net/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
 import type { HttpReply, ServerPart } from "../../feature/src/index.ts";
-import { buildMetrics, ByteWindow, TickWindow, toPrometheus } from "./metrics.ts";
+import { buildMetrics, ByteWindow, CosteTick, OPENMETRICS, PROM_TEXT, quiereOpenMetrics, TickWindow, toPrometheus } from "./metrics.ts";
 import { entorno, Runtime } from "./runtime.ts";
 import { KEEP_DAYS, Sesiones } from "./sesiones.ts";
 import { FileStorage } from "./datos.ts";
@@ -209,6 +209,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
 
   const ticks = new TickWindow(200), lags = new TickWindow(200), responses = new TickWindow(200), bytes = new ByteWindow(11);
   const runtime = new Runtime(), env = entorno();
+  const coste = new CosteTick(FASES_TICK, 200); // B2: where each tick's time goes (phases, features)
   const counts = { aceptadas: 0, cerradas: 0, rechazadasLlenas: 0 };
   const tickMs = 1000 / TICK_HZ;
   let n = 0, lagMs = 0, start = 0, stopped = false, tickSumMs = 0;
@@ -218,6 +219,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     version, uptimeMs: performance.now() - born, tick: inst.sim.tick, tickHz: TICK_HZ, people: inst.conns.length,
     capacity: aforo, ticks, bytes, lagMs, mem: process.memoryUsage(),
     lags, responses, runtime: runtime.window(), entorno: env, counts, bytesTotal: bytesOut, tickSumMs,
+    coste, erroresDe: inst.features.erroresDe, piezasStats: inst.features.stats,
   });
 
   const json = (res: ServerResponse, code: number, body: unknown) => {
@@ -260,7 +262,11 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     }
     if (method === "GET" && path === "/metrics") return json(res, 200, metrics());
     if (method === "GET" && path === "/sesiones") return json(res, 200, { schema: "numinia-engine/sesiones@1", carpeta: sesiones.dir, resumen: sesiones.resumen(), ahora: sesiones.ahora() });
-    if (method === "GET" && path === "/metrics.prom") { res.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8", "cache-control": "no-store" }); return void res.end(toPrometheus(metrics())); }
+    if (method === "GET" && path === "/metrics.prom") { // B2: OpenMetrics 1.0 when the scraper asks for it, Prometheus text 0.0.4 otherwise
+      const om = quiereOpenMetrics(req.headers.accept);
+      res.writeHead(200, { "content-type": om ? OPENMETRICS : PROM_TEXT, "cache-control": "no-store", vary: "Accept" });
+      return void res.end(toPrometheus(metrics(), { coste, gc: runtime.gcHist, erroresDe: inst.features.erroresDe }, om));
+    }
     if ((method === "GET" || method === "HEAD") && path.startsWith("/a/") && activos.servir(path, res, method === "HEAD", req.headers.range, String(req.headers["accept-encoding"] ?? ""), String(req.headers.accept ?? ""))) return; // H1: files by their sha256
     if ((method === "PUT" || method === "OPTIONS") && path.startsWith("/a/")) return subidas.atender(method, path, req, res); // H9: uploads
     if (agentesHttp.atender(method, path, req, res)) return; // ADR-080: numinia.com's panel manages the outside agents (pass-authenticated)
@@ -306,6 +312,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     inst.tick();
     const took = performance.now() - a;
     ticks.record(took); lags.record(Math.max(0, lagMs)); responses.record(Math.max(0, lagMs) + took); tickSumMs += took;
+    coste.record(took, inst.fasesMs, inst.features.costes);
     n++;
     timer = setTimeout(loop, Math.max(0, start + n * tickMs - performance.now()));
   };

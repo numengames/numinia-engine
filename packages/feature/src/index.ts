@@ -377,22 +377,35 @@ export class NearIndex {
   }
 }
 
+/** B2: what one feature's hook cost in the LAST tick (ms, wall clock) and how often it threw since start. The instance's
+ * server reads these right after each tick (server/metrics.ts CosteTick); nothing here keeps history. */
+export type CosteGancho = { pieza: string; gancho: "intent" | "tick" | "vuelta" | "cerca"; ms: number; errores: number };
+
 export class ServerRuntime {
   readonly catalog: Catalog;
+  /** B2: one slot per feature and hook kind that runs inside tick(), in registration order (see CosteGancho). */
+  readonly costes: CosteGancho[] = [];
+  private readonly costeDe = new Map<string, CosteGancho>();
+  private coste(pieza: string, gancho: CosteGancho["gancho"]): CosteGancho {
+    const k = `${pieza}\u0000${gancho}`;
+    let c = this.costeDe.get(k);
+    if (!c) { c = { pieza, gancho, ms: 0, errores: 0 }; this.costeDe.set(k, c); this.costes.push(c); }
+    return c;
+  }
   readonly active: boolean;
   readonly stats = { received: 0, dropped: 0, bad: 0, events: 0, errors: 0 };
   private readonly host: ServerHost;
   private readonly entries: Entry[];
   private readonly catalogBytes: Uint8Array;
-  private readonly handlers = new Map<number, { feature: string; fn: (from: number, msg: Msg) => void }>();
-  private readonly hooks: { join: [string, (e: number) => void][]; leave: [string, (e: number) => void][]; tick: [string, (t: number) => void][]; identify: [string, (e: number, w: { id: string; nombre: string }) => void][]; vuelta: [string, (v: Vuelta) => void][] } = { join: [], leave: [], tick: [], identify: [], vuelta: [] };
+  private readonly handlers = new Map<number, { feature: string; fn: (from: number, msg: Msg) => void; coste: CosteGancho }>();
+  private readonly hooks: { join: [string, (e: number) => void][]; leave: [string, (e: number) => void][]; tick: [string, (t: number) => void, CosteGancho][]; identify: [string, (e: number, w: { id: string; nombre: string }) => void][]; vuelta: [string, (v: Vuelta) => void, CosteGancho][] } = { join: [], leave: [], tick: [], identify: [], vuelta: [] };
   private readonly routeList: Route[] = [];
   private readonly shared = new Map<string, Map<string, Entry2>>();
   /** U10: grows on every shared-state change (the instance rebuilds the solid boxes when it moves). */
   stateVersion = 0;
   /** U10: every shared-state entry of every feature, as [key, value] (keys prefixed by the feature id). */
   *allState(): Generator<[string, Msg]> { for (const [f, t] of this.shared) for (const [k, e] of t) yield [`${f}:${k}`, e.value]; }
-  private readonly near = new Map<string, { index: NearIndex; pos: number; fields: Fields; table: Map<string, Entry2> }>(); // J9
+  private readonly near = new Map<string, { index: NearIndex; pos: number; fields: Fields; table: Map<string, Entry2>; coste: CosteGancho }>(); // J9
   private readonly known = new Map<number, Map<string, Set<string>>>(); // J9: player -> feature -> things it has
   private queue: { from: number; entry: Entry; msg: Msg }[] = [];
   private readonly waiting = new Map<number, number>();
@@ -414,8 +427,11 @@ export class ServerRuntime {
     this.active = built.used.length > 0;
   }
 
+  /** B2: errors per feature since start, every hook and setup included (the log only says the first one per hook). */
+  readonly erroresDe = new Map<string, number>();
   private fail(feature: string, where: string, e: unknown): void {
     this.stats.errors++;
+    this.erroresDe.set(feature, (this.erroresDe.get(feature) ?? 0) + 1);
     const key = `${feature}:${where}`;
     if (!this.failed.has(key)) { this.failed.add(key); this.host.log(`[funciones] '${feature}' falló ${where}: ${String((e as Error)?.message ?? e)} (el resto sigue)`); }
   }
@@ -442,7 +458,7 @@ export class ServerRuntime {
     const table = new Map<string, Entry2>();
     this.shared.set(id, table);
     const index = f.state ? new NearIndex(f.state.radius ?? STATE_RADIUS_M) : null;
-    if (index && f.state) this.near.set(id, { index, pos, fields: f.state.fields, table });
+    if (index && f.state) this.near.set(id, { index, pos, fields: f.state.fields, table, coste: this.coste(id, "cerca") });
     // S4: bring back what was saved. State values are checked against today's schema: a value that no longer
     // fits (the feature changed shape) is dropped and counted, never sent to anyone.
     const persist = !!f.state?.persist, keeps = persist || !!f.store, storage = this.host.storage;
@@ -462,7 +478,7 @@ export class ServerRuntime {
       on: (intent, fn) => {
         const e = this.entry(id, "intent", intent);
         if (!e) { log(`on('${intent}'): no está declarado en intents (hay: ${Object.keys(f.intents ?? {}).join(", ") || "ninguno"})`); return; }
-        this.handlers.set(e.index, { feature: id, fn });
+        this.handlers.set(e.index, { feature: id, fn, coste: this.coste(id, "intent") });
       },
       emit: (event, msg, scope) => {
         const e = this.entry(id, "event", event);
@@ -536,8 +552,8 @@ export class ServerRuntime {
       onIdentify: (fn) => { this.hooks.identify.push([id, fn]); },
       who: (e) => this.host.who?.(e) ?? null,
       onLeave: (fn) => { this.hooks.leave.push([id, fn]); },
-      onTick: (fn) => { this.hooks.tick.push([id, fn]); },
-      onVuelta: (fn) => { this.hooks.vuelta.push([id, fn]); },
+      onTick: (fn) => { this.hooks.tick.push([id, fn, this.coste(id, "tick")]); },
+      onVuelta: (fn) => { this.hooks.vuelta.push([id, fn, this.coste(id, "vuelta")]); },
       volverASeguro: (e) => { try { return this.host.volverASeguro?.(e) ?? false; } catch (x) { log(`volverASeguro: ${String((x as Error)?.message ?? x)}`); return false; } },
       players: () => this.host.players(),
       position: (e) => this.host.position(e),
@@ -643,15 +659,18 @@ export class ServerRuntime {
   /** Called once per tick by the instance, after the simulation step: intents in arrival order, then tick hooks. */
   tick(): void {
     if (!this.active) return;
+    for (const c of this.costes) c.ms = 0; // B2: each slot says what THIS tick cost (performance.now() around each hook)
     const q = this.queue; this.queue = []; this.waiting.clear();
     for (const it of q) {
       const h = this.handlers.get(it.entry.index);
       if (!h) continue;
-      try { h.fn(it.from, it.msg); } catch (e) { this.fail(h.feature, `en on('${it.entry.name}')`, e); }
+      const a = performance.now();
+      try { h.fn(it.from, it.msg); } catch (e) { h.coste.errores++; this.fail(h.feature, `en on('${it.entry.name}')`, e); }
+      h.coste.ms += performance.now() - a;
     }
     const t = this.host.tick();
-    if (this.hooks.vuelta.length) for (const v of this.host.vueltas?.() ?? []) for (const [id, fn] of this.hooks.vuelta) { try { fn(v); } catch (e) { this.fail(id, "en onVuelta", e); } } // D-045
-    for (const [id, fn] of this.hooks.tick) { try { fn(t); } catch (e) { this.fail(id, "en onTick", e); } }
+    if (this.hooks.vuelta.length) for (const v of this.host.vueltas?.() ?? []) for (const [id, fn, c] of this.hooks.vuelta) { const a = performance.now(); try { fn(v); } catch (e) { c.errores++; this.fail(id, "en onVuelta", e); } c.ms += performance.now() - a; } // D-045
+    for (const [id, fn, c] of this.hooks.tick) { const a = performance.now(); try { fn(t); } catch (e) { c.errores++; this.fail(id, "en onTick", e); } c.ms += performance.now() - a; }
     this.refreshNear(t % STATE_REFRESH_TICKS); // a tenth of the players each tick: each one every 0.5 s, no spike
   }
 
@@ -681,6 +700,7 @@ export class ServerRuntime {
     let sent = 0;
     for (const [id, n] of this.near) {
       if (n.index.size === 0) continue;
+      const a = performance.now();
       const r2 = n.index.radius ** 2, f2 = (n.index.radius * FORGET_FACTOR) ** 2;
       const players = this.host.players();
       for (let i = 0; i < players.length; i++) {
@@ -699,6 +719,7 @@ export class ServerRuntime {
           if (s.at && (s.at.x - me.x) ** 2 + (s.at.z - me.z) ** 2 <= r2) { mine.add(key); this.host.send(p, encodeState(n.pos, key, n.fields, s.value)); sent++; }
         }
       }
+      n.coste.ms += performance.now() - a;
     }
     return sent;
   }
