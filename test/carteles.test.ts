@@ -59,6 +59,6 @@ test("who shows a name: looked at, speaking, or everybody (Alt); otherwise nobod
   assert.equal(nombreVisible(base), false);
   assert.equal(nombreVisible({ ...base, mirado: true }), true);
   assert.equal(nombreVisible({ ...base, habla: true }), true);
-  assert.equal(nombreVisible({ ...base, marca: true }), false); // a quest mark alone does not keep the name on (open decision)
+  assert.equal(nombreVisible({ ...base, marca: true }), true); // a quest mark keeps the plate on (Pablo, 2026-10-18)
   assert.equal(nombreVisible({ ...base, todos: true }), true);
 });
