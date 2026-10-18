@@ -7,7 +7,8 @@
 import { rngNext } from "../../packages/core/src/index.ts";
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
-import { crearEscalera, NIVEL_COLAPSADO, NIVEL_ALETARGADO, ESCALERA, INCAPACITADO_S } from "./estados.ts";
+import type { Pvp } from "./estados.ts";
+import { crearEscalera, NIVEL_COLAPSADO, NIVEL_ALETARGADO, ESCALERA, INCAPACITADO_S, pvpEntre } from "./estados.ts";
 import { lucha, ALCANCE_PVP_M, DANO_BASE, DANO_VAR, ENFRIAMIENTO_TICKS, REAPARICION_S, VER_M } from "./feature.ts";
 import { BESTIARIO } from "./bestiario.ts";
 import { ECLIPSE, CRITICO_PCT, CRITICO_X, cargaTras, ticksDe } from "./habilidades.ts";
@@ -35,10 +36,11 @@ export const tirarCritico = (rng: Uint32Array): boolean => rngNext(rng) % 100 < 
 /** One blow's damage from the engine's PRNG: DANO_BASE..DANO_BASE+DANO_VAR−1 (pure; tests use it). */
 export const tirarDano = (rng: Uint32Array): number => DANO_BASE + (rngNext(rng) % DANO_VAR);
 
-export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp?: boolean } = {}) => serverPart(lucha, (api: ServerApi) => {
+export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp?: boolean | Pvp } = {}) => serverPart(lucha, (api: ServerApi) => {
   const rng = new Uint32Array([(opts.semilla ?? 0x10c4a) >>> 0]);
   const criaturas = new Map<string, Criatura>();
   const puedeDesde = new Map<number, number>();   // player → first tick a blow counts again
+  const pvp: Pvp = typeof opts.pvp === "object" ? opts.pvp : { mundo: opts.pvp === true, zonas: [] }; // off unless the world turns it on (entorno.json pvp / zonasPvp)
   const escalera = crearEscalera();                // the players' Estado ladder (server-owned, estados.ts)
   const reaparecen = new Map<number, number>();    // Aletargado player → tick the server puts them back on their last safe spot
   const vuelven = new Map<string, number>();      // dissolved creature → tick it returns
@@ -63,12 +65,13 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
   const golpearPersona = (e: number, m: Msg) => {
     const otro = Number(String(m.objetivo).slice(2)), t = api.tick();
     if (!Number.isInteger(otro) || otro === e || !api.players().includes(otro)) return rechazar(e, "Ahí no hay nadie a quien golpear.");
-    if (!opts.pvp) return rechazar(e, "Aquí no se lucha entre personas.");
     if (t < (puedeDesde.get(e) ?? 0)) return;
     if (escalera.nivel(e, t) >= NIVEL_COLAPSADO) return rechazar(e, "Estás colapsado: no puedes golpear.");
     if (escalera.nivel(otro, t) >= NIVEL_ALETARGADO) return rechazar(e, "Esa persona ya está aletargada.");
     const a = api.position(e), b = api.position(otro);
-    if (!a || !b || Math.hypot(a.x - b.x, a.z - b.z) > ALCANCE_PVP_M) return api.emit("aire", { objetivo: String(m.objetivo) }, { to: e });
+    if (!a || !b) return rechazar(e, "Ahí no hay nadie a quien golpear.");
+    if (!pvpEntre(pvp, a, b)) return rechazar(e, "Aquí no se lucha entre personas.");   // the SERVER's flag, world and zone; the page cannot argue
+    if (Math.hypot(a.x - b.x, a.z - b.z) > ALCANCE_PVP_M) return api.emit("aire", { objetivo: String(m.objetivo) }, { to: e });
     puedeDesde.set(e, t + ENFRIAMIENTO_TICKS);
     const n = escalera.subir(otro, t);
     api.emit("estado", { objetivo: `p:${otro}`, estado: ESCALERA[n], de: e }, { near: { x: b.x, z: b.z }, radius: VER_M });
