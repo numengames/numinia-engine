@@ -5,6 +5,7 @@
 import { createServer } from "node:http";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { signer } from "./secret.ts";
 import { crearRecibos } from "./recibos.ts"; // N10: digital goods' ownership receipts
 import { randomBytes, randomInt } from "node:crypto";
@@ -36,7 +37,8 @@ import { configPase } from "./pase.ts";
 import { crearAgentesHttp } from "./agentes-http.ts";
 import type { ConfigPase } from "./pase.ts";
 import type { Who } from "../../instance/src/index.ts";
-import { leerHabitantes } from "../../agent/src/formato.ts";
+import { crearHabitantesGestion } from "./habitantes.ts";
+import { crearHabitantesHttp } from "./habitantes-http.ts";
 import { crearPuerta } from "./puerta.ts";
 import { ColaOptimizar } from "./optimizar-cola.ts";
 import type { Metrics } from "./metrics.ts";
@@ -64,6 +66,7 @@ export type ServerOptions = {
   admin?: string;                // the administration code for /mundo and /dueño (env MOTOR_ADMIN; main.ts also ADMIN_CODE); none or short = /mundo answers 403
   pase?: ConfigPase | null;      // H3b: numinia.com's world pass (key, this world's id, org); undefined = read MOTOR_PASE_* from the environment; null = ignore passes
   reiniciar?: () => void;        // after a world was uploaded and swapped in: the installed server exits (systemd starts it again)
+  recargarHabitantes?: () => void; // told after /habitantes writes or deletes a file (default: `systemctl restart numinia-habitantes`, best effort)
   mundo?: string | null;         // C2: the world folder (MOTOR_MUNDO): a world upload swaps datos/ aventura/ entorno/ in it
   entorno?: string | null;       // the world's entorno/ folder (entorno.json, elementos.json): travels in the world's zip
   aparicion?: SpawnArea | null;  // where people appear (entorno.json `aparicion`, read by the composition root); none = the house square of 40 m
@@ -150,13 +153,24 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   if (!cfgPase.ok) return Promise.reject(new Error(cfgPase.error));
   log(cfgPase.pase ? `[pase] el mundo «${cfgPase.pase.mundo}» acepta pases de numinia.com (clave ${cfgPase.pase.clave.kid}${cfgPase.pase.org ? `, organización ${cfgPase.pase.org}` : ""})` : "[pase] sin MOTOR_PASE_CLAVE: los pases de numinia.com se ignoran (todos entran como invitados)");
   const sockets = new Map<number, WebSocket>();
-  // P4: who may enter as an AI inhabitant = the habitantes/ of the adventure, with a ticket of the agents' secret
   const lector = lectorAventura(o.aventura ?? null, log);
-  const hab = leerHabitantes(lector("habitantes"));
-  for (const p of hab.problemas) log(`[habitantes] no se carga: ${p}`);
+  // P4: who may enter as an AI inhabitant = the habitantes/ of the adventure, with a ticket of the agents' secret.
+  // Its own door (GET/POST/DELETE /habitantes, camino A of «Add an AI») writes and deletes those files and reads
+  // the folder again; the separate service that walks and talks them (numinia-habitantes) only reads it at its own
+  // start, so a change here calls `recargarHabitantes` once it loads (default: restart that service; env
+  // MOTOR_HABITANTES_SIN_RECARGA=1 to skip it, e.g. in tests). `puertaRef` (an id taken by the OTHER kind of AI,
+  // agentes/) is filled in once `puerta` exists just below, breaking the chicken-and-egg between the two doors.
+  const puertaRef: { puerta: ReturnType<typeof crearPuerta> | null } = { puerta: null };
+  const hab = crearHabitantesGestion({
+    aventura: o.aventura ?? null, agentesExternos: () => new Set(puertaRef.puerta?.agentes.map((a) => a.id) ?? []),
+    recargar: o.recargarHabitantes ?? (process.env.MOTOR_HABITANTES_SIN_RECARGA === "1" ? undefined : () => {
+      try { execFileSync("systemctl", ["restart", "numinia-habitantes"], { stdio: "ignore" }); } catch (e) { log(`[habitantes] no he podido recargar numinia-habitantes: ${(e as Error).message}`); }
+    }), log,
+  });
   // ADR-080: outside agents = the adventure's agentes/ (their public keys); they sign their own a2 tickets
   const dominios = o.dominios ?? (process.env.MOTOR_DOMINIO ?? "").split(",").filter((d) => d.trim());
   const puerta = crearPuerta({ aventura: o.aventura ?? null, habitantes: () => new Set(hab.habitantes.map((h) => h.id)), dominios, log });
+  puertaRef.puerta = puerta;
   if (puerta.leer()) log(`[agentes] agentes de fuera que pueden entrar: ${puerta.agentes.map((x) => `${x.nombre} (${x.id}${x.rol ? `, rol ${x.rol}` : ""})`).join(", ")}${dominios.length ? ` · el mundo firma como ${dominios.join(", ")}` : ""}`);
   const roles = crearRoles({
     construir: construir === "todos", voz: o.voz ?? process.env.MOTOR_VOZ !== "no", admin: o.admin ?? process.env.MOTOR_ADMIN, log, firmar: identitySign, pase: cfgPase.pase, puerta,
@@ -233,6 +247,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     res.end(type === "json" ? JSON.stringify(r.body) : String(r.body));
   };
   const agentesHttp = crearAgentesHttp({ pase: cfgPase.pase, agentes: () => roles.agentes, log });
+  const habitantesHttp = crearHabitantesHttp({ pase: cfgPase.pase, habitantes: () => hab, log });
   const http: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
     const [path, qs = ""] = (req.url ?? "/").split("?");
     const method = req.method ?? "GET";
@@ -266,6 +281,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     if ((method === "GET" || method === "HEAD") && path.startsWith("/a/") && activos.servir(path, res, method === "HEAD", req.headers.range, String(req.headers["accept-encoding"] ?? ""), String(req.headers.accept ?? ""))) return; // H1: files by their sha256
     if ((method === "PUT" || method === "OPTIONS") && path.startsWith("/a/")) return subidas.atender(method, path, req, res); // H9: uploads
     if (agentesHttp.atender(method, path, req, res)) return; // ADR-080: numinia.com's panel manages the outside agents (pass-authenticated)
+    if (habitantesHttp.atender(method, path, req, res)) return; // the panel manages this world's own AI inhabitants (pass-authenticated)
     if (copia.atender(method, path, req, res)) return; // the world as a zip
     if (pagina?.servir(method, path, req, res)) return; // C1: the page (index.html, assets/) when the engine serves it
     if (method !== "GET" && method !== "POST") return json(res, 405, { error: "solo GET o POST" });
