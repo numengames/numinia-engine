@@ -24,5 +24,6 @@ import contadores from "./contadores/client.ts"; // D-044: timers and counters (
 import disparadores from "./disparadores/client.ts"; // D-041: the cable — a button on its post; the page only asks `pulsar`
 import cerradura from "./cerradura/client.ts"; // D-042: the lock's data and its keypad (apps/plaza/cerradura.ts)
 import movedores from "./movedores/client.ts"; // D-043: the model wherever the server says, right now (`view.place`)
-const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores, cerradura, movedores];
+import lucha from "./lucha/client.ts"; // L1: creatures drawn as the house block through view.place; «E: golpear»
+const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores, cerradura, movedores];
 export default funciones;
