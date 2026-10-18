@@ -191,6 +191,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | W1 | La plaza de entrada: primer mundo, al presupuesto de la Quest, con un portal a un mundo Hyperfy | necesita aprobación (Pablo: qué mundo lo estrena) | no |
 | AR-D1 | Duelo de dardos, servidor: dos jugadores (uno en el mundo, otro en su pared por AR) juegan la misma partida; `duelo`/`remoto`/`rondas` en `dardos.json`, eventos `duelo` y `finduelo` (dardos v2) | hecho (rama `ar/duelo-servidor`, sin PR) | no |
 | AR-D2 | Duelo de dardos, controlador: `dardos.duelo()` (turno, `miTurno`, rival, puntos, `fin` con `gane`/`empate`/`abandono`), dardos del rival en `clavados()`, `alCambiar("duelo")` | hecho (rama `ar/duelo-servidor`, sin PR) | no |
+| AR-D3 | Duelo de dardos, vista: marcador 3D, dardos del rival en vuelo, turnos y salida limpia en la diana de pared (AR) y una línea en el HUD de la página | hecho (rama `ar/duelo-servidor`, sin PR) | no |
 | O5 | ADR y SYS del motor en la Summa (numinia.org) | necesita aprobación (Pablo) | no |
 
 **Punto de parada «accesible» (como los PP de `CONSTRUIR.md`):** con V1, V3, V4, V5, V6 y V7 hechas, una

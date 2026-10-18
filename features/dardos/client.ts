@@ -101,7 +101,8 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
       const c = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Number.isFinite(v) ? v : 0));
       return A.send("lanzar", { sitio: id, x: r3(c(x, -3, 3)), y: r3(c(y, -3, 3)), fuerza: r3(c(fuerza, 0, 1)) });
     },
-    salir: (): Res => (A ? (e.sitio ? A.send("salir", {}) : { ok: false, why: "no estás tirando" }) : SIN),
+    // in a live match you can leave on the rival's turn too (the server hands them the win)
+    salir: (): Res => (A ? (e.sitio || (D && !D.fin && soyDe(D)) ? A.send("salir", {}) : { ok: false, why: "no estás tirando" }) : SIN),
     alCambiar: (fn: (que: Que) => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
 

@@ -13,18 +13,20 @@ import { pintarDiana, caraAPixel, pixelACara, potenciaDe, PINTADA } from "../../
 import type { DianaAR } from "../../packages/render/src/index.ts";
 import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
 
+import { montarDuelo } from "./dardos-duelo.ts"; // AR-D3: the duel in AR and one line in the HUD
+
 type Res = { ok: true } | { ok: false; why: string };
 type Dardo = { quien: number; sitio: string; numero: number; x: number; y: number; sector: number; anillo: string; puntos: number; tirada: number; texto: string; cuando: number };
-type Sitio = { id: string; nombre: string; x: number; y: number; z: number; radio: number; rumbo: number; ocupado: boolean };
+type Sitio = { id: string; nombre: string; x: number; y: number; z: number; radio: number; rumbo: number; ocupado: boolean; duelo?: boolean; remoto?: boolean; rondas?: number; espera?: boolean };
 type Estado = { sitio: string; dardos: number; tirada: number; ultimo: Dardo | null; fin: { dardos: number; puntos: number; cuando: number } | null; aviso: string; marcador: { dardos: number; puntos: number; mejorDardo: number; mejorTirada: number; dianas: number } };
 type Dardos = {
   estado(): Readonly<Estado>; tirando(): boolean; sitios(): Sitio[]; clavados(sitio?: string): Dardo[];
-  jugar(sitio?: string): Res; lanzar(x: number, y: number, fuerza: number, sitio?: string): Res; salir(): Res;
-  alCambiar(fn: (que: "estado" | "sitios" | "clavados") => void): () => void;
+  duelo(): import("../../packages/render/src/dardos-duelo.ts").DueloV | null; jugar(sitio?: string, desde?: "sitio" | "pared"): Res; lanzar(x: number, y: number, fuerza: number, sitio?: string): Res; salir(): Res;
+  alCambiar(fn: (que: "estado" | "sitios" | "clavados" | "duelo") => void): () => void;
 };
 type Vista = {
   dardos: { sitios(l: Sitio[]): void; clavados(l: Dardo[]): void };
-  dardosAR(o: { alLanzar: (x: number, y: number, fuerza: number) => void; alColocar?: (pared: boolean) => void }): Promise<DianaAR | null>;
+  dardosAR(o: { alLanzar: (x: number, y: number, fuerza: number) => void; alColocar?: (pared: boolean) => void; envolver?: (j: DianaAR) => DianaAR }): Promise<DianaAR | null>;
   arSupported(): Promise<boolean>;
   ar: { exit(): Promise<void>; readonly jugando: boolean };
 };
@@ -149,14 +151,16 @@ export function montarDardos(o: { dardos: Dardos; view: Vista; session: { entity
     ev.preventDefault(); ev.stopPropagation();
   }, true);
   addEventListener("keyup", (ev) => { if (abierto && ev.code === "Space" && cargando) { cargando = false; potencia = potenciaAhora(); const p = apuntado(); lanzar(p.x, p.y, potencia); ev.preventDefault(); ev.stopPropagation(); } }, true);
-  $<HTMLButtonElement>(".salir").onclick = () => { if (dardos.tirando()) dardos.salir(); cerrar(); };
+  $<HTMLButtonElement>(".salir").onclick = () => { if (dardos.tirando() || duelo.enPartida()) dardos.salir(); cerrar(); };
+
+  const duelo = montarDuelo({ dardos, entity: () => o.session.entity, hud, fijarSitio: (id) => { sitioVisto = id; }, avisar: (t) => { $<HTMLParagraphElement>(".resultado").textContent = t; }, alTerminar: () => { if (abierto && !dardos.tirando() && !view.ar.jugando) cerrar(); } });
 
   // ---- AR: the board on your real wall ----
   const botonAR = $<HTMLButtonElement>(".ar");
   void view.arSupported().then((ok) => { botonAR.hidden = !ok; });
   botonAR.onclick = async () => {
     if (view.ar.jugando) { await view.ar.exit(); return; }
-    arJuego = await view.dardosAR({ alLanzar: (x, y, f) => lanzar(x, y, f) });
+    arJuego = await view.dardosAR(duelo.opcionesAR({ alLanzar: (x, y, f) => lanzar(x, y, f) }));
     if (arJuego) arJuego.clavados(dardos.clavados(sitioActual()?.id));
   };
 
@@ -214,11 +218,12 @@ export function montarDardos(o: { dardos: Dardos; view: Vista; session: { entity
   }
   dardos.alCambiar((que) => {
     if (que === "sitios") view.dardos.sitios(dardos.sitios());
+    if (que === "duelo") duelo.cambio();
     if (que === "clavados") { view.dardos.clavados(dardos.clavados()); arJuego?.clavados(dardos.clavados(sitioActual()?.id)); }
     if (que === "estado") {
       const e = dardos.estado();
       if (e.sitio) { sitioVisto = e.sitio; abrir(); }
-      else if (e.fin && abierto && !view.ar.jugando) { if (!cierre) cierre = setTimeout(() => { cierre = null; if (!dardos.tirando()) cerrar(); }, RESULTADO_MS); }
+      else if (e.fin && abierto && !view.ar.jugando) { if (!cierre) cierre = setTimeout(() => { cierre = null; if (!dardos.tirando() && !duelo.enPartida()) cerrar(); }, RESULTADO_MS); }
       pintarTexto();
     }
   });

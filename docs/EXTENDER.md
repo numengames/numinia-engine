@@ -865,13 +865,35 @@ comporta exactamente como en v1. Es una pieza del motor: cualquier mundo la acti
     se queda `DUELO_FIN_MS` (30 s) tras `finduelo` y entonces `duelo()` vuelve a `null`.
   - `alCambiar(fn)` recibe además el tipo `"duelo"`. `rechazado` («No es tu turno», «Espera a tu rival», «Ya hay un
     duelo en marcha»…) va a `estado().aviso`, como en v1. `jugar(sitio, "pared")` es la entrada desde una pared;
-    `ofrece("dardos", …)` es `false` mientras estás en una partida; `salir()` sigue siendo solo para quien tiene turno.
+    `ofrece("dardos", …)` es `false` mientras estás en una partida; `salir()` vale con turno propio o dentro de una partida.
   - `clavados(sitio)`: los dardos del rival llegan a cualquier distancia; en una partida **se quedan** al acabar su
     turno y salen cuando empieza el siguiente turno de ese jugador (el primer dardo, como en v1); tras `finduelo`
     siguen `DUELO_DARDOS_MS` (6 s) y se quitan. Una diana sin campos de duelo no cambia nada.
+- **Vista en AR y en la página** (historia AR-D3). Quien juega desde su pared en AR ve el duelo, no solo su diana:
+  - *Entrar.* Al colocar la diana en la pared (el toque o el gatillo), la página elige la primera diana con `remoto`
+    y `duelo` (mejor una con alguien esperando) y hace `dardos.jugar(sitio, "pared")`. Si el mundo no tiene
+    ninguna, el AR funciona como en v1, sin cambios. Pieza: `apps/plaza/dardos-duelo.ts` (`montarDuelo`,
+    `elegirSitioAR`); `view.dardosAR` admite `envolver` para envolver la diana de pared.
+  - *Marcador 3D* sobre la diana (`packages/render/src/dardos-duelo-ar.ts`; un plano y una textura de canvas, porque
+    WebXR no pinta DOM): los dos nombres, los puntos, «Ronda r/N», el turno resaltado (▶), «Esperando rival…» y, al
+    acabar, «Ganas» / «Pierdes» / «Empate» (+ «tu rival se fue» si abandonó) durante `DUELO_FIN_MS`. Se repinta
+    solo cuando `duelo()` cambia (`alCambiar("duelo")`), no cada fotograma. Los textos salen de funciones puras
+    (`packages/render/src/dardos-duelo.ts`: `panelDe`, `pintarPanel`).
+  - *Dardos del rival.* No aparecen de golpe: entran volando 0,4 s en arco desde un lado y arriba hasta donde caen
+    (`salidaRival`, `vueloRival`) y luego se clavan. Los tuyos siguen como en v1. Los dardos que ya estaban al entrar
+    no vuelan.
+  - *Turno.* Con una partida en AR solo se lanza en tu turno en marcha: fuera de turno, esperando rival o tras el
+    final la barra de fuerza no se carga y **no se envía nada** (`puedeLanzar`); el marcador dice «Es el turno de
+    <nombre>».
+  - *Salir.* Al acabar la sesión AR (cualquier motivo) se llama a `dardos.salir()` y el rival gana por abandono.
+    Para eso `salir()` del controlador ahora también vale **en una partida en el turno del rival** (antes solo con
+    turno propio). Se puede volver a entrar en AR más tarde.
+  - *HUD de la página* (PC y móvil): una línea `.duelo` bajo el resultado, «Ana 12 – Luis (tú) 9 · Ronda 2/3 · Es el
+    turno de Ana». El HUD se queda abierto mientras dura tu partida (también entre turnos) y «Dejarlo» sale de ella.
+  - *Pruebas*: `test/dardos-duelo-ar.test.ts` (texto del marcador, turnos, vuelo, gating, diana elegida, línea del
+    HUD, `salir()` en turno ajeno). El e2e de AR con dos jugadores es la historia D5.
 - **Aún no**: contadores `duelos`/`ganados` en el marcador por invitado (cambiaría el evento `marcador` que
-  fija `test/dardos.test.ts`), la vista del duelo en la página y en AR (AR-D3) y
-  lanzar con el gesto real en VR.
+  fija `test/dardos.test.ts`) y lanzar con el gesto real en VR.
 
 ## Dados (v1): los tira el servidor y todos ven lo mismo
 

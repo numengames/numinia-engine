@@ -150,8 +150,7 @@ test("duelo cliente: a draw (every dart out) reads as empate with ganador null, 
 test("duelo cliente: leaving gives the rival the win by default (abandono); a host who gives up leaves no duel", () => {
   { const W = mundo(); const [A, B, C] = W.pages; W.montar();
     A.d.jugar("duelo"); B.d.jugar("duelo", "pared"); W.pump(3); lanzar(A); W.pump(3);
-    assert.equal(B.d.salir().ok, false, "B is not throwing (A's turn): salir needs a turn of its own");
-    A.d.salir(); W.pump(3);
+    A.d.salir(); W.pump(3); // (B could leave on A's turn too: AR-D3, test/dardos-duelo-ar.test.ts)
     for (const p of [A, B, C]) assert.ok(p.d.duelo()?.fin?.abandono);
     assert.deepEqual([A.d.duelo()!.fin!.gane, B.d.duelo()!.fin!.gane, B.d.duelo()!.fin!.ganador], [false, true, B.s.entity]);
     assert.match(B.d.duelo()!.fin!.texto, /su rival se fue/);
@@ -159,9 +158,7 @@ test("duelo cliente: leaving gives the rival the win by default (abandono); a ho
   }
   { const W = mundo(); const [A, B] = W.pages; W.montar();
     A.d.jugar("duelo"); W.pump(3); assert.equal(A.d.duelo()!.esperando, true);
-    A.d.salir(); W.pump(3); // a host with no turn of its own cannot salir through the controller…
-    assert.equal(A.d.duelo()!.esperando, true);
-    A.s.features.send("dardos", "salir", {}); W.pump(3); // …but the raw verb cancels the wait
+    A.d.salir(); W.pump(3); // a host that gives up while waiting leaves through the controller too (AR-D3)
     assert.equal(A.d.duelo(), null, "the cancelled wait leaves no duel behind");
     B.d.jugar("duelo", "pared"); W.pump(3); assert.equal(B.d.duelo()!.esperando, true);
   }

@@ -1030,3 +1030,15 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5.
 - Commit: rama `ar/duelo-servidor` (ver `git log`). Sin push ni PR.
 - Siguiente: AR-D3 (la vista del duelo en la página y en AR; `apps/plaza/dardos.ts` y `packages/render`).
+
+## 2026-10-18 17:42 · AR-D3 · hecho
+- Qué: duelo de dardos visto desde la pared (AR) y desde la página. Marcador 3D sobre la diana de pared (nombres,
+  puntos, ronda, turno, «Esperando rival…», «Ganas/Pierdes/Empate»), dardos del rival que entran volando 0,4 s,
+  lanzar solo en tu turno (fuera de turno no se envía nada), `dardos.salir()` al acabar la sesión AR, una línea de
+  duelo en el HUD de la página. Todo en archivos nuevos (`dardos-duelo.ts` y `dardos-duelo-ar.ts` en render,
+  `apps/plaza/dardos-duelo.ts`); a los existentes solo una importación y unas pocas líneas. De paso, `salir()` del
+  controlador vale en una partida también en el turno del rival.
+- Números: `test/dardos-duelo-ar.test.ts` nuevo (8 pruebas); marcador pintado a PNG en un navegador (IWER no pinta).
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `ar/duelo-servidor` (ver `git log`). Sin push ni PR.
+- Siguiente: AR-D5 (e2e con dos jugadores); el lanzar con la mano en VR es de otra sesión.

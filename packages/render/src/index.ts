@@ -788,8 +788,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     web,
     /** dardos v1 in AR: enter immersive-ar with a real-size board for your wall (dardos.ts crearDianaAR); null if the
      * session could not start. Press/hold/release throws: `alLanzar` gets aim (board radii) and strength. */
-    async dardosAR(o: { alLanzar: (x: number, y: number, fuerza: number) => void; alColocar?: (pared: boolean) => void }): Promise<DianaAR | null> {
-      const j = crearDianaAR(o);
+    async dardosAR(o: { alLanzar: (x: number, y: number, fuerza: number) => void; alColocar?: (pared: boolean) => void; envolver?: (j: DianaAR) => DianaAR }): Promise<DianaAR | null> {
+      const j = (o.envolver ?? ((x: DianaAR) => x))(crearDianaAR(o)); // AR-D3: the duel wraps the wall board (dardos-duelo-ar.ts)
       return (await ar.jugar(j)) ? j : null;
     },
     /** M18b: the Graboso over your shoulder (mostrar, grabando, visible) — packages/render/src/graboso.ts, loaded when first invoked. */
