@@ -133,29 +133,29 @@ const dirEl = (az: number, el: number): V3 => [Math.cos(az) * Math.cos(el), Math
 const mas = (a: V3, d: V3, l: number): V3 => [a[0] + d[0] * l, a[1] + d[1] * l, a[2] + d[2] * l];
 
 /** The metres of height each species is drawn to (the wind's weight is height / this). */
-export const ALTURA: Record<Especie, number> = { roble: 4.7, pino: 6.8, abedul: 5.4, arbusto: 1.2 };
+export const ALTURA: Record<Especie, number> = { roble: 4.7, pino: 6.8, abedul: 5.4, arbusto: 1.5 };
 
 /** One species, one variant. The same code path draws the same NUMBER of random values and primitives for both variants. */
 function construir(esp: Especie, v: 0 | 1): Malla {
   const m = new Malla(), R = crearAzar(0x6e61 + ESPECIES.indexOf(esp) * 131 + v * 17), rr = rango(R), h = HOJAS[esp][v];
   if (esp === "roble") {
     const lx = rr(-0.12, 0.12), lz = rr(-0.12, 0.12), tope: V3 = [lx, 2.5, lz];
-    prisma(m, [0, -0.05, 0], tope, rr(0.22, 0.28), 0.11, 6, TRONCO_OSC, TRONCO, 0, R() * 1);
+    prisma(m, [0, -0.05, 0], tope, rr(0.27, 0.33), 0.12, 6, TRONCO_OSC, TRONCO, 0, R());
     for (let i = 0; i < 4; i++) {
       const az = (i / 4) * Math.PI * 2 + rr(-0.45, 0.45), s = lerp3([0, 0, 0], tope, rr(0.5, 0.78)), d = dirEl(az, rr(0.6, 0.95)), e = mas(s, d, rr(0.9, 1.35));
       prisma(m, s, e, 0.075, 0.03, 4, TRONCO, TRONCO, 0.5);
-      const rb = rr(0.42, 0.58); mancha(m, [e[0], e[1] + 0.12, e[2]], [rb, rb * 0.85, rb], 0.14, R, "octa", h, 0.5);
+      const rb = rr(0.52, 0.68); mancha(m, [e[0], e[1] + 0.12, e[2]], [rb, rb * 0.85, rb], 0.14, R, "octa", h, 0.5);
     }
-    const rc = rr(1.15, 1.4); mancha(m, [lx, rr(3.1, 3.5), lz], [rc, rc * 0.85, rc], 0.12, R, "ico", h, 0.2);
+    const rc = rr(1.4, 1.65); mancha(m, [lx, rr(3.2, 3.5), lz], [rc, rc * 0.85, rc], 0.12, R, "ico", h, 0.2);
     const a0 = R() * 6.28;
-    for (let i = 0; i < 2; i++) { const az = a0 + i * Math.PI * rr(0.8, 1.2), rs = rr(0.85, 1.05); mancha(m, [Math.cos(az) * 0.95, rr(2.5, 2.9), Math.sin(az) * 0.95], [rs, rs * 0.85, rs], 0.14, R, "ico", h, 0.2); }
+    for (let i = 0; i < 2; i++) { const az = a0 + i * Math.PI * rr(0.8, 1.2), rs = rr(1.05, 1.25); mancha(m, [Math.cos(az) * 1.1, rr(2.6, 2.9), Math.sin(az) * 1.1], [rs, rs * 0.85, rs], 0.14, R, "ico", h, 0.2); }
   } else if (esp === "pino") {
     const lx = rr(-0.08, 0.08), lz = rr(-0.08, 0.08);
     prisma(m, [0, -0.05, 0], [lx, 6.6, lz], rr(0.17, 0.22), 0.04, 6, TRONCO_OSC, TRONCO, 0);
     for (let i = 0; i < 3; i++) {
       const az = (i / 3) * Math.PI * 2 + rr(-0.5, 0.5), s: V3 = [lx * 0.1, rr(0.55, 1.15), lz * 0.1], e = mas(s, dirEl(az, rr(0.25, 0.5)), rr(0.5, 0.7));
       prisma(m, s, e, 0.05, 0.022, 4, TRONCO, TRONCO, 0.5);
-      const rb = rr(0.2, 0.28); mancha(m, [e[0], e[1] + 0.05, e[2]], [rb, rb * 0.8, rb], 0.1, R, "octa", h, 0.5);
+      const rb = rr(0.2, 0.26); mancha(m, [e[0], e[1] + 0.03, e[2]], [rb, rb * 0.5, rb], 0.1, R, "octa", h, 0.5);
     }
     const bases = [1.35, 2.3, 3.3, 4.3, 5.2], altos = [1.9, 1.8, 1.6, 1.5, 1.55], radios = [1.55, 1.3, 1.05, 0.8, 0.55];
     for (let i = 0; i < 5; i++) cono(m, [lx * (bases[i] / 6.6), bases[i], lz * (bases[i] / 6.6)], altos[i] * rr(0.92, 1.08), radios[i] * rr(0.92, 1.08), 7, R, h, [rr(-0.08, 0.08), 0, rr(-0.08, 0.08)]);
@@ -166,17 +166,17 @@ function construir(esp: Especie, v: 0 | 1): Malla {
     for (let i = 0; i < 5; i++) {
       const az = (i / 5) * Math.PI * 2 + rr(-0.4, 0.4), s = lerp3(pts[1], pts[3], rr(0.2, 0.95)), e = mas(s, dirEl(az, rr(0.8, 1.15)), rr(0.65, 1.0));
       prisma(m, s, e, 0.05, 0.02, 4, ABEDUL, TRONCO, 0.5);
-      mancha(m, [e[0], e[1] + 0.2, e[2]], [rr(0.3, 0.38), rr(0.5, 0.62), rr(0.3, 0.38)], 0.12, R, "octa", h, 0.5);
+      mancha(m, [e[0], e[1] + 0.2, e[2]], [rr(0.38, 0.48), rr(0.6, 0.75), rr(0.38, 0.48)], 0.12, R, "octa", h, 0.5);
     }
-    mancha(m, [pts[3][0], rr(4.1, 4.4), pts[3][2]], [rr(0.85, 1.0), rr(1.05, 1.25), rr(0.85, 1.0)], 0.12, R, "ico", h, 0.2);
-    const az = R() * 6.28; mancha(m, [pts[3][0] + Math.cos(az) * 0.4, 3.2, pts[3][2] + Math.sin(az) * 0.4], [0.7, 0.8, 0.7], 0.12, R, "ico", h, 0.2);
+    mancha(m, [pts[3][0], rr(4.0, 4.3), pts[3][2]], [rr(1.05, 1.2), rr(1.3, 1.5), rr(1.05, 1.2)], 0.12, R, "ico", h, 0.2);
+    const az = R() * 6.28; mancha(m, [pts[3][0] + Math.cos(az) * 0.5, 3.1, pts[3][2] + Math.sin(az) * 0.5], [0.9, 1.0, 0.9], 0.12, R, "ico", h, 0.2);
   } else {
     for (let i = 0; i < 4; i++) {
       const az = (i / 4) * Math.PI * 2 + rr(-0.4, 0.4), s: V3 = [0, 0.05, 0], e = mas(s, dirEl(az, rr(0.45, 0.8)), rr(0.5, 0.75));
       prisma(m, s, e, 0.04, 0.02, 4, TRONCO_OSC, TRONCO, 0.5);
-      const rb = rr(0.4, 0.52); mancha(m, [e[0], e[1] + 0.05, e[2]], [rb, rb * 0.8, rb], 0.14, R, "ico", h, 0.5);
+      const rb = rr(0.55, 0.7); mancha(m, [e[0], e[1] + 0.05, e[2]], [rb, rb * 0.8, rb], 0.14, R, "ico", h, 0.5);
     }
-    const rb = rr(0.55, 0.65); mancha(m, [0, 0.55, 0], [rb, rb * 0.85, rb], 0.12, R, "ico", h, 0.3);
+    const rb = rr(0.75, 0.85); mancha(m, [0, 0.6, 0], [rb, rb * 0.85, rb], 0.12, R, "ico", h, 0.3);
   }
   // fake ambient occlusion on the whole tree: a little darker toward the ground
   const H = ALTURA[esp];
@@ -215,10 +215,10 @@ const bytesDe = (g: THREE.BufferGeometry) => Object.values(g.attributes).reduce(
 // ---------------------------------------------------------------------------------------------------------------------
 /** Per species and variant: [trunkH, trunkR, blob1 centre y, blob1 radius xz, blob1 radius y, blob2 centre y, blob2 radius xz, blob2 radius y]. */
 const LEJOS: Record<Especie, [number[], number[]]> = {
-  roble: [[2.5, 0.22, 3.25, 1.3, 1.1, 2.7, 1.1, 0.85], [2.5, 0.22, 3.2, 1.4, 1.05, 2.6, 1.15, 0.8]],
+  roble: [[2.5, 0.25, 3.3, 1.55, 1.3, 2.7, 1.25, 1.0], [2.5, 0.25, 3.3, 1.6, 1.25, 2.7, 1.3, 1.0]],
   pino: [[1.6, 0.16, 3.0, 1.45, 2.2, 5.4, 0.8, 1.9], [1.6, 0.16, 3.1, 1.4, 2.3, 5.5, 0.75, 1.8]],
-  abedul: [[3.5, 0.1, 4.2, 0.95, 1.2, 3.0, 0.8, 0.9], [3.5, 0.1, 4.3, 1.0, 1.15, 3.1, 0.75, 0.85]],
-  arbusto: [[0.12, 0.06, 0.55, 0.75, 0.5, 0.45, 0.6, 0.4], [0.12, 0.06, 0.55, 0.8, 0.5, 0.45, 0.6, 0.4]],
+  abedul: [[3.5, 0.1, 4.2, 1.1, 1.4, 3.1, 0.95, 1.0], [3.5, 0.1, 4.2, 1.15, 1.4, 3.1, 0.95, 1.0]],
+  arbusto: [[0.12, 0.06, 0.6, 1.0, 0.7, 0.5, 0.8, 0.55], [0.12, 0.06, 0.6, 1.05, 0.7, 0.5, 0.8, 0.55]],
 };
 const LADOS_LEJOS = 8;
 
@@ -347,7 +347,7 @@ export function crearArboles(h: HArboles, puntos: readonly PuntoArbol[]) {
   for (const p of puntos) {
     const e = ESPECIES.indexOf(p.especie as Especie);
     const ix = Math.round(p.x * 16), iz = Math.round(p.z * 16);
-    const v = p.variante ?? (hash2(0x61, ix, iz) < 0.5 ? 0 : 1);
+    const v = p.variante ?? (hash2(0x61, ix, iz) < 0.8 ? 0 : 1);
     lista[e < 0 ? 0 : e].push(p.x, p.y, p.z, p.escala, p.giro, hash2(0x62, ix, iz) * 6.2832, v, hash2(0x63, ix, iz));
     minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
   }

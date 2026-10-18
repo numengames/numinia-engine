@@ -118,3 +118,54 @@ radio, 2 draw calls, cámara quieta = cero escritura, el anillo tras cruzar una 
 
 **Fotos:** `work/naturaleza/fotos/n3-{suelo-calma,suelo-viento-empuje,arriba-calma,arriba-viento,suelo-nivelD}.png` (colinas de seno
 de prueba, sin depender de N1; página en `.run/n3/`, puerto 5403).
+
+## N2 · Árboles low poly con ramas y viento (`naturaleza/arboles.ts`, tabla en `naturaleza/niveles.ts`)
+
+`crearArboles(h, puntos)` con `h = { vientoU, nivel, camara? }` y `puntos = [{x,y,z,escala,giro,especie,variante?}]` devuelve
+`{ grupo, mallas, actualizar(t, desde?), repartir(x,y,z), estadisticas(), dispose }`. Cuatro especies (`roble` copa redonda con 3 masas
+de hojas, `pino` de conos apilados, `abedul` esbelto, `arbusto`), cada una con 2 variantes (verde / otoño naranja · azulado ·
+amarillo · flor rosa). Todo sale de la semilla (`crearAzar`, `hash2`): misma entrada, mismos árboles en cualquier dispositivo.
+
+**Un árbol = una geometría fundida con color por vértice**: tronco facetado (prisma cónico de 5–6 lados), 3–5 ramitas (prismas finos
+de 4 lados) que llevan manchas de hojas (icosaedro u octaedro con los vértices movidos), degradado oscuro abajo → claro arriba en
+cada mancha y un 20 % más oscuro hacia el suelo (oclusión falsa gratis). Sin normales: sombreado plano por derivadas, sin texturas.
+
+**Triángulos por árbol** (medidos en `test/naturaleza-arboles.test.ts`): cerca ≤ 220 (roble 136 · pino 130 · abedul 150 · arbusto 132;
+el test lo comprueba contra 220), lejos 42 (tope 60): una silueta única para todas las especies (tronco de 5 lados + 2 bipirámides de 8).
+
+**Draw calls: 5, pase lo que pase** (4 especies cerca + 1 lejos compartida). Las dos variantes de una especie tienen la MISMA topología y el
+shader mezcla entre sus dos juegos de vértices (`posB`/`colB`) con un 0/1 por instancia: dos variantes en una sola llamada y sin doble
+coste. No se funden las especies en una sola geometría instanciada porque cada instancia pagaría los vértices de las cuatro (×4 vértices,
+y los triángulos degenerados cuentan en `renderer.info`). La silueta lejana es paramétrica (proporciones y color por instancia), por eso
+sirve a todas. Instancias con `InstancedBufferGeometry` y atributos propios (x,y,z,escala · giro,fase,variante,tinte) en vez de
+`instanceMatrix`: el viento necesita la altura del vértice ANTES de colocar el árbol.
+
+**Viento** (TSL, `positionNode`, funciona en WebGPU y en el respaldo WebGL2): empuje en la dirección de `vientoU` + una brisa fija de
+0,4 m/s (con viento 0 la copa respira un poco), peso = (altura/alto)² → el tronco casi no se mueve, la copa sí; ramas ×1,5; racha lenta
+(2 senos) con fase por árbol sacada de su posición (no se mueven al unísono); balanceo lateral; las hojas añaden un aleteo rápido y
+pequeño (solo vértices de hoja; apagado en el nivel D). A 14 m/s la copa de un roble de 4,7 m se desplaza ≈ 0,8 m. **CPU por árbol y
+fotograma: cero** (`actualizar(t)` escribe un uniform).
+
+**LOD por distancia**: cada 250 ms y solo si la cámara se movió ≥ 1,5 m, un paso O(n) sobre arrays tipados (2 histogramas de 64 cajas
+para respetar los topes del nivel, sin ordenar ni reservar memoria). **Medido: 0,055–0,18 ms para 1500 árboles** (< 0,3 ms), así que se
+queda este reparto por CPU en vez del radio fijo por chunk. Los árboles más allá de `arbolesLejosM` no se dibujan.
+
+**Tabla** `NATURALEZA_POR_NIVEL` (cerca máx · visibles máx · radio cerca · radio lejos · aletean): A 110/650/55/240 m · B,C 45/400/40/170 m ·
+D 20/170/26/110 m sin aleteo. Peor caso sobre el papel (todo cerca a 220 + todo lo demás a 60): A 56,6 k · B/C 31,2 k · D 13,4 k
+triángulos, dentro de 60/35/15 k **solo para los árboles**: ojo, la hierba de N3 ya reclama 65–77 % del tope (ver su nota), así que N4
+tiene que repartir el tope entre árboles y hierba (bajar `arbolesVisibles`/`tuftsMax`).
+
+**Medidas** (600 árboles en 120×120 m, cámara en el centro, página de pruebas): A 600 árboles = 34 956 triángulos · B 378 = 20 152 ·
+D 154 = 8 398; 5 draw calls en los tres; geometría 29 804 bytes en total (4 especies + silueta, 2 variantes); instancias 32 B por árbol
+cerca (+80 B por árbol lejos): 59 680 / 36 160 / 15 480 bytes.
+
+**Copiado / cambiado / combinado.** Copiado (técnica): copa de icosaedro/octaedro con vértices movidos (tabla de vértices de
+`IcosahedronGeometry`, three.js, MIT); formas de referencia de los paquetes CC0 de Quaternius/Kenney (solo la silueta, ningún activo);
+viento que crece con la altura (Codrops «foliage/grass with three.js TSL», GDC 2021 Ghost of Tsushima, solo la idea). Cambiado: todo
+procedural por semilla, dos variantes con la misma topología mezcladas en el shader, silueta lejana paramétrica única. Combinado:
+`vientoU` (entorno.ts), `semilla.ts` (N1), niveles de `calidad.ts`, luz de escena (Lambert) y niebla.
+
+**Pruebas:** `test/naturaleza-arboles.test.ts` (10: topología de variantes, presupuesto 220/60 por especie, piezas cerradas con volumen
+positivo, determinismo, esferas de recorte, topes por nivel, coste del reparto, grafo del material de viento).
+
+**Fotos:** `work/naturaleza/fotos/n2-arboles-{linea,suelo,aire,viento-0,viento-fuerte}.png` (página en `.run/n2/`, puerto 5402).
