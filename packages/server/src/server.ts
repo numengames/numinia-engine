@@ -39,6 +39,7 @@ import type { ConfigPase } from "./pase.ts";
 import type { Who } from "../../instance/src/index.ts";
 import { crearHabitantesGestion } from "./habitantes.ts";
 import { crearHabitantesHttp } from "./habitantes-http.ts";
+import { MODELO_POR_DEFECTO } from "../../agent/src/cerebro.ts";
 import { crearPuerta } from "./puerta.ts";
 import { ColaOptimizar } from "./optimizar-cola.ts";
 import type { Metrics } from "./metrics.ts";
@@ -167,6 +168,11 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       try { execFileSync("systemctl", ["restart", "numinia-habitantes"], { stdio: "ignore" }); } catch (e) { log(`[habitantes] no he podido recargar numinia-habitantes: ${(e as Error).message}`); }
     }), log,
   });
+  // P5a / «Add an AI» historia 2: whether THIS machine can think (a provider key is configured) and which model —
+  // read straight from env, same as the inhabitants' service (packages/agent/src/main.ts); the key itself never
+  // leaves this scope (only the boolean and the model id reach /status).
+  const claveCerebro = process.env.CEREBRO_CLAVE ?? process.env.ANTHROPIC_API_KEY ?? "";
+  const cerebroEstado = { pensar: claveCerebro.length >= 20, modelo: process.env.CEREBRO_MODELO || MODELO_POR_DEFECTO };
   // ADR-080: outside agents = the adventure's agentes/ (their public keys); they sign their own a2 tickets
   const dominios = o.dominios ?? (process.env.MOTOR_DOMINIO ?? "").split(",").filter((d) => d.trim());
   const puerta = crearPuerta({ aventura: o.aventura ?? null, habitantes: () => new Set(hab.habitantes.map((h) => h.id)), dominios, log });
@@ -271,7 +277,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "access-control-allow-origin": "*" });
       return void res.end(JSON.stringify({
         uptime: Math.floor((performance.now() - born) / 1000), conectados: personas, agentes: agentesConectados.length,
-        total: inst.conns.length, agentesDe, commitHash: motor.commit ?? undefined, version,
+        total: inst.conns.length, agentesDe, commitHash: motor.commit ?? undefined, version, cerebro: cerebroEstado,
         ...(cfgPase.pase ? { mundoPase: cfgPase.pase.mundo } : {}), ...fichaPublica,
       }));
     }
