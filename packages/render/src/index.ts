@@ -415,6 +415,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     s.group.position.set(w.x, w.y, w.z);
     s.group.rotation.set(w.rx * RAD, w.ry * RAD, w.rz * RAD, "YXZ");
     s.group.scale.set(w.sx, w.sy, w.sz);
+    if (!s.medio && s.want.kind !== "sonido" && s.want.kind !== "video") s.group.visible = !w.hidden || verOcultos; // D-041: a hidden model is not drawn while playing (medios.ts does it for sound and video)
   }
   // N22: the room first (pinned/backdrop things: the hall you stand in), then the nearest; what is far (LEJOS_M) waits
   // until nothing near is still downloading, so it never takes the phone's bandwidth from what you see (carga-orden.ts)
@@ -837,7 +838,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     bubbles() { return nombres.bubbles(); },
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
     /** U10: draw hidden spheres of sound (while building) or not (while playing). */
-    verOcultos(si: boolean): void { verOcultos = si; },
+    verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
     busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); },

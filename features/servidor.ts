@@ -16,5 +16,6 @@ import dados from "./dados/server.ts"; // v1: dice the server rolls (a tower is 
 
 import teletransporte from "./teletransporte/server.ts"; // N16: go next to someone connected now; a photo's place, if the world allows it
 import web from "./web/server.ts"; // N17: web screens (an iframe in the world on PC and phone; a card and «Abrir fuera» in VR)
-const funciones: ServerPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web];
+import disparadores from "./disparadores/server.ts"; // D-041: the cable — zone and button triggers a world wires in disparadores.json; one server-only `accion` per receiver
+const funciones: ServerPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web, disparadores];
 export default funciones;
