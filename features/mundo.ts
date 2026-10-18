@@ -10,6 +10,8 @@ import { crearPesca } from "./pesca/server.ts";
 import type { Sitio as SitioPesca } from "./pesca/server.ts";
 import { crearDardos } from "./dardos/server.ts";
 import type { Sitio as SitioDardos } from "./dardos/server.ts";
+import { crearDados } from "./dados/server.ts";
+import type { Torre as TorreDados } from "./dados/server.ts";
 import { leerAparicion, leerAparicionFoto } from "./entorno/esquema.ts";
 import { crearTeletransporte } from "./teletransporte/server.ts";
 import type { Aparicion } from "./entorno/esquema.ts";
@@ -24,11 +26,15 @@ export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) 
   const crudoDardos = leer("dardos.json") as { sitios?: unknown } | null | undefined;
   const sitiosDardos = crudoDardos?.sitios;
   if (crudoDardos !== undefined && !Array.isArray(sitiosDardos)) log(`[mundo] dardos.json no tiene una lista "sitios" (uso la diana de la casa): ${JSON.stringify(crudoDardos).slice(0, 160)}`);
+  // dados.json (numinia-engine/dados@1: { torres: [{ id, nombre, x, y, z, radio, dados }] }): the world's dice towers; none = no tower (/tirar still rolls where you stand)
+  const crudoDados = leer("dados.json") as { torres?: unknown } | null | undefined;
+  const torresDados = crudoDados?.torres;
+  if (crudoDados !== undefined && !Array.isArray(torresDados)) log(`[mundo] dados.json no tiene una lista "torres" (no pongo ninguna torre): ${JSON.stringify(crudoDados).slice(0, 160)}`);
   // N16: entorno.json `aparicionFoto` (off when absent or wrong; a wrong one is said once): a photo's link puts you at its place
   const crudoEntorno = leer("entorno.json"), af = crudoEntorno === undefined ? { ok: true as const, value: false } : leerAparicionFoto(crudoEntorno);
   if (!af.ok) log(`[mundo] aparicionFoto de entorno.json no se usa (apagado): ${af.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
   const fotoSi = af.ok && af.value;
-  return partes.map((p) => (p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
+  return partes.map((p) => (p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
 }
 
 /** The world's spawn area (entorno.json `aparicion`), or null: no file, no key, or a wrong one (logged, with its path). */

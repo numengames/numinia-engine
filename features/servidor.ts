@@ -11,8 +11,9 @@ import director from "./director/server.ts"; // N6: the Game Director (scenes, n
 import elementos from "./elementos/server.ts";
 import pesca from "./pesca/server.ts"; // v1: fishing (the server decides the bite, the fish and the catch)
 import dardos from "./dardos/server.ts"; // v1: darts (the page sends aim + strength; the server decides where it lands and the score)
-import bienes from "./bienes/server.ts"; // N10: digital goods — a chest's «objeto» becomes yours (signed receipt, inventory)
+import bienes from "./bienes/server.ts";
+import dados from "./dados/server.ts"; // v1: dice the server rolls (a tower is a thing of the world; /tirar 2d6 in the chat); everyone near sees the same // N10: digital goods — a chest's «objeto» becomes yours (signed receipt, inventory)
 
 import teletransporte from "./teletransporte/server.ts"; // N16: go next to someone connected now; a photo's place, if the world allows it
-const funciones: ServerPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, director, teletransporte];
+const funciones: ServerPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte];
 export default funciones;
