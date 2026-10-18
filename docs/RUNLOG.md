@@ -730,3 +730,12 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Opus 5.5.
 - Siguiente: lo fusiona Pablo después de #35. Tras desplegar, `/status` debe decir 0.5.0; probar `/tirar 2d6` con
   dos pestañas y «Gente» (L).
+
+## 2026-10-18 10:47 · fábrica · hecho
+- Qué: rama `personas/separar-del-conteo` (17-10) rescatada sobre main: `/status` y `/health` separan personas de
+  agentes (`conectados` sigue siendo solo personas; nuevos `agentes`, `total`, `agentesDe` {habitante, organizacion});
+  el mapa pinta a las IAs como rombo verde «Agente (IA)», aparte de las personas (por la marca « · IA» del servidor).
+- Versión **0.5.1 → 0.6.0** (menor): campos nuevos en `/status` y `/health`, ninguno cambia; tipo nuevo en el mapa.
+- Números: ver el cuerpo del PR (`npm test`, `npm run build`, pierna e2e del mapa).
+- Consumo: sin medir · Opus 5.5.
+- Siguiente: la cola de ramas sin fusionar está en work/fabrica/COLA-motor.md; la siguiente es `movil/audit-ui-2026-10-18`.

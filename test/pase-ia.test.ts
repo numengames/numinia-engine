@@ -146,3 +146,14 @@ test("pase IA: size — an AI's pass is short; even the worst one numinia.com ca
   assert.ok(peor.length + 1 <= PASE_MAX);
   assert.ok(encodePase(peor) !== null);
 });
+
+test("organizacionDeAgente (/status's agentesDe): an organization AI gives its org while connected, a world inhabitant gives null", () => {
+  const W = mundo();
+  assert.equal(W.roles.organizacionDeAgente(`ia-${SUB_A}`), null, "not connected yet: no pass held");
+  const A = W.entrar(paseIA(T0));
+  assert.equal(W.roles.organizacionDeAgente(`ia-${SUB_A}`), "org-1");
+  assert.equal(W.roles.organizacionDeAgente("ia-lia"), null, "a habitant AI (no pass) is never «of» an organization");
+  assert.equal(W.roles.organizacionDeAgente("alguien"), null, "not even an «ia-» id");
+  W.inst.disconnect(A.e);
+  assert.equal(W.roles.organizacionDeAgente(`ia-${SUB_A}`), null, "gone when it leaves: no pass held any more");
+});

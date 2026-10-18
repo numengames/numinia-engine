@@ -469,6 +469,9 @@ export function crearRoles(o: OpcionesRoles) {
     part, puede, credencial, renovar,
     /** For tests and the server: what someone with this id may do. */
     acceso: (id: string | undefined) => accesoDe(id),
+    /** For /status (STD: personas vs agentes): `id` is an "ia-…" one. Its organization (ADR-080, a signed pass) when
+     * it is one of numinia.com's agents; null for a world inhabitant (habitantes/<id>.json, P4) — those have no pass. */
+    organizacionDeAgente: (id: string): string | null => (esIA(id) ? pasesIA.get(id.slice(3))?.org ?? null : null),
     get roles(): readonly Rol[] { return roles; },
     get soloMiembros() { return soloMiembros; },
     /** Are microphones relayed in this world (the stored setting; MOTOR_VOZ only seeded it)? The instance asks it. */
