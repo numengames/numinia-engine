@@ -795,6 +795,23 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Versión **0.9.0 → 0.10.0** (menor): ajustes y piezas nuevos, nada se rompe. Las ramas traían 0.6.2–0.6.5 y 0.8.0; rebasada sobre `main` 0.9.0 (#49, #50, #60), una sola subida (`docs/VERSIONES.md`).
 - Consumo: sin medir · Sonnet 5.5.
 
+## 2026-10-18 14:48 · mover-girar (D-043 historias 1-2) · hecho (rama `mover-girar/ola3`, para `tren/motor-2026-10-18-5`)
+- Qué: pieza nueva `features/movedores` — mover y girar objetos del mundo con duración, igual para todos (D-043):
+  una plataforma o un ascensor que va y viene solo (`vaiven`: pose A → B → A…, con una pausa `espera` en cada punta)
+  y una puerta corredera que espera hasta que alguien cercano la activa (`interruptor`: la orden `activa`, el mismo
+  alcance que el «E: usar» de una puerta). El servidor lleva el reloj de cada ride (interpolación lineal pura,
+  `poseDe`/`lerpPose`) y publica la postura 5 veces por segundo mientras se mueve (no 20), solo a quien está en su
+  zona; al llegar a un lado emite `llegada` con el nombre de evento del fichero para que otra pieza (el cable) lo
+  use más adelante. Un mundo trae sus movedores en `entorno/movedores.json` (`numinia-engine/movedores@1`,
+  `leerMovedores`, cada línea mala fuera con su motivo). La página solo dibuja el modelo donde dice el servidor
+  (`view.place`), nunca decide la postura.
+- Números: `test/movedores.test.ts` (6 pruebas: declaración, pose pura, fichero, `conMundo`, vaiven de punta a
+  punta, interruptor con alcance e ignorando una orden a mitad de camino); `npm run gates` en verde (631 pruebas,
+  capas, determinismo `f455ffc1`, ancho de banda 26,6 kbit/s, plaza de 1.000 p99 8,4 ms, tamaño 452,4 kB).
+- Consumo: sin medir · Sonnet 5 (obrero ola 3).
+- Siguiente: cable (D-041) todavía no tiene un receptor `mueve` para disparar un movedor desde un botón o una zona
+  (lo deja para la historia del cable, que toca `ACCIONES` en `features/disparadores/feature.ts`); medir el coste
+  real de publicar varios movedores a la vez bajo carga (PUBLICA_CADA_TICKS=4 es una estimación, no una medida).
 ## 2026-10-18 14:57 · contadores-h3 · hecho
 - Qué: D-044 historia 3. `features/contadores` gana `state.persist: true` (S4): el valor y si está en marcha
   sobreviven a un reinicio (al arrancar lee lo guardado antes de usar `inicio` del fichero). Contador

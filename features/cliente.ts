@@ -23,5 +23,6 @@ import suelo from "./suelo/client.ts"; // D-045: the fade when the server puts y
 import contadores from "./contadores/client.ts"; // D-044: timers and counters (the sign is a label sprite; the panel lives in apps/plaza/contadores.ts)
 import disparadores from "./disparadores/client.ts"; // D-041: the cable — a button on its post; the page only asks `pulsar`
 import cerradura from "./cerradura/client.ts"; // D-042: the lock's data and its keypad (apps/plaza/cerradura.ts)
-const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores, cerradura];
+import movedores from "./movedores/client.ts"; // D-043: the model wherever the server says, right now (`view.place`)
+const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores, cerradura, movedores];
 export default funciones;
