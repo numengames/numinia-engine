@@ -12,6 +12,13 @@ export function catalogoDeAvatares(origen: string, params: URLSearchParams, avat
   return { modelos: modelosDelMundo(catalogo.modelos, avatar).map((m) => ({ nombre: m.nombre, url: `${origen}/a/${m.sha256}.vrm` })), animaciones };
 }
 
+/** Rediseño v2 (the VR menu's «Tú»): the house id of the model at `indice` of what this world offers (the index
+ * `eleccion` gives), for its portrait /retratos/<id>-cuerpo.webp; null when unknown. */
+export function idAvatarDe(indice: number | undefined, avatar?: string): string | null {
+  if (indice === undefined || indice < 0) return null;
+  return modelosDelMundo(catalogo.modelos, avatar)[indice]?.id ?? null;
+}
+
 /** The models a world offers: the one it names, or all of them (pure, for tests). */
 export function modelosDelMundo<M extends { id: string }>(modelos: readonly M[], avatar?: string): M[] {
   const uno = avatar ? modelos.find((m) => m.id === avatar) : undefined;

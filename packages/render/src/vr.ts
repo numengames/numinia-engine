@@ -6,21 +6,35 @@
 // Buttons (xr-standard): A or X jump · B back (closes the dialogue) · Y brings the panel in front of you / hides it ·
 // trigger uses what the ray points at · grip takes what the hand touches · right stick: turn (sideways), and up/down
 // moves through a dialogue's answers (A or the trigger chooses).
+// Rediseño v2 (story E, maquetas p6/p7): turn the back of the LEFT wrist towards you and a watch shows on it (muneca.ts:
+// «Menú» in the middle, microphone · camera · notices · back to the city around); «Menú» (or Y) opens the menu panel
+// still in front of you at 1.2 m (menu-invocado.ts) with the computer's sections; B, «Menú» again or its X close it.
 import * as THREE from "three/webgpu";
-import type { Panel } from "./manos.ts";
+import type { Lado, Panel } from "./manos.ts";
+import { createReloj, type EstadoReloj } from "./muneca.ts";
+import { createMenuInvocado, type Proveedor } from "./menu-invocado.ts";
+import type { BotonReloj, Vista } from "./menu-vr.ts";
+import type { PathsIcono } from "./vr-pintura.ts";
 import type { AccionFichaVR, DatosFichaVR, FichaVR } from "./vr-ficha.ts"; // types only: the panel itself is fetched on first use (C5)
 import { empujaFuera } from "./vr-paredes.ts";
 import { audio } from "./audio/nucleo.ts"; // S1: the engine's one audio graph (it sleeps when the session ends)
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
 export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void; andar?(): [number, number] | null;
   /** t_bf8947cf: where a controller points, flattened (world, unit); null without that controller. */
-  dirMando?(lado: "izq" | "der"): [number, number] | null };
+  dirMando?(lado: "izq" | "der"): [number, number] | null;
+  /** Rediseño v2: a hand's wrist (world) and what presses by touch on the other hand (manos.ts). */
+  muneca?(lado: Lado, pos: THREE.Vector3, rot: THREE.Quaternion): { esMano: boolean } | null;
+  punta?(lado: Lado, pos: THREE.Vector3): boolean };
 /** t_bf8947cf (MVL1): how the left stick's push becomes a world direction — settings menu, remembered.
  * mirada: forward is where the head looks (as shipped). mando: forward is where the left controller points.
  * cuerpo: forward is the rig's own facing (only snap turns move it) — looking around does not redirect it. */
 export type ModoMovimientoVR = "mirada" | "mando" | "cuerpo";
 
 export const SNAP_DEG = 30;
+/** Rediseño v2 (VR settings): the snap turn's steps the menu offers, and the stick's pace and the floor's lift limits. */
+export const GIROS_DEG = [15, 30, 45] as const;
+export const VELOCIDAD = { min: 0.4, max: 1 } as const;
+export const ALTURA_M = { min: -0.3, max: 0.6 } as const;
 export const DEADZONE = 0.2;
 /** How long a note stays in front of you (ms). */
 export const NOTA_MS = 3500;
@@ -46,6 +60,8 @@ export type VRHooks = {
   camera: THREE.PerspectiveCamera;
   manos?: ManosXR;
   onChange?: (state: VRState) => void;
+  /** The house's Phosphor icons for the watch and the menu (apps/plaza/iconos.ts); without them, text only. */
+  iconos?: PathsIcono;
 };
 /** A conversation as the dialogue panel shows it. */
 export type DialogoVR = { nombre: string; texto: string; opciones: string[] };
@@ -268,7 +284,8 @@ export function createVR(h: VRHooks) {
   let session: any = null;
   let comfort = 0.8; // 0 = off, 1 = strongest
   let modoMovimiento: ModoMovimientoVR = "mirada"; // t_bf8947cf: settings menu, remembered by the registry
-  let moveX = 0, moveZ = 0, turnLatched = false, yawSteps = 0, strength = 0, navLatched = false;
+  let giroDeg: number = SNAP_DEG, yawDeg = 0, velocidad = 1, alturaM = 0; // rediseño v2: the menu's VR settings
+  let moveX = 0, moveZ = 0, turnLatched = false, strength = 0, navLatched = false;
   let ultimoFotograma = 0; // performance.now() of the last update(): axes() goes stale after INTENCION_CADUCA_MS
   // J2: A (right) or X (left) = jump, like Hyperfy2's A; a press waits here until the page's next tick takes it
   let jumpWanted = false;
@@ -291,6 +308,39 @@ export function createVR(h: VRHooks) {
     m.lookAt(ojo);
   };
 
+  // Rediseño v2 (story E): the wrist watch (left wrist) and the menu panel. Both live in the WORLD (scene), not the rig:
+  // the watch is placed on the wrist each frame, the menu stays where it opened while you walk or turn.
+  const LADO_RELOJ: Lado = "izq", LADO_PUNTA: Lado = "der";
+  const oyentesV2 = { reloj: new Set<(b: BotonReloj) => void>(), pulsa: new Set<() => void>() };
+  const avisarPulsa = () => { for (const f of oyentesV2.pulsa) try { f(); } catch { /* a page's sound must not break VR */ } };
+  let pathsIcono: PathsIcono = h.iconos ?? (() => []);
+  const iconos: PathsIcono = (n) => pathsIcono(n); // the page hands the house's icons over later (`vr.iconos(fn)`)
+  const reloj = createReloj({ scene: h.scene, iconos });
+  const menu = createMenuInvocado({ scene: h.scene, iconos, salir: () => { void exit(); }, alPulsar: avisarPulsa });
+  let estadoRelojPagina: () => Omit<EstadoReloj, "menuAbierto"> = () => ({ micro: null, camara: false, avisos: 0, ciudad: false });
+  reloj.estado(() => ({ ...estadoRelojPagina(), menuAbierto: menu.abierto }));
+  const ojoV = new THREE.Vector3(), miraV = new THREE.Vector3(), munPos = new THREE.Vector3(), puntaV = new THREE.Vector3();
+  const munRot = new THREE.Quaternion();
+  function leerOjos(): void {
+    const cam = h.renderer.xr.getCamera();
+    ojoV.setFromMatrixPosition(cam.matrixWorld); cam.getWorldDirection(miraV);
+  }
+  /** «Menú» / Y: open the menu in front of the eyes (at `en`, or where it was) or close it. Returns whether it is open. */
+  function alternarMenu(en?: Vista): boolean {
+    if (!session) return false;
+    leerOjos();
+    const abre = !menu.abierto;
+    const ok = menu.alternar(ojoV, miraV, en);
+    if (abre && ok) panel.visible = false; // the old help card steps aside: one panel in front of you
+    return ok;
+  }
+  reloj.alPulsar((b) => {
+    avisarPulsa();
+    if (b === "menu") { alternarMenu(); return; }
+    if (b === "avisos") { if (menu.abierto) menu.ir("avisos"); else alternarMenu("avisos"); }
+    for (const f of oyentesV2.reloj) try { f(b); } catch (e) { console.warn("[reloj]", e); }
+  });
+
   let lastError = ""; // why the last enter() failed (T1 report)
   async function enter(): Promise<boolean> {
     const xr = xrOf();
@@ -307,7 +357,7 @@ export function createVR(h: VRHooks) {
     pagina = "mandos"; panel.visible = true; panelDelante = false; // the first thing you see: how the controllers work
     ajusteMalla.visible = false; salirMalla.visible = true;
     session.addEventListener("end", () => {
-      session = null; moveX = moveZ = 0; strength = 0; fichaVR?.ocultar(); fichaPide = null;
+      session = null; moveX = moveZ = 0; strength = 0; fichaVR?.ocultar(); fichaPide = null; reloj.cerrar(); menu.cerrar();
       h.camera.remove(vignette, nota); rig.remove(h.camera); rig.visible = false;
       h.manos?.montar(null);
       h.renderer.xr.enabled = false;
@@ -327,7 +377,7 @@ export function createVR(h: VRHooks) {
   function update(self: { x: number; z: number; y?: number } | null, dtSeconds: number): void {
     if (!session) return;
     ultimoFotograma = performance.now();
-    if (self) rig.position.set(self.x + empujeX, self.y ?? 0, self.z + empujeZ);
+    if (self) rig.position.set(self.x + empujeX, (self.y ?? 0) + alturaM, self.z + empujeZ);
     let lx = 0, ly = 0, rx = 0, ry = 0;
     const visible = (session.visibilityState ?? "visible") === "visible"; // blurred/hidden: the system owns the input
     for (const src of visible ? session.inputSources ?? [] : []) {
@@ -344,13 +394,10 @@ export function createVR(h: VRHooks) {
           else jumpWanted = true;
         }
         if (by && !hs[1]) {
-          if (src.handedness === "right") for (const f of oyentes.atras) f();             // B: back
-          else if (!panel.visible || !panelDelante) { panel.visible = true; panelDelante = true; pagina = "mision"; delante(panel, 0.8, 0.2); } // Y: the quest in front…
-          else if (pagina === "mision") pagina = "mandos";                                  // …then the controls…
-          else if (pagina === "mandos") { pagina = "ajustes"; ajustePintado = ""; pintarAjuste(); } // …then ajustes (MVL1)…
-          else panel.visible = false;                                                         // …then away
-          ajusteMalla.visible = pagina === "ajustes" && panel.visible;
-          salirMalla.visible = pagina !== "ajustes" && panel.visible;
+          // B (right): closes the menu if it is open, else «back» (the dialogue…). Y (left): opens/closes the menu
+          // (rediseño v2) — the same as «Menú» on the watch; the old help panel steps aside when the menu opens.
+          if (src.handedness === "right") { if (!menu.cerrar()) for (const f of oyentes.atras) f(); }
+          else alternarMenu();
         }
         hs[0] = ax; hs[1] = by;
       }
@@ -362,7 +409,7 @@ export function createVR(h: VRHooks) {
     // snap turn: one step per push, re-armed when the stick returns to the middle
     let turned = false;
     if (Math.abs(rx) > 0.6) {
-      if (!turnLatched) { turnLatched = true; yawSteps += rx > 0 ? -1 : 1; rig.rotation.y = yawSteps * (SNAP_DEG * Math.PI) / 180; turned = true; }
+      if (!turnLatched) { turnLatched = true; yawDeg += rx > 0 ? -giroDeg : giroDeg; rig.rotation.y = (yawDeg * Math.PI) / 180; turned = true; }
     } else turnLatched = false;
     // movement in the direction the head looks (flattened), stick up = forward.
     // The XR camera (h.renderer.xr.getCamera()) is only refreshed by three.js's own updateCamera()
@@ -401,6 +448,7 @@ export function createVR(h: VRHooks) {
     if (conMano) { moveX = conMano[0] * 0.7; moveZ = conMano[1] * 0.7; } // walking pace (the edge, 0.9, runs)
     const m = Math.hypot(moveX, moveZ);
     if (m > 1) { moveX /= m; moveZ /= m; }
+    moveX *= velocidad; moveZ *= velocidad; // rediseño v2: the menu's «Velocidad» (1 = as shipped)
     // vignette fades in fast while moving or turning, out slowly; a wall push forces it fully dark for an
     // instant regardless of the comfort setting (safety feedback, not a comfort option)
     const want = (m > 0 || turned ? 1 : 0) * comfort;
@@ -408,6 +456,12 @@ export function createVR(h: VRHooks) {
     if (performance.now() < chocaHasta) strength = 1;
     (vignette.material as THREE.MeshBasicMaterial).opacity = strength;
     if (nota.visible && performance.now() > notaHasta) nota.visible = false;
+    // rediseño v2: the watch on the left wrist (pressed by the right hand's fingertip or ray) and the still menu
+    ojoV.setFromMatrixPosition(xrCam.matrixWorld); xrCam.getWorldDirection(miraV);
+    const mun = visible ? h.manos?.muneca?.(LADO_RELOJ, munPos, munRot) : null;
+    const hayPunta = visible && !!h.manos?.punta?.(LADO_PUNTA, puntaV);
+    reloj.update(ojoV, miraV, mun ? { posicion: munPos, rotacion: munRot, esMano: mun.esMano, lado: LADO_RELOJ } : null, hayPunta ? puntaV : null);
+    menu.update(ojoV);
     h.manos?.update(h.renderer.xr.getCamera());
     fichaVR?.tick();
     if (panel.visible) { pintarSalir(); pintarAjuste(); } // the highlight fades once the ray leaves; «¿Salir?» goes back after SALIR_CONFIRMA_MS
@@ -430,7 +484,28 @@ export function createVR(h: VRHooks) {
     set comfort(v: number) { comfort = Math.max(0, Math.min(1, v)); },
     get modoMovimiento() { return modoMovimiento; },
     set modoMovimiento(v: ModoMovimientoVR) { modoMovimiento = v === "mando" || v === "cuerpo" ? v : "mirada"; },
-    get yawDegrees() { return yawSteps * SNAP_DEG; },
+    get yawDegrees() { return yawDeg; },
+    /** Rediseño v2 (VR settings): snap turn step (one of GIROS_DEG), stick pace (0.4..1) and the floor's lift (m). */
+    get giroGrados() { return giroDeg; },
+    set giroGrados(v: number) { giroDeg = (GIROS_DEG as readonly number[]).includes(v) ? v : SNAP_DEG; },
+    get velocidad() { return velocidad; },
+    set velocidad(v: number) { velocidad = Number.isFinite(v) ? Math.max(VELOCIDAD.min, Math.min(VELOCIDAD.max, v)) : 1; },
+    get alturaM() { return alturaM; },
+    set alturaM(v: number) { alturaM = Number.isFinite(v) ? Math.max(ALTURA_M.min, Math.min(ALTURA_M.max, v)) : 0; },
+    /** Rediseño v2: the wrist watch and the menu panel (for the page's wiring and for checks). */
+    reloj, menu,
+    /** The house's Phosphor icons (name → SVG paths, viewBox 256) for the watch and the menu. */
+    iconos(fn: PathsIcono): void { pathsIcono = fn; reloj.pintar(); },
+    /** «Menú» / Y from the page or a check: open (at `en`) or close the menu in front of the eyes. */
+    alternarMenu,
+    /** What the menu shows: each view's content, from the page's own data (apps/plaza/xr-menu.ts). */
+    menuProveedor(p: Proveedor): void { menu.proveedor(p); },
+    /** What the watch shows (microphone, camera, notices, city). */
+    relojEstado(fn: () => Omit<EstadoReloj, "menuAbierto">): void { estadoRelojPagina = fn; },
+    /** A watch button other than «Menú» was pressed («micro», «camara», «avisos», «ciudad»): the page acts. */
+    onReloj(fn: (b: BotonReloj) => void): () => void { oyentesV2.reloj.add(fn); return () => oyentesV2.reloj.delete(fn); },
+    /** Any press on the watch or the menu (for a soft click). */
+    onPulsa(fn: () => void): () => void { oyentesV2.pulsa.add(fn); return () => oyentesV2.pulsa.delete(fn); },
     get vignetteOpacity() { return strength; },
     /** What the panel shows now: the quest or the controls (Y goes quest → controls → hidden). */
     get pagina() { return pagina; },
@@ -447,7 +522,7 @@ export function createVR(h: VRHooks) {
       dialogoMalla.visible = !!session;
     },
     /** The panel the hands may point at (manos.ts asks for it). */
-    paneles(): Panel[] { const out: Panel[] = dialogo && dialogoMalla.visible ? [panelDialogo] : []; if (fichaVR?.visible) out.push(fichaVR.panel); if (panel.visible) out.push(pagina === "ajustes" ? panelAjuste : panelSalir); return out; },
+    paneles(): Panel[] { const out: Panel[] = dialogo && dialogoMalla.visible ? [panelDialogo] : []; out.push(...menu.paneles(), ...reloj.paneles()); if (fichaVR?.visible) out.push(fichaVR.panel); if (panel.visible) out.push(pagina === "ajustes" ? panelAjuste : panelSalir); return out; },
     /** C5: show the object card panel for this object (null hides it). Fetches the panel's code the first time. */
     ficha(d: DatosFichaVR | null): void {
       fichaPide = d;

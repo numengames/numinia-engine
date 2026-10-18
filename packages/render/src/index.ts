@@ -14,6 +14,9 @@ export type { Vitrina } from "./vitrina.ts";
 export type { Donde as DondePuesto } from "./puestos.ts";
 export { vrSupported } from "./vr.ts";
 export type { VRState, DialogoVR } from "./vr.ts";
+/** Rediseño v2: the VR session as the page wires its watch and menu (apps/plaza/xr-menu.ts). */
+export type MenuVR = ReturnType<typeof createVR>;
+export type { Contenido as ContenidoMenuVR } from "./menu-invocado.ts";
 import type { Manos, EventoMano } from "./manos.ts";
 export type { EventoMano, Lado } from "./manos.ts";
 import { createPower, readCaps, checkCost, conClase } from "./power.ts";
@@ -239,6 +242,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     rayo: (l: "izq" | "der") => manosReal?.rayo(l) ?? null,
     andar: () => manosReal?.andar() ?? null,
     dirMando: (l: "izq" | "der") => manosReal?.dirMando(l) ?? null,
+    muneca: (l: "izq" | "der", pos: THREE.Vector3, rot: THREE.Quaternion) => manosReal?.muneca(l, pos, rot) ?? null, // rediseño v2: the wrist watch
+    punta: (l: "izq" | "der", pos: THREE.Vector3) => manosReal?.punta(l, pos) ?? false,
     vibrar: (l: "izq" | "der", v?: number, ms?: number) => manosReal?.vibrar(l, v, ms),
     entrada: (l: "izq" | "der") => manosReal?.entrada(l) ?? null,
     rayoDe: (l: "izq" | "der") => manosReal?.rayoDe(l) ?? null,

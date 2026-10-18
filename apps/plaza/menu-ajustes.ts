@@ -128,6 +128,11 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   // t_bf8947cf (MVL1): the VR rig always exists (unlike cam/entorno, built in parallel branches), so this
   // writes straight to view.vr instead of going through Contratos.
   a.alAplicar("controles.modoMovimientoVR", (v) => { view.vr.modoMovimiento = v as "mirada" | "mando" | "cuerpo"; });
+  // rediseño v2: the VR menu's «Ajustes» rows (also here on the computer)
+  a.alAplicar("controles.giroVR", (v) => { view.vr.giroGrados = Number(v); });
+  a.alAplicar("controles.velocidadVR", (v) => { view.vr.velocidad = Number(v) / 100; });
+  a.alAplicar("controles.confortVR", (v) => { view.vr.comfort = Number(v) / 100; });
+  a.alAplicar("controles.alturaVR", (v) => { view.vr.alturaM = Number(v) / 100; });
   a.alAplicar("accesibilidad.menosMovimiento", (v) => { html.classList.toggle("menos-movimiento", v === true); });
   a.alAplicar("accesibilidad.textoGrande", (v) => { html.classList.toggle("texto-grande", v === true); });
   a.alAplicar("accesibilidad.altoContraste", (v) => { html.classList.toggle("alto-contraste", v === true); });
