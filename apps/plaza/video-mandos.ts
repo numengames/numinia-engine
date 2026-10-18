@@ -43,9 +43,12 @@ export function montarVideoMandos(o: OpcionesVideoMandos) {
   const nombre = document.createElement("span"); nombre.className = "nombre";
   const pausar = document.createElement("button"); pausar.type = "button";
   const parar = document.createElement("button"); parar.type = "button"; parar.textContent = "Parar";
+  // S4: silenciar — el que faltaba (hasta hoy el mute del vídeo era automático por volumen y no se podía pedir).
+  // Es MÍO, como el resto del mando: actúa sobre la ganancia del grafo, no se manda al servidor (U14 sigue abierta).
+  const silencio = document.createElement("button"); silencio.type = "button";
   const volumen = document.createElement("input"); volumen.type = "range"; volumen.min = "0"; volumen.max = "100"; volumen.step = "1";
   volumen.setAttribute("aria-label", "Mi volumen de este vídeo");
-  o.panel.append(nombre, pausar, parar, volumen);
+  o.panel.append(nombre, pausar, parar, silencio, volumen);
 
   let actualId = "";
   const control = (): ControlVideo | null => (actualId ? o.controlVideo(actualId) : null);
@@ -54,11 +57,15 @@ export function montarVideoMandos(o: OpcionesVideoMandos) {
     o.panel.hidden = !c;
     if (!c) return;
     pausar.textContent = c.pausado() ? "Reanudar" : "Pausar";
+    const mudo = c.silenciado();
+    silencio.textContent = mudo ? "Oír" : "Silenciar";
+    silencio.setAttribute("aria-pressed", mudo ? "true" : "false");
     if (document.activeElement !== volumen) volumen.valueAsNumber = Math.round(c.volumen() * 100);
   };
   pausar.addEventListener("click", () => { control()?.alternarPausa(); refrescar(); });
   parar.addEventListener("click", () => { control()?.parar(); refrescar(); });
-  volumen.addEventListener("input", () => control()?.fijarVolumen(volumen.valueAsNumber / 100));
+  silencio.addEventListener("click", () => { control()?.alternarSilencio(); refrescar(); });
+  volumen.addEventListener("input", () => { control()?.fijarVolumen(volumen.valueAsNumber / 100); refrescar(); });
 
   /** The videos a person whose feet are at (x, y, z) may reach, nearest first (an offer for interactuar.ts). E, a
    * click or — in VR — the controller's own trigger (xr.ts) toggle Pausar/Reanudar: the same action everywhere. */

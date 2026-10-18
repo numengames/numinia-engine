@@ -615,9 +615,16 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   function updateThings(dt: number): void {
     animatingNear = false; mediosSonando = false;
     const r2 = ANIMATE_WITHIN_M ** 2;
-    const oyente = selfXZ ? { x: selfXZ.x, y: (selfXZ.y ?? 0) + 1.5, z: selfXZ.z } : null;
+    // S4/S5: de dónde oyes es LO QUE DICE EL OYENTE (audio/oyente.ts): la cámara fuera de XR, la pose real del visor
+    // dentro. Antes era la posición DE RED del jugador +1,5 m y sin orientación, y por eso un sonido a tu izquierda
+    // sonaba igual que uno a tu derecha. Mientras el módulo del oyente no haya llegado (un par de fotogramas) se usa
+    // la cámara a secas, para que un sonido no nazca mudo.
+    const op = oyente?.pose();
+    const oido: { x: number; y: number; z: number } | null = op && op.fuente !== "ninguna"
+      ? { x: op.x, y: op.y, z: op.z }
+      : { x: camera.position.x, y: camera.position.y, z: camera.position.z };
     for (const s of things.values()) {
-      if (s.medio) { s.medio.actualizar(s.group, oyente, { hidden: !!s.want.hidden, volume: s.want.volume ?? 1, reach: s.want.reach ?? "burbuja", radius: s.want.radius ?? 8 }); if (s.want.kind === "video" && s.medio.sonando()) mediosSonando = true; }
+      if (s.medio) { s.medio.actualizar(s.group, oido, { hidden: !!s.want.hidden, volume: s.want.volume ?? 1, reach: s.want.reach ?? "burbuja", radius: s.want.radius ?? 8 }); if (s.want.kind === "video" && s.medio.sonando()) mediosSonando = true; }
       if (s.horneado) actualizarLOD(s); // J14: far baked figures drop to one piece (one draw call)
       if (!s.mixer) continue;
       if (distance2(s) <= r2) { s.mixer.update(dt); animatingNear = true; }

@@ -86,10 +86,22 @@ export type Peticion = {
   cooldown?: number;
   /** Variación para que no suene a bucle: ±`tono` en factor de velocidad y ±`volumen` en ganancia (0–1 cada uno). */
   variacion?: { tono?: number; volumen?: number };
+  /** Segundos desde los que empezar (`start(cuando, desplazamiento)`). Lo usa S4 para el reloj de pared: un bucle
+   *  corto arranca justo en el instante que ya han oído los demás, no desde el principio. */
+  desplazamiento?: number;
 };
 
 /** Una cama larga (ambiente, música): NO se descodifica a memoria, se toca por `MediaElementAudioSourceNode`. */
-export type Cama = { id?: string; uri: string; bus?: Bus; gain?: number; posicion?: Punto | null; loop?: boolean };
+export type Cama = {
+  id?: string; uri: string; bus?: Bus; gain?: number; posicion?: Punto | null; loop?: boolean;
+  /** El elemento ya hecho, si quien llama lo tiene (S4 lo usa: su sonda de metadatos SE CONVIERTE en la cama, así
+   *  que no se descarga dos veces). Sin él, se construye con la hechura `medio`. */
+  medio?: HTMLMediaElement;
+  /** Distancias del panner (una cama también se oye desde un sitio: la burbuja del mundo tiene su propio radio). */
+  distancia?: Peticion["distancia"];
+  /** Prioridad; las camas nacen con 100 (no se roban) y rara vez hace falta cambiarlo. */
+  prioridad?: number;
+};
 
 export type Voz = {
   readonly id: string;
@@ -436,7 +448,7 @@ export function crearVoces(h: HechurasVoces = {}): Voces {
       dist: { distanceModel: d.distanceModel ?? DISTANCIA.distanceModel, refDistance: ref, maxDistance: max, rolloffFactor: Math.max(0, num(d.rolloffFactor, DISTANCIA.rolloffFactor)) },
       gain: Math.max(0, num(p.gain, 1)), tono: 1,
       buffer: null, medio: null, nodos: null, src: null,
-      offset: 0, tInicio: 0, real: false, cargando: false, viva: true, panning: null,
+      offset: Math.max(0, num(p.desplazamiento, 0)), tInicio: 0, real: false, cargando: false, viva: true, panning: null,
     };
   }
 
@@ -509,10 +521,11 @@ export function crearVoces(h: HechurasVoces = {}): Voces {
   function cama(c: Cama): Voz | null {
     const ctx = nucleo.ctx(), bus = nucleo.bus(c.bus ?? "ambiente");
     if (!ctx || !bus) return null;
-    const f = nuevaFuente({ id: c.id ?? c.uri, gain: c.gain, posicion: c.posicion, loop: c.loop ?? true, prioridad: 100 }, c.id ?? c.uri, c.bus ?? "ambiente", true);
+    const f = nuevaFuente({ id: c.id ?? c.uri, gain: c.gain, posicion: c.posicion, loop: c.loop ?? true, prioridad: num(c.prioridad, 100), distancia: c.distancia }, c.id ?? c.uri, c.bus ?? "ambiente", true);
     try {
-      const m = hacerMedio(c.uri);
-      m.loop = f.loop;
+      // quien llama puede traer su propio elemento (S4: la sonda de metadatos SE CONVIERTE en la cama)
+      const m = c.medio ?? hacerMedio(c.uri);
+      if (c.loop !== undefined || !c.medio) m.loop = f.loop;
       f.medio = m;
       f.nodos = construir(f);
       if (!f.nodos) { terminar(f); return null; }
