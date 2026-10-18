@@ -826,7 +826,12 @@ export type ViewHooks = {
   lleva?(entity: number, p: { model: string; donde: "mano" | "cabeza"; nombre?: string } | null): void;
   /** D-045: the page goes dark at once and comes back to the world over `ms` (the server put this person somewhere else). */
   fundido?(ms: number): void;
+  /** J7b: play a move on an avatar (its clips by name, how it ends), or stop it (`null`). Returns false when this view
+   * cannot play it there (no VRM for that avatar): the feature then shows a label instead. */
+  movimiento?(entity: number, m: MovimientoVista | null): boolean;
 };
+/** J7b: a move as the view plays it (features/gestos/movimientos.ts has the list). */
+export type MovimientoVista = { id: string; clips: readonly string[]; modo: "una" | "bucle" | "quedarse"; hastaS: number; viva: boolean };
 /** H1: a thing in the world as the page draws it. Rotation in degrees, applied yaw (ry), then pitch (rx), then roll (rz). */
 export type PlacedObject = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean;
   /** U10 (optional): what it is (modelo = a .glb; imagen, video: a plane; sonido: a sphere of sound, radius = sx), the file's
