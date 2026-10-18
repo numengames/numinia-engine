@@ -53,6 +53,7 @@ import type { DianaAR } from "./dardos.ts";
 import { detalleAgua } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
 import { fundirAnimado } from "./fundir.ts";
+import { crearQuietos } from "./fundir-quietos.ts";
 import type { Fundido } from "./fundir.ts";
 import type { Parte } from "./lotes.ts";
 import { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
@@ -479,6 +480,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   }
   // N15: a model that animates is fused ONCE per file (fundir.ts): one skinned mesh per look sharing one skeleton, so
   // each copy costs 1-3 draw calls instead of one per piece (the house robot: 19 -> 1). Looks and moves the same.
+  const quietoDe = crearQuietos(); // E2: one without clips, one mesh per look (fundir-quietos.ts)
   const fundidos = new Map<string, Fundido | null>();
   function fundido(model: string, g: Gltf, clone: Tools["clone"]): Fundido | null {
     if (fundidos.has(model)) return fundidos.get(model)!;
@@ -583,13 +585,14 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         const quieto = !now.want.animate ? hornear(model, g.scene, merge) : null;
         let copy: THREE.Object3D;
         const fu = !quieto && now.want.animate ? fundido(model, g, clone) : null;
+        const qu = !quieto && !fu ? quietoDe(model, g.scene, g.animations) : null;
         // J14: a thing painted a custom colour keeps its baked parts (pintar() cannot tint a merged,
         // vertex-coloured piece); anything else gets both LODs and starts at whichever distance picks.
         const pieza = quieto && !now.want.color ? hornearPieza(model, quieto, merge) : null;
         const lod: "cerca" | "lejos" = pieza ? decidirLOD(selfXZ ? Math.sqrt(distance2(now)) : 0, undefined) : "cerca";
         if (quieto) copy = representacion(lod === "lejos" && pieza ? [pieza] : quieto);
-        else copy = clone(fu ? fu.escena : g.scene);
-        const partes = quieto ?? partesEnteras(model, g) ?? undefined;
+        else copy = clone(fu ? fu.escena : qu ? qu.escena : g.scene); // E2: a still model drawn merged
+        const partes = quieto ?? qu?.partes ?? partesEnteras(model, g) ?? undefined;
         // B3: its shaders are prepared first (precompilar.ts) and only then is it shown; the first copy of a model
         // compiles, the rest find the programs ready. Copies drawn together (lotes.ts) use instanced programs: a
         // one-instance stand-in per part prepares those too, once per model, when the world has enough copies of it.
