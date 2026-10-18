@@ -277,3 +277,75 @@ test("M22 selection: the echo of a move keeps what you selected meanwhile; what 
   a.b.deshacer(); pump();
   assert.equal(a.b.estado.seleccionado, uno, "undo selects what it touched");
 });
+
+test("M22c: seleccionar varios (shift+clic) manda todos, el último clicado es el primario; borrar uno los quita", () => {
+  const { pages, pump } = world({ abierto: true });
+  const [a] = pages;
+  a.b.colocar("bloque"); pump(); const uno = a.b.estado.seleccionado;
+  a.b.colocar("bloque"); pump(); const dos = a.b.estado.seleccionado;
+  a.b.colocar("bloque"); pump(); const tres = a.b.estado.seleccionado;
+  assert.ok(a.b.seleccionarVarios([uno, dos, tres]).ok);
+  assert.deepEqual(a.b.estado.seleccionados, [uno, dos, tres]);
+  assert.equal(a.b.estado.seleccionado, tres, "el último de la lista es el primario (gizmo, inspector)");
+  assert.ok(a.b.alternarSeleccion(dos).ok); // quitar uno de en medio
+  assert.deepEqual(a.b.estado.seleccionados, [uno, tres]);
+  a.b.borrarId(tres); pump();
+  assert.deepEqual(a.b.estado.seleccionados, [uno], "borrar un seleccionado lo quita de la lista");
+});
+
+test("M22c: mover varios con el mismo lote es UN paso de deshacer (los tres vuelven juntos)", () => {
+  const { pages, pump } = world({ abierto: true });
+  const [a, b] = pages;
+  a.b.colocar("bloque"); pump(); const uno = a.b.estado.seleccionado;
+  a.b.colocar("bloque"); pump(); const dos = a.b.estado.seleccionado;
+  a.b.colocar("bloque"); pump(); const tres = a.b.estado.seleccionado;
+  const antes = { uno: { ...a.b.objeto(uno)! }, dos: { ...a.b.objeto(dos)! }, tres: { ...a.b.objeto(tres)! } };
+  const lote = a.b.nuevoLote();
+  assert.ok(a.b.transformar(uno, { x: Number(antes.uno.x) + 5 }, lote).ok);
+  assert.ok(a.b.transformar(dos, { x: Number(antes.dos.x) + 5 }, lote).ok);
+  assert.ok(a.b.transformar(tres, { x: Number(antes.tres.x) + 5 }, lote).ok);
+  pump();
+  assert.equal(Number(b.drawn.get(uno)?.x), Number(antes.uno.x) + 5, "todos han llegado a B");
+  assert.equal(Number(b.drawn.get(dos)?.x), Number(antes.dos.x) + 5);
+  assert.equal(Number(b.drawn.get(tres)?.x), Number(antes.tres.x) + 5);
+  a.b.deshacer(); pump(); // un solo deshacer
+  assert.equal(Number(b.drawn.get(uno)?.x), Number(antes.uno.x), "deshacer un lote los devuelve a los tres a la vez");
+  assert.equal(Number(b.drawn.get(dos)?.x), Number(antes.dos.x));
+  assert.equal(Number(b.drawn.get(tres)?.x), Number(antes.tres.x));
+  a.b.rehacer(); pump(); // un solo rehacer
+  assert.equal(Number(b.drawn.get(uno)?.x), Number(antes.uno.x) + 5, "rehacer el lote los mueve a los tres de nuevo");
+  assert.equal(Number(b.drawn.get(dos)?.x), Number(antes.dos.x) + 5);
+  assert.equal(Number(b.drawn.get(tres)?.x), Number(antes.tres.x) + 5);
+});
+
+test("M22c: borrar varios con el mismo lote es un paso de deshacer; sin lote cada uno es su propio paso", () => {
+  const { pages, pump } = world({ abierto: true });
+  const [a] = pages;
+  a.b.colocar("bloque"); pump(); const uno = a.b.estado.seleccionado;
+  a.b.colocar("bloque"); pump(); const dos = a.b.estado.seleccionado;
+  const lote = a.b.nuevoLote();
+  a.b.borrarId(uno, lote); a.b.borrarId(dos, lote); pump();
+  assert.equal(a.s.features.stateOf("objetos").size, 0, "los dos han desaparecido");
+  a.b.deshacer(); pump();
+  assert.equal(a.s.features.stateOf("objetos").size, 2, "un solo deshacer trae a los dos de vuelta");
+});
+
+test("J4: enlace — solo https (http en localhost, en pruebas), nunca usuario/contraseña, y \"\" lo quita", () => {
+  const { pages, pump } = world({ abierto: true });
+  const [a, b] = pages;
+  a.b.colocar("bloque"); pump();
+  const id = a.b.estado.seleccionado!;
+  assert.ok(a.b.ajustar({ enlace: "https://numinia.example/mundo" }).ok); pump();
+  assert.equal(b.b.objeto(id)?.enlace, "https://numinia.example/mundo", "llega a todo el mundo");
+  assert.ok(a.b.ajustar({ enlace: "http://127.0.0.1:3000/x" }).ok); pump(); // esta misma máquina: solo para pruebas
+  assert.equal(b.b.objeto(id)?.enlace, "http://127.0.0.1:3000/x");
+  a.b.ajustar({ enlace: "http://ajeno.example" }); pump();
+  assert.match(a.b.estado.ultimoRechazo, /Solo enlaces https/);
+  a.b.ajustar({ enlace: "sitio-sin-protocolo.example" }); pump();
+  assert.match(a.b.estado.ultimoRechazo, /dirección completa/);
+  a.b.ajustar({ enlace: "https://usuario:clave@malo.example" }); pump();
+  assert.match(a.b.estado.ultimoRechazo, /usuario ni contraseña/);
+  assert.ok(a.b.ajustar({ enlace: "" }).ok); pump(); // vacío: lo quita, sin más preguntas
+  assert.equal(b.b.objeto(id)?.enlace, "");
+});
+

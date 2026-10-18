@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fx, fxToFloat } from "../packages/core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, replay, referenceRecording, replayFingerprint, REFERENCE, setSolids, solidsFrom, onFloor, INPUT_STRIDE, ORDER_STRIDE } from "../packages/sim/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, replay, referenceRecording, replayFingerprint, REFERENCE, setSolids, solidsFrom, onFloor, ORDER_STRIDE, ORDER_PONER } from "../packages/sim/src/index.ts";
 import { Instance, SEGURO_CADA } from "../packages/instance/src/index.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
 import { encodeInput } from "../packages/net/src/index.ts";
@@ -38,17 +38,17 @@ function subir(inst: Instance, e: number, x = 0, z = 0) { inst.sim.tf.cols.x[e] 
 
 test("sim: an order puts the avatar there, still; a replay with the same orders gives the same hashes; without orders the reference fingerprint stands", () => {
   const s = createSim(4, 1); const e = spawnAvatar(s, 0);
-  step(s, new Int32Array([e, 0, 0, 0]), new Int32Array([e, fx(5), fx(2), fx(-3)]));
+  step(s, new Int32Array([e, 0, 0, 0]), new Int32Array([e, ORDER_PONER, fx(5), fx(2), fx(-3), 0]));
   assert.deepEqual([s.tf.cols.x[e], s.tf.cols.z[e]], [fx(5), fx(-3)]);
   assert.ok(s.tf.cols.y[e] < fx(2) && s.tf.cols.y[e] > fx(1.9), "placed at 2 m and then the input's gravity step applied (in the air, falling)");
   assert.equal(s.mo.cols.air[e], 0);
   const rec = referenceRecording(99, 200, 3);
-  const orders = rec.ticks.map((_, t) => (t % 37 === 0 ? new Int32Array([1, fx(t), fx(1), fx(-t)]) : undefined));
+  const orders = rec.ticks.map((_, t) => (t % 37 === 0 ? new Int32Array([1, ORDER_PONER, fx(t), fx(1), fx(-t), 0]) : undefined));
   const a = replay({ ...rec, orders }), b = replay({ ...rec, orders });
   assert.deepEqual(a, b);
   assert.notDeepEqual(a, replay(rec), "the orders change the run");
   assert.equal(replayFingerprint(referenceRecording(REFERENCE.seed, REFERENCE.ticks, REFERENCE.n)), 0x7e630965, "reference fingerprint (sim 3) unchanged");
-  assert.equal(ORDER_STRIDE, INPUT_STRIDE);
+  assert.equal(ORDER_STRIDE, 6);
 });
 
 test("instance: walking off the platform into the void brings you back to the last spot with floor under your feet; the page fades and hears it", () => {

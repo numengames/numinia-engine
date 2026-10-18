@@ -19,7 +19,7 @@ import { perfil, desarrollo, origenPerfil, cambiarAparato } from "./perfil-apara
 type View = Awaited<ReturnType<typeof createView>>;
 /** Contracts of branches built in parallel (N1 camera, H4 environment): optional until they are merged. */
 type Contratos = {
-  cam?: { ajustar?(o: { sensibilidad: number; invertirY: boolean }): void };
+  cam?: { ajustar?(o: { sensibilidad?: number; invertirY?: boolean; zonaMuerta?: number }): void };
   entorno?: {
     calidad?(o: { sombras?: string; agua?: string; particulas?: string; hdr?: boolean }): void;
     capacidades?(): Record<string, unknown> | null | undefined;
@@ -120,6 +120,8 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   const camara = (_: Valor, l: Lectura) => extra.cam?.ajustar?.({ sensibilidad: Number(l.get("controles.sensibilidad")) / 100, invertirY: l.get("controles.invertirY") === true });
   a.alAplicar("controles.sensibilidad", camara);
   a.alAplicar("controles.invertirY", camara);
+  const zona = (_: Valor, l: Lectura) => extra.cam?.ajustar?.({ zonaMuerta: Number(l.get("controles.zonaMuerta")) / 100 });
+  a.alAplicar("controles.zonaMuerta", zona);
   a.alAplicar("accesibilidad.menosMovimiento", (v) => { html.classList.toggle("menos-movimiento", v === true); });
   a.alAplicar("accesibilidad.textoGrande", (v) => { html.classList.toggle("texto-grande", v === true); });
   a.alAplicar("accesibilidad.altoContraste", (v) => { html.classList.toggle("alto-contraste", v === true); });

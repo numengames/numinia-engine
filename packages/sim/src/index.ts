@@ -5,7 +5,7 @@ import { fx, fxMul, fxSqrt, fxDiv, fxClamp, fnv1a, rngNext, FX_ONE } from "../..
 import { defineSchema } from "../../schema/src/index.ts";
 import { World } from "../../ecs/src/index.ts";
 import type { Store } from "../../ecs/src/index.ts";
-import { rayBvh } from "./bvh.ts";
+import { rayBvh, boxBvh, triNormal, triAabb } from "./bvh.ts";
 import type { Bvh } from "./bvh.ts";
 export { buildBvh, rayBvh, bvhFingerprint, quantizeTriangles, BVH_UNIT, BVH_LEAF, TRI_STRIDE, NODE_STRIDE } from "./bvh.ts";
 export type { Bvh, Hit } from "./bvh.ts";
@@ -26,15 +26,35 @@ export const JUMP_HEIGHT = fx(1.5);
 export const JUMP_V = fxSqrt(fxMul(2 * GRAVITY, JUMP_HEIGHT)); // v = √(2·g·h) ≈ 0.387 m/tick (7.75 m/s)
 export const FALL_MAX = fx(50 / TICK_HZ);                    // terminal fall speed 50 m/s (matters once M6 has heights)
 export const JUMP_BUFFER = 3;  // a press that cannot jump yet (air jump spent) waits up to 3 ticks (150 ms) for the ground
-/** Input buttons (one byte on the wire). JUMP = pressed since the previous input (the page latches taps); RUN = held. */
-export const BTN_JUMP = 1, BTN_RUN = 2;
-const BTN_KNOWN = BTN_JUMP | BTN_RUN;
+/** Input buttons (one byte on the wire). JUMP = pressed since the previous input (the page latches taps); RUN = held;
+ * BAJAR (H2 historia 4, bit 4 — the two between RUN and it stay free for now) only does something while VOLAR is on
+ * (go down instead of gravity); on the ground it is simply ignored, like an unknown button always was. */
+export const BTN_JUMP = 1, BTN_RUN = 2, BTN_BAJAR = 8;
+const BTN_KNOWN = BTN_JUMP | BTN_RUN | BTN_BAJAR;
 /** Inputs are quadruples [entity, mx, mz, buttons]. */
 export const INPUT_STRIDE = 4;
-/** D-045: orders are quadruples [entity, x, y, z] (Q16.16): the server puts an avatar somewhere on purpose (back to its
- * last safe spot after a fall). They are applied inside `step`, before the inputs, and a replay carries them tick by
- * tick, so the fingerprint of a run with orders is reproducible; a run with none steps exactly as before. */
-export const ORDER_STRIDE = 4;
+/** H2: orders are sextuples [entity, tipo, a, b, c, d] (Int32; positions are Q16.16): the server makes an avatar do
+ * something on purpose (D-045's "put somewhere" was the first one). They are applied inside `step`, before the
+ * inputs, and a replay carries them tick by tick, so the fingerprint of a run with orders is reproducible; a run
+ * with none steps exactly as before. `tipo` ORDER_PONER (1, D-045's quadruple: a,b,c = x,y,z, d unused) puts the
+ * avatar there, still (vy 0, jump spent cleared). H2 historias 2-4 add four more, each a branch below that never
+ * moves PONER: QUIETO (2, a = ticks to freeze, 0 unfreezes), EMPUJAR (3, a,b,c = vx,vy,vz m/s), SENTAR (4, a,b,c =
+ * seat x,y,z; d = facing, event-only, the sim does not keep it) and VOLAR (5, a = 1 on / 0 off). */
+export const ORDER_STRIDE = 6;
+export const ORDER_PONER = 1;
+export const ORDER_QUIETO = 2;
+export const ORDER_EMPUJAR = 3;
+export const ORDER_SENTAR = 4;
+export const ORDER_VOLAR = 5;
+/** How an avatar moves besides plain walking (Motion.modo): 0 on its feet, 1 frozen (ORDER_QUIETO), 2 seated
+ * (ORDER_SENTAR) or 3 flying (ORDER_VOLAR). */
+export const MODO_PIE = 0, MODO_QUIETO = 1, MODO_SENTADO = 2, MODO_VOLANDO = 3;
+/** ORDER_QUIETO's `a`: at most this many ticks (30 s) — freezing longer is punishment, not play (moderation uses
+ * its own verbs instead). */
+export const QUIETO_MAX = 600;
+/** ORDER_EMPUJAR's (vx, vy, vz) is clamped to this magnitude (m/s) before it is turned into impulse: a jump is
+ * 7.75 m/s, so 20 is a cannon without leaving the per-tick bounds of `vy` or `BOUND`. */
+export const IMPULSO_MAX = fx(20);
 const NO_ORDERS = new Int32Array(0);
 /** True when the avatar stands on its floor (vertical speed 0, feet at the ground under it). */
 export function onFloor(s: SimState, e: number): boolean {
@@ -45,7 +65,9 @@ export function onFloor(s: SimState, e: number): boolean {
 /** Height of the ground under (x, z), Q16.16. A flat plaza, plus (U10) the tops of solid things you stand above
  * when `s` is given: the highest top not more than STEP_UP over your feet `y`; plus (M6) the world mesh when `s` has
  * one: a ray straight down from STEP_UP over the feet (so a step up to STEP_UP counts as ground) to the bottom of
- * the world. Without solids and without a mesh nothing is looked at (the reference fingerprint never sees them). */
+ * the world — only when the hit triangle is walkable (h6: a wall or a ceiling under your feet is not floor, even if
+ * the ray reaches it first). Without solids and without a mesh nothing is looked at (the reference fingerprint never
+ * sees them). */
 export function groundHeight(x: number, z: number, s?: SimState, y = 0): number {
   let g = 0;
   if (!s) return g;
@@ -59,12 +81,15 @@ export function groundHeight(x: number, z: number, s?: SimState, y = 0): number 
   if (m) {
     const top = y + STEP_UP;
     const h = rayBvh(m, x, top, z, 0, -FX_ONE, 0, top + MESH_FLOOR);
-    if (h && h.y > g) g = h.y;
+    if (h && h.y > g && triNormal(m, h.tri).ny >= MAX_SLOPE_COS) g = h.y;
   }
   return g;
 }
 /** How far under the feet a world mesh is still ground (the `Transform` floor, 500 m). */
 const MESH_FLOOR = fx(500);
+/** M6 h6: a triangle whose up-facing normal is below this (Rapier's default character-controller slope limit, 50°)
+ * is a wall or a ceiling, never a floor or a ramp to walk up. cos(50°) in Q16.16. */
+export const MAX_SLOPE_COS = 42126;
 /** Does the state have any geometry (solid boxes or a mesh) that the step must look at? */
 const hasGeometry = (s: SimState): boolean => s.solids.length > 0 || s.mesh !== null;
 
@@ -79,7 +104,7 @@ export const SOLIDS_MAX = 512;
  * «snap-to-ground»): no «in the air» flicker on every step. A jump is never snapped. */
 export const SNAP_DOWN = fx(0.45); // boxes the simulation looks at (the nearest are not chosen: the first 512)
 /** Does a body standing at (x, y, z) overlap a box it cannot step onto? */
-function blocked(s: SimState, x: number, y: number, z: number): boolean {
+function blockedBoxes(s: SimState, x: number, y: number, z: number): boolean {
   const b = s.solids;
   for (let o = 0; o + 5 < b.length; o += 6) {
     if (x + BODY_RADIUS <= b[o] || x - BODY_RADIUS >= b[o + 3] || z + BODY_RADIUS <= b[o + 2] || z - BODY_RADIUS >= b[o + 5]) continue;
@@ -88,6 +113,25 @@ function blocked(s: SimState, x: number, y: number, z: number): boolean {
     return true;
   }
   return false;
+}
+/** M6 h5-h6: does a body standing at (x, y, z) overlap a mesh triangle too steep to stand on (a wall or a ceiling)?
+ * Walkable triangles (slope within MAX_SLOPE_COS) never block: groundHeight's ray already stands you on them. */
+function blockedMesh(s: SimState, x: number, y: number, z: number): boolean {
+  const m = s.mesh;
+  if (!m) return false;
+  const x0 = x - BODY_RADIUS, x1 = x + BODY_RADIUS, z0 = z - BODY_RADIUS, z1 = z + BODY_RADIUS;
+  for (const tri of boxBvh(m, x0, y, z0, x1, y + BODY_HEIGHT, z1)) {
+    if (triNormal(m, tri).ny >= MAX_SLOPE_COS) continue; // a floor or a walkable ramp, not a wall
+    const t = triAabb(m, tri);
+    if (y + BODY_HEIGHT <= t.y0) continue; // triangle above the head
+    if (t.y1 <= y + STEP_UP) continue;      // low enough to step onto
+    return true;
+  }
+  return false;
+}
+/** Does a body standing at (x, y, z) overlap anything (box or mesh triangle) it cannot stand on or step onto? */
+function blocked(s: SimState, x: number, y: number, z: number): boolean {
+  return blockedBoxes(s, x, y, z) || blockedMesh(s, x, y, z);
 }
 /** N16 (teletransporte): a free spot to put a body near (x, z), Q16.16, or null. `radios` (metres) are the rings tried
  * in order (0 = the point itself), eight headings each (45° apart) starting at heading `rumbo` (0-7, 0 = +z, 2 = +x) so
@@ -106,7 +150,7 @@ export function sitioLibre(s: SimState, x: number, y: number, z: number, radios:
       const px = x + fxMul(R, dx), pz = z + fxMul(R, dz);
       if (px < -lim || px > lim || pz < -lim || pz > lim) continue;
       const g = groundHeight(px, pz, s, y);
-      if (y - g > bajo || (s.solids.length > 0 && blocked(s, px, g, pz))) continue;
+      if (y - g > bajo || (hasGeometry(s) && blocked(s, px, g, pz))) continue;
       return { x: px, y: g, z: pz };
     }
   }
@@ -134,11 +178,17 @@ export const Transform = defineSchema("Transform", 3, { // v2 (J2): gains y · v
 export const Avatar = defineSchema("Avatar", 1, {
   owner: { kind: "int", min: 0, max: 65535 },
 });
-/** J2: what decides the next vertical step besides the position. */
-export const Motion = defineSchema("Motion", 1, {
+/** J2: what decides the next vertical step besides the position. H2 (historias 2-4) adds `modo` (MODO_*), `cnt`
+ * (ORDER_QUIETO's countdown, ticks left) and `ix`/`iz` (ORDER_EMPUJAR's impulse, metres per tick): all four are 0
+ * with no order ever given, so an avatar that never receives one steps exactly as before. */
+export const Motion = defineSchema("Motion", 2, {
   vy: { kind: "fixed", min: -50, max: 50, step: 1 / 65536 }, // metres per tick (up is +)
   air: { kind: "int", min: 0, max: 1 },                      // 1 = the jump in the air is spent (back to 0 on landing)
   buf: { kind: "int", min: 0, max: JUMP_BUFFER },            // ticks a jump press may still wait for the ground
+  modo: { kind: "int", min: 0, max: 3 },                     // MODO_PIE/QUIETO/SENTADO/VOLANDO
+  cnt: { kind: "int", min: 0, max: QUIETO_MAX },             // MODO_QUIETO: ticks left, decided by inputs applied
+  ix: { kind: "fixed", min: -2, max: 2, step: 1 / 65536 },   // EMPUJAR's horizontal impulse, m/tick
+  iz: { kind: "fixed", min: -2, max: 2, step: 1 / 65536 },
 });
 
 export type SimState = { world: World; tf: Store; av: Store; mo: Store; tick: number; rng: Uint32Array; solids: Int32Array; mesh: Bvh | null };
@@ -174,7 +224,9 @@ export function spawnAvatar(s: SimState, owner: number, area?: SpawnArea | null)
 }
 
 /** J2: everything that decides where an avatar goes next. The server sends it whole to the avatar's owner,
- * so the client's prediction restarts from exactly the server's state. */
+ * so the client's prediction restarts from exactly the server's state. H2's `modo`/`cnt`/`ix`/`iz` (historias 2-4)
+ * are NOT here yet: they ride the wire only once the net package carries them (H2 historia 4's cola, out of scope
+ * for this story); until then they live in `Motion` only and `getMotionExtra` below reads them for tests/instance. */
 export type Body = { x: number; y: number; z: number; vy: number; air: number; buf: number };
 export function getBody(s: SimState, e: number): Body {
   return { x: s.tf.cols.x[e], y: s.tf.cols.y[e], z: s.tf.cols.z[e], vy: s.mo.cols.vy[e], air: s.mo.cols.air[e], buf: s.mo.cols.buf[e] };
@@ -185,6 +237,12 @@ export function setBody(s: SimState, e: number, b: Body): void {
 }
 export const sameBody = (a: Body, b: Body): boolean =>
   a.x === b.x && a.y === b.y && a.z === b.z && a.vy === b.vy && a.air === b.air && a.buf === b.buf;
+/** H2 historias 2-4: the extra motion state an order can set, read for tests and the instance (not yet on the
+ * wire; `modo` is one of MODO_*). */
+export type MotionExtra = { modo: number; cnt: number; ix: number; iz: number };
+export function getMotionExtra(s: SimState, e: number): MotionExtra {
+  return { modo: s.mo.cols.modo[e], cnt: s.mo.cols.cnt[e], ix: s.mo.cols.ix[e], iz: s.mo.cols.iz[e] };
+}
 
 /**
  * Inputs: Int32Array of quadruples [entity, mx, mz, buttons], mx/mz in [-127, 127], buttons BTN_*.
@@ -196,22 +254,51 @@ export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_OR
   const n = (inputs.length / INPUT_STRIDE) | 0;
   const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => inputs[a * INPUT_STRIDE] - inputs[b * INPUT_STRIDE]);
   const X = s.tf.cols.x, Y = s.tf.cols.y, Z = s.tf.cols.z, VY = s.mo.cols.vy, AIR = s.mo.cols.air, BUF = s.mo.cols.buf;
-  // D-045: orders first (ascending entity, like inputs): the avatar is put there, still, on whatever floor the order says
+  const MODO = s.mo.cols.modo, CNT = s.mo.cols.cnt, IX = s.mo.cols.ix, IZ = s.mo.cols.iz;
+  // D-045/H2: orders first (ascending entity, like inputs): the avatar is put there, still, frozen, pushed, seated
+  // or flying, on whatever the order says.
   const no = (orders.length / ORDER_STRIDE) | 0;
   const oo = Array.from({ length: no }, (_, i) => i).sort((a, b) => orders[a * ORDER_STRIDE] - orders[b * ORDER_STRIDE]);
   for (const i of oo) {
-    const o = i * ORDER_STRIDE, e = orders[o];
+    const o = i * ORDER_STRIDE, e = orders[o], tipo = orders[o + 1];
     if (!s.world.alive[e] || !s.tf.has[e]) continue;
-    X[e] = fxClamp(orders[o + 1], -BOUND, BOUND); Y[e] = fxClamp(orders[o + 2], -Y_BOUND, Y_BOUND); Z[e] = fxClamp(orders[o + 3], -BOUND, BOUND);
-    VY[e] = 0; AIR[e] = 0; BUF[e] = 0;
+    if (tipo === ORDER_PONER) {
+      X[e] = fxClamp(orders[o + 2], -BOUND, BOUND); Y[e] = fxClamp(orders[o + 3], -Y_BOUND, Y_BOUND); Z[e] = fxClamp(orders[o + 4], -BOUND, BOUND);
+      VY[e] = 0; AIR[e] = 0; BUF[e] = 0; MODO[e] = MODO_PIE; CNT[e] = 0;
+    } else if (tipo === ORDER_QUIETO) {
+      const a = orders[o + 2];
+      if (a > 0) { MODO[e] = MODO_QUIETO; CNT[e] = a > QUIETO_MAX ? QUIETO_MAX : a; }
+      else if (MODO[e] === MODO_QUIETO) { MODO[e] = MODO_PIE; CNT[e] = 0; }
+    } else if (tipo === ORDER_EMPUJAR) {
+      let vx = orders[o + 2], vy = orders[o + 3], vz = orders[o + 4];
+      const mag = fxSqrt(fxMul(vx, vx) + fxMul(vy, vy) + fxMul(vz, vz));
+      if (mag > IMPULSO_MAX) { vx = fxDiv(fxMul(vx, IMPULSO_MAX), mag); vy = fxDiv(fxMul(vy, IMPULSO_MAX), mag); vz = fxDiv(fxMul(vz, IMPULSO_MAX), mag); }
+      IX[e] += fxDiv(vx, fx(TICK_HZ)); IZ[e] += fxDiv(vz, fx(TICK_HZ)); VY[e] += fxDiv(vy, fx(TICK_HZ));
+      if (MODO[e] === MODO_SENTADO) { MODO[e] = MODO_PIE; } // a push gets you off a seat
+    } else if (tipo === ORDER_SENTAR) {
+      X[e] = fxClamp(orders[o + 2], -BOUND, BOUND); Y[e] = fxClamp(orders[o + 3], -Y_BOUND, Y_BOUND); Z[e] = fxClamp(orders[o + 4], -BOUND, BOUND);
+      VY[e] = 0; AIR[e] = 0; BUF[e] = 0; MODO[e] = MODO_SENTADO; CNT[e] = 0; IX[e] = 0; IZ[e] = 0;
+    } else if (tipo === ORDER_VOLAR) {
+      if (orders[o + 2] !== 0) MODO[e] = MODO_VOLANDO;
+      else if (MODO[e] === MODO_VOLANDO) MODO[e] = MODO_PIE;
+    }
   }
   for (const i of order) {
     const o = i * INPUT_STRIDE, e = inputs[o];
     if (!s.world.alive[e] || !s.tf.has[e]) continue;
     const buttons = inputs[o + 3] & BTN_KNOWN;
-    // horizontal: the stick, walking or running
+    const modo = MODO[e];
+    // H2 historia 4: seated — the stick or a jump stands you up (a normal step, right away); push already stood
+    // you up when it landed (above). Otherwise you stay put: no gravity, no movement, nothing to slide on.
+    if (modo === MODO_SENTADO) {
+      const mxRaw = fxClamp(inputs[o + 1], -STICK_MAX, STICK_MAX), mzRaw = fxClamp(inputs[o + 2], -STICK_MAX, STICK_MAX);
+      if (mxRaw === 0 && mzRaw === 0 && !(buttons & BTN_JUMP)) continue; // stays seated this tick
+      MODO[e] = MODO_PIE;
+    }
+    // horizontal: the stick, walking or running (H2 historia 2: frozen ignores it, still on the floor or falling)
     let mx = fxDiv(fxClamp(inputs[o + 1], -STICK_MAX, STICK_MAX) * FX_ONE, STICK_MAX * FX_ONE);
     let mz = fxDiv(fxClamp(inputs[o + 2], -STICK_MAX, STICK_MAX) * FX_ONE, STICK_MAX * FX_ONE);
+    if (MODO[e] === MODO_QUIETO) { mx = 0; mz = 0; }
     const len = fxSqrt(fxMul(mx, mx) + fxMul(mz, mz));
     if (len > FX_ONE) { mx = fxDiv(mx, len); mz = fxDiv(mz, len); } // no faster diagonals
     const st = buttons & BTN_RUN ? RUN_STEP : STEP;
@@ -219,13 +306,27 @@ export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_OR
     // it, so the reference fingerprint stands)
     const geo = hasGeometry(s);
     const onGround = geo && VY[e] === 0 && Y[e] === groundHeight(X[e], Z[e], s, Y[e]);
-    const nx = fxClamp(X[e] + fxMul(mx, st), -BOUND, BOUND), nz = fxClamp(Z[e] + fxMul(mz, st), -BOUND, BOUND);
-    if (s.solids.length === 0 || !blocked(s, nx, Y[e], nz)) { X[e] = nx; Z[e] = nz; }
-    else if (!blocked(s, nx, Y[e], Z[e])) X[e] = nx;   // U10: slide along a wall
+    // H2 historia 3: EMPUJAR's impulse adds to the stick's move and decays by 1/8 every tick it is applied
+    // (an exact integer shift: ~0.4 s to all but stop); it slides along the same walls the stick does.
+    const nx = fxClamp(X[e] + fxMul(mx, st) + IX[e], -BOUND, BOUND), nz = fxClamp(Z[e] + fxMul(mz, st) + IZ[e], -BOUND, BOUND);
+    if (!geo || !blocked(s, nx, Y[e], nz)) { X[e] = nx; Z[e] = nz; }
+    else if (!blocked(s, nx, Y[e], Z[e])) X[e] = nx;   // U10/M6 h6: slide along a wall or a too-steep triangle
     else if (!blocked(s, X[e], Y[e], nz)) Z[e] = nz;
-    // vertical (J2): jump from the ground, or the one jump in the air; then gravity, then the ground stops the fall
+    IX[e] -= IX[e] >> 3; IZ[e] -= IZ[e] >> 3;
+    // vertical: H2 historia 4 — flying has no gravity; SALTAR climbs, BAJAR (additive button) descends, both at
+    // walk/run speed, Hyperfy-style. Otherwise J2 as before: jump from the ground, or the one jump in the air,
+    // then gravity, then the ground stops the fall (frozen: gravity still runs, so someone caught in the air falls).
+    if (MODO[e] === MODO_VOLANDO) {
+      const vst = buttons & BTN_RUN ? RUN_STEP : STEP;
+      let y = Y[e];
+      if (buttons & BTN_JUMP) y += vst;
+      if (buttons & BTN_BAJAR) y -= vst;
+      Y[e] = fxClamp(y, -Y_BOUND, Y_BOUND); VY[e] = 0; AIR[e] = 0; BUF[e] = 0;
+      continue;
+    }
     const ground = geo ? groundHeight(X[e], Z[e], s, Y[e]) : 0;
-    let y = Y[e], vy = VY[e], air = AIR[e], buf = buttons & BTN_JUMP ? JUMP_BUFFER + 1 : BUF[e];
+    let y = Y[e], vy = VY[e], air = AIR[e];
+    let buf = MODO[e] === MODO_QUIETO ? BUF[e] : (buttons & BTN_JUMP ? JUMP_BUFFER + 1 : BUF[e]);
     if (onGround && ground < y && y - ground <= SNAP_DOWN) y = ground; // N1b: down a step, still on the ground
     if (buf > 0) {
       buf--;
@@ -237,15 +338,23 @@ export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_OR
     vy = vy1;
     if (y <= ground) { y = ground; vy = 0; air = 0; }
     Y[e] = y; VY[e] = vy; AIR[e] = air; BUF[e] = buf;
+    // H2 historia 2: the countdown is spent by applied INPUTS, not server ticks, so a client that predicts from
+    // the same inputs decounts identically.
+    if (MODO[e] === MODO_QUIETO) { CNT[e]--; if (CNT[e] <= 0) { CNT[e] = 0; MODO[e] = MODO_PIE; } }
   }
   s.tick++;
 }
 
-/** Canonical bytes of the whole state: tick, rng, then every column of every live entity. */
+/** Canonical bytes of the whole state: tick, rng, every column of every live entity and, only for entities with
+ * some H2 state (`modo` or an impulse — order-driven, always 0 until an order is given), a tail `[id, modo, cnt,
+ * ix, iz]` per such entity: nobody with H2 state anywhere means the exact same bytes as before this story and the
+ * reference fingerprint (sim 3) still pins to the same value; with state the run is still bit-for-bit repeatable. */
 export function snapshot(s: SimState): Uint8Array {
   const ids = s.world.query();
   const PER = 9;
-  const buf = new Int32Array(2 + ids.length * PER);
+  const MODO = s.mo.cols.modo, CNT = s.mo.cols.cnt, IX = s.mo.cols.ix, IZ = s.mo.cols.iz;
+  const extra = ids.filter((id) => MODO[id] !== 0 || IX[id] !== 0 || IZ[id] !== 0);
+  const buf = new Int32Array(2 + ids.length * PER + extra.length * 5);
   buf[0] = s.tick; buf[1] = s.rng[0] | 0;
   let o = 2;
   for (const id of ids) {
@@ -258,6 +367,9 @@ export function snapshot(s: SimState): Uint8Array {
     buf[o++] = s.mo.cols.vy[id];  // J2
     buf[o++] = s.mo.cols.air[id]; // J2
     buf[o++] = s.mo.cols.buf[id]; // J2
+  }
+  for (const id of extra) {
+    buf[o++] = id; buf[o++] = MODO[id]; buf[o++] = CNT[id]; buf[o++] = IX[id]; buf[o++] = IZ[id];
   }
   return new Uint8Array(buf.buffer);
 }

@@ -4,7 +4,7 @@
 //   /mundo (download the world as a zip, upload one: mundo-zip.ts; only with the administration code)
 import { createServer } from "node:http";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { signer } from "./secret.ts";
 import { crearRecibos } from "./recibos.ts"; // N10: digital goods' ownership receipts
 import { randomBytes, randomInt } from "node:crypto";
@@ -15,6 +15,7 @@ import { REFERENCE, referenceRecording, replayFingerprint, TICK_HZ } from "../..
 import type { SpawnArea } from "../../sim/src/index.ts";
 import { Instance } from "../../instance/src/index.ts";
 import type { Suelo } from "../../instance/src/index.ts";
+import { construirMalla } from "./colision-mundo.ts";
 import { CIERRE_LLENO, MSG, PASE_MAX, WS_FRAME_MAX } from "../../net/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
 import type { HttpReply, ServerPart } from "../../feature/src/index.ts";
@@ -184,7 +185,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   // N10: digital goods' receipts, signed with a key derived from the world's secret (none without MOTOR_SECRET: no goods)
   const recibos = crearRecibos(secret, dominios[0]?.trim() || "local");
   if (recibos) log(`[bienes] los recibos de este mundo los firma ${recibos.emisor}`); else log("[bienes] sin MOTOR_SECRET este mundo no da bienes digitales (no tiene con qué firmar sus recibos)");
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, renovarPase: roles.renovar, activo: (h, ext) => activos.buscar(h, ext) !== null, medidas: (h, ext) => activos.medidas(h, ext), aventura: lector, agentes, externos: { verificar: puerta.verificar }, recibos: recibos ?? undefined, sinVoz: () => !roles.voz, oye: (de, a) => roles.oye(inst.who(de), inst.who(a)), aparicion: o.aparicion ?? null, suelo: o.suelo ?? null }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz)
+  const leerActivo = (h: string, ext: string): Uint8Array | null => { const ruta = activos.buscar(h, ext); if (!ruta) return null; try { return readFileSync(ruta); } catch { return null; } }; // M6 h8: /a/<sha256>.<ext>'s own bytes, for the world's collision mesh
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, renovarPase: roles.renovar, activo: (h, ext) => activos.buscar(h, ext) !== null, medidas: (h, ext) => activos.medidas(h, ext), aventura: lector, agentes, externos: { verificar: puerta.verificar }, recibos: recibos ?? undefined, sinVoz: () => !roles.voz, oye: (de, a) => roles.oye(inst.who(de), inst.who(a)), aparicion: o.aparicion ?? null, suelo: o.suelo ?? null, construirMalla: construirMalla(leerActivo) }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz); M6 h8: malla things build the world's mesh
   // H9: uploads (PUT /a/<sha256>.<ext>) by whoever may build; the page shows its guest token (I1) to say who it is
   const subidas = new Subidas({
     dir: o.subidas ?? null, activos, log, topesMB: o.subir?.topesMB, totalMB: o.subir?.totalMB,

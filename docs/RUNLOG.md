@@ -6,6 +6,18 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 15-10 están en hora de Madrid
 (CEST, UTC+2); desde la de las 10:08, en UTC.
 
+## 2026-10-18 14:52 · h2-ordenes h1 · hecho
+- Qué: H2 historia 1 (sim: orden tipada). `ORDER_STRIDE` pasa de 4 a 6: una orden es `[entidad, tipo, a, b, c, d]`;
+  `ORDER_PONER` (1) es lo de D-045 (#53) con un byte de tipo delante, mismo efecto (sitio fijo, vy 0, salto limpio).
+  `Instance.volverASeguro` emite `ORDER_PONER`; `api.teletransportar`/`volverASeguro` no cambian su contrato. Base
+  para QUIETO/EMPUJAR/SENTAR/VOLAR (h2-h2..h2-h4).
+- Números: `test/ordenes.test.ts` nuevo (3 pruebas); `test/suelo.test.ts` sigue verde con el formato nuevo; huella
+  de referencia (sim 3) sigue en `0x7e630965` sin órdenes. `npm test`: mismos 23 fallos preexistentes (falta el
+  paquete `ws`, no instalado en este worktree) antes y después del cambio; nada roto por esta historia.
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `h2-ordenes/ola3`, PR contra `tren/motor-2026-10-18-5`.
+- Siguiente: h2 historia 2 (sim: QUIETO).
+
 ## 2026-10-14 23:40 · arranque · hecho
 - Qué: PP0 (arquitectura) y PP1 (esqueleto que anda) hechos; PP2 parte 1 (mil en una plaza) hecha;
   módulo de multitud escrito sin probar; montados los raíles del turno desatendido (`tools/auto.sh`,
@@ -794,6 +806,111 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Choques arreglados en un commit aparte: «Nombres» pasa al menú «…» en móvil; los avisos no tapan la barra ni el minimapa; el engranaje de Mínimo con perfil táctil forzado.
 - Versión **0.9.0 → 0.10.0** (menor): ajustes y piezas nuevos, nada se rompe. Las ramas traían 0.6.2–0.6.5 y 0.8.0; rebasada sobre `main` 0.9.0 (#49, #50, #60), una sola subida (`docs/VERSIONES.md`).
 - Consumo: sin medir · Sonnet 5.5.
+## 2026-10-18 14:48 · mover-girar (D-043 historias 1-2) · hecho (rama `mover-girar/ola3`, para `tren/motor-2026-10-18-5`)
+- Qué: pieza nueva `features/movedores` — mover y girar objetos del mundo con duración, igual para todos (D-043):
+  una plataforma o un ascensor que va y viene solo (`vaiven`: pose A → B → A…, con una pausa `espera` en cada punta)
+  y una puerta corredera que espera hasta que alguien cercano la activa (`interruptor`: la orden `activa`, el mismo
+  alcance que el «E: usar» de una puerta). El servidor lleva el reloj de cada ride (interpolación lineal pura,
+  `poseDe`/`lerpPose`) y publica la postura 5 veces por segundo mientras se mueve (no 20), solo a quien está en su
+  zona; al llegar a un lado emite `llegada` con el nombre de evento del fichero para que otra pieza (el cable) lo
+  use más adelante. Un mundo trae sus movedores en `entorno/movedores.json` (`numinia-engine/movedores@1`,
+  `leerMovedores`, cada línea mala fuera con su motivo). La página solo dibuja el modelo donde dice el servidor
+  (`view.place`), nunca decide la postura.
+- Números: `test/movedores.test.ts` (6 pruebas: declaración, pose pura, fichero, `conMundo`, vaiven de punta a
+  punta, interruptor con alcance e ignorando una orden a mitad de camino); `npm run gates` en verde (631 pruebas,
+  capas, determinismo `f455ffc1`, ancho de banda 26,6 kbit/s, plaza de 1.000 p99 8,4 ms, tamaño 452,4 kB).
+- Consumo: sin medir · Sonnet 5 (obrero ola 3).
+- Siguiente: cable (D-041) todavía no tiene un receptor `mueve` para disparar un movedor desde un botón o una zona
+  (lo deja para la historia del cable, que toca `ACCIONES` en `features/disparadores/feature.ts`); medir el coste
+  real de publicar varios movedores a la vez bajo carga (PUBLICA_CADA_TICKS=4 es una estimación, no una medida).
+## 2026-10-18 14:57 · contadores-h3 · hecho
+- Qué: D-044 historia 3. `features/contadores` gana `state.persist: true` (S4): el valor y si está en marcha
+  sobreviven a un reinicio (al arrancar lee lo guardado antes de usar `inicio` del fichero). Contador
+  `"variante": "equipo"` (campo nuevo en `contadores.json`, por defecto `ninguna`): cada orden lleva `equipo`
+  (1-16 letras minúsculas/cifras/guiones, nombre libre — no una lista que declare el fichero) y el servidor
+  crea ese equipo la primera vez que se nombra, clave `id:equipo`, hasta `EQUIPOS_MAX` (8) por contador; el chat
+  toma `/contador <id>:<equipo> …`. Queda sin hacer (EXTENDER.md): un contador por persona, poner/quitar
+  contadores desde dentro del mundo, y el cable (D-041) con `llegada`.
+- Números: 12 pruebas de `contadores.test.ts` (antes 9), 628 en total (627 bien + 1 flaky de `misiones.test.ts`,
+  ajeno: p99 de carga, reproducido en verde aislado); capas OK; bandwidth y plaza de 1.000 OK.
+- Consumo: sin medir · Sonnet 5.
+- Commit: ver `git log` (rama `contadores-h3/ola3`).
+- Siguiente: contadores — un contador por persona, piezas desde dentro del mundo; cable D-041.
+## 2026-10-18 15:10 · obrero ola3, cable-h3-4 · hecho
+- Qué: cable `disparadores` historias 3-4 (D-041): los cinco receptores que hasta hoy se oían en el log y se
+  tiraban («nadie hace X») ahora ejecutan de verdad: `teletransporta` (sin animación, hueco libre cerca con
+  `api.teletransportar`) y `vuelve_a_seguro` (`api.volverASeguro`, el mismo verbo que D-045) los oye el propio
+  `disparadores` porque son primitivas del host, no de una función; `suena` emite un evento propio (el motor
+  solo tiene un aviso fijo hoy, el nombre que pide el mundo viaja en el texto para quien lee en vez de oír);
+  `abre_enlace` pregunta solo a quien lo pulsó, nunca abre nada sin que la página confirme antes; `da_paso`
+  (mision, paso) lo oye `features/misiones` (`api.listen`), toma la misión si hacía falta y salta de un golpe
+  al paso pedido, sin retroceder nunca. De paso, `vuelve_a_seguro` entra en `ACCIONES` (cambio aditivo).
+- Números: `npm test` sobre `test/disparadores.test.ts` + `misiones*.test.ts` + `suelo.test.ts` +
+  `teletransporte.test.ts`: 59 pruebas, 59 en verde. El resto de `npm test` (23 ficheros) falla igual con y sin
+  esta rama por falta del paquete `three` en este entorno — nada tocado por esta historia.
+- Consumo: sin medir · Sonnet 5.
+- Siguiente: cable historias 5-6 (botón/zona con fases, etiqueta en móvil) quedan para otro obrero.
+## 2026-10-18 · cable-h5-6 · hecho (rama `cable-h5-6/ola3`)
+- Qué: cable (D-041), historias 5-6. Vista del constructor: `apps/plaza/cable.ts` añade al panel de construir una
+  lista de solo lectura de los disparadores del mundo (nombre, tipo, en espera/agotado/listo, usos) con un botón
+  «Probar» para disparar un botón sin acercarse (para comprobar el cableado). Editar los receptores sigue siendo
+  editar `disparadores.json` antes de arrancar: el servidor no lo reescribe en marcha y la página no recibe los
+  receptores (no son un secreto, solo no viajan todavía); la duda de si merece la pena un editor en vivo queda en
+  `PREGUNTAS-cable-h5-6.md` para Pablo. E2E de extremo a extremo: `tools/e2e-piernas/cable.mjs`, mundo propio
+  (8798/5180) con un botón que muestra una «Farola» oculta — pulsar, ver el cambio en dos pestañas, el cooldown
+  rechazando un segundo disparo y «Probar» desde el panel disparándolo de nuevo tras esperar.
+- Números: `npm test` 625/625 en verde; `npm run build` verde; e2e (`node tools/e2e-piernas/cable.mjs`) OK.
+- Consumo: sin medir · Sonnet 5 (obrero ola 3).
+- Siguiente: si Pablo quiere editar el cableado en vivo (no solo verlo), hace falta mandar los receptores al
+  cliente constructor y un camino para reescribir `disparadores.json` con la instancia corriendo.
+
+## 2026-10-18 05:00 · E1 · simulador de economías (`tools/economia/`) · hecho (rama `economia`)
+
+- Qué: una herramienta de diseño para simular economías de juego ANTES de programarlas, con el método de
+  diagramas de recursos de Dormans (tesis 2012, CC BY-NC; conocimiento académico, no el producto machinations.io).
+  Diagrama como datos (almacén, fuente, sumidero, conversor, puerta, registro; activadores y disparadores) y
+  `simular(d, { ticks, semilla })` → serie de cada almacén por tick, con el `rngInt` de `packages/core` (misma
+  semilla → misma serie). Dos modelos reales: la Tabla de Prestigio del manual (`modelos/prestigio.ts`) y el
+  ritmo de Reliquias con «piedad» (`modelos/reliquias.ts`). CLI `node tools/economia.ts prestigio|reliquias`.
+  Lo aprendido (patrones del apéndice B + 8 diseños públicos de la comunidad + conclusiones) en
+  `../mmo-browser-study/MAQUINACIONES-APRENDIZAJE.md`.
+- Conclusiones reales: (1) el Prestigio no se infla — es una fuente estática, crece lineal (~4,2 puntos/sesión
+  con 1–3 Semillas) — lo que hay es sequía: en mesa semanal una Aptitud nueva (1000) tarda 239 sesiones
+  (4,6 años); en el MMO, con 3–7 misiones/día y un tick = día, los mismos costes dan 5/48/96 días: la tabla
+  equilibra en el MMO y no en la mesa sin tocar un número. (2) Falta el freno de todo RPG: un gastador sube
+  la misma Competencia 4–5 veces al año a 50; con coste 50·nivel compra 1 y reparte. (3) Reliquias al 5 % sin
+  piedad: p95 57 encuentros hasta la primera, peor 156; con +1 %/fallo, p95 19, nadie pasa de 36, y la piedad
+  manda más que la base (espera mediana 8–11 sea la base 5 % o 1 %).
+- Dónde vive y por qué `tools/` y no `packages/`: es una herramienta interna de diseño, no una capa del motor;
+  nada en `packages/`/`features/` la importa ni debe hacerlo todavía; `tools/layers.json` no cambia. Si algún
+  día una feature necesita leer un diagrama (p. ej. para que el servidor aplique la Tabla), se saca a
+  `packages/economia` con su fila en `layers.json`.
+- Números: 390 pruebas en verde (14 nuevas: 8 nodos/determinismo/validación, 6 modelos con números fijados);
+  1 mala conocida intermitente (`test/chat.test.ts` «cost: names for 1,000 players», por tiempo con la máquina
+  cargada; pasa al repetir). `npm run layers` ok. Versión **0.11.0** (menor: herramienta nueva, nada roto).
+- Consumo: sin medir · Opus (sesión de Pablo).
+- Commit: rama `economia` rebasada sobre origin/main.
+- Siguiente: Pablo decide (a) cuántas Semillas da una sesión de mesa y si la Tabla lleva freno (coste por
+  nivel o tope), (b) la piedad de Reliquias antes que la base. Luego: modelo del daño en combate (D6 por
+  Éxitos, plantilla «Souls-like Balancing» §3.4 del documento), conectar con `features/misiones` cuando
+  haya Semillas reales, y un editor visual propio solo si dibujar a mano empieza a doler.
+## 2026-10-17 23:45 · L1 · hecho
+- Qué: sistema de lucha, trozo 1. Función `lucha`: criatura = entrada de estado con coherencia (no vida: se
+  disuelve), modo y caja sólida que la simulación ya respeta (`solido` + bx0…bz1, como `objetos`); `golpear`
+  → `within`, enfriamiento 12 ticks por jugador («tick desde el que puede», sin contadores), daño 3-5 del
+  PRNG del motor mezclando el tick, `golpe`/`aire`/`disuelta`/`vuelve`, reaparición 20 s; ficha
+  `bestiario.ts` con el Guardián de Crisálida (cita del canon, números del motor); la página dibuja el bloque
+  de la casa escalado a la caja y pintado (`view.place`), nombre, flash blanco 80 ms y «−N» 700 ms, tinte a
+  gris con la coherencia; `MUNDO_DIR/lucha.json`. Solo PVE; la criatura no se mueve ni devuelve el golpe.
+  Diseño completo (combate + bestiario de 12 criaturas ancladas al canon, filas L1-L10):
+  `mmo-browser-study/SISTEMA-DE-LUCHA-Y-BESTIARIO.md`. Versión **0.4.0** (menor: algo nuevo).
+- Números: 384 pruebas, 383 en verde + 1 mala conocida (`test/chat.test.ts` coste de nombres, pasa sola:
+  13/13); 8 nuevas en `test/lucha.test.ts`. `npm run layers` ok. Build ok: arranque 111,26 → 112,81 kB gz
+  (+1,55 kB: declaración y controlador, sin 3D nuevo).
+- Consumo: sin medir · Sonnet 5.5 (la sesión de Pablo).
+- Commit: rama `lucha/trozo-1` sobre origin/main 749e99a (ver `git log`).
+- Siguiente: Pablo decide D1-D3 del diseño (PVP; jugador sin vida y con Estados; anclajes multiplican el
+  daño) y si abre PR; después L2 (estados del jugador) y L3 (la criatura se mueve).
 ## 2026-10-17 17:26 · U14 · hecho (primer corte)
 
 - Qué: mandos del vídeo, lo pequeño primero (`packages/render/src/medios.ts`: `ControlVideo` nuevo — pausar/reanudar,
@@ -818,6 +935,31 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
   permiso de organización, o se queda como está (mío solo); luego, J13 (panel de muñeca en VR) para el volumen y el
   parar sin salir del visor, y una pierna de e2e (`tools/e2e-piernas/`) con un vídeo real.
 
+## 2026-10-18 16:09 · j4-usar-mantener-pulsado · hecho
+- Qué: J4 «E: usar» con mantener pulsado (puerta, botón, objeto que se coge). `Interact`/`Reachable` (packages/feature)
+  ganan `hold?: number` (segundos; sin él, como antes, se usa al instante). Las tres declaraciones de PR #50
+  (`features/puertas`, `features/botones`, `features/cogibles`) ponen su propio `MANTENER_S` (0.6/0.5/0.4 s) en
+  `card.interact.hold`; el servidor no cambia (el intent sigue siendo el mismo, solo cambia CUÁNDO la página lo manda).
+  `apps/plaza/interactuar.ts`: E, el botón de acción (móvil) y un clic en el botón ya no disparan al instante si el
+  objetivo tiene `hold` — empiezan a «mantener» (`--progreso` 0..1 en CSS, clase `.manteniendo`, un anillo cónico junto
+  al texto en `index.html`/`tema.css`) y solo usan la cosa al llegar a 1; soltar antes, o que el objetivo cambie,
+  cancela sin mandar nada. `apps/plaza/xr.ts` + `packages/render/src/manos.ts`: un nuevo evento `gatillo_fin` (en
+  `selectend`) deja que el gatillo de VR también sea mantener-y-soltar, con la misma función compartida
+  (`interaccion.mantener.empezar/soltar`).
+- Números: `npm test` 746/746 verdes (3 nuevas en `test/mantener-pulsado.test.ts`: la aritmética pura de
+  `fraccionMantenida`, que las tres declaraciones llevan su `hold`, y que `reachable()` lo manda igual a dos
+  `ClientSession` — «la otra pestaña lo ve igual»). `npm run build` verde (bundle principal sin cambio apreciable:
+  el cambio es CSS + unas líneas de JS). Versión 0.11.0 → 0.12.0 (función nueva, nada se rompe).
+- Aviso / sin comprobar: sin pierna de e2e con un navegador real (Playwright) sosteniendo E/el botón/el gatillo los
+  milisegundos exactos — no existe aún una pierna para puertas/botones/cogibles (PR #50 tampoco trajo una); la
+  cobertura de «la otra pestaña lo ve igual» es la prueba headless multi-página de siempre. El anillo de progreso
+  no se ha visto en un visor real (VR): el mantener-y-soltar está cableado (gatillo_fin) pero sin un dibujo propio
+  en el panel de muñeca (eso es J13, sin construir). Un clic directo sobre la cosa en pantalla (no E, no el botón)
+  sigue siendo instantáneo a propósito (fuera de alcance de esta historia pequeña).
+- Consumo: sin lectura previa a este turno · Sonnet 5.
+- Commit: rama `j4/usar-mantener-pulsado` sobre `tren/motor-2026-10-18-5` (ver `git log`), PR al tren.
+- Siguiente: una pierna de e2e real (Playwright) para los tres casos; dibujar el anillo también en el panel de
+  muñeca de VR (J13); decidir si el clic directo sobre la cosa también debería pedir mantener pulsado.
 ## 2026-10-18 03:20 · M22b-1 · constructor táctil mínimo: toque selecciona, arrastrar mueve · hecho (rama `constructor/tactil-minimo`)
 - Qué: primera pieza del constructor en el móvil, como EXTENSIÓN del de M22 (mismo `features/objetos/client.ts`,
   mismo `gizmo.ts`, mismo `programarEnvio`): solo cambia la entrada. En `apps/plaza/constructor.ts` una capa de

@@ -26,10 +26,14 @@ import type { Cosa as CosaCogible } from "./cogibles/server.ts";
 import { leerWebMundo } from "./web/feature.ts";
 import { crearContadores } from "./contadores/server.ts";
 import { leerContadores } from "./contadores/feature.ts";
+import { crearLucha } from "./lucha/server.ts";
+import type { Criatura } from "./lucha/server.ts";
 import type { Aparicion } from "./entorno/esquema.ts";
-import { crearDisparadores, leerDisparadores } from "./disparadores/server.ts";
+import { crearDisparadores, leerDisparadores, serializarDisparadores } from "./disparadores/server.ts";
+import { crearMovedores } from "./movedores/server.ts";
+import { leerMovedores } from "./movedores/feature.ts";
 
-export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) => unknown, log: (l: string) => void = () => {}): ServerPart[] {
+export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) => unknown, log: (l: string) => void = () => {}, escribir?: (fichero: string, datos: unknown) => void): ServerPart[] {
   // pesca.json (numinia-engine/pesca@1: { sitios: [{ id, nombre, x, y, z, radio, rumbo? }] }): the world's fishing spots; none = the house default
   const crudoPesca = leer("pesca.json") as { sitios?: unknown } | null | undefined;
   const sitiosPesca = crudoPesca?.sitios;
@@ -69,7 +73,19 @@ export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) 
   const crudoDisp = leer("disparadores.json");
   const leidoDisp = crudoDisp === undefined ? null : leerDisparadores(crudoDisp);
   for (const pr of leidoDisp?.problemas ?? []) log(`[mundo] disparadores.json: ${pr}`);
-  return partes.map((p) => (p.feature.id === "disparadores" && leidoDisp ? crearDisparadores({ disparadores: leidoDisp.disparadores }) : p.feature.id === "contadores" && leidoContadores ? crearContadores({ contadores: leidoContadores.valor }) : p.feature.id === "suelo" && sueloMundo ? crearSuelo(sueloMundo) : p.feature.id === "puertas" && Array.isArray(inter.puertas) ? crearPuertas({ puertas: inter.puertas as Puerta[] }) : p.feature.id === "botones" && Array.isArray(inter.botones) ? crearBotones({ botones: inter.botones as Boton[] }) : p.feature.id === "cogibles" && Array.isArray(inter.cosas) ? crearCogibles({ cosas: inter.cosas as CosaCogible[] }) : p.feature.id === "web" && leidoWeb ? crearWeb(leidoWeb.valor) : p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
+
+  // movedores.json (numinia-engine/movedores@1, D-043: { movedores: [{ id, nombre, modelo, tipo: vaiven|interruptor,
+  // ax,ay,az,bx,by,bz, arx?,ary?,arz?,brx?,bry?,brz?, sx?,sy?,sz?, duracion, espera?, radio?, evento?, empiezaEn? }] }):
+  // things the server moves and rotates with a duration (platform, sliding door, lift); none = nothing moves.
+  const crudoMov = leer("movedores.json");
+  const leidoMov = crudoMov === undefined ? null : leerMovedores(crudoMov);
+  for (const pr of leidoMov?.problemas ?? []) log(`[mundo] movedores.json: ${pr.path}: ${pr.message} (esa línea no se usa)`);
+
+  // lucha.json (numinia-engine/lucha@1: { criaturas: [{ id, especie, x, y, z, nombre?, reaparicion? }] }): the world's creatures; none = the house default
+  const crudoL = leer("lucha.json") as { criaturas?: unknown } | null | undefined;
+  const criaturas = crudoL?.criaturas;
+  if (crudoL !== undefined && !Array.isArray(criaturas)) log(`[mundo] lucha.json no tiene una lista "criaturas" (uso la criatura de la casa): ${JSON.stringify(crudoL).slice(0, 160)}`);
+  return partes.map((p) => (p.feature.id === "lucha" && Array.isArray(criaturas) ? crearLucha({ criaturas: criaturas as Criatura[] }) : p.feature.id === "disparadores" && leidoDisp ? crearDisparadores({ disparadores: leidoDisp.disparadores, escribir: escribir ? (ds) => escribir("disparadores.json", serializarDisparadores(ds)) : undefined }) : p.feature.id === "contadores" && leidoContadores ? crearContadores({ contadores: leidoContadores.valor }) : p.feature.id === "movedores" && leidoMov ? crearMovedores({ movedores: leidoMov.valor }) : p.feature.id === "suelo" && sueloMundo ? crearSuelo(sueloMundo) : p.feature.id === "puertas" && Array.isArray(inter.puertas) ? crearPuertas({ puertas: inter.puertas as Puerta[] }) : p.feature.id === "botones" && Array.isArray(inter.botones) ? crearBotones({ botones: inter.botones as Boton[] }) : p.feature.id === "cogibles" && Array.isArray(inter.cosas) ? crearCogibles({ cosas: inter.cosas as CosaCogible[] }) : p.feature.id === "web" && leidoWeb ? crearWeb(leidoWeb.valor) : p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
 }
 
 /** D-045: the world's void (entorno.json `sueloMinimo` + `vuelta`), or null: no file, no key, or a wrong one (logged). */

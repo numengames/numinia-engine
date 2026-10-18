@@ -24,6 +24,8 @@ export const MODOS = ["", "coger", "mover", "girar", "escalar"] as const;
 export type Modo = (typeof MODOS)[number];
 export type Donde = Record<"x" | "y" | "z" | "rx" | "ry" | "rz" | "sx" | "sy" | "sz", number>;
 type Res = { ok: true } | { ok: false; why: string };
+/** U12: a hole as the page and agents read it (constructor.huecos). */
+export type Hueco = { id: string; nombre: string; x: number; y: number; z: number; ancho: number; alto: number; lleno: boolean; fijado: boolean };
 
 const entre = (v: number, [min, max]: readonly [number, number]) => Math.min(max, Math.max(min, v));
 /** Degrees into [-180, 180] (what the server keeps). */
@@ -40,26 +42,48 @@ export const dondeDe = (o: Msg): Donde => Object.fromEntries(CAMPOS.map((k) => [
 /** One per page (tests make one per client). `constructor` is what a builder UI or an agent's helper calls. */
 export function crearCliente() {
   let api: ClientApi | null = null;
-  const estado = { puede: false, seleccionado: "", ultimoRechazo: "", modo: "" as Modo };
+  const estado = { puede: false, seleccionado: "", seleccionados: [] as string[], ultimoRechazo: "", modo: "" as Modo };
   const oyentes = new Set<(que: string) => void>();
   const avisar = (que: string) => { for (const fn of oyentes) { try { fn(que); } catch { /* a listener's error is its own */ } } };
   const enviar = (intent: string, msg: Msg): Res => api?.send(intent, msg) ?? { ok: false as const, why: "la página aún no ha arrancado" };
   const aqui = () => api?.view.here?.() ?? { x: 0, y: 0, z: 0 };
   const lista = () => (api ? api.state.keys().map((id) => ({ id, ...api!.state.get(id)! })) : []);
-  /** The selected thing, or the nearest one within 8 m. */
+  /** B7: the holes, read from the state once per change (huecos.cerca asks five times a second; a template has hundreds
+   * of things and only a few holes). Cleared first thing in onChange, the only way the state changes. */
+  let huecosLeidos: Hueco[] | null = null;
+  const leerHuecos = (): Hueco[] => {
+    const out: Hueco[] = [];
+    for (const id of api!.state.keys()) {
+      const o = api!.state.get(id)!;
+      if (Number(o.huecoAncho) > 0 && Number(o.huecoAlto) > 0) out.push({
+        id, nombre: String(o.nombre ?? ""), x: Number(o.x), y: Number(o.y), z: Number(o.z),
+        ancho: Number(o.huecoAncho), alto: Number(o.huecoAlto), lleno: o.huecoLleno === true, fijado: o.fijado === true,
+      });
+    }
+    return out;
+  };
+  /** The selected thing, or the nearest one within 8 m (B7: without copying every thing to find it). */
   const seleccion = (): (Msg & { id: string }) | null => {
     const sel = estado.seleccionado && api?.state.get(estado.seleccionado);
     if (sel) return { id: estado.seleccionado, ...sel };
+    if (!api) return null;
     const p = aqui();
-    let mejor: (Msg & { id: string }) | null = null, d2 = 64;
-    for (const o of lista()) { const d = (Number(o.x) - p.x) ** 2 + (Number(o.z) - p.z) ** 2; if (d <= d2) { d2 = d; mejor = o; } }
-    return mejor;
+    let mejor: string | null = null, d2 = 64;
+    for (const id of api.state.keys()) { const o = api.state.get(id)!, d = (Number(o.x) - p.x) ** 2 + (Number(o.z) - p.z) ** 2; if (d <= d2) { d2 = d; mejor = id; } }
+    return mejor === null ? null : { id: mejor, ...api.state.get(mejor)! };
   };
   const conSeleccion = (fn: (o: Msg & { id: string }) => ReturnType<typeof enviar>) => { const o = seleccion(); return o ? fn(o) : { ok: false as const, why: "no hay nada seleccionado ni cerca" }; };
   const transformar = (o: Msg & { id: string }, cambio: Partial<Donde>) =>
     enviar("mover", { id: o.id, ...acotarDonde({ ...dondeDe(o), ...cambio }) });
   const acotar = (v: number) => entre(v, LIMITES.escala);
   const elegir = (id: string) => { if (estado.seleccionado !== id) { estado.seleccionado = id; avisar("seleccion"); } };
+  /** M22c: replace the whole multi-selection («» = none); the last id given becomes the primary (gizmo, inspector). */
+  const elegirVarios = (ids: string[]) => {
+    const unicos = [...new Set(ids.filter((id) => api?.state.get(id)))];
+    estado.seleccionados = unicos;
+    elegir(unicos[unicos.length - 1] ?? "");
+    avisar("seleccion");
+  };
 
   const constructor = {
     estado,
@@ -93,14 +117,15 @@ export function crearCliente() {
     nombrar: (nombre: string, decorado = false) => conSeleccion((o) => enviar("nombrar", { id: o.id, nombre, decorado })),
     /** U10: hidden while playing (spheres of sound), volume 0-1, solid (collides with people). For solid, `caja` is the
      * model's own box, unscaled, in its own axes (the page measures it: view.editor.cajaPropia). Only what is given changes.
-     * M6: `colision` (ninguna | caja | malla) says how it collides; `solido: true` alone means `caja`, `solido: false` means `ninguna`. */
-    ajustar: (cambio: { oculto?: boolean; volumen?: number; solido?: boolean; colision?: Colision; caja?: [number, number, number, number, number, number] | null; alcance?: "burbuja" | "zona" | "todos"; radio?: number }) => conSeleccion((o) => {
+     * M6: `colision` (ninguna | caja | malla) says how it collides; `solido: true` alone means `caja`, `solido: false` means `ninguna`.
+     * J4: `enlace` is the address a click opens (new tab, after confirming); "" clears it. */
+    ajustar: (cambio: { oculto?: boolean; volumen?: number; solido?: boolean; colision?: Colision; caja?: [number, number, number, number, number, number] | null; alcance?: "burbuja" | "zona" | "todos"; radio?: number; enlace?: string }) => conSeleccion((o) => {
       // keeping a thing solid needs its own box again: the server keeps it, so an unchanged solid sends zeros and keeps it
       const c = cambio.caja ?? [0, 0, 0, 0, 0, 0];
       const colision: Colision = cambio.colision ?? (cambio.solido === undefined ? colisionDe(o) : cambio.solido ? "caja" : "ninguna");
       return enviar("ajustar", { id: o.id, oculto: cambio.oculto ?? o.oculto === true, volumen: entre(cambio.volumen ?? Number(o.volumen ?? 1), [0, 1]), solido: colision !== "ninguna", colision,
         bx0: c[0], by0: c[1], bz0: c[2], bx1: c[3], by1: c[4], bz1: c[5],
-        alcance: cambio.alcance ?? String(o.alcance ?? "burbuja"), radio: entre(cambio.radio ?? Number(o.radio ?? 8), [0.5, 200]) });
+        alcance: cambio.alcance ?? String(o.alcance ?? "burbuja"), radio: entre(cambio.radio ?? Number(o.radio ?? 8), [0.5, 200]), enlace: cambio.enlace ?? String(o.enlace ?? "") });
     }),
     /** U10: put a file uploaded to this server (by its sha256) in front of you or at a point: an image, a video, a sphere of sound. */
     colocarFichero: (sha: string, ext: string, nombre: string, p?: { x: number; y?: number; z: number }) => {
@@ -117,26 +142,43 @@ export function crearCliente() {
     /** U12: take the work out of a hole: its card comes back. */
     vaciar: (id: string) => enviar("vaciar", { id }),
     /** U12: the zone's holes: where each is, its frame (metres) and whether it holds a work. */
-    huecos: () => lista().filter((o) => Number(o.huecoAncho) > 0 && Number(o.huecoAlto) > 0).map((o) => ({
-      id: o.id, nombre: String(o.nombre ?? ""), x: Number(o.x), y: Number(o.y), z: Number(o.z),
-      ancho: Number(o.huecoAncho), alto: Number(o.huecoAlto), lleno: o.huecoLleno === true, fijado: o.fijado === true,
-    })),
+    huecos: (): Hueco[] => (api ? (huecosLeidos ??= leerHuecos()) : []).map((h) => ({ ...h })), // fresh copies: a caller may change them
     deshacer: () => enviar("deshacer", {}),
     /** M22: redo what you last undid (until you make a new change). */
     rehacer: () => enviar("rehacer", {}),
-    /** M22: select a thing by its id ("" = nothing). The page's gizmo and inspector follow. */
+    /** M22: select a thing by its id ("" = nothing). The page's gizmo and inspector follow. M22c: also replaces
+     * the multi-selection with just this one (shift+click/drag-box add to it instead — ver seleccionarVarios). */
     seleccionar: (id: string): Res => {
       if (id && !api?.state.get(id)) return { ok: false, why: `no hay ningún objeto «${id}»` };
-      elegir(id);
+      elegirVarios(id ? [id] : []);
       return { ok: true };
     },
-    /** M22: move, turn or scale a thing by its id; only the fields given change (metres, degrees, factor). */
-    transformar: (id: string, cambio: Partial<Donde>): Res => {
+    /** M22c: replace the multi-selection (shift+click, caja de arrastre). The order matters: the last id is the
+     * primary (gizmo attached, inspector). Unknown ids are dropped quietly. */
+    seleccionarVarios: (ids: string[]): Res => { elegirVarios(ids); return { ok: true }; },
+    /** M22c: add/remove one id from the multi-selection (shift+click), keeping the rest; `id` becomes primary if added. */
+    alternarSeleccion: (id: string): Res => {
+      if (!api?.state.get(id)) return { ok: false, why: `no hay ningún objeto «${id}»` };
+      const ya = estado.seleccionados.includes(id);
+      elegirVarios(ya ? estado.seleccionados.filter((x) => x !== id) : [...estado.seleccionados, id]);
+      return { ok: true };
+    },
+    /** M22: move, turn or scale a thing by its id; only the fields given change (metres, degrees, factor). M22c:
+     * `lote` (opcional) agrupa esta llamada con otras del mismo lote en un solo paso de deshacer (ver nuevoLote). */
+    transformar: (id: string, cambio: Partial<Donde>, lote = ""): Res => {
       const o = api?.state.get(id);
       if (!o) return { ok: false, why: `no hay ningún objeto «${id}»` };
       for (const [k, v] of Object.entries(cambio)) if (!(CAMPOS as readonly string[]).includes(k) || !Number.isFinite(v)) return { ok: false, why: `«${k}» no es un número de x y z rx ry rz sx sy sz` };
-      return transformar({ id, ...o }, cambio);
+      const d = acotarDonde({ ...dondeDe(o), ...cambio });
+      return enviar("mover", { id, ...d, lote });
     },
+    /** M22c: borrar/fijar por id (no por selección): para operar un grupo entero como una unidad, con un `lote`
+     * común para que el servidor lo deshaga de un solo paso (ver nuevoLote). */
+    borrarId: (id: string, lote = ""): Res => (api?.state.get(id) ? enviar("borrar", { id, lote }) : { ok: false, why: `no hay ningún objeto «${id}»` }),
+    fijarId: (id: string, fijado: boolean, lote = ""): Res => (api?.state.get(id) ? enviar("fijar", { id, fijado, lote }) : { ok: false, why: `no hay ningún objeto «${id}»` }),
+    /** M22c: un identificador corto para una acción de grupo (mover/borrar/fijar varios a la vez): úsalo como `lote`
+     * en cada llamada de ESA acción; el servidor las junta en un solo paso de deshacer mientras llegan seguidas. */
+    nuevoLote: (): string => Math.random().toString(36).slice(2, 10),
     /** M22: the tool: "coger" (follows the pointer), "mover", "girar", "escalar" (gizmo) or "" (only select). */
     modo: (m: string): Res => {
       if (!(MODOS as readonly string[]).includes(m)) return { ok: false, why: `modos: ${MODOS.filter(Boolean).join(", ")} o "" (solo seleccionar)` };
@@ -150,8 +192,9 @@ export function crearCliente() {
   const part = clientPart(objetos, (a) => {
     api = a;
     a.state.onChange((key, v) => {
+      huecosLeidos = null;
       a.view.place?.(key, v ? aDibujo(v) : null);
-      if (!v && key === estado.seleccionado) elegir("");
+      if (!v && estado.seleccionados.includes(key)) elegirVarios(estado.seleccionados.filter((x) => x !== key));
       avisar("estado");
     });
     a.on("permiso", (m) => { estado.puede = m.construir === true; avisar("permiso"); });

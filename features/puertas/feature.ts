@@ -11,6 +11,8 @@ export const ALCANCE_M = 64;
 export const CERCA_M = 30;
 /** Longest a door stays open on its own before closing (s); 0 = it stays as left. */
 export const CIERRA_MAX_S = 120;
+/** J4: how long you must hold «usar» before a door moves (s, mantener-pulsado). */
+export const MANTENER_S = 0.6;
 
 const ID = { kind: "text", maxBytes: 16 } as const;
 const X = { kind: "fixed", min: -2000, max: 2000, step: 0.01 } as const;
@@ -34,7 +36,7 @@ export const puertas = defineFeature({
       cierraEn: { kind: "int", min: 0, max: CIERRA_MAX_S, default: 0 },
       aviso: { kind: "enum", values: ["abrir", "cerrar"] },
     },
-    card: { role: "puerta", name: "{nombre}", description: "Puerta: se abre y se cierra desde cerca; lo decide el servidor", at: ["x", "z"], actions: ["usar"], interact: { intent: "usar", prompt: "{aviso} {nombre}", radius: "radio", key: "puerta" } },
+    card: { role: "puerta", name: "{nombre}", description: "Puerta: se abre y se cierra desde cerca; lo decide el servidor", at: ["x", "z"], actions: ["usar"], interact: { intent: "usar", prompt: "{aviso} {nombre}", radius: "radio", key: "puerta", hold: MANTENER_S } },
     radius: ALCANCE_M,
   },
   intents: {

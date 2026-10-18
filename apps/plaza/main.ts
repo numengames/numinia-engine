@@ -13,12 +13,15 @@ import { chatDePagina } from "../../features/chat/client.ts";
 import { montarConstructor } from "./constructor.ts";
 import { montarSoltar } from "./soltar.ts";
 import { montarHuecos } from "./huecos.ts";
+import { montarEnlaces } from "./enlaces.ts"; // J4: click on a thing with a link opens it (new tab, after confirming)
+import { disparadores } from "../../features/disparadores/client.ts"; // D-041: the cable — controller
+import { montarCable } from "./cable.ts"; // D-041, historias 5-6: builder's live view + editor of the wiring
 import { montarVideoMandos } from "./video-mandos.ts";
 import { catalogoDeAvatares } from "./catalogo-avatares.ts"; // not "./a…": dev:lan proxies every path starting with /a to the server
 import { montarChat } from "./chat.ts";
 import { escribiendo } from "./escribiendo.ts";
 import { misiones } from "../../features/misiones/client.ts";
-import { montarInteraccion } from "./interactuar.ts";
+import { montarInteraccion, construyendo } from "./interactuar.ts";
 import { montarDialogo } from "./dialogo.ts";
 import { montarVerNombres } from "./nombres-ver.ts";
 import { montarLibro } from "./misiones.ts";
@@ -27,6 +30,7 @@ import { montarFicha } from "./ficha.ts";
 import { ambiente } from "../../features/entorno/client.ts";
 import { elementos } from "../../features/elementos/client.ts";
 import { dardos } from "../../features/dardos/client.ts"; // dardos v1: the controller; its throwing view (apps/plaza/dardos.ts) loads with the first board
+import { lucha } from "../../features/lucha/client.ts"; // L1: the controller (golpear); the creature is drawn by view.place like any thing
 import { pesca } from "../../features/pesca/client.ts"; // pesca v1: the controller; its HUD (apps/plaza/pesca.ts) and 3D load with the first spot
 import { bienes, comprobar } from "../../features/bienes/client.ts"; // N10: goods that are yours (signed receipt), in the sheet's «Inventario»
 import { montarBienes } from "./bienes.ts";
@@ -39,6 +43,8 @@ import { dados } from "../../features/dados/client.ts"; // dados v1: dice the se
 import { montarDados } from "./dados.ts";
 import { contadores } from "../../features/contadores/client.ts"; // D-044: timers and counters everyone sees
 import { montarContadores } from "./contadores.ts";
+import { cerraduras } from "../../features/cerradura/client.ts"; // D-042: a lock that opens with a code (keypad) or a key
+import { montarCerradura } from "./cerradura.ts";
 import { pantallasWeb } from "../../features/web/client.ts"; // N17: web screens (the controller)
 import { montarWeb } from "./web.ts";
 import { montarVoz } from "./voz.ts";
@@ -150,6 +156,11 @@ montarConstructor(constructor, view, document.getElementById("construir") as HTM
 const soltar = montarSoltar({ session, view, puede: () => constructor.estado.puede, origen: activos, billete: () => localStorage.getItem(GUARDA), panel: document.getElementById("panel-construir") });
 // ---- U12: holes — click one (or E near it) and choose your picture: it goes up and the server fits it into the frame ----
 const huecos = montarHuecos({ constructor, view, rellenar: soltar.rellenar, decir: (t) => soltar.decir(t), panel: document.getElementById("panel-construir") });
+// ---- J4: a thing may carry a link (set in the inspector); a click on it opens it in a new tab, after confirming ----
+const enlaces = montarEnlaces({ constructor, view, construyendo: () => construyendo(view) });
+const cable = montarCable({ constructor, disparadores, decir: (t) => soltar.decir(t), panel: document.getElementById("panel-construir") });
+// ---- D-042: a code lock opens its own keypad (HTML); a key lock keeps the plain J4 flow ----
+const cerradurasPagina = montarCerradura({ cerradura: cerraduras });
 // ---- U14: mandos del vídeo — pausar/reanudar (E, clic o el mando en VR) y mi propio volumen (deslizador, pantalla plana) ----
 const videoMandos = montarVideoMandos({ lista: () => constructor.lista(), controlVideo: (id) => view.controlVideo(id), panel: document.getElementById("video-mandos")! });
 montarEntorno(ambiente, elementos, view); // H4/H8: environment and elements, a section of its own while building
@@ -174,7 +185,7 @@ const voz = montarVoz({ session, view: { label: (t, text, ms) => view.label(t, t
 const cajaChat = montarChat(chatDePagina, document.getElementById("chat")!);
 
 // ---- J4/J5: what you can use from close by (E, a click, the prompt button), conversations, the quest book (J) ----
-const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: (x, z, y) => [...huecos.cerca(x, z, y), ...videoMandos.cerca(x, z)], pinchar: huecos.pinchar });
+const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k) && cerradurasPagina.ofrece(f, k) && lucha.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: (x, z, y) => [...huecos.cerca(x, z, y), ...cerradurasPagina.cerca(x, z), ...videoMandos.cerca(x, z)], pinchar: (key) => huecos.pinchar(key) || enlaces.pinchar(key) });
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
 const xr = montarXR({ session, view, misiones, interaccion }); // J10: hands in VR take, point and answer; what you took is in your hand
 montarDialogo(misiones, document.getElementById("dialogo")!, view);
@@ -345,6 +356,7 @@ if (document.fullscreenEnabled) {
 // battery; no personal data). The server keeps it per session: GET /sesiones, npm run sesiones. ?pulso=ms ----
 const PULSO_MS = Math.max(1000, Number(params.get("pulso")) || 10_000);
 const medidor = medidorDeCuadros();
+medidor.vigilar(); // B5: a hidden or frozen page is a pause, not a freeze; Long Animation Frames where the browser has them
 const informe = { entrada: false, bienvenidaMs: 0, primerCuadroMs: 0, errores: 0, oculta: false, pulsos: 0 };
 let bateria: { nivel: number; cargando: boolean } | null = null;
 const modo = () => (view.vr.active ? "vr" : view.ar.state !== "off" ? "ar" : "plano");
@@ -400,9 +412,10 @@ view.loop((now) => {
     cost = view.lastFrame(); cost.cpuMs = Math.round((performance.now() - t0) * 100) / 100;
     if (view.power.reportCost(cost.cpuMs, dt)) view.applyPixelRatio();
     frames++;
-    // T1: interval between draws against the target of the moment (a pause over 1 s is not a lost frame)
+    // T1: interval between draws against the target of the moment. A gap of 1 s or more is a freeze, counted apart
+    // (B5), unless the page was hidden or frozen meanwhile; draw calls, triangles, programs and pixel ratio ride along
     const xr = view.vr.active || view.ar.state !== "off";
-    if (lastDrawAt && now - lastDrawAt < 1000) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active));
+    if (lastDrawAt) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active), { dc: cost.calls, tri: cost.triangles, programas: (cost as { programs?: number }).programs, ratio: view.power.pixelRatio(), xr });
     lastDrawAt = now;
     if (session.welcome && !informe.primerCuadroMs) informe.primerCuadroMs = Math.round(performance.now());
   }
@@ -427,7 +440,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, videoMandos, mapa, ficha, ambiente, elementos, voz, xr, pesca, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, ambiente, elementos, voz, xr, pesca, lucha, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable };
 
 // ---- U11: the bar of icon buttons, top right (rightmost first): settings, build, microphone, full screen, VR, AR ----
 {

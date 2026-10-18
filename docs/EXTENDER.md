@@ -867,9 +867,18 @@ poste, la caja en el suelo.
   (la huella de la simulación es la misma con y sin las tres; lo mide `test/interacciones.test.ts`). Un ejemplo
   mínimo: `{ "puertas": [{ "id": "norte", "nombre": "Puerta norte", "x": 6, "z": 0, "cierraEn": 10 }], "botones": [{ "id":
   "rojo", "nombre": "Botón rojo", "x": 12, "z": 0, "puerta": "norte" }], "cosas": [{ "id": "caja", "nombre": "Caja", "x": -6, "z": 0 }] }`.
+- **Mantener pulsado (J4, v2):** `card.interact.hold` (segundos; opcional en `Interact`/`Reachable`,
+  `packages/feature/src/index.ts`) hace que la página NO use la cosa al instante: E, el botón de acción (móvil) o el
+  gatillo en VR deben mantenerse ese tiempo (un anillo de progreso —`--progreso` 0..1— crece en `#interactuar`,
+  `apps/plaza/interactuar.ts`) antes de mandar el intent; soltar antes, o que el objetivo cambie, cancela sin mandar
+  nada. `puertas`/`botones`/`cogibles` (su `coger`, no su `soltar`) ya lo llevan (`MANTENER_S` en cada `feature.ts`);
+  el servidor no sabe nada de esto — solo decide CUÁNDO llega el intent, igual que siempre. En VR, el gatillo emite
+  un evento de más al soltar (`gatillo_fin`, `packages/render/src/manos.ts`/`apps/plaza/xr.ts`) para poder cancelar
+  un mantener a medias.
 - **Lo que no hace (todavía):** paredes que paren a quien no abre la puerta (es dibujo, no colisión: J6), botones
   con otra acción que una puerta (la señal ya existe; que otra función la escuche es una línea), coger con la mano
-  física en VR (hoy, rayo y gatillo como el resto; J10 lo hace para las cosas de misión), y llevar más de una cosa.
+  física en VR (hoy, rayo y gatillo como el resto; J10 lo hace para las cosas de misión), llevar más de una cosa, y
+  un anillo de progreso propio en el panel de muñeca de VR (J13).
 ## Contadores (v1, D-044): temporizador y contador que todos ven
 
 `features/contadores` es la pieza del reloj de la sala de escape, del marcador del equipo y del reloj del mundo:
@@ -900,9 +909,15 @@ poste, la caja en el suelo.
   con `aria-live="off"`, estado) y los botones (44 px) solo cuando estás al alcance: Arrancar/Parar y Reiniciar, o +1 / −1
   / Reiniciar en un marcador.
 - **Chat:** `/contador sala arranca|para|suma 3|resta 1|reinicia`, `/contadores` (la lista con sus valores).
-- **Lo que no hace (todavía, historia 3):** guardar el valor entre reinicios del servidor (`persist`), un contador por
-  persona o por equipo con nombre libre, poner o quitar contadores desde dentro del mundo (hoy, solo el fichero), y el
-  cable que conecte `llegada` con otra pieza (D-041, otro agente).
+- **Lo que no hace (todavía):** un contador por persona (hoy solo id y, con `variante: "equipo"`, por equipo), poner o quitar
+  contadores desde dentro del mundo (hoy, solo el fichero), y el cable que conecte `llegada` con otra pieza (D-041, otro agente).
+- **h3 (persist, variante equipo):** `state.persist: true` (S4) — el valor y si está en marcha sobreviven a un reinicio del
+  servidor; al arrancar, un contador recupera lo guardado (no vuelve a `inicio`) y, si no hay nada guardado, usa el fichero.
+  Un contador con `"variante": "equipo"` en el fichero deja de ser un solo valor: la orden lleva además `equipo` (1-16 letras
+  minúsculas, cifras o guiones — un nombre libre, no una lista que el fichero tenga que declarar) y el servidor crea ese
+  equipo la primera vez que se nombra, hasta `EQUIPOS_MAX` (8) equipos por contador; cada equipo vive bajo la clave
+  `<id>:<equipo>` (estado, cartel y chat: `/contador marcador:rojo suma`). Sin `equipo` o con uno de más, se rechaza
+  («Di el equipo…» / «ya tiene 8 equipos»).
 ## El cable (D-041, v1): disparadores que un mundo escribe en datos, sin código
 
 La pieza `disparadores@1` (`features/disparadores`) es el cable del mundo: un constructor (o un agente que escribe JSON)
@@ -932,10 +947,13 @@ historias: mientras tanto el registro dice `nadie hace «teletransporta» en est
 - **Ejemplo mínimo (botón que enciende una farola oculta):** `{ "disparadores": [{ "id": "rojo", "nombre": "Botón rojo",
   "tipo": "boton", "x": 12, "z": 0, "frase": "E: pulsar", "cooldown": 5, "receptores": [{ "accion": "muestra", "objeto":
   "Farola" }] }] }` con un objeto llamado «Farola» marcado como invisible al jugar en el constructor.
-- **Lo que no hace (todavía):** los receptores de las historias 3-4 (`teletransporta`, `da_paso`, `abre_enlace`, `suena`),
-  la etiqueta flotante de la zona y el botón móvil (historia 5), el catálogo para agentes y el ejemplo en la plaza
-  (historia 6), y disparadores que no sean zona o botón (la cerradura de D-042, el temporizador de D-044 son emisores
-  nuevos de este mismo cable).
+- **Lo que no hace (todavía):** el catálogo para agentes y el ejemplo en la plaza que esta ficha no cubre todavía.
+  La vista del constructor (`apps/plaza/cable.ts`, historias 5-6) lista cada disparador, deja «Probar» un botón y
+  edita en vivo sus receptores (intención `editarReceptores`, solo con permiso de construir: el servidor valida
+  cada receptor igual que al leer el fichero y, si acepta, reescribe `disparadores.json` sin reiniciar la
+  instancia — el campo `receptores` del estado viaja a toda página, como el resto de la ficha; no es un secreto
+  como el código de una cerradura). Crear o borrar disparadores enteros sigue siendo editar el fichero antes de
+  arrancar.
 
 ## Agua (N2): estilizada, de color plano, un solo draw call
 
@@ -960,3 +978,30 @@ escena (Lambert), así que de noche se oscurece sola.
 - La opción «Agua» del menú: «Sencilla» / «Con destellos»; ya no hay `WaterMesh` reflectante (`view.elementos.contar().reflejos`
   queda en 0; `aguaDetalle` dice qué dibuja el agua en este nivel).
 - Pruebas: `test/agua.test.ts`.
+
+## Enrutador de capas (U2, H1: la pieza, aún sin enchufar)
+
+`apps/plaza/capas.ts` es la pieza que decidirá quién es dueño de Esc, «atrás», B y Start: cada cosa que se puede cerrar registra una capa (`registrar({ id, rango, abierta, cerrar })`, o `vigilar(dialog)` para un `<dialog>` nativo) y el enrutador cierra la de arriba (cambiar tecla › escribir › panel › modo › menú); sin capas abiertas llama a `alVaciarse`, que es donde se abrirá el menú. Hoy **no está conectada a ningún módulo** (nadie llama a `montarCapas()`, así que no cambia el comportamiento de Esc); migrar las escuchas de teclado y los dueños de Esc actuales es la historia siguiente. Pruebas: `test/capas.test.ts`.
+
+## Lucha (v1, L1): criaturas con coherencia y un golpe que decide el servidor
+
+`features/lucha` es el ejemplo de **cosa del mundo que se golpea**. Una criatura es una entrada de estado con `at` y ficha
+`criatura` (`interact: { intent: "golpear", prompt: "golpear a {nombre}", radius: "radio" }`): «E: golpear a Guardián de
+Crisálida» al acercarte. Diseño completo (combate y bestiario de 12): `mmo-browser-study/SISTEMA-DE-LUCHA-Y-BESTIARIO.md`.
+- **Caja sólida sin tocar la simulación**: el valor lleva `solido: true` y `bx0 by0 bz0 bx1 by1 bz1` (m), igual que
+  `objetos`; la instancia y la página rehacen las cajas solas (`solidsFrom`). Al disolverse, `solido: false` y se atraviesa.
+- **Coherencia, no vida**: en Numinia las criaturas se disuelven, no mueren. `coherencia`/`coherenciaMax` vienen de la
+  ficha (`bestiario.ts`: nombre, caja, radio, color y la cita del canon). A 0: `modo: "disuelta"`, evento `disuelta`, y
+  `vuelve` entera a los `REAPARICION_S` (20 s; `reaparicion: 0` en el mundo = nunca).
+- **El golpe** (`feature.ts`): `golpear { objetivo }` → `api.within` (radio + margen J4; si no, `aire` solo a ti) →
+  enfriamiento por jugador como «tick desde el que puede» (`ENFRIAMIENTO_TICKS` 12 = 0,6 s; el segundo golpe se traga sin
+  evento) → daño `DANO_BASE + rngNext % DANO_VAR` (3-5) con el PRNG del motor mezclando el tick (misma semilla, mismos
+  golpes) → `golpe { objetivo, de, dano, queda }` a 40 m. Nada de trabajo cuando nada cambia: `onTick` solo mira la lista
+  de disueltas pendientes.
+- **La página** (`client.ts`) dibuja la criatura con el bloque de la casa escalado a su caja y pintado del color de la
+  ficha (`view.place("lucha:<clave>")`), el nombre encima (`view.tag`), flash blanco 80 ms y «−N» 700 ms al golpe; el
+  tinte va a gris con la coherencia. Sin partículas, sin 3D nuevo.
+- **Un mundo** trae sus criaturas en `MUNDO_DIR/lucha.json` (`{ "criaturas": [{ id, especie, x, y, z, nombre?,
+  reaparicion? }] }`, `features/mundo.ts`); sin fichero, el Guardián de la casa en (24, 10). Especie desconocida = se
+  avisa y no se pone.
+- **Solo PVE**: el objetivo es siempre una criatura; PVP y que la criatura se mueva o devuelva el golpe son filas L2-L8.

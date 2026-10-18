@@ -25,7 +25,9 @@ export type EventoMano =
   | { tipo: "agarrar"; key: string; lado: Lado }
   | { tipo: "apuntar"; key: string; lado: Lado }
   | { tipo: "panel"; fila: number; lado: Lado }
-  | { tipo: "gatillo"; lado: Lado };
+  | { tipo: "gatillo"; lado: Lado }
+  /** J4 mantener-pulsado: the trigger let go (cancels a hold started by "gatillo" if it was not done yet). */
+  | { tipo: "gatillo_fin"; lado: Lado };
 
 /** How far from a thing's surface a hand still takes it (m). */
 export const ALCANCE_M = 0.22;
@@ -201,7 +203,7 @@ export function createManos(h: ManosHooks) {
     });
     ctrl.addEventListener("disconnected", () => { r.fuente = null; r.lado = null; r.candidato = null; r.apuntado = null; r.pellizcoAire = 0; r.pellizco = false; });
     ctrl.addEventListener("selectstart", () => { r.pellizco = true; if (r.esMano && !r.candidato && !r.apuntado && !(r.lado && ocupada(r.lado))) r.pellizcoAire = performance.now(); pulsar(r, "gatillo"); });
-    ctrl.addEventListener("selectend", () => { r.pellizcoAire = 0; r.pellizco = false; });
+    ctrl.addEventListener("selectend", () => { r.pellizcoAire = 0; r.pellizco = false; if (r.lado) emitir({ tipo: "gatillo_fin", lado: r.lado }); });
     ctrl.addEventListener("squeezestart", () => pulsar(r, "agarre"));
     return r;
   });

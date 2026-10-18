@@ -14,7 +14,7 @@
 import { startServer } from "./server.ts";
 import funciones from "../../../features/servidor.ts";
 import { aparicionDelMundo, conMundo, sueloDelMundo } from "../../../features/mundo.ts";
-import { leerMundo } from "./mundo.ts";
+import { leerMundo, escribirMundo } from "./mundo.ts";
 import { carpetaMundo, claves, escribirManifiesto, sembrar } from "./mundo-carpeta.ts";
 import { infoMotor } from "./version.ts";
 import { configPase } from "./pase.ts";
@@ -40,7 +40,7 @@ const srv = await startServer({
   host: env.HOST ?? "127.0.0.1",
   statsMs: Number(env.STATS_MS ?? 30000),
   // SIN_FUNCIONES=1: the bare engine · the world's own environment and elements (entorno.json, elementos.json; H4)
-  features: env.SIN_FUNCIONES === "1" ? [] : leerEntorno ? conMundo(funciones, leerEntorno, log) : funciones,
+  features: env.SIN_FUNCIONES === "1" ? [] : leerEntorno ? conMundo(funciones, leerEntorno, log, entorno ? escribirMundo(entorno, log) : undefined) : funciones,
   aparicion: leerEntorno ? aparicionDelMundo(leerEntorno, log) : null,  // where people appear (entorno.json `aparicion`; a tower's floor)
   suelo: leerEntorno ? sueloDelMundo(leerEntorno, log) : null,          // D-045: under `sueloMinimo` you come back to your last safe spot
   sesiones: env.SESIONES_DIR || c?.sesiones || "informes/sesiones", // T1: how each player entered

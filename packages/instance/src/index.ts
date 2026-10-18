@@ -1,8 +1,8 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE } from "../../sim/src/index.ts";
-import type { SimState, SpawnArea } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX } from "../../sim/src/index.ts";
+import type { SimState, SpawnArea, Bvh } from "../../sim/src/index.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
@@ -13,7 +13,7 @@ import type { Who } from "./identidad.ts";
 export type { Who } from "./identidad.ts";
 import type { Transport, Viewer, Welcome } from "../../net/src/index.ts";
 import { ServerRuntime } from "../../feature/src/index.ts";
-import type { BienFirmable, FeatureStorage, ReciboLeido, ServerPart } from "../../feature/src/index.ts";
+import type { BienFirmable, FeatureStorage, ReciboLeido, ServerPart, RayHit, Orden } from "../../feature/src/index.ts";
 
 export type InstanceOptions = {
   seed: number; capacity: number; k: number; snapshotEvery: number;
@@ -55,6 +55,15 @@ export type InstanceOptions = {
    * floor at or over that height), or on `vuelta` (a fixed point; `siempre` = always there). None = no void: nobody is
    * ever moved on their own (the reference fingerprint stands). */
   suelo?: Suelo | null;
+  /** H2 historia 5/8: who may fly by default — "nadie" (default, nothing written), "constructores" (puede(e,
+   * "build-in-worlds")) or "todos". A feature can still grant it to one avatar (`concederVuelo`) whatever this says. */
+  vuelo?: "nadie" | "constructores" | "todos";
+  /** M6 h8: builds (or refreshes) the world's collision mesh from the shared state's `malla` things, off the sim
+   * tick (fetching and parsing a .glb is not a 20 Hz operation): called again whenever the shared state version
+   * changes, never twice at once. Returns null when there is nothing to build (no `malla` thing, or none readable).
+   * None = the world never gets a mesh (`sim.mesh` stays null, same as before M6: darts, fishing and walking into a
+   * `malla` wall all answer as if there is nothing there). packages/server/src/colision-mundo.ts builds the real one. */
+  construirMalla?: (objetos: Iterable<[string, Record<string, unknown>]>) => Promise<Bvh | null>;
 };
 export type Suelo = { minimo: number; vuelta?: { x: number; y: number; z: number; siempre?: boolean } | null };
 /** D-045: how often (ticks) the last safe spot is kept: 10 = every half second. */
@@ -64,6 +73,11 @@ export type Vuelta = { entity: number; x: number; y: number; z: number; motivo: 
 
 /** Inputs wait in a queue; the server applies exactly ONE per tick (none = that avatar does not advance: J2). */
 export const MAX_QUEUE = 8;
+/** H2 historia 5: at most this many orders (api.ordenar, D-045's own volverASeguro included) go into one step; the
+ * rest wait their turn, in order, next tick (1,280 orders/s: 1,000 avatars frozen at once take 16 ticks, 0.8 s). */
+export const ORDENES_TICK_MAX = 64;
+/** M6 h12: a ray starts this high over the feet — between standing (BODY_HEIGHT 1.7 m) and a stooped look. */
+const EYE_HEIGHT = fx(1.6);
 
 type Conn = {
   entity: number; transport: Transport; viewer: Viewer;
@@ -106,16 +120,20 @@ export class Instance {
       teletransportar: (e, cerca, o) => this.teletransportar(e, cerca, o),
       volverASeguro: (e) => this.volverASeguro(e, "pedido"),
       vueltas: () => this.vueltas.splice(0),
+      rayo: (e, dir, max) => this.rayo(e, dir, max),
+      ordenar: (e, orden) => this.ordenar(e, orden),
     });
     this.seguro = new Int32Array(opts.capacity * 3); this.tieneSeguro = new Uint8Array(opts.capacity);
   }
 
   // ---- D-045: the last safe spot of each avatar, the orders waiting for the next step, the returns made ----
   private readonly seguro: Int32Array; private readonly tieneSeguro: Uint8Array;
-  private ordenes: number[] = []; // [entity, x, y, z] Q16.16, applied by the next step (recorded: part of the replay)
+  private ordenes: number[] = []; // [entity, tipo, a, b, c, d] Q16.16, applied by the next step (recorded: part of the replay)
   private readonly pendiente = new Set<number>();
   private readonly vueltas: Vuelta[] = [];
   private avisado = false;
+  /** H2 historia 5: avatars a feature has granted flight to, whatever entorno.json's `vuelo` says (forgotten on leave). */
+  private readonly concedidosVuelo = new Set<number>();
   /** Keep where this avatar stands as its safe spot, if it stands on a floor at or over the world's minimum. */
   private guardarSeguro(e: number): void {
     const s = this.sim;
@@ -140,9 +158,69 @@ export class Instance {
     if (!this.byEntity[entity] || !s.world.alive[entity] || !s.tf.has[entity] || this.pendiente.has(entity)) return false;
     const d = this.destinoSeguro(entity);
     if (!d) { if (!this.avisado) { this.avisado = true; this.opts.log?.("[suelo] no hay sitio seguro al que volver (ni última posición ni «vuelta» en entorno.json)"); } return false; }
-    this.ordenes.push(entity, d.x, d.y, d.z); this.pendiente.add(entity);
+    this.ordenes.push(entity, ORDER_PONER, d.x, d.y, d.z, 0); this.pendiente.add(entity);
     this.vueltas.push({ entity, x: fxToFloat(d.x), y: fxToFloat(d.y), z: fxToFloat(d.z), motivo });
     return true;
+  }
+
+  /** H2 historia 5: may this avatar fly — the world's `vuelo` (none = "nadie") or a feature's grant (`concederVuelo`),
+   * whichever says yes. "constructores" reuses STD-052's `build-in-worlds` permission (no new role). */
+  puedeVolar(entity: number): boolean {
+    if (this.concedidosVuelo.has(entity)) return true;
+    const vuelo = this.opts.vuelo ?? "nadie";
+    if (vuelo === "todos") return true;
+    if (vuelo === "constructores") return this.opts.puede?.(this.byEntity[entity]?.who ?? null, "build-in-worlds", entity) ?? false;
+    return false;
+  }
+  /** H2 historia 5: a feature grants (or takes back) flight for one avatar, regardless of the world's `vuelo`
+   * (a potion, a rank…). Forgotten when the avatar leaves. */
+  concederVuelo(entity: number, concede = true): void {
+    if (concede) this.concedidosVuelo.add(entity); else this.concedidosVuelo.delete(entity);
+  }
+  /** H2 historia 5: `api.ordenar` — make a connected avatar do something on purpose (QUIETO/EMPUJAR/SENTAR/VOLAR, or
+   * PONER/the near spot of `teletransportar`). Queues for the next step (recorded, replayable); the queue itself is
+   * capped per tick (ORDENES_TICK_MAX, the rest wait their turn). Returns false when the avatar is gone, a number is
+   * out of range, or (`volar: true`) it has no permission (said once in the log); never throws. */
+  ordenar(entity: number, orden: Orden): boolean {
+    const s = this.sim;
+    if (!this.byEntity[entity] || !s.world.alive[entity] || !s.tf.has[entity]) return false;
+    const finite = (...ns: number[]) => ns.every((n) => Number.isFinite(n));
+    if ("poner" in orden) {
+      const { x, y, z } = orden.poner;
+      if (!finite(x, y, z)) return false;
+      this.ordenes.push(entity, ORDER_PONER, fx(x), fx(y), fx(z), 0);
+      return true;
+    }
+    if ("cerca" in orden) {
+      return this.teletransportar(entity, orden.cerca, { radios: orden.radios, rumbo: orden.rumbo, caida: orden.caida }) !== null;
+    }
+    if ("quieto" in orden) {
+      if (!finite(orden.quieto) || orden.quieto <= 0) return false;
+      const ticks = Math.min(QUIETO_MAX, Math.round(orden.quieto * 20)); // TICK_HZ
+      this.ordenes.push(entity, ORDER_QUIETO, ticks, 0, 0, 0);
+      return true;
+    }
+    if ("empujar" in orden) {
+      const { vx, vy, vz } = orden.empujar;
+      if (!finite(vx, vy, vz)) return false;
+      this.ordenes.push(entity, ORDER_EMPUJAR, fx(vx), fx(vy), fx(vz), 0);
+      return true;
+    }
+    if ("sentar" in orden) {
+      const { x, y, z, rumbo = 0 } = orden.sentar;
+      if (!finite(x, y, z, rumbo)) return false;
+      this.ordenes.push(entity, ORDER_SENTAR, fx(x), fx(y), fx(z), Math.round(rumbo * 64) | 0);
+      return true;
+    }
+    if ("volar" in orden) {
+      if (orden.volar && !this.puedeVolar(entity)) {
+        this.opts.log?.(`[ordenes] VOLAR rechazado (sin permiso): entidad ${entity}`);
+        return false;
+      }
+      this.ordenes.push(entity, ORDER_VOLAR, orden.volar ? 1 : 0, 0, 0, 0);
+      return true;
+    }
+    return false;
   }
 
   /** A client arrives over any transport: spawn its avatar (in the world's spawn area, if it has one), say welcome, listen. */
@@ -251,9 +329,13 @@ export class Instance {
       inputs[o] = c.entity; inputs[o + 1] = m.mx; inputs[o + 2] = m.mz; inputs[o + 3] = m.buttons; c.ack = m.seq;
     }
     if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.sim, solidsFrom(this.features.allState())); } // U10
-    const ordenes = this.ordenes.length ? Int32Array.from(this.ordenes) : undefined; this.ordenes = []; this.pendiente.clear();
-    if (ordenes) this.opts.log?.(`[suelo] tick ${this.sim.tick}: ${ordenes.length / ORDER_STRIDE} orden(es) de vuelta a sitio seguro`);
-    step(this.sim, inputs.subarray(0, n * INPUT_STRIDE), ordenes); // authority (D-045: orders first, recorded with the inputs)
+    if (this.opts.construirMalla && !this.mallaBuilding && this.features.stateVersion !== this.mallaVersion) this.reconstruirMalla();
+    // H2 historia 5: at most ORDENES_TICK_MAX orders go into this step; the rest stay queued, in order, for the next one.
+    const capInts = ORDENES_TICK_MAX * ORDER_STRIDE;
+    const take = this.ordenes.slice(0, capInts); this.ordenes = this.ordenes.slice(capInts);
+    const ordenes = take.length ? Int32Array.from(take) : undefined; this.pendiente.clear();
+    if (ordenes) this.opts.log?.(`[suelo] tick ${this.sim.tick}: ${ordenes.length / ORDER_STRIDE} orden(es) aplicada(s)${this.ordenes.length ? `, ${this.ordenes.length / ORDER_STRIDE} esperando` : ""}`);
+    step(this.sim, inputs.subarray(0, n * INPUT_STRIDE), ordenes); // authority (D-045/H2: orders first, recorded with the inputs)
     if (this.sim.tick % SEGURO_CADA === 0) { // D-045: every half second, keep the safe spot; under the floor, order the return
       const s = this.sim, min = this.opts.suelo ? fx(this.opts.suelo.minimo) : null;
       for (const c of this.conns) {
@@ -291,7 +373,36 @@ export class Instance {
   /** I1: the guest behind a connected entity (null for bots and before the page showed its token). */
   who(entity: number): Who | null { return this.byEntity[entity]?.who ?? null; }
 
+  /** M6 h12: a ray from this player's eyes (EYE_HEIGHT_M over its feet) in direction `dir`, against the world's
+   * collision mesh (`sim.mesh`, set by M6's server wiring; none yet = always null — darts and fishing get a clean
+   * "nothing there" until a world has a `malla` thing). `dir` need not be unit length; a zero vector is a miss. */
+  rayo(entity: number, dir: { x: number; y: number; z: number }, max: number): RayHit | null {
+    const s = this.sim;
+    if (!this.byEntity[entity] || !s.world.alive[entity] || !s.tf.has[entity] || !s.mesh) return null;
+    const len = Math.hypot(dir.x, dir.y, dir.z);
+    if (!(len > 0) || !(max > 0)) return null;
+    const ox = s.tf.cols.x[entity], oy = s.tf.cols.y[entity] + EYE_HEIGHT, oz = s.tf.cols.z[entity];
+    const dx = fx(dir.x / len), dy = fx(dir.y / len), dz = fx(dir.z / len);
+    const hit = rayBvh(s.mesh, ox, oy, oz, dx, dy, dz, fx(max));
+    if (!hit) return null;
+    return { x: fxToFloat(hit.x), y: fxToFloat(hit.y), z: fxToFloat(hit.z), nx: fxToFloat(hit.nx), ny: fxToFloat(hit.ny), nz: fxToFloat(hit.nz), distancia: fxToFloat(hit.t) };
+  }
+
   private solidsVersion = -1;
+  private mallaVersion = -1;
+  private mallaBuilding = false;
+  /** M6 h8: rebuilds the world's collision mesh off the tick (async: fetching and parsing .glb files is not a 20 Hz
+   * job). Captures the state version before starting; if the state moved on again while building, the next tick's
+   * check (`stateVersion !== mallaVersion`) sees it and starts over — never two builds in flight at once. Not part
+   * of the fingerprint: `setMesh` is the same no-op-on-replay side door `setSolids` already uses for U10's boxes. */
+  private reconstruirMalla(): void {
+    const version = this.features.stateVersion, snapshot = [...this.features.allState()];
+    this.mallaVersion = version; this.mallaBuilding = true;
+    this.opts.construirMalla!(snapshot)
+      .then((mesh) => { setMesh(this.sim, mesh); })
+      .catch((e) => { this.opts.log?.(`[malla] no se pudo construir la malla del mundo: ${String((e as Error)?.message ?? e)}`); })
+      .finally(() => { this.mallaBuilding = false; });
+  }
   /** U10: who hears a voice frame — players that have the speaker in their area of interest and within VOZ_RADIO_M.
    * Never everyone, never stored, never decoded. Over VOZ_TRAMAS_S frames a second the rest are dropped. */
   readonly vozStats = { recibidas: 0, enviadas: 0, descartadas: 0 };

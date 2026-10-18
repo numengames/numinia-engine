@@ -37,7 +37,9 @@ export type Card = { role: Role; name: string; description?: string; importance?
  * for the nearest one in reach (a button on touch screens) and sends `intent` with the thing's state key in the
  * intent's text field `key`; the server checks the distance again (`api.within`). `radius`: metres, or the name of a
  * numeric state field (each thing its own). */
-export type Interact = { intent: string; prompt: string; radius: number | string; key: string };
+export type Interact = { intent: string; prompt: string; radius: number | string; key: string;
+  /** J4: seconds to hold the key/button/trigger before it fires (a progress ring while held); undefined/0 = instant. */
+  hold?: number };
 export const INTERACT_RADIUS_MAX = 16;   // J4: metres
 export const INTERACT_SLACK_M = 1.5;     // J4: the server allows this much more than the page (latency, prediction)
 /** Reach in height (vertical worlds): a thing whose state carries a numeric `y` (metres, its feet or its shelf) is in
@@ -75,7 +77,30 @@ export const NEAR_RADIUS_M = 32;          // default reach of an event sent { ne
 export const QUEUE_PER_PLAYER = 32;       // intents waiting for the next tick, per player
 export const STATE_KEY_BYTES = 64;
 export const RESERVED_PATHS = ["/health", "/metrics", "/ws"];
+export const RAYO_RATE: Rate = { perSecond: 4, burst: 8 }; // M6 h12: same cap as an intent (DISENO-M6 §4.1)
+export const RAYO_MAX_M = 50;             // M6 h12: how far a ray reaches when a feature does not say
 const TICK_HZ = 20;                        // same as sim; repeated to keep this package below sim
+
+/** M6 h8: a point through an object's own scale, turn (YXZ, degrees) and position — the same rotation
+ * `cajaEnMundo` (features/objetos/server.ts) applies to a box's 8 corners, generalised to any number of points,
+ * so both a box and a `malla`'s .glb triangles land in world space through the one piece of maths (R-1: reuse, not
+ * repeat). Plain floats, not fixed point: this builds world geometry (a box, a collision mesh), never a sim
+ * decision, and lives below `sim` in the layers (`feature` cannot import it) — `packages/server` quantizes its
+ * own output with `quantizeTriangles` before it reaches the simulation. */
+export function transformarPuntos(xyz: ArrayLike<number>, o: { x: unknown; y: unknown; z: unknown; rx: unknown; ry: unknown; rz: unknown; sx: unknown; sy: unknown; sz: unknown }): Float64Array {
+  const R = Math.PI / 180, [ax, ay, az] = [Number(o.rx) * R, Number(o.ry) * R, Number(o.rz) * R];
+  const [cx, sx_] = [Math.cos(ax), Math.sin(ax)], [cy, sy_] = [Math.cos(ay), Math.sin(ay)], [cz, sz_] = [Math.cos(az), Math.sin(az)];
+  const SX = Number(o.sx), SY = Number(o.sy), SZ = Number(o.sz), OX = Number(o.x), OY = Number(o.y), OZ = Number(o.z);
+  const n = (xyz.length / 3) | 0, out = new Float64Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    let x = xyz[i * 3] * SX, y = xyz[i * 3 + 1] * SY, z = xyz[i * 3 + 2] * SZ;
+    [x, y] = [x * cz - y * sz_, x * sz_ + y * cz];   // roll (z), then pitch (x), then yaw (y): three's "YXZ" order
+    [y, z] = [y * cx - z * sx_, y * sx_ + z * cx];
+    [x, z] = [x * cy + z * sy_, -x * sy_ + z * cy];
+    out[i * 3] = x + OX; out[i * 3 + 1] = y + OY; out[i * 3 + 2] = z + OZ;
+  }
+  return out;
+}
 
 const ID = /^[a-z][a-z0-9-]{1,31}$/, NAME = /^[a-z][a-zA-Z0-9]{0,31}$/;
 
@@ -256,11 +281,29 @@ export type ServerHost = {
   teletransportar?(entity: number, cerca: { x: number; y: number; z: number }, o?: Teletransporte): { x: number; y: number; z: number } | null; // N16: the instance moves an avatar to a free spot; none = null
   volverASeguro?(entity: number): boolean;                      // D-045: the instance orders an avatar back to its last safe spot (next step, recorded); none = false
   vueltas?(): Vuelta[];                                         // D-045: the returns the instance made since the last call (drained); none = []
+  /** M6 h12: a ray from this player's eyes (its position plus eye height) in direction `dir` (need not be unit length),
+   * up to `max` metres, against the world's collision mesh (M6: no mesh set yet = always null). The runtime itself
+   * rate-limits calls (RAYO_RATE): the host need not count them. */
+  rayo?(entity: number, dir: { x: number; y: number; z: number }, max: number): RayHit | null;
+  /** H2 historia 5: make an avatar do something on purpose (api.ordenar); none = always false. */
+  ordenar?(entity: number, orden: Orden): boolean;
 };
+/** M6 h12: where a ray stopped — metres, and the unit normal of the surface it hit, facing the ray. */
+export type RayHit = { x: number; y: number; z: number; nx: number; ny: number; nz: number; distancia: number };
 /** D-045: a return the instance made: who, where to (metres) and why (caida = fell under the world's floor, pedido = asked). */
 export type Vuelta = { entity: number; x: number; y: number; z: number; motivo: "caida" | "pedido" };
 /** N16: how the instance looks for a free spot (rings in metres, 0 = the point; heading 0-7 from +z; most metres down). */
 export type Teletransporte = { radios?: readonly number[]; rumbo?: number; caida?: number };
+/** H2 historia 5: what `api.ordenar` can make an avatar do (D-041's cable turns a trigger into one of these). `poner` is
+ * D-045's quadruple by another name; `cerca` is `teletransportar` (a free spot is found first); the other four are H2
+ * historias 2-4's QUIETO/EMPUJAR/SENTAR/VOLAR. */
+export type Orden =
+  | { poner: { x: number; y: number; z: number } }
+  | { cerca: { x: number; y: number; z: number }; radios?: readonly number[]; rumbo?: number; caida?: number }
+  | { quieto: number } // seconds, > 0
+  | { empujar: { vx: number; vy: number; vz: number } } // m/s
+  | { sentar: { x: number; y: number; z: number; rumbo?: number } } // degrees
+  | { volar: boolean };
 /** N10 (bienes digitales): what a feature asks the world to sign — the good (id = 24 hex, unique per world), its owner
  * (the guest id), the quest it came from and the instant (ISO 8601 UTC). The world adds v, tipo, mundo and emisor. */
 export type BienFirmable = { id: string; objeto: { id: string; nombre: string; descripcion: string; modelo: string; licencia: string }; dueno: string; mision: string; instante: string };
@@ -340,6 +383,17 @@ export type ServerApi = {
   volverASeguro(entity: number): boolean;
   /** D-045: the instance put someone back on a safe spot (after a fall, or because a feature asked): say it to the page. */
   onVuelta(fn: (v: Vuelta) => void): void;
+  /** M6 h12: a ray from this player's eyes in direction `dir` (need not be unit length), up to `max` metres (default
+   * RAYO_MAX_M), against the world's collision mesh — the house's eyes for a thing that reaches out: darts, fishing,
+   * a teleport beam, construir's own picker. Rate-limited per player (RAYO_RATE: 4/s, burst 8); over budget returns
+   * null, same as a miss. Returns null when nothing is hit, the player is gone, or the world has no mesh yet. */
+  rayo(entity: number, dir: { x: number; y: number; z: number }, max?: number): RayHit | null;
+  /** H2 historia 5: make an avatar do something on purpose — frozen, pushed, seated, flying, put somewhere (`poner`)
+   * or near somewhere (`cerca`, like `teletransportar`). The server decides (R-1): false when the avatar is gone, a
+   * number is out of range (`quieto` over QUIETO_MAX seconds, `empujar` over IMPULSO_MAX m/s) or (`volar: true`)
+   * this avatar may not fly (entorno.json's `vuelo`, or a grant from another feature) — said once in the log.
+   * Everything else queues for the next step (ORDENES_TICK_MAX per tick; the rest wait their turn, in order). */
+  ordenar(entity: number, orden: Orden): boolean;
 };
 export type ServerPart = { feature: Feature; side: "server"; setup: (api: ServerApi) => void };
 export const serverPart = (feature: Feature, setup: (api: ServerApi) => void): ServerPart => ({ feature, side: "server", setup });
@@ -397,6 +451,7 @@ export class ServerRuntime {
   private queue: { from: number; entry: Entry; msg: Msg }[] = [];
   private readonly waiting = new Map<number, number>();
   private readonly buckets = new Map<number, Map<number, { tokens: number; tick: number }>>();
+  private readonly rayoBuckets = new Map<number, { tokens: number; tick: number }>(); // M6 h12
   private readonly failed = new Set<string>();
   private readonly listeners = new Map<string, { feature: string; fn: (msg: Msg) => boolean | void }[]>(); // J3: "feature.event" -> server-side listeners
   private depth = 0;
@@ -433,6 +488,18 @@ export class ServerRuntime {
     if (!c) return [];
     const r2 = (scope.radius ?? NEAR_RADIUS_M) ** 2;
     return all.filter((e) => { if (except?.includes(e)) return false; const p = this.host.position(e); return !!p && (p.x - c.x) ** 2 + (p.z - c.z) ** 2 <= r2; });
+  }
+
+  /** M6 h12: api.rayo, rate-limited per player (a token bucket like an intent's, but shared across every feature:
+   * one player asking through two functions still spends from the same budget). Over budget: null, like a miss. */
+  private rayo(entity: number, dir: { x: number; y: number; z: number }, max = RAYO_MAX_M): RayHit | null {
+    const now = this.host.tick();
+    let b = this.rayoBuckets.get(entity);
+    if (!b) this.rayoBuckets.set(entity, (b = { tokens: RAYO_RATE.burst, tick: now }));
+    b.tokens = Math.min(RAYO_RATE.burst, b.tokens + ((now - b.tick) * RAYO_RATE.perSecond) / TICK_HZ); b.tick = now;
+    if (b.tokens < 1) return null;
+    b.tokens -= 1;
+    try { return this.host.rayo?.(entity, dir, max) ?? null; } catch (e) { this.fail("rayo", "en api.rayo", e); return null; }
   }
 
   private api(f: Feature): ServerApi {
@@ -547,6 +614,8 @@ export class ServerRuntime {
       verificarRecibo: (token) => { try { return this.host.verificarRecibo?.(token) ?? { ok: false, motivo: "este mundo no comprueba recibos" }; } catch { return { ok: false, motivo: "no se pudo comprobar" }; } },
       emisor: () => this.host.emisor?.() ?? "",
       teletransportar: (e, cerca, o) => { try { return this.host.teletransportar?.(e, cerca, o) ?? null; } catch (x) { log(`teletransportar: ${String((x as Error)?.message ?? x)}`); return null; } },
+      rayo: (e, dir, max) => this.rayo(e, dir, max),
+      ordenar: (e, orden) => { try { return this.host.ordenar?.(e, orden) ?? false; } catch (x) { log(`ordenar: ${String((x as Error)?.message ?? x)}`); return false; } },
       puede: (e, accion) => { try { return this.host.puede?.(e, accion) ?? false; } catch { return false; } },
       activo: (sha256, ext = "glb") => { try { return /^[0-9a-f]{64}$/.test(sha256) && (this.host.activo?.(sha256, ext) ?? false); } catch { return false; } },
       medidas: (sha256, ext) => { try { return /^[0-9a-f]{64}$/.test(sha256) ? this.host.medidas?.(sha256, ext) ?? null : null; } catch { return null; } },
@@ -614,7 +683,7 @@ export class ServerRuntime {
 
   leave(entity: number): void {
     for (const [id, fn] of this.hooks.leave) { try { fn(entity); } catch (e) { this.fail(id, "en onLeave", e); } }
-    this.buckets.delete(entity); this.waiting.delete(entity); this.known.delete(entity);
+    this.buckets.delete(entity); this.waiting.delete(entity); this.known.delete(entity); this.rayoBuckets.delete(entity);
   }
 
   /** A FEATURE message from a player. Returns false if it is malformed (the caller counts it). */
@@ -772,8 +841,10 @@ export const NO_VIEW: ViewHooks = { label() {}, bounce() {} };
 export type Announcement = { feature: string; event: string; text: string; sound: Sound; importance: Importance; at?: { x: number; z: number }; who?: number };
 /** A thing in the world as a screen reader or an agent reads it (V1). */
 export type CardView = { feature: string; key: string; role: Role; name: string; description?: string; importance: Importance; actions: string[]; at?: { x: number; z: number } };
-/** J4: a thing in reach as the page offers it: «E: <prompt>»; `use(feature, key)` sends its intent. */
-export type Reachable = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number };
+/** J4: a thing in reach as the page offers it: «E: <prompt>»; `use(feature, key)` sends its intent.
+ * `hold` (seconds, J4 mantener-pulsado): undefined/0 = fires at once; otherwise the page must hold the key/button/
+ * trigger that long (showing a progress ring) before it sends the intent. */
+export type Reachable = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; hold?: number };
 /** Fill `{field}` holes with the values (`{key}` = the state key). Unknown holes stay as they are. */
 export const fillTemplate = (t: string, values: Record<string, unknown>): string => t.replace(/\{([a-zA-Z0-9]+)\}/g, (all, k) => (values[k] === undefined ? all : String(values[k])));
 export type Action = { feature: string; id: string; label: string; key?: string; describe?: string; run: () => void };
@@ -881,7 +952,7 @@ export class ClientRuntime {
         const d = Math.hypot(Number(v[c.at[0]]) - x, Number(v[c.at[1]]) - z);
         if (!(r > 0 && d <= r) || (y !== undefined && !alAlcanceEnAltura(y, v.y))) continue; // J4: a thing whose radius field is 0 is not offered (e.g. carried)
         const vals = { key, ...v };
-        out.push({ feature: f.id, key, intent: it.intent, prompt: fillTemplate(it.prompt, vals), name: fillTemplate(c.name, vals).trim(), distance: d });
+        out.push({ feature: f.id, key, intent: it.intent, prompt: fillTemplate(it.prompt, vals), name: fillTemplate(c.name, vals).trim(), distance: d, ...(it.hold ? { hold: it.hold } : {}) });
       }
     }
     return out.sort((a, b) => a.distance - b.distance);
