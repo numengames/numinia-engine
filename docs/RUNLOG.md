@@ -739,3 +739,12 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Números: ver el cuerpo del PR (`npm test`, `npm run build`, pierna e2e del mapa).
 - Consumo: sin medir · Opus 5.5.
 - Siguiente: la cola de ramas sin fusionar está en work/fabrica/COLA-motor.md; la siguiente es `movil/audit-ui-2026-10-18`.
+
+## 2026-10-18 11:18 · pulido de la cara pública · hecho
+- Qué: README al día (qué es, arranque rápido, qué trae, paquetes, documentación, licencia); nuevos `SECURITY.md`,
+  `CONTRIBUTING.md` y `CODE_OF_CONDUCT.md` (los dos primeros textos vienen de numinia-archive); regla en `AGENTS.md`:
+  mensajes de commit y títulos de PR siempre en inglés, también los turnos de noche.
+- Versión **0.6.0 → 0.6.1** (parche): solo documentación, no cambia nada para quien usa el motor.
+- Números: `npm run gates` en verde (ver el cuerpo del PR).
+- Consumo: sin medir · Sonnet 5.5.
+- Siguiente: los encargos de los agentes de noche deben repetir la regla del inglés (ver el cuerpo del PR).
