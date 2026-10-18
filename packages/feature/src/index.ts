@@ -79,6 +79,27 @@ export const RAYO_RATE: Rate = { perSecond: 4, burst: 8 }; // M6 h12: same cap a
 export const RAYO_MAX_M = 50;             // M6 h12: how far a ray reaches when a feature does not say
 const TICK_HZ = 20;                        // same as sim; repeated to keep this package below sim
 
+/** M6 h8: a point through an object's own scale, turn (YXZ, degrees) and position — the same rotation
+ * `cajaEnMundo` (features/objetos/server.ts) applies to a box's 8 corners, generalised to any number of points,
+ * so both a box and a `malla`'s .glb triangles land in world space through the one piece of maths (R-1: reuse, not
+ * repeat). Plain floats, not fixed point: this builds world geometry (a box, a collision mesh), never a sim
+ * decision, and lives below `sim` in the layers (`feature` cannot import it) — `packages/server` quantizes its
+ * own output with `quantizeTriangles` before it reaches the simulation. */
+export function transformarPuntos(xyz: ArrayLike<number>, o: { x: unknown; y: unknown; z: unknown; rx: unknown; ry: unknown; rz: unknown; sx: unknown; sy: unknown; sz: unknown }): Float64Array {
+  const R = Math.PI / 180, [ax, ay, az] = [Number(o.rx) * R, Number(o.ry) * R, Number(o.rz) * R];
+  const [cx, sx_] = [Math.cos(ax), Math.sin(ax)], [cy, sy_] = [Math.cos(ay), Math.sin(ay)], [cz, sz_] = [Math.cos(az), Math.sin(az)];
+  const SX = Number(o.sx), SY = Number(o.sy), SZ = Number(o.sz), OX = Number(o.x), OY = Number(o.y), OZ = Number(o.z);
+  const n = (xyz.length / 3) | 0, out = new Float64Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    let x = xyz[i * 3] * SX, y = xyz[i * 3 + 1] * SY, z = xyz[i * 3 + 2] * SZ;
+    [x, y] = [x * cz - y * sz_, x * sz_ + y * cz];   // roll (z), then pitch (x), then yaw (y): three's "YXZ" order
+    [y, z] = [y * cx - z * sx_, y * sx_ + z * cx];
+    [x, z] = [x * cy + z * sy_, -x * sy_ + z * cy];
+    out[i * 3] = x + OX; out[i * 3 + 1] = y + OY; out[i * 3 + 2] = z + OZ;
+  }
+  return out;
+}
+
 const ID = /^[a-z][a-z0-9-]{1,31}$/, NAME = /^[a-z][a-zA-Z0-9]{0,31}$/;
 
 function checkFields(fields: Fields, path: string, issues: Issue[]): void {

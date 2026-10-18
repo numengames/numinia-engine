@@ -1,8 +1,8 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX } from "../../sim/src/index.ts";
-import type { SimState, SpawnArea } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX } from "../../sim/src/index.ts";
+import type { SimState, SpawnArea, Bvh } from "../../sim/src/index.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
@@ -58,6 +58,12 @@ export type InstanceOptions = {
   /** H2 historia 5/8: who may fly by default — "nadie" (default, nothing written), "constructores" (puede(e,
    * "build-in-worlds")) or "todos". A feature can still grant it to one avatar (`concederVuelo`) whatever this says. */
   vuelo?: "nadie" | "constructores" | "todos";
+  /** M6 h8: builds (or refreshes) the world's collision mesh from the shared state's `malla` things, off the sim
+   * tick (fetching and parsing a .glb is not a 20 Hz operation): called again whenever the shared state version
+   * changes, never twice at once. Returns null when there is nothing to build (no `malla` thing, or none readable).
+   * None = the world never gets a mesh (`sim.mesh` stays null, same as before M6: darts, fishing and walking into a
+   * `malla` wall all answer as if there is nothing there). packages/server/src/colision-mundo.ts builds the real one. */
+  construirMalla?: (objetos: Iterable<[string, Record<string, unknown>]>) => Promise<Bvh | null>;
 };
 export type Suelo = { minimo: number; vuelta?: { x: number; y: number; z: number; siempre?: boolean } | null };
 /** D-045: how often (ticks) the last safe spot is kept: 10 = every half second. */
@@ -323,6 +329,7 @@ export class Instance {
       inputs[o] = c.entity; inputs[o + 1] = m.mx; inputs[o + 2] = m.mz; inputs[o + 3] = m.buttons; c.ack = m.seq;
     }
     if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.sim, solidsFrom(this.features.allState())); } // U10
+    if (this.opts.construirMalla && !this.mallaBuilding && this.features.stateVersion !== this.mallaVersion) this.reconstruirMalla();
     // H2 historia 5: at most ORDENES_TICK_MAX orders go into this step; the rest stay queued, in order, for the next one.
     const capInts = ORDENES_TICK_MAX * ORDER_STRIDE;
     const take = this.ordenes.slice(0, capInts); this.ordenes = this.ordenes.slice(capInts);
@@ -382,6 +389,20 @@ export class Instance {
   }
 
   private solidsVersion = -1;
+  private mallaVersion = -1;
+  private mallaBuilding = false;
+  /** M6 h8: rebuilds the world's collision mesh off the tick (async: fetching and parsing .glb files is not a 20 Hz
+   * job). Captures the state version before starting; if the state moved on again while building, the next tick's
+   * check (`stateVersion !== mallaVersion`) sees it and starts over — never two builds in flight at once. Not part
+   * of the fingerprint: `setMesh` is the same no-op-on-replay side door `setSolids` already uses for U10's boxes. */
+  private reconstruirMalla(): void {
+    const version = this.features.stateVersion, snapshot = [...this.features.allState()];
+    this.mallaVersion = version; this.mallaBuilding = true;
+    this.opts.construirMalla!(snapshot)
+      .then((mesh) => { setMesh(this.sim, mesh); })
+      .catch((e) => { this.opts.log?.(`[malla] no se pudo construir la malla del mundo: ${String((e as Error)?.message ?? e)}`); })
+      .finally(() => { this.mallaBuilding = false; });
+  }
   /** U10: who hears a voice frame — players that have the speaker in their area of interest and within VOZ_RADIO_M.
    * Never everyone, never stored, never decoded. Over VOZ_TRAMAS_S frames a second the rest are dropped. */
   readonly vozStats = { recibidas: 0, enviadas: 0, descartadas: 0 };
