@@ -2,7 +2,7 @@
 // MUNDO_DIR/disparadores.json lists triggers (a `zona` you walk into, a `boton` you press: «E: pulsar», or h5's
 // `senal` — fired by another piece's own event, like a lock that opens or a movedor that arrives, matched by name
 // in its `senal` field, not by place) each with a cooldown, whether it fires once only, and a list of receivers
-// (`muestra`, `oculta`, `teletransporta`, `da_paso`, `abre_enlace`, `suena`, `mueve`). The SERVER decides every
+// (`muestra`, `oculta`, `teletransporta`, `da_paso`, `abre_enlace`, `suena` — S6: played by features/sonido —, `mueve`). The SERVER decides every
 // firing: it watches who enters a zone (api.onTick), checks the reach of a press (api.within), hears a matching
 // senal from another feature (api.listen), counts the cooldown in ticks, tells whoever is near (`disparado`) and
 // emits one server-only `accion` per receiver, which the feature that owns that action hears
@@ -101,11 +101,6 @@ export const disparadores = defineFeature({
       describe: "El receptor «abre_enlace» te pregunta si quieres abrir una dirección web en una pestaña nueva. Solo para quien lo disparó; la página pregunta antes de abrir nada.",
       fields: { quien: QUIEN, enlace: { kind: "text", maxBytes: 200 } },
       announce: { text: "¿Abrir este enlace? {enlace}", sound: "aviso", importance: 1, who: "quien" },
-    },
-    sonido: {
-      describe: "El receptor «suena» ha sonado, para quien esté cerca del disparador (CERCA_M). El motor hoy tiene un aviso fijo; el nombre que pidió el mundo viaja en el texto para quien lee en vez de oír.",
-      fields: { sonido: { kind: "text", maxBytes: 32 } },
-      announce: { text: "Suena: {sonido}.", sound: "aviso", importance: 0 },
     },
   },
 });

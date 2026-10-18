@@ -229,7 +229,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const reply = (res: ServerResponse, r: HttpReply) => {
     const type = r.type ?? "json";
     const ct = type === "html" ? "text/html; charset=utf-8" : type === "text" ? "text/plain; charset=utf-8" : "application/json; charset=utf-8";
-    res.writeHead(r.status ?? 200, { "content-type": ct, "cache-control": "no-store" });
+    res.writeHead(r.status ?? 200, { "content-type": ct, "cache-control": r.cache ?? "no-store" });
     res.end(type === "json" ? JSON.stringify(r.body) : String(r.body));
   };
   const agentesHttp = crearAgentesHttp({ pase: cfgPase.pase, agentes: () => roles.agentes, log });

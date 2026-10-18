@@ -156,9 +156,13 @@ export function huella(t: string): number {
 }
 
 /** Un generador xorshift32 a partir de (semilla del servidor, nombre del sonido). Determinista y sin estado global:
- *  dos clientes con la misma semilla recorren exactamente la misma secuencia. */
+ *  dos clientes con la misma semilla recorren exactamente la misma secuencia.
+ *  Antes de empezar, la semilla pasa por el mezclador final de murmur3: xorshift32 es lineal sobre GF(2), así que dos
+ *  semillas que se diferencian en un bit bajo (1000 y 1001) daban dos primeros números casi iguales — y como la
+ *  variante se elige con los bits ALTOS, salía siempre la misma. Con el mezclador, un bit de diferencia cambia medio
+ *  número. */
 export function azarDe(semilla: number, id: string): () => number {
-  let s = ((semilla >>> 0) ^ huella(id)) >>> 0;
+  let s = mezclar(((semilla >>> 0) ^ huella(id)) >>> 0);
   if (s === 0) s = 0x9e3779b9;
   return () => {
     s ^= (s << 13) >>> 0; s >>>= 0;
@@ -166,6 +170,15 @@ export function azarDe(semilla: number, id: string): () => number {
     s ^= (s << 5) >>> 0; s >>>= 0;
     return s / 4294967296;
   };
+}
+
+/** El mezclador final de murmur3: reparte un bit de diferencia por los 32 (avalancha). */
+export function mezclar(x: number): number {
+  let h = x >>> 0;
+  h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b) >>> 0;
+  h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35) >>> 0;
+  h ^= h >>> 16;
+  return h >>> 0;
 }
 
 /** Qué variante toca, con pesos (peso ausente o inválido = 1). Puro, para poder probarlo solo. */
@@ -187,7 +200,7 @@ const GRADOS = 180 / Math.PI;
 const dist3 = (a: Punto, b: Punto) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 const num = (v: unknown, def: number) => (typeof v === "number" && Number.isFinite(v) ? v : def);
 
-type Nodos = { g: GainNode; filtro: BiquadFilterNode; panner: PannerNode };
+type Nodos = { g: GainNode; filtro: BiquadFilterNode; panner: PannerNode | null };
 type Fuente = {
   n: number; id: string; bus: Bus; prioridad: number; loop: boolean; cama: boolean;
   posicion: Punto | null;
@@ -282,16 +295,25 @@ export function crearVoces(h: HechurasVoces = {}): Voces {
     const ctx = nucleo.ctx(), bus = nucleo.bus(f.bus);
     if (!ctx || !bus) return null;
     try {
-      const g = ctx.createGain(), filtro = ctx.createBiquadFilter(), panner = ctx.createPanner();
+      const g = ctx.createGain(), filtro = ctx.createBiquadFilter();
       g.gain.value = f.gain;
       filtro.type = "lowpass";
       llevar(filtro.frequency, AIRE_HZ);
+      g.connect(filtro);
+      // S6: una voz SIN posición va en la cabeza y NO lleva panner — los avisos y la interfaz suenan igual en los dos
+      // oídos, y un `PannerNode` en (0,0,0) con el oyente ya movido (S5) los dejaría lejos o a un lado. Es la regla de
+      // Meta: el emisor en el punto anatómico correcto; el de un aviso es la cabeza.
+      if (!f.posicion) {
+        filtro.connect(bus);
+        return { g, filtro, panner: null };
+      }
+      const panner = ctx.createPanner();
       panner.panningModel = "equalpower";          // el defecto del spec; el HRTF se reparte en `repartirHrtf`
       panner.distanceModel = f.dist.distanceModel;
       panner.refDistance = f.dist.refDistance;
       panner.maxDistance = f.dist.maxDistance;
       panner.rolloffFactor = f.dist.rolloffFactor;
-      g.connect(filtro); filtro.connect(panner); panner.connect(bus);
+      filtro.connect(panner); panner.connect(bus);
       const n = { g, filtro, panner };
       colocar(f, n);
       return n;
@@ -300,7 +322,7 @@ export function crearVoces(h: HechurasVoces = {}): Voces {
 
   function colocar(f: Fuente, n: Nodos | null = f.nodos): void {
     const p = f.posicion;
-    if (!n || !p) return;
+    if (!n?.panner || !p) return;
     const pan = n.panner as PannerNode & { positionX?: AudioParam; setPosition?: (x: number, y: number, z: number) => void };
     try {
       if (pan.positionX) { llevar(pan.positionX, p.x); llevar((pan as unknown as { positionY: AudioParam }).positionY, p.y); llevar((pan as unknown as { positionZ: AudioParam }).positionZ, p.z); }
@@ -309,7 +331,7 @@ export function crearVoces(h: HechurasVoces = {}): Voces {
   }
 
   function conPanning(f: Fuente, modelo: PanningModelType): void {
-    if (!f.nodos || f.panning === modelo) return;
+    if (!f.nodos?.panner || f.panning === modelo) return;
     // el HRTF tiene cola y latencia propia: cambiarlo a pelo da un clic. Se baja la voz 8 ms, se cambia y se sube.
     llevar(f.nodos.g.gain, 0, CLIC_S);
     try { f.nodos.panner.panningModel = modelo; } catch { return; }
@@ -368,7 +390,7 @@ export function crearVoces(h: HechurasVoces = {}): Voces {
     f.viva = false; f.real = false; f.cargando = false;
     pararFuente(f);
     if (f.nodos) {
-      for (const n of [f.nodos.g, f.nodos.filtro, f.nodos.panner]) { try { (n as { disconnect?: () => void }).disconnect?.(); } catch { /* ya suelto */ } }
+      for (const n of [f.nodos.g, f.nodos.filtro, f.nodos.panner]) { try { n?.disconnect?.(); } catch { /* ya suelto */ } }
       f.nodos = null;
     }
     if (f.cama && f.medio) { try { f.medio.src = ""; } catch { /* ya vacío */ } f.medio = null; }
@@ -405,7 +427,7 @@ export function crearVoces(h: HechurasVoces = {}): Voces {
 
   /** HRTF solo para las N más cercanas; el resto, `equalpower`. Con margen para no parpadear en el límite. */
   function repartirHrtf(): void {
-    const reales = fuentes.filter((f) => f.real && f.nodos).sort((a, b) => distanciaDe(a) - distanciaDe(b) || a.n - b.n);
+    const reales = fuentes.filter((f) => f.real && f.nodos?.panner).sort((a, b) => distanciaDe(a) - distanciaDe(b) || a.n - b.n);
     const n = Math.min(topeHrtf(), reales.length);
     const quiere = reales.slice(0, n);
     if (n > 0 && n < reales.length) {
@@ -441,7 +463,7 @@ export function crearVoces(h: HechurasVoces = {}): Voces {
   }
 
   function cono(f: Fuente, c: Peticion["cono"]): void {
-    if (!f.nodos) return;
+    if (!f.nodos?.panner) return;          // una voz en la cabeza (sin panner) no tiene cono: suena omnidireccional
     const interior = num(c?.interior, CONO_OMNI.interior), exterior = num(c?.exterior, CONO_OMNI.exterior);
     try {
       // los datos del mundo van en radianes (KHR); el `PannerNode` los quiere en GRADOS: la conversión vive solo aquí

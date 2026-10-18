@@ -1,0 +1,1367 @@
+{
+  "schema": "numinia-engine/sonidos@1",
+  "describe": "S6 · los sonidos de la casa: cada id con sus variantes (y su peso: a más peso, más veces sale), su bus de los ocho del núcleo, su prioridad (0-100) y su cooldown en ms, el texto que lee quien no oye (XAUR), y la procedencia de cada fichero (licencia, autor, fuente, sha256). Los ficheros viven en activos/sonidos/ y el servidor los sirve en /a/<sha256>.opus (con un .m4a de respaldo para Safari): nunca entran en el paquete de arranque. Un id que falta o un sha256 que no cuadra se queda fuera con un aviso en el registro, y el mundo sigue sonando con los demás. Solo CC0 (docs/SABER.md §3.3). Las camas y capas de zona (bed-*, capa-*) NO están aquí: son de mundo y van en numinia-assets.",
+  "casa": {
+    "suave": "ui-chat",
+    "aviso": "ui-aviso",
+    "exito": "ui-confirmar",
+    "error": "ui-error",
+    "paso": "ui-pulsar",
+    "campana": "ui-cuenta-atras",
+    "magia": "teleport",
+    "completada": "ui-logro"
+  },
+  "sonidos": [
+    {
+      "id": "aterrizaje",
+      "uso": "caida y salto",
+      "bus": "pasos-propios",
+      "lote": "nucleo",
+      "prioridad": 70,
+      "cooldown_ms": 150,
+      "texto": "aterrizas en el suelo",
+      "duracion_s": 0.607,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Fantozzi (subido por qubodup)",
+        "rubberduck"
+      ],
+      "fuente": [
+        "https://opengameart.org/content/100-cc0-sfx",
+        "https://opengameart.org/content/fantozzis-footsteps-grasssand-stone"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/aterrizaje/aterrizaje-01.opus",
+          "sha256": "d619871289562194dfd5b7bccac544ff73d2445784d9417d3ca15df25cf75a86",
+          "bytes": 3611,
+          "peso": 1,
+          "respaldo": "activos/sonidos/aterrizaje/aterrizaje-01.m4a",
+          "respaldo_sha256": "07bb4c76213847e433955c025ad5c4cca04ff45666cbf94f00647b6c666046ed",
+          "respaldo_bytes": 4728
+        },
+        {
+          "fichero": "activos/sonidos/aterrizaje/aterrizaje-02.opus",
+          "sha256": "89686191a70530bb99d9406b901c813936a338ada39d9e935dfaf78d54df81b8",
+          "bytes": 1421,
+          "peso": 1,
+          "respaldo": "activos/sonidos/aterrizaje/aterrizaje-02.m4a",
+          "respaldo_sha256": "dd3e33f1cbc68b25c07cb76f10a8bf97f16c03863c4054e9038e68e0f3b63624",
+          "respaldo_bytes": 2816
+        },
+        {
+          "fichero": "activos/sonidos/aterrizaje/aterrizaje-03.opus",
+          "sha256": "26b641ad5eb329ff7d3351c9ebc4c6a4f41a4be02f2f8f574c1ccedd4a30a704",
+          "bytes": 1772,
+          "peso": 1,
+          "respaldo": "activos/sonidos/aterrizaje/aterrizaje-03.m4a",
+          "respaldo_sha256": "83624c071e1a0630e5ebc86970e3b7625516e8ba3fc5a2de5496f24c628d7aa0",
+          "respaldo_bytes": 3105
+        }
+      ]
+    },
+    {
+      "id": "cerradura",
+      "uso": "acierta o rechaza (D-042)",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 75,
+      "cooldown_ms": 200,
+      "texto": "la cerradura acepta o rechaza el codigo",
+      "duracion_s": 0.338,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Kenney Vleugels (kenney.nl)"
+      ],
+      "fuente": [
+        "https://kenney.nl/assets/rpg-audio"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/cerradura/cerradura-01.opus",
+          "sha256": "a685071e2e482a575f8a382307539cd664e1ed492504a8d43340772fcaff05cc",
+          "bytes": 1462,
+          "peso": 1,
+          "respaldo": "activos/sonidos/cerradura/cerradura-01.m4a",
+          "respaldo_sha256": "ebf74b85b8a010b4bd2feaec68336eef646193440fd2c3e9b35c599d4b4ea0b4",
+          "respaldo_bytes": 2724
+        },
+        {
+          "fichero": "activos/sonidos/cerradura/cerradura-02.opus",
+          "sha256": "e5f1a7fd1a5d4534ba288902c3515b6d60e4d95d004e4ed272d9a94b82739bfc",
+          "bytes": 1846,
+          "peso": 1,
+          "respaldo": "activos/sonidos/cerradura/cerradura-02.m4a",
+          "respaldo_sha256": "6a54b8789dfe64d42af48700f7a6fc57fd4ca3cc894376c6e79c9b54f70b3bee",
+          "respaldo_bytes": 3159
+        }
+      ]
+    },
+    {
+      "id": "coger-soltar",
+      "uso": "coger (3) y soltar (3) objeto",
+      "bus": "efectos",
+      "lote": "nucleo",
+      "prioridad": 65,
+      "cooldown_ms": 80,
+      "texto": "coges o sueltas el objeto",
+      "duracion_s": 0.386,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Kenney Vleugels (kenney.nl)"
+      ],
+      "fuente": [
+        "https://kenney.nl/assets/interface-sounds"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/coger-soltar/coger-soltar-01.opus",
+          "sha256": "9d24eaffa3bca7c69c10778702334aa839bbeffcbf86a84246931842b24cdf14",
+          "bytes": 433,
+          "peso": 1,
+          "respaldo": "activos/sonidos/coger-soltar/coger-soltar-01.m4a",
+          "respaldo_sha256": "945f78066482b7b5d8567812cafae2845ddeabdc7b9c677bd195eceb8eff2242",
+          "respaldo_bytes": 1341
+        },
+        {
+          "fichero": "activos/sonidos/coger-soltar/coger-soltar-02.opus",
+          "sha256": "5fe1db9ccd03412231e1de832525e01230181de05782164a4b8ec2f2fbe7bcb3",
+          "bytes": 448,
+          "peso": 1,
+          "respaldo": "activos/sonidos/coger-soltar/coger-soltar-02.m4a",
+          "respaldo_sha256": "e768978b0ec156745d7da277813fa38af6b3ae6f69db2001512ea9f2fc8e7527",
+          "respaldo_bytes": 1299
+        },
+        {
+          "fichero": "activos/sonidos/coger-soltar/coger-soltar-03.opus",
+          "sha256": "18bea15e537d8775c6953b04ebaf136d02bdf2f641f5b9fbe72b684fecb2c63c",
+          "bytes": 2152,
+          "peso": 1,
+          "respaldo": "activos/sonidos/coger-soltar/coger-soltar-03.m4a",
+          "respaldo_sha256": "2611964f4970495f35e09a184f9c69a1c026b1f936827a334f760c4f8dda7557",
+          "respaldo_bytes": 3287
+        },
+        {
+          "fichero": "activos/sonidos/coger-soltar/coger-soltar-04.opus",
+          "sha256": "2db62e8b8a33474e474eed44ad00f0104bfc259a7bd8d7bb1d274ed3c8ec51d8",
+          "bytes": 797,
+          "peso": 1,
+          "respaldo": "activos/sonidos/coger-soltar/coger-soltar-04.m4a",
+          "respaldo_sha256": "f04d4d602ecc45b1a007d677362241bc1009e76de4fcb51e647b90bd9ccd928f",
+          "respaldo_bytes": 1885
+        },
+        {
+          "fichero": "activos/sonidos/coger-soltar/coger-soltar-05.opus",
+          "sha256": "d2781db4f2cbde9cefc685ccae255471466ffff897ab7474d2df088cdca1543d",
+          "bytes": 1345,
+          "peso": 1,
+          "respaldo": "activos/sonidos/coger-soltar/coger-soltar-05.m4a",
+          "respaldo_sha256": "3c0167bf7cec53439ac27da4b7efe4fdd4f300727783ceb0d6779d4b0fb0e31d",
+          "respaldo_bytes": 2148
+        },
+        {
+          "fichero": "activos/sonidos/coger-soltar/coger-soltar-06.opus",
+          "sha256": "aac66e4e347c60a55527edbe1f0a3d2050ba32949f3ce1adc4781a3e9db7f863",
+          "bytes": 1355,
+          "peso": 1,
+          "respaldo": "activos/sonidos/coger-soltar/coger-soltar-06.m4a",
+          "respaldo_sha256": "8dbd2fe73ab4e1a95a258b758fe96fb188211328682f5ef44d7a9c2ad065f3ca",
+          "respaldo_bytes": 2200
+        }
+      ]
+    },
+    {
+      "id": "dados",
+      "uso": "agitar (2) y caer (3)",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 70,
+      "cooldown_ms": 300,
+      "texto": "agitas y tiras los dados",
+      "duracion_s": 1.162,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Kenney Vleugels (kenney.nl)"
+      ],
+      "fuente": [
+        "https://kenney.nl/assets/casino-audio"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/dados/dados-01.opus",
+          "sha256": "0f5f6fc5a36363e13e131138f788c37dffb61c8fb5fd6f2e975226def12324f2",
+          "bytes": 7055,
+          "peso": 1,
+          "respaldo": "activos/sonidos/dados/dados-01.m4a",
+          "respaldo_sha256": "13453521967405fd21d930500dcccb85a4ce1504fdda4c571337376558656fd6",
+          "respaldo_bytes": 8421
+        },
+        {
+          "fichero": "activos/sonidos/dados/dados-02.opus",
+          "sha256": "895636bf2ffdb43e7e8b0137c02d1fee840d39d2346fc7754833d10cf683be6b",
+          "bytes": 7264,
+          "peso": 1,
+          "respaldo": "activos/sonidos/dados/dados-02.m4a",
+          "respaldo_sha256": "cbf63bdd773e9d74c6d5472e975b6f1b7141702eea0e466e5ad6dbfa6e8e80af",
+          "respaldo_bytes": 8749
+        },
+        {
+          "fichero": "activos/sonidos/dados/dados-03.opus",
+          "sha256": "ee8367272cf9ee1fed5aa7c8a5eafa4bf8373e90c6dd1b0f98e1ab3fb64af75e",
+          "bytes": 1212,
+          "peso": 1,
+          "respaldo": "activos/sonidos/dados/dados-03.m4a",
+          "respaldo_sha256": "0233f2c0b24477f09022b17ecf441e39e1a96cc6cbb28b7276f67855f7553e40",
+          "respaldo_bytes": 2510
+        },
+        {
+          "fichero": "activos/sonidos/dados/dados-04.opus",
+          "sha256": "ef6de8c9873e2a634037da1c2fff039e6e9e35faf29be9de22fee06fd4681a62",
+          "bytes": 2176,
+          "peso": 1,
+          "respaldo": "activos/sonidos/dados/dados-04.m4a",
+          "respaldo_sha256": "869e7f47bfb0f832fc29ee74938f6b674646b415575a05326ab35b87eaa9f7b5",
+          "respaldo_bytes": 3661
+        },
+        {
+          "fichero": "activos/sonidos/dados/dados-05.opus",
+          "sha256": "8de789b9e9ac3955336b6298d28c2f1d04b8ce402d28c64fd6c20e46c20f6015",
+          "bytes": 2976,
+          "peso": 1,
+          "respaldo": "activos/sonidos/dados/dados-05.m4a",
+          "respaldo_sha256": "5e88dfaf859058d48f769cec314c56ff7bfd4aaa9338889383d464959c57ef99",
+          "respaldo_bytes": 4558
+        }
+      ]
+    },
+    {
+      "id": "dardo-impacto",
+      "uso": "clava en diana o rebota",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 70,
+      "cooldown_ms": 80,
+      "texto": "el dardo da en la diana",
+      "duracion_s": 0.392,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "rubberduck"
+      ],
+      "fuente": [
+        "https://opengameart.org/content/100-cc0-metal-and-wood-sfx"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/dardo-impacto/dardo-impacto-01.opus",
+          "sha256": "7e35f6856998f8b792dd6261eabdf16253ef22d120769077296057813ee68a24",
+          "bytes": 1635,
+          "peso": 1,
+          "respaldo": "activos/sonidos/dardo-impacto/dardo-impacto-01.m4a",
+          "respaldo_sha256": "8de351d90b82b1e4b4e6fb957d0f0470fee24ec58a23b2db36740b5c003f4723",
+          "respaldo_bytes": 2684
+        },
+        {
+          "fichero": "activos/sonidos/dardo-impacto/dardo-impacto-02.opus",
+          "sha256": "0d1d8a8622a1c547a21d105507dfec9c55b93a076e0de3dc8be52ebcd3e4b566",
+          "bytes": 1850,
+          "peso": 1,
+          "respaldo": "activos/sonidos/dardo-impacto/dardo-impacto-02.m4a",
+          "respaldo_sha256": "23e309967675c68401bbe9896ac525ceabfe94174de25a0cd0e70265ddeefe32",
+          "respaldo_bytes": 3035
+        },
+        {
+          "fichero": "activos/sonidos/dardo-impacto/dardo-impacto-03.opus",
+          "sha256": "e5aa9a420f36aa8dfea01553c3ff5e87d19f3c3ae4523c557adda49752e413f4",
+          "bytes": 1401,
+          "peso": 1,
+          "respaldo": "activos/sonidos/dardo-impacto/dardo-impacto-03.m4a",
+          "respaldo_sha256": "909c2bd1e77f85c922dabe82d7da5c66560edbe4dccd05797ee2083a893f2f8d",
+          "respaldo_bytes": 2288
+        },
+        {
+          "fichero": "activos/sonidos/dardo-impacto/dardo-impacto-04.opus",
+          "sha256": "ed667522b7eed89168464c9a7889d6ec885ee9e0f84abcddf2a10c1a0771298f",
+          "bytes": 1652,
+          "peso": 1,
+          "respaldo": "activos/sonidos/dardo-impacto/dardo-impacto-04.m4a",
+          "respaldo_sha256": "6bfcb0cf86439ed9097b243ac385722faea1a1b7fe6bcae0176e51179296c991",
+          "respaldo_bytes": 3163
+        }
+      ]
+    },
+    {
+      "id": "dardo-lanzar",
+      "uso": "tirar dardo",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 65,
+      "cooldown_ms": 80,
+      "texto": "lanzas el dardo",
+      "duracion_s": 0.152,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "artisticdude"
+      ],
+      "fuente": [
+        "https://opengameart.org/content/swishes-sound-pack"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/dardo-lanzar/dardo-lanzar-01.opus",
+          "sha256": "a292652d126823ac9a7ab6aac595414dde591c14eb4a7504e84c569fd9885117",
+          "bytes": 720,
+          "peso": 1,
+          "respaldo": "activos/sonidos/dardo-lanzar/dardo-lanzar-01.m4a",
+          "respaldo_sha256": "21520a42704f66c2985907cc9aa50949010042fea249222d9dc63360c7f348c1",
+          "respaldo_bytes": 1765
+        },
+        {
+          "fichero": "activos/sonidos/dardo-lanzar/dardo-lanzar-02.opus",
+          "sha256": "d776669ff930e32fa5c294c6ed6b16e3dac512c7c7bbbbb6e3b05a807cac753b",
+          "bytes": 928,
+          "peso": 1,
+          "respaldo": "activos/sonidos/dardo-lanzar/dardo-lanzar-02.m4a",
+          "respaldo_sha256": "882b35b8231fed69d2e8ba40a4d5806c4df0b64f5650ad8d6196f87f82107e8b",
+          "respaldo_bytes": 1987
+        },
+        {
+          "fichero": "activos/sonidos/dardo-lanzar/dardo-lanzar-03.opus",
+          "sha256": "d6a17d4476e1a310fd403c22b4d64dcd0cad171a3bb44119a88613906e9bc736",
+          "bytes": 916,
+          "peso": 1,
+          "respaldo": "activos/sonidos/dardo-lanzar/dardo-lanzar-03.m4a",
+          "respaldo_sha256": "25a6b951a9ca422b8f8d7d1bdc1bd4e10e63146045fca7f004557e6758d44a1b",
+          "respaldo_bytes": 1998
+        }
+      ]
+    },
+    {
+      "id": "golpe-material",
+      "uso": "impacto en piedra, madera o metal",
+      "bus": "efectos",
+      "lote": "nucleo",
+      "prioridad": 60,
+      "cooldown_ms": 50,
+      "texto": "golpe sobre el material",
+      "duracion_s": 0.533,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Kenney Vleugels (kenney.nl)"
+      ],
+      "fuente": [
+        "https://kenney.nl/assets/impact-sounds"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/golpe-material/golpe-material-01.opus",
+          "sha256": "67d63e6835617d96538b1ca426a86417801acf0802bf870c33d5733bd270b329",
+          "bytes": 3458,
+          "peso": 1,
+          "respaldo": "activos/sonidos/golpe-material/golpe-material-01.m4a",
+          "respaldo_sha256": "b8fdfb10107a1a54008dd4624a8a2ea7908d7d5283c768b21fde92c3cf4ab6e6",
+          "respaldo_bytes": 4223
+        },
+        {
+          "fichero": "activos/sonidos/golpe-material/golpe-material-02.opus",
+          "sha256": "c0243f23c5284d16a807ac5401ffbf939283e448bf4b5554351d55579216f7f3",
+          "bytes": 3181,
+          "peso": 1,
+          "respaldo": "activos/sonidos/golpe-material/golpe-material-02.m4a",
+          "respaldo_sha256": "4c60e67b315ec50a56de12ec59e93c9066f2d24bec59d22277e2ec94060ca5f8",
+          "respaldo_bytes": 4134
+        },
+        {
+          "fichero": "activos/sonidos/golpe-material/golpe-material-03.opus",
+          "sha256": "c8bd122344f89810dccc6013033ca5bda927823e05e4a38c4c02c73e7cd4f03a",
+          "bytes": 2572,
+          "peso": 1,
+          "respaldo": "activos/sonidos/golpe-material/golpe-material-03.m4a",
+          "respaldo_sha256": "6cfcadc40a5215fa68a8d7b34d017b6c8f4e2d42efd83c71ef1dcf8a6109c13b",
+          "respaldo_bytes": 3670
+        },
+        {
+          "fichero": "activos/sonidos/golpe-material/golpe-material-04.opus",
+          "sha256": "752128f033d6eef897c08023dc5861e39b5f76f47c7b700986cdb834c801fe80",
+          "bytes": 3348,
+          "peso": 1,
+          "respaldo": "activos/sonidos/golpe-material/golpe-material-04.m4a",
+          "respaldo_sha256": "7e0eee13a9d174728ad0e46742ad101e34a33bd8a8788da5a9b58bed3b118f0d",
+          "respaldo_bytes": 4400
+        },
+        {
+          "fichero": "activos/sonidos/golpe-material/golpe-material-05.opus",
+          "sha256": "b049e0e824643be42346dbac73091aa64c58fc1ac471c99b9bc0e9d81c7a07fb",
+          "bytes": 2200,
+          "peso": 1,
+          "respaldo": "activos/sonidos/golpe-material/golpe-material-05.m4a",
+          "respaldo_sha256": "00229f535a580bfe8180f7bd7d57bb9f2719f4577c747578f7b5cd9510f78b40",
+          "respaldo_bytes": 3063
+        },
+        {
+          "fichero": "activos/sonidos/golpe-material/golpe-material-06.opus",
+          "sha256": "210c36d70c3a67d1605fea640260a2f625f5871d1a9f813df4ac69d06cef6af9",
+          "bytes": 2195,
+          "peso": 1,
+          "respaldo": "activos/sonidos/golpe-material/golpe-material-06.m4a",
+          "respaldo_sha256": "d64bc80ef5f8da90d81fefffbfca9ed24d27cdb7c10657c62ce307fccb129fb3",
+          "respaldo_bytes": 3059
+        },
+        {
+          "fichero": "activos/sonidos/golpe-material/golpe-material-07.opus",
+          "sha256": "fc23a4995e2cc6eb660f8bd33a2b860290f2f3091248b28624031d8a09934ff3",
+          "bytes": 1582,
+          "peso": 1,
+          "respaldo": "activos/sonidos/golpe-material/golpe-material-07.m4a",
+          "respaldo_sha256": "77149456fefb3b82089679c537fd7c08c63aa81fbd148b9f3617a9ffbe729a69",
+          "respaldo_bytes": 3097
+        },
+        {
+          "fichero": "activos/sonidos/golpe-material/golpe-material-08.opus",
+          "sha256": "2a6af18e1ae4dbeae4839fb46158bdef51edffaffe74f36e547ad9814ca4c1bd",
+          "bytes": 2185,
+          "peso": 1,
+          "respaldo": "activos/sonidos/golpe-material/golpe-material-08.m4a",
+          "respaldo_sha256": "c367bf4b7d61a42b43f7619339972d1c7e69b2c34952b4e6b38db8701c13849e",
+          "respaldo_bytes": 3064
+        },
+        {
+          "fichero": "activos/sonidos/golpe-material/golpe-material-09.opus",
+          "sha256": "9a7b0c01f3a8bb939bef1546c7d54793da3d464d8f6bf513476abfcb6014178c",
+          "bytes": 1964,
+          "peso": 1,
+          "respaldo": "activos/sonidos/golpe-material/golpe-material-09.m4a",
+          "respaldo_sha256": "8f3ee56f9337c41fc0341ca3530ee05ffe47adfc8c308ef1aa84ce69b5bd37f8",
+          "respaldo_bytes": 3375
+        },
+        {
+          "fichero": "activos/sonidos/golpe-material/golpe-material-10.opus",
+          "sha256": "1bae9a4e42fa68cad65ab12e742d8fcfac390cd59a4f0dde659965053c3f53ec",
+          "bytes": 1451,
+          "peso": 1,
+          "respaldo": "activos/sonidos/golpe-material/golpe-material-10.m4a",
+          "respaldo_sha256": "27ace96cb1c9a8f3ed816a28f29a5b2a3f2e0e18472c335ff85f76a2ccb8eef3",
+          "respaldo_bytes": 2565
+        },
+        {
+          "fichero": "activos/sonidos/golpe-material/golpe-material-11.opus",
+          "sha256": "6d76ca975516b8af7cc69f2d1ebdc8c7c983908b37046c89268e883e59209746",
+          "bytes": 1383,
+          "peso": 1,
+          "respaldo": "activos/sonidos/golpe-material/golpe-material-11.m4a",
+          "respaldo_sha256": "9164fc61194e1b16f7f669975bd577b80810c769075b16824694feee1d280626",
+          "respaldo_bytes": 2433
+        },
+        {
+          "fichero": "activos/sonidos/golpe-material/golpe-material-12.opus",
+          "sha256": "f5dc0e54373a8e7d0291ed42df55ae2a065ab3dadee703fb81a499b07d32516a",
+          "bytes": 1557,
+          "peso": 1,
+          "respaldo": "activos/sonidos/golpe-material/golpe-material-12.m4a",
+          "respaldo_sha256": "5c5db9870683292ecde6810d2772d6466da6207fb2598ded46272d955245f452",
+          "respaldo_bytes": 2449
+        }
+      ]
+    },
+    {
+      "id": "maquina",
+      "uso": "arranque y parada de mecanismo (D-043)",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 65,
+      "cooldown_ms": 300,
+      "texto": "el mecanismo arranca o se detiene",
+      "duracion_s": 0.56,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "rubberduck"
+      ],
+      "fuente": [
+        "https://opengameart.org/content/100-cc0-sfx"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/maquina/maquina-01.opus",
+          "sha256": "b6c59b596f49c09a283ce089f0474c0d8b7d1fe47dc37a6505ddc28b54bf2721",
+          "bytes": 3262,
+          "peso": 1,
+          "respaldo": "activos/sonidos/maquina/maquina-01.m4a",
+          "respaldo_sha256": "52e1b5012a9529d6bcab049d7a9ea4d6e0963450d94799ee904938af5add0364",
+          "respaldo_bytes": 4376
+        },
+        {
+          "fichero": "activos/sonidos/maquina/maquina-02.opus",
+          "sha256": "d6ff54203274abe8df6cd5bcca104b90e1b8b6f79b51a3d8f5b574b7863f48f1",
+          "bytes": 3142,
+          "peso": 1,
+          "respaldo": "activos/sonidos/maquina/maquina-02.m4a",
+          "respaldo_sha256": "b526e98e91e580d6dbdf8875ac13b83c3a9204ccc5e19e106daf28c88eb9527f",
+          "respaldo_bytes": 4317
+        }
+      ]
+    },
+    {
+      "id": "pasos-agua",
+      "uso": "borde del estanque",
+      "bus": "pasos-propios",
+      "lote": "funcion",
+      "prioridad": 60,
+      "cooldown_ms": 90,
+      "texto": "pasos en el agua",
+      "duracion_s": 0.707,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Peludo",
+        "rubberduck"
+      ],
+      "fuente": [
+        "https://opengameart.org/content/100-cc0-sfx",
+        "https://opengameart.org/content/water-splash-and-sand-footsteps"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/pasos-agua/pasos-agua-01.opus",
+          "sha256": "ebf2b17b128e3cf805e92ee802eba0db5ac8481da37073d77d41ca0424f5a21c",
+          "bytes": 4438,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-agua/pasos-agua-01.m4a",
+          "respaldo_sha256": "a270e632dce3459e17386b3914be6864e086fb7bcb5361984e01605b30f2e006",
+          "respaldo_bytes": 5576
+        },
+        {
+          "fichero": "activos/sonidos/pasos-agua/pasos-agua-02.opus",
+          "sha256": "48dc39ac520c5cf7bfa6887e687fddf9e60d2d72300a2416147311bd5db15b18",
+          "bytes": 4056,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-agua/pasos-agua-02.m4a",
+          "respaldo_sha256": "41fd673700cf881c1d4359bbf1c5fed87572b7bea903898badb77937548faeb4",
+          "respaldo_bytes": 5317
+        },
+        {
+          "fichero": "activos/sonidos/pasos-agua/pasos-agua-03.opus",
+          "sha256": "3d15f790b5a2feda1deb02848b84e922a740b6cc1b04f4ce63d4839e04c53d69",
+          "bytes": 2678,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-agua/pasos-agua-03.m4a",
+          "respaldo_sha256": "cb65755fd84e0e4253b6d3aca1c2c52ddbc9f82d3006bc626eabe71938008149",
+          "respaldo_bytes": 4077
+        },
+        {
+          "fichero": "activos/sonidos/pasos-agua/pasos-agua-04.opus",
+          "sha256": "2cfdc70b510948013ddeab1fe8236177dd34d04f2c9daebc45486ce513cab645",
+          "bytes": 2832,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-agua/pasos-agua-04.m4a",
+          "respaldo_sha256": "09ed01bc26cd8ff6c385b6bf2972dbc35e9f242583bb5267940e169ccc47d073",
+          "respaldo_bytes": 4383
+        },
+        {
+          "fichero": "activos/sonidos/pasos-agua/pasos-agua-05.opus",
+          "sha256": "59650d2789299c990b20fc3926077bf014ba89102906a9f03789988a102e000b",
+          "bytes": 1450,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-agua/pasos-agua-05.m4a",
+          "respaldo_sha256": "c7cbf41610cdb1c6bf8cd7885c33865110fac56aed10ef77caebbe187a7f21ff",
+          "respaldo_bytes": 2678
+        },
+        {
+          "fichero": "activos/sonidos/pasos-agua/pasos-agua-06.opus",
+          "sha256": "8718c87605d3c69673271c9a31e6e884ba513dc2c811345e41a1e677039aec29",
+          "bytes": 1957,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-agua/pasos-agua-06.m4a",
+          "respaldo_sha256": "2c5a1813cf96d0d931dd6f74a085083f8e8153f299c0a4c201c3e558a8fb6eaa",
+          "respaldo_bytes": 3322
+        }
+      ]
+    },
+    {
+      "id": "pasos-hierba",
+      "uso": "pasos sobre hierba",
+      "bus": "pasos-propios",
+      "lote": "nucleo",
+      "prioridad": 60,
+      "cooldown_ms": 90,
+      "texto": "pasos sobre hierba",
+      "duracion_s": 0.405,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Fantozzi (subido por qubodup)"
+      ],
+      "fuente": [
+        "https://opengameart.org/content/fantozzis-footsteps-grasssand-stone"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/pasos-hierba/pasos-hierba-01.opus",
+          "sha256": "83158f51f3a4a82766b1309dc52c86ed0279ea5f32b82bb813339447a25fd954",
+          "bytes": 2320,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-hierba/pasos-hierba-01.m4a",
+          "respaldo_sha256": "72a0e0878fb845929fac629035485ddfb7155611234545d5e71f8b1abf1d6b47",
+          "respaldo_bytes": 3505
+        },
+        {
+          "fichero": "activos/sonidos/pasos-hierba/pasos-hierba-02.opus",
+          "sha256": "d30e6b324634e89e55ce30b0d9d5e09424096fee3fea506079a9aa817131d7b1",
+          "bytes": 1808,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-hierba/pasos-hierba-02.m4a",
+          "respaldo_sha256": "0375b1bdba7d82435c266bab05ca49d5acfc6391d721d154f877214fb83b1b4c",
+          "respaldo_bytes": 2921
+        },
+        {
+          "fichero": "activos/sonidos/pasos-hierba/pasos-hierba-03.opus",
+          "sha256": "2959d2f70ecc18c58c0493ecfddba561dba1729259cd664bb690fa371cf7577b",
+          "bytes": 1758,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-hierba/pasos-hierba-03.m4a",
+          "respaldo_sha256": "83ca82308a030525ed4247383412ccb9f7df4cf42f76255acaf3dbf8f87ee44b",
+          "respaldo_bytes": 2846
+        },
+        {
+          "fichero": "activos/sonidos/pasos-hierba/pasos-hierba-04.opus",
+          "sha256": "dabb82db528a00299ddeed87c6c72b7f4e2bcc1da0a9aacf8d56f3df6443829f",
+          "bytes": 2164,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-hierba/pasos-hierba-04.m4a",
+          "respaldo_sha256": "608432a6790277f34963e70e79a5ad8419c29d6ce1e73cc5c9ef6dfd6c5f326e",
+          "respaldo_bytes": 3279
+        },
+        {
+          "fichero": "activos/sonidos/pasos-hierba/pasos-hierba-05.opus",
+          "sha256": "b6be1828ce79c989c9ab949b6818defd69796a02371b9418410f115ae66f3e0e",
+          "bytes": 1874,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-hierba/pasos-hierba-05.m4a",
+          "respaldo_sha256": "2faaecd9cae09e2b6804abe39bd1ccdfb2c66b5cb92a10768ddb6922837a00be",
+          "respaldo_bytes": 3097
+        },
+        {
+          "fichero": "activos/sonidos/pasos-hierba/pasos-hierba-06.opus",
+          "sha256": "8a5d0325060dc93eebb0afd03cf28d8ad581a294f9db652c5f1069dc05b01cc9",
+          "bytes": 1865,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-hierba/pasos-hierba-06.m4a",
+          "respaldo_sha256": "3740fa52f3df073a4024ffbaae5499b93fdb10d7a8a7245fa8fa1406c4b72141",
+          "respaldo_bytes": 3072
+        }
+      ]
+    },
+    {
+      "id": "pasos-madera",
+      "uso": "pasos sobre madera",
+      "bus": "pasos-propios",
+      "lote": "nucleo",
+      "prioridad": 60,
+      "cooldown_ms": 90,
+      "texto": "pasos sobre madera",
+      "duracion_s": 0.324,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "TinyWorlds",
+        "rubberduck"
+      ],
+      "fuente": [
+        "https://opengameart.org/content/100-cc0-sfx-2",
+        "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/pasos-madera/pasos-madera-01.opus",
+          "sha256": "9fe024430a14f48391b6c59b0737a207e82315d74a79caab3f50567754707137",
+          "bytes": 1393,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-madera/pasos-madera-01.m4a",
+          "respaldo_sha256": "07d1970589e528095d0c84d32d36ac05da92f4b99ac2c27cb0dba2ce29e080a9",
+          "respaldo_bytes": 2522
+        },
+        {
+          "fichero": "activos/sonidos/pasos-madera/pasos-madera-02.opus",
+          "sha256": "445a64855ce9c9a47593a0c093858d3444e589de70a5a995db950020b9c1dced",
+          "bytes": 1397,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-madera/pasos-madera-02.m4a",
+          "respaldo_sha256": "0c223c0efadda132e5d4cffe3d25de69337a87f8d988a6fc64661759f4fefcc2",
+          "respaldo_bytes": 2518
+        },
+        {
+          "fichero": "activos/sonidos/pasos-madera/pasos-madera-03.opus",
+          "sha256": "10b5beccc00c0593b20fc0c751caf785af8e6a80b55a1c1e9e200bb7dc2c53ae",
+          "bytes": 1705,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-madera/pasos-madera-03.m4a",
+          "respaldo_sha256": "ae9ec14b97e2ee3ff500a3677d31be5420834f47cda7503b0ac012264e053e67",
+          "respaldo_bytes": 3028
+        },
+        {
+          "fichero": "activos/sonidos/pasos-madera/pasos-madera-04.opus",
+          "sha256": "fc48214d7659600e8aab0ef310d2b7d9c4f950979c35cdeab7da3e9685a394cb",
+          "bytes": 1448,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-madera/pasos-madera-04.m4a",
+          "respaldo_sha256": "726559bf953f5786d1a1cf49ea74400a9906a9fda89fc8ac4ec0149e1e9bc100",
+          "respaldo_bytes": 2585
+        },
+        {
+          "fichero": "activos/sonidos/pasos-madera/pasos-madera-05.opus",
+          "sha256": "c8355969f2f36b219c98fa44f7e63b7a362a4c47f16089ec8acf9cb95cc4e2d7",
+          "bytes": 1414,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-madera/pasos-madera-05.m4a",
+          "respaldo_sha256": "34b4f3926a5745244714a10cdf19afb1de0c569c6cd49fb88f9eec29a4c43ea3",
+          "respaldo_bytes": 2537
+        },
+        {
+          "fichero": "activos/sonidos/pasos-madera/pasos-madera-06.opus",
+          "sha256": "ba0b8616ae9e0eb711a1a86bbad872460f8828879ac444b0eb59bb7d9a9d14b1",
+          "bytes": 1207,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-madera/pasos-madera-06.m4a",
+          "respaldo_sha256": "3d7d61bd30519569a0e1c306c2603c9f4a234c4a96f171b4cc14c295eb6b284f",
+          "respaldo_bytes": 2091
+        }
+      ]
+    },
+    {
+      "id": "pasos-metal",
+      "uso": "rejilla o metal",
+      "bus": "pasos-propios",
+      "lote": "funcion",
+      "prioridad": 60,
+      "cooldown_ms": 90,
+      "texto": "pasos sobre metal",
+      "duracion_s": 0.148,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Thimras"
+      ],
+      "fuente": [
+        "https://opengameart.org/content/metal-footsteps-on-concrete"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/pasos-metal/pasos-metal-01.opus",
+          "sha256": "f8f18c739f88f682f8178fe2c9c03d8cc42f729a781d727ec5a1d7f5839d04d1",
+          "bytes": 863,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-metal/pasos-metal-01.m4a",
+          "respaldo_sha256": "bb5b81d3e52f0f5a1dee7810724aac83795cc74f361d25ac939973b30346ebc9",
+          "respaldo_bytes": 1951
+        },
+        {
+          "fichero": "activos/sonidos/pasos-metal/pasos-metal-02.opus",
+          "sha256": "10bdde46943ce40791182333fed4c56578ffdaee9dda7ec6765a0a1e39e44a03",
+          "bytes": 753,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-metal/pasos-metal-02.m4a",
+          "respaldo_sha256": "5caad1ccbd101daf0abbc68d20d3dae179c64eecf244625749762c0ac6e63d4c",
+          "respaldo_bytes": 1656
+        },
+        {
+          "fichero": "activos/sonidos/pasos-metal/pasos-metal-03.opus",
+          "sha256": "5b5ea144af4e467f0594a4c053dbf6718006a6c48577749059486f594683f9c4",
+          "bytes": 647,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-metal/pasos-metal-03.m4a",
+          "respaldo_sha256": "0dd171ef6109304d57aa1f54a8acdbc7c3b181f6cb20020ec504627471a36afc",
+          "respaldo_bytes": 1537
+        },
+        {
+          "fichero": "activos/sonidos/pasos-metal/pasos-metal-04.opus",
+          "sha256": "0ada55d2c1a3497b5bb69b66ad435c5d23ef16bd52366be98bb6217c54adcb05",
+          "bytes": 901,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-metal/pasos-metal-04.m4a",
+          "respaldo_sha256": "9e0889a3d167a891cbffb2c46b59c16d6c64dfb8a57e180cd35168edff593b68",
+          "respaldo_bytes": 1913
+        },
+        {
+          "fichero": "activos/sonidos/pasos-metal/pasos-metal-05.opus",
+          "sha256": "f3ca0e6e44554ff5c020d22ec000ff30e2a213bbfb90bf1298f6f54014f81397",
+          "bytes": 851,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-metal/pasos-metal-05.m4a",
+          "respaldo_sha256": "522f231b51ba81e0c6deadb68a382a5d6131c19ae4836131cef7d2b75f11d634",
+          "respaldo_bytes": 1998
+        },
+        {
+          "fichero": "activos/sonidos/pasos-metal/pasos-metal-06.opus",
+          "sha256": "cffaf989156e92f28c58d5f82cba6874d2d5ae0659cfb4c04440cad267b8db5b",
+          "bytes": 909,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-metal/pasos-metal-06.m4a",
+          "respaldo_sha256": "34639256d2d786cba0634c2c81d5b42df20e630f5fa514953b0a6b2ad29243fb",
+          "respaldo_bytes": 2022
+        }
+      ]
+    },
+    {
+      "id": "pasos-piedra",
+      "uso": "pasos sobre piedra",
+      "bus": "pasos-propios",
+      "lote": "nucleo",
+      "prioridad": 60,
+      "cooldown_ms": 90,
+      "texto": "pasos sobre piedra",
+      "duracion_s": 0.379,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Fantozzi (subido por qubodup)"
+      ],
+      "fuente": [
+        "https://opengameart.org/content/fantozzis-footsteps-grasssand-stone"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/pasos-piedra/pasos-piedra-01.opus",
+          "sha256": "3a068b064d6a060521f2050fb280ebd152bb745c67ffdaaffc5729dcc6ea6424",
+          "bytes": 2041,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-piedra/pasos-piedra-01.m4a",
+          "respaldo_sha256": "e8edd0b5ca54e3e16fcc51ad30122298c006520a74d839f3628c4a37a366ebc0",
+          "respaldo_bytes": 3369
+        },
+        {
+          "fichero": "activos/sonidos/pasos-piedra/pasos-piedra-02.opus",
+          "sha256": "cfcbff7e7d382e115b1a0502b65ee5022cbb8d5e340e904c0be860de8b4689c4",
+          "bytes": 1846,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-piedra/pasos-piedra-02.m4a",
+          "respaldo_sha256": "9679d45ba610245c768c63c439afbaa30674aa971a5fb2c6780b26ba737d1862",
+          "respaldo_bytes": 3055
+        },
+        {
+          "fichero": "activos/sonidos/pasos-piedra/pasos-piedra-03.opus",
+          "sha256": "5ef2cb94d546d7fc02f37d2028826b9e1db15c2a2c324f289a48c672f8907fd5",
+          "bytes": 1875,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-piedra/pasos-piedra-03.m4a",
+          "respaldo_sha256": "75da293b75f58bcbf3833553721e0bae253b2fe92fd4eb5dc7a8d97166aa889c",
+          "respaldo_bytes": 3169
+        },
+        {
+          "fichero": "activos/sonidos/pasos-piedra/pasos-piedra-04.opus",
+          "sha256": "dbf92b1523270a0f0f1d1ee65b7d30e71775919b2fef0f447c0e630965dfd8ac",
+          "bytes": 2018,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-piedra/pasos-piedra-04.m4a",
+          "respaldo_sha256": "1b9906bfcc01324b98050f372c7d8884b483bf3349d2006f73da32e0394095e8",
+          "respaldo_bytes": 3295
+        },
+        {
+          "fichero": "activos/sonidos/pasos-piedra/pasos-piedra-05.opus",
+          "sha256": "70d59a1c0456d8cfba9008cc6e19db470afb70d442331ca2f135f4ba5086d7a6",
+          "bytes": 1864,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-piedra/pasos-piedra-05.m4a",
+          "respaldo_sha256": "3b6cb7dae6d68ce81443a35ff02f43c903a9c325096f3353b176477d182449cb",
+          "respaldo_bytes": 3034
+        },
+        {
+          "fichero": "activos/sonidos/pasos-piedra/pasos-piedra-06.opus",
+          "sha256": "27a27c02f4a0ac98f891c3829c20d5b234bcfa5f05ed3e0157fa52259bb8811c",
+          "bytes": 1908,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-piedra/pasos-piedra-06.m4a",
+          "respaldo_sha256": "8c220db0a3a46ab6beef19de91333b3fc8ecf24ed82da648b280a0df682665de",
+          "respaldo_bytes": 3058
+        }
+      ]
+    },
+    {
+      "id": "pesca-chapuzon",
+      "uso": "el cebo entra en el agua",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 70,
+      "cooldown_ms": 150,
+      "texto": "el cebo cae al agua",
+      "duracion_s": 1.006,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Peludo",
+        "rubberduck"
+      ],
+      "fuente": [
+        "https://opengameart.org/content/100-cc0-sfx",
+        "https://opengameart.org/content/water-splash-and-sand-footsteps"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/pesca-chapuzon/pesca-chapuzon-01.opus",
+          "sha256": "d7723319a703ca45ef6f56d0771ee4ac22a331f6a389cb930f8b501ffceeda52",
+          "bytes": 5346,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pesca-chapuzon/pesca-chapuzon-01.m4a",
+          "respaldo_sha256": "5167773f7cbd23b2c754a18093c6e7d10af70ce7215a863f5e543b93065ebdae",
+          "respaldo_bytes": 7231
+        },
+        {
+          "fichero": "activos/sonidos/pesca-chapuzon/pesca-chapuzon-02.opus",
+          "sha256": "81f461258d267affaf28a872574df61339a479c62f36417fb449784cbabe7655",
+          "bytes": 5710,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pesca-chapuzon/pesca-chapuzon-02.m4a",
+          "respaldo_sha256": "0c686f087d8279ccb4b5d11ee1e6f901a842215469fb5d1c6046212881738a90",
+          "respaldo_bytes": 7281
+        },
+        {
+          "fichero": "activos/sonidos/pesca-chapuzon/pesca-chapuzon-03.opus",
+          "sha256": "93e0f684ad00272d7bba37f073300df14dcd654bbe87783d4cbb76b6addcade1",
+          "bytes": 4624,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pesca-chapuzon/pesca-chapuzon-03.m4a",
+          "respaldo_sha256": "64bc5e30397217f217170966bface03ca1db895efd5457923f46660e31f52227",
+          "respaldo_bytes": 5777
+        }
+      ]
+    },
+    {
+      "id": "pesca-cobrar",
+      "uso": "pez cobrado",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 75,
+      "cooldown_ms": 200,
+      "texto": "has cobrado el pez",
+      "duracion_s": 0.435,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "rubberduck"
+      ],
+      "fuente": [
+        "https://opengameart.org/content/50-cc0-retro-synth-sfx"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/pesca-cobrar/pesca-cobrar-01.opus",
+          "sha256": "cef9f7da7bac6b240afa3b9f9112c262ba3a0cd3bf812e401027ce3f04d50162",
+          "bytes": 1514,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pesca-cobrar/pesca-cobrar-01.m4a",
+          "respaldo_sha256": "30d60c90717328d22cc70cc632857e586a8f5b61be2e9ea1beb0e87cd993432f",
+          "respaldo_bytes": 2816
+        },
+        {
+          "fichero": "activos/sonidos/pesca-cobrar/pesca-cobrar-02.opus",
+          "sha256": "9ca78b84c47676cc8a17eb6a1e32437620cbd3605652fd8e8c7dcf9288ea402b",
+          "bytes": 2418,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pesca-cobrar/pesca-cobrar-02.m4a",
+          "respaldo_sha256": "89b33c45da0d2fcee83702de1467c7315ae38d2a81bb0cf6da7171ed63d454d0",
+          "respaldo_bytes": 3723
+        }
+      ]
+    },
+    {
+      "id": "pesca-lanzar",
+      "uso": "lanzar la cana",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 70,
+      "cooldown_ms": 150,
+      "texto": "lanzas la cana",
+      "duracion_s": 0.906,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "artisticdude",
+        "pyranostudios"
+      ],
+      "fuente": [
+        "https://opengameart.org/content/air-whoosh",
+        "https://opengameart.org/content/swishes-sound-pack"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/pesca-lanzar/pesca-lanzar-01.opus",
+          "sha256": "b7688e78ba046a076f19a1820a4fc1a18968da784e6e2f2ac00bfb5dbf2c1c36",
+          "bytes": 853,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pesca-lanzar/pesca-lanzar-01.m4a",
+          "respaldo_sha256": "5e03998c5b868df242c21a6e19d8e6b33376f327361492bf03e65b2d21229716",
+          "respaldo_bytes": 1907
+        },
+        {
+          "fichero": "activos/sonidos/pesca-lanzar/pesca-lanzar-02.opus",
+          "sha256": "7f5dc8c262f1fc390beb4450e16b146ff77db2fe068a38c918b2859b0286e5fc",
+          "bytes": 4454,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pesca-lanzar/pesca-lanzar-02.m4a",
+          "respaldo_sha256": "fd0dc73a4d5b2c4828e16e84330029a7e5ace7446da02713f738ea4b0396b8e2",
+          "respaldo_bytes": 6638
+        }
+      ]
+    },
+    {
+      "id": "puerta",
+      "uso": "abrir y cerrar",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 70,
+      "cooldown_ms": 200,
+      "texto": "la puerta se abre o se cierra",
+      "duracion_s": 0.861,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Kenney Vleugels (kenney.nl)"
+      ],
+      "fuente": [
+        "https://kenney.nl/assets/rpg-audio"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/puerta/puerta-01.opus",
+          "sha256": "e6ab04fe7ea7f2c5abd36a5ec1496640ccd973da1ede72afd297abfe8cfc699c",
+          "bytes": 4371,
+          "peso": 1,
+          "respaldo": "activos/sonidos/puerta/puerta-01.m4a",
+          "respaldo_sha256": "648c2d941871b9976c271d97e6541b966222141b81f4fb3a299eacb79b3b7174",
+          "respaldo_bytes": 6484
+        },
+        {
+          "fichero": "activos/sonidos/puerta/puerta-02.opus",
+          "sha256": "0b2caee80e094da334b20f24c3b48652f8965abe9cc7ec623463483e2f73ba5a",
+          "bytes": 2249,
+          "peso": 1,
+          "respaldo": "activos/sonidos/puerta/puerta-02.m4a",
+          "respaldo_sha256": "21b2fd92d56e4234ef80bc0dd079af7db0962e5878edcbb1f60bb26f528f9a50",
+          "respaldo_bytes": 3674
+        }
+      ]
+    },
+    {
+      "id": "renacer",
+      "uso": "vuelta a la ultima posicion segura (D-045)",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 90,
+      "cooldown_ms": 500,
+      "texto": "vuelves a la ultima posicion segura",
+      "duracion_s": 0.521,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "rubberduck"
+      ],
+      "fuente": [
+        "https://opengameart.org/content/50-cc0-retro-synth-sfx"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/renacer/renacer-01.opus",
+          "sha256": "3335982168da484a8a2cd0faf18d557e63b4f1bd599c0b50eb78981634dbd34e",
+          "bytes": 3105,
+          "peso": 1,
+          "respaldo": "activos/sonidos/renacer/renacer-01.m4a",
+          "respaldo_sha256": "d6a384867b82d45b17d48d741c8b79bb40177801571756b42136918e85992ff5",
+          "respaldo_bytes": 4353
+        }
+      ]
+    },
+    {
+      "id": "teleport",
+      "uso": "salida y llegada",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 85,
+      "cooldown_ms": 300,
+      "texto": "te teletransportas",
+      "duracion_s": 1.259,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "rubberduck"
+      ],
+      "fuente": [
+        "https://opengameart.org/content/50-cc0-sci-fi-sfx"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/teleport/teleport-01.opus",
+          "sha256": "7bd41d297dde99ab161ddfe0359385fa75367d1d47d0f0259395d00f1957c498",
+          "bytes": 1142,
+          "peso": 1,
+          "respaldo": "activos/sonidos/teleport/teleport-01.m4a",
+          "respaldo_sha256": "f594f6a5640feb159855dd42604bf70a5d38b43f99b5e7a0daa6147c71629f75",
+          "respaldo_bytes": 2159
+        },
+        {
+          "fichero": "activos/sonidos/teleport/teleport-02.opus",
+          "sha256": "0d493b2e5d79928261b1fa795639f533d23bc2892bd4eca3ec020045e659224f",
+          "bytes": 6403,
+          "peso": 1,
+          "respaldo": "activos/sonidos/teleport/teleport-02.m4a",
+          "respaldo_sha256": "9df3a78f99b374961a1ef1c340b2e2a3be8854917c45c9249ac06ac856478e12",
+          "respaldo_bytes": 8790
+        }
+      ]
+    },
+    {
+      "id": "ui-aviso",
+      "uso": "aviso del sistema",
+      "bus": "interfaz",
+      "lote": "nucleo",
+      "prioridad": 100,
+      "cooldown_ms": 150,
+      "texto": "aviso del sistema",
+      "duracion_s": 0.126,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Kenney Vleugels (kenney.nl)"
+      ],
+      "fuente": [
+        "https://kenney.nl/assets/interface-sounds"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/ui-aviso/ui-aviso-01.opus",
+          "sha256": "297246c49857fbc8a15524f14836695aa5f3820f7f14908f16cedb65563cd26a",
+          "bytes": 1145,
+          "peso": 1,
+          "respaldo": "activos/sonidos/ui-aviso/ui-aviso-01.m4a",
+          "respaldo_sha256": "90b57652b32af9d73304b6341534488c34a5be3fb0ea9b75b738a4c1700f358f",
+          "respaldo_bytes": 1728
+        }
+      ]
+    },
+    {
+      "id": "ui-chat",
+      "uso": "mensaje dirigido a mi",
+      "bus": "interfaz",
+      "lote": "nucleo",
+      "prioridad": 100,
+      "cooldown_ms": 150,
+      "texto": "mensaje nuevo para ti",
+      "duracion_s": 0.106,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Kenney Vleugels (kenney.nl)"
+      ],
+      "fuente": [
+        "https://kenney.nl/assets/interface-sounds"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/ui-chat/ui-chat-01.opus",
+          "sha256": "6cdfdc150acce18645bc73345ed7b0d07b1581372158472dc72a6c4e558e9dd1",
+          "bytes": 697,
+          "peso": 1,
+          "respaldo": "activos/sonidos/ui-chat/ui-chat-01.m4a",
+          "respaldo_sha256": "f2e7586f93f4eca8a3bcfa33ca8f2200df1bd941f4ca34946510bda0acaca0cb",
+          "respaldo_bytes": 1720
+        }
+      ]
+    },
+    {
+      "id": "ui-confirmar",
+      "uso": "accion aceptada",
+      "bus": "interfaz",
+      "lote": "nucleo",
+      "prioridad": 100,
+      "cooldown_ms": 80,
+      "texto": "accion aceptada",
+      "duracion_s": 0.296,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Kenney Vleugels (kenney.nl)"
+      ],
+      "fuente": [
+        "https://kenney.nl/assets/interface-sounds"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/ui-confirmar/ui-confirmar-01.opus",
+          "sha256": "adbddd0f3e88aed06834d3cc7368eafe3273d0f2ae294b3e473cdada036fe15b",
+          "bytes": 2200,
+          "peso": 1,
+          "respaldo": "activos/sonidos/ui-confirmar/ui-confirmar-01.m4a",
+          "respaldo_sha256": "3dc6b3bfc7897944d5ae25c6e1242df6886e8c10d1a4171f387f545fc5a99f13",
+          "respaldo_bytes": 2730
+        }
+      ]
+    },
+    {
+      "id": "ui-cuenta-atras",
+      "uso": "tic y fin de la cuenta atras (D-044)",
+      "bus": "interfaz",
+      "lote": "nucleo",
+      "prioridad": 100,
+      "cooldown_ms": 40,
+      "texto": "cuenta atras",
+      "duracion_s": 0.062,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Kenney Vleugels (kenney.nl)"
+      ],
+      "fuente": [
+        "https://kenney.nl/assets/interface-sounds"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/ui-cuenta-atras/ui-cuenta-atras-01.opus",
+          "sha256": "e61e4c1efa5353d93ccde27e2ed0d644c89cb646876faad881ced72b331f6fc8",
+          "bytes": 356,
+          "peso": 1,
+          "respaldo": "activos/sonidos/ui-cuenta-atras/ui-cuenta-atras-01.m4a",
+          "respaldo_sha256": "c041f27914e7757d317db4706582ce3c44ecb407b6688901bdef017682b39fd4",
+          "respaldo_bytes": 1278
+        },
+        {
+          "fichero": "activos/sonidos/ui-cuenta-atras/ui-cuenta-atras-02.opus",
+          "sha256": "4e6d2ca672830853eae8608a0234bafb7a47bfcf64013a1ae3f69964db43fd09",
+          "bytes": 535,
+          "peso": 1,
+          "respaldo": "activos/sonidos/ui-cuenta-atras/ui-cuenta-atras-02.m4a",
+          "respaldo_sha256": "288bed81bd3db406b35f4fd0439c86de0e6e50f2d18c15a3113b4455ab226174",
+          "respaldo_bytes": 1405
+        }
+      ]
+    },
+    {
+      "id": "ui-error",
+      "uso": "accion rechazada",
+      "bus": "interfaz",
+      "lote": "nucleo",
+      "prioridad": 100,
+      "cooldown_ms": 120,
+      "texto": "accion rechazada",
+      "duracion_s": 0.172,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Kenney Vleugels (kenney.nl)"
+      ],
+      "fuente": [
+        "https://kenney.nl/assets/interface-sounds"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/ui-error/ui-error-01.opus",
+          "sha256": "9d5364884ecb86861a99b42402deb51425e1fab1bc9121f81c19ad97cde3a271",
+          "bytes": 944,
+          "peso": 1,
+          "respaldo": "activos/sonidos/ui-error/ui-error-01.m4a",
+          "respaldo_sha256": "2344032c2663e2477f697f5ac4e4d6cadafc2cce818f28ee52b117291129a312",
+          "respaldo_bytes": 2138
+        }
+      ]
+    },
+    {
+      "id": "ui-gente",
+      "uso": "alguien entra o sale de mi cercania",
+      "bus": "interfaz",
+      "lote": "nucleo",
+      "prioridad": 100,
+      "cooldown_ms": 250,
+      "texto": "alguien entra o sale de tu cercania",
+      "duracion_s": 0.265,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Kenney Vleugels (kenney.nl)"
+      ],
+      "fuente": [
+        "https://kenney.nl/assets/interface-sounds"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/ui-gente/ui-gente-01.opus",
+          "sha256": "6ab1504023be6320bfc146474d3e6d6c6b33f90e2bdfeb5e0a1fe46bce63d113",
+          "bytes": 1694,
+          "peso": 1,
+          "respaldo": "activos/sonidos/ui-gente/ui-gente-01.m4a",
+          "respaldo_sha256": "edd95633a6eb9cc072e180eb0c5efdcb4f328139b3073596a88362a8a5f26d7f",
+          "respaldo_bytes": 2773
+        },
+        {
+          "fichero": "activos/sonidos/ui-gente/ui-gente-02.opus",
+          "sha256": "6e64e67b233b398d6d141f1385ce841792b21c6c689b3ab1e72403b1ddf34ee5",
+          "bytes": 1731,
+          "peso": 1,
+          "respaldo": "activos/sonidos/ui-gente/ui-gente-02.m4a",
+          "respaldo_sha256": "b4ee7231c681b058313e57c662ddc3be9d688229b18da5fbbab54820a381ff3c",
+          "respaldo_bytes": 2751
+        }
+      ]
+    },
+    {
+      "id": "ui-logro",
+      "uso": "mision cumplida",
+      "bus": "interfaz",
+      "lote": "nucleo",
+      "prioridad": 100,
+      "cooldown_ms": 400,
+      "texto": "mision cumplida",
+      "duracion_s": 0.817,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Kenney Vleugels (kenney.nl)"
+      ],
+      "fuente": [
+        "https://kenney.nl/assets/music-jingles"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/ui-logro/ui-logro-01.opus",
+          "sha256": "99f1dd5f46350c4d4ded0b0a6e3c76c655f7452126eea996cd98f0ff08974982",
+          "bytes": 7053,
+          "peso": 1,
+          "respaldo": "activos/sonidos/ui-logro/ui-logro-01.m4a",
+          "respaldo_sha256": "0f8c6ab8a14f3cc1ff7f5004f60996c883cc32dab016a077db729d5e4a3ab09f",
+          "respaldo_bytes": 6510
+        }
+      ]
+    },
+    {
+      "id": "ui-pulsar",
+      "uso": "pulsacion de boton",
+      "bus": "interfaz",
+      "lote": "nucleo",
+      "prioridad": 100,
+      "cooldown_ms": 40,
+      "texto": "boton pulsado",
+      "duracion_s": 0.104,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Kenney Vleugels (kenney.nl)"
+      ],
+      "fuente": [
+        "https://kenney.nl/assets/interface-sounds"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/ui-pulsar/ui-pulsar-01.opus",
+          "sha256": "7547a6d9f9601e19ec925af1484de8c9cbfdd3e1be749122bbd20cdf47726e7b",
+          "bytes": 529,
+          "peso": 1,
+          "respaldo": "activos/sonidos/ui-pulsar/ui-pulsar-01.m4a",
+          "respaldo_sha256": "28a4bf4d66f0d76159cb01801df46663c91fbfa240b67696a342daf7c1c06660",
+          "respaldo_bytes": 1634
+        }
+      ]
+    }
+  ]
+}
