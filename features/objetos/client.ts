@@ -117,14 +117,15 @@ export function crearCliente() {
     nombrar: (nombre: string, decorado = false) => conSeleccion((o) => enviar("nombrar", { id: o.id, nombre, decorado })),
     /** U10: hidden while playing (spheres of sound), volume 0-1, solid (collides with people). For solid, `caja` is the
      * model's own box, unscaled, in its own axes (the page measures it: view.editor.cajaPropia). Only what is given changes.
-     * M6: `colision` (ninguna | caja | malla) says how it collides; `solido: true` alone means `caja`, `solido: false` means `ninguna`. */
-    ajustar: (cambio: { oculto?: boolean; volumen?: number; solido?: boolean; colision?: Colision; caja?: [number, number, number, number, number, number] | null; alcance?: "burbuja" | "zona" | "todos"; radio?: number }) => conSeleccion((o) => {
+     * M6: `colision` (ninguna | caja | malla) says how it collides; `solido: true` alone means `caja`, `solido: false` means `ninguna`.
+     * J4: `enlace` is the address a click opens (new tab, after confirming); "" clears it. */
+    ajustar: (cambio: { oculto?: boolean; volumen?: number; solido?: boolean; colision?: Colision; caja?: [number, number, number, number, number, number] | null; alcance?: "burbuja" | "zona" | "todos"; radio?: number; enlace?: string }) => conSeleccion((o) => {
       // keeping a thing solid needs its own box again: the server keeps it, so an unchanged solid sends zeros and keeps it
       const c = cambio.caja ?? [0, 0, 0, 0, 0, 0];
       const colision: Colision = cambio.colision ?? (cambio.solido === undefined ? colisionDe(o) : cambio.solido ? "caja" : "ninguna");
       return enviar("ajustar", { id: o.id, oculto: cambio.oculto ?? o.oculto === true, volumen: entre(cambio.volumen ?? Number(o.volumen ?? 1), [0, 1]), solido: colision !== "ninguna", colision,
         bx0: c[0], by0: c[1], bz0: c[2], bx1: c[3], by1: c[4], bz1: c[5],
-        alcance: cambio.alcance ?? String(o.alcance ?? "burbuja"), radio: entre(cambio.radio ?? Number(o.radio ?? 8), [0.5, 200]) });
+        alcance: cambio.alcance ?? String(o.alcance ?? "burbuja"), radio: entre(cambio.radio ?? Number(o.radio ?? 8), [0.5, 200]), enlace: cambio.enlace ?? String(o.enlace ?? "") });
     }),
     /** U10: put a file uploaded to this server (by its sha256) in front of you or at a point: an image, a video, a sphere of sound. */
     colocarFichero: (sha: string, ext: string, nombre: string, p?: { x: number; y?: number; z: number }) => {

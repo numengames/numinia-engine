@@ -9,6 +9,8 @@
 import * as THREE from "three/webgpu";
 import { mejorEncaje } from "./encaje.ts";
 import type { Caja3 } from "./encaje.ts";
+import { yParaApoyar } from "./apoyo.ts";
+import type { Caja3 as CajaPropia } from "./apoyo.ts";
 
 export type Eje = "X" | "Y" | "Z";
 export type Herramienta = "mover" | "girar" | "escalar";
@@ -60,6 +62,23 @@ function cajaDe(g: THREE.Object3D, out: THREE.Box3, precisa = false): THREE.Box3
   visitar(g);
   return out;
 }
+/** U10 + M22-fix (hundimiento al girar): a thing's own box (own axes, unscaled), measured by zeroing its
+ * transform for one frame — what `solido` needs, and what the gizmo needs to keep the base resting while it
+ * turns. null until the thing has something drawn (model not loaded yet, or nothing to measure). */
+function medirCajaPropia(g: THREE.Object3D): CajaPropia | null {
+  const p = g.position.clone(), q = g.quaternion.clone(), s = g.scale.clone(), padre = g.parent;
+  g.position.set(0, 0, 0); g.quaternion.identity(); g.scale.set(1, 1, 1);
+  if (padre) padre.remove(g);
+  g.updateMatrixWorld(true);
+  const b = cajaDe(g, new THREE.Box3(), true);
+  g.position.copy(p); g.quaternion.copy(q); g.scale.copy(s);
+  if (padre) padre.add(g);
+  g.updateMatrixWorld(true);
+  if (b.isEmpty()) return null;
+  const r = (n: number) => Math.round(n * 100) / 100;
+  for (const k of ["x", "y", "z"] as const) if (b.max[k] - b.min[k] < 0.1) { const m = (b.max[k] + b.min[k]) / 2; b.min[k] = m - 0.05; b.max[k] = m + 0.05; }
+  return [r(b.min.x), r(b.min.y), r(b.min.z), r(b.max.x), r(b.max.y), r(b.max.z)];
+}
 const difGiro = (a: number, b: number) => Math.abs(envolver(a - b));
 /** Same transform, give or take one wire step. */
 export const igualDonde = (a: Donde, b: Donde): boolean =>
@@ -101,6 +120,10 @@ export function crearEditor(ctx: EditorCtx) {
   let sostenido: string | null = null;
   let soltado: { key: string; final: Donde; hasta: number } | null = null;
   let arrastre: { key: string; g: THREE.Object3D } | null = null;
+  // M22-fix (hundimiento al girar): while a rotate drag runs, the thing's own box and the floor (or shelf, or
+  // table) level it had when the drag started — set on every step so the base stays exactly there instead of
+  // swinging through it.
+  let apoyo: { caja: CajaPropia; sueloY: number } | null = null;
   let activoHasta = 0;
   let tc: TC | null = null, cargando: Promise<void> | null = null, fallo = "";
   const oyentes: ((fase: Fase, key: string, d: Donde) => void)[] = [];
@@ -151,10 +174,13 @@ export function crearEditor(ctx: EditorCtx) {
         const g = c.object, key = g ? claveDe(g) : null;
         if (!g || !key) return;
         arrastre = { key, g }; sostenido = key; soltado = null;
+        // M22-fix: a rotate drag starts — remember the box and the level its base rests on now, so every step
+        // below keeps it there instead of letting the turn swing it through the floor.
+        if (c.mode === "rotate") { const caja = medirCajaPropia(g); apoyo = caja ? { caja, sueloY: cajaDe(g, new THREE.Box3()).min.y } : null; } else apoyo = null;
         avisar("empieza", key, dondeDe(g));
       } else if (arrastre) {
         const { key, g } = arrastre, d = dondeDe(g);
-        arrastre = null; sostenido = null; soltado = { key, final: d, hasta: performance.now() + MANTENER_MS };
+        arrastre = null; sostenido = null; soltado = { key, final: d, hasta: performance.now() + MANTENER_MS }; apoyo = null;
         avisar("acaba", key, d);
         aplicar();
       }
@@ -163,6 +189,12 @@ export function crearEditor(ctx: EditorCtx) {
     c.addEventListener("objectChange", () => {
       if (arrastre && c.dragging) {
         if (tc!.mode === "translate" && eje) intentarEncaje(arrastre.g, eje);
+        // M22-fix: after each rotate step, put the base back exactly where it was (own box + current scale and
+        // turn against the floor level remembered at the start of the drag) before telling anyone where it is.
+        if (tc!.mode === "rotate" && apoyo) {
+          const d = dondeDe(arrastre.g);
+          arrastre.g.position.y = yParaApoyar(apoyo.caja, [d.sx, d.sy, d.sz], [d.rx, d.ry, d.rz], apoyo.sueloY);
+        }
         avisar("cambia", arrastre.key, dondeDe(arrastre.g));
       }
       tocar();
@@ -182,6 +214,20 @@ export function crearEditor(ctx: EditorCtx) {
     /** The point under a screen point: on another thing (not `ignorar`) or on the ground (y = 0); null above the horizon. */
     puntoBajo(clientX: number, clientY: number, ignorar?: string): { x: number; y: number; z: number } | null {
       rayo(clientX, clientY);
+      const hit = ray.intersectObjects(candidatos(ignorar), true)[0];
+      const s = ray.ray.intersectPlane(suelo, enSuelo);
+      if (hit && (!s || hit.distance <= ray.ray.origin.distanceTo(s))) return { x: hit.point.x, y: Math.max(0, hit.point.y), z: hit.point.z };
+      return s ? { x: s.x, y: 0, z: s.z } : null;
+    },
+    /** M22b-3 (VR): the key of the placed thing along a world ray (a controller's point), or null. */
+    pickRayo(origen: { x: number; y: number; z: number }, dir: { x: number; y: number; z: number }): string | null {
+      ray.set(new THREE.Vector3(origen.x, origen.y, origen.z), new THREE.Vector3(dir.x, dir.y, dir.z).normalize());
+      const hit = ray.intersectObjects(candidatos(), true)[0];
+      return hit ? claveDe(hit.object) : null;
+    },
+    /** M22b-3 (VR): the point along a world ray — on another thing (not `ignorar`) or the ground (y = 0); null if the ray never meets either. */
+    puntoBajoRayo(origen: { x: number; y: number; z: number }, dir: { x: number; y: number; z: number }, ignorar?: string): { x: number; y: number; z: number } | null {
+      ray.set(new THREE.Vector3(origen.x, origen.y, origen.z), new THREE.Vector3(dir.x, dir.y, dir.z).normalize());
       const hit = ray.intersectObjects(candidatos(ignorar), true)[0];
       const s = ray.ray.intersectPlane(suelo, enSuelo);
       if (hit && (!s || hit.distance <= ray.ray.origin.distanceTo(s))) return { x: hit.point.x, y: Math.max(0, hit.point.y), z: hit.point.z };
@@ -225,20 +271,7 @@ export function crearEditor(ctx: EditorCtx) {
     /** U10: the box of what a thing draws in its own axes, without its scale (what `solido` needs), or null if nothing is drawn yet. */
     cajaPropia(key: string): [number, number, number, number, number, number] | null {
       const g = ctx.grupo(key);
-      if (!g) return null;
-      const p = g.position.clone(), q = g.quaternion.clone(), s = g.scale.clone(), padre = g.parent;
-      g.position.set(0, 0, 0); g.quaternion.identity(); g.scale.set(1, 1, 1);
-      if (padre) padre.remove(g);
-      g.updateMatrixWorld(true);
-      const b = cajaDe(g, new THREE.Box3(), true);
-      g.position.copy(p); g.quaternion.copy(q); g.scale.copy(s);
-      if (padre) padre.add(g);
-      g.updateMatrixWorld(true);
-      if (b.isEmpty()) return null;
-      const r = (n: number) => Math.round(n * 100) / 100;
-      // a picture or a screen is flat: give it 10 cm of thickness so it can still stop people
-      for (const k of ["x", "y", "z"] as const) if (b.max[k] - b.min[k] < 0.1) { const m = (b.max[k] + b.min[k]) / 2; b.min[k] = m - 0.05; b.max[k] = m + 0.05; }
-      return [r(b.min.x), r(b.min.y), r(b.min.z), r(b.max.x), r(b.max.y), r(b.max.z)];
+      return g ? medirCajaPropia(g) : null;
     },
     /** Move a thing's group at once (no network): the page's grab mode and previews. */
     poner(key: string, d: Partial<Donde>): void {

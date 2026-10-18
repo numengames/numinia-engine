@@ -24,10 +24,15 @@ reescala píxeles. El instalador copia solo esas dependencias (`OPTIMIZAR_DEPS` 
 
 ## Medidas (18-10-2026)
 
-Chrome headless con SwiftShader, perfil móvil de N1 (412×915, DPR 2,625, CPU ×4), caché desactivada.
-«4G lento» = el perfil de N1 (1,6 Mb/s, 150 ms; el de Lighthouse). «4G» = 9 Mb/s, 1,5 Mb/s de subida, 165 ms.
-Antes = punta del tren 2 sin N22 (74a8704); después = esta rama con las copias hechas.
+Chrome headless con SwiftShader, perfil móvil de N1 (412×915, DPR 2,625, CPU ×4), caché desactivada, en el PC de desarrollo
+(Ryzen 9 7950X). «4G lento» = el perfil de N1 (1,6 Mb/s, 150 ms; el de Lighthouse). «4G» = 9 Mb/s, 1,5 Mb/s de subida, 165 ms.
+Antes = punta del tren 2 sin N22 (`74a8704`); después = la rama de N22 con las copias hechas (entró en main con `5a88043`, v0.5.0).
 «Sala» = el modelo de la nave de eventos (fijado).
+
+**Cómo de fiables son:** **una sola pasada por fila**, con el guion `medir22.mjs` del informe de N22, que **no está en el
+repositorio**: hoy no se pueden repetir desde aquí. Con SwiftShader valen los bytes y los tiempos que manda la red emulada, no los
+fps ni lo que depende de la CPU. Una medida posterior con otro guion cuadra en orden de magnitud: página de `39a9f73` y `d76d71a`
+«lista para jugar» en 3,06–3,23 s con 4G lento (18-10 14:58 UTC, mediana de 3 vueltas, plaza de ejemplo, no estos mundos).
 
 | Mundo · red | Primer cuadro | Sala dibujada | Todo cargado | MB bajados (total) |
 |---|---|---|---|---|
@@ -40,7 +45,7 @@ Antes = punta del tren 2 sin N22 (74a8704); después = esta rama con las copias 
 | Muestra · 4G, antes | 2,5 s | – | 14,9 s | 10,82 |
 | Muestra · 4G, después | **2,2 s** | – | 12,9 s | **4,43** |
 
-Lo que baja hasta el primer cuadro: 1,49 MB → 0,47 MB (la página con brotli).
+Lo que baja hasta el primer cuadro: 1,49 MB → 0,47 MB (la página con brotli, que es lo que se sirve también en vivo: `content-encoding: br` en alchemiststower, 18-10-2026).
 Ficheros del mundo (`npm run optimizar`): eventos 12,43 MB → 1,41 MB por la red (11 %); la muestra 28,45 → 24,02 MB,
 porque 20,9 MB son dos vídeos que no se recodifican (cambiaría la imagen); el navegador los pide por rangos, así que en
 una visita bajan 0,12 MB.
@@ -56,4 +61,5 @@ textura más pequeña en la plantilla (decisión de arte) o cargar primero una v
 
 ## Probar
 `npm test` (test/carga-rapida.test.ts) · `npm run optimizar -- <mundo>` · para medir, el guion de la noche
-(`medir22.mjs` en el informe de N22) arranca el servidor con el mundo y mide con el perfil de arriba.
+(`medir22.mjs` en el informe de N22, **fuera del repositorio**) arranca el servidor con el mundo y mide con el perfil de arriba.
+Mientras no esté en `tools/`, la tabla de arriba no se puede repetir: trátala como una pasada, no como una línea base.

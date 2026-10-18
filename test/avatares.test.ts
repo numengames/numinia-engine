@@ -102,3 +102,16 @@ test("U13 policy: the mouth fades on its own between voice frames instead of sti
   assert.ok(Math.abs(decaerBoca(0.9, 0.001) - 0.9 * 0.55) < 1e-9);
   assert.ok(decaerBoca(0.1, 0.1) >= nivelBoca(0.1), "a new frame at least as loud as the kept level wins");
 });
+
+test("N1b: a jog at walking speed meets a natural step rate half way (no slow-motion bounding); shorter legs step faster", () => {
+  const natural = { andar: 0.797, trotar: 5.184, correr: 7.772 }, duracion = { andar: 1.667, trotar: 1.167, correr: 0.833 };
+  const hay = () => true;
+  const sinPaso = clipPara("andar", 4, 0.888, natural, hay)!;              // as before: feet still, 0.87
+  const conPaso = clipPara("andar", 4, 0.888, natural, hay, duracion)!;
+  assert.equal(conPaso.clip, "trotar");
+  assert.ok(sinPaso.ritmo < 0.9 && conPaso.ritmo > 1.1 && conPaso.ritmo < 1.3, `${sinPaso.ritmo} → ${conPaso.ritmo}`);
+  const bajo = clipPara("andar", 4, 0.6, natural, hay, duracion)!;
+  assert.ok(bajo.ritmo > conPaso.ritmo && bajo.ritmo <= 2);
+  assert.equal(clipPara("andar", 0.7, 0.888, natural, hay, duracion)!.clip, "andar"); // a slow walk is untouched
+  assert.equal(clipPara("andar", 0.7, 0.888, natural, hay, duracion)!.ritmo, clipPara("andar", 0.7, 0.888, natural, hay)!.ritmo);
+});

@@ -195,41 +195,71 @@ comprobado en `test/sesiones.test.ts`.
 
 ## Otras formas de leer el servidor
 
-`GET /metrics.prom` da los mismos números en el formato de texto de Prometheus (nombres con unidades base y `_total` en los contadores, como pide su guía de nombres), para Grafana o cualquier recolector. Sigue sin ser público: Caddy solo expone `/ws` y `/health`.
+`GET /metrics.prom` da los mismos números en el formato de texto de Prometheus (nombres con unidades base y `_total` en los contadores, como pide su guía de nombres), para VictoriaMetrics, Prometheus o cualquier recolector. Si quien pregunta manda `Accept: application/openmetrics-text`, la respuesta es **OpenMetrics 1.0** (mismas cifras; las familias de contador sin `_total`, y termina en `# EOF`); si no, texto 0.0.4 como siempre. Sigue sin ser público: Caddy solo expone `/ws` y `/health`.
+
+**Por qué va lento (B2).** `/metrics` (esquema `metrics@1`: todo lo nuevo se añade, nada cambia de nombre) dice dónde se va el tiempo de cada tick, en ms, sobre los mismos 200 ticks (10 s) que `tickMs`:
+
+| Campo | Qué es |
+|---|---|
+| `fasesTickMs.<fase>` `{p50,p99,peor}` | cada fase de `Instance.tick()`: `entradas` (leer lo que mandó cada uno), `solidos` (rehacer las cajas sólidas, solo cuando una pieza cambia su estado), `simulacion` (el paso), `seguro` (el sitio seguro del suelo, cada medio segundo), `piezas` (todas las piezas juntas), `instantaneas` (lo que se manda, cada dos ticks) |
+| `piezas.<id>` | una entrada por pieza que hace algo dentro del tick, **la más cara primero** (por el p99 de `totalMs`): `totalMs` (la suma de sus ganchos en un tick), `tickMs` (`onTick`), `intentMs` (sus `on(…)`), `vueltaMs` (`onVuelta`), `cercaMs` (mandar sus cosas a quien se acerca) y `errores` (desde el arranque; el log solo dice el primero de cada gancho) |
+| `piezasTotales` | intenciones aceptadas, `descartados` (límite de ritmo), `malos` (mal formados) y errores de todas las piezas, desde el arranque |
+| `proceso.bucleRealMs` | el retraso del bucle de eventos **de verdad**: `bucleMs` menos la resolución del muestreo (`bucleResolucionMs`, 10). cada muestra incluye la resolución (medido con Node 24 en el PC: un servidor sin nadie da `bucleMs.p50` 10,06 y `bucleRealMs.p50` 0,06; con `resolution: 1` el suelo pasa a 1 ms, no a 0, y despierta el proceso 1.000 veces por segundo en vez de 100). `bucleMs` se queda igual para no romper a quien lo lea: **los umbrales se leen sobre `bucleRealMs`** |
+| `proceso.gcAcumulado` | pausas de GC y sus ms **desde el arranque** (nunca baja), y lo mismo por tipo (`minor`, `minor_mark_sweep`, `major`, `incremental`, `weakcb`). `proceso.gc` sigue siendo la ventana de 10 s |
+| `memoriaBytes` | `memoriaMB` en bytes exactos (lo que usa `/metrics.prom`) |
+
+En `/metrics.prom`, histogramas acumulados desde el arranque con **los mismos bordes fijos** (s): 0,0001 · 0,00025 · 0,0005 · 0,001 · 0,0025 · 0,005 · 0,01 · **0,025** (medio tick: el presupuesto del tick) · **0,05** (un tick: el de la respuesta) · 0,1 · 0,25 · 1. Se pueden sumar entre raspados y entre mundos (los percentiles no): `numinia_tick_seconds`, `numinia_tick_phase_seconds{phase}`, `numinia_feature_hook_seconds{feature,hook}` (`hook` = intent, tick, vuelta, cerca), `nodejs_gc_duration_seconds{kind}`. Contadores nuevos: `numinia_feature_errors_total{feature}`, `numinia_feature_intents_total{result}` (accepted, dropped, bad), `numinia_gc_pauses_total`. Cardinalidad: unas 50 parejas pieza-gancho en la plaza de serie, ~1.000 líneas y ~78 kB por raspado.
+
+Tres arreglos de medida (los encontró R4, `HUECOS-METRICAS.md`):
+- **`numinia_gc_pause_seconds_total` ya es un contador de verdad**: suma desde el arranque. Antes valía la última ventana de 10 s, subía y bajaba, y `rate()` lo habría leído como reinicios. La ventana sigue en `numinia_gc_pause_window_seconds` (gauge).
+- **Bucle sin los 10 ms de serie**: `numinia_eventloop_delay_p99_seconds` y `_max_seconds` restan la resolución. `nodejs_eventloop_lag_p99_seconds` sigue igual (así lo da también prom-client) y su `# HELP` lo dice.
+- **Nombres y unidades**: `process_resident_memory_bytes` y `nodejs_heap_size_used_bytes` son bytes exactos (antes MB redondeados × 1.048.576); `numinia_players` dice en su ayuda que cuenta personas **y** agentes; los percentiles en gauge (`numinia_tick_duration_p99_seconds`…) avisan en su ayuda de que no se pueden sumar y remiten al histograma.
+
+Lo que cuestan los cronómetros: un `performance.now()` antes y después de cada fase y de cada gancho de pieza (31 por tick en la plaza de serie con 50 robots, ~40 ns cada uno ≈ 1,3 µs, **~0,5 % de un tick de 0,25 ms**), y 1,3–1,6 µs fuera del tick para guardarlo en las ventanas. `npm run bench` (1.000 personas, sin piezas) da la misma huella y p50 dentro del ruido (mediana de 4 pasadas alternas: 6,87 ms antes, 6,96 después, +1,4 %, con la máquina a carga 16–21); 50 robots locales por WebSocket: tick p50 0,68 → 0,64 ms (ruido).
 
 ## Tamaño de la página: lo que baja antes de dibujar (D2)
 
-**Una sola cifra: 434,9 kB gz (434.850 bytes), medida el 18-10-2026 en `5362797` con `npm run tamano`.** Meta D2: 300 kB. Tope
-de la puerta hoy: 480 kB (la medida + 10 %, redondeado; `TOPE_GZ` en `tools/tamano.mjs`). La puerta corre también en `npm run gates`.
+**Una sola cifra: 451,5 kB gz (451.457 bytes) en 11 ficheros, medida el 18-10-2026 a las 15:06 UTC en `30da0fd` (v0.10.0)
+con `npm run gates` y `npm run tamano`** (PC de desarrollo: Ryzen 9 7950X, Node 24.21). Meta D2: 300 kB. Tope de la puerta: 480 kB
+(`TOPE_GZ` en `tools/tamano.mjs`; se puso el 18-10 como la medida de entonces + 10 %). La puerta corre también en `npm run gates`.
 
 Qué entra (y por eso la cifra es comparable de una medida a otra): `dist/plaza/index.html` y lo que ese HTML referencia antes de
 ejecutar `main.ts`: la hoja `<link rel="stylesheet">`, el `<script type="module">` de entrada y cada `<link rel="modulepreload">`
-(el grafo de imports estáticos que escribe Vite). Cada fichero se comprime solo con gzip nivel 9 (`node:zlib`), como lo serviría el
-servidor web (Caddy sirve gzip/zstd, no brotli). **No entra:** los trozos perezosos (`import()`: avatares VRM, cielo, agua, gizmo,
-manos, pesca…), el transcodificador Basis (solo con texturas KTX2), iconos, manifiesto y los ficheros del mundo (.glb, .vrm, .vrma).
+(el grafo de imports estáticos que escribe Vite). Cada fichero se comprime solo con gzip nivel 9 (`node:zlib`). **No entra:** los
+trozos perezosos (`import()`: avatares VRM, cielo, agua, gizmo, manos, pesca…), el transcodificador Basis (solo con texturas KTX2),
+manifiesto y los ficheros del mundo (.glb, .vrm, .vrma).
 
-| Fichero | gz -9 |
+**Lo que de verdad viaja es brotli, no gzip.** El propio motor comprime la página con brotli calidad 11 (`pagina.ts`) a quien lo
+acepta, y Caddy lo pasa tal cual: desde fuera, `alchemiststower.numinia.com` respondió `content-encoding: br` en todos los ficheros
+del arranque (18-10-2026 14:28 UTC, `curl -H 'Accept-Encoding: br, gzip'`, build `39a9f73`: 363,7 kB br). Los mismos 11 ficheros de
+`30da0fd` en brotli 11 suman **376,3 kB** (`node:zlib`, uno a uno, 18-10 15:07 UTC). La puerta cuenta gzip -9 a propósito: es
+~17 % más pesimista y vale para un navegador o un proxy que no pida brotli.
+
+| Fichero (`30da0fd`) | gz -9 |
 |---|---|
 | `three.tsl` | 189,6 kB |
-| `index` (entrada) | 98,2 kB |
+| `index` (entrada) | 103,3 kB |
 | `three.core` | 68,5 kB |
-| `src` (paquetes del motor) | 45,5 kB |
+| `src` (paquetes del motor) | 46,4 kB |
+| `escribiendo` | 10,3 kB |
 | `client` | 10,2 kB |
-| `escribiendo` | 10,0 kB |
-| `index.css` | 6,2 kB |
-| `index.html` | 3,9 kB |
+| `iconos` (nuevo en v0.10.0) | 9,1 kB |
+| `index.css` | 7,1 kB |
+| `index.html` | 4,3 kB |
 | `gltf` | 1,9 kB |
 | `calidad` | 0,8 kB |
-| **Total** | **434,9 kB** |
+| **Total** | **451,5 kB** |
 
-Cifras anteriores (históricas, no comparables entre sí porque cada una contaba ficheros distintos): 342 kB (15-10, solo los .js del
-arranque de entonces), 423,3 kB (18-10, diseño M6: sin html ni css, gzip por defecto de Vite). Desde hoy manda esta sección.
+Cifras anteriores, con su versión: 434,9 kB en 10 ficheros (18-10, `5362797`), 437,2 kB (`39a9f73`, el build del mundo vivo) y
+442,7 kB (`d76d71a`, v0.9.0), estas dos con la misma regla en la medida del 18-10 entre las 14:28 y las 14:59 UTC. Históricas y no comparables (contaban otros
+ficheros): 342 kB (15-10, solo los .js del arranque de entonces), 423,3 kB (18-10, diseño M6: sin html ni css, gzip por defecto de
+Vite). Desde hoy manda esta sección.
 
 ## Pruebas unitarias: cuántas y cuánto tardan
 
-**Una sola cifra: 537 pruebas, 537 en verde, 26,5 s** (`npm test` en `5362797`, 18-10-2026, Ryzen 9 7950X con carga 5; la cuenta
-sale de la línea `ℹ tests N` del reporter de `node --test`, no de un grep). La cifra de cada turno del RUNLOG es la de su rama en su
-momento; cuando una entrada diga otra cosa, manda la más nueva.
+La cuenta no se copia aquí: la imprime `npm run gates` en cada pasada (fila «pruebas unitarias», sacada de la línea `ℹ pass N`
+del reporter de `node --test`, no de un grep). Para tener una referencia: **625 en verde, 26,2 s**, el 18-10-2026 a las 15:06 UTC
+en `30da0fd`, Ryzen 9 7950X con carga 2,7. La cifra de cada turno del RUNLOG es la de su rama en su momento.
 
 ## Reglas del método
 
@@ -238,3 +268,8 @@ momento; cuando una entrada diga otra cosa, manda la más nueva.
 3. Cada informe lleva el entorno de la máquina del servidor y la de los robots (procesador, núcleos, núcleo Linux, Node, versión del motor).
 4. Percentiles y no medias; histogramas (1 % de precisión) y no listas de muestras, para poder fusionar procesos.
 5. Un cambio de ajuste (BBR, núcleos…) se mide con la misma pasada antes y después.
+6. Cada cifra que se escribe en un documento o en `limits.json` lleva **fecha, versión (commit), aparato y orden**. Si la pasada
+   no dejó informe guardado, se escribe «sin informe guardado» y la fila de `limits.json` queda como `estimated`, nunca `measured`.
+   Una constante del código (20 Hz, un snapshot cada 2 ticks) es `config`: un ajuste no es una medida.
+7. Una cifra se nombra por la prueba que la da: la plaza de 1.000 **sin red** (`npm run gates`, ~8–9 ms) y **por WebSocket**
+   (`tools/swarm.sh`) son dos pruebas distintas y no se mezclan; el «p99» de la puerta, con 80 ticks, es el peor de 80.
