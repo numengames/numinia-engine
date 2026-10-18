@@ -5,10 +5,14 @@
 //   names): a year, immutable · ETag + Last-Modified → 304. Anything that is not a file there is not answered here
 //   (the features' routes and the 404 come after).
 //   With the world's name (aventura/ficha.json, ADR-074) every page's <title> says it; without one, the file as it is.
+//   N22: text and wasm go compressed to a browser that takes it (brotli, else gzip; Vary: Accept-Encoding) — the page's
+//   1.6 MB of JS is ~0.5 MB on the wire, what a phone on 4G waits for before its first frame. Made once per file
+//   (at start, in the background; the first request before that gets gzip made on the spot) and kept in memory.
 import { createHash } from "node:crypto";
-import { createReadStream, readFileSync, realpathSync, statSync } from "node:fs";
+import { createReadStream, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { extname, join, posix, sep } from "node:path";
+import { brotliCompress, constants as zc, gzipSync } from "node:zlib";
 
 export const TIPOS_PAGINA: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8",
@@ -20,12 +24,50 @@ export const TIPOS_PAGINA: Record<string, string> = {
   ".wav": "audio/wav", ".mp4": "video/mp4", ".webm": "video/webm",
 };
 
+/** N22: what shrinks on the wire (pictures, sound, video and fonts already come compressed). */
+export const COMPRIMIR = new Set([".html", ".js", ".mjs", ".css", ".json", ".map", ".webmanifest", ".txt", ".svg", ".wasm", ".glb", ".md"]);
+/** N22: smaller than this, a file goes as it is (the headers would cost more than they save). */
+const MIN_COMPRIMIR = 1024;
+type Comprimido = { etag: string; gz: Buffer; br?: Buffer };
+
 export class Pagina {
   readonly dir: string;
   readonly titulo: string | null;
   private readonly raiz: string;
+  private readonly comprimidos = new Map<string, Comprimido>(); // file -> its gzip/brotli, for one etag
 
-  constructor(dir: string, o: { titulo?: string | null } = {}) { this.dir = dir; this.raiz = realpathSync(dir); this.titulo = o.titulo || null; }
+  constructor(dir: string, o: { titulo?: string | null; precomprimir?: boolean } = {}) {
+    this.dir = dir; this.raiz = realpathSync(dir); this.titulo = o.titulo || null;
+    if (o.precomprimir !== false) setImmediate(() => this.precomprimir());
+  }
+
+  /** N22: every compressible file of the page, compressed in the background (zlib's thread pool, not the loop). */
+  private precomprimir(): void {
+    const ir = (d: string, n = 0): void => {
+      if (n > 4) return;
+      let es: string[]; try { es = readdirSync(d); } catch { return; }
+      for (const e of es) {
+        if (e.startsWith(".")) continue;
+        const f = join(d, e);
+        let st; try { st = statSync(f); } catch { continue; }
+        if (st.isDirectory()) ir(f, n + 1);
+        else if (COMPRIMIR.has(extname(f).toLowerCase()) && st.size >= MIN_COMPRIMIR && extname(f).toLowerCase() !== ".html") this.comprimido(f, this.etagDe(f, st, ""), readFileSync(f));
+      }
+    };
+    ir(this.raiz);
+  }
+
+  private etagDe(f: string, st: { size: number; mtimeMs: number }, marca: string): string { return `"${st.size.toString(16)}-${Math.floor(st.mtimeMs).toString(16)}${marca}"`; }
+
+  /** N22: the compressed bodies of `f` (gzip now if none yet; brotli joins when ready). */
+  private comprimido(f: string, etag: string, cuerpo: Buffer): Comprimido {
+    const c = this.comprimidos.get(f);
+    if (c && c.etag === etag) return c;
+    const nuevo: Comprimido = { etag, gz: gzipSync(cuerpo, { level: 9 }) };
+    this.comprimidos.set(f, nuevo);
+    brotliCompress(cuerpo, { params: { [zc.BROTLI_PARAM_QUALITY]: 11, [zc.BROTLI_PARAM_SIZE_HINT]: cuerpo.length } }, (e, b) => { if (!e && this.comprimidos.get(f) === nuevo) nuevo.br = b; });
+    return nuevo;
+  }
 
   /** The file under the page's folder that `path` names, or null (outside it, hidden, not a file). */
   fichero(path: string): string | null {
@@ -51,17 +93,29 @@ export class Pagina {
     // the world's name in <title> (an HTML page only): the bytes change, so does the ETag
     const html = this.titulo && extname(f).toLowerCase() === ".html" ? conTitulo(readFileSync(f, "utf8"), this.titulo) : null;
     const marca = html ? `-${createHash("sha256").update(this.titulo!).digest("hex").slice(0, 8)}` : "";
-    const etag = `"${st.size.toString(16)}-${Math.floor(st.mtimeMs).toString(16)}${marca}"`;
+    const etag = this.etagDe(f, st, marca), ext = extname(f).toLowerCase();
+    const comprimible = COMPRIMIR.has(ext) && st.size >= MIN_COMPRIMIR;
     const cabeceras: Record<string, string> = {
-      "content-type": TIPOS_PAGINA[extname(f).toLowerCase()] ?? "application/octet-stream",
+      "content-type": TIPOS_PAGINA[ext] ?? "application/octet-stream",
       "cache-control": path.startsWith("/assets/") ? "public, max-age=31536000, immutable" : "no-cache",
       etag, "last-modified": st.mtime.toUTCString(), "x-content-type-options": "nosniff",
+      ...(comprimible ? { vary: "accept-encoding" } : {}),
     };
     const inm = req.headers["if-none-match"], ims = req.headers["if-modified-since"];
     if ((inm && inm.split(",").some((t) => t.trim() === etag)) || (!inm && ims && Date.parse(ims) >= Math.floor(st.mtimeMs / 1000) * 1000)) {
       res.writeHead(304, cabeceras); res.end(); return true;
     }
     const cuerpo = html === null ? null : Buffer.from(html);
+    const acepta = String(req.headers["accept-encoding"] ?? "");
+    if (comprimible && /\b(br|gzip)\b/.test(acepta)) { // N22
+      const c = this.comprimido(f, etag, cuerpo ?? readFileSync(f));
+      const br = c.br && /\bbr\b/.test(acepta), z = br ? c.br! : /\bgzip\b/.test(acepta) ? c.gz : null;
+      if (z) {
+        res.writeHead(200, { ...cabeceras, "content-encoding": br ? "br" : "gzip", "content-length": String(z.length) });
+        res.end(method === "HEAD" ? undefined : z);
+        return true;
+      }
+    }
     res.writeHead(200, { ...cabeceras, "content-length": String(cuerpo?.length ?? st.size) });
     if (method === "HEAD") { res.end(); return true; }
     if (cuerpo) { res.end(cuerpo); return true; }

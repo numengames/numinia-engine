@@ -40,6 +40,10 @@ export function fillTemplate(template, { build, payloadB64 }) {
   return out + (payloadB64.match(/.{1,76}/g) ?? []).join("\n") + "\n";
 }
 
+/** N22: the optimizer's runtime packages (the closure of @gltf-transform/{core,extensions,functions}, meshoptimizer and
+ * @jsquash/{png,webp}: MIT and Apache-2.0). */
+export const OPTIMIZAR_DEPS = ["@gltf-transform/core", "@gltf-transform/extensions", "@gltf-transform/functions", "meshoptimizer", "property-graph", "ktx-parse", "ndarray", "ndarray-lanczos", "iota-array", "is-buffer", "@jsquash/png", "@jsquash/webp", "wasm-feature-detect"];
+
 function run(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, { cwd: root, encoding: "utf8", ...opts });
   if (r.status !== 0) throw new Error(`${cmd} ${args.join(" ")} failed:\n${r.stdout ?? ""}${r.stderr ?? ""}`);
@@ -60,6 +64,11 @@ function main() {
   cpSync(join(root, "activos"), join(app, "activos"), { recursive: true }); // H1: the house library, served at /a/<sha256>
   cpSync(join(root, "aventuras"), join(app, "aventuras"), { recursive: true }); // J5: the example adventure (AVENTURA_DIR= for none)
   cpSync(join(root, "node_modules/ws"), join(app, "node_modules/ws"), { recursive: true });
+  // N22: what the server's model optimizer needs (packages/server/src/optimizar.ts; all MIT), without maps, types, tests or
+  // sources; ndarray-pixels is the empty package (tools/vacio): no sharp, no libvips
+  const sinPeso = (src) => !/(\.map|\.d\.ts|\.d\.cts|\.d\.mts|\.test\.js|README\.md|CHANGELOG\.md)$/.test(src) && !/[\/](src|test|docs)$/.test(src);
+  for (const d of OPTIMIZAR_DEPS) cpSync(join(root, "node_modules", d), join(app, "node_modules", d), { recursive: true, dereference: true, filter: sinPeso });
+  cpSync(join(root, "tools/vacio/ndarray-pixels"), join(app, "node_modules/ndarray-pixels"), { recursive: true });
   writeFileSync(join(app, "package.json"), JSON.stringify({ name: "numinia-engine-server", private: true, type: "module", license: "AGPL-3.0-only" }, null, 2) + "\n");
   cpSync(page, join(stage, "www"), { recursive: true });
   cpSync(join(root, "deploy/actualizar.sh"), join(stage, "actualizar.sh")); // the updater (--auto-actualizar's timer runs it)
