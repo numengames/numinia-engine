@@ -330,3 +330,22 @@ test("M22c: borrar varios con el mismo lote es un paso de deshacer; sin lote cad
   assert.equal(a.s.features.stateOf("objetos").size, 2, "un solo deshacer trae a los dos de vuelta");
 });
 
+test("J4: enlace — solo https (http en localhost, en pruebas), nunca usuario/contraseña, y \"\" lo quita", () => {
+  const { pages, pump } = world({ abierto: true });
+  const [a, b] = pages;
+  a.b.colocar("bloque"); pump();
+  const id = a.b.estado.seleccionado!;
+  assert.ok(a.b.ajustar({ enlace: "https://numinia.example/mundo" }).ok); pump();
+  assert.equal(b.b.objeto(id)?.enlace, "https://numinia.example/mundo", "llega a todo el mundo");
+  assert.ok(a.b.ajustar({ enlace: "http://127.0.0.1:3000/x" }).ok); pump(); // esta misma máquina: solo para pruebas
+  assert.equal(b.b.objeto(id)?.enlace, "http://127.0.0.1:3000/x");
+  a.b.ajustar({ enlace: "http://ajeno.example" }); pump();
+  assert.match(a.b.estado.ultimoRechazo, /Solo enlaces https/);
+  a.b.ajustar({ enlace: "sitio-sin-protocolo.example" }); pump();
+  assert.match(a.b.estado.ultimoRechazo, /dirección completa/);
+  a.b.ajustar({ enlace: "https://usuario:clave@malo.example" }); pump();
+  assert.match(a.b.estado.ultimoRechazo, /usuario ni contraseña/);
+  assert.ok(a.b.ajustar({ enlace: "" }).ok); pump(); // vacío: lo quita, sin más preguntas
+  assert.equal(b.b.objeto(id)?.enlace, "");
+});
+

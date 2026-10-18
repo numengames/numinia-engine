@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  ANIMAR_HASTA_M, BOCA_SILENCIO_RMS, CUPO_VRM, TRIANGULOS_MAX, clipPara, cupoVRM, decaerBoca, elegirAvatar, elegirCercanos, estadoPor, girarHacia, nivelBoca, nuevaMarcha, seguir,
+  ANIMAR_HASTA_M, BOCA_SILENCIO_RMS, CUPO_VRM, TRIANGULOS_MAX, alturaDibujada, clipPara, cupoVRM, decaerBoca, elegirAvatar, elegirCercanos, estadoPor, girarHacia, nivelBoca, nuevaMarcha, seguir,
 } from "../packages/render/src/avatares-politica.ts";
 import { TRIANGULOS_MAX_VRM } from "../packages/server/src/vrm.ts";
 
@@ -101,4 +101,27 @@ test("U13 policy: the mouth fades on its own between voice frames instead of sti
   // a frame too quiet to open the mouth on its own still lets the previous level decay by `factor`
   assert.ok(Math.abs(decaerBoca(0.9, 0.001) - 0.9 * 0.55) < 1e-9);
   assert.ok(decaerBoca(0.1, 0.1) >= nivelBoca(0.1), "a new frame at least as loud as the kept level wins");
+});
+
+test("N1b: a jog at walking speed meets a natural step rate half way (no slow-motion bounding); shorter legs step faster", () => {
+  const natural = { andar: 0.797, trotar: 5.184, correr: 7.772 }, duracion = { andar: 1.667, trotar: 1.167, correr: 0.833 };
+  const hay = () => true;
+  const sinPaso = clipPara("andar", 4, 0.888, natural, hay)!;              // as before: feet still, 0.87
+  const conPaso = clipPara("andar", 4, 0.888, natural, hay, duracion)!;
+  assert.equal(conPaso.clip, "trotar");
+  assert.ok(sinPaso.ritmo < 0.9 && conPaso.ritmo > 1.1 && conPaso.ritmo < 1.3, `${sinPaso.ritmo} → ${conPaso.ritmo}`);
+  const bajo = clipPara("andar", 4, 0.6, natural, hay, duracion)!;
+  assert.ok(bajo.ritmo > conPaso.ritmo && bajo.ritmo <= 2);
+  assert.equal(clipPara("andar", 0.7, 0.888, natural, hay, duracion)!.clip, "andar"); // a slow walk is untouched
+  assert.equal(clipPara("andar", 0.7, 0.888, natural, hay, duracion)!.ritmo, clipPara("andar", 0.7, 0.888, natural, hay)!.ritmo);
+});
+
+test("N1b: a stair step is drawn as a short climb; a jump, a fall or a teleport is followed exactly", () => {
+  let y = alturaDibujada(undefined, 0, 1 / 60, true);
+  y = alturaDibujada(y, 0.37, 1 / 60, true);
+  assert.ok(y > 0.05 && y < 0.2, `a short climb: ${y}`);
+  for (let i = 0; i < 30; i++) y = alturaDibujada(y, 0.37, 1 / 60, true);
+  assert.ok(Math.abs(y - 0.37) < 1e-3);
+  assert.equal(alturaDibujada(0, 0.37, 1 / 60, false), 0.37);  // in the air: exact
+  assert.equal(alturaDibujada(0, 3, 1 / 60, true), 3);          // more than a step: at once
 });

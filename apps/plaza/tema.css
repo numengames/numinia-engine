@@ -132,6 +132,15 @@ body.construyendo #reloj, body.construyendo #minimapa, body.construyendo #mision
 body #panel-construir { top: 64px !important; max-height: calc(100% - 120px) !important; }
 body #panel-entorno { top: 112px !important; }
 #help { color: var(--n-fondo) !important; } /* narrow screens: dark text on the sky, as before */
+
+/* M22b-1: on a narrow phone the two panels (320 + 270 px) covered the whole world. The builder's becomes a bottom sheet
+   (≤ 38 % of the height, scrollable) and the environment's folds to a strip at the top-left; the three-state sheets
+   (hidden · bar · full) are M22b-2 / U24. */
+@media (pointer: coarse) and (max-width: 700px) {
+  body #panel-construir { top: auto !important; right: 0 !important; left: 0 !important; bottom: 0 !important; width: auto !important; max-height: 38vh !important; border-radius: 12px 12px 0 0 !important; padding-bottom: calc(8px + env(safe-area-inset-bottom)) !important; }
+  body #panel-entorno { top: 64px !important; left: 0 !important; width: 46vw !important; max-height: 22vh !important; font-size: 12px !important; border-radius: 0 8px 8px 0 !important; }
+}
+@media (min-width: 900px) { #help { max-width: calc(100vw - 440px) !important; } }
 #ajustes .version-motor { margin: 10px 0 0; font: 12px "Geist Mono", ui-monospace, monospace; color: var(--n-texto2); text-align: right; user-select: all; }
 #ajustes .version-motor:empty { display: none; }
 
@@ -286,3 +295,13 @@ html[data-densidad-nivel="minimo"] #avisos-pila p:not(:last-child), html[data-de
 }
 /* U24 × U3: on a phone layout the notices sit under the «Ahora» line's row (top left holds it, top right the gear and the map) */
 html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 12px)); top: calc(var(--st, 0px) + 8px + 52px + 6px); transform: none; width: min(300px, calc(100vw - var(--sl, 0px) - var(--sr, 0px) - 2 * var(--m, 12px))); }
+
+/* combate nivel 2: Carga bar + ability buttons (apps/plaza/combate.ts) */
+#combate-hud { position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%); z-index: 6; width: min(94vw, 360px); display: grid; gap: 6px; }
+#combate-hud[hidden] { display: none; }
+#combate-hud .barra { position: relative; height: 18px; border-radius: 9px; background: var(--n-sup); border: 1px solid var(--n-linea); overflow: hidden; }
+#combate-hud .relleno { height: 100%; width: 0; background: var(--n-turquesa, #3fd1c6); transition: width .15s; }
+#combate-hud .texto { position: absolute; inset: 0; display: grid; place-items: center; font: 600 12px system-ui, sans-serif; color: var(--n-texto); }
+#combate-hud .botones { display: flex; gap: 6px; }
+#combate-hud button { flex: 1; min-height: 40px; border-radius: 8px; border: 1px solid var(--n-linea); background: var(--n-sup); color: var(--n-texto); font: 600 12px system-ui, sans-serif; opacity: .55; }
+#combate-hud button.lista { opacity: 1; border-color: var(--n-ambar); }

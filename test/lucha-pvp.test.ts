@@ -1,0 +1,197 @@
+// lucha L8 — the player's Estado ladder (server side, no UI): a blow on `p:<entity>` raises one rung of ninguno →
+// desestabilizado → confundido → colapsado → aletargado; it settles by itself; PVP is off unless the world turns it on.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { fx } from "../packages/core/src/index.ts";
+import { Instance } from "../packages/instance/src/index.ts";
+import { ClientSession } from "../packages/client/src/index.ts";
+import type { GuestKeeper } from "../packages/client/src/index.ts";
+import { signer } from "../packages/server/src/secret.ts";
+import { ENFRIAMIENTO_TICKS } from "../features/lucha/feature.ts";
+import { crearLucha, HZ } from "../features/lucha/server.ts";
+import { crearCliente, ROTULO, ESTADO_MS, REAPARECE_MS } from "../features/lucha/client.ts";
+import type { Pvp } from "../features/lucha/estados.ts";
+import { leerPvp, pvpEn, pvpEntre } from "../features/lucha/estados.ts";
+import { conMundo } from "../features/mundo.ts";
+import { crearEscalera, ESCALERA, CALMA_TICKS, INCAPACITADO_S } from "../features/lucha/estados.ts";
+import funciones from "../features/servidor.ts";
+
+const sign = signer("una-clave-de-prueba-larga");
+type Keeper = GuestKeeper & { token: string | null };
+const keeper = (): Keeper => { const k = { token: null as string | null, load: () => k.token, save: (t: string) => { k.token = t; } }; return k; };
+
+/** n people in a headless world with the lucha server (`pvp` as the world says), a pump by ticks. */
+function mundo(n = 2, pvp: boolean | Pvp = true) {
+  const log: string[] = [];
+  const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [crearLucha({ criaturas: [], semilla: 7, pvp })], log: (l) => log.push(l), identitySign: sign });
+  const pages = Array.from({ length: n }, (_, i) => {
+    const eventos: { event: string; msg: Record<string, unknown> }[] = [];
+    const t = inst.join(i), cli = crearCliente((event, msg) => eventos.push({ event, msg })), k = keeper(), seen: string[] = [];
+    const s = new ClientSession(t, { features: [cli.part], identity: k, view: { label: (e, text) => seen.push(`label ${e} ${text}`), bounce: () => {} } });
+    return { t, s, l: cli.lucha, eventos, seen };
+  });
+  const pump = (ticks = 1) => { for (let i = 0; i < ticks; i++) { for (const c of pages) c.t.flush(); inst.tick(); for (const c of pages) c.t.flush(); } };
+  const place = (e: number, x: number, z: number) => { inst.sim.tf.cols.x[e] = fx(x); inst.sim.tf.cols.z[e] = fx(z); };
+  const evs = (c: (typeof pages)[number], ev: string) => c.eventos.filter((x) => x.event === ev).map((x) => x.msg);
+  return { inst, pages, pump, place, evs, log };
+}
+
+test("estados: the ladder is pure — one rung per blow, stops at aletargado, settles one rung per CALMA_TICKS, aletargado does not settle", () => {
+  assert.deepEqual([...ESCALERA], ["ninguno", "desestabilizado", "confundido", "colapsado", "aletargado"]);
+  const L = crearEscalera();
+  assert.equal(L.estado(5, 0), "ninguno");
+  const subidas = [1, 2, 3, 4, 4, 4].map((_, i) => L.subir(5, i));
+  assert.deepEqual(subidas, [1, 2, 3, 4, 4, 4]);
+  assert.equal(L.estado(5, 10_000_000), "aletargado", "aletargado is left by reappearing, not by waiting");
+  L.reiniciar(5); assert.equal(L.size, 0);
+  L.subir(6, 0); L.subir(6, 0); // confundido
+  assert.equal(L.estado(6, CALMA_TICKS - 1), "confundido");
+  assert.equal(L.estado(6, CALMA_TICKS), "desestabilizado");
+  assert.equal(L.estado(6, 2 * CALMA_TICKS), "ninguno");
+  assert.equal(L.size, 0, "a settled player takes no memory");
+});
+
+test("lucha pvp: hitting a person in a loop climbs the four rungs and then stops; everyone near hears each rung; no health number anywhere", () => {
+  assert.ok(funciones.some((f) => f.feature.id === "lucha"));
+  const W = mundo(2);
+  W.pump(2);
+  const [a, b] = W.pages;
+  W.place(a.s.entity, 0, 0); W.place(b.s.entity, 1, 0);
+  W.pump(12);
+  const visto: string[] = [];
+  for (let i = 0; i < 6; i++) { assert.deepEqual(a.l.golpear(`p:${b.s.entity}`), { ok: true }); W.pump(ENFRIAMIENTO_TICKS + 1); }
+  for (const m of W.evs(a, "estado")) visto.push(String(m.estado));
+  assert.deepEqual(visto, ["desestabilizado", "confundido", "colapsado", "aletargado"].slice(0, visto.length));
+  // a (the attacker) is not hurt: three rungs on b and the fourth blow lands only while a is not colapsado — a is ninguno
+  assert.equal(visto.length, 4, `rungs seen: ${visto.join(",")}`);
+  assert.equal(W.evs(b, "estado").length, 4, "the target hears its own rungs");
+  assert.equal(W.evs(a, "estado")[0].objetivo, `p:${b.s.entity}`);
+  assert.equal(W.evs(a, "golpe").length, 0, "a person has no coherence/damage number");
+  assert.ok(W.evs(a, "rechazado").some((m) => String(m.motivo).includes("aletargada")), "the 5th blow on an Aletargado person is refused");
+});
+
+test("lucha pvp: refused when the world has no PVP, on yourself, on nobody; out of reach = aire; the cooldown swallows a repeat; a colapsado person cannot strike", () => {
+  const off = mundo(2, false);
+  off.pump(2);
+  off.place(off.pages[0].s.entity, 0, 0); off.place(off.pages[1].s.entity, 1, 0); off.pump(12);
+  off.pages[0].l.golpear(`p:${off.pages[1].s.entity}`); off.pump(2);
+  assert.ok(off.evs(off.pages[0], "rechazado").some((m) => String(m.motivo).includes("no se lucha entre personas")));
+  assert.equal(off.evs(off.pages[1], "estado").length, 0);
+
+  const W = mundo(2);
+  W.pump(2);
+  const [a, b] = W.pages;
+  W.place(a.s.entity, 0, 0); W.place(b.s.entity, 30, 0); W.pump(12);
+  a.l.golpear(`p:${b.s.entity}`); W.pump(2);
+  assert.equal(W.evs(a, "aire").length, 1, "30 m away");
+  a.l.golpear(`p:${a.s.entity}`); W.pump(6); a.l.golpear("p:999"); W.pump(6);
+  assert.equal(W.evs(a, "rechazado").length, 2, "yourself and nobody");
+  W.place(b.s.entity, 1, 0); W.pump(12);
+  a.l.golpear(`p:${b.s.entity}`); W.pump(1); a.l.golpear(`p:${b.s.entity}`); W.pump(2);
+  assert.equal(W.evs(b, "estado").length, 1, "the second blow is swallowed by the cooldown");
+  // b gets colapsado (3 rungs) and then cannot strike a
+  for (let i = 0; i < 2; i++) { W.pump(ENFRIAMIENTO_TICKS + 1); a.l.golpear(`p:${b.s.entity}`); W.pump(1); }
+  W.pump(ENFRIAMIENTO_TICKS + 1);
+  b.l.golpear(`p:${a.s.entity}`); W.pump(2);
+  assert.ok(W.evs(b, "rechazado").some((m) => String(m.motivo).includes("colapsado")));
+  assert.ok(W.evs(a, "estado").every((m) => m.objetivo === `p:${b.s.entity}`), "a was never hit");
+});
+
+test("lucha pvp: reaching Aletargado freezes the person, then the server puts them on their last safe spot with Estado ninguno — nothing else of theirs is touched", () => {
+  const W = mundo(2);
+  W.pump(2);
+  const [a, b] = W.pages;
+  W.place(a.s.entity, 0, 0); W.place(b.s.entity, 1, 0);
+  W.pump(12);                                                   // b stands on the ground: that is its safe spot
+  const seguro = { x: 1, z: 0 };
+  for (let i = 0; i < 4; i++) { a.l.golpear(`p:${b.s.entity}`); W.pump(ENFRIAMIENTO_TICKS + 1); }
+  assert.equal(W.evs(b, "estado").at(-1)!.estado, "aletargado");
+  assert.equal(W.evs(b, "reaparece").length, 0, "not yet: still for a while");
+  W.place(b.s.entity, 6, 0); W.inst.sim.tf.cols.y[b.s.entity] = fx(40); // knocked off the floor meanwhile (e.g. by a world's mover): not a safe spot
+  W.pump(INCAPACITADO_S * HZ + 4);
+  assert.equal(W.evs(b, "reaparece").length, 1);
+  assert.equal(W.evs(a, "reaparece").length, 1, "the attacker, near, sees it too");
+  const x = W.inst.sim.tf.cols.x[b.s.entity] / 65536, z = W.inst.sim.tf.cols.z[b.s.entity] / 65536;
+  assert.ok(Math.hypot(x - seguro.x, z - seguro.z) < 2, `back on the safe spot, at ${x},${z}`);
+  // Estado is ninguno again: b can strike and be struck from the first rung
+  b.l.golpear(`p:${a.s.entity}`); W.pump(2);
+  assert.equal(W.evs(a, "estado").filter((m) => m.objetivo === `p:${a.s.entity}`).at(-1)?.estado, "desestabilizado");
+});
+
+test("pvp flag: entorno.json pvp/zonasPvp — absent = off; a «no» zone beats a «yes» one; both people must stand where it is on", () => {
+  assert.deepEqual(leerPvp({}), { ok: true, value: null });
+  assert.deepEqual(leerPvp({ pvp: true }), { ok: true, value: { mundo: true, zonas: [] } });
+  const l = leerPvp({ pvp: false, zonasPvp: [{ id: "arena", x: 50, z: 0, radio: 10, pvp: true }, { id: "paz", x: 58, z: 0, radio: 2, pvp: false }] });
+  assert.ok(l.ok && l.value);
+  const c = l.value!;
+  assert.equal(pvpEn(c, 0, 0), false, "outside every zone: the world's false");
+  assert.equal(pvpEn(c, 50, 5), true, "inside the arena");
+  assert.equal(pvpEn(c, 58, 0), false, "the safe place inside the arena stays safe");
+  assert.equal(pvpEntre(c, { x: 50, z: 0 }, { x: 55, z: 0 }), true);
+  assert.equal(pvpEntre(c, { x: 50, z: 0 }, { x: 0, z: 0 }), false, "one in, one out: no");
+  assert.equal(pvpEn({ mundo: true, zonas: [{ id: "paz", x: 0, z: 0, radio: 5, pvp: false }] }, 1, 1), false);
+  // wrong values: said with their path, the right part still used; a wrong pvp leaves the world at false
+  const m = leerPvp({ pvp: "si", zonasPvp: [{ x: 1, z: 1, radio: 0, pvp: true }, { id: "ok", x: 1, z: 1, radio: 3, pvp: true }] });
+  assert.ok(!m.ok && m.issues.map((i) => i.path).join() === "entorno.pvp,entorno.zonasPvp[0]" && m.parcial?.zonas.length === 1 && m.parcial.mundo === false);
+  assert.ok(!leerPvp({ zonasPvp: 3 }).ok);
+});
+
+test("pvp flag: the server refuses a blow between two people unless BOTH stand in PVP ground; nothing changes for them when refused", () => {
+  const zonas: Pvp = { mundo: false, zonas: [{ id: "arena", x: 50, z: 0, radio: 10, pvp: true }] };
+  const W = mundo(2, zonas);
+  W.pump(2);
+  const [a, b] = W.pages;
+  W.place(a.s.entity, 0, 0); W.place(b.s.entity, 1, 0); W.pump(12);           // both in the open world (false)
+  a.l.golpear(`p:${b.s.entity}`); W.pump(2);
+  assert.equal(W.evs(a, "rechazado").length, 1);
+  assert.equal(W.evs(b, "estado").length, 0);
+  W.place(a.s.entity, 50, 0); W.pump(12);                                        // attacker in the arena, target outside
+  a.l.golpear(`p:${b.s.entity}`); W.pump(2);
+  assert.equal(W.evs(a, "rechazado").length, 2);
+  W.place(a.s.entity, 50, 0); W.place(b.s.entity, 51, 0); W.pump(12);            // both in the arena
+  a.l.golpear(`p:${b.s.entity}`); W.pump(2);
+  assert.equal(W.evs(b, "estado").at(-1)?.estado, "desestabilizado");
+});
+
+test("pvp flag: conMundo reads entorno.json — pvp true turns it on for a world without lucha.json; no entorno or pvp false = off", () => {
+  const lucha = funciones.find((f) => f.feature.id === "lucha")!;
+  for (const [entorno, esperado] of [[{ pvp: true }, true], [undefined, false], [{ pvp: false }, false]] as const) {
+    const log: string[] = [], eventos: string[] = [];
+    const partes = conMundo([lucha], (f) => (f === "entorno.json" ? entorno : undefined), (l) => log.push(l));
+    const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: partes, log: (l) => log.push(l), identitySign: sign });
+    const c0 = crearCliente((ev, m) => { if (ev === "estado") eventos.push(String(m.estado)); }), c1 = crearCliente();
+    const ts = [inst.join(0), inst.join(1)];
+    const ss = [new ClientSession(ts[0], { features: [c0.part], identity: keeper(), view: {} }), new ClientSession(ts[1], { features: [c1.part], identity: keeper(), view: {} })];
+    const pump = (n: number) => { for (let i = 0; i < n; i++) { for (const x of ts) x.flush(); inst.tick(); for (const x of ts) x.flush(); } };
+    pump(2);
+    for (const [i, x] of [[0, 0], [1, 1]] as const) { inst.sim.tf.cols.x[ss[i].entity] = fx(x); inst.sim.tf.cols.z[ss[i].entity] = fx(0); }
+    pump(12);
+    c0.lucha.golpear(`p:${ss[1].entity}`); pump(3);
+    assert.equal(eventos.length > 0, esperado, `entorno ${JSON.stringify(entorno)} → ${eventos.join()}`);
+    assert.ok(log.every((l) => !l.includes("entorno.pvp")));
+  }
+  const mal: string[] = [];
+  conMundo([lucha], (f) => (f === "entorno.json" ? { pvp: "quizá" } : undefined), (l) => mal.push(l));
+  assert.ok(mal.some((l) => l.includes("entorno.pvp") && l.includes("true")), mal.join("\n"));
+});
+
+test("pvp feedback: the Estado shows over the person struck (icon + word) for whoever sees the blow, climbs with each rung, and clears when they reappear", () => {
+  const W = mundo(3);
+  W.pump(2);
+  const [a, b, c] = W.pages;
+  W.place(a.s.entity, 0, 0); W.place(b.s.entity, 1, 0); W.place(c.s.entity, 6, 0); W.pump(12);
+  a.l.golpear(`p:${b.s.entity}`); W.pump(ENFRIAMIENTO_TICKS + 1);
+  a.l.golpear(`p:${b.s.entity}`); W.pump(ENFRIAMIENTO_TICKS + 1);
+  for (const who of [a, b, c]) {
+    assert.equal(who.l.estadoDe(b.s.entity), "confundido", "attacker, target and onlooker all know the rung");
+    assert.ok(who.seen.includes(`label ${b.s.entity} ${ROTULO.desestabilizado}`) && who.seen.includes(`label ${b.s.entity} ${ROTULO.confundido}`), who.seen.join("|"));
+  }
+  assert.equal(a.l.estadoDe(a.s.entity), "ninguno", "the attacker has nothing over them");
+  for (let i = 0; i < 2; i++) { a.l.golpear(`p:${b.s.entity}`); W.pump(ENFRIAMIENTO_TICKS + 1); }
+  assert.equal(a.l.estadoDe(b.s.entity), "aletargado");
+  assert.ok(a.seen.includes(`label ${b.s.entity} ${ROTULO.aletargado}`));
+  W.pump(INCAPACITADO_S * HZ + 4);
+  assert.equal(a.l.estadoDe(b.s.entity), "ninguno");
+  assert.ok(a.seen.includes(`label ${b.s.entity} Reaparece`));
+  assert.ok(ROTULO.ninguno === "" && ESTADO_MS > REAPARECE_MS);
+});

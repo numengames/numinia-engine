@@ -12,6 +12,8 @@ export const CERCA_M = 30;
 export const EN_MANOS_MAX = 1;
 /** Nobody carries it. */
 export const NADIE = -1;
+/** J4: how long you must hold «coger» before a thing is handed to you (s, mantener-pulsado). «soltar» stays instant. */
+export const MANTENER_S = 0.4;
 
 const ID = { kind: "text", maxBytes: 16 } as const;
 const X = { kind: "fixed", min: -2000, max: 2000, step: 0.01 } as const;
@@ -32,7 +34,7 @@ export const cogibles = defineFeature({
       radio: { kind: "fixed", min: 0, max: 16, step: 0.1, default: 2 },
       portador: { kind: "int", min: NADIE, max: 65535, default: NADIE },
     },
-    card: { role: "objeto", name: "{nombre}", description: "Cosa que se coge y se suelta; el servidor decide quién la lleva", at: ["x", "z"], actions: ["coger", "soltar"], interact: { intent: "coger", prompt: "coger {nombre}", radius: "radio", key: "cosa" } },
+    card: { role: "objeto", name: "{nombre}", description: "Cosa que se coge y se suelta; el servidor decide quién la lleva", at: ["x", "z"], actions: ["coger", "soltar"], interact: { intent: "coger", prompt: "coger {nombre}", radius: "radio", key: "cosa", hold: MANTENER_S } },
     radius: ALCANCE_M,
   },
   intents: {

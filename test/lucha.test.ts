@@ -159,3 +159,143 @@ test("lucha: a world's lucha.json with an unknown species places nothing and say
   assert.ok(W.log.some((l) => l.includes("no está en el bestiario")));
   assert.equal([...W.inst.features.allState()].length, 0);
 });
+
+// ---- combate nivel 2, h1: the Eclipse Mnémico kit (server-side; no UI) ----
+import { ECLIPSE, cargaTras, CARGA_MAX } from "../features/lucha/habilidades.ts";
+
+test("lucha h1: the kit table matches the design (damage / cooldown / cost / Carga generated)", () => {
+  const f = (k: string) => { const h = ECLIPSE[k]; return [h.dano, h.enfriamiento, h.coste, h.genera]; };
+  assert.deepEqual(f("corte-breve"), [12, 1, 0, 12]);
+  assert.deepEqual(f("incision-semantica"), [30, 4, 30, 0]);
+  assert.deepEqual(f("discontinuidad"), [55, 8, 55, 0]);
+  assert.equal(cargaTras(95, ECLIPSE["corte-breve"]), CARGA_MAX, "Carga caps at 100");
+  assert.equal(cargaTras(40, ECLIPSE["incision-semantica"]), 10);
+  assert.ok(lucha.issues.length === 0);
+});
+
+test("lucha h1: abilities in a loop respect their own cooldown and need Carga", () => {
+  const big = { ...G, reaparicion: 0.05 };           // comes back whole a tick after dissolving: the dummy never runs out
+  const W = mundo(1, 7, [big]);
+  const p = W.pages[0], hab = (c: string) => { p.l.habilidad(c); W.pump(1); };
+  W.pump(2); W.place(p.s.entity, 11, 0); W.pump(12);
+  const usos = (c: string) => W.evs(p, "habilidad").filter((m) => m.cual === c).length;
+  // no Carga: both spenders are refused with a reason, nothing happens
+  hab("incision-semantica"); hab("discontinuidad"); W.pump(2);
+  assert.equal(W.evs(p, "habilidad").length, 0);
+  assert.equal(W.evs(p, "rechazado").length, 2);
+  assert.equal(p.l.carga(), 0);
+  // Corte Breve: 1 s cooldown (20 ticks). Spam 60 ticks → exactly 3 uses (ticks 0, 20, 40), +12 Carga each
+  for (let i = 0; i < 60; i++) hab("corte-breve");
+  W.pump(2);
+  assert.equal(usos("corte-breve"), 3);
+  assert.equal(p.l.carga(), 36);
+  // Incisión: costs 30 → Carga 6; the second try (no Carga, then cooldown) does nothing
+  hab("incision-semantica"); W.pump(2);
+  assert.equal(usos("incision-semantica"), 1);
+  assert.equal(p.l.carga(), 6);
+  hab("incision-semantica"); W.pump(2);
+  assert.equal(usos("incision-semantica"), 1);
+  // refill past 55 with Corte Breve (6 + 12*5 = 66), then Discontinuidad: 66 − 55 = 11, damage 55
+  for (let i = 0; i < 5; i++) { hab("corte-breve"); W.pump(20); }
+  assert.equal(p.l.carga(), 66);
+  hab("discontinuidad"); W.pump(2);
+  const d = W.evs(p, "habilidad").filter((m) => m.cual === "discontinuidad");
+  assert.equal(d.length, 1);
+  assert.equal(d[0].dano, 55);
+  assert.equal(p.l.carga(), 11);
+  // Discontinuidad cooldown 8 s = 160 ticks; with Carga 71 it is still refused silently until then
+  for (let i = 0; i < 6; i++) { hab("corte-breve"); W.pump(20); }
+  assert.ok(p.l.carga() >= 55);
+  hab("discontinuidad"); W.pump(2);
+  assert.equal(usos("discontinuidad"), 1, "still cooling down");
+  W.pump(60);
+  hab("discontinuidad"); W.pump(2);
+  assert.equal(usos("discontinuidad"), 2);
+});
+
+test("lucha h1: out of reach = aire and no Carga spent; unknown ability / creature are refused", () => {
+  const W = mundo(1);
+  const p = W.pages[0];
+  W.pump(2); W.place(p.s.entity, 40, 40); W.pump(12);
+  p.l.habilidad("corte-breve", KEY); W.pump(2);
+  assert.equal(W.evs(p, "aire").length, 1);
+  assert.equal(p.l.carga(), 0);
+  p.l.habilidad("corte-breve", "c:nada"); W.pump(2);
+  assert.equal(W.evs(p, "rechazado").length, 1);
+});
+
+// ---- combate nivel 2, h2: the Carga bar follows the server's `carga` ----
+import { vistaCarga } from "../features/lucha/habilidades.ts";
+
+test("lucha h2: the bar view is clamped and says which abilities are affordable", () => {
+  assert.deepEqual(vistaCarga(0), { pct: 0, texto: "Carga 0/100", listas: { "corte-breve": true, "incision-semantica": false, "discontinuidad": false } });
+  assert.equal(vistaCarga(30).listas["incision-semantica"], true);
+  assert.equal(vistaCarga(54).listas["discontinuidad"], false);
+  assert.equal(vistaCarga(55).listas["discontinuidad"], true);
+  assert.equal(vistaCarga(250).pct, 100);
+  assert.equal(vistaCarga(NaN).pct, 0);
+});
+
+test("lucha h2: Corte Breve raises the page's bar by 12, Incisión Semántica lowers it by 30; the page is told on each change", () => {
+  const W = mundo(1, 7, [{ ...G, reaparicion: 0.05 }]);
+  const p = W.pages[0];
+  let avisos = 0; p.l.alCambiar(() => { avisos++; });
+  W.pump(2); W.place(p.s.entity, 11, 0); W.pump(12);
+  for (let i = 0; i < 3; i++) { p.l.habilidad("corte-breve"); W.pump(20); }
+  assert.equal(vistaCarga(p.l.carga()).pct, 36);
+  const antes = avisos;
+  p.l.habilidad("incision-semantica"); W.pump(2);
+  assert.equal(vistaCarga(p.l.carga()).pct, 6, "36 − 30");
+  assert.ok(avisos > antes, "the bar is repainted");
+});
+
+// ---- combate nivel 2, h3: critical hits (20 % / x2), decided by the server's seeded PRNG ----
+import { tirarCritico } from "../features/lucha/server.ts";
+import { CRITICO_PCT, CRITICO_X } from "../features/lucha/habilidades.ts";
+import { textoDano, COLOR_CRITICO } from "../features/lucha/client.ts";
+
+/** Run n Corte Breve uses on a creature that returns at once; the list of [critico, dano] the page saw. */
+function rafaga(semilla: number, n: number) {
+  const W = mundo(1, semilla, [{ ...G, reaparicion: 0.05 }]);
+  const p = W.pages[0];
+  W.pump(2); W.place(p.s.entity, 11, 0); W.pump(12);
+  for (let i = 0; i < n; i++) { p.l.habilidad("corte-breve"); W.pump(20); }
+  W.pump(2);
+  return { W, p, hits: W.evs(p, "habilidad").map((m) => [m.critico === true, Number(m.dano)] as const) };
+}
+
+test("lucha h3: ~1 in 5 hits is critical and doubles the number; same seed = same crits", () => {
+  const N = 300, { hits, W, p } = rafaga(11, N);
+  assert.equal(hits.length, N);
+  const crits = hits.filter(([c]) => c).length;
+  assert.ok(crits >= N * 0.1 && crits <= N * 0.3, `crits ${crits}/${N} should be near ${CRITICO_PCT}%`);
+  for (const [c, d] of hits) assert.equal(d, c ? 12 * CRITICO_X : 12);
+  assert.equal(W.evs(p, "critico").length, crits, "one `critico` event per critical");
+  assert.deepEqual(rafaga(11, 60).hits, hits.slice(0, 60), "replayable");
+  assert.notDeepEqual(rafaga(12, 60).hits, hits.slice(0, 60), "another seed rolls other crits");
+  // the roll is the pure PRNG function: 20 % of many draws
+  const r = new Uint32Array([5]); let k = 0; for (let i = 0; i < 5000; i++) if (tirarCritico(r)) k++;
+  assert.ok(k > 800 && k < 1200, `${k}/5000`);
+});
+
+test("lucha h3: a critical applies the doubled damage to coherence, and the page paints it gold with ¡CRÍTICO!", () => {
+  const W = mundo(1, 11, [{ ...G, reaparicion: 0.05 }]);
+  const p = W.pages[0];
+  W.pump(2); W.place(p.s.entity, 11, 0); W.pump(12);
+  let visto = false;
+  for (let i = 0; i < 40 && !visto; i++) {
+    const antes = Number(W.estado().coherencia);
+    p.l.habilidad("corte-breve"); W.pump(2);
+    const ult = W.evs(p, "habilidad").at(-1)!;
+    assert.equal(Number(ult.queda), Math.max(0, antes - Number(ult.dano)), "queda = before − damage");
+    if (Number(ult.queda) > 0) assert.equal(Number(W.estado().coherencia), Number(ult.queda));
+    if (ult.critico && Number(ult.queda) > 0) {   // a killing blow dissolves the creature: nothing left to paint
+      visto = true;
+      assert.ok(p.seen.some((s) => s.startsWith(`tag lucha:${KEY} `) && s.includes("¡CRÍTICO! −24")), "damage tag");
+      assert.ok(p.seen.some((s) => s.includes(`place lucha:${KEY}`) && s.endsWith(COLOR_CRITICO)), "gold flash");
+    }
+    W.pump(20);
+  }
+  assert.ok(visto, "a critical showed up within the first hits");
+  assert.equal(textoDano(12, false), "  −12");
+});

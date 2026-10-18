@@ -13,6 +13,7 @@ import { chatDePagina } from "../../features/chat/client.ts";
 import { montarConstructor } from "./constructor.ts";
 import { montarSoltar } from "./soltar.ts";
 import { montarHuecos } from "./huecos.ts";
+import { montarEnlaces } from "./enlaces.ts"; // J4: click on a thing with a link opens it (new tab, after confirming)
 import { disparadores } from "../../features/disparadores/client.ts"; // D-041: the cable — controller
 import { montarCable } from "./cable.ts"; // D-041, historias 5-6: builder's live view + editor of the wiring
 import { montarVideoMandos } from "./video-mandos.ts";
@@ -20,7 +21,7 @@ import { catalogoDeAvatares } from "./catalogo-avatares.ts"; // not "./a…": de
 import { montarChat } from "./chat.ts";
 import { escribiendo } from "./escribiendo.ts";
 import { misiones } from "../../features/misiones/client.ts";
-import { montarInteraccion } from "./interactuar.ts";
+import { montarInteraccion, construyendo } from "./interactuar.ts";
 import { montarDialogo } from "./dialogo.ts";
 import { montarVerNombres } from "./nombres-ver.ts";
 import { montarLibro } from "./misiones.ts";
@@ -46,14 +47,18 @@ import { cerraduras } from "../../features/cerradura/client.ts"; // D-042: a loc
 import { montarCerradura } from "./cerradura.ts";
 import { pantallasWeb } from "../../features/web/client.ts"; // N17: web screens (the controller)
 import { montarWeb } from "./web.ts";
+import { ancestros } from "../../features/ancestros/client.ts"; // ancestros v1: the Salón de los Ancestros and the hologram of the tribute to Asimov (the controller)
+import { montarAncestros } from "./ancestros.ts";
 import { montarVoz } from "./voz.ts";
 import { icono } from "./iconos.ts";
 import { montarXR } from "./xr.ts";
+import { carga } from "./carga.ts"; // U1/H2: the loading screen (shell and controller are in index.html)
 import { aplicarTema } from "./tema-mundo.ts"; // a world's look (ficha@1 `tema`): an event's colours and title face
 import { montarFoto } from "./foto.ts"; // N13: photo mode (P): hide the interface, frame, filter, PNG, share, a link to the place
 import { esTactil, perfil, montarMarco } from "./perfil-aparato.ts"; // U25: the device profile (touch, small screen, VR), one answer for the whole page
 import { esMovil, enZonaAndar, ZONA_ANDAR_MOVIL } from "../../packages/client/src/movil.ts"; // U24: the phone layout (apps/plaza/movil.ts) and its rules
 
+carga.irA("grafica"); // the code is here
 const params = new URLSearchParams(location.search);
 // U25: a phone profile forced on a desktop (?aparato=movil-vertical, development or ?debug): this page becomes a frame
 // that loads the world again at phone size, and starts nothing itself (no view, no connection) — it stops here.
@@ -71,7 +76,8 @@ const estado = await Promise.race([estadoP, new Promise<null>((ok) => setTimeout
 if (estado?.nombre) { document.title = estado.nombre; hud.textContent = `Conectando a «${estado.nombre}»…`; }
 const enMovil = esMovil(perfil().clase); // U24: the phone layout: the joystick owns the left third, a bigger stick, the rest of the screen looks
 const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, movil: perfil().forzado ? perfil().movil : undefined, assetUrl: (m) => `${activos}/a/${m}.glb`,
-  avatares: { catalogo: catalogoDeAvatares(activos, params, estado?.avatar), yo: () => session.entity } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar
+  avatares: { catalogo: catalogoDeAvatares(activos, params, estado?.avatar), yo: () => session.entity, parkour: () => session.parkour() } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar
+carga.irA("red");
 const transport = webSocketClient(url);
 // game features (J7): their client parts, and how they may draw (a label, a hop) over any avatar
 // I1: the guest token stays in this browser (no account, no personal data); private mode = a new guest each time
@@ -155,6 +161,8 @@ montarConstructor(constructor, view, document.getElementById("construir") as HTM
 const soltar = montarSoltar({ session, view, puede: () => constructor.estado.puede, origen: activos, billete: () => localStorage.getItem(GUARDA), panel: document.getElementById("panel-construir") });
 // ---- U12: holes — click one (or E near it) and choose your picture: it goes up and the server fits it into the frame ----
 const huecos = montarHuecos({ constructor, view, rellenar: soltar.rellenar, decir: (t) => soltar.decir(t), panel: document.getElementById("panel-construir") });
+// ---- J4: a thing may carry a link (set in the inspector); a click on it opens it in a new tab, after confirming ----
+const enlaces = montarEnlaces({ constructor, view, construyendo: () => construyendo(view) });
 const cable = montarCable({ constructor, disparadores, decir: (t) => soltar.decir(t), panel: document.getElementById("panel-construir") });
 // ---- D-042: a code lock opens its own keypad (HTML); a key lock keeps the plain J4 flow ----
 const cerradurasPagina = montarCerradura({ cerradura: cerraduras });
@@ -168,11 +176,14 @@ montarDirector({ dj: dirigir, ambiente, view }); // N6: the Game Director (who m
 const gente = montarGente({ viajar, barra: document.getElementById("barra-arriba"), orden: (t) => chatDePagina.decir(t) }); // F1: «Silenciar»/«Oír» per person = /bloquear and /desbloquear
 viajar.alDestello((d) => view.teletransporte.lanzar({ ...d, clave: d.quien === session.entity ? "self" : d.quien }));
 const webPagina = montarWeb({ web: pantallasWeb, view }); // N17: web screens — iframe in the world (PC/phone), card + «Abrir fuera» in VR
+const ancestrosPagina = montarAncestros({ ancestros, view }); // ancestros v1: the hall in 3D, the two panels, and the law + our rule on screen when the hologram answers you
 // ---- pesca v1: nothing of it is in the start bundle; the HUD and the 3D arrive with the first fishing spot or float ----
 let pescaHud: Promise<unknown> | null = null, pescaPagina: unknown = null; // N4: pescaPagina.manos (VR rod, gamepad) for the e2e
 pesca.alCambiar(() => { pescaHud ??= import("./pesca.ts").then((m) => (pescaPagina = m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, ajuste: leerAjuste, interaccion: () => interaccion }))).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); });
 // ---- dardos v1: the throwing view (mouse, flick, keys) and «En tu pared (AR)» arrive with the first dartboard ----
 let dardosHud: Promise<unknown> | null = null;
+let combateHud: Promise<unknown> | null = null; // combate nivel 2: Carga bar + ability keys, loaded with the first creature the page knows
+lucha.alCambiar(() => { if (lucha.criaturas().length > 0) combateHud ??= import("./combate.ts").then((m) => m.montarCombate({ lucha })).catch((e) => console.warn(`[combate] no se pudo cargar la página de combate: ${(e as Error)?.message ?? e}`)); });
 dardos.alCambiar(() => { dardosHud ??= import("./dardos.ts").then((m) => m.montarDardos({ dardos, view, session, hud: document.getElementById("dardos-hud")! })).catch((e) => console.warn(`[dardos] no se pudo cargar la página de dardos: ${(e as Error)?.message ?? e}`)); });
 
 // ---- U10: the microphone (button or Q): your voice to who is near; theirs from where they stand ----
@@ -182,7 +193,7 @@ const voz = montarVoz({ session, view: { label: (t, text, ms) => view.label(t, t
 const cajaChat = montarChat(chatDePagina, document.getElementById("chat")!);
 
 // ---- J4/J5: what you can use from close by (E, a click, the prompt button), conversations, the quest book (J) ----
-const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k) && cerradurasPagina.ofrece(f, k) && lucha.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: (x, z, y) => [...huecos.cerca(x, z, y), ...cerradurasPagina.cerca(x, z), ...videoMandos.cerca(x, z)], pinchar: huecos.pinchar });
+const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k) && cerradurasPagina.ofrece(f, k) && lucha.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: (x, z, y) => [...huecos.cerca(x, z, y), ...cerradurasPagina.cerca(x, z), ...videoMandos.cerca(x, z)], pinchar: (key) => huecos.pinchar(key) || enlaces.pinchar(key) });
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
 const xr = montarXR({ session, view, misiones, interaccion }); // J10: hands in VR take, point and answer; what you took is in your hand
 montarDialogo(misiones, document.getElementById("dialogo")!, view);
@@ -437,7 +448,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, videoMandos, mapa, ficha, ambiente, elementos, voz, xr, pesca, lucha, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, ambiente, elementos, voz, xr, pesca, lucha, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable, carga, ancestros, ancestrosPagina };
 
 // ---- U11: the bar of icon buttons, top right (rightmost first): settings, build, microphone, full screen, VR, AR ----
 {
@@ -454,6 +465,26 @@ function drawHud() {
 // before the first frame: the display loop above only draws from the next animation frame on ----
 montarAjustes({ view, session, params, funciones, numinia: (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia });
 montarPulsaciones({ ajuste: leerAjuste });
+
+// ---- H2: the loading screen follows real signals only: the welcome (red) → files of the world (mundo) → materials
+// (preparar) → first drawn frame (listo). It shows after 400 ms and stays 600 ms (index.html's controller) ----
+void (async () => {
+  const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  while (!session.welcome) await dormir(50);
+  let visto = 0, quietas = 0;
+  while (quietas < 2) { // the world's files: nothing pending twice in a row (the first messages of the zone may still be on their way)
+    const pendientes = view.cargando();
+    visto = Math.max(visto, pendientes);
+    carga.irA("mundo", visto - pendientes, visto);
+    quietas = pendientes === 0 && session.entity >= 0 ? quietas + 1 : 0;
+    await dormir(100);
+  }
+  carga.irA("preparar", 0, 1);
+  await view.preparar();
+  carga.irA("preparar", 1, 1);
+  while (!informe.primerCuadroMs) await dormir(50);
+  carga.listo();
+})();
 
 // battery mode: press B (or open ?bateria)
 addEventListener("keydown", (e) => { if (e.code === "KeyB" && !escribiendo(e)) { view.power.setBattery(!view.power.battery); view.applyPixelRatio(); } });

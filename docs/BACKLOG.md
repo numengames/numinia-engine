@@ -70,13 +70,14 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J19 | VR: ajuste de «altura de pie» en el motor, por si el suelo que dan las gafas está mal (en el Quest 3S de Pablo, 16-10, los ojos de pie salían a 1,11 m: suelo del visor medio metro alto) | pendiente (deseable, no urgente) | sí |
 | J20 | Ajuste (N2): en VR, andar hacia donde miras (hoy) o hacia donde apunta el mando izquierdo (Pablo, 16-10: preferencia de cada uno) | pendiente | sí |
 | J18 | VR: menú que sale al girar la muñeca (mano o mando), y pintar y crear objetos con las manos en el mundo, al estilo de las apps de pintura en VR (Pablo, 16-10: «me parece la bomba»; planificar antes de construir) | pendiente (planificar) | no |
-| J14 | Dibujo barato de personas (LOD o una pieza; hoy el robot son 19 llamadas) | en curso (lo que no anima se hornea: el robot, 3 llamadas; falta LOD) | sí |
+| J14 | Dibujo barato de personas (LOD o una pieza; hoy el robot son 19 llamadas) | hecho (18-10, rama `lod/dibujo-barato-personas`; horneado 3 llamadas de J5 + pieza lejana de 1 llamada, histéresis 22±4 m) | sí |
 | J15 | Marcas «!» y «?» sobre quien tiene algo para ti (por jugador) | pendiente | sí |
 | J16 | Escribir aventuras con un LLM: receta y `node tools/aventura.ts` como comprobación | pendiente | sí |
 | J21 | Mundos verticales (Torre de los Alquimistas): `pnj@1` gana `posicion.y` opcional (0–30 m), `cosa@1` sube su tope de 3 a 30; el estado lo lleva (pnj v2, misiones v2) y la página dibuja a esa altura, con el nombre encima | hecho (16-10, rama `torre/aparicion-y-altura`; `test/altura.test.ts`) | sí |
 | J22 | El alcance mira la altura: `api.position` da `y`; `api.within` y el aviso «E:» de la página (`reachable(x, z, y)`) exigen una diferencia de altura ≤ 2,5 m (`ALCANCE_ALTURA_M`) cuando la cosa tiene `y`; `llega_a` admite `y` opcional (0–30) con la misma regla | hecho (16-10, rama `torre/aparicion-y-altura`; sin `y`, todo como antes) | sí |
 | J23 | Grabar vídeo desde dentro del mundo para compartirlo (la vista del juego y su sonido, sin la interfaz si se quiere), y que una IA conectada también pueda grabar lo que ve para analizar partidas (Pablo, 16-10: «no es ahora») | pendiente (planificar) | sí |
 | E1 | Simulador de economías de juego (herramienta de diseño, `tools/economia/`): diagrama como datos + N ticks deterministas; modelos de la Tabla de Prestigio y del ritmo de Reliquias; método en `../mmo-browser-study/MAQUINACIONES-APRENDIZAJE.md` (Pablo, 18-10) | hecho (sin conectar al motor; falta el modelo de daño y, si hace falta, un editor visual propio) | sí |
+| J24 | Parkour (Pablo, 16-10: «si puedes llegar colgarte como en el Prince of Persia»): agarrarse al borde al caer, colgarse, soltarse, desplazarse por el borde, trepar; subir de un impulso muros de hasta 1,2 m; en la simulación, sin cambiar la huella | en curso (prototipo hecho, rama `parkour/colgarse`; faltan clips CC0 de colgar/trepar y el estado de los demás) | sí |
 | N1 | Entrada táctil, gamepad, cámara en 3.ª persona y pantalla completa (de `docs/JUGADOR.md`) | hecho (sin probar en aparato real) | sí |
 | N1b | Cámara que sigue tu altura (saltos, pisos) y no atraviesa lo sólido (esfera barrida contra las cajas sólidas; lo no sólido, con M6); bajar escalones sin «caer» (pegarse al suelo, 0,45 m) y el avatar no «salta» sobre un tejado o una escalera | hecho | sí |
 | N2 | Menú de ajustes y accesibilidad básica, guardado local (de `docs/JUGADOR.md`) | hecho | sí |
@@ -157,7 +158,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | P5a | El puente nuevo y el primer cerebro (E2 contesta, E4 construye si el mundo deja): clave sin eco (`--clave-ia`), topes, `<material>`, herramientas comprobadas en código | hecho (primer corte; falta: E1, probarlo con Claude en el VPS, D7 revisión del contrato) | no |
 | P5b | Iniciativa por evento (E3), gestos con clips, persona en `.md`, medidor de consumo por habitante y por mundo | espera a P5a | sí |
 | V12 | Guía IA: un agente que acompaña, describe y lleva (primero desde datos) | espera a P4b | sí |
-| M6 | Colisión con el escenario y física básica: malla GLB (trimesh + BVH propio en enteros, sin cambiar la huella), zonas que disparan, rayos; Rapier solo si hacen falta dinámicos | en curso (h1-h7 hechas 18-10) | no |
+| M6 | Colisión con el escenario y física básica: malla GLB (trimesh + BVH propio en enteros, sin cambiar la huella), zonas que disparan, rayos; Rapier solo si hacen falta dinámicos | en curso (h1-h7, h12 rayo, h13 zonas entra/sale + overlapSphere hechas 18-10) | no |
 | M6b | Terreno con altura (relieve y suelos pintados por capas) | espera a M6 | no |
 | M10 | Servidor de instancia completo: regiones en hilos (horizonte de 5.000) y copias cuando se llena | para Opus | no |
 | V9 | Mapa de caminos (navmesh) en el servidor + guía paso a paso + «mírame al objetivo» + escáner direccional | para Opus | no |
@@ -165,13 +166,17 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | M20 | Scripts de mundo en el servidor, en sandbox (SES) y con límite de CPU | para Opus | no |
 | M9 | WebTransport como escalón de arriba detrás de la misma interfaz que WebSocket | para Opus | no |
 | M22 | Constructor en el mundo, en vivo (paridad Hyperfy2): gizmos, duplicar, borrar, deshacer, soltar ficheros, inspector, biblioteca; para personas y agentes de IA, según su rol (el panel mínimo ya existe: H1) | hecho (escritorio; VR y móvil → M22b) | sí |
-| M22b | Constructor en VR y en el móvil (gizmo con el mando y con el dedo) | pendiente | sí |
+| M22b | Constructor en el móvil y en VR — se parte: M22b-1 táctil mínimo (toque selecciona, arrastrar mueve) · M22b-2 gestos de dos dedos, retícula de colocar y hoja inferior · M22b-3 VR con mando · M22b-4 VR con manos y cara «Construir» del reloj · M22b-5 prueba real. Diseño: `work/mmo-browser-study/MODO-CONSTRUCTOR-MOVIL-VR.md` | en curso (M22b-1 hecha 18-10, rama `constructor/tactil-minimo`) | sí |
+| M22b-2 | Móvil: dos dedos giran (Y) / pellizcan (escala) / suben (Y) sobre la cosa tocada y el modo desambigua; colocar de la biblioteca con retícula central + «Colocar aquí» (cluster World Craft); pulsación larga = inspector; radio de gracia 12 px; TransformControls apagado del todo en táctil; hoja inferior oculto·barra·completo y `#barra-objeto` que quepa en 360 px; la barra flotante solo se recoloca con el constructor abierto | espera a M22b-1 | sí |
+| M22b-3 | VR con mando: `pickRayo`/`puntoBajoRayo` en gizmo.ts; `soltar`/`palanca`/fin de agarre en manos.ts; `apps/plaza/constructor-xr.ts`: gatillo corto selecciona, mantenido coge al final del rayo, palanca acerca/aleja y gira, agarre+palanca escala, A duplica, B devuelve; barra flotante 3D a 1,1 m (Panel); fila «Construir» en el menú de muñeca (J18) | espera a M22b-1, J18 | sí |
+| M22b-4 | VR con manos: pellizco a < 22 cm coge en la mano (sigue posición y giro Y), dos manos escalan, abrir posa; cara «Construir» del reloj con losetas de la biblioteca, Deshacer/Rehacer, Paso; loseta → fantasma a 2 m o cosa en la mano | espera a M22b-3 | sí |
+| M22b-5 | Constructor: 10 min en iPhone, Android y Quest 3S con Pablo (tamaños en mm, umbrales de gesto 6 %/8°, si llega `dblclick` táctil, `vibrate`, gatillo corto/mantenido) → números a `limits.json` | espera a M22b-2, M22b-3 | no |
 | M22c | Constructor: puntos de encaje, selección múltiple y jerarquía | en progreso (encaje + selección múltiple + mover/borrar en grupo, deshacer atómico; faltan caja de arrastre y jerarquía) | sí |
 | M26 | Servidor MCP del motor: leer zona (con el cuerpo de P4), proponer cambio, abrir PR (nunca publica solo). Trozo 1 hecho (ADR-080, rama `agentes/puerta`): la puerta de los agentes de fuera y un puente MCP por stdio junto al agente; falta el MCP servido por el propio mundo (HTTPS) | espera a M19, P4b | sí |
 | IA-ORG | IAs de organización (motor): una IA que pertenece a una organización de numinia.com entra con un pase `kind:"agent"` (`activa`/`dormida`) que pide cada ~8 min a `POST {NUMINIA_URL}/api/agents/pass`; el motor la cierra con 4003 si su pase caduca sin renovar, acepta un PASE a mitad de sesión (dormida = sin construir), la lista en `GET /agentes` (`organizacion: true`) y el puente `tools/mcp-mundo.ts` tiene modo organización. Hecho del lado del motor (rama `agentes/de-organizacion`); la mitad de numinia.com (till, ruta, panel «Agentes») va aparte | hecho (motor). Corte 2 (rama `agentes/token`): el puente acepta `AGENTE_TOKEN` (`ntk_…`, `Authorization: Bearer`, cuerpo `{org, agent, aud}`) en vez de la clave; 401 = final; el token nunca se imprime | sí |
 | O4 | Seguridad: billete firmado para entrar a una instancia, tope de conexiones por IP, exportar y borrar lo tuyo | pendiente | sí |
 | O3 | Observabilidad: panel y alertas sobre `/metrics` del servidor real | espera a X3 | sí |
-| M17 | Voz por cercanía (LiveKit) con tope de voces audibles, DTX y modo escenario | necesita aprobación (Pablo: cuántas voces a la vez, `docs/SABER.md` §5) | no |
+| M17 | Voz por cercanía: trozo 1 hecho (tope 8 voces + modo escenario en el relé actual); trozo 2 = LiveKit (diseño en ../mmo-browser-study/VOZ-Y-PANTALLA-COMPARTIDA.md) | pendiente | no |
 | V13 | Subtítulos del chat de voz (con quién habla y desde dónde) + texto que habla | espera a M17 | sí |
 | X1 | Probar en Quest 3 y Pico 4 | pendiente | no |
 | X2 | Probar Safari de verdad (iPhone o Mac) | pendiente | no |
@@ -184,6 +189,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | V2 | Con Pablo, 15 min con las gafas: ¿funcionan `speechSynthesis`, el reconocimiento de voz, «menos movimiento» y la vibración dentro de una sesión inmersiva (Quest 3, Pico 4) y en iPhone? | pendiente | no |
 | W1 | La plaza de entrada: primer mundo, al presupuesto de la Quest, con un portal a un mundo Hyperfy | necesita aprobación (Pablo: qué mundo lo estrena) | no |
 | O5 | ADR y SYS del motor en la Summa (numinia.org) | necesita aprobación (Pablo) | no |
+| AS1 | Tributo a Isaac Asimov: el Salón de los Ancestros (Ateneo) y un holograma que se enciende al acercarte y, con E, dice las Tres Leyes junto a nuestras reglas AGW (`features/ancestros`, `docs/EXTENDER.md`). Sin voz: cuando haya V3, que la lea con la voz grave y pausada de narrador | hecho (v1, 18-10) | sí |
 
 **Punto de parada «accesible» (como los PP de `CONSTRUIR.md`):** con V1, V3, V4, V5, V6 y V7 hechas, una
 persona ciega entra en la plaza desde el ordenador con su lector de pantalla, pregunta qué hay cerca, sigue
@@ -391,6 +397,22 @@ formato nueva, la huella nueva fijada en el test y el cambio explicado en el dia
 aire (doble salto). Volar es de H2 (necesita permiso).
 
 **Hecho (15-10, rama `wt/salto`; formato 2).** Simulación: altura, velocidad vertical, gravedad 20 m/s², salto de 1,5 m (v = √(2gh) con `fxSqrt`), uno más en el aire, búfer de 150 ms, caída máxima 50 m/s; correr 8 m/s (Mayús), andar 4; `groundHeight(x, z)` = 0 es el punto de enganche de M6. Entrada con un sexto byte de botones (aditivo: la de 5 bytes vale sin botones); el snapshot lleva tu estado vertical exacto y la altura de los demás solo cuando están en el aire (de pie cuestan lo de antes); `WIRE_FORMAT = 2` al final de la bienvenida. Un avatar solo avanza con sus propias entradas (como los «usercmd» de Quake): la predicción sigue exacta con entradas tardías o agrupadas. Página: Espacio salta (fuera de los campos de texto), Mayús corre; en el móvil, botón «Saltar» y correr con el joystick al borde; en VR, A o X saltan y el borde de la palanca corre. Bots que corren y saltan de vez en cuando. **Medido:** 10 pruebas (`test/salto.test.ts`); huella de referencia `fa94375e` → `93b192c8` (fijada en `test/engine.test.ts` y `test/server.test.ts`); enjambre de 1.000 por WebSocket: tick p99 19,3 ms (antes 19,95 el mismo día), 27,2 kbit/s por persona (antes 25,6); pierna `tools/e2e-piernas/salto.mjs`: cima 1,48 m, doble 2,79 m, Mayús+W 11,6 m frente a 6,0 m. **Falta:** aviso de formato distinto (J2b), mantener Espacio para encadenar saltos, volar (H2), pendientes y tiempo de coyote (M6).
+
+### J24 — Parkour: colgarse y trepar
+Estudio: `../mmo-browser-study/PARKOUR.md` (fuentes en `raw/43-parkour/`).
+**Hecho (16-10, rama `parkour/colgarse`, sin subir).** Simulación (`packages/sim`): al caer con el stick hacia una cara
+de una caja sólida a ≤ 0,4 m (`PK_PROBE`) cuyo borde queda al alcance (pies 1,7 m bajo él, `HANG_DROP`, hasta 0,5 m más
+arriba, `REACH_UP`), te cuelgas: sin gravedad; atrás te suelta, de lado te desplaza 1 m/s por el borde, Saltar sube en 6
+tics y adelante también tras 3 tics colgado (`HANG_SETTLE`); hace falta sitio arriba. En el suelo, Saltar hacia un muro de
+0,4–1,2 m (`MANTLE_MAX`) lo sube en 4 tics. Estado `Body.pk` (columna `Motion.pk`, Motion v2): etapa << 2 | lado; viaja
+en los bits 3–7 de las banderas del snapshot propio (aditivo: eran 0) y entra en el resumen del estado en los bits altos
+de `air` (0 sin paredes: misma huella). `session.parkour()` → el VRM mira a la pared y pide «colgar»/«trepar» (caen a
+«saltar»). **Medido:** 12 pruebas (`test/parkour.test.ts`); huella `93b192c8` sin cambiar; predicción 0 correcciones
+colgando y trepando; Torre (`work/torre/trazado.mjs`, solo leído; la prueba se salta donde no está): 450 intentos de salto
+del circuito, 127 → 143 llegan (16 salvados, 0 perdidos); 200 avatares en la Torre 0,12 → 0,14 ms/tic. **Falta:** clips
+CC0 (UAL1 completo / UAL2 de Quaternius: `Climb_Idle_Loop`, `ClimbUp_2m_RM`; el UAL1 Standard que tenemos no los trae),
+que los demás vean que cuelgas (estado de otros en el snapshot), salto de pared, apagarlo por mundo en los ajustes,
+paredes giradas (M6), probarlo en navegador y aparato.
 
 ### J3 — Chat y bocadillos
 Mensaje nuevo CHAT (aditivo: tipo nuevo, texto UTF-8 ≤ 200 bytes, límite de ritmo en el servidor,
@@ -866,9 +888,28 @@ por segundo; sin grabar voz; exportar y borrar lo tuyo. Lo legal (consentimiento
 Con los números del servidor real: un panel (lo mínimo: una página que lee `/metrics` por el túnel) y avisos
 cuando el p99 del tick, el steal o la memoria pasan de su umbral (`puertas.ts`).
 
-### M17 — Voz por cercanía (necesita aprobación)
-LiveKit (Apache-2.0); suscripción solo a las N voces más cercanas (N lo decide Pablo), DTX, modo escenario
-para eventos grandes (una voz para todos). Es el coste que manda a escala (`docs/SABER.md` §3.1).
+### M17 — Voz por cercanía (decidido 18-10)
+**Decisión (Pablo, 18-10): seguir.** N lo eligió Ursa = **8 voces audibles por oyente**, las del escenario aparte.
+Justificación: un grupo de mesa de 6-8 más un transeúnte; más de 4-5 voces simultáneas ya no se entienden; 8
+decodificadores Opus son baratos incluso en Quest; y el coste del SFU crece con oyentes × voces activas: a 500
+oyentes, 8 voces son ≈ 200 k paquetes/s ≈ 2,7 núcleos en el peor caso y ≈ 1 núcleo en el típico (3 voces). Pablo
+puede cambiarlo en `VOZ_TOPE` (`packages/net/src/voz.ts`) y `limits.json` (`voz_tope`).
+**Trozo 1 hecho (18-10, rama `voz/tope-y-escenario`, v0.4.0):** sobre el relé WebSocket de U10. `elegirVoces` (pura,
+net): cada oyente recibe las 8 voces más cercanas de quien ha hablado en el último segundo (visibles y a ≤ 30 m,
+empate por id); la instancia cachea el conjunto por oyente y lo recalcula cuando empieza a hablar alguien nuevo o
+cada 10 ticks (coste O(oyentes × hablantes), nunca por trama). Modo escenario: opción `escenario(entidad)` de la
+instancia, cableada a `roles.enEscenario`; la trama de quien está en el escenario llega a TODAS las páginas
+conectadas con la marca `VOZ_ESCENARIO` (bit alto del byte de códec, aditivo) y la página la reproduce sin paneo
+(«habla en el escenario»); es la excepción documentada a la regla 4 de AGENTS (una o dos voces para todos, mismo
+abanico que el chat de zona, solo para quien sube la moderación). Órdenes `/escenario <persona>` (también a ti),
+`/escenario quitar <persona>`, `/escenario nadie`, `/escenario` (lista, abierta a todos); permiso nuevo `escenario`
+= `manage-rituals` (Moderación lo tiene); solo en memoria. Pruebas: `test/voz.test.ts` 7 (3 nuevas: casos puros,
+1 oyente + 10 hablantes a 1…10 m oye exactamente 8, escenario a 100 y 200 m), `test/roles.test.ts` +1 (`/escenario`).
+Sin probar: navegador real con micrófono (no hay e2e de audio).
+**Trozo 2 — LiveKit (pendiente):** LiveKit autoalojado (Apache-2.0), sala = mundo, billete JWT HS256 emitido por el
+servidor del mundo, `autoSubscribe` apagado + suscripción a las N más cercanas calculada con `elegirVoces`, DTX y RED
+activados por defecto del SDK, escenario = pista sin paneo; cliente `livekit-client` cargado perezosamente (solo al
+encender el micrófono o al oír a alguien). Diseño: `../mmo-browser-study/VOZ-Y-PANTALLA-COMPARTIDA.md`.
 **Paridad Hyperfy2 (15-10):** Hyperfy tiene voz espacial con LiveKit y deja compartir la pantalla en una
 pantalla del mundo; lo segundo va con M18.
 
@@ -1075,8 +1116,10 @@ prueba.
 ### N1b — Cámara que choca (espera a M6)
 La cámara de N1 se acerca cuando algo construido queda entre ella y tu avatar (rayo contra los colisionadores de M6), sin tirones. **Hecho cuando:** e2e: detrás de una pared colocada, la cámara queda delante de la pared.
 
-### M22b — Constructor en VR y en el móvil
-En VR, el rayo del mando selecciona y el gatillo arrastra el gizmo (o coge la cosa con la mano); en el móvil, un dedo sobre un asa la arrastra y dos dedos giran la cámara (N1). Mismas órdenes de `features/objetos`. **Hecho cuando:** e2e con IWER mueve un bloque con el mando; e2e táctil por CDP mueve otro con el dedo.
+### M22b — Constructor en el móvil y en VR
+No es un constructor nuevo: el de M22 con otra entrada. El estado y los verbos (`features/objetos/client.ts`) y el dibujo, la medida y la red (`gizmo.ts`, `programarEnvio`) no cambian; solo cambia la capa de entrada en `apps/plaza/`. Móvil: **la cosa es la asa** (sin hover ni asas pequeñas): toque selecciona, arrastrar mueve con el desfase dedo-cosa, dos dedos giran/escalan, retícula central para colocar (cluster). VR: **coger con el rayo, sin TransformControls** (lo que hace Hyperfy): gatillo mantenido coge al final del rayo, palanca acerca y gira, agarre+palanca escala; con manos, pellizco a < 22 cm coge en la mano. Herramientas en VR: fila «Construir» del menú de muñeca + barra flotante a 1,1 m sobre la cosa. Diseño completo, comparativa y puntuaciones: `work/mmo-browser-study/MODO-CONSTRUCTOR-MOVIL-VR.md`. **Hecho cuando:** e2e táctil por CDP mueve un bloque con el dedo (M22b-1 ✓) y lo gira con dos (M22b-2); e2e con IWER lo mueve y gira con el mando (M22b-3) y lo coge con la mano (M22b-4).
+
+**Hecho M22b-1 (18-10, rama `constructor/tactil-minimo`, sin unir).** `apps/plaza/constructor.ts`: capa de dedo en `document` (captura): un toque sobre una cosa la selecciona; arrastrarla la mueve por el suelo y por encima de otras cosas conservando el desfase dedo-cosa (`ed.puntoBajo` + `ed.poner` + `ed.sostener`, `programarEnvio` ≤ 8/s, un paso de deshacer por arrastre); la cámara se bloquea (`cam.bloquear`) y el joystick no ve ese dedo; en «mover» táctil no hay asas (la cosa es la asa); botones ≥ 44 px en `(pointer: coarse)`. `apps/plaza/tema.css`: en un teléfono estrecho (< 700 px) el panel de construir es una hoja inferior (≤ 38 vh) y el de entorno una tira arriba a la izquierda — antes, los dos (320 + 270 px) tapaban el mundo entero y no se podía tocar nada. Versión **0.11.0**. **Medido:** pierna `tools/e2e-piernas/constructor-tactil.mjs` (chromium, toques reales por CDP `Input.dispatchTouchEvent`, 420×800, dos pestañas): toque selecciona sin girar la cámara; arrastre de 150 px mueve el bloque ~5 m y B lo ve; sin asas; toque en el vacío deselecciona; deshacer lo devuelve en B; borrar. 376 pruebas y todas las puertas en verde; la pierna de ratón (`constructor.mjs`) sigue en verde. **No probado en un teléfono real** (solo emulación táctil de chromium). **Falta:** M22b-2..5; `#barra-objeto` se sale por la derecha en 420 px; los botones de acción (Saltar…) se montan sobre la hoja; el `dblclick` táctil para abrir construir sin probar.
 
 ### M22c — Encajes, selección múltiple y jerarquía (en progreso, rama `constructor/encajes-seleccion-jerarquia`)
 Puntos de encaje (su nodo `Snap`), seleccionar varias cosas y moverlas juntas, agrupar (jerarquía de nodos, su `NodeHierarchy`). **Hecho cuando:** e2e: dos bloques encajan cara con cara; tres seleccionados se mueven a la vez y deshacer los devuelve en un paso.
@@ -1124,6 +1167,8 @@ Minimapa, lista de lo cercano y ficha en un panel 3D sobre la muñeca (mano izqu
 
 ### J14 — Dibujo barato de personas
 El robot de la casa son 19 llamadas por persona (tope del nivel D: 80). LOD o un modelo de una pieza; con avatares VRM, decidir. **Hecho cuando:** 20 personas a la vista en el nivel D caben en su tope.
+
+**Hecho (18-10, rama `lod/dibujo-barato-personas`).** `packages/render/src/lod-politica.ts` (puro, `test/lod-personas.test.ts`): más allá de `LOD_LEJOS_M` (22 m, histéresis ±4 m para no parpadear en el borde) una figura horneada (J5: sin animar, ya 19 → 3 llamadas por material) baja a UNA pieza — una sola malla con un color por parte (sin textura) en vez de una por material: 3 → 1 llamada. Una figura pintada con un color propio (J10) se queda siempre en «cerca» (pintar() no puede teñir una pieza fusionada). `packages/render/src/index.ts`: `hornearPieza`, `representacion`, `actualizarLOD` (una vez por figura horneada y por fotograma; solo reconstruye el grupo si cambia de estado). **Medido** (`tools/medir-lod-robot.mjs`, parseando `activos/robot/RobotExpressive.glb` igual que el motor): 19 llamadas sin hornear, 3 horneado «cerca», 1 horneado «lejos». 20 personas a la vista: 380 sin hornear, 60 horneadas todas «cerca» (ya cerca del tope 80 sin nada más en la escena), 20 todas «lejos», 40 con la mitad y mitad — cualquier mezcla de cerca/lejos cabe en el tope de 80 con margen para el resto de la escena. Verificado también en vivo (plaza real, Chromium headless, WebGL2): el cambio de estado dispara en el punto esperado y no oscila en el borde de la banda. **Falta:** decidir si un avatar VRM (J1) sigue la misma política cuando esté lejos y quieto (hoy solo se congela su animación, `ANIMATE_WITHIN_M`); extender la pieza lejana a otros modelos horneados con más de un material (hoy solo probado con el robot).
 
 ### J15 — Marcas de misión sobre las personas
 «!» si alguien tiene una misión para ti, «?» si espera algo tuyo; es por jugador (un evento, no estado compartido). **Hecho cuando:** e2e: A ve «!» sobre Alma y B, que ya la hizo, no.

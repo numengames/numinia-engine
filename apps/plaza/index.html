@@ -58,7 +58,10 @@
     #chat .estado { margin: 0; color: #23303b; min-height: 0; }
     #chat .estado:not(:empty) { padding: 3px 8px; border-radius: 6px; background: rgba(238, 242, 246, .85); }
     /* J4/J5: the prompt «E: hablar con…», the conversation box, the quest book, the tracked step and a short note */
-    #interactuar { position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%); padding: 8px 14px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .82); color: #ffd27a; font: inherit; font-weight: 600; }
+    #interactuar { position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%); padding: 8px 14px 8px 30px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .82); color: #ffd27a; font: inherit; font-weight: 600; }
+    /* J4 mantener-pulsado: a small progress ring grows clockwise (--progreso 0..1) while E/the button/the VR trigger is held */
+    #interactuar::before { content: ""; position: absolute; left: 8px; top: 50%; translate: 0 -50%; width: 14px; height: 14px; border-radius: 50%; visibility: hidden; background: conic-gradient(#ffd27a calc(var(--progreso, 0) * 360deg), rgba(255, 255, 255, .25) 0); }
+    #interactuar.manteniendo::before { visibility: visible; }
     #dialogo { position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 20px)); max-height: calc(100% - 90px); overflow: auto; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; background: rgba(20, 24, 30, .9); color: #eef2f6; }
     #dialogo h2 { margin: 0 0 4px; font-size: 15px; color: #ffd27a; }
     #dialogo .texto { margin: 0 0 8px; }
@@ -128,10 +131,120 @@
     #ajustes .ajuste { min-height: 44px; padding: 10px 0; }
     #ajustes .ajuste input[type="checkbox"] { width: 26px; height: 26px; }
   }
+    /* U1: the loading screen. Shell + controller live in this page (≤ 14 kB gz, system font, no canvas, no per-frame work);
+       the picture (carga.webp, ≤ 45 kB) arrives after the first paint. Bar by phases: never indeterminate. */
+    #carga { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: #1d2a38; color: #f2f5f8; overflow: hidden; }
+    #carga:not([open]) { display: none; }
+    #carga::backdrop { background: #1d2a38; }
+    #carga-arte { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .4s; }
+    #carga-arte.ya { opacity: .9; }
+    #carga .c-caja { position: absolute; left: 50%; bottom: 9%; transform: translateX(-50%); width: min(420px, calc(100vw - 40px)); padding: 14px 16px 16px; border-radius: 12px; background: rgba(14, 20, 28, .78); text-align: center; }
+    #carga h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; letter-spacing: .04em; }
+    #carga .c-fase { margin: 0 0 10px; min-height: 1.4em; }
+    #carga .c-fila { display: flex; align-items: center; gap: 12px; }
+    #carga-b { flex: 1; height: 4px; border: 0; border-radius: 2px; background: rgba(242, 245, 248, .25); appearance: none; -webkit-appearance: none; overflow: hidden; }
+    #carga-b::-webkit-progress-bar { background: rgba(242, 245, 248, .25); border-radius: 2px; }
+    #carga-b::-webkit-progress-value { background: #ffd27a; border-radius: 2px; transition: width .25s; }
+    #carga-b::-moz-progress-bar { background: #ffd27a; border-radius: 2px; }
+    #carga-n { min-width: 4.2em; text-align: right; font: 13px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+    #carga .c-aviso { margin: 10px 0 0; min-height: 1.4em; color: #ffd27a; }
+    #carga .c-botones { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+    #carga .c-botones[hidden] { display: none; }
+    #carga button { min-height: 40px; padding: 8px 16px; border: 0; border-radius: 8px; background: #eef2f6; color: #23303b; font: inherit; font-weight: 600; }
+    #carga button:focus-visible { outline: 3px solid #ffd27a; outline-offset: 2px; }
+    canvas:focus { outline: none; }
+    @media (prefers-reduced-motion: reduce) { #carga-b::-webkit-progress-value, #carga-arte { transition: none; } }
   </style>
   <link rel="stylesheet" href="./tema.css" /><!-- U11: Numinia Design System (colours, type, icons) and the right-hand layout -->
 </head>
 <body>
+  <!-- U1: the loading screen. Static shell first, the controller right below it (no module, no canvas); main.ts feeds it
+       the real phases through window.__numinia.carga. It shows only if the wait passes 400 ms and stays at least 600 ms. -->
+  <dialog id="carga" aria-labelledby="carga-t" aria-describedby="carga-f">
+    <img id="carga-arte" alt="" width="1280" height="720" decoding="async" />
+    <div class="c-caja">
+      <h1 id="carga-t">Numinia</h1>
+      <p id="carga-f" class="c-fase">Cargando el motor</p>
+      <div class="c-fila"><progress id="carga-b" max="100" value="0" aria-label="Carga del mundo"></progress><output id="carga-n">0 %</output></div>
+      <p id="carga-aviso" class="c-aviso" role="alert"></p>
+      <p id="carga-voz" class="solo-lector" role="status" aria-live="polite"></p>
+      <div id="carga-botones" class="c-botones" hidden></div>
+    </div>
+  </dialog>
+  <script>
+(function () {
+  var $ = function (i) { return document.getElementById(i); }, d = $("carga");
+  if (!d) return;
+  // [phase, words, weight of the bar]: the clock never moves the bar, only real signals do
+  var F = [["codigo", "Cargando el motor", 30], ["grafica", "Preparando la gráfica", 10], ["red", "Conectando", 15], ["mundo", "Descargando el mundo", 30], ["preparar", "Preparando", 15], ["listo", "Listo", 0]];
+  var c = { fase: "codigo", hecho: 0, total: 0, unidad: "", estado: "cargando", pct: 0, avisos: 0, mostrada: false };
+  var ini = 0, visto = 0, ult = Date.now(), tm = 0;
+  window.__numinia = { carga: c, probe: { done: false }, session: { entity: -1 } }; // stub until main.ts replaces it
+  document.body.setAttribute("aria-busy", "true");
+  d.addEventListener("cancel", function (e) { e.preventDefault(); }); // Esc never closes it
+  var mb = function (b) { return (b / 1048576).toFixed(1).replace(".", ","); };
+  function idx(n) { for (var i = 0; i < F.length; i++) if (F[i][0] === n) return i; return 0; }
+  function pintar() {
+    var i = idx(c.fase), p = 0, k, t = F[i][1];
+    for (k = 0; k < i; k++) p += F[k][2];
+    if (c.total > 0) p += F[i][2] * Math.min(1, c.hecho / c.total);
+    c.pct = c.fase === "listo" ? 100 : Math.max(c.pct, Math.min(99, Math.round(p)));
+    if (c.total > 0 && c.unidad === "bytes") t += " \u00b7 " + mb(c.hecho) + " de " + mb(c.total) + " MB"; else if (c.total > 1) t += " \u00b7 " + c.hecho + " de " + c.total;
+    $("carga-b").value = c.pct; $("carga-n").textContent = c.pct + " %"; $("carga-f").textContent = t;
+  }
+  function mostrar() {
+    tm = 0;
+    if (c.fase === "listo" || d.open) return;
+    try { d.showModal(); } catch (e) { d.setAttribute("open", ""); }
+    c.mostrada = true; ini = Date.now();
+    requestAnimationFrame(function () { var im = $("carga-arte"); im.onload = function () { im.className = "ya"; }; im.src = "carga.webp"; }); // after the first paint
+  }
+  function botones(l) {
+    var b = $("carga-botones"); b.textContent = ""; b.hidden = !l.length;
+    l.forEach(function (x) { var e = document.createElement("button"); e.type = "button"; e.textContent = x[0]; e.onclick = x[1]; b.appendChild(e); });
+    if (l.length && d.open) b.firstChild.focus();
+  }
+  c.irA = function (n, h, t, u) { // phase n (the earlier ones are done); h of t done inside it (u = "bytes" or a count)
+    if (c.fase === "listo") return;
+    var cambia = n !== c.fase || h !== c.hecho;
+    if (n !== c.fase && c.avisos < 6) { c.avisos++; $("carga-voz").textContent = F[idx(n)][1]; }
+    c.fase = n; c.hecho = h || 0; c.total = t || 0; c.unidad = u || "";
+    if (cambia) { ult = Date.now(); if (c.estado === "atascado") { c.estado = "cargando"; $("carga-aviso").textContent = ""; botones([]); } }
+    pintar();
+  };
+  c.mensaje = function (estado, titulo, texto, l) { // another state that needs the screen (a cut connection, leaving)
+    c.msg = true; c.estado = estado; $("carga-t").textContent = titulo; $("carga-f").textContent = texto; $("carga-aviso").textContent = "";
+    if (tm) { clearTimeout(tm); tm = 0; }
+    document.body.removeAttribute("aria-busy");
+    if (!d.open) { try { d.showModal(); } catch (e) { d.setAttribute("open", ""); } c.mostrada = true; ini = Date.now(); }
+    botones(l || []);
+  };
+  c.texto = function (t) { $("carga-f").textContent = t; }; // a line changes (a countdown): the buttons stay where they are
+  c.aviso = function (t) { $("carga-aviso").textContent = ""; $("carga-aviso").textContent = t; }; // role=alert: said at once
+  c.ocultar = function () { // the screen is gone: only now «estado» says «listo» (checks and the menu wait for this)
+    if (c.msg) return; // a cut connection or leaving took the screen meanwhile
+    c.estado = "listo";
+    if (d.open) d.close();
+    document.body.removeAttribute("aria-busy");
+    var cv = document.querySelector("canvas"); if (cv) { cv.tabIndex = -1; cv.focus({ preventScroll: true }); }
+  };
+  c.listo = function () {
+    if (c.fase === "listo") return;
+    c.fase = "listo"; c.hecho = c.total = 0; $("carga-voz").textContent = "Listo"; pintar();
+    if (tm) { clearTimeout(tm); tm = 0; }
+    if (c.mostrada) setTimeout(c.ocultar, Math.max(0, 600 - (Date.now() - ini))); else c.ocultar(); // once seen, it stays 600 ms
+  };
+  c.reintentar = function () { location.reload(); };
+  c.cancelar = function () { c.estado = "cancelado"; $("carga-t").textContent = "Carga cancelada"; $("carga-f").textContent = "Puedes volver a intentarlo."; $("carga-aviso").textContent = ""; botones([["Reintentar", c.reintentar]]); };
+  tm = setTimeout(mostrar, 400);
+  setInterval(function () { // no progress for 8 s: say so and offer a way out
+    if (c.estado !== "cargando" || c.fase === "listo" || Date.now() - ult < 8000) return;
+    c.estado = "atascado"; mostrar(); c.aviso("Sigue trabajando\u2026 esto tarda m\u00e1s de lo normal.");
+    botones([["Reintentar", c.reintentar], ["Cancelar", c.cancelar]]);
+  }, 1000);
+  pintar();
+})();
+  </script>
   <div id="hud">Conectando…</div>
   <p id="mundo-lleno" role="alert" hidden></p><!-- H7: the world is full (ficha `aforo`): the door's reason, read at once by screen readers -->
   <div id="barra-arriba" role="toolbar" aria-label="Botones del mundo"></div>
