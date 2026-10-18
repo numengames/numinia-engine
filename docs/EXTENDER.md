@@ -837,10 +837,10 @@ comporta exactamente como en v1. Es una pieza del motor: cualquier mundo la acti
 - **Abandono.** Si uno hace `salir`, se desconecta o pasa `TURNO_INACTIVO_S` (60 s) sin lanzar en su turno,
   la partida termina y gana el otro por defecto (`abandono`). Un anfitrión que espera solo 60 s se cancela como
   una tirada suelta (`fin` con 0 dardos). En un duelo no se comprueba que sigas dentro del radio después de entrar.
-- **Eventos nuevos.** `duelo{sitio, ronda, turnoDe, a, nombreA, puntosA, b, nombreB, puntosB}` cada vez que
+- **Eventos nuevos.** `duelo{sitio, ronda, turnoDe, a, nombreA, puntosA, b, nombreB, puntosB, paredA, paredB}` cada vez que
   cambia el turno o cae un dardo (`ronda` 0 = esperando rival; `a` = anfitrión, `b` = invitado; los campos son
   planos porque el esquema no tiene listas) y `finduelo{sitio, ganador, empate, abandono, a, nombreA, puntosA, b,
-  nombreB, puntosB, texto}` (con `empate` el `ganador` va a 0: la entidad 0 también existe, mira `empate`).
+  nombreB, puntosB, paredA, paredB, texto}` (con `empate` el `ganador` va a 0: la entidad 0 también existe, mira `empate`).
   Van a los dos jugadores **sea cual sea la distancia** y a quien esté a `CERCA_M` de la diana; alguien lejos que
   no juega no recibe nada. `dardo` llega además a los dos jugadores (la pared está a cientos de metros) y `fin`
   (fin de turno) también a los dos en cada turno. Los nombres salen de `api.who`, sin caracteres de control y
@@ -892,6 +892,32 @@ comporta exactamente como en v1. Es una pieza del motor: cualquier mundo la acti
     turno de Ana». El HUD se queda abierto mientras dura tu partida (también entre turnos) y «Dejarlo» sale de ella.
   - *Pruebas*: `test/dardos-duelo-ar.test.ts` (texto del marcador, turnos, vuelo, gating, diana elegida, línea del
     HUD, `salir()` en turno ajeno). El e2e de AR con dos jugadores es la historia D5.
+- **El duelo visto desde el mundo** (historia AR-D4). Quien camina por la plaza junto a la diana 3D ve el duelo de
+  *esa* diana, juegue o mire:
+  - *Campo nuevo en el cable.* `duelo` y `finduelo` suman `paredA` y `paredB` (bool, planos, por defecto `false`):
+    el servidor dice quién entró con `desde: "pared"`. Es aditivo: la feature sigue en versión 2 y un cliente que no
+    los lee no nota nada. En el controlador, `a.pared` / `b.pared` (opcionales).
+  - *Letrero* sobre la diana 3D (`packages/render/src/dardos-duelo-plaza-3d.ts`, `crearLetreroPlaza`; un plano y una
+    textura de canvas): mismos textos puros que el marcador de la pared (`panelDe`, `pintarPanel`): nombres, puntos,
+    «Ronda r/N», turno resaltado, y el resultado (el texto del servidor para un curioso, «Ganas/Pierdes» para quien
+    jugó) durante `DUELO_FIN_MS`. Sin duelo, oculto. Se repinta solo si cambia su contenido (`claveLetrero`).
+  - *Invitación.* Con un anfitrión esperando solo, el pie dice «Esperando rival — ¿juegas desde tu pared (AR)?»,
+    para que quien pase sepa que el duelo existe y cómo entrar.
+  - *Etiqueta* «En su pared (AR)» bajo el letrero cuando alguien de la partida (o el anfitrión que espera) entró
+    desde una pared. Pura: `letreroDe`.
+  - *Dardos del jugador remoto.* En la diana 3D de la plaza llegan con el mismo arco corto que en AR
+    (`vueloRival`, 0,4 s) desde arriba a la izquierda y luego se clavan. Solo si la diana tiene un duelo vivo, el
+    dardo es de alguien que juega desde su pared y acaba de caer (`debeVolar`, menos de `RECIENTE_MS`: los que ya
+    estaban al llegar se clavan sin más). Los de quien tira junto a la diana y todo lo de una diana v1 se clavan
+    como siempre.
+  - *Cómo se engancha.* `crearDianas3D` devuelve tres asas nuevas (`grupo`, `malla`, `alFotograma`) y la vista
+    llama a `dardos.actualizar(dt)` cada fotograma; `montarDuelo` (`apps/plaza/dardos-duelo.ts`) recibe
+    `view.dardos` y monta el letrero. Una diana sin duelo no cambia.
+  - *Arreglo del controlador.* Un curioso se quedaba con «Esperando rival…» para siempre si el anfitrión desistía
+    (`fin` sin `finduelo`); ahora `duelo()` vuelve a `null` y el letrero se va.
+  - *Pruebas*: `test/dardos-duelo-plaza.test.ts` (textos, etiqueta, invitación, qué dardos vuelan, el arco, el campo
+    de cable y el controlador visto por un curioso y por quien juega junto a la diana). El letrero pintado a PNG y el
+    arco medido en un navegador (`work/motor-ar/capturas/duelo-plaza-letrero-*.png`).
 - **Aún no**: contadores `duelos`/`ganados` en el marcador por invitado (cambiaría el evento `marcador` que
   fija `test/dardos.test.ts`) y lanzar con el gesto real en VR.
 

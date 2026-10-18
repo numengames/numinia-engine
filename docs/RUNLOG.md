@@ -1042,3 +1042,17 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5.
 - Commit: rama `ar/duelo-servidor` (ver `git log`). Sin push ni PR.
 - Siguiente: AR-D5 (e2e con dos jugadores); el lanzar con la mano en VR es de otra sesión.
+
+## 2026-10-18 18:20 · AR-D4 · hecho
+- Qué: el duelo de dardos visto desde la plaza. Letrero 3D sobre la diana del duelo (nombres, puntos, ronda, turno,
+  resultado, invitación «Esperando rival — ¿juegas desde tu pared (AR)?»), etiqueta «En su pared (AR)» y los dardos
+  del jugador de pared entran en arco (el mismo vuelo que en AR) en la diana 3D. Campo nuevo y aditivo en el cable:
+  `paredA`/`paredB` en `duelo` y `finduelo` (la feature sigue en versión 2). Código nuevo en archivos nuevos
+  (`dardos-duelo-plaza.ts` puro, `dardos-duelo-plaza-3d.ts`); a `dardos.ts` de render solo cuatro asas, a `index.ts`
+  una llamada por fotograma, a `apps/plaza/dardos.ts` tres líneas. Arreglo del controlador: un curioso conservaba
+  «Esperando rival…» si el anfitrión desistía.
+- Números: `test/dardos-duelo-plaza.test.ts` nuevo (8 pruebas); `dardos-duelo.test.ts` ajustado al campo nuevo; letrero
+  pintado a PNG y arco muestreado en un navegador (el render GL de escena no estaba disponible en el headless).
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `ar/duelo-servidor` (ver `git log`). Sin push ni PR.
+- Siguiente: AR-D5 (e2e con dos jugadores, incluida la plaza).
