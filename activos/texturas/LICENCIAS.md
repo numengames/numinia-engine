@@ -23,7 +23,7 @@ relieve/normal: reducido a 512 px, calidad 85) para que pese ~4 veces menos. Los
 | `texturas/roca-normal.webp` | ídem | Rob Tuytel | nor_gl 1k jpg, 1.177.932, `66fcad0f…` | 92.192 |
 | `texturas/nieve-color.webp` | [Snow 02](https://polyhaven.com/a/snow_02), 2 m | Rob Tuytel | diff 1k jpg, 325.497, `fc54766c…` | 52.374 |
 | `texturas/nieve-normal.webp` | ídem | Rob Tuytel | nor_gl 1k jpg, 1.081.858, `f16b5701…` | 74.884 |
-| `cielos/kloofendal_48d_partly_cloudy_puresky_1k.hdr` | [Kloofendal 48d Partly Cloudy (Pure Sky)](https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky) | Greg Zaal (original), Jarod Guest (cielo) | 1k hdr, 1.435.119, `c6949868…` | igual (sin tocar) |
+| `cielos/kloofendal_48d_partly_cloudy_puresky_1k.hdr` | [Kloofendal 48d Partly Cloudy (Pure Sky)](https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky) | Greg Zaal (original), Jarod Guest (cielo) | 1k hdr, 1.435.119, `c6949868…` | 820.598: mismo tamaño y píxeles, 6 de 8 bits de mantisa (E3, ≤ 1,6 % por píxel; `tools/aligerar-activos.ts`) |
 
 El mapa de relieve del **agua** no es un fichero: lo calcula `packages/render/src/elementos.ts` (suma de ondas;
 obra propia). Las partículas (fuego, humo, chispas, polvo) tampoco usan imágenes: discos suaves en el shader.

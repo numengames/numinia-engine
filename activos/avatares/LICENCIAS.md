@@ -32,13 +32,20 @@ git de cada uno coincide con el del árbol de `PolygonalMind/100Avatars` en el c
 
 | Fichero | Avatar | sha256 | Bytes | Triángulos | Fuente |
 |---|---|---|---|---|---|
-| `100Avatars_027_Astrodisco.vrm` | Astrodisco (nº 27, ronda 1) | `6385ea72c79699a441a2d4590b7308170b46e140474003ee11055e0f0ba9e834` | 1.033.356 | 2.724 | <https://github.com/PolygonalMind/100Avatars/blob/ff07c2ad0017819c4e5366656ee1e5bcc4029bd4/100Avatars_027/100Avatars_027_Astrodisco.vrm> |
-| `100Avatars_029_Skelly.vrm` | Skelly (nº 29, ronda 1) | `3b789306ad0e22845a3668398f7d71c93fd8f99b0a2ee6116311270655dda06c` | 1.169.152 | 2.880 | <https://github.com/PolygonalMind/100Avatars/blob/ff07c2ad0017819c4e5366656ee1e5bcc4029bd4/100Avatars_029/100Avatars_029_Skelly.vrm> |
-| `100Avatars_051_Polybot.vrm` | Polybot (nº 51, ronda 1) | `e255bace0d7de8b5fc90756efc83e167080e6db97692f23623fec5f1c67c423d` | 997.048 | 2.130 | <https://github.com/PolygonalMind/100Avatars/blob/ff07c2ad0017819c4e5366656ee1e5bcc4029bd4/100Avatars_051/100Avatars_051_Polybot.vrm> |
+| `100Avatars_027_Astrodisco.vrm` | Astrodisco (nº 27, ronda 1) | `3b48bbbbfa5c49183e924e78c21acc10dff286cea973993c42d04a768d8c847a` | 189.080 | 2.724 | <https://github.com/PolygonalMind/100Avatars/blob/ff07c2ad0017819c4e5366656ee1e5bcc4029bd4/100Avatars_027/100Avatars_027_Astrodisco.vrm> |
+| `100Avatars_029_Skelly.vrm` | Skelly (nº 29, ronda 1) | `9839eebf009b3eb7bfb76b2a167255bd95c84a2aa3d67c38e1da238dc45896ae` | 250.228 | 2.880 | <https://github.com/PolygonalMind/100Avatars/blob/ff07c2ad0017819c4e5366656ee1e5bcc4029bd4/100Avatars_029/100Avatars_029_Skelly.vrm> |
+| `100Avatars_051_Polybot.vrm` | Polybot (nº 51, ronda 1) | `bb6f0f1bad0ad504684c185e377fd3909d45b61d28bb0545c94a49fedfe70675` | 235.824 | 2.130 | <https://github.com/PolygonalMind/100Avatars/blob/ff07c2ad0017819c4e5366656ee1e5bcc4029bd4/100Avatars_051/100Avatars_051_Polybot.vrm> |
 
-Los tres: VRM 0.x (exportador de Blender de saturday06 2.4.8), una malla, un material MToon, una textura PNG,
-16 formas (visemas y parpadeo), 52 huesos humanoides (Polybot 31: sin dedos). Unas tres cuartas partes de los bytes
-son esas 16 formas: un VRM sin ellas pesaría ~250 kB (pendiente: no se usan todavía).
+Los tres: VRM 0.x (exportador de Blender de saturday06 2.4.8), una malla, un material MToon, una textura,
+16 formas (visemas y parpadeo), 52 huesos humanoides (Polybot 31: sin dedos).
+
+**E3 (2026-10-18): aligerados sin cambiar lo que se ve** con `node tools/aligerar-activos.ts` (meshoptimizer MIT,
+@jsquash Apache-2.0). Los originales de la fuente pesaban 1.033.356 / 1.169.152 / 997.048 B con sha256
+`6385ea72…`, `3b789306…`, `e255bace…` (los de la fuente, enlace de arriba). Cambia solo cómo se guardan los bytes:
+textura PNG → WebP sin pérdida (mismos píxeles; se quita su nota de color «GIMP built-in sRGB», que es sRGB),
+las 16 formas → accesores dispersos (solo los vértices que se mueven; el resto llevaba restos de redondeo ≤ 0,24 µm),
+y cada búfer con `EXT_meshopt_compression` sin filtro (sin pérdida). El JSON (metadatos VRM con la licencia CC0,
+huesos, materiales, formas) es el mismo campo a campo; la herramienta lo comprueba y compara cada accesor.
 
 Para añadir otro: copia el `.vrm` aquí, escribe su fila con la fuente, y `node tools/avatares-catalogo.ts` (rechaza lo
 que no diga CC0 dentro o pase de 10.000 triángulos); `test/avatares.test.ts` lo comprueba.
