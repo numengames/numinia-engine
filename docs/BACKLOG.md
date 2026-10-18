@@ -154,7 +154,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | V14 | Página compañera accesible: el móvil o el PC muestra lo que pasa en las gafas (chat, avisos, lista) | espera a V4 | sí |
 | M18 | Medios: vídeo en pantallas del mundo sincronizado con el reloj del servidor (función J7) | pendiente | sí |
 | M18b | El Graboso: la reliquia que graba lo que ves (cabeza de oso de nube translúcida; K la saca y graba, 30 s–1 min con tope duro, clip descargable) | hecho (v1, rama `objetos/graboso`; falta: conectar con Y1, voces de otros, modelo fino, VR) | no |
-| M18c | Compartir el clip del Graboso: subirlo al mundo (`PUT /a/`, H9) y reproducirlo en una pantalla (M18); aviso a quien sale («X ha sacado el Graboso») | espera a M18 | sí |
+| M18c | Compartir el clip del Graboso: subirlo al mundo (`PUT /a/`, H9) y reproducirlo en una pantalla (M18); aviso a quien sale («X ha sacado el Graboso») — **confirmado por Pablo (18-10): sí, avisar** | espera a M18 | sí |
 | V8 | Perfil de accesibilidad en la identidad, aplicado antes del primer fotograma en cualquier aparato | pendiente | sí |
 | P5a | El puente nuevo y el primer cerebro (E2 contesta, E4 construye si el mundo deja): clave sin eco (`--clave-ia`), topes, `<material>`, herramientas comprobadas en código | hecho (primer corte; falta: E1, probarlo con Claude en el VPS, D7 revisión del contrato) | no |
 | P5b | Iniciativa por evento (E3), gestos con clips, persona en `.md`, medidor de consumo por habitante y por mundo | espera a P5a | sí |
