@@ -18,6 +18,11 @@ import { crearObjetos } from "../features/objetos/server.ts";
 import { crearCliente as clienteObjetos } from "../features/objetos/client.ts";
 import { crearMisiones } from "../features/misiones/server.ts";
 import { crearSuelo } from "../features/suelo/server.ts";
+import { crearMovedores } from "../features/movedores/server.ts";
+import { crearCliente as clienteMovedores } from "../features/movedores/client.ts";
+import type { MovedorFichero } from "../features/movedores/feature.ts";
+import { crearCerradura } from "../features/cerradura/server.ts";
+import { crearCliente as clienteCerradura } from "../features/cerradura/client.ts";
 import funciones from "../features/servidor.ts";
 import paginas from "../features/cliente.ts";
 import limits from "../limits.json" with { type: "json" };
@@ -246,4 +251,63 @@ test("D-041 historias 5-6: an accepted edit rewrites disparadores.json on disk, 
   const releido = leerDisparadores(crudo);
   assert.equal(releido.problemas.length, 0, releido.problemas.join("; "));
   assert.deepEqual(releido.disparadores.find((d) => d.id === "rojo")?.receptores, [{ accion: "oculta", objeto: "Farola" }]);
+});
+
+test("D-041 h5: leerDisparador accepts tipo «senal» (needs a senal name, not x/z) and leerReceptor accepts «mueve»", () => {
+  assert.match(String(leerDisparador({ id: "s1", tipo: "senal", receptores: [{ accion: "mueve", objeto: "plat1" }] })), /senal/);
+  const ok = leerDisparador({ id: "s1", tipo: "senal", senal: "puerta-llega", receptores: [{ accion: "mueve", objeto: "plat1" }] });
+  assert.equal(typeof ok, "object"); assert.deepEqual((ok as { senal: string }).senal, "puerta-llega");
+  assert.match(String(leerReceptor({ accion: "mueve" })), /mueve.*objeto/);
+  assert.deepEqual(leerReceptor({ accion: "mueve", objeto: "plat1" }), { accion: "mueve", objeto: "plat1" });
+});
+
+test("D-041 h5: the receiver «mueve» drives an interruptor movedor from a button, with no distance check", () => {
+  const PUERTA: MovedorFichero = { id: "puerta1", nombre: "Puerta", modelo: "hash", tipo: "interruptor", ax: 0, ay: 0, az: 10, arx: 0, ary: 0, arz: 0, bx: 2, by: 0, bz: 10, brx: 0, bry: 0, brz: 0, sx: 1, sy: 1, sz: 1, duracion: 1, espera: 0, radio: 2.5, evento: "", empiezaEn: "a" };
+  const BOTON_MUEVE = { id: "palanca", nombre: "Palanca", tipo: "boton", x: 0, z: 0, receptores: [{ accion: "mueve", objeto: "puerta1" }] };
+  const leido = leerDisparadores({ disparadores: [BOTON_MUEVE] });
+  const log: string[] = [];
+  const inst = new Instance({ seed: 1, capacity: 8, k: 50, snapshotEvery: 2, features: [chatServer, crearMovedores({ movedores: [PUERTA] }), crearDisparadores({ disparadores: leido.disparadores })], log: (l) => log.push(l), identitySign: sign });
+  const t = inst.join(0);
+  inst.sim.tf.cols.x[t.id ?? 0] = fx(0); inst.sim.tf.cols.z[t.id ?? 0] = fx(0); // next to the button; the movedor itself is 10 m away
+  const d = clienteDisparadores(), m = clienteMovedores();
+  const s = new ClientSession(t, { identity: keeper(), features: [...d.parts, ...m.parts], view: { label() {}, bounce() {}, place() {}, here: () => ({ x: 0, y: 0, z: 0 }) } });
+  const pump = (n = 2) => { for (let i = 0; i < n; i++) { t.flush(); inst.tick(); t.flush(); } };
+  pump(3);
+  assert.equal(m.movedores.uno("puerta1")!.marcha, false);
+  assert.ok(d.disparadores.pulsar("palanca").ok); pump(3);
+  assert.equal(m.movedores.uno("puerta1")!.marcha, true, "mueve moved it even though the player never went near the movedor (only near the button)");
+  pump(20); // duracion = 1 s
+  assert.equal(m.movedores.uno("puerta1")!.lado, "b");
+});
+
+test("D-041 h5: a lock that opens fires the cable's «senal» (cerradura.abierta.evento), which runs its receiver", () => {
+  const SENAL_DISP = { id: "s-abre", nombre: "Al abrir", tipo: "senal", senal: "cofre-abierto", receptores: [{ accion: "suena", sonido: "campana" }] };
+  const leido = leerDisparadores({ disparadores: [SENAL_DISP] });
+  const log: string[] = [];
+  const inst = new Instance({ seed: 1, capacity: 8, k: 50, snapshotEvery: 2, features: [chatServer, crearCerradura(), crearDisparadores({ disparadores: leido.disparadores })], log: (l) => log.push(l), identitySign: sign, puede: () => true });
+  const t = inst.join(0);
+  const dCli = clienteDisparadores(), cCli = clienteCerradura();
+  const s = new ClientSession(t, { identity: keeper(), features: [...dCli.parts, cCli.part] });
+  const pump = (n = 2) => { for (let i = 0; i < n; i++) { t.flush(); inst.tick(); t.flush(); } };
+  pump(2);
+  cCli.cerradura.poner({ id: "cofre", metodo: "codigo", codigo: "1234", nombre: "Cofre", x: 0, z: 0, evento: "cofre-abierto" }); pump(2);
+  cCli.cerradura.abrir("cofre", "1234"); pump(3);
+  assert.equal(cCli.cerradura.estado.ultimaAbierta, "cofre");
+  assert.equal(eventos(s, "disparadores", "sonido").length, 1, "the senal disparador fired its own receiver (suena)");
+  assert.equal(eventos(s, "disparadores", "sonido").at(-1)?.msg.sonido, "campana");
+});
+
+test("D-041 h5: a movedor's arrival fires the cable's «senal» (movedores.llegada.evento)", () => {
+  const PLAT: MovedorFichero = { id: "plat1", nombre: "Plataforma", modelo: "hash", tipo: "vaiven", ax: 0, ay: 0, az: 0, arx: 0, ary: 0, arz: 0, bx: 0, by: 2, bz: 0, brx: 0, bry: 0, brz: 0, sx: 1, sy: 1, sz: 1, duracion: 0.2, espera: 0, radio: 2.5, evento: "plat-llega", empiezaEn: "a" };
+  const SENAL_DISP = { id: "s-llega", nombre: "Al llegar", tipo: "senal", senal: "plat-llega", un_solo_uso: true, receptores: [{ accion: "suena", sonido: "din" }] };
+  const leido = leerDisparadores({ disparadores: [SENAL_DISP] });
+  const log: string[] = [];
+  const inst = new Instance({ seed: 1, capacity: 8, k: 50, snapshotEvery: 2, features: [chatServer, crearMovedores({ movedores: [PLAT] }), crearDisparadores({ disparadores: leido.disparadores })], log: (l) => log.push(l), identitySign: sign });
+  const t = inst.join(0);
+  const dCli = clienteDisparadores();
+  const s = new ClientSession(t, { identity: keeper(), features: [...dCli.parts] });
+  const pump = (n = 2) => { for (let i = 0; i < n; i++) { t.flush(); inst.tick(); t.flush(); } };
+  pump(10); // vaiven rides A→B on its own (duracion 0.2 s = 4 ticks)
+  assert.equal(eventos(s, "disparadores", "sonido").length, 1, "the movedor's own arrival rang the cable, no button or zone involved");
+  assert.equal(eventos(s, "disparadores", "sonido").at(-1)?.msg.sonido, "din");
 });

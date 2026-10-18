@@ -56,7 +56,7 @@ export const crearCerradura = () => serverPart(cerradura, (api: ServerApi) => {
     }
     api.store.set(`i:${fc}`, 0);
     api.state.set(id, { ...c, abierta: true }, { at: { x: Number(c.x), z: Number(c.z) } });
-    api.emit("abierta", { id }, { to: e });
+    api.emit("abierta", { id, evento: String(c.evento ?? "") }, { to: e });
   });
 
   api.on("poner", (e, m) => {
@@ -66,6 +66,8 @@ export const crearCerradura = () => serverPart(cerradura, (api: ServerApi) => {
     const metodo = String(m.metodo ?? "") as Metodo;
     if (!(METODOS as readonly string[]).includes(metodo)) return rechazar(e, `El método es ${METODOS.join(" o ")}.`);
     const nombre = cortar(String(m.nombre ?? "Cerradura"), NOMBRE_MAX) || "Cerradura";
+    const evento = String(m.evento ?? "");
+    if (evento && !/^[a-z0-9_-]{1,32}$/.test(evento)) return rechazar(e, "evento: un nombre de 1 a 32 letras minúsculas, cifras o guiones (lo que oye el cable; vacío si no quieres que dispare nada).");
     if (metodo === "codigo") {
       const codigo = String(m.codigo ?? "");
       if (!esCodigo(codigo)) return rechazar(e, `El código es de ${CODIGO_MIN} a ${CODIGO_MAX} cifras (0-9).`);
@@ -75,7 +77,7 @@ export const crearCerradura = () => serverPart(cerradura, (api: ServerApi) => {
       if (!esId(llave)) return rechazar(e, "La llave es de 1 a 16 letras minúsculas, cifras o guiones.");
       api.store.delete(`c:${id}`);
     }
-    const ok = api.state.set(id, { metodo, llave: metodo === "llave" ? String(m.llave ?? "") : "", abierta: false, nombre, x: Number(m.x), y: Number(m.y ?? 0), z: Number(m.z) }, { at: { x: Number(m.x), z: Number(m.z) } });
+    const ok = api.state.set(id, { metodo, llave: metodo === "llave" ? String(m.llave ?? "") : "", abierta: false, nombre, x: Number(m.x), y: Number(m.y ?? 0), z: Number(m.z), evento }, { at: { x: Number(m.x), z: Number(m.z) } });
     if (!ok) return rechazar(e, "Esos datos no caben en una cerradura.");
     api.emit("hecho", { id, accion: "poner" }, { to: e });
   });
