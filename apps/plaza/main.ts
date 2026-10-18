@@ -50,11 +50,13 @@ import { montarWeb } from "./web.ts";
 import { montarVoz } from "./voz.ts";
 import { icono } from "./iconos.ts";
 import { montarXR } from "./xr.ts";
+import { carga } from "./carga.ts"; // U1/H2: the loading screen (shell and controller are in index.html)
 import { aplicarTema } from "./tema-mundo.ts"; // a world's look (ficha@1 `tema`): an event's colours and title face
 import { montarFoto } from "./foto.ts"; // N13: photo mode (P): hide the interface, frame, filter, PNG, share, a link to the place
 import { esTactil, perfil, montarMarco } from "./perfil-aparato.ts"; // U25: the device profile (touch, small screen, VR), one answer for the whole page
 import { esMovil, enZonaAndar, ZONA_ANDAR_MOVIL } from "../../packages/client/src/movil.ts"; // U24: the phone layout (apps/plaza/movil.ts) and its rules
 
+carga.irA("grafica"); // the code is here
 const params = new URLSearchParams(location.search);
 // U25: a phone profile forced on a desktop (?aparato=movil-vertical, development or ?debug): this page becomes a frame
 // that loads the world again at phone size, and starts nothing itself (no view, no connection) — it stops here.
@@ -73,6 +75,7 @@ if (estado?.nombre) { document.title = estado.nombre; hud.textContent = `Conecta
 const enMovil = esMovil(perfil().clase); // U24: the phone layout: the joystick owns the left third, a bigger stick, the rest of the screen looks
 const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, movil: perfil().forzado ? perfil().movil : undefined, assetUrl: (m) => `${activos}/a/${m}.glb`,
   avatares: { catalogo: catalogoDeAvatares(activos, params, estado?.avatar), yo: () => session.entity } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar
+carga.irA("red");
 const transport = webSocketClient(url);
 // game features (J7): their client parts, and how they may draw (a label, a hop) over any avatar
 // I1: the guest token stays in this browser (no account, no personal data); private mode = a new guest each time
@@ -440,7 +443,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, ambiente, elementos, voz, xr, pesca, lucha, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, ambiente, elementos, voz, xr, pesca, lucha, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable, carga };
 
 // ---- U11: the bar of icon buttons, top right (rightmost first): settings, build, microphone, full screen, VR, AR ----
 {
@@ -457,6 +460,26 @@ function drawHud() {
 // before the first frame: the display loop above only draws from the next animation frame on ----
 montarAjustes({ view, session, params, funciones, numinia: (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia });
 montarPulsaciones({ ajuste: leerAjuste });
+
+// ---- H2: the loading screen follows real signals only: the welcome (red) → files of the world (mundo) → materials
+// (preparar) → first drawn frame (listo). It shows after 400 ms and stays 600 ms (index.html's controller) ----
+void (async () => {
+  const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  while (!session.welcome) await dormir(50);
+  let visto = 0, quietas = 0;
+  while (quietas < 2) { // the world's files: nothing pending twice in a row (the first messages of the zone may still be on their way)
+    const pendientes = view.cargando();
+    visto = Math.max(visto, pendientes);
+    carga.irA("mundo", visto - pendientes, visto);
+    quietas = pendientes === 0 && session.entity >= 0 ? quietas + 1 : 0;
+    await dormir(100);
+  }
+  carga.irA("preparar", 0, 1);
+  await view.preparar();
+  carga.irA("preparar", 1, 1);
+  while (!informe.primerCuadroMs) await dormir(50);
+  carga.listo();
+})();
 
 // battery mode: press B (or open ?bateria)
 addEventListener("keydown", (e) => { if (e.code === "KeyB" && !escribiendo(e)) { view.power.setBattery(!view.power.battery); view.applyPixelRatio(); } });

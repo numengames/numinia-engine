@@ -952,6 +952,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** U10: draw hidden spheres of sound (while building) or not (while playing). */
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
     busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado(); },
+    /** U1: files of things in the world that are downloading or waiting their turn (the loading screen's «mundo» phase). */
+    cargando(): number { return loading + waiting.size; },
+    /** U1: compile the materials of what the scene holds now, before the first frame (the loading screen's «preparar» phase). Never rejects. */
+    preparar(): Promise<void> { return Promise.resolve(renderer.compileAsync(scene, camera)).then(() => undefined, () => undefined); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */
