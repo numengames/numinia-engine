@@ -318,6 +318,17 @@ export function createManos(h: ManosHooks) {
     on(fn: (e: EventoMano) => void): () => void { oyentes.add(fn); return () => oyentes.delete(fn); },
     /** Where a thing held in this hand goes (grip or pinch point), or null if that hand is not here. */
     ancla(lado: Lado): THREE.Object3D | null { const r = ranuras.find((x) => x.lado === lado && x.fuente); return r ? r.ancla : null; },
+    /** This hand's ray right now (world space, plain numbers — not a page's job to hold onto a THREE.Vector3), or
+     * null if that hand is not here. For a feature that needs its own aim at the exact moment a button changed
+     * (dardos-vr.ts: the throw, read on `gatillo_fin`), not through the generic reach/point pipeline above (which
+     * only reports keys it was given rules for). */
+    rayo(lado: Lado): { origen: { x: number; y: number; z: number }; dir: { x: number; y: number; z: number } } | null {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente);
+      if (!r || !r.ctrl.visible) return null;
+      r.ctrl.updateMatrixWorld();
+      const o = r.ctrl.getWorldPosition(new THREE.Vector3()), d = new THREE.Vector3(0, 0, -1).applyQuaternion(r.ctrl.getWorldQuaternion(new THREE.Quaternion()));
+      return { origen: { x: o.x, y: o.y, z: o.z }, dir: { x: d.x, y: d.y, z: d.z } };
+    },
     /** Walking with tracked hands: the flattened direction (world, unit) of a hand pinching in empty air for ANDAR_MS. */
     andar(): [number, number] | null {
       const ahora = performance.now();
@@ -329,6 +340,15 @@ export function createManos(h: ManosHooks) {
       }
       return null;
     },
+    /** t_bf8947cf: where that hand's controller points, flattened (world, unit) — «según el mando» locomotion.
+     * null while that side has no controller connected (a tracked hand has no stick to read anyway). */
+    dirMando(lado: Lado): [number, number] | null {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente && !x.esMano);
+      if (!r) return null;
+      Dir.set(0, 0, -1).applyQuaternion(r.ctrl.getWorldQuaternion(Qw));
+      const l = Math.hypot(Dir.x, Dir.z);
+      return l > 0.2 ? [Dir.x / l, Dir.z / l] : null;
+    },
     /** What a hand's buttons say now: trigger (or a tracked hand's pinch, 0/1), grip, and whether it is a tracked hand. */
     entrada(lado: Lado): { gatillo: number; agarre: number; mano: boolean } | null {
       const r = ranuras.find((x) => x.lado === lado && x.fuente);
@@ -338,6 +358,14 @@ export function createManos(h: ManosHooks) {
       return { gatillo: b[0]?.value ?? 0, agarre: b[1]?.value ?? 0, mano: false };
     },
     vibrar(lado: Lado, v = 0.5, ms = 60): void { const r = ranuras.find((x) => x.lado === lado); if (r) vibrar(r, v, ms); },
+    /** M22b-3: this hand's ray now (world space), or null when it is not drawn (no controller, or holding something close). For
+     * features that pick their own things along it (the builder) instead of waiting for `apuntado`'s own list. */
+    rayoDe(lado: Lado): { origen: { x: number; y: number; z: number }; dir: { x: number; y: number; z: number } } | null {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente);
+      if (!r || !r.rayo.visible) return null;
+      r.ctrl.getWorldPosition(O); Dir.set(0, 0, -1).applyQuaternion(r.ctrl.getWorldQuaternion(Qw));
+      return { origen: { x: O.x, y: O.y, z: O.z }, dir: { x: Dir.x, y: Dir.y, z: Dir.z } };
+    },
     /** For checks: per hand, what is connected and drawn, how bent the fingers are, what it reaches and points at. */
     estado() {
       const out: Record<Lado, { tipo: "mando" | "mano"; dibujada: boolean; articulaciones: number; indice: number; resto: number; candidato: string | null; apunta: string | null; rayo: boolean } | null> = { izq: null, der: null };

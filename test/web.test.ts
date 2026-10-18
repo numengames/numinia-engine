@@ -13,7 +13,7 @@ import { crearCliente as crearChat } from "../features/chat/client.ts";
 import { crearWeb } from "../features/web/server.ts";
 import type { Cabeceras } from "../features/web/server.ts";
 import { crearCliente as crearWebCliente } from "../features/web/client.ts";
-import { web, motivoUrl, resumirMarco, dejaEnmarcar, leerWebMundo, normalizarDominio } from "../features/web/feature.ts";
+import { web, motivoUrl, resumirMarco, dejaEnmarcar, leerWebMundo, normalizarDominio, DOMINIOS_MAX } from "../features/web/feature.ts";
 import { conMundo } from "../features/mundo.ts";
 import funciones from "../features/servidor.ts";
 import { crearRoles } from "../packages/server/src/roles-mundo.ts";
@@ -170,7 +170,106 @@ test("web: from the chat — /web lists, /web <url> [title] puts one in front, /
   W.decir(A, "/web quitar w1");
   assert.match(W.ultimo(A), /quitada/);
   assert.deepEqual(B.web.pantallas().map((x) => x.id), ["archivo"]);
+  // /web dominio: list, add, and remove, all from the chat
+  W.decir(A, "/web dominio");
+  assert.match(W.ultimo(A), /Dominios permitidos: numinia\.org, 127\.0\.0\.1:8123/);
+  W.decir(A, "/web dominio ejemplo.com");
+  assert.match(W.ultimo(A), /Dominio ejemplo\.com añadido/);
+  W.decir(A, "/web dominio");
+  assert.match(W.ultimo(A), /ejemplo\.com/);
+  W.decir(A, "/web dominio quitar ejemplo.com");
+  assert.match(W.ultimo(A), /Dominio ejemplo\.com quitado/);
+  W.decir(A, "/web dominio quitar numinia.org"); // the file's: not from the chat
+  assert.match(W.ultimo(A), /entorno\/web\.json/);
   await esperar();
+});
+
+test("web: N17 corte 2 — owners/director add and remove a domain in hot, via the intent (not the file, no restart)", () => {
+  const W = mundo(2);
+  const [A, B] = W.gente;
+  W.pump(3);
+  // a visitor cannot add one
+  B.web.dominioPoner("ejemplo.com"); W.pump(2);
+  assert.match(B.web.estado.ultimoRechazo, /dueños del mundo y de quien dirige/);
+  W.decir(A, `/dueño ${ADMIN}`); W.pump(2);
+  // not a domain: rejected, nothing added
+  A.web.dominioPoner("no es un dominio"); W.pump(2);
+  assert.match(A.web.estado.ultimoRechazo, /no es un dominio/);
+  // a good one: accepted, and now screens on it are allowed, without touching entorno/web.json (dominiosArchivo)
+  A.web.dominioPoner("https://Ejemplo.COM/algo"); W.pump(2);
+  assert.equal(A.web.estado.ultimoDominio, "poner ejemplo.com");
+  A.web.poner({ url: "https://ejemplo.com/pagina", titulo: "Ejemplo", x: 2, z: -4 }); W.pump(2);
+  assert.ok(B.web.pantallas().some((p) => p.url === "https://ejemplo.com/pagina"), "ejemplo.com is now allowed");
+  // adding it again is rejected (already there)
+  A.web.dominioPoner("ejemplo.com"); W.pump(2);
+  assert.match(A.web.estado.ultimoRechazo, /ya está en la lista/);
+  // a domain from entorno/web.json cannot be removed this way
+  A.web.dominioQuitar("numinia.org"); W.pump(2);
+  assert.match(A.web.estado.ultimoRechazo, /entorno\/web\.json/);
+  // removing one never added is rejected
+  A.web.dominioQuitar("otro.org"); W.pump(2);
+  assert.match(A.web.estado.ultimoRechazo, /no está en la lista de dominios añadidos/);
+  // a visitor cannot remove one either
+  B.web.dominioQuitar("ejemplo.com"); W.pump(2);
+  assert.match(B.web.estado.ultimoRechazo, /dueños del mundo y de quien dirige/);
+  // the owner removes it: screens on it are refused again
+  A.web.dominioQuitar("ejemplo.com"); W.pump(2);
+  assert.equal(A.web.estado.ultimoDominio, "quitar ejemplo.com");
+  A.web.poner({ url: "https://ejemplo.com/otra", titulo: "Otra", x: 2, z: -4 }); W.pump(2);
+  assert.match(A.web.estado.ultimoRechazo, /no está en la lista/);
+});
+
+test("web: N17 corte 2 — the allow-list cap (DOMINIOS_MAX) counts the file's domains and the hot ones together", () => {
+  const log: string[] = [];
+  const avisos: string[] = [];
+  const estado = new Map<string, Record<string, unknown>>();
+  const almacen = new Map<string, unknown>();
+  let n = 0;
+  const intents: Record<string, (f: number, m: Record<string, unknown>) => void> = {};
+  const api = {
+    state: { get: (k: string) => estado.get(k), set: (k: string, v: Record<string, unknown>) => { estado.set(k, v); return true; }, delete: (k: string) => { estado.delete(k); }, keys: () => [...estado.keys()] },
+    store: { get: (k: string) => almacen.get(k), set: (k: string, v: unknown) => { almacen.set(k, v); return true; }, delete: (k: string) => { almacen.delete(k); }, keys: () => [...almacen.keys()] },
+    log: (l: string) => log.push(l), onJoin() {}, onIdentify() {}, listen() {}, puede: () => true,
+    emit: (_e: string, m: Record<string, unknown>) => { avisos.push(String(m.texto ?? m.motivo ?? "")); return 0; },
+    who: () => ({ id: "x", nombre: "A" }), sign: (t: string) => `firma${n++}:${t}`.slice(0, 24),
+    on: (intent: string, fn: (f: number, m: Record<string, unknown>) => void) => { intents[intent] = fn; },
+  };
+  const dominiosArchivo = Array.from({ length: DOMINIOS_MAX - 1 }, (_, i) => `sitio${i}.org`);
+  crearWeb({ dominios: dominiosArchivo, pantallas: [], probar: async () => null }).setup(api as never);
+  // one more fits exactly at DOMINIOS_MAX
+  intents.dominioPoner(1, { dominio: "uno-mas.org" });
+  assert.equal(almacen.size, 1, "fits: file has DOMINIOS_MAX-1, this is the last slot");
+  intents.dominioPoner(1, { dominio: "otro-mas.org" });
+  assert.equal(almacen.size, 1, "the cap holds: no second one was stored");
+  assert.match(avisos.join("\n"), new RegExp(`ya tiene ${DOMINIOS_MAX} dominios permitidos`));
+});
+
+test("web: N17 corte 2 — a domain added in hot survives a restart (api.store), the file's own list does not change", () => {
+  const log: string[] = [];
+  const almacen = new Map<string, unknown>(); // the same store across two lives of the server
+  const unaVida = (dominiosArchivo: string[]) => {
+    const estado = new Map<string, Record<string, unknown>>();
+    const intents: Record<string, (f: number, m: Record<string, unknown>) => void> = {};
+    const api = {
+      state: { get: (k: string) => estado.get(k), set: (k: string, v: Record<string, unknown>) => { estado.set(k, v); return true; }, delete: (k: string) => { estado.delete(k); }, keys: () => [...estado.keys()] },
+      store: { get: (k: string) => almacen.get(k), set: (k: string, v: unknown) => { almacen.set(k, v); return true; }, delete: (k: string) => { almacen.delete(k); }, keys: () => [...almacen.keys()] },
+      log: (l: string) => log.push(l), onJoin() {}, onIdentify() {}, listen() {}, emit: () => 0, puede: () => true,
+      who: () => ({ id: "x", nombre: "A" }), sign: (t: string) => `firma:${t}`,
+      on: (intent: string, fn: (f: number, m: Record<string, unknown>) => void) => { intents[intent] = fn; },
+    };
+    crearWeb({ dominios: dominiosArchivo, pantallas: [], probar: async () => null }).setup(api as never);
+    return { intents };
+  };
+  // vida 1: numinia.org from the file; add ejemplo.com in hot
+  const v1 = unaVida(["numinia.org"]);
+  v1.intents.dominioPoner(1, { dominio: "ejemplo.com" });
+  assert.equal(almacen.size, 1);
+  // vida 2: same store (the "restart"); ejemplo.com is not repeated in the file, only learnt from the store
+  const v2 = unaVida(["numinia.org"]);
+  v2.intents.poner(1, { url: "https://ejemplo.com/pagina", titulo: "x", x: 0, z: 0 });
+  assert.ok(log.some((l) => /pone la pantalla/.test(l)), "ejemplo.com, learnt from the store, is still allowed after the restart");
+  v2.intents.dominioQuitar(1, { dominio: "ejemplo.com" });
+  assert.equal(almacen.size, 0, "removed from the store too, not only from memory");
 });
 
 test("web: at start, a placed screen whose site left the list is dropped (and so is a file screen no longer in the file)", () => {
@@ -180,8 +279,10 @@ test("web: at start, a placed screen whose site left the list is dropped (and so
     ["w2", { url: "https://numinia.org/", titulo: "Sigue", fichero: false }],
     ["viejo", { url: "https://numinia.org/", titulo: "Viejo", fichero: true }],
   ]);
+  const almacen = new Map<string, unknown>();
   const api = {
     state: { get: (k: string) => estado.get(k), set: (k: string, v: Record<string, unknown>) => { estado.set(k, v); return true; }, delete: (k: string) => { estado.delete(k); }, keys: () => [...estado.keys()] },
+    store: { get: (k: string) => almacen.get(k), set: (k: string, v: unknown) => { almacen.set(k, v); return true; }, delete: (k: string) => { almacen.delete(k); }, keys: () => [...almacen.keys()] },
     log: (l: string) => log.push(l), on() {}, onJoin() {}, onIdentify() {}, listen() {}, emit: () => 0, puede: () => false,
   };
   crearWeb({ dominios: ["numinia.org"], pantallas: [], probar: async () => null }).setup(api as never);
