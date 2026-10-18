@@ -849,9 +849,28 @@ comporta exactamente como en v1. Es una pieza del motor: cualquier mundo la acti
   único juez; límites de ritmo sin cambios. Un cliente que manda `desde: "pared"` a una diana normal solo gana un rechazo.
 - **Pruebas**: `test/dardos-duelo.test.ts` (diana v1 intacta, espera/entrada/tercero, pared solo en `remoto`,
   fuera de turno, dardos a 500 m, partida de 3 rondas igual en dos mundos, empate, abandono por salir/desconexión/
-  inactividad, huella de la simulación).
+  inactividad, huella de la simulación); `test/dardos-duelo-cliente.test.ts` (el controlador visto por los dos
+  jugadores y un curioso: turnos, puntos, `gane`/`empate`/`abandono`, dardos del rival, avisos).
+- **Controlador de la página y de los agentes** (`features/dardos/client.ts`, historia AR-D2). `dardos.duelo()`
+  devuelve `null` (no hay partida cerca, o en una diana v1) o `{ sitio, ronda, esperando, turnoDe, yo, miTurno,
+  rival, yoPuntos, a, b, fin }`:
+  - `ronda` 1-5; `0` y `esperando: true` = anfitrión sin rival (`b` y `rival` a `null`). `turnoDe` es la entidad
+    con el turno (`null` si se espera o ya acabó). **La entidad 0 es una persona real**: lee `esperando`/`ronda`
+    y `fin.empate`, nunca `ganador === 0`.
+  - `yo`: soy uno de los dos; `miTurno`: `true` solo para quien tiene el turno; `rival: { entity, nombre, puntos }`
+    y `yoPuntos` solo si `yo` (un curioso cerca de la diana tiene `yo: false`, `rival: null`, `yoPuntos: 0` y lee
+    `a`/`b`). Un jugador en una pared lejana (fuera del alcance del estado) mantiene la partida; un curioso que se
+    aleja de la diana la pierde.
+  - `fin: null | { ganador (entidad | null si empate), empate, abandono, texto, gane (soy el ganador), cuando }`;
+    se queda `DUELO_FIN_MS` (30 s) tras `finduelo` y entonces `duelo()` vuelve a `null`.
+  - `alCambiar(fn)` recibe además el tipo `"duelo"`. `rechazado` («No es tu turno», «Espera a tu rival», «Ya hay un
+    duelo en marcha»…) va a `estado().aviso`, como en v1. `jugar(sitio, "pared")` es la entrada desde una pared;
+    `ofrece("dardos", …)` es `false` mientras estás en una partida; `salir()` sigue siendo solo para quien tiene turno.
+  - `clavados(sitio)`: los dardos del rival llegan a cualquier distancia; en una partida **se quedan** al acabar su
+    turno y salen cuando empieza el siguiente turno de ese jugador (el primer dardo, como en v1); tras `finduelo`
+    siguen `DUELO_DARDOS_MS` (6 s) y se quitan. Una diana sin campos de duelo no cambia nada.
 - **Aún no**: contadores `duelos`/`ganados` en el marcador por invitado (cambiaría el evento `marcador` que
-  fija `test/dardos.test.ts`), la vista de la página (controlador y AR para el duelo: siguiente historia) y
+  fija `test/dardos.test.ts`), la vista del duelo en la página y en AR (AR-D3) y
   lanzar con el gesto real en VR.
 
 ## Dados (v1): los tira el servidor y todos ven lo mismo

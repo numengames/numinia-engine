@@ -1,19 +1,7 @@
 # Diario de turnos
 
 Una entrada por turno (desatendido o con Pablo), la más nueva abajo. En español, para personas.
-Formato: `## 2026-10-18 17:31 · AR-D1 · hecho
-- Qué: duelo de dardos, parte del servidor (dardos v2). `dardos.json` acepta `duelo`, `remoto` y `rondas` (1-5, por
-  defecto 3); `jugar` admite `desde: "pared"` (solo en dianas `remoto`); el primero que juega espera, el segundo
-  empieza la partida, los turnos alternan (3 dardos), `lanzar` fuera de turno se rechaza, gana el total más alto
-  (o `empate`), y salir/desconectar/60 s sin tirar da la victoria al otro (`abandono`). Eventos nuevos `duelo` y
-  `finduelo`; `dardo` y `fin` llegan también a los dos jugadores sea cual sea la distancia. Una diana sin los
-  campos nuevos no cambia. Sin `duelos`/`ganados` en el marcador (rompería el evento fijado por la prueba v1).
-- Números: `test/dardos-duelo.test.ts` nuevo (8 pruebas) y `test/dardos.test.ts` (10) sin tocar, en verde.
-- Consumo: sin medir · Sonnet 5.5.
-- Commit: rama `ar/duelo-servidor` sobre origin/main 91f73a5. Sin push ni PR.
-- Siguiente: historia de la página (controlador y vista del duelo, AR sin estar cerca) y lanzar en VR (otra sesión).
-
-## AAAA-MM-DD HH:MM · <ID> · <estado>` y cinco líneas: Qué, Números, Consumo (semana a % →
+Formato: `## AAAA-MM-DD HH:MM · <ID> · <estado>` y cinco líneas: Qué, Números, Consumo (semana a % →
 b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 15-10 están en hora de Madrid
 (CEST, UTC+2); desde la de las 10:08, en UTC.
@@ -1019,3 +1007,26 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Siguiente: Pablo decide la PR (hueco de PR único en numinia-engine; Y1 también espera) y el consentimiento
   (§6 del diseño: avisar a quien sale «X ha sacado el Graboso»). Después: conectar con Y1, voces de otros en
   el clip, modelo fino, VR, compartir (M18c).
+
+## 2026-10-18 17:31 · AR-D1 · hecho
+- Qué: duelo de dardos, parte del servidor (dardos v2). `dardos.json` acepta `duelo`, `remoto` y `rondas` (1-5, por
+  defecto 3); `jugar` admite `desde: "pared"` (solo en dianas `remoto`); el primero que juega espera, el segundo
+  empieza la partida, los turnos alternan (3 dardos), `lanzar` fuera de turno se rechaza, gana el total más alto
+  (o `empate`), y salir/desconectar/60 s sin tirar da la victoria al otro (`abandono`). Eventos nuevos `duelo` y
+  `finduelo`; `dardo` y `fin` llegan también a los dos jugadores sea cual sea la distancia. Una diana sin los
+  campos nuevos no cambia. Sin `duelos`/`ganados` en el marcador (rompería el evento fijado por la prueba v1).
+- Números: `test/dardos-duelo.test.ts` nuevo (8 pruebas) y `test/dardos.test.ts` (10) sin tocar, en verde.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `ar/duelo-servidor` sobre origin/main 91f73a5. Sin push ni PR.
+- Siguiente: historia de la página (controlador y vista del duelo, AR sin estar cerca) y lanzar en VR (otra sesión).
+
+## 2026-10-18 17:37 · AR-D2 · hecho
+- Qué: duelo de dardos, controlador de la página (dardos v2, `features/dardos/client.ts`). `dardos.duelo()` da turno,
+  `miTurno`, rival, puntos y `fin` (`gane`/`empate`/`abandono`) a los dos jugadores y a un curioso cerca (`yo: false`);
+  `alCambiar` avisa `"duelo"`; los dardos del rival se quedan hasta su siguiente turno y, tras `finduelo`, 6 s. Una
+  diana sin campos de duelo no cambia. De paso, la entrada AR-D1 de este diario estaba pegada dentro de la línea de
+  formato de la cabecera: la he movido al final.
+- Números: `test/dardos-duelo-cliente.test.ts` nuevo (7 pruebas); `dardos.test.ts` y `dardos-duelo.test.ts` sin tocar, en verde.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `ar/duelo-servidor` (ver `git log`). Sin push ni PR.
+- Siguiente: AR-D3 (la vista del duelo en la página y en AR; `apps/plaza/dardos.ts` y `packages/render`).

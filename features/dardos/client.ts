@@ -1,6 +1,6 @@
-// dardos — client part (v1). Keeps THIS player's turn as the server tells it (which board, darts thrown, the turn's
+// dardos — client part (v2). Keeps THIS player's turn as the server tells it (which board, darts thrown, the turn's
 // points, the last dart) and, for every board near you, the darts stuck in it right now (anyone's: they stay until that
-// turn ends), plus your scoreboard. One small controller for the page (apps/plaza/dardos.ts: the throwing view on a
+// turn ends), plus your scoreboard and, in a duel board, the match (`duelo()`: whose turn, both scores, how it ended). One small controller for the page (apps/plaza/dardos.ts: the throwing view on a
 // flat screen, the board on your wall in AR) and for agents. It only asks: the server decides where each dart lands.
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
@@ -21,7 +21,25 @@ export type Estado = {
   aviso: string;              // the last rejection
   marcador: { dardos: number; puntos: number; mejorDardo: number; mejorTirada: number; dianas: number };
 };
-export type Que = "estado" | "sitios" | "clavados";
+export type Jugador = { entity: number; nombre: string; puntos: number };
+export type FinDuelo = { ganador: number | null; empate: boolean; abandono: boolean; texto: string; gane: boolean; cuando: number };
+/** The match as this page sees it. Wire entity 0 is a real player: read `empate` / `ronda`, never `ganador === 0`. */
+export type Duelo = {
+  sitio: string;
+  ronda: number;              // 1-based; 0 = waiting for a rival (`esperando`)
+  esperando: boolean;
+  turnoDe: number | null;     // entity whose turn it is (null while waiting or after the end)
+  yo: boolean;                // my entity is one of the two players (false = a bystander near the board)
+  miTurno: boolean;           // true only for the player whose turn it is
+  rival: Jugador | null;      // the other player when `yo` (null while waiting, or for a bystander)
+  yoPuntos: number;           // my points when `yo`, else 0
+  a: Jugador; b: Jugador | null; // host and guest as the server names them (always set; for bystanders too)
+  fin: FinDuelo | null;       // how the match ended (kept DUELO_FIN_MS, then `duelo()` is null again)
+};
+export type Que = "estado" | "sitios" | "clavados" | "duelo";
+/** After `finduelo`: how long (ms) the result stays in `duelo()` and the darts stay in the board before they come out. */
+export const DUELO_FIN_MS = 30000, DUELO_DARDOS_MS = 6000;
+type DatosDuelo = { sitio: string; ronda: number; turnoDe: number; a: Jugador; b: Jugador | null; fin: FinDuelo | null };
 type Res = { ok: true } | { ok: false; why: string };
 const SIN: Res = { ok: false, why: "la función dardos no está en este servidor" };
 const ahora = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
@@ -35,8 +53,30 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
   const oyentes = new Set<(que: Que) => void>();
   const avisar = (que: Que) => { for (const fn of oyentes) fn(que); };
   let quitar: ReturnType<typeof setTimeout> | null = null;
+  let D: DatosDuelo | null = null; // the match I know about (mine or one near me), kept from `duelo` / `finduelo`
+  let quitarDuelo: ReturnType<typeof setTimeout> | null = null, olvidarDuelo: ReturnType<typeof setTimeout> | null = null;
+  const enJuego = (sitio?: string): boolean => !!D && !D.fin && (sitio === undefined || D.sitio === sitio);
+  const soyDe = (d: DatosDuelo): boolean => !!A && (d.a.entity === A.self() || (d.ronda > 0 && d.b !== null && d.b.entity === A.self()));
+  const tomar = (m: Msg, ronda: number, fin: FinDuelo | null): DatosDuelo => ({
+    sitio: String(m.sitio), ronda, turnoDe: Number(m.turnoDe ?? 0),
+    a: { entity: Number(m.a), nombre: String(m.nombreA), puntos: Number(m.puntosA) },
+    b: ronda > 0 || fin ? { entity: Number(m.b), nombre: String(m.nombreB), puntos: Number(m.puntosB) } : null, fin,
+  });
 
   const dardos = {
+    /** The match on a board near me (or mine), or null. Same object shape for a player and for a bystander (`yo` tells). */
+    duelo: (): Duelo | null => {
+      if (!A || !D) return null;
+      // a bystander who walked out of the board's reach forgets it; a player on a far wall (outside the state's reach) keeps it
+      if (!soyDe(D) && !D.fin && !dardos.sitios().some((s) => s.id === D!.sitio)) return null;
+      const yo = soyDe(D), me = A.self(), vivo = !D.fin && D.ronda > 0;
+      const mio = yo ? (D.a.entity === me ? D.a : D.b) : null, otro = yo ? (D.a.entity === me ? D.b : D.a) : null;
+      return {
+        sitio: D.sitio, ronda: D.ronda, esperando: !D.fin && D.ronda === 0, turnoDe: vivo ? D.turnoDe : null,
+        yo, miTurno: yo && vivo && D.turnoDe === me, rival: otro ? { ...otro } : null, yoPuntos: mio?.puntos ?? 0,
+        a: { ...D.a }, b: D.b ? { ...D.b } : null, fin: D.fin ? { ...D.fin } : null,
+      };
+    },
     estado: (): Readonly<Estado> => e,
     /** True while this page has a turn going. */
     tirando: (): boolean => e.sitio !== "",
@@ -45,7 +85,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     /** The darts stuck in boards near you right now (yours included), oldest first. */
     clavados: (sitio?: string): Dardo[] => [...clavados.values()].flat().filter((d) => !sitio || d.sitio === sitio),
     /** J4: offer the «E: tirar dardos» prompt only while this page is not throwing already. */
-    ofrece: (feature: string, _key: string): boolean => feature !== "dardos" || e.sitio === "",
+    ofrece: (feature: string, _key: string): boolean => feature !== "dardos" || (e.sitio === "" && !(D && !D.fin && soyDe(D))),
     /** `desde: "pared"` joins a `remoto` board from a real wall far from it (the server refuses it elsewhere). */
     jugar: (sitio?: string, desde?: "sitio" | "pared"): Res => {
       if (!A) return SIN;
@@ -86,13 +126,42 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
       const quien = Number(m.quien);
       if (quien === api.self()) {
         e.sitio = ""; e.fin = { dardos: Number(m.dardos), puntos: Number(m.puntos), cuando: ahora() };
-        // my darts stay in the board a few seconds so I can look at them, then come out (another turn takes them at once)
-        if (quitar) clearTimeout(quitar);
-        quitar = setTimeout(() => { quitar = null; if (!e.sitio) { clavados.delete(quien); avisar("clavados"); } }, 6000);
+        const duelando = enJuego(String(m.sitio));
+        if (!duelando) { // in a match my darts stay until my next turn (or the match's end)
+          // my darts stay in the board a few seconds so I can look at them, then come out (another turn takes them at once)
+          if (quitar) clearTimeout(quitar);
+          quitar = setTimeout(() => { quitar = null; if (!e.sitio) { clavados.delete(quien); avisar("clavados"); } }, 6000);
+          (quitar as { unref?: () => void }).unref?.();
+        }
+        if (D && !D.fin && D.ronda === 0 && D.sitio === String(m.sitio)) { D = null; avisar("duelo"); } // a host nobody joined gave up
         avisar("estado");
-      } else { clavados.delete(quien); avisar("clavados"); }
+      } else if (!enJuego(String(m.sitio))) { clavados.delete(quien); avisar("clavados"); } // in a match the rival's darts stay till their next turn
     });
     api.on("marcador", (m) => { e.marcador = { dardos: Number(m.dardos), puntos: Number(m.puntos), mejorDardo: Number(m.mejorDardo), mejorTirada: Number(m.mejorTirada), dianas: Number(m.dianas) }; avisar("estado"); });
+    api.on("duelo", (m) => {
+      const ronda = Number(m.ronda), sitio = String(m.sitio);
+      if ((!D || D.fin || D.sitio !== sitio) && ronda <= 1) { // a new match here: the old one's darts and result are gone
+        if (quitarDuelo) { clearTimeout(quitarDuelo); quitarDuelo = null; }
+        for (const [q, l] of clavados) { const k = l.filter((d) => d.sitio !== sitio); if (k.length) clavados.set(q, k); else clavados.delete(q); }
+        avisar("clavados");
+      }
+      if (olvidarDuelo) { clearTimeout(olvidarDuelo); olvidarDuelo = null; }
+      D = tomar(m, ronda, null);
+      avisar("duelo");
+    });
+    api.on("finduelo", (m) => {
+      const sitio = String(m.sitio), empate = m.empate === true, ganador = empate ? null : Number(m.ganador);
+      const antes: DatosDuelo = tomar(m, 1, null); // both players are set at the end: build them as if mid-match
+      const yo = soyDe(antes);
+      D = { ...antes, ronda: D && D.sitio === sitio ? D.ronda : antes.ronda, turnoDe: 0, fin: { ganador, empate, abandono: m.abandono === true, texto: String(m.texto), gane: yo && ganador === api.self(), cuando: ahora() } };
+      if (quitarDuelo) clearTimeout(quitarDuelo);
+      quitarDuelo = setTimeout(() => { quitarDuelo = null; for (const [q, l] of clavados) { const k = l.filter((d) => d.sitio !== sitio); if (k.length) clavados.set(q, k); else clavados.delete(q); } avisar("clavados"); }, DUELO_DARDOS_MS);
+      (quitarDuelo as { unref?: () => void }).unref?.();
+      if (olvidarDuelo) clearTimeout(olvidarDuelo);
+      olvidarDuelo = setTimeout(() => { olvidarDuelo = null; if (D?.fin) { D = null; avisar("duelo"); } }, DUELO_FIN_MS);
+      (olvidarDuelo as { unref?: () => void }).unref?.(); // a timer must not keep a headless process alive
+      avisar("duelo"); avisar("estado");
+    });
     api.on("rechazado", (m) => { e.aviso = String(m.motivo); avisar("estado"); });
   });
 
