@@ -100,6 +100,29 @@ test("add → list → remove round trip: the file in aventura/habitantes/, the 
   } finally { await w.srv.close(); }
 });
 
+test("H3: escalón 4 (builds) needs build-in-worlds too, not just manage-organization; an owner always may", async () => {
+  const w = await mundo();
+  try {
+    const sinConstruir = await w.pedir("POST", "/habitantes", { token: GESTOR, cuerpo: HABITANTE("sin-permiso", { escalon: 4, cerebro: { persona: "una IA de prueba" } }) });
+    assert.equal(sinConstruir.status, 403, JSON.stringify(sinConstruir.json));
+    assert.equal(sinConstruir.json.error, "sin-permiso");
+    assert.equal(existsSync(join(w.aventura, "habitantes", "sin-permiso.json")), false, "no file for a refused build request");
+    assert.equal(w.recargas.length, 0);
+
+    const CONSTRUCTOR = pase(carga({ perm: ["enter-worlds", "manage-organization", "build-in-worlds"] }));
+    const conConstruir = await w.pedir("POST", "/habitantes", { token: CONSTRUCTOR, cuerpo: HABITANTE("con-permiso", { escalon: 4, cerebro: { persona: "una IA de prueba" } }) });
+    assert.equal(conConstruir.status, 201, JSON.stringify(conConstruir.json));
+    assert.deepEqual(conConstruir.json.habitante, { id: "con-permiso", nombre: "Nueva", escalon: 4 });
+
+    const DUENO = pase(carga({ perm: [], height: Number.MAX_VALUE }));
+    const dueno = await w.pedir("POST", "/habitantes", { token: DUENO, cuerpo: HABITANTE("dueno-sin-perm-explicito", { escalon: 4, cerebro: { persona: "una IA de prueba" } }) });
+    assert.equal(dueno.status, 201, JSON.stringify(dueno.json));
+
+    const bajo = await w.pedir("POST", "/habitantes", { token: GESTOR, cuerpo: HABITANTE("escalon-0") });
+    assert.equal(bajo.status, 201, JSON.stringify(bajo.json), "escalon 0 never needs build-in-worlds");
+  } finally { await w.srv.close(); }
+});
+
 test("validation: bad JSON, missing or wrong-typed fields, wrong verbs and paths", async () => {
   const w = await mundo();
   try {

@@ -6,6 +6,9 @@
 // Who may: whoever carries a numinia.com world pass (the same verifier as the WebSocket, `aud` = this world) that
 // holds `manage-organization` or is an owner (`dueno`). No pass configured at all = the door is shut (404, fail
 // closed). 401 = no/invalid pass, 403 = a valid pass without the permission.
+// H3: an escalón 4 inhabitant builds (mente.ts), so POST also checks `build-in-worlds` (roles.ts ACCION_PERMISO)
+// when the body asks for escalon 4 — the server decides, never the client (R-1): a pass that only manages the
+// organization cannot hand out building to a habitante; it needs build-in-worlds too, or to be an owner.
 // CORS: only https://numinia.com (the panel's origin) is answered; any other Origin gets no CORS header. Never `*`.
 // The work itself is done by habitantes.ts's GestionHabitantes (one code path, shared with the future chat order);
 // this file only speaks HTTP. After a write, the service that walks and talks the inhabitants is told to reload
@@ -19,6 +22,10 @@ import type { GestionHabitantes, ResultadoHabitante } from "./habitantes.ts";
 export const ORIGEN_PANEL = "https://numinia.com";
 /** The permission (numinia.com's STD-051 name) that lets a pass manage the world's inhabitants. */
 export const PERMISO_HABITANTES = "manage-organization";
+/** The permission (roles.ts ACCION_PERMISO.construir) a pass also needs to hand escalón 4 (builds) to a habitante. */
+export const PERMISO_CONSTRUIR = "build-in-worlds";
+/** The escalón (formato.ts ESCALONES) that makes an inhabitant build; everything below never needs PERMISO_CONSTRUIR. */
+const ESCALON_CONSTRUYE = 4;
 const CUERPO_MAX = 16_384; // bytes of a POST body: a whole habitante@1 (persona, ruta, saludo, respuestas…) fits
 
 export type OpcionesHabitantesHttp = {
@@ -105,6 +112,10 @@ export function crearHabitantesHttp(o: OpcionesHabitantesHttp) {
       }
       let b: unknown;
       try { b = JSON.parse(txt); } catch { return responder(res, origen, 400, { error: "json", texto: "El cuerpo no es JSON." }); }
+      const d = b as Record<string, unknown> | null;
+      if (d && typeof d === "object" && !Array.isArray(d) && d.escalon === ESCALON_CONSTRUYE && !v.pase.dueno && !v.pase.permisos.includes(PERMISO_CONSTRUIR)) {
+        return responder(res, origen, 403, { error: "sin-permiso", texto: `Tu pase no deja construir en este mundo: un habitante de escalón ${ESCALON_CONSTRUYE} hace falta el permiso de construir.` });
+      }
       fin(g.anadir(b), 201);
     });
     return true;
