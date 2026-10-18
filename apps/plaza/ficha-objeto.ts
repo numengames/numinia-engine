@@ -20,7 +20,7 @@ export function datosFicha(o: Obj): { titulo: string; tipo: string; hechos: [str
   const hechos: [string, string][] = [];
   if (num(o.x) && num(o.z)) hechos.push(["Posición", `x ${dec(o.x)} · z ${dec(o.z)}${num(o.y) && Number(o.y) !== 0 ? ` · y ${dec(o.y)}` : ""}`]);
   if (num(o.sx) && num(o.sy) && num(o.sz)) hechos.push(["Escala", o.sx === o.sy && o.sy === o.sz ? dec(o.sx) : `${dec(o.sx)} × ${dec(o.sy)} × ${dec(o.sz)}`]);
-  hechos.push(["Estado", o.fijado === true ? "fijado" : "suelto"]);
+  hechos.push(["Estado", o.fijado === true ? "anclado" : "suelto"]);
   return { titulo: String(o.nombre ?? "") || "(decorado)", tipo: TIPOS[String(o.tipo ?? "modelo")] ?? "Objeto", hechos };
 }
 

@@ -21,7 +21,7 @@ test("the card says name, type and the facts the model carries — never a maker
   const d = datosFicha({ id: "o1", nombre: "Mesa", tipo: "sonido", x: 3.04, y: 0, z: -2, sx: 1, sy: 1, sz: 1, fijado: true });
   assert.equal(d.titulo, "Mesa");
   assert.equal(d.tipo, "Zona de sonido");
-  assert.deepEqual(d.hechos, [["Posición", "x 3 · z -2"], ["Escala", "1"], ["Estado", "fijado"]]);
+  assert.deepEqual(d.hechos, [["Posición", "x 3 · z -2"], ["Escala", "1"], ["Estado", "anclado"]]);
   assert.ok(!d.hechos.some(([k]) => /hecho|autor/i.test(k)));
   const e = datosFicha({ id: "o2", sx: 1, sy: 2, sz: 1 });
   assert.equal(e.titulo, "(decorado)");

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 // e2e leg M22 (constructor): the builder's hands with a REAL mouse and keyboard, two tabs, for chromium and firefox
 // (WebGPURenderer; BASE carries ?webgl2 = its WebGL2 backend). Tab A opens build mode with the key C, takes the
 // Bloque from the library and clicks the ground 3 m ahead (it follows the pointer, the click places it); B gets it.
@@ -47,6 +48,7 @@ async function arrastrar(p, from, dx, dy) {
 async function pierna(engine) {
   const browser = await launchers[engine]();
   const ctx = await browser.newContext({ viewport: { width: 1100, height: 700 } });
+  await ctx.addInitScript((v) => { try { localStorage.setItem("numinia.novedades.version", v); } catch {} }, JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version); // the «what is new» card shows once per version in a fresh browser and would cover the panel
   const errors = [];
   const open = async () => {
     const p = await ctx.newPage();

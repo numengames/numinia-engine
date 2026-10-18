@@ -65,7 +65,7 @@ export const AYUDA = [
   "Al mover un solo objeto con un eje elegido (X/Y/Z): si su cara queda a menos de 25 cm de otro objeto, encaja cara con cara.",
   "Ctrl + Z: deshacer · Ctrl + Mayús + Z o Ctrl + Y: rehacer · F: encuadrar · N: inspector.",
   "Biblioteca: el modelo sigue al puntero y un clic lo coloca; «Delante de ti» lo coloca sin ratón.",
-  "Doble clic en un objeto mientras juegas: abre construir con él seleccionado. Con un objeto seleccionado sale su ficha (abajo) con iconos: Mover, Girar, Escalar, Duplicar, Fijar o Soltar, Copiar enlace, Borrar, Volver y Cerrar.",
+  "Doble clic en un objeto mientras juegas: abre construir con él seleccionado. Con un objeto seleccionado sale su ficha (abajo) con iconos: Mover, Girar, Escalar, Duplicar, Anclar o Soltar, Copiar enlace, Borrar, Volver y Cerrar.",
   "Imagen, Pantalla de vídeo y Zona de sonido (abajo): suben tu fichero y lo ponen delante de ti. La zona de sonido es una esfera: Escalar cambia su radio.",
   "Con el dedo: toca un objeto para seleccionarlo y arrástralo para moverlo (sobre el suelo y sobre otros objetos). Un dedo en el vacío mueve la cámara; dos la acercan. Girar y escalar: los iconos de la ficha y «Pasos con botones».",
   "Botones derecho y central del ratón, y la rueda: la cámara (cuando llegue la cámara nueva).",
@@ -706,7 +706,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   const sep = () => { const d = el("span", { className: "sep" }); d.setAttribute("aria-hidden", "true"); return d; };
   const herrBarra = ([["mover", "arrows-out-cardinal", "Mover (2 o G)"], ["girar", "arrows-clockwise", "Girar (3 o R)"], ["escalar", "arrows-out-simple", "Escalar (4)"]] as const)
     .map(([m, ic, t]) => { const b = bIcono(ic, t, () => elegirModo(m)); b.dataset.modo = m; return b; });
-  const bFijar = bIcono("push-pin", "Fijar (P)", () => c.fijar());
+  const bFijar = bIcono("push-pin", "Anclar (P)", () => c.fijar());
   const bCopiarEnlace = bIcono("link", "Copiar enlace a este sitio", () => copiarEnlace());
   const bVolver = bIcono("arrow-u-up-left", "Volver a donde estabas", () => (extra?.volver?.() ? { ok: true } : { ok: false, why: "no hay a dónde volver" }));
   const bCerrar = bIcono("x", "Cerrar la ficha (Esc)", () => { c.seleccionar(""); });
@@ -736,7 +736,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     fTitulo.textContent = d.titulo; fTipo.textContent = d.tipo;
     fHechos.replaceChildren(...d.hechos.flatMap(([k, v]) => [el("dt", { textContent: k }), el("dd", { textContent: v })]));
     for (const b of herrBarra) b.setAttribute("aria-pressed", String(b.dataset.modo === c.estado.modo));
-    const fij = o!.fijado === true, t = fij ? "Soltar (P)" : "Fijar (P)";
+    const fij = o!.fijado === true, t = fij ? "Soltar (P)" : "Anclar (P)";
     bFijar.innerHTML = icono(fij ? "push-pin-slash" : "push-pin", 18); bFijar.title = t; bFijar.dataset.tip = t; bFijar.setAttribute("aria-label", t);
     bVolver.hidden = !volver;
     ficha.hidden = false;
