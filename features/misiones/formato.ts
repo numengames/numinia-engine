@@ -52,10 +52,13 @@ export const cosasDe = (s: Paso): string[] => ("cosas" in s ? s.cosas : "cosa" i
  * world signs a receipt of ownership (features/bienes) and it waits in your inventory. `descripcion`, `modelo` (sha256 of a
  * .glb: how it looks) and `licencia` (what you may do with its art: «CC0-1.0», «CC-BY-4.0»…; owning ≠ the copyright) are
  * optional and travel inside the receipt. */
-export type Recompensa = { tipo: "insignia"; id: string; nombre: string } | { tipo: "objeto"; id: string; nombre: string; descripcion: string; modelo: string; licencia: string };
+export type Recompensa = { tipo: "insignia"; id: string; nombre: string } | { tipo: "semilla"; color: ColorSemilla; n: number } | { tipo: "objeto"; id: string; nombre: string; descripcion: string; modelo: string; licencia: string };
 export const TIPOS_RECOMPENSA = ["insignia", "objeto"] as const;
 /** N10: a licence as a short SPDX-like id (letters, digits, . - +), at most 40 characters. */
 export const LICENCIA = /^[A-Za-z0-9][A-Za-z0-9.+-]{0,39}$/;
+/** Y1: a Semilla del Conocimiento as a quest reward (lore 06: five colours, 1-5 prestige points). Goes to the inventory. */
+export const COLORES_SEMILLA = ["verde", "azul", "plateada", "dorada", "roja"] as const;
+export type ColorSemilla = (typeof COLORES_SEMILLA)[number];
 export type Mision = {
   formato: "mision@1"; id: string; titulo: string; descripcion: string; requisitos: { misiones: string[] }; pasos: Paso[];
   recompensas: Recompensa[]; textos: { aceptada: string; completada: string }; repetible: boolean;
@@ -224,12 +227,18 @@ export function leerMision(v: unknown): Result<Mision> {
   const recompensas = lista(o.recompensas, "recompensas", 0, LIM.recompensas, is, true).map((r, i) => {
     const p = en("recompensas", i), ro = objeto(r, p, is) ?? {};
     if (ro.tipo === "objeto") return objetoRecompensa(ro, p, is);
+    if (ro.tipo === "semilla") { // Y1: a Semilla del Conocimiento into the inventory (the Reserva, features/inventario)
+      campos(ro, ["tipo", "color", "n"], p, is);
+      const color = COLORES_SEMILLA.includes(ro.color as ColorSemilla) ? (ro.color as ColorSemilla) : (is.push({ path: en(p, "color"), message: `uno de: ${COLORES_SEMILLA.join(", ")}` }), "verde" as const);
+      const n = ro.n === undefined ? 1 : Number.isInteger(ro.n) && (ro.n as number) >= 1 && (ro.n as number) <= 99 ? (ro.n as number) : (is.push({ path: en(p, "n"), message: "entero de 1 a 99 (cuántas semillas)" }), 1);
+      return { tipo: "semilla" as const, color, n };
+    }
     campos(ro, ["tipo", "id", "nombre"], p, is);
-    if (ro.tipo !== "insignia") is.push({ path: en(p, "tipo"), message: "\"insignia\" (un recuerdo de lo hecho) u \"objeto\" (un bien digital que pasa a ser de quien completa: recibo firmado e inventario)" });
+    if (ro.tipo !== "insignia") is.push({ path: en(p, "tipo"), message: "\"insignia\" (un recuerdo de lo hecho), \"semilla\" (una Semilla del Conocimiento al inventario) u \"objeto\" (un bien digital que pasa a ser de quien completa: recibo firmado e inventario)" });
     return { tipo: "insignia" as const, id: id(ro.id, en(p, "id"), is), nombre: texto(ro.nombre, en(p, "nombre"), LIM.nombre, is) };
   });
   const ids = new Set<string>();
-  recompensas.forEach((r, i) => { if (r.id && ids.has(r.id)) is.push({ path: en(en("recompensas", i), "id"), message: `«${r.id}» ya es otra recompensa de esta misión: cada una, un id distinto` }); ids.add(r.id); });
+  recompensas.forEach((r, i) => { if (r.tipo === "semilla") return; if (r.id && ids.has(r.id)) is.push({ path: en(en("recompensas", i), "id"), message: `«${r.id}» ya es otra recompensa de esta misión: cada una, un id distinto` }); ids.add(r.id); });
   const tx = objeto(o.textos, "textos", is, true) ?? {};
   campos(tx, ["aceptada", "completada"], "textos", is);
   if (o.repetible !== undefined && typeof o.repetible !== "boolean") is.push({ path: "repetible", message: "true o false" });
