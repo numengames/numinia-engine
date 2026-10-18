@@ -46,6 +46,8 @@ export function crearCliente() {
     permitir: (si: boolean) => enviar("permitir", { si }),
     /** A photo's link opened this page: ask to appear at its place (the server checks the world allows it). */
     aparecerEnFoto: (x: number, y: number, z: number) => enviar("foto", { x, y, z }),
+    /** Go to a marked site of the map (its x, z; your own height — the server drops you on the nearest floor). */
+    irAPunto: (x: number, z: number, nombre = "") => enviar("punto", { x, z, nombre }),
     alCambiar: (f: (que: Cambio) => void) => { oyentes.add(f); return () => oyentes.delete(f); },
     /** The light's moments, for the view (and the page hides that avatar while the light holds it). */
     alDestello: (f: (d: Destello) => void) => { luces.add(f); return () => luces.delete(f); },

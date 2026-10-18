@@ -24,7 +24,7 @@ const todos: Dialogo[] = [];
 
 /** A modal dialog with a title and a close button; `tecla` (e.g. "KeyM") and `boton` open and close it. Escape closes
  * it (the browser does). Opening one closes the others. */
-export function crearDialogo(o: { id: string; titulo: string; tecla: string; boton: HTMLButtonElement; alAbrir?: () => void; alCerrar?: () => void }): Dialogo {
+export function crearDialogo(o: { id: string; titulo: string; tecla: string; boton: HTMLButtonElement; alAbrir?: () => void; alCerrar?: () => void; noConstruyendo?: boolean }): Dialogo {
   const dialog = document.createElement("dialog");
   dialog.id = o.id; dialog.className = "panel-j5"; dialog.setAttribute("aria-labelledby", `${o.id}-titulo`);
   const cabeza = document.createElement("header");
@@ -66,7 +66,7 @@ export function crearDialogo(o: { id: string; titulo: string; tecla: string; bot
   cerrarB.addEventListener("click", () => d.cerrar());
   o.boton.addEventListener("click", (e) => { porTeclado = e.detail === 0; d.alternar(); porTeclado = true; });
   addEventListener("keydown", (e) => {
-    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e) || e.code !== o.tecla) return;
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e) || e.code !== o.tecla || (o.noConstruyendo && document.body.classList.contains("construyendo"))) return; // noConstruyendo: the builder owns that letter while building
     e.preventDefault();
     d.alternar();
   });
