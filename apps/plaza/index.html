@@ -14,6 +14,7 @@
     /* auditoría UI móvil: ancho topado a la pantalla (antes "white-space: pre" nunca envolvía y el
        texto largo se salía por el borde derecho, oculto bajo el minimapa); cada .linea recorta con "…" */
     #hud { position: fixed; top: 10px; left: 10px; max-width: calc(100vw - 20px); box-sizing: border-box; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #eef2f6; pointer-events: none; }
+    #mundo-lleno { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(480px, calc(100vw - 32px)); margin: 0; padding: 16px 20px; border-radius: 10px; background: rgba(20, 24, 30, .92); color: #eef2f6; font-size: 16px; line-height: 1.4; text-align: center; z-index: 20; }
     #hud b { color: #ffd27a; font-weight: 600; }
     #hud .linea { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
     /* en móvil (pantalla estrecha o táctil) el HUD comparte la fila superior con la barra de iconos:
@@ -135,6 +136,7 @@
 </head>
 <body>
   <div id="hud">Conectando…</div>
+  <p id="mundo-lleno" role="alert" hidden></p><!-- H7: the world is full (ficha `aforo`): the door's reason, read at once by screen readers -->
   <div id="barra-arriba" role="toolbar" aria-label="Botones del mundo"></div>
   <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · M: mapa · I: ficha · C: construir · Q: micrófono · L: gente · P: foto</div>
   <button id="ar" type="button" hidden>Entrar en AR</button>

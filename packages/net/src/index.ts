@@ -373,7 +373,11 @@ export function decodePase(bytes: Uint8Array): string | null {
   return PASE_FORMA.test(s) ? s : null;
 }
 
-/** `closed` says the close code and reason (4003 = the world's roles took it out: do not come back by yourself). */
+/** H7: close code the server sends when the world is full (its ficha `aforo`); the reason reads «lleno <inside>/<aforo>». */
+export const CIERRE_LLENO = 4004;
+
+/** `closed` says the close code and reason (4003 = the world's roles took it out: do not come back by yourself;
+ * 4004 = full, CIERRE_LLENO: wait and reload). */
 export function webSocketClient(url: string): Transport & { opened: Promise<void>; closed: Promise<{ code: number; reason: string }>; close(): void } {
   const ws = new WebSocket(url);
   ws.binaryType = "arraybuffer";

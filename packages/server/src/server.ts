@@ -14,7 +14,7 @@ import { hex } from "../../core/src/index.ts";
 import { REFERENCE, referenceRecording, replayFingerprint, TICK_HZ } from "../../sim/src/index.ts";
 import type { SpawnArea } from "../../sim/src/index.ts";
 import { Instance } from "../../instance/src/index.ts";
-import { MSG, PASE_MAX, WS_FRAME_MAX } from "../../net/src/index.ts";
+import { CIERRE_LLENO, MSG, PASE_MAX, WS_FRAME_MAX } from "../../net/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
 import type { HttpReply, ServerPart } from "../../feature/src/index.ts";
 import { buildMetrics, ByteWindow, TickWindow, toPrometheus } from "./metrics.ts";
@@ -73,6 +73,9 @@ export type ServerOptions = {
 
 /** WebSocket close code when the world's roles take someone out (taken out, banned, members only): don't reconnect. */
 export const CIERRE_ROLES = 4003;
+/** H7: WebSocket close code when the world is full (its ficha `aforo`, or the engine's capacity): wait and try again. The
+ * reason («lleno <inside>/<aforo>») is what the page turns into its message. Defined in net (the page reads it too). */
+export { CIERRE_LLENO };
 /** Largest POST body a feature route accepts. */
 export const MAX_BODY = 4096;
 
@@ -169,7 +172,11 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const [portadaSha, portadaExt] = ficha?.portada?.split(".") ?? [];
   const portada = portadaSha && activos.buscar(portadaSha, portadaExt) ? `/a/${ficha!.portada}` : null;
   if (ficha) log(`[ficha] el mundo se llama «${ficha.nombre}»${ficha.portada ? (portada ? `, portada ${portada}` : `; su portada ${ficha.portada} no está en este servidor (súbela al mundo): no la enseño`) : ""}`);
-  const fichaPublica = ficha ? { nombre: ficha.nombre, descripcion: ficha.descripcion, portada: portada ?? undefined, tema: tema ?? undefined } : {};
+  // H7: how many may be inside at once = the world's aforo (its ficha) under the engine's capacity; everyone counts (people and AIs)
+  const aforo = Math.min(ficha?.aforo ?? maxPlayers, maxPlayers);
+  if (ficha?.aforo) log(`[ficha] aforo ${ficha.aforo} persona${ficha.aforo === 1 ? "" : "s"}${ficha.aforo > maxPlayers ? ` (el motor admite ${maxPlayers}: ese es el tope)` : ""}${ficha.avatar ? ` · avatar de todos: ${ficha.avatar}` : ""}`);
+  else if (ficha?.avatar) log(`[ficha] avatar de todos: ${ficha.avatar}`);
+  const fichaPublica = ficha ? { nombre: ficha.nombre, descripcion: ficha.descripcion, portada: portada ?? undefined, tema: tema ?? undefined, avatar: ficha.avatar, aforo } : { aforo };
   if (o.aparicion) log(`[mundo] la gente aparece en el cuadrado de ${2 * o.aparicion.radio} m centrado en (${o.aparicion.x}, ${o.aparicion.z})`);
   // N10: digital goods' receipts, signed with a key derived from the world's secret (none without MOTOR_SECRET: no goods)
   const recibos = crearRecibos(secret, dominios[0]?.trim() || "local");
@@ -206,7 +213,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
 
   const metrics = () => buildMetrics({
     version, uptimeMs: performance.now() - born, tick: inst.sim.tick, tickHz: TICK_HZ, people: inst.conns.length,
-    capacity: maxPlayers, ticks, bytes, lagMs, mem: process.memoryUsage(),
+    capacity: aforo, ticks, bytes, lagMs, mem: process.memoryUsage(),
     lags, responses, runtime: runtime.window(), entorno: env, counts, bytesTotal: bytesOut, tickSumMs,
   });
 
@@ -278,7 +285,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   // checks the size before anything is read, so the biggest legal frame has to fit here; wsTransport cuts the others at WS_FRAME_MAX as before.
   const wss = new WebSocketServer({ server: http, maxPayload: PASE_MAX, perMessageDeflate: false });
   wss.on("connection", (ws, req) => {
-    if (inst.conns.length >= maxPlayers) { counts.rechazadasLlenas++; ws.close(1013, "instance full"); return; }
+    // H7: full = the world's aforo (or the engine's capacity): refused at the door with the reason the page shows
+    if (inst.conns.length >= aforo) { counts.rechazadasLlenas++; ws.close(CIERRE_LLENO, `lleno ${inst.conns.length}/${aforo}`); return; }
     counts.aceptadas++;
     const entity = inst.connect(wsTransport(ws), undefined, req.headers.host); // ADR-080: the host an outside agent signs
     sockets.set(entity, ws);

@@ -153,10 +153,10 @@ por capacidad, con lo que Hyperfy2 tiene, lo que tenemos hoy y la fila de `docs/
 
 | Capacidad | Hyperfy2 | Nosotros hoy | Estado | Fila |
 |---|---|---|---|---|
-| Ajustes del mundo | título, descripción, imagen, modelo, avatar por defecto, público, límite de personas | no | ✘ | H7 |
+| Ajustes del mundo | título, descripción, imagen, modelo, avatar por defecto, público, límite de personas | `aventura/ficha.json`: nombre, descripción, portada, avatar de todos, aforo (fichero; sin panel) | ◐ | H7 |
 | Roles | admin (`/admin` + `ADMIN_CODE`) y constructor (= admin, o todos si el mundo es público) | no | ✘ | H3 |
 | Punto de aparición | `/spawn set\|clear` | fijo | ✘ | H3 |
-| Límite de personas | `playerLimit` | la capacidad sale en métricas; nadie es rechazado | ✘ | H7 |
+| Límite de personas | `playerLimit` | `aforo` en la ficha; el que sobra lee «lleno n/aforo» (cierre 4004) | ✔ | H7 |
 | Borrar el chat | `/chat clear` | no | ✘ | H3 |
 | Ver cómo va el servidor | `/server stats` (CPU, memoria) | `/metrics`, `/metrics.prom`, `/sesiones`, `npm run sesiones` | ✔ (más) | hecho (la orden, H3) |
 

@@ -756,3 +756,12 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Versión **0.6.1 → 0.7.0** (menor): ajustes y capacidades nuevos, nada se rompe. (Las ramas traían 0.6.0 y
   0.6.1; `main` ya había tomado esos números con #46 y #47.)
 - Consumo: sin medir · Sonnet 5.5.
+
+## 2026-10-18 12:50 · H7 · hecho (primer corte)
+- Qué: ajustes del mundo en `aventura/ficha.json`: `avatar` (uno de la casa, lo llevan todos) y `aforo` (1–1000,
+  `limits.json` `world_people_cap`); el servidor los valida con motivo, los publica en `GET /status`, pone el nombre
+  en la pestaña y en la pantalla de entrada, y con el mundo lleno cierra con 4004 «lleno n/aforo»; la página enseña
+  el aviso (`#mundo-lleno`, `role=alert`). Sin panel: se editan en el fichero.
+- Números: `test/ajustes-mundo.test.ts` (4 pruebas) + `flota.test.ts` ajustado; `npm test` y `npm run build` (ver el PR).
+- Consumo: sin medir · Fable 5.1.
+- Siguiente: panel de administración por rol (H3) para editarlos en marcha; escenario base (M6).
