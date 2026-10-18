@@ -5,7 +5,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Hist, median } from "../packages/server/src/hist.ts";
-import { parseProcStat, Runtime } from "../packages/server/src/runtime.ts";
+import { parseProcStat, parseSchedstat, Runtime } from "../packages/server/src/runtime.ts";
 import { startServer } from "../packages/server/src/server.ts";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -36,6 +36,13 @@ test("parseProcStat: busy and steal from the first line of /proc/stat, guest not
   assert.equal(parseProcStat("cpu  1 2 3"), null);
 });
 
+test("parseSchedstat (D3): the run-queue wait, in ms, from a thread's schedstat", () => {
+  assert.equal(parseSchedstat("123456789 25000000 42\n"), 25); // ns on CPU · ns waiting · timeslices
+  assert.equal(parseSchedstat("nada"), null);
+  assert.equal(parseSchedstat("12"), null);
+  assert.equal(parseSchedstat("1 -5 3"), null);
+});
+
 test("Runtime: a window with finite numbers after two samples", async () => {
   const r = new Runtime();
   const t = performance.now(); while (performance.now() - t < 30) { /* burn a little CPU */ }
@@ -43,6 +50,9 @@ test("Runtime: a window with finite numbers after two samples", async () => {
   const w = r.window();
   for (const v of [w.cpuPct, w.cpuSegundos, w.utilizacionBucle, w.bucleMs.p99, w.gc.totalMs]) assert.ok(Number.isFinite(v) && v >= 0, JSON.stringify(w));
   assert.ok(w.utilizacionBucle <= 1);
+  if (process.platform === "linux") { // D3: the main thread's wait for a CPU, a share of the wall clock
+    assert.ok(w.esperaCpu && w.esperaCpu.pct >= 0 && w.esperaCpu.segundos >= 0, JSON.stringify(w.esperaCpu));
+  } else assert.equal(w.esperaCpu, null);
   r.close();
 });
 
@@ -73,6 +83,7 @@ test("server: the extra /metrics numbers and /metrics.prom in Prometheus text fo
     }
     for (const [name, type] of types) assert.equal(type === "counter", name.endsWith("_total"), `${name}: counters end in _total and only they do`);
     assert.ok(types.has("process_cpu_seconds_total") && types.has("nodejs_eventloop_lag_p99_seconds"));
+    if (process.platform === "linux") assert.ok(types.has("numinia_mainthread_cpu_wait_seconds_total") && types.has("numinia_mainthread_cpu_wait_ratio"), "D3: CPU wait exported");
     assert.ok(!lines.some((l) => /NaN|undefined|Infinity/.test(l)));
   } finally { await srv.close(); }
 });
