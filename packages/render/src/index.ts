@@ -26,8 +26,9 @@ export { haciaMundo, TECLAS_CAMARA, CAMARA } from "./camara.ts";
 export type { Camara, ModoCamara } from "./camara.ts";
 import { crearEditor } from "./gizmo.ts";
 import { cargarImagen, cargarVideo, cargarSonido, sePuedeReproducir } from "./medios.ts";
-import type { Medio } from "./medios.ts";
+import type { Medio, ControlVideo } from "./medios.ts";
 export { sePuedeReproducir } from "./medios.ts";
+export type { ControlVideo } from "./medios.ts";
 export type { Donde, Eje, Herramienta, Fase, Paso, Editor } from "./gizmo.ts";
 import { createAvatares } from "./avatares.ts";
 import { sueloBajo } from "./avatares-politica.ts";
@@ -882,6 +883,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       for (const [k, s] of things) { if (k.startsWith("~")) continue; placed++; if (s.loaded) loaded++; if (s.failed) failed++; }
       return { placed, loaded, failed };
     },
+    /** U-mandos: a video's own, per-person pause/stop/volume (medios.ts `ControlVideo`), or `null` when `key` is not
+     * a loaded video. Never touches the shared clock: it only changes what THIS person sees and hears. */
+    controlVideo(key: string): ControlVideo | null { return things.get(key)?.medio?.controlVideo ?? null; },
     /** J10: carry a placed thing (`key` as in place): in a hand in XR, beside you on a flat screen; `null` puts it back. */
     llevar(key: string, donde: Llevar | null): void {
       if (!donde) { if (llevados.has(key)) soltarLlevado(key); return; }
