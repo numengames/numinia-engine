@@ -93,6 +93,13 @@ async function pasada(engine) {
     const quitado = await espera(a, () => globalThis.__numinia.mapa.destino() === null, null, 3000);
     const beacons2 = await a.evaluate(() => globalThis.__numinia.view.beaconCount());
     ok("destino", marcado && enMapas && beacons1.n === beacons0 + 1 && quitado && beacons2 === beacons0, { balizas: [beacons0, beacons1.n, beacons2], botonActivo: beacons1.boton, busyConDestino: beacons1.busy });
+    // 5b) C2: «Ir» (icon button) remembers where you were; «Volver» appears and, pressed, forgets the origin
+    const sinOrigen = await a.evaluate(() => globalThis.__numinia.mapa.puedeVolver());
+    await a.locator(`${fila} .ir`).click();
+    const conOrigen = await espera(a, () => globalThis.__numinia.mapa.puedeVolver() && !!document.querySelector("#mapa-grande .detalle .volver"), null, 3000);
+    await a.locator("#mapa-grande .detalle .volver").click();
+    const sinVolver = await espera(a, () => !globalThis.__numinia.mapa.puedeVolver(), null, 3000);
+    ok("irYvolver", sinOrigen === false && conOrigen && sinVolver, { sinOrigen, conOrigen, sinVolver });
     // 6) I opens the sheet (the map closes) with your name; Escape closes it
     await a.keyboard.press("KeyI");
     const fichaAbierta = await espera(a, () => document.getElementById("ficha")?.open === true && document.getElementById("mapa-grande")?.open === false, null, 3000);

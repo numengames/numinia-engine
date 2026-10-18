@@ -40,6 +40,8 @@ export type HostMapa = {
   otros(): Record<string, any>;
   /** U27 (MVL1): go to a marked site of the map (features/teletransporte): omitted = no «Ir» button (this world's page did not wire it). */
   teletransporte?: { activo(): boolean; ir(x: number, z: number, nombre: string): void };
+  /** C2: called after «Ir» sent the trip, with what you went to (the page selects it in the builder, opens its card…). */
+  alIr?(donde: { id: string; nombre: string; x: number; z: number }): void;
 };
 
 const PASO_MS = 200;               // the minimap looks 5 times a second; it draws only when the picture changed
@@ -211,6 +213,22 @@ export function montarMapa(h: HostMapa) {
 
   // ---------- the waypoint ----------
   const limMini = crearLimitador(PASO_MS), limGrande = crearLimitador(PASO_MS);
+  // C2: «Ir» remembers where you were so «Volver» takes you back (the server still spaces trips by a few seconds)
+  let origenViaje: (Vec & { nombre: string }) | null = null;
+  function irA(m: { id: string; nombre: string; x: number; z: number }): void {
+    if (!h.teletransporte?.activo()) return;
+    if (yo) origenViaje = { x: yo.x, z: yo.z, nombre: "donde estabas" };
+    h.teletransporte.ir(m.x, m.z, m.nombre);
+    h.alIr?.({ id: m.id, nombre: m.nombre, x: m.x, z: m.z });
+    pintarDetalle();
+  }
+  function volver(): boolean {
+    if (!origenViaje || !h.teletransporte?.activo()) return false;
+    const o = origenViaje; origenViaje = null;
+    h.teletransporte.ir(o.x, o.z, o.nombre);
+    pintarDetalle();
+    return true;
+  }
   function marcarDestino(m: { id: string; nombre: string; x: number; z: number }): void {
     if (destino && destino.id === m.id) { quitarDestino("quitado"); return; }
     quitarDestino(null);
@@ -403,6 +421,12 @@ export function montarMapa(h: HostMapa) {
   // details of what you picked (a marker, or a point of the map) with «Marcar destino»
   function pintarDetalle(): void {
     detalle.replaceChildren();
+    if (origenViaje && h.teletransporte) {
+      const v = boton("", "Volver a donde estabas"); v.className = "ic volver"; v.innerHTML = icono("arrow-u-up-left", 18);
+      v.disabled = !h.teletransporte.activo();
+      v.addEventListener("click", () => volver());
+      detalle.append(v);
+    }
     if (!elegido) { const p = document.createElement("p"); p.textContent = "Elige algo en el mapa o en la lista para ver su detalle y marcarlo como destino."; detalle.append(p); return; }
     const t = document.createElement("h3"); t.textContent = elegido.nombre;
     const p = document.createElement("p");
@@ -416,7 +440,7 @@ export function montarMapa(h: HostMapa) {
       const activo = h.teletransporte.activo();
       const g = boton(activo ? "Ir" : "Ir (apagado en este mundo)");
       g.disabled = !activo;
-      g.addEventListener("click", () => h.teletransporte!.ir(e.x, e.z, e.nombre));
+      g.addEventListener("click", () => irA(e));
       detalle.append(g);
     }
   }
@@ -450,7 +474,7 @@ export function montarMapa(h: HostMapa) {
         ver.addEventListener("click", () => elegir({ id: fx.e.id, nombre: fx.e.nombre, tipo: fx.e.tipo, x: fx.e.x, z: fx.e.z, detalle: fx.e.detalle }, true));
         marcar.addEventListener("click", () => marcarDestino(fx.e));
         if (h.teletransporte) li.append(ver, ir, marcar); else li.append(ver, marcar);
-        ir.addEventListener("click", () => h.teletransporte?.ir(fx.e.x, fx.e.z, fx.e.nombre));
+        ir.addEventListener("click", () => irA(fx.e));
         li.dataset.id = e.id;
         lista.appendChild(li); filas.set(e.id, f);
       }
@@ -608,6 +632,8 @@ export function montarMapa(h: HostMapa) {
     /** Counts by kind at the last draw of each map, and how often each drew (redraw rate). */
     dibujado: () => ({ mini: { ...dibujado.mini }, grande: { ...dibujado.grande } }),
     stats: () => ({ mini: limMini.stats, grande: limGrande.stats, imagenes, vueltas, ocultas, corte }),
+    /** C2: go back to where you were before the last «Ir» (false when there is nowhere to go back to). */
+    volver, puedeVolver: () => origenViaje !== null,
     abrir: () => panel.abrir(), cerrar: () => panel.cerrar(), abierto: () => panel.abierto,
     /** The zone's picture: how it was made, what it cost, whether it has something in it (U14: where it was cut and how
      * many segments the cut gave). */
