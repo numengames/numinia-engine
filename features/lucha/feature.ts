@@ -62,6 +62,7 @@ export const lucha = defineFeature({
     disuelta: { describe: "La criatura se ha disuelto (coherencia 0): deja de ser sólida y desaparece un rato. A quien está a 40 m.", fields: { objetivo: ID, de: QUIEN }, announce: { text: "La criatura se disuelve.", sound: "magia", importance: 2 } },
     vuelve: { describe: "Una criatura disuelta vuelve, entera. A quien está a 40 m.", fields: { objetivo: ID }, announce: { text: "Algo vuelve a tomar forma.", sound: "aviso", importance: 1 } },
     estado: { describe: "El Estado de una persona ha subido un escalón por un golpe de otra (objetivo `p:<entidad>`; estado: ninguno, desestabilizado, confundido, colapsado, aletargado). A quien está a 40 m.", fields: { objetivo: ID, estado: { kind: "enum", values: ESCALERA }, de: QUIEN }, announce: { text: "Alguien queda {estado}.", sound: "aviso", importance: 1 } },
+    reaparece: { describe: "Una persona aletargada ha vuelto a su último punto seguro, con el Estado en ninguno y todo lo suyo intacto (objetivo `p:<entidad>`). A quien está a 40 m.", fields: { objetivo: ID }, announce: { text: "Alguien reaparece.", sound: "aviso", importance: 1 } },
     rechazado: { describe: "Lo que pediste no se hizo, y por qué.", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
   },
 });
