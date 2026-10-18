@@ -9,7 +9,9 @@ import { dardos as decl, DARDOS_TURNO, FUERZA_IDEAL } from "./feature.ts";
 export { DARDOS_TURNO, FUERZA_IDEAL };
 export type Anillo = "dobleBull" | "bull" | "simple" | "triple" | "doble" | "fuera";
 export type Dardo = { quien: number; sitio: string; numero: number; x: number; y: number; sector: number; anillo: Anillo; puntos: number; tirada: number; texto: string; cuando: number };
-export type Sitio = { id: string; nombre: string; x: number; y: number; z: number; radio: number; rumbo: number; ocupado: boolean };
+export type Sitio = { id: string; nombre: string; x: number; y: number; z: number; radio: number; rumbo: number; ocupado: boolean;
+  /** v2 (duel): optional, read from the shared state; a board without them is a v1 board. */
+  duelo?: boolean; remoto?: boolean; rondas?: number; espera?: boolean; jugadores?: number };
 export type Estado = {
   sitio: string;              // the board of my turn ("" = not throwing)
   dardos: number;             // darts thrown in this turn (0-3)
@@ -44,11 +46,12 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     clavados: (sitio?: string): Dardo[] => [...clavados.values()].flat().filter((d) => !sitio || d.sitio === sitio),
     /** J4: offer the «E: tirar dardos» prompt only while this page is not throwing already. */
     ofrece: (feature: string, _key: string): boolean => feature !== "dardos" || e.sitio === "",
-    jugar: (sitio?: string): Res => {
+    /** `desde: "pared"` joins a `remoto` board from a real wall far from it (the server refuses it elsewhere). */
+    jugar: (sitio?: string, desde?: "sitio" | "pared"): Res => {
       if (!A) return SIN;
       const id = sitio ?? dardos.sitios().find((s) => !s.ocupado)?.id;
       if (!id) return { ok: false, why: "no hay ninguna diana cerca" };
-      return A.send("jugar", { sitio: id });
+      return A.send("jugar", desde === "pared" ? { sitio: id, desde } : { sitio: id });
     },
     /** Throw: aim (x, y) on the face in board radii, strength 0-1. Without a turn the server starts one. */
     lanzar: (x: number, y: number, fuerza: number, sitio?: string): Res => {
