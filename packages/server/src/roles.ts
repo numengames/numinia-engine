@@ -27,13 +27,14 @@ export const ACCION_PERMISO = {
   roles: "manage-roles",           // give and take roles below your own
   ajustar: "manage-organization",  // the world's settings (today: for members only or open)
   dirigir: "manage-rituals",       // N6: direct the adventure live (scenes, narration, summons): a ritual is a gathering with a convener (STD-026)
+  escenario: "manage-rituals",     // put someone on stage / take them off (M17: their voice reaches everyone)
 } as const satisfies Record<string, Permiso>;
 export type Accion = keyof typeof ACCION_PERMISO;
 
 /** How each action reads in Spanish (the /roles answer). */
 export const ACCION_TEXTO: Record<Accion, string> = {
   entrar: "entrar si es solo para miembros", construir: "construir", silenciar: "silenciar", echar: "echar",
-  vetar: "vetar", roles: "dar y quitar roles", ajustar: "cambiar los ajustes del mundo", dirigir: "dirigir (escenas, narrar, convocar)",
+  vetar: "vetar", roles: "dar y quitar roles", ajustar: "cambiar los ajustes del mundo", dirigir: "dirigir (escenas, narrar, convocar)", escenario: "subir y bajar a alguien del escenario",
 };
 
 export const BASE = 0;            // the base role's position (STD-052 BASE_ROLE_POSITION)
