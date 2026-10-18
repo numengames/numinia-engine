@@ -8,8 +8,8 @@
 // a pinned hole too: it stays where it is, only its picture changes.
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg } from "../../packages/feature/src/index.ts";
-import { objetos, PASO, OBJETOS_MAX, DESHACER_MAX, TIPOS, EXTENSIONES, HUECO_MIN_M, HUECO_PX_MAX, ESCALA_MIN, encajar } from "./feature.ts";
-import type { Tipo } from "./feature.ts";
+import { objetos, PASO, OBJETOS_MAX, DESHACER_MAX, TIPOS, EXTENSIONES, HUECO_MIN_M, HUECO_PX_MAX, ESCALA_MIN, encajar, colisionDe } from "./feature.ts";
+import type { Tipo, Colision } from "./feature.ts";
 import biblioteca from "./biblioteca.json" with { type: "json" };
 
 export type Modelo = { id: string; nombre: string; modelo: string; fichero: string; licencia: string };
@@ -85,6 +85,13 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
   const caben = (from: number) => api.state.keys().length < OBJETOS_MAX || rechazar(from, `Esta zona ya tiene ${OBJETOS_MAX} objetos: borra alguno antes.`);
   const sinNombre = (from: number, nombre: string, decorado: boolean) => !decorado && !nombre && !rechazar(from, "Si no es decorado, necesita un nombre: es lo que oye quien usa un lector de pantalla y lo que leen los agentes.");
 
+  // M6 (objetos v6): a thing saved before `colision` existed reads as `caja` when it was solid; written once so what
+  // is saved says it too (the page and the simulation keep reading `solido`).
+  for (const k of api.state.keys()) {
+    const o = api.state.get(k);
+    if (o && o.solido === true && colisionDe(o) !== String(o.colision)) api.state.set(k, { ...o, colision: colisionDe(o) });
+  }
+
   const avisar = (e: number) => { api.emit("permiso", { construir: api.puede(e, "construir") }, { to: e }); };
   api.onJoin(avisar);
   api.onIdentify((e) => avisar(e));
@@ -101,7 +108,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
     api.state.set(id, {
       modelo, x: q(m.x, PASO.pos), y: q(m.y, PASO.pos), z: q(m.z, PASO.pos), rx: 0, ry: girado(Number(m.ry)), rz: 0,
       sx: tipo === "sonido" ? 3 : 1, sy: tipo === "sonido" ? 3 : 1, sz: tipo === "sonido" ? 3 : 1, nombre, decorado, fijado: false, animar: true,
-      tipo, ext, oculto: false, volumen: 1, solido: false,
+      tipo, ext, oculto: false, volumen: 1, solido: false, colision: "ninguna",
     });
     firmar(from, id);
     apuntar(from, { id, antes: null });
@@ -174,13 +181,16 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
     hecho(from, id, "nombrar");
   });
 
-  // U10: hidden (spheres of sound), volume, and solid: the page measures the model's own box and sends it with solido
+  // U10: hidden (spheres of sound), volume, and solid: the page measures the model's own box and sends it with solido.
+  // M6: `colision` says how (ninguna, caja, malla); a page from before sends only `solido: true`, which is `caja`.
   api.on("ajustar", (from, m) => {
     if (!puede(from)) return;
     const o = objeto(from, m.id), id = String(m.id);
     if (!o) return;
-    const solido = m.solido === true;
+    const colision: Colision = m.colision === "malla" ? "malla" : m.colision === "caja" || m.solido === true ? "caja" : "ninguna";
+    const solido = colision !== "ninguna";
     if (solido && o.tipo === "sonido") return void rechazar(from, "Una esfera de sonido no puede ser sólida: es una zona por la que se pasa.");
+    if (colision === "malla" && o.tipo !== "modelo") return void rechazar(from, "Solo un modelo 3D (.glb) choca con su malla: una imagen, un vídeo o un sonido pueden ser caja o nada.");
     if (solido) {
       const c: Caja = [m.bx0, m.by0, m.bz0, m.bx1, m.by1, m.bz1].map((v) => q(v, PASO.pos)) as Caja;
       if (c[3] - c[0] > 0.01 && c[4] - c[1] > 0.01 && c[5] - c[2] > 0.01) api.store.set(`c:${id}`, c);
@@ -188,7 +198,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
     }
     apuntar(from, { id, antes: o });
     const alcance = ["burbuja", "zona", "todos"].includes(String(m.alcance)) ? String(m.alcance) : "burbuja";
-    const n = { ...o, oculto: m.oculto === true, volumen: q(Math.max(0, Math.min(1, Number(m.volumen))), 0.01), solido, alcance, radio: q(Math.max(0.5, Math.min(200, Number(m.radio) || 8)), 0.1) };
+    const n = { ...o, oculto: m.oculto === true, volumen: q(Math.max(0, Math.min(1, Number(m.volumen))), 0.01), solido, colision, alcance, radio: q(Math.max(0.5, Math.min(200, Number(m.radio) || 8)), 0.1) };
     api.state.set(id, solido ? conCaja(id, n) : { ...n, bx0: 0, by0: 0, bz0: 0, bx1: 0, by1: 0, bz1: 0 });
     hecho(from, id, "ajustar");
   });

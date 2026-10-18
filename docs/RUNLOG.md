@@ -805,3 +805,12 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Números: `test/ajustes-mundo.test.ts` (4 pruebas) + `flota.test.ts` ajustado; `npm test` y `npm run build` (ver el PR).
 - Consumo: sin medir · Fable 5.1.
 - Siguiente: panel de administración por rol (H3) para editarlos en marcha; escenario base (M6).
+## 2026-10-18 12:52 · M6 h1-h2 · hecho
+- Qué: esquema de colisión por objeto (`objetos` v6, `colision: ninguna | caja | malla`, aditivo: `solido` sigue
+  siendo la caja) y extracción de triángulos de un .glb en el servidor sin three (`colision-glb.ts`: transformaciones
+  de nodos, índices o no, cuantización KHR, meshopt descodificado; Draco, sparse y buffers externos rechazados con
+  motivo; cuenta y tope). Rama `feat/m6-collision-schema-glb` al tren `tren/motor-2026-10-18-3`.
+- Números: 9 pruebas nuevas (bloque 12, farolillo 220, RobotExpressive 3.237 triángulos; copia meshopt igual a < 1 cm);
+  `npm test` en verde salvo la de carga conocida (misiones tick p99) con load 23; versión sin tocar (la sube el tren).
+- Consumo: sin medir · Fable 5.1.
+- Siguiente: h3 BVH entero en `packages/sim/src/bvh.ts` (DISENO-M6 §4).
