@@ -182,6 +182,8 @@ let pescaHud: Promise<unknown> | null = null, pescaPagina: unknown = null; // N4
 pesca.alCambiar(() => { pescaHud ??= import("./pesca.ts").then((m) => (pescaPagina = m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, ajuste: leerAjuste, interaccion: () => interaccion }))).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); });
 // ---- dardos v1: the throwing view (mouse, flick, keys) and «En tu pared (AR)» arrive with the first dartboard ----
 let dardosHud: Promise<unknown> | null = null;
+let combateHud: Promise<unknown> | null = null; // combate nivel 2: Carga bar + ability keys, loaded with the first creature the page knows
+lucha.alCambiar(() => { if (lucha.criaturas().length > 0) combateHud ??= import("./combate.ts").then((m) => m.montarCombate({ lucha })).catch((e) => console.warn(`[combate] no se pudo cargar la página de combate: ${(e as Error)?.message ?? e}`)); });
 dardos.alCambiar(() => { dardosHud ??= import("./dardos.ts").then((m) => m.montarDardos({ dardos, view, session, hud: document.getElementById("dardos-hud")! })).catch((e) => console.warn(`[dardos] no se pudo cargar la página de dardos: ${(e as Error)?.message ?? e}`)); });
 
 // ---- U10: the microphone (button or Q): your voice to who is near; theirs from where they stand ----
