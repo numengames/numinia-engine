@@ -5,6 +5,7 @@ import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX, BTN_JUMP, BT
 import { CIERRE_LLENO, webSocketClient } from "../../packages/net/src/index.ts";
 import { montarAjustes, leerAjuste } from "./menu-ajustes.ts"; // N2: settings menu + capabilities
 import { montarPulsaciones } from "./pulsaciones.ts"; // U26: a press you can see (and feel) on every button
+import { carga } from "./carga.ts"; // MVL3 step 1: fades out the 2D "Cargando" screen once the first frame is drawn
 import { ClientSession, serverUrl, tomarPaseDeLaDireccion } from "../../packages/client/src/index.ts";
 import { createView, leerAparato, leerBateria, medidorDeCuadros, haciaMundo } from "../../packages/render/src/index.ts";
 import funciones from "../../features/cliente.ts";
@@ -447,7 +448,7 @@ view.loop((now) => {
     const xr = view.vr.active || view.ar.state !== "off";
     if (lastDrawAt) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active), { dc: cost.calls, tri: cost.triangles, programas: (cost as { programs?: number }).programs, ratio: view.power.pixelRatio(), xr });
     lastDrawAt = now;
-    if (session.welcome && !informe.primerCuadroMs) informe.primerCuadroMs = Math.round(performance.now());
+    if (session.welcome && !informe.primerCuadroMs) { informe.primerCuadroMs = Math.round(performance.now()); carga.ocultar(); } // MVL3 step 1: world visible, fade the "Cargando" screen away
   }
   if (now - fpsT >= 500) { fps = Math.round((frames * 1000) / (now - fpsT)); frames = 0; fpsT = now; drawHud(); }
 });
