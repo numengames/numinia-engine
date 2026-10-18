@@ -342,6 +342,7 @@ if (document.fullscreenEnabled) {
 // battery; no personal data). The server keeps it per session: GET /sesiones, npm run sesiones. ?pulso=ms ----
 const PULSO_MS = Math.max(1000, Number(params.get("pulso")) || 10_000);
 const medidor = medidorDeCuadros();
+medidor.vigilar(); // B5: a hidden or frozen page is a pause, not a freeze; Long Animation Frames where the browser has them
 const informe = { entrada: false, bienvenidaMs: 0, primerCuadroMs: 0, errores: 0, oculta: false, pulsos: 0 };
 let bateria: { nivel: number; cargando: boolean } | null = null;
 const modo = () => (view.vr.active ? "vr" : view.ar.state !== "off" ? "ar" : "plano");
@@ -397,9 +398,10 @@ view.loop((now) => {
     cost = view.lastFrame(); cost.cpuMs = Math.round((performance.now() - t0) * 100) / 100;
     if (view.power.reportCost(cost.cpuMs, dt)) view.applyPixelRatio();
     frames++;
-    // T1: interval between draws against the target of the moment (a pause over 1 s is not a lost frame)
+    // T1: interval between draws against the target of the moment. A gap of 1 s or more is a freeze, counted apart
+    // (B5), unless the page was hidden or frozen meanwhile; draw calls, triangles, programs and pixel ratio ride along
     const xr = view.vr.active || view.ar.state !== "off";
-    if (lastDrawAt && now - lastDrawAt < 1000) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active));
+    if (lastDrawAt) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active), { dc: cost.calls, tri: cost.triangles, programas: (cost as { programs?: number }).programs, ratio: view.power.pixelRatio(), xr });
     lastDrawAt = now;
     if (session.welcome && !informe.primerCuadroMs) informe.primerCuadroMs = Math.round(performance.now());
   }

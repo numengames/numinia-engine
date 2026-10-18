@@ -11,13 +11,15 @@ export const MAX_REPORTS_PER_SESSION = 600;    // a 10 s pulse for ~90 min, plus
 export const MAX_ERRORS_WRITTEN = 10;          // per session
 export const MAX_DAY_BYTES = 50 * 1024 * 1024; // one day's file stops growing past this
 export const TEXT_MAX = 160;
+export const CONTEO_MAX = 1_000_000;
 
-type Kind = "texto" | "numero" | "bool";
+type Kind = "texto" | "numero" | "bool" | "conteo"; // conteo: a whole number, 0..CONTEO_MAX
 export type Shape = { [key: string]: Kind | Shape };
 export type Rec = Record<string, unknown>;
 
 const BATERIA: Shape = { nivel: "numero", cargando: "bool" };
 const P: Shape = { p50: "numero", p99: "numero", peor: "numero" };
+const P2: Shape = { p50: "numero", peor: "numero" };
 /** What a page may report. Anything else is dropped. Spanish keys: people and agents read these files. */
 export const SHAPES: Record<string, Shape> = {
   /** once, after the first frame: the device and how long it took to enter */
@@ -34,6 +36,10 @@ export const SHAPES: Record<string, Shape> = {
     modo: "texto", cuadros: "numero", cuadroMs: P, perdidos: "numero", objetivoFps: "numero", hzXR: "numero",
     costeMs: P, escala: "numero", modoBateria: "bool", rttMs: "numero", correcciones: "numero", visibles: "numero",
     oculta: "bool", bateria: BATERIA, errores: "numero", memoriaMB: "numero",
+    // B5 (all optional; an old page sends none of them): stalls the window above hides, and what the GPU was asked
+    largos: "conteo", congelado: { n: "conteo", ms: "numero", peor: "numero" }, dc: P2, kTri: P2,
+    programas: "conteo", programasNuevos: "conteo", cambiosRes: "conteo", ratio: "numero",
+    loaf: { n: "conteo", bloqMs: "numero", peorMs: "numero" },
   },
   /** entering or leaving VR/AR, or failing to */
   xr: { modo: "texto", accion: "texto", detalle: "texto" },
@@ -53,11 +59,22 @@ export function limpiar(shape: Shape, raw: unknown): Rec {
     else if (kind === "texto" && typeof v === "string") { const t = v.replace(CONTROL, " ").trim().slice(0, TEXT_MAX); if (t) out[k] = t; }
     else if (kind === "numero" && typeof v === "number" && Number.isFinite(v)) out[k] = Math.round(Math.max(-1e7, Math.min(1e7, v)) * 100) / 100;
     else if (kind === "bool" && typeof v === "boolean") out[k] = v;
+    else if (kind === "conteo" && typeof v === "number" && Number.isInteger(v) && v >= 0) out[k] = Math.min(v, CONTEO_MAX);
   }
   return out;
 }
 
-type Viva = { id: string; inicio: number; informes: number; errores: number; entrada?: Rec; pulso?: Rec; xr: string[] };
+/** B5: what the pulses of one session add up to (written in its `sale` line and summed by resumen()). */
+export type Totales = { pulsos: number; congelaciones: number; congeladoMs: number; congeladoPeorMs: number; largos: number; cambiosRes: number; loaf: number; programasMax: number };
+const totalesVacios = (): Totales => ({ pulsos: 0, congelaciones: 0, congeladoMs: 0, congeladoPeorMs: 0, largos: 0, cambiosRes: 0, loaf: 0, programasMax: 0 });
+function sumar(t: Totales, p: Rec): void {
+  const n = (x: unknown) => (typeof x === "number" ? x : 0);
+  const c = (p.congelado ?? {}) as Rec;
+  t.pulsos++; t.congelaciones += n(c.n); t.congeladoMs += n(c.ms); t.congeladoPeorMs = Math.max(t.congeladoPeorMs, n(c.peor));
+  t.largos += n(p.largos); t.cambiosRes += n(p.cambiosRes); t.loaf += n((p.loaf as Rec | undefined)?.n); t.programasMax = Math.max(t.programasMax, n(p.programas));
+}
+
+type Viva = { id: string; inicio: number; informes: number; errores: number; entrada?: Rec; pulso?: Rec; xr: string[]; totales: Totales };
 export type SesionesOpts = { dir: string | null; log?: (line: string) => void; now?: () => number };
 const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
@@ -80,7 +97,7 @@ export class Sesiones {
   /** A connection opened (call right after the instance spawns its avatar). */
   abrir(entity: number): void {
     const t = this.now();
-    this.vivas.set(entity, { id: `s${t.toString(36)}${entity.toString(36)}`, inicio: t, informes: 0, errores: 0, xr: [] });
+    this.vivas.set(entity, { id: `s${t.toString(36)}${entity.toString(36)}`, inicio: t, informes: 0, errores: 0, xr: [], totales: totalesVacios() });
   }
 
   /** A REPORT from that connection. Returns false when it is dropped (unknown kind, too many, second `entrada`). */
@@ -93,7 +110,7 @@ export class Sesiones {
     if (v.informes === 0) this.stats.sesionesConInforme++;
     v.informes++; this.stats.informes++;
     if (k === "entrada") v.entrada = datos;
-    else if (k === "pulso") v.pulso = datos;
+    else if (k === "pulso") { v.pulso = datos; sumar(v.totales, datos); }
     else if (k === "xr") { if (v.xr.length < 20) v.xr.push(`${datos.modo ?? "?"}:${datos.accion ?? "?"}`); }
     else if (k === "error" && ++v.errores > MAX_ERRORS_WRITTEN) return true; // counted, not written
     this.escribir({ t: new Date(this.now()).toISOString(), sesion: v.id, k, ...datos });
@@ -106,7 +123,7 @@ export class Sesiones {
     if (!v) return;
     this.vivas.delete(entity);
     if (v.informes === 0) return;
-    this.escribir({ t: new Date(this.now()).toISOString(), sesion: v.id, k: "sale", duracionS: Math.round((this.now() - v.inicio) / 1000), informes: v.informes, errores: v.errores, xr: v.xr, ...servidor });
+    this.escribir({ t: new Date(this.now()).toISOString(), sesion: v.id, k: "sale", duracionS: Math.round((this.now() - v.inicio) / 1000), informes: v.informes, errores: v.errores, xr: v.xr, ...(v.totales.pulsos ? { cliente: { ...v.totales } } : {}), ...servidor });
   }
 
   /** Who is connected now and what they last said (GET /sesiones). */
@@ -124,11 +141,20 @@ export class Sesiones {
       return m;
     };
     let sin = 0;
-    for (const v of this.vivas.values()) if (v.informes === 0) sin++;
+    const cliente = { ...totalesVacios(), sesionesConCongelacion: 0 };
+    for (const v of this.vivas.values()) {
+      if (v.informes === 0) { sin++; continue; }
+      const t = v.totales;
+      cliente.pulsos += t.pulsos; cliente.congelaciones += t.congelaciones; cliente.congeladoMs += t.congeladoMs; cliente.largos += t.largos;
+      cliente.cambiosRes += t.cambiosRes; cliente.loaf += t.loaf;
+      cliente.congeladoPeorMs = Math.max(cliente.congeladoPeorMs, t.congeladoPeorMs); cliente.programasMax = Math.max(cliente.programasMax, t.programasMax);
+      if (t.congelaciones) cliente.sesionesConCongelacion++;
+    }
     return {
       conInforme: this.vivas.size - sin, sinInforme: sin,
       porClase: by((v) => v.entrada?.clase), porNavegador: by((v) => String(v.entrada?.navegador ?? "¿?").split(" ")[0]),
       porBackend: by((v) => v.entrada?.backend), porModo: by((v) => v.pulso?.modo ?? "plano"),
+      cliente, // B5: summed over the connected sessions since each one connected
       totales: { ...this.stats },
     };
   }

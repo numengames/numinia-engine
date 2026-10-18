@@ -58,6 +58,32 @@ línea por informe en `SESIONES_DIR/sesiones-<día UTC>.jsonl` (en casa, `inform
 Un número de aparato real vale más que uno emulado: cuando una sesión real contradiga `limits.json`, se
 corrige allí (y en `docs/SABER.md` §2) con la fecha y el aparato.
 
+Qué quiere decir cada cifra del pulso (`packages/render/src/sesion.ts`, `medidorDeCuadros`). El intervalo de un
+cuadro es el tiempo entre dos dibujos; el objetivo es el de ese momento (la política de energía lo baja cuando
+nadie se mueve: menos cuadros con la plaza quieta no es lentitud; en VR, los Hz del visor):
+- **Perdido**: intervalo > 1,5 × el periodo objetivo (a 60 fps, > 25 ms).
+- **Largo** (`largos`): perdido **y** > 50 ms (el umbral de los Long Animation Frames del W3C). Es el tirón que se
+  nota; un cuadro espaciado a propósito (8-12 fps en reposo) no cuenta.
+- **Congelación** (`congelado {n, ms, peor}`): intervalo ≥ 1 s con la página visible. **No** entra en `cuadroMs` ni
+  en `perdidos` (siguen como antes, comparables con los pulsos viejos), se cuenta aparte. No es congelación el hueco
+  tras ocultar la pestaña, cuando el navegador congela la página (`freeze`, `pagehide`) o al entrar/salir de VR.
+  Ojo: en VR, quitarse el visor o abrir el menú del sistema también para los cuadros, y la página aún no lo
+  distingue (el render no expone el `visibilityState` de la sesión XR): mira `modo` antes de culpar al motor.
+- `dc {p50, peor}` y `kTri {p50, peor}`: draw calls y miles de triángulos por cuadro en la ventana
+  (`view.lastFrame()`, contadores de three).
+- `cambiosRes` y `ratio`: cuántas veces cambió la resolución (`view.power.pixelRatio()`: escala automática, calidad o
+  resolución elegidas) y la de ahora. Cada cambio redimensiona el lienzo (0,1-0,4 s de hilo, `CLIENTE-PERFIL`).
+- `programas` y `programasNuevos`: programas de shader vivos y los que aparecieron en la ventana. **Hoy no llegan**:
+  `view.lastFrame()` no da `programs` (`renderer.info.memory.programs`); en cuanto lo dé, salen solos.
+- `loaf {n, bloqMs, peorMs}`: Long Animation Frames del navegador (solo Chromium: Quest Browser, Chrome Android):
+  cuántos cuadros de más de 50 ms, la suma de su `blockingDuration` y el más largo. Si no aparece, el navegador no
+  lo mide (no quiere decir «ninguno»).
+La línea `sale` añade `cliente {pulsos, congelaciones, congeladoMs, congeladoPeorMs, largos, cambiosRes, loaf,
+programasMax}` sumado de toda la sesión, y `GET /sesiones` da lo mismo en `resumen.cliente` para los que están
+dentro (más `sesionesConCongelacion`). Tamaño del pulso: 325-331 bytes antes y 458-507 después en la plaza
+(headless); el peor caso posible, con todos los campos y las cifras más anchas, **610 de 1.000** (`REPORT_MAX`),
+comprobado en `test/sesiones.test.ts`.
+
 ## Otras formas de leer el servidor
 
 `GET /metrics.prom` da los mismos números en el formato de texto de Prometheus (nombres con unidades base y `_total` en los contadores, como pide su guía de nombres), para Grafana o cualquier recolector. Sigue sin ser público: Caddy solo expone `/ws` y `/health`.
