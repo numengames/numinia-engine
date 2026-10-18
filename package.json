@@ -19,6 +19,7 @@
     "build": "vite build --config apps/plaza/vite.config.mjs",
     "e2e": "node tools/e2e.mjs",
     "gates": "node tools/gates.mjs",
+    "tamano": "node tools/tamano.mjs",
     "deploy": "node tools/build-deploy.mjs",
     "enlaces": "node tools/enlaces.ts",
     "bench": "node packages/server/src/bench.ts",

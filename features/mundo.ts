@@ -12,7 +12,9 @@ import { crearDardos } from "./dardos/server.ts";
 import type { Sitio as SitioDardos } from "./dardos/server.ts";
 import { crearDados } from "./dados/server.ts";
 import type { Torre as TorreDados } from "./dados/server.ts";
-import { leerAparicion, leerAparicionFoto } from "./entorno/esquema.ts";
+import { leerAparicion, leerAparicionFoto, leerSuelo } from "./entorno/esquema.ts";
+import { crearSuelo } from "./suelo/server.ts"; // D-045
+import type { SueloMundo } from "./entorno/esquema.ts";
 import { crearTeletransporte } from "./teletransporte/server.ts";
 import { crearWeb } from "./web/server.ts";
 import { crearPuertas } from "./puertas/server.ts";
@@ -52,7 +54,17 @@ export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) 
   const crudoInter = leer("interacciones.json") as { puertas?: unknown; botones?: unknown; cosas?: unknown } | null | undefined;
   const inter = { puertas: crudoInter?.puertas, botones: crudoInter?.botones, cosas: crudoInter?.cosas };
   if (crudoInter !== undefined && !Array.isArray(inter.puertas) && !Array.isArray(inter.botones) && !Array.isArray(inter.cosas)) log(`[mundo] interacciones.json no tiene ninguna lista "puertas", "botones" o "cosas" (no pongo nada): ${JSON.stringify(crudoInter).slice(0, 160)}`);
-  return partes.map((p) => (p.feature.id === "puertas" && Array.isArray(inter.puertas) ? crearPuertas({ puertas: inter.puertas as Puerta[] }) : p.feature.id === "botones" && Array.isArray(inter.botones) ? crearBotones({ botones: inter.botones as Boton[] }) : p.feature.id === "cogibles" && Array.isArray(inter.cosas) ? crearCogibles({ cosas: inter.cosas as CosaCogible[] }) : p.feature.id === "web" && leidoWeb ? crearWeb(leidoWeb.valor) : p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
+
+  const sueloMundo = sueloDelMundo(leer); // D-045: the same values the instance got (logged once there)
+  return partes.map((p) => (p.feature.id === "suelo" && sueloMundo ? crearSuelo(sueloMundo) : p.feature.id === "puertas" && Array.isArray(inter.puertas) ? crearPuertas({ puertas: inter.puertas as Puerta[] }) : p.feature.id === "botones" && Array.isArray(inter.botones) ? crearBotones({ botones: inter.botones as Boton[] }) : p.feature.id === "cogibles" && Array.isArray(inter.cosas) ? crearCogibles({ cosas: inter.cosas as CosaCogible[] }) : p.feature.id === "web" && leidoWeb ? crearWeb(leidoWeb.valor) : p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
+}
+
+/** D-045: the world's void (entorno.json `sueloMinimo` + `vuelta`), or null: no file, no key, or a wrong one (logged). */
+export function sueloDelMundo(leer: (fichero: string) => unknown, log: (l: string) => void = () => {}): SueloMundo | null {
+  const r = leerSuelo(leer("entorno.json"));
+  if (r.ok) return r.value;
+  log(`[mundo] sueloMinimo/vuelta de entorno.json no se usan (este mundo no tiene vacío): ${r.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
+  return null;
 }
 
 /** The world's spawn area (entorno.json `aparicion`), or null: no file, no key, or a wrong one (logged, with its path). */

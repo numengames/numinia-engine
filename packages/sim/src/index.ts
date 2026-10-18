@@ -12,6 +12,7 @@ export const STEP = fxDiv(SPEED, fx(TICK_HZ)); // metres per tick at full stick
 export const RUN_SPEED = fx(4);              // J2: running (Shift; touch/VR stick at its edge), like Hyperfy2 (was 8)
 export const RUN_STEP = fxDiv(RUN_SPEED, fx(TICK_HZ)); // exactly RUN_SPEED/SPEED x STEP
 export const BOUND = fx(2000);               // N1: half-size of the walkable world in metres (was 500; objects and quests already reached ±2000)
+export const Y_BOUND = fx(500);              // D-045: heights an order may name (Transform's y range)
 export const STICK_MAX = 127;                // input axes are int8
 
 // ---- J2: height. The feel is Hyperfy2's (PlayerLocal: gravity 20 m/s², jump height 1.5 m, one more jump in the
@@ -26,6 +27,16 @@ export const BTN_JUMP = 1, BTN_RUN = 2;
 const BTN_KNOWN = BTN_JUMP | BTN_RUN;
 /** Inputs are quadruples [entity, mx, mz, buttons]. */
 export const INPUT_STRIDE = 4;
+/** D-045: orders are quadruples [entity, x, y, z] (Q16.16): the server puts an avatar somewhere on purpose (back to its
+ * last safe spot after a fall). They are applied inside `step`, before the inputs, and a replay carries them tick by
+ * tick, so the fingerprint of a run with orders is reproducible; a run with none steps exactly as before. */
+export const ORDER_STRIDE = 4;
+const NO_ORDERS = new Int32Array(0);
+/** True when the avatar stands on its floor (vertical speed 0, feet at the ground under it). */
+export function onFloor(s: SimState, e: number): boolean {
+  const y = s.tf.cols.y[e];
+  return s.mo.cols.vy[e] === 0 && y === (s.solids.length ? groundHeight(s.tf.cols.x[e], s.tf.cols.z[e], s, y) : 0);
+}
 
 /** Height of the ground under (x, z), Q16.16. A flat plaza, plus (U10) the tops of solid things you stand above
  * when `s` is given: the highest top not more than STEP_UP over your feet `y`. M6 (physics) replaces this. */
@@ -162,10 +173,19 @@ export const sameBody = (a: Body, b: Body): boolean =>
  * An avatar advances ONLY when one of its inputs is applied (gravity included): one input = one step of its owner's
  * clock, so the owner's prediction stays exact even on ticks where the server got no input from it (J2).
  */
-export function step(s: SimState, inputs: Int32Array): void {
+export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_ORDERS): void {
   const n = (inputs.length / INPUT_STRIDE) | 0;
   const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => inputs[a * INPUT_STRIDE] - inputs[b * INPUT_STRIDE]);
   const X = s.tf.cols.x, Y = s.tf.cols.y, Z = s.tf.cols.z, VY = s.mo.cols.vy, AIR = s.mo.cols.air, BUF = s.mo.cols.buf;
+  // D-045: orders first (ascending entity, like inputs): the avatar is put there, still, on whatever floor the order says
+  const no = (orders.length / ORDER_STRIDE) | 0;
+  const oo = Array.from({ length: no }, (_, i) => i).sort((a, b) => orders[a * ORDER_STRIDE] - orders[b * ORDER_STRIDE]);
+  for (const i of oo) {
+    const o = i * ORDER_STRIDE, e = orders[o];
+    if (!s.world.alive[e] || !s.tf.has[e]) continue;
+    X[e] = fxClamp(orders[o + 1], -BOUND, BOUND); Y[e] = fxClamp(orders[o + 2], -Y_BOUND, Y_BOUND); Z[e] = fxClamp(orders[o + 3], -BOUND, BOUND);
+    VY[e] = 0; AIR[e] = 0; BUF[e] = 0;
+  }
   for (const i of order) {
     const o = i * INPUT_STRIDE, e = inputs[o];
     if (!s.world.alive[e] || !s.tf.has[e]) continue;
@@ -226,13 +246,15 @@ export function snapshot(s: SimState): Uint8Array {
 export const stateHash = (s: SimState): number => fnv1a(snapshot(s));
 
 // ---- Replay: initial seed + per-tick inputs reproduces the run exactly ----
-export type Recording = { seed: number; capacity: number; spawns: number[]; ticks: Int32Array[] };
+export type Recording = { seed: number; capacity: number; spawns: number[]; ticks: Int32Array[];
+  /** D-045: the orders of each tick (same index as `ticks`; none or empty = no order that tick). */
+  orders?: (Int32Array | undefined)[] };
 
 export function replay(r: Recording): number[] {
   const s = createSim(r.capacity, r.seed);
   for (const owner of r.spawns) spawnAvatar(s, owner);
   const hashes: number[] = [];
-  for (const inputs of r.ticks) { step(s, inputs); hashes.push(stateHash(s)); }
+  r.ticks.forEach((inputs, t) => { step(s, inputs, r.orders?.[t] ?? NO_ORDERS); hashes.push(stateHash(s)); });
   return hashes;
 }
 

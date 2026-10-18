@@ -18,6 +18,7 @@ import teletransporte from "./teletransporte/client.ts"; // N16: «Gente» and t
 import web from "./web/client.ts";
 import puertas from "./puertas/client.ts"; // J4: the slab on its hinge
 import botones from "./botones/client.ts"; // J4: the cap on its post
-import cogibles from "./cogibles/client.ts"; // J4: on the floor or in a hand (view.lleva); «Soltar» = Q // N17: web screens (drawn by packages/render/src/web.ts, wired in apps/plaza/web.ts)
-const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles];
+import cogibles from "./cogibles/client.ts"; // J4: on the floor or in a hand (view.lleva); «Soltar» = Q
+import suelo from "./suelo/client.ts"; // D-045: the fade when the server puts you back on a safe spot // N17: web screens (wired in apps/plaza/web.ts and the server)
+const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo];
 export default funciones;
