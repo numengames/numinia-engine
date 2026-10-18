@@ -22,6 +22,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const installer = join(root, "deploy/instalar-motor.sh");
 if (!existsSync(installer)) fail("no existe deploy/instalar-motor.sh: genera antes con `npm run deploy`");
+// ADR-080: the systemd unit must fix MOTOR_DOMINIO to this install's --dominio, or a malicious world could
+// forge another's ticket by sending a different Host header
+const instalador = readFileSync(installer, "utf8");
+const envLine = instalador.split("\n").find((l) => l.startsWith("Environment=")) ?? "";
+if (!/\bMOTOR_DOMINIO=\$DOMAIN\b/.test(envLine)) fail("el servicio no fija MOTOR_DOMINIO desde --dominio (ADR-080)");
 rmSync(dir, { recursive: true, force: true });
 const x = spawnSync("bash", [installer, "--solo-extraer", dir], { encoding: "utf8" });
 if (x.status !== 0) fail(`--solo-extraer: ${x.stderr}`);

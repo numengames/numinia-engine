@@ -5,3 +5,4 @@ dist/
 .cert/
 deploy/instalar-motor.sh
 informes/
+/qr/

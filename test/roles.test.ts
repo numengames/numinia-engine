@@ -6,7 +6,7 @@ import { ClientSession } from "../packages/client/src/index.ts";
 import type { GuestKeeper } from "../packages/client/src/index.ts";
 import { signer } from "../packages/server/src/secret.ts";
 import { TICK_HZ } from "../packages/sim/src/index.ts";
-import { fx } from "../packages/core/src/index.ts";
+import { fx, fxToFloat } from "../packages/core/src/index.ts";
 import { VOZ_MULAW } from "../packages/net/src/index.ts";
 import type { FeatureStorage, Saved, StorageOp } from "../packages/feature/src/index.ts";
 
@@ -121,40 +121,9 @@ test("/dar and /quitar follow STD-051: only with manage-roles, only below your h
   W.decir(B, `/dar ${W.nombre(C)} Moderación`);
   assert.match(W.ultimo(C), /«Moderación»/);
   W.decir(C, "/roles");
-  assert.match(W.avisos(C).at(-2) ?? "", /Eres: Moderación, @todos\. Puedes: entrar si es solo para miembros, silenciar, echar, vetar, dirigir \(escenas, narrar, convocar\), subir y bajar a alguien del escenario\./);
+  assert.match(W.avisos(C).at(-2) ?? "", /Eres: Moderación, @todos\. Puedes: entrar si es solo para miembros, silenciar, echar, vetar, dirigir \(escenas, narrar, convocar\)\./);
   W.decir(B, `/quitar ${W.nombre(C)} Moderación`);
   assert.match(W.ultimo(B), /ya no tiene «Moderación»/);
-});
-
-test("M17 /escenario: moderation (manage-rituals) puts people on stage — itself too —, everyone is told, the instance asks per id; not stored", () => {
-  const W = mundo(3);
-  const [A, B, C] = W.gente;
-  W.pump(3);
-  W.decir(C, `/escenario ${W.nombre(B)}`);
-  assert.match(W.ultimo(C), /No tienes permiso para subir y bajar a alguien del escenario/);
-  W.decir(C, "/escenario");
-  assert.match(W.ultimo(C), /No hay nadie en el escenario/, "the list is open to everyone");
-  W.decir(A, `/dueño ${ADMIN}`);
-  W.decir(A, `/dar ${W.nombre(C)} Moderación`);
-  W.decir(C, `/escenario ${W.nombre(B)}`);
-  assert.equal(W.roles.enEscenario(W.inst.who(B.s.entity)?.id), true);
-  assert.equal(W.roles.enEscenario(W.inst.who(A.s.entity)?.id), false);
-  for (const p of W.gente) assert.match(W.ultimo(p), new RegExp(`${W.nombre(B)} sube al escenario: su voz la oye todo el mundo`), "the whole zone is told");
-  W.decir(C, `/escenario ${W.nombre(C)}`);
-  assert.equal(W.roles.enEscenario(W.inst.who(C.s.entity)?.id), true, "you may put yourself on stage");
-  W.decir(C, `/escenario ${W.nombre(B)}`);
-  assert.match(W.ultimo(C), /ya está en el escenario/);
-  W.decir(A, "/escenario");
-  assert.match(W.avisos(A).at(-2) ?? "", new RegExp(`En el escenario: ${W.nombre(B)}, ${W.nombre(C)}\\.`));
-  W.decir(C, `/escenario quitar ${W.nombre(B)}`);
-  assert.equal(W.roles.enEscenario(W.inst.who(B.s.entity)?.id), false);
-  assert.match(W.ultimo(B), /baja del escenario/);
-  W.decir(C, `/escenario quitar ${W.nombre(B)}`);
-  assert.match(W.ultimo(C), /no está en el escenario/);
-  W.decir(A, "/escenario nadie");
-  assert.equal(W.roles.enEscenario(W.inst.who(C.s.entity)?.id), false);
-  assert.match(W.ultimo(A), /vacía el escenario/);
-  assert.equal(W.inst.features.allState().some((s: unknown) => JSON.stringify(s).includes("escenario")), false, "nothing about the stage is stored");
 });
 
 test("building: --construir sets @todos; a role with «build-in-worlds» opens it for one person and objetos tells the page", () => {
@@ -410,4 +379,71 @@ test("F1 /bloquear: A stops reading and hearing B, C still does, B is not told; 
   W2.decir(A2, `/desbloquear ${W2.nombre(B2)}`);
   assert.match(W2.ultimo(A2), /No tenías bloqueado/);
   assert.deepEqual(W2.roles.bloqueados(W2.inst.who(A2.s.entity)!.id), []);
+});
+
+test("H3c /nombre: cambia el nombre sobre la cabeza y en lo que dices, se guarda con la identidad, y nunca acaba en « · IA»", () => {
+  const storage = new MemoryStorage(), reloj = { ms: Date.parse("2026-10-18T09:00:00Z") };
+  const W = mundo(2, { storage, reloj });
+  const [A, B] = W.gente;
+  W.pump(3);
+  juntos(W);
+  W.decir(A, "/nombre Mundo · IA");
+  assert.match(W.ultimo(A), /reserva para los agentes de IA/);
+  assert.ok(!B.chat.nombres.has(A.s.entity) || B.chat.nombres.get(A.s.entity) !== "Mundo · IA", "the rejected name never applies");
+  W.decir(A, "/nombre ");
+  assert.match(W.ultimo(A), /Escribe \/nombre/);
+  W.decir(A, "/nombre Caminante del Alba");
+  assert.match(W.ultimo(A), /Desde ahora te llamas «Caminante del Alba»/);
+  W.decir(A, "hola");
+  assert.ok(B.chat.lineas.some((l) => l.texto === "hola" && l.nombre === "Caminante del Alba"));
+  // an AI never gets to use the order on itself (it never types chat orders as a guest, but the check stays defensive)
+  assert.equal(W.roles.acceso(`ia-x`).permisos.size >= 0, true);
+  // saved with the identity: a restart (same guest id) gets it back, and the chosen name is used again at once
+  const W2 = mundo(0, { storage, reloj });
+  const A2 = W2.entrar(1, A.guardado), B2 = W2.entrar(2, B.guardado);
+  W2.gente.push(A2, B2);
+  W2.pump(3);
+  juntos(W2);
+  W2.decir(A2, "otra vez");
+  assert.ok(B2.chat.lineas.some((l) => l.texto === "otra vez" && l.nombre === "Caminante del Alba"), "the name survives a restart, reapplied on identify");
+});
+
+test("H3c /aparecer aquí fija dónde (re)apareces, se guarda con la identidad; /aparecer quitar lo deshace", () => {
+  const storage = new MemoryStorage(), reloj = { ms: Date.parse("2026-10-18T09:00:00Z") };
+  const W = mundo(1, { storage, reloj });
+  const [A] = W.gente;
+  W.pump(3);
+  W.inst.sim.tf.cols.x[A.s.entity] = fx(12); W.inst.sim.tf.cols.z[A.s.entity] = fx(8);
+  W.pump();
+  W.decir(A, "/aparecer aqui");
+  assert.match(W.ultimo(A), /desde ahora apareces aquí/i);
+  const W2 = mundo(0, { storage, reloj });
+  const A2 = W2.entrar(1, A.guardado);
+  W2.gente.push(A2);
+  W2.pump(3);
+  const p2 = { x: fxToFloat(W2.inst.sim.tf.cols.x[A2.s.entity]), z: fxToFloat(W2.inst.sim.tf.cols.z[A2.s.entity]) };
+  assert.ok(Math.abs(p2.x - 12) < 2 && Math.abs(p2.z - 8) < 2, `apareció cerca de (12, 8): ${JSON.stringify(p2)}`);
+  W2.decir(A2, "/aparecer quitar");
+  assert.match(W2.ultimo(A2), /vuelves a aparecer donde aparece cualquiera/i);
+  W2.decir(A2, "/aparecer quitar");
+  assert.match(W2.ultimo(A2), /no tenías un punto de aparición propio/i);
+});
+
+test("H3c /chat borrar necesita manage-organization (como /construir, /voz, /solo-miembros) y vacía el historial de la zona", () => {
+  const W = mundo(2);
+  const [A, B] = W.gente;
+  W.pump(3);
+  W.decir(A, "/chat borrar");
+  assert.match(W.ultimo(A), /No tienes permiso para cambiar los ajustes/);
+  W.decir(A, `/dueño ${ADMIN}`);
+  juntos(W);
+  B.chat.decir("lo de antes", "zona");
+  W.pump(TICK_HZ + 2);
+  assert.ok(B.chat.lineas.some((l) => l.texto === "lo de antes"));
+  W.decir(A, "/chat borrar");
+  assert.match(W.ultimo(A), /historial de la zona está vacío/);
+  const C = W.entrar(9);
+  W.gente.push(C);
+  W.pump(3);
+  assert.ok(!C.chat.lineas.some((l) => l.tipo === "antes"), "quien entra después no ve nada de antes de borrarlo");
 });

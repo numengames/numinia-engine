@@ -9,6 +9,7 @@
 //   packages/render/src/dardos.ts).
 // Everything asked goes through the controller (features/dardos/client.ts): the server decides where each dart lands.
 import { escribiendo } from "./escribiendo.ts";
+import { montarDardosVR } from "./dardos-vr.ts"; // motor-vr t_5f6ff048: the controller/hand throw in immersive-vr
 import { pintarDiana, caraAPixel, pixelACara, potenciaDe, PINTADA } from "../../packages/render/src/index.ts";
 import type { DianaAR } from "../../packages/render/src/index.ts";
 import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
@@ -23,10 +24,12 @@ type Dardos = {
   alCambiar(fn: (que: "estado" | "sitios" | "clavados") => void): () => void;
 };
 type Vista = {
-  dardos: { sitios(l: Sitio[]): void; clavados(l: Dardo[]): void };
+  dardos: { sitios(l: Sitio[]): void; clavados(l: Dardo[]): void; apuntar(id: string, origen: { x: number; y: number; z: number }, dir: { x: number; y: number; z: number }): { x: number; y: number } | null };
   dardosAR(o: { alLanzar: (x: number, y: number, fuerza: number) => void; alColocar?: (pared: boolean) => void }): Promise<DianaAR | null>;
   arSupported(): Promise<boolean>;
   ar: { exit(): Promise<void>; readonly jugando: boolean };
+  vr: { active: boolean; nota?(t: string): void };
+  manos?: { on(fn: (e: { tipo: string; lado: "izq" | "der" }) => void): () => void; rayo(lado: "izq" | "der"): { origen: { x: number; y: number; z: number }; dir: { x: number; y: number; z: number } } | null; vibrar(lado: "izq" | "der", v?: number, ms?: number): void };
 };
 
 /** How long the turn's result stays (ms) after the third dart. */
@@ -160,6 +163,9 @@ export function montarDardos(o: { dardos: Dardos; view: Vista; session: { entity
     if (arJuego) arJuego.clavados(dardos.clavados(sitioActual()?.id));
   };
 
+  // ---- VR: the controller/hand throw (dardos-vr.ts), only while there is no AR wall to use instead ----
+  const dardosVR = montarDardosVR({ dardos, view });
+
   // ---- drawing ----
   function dibujar(): void {
     if (!abierto) return;
@@ -227,6 +233,7 @@ export function montarDardos(o: { dardos: Dardos; view: Vista; session: { entity
   const api = {
     abierto: () => abierto, apuntar: (x: number, y: number) => { aim = { x, y }; }, apuntado, potencia: () => potenciaAhora(), cargando: () => cargando,
     ar: () => arJuego?.estado() ?? null, flick: () => ultimoFlick, abrir, cerrar,
+    vr: () => ({ cargandoIzq: dardosVR.cargando("izq"), cargandoDer: dardosVR.cargando("der") }),
   };
   (globalThis as unknown as { __numinia?: Record<string, unknown> }).__numinia && (((globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia).dardosHud = api);
   return api;

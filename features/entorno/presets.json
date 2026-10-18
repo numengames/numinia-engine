@@ -52,7 +52,7 @@
     },
     "nublado": {
       "cielo": { "tipo": "atmosfera", "turbidez": 6, "nubes": 0.8 },
-      "luz": { "hdr": "fd94c84997b8a3c353b62c2125a9b44e19509956986a126e472684432a02d798.hdr", "ambiente": 1, "cielo": "#c3ccd4", "suelo": "#55504a" },
+      "luz": { "hdr": "6be2ed0595639f543dc88b380f244220fc9302f43a4106a61ee269d70fa15f42.hdr", "ambiente": 1, "cielo": "#c3ccd4", "suelo": "#55504a" },
       "sol": { "altura": 50, "rumbo": 140, "intensidad": 1.6, "color": "#f4f1ea" },
       "niebla": { "cerca": 60, "lejos": 330, "color": "#c2cbd2" },
       "viento": { "rumbo": 45, "fuerza": 5 },

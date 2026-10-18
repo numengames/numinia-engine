@@ -5,6 +5,7 @@
 // window.pose(i, t) draws clip i at time t (the driver takes the screenshot).
 import * as THREE from "three/webgpu";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js"; // E3: the house files are meshopt-packed (tools/aligerar-activos.ts)
 import { MToonMaterialLoaderPlugin, VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
 import { MToonNodeMaterial } from "@pixiv/three-vrm/nodes";
 import { VRMAnimationLoaderPlugin, createVRMAnimationClip } from "@pixiv/three-vrm-animation";
@@ -34,7 +35,7 @@ const y = (bone) => +(vrm.humanoid.getRawBoneNode(bone)?.getWorldPosition(new TH
 window.comprobar = async (vrmUrl, vrmaUrls, times) => {
   if (!renderer) await setup();
   if (vrm) { scene.remove(vrm.scene); VRMUtils.deepDispose(vrm.scene); }
-  const loader = new GLTFLoader();
+  const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
   loader.register((p) => new VRMLoaderPlugin(p, { mtoonMaterialPlugin: new MToonMaterialLoaderPlugin(p, { materialType: MToonNodeMaterial }) }));
   loader.register((p) => new VRMAnimationLoaderPlugin(p));
   const t0 = performance.now();

@@ -28,6 +28,15 @@
       "licencia": "CC0-1.0",
       "autor": "Tomás Laulhé (Quaternius); cambios de Don McCurdy",
       "fuente": "https://github.com/mrdoob/three.js/tree/dev/examples/models/gltf/RobotExpressive"
+    },
+    {
+      "id": "loma",
+      "nombre": "Loma (terreno)",
+      "modelo": "bc858f7faf1aeb21d71ad88a4f6c908a0170a6903f5f706a11e2c7fda5431cf2",
+      "fichero": "activos/terreno/loma.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia)",
+      "fuente": "tools/hacer-terreno.mjs"
     }
   ]
 }
