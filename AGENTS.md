@@ -78,6 +78,12 @@ Keep gates light: seconds, one core. Never add a gate that needs a GPU or an LLM
 - The image is built from the installer only (`Dockerfile`, `.dockerignore`): what the bare install runs, the image
   runs. `deploy-check` and `test/flota.test.ts` guard both.
 
+## Language of the public record
+Commit messages and pull request titles (and descriptions) are written in **English**, always; the history of this
+public repository is read by outsiders. The diary `docs/RUNLOG.md`, the internal docs and user-facing in-world text
+(adventures, dialogue, lore) may stay in Spanish. Never put Spanish in a commit subject or a PR title, not even in
+unattended night shifts.
+
 ## Style
 Boring code over clever code. Node ≥ 24 runs the `.ts` files directly (type stripping): use only
 erasable TypeScript (no `enum`, no `namespace`, no constructor parameter properties) and import
