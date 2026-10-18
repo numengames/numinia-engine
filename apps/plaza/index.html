@@ -137,6 +137,15 @@
     html.alto-contraste #ajustes .describe { opacity: 1; }
     html.alto-contraste :focus-visible { outline: 3px solid #ffeb3b !important; outline-offset: 2px; }
     html.menos-movimiento *, html.menos-movimiento *::before, html.menos-movimiento *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    /* t_bdc2c2db: «Qué hay de nuevo», una sola vez por versión distinta a la vista (apps/plaza/novedades.ts) */
+    #novedades { position: fixed; inset: 10px auto auto 10px; margin: 0; width: min(380px, calc(100vw - 20px)); max-height: calc(100vh - 20px); overflow: auto; padding: 10px 12px 12px; border: 0; border-radius: 10px; background: rgb(20, 24, 30); color: #eef2f6; box-sizing: border-box; }
+    #novedades::backdrop { background: rgba(10, 14, 20, .25); }
+    #novedades .cabecera { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    #novedades h2 { margin: 0; font-size: 1.05em; color: #ffd27a; }
+    #novedades ul { margin: 8px 0 0; padding-left: 20px; }
+    #novedades li { margin: 0 0 6px; }
+    #novedades button { min-height: 36px; padding: 6px 12px; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; font: inherit; font-weight: 600; }
+    #novedades :focus-visible { outline: 3px solid #ffd27a; outline-offset: 1px; }
   /* auditoría UI móvil: objetivo táctil mínimo 44x44 px (Apple HIG / Material) para los controles que
      en escritorio ya iban sobrados de ratón pero en el dedo quedaban en 28-39px: el libro de misiones,
      saltar/saludar/bailar/recoger, abrir el chat, los botones del minimapa (−/+/N/Mapa/Ficha) y la fila
@@ -207,6 +216,11 @@
     <div id="ajustes-grupos"></div>
     <div class="pie"><button id="ajustes-restablecer" type="button">Restablecer todo</button></div>
     <p id="version-motor" class="version-motor"></p>
+  </dialog>
+  <!-- t_bdc2c2db: «Qué hay de nuevo» — apps/plaza/novedades.ts fills it and opens it once per version -->
+  <dialog id="novedades" aria-labelledby="novedades-titulo">
+    <div class="cabecera"><h2 id="novedades-titulo" tabindex="-1"></h2><button id="novedades-cerrar" type="button">Cerrar</button></div>
+    <ul id="novedades-lista"></ul>
   </dialog>
   <script type="module" src="./main.ts"></script>
 </body>
