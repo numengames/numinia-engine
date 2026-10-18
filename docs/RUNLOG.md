@@ -794,3 +794,17 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Choques arreglados en un commit aparte: «Nombres» pasa al menú «…» en móvil; los avisos no tapan la barra ni el minimapa; el engranaje de Mínimo con perfil táctil forzado.
 - Versión **0.9.0 → 0.10.0** (menor): ajustes y piezas nuevos, nada se rompe. Las ramas traían 0.6.2–0.6.5 y 0.8.0; rebasada sobre `main` 0.9.0 (#49, #50, #60), una sola subida (`docs/VERSIONES.md`).
 - Consumo: sin medir · Sonnet 5.5.
+
+## 2026-10-18 14:57 · contadores-h3 · hecho
+- Qué: D-044 historia 3. `features/contadores` gana `state.persist: true` (S4): el valor y si está en marcha
+  sobreviven a un reinicio (al arrancar lee lo guardado antes de usar `inicio` del fichero). Contador
+  `"variante": "equipo"` (campo nuevo en `contadores.json`, por defecto `ninguna`): cada orden lleva `equipo`
+  (1-16 letras minúsculas/cifras/guiones, nombre libre — no una lista que declare el fichero) y el servidor
+  crea ese equipo la primera vez que se nombra, clave `id:equipo`, hasta `EQUIPOS_MAX` (8) por contador; el chat
+  toma `/contador <id>:<equipo> …`. Queda sin hacer (EXTENDER.md): un contador por persona, poner/quitar
+  contadores desde dentro del mundo, y el cable (D-041) con `llegada`.
+- Números: 12 pruebas de `contadores.test.ts` (antes 9), 628 en total (627 bien + 1 flaky de `misiones.test.ts`,
+  ajeno: p99 de carga, reproducido en verde aislado); capas OK; bandwidth y plaza de 1.000 OK.
+- Consumo: sin medir · Sonnet 5.
+- Commit: ver `git log` (rama `contadores-h3/ola3`).
+- Siguiente: contadores — un contador por persona, piezas desde dentro del mundo; cable D-041.

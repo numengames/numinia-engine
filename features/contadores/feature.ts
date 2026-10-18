@@ -7,6 +7,11 @@
 // with the counter's `evento` name: the cable (D-041) listens to ("contadores", "llegada") and does the rest. Orders
 // are intents (`arranca`, `para`, `suma`, `reinicia`) for a page, a phone, VR (the chat: /contador …) and an agent
 // alike; who may give them is the file's `manda`: everyone near, or only who directs (STD-052 manage-rituals).
+// v1 h3: `state.persist` (S4) — the value and whether it runs survive a server restart. A counter marked
+// `variante: "equipo"` stops being a single value: whoever orders it names a team (`equipo`, 1-16 letters/digits/
+// hyphens, e.g. `/contador marcador:rojo suma`) and the server keeps one value per team under the same id, created
+// the first time that team is named (up to EQUIPOS_MAX per counter) — a free name, never a fixed roster the file
+// must list.
 import { defineFeature } from "../../packages/feature/src/index.ts";
 
 /** Who gets a counter in the shared state, from afar (m): a room, a hall, a plaza. */
@@ -24,9 +29,14 @@ export const HITOS_S = [300, 60, 30, 10] as const;
 export const TIPOS = ["cuenta_atras", "contador", "reloj"] as const;
 export const DONDE = ["panel", "cartel", "ambos"] as const;
 export const MANDA = ["todos", "dirige"] as const;
+/** h3: `ninguna` = un solo valor (hoy); `equipo` = un valor por equipo, nombrado libremente al dar la orden. */
+export const VARIANTES = ["ninguna", "equipo"] as const;
+/** Como mucho equipos distintos vive un contador `variante: "equipo"` (el resto se rechaza). */
+export const EQUIPOS_MAX = 8;
 export type Tipo = (typeof TIPOS)[number];
 export type Donde = (typeof DONDE)[number];
 export type Manda = (typeof MANDA)[number];
+export type Variante = (typeof VARIANTES)[number];
 
 const ID = { kind: "text", maxBytes: 16 } as const;
 const X = { kind: "fixed", min: -2000, max: 2000, step: 0.01 } as const;
@@ -35,6 +45,8 @@ const VALOR = { kind: "int", min: -VALOR_MAX, max: VALOR_MAX } as const;
 const NOMBRE = { kind: "text", maxBytes: 60 } as const;
 const EVENTO = { kind: "text", maxBytes: 32, default: "" } as const;
 const TEXTO = { kind: "text", maxBytes: 120 } as const;
+/** `""` = sin equipo (contador normal); si no, 1-16 letras minúsculas, cifras o guiones. */
+const EQUIPO = { kind: "text", maxBytes: 16, default: "" } as const;
 
 export const contadores = defineFeature({
   id: "contadores",
@@ -42,32 +54,34 @@ export const contadores = defineFeature({
   level: "base",
   describe: "Temporizadores y contadores que todos ven igual: una cuenta atrás («os quedan 12 minutos»), un marcador que sube y baja hasta un tope, el reloj del mundo. Los lleva el servidor y publica el valor una vez por segundo a quien está en su zona. Al llegar a cero o al tope avisa con el nombre de su evento (para el cable). Órdenes: arranca, para, suma, reinicia.",
   state: {
-    describe: "Un contador por clave (su id): nombre; tipo (cuenta_atras = segundos que bajan; contador = un valor con un tope; reloj = segundos que suben); dónde está (x, z; y = altura del suelo, m) y desde cuánto se le dan órdenes (radio, m); valor = lo que marca ahora (segundos o puntos); inicio = con qué empieza; tope = a dónde llega (0 = sin tope); marcha = si corre; donde = dónde se ve (panel de la página, cartel en el mundo, ambos); evento = el nombre que dispara al llegar; manda = quién le da órdenes (todos los que están cerca, o solo quien dirige).",
+    describe: "Un contador por clave (su id, o id:equipo cuando es de variante equipo): nombre; tipo (cuenta_atras = segundos que bajan; contador = un valor con un tope; reloj = segundos que suben); dónde está (x, z; y = altura del suelo, m) y desde cuánto se le dan órdenes (radio, m); valor = lo que marca ahora (segundos o puntos); inicio = con qué empieza; tope = a dónde llega (0 = sin tope); marcha = si corre; donde = dónde se ve (panel de la página, cartel en el mundo, ambos); evento = el nombre que dispara al llegar; manda = quién le da órdenes (todos los que están cerca, o solo quien dirige); equipo = \"\" en un contador normal, o el nombre del equipo en uno de variante equipo.",
     fields: {
       nombre: NOMBRE, tipo: { kind: "enum", values: [...TIPOS] }, x: X, y: Y, z: X,
       radio: { kind: "fixed", min: 1, max: 16, step: 0.1, default: 4 },
       valor: VALOR, inicio: VALOR, tope: VALOR, marcha: { kind: "bool", default: false },
       donde: { kind: "enum", values: [...DONDE] }, evento: EVENTO, manda: { kind: "enum", values: [...MANDA] },
+      equipo: EQUIPO,
     },
     card: { role: "lugar", name: "{nombre}", description: "Contador del mundo: lo lleva el servidor, todos ven lo mismo", at: ["x", "z"], actions: ["arranca", "para", "suma", "reinicia"], interact: { intent: "pulsar", prompt: "usar el contador", radius: "radio", key: "id" } },
     radius: ALCANCE_M,
+    persist: true, // h3: el valor y si está en marcha sobreviven a un reinicio del servidor
   },
   intents: {
-    arranca: { describe: "Poner en marcha el contador (una cuenta atrás baja, un reloj sube).", spoken: "arrancar el contador", fields: { id: ID }, rate: { perSecond: 2, burst: 4 } },
-    para: { describe: "Parar el contador donde está.", spoken: "parar el contador", fields: { id: ID }, rate: { perSecond: 2, burst: 4 } },
-    suma: { describe: "Sumar al contador (cuanto puede ser negativo para restar; vacío = 1). Un marcador sube hasta su tope; a una cuenta atrás se le dan o quitan segundos.", spoken: "sumar al contador", fields: { id: ID, cuanto: { kind: "int", min: -VALOR_MAX, max: VALOR_MAX, default: 1 } }, rate: { perSecond: 4, burst: 8 } },
-    reinicia: { describe: "Volver al valor de inicio, parado.", spoken: "reiniciar el contador", fields: { id: ID }, rate: { perSecond: 2, burst: 4 } },
-    pulsar: { describe: "Usarlo desde al lado (la tecla E): una cuenta atrás o un reloj arranca si está parado y para si corre; un marcador suma 1.", spoken: "usar el contador", fields: { id: ID }, rate: { perSecond: 2, burst: 4 } },
+    arranca: { describe: "Poner en marcha el contador (una cuenta atrás baja, un reloj sube). equipo: solo en un contador de variante equipo (el nombre del equipo).", spoken: "arrancar el contador", fields: { id: ID, equipo: EQUIPO }, rate: { perSecond: 2, burst: 4 } },
+    para: { describe: "Parar el contador donde está. equipo: solo en un contador de variante equipo.", spoken: "parar el contador", fields: { id: ID, equipo: EQUIPO }, rate: { perSecond: 2, burst: 4 } },
+    suma: { describe: "Sumar al contador (cuanto puede ser negativo para restar; vacío = 1). Un marcador sube hasta su tope; a una cuenta atrás se le dan o quitan segundos. equipo: solo en un contador de variante equipo.", spoken: "sumar al contador", fields: { id: ID, cuanto: { kind: "int", min: -VALOR_MAX, max: VALOR_MAX, default: 1 }, equipo: EQUIPO }, rate: { perSecond: 4, burst: 8 } },
+    reinicia: { describe: "Volver al valor de inicio, parado. equipo: solo en un contador de variante equipo.", spoken: "reiniciar el contador", fields: { id: ID, equipo: EQUIPO }, rate: { perSecond: 2, burst: 4 } },
+    pulsar: { describe: "Usarlo desde al lado (la tecla E): una cuenta atrás o un reloj arranca si está parado y para si corre; un marcador suma 1. equipo: solo en un contador de variante equipo.", spoken: "usar el contador", fields: { id: ID, equipo: EQUIPO }, rate: { perSecond: 2, burst: 4 } },
   },
   events: {
     llegada: {
       describe: "El contador llegó: una cuenta atrás a cero, un marcador a su tope. Lleva el nombre de su evento (evento) para que otra pieza (el cable) haga lo suyo; a quien está en la zona le suena.",
-      fields: { id: ID, nombre: NOMBRE, tipo: { kind: "enum", values: [...TIPOS] }, valor: VALOR, evento: EVENTO, texto: TEXTO },
+      fields: { id: ID, nombre: NOMBRE, tipo: { kind: "enum", values: [...TIPOS] }, valor: VALOR, evento: EVENTO, texto: TEXTO, equipo: EQUIPO },
       announce: { text: "{texto}", sound: "campana", importance: 2 },
     },
     hito: {
       describe: "Un momento que se dice en voz alta (y lee el lector de pantalla): arrancó, se paró, quedan 5 minutos, 1 minuto, 30 s, 10 s; el marcador cambió.",
-      fields: { id: ID, nombre: NOMBRE, texto: TEXTO },
+      fields: { id: ID, nombre: NOMBRE, texto: TEXTO, equipo: EQUIPO },
       announce: { text: "{texto}", sound: "suave", importance: 1 },
     },
     rechazado: { describe: "La orden que diste al contador no se hizo, y por qué.", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
@@ -75,7 +89,7 @@ export const contadores = defineFeature({
 });
 
 /** A counter as the world's file lists it (numinia-engine/contadores@1). */
-export type ContadorFichero = { id: string; nombre: string; tipo: Tipo; x: number; z: number; y?: number; radio?: number; inicio: number; tope: number; donde: Donde; evento: string; manda: Manda };
+export type ContadorFichero = { id: string; nombre: string; tipo: Tipo; x: number; z: number; y?: number; radio?: number; inicio: number; tope: number; donde: Donde; evento: string; manda: Manda; variante: Variante };
 export type Problema = { path: string; message: string };
 const PLANTILLA = "{ \"schema\": \"numinia-engine/contadores@1\", \"contadores\": [{ \"id\": \"sala\", \"nombre\": \"Sala 1\", \"tipo\": \"cuenta_atras\", \"segundos\": 900, \"x\": 0, \"z\": 0, \"evento\": \"sala-a-cero\" }] }";
 
@@ -115,12 +129,14 @@ export function leerContadores(crudo: unknown): { valor: ContadorFichero[]; prob
     if (!(DONDE as readonly string[]).includes(donde)) { problemas.push({ path: `${path}.donde`, message: `donde: ${DONDE.join(", ")} (ambos si falta)` }); continue; }
     const manda = e.manda === undefined ? "dirige" : String(e.manda);
     if (!(MANDA as readonly string[]).includes(manda)) { problemas.push({ path: `${path}.manda`, message: `manda: ${MANDA.join(", ")} (dirige si falta)` }); continue; }
+    const variante = e.variante === undefined ? "ninguna" : String(e.variante);
+    if (!(VARIANTES as readonly string[]).includes(variante)) { problemas.push({ path: `${path}.variante`, message: `variante: ${VARIANTES.join(", ")} (ninguna si falta)` }); continue; }
     const evento = e.evento === undefined ? "" : String(e.evento);
     if (evento && !/^[a-z0-9-]{1,32}$/.test(evento)) { problemas.push({ path: `${path}.evento`, message: "evento: un nombre de 1 a 32 letras minúsculas, cifras o guiones (lo que oye el cable)" }); continue; }
     if (e.radio !== undefined && (!num("radio") || (e.radio as number) < 1 || (e.radio as number) > 16)) { problemas.push({ path: `${path}.radio`, message: "radio: de 1 a 16 metros (4 si falta)" }); continue; }
     if (valor.length >= CONTADORES_MAX) { problemas.push({ path, message: `como mucho ${CONTADORES_MAX} contadores por mundo` }); break; }
     vistos.add(id);
-    valor.push({ id, nombre, tipo, x: Number(e.x), z: Number(e.z), y: num("y") ? Number(e.y) : undefined, radio: num("radio") ? Number(e.radio) : undefined, inicio, tope, donde: donde as Donde, evento, manda: manda as Manda });
+    valor.push({ id, nombre, tipo, x: Number(e.x), z: Number(e.z), y: num("y") ? Number(e.y) : undefined, radio: num("radio") ? Number(e.radio) : undefined, inicio, tope, donde: donde as Donde, evento, manda: manda as Manda, variante: variante as Variante });
   }
   return { valor, problemas };
 }
