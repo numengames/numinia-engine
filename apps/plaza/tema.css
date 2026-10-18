@@ -163,3 +163,32 @@ body #panel-entorno { top: 112px !important; }
 #gente .opcion input { width: 20px; height: 20px; }
 #gente .nota, #gente .estado { color: var(--n-texto2); margin: 4px 0; }
 #gente .gente-lista button { min-height: 44px; min-width: 64px; }
+
+/* dados v1: the dice card (everyone near, when someone rolls) and the dice buttons beside a tower */
+#dados-carta { position: fixed; top: max(150px, 24%); left: 50%; z-index: 7; transform: translate(-50%, -10px); min-width: 180px; max-width: min(520px, calc(100% - 32px)); box-sizing: border-box; padding: 10px 18px 12px; text-align: center; pointer-events: none; opacity: 0; transition: opacity .3s ease, transform .3s ease; background: var(--n-sup); color: var(--n-texto); border: 1px solid var(--n-linea); border-top: 3px solid var(--n-ambar); border-radius: 8px; }
+#dados-carta:empty { display: none; }
+#dados-carta.visible { opacity: 1; transform: translate(-50%, 0); }
+#dados-carta p { margin: 0; }
+#dados-carta .quien { font-size: 12px; color: var(--n-texto2); }
+#dados-carta .total { margin-top: 6px; font-size: 15px; font-weight: 600; }
+#dados-carta .fila { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; }
+#dados-carta .dado { display: inline-grid; place-items: center; width: 42px; height: 42px; font: 700 20px/1 var(--n-mono, ui-monospace, monospace); color: #1b1410; background: var(--n-ambar, #e0a84a); border-radius: 7px; box-shadow: inset 0 -3px 0 rgba(0,0,0,.25); }
+#dados-carta .dado.d20, #dados-carta .dado.d10, #dados-carta .dado.d100 { clip-path: polygon(50% 0, 100% 28%, 100% 72%, 50% 100%, 0 72%, 0 28%); border-radius: 0; }
+#dados-carta .dado.d4, #dados-carta .dado.d8 { clip-path: polygon(50% 0, 100% 100%, 0 100%); border-radius: 0; padding-top: 12px; box-sizing: border-box; }
+#dados-carta .dado.critico { background: var(--n-turquesa, #3fd1c6); }
+#dados-carta .dado.pifia { background: var(--n-coral, #e8705a); }
+#dados-carta .dado.tapado { background: var(--n-linea, #555); color: var(--n-texto); }
+#dados-carta.cae .dado { animation: dado-cae .55s cubic-bezier(.3,1.6,.5,1) both; }
+#dados-carta.cae .dado:nth-child(2) { animation-delay: .07s; } #dados-carta.cae .dado:nth-child(3) { animation-delay: .14s; } #dados-carta.cae .dado:nth-child(n+4) { animation-delay: .2s; }
+@keyframes dado-cae { from { transform: translateY(-26px) rotate(-200deg); opacity: 0; } to { transform: none; opacity: 1; } }
+#dados-torre { position: fixed; right: 12px; bottom: 96px; z-index: 6; width: 236px; padding: 10px 12px; box-sizing: border-box; background: var(--n-sup); color: var(--n-texto); border: 1px solid var(--n-linea); border-left: 3px solid var(--n-turquesa, #3fd1c6); border-radius: 8px; }
+#dados-torre[hidden] { display: none; }
+#dados-torre p { margin: 0; font-size: 12px; }
+#dados-torre .titulo { font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+#dados-torre .botones { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+#dados-torre button { min-height: 34px; padding: 0; font: 600 13px/1 var(--n-mono, ui-monospace, monospace); color: var(--n-texto); background: transparent; border: 1px solid var(--n-linea); border-radius: 6px; cursor: pointer; }
+#dados-torre button:hover, #dados-torre button:focus-visible { border-color: var(--n-turquesa, #3fd1c6); }
+#dados-torre .secreto { display: block; margin: 6px 0 4px; font-size: 12px; }
+#dados-torre .ultima { color: var(--n-texto2); }
+@media (pointer: coarse) { #dados-torre { bottom: 180px; } #dados-torre button { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { #dados-carta, #dados-carta.cae .dado { transition: none; animation: none; } }
