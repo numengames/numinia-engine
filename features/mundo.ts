@@ -10,7 +10,8 @@ import { crearPesca } from "./pesca/server.ts";
 import type { Sitio as SitioPesca } from "./pesca/server.ts";
 import { crearDardos } from "./dardos/server.ts";
 import type { Sitio as SitioDardos } from "./dardos/server.ts";
-import { leerAparicion } from "./entorno/esquema.ts";
+import { leerAparicion, leerAparicionFoto } from "./entorno/esquema.ts";
+import { crearTeletransporte } from "./teletransporte/server.ts";
 import type { Aparicion } from "./entorno/esquema.ts";
 
 export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) => unknown, log: (l: string) => void = () => {}): ServerPart[] {
@@ -23,7 +24,11 @@ export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) 
   const crudoDardos = leer("dardos.json") as { sitios?: unknown } | null | undefined;
   const sitiosDardos = crudoDardos?.sitios;
   if (crudoDardos !== undefined && !Array.isArray(sitiosDardos)) log(`[mundo] dardos.json no tiene una lista "sitios" (uso la diana de la casa): ${JSON.stringify(crudoDardos).slice(0, 160)}`);
-  return partes.map((p) => (p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
+  // N16: entorno.json `aparicionFoto` (off when absent or wrong; a wrong one is said once): a photo's link puts you at its place
+  const crudoEntorno = leer("entorno.json"), af = crudoEntorno === undefined ? { ok: true as const, value: false } : leerAparicionFoto(crudoEntorno);
+  if (!af.ok) log(`[mundo] aparicionFoto de entorno.json no se usa (apagado): ${af.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
+  const fotoSi = af.ok && af.value;
+  return partes.map((p) => (p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
 }
 
 /** The world's spawn area (entorno.json `aparicion`), or null: no file, no key, or a wrong one (logged, with its path). */

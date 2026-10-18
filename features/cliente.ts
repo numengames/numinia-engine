@@ -13,5 +13,6 @@ import pesca from "./pesca/client.ts"; // v1: fishing (rod, float and the big «
 import dardos from "./dardos/client.ts"; // v1: darts (the throwing view lives in apps/plaza/dardos.ts; the board on your wall in AR)
 import bienes from "./bienes/client.ts"; // N10: digital goods — a chest's «objeto» becomes yours (signed receipt, inventory)
 
-const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, director];
+import teletransporte from "./teletransporte/client.ts"; // N16: «Gente» and the light of the trip (apps/plaza/gente.ts; packages/render/src/teletransporte.ts)
+const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, director, teletransporte];
 export default funciones;
