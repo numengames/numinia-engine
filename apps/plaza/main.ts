@@ -367,11 +367,15 @@ function drawHud() {
   const det = !probe.done ? "calculando…"
     : probe.browser === probe.server ? `<b>${hex(probe.browser)} = ${hex(probe.server)} ✓</b> (${probe.ms} ms)`
     : `${hex(probe.browser)} ≠ ${hex(probe.server)} ✗`;
+  // Auditoría UI móvil: cada línea es su propio bloque (antes un solo <pre> de 4 líneas se salía de
+  // la pantalla en 390 px — "white-space: pre" nunca envuelve — quedando cortado tras el minimapa).
+  // Cada .linea recorta con "…" en vez de desbordar; la huella navegador=servidor (depuración, no
+  // esencial para jugar) se oculta en pantallas estrechas o táctiles vía CSS (.detalle).
   if (!hud.hidden) hud.innerHTML = // U23: statistics are off by default; a hidden block is not rewritten twice a second
-    `Render: <b>${view.backend}</b> · ${fps} fps${view.power.battery ? " · modo batería" : ""}${view.power.scale < 1 ? ` · resolución ${Math.round(view.power.scale * 100)} %` : ""}\n` +
-    `Tú: ${session.who?.nombre ?? "…"} (avatar ${session.entity}) · conectados a la vista: ${s.visible + 1}\n` +
-    `Ping: ${s.rttMs < 0 ? "—" : s.rttMs + " ms"} · correcciones de tu predicción: ${s.corrections}\n` +
-    `Huella navegador = servidor: ${det}`;
+    `<div class="linea">Render: <b>${view.backend}</b> · ${fps} fps${view.power.battery ? " · modo batería" : ""}${view.power.scale < 1 ? ` · resolución ${Math.round(view.power.scale * 100)} %` : ""}</div>` +
+    `<div class="linea">Tú: ${session.who?.nombre ?? "…"} (avatar ${session.entity}) · conectados a la vista: ${s.visible + 1}</div>` +
+    `<div class="linea">Ping: ${s.rttMs < 0 ? "—" : s.rttMs + " ms"} · correcciones de tu predicción: ${s.corrections}</div>` +
+    `<div class="linea detalle">Huella navegador = servidor: ${det}</div>`;
   if (view.vr.active) view.vr.setPanel([...xr.lineasPanel(), `${fps} fps · ${s.visible + 1} conectados · ping ${s.rttMs < 0 ? "—" : s.rttMs + " ms"}`]); // J10: the quest first
 }
 

@@ -16,7 +16,12 @@
   /* what a world's tema can change besides the colours (ficha@1 `tema`): these values ARE the house look */
   --n-titulos: "Geist", system-ui, sans-serif; --n-titulos-peso: 600; --n-titulos-espacio: -.01em; --n-titulos-escala: 1;
   --n-titulos-sombra: none; --n-titulos-mayus: none; --n-r-control: 6px; --n-accion-tinta: #fff;
+  /* auditoría UI móvil: alto real de los botones del minimapa y de «Misiones», usado para que el
+     libro y la línea de misión no empiecen antes de que esos botones terminen (antes del arreglo de
+     objetivos táctiles de 44px quedaban 13-20px cortos y el libro tapaba la última fila de botones) */
+  --botones-alto: 31px; --mis-alto: 37px;
 }
+@media (pointer: coarse) { :root { --botones-alto: 44px; --mis-alto: 44px; } }
 html, body { font-family: "Geist", system-ui, sans-serif; }
 
 /* ---- frames: one surface, one hairline, 8px ---- */
@@ -116,11 +121,11 @@ button .icono + span, button span + .icono { margin-left: 6px; }
 /* ---- the map under the bar, the quests under the map ---- */
 body #minimapa { top: 64px !important; bottom: auto !important; right: 10px !important; }
 body #minimapa canvas { border: 1px solid var(--n-linea); box-shadow: none !important; }
-body #misiones { left: auto !important; right: 10px !important; bottom: auto !important; top: calc(64px + var(--mini) + 46px) !important; display: inline-flex; align-items: center;
+body #misiones { left: auto !important; right: 10px !important; bottom: auto !important; top: calc(64px + var(--mini) + 4px + var(--botones-alto) + 11px) !important; display: inline-flex; align-items: center;
   background: var(--n-sup) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea) !important; border-radius: var(--n-r-control) !important; }
 body #misiones[aria-expanded="true"] { background: var(--n-texto) !important; color: var(--n-fondo) !important; }
-body #libro { left: auto !important; right: 10px !important; top: calc(64px + var(--mini) + 92px) !important; bottom: auto !important; max-height: calc(100% - var(--mini) - 170px) !important; }
-body #mision-seguida { left: auto !important; right: 10px !important; top: calc(64px + var(--mini) + 92px) !important; max-width: min(320px, calc(100% - 20px)) !important; }
+body #libro { left: auto !important; right: 10px !important; top: calc(64px + var(--mini) + 4px + var(--botones-alto) + 11px + var(--mis-alto) + 9px) !important; bottom: auto !important; max-height: calc(100% - var(--mini) - 170px) !important; }
+body #mision-seguida { left: auto !important; right: 10px !important; top: calc(64px + var(--mini) + 4px + var(--botones-alto) + 11px + var(--mis-alto) + 9px) !important; max-width: min(320px, calc(100% - 20px)) !important; }
 body:has(#libro:not([hidden])) #mision-seguida { display: none; }
 /* while building the panel owns the right side */
 body.construyendo #minimapa, body.construyendo #misiones, body.construyendo #libro, body.construyendo #mision-seguida { visibility: hidden; }
