@@ -42,15 +42,20 @@ type M = {
   version?: string; conectados: number; entorno?: unknown; bytesEnviados?: number;
   tickMs: { p50: number; p99: number; peor: number }; kbitPorPersona: number; memoriaMB: { rss: number; heap: number };
   respuestaTickMs?: { p99: number }; retrasoVentanaMs?: { p99: number };
-  proceso?: { cpuPct: number; utilizacionBucle: number; bucleMs: { p99: number }; gc: { pausas: number; totalMs: number; peorMs: number }; anfitrion: { cpuPct: number; stealPct: number } | null };
+  proceso?: { cpuPct: number; utilizacionBucle: number; bucleMs: { p99: number }; bucleRealMs?: { p99: number }; bucleResolucionMs?: number; gc: { pausas: number; totalMs: number; peorMs: number }; anfitrion: { cpuPct: number; stealPct: number } | null };
   conexiones?: { aceptadas: number; cerradas: number; rechazadasLlenas: number };
 };
 type B = {
   conectados: number; fallaron: number; primerError: string; caidos: number; snapshots: number; saltados: number; tardios: number;
-  h: Record<"connect" | "first" | "rtt" | "gap" | "jitter", HistJSON>; gen: { bucleP99Ms: number; bucleMaxMs: number; cpuPct: number };
+  h: Record<"connect" | "first" | "rtt" | "gap" | "jitter", HistJSON>; gen: { bucleP99Ms: number; bucleRealP99Ms?: number; bucleMaxMs: number; cpuPct: number };
 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const r2 = (x: number) => Math.round(x * 100) / 100;
+// E4: monitorEventLoopDelay({ resolution: 10 }) adds its own 10 ms timer to every sample, so `bucleMs.p99` reads ≈10 ms
+// even with an idle loop. Use the real delay when the server sends it (`bucleRealMs`, #93); an older server: subtract
+// the resolution (`bucleResolucionMs`, else 10). Same for the bots' own loop.
+const RESOLUCION_BUCLE_MS = 10;
+const bucleReal = (p: M["proceso"]): number | undefined => (p ? (p.bucleRealMs?.p99 ?? Math.max(0, p.bucleMs.p99 - (p.bucleResolucionMs ?? RESOLUCION_BUCLE_MS))) : undefined);
 const bots = join(fileURLToPath(import.meta.url), "../bots.ts");
 
 async function getMetrics(): Promise<M | null> {
@@ -99,7 +104,7 @@ async function runLevel(n: number, kind: "nivel" | "remojo" | "tormenta"): Promi
     ventanas: steady.length, conectadosMax: max(nums((m) => m.conectados)),
     tickP50Ms: r2(median(nums((m) => m.tickMs.p50))), tickP99Ms: r2(median(nums((m) => m.tickMs.p99))), tickP99PeorMs: r2(max(nums((m) => m.tickMs.p99))), tickPeorMs: r2(max(nums((m) => m.tickMs.peor))),
     respuestaP99Ms: r2(median(nums((m) => m.respuestaTickMs?.p99))), respuestaP99PeorMs: r2(max(nums((m) => m.respuestaTickMs?.p99))),
-    retrasoP99Ms: r2(median(nums((m) => m.retrasoVentanaMs?.p99))), bucleP99Ms: r2(max(nums((m) => m.proceso?.bucleMs.p99))),
+    retrasoP99Ms: r2(median(nums((m) => m.retrasoVentanaMs?.p99))), bucleP99Ms: r2(max(nums((m) => bucleReal(m.proceso)))), bucleP99MuestreadoMs: r2(max(nums((m) => m.proceso?.bucleMs.p99))),
     utilizacionBucle: r2(median(nums((m) => m.proceso?.utilizacionBucle))), cpuProcesoPct: r2(median(nums((m) => m.proceso?.cpuPct))),
     cpuAnfitrionPct: r2(median(nums((m) => m.proceso?.anfitrion?.cpuPct))), stealMedianoPct: r2(median(nums((m) => m.proceso?.anfitrion?.stealPct))), stealMaxPct: r2(max(nums((m) => m.proceso?.anfitrion?.stealPct))),
     rssMaxMB: r2(max(nums((m) => m.memoriaMB.rss))), heapMaxMB: r2(max(nums((m) => m.memoriaMB.heap))), kbitPorPersona: r2(median(nums((m) => m.kbitPorPersona))),
@@ -115,7 +120,7 @@ async function runLevel(n: number, kind: "nivel" | "remojo" | "tormenta"): Promi
     conectados: sum((b) => b.conectados), fallaron: sum((b) => b.fallaron), primerError: got.find((b) => b.primerError)?.primerError ?? "", caidos: sum((b) => b.caidos),
     connect: merged("connect"), primerSnapshot: merged("first"), rtt: merged("rtt"), huecoSnapshots: merged("gap"), jitter: merged("jitter"),
     snapshots: sum((b) => b.snapshots), saltados: sum((b) => b.saltados), tardios: sum((b) => b.tardios),
-    generadorBucleP99Ms: r2(Math.max(...got.map((b) => b.gen.bucleP99Ms))), generadorCpuMaxPct: r2(Math.max(...got.map((b) => b.gen.cpuPct))),
+    generadorBucleP99Ms: r2(Math.max(...got.map((b) => b.gen.bucleRealP99Ms ?? Math.max(0, b.gen.bucleP99Ms - RESOLUCION_BUCLE_MS)))), generadorCpuMaxPct: r2(Math.max(...got.map((b) => b.gen.cpuPct))),
   } : null;
 
   // --- verdict ---
