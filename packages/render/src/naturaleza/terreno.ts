@@ -51,15 +51,16 @@ function campo(semilla: number, x: number, z: number, op?: OpcionesRelieve, conP
   const tam = op?.tamano ?? TAMANO, plaza = op?.plaza ?? PLAZA;
   const r = Math.hypot(x, z);
   // rolling hills: low simplex fbm, lifted so the world sits above the pond water
-  const colinas = fbm(semilla, x * 0.012, z * 0.012, 4) * 5.2 + 1.5;
+  const colinas = fbm(semilla, x * 0.016, z * 0.016, 4) * 7.5 + 2.2;
   // rocky ridges: a ridged field, only where a slow mask says «mountain»
+  const wpRoca = sstep(plaza * 1.5, plaza * 3.5, r);
   const mascara = sstep(0.5, 0.74, valor2(semilla + 77, x * 0.0085 + 3.1, z * 0.0085 - 1.7));
   const cr = cresta2(semilla + 5, x * 0.028, z * 0.028, 3);
-  const cima = mascara * cr * 11;
+  const cima = mascara * Math.pow(cr, 2.2) * 24;
   let h = maxSuave(colinas, 0.5, 1.2) + cima + fbm(semilla + 9, x * 0.09, z * 0.09, 2) * 0.35;
   // the plaza stays flat at 0 and the world rises gently around it
   const wp = sstep(plaza, plaza * 3.2, r);
-  h *= wp;
+  h *= wp * (1 - 0.85 * sstep(tam * 0.34, tam * 0.5, Math.max(Math.abs(x), Math.abs(z)))); // the border settles low: a calm edge under the fog
   // pond basin with a gentle approach
   const e = estanqueDe(semilla, tam);
   const dpr = Math.hypot(x - e.x, z - e.z) / e.radio + simplex2(semilla + 31, x * 0.07, z * 0.07) * 0.1;
@@ -68,15 +69,15 @@ function campo(semilla: number, x: number, z: number, op?: OpcionesRelieve, conP
   h = -maxSuave(-h, -banco, 1.0);
   if (!conPesos) return { h, w: W, valle: 0 };
   // ---- zones (soft weights, priority: orilla > arena > roca > bosque > prado) ----
-  const rocoso = sstep(0.28, 0.5, mascara * cr) * sstep(1.2, 2.6, h);
+  const rocoso = sstep(0.6, 2.2, cima * wpRoca);
   const bosq = sstep(0.12, 0.34, fbm(semilla + 211, x * 0.014 + 40, z * 0.014 - 25, 3)) * sstep(plaza * 1.4, plaza * 3.5, r);
   const wo = 1 - sstep(1.12, 1.4, dpr);
-  const wa = (1 - sstep(1.9, 2.4, dpr)) * (1 - wo);
+  const wa = (1 - sstep(1.5, 1.95, dpr)) * (1 - wo);
   const wr = rocoso * (1 - wo - wa);
   const wb = bosq * (1 - wo - wa - wr);
   const wprado = 1 - wo - wa - wr - wb;
   W[0] = wprado; W[1] = wb; W[2] = wa; W[3] = wr; W[4] = wo;
-  return { h, w: W, valle: 1 - sstep(-0.5, 2.5, h) };
+  return { h, w: W, valle: 1 - sstep(-1.3, 0.9, h) };
 }
 
 /** Terrain height (m) at a world point. Pure and deterministic; ≈ −1.6 … +12. Within the plaza radius it is 0. */
@@ -148,7 +149,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
     const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
     let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
     const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
-    const tinte = fog ? 1 : 0.97 + hash2(s, (a[0] * 7) | 0, (a[2] * 7) | 0) * 0.06; // a faint per-face tint so the facets read
+    const tinte = fog ? 1 : 0.94 + hash2(s, (a[0] * 7) | 0, (a[2] * 7) | 0) * 0.12; // a faint per-face tint so the facets read
     const idx = [ia, ib, ic], pts = [a, b, c];
     for (let q = 0; q < 3; q++) {
       pos[p * 3] = pts[q][0]; pos[p * 3 + 1] = pts[q][1]; pos[p * 3 + 2] = pts[q][2];
