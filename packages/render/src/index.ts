@@ -46,6 +46,7 @@ import { vistaElementos } from "./elementos-vista.ts";
 import { vistaPesca } from "./pesca-vista.ts";
 import { crearDianas3D, crearDianaAR } from "./dardos.ts";
 import { crearPantallasWeb } from "./web.ts";
+import { crearSalon } from "./ancestros.ts";
 import type { DianaAR } from "./dardos.ts";
 import { detalleAgua } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
@@ -221,6 +222,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     hueso: (q, donde, out) => (donde === "mano" ? avs.mano(q === "self" ? "yo" : q, "derecha", out) : avs.cabeza(q === "self" ? "yo" : q, out)),
     rumbo: (q) => avs.rumbo(q === "self" ? "yo" : q) });
   const web = crearPantallasWeb({ world, camera, enXR: () => renderer.xr.isPresenting, cajas: () => cajasM }); // N17: web screens (web.ts)
+  const ancestros = crearSalon({ world, camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera) }); // ancestros v1: the hall and the hologram of the tribute to Asimov (ancestros.ts)
   function dropLabel(t: Target): void {
     const d = labels.get(t);
     if (!d) return;
@@ -768,6 +770,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     dardos,
     /** N17: web screens — a panel everywhere, the live page in CSS3D near you on PC/phone, «Abrir fuera de VR» in VR (web.ts). */
     web,
+    /** ancestros v1: the Salón de los Ancestros (muros, hologramas, paneles, dice, contar) — packages/render/src/ancestros.ts. */
+    ancestros,
     /** dardos v1 in AR: enter immersive-ar with a real-size board for your wall (dardos.ts crearDianaAR); null if the
      * session could not start. Press/hold/release throws: `alLanzar` gets aim (board radii) and strength. */
     async dardosAR(o: { alLanzar: (x: number, y: number, fuerza: number) => void; alColocar?: (pared: boolean) => void }): Promise<DianaAR | null> {
@@ -951,7 +955,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
     /** U10: draw hidden spheres of sound (while building) or not (while playing). */
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado(); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado() || ancestros.ocupado(selfXZ); },
     /** U1: files of things in the world that are downloading or waiting their turn (the loading screen's «mundo» phase). */
     cargando(): number { return loading + waiting.size; },
     /** U1: compile the materials of what the scene holds now, before the first frame (the loading screen's «preparar» phase). Never rejects. */

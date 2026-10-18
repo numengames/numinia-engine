@@ -188,6 +188,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | V2 | Con Pablo, 15 min con las gafas: ¿funcionan `speechSynthesis`, el reconocimiento de voz, «menos movimiento» y la vibración dentro de una sesión inmersiva (Quest 3, Pico 4) y en iPhone? | pendiente | no |
 | W1 | La plaza de entrada: primer mundo, al presupuesto de la Quest, con un portal a un mundo Hyperfy | necesita aprobación (Pablo: qué mundo lo estrena) | no |
 | O5 | ADR y SYS del motor en la Summa (numinia.org) | necesita aprobación (Pablo) | no |
+| AS1 | Tributo a Isaac Asimov: el Salón de los Ancestros (Ateneo) y un holograma que se enciende al acercarte y, con E, dice las Tres Leyes junto a nuestras reglas AGW (`features/ancestros`, `docs/EXTENDER.md`). Sin voz: cuando haya V3, que la lea con la voz grave y pausada de narrador | hecho (v1, 18-10) | sí |
 
 **Punto de parada «accesible» (como los PP de `CONSTRUIR.md`):** con V1, V3, V4, V5, V6 y V7 hechas, una
 persona ciega entra en la plaza desde el ordenador con su lector de pantalla, pregunta qué hay cerca, sigue
