@@ -5,16 +5,16 @@
 // hidden from every camera (layers), never `.visible = false`, so those keep working.
 import * as THREE from "three/webgpu";
 import { ANIMAR_HASTA_M, FUNDIDO_S, clipPara, cupoVRM, elegirAvatar, elegirCercanos, estadoPor, nuevaMarcha, seguir } from "./avatares-politica.ts";
-import type { Clip, Estado, Marcha } from "./avatares-politica.ts";
+import type { Clip, Estado, Marcha, Parkour } from "./avatares-politica.ts";
 import type { Copia, Plantilla } from "./avatares-vrm.ts";
 import type { VRMAnimation } from "@pixiv/three-vrm-animation";
 
 /** What the page gives: the house avatars (VRM) and animations (VRMA), by URL. */
 export type CatalogoAvatares = {
   modelos: { nombre: string; url: string }[];
-  animaciones: Partial<Record<Clip, { url: string; pasoPorCadera: number }>>;
+  animaciones: Partial<Record<Clip, { url: string; pasoPorCadera: number; duracion?: number }>>; // duracion: loop length (s), N1b
 };
-export type EstadoAvatar = { id: number | "yo"; modelo: string; estado: Estado; clip: Clip | null; dibujado: boolean; cerca: boolean };
+export type EstadoAvatar = { id: number | "yo"; modelo: string; estado: Estado; clip: Clip | null; dibujado: boolean; cerca: boolean; velocidad: number; ritmo: number; cadera: number };
 
 const ALTURA_CAPSULA = 0.85; // capsule centre over the ground (index.ts): the VRM stands at capsule.y − this
 const REPASO_MS = 500;       // who wears a VRM is decided twice a second
@@ -29,7 +29,7 @@ type Avatar = {
   rumboFijo?: number; // pesca v2: while fishing the body faces the water (only while standing still)
 };
 
-export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: () => boolean; catalogo?: CatalogoAvatares; yo?: () => number; compilar?: (raiz: THREE.Object3D) => Promise<unknown>; suelo?: (x: number, z: number, y: number) => number }) {
+export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: () => boolean; catalogo?: CatalogoAvatares; yo?: () => number; parkour?: () => Parkour; compilar?: (raiz: THREE.Object3D) => Promise<unknown>; suelo?: (x: number, z: number, y: number) => number }) {
   const cat = o.catalogo;
   const n = cat?.modelos.length ?? 0;
   let vrm: Promise<{ m: Vrm; carga: ReturnType<Vrm["crearCargador"]> }> | null = null;
@@ -44,7 +44,8 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
   let conVrm = new Set<number>();
   const nivelesVoz = new Map<number, number>(); // U13: who you hear right now, 0..1 (apps/plaza/voz.ts pushes this)
   const natural: Partial<Record<Clip, number>> = {};
-  for (const [c, a] of Object.entries(cat?.animaciones ?? {})) natural[c as Clip] = a!.pasoPorCadera;
+  const duracion: Partial<Record<Clip, number>> = {}; // N1b: loop lengths (s), for the step rate
+  for (const [c, a] of Object.entries(cat?.animaciones ?? {})) { natural[c as Clip] = a!.pasoPorCadera; duracion[c as Clip] = a!.duracion ?? 0; }
 
   const fallo = (que: string, e: unknown) => { errores++; console.warn(`[avatares] ${que}: ${(e as Error)?.message ?? e}`); };
   function pedirModelo(i: number): void {
@@ -106,18 +107,21 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     const pos = ancla.position;
     seguir(a.marcha, pos.x, pos.z, dt);
     const altura = pos.y - ALTURA_CAPSULA;
-    a.estado = estadoPor(a.marcha.velocidad, altura - (o.suelo?.(pos.x, pos.z, altura) ?? 0)); // over the ground under you
+    const pk = a.clave === "yo" ? o.parkour?.() ?? null : null; // J24: only your own body knows (others: a later row)
+    const pies = typeof ancla.userData.yPies === "number" ? ancla.userData.yPies as number : altura; // N1b: the simulated feet, not the smoothed drawing
+    a.estado = estadoPor(a.marcha.velocidad, pies - (o.suelo?.(pos.x, pos.z, pies) ?? 0), pk); // over the ground under you
+    if (pk) a.marcha.rumbo = pk.rumbo; // facing the wall
     a.cerca = a.clave === "yo" || !desde || Math.hypot(pos.x - desde.x, pos.z - desde.z) <= ANIMAR_HASTA_M;
     if (fallidas.has(a.modelo)) return;
     const p = plantillas.get(a.modelo);
     if (!p) { pedirModelo(a.modelo); return; }
     if (!m) return;
     const hay = (c: Clip) => anims.has(c);
-    const quiere = clipPara(a.estado, a.marcha.velocidad, p.cadera, natural, (c) => !!cat?.animaciones[c]);
+    const quiere = clipPara(a.estado, a.marcha.velocidad, p.cadera, natural, (c) => !!cat?.animaciones[c], duracion);
     if (quiere && !hay(quiere.clip)) pedirAnim(quiere.clip);
     if (!a.copia) {
       // dressed only when a first clip is there: never a frame of T-pose
-      const primero = clipPara(a.estado, a.marcha.velocidad, p.cadera, natural, hay);
+      const primero = clipPara(a.estado, a.marcha.velocidad, p.cadera, natural, hay, duracion);
       if (!primero) return;
       vestir(a, m, p);
       poner(a, primero.clip, ahora, m);
@@ -214,7 +218,8 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     orientar(clave: number | "yo", rumbo: number | undefined): void { const a = avatares.get(clave); if (a) a.rumboFijo = rumbo; },
     /** For checks and the HUD: files, clips, and who wears what. */
     stats(): { cupo: number; modelos: { pedidos: number; cargados: number; fallidos: number }; animaciones: string[]; dibujados: number; errores: number; lista: EstadoAvatar[] } {
-      const lista: EstadoAvatar[] = [...avatares.values()].map((a) => ({ id: a.clave, modelo: cat?.modelos[a.modelo]?.nombre ?? "", estado: a.estado, clip: a.clip ?? null, dibujado: !!a.copia?.raiz.visible && !!a.copia?.raiz.parent, cerca: a.cerca }));
+      const lista: EstadoAvatar[] = [...avatares.values()].map((a) => ({ id: a.clave, modelo: cat?.modelos[a.modelo]?.nombre ?? "", estado: a.estado, clip: a.clip ?? null, dibujado: !!a.copia?.raiz.visible && !!a.copia?.raiz.parent, cerca: a.cerca,
+        velocidad: Math.round(a.marcha.velocidad * 100) / 100, ritmo: Math.round((a.accion?.getEffectiveTimeScale() ?? 0) * 100) / 100, cadera: Math.round((plantillas.get(a.modelo)?.cadera ?? 0) * 1000) / 1000 }));
       return { cupo: cupoVRM({ mobile: o.mobile, xr: o.xr() }), modelos: { pedidos: pedidas.size, cargados: plantillas.size, fallidos: fallidas.size }, animaciones: [...anims.keys()], dibujados: lista.filter((a) => a.dibujado).length, errores, lista };
     },
   };

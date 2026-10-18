@@ -983,3 +983,77 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
   Defectos conocidos: `#barra-objeto` se sale por la derecha en 420 px; los botones de acción (Saltar, Saludar…) se
   montan sobre la hoja; el HUD de depuración pisa la tira de entorno; `dblclick` táctil para abrir construir sin
   probar. Siguiente: M22b-2 (dos dedos giran/escalan, retícula de colocar, hoja en 3 estados), M22b-3 (VR con mando).
+
+## 2026-10-18 01:00 UTC — M17 trozo 1 · voz: tope de 8 voces por oyente y modo escenario · hecho (rama `voz/tope-y-escenario`)
+- Qué: sobre el relé de voz por WebSocket (U10), dos cosas que Pablo decidió el 18-10 («seguir» con M17; N lo eligió
+  Ursa = 8). (1) **Tope**: `elegirVoces` (pura, `packages/net/src/voz.ts`) elige para cada oyente las 8 voces más
+  cercanas de quien ha hablado en el último segundo (visibles en su área de interés y a ≤ 30 m; empate por id); la
+  instancia guarda `vozUltima` por conexión y cachea el conjunto por oyente, recalculándolo solo cuando empieza a
+  hablar alguien que no había considerado o cada 10 ticks (nunca por trama). (2) **Escenario**: opción
+  `escenario(entidad)` de la instancia (preguntada por trama, como `sinVoz`), cableada en `server.ts` a
+  `roles.enEscenario(inst.who(e)?.id)`; la trama de quien está en el escenario va a TODAS las páginas conectadas con la
+  marca `VOZ_ESCENARIO` (0x80, bit alto del byte de códec servidor→página: formato aditivo; `leerVozBajada` devuelve
+  `codec & 0x7f` y `escenario`). Es la excepción documentada a la regla 4 de AGENTS (una o dos voces para todos, mismo
+  abanico que el chat de zona, solo para quien sube la moderación). La página (`apps/plaza/voz.ts`) reproduce la voz
+  del escenario sin PannerNode (GainNode 1 → destino) y la rotula «habla en el escenario». Órdenes en el chat
+  (`roles-mundo.ts`): `/escenario <persona>` (puedes subirte tú), `/escenario quitar <persona>`, `/escenario nadie`,
+  `/escenario` (lista, abierta a todos); acción nueva `escenario` = `manage-rituals` (Moderación la tiene); el
+  escenario vive solo en memoria (un evento es en vivo, no un ajuste); toda la zona recibe «X sube al escenario».
+  `limits.json`: `voz_tope` = 8 (medido, `test/voz.test.ts`); `voz_por_cercania` pasa a medido (relé WS; LiveKit =
+  trozo 2); `docs/FICHA-TECNICA.md` lo refleja. Versión **0.3.1 → 0.4.0** (menor: capacidad nueva, formato aditivo).
+- Números: `npm test` 380 pruebas, 379 en verde + 1 mala conocida (`test/chat.test.ts` coste de nombres con la
+  máquina cargada: load average 30, la misma de las entradas del 16 y 17-10; en verde sola; no toca este código).
+  Nuevas: `test/voz.test.ts` 4 → 7 (casos puros de `elegirVoces` y la marca; 1 oyente + 10 hablantes a 1…10 m oye
+  exactamente las 8 entidades más cercanas, también si las lejanas hablan primero; escenario oído a 100 y 200 m con
+  `escenario: true`, un hablante sin escenario a 100 m no), `test/roles.test.ts` 12 → 13 (`/escenario`). Puertas:
+  capas 0, determinismo f719d31b, 26,7 kbit/s por persona, plaza de 1.000 p99 14,5 ms; «pruebas unitarias» en rojo
+  solo por la prueba de coste del chat.
+- Consumo: sin medir · claude-fable-5-1.
+- Commit: rama `voz/tope-y-escenario` sobre origin/main 749e99a (ver `git log`). Sin push, sin PR (lo abre Pablo con
+  `pr-voz-motor.sh` cuando lo diga).
+- Siguiente: M17 trozo 2 (LiveKit autoalojado, sala = mundo, JWT HS256, `autoSubscribe` off + `elegirVoces`, DTX/RED,
+  escenario como pista sin paneo, cliente perezoso; diseño en `../mmo-browser-study/VOZ-Y-PANTALLA-COMPARTIDA.md`);
+  V13 (subtítulos) sigue esperando a M17. Sin probar en navegador real con micrófono (no hay e2e de audio).
+
+## 2026-10-16 15:40 · J1 · el VRM ya no «corre despacito» · hecho (sesión con Pablo, sin subir)
+- Qué: Pablo: «va como corriendo despacito, depende del avatar». Medido en la Torre: andando a 4 m/s suena el trote
+  (`Jog_Fwd_Loop`) al 0,87 de su velocidad, el ritmo que deja los pies quietos en el suelo; pero ese bucle da 2 pasos
+  muy largos (1,17 s), así que a ese ritmo son ≈ 90 pasos por minuto: un trote a cámara lenta. Ahora el trote y el
+  sprint se encuentran a medio camino (media geométrica) con una cadencia natural (`CADENCIA` 2,75 y 3,15 pasos/s
+  para caderas de 0,9 m, más rápida para piernas cortas): Astrodisco anda al 1,19 (≈ 122 pasos/min), los pies
+  resbalan un poco. Andar despacio no cambia. `view.avatares()` da velocidad, ritmo y cadera de cada uno.
+- Números: 282 pruebas en verde; build bien; en la Torre ritmo 0,87 → 1,19 a 4 m/s (`work/torre/paso-qa.mjs`).
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `avatares/paso-natural` (sobre main e8468e8).
+- Siguiente: que Pablo lo vea; si sigue raro, el arreglo de fondo es un ciclo de trote con más pasos por bucle o
+  andar más despacio que 4 m/s (eso cambia la simulación).
+
+## 2026-10-16 16:20 · N1b (3) · escaleras: subir corriendo, peldaños sin tirón · hecho (sesión con Pablo, sin subir)
+- Qué: Pablo: «el problema son las escaleras; haz experimentos de subir y bajar». `work/torre/escaleras-exp.mjs`
+  pasa 11 recorridos por la escalera de la Torre con la simulación real. Hallado: (1) **subiendo corriendo te
+  quedabas clavado en el primer peldaño** (0,4 m por tick: el cuerpo tocaba ya el peldaño siguiente, 0,74 m más
+  alto); ahora, con sólidos, el paso del tick se parte en trozos de ≤ 0,2 m y subes cada peldaño entre trozos
+  (`SUB_STEP`; sin sólidos, el paso de siempre: huella 93b192c8 igual). (2) Cada peldaño saltaba 0,37 m en un tick
+  (50 ms) en pantalla: ahora se dibuja como una subida corta (`alturaDibujada`, 70 ms; en el aire, exacto) y el
+  clip se elige con los pies de la simulación. (3) Fallos del mundo, no del motor: las puertas de la Torre tenían
+  12 m de alto (te caías por la del este a 7 m) y el pretil sobresalía 5 cm (cabezazo a 10 m): arreglado en
+  `work/torre/trazado.mjs` (dinteles a 3 m, pretil sobre el muro).
+- Números: 285 pruebas en verde (nuevas: subir y bajar corriendo; sin el arreglo, subir corriendo falla);
+  experimentos 9/9 sin un tick en el aire (los dos con salto, en el aire como debe ser); build bien.
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `avatares/paso-natural`.
+- Siguiente: rehacer la Torre local con el trazado nuevo y mirarlo en pantalla.
+
+## 2026-10-16 19:22 · J24 · parkour: colgarse y trepar · en curso (subagente, sin subir)
+- Qué: Pablo: «si puedes llegar colgarte como en el Prince of Persia». En la simulación: si saltas hacia una pared y
+  no llegas, empujando hacia ella te agarras al borde y cuelgas; atrás te suelta, de lado te desplaza por el borde,
+  Saltar (o mantener adelante) te sube encima; un muro de hasta 1,2 m se sube de un impulso al saltar contra él.
+  Mismas teclas en teclado, táctil, mando y VR. Estudio en `mmo-browser-study/PARKOUR.md`.
+- Números: 294 pruebas en verde (12 nuevas en `test/parkour.test.ts`); puertas en verde (tick p99 12,9 ms los 1.000);
+  build bien; huella `93b192c8` sin cambiar; Torre: de 450 intentos de salto llegan 127 → 143 (16 salvados, 0
+  perdidos); 200 avatares entre las 126 cajas de la Torre: 0,12 → 0,14 ms por tic. Formato: `Motion` v2 (campo `pk`),
+  bits 3–7 de las banderas del snapshot propio (aditivo; `WIRE_FORMAT` sigue en 2).
+- Consumo: semana 3 % → 3 % · Opus 5.5 (subagente).
+- Commit: rama `parkour/colgarse` (sobre 4eb6387).
+- Siguiente: clips CC0 de colgar y trepar (UAL2 de Quaternius), que los demás vean que cuelgas, probarlo con Pablo en
+  la Torre.

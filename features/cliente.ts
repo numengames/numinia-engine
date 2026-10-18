@@ -25,5 +25,6 @@ import disparadores from "./disparadores/client.ts"; // D-041: the cable — a b
 import cerradura from "./cerradura/client.ts"; // D-042: the lock's data and its keypad (apps/plaza/cerradura.ts)
 import movedores from "./movedores/client.ts"; // D-043: the model wherever the server says, right now (`view.place`)
 import lucha from "./lucha/client.ts"; // L1: creatures drawn as the house block through view.place; «E: golpear»
-const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores, cerradura, movedores];
+import ancestros from "./ancestros/client.ts"; // v1: the Salón de los Ancestros (3D: packages/render/src/ancestros.ts; panel: apps/plaza/ancestros.ts)
+const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores, cerradura, movedores, ancestros];
 export default funciones;

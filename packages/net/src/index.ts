@@ -203,7 +203,8 @@ function topK(n: number, k: number): void {
 // Byte-aligned fields are written with DataView (big-endian), which is byte-for-byte what the
 // MSB-first BitWriter produces: same wire format, ~10x less work. BitWriter stays for sub-byte fields.
 // SNAPSHOT, wire format 2 (J2):
-//   type 1 · tick 4 · ack 2 · self 2 · x 4 · z 4 · y 4 · vy 4 · flags 1 (bit 0 air jump spent, bits 1-2 jump buffer)
+//   type 1 · tick 4 · ack 2 · self 2 · x 4 · z 4 · y 4 · vy 4 · flags 1 (bit 0 air jump spent, bits 1-2 jump buffer,
+//   bits 3-7 J24 parkour: hanging/climbing, 0 off ledges — additive: those bits were always 0)
 //   · nLow 2 · nHigh 2, then nLow × (id 2, x 2, z 2) for others at ground level (their height quantizes to 0)
 //   and nHigh × (id 2, x 2, z 2, y 2) for others above it. A crowd standing on the plaza costs what it cost before J2.
 const SNAP_HEADER = 30;
@@ -218,7 +219,7 @@ export function encodeSnapshot(s: SimState, self: number, ack: number, visible: 
   const buf = new Uint8Array(SNAP_HEADER + low * 6 + high * 8), dv = new DataView(buf.buffer);
   dv.setUint8(0, MSG.SNAPSHOT); dv.setUint32(1, s.tick >>> 0); dv.setUint16(5, ack & 0xffff); dv.setUint16(7, self);
   dv.setInt32(9, X[self]); dv.setInt32(13, Z[self]); dv.setInt32(17, Y[self]); dv.setInt32(21, s.mo.cols.vy[self]);
-  dv.setUint8(25, (s.mo.cols.air[self] & 1) | ((s.mo.cols.buf[self] & 3) << 1));
+  dv.setUint8(25, (s.mo.cols.air[self] & 1) | ((s.mo.cols.buf[self] & 3) << 1) | ((s.mo.cols.pk[self] & 31) << 3));
   dv.setUint16(26, low); dv.setUint16(28, high);
   let o = SNAP_HEADER, h = SNAP_HEADER + low * 6;
   for (const id of visible) {
@@ -243,7 +244,7 @@ export function decodeSnapshot(bytes: Uint8Array): Snapshot | null {
   const flags = dv.getUint8(25);
   return {
     tick: dv.getUint32(1), ack: dv.getUint16(5),
-    self: { id: dv.getUint16(7), x: dv.getInt32(9), z: dv.getInt32(13), y: dv.getInt32(17), vy: dv.getInt32(21), air: flags & 1, buf: (flags >> 1) & 3 },
+    self: { id: dv.getUint16(7), x: dv.getInt32(9), z: dv.getInt32(13), y: dv.getInt32(17), vy: dv.getInt32(21), air: flags & 1, buf: (flags >> 1) & 3, pk: flags >> 3 },
     others,
   };
 }

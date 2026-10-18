@@ -104,6 +104,10 @@ export default clientPart(gestos, (api) => {
   cuadrado de la casa (40 m alrededor del origen). Es del servidor (viaja en la carpeta y el zip del mundo), no del cable.
   `"aparicionFoto": true` (N16, apagado si no está) deja que quien abre el enlace de una foto (`#foto=`) aparezca en
   su sitio (el servidor busca un sitio libre allí; si no hay, la columna de luz le guía como siempre).
+- El mismo `entorno.json` dice si la gente puede golpearse (L8, `features/lucha`): `"pvp": true` (apagado si no está) y,
+  para arenas o sitios en paz, `"zonasPvp": [{ "id", "x", "z", "radio", "pvp": true|false }]` (círculos en metros; una
+  zona en `false` gana a una en `true`). Solo se golpea a otra persona (`objetivo: p:<entidad>`) si **las dos** están donde
+  se puede; decide el servidor. Cada golpe sube un escalón de Estado (sin barra de vida).
 - El mismo `entorno.json` puede tener **vacío** (D-045, `features/suelo`): `"sueloMinimo": -4` (metros, −500…500) es
   la altura bajo la cual se ha caído; el servidor guarda cada medio segundo (`SEGURO_CADA` ticks) dónde pisaba suelo
   cada persona y, al bajar de ahí, la recoloca en ese sitio **dentro del paso de simulación** (una orden grabada con
@@ -954,6 +958,38 @@ historias: mientras tanto el registro dice `nadie hace «teletransporta» en est
   instancia — el campo `receptores` del estado viaja a toda página, como el resto de la ficha; no es un secreto
   como el código de una cerradura). Crear o borrar disparadores enteros sigue siendo editar el fichero antes de
   arrancar.
+
+## Salón de los Ancestros y el tributo a Asimov (ancestros v1)
+
+`features/ancestros` es el Salón de los Ancestros del Ateneo (el Ayuntamiento de Numinia, donde el Consejo de Sabios
+expone y prueba sus proyectos: `numinia-archive/lore/game/manual/es/05-geografia-y-cultura-de-numinia.md`) y, dentro,
+un homenaje a Isaac Asimov. Todo lo decide el servidor; la página dibuja y pregunta.
+
+- **La sala:** cuatro muros de piedra con puerta al sur (hacia la plaza), en `SALON` (`x: 0, z: -48`, 12 m de lado,
+  4 m de alto). Cada muro es una cosa del estado con `solido` y su caja `bx0…bz1`: **la misma caja la lee la simulación**
+  (`solidsFrom`), así que lo que ves es lo que te para, sin tocar `packages/sim`. Los muros no tienen nombre: ni ficha
+  ni rótulo, solo decorado.
+- **El holograma** («asimov»): una cosa con ficha (`objeto`, acción `hablar`) e `interact` a `radio` m (3). En 3D
+  (`packages/render/src/ancestros.ts`) es un **busto que evoca sin imitar**: pedestal, cono de luz y cabeza + hombros de
+  geometría simple en cian translúcido con una malla encima. Nada de .glb ni de modelos realistas.
+- **Cercanía:** el servidor mira cada `CADA_TICKS` quién está a `DESPIERTA_M` (8 m) de cada holograma (el mismo patrón
+  de las misiones con `llega_a`), pone `encendido` en el estado (lo ven todos) y avisa **solo a quien llegó**
+  (`despierta`). Con histéresis: se apaga a `DUERME_M` (10 m), para que nadie lo haga parpadear en el borde. Encendido,
+  en la página se vuelve hacia ti y titila; es lo único que cuesta un cuadro, y solo si estás a `VIVO_M` (40 m).
+- **Hablar** (`E` o pinchar su nombre): el servidor dice la **siguiente de las Tres Leyes** (1, 2, 3, 1… por holograma,
+  igual para todos, sin azar) y, al lado, **una de nuestras cuatro reglas AGW** elegidas (`NUESTRAS`: AGW-007, 003, 006,
+  012; rotan solas). Evento `dice` a quien habló y a quien está a `CERCA_M` (14 m): el anuncio lo lee en voz al lector
+  de pantalla; la página pone una placa sobre su cabeza (9 s) y, a quien le habló, el panel `#ancestros-panel` (Esc o
+  «Cerrar»). Lejos: `rechazado` con el motivo.
+- **Los dos paneles** detrás del holograma (las Tres Leyes · «Las nuestras, 80 años después») los pinta la página una
+  vez por texto (`view.ancestros.paneles`), con los textos que la función le da (`ancestros.textos`), para que un agente
+  lea lo mismo.
+- **Voz:** ninguna. No hay TTS propio del motor (V3) y **queda prohibido clonar la voz real de Asimov** (derechos de
+  su patrimonio). Cuando V3 exista, que lea el texto con una voz genérica grave y pausada de narrador. El rótulo del
+  holograma, la ficha y el panel dicen siempre «dramatización, no una grabación».
+- **Lo que no hace (todavía):** más hologramas de otros Ancestros (basta con pasar `hologramas` a `crearAncestros`),
+  un fichero `MUNDO_DIR/ancestros.json` como el de las torres de dados, techo y luz propia en la sala, y una pose
+  del busto que siga tu altura.
 
 ## Agua (N2): estilizada, de color plano, un solo draw call
 

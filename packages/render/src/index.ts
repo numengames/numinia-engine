@@ -31,9 +31,10 @@ export { sePuedeReproducir } from "./medios.ts";
 export type { ControlVideo } from "./medios.ts";
 export type { Donde, Eje, Herramienta, Fase, Paso, Editor } from "./gizmo.ts";
 import { createAvatares } from "./avatares.ts";
-import { sueloBajo } from "./avatares-politica.ts";
+import { sueloBajo, alturaDibujada, ESCALON_M } from "./avatares-politica.ts";
 import { prepararGltf, usarRenderer } from "./gltf.ts";
 import { ordenCarga, puedeEmpezar } from "./carga-orden.ts";
+import type { Parkour } from "./avatares-politica.ts";
 export type { CatalogoAvatares } from "./avatares.ts";
 import type { CatalogoAvatares } from "./avatares.ts";
 import { createNombres, NOMBRE_VISIBLE_M } from "./nombres.ts";
@@ -46,6 +47,7 @@ import { vistaElementos } from "./elementos-vista.ts";
 import { vistaPesca } from "./pesca-vista.ts";
 import { crearDianas3D, crearDianaAR } from "./dardos.ts";
 import { crearPantallasWeb } from "./web.ts";
+import { crearSalon } from "./ancestros.ts";
 import type { DianaAR } from "./dardos.ts";
 import { detalleAgua } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
@@ -100,7 +102,7 @@ async function leerGpu(renderer: THREE.WebGPURenderer, backend: Backend): Promis
   } catch { return ""; }
 }
 
-export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number } } = {}) {
+export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number; parkour?: () => Parkour } } = {}) {
   // U25: `movil` = the device class a forced profile declares (?aparato, development only); undefined = read the device
   const power = createPower(conClase(readCaps(), opts.movil), { battery: opts.battery, maxFps: opts.maxFps });
   // XR on a WebGPU backend needs the session's "webgpu" feature (XRGPUBinding); Quest Browser 152 has neither (measured
@@ -213,7 +215,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // J1: you and the nearest players as VRM humanoids (avatares.ts); the capsules above stay as their anchors
   // N1b: the solid boxes in metres (view.solidos): the camera does not go through them, avatars stand on them
   let cajasM: ArrayLike<number> = [], cajasFx: Int32Array | null = null;
-  const avs = createAvatares({ world, mobile: power.mobile, xr: () => renderer.xr.isPresenting, catalogo: opts.avatares?.catalogo, yo: opts.avatares?.yo, compilar: (o) => renderer.compileAsync(o, camera, scene),
+  let yYo: number | undefined, ultimoSync = 0; // N1b: your drawn feet height (stair smoothing) and the last sync time
+  const avs = createAvatares({ world, mobile: power.mobile, xr: () => renderer.xr.isPresenting, catalogo: opts.avatares?.catalogo, yo: opts.avatares?.yo, parkour: opts.avatares?.parkour, compilar: (o) => renderer.compileAsync(o, camera, scene),
     suelo: (x, z, y) => sueloBajo(x, z, y, cajasM) });
   // H4 + H12: sky, sun, light, fog, wind and ground come from data (features/entorno), quality from the device tier
   const entorno = crearEntorno({ renderer, scene, world, camera, hemi, sun, ground, grid, hitos, aparato: { mobile: power.mobile, deviceMemoryGB: readCaps().deviceMemoryGB, saveData: readCaps().saveData }, foco: () => selfXZ,
@@ -246,6 +249,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     hueso: (q, donde, out) => (donde === "mano" ? avs.mano(q === "self" ? "yo" : q, "derecha", out) : avs.cabeza(q === "self" ? "yo" : q, out)),
     rumbo: (q) => avs.rumbo(q === "self" ? "yo" : q) });
   const web = crearPantallasWeb({ world, camera, enXR: () => renderer.xr.isPresenting, cajas: () => cajasM }); // N17: web screens (web.ts)
+  const ancestros = crearSalon({ world, camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera) }); // ancestros v1: the hall and the hologram of the tribute to Asimov (ancestros.ts)
   function dropLabel(t: Target): void {
     const d = labels.get(t);
     if (!d) return;
@@ -805,6 +809,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     dardos,
     /** N17: web screens — a panel everywhere, the live page in CSS3D near you on PC/phone, «Abrir fuera de VR» in VR (web.ts). */
     web,
+    /** ancestros v1: the Salón de los Ancestros (muros, hologramas, paneles, dice, contar) — packages/render/src/ancestros.ts. */
+    ancestros,
     /** dardos v1 in AR: enter immersive-ar with a real-size board for your wall (dardos.ts crearDianaAR); null if the
      * session could not start. Press/hold/release throws: `alLanzar` gets aim (board radii) and strength. */
     async dardosAR(o: { alLanzar: (x: number, y: number, fuerza: number) => void; alColocar?: (pared: boolean) => void }): Promise<DianaAR | null> {
@@ -812,15 +818,25 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       return (await ar.jugar(j)) ? j : null;
     },
     /** Place everyone for this frame (J2: at their height). */
-    sync(self: { x: number; z: number; y?: number; speed?: number } | null, list: Placed[]): void {
+    sync(self: { x: number; z: number; y?: number; speed?: number; grounded?: boolean } | null, list: Placed[]): void {
       selfXZ = self;
-      if (self) { selfMesh.visible = true; selfMesh.position.set(self.x, (self.y ?? 0) + 0.85, self.z); }
+      const t = performance.now(), dtS = ultimoSync ? Math.min(0.1, (t - ultimoSync) / 1000) : 0;
+      ultimoSync = t;
+      // N1b: a stair step is drawn as a short climb (alturaDibujada); `yPies` keeps the simulated feet for the clip choice
+      if (self) {
+        const y = self.y ?? 0;
+        yYo = alturaDibujada(yYo, y, dtS, self.grounded !== false);
+        selfMesh.visible = true; selfMesh.position.set(self.x, yYo + 0.85, self.z); selfMesh.userData.yPies = y;
+      } else yYo = undefined;
       const seen = new Set<number>();
       for (const o of list) {
         seen.add(o.id);
         let m = others.get(o.id);
         if (!m) { m = new THREE.Mesh(bodyGeo, otherMat); world.add(m); others.set(o.id, m); }
-        m.position.set(o.x, (o.y ?? 0) + 0.85, o.z);
+        const y = o.y ?? 0, antes = m.userData.yDibujada as number | undefined;
+        const yd = alturaDibujada(antes, y, dtS, y - sueloBajo(o.x, o.z, y, cajasM) <= ESCALON_M); // near the ground: a step, not a jump
+        m.userData.yDibujada = yd; m.userData.yPies = y;
+        m.position.set(o.x, yd + 0.85, o.z);
       }
       for (const [id, m] of others) if (!seen.has(id)) { world.remove(m); others.delete(id); }
       const now = performance.now();
@@ -991,7 +1007,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
     /** U10: draw hidden spheres of sound (while building) or not (while playing). */
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado(); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado() || ancestros.ocupado(selfXZ); },
     /** U1: files of things in the world that are downloading, waiting their turn or having their shaders prepared (B3: one per batch in compile; a copy is only added to the scene once its batch is done, so the screen waits for it) (the loading screen's «mundo» phase). */
     cargando(): number { return loading + waiting.size + precompilar.pendientes(); },
     /** U1: compile the materials of what the scene holds now, before the first frame (the loading screen's «preparar» phase). Never rejects. */
