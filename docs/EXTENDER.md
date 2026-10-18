@@ -939,9 +939,10 @@ historias: mientras tanto el registro dice `nadie hace «teletransporta» en est
   "tipo": "boton", "x": 12, "z": 0, "frase": "E: pulsar", "cooldown": 5, "receptores": [{ "accion": "muestra", "objeto":
   "Farola" }] }] }` con un objeto llamado «Farola» marcado como invisible al jugar en el constructor.
 - **Lo que no hace (todavía):** los receptores de las historias 3-4 (`teletransporta`, `da_paso`, `abre_enlace`, `suena`),
-  la etiqueta flotante de la zona y el botón móvil (historia 5), el catálogo para agentes y el ejemplo en la plaza
-  (historia 6), y disparadores que no sean zona o botón (la cerradura de D-042, el temporizador de D-044 son emisores
-  nuevos de este mismo cable).
+  el catálogo para agentes y el ejemplo en la plaza (historia 6 original), y disparadores que no sean zona o botón (la
+  cerradura de D-042, el temporizador de D-044 son emisores nuevos de este mismo cable). La vista del constructor
+  (`apps/plaza/cable.ts`, historia 5) lista cada disparador y deja «Probar» un botón, pero es de solo lectura: editar
+  los receptores sigue siendo editar `disparadores.json` antes de arrancar (PREGUNTAS-cable-h5-6.md).
 
 ## Agua (N2): estilizada, de color plano, un solo draw call
 
