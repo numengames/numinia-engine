@@ -71,6 +71,14 @@
     #dialogo .adios { margin-top: 8px; background: transparent; color: #eef2f6; text-decoration: underline; }
     #dialogo .estado { margin: 6px 0 0; color: #ffb4a8; min-height: 1em; }
     #misiones { position: fixed; left: 10px; bottom: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: #ffd27a; color: #23303b; font: inherit; font-weight: 600; }
+    #inventario-abrir { position: fixed; left: 130px; bottom: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: #ffd27a; color: #23303b; font: inherit; font-weight: 600; }
+    #inventario .resumen { color: #9ad0ff; }
+    #inventario ul.objetos { list-style: none; padding: 0; margin: 4px 0; }
+    #inventario li.objeto { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(238, 242, 246, .1); }
+    #inventario li.objeto .icono-objeto { display: inline-flex; width: 22px; justify-content: center; color: #ffd27a; }
+    #inventario li.objeto .nombre { flex: 1 1 auto; }
+    #inventario li.objeto .detalle { opacity: .7; font-size: 12px; }
+    #inventario p.vacio { opacity: .7; }
     /* the book opens top left, under the HUD and «Pantalla completa», over the chat (it used to open behind the chat) */
     #libro { position: fixed; left: 10px; top: 156px; z-index: 5; width: 320px; max-width: calc(100% - 20px); max-height: max(160px, calc(100% - 420px)); overflow: auto; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .88); color: #eef2f6; }
     #libro h2 { margin: 0 0 6px; font-size: 15px; color: #ffd27a; }
@@ -84,6 +92,15 @@
     #mision-nota { position: fixed; top: 34%; left: 50%; transform: translateX(-50%); max-width: calc(100% - 40px); padding: 6px 12px; border-radius: 8px; background: rgba(255, 210, 122, .95); color: #23303b; font-weight: 600; text-align: center; pointer-events: none; }
     /* V1: what happens, for screen readers (not shown on screen; the voice of V3 comes later) */
     #fundido { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 40; } /* D-045: the fade when the server puts you back on a safe spot (features/suelo) */
+    /* MVL3 step 1: the 2D "Cargando" screen (moon + running dots), plain HTML so it paints before any script
+       runs — no black flash before the world. The 3D build-up sequence for heavy loads is a later step. */
+    #carga { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: #10141b; color: #eef2f6; transition: opacity .5s ease; }
+    #carga[hidden] { display: none; }
+    #carga.ida { opacity: 0; pointer-events: none; }
+    #carga .c-texto { margin: 14px 0 0; font: 16px/1 system-ui, sans-serif; letter-spacing: .04em; text-align: center; }
+    #carga .c-puntos::after { content: ""; animation: c-puntos 1.4s steps(4, end) infinite; }
+    @keyframes c-puntos { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } 100% { content: ""; } }
+    @media (prefers-reduced-motion: reduce) { #carga { transition: none; } #carga .c-puntos::after { animation: none; content: "…"; } }
     .solo-lector { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
     /* N2: the settings menu (a real <dialog>: keyboard, touch and screen readers) and what its settings change */
     :root { --ui: 1; }
@@ -120,6 +137,15 @@
     html.alto-contraste #ajustes .describe { opacity: 1; }
     html.alto-contraste :focus-visible { outline: 3px solid #ffeb3b !important; outline-offset: 2px; }
     html.menos-movimiento *, html.menos-movimiento *::before, html.menos-movimiento *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    /* t_bdc2c2db: «Qué hay de nuevo», una sola vez por versión distinta a la vista (apps/plaza/novedades.ts) */
+    #novedades { position: fixed; inset: 10px auto auto 10px; margin: 0; width: min(380px, calc(100vw - 20px)); max-height: calc(100vh - 20px); overflow: auto; padding: 10px 12px 12px; border: 0; border-radius: 10px; background: rgb(20, 24, 30); color: #eef2f6; box-sizing: border-box; }
+    #novedades::backdrop { background: rgba(10, 14, 20, .25); }
+    #novedades .cabecera { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    #novedades h2 { margin: 0; font-size: 1.05em; color: #ffd27a; }
+    #novedades ul { margin: 8px 0 0; padding-left: 20px; }
+    #novedades li { margin: 0 0 6px; }
+    #novedades button { min-height: 36px; padding: 6px 12px; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; font: inherit; font-weight: 600; }
+    #novedades :focus-visible { outline: 3px solid #ffd27a; outline-offset: 1px; }
   /* auditoría UI móvil: objetivo táctil mínimo 44x44 px (Apple HIG / Material) para los controles que
      en escritorio ya iban sobrados de ratón pero en el dedo quedaban en 28-39px: el libro de misiones,
      saltar/saludar/bailar/recoger, abrir el chat, los botones del minimapa (−/+/N/Mapa/Ficha) y la fila
@@ -131,124 +157,26 @@
     #ajustes .ajuste { min-height: 44px; padding: 10px 0; }
     #ajustes .ajuste input[type="checkbox"] { width: 26px; height: 26px; }
   }
-    /* U1: the loading screen. Shell + controller live in this page (≤ 14 kB gz, system font, no canvas, no per-frame work);
-       the picture (carga.webp, ≤ 45 kB) arrives after the first paint. Bar by phases: never indeterminate. */
-    #carga { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: #1d2a38; color: #f2f5f8; overflow: hidden; }
-    #carga:not([open]) { display: none; }
-    #carga::backdrop { background: #1d2a38; }
-    #carga-arte { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .4s; }
-    #carga-arte.ya { opacity: .9; }
-    #carga .c-caja { position: absolute; left: 50%; bottom: 9%; transform: translateX(-50%); width: min(420px, calc(100vw - 40px)); padding: 14px 16px 16px; border-radius: 12px; background: rgba(14, 20, 28, .78); text-align: center; }
-    #carga h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; letter-spacing: .04em; }
-    #carga .c-fase { margin: 0 0 10px; min-height: 1.4em; }
-    #carga .c-fila { display: flex; align-items: center; gap: 12px; }
-    #carga-b { flex: 1; height: 4px; border: 0; border-radius: 2px; background: rgba(242, 245, 248, .25); appearance: none; -webkit-appearance: none; overflow: hidden; }
-    #carga-b::-webkit-progress-bar { background: rgba(242, 245, 248, .25); border-radius: 2px; }
-    #carga-b::-webkit-progress-value { background: #ffd27a; border-radius: 2px; transition: width .25s; }
-    #carga-b::-moz-progress-bar { background: #ffd27a; border-radius: 2px; }
-    #carga-n { min-width: 4.2em; text-align: right; font: 13px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
-    #carga .c-aviso { margin: 10px 0 0; min-height: 1.4em; color: #ffd27a; }
-    #carga .c-botones { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
-    #carga .c-botones[hidden] { display: none; }
-    #carga button { min-height: 40px; padding: 8px 16px; border: 0; border-radius: 8px; background: #eef2f6; color: #23303b; font: inherit; font-weight: 600; }
-    #carga button:focus-visible { outline: 3px solid #ffd27a; outline-offset: 2px; }
-    canvas:focus { outline: none; }
-    @media (prefers-reduced-motion: reduce) { #carga-b::-webkit-progress-value, #carga-arte { transition: none; } }
   </style>
   <link rel="stylesheet" href="./tema.css" /><!-- U11: Numinia Design System (colours, type, icons) and the right-hand layout -->
 </head>
 <body>
-  <!-- U1: the loading screen. Static shell first, the controller right below it (no module, no canvas); main.ts feeds it
-       the real phases through window.__numinia.carga. It shows only if the wait passes 400 ms and stays at least 600 ms. -->
-  <dialog id="carga" aria-labelledby="carga-t" aria-describedby="carga-f">
-    <img id="carga-arte" alt="" width="1280" height="720" decoding="async" />
+  <div id="carga" aria-hidden="true"><!-- MVL3 step 1: moon + running dots, gone by main.ts once the first frame is drawn -->
     <div class="c-caja">
-      <h1 id="carga-t">Numinia</h1>
-      <p id="carga-f" class="c-fase">Cargando el motor</p>
-      <div class="c-fila"><progress id="carga-b" max="100" value="0" aria-label="Carga del mundo"></progress><output id="carga-n">0 %</output></div>
-      <p id="carga-aviso" class="c-aviso" role="alert"></p>
-      <p id="carga-voz" class="solo-lector" role="status" aria-live="polite"></p>
-      <div id="carga-botones" class="c-botones" hidden></div>
+      <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <defs><mask id="c-luna-mask"><rect width="64" height="64" fill="#fff" /><circle cx="40" cy="24" r="22" fill="#000" /></mask></defs>
+        <circle cx="32" cy="32" r="26" fill="#eef2f6" mask="url(#c-luna-mask)" />
+      </svg>
+      <p class="c-texto">Cargando<span class="c-puntos"></span></p>
     </div>
-  </dialog>
-  <script>
-(function () {
-  var $ = function (i) { return document.getElementById(i); }, d = $("carga");
-  if (!d) return;
-  // [phase, words, weight of the bar]: the clock never moves the bar, only real signals do
-  var F = [["codigo", "Cargando el motor", 30], ["grafica", "Preparando la gráfica", 10], ["red", "Conectando", 15], ["mundo", "Descargando el mundo", 30], ["preparar", "Preparando", 15], ["listo", "Listo", 0]];
-  var c = { fase: "codigo", hecho: 0, total: 0, unidad: "", estado: "cargando", pct: 0, avisos: 0, mostrada: false };
-  var ini = 0, visto = 0, ult = Date.now(), tm = 0;
-  window.__numinia = { carga: c, probe: { done: false }, session: { entity: -1 } }; // stub until main.ts replaces it
-  document.body.setAttribute("aria-busy", "true");
-  d.addEventListener("cancel", function (e) { e.preventDefault(); }); // Esc never closes it
-  var mb = function (b) { return (b / 1048576).toFixed(1).replace(".", ","); };
-  function idx(n) { for (var i = 0; i < F.length; i++) if (F[i][0] === n) return i; return 0; }
-  function pintar() {
-    var i = idx(c.fase), p = 0, k, t = F[i][1];
-    for (k = 0; k < i; k++) p += F[k][2];
-    if (c.total > 0) p += F[i][2] * Math.min(1, c.hecho / c.total);
-    c.pct = c.fase === "listo" ? 100 : Math.max(c.pct, Math.min(99, Math.round(p)));
-    if (c.total > 0 && c.unidad === "bytes") t += " \u00b7 " + mb(c.hecho) + " de " + mb(c.total) + " MB"; else if (c.total > 1) t += " \u00b7 " + c.hecho + " de " + c.total;
-    $("carga-b").value = c.pct; $("carga-n").textContent = c.pct + " %"; $("carga-f").textContent = t;
-  }
-  function mostrar() {
-    tm = 0;
-    if (c.fase === "listo" || d.open) return;
-    try { d.showModal(); } catch (e) { d.setAttribute("open", ""); }
-    c.mostrada = true; ini = Date.now();
-    requestAnimationFrame(function () { var im = $("carga-arte"); im.onload = function () { im.className = "ya"; }; im.src = "carga.webp"; }); // after the first paint
-  }
-  function botones(l) {
-    var b = $("carga-botones"); b.textContent = ""; b.hidden = !l.length;
-    l.forEach(function (x) { var e = document.createElement("button"); e.type = "button"; e.textContent = x[0]; e.onclick = x[1]; b.appendChild(e); });
-    if (l.length && d.open) b.firstChild.focus();
-  }
-  c.irA = function (n, h, t, u) { // phase n (the earlier ones are done); h of t done inside it (u = "bytes" or a count)
-    if (c.fase === "listo") return;
-    var cambia = n !== c.fase || h !== c.hecho;
-    if (n !== c.fase && c.avisos < 6) { c.avisos++; $("carga-voz").textContent = F[idx(n)][1]; }
-    c.fase = n; c.hecho = h || 0; c.total = t || 0; c.unidad = u || "";
-    if (cambia) { ult = Date.now(); if (c.estado === "atascado") { c.estado = "cargando"; $("carga-aviso").textContent = ""; botones([]); } }
-    pintar();
-  };
-  c.mensaje = function (estado, titulo, texto, l) { // another state that needs the screen (a cut connection, leaving)
-    c.msg = true; c.estado = estado; $("carga-t").textContent = titulo; $("carga-f").textContent = texto; $("carga-aviso").textContent = "";
-    if (tm) { clearTimeout(tm); tm = 0; }
-    document.body.removeAttribute("aria-busy");
-    if (!d.open) { try { d.showModal(); } catch (e) { d.setAttribute("open", ""); } c.mostrada = true; ini = Date.now(); }
-    botones(l || []);
-  };
-  c.texto = function (t) { $("carga-f").textContent = t; }; // a line changes (a countdown): the buttons stay where they are
-  c.aviso = function (t) { $("carga-aviso").textContent = ""; $("carga-aviso").textContent = t; }; // role=alert: said at once
-  c.ocultar = function () { // the screen is gone: only now «estado» says «listo» (checks and the menu wait for this)
-    if (c.msg) return; // a cut connection or leaving took the screen meanwhile
-    c.estado = "listo";
-    if (d.open) d.close();
-    document.body.removeAttribute("aria-busy");
-    var cv = document.querySelector("canvas"); if (cv) { cv.tabIndex = -1; cv.focus({ preventScroll: true }); }
-  };
-  c.listo = function () {
-    if (c.fase === "listo") return;
-    c.fase = "listo"; c.hecho = c.total = 0; $("carga-voz").textContent = "Listo"; pintar();
-    if (tm) { clearTimeout(tm); tm = 0; }
-    if (c.mostrada) setTimeout(c.ocultar, Math.max(0, 600 - (Date.now() - ini))); else c.ocultar(); // once seen, it stays 600 ms
-  };
-  c.reintentar = function () { location.reload(); };
-  c.cancelar = function () { c.estado = "cancelado"; $("carga-t").textContent = "Carga cancelada"; $("carga-f").textContent = "Puedes volver a intentarlo."; $("carga-aviso").textContent = ""; botones([["Reintentar", c.reintentar]]); };
-  tm = setTimeout(mostrar, 400);
-  setInterval(function () { // no progress for 8 s: say so and offer a way out
-    if (c.estado !== "cargando" || c.fase === "listo" || Date.now() - ult < 8000) return;
-    c.estado = "atascado"; mostrar(); c.aviso("Sigue trabajando\u2026 esto tarda m\u00e1s de lo normal.");
-    botones([["Reintentar", c.reintentar], ["Cancelar", c.cancelar]]);
-  }, 1000);
-  pintar();
-})();
-  </script>
+  </div>
   <div id="hud">Conectando…</div>
   <p id="mundo-lleno" role="alert" hidden></p><!-- H7: the world is full (ficha `aforo`): the door's reason, read at once by screen readers -->
   <div id="barra-arriba" role="toolbar" aria-label="Botones del mundo"></div>
-  <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · M: mapa · I: ficha · C: construir · Q: micrófono · L: gente · P: foto</div>
+  <!-- t_5cff4f06: the city, top left (HUD simétrico: mirrors the gear's corner); hidden until a world's
+       mundo.ajustes.json sets ciudadUrl (ciudad-logica.ts). The engine names no city here: main.ts fills the text. -->
+  <button id="volver-ciudad" type="button" hidden></button>
+  <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · R: inventario · M: mapa · I: ficha · C: construir · Q: micrófono · L: gente · P: foto · K: Graboso</div>
   <button id="ar" type="button" hidden>Entrar en AR</button>
   <button id="vr" type="button" hidden>Entrar en VR</button>
   <button id="construir" type="button" aria-expanded="false" aria-controls="panel-construir">Construir</button>
@@ -258,6 +186,7 @@
   <button id="interactuar" type="button" hidden></button>
   <section id="dialogo" hidden></section>
   <button id="misiones" type="button" aria-expanded="false" aria-controls="libro">Misiones (J)</button>
+  <button id="inventario-abrir" type="button" aria-expanded="false" aria-controls="inventario">Inventario (R)</button>
   <section id="libro" aria-label="Libro de misiones" hidden></section>
   <p id="mision-seguida" hidden></p>
   <p id="mision-nota" aria-hidden="true" hidden></p>
@@ -290,6 +219,11 @@
     <div id="ajustes-grupos"></div>
     <div class="pie"><button id="ajustes-restablecer" type="button">Restablecer todo</button></div>
     <p id="version-motor" class="version-motor"></p>
+  </dialog>
+  <!-- t_bdc2c2db: «Qué hay de nuevo» — apps/plaza/novedades.ts fills it and opens it once per version -->
+  <dialog id="novedades" aria-labelledby="novedades-titulo">
+    <div class="cabecera"><h2 id="novedades-titulo" tabindex="-1"></h2><button id="novedades-cerrar" type="button">Cerrar</button></div>
+    <ul id="novedades-lista"></ul>
   </dialog>
   <script type="module" src="./main.ts"></script>
 </body>

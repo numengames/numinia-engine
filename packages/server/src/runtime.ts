@@ -10,7 +10,8 @@
 // machine's, not the engine's (D3: every startup "stall" measured on the desktop was this, never the engine's code).
 import { readFileSync } from "node:fs";
 import os from "node:os";
-import { monitorEventLoopDelay, performance, PerformanceObserver } from "node:perf_hooks";
+import { constants, monitorEventLoopDelay, performance, PerformanceObserver } from "node:perf_hooks";
+import { Histograma } from "./metrics.ts";
 
 export type Stat = { total: number; busy: number; steal: number };
 
@@ -48,13 +49,29 @@ export type RuntimeWindow = {
   cpuPct: number;              // this process, % of ONE core (user + system)
   cpuSegundos: number;         // this process, CPU seconds since start (cumulative, for rate())
   utilizacionBucle: number;    // event loop utilisation 0..1 (1 = never idle)
-  bucleMs: { p50: number; p99: number; peor: number };
-  gc: { pausas: number; totalMs: number; peorMs: number };
+  bucleMs: { p50: number; p99: number; peor: number };   // AS SAMPLED: every sample includes the resolution (+10 ms, see bucleRealMs)
+  /** B2: bucleMs minus the sampling resolution (Node: interval-based samples include it), floored at 0: the real delay. */
+  bucleRealMs: { p50: number; p99: number; peor: number };
+  bucleResolucionMs: number;
+  gc: { pausas: number; totalMs: number; peorMs: number };   // last ~10 s window (goes up AND down)
+  /** B2: since start, never goes down (a real counter): pauses and their summed ms, total and per kind of collection. */
+  gcAcumulado: { pausas: number; ms: number; porTipo: Record<GcTipo, { pausas: number; ms: number }> };
   anfitrion: { cpuPct: number; stealPct: number; carga1m: number } | null;
   /** D3: the main thread was ready but another process had the core (% of the wall clock, last ~10 s; seconds since
    * start, for rate()). null where the kernel does not say (not Linux). */
   esperaCpu: { pct: number; segundos: number } | null;
 };
+
+/** B2: Node's gc entry `detail.kind` (perf_hooks constants NODE_PERFORMANCE_GC_*) as label values (prom-client's names). */
+export const GC_TIPOS = ["minor", "minor_mark_sweep", "major", "incremental", "weakcb"] as const;
+export type GcTipo = (typeof GC_TIPOS)[number];
+const GC_KIND: Record<number, GcTipo> = {
+  [constants.NODE_PERFORMANCE_GC_MINOR]: "minor", [constants.NODE_PERFORMANCE_GC_MINOR_MARK_SWEEP ?? 2]: "minor_mark_sweep",
+  [constants.NODE_PERFORMANCE_GC_MAJOR]: "major", [constants.NODE_PERFORMANCE_GC_INCREMENTAL]: "incremental", [constants.NODE_PERFORMANCE_GC_WEAKCB]: "weakcb",
+};
+/** The event-loop delay monitor's sampling period. Every sample includes it (Node docs, monitorEventLoopDelay), so
+ * bucleRealMs subtracts it. 10 ms = 100 wake-ups a second; 1 ms would be 1.000 for the same answer. */
+export const RESOLUCION_BUCLE_MS = 10;
 
 export type Entorno = {
   node: string; plataforma: string; kernel: string; cpuModelo: string; nucleos: number; memoriaTotalMB: number;
@@ -69,10 +86,13 @@ export function entorno(): Entorno {
 }
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
+const real = (ms: number) => r2(Math.max(0, ms - RESOLUCION_BUCLE_MS));
 
 export class Runtime {
   private samples: Sample[] = [];
-  private delay = monitorEventLoopDelay({ resolution: 10 });
+  private delay = monitorEventLoopDelay({ resolution: RESOLUCION_BUCLE_MS });
+  /** B2: gc pause durations by kind since start (fixed buckets, never reset: /metrics.prom nodejs_gc_duration_seconds). */
+  readonly gcHist: Record<GcTipo, Histograma> = Object.fromEntries(GC_TIPOS.map((k) => [k, new Histograma()])) as Record<GcTipo, Histograma>;
   private prevDelay = { p50: 0, p99: 0, peor: 0 };
   private gcN = 0; private gcMs = 0; private gcPeak = 0; private gcPeakPrev = 0;
   private obs: PerformanceObserver;
@@ -83,7 +103,11 @@ export class Runtime {
     this.size = windowSamples;
     this.delay.enable();
     this.obs = new PerformanceObserver((list) => {
-      for (const e of list.getEntries()) { this.gcN++; this.gcMs += e.duration; if (e.duration > this.gcPeak) this.gcPeak = e.duration; }
+      for (const e of list.getEntries()) {
+        this.gcN++; this.gcMs += e.duration; if (e.duration > this.gcPeak) this.gcPeak = e.duration;
+        const kind = (e as { detail?: { kind?: number } }).detail?.kind;
+        this.gcHist[GC_KIND[kind ?? -1] ?? "major"].observe(e.duration);
+      }
     });
     try { this.obs.observe({ entryTypes: ["gc"] }); } catch { /* gc entries unavailable: counters stay 0 */ }
     this.sample();
@@ -115,7 +139,13 @@ export class Runtime {
       cpuSegundos: r2(this.cpuSecondsTotal),
       utilizacionBucle: r2(performance.eventLoopUtilization(b.elu, a.elu).utilization),
       bucleMs: { p50: r2(cur.p50), p99: r2(cur.p99), peor: r2(cur.peor) },
+      bucleRealMs: { p50: real(cur.p50), p99: real(cur.p99), peor: real(cur.peor) },
+      bucleResolucionMs: RESOLUCION_BUCLE_MS,
       gc: { pausas: b.gcN - a.gcN, totalMs: r2(b.gcMs - a.gcMs), peorMs: r2(Math.max(this.gcPeak, this.gcPeakPrev)) },
+      gcAcumulado: {
+        pausas: this.gcN, ms: r2(this.gcMs),
+        porTipo: Object.fromEntries(GC_TIPOS.map((k) => [k, { pausas: this.gcHist[k].count, ms: r2(this.gcHist[k].sumMs) }])) as Record<GcTipo, { pausas: number; ms: number }>,
+      },
       anfitrion: host,
       esperaCpu: a.esperaMs !== null && b.esperaMs !== null
         ? { pct: wall > 0 ? r2((100 * (b.esperaMs - a.esperaMs)) / wall) : 0, segundos: Math.round(b.esperaMs) / 1000 }

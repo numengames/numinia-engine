@@ -107,9 +107,8 @@ export class ClientSession {
     return true;
   }
 
-  /** U10: someone near spoke (a frame of their microphone). The page plays it (apps/plaza/voz.ts). M17: `escenario` = a stage
-   * voice, for everyone, unpanned. */
-  onVoice: ((v: { codec: number; escenario: boolean; seq: number; entidad: number; trama: Uint8Array }) => void) | null = null;
+  /** U10: someone near spoke (a frame of their microphone). The page plays it (apps/plaza/voz.ts). */
+  onVoice: ((v: { codec: number; seq: number; entidad: number; trama: Uint8Array }) => void) | null = null;
   private vozSeq = 0;
   /** U10: send one compressed frame of your microphone; the server passes it to who is near. false if not joined. */
   sendVoice(codec: number, trama: Uint8Array): boolean {

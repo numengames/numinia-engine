@@ -83,7 +83,7 @@ test("C1: the page — files under WWW_DIR only, right types, index.html revalid
   } finally { await srv.close(); }
 });
 
-test("C4 + personas/agentes: /status = {uptime, conectados, agentes, total, agentesDe, commitHash, version, aforo} — no names, no positions; open to the room", async () => {
+test("C4 + personas/agentes: /status = {uptime, conectados, agentes, total, agentesDe, commitHash, version, cerebro, aforo} — no names, no positions; open to the room", async () => {
   const srv = await startServer({ port: 0, host: "127.0.0.1", log: () => {}, statsMs: 60_000, motor: MOTOR });
   try {
     const t = webSocketClient(`ws://127.0.0.1:${srv.port}/ws`), s = new ClientSession(t);
@@ -92,16 +92,34 @@ test("C4 + personas/agentes: /status = {uptime, conectados, agentes, total, agen
     const r = await fetch(`http://127.0.0.1:${srv.port}/status`);
     assert.equal(r.headers.get("access-control-allow-origin"), "*");
     const st = await r.json();
-    assert.deepEqual(Object.keys(st).sort(), ["aforo", "agentes", "agentesDe", "commitHash", "conectados", "total", "uptime", "version"]);
+    assert.deepEqual(Object.keys(st).sort(), ["aforo", "agentes", "agentesDe", "cerebro", "commitHash", "conectados", "total", "uptime", "version"]);
     assert.equal(st.conectados, 1); assert.equal(st.agentes, 0); assert.equal(st.total, 1); assert.equal(st.aforo, 1000, "H7: without a ficha, the engine's capacity");
     assert.deepEqual(st.agentesDe, { habitante: 0, organizacion: {} });
     assert.equal(st.commitHash, COMMIT); assert.equal(st.version, "c57dbb7 2026-10-16");
     assert.ok(Number.isInteger(st.uptime) && st.uptime >= 0);
+    // «Add an AI» historia 2: without CEREBRO_CLAVE/ANTHROPIC_API_KEY in this process, the machine cannot think
+    assert.deepEqual(st.cerebro, { pensar: false, modelo: "claude-sonnet-5" });
     const h = await (await fetch(`http://127.0.0.1:${srv.port}/health`)).json();
     assert.deepEqual(Object.keys(h).sort(), ["agentes", "conectados", "huella", "ok", "personas", "version"]);
     assert.equal(h.conectados, 1); assert.equal(h.personas, 1); assert.equal(h.agentes, 0);
     t.close();
   } finally { await srv.close(); }
+});
+
+test("«Add an AI» historia 2: /status's cerebro says pensar: sí and the configured model when a key is set — never the key itself", async () => {
+  const antes = { CEREBRO_CLAVE: process.env.CEREBRO_CLAVE, ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY, CEREBRO_MODELO: process.env.CEREBRO_MODELO };
+  const clave = `sk-ant-secreta-${"x".repeat(40)}`;
+  process.env.CEREBRO_CLAVE = clave; delete process.env.ANTHROPIC_API_KEY; process.env.CEREBRO_MODELO = "claude-haiku-4-5";
+  const srv = await startServer({ port: 0, host: "127.0.0.1", log: () => {}, statsMs: 60_000, motor: MOTOR });
+  try {
+    const st = await (await fetch(`http://127.0.0.1:${srv.port}/status`)).json();
+    assert.deepEqual(st.cerebro, { pensar: true, modelo: "claude-haiku-4-5" });
+    // nowhere in the response — as JSON text — does the key itself appear
+    assert.ok(!JSON.stringify(st).includes(clave), "the key must never reach /status");
+  } finally {
+    await srv.close();
+    for (const [k, v] of Object.entries(antes)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
 });
 
 test("ADR-074: aventura/ficha.json names the world — the served page's <title> and /status say it, with a cover the server has", async () => {
