@@ -3,9 +3,12 @@
 // being framed (it asks the site once — X-Frame-Options and CSP frame-ancestors — so every page knows whether to draw
 // the iframe or the card, instead of each guessing). The screens of entorno/web.json are put at every start; the ones
 // put live persist (S4) and are dropped at start if their site left the list.
+// N17 corte 2: the allow-list itself also grows/shrinks in hot, from inside the world (/web dominio <dominio>, /web
+// dominio quitar <dominio>; same `dirigir` permission). It never touches entorno/web.json nor restarts the server:
+// the domains added this way live in api.store (S4, server-only) and are merged with the file's at every check.
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg } from "../../packages/feature/src/index.ts";
-import { web, motivoUrl, resumirMarco, PANTALLAS_MAX, TITULO_MAX, TEXTO_MAX, ANCHO_M, ALTO_M } from "./feature.ts";
+import { web, motivoUrl, resumirMarco, normalizarDominio, PANTALLAS_MAX, DOMINIOS_MAX, TITULO_MAX, TEXTO_MAX, ANCHO_M, ALTO_M } from "./feature.ts";
 import type { WebMundo } from "./feature.ts";
 
 /** What a site answers about framing: its two headers (null = not sent), or null when it could not be reached. */
@@ -16,8 +19,9 @@ export const PROBAR_MS = 4000;
 export const REDIRECCIONES_MAX = 3;
 
 /** The house prober: GET with redirects followed by hand (each hop's host must be on the list), headers only (the
- * body is cancelled). Never throws: an error or a timeout = null («?»: the page tries the iframe and keeps «Abrir»). */
-export const probarConFetch = (dominios: readonly string[]): Probar => async (url) => {
+ * body is cancelled). Never throws: an error or a timeout = null («?»: the page tries the iframe and keeps «Abrir»).
+ * `obtenerDominios` is read fresh on every call (N17 corte 2: the list can grow/shrink while the server runs). */
+export const probarConFetch = (obtenerDominios: () => readonly string[]): Probar => async (url) => {
   let u = url;
   for (let i = 0; i <= REDIRECCIONES_MAX; i++) {
     try {
@@ -26,7 +30,7 @@ export const probarConFetch = (dominios: readonly string[]): Probar => async (ur
       const loc = r.headers.get("location");
       if (r.status >= 300 && r.status < 400 && loc) {
         const sig = new URL(loc, u).toString();
-        if (motivoUrl(sig, dominios)) return { xfo: "deny", csp: null }; // redirects off the list: treat as refused
+        if (motivoUrl(sig, obtenerDominios())) return { xfo: "deny", csp: null }; // redirects off the list: treat as refused
         u = sig;
         continue;
       }
@@ -51,8 +55,16 @@ const q = (v: unknown, paso: number, min: number, max: number, defecto: number) 
 };
 const giro = (g: unknown) => q(((((Number(g) || 0) + 180) % 360) + 360) % 360 - 180, 0.1, -180, 180, 0);
 
+/** N17 corte 2: a domain added in hot (chat/intent) lives in `api.store` under this prefix + a signature of the
+ * domain (api.sign: 24 hex chars), not the domain itself — a store key is at most STATE_KEY_BYTES (64) bytes, too
+ * short for some domains (DOMINIO_TXT_MAX 260). The value is the domain, in the clear (store is server-only). */
+const PREFIJO_DOMINIO = "d:";
+const claveDominio = (api: { sign(t: string): string }, d: string) => PREFIJO_DOMINIO + api.sign(d);
+
 export function crearWeb(o: Partial<WebMundo> & { probar?: Probar } = {}) {
-  const dominios = o.dominios ?? [], deFichero = o.pantallas ?? [];
+  const dominiosArchivo = o.dominios ?? [], deFichero = o.pantallas ?? [];
+  const extra: string[] = []; // N17 corte 2: dominios añadidos en caliente desde el mundo (api.store, no el fichero)
+  const dominios = (): readonly string[] => dominiosArchivo.length || extra.length ? [...dominiosArchivo, ...extra] : dominiosArchivo;
   const probar = o.probar ?? probarConFetch(dominios);
   return serverPart(web, (api) => {
     const puede = (e: number) => api.puede(e, "dirigir");
@@ -74,9 +86,20 @@ export function crearWeb(o: Partial<WebMundo> & { probar?: Probar } = {}) {
       }).catch(() => {});
     };
 
+    // N17 corte 2: carga los dominios añadidos en caliente en una vida anterior del servidor (api.store, clave =
+    // firma del dominio). Un sobrante por encima de DOMINIOS_MAX (p. ej. el fichero creció después) se descarta.
+    for (const k of api.store.keys()) {
+      if (!k.startsWith(PREFIJO_DOMINIO)) continue;
+      const v = api.store.get(k);
+      const d = typeof v === "string" ? normalizarDominio(v) : null;
+      if (!d || dominiosArchivo.includes(d) || extra.includes(d)) { if (!d) api.store.delete(k); continue; }
+      if (dominiosArchivo.length + extra.length >= DOMINIOS_MAX) { api.log(`[web] dominio ${d} guardado de más: ya hay ${DOMINIOS_MAX}`); continue; }
+      extra.push(d);
+    }
+
     // at start: drop what left the list (or the file), then put the file's screens
     for (const k of api.state.keys()) {
-      const p = api.state.get(k)!, motivo = motivoUrl(String(p.url), dominios);
+      const p = api.state.get(k)!, motivo = motivoUrl(String(p.url), dominios());
       if (p.fichero === true && !deFichero.some((f) => f.id === k)) api.state.delete(k);
       else if (motivo) { api.log(`[web] quito la pantalla ${k}: ${motivo}`); api.state.delete(k); }
     }
@@ -88,7 +111,7 @@ export function crearWeb(o: Partial<WebMundo> & { probar?: Probar } = {}) {
         marco: "?", fichero: true,
       });
     }
-    if (deFichero.length || dominios.length) api.log(`[web] ${dominios.length} sitio(s) en la lista (${dominios.join(", ")}); ${deFichero.length} pantalla(s) de web.json`);
+    if (deFichero.length || dominios().length) api.log(`[web] ${dominios().length} sitio(s) en la lista (${dominios().join(", ")}); ${deFichero.length} pantalla(s) de web.json`);
     for (const k of api.state.keys()) comprobar(k);
 
     const avisar = (e: number) => { api.emit("permiso", { poner: puede(e) }, { to: e }); };
@@ -103,7 +126,7 @@ export function crearWeb(o: Partial<WebMundo> & { probar?: Probar } = {}) {
     };
     const poner = (from: number, m: Msg, porChat: boolean): string | null => {
       if (!puede(from)) { rechazar(from, NO_PUEDES, porChat); return null; }
-      const url = String(m.url ?? "").trim(), motivo = motivoUrl(url, dominios);
+      const url = String(m.url ?? "").trim(), motivo = motivoUrl(url, dominios());
       if (motivo) { rechazar(from, motivo, porChat); return null; }
       const titulo = limpiar(String(m.titulo ?? ""), TITULO_MAX) || limpiar(new URL(url).host, TITULO_MAX);
       let id = String(m.id ?? "").trim();
@@ -137,7 +160,35 @@ export function crearWeb(o: Partial<WebMundo> & { probar?: Probar } = {}) {
     api.on("poner", (from, m) => { poner(from, m, false); });
     api.on("quitar", (from, m) => { quitar(from, String(m.id), false); });
 
-    // the chat: /web (the list), /web <url> [título] (a screen 3 m north of you, facing you), /web quitar <id>
+    // N17 corte 2: domain añadido/quitado en caliente — nunca toca entorno/web.json ni el fichero del disco.
+    const dominioPoner = (from: number, crudo: string, porChat: boolean): string | null => {
+      if (!puede(from)) { rechazar(from, NO_PUEDES, porChat); return null; }
+      const d = normalizarDominio(crudo);
+      if (!d) { rechazar(from, `«${limpiar(crudo, 60)}» no es un dominio (así: numinia.org, o 127.0.0.1:8123 para pruebas).`, porChat); return null; }
+      if (dominiosArchivo.includes(d) || extra.includes(d)) { rechazar(from, `${d} ya está en la lista de sitios de este mundo.`, porChat); return null; }
+      if (dominiosArchivo.length + extra.length >= DOMINIOS_MAX) { rechazar(from, `Este mundo ya tiene ${DOMINIOS_MAX} dominios permitidos (el máximo): quita alguno antes.`, porChat); return null; }
+      extra.push(d);
+      api.store.set(claveDominio(api, d), d);
+      api.log(`[web] ${api.who(from)?.nombre ?? `e${from}`} añade el dominio ${d} a la lista de sitios`);
+      api.emit("dominioHecho", { dominio: d, accion: "poner" }, { to: from });
+      return d;
+    };
+    const dominioQuitar = (from: number, crudo: string, porChat: boolean): boolean => {
+      if (!puede(from)) { rechazar(from, NO_PUEDES, porChat); return false; }
+      const d = normalizarDominio(crudo);
+      if (d && dominiosArchivo.includes(d)) { rechazar(from, `${d} viene de entorno/web.json: se quita del fichero.`, porChat); return false; }
+      if (!d || !extra.includes(d)) { rechazar(from, `«${limpiar(crudo, 60)}» no está en la lista de dominios añadidos desde el mundo.`, porChat); return false; }
+      extra.splice(extra.indexOf(d), 1);
+      api.store.delete(claveDominio(api, d));
+      api.log(`[web] ${api.who(from)?.nombre ?? `e${from}`} quita el dominio ${d} de la lista de sitios`);
+      api.emit("dominioHecho", { dominio: d, accion: "quitar" }, { to: from });
+      return true;
+    };
+    api.on("dominioPoner", (from, m) => { dominioPoner(from, String(m.dominio), false); });
+    api.on("dominioQuitar", (from, m) => { dominioQuitar(from, String(m.dominio), false); });
+
+    // the chat: /web (the list), /web <url> [título] (a screen 3 m north of you, facing you), /web quitar <id>,
+    // /web dominio (list), /web dominio <dominio> (add in hot), /web dominio quitar <dominio>
     api.listen("chat", "orden", (m) => {
       const texto = String(m.texto ?? "").trim(), from = Number(m.quien);
       const partes = texto.split(/\s+/);
@@ -145,7 +196,14 @@ export function crearWeb(o: Partial<WebMundo> & { probar?: Probar } = {}) {
       const aviso = (t: string) => api.emit("aviso", { quien: from, texto: limpiar(t, 300) }, "server");
       if (partes.length === 1) {
         const lista = api.state.keys().map((k) => `${k}: ${String(api.state.get(k)!.titulo)} (${new URL(String(api.state.get(k)!.url)).host})`);
-        aviso(lista.length ? `Pantallas web: ${lista.join(" · ")}.` : `No hay pantallas web.${dominios.length ? ` Sitios permitidos: ${dominios.join(", ")}.` : ""} Pon una con /web <dirección> [título].`);
+        aviso(lista.length ? `Pantallas web: ${lista.join(" · ")}.` : `No hay pantallas web.${dominios().length ? ` Sitios permitidos: ${dominios().join(", ")}.` : ""} Pon una con /web <dirección> [título].`);
+        return true;
+      }
+      if (partes[1].toLowerCase() === "dominio") {
+        if (partes[2]?.toLowerCase() === "quitar") { if (dominioQuitar(from, partes[3] ?? "", true)) aviso(`Dominio ${partes[3]} quitado de la lista.`); return true; }
+        if (!partes[2]) { aviso(dominios().length ? `Dominios permitidos: ${dominios().join(", ")}.` : "Este mundo no tiene dominios permitidos. Añade uno con /web dominio <dominio>."); return true; }
+        const d = dominioPoner(from, partes[2], true);
+        if (d) aviso(`Dominio ${d} añadido a la lista de sitios. Pon una pantalla con /web <dirección> [título].`);
         return true;
       }
       if (partes[1].toLowerCase() === "quitar") { if (quitar(from, partes[2] ?? "", true)) aviso(`Pantalla ${partes[2]} quitada.`); return true; }
