@@ -7,6 +7,7 @@
 // after a click or a key: until then it waits. A hidden sphere, and a video's bubble, show only while building
 // (verOcultos). Phones stay cool: a far video with bubble sound pauses, a sound nobody may hear stops.
 import * as THREE from "three/webgpu";
+import { trasGesto } from "./gesto.ts"; // the person's first gesture: shared with the audio core (audio/nucleo.ts)
 
 export type Tipo = "modelo" | "imagen" | "video" | "sonido";
 export type Alcance = "burbuja" | "zona" | "todos";
@@ -26,14 +27,6 @@ const BORDE = 0.8;             // full volume up to 80 % of the radius, then fad
 const SINCRO_S = 0.6;          // a video or sound more than this off the shared clock jumps back onto it
 const COLOR_ESFERA = 0xA6DAD5; // Verdemar (STD-023)
 
-/** Browsers start sound only after the person clicked or pressed a key: wait for that once, then retry everything. */
-let gesto = false;
-const enEspera = new Set<() => void>();
-function trasGesto(fn: () => void): void { if (gesto) fn(); else enEspera.add(fn); }
-if (typeof addEventListener === "function") {
-  const listo = () => { gesto = true; for (const fn of [...enEspera]) { enEspera.delete(fn); fn(); } };
-  for (const t of ["pointerdown", "keydown", "touchend"]) addEventListener(t, listo, { capture: true, passive: true });
-}
 /** Can this browser play this kind of file? (Safari before 17 has no .ogg; some phones have no .webm.) */
 export function sePuedeReproducir(ext: string): boolean {
   if (typeof document === "undefined") return false;
