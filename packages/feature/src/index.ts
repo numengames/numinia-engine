@@ -262,6 +262,8 @@ export type ServerHost = {
    * up to `max` metres, against the world's collision mesh (M6: no mesh set yet = always null). The runtime itself
    * rate-limits calls (RAYO_RATE): the host need not count them. */
   rayo?(entity: number, dir: { x: number; y: number; z: number }, max: number): RayHit | null;
+  /** H2 historia 5: make an avatar do something on purpose (api.ordenar); none = always false. */
+  ordenar?(entity: number, orden: Orden): boolean;
 };
 /** M6 h12: where a ray stopped — metres, and the unit normal of the surface it hit, facing the ray. */
 export type RayHit = { x: number; y: number; z: number; nx: number; ny: number; nz: number; distancia: number };
@@ -269,6 +271,16 @@ export type RayHit = { x: number; y: number; z: number; nx: number; ny: number; 
 export type Vuelta = { entity: number; x: number; y: number; z: number; motivo: "caida" | "pedido" };
 /** N16: how the instance looks for a free spot (rings in metres, 0 = the point; heading 0-7 from +z; most metres down). */
 export type Teletransporte = { radios?: readonly number[]; rumbo?: number; caida?: number };
+/** H2 historia 5: what `api.ordenar` can make an avatar do (D-041's cable turns a trigger into one of these). `poner` is
+ * D-045's quadruple by another name; `cerca` is `teletransportar` (a free spot is found first); the other four are H2
+ * historias 2-4's QUIETO/EMPUJAR/SENTAR/VOLAR. */
+export type Orden =
+  | { poner: { x: number; y: number; z: number } }
+  | { cerca: { x: number; y: number; z: number }; radios?: readonly number[]; rumbo?: number; caida?: number }
+  | { quieto: number } // seconds, > 0
+  | { empujar: { vx: number; vy: number; vz: number } } // m/s
+  | { sentar: { x: number; y: number; z: number; rumbo?: number } } // degrees
+  | { volar: boolean };
 /** N10 (bienes digitales): what a feature asks the world to sign — the good (id = 24 hex, unique per world), its owner
  * (the guest id), the quest it came from and the instant (ISO 8601 UTC). The world adds v, tipo, mundo and emisor. */
 export type BienFirmable = { id: string; objeto: { id: string; nombre: string; descripcion: string; modelo: string; licencia: string }; dueno: string; mision: string; instante: string };
@@ -353,6 +365,12 @@ export type ServerApi = {
    * a teleport beam, construir's own picker. Rate-limited per player (RAYO_RATE: 4/s, burst 8); over budget returns
    * null, same as a miss. Returns null when nothing is hit, the player is gone, or the world has no mesh yet. */
   rayo(entity: number, dir: { x: number; y: number; z: number }, max?: number): RayHit | null;
+  /** H2 historia 5: make an avatar do something on purpose — frozen, pushed, seated, flying, put somewhere (`poner`)
+   * or near somewhere (`cerca`, like `teletransportar`). The server decides (R-1): false when the avatar is gone, a
+   * number is out of range (`quieto` over QUIETO_MAX seconds, `empujar` over IMPULSO_MAX m/s) or (`volar: true`)
+   * this avatar may not fly (entorno.json's `vuelo`, or a grant from another feature) — said once in the log.
+   * Everything else queues for the next step (ORDENES_TICK_MAX per tick; the rest wait their turn, in order). */
+  ordenar(entity: number, orden: Orden): boolean;
 };
 export type ServerPart = { feature: Feature; side: "server"; setup: (api: ServerApi) => void };
 export const serverPart = (feature: Feature, setup: (api: ServerApi) => void): ServerPart => ({ feature, side: "server", setup });
@@ -574,6 +592,7 @@ export class ServerRuntime {
       emisor: () => this.host.emisor?.() ?? "",
       teletransportar: (e, cerca, o) => { try { return this.host.teletransportar?.(e, cerca, o) ?? null; } catch (x) { log(`teletransportar: ${String((x as Error)?.message ?? x)}`); return null; } },
       rayo: (e, dir, max) => this.rayo(e, dir, max),
+      ordenar: (e, orden) => { try { return this.host.ordenar?.(e, orden) ?? false; } catch (x) { log(`ordenar: ${String((x as Error)?.message ?? x)}`); return false; } },
       puede: (e, accion) => { try { return this.host.puede?.(e, accion) ?? false; } catch { return false; } },
       activo: (sha256, ext = "glb") => { try { return /^[0-9a-f]{64}$/.test(sha256) && (this.host.activo?.(sha256, ext) ?? false); } catch { return false; } },
       medidas: (sha256, ext) => { try { return /^[0-9a-f]{64}$/.test(sha256) ? this.host.medidas?.(sha256, ext) ?? null : null; } catch { return null; } },
