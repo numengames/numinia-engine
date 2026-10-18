@@ -394,6 +394,22 @@ export type ServerApi = {
    * this avatar may not fly (entorno.json's `vuelo`, or a grant from another feature) — said once in the log.
    * Everything else queues for the next step (ORDENES_TICK_MAX per tick; the rest wait their turn, in order). */
   ordenar(entity: number, orden: Orden): boolean;
+  /** M6 h13: every player within `radio` metres (3D, feet to feet+y) of a point — the house's hand for "who is near
+   * this spot" (a pressure plate, an explosion, a gathering point); M20's scripts will use it too. `capas` is reserved
+   * for M20's object catalog: today only players exist here ("jugador"), so it has no effect yet, same shape as a
+   * feature declaring a layer later would expect. */
+  overlapSphere(x: number, y: number, z: number, radio: number, capas?: readonly string[]): number[];
+  /** M6 h13: a standing sphere zone (metres); returns its id (pass it to zonaQuitar when the feature is done with it,
+   * e.g. a quest step that ends). Every zone a feature registers is checked every tick against every connected
+   * player; who crosses it fires onZona. A zone a feature never removes lives for the server's life — keep the count
+   * small (tens, not thousands: M20 will want a spatial index for more). */
+  zona(forma: { x: number; y: number; z: number; radio: number }): string;
+  /** M6 h13: stop checking a zone (its id from `zona`). Players inside it do NOT get a `sale` first — if that matters, call
+   * `overlapSphere` yourself first and emit it as a feature event. */
+  zonaQuitar(id: string): void;
+  /** M6 h13: a player crossed a registered zone's boundary: "entra" the tick they first land inside, "sale" the tick
+   * they are no longer inside (moved out, or disconnected). Order across zones in one tick is not guaranteed. */
+  onZona(fn: (entity: number, zona: string, tipo: "entra" | "sale") => void): void;
 };
 export type ServerPart = { feature: Feature; side: "server"; setup: (api: ServerApi) => void };
 export const serverPart = (feature: Feature, setup: (api: ServerApi) => void): ServerPart => ({ feature, side: "server", setup });
@@ -439,7 +455,10 @@ export class ServerRuntime {
   private readonly entries: Entry[];
   private readonly catalogBytes: Uint8Array;
   private readonly handlers = new Map<number, { feature: string; fn: (from: number, msg: Msg) => void }>();
-  private readonly hooks: { join: [string, (e: number) => void][]; leave: [string, (e: number) => void][]; tick: [string, (t: number) => void][]; identify: [string, (e: number, w: { id: string; nombre: string }) => void][]; vuelta: [string, (v: Vuelta) => void][] } = { join: [], leave: [], tick: [], identify: [], vuelta: [] };
+  private readonly hooks: { join: [string, (e: number) => void][]; leave: [string, (e: number) => void][]; tick: [string, (t: number) => void][]; identify: [string, (e: number, w: { id: string; nombre: string }) => void][]; vuelta: [string, (v: Vuelta) => void][]; zona: [string, (e: number, z: string, tipo: "entra" | "sale") => void][] } = { join: [], leave: [], tick: [], identify: [], vuelta: [], zona: [] };
+  private readonly zonas = new Map<string, { x: number; y: number; z: number; radio: number }>(); // M6 h13
+  private readonly zonaDentro = new Map<string, Set<number>>(); // M6 h13: who was inside each zone last tick
+  private zonaSeq = 0;
   private readonly routeList: Route[] = [];
   private readonly shared = new Map<string, Map<string, Entry2>>();
   /** U10: grows on every shared-state change (the instance rebuilds the solid boxes when it moves). */
@@ -500,6 +519,29 @@ export class ServerRuntime {
     if (b.tokens < 1) return null;
     b.tokens -= 1;
     try { return this.host.rayo?.(entity, dir, max) ?? null; } catch (e) { this.fail("rayo", "en api.rayo", e); return null; }
+  }
+
+  /** M6 h13: every connected player within `radio` metres (3D) of a point. `capas` is accepted and ignored today
+   * (reserved for M20: only the "jugador" layer exists until the object catalog lands). */
+  private overlapSphere(x: number, y: number, z: number, radio: number): number[] {
+    const r2 = radio * radio, out: number[] = [];
+    for (const e of this.host.players()) {
+      const p = this.host.position(e);
+      if (p && (p.x - x) ** 2 + (p.y - y) ** 2 + (p.z - z) ** 2 <= r2) out.push(e);
+    }
+    return out;
+  }
+
+  /** M6 h13: every registered zone against every connected player; who newly is/isn't inside fires onZona.
+   * O(zonas × players) per tick — fine for the tens of zones a quest/scene needs; M20 can index this further. */
+  private tickZonas(): void {
+    if (!this.zonas.size) return;
+    for (const [zid, f] of this.zonas) {
+      const prev = this.zonaDentro.get(zid)!, now = new Set(this.overlapSphere(f.x, f.y, f.z, f.radio));
+      for (const e of now) if (!prev.has(e)) for (const [id, fn] of this.hooks.zona) { try { fn(e, zid, "entra"); } catch (err) { this.fail(id, "en onZona", err); } }
+      for (const e of prev) if (!now.has(e)) for (const [id, fn] of this.hooks.zona) { try { fn(e, zid, "sale"); } catch (err) { this.fail(id, "en onZona", err); } }
+      this.zonaDentro.set(zid, now);
+    }
   }
 
   private api(f: Feature): ServerApi {
@@ -616,6 +658,10 @@ export class ServerRuntime {
       teletransportar: (e, cerca, o) => { try { return this.host.teletransportar?.(e, cerca, o) ?? null; } catch (x) { log(`teletransportar: ${String((x as Error)?.message ?? x)}`); return null; } },
       rayo: (e, dir, max) => this.rayo(e, dir, max),
       ordenar: (e, orden) => { try { return this.host.ordenar?.(e, orden) ?? false; } catch (x) { log(`ordenar: ${String((x as Error)?.message ?? x)}`); return false; } },
+      overlapSphere: (x, y, z, radio) => this.overlapSphere(x, y, z, radio),
+      zona: (forma) => { const zid = `z${++this.zonaSeq}`; this.zonas.set(zid, { ...forma }); this.zonaDentro.set(zid, new Set()); return zid; },
+      zonaQuitar: (zid) => { this.zonas.delete(zid); this.zonaDentro.delete(zid); },
+      onZona: (fn) => { this.hooks.zona.push([id, fn]); },
       puede: (e, accion) => { try { return this.host.puede?.(e, accion) ?? false; } catch { return false; } },
       activo: (sha256, ext = "glb") => { try { return /^[0-9a-f]{64}$/.test(sha256) && (this.host.activo?.(sha256, ext) ?? false); } catch { return false; } },
       medidas: (sha256, ext) => { try { return /^[0-9a-f]{64}$/.test(sha256) ? this.host.medidas?.(sha256, ext) ?? null : null; } catch { return null; } },
@@ -720,6 +766,7 @@ export class ServerRuntime {
     }
     const t = this.host.tick();
     if (this.hooks.vuelta.length) for (const v of this.host.vueltas?.() ?? []) for (const [id, fn] of this.hooks.vuelta) { try { fn(v); } catch (e) { this.fail(id, "en onVuelta", e); } } // D-045
+    this.tickZonas(); // M6 h13
     for (const [id, fn] of this.hooks.tick) { try { fn(t); } catch (e) { this.fail(id, "en onTick", e); } }
     this.refreshNear(t % STATE_REFRESH_TICKS); // a tenth of the players each tick: each one every 0.5 s, no spike
   }
