@@ -108,16 +108,18 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
       v.dec.decode(new EncodedAudioChunk({ type: "key", timestamp: (v.ts += TRAMA_MS * 1000), data: m.trama }));
     }
   };
-  // the listener is you, looking where the camera looks; every voice sits where its speaker stands
+  // S5: the listener is NOT set here any more. One place in the engine moves the AudioListener —
+  // packages/render/src/audio/oyente.ts, called from the draw loop — and it follows the camera outside XR and the
+  // headset's real pose (getViewerPose, centred between the eyes) inside it. This loop used to point the listener
+  // with `cam.yaw()`, a flat angle that ignored looking up/down and the headset altogether, so in goggles turning
+  // your head did not change how people sounded. Nothing else changes here: same relay, same codec, same 30 m,
+  // same `equalpower` panner per speaker at the position the server gives.
   setInterval(() => {
     if (voces.size === 0 || o.session.entity < 0) return;
     const ctx = contexto();
     if (!ctx) return;
     aplicarVolumen(); // the «sonido.voz» slider can move at any moment: the bus's VCA follows it
-    const yo = o.session.selfPosition(1), yaw = o.view.cam.yaw(), L = ctx.listener, t = ctx.currentTime;
-    const fx = -Math.sin(yaw), fz = -Math.cos(yaw); // the camera looks along -z at yaw 0 (render/camara.ts)
-    if (L.positionX) { L.positionX.setValueAtTime(yo.x, t); L.positionY.setValueAtTime((yo.y ?? 0) + 1.6, t); L.positionZ.setValueAtTime(yo.z, t); L.forwardX.setValueAtTime(fx, t); L.forwardY.setValueAtTime(0, t); L.forwardZ.setValueAtTime(fz, t); }
-    else { L.setPosition(yo.x, (yo.y ?? 0) + 1.6, yo.z); L.setOrientation(fx, 0, fz, 0, 1, 0); }
+    const t = ctx.currentTime;
     const donde = new Map(o.session.remotePositions().map((r) => [r.id, r]));
     let hablando = false;
     for (const [e, v] of voces) {
