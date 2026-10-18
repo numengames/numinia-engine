@@ -221,6 +221,24 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     hueso: (q, donde, out) => (donde === "mano" ? avs.mano(q === "self" ? "yo" : q, "derecha", out) : avs.cabeza(q === "self" ? "yo" : q, out)),
     rumbo: (q) => avs.rumbo(q === "self" ? "yo" : q) });
   const web = crearPantallasWeb({ world, camera, enXR: () => renderer.xr.isPresenting, cajas: () => cajasM }); // N17: web screens (web.ts)
+  // M18b: the Graboso, the relic that records, over your right shoulder (lazy: packages/render/src/graboso.ts, fetched at the first invocation)
+  const grabosoPos = new THREE.Vector3();
+  let graboso3d: import("./graboso.ts").Graboso3D | null = null, grabosoCarga: Promise<void> | null = null;
+  const grabosoQuiere = { fuera: false, grabando: false };
+  const graboso = {
+    /** Out (true) or kept (false). The first call downloads the mesh's code. */
+    mostrar(si: boolean): void {
+      grabosoQuiere.fuera = si;
+      if (graboso3d) { graboso3d.mostrar(si); return; }
+      if (!si) return;
+      grabosoCarga ??= import("./graboso.ts").then((m) => {
+        graboso3d = m.crearGraboso({ world, posicion: () => (selfXZ ? grabosoPos.set(selfXZ.x, selfXZ.y ?? 0, selfXZ.z) : null), yaw: () => cam.yaw() });
+        graboso3d.mostrar(grabosoQuiere.fuera); graboso3d.grabando(grabosoQuiere.grabando);
+      }).catch((e) => console.warn(`[graboso] no se pudo cargar: ${(e as Error)?.message ?? e}`));
+    },
+    grabando(si: boolean): void { grabosoQuiere.grabando = si; graboso3d?.grabando(si); },
+    visible(): boolean { return graboso3d?.visible() ?? false; },
+  };
   function dropLabel(t: Target): void {
     const d = labels.get(t);
     if (!d) return;
@@ -717,7 +735,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     updateThings(dtSeconds);
     selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
     editor.frame();
-    entorno.actualizar(); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds);
+    entorno.actualizar(); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds);
     if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); dibujarCuadro(); return; } // N4: after the hands moved, so a held rod does not trail a frame
     pesca.actualizar(dtSeconds);
     if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
@@ -774,6 +792,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       const j = crearDianaAR(o);
       return (await ar.jugar(j)) ? j : null;
     },
+    /** M18b: the Graboso over your shoulder (mostrar, grabando, visible) — packages/render/src/graboso.ts, loaded when first invoked. */
+    graboso,
     /** Place everyone for this frame (J2: at their height). */
     sync(self: { x: number; z: number; y?: number; speed?: number } | null, list: Placed[]): void {
       selfXZ = self;
@@ -965,7 +985,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
     /** U10: draw hidden spheres of sound (while building) or not (while playing). */
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado(); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado() || graboso.visible(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */

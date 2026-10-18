@@ -49,6 +49,7 @@ import { pantallasWeb } from "../../features/web/client.ts"; // N17: web screens
 import { montarWeb } from "./web.ts";
 import { montarVoz } from "./voz.ts";
 import { montarPantalla } from "./pantalla.ts";
+import { montarGraboso } from "./graboso.ts"; // M18b: the relic that records what you see (K)
 import { icono } from "./iconos.ts";
 import { montarXR } from "./xr.ts";
 import { aplicarTema } from "./tema-mundo.ts"; // a world's look (ficha@1 `tema`): an event's colours and title face
@@ -181,6 +182,9 @@ dardos.alCambiar(() => { dardosHud ??= import("./dardos.ts").then((m) => m.monta
 
 // ---- U10: the microphone (button or Q): your voice to who is near; theirs from where they stand ----
 const voz = montarVoz({ session, view: { label: (t, text, ms) => view.label(t, text, ms), cam: view.cam, voz: (id, nivel) => view.voz(id, nivel) }, escribiendo, decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } } });
+
+// ---- M18b: the Graboso (button or K): out = recording what your camera sees + your microphone, 30–60 s hard cap, then a clip to download ----
+const graboso = montarGraboso({ lienzo: view.renderer.domElement, view, barra: document.getElementById("barra-arriba"), decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } } });
 
 // ---- J3: the chat box (Enter opens, Enter sends, Escape closes; a «Chat» button on touch screens) ----
 const cajaChat = montarChat(chatDePagina, document.getElementById("chat")!);
@@ -450,7 +454,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, ambiente, elementos, voz, compartir, xr, pesca, lucha, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, ambiente, elementos, voz, compartir, xr, pesca, lucha, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso };
 
 // ---- U11: the bar of icon buttons, top right (rightmost first): settings, build, microphone, share screen (M18), full screen, VR, AR ----
 {
@@ -459,7 +463,7 @@ function drawHud() {
   gear.classList.add("solo-icono"); gear.innerHTML = `${icono("gear")}<span class="solo-lector">Ajustes</span>`;
   const mis = document.getElementById("misiones")!;
   mis.innerHTML = `${icono("scroll", 18)}<span>Misiones</span>`; mis.title = "Misiones (J)";
-  for (const id of ["ajustes-abrir", "construir", "microfono", "compartir-pantalla", "gente-abrir", "foto-abrir", "pantalla", "vr", "ar"]) { const e = document.getElementById(id); if (e) barra.appendChild(e); }
+  for (const id of ["ajustes-abrir", "construir", "microfono", "compartir-pantalla", "gente-abrir", "foto-abrir", "graboso", "pantalla", "vr", "ar"]) { const e = document.getElementById(id); if (e) barra.appendChild(e); }
   barra.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
 }
 

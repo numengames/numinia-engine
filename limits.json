@@ -151,6 +151,8 @@
     { "axis": "any", "scope": "all", "key": "upload_max_png", "value": 4, "unit": "MB", "state": "measured", "test": "test/subidas.test.ts", "date": "2026-10-15", "note": "H9: imágenes; las texturas grandes, en KTX2" },
     { "axis": "any", "scope": "all", "key": "upload_max_jpg", "value": 4, "unit": "MB", "state": "measured", "test": "test/subidas.test.ts", "date": "2026-10-15" },
     { "axis": "any", "scope": "all", "key": "upload_max_webp", "value": 4, "unit": "MB", "state": "measured", "test": "test/subidas.test.ts", "date": "2026-10-15" },
+    { "axis": "any", "scope": "all", "key": "graboso_clip_max", "value": 60, "unit": "s", "state": "measured", "test": "test/graboso.test.ts", "date": "2026-10-18", "note": "M18b: el Graboso se guarda solo al llegar al tope (30–60 s, el jugador elige; 60 por defecto). Pablo, 18-10: «30 s a 1 min, tope duro»" },
+    { "axis": "any", "scope": "all", "key": "graboso_clip_min", "value": 30, "unit": "s", "state": "measured", "test": "test/graboso.test.ts", "date": "2026-10-18", "note": "M18b: objetivo de la misión, no cerrojo: un clip más corto sale igual, marcado «corto»" },
     { "axis": "any", "scope": "all", "key": "upload_max_ktx2", "value": 8, "unit": "MB", "state": "measured", "test": "test/subidas.test.ts", "date": "2026-10-15" },
     { "axis": "any", "scope": "all", "key": "upload_max_hdr", "value": 8, "unit": "MB", "state": "measured", "test": "test/subidas.test.ts", "date": "2026-10-15", "note": "H9: un cielo 2k equirectangular cabe" },
     { "axis": "any", "scope": "all", "key": "upload_max_mp3", "value": 8, "unit": "MB", "state": "measured", "test": "test/subidas.test.ts", "date": "2026-10-15" },

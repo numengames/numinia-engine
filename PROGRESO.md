@@ -146,3 +146,32 @@ Diseño del que sale: `work/mmo-browser-study/MODO-CONSTRUCTOR-MOVIL-VR.md` (M22
 ## Cómo seguir
 - PR: `work/pr-constructor-tactil.sh` (NO lanzado; cuerpo en `work/numinia-engine-PR-constructor-tactil-body.md`). Puede chocar en `package.json`/`BACKLOG.md`/`RUNLOG.md` con el tren `tren/motor-2026-10-18` si entra antes: resolver tomando los dos.
 - Correr la pierna sola: servidor `PORT=8796 MOTOR_CONSTRUIR=todos DATOS_DIR=/tmp/x node packages/server/src/main.ts`, vite `PLAZA_PORT=5231 npx vite --config apps/plaza/vite.config.mjs --strictPort`, y `BASE="http://127.0.0.1:5231/?webgl2&server=ws://127.0.0.1:8796" node tools/e2e-piernas/constructor-tactil.mjs`. Ojo: si el puerto de vite ya lo usa otro worktree, vite muere y pruebas contra el código de otro (me pasó con 5178).
+# PROGRESO — objetos/graboso (M18b, el Graboso)
+
+Rama `objetos/graboso` sobre `origin/main` 749e99a (0.3.1 → **0.4.0**, menor: algo nuevo). Hecho 2026-10-18 (UTC).
+Diseño: `../mmo-browser-study/GRABOSO-DISENO.md`. Sin push ni PR: `../pr-graboso-motor.sh` + `../numinia-engine-PR-graboso-body.md`.
+
+## Historias (todas hechas)
+1. Diseño (documento) — hecho.
+2. Lógica pura `packages/client/src/graboso.ts` + 13 pruebas `test/graboso.test.ts` — hecho.
+3. Cabeza `packages/render/src/graboso.ts` (perezosa) + `view.graboso` en `packages/render/src/index.ts` — hecho.
+4. Página `apps/plaza/graboso.ts` (botón barra, K, píldora, Descargar/Ver/Quitar, selector de tope) + `main.ts`, `index.html` (ayuda) — hecho.
+5. Pierna e2e `tools/e2e-piernas/graboso.mjs` en chromium real — hecho, 18/18.
+6. Docs: BACKLOG (fila + detalle), limits.json (`graboso_clip_max/min`), llms.txt, RUNLOG, versión — hecho.
+
+## Medido
+- `npm test`: 389 pruebas, 389 en verde (con mis servidores de desarrollo encendidos cayó la de coste de nombres de `chat.test.ts`, la mala conocida; sola, 13/13).
+- `node tools/gates.mjs`: todas las puertas en verde (capas 0, determinismo igual, 26,7 kbit/s, p99 8,4 ms).
+- e2e: clip `video/webm;codecs=vp9,opus`, 236.323 bytes, 3,4 s, con sonido, nombre `graboso-2026-10-18-01-39-50.webm`.
+- Build: `graboso-*.js` 2,5 kB (gz 1,3 kB) como trozo aparte; nada en el bundle de arranque salvo la página (~3 kB).
+
+## Queda (no bloquea la PR)
+- **Conectar con Y1** cuando `inventario/version-1` se fusione: hoy el botón sale para todo jugador (acceso directo).
+  Entonces: botón y K solo si el inventario trae una reliquia `clase: "graboso"` portada; «Invocar» en el panel L;
+  el Graboso como objeto en el catálogo de Y1. Ojo: Y1 también sube a 0.4.0 — la segunda en entrar a main sube a 0.5.0.
+- Voces de otros (U10) en el audio del clip: mezclar un `MediaStreamAudioDestinationNode` del contexto de voz (V6/M17).
+- Modelo fino de la cabeza (GLB CC0 propio, `activos/`); hoy esfera + orejas + hocico + ojos + antena, nube pintada.
+- Sacarlo en VR (N3): la cabeza existe en la escena, pero no hay gesto ni botón en los mandos.
+- Compartir/subir el clip (M18c): `PUT /a/` (H9) + pantalla (M18).
+- Consentimiento (diseño §6): avisar a quien sale «X ha sacado el Graboso» — decisión de Pablo.
+- Probar a mano: duración real del `.webm` en un reproductor, corte a 60 s con reloj real, permiso sin flags, Firefox/Safari.
