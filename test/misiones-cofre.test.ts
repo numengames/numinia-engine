@@ -351,8 +351,15 @@ test("«Misión completada»: the reward names for the banner, ~4 s, and a short
   let osciladores = 0;
   const g = { gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect: (d: unknown) => d };
   const ctx = { state: "running", currentTime: 0, destination: {}, createGain: () => g, createOscillator: () => { osciladores++; return { type: "", frequency: { value: 0 }, connect: () => g, start() {}, stop() {} }; } } as unknown as AudioContext;
-  assert.equal(sonarCompletada(() => ctx, (id) => (id === "efectos" ? 60 : 80)), true);
+  // S1: the ids carry their group («sonido.efectos»); with a bare «efectos» the slider did nothing (fixed in S1)
+  assert.equal(sonarCompletada(() => ctx, (id) => (id === "sonido.efectos" ? 60 : 80)), true);
   assert.equal(osciladores, 4);
-  assert.equal(sonarCompletada(() => ctx, (id) => (id === "efectos" ? 0 : 80)), false, "effects at 0: silent");
+  assert.equal(sonarCompletada(() => ctx, (id) => (id === "sonido.efectos" ? 0 : 80)), false, "effects at 0: silent");
+  assert.equal(sonarCompletada(() => ctx, (id) => (id === "efectos" ? 0 : 80)), true, "a group-less id is not a volume: it must not silence anything");
+  osciladores = 0;
+  // with the audio core's «interfaz» bus the person's volume is the graph's VCA: it is not applied twice here
+  const bus = { gain: { value: 1 } } as unknown as AudioNode;
+  assert.equal(sonarCompletada(() => ctx, () => 0, () => bus), true, "through the bus, the slider lives in the graph");
+  assert.equal(osciladores, 4);
   assert.equal(sonarCompletada(() => null, () => 80), false, "no audio: the banner still says it");
 });

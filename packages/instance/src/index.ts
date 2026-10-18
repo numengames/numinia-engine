@@ -6,7 +6,7 @@ import type { SimState, SpawnArea, Bvh } from "../../sim/src/index.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
-  decodeIdentityRequest, decodePase, encodeIdentity, leerVozSubida, codificarVozBajada, elegirVoces, VOZ_RADIO_M, VOZ_TRAMAS_S, VOZ_TOPE,
+  decodeIdentityRequest, decodePase, encodeIdentity, leerVozSubida, codificarVozBajada, VOZ_RADIO_M, VOZ_TRAMAS_S,
 } from "../../net/src/index.ts";
 import { agenteDe, emitir, nombreDe, nuevoId, today, verificar, verificarAgente } from "./identidad.ts";
 import type { Who } from "./identidad.ts";
@@ -38,9 +38,6 @@ export type InstanceOptions = {
   medidas?: (sha256: string, ext: string) => { ancho: number; alto: number } | null; // U12: a picture's pixels (api.medidas)
   sinVoz?: boolean | (() => boolean); // U10: true = voice frames are not relayed; a function is asked at every frame (the world's /voz)
   oye?: (de: number, a: number) => boolean; // F1: may entity `a` hear entity `de`? Asked per listener and frame (a muted speaker, a personal block); none = yes
-  /** M17: is this entity on stage (moderation's /escenario)? Asked per frame. Its voice goes to EVERY connected page with the
-   * VOZ_ESCENARIO flag, whatever the distance. None = nobody is ever on stage. */
-  escenario?: (entity: number) => boolean;
   aventura?: (carpeta: string) => { fichero: string; texto: string }[]; // J5: the adventure's text files (server/aventura.ts); none = no adventure
   // P4: AI inhabitants. `sign` checks agent tickets (a secret apart from the guests'); `nombre` = the name the world
   // declares for that inhabitant id (its habitante@1 file), null = this world has no such inhabitant. None = no agents.
@@ -69,6 +66,10 @@ export type InstanceOptions = {
   construirMalla?: (objetos: Iterable<[string, Record<string, unknown>]>) => Promise<Bvh | null>;
 };
 export type Suelo = { minimo: number; vuelta?: { x: number; y: number; z: number; siempre?: boolean } | null };
+/** B2: the phases of Instance.tick(), in order (Instance.fasesMs): inputs in, solid boxes rebuilt (only when a feature's
+ * shared state changed), the simulation step, the safe-spot pass, the features (server/metrics.ts splits it by feature),
+ * the snapshots out. */
+export const FASES_TICK = ["entradas", "solidos", "simulacion", "seguro", "piezas", "instantaneas"] as const;
 /** D-045: how often (ticks) the last safe spot is kept: 10 = every half second. */
 export const SEGURO_CADA = 10;
 /** D-045: a return the instance made (the feature `suelo` tells the page). `motivo`: caida = under the floor, pedido = asked. */
@@ -90,8 +91,6 @@ type Conn = {
   pase?: string; // H3b: the world pass the page sent (PASE), held until its IDENTITY arrives, then handed to identificar and forgotten
   visible?: number[]; // J3: who its last snapshot carried (features ask with api.visible: names over heads)
   voz?: { desde: number; n: number }; // U10: voice frames this second (rate cap)
-  vozUltima?: number; // M17: tick of its last accepted voice frame ("speaking now" = within the last 20 ticks)
-  vozOidas?: { tick: number; considerados: Set<number>; elegidas: Set<number> }; // M17: which speakers this listener hears, recomputed at most every 10 ticks
   anfitrion?: string; // ADR-080: the host this connection asked for (an outside agent signs the world's name)
 };
 
@@ -321,7 +320,13 @@ export class Instance {
     return client;
   }
 
+  /** B2: what each phase of the LAST tick cost, in ms (wall clock), in the order of FASES_TICK. The server copies it into
+   * its windows right after tick() (server/metrics.ts); nothing here keeps history and nothing here touches the sim. */
+  readonly fasesMs = new Float64Array(FASES_TICK.length);
+
   tick(): void {
+    const f = this.fasesMs;
+    let a = performance.now(), b = a;
     for (const c of this.conns) c.transport.flush?.();
     // only avatars whose input arrived advance this tick (gravity too): one input = one step of the owner's clock,
     // so the owner's prediction stays exact when an input comes late (J2)
@@ -333,14 +338,17 @@ export class Instance {
       const o = n++ * INPUT_STRIDE;
       inputs[o] = c.entity; inputs[o + 1] = m.mx; inputs[o + 2] = m.mz; inputs[o + 3] = m.buttons; c.ack = m.seq;
     }
+    b = performance.now(); f[0] = b - a; a = b; // entradas
     if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.sim, solidsFrom(this.features.allState())); } // U10
     if (this.opts.construirMalla && !this.mallaBuilding && this.features.stateVersion !== this.mallaVersion) this.reconstruirMalla();
+    b = performance.now(); f[1] = b - a; a = b; // solidos
     // H2 historia 5: at most ORDENES_TICK_MAX orders go into this step; the rest stay queued, in order, for the next one.
     const capInts = ORDENES_TICK_MAX * ORDER_STRIDE;
     const take = this.ordenes.slice(0, capInts); this.ordenes = this.ordenes.slice(capInts);
     const ordenes = take.length ? Int32Array.from(take) : undefined; this.pendiente.clear();
     if (ordenes) this.opts.log?.(`[suelo] tick ${this.sim.tick}: ${ordenes.length / ORDER_STRIDE} orden(es) aplicada(s)${this.ordenes.length ? `, ${this.ordenes.length / ORDER_STRIDE} esperando` : ""}`);
     step(this.sim, inputs.subarray(0, n * INPUT_STRIDE), ordenes); // authority (D-045/H2: orders first, recorded with the inputs)
+    b = performance.now(); f[2] = b - a; a = b; // simulacion
     if (this.sim.tick % SEGURO_CADA === 0) { // D-045: every half second, keep the safe spot; under the floor, order the return
       const s = this.sim, min = this.opts.suelo ? fx(this.opts.suelo.minimo) : null;
       for (const c of this.conns) {
@@ -348,7 +356,9 @@ export class Instance {
         else this.guardarSeguro(c.entity);
       }
     }
+    b = performance.now(); f[3] = b - a; a = b; // seguro
     this.features.tick();   // game features: queued intents, then their tick hooks (no effect on the sim)
+    b = performance.now(); f[4] = b - a; a = b; // piezas
     if (this.sim.tick % this.opts.snapshotEvery === 0) { // 20 Hz sim, 10 Hz snapshots by default
       const grid = buildGrid(this.sim);
       for (const c of this.conns) {
@@ -357,6 +367,7 @@ export class Instance {
         c.transport.send(encodeSnapshot(this.sim, c.entity, c.ack, visible), false);
       }
     }
+    f[5] = performance.now() - a; // instantaneas
   }
 
   /** N16: move a connected avatar on purpose (a feature asked: «ir con», a photo's place) to the first free spot near
@@ -409,15 +420,8 @@ export class Instance {
       .finally(() => { this.mallaBuilding = false; });
   }
   /** U10: who hears a voice frame — players that have the speaker in their area of interest and within VOZ_RADIO_M.
-   * Never everyone, never stored, never decoded. Over VOZ_TRAMAS_S frames a second the rest are dropped.
-   * M17 trozo 1: a listener hears at most VOZ_TOPE voices at once — the nearest speakers that spoke in the last second
-   * (`elegirVoces`, pure, in net/voz.ts). The chosen set is cached per listener and recomputed when a speaker it has not
-   * considered starts, or every 10 ticks (half a second): cost O(listeners × speakers), small, never per frame.
-   * Stage (`escenario`): the DOCUMENTED EXCEPTION to AGENTS rule 4 («never broadcast to everyone»). A speaker whom
-   * moderation put on stage (/escenario, roles-mundo.ts) is heard by every connected page, whatever its area of interest
-   * or distance, with the VOZ_ESCENARIO flag so the page plays it unpanned: one or two voices for all — the same fan-out
-   * as the zone chat, only for whoever moderation chose, never for the crowd. Stage voices do not count against the cap. */
-  readonly vozStats = { recibidas: 0, enviadas: 0, descartadas: 0, escenario: 0 };
+   * Never everyone, never stored, never decoded. Over VOZ_TRAMAS_S frames a second the rest are dropped. */
+  readonly vozStats = { recibidas: 0, enviadas: 0, descartadas: 0 };
   private relayVoice(from: Conn, bytes: Uint8Array): void {
     const v = leerVozSubida(bytes);
     if (!v) { from.bad++; return; }
@@ -425,40 +429,16 @@ export class Instance {
     if (now - w.desde >= 20) { w.desde = now; w.n = 0; } // 20 ticks = 1 s
     if (++w.n > VOZ_TRAMAS_S) { this.vozStats.descartadas++; return; }
     this.vozStats.recibidas++;
-    from.vozUltima = now;
-    const e = from.entity;
-    if (this.opts.escenario?.(e)) { // stage: everyone connected, unpanned (see above)
-      const out = codificarVozBajada(bytes, e, true);
-      for (const c of this.conns) { if (c === from) continue; c.transport.send(out, false); this.vozStats.enviadas++; }
-      this.vozStats.escenario++;
-      return;
-    }
-    const X = this.sim.tf.cols.x, Z = this.sim.tf.cols.z, r2 = (VOZ_RADIO_M * FX_ONE) ** 2;
+    const X = this.sim.tf.cols.x, Z = this.sim.tf.cols.z, e = from.entity, r2 = (VOZ_RADIO_M * FX_ONE) ** 2;
     let out: Uint8Array | null = null;
     for (const c of this.conns) {
       if (c === from || !c.visible?.includes(e)) continue;
       const dx = X[c.entity] - X[e], dz = Z[c.entity] - Z[e];
       if (dx * dx + dz * dz > r2) continue;
       if (this.opts.oye && !this.opts.oye(e, c.entity)) continue; // F1: silenced by the world's roles, or blocked by this listener
-      if (!this.elegida(c, e, now)) continue;
       out ??= codificarVozBajada(bytes, e);
       c.transport.send(out, false); this.vozStats.enviadas++;
     }
-  }
-  /** M17: does listener `c` hear speaker `e` now? Among the VOZ_TOPE nearest of those speaking in the last second. */
-  private elegida(c: Conn, e: number, now: number): boolean {
-    let o = c.vozOidas;
-    if (!o || now - o.tick >= 10 || !o.considerados.has(e)) {
-      const X = this.sim.tf.cols.x, Z = this.sim.tf.cols.z, visible = c.visible ?? [];
-      const hablantes: { id: number; x: number; z: number; escenario: boolean; visible: boolean }[] = [];
-      for (const h of this.conns) {
-        if (h === c || h.vozUltima === undefined || now - h.vozUltima >= 20) continue;
-        hablantes.push({ id: h.entity, x: fxToFloat(X[h.entity]), z: fxToFloat(Z[h.entity]), escenario: this.opts.escenario?.(h.entity) ?? false, visible: visible.includes(h.entity) });
-      }
-      const oyente = { x: fxToFloat(X[c.entity]), z: fxToFloat(Z[c.entity]) };
-      o = c.vozOidas = { tick: now, considerados: new Set(hablantes.map((h) => h.id)), elegidas: new Set(elegirVoces(oyente, hablantes, VOZ_TOPE, VOZ_RADIO_M)) };
-    }
-    return o.elegidas.has(e);
   }
   hash(): number { return stateHash(this.sim); }
   sentBytes(): number { return this.conns.reduce((n, c) => n + c.transport.sentBytes, 0); }

@@ -158,6 +158,33 @@ try {
   };
   await foto(a, "4-hecha");
   nota("hecha");
+  // 4b. Y1: the quest's Semilla verde is in the inventory for real — the controller, the R panel (a row with its icon,
+  // no «Llevar» button: tokens are not carried) and the sheet's summary; a token cannot be carried (refused with why)
+  await a.keyboard.press("KeyJ");
+  await esperar(a, () => (globalThis.__numinia.inventario?.lista?.() ?? []).some((o) => o.clase === "semilla" && o.color === "verde"), null, 5000);
+  await a.keyboard.press("KeyR");
+  await esperar(a, () => document.getElementById("inventario")?.open === true && document.querySelectorAll("#inventario li.objeto").length > 0, null, 3000);
+  out.inventario = await ctl(a, () => ({
+    lista: globalThis.__numinia.inventario.lista().map((o) => ({ tipo: o.tipo, clase: o.clase, nombre: o.nombre, color: o.color, n: o.n, portado: o.portado })),
+    resumen: globalThis.__numinia.inventario.resumen(),
+    panel: [...document.querySelectorAll("#inventario li.objeto")].map((li) => ({ texto: li.textContent, icono: !!li.querySelector("svg"), boton: !!li.querySelector("button") })),
+    titulo: document.getElementById("inventario-titulo")?.textContent,
+    avisos: globalThis.__numinia.session.features.announcements.filter((x) => x.feature === "inventario").map((x) => x.text),
+  }));
+  await foto(a, "4b-inventario");
+  await a.keyboard.press("KeyR");
+  await esperar(a, () => document.getElementById("inventario")?.open === false, null, 3000);
+  nota("inventario cerrado");
+  await ctl(a, () => globalThis.__numinia.inventario.equipar(globalThis.__numinia.inventario.lista()[0].id));
+  await esperar(a, () => globalThis.__numinia.session.features.announcements.some((x) => x.feature === "inventario" && /tokens/.test(x.text)), null, 3000); // the panel announces the refusal and clears it
+  nota("token rechazado");
+  await a.keyboard.press("KeyI");
+  await esperar(a, () => document.getElementById("ficha")?.open === true, null, 3000);
+  out.inventario.ficha = await ctl(a, () => [...document.querySelectorAll("#ficha h3")].map((h) => h.textContent + ": " + (h.nextElementSibling?.textContent ?? "")).find((t) => t.startsWith("Reserva")));
+  await foto(a, "4c-ficha");
+  await a.keyboard.press("KeyI");
+  await esperar(a, () => document.getElementById("ficha")?.open === false, null, 3000);
+  nota("inventario");
   // 5. tab B: another guest sees the people, never A's quest
   const b = await abrir();
   await b.bringToFront();
@@ -165,7 +192,7 @@ try {
   await b.waitForTimeout(800);
   out.b = await ctl(b, () => {
     const f = globalThis.__numinia.session.features;
-    return { personas: f.cards().filter((c) => c.feature === "pnj").map((c) => `${c.role}: ${c.name}`), eventos: f.log.filter((e) => e.feature === "misiones" && e.event !== "libro" && e.event !== "marcas").map((e) => e.event), libro: globalThis.__numinia.misiones.libro().length, who: globalThis.__numinia.session.who.id, marcas: globalThis.__numinia.misiones.marcas() };
+    return { personas: f.cards().filter((c) => c.feature === "pnj").map((c) => `${c.role}: ${c.name}`), eventos: f.log.filter((e) => e.feature === "misiones" && e.event !== "libro" && e.event !== "marcas").map((e) => e.event), libro: globalThis.__numinia.misiones.libro().length, inventario: globalThis.__numinia.inventario.lista().length, who: globalThis.__numinia.session.who.id, marcas: globalThis.__numinia.misiones.marcas() };
   });
   out.b.otroInvitado = out.b.who !== (await ctl(a, () => globalThis.__numinia.session.who.id));
   nota("B");
@@ -175,7 +202,8 @@ try {
     && !out.libroAbierto.foco && /^ahora: Visita el pilar dorado/.test(out.libroAbierto.pasos[0] ?? "") && out.libroAbierto.pasos.length === 3 && out.libroAbierto.pasos.slice(1).every((t) => t.startsWith("bloqueado: "))
     && out.pilar.siguiente?.nombre === "Bruno, el farolero" && !!out.bruno.clic && out.bruno.siguiente?.nombre === "Caja de herramientas" && out.caja.prompt === "E: coger la caja"
     && out.hecha.libro[0]?.estado === "hecha" && out.hecha.objetivos.length === 0 && out.hecha.panel.some((t) => t.startsWith("Hecho: Primeros pasos en la plaza"))
-    && out.hecha.dibujo.objetos.failed === 0 && out.b.personas.includes("persona: Alma, la guía") && out.b.eventos.length === 0 && out.b.libro === 0 && out.b.otroInvitado && errors.length === 0
+    && out.inventario.lista.length === 1 && out.inventario.lista[0].nombre === "Semilla verde" && out.inventario.lista[0].portado === false && out.inventario.resumen.prestigio === 1
+    && out.hecha.dibujo.objetos.failed === 0 && out.b.personas.includes("persona: Alma, la guía") && out.b.eventos.length === 0 && out.b.libro === 0 && out.b.inventario === 0 && out.b.otroInvitado && errors.length === 0
     && out.hecha.marcas.hecho.includes("alma") && out.hecha.marcas.hecho.includes("bruno") && !out.hecha.marcas.tiene.includes("alma") // U14 (4): A is done with them
     && out.b.marcas.tiene.includes("alma") && out.b.marcas.hecho.length === 0 // B's own marks: Alma still offers it the quest
     && /^Misión completada/.test(out.banner.texto) && /Primeros pasos/.test(out.banner.texto) && /Conoce la plaza/.test(out.banner.texto) && out.banner.rol === "status" && out.banner.vivo === "polite" && out.banner.clic === "none" // U14 (6)

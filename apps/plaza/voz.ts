@@ -1,18 +1,18 @@
 // voz (U10): the microphone. A real button «Micrófono» (and the Q key) turns yours on and off; while it is on, what
 // you say goes in short compressed frames to the server, which passes them only to people near you (30 m, inside
 // their area of interest: packages/net/src/voz.ts). The voices of people near you come out of where they stand
-// (panned left/right, quieter with distance). Nothing is recorded or stored anywhere. M17: the server sends you at most
-// 8 voices at once (the nearest); a voice from the stage (/escenario) reaches everyone and plays unpanned, like a PA.
+// (panned left/right, quieter with distance). Nothing is recorded or stored anywhere.
 // Codec: Opus through WebCodecs where the browser has it (≈ 24 kbit/s); otherwise µ-law at 16 kHz (128 kbit/s), which
 // every browser can encode. A page that cannot decode Opus (no AudioDecoder) does not hear Opus speakers: it says so.
 import { VOZ_OPUS, VOZ_MULAW, aMulaw, deMulaw } from "../../packages/net/src/index.ts";
 import { decaerBoca } from "../../packages/render/src/avatares-politica.ts";
+import { audio } from "../../packages/render/src/audio/nucleo.ts"; // S1: the engine's one audio graph and its buses
 import { icono } from "./iconos.ts";
 
 type Sesion = {
   entity: number;
   sendVoice(codec: number, trama: Uint8Array): boolean;
-  onVoice: ((v: { codec: number; escenario: boolean; seq: number; entidad: number; trama: Uint8Array }) => void) | null;
+  onVoice: ((v: { codec: number; seq: number; entidad: number; trama: Uint8Array }) => void) | null;
   selfPosition(alpha: number): { x: number; y?: number; z: number };
   remotePositions(): { id: number; x: number; y: number; z: number }[];
 };
@@ -23,6 +23,8 @@ const MULAW_HZ = 16000;
 const SILENCIO = 0.006;      // a frame quieter than this (RMS) is not sent: no bandwidth while you are quiet
 const COLA_S = 0.08;         // jitter buffer: a voice starts this late, so late frames still fit
 const LEJOS_M = 30;
+/** Mouth level (U13's decaerBoca, 0–1) above which someone counts as talking: it is what triggers the ducking. */
+const HABLANDO = 0.02;
 
 const CSS = `
 #microfono { position: fixed; right: 10px; top: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .78); color: #eef2f6; font: inherit; font-weight: 600; }
@@ -37,7 +39,7 @@ const WORKLET = `registerProcessor("captura-voz", class extends AudioWorkletProc
   process(ins) { const c = ins[0] && ins[0][0]; if (c) this.port.postMessage(c.slice(0)); return true; }
 });`;
 
-export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: KeyboardEvent): boolean; decir(t: string): void }) {
+export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: KeyboardEvent): boolean; decir(t: string): void; ajuste?: (id: string) => unknown }) {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const boton = document.createElement("button");
   boton.type = "button"; boton.id = "microfono"; boton.className = "solo-icono"; boton.setAttribute("aria-pressed", "false");
@@ -50,17 +52,22 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
   const estado = { encendido: false, codec: 0, enviadas: 0, recibidas: 0, sinOpus: false, error: "" };
 
   // ---- hearing: one chain per speaker, panned to where they stand ----
-  let ctx: AudioContext | null = null;
-  const contexto = () => (ctx ??= new AudioContext({ latencyHint: "interactive" }));
-  addEventListener("pointerdown", () => { void ctx?.resume(); }, { capture: true, passive: true });
-  addEventListener("keydown", () => { void ctx?.resume(); }, { capture: true, passive: true });
-  // M17: a stage voice (`escenario`, moderation's /escenario) is a sound system, not a mouth: it goes straight to the output, unpanned, gain 1
-  type Voz = { salida: AudioNode; panner: PannerNode | null; escenario: boolean; siguiente: number; dec?: AudioDecoder; marca: number; ts: number; rmsPendiente: number | null; nivelBoca: number };
+  // S1: the context and the bus are the audio core's (packages/render/src/audio/nucleo.ts) — one graph for everything.
+  // The panner now ends in the «voz-gente» bus, whose VCA carries the «sonido.voz» slider: before this, it went
+  // straight to ctx.destination with no GainNode at all and the voice could not be turned down (inventory § C).
+  const nucleo = audio();
+  const contexto = () => nucleo.ctx();
+  const vozBus = () => nucleo.bus("voz-gente");
+  const ajusteVoz = o.ajuste ?? (() => undefined);
+  const aplicarVolumen = () => nucleo.volumen("voz-gente", Number(ajusteVoz("sonido.voz") ?? 100) / 100);
+  aplicarVolumen();
+  type Voz = { panner: PannerNode; siguiente: number; dec?: AudioDecoder; marca: number; ts: number; rmsPendiente: number | null; nivelBoca: number };
   const voces = new Map<number, Voz>();
   const reproducir = (v: Voz, pcm: Float32Array, hz: number) => {
     const c = contexto();
+    if (!c) return; // this browser gave no AudioContext: you still see them talk (the mouth moves with the RMS)
     const buf = c.createBuffer(1, pcm.length, hz); buf.copyToChannel(pcm, 0);
-    const src = c.createBufferSource(); src.buffer = buf; src.connect(v.salida);
+    const src = c.createBufferSource(); src.buffer = buf; src.connect(v.panner);
     const t = Math.max(v.siguiente, c.currentTime + COLA_S);
     src.start(t); v.siguiente = t + buf.duration;
     // U13: this listener's own decoded volume (not the sender's), for the speaker's mouth shape — a decaerBoca
@@ -68,16 +75,14 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
     let rms = 0; for (const s of pcm) rms += s * s; rms = Math.sqrt(rms / pcm.length);
     v.rmsPendiente = Math.max(v.rmsPendiente ?? 0, rms);
   };
-  const soltar = (e: number, v: Voz) => { v.salida.disconnect(); v.dec?.close(); voces.delete(e); o.view.voz(e, 0); };
-  const vozDe = (entidad: number, escenario: boolean): Voz => {
+  const vozDe = (entidad: number): Voz | null => {
     let v = voces.get(entidad);
-    if (v && v.escenario !== escenario) { soltar(entidad, v); v = undefined; } // went on or off stage: a new chain
     if (v) return v;
     const c = contexto();
-    const panner = escenario ? null : new PannerNode(c, { panningModel: "equalpower", distanceModel: "linear", refDistance: 1, maxDistance: LEJOS_M, rolloffFactor: 1 });
-    const salida: AudioNode = panner ?? new GainNode(c, { gain: 1 });
-    salida.connect(c.destination);
-    v = { salida, panner, escenario, siguiente: 0, marca: 0, ts: 0, rmsPendiente: null, nivelBoca: 0 };
+    if (!c) return null;
+    const panner = new PannerNode(c, { panningModel: "equalpower", distanceModel: "linear", refDistance: 1, maxDistance: LEJOS_M, rolloffFactor: 1 });
+    panner.connect(vozBus() ?? c.destination); // S1: the «voz-gente» bus, never the destination straight away
+    v = { panner, siguiente: 0, marca: 0, ts: 0, rmsPendiente: null, nivelBoca: 0 };
     if (typeof AudioDecoder === "function") {
       const vv = v;
       vv.dec = new AudioDecoder({
@@ -91,8 +96,9 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
   };
   o.session.onVoice = (m) => {
     estado.recibidas++;
-    const v = vozDe(m.entidad, m.escenario), ahora = performance.now();
-    if (ahora - v.marca > 700) { v.marca = ahora; o.view.label(m.entidad, m.escenario ? "habla en el escenario" : "habla", 800); }
+    const v = vozDe(m.entidad), ahora = performance.now();
+    if (!v) return;
+    if (ahora - v.marca > 700) { v.marca = ahora; o.view.label(m.entidad, "habla", 800); }
     if (m.codec === VOZ_MULAW) {
       const pcm = new Float32Array(m.trama.length);
       for (let i = 0; i < pcm.length; i++) pcm[i] = deMulaw(m.trama[i]) / 32768;
@@ -104,19 +110,26 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
   };
   // the listener is you, looking where the camera looks; every voice sits where its speaker stands
   setInterval(() => {
-    if (!ctx || voces.size === 0 || o.session.entity < 0) return;
+    if (voces.size === 0 || o.session.entity < 0) return;
+    const ctx = contexto();
+    if (!ctx) return;
+    aplicarVolumen(); // the «sonido.voz» slider can move at any moment: the bus's VCA follows it
     const yo = o.session.selfPosition(1), yaw = o.view.cam.yaw(), L = ctx.listener, t = ctx.currentTime;
     const fx = -Math.sin(yaw), fz = -Math.cos(yaw); // the camera looks along -z at yaw 0 (render/camara.ts)
     if (L.positionX) { L.positionX.setValueAtTime(yo.x, t); L.positionY.setValueAtTime((yo.y ?? 0) + 1.6, t); L.positionZ.setValueAtTime(yo.z, t); L.forwardX.setValueAtTime(fx, t); L.forwardY.setValueAtTime(0, t); L.forwardZ.setValueAtTime(fz, t); }
     else { L.setPosition(yo.x, (yo.y ?? 0) + 1.6, yo.z); L.setOrientation(fx, 0, fz, 0, 1, 0); }
     const donde = new Map(o.session.remotePositions().map((r) => [r.id, r]));
+    let hablando = false;
     for (const [e, v] of voces) {
       v.nivelBoca = decaerBoca(v.nivelBoca, v.rmsPendiente); v.rmsPendiente = null; // U13: fades on its own between frames
       o.view.voz(e, v.nivelBoca);
       const r = donde.get(e);
-      if (!r) { if (t > v.siguiente + (v.escenario ? 30 : 5)) soltar(e, v); continue; } // a stage voice may come from beyond your snapshot: kept while it speaks
-      if (v.panner) { v.panner.positionX.setValueAtTime(r.x, t); v.panner.positionY.setValueAtTime(r.y + 1.6, t); v.panner.positionZ.setValueAtTime(r.z, t); }
+      if (!r) { if (t > v.siguiente + 5) { v.panner.disconnect(); v.dec?.close(); voces.delete(e); o.view.voz(e, 0); } continue; }
+      v.panner.positionX.setValueAtTime(r.x, t); v.panner.positionY.setValueAtTime(r.y + 1.6, t); v.panner.positionZ.setValueAtTime(r.z, t);
+      if (v.nivelBoca > HABLANDO) hablando = true;
     }
+    // S1: someone is talking nearby, so music, ambience and effects step back (never the interface or the voices)
+    nucleo.duck(hablando);
   }, 100);
 
   // ---- speaking ----
@@ -132,7 +145,9 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
     try {
       flujo = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
     } catch (e) { estado.error = String((e as Error)?.name ?? e); o.decir(estado.error === "NotAllowedError" ? "Sin permiso para el micrófono: dalo en el candado de la barra de direcciones." : `No se pudo abrir el micrófono (${estado.error}).`); return; }
-    const c = contexto(); await c.resume();
+    const c = contexto();
+    if (!c) { o.decir("Este navegador no da audio aquí: no se puede abrir el micrófono."); return; }
+    await c.resume();
     const hz = c.sampleRate, porTrama = Math.round((hz * TRAMA_MS) / 1000);
     // Opus where the browser can encode it at this rate; µ-law otherwise
     estado.codec = VOZ_MULAW;

@@ -14,7 +14,7 @@ Versión 1 · 15 de octubre de 2026; cifras del servidor y de la página revisad
 | Nivel | Qué es | Hoy |
 |---|---|---|
 | **Base** | funciona en todo navegador con WebGL2 | instancia en servidor, simulación determinista, predicción en el cliente, dibujo WebGL2, enjambre de bots, módulos de juego (medido) |
-| **Mejorado** | se enciende solo donde la API existe | XR (VR y AR): hecho y probado con emulador, **sin aparato real** (X1); WebGPU (lo elige three.js; sin prueba propia); voz: **relé por WebSocket** (30 m, 8 voces por oyente, escenario; LiveKit pendiente, M17 trozo 2) |
+| **Mejorado** | se enciende solo donde la API existe | XR (VR y AR): hecho y probado con emulador, **sin aparato real** (X1); WebGPU (lo elige three.js; sin prueba propia); voz: **aún no implementada** |
 | **Frontera** | opcional, detrás de un interruptor | WebTransport: **aún no implementado** |
 
 Se detecta por capacidad, nunca por nombre de navegador.
@@ -31,8 +31,7 @@ Se detecta por capacidad, nunca por nombre de navegador.
 | Memoria con 1.000 conectados | 169 MB (15-10): **no cuadra** con lo que ya ocupa en vacío; hay que volver a medirlo | **sin informe guardado** |
 | Conectar 500 bots | ~0,4 s (15-10) | **sin informe guardado** |
 | Personas por instancia, un hilo | PC de desarrollo: 100 medidas el 18-10 con `tools/swarm.sh` (tick p99 3,3–4,2 ms; informes guardados fuera del repo, en la carpeta de la ola 1 de rendimiento); 1.000 el 15-10 **sin informe guardado**. VPS-1 ~500, VPS-2 ~1.000 | medido hasta 100; 1.000 sin informe; VPS estimado |
-| Voz por cercanía (relé WebSocket, U10 + M17 trozo 1) | 30 m y área de interés; como mucho 8 voces por oyente (`voz_tope`); el escenario llega a todos | medido (`test/voz.test.ts`) |
-| Voz por cercanía (LiveKit, M17 trozo 2) | 230 suscripciones por núcleo | estimado (LiveKit) |
+| Voz por cercanía | 230 suscripciones por núcleo | estimado (LiveKit) |
 
 Máquinas (OVH, sin IVA; [ovhcloud.com/fr/vps](https://www.ovhcloud.com/fr/vps/), leído el 18-10-2026): VPS-1 3,81 €
 (**2 vCores, 4 GB**), VPS-2 7,21 € (4 vCores, 8 GB), SYS-3 (8 núcleos dedicados) 41,99 €. La página en español
