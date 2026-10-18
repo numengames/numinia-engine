@@ -185,6 +185,8 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
       const hueso = c.humanoid.getRawBoneNode(lado === "derecha" ? "rightHand" : "leftHand");
       return hueso ? hueso.getWorldPosition(out) : null;
     },
+    /** N12: the VRM copies in the world right now (index.ts hides the ones the fog covers while the frame is drawn). */
+    *raices(): Iterable<THREE.Object3D> { for (const a of avatares.values()) if (a.copia?.raiz.parent) yield a.copia.raiz; },
     /** pesca v2: make a standing avatar face `rumbo` (three's rotation.y; undefined = walk-driven again). */
     orientar(clave: number | "yo", rumbo: number | undefined): void { const a = avatares.get(clave); if (a) a.rumboFijo = rumbo; },
     /** For checks and the HUD: files, clips, and who wears what. */
