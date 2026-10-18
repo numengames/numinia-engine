@@ -1007,3 +1007,21 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Siguiente: Pablo decide la PR (hueco de PR único en numinia-engine; Y1 también espera) y el consentimiento
   (§6 del diseño: avisar a quien sale «X ha sacado el Graboso»). Después: conectar con Y1, voces de otros en
   el clip, modelo fino, VR, compartir (M18c).
+
+## 2026-10-18 17:54 · ko-t_e8a450a4 · hecho (mitad)
+- Qué: H11 (importar de Hyperfy), la mitad `db.sqlite`+`assets/` → carpeta del mundo (la otra mitad, `.hyp` →
+  carpeta de app, sigue esperando a M19, que está «para Opus»; no se ha tocado). `packages/server/src/importar-hyperfy.ts`
+  lee `config`/`blueprints`/`entities` con `node:sqlite` (sin dependencia nueva), resuelve cada `asset://<sha256>.<ext>`,
+  copia el fichero a `datos/activos/`, convierte posición y cuaternión a los campos de H1 (grados, orden yaw→pitch→roll)
+  y escribe `datos/objetos.json` tal cual lo lee `FileStorage` al arrancar (a mano, sin importar `features/objetos`
+  desde `packages/`: lo prohíbe la regla de capas). H7: `aventura/ficha.json` con nombre/descripción/portada/aforo.
+  CLI `tools/importar-hyperfy.ts`; informe de lo traído (`informe-importacion.json`+`.txt`): leídos, importados,
+  omitidos con motivo, activos copiados/que faltan.
+- Números: `test/importar-hyperfy.test.ts` nuevo (5 pruebas, todas en verde); `npm test`: 777 bien, 0 mal;
+  `npm run gates`: todas las puertas en verde (capas 0, determinismo igual, ancho de banda 26,6 kbit/s, plaza de
+  1.000 p99 15,4 ms, página 469,1 kB). La prueba fuerte arranca de verdad la función `objetos` (`Instance` +
+  `FileStorage`) sobre lo que escribe el importador y comprueba la cosa en su sitio, giro y escala exactos.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `ko/t_e8a450a4` sobre `origin/tren/motor-2026-10-18-6`.
+- Siguiente: probar contra un `db.sqlite` real de un mundo Hyperfy (de momento solo el fijo de prueba); la mitad
+  `.hyp` → carpeta de app espera a M19.
