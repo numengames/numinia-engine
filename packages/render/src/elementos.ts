@@ -1,14 +1,14 @@
 // elementos (H4 + H8): water, fire, smoke and dust drawn from data (features/elementos fields, read by name), tiered
-// by device (calidad.ts): reflective water (three's WaterMesh) only on desktop and near, a cheap animated-normal water
-// elsewhere; fire = flames + sparks + smoke (GPU particles, particulas.ts) + a smoothly flickering light (≤ 3 flashes/s)
+// by device (calidad.ts): water = the stylised procedural water (agua-estilo.ts: flat bands, shore foam, stepped fresnel;
+// waves, streaks, caustics and sun glints climbing with the tier; one draw call, no reflection pass); fire = flames + sparks + smoke (GPU particles, particulas.ts) + a smoothly flickering light (≤ 3 flashes/s)
 // for the nearest fires only; everything animates only near (ANIMAR_M) and on screen, and is not drawn past DIBUJAR_M.
 import * as THREE from "three/webgpu";
-import { uniform, texture, uv, vec2, normalMap, mix } from "three/tsl";
+import { uniform } from "three/tsl";
 import { crearEmisor, pide } from "./particulas.ts";
 import type { EmisorDef, Emisor } from "./particulas.ts";
 import { parpadeo } from "./curvas.ts";
-import { normalesDeAgua } from "./agua-normales.ts";
-import { particulasPara, LUCES_FUEGO, ANIMAR_M, DIBUJAR_M } from "./calidad.ts";
+import { materialDeAgua, geometriaDeAgua } from "./agua-estilo.ts";
+import { particulasPara, detalleAgua, LUCES_FUEGO, ANIMAR_M, DIBUJAR_M, OLAS_DESDE_M } from "./calidad.ts";
 import type { Entorno } from "./entorno.ts";
 import type { Cuenta } from "./elementos-vista.ts";
 
@@ -23,7 +23,7 @@ export const POLVO: EmisorDef = { forma: "caja", caja: [14, 3, 14], ritmo: 40, v
 
 type Uno = {
   datos: Datos; grupo: THREE.Group; emisores: Emisor[]; radio: number;
-  agua?: { malla: THREE.Mesh; tiempo: { value: number }; reflejo: THREE.Mesh | null; reflejoCargando: boolean };
+  agua?: { malla: THREE.Mesh; tiempo: { value: number } };
   fuego?: { semilla: number; luz: THREE.PointLight | null; base: number };
   visible: boolean; animando: boolean;
 };
@@ -31,7 +31,6 @@ type Uno = {
 export function crearElementos(h: { renderer: THREE.WebGPURenderer; scene: THREE.Scene; world: THREE.Group; camera: THREE.PerspectiveCamera; entorno: Entorno }) {
   const { world, camera, entorno } = h;
   const todos = new Map<string, Uno>();
-  const normales = normalesDeAgua();
   let enUso = 0, calidadVista = JSON.stringify(entorno.calidadActual), nivelVisto = entorno.nivel, animando = 0, tiempo = 0;
   const frustum = new THREE.Frustum(), pv = new THREE.Matrix4(), esfera = new THREE.Sphere();
   const lenaGeo = new THREE.CylinderGeometry(0.07, 0.08, 0.95, 6);
@@ -46,15 +45,13 @@ export function crearElementos(h: { renderer: THREE.WebGPURenderer; scene: THREE
     return e;
   }
 
-  function aguaSimple(d: Datos): { malla: THREE.Mesh; t: { value: number } } {
-    const mat = new THREE.MeshStandardNodeMaterial({ color: n(d.color, 0x2f6f8f), roughness: 0.08, metalness: 0, transparent: true, opacity: 0.86 });
-    const rep = vec2(Math.max(1, n(d.ancho, 6) / 3), Math.max(1, n(d.largo, 4) / 3));
-    const t = uniform(0);
-    const a = texture(normales, uv().mul(rep).add(vec2(t.mul(0.021), t.mul(0.013))));
-    const b = texture(normales, uv().mul(rep).mul(0.63).sub(vec2(t.mul(0.017), t.mul(-0.011))));
-    mat.normalNode = normalMap(mix(a, b, 0.5), vec2(0.6, 0.6));
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(n(d.ancho, 6), n(d.largo, 4)), mat);
-    m.rotation.x = -Math.PI / 2; m.userData.sinSombra = true; m.receiveShadow = true; m.name = "agua";
+  function agua(d: Datos): { malla: THREE.Mesh; t: { value: number } } {
+    const t = uniform(0) as unknown as { value: number };
+    const forma = { tipo: "rect" as const, ancho: n(d.ancho, 6), largo: n(d.largo, 4) };
+    const detalle = detalleAgua(entorno.nivel, entorno.calidadActual.agua);
+    const mat = materialDeAgua({ color: n(d.color, 0x2f6f8f), forma, detalle, tiempo: t, luz: entorno.aguaLuz }, OLAS_DESDE_M);
+    const m = new THREE.Mesh(geometriaDeAgua(forma, detalle, OLAS_DESDE_M), mat);
+    m.userData.sinSombra = true; m.receiveShadow = true; m.name = "agua";
     return { malla: m, t };
   }
 
@@ -65,9 +62,9 @@ export function crearElementos(h: { renderer: THREE.WebGPURenderer; scene: THREE
     const tam = n(d.tamano, 1), fuerza = Math.max(0, n(d.intensidad, 1));
     const tipo = String(d.tipo);
     if (tipo === "agua") {
-      const { malla, t } = aguaSimple(d);
+      const { malla, t } = agua(d);
       grupo.add(malla);
-      u.agua = { malla, tiempo: t, reflejo: null, reflejoCargando: false };
+      u.agua = { malla, tiempo: t };
       u.radio = Math.hypot(n(d.ancho, 6), n(d.largo, 4)) / 2;
     } else if (tipo === "fuego") {
       const lena = new THREE.InstancedMesh(lenaGeo, lenaMat, 3);
@@ -99,24 +96,9 @@ export function crearElementos(h: { renderer: THREE.WebGPURenderer; scene: THREE
     for (const e of u.emisores) { enUso -= e.cuantas; e.dispose(); }
     if (u.fuego?.luz) { u.fuego.luz.intensity = 0; u.fuego.luz.userData.de = ""; }
     u.agua?.malla.geometry.dispose(); (u.agua?.malla.material as THREE.Material | undefined)?.dispose();
-    if (u.agua?.reflejo) { u.agua.reflejo.geometry.dispose(); (u.agua.reflejo.material as THREE.Material).dispose(); }
     world.remove(u.grupo);
     todos.delete(key);
   }
-
-  function reflejo(u: Uno): void { // three's WaterMesh (a reflection pass): desktop tier, chosen quality, near
-    const a = u.agua!;
-    if (a.reflejo || a.reflejoCargando) return;
-    a.reflejoCargando = true;
-    import("three/addons/objects/WaterMesh.js").then((m) => {
-      if (!todos.has(keyOf(u))) return;
-      const d = u.datos;
-      const w = new m.WaterMesh(new THREE.PlaneGeometry(n(d.ancho, 6), n(d.largo, 4)), { waterNormals: normales, sunDirection: entorno.solDir, sunColor: entorno.solColorU.value, waterColor: n(d.color, 0x2f6f8f), distortionScale: 2.2, size: 1.5, alpha: 0.92, resolutionScale: 0.5 });
-      w.rotation.x = -Math.PI / 2; w.userData.sinSombra = true; w.name = "agua-reflejos"; w.visible = false;
-      a.reflejo = w; u.grupo.add(w);
-    }).catch((e) => console.warn(`[elementos] agua sin reflejos: ${(e as Error)?.message ?? e}`)).finally(() => { a.reflejoCargando = false; });
-  }
-  const keyOf = (u: Uno) => { for (const [k, v] of todos) if (v === u) return k; return ""; };
 
   function rehacer(): void { for (const [k, u] of [...todos]) { quitar(k); todos.set(k, crear(k, u.datos)); } }
 
@@ -151,13 +133,7 @@ export function crearElementos(h: { renderer: THREE.WebGPURenderer; scene: THREE
         u.grupo.visible = u.visible;
         u.animando = u.visible && enPantalla && dist - u.radio < ANIMAR_M;
         if (u.animando) { animando++; for (const e of u.emisores) e.avanzar(dt); }
-        if (u.agua) {
-          if (u.animando) u.agua.tiempo.value += dt;
-          const quiere = entorno.calidadActual.agua === "reflejos" && u.visible && dist - u.radio < 60;
-          if (quiere) reflejo(u);
-          const r = u.agua.reflejo;
-          if (r) { r.visible = quiere; u.agua.malla.visible = !quiere; }
-        }
+        if (u.agua && u.animando) u.agua.tiempo.value += dt;
         if (u.fuego) { u.fuego.luz = null; if (u.visible) fuegos.push([dist, u]); }
       }
       // fire lights: the nearest fires get the tier's lights (made once, on the first fire)
@@ -171,14 +147,15 @@ export function crearElementos(h: { renderer: THREE.WebGPURenderer; scene: THREE
     },
     ocupado(): boolean { return animando > 0; },
     contar(): Cuenta {
-      const c: Cuenta = { agua: 0, fuego: 0, humo: 0, polvo: 0, particulas: 0, emisores: 0, luces: 0, animando, reflejos: 0, cargado: true };
+      const det = detalleAgua(entorno.nivel, entorno.calidadActual.agua);
+      // reflejos: reflection passes drawn (always 0 since N2: the water's glints are in its own shader); aguaDetalle: what the water draws on this tier
+      const c: Cuenta = { agua: 0, fuego: 0, humo: 0, polvo: 0, particulas: 0, emisores: 0, luces: 0, animando, reflejos: 0, aguaDetalle: (Object.keys(det) as (keyof typeof det)[]).filter((k) => det[k]).join("+"), cargado: true };
       for (const u of todos.values()) {
         const t = String(u.datos.tipo) as "agua" | "fuego" | "humo" | "polvo";
         if (t in c) c[t]++;
         if (!u.visible) continue;
         c.emisores += u.emisores.length;
         for (const e of u.emisores) c.particulas += e.cuantas;
-        if (u.agua?.reflejo?.visible) c.reflejos++;
         if (u.fuego?.luz && u.fuego.luz.intensity > 0) c.luces++;
       }
       return c;
