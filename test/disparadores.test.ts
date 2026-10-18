@@ -12,7 +12,7 @@ import { signer } from "../packages/server/src/secret.ts";
 import { conMundo } from "../features/mundo.ts";
 import chatServer from "../features/chat/server.ts";
 import { disparadores, DISPARADORES_MAX, RECEPTORES_MAX, TICK_HZ } from "../features/disparadores/feature.ts";
-import { crearDisparadores, leerDisparador, leerDisparadores, leerReceptor } from "../features/disparadores/server.ts";
+import { crearDisparadores, leerDisparador, leerDisparadores, leerReceptor, serializarDisparadores } from "../features/disparadores/server.ts";
 import { crearCliente as clienteDisparadores, tapa } from "../features/disparadores/client.ts";
 import { crearObjetos } from "../features/objetos/server.ts";
 import { crearCliente as clienteObjetos } from "../features/objetos/client.ts";
@@ -32,10 +32,10 @@ const keeper = (): GuestKeeper => { let t: string | null = null; return { load: 
 const BOTON = { id: "rojo", nombre: "Botón rojo", tipo: "boton", x: 12, z: 0, frase: "E: pulsar", cooldown: 1, receptores: [{ accion: "muestra", objeto: "Farola" }] };
 const ZONA = { id: "umbral", nombre: "Umbral", tipo: "zona", x: -20, z: 0, radio: 3, un_solo_uso: true, receptores: [{ accion: "oculta", objeto: "Farola" }, { accion: "teletransporta", x: 1, y: 0, z: 2 }] };
 
-function mundo(n: number, lista: unknown[] = [BOTON, ZONA]) {
+function mundo(n: number, lista: unknown[] = [BOTON, ZONA], opts: { puede?: (e: number) => boolean; escribir?: (disparadores: ReturnType<typeof leerDisparadores>["disparadores"]) => void } = {}) {
   const log: string[] = [];
   const leido = leerDisparadores({ disparadores: lista });
-  const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [chatServer, crearObjetos(), crearDisparadores({ disparadores: leido.disparadores })], log: (l) => log.push(l), identitySign: sign, puede: (_w, accion) => accion === "construir" });
+  const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [chatServer, crearObjetos(), crearDisparadores({ disparadores: leido.disparadores, escribir: opts.escribir })], log: (l) => log.push(l), identitySign: sign, puede: (_w, accion, e) => accion === "construir" && (opts.puede ? opts.puede(e) : true) });
   const pages = Array.from({ length: n }, (_, i) => {
     const t = inst.join(i), d = clienteDisparadores(), o = clienteObjetos();
     const placed = new Map<string, PlacedObject | null>();
@@ -206,6 +206,51 @@ test("D-041 historia 4: da_paso starts and jumps a mission, abre_enlace asks the
   assert.equal(eventos(s, "disparadores", "sonido").at(-1)?.msg.sonido, "campana");
   // vuelve_a_seguro: the instance answered without throwing (suelo narrates it even without sueloMinimo)
   assert.doesNotThrow(() => d.disparadores.pulsar("cable"));
+});
+
+test("D-041 historias 5-6: the page sees a trigger's receivers (JSON in the state, not a secret) and a builder edits them live", () => {
+  const { pages: [a], pump } = mundo(1, [BOTON]);
+  pump(3);
+  const d = () => a.d.lista().find((x) => x.id === "rojo")!;
+  assert.deepEqual(d().receptores, [{ accion: "muestra", objeto: "Farola" }], "the state already carries the wired receivers");
+  const r = a.d.editarReceptores("rojo", [{ accion: "suena", sonido: "din" }, { accion: "vuelve_a_seguro" }]);
+  assert.ok(r.ok, JSON.stringify(r));
+  pump(3);
+  assert.deepEqual(d().receptores, [{ accion: "suena", sonido: "din" }, { accion: "vuelve_a_seguro" }], "everyone sees the new wiring at once");
+  assert.equal(eventos(a.s, "disparadores", "editado").length, 1, "the editor is told it was done");
+});
+
+test("D-041 historias 5-6: editing receivers is refused to anyone who may not build, for a trigger that does not exist, or for a bad receiver", () => {
+  let puedeConstruir = true;
+  const { pages: [a], pump } = mundo(1, [BOTON], { puede: () => puedeConstruir });
+  pump(3);
+  const antes = a.d.lista().find((x) => x.id === "rojo")!.receptores;
+  // a bad receiver (unknown accion): the whole edit is refused, nothing changes
+  assert.ok(a.d.editarReceptores("rojo", [{ accion: "explota" }]).ok, "the client only validates the message's own shape"); pump(3);
+  assert.match(String(eventos(a.s, "disparadores", "rechazado").at(-1)?.msg.motivo), /accion «explota»/);
+  assert.deepEqual(a.d.lista().find((x) => x.id === "rojo")!.receptores, antes, "a bad receiver drops the whole edit");
+  // an id that is not wired
+  a.d.editarReceptores("no-existe", [{ accion: "suena", sonido: "din" }]); pump(3);
+  assert.match(String(eventos(a.s, "disparadores", "rechazado").at(-1)?.msg.motivo), /No hay ningún disparador/);
+  // nobody may build in this instance: even a well-formed edit is refused
+  puedeConstruir = false;
+  a.d.editarReceptores("rojo", [{ accion: "suena", sonido: "din" }]); pump(3);
+  assert.match(String(eventos(a.s, "disparadores", "rechazado").at(-1)?.msg.motivo), /No puedes construir/);
+  assert.deepEqual(a.d.lista().find((x) => x.id === "rojo")!.receptores, antes, "refused: the wiring did not change");
+  assert.equal(eventos(a.s, "disparadores", "editado").length, 0, "nothing was ever accepted in this test");
+});
+
+test("D-041 historias 5-6: an accepted edit rewrites disparadores.json on disk, in the shape leerDisparadores reads back", () => {
+  const escrituras: ReturnType<typeof leerDisparadores>["disparadores"][] = [];
+  const { pages: [a], pump } = mundo(1, [BOTON], { escribir: (ds) => escrituras.push(ds) });
+  pump(3);
+  a.d.editarReceptores("rojo", [{ accion: "oculta", objeto: "Farola" }]); pump(3);
+  assert.equal(eventos(a.s, "disparadores", "editado").length, 1, "the edit was accepted");
+  assert.equal(escrituras.length, 1, "one write per accepted edit");
+  const crudo = serializarDisparadores(escrituras[0]);
+  const releido = leerDisparadores(crudo);
+  assert.equal(releido.problemas.length, 0, releido.problemas.join("; "));
+  assert.deepEqual(releido.disparadores.find((d) => d.id === "rojo")?.receptores, [{ accion: "oculta", objeto: "Farola" }]);
 });
 
 test("D-041 h5: leerDisparador accepts tipo «senal» (needs a senal name, not x/z) and leerReceptor accepts «mueve»", () => {

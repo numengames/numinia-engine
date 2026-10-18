@@ -1,15 +1,16 @@
-// cable (D-041), builder view (historia 5): a read panel inside the build panel listing every trigger a world wires in
-// disparadores.json — its name, type, state (ready / waiting / spent) and how many times it has fired — plus, for a
-// button, a «Probar» press to fire it without walking up to it (handy to check a cooldown or a one-use trigger before
-// anyone else is near it). It is a LIST, not an editor: what each receiver DOES (muestra, teletransporta, …) is not
-// part of the state the server sends to the page (not a secret like a lock's code — just not wired yet) and the
-// server never rewrites disparadores.json while the instance runs, so wiring stays a file you edit before it starts.
-// See PREGUNTAS-cable-h5-6.md for whether a live editor is worth its own piece. Visitors never see this panel.
+// cable (D-041), builder view (historias 5-6): dentro del panel del constructor, una lista con cada disparador que
+// el mundo cablea en disparadores.json — su nombre, tipo, estado (listo / en espera / agotado) y cuántas veces ha
+// disparado — con un botón «Probar» para los de tipo botón (dispararlo sin acercarse: cómodo para comprobar un
+// cooldown o un «un solo uso» antes de que nadie más esté cerca) y, ahora, un editor en vivo de sus receptores
+// («qué hace cada disparo»): un área de texto con el JSON de la lista y un botón «Guardar» que lo manda al servidor
+// (intención editar_receptores). El servidor valida cada receptor igual que al leer el fichero y, si lo acepta,
+// todo el mundo ve el cambio al momento y, si el mundo lo permite, reescribe disparadores.json — ya no hace falta
+// reiniciar para cablear de otra manera. Solo quien tiene permiso de construir. Visitors never see this panel.
 type Res = { ok: true } | { ok: false; why: string };
-export type Disparador = { id: string; nombre: string; tipo: "zona" | "boton"; cooldown: number; unSoloUso: boolean; usos: number; enEspera: boolean; agotado: boolean };
+export type Disparador = { id: string; nombre: string; tipo: "zona" | "boton"; cooldown: number; unSoloUso: boolean; usos: number; enEspera: boolean; agotado: boolean; receptores: Record<string, unknown>[] };
 export type OpcionesCable = {
   constructor: { estado: { puede: boolean }; escuchar(fn: (que: string) => void): () => void };
-  disparadores: { lista(): Disparador[]; pulsar(id: string): Res; alCambiar(fn: (id: string) => void): () => void };
+  disparadores: { lista(): Disparador[]; pulsar(id: string): Res; editarReceptores(id: string, receptores: Record<string, unknown>[]): Res; alCambiar(fn: (id: string) => void): () => void };
   decir(texto: string): void; // soltar.ts' status line (role=status)
   panel: HTMLElement | null;  // the build panel: the «Cable» list goes at its end
 };
@@ -36,6 +37,22 @@ export function montarCable(o: OpcionesCable) {
       b.addEventListener("click", () => { const r = o.disparadores.pulsar(d.id); if (!r.ok) o.decir(`No: ${r.why}.`); });
       li.append(" ", b);
     }
+    // D-041 historia 6: el editor en vivo de los receptores («qué hace cada disparo») de este disparador.
+    const area = document.createElement("textarea");
+    area.className = "cable-receptores"; area.rows = 3; area.setAttribute("aria-label", `Receptores de ${d.nombre} (JSON)`);
+    area.value = JSON.stringify(d.receptores, null, 1);
+    const guardar = document.createElement("button");
+    guardar.type = "button"; guardar.textContent = "Guardar";
+    guardar.title = `Reemplazar en vivo los receptores de «${d.nombre}»`;
+    guardar.addEventListener("click", () => {
+      let receptores: unknown;
+      try { receptores = JSON.parse(area.value); }
+      catch { o.decir("No: receptores no es JSON válido."); return; }
+      if (!Array.isArray(receptores)) { o.decir("No: receptores debe ser una lista."); return; }
+      const r = o.disparadores.editarReceptores(d.id, receptores as Record<string, unknown>[]);
+      if (!r.ok) o.decir(`No: ${r.why}.`);
+    });
+    li.append(document.createElement("br"), area, " ", guardar);
     return li;
   };
 

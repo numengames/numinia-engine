@@ -20,6 +20,10 @@ export const COOLDOWN_MAX_S = 3600;
 export const TICK_HZ = 20;
 export const ACCIONES = ["muestra", "oculta", "teletransporta", "da_paso", "abre_enlace", "suena", "vuelve_a_seguro", "mueve"] as const;
 export type Accion = (typeof ACCIONES)[number];
+/** D-041 historias 5-6 (edición viva del cable): los receptores viajan como JSON dentro de un campo de texto (el
+ * esquema del motor no tiene un tipo «lista»; hasta RECEPTORES_MAX objetos pequeños caben de sobra en este tope,
+ * y 512 es el máximo que admite un campo de texto del motor). */
+export const RECEPTORES_JSON_MAX_BYTES = 512;
 export const TIPOS = ["zona", "boton", "senal"] as const;
 export type Tipo = (typeof TIPOS)[number];
 
@@ -36,9 +40,9 @@ export const disparadores = defineFeature({
   id: "disparadores",
   version: 1,
   level: "base",
-  describe: "El cable del mundo: disparadores que un constructor escribe en disparadores.json (una zona en la que se entra, un botón que se pulsa «E: pulsar», o una señal que oye de otra pieza: una cerradura que se abre, un movedor que llega), con tiempo de espera entre usos y, si quiere, de un solo uso. El servidor decide cada disparo, avisa a los cercanos y da una acción por receptor a la función que la hace (mostrar u ocultar un objeto, teletransportar, dar paso de misión, abrir enlace, sonar, mover otro movedor).",
+  describe: "El cable del mundo: disparadores que un constructor escribe en disparadores.json (una zona en la que se entra, un botón que se pulsa «E: pulsar», o una señal que oye de otra pieza: una cerradura que se abre, un movedor que llega), con tiempo de espera entre usos y, si quiere, de un solo uso. El servidor decide cada disparo, avisa a los cercanos y da una acción por receptor a la función que la hace (mostrar u ocultar un objeto, teletransportar, dar paso de misión, abrir enlace, sonar, mover otro movedor). D-041 historias 5-6: quien tiene permiso de construir también ve y edita en vivo los receptores de cada disparador, sin reiniciar: el servidor reescribe disparadores.json al vuelo.",
   state: {
-    describe: "Un disparador por clave: nombre, tipo (zona, boton o senal), dónde (x, z; y = altura, m), radio de la zona (m), desde cuánto se pulsa un botón (alcance, m; 0 = no se ofrece), la frase del botón, la señal que oye (senal; solo tipo senal), cooldown (s), si es de un solo uso, cuántas veces ha disparado (usos), si está en espera ahora (enEspera) y si ya se agotó (agotado).",
+    describe: "Un disparador por clave: nombre, tipo (zona, boton o senal), dónde (x, z; y = altura, m), radio de la zona (m), desde cuánto se pulsa un botón (alcance, m; 0 = no se ofrece), la frase del botón, la señal que oye (senal; solo tipo senal), cooldown (s), si es de un solo uso, cuántas veces ha disparado (usos), si está en espera ahora (enEspera), si ya se agotó (agotado) y sus receptores (JSON de la lista «qué hace cada disparo»; viaja a todos, como la vista del constructor de historia 5 — no es un secreto como el código de una cerradura).",
     fields: {
       nombre: NOMBRE, tipo: { kind: "enum", values: [...TIPOS] }, x: X, y: Y, z: X,
       radio: { kind: "fixed", min: 0.5, max: 64, step: 0.1, default: 3 },
@@ -50,12 +54,19 @@ export const disparadores = defineFeature({
       usos: { kind: "int", min: 0, max: 1_000_000_000, default: 0 },
       enEspera: { kind: "bool", default: false },
       agotado: { kind: "bool", default: false },
+      receptores: { kind: "text", maxBytes: RECEPTORES_JSON_MAX_BYTES, default: "[]" },
     },
     card: { role: "boton", name: "{nombre}", description: "Disparador del cable: una zona, un botón o una señal de otra pieza; el servidor decide qué pasa", at: ["x", "z"], actions: ["pulsar"], interact: { intent: "pulsar", prompt: "{frase}", radius: "alcance", key: "disparador" } },
     radius: ALCANCE_M,
   },
   intents: {
     pulsar: { describe: "Pulsar un disparador de tipo botón. Hay que estar a su alcance; el servidor lo comprueba, y también el cooldown y el un solo uso.", spoken: "pulsar el botón", fields: { disparador: ID }, rate: { perSecond: 2, burst: 4 } },
+    editarReceptores: {
+      describe: "D-041 historias 5-6: reemplaza en vivo la lista de receptores de un disparador que ya existe (sin crear ni borrar disparadores). Solo quien tiene permiso de construir; el servidor valida cada receptor igual que al leer disparadores.json y, si acepta el cambio, reescribe ese fichero. Quien no puede construir se rechaza siempre.",
+      spoken: "editar los receptores de un disparador",
+      fields: { disparador: ID, receptores: { kind: "text", maxBytes: RECEPTORES_JSON_MAX_BYTES } },
+      rate: { perSecond: 1, burst: 3 },
+    },
   },
   events: {
     disparado: {
@@ -73,7 +84,12 @@ export const disparadores = defineFeature({
       fields: { quien: QUIEN, disparador: ID, accion: { kind: "enum", values: ACCIONES }, objeto: NOMBRE, x: X, y: Y, z: X, mision: { kind: "text", maxBytes: 32 }, paso: { kind: "int", min: 0, max: 999, default: 0 }, enlace: { kind: "text", maxBytes: 200 }, sonido: { kind: "text", maxBytes: 32 } },
       announce: "silent",
     },
-    rechazado: { describe: "No disparó, y por qué (lejos, todavía no, ya se usó, no hay tal disparador).", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
+    rechazado: { describe: "No disparó, y por qué (lejos, todavía no, ya se usó, no hay tal disparador). También lo usa editar_receptores cuando el cambio no se hace (sin permiso de construir, id inexistente, receptor mal escrito).", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
+    editado: {
+      describe: "D-041 historias 5-6: editar_receptores se hizo (el disparador que cambió). Solo para quien lo editó; todos los demás ven el cambio en el estado del disparador.",
+      fields: { disparador: ID },
+      announce: "silent",
+    },
     // D-041 historias 3-4: the cable's own actions (no other feature owns moving someone or sounding a note); `da_paso`
     // goes to features/misiones instead (api.listen), so it has no event here.
     teletransportado: {

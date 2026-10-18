@@ -8,9 +8,12 @@ import { disparadores as decl } from "./feature.ts";
 /** The house block (features/objetos/biblioteca.json «bloque», CC0). */
 const MODELO = "32fce59977a24c3c15eb40084c700c1537e59853747f92ce1d01c6fd65958588";
 export const LADO_M = 0.3, ALTURA_M = 1.0;
-export type Disparador = { id: string; nombre: string; tipo: "zona" | "boton"; x: number; y: number; z: number; radio: number; alcance: number; frase: string; cooldown: number; unSoloUso: boolean; usos: number; enEspera: boolean; agotado: boolean };
+export type Disparador = { id: string; nombre: string; tipo: "zona" | "boton"; x: number; y: number; z: number; radio: number; alcance: number; frase: string; cooldown: number; unSoloUso: boolean; usos: number; enEspera: boolean; agotado: boolean; receptores: Record<string, unknown>[] };
 type Res = { ok: true } | { ok: false; why: string };
 const SIN: Res = { ok: false, why: "la función disparadores no está en este servidor" };
+/** D-041 historias 5-6: lo que llega en el campo `receptores` del estado (JSON) o se manda a editar_receptores, sin
+ * JSON roto: una lista vacía en vez de tirar. Lo usa `lista()` al leer y `editarReceptores()` al mandar. */
+const receptoresDe = (v: unknown): Record<string, unknown>[] => { try { const r = JSON.parse(String(v ?? "[]")); return Array.isArray(r) ? r : []; } catch { return []; } };
 
 /** A button's cap: a small block at hand height; sunk while waiting or spent. Pure. */
 export const tapa = (v: Pick<Disparador, "x" | "y" | "z" | "enEspera" | "agotado">): PlacedObject =>
@@ -24,8 +27,11 @@ export function crearCliente() {
   const estado = { ultimoEnlace: "", ultimoTeletransporte: null as { x: number; y: number; z: number } | null, ultimoSonido: "" };
   const disparadores = {
     estado,
-    lista: (): Disparador[] => (A ? A.state.keys().map((k) => ({ id: k, ...(A!.state.get(k) as Msg) }) as Disparador) : []),
+    lista: (): Disparador[] => (A ? A.state.keys().map((k) => { const v = A!.state.get(k) as Msg; return { id: k, ...v, receptores: receptoresDe(v.receptores) } as Disparador; }) : []),
     pulsar: (id: string): Res => (A ? A.send("pulsar", { disparador: id }) : SIN),
+    // D-041 historias 5-6: reemplaza en vivo los receptores de un disparador (solo construir); el servidor valida y,
+    // si acepta, todos ven el cambio al momento (alCambiar) y, si el mundo lo permite, reescribe disparadores.json.
+    editarReceptores: (id: string, receptores: Record<string, unknown>[]): Res => (A ? A.send("editarReceptores", { disparador: id, receptores: JSON.stringify(receptores) }) : SIN),
     alCambiar: (fn: (id: string) => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
   const parte: ClientPart = clientPart(decl, (api) => {

@@ -4,7 +4,7 @@
 // server-only `accion` per receiver so the owning feature acts (`api.listen("disparadores", "accion", …)`). No page decides.
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
-import { disparadores, ACCIONES, CERCA_M, COOLDOWN_MAX_S, DISPARADORES_MAX, RECEPTORES_MAX, TICK_HZ, TIPOS } from "./feature.ts";
+import { disparadores, ACCIONES, CERCA_M, COOLDOWN_MAX_S, DISPARADORES_MAX, RECEPTORES_JSON_MAX_BYTES, RECEPTORES_MAX, TICK_HZ, TIPOS } from "./feature.ts";
 import type { Accion, Tipo } from "./feature.ts";
 
 export type Receptor =
@@ -115,14 +115,28 @@ export function leerDisparadores(crudo: unknown): { disparadores: Disparador[]; 
   return { disparadores: out, problemas };
 }
 
-export const crearDisparadores = (opts: { disparadores?: Disparador[] } = {}) => serverPart(disparadores, (api: ServerApi) => {
+/** D-041 historias 5-6: la forma inversa de leerDisparador — del `Disparador` en memoria a la línea del fichero
+ * (disparadores.json: `radio` es overloaded: el radio de la zona o el alcance del botón, según el tipo). Lo usa el
+ * escritor en vivo (`crearDisparadores({ escribir })`) para reescribir el fichero entero tras un editar_receptores. */
+export function serializarDisparador(d: Disparador): Record<string, unknown> {
+  return {
+    id: d.id, nombre: d.nombre, tipo: d.tipo, x: d.x, y: d.y, z: d.z,
+    radio: d.tipo === "zona" ? d.radio : d.alcance,
+    ...(d.tipo === "boton" ? { frase: d.frase } : {}),
+    cooldown: d.cooldown, un_solo_uso: d.unSoloUso,
+    receptores: d.receptores,
+  };
+}
+export const serializarDisparadores = (ds: Disparador[]) => ({ disparadores: ds.map(serializarDisparador) });
+
+export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?: (disparadores: Disparador[]) => void } = {}) => serverPart(disparadores, (api: ServerApi) => {
   const lista = new Map<string, Disparador>();
   const listos = new Map<string, number>();        // trigger → tick at which its cooldown ends
   const dentro = new Map<string, Set<number>>();   // zone → who is inside now
   const agotados = new Set<string>();
   const porSenal = new Map<string, Disparador[]>(); // D-041 h5: senal name → the «senal» triggers that listen for it
   for (const d of opts.disparadores ?? []) {
-    const v: Msg = { nombre: d.nombre, tipo: d.tipo, x: d.x, y: d.y, z: d.z, radio: d.radio, alcance: d.alcance, frase: d.frase, senal: d.senal, cooldown: d.cooldown, unSoloUso: d.unSoloUso, usos: 0, enEspera: false, agotado: false };
+    const v: Msg = { nombre: d.nombre, tipo: d.tipo, x: d.x, y: d.y, z: d.z, radio: d.radio, alcance: d.alcance, frase: d.frase, senal: d.senal, cooldown: d.cooldown, unSoloUso: d.unSoloUso, usos: 0, enEspera: false, agotado: false, receptores: JSON.stringify(d.receptores) };
     if (api.state.set(d.id, v, { at: { x: d.x, z: d.z } })) {
       lista.set(d.id, d);
       if (d.tipo === "zona") dentro.set(d.id, new Set());
@@ -164,6 +178,35 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[] } = {}) =>
     if (!d || d.tipo !== "boton") return rechazar(e, `No hay ningún botón «${cortar(id, 16)}».`);
     if (!api.within(e, id)) return rechazar(e, `Acércate a ${d.nombre} para pulsarlo.`);
     disparar(d, e);
+  });
+
+  // D-041 historias 5-6 (edición viva del cable): quien tiene permiso de construir reemplaza en vivo los receptores
+  // de un disparador que ya existe. Cada receptor se valida igual que al leer disparadores.json (leerReceptor); un
+  // cambio aceptado actualiza el estado (lo ve todo el mundo, igual que la lista de la vista de constructor) y, si
+  // el mundo trae un escritor de ficheros, reescribe disparadores.json para que sobreviva a un reinicio.
+  api.on("editarReceptores", (e, m) => {
+    if (!api.puede(e, "construir")) return rechazar(e, "No puedes construir aquí: editar el cable es cosa de quien tiene permiso de construir.");
+    const id = String(m.disparador ?? ""), d = lista.get(id);
+    if (!d) return rechazar(e, `No hay ningún disparador «${cortar(id, 16)}» que editar.`);
+    let crudo: unknown;
+    try { crudo = JSON.parse(String(m.receptores ?? "")); }
+    catch { return rechazar(e, "receptores: no es JSON válido."); }
+    if (!Array.isArray(crudo) || crudo.length === 0) return rechazar(e, "receptores: necesita una lista con al menos uno.");
+    if (crudo.length > RECEPTORES_MAX) return rechazar(e, `receptores: más de ${RECEPTORES_MAX}.`);
+    const receptores: Receptor[] = [];
+    for (const [i, r] of crudo.entries()) {
+      const leido = leerReceptor(r);
+      if (typeof leido === "string") return rechazar(e, `receptor ${i + 1}: ${leido}`);
+      receptores.push(leido);
+    }
+    const codificado = JSON.stringify(receptores);
+    if (new TextEncoder().encode(codificado).length > RECEPTORES_JSON_MAX_BYTES) return rechazar(e, `receptores: demasiado grande (más de ${RECEPTORES_JSON_MAX_BYTES} bytes codificados): acórtalo.`);
+    d.receptores = receptores;
+    poner(d, { receptores: codificado });
+    api.emit("editado", { disparador: d.id }, { to: e });
+    api.log(`[disparadores] «${d.id}»: ${nombreDe(e)} edita sus receptores en vivo (${receptores.length})`);
+    try { opts.escribir?.(Array.from(lista.values())); }
+    catch (err) { api.log(`[disparadores] «${d.id}»: el cambio se aplicó pero no pude escribir disparadores.json: ${(err as Error).message}`); }
   });
 
   // D-041 h5: «senal» triggers fire not from a place or a press but from another piece's own event — a lock that
