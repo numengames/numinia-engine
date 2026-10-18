@@ -14,7 +14,7 @@ import { montarConstructor } from "./constructor.ts";
 import { montarSoltar } from "./soltar.ts";
 import { montarHuecos } from "./huecos.ts";
 import { disparadores } from "../../features/disparadores/client.ts"; // D-041: the cable — controller
-import { montarCable } from "./cable.ts"; // D-041, historia 5: builder's read view of the wiring
+import { montarCable } from "./cable.ts"; // D-041, historias 5-6: builder's live view + editor of the wiring
 import { catalogoDeAvatares } from "./catalogo-avatares.ts"; // not "./a…": dev:lan proxies every path starting with /a to the server
 import { montarChat } from "./chat.ts";
 import { escribiendo } from "./escribiendo.ts";

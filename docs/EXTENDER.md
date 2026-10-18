@@ -938,11 +938,13 @@ historias: mientras tanto el registro dice `nadie hace «teletransporta» en est
 - **Ejemplo mínimo (botón que enciende una farola oculta):** `{ "disparadores": [{ "id": "rojo", "nombre": "Botón rojo",
   "tipo": "boton", "x": 12, "z": 0, "frase": "E: pulsar", "cooldown": 5, "receptores": [{ "accion": "muestra", "objeto":
   "Farola" }] }] }` con un objeto llamado «Farola» marcado como invisible al jugar en el constructor.
-- **Lo que no hace (todavía):** los receptores de las historias 3-4 (`teletransporta`, `da_paso`, `abre_enlace`, `suena`),
-  el catálogo para agentes y el ejemplo en la plaza (historia 6 original), y disparadores que no sean zona o botón (la
-  cerradura de D-042, el temporizador de D-044 son emisores nuevos de este mismo cable). La vista del constructor
-  (`apps/plaza/cable.ts`, historia 5) lista cada disparador y deja «Probar» un botón, pero es de solo lectura: editar
-  los receptores sigue siendo editar `disparadores.json` antes de arrancar (PREGUNTAS-cable-h5-6.md).
+- **Lo que no hace (todavía):** el catálogo para agentes y el ejemplo en la plaza que esta ficha no cubre todavía.
+  La vista del constructor (`apps/plaza/cable.ts`, historias 5-6) lista cada disparador, deja «Probar» un botón y
+  edita en vivo sus receptores (intención `editarReceptores`, solo con permiso de construir: el servidor valida
+  cada receptor igual que al leer el fichero y, si acepta, reescribe `disparadores.json` sin reiniciar la
+  instancia — el campo `receptores` del estado viaja a toda página, como el resto de la ficha; no es un secreto
+  como el código de una cerradura). Crear o borrar disparadores enteros sigue siendo editar el fichero antes de
+  arrancar.
 
 ## Agua (N2): estilizada, de color plano, un solo draw call
 
