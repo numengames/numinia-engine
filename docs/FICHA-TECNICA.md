@@ -171,7 +171,7 @@ El menú de ajustes (tecla O o el engranaje) es HTML de verdad; lo leen los lect
 | Guardado | en el navegador: hasta 64 valores y 8 KB por clave (medido); el motor por aparato, funciones y mundos por mundo |
 | Calidad | automática (según el aparato) · baja (ratio 1, 30 fps) · media (1,5 y 60) · alta (2 y 60); el modo batería manda (1 y 24) |
 | Nivel del aparato | A escritorio · B visor (clase móvil que puede VR) · C móvil · D móvil de ≤ 2 GB: estimado hasta medir aparatos reales (T1) |
-| Lo que pesa en la página | +12,0 kB gz al arrancar (260,7 kB de 300; medido con `npm run build`) |
+| Lo que pesa en la página | +12,0 kB gz al arrancar (histórico, 15-10: 260,7 kB de entonces; la cifra única de hoy está en «Navegador, gráfica y red») |
 
 ## Navegador, gráfica y red
 
@@ -183,6 +183,7 @@ El menú de ajustes (tecla O o el engranaje) es HTML de verdad; lo leen los lect
 | WebGL2 | nivel Base, todos los navegadores objetivo |
 | WebGPU | Chromium sí; Firefox en Windows/Mac; Safari 26+ (estimado) |
 | WebSocket | transporte actual (medido, `test/server.test.ts`) |
+| Lo que baja la página antes de dibujar | **434,9 kB gz** (medido 18-10-2026, `npm run tamano`: html + css + módulos de arranque, gzip -9 cada uno; meta D2 300 kB, tope de la puerta 480 kB; detalle en `docs/MEDIDAS.md`) |
 | WebTransport | no implementado |
 
 ## Cómo se mantiene

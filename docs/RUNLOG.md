@@ -756,3 +756,16 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Versión **0.6.1 → 0.7.0** (menor): ajustes y capacidades nuevos, nada se rompe. (Las ramas traían 0.6.0 y
   0.6.1; `main` ya había tomado esos números con #46 y #47.)
 - Consumo: sin medir · Sonnet 5.5.
+
+## 2026-10-18 12:47 · medidas (D2 cifra, D2 puerta, MED pruebas) · hecho
+- Qué: una sola cifra de arranque y una sola cifra de pruebas, con la orden que las produce. Nuevo `tools/tamano.mjs`
+  (`npm run tamano`, y una fila nueva en `npm run gates`): mide lo que baja la página antes de dibujar (html + css +
+  entrada + `modulepreload`, gzip -9 cada uno con `node:zlib`; qué entra y qué no, en `docs/MEDIDAS.md`) y falla por
+  encima del tope. Sin cambios funcionales. FICHA, BACKLOG D2, SABER, AGENTS y README citan la cifra nueva; las de 109,
+  261, 342 y 423 kB quedan como históricas (cada una contaba ficheros distintos).
+- Números (punta del tren `5362797`): **arranque 434,9 kB gz (434.850 B)**; tope de la puerta **480 kB** (medida + 10 %,
+  redondeado), meta D2 300 kB; `npm run gates` en verde con la puerta nueva. **`npm test`: 537 pruebas, 537 en verde,
+  26,5 s** (`ℹ tests 537` del reporter; carga 5). Los «375» de turnos anteriores eran la cuenta de su rama en su día; el
+  grep de ficheros (`test(` × 537) coincide hoy con el reporter.
+- Consumo: sin medir · Fable 5.1.
+- Siguiente: el recorte D2 (alias de three −24,5 kB, mapa/ficha/menú perezosos) y bajar `TOPE_GZ` con cada recorte.

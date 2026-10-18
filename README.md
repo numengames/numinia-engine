@@ -40,7 +40,8 @@ Other commands:
 
 ```bash
 npm test         # unit tests
-npm run gates    # tests + layers + determinism + bandwidth + 1,000-person tick
+npm run gates    # tests + layers + determinism + bandwidth + 1,000-person tick + page size
+npm run tamano   # what the page downloads before drawing, gzip, against the D2 cap
 npm run dev:lan  # the page over https on your home network, for phones and headsets
 npm run bots -- --n 8   # headless players over real WebSockets
 npm run e2e      # real browser tabs against the running server
