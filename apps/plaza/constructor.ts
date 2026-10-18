@@ -17,7 +17,7 @@ type Obj = Record<string, unknown> & { id: string };
 type Herr = "coger" | "mover" | "girar" | "escalar";
 type Punto = { x: number; y: number; z: number };
 type Builder = {
-  estado: { puede: boolean; seleccionado: string; ultimoRechazo: string; modo: string };
+  estado: { puede: boolean; seleccionado: string; seleccionados: string[]; ultimoRechazo: string; modo: string };
   biblioteca: { id: string; nombre: string; modelo: string }[];
   seleccion(): Obj | null;
   objeto(id: string): Obj | null;
@@ -25,7 +25,10 @@ type Builder = {
   girar(grados: number): Res; subir(metros: number): Res; desplazar(dx: number, dz: number): Res; escalar(factor: number): Res;
   duplicar(): Res; borrar(): Res; fijar(): Res; nombrar(nombre: string, decorado?: boolean): Res; deshacer(): Res; rehacer(): Res;
   ajustar(c: { oculto?: boolean; volumen?: number; solido?: boolean; caja?: [number, number, number, number, number, number] | null; alcance?: "burbuja" | "zona" | "todos"; radio?: number }): Res;
-  seleccionar(id: string): Res; transformar(id: string, t: Partial<Donde>): Res; modo(m: string): Res;
+  seleccionar(id: string): Res; transformar(id: string, t: Partial<Donde>, lote?: string): Res; modo(m: string): Res;
+  /** M22c: seleccionar varios (reemplaza), sumar/quitar uno (shift+clic), borrar por id con un lote (deshacer agrupado). */
+  seleccionarVarios(ids: string[]): Res; alternarSeleccion(id: string): Res;
+  borrarId(id: string, lote?: string): Res; nuevoLote(): string;
   escuchar(fn: (que: string) => void): () => void;
 };
 type Cam = { modo?(m: "juego" | "construir"): void; frame?(centro: Punto, radio: number): void; bloquear?(on: boolean): void };
@@ -52,6 +55,8 @@ export const AYUDA = [
   "X, Y o Z: solo ese eje (otra vez: todos) · T: ejes del objeto o del mundo.",
   "Con paso: 0,5 m, 15°, escala 0,1 (cámbialo abajo); Ctrl mantenido: libre.",
   "Mayús + D o Ctrl + D: duplicar y coger la copia · Supr o Retroceso: borrar · P: fijar o soltar.",
+  "Mayús + clic: suma o quita del grupo seleccionado (varios a la vez); el gizmo los mueve juntos, Supr los borra juntos, Ctrl+Z los deshace juntos.",
+  "Al mover un solo objeto con un eje elegido (X/Y/Z): si su cara queda a menos de 25 cm de otro objeto, encaja cara con cara.",
   "Ctrl + Z: deshacer · Ctrl + Mayús + Z o Ctrl + Y: rehacer · F: encuadrar · N: inspector.",
   "Biblioteca: el modelo sigue al puntero y un clic lo coloca; «Delante de ti» lo coloca sin ratón.",
   "Doble clic en un objeto mientras juegas: abre construir con él seleccionado. Encima del objeto sale una barra con Mover, Girar, Escalar, Duplicar y Borrar.",
@@ -172,7 +177,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     fila("Acciones",
       boton2("Duplicar", "Hacer una copia y cogerla (Mayús+D o Ctrl+D)", () => duplicar()),
       boton2("Fijar / soltar", "Fijado: nadie lo mueve ni lo borra (P)", () => c.fijar()),
-      boton2("Borrar", "Quitarlo del mundo (Supr o Retroceso)", () => c.borrar()),
+      boton2("Borrar", "Quitarlo del mundo; con varios seleccionados, los borra juntos (Supr o Retroceso)", () => borrarSeleccion()),
       boton2("Deshacer", "Deshacer tu último cambio (Ctrl+Z)", () => c.deshacer()),
       boton2("Rehacer", "Rehacer lo deshecho (Ctrl+Mayús+Z o Ctrl+Y)", () => c.rehacer()),
       boton2("Encuadrar", "Mirar lo seleccionado (F)", () => encuadrar())),
@@ -200,10 +205,11 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
 
   // ---- sending: at most 8 moves a second while dragging, a heartbeat while held still, a final one on release ----
   let envio: { key: string; ultimo: number; pendiente: boolean; enviados: number; reloj: ReturnType<typeof setInterval> } | null = null;
+  let loteGrupo = ""; // M22c: non-"" while dragging a multi-selection, so every send of this drag shares one undo step
   const enviarYa = (): Donde | null => {
     if (!envio) return null;
     const d = ed.dondeEsta(envio.key);
-    if (d) { const r = c.transformar(envio.key, d); if (!r.ok) decir(`No: ${r.why}`); }
+    if (d) { const r = c.transformar(envio.key, d, loteGrupo); if (!r.ok) decir(`No: ${r.why}`); }
     envio.ultimo = performance.now(); envio.pendiente = false; envio.enviados++;
     return d;
   };
@@ -222,10 +228,32 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   };
 
   // ---- the gizmo's drags (render reports them; the thing already moves on screen) ----
+  // M22c: dragging the primary with 2+ selected mirrors the same translation to the rest, live, and commits them
+  // all with one shared `lote` on release — one undo step brings every one of them back.
+  let grupoInicio: Map<string, Donde> | null = null;
   ed.onArrastre((fase, key, d) => {
-    if (fase === "empieza") { arrastrado = true; cam()?.bloquear?.(true); }
-    else if (fase === "cambia") { programarEnvio(key); mostrarDonde(d); }
-    else { terminarEnvio(); cam()?.bloquear?.(false); decir(`${nombreDe(c.objeto(key) ?? { id: key })}: x ${fmt(d.x)} y ${fmt(d.y)} z ${fmt(d.z)} · giro ${fmt(d.ry)}°.`); refrescar(); }
+    if (fase === "empieza") {
+      arrastrado = true; cam()?.bloquear?.(true);
+      if (c.estado.seleccionados.length > 1 && c.estado.seleccionados.includes(key)) {
+        grupoInicio = new Map();
+        for (const id of c.estado.seleccionados) { const d0 = ed.dondeEsta(id); if (d0) grupoInicio.set(id, d0); }
+        loteGrupo = c.nuevoLote();
+      } else { grupoInicio = null; loteGrupo = ""; }
+    } else if (fase === "cambia") {
+      programarEnvio(key); mostrarDonde(d);
+      if (grupoInicio?.has(key)) {
+        const o0 = grupoInicio.get(key)!, dx = d.x - o0.x, dy = d.y - o0.y, dz = d.z - o0.z;
+        for (const [id, oi] of grupoInicio) if (id !== key) ed.poner(id, { x: oi.x + dx, y: oi.y + dy, z: oi.z + dz });
+      }
+    } else {
+      terminarEnvio(); cam()?.bloquear?.(false);
+      if (grupoInicio) {
+        for (const [id] of grupoInicio) if (id !== key) { const d2 = ed.dondeEsta(id); if (d2) c.transformar(id, { x: d2.x, y: d2.y, z: d2.z }, loteGrupo); }
+        decir(`${grupoInicio.size} objetos movidos juntos (Ctrl+Z los devuelve a la vez).`);
+      } else decir(`${nombreDe(c.objeto(key) ?? { id: key })}: x ${fmt(d.x)} y ${fmt(d.y)} z ${fmt(d.z)} · giro ${fmt(d.ry)}°.`);
+      grupoInicio = null; loteGrupo = "";
+      refrescar();
+    }
   });
 
   // ---- grab mode (coger): the thing follows the point under the pointer ----
@@ -366,6 +394,15 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     c.seleccionar("");
     decir("Nada seleccionado.");
   }
+  /** M22c: borrar lo seleccionado; si hay varios, un `lote` compartido los junta en un solo paso de deshacer. */
+  function borrarSeleccion(): Res {
+    const ids = c.estado.seleccionados;
+    if (ids.length <= 1) return c.borrar();
+    const lote = c.nuevoLote();
+    let ultimo: Res = { ok: true };
+    for (const id of ids) { const r = c.borrarId(id, lote); if (!r.ok) ultimo = r; }
+    return ultimo.ok ? { ok: true } : ultimo;
+  }
 
   // ---- the inspector: real labelled inputs; Enter or leaving the field applies ----
   function aplicarCampo(i: HTMLInputElement): void {
@@ -388,7 +425,8 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     botonEspacio.textContent = local ? "Local" : "Mundo";
     botonEspacio.setAttribute("aria-pressed", String(local));
     const o = c.objeto(c.estado.seleccionado), cerca = o ? null : c.seleccion();
-    sel.textContent = o ? `Seleccionado: ${nombreDe(o)} · ${o.id}${o.fijado ? " · fijado" : ""}`
+    const grupo = c.estado.seleccionados.length > 1 ? ` · ${c.estado.seleccionados.length} seleccionados (Supr los borra juntos, el gizmo los mueve juntos)` : "";
+    sel.textContent = o ? `Seleccionado: ${nombreDe(o)} · ${o.id}${o.fijado ? " · fijado" : ""}${grupo}`
       : cerca ? `Nada seleccionado; los botones usan lo más cercano: ${nombreDe(cerca)} · ${cerca.id}` : "Nada seleccionado: haz clic en un objeto.";
     inspector.hidden = !inspectorVisible;
     for (const f of datos.querySelectorAll("fieldset")) f.disabled = !o;
@@ -418,6 +456,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
       const k = c.estado.seleccionado || null;
       if (agarre && agarre.key !== k) soltarAgarre(false);
       ed.seleccionar(abierto() ? k : null);
+      ed.outlineVarios?.(abierto() ? c.estado.seleccionados.filter((id) => id !== k) : []);
       if (trasDuplicar && k) {
         trasDuplicar = false; // Blender: Shift+D, then the copy follows the pointer
         if (abierto()) { if (c.estado.modo !== "coger") c.modo("coger"); empezarAgarre(k); }
@@ -453,6 +492,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
       if (agarre) soltarAgarre(false);
       void ed.herramienta(null);
       ed.seleccionar(null);
+      ed.outlineVarios?.([]);
       cam()?.modo?.("juego");
     }
     refrescar();
@@ -483,7 +523,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
       case "Digit4": case "Numpad4": return () => elegirModo("escalar");
       case "KeyX": case "KeyY": case "KeyZ": { const a = k.slice(3) as Eje; return conGizmo ? () => elegirEje(eje === a ? null : a) : null; }
       case "KeyT": return () => cambiarEspacio();
-      case "Delete": case "Backspace": return () => c.borrar();
+      case "Delete": case "Backspace": return () => borrarSeleccion();
       case "KeyP": return () => c.fijar();
       case "KeyF": return () => encuadrar();
       case "KeyN": return () => { inspectorVisible = !inspectorVisible; refrescar(); decir(inspectorVisible ? "Inspector a la vista." : "Inspector oculto (N lo vuelve a mostrar)."); };
@@ -532,6 +572,11 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     if (fantasma) return soltarFantasma(e.clientX, e.clientY);
     if (agarre) return soltarAgarre(true);
     const k = ed.pick(e.clientX, e.clientY);
+    if (e.shiftKey && k) { // M22c: Mayús+clic suma/quita del grupo seleccionado, sin tocar el modo coger
+      c.alternarSeleccion(k);
+      decir(`${c.estado.seleccionados.length} seleccionados.`);
+      return;
+    }
     c.seleccionar(k ?? "");
     if (k && c.estado.modo === "coger") empezarAgarre(k);
     else if (k) { const o = c.objeto(k); decir(`Seleccionado: ${o ? nombreDe(o) : k}.`); }
@@ -556,7 +601,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   barra.setAttribute("role", "toolbar"); barra.setAttribute("aria-label", "Acciones del objeto seleccionado");
   const bBarra = (t: string, titulo: string, fn: () => Res | void, clase = "") => { const b = boton2(t, titulo, fn); if (clase) b.className = clase; return b; };
   const herrBarra = HERRAMIENTAS.map(([m, t]) => { const b = bBarra(t, `${t} (las asas de colores)`, () => elegirModo(m)); b.dataset.modo = m; return b; });
-  barra.append(...herrBarra, bBarra("Duplicar", "Hacer una copia (Mayús+D)", () => duplicar()), bBarra("Borrar", "Quitarlo del mundo (Supr; Ctrl+Z lo devuelve)", () => c.borrar(), "peligro"));
+  barra.append(...herrBarra, bBarra("Duplicar", "Hacer una copia (Mayús+D)", () => duplicar()), bBarra("Borrar", "Quitarlo del mundo (Supr; Ctrl+Z lo devuelve)", () => borrarSeleccion(), "peligro"));
   barra.hidden = true;
   document.body.append(barra);
   barra.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch, not a click on the world

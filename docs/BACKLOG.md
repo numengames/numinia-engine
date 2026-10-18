@@ -153,7 +153,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | M9 | WebTransport como escalón de arriba detrás de la misma interfaz que WebSocket | para Opus | no |
 | M22 | Constructor en el mundo, en vivo (paridad Hyperfy2): gizmos, duplicar, borrar, deshacer, soltar ficheros, inspector, biblioteca; para personas y agentes de IA, según su rol (el panel mínimo ya existe: H1) | hecho (escritorio; VR y móvil → M22b) | sí |
 | M22b | Constructor en VR y en el móvil (gizmo con el mando y con el dedo) | pendiente | sí |
-| M22c | Constructor: puntos de encaje, selección múltiple y jerarquía | pendiente | sí |
+| M22c | Constructor: puntos de encaje, selección múltiple y jerarquía | en progreso (encaje + selección múltiple + mover/borrar en grupo, deshacer atómico; faltan caja de arrastre y jerarquía) | sí |
 | M26 | Servidor MCP del motor: leer zona (con el cuerpo de P4), proponer cambio, abrir PR (nunca publica solo). Trozo 1 hecho (ADR-080, rama `agentes/puerta`): la puerta de los agentes de fuera y un puente MCP por stdio junto al agente; falta el MCP servido por el propio mundo (HTTPS) | espera a M19, P4b | sí |
 | IA-ORG | IAs de organización (motor): una IA que pertenece a una organización de numinia.com entra con un pase `kind:"agent"` (`activa`/`dormida`) que pide cada ~8 min a `POST {NUMINIA_URL}/api/agents/pass`; el motor la cierra con 4003 si su pase caduca sin renovar, acepta un PASE a mitad de sesión (dormida = sin construir), la lista en `GET /agentes` (`organizacion: true`) y el puente `tools/mcp-mundo.ts` tiene modo organización. Hecho del lado del motor (rama `agentes/de-organizacion`); la mitad de numinia.com (till, ruta, panel «Agentes») va aparte | hecho (motor). Corte 2 (rama `agentes/token`): el puente acepta `AGENTE_TOKEN` (`ntk_…`, `Authorization: Bearer`, cuerpo `{org, agent, aud}`) en vez de la clave; 401 = final; el token nunca se imprime | sí |
 | O4 | Seguridad: billete firmado para entrar a una instancia, tope de conexiones por IP, exportar y borrar lo tuyo | pendiente | sí |
@@ -1065,8 +1065,22 @@ La cámara de N1 se acerca cuando algo construido queda entre ella y tu avatar (
 ### M22b — Constructor en VR y en el móvil
 En VR, el rayo del mando selecciona y el gatillo arrastra el gizmo (o coge la cosa con la mano); en el móvil, un dedo sobre un asa la arrastra y dos dedos giran la cámara (N1). Mismas órdenes de `features/objetos`. **Hecho cuando:** e2e con IWER mueve un bloque con el mando; e2e táctil por CDP mueve otro con el dedo.
 
-### M22c — Encajes, selección múltiple y jerarquía
+### M22c — Encajes, selección múltiple y jerarquía (en progreso, rama `constructor/encajes-seleccion-jerarquia`)
 Puntos de encaje (su nodo `Snap`), seleccionar varias cosas y moverlas juntas, agrupar (jerarquía de nodos, su `NodeHierarchy`). **Hecho cuando:** e2e: dos bloques encajan cara con cara; tres seleccionados se mueven a la vez y deshacer los devuelve en un paso.
+
+Hecho en esta pasada (`features/objetos`, `packages/render/src/{gizmo,encaje}.ts`, `apps/plaza/constructor.ts`; tests en `test/objetos.test.ts` y `test/encaje.test.ts`, todos en verde):
+- **Encaje cara con cara**: arrastrando un objeto con un eje elegido (X/Y/Z), si su cara queda a menos de 25 cm de la de otro objeto (y se enfrentan en los otros dos ejes), encaja exacto. Geometría pura en `packages/render/src/encaje.ts` (3 tests unitarios), enganchada en `gizmo.ts` sobre `TransformControls`.
+- **Selección múltiple**: Mayús+clic suma/quita del grupo (`features/objetos/client.ts`: `estado.seleccionados`, `seleccionarVarios`, `alternarSeleccion`); el último clicado es el primario (gizmo e inspector). Contorno azul claro sobre cada secundario (`gizmo.outlineVarios`).
+- **Mover el grupo como una unidad**: arrastrar el gizmo del primario mueve a todos los seleccionados (traslación, en vivo); al soltar, todos llegan al servidor con un `lote` compartido (campo nuevo del intent `mover`) que el servidor junta en **un solo paso de deshacer/rehacer** (antes cada `mover` tenía su propio paso).
+- **Borrar el grupo**: Supr/Retroceso con varios seleccionados los borra juntos, mismo mecanismo de `lote`; un deshacer los devuelve a todos.
+- Versión del feature `objetos` subida a 6 (campo `lote`, opcional, en `mover`/`borrar`/`fijar`); compatible con páginas viejas (por defecto `""`, sin agrupar).
+
+Queda para otra pasada (no roto, solo no empezado):
+- **Caja de arrastre** (rubber-band: soltar el ratón sobre el vacío y arrastrar para seleccionar varios por pantalla) — hoy solo Mayús+clic uno a uno.
+- **Girar/escalar el grupo como unidad** — hoy el movimiento en grupo es solo traslación; girar o escalar con varios seleccionados solo toca al primario.
+- **Panel de jerarquía**: el motor no tiene todavía padre-hijo entre objetos (cada cosa colocada es independiente); un panel de verdad necesita ese dato en el esquema antes de tener sentido — no se ha simulado con una lista plana para no prometer una jerarquía que no existe.
+- El e2e con Playwright de «dos bloques encajan + tres seleccionados se deshacen en un paso» (el de BACKLOG) no se ha grabado todavía: lo cubierto hoy es con tests de Node (`node --test`), no con el navegador real.
+
 
 ### H9b — Limpiar subidas y cupo por identidad (espera a H3)
 Borrar los ficheros subidos que ninguna cosa usa (tras un plazo), cupo de MB por identidad y por rol, y que quien administra vea quién subió qué (`subidas.jsonl`). **Hecho cuando:** test: un fichero sin uso se borra tras el plazo; una identidad sobre su cupo recibe 507.

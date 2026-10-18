@@ -17,6 +17,9 @@ const GIRO = { kind: "fixed", min: -180, max: 180, step: PASO.grados, default: 0
 const ESCALA = { kind: "fixed", min: 0.05, max: 50, step: PASO.escala, default: 1 } as const;
 const ID = { kind: "text", maxBytes: 16 } as const;
 const NOMBRE = { kind: "text", maxBytes: 60, default: "" } as const;
+/** M22c: a tag the page puts on every message of ONE group action (move several, delete several together); the
+ * server folds every message with the same tag (within the same instant) into a single undo step. "" = no group. */
+const LOTE = { kind: "text", maxBytes: 16, default: "" } as const;
 /** M22: what a transform may hold (the schema's own numbers), for builders that clamp before asking. */
 export const LIMITES = { x: [X.min, X.max], y: [Y.min, Y.max], z: [X.min, X.max], giro: [GIRO.min, GIRO.max], escala: [ESCALA.min, ESCALA.max] } as const;
 
@@ -75,8 +78,7 @@ export const ESCALA_MIN = ESCALA.min;
 
 export const objetos = defineFeature({
   id: "objetos",
-  version: 6, // U10: + tipo/ext, oculto, volumen, solido + world box, intent ajustar; U11: + alcance, radio; U12: + holes; M6: + colision (additive: solido stays)
-  level: "base",
+  version: 6, // U10: + tipo/ext, oculto, volumen, solido + world box, intent ajustar; U11: + alcance, radio; U12: + holes; M6: + colision (additive: solido stays); M22c: + lote (deshacer agrupado)
   describe: "Cosas colocadas en el mundo que se quedan (un modelo 3D con su sitio, giro, escala y nombre). Quien tiene permiso de construir las coloca, mueve, duplica, fija, borra y deshace en directo; todos lo ven al momento y sobrevive a los reinicios. Un hueco es un cuadro que espera su obra: se pincha, se elige una imagen y el servidor la encaja.",
   store: { describe: "Por objeto, quién lo colocó y cuándo (`a:<id>`), su caja propia si es sólido (`c:<id>`) y, si es un hueco, el cartel al que vuelve al vaciarlo (`v:<id>`); y el contador de ids (`siguiente`). Nunca va a las páginas." },
   state: {
@@ -93,11 +95,11 @@ export const objetos = defineFeature({
       spoken: "colocar un objeto",
       fields: { modelo: { kind: "text", maxBytes: 64 }, x: X, y: Y, z: X, ry: GIRO, nombre: NOMBRE, decorado: { kind: "bool", default: true }, tipo: TIPO, ext: EXT },
     },
-    mover: { describe: "Poner un objeto en otro sitio, con otro giro y otra escala (todo a la vez, como lo deja el gizmo).", spoken: "mover un objeto", fields: { id: ID, ...DONDE }, rate: { perSecond: 10, burst: 20 } },
+    mover: { describe: "Poner un objeto en otro sitio, con otro giro y otra escala (todo a la vez, como lo deja el gizmo). M22c: `lote` agrupa varios movimientos (de objetos distintos) en un solo paso de deshacer.", spoken: "mover un objeto", fields: { id: ID, ...DONDE, lote: LOTE }, rate: { perSecond: 10, burst: 20 } },
     girar: { describe: "Girar un objeto sobre sí mismo (grados; positivo = a la izquierda vista desde arriba).", spoken: "girar un objeto", fields: { id: ID, grados: GIRO } },
     duplicar: { describe: "Hacer una copia de un objeto un metro al lado.", spoken: "duplicar un objeto", fields: { id: ID } },
-    borrar: { describe: "Quitar un objeto del mundo.", spoken: "borrar un objeto", fields: { id: ID } },
-    fijar: { describe: "Fijar un objeto (nadie lo mueve ni lo borra) o soltarlo.", spoken: "fijar un objeto", fields: { id: ID, fijado: { kind: "bool" } } },
+    borrar: { describe: "Quitar un objeto del mundo. M22c: `lote` agrupa el borrado de varios en un solo paso de deshacer.", spoken: "borrar un objeto", fields: { id: ID, lote: LOTE } },
+    fijar: { describe: "Fijar un objeto (nadie lo mueve ni lo borra) o soltarlo. M22c: `lote` agrupa varios en un solo paso de deshacer.", spoken: "fijar un objeto", fields: { id: ID, fijado: { kind: "bool" }, lote: LOTE } },
     nombrar: { describe: "Ponerle nombre a un objeto (lo que dice el lector de pantalla y leen los agentes), o marcarlo como decorado.", spoken: "poner nombre a un objeto", fields: { id: ID, nombre: NOMBRE, decorado: { kind: "bool", default: false } } },
     ajustar: {
       describe: "U10: lo que no es sitio ni nombre: oculto (una esfera de sonido que no se ve al jugar), volumen 0-1 (sonido y vídeo), alcance (burbuja: solo dentro; zona: toda la zona; todos: todo el mundo), radio de la burbuja de un vídeo en metros, colision (M6: ninguna, caja o malla; malla solo para un modelo) y solido (= colision caja, se mantiene por las páginas de antes; bx0…bz1 = la caja del modelo sin escalar, en sus propios ejes, la que mide la página al cargarlo; caja y malla la necesitan).",
