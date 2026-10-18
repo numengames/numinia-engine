@@ -4,7 +4,7 @@ import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
 import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX } from "../../sim/src/index.ts";
 import type { SimState, SpawnArea, Bvh } from "../../sim/src/index.ts";
 import {
-  MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
+  MSG, buildGrid, selectVisible, encodeSnapshot, cuantizar, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
   decodeIdentityRequest, decodePase, encodeIdentity, leerVozSubida, codificarVozBajada, VOZ_RADIO_M, VOZ_TRAMAS_S,
 } from "../../net/src/index.ts";
@@ -381,11 +381,11 @@ export class Instance {
     this.features.tick();   // game features: queued intents, then their tick hooks (no effect on the sim)
     b = performance.now(); f[4] = b - a; a = b; // piezas
     if (this.sim.tick % this.opts.snapshotEvery === 0) { // 20 Hz sim, 10 Hz snapshots by default
-      const grid = buildGrid(this.sim);
+      const grid = buildGrid(this.sim), q = cuantizar(this.sim); // E1: every avatar quantized once, not once per viewer
       for (const c of this.conns) {
         const visible = selectVisible(this.sim, grid, c.viewer, this.opts.k);
         c.visible = visible;
-        c.transport.send(encodeSnapshot(this.sim, c.entity, c.ack, visible), false);
+        c.transport.send(encodeSnapshot(this.sim, c.entity, c.ack, visible, q), false);
       }
     }
     f[5] = performance.now() - a; // instantaneas
