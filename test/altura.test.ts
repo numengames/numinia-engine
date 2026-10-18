@@ -34,7 +34,7 @@ test("entorno@1 aparicion: optional, checked with its path; a world without it s
   assert.deepEqual(leerAparicion({ schema: ESQUEMA }), { ok: true, value: null }, "absent = the house square");
   assert.deepEqual(leerAparicion(undefined), { ok: true, value: null });
   assert.deepEqual(leerAparicion({ aparicion: { x: 3, z: -9, radio: 6 } }), { ok: true, value: { x: 3, z: -9, radio: 6 } });
-  const malos = [leerAparicion({ aparicion: { x: 0, z: 0, radio: 0.5 } }), leerAparicion({ aparicion: { x: 0, z: 0, radio: 41 } }), leerAparicion({ aparicion: { x: 500, z: 0, radio: 1 } }), leerAparicion({ aparicion: { x: 0, radio: 2 } }), leerAparicion({ aparicion: 7 })];
+  const malos = [leerAparicion({ aparicion: { x: 0, z: 0, radio: 0.5 } }), leerAparicion({ aparicion: { x: 0, z: 0, radio: 41 } }), leerAparicion({ aparicion: { x: 1961, z: 0, radio: 1 } }), leerAparicion({ aparicion: { x: 0, radio: 2 } }), leerAparicion({ aparicion: 7 })];
   assert.deepEqual(malos.map((r) => (r.ok ? "ok" : r.issues[0].path)), ["entorno.aparicion.radio", "entorno.aparicion.radio", "entorno.aparicion.x", "entorno.aparicion.z", "entorno.aparicion"]);
   // the whole file's check sees it too (one log line says where), and it never enters the flat state
   const r = validarEntorno({ schema: ESQUEMA, preset: "noche", aparicion: { x: 3, z: -9, radio: 6 } });

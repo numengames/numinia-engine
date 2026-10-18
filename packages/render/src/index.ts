@@ -91,7 +91,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   sun.position.set(6, 12, 4);
   scene.add(sun);
 
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ color: 0xa7b89c }));
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshStandardMaterial({ color: 0xa7b89c }));
   ground.rotation.x = -Math.PI / 2;
   world.add(ground);
   const grid = new THREE.GridHelper(200, 100, 0x6f7f68, 0x8d9c86);

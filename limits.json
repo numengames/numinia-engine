@@ -1,7 +1,7 @@
 {
   "schema": "numinia-engine/limits@1",
   "version": 1,
-  "updated": "2026-10-15",
+  "updated": "2026-10-18",
   "how_to_read": "Every entry in `limits` has an `axis` (what it depends on), a `key`, a `value` and a `state`: `measured` (then `test` is a file in this repo that measures it, and `date` says when) or `estimated` (then `source` says where it comes from). When a measurement replaces an estimate, change the entry in place.",
   "axes": {
     "server": ["VPS-1", "VPS-2", "SYS-3", "all"],
@@ -146,7 +146,9 @@
     { "axis": "any", "scope": "all", "key": "upload_max_hdr", "value": 8, "unit": "MB", "state": "measured", "test": "test/subidas.test.ts", "date": "2026-10-15", "note": "H9: un cielo 2k equirectangular cabe" },
     { "axis": "any", "scope": "all", "key": "upload_max_mp3", "value": 8, "unit": "MB", "state": "measured", "test": "test/subidas.test.ts", "date": "2026-10-15" },
     { "axis": "any", "scope": "all", "key": "voz_radio_m", "value": 30, "unit": "m", "state": "measured", "test": "test/voz.test.ts", "date": "2026-10-16", "note": "U10: una trama de micrófono llega solo a quien tiene a quien habla en su área de interés y a 30 m o menos; tope 60 tramas/s por persona" },
-    { "axis": "any", "scope": "all", "key": "solidos_max", "value": 512, "unit": "cajas", "state": "estimated", "source": "packages/sim/src/index.ts SOLIDS_MAX: la simulación mira como mucho 512 objetos sólidos (coste por tick sin medir con 1.000 personas)", "date": "2026-10-16" },
+    { "axis": "any", "scope": "all", "key": "solidos_max", "value": 512, "unit": "cajas", "state": "estimated", "source": "packages/sim/src/index.ts SOLIDS_MAX: la simulación mira como mucho 512 objetos sólidos (los primeros por clave, no los más cercanos)", "date": "2026-10-18", "note": "N1, medido a mano en el PC de desarrollo (Ryzen 9 7950X, un núcleo): el paso de la simulación con 1.000 personas andando cuesta 0,08 ms sin sólidos, 3,4 ms (p99 4,4) con 512 y 16,4 ms (p99 18,9) con 2.000: cada movimiento recorre la lista entera. Subirlo pide antes una rejilla de sólidos" },
+    { "axis": "any", "scope": "all", "key": "world_half_size", "value": 2000, "unit": "m (el mundo andable va de -2000 a 2000 en x y en z)", "state": "measured", "test": "test/mundo-grande.test.ts", "date": "2026-10-18", "note": "N1: era 500 (sim BOUND y Transform@2); los objetos, las misiones y los agentes ya llegaban a ±2000. Los demás siguen viajando en 16 bits por eje (1/64 m) que la página lee junto a su propia posición exacta: los mismos bytes en el cable. La altura sigue en ±500" },
+    { "axis": "server", "scope": "all", "key": "tick_dense_crowd_dev_pc", "value": "1.000: p50 6,7 · p99 12,2 ms; 2.000: p50 16,5 · p99 25,8 ms; 3.000: p50 34,4 · p99 45,0 ms", "unit": "ms por tick (presupuesto 50)", "state": "measured", "test": "packages/server/src/bench.ts", "date": "2026-10-18", "note": "N1: todos en el cuadrado de 80 m (la multitud más apretada), una ronda, con el PC cargado por otros trabajos; server.ts maxPlayers corta en 1.000 por instancia" },
     { "axis": "any", "scope": "all", "key": "upload_max_ogg", "value": 8, "unit": "MB", "state": "measured", "test": "test/subidas.test.ts", "date": "2026-10-15" },
     { "axis": "any", "scope": "all", "key": "upload_max_mp4", "value": 32, "unit": "MB", "state": "measured", "test": "test/subidas.test.ts", "date": "2026-10-15", "note": "H9: vídeos cortos en bucle; Hyperfy2 corta en 100 MB en el servidor" },
     { "axis": "any", "scope": "all", "key": "upload_max_webm", "value": 32, "unit": "MB", "state": "measured", "test": "test/subidas.test.ts", "date": "2026-10-15" },
