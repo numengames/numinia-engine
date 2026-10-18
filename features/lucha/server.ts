@@ -10,7 +10,7 @@ import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
 import { crearEscalera, NIVEL_COLAPSADO, NIVEL_ALETARGADO, ESCALERA, INCAPACITADO_S } from "./estados.ts";
 import { lucha, ALCANCE_PVP_M, DANO_BASE, DANO_VAR, ENFRIAMIENTO_TICKS, REAPARICION_S, VER_M } from "./feature.ts";
 import { BESTIARIO } from "./bestiario.ts";
-import { ECLIPSE, cargaTras, ticksDe } from "./habilidades.ts";
+import { ECLIPSE, CRITICO_PCT, CRITICO_X, cargaTras, ticksDe } from "./habilidades.ts";
 
 /** The server's tick rate (Hz): cooldown and return are counted in ticks of it. */
 export const HZ = 20;
@@ -30,6 +30,8 @@ export function valorDe(c: Criatura): Msg | null {
     color: f.color,
   };
 }
+/** Does this ability roll a critical? CRITICO_PCT % from the engine's PRNG (pure given the state; tests use it). */
+export const tirarCritico = (rng: Uint32Array): boolean => rngNext(rng) % 100 < CRITICO_PCT;
 /** One blow's damage from the engine's PRNG: DANO_BASE..DANO_BASE+DANO_VAR−1 (pure; tests use it). */
 export const tirarDano = (rng: Uint32Array): number => DANO_BASE + (rngNext(rng) % DANO_VAR);
 
@@ -114,14 +116,17 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
     const nueva = cargaTras(c, h);
     carga.set(e, nueva);
     api.emit("carga", { valor: nueva }, { to: e });
-    const dano = h.dano, queda = Math.max(0, Number(v.coherencia) - dano);
+    rng[0] = (rng[0] ^ Math.imul(t + 1, 0x9e3779b1)) >>> 0;        // same mix as `golpear`: same inputs, same crits (replayable)
+    const critico = tirarCritico(rng), dano = h.dano * (critico ? CRITICO_X : 1), queda = Math.max(0, Number(v.coherencia) - dano);
     if (queda > 0) {
       poner(key, { ...v, coherencia: queda, modo: "alerta" });
-      api.emit("habilidad", { objetivo: key, de: e, cual, dano, queda }, cerca(key));
+      api.emit("habilidad", { objetivo: key, de: e, cual, dano, queda, critico }, cerca(key));
+      if (critico) api.emit("critico", { objetivo: key, de: e, dano }, cerca(key));
       return;
     }
     poner(key, { ...v, coherencia: 0, modo: "disuelta", solido: false });
-    api.emit("habilidad", { objetivo: key, de: e, cual, dano, queda: 0 }, cerca(key));
+    api.emit("habilidad", { objetivo: key, de: e, cual, dano, queda: 0, critico }, cerca(key));
+    if (critico) api.emit("critico", { objetivo: key, de: e, dano }, cerca(key));
     api.emit("disuelta", { objetivo: key, de: e }, cerca(key));
     const s = criaturas.get(key)!.reaparicion ?? REAPARICION_S;
     if (s > 0) vuelven.set(key, t + Math.round(s * HZ));

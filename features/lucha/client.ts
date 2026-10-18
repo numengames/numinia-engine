@@ -12,6 +12,9 @@ import biblioteca from "../objetos/biblioteca.json" with { type: "json" };
 const BLOQUE = biblioteca.modelos.find((m) => m.id === "bloque")?.modelo ?? "";
 /** The white flash on a blow (ms) and how long «−N» stays in the name (ms). */
 export const FLASH_MS = 80, DANO_MS = 700;
+/** Flash colour of a critical (gold, not white) and its damage text. */
+export const COLOR_CRITICO = "#ffd24a";
+export const textoDano = (dano: number, critico: boolean): string => (critico ? `  ¡CRÍTICO! −${dano}` : `  −${dano}`);
 /** Grey the colour fades to as coherence drops (PRI-008: flat colour, no new effect). */
 const GRIS = [0x6e, 0x6e, 0x6e];
 
@@ -28,9 +31,9 @@ export function tinte(color: string, coherencia: number, max: number): string {
   return `#${c.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 }
 /** How a creature looks: the house block scaled to its box, at its place, in its (faded) colour; `flash` paints it white. */
-export function aspecto(v: Msg, flash = false): PlacedObject & { color: string } {
+export function aspecto(v: Msg, flash: boolean | string = false): PlacedObject & { color: string } {
   const r = (n: number) => Math.round(n * 100) / 100, sx = r(Number(v.bx1) - Number(v.bx0)), sy = r(Number(v.by1) - Number(v.by0)), sz = r(Number(v.bz1) - Number(v.bz0));
-  return { model: BLOQUE, x: Number(v.x), y: Number(v.y) || 0, z: Number(v.z), rx: 0, ry: 0, rz: 0, sx, sy, sz, animate: false, color: flash ? "#ffffff" : tinte(String(v.color), Number(v.coherencia), Number(v.coherenciaMax)) };
+  return { model: BLOQUE, x: Number(v.x), y: Number(v.y) || 0, z: Number(v.z), rx: 0, ry: 0, rz: 0, sx, sy, sz, animate: false, color: flash ? (typeof flash === "string" ? flash : "#ffffff") : tinte(String(v.color), Number(v.coherencia), Number(v.coherenciaMax)) };
 }
 const nombre = (v: Msg, extra = "") => ({ text: `${v.nombre}${extra}`, x: Number(v.x), y: (Number(v.y) || 0) + (Number(v.by1) - Number(v.by0)) + 0.5, z: Number(v.z) });
 
@@ -92,7 +95,17 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
       luego(key, DANO_MS, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.tag?.(`lucha:${key}`, nombre(w)); });
     });
     a.on("carga", (m) => { espia?.("carga", m); carga = Number(m.valor); avisar(); });
-    a.on("habilidad", (m) => { espia?.("habilidad", m); });
+    a.on("habilidad", (m) => {                      // same feedback as a blow; a critical flashes gold and shows ¡CRÍTICO!
+      espia?.("habilidad", m);
+      const key = String(m.objetivo), v = a.state.get(key), crit = m.critico === true;
+      if (!v || v.modo === "disuelta") return;
+      limpiar(key);
+      a.view.place?.(`lucha:${key}`, aspecto(v, crit ? COLOR_CRITICO : true));
+      a.view.tag?.(`lucha:${key}`, nombre(v, textoDano(Number(m.dano), crit)));
+      luego(key, crit ? FLASH_MS * 3 : FLASH_MS, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.place?.(`lucha:${key}`, aspecto(w)); });
+      luego(key, DANO_MS, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.tag?.(`lucha:${key}`, nombre(w)); });
+    });
+    a.on("critico", (m) => { espia?.("critico", m); });
     a.on("aire", (m) => { espia?.("aire", m); });
     a.on("estado", (m) => { espia?.("estado", m); });
     a.on("reaparece", (m) => { espia?.("reaparece", m); });

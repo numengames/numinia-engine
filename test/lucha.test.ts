@@ -248,3 +248,54 @@ test("lucha h2: Corte Breve raises the page's bar by 12, Incisión Semántica lo
   assert.equal(vistaCarga(p.l.carga()).pct, 6, "36 − 30");
   assert.ok(avisos > antes, "the bar is repainted");
 });
+
+// ---- combate nivel 2, h3: critical hits (20 % / x2), decided by the server's seeded PRNG ----
+import { tirarCritico } from "../features/lucha/server.ts";
+import { CRITICO_PCT, CRITICO_X } from "../features/lucha/habilidades.ts";
+import { textoDano, COLOR_CRITICO } from "../features/lucha/client.ts";
+
+/** Run n Corte Breve uses on a creature that returns at once; the list of [critico, dano] the page saw. */
+function rafaga(semilla: number, n: number) {
+  const W = mundo(1, semilla, [{ ...G, reaparicion: 0.05 }]);
+  const p = W.pages[0];
+  W.pump(2); W.place(p.s.entity, 11, 0); W.pump(12);
+  for (let i = 0; i < n; i++) { p.l.habilidad("corte-breve"); W.pump(20); }
+  W.pump(2);
+  return { W, p, hits: W.evs(p, "habilidad").map((m) => [m.critico === true, Number(m.dano)] as const) };
+}
+
+test("lucha h3: ~1 in 5 hits is critical and doubles the number; same seed = same crits", () => {
+  const N = 300, { hits, W, p } = rafaga(11, N);
+  assert.equal(hits.length, N);
+  const crits = hits.filter(([c]) => c).length;
+  assert.ok(crits >= N * 0.1 && crits <= N * 0.3, `crits ${crits}/${N} should be near ${CRITICO_PCT}%`);
+  for (const [c, d] of hits) assert.equal(d, c ? 12 * CRITICO_X : 12);
+  assert.equal(W.evs(p, "critico").length, crits, "one `critico` event per critical");
+  assert.deepEqual(rafaga(11, 60).hits, hits.slice(0, 60), "replayable");
+  assert.notDeepEqual(rafaga(12, 60).hits, hits.slice(0, 60), "another seed rolls other crits");
+  // the roll is the pure PRNG function: 20 % of many draws
+  const r = new Uint32Array([5]); let k = 0; for (let i = 0; i < 5000; i++) if (tirarCritico(r)) k++;
+  assert.ok(k > 800 && k < 1200, `${k}/5000`);
+});
+
+test("lucha h3: a critical applies the doubled damage to coherence, and the page paints it gold with ¡CRÍTICO!", () => {
+  const W = mundo(1, 11, [{ ...G, reaparicion: 0.05 }]);
+  const p = W.pages[0];
+  W.pump(2); W.place(p.s.entity, 11, 0); W.pump(12);
+  let visto = false;
+  for (let i = 0; i < 40 && !visto; i++) {
+    const antes = Number(W.estado().coherencia);
+    p.l.habilidad("corte-breve"); W.pump(2);
+    const ult = W.evs(p, "habilidad").at(-1)!;
+    assert.equal(Number(ult.queda), Math.max(0, antes - Number(ult.dano)), "queda = before − damage");
+    if (Number(ult.queda) > 0) assert.equal(Number(W.estado().coherencia), Number(ult.queda));
+    if (ult.critico && Number(ult.queda) > 0) {   // a killing blow dissolves the creature: nothing left to paint
+      visto = true;
+      assert.ok(p.seen.some((s) => s.startsWith(`tag lucha:${KEY} `) && s.includes("¡CRÍTICO! −24")), "damage tag");
+      assert.ok(p.seen.some((s) => s.includes(`place lucha:${KEY}`) && s.endsWith(COLOR_CRITICO)), "gold flash");
+    }
+    W.pump(20);
+  }
+  assert.ok(visto, "a critical showed up within the first hits");
+  assert.equal(textoDano(12, false), "  −12");
+});
