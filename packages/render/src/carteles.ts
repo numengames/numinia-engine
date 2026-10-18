@@ -8,7 +8,7 @@ export const NOMBRE_GRADOS_MAX = 8;     // a name's plate, its name line: at mos
 export const DIALOGO_GRADOS_MAX = 30;   // a bubble: at most this wide in your view
 export const MIRADA_GRADOS = 7;         // «you look at it»: the view's centre passes this close to the person (angle)
 export const MIRADA_SOSTEN_GRADOS = 11; // the one already looked at stays until you leave this wider cone (no flicker)
-const MARCA_FIJA = false;              // open decision: should a «!» keep its plate on? Off: the story says only who you look at / who speaks
+const MARCA_FIJA = true;               // Pablo 2026-10-18: a «!» keeps its plate on (quest marks always visible)
 const DIST_MIN_M = 0.3;                 // closer than this counts as this (a plate is never asked to shrink to nothing)
 
 const rad = (g: number) => (g * Math.PI) / 180;
