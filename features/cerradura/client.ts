@@ -6,7 +6,7 @@ import type { ClientApi } from "../../packages/feature/src/index.ts";
 import { cerradura } from "./feature.ts";
 import type { Metodo } from "./feature.ts";
 
-export type Cerradura = { id: string; metodo: Metodo; abierta: boolean; nombre: string; x: number; y: number; z: number };
+export type Cerradura = { id: string; metodo: Metodo; abierta: boolean; nombre: string; x: number; y: number; z: number; evento: string };
 export type Cambio = "cerraduras" | "permiso" | "abierta" | "llave" | "hecho" | "rechazado";
 export type Res = { ok: true } | { ok: false; why: string };
 
@@ -25,14 +25,14 @@ export function crearCliente() {
       if (!api) return [];
       return api.state.keys().sort().map((id) => {
         const v = api!.state.get(id)!;
-        return { id, metodo: String(v.metodo) as Metodo, abierta: v.abierta === true, nombre: String(v.nombre), x: r(v.x), y: r(v.y), z: r(v.z) };
+        return { id, metodo: String(v.metodo) as Metodo, abierta: v.abierta === true, nombre: String(v.nombre), x: r(v.x), y: r(v.y), z: r(v.z), evento: String(v.evento ?? "") };
       });
     },
     cerradura(id: string): Cerradura | null { return ctl.cerraduras().find((c) => c.id === id) ?? null; },
     /** A code lock: send the digits typed on the keypad. A key lock: nothing to type, just try. */
     abrir: (id: string, codigo = "") => enviar("abrir", { id, codigo }),
-    poner: (p: { id: string; metodo: Metodo; codigo?: string; llave?: string; nombre?: string; x: number; y?: number; z: number }) =>
-      enviar("poner", { codigo: "", llave: "", nombre: "Cerradura", y: 0, ...p }),
+    poner: (p: { id: string; metodo: Metodo; codigo?: string; llave?: string; nombre?: string; x: number; y?: number; z: number; evento?: string }) =>
+      enviar("poner", { codigo: "", llave: "", nombre: "Cerradura", y: 0, evento: "", ...p }),
     quitar: (id: string) => enviar("quitar", { id }),
     dar: (llave: string) => enviar("dar", { llave }),
     alCambiar: (f: (q: Cambio) => void) => { oyentes.add(f); return () => oyentes.delete(f); },

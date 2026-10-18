@@ -65,6 +65,21 @@ export const crearMovedores = (opts: { movedores?: MovedorFichero[] } = {}) => s
     empezar(v, v.lado === "a");
   });
 
+  // D-041 h5: the cable's own receiver «mueve» — fires an interruptor movedor from a zone or button with no
+  // distance check (the server decides, not the one who tripped the trigger). `objeto` carries the movedor's id,
+  // same field disparadores already uses for muestra/oculta. Handled (true) once the id is ours, even if it
+  // declines to move (already riding, or a vaiven that moves on its own): half the point of a receiver is saying
+  // clearly why nothing happened, in the log, since there is no presser here to tell.
+  api.listen("disparadores", "accion", (m) => {
+    if (String(m.accion) !== "mueve") return false;
+    const v = vivos.get(String(m.objeto));
+    if (!v) return false;
+    if (v.f.tipo !== "interruptor") { api.log(`[movedores] mueve «${v.f.id}»: es vaiven, se mueve solo`); return true; }
+    if (v.marcha) { api.log(`[movedores] mueve «${v.f.id}»: ya se está moviendo`); return true; }
+    empezar(v, v.lado === "a");
+    return true;
+  });
+
   api.onTick(() => {
     for (const v of vivos.values()) {
       if (v.f.tipo === "vaiven" && !v.marcha) {

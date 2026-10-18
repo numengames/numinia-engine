@@ -4,8 +4,8 @@
 // server-only `accion` per receiver so the owning feature acts (`api.listen("disparadores", "accion", …)`). No page decides.
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
-import { disparadores, ACCIONES, CERCA_M, COOLDOWN_MAX_S, DISPARADORES_MAX, RECEPTORES_MAX, TICK_HZ } from "./feature.ts";
-import type { Accion } from "./feature.ts";
+import { disparadores, ACCIONES, CERCA_M, COOLDOWN_MAX_S, DISPARADORES_MAX, RECEPTORES_MAX, TICK_HZ, TIPOS } from "./feature.ts";
+import type { Accion, Tipo } from "./feature.ts";
 
 export type Receptor =
   | { accion: "muestra" | "oculta"; objeto: string }
@@ -13,10 +13,12 @@ export type Receptor =
   | { accion: "da_paso"; mision: string; paso: number }
   | { accion: "abre_enlace"; enlace: string }
   | { accion: "suena"; sonido: string }
-  | { accion: "vuelve_a_seguro" };
-export type Disparador = { id: string; nombre: string; tipo: "zona" | "boton"; x: number; y: number; z: number; radio: number; alcance: number; frase: string; cooldown: number; unSoloUso: boolean; receptores: Receptor[] };
+  | { accion: "vuelve_a_seguro" }
+  | { accion: "mueve"; objeto: string };
+export type Disparador = { id: string; nombre: string; tipo: Tipo; x: number; y: number; z: number; radio: number; alcance: number; frase: string; senal: string; cooldown: number; unSoloUso: boolean; receptores: Receptor[] };
 export const ID_RE = /^[a-z0-9][a-z0-9-]{0,15}$/;
 const MISION_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/;
+const SENAL_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 
 export const cortar = (t: string, max: number): string => {
   const s = String(t ?? "").replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, " ").replace(/\s+/g, " ").trim();
@@ -36,6 +38,10 @@ export function leerReceptor(r: unknown): Receptor | string {
     case "muestra": case "oculta": {
       const objeto = cortar(String(o.objeto ?? ""), 60);
       return objeto ? { accion, objeto } : `${accion}: falta «objeto» (el id o el nombre del objeto)`;
+    }
+    case "mueve": {
+      const objeto = cortar(String(o.objeto ?? ""), 60);
+      return objeto ? { accion, objeto } : "mueve: falta «objeto» (el id del movedor)";
     }
     case "teletransporta":
       if (!Number.isFinite(Number(o.x)) || !Number.isFinite(Number(o.z))) return "teletransporta: x y z en metros";
@@ -64,8 +70,14 @@ export function leerDisparador(d: unknown): Disparador | string {
   const o = (d ?? {}) as Record<string, unknown>;
   if (!ID_RE.test(String(o.id))) return `id «${String(o.id).slice(0, 16)}»: minúsculas, cifras y guiones, hasta 16`;
   const tipo = String(o.tipo ?? "");
-  if (tipo !== "zona" && tipo !== "boton") return `«${o.id}»: tipo debe ser «zona» o «boton»`;
-  if (!Number.isFinite(Number(o.x)) || !Number.isFinite(Number(o.z))) return `«${o.id}»: x y z en metros`;
+  if (!(TIPOS as readonly string[]).includes(tipo)) return `«${o.id}»: tipo debe ser ${TIPOS.map((t) => `«${t}»`).join(", ")}`;
+  let senal = "";
+  if (tipo === "senal") {
+    senal = String(o.senal ?? "");
+    if (!SENAL_RE.test(senal)) return `«${o.id}»: senal debe ser un nombre de 1 a 32 letras minúsculas, cifras o guiones (lo que oye de una cerradura o un movedor)`;
+  } else {
+    if (!Number.isFinite(Number(o.x)) || !Number.isFinite(Number(o.z))) return `«${o.id}»: x y z en metros`;
+  }
   if (!Array.isArray(o.receptores) || o.receptores.length === 0) return `«${o.id}»: necesita una lista «receptores» con al menos uno`;
   if (o.receptores.length > RECEPTORES_MAX) return `«${o.id}»: más de ${RECEPTORES_MAX} receptores`;
   const receptores: Receptor[] = [];
@@ -74,12 +86,13 @@ export function leerDisparador(d: unknown): Disparador | string {
     if (typeof leido === "string") return `«${o.id}»: receptor ${i + 1}: ${leido}`;
     receptores.push(leido);
   }
-  const nombre = cortar(String(o.nombre || (tipo === "zona" ? "Zona" : "Botón")), 60) || "Disparador";
+  const nombre = cortar(String(o.nombre || (tipo === "zona" ? "Zona" : tipo === "boton" ? "Botón" : "Señal")), 60) || "Disparador";
   return {
-    id: String(o.id), nombre, tipo, x: Number(o.x), z: Number(o.z), y: entre(o.y, -100, 500, 0),
+    id: String(o.id), nombre, tipo: tipo as Tipo, x: entre(o.x, -2000, 2000, 0), z: entre(o.z, -2000, 2000, 0), y: entre(o.y, -100, 500, 0),
     radio: tipo === "zona" ? entre(o.radio, 0.5, 64, 3) : 0.5,
     alcance: tipo === "boton" ? entre(o.radio, 1, 16, 2) : 0,
     frase: tipo === "boton" ? cortar(String(o.frase || `pulsar ${nombre}`), 60) || `pulsar ${nombre}` : "",
+    senal,
     cooldown: Math.round(entre(o.cooldown, 0, COOLDOWN_MAX_S, 0)),
     unSoloUso: o.un_solo_uso === true,
     receptores,
@@ -107,10 +120,14 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[] } = {}) =>
   const listos = new Map<string, number>();        // trigger → tick at which its cooldown ends
   const dentro = new Map<string, Set<number>>();   // zone → who is inside now
   const agotados = new Set<string>();
+  const porSenal = new Map<string, Disparador[]>(); // D-041 h5: senal name → the «senal» triggers that listen for it
   for (const d of opts.disparadores ?? []) {
-    const v: Msg = { nombre: d.nombre, tipo: d.tipo, x: d.x, y: d.y, z: d.z, radio: d.radio, alcance: d.alcance, frase: d.frase, cooldown: d.cooldown, unSoloUso: d.unSoloUso, usos: 0, enEspera: false, agotado: false };
-    if (api.state.set(d.id, v, { at: { x: d.x, z: d.z } })) { lista.set(d.id, d); if (d.tipo === "zona") dentro.set(d.id, new Set()); }
-    else api.log(`disparadores: «${d.id}» no cabe en el esquema y no se pone`);
+    const v: Msg = { nombre: d.nombre, tipo: d.tipo, x: d.x, y: d.y, z: d.z, radio: d.radio, alcance: d.alcance, frase: d.frase, senal: d.senal, cooldown: d.cooldown, unSoloUso: d.unSoloUso, usos: 0, enEspera: false, agotado: false };
+    if (api.state.set(d.id, v, { at: { x: d.x, z: d.z } })) {
+      lista.set(d.id, d);
+      if (d.tipo === "zona") dentro.set(d.id, new Set());
+      if (d.tipo === "senal") porSenal.set(d.senal, [...(porSenal.get(d.senal) ?? []), d]);
+    } else api.log(`disparadores: «${d.id}» no cabe en el esquema y no se pone`);
   }
   if (lista.size) api.log(`disparadores: ${lista.size} disparador(es)`);
   const nombreDe = (e: number) => cortar(api.who(e)?.nombre ?? `Persona ${e}`, 40) || `Persona ${e}`;
@@ -147,6 +164,24 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[] } = {}) =>
     if (!d || d.tipo !== "boton") return rechazar(e, `No hay ningún botón «${cortar(id, 16)}».`);
     if (!api.within(e, id)) return rechazar(e, `Acércate a ${d.nombre} para pulsarlo.`);
     disparar(d, e);
+  });
+
+  // D-041 h5: «senal» triggers fire not from a place or a press but from another piece's own event — a lock that
+  // opens (cerradura.abierta.evento), a movedor that arrives (movedores.llegada.evento) — matched by name, not by
+  // id: several locks or movedores may share the same senal, and one senal may wire several triggers. Nobody
+  // pressed it, so there is no one to tell «todavía no» or «ya se usó»; the log carries that instead.
+  const dispararSenal = (nombre: string) => { for (const d of porSenal.get(nombre) ?? []) disparar(d, null); };
+  api.listen("cerradura", "abierta", (m) => {
+    const evento = String(m.evento ?? "");
+    if (!evento) return false;
+    dispararSenal(evento);
+    return true;
+  });
+  api.listen("movedores", "llegada", (m) => {
+    const evento = String(m.evento ?? "");
+    if (!evento) return false;
+    dispararSenal(evento);
+    return true;
   });
 
   api.onLeave((e) => { for (const s of dentro.values()) s.delete(e); });

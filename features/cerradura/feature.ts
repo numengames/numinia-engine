@@ -24,6 +24,9 @@ const NOMBRE = { kind: "text", maxBytes: NOMBRE_MAX, default: "Cerradura" } as c
 const METODO = { kind: "enum", values: METODOS } as const;
 const CODIGO = { kind: "text", maxBytes: CODIGO_MAX, default: "" } as const;
 const LLAVE = { kind: "text", maxBytes: 16, default: "" } as const;
+/** D-041 h5: the name the cable hears when this lock opens («el cable»'s own trigger type, `senal`). Empty = this
+ * lock does not wire anything; the server never requires one. */
+const EVENTO = { kind: "text", maxBytes: 32, default: "" } as const;
 
 export const cerradura = defineFeature({
   id: "cerradura",
@@ -32,8 +35,8 @@ export const cerradura = defineFeature({
   describe: "Una cerradura que se abre con un código (teclado numérico, también en HTML, de 3 a 8 cifras) o con una llave que te hayan dado. El servidor decide siempre: el código no sale nunca de él y la llave se comprueba contra lo que esa persona tiene.",
   store: { describe: "Por cerradura, el código que la abre (`c:<id>`, nunca va a las páginas) y cuántas veces seguidas falló cada invitado (`f:<id>:<quienId>`); por invitado, qué llaves tiene (`k:<quienId>`). Nada de esto va a las páginas." },
   state: {
-    describe: "Una entrada por cerradura (clave = su id). metodo = codigo o llave; llave = el id de la llave que la abre (solo si metodo=llave; el código de una cerradura de código nunca está aquí). abierta = si está abierta ahora. nombre, x, y, z = dónde está.",
-    fields: { metodo: METODO, llave: LLAVE, abierta: { kind: "bool", default: false }, nombre: NOMBRE, x: POS, y: Y, z: POS },
+    describe: "Una entrada por cerradura (clave = su id). metodo = codigo o llave; llave = el id de la llave que la abre (solo si metodo=llave; el código de una cerradura de código nunca está aquí). abierta = si está abierta ahora. nombre, x, y, z = dónde está. evento = el nombre que oye el cable cuando se abre (D-041 h5; vacío = no dispara nada).",
+    fields: { metodo: METODO, llave: LLAVE, abierta: { kind: "bool", default: false }, nombre: NOMBRE, x: POS, y: Y, z: POS, evento: EVENTO },
     card: {
       role: "puerta",
       name: "{nombre}",
@@ -52,9 +55,9 @@ export const cerradura = defineFeature({
       rate: { perSecond: 2, burst: 5 },
     },
     poner: {
-      describe: "Poner una cerradura (o cambiar la que tiene ese id): su método (código o llave), el código (si es de código) o el id de la llave que la abre (si es de llave), dónde está y su nombre. Solo quien puede construir.",
+      describe: "Poner una cerradura (o cambiar la que tiene ese id): su método (código o llave), el código (si es de código) o el id de la llave que la abre (si es de llave), dónde está, su nombre y, si quieres que abrirla dispare el cable, el nombre de la señal (evento) que oye un disparador de tipo «senal». Solo quien puede construir.",
       spoken: "poner una cerradura",
-      fields: { id: ID, metodo: METODO, codigo: CODIGO, llave: LLAVE, nombre: NOMBRE, x: POS, y: Y, z: POS },
+      fields: { id: ID, metodo: METODO, codigo: CODIGO, llave: LLAVE, nombre: NOMBRE, x: POS, y: Y, z: POS, evento: EVENTO },
       rate: { perSecond: 2, burst: 4 },
     },
     quitar: { describe: "Quitar una cerradura del mundo. Solo quien puede construir.", spoken: "quitar una cerradura", fields: { id: ID }, rate: { perSecond: 2, burst: 4 } },
@@ -67,7 +70,7 @@ export const cerradura = defineFeature({
   },
   events: {
     permiso: { describe: "Si puedes poner y quitar cerraduras aquí (llega al entrar, al identificarte y si cambian tus roles).", fields: { construir: { kind: "bool" } }, announce: "silent" },
-    abierta: { describe: "Una cerradura que abriste se abrió.", fields: { id: ID }, announce: { text: "Se abre.", sound: "exito", importance: 1 } },
+    abierta: { describe: "Una cerradura que abriste se abrió. Si tiene «evento», lo lleva para que el cable (D-041) la oiga aunque no haya página escuchando (alcance servidor, J3).", fields: { id: ID, evento: EVENTO }, announce: { text: "Se abre.", sound: "exito", importance: 1 } },
     tuLlave: { describe: "Te han dado una llave (solo para ti).", fields: { llave: LLAVE }, announce: "silent" },
     hecho: { describe: "Tu cambio de constructor se hizo.", fields: { id: ID, accion: { kind: "enum", values: ["poner", "quitar"] } }, announce: "silent" },
     rechazado: { describe: "Lo que pediste no se hizo, y por qué (nunca el código ni la llave que faltaba).", fields: { motivo: { kind: "text", maxBytes: 200 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
