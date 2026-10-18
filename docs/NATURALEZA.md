@@ -304,3 +304,224 @@ caer fuera del mapa vuelve por el suelo mínimo por defecto.
 **Copiado / cambiado / combinado.** Copiado: todo M6 (`bvh.ts`, `setMesh`, `groundHeight`, `MAX_SLOPE_COS`, `blockedMesh`, `sitioLibre`), D-045 (suelo de la
 muerte) y la diagonal alternada de `terreno.ts`. Cambiado: la fuente de los triángulos (una función en vez de un GLB), una malla gruesa
 (2 m) frente a la dibujada, un muro en el borde, `piso`. Combinado: terreno + malla GLB en un árbol. Nada nuevo en `step`.
+
+
+## F1 · Fauna electrónica: la tabla y «quién hay en el mundo» (`relieve/fauna.ts`, `naturaleza/fauna.json`)
+
+**Qué es.** Mariposas de día, luciérnagas de noche y pájaros, **electrónicos / biomecánicos** (cuerpo de metal, alas con líneas de circuito que
+brillan, lucecitas), de **36 razas** (12 por grupo) con una **rareza** cada una. Esta historia es **solo la parte pura**: la tabla, su
+validación y la función que dice qué individuos viven en una celda de 32 m durante una ventana de 120 s. **No dibuja nada**: F2 (mariposas +
+luciérnagas) y F3 (pájaros) leen lo que devuelve. Todo es función de enteros: sin `Math.random`, sin reloj, sin red; el servidor y todas las
+páginas calculan **los mismos bichos** para el mismo `(semilla, celda, ventana)`.
+
+**Dónde está.**
+- `packages/relieve/src/fauna.ts` — puro, sin dependencias (en `relieve` para que lo compartan servidor y página; la regla de capas
+  `tools/layers.json` no cambia para `relieve`, pero **`features` puede importar `relieve`** desde ahora: una línea).
+- `features/naturaleza/fauna.json` — la tabla de la casa (`numinia-engine/fauna@1`, con su `_doc` en español, mismo estilo que `peces.json`).
+- `features/naturaleza/fauna-casa.ts` — la tabla ya validada (`FAUNA_CASA`: colores `"#rrggbb"` → enteros); la página la recibe por la raíz de
+  composición (`apps/plaza/main.ts` puede importar `features/`), nunca desde `render/`.
+- `packages/render/src/naturaleza/niveles.ts` — reexporta `FAUNA_POR_NIVEL` (los números viven en `relieve` porque servidor y páginas deben coincidir).
+- `naturaleza.json` gana `fauna: { activa?, densidad?, especies? }` (`esquema.ts`).
+
+### La interfaz (estable; F2 y F3 solo leen esto)
+
+```ts
+import { habitantes, ventanaDe, fundido, trayectoria, especiesDe, probabilidad, pVerRareza, FAUNA_POR_NIVEL, CELDA_M, VENTANA_S } from "packages/relieve/src/fauna.ts";
+// la celda: cx = Math.floor(x / 32), cz = Math.floor(z / 32); la ventana: ventanaDe(segundosDelRelojDelMundo)  (= floor(t / 120))
+const vivos = habitantes(semilla, { cx, cz }, ventana, tabla, { zonaEn, alturaEn, hora, densidad, nivel, especies? });
+// → Habitante[] = { id, especie, x, y, z, fase, semillaPropia, n }
+```
+
+- `tabla` = `TablaFauna` (`{ schema, especies: Especie[] }`): `FAUNA_CASA` o la propia del mundo (ya validada con `validarTabla`).
+- `ctx.zonaEn(x,z)` y `ctx.alturaEn(x,z)` son las del terreno (`relieve.ts`, semilla del mundo); `ctx.hora` = hora 0–24 del reloj de día de
+  `entorno` (`faseDelDia(h)`: crepúsculo 5,5–7,5 y 18–20,5; día 7,5–18; noche el resto); `ctx.densidad` 0–1 (`naturaleza.faunaDensidad`);
+  `ctx.nivel` `"A"|"B"|"C"|"D"` (el de `calidad.ts`); `ctx.especies` = la lista blanca del mundo (`faunaEspecies.split(",")`, vacía = todas).
+- Un `Habitante` es un **punto de anclaje** (`x,y,z`, con `y` ya sobre el suelo y a la altura de vuelo de su raza), no una trayectoria: la página
+  lo mueve como quiera (`vuelo.radio`, `vuelo.velocidad`); `trayectoria(h, especie, t)` da una por defecto (lazo de Lissajous alrededor del
+  ancla, determinista, dentro de `vuelo.radio`). `fase` 0–1 desfasa el aleteo/pulso; `semillaPropia` es un entero para variar tinte o tamaño;
+  `n` = cuántos van juntos (pájaros en bandada, 1–8; el resto 1). **Cuenta como una sola entrada** para los topes.
+- `id` es único en el mundo durante esa ventana (`m|l|p` + celda + ventana + hueco). Para no hacer saltos al cambiar de ventana (cada 120 s sale
+  otra población) usa `fundido(segundosDentroDeLaVentana)` (0→1 en 4 s al entrar, 1→0 en los 4 últimos).
+- **Cada nivel es un prefijo del anterior**: el nivel D ve los primeros huecos de los mismos bichos que ve el A (mismos `id`); el nivel solo
+  recorta la lista. `FAUNA_POR_NIVEL[nivel]` = `{ radio, enVista, celda }`: radio de la vista (m), tope de bichos a la vez en esa vista y tope por celda.
+- La página pide las celdas dentro de `FAUNA_POR_NIVEL[nivel].radio` de la cámara y vuelve a pedirlas **solo al cruzar de celda o de ventana**
+  (coste: ~0,01 ms por celda; nada por fotograma).
+
+### Cómo se decide quién está (el modelo)
+
+Por cada **celda × ventana × grupo** hay `celda[grupo]` huecos (los topes del nivel). Cada hueco, con 8 números del flujo `crearAzar(hash(semilla,
+celda, ventana, grupo))` (mismo consumo siempre → por eso un nivel es prefijo del otro):
+1. Se sortea un punto de la celda; `zonaEn` da su zona.
+2. Peso efectivo de cada raza = `peso × actividad(hora de la raza, parte del día) × afinidad(zona)`. **Actividad**: su hora = 1; en el
+   crepúsculo las de día/noche 0,4; las de crepúsculo vuelan un poco de día (0,3) y de noche (0,15). **Afinidad**: 1 en sus zonas, 0,25 fuera.
+3. El hueco se llena con probabilidad `0,8 × densidad × (Σ pesos efectivos / Σ pesos)` (a mediodía en pleno prado se llena el 80 % de los huecos
+   de mariposa; sin su zona, menos; de noche, ninguno), y la raza sale por ruleta con esos pesos, igual que `elegirPez` de la pesca.
+4. Altura = suelo + un valor entre `vuelo.altura`; `n` entre `bandada`.
+
+**Copiado / cambiado / combinado.** *Copiado*: el estilo de la tabla, el vocabulario (`rareza` comun/rara/legendaria, `peso`) y la ruleta de
+`features/pesca` (`peces.json`, `elegirPez`); `crearAzar`/`hash2` de `semilla.ts`; la idea de «una celda y una ventana de tiempo deciden quién vive
+ahí» sin estado (la de los generadores por trozo de los juegos de bloques). *Cambiado*: la pesca saca **un** pez por lance y por eso reparte
+70/25/5; aquí un visitante cruza **cientos** de bichos por media hora, así que las mismas palabras llevan cuotas ~100 veces menores (abajo); se
+añade `epica` **solo en fauna** (el enum de la pesca viaja por el cable y no se toca). *Combinado*: las zonas del terreno (N1), el reloj de día de
+`entorno`, los niveles A/B/C/D de `calidad.ts`, y `fauna.json` propio del mundo como `peces.json`/`pesca.json`.
+
+### Rarezas: el objetivo y los números
+
+Objetivo declarado (un visitante que **camina 30 min a 1,2 m/s** y se fija en lo que pasa a menos de **12 m**; nivel B, la referencia):
+**P(ver ≥1 legendaria) ≈ 10–20 %** (una vez cada 3-5 horas andando), **P(épica) ≈ 40 %**, **P(rara) ≥ 85-90 %** (casi todas las visitas), **común siempre**.
+Modelo: bichos vivos por m² (`celda × 0,8 × densidad / 1024` por la mezcla de zonas del mundo de semilla 1234: 65 % prado, 16 % bosque, 3 % arena,
+12 % roca, 4 % orilla) × área barrida por ventana (`π·12² + 2·12·1,2·120 ≈ 3 900 m²`) × 15 ventanas; `P(ver) = 1 − e^(−esperados)`
+(`probabilidad()` por raza, `pVerRareza()` por rareza; una prueba lo fija y otra lo compara con una simulación de `habitantes`).
+**Cuotas por grupo** (suman 100 000; `peso` de cada fila): común **98 960** · rara **800** · épica **180** · legendaria **60** (≈ 99,0 / 0,8 / 0,18 / 0,06 %),
+repartidas dentro de la rareza. La afinidad por zona (0,25 fuera de las suyas) hace que las razas de una sola zona escasa (orilla, roca) salgan menos de lo que dice su cuota: los números de abajo ya lo incluyen.
+
+Probabilidad de ver al menos un bicho de cada rareza en 30 min andando (peso → resultado, tabla de la casa, mundo semilla 1234):
+
+| Nivel | hora | común | rara | épica | legendaria |
+|---|---|---|---|---|---|
+| A | día | 100.0 % | 94.6 % | 42.6 % | 16.6 % |
+| A | noche | 100.0 % | 90.5 % | 53.4 % | 18.7 % |
+| B | día | 100.0 % | 94.6 % | 42.6 % | 16.6 % |
+| B | noche | 100.0 % | 90.5 % | 53.4 % | 18.7 % |
+| C | día | 100.0 % | 93.1 % | 39.8 % | 15.2 % |
+| C | noche | 100.0 % | 90.5 % | 53.4 % | 18.7 % |
+| D | día | 100.0 % | 83.1 % | 28.7 % | 10.4 % |
+| D | noche | 100.0 % | 81.4 % | 42.1 % | 13.8 % |
+
+Nivel D: ve menos bichos a la vez (10 mariposas en vista contra 36), así que ve menos raros; es lo que se pretende. Para jugar con la tabla:
+sube o baja las cuatro cuotas de **todos los grupos a la vez** (un mundo propio lo hace en su `fauna.json`) y mira `probabilidad()` / `pVerRareza()`; doblar
+el peso de una raza dobla casi su aparición.
+
+### Topes por nivel (`FAUNA_POR_NIVEL`)
+
+| Nivel | radio de vista | mariposas a la vez | luciérnagas a la vez | pájaros (entradas) | tope por celda (mar/luc/páj) |
+|---|---|---|---|---|---|
+| A | 48 m | 60 | 90 | 16 | 10 / 14 / 3 |
+| B | 36 m | 36 | 54 | 10 | 10 / 14 / 3 |
+| C | 30 m | 24 | 36 | 7 | 9 / 14 / 3 |
+| D | 24 m | 10 | 16 | 3 | 6 / 10 / 2 |
+
+El tope por celda es `ceil(enVista / celdas de 32 m que caben en el disco de la vista)` (+1 donde hacía falta para que un nivel mayor nunca
+tenga menos que uno menor). Un pájaro-entrada puede ser una bandada de hasta 8: F3 cuenta pájaros como `Σ n`. Una prueba mira que ninguna
+celda pase su tope y que el disco entero se quede por debajo de `enVista`.
+
+### `fauna` en `naturaleza.json` y `fauna.json` propio
+
+```json
+{ "semilla": 1234, "fauna": { "activa": true, "densidad": 0.7, "especies": ["luciernaga-ambar", "luciernaga-lima", "mariposa-rele"] } }
+```
+Todo opcional (sin `fauna`, o sin `especies`: activa, densidad 1, todas las razas). Claves de más, tipos malos o un id que no existe en la tabla
+se rechazan **con su ruta y cómo arreglarlo** (`naturaleza.fauna.especies: no existe(n) en la tabla: "dragon"; los ids son: …`), todos a la vez; el
+fichero malo no se usa y el mundo sigue plano (como el resto de `naturaleza.json`). Viaja en el estado `naturaleza:mundo` como `fauna` (bool),
+`faunaDensidad` (0–1) y `faunaEspecies` (ids separados por comas, ≤ 512 bytes; vacío = todas). Un mundo puede traer **su propio `fauna.json`**
+(misma forma que la tabla de la casa; `features/mundo.ts` lo valida con `validarTabla`; si está mal, se registra `[mundo] fauna.json no se usa (uso la
+tabla de la casa): …` y vale la de la casa; los ids de `naturaleza.fauna.especies` se comprueban contra la tabla que valga). **Pendiente para F2:**
+la tabla propia llega hasta el servidor pero **aún no viaja a la página** (8 kB no caben en el estado; hay que elegir cómo servirla, p. ej. como
+fichero estático del mundo); mientras tanto la página usa `FAUNA_CASA`. Nota: `normalizar()` de `naturaleza.ts` ya lleva los tres campos, así que
+cambiar la densidad reconstruye toda la naturaleza; F2 puede separarlo si molesta.
+
+### Las 36 razas
+
+Colores: `luz` = el brillo de la lucecita (lo que distingue a las luciérnagas; las 12 están a ΔE Lab ≥ 20 entre sí, una prueba lo comprueba),
+`ala` = ala o plumaje; además cada raza lleva `cuerpo` (el metal) y `circuito` (las líneas que brillan) en `fauna.json`. Los nombres usan los
+materiales de los Residuos del glosario (válvulas, lentes, bobinas, engranajes): máquinas y piezas, sin inventar sucesos ni lugares de la lore.
+Pulsos de luz: `fijo`, `latido`, `parpadeo`, `onda`, `respiro`, `estrobo`, `morse`, `prisma` (cambia de tono). Cuanto más rara, más
+inusual el color o el pulso (las épicas y legendarias usan `estrobo`, `morse`, `prisma` o un latido lento rojo).
+
+**Mariposas** (día; envergadura en m)
+
+| Nombre | id | Rareza | peso | Luz (color · pulso) | Ala / plumaje | Zonas | Hora | Tamaño m | Bandada |
+|---|---|---|---|---|---|---|---|---|---|
+| Mariposa de relé | `mariposa-rele` | comun | 30000 | `#5ad8ff` · parpadeo | `#7fa6d9` | prado, orilla | dia | 0.16 | — |
+| Mariposa de bobina | `mariposa-bobina` | comun | 25000 | `#ffd24a` · latido | `#e7a15a` | prado, bosque | dia | 0.15 | — |
+| Mariposa de latón | `mariposa-laton` | comun | 20000 | `#fff08a` · fijo | `#e6cf6a` | prado, arena | dia | 0.14 | — |
+| Mariposa de lente | `mariposa-lente` | comun | 13960 | `#8affd0` · respiro | `#9fd9b0` | bosque, orilla | dia | 0.16 | — |
+| Mariposa de engranaje | `mariposa-engranaje` | comun | 10000 | `#c9a8ff` · onda | `#b3a9c9` | roca, prado | dia | 0.17 | — |
+| Mariposa de válvula | `mariposa-valvula` | rara | 330 | `#ff9a6a` · latido | `#e0675a` | prado, bosque | dia | 0.18 | — |
+| Mariposa de cobre verdín | `mariposa-verdin` | rara | 270 | `#7affd8` · onda | `#4fb59a` | orilla, roca | dia | 0.17 | — |
+| Mariposa de filamento | `mariposa-filamento` | rara | 200 | `#ffc24a` · respiro | `#ffe7a8` | arena, prado | dia | 0.16 | — |
+| Mariposa de condensador | `mariposa-condensador` | epica | 100 | `#7aa2ff` · estrobo | `#3f62d9` | bosque, orilla | dia | 0.21 | — |
+| Mariposa de cuarzo | `mariposa-cuarzo` | epica | 80 | `#f0b8ff` · onda | `#c58ae6` | roca, prado | dia | 0.22 | — |
+| Mariposa de aurora | `mariposa-aurora` | legendaria | 32 | `#b6fff0` · prisma | `#6ff0c8` | prado | dia | 0.28 | — |
+| Mariposa de mercurio | `mariposa-mercurio` | legendaria | 28 | `#ffffff` · morse | `#e6ecf5` | roca, orilla | dia | 0.26 | — |
+
+**Luciérnagas** (noche; largo del cuerpo en m; se distinguen por el color de la luz)
+
+| Nombre | id | Rareza | peso | Luz (color · pulso) | Ala / plumaje | Zonas | Hora | Tamaño m | Bandada |
+|---|---|---|---|---|---|---|---|---|---|
+| Luciérnaga ámbar | `luciernaga-ambar` | comun | 35000 | `#ffa81f` · latido | `#4a4756` | prado, bosque | noche | 0.06 | — |
+| Luciérnaga lima | `luciernaga-lima` | comun | 28000 | `#b4e83c` · parpadeo | `#4a4756` | prado, orilla | noche | 0.06 | — |
+| Luciérnaga esmeralda | `luciernaga-esmeralda` | comun | 20960 | `#2edc5f` · respiro | `#4a4756` | bosque | noche | 0.06 | — |
+| Luciérnaga turquesa | `luciernaga-turquesa` | comun | 15000 | `#35e0b0` · onda | `#4a4756` | orilla, bosque | noche | 0.06 | — |
+| Luciérnaga cobalto | `luciernaga-cobalto` | rara | 240 | `#4d7dff` · latido | `#59607a` | orilla | noche | 0.065 | — |
+| Luciérnaga rosa | `luciernaga-rosa` | rara | 210 | `#ff7eb6` · respiro | `#6a5a6e` | prado | noche | 0.065 | — |
+| Luciérnaga bermellón | `luciernaga-bermellon` | rara | 190 | `#ff5a2a` · parpadeo | `#6a5258` | roca, arena | noche | 0.065 | — |
+| Luciérnaga violeta | `luciernaga-violeta` | rara | 160 | `#9a6bff` · onda | `#5c5470` | bosque, roca | noche | 0.065 | — |
+| Luciérnaga magenta | `luciernaga-magenta` | epica | 100 | `#e83cff` · estrobo | `#5c4a70` | bosque, prado | noche | 0.07 | — |
+| Luciérnaga cian | `luciernaga-cian` | epica | 80 | `#00e5ff` · morse | `#3f5a72` | orilla, bosque | noche | 0.07 | — |
+| Luciérnaga carmesí | `luciernaga-carmesi` | legendaria | 32 | `#ff1a3c` · latido | `#5a2a3a` | roca | noche | 0.08 | — |
+| Luciérnaga de prisma | `luciernaga-prisma` | legendaria | 28 | `#f5f5ff` · prisma | `#e6ecf5` | prado, orilla | noche | 0.08 | — |
+
+**Pájaros** (día, algunos al crepúsculo; envergadura en m; `bandada` = pájaros juntos)
+
+| Nombre | id | Rareza | peso | Luz (color · pulso) | Ala / plumaje | Zonas | Hora | Tamaño m | Bandada |
+|---|---|---|---|---|---|---|---|---|---|
+| Gorrión de latón | `gorrion-laton` | comun | 30000 | `#ffd86a` · parpadeo | `#c9a24a` | prado, arena | dia | 0.2 | 2–5 |
+| Paloma de engranajes | `paloma-engranajes` | comun | 25000 | `#a8d8ff` · respiro | `#9aa3b5` | arena, prado, roca | dia | 0.45 | 2–6 |
+| Estornino de cobre | `estornino-cobre` | comun | 20000 | `#ff9a5a` · onda | `#b8693d` | prado, bosque | dia | 0.3 | 3–8 |
+| Golondrina de bobina | `golondrina-bobina` | comun | 13960 | `#7aa2ff` · latido | `#4f5f9a` | orilla, prado | crepusculo | 0.32 | 2–5 |
+| Petirrojo de válvula | `petirrojo-valvula` | comun | 10000 | `#ff6a4a` · fijo | `#8a8594` | bosque, prado | dia | 0.22 | 1–2 |
+| Colibrí de filamento | `colibri-filamento` | rara | 330 | `#ffe27a` · estrobo | `#6fd08a` | prado, orilla | dia | 0.14 | — |
+| Mirlo de lente | `mirlo-lente` | rara | 270 | `#8affd0` · respiro | `#3a3744` | bosque | crepusculo | 0.34 | 1–2 |
+| Martín pescador de zafiro | `martin-zafiro` | rara | 200 | `#5ad8ff` · latido | `#3f7fd9` | orilla | dia | 0.3 | — |
+| Búho de relojería | `buho-relojeria` | epica | 100 | `#ffc24a` · morse | `#8a6a3a` | bosque, roca | crepusculo | 0.9 | — |
+| Cuervo de hierro | `cuervo-hierro` | epica | 80 | `#c9a8ff` · onda | `#4a4756` | roca, bosque | dia | 0.95 | 1–3 |
+| Grulla de mercurio | `grulla-mercurio` | legendaria | 32 | `#ffffff` · prisma | `#e6ecf5` | orilla | dia | 1.8 | 1–2 |
+| Águila de cuarzo | `aguila-cuarzo` | legendaria | 28 | `#f0b8ff` · latido | `#c58ae6` | roca | dia | 2 | — |
+
+Probabilidad por raza (nivel B; «% de su grupo vivo» = qué parte de los bichos de su grupo que hay vivos es de esa raza en ese momento, mezcla
+de zonas de la semilla 1234; «P(ver)» = al menos uno en 30 min andando; `—` = no sale a esa hora):
+
+| Especie | Rareza | % de su grupo vivo (día) | P(ver ≥1) en 30 min, día | % de su grupo vivo (noche) | P(ver ≥1) en 30 min, noche |
+|---|---|---|---|---|---|
+| Mariposa de relé | comun | 31.03 % | 100.0 % | — | — |
+| Mariposa de bobina | comun | 28.89 % | 100.0 % | — | — |
+| Mariposa de latón | comun | 20.49 % | 100.0 % | — | — |
+| Mariposa de lente | comun | 7.53 % | 100.0 % | — | — |
+| Mariposa de engranaje | comun | 11.15 % | 100.0 % | — | — |
+| Mariposa de válvula | rara | 0.38 % | 72.6 % | — | — |
+| Mariposa de cobre verdín | rara | 0.13 % | 36.7 % | — | — |
+| Mariposa de filamento | rara | 0.20 % | 50.2 % | — | — |
+| Mariposa de condensador | epica | 0.054 % | 16.7 % | — | — |
+| Mariposa de cuarzo | epica | 0.089 % | 26.2 % | — | — |
+| Mariposa de aurora | legendaria | 0.032 % | 10.2 % | — | — |
+| Mariposa de mercurio | legendaria | 0.014 % | 4.6 % | — | — |
+| Luciérnaga ámbar | comun | — | — | 45.63 % | 100.0 % |
+| Luciérnaga lima | comun | — | — | 32.67 % | 100.0 % |
+| Luciérnaga esmeralda | comun | — | — | 11.79 % | 100.0 % |
+| Luciérnaga turquesa | comun | — | — | 9.12 % | 100.0 % |
+| Luciérnaga cobalto | rara | — | — | 0.10 % | 35.0 % |
+| Luciérnaga rosa | rara | — | — | 0.24 % | 63.0 % |
+| Luciérnaga bermellón | rara | — | — | 0.10 % | 35.7 % |
+| Luciérnaga violeta | rara | — | — | 0.11 % | 37.6 % |
+| Luciérnaga magenta | epica | — | — | 0.13 % | 42.3 % |
+| Luciérnaga cian | epica | — | — | 0.049 % | 18.6 % |
+| Luciérnaga carmesí | legendaria | — | — | 0.017 % | 6.7 % |
+| Luciérnaga de prisma | legendaria | — | — | 0.033 % | 12.9 % |
+| Gorrión de latón | comun | 31.06 % | 100.0 % | — | — |
+| Paloma de engranajes | comun | 28.95 % | 100.0 % | — | — |
+| Estornino de cobre | comun | 23.37 % | 100.0 % | — | — |
+| Golondrina de bobina | comun | 4.38 % | 98.8 % | 98.66 % | 89.0 % |
+| Petirrojo de válvula | comun | 11.68 % | 100.0 % | — | — |
+| Colibrí de filamento | rara | 0.35 % | 29.4 % | — | — |
+| Mirlo de lente | rara | 0.041 % | 4.0 % | 0.92 % | 2.0 % |
+| Martín pescador de zafiro | rara | 0.076 % | 7.4 % | — | — |
+| Búho de relojería | epica | 0.019 % | 1.9 % | 0.42 % | 0.9 % |
+| Cuervo de hierro | epica | 0.050 % | 4.9 % | — | — |
+| Grulla de mercurio | legendaria | 0.012 % | 1.2 % | — | — |
+| Águila de cuarzo | legendaria | 0.013 % | 1.3 % | — | — |
+
+**Pruebas:** `test/naturaleza-fauna.test.ts` (13: tabla válida con ≥ 10 razas por grupo y ids ascii, ≥ 10 colores de luciérnaga distintos (ΔE),
+determinismo y pureza (sin reloj ni azar), 100 000 sorteos dentro de 4σ del modelo en los tres grupos, día/noche/crepúsculo, afinidad por zona,
+densidad y lista blanca, topes por nivel y nivel = prefijo del mayor, objetivo de rareza (legendaria 10–20 %, épica 33–55 %, rara ≥ 85 %), el modelo
+contra una simulación, trayectoria, errores de validación de la tabla y de `fauna` en `naturaleza.json`, `fauna.json` propio con `conMundo`, capas).
