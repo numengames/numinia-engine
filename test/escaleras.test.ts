@@ -61,13 +61,13 @@ test("N1b: an avatar standing on a roof or a step is not «in the air»", () => 
 });
 
 test("N1b: running up the stair does not stop dead at the first step (the move is split into pieces)", () => {
-  const r = andar(12, -127, 49, true); // 2.45 s running north: onto the top step (z −7.6)
+  const r = andar(12, -127, 96, true); // 4.8 s running north (4 m/s since main halved the speeds): onto the top step (z −7.6)
   assert.equal(r.enElAire, 0);
   assert.ok(Math.abs(r.maxY - PELDANOS * SUBIDA) < 0.01, `reaches the top step running: ${r.maxY}`);
 });
 
 test("N1b: running down the stair stays on the ground", () => {
-  const r = andar(11 - FONDO * (PELDANOS - 1), 127, 60, true);
+  const r = andar(11 - FONDO * (PELDANOS - 1), 127, 120, true);
   assert.equal(r.enElAire, 0);
   assert.ok(r.y < 0.01);
 });
