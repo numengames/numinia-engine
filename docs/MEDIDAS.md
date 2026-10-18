@@ -154,37 +154,47 @@ Lo que cuestan los cronómetros: un `performance.now()` antes y después de cada
 
 ## Tamaño de la página: lo que baja antes de dibujar (D2)
 
-**Una sola cifra: 434,9 kB gz (434.850 bytes), medida el 18-10-2026 en `5362797` con `npm run tamano`.** Meta D2: 300 kB. Tope
-de la puerta hoy: 480 kB (la medida + 10 %, redondeado; `TOPE_GZ` en `tools/tamano.mjs`). La puerta corre también en `npm run gates`.
+**Una sola cifra: 451,5 kB gz (451.457 bytes) en 11 ficheros, medida el 18-10-2026 a las 15:06 UTC en `30da0fd` (v0.10.0)
+con `npm run gates` y `npm run tamano`** (PC de desarrollo: Ryzen 9 7950X, Node 24.21). Meta D2: 300 kB. Tope de la puerta: 480 kB
+(`TOPE_GZ` en `tools/tamano.mjs`; se puso el 18-10 como la medida de entonces + 10 %). La puerta corre también en `npm run gates`.
 
 Qué entra (y por eso la cifra es comparable de una medida a otra): `dist/plaza/index.html` y lo que ese HTML referencia antes de
 ejecutar `main.ts`: la hoja `<link rel="stylesheet">`, el `<script type="module">` de entrada y cada `<link rel="modulepreload">`
-(el grafo de imports estáticos que escribe Vite). Cada fichero se comprime solo con gzip nivel 9 (`node:zlib`), como lo serviría el
-servidor web (Caddy sirve gzip/zstd, no brotli). **No entra:** los trozos perezosos (`import()`: avatares VRM, cielo, agua, gizmo,
-manos, pesca…), el transcodificador Basis (solo con texturas KTX2), iconos, manifiesto y los ficheros del mundo (.glb, .vrm, .vrma).
+(el grafo de imports estáticos que escribe Vite). Cada fichero se comprime solo con gzip nivel 9 (`node:zlib`). **No entra:** los
+trozos perezosos (`import()`: avatares VRM, cielo, agua, gizmo, manos, pesca…), el transcodificador Basis (solo con texturas KTX2),
+manifiesto y los ficheros del mundo (.glb, .vrm, .vrma).
 
-| Fichero | gz -9 |
+**Lo que de verdad viaja es brotli, no gzip.** El propio motor comprime la página con brotli calidad 11 (`pagina.ts`) a quien lo
+acepta, y Caddy lo pasa tal cual: desde fuera, `alchemiststower.numinia.com` respondió `content-encoding: br` en todos los ficheros
+del arranque (18-10-2026 14:28 UTC, `curl -H 'Accept-Encoding: br, gzip'`, build `39a9f73`: 363,7 kB br). Los mismos 11 ficheros de
+`30da0fd` en brotli 11 suman **376,3 kB** (`node:zlib`, uno a uno, 18-10 15:07 UTC). La puerta cuenta gzip -9 a propósito: es
+~17 % más pesimista y vale para un navegador o un proxy que no pida brotli.
+
+| Fichero (`30da0fd`) | gz -9 |
 |---|---|
 | `three.tsl` | 189,6 kB |
-| `index` (entrada) | 98,2 kB |
+| `index` (entrada) | 103,3 kB |
 | `three.core` | 68,5 kB |
-| `src` (paquetes del motor) | 45,5 kB |
+| `src` (paquetes del motor) | 46,4 kB |
+| `escribiendo` | 10,3 kB |
 | `client` | 10,2 kB |
-| `escribiendo` | 10,0 kB |
-| `index.css` | 6,2 kB |
-| `index.html` | 3,9 kB |
+| `iconos` (nuevo en v0.10.0) | 9,1 kB |
+| `index.css` | 7,1 kB |
+| `index.html` | 4,3 kB |
 | `gltf` | 1,9 kB |
 | `calidad` | 0,8 kB |
-| **Total** | **434,9 kB** |
+| **Total** | **451,5 kB** |
 
-Cifras anteriores (históricas, no comparables entre sí porque cada una contaba ficheros distintos): 342 kB (15-10, solo los .js del
-arranque de entonces), 423,3 kB (18-10, diseño M6: sin html ni css, gzip por defecto de Vite). Desde hoy manda esta sección.
+Cifras anteriores, con su versión: 434,9 kB en 10 ficheros (18-10, `5362797`), 437,2 kB (`39a9f73`, el build del mundo vivo) y
+442,7 kB (`d76d71a`, v0.9.0), estas dos con la misma regla en la medida del 18-10 entre las 14:28 y las 14:59 UTC. Históricas y no comparables (contaban otros
+ficheros): 342 kB (15-10, solo los .js del arranque de entonces), 423,3 kB (18-10, diseño M6: sin html ni css, gzip por defecto de
+Vite). Desde hoy manda esta sección.
 
 ## Pruebas unitarias: cuántas y cuánto tardan
 
-**Una sola cifra: 537 pruebas, 537 en verde, 26,5 s** (`npm test` en `5362797`, 18-10-2026, Ryzen 9 7950X con carga 5; la cuenta
-sale de la línea `ℹ tests N` del reporter de `node --test`, no de un grep). La cifra de cada turno del RUNLOG es la de su rama en su
-momento; cuando una entrada diga otra cosa, manda la más nueva.
+La cuenta no se copia aquí: la imprime `npm run gates` en cada pasada (fila «pruebas unitarias», sacada de la línea `ℹ pass N`
+del reporter de `node --test`, no de un grep). Para tener una referencia: **625 en verde, 26,2 s**, el 18-10-2026 a las 15:06 UTC
+en `30da0fd`, Ryzen 9 7950X con carga 2,7. La cifra de cada turno del RUNLOG es la de su rama en su momento.
 
 ## Reglas del método
 
@@ -193,3 +203,8 @@ momento; cuando una entrada diga otra cosa, manda la más nueva.
 3. Cada informe lleva el entorno de la máquina del servidor y la de los robots (procesador, núcleos, núcleo Linux, Node, versión del motor).
 4. Percentiles y no medias; histogramas (1 % de precisión) y no listas de muestras, para poder fusionar procesos.
 5. Un cambio de ajuste (BBR, núcleos…) se mide con la misma pasada antes y después.
+6. Cada cifra que se escribe en un documento o en `limits.json` lleva **fecha, versión (commit), aparato y orden**. Si la pasada
+   no dejó informe guardado, se escribe «sin informe guardado» y la fila de `limits.json` queda como `estimated`, nunca `measured`.
+   Una constante del código (20 Hz, un snapshot cada 2 ticks) es `config`: un ajuste no es una medida.
+7. Una cifra se nombra por la prueba que la da: la plaza de 1.000 **sin red** (`npm run gates`, ~8–9 ms) y **por WebSocket**
+   (`tools/swarm.sh`) son dos pruebas distintas y no se mezclan; el «p99» de la puerta, con 80 ticks, es el peor de 80.
