@@ -16,6 +16,8 @@ import type { ImagenCenital, Huella } from "../../packages/render/src/index.ts";
 import { bajoElCorte } from "../../packages/render/src/corte.ts";
 import { MARCA_IA } from "../../packages/instance/src/identidad.ts";
 import { crearDialogo, anunciar } from "./paneles.ts";
+import { perfil } from "./perfil-aparato.ts";
+import { esMovil } from "../../packages/client/src/movil.ts"; // U24
 import "./mapa.css";
 
 type Vec = { x: number; z: number };
@@ -294,7 +296,7 @@ export function montarMapa(h: HostMapa) {
     for (const [id, ti] of reg.tipos()) if (n[id] && ti.enLista) partes.push(`${n[id]} ${ti.nombre.toLowerCase()}`);
     const cerca = cercanos(ms, yo, reg, 3).map((e) => `${e.nombre} (${reg.tipo(e.tipo).nombre.toLowerCase()}), ${e.texto}`);
     const t = `Minimapa, ${gira ? "gira con la cámara" : "norte arriba"}, ${RADIOS[zoom]} m alrededor: ${partes.join(", ") || "nada cerca"}.` +
-      (cerca.length ? ` Lo más cerca: ${cerca.join("; ")}.` : "") + (destino ? ` Destino: ${destino.nombre}, ${enPalabras(destino.x - yo.x, destino.z - yo.z)}.` : "") + " Pulsa M para el mapa y la lista.";
+      (cerca.length ? ` Lo más cerca: ${cerca.join("; ")}.` : "") + (destino ? ` Destino: ${destino.nombre}, ${enPalabras(destino.x - yo.x, destino.z - yo.z)}.` : "") + (esMovil(perfil().clase) ? " Toca el minimapa para el mapa y la lista." : " Pulsa M para el mapa y la lista.");
     if (t !== textoAntes) { miniTexto.textContent = t; textoAntes = t; }
   }
 

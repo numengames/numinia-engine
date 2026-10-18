@@ -14,7 +14,8 @@
 import { escribiendo } from "./interactuar.ts";
 import { icono } from "./iconos.ts";
 import { anunciar } from "./paneles.ts";
-import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
+import { esTactil, perfil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
+import { cercaDeAlguien } from "../../packages/client/src/movil.ts"; // U24: no «pulsa E» on a phone
 
 type Res = { ok: true } | { ok: false; why: string };
 type Paso = { n: number; texto: string; hecho: boolean; donde: string; tipo?: string; espera?: number; listoEn?: number };
@@ -193,7 +194,7 @@ export function montarLibro(c: Ctl, o: {
     const libro = c.libro(), activas = libro.filter((m) => m.estado === "activa"), hechas = libro.filter((m) => m.estado === "hecha");
     const ahoras = ahorasDe(c.objetivos()); // every step to do now (a grupo: several)
     const partes: HTMLElement[] = [];
-    if (!libro.length) partes.push(el("p", "Aún no tienes misiones. Habla con la gente de la plaza: acércate y pulsa E."));
+    if (!libro.length) partes.push(el("p", `Aún no tienes misiones. Habla con la gente de la plaza: ${cercaDeAlguien(perfil().clase)}.`));
     for (const m of activas) {
       const art = el("article", "", m.seguida ? "mision seguida" : "mision");
       art.append(el("h3", m.titulo), el("p", m.descripcion, "descripcion"));
