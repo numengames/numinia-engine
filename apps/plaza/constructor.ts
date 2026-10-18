@@ -784,7 +784,7 @@ function estilo(): void {
 #panel-construir .aviso-biblioteca { color: #ffb4a8; font-weight: 600; }
 #panel-construir .aviso-biblioteca[hidden] { display: none; }
 #panel-construir input[type=range] { width: 140px; }
-#ficha-objeto { position: fixed; z-index: 6; left: 50%; bottom: 96px; transform: translateX(-50%); width: min(340px, calc(100vw - 16px)); padding: 10px 12px; border-radius: 10px; background: rgba(20, 24, 30, .86); color: #eef2f6; font: 12px system-ui, sans-serif; }
+#ficha-objeto { position: fixed; z-index: 6; left: 50%; bottom: 96px; transform: translateX(-50%); width: min(392px, calc(100vw - 16px)); padding: 10px 12px; border-radius: 10px; background: rgba(20, 24, 30, .86); color: #eef2f6; font: 12px system-ui, sans-serif; }
 #ficha-objeto[hidden] { display: none; }
 #ficha-objeto h3 { margin: 0 0 2px; font-size: 15px; overflow-wrap: anywhere; }
 #ficha-objeto .sub { margin: 0 0 6px; color: #9aa7b4; }
