@@ -714,3 +714,19 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
   `e2e-piernas/foto.mjs`: «quieto» falla por velocidad de la cámara bajo carga (0,75 m, pide > 0,8; código no tocado).
 - Consumo: sin medir · Opus 5.5.
 - Siguiente: amigos guardados (espera a la identidad, F1); menú de muñeca en VR para «Gente»; probar en Quest real.
+
+## 2026-10-18 04:50 · N23 · el tren 2 de la noche, listo para main · versión 0.5.0 (rama `noche/version-2`, desde `tren/motor-2026-10-18-2`)
+
+- Qué: el tren `tren/motor-2026-10-18-2` (creado desde la punta del primero, 74a8704) junta modelos animados baratos
+  (#36), bienes corte 2: ver en 3D y llevar puesto (#37), teletransporte (#39, rebase de #38), dados v1 (#40), carga
+  rápida en móvil (#41) y pantallas web (#42). Cada PR entró tras rebase, `npm test`, `npm run build` y sus piernas.
+  Esta rama lleva además `noche/version` (#35, 0.4.0) fusionada, para entrar limpia en main después de #35.
+- Versión **0.4.0 → 0.5.0** (menor): todo son cosas nuevas. `bienes` pasa a v2 de su feature y hay features nuevas
+  (teletransporte, dados, web): página y servidor tienen que ser del mismo build (recargar las pestañas abiertas). #41
+  añade dependencias (gltf-transform, meshoptimizer, @jsquash): hace falta `npm ci` en el servidor.
+- Números (punta 566b129, load 11-18): `npm test` 521 de 522; falla «cost: names for 1,000 players» por tiempo y solo
+  pasa 13/13. `npm run build` OK. e2e: `base ar vr mezclada` + las 19 piernas, 22 de 23 en verde; `foto` cayó en
+  «quieto» (la cámara libre avanzó 0,75 m y pide 0,8, con load 18); repetida con load 4, OK 2 de 2 (0,95 m).
+- Consumo: sin medir · Opus 5.5.
+- Siguiente: lo fusiona Pablo después de #35. Tras desplegar, `/status` debe decir 0.5.0; probar `/tirar 2d6` con
+  dos pestañas y «Gente» (L).
