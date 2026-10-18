@@ -29,6 +29,40 @@ export const CLIPS = [
   { name: "trotar", clip: "Jog_Fwd_Loop" },
   { name: "correr", clip: "Sprint_Loop" },
   { name: "saltar", clip: "Jump_Loop" },
+  // the movement wheel (J7b): moves a player picks, played over the speed-driven clip until they walk (features/gestos/movimientos.ts).
+  // 33 of UAL1's 45 clips are used. Left out on purpose: A_TPose (the rest pose); the cycles that need the body to travel
+  // (Walk_Formal_Loop, Crouch_Fwd_Loop, Swim_Fwd_Loop, Jump_Start, Jump_Land); the root-motion twins Roll_RM and
+  // Sword_Attack_RM (the hips leave the capsule); two one-frame aim poses (Pistol_Aim_Down, Pistol_Aim_Neutral) and two
+  // exits (Sitting_Exit, Spell_Simple_Exit: walking ends a move at once). `saludo`/`hasta`: see convertir.js.
+  { name: "saludar", clip: "Idle_Loop", saludo: true, hasta: 2.5 }, // UAL1 has no wave: the idle body, a wave written in convertir.js
+  { name: "hablar", clip: "Idle_Talking_Loop" },
+  { name: "antorcha", clip: "Idle_Torch_Loop" },
+  { name: "bailar", clip: "Dance_Loop" },
+  { name: "agachado", clip: "Crouch_Idle_Loop" },
+  { name: "caer-muerto", clip: "Death01" },
+  { name: "conducir", clip: "Driving_Loop" },
+  { name: "arreglar", clip: "Fixing_Kneeling" },
+  { name: "golpe-pecho", clip: "Hit_Chest" },
+  { name: "golpe-cabeza", clip: "Hit_Head" },
+  { name: "usar", clip: "Interact" },
+  { name: "coger", clip: "PickUp_Table" },
+  { name: "pistola-arriba", clip: "Pistol_Aim_Up" },
+  { name: "pistola-guardia", clip: "Pistol_Idle_Loop" },
+  { name: "pistola-recargar", clip: "Pistol_Reload" },
+  { name: "pistola-disparar", clip: "Pistol_Shoot" },
+  { name: "directo", clip: "Punch_Cross" },
+  { name: "jab", clip: "Punch_Jab" },
+  { name: "empujar", clip: "Push_Loop" },
+  { name: "rodar", clip: "Roll" },
+  { name: "sentarse", clip: "Sitting_Enter" },
+  { name: "sentado", clip: "Sitting_Idle_Loop" },
+  { name: "sentado-hablar", clip: "Sitting_Talking_Loop" },
+  { name: "hechizo-preparar", clip: "Spell_Simple_Enter" },
+  { name: "hechizo-sostener", clip: "Spell_Simple_Idle_Loop" },
+  { name: "hechizo-lanzar", clip: "Spell_Simple_Shoot" },
+  { name: "flotar", clip: "Swim_Idle_Loop" },
+  { name: "espada-tajo", clip: "Sword_Attack" },
+  { name: "espada-guardia", clip: "Sword_Idle" },
 ];
 const avatarDir = join(ROOT, "activos/avatares");
 const VRMS = (arg("--vrm", null)?.split(",").map((f) => resolve(f))) ?? (existsSync(avatarDir) ? readdirSync(avatarDir).filter((f) => f.endsWith(".vrm")).map((f) => join(avatarDir, f)) : []);
@@ -88,7 +122,9 @@ for (const [i, f] of VRMS.entries()) {
     await page.evaluate(() => window.pose(-1, 0));
     await page.screenshot({ path: join(FOTOS, `${name}-reposo.png`) });
     for (const [k, u] of vrmas.entries()) {
-      await page.evaluate(([k, t]) => window.pose(k, t), [k, 0.3]);
+      const nombre = u.split("/").pop().replace(".vrma", "");
+      const d = report?.clips[nombre]?.duration ?? 0.75; // the middle of a move says more than its first frames
+      await page.evaluate(([k, t]) => window.pose(k, t), [k, Math.max(0.3, d * 0.45)]);
       await page.screenshot({ path: join(FOTOS, `${name}-${u.split("/").pop().replace(".vrma", "")}.png`) });
     }
   }

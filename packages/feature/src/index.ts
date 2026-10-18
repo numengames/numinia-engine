@@ -37,7 +37,9 @@ export type Card = { role: Role; name: string; description?: string; importance?
  * for the nearest one in reach (a button on touch screens) and sends `intent` with the thing's state key in the
  * intent's text field `key`; the server checks the distance again (`api.within`). `radius`: metres, or the name of a
  * numeric state field (each thing its own). */
-export type Interact = { intent: string; prompt: string; radius: number | string; key: string };
+export type Interact = { intent: string; prompt: string; radius: number | string; key: string;
+  /** J4: seconds to hold the key/button/trigger before it fires (a progress ring while held); undefined/0 = instant. */
+  hold?: number };
 export const INTERACT_RADIUS_MAX = 16;   // J4: metres
 export const INTERACT_SLACK_M = 1.5;     // J4: the server allows this much more than the page (latency, prediction)
 /** Reach in height (vertical worlds): a thing whose state carries a numeric `y` (metres, its feet or its shelf) is in
@@ -443,15 +445,28 @@ export class NearIndex {
   }
 }
 
+/** B2: what one feature's hook cost in the LAST tick (ms, wall clock) and how often it threw since start. The instance's
+ * server reads these right after each tick (server/metrics.ts CosteTick); nothing here keeps history. */
+export type CosteGancho = { pieza: string; gancho: "intent" | "tick" | "vuelta" | "cerca"; ms: number; errores: number };
+
 export class ServerRuntime {
   readonly catalog: Catalog;
+  /** B2: one slot per feature and hook kind that runs inside tick(), in registration order (see CosteGancho). */
+  readonly costes: CosteGancho[] = [];
+  private readonly costeDe = new Map<string, CosteGancho>();
+  private coste(pieza: string, gancho: CosteGancho["gancho"]): CosteGancho {
+    const k = `${pieza}\u0000${gancho}`;
+    let c = this.costeDe.get(k);
+    if (!c) { c = { pieza, gancho, ms: 0, errores: 0 }; this.costeDe.set(k, c); this.costes.push(c); }
+    return c;
+  }
   readonly active: boolean;
   readonly stats = { received: 0, dropped: 0, bad: 0, events: 0, errors: 0 };
   private readonly host: ServerHost;
   private readonly entries: Entry[];
   private readonly catalogBytes: Uint8Array;
-  private readonly handlers = new Map<number, { feature: string; fn: (from: number, msg: Msg) => void }>();
-  private readonly hooks: { join: [string, (e: number) => void][]; leave: [string, (e: number) => void][]; tick: [string, (t: number) => void][]; identify: [string, (e: number, w: { id: string; nombre: string }) => void][]; vuelta: [string, (v: Vuelta) => void][] } = { join: [], leave: [], tick: [], identify: [], vuelta: [] };
+  private readonly handlers = new Map<number, { feature: string; fn: (from: number, msg: Msg) => void; coste: CosteGancho }>();
+  private readonly hooks: { join: [string, (e: number) => void][]; leave: [string, (e: number) => void][]; tick: [string, (t: number) => void, CosteGancho][]; identify: [string, (e: number, w: { id: string; nombre: string }) => void][]; vuelta: [string, (v: Vuelta) => void, CosteGancho][] } = { join: [], leave: [], tick: [], identify: [], vuelta: [] };
   private readonly routeList: Route[] = [];
   private readonly shared = new Map<string, Map<string, Entry2>>();
   /** U10: grows on every shared-state change (the instance looks at the mesh's entries again when it moves, D2). */
@@ -462,7 +477,7 @@ export class ServerRuntime {
   solidsVersion = 0;
   /** U10: every shared-state entry of every feature, as [key, value] (keys prefixed by the feature id). */
   *allState(): Generator<[string, Msg]> { for (const [f, t] of this.shared) for (const [k, e] of t) yield [`${f}:${k}`, e.value]; }
-  private readonly near = new Map<string, { index: NearIndex; pos: number; fields: Fields; table: Map<string, Entry2> }>(); // J9
+  private readonly near = new Map<string, { index: NearIndex; pos: number; fields: Fields; table: Map<string, Entry2>; coste: CosteGancho }>(); // J9
   private readonly known = new Map<number, Map<string, Set<string>>>(); // J9: player -> feature -> things it has
   private queue: { from: number; entry: Entry; msg: Msg }[] = [];
   private readonly waiting = new Map<number, number>();
@@ -485,8 +500,11 @@ export class ServerRuntime {
     this.active = built.used.length > 0;
   }
 
+  /** B2: errors per feature since start, every hook and setup included (the log only says the first one per hook). */
+  readonly erroresDe = new Map<string, number>();
   private fail(feature: string, where: string, e: unknown): void {
     this.stats.errors++;
+    this.erroresDe.set(feature, (this.erroresDe.get(feature) ?? 0) + 1);
     const key = `${feature}:${where}`;
     if (!this.failed.has(key)) { this.failed.add(key); this.host.log(`[funciones] '${feature}' falló ${where}: ${String((e as Error)?.message ?? e)} (el resto sigue)`); }
   }
@@ -525,7 +543,7 @@ export class ServerRuntime {
     const table = new Map<string, Entry2>();
     this.shared.set(id, table);
     const index = f.state ? new NearIndex(f.state.radius ?? STATE_RADIUS_M) : null;
-    if (index && f.state) this.near.set(id, { index, pos, fields: f.state.fields, table });
+    if (index && f.state) this.near.set(id, { index, pos, fields: f.state.fields, table, coste: this.coste(id, "cerca") });
     // S4: bring back what was saved. State values are checked against today's schema: a value that no longer
     // fits (the feature changed shape) is dropped and counted, never sent to anyone.
     const persist = !!f.state?.persist, keeps = persist || !!f.store, storage = this.host.storage;
@@ -545,7 +563,7 @@ export class ServerRuntime {
       on: (intent, fn) => {
         const e = this.entry(id, "intent", intent);
         if (!e) { log(`on('${intent}'): no está declarado en intents (hay: ${Object.keys(f.intents ?? {}).join(", ") || "ninguno"})`); return; }
-        this.handlers.set(e.index, { feature: id, fn });
+        this.handlers.set(e.index, { feature: id, fn, coste: this.coste(id, "intent") });
       },
       emit: (event, msg, scope) => {
         const e = this.entry(id, "event", event);
@@ -622,8 +640,8 @@ export class ServerRuntime {
       onIdentify: (fn) => { this.hooks.identify.push([id, fn]); },
       who: (e) => this.host.who?.(e) ?? null,
       onLeave: (fn) => { this.hooks.leave.push([id, fn]); },
-      onTick: (fn) => { this.hooks.tick.push([id, fn]); },
-      onVuelta: (fn) => { this.hooks.vuelta.push([id, fn]); },
+      onTick: (fn) => { this.hooks.tick.push([id, fn, this.coste(id, "tick")]); },
+      onVuelta: (fn) => { this.hooks.vuelta.push([id, fn, this.coste(id, "vuelta")]); },
       volverASeguro: (e) => { try { return this.host.volverASeguro?.(e) ?? false; } catch (x) { log(`volverASeguro: ${String((x as Error)?.message ?? x)}`); return false; } },
       players: () => this.host.players().slice(), // E6: a piece still gets its own array (the host's may be a shared, frozen view)
       position: (e) => this.host.position(e),
@@ -731,15 +749,18 @@ export class ServerRuntime {
   /** Called once per tick by the instance, after the simulation step: intents in arrival order, then tick hooks. */
   tick(): void {
     if (!this.active) return;
+    for (const c of this.costes) c.ms = 0; // B2: each slot says what THIS tick cost (performance.now() around each hook)
     const q = this.queue; this.queue = []; this.waiting.clear();
     for (const it of q) {
       const h = this.handlers.get(it.entry.index);
       if (!h) continue;
-      try { h.fn(it.from, it.msg); } catch (e) { this.fail(h.feature, `en on('${it.entry.name}')`, e); }
+      const a = performance.now();
+      try { h.fn(it.from, it.msg); } catch (e) { h.coste.errores++; this.fail(h.feature, `en on('${it.entry.name}')`, e); }
+      h.coste.ms += performance.now() - a;
     }
     const t = this.host.tick();
-    if (this.hooks.vuelta.length) for (const v of this.host.vueltas?.() ?? []) for (const [id, fn] of this.hooks.vuelta) { try { fn(v); } catch (e) { this.fail(id, "en onVuelta", e); } } // D-045
-    for (const [id, fn] of this.hooks.tick) { try { fn(t); } catch (e) { this.fail(id, "en onTick", e); } }
+    if (this.hooks.vuelta.length) for (const v of this.host.vueltas?.() ?? []) for (const [id, fn, c] of this.hooks.vuelta) { const a = performance.now(); try { fn(v); } catch (e) { c.errores++; this.fail(id, "en onVuelta", e); } c.ms += performance.now() - a; } // D-045
+    for (const [id, fn, c] of this.hooks.tick) { const a = performance.now(); try { fn(t); } catch (e) { c.errores++; this.fail(id, "en onTick", e); } c.ms += performance.now() - a; }
     this.refreshNear(t % STATE_REFRESH_TICKS); // a tenth of the players each tick: each one every 0.5 s, no spike
   }
 
@@ -769,6 +790,7 @@ export class ServerRuntime {
     let sent = 0;
     for (const [id, n] of this.near) {
       if (n.index.size === 0) continue;
+      const a = performance.now();
       const r2 = n.index.radius ** 2, f2 = (n.index.radius * FORGET_FACTOR) ** 2;
       const players = this.host.players();
       for (let i = 0; i < players.length; i++) {
@@ -787,6 +809,7 @@ export class ServerRuntime {
           if (s.at && (s.at.x - me.x) ** 2 + (s.at.z - me.z) ** 2 <= r2) { mine.add(key); this.host.send(p, encodeState(n.pos, key, n.fields, s.value)); sent++; }
         }
       }
+      n.coste.ms += performance.now() - a;
     }
     return sent;
   }
@@ -845,7 +868,12 @@ export type ViewHooks = {
   lleva?(entity: number, p: { model: string; donde: "mano" | "cabeza"; nombre?: string } | null): void;
   /** D-045: the page goes dark at once and comes back to the world over `ms` (the server put this person somewhere else). */
   fundido?(ms: number): void;
+  /** J7b: play a move on an avatar (its clips by name, how it ends), or stop it (`null`). Returns false when this view
+   * cannot play it there (no VRM for that avatar): the feature then shows a label instead. */
+  movimiento?(entity: number, m: MovimientoVista | null): boolean;
 };
+/** J7b: a move as the view plays it (features/gestos/movimientos.ts has the list). */
+export type MovimientoVista = { id: string; clips: readonly string[]; modo: "una" | "bucle" | "quedarse"; hastaS: number; viva: boolean };
 /** H1: a thing in the world as the page draws it. Rotation in degrees, applied yaw (ry), then pitch (rx), then roll (rz). */
 export type PlacedObject = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean;
   /** U10 (optional): what it is (modelo = a .glb; imagen, video: a plane; sonido: a sphere of sound, radius = sx), the file's
@@ -860,8 +888,10 @@ export const NO_VIEW: ViewHooks = { label() {}, bounce() {} };
 export type Announcement = { feature: string; event: string; text: string; sound: Sound; importance: Importance; at?: { x: number; z: number }; who?: number };
 /** A thing in the world as a screen reader or an agent reads it (V1). */
 export type CardView = { feature: string; key: string; role: Role; name: string; description?: string; importance: Importance; actions: string[]; at?: { x: number; z: number } };
-/** J4: a thing in reach as the page offers it: «E: <prompt>»; `use(feature, key)` sends its intent. */
-export type Reachable = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number };
+/** J4: a thing in reach as the page offers it: «E: <prompt>»; `use(feature, key)` sends its intent.
+ * `hold` (seconds, J4 mantener-pulsado): undefined/0 = fires at once; otherwise the page must hold the key/button/
+ * trigger that long (showing a progress ring) before it sends the intent. */
+export type Reachable = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; hold?: number };
 /** Fill `{field}` holes with the values (`{key}` = the state key). Unknown holes stay as they are. */
 export const fillTemplate = (t: string, values: Record<string, unknown>): string => t.replace(/\{([a-zA-Z0-9]+)\}/g, (all, k) => (values[k] === undefined ? all : String(values[k])));
 export type Action = { feature: string; id: string; label: string; key?: string; describe?: string; run: () => void };
@@ -969,7 +999,7 @@ export class ClientRuntime {
         const d = Math.hypot(Number(v[c.at[0]]) - x, Number(v[c.at[1]]) - z);
         if (!(r > 0 && d <= r) || (y !== undefined && !alAlcanceEnAltura(y, v.y))) continue; // J4: a thing whose radius field is 0 is not offered (e.g. carried)
         const vals = { key, ...v };
-        out.push({ feature: f.id, key, intent: it.intent, prompt: fillTemplate(it.prompt, vals), name: fillTemplate(c.name, vals).trim(), distance: d });
+        out.push({ feature: f.id, key, intent: it.intent, prompt: fillTemplate(it.prompt, vals), name: fillTemplate(c.name, vals).trim(), distance: d, ...(it.hold ? { hold: it.hold } : {}) });
       }
     }
     return out.sort((a, b) => a.distance - b.distance);

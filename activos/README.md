@@ -15,10 +15,13 @@ al lado (`docs/SABER.md` §3.3: nada de Mixamo, ni bases de VRoid, ni «gratis»
 |---|---|---|---|
 | `casa/bloque.glb` | Bloque de 1 m apoyado en el suelo, piedra cálida (1,6 kB) | CC0 (obra propia) | `node tools/hacer-bloque.mjs` (siempre los mismos bytes) |
 | `robot/RobotExpressive.glb` | Robot animado (464 kB, 14 animaciones) | CC0 (`robot/LICENSE.txt`) | Tomás Laulhé (Quaternius), ejemplos de three.js |
-| `avatares/*.vrm` | 3 avatares VRM de jugador (J1; 974–1.142 kB, 2.130–2.880 triángulos) | CC0 dentro del fichero y en la fuente (`avatares/LICENCIAS.md`) | Polygonal Mind, 100Avatars |
+| `avatares/*.vrm` | 3 avatares VRM de jugador (J1; 185–245 kB tras E3, 2.130–2.880 triángulos) | CC0 dentro del fichero y en la fuente (`avatares/LICENCIAS.md`) | Polygonal Mind, 100Avatars |
 | `animaciones/*.vrma` | quieto, andar, trotar, correr, en el aire (J1) | CC0 (`animaciones/LICENCIAS.md`) | Quaternius UAL1 → `tools/vrma/convertir.mjs` |
 | `texturas/*.webp` | Suelos (H4): hierba, tierra, arena, roca, nieve; color 1k + relieve 512 px (52–375 kB cada uno) | CC0 (`texturas/LICENCIAS.md`) | Poly Haven, recodificados a WebP; listados en `features/entorno/suelos.json` |
-| `cielos/kloofendal_48d_partly_cloudy_puresky_1k.hdr` | Luz de entorno HDR del preset «nublado» (1,4 MB, se baja solo si se usa) | CC0 (`texturas/LICENCIAS.md`) | Poly Haven (Greg Zaal, Jarod Guest) |
+| `cielos/kloofendal_48d_partly_cloudy_puresky_1k.hdr` | Luz de entorno HDR del preset «nublado» (801 kB tras E3, 466 kB en gzip; se baja solo si se usa) | CC0 (`texturas/LICENCIAS.md`) | Poly Haven (Greg Zaal, Jarod Guest) |
 
 Los avatares y animaciones que dibuja la plaza están en `avatares/catalogo.json` (lo escribe
 `node tools/avatares-catalogo.ts`, que rechaza lo que no sea CC0 dentro del fichero o pase de 10.000 triángulos).
+
+E3: avatares, animaciones y cielo pasan por `node tools/aligerar-activos.ts` (sin pérdida en VRM/VRMA: el mismo JSON y
+los mismos valores; el cielo con 6 de sus 8 bits de mantisa, ≤ 1,6 % por píxel). Tras cambiar uno: `node tools/aligerar-activos.ts && node tools/avatares-catalogo.ts`.

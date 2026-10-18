@@ -34,6 +34,8 @@ import { createAvatares } from "./avatares.ts";
 import { sueloBajo } from "./avatares-politica.ts";
 import { prepararGltf, usarRenderer } from "./gltf.ts";
 import { ordenCarga, puedeEmpezar } from "./carga-orden.ts";
+import type { Movimiento } from "./avatares-politica.ts";
+export type { Movimiento } from "./avatares-politica.ts";
 export type { CatalogoAvatares } from "./avatares.ts";
 import type { CatalogoAvatares } from "./avatares.ts";
 import { createNombres, NOMBRE_VISIBLE_M } from "./nombres.ts";
@@ -46,6 +48,7 @@ import { vistaElementos } from "./elementos-vista.ts";
 import { vistaPesca } from "./pesca-vista.ts";
 import { crearDianas3D, crearDianaAR } from "./dardos.ts";
 import { crearPantallasWeb } from "./web.ts";
+import { crearSalon } from "./ancestros.ts";
 import type { DianaAR } from "./dardos.ts";
 import { detalleAgua } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
@@ -54,10 +57,14 @@ import type { Fundido } from "./fundir.ts";
 import type { Parte } from "./lotes.ts";
 import { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 import { crearTeletransporte } from "./teletransporte.ts";
+import { crearPrecompilador } from "./precompilar.ts";
 export { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 export type { EntornoDatos } from "./entorno.ts";
 export type { Luz } from "./teletransporte.ts";
 export type { Calidad, Nivel } from "./calidad.ts";
+import { decidirLOD } from "./lod-politica.ts";
+export { decidirLOD, LOD_LEJOS_M, LOD_HISTERESIS_M } from "./lod-politica.ts";
+export type { EstadoLOD } from "./lod-politica.ts";
 
 export type Backend = "WebGPU" | "WebGL2";
 /** Someone to draw. J2 (optional, additive): `y` = height of the feet in metres (0 = on the plaza), `speed` =
@@ -79,7 +86,24 @@ export const EN_MANO_M = 0.16;
 const LOADS_AT_ONCE = 4;   // H1: model files downloading at the same time; the nearest first
 const ANIMATE_WITHIN_M = 40; // H1: farther than this, a model's animation stands still (cold phones)
 
-export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number } } = {}) {
+/** T1: the graphics chip's name, read once (B3: at start, before any shader is queued; a WebGL read waits for the
+ * whole GPU queue). WebGPU: the adapter's info. "" when the browser hides it. */
+async function leerGpu(renderer: THREE.WebGPURenderer, backend: Backend): Promise<string> {
+  try {
+    const b = renderer.backend as unknown as { device?: { adapterInfo?: Record<string, string> }; gl?: WebGL2RenderingContext };
+    if (backend === "WebGPU") {
+      const nav = navigator as Navigator & { gpu?: { requestAdapter(): Promise<{ info?: Record<string, string> } | null> } };
+      const info = b.device?.adapterInfo ?? (await nav.gpu?.requestAdapter())?.info;
+      return info ? [info.vendor, info.architecture, info.description].filter(Boolean).join(" ").slice(0, 120) : "";
+    }
+    const gl = b.gl;
+    if (!gl) return "";
+    const ext = gl.getExtension("WEBGL_debug_renderer_info");
+    return String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? "").slice(0, 120);
+  } catch { return ""; }
+}
+
+export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number; eleccion?: (clave: number | "yo") => number | undefined } } = {}) {
   // U25: `movil` = the device class a forced profile declares (?aparato, development only); undefined = read the device
   const power = createPower(conClase(readCaps(), opts.movil), { battery: opts.battery, maxFps: opts.maxFps });
   // XR on a WebGPU backend needs the session's "webgpu" feature (XRGPUBinding); Quest Browser 152 has neither (measured
@@ -90,6 +114,13 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   usarRenderer(renderer); // N22: KTX2 textures transcode to what this GPU takes
   await renderer.init();
   const backend: Backend = (renderer as unknown as { backend: { isWebGPUBackend?: boolean } }).backend.isWebGPUBackend ? "WebGPU" : "WebGL2";
+  // B3: the synchronous questions to the GPU are asked ONCE, here, while its queue is still empty. Asked later (three
+  // reads the anisotropy limit on the first texture; the T1 pulse read the chip's name after the welcome) each one
+  // waited for every shader compile queued before it: R6 measured 0.52 s and 0.14-0.27 s during the events load.
+  const gl = (renderer.backend as unknown as { gl?: WebGL2RenderingContext }).gl;
+  try { (renderer.backend as unknown as { capabilities?: { getMaxAnisotropy?(): number } }).capabilities?.getMaxAnisotropy?.(); } catch { /* WebGPU: nothing to ask */ }
+  const paralelo = backend === "WebGPU" || !!gl?.getSupportedExtensions()?.includes("KHR_parallel_shader_compile"); // three takes it at init
+  const gpuNombre = leerGpu(renderer, backend);
   renderer.setPixelRatio(power.pixelRatio());
   renderer.setSize(innerWidth, innerHeight);
   parent.appendChild(renderer.domElement);
@@ -164,9 +195,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     reglas(o: Parameters<Manos["reglas"]>[0]) { Object.assign(reglasManos, o); manosReal?.reglas(o); },
     on(fn: (e: EventoMano) => void) { oyentesManos.add(fn); return () => oyentesManos.delete(fn); },
     ancla: (l: "izq" | "der") => manosReal?.ancla(l) ?? null,
+    rayo: (l: "izq" | "der") => manosReal?.rayo(l) ?? null,
     andar: () => manosReal?.andar() ?? null,
+    dirMando: (l: "izq" | "der") => manosReal?.dirMando(l) ?? null,
     vibrar: (l: "izq" | "der", v?: number, ms?: number) => manosReal?.vibrar(l, v, ms),
     entrada: (l: "izq" | "der") => manosReal?.entrada(l) ?? null,
+    rayoDe: (l: "izq" | "der") => manosReal?.rayoDe(l) ?? null,
     estado: () => manosReal?.estado() ?? { izq: null, der: null },
   };
   const ar = createAR({ renderer, scene, world, domOverlayRoot: document.getElementById("hud") ?? undefined, maxMs: opts.arMaxMs, manos,
@@ -186,7 +220,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // N1b: the solid boxes in metres (view.solidos): the camera does not go through them, avatars stand on them
   let cajasM: ArrayLike<number> = [], cajasFx: Int32Array | null = null;
   const avs = createAvatares({ world, mobile: power.mobile, xr: () => renderer.xr.isPresenting, catalogo: opts.avatares?.catalogo, yo: opts.avatares?.yo, compilar: (o) => renderer.compileAsync(o, camera, scene),
-    suelo: (x, z, y) => sueloBajo(x, z, y, cajasM) });
+    suelo: (x, z, y) => sueloBajo(x, z, y, cajasM), eleccion: opts.avatares?.eleccion });
   // H4 + H12: sky, sun, light, fog, wind and ground come from data (features/entorno), quality from the device tier
   const entorno = crearEntorno({ renderer, scene, world, camera, hemi, sun, ground, grid, hitos, aparato: { mobile: power.mobile, deviceMemoryGB: readCaps().deviceMemoryGB, saveData: readCaps().saveData }, foco: () => selfXZ,
     fichero: (f) => { const i = f.lastIndexOf("."); return (opts.assetUrl ?? ((m: string) => `/a/${m}.glb`))(f.slice(0, i)).replace(/\.glb$/, f.slice(i)); } });
@@ -218,6 +252,25 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     hueso: (q, donde, out) => (donde === "mano" ? avs.mano(q === "self" ? "yo" : q, "derecha", out) : avs.cabeza(q === "self" ? "yo" : q, out)),
     rumbo: (q) => avs.rumbo(q === "self" ? "yo" : q) });
   const web = crearPantallasWeb({ world, camera, enXR: () => renderer.xr.isPresenting, cajas: () => cajasM }); // N17: web screens (web.ts)
+  // M18b: the Graboso, the relic that records, over your right shoulder (lazy: packages/render/src/graboso.ts, fetched at the first invocation)
+  const grabosoPos = new THREE.Vector3();
+  let graboso3d: import("./graboso.ts").Graboso3D | null = null, grabosoCarga: Promise<void> | null = null;
+  const grabosoQuiere = { fuera: false, grabando: false };
+  const graboso = {
+    /** Out (true) or kept (false). The first call downloads the mesh's code. */
+    mostrar(si: boolean): void {
+      grabosoQuiere.fuera = si;
+      if (graboso3d) { graboso3d.mostrar(si); return; }
+      if (!si) return;
+      grabosoCarga ??= import("./graboso.ts").then((m) => {
+        graboso3d = m.crearGraboso({ world, posicion: () => (selfXZ ? grabosoPos.set(selfXZ.x, selfXZ.y ?? 0, selfXZ.z) : null), yaw: () => cam.yaw() });
+        graboso3d.mostrar(grabosoQuiere.fuera); graboso3d.grabando(grabosoQuiere.grabando);
+      }).catch((e) => console.warn(`[graboso] no se pudo cargar: ${(e as Error)?.message ?? e}`));
+    },
+    grabando(si: boolean): void { grabosoQuiere.grabando = si; graboso3d?.grabando(si); },
+    visible(): boolean { return graboso3d?.visible() ?? false; },
+  };
+  const ancestros = crearSalon({ world, camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera) }); // ancestros v1: the hall and the hologram of the tribute to Asimov (ancestros.ts)
   function dropLabel(t: Target): void {
     const d = labels.get(t);
     if (!d) return;
@@ -287,9 +340,14 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // ---- H1: things placed in the world (features/objetos): a model by its sha256, loaded once per file and cloned,
   // the nearest first, never more than LOADS_AT_ONCE downloads at a time ----
   type Gltf = { scene: THREE.Object3D; animations: THREE.AnimationClip[] };
+  type Pieza = { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean };
   type Slot = { group: THREE.Group; want: Thing; model: string; loaded: boolean; failed: boolean; mixer?: THREE.AnimationMixer; medio?: Medio; color?: string; horneado?: boolean;
     /** N12: the baked parts (copies of one model share them: a lote draws them), and a sphere round the group's origin that holds the model (m, before scale). */
-    partes?: Parte[]; radio?: number };
+    partes?: Parte[]; radio?: number;
+    /** J14: a baked figure's two LODs (cerca = its baked parts, lejos = one piece) */
+    piezaCerca?: Pieza[]; piezaLejos?: Pieza; lod?: "cerca" | "lejos";
+    /** B3: set while this copy's shaders are being prepared (precompilar.ts); a new model or pose for the slot drops it. */
+    preparando?: object };
   const esferaTmp = new THREE.Sphere();
   /** N12: the radius (m, before the copy's scale) of a sphere round the origin that holds `o`, a copy not yet in the world. */
   const radioDe = (o: THREE.Object3D): number => { o.updateMatrixWorld(true); tmpBox.setFromObject(o); if (tmpBox.isEmpty()) return 1; tmpBox.getBoundingSphere(esferaTmp); return esferaTmp.center.length() + esferaTmp.radius; };
@@ -429,7 +487,58 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     fundidos.set(model, f);
     return f;
   }
+  // J14: farther than LOD_LEJOS_M, a baked figure drops to ONE piece (one draw call, one flat-shaded colour
+  // per baked part, no texture): the house robot goes 3 -> 1 while it is far enough not to show the loss.
+  // Reuses hornear()'s parts (already in the model's local space) instead of walking the glTF again.
+  const horneadosPieza = new Map<string, Pieza | null>();
+  function hornearPieza(model: string, partes: Pieza[] | null, merge: Merge): Pieza | null {
+    if (horneadosPieza.has(model)) return horneadosPieza.get(model)!;
+    let out: Pieza | null = null;
+    if (partes && partes.length) {
+      try {
+        const coloreadas = partes.map(({ geo, mat }) => {
+          const g = geo.clone();
+          g.deleteAttribute("uv"); // one flat colour per part: no texture to sample
+          const base = (Array.isArray(mat) ? mat[0] : mat) as THREE.MeshStandardMaterial;
+          const c = base.color ?? new THREE.Color(0xffffff);
+          const n = g.attributes.position.count, col = new Float32Array(n * 3);
+          for (let i = 0; i < n; i++) col.set([c.r, c.g, c.b], i * 3);
+          g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+          return g;
+        });
+        const geo = coloreadas.length === 1 ? coloreadas[0] : merge(coloreadas);
+        if (geo) {
+          geo.computeBoundingSphere(); geo.computeBoundingBox();
+          out = { geo, mat: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }), sombra: partes.some((p) => p.sombra) };
+        }
+      } catch (err) { console.warn(`[objetos] no pude hornear en una pieza ${model}:`, err); out = null; }
+    }
+    horneadosPieza.set(model, out);
+    return out;
+  }
+  /** Builds the Object3D a Slot shows for a set of baked parts (one Mesh each, sharing geometry across copies). */
+  function representacion(piezas: Pieza[]): THREE.Object3D {
+    const g = new THREE.Group();
+    for (const p of piezas) { const m = new THREE.Mesh(p.geo, p.mat); m.castShadow = p.sombra; g.add(m); }
+    return g;
+  }
+  /** J14: a baked figure beyond LOD_LEJOS_M shows its one-piece LOD; up close, its baked parts. Hysteresis
+   * (lod-politica.ts) stops it flipping at the edge of the band. Called once per frame per baked thing. */
+  function actualizarLOD(s: Slot): void {
+    if (!s.piezaLejos || !s.piezaCerca) return;
+    const d = selfXZ ? Math.sqrt(distance2(s)) : 0;
+    const nuevo = s.want.color ? "cerca" : decidirLOD(d, s.lod); // a thing coloured after loading: back to its baked parts, the only ones pintar() can tint
+    if (nuevo === s.lod) return;
+    s.lod = nuevo;
+    s.group.clear();
+    s.group.add(representacion(nuevo === "lejos" ? [s.piezaLejos] : s.piezaCerca));
+  }
   const files = new Map<string, Promise<{ g: Gltf; clone: Tools["clone"]; merge: Merge }>>(); // model -> its parsed file, shared by every copy
+  // B3: shaders ready before a model shows (precompilar.ts): batches through compileAsync, in parallel where the GPU can
+  const precompilar = crearPrecompilador({ compilar: (g) => renderer.compileAsync(g as unknown as THREE.Object3D, camera, scene), grupo: () => new THREE.Group() as never, paralelo: () => paralelo });
+  const instanciasPreparadas = new Set<string>();
+  const copiasDe = (model: string) => { let n = 0; for (const t of things.values()) if (t.model === model) n++; return n; };
+  const sombrasPuestas = () => sun.castShadow && sun.shadow.autoUpdate;
   const things = new Map<string, Slot>();
   const waiting = new Set<string>();
   let loading = 0, animatingNear = false;
@@ -470,18 +579,42 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       loading++; if (cerca) cercaCargando++;
       file.then(({ g, clone, merge }) => {
         const now = things.get(best);
-        if (!now || now.model !== model || now.loaded) return; // removed or changed while it downloaded
+        if (!now || now.model !== model || now.loaded || now.preparando) return; // removed or changed while it downloaded
         const quieto = !now.want.animate ? hornear(model, g.scene, merge) : null;
         let copy: THREE.Object3D;
         const fu = !quieto && now.want.animate ? fundido(model, g, clone) : null;
-        if (quieto) { copy = new THREE.Group(); for (const q of quieto) { const m = new THREE.Mesh(q.geo, q.mat); m.castShadow = q.sombra; copy.add(m); } }
+        // J14: a thing painted a custom colour keeps its baked parts (pintar() cannot tint a merged,
+        // vertex-coloured piece); anything else gets both LODs and starts at whichever distance picks.
+        const pieza = quieto && !now.want.color ? hornearPieza(model, quieto, merge) : null;
+        const lod: "cerca" | "lejos" = pieza ? decidirLOD(selfXZ ? Math.sqrt(distance2(now)) : 0, undefined) : "cerca";
+        if (quieto) copy = representacion(lod === "lejos" && pieza ? [pieza] : quieto);
         else copy = clone(fu ? fu.escena : g.scene);
-        now.horneado = !!quieto; now.partes = quieto ?? partesEnteras(model, g) ?? undefined;
-        now.radio = radioDe(copy) * (now.want.animate ? 1.5 : 1); // an animation may reach out of its rest pose
-        now.group.add(copy);
-        if (now.want.animate && g.animations.length) { now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction((fu ? fu.clips : g.animations)[0]).play(); }
-        now.loaded = true; now.color = undefined; pintar(now);
-        if (llevados.has(best) && now.group.parent !== world) { const d = llevados.get(best)!; soltarLlevado(best); llevados.set(best, d); } // re-fit in the hand
+        const partes = quieto ?? partesEnteras(model, g) ?? undefined;
+        // B3: its shaders are prepared first (precompilar.ts) and only then is it shown; the first copy of a model
+        // compiles, the rest find the programs ready. Copies drawn together (lotes.ts) use instanced programs: a
+        // one-instance stand-in per part prepares those too, once per model, when the world has enough copies of it.
+        // The LOD it is not showing yet (J14) is prepared alongside, so switching later does not stall either.
+        const objs: THREE.Object3D[] = [copy];
+        if (quieto && pieza) objs.push(representacion(lod === "lejos" ? quieto : [pieza]));
+        if (partes && !instanciasPreparadas.has(model) && copiasDe(model) >= INSTANCIAR_DESDE) {
+          instanciasPreparadas.add(model);
+          for (const q of partes) { const im = new THREE.InstancedMesh(q.geo, q.mat, 1); im.castShadow = q.sombra; objs.push(im); }
+        }
+        if (sombrasPuestas()) for (const o of objs) o.traverse((x) => { if ((x as THREE.Mesh).isMesh && !x.userData.sinSombra) { x.castShadow = true; x.receiveShadow = true; } }); // as entorno marks them: same shader
+        const yo = {};
+        now.preparando = yo;
+        precompilar.preparar(objs, () => {
+          if (things.get(best) !== now || now.preparando !== yo || now.model !== model || now.loaded) return; // removed or changed while it compiled
+          now.preparando = undefined;
+          // J14's LODs are set only now: actualizarLOD() must not show the copy before its shaders are ready
+          if (quieto) { now.piezaCerca = quieto; now.piezaLejos = pieza ?? undefined; now.lod = lod; }
+          now.horneado = !!quieto; now.partes = partes;
+          now.radio = radioDe(copy) * (now.want.animate ? 1.5 : 1); // an animation may reach out of its rest pose
+          now.group.add(copy);
+          if (now.want.animate && g.animations.length) { now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction((fu ? fu.clips : g.animations)[0]).play(); }
+          now.loaded = true; now.color = undefined; pintar(now);
+          if (llevados.has(best) && now.group.parent !== world) { const d = llevados.get(best)!; soltarLlevado(best); llevados.set(best, d); } // re-fit in the hand
+        });
       }).catch((e) => {
         const now = things.get(best);
         if (now && now.model === model) now.failed = true;
@@ -513,6 +646,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     const oyente = selfXZ ? { x: selfXZ.x, y: (selfXZ.y ?? 0) + 1.5, z: selfXZ.z } : null;
     for (const s of things.values()) {
       if (s.medio) { s.medio.actualizar(s.group, oyente, { hidden: !!s.want.hidden, volume: s.want.volume ?? 1, reach: s.want.reach ?? "burbuja", radius: s.want.radius ?? 8 }); if (s.want.kind === "video" && s.medio.sonando()) mediosSonando = true; }
+      if (s.horneado) actualizarLOD(s); // J14: far baked figures drop to one piece (one draw call)
       if (!s.mixer) continue;
       if (distance2(s) <= r2) { s.mixer.update(dt); animatingNear = true; }
     }
@@ -658,7 +792,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     updateThings(dtSeconds);
     selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
     editor.frame();
-    entorno.actualizar(); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds);
+    entorno.actualizar(); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ);
     if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); dibujarCuadro(); return; } // N4: after the hands moved, so a held rod does not trail a frame
     pesca.actualizar(dtSeconds);
     if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
@@ -673,21 +807,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     backend,
     power,
     renderer,
-    /** T1: the graphics chip as the browser names it ("" when it hides it). */
-    async gpu(): Promise<string> {
-      try {
-        const b = renderer.backend as unknown as { device?: { adapterInfo?: Record<string, string> }; gl?: WebGL2RenderingContext };
-        if (backend === "WebGPU") {
-          const nav = navigator as Navigator & { gpu?: { requestAdapter(): Promise<{ info?: Record<string, string> } | null> } };
-          const info = b.device?.adapterInfo ?? (await nav.gpu?.requestAdapter())?.info;
-          return info ? [info.vendor, info.architecture, info.description].filter(Boolean).join(" ").slice(0, 120) : "";
-        }
-        const gl = b.gl;
-        if (!gl) return "";
-        const ext = gl.getExtension("WEBGL_debug_renderer_info");
-        return String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? "").slice(0, 120);
-      } catch { return ""; }
-    },
+    /** T1: the graphics chip as the browser names it ("" when it hides it). Read once at start (B3), then remembered. */
+    gpu(): Promise<string> { return gpuNombre; },
     /** T1: refresh rate of the XR session (Hz); 0 outside XR or when the browser does not say. */
     xrHz(): number {
       const s = renderer.xr.getSession() as unknown as { frameRate?: number } | null;
@@ -709,12 +830,16 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     dardos,
     /** N17: web screens — a panel everywhere, the live page in CSS3D near you on PC/phone, «Abrir fuera de VR» in VR (web.ts). */
     web,
+    /** ancestros v1: the Salón de los Ancestros (muros, hologramas, paneles, dice, contar) — packages/render/src/ancestros.ts. */
+    ancestros,
     /** dardos v1 in AR: enter immersive-ar with a real-size board for your wall (dardos.ts crearDianaAR); null if the
      * session could not start. Press/hold/release throws: `alLanzar` gets aim (board radii) and strength. */
     async dardosAR(o: { alLanzar: (x: number, y: number, fuerza: number) => void; alColocar?: (pared: boolean) => void }): Promise<DianaAR | null> {
       const j = crearDianaAR(o);
       return (await ar.jugar(j)) ? j : null;
     },
+    /** M18b: the Graboso over your shoulder (mostrar, grabando, visible) — packages/render/src/graboso.ts, loaded when first invoked. */
+    graboso,
     /** Place everyone for this frame (J2: at their height). */
     sync(self: { x: number; z: number; y?: number; speed?: number } | null, list: Placed[]): void {
       selfXZ = self;
@@ -835,7 +960,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       }
       s.want = t; if (!editor.retiene(key, t) && !llevados.has(key)) placeGroup(s);
       pintar(s);
-      if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.partes = undefined; s.radio = undefined; s.horneado = false; s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpPronto(); } // a baked copy cannot move: load it whole
+      if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.partes = undefined; s.radio = undefined; s.horneado = false; s.piezaCerca = undefined; s.piezaLejos = undefined; s.lod = undefined; s.preparando = undefined; s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpPronto(); } // a baked copy cannot move: load it whole
       else if (!t.animate && s.mixer) { s.mixer.stopAllAction(); s.mixer = undefined; }
     },
     /** H1: things placed, how many have their model drawn, and how many failed to load (for checks). `~` keys = the page's previews, not counted. */
@@ -847,6 +972,23 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** U-mandos: a video's own, per-person pause/stop/volume (medios.ts `ControlVideo`), or `null` when `key` is not
      * a loaded video. Never touches the shared clock: it only changes what THIS person sees and hears. */
     controlVideo(key: string): ControlVideo | null { return things.get(key)?.medio?.controlVideo ?? null; },
+    /** M18: the video screens drawn right now (their file loaded) and where they stand, for the page to pick the nearest. */
+    pantallas(): { key: string; x: number; y: number; z: number }[] {
+      const r: { key: string; x: number; y: number; z: number }[] = [];
+      for (const [k, s] of things) if (s.want.kind === "video" && s.loaded && s.medio?.enVivo) r.push({ key: k, x: s.want.x, y: s.want.y, z: s.want.z });
+      return r;
+    },
+    /** M18: show a live MediaStream (your shared screen) on a video screen, on this page only — nothing is sent anywhere;
+     * `null` puts the file back. False when there is no loaded video screen with that key. */
+    pantallaEnVivo(key: string, stream: MediaStream | null): boolean {
+      const s = things.get(key);
+      if (!s?.loaded || !s.medio?.enVivo) return false;
+      s.medio.enVivo(stream);
+      return true;
+    },
+    /** B3: how the world's models got their shaders ready before showing (precompilar.ts): prepared, batches, failures,
+     * shown without waiting (ESPERA_MAX_MS), in the queue, ms per batch, and whether this GPU links in parallel. */
+    shaders() { return precompilar.estado(); },
     /** J10: carry a placed thing (`key` as in place): in a hand in XR, beside you on a flat screen; `null` puts it back. */
     llevar(key: string, donde: Llevar | null): void {
       if (!donde) { if (llevados.has(key)) soltarLlevado(key); return; }
@@ -875,6 +1017,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     labels(): Target[] { return [...labels.keys()]; },
     /** J1: VRM avatars (for checks): files loaded, clips, who wears which avatar and which clip plays. */
     avatares(): ReturnType<typeof avs.stats> { return avs.stats(); },
+    /** J7b: play a move (the wheel's) on an avatar's VRM, or stop it (`null`); false = no VRM there (show a label). */
+    movimiento(t: Target, mov: Movimiento | null): boolean { return avs.movimiento(t === "self" ? "yo" : t, mov); },
     /** J3: the name over an avatar (`null` takes it away); drawn for the nearest 32 within 24 m, never over yourself. */
     nameTag(t: Target, text: string | null): void { nombres.nameTag(t, text); },
     /** J3: a speech bubble over an avatar for `ms` (wrapped, up to 6 lines); the latest replaces the one before. */
@@ -892,7 +1036,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
     /** U10: draw hidden spheres of sound (while building) or not (while playing). */
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado(); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */

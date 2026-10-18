@@ -29,6 +29,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | P1 | Ficha técnica: características y límites del motor (humana + `limits.json`) | hecho | sí |
 | J0 | Catálogo de todo lo que espera un jugador (la receta para añadir funciones es de J7) | hecho | sí |
 | J7 | Módulos de juego: añadir una función sin tocar el núcleo, con un ejemplo real (gestos) | hecho | no |
+| J7b | Rueda de movimientos: 27 movimientos de UAL1 (CC0) en una rueda radial (G mantenida, botón táctil, Y del mando), en el VRM y vistos por quien está cerca (Pablo, 16-10) | hecho | no |
 | T1 | Cómo entra cada jugador: el aparato, el navegador, la gráfica, la XR, los cuadros, el ping y la batería de cada sesión, guardados en el servidor (Pablo, 15-10) | hecho | sí |
 | I1 | Identidad de invitado (sin vincular aparatos: Pablo, 15-10, «de momento no») | hecho | no |
 | S4 | Persistencia mínima del mundo (puntos de enlace, inventario, cosas plantadas) | hecho | no |
@@ -37,7 +38,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | B1 | HTTPS en la red de casa para móviles y visores (certificado propio, `/ws` en el mismo origen) | hecho | sí |
 | J8 | AR de verdad: entrar en AR en Android, Quest 3 y Pico 4, suelo, anclar un objeto; iPhone en plano | hecho (emulado; falta probar en aparato real) | sí |
 | J6 | VR de verdad: entrar en VR, moverse, mandos, giro a saltos, viñeta, panel 3D (emulador IWER) | hecho (emulado) | sí |
-| R1 | Realidad cruzada 1 «Despertar»: un QR real hace que la plaza reaccione para todos (trozo 1 hecho; falta lo de «Falta de R1» en su detalle) | pendiente | sí |
+| R1 | Realidad cruzada 1 «Despertar»: un QR real hace que la plaza reaccione para todos (trozos 1 y 2 hechos; falta lo que queda de «Falta de R1» en su detalle) | pendiente | sí |
 | J2 | Salto, doble salto y correr en la simulación (cambia la huella fijada; permiso de Pablo, 14-10; delante de R2–R4 y V3–V7 por la paridad con Hyperfy2, Pablo 15-10) | hecho | sí |
 | J2b | Aviso en pantalla cuando el servidor habla otro formato («recarga la página») | pendiente | sí |
 | J1 | Avatares VRM de verdad (CC0) con animaciones CC0 en la plaza | hecho (trozo 1: avatares de la casa; elegir el tuyo → H10) | sí |
@@ -47,6 +48,11 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J3c | Escribir en VR (teclado del sistema o dictado) para el chat | pendiente | sí |
 | R2 | Realidad cruzada 2 «Semilla del Conocimiento»: pregunta en un sitio real → semilla que se planta en el mundo | pendiente | sí |
 | R3 | Realidad cruzada 3 «Célula del Prisma» + herramienta del DJ para marcar puntos reales | pendiente | sí |
+| Y1 | El Inventario v1: objeto (arma / reliquia / token), Reserva por invitado sobre S4, puerta `otorga` para que otras funciones den objetos, Semilla del Conocimiento al completar una misión, panel R (Pablo, 18-10: el cimiento que faltaba) | hecho | sí |
+| Y2 | Inventario: llevar de verdad — el arma portada en la mano del avatar, la reliquia como ficha V1; arrastrar y soltar en el panel | pendiente | sí |
+| Y3 | Inventario: armas y reliquias de una aventura (`objeto@1` en `aventuras/<x>/objetos/`, con Competencia y Factor de Riesgo del canon) y `coge` que las da | pendiente | sí |
+| Y4 | Inventario: bloquear un objeto para que ningún orden automático lo toque | espera a Y2 | sí |
+| Y5 | Inventario: consumir Semillas (Tabla de Prestigio del canon) y Células del Prisma | espera a R2 | sí |
 | R4 | Realidad cruzada 4 «Caza de invisibles»: la cámara, el color y la hora deciden qué aparece | pendiente | sí |
 | J10 | VR: teletransporte con arco, manos (hand-tracking) y viñeta ajustable desde un menú; resto de J6 (antes «J6b»: `auto.sh` solo reconoce letra + cifras) | en curso (manos, mandos, coger con la mano, diálogo en 3D y misión «Manos a la obra» hechos, emulados; faltan arco y viñeta en menú) | sí |
 | J8b | AR: la plaza en miniatura y en vivo sobre tu mesa (gente, personas, cosas), manos y mandos, palancas para girar, escalar y andar | hecho (emulado; falta probar en Quest 3, Pico 4 y Android) | sí |
@@ -65,12 +71,12 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | L10 | Bestiario: encargar o buscar modelos CC0 low-poly con las fichas de aspecto del diseño (12 criaturas, ≤ 3 k triángulos, 1 material, sin esqueleto) | necesita aprobación (Pablo: ¿se encargan o se buscan?) | no |
 | J5 | Libro de misiones, mapa y minimapa con marcadores | hecho (panel en la muñeca en VR → J13) | sí |
 | J11 | Personas que dan misiones (`pnj@1`: árbol de diálogo, quién da y recibe qué) | hecho | sí |
-| J12 | Ficha de jugador: nombre, aparato y calidad, tiempo, misiones e insignias, ajustes | hecho (falta retrato → H10 e inventario) | sí |
+| J12 | Ficha de jugador: nombre, aparato y calidad, tiempo, misiones e insignias, ajustes | hecho (falta retrato → H10; el inventario llegó con Y1) | sí |
 | J13 | Panel de muñeca en VR: minimapa, lo cercano y la ficha en 3D | pendiente | sí |
 | J19 | VR: ajuste de «altura de pie» en el motor, por si el suelo que dan las gafas está mal (en el Quest 3S de Pablo, 16-10, los ojos de pie salían a 1,11 m: suelo del visor medio metro alto) | pendiente (deseable, no urgente) | sí |
 | J20 | Ajuste (N2): en VR, andar hacia donde miras (hoy) o hacia donde apunta el mando izquierdo (Pablo, 16-10: preferencia de cada uno) | pendiente | sí |
 | J18 | VR: menú que sale al girar la muñeca (mano o mando), y pintar y crear objetos con las manos en el mundo, al estilo de las apps de pintura en VR (Pablo, 16-10: «me parece la bomba»; planificar antes de construir) | pendiente (planificar) | no |
-| J14 | Dibujo barato de personas (LOD o una pieza; hoy el robot son 19 llamadas) | en curso (lo que no anima se hornea: el robot, 3 llamadas; falta LOD) | sí |
+| J14 | Dibujo barato de personas (LOD o una pieza; hoy el robot son 19 llamadas) | hecho (18-10, rama `lod/dibujo-barato-personas`; horneado 3 llamadas de J5 + pieza lejana de 1 llamada, histéresis 22±4 m) | sí |
 | J15 | Marcas «!» y «?» sobre quien tiene algo para ti (por jugador) | pendiente | sí |
 | J16 | Escribir aventuras con un LLM: receta y `node tools/aventura.ts` como comprobación | pendiente | sí |
 | J21 | Mundos verticales (Torre de los Alquimistas): `pnj@1` gana `posicion.y` opcional (0–30 m), `cosa@1` sube su tope de 3 a 30; el estado lo lleva (pnj v2, misiones v2) y la página dibuja a esa altura, con el nombre encima | hecho (16-10, rama `torre/aparicion-y-altura`; `test/altura.test.ts`) | sí |
@@ -110,7 +116,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | H1 | Paridad Hyperfy2: objetos del mundo — colocar un GLB, moverlo, borrarlo, deshacer, en vivo, guardado como texto (sus `blueprints` + `entities`) | hecho | no |
 | H3 | Roles del mundo = los de numinia.com (STD-051/052; Pablo 15-10: «cada organización tiene sus roles; de momento los de Numinia»), no los de Hyperfy. Primer corte (H3a): plantilla «Comunidad» (Administración, Moderación, @todos), dueños con `/dueño <código>`, órdenes `/roles` `/dar` `/quitar` `/silenciar` `/echar` `/vetar` `/perdonar` `/solo-miembros` con la regla de altura; diseño `../mmo-browser-study/ROLES-MOTOR-Y-NUMINIA.md` | hecho (H3a) | sí |
 | H3b | El pase de numinia.com: el motor acepta un pase Ed25519 firmado por numinia.com (persona, organización, mundo, permisos, altura, 10 min, en `#`), clave pública en el instalador; sin pase = visitante. Hecho de punta a punta (verificador, `MOTOR_PASE_*`, roles por pase, mensaje PASE, página) | hecho | sí |
-| H3c | Órdenes de Hyperfy que faltan: `/nombre` (nunca acabado en « · IA»), `/aparecer`, `/chat borrar` (con `manage-organization`) | pendiente | sí |
+| H3c | Órdenes de Hyperfy que faltan: `/nombre` (nunca acabado en « · IA»), `/aparecer`, `/chat borrar` (con `manage-organization`) | hecho (ordenes/h3c-nombre-aparecer-chat) | sí |
 | H2 | Paridad Hyperfy2: lo que el servidor le hace a un jugador (teletransportar, congelar, frenar, empujar, sentarse, volar, salud) como entradas grabadas de la simulación | para Opus | no |
 | H4 | Paridad Hyperfy2: entorno — cielo, sol, niebla, mapa HDR y viento desde un JSON con esquema (su nodo `Sky`) | hecho | sí |
 | H4b | Entorno fino en el panel: colores de cielo, niebla y sol; fondo y HDR de la biblioteca o subidos (H9) | pendiente | sí |
@@ -125,9 +131,9 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | H9 | Paridad Hyperfy2: subir ficheros arrastrando — por hash, con tope, solo quien construye | hecho | sí |
 | H9b | Subidas: borrar lo que nadie usa y cupo por identidad | espera a H3 | sí |
 | H7 | Paridad Hyperfy2: ajustes del mundo — título, descripción, imagen, escenario, avatar por defecto, abierto a construir, límite de personas | hecho (primer corte: fichero `ficha.json` con avatar y aforo, aviso al lleno; falta el panel) | sí |
-| H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | pendiente | sí |
+| H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | hecho | sí |
 | H13 | Paridad Hyperfy2: nivel de detalle (LOD) de los modelos, generado en la ingesta | espera a M21 | sí |
-| H11 | Paridad Hyperfy2: importar de Hyperfy — `.hyp` → carpeta de app; un mundo entero → carpeta del mundo | espera a M19 | sí |
+| H11 | Paridad Hyperfy2: importar de Hyperfy — `.hyp` → carpeta de app; un mundo entero → carpeta del mundo | en curso (la mitad `db.sqlite`+`assets/` → carpeta del mundo, hecha; la mitad `.hyp` → carpeta de app sigue esperando a M19) | sí |
 | H14 | El mundo en un zip: bajarlo y subirlo en `/mundo` con el código de administración (`mundo-zip.ts`, `zip.ts`); falta: la aventura dentro del zip, la sala de numinia.com | hecho (primer corte) | sí |
 | H15 | Dónde aparece la gente: `aparicion { x, z, radio }` opcional en `entorno.json` (radio 1–40 m, x y z ±460; viaja en la carpeta y el zip del mundo, nunca por el cable) → `InstanceOptions.aparicion` → `spawnAvatar`; sin él, el cuadrado de 40 m de siempre con las mismas tiradas (huella de referencia `93b192c8` intacta) | hecho (16-10, rama `torre/aparicion-y-altura`) | sí |
 | F1 | Amigos, bloqueo y moderación (los roles son H3; toca red y guardado; de `docs/JUGADOR.md`). Primer corte (F1a, 18-10): `/silenciar` calla chat Y voz, se guarda con el mundo y sobrevive reinicios; `/hablar <persona>` lo levanta; bloqueo personal `/bloquear` `/desbloquear <persona>` (solo para quien bloquea: ni chat ni voz; guardado por identidad) y botón «Silenciar/Oír» en Gente; aviso accesible al silenciado. Sin tocar el tope de voces (D-024). Queda: amigos, denunciar | hecho (F1a) | sí |
@@ -153,6 +159,8 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | V11 | Baja visión: contraste por función, contornos en lo importante, lupa, texto a 200 % (coste medido) | pendiente | sí |
 | V14 | Página compañera accesible: el móvil o el PC muestra lo que pasa en las gafas (chat, avisos, lista) | espera a V4 | sí |
 | M18 | Medios: vídeo en pantallas del mundo sincronizado con el reloj del servidor (función J7) | pendiente | sí |
+| M18b | El Graboso: la reliquia que graba lo que ves (cabeza de oso de nube translúcida; K la saca y graba, 30 s–1 min con tope duro, clip descargable) | hecho (v1, rama `objetos/graboso`; falta: conectar con Y1, voces de otros, modelo fino, VR) | no |
+| M18c | Compartir el clip del Graboso: subirlo al mundo (`PUT /a/`, H9) y reproducirlo en una pantalla (M18); aviso a quien sale («X ha sacado el Graboso») — **confirmado por Pablo (18-10): sí, avisar** | espera a M18 | sí |
 | V8 | Perfil de accesibilidad en la identidad, aplicado antes del primer fotograma en cualquier aparato | pendiente | sí |
 | P5a | El puente nuevo y el primer cerebro (E2 contesta, E4 construye si el mundo deja): clave sin eco (`--clave-ia`), topes, `<material>`, herramientas comprobadas en código | hecho (primer corte; falta: E1, probarlo con Claude en el VPS, D7 revisión del contrato) | no |
 | P5b | Iniciativa por evento (E3), gestos con clips, persona en `.md`, medidor de consumo por habitante y por mundo | espera a P5a | sí |
@@ -165,7 +173,11 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | M20 | Scripts de mundo en el servidor, en sandbox (SES) y con límite de CPU | para Opus | no |
 | M9 | WebTransport como escalón de arriba detrás de la misma interfaz que WebSocket | para Opus | no |
 | M22 | Constructor en el mundo, en vivo (paridad Hyperfy2): gizmos, duplicar, borrar, deshacer, soltar ficheros, inspector, biblioteca; para personas y agentes de IA, según su rol (el panel mínimo ya existe: H1) | hecho (escritorio; VR y móvil → M22b) | sí |
-| M22b | Constructor en VR y en el móvil (gizmo con el mando y con el dedo) | pendiente | sí |
+| M22b | Constructor en el móvil y en VR — se parte: M22b-1 táctil mínimo (toque selecciona, arrastrar mueve) · M22b-2 gestos de dos dedos, retícula de colocar y hoja inferior · M22b-3 VR con mando · M22b-4 VR con manos y cara «Construir» del reloj · M22b-5 prueba real. Diseño: `work/mmo-browser-study/MODO-CONSTRUCTOR-MOVIL-VR.md` | en curso (M22b-1 hecha 18-10, rama `constructor/tactil-minimo`) | sí |
+| M22b-2 | Móvil: dos dedos giran (Y) / pellizcan (escala) / suben (Y) sobre la cosa tocada y el modo desambigua; colocar de la biblioteca con retícula central + «Colocar aquí» (cluster World Craft); pulsación larga = inspector; radio de gracia 12 px; TransformControls apagado del todo en táctil; hoja inferior oculto·barra·completo y `#barra-objeto` que quepa en 360 px; la barra flotante solo se recoloca con el constructor abierto | espera a M22b-1 | sí |
+| M22b-3 | VR con mando: `pickRayo`/`puntoBajoRayo` en gizmo.ts; `soltar`/`palanca`/fin de agarre en manos.ts; `apps/plaza/constructor-xr.ts`: gatillo corto selecciona, mantenido coge al final del rayo, palanca acerca/aleja y gira, agarre+palanca escala, A duplica, B devuelve; barra flotante 3D a 1,1 m (Panel); fila «Construir» en el menú de muñeca (J18) | en curso (primer corte 18-10: `pickRayo`/`puntoBajoRayo`, seleccionar+coger+mover+soltar con el gatillo, duplicar con el agarre; e2e IWER `tools/e2e-piernas/constructor-vr.mjs`; falta girar/escalar con la palanca, borrar, la barra 3D y la fila del reloj — esa espera a J18) | sí |
+| M22b-4 | VR con manos: pellizco a < 22 cm coge en la mano (sigue posición y giro Y), dos manos escalan, abrir posa; cara «Construir» del reloj con losetas de la biblioteca, Deshacer/Rehacer, Paso; loseta → fantasma a 2 m o cosa en la mano | espera a M22b-3 | sí |
+| M22b-5 | Constructor: 10 min en iPhone, Android y Quest 3S con Pablo (tamaños en mm, umbrales de gesto 6 %/8°, si llega `dblclick` táctil, `vibrate`, gatillo corto/mantenido) → números a `limits.json` | espera a M22b-2, M22b-3 | no |
 | M22c | Constructor: puntos de encaje, selección múltiple y jerarquía | en progreso (encaje + selección múltiple + mover/borrar en grupo, deshacer atómico; faltan caja de arrastre y jerarquía) | sí |
 | M26 | Servidor MCP del motor: leer zona (con el cuerpo de P4), proponer cambio, abrir PR (nunca publica solo). Trozo 1 hecho (ADR-080, rama `agentes/puerta`): la puerta de los agentes de fuera y un puente MCP por stdio junto al agente; falta el MCP servido por el propio mundo (HTTPS) | espera a M19, P4b | sí |
 | IA-ORG | IAs de organización (motor): una IA que pertenece a una organización de numinia.com entra con un pase `kind:"agent"` (`activa`/`dormida`) que pide cada ~8 min a `POST {NUMINIA_URL}/api/agents/pass`; el motor la cierra con 4003 si su pase caduca sin renovar, acepta un PASE a mitad de sesión (dormida = sin construir), la lista en `GET /agentes` (`organizacion: true`) y el puente `tools/mcp-mundo.ts` tiene modo organización. Hecho del lado del motor (rama `agentes/de-organizacion`); la mitad de numinia.com (till, ruta, panel «Agentes») va aparte | hecho (motor). Corte 2 (rama `agentes/token`): el puente acepta `AGENTE_TOKEN` (`ntk_…`, `Authorization: Bearer`, cuerpo `{org, agent, aud}`) en vez de la clave; 401 = final; el token nunca se imprime | sí |
@@ -184,6 +196,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | V2 | Con Pablo, 15 min con las gafas: ¿funcionan `speechSynthesis`, el reconocimiento de voz, «menos movimiento» y la vibración dentro de una sesión inmersiva (Quest 3, Pico 4) y en iPhone? | pendiente | no |
 | W1 | La plaza de entrada: primer mundo, al presupuesto de la Quest, con un portal a un mundo Hyperfy | necesita aprobación (Pablo: qué mundo lo estrena) | no |
 | O5 | ADR y SYS del motor en la Summa (numinia.org) | necesita aprobación (Pablo) | no |
+| AS1 | Tributo a Isaac Asimov: el Salón de los Ancestros (Ateneo) y un holograma que se enciende al acercarte y, con E, dice las Tres Leyes junto a nuestras reglas AGW (`features/ancestros`, `docs/EXTENDER.md`). Sin voz: cuando haya V3, que la lea con la voz grave y pausada de narrador | hecho (v1, 18-10) | sí |
 
 **Punto de parada «accesible» (como los PP de `CONSTRUIR.md`):** con V1, V3, V4, V5, V6 y V7 hechas, una
 persona ciega entra en la plaza desde el ordenador con su lector de pantalla, pregunta qué hay cerca, sigue
@@ -362,6 +375,27 @@ pestaña B camina hasta ~25 m de A, A pulsa G, las dos ven el texto. La simulaci
 fijada pasa y la prueba de gestos da la misma huella con y sin funciones. Límites nuevos en `limits.json`
 y `docs/FICHA-TECNICA.md`. Sin hacer (otras filas): estado por cercanía y objetos (J9), guardar (S4),
 identidad (I1), rutas públicas `/e/` en el proxy de casa y en Caddy (R1).
+
+### J7b — Rueda de movimientos (Pablo, 16-10: «coges esos 45 movimientos… la típica rueda»)
+**Hecho (16-10, rama `avatares/rueda-movimientos`, sin subir).** De los 45 clips de Quaternius UAL1 (CC0) se usan 33:
+los 5 de andar (J1) y 28 más, en 29 `.vrma` nuevos en `activos/animaciones/` (`tools/vrma/convertir.mjs`; el saludo, que UAL1 gratis no
+trae, es el cuerpo de `Idle_Loop` con el brazo escrito en `convertir.js`). Fuera a propósito: la pose T, los ciclos que
+se desplazan, los gemelos `_RM`, dos poses de un fotograma y dos salidas (lista en `activos/animaciones/LICENCIAS.md`).
+- **La lista** es datos (`features/gestos/movimientos.ts`): 27 movimientos en 4 grupos (Social, Acciones, Combate,
+  Reacciones), cada uno con sus clips (entrada + bucle: sentarse → sentado), cómo termina (`una`, `bucle`,
+  `quedarse`), un tope (30 s, 60 s los vivos, 10 min las posturas tranquilas) y si es «vivo» (baile) o «tranquilo».
+- **Red:** la misma función `gestos` (versión 2): el `enum` de `hacer` es la lista + `parar`; el servidor la cierra, 1
+  por segundo (3 seguidos), a quien está a 30 m. Formato aditivo: la simulación y la huella 93b192c8 no cambian.
+- **En el avatar** (`render/avatares*.ts`, `view.movimiento`): suena sobre el clip de velocidad; andar o saltar lo
+  termina en todas las pantallas a la vez (todas ven el mismo paso, nadie manda «parar»); vuelve fundido. Cada clip se
+  descarga la primera vez que alguien cerca lo hace (44–243 kB), nunca al entrar. Móvil frío: un movimiento tranquilo
+  dibuja al ritmo de estar quieto; uno vivo, a ritmo normal hasta su tope. Sin VRM (cápsula): un rótulo y un salto.
+- **La rueda** (`apps/plaza/rueda.ts` + `rueda.css`, cuentas en `packages/client/src/rueda.ts`): G mantenida, el botón
+  «Movimientos» en pantallas táctiles, Y en el mando. Ocho porciones; anillos Favoritos (8, guardados en el navegador,
+  F o el botón «Favorito»), Social, Acciones, Combate, Reacciones. Teclas y lector de pantalla: `docs/JUGADOR.md`.
+**Falta / no comprobado:** quien llega tarde no ve un movimiento que ya empezó (los eventos no se guardan); los agentes
+(`packages/agent`) siguen con saludar/bailar; el mando y el dedo arrastrado solo se han probado por código, no con un
+mando ni un móvil reales; Polybot (cabeza enorme, brazos cortos) apenas levanta el antebrazo al saludar.
 
 ### J1 — Avatares VRM de verdad
 `@pixiv/three-vrm` 3.5.5 (MIT, versión exacta). 2–3 VRM CC0 con la licencia comprobada dentro del
@@ -548,11 +582,18 @@ nunca `/metrics` (se queda en 127.0.0.1). El secreto que firma los tokens va en 
 nunca en el repositorio.
 
 **R1, trozo 1 hecho (15-10, turno):** `features/despertar/` (declaración, tokens, servidor, cliente, `enlaces.json` con 2 puntos). `GET /e/<id>.<firma>`: firma = HMAC-SHA256 con el secreto del servidor (`MOTOR_SECRET`, 16+ caracteres; el motor lo da a las funciones como `api.sign(texto)`, porque una función no puede importar `node:crypto`). Token falso o sin secreto → 404 sin efecto; token válido → un evento `despertado` a todos y página «Has despertado…»; mientras dura el efecto (`ms`), un segundo escaneo no repite. Página: `view.beacon` (opcional en `ViewHooks`) pinta columna de luz + texto. `npm run enlaces -- <base>` imprime las URLs firmadas. Proxy `/e` en modo LAN (`vite.config.mjs`) y en Caddy; el instalador crea `$PREFIX/secreto.env` una vez (root, 600) y lo carga el servicio. Medido: escaneo → efecto en la página 4 ms (WebSocket local); 51 pruebas en verde (4 nuevas); e2e verde.
-**Falta de R1:** imprimir los QR como SVG (hace falta un codificador QR: escribirlo o dependencia MIT exacta); opción para que el servidor escuche en la red de casa; comprobar en un navegador real que la columna se dibuja (hoy solo se prueba el evento sin pantalla; `beaconCount()` en render permite hacerlo en e2e); medir el tiempo con un móvil real.
+**Falta de R1 (queda, tras el trozo 2):** opción para que el servidor escuche en la red de casa; comprobar en un
+navegador real que la columna se dibuja (hoy solo se prueba el evento sin pantalla; `beaconCount()` en render
+permite hacerlo en e2e); medir el tiempo con un móvil real.
+**R1, trozo 2 hecho (16-10, historia en sombra de Doulos; rama `doulos/sombra-r1-qr`, solo local, no sube a
+origin):** `npm run enlaces -- qr [base] [carpeta]` escribe `<carpeta>/<id>.svg` por punto (por defecto `qr/`,
+en `.gitignore`), además de seguir imprimiendo id, nombre y ruta/URL. Codificador: dependencia `qrcode-svg`
+1.1.0 exacta (MIT, sin dependencias) en `tools/enlaces.ts` — nunca dentro de `features/despertar/`, que no
+importa nada fuera del repo. 252 pruebas (3 nuevas en `test/enlaces.test.ts`), puertas en verde.
 
 ### R2 — Semilla del Conocimiento
 **Ya hay (15-10):** identidad de invitado (I1: `api.onIdentify`, `api.who`) y guardado (S4: `state.persist`,
-`api.store` por `quien.id`). Lo que se planta es algo en el mundo: lleva `state.card` (V1).
+`api.store` por `quien.id`). **Y 18-10:** el inventario (Y1) con su puerta `otorga`: la Semilla ya tiene dónde caer. Lo que se planta es algo en el mundo: lleva `state.card` (V1).
 El punto hace una pregunta que solo se responde estando allí; la respuesta la fija el DJ (un agente puede
 redactar la pregunta desde la ficha `.md` del sitio, nunca decidir si se acierta). Acierto → Semilla en
 el inventario de la persona (I1); en el mundo digital se planta, crece con el tiempo real y los demás la
@@ -561,7 +602,20 @@ ven (S4). Base: Semillas del Conocimiento del manual (`lore/game/manual/es/06-in
 vinculada (sin I2, que está aparcada: en la misma pestaña o desde otra con la misma identidad); después de
 reiniciar el servidor sigue plantada.
 
-### R3 — Célula del Prisma + herramienta del DJ
+### Y1 — El Inventario v1 (hecho, 18-10)
+**Qué hay:** `features/inventario/` (reglas puras en `reglas.ts`, servidor, cliente), panel `apps/plaza/inventario.ts`
+(tecla R, botón junto a «Misiones»), resumen en la ficha (I). Lo que dice el canon (`lore/game/manual/es/06-inventario-y-bestiario.md`,
+Fragmento 2) manda: un arma contigo, tres reliquias contigo, el resto en tu Reserva; los tokens (Semillas por color)
+apilan y no se portan. Guardado por invitado en `api.store` (`i:<quien.id>`, S4); nada toca la simulación.
+**La puerta:** cualquier función da objetos emitiendo su propio evento `otorga` con `scope: "server"` (`{ quien,
+tipo, clase, nombre, color, n }`); el inventario lo oye con `api.listen` (J3). Hoy lo emite `misiones` cuando una
+misión completada lleva `{ "tipo": "semilla", "color": "verde" }` en `recompensas` (la de ejemplo lo hace). R2
+(pregunta en un sitio real) usará la misma puerta: hoy esa pregunta NO existe aún.
+**Límites publicados:** `inventario_*` en `limits.json`. **Pruebas:** `test/inventario.test.ts` (8).
+**Falta (Y2-Y5):** llevar de verdad (mano, ficha V1), arrastrar y soltar, catálogo `objeto@1` por aventura, bloquear,
+consumir Semillas; iconos propios (Phosphor `backpack`, `sword`, `plant` no están en el subconjunto de la casa:
+decisión del Oráculo, STD-023 §11).
+
 Página para directores de juego: soltar un punto en el mapa (zona de 30–50 m), elegir la prueba final (QR
 escondido o pregunta), imprimir el QR y esconder una Célula en su hueco digital. En el móvil, el mapa
 avisa «algo late en esta zona»; al llegar se hace la prueba; quien la encuentra se la lleva y en el mundo
@@ -746,6 +800,38 @@ Pantalla de vídeo en el mundo; la reproducción sigue el reloj del servidor (to
 solo se reproduce si está cerca y a la vista (móvil frío).
 **Paridad Hyperfy2 (15-10):** como su nodo `Video`: fichero o URL, bucle, ajuste a la pantalla, con o sin luz,
 audio espacial por el mezclador de V6; y la pantalla compartida de alguien (con M17).
+
+### M18b — El Graboso (misión y objeto, pedido de Pablo 18-10)
+Objeto de lore: una cabeza de oso electrónico con textura de nube translúcida, llamada **el Graboso**. Se
+saca del inventario cuando quieres (apoyado en Y1, el inventario nuevo) y, mientras está fuera, grava vídeo
++ audio del mundo en clips cortos (**30 s a 1 min**, con tope duro). Misión principal: hacer vídeos de
+dentro de los mundos — enlaza con M17/M18 (mismo pipeline de audio/vídeo) sin depender de que estén
+terminados; el Graboso grava lo que la propia cámara del jugador ve, no necesita voz por cercanía para
+funcionar en su versión mínima. Grabación guardada: fichero descargable o compartible (a definir con quien
+construya M17, para no grabar sesiones privadas de otros sin avisar — revisar permisos/consentimiento).
+**Hecho cuando:** sacas el Graboso del inventario, aparece sobre tu hombro/mano, grabas un clip de verdad
+(canvas + micrófono si el navegador lo permite), se corta solo al llegar al tope, y puedes descargarlo o
+verlo de nuevo.
+
+**Hecho (18-10, v1, rama `objetos/graboso`, diseño `../mmo-browser-study/GRABOSO-DISENO.md`).** Lore encajado
+como Reliquia (manual, Fragmento 2: «no se usan: se invocan»; complemento de la Lira de Nyx, que *reproduce*;
+el Graboso *registra*). **K** o el botón «Graboso» de la barra lo saca y empieza a grabar en el acto (la cabeza
+visible *es* el aviso: piloto rojo que late); K otra vez, el botón o el tope lo guardan y el clip queda.
+Vídeo = `canvas.captureStream(30)` del lienzo del motor; audio = tu micrófono con permiso (negado → clip sin
+sonido, dicho en voz alta); `MediaRecorder` webm vp9/vp8+opus o mp4, el primero que haya; trozos de 1 s.
+Tope 30/45/60 s (selector; 60 por defecto; `recortarTope` nunca deja salir de 30–60); un clip más corto sale
+igual marcado «corto» (la misión pide 30). Píldora arriba «● 0:12 / 1:00» → «Clip 0:42 · Descargar · Ver ·
+Quitar»; descarga local `graboso-AAAA-MM-DD-HH-MM-SS.webm` (UTC); solo el último clip, en memoria. La cabeza:
+`packages/render/src/graboso.ts` (carga perezosa; esfera + orejas + hocico + ojos + antena con piloto; nube
+pintada en un canvas con xorshift, material translúcido) sobre el hombro derecho. Lógica pura
+`packages/client/src/graboso.ts`; página `apps/plaza/graboso.ts`. **Medido:** 13 pruebas
+(`test/graboso.test.ts`); pierna `tools/e2e-piernas/graboso.mjs` en chromium real (micrófono falso): clip
+webm de 3,4 s y 236 kB con cabecera EBML, con sonido, descargable, visible en el `<video>`, cabeza fuera y
+guardada, K no actúa en el chat. **Falta:** conectar con Y1 cuando se fusione (hoy acceso directo: todo
+jugador lo tiene; después solo quien porta la reliquia `clase: "graboso"`, e «Invocar» en el panel L); las
+voces de otros (U10) en el audio (`MediaStreamAudioDestinationNode` compartido, V6/M17); modelo fino de la
+cabeza (GLB CC0 en `activos/`); sacarlo en VR (N3); compartir/subir (M18c); consentimiento: avisar a quien
+sale (decisión de Pablo, diseño §6).
 
 ### P5 — El cerebro (diseño: `../mmo-browser-study/DISENO-IAS-MOTOR.md` §4–§5)
 **P5a (para Opus).** Lo que enseñó el agente de Hyperfy (`docs/SABER.md` §3.5) llevado al servicio de habitantes: un
@@ -1049,6 +1135,24 @@ una función puede poner un avatar solo para la sesión (su `setSessionAvatar`).
 pestaña A cambia de avatar, la B lo ve, y al volver A sigue con él.
 Validar cada VRM subido con `packages/server/src/vrm.ts` (`revisarAvatar`: CC0 dentro del fichero, ≤ 10.000 triángulos; hecho en J1).
 
+### H11 — Importar de Hyperfy (en curso; la mitad `.hyp` sigue esperando a M19)
+**Hecho (18-10, rama `ko/t_fb4535c8`).** Función nueva `features/avatar/` (R-1): intent `elegir` (tipo casa+índice,
+o subido+sha256 de un `.vrm` ya en `/a/`), guardado por identidad (`store`, S4) y espejado a la entidad conectada
+como `state` compartido (todos lo ven; al identificarte, I1 te devuelve tu elección). El servidor solo confía en
+`api.activo` para un subido (el tamaño y la licencia los comprueba la página antes de subir, `vrm.ts` `revisarAvatar`,
+igual que el catálogo de la casa). Botón «Avatar» (top-right, para cualquier visitante, no solo quien construye,
+`apps/plaza/avatar.ts`): lista los avatares de la casa y «Subir tu .vrm…» (mismo camino que H9: hash, HEAD, PUT con
+el billete). `packages/render/src/avatares.ts` gana un gancho `eleccion(clave)` que sustituye el índice fijo por
+entidad (`elegirAvatar`) cuando hay una elección, para ti y para los demás (antes solo se recalculaba para «yo»: B no
+veía cambiar de avatar a A — corregido aquí). Un `.vrm` subido se añade una vez al mismo `catalogo.modelos` que los
+de la casa: `avatares.ts` no necesita un camino nuevo para dibujarlo. **Medido:** 4 pruebas nuevas
+(`test/avatar.test.ts`: elegir y ver el cambio, subido rechazado si no está en el servidor, sobrevive un reinicio);
+`npm test` en verde salvo una puerta de rendimiento ya roja antes de este cambio (`misiones-secuencia.test.ts`,
+flaky en esta máquina); `npm run layers` y `npm run build` en verde (471,5 kB gz, dentro de los 480 del gate D2: el
+`.vrm` grande sigue en el trozo diferido de `avatares-vrm.ts`). **Falta:** e2e real con dos pestañas de Playwright
+(se verificó con la instancia en memoria, no con el navegador); revisarAvatar repetido en el servidor (hoy solo la
+página lo comprueba antes de subir); limpiar un `.vrm` subido que nadie usa ya (H9b).
+
 ### H11 — Importar de Hyperfy (espera a M19)
 Para traer los mundos Numinia de hoy. Un `.hyp` (4 bytes con el tamaño de la cabecera + JSON + ficheros; ver
 `../mmo-browser-study/notes/16a-hyp-read-from-source.md`; el escritor es `src/core/extras/appTools.js`) → carpeta de
@@ -1057,6 +1161,24 @@ API no es la nuestra). Un mundo entero (su `db.sqlite`: tablas `config`, `bluepr
 `assets/`) → carpeta del mundo (H1, H7). Solo contenido nuestro o con licencia: los 351 `.hyp` de `hyperfy-apps`
 no tienen. **Hecho cuando:** test con un `.hyp` propio de prueba y un `db.sqlite` mínimo; informe de lo traído y
 de lo que queda por portar.
+
+**Hecho (18-10, la mitad `db.sqlite`+`assets/` → carpeta del mundo).** `packages/server/src/importar-hyperfy.ts`
+(`importarMundoHyperfy`) lee `config`/`blueprints`/`entities` de un `db.sqlite` con `node:sqlite` (sin dependencia
+nueva), resuelve el modelo de cada blueprint (`asset://<sha256>.<ext>`), copia el fichero a `datos/activos/` (lo
+que H9 sirve por `/a/<sha256>.<ext>`), convierte la posición y el cuaternión de cada entidad a los campos de H1
+(`x,y,z,rx,ry,rz,sx,sy,sz`, grados, orden yaw→pitch→roll como three.js) y escribe `datos/objetos.json` en el
+formato exacto que `FileStorage` carga al arrancar — sin importar `features/objetos` desde `packages/` (regla de
+capas): los valores por defecto están a mano y una prueba (`OBJETOS_VERSION`) avisa si el número de versión de la
+función se mueve sin tocar aquí. Los ajustes (H7) van a `aventura/ficha.json` (nombre, descripción, portada,
+aforo). CLI: `node tools/importar-hyperfy.ts <db.sqlite> <assets/> <carpeta destino>`; escribe también el informe
+de lo traído (`informe-importacion.json` + `.txt`): blueprints y entidades leídos, objetos importados y omitidos
+(con el motivo de cada uno), activos copiados y que faltan, si la ficha se importó. **Medido:**
+`test/importar-hyperfy.test.ts` (5 pruebas): un `db.sqlite` mínimo de prueba (3 entidades: una completa, una con
+el fichero que falta, una con blueprint que no existe) produce la carpeta del mundo y el informe cuenta cada
+caso; la prueba fuerte arranca de verdad la función `objetos` real (`Instance` + `FileStorage`) sobre el
+`datos/objetos.json` escrito y comprueba que la silla aparece en su sitio, giro y escala exactos — no solo que el
+JSON tiene buena pinta. **Falta:** la mitad `.hyp` → carpeta de app (M19), portar los scripts de las apps (no es
+nuestra API), probar contra un `db.sqlite` real de un mundo Hyperfy existente (de momento solo el de prueba).
 
 ### H12 — Calidad gráfica
 Sombras (no, baja, media, alta) y posprocesado (bloom, antialias), como sus ajustes, decididos por nivel de
@@ -1075,8 +1197,10 @@ prueba.
 ### N1b — Cámara que choca (espera a M6)
 La cámara de N1 se acerca cuando algo construido queda entre ella y tu avatar (rayo contra los colisionadores de M6), sin tirones. **Hecho cuando:** e2e: detrás de una pared colocada, la cámara queda delante de la pared.
 
-### M22b — Constructor en VR y en el móvil
-En VR, el rayo del mando selecciona y el gatillo arrastra el gizmo (o coge la cosa con la mano); en el móvil, un dedo sobre un asa la arrastra y dos dedos giran la cámara (N1). Mismas órdenes de `features/objetos`. **Hecho cuando:** e2e con IWER mueve un bloque con el mando; e2e táctil por CDP mueve otro con el dedo.
+### M22b — Constructor en el móvil y en VR
+No es un constructor nuevo: el de M22 con otra entrada. El estado y los verbos (`features/objetos/client.ts`) y el dibujo, la medida y la red (`gizmo.ts`, `programarEnvio`) no cambian; solo cambia la capa de entrada en `apps/plaza/`. Móvil: **la cosa es la asa** (sin hover ni asas pequeñas): toque selecciona, arrastrar mueve con el desfase dedo-cosa, dos dedos giran/escalan, retícula central para colocar (cluster). VR: **coger con el rayo, sin TransformControls** (lo que hace Hyperfy): gatillo mantenido coge al final del rayo, palanca acerca y gira, agarre+palanca escala; con manos, pellizco a < 22 cm coge en la mano. Herramientas en VR: fila «Construir» del menú de muñeca + barra flotante a 1,1 m sobre la cosa. Diseño completo, comparativa y puntuaciones: `work/mmo-browser-study/MODO-CONSTRUCTOR-MOVIL-VR.md`. **Hecho cuando:** e2e táctil por CDP mueve un bloque con el dedo (M22b-1 ✓) y lo gira con dos (M22b-2); e2e con IWER lo mueve y gira con el mando (M22b-3) y lo coge con la mano (M22b-4).
+
+**Hecho M22b-1 (18-10, rama `constructor/tactil-minimo`, sin unir).** `apps/plaza/constructor.ts`: capa de dedo en `document` (captura): un toque sobre una cosa la selecciona; arrastrarla la mueve por el suelo y por encima de otras cosas conservando el desfase dedo-cosa (`ed.puntoBajo` + `ed.poner` + `ed.sostener`, `programarEnvio` ≤ 8/s, un paso de deshacer por arrastre); la cámara se bloquea (`cam.bloquear`) y el joystick no ve ese dedo; en «mover» táctil no hay asas (la cosa es la asa); botones ≥ 44 px en `(pointer: coarse)`. `apps/plaza/tema.css`: en un teléfono estrecho (< 700 px) el panel de construir es una hoja inferior (≤ 38 vh) y el de entorno una tira arriba a la izquierda — antes, los dos (320 + 270 px) tapaban el mundo entero y no se podía tocar nada. Versión **0.11.0**. **Medido:** pierna `tools/e2e-piernas/constructor-tactil.mjs` (chromium, toques reales por CDP `Input.dispatchTouchEvent`, 420×800, dos pestañas): toque selecciona sin girar la cámara; arrastre de 150 px mueve el bloque ~5 m y B lo ve; sin asas; toque en el vacío deselecciona; deshacer lo devuelve en B; borrar. 376 pruebas y todas las puertas en verde; la pierna de ratón (`constructor.mjs`) sigue en verde. **No probado en un teléfono real** (solo emulación táctil de chromium). **Falta:** M22b-2..5; `#barra-objeto` se sale por la derecha en 420 px; los botones de acción (Saltar…) se montan sobre la hoja; el `dblclick` táctil para abrir construir sin probar.
 
 ### M22c — Encajes, selección múltiple y jerarquía (en progreso, rama `constructor/encajes-seleccion-jerarquia`)
 Puntos de encaje (su nodo `Snap`), seleccionar varias cosas y moverlas juntas, agrupar (jerarquía de nodos, su `NodeHierarchy`). **Hecho cuando:** e2e: dos bloques encajan cara con cara; tres seleccionados se mueven a la vez y deshacer los devuelve en un paso.
@@ -1124,6 +1248,8 @@ Minimapa, lista de lo cercano y ficha en un panel 3D sobre la muñeca (mano izqu
 
 ### J14 — Dibujo barato de personas
 El robot de la casa son 19 llamadas por persona (tope del nivel D: 80). LOD o un modelo de una pieza; con avatares VRM, decidir. **Hecho cuando:** 20 personas a la vista en el nivel D caben en su tope.
+
+**Hecho (18-10, rama `lod/dibujo-barato-personas`).** `packages/render/src/lod-politica.ts` (puro, `test/lod-personas.test.ts`): más allá de `LOD_LEJOS_M` (22 m, histéresis ±4 m para no parpadear en el borde) una figura horneada (J5: sin animar, ya 19 → 3 llamadas por material) baja a UNA pieza — una sola malla con un color por parte (sin textura) en vez de una por material: 3 → 1 llamada. Una figura pintada con un color propio (J10) se queda siempre en «cerca» (pintar() no puede teñir una pieza fusionada). `packages/render/src/index.ts`: `hornearPieza`, `representacion`, `actualizarLOD` (una vez por figura horneada y por fotograma; solo reconstruye el grupo si cambia de estado). **Medido** (`tools/medir-lod-robot.mjs`, parseando `activos/robot/RobotExpressive.glb` igual que el motor): 19 llamadas sin hornear, 3 horneado «cerca», 1 horneado «lejos». 20 personas a la vista: 380 sin hornear, 60 horneadas todas «cerca» (ya cerca del tope 80 sin nada más en la escena), 20 todas «lejos», 40 con la mitad y mitad — cualquier mezcla de cerca/lejos cabe en el tope de 80 con margen para el resto de la escena. Verificado también en vivo (plaza real, Chromium headless, WebGL2): el cambio de estado dispara en el punto esperado y no oscila en el borde de la banda. **Falta:** decidir si un avatar VRM (J1) sigue la misma política cuando esté lejos y quieto (hoy solo se congela su animación, `ANIMATE_WITHIN_M`); extender la pieza lejana a otros modelos horneados con más de un material (hoy solo probado con el robot).
 
 ### J15 — Marcas de misión sobre las personas
 «!» si alguien tiene una misión para ti, «?» si espera algo tuyo; es por jugador (un evento, no estado compartido). **Hecho cuando:** e2e: A ve «!» sobre Alma y B, que ya la hizo, no.
