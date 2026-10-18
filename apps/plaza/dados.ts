@@ -1,0 +1,72 @@
+// dados v1 — the page part: the dice card everyone near sees when someone rolls (each die as a face with its number,
+// the total and who rolled), and, beside a dice tower, a row of dice buttons (d4 … d100, 2d6, «en secreto»). It only
+// asks features/dados: the server rolls. The announcement line (and the screen reader) already says the roll in words,
+// so the card is aria-hidden. In VR the HTML is not drawn: the label over the roller's head and /tirar in the chat are.
+import type { Tirada, Torre } from "../../features/dados/client.ts";
+
+type Dados = {
+  ultima(): Tirada | null;
+  torres(): Torre[];
+  tirar(expresion?: string, sitio?: string, oculta?: boolean): { ok: boolean; why?: string };
+  alCambiar(fn: (que: "tirada" | "torres" | "aviso") => void): () => void;
+};
+
+/** How long the dice card stays (ms). */
+export const CARTA_MS = 7000;
+/** The dice buttons beside a tower. */
+export const BOTONES = ["1d6", "2d6", "3d6", "4d6", "5d6", "6d6", "1d20", "1d100"] as const; // the house system rolls pools of d6
+
+const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...hijos: (Node | string)[]) => {
+  const e = Object.assign(document.createElement(tag), props); e.append(...hijos); return e;
+};
+
+export function montarDados(o: { dados: Dados; yo: () => { x: number; z: number } | null }): { cerca(): Torre | null } {
+  const { dados, yo } = o;
+  const carta = el("div", { id: "dados-carta" });
+  carta.setAttribute("aria-hidden", "true"); // the announcement says it in words
+  document.body.appendChild(carta);
+  let quitar = 0;
+  const pintarTirada = (t: Tirada) => {
+    const caras = Number(/d(\d+)/.exec(t.dados)?.[1] ?? 6);
+    const fila = el("div", { className: "fila" }, ...(t.valores.length ? t.valores : Array.from({ length: Number(/^(\d+)/.exec(t.dados)?.[1] ?? 1) }, () => NaN)).map((v) => {
+      const d = el("span", { className: `dado d${caras}${Number.isNaN(v) ? " tapado" : ""}${(caras === 20 && v === 20) || (caras === 6 && v === 6) ? " critico" : ""}${v === 1 && (caras === 20 || caras === 6) ? " pifia" : ""}`, textContent: Number.isNaN(v) ? "?" : String(v) });
+      return d;
+    }));
+    const lectura = / — (.+)$/.exec(t.texto)?.[1]; // a pool of d6: the house reading (éxito normal, fracaso…)
+    const pie = t.oculta && !t.valores.length ? "en secreto" : lectura ? lectura[0].toUpperCase() + lectura.slice(1) : `${t.mod ? `${t.mod > 0 ? "+" : ""}${t.mod} · ` : ""}total ${t.total}`;
+    carta.replaceChildren(el("p", { className: "quien", textContent: t.texto.split(" tira ")[0] + ` · ${t.dados} · tirada ${t.n}` }), fila, el("p", { className: "total", textContent: pie }));
+    carta.classList.remove("visible"); void carta.offsetWidth; carta.classList.add("visible", "cae");
+    clearTimeout(quitar);
+    quitar = window.setTimeout(() => carta.classList.remove("visible", "cae"), CARTA_MS);
+  };
+
+  // the dice buttons: only within a tower's radius
+  const barra = el("div", { id: "dados-torre" });
+  barra.setAttribute("role", "group");
+  barra.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
+  document.body.appendChild(barra);
+  const secreto = el("input", { type: "checkbox", id: "dados-secreto" });
+  let actual: Torre | null = null;
+  const cerca = (): Torre | null => {
+    const p = yo(); if (!p) return null;
+    return dados.torres().find((t) => Math.hypot(t.x - p.x, t.z - p.z) <= t.radio + 0.5) ?? null;
+  };
+  const pintarBarra = () => {
+    const t = cerca();
+    if (t?.id === actual?.id && t?.ultima === actual?.ultima) return;
+    actual = t;
+    if (!t) { barra.replaceChildren(); barra.hidden = true; return; }
+    barra.hidden = false;
+    barra.setAttribute("aria-label", `${t.nombre}: elige los dados`);
+    barra.replaceChildren(
+      el("p", { className: "titulo", textContent: t.nombre }),
+      el("div", { className: "botones" }, ...BOTONES.map((b) => { const x = el("button", { type: "button", textContent: b }); x.addEventListener("click", () => dados.tirar(b, t.id, secreto.checked)); return x; })),
+      el("label", { className: "secreto" }, secreto, " en secreto"),
+      el("p", { className: "ultima", textContent: t.ultima ? `Última: ${t.ultima}` : "Aún no ha tirado nadie." }),
+    );
+  };
+  barra.hidden = true;
+  dados.alCambiar((q) => { if (q === "tirada") { const t = dados.ultima(); if (t) pintarTirada(t); } pintarBarra(); });
+  window.setInterval(pintarBarra, 400); // you walk up to a tower: the buttons follow
+  return { cerca };
+}

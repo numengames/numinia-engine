@@ -34,7 +34,7 @@ test("entorno@1 aparicion: optional, checked with its path; a world without it s
   assert.deepEqual(leerAparicion({ schema: ESQUEMA }), { ok: true, value: null }, "absent = the house square");
   assert.deepEqual(leerAparicion(undefined), { ok: true, value: null });
   assert.deepEqual(leerAparicion({ aparicion: { x: 3, z: -9, radio: 6 } }), { ok: true, value: { x: 3, z: -9, radio: 6 } });
-  const malos = [leerAparicion({ aparicion: { x: 0, z: 0, radio: 0.5 } }), leerAparicion({ aparicion: { x: 0, z: 0, radio: 41 } }), leerAparicion({ aparicion: { x: 500, z: 0, radio: 1 } }), leerAparicion({ aparicion: { x: 0, radio: 2 } }), leerAparicion({ aparicion: 7 })];
+  const malos = [leerAparicion({ aparicion: { x: 0, z: 0, radio: 0.5 } }), leerAparicion({ aparicion: { x: 0, z: 0, radio: 41 } }), leerAparicion({ aparicion: { x: 1961, z: 0, radio: 1 } }), leerAparicion({ aparicion: { x: 0, radio: 2 } }), leerAparicion({ aparicion: 7 })];
   assert.deepEqual(malos.map((r) => (r.ok ? "ok" : r.issues[0].path)), ["entorno.aparicion.radio", "entorno.aparicion.radio", "entorno.aparicion.x", "entorno.aparicion.z", "entorno.aparicion"]);
   // the whole file's check sees it too (one log line says where), and it never enters the flat state
   const r = validarEntorno({ schema: ESQUEMA, preset: "noche", aparicion: { x: 3, z: -9, radio: 6 } });
@@ -138,11 +138,11 @@ test("formats: pnj@1 posicion.y (0-30) and llega_a y (0-30) are optional and che
   const fuera = m({ y: -1 });
   assert.ok(!fuera.ok && fuera.issues.some((i) => i.path === "pasos[0].y"));
   const desconocido = m({ altura: 12 });
-  assert.ok(!desconocido.ok && desconocido.issues.some((i) => i.path === "pasos[0].altura" && /aquí van: id, tipo, texto, x, z, radio, lugar, y\)/.test(i.message)), JSON.stringify(!desconocido.ok && desconocido.issues));
-  // the declarations grew: pnj v2 carries y (0-30), misiones v2 lets a thing stand on an upper floor
+  assert.ok(!desconocido.ok && desconocido.issues.some((i) => i.path === "pasos[0].altura" && /aquí van: id, tipo, texto, x, z, radio, lugar, y, grupo, secuencia, espera\)/.test(i.message)), JSON.stringify(!desconocido.ok && desconocido.issues));
+  // the declarations grew: pnj v2 carries y (0-30), misiones v2 lets a thing stand on an upper floor (v3: U14's grupo / recibe; U14 (4): pnj v3 oficio, misiones v4 marcas)
   assert.deepEqual([pnj.issues, misiones.issues], [[], []]);
   const cat = buildCatalog([pnj, misiones]).catalog;
-  assert.deepEqual(cat.features.map((f) => [f.id, f.version, (f.state!.fields.y as { max: number }).max]), [["pnj", 2, 30], ["misiones", 2, 30]]);
+  assert.deepEqual(cat.features.map((f) => [f.id, f.version, (f.state!.fields.y as { max: number }).max]), [["pnj", 3, 30], ["misiones", 6, 30]]);
 });
 
 test("a pnj with posicion.y reaches the page with y and is drawn at that height, its name above its head", () => {

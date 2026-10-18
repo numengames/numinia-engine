@@ -6,9 +6,14 @@
 // Markers come from sources (you, the people this page receives, the features' cards with `at`, the misiones contract,
 // the waypoint, an adventure's own) and look as their kind says in a registry (packages/client/src/mapa.ts). Both are
 // open: `__numinia.mapa.registrar(...)`, `.rol(...)`, `.fuente(...)`. Recipe: docs/entregas/mapa.md.
-import { proyectar, desproyectar, anguloFlecha, yawDePaso, alBorde, enPalabras, crearLimitador, crearRegistro, reunir, contar, cercanos, firma } from "../../packages/client/src/mapa.ts";
+// U14: a world whose environment says `mapa.corte` (m) is drawn as a floor plan on both maps: the zone's picture cut at
+// that height (view.cenital) as the minimap's background too, and the cut's walls and columns as lines over it. The
+// picture is made when the minimap first needs it, then again only when the zone changes (at most every IMAGEN_MS),
+// never in XR (this clock stops there); until it exists, the minimap draws only what stands under the cut.
+import { proyectar, desproyectar, anguloFlecha, yawDePaso, alBorde, enPalabras, crearLimitador, crearRegistro, reunir, contar, cercanos, firma, matrizImagen, segmentosEnVista } from "../../packages/client/src/mapa.ts";
 import type { Vista, Marcador, Tipo, Fuente, Entrada } from "../../packages/client/src/mapa.ts";
 import type { ImagenCenital, Huella } from "../../packages/render/src/index.ts";
+import { bajoElCorte } from "../../packages/render/src/corte.ts";
 import { crearDialogo, anunciar } from "./paneles.ts";
 import "./mapa.css";
 
@@ -21,8 +26,10 @@ export type HostMapa = {
     vr: { active: boolean }; ar: { state: string };
     beacon(x: number, z: number, text: string, ms: number): void;
     waypoint?(x: number, z: number, text: string): number; dropWaypoint?(id: number): void;
-    cenital?(o?: { px?: number; incluir?: Vec; modo?: "gpu" | "huellas" }): Promise<ImagenCenital>;
+    cenital?(o?: { px?: number; incluir?: Vec; modo?: "gpu" | "huellas"; corte?: number }): Promise<ImagenCenital>;
     huellas?(): Huella[]; cenitalVersion?(): number;
+    /** U14: the height (m) where the world's maps are cut (entorno `mapa.corte`); 0 = not cut. */
+    mapaCorte?(): number;
     cam?: { yaw?(): number };
   };
   /** `globalThis.__numinia`, read at each use: the optional contracts of other branches (misiones, chat) live there. */
@@ -35,7 +42,7 @@ const TEXTO_MS = 2000;             // the minimap's text twin, at most every 2 s
 const LISTA_MS = 1000;             // the big map's list, at most once a second while open
 const RADIOS = [15, 30, 60, 120];  // minimap zoom: metres from the centre to the edge
 const LLEGADA_M = 2.5;             // a waypoint this close is reached (and cleared, with a notice)
-const IMAGEN_MS = 5000;            // the zone's picture is regenerated at most every 5 s, only while the big map is open
+const IMAGEN_MS = 5000;            // the zone's picture is regenerated at most every 5 s, only while the big map is open (U14: or, in a world cut with mapa.corte, when its minimap's zone changed)
 const SUELO = "#b7c6ab";
 
 /** Draw one marker shape centred at (x, y), half-size `s`, turned `ang` (arrows only). */
@@ -50,6 +57,14 @@ function forma(g: CanvasRenderingContext2D, t: Tipo, x: number, y: number, s: nu
     case "triangulo": g.moveTo(0, -s * 1.1); g.lineTo(s, s * 0.8); g.lineTo(-s, s * 0.8); g.closePath(); break;
     case "estrella": for (let i = 0; i < 10; i++) { const r = i % 2 ? s * 0.5 : s * 1.25, a = (i * Math.PI) / 5 - Math.PI / 2; if (i) g.lineTo(Math.cos(a) * r, Math.sin(a) * r); else g.moveTo(Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); break;
     case "anillo": g.arc(0, 0, s, 0, Math.PI * 2); g.lineWidth = 3; g.strokeStyle = t.color; g.stroke(); g.beginPath(); g.arc(0, 0, s * 0.35, 0, Math.PI * 2); g.fill(); g.restore(); return;
+    case "exclamacion": // U14 (4): «!» — a warm disc with the mark in ink
+      g.arc(0, 0, s, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.fillStyle = "#1d1406"; g.beginPath(); g.moveTo(-s * 0.2, -s * 0.66); g.lineTo(s * 0.2, -s * 0.66); g.lineTo(s * 0.11, s * 0.16); g.lineTo(-s * 0.11, s * 0.16); g.closePath();
+      g.moveTo(s * 0.17, s * 0.45); g.arc(0, s * 0.45, s * 0.17, 0, Math.PI * 2); g.fill(); g.restore(); return;
+    case "visto": // U14 (4): «✓» — a green disc with a white tick
+      g.arc(0, 0, s, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.beginPath(); g.moveTo(-s * 0.48, s * 0.02); g.lineTo(-s * 0.12, s * 0.38); g.lineTo(s * 0.5, -s * 0.36);
+      g.lineWidth = Math.max(1.5, s * 0.3); g.lineCap = "round"; g.lineJoin = "round"; g.stroke(); g.restore(); return;
     default: g.arc(0, 0, s, 0, Math.PI * 2);
   }
   g.fill(); g.stroke(); g.restore();
@@ -70,6 +85,31 @@ function huella(g: CanvasRenderingContext2D, v: Vista, h: Huella): void {
   g.fillStyle = h.color; g.beginPath(); g.moveTo(p[0].px, p[0].py);
   for (let i = 1; i < 4; i++) g.lineTo(p[i].px, p[i].py);
   g.closePath(); g.fill();
+}
+
+/** U14: the zone's picture under a view (turned with the minimap), the ground's colour beyond its edge. */
+function imagenEnMapa(g: CanvasRenderingContext2D, v: Vista, img: ImagenCenital): void {
+  g.fillStyle = img.fondo; g.fillRect(0, 0, v.ancho, v.alto);
+  g.save(); g.transform(...matrizImagen(v, img)); g.imageSmoothingEnabled = true; g.drawImage(img.canvas, 0, 0); g.restore();
+}
+
+/** U14: a floor plan's cut over the picture — walls and columns in ink with a light edge (they read on dark floors and
+ * light ones), glass in pale blue; only the segments in view (a few hundred on the minimap) are drawn. */
+function corteEnMapa(g: CanvasRenderingContext2D, v: Vista, img: ImagenCenital, buf: { a: Float32Array }): void {
+  const ancho = Math.max(1.25, Math.min(3, v.escala * 0.2));
+  const trazar = (seg: Float32Array | undefined, estilos: [string, number][]) => {
+    if (!seg?.length) return;
+    if (buf.a.length < seg.length) buf.a = new Float32Array(seg.length);
+    const n = segmentosEnVista(v, seg, buf.a), a = buf.a;
+    if (!n) return;
+    g.beginPath();
+    for (let i = 0; i < n * 4; i += 4) { g.moveTo(a[i], a[i + 1]); g.lineTo(a[i + 2], a[i + 3]); }
+    for (const [color, w] of estilos) { g.strokeStyle = color; g.lineWidth = w; g.stroke(); }
+  };
+  g.save(); g.lineCap = "round"; g.lineJoin = "round";
+  trazar(img.cristal, [["rgba(150,215,255,0.85)", ancho]]);
+  trazar(img.seccion, [["rgba(255,255,255,0.65)", ancho + 2], ["#17131d", ancho]]);
+  g.restore();
 }
 
 /** A canvas whose backing store follows its CSS size and the device pixel ratio (capped at 2: cool phones). */
@@ -114,16 +154,22 @@ export function montarMapa(h: HostMapa) {
   }
 
   // ---------- the built-in sources ----------
-  let fichas: Marcador[] = [], fichasT = -Infinity;
+  let fichas: Marcador[] = [], fichasT = -Infinity, marcasAntes: unknown = null;
   const nombreDe = (id: number): string => { const n = h.otros().chat?.nombres?.get?.(id); return typeof n === "string" && n ? n : `Persona ${id}`; };
   fuentes.set("tu", () => (yo ? [{ id: "tu", tipo: "tu", nombre: h.session.who?.nombre ?? "Tú", x: yo.x, z: yo.z, yaw: yawYo }] : []));
   fuentes.set("gente", () => h.session.remotePositions().map((r) => ({ id: `p${r.id}`, tipo: "persona", nombre: nombreDe(r.id), x: r.x, z: r.z })));
+  // U14 (4): a person or a quest thing the server marks for you is drawn as «!» or «✓» (misiones.marcaDe), and a
+  // person's trade goes next to the name in the list (misiones.oficioDe); re-read at once when the marks change
   fuentes.set("fichas", () => {
-    const ahora = performance.now();
-    if (ahora - fichasT >= FICHAS_MS) {
-      fichasT = ahora;
+    const ahora = performance.now(), mis = h.otros().misiones, mk = mis?.marcas?.();
+    if (ahora - fichasT >= FICHAS_MS || mk !== marcasAntes) {
+      fichasT = ahora; marcasAntes = mk;
       fichas = [];
-      for (const c of h.session.features.cards()) if (c.at) fichas.push({ id: `c:${c.feature}:${c.key}`, tipo: reg.tipoDeRol(c.role), nombre: c.name, x: c.at.x, z: c.at.z, ...(c.description ? { detalle: c.description } : {}) });
+      for (const c of h.session.features.cards()) {
+        if (!c.at) continue;
+        const marca = mis?.marcaDe?.(c.feature, c.key), oficio = c.feature === "pnj" ? mis?.oficioDe?.(c.key) : "";
+        fichas.push({ id: `c:${c.feature}:${c.key}`, tipo: marca === "!" ? "para-ti" : marca === "✓" ? "hecho" : reg.tipoDeRol(c.role), nombre: oficio ? `${c.name} (${oficio})` : c.name, x: c.at.x, z: c.at.z, ...(c.description ? { detalle: c.description } : {}) });
+      }
     }
     return fichas;
   });
@@ -194,7 +240,9 @@ export function montarMapa(h: HostMapa) {
   if (acciones && typeof ResizeObserver === "function") new ResizeObserver(sitio).observe(acciones);
   sitio();
 
-  let huellas: Huella[] = [], huellasV = NaN;
+  let huellas: Huella[] = [], huellasBajas: Huella[] = [], huellasV = NaN, corte = 0;
+  let imagen: ImagenCenital | null = null, imagenV = NaN, imagenT = -Infinity, generando = false, imagenes = 0;
+  const bufMini = { a: new Float32Array(0) }, bufGrande = { a: new Float32Array(0) };
   const vistaMini = (): Vista => {
     const t = lm.ancho;
     return { cx: yo!.x, cz: yo!.z, escala: (t / 2 - 4) / RADIOS[zoom], giro: gira ? yawYo : 0, ancho: t, alto: t };
@@ -203,9 +251,15 @@ export function montarMapa(h: HostMapa) {
     const g = lm.g, t = lm.ancho, c = t / 2, r = c - 2;
     g.clearRect(0, 0, t, t);
     g.save(); g.beginPath(); g.arc(c, c, r, 0, Math.PI * 2); g.clip();
-    g.fillStyle = SUELO; g.fillRect(0, 0, t, t);
-    rejilla(g, v, 10);
-    for (const hu of huellas) huella(g, v, hu);
+    if (corte > 0 && imagen && imagen.corte > 0) { // U14: the floor plan (picture + cut) instead of footprints
+      imagenEnMapa(g, v, imagen);
+      rejilla(g, v, 10);
+      corteEnMapa(g, v, imagen, bufMini);
+    } else {
+      g.fillStyle = SUELO; g.fillRect(0, 0, t, t);
+      rejilla(g, v, 10);
+      for (const hu of corte > 0 ? huellasBajas : huellas) huella(g, v, hu);
+    }
     const vistos: Record<string, number> = {};
     for (const m of porOrden(ms)) {
       const ti = reg.tipo(m.tipo);
@@ -256,7 +310,6 @@ export function montarMapa(h: HostMapa) {
   panel.cuerpo.append(zonaLienzo, lado);
   const lg = lienzo(gCanvas);
   const gv: Vista = { cx: 0, cz: 0, escala: 3, giro: 0, ancho: 1, alto: 1 };
-  let imagen: ImagenCenital | null = null, imagenV = NaN, imagenT = -Infinity, generando = false, imagenes = 0;
   let elegido: { id: string; nombre: string; tipo: string; x: number; z: number; detalle?: string } | null = null;
   let pedido = 0;
   const pedir = () => { if (!pedido) pedido = requestAnimationFrame(() => { pedido = 0; pintarGrande(); }); };
@@ -278,7 +331,8 @@ export function montarMapa(h: HostMapa) {
       const img = await h.view.cenital({ px: h.view.power.mobile ? 256 : 512, incluir: yo ?? undefined });
       imagen = img; imagenV = v; imagenes++;
       estadoImagen.textContent = "";
-      limGrande.forzar(); pedir();
+      limMini.forzar(); limGrande.forzar();
+      if (panel.abierto) pedir(); // a picture made for the minimap (U14) does not redraw a closed big map
     } catch (e) { estadoImagen.textContent = `No se pudo dibujar la zona: ${String((e as Error)?.message ?? e).slice(0, 80)}`; }
     finally { generando = false; }
   }
@@ -291,9 +345,10 @@ export function montarMapa(h: HostMapa) {
       const a = proyectar(gv, imagen.x0, imagen.z0), b = proyectar(gv, imagen.x1, imagen.z1);
       g.imageSmoothingEnabled = true; g.drawImage(imagen.canvas, a.px, a.py, b.px - a.px, b.py - a.py);
     } else {
-      for (const hu of huellas) huella(g, gv, hu);
+      for (const hu of corte > 0 ? huellasBajas : huellas) huella(g, gv, hu); // U14: no giant box of a building taller than the cut
     }
     rejilla(g, gv, gv.escala >= 4 ? 10 : 50);
+    if (imagen && imagen.corte > 0) corteEnMapa(g, gv, imagen, bufGrande); // U14: the floor plan's walls and columns
     const vistos: Record<string, number> = {};
     const k = Math.min(1.8, Math.max(1.1, gv.escala / 4));
     for (const m of porOrden(ultimos)) {
@@ -460,16 +515,23 @@ export function montarMapa(h: HostMapa) {
       destino.lejos ||= d > LLEGADA_M + 2;
       if (destino.lejos && d < LLEGADA_M) quitarDestino("llegada");
     }
-    const v = h.view.cenitalVersion?.() ?? 0;
-    if (v !== huellasV) { huellasV = v; huellas = h.view.huellas?.() ?? []; limMini.forzar(); limGrande.forzar(); }
+    const v = h.view.cenitalVersion?.() ?? 0, c = h.view.mapaCorte?.() ?? 0;
+    if (v !== huellasV || c !== corte) {
+      if (c !== corte) imagenV = NaN; // U14: another cut is another picture
+      huellasV = v; corte = c; huellas = h.view.huellas?.() ?? []; huellasBajas = bajoElCorte(huellas, corte);
+      limMini.forzar(); limGrande.forzar();
+    }
+    // U14: a cut world's minimap shows the zone's picture: made the first time, then only when the zone changed (at
+    // most every IMAGEN_MS). Never in XR: this clock returns above while it lasts.
+    if (corte > 0 && v !== imagenV) void generarImagen(false);
     if (lm.ajustar()) limMini.forzar();
     const vm = vistaMini();
-    if (limMini.debe(ahora, `${firma(vm, ultimos, alBordeDe)}|${huellasV}`)) pintarMini(vm, ultimos);
+    if (limMini.debe(ahora, `${firma(vm, ultimos, alBordeDe)}|${huellasV}|${imagenes}`)) pintarMini(vm, ultimos);
     if (ahora - textoT >= TEXTO_MS) { textoT = ahora; textoMini(ultimos); }
     if (panel.abierto) {
       if (limGrande.debe(ahora, `${firma(gv, ultimos, alBordeDe)}|${huellasV}|${imagenes}`)) pintarGrande();
       if (ahora - listaT >= LISTA_MS) { listaT = ahora; pintarLista(); }
-      if (v !== imagenV) void generarImagen(false);
+      if (v !== imagenV && corte <= 0) void generarImagen(false);
     }
   }, PASO_MS);
 
@@ -490,10 +552,12 @@ export function montarMapa(h: HostMapa) {
     fallos: () => fallos,
     /** Counts by kind at the last draw of each map, and how often each drew (redraw rate). */
     dibujado: () => ({ mini: { ...dibujado.mini }, grande: { ...dibujado.grande } }),
-    stats: () => ({ mini: limMini.stats, grande: limGrande.stats, imagenes, vueltas, ocultas }),
+    stats: () => ({ mini: limMini.stats, grande: limGrande.stats, imagenes, vueltas, ocultas, corte }),
     abrir: () => panel.abrir(), cerrar: () => panel.cerrar(), abierto: () => panel.abierto,
-    /** The zone's picture: how it was made, what it cost, whether it has something in it. */
-    imagen: () => (imagen ? { modo: imagen.modo, ms: imagen.ms, partes: imagen.partes, px: imagen.px, conCosas: imagen.conCosas, x0: imagen.x0, z0: imagen.z0, x1: imagen.x1, z1: imagen.z1, error: imagen.error } : null),
+    /** The zone's picture: how it was made, what it cost, whether it has something in it (U14: where it was cut and how
+     * many segments the cut gave). */
+    imagen: () => (imagen ? { modo: imagen.modo, ms: imagen.ms, partes: imagen.partes, px: imagen.px, conCosas: imagen.conCosas, x0: imagen.x0, z0: imagen.z0, x1: imagen.x1, z1: imagen.z1, error: imagen.error,
+      corte: imagen.corte, seccion: (imagen.seccion?.length ?? 0) / 4, cristal: (imagen.cristal?.length ?? 0) / 4 } : null),
     /** The colour of the zone's picture at a world point ([r, g, b] 0-255), for checks (north must be up). */
     muestra(x: number, z: number): number[] | null {
       if (!imagen) return null;
@@ -503,8 +567,12 @@ export function montarMapa(h: HostMapa) {
       return [imagen.rgba[i], imagen.rgba[i + 1], imagen.rgba[i + 2]];
     },
     destino: () => (destino ? { id: destino.id, nombre: destino.nombre, x: destino.x, z: destino.z } : null),
-    /** Mark a marker (by id) as your destination; again = clear it. */
-    marcarDestino(id: string): boolean { const m = ultimos.find((x) => x.id === id); if (!m) return false; marcarDestino(m); return true; },
+    /** Mark a marker (by id) as your destination; again = clear it. N13: or a place of your own ({ id, nombre, x, z }):
+     * a photo's link leads you to where the photo was made. */
+    marcarDestino(id: string | { id: string; nombre: string; x: number; z: number }): boolean {
+      const m = typeof id === "string" ? ultimos.find((x) => x.id === id) : id;
+      if (!m) return false; marcarDestino(m); return true;
+    },
     quitarDestino: () => quitarDestino("quitado"),
     minimapa: { girar(si: boolean) { if (si !== gira) bGiro.click(); }, zoom(i: number) { zoom = Math.max(0, Math.min(RADIOS.length - 1, i)); limMini.forzar(); } },
   };

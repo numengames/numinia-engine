@@ -57,6 +57,8 @@ export function crearEntorno(h: EntornoHooks) {
     if (d) aplicar(d);
   }).catch((e) => { console.warn(`[entorno] sin cielo de atmósfera: ${(e as Error)?.message ?? e}`); });
   const arribaU = uniform(new THREE.Color(0x5d8fc9)), horizonteU = uniform(new THREE.Color(0xc9d8e4));
+  // N2: what the stylised water reads (agua-estilo.ts): the horizon colour (the fog's, else the gradient's), the sun's colour and direction
+  const aguaLuz = { cielo: uniform(new THREE.Color(0xc9d8e4)), sol: solColorU, solDir: uniform(new THREE.Vector3().copy(solDir)) };
   const domoMat = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide, depthWrite: false, fog: false });
   domoMat.colorNode = mix(horizonteU, arribaU, smoothstep(-0.02, 0.55, normalize(positionLocal).y));
   const domo = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12), domoMat);
@@ -218,6 +220,7 @@ export function crearEntorno(h: EntornoHooks) {
     // sun (the sky's) and the light (the moon when the sun is down)
     const alt = n(v.solAltura, 45), rumbo = n(v.solRumbo, 30);
     direccion(alt, rumbo, solDir);
+    aguaLuz.solDir.value.copy(solDir);
     if (alt > -1) direccion(Math.max(alt, 3), rumbo, luzDir); else direccion(40, rumbo + 180, luzDir);
     sun.color.setHex(n(v.solColor, 0xffffff)); solColorU.value.copy(sun.color);
     sun.intensity = n(v.solIntensidad, 3) * (alt > -1 ? Math.min(1, (alt + 1) / 6) : 1);
@@ -291,7 +294,7 @@ export function crearEntorno(h: EntornoHooks) {
   }
 
   return {
-    solDir, luzDir, viento, vientoU, solColorU,
+    solDir, luzDir, viento, vientoU, solColorU, aguaLuz,
     get nivel(): Nivel { return nivel; },
     get calidadActual(): Calidad { return calidad; },
     aplicar,
@@ -317,12 +320,14 @@ export function crearEntorno(h: EntornoHooks) {
         suelo: { tipo: String(d?.suelo ?? ""), textura: !!sueloMat.map, relieve: !!sueloMat.normalMap, metros: n(d?.sueloMetros) },
         tono: String(d?.tono ?? ""), exposicion: renderer.toneMappingExposure,
         viento: { x: Math.round(viento.x * 100) / 100, z: Math.round(viento.z * 100) / 100, fuerza: n(d?.vientoFuerza) },
-        hitos: h.hitos[0]?.visible ?? false, rejilla: grid.visible,
+        hitos: h.hitos[0]?.visible ?? false, rejilla: grid.visible, mapaCorte: Math.max(0, n(d?.mapaCorte, 0)),
         nivel, calidad: { ...calidad }, aplicados, horneados, cargando,
       };
     },
     /** True while a file is arriving or something just changed: the page must draw. */
     ocupado(): boolean { return cargando > 0 || performance.now() < hastaMs || hornearEn > 0; },
+    /** U14: the height (m) where the world's maps are cut (`mapa.corte`); 0 = not cut. */
+    corte(): number { return Math.max(0, n(d?.mapaCorte, 0)); },
     /** Once per frame, before drawing. */
     actualizar(): void {
       actualizarNivel();
@@ -330,6 +335,8 @@ export function crearEntorno(h: EntornoHooks) {
       void cargaCielo;
       const cielo = modoCielo === "vivo" ? sky : modoCielo === "degradado" || modoCielo === "cargando" ? domo : null;
       if (cielo) cielo.position.copy(camera.position);
+      const niebla = scene.fog as THREE.Fog | null; // N2: the water's fresnel takes the colour of the horizon you see
+      aguaLuz.cielo.value.copy(niebla?.color ?? (scene.background instanceof THREE.Color ? scene.background : horizonteU.value));
       if (hornearEn && performance.now() >= hornearEn) { hornearEn = 0; hornear(); }
       // the light follows the player: the shadow box is always around them
       const f = h.foco() ?? { x: camera.position.x, z: camera.position.z };

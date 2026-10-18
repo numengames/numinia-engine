@@ -71,7 +71,7 @@ Comandos útiles en el servidor:
 systemctl status numinia-motor        # ¿está vivo?
 journalctl -u numinia-motor -f        # cada 30 s: conectados, tick p99, kbit/s por persona
 bash instalar-motor.sh --version      # qué versión lleva el fichero
-curl -s localhost:8790/health         # {"ok":true,"version":…,"huella":"93b192c8","conectados":N}
+curl -s localhost:8790/health         # {"ok":true,"version":…,"huella":"7e630965","conectados":N}
 curl -s localhost:8790/status         # {"uptime":s,"conectados":N,"commitHash":"<40 hex>","version":"<build>"} (lo lee la sala de Mundos; con aventura/ficha.json, también "nombre", "descripcion", "portada")
 curl -s localhost:8790/metrics        # JSON: conectados, tick p50/p99/peor (últimos 10 s), respuesta del tick, bucle, CPU, steal, memoria, kbit/s por persona…
 ```
@@ -167,6 +167,16 @@ Desde casa, por el túnel (`ssh -L 18790:localhost:8790 …`): `npm run sesiones
 
 `/var/lib/numinia-motor/datos/<función>.json` + `.jsonl` (texto). Para una copia de seguridad basta copiar esa
 carpeta; para empezar de cero, parar el servicio y vaciarla.
+
+## Quién recibió una recompensa (U14 (6))
+
+Cada recompensa de misión concedida a un jugador con identidad queda apuntada una vez en `datos/misiones.*`. En CSV
+(`jugador,nombre,mision,recompensas,instante,estado`), con el servicio en marcha:
+
+```
+cd /opt/numinia-engine/app && ../node/bin/node packages/server/src/concesiones.ts /var/lib/numinia-motor > concesiones.csv
+docker exec <contenedor> /opt/numinia-engine/node/bin/node packages/server/src/concesiones.ts /mundo vuelo-del-maestro > concesiones.csv
+```
 
 ## Construir en el mundo (H1)
 

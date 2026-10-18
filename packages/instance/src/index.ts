@@ -1,7 +1,7 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
-import { rngNext, fxToFloat, FX_ONE } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, BTN_JUMP, BTN_RUN, INPUT_STRIDE } from "../../sim/src/index.ts";
+import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, BTN_JUMP, BTN_RUN, INPUT_STRIDE } from "../../sim/src/index.ts";
 import type { SimState, SpawnArea } from "../../sim/src/index.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
@@ -13,7 +13,7 @@ import type { Who } from "./identidad.ts";
 export type { Who } from "./identidad.ts";
 import type { Transport, Viewer, Welcome } from "../../net/src/index.ts";
 import { ServerRuntime } from "../../feature/src/index.ts";
-import type { FeatureStorage, ServerPart } from "../../feature/src/index.ts";
+import type { BienFirmable, FeatureStorage, ReciboLeido, ServerPart } from "../../feature/src/index.ts";
 
 export type InstanceOptions = {
   seed: number; capacity: number; k: number; snapshotEvery: number;
@@ -47,6 +47,8 @@ export type InstanceOptions = {
   externos?: { verificar: (ticket: string, anfitrion: string | undefined) => { id: string; nombre: string } | null };
   /** Where new avatars appear (metres; the world's entorno@1 `aparicion`); none = the house square of 40 m around the origin. */
   aparicion?: SpawnArea | null;
+  /** N10: the world's receipts for digital goods (server/recibos.ts crearRecibos); none = features get "" and refusals. */
+  recibos?: { emisor: string; firmar(d: BienFirmable): string; verificar(token: string): ReciboLeido };
 };
 
 /** Inputs wait in a queue; the server applies exactly ONE per tick (none = that avatar does not advance: J2). */
@@ -87,6 +89,10 @@ export class Instance {
       medidas: opts.medidas,
       visible: (e) => this.byEntity[e]?.visible ?? [],
       aventura: opts.aventura,
+      recibo: opts.recibos ? (d) => opts.recibos!.firmar(d) : undefined,
+      emisor: opts.recibos ? () => opts.recibos!.emisor : undefined,
+      verificarRecibo: opts.recibos ? (t) => { const l = opts.recibos!.verificar(t); return l.ok ? { ...l, nuestro: l.nuestro === true } : l; } : undefined,
+      teletransportar: (e, cerca, o) => this.teletransportar(e, cerca, o),
     });
   }
 
@@ -204,6 +210,22 @@ export class Instance {
         c.transport.send(encodeSnapshot(this.sim, c.entity, c.ack, visible), false);
       }
     }
+  }
+
+  /** N16: move a connected avatar on purpose (a feature asked: «ir con», a photo's place) to the first free spot near
+   * `cerca` (metres; `radios` rings, heading `rumbo` 0-7, at most `caida` m under `cerca.y`: sim `sitioLibre`), standing
+   * still on its floor. Returns where it stands (metres) or null (gone, or no free spot: nothing moved). The owner's page
+   * gets its new body in the next snapshot and replays its pending inputs from there (client reconcile). Outside `step`
+   * and the reference recording: the fingerprint never sees it. */
+  teletransportar(entity: number, cerca: { x: number; y: number; z: number }, o: { radios?: readonly number[]; rumbo?: number; caida?: number } = {}): { x: number; y: number; z: number } | null {
+    const s = this.sim;
+    if (!this.byEntity[entity] || !s.world.alive[entity] || !s.tf.has[entity]) return null;
+    if (![cerca.x, cerca.y, cerca.z].every(Number.isFinite)) return null;
+    const p = sitioLibre(s, fx(cerca.x), fx(cerca.y), fx(cerca.z), o.radios ?? [0], o.rumbo ?? 0, o.caida ?? 1);
+    if (!p) return null;
+    s.tf.cols.x[entity] = p.x; s.tf.cols.y[entity] = p.y; s.tf.cols.z[entity] = p.z;
+    s.mo.cols.vy[entity] = 0; s.mo.cols.air[entity] = 0; s.mo.cols.buf[entity] = 0;
+    return { x: fxToFloat(p.x), y: fxToFloat(p.y), z: fxToFloat(p.z) };
   }
 
   /** I1: the guest behind a connected entity (null for bots and before the page showed its token). */

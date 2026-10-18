@@ -2,7 +2,8 @@
 // presets). Nested and readable (colours as "#rrggbb"); a file may say only what it changes over a base. Validation
 // returns Result with error paths in the file's own terms ("sol.altura"), never throws. Pure: no engine, no DOM.
 // The same file may carry `aparicion` (where people appear: a vertical world's floor), read by `leerAparicion` for the
-// server; it is not part of the environment's shared state.
+// server; it is not part of the environment's shared state. `mapa.corte` (U14) is: every page's maps cut the world at
+// that height (a floor plan inside a building), and the world's file says it again at each start (server.ts).
 import type { Issue, Result } from "../../packages/core/src/index.ts";
 import { defineSchema, validate } from "../../packages/schema/src/index.ts";
 import { CAMPOS, entorno } from "./feature.ts";
@@ -11,9 +12,9 @@ export const ESQUEMA = "numinia-engine/entorno@1";
 export type Plano = Record<string, unknown>;
 /** `aparicion` (optional, the server's, never on the wire): where people appear, the square of half-side `radio` centred
  * at (x, z), metres. A vertical world puts it on a floor instead of inside a wall. Absent = the house square (40 m
- * around the origin). `radio` 1–40; x and z within ±APARICION_XZ_MAX so the square stays inside the plaza (±500). */
+ * around the origin). `radio` 1–40; x and z within ±APARICION_XZ_MAX so the square stays inside the walkable world (sim BOUND, ±2000). */
 export type Aparicion = { x: number; z: number; radio: number };
-export const APARICION_RADIO_MIN = 1, APARICION_RADIO_MAX = 40, APARICION_XZ_MAX = 460;
+export const APARICION_RADIO_MIN = 1, APARICION_RADIO_MAX = 40, APARICION_XZ_MAX = 1960;
 
 /** Flat field (wire) ↔ path in the file. Colours are marked: in the file they are "#rrggbb". */
 export const RUTAS: [campo: string, ruta: string, color?: true][] = [
@@ -28,6 +29,7 @@ export const RUTAS: [campo: string, ruta: string, color?: true][] = [
   ["suelo", "suelo.tipo"], ["sueloColor", "suelo.color", true], ["sueloEscala", "suelo.escala"],
   ["tono", "tono.curva"], ["exposicion", "tono.exposicion"],
   ["hitos", "hitos"], ["rejilla", "rejilla"],
+  ["mapaCorte", "mapa.corte"],
 ];
 
 const SCHEMA = defineSchema("entorno", entorno.version, CAMPOS);
@@ -54,6 +56,8 @@ export function validarEntorno(json: unknown, base: Plano = porDefecto()): Resul
   if (s !== undefined && s !== ESQUEMA) issues.push({ path: "entorno.schema", message: `debe ser "${ESQUEMA}" (o no estar, en un preset)` });
   const ap = leerAparicion(json);
   if (!ap.ok) issues.push(...ap.issues);
+  const af = leerAparicionFoto(json);
+  if (!af.ok) issues.push(...af.issues);
   const plano: Plano = { ...base };
   for (const [campo, ruta, color] of RUTAS) {
     const v = leer(json, ruta);
@@ -91,6 +95,18 @@ export function leerAparicion(json: unknown): Result<Aparicion | null> {
   };
   const x = num("x", -APARICION_XZ_MAX, APARICION_XZ_MAX), z = num("z", -APARICION_XZ_MAX, APARICION_XZ_MAX), radio = num("radio", APARICION_RADIO_MIN, APARICION_RADIO_MAX);
   return issues.length ? { ok: false, issues } : { ok: true, value: { x, z, radio } };
+}
+
+/**
+ * N16: `aparicionFoto: true` lets whoever opens a photo's link (N13 `#foto=`) appear at the place it names instead of
+ * the spawn area (the server checks a free spot there; features/teletransporte). Off when absent: a world opts in.
+ * Like `aparicion`, the server's, never on the wire as environment (the feature says it in its own state).
+ */
+export function leerAparicionFoto(json: unknown): Result<boolean> {
+  const a = typeof json === "object" && json !== null && !Array.isArray(json) ? (json as Record<string, unknown>).aparicionFoto : undefined;
+  if (a === undefined || a === null) return { ok: true, value: false };
+  if (typeof a !== "boolean") return { ok: false, issues: [{ path: "entorno.aparicionFoto", message: "true (quien abre el enlace de una foto aparece en su sitio) o false (aparece en el sitio de siempre y la luz le guía)" }] };
+  return { ok: true, value: a };
 }
 
 /** Flat → the readable file (the inverse of validarEntorno; what `restaurar` and tools write). */

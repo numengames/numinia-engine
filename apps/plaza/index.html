@@ -63,7 +63,7 @@
     #libro h3 { margin: 8px 0 2px; font-size: 14px; }
     #libro p, #libro ol, #libro ul { margin: 2px 0 6px; }
     #libro ol, #libro ul { padding-left: 18px; }
-    #libro li.hecho { color: #9fe0a0; } #libro li.ahora { color: #ffd27a; font-weight: 600; } #libro li.despues { opacity: .7; }
+    #libro li.hecho { color: #9fe0a0; } #libro li.ahora { color: #ffd27a; font-weight: 600; } #libro li.bloqueado { opacity: .7; } /* the look: tema.css */
     #libro .fila { display: flex; gap: 6px; }
     #libro button { padding: 5px 9px; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; font: inherit; }
     #mision-seguida { position: fixed; top: 156px; left: 10px; z-index: 4; max-width: calc(100% - 150px); margin: 0; padding: 5px 10px; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #ffd27a; pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -72,7 +72,7 @@
     .solo-lector { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
     /* N2: the settings menu (a real <dialog>: keyboard, touch and screen readers) and what its settings change */
     :root { --ui: 1; }
-    body > :not(canvas):not(#joy) { zoom: var(--ui); } /* «Tamaño de la interfaz»: everything on the screen but the world */
+    body > :not(canvas):not(#joy):not(#web-capa) { zoom: var(--ui); } /* «Tamaño de la interfaz»: everything on the screen but the world (and the web screens, which live in it) */
     #ajustes-abrir { position: fixed; top: 10px; right: 10px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #eef2f6; font: inherit; font-size: 22px; line-height: 44px; }
     #ajustes-abrir[hidden] { display: none; }
     #ar[hidden], #vr[hidden] { display: none; } /* AR/VR start hidden (attribute): only a device that can do it shows them */
@@ -111,11 +111,12 @@
 <body>
   <div id="hud">Conectando…</div>
   <div id="barra-arriba" role="toolbar" aria-label="Botones del mundo"></div>
-  <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · M: mapa · I: ficha · C: construir · Q: micrófono</div>
+  <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · M: mapa · I: ficha · C: construir · Q: micrófono · L: gente · P: foto</div>
   <button id="ar" type="button" hidden>Entrar en AR</button>
   <button id="vr" type="button" hidden>Entrar en VR</button>
   <button id="construir" type="button" aria-expanded="false" aria-controls="panel-construir">Construir</button>
   <button id="pantalla" type="button" hidden>Pantalla completa</button>
+  <button id="foto-abrir" type="button" title="Modo foto (P)">Foto</button>
   <section id="panel-construir" aria-label="Construir" hidden></section>
   <button id="interactuar" type="button" hidden></button>
   <section id="dialogo" hidden></section>
@@ -123,8 +124,10 @@
   <section id="libro" aria-label="Libro de misiones" hidden></section>
   <p id="mision-seguida" hidden></p>
   <p id="mision-nota" aria-hidden="true" hidden></p>
+  <div id="mision-completada" role="status" aria-live="polite" aria-atomic="true"></div><!-- U14 (6): «Misión completada» (misiones.ts; empty when idle) -->
   <div id="acciones"></div>
   <section id="pesca-hud" hidden></section>
+  <section id="dardos-hud" hidden></section>
   <div id="joy"><div id="knob"></div></div>
   <section id="chat" aria-label="Chat">
     <ol id="chat-lista" role="log" aria-live="polite" aria-label="Mensajes del chat"></ol>

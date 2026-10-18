@@ -3,8 +3,15 @@
 import * as THREE from "three/webgpu";
 import { createAR, arSupported } from "./ar.ts";
 export { arSupported } from "./ar.ts";
-export type { ARState } from "./ar.ts";
+export type { ARState, JuegoAR, RayoAR } from "./ar.ts";
+export { potenciaDe, ESCALA_PLAZA } from "./dardos.ts";
+export type { DianaAR, Dardo3D } from "./dardos.ts";
+export { pintarDiana, caraAPixel, pixelACara, PINTADA } from "./diana.ts";
 import { createVR, vrSupported } from "./vr.ts";
+import { crearPuestos } from "./puestos.ts";
+import { crearVitrina } from "./vitrina.ts";
+export type { Vitrina } from "./vitrina.ts";
+export type { Donde as DondePuesto } from "./puestos.ts";
 export { vrSupported } from "./vr.ts";
 export type { VRState, DialogoVR } from "./vr.ts";
 import type { Manos, EventoMano } from "./manos.ts";
@@ -24,6 +31,8 @@ export { sePuedeReproducir } from "./medios.ts";
 export type { Donde, Eje, Herramienta, Fase, Paso, Editor } from "./gizmo.ts";
 import { createAvatares } from "./avatares.ts";
 import { sueloBajo } from "./avatares-politica.ts";
+import { prepararGltf, usarRenderer } from "./gltf.ts";
+import { ordenCarga, puedeEmpezar } from "./carga-orden.ts";
 export type { CatalogoAvatares } from "./avatares.ts";
 import type { CatalogoAvatares } from "./avatares.ts";
 import { createNombres } from "./nombres.ts";
@@ -33,7 +42,19 @@ export type { Huella, ImagenCenital } from "./cenital.ts";
 import { crearEntorno } from "./entorno.ts";
 import { vistaElementos } from "./elementos-vista.ts";
 import { vistaPesca } from "./pesca-vista.ts";
+import { crearDianas3D, crearDianaAR } from "./dardos.ts";
+import { crearPantallasWeb } from "./web.ts";
+import type { DianaAR } from "./dardos.ts";
+import { detalleAgua } from "./calidad.ts";
+import { crearLotes } from "./lotes.ts";
+import { fundirAnimado } from "./fundir.ts";
+import type { Fundido } from "./fundir.ts";
+import type { Parte } from "./lotes.ts";
+import { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
+import { crearTeletransporte } from "./teletransporte.ts";
+export { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 export type { EntornoDatos } from "./entorno.ts";
+export type { Luz } from "./teletransporte.ts";
 export type { Calidad, Nivel } from "./calidad.ts";
 
 export type Backend = "WebGPU" | "WebGL2";
@@ -46,7 +67,9 @@ export type Thing = { model: string; x: number; y: number; z: number; rx: number
   /** U10 (optional): modelo (.glb, the default), imagen / video (a plane), sonido (a sphere: radius = sx); file extension; hidden while playing; volume 0-1. */
   kind?: "modelo" | "imagen" | "video" | "sonido"; ext?: string; hidden?: boolean; volume?: number;
   /** U11 (optional): who hears it (burbuja: inside the bubble; zona, todos: everyone, at the same volume) and a video's bubble radius (m). */
-  reach?: "burbuja" | "zona" | "todos"; radius?: number };
+  reach?: "burbuja" | "zona" | "todos"; radius?: number;
+  /** N22 (optional): part of the room (pinned or backdrop), downloaded first (carga-orden.ts). */
+  sala?: boolean };
 /** J10: where a thing you carry goes: a hand in XR («izq»/«der»), or beside you on a flat screen («yo»). */
 export type Llevar = "izq" | "der" | "yo";
 /** J10: the biggest side of a thing held in a hand (m). */
@@ -61,6 +84,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // with WebGL2 from the start (the backend cannot change later).
   const xrSinGpu = typeof (globalThis as { XRGPUBinding?: unknown }).XRGPUBinding === "undefined" && (await vrSupported() || await arSupported());
   const renderer = new THREE.WebGPURenderer({ antialias: !power.mobile, forceWebGL: !!opts.forceWebGL || xrSinGpu, powerPreference: power.mobile ? "low-power" : "high-performance" });
+  usarRenderer(renderer); // N22: KTX2 textures transcode to what this GPU takes
   await renderer.init();
   const backend: Backend = (renderer as unknown as { backend: { isWebGPUBackend?: boolean } }).backend.isWebGPUBackend ? "WebGPU" : "WebGL2";
   renderer.setPixelRatio(power.pixelRatio());
@@ -81,7 +105,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   sun.position.set(6, 12, 4);
   scene.add(sun);
 
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ color: 0xa7b89c }));
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshStandardMaterial({ color: 0xa7b89c }));
   ground.rotation.x = -Math.PI / 2;
   world.add(ground);
   const grid = new THREE.GridHelper(200, 100, 0x6f7f68, 0x8d9c86);
@@ -123,8 +147,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     const m = createManos({
       renderer,
       *objetos() { if (ar.state !== "off") return; for (const [k, s] of things) yield [k, s.group] as [string, THREE.Object3D]; },
-      *etiquetas() { if (ar.state !== "off") return; for (const [k, s] of tags) yield [k, s] as [string, THREE.Object3D]; },
-      paneles: () => vr.paneles(),
+      *etiquetas() { if (ar.state !== "off") return; for (const [k, r] of tags) yield [k, r.s] as [string, THREE.Object3D]; },
+      paneles: () => [...vr.paneles(), ...web.paneles()], // N17: a web screen's «Abrir fuera de VR»
     });
     m.reglas(reglasManos);
     m.on((e) => { for (const f of oyentesManos) f(e); });
@@ -139,6 +163,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     ancla: (l: "izq" | "der") => manosReal?.ancla(l) ?? null,
     andar: () => manosReal?.andar() ?? null,
     vibrar: (l: "izq" | "der", v?: number, ms?: number) => manosReal?.vibrar(l, v, ms),
+    entrada: (l: "izq" | "der") => manosReal?.entrada(l) ?? null,
     estado: () => manosReal?.estado() ?? { izq: null, der: null },
   };
   const ar = createAR({ renderer, scene, world, domOverlayRoot: document.getElementById("hud") ?? undefined, maxMs: opts.arMaxMs, manos,
@@ -163,6 +188,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const entorno = crearEntorno({ renderer, scene, world, camera, hemi, sun, ground, grid, hitos, aparato: { mobile: power.mobile, deviceMemoryGB: readCaps().deviceMemoryGB, saveData: readCaps().saveData }, foco: () => selfXZ,
     fichero: (f) => { const i = f.lastIndexOf("."); return (opts.assetUrl ?? ((m: string) => `/a/${m}.glb`))(f.slice(0, i)).replace(/\.glb$/, f.slice(i)); } });
   const elementos = vistaElementos({ renderer, scene, world, camera, entorno }); // H4/H8: water, fire, smoke, dust (lazy)
+  const tele = crearTeletransporte({ world, nivel: () => entorno.nivel }); // N16: the light of a trip (none on tier D)
 
   // feature decorations (J7): a text label over an avatar and a short bounce; both expire on their own
   type Target = number | "self";
@@ -173,7 +199,22 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const nombres = createNombres({ world, camera, avatarOf: meshOf }); // J3: names over heads and speech bubbles
   // pesca v1: rods, lines and floats of whoever fishes near (lazy: packages/render/src/pesca.ts). "self" hides in first person, so the rod uses the capsule's place anyway
   const pesca = vistaPesca({ world, posicionDe: (t) => (t === "self" ? selfMesh.position : others.get(t)?.position) ?? null,
-    manoDe: (t, out) => avs.mano(t === "self" ? "yo" : t, "derecha", out), orientar: (t, rumbo) => avs.orientar(t === "self" ? "yo" : t, rumbo) });
+    manoDe: (t, out) => avs.mano(t === "self" ? "yo" : t, "derecha", out), orientar: (t, rumbo) => avs.orientar(t === "self" ? "yo" : t, rumbo),
+    agua: { luz: entorno.aguaLuz, detalle: () => detalleAgua(entorno.nivel, entorno.calidadActual.agua) } }); // N2: the pond's water follows the tier
+  const dardos = crearDianas3D({ world }); // dardos v1: the boards near you and the darts in them (dardos.ts)
+  // N18: what people wear (features/bienes): a good's model in the right hand or on the head, on the VRM's bone or the capsule
+  const plantillasPuestos = new Map<string, Promise<THREE.Object3D>>();
+  const puestos = crearPuestos({ world,
+    cargar: (model) => {
+      let t = plantillasPuestos.get(model);
+      if (!t) { t = getTools().then(async (h) => (await h.load(assetUrl(model))).scene as THREE.Object3D); plantillasPuestos.set(model, t); t.catch(() => plantillasPuestos.delete(model)); }
+      return t.then(async (raiz) => (await getTools()).clone(raiz));
+    },
+    cuerpo: (q) => (q === "self" ? (selfMesh.visible ? selfMesh : null) : others.get(q) ?? null),
+    visible: (q) => (q === "self" ? selfMat.visible : true),
+    hueso: (q, donde, out) => (donde === "mano" ? avs.mano(q === "self" ? "yo" : q, "derecha", out) : avs.cabeza(q === "self" ? "yo" : q, out)),
+    rumbo: (q) => avs.rumbo(q === "self" ? "yo" : q) });
+  const web = crearPantallasWeb({ world, camera, enXR: () => renderer.xr.isPresenting, cajas: () => cajasM }); // N17: web screens (web.ts)
   function dropLabel(t: Target): void {
     const d = labels.get(t);
     if (!d) return;
@@ -182,6 +223,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     mat.map?.dispose(); mat.dispose();
     labels.delete(t);
   }
+  // N4: the rod in your real hand in VR, and the gauge facing the camera that draws
+  pesca.conManos({ ancla: (l) => (renderer.xr.isPresenting && vr.active ? manos.ancla(l) : null), camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera) });
+
   // beacons (R1): a column of light with a text at a world point; expires on its own
   const beacons: { group: THREE.Group; until: number }[] = [];
   const beaconGeo = new THREE.CylinderGeometry(0.6, 0.6, 40, 16, 1, true);
@@ -217,7 +261,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // ---- H1: things placed in the world (features/objetos): a model by its sha256, loaded once per file and cloned,
   // the nearest first, never more than LOADS_AT_ONCE downloads at a time ----
   type Gltf = { scene: THREE.Object3D; animations: THREE.AnimationClip[] };
-  type Slot = { group: THREE.Group; want: Thing; model: string; loaded: boolean; failed: boolean; mixer?: THREE.AnimationMixer; medio?: Medio; color?: string; horneado?: boolean };
+  type Slot = { group: THREE.Group; want: Thing; model: string; loaded: boolean; failed: boolean; mixer?: THREE.AnimationMixer; medio?: Medio; color?: string; horneado?: boolean;
+    /** N12: the baked parts (copies of one model share them: a lote draws them), and a sphere round the group's origin that holds the model (m, before scale). */
+    partes?: Parte[]; radio?: number };
+  const esferaTmp = new THREE.Sphere();
+  /** N12: the radius (m, before the copy's scale) of a sphere round the origin that holds `o`, a copy not yet in the world. */
+  const radioDe = (o: THREE.Object3D): number => { o.updateMatrixWorld(true); tmpBox.setFromObject(o); if (tmpBox.isEmpty()) return 1; tmpBox.getBoundingSphere(esferaTmp); return esferaTmp.center.length() + esferaTmp.radius; };
   let verOcultos = false; // U10: while building, hidden spheres of sound are drawn
   const fichero = (t: Thing) => `${t.model}.${t.kind && t.kind !== "modelo" ? t.ext ?? "glb" : "glb"}`; // what a slot draws
   /** A thing painted in its `color` (materials cloned once per copy; "" puts the model's own back). */
@@ -232,6 +281,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (!c) { m.material = propio; return; }
       const nuevo = (Array.isArray(propio) ? propio[0] : propio).clone() as THREE.MeshStandardMaterial;
       if (nuevo.color) nuevo.color.set(c);
+      if (m.userData.fundido?.colores) nuevo.vertexColors = false; // N15: its colours live in the vertices; painted, one colour
       if ("map" in nuevo) nuevo.map = null;
       m.material = nuevo;
     });
@@ -277,7 +327,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   type Tools = { load: (url: string) => Promise<Gltf>; clone: (o: THREE.Object3D) => THREE.Object3D; merge: Merge };
   let tools: Promise<Tools> | null = null;
   const getTools = () => (tools ??= Promise.all([import("three/addons/loaders/GLTFLoader.js"), import("three/addons/utils/SkeletonUtils.js"), import("three/addons/utils/BufferGeometryUtils.js")])
-    .then(([g, u, b]) => { const l = new g.GLTFLoader(); return { load: (url: string) => l.loadAsync(url) as unknown as Promise<Gltf>, clone: (o: THREE.Object3D) => u.clone(o as never) as unknown as THREE.Object3D, merge: (gs) => b.mergeGeometries(gs as never) as unknown as THREE.BufferGeometry | null }; }));
+    .then(async ([g, u, b]) => { const l = await prepararGltf(new g.GLTFLoader()); return { load: (url: string) => l.loadAsync(url) as unknown as Promise<Gltf>, clone: (o: THREE.Object3D) => u.clone(o as never) as unknown as THREE.Object3D, merge: (gs) => b.mergeGeometries(gs as never) as unknown as THREE.BufferGeometry | null }; }));
   // A model that does not animate (people of the world, quest things) is baked ONCE per file into one mesh per
   // material, in the pose it comes in: the house robot goes from 19 draw calls to 3. Copies share the geometry.
   const horneados = new Map<string, { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean }[] | null>();
@@ -322,6 +372,37 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     horneados.set(model, out);
     return out;
   }
+  // N12: a model drawn whole (not baked) but that never moves inside (no clips, no skin, plain meshes): its parts as
+  // they sit in the file, so its copies can be drawn instanced too (lotes.ts). null = it cannot (it animates or has
+  // something an instanced mesh does not draw the same: skins, several materials on one mesh, lines, points, sprites).
+  const enteros = new Map<string, Parte[] | null>();
+  function partesEnteras(model: string, g: Gltf): Parte[] | null {
+    if (enteros.has(model)) return enteros.get(model)!;
+    let out: Parte[] | null = g.animations.length ? null : [];
+    if (out) {
+      g.scene.updateMatrixWorld(true);
+      const inv = g.scene.parent ? g.scene.parent.matrixWorld.clone().invert() : new THREE.Matrix4(); // a copy carries the root's own transform too
+      g.scene.traverseVisible((o) => {
+        if (!out) return;
+        const m = o as THREE.Mesh;
+        if ((o as THREE.Line).isLine || (o as THREE.Points).isPoints || (o as THREE.Sprite).isSprite || (m.isMesh && ((m as THREE.SkinnedMesh).isSkinnedMesh || Array.isArray(m.material) || m.morphTargetInfluences?.length))) { out = null; return; }
+        if (m.isMesh) out.push({ geo: m.geometry, mat: m.material as THREE.Material, sombra: m.castShadow, rel: new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld) });
+      });
+      if (out && !(out as Parte[]).length) out = null;
+    }
+    enteros.set(model, out);
+    return out;
+  }
+  // N15: a model that animates is fused ONCE per file (fundir.ts): one skinned mesh per look sharing one skeleton, so
+  // each copy costs 1-3 draw calls instead of one per piece (the house robot: 19 -> 1). Looks and moves the same.
+  const fundidos = new Map<string, Fundido | null>();
+  function fundido(model: string, g: Gltf, clone: Tools["clone"]): Fundido | null {
+    if (fundidos.has(model)) return fundidos.get(model)!;
+    let f: Fundido | null = null;
+    try { f = g.animations.length ? fundirAnimado(clone(g.scene), g.animations) : null; } catch (err) { console.warn(`[objetos] no pude fundir ${model}:`, err); f = null; }
+    fundidos.set(model, f);
+    return f;
+  }
   const files = new Map<string, Promise<{ g: Gltf; clone: Tools["clone"]; merge: Merge }>>(); // model -> its parsed file, shared by every copy
   const things = new Map<string, Slot>();
   const waiting = new Set<string>();
@@ -334,28 +415,44 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     s.group.rotation.set(w.rx * RAD, w.ry * RAD, w.rz * RAD, "YXZ");
     s.group.scale.set(w.sx, w.sy, w.sz);
   }
+  // N22: the room first (pinned/backdrop things: the hall you stand in), then the nearest; what is far (LEJOS_M) waits
+  // until nothing near is still downloading, so it never takes the phone's bandwidth from what you see (carga-orden.ts)
+  let cercaCargando = 0, pumpPedido = false;
+  /** N22: one pump after every thing of a message is placed (a world's welcome places them all at once), so the first
+   * four downloads are the right four, not the first four keys. */
+  function pumpPronto(): void { if (pumpPedido) return; pumpPedido = true; queueMicrotask(() => { pumpPedido = false; pumpLoads(); }); }
   function pumpLoads(): void {
     while (loading < LOADS_AT_ONCE && waiting.size) {
-      let best = "", bestD = Infinity;
-      for (const k of waiting) { const s = things.get(k); const d = s ? distance2(s) : Infinity; if (d < bestD) { bestD = d; best = k; } }
+      let best = "", bestO = Infinity, bestD = Infinity, quedanCerca = false;
+      for (const k of waiting) {
+        const s = things.get(k);
+        if (!s) { best = k; bestO = -1; break; } // gone: dropped below
+        const d = distance2(s), o = ordenCarga(s.want, d);
+        if (o < 2) quedanCerca = true;
+        if (o < bestO || (o === bestO && d < bestD)) { bestO = o; bestD = d; best = k; }
+      }
+      if (bestO >= 2 && !puedeEmpezar(cercaCargando, quedanCerca)) return; // far: after the near ones (a finished load pumps again)
       waiting.delete(best);
       const s = things.get(best);
       if (!s) continue;
+      const cerca = bestO < 2;
       const model = s.model;
-      if (s.want.kind && s.want.kind !== "modelo") { cargarMedio(best, s); continue; }
+      if (s.want.kind && s.want.kind !== "modelo") { cargarMedio(best, s, cerca); continue; }
       let file = files.get(model);
       if (!file) { file = getTools().then(async (t) => ({ g: await t.load(assetUrl(model.replace(/\.glb$/, ""))), clone: t.clone, merge: t.merge })); files.set(model, file); }
-      loading++;
+      loading++; if (cerca) cercaCargando++;
       file.then(({ g, clone, merge }) => {
         const now = things.get(best);
         if (!now || now.model !== model || now.loaded) return; // removed or changed while it downloaded
         const quieto = !now.want.animate ? hornear(model, g.scene, merge) : null;
         let copy: THREE.Object3D;
+        const fu = !quieto && now.want.animate ? fundido(model, g, clone) : null;
         if (quieto) { copy = new THREE.Group(); for (const q of quieto) { const m = new THREE.Mesh(q.geo, q.mat); m.castShadow = q.sombra; copy.add(m); } }
-        else copy = clone(g.scene);
-        now.horneado = !!quieto;
+        else copy = clone(fu ? fu.escena : g.scene);
+        now.horneado = !!quieto; now.partes = quieto ?? partesEnteras(model, g) ?? undefined;
+        now.radio = radioDe(copy) * (now.want.animate ? 1.5 : 1); // an animation may reach out of its rest pose
         now.group.add(copy);
-        if (now.want.animate && g.animations.length) { now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction(g.animations[0]).play(); }
+        if (now.want.animate && g.animations.length) { now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction((fu ? fu.clips : g.animations)[0]).play(); }
         now.loaded = true; now.color = undefined; pintar(now);
         if (llevados.has(best) && now.group.parent !== world) { const d = llevados.get(best)!; soltarLlevado(best); llevados.set(best, d); } // re-fit in the hand
       }).catch((e) => {
@@ -363,24 +460,24 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         if (now && now.model === model) now.failed = true;
         files.delete(model); // a later placement may try again
         console.warn(`[objetos] no se pudo cargar ${assetUrl(model.replace(/\.glb$/, ""))}: ${(e as Error)?.message ?? e}`);
-      }).finally(() => { loading--; pumpLoads(); });
+      }).finally(() => { loading--; if (cerca) cercaCargando--; pumpLoads(); });
     }
   }
   /** U10: an image, a video or a sphere of sound instead of a .glb (medios.ts). */
-  function cargarMedio(key: string, s: Slot): void {
+  function cargarMedio(key: string, s: Slot, cerca = true): void {
     const t = s.want, url = assetUrl(t.model).replace(/\.glb$/, `.${t.ext ?? "glb"}`), model = s.model;
     if ((t.kind === "video" || t.kind === "sonido") && !sePuedeReproducir(t.ext ?? "")) { s.failed = true; console.warn(`[medios] este navegador no reproduce .${t.ext}`); return; }
     const p = t.kind === "imagen" ? cargarImagen(url) : t.kind === "video" ? cargarVideo(url, () => verOcultos) : Promise.resolve(cargarSonido(url, () => verOcultos));
-    loading++;
+    loading++; if (cerca) cercaCargando++;
     p.then((m) => {
       const now = things.get(key);
       if (!now || now.model !== model || now.loaded) { m.soltar(); return; }
-      now.group.add(m.obj); now.medio = m; now.loaded = true;
+      now.radio = radioDe(m.obj); now.group.add(m.obj); now.medio = m; now.loaded = true;
     }).catch((e) => {
       const now = things.get(key);
       if (now && now.model === model) now.failed = true;
       console.warn(`[medios] no se pudo cargar ${url}: ${(e as Error)?.message ?? e}`);
-    }).finally(() => { loading--; pumpLoads(); });
+    }).finally(() => { loading--; if (cerca) cercaCargando--; pumpLoads(); });
   }
   let mediosSonando = false;
   function updateThings(dt: number): void {
@@ -404,13 +501,126 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
 
   // ---- J5: names that stay over things (people of the world). Sprites: they face the camera by themselves, so
   // nothing runs per frame; the fog fades the far ones. pickThing tells which thing (or name) is under a screen point.
-  const tags = new Map<string, THREE.Sprite>();
+  // U14 (4): a label may carry a second, smaller line under the name (a person's trade) and a mark above it («!» in a
+  // warm colour: something for you now; «✓» in green: done). Its canvas is drawn again only when its text or mark
+  // changes — a new position just moves it — so standing still costs nothing (tagDraws() counts the canvases drawn).
+  type Rotulo = { s: THREE.Sprite; firma: string };
+  type DatosRotulo = { text: string; x: number; y: number; z: number; sub?: string; mark?: "!" | "✓" | "" };
+  const tags = new Map<string, Rotulo>();
+  let tagDibujos = 0;
+  const ROT_ANCHO = 512, ROT_NOMBRE = 96, ROT_SUB = 48, ROT_MARCA = 160, ROT_M = 2.9 / 512; // px (the name line as before); metres per px
   function dropTag(key: string): void {
-    const s = tags.get(key);
-    if (!s) return;
-    world.remove(s); s.material.map?.dispose(); s.material.dispose(); tags.delete(key);
+    const r = tags.get(key);
+    if (!r) return;
+    world.remove(r.s); r.s.material.map?.dispose(); r.s.material.dispose(); tags.delete(key);
+  }
+  /** The mark as shapes (no font needs to have «✓»), with a dark edge so it reads over any sky or floor: a warm «!» (a
+   * tapered bar and a dot) or a green tick. `h` = its height in px. */
+  function dibujarMarca(g: CanvasRenderingContext2D, mark: "!" | "✓", cx: number, cy: number, h: number): void {
+    g.save(); g.lineJoin = "round"; g.lineCap = "round"; g.strokeStyle = "rgba(16,12,6,0.92)";
+    if (mark === "!") {
+      const top = cy - h / 2, alto = h * 0.64, r = h * 0.12;
+      g.beginPath();
+      g.moveTo(cx - h * 0.15, top); g.lineTo(cx + h * 0.15, top); g.lineTo(cx + h * 0.09, top + alto); g.lineTo(cx - h * 0.09, top + alto); g.closePath();
+      g.moveTo(cx + r, cy + h / 2 - r); g.arc(cx, cy + h / 2 - r, r, 0, Math.PI * 2);
+      g.lineWidth = h * 0.13; g.stroke();
+      g.fillStyle = "#ffb21e"; g.fill();
+    } else {
+      g.beginPath(); g.moveTo(cx - h * 0.38, cy + h * 0.02); g.lineTo(cx - h * 0.1, cy + h * 0.32); g.lineTo(cx + h * 0.42, cy - h * 0.34);
+      g.lineWidth = h * 0.32; g.stroke();
+      g.strokeStyle = "#3fd46a"; g.lineWidth = h * 0.19; g.stroke();
+    }
+    g.restore();
+  }
+  /** A label's canvas, top to bottom: the mark (if any), the name, the trade (if any); the plate behind the two lines. */
+  function dibujarRotulo(t: DatosRotulo): HTMLCanvasElement {
+    const sub = t.sub ?? "", mark = t.mark || "", arriba = mark ? ROT_MARCA : 0;
+    const c = document.createElement("canvas"); c.width = ROT_ANCHO; c.height = arriba + ROT_NOMBRE + (sub ? ROT_SUB : 0);
+    const g = c.getContext("2d")!;
+    g.fillStyle = "rgba(20,30,40,0.78)"; g.fillRect(0, arriba, ROT_ANCHO, c.height - arriba);
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillStyle = "#ffffff"; g.font = "bold 44px sans-serif";
+    g.fillText(t.text.slice(0, 26), ROT_ANCHO / 2, arriba + (sub ? 46 : 50), ROT_ANCHO - 20);
+    if (sub) { g.fillStyle = "#e2edf6"; g.font = "36px sans-serif"; g.fillText(sub.slice(0, 40), ROT_ANCHO / 2, arriba + ROT_NOMBRE + 4, ROT_ANCHO - 24); }
+    if (mark) dibujarMarca(g, mark, ROT_ANCHO / 2, arriba / 2, arriba - 16);
+    tagDibujos++;
+    return c;
   }
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+
+  // ---- N12: draw calls for Quest (80). Only while the frame is drawn: (a) what the fog covers completely is not drawn
+  // (things, people, VRMs, names over things: the fog stays exactly as the world says), (b) still copies of one baked
+  // model (and colour), from INSTANCIAR_DESDE on, are drawn as one instanced mesh per material (lotes.ts), and so are
+  // the capsules of the people who wear no VRM (the far crowd: one call for all). Before and after the frame every
+  // object is as it was, so picking, the map, footprints, hands and the gizmo never see any of this.
+  const lotes = crearLotes(world);
+  const capsulasParte: Parte[] = [{ geo: bodyGeo, mat: otherMat, sombra: false }];
+  const ojo = new THREE.Vector3(), ocultosCuadro: THREE.Object3D[] = [], enLuz = new Set<number | "self">();
+  const porLote = new Map<string, { partes: Parte[]; color: string; slots: Slot[] }>();
+  const capsulasCuadro: THREE.Mesh[] = [], matricesTmp: THREE.Matrix4[] = [];
+  let dibujoUltimo = { lejos: Infinity, niebla: 0, instanciadas: 0, lotes: 0 };
+  const matricesDe = (objs: readonly THREE.Object3D[]): THREE.Matrix4[] => {
+    matricesTmp.length = objs.length;
+    for (let i = 0; i < objs.length; i++) { objs[i].updateWorldMatrix(false, false); matricesTmp[i] = objs[i].matrixWorld; } // world never moves
+    return matricesTmp;
+  };
+  function antesDelCuadro(): void {
+    const lejos = lejosDeNiebla(scene.fog as unknown as Parameters<typeof lejosDeNiebla>[0]);
+    (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera).getWorldPosition(ojo);
+    const tapa = (o: THREE.Object3D, r: number) => tapadoPorNiebla(o.position.x - ojo.x, o.position.y - ojo.y, o.position.z - ojo.z, r, lejos);
+    const ocultar = (o: THREE.Object3D) => { o.visible = false; ocultosCuadro.push(o); };
+    let niebla = 0, instanciadas = 0;
+    for (const v of porLote.values()) v.slots.length = 0;
+    for (const [k, s] of things) {
+      const g = s.group;
+      if (!s.loaded || !g.visible || g.parent !== world) continue; // still loading, hidden, or carried in a hand
+      if (tapa(g, (s.radio ?? 1) * Math.max(Math.abs(g.scale.x), Math.abs(g.scale.y), Math.abs(g.scale.z)))) { ocultar(g); niebla++; continue; }
+      if (!s.partes || s.mixer || k.startsWith("~")) continue; // a held copy too: its matrix is read every frame
+      const color = s.want.color ?? "", clave = `${s.model}|${color}`;
+      let v = porLote.get(clave);
+      if (!v || v.partes !== s.partes) porLote.set(clave, (v = { partes: s.partes, color, slots: [] }));
+      v.slots.push(s);
+    }
+    lotes.empezar();
+    let nLotes = 0;
+    for (const [clave, v] of porLote) {
+      if (v.slots.length < INSTANCIAR_DESDE) continue;
+      lotes.dibujar(clave, v.partes, v.color, matricesDe(v.slots.map((s) => s.group)));
+      for (const s of v.slots) ocultar(s.group);
+      instanciadas += v.slots.length; nLotes++;
+    }
+    capsulasCuadro.length = 0;
+    // N16: whoever the light holds is not there (nor slides across while the server moves them)
+    enLuz.clear();
+    for (const k of tele.ocultos()) enLuz.add(k);
+    if (enLuz.has("self") && selfMesh.visible) ocultar(selfMesh);
+    for (const [id, m] of others) {
+      if (enLuz.has(id)) { if (m.visible) ocultar(m); continue; }
+      if (m.layers.mask === 0) continue; // wears a VRM (avatares.ts hides the capsule this way)
+      if (tapa(m, 1)) { ocultar(m); niebla++; continue; }
+      capsulasCuadro.push(m);
+    }
+    if (capsulasCuadro.length >= INSTANCIAR_DESDE) {
+      lotes.dibujar("~capsulas", capsulasParte, "", matricesDe(capsulasCuadro));
+      for (const m of capsulasCuadro) ocultar(m);
+      instanciadas += capsulasCuadro.length; nLotes++;
+    }
+    lotes.terminar();
+    for (const r of avs.raices()) if (r.visible && tapa(r, 2)) { ocultar(r); niebla++; }
+    for (const k of enLuz) { const r = avs.raiz(k === "self" ? "yo" : k); if (r?.visible) ocultar(r); }
+    for (const r of tags.values()) if (r.s.visible && tapa(r.s, 3)) { ocultar(r.s); niebla++; }
+    lotes.raiz.visible = true;
+    dibujoUltimo = { lejos, niebla, instanciadas, lotes: nLotes };
+  }
+  function despuesDelCuadro(): void {
+    for (const o of ocultosCuadro) o.visible = true;
+    ocultosCuadro.length = 0;
+    lotes.raiz.visible = false;
+  }
+  function dibujarCuadro(): void {
+    antesDelCuadro();
+    try { renderer.render(scene, camera); } finally { despuesDelCuadro(); }
+  }
 
   return {
     backend,
@@ -444,8 +654,20 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     entorno,
     /** H4/H8: water, fire, smoke and dust (poner, contar) — packages/render/src/elementos.ts, loaded with the first one. */
     elementos,
+    /** N16: the light of a trip (lanzar, estado) — packages/render/src/teletransporte.ts; the body hides meanwhile. */
+    teletransporte: { lanzar: tele.lanzar, estado: tele.estado },
     /** pesca v1: fishing spots, floats and my own phase (sitios, flotadores, estado, contar) — packages/render/src/pesca.ts, loaded with the first spot. */
     pesca,
+    /** dardos v1: boards near you and their darts (sitios, clavados, linea, contar) — packages/render/src/dardos.ts. */
+    dardos,
+    /** N17: web screens — a panel everywhere, the live page in CSS3D near you on PC/phone, «Abrir fuera de VR» in VR (web.ts). */
+    web,
+    /** dardos v1 in AR: enter immersive-ar with a real-size board for your wall (dardos.ts crearDianaAR); null if the
+     * session could not start. Press/hold/release throws: `alLanzar` gets aim (board radii) and strength. */
+    async dardosAR(o: { alLanzar: (x: number, y: number, fuerza: number) => void; alColocar?: (pared: boolean) => void }): Promise<DianaAR | null> {
+      const j = crearDianaAR(o);
+      return (await ar.jugar(j)) ? j : null;
+    },
     /** Place everyone for this frame (J2: at their height). */
     sync(self: { x: number; z: number; y?: number; speed?: number } | null, list: Placed[]): void {
       selfXZ = self;
@@ -495,7 +717,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       g.fillStyle = "#ffd27a"; g.font = "bold 26px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
       g.fillText(text.slice(0, 22), 128, 34);
       const tag = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
-      tag.position.y = 3; tag.renderOrder = 10;
+      tag.position.y = 4.3; tag.renderOrder = 10; // U14 (4): over a person's label with its trade and mark (its top: ~3.7 m)
       group.add(col, tag); group.position.set(x, 0, z);
       world.add(group);
       beacons.push({ group, until: performance.now() + ms });
@@ -512,28 +734,31 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       const p = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
       return p && p.distanceTo(camera.position) <= 150 ? { x: p.x, z: p.z } : null;
     },
-    /** J5: a name that stays over a thing (`key` as in place), or `null` to take it away. */
-    tag(key: string, t: { text: string; x: number; y: number; z: number } | null): void {
+    /** J5: a name that stays over a thing (`key` as in place), or `null` to take it away. U14 (4): `sub` = a smaller
+     * second line (a person's trade), `mark` = «!» or «✓» above the name. The plate's bottom edge stays where a plain
+     * name's was (just over the head): a trade or a mark grow it upwards. Same text and mark = only moved. */
+    tag(key: string, t: DatosRotulo | null): void {
+      if (!t) { dropTag(key); return; }
+      const firma = `${t.mark || ""}\n${t.text}\n${t.sub ?? ""}`, y = t.y - (ROT_NOMBRE / 2) * ROT_M, antes = tags.get(key);
+      if (antes && antes.firma === firma) { antes.s.position.set(t.x, y, t.z); return; }
       dropTag(key);
-      if (!t) return;
-      const c = document.createElement("canvas"); c.width = 512; c.height = 96;
-      const g = c.getContext("2d")!;
-      g.fillStyle = "rgba(20,30,40,0.78)"; g.fillRect(0, 0, 512, 96);
-      g.fillStyle = "#ffffff"; g.font = "bold 44px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
-      g.fillText(t.text.slice(0, 26), 256, 50);
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
-      s.name = `nombre:${key}`; s.scale.set(2.9, 0.54, 1); s.position.set(t.x, t.y, t.z); s.renderOrder = 10;
-      world.add(s); tags.set(key, s);
+      const c = dibujarRotulo(t), tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+      s.name = `nombre:${key}`; s.center.set(0.5, 0); s.scale.set(ROT_ANCHO * ROT_M, c.height * ROT_M, 1); s.position.set(t.x, y, t.z); s.renderOrder = 10;
+      world.add(s); tags.set(key, { s, firma });
     },
     /** J5: names over things alive right now (for checks). */
     tagCount(): number { return tags.size; },
+    /** U14 (4): label canvases drawn since the page started (for checks: it must not grow while nothing changes). */
+    tagDraws(): number { return tagDibujos; },
     /** J4: the key of the placed thing (or of the thing whose name it is) under a screen point, nearest first; null if none. */
     pickThing(clientX: number, clientY: number): string | null {
       const r = renderer.domElement.getBoundingClientRect();
       if (!r.width || !r.height) return null;
       ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
       ray.setFromCamera(ndc, camera);
-      for (const hit of ray.intersectObjects([...[...things.values()].map((s) => s.group), ...tags.values()], true)) {
+      for (const hit of ray.intersectObjects([...[...things.values()].map((s) => s.group), ...[...tags.values()].map((r) => r.s)], true)) {
         for (let o: THREE.Object3D | null = hit.object; o; o = o.parent) {
           if (o.name.startsWith("objeto:")) return o.name.slice(7);
           if (o.name.startsWith("nombre:")) return o.name.slice(7);
@@ -545,10 +770,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     waypoint(x: number, z: number, text: string): number { this.beacon(x, z, text, Infinity); waypoints.set(++waypointSeq, beacons.pop()!); return waypointSeq; },
     dropWaypoint(id: number): void { const w = waypoints.get(id); if (w) { dropBeacon(w); waypoints.delete(id); } },
     /** J5: the zone seen from above (the big map's picture), the footprints of what stands in it (the minimap's
-     * landmarks) and a number that changes when they do. Cost and the two ways (gpu, huellas): cenital.ts. */
-    cenital: (o?: { px?: number; incluir?: { x: number; z: number }; modo?: "gpu" | "huellas" }) => cenital.generar(o),
+     * landmarks) and a number that changes when they do. Cost and the two ways (gpu, huellas): cenital.ts.
+     * U14: the picture is cut where the world's environment says (`mapa.corte`, `mapaCorte()`) unless `corte` is given. */
+    cenital: (o?: { px?: number; incluir?: { x: number; z: number }; modo?: "gpu" | "huellas"; corte?: number }) => cenital.generar({ ...o, corte: o?.corte ?? entorno.corte() }),
     huellas: () => cenital.huellas(),
     cenitalVersion: () => cenital.version(),
+    mapaCorte: () => entorno.corte(),
     /** H1: put a thing in the world, move it, change its model, or take it away (`null`). */
     place(key: string, t: Thing | null): void {
       const s = things.get(key);
@@ -556,11 +783,11 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (!s) {
         const group = new THREE.Group(); group.name = `objeto:${key}`; world.add(group);
         const ns: Slot = { group, want: t, model: fichero(t), loaded: false, failed: false };
-        things.set(key, ns); placeGroup(ns); waiting.add(key); pumpLoads(); return;
+        things.set(key, ns); placeGroup(ns); waiting.add(key); pumpPronto(); return;
       }
       s.want = t; if (!editor.retiene(key, t) && !llevados.has(key)) placeGroup(s);
       pintar(s);
-      if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpLoads(); } // a baked copy cannot move: load it whole
+      if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.partes = undefined; s.radio = undefined; s.horneado = false; s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpPronto(); } // a baked copy cannot move: load it whole
       else if (!t.animate && s.mixer) { s.mixer.stopAllAction(); s.mixer = undefined; }
     },
     /** H1: things placed, how many have their model drawn, and how many failed to load (for checks). `~` keys = the page's previews, not counted. */
@@ -578,6 +805,13 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** J10: what you carry and where (for checks). */
     llevando(): Record<string, Llevar> { return Object.fromEntries(llevados); },
+    /** N18: put one of a person's goods (a model by its sha256) in their right hand or on their head, for everyone who
+     * sees them (`"self"` = you); `null` takes it off. features/bienes decides who wears what (view.lleva). */
+    vestir(t: Target, p: { model: string; donde: "mano" | "cabeza"; nombre?: string } | null): void { puestos.poner(t, p); },
+    /** N18: a model (sha256) turning in its own small canvas — the sheet's «ver en 3D». Close it when it goes away. */
+    vitrina(canvas: HTMLCanvasElement, model: string) { return crearVitrina(canvas, async () => (await getTools()).load(assetUrl(model)).then((g) => g.scene as THREE.Object3D), { pixelRatio: renderer.getPixelRatio() }); },
+    /** N18 (for checks): who wears what, loaded, drawn this frame, and at what height. */
+    puestos(): ReturnType<typeof puestos.estado> { return puestos.estado(); },
     /** J10: your hands in XR (manos.ts): rules, events, state. */
     manos,
     /** M22: the builder's hands (packages/render/src/gizmo.ts): select, the point under the pointer, gizmo, hold. */
@@ -603,7 +837,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
     /** U10: draw hidden spheres of sound (while building) or not (while playing). */
     verOcultos(si: boolean): void { verOcultos = si; },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || entorno.ocupado() || elementos.ocupado() || pesca.ocupado(); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); },
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */
@@ -622,6 +856,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       for (let i = 0; i < fx.length; i++) m[i] = fx[i] / 65536;
       cajasM = m;
       cam.paredes(fx);
+      vr.paredes(cajasM as Float32Array); // N1c: real room-scale walking also stops at a wall now
     },
     /** Move the camera (N1), then draw. */
     draw(dtSeconds: number): void {
@@ -629,12 +864,22 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       updateThings(dtSeconds);
       selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
       editor.frame();
-      entorno.actualizar(); elementos.actualizar(dtSeconds); pesca.actualizar(dtSeconds);
-      if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); colocarLlevados(); renderer.render(scene, camera); return; }
+      entorno.actualizar(); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds);
+      if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); dibujarCuadro(); return; } // N4: after the hands moved, so a held rod does not trail a frame
+      pesca.actualizar(dtSeconds);
       if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
       cam.update(dtSeconds, selfXZ ? feet : null);
       colocarLlevados();
-      renderer.render(scene, camera);
+      puestos.actualizar(); // N18: after the avatars moved (sync), so a lantern does not trail its hand
+      dibujarCuadro();
+      web.actualizar(); // N17: after the frame, so the iframes follow the camera this frame drew from
+    },
+    /** N12 (for checks): the last frame — from which distance the fog covers everything (m; Infinity = no fog), how
+     * many things/people/names it hid, how many copies were drawn instanced and in how many lotes; `mallas` = the
+     * instanced meshes those cost (≈ draw calls), `escrituras` = matrix uploads since the start (still = no uploads). */
+    dibujo(): { lejos: number; niebla: number; instanciadas: number; lotes: number; mallas: number; escrituras: number } {
+      const e = lotes.estado();
+      return { ...dibujoUltimo, mallas: e.mallas, escrituras: e.escrituras };
     },
     loop(fn: (timeMs: number) => void): void { renderer.setAnimationLoop(fn); },
     get drawn(): number { return others.size + (selfMesh.visible ? 1 : 0); },

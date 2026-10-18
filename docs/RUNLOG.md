@@ -487,3 +487,246 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `objetos/respetar-fijado` sobre origin/main 84069eb (ver `git log`).
 - Siguiente: Pablo (PR sin ok, hueco de PR libre en numinia-engine): abrir PR; después revisar si la galería/eventos
   u otras plantillas fijan carteles pensando que eso también bloqueaba `hueco` (no lo hacía hasta ahora).
+## 2026-10-16 23:10 · U14 (1) · el aire de cada mundo en su página (`tema` en ficha@1) · hecho (sesión con Pablo, rama `plantillas/eventos`, sin subir)
+- Qué: Pablo pidió la plantilla del salón de eventos, la primera vez con la TRG26 («El vuelo del Maestro»), con el aire
+  de https://www.trgcon.com/. Primer trozo: cada mundo viste su página sin tocar el motor. ficha@1 admite `tema`
+  (aditivo): diez colores «#rrggbb» de los paneles, la letra de los títulos de entre las que trae el motor (`geist`,
+  `geist-mono`, `bebas-neue`; Bebas Neue entra en `apps/plaza/public/fuentes` con su licencia SIL OFL, 13.768 bytes, y
+  el navegador solo la baja si un tema la pide), una sombra desplazada, mayúsculas y botones rectos o en píldora. El
+  servidor lo lee valor a valor (`leerTema` en `packages/server/src/aventura.ts`: lo que no cabe se deja fuera y se dice
+  en el registro, una clave desconocida se ignora) y lo da en `GET /status`; la página lo vuelca en variables CSS que
+  `tema.css` ya lee (`apps/plaza/tema-mundo.ts`; la tinta sobre el botón principal, clara u oscura, la decide el motor).
+  Sin tema, el aire de la casa sin cambio: las medidas de los títulos solo crecen con `[data-tema-titulos]`.
+- Números: 4 pruebas nuevas (`test/tema.test.ts`), 372 en total, 371 en verde con la máquina a carga 16: la que falla es
+  la de siempre (`chat.test.ts`, coste de nombres para 1.000), que pasa sola. Puertas: capas 0, huella f719d31b, 26,7
+  kbit/s, plaza de 1.000 p99 9,1 ms. `npm run build` en verde. En la Nave de la TRG (plantilla fuera del motor): `/status`
+  da los 14 valores, la página carga Bebas Neue y los títulos salen en mayúsculas con sombra rosa (Playwright).
+- Commit: rama `plantillas/eventos` (ver `git log`), sobre `plantillas/huecos` (PR #17).
+- Siguiente: pasos en cualquier orden (`grupo` en mision@1) con su contador; el libro con los estados de la
+  especificación; marcas sobre las personas; secuencia local; cofre de dos aspectos; premio una sola vez.
+
+## 2026-10-16 23:56 · U14 (2) · pasos en cualquier orden (`grupo`), una persona te da una cosa (`recibe`) y entregar varias a la vez (`entrega.cosas`) · hecho (sesión con Pablo, rama `plantillas/eventos`, sin subir)
+- Qué: lo que la misión de la TRG26 pedía y mision@1 no sabía decir (un aprendiz da la misión; tres artesanos te dan una
+  pieza cada uno, en cualquier orden; luego llevas las tres a Leonardo; luego el cofre). Todo aditivo: `grupo` en
+  cualquier paso (los pasos seguidos con el mismo grupo, en cualquier orden; el mismo grupo en dos sitios separados es un
+  error que dice «junta esos pasos»), paso `recibe` (como `habla_con`, y la cosa queda «llevada»; también vale una
+  respuesta `avanzar_paso`) y `entrega` con `cosas` (1–8; «para entregar X antes hay que tenerla» acepta un `recibe`).
+  El progreso guarda `hechos` (ids del grupo en curso, ≤ 16; lo guardado antes carga con `[]`); `registrar` completa como
+  mucho un paso por misión y suceso (el primero que encaja, en el orden del fichero) y salta el grupo cuando está entero;
+  la condición `paso` de un diálogo vale mientras ese paso falta. `misiones` v3: el evento `paso` lleva `grupo` y el tipo
+  `recibe`. En la página: «ahora» (→) en cada paso que falta del grupo (libro, mapa, VR), arriba «★ El vuelo del Maestro ·
+  Piezas reunidas 1/3 · Artemisia, a 7 m al sureste» y, al recibir, «Has recibido: Telas ligeras» (lo dice el servidor
+  en el `avance`). EXTENDER «Misiones y personas» (la tabla, el grupo con su ejemplo) y llms.txt.
+- Números: 8 pruebas nuevas (`test/misiones-grupo.test.ts`), 380 en total, 379 en verde con la máquina a carga 10–21: la
+  que falla es la de siempre (`chat.test.ts`, coste de nombres para 1.000), que pasa sola (13 de 13); las de misiones de
+  antes, sin tocar (en `altura.test.ts` cambian la versión, 2 → 3, y la lista de campos que admite un paso, que ahora
+  dice `grupo`). Puertas: capas 0, huella f719d31b, 26,7 kbit/s, plaza de 1.000 p99 8,5 ms (unitarias: 379 de 380, la
+  misma). Tick de las misiones con 1.000 jugadores esperando llegar: p99 0,3 ms (límite 5). Progreso a mitad del grupo:
+  127 bytes. `npm run build` en verde. En el navegador (servidor 8885 y página 5325 propios, Playwright, la misión de la
+  TRG en una carpeta de prueba; `node tools/aventura.ts`: «Todo en orden»): 3 marcas en el mapa y tres «→», tras Bianca
+  «✓ Has recibido: Telas ligeras», 1/3 y 2 marcas; sin errores en la página.
+- Commit: rama `plantillas/eventos` (ver `git log`), encima del trozo 1.
+- Siguiente: el libro con los estados de la especificación; marcas sobre las personas; secuencia local (el vuelo);
+  espera antes del cofre; cofre de dos aspectos; premio una sola vez; el icono de la pieza conseguida.
+
+## 2026-10-17 00:21 · U14 (mapa) · el mapa de un edificio es su planta (`mapa.corte` en entorno@1) · hecho (sesión con Pablo, rama `plantillas/eventos-mapa` unida a `plantillas/eventos`, sin subir)
+- Qué: dentro de la Nave de la TRG26 (un solo modelo de 45 × 121 m con tejado a 23 m), el minimapa pintaba su huella
+  entera en amarillo (el primer color liso del modelo) y el mapa grande enseñaba el tejado. Un mundo dice ahora a qué
+  altura se corta su mapa (`"mapa": { "corte": 6 }`): el mapa grande deja fuera lo de arriba y dibuja la sección (paredes,
+  columnas, puertas, vidrio) sacada de los triángulos; el minimapa usa ese dibujo de fondo. Sin corte, nada cambia.
+- Números: sección de 142.194 triángulos → 3.340 segmentos en 3–6 ms; la foto entera 3–10 s en SwiftShader (lectura de
+  píxeles), dos por visita, ninguna parado; 58 dibujos 3D frente a 60. Pruebas: 6 nuevas (`test/mapa-corte.test.ts`) más
+  las del esquema; la suite entera en verde salvo la de siempre bajo carga (`chat.test.ts`, coste de nombres para
+  1.000), que pasa sola; `npm run build` en verde. Fotos en la plantilla: `fotos/mapa-corte-mini.png` y
+  `fotos/mapa-corte-grande.png`.
+- Commit: 1a4b99a en `plantillas/eventos-mapa` (un segundo worktree, en paralelo con U14 (2)) y la unión 8c59e7a.
+- Siguiente: el libro con los estados y las marcas sobre las personas (en paralelo, cada uno en su worktree).
+
+## 2026-10-17 01:01 · U14 (3) · el libro dice hecho / ahora / bloqueado y se abre solo al aceptar · hecho (sesión con Pablo, rama `plantillas/eventos`, sin subir)
+- Qué: lo que la especificación de la TRG26 pide al libro (§3 y §6), para cualquier mundo. Cada paso sale en uno de tres
+  estados: hecho (check verde y texto atenuado), ahora (un punto del color de énfasis del mundo sobre una franja suya, el
+  texto entero y dónde; en un grupo, todos los que faltan del bloque) y bloqueado (candado y texto atenuado: va después
+  del bloque en curso). El lector de pantalla oye «Hecho», «Ahora» o «Bloqueado»; el panel de VR lleva ✓ → □. El libro se
+  abre solo al aceptar una misión, en cuanto se cierra la conversación que la dio (escritorio y móvil; en VR no), sin
+  llevarse el foco: WASD sigue andando, y J o su nuevo «Cerrar» lo cierran. «Has recibido: …» (y coger algo) lleva el
+  icono de objeto; candado y objeto son `lock-key` y `package`, del subconjunto de iconos de la casa. El sonido corto que
+  el aviso `avance` declaraba («exito») no sonaba (la página no toca los sonidos de los avisos hasta V6): ahora el libro
+  toca tres notas (Web Audio, sin fichero) al volumen general × «Efectos». En el móvil el aviso quedaba debajo del libro:
+  ahora va encima. La línea de arriba, igual. Sin cambios en `features/misiones` (el estado sale de `objetivos()`).
+- Números: 7 pruebas nuevas (`test/misiones-libro.test.ts`), 394 en total: en verde las 394 en una pasada y 393 en las
+  puertas con la máquina a carga 9 (la de siempre, `chat.test.ts`, coste de nombres para 1.000, que pasa sola: 13 de 13).
+  Puertas: capas 0, huella f719d31b, 26,7 kbit/s, plaza de 1.000 p99 7,2 ms. `npm run build` en verde; el arranque crece
+  1,2 kB gz de JS y 0,35 kB gz de CSS. En el navegador (servidor 8885 y página 5325 propios, Playwright, la misión de la TRG
+  en una carpeta de prueba): 22 de 22 comprobaciones en el aire de la casa, en el de la TRG y en un móvil de 390 × 844;
+  las piernas `misiones` (al día con lo nuevo) y `manos` del e2e, en verde contra ese servidor; en VR (IWER) el libro no
+  se abre y el panel dice →→→□□. Fotos en la plantilla: `fotos/libro-1-recien-aceptada.png`, `libro-2-una-pieza.png`,
+  `libro-3-tres-piezas.png` y `libro-4-aire-trg.png`.
+- Commit: rama `plantillas/eventos` (ver `git log`), encima de U14 (mapa).
+- Siguiente: las marcas sobre las personas (U14 (4), en paralelo en `plantillas/eventos-marcas`); secuencia local (el
+  vuelo); espera antes del cofre; cofre de dos aspectos; premio una sola vez. Sin medir: las marcas en unas Quest de verdad.
+
+## 2026-10-17 01:07 · U14 (4) · marcas «!» y «✓» sobre las personas y las cosas, y el oficio bajo el nombre · hecho (sesión con Pablo, rama `plantillas/eventos-marcas` unida a `plantillas/eventos`, sin subir)
+- Qué: la especificación de la TRG26 pide que cada persona diga si tiene algo para ti («!»), si ya cumpliste con ella
+  («✓») y su oficio, y que no haya «!» en los artesanos antes de hablar con Pietro. El servidor lo decide por jugador
+  (`marcas()` en `maquina.ts`, puro) y lo manda solo a su dueño en el evento `marcas`; la página lo pinta en el rótulo y
+  en los mapas. pnj@1 `oficio` (pnj v3); misiones v4.
+- Números: +7 llamadas de dibujo y +8 texturas con 8 rótulos; 0 lienzos repintados parado; aceptar repinta 4. 5 pruebas
+  nuevas; la suite entera en verde salvo la de siempre bajo carga (`chat.test.ts`), que pasa sola; build en verde. La
+  unión con U14 (3) chocó solo en `tools/e2e-piernas/misiones.mjs` (las dos comprobaciones juntas); después, 55 de 55 en
+  las pruebas de misiones, mapa, entorno, altura y tema, y la pierna e2e `misiones` en verde (motor y página propios).
+- Commit: 11d92dc en `plantillas/eventos-marcas` (worktree `numinia-engine-wt-eventos-b`) y la unión 88e97b7.
+- Siguiente: la secuencia local (el vuelo de Leonardo) con la espera antes del cofre, y el cofre de dos aspectos con el
+  premio registrado una sola vez.
+
+## 2026-10-17 02:28 · U14 (5) · un momento que solo ve quien lo provoca (secuencia@1) y un paso que espera (espera) · hecho (sesión con Pablo, rama `plantillas/eventos`, sin subir)
+- Qué: la especificación de la TRG26 pide que, al entregar las tres piezas, Leonardo se ponga las alas y vuele solo para
+  quien se las dio (los demás siguen jugando su misión con él en su sitio) y que el cofre no se abra antes del vuelo.
+  Fichero nuevo de aventura `secuencias/<id>.json` (pistas `mueve`, `muestra`, `texto`, `sonido`; 1–30 s), y en cualquier
+  paso `secuencia` (se manda una vez, solo a quien lo hizo) y `espera` (1–60 s desde que empezó su bloque; la máquina
+  sigue pura: el servidor le pasa la hora). El reproductor de la página va en su propio trozo, que solo se baja con la
+  primera secuencia. misiones v5.
+- Números: 8 pruebas nuevas (`test/misiones-secuencia.test.ts`), 406 de 407 en la suite (la de siempre bajo carga,
+  `chat.test.ts`); las de misiones y altura, 44 de 44; las otras cuatro puertas en verde (capas 0, f719d31b, 26,7 kbit/s,
+  plaza de 1.000 p99 7,2 ms); `npm run build` en verde. Con 1.000 jugadores esperando, el tick de las misiones p99 0,14
+  ms. En el navegador, dos invitados: A ve las alas, el vuelo y el aterrizaje; B, a Leonardo quieto; el cofre dice
+  «Todavía no: faltan 10 s» y su «!» sale a los 10,0–10,2 s. Fotos en la plantilla: `fotos/vuelo-1…4`.
+- Nota: el agente que lo hizo se quedó sin pasos antes de escribir esta entrada y de hacer el commit; los cerró la sesión
+  (build y pruebas de misiones repetidos antes del commit).
+- Commit: rama `plantillas/eventos` (ver `git log`).
+- Siguiente: unir el cofre de dos aspectos y el premio registrado (U14 (6), rama `plantillas/eventos-cofre`) y poner el
+  vuelo y el cofre en la aventura de la plantilla.
+
+## 2026-10-17 02:31 · U14 (6) · el cofre de dos aspectos, el premio apuntado una sola vez y «Misión completada» · hecho (sesión con Pablo, rama `plantillas/eventos-cofre` unida a `plantillas/eventos`, sin subir)
+- Qué: la especificación de la TRG26 pide un cofre que se abra solo para quien lo abre, el «Sello del Artífice · TRG26»
+  concedido una vez y apuntado (jugador, misión, instante, estado) sin depender de ninguna cartera, y «Misión
+  completada». cosa@1 `apariencia.usada`; la concesión en el almacén (`c:<misión>:<id>`, nunca se sobrescribe);
+  `npm run concesiones` para la organización (CSV); el cartel con su acorde.
+- Números: 9 pruebas nuevas; en su rama 407 de 408 (la de siempre bajo carga) y `MISIONES OK`. Al unir con U14 (5)
+  chocaron siete ficheros (los sonidos de la página: las notas de la casa del trozo 5 y el acorde del 6 en una sola
+  función; el comentario de la versión v5; `crearCliente` con el reloj del 5 y `usadasDe` del 6; el texto de `llms.txt`
+  y de `docs/JUGADOR.md`; una aserción de versión). Después: 72 de 72 en las pruebas de misiones, mapa, entorno, altura
+  y tema, y la pierna e2e `misiones` en verde contra un motor y una página propios (8889/5329).
+- Commit: 2f19747 en `plantillas/eventos-cofre` (worktree `numinia-engine-wt-eventos-b`) y la unión b70ff3a.
+- Siguiente: el vuelo y el cofre en la aventura de la plantilla, el recorrido entero en el navegador con una foto por
+  fase y el coste en Quest.
+
+## 2026-10-17 · motor-vr (vr/giro-y-velocidad) · hecho (rama `vr/giro-y-velocidad`, sobre `pwa/manifest-biblioteca-quest`)
+- Qué: dos cosas que Pablo notó llevando el visor. (1) «el mando se vuelve loco»: tras un giro con la palanca
+  (snap turn), empujar hacia delante a veces iba hacia un lado que no era. Causa real: `vr.ts` leía
+  `h.renderer.xr.getCamera().getWorldDirection()` para saber hacia dónde es «delante», pero esa cámara XR solo
+  se refresca dentro de `renderer.render()`, que corre DESPUÉS de `vr.update()` en el bucle — así que siempre
+  usaba la orientación del fotograma anterior (iba un giro por detrás). Arreglo: forzar `rig.updateMatrixWorld(true)`
+  + `h.renderer.xr.updateCamera(h.camera)` a mano, dentro de `vr.update()`, antes de leer la dirección — así usa
+  el giro de EXACTAMENTE este fotograma, no el de antes. Confirmado con el emulador IWER (sin XR real, no hacía
+  falta Quest): antes del arreglo, girar 3 veces a la derecha o 3 a la izquierda y luego ir recto daba SIEMPRE el
+  mismo rumbo (0,-1, como si no hubiera giro); después, van a lados opuestos y simétricos. (2) la marcha iba
+  siempre a la carrera: el umbral de «palanca al borde = correr» estaba en 0,9 de recorrido, que una palanca
+  real alcanza con poco más de la mitad del viaje — así que casi nunca se podía simplemente andar. Subido a 0,97
+  (`apps/plaza/main.ts`), y además `packages/sim/src/index.ts` ahora anda a 1,5 m/s y corre a 4 m/s (antes 4/8,
+  pensado para mando de escritorio, no para caminar de pie). Esto cambia la huella de referencia determinista
+  (CAMBIO DE FORMATO, `AGENTS.md`): `93b192c8` → **`7e630965`** (formato de simulación 3). El modo de movimiento
+  como opción de Pablo (otra velocidad, otro estilo) queda para otra tarjeta; aquí solo velocidad y recorrido.
+- Números: `tools/e2e-vr.mjs` ahora también gira 3 veces a cada lado y empuja delante, y comprueba que los dos
+  desplazamientos resultantes son opuestos (antes solo probaba con giro = 0, por eso no pescaba el bug) — pasa
+  en vivo (servidor + Vite reales, emulador IWER): `deltaAfterRight3`/`deltaAfterLeft3` opuestos y simétricos.
+  `npm run gates`: 375 pruebas en verde (6 tests que dependían del ritmo de 4 m/s — escaleras, deslizar junto a
+  un muro, seguir a una persona, ver a otro corriendo — llevados a los números de 1,5/4 m/s; sin tocar la lógica
+  que prueban). `tools/e2e.mjs` (teclado, servidor+Vite reales): OK, 0 correcciones, ~2 m en 1,5 s (antes 6 m).
+  `tools/e2e-vr.mjs`: OK. Aviso: al reiniciar el servidor de este turno con `pkill -f "npm run server"`, el patrón
+  cazó también procesos de OTRAS tareas en otros worktrees (no solo el mío) — no volví a usar `pkill` por patrón
+  ancho; para parar un servidor de turno, mejor el PID exacto o `fuser -k <puerto>/tcp`.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `vr/giro-y-velocidad` (worktree en `work/numinia-engine-wt-vrmotor`, aún sin PR).
+- Siguiente: Pablo prueba en el Quest real: 3 giros a cualquier lado + palanca adelante va hacia donde mira, y
+  la marcha normal ya no es un trote. Si Pablo quiere elegir su propio ritmo de movimiento, tarjeta aparte.
+
+## 2026-10-17 22:05 · N6 · corte 1 hecho
+- Qué: el Director de juego (DJ). Dirigir = STD-052 «Gestionar rituales» (sin rol nuevo). Escenas de la aventura
+  (`escena@1`) sobre el entorno del mundo, narrar a todos, convocar con «Ir / Ahora no» (nadie se mueve sin su sí),
+  panel «Dirigir» (K) y órdenes de chat; escenas en la aventura de ejemplo y en las plantillas galería, eventos y
+  auditorio (fuera del repo, `plantillas/escenas.mjs`).
+- Números: 4 pruebas nuevas (`test/director.test.ts`) y una aserción de `roles` al día; 427 de 428 (la de coste del
+  chat bajo carga, como siempre); `npm run build` en verde. La página no se ha probado en un navegador.
+- Commit: ver la rama `noche/director`.
+- Siguiente: probar el panel en escritorio y móvil; corte 2 (dar cosas, mostrar/ocultar, diario).
+
+## 2026-10-18 · N13 · modo foto para compartir · hecho (rama `noche/foto`, desde `tren/motor-2026-10-18`)
+- Qué: P (o el botón de la cámara arriba) esconde toda la interfaz y suelta la cámara en un modo nuevo `"foto"`
+  (`camara-orbita.ts`): libre con correa corta (el pivote a 12 m de tus ojos como mucho, nunca bajo el suelo,
+  de 0,3 a 14 m, nunca primera persona; al salir vuelve exactamente a la cámara de juego). PC: arrastrar encuadra,
+  rueda acerca hacia el cursor, WASD/flechas mueven la cámara (Shift deprisa), Q E bajan y suben, 1-4 filtro, F
+  marco, Intro/Espacio foto, Esc sale; el avatar se queda quieto. Móvil: todos los dedos son de la cámara (la mitad
+  izquierda deja de ser joystick), botón redondo dispara. Filtros = matrices de color dentro de la paleta Nocturno
+  (`foto-nucleo.ts`): las mismas cifras en la vista previa (SVG `feColorMatrix` sobre el canvas) y en el PNG.
+  Marco con el nombre del MUNDO (título de la página) y la fecha; nunca la marca del motor. La foto se dibuja otra
+  vez a hasta 2× (≤ 3200 px) y se lee en la misma tarea (sin `preserveDrawingBuffer`). Después: Compartir (Web Share
+  con el archivo, solo si `canShare({files})`), Guardar, Copiar imagen (escritorio), Copiar enlace. Enlace
+  `#foto=x,y,z,rumbo,inclinación,distancia`: quien lo abre lo ve salir de la barra, el sitio queda como su destino
+  (columna de luz y marcador del mapa) y la cámara gira hacia él; a ≤ 3 m mira como miraba la foto. No te
+  teletransporta: dónde apareces es del servidor (ningún cliente dice dónde está) — si un mundo quiere permitirlo,
+  otra tarjeta. VR: sin botón (la vista del visor no es el canvas de la página; el botón se esconde en XR).
+- Números: `test/foto.test.ts` 8 pruebas (filtros en la línea de la paleta, SVG = PNG, marco, nombre de archivo,
+  enlace ida y vuelta y basura rechazada, rumbo, cámara «foto»). `npm test`: 444, 443 + 1 de coste del chat que
+  falla solo con la máquina cargada (sola pasa). `tools/e2e-piernas/foto.mjs` (servidor + Vite reales) OK en
+  Chromium y Firefox: PC 1280×720 a 2× → PNG 2560×1440 con banda del marco #14110F y píxeles en la línea de
+  Verdemar, descarga = mismos bytes, enlace en el portapapeles, Esc devuelve todo y W vuelve a andar, el enlace en
+  otra pestaña marca el destino y gira la cámara (error < 0,05 rad); móvil 390×844 ×3 (solo Chromium: toques CDP)
+  → un dedo en la mitad izquierda gira la cámara sin moverte, PNG 780×1688, Compartir entrega 1 archivo PNG + el
+  enlace. `tools/e2e.mjs` OK en los dos.
+- Consumo: sin medir · Opus 5.5.
+- Siguiente: probar Compartir en un móvil real (la hoja del sistema); captura en VR (renderizar la cámara XR a un
+  objetivo propio) si se pide.
+
+## 2026-10-18 03:45 · N11 · el tren de la noche, listo para main · versión 0.4.0 (rama `noche/version`, desde `tren/motor-2026-10-18`)
+
+- Qué: el tren `tren/motor-2026-10-18` junta lo de la noche del 17 al 18: eventos U14 (#23), VR giro y velocidad
+  (#24), bienes digitales (#25), dardos (#27), agua estilizada (#28), pesca en todas partes (#29), Director de juego
+  (#30), rendimiento para Quest (#31), mundo de ±2000 m (#32), modo foto (#33) y e2e al día con #24 (#34). Cada PR
+  entró al tren tras rebase, `npm test`, `npm run build` y las piernas de lo que tocaba.
+- Versión **0.3.1 → 0.4.0** (menor). Hay cosas nuevas, y antes de 1.0.0 una ruptura sube el menor: #32 cambia un
+  mensaje de red (Transform@3, posiciones hasta ±2000 m con 16 bits por eje). Página y servidor tienen que ser del
+  mismo build (los mundos guardados se abren igual). #24 cambia las velocidades de andar (4 → 1,5 m/s) y de correr
+  (8 → 4 m/s).
+- Números (punta del tren, máquina con load 10-35): `npm test` 478 de 479 en verde; el que falla es «cost: names
+  for 1,000 players», por tiempo con carga, y solo pasa. `npm run build` OK. e2e: todas las piernas en orden (`base ar
+  vr mezclada` + 16), 17 de 20 en verde con load 24; `vr`, `foto` y `pesca`, repetidas con load 14, OK.
+- Consumo: sin medir · Opus 5.5.
+- Siguiente: lo fusiona Pablo. Tras desplegar, mirar `/status` (versión 0.4.0) y entrar a la plaza en el Quest.
+
+## 2026-10-18 · N16 · teletransporte: ir junto a quien está, aparecer donde la foto, el «rayo» · hecho (rama `noche/teletransporte`, desde `tren/motor-2026-10-18-2`)
+- Qué: camino A de Pablo (17-10): «ir con quien está conectado ahora», sin cuenta. Panel «Gente» (L o el botón de
+  personas; `apps/plaza/gente.ts`) con quien está ahora en este mundo y «Ir»; `/ir <nombre>` hace lo mismo (sirve en
+  VR). `features/teletransporte`: el servidor decide — mismo mundo, un viaje cada 10 s, sitio libre a 1,2–3 m de la
+  persona en su suelo y sin sólidos (`sitioLibre` de la sim, enteros Q16.16, ocho rumbos por anillo empezando por el
+  lado del que vienes) vía `api.teletransportar`; si no hay sitio, no te mueve y lo dice. `/encontrable no` te quita
+  de la lista; `/teletransporte no|sí` (dueños, administración, quien dirige: `ajustar` o `dirigir`) lo apaga para el
+  mundo y se guarda. `entorno.json` `"aparicionFoto": true` (apagado por defecto): quien abre un enlace `#foto=`
+  aparece en su sitio (una vez, al entrar, ±460 m, suelo hasta 2 m abajo); si no, la guía de N13 como siempre.
+  Efecto: `packages/render/src/teletransporte.ts` — tres variantes al azar elegidas por el servidor (todos ven la
+  misma): colapsa al centro, haz desde los pies, bloques digitales; carcasa aditiva + haz + chispas instanciadas,
+  2–3 draw calls durante 1,4 s; tope 6/3/3/0 luces (A/B/C/D), en el nivel D ninguna. El cuerpo se esconde entre el
+  corte de salida y el de llegada (nadie lo ve deslizarse). Fórmulas de máscara en `teletransporte-politica.ts`.
+- Números: `test/teletransporte.test.ts` 9 pruebas. `npm test`: 488, 487 + 1 de coste (`cercania`) que falla solo
+  con la máquina a carga ~30 (sola pasa, como `chat`). Puertas: todas OK salvo esa. `tools/e2e-piernas/teletransporte.mjs`
+  OK (10/10, servidor + Vite reales, Chromium): PC lista/Ir/«Espera», `/ir`, nivel D sin luz, móvil 390×844 táctil
+  (botones ≥ 44 px), enlace de foto en mundo sin permiso = guía, mundo con `aparicionFoto` = apareces (≤ 3 m), VR
+  IWER Quest 3 `/ir` con tope 3 luces y el rig a su lado. `tools/e2e.mjs`, `e2e-vr.mjs`, `e2e-piernas/chat.mjs` OK;
+  `e2e-piernas/foto.mjs`: «quieto» falla por velocidad de la cámara bajo carga (0,75 m, pide > 0,8; código no tocado).
+- Consumo: sin medir · Opus 5.5.
+- Siguiente: amigos guardados (espera a la identidad, F1); menú de muñeca en VR para «Gente»; probar en Quest real.
+
+## 2026-10-18 04:50 · N23 · el tren 2 de la noche, listo para main · versión 0.5.0 (rama `noche/version-2`, desde `tren/motor-2026-10-18-2`)
+
+- Qué: el tren `tren/motor-2026-10-18-2` (creado desde la punta del primero, 74a8704) junta modelos animados baratos
+  (#36), bienes corte 2: ver en 3D y llevar puesto (#37), teletransporte (#39, rebase de #38), dados v1 (#40), carga
+  rápida en móvil (#41) y pantallas web (#42). Cada PR entró tras rebase, `npm test`, `npm run build` y sus piernas.
+  Esta rama lleva además `noche/version` (#35, 0.4.0) fusionada, para entrar limpia en main después de #35.
+- Versión **0.4.0 → 0.5.0** (menor): todo son cosas nuevas. `bienes` pasa a v2 de su feature y hay features nuevas
+  (teletransporte, dados, web): página y servidor tienen que ser del mismo build (recargar las pestañas abiertas). #41
+  añade dependencias (gltf-transform, meshoptimizer, @jsquash): hace falta `npm ci` en el servidor.
+- Números (punta 566b129, load 11-18): `npm test` 521 de 522; falla «cost: names for 1,000 players» por tiempo y solo
+  pasa 13/13. `npm run build` OK. e2e: `base ar vr mezclada` + las 19 piernas, 22 de 23 en verde; `foto` cayó en
+  «quieto» (la cámara libre avanzó 0,75 m y pide 0,8, con load 18); repetida con load 4, OK 2 de 2 (0,95 m).
+- Consumo: sin medir · Opus 5.5.
+- Siguiente: lo fusiona Pablo después de #35. Tras desplegar, `/status` debe decir 0.5.0; probar `/tirar 2d6` con
+  dos pestañas y «Gente» (L).

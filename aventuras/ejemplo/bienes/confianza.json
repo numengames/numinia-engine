@@ -1,0 +1,5 @@
+{
+  "formato": "confianza@1",
+  "describe": "Los mundos en cuyas firmas confía este mundo (N18). Un recibo de bienes firmado por uno de estos emisores, traído por alguien desde su inventario, pasa a ser suyo también aquí (el primero que lo trae; un recibo, una persona). Vacía = este mundo no da nada de fuera: los recibos de otros mundos se comprueban y se ven como «de otro mundo», pero no son tuyos aquí. Cada emisor es la clave pública de un mundo («ed25519:…», la que dice su ficha en el Inventario o POST /bienes/comprobar).",
+  "emisores": []
+}

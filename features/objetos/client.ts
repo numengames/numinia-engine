@@ -16,6 +16,7 @@ export const aDibujo = (v: Msg): PlacedObject => ({
   sx: Number(v.sx), sy: Number(v.sy), sz: Number(v.sz), animate: v.animar !== false,
   kind: (v.tipo ?? "modelo") as PlacedObject["kind"], ext: String(v.ext ?? "glb"), hidden: v.oculto === true, volume: v.volumen === undefined ? 1 : Number(v.volumen),
   reach: (v.alcance ?? "burbuja") as PlacedObject["reach"], radius: v.radio === undefined ? 8 : Number(v.radio),
+  ...(v.fijado === true || v.decorado === true ? { sala: true } : {}), // N22: the room loads first
 });
 
 /** M22: the builder's tools. "" = only select (click), like Hyperfy2 before choosing one. */

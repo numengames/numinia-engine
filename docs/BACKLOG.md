@@ -78,6 +78,10 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | U11 | Pedido de Pablo (16-10, tras probar U10): misiones a la derecha y mapa arriba a la derecha; botones de icono (casa de numinia.org, Phosphor) y paneles con el Numinia Design System (STD-023: Nocturno, Geist, dos radios); el vídeo lleva burbuja de sonido; quién oye un sonido o un vídeo: solo la burbuja, toda la zona o todo el mundo; radio a mano | hecho (escritorio) | sí |
 | U12 | Pedido de Pablo (16-10, plantillas de mundo): huecos — un cuadro que espera su obra; se pincha (o E cerca), se elige la imagen en el ordenador y el servidor la encaja entera en el marco; vaciarlo devuelve el cartel | hecho (escritorio; VR y móvil sin probar) | sí |
 | U13 | Pedido de Pablo (17-10): icono de Numinia en la biblioteca/tienda del Quest que lleve siempre al mundo — `manifest.webmanifest` (nombre Numinia, `display: fullscreen`, iconos 192/512 con el escarabeo Khepri) + enlace en `index.html`; «Guardar en la biblioteca» del navegador crea el icono y abre a pantalla completa, sin barra de direcciones | hecho (comprobado en un Quest real por USB: `Page.getAppManifest`/`getInstallabilityErrors` sin errores) | sí |
+| U14 | Pedido de Pablo (16-10, plantillas: el salón de eventos, la primera vez con la TRG26 «El vuelo del Maestro»): el aire de cada mundo en su página (`tema` en ficha@1), pasos en cualquier orden, libro con estados, marcas sobre las personas, una secuencia que solo ve quien la provoca, un cofre de dos aspectos y un premio que se da una sola vez | en curso (trozos 1, el tema; 2, pasos en cualquier orden; el mapa cortado; 3, el libro con estados; 4, las marcas sobre las personas, 5, la secuencia que solo ve quien la provoca y la espera antes de un paso, y 6, el cofre de dos aspectos y el premio apuntado una vez, hechos; falta la plantilla) | no |
+| N6 | Pedido de Pablo (17-10): el Director de juego (DJ) — quien dirige una aventura o un evento en un mundo. No es un rol nuevo: la acción `dirigir` = STD-052 `manage-rituals` (Moderación la tiene). Corte 1: escenas de la aventura (`escena@1`, `aventura/escenas/<id>.json`: preset y/o entorno parcial sobre el del mundo, más una línea), narrar a todos y convocar (una invitación «Ir / Ahora no»; nadie se mueve sin su sí), panel «Dirigir» (K) en escritorio y móvil y órdenes `/escenas`, `/escena`, `/narrar`, `/convocar` (sirven en VR con teclado); escenas en galería, eventos y auditorio. Siguen: dar cosas, mostrar/ocultar y diario (corte 2), agarre por objeto y Semillas (3, tras decidirlo con Pablo), menú de muñeca del DJ en VR (4), IA ayudante y DJ IA (5), asiento del DJ en la mesa de rol (6) | corte 1 hecho | no |
+| N16 | Pedido de Pablo (17-10, camino A: «ir con quien está conectado ahora», sin cuenta; la lista de amigos guardada espera a la decisión de identidad): teletransporte — panel «Gente» (L, botón de personas) y `/ir <nombre>` te llevan junto a alguien conectado en este mundo; el servidor decide (mismo mundo, sitio libre a 1,2–3 m sin sólidos y en su suelo — `sitioLibre` de la sim —, un viaje cada 10 s), cada cual puede no dejarse encontrar (`/encontrable no`) y lo apagan dueños, administración y quien dirige (`/teletransporte no`, se guarda). `entorno.json` `aparicionFoto: true` (apagado por defecto) deja aparecer en el sitio del enlace de una foto (N13), una vez, al entrar. Efecto «rayo»: 3 variantes al azar elegidas por el servidor (colapsa al centro, haz hacia arriba, bloques digitales), 2–3 draw calls 1,4 s, como mucho 3 a la vez en Quest (nivel B), ninguno en el nivel D; el cuerpo se esconde mientras la luz lo sostiene | hecho (18-10, rama `noche/teletransporte`; `test/teletransporte.test.ts`, `tools/e2e-piernas/teletransporte.mjs`) | no |
+| N17 | Pedido de Pablo (17-10, «una página web dentro del mundo, como Hyperfy»; motor-vr t_e089ae2b): pantallas web (`features/web`). En ordenador y móvil, la página de verdad en un `iframe` colocado sobre un panel del mundo con transformaciones CSS 3D (CSS3DRenderer de three.js, cargado con la primera pantalla); se lee, se desplaza y se pulsa; solo cerca (16 m), de frente y sin una pared sólida (U10) en medio; un clic en el mundo devuelve el teclado a andar. En VR el DOM no entra en la imagen del visor: el panel es la vista previa y su botón «Abrir fuera de VR» (rayo + gatillo) sale de VR y ofrece el enlace. Un sitio que no se deja enmarcar (X-Frame-Options / CSP `frame-ancestors`, lo pregunta el servidor una vez) es una tarjeta con «Abrir» en todos los dispositivos: hoy numinia.org y /missions/ (DENY + `frame-ancestors 'none'`); para verlas dentro, numinia.org tendría que añadir `frame-ancestors` con los dominios del motor. Seguridad: lista blanca por mundo (`entorno/web.json`, viaja en el zip), solo https (http solo 127.0.0.1/localhost, pruebas), nunca el origen del motor, `sandbox` sin navegación de la página de arriba, Permissions Policy sin cámara/micrófono/geolocalización, sin referrer; poner y quitar: dueños y DJ (`dirigir`). Chat: /web, /web <url> [título], /web quitar <id>. Límite conocido: el DOM se pinta encima del lienzo, así que un avatar entre la cámara y la pantalla queda detrás de la página (siguiente corte: «agujero» en el lienzo con alfa, la técnica de Hyperfy, que pide lienzo transparente) | corte 1 hecho | no |
 | U4 | Zona de usuario: quién eres, avatar, misiones e insignias, lo que he construido (lista, cuota, borrar, descargar), privacidad y datos, seguridad; el informe de sesión (T1) pasa a pedir consentimiento | espera a U2 | sí |
 | I3 | «Guardar mi progreso» con una llave de acceso (passkey) del propio motor, sin correo (Pablo, 15-10: camino B); la llave queda unida al invitado | pendiente | sí |
 | U5 | «Editar interfaz»: mover sin arrastrar (cuadrícula 3×3, números, flechas, lista), 5 disposiciones por clase de aparato, copiar y pegar `nl1.` sin código | espera a U3 | sí |
@@ -1127,6 +1131,115 @@ JPEG en retrato queda a 1,6; vaciar devuelve el cartel). Límite `hole_image_px_
 21 huecos llenos pasan de los 256 MB del nivel B); huecos de modelo (.glb en una peana) y de vídeo; el selector de
 ficheros no existe dentro de una sesión VR (hay que salir); quién rellena = quien construye (un papel que solo rellene
 huecos espera a H3); la luz por cuadro (escenas).
+
+### U14 — Salón de eventos (la TRG26)
+Pedido de Pablo (16-10): «rescata uno de los templates, el que más funcionalidades nos añada para poder luego hacer el
+resto de los eventos», con la especificación de la Tarugo «TRG26 · El vuelo del Maestro» (un aprendiz, tres artesanos
+que dan una pieza cada uno en cualquier orden, Leonardo que las recibe y vuela, un cofre con el «Sello del Artífice») y el
+modelo de su nave. El aire, como https://www.trgcon.com/. La plantilla vive fuera del motor
+(`../plantillas/eventos/`, `PROGRESO.md`); aquí, lo que pide al motor.
+
+**Trozo 1 hecho (16-10, rama `plantillas/eventos`): el aire de cada mundo.** ficha@1 admite `tema` (aditivo): diez
+colores «#rrggbb» de los paneles, la letra de los títulos de entre las que trae el motor (`geist`, `geist-mono`,
+`bebas-neue`, todas SIL OFL; Bebas Neue entra en `apps/plaza/public/fuentes` con su licencia, 13.768 bytes, y el
+navegador solo la baja si un tema la pide), una sombra desplazada, mayúsculas y botones rectos o en píldora. El servidor
+lo lee valor a valor (`leerTema`: lo que no cabe se deja fuera y se dice; una clave desconocida se ignora) y lo da en
+`GET /status`; la página lo vuelca en variables CSS que `tema.css` ya lee (`apps/plaza/tema-mundo.ts`; la tinta sobre el
+botón principal, clara u oscura, la decide el motor). Sin tema, el aire de la casa sin un píxel de cambio. **Medido:** 4
+pruebas (`test/tema.test.ts`).
+
+**Trozo 2 hecho (16-10, rama `plantillas/eventos`): pasos en cualquier orden.** mision@1 admite (aditivo) `grupo` en
+cualquier paso: los pasos seguidos con el mismo grupo se hacen en el orden que quiera el jugador y la misión pasa cuando
+están todos (el mismo grupo en dos sitios separados es un error que dice cómo arreglarlo); el grupo es también el nombre
+de su contador. Paso nuevo `recibe` (una persona te da una cosa: se completa como `habla_con` y la cosa queda «llevada»)
+y `entrega` con `cosas` (de 1 a 8, todas a la vez). El progreso guarda `hechos` (los pasos hechos del grupo en curso; lo
+guardado antes carga como «nada hecho»); la máquina completa como mucho un paso por misión y suceso, sin reloj ni azar.
+`misiones` pasa a v3 (el evento `paso` lleva `grupo`). En la página, cada paso que falta del grupo sale como «ahora» en
+el libro, en el mapa y en VR, y arriba «★ El vuelo del Maestro · Piezas reunidas 1/3 · Artemisia, a 7 m al sureste» (el
+más cercano); al recibir algo, «Has recibido: Telas ligeras». **Medido:** 8 pruebas (`test/misiones-grupo.test.ts`: las 6
+órdenes, sin dobles, recarga a mitad del grupo, la entrega con 2 de 3 no, las condiciones, los errores con su ruta, el
+progreso viejo y la misión entera por el enchufe real); las de misiones de antes, sin tocar, en verde; el progreso a
+mitad del grupo ocupa 127 bytes; el tick de las misiones con 1.000 jugadores, p99 0,3 ms (límite 5). En el navegador
+(servidor y página propios, Playwright): 3 marcas en el mapa y tres «→» en el libro, que pasan a 2 tras Bianca.
+**Trozo «mapa» hecho (17-10, rama `plantillas/eventos-mapa`, unida a `plantillas/eventos`): el mapa de un edificio
+es su planta.** entorno@1 admite (aditivo) `mapa.corte` (m, 0–60; 0 o nada = como antes, comprobado píxel a píxel en la
+plaza por defecto: diferencia máxima 1/255). Con corte, el mapa grande dibuja la zona sin lo que queda por encima (el
+plano cercano de la cámara cenital baja a 80 − corte, igual en WebGL2 y WebGPU, sin sombras en esa foto) y encima las
+paredes, columnas y puertas que corta el plano, sacadas de los triángulos (`packages/render/src/corte.ts`: desde arriba
+una pared cortada queda de canto y no da píxeles); el vidrio en azul claro. El minimapa usa ese dibujo de fondo y deja de
+pintar la huella entera de lo que es más alto que el corte (la Nave salía como un cuadrado amarillo). La foto se hace la
+primera vez que hace falta y luego solo cuando cambia la zona (como mucho cada 5 s), nunca en XR. **Medido** (la Nave de
+la TRG26, SwiftShader): el corte mira 142.194 triángulos y da 3.340 segmentos en 3–6 ms; la foto entera 3–10 s en
+software, casi todo leer los píxeles de la GPU; dos fotos por visita; parado 20 s, ninguna nueva y 58 dibujos 3D frente a
+60 sin corte. 6 pruebas (`test/mapa-corte.test.ts`) y las del esquema en `test/entorno.test.ts`. **Sin medir:** en un
+móvil de verdad. Mientras alguien construye en un mundo cortado, cada página rehace la foto hasta cada 5 s.
+**Trozo 3 hecho (17-10, rama `plantillas/eventos`): el libro con los estados de la especificación.** Cada paso sale en
+uno de tres estados, igual de claros en el aire de la casa y en el de cada mundo (todo son variables de `tema.css`):
+hecho (check verde, el «poco común» de la casa, y texto atenuado; sobre una superficie clara de tema, el verde oscuro de
+éxito), ahora (un punto del color de énfasis del mundo sobre una franja suya, texto entero y dónde; en un grupo, todos
+los que faltan del bloque) y bloqueado (candado `lock-key` y texto atenuado, aún a 4,5:1). El lector oye «Hecho»,
+«Ahora» o «Bloqueado»; el panel de VR lleva ✓ → □ (sin fuente de emoji). El estado sale de `objetivos()` (`estadoPaso`
+en `apps/plaza/misiones.ts`; `features/misiones` no cambia). El libro se abre solo al aceptar una misión, cuando se
+cierra la conversación que la dio (escritorio y móvil, nunca en VR), sin llevarse el foco (WASD sigue andando) y
+diciéndoselo al lector; lleva «Cerrar (J)». Al conseguir algo (`recibe` o `coge`), el aviso lleva el icono `package`
+(los dos iconos, del subconjunto de la casa) y queda por encima del libro (en el móvil lo tapaba). El sonido: el `avance`
+declaraba «exito» pero la página no tocaba nada (los sonidos de los avisos llegan con V6); ahora cada paso hecho suena
+con tres notas cortas (Web Audio, sin fichero) al volumen general × «Efectos». **Medido:** 7 pruebas
+(`test/misiones-libro.test.ts`: los estados en un bloque y fuera, dos misiones sin mezclarse, la misión hecha, abrirse
+una sola vez y nunca en VR, los avisos con icono, el check en un tema claro y la misión de la TRG por el enchufe real
+con las marcas de VR en cada momento); la pierna `misiones` del e2e, al día. En el navegador (servidor y página propios,
+Playwright): 22 de 22 comprobaciones en el aire de la casa, en el de la TRG y en un móvil de 390 × 844; en VR (IWER) el
+libro no se abre y el panel dice →→→□□. Arranque: +1,5 kB gz. **Sin medir:** las marcas en unas Quest de verdad.
+**Trozo 4 hecho (17-10, rama `plantillas/eventos-marcas`, unida a `plantillas/eventos`): marcas sobre las personas y
+su oficio.** pnj@1 admite (aditivo) `oficio` (1–40 bytes): segunda línea bajo el nombre, junto al nombre en la
+conversación («Pietro, Aprendiz») y en la lista del mapa («Cosimo (Carpintero)»); `pnj` pasa a v3. El servidor decide
+por jugador las marcas (`marcas(progreso, aventura)` en `maquina.ts`): «!» = te ofrece una misión que puedes coger o es
+la persona de un paso que te falta en el grupo en curso (las cosas, con un `coge`/`usa` pendiente); «✓» = te dio una
+misión o ya hiciste su paso y no le queda nada para ti. Van en el evento silencioso `marcas` (tres listas de ids, ≤ 256
+bytes cada una) solo a las conexiones de su dueño, tras cada libro; `misiones` pasa a v4. La página las pinta en el
+rótulo («!» ámbar, «✓» verde; una cosa de misión solo tiene rótulo mientras lleva «!») y en los dos mapas (tipos
+`para-ti` y `hecho`). Decisión: quien te dio la misión lleva «✓» al aceptarla. **Medido** (960×600, 8 rótulos): +7
+llamadas de dibujo, +8 texturas (un sprite por rótulo, como antes; lienzo de hasta 512×304 px, unos 0,6 MB cada uno);
+lienzos repintados parado: 0; aceptar repinta 4, recibir una pieza 1. 5 pruebas (`test/misiones-marcas.test.ts`, con dos
+invitados en el mismo servidor que no ven las marcas del otro). Tras unir con el trozo 3, la pierna e2e `misiones`
+(libro con estados + marcas de dos invitados) en verde.
+**Trozo 5 hecho (17-10, rama `plantillas/eventos`): un momento que solo ve quien lo provoca y un paso que espera.**
+Fichero nuevo de aventura `secuencias/<id>.json` (`secuencia@1`, 1–30 s): pistas `mueve` (una persona sigue sus claves,
+posiciones del mundo, por una curva monótona que no se pasa de ninguna: si aterriza en el suelo no lo atraviesa),
+`muestra` (un .glb de más, sobre una persona —con su giro y su tamaño, aunque vuele— o en un sitio), `texto` (la nota de
+la página, leída en voz alta) y `sonido` (los de la casa, notas Web Audio sin fichero). Se comprueba al cargar: una
+persona o un modelo que el servidor no tiene es un error con lo que hay (y la misión que la nombra no carga). mision@1
+admite (aditivo) en cualquier paso `secuencia` (se manda al hacerlo, solo a las conexiones de quien lo hizo, una vez:
+volver a entrar no la repite) y `espera` (1–60 s desde que empezó su bloque). La máquina sigue pura: el servidor le pasa
+`ahora` en cada suceso y el progreso guarda `desde` (solo las misiones con esperas; lo guardado antes no espera nunca);
+quien lo intenta antes oye «Todavía no: faltan 7 s para «…».»; mientras, candado y cuenta atrás en el libro y arriba,
+sin objetivo ni «!»; al cumplirse, el libro y las marcas otra vez, una vez (las conexiones con una espera se miran 5 veces
+por segundo). `misiones` pasa a v5 (`paso.espera` y los eventos silenciosos `secuencia`, `pista`, `clave`). En la página
+(`features/misiones/secuencia.ts`, su propio trozo: se baja con la primera secuencia) una a la vez (las siguientes
+esperan, hasta 3), nada por cuadro mientras no suena ninguna, sin tocar la cámara (VR); al acabar cada persona vuelve a
+donde dice el servidor. `__numinia.misiones.secuencia()`. **Medido:** 8 pruebas (`test/misiones-secuencia.test.ts`:
+formatos con sus rutas, la máquina con tiempos inyectados —antes no, después sí, el bloque, `desde` guardado y leído,
+progreso viejo—, el reproductor puro y el enchufe real con dos invitados, reconexión y reinicio a mitad de la espera);
+tick de las misiones con 1.000 jugadores esperando: p99 0,14 ms (límite 5), y al abrirse un libro cada uno y nada más; el
+vuelo, 15 eventos y 554 bytes solo para su dueño; arranque +1,8 kB gz (el reproductor, 1,9 kB gz aparte). En el
+navegador (servidor y página propios, dos invitados): A ve las alas, el vuelo y el aterrizaje; B, a la vez, a Leonardo
+quieto en su sitio; un evento `secuencia` cada uno; el cofre «Todavía no: faltan 10 s» y su «!» a los 10,0–10,2 s.
+**Trozo 6 hecho (17-10, rama `plantillas/eventos-cofre`, unida a `plantillas/eventos`): una cosa que se ve usada para
+ti y un premio apuntado una sola vez.** cosa@1 admite (aditivo) `apariencia.usada` { modelo, escala? }: la cosa se ve así
+para quien ya hizo su paso `usa`/`coge` (lo decide cada página con su propio libro: el cofre de la TRG26 sale abierto solo
+para quien lo abrió; los demás lo ven cerrado y abren el suyo). Al completar una misión con `recompensas`, el servidor
+apunta una concesión por invitado con identidad en el almacén de misiones (`c:<misión>:<id>` = jugador, nombre, misión,
+recompensas, instante en UTC, estado «concedida»; nunca se sobrescribe; una repetible cuenta la primera vez; sin
+identidad, nada), y `npm run concesiones -- <carpeta del mundo> [misión]` la saca en CSV para la organización, solo
+lectura y con el servidor en marcha (`packages/server/src/datos.ts` lee la foto y el diario como el servidor). En la
+página, el cartel «Misión completada» (unos 4 s, aria-live, sin quitar el teclado) con un acorde. misiones v5 (el mismo
+salto que el trozo 5). **Medido:** 9 pruebas (`test/misiones-cofre.test.ts`: la concesión una sola vez tras repetir,
+dos pestañas, dos invitados a la vez, reconexión y reinicio; sin identidad, nada; el CSV; el aspecto por jugador por el
+enchufe real); en el navegador, el cofre abierto para A y cerrado para B a la vez. Unido con el trozo 5 (chocaron los
+sonidos de la página, el comentario de la versión y dos líneas de documentación): 72 de 72 en las pruebas de misiones,
+mapa, entorno, altura y tema; la pierna e2e `misiones` en verde.
+**Falta:** poner el vuelo y el cofre en la aventura de la plantilla (`../plantillas/eventos/notas-vuelo.md`,
+`notas-cofre.md`); que V6 dé su sonido a cada aviso (y quite las notas del libro y de las secuencias).
 
 ### U1 — Pantalla de carga
 Armazón dentro de `index.html` (≤ 14 kB comprimido, letra del sistema, sin lienzo ni `requestAnimationFrame`) y un

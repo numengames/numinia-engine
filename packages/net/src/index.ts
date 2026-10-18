@@ -100,11 +100,20 @@ export function readFields(r: BitReader, fields: Fields): Record<string, unknown
   return r.overrun ? null : out;
 }
 
-// ---------- quantization for OTHER entities: 1/64 m in [-512, 512) -> 16 bits per axis ----------
+// ---------- quantization for OTHER entities: 1/64 m, 16 bits per axis ----------
+// The 16 bits wrap every 1,024 m. Inside [-512, 512) `dequantPos` reads them as they are; anywhere in the world (N1:
+// ±2000 m) `unwrapPos` reads them next to a reference the page knows exactly — its own position, sent at full
+// precision — which gives the same bits as long as the other is less than 512 m away (the area of interest sends
+// nobody farther than ~72 m). Same bytes on the wire as before: a world inside ±512 m decodes exactly as it did.
 export const POS_BITS = 16;
 const Q = FX_ONE / 64;
 export const quantPos = (v: number): number => (Math.floor(v / Q) + 32768) & 0xffff;
 export const dequantPos = (q: number): number => (q - 32768) * Q;
+/** The position (Q16.16) whose 16 quantized bits are `q` and that lies within 512 m of `ref` (Q16.16). */
+export const unwrapPos = (q: number, ref: number): number => {
+  const r = Math.floor(ref / Q);
+  return (r + ((((q - ((r + 32768) & 0xffff)) & 0xffff) << 16) >> 16)) * Q;
+};
 export const ID_BITS = 16;
 export const ENTITY_BITS = ID_BITS + 2 * POS_BITS; // 48 bits = 6 bytes per visible entity at ground level
 export const ENTITY_BITS_HIGH = ENTITY_BITS + POS_BITS; // J2: 64 bits = 8 bytes for one above the ground (y too)
@@ -116,10 +125,13 @@ export const ENTITY_BITS_HIGH = ENTITY_BITS + POS_BITS; // J2: 64 bits = 8 bytes
 export type Viewer = { entity: number; priority: Float32Array | Float64Array }; // priority per entity id
 export const CELL_M = 8;
 export const CELL = CELL_M * FX_ONE;
-export const GRID_SIDE = 128;  // 128 cells x 8 m = 1,024 m: the whole +-512 m plaza
+export const GRID_SIDE = 128;  // 128 cells x 8 m = 1,024 m, wrapped (N1): x and x + 1,024 m share a cell, and the
+                               // viewer skips the far copy (ALIAS), so the grid's size never limits the world's
 export const CAND_MIN = 150;   // stop widening once this many candidates are in hand
 export const RING_MAX = 8;     // view radius: 8 rings x 8 m = 64 m
-const cellOf = (v: number): number => { const c = Math.floor(v / CELL) + GRID_SIDE / 2; return c < 0 ? 0 : c >= GRID_SIDE ? GRID_SIDE - 1 : c; };
+const cellOf = (v: number): number => Math.floor(v / CELL) & (GRID_SIDE - 1); // GRID_SIDE is a power of two
+/** Farther than this on one axis = a copy from another lap of the wrapped grid (real candidates are ≤ ~72 m away). */
+const ALIAS = (GRID_SIDE * CELL) / 2;
 
 export type Grid = { start: Int32Array; items: Int32Array };
 
@@ -148,10 +160,12 @@ export function selectVisible(s: SimState, grid: Grid, v: Viewer, k: number, rin
   const cx = cellOf(vx), cz = cellOf(vz);
   let n = 0;
   const visit = (gx: number, gz: number) => {
-    if (gx < 0 || gz < 0 || gx >= GRID_SIDE || gz >= GRID_SIDE) return;
-    const c = gx * GRID_SIDE + gz, end = grid.start[c + 1];
+    const c = (gx & (GRID_SIDE - 1)) * GRID_SIDE + (gz & (GRID_SIDE - 1)), end = grid.start[c + 1];
     if (n + (end - grid.start[c]) > cand.length) { const m = Math.max(cand.length * 2, n + end - grid.start[c]); const a = new Int32Array(m); a.set(cand); cand = a; prio = new Float64Array(m); }
-    for (let i = grid.start[c]; i < end; i++) { const id = grid.items[i]; if (id !== v.entity) cand[n++] = id; }
+    for (let i = grid.start[c]; i < end; i++) {
+      const id = grid.items[i];
+      if (id !== v.entity && Math.abs(X[id] - vx) < ALIAS && Math.abs(Z[id] - vz) < ALIAS) cand[n++] = id;
+    }
   };
   for (let r = 0; r <= ringMax && n < CAND_MIN; r++) {
     if (r === 0) { visit(cx, cz); continue; }
@@ -223,8 +237,9 @@ export function decodeSnapshot(bytes: Uint8Array): Snapshot | null {
   const nHigh = Math.min(dv.getUint16(28), Math.floor((bytes.length - SNAP_HEADER - nLow * 6) / 8));
   const others = new Array(nLow + nHigh);
   let o = SNAP_HEADER;
-  for (let i = 0; i < nLow; i++, o += 6) others[i] = { id: dv.getUint16(o), x: dequantPos(dv.getUint16(o + 2)), y: 0, z: dequantPos(dv.getUint16(o + 4)) };
-  for (let i = 0; i < nHigh; i++, o += 8) others[nLow + i] = { id: dv.getUint16(o), x: dequantPos(dv.getUint16(o + 2)), y: dequantPos(dv.getUint16(o + 6)), z: dequantPos(dv.getUint16(o + 4)) };
+  const sx = dv.getInt32(9), sz = dv.getInt32(13); // N1: others are read next to our own exact position (unwrapPos)
+  for (let i = 0; i < nLow; i++, o += 6) others[i] = { id: dv.getUint16(o), x: unwrapPos(dv.getUint16(o + 2), sx), y: 0, z: unwrapPos(dv.getUint16(o + 4), sz) };
+  for (let i = 0; i < nHigh; i++, o += 8) others[nLow + i] = { id: dv.getUint16(o), x: unwrapPos(dv.getUint16(o + 2), sx), y: dequantPos(dv.getUint16(o + 6)), z: unwrapPos(dv.getUint16(o + 4), sz) };
   const flags = dv.getUint8(25);
   return {
     tick: dv.getUint32(1), ack: dv.getUint16(5),

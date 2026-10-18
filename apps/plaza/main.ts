@@ -23,11 +23,24 @@ import { montarMapa } from "./mapa.ts";
 import { montarFicha } from "./ficha.ts";
 import { ambiente } from "../../features/entorno/client.ts";
 import { elementos } from "../../features/elementos/client.ts";
+import { dardos } from "../../features/dardos/client.ts"; // dardos v1: the controller; its throwing view (apps/plaza/dardos.ts) loads with the first board
 import { pesca } from "../../features/pesca/client.ts"; // pesca v1: the controller; its HUD (apps/plaza/pesca.ts) and 3D load with the first spot
+import { bienes, comprobar } from "../../features/bienes/client.ts"; // N10: goods that are yours (signed receipt), in the sheet's «Inventario»
+import { montarBienes } from "./bienes.ts";
 import { montarEntorno } from "./entorno.ts";
+import { montarDirector } from "./director.ts";
+import { dirigir } from "../../features/director/client.ts";
+import { montarGente } from "./gente.ts";
+import { viajar } from "../../features/teletransporte/client.ts";
+import { dados } from "../../features/dados/client.ts"; // dados v1: dice the server rolls
+import { montarDados } from "./dados.ts";
+import { pantallasWeb } from "../../features/web/client.ts"; // N17: web screens (the controller)
+import { montarWeb } from "./web.ts";
 import { montarVoz } from "./voz.ts";
 import { icono } from "./iconos.ts";
 import { montarXR } from "./xr.ts";
+import { aplicarTema } from "./tema-mundo.ts"; // a world's look (ficha@1 `tema`): an event's colours and title face
+import { montarFoto } from "./foto.ts"; // N13: photo mode (P): hide the interface, frame, filter, PNG, share, a link to the place
 
 const params = new URLSearchParams(location.search);
 const hud = document.getElementById("hud")!;
@@ -60,9 +73,13 @@ const session = new ClientSession(transport, {
     // H4/H8: the zone's environment and its elements (water, fire, smoke, dust)
     entorno: (v) => view.entorno.aplicar(v),
     elemento: (k, v) => view.elementos.poner(k, v),
+    // N18: what each person wears (features/bienes): a good's model in a hand or on the head
+    lleva: (e, v) => view.vestir(e === session.entity ? "self" : e, v),
     // V1: every announced event reaches screen readers (polite; safety = assertive). V3 adds the engine's own voice.
     announce: (a) => {
       if (a.feature === "chat") return; // J3: the chat box's own list (role=log, polite) reads the chat
+      if (a.feature === "director" && a.event === "narracion") return; // N6: the narrator's banner (a live region) reads it
+      if (a.feature === "misiones" && a.event === "completada") return; // U14 (6): the «Misión completada» banner (a live region) reads it
       const box = document.getElementById(a.importance >= 3 ? "avisos-urgentes" : "avisos")!;
       const p = document.createElement("p"); p.textContent = a.text; box.appendChild(p);
       while (box.childElementCount > 3) box.firstElementChild!.remove();
@@ -94,9 +111,18 @@ const soltar = montarSoltar({ session, view, puede: () => constructor.estado.pue
 // ---- U12: holes — click one (or E near it) and choose your picture: it goes up and the server fits it into the frame ----
 const huecos = montarHuecos({ constructor, view, rellenar: soltar.rellenar, decir: (t) => soltar.decir(t), panel: document.getElementById("panel-construir") });
 montarEntorno(ambiente, elementos, view); // H4/H8: environment and elements, a section of its own while building
+montarDados({ dados, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) }); // dados v1: the dice card everyone near sees, the dice buttons beside a tower
+montarDirector({ dj: dirigir, ambiente, view }); // N6: the Game Director (who may direct: STD-052 manage-rituals): scenes, narrator, summons
+// ---- N16: «Gente» (L): go next to someone connected now; the light of every trip near you (none on tier D) ----
+const gente = montarGente({ viajar, barra: document.getElementById("barra-arriba") });
+viajar.alDestello((d) => view.teletransporte.lanzar({ ...d, clave: d.quien === session.entity ? "self" : d.quien }));
+const webPagina = montarWeb({ web: pantallasWeb, view }); // N17: web screens — iframe in the world (PC/phone), card + «Abrir fuera» in VR
 // ---- pesca v1: nothing of it is in the start bundle; the HUD and the 3D arrive with the first fishing spot or float ----
-let pescaHud: Promise<unknown> | null = null;
-pesca.alCambiar(() => { pescaHud ??= import("./pesca.ts").then((m) => m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, ajuste: leerAjuste })).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); });
+let pescaHud: Promise<unknown> | null = null, pescaPagina: unknown = null; // N4: pescaPagina.manos (VR rod, gamepad) for the e2e
+pesca.alCambiar(() => { pescaHud ??= import("./pesca.ts").then((m) => (pescaPagina = m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, ajuste: leerAjuste, interaccion: () => interaccion }))).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); });
+// ---- dardos v1: the throwing view (mouse, flick, keys) and «En tu pared (AR)» arrive with the first dartboard ----
+let dardosHud: Promise<unknown> | null = null;
+dardos.alCambiar(() => { dardosHud ??= import("./dardos.ts").then((m) => m.montarDardos({ dardos, view, session, hud: document.getElementById("dardos-hud")! })).catch((e) => console.warn(`[dardos] no se pudo cargar la página de dardos: ${(e as Error)?.message ?? e}`)); });
 
 // ---- U10: the microphone (button or Q): your voice to who is near; theirs from where they stand ----
 const voz = montarVoz({ session, view: { label: (t, text, ms) => view.label(t, text, ms), cam: view.cam, voz: (id, nivel) => view.voz(id, nivel) }, escribiendo, decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } } });
@@ -105,20 +131,27 @@ const voz = montarVoz({ session, view: { label: (t, text, ms) => view.label(t, t
 const cajaChat = montarChat(chatDePagina, document.getElementById("chat")!);
 
 // ---- J4/J5: what you can use from close by (E, a click, the prompt button), conversations, the quest book (J) ----
-const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: huecos.cerca, pinchar: huecos.pinchar });
+const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: huecos.cerca, pinchar: huecos.pinchar });
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
 const xr = montarXR({ session, view, misiones, interaccion }); // J10: hands in VR take, point and answer; what you took is in your hand
 montarDialogo(misiones, document.getElementById("dialogo")!, view);
 montarLibro(misiones, {
   boton: document.getElementById("misiones") as HTMLButtonElement, panel: document.getElementById("libro")!, linea: document.getElementById("mision-seguida")!,
   nota: document.getElementById("mision-nota")!, view, here: () => (session.entity >= 0 ? session.selfPosition(1) : null),
+  oir: (fn) => session.features.tap(fn), ajuste: leerAjuste, // U14 (3): it opens by itself on accepting; a step done = a short sound
+  banner: document.getElementById("mision-completada")!, // U14 (6): «Misión completada»
 });
 
 // ---- J5: minimap (corner), big map (M, «Mapa») and player sheet (I, «Ficha»); other branches' contracts are read
 // from __numinia when present (misiones.objetivos/resumen, ajustes.abrir, chat.nombres) ----
 const otros = () => (globalThis as unknown as { __numinia?: Record<string, unknown> }).__numinia ?? {};
 const mapa = montarMapa({ session, view, otros });
+// ---- N13: photo mode (P or the camera button): the photo owns the screen and the keys; your avatar stands still ----
+const foto = montarFoto({ view, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), mapa, boton: document.getElementById("foto-abrir") as HTMLButtonElement, ocupado: () => dardos.tirando(),
+  aparecer: { puede: () => (viajar.estado.recibido ? viajar.foto() : null), pedir: (s) => { viajar.aparecerEnFoto(s.x, s.y, s.z); } }, // N16: the world may put you at the photo's place
+  decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); } });
 const ficha = montarFicha({ session, view, desde: () => informe.bienvenidaMs, otros }, mapa.botonFicha);
+montarBienes({ bienes, comprobar, ficha, boton: mapa.botonFicha, vitrina: (cv, model) => view.vitrina(cv, model) }); // N10: the sheet's «Inventario» = your goods, their receipts
 
 // ---- determinism probe: replay the reference run here and compare with the server's number ----
 const probe = { browser: -1, server: -1, ms: 0, done: false };
@@ -150,8 +183,24 @@ addEventListener("pointermove", (e) => {
 });
 const endTouch = (e: PointerEvent) => { if (touch && e.pointerId === touch.id) { touch = null; joy.style.display = "none"; } };
 addEventListener("pointerup", endTouch); addEventListener("pointercancel", endTouch);
+/** Let go of everything the flat page holds (keys, the touch stick): the headset took over or the tab went away. */
+function soltarEntradaPlana(): void {
+  if (keys.size) keys.clear();
+  if (touch) { touch = null; joy.style.display = "none"; }
+}
+addEventListener("visibilitychange", () => { if (document.hidden) soltarEntradaPlana(); });
 
 function readAxes(): [number, number] {
+  // motor-vr t_ab71cff0: while the headset presents, ITS input is the only source of movement. A flat-page input
+  // left held when the headset took over (a touch whose pointerup never comes, a stale Gamepad-API pad, a key)
+  // used to keep driving you whenever the VR stick sat at zero: measured on Pablo's Quest, 7.9 m/s in one fixed
+  // direction with the controllers asleep and his hands tracked, until the world's edge. Drop them on the way in.
+  if (foto.activo()) { soltarEntradaPlana(); return [0, 0]; } // N13: framing a photo, you stand still (the camera moves instead)
+  if (view.vr.active) {
+    soltarEntradaPlana();
+    const [vx, vz] = view.vr.axes();
+    return [Math.round(vx * STICK_MAX), Math.round(vz * STICK_MAX)];
+  }
   let x = 0, z = 0;
   if (keys.has("KeyA") || keys.has("ArrowLeft")) x -= 1;
   if (keys.has("KeyD") || keys.has("ArrowRight")) x += 1;
@@ -161,7 +210,6 @@ function readAxes(): [number, number] {
   const pad = view.cam.mando(); // N1: a gamepad's left stick
   if (pad && (pad[0] || pad[1])) { x = pad[0]; z = pad[1]; }
   [x, z] = haciaMundo(x, z, view.cam.yaw()); // N1: W walks where the camera looks
-  if (view.vr.active) { const [vx, vz] = view.vr.axes(); if (vx || vz) { x = vx; z = vz; } }
   if (view.ar.state === "placed") { const [ax, az] = view.ar.axes(); if (ax || az) { x = ax; z = az; } } // J8b: walk on the table
   return [Math.round(x * STICK_MAX), Math.round(z * STICK_MAX)];
 }
@@ -184,8 +232,13 @@ if (matchMedia("(pointer: coarse)").matches) {
 }
 function readButtons(): number {
   let b = 0;
+  if (foto.activo()) { saltoPendiente = false; return 0; } // N13
   if (view.vr.takeJump() || view.ar.takeJump() || saltoPendiente) { saltoPendiente = false; b |= BTN_JUMP; }
-  const alBorde = (touch && Math.hypot(touch.dx, touch.dy) >= 0.9) || (view.vr.active && Math.hypot(...view.vr.axes()) >= 0.9);
+  // RUN_EDGE close to 1: most of the stick's travel walks (human pace), only the very end runs
+  // (was 0.9 — reached with barely half the throw, so there was no way to just walk).
+  const RUN_EDGE = 0.97;
+  if (view.vr.active) { if (Math.hypot(...view.vr.axes()) >= RUN_EDGE) b |= BTN_RUN; return b; } // in VR only the headset's stick runs
+  const alBorde = touch && Math.hypot(touch.dx, touch.dy) >= RUN_EDGE;
   if (keys.has("ShiftLeft") || keys.has("ShiftRight") || alBorde) b |= BTN_RUN;
   return b;
 }
@@ -198,7 +251,7 @@ view.arSupported().then((ok) => {
   arBtn.hidden = false; // the hidden ATTRIBUTE, not a style: the icon bar (tema.css) sets display on its buttons
   arBtn.onclick = () => { if (view.ar.state === "off") void view.ar.enter().then((ok) => { if (!ok) session.report({ k: "xr", modo: "ar", accion: "falla", detalle: view.ar.lastError }); }); else void view.ar.exit(); };
 });
-setInterval(() => { arBtn.textContent = arLabel[view.ar.state]; }, 250);
+setInterval(() => { arBtn.textContent = view.ar.jugando ? "Dardos en tu pared (salir)" : arLabel[view.ar.state]; }, 250); // dardos v1: a minigame may hold the AR session
 
 // ---- VR (J6): same idea; the stick becomes the same two int8 intentions as keyboard and touch ----
 const vrBtn = document.getElementById("vr") as HTMLButtonElement;
@@ -214,8 +267,9 @@ setInterval(() => { vrBtn.textContent = view.vr.active ? "Salir de VR" : "Entrar
 // <date>», what /health, the installer and the world zip carry) only as the tooltip, for whoever helps with a fault ----
 const versionMotor = document.getElementById("version-motor");
 if (versionMotor) versionMotor.textContent = `v${versionPaquete}`;
-fetch(`${activos}/status`).then((r) => r.json()).then((st: { version?: string; nombre?: string }) => {
+fetch(`${activos}/status`).then((r) => r.json()).then((st: { version?: string; nombre?: string; tema?: unknown }) => {
   if (st.nombre) document.title = st.nombre; // ADR-074: the world's name (its aventura/ficha.json), also when Caddy or vite serve the page
+  if (st.tema) aplicarTema(st.tema, document.documentElement); // its look: CSS variables tema.css reads; none = the house's
   if (versionMotor && st.version) versionMotor.title = `build ${st.version}`;
 }).catch(() => {});
 
@@ -282,8 +336,9 @@ view.loop((now) => {
   if (session.welcome && !informe.bienvenidaMs) informe.bienvenidaMs = Math.round(performance.now());
   if (probe.done && informe.primerCuadroMs && !informe.entrada) void enviarEntrada();
   // power policy (P2): skip the draw when hidden or when nothing changes; the 20 Hz ticks above never skip
+  const enSecuencia = misiones.cuadro(); // U14 (5): a sequence only this player sees moves its people (no work when none plays)
   const sig = lastSig; lastSig = signature();
-  if (sig !== lastSig || keys.size > 0 || touch || view.vr.active || view.ar.state !== "off" || view.busy()) lastActive = now;
+  if (sig !== lastSig || keys.size > 0 || touch || view.vr.active || view.ar.state !== "off" || view.busy() || enSecuencia) lastActive = now;
   const active = now - lastActive < 600;
   if (view.vr.active || view.ar.state !== "off" || view.power.shouldDraw(now, { hidden: document.hidden, active })) {
     view.sync(session.entity >= 0 ? session.selfPosition(acc / TICK_MS) : null, session.remotePositions(now));
@@ -316,7 +371,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, mapa, ficha, ambiente, elementos, voz, xr, pesca };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, mapa, ficha, ambiente, elementos, voz, xr, pesca, bienes, dardos, dados, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina };
 
 // ---- U11: the bar of icon buttons, top right (rightmost first): settings, build, microphone, full screen, VR, AR ----
 {
@@ -325,7 +380,7 @@ function drawHud() {
   gear.classList.add("solo-icono"); gear.innerHTML = `${icono("gear")}<span class="solo-lector">Ajustes</span>`;
   const mis = document.getElementById("misiones")!;
   mis.innerHTML = `${icono("scroll", 18)}<span>Misiones</span>`; mis.title = "Misiones (J)";
-  for (const id of ["ajustes-abrir", "construir", "microfono", "pantalla", "vr", "ar"]) { const e = document.getElementById(id); if (e) barra.appendChild(e); }
+  for (const id of ["ajustes-abrir", "construir", "microfono", "gente-abrir", "foto-abrir", "pantalla", "vr", "ar"]) { const e = document.getElementById(id); if (e) barra.appendChild(e); }
   barra.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
 }
 

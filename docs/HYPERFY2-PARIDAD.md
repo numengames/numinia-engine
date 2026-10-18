@@ -90,6 +90,7 @@ por capacidad, con lo que Hyperfy2 tiene, lo que tenemos hoy y la fila de `docs/
 | Sonido en el mundo | nodo `Audio`: fichero, volumen, bucle, grupo música/efectos, espacial (distancias, caída, conos) | sin audio | ✘ | V6 + H5 |
 | Imagen en el mundo | nodo `Image` (ajuste, con o sin luz) | no | ✘ | H6 |
 | Vídeo en el mundo | nodo `Video` (bucle, ajuste, audio espacial) | no | ✘ | M18 |
+| Página web en el mundo | un `iframe` colocado en 3D con CSS (la técnica CSS3D) sobre el lienzo; en VR no se dibuja | pantallas web (N17, `features/web`): iframe CSS3D en ordenador y móvil, tarjeta + «Abrir fuera de VR» en VR, lista blanca de sitios por mundo, `sandbox`, sin cámara ni micrófono, solo dueños y DJ | ✔ | N17 |
 | Paneles de interfaz | `UI`, `UIView`, `UIText`, `UIImage`: flexbox (Yoga), en el mundo o en pantalla, mirando a la cámara, clic | panel 3D de VR (J6) y etiquetas | ◐ | H6 |
 | Partículas | nodo `Particles`: forma, ritmo, ráfagas, curvas de vida, hoja de sprites, en un worker | no | ✘ | H8 |
 | Nivel de detalle | nodo `LOD` (`scaleAware`) | no (la multitud lejana horneada es A4) | ✘ | H13 |

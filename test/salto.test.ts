@@ -77,14 +77,14 @@ test("J2 sim: holding jump on every input never gives more than two jumps per la
   assert.ok(takeoffs >= landings && takeoffs <= landings + 1);
 });
 
-test("J2 sim: running is exactly twice walking (8 m/s against 4), in the air too", () => {
-  assert.equal(RUN_STEP, 2 * STEP);
+test("J2 sim: running is RUN_SPEED/SPEED times walking (4 m/s against 1.5, human pace J3), in the air too", () => {
+  assert.ok(Math.abs(RUN_STEP / STEP - 4 / 1.5) < 0.01);
   const walk = one(), sprint = one();
   run(walk, TICK_HZ, () => 0, 0, -127);
   run(sprint, TICK_HZ, () => BTN_RUN, 0, -127);
   const z0 = one().tf.cols.z[0];
-  assert.equal(walk.tf.cols.z[0] - z0, -TICK_HZ * STEP);   // 4 m in 1 s
-  assert.equal(sprint.tf.cols.z[0] - z0, -TICK_HZ * RUN_STEP); // 8 m in 1 s
+  assert.equal(walk.tf.cols.z[0] - z0, -TICK_HZ * STEP);   // 1.5 m in 1 s (human walking pace, J3)
+  assert.equal(sprint.tf.cols.z[0] - z0, -TICK_HZ * RUN_STEP); // 4 m in 1 s
   const hop = one();
   run(hop, TICK_HZ, (t) => BTN_RUN | (t === 0 ? BTN_JUMP : 0), 0, -127);
   assert.equal(hop.tf.cols.z[0], sprint.tf.cols.z[0]); // jumping does not change horizontal speed
@@ -186,6 +186,6 @@ test("J2 client: others' height is interpolated and their speed reads walking or
     if (r) seen.push({ y: r.y, speed: r.speed });
   }
   assert.ok(Math.max(...seen.map((s) => s.y)) > 1, "B saw A in the air");
-  assert.ok(seen.some((s) => Math.abs(s.speed - 8) < 0.2), `B saw A running: ${seen.map((s) => s.speed.toFixed(1)).join(" ")}`);
-  assert.ok(Math.abs(a.selfPosition(1).speed - 8) < 0.01);
+  assert.ok(seen.some((s) => Math.abs(s.speed - 4) < 0.2), `B saw A running: ${seen.map((s) => s.speed.toFixed(1)).join(" ")}`);
+  assert.ok(Math.abs(a.selfPosition(1).speed - 4) < 0.01);
 });

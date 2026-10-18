@@ -9,7 +9,9 @@
 import * as THREE from "three/webgpu";
 
 export type Lado = "izq" | "der";
-export type Panel = { malla: THREE.Mesh; fila(uv: THREE.Vector2): number; encima(n: number): void };
+export type Panel = { malla: THREE.Mesh; fila(uv: THREE.Vector2): number; encima(n: number): void;
+  /** A panel that acts by itself (the «Salir de VR» button): pressing on it calls this instead of telling the page. */
+  pulsar?(n: number): void };
 export type ManosHooks = {
   renderer: THREE.WebGPURenderer;
   /** Things that can be reached or pointed at: key + its group (render's placed things). */
@@ -50,9 +52,11 @@ type Ranura = {
   i: number; fuente: Fuente | null; lado: Lado | null; esMano: boolean;
   ctrl: THREE.Group; grip: THREE.Group; hand: THREE.Group & { joints?: Record<string, THREE.Object3D & { jointRadius?: number }> };
   rayo: THREE.Mesh; punto: THREE.Mesh; manoMando: ReturnType<typeof crearManoMando>; esqueleto: ReturnType<typeof crearEsqueleto>;
-  ancla: THREE.Object3D; halo: THREE.Mesh; candidato: string | null; apuntado: { tipo: "panel" | "cosa"; key: string; fila: number } | null;
+  ancla: THREE.Object3D; halo: THREE.Mesh; candidato: string | null; apuntado: { tipo: "panel" | "cosa"; key: string; fila: number; panel?: Panel } | null;
   /** A tracked hand pinching in empty air since this time (ms), or 0: held past ANDAR_MS it walks. */
   pellizcoAire: number;
+  /** A tracked hand pinching right now (select held), for features that read the pinch as a held button. */
+  pellizco: boolean;
 };
 /** A pinch held this long in empty air (nothing to take, nothing pointed) walks where that hand points. */
 export const ANDAR_MS = 250;
@@ -176,6 +180,8 @@ export function createManos(h: ManosHooks) {
   const emitir = (e: EventoMano) => { for (const f of oyentes) { try { f(e); } catch (err) { console.warn("[manos]", err); } } };
   let agarrable: (key: string) => boolean = () => false;
   let apuntable: (key: string) => boolean = () => false;
+  /** A hand busy holding a tool of a feature (the fishing rod): no ray, no taking things, no pinch-walking with it. */
+  let ocupada: (lado: Lado) => boolean = () => false;
 
   const ranuras: Ranura[] = [0, 1].map((i) => {
     const ctrl = h.renderer.xr.getController(i), grip = h.renderer.xr.getControllerGrip(i), hand = h.renderer.xr.getHand(i) as Ranura["hand"];
@@ -187,15 +193,15 @@ export function createManos(h: ManosHooks) {
     const ancla = new THREE.Object3D(); ancla.name = `ancla-${i}`;
     const halo = new THREE.Mesh(haloGeo, haloMat); halo.visible = false; halo.renderOrder = 5;
     raiz.add(ctrl, grip, hand, punto, ancla, halo);
-    const r: Ranura = { i, fuente: null, lado: null, esMano: false, ctrl, grip, hand, rayo, punto, manoMando, esqueleto, ancla, halo, candidato: null, apuntado: null, pellizcoAire: 0 };
+    const r: Ranura = { i, fuente: null, lado: null, esMano: false, ctrl, grip, hand, rayo, punto, manoMando, esqueleto, ancla, halo, candidato: null, apuntado: null, pellizcoAire: 0, pellizco: false };
     ctrl.addEventListener("connected", (e: { data?: Fuente }) => {
       const f = e.data ?? null;
       r.fuente = f; r.esMano = !!f?.hand; r.lado = f?.handedness === "left" ? "izq" : f?.handedness === "right" ? "der" : null;
       manoMando.grupo.scale.x = r.lado === "izq" ? -1 : 1; // the left hand is the right one mirrored
     });
-    ctrl.addEventListener("disconnected", () => { r.fuente = null; r.lado = null; r.candidato = null; r.apuntado = null; r.pellizcoAire = 0; });
-    ctrl.addEventListener("selectstart", () => { if (r.esMano && !r.candidato && !r.apuntado) r.pellizcoAire = performance.now(); pulsar(r, "gatillo"); });
-    ctrl.addEventListener("selectend", () => { r.pellizcoAire = 0; });
+    ctrl.addEventListener("disconnected", () => { r.fuente = null; r.lado = null; r.candidato = null; r.apuntado = null; r.pellizcoAire = 0; r.pellizco = false; });
+    ctrl.addEventListener("selectstart", () => { r.pellizco = true; if (r.esMano && !r.candidato && !r.apuntado && !(r.lado && ocupada(r.lado))) r.pellizcoAire = performance.now(); pulsar(r, "gatillo"); });
+    ctrl.addEventListener("selectend", () => { r.pellizcoAire = 0; r.pellizco = false; });
     ctrl.addEventListener("squeezestart", () => pulsar(r, "agarre"));
     return r;
   });
@@ -204,9 +210,10 @@ export function createManos(h: ManosHooks) {
   function pulsar(r: Ranura, como: "gatillo" | "agarre"): void {
     if (!r.lado || !raiz.parent) return;
     if (r.candidato) { emitir({ tipo: "agarrar", key: r.candidato, lado: r.lado }); vibrar(r, 0.6, 40); return; }
-    if (como === "agarre") return;
+    if (como === "agarre" || ocupada(r.lado)) return; // N4: the hand holding the rod reels with its trigger, it does not use things
     const a = r.apuntado;
-    if (a?.tipo === "panel") emitir({ tipo: "panel", fila: a.fila, lado: r.lado });
+    if (a?.tipo === "panel" && a.panel?.pulsar) { a.panel.pulsar(a.fila); vibrar(r, 0.5, 40); }
+    else if (a?.tipo === "panel") emitir({ tipo: "panel", fila: a.fila, lado: r.lado });
     else if (a?.tipo === "cosa") emitir({ tipo: "apuntar", key: a.key, lado: r.lado });
     else emitir({ tipo: "gatillo", lado: r.lado });
   }
@@ -248,7 +255,7 @@ export function createManos(h: ManosHooks) {
     // reach: the nearest thing that can be taken, within ALCANCE_M of its bounding sphere
     const antes = r.candidato;
     r.candidato = null;
-    const tiene = conectado && puntoDeAgarre(r);
+    const tiene = conectado && puntoDeAgarre(r) && !ocupada(r.lado!);
     r.ancla.updateMatrixWorld();
     if (tiene) {
       r.ancla.getWorldPosition(P);
@@ -266,7 +273,7 @@ export function createManos(h: ManosHooks) {
     r.halo.visible = !!r.candidato;
     // the ray: panels first, then things and names; it stops where it hits
     r.apuntado = null;
-    const rayoVivo = conectado && r.ctrl.visible && !r.candidato;
+    const rayoVivo = conectado && r.ctrl.visible && !r.candidato && !ocupada(r.lado!);
     r.rayo.visible = rayoVivo; r.punto.visible = false;
     if (!rayoVivo) return;
     r.ctrl.updateMatrixWorld();
@@ -277,7 +284,7 @@ export function createManos(h: ManosHooks) {
     for (const p of h.paneles?.() ?? []) {
       if (!p.malla.visible) continue;
       const hit = ray.intersectObject(p.malla, false)[0];
-      if (hit && hit.distance < dist && hit.uv) { uv.copy(hit.uv); const n = p.fila(uv); dist = hit.distance; r.apuntado = { tipo: "panel", key: "", fila: n }; p.encima(n); }
+      if (hit && hit.distance < dist && hit.uv) { uv.copy(hit.uv); const n = p.fila(uv); dist = hit.distance; r.apuntado = { tipo: "panel", key: "", fila: n, panel: p }; p.encima(n); }
     }
     if (!r.apuntado) {
       const lista: THREE.Object3D[] = [], claves = new Map<THREE.Object3D, string>();
@@ -303,7 +310,7 @@ export function createManos(h: ManosHooks) {
     /** Put the hands under `padre` (VR: the rig; AR: its root) or take them away (null). */
     montar(padre: THREE.Object3D | null): void { if (padre) padre.add(raiz); else raiz.parent?.remove(raiz); },
     /** What a hand may take (quest things that the current step needs) and what the ray may use. */
-    reglas(o: { agarrable?: (key: string) => boolean; apuntable?: (key: string) => boolean }): void { if (o.agarrable) agarrable = o.agarrable; if (o.apuntable) apuntable = o.apuntable; },
+    reglas(o: { agarrable?: (key: string) => boolean; apuntable?: (key: string) => boolean; ocupada?: (lado: Lado) => boolean }): void { if (o.agarrable) agarrable = o.agarrable; if (o.apuntable) apuntable = o.apuntable; if (o.ocupada) ocupada = o.ocupada; },
     /** Every frame while presenting. `camara` = the XR camera (sprites need it to be hit). */
     update(camara: THREE.Camera | null): void { if (!raiz.parent) return; raiz.updateMatrixWorld(); for (const r of ranuras) actualizarRanura(r, camara); },
     on(fn: (e: EventoMano) => void): () => void { oyentes.add(fn); return () => oyentes.delete(fn); },
@@ -313,12 +320,20 @@ export function createManos(h: ManosHooks) {
     andar(): [number, number] | null {
       const ahora = performance.now();
       for (const r of ranuras) {
-        if (!r.esMano || !r.pellizcoAire || ahora - r.pellizcoAire < ANDAR_MS || !r.ctrl.visible) continue;
+        if (!r.esMano || !r.pellizcoAire || ahora - r.pellizcoAire < ANDAR_MS || !r.ctrl.visible || (r.lado && ocupada(r.lado))) continue;
         Dir.set(0, 0, -1).applyQuaternion(r.ctrl.getWorldQuaternion(Qw));
         const l = Math.hypot(Dir.x, Dir.z);
         if (l > 0.2) return [Dir.x / l, Dir.z / l];
       }
       return null;
+    },
+    /** What a hand's buttons say now: trigger (or a tracked hand's pinch, 0/1), grip, and whether it is a tracked hand. */
+    entrada(lado: Lado): { gatillo: number; agarre: number; mano: boolean } | null {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente);
+      if (!r) return null;
+      if (r.esMano) return { gatillo: r.pellizco ? 1 : 0, agarre: 0, mano: true };
+      const b = r.fuente!.gamepad?.buttons ?? [];
+      return { gatillo: b[0]?.value ?? 0, agarre: b[1]?.value ?? 0, mano: false };
     },
     vibrar(lado: Lado, v = 0.5, ms = 60): void { const r = ranuras.find((x) => x.lado === lado); if (r) vibrar(r, v, ms); },
     /** For checks: per hand, what is connected and drawn, how bent the fingers are, what it reaches and points at. */

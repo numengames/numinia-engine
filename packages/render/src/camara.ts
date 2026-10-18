@@ -4,7 +4,9 @@
 // click); wheel = zoom down to first person. Build ("construir", switched by the builder): a free editor camera —
 // right drag (or Alt+left) orbits a pivot, middle or Shift+right drag pans it, the wheel zooms toward the cursor, plain
 // left belongs to the builder. Touch: a finger that starts on the right half orbits, two fingers pinch (and pan when
-// building); the left half stays the page's joystick (it asks `tieneDedo`). Phones stay cool: `ocupada()` is true only
+// building); the left half stays the page's joystick (it asks `tieneDedo`). Photo ("foto", N13): a free camera on a short
+// leash — any left/right drag orbits, Shift or middle drag pans, the wheel zooms toward the cursor, every finger is the
+// camera's (one orbits, two pinch and pan), the left stick walks the pivot; the page moves it with `desplazar`. Phones stay cool: `ocupada()` is true only
 // while a drag, a held key, a stick or the smoothing moves something; then the page may stop drawing.
 import type * as THREE from "three/webgpu";
 import { crearOrbita, CAMARA, type ModoCamara, type Pose, type Punto } from "./camara-orbita.ts";
@@ -16,6 +18,7 @@ const UMBRAL_PX = 5;            // a left press that moves less than this is a c
 const GIRO_TECLA = 1.75;        // rad/s while a turn key is held (≈ 100°/s)
 const INCLINA_TECLA = 1.05;     // rad/s while a tilt key is held (≈ 60°/s)
 const PALANCA = { giro: 2.6, inclina: 1.6, zoom: 2.2, muerta: 0.15 }; // gamepad: rad/s, rad/s, ×/s, dead zone
+const FOTO_MS = 3;              // N13: photo mode, the pivot's walking pace (m/s) with the left stick
 // Keys (free ones: see the reserved list in docs/JUGADOR.md). Turn and tilt act while held; zoom per press/repeat.
 export const TECLAS_CAMARA = {
   izquierda: "Comma", derecha: "Period", arriba: "PageUp", abajo: "PageDown", reiniciar: "Home", vista: "KeyV",
@@ -56,7 +59,8 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
     if (arrastre) return;
     const construir = orbita.modo === "construir";
     let accion: Arrastre["accion"] | null = null;
-    if (e.button === 2) accion = construir && e.shiftKey ? "pan" : "orbita";
+    if (orbita.modo === "foto") accion = e.button === 1 || e.shiftKey ? "pan" : e.button === 0 || e.button === 2 ? "orbita" : null; // N13
+    else if (e.button === 2) accion = construir && e.shiftKey ? "pan" : "orbita";
     else if (e.button === 1) accion = construir ? "pan" : null;
     else if (e.button === 0) accion = construir ? (e.altKey ? (e.shiftKey ? "pan" : "orbita") : null) : e.ctrlKey || e.metaKey ? null : "quizas";
     if (!accion) return;
@@ -82,7 +86,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
   // ---- touch: right half orbits, two fingers pinch ----
   function tactil(e: PointerEvent): void {
     const r = dom.getBoundingClientRect();
-    if (dedos.size === 0 && e.clientX < r.left + r.width / 2) return; // the left half is the joystick
+    if (dedos.size === 0 && e.clientX < r.left + r.width / 2 && orbita.modo !== "foto") return; // the left half is the joystick (not in a photo: you stand still)
     if (dedos.size >= 2) return;
     dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pinza = dedos.size === 2 ? medir() : null;
@@ -98,7 +102,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
     if (dedos.size === 1) { const k = (sens * Math.PI) / Math.max(320, dom.clientWidth || innerWidth); orbita.orbitar(-dx * k, dy * k * invY); return; }
     if (!pinza) return;
     const m = medir();
-    if (orbita.modo === "construir") { orbita.acercarHacia(pinza.d / m.d, null, pies); panear(m.x - pinza.x, m.y - pinza.y); }
+    if (orbita.modo !== "juego") { orbita.acercarHacia(pinza.d / m.d, null, pies); panear(m.x - pinza.x, m.y - pinza.y); }
     else orbita.acercar(pinza.d / m.d);
     pinza = m;
   }
@@ -126,7 +130,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
     if (bloqueada || enXR()) return;
     const px = Math.max(-300, Math.min(300, e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 300 : 1))); // lines: 3 ≈ one 100 px notch
     const f = Math.exp(px * CAMARA.rueda);
-    if (orbita.modo !== "construir") { orbita.acercar(f); return; }
+    if (orbita.modo === "juego") { orbita.acercar(f); return; }
     const r = dom.getBoundingClientRect();
     const nx = ((e.clientX - r.left) / r.width) * 2 - 1, ny = 1 - ((e.clientY - r.top) / r.height) * 2;
     orbita.acercarHacia(f, orbita.puntoBajo(nx, ny, camera.fov, camera.aspect, pies, Math.max(20, orbita.ahora.dist * 3)), pies);
@@ -175,6 +179,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
       leerMando();
       if (palanca.gx || palanca.gy) orbita.orbitar(-palanca.gx * PALANCA.giro * sens * s, palanca.gy * PALANCA.inclina * sens * invY * s);
       if (palanca.zoom) orbita.acercar(Math.exp(-palanca.zoom * Math.log(PALANCA.zoom) * s));
+      if (orbita.modo === "foto" && (palanca.x || palanca.z)) orbita.desplazar(palanca.x * FOTO_MS * s, -palanca.z * FOTO_MS * s, 0, pies); // N13: the left stick walks the pivot
       orbita.paso(s);
       orbita.pose(pies, pose);
       camera.position.set(pose.x, pose.y, pose.z);
@@ -182,8 +187,8 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
     },
     /** Where the camera looks, radians: 0 = along -z, + = turned left. Movement keys turn with it. */
     yaw(): number { const y = orbita.ahora.yaw; return Math.atan2(Math.sin(y), Math.cos(y)); },
-    /** "juego" (follows your avatar) or "construir" (a free editor camera). Returns the mode now. */
-    modo(m?: ModoCamara): ModoCamara { if (m === "juego" || m === "construir") orbita.cambiarModo(m); return orbita.modo; },
+    /** "juego" (follows your avatar), "construir" (a free editor camera) or "foto" (N13: free, on a short leash). Returns the mode now. */
+    modo(m?: ModoCamara): ModoCamara { if (m === "juego" || m === "construir" || m === "foto") orbita.cambiarModo(m); return orbita.modo; },
     /** Build mode: smoothly point the camera at a thing (centre, radius in metres). false (and nothing) in play mode. */
     frame(center: Punto, radius: number): boolean { return orbita.encuadrar(center, radius, pies, camera.fov); },
     /** While true, drags and the wheel do not move the camera (the builder's gizmo or grab mode owns them). */
@@ -191,7 +196,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
     /** True while dragging, a key or stick is held, or the camera is still settling: keep drawing. */
     ocupada(): boolean {
       if (mandos) leerMando();
-      return !!arrastre || dedos.size > 0 || sujetas.size > 0 || !!(palanca.gx || palanca.gy || palanca.zoom) || !orbita.quieta();
+      return !!arrastre || dedos.size > 0 || sujetas.size > 0 || !!(palanca.gx || palanca.gy || palanca.zoom) || (orbita.modo === "foto" && !!(palanca.x || palanca.z)) || !orbita.quieta();
     },
     /** True when the camera is inside or right next to your own body (first person): render hides your avatar. */
     primeraPersona(): boolean { return pose.dentro; },
@@ -199,6 +204,14 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
     acercar(pasos: number): void { orbita.acercar(Math.exp(-pasos * 100 * CAMARA.rueda)); },
     /** Turn (radians, + = left) and tilt (+ = look further down). */
     girar(dYaw: number, dPitch = 0): void { orbita.orbitar(dYaw, dPitch); },
+    /** N13 photo mode: move the pivot (metres: to the camera's right, forward along the ground, up); kept within the
+     * leash (`CAMARA.foto.alcance` m of your eye). Nothing in the other modes. */
+    desplazar(derecha: number, adelante: number, arriba = 0): void { orbita.desplazar(derecha, adelante, arriba, pies); },
+    /** Look toward an absolute direction (radians, like `yaw()`; pitch + = down), the short way round, smoothly. */
+    mirarHacia(yaw: number, pitch?: number): void {
+      const a = orbita.meta.yaw, d = Math.atan2(Math.sin(yaw - a), Math.cos(yaw - a));
+      orbita.orbitar(d, typeof pitch === "number" && Number.isFinite(pitch) ? pitch - orbita.meta.pitch : 0);
+    },
     /** Behind your avatar again at the starting height and distance (build mode: back over your avatar). */
     reiniciar(): void { orbita.reiniciar(); },
     /** Play mode: first person ↔ third person. */

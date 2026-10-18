@@ -6,6 +6,7 @@ import { createServer } from "node:http";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { existsSync } from "node:fs";
 import { signer } from "./secret.ts";
+import { crearRecibos } from "./recibos.ts"; // N10: digital goods' ownership receipts
 import { randomBytes, randomInt } from "node:crypto";
 import { WebSocketServer } from "ws";
 import type { WebSocket } from "ws";
@@ -27,7 +28,7 @@ import { Pagina } from "./pagina.ts";
 import { infoMotor } from "./version.ts";
 import type { Motor } from "./version.ts";
 import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
-import { leerFicha, lectorAventura } from "./aventura.ts";
+import { leerFicha, leerTema, lectorAventura } from "./aventura.ts";
 import { crearRoles } from "./roles-mundo.ts";
 import { configPase } from "./pase.ts";
 import { crearAgentesHttp } from "./agentes-http.ts";
@@ -35,6 +36,7 @@ import type { ConfigPase } from "./pase.ts";
 import type { Who } from "../../instance/src/index.ts";
 import { leerHabitantes } from "../../agent/src/formato.ts";
 import { crearPuerta } from "./puerta.ts";
+import { ColaOptimizar } from "./optimizar-cola.ts";
 import type { Metrics } from "./metrics.ts";
 
 export type ServerOptions = {
@@ -53,6 +55,7 @@ export type ServerOptions = {
   biblioteca?: string | null;    // H1: the house library served at /a/<sha256>.<ext>; default the repo's activos/ (null = none)
   subidas?: string | null;       // H1/H9: folder of uploaded files named <sha256>.<ext>; default null (= no uploads)
   subir?: { topesMB?: Partial<Record<string, number>>; totalMB?: number }; // H9: smaller caps (tests); default ficheros.ts
+  optimizar?: boolean;           // N22: lighter copies of uploaded .glb in the background (optimizar-cola.ts); default MOTOR_OPTIMIZAR !== "no"
   aventura?: string | null;      // J5: the adventure's folder (quests, people, things as text files); default null = none
   agentes?: string;              // P4: the secret that signs AI inhabitants' tickets (env MOTOR_AGENTES_SECRET); none or short = no inhabitants
   dominios?: readonly string[];  // ADR-080: the world's public names an outside agent signs (env MOTOR_DOMINIO, commas); none = the host each connection asks for
@@ -80,6 +83,8 @@ export type RunningServer = {
   datos: FileStorage | null;
   fingerprint: string;
   metrics(): Metrics;
+  /** N22: the queue that makes the uploads' lighter copies (tests wait on it). */
+  optimizar: ColaOptimizar;
   close(): Promise<void>;
 };
 
@@ -116,6 +121,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   // ADR-074: what the world is called, from its own folder (aventura/ficha.json); none = the engine's defaults
   const { ficha, problemas: fichaMal } = leerFicha(o.aventura ?? null);
   for (const p of fichaMal) log(`[ficha] no se carga: ${p}`);
+  const { tema, problemas: temaMal } = leerTema(ficha?.tema); // how its page looks (an event's colours and titles); a bad value drops only itself
+  for (const p of temaMal) log(`[ficha] ${p}: lo dejo fuera`);
   const pagina = o.www ? new Pagina(o.www, { titulo: ficha?.nombre ?? null }) : null; // C1: the page from the engine itself (one port per world)
 
   const t0 = performance.now();
@@ -152,6 +159,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const funciones = o.features?.length ? [...o.features, roles.part] : o.features; // no features (bare tests) = the pre-J7 wire
   const puede = (who: Who | null, accion: string) => roles.puede(who, accion);
   const activos = new Activos(o.biblioteca === undefined ? BIBLIOTECA : o.biblioteca, o.subidas ?? null, log);
+  const optimizar = new ColaOptimizar(activos, log, o.optimizar ?? process.env.MOTOR_OPTIMIZAR !== "no"); // N22
+  optimizar.repasar();
   if (o.aventura) log(`[aventura] ${o.aventura}${existsSync(o.aventura) ? "" : " (no existe: el mundo arranca sin aventura)"}`);
   const agentesSign = signer(o.agentes ?? process.env.MOTOR_AGENTES_SECRET);
   const agentes = agentesSign("probe") ? { sign: agentesSign, nombre: (id: string) => hab.habitantes.find((h) => h.id === id)?.nombre ?? null } : undefined;
@@ -160,9 +169,12 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const [portadaSha, portadaExt] = ficha?.portada?.split(".") ?? [];
   const portada = portadaSha && activos.buscar(portadaSha, portadaExt) ? `/a/${ficha!.portada}` : null;
   if (ficha) log(`[ficha] el mundo se llama «${ficha.nombre}»${ficha.portada ? (portada ? `, portada ${portada}` : `; su portada ${ficha.portada} no está en este servidor (súbela al mundo): no la enseño`) : ""}`);
-  const fichaPublica = ficha ? { nombre: ficha.nombre, descripcion: ficha.descripcion, portada: portada ?? undefined } : {};
+  const fichaPublica = ficha ? { nombre: ficha.nombre, descripcion: ficha.descripcion, portada: portada ?? undefined, tema: tema ?? undefined } : {};
   if (o.aparicion) log(`[mundo] la gente aparece en el cuadrado de ${2 * o.aparicion.radio} m centrado en (${o.aparicion.x}, ${o.aparicion.z})`);
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, renovarPase: roles.renovar, activo: (h, ext) => activos.buscar(h, ext) !== null, medidas: (h, ext) => activos.medidas(h, ext), aventura: lector, agentes, externos: { verificar: puerta.verificar }, sinVoz: () => !roles.voz, aparicion: o.aparicion ?? null }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz)
+  // N10: digital goods' receipts, signed with a key derived from the world's secret (none without MOTOR_SECRET: no goods)
+  const recibos = crearRecibos(secret, dominios[0]?.trim() || "local");
+  if (recibos) log(`[bienes] los recibos de este mundo los firma ${recibos.emisor}`); else log("[bienes] sin MOTOR_SECRET este mundo no da bienes digitales (no tiene con qué firmar sus recibos)");
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, renovarPase: roles.renovar, activo: (h, ext) => activos.buscar(h, ext) !== null, medidas: (h, ext) => activos.medidas(h, ext), aventura: lector, agentes, externos: { verificar: puerta.verificar }, recibos: recibos ?? undefined, sinVoz: () => !roles.voz, aparicion: o.aparicion ?? null }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz)
   // H9: uploads (PUT /a/<sha256>.<ext>) by whoever may build; the page shows its guest token (I1) to say who it is
   const subidas = new Subidas({
     dir: o.subidas ?? null, activos, log, topesMB: o.subir?.topesMB, totalMB: o.subir?.totalMB,
@@ -173,6 +185,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       return { who: c?.who ?? { id: v.id, nombre: nombreDe(v.id) }, entity: c?.entity ?? -1 };
     },
     puede: (who) => puede(who, "construir"), // the same question every building intent asks (api.puede)
+    guardado: (hash, tipo) => optimizar.pedir(hash, tipo), // N22: its lighter copy, in the background
   });
 
   // the world as a zip (download / upload): see mundo-zip.ts; `apagar` is filled in below, once the loop exists
@@ -221,7 +234,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     if (method === "GET" && path === "/metrics") return json(res, 200, metrics());
     if (method === "GET" && path === "/sesiones") return json(res, 200, { schema: "numinia-engine/sesiones@1", carpeta: sesiones.dir, resumen: sesiones.resumen(), ahora: sesiones.ahora() });
     if (method === "GET" && path === "/metrics.prom") { res.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8", "cache-control": "no-store" }); return void res.end(toPrometheus(metrics())); }
-    if ((method === "GET" || method === "HEAD") && path.startsWith("/a/") && activos.servir(path, res, method === "HEAD", req.headers.range)) return; // H1: files by their sha256
+    if ((method === "GET" || method === "HEAD") && path.startsWith("/a/") && activos.servir(path, res, method === "HEAD", req.headers.range, String(req.headers["accept-encoding"] ?? ""), String(req.headers.accept ?? ""))) return; // H1: files by their sha256
     if ((method === "PUT" || method === "OPTIONS") && path.startsWith("/a/")) return subidas.atender(method, path, req, res); // H9: uploads
     if (agentesHttp.atender(method, path, req, res)) return; // ADR-080: numinia.com's panel manages the outside agents (pass-authenticated)
     if (copia.atender(method, path, req, res)) return; // the world as a zip
@@ -280,7 +293,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats);
     for (const c of wss.clients) c.terminate();
     wss.close(); http.close(); http.closeIdleConnections();
-    await Promise.all([sesiones.vaciar(), datos?.flush()]);
+    await Promise.all([sesiones.vaciar(), datos?.flush(), optimizar.parar()]);
   };
 
   return new Promise((ok, ko) => {
@@ -294,11 +307,11 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       log(`[instancia] ws://${o.host}:${port} · 20 Hz · huella de referencia ${hex(refHash)} (${REFERENCE.ticks} ticks, ${refMs} ms) · /health /metrics /sesiones · versión ${version}`);
       if (sesiones.dir) log(`[sesiones] cómo entra cada jugador: ${sesiones.dir}/sesiones-<día UTC>.jsonl (${KEEP_DAYS} días; npm run sesiones)`);
       ok({
-        port, inst, sesiones, datos, fingerprint: hex(refHash), metrics,
+        port, inst, sesiones, datos, fingerprint: hex(refHash), metrics, optimizar,
         close: () => new Promise<void>((done) => {
           stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); runtime.close();
           for (const c of wss.clients) c.terminate();
-          wss.close(); http.close(() => void Promise.all([sesiones.vaciar(), datos?.flush()]).then(() => done()));
+          wss.close(); http.close(() => void Promise.all([sesiones.vaciar(), datos?.flush(), optimizar.parar()]).then(() => done()));
         }),
       });
     });

@@ -1,0 +1,9 @@
+{
+  "name": "ndarray-pixels",
+  "version": "5.2.0-vacio",
+  "description": "Hueco vacío en lugar de ndarray-pixels: así @gltf-transform/functions no arrastra sharp ni libvips (LGPL). El motor no lee ni escribe píxeles al optimizar (packages/server/src/optimizar.ts).",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "exports": { ".": "./index.js" }
+}

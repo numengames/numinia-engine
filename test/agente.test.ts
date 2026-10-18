@@ -112,7 +112,7 @@ test("short orders are decided in code: «sígueme» follows, «quieta» stays; 
   assert.equal(lia.g.modo, "pasear", "an AI cannot command it");
   ana.decir("Lía, sígueme"); W.pump(HZ * 2);
   assert.equal(lia.g.modo, "seguir");
-  W.place(ana.s.entity, 15, 0); W.pump(HZ * 4);
+  W.place(ana.s.entity, 15, 0); W.pump(HZ * 11); // 1.5 m/s (J3): needs longer to close the gap than at 4 m/s
   const x = W.inst.sim.tf.cols.x[lia.c.entidad] / 65536;
   assert.ok(x > 10 && x < 14, `it followed her and kept ~2 m: x=${x.toFixed(2)}`);
   ana.decir("Lía, quieta"); W.pump(HZ);

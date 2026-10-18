@@ -1,0 +1,48 @@
+/* foto (N13): the photo mode's look — the house palette (tema.css variables, so a world's tema reaches it too). In photo
+   mode everything on the page but the world and this bar is hidden (visibility, so nothing moves under the canvas). */
+body.modo-foto > :not(canvas):not(#foto):not(.foto-filtros-svg) { visibility: hidden !important; }
+body.modo-foto canvas { cursor: grab; }
+body.modo-foto canvas:active { cursor: grabbing; }
+.foto-filtros-svg { position: absolute; width: 0; height: 0; overflow: hidden; }
+#foto[hidden], #foto [hidden] { display: none !important; }
+html body > #foto { zoom: 1 !important; } /* the live frame must match the PNG pixel for pixel: «Tamaño de la interfaz» does not scale it */
+#foto { position: fixed; inset: 0; z-index: 20; pointer-events: none; font-family: "Geist", system-ui, sans-serif; color: var(--n-texto, #F9EBDC); }
+#foto button { pointer-events: auto; min-height: 40px; padding: 8px 12px; border: 1px solid var(--n-linea, #3A332D); border-radius: var(--n-r-control, 6px);
+  background: var(--n-sup, rgba(30, 26, 23, .9)); color: var(--n-texto, #F9EBDC); font: inherit; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+#foto button[aria-pressed="true"] { background: var(--n-accion, #017C8D); border-color: var(--n-accion, #017C8D); color: var(--n-accion-tinta, #fff); }
+#foto button:focus-visible { outline: 3px solid var(--n-turquesa, #018EA1); outline-offset: 2px; }
+#foto .foto-ayuda { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); margin: 0; max-width: calc(100% - 24px); box-sizing: border-box;
+  padding: 6px 12px; border-radius: 8px; background: var(--n-sup, rgba(30, 26, 23, .9)); border: 1px solid var(--n-linea, #3A332D); font-size: 13px; text-align: center; }
+#foto .foto-ayuda.se-va { animation: foto-se-va 5s forwards; }
+@keyframes foto-se-va { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+#foto .foto-barra { position: absolute; left: 50%; bottom: calc(max(14px, env(safe-area-inset-bottom)) + var(--sobre-marco, 0px)); transform: translateX(-50%); display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 8px; width: max-content; max-width: calc(100% - 16px); pointer-events: none; }
+#foto .foto-filtros { display: flex; gap: 4px; padding: 4px; border-radius: 8px; background: var(--n-sup, rgba(30, 26, 23, .9)); border: 1px solid var(--n-linea, #3A332D); pointer-events: auto; }
+#foto .foto-filtros button { min-height: 34px; padding: 4px 10px; border: 0; background: transparent; }
+#foto .foto-disparar { width: 64px; height: 64px; justify-content: center; padding: 0; border-radius: 50% !important; border: 3px solid var(--n-texto, #F9EBDC) !important; background: var(--n-ambar, #EFA517) !important; color: var(--n-fondo, #14110F) !important; }
+#foto .foto-salir { width: 44px; justify-content: center; padding: 0; }
+/* the frame, live: the same proportions foto-nucleo.ts `marco` draws into the PNG */
+#foto-marco { position: absolute; inset: 0; box-sizing: border-box; border: var(--borde) solid var(--n-fondo, #14110F); border-bottom: 0; }
+#foto-marco::after { content: ""; position: absolute; left: calc(-1 * var(--borde)); right: calc(-1 * var(--borde)); bottom: 0; height: var(--banda); background: var(--n-fondo, #14110F); }
+#foto-marco .nombre, #foto-marco .fecha { position: absolute; z-index: 1; bottom: calc(var(--banda) / 2); transform: translateY(50%); line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#foto-marco .nombre { left: calc(var(--margen) - var(--borde) + var(--letra) * .5); max-width: 70%; font: var(--n-titulos-peso, 600) var(--letra) / 1 var(--n-titulos, "Geist", system-ui, sans-serif); text-transform: var(--n-titulos-mayus, none); color: var(--n-texto, #F9EBDC); }
+#foto-marco .nombre::before { content: ""; position: absolute; left: calc(var(--letra) * -.5); top: 5%; width: max(3px, calc(var(--letra) * .14)); height: 90%; background: var(--n-ambar, #EFA517); }
+#foto-marco .fecha { right: calc(var(--margen) - var(--borde)); font: 400 calc(var(--letra) * .62) / 1 "Geist Mono", ui-monospace, monospace; color: var(--n-texto2, #C4B5A6); }
+#foto.con-foto .foto-barra, #foto.con-foto .foto-ayuda, #foto.con-foto #foto-marco { display: none; } /* the picture made: only its card */
+#foto-destello { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+#foto-destello.ya { animation: foto-destello .35s ease-out; }
+@keyframes foto-destello { 0% { opacity: .7; } 100% { opacity: 0; } }
+/* the picture made: a card in the middle, its buttons under it */
+#foto .foto-hecha { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: auto; box-sizing: border-box; width: min(720px, calc(100% - 20px)); max-height: calc(100% - 20px); overflow: auto;
+  padding: 10px; border-radius: 8px; background: var(--n-sup, rgba(30, 26, 23, .94)); border: 1px solid var(--n-linea, #3A332D); display: flex; flex-direction: column; gap: 8px; }
+#foto .foto-hecha img { display: block; width: 100%; max-height: 62vh; object-fit: contain; border-radius: 6px; background: var(--n-fondo, #14110F); }
+#foto .foto-hecha .estado { margin: 0; font-family: "Geist Mono", ui-monospace, monospace; font-size: 12px; color: var(--n-verdemar, #A6DAD5); min-height: 1.3em; }
+#foto .foto-hecha .fila { display: flex; flex-wrap: wrap; gap: 6px; }
+#foto .foto-hecha .foto-compartir { background: var(--n-accion, #017C8D); border-color: var(--n-accion, #017C8D); color: var(--n-accion-tinta, #fff); }
+#foto .foto-enlace { pointer-events: auto; padding: 8px; border: 1px solid var(--n-linea, #3A332D); border-radius: 6px; background: var(--n-elev, #292420); color: var(--n-texto, #F9EBDC); font: 12px "Geist Mono", ui-monospace, monospace; }
+@media (max-width: 520px) {
+  #foto .foto-barra { gap: 6px; }
+  #foto .foto-filtros button { padding: 4px 7px; font-size: 12px; }
+  #foto .foto-disparar { width: 58px; height: 58px; }
+}
+html.menos-movimiento #foto .foto-ayuda.se-va { animation: none; }

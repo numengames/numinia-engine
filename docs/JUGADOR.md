@@ -42,6 +42,8 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 | Elegir / cambiar avatar | Escoger cuerpo y nombre | ciudad | Base | menú | M, G | bajo | I1 |
 | Gestos y emotes | Saludar, bailar con una tecla | motor | Base | tecla / botón / gesto | M, C | bajo | J7 (ejemplo) |
 | Multitud lejana | Cientos de cuerpos baratos ◐ | motor | Base | sí | render instanciado | medio | A1, A4 |
+| Modo foto | Una foto bonita del mundo para compartir ✔ (N13: P o el botón de la cámara; la interfaz se esconde, cámara libre a 12 m de ti, filtros Ámbar / Verdemar / Tinta dentro de la paleta, marco con el nombre del MUNDO; PNG a 2×: Compartir (Web Share, con el archivo) / Guardar / Copiar imagen / Copiar enlace `#foto=x,y,z,rumbo,inclinación,distancia`: quien lo abre recibe ese sitio como destino y la cámara mirando hacia él, y al llegar mira como la foto) | motor | Base | sí / sí / no en VR | P, cámara | ninguno hasta pulsar P | N13 |
+| Ir con alguien | Ir junto a quien está conectado ahora ✔ (N16: «Gente» con L o el botón de personas, o `/ir <nombre>` en el chat; te lleva un haz de luz —tres variantes al azar— y apareces a su lado; un viaje cada 10 s; `/encontrable no` para que no vengan; dueños y quien dirige lo apagan con `/teletransporte no`; con `aparicionFoto` en el mundo, el enlace de una foto te pone en su sitio) | motor | Base | sí / sí / `/ir` en VR | M, servidor mueve | ninguno (la luz solo 1,4 s; apagada en el nivel D) | N16 |
 
 ## 3. Comunicarse
 
@@ -81,17 +83,47 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 | Eventos programados | Algo pasa a una hora | ciudad | Mejorado | — | S, calendario | bajo | Frontera, sin fila |
 
 Libro de misiones (J5, rama `misiones`): la máquina, los formatos y los paneles son del motor; las misiones, de la
-aventura (`AVENTURA_DIR`). Tecla J o botón «Misiones»: activas con sus pasos (✓ hecho, → ahora), «Seguir» (columna de
-luz sobre el objetivo y el mapa lo marca), «Abandonar», y las hechas con su insignia. Arriba, una línea con el paso que
-sigues y a cuántos metros está. E (o un clic, o el botón en el móvil) habla con las personas y coge las cosas. Quien construye, cerca de un hueco (U12),
+aventura (`AVENTURA_DIR`). Tecla J o botón «Misiones» (y «Cerrar» dentro): activas con sus pasos, cada uno en uno de los
+tres estados de la especificación de la TRG26 (U14): hecho (check verde, texto atenuado), ahora (un punto del color de
+énfasis del mundo sobre una franja suya, el texto entero y dónde está; en un grupo, todos los que faltan del bloque) y
+bloqueado (candado, texto atenuado: va después del bloque en curso); el lector de pantalla oye «Hecho», «Ahora» o
+«Bloqueado». Se abre solo al aceptar una misión, en cuanto se cierra la conversación que te la dio (escritorio y móvil;
+en VR no: su panel lleva las mismas marcas ✓ → □), y sin quitarte el teclado: sigues andando. «Seguir» (columna de luz
+sobre el objetivo y el mapa lo marca), «Abandonar», y las hechas con su check y su insignia. Arriba, una línea con el
+paso que sigues y a cuántos metros está. Al conseguir algo (te lo dan o lo coges), el aviso del centro lleva el icono de
+objeto; cada paso hecho suena con tres notas cortas (al volumen de «Efectos»). E (o un clic, o el botón en el móvil)
+habla con las personas y coge las cosas. Quien construye, cerca de un hueco (U12),
 pone ahí su obra con E o pinchándolo: se abre el selector de ficheros.
+
+Marcas (U14 (4)): sobre cada persona flota su nombre y, debajo, más pequeño, su oficio («Cosimo» / «Carpintero»).
+Encima, una **«!» ámbar** si tiene algo para ti ahora (te ofrece una misión o te toca un paso con ella) y un **«✓» verde**
+si ya hiciste lo suyo y no te queda nada con ella; sin marca, nada que hacer ahí por ahora. Una cosa de misión lleva
+nombre y «!» solo mientras toca cogerla o usarla. Las marcas son tuyas: las decide el servidor con tu progreso y otro
+jugador ve las suyas. El minimapa y el mapa grande las pintan igual (disco ámbar con «!», disco verde con «✓», encima de
+la estrella del objetivo), y la lista del mapa dice el oficio junto al nombre; la conversación, también.
+
+Momentos y esperas (U14 (5)): al hacer ciertos pasos ves un momento que es **solo tuyo** — en la TRG26, al darle las
+tres piezas, Leonardo se pone las alas, sube, da una vuelta y aterriza en su sitio (unos 9 s, con sus líneas en el aviso
+del centro, que el lector de pantalla también lee, y un par de sonidos cortos). Los demás jugadores lo siguen viendo en su
+sitio y pueden hacer su misión a la vez; si sales y vuelves no se repite. Algún paso **espera** unos segundos antes de
+poder hacerse (el cofre, hasta que Leonardo aterriza): mientras, sale con candado y la cuenta atrás en el libro y en la
+línea de arriba («· en 7 s»), sin «!» ni objetivo en el mapa; si lo intentas antes, el aviso dice cuánto falta. Cuando
+se abre, sale su «!». En VR la cámara no se mueve: el momento pasa delante de ti.
+
+Al terminar una misión (U14 (6)), arriba en el centro aparece unos 4 segundos el cartel **«Misión completada»** con el
+título de la misión y la insignia ganada, con los colores y la letra de títulos del mundo, y suena un acorde corto tras
+las tres notas del paso (al volumen de «Efectos»; a 0, en silencio). No quita el teclado ni el ratón: sigues andando; el
+lector de pantalla lo oye una vez (el aviso pequeño del centro se aparta mientras se ve). La insignia queda en tu libro y
+en tu ficha (I); si tu navegador tiene identidad, queda además apuntada una vez en el mundo, para que la organización sepa
+a quién se la dio. Una cosa de misión puede verse distinta para ti cuando ya la usaste (el cofre de la TRG26, abierto
+solo para quien lo abrió): los demás la siguen viendo como antes y abren la suya.
 
 ## 6. Orientarse
 
 | Cosa | Qué es | Capa | Nivel | Escritorio / móvil / VR | Primitivas | Coste móvil | Fila |
 |---|---|---|---|---|---|---|---|
-| Minimapa | Vista pequeña de lo cercano con marcadores ◐ (esquina; norte arriba o gira con la cámara; en VR falta la muñeca) | motor | Base | esquina / esquina / muñeca | P, datos del servidor | medio (redibujar solo al cambiar) | J5 |
-| Mapa grande | El mundo entero ✔ (tecla M: vista cenital generada, destinos, lista HTML con direcciones) | motor | Base | panel | P | bajo | J5 |
+| Minimapa | Vista pequeña de lo cercano con marcadores ◐ (esquina; norte arriba o gira con la cámara; en VR falta la muñeca; un mundo con `mapa.corte` ve de fondo la planta cortada, U14) | motor | Base | esquina / esquina / muñeca | P, datos del servidor | medio (redibujar solo al cambiar) | J5 |
+| Mapa grande | El mundo entero ✔ (tecla M: vista cenital generada, destinos, lista HTML con direcciones; dentro de un edificio, su planta si el mundo dice `mapa.corte`, U14) | motor | Base | panel | P | bajo | J5 |
 | Brújula y marcadores | Dirección hacia un objetivo ✔ (objetivos y destino pegados al borde del minimapa; columna de luz en el mundo) | motor | Base | sí | P | bajo | J5 |
 | Amigos en el mapa | Ver dónde están los míos | motor | Mejorado | sí | M, G | bajo | F1 |
 

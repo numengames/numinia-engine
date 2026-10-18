@@ -31,18 +31,24 @@ const abrir = async () => {
   return p;
 };
 const yo = (p) => p.evaluate(() => globalThis.__numinia.session.selfPosition(1));
-async function caminar(p, x, z, cerca = 1.0, maxMs = 30000) {
+async function caminar(p, x, z, cerca = 1.0, maxMs = 60000) {
   await p.bringToFront();
   const t = Date.now();
-  let d = Infinity;
+  let d = Infinity, antes = null, lado = 0;
   while (Date.now() - t < maxMs) {
     const me = await yo(p), dx = x - me.x, dz = z - me.z;
     d = Math.hypot(dx, dz);
     if (d <= cerca) break;
+    // stuck against something: step aside, alternating sides, and try again
+    if (antes && Math.hypot(me.x - antes.x, me.z - antes.z) < 0.15) {
+      const k = Math.abs(dx) > Math.abs(dz) ? (lado++ % 2 ? "KeyW" : "KeyS") : (lado++ % 2 ? "KeyA" : "KeyD");
+      await p.keyboard.down(k); await p.waitForTimeout(1500); await p.keyboard.up(k);
+    }
+    antes = me;
     const held = [];
     if (Math.abs(dx) > cerca * 0.5) held.push(dx > 0 ? "KeyD" : "KeyA");
     if (Math.abs(dz) > cerca * 0.5) held.push(dz > 0 ? "KeyS" : "KeyW");
-    const ms = Math.max(100, Math.min(1500, ((Math.max(Math.abs(dx), Math.abs(dz)) - cerca * 0.4) / 4) * 1000));
+    const ms = Math.max(100, Math.min(2500, ((Math.max(Math.abs(dx), Math.abs(dz)) - cerca * 0.4) / 1.5) * 1000)); // walking is 1.5 m/s (#24)
     for (const k of held) await p.keyboard.down(k);
     await p.waitForTimeout(ms);
     for (const k of held) await p.keyboard.up(k);

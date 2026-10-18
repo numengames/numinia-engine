@@ -7,6 +7,8 @@
 // hand) is view.pesca (packages/render/src/pesca.ts). Everything asked goes through the controller
 // (features/pesca/client.ts): the server decides. No key fires while typing (escribiendo).
 import { escribiendo } from "./escribiendo.ts";
+import { montarPescaManos } from "./pesca-vr.ts"; // N4: the rod in your hand in VR, and a gamepad
+import { consejo } from "../../features/pesca/client.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type Estado = { fase: "nada" | "espera" | "mordisqueo" | "picada" | "pelea"; sitio: string; desde: number; ventana: number; pez: string; tension: number; progreso: number; arrancada: "no" | "aviso" | "si"; recogiendo: boolean; aviso: string; ultimo: { pez: string; cm: number; rareza: string; total: number } | null; cesta: { peces: number; mejor: string; mejorCm: number } };
@@ -14,9 +16,10 @@ type Sitio = { id: string; nombre: string; x: number; y: number; z: number; radi
 type Flotador = { quien: number; x: number; y: number; z: number };
 type Captura = { quien: number; pez: string; cm: number; rareza: string; desde: number };
 type Que = "estado" | "flotadores" | "sitios" | "capturas";
-type Pesca = { estado(): Readonly<Estado>; sitios(): Sitio[]; flotadores(): Flotador[]; capturas(): Captura[]; recoger(activo: boolean): Res; soltar(): Res; alCambiar(fn: (que: Que) => void): () => void };
-type Vista = { pesca: { sitios(l: Sitio[]): void; flotadores(l: Flotador[], yo: number): void; capturas(l: Captura[], yo: number): void; estado(e: { fase: Estado["fase"]; desde: number; tension: number; progreso: number; arrancada: Estado["arrancada"] }): void } };
-type Sesion = { entity: number };
+type Pesca = { estado(): Readonly<Estado>; sitios(): Sitio[]; flotadores(): Flotador[]; capturas(): Captura[]; lanzar(sitio?: string): Res; recoger(activo: boolean): Res; pulsar(): Res; soltar(): Res; alCambiar(fn: (que: Que) => void): () => void };
+type Manos = Parameters<typeof montarPescaManos>[0];
+type Vista = Manos["view"] & { pesca: Manos["view"]["pesca"] & { sitios(l: Sitio[]): void; flotadores(l: Flotador[], yo: number): void; capturas(l: Captura[], yo: number): void; estado(e: { fase: Estado["fase"]; desde: number; tension: number; progreso: number; arrancada: Estado["arrancada"]; texto?: string }): void } };
+type Sesion = { entity: number } & Manos["session"];
 
 /** How long the result panel stays (ms) after a catch or an escape. */
 export const RESULTADO_MS = 4000;
@@ -71,7 +74,7 @@ function sonar(que: "exito" | "fallo", ctx: () => AudioContext | null, ajuste: (
 }
 
 /** `ajuste` reads a setting (main.ts passes leerAjuste: importing it here would split the settings menu out of the start bundle). */
-export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud: HTMLElement; ajuste?: (id: string) => unknown }) {
+export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud: HTMLElement; ajuste?: (id: string) => unknown; interaccion?: () => Manos["interaccion"] }) {
   const ajuste = o.ajuste ?? (() => undefined);
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const tactil = matchMedia("(pointer: coarse)").matches;
@@ -84,7 +87,7 @@ export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud
   <div class="barra progreso" role="progressbar" aria-label="Pez acercado" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
 </div>
 <div class="fila"><button id="pesca-recoger" type="button" aria-pressed="false">Recoger</button><button id="pesca-soltar" type="button">Soltar</button></div>
-<p class="pista">${tactil ? "Mantén «Recoger» para tirar; suelta para que descanse el sedal" : "Mantén F para recoger · X suelta la caña"}</p>`;
+<p class="pista"></p>`;
   const que = hud.querySelector(".que") as HTMLElement, barras = hud.querySelector(".barras") as HTMLElement, fila = hud.querySelector(".fila") as HTMLElement, pista = hud.querySelector(".pista") as HTMLElement;
   const resultado = hud.querySelector(".resultado") as HTMLElement, titulo = resultado.querySelector(".titulo") as HTMLElement, pezEl = resultado.querySelector(".pez") as HTMLElement, nota = resultado.querySelector(".nota") as HTMLElement;
   const tension = hud.querySelector(".barra.tension") as HTMLElement, progreso = hud.querySelector(".barra.progreso") as HTMLElement;
@@ -94,6 +97,19 @@ export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud
   let audio: AudioContext | null = null;
   const contexto = () => { try { return (audio ??= new AudioContext()); } catch { return null; } };
 
+  // N4 on a phone: the HUD leaves the right column free (the action buttons: «Saltar», the touch bar's «Recoger»…)
+  const hacerSitio = () => {
+    const a = document.getElementById("acciones")?.getBoundingClientRect();
+    const libre = a && a.width > 0 ? Math.max(0, innerWidth - a.left) + 8 : 0;
+    if (!libre || innerWidth - libre < 240) { hud.style.left = hud.style.right = hud.style.width = hud.style.transform = ""; return; }
+    Object.assign(hud.style, { left: "8px", right: `${Math.round(libre)}px`, width: "auto", transform: "none" });
+  };
+  addEventListener("resize", () => { if (tactil && !hud.hidden) hacerSitio(); });
+  // the hint under the buttons follows what you have in your hands: touch, a gamepad, or the keyboard
+  const hayMando = () => { try { return [...(navigator.getGamepads?.() ?? [])].some((g) => !!g?.connected); } catch { return false; } };
+  const pistaDe = () => tactil ? "Mantén «Recoger» para tirar; suelta para que descanse el sedal"
+    : hayMando() ? "Mantén A (o RT) para recoger · B suelta la caña" : "Mantén F para recoger · X suelta la caña";
+  addEventListener("gamepadconnected", () => pintar()); addEventListener("gamepaddisconnected", () => pintar());
   let fase: Estado["fase"] = "nada", arrancada: Estado["arrancada"] = "no", manteniendo = false, resultadoHasta = 0, temporizador: ReturnType<typeof setTimeout> | null = null;
   const mostrarResultado = (clase: "pescado" | "escapado", t: string, p: string, n: string) => {
     resultado.className = `resultado ${clase}`; titulo.textContent = t; pezEl.textContent = p; nota.textContent = n;
@@ -119,18 +135,21 @@ export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud
     }
     const pescando = e.fase !== "nada", conResultado = !pescando && performance.now() < resultadoHasta;
     hud.hidden = !pescando && !conResultado;
+    if (tactil && !hud.hidden) hacerSitio();
     resultado.hidden = !conResultado;
     que.hidden = !pescando; fila.hidden = !pescando; pista.hidden = !pescando;
     if (e.arrancada === "aviso" && arrancada !== "aviso") vibrar(30);
     arrancada = e.arrancada;
-    que.textContent = TEXTO[e.fase].replace("{pez}", e.pez);
+    const texto = consejo(e); // N4: what to do now, not just the phase («¡Afloja, que se rompe el sedal!»)
+    que.textContent = texto || TEXTO[e.fase].replace("{pez}", e.pez);
+    pista.textContent = pistaDe();
     que.classList.toggle("picada", e.fase === "picada");
     barras.hidden = e.fase !== "pelea";
     barra(tension, e.tension); barra(progreso, e.progreso);
     tension.classList.toggle("alta", e.tension >= 80);
     tension.classList.toggle("arrancada", e.arrancada !== "no");
     recoger.setAttribute("aria-pressed", String(e.recogiendo));
-    o.view.pesca.estado({ fase: e.fase, desde: e.desde, tension: e.tension, progreso: e.progreso, arrancada: e.arrancada });
+    o.view.pesca.estado({ fase: e.fase, desde: e.desde, tension: e.tension, progreso: e.progreso, arrancada: e.arrancada, texto });
   };
   const yo = () => o.session.entity;
   o.pesca.alCambiar((que) => {
@@ -158,5 +177,6 @@ export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud
   });
   addEventListener("keyup", (e) => { if (e.code === "KeyF" && manteniendo) { manteniendo = false; if (o.pesca.estado().fase !== "nada") o.pesca.recoger(false); } });
   addEventListener("blur", () => { if (manteniendo) { manteniendo = false; if (o.pesca.estado().fase !== "nada") o.pesca.recoger(false); } });
-  return { pintar };
+  const manos = montarPescaManos({ pesca: o.pesca, view: o.view, session: o.session, get interaccion() { return o.interaccion?.(); } });
+  return { pintar, manos };
 }

@@ -5,11 +5,17 @@
    Layout (Pablo, 16-10): top right a bar of icon buttons, the map under it, the quests under the map. */
 @font-face { font-family: "Geist"; src: url("/fuentes/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
 @font-face { font-family: "Geist Mono"; src: url("/fuentes/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+/* a world's tema may pick it for its titles (tema-mundo.ts); a browser fetches a face only when something uses it */
+@font-face { font-family: "Bebas Neue"; src: url("/fuentes/BebasNeue-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 :root {
   --n-fondo: #14110F; --n-sup: rgba(30, 26, 23, .9); --n-elev: #292420; --n-texto: #F9EBDC; --n-texto2: #C4B5A6;
   --n-linea: #3A332D; --n-turquesa: #018EA1; --n-accion: #017C8D; --n-accion-h: #016E7D; --n-ambar: #EFA517;
   --n-verdemar: #A6DAD5; --n-grana: #D33440; --n-grana-h: #B02330;
+  --n-hecho: #8FC46B; /* U14 (3): a done step's check, green as the TRG26 spec asks (the house «poco común»); on a light tema surface, darker (tema-mundo.ts) */
   --mini: min(150px, 30vmin);
+  /* what a world's tema can change besides the colours (ficha@1 `tema`): these values ARE the house look */
+  --n-titulos: "Geist", system-ui, sans-serif; --n-titulos-peso: 600; --n-titulos-espacio: -.01em; --n-titulos-escala: 1;
+  --n-titulos-sombra: none; --n-titulos-mayus: none; --n-r-control: 6px; --n-accion-tinta: #fff;
 }
 html, body { font-family: "Geist", system-ui, sans-serif; }
 
@@ -20,8 +26,16 @@ html, body { font-family: "Geist", system-ui, sans-serif; }
 }
 #hud { font-family: "Geist Mono", ui-monospace, monospace; font-size: 12px; color: var(--n-texto2) !important; }
 #hud b { color: var(--n-verdemar); }
-#panel-construir h2, #libro h2, #dialogo h2, #ajustes h2, #panel-entorno h2, .panel-j5 h2 { color: var(--n-texto) !important; font-weight: 600; letter-spacing: -.01em; }
+#panel-construir h2, #libro h2, #dialogo h2, #ajustes h2, #panel-entorno h2, .panel-j5 h2 {
+  color: var(--n-texto) !important; font-family: var(--n-titulos); font-weight: var(--n-titulos-peso); letter-spacing: var(--n-titulos-espacio);
+  text-shadow: var(--n-titulos-sombra); text-transform: var(--n-titulos-mayus);
+}
 #panel-construir h3, #libro h3, #panel-entorno h3 { color: var(--n-texto) !important; }
+/* only when a world's tema picks a title face: the sizes grow with it (a condensed face reads small) */
+[data-tema-titulos] :is(#libro, #dialogo, #panel-construir, #panel-entorno) h2 { font-size: calc(15px * var(--n-titulos-escala)) !important; line-height: 1.1; }
+[data-tema-titulos] #ajustes h2 { font-size: calc(1.25em * var(--n-titulos-escala)) !important; }
+[data-tema-titulos] .panel-j5 h2 { font-size: calc(16px * var(--n-titulos-escala)) !important; }
+[data-tema-titulos] #libro h3 { font-family: var(--n-titulos); font-weight: var(--n-titulos-peso); letter-spacing: var(--n-titulos-espacio); text-transform: var(--n-titulos-mayus); font-size: calc(14px * var(--n-titulos-escala)) !important; }
 #panel-construir legend, #ajustes legend, #panel-entorno legend, #panel-construir > p:not(.estado) {
   font-family: "Geist Mono", ui-monospace, monospace; font-size: .7rem; letter-spacing: .15em; text-transform: uppercase; color: var(--n-verdemar) !important;
 }
@@ -31,11 +45,42 @@ html, body { font-family: "Geist", system-ui, sans-serif; }
 #chat-lista .aviso { color: var(--n-ambar) !important; }
 #mision-seguida { color: var(--n-ambar) !important; }
 #interactuar { color: var(--n-texto) !important; }
-#mision-nota { background: var(--n-ambar) !important; color: var(--n-fondo) !important; border-radius: 8px !important; }
+#mision-nota { z-index: 6; background: var(--n-ambar) !important; color: var(--n-enfasis-tinta, var(--n-fondo)) !important; border-radius: 8px !important; } /* over the open book (a phone) */
+#mision-nota .objeto { display: inline-block; vertical-align: -4px; margin-right: 6px; } /* «Has recibido: …»: the item icon */
+/* U14 (6): «Misión completada» — a banner high in the middle (over nothing you click: pointer-events none), in the
+   world's look: its title face, uppercase and offset shadow when a tema sets them (trgcon), its emphasis colour on top.
+   Always in the page as a live region; empty = no box at all */
+#mision-completada { position: fixed; top: max(58px, 11%); left: 50%; z-index: 8; transform: translate(-50%, -8px); width: max-content; max-width: min(460px, calc(100% - 32px)); box-sizing: border-box; text-align: center; pointer-events: none; opacity: 0; transition: opacity .3s ease, transform .3s ease; }
+#mision-completada:not(:empty) { padding: 12px 28px 14px; background: var(--n-sup); color: var(--n-texto); border: 1px solid var(--n-linea); border-top: 3px solid var(--n-ambar); border-radius: 8px; }
+#mision-completada.visible { opacity: 1; transform: translate(-50%, 0); }
+#mision-completada p { margin: 0; }
+#mision-completada .rotulo { font-family: var(--n-titulos); font-weight: var(--n-titulos-peso); letter-spacing: var(--n-titulos-espacio); text-transform: var(--n-titulos-mayus); text-shadow: var(--n-titulos-sombra); font-size: calc(22px * var(--n-titulos-escala)); line-height: 1.05; color: var(--n-ambar); }
+#mision-completada .titulo { margin-top: 4px; font-size: 15px; font-weight: 600; }
+#mision-completada .insignia { margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--n-verdemar); }
+#mision-completada .insignia::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--n-ambar); box-shadow: 0 0 0 2px var(--n-sup), 0 0 0 3px var(--n-ambar); } /* a small seal (no glyph: the house icons have none) */
 
-/* ---- controls: ghost by default, ink-on-paper when active, 6px ---- */
+/* ---- the quest book's steps (U14 (3), the TRG26 spec's states): done = a green check, dimmed; now = a dot in the
+   world's emphasis colour on a faint band of it, at full strength; locked = a lock, dimmed. Colours are variables, so a
+   world's tema dresses them too ---- */
+#libro .cabeza { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
+#libro .cabeza h2 { margin: 0 !important; }
+#libro .cabeza .cerrar { padding: 3px 10px !important; font-size: 12px; }
+#libro ol.pasos, #libro ul.hechas { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+#libro li.paso { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 8px; align-items: start; padding: 3px 8px; border-radius: 6px; }
+#libro li.paso > .marca { grid-column: 1; height: 1.45em; display: flex; align-items: center; justify-content: center; }
+#libro li.paso > .texto, #libro li.paso > .donde { grid-column: 2; min-width: 0; }
+#libro li.paso > .donde { font-size: 12px; font-weight: 400; color: var(--n-verdemar); }
+#libro li.paso.hecho { color: var(--n-texto2); }
+#libro li.paso.hecho > .texto { opacity: .85; }
+#libro li.paso.hecho > .marca { color: var(--n-hecho); }
+#libro li.paso.ahora { color: var(--n-texto); font-weight: 600; background: color-mix(in srgb, var(--n-ambar) 14%, transparent); }
+#libro li.paso.ahora > .marca::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--n-ambar); outline: 2px solid color-mix(in srgb, var(--n-ambar) 45%, transparent); outline-offset: 2px; }
+#libro li.paso.bloqueado { color: var(--n-texto2); }
+#libro li.paso.bloqueado > .texto, #libro li.paso.bloqueado > .marca { opacity: .75; } /* dimmed, still ≥ 4.5:1 on the house surface */
+
+/* ---- controls: ghost by default, ink-on-paper when active, 6px (a world's tema may round them: --n-r-control) ---- */
 #panel-construir button, #libro button, #dialogo button:not(.adios), #ajustes button, #panel-entorno button, #minimapa button, .panel-j5 button, #barra-objeto button, #barra-arriba button {
-  background: var(--n-elev) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea) !important; border-radius: 6px !important; font-family: inherit;
+  background: var(--n-elev) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea) !important; border-radius: var(--n-r-control) !important; font-family: inherit;
 }
 #panel-construir button:hover, #libro button:hover, #dialogo button:not(.adios):hover, #ajustes button:hover, #panel-entorno button:hover, #minimapa button:hover, #barra-objeto button:hover, #barra-arriba button:hover { border-color: var(--n-texto2) !important; }
 #panel-construir button[aria-pressed="true"], #minimapa button[aria-pressed="true"], #barra-objeto button[aria-pressed="true"], #barra-arriba button[aria-pressed="true"], #panel-entorno button[aria-pressed="true"] {
@@ -46,7 +91,7 @@ html, body { font-family: "Geist", system-ui, sans-serif; }
 #barra-objeto button.peligro:hover, #panel-construir button.peligro:hover { background: var(--n-grana-h) !important; }
 #panel-construir input, #panel-construir select, #ajustes select, #panel-entorno select, #chat-texto { background: var(--n-fondo) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea) !important; border-radius: 6px !important; }
 #panel-construir input[type=checkbox], #panel-construir input[type=range], #ajustes input[type=checkbox], #ajustes input[type=range], #panel-entorno input[type=range], #panel-entorno input[type=checkbox] { accent-color: var(--n-turquesa) !important; }
-#chat-canal, #chat-boton { background: var(--n-accion) !important; color: #fff !important; border-radius: 6px !important; }
+#chat-canal, #chat-boton { background: var(--n-accion) !important; color: var(--n-accion-tinta) !important; border-radius: var(--n-r-control) !important; }
 :focus-visible { outline: 2px solid var(--n-turquesa) !important; outline-offset: 2px !important; }
 .icono { display: block; flex: none; }
 button .icono + span, button span + .icono { margin-left: 6px; }
@@ -59,7 +104,7 @@ button .icono + span, button span + .icono { margin-left: 6px; }
 #barra-arriba > [hidden] { display: none !important; } /* beats the display above: AR/VR and full screen hide with the hidden attribute */
 #barra-arriba > #construir { display: inline-flex !important; }
 #barra-arriba > #construir[data-oculto] { display: none !important; }
-#barra-arriba > #construir[aria-expanded="true"] { background: var(--n-accion) !important; color: #fff !important; border-color: var(--n-accion) !important; }
+#barra-arriba > #construir[aria-expanded="true"] { background: var(--n-accion) !important; color: var(--n-accion-tinta) !important; border-color: var(--n-accion) !important; }
 #barra-arriba > #microfono[aria-pressed="true"] { background: var(--n-grana) !important; color: #fff !important; border-color: var(--n-grana) !important; }
 #microfono .nivel { margin-left: 0 !important; }
 
@@ -67,7 +112,7 @@ button .icono + span, button span + .icono { margin-left: 6px; }
 body #minimapa { top: 64px !important; bottom: auto !important; right: 10px !important; }
 body #minimapa canvas { border: 1px solid var(--n-linea); box-shadow: none !important; }
 body #misiones { left: auto !important; right: 10px !important; bottom: auto !important; top: calc(64px + var(--mini) + 46px) !important; display: inline-flex; align-items: center;
-  background: var(--n-sup) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea) !important; border-radius: 6px !important; }
+  background: var(--n-sup) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea) !important; border-radius: var(--n-r-control) !important; }
 body #misiones[aria-expanded="true"] { background: var(--n-texto) !important; color: var(--n-fondo) !important; }
 body #libro { left: auto !important; right: 10px !important; top: calc(64px + var(--mini) + 92px) !important; bottom: auto !important; max-height: calc(100% - var(--mini) - 170px) !important; }
 body #mision-seguida { left: auto !important; right: 10px !important; top: calc(64px + var(--mini) + 92px) !important; max-width: min(320px, calc(100% - 20px)) !important; }
@@ -80,3 +125,70 @@ body #panel-entorno { top: 112px !important; }
 @media (min-width: 900px) { #help { max-width: calc(100vw - 440px) !important; } }
 #ajustes .version-motor { margin: 10px 0 0; font: 12px "Geist Mono", ui-monospace, monospace; color: var(--n-texto2); text-align: right; user-select: all; }
 #ajustes .version-motor:empty { display: none; }
+
+/* N6: the Game Director — the narrator's line (everyone), the summons card, and the «Dirigir» panel (who directs) */
+#narrador { position: fixed; top: max(58px, 11%); left: 50%; z-index: 8; transform: translate(-50%, -8px); width: max-content; max-width: min(560px, calc(100% - 32px)); box-sizing: border-box; text-align: center; pointer-events: none; opacity: 0; transition: opacity .4s ease, transform .4s ease; }
+#narrador:not(:empty) { padding: 12px 24px 12px; background: var(--n-sup); color: var(--n-texto); border: 1px solid var(--n-linea); border-left: 3px solid var(--n-ambar); border-radius: 8px; }
+#narrador.visible { opacity: 1; transform: translate(-50%, 0); }
+#narrador p { margin: 0; }
+#narrador .texto { font-size: 17px; line-height: 1.4; font-style: italic; }
+#narrador .quien { margin-top: 6px; font-size: 12px; color: var(--n-texto2); }
+#convocatorias { position: fixed; left: 50%; bottom: max(150px, 24%); z-index: 8; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; width: min(420px, calc(100% - 32px)); }
+#convocatorias .convocatoria { padding: 12px 14px; background: var(--n-sup); color: var(--n-texto); border: 1px solid var(--n-linea); border-top: 3px solid var(--n-verdemar); border-radius: 8px; }
+#convocatorias p { margin: 0 0 6px; }
+#convocatorias .de { font-weight: 600; }
+#convocatorias .botones, #panel-director .botones { display: flex; gap: 8px; flex-wrap: wrap; }
+#convocatorias button, #panel-director button { min-height: 44px; min-width: 44px; padding: 0 14px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-sup); color: var(--n-texto); font: 600 13px "Geist", system-ui, sans-serif; cursor: pointer; }
+#convocatorias button.si { border-color: var(--n-verdemar); }
+#convocatorias button:focus-visible, #panel-director button:focus-visible, #panel-director input:focus-visible { outline: 3px solid #ffd27a; outline-offset: 1px; }
+#panel-director { position: fixed; top: 64px; left: 10px; z-index: 7; width: min(320px, calc(100% - 20px)); max-height: calc(100% - 140px); overflow: auto; box-sizing: border-box; padding: 10px 12px 12px; background: var(--n-sup); color: var(--n-texto); border: 1px solid var(--n-linea); border-radius: 10px; font: 13px/1.45 system-ui, sans-serif; }
+#panel-director[hidden] { display: none; }
+#panel-director header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+#panel-director h2 { margin: 0; font-size: 16px; }
+#panel-director h3 { margin: 12px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--n-texto2); }
+#panel-director .escenas { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+#panel-director .escenas button[aria-pressed="true"] { border-color: var(--n-ambar); box-shadow: inset 0 0 0 1px var(--n-ambar); }
+#panel-director .actual, #panel-director .nota, #panel-director .respuestas { margin: 6px 0 0; color: var(--n-texto2); }
+#panel-director .dial { display: grid; grid-template-columns: 7.5em 1fr; align-items: center; gap: 8px; min-height: 44px; }
+#panel-director input[type="text"] { width: 100%; box-sizing: border-box; min-height: 44px; margin: 4px 0 8px; padding: 0 10px; border: 1px solid var(--n-linea); border-radius: 6px; background: rgba(0,0,0,.25); color: var(--n-texto); font: inherit; }
+#panel-director input[type="range"] { width: 100%; min-height: 44px; }
+@media (prefers-reduced-motion: reduce) { #narrador { transition: none; } }
+/* N16: «Gente» — who is connected now, and «Ir» */
+#gente .gente-lista { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; max-height: min(50vh, 420px); overflow: auto; }
+#gente .gente-lista li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 4px 4px 8px; border: 1px solid var(--n-linea); border-radius: 6px; }
+#gente .gente-lista li.vacio { border: 0; color: var(--n-texto2); padding: 4px 0; }
+#gente .gente-lista .nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#gente .opcion { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+#gente .opcion[hidden] { display: none; }
+#gente .opcion input { width: 20px; height: 20px; }
+#gente .nota, #gente .estado { color: var(--n-texto2); margin: 4px 0; }
+#gente .gente-lista button { min-height: 44px; min-width: 64px; }
+
+/* dados v1: the dice card (everyone near, when someone rolls) and the dice buttons beside a tower */
+#dados-carta { position: fixed; top: max(150px, 24%); left: 50%; z-index: 7; transform: translate(-50%, -10px); min-width: 180px; max-width: min(520px, calc(100% - 32px)); box-sizing: border-box; padding: 10px 18px 12px; text-align: center; pointer-events: none; opacity: 0; transition: opacity .3s ease, transform .3s ease; background: var(--n-sup); color: var(--n-texto); border: 1px solid var(--n-linea); border-top: 3px solid var(--n-ambar); border-radius: 8px; }
+#dados-carta:empty { display: none; }
+#dados-carta.visible { opacity: 1; transform: translate(-50%, 0); }
+#dados-carta p { margin: 0; }
+#dados-carta .quien { font-size: 12px; color: var(--n-texto2); }
+#dados-carta .total { margin-top: 6px; font-size: 15px; font-weight: 600; }
+#dados-carta .fila { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; }
+#dados-carta .dado { display: inline-grid; place-items: center; width: 42px; height: 42px; font: 700 20px/1 var(--n-mono, ui-monospace, monospace); color: #1b1410; background: var(--n-ambar, #e0a84a); border-radius: 7px; box-shadow: inset 0 -3px 0 rgba(0,0,0,.25); }
+#dados-carta .dado.d20, #dados-carta .dado.d10, #dados-carta .dado.d100 { clip-path: polygon(50% 0, 100% 28%, 100% 72%, 50% 100%, 0 72%, 0 28%); border-radius: 0; }
+#dados-carta .dado.d4, #dados-carta .dado.d8 { clip-path: polygon(50% 0, 100% 100%, 0 100%); border-radius: 0; padding-top: 12px; box-sizing: border-box; }
+#dados-carta .dado.critico { background: var(--n-turquesa, #3fd1c6); }
+#dados-carta .dado.pifia { background: var(--n-coral, #e8705a); }
+#dados-carta .dado.tapado { background: var(--n-linea, #555); color: var(--n-texto); }
+#dados-carta.cae .dado { animation: dado-cae .55s cubic-bezier(.3,1.6,.5,1) both; }
+#dados-carta.cae .dado:nth-child(2) { animation-delay: .07s; } #dados-carta.cae .dado:nth-child(3) { animation-delay: .14s; } #dados-carta.cae .dado:nth-child(n+4) { animation-delay: .2s; }
+@keyframes dado-cae { from { transform: translateY(-26px) rotate(-200deg); opacity: 0; } to { transform: none; opacity: 1; } }
+#dados-torre { position: fixed; right: 12px; bottom: 96px; z-index: 6; width: 236px; padding: 10px 12px; box-sizing: border-box; background: var(--n-sup); color: var(--n-texto); border: 1px solid var(--n-linea); border-left: 3px solid var(--n-turquesa, #3fd1c6); border-radius: 8px; }
+#dados-torre[hidden] { display: none; }
+#dados-torre p { margin: 0; font-size: 12px; }
+#dados-torre .titulo { font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+#dados-torre .botones { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+#dados-torre button { min-height: 34px; padding: 0; font: 600 13px/1 var(--n-mono, ui-monospace, monospace); color: var(--n-texto); background: transparent; border: 1px solid var(--n-linea); border-radius: 6px; cursor: pointer; }
+#dados-torre button:hover, #dados-torre button:focus-visible { border-color: var(--n-turquesa, #3fd1c6); }
+#dados-torre .secreto { display: block; margin: 6px 0 4px; font-size: 12px; }
+#dados-torre .ultima { color: var(--n-texto2); }
+@media (pointer: coarse) { #dados-torre { bottom: 180px; } #dados-torre button { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { #dados-carta, #dados-carta.cae .dado { transition: none; animation: none; } }

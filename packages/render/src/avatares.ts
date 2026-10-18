@@ -39,6 +39,7 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
   const anims = new Map<Clip, VRMAnimation>(), animPedidas = new Set<Clip>();
   const poza = new Map<number, Copia[]>();
   const avatares = new Map<number | "yo", Avatar>();
+  const altos = new WeakMap<THREE.Object3D, { cima: number }>(); // N18: top of each VRM copy's head over its head bone
   let cargando = 0, errores = 0, cuadros = 0, ultimoRepaso = -Infinity, antes = -1, ocupado = false;
   let conVrm = new Set<number>();
   const nivelesVoz = new Map<number, number>(); // U13: who you hear right now, 0..1 (apps/plaza/voz.ts pushes this)
@@ -185,6 +186,30 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
       const hueso = c.humanoid.getRawBoneNode(lado === "derecha" ? "rightHand" : "leftHand");
       return hueso ? hueso.getWorldPosition(out) : null;
     },
+    /** N18: the head's place in the world (the VRM's raw bone), or null while that player wears a capsule. */
+    cabeza(clave: number | "yo", out: THREE.Vector3): THREE.Vector3 | null {
+      const c = avatares.get(clave)?.copia;
+      if (!c || !c.raiz.parent) return null;
+      const hueso = c.humanoid.getRawBoneNode("head");
+      if (!hueso) return null;
+      // the TOP of the head, not its bone (a big robot head would swallow what sits on it): the bone's x/z, and the
+      // model's height measured once (its standing box) over the feet, following the bone when it bobs or bends
+      let alto = altos.get(c.raiz);
+      if (alto === undefined) {
+        const r = new THREE.Vector3(), h = new THREE.Vector3();
+        c.raiz.updateMatrixWorld(true); c.raiz.getWorldPosition(r); hueso.getWorldPosition(h);
+        const top = new THREE.Box3().setFromObject(c.raiz).max.y;
+        alto = { cima: top - h.y }; altos.set(c.raiz, alto);
+      }
+      hueso.getWorldPosition(out); out.y += alto.cima;
+      return out;
+    },
+    /** N18: where an avatar faces (three's rotation.y), or undefined when it has no entry here. */
+    rumbo(clave: number | "yo"): number | undefined { const a = avatares.get(clave); return a ? (a.copia?.raiz.parent ? a.copia.raiz.rotation.y : a.marcha.rumbo) : undefined; },
+    /** N12: the VRM copies in the world right now (index.ts hides the ones the fog covers while the frame is drawn). */
+    /** N16: the root of someone's VRM (null while they wear a capsule), to hide it for a frame. */
+    raiz(clave: number | "yo"): THREE.Object3D | null { return avatares.get(clave)?.copia?.raiz ?? null; },
+    *raices(): Iterable<THREE.Object3D> { for (const a of avatares.values()) if (a.copia?.raiz.parent) yield a.copia.raiz; },
     /** pesca v2: make a standing avatar face `rumbo` (three's rotation.y; undefined = walk-driven again). */
     orientar(clave: number | "yo", rumbo: number | undefined): void { const a = avatares.get(clave); if (a) a.rumboFijo = rumbo; },
     /** For checks and the HUD: files, clips, and who wears what. */

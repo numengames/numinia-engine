@@ -7,11 +7,11 @@ import { World } from "../../ecs/src/index.ts";
 import type { Store } from "../../ecs/src/index.ts";
 
 export const TICK_HZ = 20;
-export const SPEED = fx(4);                  // walking, metres per second
+export const SPEED = fx(1.5);                // walking, metres per second (human pace; was 4 — too fast to ever just walk)
 export const STEP = fxDiv(SPEED, fx(TICK_HZ)); // metres per tick at full stick
-export const RUN_SPEED = fx(8);              // J2: running (Shift; touch/VR stick at its edge), like Hyperfy2
-export const RUN_STEP = fxDiv(RUN_SPEED, fx(TICK_HZ)); // exactly 2 x STEP
-export const BOUND = fx(500);                // plaza half-size in metres
+export const RUN_SPEED = fx(4);              // J2: running (Shift; touch/VR stick at its edge), like Hyperfy2 (was 8)
+export const RUN_STEP = fxDiv(RUN_SPEED, fx(TICK_HZ)); // exactly RUN_SPEED/SPEED x STEP
+export const BOUND = fx(2000);               // N1: half-size of the walkable world in metres (was 500; objects and quests already reached ±2000)
 export const STICK_MAX = 127;                // input axes are int8
 
 // ---- J2: height. The feel is Hyperfy2's (PlayerLocal: gravity 20 m/s², jump height 1.5 m, one more jump in the
@@ -62,6 +62,29 @@ function blocked(s: SimState, x: number, y: number, z: number): boolean {
   }
   return false;
 }
+/** N16 (teletransporte): a free spot to put a body near (x, z), Q16.16, or null. `radios` (metres) are the rings tried
+ * in order (0 = the point itself), eight headings each (45° apart) starting at heading `rumbo` (0-7, 0 = +z, 2 = +x) so
+ * you land on the side you came from. A spot counts when it is inside the world (1 m from the edge), its floor (the
+ * highest top up to STEP_UP over `y`) is at most `caida` metres under `y`, and a body standing there overlaps no solid.
+ * Integers only, like the rest of the sim; never called inside `step`: the instance asks it when it moves someone on
+ * purpose (the reference fingerprint never sees it). */
+const D45 = 46341; // sin 45° in Q16.16
+const RUMBOS: readonly (readonly [number, number])[] = [[0, FX_ONE], [D45, D45], [FX_ONE, 0], [D45, -D45], [0, -FX_ONE], [-D45, -D45], [-FX_ONE, 0], [-D45, D45]];
+export function sitioLibre(s: SimState, x: number, y: number, z: number, radios: readonly number[], rumbo = 0, caida = 1): { x: number; y: number; z: number } | null {
+  const lim = BOUND - FX_ONE, bajo = fx(caida);
+  for (const r of radios) {
+    const R = fx(r);
+    for (let k = 0; k < (R > 0 ? 8 : 1); k++) {
+      const [dx, dz] = RUMBOS[(((rumbo + k) % 8) + 8) % 8];
+      const px = x + fxMul(R, dx), pz = z + fxMul(R, dz);
+      if (px < -lim || px > lim || pz < -lim || pz > lim) continue;
+      const g = groundHeight(px, pz, s, y);
+      if (y - g > bajo || (s.solids.length > 0 && blocked(s, px, g, pz))) continue;
+      return { x: px, y: g, z: pz };
+    }
+  }
+  return null;
+}
 /** Replace the solid boxes (both the server and the page call it when the shared state of things changes). */
 export function setSolids(s: SimState, boxes: Int32Array): void { s.solids = boxes; }
 /** The boxes of every value with `solido: true` and its world box (bx0…bz1, metres), at most SOLIDS_MAX, in key order. */
@@ -73,10 +96,10 @@ export function solidsFrom(values: Iterable<[string, Record<string, unknown>]>):
   return out;
 }
 
-export const Transform = defineSchema("Transform", 2, { // v2 (J2): gains y
-  x: { kind: "fixed", min: -500, max: 500, step: 1 / 64 },
+export const Transform = defineSchema("Transform", 3, { // v2 (J2): gains y · v3 (N1): x and z ±2000 (BOUND)
+  x: { kind: "fixed", min: -2000, max: 2000, step: 1 / 64 },
   y: { kind: "fixed", min: -500, max: 500, step: 1 / 64 },
-  z: { kind: "fixed", min: -500, max: 500, step: 1 / 64 },
+  z: { kind: "fixed", min: -2000, max: 2000, step: 1 / 64 },
 });
 export const Avatar = defineSchema("Avatar", 1, {
   owner: { kind: "int", min: 0, max: 65535 },

@@ -93,6 +93,8 @@ try {
   const menu = await p.evaluate(() => globalThis.__menu);
   ok("derecho", giro.yaw < -1.2 && giro.yaw > -1.9 && menu.length > 0 && menu.every(Boolean), { yawGrados: R((giro.yaw * 180) / Math.PI, 1), menuParado: menu });
 
+  // walking speed of packages/sim/src/index.ts (SPEED): 1.5 m/s since #24 (was 4); 1.5 s of W ≈ 2.25 m, 1 s of stick ≈ 1.5 m
+  const ANDA = 1.5;
   // W walks where the camera looks (yaw ≈ -90° → +x), with no prediction corrections
   const a0 = await me(p);
   await p.keyboard.down("KeyW"); await p.waitForTimeout(1500); await p.keyboard.up("KeyW"); await p.waitForTimeout(700);
@@ -101,7 +103,7 @@ try {
   const f = { x: -Math.sin(giro.yaw), z: -Math.cos(giro.yaw) };
   const err = (Math.acos(Math.max(-1, Math.min(1, (d.x * f.x + d.z * f.z) / (len || 1)))) * 180) / Math.PI;
   const corr = await p.evaluate(() => globalThis.__numinia.session.stats.corrections);
-  ok("andarHaciaLaCamara", len > 3.5 && len < 7.5 && err < 8 && corr === 0, { movido: { x: R(d.x, 2), z: R(d.z, 2) }, metros: R(len, 2), errorGrados: R(err, 1), correcciones: corr });
+  ok("andarHaciaLaCamara", len > 1.5 * ANDA * 0.65 && len < 1.5 * ANDA * 1.6 + 0.5 && err < 8 && corr === 0, { movido: { x: R(d.x, 2), z: R(d.z, 2) }, metros: R(len, 2), errorGrados: R(err, 1), correcciones: corr });
 
   // build mode (what the builder calls): frame(), plain left ignored, Alt+left orbits, middle pans, wheel to the cursor
   await p.evaluate(() => globalThis.__numinia.view.cam.modo("construir")); await settle(p);
@@ -163,7 +165,7 @@ try {
   const gcorr = await p.evaluate(() => globalThis.__numinia.session.stats.corrections);
   const gstill = await p.evaluate(() => !globalThis.__numinia.view.cam.ocupada());
   const dg = Math.atan2(Math.sin(g1.yaw - j.yaw), Math.cos(g1.yaw - j.yaw));
-  ok("mando", dg < -0.5 && gl > 2 && gerr < 8 && gcorr === 0 && gstill, { giro: R(dg), metros: R(gl, 2), errorGrados: R(gerr, 1), correcciones: gcorr, quietaAlSoltar: gstill });
+  ok("mando", dg < -0.5 && gl > 1.0 * ANDA * 0.6 && gerr < 8 && gcorr === 0 && gstill, { giro: R(dg), metros: R(gl, 2), errorGrados: R(gerr, 1), correcciones: gcorr, quietaAlSoltar: gstill });
 
   // full screen: a real button (the browser can do it here), on and off
   const fs0 = await p.evaluate(() => ({ soporta: document.fullscreenEnabled, visible: !document.getElementById("pantalla").hidden, texto: document.getElementById("pantalla").textContent }));
