@@ -7,6 +7,7 @@ import { World } from "../../ecs/src/index.ts";
 import type { Store } from "../../ecs/src/index.ts";
 import { rayBvh, boxBvh, triNormal, triAabb } from "./bvh.ts";
 import type { Bvh } from "./bvh.ts";
+export * from "./terreno-malla.ts";
 export { buildBvh, rayBvh, bvhFingerprint, quantizeTriangles, BVH_UNIT, BVH_LEAF, TRI_STRIDE, NODE_STRIDE } from "./bvh.ts";
 export type { Bvh, Hit } from "./bvh.ts";
 
@@ -59,7 +60,7 @@ const NO_ORDERS = new Int32Array(0);
 /** True when the avatar stands on its floor (vertical speed 0, feet at the ground under it). */
 export function onFloor(s: SimState, e: number): boolean {
   const y = s.tf.cols.y[e];
-  return s.mo.cols.vy[e] === 0 && y === (s.solids.length ? groundHeight(s.tf.cols.x[e], s.tf.cols.z[e], s, y) : 0);
+  return s.mo.cols.vy[e] === 0 && y === (hasGeometry(s) ? groundHeight(s.tf.cols.x[e], s.tf.cols.z[e], s, y) : 0);
 }
 
 /** Height of the ground under (x, z), Q16.16. A flat plaza, plus (U10) the tops of solid things you stand above
@@ -69,8 +70,8 @@ export function onFloor(s: SimState, e: number): boolean {
  * the ray reaches it first). Without solids and without a mesh nothing is looked at (the reference fingerprint never
  * sees them). */
 export function groundHeight(x: number, z: number, s?: SimState, y = 0): number {
-  let g = 0;
-  if (!s) return g;
+  if (!s) return 0;
+  let g = s.piso; // 0 (the flat plaza) unless a terrain mesh replaced it (N5: hills and a pond bed lie under y = 0)
   const b = s.solids;
   for (let o = 0; o + 5 < b.length; o += 6) {
     if (x < b[o] || x > b[o + 3] || z < b[o + 2] || z > b[o + 5]) continue;
@@ -160,7 +161,10 @@ export function sitioLibre(s: SimState, x: number, y: number, z: number, radios:
 export function setSolids(s: SimState, boxes: Int32Array): void { s.solids = boxes; }
 /** M6: set (or clear) the world's collision mesh, a tree built with `buildBvh` from the same quantized triangles on
  * both sides. Not part of the state fingerprint. */
-export function setMesh(s: SimState, mesh: Bvh | null): void { s.mesh = mesh; }
+export function setMesh(s: SimState, mesh: Bvh | null, piso = 0): void { s.mesh = mesh; s.piso = piso; }
+/** N5: `piso` for a world whose mesh IS the whole ground (the seeded terrain): there is no flat floor at y = 0 under it, so where the
+ * mesh has no ground (outside its border) a body keeps falling until D-045's void sends it back. Y_BOUND, the lowest `Transform` y. */
+export const PISO_SIN_SUELO = -Y_BOUND;
 /** The boxes of every value with `solido: true` and its world box (bx0…bz1, metres), at most SOLIDS_MAX, in key order. */
 export function solidsFrom(values: Iterable<[string, Record<string, unknown>]>): Int32Array {
   const list = [...values].filter(([, v]) => v.solido === true && Number(v.bx1) > Number(v.bx0) && Number(v.bz1) > Number(v.bz0))
@@ -191,14 +195,14 @@ export const Motion = defineSchema("Motion", 2, {
   iz: { kind: "fixed", min: -2, max: 2, step: 1 / 65536 },
 });
 
-export type SimState = { world: World; tf: Store; av: Store; mo: Store; tick: number; rng: Uint32Array; solids: Int32Array; mesh: Bvh | null };
+export type SimState = { world: World; tf: Store; av: Store; mo: Store; tick: number; rng: Uint32Array; solids: Int32Array; mesh: Bvh | null; piso: number };
 
 export function createSim(capacity: number, seed: number): SimState {
   const world = new World(capacity);
   const tf = world.register(Transform);
   const av = world.register(Avatar);
   const mo = world.register(Motion);
-  return { world, tf, av, mo, tick: 0, rng: new Uint32Array([seed >>> 0]), solids: new Int32Array(0), mesh: null };
+  return { world, tf, av, mo, tick: 0, rng: new Uint32Array([seed >>> 0]), solids: new Int32Array(0), mesh: null, piso: 0 };
 }
 
 /** Where new avatars appear (metres): the square of half-side `radio` centred at (x, z). A vertical world (a tower)

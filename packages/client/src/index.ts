@@ -2,7 +2,8 @@
 // Own avatar: predicted with the SAME sim step the server runs, reconciled exactly on each snapshot.
 // Others: drawn slightly in the past, interpolated between snapshots.
 import { fxToFloat } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, TICK_HZ } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, PISO_SIN_SUELO, terrenoDelEstado, terrenoMalla, TICK_HZ } from "../../sim/src/index.ts";
+import type { TerrenoMalla } from "../../sim/src/index.ts";
 import type { Body, SimState } from "../../sim/src/index.ts";
 import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, encodeIdentityRequest, encodePase, decodeIdentity, seqNewer, codificarVozSubida, leerVozBajada } from "../../net/src/index.ts";
 import type { Transport, Welcome } from "../../net/src/index.ts";
@@ -67,6 +68,20 @@ export class ClientSession {
   /** Game features (J7): their client parts, the server's catalog, their recent events. */
   readonly features: ClientRuntime;
   private solidsVersion = -1; // U10: the solid boxes follow the shared state
+  private terreno: TerrenoMalla | null = null; // N5: the hills of naturaleza.json, built from the same alturaEn as the server's mesh
+  /** N5: follows the shared state's «naturaleza:mundo» like the server does (same function, same numbers → same triangles), so the
+   * prediction walks over the same hills. Nothing happens in a world without naturaleza.json. */
+  private sincronizarTerreno(): void {
+    const m = terrenoDelEstado(this.features.allState());
+    const clave = m ? `${m.semilla}|${m.tamano}|${m.plaza}|${m.estanque ? 1 : 0}` : null;
+    if (clave === (this.terreno?.clave ?? null)) return;
+    this.terreno = m ? terrenoMalla(m) : null;
+    setMesh(this.local, this.terreno?.bvh ?? null, this.terreno ? PISO_SIN_SUELO : 0);
+    if (this.terreno) { // the body that was standing at the flat ground height now stands on the hill
+      const b = getBody(this.local, 0), g = groundHeight(b.x, b.z, this.local, this.terreno.hmax * 65536 + 65536);
+      if (b.y < g) { this.setLocal({ ...b, y: g, vy: 0 }); this.prev = this.cur; }
+    }
+  }
   /** I1: who the server says you are (guest id + name); null until it answers, or when no keeper was given. */
   who: { id: string; nombre: string } | null = null;
   private readonly keeper?: GuestKeeper;
@@ -91,7 +106,7 @@ export class ClientSession {
     this.pending.push({ seq: this.seq, mx, mz, buttons });
     if (this.pending.length > 64) this.pending.shift();
     this.prev = this.cur;
-    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.local, solidsFrom(this.features.allState())); } // U10: the same walls as the server
+    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.local, solidsFrom(this.features.allState())); this.sincronizarTerreno(); } // U10: the same walls as the server; N5: and the same hills
     step(this.local, new Int32Array([0, mx, mz, buttons]));
     this.cur = getBody(this.local, 0);
   }
