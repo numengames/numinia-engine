@@ -1,8 +1,10 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, terrenoDelEstado, terrenoMalla, combinarMallas, sueloMinimoTerreno, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX } from "../../sim/src/index.ts";
-import type { SimState, SpawnArea, Bvh, TerrenoMalla } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX } from "../../sim/src/index.ts";
+import type { SimState, SpawnArea, Bvh } from "../../sim/src/index.ts";
+import { terrenoDelEstado, terrenoMalla, claveTerreno, combinarMallas, sueloMinimoTerreno } from "../../sim/src/terreno-malla.ts";
+import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
@@ -405,7 +407,7 @@ export class Instance {
     if (v === this.terrenoVersion) return;
     this.terrenoVersion = v;
     const m = terrenoDelEstado(this.features.allState());
-    const clave = m ? `${m.semilla}|${m.tamano}|${m.plaza}|${m.estanque ? 1 : 0}` : null;
+    const clave = m ? claveTerreno(m) : null;
     if (clave === (this.terreno?.clave ?? null)) return;
     this.terreno = m ? terrenoMalla(m) : null;
     this.aplicarMalla();

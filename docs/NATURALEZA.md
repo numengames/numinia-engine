@@ -216,9 +216,7 @@ la baja), `floresMax` de la hierba A 0,06 → 0,08, y se cambió el número de m
 el relleno inicial tarda >2 fotogramas). Llamadas: terreno 1 + árboles ≤ 5 (una por especie y LOD) + hierba ≤ 2 + agua 1. Construir de golpe
 en el CPU (una vez, al cargar): terreno 25 ms + esparcido 20 ms + árboles 7 ms + hierba 27 ms en A (portátil cargado); en D ~19 ms.
 
-**Sin colisión todavía (N5).** El terreno aún no es sólido para la simulación (`packages/sim` intacto): el avatar sigue pisando el suelo plano
-a altura 0. Cerca de la plaza (radio llano, y por eso el punto de aparición sigue en altura 0) coincide con el relieve; lejos, en lomas y
-cuencas, el avatar **flota o se hunde** respecto a lo dibujado hasta N5. Probado andando con el avatar real: pasea por el prado a y = 0,00 sin caerse.
+**Colisión.** Hecha en N5 (sección siguiente): el avatar pisa el relieve en servidor y página.
 
 **Tamaño de la página (N4b, carga perezosa).** Medido con `npm run tamano`: origen limpio (82a612c) 482,5 kB gz; N4 sin perezosa 489,0; con N4b 483,4 (+0,9 kB sobre el origen; el origen ya pasa el tope de 480).
 En el arranque solo queda `render/naturaleza/cargador.ts` (sin three) y la declaración de la feature; `naturaleza.ts` y todo el paisaje son un trozo aparte (`naturaleza-*.js`) que se pide con `import()` la primera vez que el servidor manda datos; un mundo sin `naturaleza.json` no baja ni un byte de naturaleza.
@@ -235,3 +233,74 @@ topes por nivel, paletas, presupuesto en el peor caso, apagar devuelve el suelo 
 
 **Fotos:** `work/naturaleza/fotos/n4-{plaza,bosque,estanque,cresta,otono,otono-aire}.png`; mundo de prueba `work/naturaleza/mundo-demo/`
 (`entorno/naturaleza.json` + `entorno/entorno.json` con hora fija de día), servidor 8901 / página 5404.
+
+## N5 · Andar por las colinas: el terreno es la malla de colisión del mundo
+
+**Qué cambia.** Antes el avatar flotaba a y = 0 sobre un relieve dibujado. Ahora, si el mundo tiene `naturaleza.json` encendido, el
+**servidor** construye los triángulos del terreno con `alturaEn(semilla, x, z)` (la MISMA función que dibuja la página), los pasa por el
+camino de M6 que ya existía para una malla GLB (`quantizeTriangles` a 1/64 m → `buildBvh` → `setMesh` → `groundHeight`, pendiente máxima
+`MAX_SLOPE_COS` = 50°, pared por `blockedMesh`) y la página construye **la misma malla** del mismo estado para predecir igual. Un mundo sin
+`naturaleza.json` no cambia ni un bit: sin malla, sin `piso`, sin ramas nuevas en `step`; la huella de referencia `7e630965` sigue fijada
+(`test/engine.test.ts` y `test/naturaleza-colision.test.ts`).
+
+**Ficheros.** `packages/relieve/` (nuevo paquete puro, sin three: `semilla.ts` y `relieve.ts` con `alturaEn`/`zonaEn`/`estanqueDe`, movidos
+de `render/naturaleza/`, que ahora los reexporta: nada de la página cambia) · `packages/sim/src/terreno-malla.ts` (triángulos, muro,
+`terrenoDelEstado`, `combinarMallas`, suelo mínimo) · `packages/instance/src/index.ts` (`sincronizarTerreno`, `aparicionTerreno`,
+`sueloEfectivo`) · `packages/client/src/index.ts` (`sincronizarTerreno`) · `packages/sim/src/index.ts` (`piso`, ver abajo) ·
+`tools/layers.json` (`relieve` nuevo; lo pueden importar `render` y `sim`) · `tools/naturaleza-colision.ts` (prueba headless en el mundo real) ·
+`test/naturaleza-colision.test.ts` (15 pruebas). `packages/server/src` y `features/naturaleza/server.ts` **no** hicieron falta: el servidor ya
+publica el estado `naturaleza:mundo` y la instancia lo lee (lo mismo que hace con las cajas sólidas de U10).
+
+**Una sola fuente de verdad.** El servidor no puede importar `render` (capas: `tools/layers.json`) ni arrastrar three. Por eso `alturaEn` y
+su ruido viven ahora en `packages/relieve` y `render/naturaleza/terreno.ts` los importa. Los flotantes salen de `Math.hypot/cos/pow`;
+se cuantizan UNA vez por vértice a 1/64 m. Que dos motores JS redondeen distinto justo en un borde de 1/64 m es de orden 1e-9 por malla;
+si pasara, el servidor manda y la página se corrige (cuenta en `stats.corrections`).
+
+**Resolución (decidido y medido).** Celdas de **2 m**, como mucho 100 por lado (mundo de 400 m → celdas de 4 m): **20 800 triángulos**
+(20 000 de suelo + 800 de muro), construir **11 ms** de mediana (10–29 ms) en servidor y lo mismo en la página, una vez; ≈ 0,9 MB de
+memoria. Misma diagonal alternada que el dibujo (`(i+j)&1`). Error contra `alturaEn` (semilla 1234, sobre suelo caminable, 88 000 puntos):
+mediana 2 cm, p95 15 cm, p99 32 cm, máx. 1,4 m en las aristas vivas de las crestas (semilla 77, muy rocosa: p95 49 cm). El dibujo mismo
+tiene el problema (nivel A, 2,8 m/celda: p95 25 cm contra la función), así que **no** subimos a 1 m (80 000 triángulos). Diferencia entre la colisión y lo
+**dibujado** por nivel (p50 / p95 / p99, semilla 1234): A 2,5 / 18 / 37 cm · B 5 / 34 / 61 · C 7 / 44 / 78 · D 11 / 64 / 101. O sea: en un
+móvil viejo los pies pueden hundirse o flotar hasta ~0,6 m en el 5 % peor del suelo (lomas con detalle fino) y ~1 m en el 1 %; en llano y
+prado casi nada. Seguimiento posible: que el avatar dibujado use `groundHeight` de la malla (ya lo usa) y que el nivel D dibuje más celdas.
+
+**Reglas decididas.**
+- **Agua no sólida.** Se **vadea**: el fondo del estanque (hasta −1,65 m, agua en −0,2 m) se pisa como cualquier suelo; no hay nadar, ni corriente, ni
+  regla de calado. (Si algún día hace falta, es una pieza aparte, R-1.)
+- **Pendiente.** Triángulos a más de 50° (`MAX_SLOPE_COS`) son pared: no se suben ni se pisan (se resbala por ellos, M6 h6). Prado y bosque
+  quedan casi siempre por debajo; las crestas de roca sí bloquean.
+- **Borde del mundo.** Un muro invisible alrededor del cuadrado (de 4 m bajo el borde a 8 m sobre él; pared de triángulos verticales) y, por
+  detrás, el «suelo de la muerte» D-045: si el mundo no trae `sueloMinimo` y la naturaleza está encendida, la instancia usa **el punto más bajo
+  del terreno − 8 m** (`sueloMinimoTerreno`; unos −10 m con la semilla 1234) y devuelve a la última posición segura. Un `sueloMinimo` del mundo manda
+  siempre. Por fuera de la malla no hay suelo: la persona cae hasta ese mínimo y vuelve.
+- **Aparición.** Sin `aparicion` en `entorno.json`, la gente aparece **dentro de la plaza** (cuadrado de lado 1,2 × `plaza`, el 60 % del radio, que cabe en
+  el disco llano) y a la altura del terreno (`groundHeight` desde arriba). La plaza vale 0 exacto (probado), así que coincide con la altura
+  antigua. Con `aparicion` propio se respeta (y se pone encima del terreno).
+- **Árboles: sin colisión en esta historia** (coste: ~1000 cilindros que consultar por persona y tick; tope de 512 cajas `solids`).
+  Se atraviesan. Seguimiento: troncos como cajas solo dentro del anillo de la plaza o una rejilla de ocupación en el servidor.
+- **Mundo con malla GLB y naturaleza a la vez:** se juntan los triángulos de las dos en un solo árbol (`combinarMallas`).
+
+**El único cambio en la simulación (y por qué no toca la huella).** `SimState.piso` (0 por defecto): la altura del «suelo plano» que
+`groundHeight` usa como base. Con terreno vale −500 m (`PISO_SIN_SUELO`); sin terreno sigue 0 y todo es idéntico. Hacía falta porque el
+terreno baja de 0 (estanque, cuencas) y con la base en 0 el avatar **flotaba a 0 m sobre el fondo** — lo encontró la prueba de andar 45 m.
+Además `onFloor` miraba solo `solids` y ahora mira «hay geometría» (cajas o malla): arreglo para mundos con malla GLB, que no guardaban
+la posición segura. `piso` no está en `snapshot`/`stateHash`: es geometría del mundo, como `solids`.
+
+**Medidas** (`node tools/naturaleza-colision.ts` en `mundo-demo` y un script de `step` solo; portátil compartido, Node):
+- Coste de `step` con terreno vs sin él (p50; 1 / 50 / 200 / 1000 avatares andando y algunos corriendo): 0,006 / 0,033 / 0,069 / **0,317 ms** con terreno
+  frente a 0,002 / 0,008 / 0,020 / **0,076 ms** sin él. **≈ 0,3 µs más por avatar y tick** (rayo abajo + caja-triángulo, M6). p99 con 1000: 0,54 ms.
+- Tick entero de la instancia con bots reales (p50; snapshots y todo): 50 avatares 0,29 ms con terreno vs 0,22 sin él; 200: 1,48 vs 1,33 ms.
+- Prueba de 2 minutos de juego con 1 / 50 / 200 bots sobre el relieve real: 602 400 muestras, **0 flotando, 0 hundidos, 0 sin suelo**.
+- Construir la malla: 11 ms (una vez por cambio de números del mundo, no por tick), en servidor y en la página.
+
+**Pruebas** (`test/naturaleza-colision.test.ts`, 15): clave del estado y validación · malla ≤ 22 000 triángulos, mismos bits dos veces y fijados · mundo de
+400 m con el mismo presupuesto · andar 45 m en 16 direcciones con dos semillas (siempre sobre la malla, 0 ticks en el aire, ≤ 0,9 m de
+`alturaEn`) · línea tranquila de 40 m dentro de ±0,05 m de `alturaEn` · correr · plaza plana y fondo del estanque pisable · cuesta de 30° se sube y de 60°
+no · muro del borde en 4 direcciones corriendo · suelo mínimo por defecto · `combinarMallas` · sin naturaleza: sin malla y huella de referencia intacta · misma huella
+dos veces con terreno y `setMesh` no cambia el hash · instancia + cliente reales (aparece en la plaza, camina 500 ticks, **0 correcciones**) ·
+caer fuera del mapa vuelve por el suelo mínimo por defecto.
+
+**Copiado / cambiado / combinado.** Copiado: todo M6 (`bvh.ts`, `setMesh`, `groundHeight`, `MAX_SLOPE_COS`, `blockedMesh`, `sitioLibre`), D-045 (suelo de la
+muerte) y la diagonal alternada de `terreno.ts`. Cambiado: la fuente de los triángulos (una función en vez de un GLB), una malla gruesa
+(2 m) frente a la dibujada, un muro en el borde, `piso`. Combinado: terreno + malla GLB en un árbol. Nada nuevo en `step`.

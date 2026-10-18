@@ -2,8 +2,8 @@
 // Own avatar: predicted with the SAME sim step the server runs, reconciled exactly on each snapshot.
 // Others: drawn slightly in the past, interpolated between snapshots.
 import { fxToFloat } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, PISO_SIN_SUELO, terrenoDelEstado, terrenoMalla, TICK_HZ } from "../../sim/src/index.ts";
-import type { TerrenoMalla } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, PISO_SIN_SUELO, TICK_HZ } from "../../sim/src/index.ts";
+import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import type { Body, SimState } from "../../sim/src/index.ts";
 import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, encodeIdentityRequest, encodePase, decodeIdentity, seqNewer, codificarVozSubida, leerVozBajada } from "../../net/src/index.ts";
 import type { Transport, Welcome } from "../../net/src/index.ts";
@@ -69,19 +69,26 @@ export class ClientSession {
   readonly features: ClientRuntime;
   private solidsVersion = -1; // U10: the solid boxes follow the shared state
   private terreno: TerrenoMalla | null = null; // N5: the hills of naturaleza.json, built from the same alturaEn as the server's mesh
+  private terrenoMod: typeof import("../../sim/src/terreno-malla.ts") | null = null;
   /** N5: follows the shared state's «naturaleza:mundo» like the server does (same function, same numbers → same triangles), so the
-   * prediction walks over the same hills. Nothing happens in a world without naturaleza.json. */
+   * prediction walks over the same hills. The terrain code (noise, mesh) is a separate chunk of the page, asked for only the first time
+   * a world says it has nature: a world without naturaleza.json never downloads it and its flat path is untouched. */
   private sincronizarTerreno(): void {
-    const m = terrenoDelEstado(this.features.allState());
-    const clave = m ? `${m.semilla}|${m.tamano}|${m.plaza}|${m.estanque ? 1 : 0}` : null;
+    let pide = false;
+    for (const [k, v] of this.features.allState()) if (k === "naturaleza:mundo") { pide = (v as { activa?: boolean }).activa !== false; break; }
+    if (!pide && !this.terreno) return;
+    if (!this.terrenoMod) { void import("../../sim/src/terreno-malla.ts").then((m) => { this.terrenoMod = m; this.sincronizarTerreno(); }, () => {}); return; }
+    const M = this.terrenoMod, m = M.terrenoDelEstado(this.features.allState());
+    const clave = m ? M.claveTerreno(m) : null;
     if (clave === (this.terreno?.clave ?? null)) return;
-    this.terreno = m ? terrenoMalla(m) : null;
+    this.terreno = m ? M.terrenoMalla(m) : null;
     setMesh(this.local, this.terreno?.bvh ?? null, this.terreno ? PISO_SIN_SUELO : 0);
     if (this.terreno) { // the body that was standing at the flat ground height now stands on the hill
       const b = getBody(this.local, 0), g = groundHeight(b.x, b.z, this.local, this.terreno.hmax * 65536 + 65536);
       if (b.y < g) { this.setLocal({ ...b, y: g, vy: 0 }); this.prev = this.cur; }
     }
   }
+
   /** I1: who the server says you are (guest id + name); null until it answers, or when no keeper was given. */
   who: { id: string; nombre: string } | null = null;
   private readonly keeper?: GuestKeeper;

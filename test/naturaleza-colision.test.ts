@@ -6,9 +6,9 @@ import assert from "node:assert/strict";
 import { fx, fxToFloat, FX_ONE } from "../packages/core/src/index.ts";
 import {
   createSim, spawnAvatar, step, setMesh, getBody, setBody, groundHeight, stateHash, replayFingerprint, referenceRecording, REFERENCE,
-  buildBvh, bvhFingerprint, rayBvh, terrenoMalla, triangulosDeTerreno, terrenoDelEstado, combinarMallas, sueloMinimoTerreno,
-  CLAVE_NATURALEZA, CELDAS_COLISION_MAX, PISO_SIN_SUELO, BTN_RUN, TRI_STRIDE,
+  buildBvh, bvhFingerprint, rayBvh, PISO_SIN_SUELO, BTN_RUN, TRI_STRIDE,
 } from "../packages/sim/src/index.ts";
+import { terrenoMalla, triangulosDeTerreno, terrenoDelEstado, combinarMallas, sueloMinimoTerreno, CLAVE_NATURALEZA, CELDAS_COLISION_MAX } from "../packages/sim/src/terreno-malla.ts";
 import { alturaEn } from "../packages/relieve/src/relieve.ts";
 import { Instance } from "../packages/instance/src/index.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
@@ -185,9 +185,11 @@ function mundo() {
   return { inst, s, pump, log, t };
 }
 
-test("instance + client: the server builds the terrain from the state, people appear ON it inside the plaza, the page predicts the same", () => {
+test("instance + client: the server builds the terrain from the state, people appear ON it inside the plaza, the page predicts the same", async () => {
   const { inst, s, pump, log } = mundo();
   pump(3);
+  await new Promise((r) => setTimeout(r, 50)); // the page asks for its terrain chunk the first time the state says «naturaleza»
+  pump(2); s.stats.corrections = 0;
   assert.ok(inst.sim.mesh, "terrain mesh set from naturaleza:mundo");
   assert.equal(inst.sim.piso, PISO_SIN_SUELO);
   assert.ok(log.some((l) => /colisión del terreno lista/.test(l)), log.join("\n"));

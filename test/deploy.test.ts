@@ -79,5 +79,5 @@ test("installer (P5a): the brain's key is asked without echo, kept for the inhab
 });
 
 test("installer ships exactly the packages the server may import (P4: and the inhabitants' service: agent, client)", () => {
-  assert.deepEqual(serverPackages().sort(), ["agent", "client", "core", "ecs", "feature", "instance", "net", "schema", "server", "sim"]);
+  assert.deepEqual(serverPackages().sort(), ["agent", "client", "core", "ecs", "feature", "instance", "net", "relieve", "schema", "server", "sim"]);
 });
