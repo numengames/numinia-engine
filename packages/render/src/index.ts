@@ -648,6 +648,26 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     try { renderer.render(scene, camera); } finally { despuesDelCuadro(); }
   }
 
+  // B4: three's own count of live shader programs (WebGPURenderer info.memory.programs); it only grows when one is made
+  const programasVivos = (): number => (renderer as unknown as { info: { memory: { programs?: number } } }).info.memory.programs ?? 0;
+  let programasVistos = programasVivos();
+  /** Move the camera (N1), then draw. */
+  function dibujar(dtSeconds: number): void {
+    updateDecorations(performance.now());
+    updateThings(dtSeconds);
+    selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
+    editor.frame();
+    entorno.actualizar(); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds);
+    if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); dibujarCuadro(); return; } // N4: after the hands moved, so a held rod does not trail a frame
+    pesca.actualizar(dtSeconds);
+    if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
+    cam.update(dtSeconds, selfXZ ? feet : null);
+    colocarLlevados();
+    puestos.actualizar(); // N18: after the avatars moved (sync), so a lantern does not trail its hand
+    dibujarCuadro();
+    web.actualizar(); // N17: after the frame, so the iframes follow the camera this frame drew from
+  }
+
   return {
     backend,
     power,
@@ -870,7 +890,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
     busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
-    applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); },
+    applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */
     lastFrame(): { calls: number; triangles: number } {
       const r = (renderer as unknown as { info: { render: { drawCalls: number; triangles: number } } }).info.render;
@@ -891,20 +911,17 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** Move the camera (N1), then draw. */
     draw(dtSeconds: number): void {
-      updateDecorations(performance.now());
-      updateThings(dtSeconds);
-      selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
-      editor.frame();
-      entorno.actualizar(); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds);
-      if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); dibujarCuadro(); return; } // N4: after the hands moved, so a held rod does not trail a frame
-      pesca.actualizar(dtSeconds);
-      if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
-      cam.update(dtSeconds, selfXZ ? feet : null);
-      colocarLlevados();
-      puestos.actualizar(); // N18: after the avatars moved (sync), so a lantern does not trail its hand
-      dibujarCuadro();
-      web.actualizar(); // N17: after the frame, so the iframes follow the camera this frame drew from
+      // B4: tell the resolution policy what it must not measure — models still loading, or a frame in which three
+      // compiled a new shader program (blocking, on its first draw) or something else created one since the last draw
+      power.setCargando(loading > 0 || waiting.size > 0);
+      try { dibujar(dtSeconds); } finally {
+        const p = programasVivos();
+        if (p > programasVistos) power.paron();
+        programasVistos = p;
+      }
     },
+    /** B4 (for checks): live shader programs as three counts them. */
+    programas(): number { return programasVivos(); },
     /** N12 (for checks): the last frame — from which distance the fog covers everything (m; Infinity = no fog), how
      * many things/people/names it hid, how many copies were drawn instanced and in how many lotes; `mallas` = the
      * instanced meshes those cost (≈ draw calls), `escrituras` = matrix uploads since the start (still = no uploads). */
