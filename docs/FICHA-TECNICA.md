@@ -139,6 +139,7 @@ Las misiones, las personas que las dan y las cosas que se cogen las escribe la a
 | Límites | 16 misiones activas, 16 pasos por misión, 4 respuestas por nodo, 64 nodos por persona; textos en bytes UTF-8 |
 | Progreso | por invitado (I1), en el almacén del servidor (S4); solo le llega a su dueño |
 | Dibujo | el robot de la casa, quieto: 19 draw calls por persona (el tope del nivel D es 80): falta LOD |
+| Puertas, botones y cosas que se cogen (J4, v1) | el servidor decide y avisa a 30 m; alcance 1-16 m por pieza (puerta 2,5, botón y cosa 2 m por defecto) y 1,5 m de margen; una puerta se cierra sola a los 0-120 s; un botón abre la puerta que nombra por una señal solo del servidor; una cosa en la mano por persona, se suelta donde estás o al salir; mismo gesto en PC, móvil y VR; medido por `test/interacciones.test.ts` (sin aparato real) |
 
 ## Aparato
 

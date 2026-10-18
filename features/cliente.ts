@@ -15,6 +15,9 @@ import bienes from "./bienes/client.ts";
 import dados from "./dados/client.ts"; // v1: dice the server rolls (the dice card and the tower's buttons: apps/plaza/dados.ts) // N10: digital goods — a chest's «objeto» becomes yours (signed receipt, inventory)
 
 import teletransporte from "./teletransporte/client.ts"; // N16: «Gente» and the light of the trip (apps/plaza/gente.ts; packages/render/src/teletransporte.ts)
-import web from "./web/client.ts"; // N17: web screens (drawn by packages/render/src/web.ts, wired in apps/plaza/web.ts)
-const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web];
+import web from "./web/client.ts";
+import puertas from "./puertas/client.ts"; // J4: the slab on its hinge
+import botones from "./botones/client.ts"; // J4: the cap on its post
+import cogibles from "./cogibles/client.ts"; // J4: on the floor or in a hand (view.lleva); «Soltar» = Q // N17: web screens (drawn by packages/render/src/web.ts, wired in apps/plaza/web.ts)
+const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles];
 export default funciones;

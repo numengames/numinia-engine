@@ -861,7 +861,7 @@ export class ClientRuntime {
       for (const [key, v] of this.mirror.get(f.id) ?? []) {
         const r = typeof it.radius === "number" ? it.radius : Number(v[it.radius]);
         const d = Math.hypot(Number(v[c.at[0]]) - x, Number(v[c.at[1]]) - z);
-        if (!(d <= r) || (y !== undefined && !alAlcanceEnAltura(y, v.y))) continue;
+        if (!(r > 0 && d <= r) || (y !== undefined && !alAlcanceEnAltura(y, v.y))) continue; // J4: a thing whose radius field is 0 is not offered (e.g. carried)
         const vals = { key, ...v };
         out.push({ feature: f.id, key, intent: it.intent, prompt: fillTemplate(it.prompt, vals), name: fillTemplate(c.name, vals).trim(), distance: d });
       }

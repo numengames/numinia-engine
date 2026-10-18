@@ -52,7 +52,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J8b | AR: la plaza en miniatura y en vivo sobre tu mesa (gente, personas, cosas), manos y mandos, palancas para girar, escalar y andar | hecho (emulado; falta probar en Quest 3, Pico 4 y Android) | sí |
 | P2 | Móvil frío: política de energía del cliente + puerta de coste por cuadro | hecho (sin medir en móvil real → X1) | sí |
 | P3 | Nativo para IA v1: `llms.txt`, mapa, README-contrato por paquete, `npm run describe` | hecho | sí |
-| J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR | en curso (núcleo hecho; faltan puerta, botón y coger) | sí |
+| J4 | Interacciones: puerta, botón y objeto que se coge, igual en escritorio, móvil y VR | hecho (v0.8.0: `features/puertas`, `features/botones`, `features/cogibles`; `MUNDO_DIR/interacciones.json`; sin aparato VR real) | sí |
 | J5 | Libro de misiones, mapa y minimapa con marcadores | hecho (panel en la muñeca en VR → J13) | sí |
 | J11 | Personas que dan misiones (`pnj@1`: árbol de diálogo, quién da y recibe qué) | hecho | sí |
 | J12 | Ficha de jugador: nombre, aparato y calidad, tiempo, misiones e insignias, ajustes | hecho (falta retrato → H10 e inventario) | sí |

@@ -756,3 +756,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Versión **0.6.1 → 0.7.0** (menor): ajustes y capacidades nuevos, nada se rompe. (Las ramas traían 0.6.0 y
   0.6.1; `main` ya había tomado esos números con #46 y #47.)
 - Consumo: sin medir · Sonnet 5.5.
+
+## 2026-10-18 12:40 · J4 · hecho
+- **Qué:** las tres piezas que faltaban de J4 como módulos del motor: `features/puertas` (el servidor abre y cierra, cierre solo a los N s), `features/botones` (cuenta, enciende un segundo y dispara una señal solo del servidor que abre la puerta que nombra) y `features/cogibles` (coger y soltar; una en la mano; todas las páginas la ven en la mano con `view.lleva`; se suelta al salir). Mismo gesto en PC, móvil y VR (la carta `interact` del núcleo). Un mundo las trae en `MUNDO_DIR/interacciones.json`. Versión 0.7.1 → 0.8.0 (algo nuevo).
+- **Números:** `test/interacciones.test.ts`, 8 pruebas (alcance, rechazo, cierre solo, señal botón→puerta, coger/soltar/salir, huella de la simulación igual, lectura del fichero); la suite entera en verde. Sin aparato VR real.
+- **Consumo:** subagente; no medido.
+- **Commit:** este PR.
+- **Siguiente:** colisión de la hoja cerrada (J6), coger con la mano física en VR (como J10), más de una acción por botón.
