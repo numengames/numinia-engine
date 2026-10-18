@@ -43,6 +43,7 @@ import { crearEntorno } from "./entorno.ts";
 import { vistaElementos } from "./elementos-vista.ts";
 import { vistaPesca } from "./pesca-vista.ts";
 import { crearDianas3D, crearDianaAR } from "./dardos.ts";
+import { crearPantallasWeb } from "./web.ts";
 import type { DianaAR } from "./dardos.ts";
 import { detalleAgua } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
@@ -147,7 +148,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       renderer,
       *objetos() { if (ar.state !== "off") return; for (const [k, s] of things) yield [k, s.group] as [string, THREE.Object3D]; },
       *etiquetas() { if (ar.state !== "off") return; for (const [k, r] of tags) yield [k, r.s] as [string, THREE.Object3D]; },
-      paneles: () => vr.paneles(),
+      paneles: () => [...vr.paneles(), ...web.paneles()], // N17: a web screen's «Abrir fuera de VR»
     });
     m.reglas(reglasManos);
     m.on((e) => { for (const f of oyentesManos) f(e); });
@@ -213,6 +214,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     visible: (q) => (q === "self" ? selfMat.visible : true),
     hueso: (q, donde, out) => (donde === "mano" ? avs.mano(q === "self" ? "yo" : q, "derecha", out) : avs.cabeza(q === "self" ? "yo" : q, out)),
     rumbo: (q) => avs.rumbo(q === "self" ? "yo" : q) });
+  const web = crearPantallasWeb({ world, camera, enXR: () => renderer.xr.isPresenting, cajas: () => cajasM }); // N17: web screens (web.ts)
   function dropLabel(t: Target): void {
     const d = labels.get(t);
     if (!d) return;
@@ -658,6 +660,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     pesca,
     /** dardos v1: boards near you and their darts (sitios, clavados, linea, contar) — packages/render/src/dardos.ts. */
     dardos,
+    /** N17: web screens — a panel everywhere, the live page in CSS3D near you on PC/phone, «Abrir fuera de VR» in VR (web.ts). */
+    web,
     /** dardos v1 in AR: enter immersive-ar with a real-size board for your wall (dardos.ts crearDianaAR); null if the
      * session could not start. Press/hold/release throws: `alLanzar` gets aim (board radii) and strength. */
     async dardosAR(o: { alLanzar: (x: number, y: number, fuerza: number) => void; alColocar?: (pared: boolean) => void }): Promise<DianaAR | null> {
@@ -861,13 +865,14 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
       editor.frame();
       entorno.actualizar(); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds);
-      if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); dibujarCuadro(); return; } // N4: after the hands moved, so a held rod does not trail a frame
+      if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); dibujarCuadro(); return; } // N4: after the hands moved, so a held rod does not trail a frame
       pesca.actualizar(dtSeconds);
       if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
       cam.update(dtSeconds, selfXZ ? feet : null);
       colocarLlevados();
       puestos.actualizar(); // N18: after the avatars moved (sync), so a lantern does not trail its hand
       dibujarCuadro();
+      web.actualizar(); // N17: after the frame, so the iframes follow the camera this frame drew from
     },
     /** N12 (for checks): the last frame — from which distance the fog covers everything (m; Infinity = no fog), how
      * many things/people/names it hid, how many copies were drawn instanced and in how many lotes; `mallas` = the

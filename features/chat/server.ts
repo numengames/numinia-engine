@@ -59,6 +59,7 @@ export default serverPart(chat, (api) => {
   api.listen("roles", "aviso", (m) => { avisar(Number(m.quien), String(m.texto ?? "")); return true; });
   api.listen("director", "aviso", (m) => { avisar(Number(m.quien), String(m.texto ?? "")); return true; }); // N6: /escena, /narrar, /convocar
   api.listen("teletransporte", "aviso", (m) => { avisar(Number(m.quien), String(m.texto ?? "")); return true; }); // N16: /ir, /teletransporte, /encontrable
+  api.listen("web", "aviso", (m) => { avisar(Number(m.quien), String(m.texto ?? "")); return true; }); // N17: /web
   api.listen("roles", "silencio", (m) => {
     const e = Number(m.quien), s = Number(m.segundos);
     if (s > 0) callados.set(e, api.tick() + s * TICKS_POR_SEGUNDO); else callados.delete(e);

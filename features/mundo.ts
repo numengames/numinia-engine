@@ -14,6 +14,8 @@ import { crearDados } from "./dados/server.ts";
 import type { Torre as TorreDados } from "./dados/server.ts";
 import { leerAparicion, leerAparicionFoto } from "./entorno/esquema.ts";
 import { crearTeletransporte } from "./teletransporte/server.ts";
+import { crearWeb } from "./web/server.ts";
+import { leerWebMundo } from "./web/feature.ts";
 import type { Aparicion } from "./entorno/esquema.ts";
 
 export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) => unknown, log: (l: string) => void = () => {}): ServerPart[] {
@@ -34,7 +36,12 @@ export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) 
   const crudoEntorno = leer("entorno.json"), af = crudoEntorno === undefined ? { ok: true as const, value: false } : leerAparicionFoto(crudoEntorno);
   if (!af.ok) log(`[mundo] aparicionFoto de entorno.json no se usa (apagado): ${af.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
   const fotoSi = af.ok && af.value;
-  return partes.map((p) => (p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
+  // web.json (numinia-engine/web@1: { dominios: ["numinia.org"], pantallas: [{ id, url, titulo, texto?, x, y?, z, ry?, ancho?, alto? }] }):
+  // the sites this world's screens may show and the screens it ships; none = no web screens at all (N17)
+  const crudoWeb = leer("web.json");
+  const leidoWeb = crudoWeb === undefined ? null : leerWebMundo(crudoWeb);
+  for (const pr of leidoWeb?.problemas ?? []) log(`[mundo] web.json: ${pr.path}: ${pr.message} (esa parte no se usa)`);
+  return partes.map((p) => (p.feature.id === "web" && leidoWeb ? crearWeb(leidoWeb.valor) : p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
 }
 
 /** The world's spawn area (entorno.json `aparicion`), or null: no file, no key, or a wrong one (logged, with its path). */

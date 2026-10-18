@@ -15,5 +15,6 @@ import bienes from "./bienes/server.ts";
 import dados from "./dados/server.ts"; // v1: dice the server rolls (a tower is a thing of the world; /tirar 2d6 in the chat); everyone near sees the same // N10: digital goods — a chest's «objeto» becomes yours (signed receipt, inventory)
 
 import teletransporte from "./teletransporte/server.ts"; // N16: go next to someone connected now; a photo's place, if the world allows it
-const funciones: ServerPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte];
+import web from "./web/server.ts"; // N17: web screens (an iframe in the world on PC and phone; a card and «Abrir fuera» in VR)
+const funciones: ServerPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web];
 export default funciones;
