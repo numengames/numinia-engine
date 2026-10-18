@@ -5,6 +5,10 @@ import { fx, fxMul, fxSqrt, fxDiv, fxClamp, fnv1a, rngNext, FX_ONE } from "../..
 import { defineSchema } from "../../schema/src/index.ts";
 import { World } from "../../ecs/src/index.ts";
 import type { Store } from "../../ecs/src/index.ts";
+import { rayBvh } from "./bvh.ts";
+import type { Bvh } from "./bvh.ts";
+export { buildBvh, rayBvh, bvhFingerprint, quantizeTriangles, BVH_UNIT, BVH_LEAF, TRI_STRIDE, NODE_STRIDE } from "./bvh.ts";
+export type { Bvh, Hit } from "./bvh.ts";
 
 export const TICK_HZ = 20;
 export const SPEED = fx(1.5);                // walking, metres per second (human pace; was 4 — too fast to ever just walk)
@@ -28,18 +32,30 @@ const BTN_KNOWN = BTN_JUMP | BTN_RUN;
 export const INPUT_STRIDE = 4;
 
 /** Height of the ground under (x, z), Q16.16. A flat plaza, plus (U10) the tops of solid things you stand above
- * when `s` is given: the highest top not more than STEP_UP over your feet `y`. M6 (physics) replaces this. */
+ * when `s` is given: the highest top not more than STEP_UP over your feet `y`; plus (M6) the world mesh when `s` has
+ * one: a ray straight down from STEP_UP over the feet (so a step up to STEP_UP counts as ground) to the bottom of
+ * the world. Without solids and without a mesh nothing is looked at (the reference fingerprint never sees them). */
 export function groundHeight(x: number, z: number, s?: SimState, y = 0): number {
   let g = 0;
-  const b = s?.solids;
-  if (!b) return g;
+  if (!s) return g;
+  const b = s.solids;
   for (let o = 0; o + 5 < b.length; o += 6) {
     if (x < b[o] || x > b[o + 3] || z < b[o + 2] || z > b[o + 5]) continue;
     const top = b[o + 4];
     if (top > g && top <= y + STEP_UP) g = top;
   }
+  const m = s.mesh;
+  if (m) {
+    const top = y + STEP_UP;
+    const h = rayBvh(m, x, top, z, 0, -FX_ONE, 0, top + MESH_FLOOR);
+    if (h && h.y > g) g = h.y;
+  }
   return g;
 }
+/** How far under the feet a world mesh is still ground (the `Transform` floor, 500 m). */
+const MESH_FLOOR = fx(500);
+/** Does the state have any geometry (solid boxes or a mesh) that the step must look at? */
+const hasGeometry = (s: SimState): boolean => s.solids.length > 0 || s.mesh !== null;
 
 // ---- U10: solid things (a boolean on a placed thing). World geometry, like the ground: NOT part of the state's
 // fingerprint (both sides build it from the same shared state). Boxes are axis-aligned, Q16.16:
@@ -87,6 +103,9 @@ export function sitioLibre(s: SimState, x: number, y: number, z: number, radios:
 }
 /** Replace the solid boxes (both the server and the page call it when the shared state of things changes). */
 export function setSolids(s: SimState, boxes: Int32Array): void { s.solids = boxes; }
+/** M6: set (or clear) the world's collision mesh, a tree built with `buildBvh` from the same quantized triangles on
+ * both sides. Not part of the state fingerprint. */
+export function setMesh(s: SimState, mesh: Bvh | null): void { s.mesh = mesh; }
 /** The boxes of every value with `solido: true` and its world box (bx0…bz1, metres), at most SOLIDS_MAX, in key order. */
 export function solidsFrom(values: Iterable<[string, Record<string, unknown>]>): Int32Array {
   const list = [...values].filter(([, v]) => v.solido === true && Number(v.bx1) > Number(v.bx0) && Number(v.bz1) > Number(v.bz0))
@@ -111,14 +130,14 @@ export const Motion = defineSchema("Motion", 1, {
   buf: { kind: "int", min: 0, max: JUMP_BUFFER },            // ticks a jump press may still wait for the ground
 });
 
-export type SimState = { world: World; tf: Store; av: Store; mo: Store; tick: number; rng: Uint32Array; solids: Int32Array };
+export type SimState = { world: World; tf: Store; av: Store; mo: Store; tick: number; rng: Uint32Array; solids: Int32Array; mesh: Bvh | null };
 
 export function createSim(capacity: number, seed: number): SimState {
   const world = new World(capacity);
   const tf = world.register(Transform);
   const av = world.register(Avatar);
   const mo = world.register(Motion);
-  return { world, tf, av, mo, tick: 0, rng: new Uint32Array([seed >>> 0]), solids: new Int32Array(0) };
+  return { world, tf, av, mo, tick: 0, rng: new Uint32Array([seed >>> 0]), solids: new Int32Array(0), mesh: null };
 }
 
 /** Where new avatars appear (metres): the square of half-side `radio` centred at (x, z). A vertical world (a tower)
@@ -176,15 +195,16 @@ export function step(s: SimState, inputs: Int32Array): void {
     const len = fxSqrt(fxMul(mx, mx) + fxMul(mz, mz));
     if (len > FX_ONE) { mx = fxDiv(mx, len); mz = fxDiv(mz, len); } // no faster diagonals
     const st = buttons & BTN_RUN ? RUN_STEP : STEP;
-    // N1b: standing on something before this step (only with solids: the flat plaza never needs it, so the reference
-    // fingerprint stands)
-    const onGround = s.solids.length > 0 && VY[e] === 0 && Y[e] === groundHeight(X[e], Z[e], s, Y[e]);
+    // N1b: standing on something before this step (only with geometry — solids or a mesh: the flat plaza never needs
+    // it, so the reference fingerprint stands)
+    const geo = hasGeometry(s);
+    const onGround = geo && VY[e] === 0 && Y[e] === groundHeight(X[e], Z[e], s, Y[e]);
     const nx = fxClamp(X[e] + fxMul(mx, st), -BOUND, BOUND), nz = fxClamp(Z[e] + fxMul(mz, st), -BOUND, BOUND);
     if (s.solids.length === 0 || !blocked(s, nx, Y[e], nz)) { X[e] = nx; Z[e] = nz; }
     else if (!blocked(s, nx, Y[e], Z[e])) X[e] = nx;   // U10: slide along a wall
     else if (!blocked(s, X[e], Y[e], nz)) Z[e] = nz;
     // vertical (J2): jump from the ground, or the one jump in the air; then gravity, then the ground stops the fall
-    const ground = s.solids.length ? groundHeight(X[e], Z[e], s, Y[e]) : 0;
+    const ground = geo ? groundHeight(X[e], Z[e], s, Y[e]) : 0;
     let y = Y[e], vy = VY[e], air = AIR[e], buf = buttons & BTN_JUMP ? JUMP_BUFFER + 1 : BUF[e];
     if (onGround && ground < y && y - ground <= SNAP_DOWN) y = ground; // N1b: down a step, still on the ground
     if (buf > 0) {

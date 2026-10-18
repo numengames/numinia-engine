@@ -756,3 +756,14 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Versión **0.6.1 → 0.7.0** (menor): ajustes y capacidades nuevos, nada se rompe. (Las ramas traían 0.6.0 y
   0.6.1; `main` ya había tomado esos números con #46 y #47.)
 - Consumo: sin medir · Sonnet 5.5.
+
+## 2026-10-18 12:53 · M6 h3-h4 · hecho
+- Qué: BVH entero (`packages/sim/src/bvh.ts`: triángulos a 1/64 m en `Int32Array`, árbol plano, hojas ≤ 8,
+  partición por centro con mediana de reserva, huella FNV-1a del árbol) y rayo contra él (Möller–Trumbore en
+  enteros: punto, normal hacia el rayo, triángulo, distancia). `setMesh` hace que la malla sea suelo en
+  `groundHeight` (rayo hacia abajo desde STEP_UP sobre los pies); sin malla ni cajas no se consulta nada.
+- Números: 49.928 triángulos construidos en 7,4 ms (mejor de 3, Node); huella del árbol y acierto del rayo
+  idénticos en Node y Chromium (`test/bvh.test.ts`); 546 pruebas en verde; huella de referencia `7e630965` intacta.
+- Consumo: sin medir · Fable 5.1 (subagente).
+- Commit: rama `feat/m6-integer-bvh-ray` contra `tren/motor-2026-10-18-3`.
+- Siguiente: historias 5-6 (pared y pendiente contra triángulos), 9 (la página construye el mismo BVH del GLB).
