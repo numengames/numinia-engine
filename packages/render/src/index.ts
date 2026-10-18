@@ -906,6 +906,20 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** U-mandos: a video's own, per-person pause/stop/volume (medios.ts `ControlVideo`), or `null` when `key` is not
      * a loaded video. Never touches the shared clock: it only changes what THIS person sees and hears. */
     controlVideo(key: string): ControlVideo | null { return things.get(key)?.medio?.controlVideo ?? null; },
+    /** M18: the video screens drawn right now (their file loaded) and where they stand, for the page to pick the nearest. */
+    pantallas(): { key: string; x: number; y: number; z: number }[] {
+      const r: { key: string; x: number; y: number; z: number }[] = [];
+      for (const [k, s] of things) if (s.want.kind === "video" && s.loaded && s.medio?.enVivo) r.push({ key: k, x: s.want.x, y: s.want.y, z: s.want.z });
+      return r;
+    },
+    /** M18: show a live MediaStream (your shared screen) on a video screen, on this page only — nothing is sent anywhere;
+     * `null` puts the file back. False when there is no loaded video screen with that key. */
+    pantallaEnVivo(key: string, stream: MediaStream | null): boolean {
+      const s = things.get(key);
+      if (!s?.loaded || !s.medio?.enVivo) return false;
+      s.medio.enVivo(stream);
+      return true;
+    },
     /** J10: carry a placed thing (`key` as in place): in a hand in XR, beside you on a flat screen; `null` puts it back. */
     llevar(key: string, donde: Llevar | null): void {
       if (!donde) { if (llevados.has(key)) soltarLlevado(key); return; }
