@@ -4,6 +4,10 @@
 //   - process CPU (process.cpuUsage), host CPU busy and STEAL from /proc/stat (Linux only; null elsewhere).
 // Steal is the time a virtual machine wanted the CPU and the hypervisor gave it to someone else: a
 // measurement taken with steal above ~2 % measures the neighbours, not the engine.
+//   - D3: how long the MAIN thread was ready to run but waited for a CPU (/proc/thread-self/schedstat, Linux only).
+// Steal only sees the hypervisor; on a shared machine (a desktop running other jobs on the same core, a busy VPS) the
+// other processes take the core without any steal. Wait above ~2 % of the wall clock (like steal) = slow ticks are the
+// machine's, not the engine's (D3: every startup "stall" measured on the desktop was this, never the engine's code).
 import { readFileSync } from "node:fs";
 import os from "node:os";
 import { constants, monitorEventLoopDelay, performance, PerformanceObserver } from "node:perf_hooks";
@@ -25,9 +29,20 @@ export function parseProcStat(text: string): Stat | null {
 
 const readStat = (): Stat | null => { try { return parseProcStat(readFileSync("/proc/stat", "utf8")); } catch { return null; } };
 
+/** /proc/<pid>/task/<tid>/schedstat: `ns on the CPU · ns waiting on a run queue · timeslices`. Only the wait is kept,
+ * in ms. null if the text is not that. */
+export function parseSchedstat(text: string): number | null {
+  const f = text.trim().split(/\s+/).map(Number);
+  if (f.length < 2 || !Number.isFinite(f[0]) || !Number.isFinite(f[1]) || f[1] < 0) return null;
+  return f[1] / 1e6;
+}
+
+// sample() runs on the main JS thread, so thread-self is the thread that runs the ticks (not GC or compiler helpers)
+const readEspera = (): number | null => { try { return parseSchedstat(readFileSync("/proc/thread-self/schedstat", "utf8")); } catch { return null; } };
+
 type Sample = {
   at: number; cpuMs: number; elu: ReturnType<typeof performance.eventLoopUtilization>;
-  stat: Stat | null; gcN: number; gcMs: number;
+  stat: Stat | null; gcN: number; gcMs: number; esperaMs: number | null;
 };
 
 export type RuntimeWindow = {
@@ -42,6 +57,9 @@ export type RuntimeWindow = {
   /** B2: since start, never goes down (a real counter): pauses and their summed ms, total and per kind of collection. */
   gcAcumulado: { pausas: number; ms: number; porTipo: Record<GcTipo, { pausas: number; ms: number }> };
   anfitrion: { cpuPct: number; stealPct: number; carga1m: number } | null;
+  /** D3: the main thread was ready but another process had the core (% of the wall clock, last ~10 s; seconds since
+   * start, for rate()). null where the kernel does not say (not Linux). */
+  esperaCpu: { pct: number; segundos: number } | null;
 };
 
 /** B2: Node's gc entry `detail.kind` (perf_hooks constants NODE_PERFORMANCE_GC_*) as label values (prom-client's names). */
@@ -99,7 +117,7 @@ export class Runtime {
   sample(now = performance.now()): void {
     const c = process.cpuUsage();
     this.cpuSecondsTotal = (c.user + c.system) / 1e6;
-    this.samples.push({ at: now, cpuMs: (c.user + c.system) / 1000, elu: performance.eventLoopUtilization(), stat: readStat(), gcN: this.gcN, gcMs: this.gcMs });
+    this.samples.push({ at: now, cpuMs: (c.user + c.system) / 1000, elu: performance.eventLoopUtilization(), stat: readStat(), gcN: this.gcN, gcMs: this.gcMs, esperaMs: readEspera() });
     if (this.samples.length > this.size) this.samples.shift();
     // the delay histogram covers ~10 s: when it is nearly fresh, the previous one answers
     if (this.delay.count >= 100 * 10) {
@@ -129,6 +147,9 @@ export class Runtime {
         porTipo: Object.fromEntries(GC_TIPOS.map((k) => [k, { pausas: this.gcHist[k].count, ms: r2(this.gcHist[k].sumMs) }])) as Record<GcTipo, { pausas: number; ms: number }>,
       },
       anfitrion: host,
+      esperaCpu: a.esperaMs !== null && b.esperaMs !== null
+        ? { pct: wall > 0 ? r2((100 * (b.esperaMs - a.esperaMs)) / wall) : 0, segundos: Math.round(b.esperaMs) / 1000 }
+        : null,
     };
   }
 

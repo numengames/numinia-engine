@@ -238,6 +238,10 @@ export function toPrometheus(m: Metrics, h: Histogramas = {}, openMetrics = fals
   add("numinia_gc_pause_seconds_total", "counter", "Garbage-collection pause time since start (monotonic; before B2 it was the last ~10 s).", [["", s(m.proceso.gcAcumulado.ms)]]);
   add("numinia_gc_pauses_total", "counter", "Garbage-collection pauses since start.", [["", m.proceso.gcAcumulado.pausas]]);
   add("numinia_gc_pause_window_seconds", "gauge", "Garbage-collection pause time in the last ~10 s window.", [["", s(m.proceso.gc.totalMs)]]);
+  if (m.proceso.esperaCpu) { // D3: ready to run, but the core was someone else's (shared machine): the ticks it slows are not the engine's
+    add("numinia_mainthread_cpu_wait_seconds_total", "counter", "Time the main thread was runnable but waited for a CPU (Linux schedstat), since start.", [["", m.proceso.esperaCpu.segundos]]);
+    add("numinia_mainthread_cpu_wait_ratio", "gauge", "Share of wall time the main thread waited for a CPU, last ~10 s.", [["", m.proceso.esperaCpu.pct / 100]]);
+  }
   if (m.proceso.anfitrion) {
     add("numinia_host_cpu_busy_ratio", "gauge", "Host CPU busy (not idle, not waiting for IO), last ~10 s.", [["", m.proceso.anfitrion.cpuPct / 100]]);
     add("numinia_host_cpu_steal_ratio", "gauge", "Host CPU stolen by the hypervisor, last ~10 s.", [["", m.proceso.anfitrion.stealPct / 100]]);

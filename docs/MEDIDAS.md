@@ -27,6 +27,7 @@ Cada orden escribe un informe `informes/AAAA-MM-DD-HH-MM-<etiqueta>.json` (para 
 | Bucle ocupado | utilización del bucle de eventos, 0–1 (Node `eventLoopUtilization`) | saturación del hilo único |
 | CPU proceso % | del proceso, en % de **un** núcleo | utilización |
 | CPU máquina / steal % | CPU ocupada de toda la máquina y tiempo que el hipervisor se llevó (`/proc/stat`) | steal > 2 % = la medida es de los vecinos |
+| Espera de CPU % | tiempo que el hilo principal estuvo listo pero otro proceso tenía el núcleo (`/proc/thread-self/schedstat`, solo Linux; `/metrics.prom`: `numinia_mainthread_cpu_wait_*`) | el steal no lo ve en una máquina compartida: con espera > 2 % (como el steal) los ticks lentos son de la máquina, no del motor (D3) |
 | RSS MB | memoria residente | utilización |
 | kbit/s por persona | salida media por conectado | tráfico |
 
