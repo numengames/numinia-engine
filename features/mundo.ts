@@ -24,6 +24,8 @@ import type { Boton } from "./botones/server.ts";
 import { crearCogibles } from "./cogibles/server.ts";
 import type { Cosa as CosaCogible } from "./cogibles/server.ts";
 import { leerWebMundo } from "./web/feature.ts";
+import { crearContadores } from "./contadores/server.ts";
+import { leerContadores } from "./contadores/feature.ts";
 import type { Aparicion } from "./entorno/esquema.ts";
 
 export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) => unknown, log: (l: string) => void = () => {}): ServerPart[] {
@@ -56,7 +58,6 @@ export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) 
   if (crudoInter !== undefined && !Array.isArray(inter.puertas) && !Array.isArray(inter.botones) && !Array.isArray(inter.cosas)) log(`[mundo] interacciones.json no tiene ninguna lista "puertas", "botones" o "cosas" (no pongo nada): ${JSON.stringify(crudoInter).slice(0, 160)}`);
 
   const sueloMundo = sueloDelMundo(leer); // D-045: the same values the instance got (logged once there)
-  return partes.map((p) => (p.feature.id === "suelo" && sueloMundo ? crearSuelo(sueloMundo) : p.feature.id === "puertas" && Array.isArray(inter.puertas) ? crearPuertas({ puertas: inter.puertas as Puerta[] }) : p.feature.id === "botones" && Array.isArray(inter.botones) ? crearBotones({ botones: inter.botones as Boton[] }) : p.feature.id === "cogibles" && Array.isArray(inter.cosas) ? crearCogibles({ cosas: inter.cosas as CosaCogible[] }) : p.feature.id === "web" && leidoWeb ? crearWeb(leidoWeb.valor) : p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
 }
 
 /** D-045: the world's void (entorno.json `sueloMinimo` + `vuelta`), or null: no file, no key, or a wrong one (logged). */
@@ -65,6 +66,13 @@ export function sueloDelMundo(leer: (fichero: string) => unknown, log: (l: strin
   if (r.ok) return r.value;
   log(`[mundo] sueloMinimo/vuelta de entorno.json no se usan (este mundo no tiene vacío): ${r.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
   return null;
+
+  // contadores.json (numinia-engine/contadores@1, D-044: { contadores: [{ id, nombre, tipo, x, z, segundos | inicio, tope, donde?, evento?, manda? }] }):
+  // the world's timers and counters; none = no counter. Each wrong line is left out with its reason; the rest is used.
+  const crudoContadores = leer("contadores.json");
+  const leidoContadores = crudoContadores === undefined ? null : leerContadores(crudoContadores);
+  for (const pr of leidoContadores?.problemas ?? []) log(`[mundo] contadores.json: ${pr.path}: ${pr.message} (esa línea no se usa)`);
+  return partes.map((p) => (p.feature.id === "contadores" && leidoContadores ? crearContadores({ contadores: leidoContadores.valor }) : p.feature.id === "suelo" && sueloMundo ? crearSuelo(sueloMundo) : p.feature.id === "puertas" && Array.isArray(inter.puertas) ? crearPuertas({ puertas: inter.puertas as Puerta[] }) : p.feature.id === "botones" && Array.isArray(inter.botones) ? crearBotones({ botones: inter.botones as Boton[] }) : p.feature.id === "cogibles" && Array.isArray(inter.cosas) ? crearCogibles({ cosas: inter.cosas as CosaCogible[] }) : p.feature.id === "web" && leidoWeb ? crearWeb(leidoWeb.valor) : p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
 }
 
 /** The world's spawn area (entorno.json `aparicion`), or null: no file, no key, or a wrong one (logged, with its path). */

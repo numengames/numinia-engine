@@ -786,3 +786,14 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Fable 5.1 (subagente).
 - Commit: feat/mute-a-person → tren/motor-2026-10-18-3.
 - Siguiente: F1b (amigos, denunciar); marcar en Gente el estado real de bloqueo al recargar (hoy la marca es local).
+## 2026-10-18 12:56 · contadores · hecho (historias 1-2 de D-044)
+- Qué: pieza `contadores` (temporizador, contador y reloj que todos ven): el servidor lleva el reloj y publica el
+  valor una vez por segundo solo a quien está en la zona (estado con `at`); fichero `contadores.json` con esquema y
+  cada línea mal formada fuera con su motivo; intenciones arranca/para/suma/reinicia/pulsar; evento `llegada` con el
+  nombre del `evento` para el cable (D-041); hitos anunciados (aria-live); cartel 3D con el rótulo sprite existente;
+  panel HTML accesible en `apps/plaza/contadores.ts`; tres filas en `limits.json`; sección en EXTENDER.
+- Números: `test/contadores.test.ts` 9/9; `npm test` 535/536 (la que falla, `carga-rapida`, es por un `node_modules`
+  sin `@gltf-transform/core`, no por este cambio); `layers` y `build` en verde. Sin e2e de navegador.
+- Consumo: sin medir · Fable 5.1 (subagente).
+- Commit: rama `feat/shared-timers-counters` sobre `tren/motor-2026-10-18-3`; sin subir versión (la pone el tren).
+- Siguiente: historia 3 (persistir el valor, contadores por equipo, alta desde el mundo) y el cable de D-041.
