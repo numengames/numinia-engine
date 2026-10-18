@@ -28,6 +28,8 @@ import { pesca } from "../../features/pesca/client.ts"; // pesca v1: the control
 import { bienes, comprobar } from "../../features/bienes/client.ts"; // N10: goods that are yours (signed receipt), in the sheet's «Inventario»
 import { montarBienes } from "./bienes.ts";
 import { montarEntorno } from "./entorno.ts";
+import { montarDirector } from "./director.ts";
+import { dirigir } from "../../features/director/client.ts";
 import { montarVoz } from "./voz.ts";
 import { icono } from "./iconos.ts";
 import { montarXR } from "./xr.ts";
@@ -67,6 +69,7 @@ const session = new ClientSession(transport, {
     // V1: every announced event reaches screen readers (polite; safety = assertive). V3 adds the engine's own voice.
     announce: (a) => {
       if (a.feature === "chat") return; // J3: the chat box's own list (role=log, polite) reads the chat
+      if (a.feature === "director" && a.event === "narracion") return; // N6: the narrator's banner (a live region) reads it
       if (a.feature === "misiones" && a.event === "completada") return; // U14 (6): the «Misión completada» banner (a live region) reads it
       const box = document.getElementById(a.importance >= 3 ? "avisos-urgentes" : "avisos")!;
       const p = document.createElement("p"); p.textContent = a.text; box.appendChild(p);
@@ -99,6 +102,7 @@ const soltar = montarSoltar({ session, view, puede: () => constructor.estado.pue
 // ---- U12: holes — click one (or E near it) and choose your picture: it goes up and the server fits it into the frame ----
 const huecos = montarHuecos({ constructor, view, rellenar: soltar.rellenar, decir: (t) => soltar.decir(t), panel: document.getElementById("panel-construir") });
 montarEntorno(ambiente, elementos, view); // H4/H8: environment and elements, a section of its own while building
+montarDirector({ dj: dirigir, ambiente, view }); // N6: the Game Director (who may direct: STD-052 manage-rituals): scenes, narrator, summons
 // ---- pesca v1: nothing of it is in the start bundle; the HUD and the 3D arrive with the first fishing spot or float ----
 let pescaHud: Promise<unknown> | null = null, pescaPagina: unknown = null; // N4: pescaPagina.manos (VR rod, gamepad) for the e2e
 pesca.alCambiar(() => { pescaHud ??= import("./pesca.ts").then((m) => (pescaPagina = m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, ajuste: leerAjuste, interaccion: () => interaccion }))).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); });
@@ -347,7 +351,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, mapa, ficha, ambiente, elementos, voz, xr, pesca, bienes, dardos, pescaPagina: () => pescaPagina };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, mapa, ficha, ambiente, elementos, voz, xr, pesca, bienes, dardos, pescaPagina: () => pescaPagina, dirigir };
 
 // ---- U11: the bar of icon buttons, top right (rightmost first): settings, build, microphone, full screen, VR, AR ----
 {
