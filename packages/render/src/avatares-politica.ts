@@ -24,11 +24,25 @@ export function sueloBajo(x: number, z: number, y: number, cajas: ArrayLike<numb
   }
   return g;
 }
+/** N1b: a stair step (up or down, at most this many metres) is drawn as a short climb instead of a 0.37 m pop in one
+ * 50 ms tick (the «step smoothing» of Source and Unreal's character mesh): the drawn height chases the simulated one
+ * with time constant TAU_ESCALON_S. Bigger changes (a fall, a teleport) and the air (`suelo` false) are followed exactly. */
+export const ESCALON_M = 0.45, TAU_ESCALON_S = 0.07;
+export function alturaDibujada(dibujada: number | undefined, objetivo: number, dt: number, suelo: boolean): number {
+  if (dibujada === undefined || !suelo || dt <= 0 || Math.abs(objetivo - dibujada) > ESCALON_M) return objetivo;
+  const d = objetivo - dibujada;
+  return Math.abs(d) < 1e-3 ? objetivo : dibujada + d * (1 - Math.exp(-dt / TAU_ESCALON_S));
+}
 /** Crossfade between clips (s). */
 export const FUNDIDO_S = 0.2;
 
-export type Estado = "quieto" | "andar" | "correr" | "saltar";
-export type Clip = "quieto" | "andar" | "trotar" | "correr" | "saltar";
+export type Estado = "quieto" | "andar" | "correr" | "saltar" | "colgado" | "trepar";
+/** J24: «colgar» (hanging from a ledge) and «trepar» (pulling up onto it) have no house clip yet (the free UAL1 Standard
+ * has none; UAL1/UAL2's Climb_Idle_Loop, ClimbLedge and ClimbUp_*_RM are CC0 but not in the files we hold): they fall
+ * back to «saltar». A world or a later row adds the files and they play. */
+export type Clip = "quieto" | "andar" | "trotar" | "correr" | "saltar" | "colgar" | "trepar";
+/** J24: what the simulation says the body is doing on a ledge (the page reads it from its prediction). */
+export type Parkour = { modo: "colgado" | "trepar"; rumbo: number } | null;
 
 export function cupoVRM(c: { mobile: boolean; xr: boolean }): number {
   return c.xr ? CUPO_VRM.visor : c.mobile ? CUPO_VRM.movil : CUPO_VRM.escritorio;
@@ -40,7 +54,8 @@ export function elegirAvatar(id: number, n: number): number {
   return ((id % n) + n) % n;
 }
 
-export function estadoPor(velocidad: number, altura: number): Estado {
+export function estadoPor(velocidad: number, altura: number, parkour: Parkour = null): Estado {
+  if (parkour) return parkour.modo; // J24: on a ledge, whatever the height
   if (altura > EN_EL_AIRE_M) return "saltar";
   if (velocidad < QUIETO_MS) return "quieto";
   return velocidad > CORRER_MS ? "correr" : "andar";
@@ -52,15 +67,29 @@ export function estadoPor(velocidad: number, altura: number): Estado {
  * jog cycle, whichever stride is closer to the speed (a short avatar jogs where a tall one walks); a clip that is
  * missing falls back to the nearest one there is.
  */
-export function clipPara(estado: Estado, velocidad: number, cadera: number, natural: Partial<Record<Clip, number>>, hay: (c: Clip) => boolean): { clip: Clip; ritmo: number } | null {
+export function clipPara(estado: Estado, velocidad: number, cadera: number, natural: Partial<Record<Clip, number>>, hay: (c: Clip) => boolean, duracion: Partial<Record<Clip, number>> = {}): { clip: Clip; ritmo: number } | null {
   const orden: Clip[] = estado === "quieto" ? ["quieto"] : estado === "saltar" ? ["saltar", "quieto"]
+    : estado === "colgado" ? ["colgar", "saltar", "quieto"] : estado === "trepar" ? ["trepar", "saltar", "quieto"]
     : estado === "correr" ? ["correr", "trotar", "andar", "quieto"] : elegirPaso(velocidad / Math.max(0.1, cadera), natural);
   const clip = orden.find(hay);
   if (!clip) return null;
-  const n = natural[clip] ?? 0;
-  const ritmo = n > 0 && clip !== "quieto" && clip !== "saltar" ? Math.min(2, Math.max(0.5, velocidad / (n * Math.max(0.1, cadera)))) : 1;
+  const n = natural[clip] ?? 0, h = Math.max(0.1, cadera);
+  const fijo = clip === "quieto" || clip === "saltar" || clip === "colgar" || clip === "trepar"; // played as authored
+  let ritmo = n > 0 && !fijo ? velocidad / (n * h) : 1; // the feet stay still on the ground
+  // N1b (Pablo, 16-10: «va como corriendo despacito»): the house jog and sprint loops take 2 long steps per loop, so
+  // played at the speed that keeps the feet still they bound in slow motion (≈ 90 steps a minute at 4 m/s). Meet a
+  // natural step rate half way (geometric mean): `CADENCIA` steps a second for hips of 0.9 m, faster for shorter legs
+  // (∝ 1/√hips, like a pendulum); the feet slide a little, the gait stops floating.
+  const d = duracion[clip] ?? 0;
+  if ((clip === "trotar" || clip === "correr") && d > 0 && ritmo > 0) {
+    const porCadencia = (CADENCIA[clip] * Math.sqrt(0.9 / h)) / (2 / d);
+    ritmo = Math.sqrt(ritmo * porCadencia);
+  }
+  if (!fijo) ritmo = Math.min(2, Math.max(0.5, ritmo));
   return { clip, ritmo };
 }
+/** Steps a second a person of hips 0.9 m takes jogging and sprinting (our choice, ≈ 165 and 190 steps a minute). */
+export const CADENCIA = { trotar: 2.75, correr: 3.15 } as const;
 function elegirPaso(relativa: number, natural: Partial<Record<Clip, number>>): Clip[] {
   const a = natural.andar ?? 0.8, t = natural.trotar ?? 5.2;
   return relativa < Math.sqrt(a * t) ? ["andar", "trotar", "quieto"] : ["trotar", "andar", "quieto"];

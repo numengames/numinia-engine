@@ -77,6 +77,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | J22 | El alcance mira la altura: `api.position` da `y`; `api.within` y el aviso «E:» de la página (`reachable(x, z, y)`) exigen una diferencia de altura ≤ 2,5 m (`ALCANCE_ALTURA_M`) cuando la cosa tiene `y`; `llega_a` admite `y` opcional (0–30) con la misma regla | hecho (16-10, rama `torre/aparicion-y-altura`; sin `y`, todo como antes) | sí |
 | J23 | Grabar vídeo desde dentro del mundo para compartirlo (la vista del juego y su sonido, sin la interfaz si se quiere), y que una IA conectada también pueda grabar lo que ve para analizar partidas (Pablo, 16-10: «no es ahora») | pendiente (planificar) | sí |
 | E1 | Simulador de economías de juego (herramienta de diseño, `tools/economia/`): diagrama como datos + N ticks deterministas; modelos de la Tabla de Prestigio y del ritmo de Reliquias; método en `../mmo-browser-study/MAQUINACIONES-APRENDIZAJE.md` (Pablo, 18-10) | hecho (sin conectar al motor; falta el modelo de daño y, si hace falta, un editor visual propio) | sí |
+| J24 | Parkour (Pablo, 16-10: «si puedes llegar colgarte como en el Prince of Persia»): agarrarse al borde al caer, colgarse, soltarse, desplazarse por el borde, trepar; subir de un impulso muros de hasta 1,2 m; en la simulación, sin cambiar la huella | en curso (prototipo hecho, rama `parkour/colgarse`; faltan clips CC0 de colgar/trepar y el estado de los demás) | sí |
 | N1 | Entrada táctil, gamepad, cámara en 3.ª persona y pantalla completa (de `docs/JUGADOR.md`) | hecho (sin probar en aparato real) | sí |
 | N1b | Cámara que sigue tu altura (saltos, pisos) y no atraviesa lo sólido (esfera barrida contra las cajas sólidas; lo no sólido, con M6); bajar escalones sin «caer» (pegarse al suelo, 0,45 m) y el avatar no «salta» sobre un tejado o una escalera | hecho | sí |
 | N2 | Menú de ajustes y accesibilidad básica, guardado local (de `docs/JUGADOR.md`) | hecho | sí |
@@ -396,6 +397,22 @@ formato nueva, la huella nueva fijada en el test y el cambio explicado en el dia
 aire (doble salto). Volar es de H2 (necesita permiso).
 
 **Hecho (15-10, rama `wt/salto`; formato 2).** Simulación: altura, velocidad vertical, gravedad 20 m/s², salto de 1,5 m (v = √(2gh) con `fxSqrt`), uno más en el aire, búfer de 150 ms, caída máxima 50 m/s; correr 8 m/s (Mayús), andar 4; `groundHeight(x, z)` = 0 es el punto de enganche de M6. Entrada con un sexto byte de botones (aditivo: la de 5 bytes vale sin botones); el snapshot lleva tu estado vertical exacto y la altura de los demás solo cuando están en el aire (de pie cuestan lo de antes); `WIRE_FORMAT = 2` al final de la bienvenida. Un avatar solo avanza con sus propias entradas (como los «usercmd» de Quake): la predicción sigue exacta con entradas tardías o agrupadas. Página: Espacio salta (fuera de los campos de texto), Mayús corre; en el móvil, botón «Saltar» y correr con el joystick al borde; en VR, A o X saltan y el borde de la palanca corre. Bots que corren y saltan de vez en cuando. **Medido:** 10 pruebas (`test/salto.test.ts`); huella de referencia `fa94375e` → `93b192c8` (fijada en `test/engine.test.ts` y `test/server.test.ts`); enjambre de 1.000 por WebSocket: tick p99 19,3 ms (antes 19,95 el mismo día), 27,2 kbit/s por persona (antes 25,6); pierna `tools/e2e-piernas/salto.mjs`: cima 1,48 m, doble 2,79 m, Mayús+W 11,6 m frente a 6,0 m. **Falta:** aviso de formato distinto (J2b), mantener Espacio para encadenar saltos, volar (H2), pendientes y tiempo de coyote (M6).
+
+### J24 — Parkour: colgarse y trepar
+Estudio: `../mmo-browser-study/PARKOUR.md` (fuentes en `raw/43-parkour/`).
+**Hecho (16-10, rama `parkour/colgarse`, sin subir).** Simulación (`packages/sim`): al caer con el stick hacia una cara
+de una caja sólida a ≤ 0,4 m (`PK_PROBE`) cuyo borde queda al alcance (pies 1,7 m bajo él, `HANG_DROP`, hasta 0,5 m más
+arriba, `REACH_UP`), te cuelgas: sin gravedad; atrás te suelta, de lado te desplaza 1 m/s por el borde, Saltar sube en 6
+tics y adelante también tras 3 tics colgado (`HANG_SETTLE`); hace falta sitio arriba. En el suelo, Saltar hacia un muro de
+0,4–1,2 m (`MANTLE_MAX`) lo sube en 4 tics. Estado `Body.pk` (columna `Motion.pk`, Motion v2): etapa << 2 | lado; viaja
+en los bits 3–7 de las banderas del snapshot propio (aditivo: eran 0) y entra en el resumen del estado en los bits altos
+de `air` (0 sin paredes: misma huella). `session.parkour()` → el VRM mira a la pared y pide «colgar»/«trepar» (caen a
+«saltar»). **Medido:** 12 pruebas (`test/parkour.test.ts`); huella `93b192c8` sin cambiar; predicción 0 correcciones
+colgando y trepando; Torre (`work/torre/trazado.mjs`, solo leído; la prueba se salta donde no está): 450 intentos de salto
+del circuito, 127 → 143 llegan (16 salvados, 0 perdidos); 200 avatares en la Torre 0,12 → 0,14 ms/tic. **Falta:** clips
+CC0 (UAL1 completo / UAL2 de Quaternius: `Climb_Idle_Loop`, `ClimbUp_2m_RM`; el UAL1 Standard que tenemos no los trae),
+que los demás vean que cuelgas (estado de otros en el snapshot), salto de pared, apagarlo por mundo en los ajustes,
+paredes giradas (M6), probarlo en navegador y aparato.
 
 ### J3 — Chat y bocadillos
 Mensaje nuevo CHAT (aditivo: tipo nuevo, texto UTF-8 ≤ 200 bytes, límite de ritmo en el servidor,

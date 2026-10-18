@@ -2,7 +2,7 @@
 // Own avatar: predicted with the SAME sim step the server runs, reconciled exactly on each snapshot.
 // Others: drawn slightly in the past, interpolated between snapshots.
 import { fxToFloat } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, TICK_HZ } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, TICK_HZ, PK_HANG } from "../../sim/src/index.ts";
 import type { Body, SimState } from "../../sim/src/index.ts";
 import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, encodeIdentityRequest, encodePase, decodeIdentity, seqNewer, codificarVozSubida, leerVozBajada } from "../../net/src/index.ts";
 import type { Transport, Welcome } from "../../net/src/index.ts";
@@ -58,7 +58,7 @@ export class ClientSession {
   private seq = 0;
   private pending: { seq: number; mx: number; mz: number; buttons: number }[] = [];
   private readonly local: SimState;         // a one-avatar sim used only for prediction
-  private prev: Body = { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0 }; // predicted state one client tick ago (fixed point)
+  private prev: Body = { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0, pk: 0 }; // predicted state one client tick ago (fixed point)
   private cur: Body = this.prev;            // predicted state now (fixed point); J2: height and vertical state too
   private remotes = new Map<number, { samples: Sample[]; lastTick: number }>();
   private offset = 0;                       // server tick minus local tick clock
@@ -126,7 +126,7 @@ export class ClientSession {
     if (type === MSG.WELCOME) {
       const w = decodeWelcome(bytes);
       this.welcome = w; this.entity = w.entity;
-      this.setLocal({ x: w.x, y: groundHeight(w.x, w.z), z: w.z, vy: 0, air: 0, buf: 0 }); this.prev = this.cur; // spawned standing
+      this.setLocal({ x: w.x, y: groundHeight(w.x, w.z), z: w.z, vy: 0, air: 0, buf: 0, pk: 0 }); this.prev = this.cur; // spawned standing
       this.syncClock(w.tick, now, true);
       if (this.keeper) {
         const pase = this.pase && encodePase(this.pase); this.pase = null; // the pass goes first, once; a server that does not know PASE just counts it
@@ -186,6 +186,15 @@ export class ClientSession {
       x: fxToFloat(p.x + (c.x - p.x) * alpha), y: fxToFloat(p.y + (c.y - p.y) * alpha), z: fxToFloat(p.z + (c.z - p.z) * alpha),
       speed: Math.hypot(fxToFloat(c.x - p.x), fxToFloat(c.z - p.z)) * TICK_HZ, grounded: c.y <= groundHeight(c.x, c.z, this.local, c.y), // N1b: on a solid too
     };
+  }
+
+  /** J24: hanging from a ledge or climbing onto it (for the avatar's clip), and which way the wall is (radians, the
+   * avatar's facing: atan2(x, z) like avatares-politica); null otherwise. */
+  parkour(): { modo: "colgado" | "trepar"; rumbo: number } | null {
+    const pk = this.cur.pk;
+    if (!pk) return null;
+    const lado = pk & 3;
+    return { modo: pk >> 2 === PK_HANG ? "colgado" : "trepar", rumbo: [Math.PI / 2, -Math.PI / 2, 0, Math.PI][lado] };
   }
 
   /** N1b: the solid boxes your prediction walks against (Q16.16, [x0 y0 z0 x1 y1 z1] each; the same as the server's).

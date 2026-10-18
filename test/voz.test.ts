@@ -25,9 +25,9 @@ test("U10 voz: µ-law keeps a voice sample within 2 %", () => {
 test("U10 voz: who is within 30 m hears you, who is 50 m away does not, you never hear yourself", () => {
   const { inst, pages, pump } = mundo(3);
   const [a, b, c] = pages;
-  setBody(inst.sim, a.s.entity, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0 });
-  setBody(inst.sim, b.s.entity, { x: fx(10), y: 0, z: 0, vy: 0, air: 0, buf: 0 });
-  setBody(inst.sim, c.s.entity, { x: fx(50), y: 0, z: 0, vy: 0, air: 0, buf: 0 });
+  setBody(inst.sim, a.s.entity, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0, pk: 0 });
+  setBody(inst.sim, b.s.entity, { x: fx(10), y: 0, z: 0, vy: 0, air: 0, buf: 0, pk: 0 });
+  setBody(inst.sim, c.s.entity, { x: fx(50), y: 0, z: 0, vy: 0, air: 0, buf: 0, pk: 0 });
   pump(4); // snapshots: everyone's area of interest is up to date
   assert.ok(a.s.sendVoice(VOZ_MULAW, new Uint8Array(320).fill(0x55)));
   pump();
@@ -39,16 +39,16 @@ test("U10 voz: who is within 30 m hears you, who is 50 m away does not, you neve
 test("U10 voz: more than the cap per second is dropped; a server without voice relays nothing", () => {
   const { inst, pages, pump } = mundo(2);
   const [a, b] = pages;
-  setBody(inst.sim, a.s.entity, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0 });
-  setBody(inst.sim, b.s.entity, { x: fx(3), y: 0, z: 0, vy: 0, air: 0, buf: 0 });
+  setBody(inst.sim, a.s.entity, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0, pk: 0 });
+  setBody(inst.sim, b.s.entity, { x: fx(3), y: 0, z: 0, vy: 0, air: 0, buf: 0, pk: 0 });
   pump(4);
   for (let i = 0; i < VOZ_TRAMAS_S + 20; i++) a.s.sendVoice(VOZ_MULAW, new Uint8Array(10));
   pump(1);
   assert.equal(b.oido.length, VOZ_TRAMAS_S);
   assert.equal(inst.vozStats.descartadas, 20);
   const m = mundo(2, { sinVoz: true });
-  setBody(m.inst.sim, m.pages[1].s.entity, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0 });
-  setBody(m.inst.sim, m.pages[0].s.entity, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0 });
+  setBody(m.inst.sim, m.pages[1].s.entity, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0, pk: 0 });
+  setBody(m.inst.sim, m.pages[0].s.entity, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0, pk: 0 });
   m.pump(4); m.pages[0].s.sendVoice(VOZ_MULAW, new Uint8Array(10)); m.pump();
   assert.equal(m.pages[1].oido.length, 0);
 });

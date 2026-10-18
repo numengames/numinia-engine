@@ -76,7 +76,7 @@ const estado = await Promise.race([estadoP, new Promise<null>((ok) => setTimeout
 if (estado?.nombre) { document.title = estado.nombre; hud.textContent = `Conectando a «${estado.nombre}»…`; }
 const enMovil = esMovil(perfil().clase); // U24: the phone layout: the joystick owns the left third, a bigger stick, the rest of the screen looks
 const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, movil: perfil().forzado ? perfil().movil : undefined, assetUrl: (m) => `${activos}/a/${m}.glb`,
-  avatares: { catalogo: catalogoDeAvatares(activos, params, estado?.avatar), yo: () => session.entity } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar
+  avatares: { catalogo: catalogoDeAvatares(activos, params, estado?.avatar), yo: () => session.entity, parkour: () => session.parkour() } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar
 carga.irA("red");
 const transport = webSocketClient(url);
 // game features (J7): their client parts, and how they may draw (a label, a hop) over any avatar
