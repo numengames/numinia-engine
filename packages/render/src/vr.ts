@@ -9,6 +9,7 @@
 import * as THREE from "three/webgpu";
 import type { Panel } from "./manos.ts";
 import { empujaFuera } from "./vr-paredes.ts";
+import { audio } from "./audio/nucleo.ts"; // S1: the engine's one audio graph (it sleeps when the session ends)
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
 export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void; andar?(): [number, number] | null };
 
@@ -238,6 +239,7 @@ export function createVR(h: VRHooks) {
       h.camera.remove(vignette, nota); rig.remove(h.camera); rig.visible = false;
       h.manos?.montar(null);
       h.renderer.xr.enabled = false;
+      audio().siesta(); // S1: out of the session, the audio graph sleeps (battery); the next gesture wakes it
       set("off");
     });
     // t_ab71cff0: a controller that falls asleep (Quest hands over to tracked hands) or a session that stops being

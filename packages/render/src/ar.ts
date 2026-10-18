@@ -10,6 +10,7 @@
 // surface's normal), every press and release with its ray (a tap on a phone, the trigger or a pinch on a headset),
 // and its own group to draw in; the miniature stays hidden. Such a session lasts AR_JUEGO_MS on a phone.
 import * as THREE from "three/webgpu";
+import { audio } from "./audio/nucleo.ts"; // S1: the engine's one audio graph (it sleeps when the session ends)
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
 export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void };
 
@@ -238,6 +239,7 @@ export function createAR(h: ARHooks) {
       reticle.visible = false; base.visible = false; h.renderer.xr.enabled = false;
       h.manos?.montar(null);
       if (juego) { root.remove(juego.root); const j = juego; juego = null; j.fin(); }
+      audio().siesta(); // S1: out of the session, the audio graph sleeps (battery); the next gesture wakes it
       set("off");
     });
     empezo = performance.now(); visor = false; limiteMs = maxMs ?? h.maxMs ?? AR_MAX_MS;
