@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import type { ClientPart, PlacedObject } from "../packages/feature/src/index.ts";
+import type { ClientApi, ClientPart, Msg, PlacedObject } from "../packages/feature/src/index.ts";
 import { Instance } from "../packages/instance/src/index.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
 import { medidasImagen, comprobarFichero } from "../packages/net/src/ficheros.ts";
@@ -192,4 +192,33 @@ test("U12: limits.json publishes the hole's pixel cap the server enforces", () =
   assert.equal(e.value, HUECO_PX_MAX);
   assert.equal(e.state, "measured");
   assert.equal(e.test, "test/huecos.test.ts");
+});
+
+test("B7: the holes are read from the state once per change, not on every ask (huecos.cerca asks 5 times a second)", () => {
+  const cli = crearCliente(), tabla = new Map<string, Msg>();
+  let cambio: (k: string, v: Msg | undefined) => void = () => {}, lecturas = 0;
+  const poner = (k: string, v: Msg | undefined) => { if (v) tabla.set(k, v); else tabla.delete(k); cambio(k, v); };
+  const api = { id: "objetos", on() {}, send: () => ({ ok: true }), action() {}, self: () => 0, view: { here: () => ({ x: 0, y: 0, z: 0 }) },
+    state: { get: (k: string) => tabla.get(k), keys: () => { lecturas++; return [...tabla.keys()]; }, onChange: (fn: typeof cambio) => { cambio = fn; } } } as unknown as ClientApi;
+  (cli.part as ClientPart).setup(api);
+  const b = cli.constructor, cosa = (x: number, hueco: boolean): Msg => ({ modelo: "m", x, y: 1.9, z: 0, nombre: `n${x}`, ...(hueco ? { huecoAncho: 2, huecoAlto: 1, huecoLleno: false } : {}) });
+  for (let i = 0; i < 200; i++) poner(`o${i}`, cosa(i, i % 50 === 7));
+  lecturas = 0;
+  const h1 = b.huecos();
+  assert.deepEqual(h1.map((h) => h.id), ["o7", "o57", "o107", "o157"], "in the state's order, as before");
+  for (let i = 0; i < 20; i++) b.huecos();
+  assert.equal(lecturas, 1, "nothing changed: the state is not walked again");
+  h1[0].x = 99; h1.pop();
+  assert.deepEqual(b.huecos().map((h) => [h.id, h.x]), [["o7", 7], ["o57", 57], ["o107", 107], ["o157", 157]], "what a caller does to its copy stays its own");
+  poner("o57", cosa(57, false)); poner("o300", cosa(300, true));
+  assert.deepEqual(b.huecos().map((h) => h.id), ["o7", "o107", "o157", "o300"], "a change is seen at once");
+  poner("o7", undefined);
+  assert.deepEqual(b.huecos().map((h) => h.id), ["o107", "o157", "o300"]);
+  // the nearest thing within 8 m (no selection): the last of the closest, as before, and with its id
+  assert.equal(b.seleccion()?.id, "o0");
+  poner("o0", undefined); poner("cerca", { ...cosa(1, false) });
+  assert.deepEqual([b.seleccion()?.id, b.seleccion()?.x], ["cerca", 1], "two as close: the later one wins, as before");
+  for (const k of [...tabla.keys()]) poner(k, undefined);
+  assert.equal(b.seleccion(), null);
+  assert.deepEqual(b.huecos(), []);
 });
