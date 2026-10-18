@@ -24,6 +24,8 @@ export const MODOS = ["", "coger", "mover", "girar", "escalar"] as const;
 export type Modo = (typeof MODOS)[number];
 export type Donde = Record<"x" | "y" | "z" | "rx" | "ry" | "rz" | "sx" | "sy" | "sz", number>;
 type Res = { ok: true } | { ok: false; why: string };
+/** U12: a hole as the page and agents read it (constructor.huecos). */
+export type Hueco = { id: string; nombre: string; x: number; y: number; z: number; ancho: number; alto: number; lleno: boolean; fijado: boolean };
 
 const entre = (v: number, [min, max]: readonly [number, number]) => Math.min(max, Math.max(min, v));
 /** Degrees into [-180, 180] (what the server keeps). */
@@ -46,14 +48,29 @@ export function crearCliente() {
   const enviar = (intent: string, msg: Msg): Res => api?.send(intent, msg) ?? { ok: false as const, why: "la página aún no ha arrancado" };
   const aqui = () => api?.view.here?.() ?? { x: 0, y: 0, z: 0 };
   const lista = () => (api ? api.state.keys().map((id) => ({ id, ...api!.state.get(id)! })) : []);
-  /** The selected thing, or the nearest one within 8 m. */
+  /** B7: the holes, read from the state once per change (huecos.cerca asks five times a second; a template has hundreds
+   * of things and only a few holes). Cleared first thing in onChange, the only way the state changes. */
+  let huecosLeidos: Hueco[] | null = null;
+  const leerHuecos = (): Hueco[] => {
+    const out: Hueco[] = [];
+    for (const id of api!.state.keys()) {
+      const o = api!.state.get(id)!;
+      if (Number(o.huecoAncho) > 0 && Number(o.huecoAlto) > 0) out.push({
+        id, nombre: String(o.nombre ?? ""), x: Number(o.x), y: Number(o.y), z: Number(o.z),
+        ancho: Number(o.huecoAncho), alto: Number(o.huecoAlto), lleno: o.huecoLleno === true, fijado: o.fijado === true,
+      });
+    }
+    return out;
+  };
+  /** The selected thing, or the nearest one within 8 m (B7: without copying every thing to find it). */
   const seleccion = (): (Msg & { id: string }) | null => {
     const sel = estado.seleccionado && api?.state.get(estado.seleccionado);
     if (sel) return { id: estado.seleccionado, ...sel };
+    if (!api) return null;
     const p = aqui();
-    let mejor: (Msg & { id: string }) | null = null, d2 = 64;
-    for (const o of lista()) { const d = (Number(o.x) - p.x) ** 2 + (Number(o.z) - p.z) ** 2; if (d <= d2) { d2 = d; mejor = o; } }
-    return mejor;
+    let mejor: string | null = null, d2 = 64;
+    for (const id of api.state.keys()) { const o = api.state.get(id)!, d = (Number(o.x) - p.x) ** 2 + (Number(o.z) - p.z) ** 2; if (d <= d2) { d2 = d; mejor = id; } }
+    return mejor === null ? null : { id: mejor, ...api.state.get(mejor)! };
   };
   const conSeleccion = (fn: (o: Msg & { id: string }) => ReturnType<typeof enviar>) => { const o = seleccion(); return o ? fn(o) : { ok: false as const, why: "no hay nada seleccionado ni cerca" }; };
   const transformar = (o: Msg & { id: string }, cambio: Partial<Donde>) =>
@@ -124,10 +141,7 @@ export function crearCliente() {
     /** U12: take the work out of a hole: its card comes back. */
     vaciar: (id: string) => enviar("vaciar", { id }),
     /** U12: the zone's holes: where each is, its frame (metres) and whether it holds a work. */
-    huecos: () => lista().filter((o) => Number(o.huecoAncho) > 0 && Number(o.huecoAlto) > 0).map((o) => ({
-      id: o.id, nombre: String(o.nombre ?? ""), x: Number(o.x), y: Number(o.y), z: Number(o.z),
-      ancho: Number(o.huecoAncho), alto: Number(o.huecoAlto), lleno: o.huecoLleno === true, fijado: o.fijado === true,
-    })),
+    huecos: (): Hueco[] => (api ? (huecosLeidos ??= leerHuecos()) : []).map((h) => ({ ...h })), // fresh copies: a caller may change them
     deshacer: () => enviar("deshacer", {}),
     /** M22: redo what you last undid (until you make a new change). */
     rehacer: () => enviar("rehacer", {}),
@@ -177,6 +191,7 @@ export function crearCliente() {
   const part = clientPart(objetos, (a) => {
     api = a;
     a.state.onChange((key, v) => {
+      huecosLeidos = null;
       a.view.place?.(key, v ? aDibujo(v) : null);
       if (!v && estado.seleccionados.includes(key)) elegirVarios(estado.seleccionados.filter((x) => x !== key));
       avisar("estado");
