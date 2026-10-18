@@ -863,3 +863,34 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5 (obrero ola 3).
 - Siguiente: si Pablo quiere editar el cableado en vivo (no solo verlo), hace falta mandar los receptores al
   cliente constructor y un camino para reescribir `disparadores.json` con la instancia corriendo.
+
+## 2026-10-18 05:00 · E1 · simulador de economías (`tools/economia/`) · hecho (rama `economia`)
+
+- Qué: una herramienta de diseño para simular economías de juego ANTES de programarlas, con el método de
+  diagramas de recursos de Dormans (tesis 2012, CC BY-NC; conocimiento académico, no el producto machinations.io).
+  Diagrama como datos (almacén, fuente, sumidero, conversor, puerta, registro; activadores y disparadores) y
+  `simular(d, { ticks, semilla })` → serie de cada almacén por tick, con el `rngInt` de `packages/core` (misma
+  semilla → misma serie). Dos modelos reales: la Tabla de Prestigio del manual (`modelos/prestigio.ts`) y el
+  ritmo de Reliquias con «piedad» (`modelos/reliquias.ts`). CLI `node tools/economia.ts prestigio|reliquias`.
+  Lo aprendido (patrones del apéndice B + 8 diseños públicos de la comunidad + conclusiones) en
+  `../mmo-browser-study/MAQUINACIONES-APRENDIZAJE.md`.
+- Conclusiones reales: (1) el Prestigio no se infla — es una fuente estática, crece lineal (~4,2 puntos/sesión
+  con 1–3 Semillas) — lo que hay es sequía: en mesa semanal una Aptitud nueva (1000) tarda 239 sesiones
+  (4,6 años); en el MMO, con 3–7 misiones/día y un tick = día, los mismos costes dan 5/48/96 días: la tabla
+  equilibra en el MMO y no en la mesa sin tocar un número. (2) Falta el freno de todo RPG: un gastador sube
+  la misma Competencia 4–5 veces al año a 50; con coste 50·nivel compra 1 y reparte. (3) Reliquias al 5 % sin
+  piedad: p95 57 encuentros hasta la primera, peor 156; con +1 %/fallo, p95 19, nadie pasa de 36, y la piedad
+  manda más que la base (espera mediana 8–11 sea la base 5 % o 1 %).
+- Dónde vive y por qué `tools/` y no `packages/`: es una herramienta interna de diseño, no una capa del motor;
+  nada en `packages/`/`features/` la importa ni debe hacerlo todavía; `tools/layers.json` no cambia. Si algún
+  día una feature necesita leer un diagrama (p. ej. para que el servidor aplique la Tabla), se saca a
+  `packages/economia` con su fila en `layers.json`.
+- Números: 390 pruebas en verde (14 nuevas: 8 nodos/determinismo/validación, 6 modelos con números fijados);
+  1 mala conocida intermitente (`test/chat.test.ts` «cost: names for 1,000 players», por tiempo con la máquina
+  cargada; pasa al repetir). `npm run layers` ok. Versión **0.11.0** (menor: herramienta nueva, nada roto).
+- Consumo: sin medir · Opus (sesión de Pablo).
+- Commit: rama `economia` rebasada sobre origin/main.
+- Siguiente: Pablo decide (a) cuántas Semillas da una sesión de mesa y si la Tabla lleva freno (coste por
+  nivel o tope), (b) la piedad de Reliquias antes que la base. Luego: modelo del daño en combate (D6 por
+  Éxitos, plantilla «Souls-like Balancing» §3.4 del documento), conectar con `features/misiones` cuando
+  haya Semillas reales, y un editor visual propio solo si dibujar a mano empieza a doler.
