@@ -567,8 +567,12 @@ export function montarMapa(h: HostMapa) {
       return [imagen.rgba[i], imagen.rgba[i + 1], imagen.rgba[i + 2]];
     },
     destino: () => (destino ? { id: destino.id, nombre: destino.nombre, x: destino.x, z: destino.z } : null),
-    /** Mark a marker (by id) as your destination; again = clear it. */
-    marcarDestino(id: string): boolean { const m = ultimos.find((x) => x.id === id); if (!m) return false; marcarDestino(m); return true; },
+    /** Mark a marker (by id) as your destination; again = clear it. N13: or a place of your own ({ id, nombre, x, z }):
+     * a photo's link leads you to where the photo was made. */
+    marcarDestino(id: string | { id: string; nombre: string; x: number; z: number }): boolean {
+      const m = typeof id === "string" ? ultimos.find((x) => x.id === id) : id;
+      if (!m) return false; marcarDestino(m); return true;
+    },
     quitarDestino: () => quitarDestino("quitado"),
     minimapa: { girar(si: boolean) { if (si !== gira) bGiro.click(); }, zoom(i: number) { zoom = Math.max(0, Math.min(RADIOS.length - 1, i)); limMini.forzar(); } },
   };

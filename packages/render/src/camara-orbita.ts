@@ -6,7 +6,7 @@
 // chases `meta` smoothly and stops exactly on it, so a still camera costs nothing: the power policy can rest).
 
 export type Punto = { x: number; y: number; z: number };
-export type ModoCamara = "juego" | "construir";
+export type ModoCamara = "juego" | "construir" | "foto"; // N13: "foto" = the photo mode's short free camera
 /** Where the camera is (`x y z`), where it looks (unit `fx fy fz`), and whether it sits inside your own body. */
 export type Pose = { x: number; y: number; z: number; fx: number; fy: number; fz: number; dentro: boolean };
 
@@ -15,6 +15,9 @@ export const CAMARA = {
   ojo: 1.6,                                                     // eye height over the feet (m): the play pivot
   juego: { cerca: 1.5, lejos: 20, inclinacion: [-80 * G, 80 * G] },   // third person; closer = first person (0)
   construir: { cerca: 0.5, lejos: 80, inclinacion: [-60 * G, 89 * G] },
+  // N13: photo mode — a free camera on a short leash: its pivot stays within `alcance` m of your avatar's eye (you
+  // frame the shot around where you are, you do not fly across the world), close-ups down to 0.3 m, never first person
+  foto: { cerca: 0.3, lejos: 14, inclinacion: [-85 * G, 89 * G], alcance: 12 },
   inicio: { yaw: 0, pitch: 30 * G, dist: 10.4 },                // ≈ the old fixed camera: 5.2 m over the eye, 9 m back
   distConstruir: 8,                                             // entering build mode closer than this → this
   suelo: 0.25,                                                  // the camera never goes under this height
@@ -81,7 +84,7 @@ export function crearOrbita() {
   const meta = { yaw: CAMARA.inicio.yaw, pitch: CAMARA.inicio.pitch, dist: CAMARA.inicio.dist, ox: 0, oy: 0, oz: 0 };
   const ahora = { ...meta };
   let modo: ModoCamara = "juego";
-  let distJuego = meta.dist;          // the play distance to come back to after building
+  let distJuego = meta.dist;          // the play distance to come back to after building (or a photo)
   let terceraAntes = meta.dist;       // the third-person distance to come back to from first person (key V)
   const rango = () => CAMARA[modo];
   // N1b: the drawn height of your feet (null until `seguir` is called: then the feet's own height is used) and the
@@ -96,7 +99,12 @@ export function crearOrbita() {
   function pivote(pies: Punto, p: typeof meta = ahora): Punto {
     return { x: pies.x + p.ox, y: Math.max(CAMARA.suelo, ojoDe(pies) + p.oy), z: pies.z + p.oz };
   }
-  const limitarPivote = (pies: Punto) => { meta.oy = Math.max(meta.oy, CAMARA.suelo - ojoDe(pies)); };
+  const limitarPivote = (pies: Punto) => {
+    meta.oy = Math.max(meta.oy, CAMARA.suelo - ojoDe(pies));
+    if (modo !== "foto") return;
+    const l = Math.hypot(meta.ox, meta.oy, meta.oz), max = CAMARA.foto.alcance; // N13: the leash
+    if (l > max) { const k = max / l; meta.ox *= k; meta.oy *= k; meta.oz *= k; }
+  };
 
   const o = {
     get modo(): ModoCamara { return modo; },
@@ -127,7 +135,7 @@ export function crearOrbita() {
      * about `P`. Without `P` it zooms toward the pivot. At the near limit it keeps going: the pivot walks forward. */
     acercarHacia(f: number, P: Punto | null, pies: Punto): void {
       const d0 = meta.dist, s = o.acercar(f);
-      if (modo !== "construir") return;
+      if (modo === "juego") return;
       if (P && s !== 1) {
         const p = pivote(pies, meta);
         meta.ox = P.x + (p.x - P.x) * s - pies.x;
@@ -142,11 +150,21 @@ export function crearOrbita() {
 
     /** Build mode: move the pivot along the screen (metres to the right and up of the camera). */
     panear(derecha: number, arriba: number, pies: Punto): void {
-      if (modo !== "construir") return;
+      if (modo === "juego") return;
       const cy = Math.cos(meta.yaw), sy = Math.sin(meta.yaw), cp = Math.cos(meta.pitch), sp = Math.sin(meta.pitch);
       meta.ox += cy * derecha - sy * sp * arriba;
       meta.oy += cp * arriba;
       meta.oz += -sy * derecha - cy * sp * arriba;
+      limitarPivote(pies);
+    },
+
+    /** N13 photo mode: walk the pivot (metres) to the camera's right, forward along the ground and straight up. */
+    desplazar(derecha: number, adelante: number, arriba: number, pies: Punto): void {
+      if (modo !== "foto") return;
+      const cy = Math.cos(meta.yaw), sy = Math.sin(meta.yaw);
+      meta.ox += cy * derecha - sy * adelante;
+      meta.oy += arriba;
+      meta.oz += -sy * derecha - cy * adelante;
       limitarPivote(pies);
     },
 
@@ -162,10 +180,13 @@ export function crearOrbita() {
 
     cambiarModo(m: ModoCamara): void {
       if (m === modo) return;
+      if (modo === "juego") distJuego = meta.dist;
       if (m === "construir") {
-        distJuego = meta.dist;
         modo = m;
         meta.dist = clamp(Math.max(meta.dist, CAMARA.distConstruir), CAMARA.construir.cerca, CAMARA.construir.lejos);
+      } else if (m === "foto") { // N13: from where you look now (first person comes out to the near limit)
+        modo = m;
+        meta.dist = clamp(meta.dist, CAMARA.foto.cerca, CAMARA.foto.lejos);
       } else {
         modo = m;
         meta.dist = distJuego;
