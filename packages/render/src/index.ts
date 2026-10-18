@@ -39,6 +39,10 @@ import { vistaPesca } from "./pesca-vista.ts";
 import { crearDianas3D, crearDianaAR } from "./dardos.ts";
 import type { DianaAR } from "./dardos.ts";
 import { detalleAgua } from "./calidad.ts";
+import { crearLotes } from "./lotes.ts";
+import type { Parte } from "./lotes.ts";
+import { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
+export { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 export type { EntornoDatos } from "./entorno.ts";
 export type { Calidad, Nivel } from "./calidad.ts";
 
@@ -229,7 +233,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // ---- H1: things placed in the world (features/objetos): a model by its sha256, loaded once per file and cloned,
   // the nearest first, never more than LOADS_AT_ONCE downloads at a time ----
   type Gltf = { scene: THREE.Object3D; animations: THREE.AnimationClip[] };
-  type Slot = { group: THREE.Group; want: Thing; model: string; loaded: boolean; failed: boolean; mixer?: THREE.AnimationMixer; medio?: Medio; color?: string; horneado?: boolean };
+  type Slot = { group: THREE.Group; want: Thing; model: string; loaded: boolean; failed: boolean; mixer?: THREE.AnimationMixer; medio?: Medio; color?: string; horneado?: boolean;
+    /** N12: the baked parts (copies of one model share them: a lote draws them), and a sphere round the group's origin that holds the model (m, before scale). */
+    partes?: Parte[]; radio?: number };
+  const esferaTmp = new THREE.Sphere();
+  /** N12: the radius (m, before the copy's scale) of a sphere round the origin that holds `o`, a copy not yet in the world. */
+  const radioDe = (o: THREE.Object3D): number => { o.updateMatrixWorld(true); tmpBox.setFromObject(o); if (tmpBox.isEmpty()) return 1; tmpBox.getBoundingSphere(esferaTmp); return esferaTmp.center.length() + esferaTmp.radius; };
   let verOcultos = false; // U10: while building, hidden spheres of sound are drawn
   const fichero = (t: Thing) => `${t.model}.${t.kind && t.kind !== "modelo" ? t.ext ?? "glb" : "glb"}`; // what a slot draws
   /** A thing painted in its `color` (materials cloned once per copy; "" puts the model's own back). */
@@ -334,6 +343,27 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     horneados.set(model, out);
     return out;
   }
+  // N12: a model drawn whole (not baked) but that never moves inside (no clips, no skin, plain meshes): its parts as
+  // they sit in the file, so its copies can be drawn instanced too (lotes.ts). null = it cannot (it animates or has
+  // something an instanced mesh does not draw the same: skins, several materials on one mesh, lines, points, sprites).
+  const enteros = new Map<string, Parte[] | null>();
+  function partesEnteras(model: string, g: Gltf): Parte[] | null {
+    if (enteros.has(model)) return enteros.get(model)!;
+    let out: Parte[] | null = g.animations.length ? null : [];
+    if (out) {
+      g.scene.updateMatrixWorld(true);
+      const inv = g.scene.parent ? g.scene.parent.matrixWorld.clone().invert() : new THREE.Matrix4(); // a copy carries the root's own transform too
+      g.scene.traverseVisible((o) => {
+        if (!out) return;
+        const m = o as THREE.Mesh;
+        if ((o as THREE.Line).isLine || (o as THREE.Points).isPoints || (o as THREE.Sprite).isSprite || (m.isMesh && ((m as THREE.SkinnedMesh).isSkinnedMesh || Array.isArray(m.material) || m.morphTargetInfluences?.length))) { out = null; return; }
+        if (m.isMesh) out.push({ geo: m.geometry, mat: m.material as THREE.Material, sombra: m.castShadow, rel: new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld) });
+      });
+      if (out && !(out as Parte[]).length) out = null;
+    }
+    enteros.set(model, out);
+    return out;
+  }
   const files = new Map<string, Promise<{ g: Gltf; clone: Tools["clone"]; merge: Merge }>>(); // model -> its parsed file, shared by every copy
   const things = new Map<string, Slot>();
   const waiting = new Set<string>();
@@ -365,7 +395,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         let copy: THREE.Object3D;
         if (quieto) { copy = new THREE.Group(); for (const q of quieto) { const m = new THREE.Mesh(q.geo, q.mat); m.castShadow = q.sombra; copy.add(m); } }
         else copy = clone(g.scene);
-        now.horneado = !!quieto;
+        now.horneado = !!quieto; now.partes = quieto ?? partesEnteras(model, g) ?? undefined;
+        now.radio = radioDe(copy) * (now.want.animate ? 1.5 : 1); // an animation may reach out of its rest pose
         now.group.add(copy);
         if (now.want.animate && g.animations.length) { now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction(g.animations[0]).play(); }
         now.loaded = true; now.color = undefined; pintar(now);
@@ -387,7 +418,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     p.then((m) => {
       const now = things.get(key);
       if (!now || now.model !== model || now.loaded) { m.soltar(); return; }
-      now.group.add(m.obj); now.medio = m; now.loaded = true;
+      now.radio = radioDe(m.obj); now.group.add(m.obj); now.medio = m; now.loaded = true;
     }).catch((e) => {
       const now = things.get(key);
       if (now && now.model === model) now.failed = true;
@@ -462,6 +493,74 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     return c;
   }
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+
+  // ---- N12: draw calls for Quest (80). Only while the frame is drawn: (a) what the fog covers completely is not drawn
+  // (things, people, VRMs, names over things: the fog stays exactly as the world says), (b) still copies of one baked
+  // model (and colour), from INSTANCIAR_DESDE on, are drawn as one instanced mesh per material (lotes.ts), and so are
+  // the capsules of the people who wear no VRM (the far crowd: one call for all). Before and after the frame every
+  // object is as it was, so picking, the map, footprints, hands and the gizmo never see any of this.
+  const lotes = crearLotes(world);
+  const capsulasParte: Parte[] = [{ geo: bodyGeo, mat: otherMat, sombra: false }];
+  const ojo = new THREE.Vector3(), ocultosCuadro: THREE.Object3D[] = [];
+  const porLote = new Map<string, { partes: Parte[]; color: string; slots: Slot[] }>();
+  const capsulasCuadro: THREE.Mesh[] = [], matricesTmp: THREE.Matrix4[] = [];
+  let dibujoUltimo = { lejos: Infinity, niebla: 0, instanciadas: 0, lotes: 0 };
+  const matricesDe = (objs: readonly THREE.Object3D[]): THREE.Matrix4[] => {
+    matricesTmp.length = objs.length;
+    for (let i = 0; i < objs.length; i++) { objs[i].updateWorldMatrix(false, false); matricesTmp[i] = objs[i].matrixWorld; } // world never moves
+    return matricesTmp;
+  };
+  function antesDelCuadro(): void {
+    const lejos = lejosDeNiebla(scene.fog as unknown as Parameters<typeof lejosDeNiebla>[0]);
+    (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera).getWorldPosition(ojo);
+    const tapa = (o: THREE.Object3D, r: number) => tapadoPorNiebla(o.position.x - ojo.x, o.position.y - ojo.y, o.position.z - ojo.z, r, lejos);
+    const ocultar = (o: THREE.Object3D) => { o.visible = false; ocultosCuadro.push(o); };
+    let niebla = 0, instanciadas = 0;
+    for (const v of porLote.values()) v.slots.length = 0;
+    for (const [k, s] of things) {
+      const g = s.group;
+      if (!s.loaded || !g.visible || g.parent !== world) continue; // still loading, hidden, or carried in a hand
+      if (tapa(g, (s.radio ?? 1) * Math.max(Math.abs(g.scale.x), Math.abs(g.scale.y), Math.abs(g.scale.z)))) { ocultar(g); niebla++; continue; }
+      if (!s.partes || s.mixer || k.startsWith("~")) continue; // a held copy too: its matrix is read every frame
+      const color = s.want.color ?? "", clave = `${s.model}|${color}`;
+      let v = porLote.get(clave);
+      if (!v || v.partes !== s.partes) porLote.set(clave, (v = { partes: s.partes, color, slots: [] }));
+      v.slots.push(s);
+    }
+    lotes.empezar();
+    let nLotes = 0;
+    for (const [clave, v] of porLote) {
+      if (v.slots.length < INSTANCIAR_DESDE) continue;
+      lotes.dibujar(clave, v.partes, v.color, matricesDe(v.slots.map((s) => s.group)));
+      for (const s of v.slots) ocultar(s.group);
+      instanciadas += v.slots.length; nLotes++;
+    }
+    capsulasCuadro.length = 0;
+    for (const m of others.values()) {
+      if (m.layers.mask === 0) continue; // wears a VRM (avatares.ts hides the capsule this way)
+      if (tapa(m, 1)) { ocultar(m); niebla++; continue; }
+      capsulasCuadro.push(m);
+    }
+    if (capsulasCuadro.length >= INSTANCIAR_DESDE) {
+      lotes.dibujar("~capsulas", capsulasParte, "", matricesDe(capsulasCuadro));
+      for (const m of capsulasCuadro) ocultar(m);
+      instanciadas += capsulasCuadro.length; nLotes++;
+    }
+    lotes.terminar();
+    for (const r of avs.raices()) if (r.visible && tapa(r, 2)) { ocultar(r); niebla++; }
+    for (const r of tags.values()) if (r.s.visible && tapa(r.s, 3)) { ocultar(r.s); niebla++; }
+    lotes.raiz.visible = true;
+    dibujoUltimo = { lejos, niebla, instanciadas, lotes: nLotes };
+  }
+  function despuesDelCuadro(): void {
+    for (const o of ocultosCuadro) o.visible = true;
+    ocultosCuadro.length = 0;
+    lotes.raiz.visible = false;
+  }
+  function dibujarCuadro(): void {
+    antesDelCuadro();
+    try { renderer.render(scene, camera); } finally { despuesDelCuadro(); }
+  }
 
   return {
     backend,
@@ -624,7 +723,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       }
       s.want = t; if (!editor.retiene(key, t) && !llevados.has(key)) placeGroup(s);
       pintar(s);
-      if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpLoads(); } // a baked copy cannot move: load it whole
+      if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.partes = undefined; s.radio = undefined; s.horneado = false; s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpLoads(); } // a baked copy cannot move: load it whole
       else if (!t.animate && s.mixer) { s.mixer.stopAllAction(); s.mixer = undefined; }
     },
     /** H1: things placed, how many have their model drawn, and how many failed to load (for checks). `~` keys = the page's previews, not counted. */
@@ -695,12 +794,19 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
       editor.frame();
       entorno.actualizar(); elementos.actualizar(dtSeconds);
-      if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); renderer.render(scene, camera); return; } // N4: after the hands moved, so a held rod does not trail a frame
+      if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); dibujarCuadro(); return; } // N4: after the hands moved, so a held rod does not trail a frame
       pesca.actualizar(dtSeconds);
       if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
       cam.update(dtSeconds, selfXZ ? feet : null);
       colocarLlevados();
-      renderer.render(scene, camera);
+      dibujarCuadro();
+    },
+    /** N12 (for checks): the last frame — from which distance the fog covers everything (m; Infinity = no fog), how
+     * many things/people/names it hid, how many copies were drawn instanced and in how many lotes; `mallas` = the
+     * instanced meshes those cost (≈ draw calls), `escrituras` = matrix uploads since the start (still = no uploads). */
+    dibujo(): { lejos: number; niebla: number; instanciadas: number; lotes: number; mallas: number; escrituras: number } {
+      const e = lotes.estado();
+      return { ...dibujoUltimo, mallas: e.mallas, escrituras: e.escrituras };
     },
     loop(fn: (timeMs: number) => void): void { renderer.setAnimationLoop(fn); },
     get drawn(): number { return others.size + (selfMesh.visible ? 1 : 0); },
