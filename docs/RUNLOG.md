@@ -1074,4 +1074,3 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `avatares/rueda-movimientos` (sobre 4eb6387).
 - Siguiente: probar con un móvil y un mando reales; que los agentes (`packages/agent`) usen la lista entera; que quien
   llega tarde vea un movimiento en curso (estado con `at`, J9); grabar los que UAL1 no trae (aplaudir, señalar…).
->>>>>>> 02743c8 (J7b: the movement wheel — 27 moves from UAL1 (CC0) on your VRM, seen by whoever is near)
