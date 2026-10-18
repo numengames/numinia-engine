@@ -33,6 +33,7 @@ import { montarVerNombres } from "./nombres-ver.ts";
 import { montarLibro } from "./misiones.ts";
 import { montarMapa } from "./mapa.ts";
 import { montarFicha } from "./ficha.ts";
+import { montarObjetivo } from "./objetivo.ts";
 import { montarInventario, resumenTexto } from "./inventario.ts"; // Y1: the Inventario panel (L)
 import { inventarioCtl } from "../../features/inventario/client.ts";
 import { ambiente } from "../../features/entorno/client.ts";
@@ -248,6 +249,7 @@ const mapa = montarMapa({ session, view, otros, teletransporte: { activo: () => 
 const foto = montarFoto({ view, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), mapa, boton: document.getElementById("foto-abrir") as HTMLButtonElement, ocupado: () => dardos.tirando(),
   aparecer: { puede: () => (viajar.estado.recibido ? viajar.foto() : null), pedir: (s) => { viajar.aparecerEnFoto(s.x, s.y, s.z); } }, // N16: the world may put you at the photo's place
   decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); } });
+montarObjetivo({ lucha, interaccion });
 const ficha = montarFicha({ session, view, desde: () => informe.bienvenidaMs, otros }, mapa.botonFicha);
 montarBienes({ bienes, comprobar, ficha, boton: mapa.botonFicha, vitrina: (cv, model) => view.vitrina(cv, model) }); // N10: the sheet's «Inventario» = your goods, their receipts
 // ---- U24: the phone layout (six controls while playing): only a phone profile loads it, desktop and VR never see it ----

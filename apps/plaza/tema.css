@@ -301,3 +301,95 @@ html[data-densidad-nivel="minimo"] #avisos-pila p:not(:last-child), html[data-de
 }
 /* U24 × U3: on a phone layout the notices sit under the «Ahora» line's row (top left holds it, top right the gear and the map) */
 html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 12px)); top: calc(var(--st, 0px) + 8px + 52px + 6px); transform: none; width: min(300px, calc(100vw - var(--sl, 0px) - var(--sr, 0px) - 2 * var(--m, 12px))); }
+
+/* ---- avisos: centre (bell, count, panel) ---- */
+#avisos-abrir { position: relative; }
+#avisos-abrir .insignia-n { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; background: var(--n-ambar); color: #14110F; font: 600 10px/16px var(--n-mono, ui-monospace, monospace); text-align: center; }
+#avisos-centro .filtros { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+#avisos-centro .filtros button { padding: 4px 10px; border-radius: 6px; background: transparent; border: 1px solid var(--n-linea); color: var(--n-texto2, var(--n-texto)); }
+#avisos-centro .filtros button[aria-pressed="true"] { background: var(--n-elev, #292420); color: var(--n-texto); border-color: var(--n-turquesa, #018EA1); }
+#avisos-centro .avisos-lista { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow: auto; }
+#avisos-centro .avisos-lista li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--n-linea); border-left: 3px solid var(--n-turquesa, #018EA1); border-radius: 8px; background: var(--n-sup); }
+#avisos-centro .avisos-lista li.vacio { border-left-color: var(--n-linea); color: var(--n-texto2, var(--n-texto)); }
+#avisos-centro .avisos-lista .aviso-mision { border-left-color: var(--n-ambar); } #avisos-centro .avisos-lista .aviso-mision .ic { color: var(--n-ambar); }
+#avisos-centro .avisos-lista .aviso-combate { border-left-color: var(--n-grana); } #avisos-centro .avisos-lista .aviso-combate .ic { color: var(--n-grana); }
+#avisos-centro .avisos-lista .aviso-gente .ic, #avisos-centro .avisos-lista .aviso-sistema .ic { color: var(--n-verdemar); }
+#avisos-centro .avisos-lista .tx { flex: 1; font-size: 13px; }
+#avisos-centro .avisos-lista time { font: 11px var(--n-mono, ui-monospace, monospace); color: var(--n-texto2, var(--n-texto)); white-space: nowrap; }
+/* ---- ajustes as a window: categories left, settings right (MMO interface, M2) ---- */
+#ajustes { inset: 50% auto auto 50% !important; transform: translate(-50%, -50%); width: min(940px, calc(100vw - 20px)) !important; height: min(640px, calc(100vh - 20px)); display: none; flex-direction: column; padding: 0 !important; }
+#ajustes[open] { display: flex; }
+#ajustes .cabecera { padding: 12px 16px; border-bottom: 1px solid var(--n-linea); gap: 10px; }
+#ajustes .cabecera h2 { margin-right: auto; }
+#ajustes .cabecera input[type=search] { width: 220px; padding: 6px 10px; background: var(--n-fondo) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea); border-radius: 6px; font: inherit; }
+#ajustes .estado { margin: 0; padding: 0 16px; }
+#ajustes .ajustes-cuerpo { flex: 1; display: flex; min-height: 0; }
+#ajustes nav { width: 210px; flex: none; padding: 10px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--n-linea); overflow: auto; }
+#ajustes nav button { display: flex; gap: 10px; align-items: center; justify-content: flex-start; text-align: left; background: transparent !important; border: 0 !important; color: var(--n-texto2) !important; }
+#ajustes nav button[aria-pressed="true"] { background: var(--n-elev, #292420) !important; color: var(--n-texto) !important; box-shadow: inset 2px 0 var(--n-turquesa, #018EA1); }
+#ajustes nav button[hidden] { display: none; }
+#ajustes #ajustes-grupos { flex: 1; overflow: auto; padding: 4px 22px 14px; }
+#ajustes #ajustes-grupos fieldset { border: 0 !important; padding: 0; margin: 0; }
+#ajustes #ajustes-grupos legend { padding: 8px 0 4px; font: 11px "Geist Mono", ui-monospace, monospace; letter-spacing: .15em; text-transform: uppercase; color: var(--n-verdemar); }
+#ajustes .ajuste { padding: 12px 0; }
+#ajustes .vacio { color: var(--n-texto2); }
+#ajustes button.grande { width: 100%; margin-top: 12px; background: var(--n-accion, #017C8D) !important; color: #fff !important; }
+#ajustes .pie { margin: 0; padding: 10px 16px; border-top: 1px solid var(--n-linea); display: flex; gap: 8px; justify-content: flex-end; }
+#ajustes .version-motor { margin: 0; padding: 0 16px 8px; }
+@media (max-width: 700px) {
+  #ajustes { height: calc(100vh - 20px); }
+  #ajustes .ajustes-cuerpo { flex-direction: column; }
+  #ajustes nav { width: auto; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--n-linea); }
+  #ajustes nav button span { display: none; }
+  #ajustes .cabecera input[type=search] { width: 120px; }
+}
+
+/* ---- «Editar interfaz» (M6): the small panel, the labels over the frames ---- */
+#editar-ui { position: fixed; left: 16px; top: 50%; transform: translateY(-50%); z-index: 30; width: 260px; max-height: calc(100vh - 32px); overflow: auto; padding: 12px; box-sizing: border-box; background: var(--n-sup); color: var(--n-texto); border: 1px solid var(--n-linea); border-radius: 8px; }
+#editar-ui[hidden], #editar-etiquetas[hidden] { display: none; }
+#editar-ui header { display: flex; align-items: center; gap: 8px; }
+#editar-ui h2 { margin: 0; font-size: 15px; color: var(--n-texto); }
+#editar-ui .nota { margin: 8px 0; font-size: 12px; color: var(--n-texto2); }
+#editar-ui ul { list-style: none; margin: 0; padding: 0; }
+#editar-ui li { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-top: 1px solid var(--n-linea); font-size: 13px; }
+#editar-ui .pie { display: flex; gap: 8px; justify-content: space-between; margin-top: 10px; }
+#editar-ui .pie .primario { background: var(--n-accion, #017C8D); color: #fff; }
+#editar-etiquetas { position: fixed; inset: 0; z-index: 29; pointer-events: none; }
+#editar-etiquetas span { position: absolute; padding: 1px 6px; border-radius: 4px; background: var(--n-fondo); color: var(--n-ambar); font: 500 10px "Geist Mono", ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
+#editar-ui button { min-height: 32px; padding: 6px 12px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-elev, #292420); color: var(--n-texto); font: inherit; font-weight: 600; cursor: pointer; }
+#editar-ui button.primario { background: var(--n-accion, #017C8D); border-color: var(--n-accion, #017C8D); color: #fff; }
+#editar-ui :focus-visible { outline: 2px solid var(--n-turquesa, #018EA1); outline-offset: 1px; }
+
+/* ---- M4: the character HUD (#hud-personaje). Colours only from the variables above; the box and glass come from the table. ---- */
+#hud-personaje { box-sizing: border-box; padding: 10px 12px; color: var(--n-texto); font-size: 12px; pointer-events: auto; }
+#hud-personaje .hp-cab { margin-bottom: 6px; font-size: 15px; }
+#hud-personaje .hp-fila { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+#hud-personaje .hp-etq { color: var(--n-texto2); letter-spacing: .04em; display: inline-flex; align-items: center; gap: 2px; }
+#hud-personaje .hp-ico { display: inline-flex; }
+#hud-personaje .hp-num { font: 12px/1 "Geist Mono", ui-monospace, monospace; }
+#hud-personaje .hp-val.ok { color: var(--n-hecho); } #hud-personaje .hp-val.aviso { color: var(--n-ambar); font-weight: 600; }
+#hud-personaje .hp-pronto { color: var(--n-texto2); font-size: 11px; border: 1px dashed var(--n-linea); border-radius: 4px; padding: 1px 6px; }
+#hud-personaje .hp-pasos { display: flex; gap: 4px; list-style: none; margin: 6px 0 0; padding: 0; }
+#hud-personaje .hp-pasos li { flex: 1; height: 10px; border-radius: 5px; background: var(--n-fondo); border: 1px solid var(--n-linea); }
+#hud-personaje .hp-pasos li.w { background: var(--n-ambar); border-color: var(--n-ambar); } #hud-personaje .hp-pasos li.r { background: var(--n-grana); border-color: var(--n-grana); }
+#hud-personaje .hp-recurso { margin-top: 10px; }
+#hud-personaje .hp-barra { height: 8px; border-radius: 4px; background: var(--n-fondo); border: 1px solid var(--n-linea); overflow: hidden; margin-top: 4px; }
+#hud-personaje .hp-barra i { display: block; height: 100%; }
+#hud-personaje .carga .hp-barra i { background: var(--n-ambar); } #hud-personaje .aliento .hp-barra i { background: var(--n-turquesa); }
+#hud-personaje [data-pronto] .hp-barra, #hud-personaje [data-pronto] .hp-pasos { opacity: .45; }
+@media (max-width: 899px) { #hud-personaje { display: none; } } /* phones: their own story */
+/* ---- M5: Objetivo (the creature in reach: name + Coherencia) and the three skill slots ---- */
+#objetivo[hidden] { display: none !important; }
+#objetivo { padding: 8px 12px; font-family: "Geist", system-ui, sans-serif; color: var(--n-texto); }
+#objetivo .fila { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+#objetivo b { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
+#objetivo .etq { margin: 6px 0 4px; font-size: 11px; color: var(--n-texto2); }
+#objetivo .num { font: 500 12px "Geist Mono", ui-monospace, monospace; color: var(--n-texto2); }
+#objetivo .barra { height: 10px; border-radius: 5px; background: var(--n-fondo); border: 1px solid var(--n-linea); overflow: hidden; }
+#objetivo .barra i { display: block; height: 100%; background: var(--n-grana); }
+#objetivo .barra i.alta { background: var(--n-verdemar); }
+#objetivo .nota { color: var(--n-ambar); font-size: 11px; }
+#habilidades { display: flex; gap: 8px; padding: 8px; justify-content: center; }
+#habilidades .hueco { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-fondo); color: var(--n-texto2); font: 11px "Geist", system-ui, sans-serif; opacity: .7; }
+#habilidades .hueco kbd { position: absolute; top: 3px; left: 5px; font: 11px "Geist Mono", ui-monospace, monospace; color: var(--n-texto2); }
+#habilidades .hueco .prox { color: var(--n-ambar); font-size: 10px; }

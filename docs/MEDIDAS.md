@@ -221,8 +221,8 @@ Lo que cuestan los cronómetros: un `performance.now()` antes y después de cada
 ## Tamaño de la página: lo que baja antes de dibujar (D2)
 
 **Una sola cifra: 451,5 kB gz (451.457 bytes) en 11 ficheros, medida el 18-10-2026 a las 15:06 UTC en `30da0fd` (v0.10.0)
-con `npm run gates` y `npm run tamano`** (PC de desarrollo: Ryzen 9 7950X, Node 24.21). Meta D2: 300 kB. Tope de la puerta: 480 kB
-(`TOPE_GZ` en `tools/tamano.mjs`; se puso el 18-10 como la medida de entonces + 10 %). La puerta corre también en `npm run gates`.
+con `npm run gates` y `npm run tamano`** (PC de desarrollo: Ryzen 9 7950X, Node 24.21). Meta D2: 300 kB. Tope de la puerta: 1 MB
+(`TOPE_GZ` en `tools/tamano.mjs`; decisión de Pablo 19-10, antes 480 kB = la medida + 10 %). La puerta corre también en `npm run gates`.
 
 Qué entra (y por eso la cifra es comparable de una medida a otra): `dist/plaza/index.html` y lo que ese HTML referencia antes de
 ejecutar `main.ts`: la hoja `<link rel="stylesheet">`, el `<script type="module">` de entrada y cada `<link rel="modulepreload">`
