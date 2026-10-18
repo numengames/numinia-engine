@@ -44,21 +44,42 @@ const yo = () => ctl(() => globalThis.__numinia.session.selfPosition(1));
 const manos = () => ctl(() => globalThis.__numinia.view.manos.estado());
 const paneles = () => ctl(() => globalThis.__numinia.view.vr.estadoPaneles());
 const foto = async (n) => { if (SHOTS) await p.screenshot({ path: `${SHOTS}/manos-${n}.png` }); };
+const SPEED = 1.5; // SPEED 1.5 m/s since #24 (was 4): walking pace of the sim, used to size key/stick holds
+const ANDA_S = 3, ANDA_MIN = 0.2 * SPEED * (ANDA_S - 0.25); // pinch-walk hold (s) and least forward metres (≈ 0.8)
+/** Walk on the flat page with the keys. In VR the keys do nothing since #24 (the headset is the only source of
+ *  movement): there it walks with the left controller's stick, below the run edge (0.97); with tracked hands the
+ *  controllers are put back for the walk and the hands come back after it. */
 async function caminar(x, z, cerca = 1.0, maxMs = 30000) {
+  const enVR = await ctl(() => globalThis.__numinia.view.vr.active);
+  const modo = enVR ? await ctl(() => globalThis.__iwer.primaryInputMode) : null;
+  if (modo === "hand") {
+    await ctl(() => { globalThis.__iwer.primaryInputMode = "controller"; });
+    await esperar(() => globalThis.__numinia.view.manos.estado().izq?.tipo === "mando", null, 6000).catch(() => {});
+  }
   const t = Date.now();
   let d = Infinity;
   while (Date.now() - t < maxMs) {
     const me = await yo(), dx = x - me.x, dz = z - me.z;
     d = Math.hypot(dx, dz);
     if (d <= cerca) break;
-    const held = [];
-    if (Math.abs(dx) > cerca * 0.5) held.push(dx > 0 ? "KeyD" : "KeyA");
-    if (Math.abs(dz) > cerca * 0.5) held.push(dz > 0 ? "KeyS" : "KeyW");
-    const ms = Math.max(100, Math.min(1500, ((Math.max(Math.abs(dx), Math.abs(dz)) - cerca * 0.4) / 4) * 1000));
-    for (const k of held) await p.keyboard.down(k);
-    await p.waitForTimeout(ms);
-    for (const k of held) await p.keyboard.up(k);
+    const ms = Math.max(100, Math.min(1500, ((Math.max(Math.abs(dx), Math.abs(dz)) - cerca * 0.4) / SPEED) * 1000));
+    if (enVR) { // no snap turns in this leg: stick right = +x, stick back = +z
+      await ctl(([sx, sz]) => globalThis.__iwer.controllers.left.updateAxes("thumbstick", sx, sz), [(dx / d) * 0.9, (dz / d) * 0.9]);
+      await p.waitForTimeout(ms);
+      await ctl(() => globalThis.__iwer.controllers.left.updateAxes("thumbstick", 0, 0));
+    } else {
+      const held = [];
+      if (Math.abs(dx) > cerca * 0.5) held.push(dx > 0 ? "KeyD" : "KeyA");
+      if (Math.abs(dz) > cerca * 0.5) held.push(dz > 0 ? "KeyS" : "KeyW");
+      for (const k of held) await p.keyboard.down(k);
+      await p.waitForTimeout(ms);
+      for (const k of held) await p.keyboard.up(k);
+    }
     await p.waitForTimeout(120);
+  }
+  if (modo === "hand") {
+    await ctl(() => { globalThis.__iwer.primaryInputMode = "hand"; });
+    await esperar(() => { const e = globalThis.__numinia.view.manos.estado(); return e.izq?.tipo === "mano" && e.der?.tipo === "mano"; }, null, 6000).catch(() => {});
   }
   return Math.round(d * 10) / 10;
 }
@@ -115,7 +136,7 @@ try {
   nota("misión aceptada en VR");
   // 4. the watering can: right controller next to it → halo; grip → in the right hand
   const reg = await cosaEn("regadera");
-  await caminar(reg.x + 1.0, reg.z, 0.5);
+  out.dReg = await caminar(reg.x + 1.0, reg.z, 0.5);
   await esperar(() => globalThis.__numinia.view.objects().loaded >= 1, null, 8000).catch(() => {});
   await poner("mando", "right", { x: reg.x, y: 1.05, z: reg.z });
   await esperar(() => globalThis.__numinia.view.manos.estado().der?.candidato === "misiones:regadera", null, 5000).catch(() => {});
@@ -131,20 +152,22 @@ try {
   await esperar(() => { const e = globalThis.__numinia.view.manos.estado(); return e.izq?.tipo === "mano" && e.izq.articulaciones >= 20 && e.der?.tipo === "mano"; }, null, 6000).catch(() => {});
   out.manos = await manos();
   await foto("5-manos");
-  // walking with tracked hands: the left hand points ahead (-Z), pinch and hold in empty air → you move that way
+  // walking with tracked hands: the left hand points ahead (-Z), pinch and hold in empty air → you move that way.
+  // SPEED 1.5 m/s since #24: held ANDA_S s, the first ANDAR_MS (0.25 s) only arms it; headless software GL drops frames
+  // (the stick's intention goes stale between them), so ask for a fifth of the ideal distance, as the 4 m/s leg did.
   {
     await ctl(() => { const h = globalThis.__iwer.hands.left; h.position.set(-0.2, 1.3, -0.3); h.quaternion.set(0, 0, 0, 1); });
     await p.waitForTimeout(300);
     const a = await yo();
     await ctl(() => globalThis.__iwer.hands.left.updatePinchValue(1));
-    await p.waitForTimeout(1500);
+    await p.waitForTimeout(ANDA_S * 1000);
     await ctl(() => globalThis.__iwer.hands.left.updatePinchValue(0));
     await p.waitForTimeout(400);
     const b = await yo();
     out.andaConMano = { dx: Math.round((b.x - a.x) * 10) / 10, dz: Math.round((b.z - a.z) * 10) / 10 };
   }
   const sem = await cosaEn("semillas");
-  await caminar(sem.x + 1.0, sem.z, 0.5);
+  out.dSem = await caminar(sem.x + 1.0, sem.z, 0.5);
   await poner("mano", "left", { x: sem.x, y: 1.0, z: sem.z });
   await esperar(() => globalThis.__numinia.view.manos.estado().izq?.candidato === "misiones:semillas", null, 5000).catch(() => {});
   out.candidatoMano = (await manos()).izq?.candidato;
@@ -153,7 +176,7 @@ try {
   out.llevaDos = await ctl(() => globalThis.__numinia.view.llevando());
   nota("semillas en la mano izquierda (pellizco)");
   // 6. back to Teo: a pinch with the ray on him, then on «Aquí tienes»
-  await caminar(-6.5, 4);
+  out.dVuelta = await caminar(-6.5, 4);
   await ctl(() => { const h = globalThis.__iwer.hands.right; h.position.set(0.2, 1.3, -0.3); });
   await apuntar("mano", "right", { x: -8, y: 1.0, z: 4 });
   await esperar(() => globalThis.__numinia.view.manos.estado().der?.apunta === "pnj:teo", null, 5000).catch(() => {});
@@ -176,7 +199,7 @@ try {
     && out.aceptada.some(([id, e]) => id === "manos-a-la-obra" && e === "activa") && out.trasB === false
     && out.candidato === "misiones:regadera" && out.llevaRegadera["misiones:regadera"] === "der"
     && h.izq?.tipo === "mano" && h.izq.articulaciones >= 20 && h.izq.dibujada && h.der?.articulaciones >= 20
-    && out.andaConMano.dz < -1 && Math.abs(out.andaConMano.dx) < Math.abs(out.andaConMano.dz) / 2
+    && out.andaConMano.dz < -ANDA_MIN && Math.abs(out.andaConMano.dx) < Math.abs(out.andaConMano.dz) / 2
     && out.candidatoMano === "misiones:semillas" && out.llevaDos["misiones:semillas"] === "izq" && out.llevaDos["misiones:regadera"] === "der"
     && /Traes las dos/.test(out.entrega) && fin.libro.some(([id, e]) => id === "manos-a-la-obra" && e === "hecha") && Object.keys(fin.llevando).length === 0
     && errors.length === 0;

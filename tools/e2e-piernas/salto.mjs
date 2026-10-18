@@ -1,6 +1,6 @@
 // e2e leg J2 (salto): two real tabs against the running server + page. A presses Space: tab B sees A rise above
 // 0.5 m and come back to 0; a double jump (Space again near the top) climbs higher than a single one; Shift+W for
-// 1.5 s goes about twice as far as W alone (and reads ~8 m/s against ~4); Space typed in a text box is not a jump;
+// 1.5 s goes about 2.7 times as far as W alone (and reads ~4 m/s against ~1.5: SPEED/RUN_SPEED of the sim); Space typed in a text box is not a jump;
 // A's prediction makes 0 corrections; the browser's replay fingerprint equals the server's. Then a phone (touch
 // emulation): the «Saltar» button jumps and the stick pushed to its edge runs. Then an emulated Quest 3 (IWER, MIT):
 // the A button jumps. Gets BASE (?webgl2&server=…) and SERVER_HTTP from tools/auto.sh e2e. Prints JSON; exit 0 only
@@ -160,14 +160,16 @@ try {
 await vctx.close();
 await browser.close();
 
+// walking and running speeds of packages/sim/src/index.ts (SPEED, RUN_SPEED): 1.5 and 4 m/s since #24 (were 4 and 8)
+const ANDA = 1.5, CORRE = 4;
 const ok = result.single.max > 0.5 && result.single.last === 0
   && result.double.max > result.single.max + 0.5 && result.double.last === 0
-  && result.walk.metres > 3 && result.ratio >= 1.5 && result.ratio <= 2.5
-  && Math.abs(result.walk.speed - 4) < 0.1 && Math.abs(result.run.speed - 8) < 0.1
+  && result.walk.metres > 1.5 * ANDA * 0.65 && result.ratio >= CORRE / ANDA * 0.8 && result.ratio <= CORRE / ANDA * 1.15
+  && Math.abs(result.walk.speed - ANDA) < 0.1 && Math.abs(result.run.speed - CORRE) < 0.1
   && result.corrections === 0 && result.probe.equal && result.format === 2
   && result.typing.value === " " && result.typing.maxY === 0 && result.focusedButton.clicks === 0 && result.focusedButton.y > 0.5
-  && result.touch.button && result.touch.maxY > 0.5 && result.touch.halfSpeed > 2 && result.touch.halfSpeed < 4.1
-  && Math.abs(result.touch.edgeSpeed - 8) < 0.1 && result.touch.corrections === 0
+  && result.touch.button && result.touch.maxY > 0.5 && result.touch.halfSpeed > ANDA / 2 * 0.6 && result.touch.halfSpeed < ANDA + 0.1
+  && Math.abs(result.touch.edgeSpeed - CORRE) < 0.1 && result.touch.corrections === 0
   && result.vr.entered && result.vr.maxY > 0.5 && result.vr.landed && result.vr.corrections === 0
   && errors.length === 0;
 console.log(JSON.stringify(result, null, 1));
