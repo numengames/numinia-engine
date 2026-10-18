@@ -38,7 +38,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | B1 | HTTPS en la red de casa para móviles y visores (certificado propio, `/ws` en el mismo origen) | hecho | sí |
 | J8 | AR de verdad: entrar en AR en Android, Quest 3 y Pico 4, suelo, anclar un objeto; iPhone en plano | hecho (emulado; falta probar en aparato real) | sí |
 | J6 | VR de verdad: entrar en VR, moverse, mandos, giro a saltos, viñeta, panel 3D (emulador IWER) | hecho (emulado) | sí |
-| R1 | Realidad cruzada 1 «Despertar»: un QR real hace que la plaza reaccione para todos (trozo 1 hecho; falta lo de «Falta de R1» en su detalle) | pendiente | sí |
+| R1 | Realidad cruzada 1 «Despertar»: un QR real hace que la plaza reaccione para todos (trozos 1 y 2 hechos; falta lo que queda de «Falta de R1» en su detalle) | pendiente | sí |
 | J2 | Salto, doble salto y correr en la simulación (cambia la huella fijada; permiso de Pablo, 14-10; delante de R2–R4 y V3–V7 por la paridad con Hyperfy2, Pablo 15-10) | hecho | sí |
 | J2b | Aviso en pantalla cuando el servidor habla otro formato («recarga la página») | pendiente | sí |
 | J1 | Avatares VRM de verdad (CC0) con animaciones CC0 en la plaza | hecho (trozo 1: avatares de la casa; elegir el tuyo → H10) | sí |
@@ -581,7 +581,14 @@ nunca `/metrics` (se queda en 127.0.0.1). El secreto que firma los tokens va en 
 nunca en el repositorio.
 
 **R1, trozo 1 hecho (15-10, turno):** `features/despertar/` (declaración, tokens, servidor, cliente, `enlaces.json` con 2 puntos). `GET /e/<id>.<firma>`: firma = HMAC-SHA256 con el secreto del servidor (`MOTOR_SECRET`, 16+ caracteres; el motor lo da a las funciones como `api.sign(texto)`, porque una función no puede importar `node:crypto`). Token falso o sin secreto → 404 sin efecto; token válido → un evento `despertado` a todos y página «Has despertado…»; mientras dura el efecto (`ms`), un segundo escaneo no repite. Página: `view.beacon` (opcional en `ViewHooks`) pinta columna de luz + texto. `npm run enlaces -- <base>` imprime las URLs firmadas. Proxy `/e` en modo LAN (`vite.config.mjs`) y en Caddy; el instalador crea `$PREFIX/secreto.env` una vez (root, 600) y lo carga el servicio. Medido: escaneo → efecto en la página 4 ms (WebSocket local); 51 pruebas en verde (4 nuevas); e2e verde.
-**Falta de R1:** imprimir los QR como SVG (hace falta un codificador QR: escribirlo o dependencia MIT exacta); opción para que el servidor escuche en la red de casa; comprobar en un navegador real que la columna se dibuja (hoy solo se prueba el evento sin pantalla; `beaconCount()` en render permite hacerlo en e2e); medir el tiempo con un móvil real.
+**Falta de R1 (queda, tras el trozo 2):** opción para que el servidor escuche en la red de casa; comprobar en un
+navegador real que la columna se dibuja (hoy solo se prueba el evento sin pantalla; `beaconCount()` en render
+permite hacerlo en e2e); medir el tiempo con un móvil real.
+**R1, trozo 2 hecho (16-10, historia en sombra de Doulos; rama `doulos/sombra-r1-qr`, solo local, no sube a
+origin):** `npm run enlaces -- qr [base] [carpeta]` escribe `<carpeta>/<id>.svg` por punto (por defecto `qr/`,
+en `.gitignore`), además de seguir imprimiendo id, nombre y ruta/URL. Codificador: dependencia `qrcode-svg`
+1.1.0 exacta (MIT, sin dependencias) en `tools/enlaces.ts` — nunca dentro de `features/despertar/`, que no
+importa nada fuera del repo. 252 pruebas (3 nuevas en `test/enlaces.test.ts`), puertas en verde.
 
 ### R2 — Semilla del Conocimiento
 **Ya hay (15-10):** identidad de invitado (I1: `api.onIdentify`, `api.who`) y guardado (S4: `state.persist`,

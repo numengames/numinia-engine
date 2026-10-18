@@ -1007,7 +1007,6 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Siguiente: Pablo decide la PR (hueco de PR único en numinia-engine; Y1 también espera) y el consentimiento
   (§6 del diseño: avisar a quien sale «X ha sacado el Graboso»). Después: conectar con Y1, voces de otros en
   el clip, modelo fino, VR, compartir (M18c).
-
 ## 2026-10-18 17:25 UTC — arreglo: el teclado de la cerradura tapaba el mundo desde que carga (0.14.1)
 - Visto por Pablo en vídeo (Alchemist Tower, v0.11): el teclado de la cerradura (D-042) sale al cargar, sin nombre, y ni «Abrir» ni «Cerrar» lo quitan: la capa ocupa toda la pantalla y el jugador queda bloqueado.
 - Causa: la capa llevaba `display: grid` en línea; un estilo en línea gana al atributo `hidden`, así que `capa.hidden = true` no la escondía nunca.
@@ -1074,3 +1073,17 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `avatares/rueda-movimientos` (sobre 4eb6387).
 - Siguiente: probar con un móvil y un mando reales; que los agentes (`packages/agent`) usen la lista entera; que quien
   llega tarde vea un movimiento en curso (estado con `at`, J9); grabar los que UAL1 no trae (aplaudir, señalar…).
+## 2026-10-16 21:09 · R1 trozo «imprimir los QR como SVG» · hecho (historia en sombra, Doulos; nada sube a origin)
+- Qué: solo el trozo de «Falta de R1» pedido: `npm run enlaces -- qr [base] [carpeta]` ahora escribe un
+  `<carpeta>/<id>.svg` por punto de `enlaces.json` (carpeta por defecto `qr/`, añadida a `.gitignore`) y sigue
+  imprimiendo id, nombre y ruta; sin ese argumento se comporta igual que antes (id, nombre, URL firmada). El
+  resto de «Falta de R1» (escuchar en la red de casa, comprobar la columna en un navegador real, medir con un
+  móvil real) queda sin tocar, como pedía la tarea.
+- Números: 252 pruebas (antes 249; 3 nuevas en `test/enlaces.test.ts`: modo normal, modo `qr` con SVGs válidos,
+  y el aviso sin `MOTOR_SECRET` en ambos modos); puertas en verde (capas 0, determinismo igual, ancho de banda
+  26,7 kbit/s, tick p99 7,6 ms con mil). e2e y `tools/auto.sh` no se han tocado ni corrido (no tocan a esta rama).
+- Consumo: no aplica (prueba de Doulos en un worktree desechable, sin `hermes usage` en este perfil); modelo
+  Sonnet 5.
+- Commit: este (rama `doulos/sombra-r1-qr`, solo local; no sube a origin, no hay PR).
+- Siguiente: el resto de «Falta de R1» (modo LAN del servidor, comprobación visual real de la columna, medición
+  con móvil real) sigue pendiente para quien tome la fila R1.
