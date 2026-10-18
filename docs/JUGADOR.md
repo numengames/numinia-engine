@@ -186,7 +186,7 @@ Todo cambio pasa por el servidor (`features/objetos`) y llega a todos al momento
 | Mayús + D o Ctrl + D | Duplicar: la copia queda seleccionada y cogida |
 | Supr o Retroceso | Borrar |
 | Ctrl + Z · Ctrl + Mayús + Z o Ctrl + Y | Deshacer · rehacer (cada arrastre es un paso) |
-| P | Fijar o soltar (fijado: nadie lo mueve ni lo borra) |
+| P | Anclar o soltar (anclado: nadie lo mueve, gira ni borra hasta que lo sueltes) |
 | F | Encuadrar lo seleccionado (con la cámara nueva, N1) |
 | N | Mostrar u ocultar el inspector (nombre, posición, giro en grados, escala, fijado, sólido, visible, volumen: Intro aplica) |
 | Doble clic jugando | Abre construir con ese objeto seleccionado (U10) |
