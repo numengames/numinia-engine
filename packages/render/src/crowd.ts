@@ -7,6 +7,7 @@
 import * as THREE from "three/webgpu";
 import { Fn, attribute, vertexIndex, textureLoad, ivec2, int, vec3, uniform, floor, fract, mod, mix, cos, sin } from "three/tsl";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { prepararGltf } from "./gltf.ts";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 
 export type Gltf = { scene: THREE.Group; animations: THREE.AnimationClip[] };
@@ -15,7 +16,7 @@ export type Bake = {
   verts: number; width: number; rows: number; tris: number; scale: number; minY: number; ms: number;
 };
 
-export const loadModel = (url: string): Promise<Gltf> => new GLTFLoader().loadAsync(url) as Promise<Gltf>;
+export const loadModel = async (url: string): Promise<Gltf> => (await prepararGltf(new GLTFLoader())).loadAsync(url) as Promise<Gltf>; // N22: meshopt/KTX2 too
 
 /** Bake one clip into a float texture: row block per frame, one texel per vertex (model space, metres). */
 export function bakeVat(gltf: Gltf, clipName = "Walking", fps = 30, targetHeight = 1.7): Bake {

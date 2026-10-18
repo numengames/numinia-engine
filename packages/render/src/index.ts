@@ -31,6 +31,8 @@ export { sePuedeReproducir } from "./medios.ts";
 export type { Donde, Eje, Herramienta, Fase, Paso, Editor } from "./gizmo.ts";
 import { createAvatares } from "./avatares.ts";
 import { sueloBajo } from "./avatares-politica.ts";
+import { prepararGltf, usarRenderer } from "./gltf.ts";
+import { ordenCarga, puedeEmpezar } from "./carga-orden.ts";
 export type { CatalogoAvatares } from "./avatares.ts";
 import type { CatalogoAvatares } from "./avatares.ts";
 import { createNombres } from "./nombres.ts";
@@ -64,7 +66,9 @@ export type Thing = { model: string; x: number; y: number; z: number; rx: number
   /** U10 (optional): modelo (.glb, the default), imagen / video (a plane), sonido (a sphere: radius = sx); file extension; hidden while playing; volume 0-1. */
   kind?: "modelo" | "imagen" | "video" | "sonido"; ext?: string; hidden?: boolean; volume?: number;
   /** U11 (optional): who hears it (burbuja: inside the bubble; zona, todos: everyone, at the same volume) and a video's bubble radius (m). */
-  reach?: "burbuja" | "zona" | "todos"; radius?: number };
+  reach?: "burbuja" | "zona" | "todos"; radius?: number;
+  /** N22 (optional): part of the room (pinned or backdrop), downloaded first (carga-orden.ts). */
+  sala?: boolean };
 /** J10: where a thing you carry goes: a hand in XR («izq»/«der»), or beside you on a flat screen («yo»). */
 export type Llevar = "izq" | "der" | "yo";
 /** J10: the biggest side of a thing held in a hand (m). */
@@ -79,6 +83,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // with WebGL2 from the start (the backend cannot change later).
   const xrSinGpu = typeof (globalThis as { XRGPUBinding?: unknown }).XRGPUBinding === "undefined" && (await vrSupported() || await arSupported());
   const renderer = new THREE.WebGPURenderer({ antialias: !power.mobile, forceWebGL: !!opts.forceWebGL || xrSinGpu, powerPreference: power.mobile ? "low-power" : "high-performance" });
+  usarRenderer(renderer); // N22: KTX2 textures transcode to what this GPU takes
   await renderer.init();
   const backend: Backend = (renderer as unknown as { backend: { isWebGPUBackend?: boolean } }).backend.isWebGPUBackend ? "WebGPU" : "WebGL2";
   renderer.setPixelRatio(power.pixelRatio());
@@ -320,7 +325,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   type Tools = { load: (url: string) => Promise<Gltf>; clone: (o: THREE.Object3D) => THREE.Object3D; merge: Merge };
   let tools: Promise<Tools> | null = null;
   const getTools = () => (tools ??= Promise.all([import("three/addons/loaders/GLTFLoader.js"), import("three/addons/utils/SkeletonUtils.js"), import("three/addons/utils/BufferGeometryUtils.js")])
-    .then(([g, u, b]) => { const l = new g.GLTFLoader(); return { load: (url: string) => l.loadAsync(url) as unknown as Promise<Gltf>, clone: (o: THREE.Object3D) => u.clone(o as never) as unknown as THREE.Object3D, merge: (gs) => b.mergeGeometries(gs as never) as unknown as THREE.BufferGeometry | null }; }));
+    .then(async ([g, u, b]) => { const l = await prepararGltf(new g.GLTFLoader()); return { load: (url: string) => l.loadAsync(url) as unknown as Promise<Gltf>, clone: (o: THREE.Object3D) => u.clone(o as never) as unknown as THREE.Object3D, merge: (gs) => b.mergeGeometries(gs as never) as unknown as THREE.BufferGeometry | null }; }));
   // A model that does not animate (people of the world, quest things) is baked ONCE per file into one mesh per
   // material, in the pose it comes in: the house robot goes from 19 draw calls to 3. Copies share the geometry.
   const horneados = new Map<string, { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean }[] | null>();
@@ -408,18 +413,32 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     s.group.rotation.set(w.rx * RAD, w.ry * RAD, w.rz * RAD, "YXZ");
     s.group.scale.set(w.sx, w.sy, w.sz);
   }
+  // N22: the room first (pinned/backdrop things: the hall you stand in), then the nearest; what is far (LEJOS_M) waits
+  // until nothing near is still downloading, so it never takes the phone's bandwidth from what you see (carga-orden.ts)
+  let cercaCargando = 0, pumpPedido = false;
+  /** N22: one pump after every thing of a message is placed (a world's welcome places them all at once), so the first
+   * four downloads are the right four, not the first four keys. */
+  function pumpPronto(): void { if (pumpPedido) return; pumpPedido = true; queueMicrotask(() => { pumpPedido = false; pumpLoads(); }); }
   function pumpLoads(): void {
     while (loading < LOADS_AT_ONCE && waiting.size) {
-      let best = "", bestD = Infinity;
-      for (const k of waiting) { const s = things.get(k); const d = s ? distance2(s) : Infinity; if (d < bestD) { bestD = d; best = k; } }
+      let best = "", bestO = Infinity, bestD = Infinity, quedanCerca = false;
+      for (const k of waiting) {
+        const s = things.get(k);
+        if (!s) { best = k; bestO = -1; break; } // gone: dropped below
+        const d = distance2(s), o = ordenCarga(s.want, d);
+        if (o < 2) quedanCerca = true;
+        if (o < bestO || (o === bestO && d < bestD)) { bestO = o; bestD = d; best = k; }
+      }
+      if (bestO >= 2 && !puedeEmpezar(cercaCargando, quedanCerca)) return; // far: after the near ones (a finished load pumps again)
       waiting.delete(best);
       const s = things.get(best);
       if (!s) continue;
+      const cerca = bestO < 2;
       const model = s.model;
-      if (s.want.kind && s.want.kind !== "modelo") { cargarMedio(best, s); continue; }
+      if (s.want.kind && s.want.kind !== "modelo") { cargarMedio(best, s, cerca); continue; }
       let file = files.get(model);
       if (!file) { file = getTools().then(async (t) => ({ g: await t.load(assetUrl(model.replace(/\.glb$/, ""))), clone: t.clone, merge: t.merge })); files.set(model, file); }
-      loading++;
+      loading++; if (cerca) cercaCargando++;
       file.then(({ g, clone, merge }) => {
         const now = things.get(best);
         if (!now || now.model !== model || now.loaded) return; // removed or changed while it downloaded
@@ -439,15 +458,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         if (now && now.model === model) now.failed = true;
         files.delete(model); // a later placement may try again
         console.warn(`[objetos] no se pudo cargar ${assetUrl(model.replace(/\.glb$/, ""))}: ${(e as Error)?.message ?? e}`);
-      }).finally(() => { loading--; pumpLoads(); });
+      }).finally(() => { loading--; if (cerca) cercaCargando--; pumpLoads(); });
     }
   }
   /** U10: an image, a video or a sphere of sound instead of a .glb (medios.ts). */
-  function cargarMedio(key: string, s: Slot): void {
+  function cargarMedio(key: string, s: Slot, cerca = true): void {
     const t = s.want, url = assetUrl(t.model).replace(/\.glb$/, `.${t.ext ?? "glb"}`), model = s.model;
     if ((t.kind === "video" || t.kind === "sonido") && !sePuedeReproducir(t.ext ?? "")) { s.failed = true; console.warn(`[medios] este navegador no reproduce .${t.ext}`); return; }
     const p = t.kind === "imagen" ? cargarImagen(url) : t.kind === "video" ? cargarVideo(url, () => verOcultos) : Promise.resolve(cargarSonido(url, () => verOcultos));
-    loading++;
+    loading++; if (cerca) cercaCargando++;
     p.then((m) => {
       const now = things.get(key);
       if (!now || now.model !== model || now.loaded) { m.soltar(); return; }
@@ -456,7 +475,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       const now = things.get(key);
       if (now && now.model === model) now.failed = true;
       console.warn(`[medios] no se pudo cargar ${url}: ${(e as Error)?.message ?? e}`);
-    }).finally(() => { loading--; pumpLoads(); });
+    }).finally(() => { loading--; if (cerca) cercaCargando--; pumpLoads(); });
   }
   let mediosSonando = false;
   function updateThings(dt: number): void {
@@ -760,11 +779,11 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (!s) {
         const group = new THREE.Group(); group.name = `objeto:${key}`; world.add(group);
         const ns: Slot = { group, want: t, model: fichero(t), loaded: false, failed: false };
-        things.set(key, ns); placeGroup(ns); waiting.add(key); pumpLoads(); return;
+        things.set(key, ns); placeGroup(ns); waiting.add(key); pumpPronto(); return;
       }
       s.want = t; if (!editor.retiene(key, t) && !llevados.has(key)) placeGroup(s);
       pintar(s);
-      if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.partes = undefined; s.radio = undefined; s.horneado = false; s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpLoads(); } // a baked copy cannot move: load it whole
+      if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.partes = undefined; s.radio = undefined; s.horneado = false; s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpPronto(); } // a baked copy cannot move: load it whole
       else if (!t.animate && s.mixer) { s.mixer.stopAllAction(); s.mixer = undefined; }
     },
     /** H1: things placed, how many have their model drawn, and how many failed to load (for checks). `~` keys = the page's previews, not counted. */

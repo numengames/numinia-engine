@@ -3,6 +3,7 @@
 // cloned per player; one AnimationClip per file × animation, shared by every clone of that file.
 import * as THREE from "three/webgpu";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { prepararGltf } from "./gltf.ts";
 import { clone as clonarEsqueleto } from "three/addons/utils/SkeletonUtils.js";
 import { VRMExpressionMorphTargetBind, VRMHumanoid, VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
 import type { MToonMaterialLoaderPlugin, VRM, VRMHumanBones } from "@pixiv/three-vrm";
@@ -79,9 +80,10 @@ export function crearCargador() {
   const loader = new GLTFLoader();
   loader.register((p) => new VRMLoaderPlugin(p, { mtoonMaterialPlugin: sinMToon(p as unknown as { loadMesh: (i: number) => Promise<unknown> }) }));
   loader.register((p) => new VRMAnimationLoaderPlugin(p));
+  const listo = prepararGltf(loader); // N22: an avatar uploaded with meshopt or KTX2 reads too
   return {
     async modelo(url: string): Promise<Plantilla> {
-      const gltf = await loader.loadAsync(url);
+      const gltf = await (await listo).loadAsync(url);
       const vrm = gltf.userData.vrm as VRM | undefined;
       if (!vrm) throw new Error(`${url} no es un VRM`);
       let triangulos = 0;
@@ -96,7 +98,7 @@ export function crearCargador() {
       return { vrm, cadera, triangulos, clips: new Map(), boca };
     },
     async animacion(url: string): Promise<VRMAnimation> {
-      const gltf = await loader.loadAsync(url);
+      const gltf = await (await listo).loadAsync(url);
       const a = (gltf.userData.vrmAnimations as VRMAnimation[] | undefined)?.[0];
       if (!a) throw new Error(`${url} no trae VRMC_vrm_animation`);
       return a;

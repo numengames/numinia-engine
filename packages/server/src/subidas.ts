@@ -39,6 +39,7 @@ export type OpcionesSubidas = {
   topesMB?: Partial<Record<string, number>>;            // tests: smaller caps
   totalMB?: number;                                     // tests: a smaller total
   log?: (line: string) => void;
+  guardado?: (hash: string, tipo: string) => void;      // N22: a new file is on disk (the server makes its lighter copy)
 };
 
 export class Subidas {
@@ -130,6 +131,7 @@ export class Subidas {
     const linea = { cuando: new Date().toISOString(), sha256: hash, tipo, bytes: bytes.length, quien: who.id, nombre: who.nombre, fichero };
     await appendFile(join(dir, "subidas.jsonl"), JSON.stringify(linea) + "\n").catch((e) => this.log(`[subidas] no puedo apuntar quién subió ${hash}.${tipo}: ${String((e as Error)?.message ?? e)}`));
     this.log(`[subidas] ${who.nombre} subió ${hash.slice(0, 12)}….${tipo} (${bytes.length} bytes)`);
+    this.o.guardado?.(hash, tipo);
     return [201, { ...hecho, nuevo: true }];
   }
 }

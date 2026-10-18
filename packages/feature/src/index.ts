@@ -746,7 +746,9 @@ export type PlacedObject = { model: string; x: number; y: number; z: number; rx:
    * extension, hidden while playing (a sphere), and volume 0-1. Without them: a .glb model. */
   kind?: "modelo" | "imagen" | "video" | "sonido"; ext?: string; hidden?: boolean; volume?: number;
   /** U11 (optional): who hears it (burbuja: inside the bubble; zona, todos: everyone, at the same volume) and a video's bubble radius (m). */
-  reach?: "burbuja" | "zona" | "todos"; radius?: number };
+  reach?: "burbuja" | "zona" | "todos"; radius?: number;
+  /** N22 (optional): part of the room (pinned or backdrop: the hall you stand in), downloaded before anything else. */
+  sala?: boolean };
 export const NO_VIEW: ViewHooks = { label() {}, bounce() {} };
 /** An event as a person hears and reads it (V1). `at` in metres; `who` = the entity it is about. */
 export type Announcement = { feature: string; event: string; text: string; sound: Sound; importance: Importance; at?: { x: number; z: number }; who?: number };
