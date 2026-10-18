@@ -983,3 +983,34 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
   Defectos conocidos: `#barra-objeto` se sale por la derecha en 420 px; los botones de acción (Saltar, Saludar…) se
   montan sobre la hoja; el HUD de depuración pisa la tira de entorno; `dblclick` táctil para abrir construir sin
   probar. Siguiente: M22b-2 (dos dedos giran/escalan, retícula de colocar, hoja en 3 estados), M22b-3 (VR con mando).
+
+## 2026-10-18 01:00 UTC — M17 trozo 1 · voz: tope de 8 voces por oyente y modo escenario · hecho (rama `voz/tope-y-escenario`)
+- Qué: sobre el relé de voz por WebSocket (U10), dos cosas que Pablo decidió el 18-10 («seguir» con M17; N lo eligió
+  Ursa = 8). (1) **Tope**: `elegirVoces` (pura, `packages/net/src/voz.ts`) elige para cada oyente las 8 voces más
+  cercanas de quien ha hablado en el último segundo (visibles en su área de interés y a ≤ 30 m; empate por id); la
+  instancia guarda `vozUltima` por conexión y cachea el conjunto por oyente, recalculándolo solo cuando empieza a
+  hablar alguien que no había considerado o cada 10 ticks (nunca por trama). (2) **Escenario**: opción
+  `escenario(entidad)` de la instancia (preguntada por trama, como `sinVoz`), cableada en `server.ts` a
+  `roles.enEscenario(inst.who(e)?.id)`; la trama de quien está en el escenario va a TODAS las páginas conectadas con la
+  marca `VOZ_ESCENARIO` (0x80, bit alto del byte de códec servidor→página: formato aditivo; `leerVozBajada` devuelve
+  `codec & 0x7f` y `escenario`). Es la excepción documentada a la regla 4 de AGENTS (una o dos voces para todos, mismo
+  abanico que el chat de zona, solo para quien sube la moderación). La página (`apps/plaza/voz.ts`) reproduce la voz
+  del escenario sin PannerNode (GainNode 1 → destino) y la rotula «habla en el escenario». Órdenes en el chat
+  (`roles-mundo.ts`): `/escenario <persona>` (puedes subirte tú), `/escenario quitar <persona>`, `/escenario nadie`,
+  `/escenario` (lista, abierta a todos); acción nueva `escenario` = `manage-rituals` (Moderación la tiene); el
+  escenario vive solo en memoria (un evento es en vivo, no un ajuste); toda la zona recibe «X sube al escenario».
+  `limits.json`: `voz_tope` = 8 (medido, `test/voz.test.ts`); `voz_por_cercania` pasa a medido (relé WS; LiveKit =
+  trozo 2); `docs/FICHA-TECNICA.md` lo refleja. Versión **0.3.1 → 0.4.0** (menor: capacidad nueva, formato aditivo).
+- Números: `npm test` 380 pruebas, 379 en verde + 1 mala conocida (`test/chat.test.ts` coste de nombres con la
+  máquina cargada: load average 30, la misma de las entradas del 16 y 17-10; en verde sola; no toca este código).
+  Nuevas: `test/voz.test.ts` 4 → 7 (casos puros de `elegirVoces` y la marca; 1 oyente + 10 hablantes a 1…10 m oye
+  exactamente las 8 entidades más cercanas, también si las lejanas hablan primero; escenario oído a 100 y 200 m con
+  `escenario: true`, un hablante sin escenario a 100 m no), `test/roles.test.ts` 12 → 13 (`/escenario`). Puertas:
+  capas 0, determinismo f719d31b, 26,7 kbit/s por persona, plaza de 1.000 p99 14,5 ms; «pruebas unitarias» en rojo
+  solo por la prueba de coste del chat.
+- Consumo: sin medir · claude-fable-5-1.
+- Commit: rama `voz/tope-y-escenario` sobre origin/main 749e99a (ver `git log`). Sin push, sin PR (lo abre Pablo con
+  `pr-voz-motor.sh` cuando lo diga).
+- Siguiente: M17 trozo 2 (LiveKit autoalojado, sala = mundo, JWT HS256, `autoSubscribe` off + `elegirVoces`, DTX/RED,
+  escenario como pista sin paneo, cliente perezoso; diseño en `../mmo-browser-study/VOZ-Y-PANTALLA-COMPARTIDA.md`);
+  V13 (subtítulos) sigue esperando a M17. Sin probar en navegador real con micrófono (no hay e2e de audio).
