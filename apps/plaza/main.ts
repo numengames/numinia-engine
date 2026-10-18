@@ -27,6 +27,8 @@ import { montarVerNombres } from "./nombres-ver.ts";
 import { montarLibro } from "./misiones.ts";
 import { montarMapa } from "./mapa.ts";
 import { montarFicha } from "./ficha.ts";
+import { montarInventario, resumenTexto } from "./inventario.ts"; // Y1: the Inventario panel (L)
+import { inventarioCtl } from "../../features/inventario/client.ts";
 import { ambiente } from "../../features/entorno/client.ts";
 import { elementos } from "../../features/elementos/client.ts";
 import { dardos } from "../../features/dardos/client.ts"; // dardos v1: the controller; its throwing view (apps/plaza/dardos.ts) loads with the first board
@@ -211,6 +213,9 @@ montarLibro(misiones, {
   oir: (fn) => session.features.tap(fn), ajuste: leerAjuste, // U14 (3): it opens by itself on accepting; a step done = a short sound
   banner: document.getElementById("mision-completada")!, // U14 (6): «Misión completada»
 });
+
+// ---- Y1: the Inventario panel (L, «Inventario»): what you carry and your Reserva; the sheet shows its summary ----
+const inventario = montarInventario(inventarioCtl, document.getElementById("inventario-abrir") as HTMLButtonElement);
 
 // ---- J5: minimap (corner), big map (M, «Mapa») and player sheet (I, «Ficha»); other branches' contracts are read
 // from __numinia when present (misiones.objetivos/resumen, ajustes.abrir, chat.nombres) ----
@@ -454,7 +459,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, ambiente, elementos, voz, compartir, xr, pesca, lucha, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, ambiente, elementos, voz, compartir, xr, pesca, lucha, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar } };
 
 // ---- U11: the bar of icon buttons, top right (rightmost first): settings, build, microphone, share screen (M18), full screen, VR, AR ----
 {
@@ -463,7 +468,9 @@ function drawHud() {
   gear.classList.add("solo-icono"); gear.innerHTML = `${icono("gear")}<span class="solo-lector">Ajustes</span>`;
   const mis = document.getElementById("misiones")!;
   mis.innerHTML = `${icono("scroll", 18)}<span>Misiones</span>`; mis.title = "Misiones (J)";
-  for (const id of ["ajustes-abrir", "construir", "microfono", "compartir-pantalla", "gente-abrir", "foto-abrir", "graboso", "pantalla", "vr", "ar"]) { const e = document.getElementById(id); if (e) barra.appendChild(e); }
+  const invB = document.getElementById("inventario-abrir")!;
+  invB.classList.add("solo-icono"); invB.innerHTML = `${icono("copy")}<span class="solo-lector">Inventario</span>`; invB.title = "Inventario (R)";
+  for (const id of ["ajustes-abrir", "construir", "microfono", "compartir-pantalla", "gente-abrir", "inventario-abrir", "foto-abrir", "graboso", "pantalla", "vr", "ar"]) { const e = document.getElementById(id); if (e) barra.appendChild(e); }
   barra.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
 }
 

@@ -86,6 +86,11 @@ export const misiones = defineFeature({
       announce: { text: "Misión completada: {titulo}. {texto} {recompensa}", sound: "campana", importance: 2 },
     },
     aviso: { describe: "Algo de tus misiones que conviene saber (dejaste una, ya no sigues ninguna…).", fields: { texto: { kind: "text", maxBytes: 160 } }, announce: { text: "{texto}", sound: "suave", importance: 1 } },
+    otorga: {
+      describe: "Solo en el servidor (Y1): una misión completada da un objeto a quien la hizo (quien = su entidad). Lo oye la función inventario y lo guarda; ninguna página lo recibe.",
+      fields: { quien: { kind: "int", min: 0, max: 65535 }, tipo: { kind: "enum", values: ["arma", "reliquia", "token"] }, clase: { kind: "text", maxBytes: 32 }, nombre: { kind: "text", maxBytes: 40 }, color: { kind: "enum", values: ["", "verde", "azul", "plateada", "dorada", "roja"] }, n: { kind: "int", min: 1, max: 999, default: 1 } },
+      announce: "silent",
+    },
     rechazado: { describe: "Lo que pediste no se hizo, y por qué.", fields: { motivo: MOTIVO }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
     marcas: {
       describe: "Qué personas y cosas tienen marca para ti (tras cada libro; solo a ti). Ids separados por comas: tiene = personas con «!» (te dan una misión que puedes coger o un paso tuyo de ahora es con ellas), hecho = personas con «✓» (ya hiciste lo suyo y no te queda nada con ellas), cosas = cosas con «!» (un paso tuyo de ahora es cogerlas o usarlas).",
