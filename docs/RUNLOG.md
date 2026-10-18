@@ -934,3 +934,29 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Siguiente: Pablo decide (a) y (b) de BACKLOG.md U14 — si pausar/parar pasa a ser del mundo (cine compartido) con
   permiso de organización, o se queda como está (mío solo); luego, J13 (panel de muñeca en VR) para el volumen y el
   parar sin salir del visor, y una pierna de e2e (`tools/e2e-piernas/`) con un vídeo real.
+
+## 2026-10-18 16:09 · j4-usar-mantener-pulsado · hecho
+- Qué: J4 «E: usar» con mantener pulsado (puerta, botón, objeto que se coge). `Interact`/`Reachable` (packages/feature)
+  ganan `hold?: number` (segundos; sin él, como antes, se usa al instante). Las tres declaraciones de PR #50
+  (`features/puertas`, `features/botones`, `features/cogibles`) ponen su propio `MANTENER_S` (0.6/0.5/0.4 s) en
+  `card.interact.hold`; el servidor no cambia (el intent sigue siendo el mismo, solo cambia CUÁNDO la página lo manda).
+  `apps/plaza/interactuar.ts`: E, el botón de acción (móvil) y un clic en el botón ya no disparan al instante si el
+  objetivo tiene `hold` — empiezan a «mantener» (`--progreso` 0..1 en CSS, clase `.manteniendo`, un anillo cónico junto
+  al texto en `index.html`/`tema.css`) y solo usan la cosa al llegar a 1; soltar antes, o que el objetivo cambie,
+  cancela sin mandar nada. `apps/plaza/xr.ts` + `packages/render/src/manos.ts`: un nuevo evento `gatillo_fin` (en
+  `selectend`) deja que el gatillo de VR también sea mantener-y-soltar, con la misma función compartida
+  (`interaccion.mantener.empezar/soltar`).
+- Números: `npm test` 746/746 verdes (3 nuevas en `test/mantener-pulsado.test.ts`: la aritmética pura de
+  `fraccionMantenida`, que las tres declaraciones llevan su `hold`, y que `reachable()` lo manda igual a dos
+  `ClientSession` — «la otra pestaña lo ve igual»). `npm run build` verde (bundle principal sin cambio apreciable:
+  el cambio es CSS + unas líneas de JS). Versión 0.11.0 → 0.12.0 (función nueva, nada se rompe).
+- Aviso / sin comprobar: sin pierna de e2e con un navegador real (Playwright) sosteniendo E/el botón/el gatillo los
+  milisegundos exactos — no existe aún una pierna para puertas/botones/cogibles (PR #50 tampoco trajo una); la
+  cobertura de «la otra pestaña lo ve igual» es la prueba headless multi-página de siempre. El anillo de progreso
+  no se ha visto en un visor real (VR): el mantener-y-soltar está cableado (gatillo_fin) pero sin un dibujo propio
+  en el panel de muñeca (eso es J13, sin construir). Un clic directo sobre la cosa en pantalla (no E, no el botón)
+  sigue siendo instantáneo a propósito (fuera de alcance de esta historia pequeña).
+- Consumo: sin lectura previa a este turno · Sonnet 5.
+- Commit: rama `j4/usar-mantener-pulsado` sobre `tren/motor-2026-10-18-5` (ver `git log`), PR al tren.
+- Siguiente: una pierna de e2e real (Playwright) para los tres casos; dibujar el anillo también en el panel de
+  muñeca de VR (J13); decidir si el clic directo sobre la cosa también debería pedir mantener pulsado.
