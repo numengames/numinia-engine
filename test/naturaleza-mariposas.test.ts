@@ -78,8 +78,8 @@ test("geometry: butterfly = body 4 + dot 1 (+ antennae 2) + wings 2 × (3 + circ
   const g = geometriaMariposa(true), gd = geometriaMariposa(false);
   assert.equal(g.getAttribute("position").count / 3, trianglesMariposa(true));
   const cuerpo = Array.from({ length: g.getAttribute("position").count / 3 }, (_, i) => g.getAttribute("aleta").getX(i * 3)).filter((w) => w === 0).length;
-  assert.equal(cuerpo, 4 + 1 + 2, "body 4 + dot 1 + antennae 2");
-  assert.ok(trianglesMariposa(true) <= 24 && trianglesMariposa(false) <= 16, `${trianglesMariposa(true)} / ${trianglesMariposa(false)} triangles`);
+  assert.equal(cuerpo, 4 + 2, "body 4 + antennae 2 (the LED dot is code 2)");
+  assert.ok(trianglesMariposa(true) <= 32 && trianglesMariposa(false) <= 22, `${trianglesMariposa(true)} / ${trianglesMariposa(false)} triangles`);
   assert.ok(gd.getAttribute("position").count < g.getAttribute("position").count);
   for (const geo of [g, gd, geometriaLuciernaga()]) {
     const p = geo.getAttribute("position");
@@ -99,6 +99,8 @@ test("two draw calls, one mesh each; fireflies are additive, fog-free, depth-wri
   assert.equal(ins.mallas.length, 2);
   const [m, l] = ins.mallas.map((x) => x.material as THREE.MeshBasicNodeMaterial);
   assert.ok(m.positionNode && m.colorNode && !m.transparent);
+  // WebGPU's default is 8 vertex buffers per draw: butterflies use position+rol+aleta + 3 instance buffers, fireflies position+esq + 3
+  for (const x of ins.mallas) assert.ok(Object.keys((x.geometry as THREE.BufferGeometry).attributes).length <= 6, "≤ 6 vertex buffers");
   assert.ok(l.positionNode && l.colorNode && l.opacityNode);
   assert.equal(l.blending, THREE.AdditiveBlending); assert.equal(l.depthWrite, false); assert.equal(l.fog, false); assert.equal(l.transparent, true);
   for (const x of ins.mallas) assert.ok(x instanceof THREE.Mesh && (x.geometry as THREE.BufferGeometry).boundingSphere, "bounding sphere set");
@@ -231,27 +233,29 @@ test("rare fireflies are bigger and brighter; the 12 firefly colours reach the i
   const ins = mk("A", 23), pal = paletaDe(FAUNA_CASA);
   const lista: Habitante[] = luc.map((e, k) => ({ id: `t${k}`, especie: e.id, x: k, y: 0, z: 0, fase: 0.1, semillaPropia: 7, n: 1 }));
   ins.fijar(lista);
-  const D = ins.datos.luciernagas.arr.iD.array, C = ins.datos.luciernagas.arr.iC.array;
+  const A = ins.datos.luciernagas.arr.iA.array;
   assert.equal(ins.datos.luciernagas.n, 12);
+  const razas = ins.razas.luciernaga;
+  assert.equal(razas.length, 12);
   luc.forEach((e, k) => {
-    const b = pal.get(e.id)!;
-    assert.ok(Math.abs(D[k * 4] - b.luz.r) < 1e-6 && Math.abs(D[k * 4 + 1] - b.luz.g) < 1e-6 && Math.abs(D[k * 4 + 2] - b.luz.b) < 1e-6, e.id);
-    assert.equal(C[k * 4 + 2], LUCES_FAUNA.indexOf(e.luz));
-    assert.ok(Math.abs(C[k * 4 + 1] - radioLuz(e)) < radioLuz(e) * 0.09 + 1e-9);
+    const b = razas[A[k * 4 + 3]];
+    assert.equal(b.especie.id, e.id, "the instance's breed index leads to its breed");
+    assert.ok(Math.abs(b.luz.r - pal.get(e.id)!.luz.r) < 1e-9);
+    assert.equal(b.luzId, LUCES_FAUNA.indexOf(e.luz));
   });
-  // a visible legendary: the biggest quad of the 12
-  const radios = Array.from({ length: 12 }, (_, k) => C[k * 4 + 1]);
-  assert.equal(radios.indexOf(Math.max(...radios)) >= 0 && luc[radios.indexOf(Math.max(...radios))].rareza, "legendaria", "the biggest glow is a legendary one");
-  assert.ok(Math.max(...radios.filter((_, k) => luc[k].rareza !== "legendaria")) < Math.max(...radios));
+  assert.equal(new Set(luc.map((e) => e.colores.luz)).size >= 10, true, "the 12 firefly colours are (nearly all) distinct in the table");
+  const radios = razas.map((b) => radioLuz(b.especie));
+  assert.equal(razas[radios.indexOf(Math.max(...radios))].especie.rareza, "legendaria", "the biggest glow is a legendary one");
   ins.dispose();
 });
 
 test("the allow-list and the density of the world are honoured", () => {
   const solo = mk("A", 12, { especies: ["mariposa-rele"] });
   solo.llenarTodo(camara(0, 0), T0 + 30);
-  const F = solo.datos.mariposas.arr.iF.array, idx = FAUNA_CASA.especies.findIndex((e) => e.id === "mariposa-rele");
+  const F = solo.datos.mariposas.arr.iA.array, idx = solo.razas.mariposa.findIndex((b) => b.especie.id === "mariposa-rele");
   assert.ok(solo.datos.mariposas.n > 0);
   for (let i = 0; i < solo.datos.mariposas.n; i++) assert.equal(F[i * 4 + 3], idx);
+  assert.ok(idx >= 0);
   const ninguno = mk("A", 12, { densidad: 0 });
   ninguno.llenarTodo(camara(0, 0), T0 + 30);
   assert.equal(ninguno.datos.mariposas.n, 0); assert.equal(ninguno.estadisticas().dibujos, 0);

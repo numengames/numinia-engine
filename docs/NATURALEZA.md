@@ -525,3 +525,53 @@ de zonas de la semilla 1234; «P(ver)» = al menos uno en 30 min andando; `—` 
 determinismo y pureza (sin reloj ni azar), 100 000 sorteos dentro de 4σ del modelo en los tres grupos, día/noche/crepúsculo, afinidad por zona,
 densidad y lista blanca, topes por nivel y nivel = prefijo del mayor, objetivo de rareza (legendaria 10–20 %, épica 33–55 %, rara ≥ 85 %), el modelo
 contra una simulación, trayectoria, errores de validación de la tabla y de `fauna` en `naturaleza.json`, `fauna.json` propio con `conMundo`, capas).
+
+
+## F2 · Mariposas y luciérnagas electrónicas (`naturaleza/mariposas.ts`)
+
+Dos mallas instanciadas, **2 llamadas de dibujo en total** (una de día, una de noche en la práctica; nunca más de 2): todas las mariposas de las
+12 razas en una, todas las luciérnagas de las 12 razas en otra. Sin texturas, sin luces, sin pasada extra, sin sombra, sin trabajo de CPU por animal
+y fotograma. F4 la cablea; F2 no toca `naturaleza.ts`.
+
+```ts
+const ins = crearInsectos({ vientoU, nivel, camara, hora: () => entorno.hora, tabla }, { semilla, alturaEn, zonaEn }, { escena, densidad, especies });
+ins.mallas      // [mariposas, luciérnagas] (Mesh, ya con boundingSphere; añadidas a opciones.escena si se da)
+ins.actualizar(camara, tReloj)  // 1 vez por fotograma
+ins.llenarTodo(camara, tReloj)  // pantalla de carga / pruebas: pide todo el anillo ya
+ins.visibles(); ins.estadisticas(); ins.dispose()
+```
+
+**Quién hay y dónde.** `habitantes` de F1 por celdas de 32 m alrededor de la cámara; las celdas se piden **solo** al cruzar un borde de celda o al
+cambiar la ventana de 120 s, repartidas en fotogramas (≤ 0,3 ms por fotograma, `presupuestoMs`) y el buffer se cambia de golpe cuando el anillo está
+completo. Entran los más cercanos hasta `FAUNA_POR_NIVEL[nivel].enVista`. Medido (nivel A, andando 600 m): fotograma tranquilo 0,0003 ms (p99 0,0008),
+fotograma con relleno mediana 0,14 ms, máximo 0,29 ms.
+
+**Vuelo en el vertex shader.** Por instancia: ancla (x,y,z), raza, radio, velocidad angular, dos fases, amplitud vertical, fase de luz, jitter de tamaño
+(3 buffers vec4; WebGPU permite 8 buffers de vértices). La fórmula de `trayectoria` de F1 está escrita **una sola vez** sobre un juego mínimo de
+operadores (`trayectoriaOps`, `fundidoOps`, `pulsoOps`) y se instancia con números (CPU) y con nodos TSL (GPU): no puede divergir. Pruebas: la
+versión numérica coincide con `trayectoria`/`fundido` de F1 a 1e-9, su derivada es la velocidad real (el animal mira hacia donde avanza), y la
+versión TSL construye. **Prueba en GPU** (`.run/f2`, `escena=paridad`): una luciérnaga blanca fija, centroide del brillo en pantalla frente a la
+proyección de `trayectoria` de F1 en 6 instantes: error 0,6–0,7 px (el medio píxel del centro del píxel); 5 de 6 dentro de pantalla.
+
+**Mariposa** (31 triángulos en A–C, 23 en D): cuerpo-huso de metal oscuro (4), LED del tórax (1), 2 antenas (A–C), 2 alas × 4 triángulos con 2 líneas de
+circuito brillantes y 2 almohadillas-LED por cara (en D solo cara superior). Aletea en el shader (ritmo por raza, rachas de planeo, vaivén del
+cuerpo), tamaño = `tamano` de la tabla ±8 %. Los colores son **roles** en el vértice (ala, sombra, línea, luz) resueltos con la paleta de la raza por
+máscaras sobre una tabla constante (sin indexar uniformes, sin texturas): una sola malla pinta las 12 razas (máx. 32, error claro si se pasa). Las
+puntas de ala, las líneas y los LED no llevan luz (siguen brillando con niebla) y laten con el patrón de luz de la raza; el resto se sombrea con un
+escalar (1 de día, 0,25 de noche).
+
+**Luciérnaga:** quad que mira a la cámara (2 triángulos), halo suave + núcleo caliente en el fragment, mezcla aditiva (igual en WebGPU y WebGL2, sin
+niebla, sin escritura de profundidad), solo con oscuridad × `fundido`. 8 patrones (`fijo, latido, parpadeo, onda, respiro, estrobo, morse, prisma`;
+`prisma` cicla el tono) evaluados en el shader; la prueba comprueba que se distinguen entre sí y sus formas (morse = punto-raya-punto-punto, etc.).
+Las raras son más grandes y brillantes (legendaria ≈ 1,9× de radio, 1,8× de brillo, **anillo + estrella de cuatro puntas** y ritmo 40 % más lento).
+
+**Presupuesto** (todo lleno, peor caso, ambos grupos): A 2040 / B 1224 / C 816 / D 242 triángulos (tope de toda la fauna 6000/4000/4000/1500: queda ≥ 65 %
+para los pájaros de F3); 2 llamadas; ≤ 7 200 bytes de instancias en A.
+
+**Fotos** (`.run/f2`, terreno de prueba; en `work/naturaleza/fotos/f2-*.png`): mariposa de cerca a 1,7 m de día/noche, 12 razas en fila, prado de día,
+prado de noche, las 12 luciérnagas en fila (identificación: se distinguen ≥ 10 colores), legendaria de cada grupo.
+
+**Límites conocidos.** Las mariposas no usan el viento (`vientoU` queda en la firma). Sin colisión con la hierba. «Dibujadas ahora, se cambiarán»: la
+geometría y los roles están aislados en `geometriaMariposa`. Las luciérnagas de día no se dibujan (no hay llamada de dibujo).
+
+**Pruebas:** `test/naturaleza-mariposas.test.ts` (13).
