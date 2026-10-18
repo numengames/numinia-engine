@@ -4,6 +4,7 @@ import type { ServerPart } from "../packages/feature/src/index.ts";
 import gestos from "./gestos/server.ts";
 import despertar from "./despertar/server.ts";
 import objetos from "./objetos/server.ts";
+import avatar from "./avatar/server.ts"; // H10: your avatar — house or uploaded .vrm, saved with your identity
 import chat from "./chat/server.ts";
 import misiones from "./misiones/server.ts"; // J5: two features, one engine: people (pnj) and quests (misiones)
 import entorno from "./entorno/server.ts";
@@ -26,5 +27,5 @@ import cerradura from "./cerradura/server.ts"; // D-042: a lock that opens with 
 import movedores from "./movedores/server.ts"; // D-043: things the server moves and rotates with a duration, same for everyone (platform, sliding door, lift)
 import lucha from "./lucha/server.ts"; // L1: creatures with coherence and a solid box; one melee blow (the server decides reach, cooldown, damage)
 import inventario from "./inventario/server.ts"; // Y1: what each person owns; after misiones, whose `otorga` it listens to
-const funciones: ServerPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores, cerradura, movedores, inventario];
+const funciones: ServerPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores, cerradura, movedores, inventario];
 export default funciones;

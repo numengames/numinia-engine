@@ -84,7 +84,7 @@ export const EN_MANO_M = 0.16;
 const LOADS_AT_ONCE = 4;   // H1: model files downloading at the same time; the nearest first
 const ANIMATE_WITHIN_M = 40; // H1: farther than this, a model's animation stands still (cold phones)
 
-export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number } } = {}) {
+export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number; eleccion?: (clave: number | "yo") => number | undefined } } = {}) {
   // U25: `movil` = the device class a forced profile declares (?aparato, development only); undefined = read the device
   const power = createPower(conClase(readCaps(), opts.movil), { battery: opts.battery, maxFps: opts.maxFps });
   // XR on a WebGPU backend needs the session's "webgpu" feature (XRGPUBinding); Quest Browser 152 has neither (measured
@@ -193,7 +193,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // N1b: the solid boxes in metres (view.solidos): the camera does not go through them, avatars stand on them
   let cajasM: ArrayLike<number> = [], cajasFx: Int32Array | null = null;
   const avs = createAvatares({ world, mobile: power.mobile, xr: () => renderer.xr.isPresenting, catalogo: opts.avatares?.catalogo, yo: opts.avatares?.yo, compilar: (o) => renderer.compileAsync(o, camera, scene),
-    suelo: (x, z, y) => sueloBajo(x, z, y, cajasM) });
+    suelo: (x, z, y) => sueloBajo(x, z, y, cajasM), eleccion: opts.avatares?.eleccion });
   // H4 + H12: sky, sun, light, fog, wind and ground come from data (features/entorno), quality from the device tier
   const entorno = crearEntorno({ renderer, scene, world, camera, hemi, sun, ground, grid, hitos, aparato: { mobile: power.mobile, deviceMemoryGB: readCaps().deviceMemoryGB, saveData: readCaps().saveData }, foco: () => selfXZ,
     fichero: (f) => { const i = f.lastIndexOf("."); return (opts.assetUrl ?? ((m: string) => `/a/${m}.glb`))(f.slice(0, i)).replace(/\.glb$/, f.slice(i)); } });

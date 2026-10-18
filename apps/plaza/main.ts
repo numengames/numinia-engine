@@ -14,6 +14,7 @@ import { constructor } from "../../features/objetos/client.ts";
 import { chatDePagina } from "../../features/chat/client.ts";
 import { montarConstructor } from "./constructor.ts";
 import { montarSoltar } from "./soltar.ts";
+import { montarAvatar } from "./avatar.ts"; // H10: your avatar — house or uploaded .vrm, for every visitor
 import { montarHuecos } from "./huecos.ts";
 import { montarEnlaces } from "./enlaces.ts"; // J4: click on a thing with a link opens it (new tab, after confirming)
 import { disparadores } from "../../features/disparadores/client.ts"; // D-041: the cable — controller
@@ -81,8 +82,12 @@ const estadoP: Promise<Estado | null> = fetch(`${activos}/status`).then((r) => r
 const estado = await Promise.race([estadoP, new Promise<null>((ok) => setTimeout(() => ok(null), 1500))]);
 if (estado?.nombre) { document.title = estado.nombre; hud.textContent = `Conectando a «${estado.nombre}»…`; }
 const enMovil = esMovil(perfil().clase); // U24: the phone layout: the joystick owns the left third, a bigger stick, the rest of the screen looks
+const catalogoAvatares = catalogoDeAvatares(activos, params, estado?.avatar);
+// H10: montarAvatar() below needs `session` and `view`, both built after this; the hook itself is only read each
+// frame (avatares.ts sync()), so a holder filled in later is enough — nothing calls it before montarAvatar runs.
+let avatarUI: { eleccion(clave: number | "yo"): number | undefined } | null = null;
 const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, movil: perfil().forzado ? perfil().movil : undefined, assetUrl: (m) => `${activos}/a/${m}.glb`,
-  avatares: { catalogo: catalogoDeAvatares(activos, params, estado?.avatar), yo: () => session.entity } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar
+  avatares: { catalogo: catalogoAvatares, yo: () => session.entity, eleccion: (c) => avatarUI?.eleccion(c) } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar; H10: your own choice
 const transport = webSocketClient(url);
 // game features (J7): their client parts, and how they may draw (a label, a hop) over any avatar
 // I1: the guest token stays in this browser (no account, no personal data); private mode = a new guest each time
@@ -166,6 +171,8 @@ if (esTactil()) {
 montarConstructor(constructor, view, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!);
 // ---- H9: drop your own .glb on the world (or «Subir modelo…» in the panel): uploaded by sha256, placed for everyone ----
 const soltar = montarSoltar({ session, view, puede: () => constructor.estado.puede, origen: activos, billete: () => localStorage.getItem(GUARDA), panel: document.getElementById("panel-construir") });
+// ---- H10: your avatar — one of the house's or your own .vrm (everyone, not only builders); saved with your identity ----
+avatarUI = montarAvatar({ session, catalogo: catalogoAvatares, origen: activos, billete: () => localStorage.getItem(GUARDA) });
 // ---- U12: holes — click one (or E near it) and choose your picture: it goes up and the server fits it into the frame ----
 const huecos = montarHuecos({ constructor, view, rellenar: soltar.rellenar, decir: (t) => soltar.decir(t), panel: document.getElementById("panel-construir") });
 // ---- J4: a thing may carry a link (set in the inspector); a click on it opens it in a new tab, after confirming ----
