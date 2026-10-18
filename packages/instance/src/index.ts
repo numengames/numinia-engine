@@ -126,7 +126,7 @@ export class Instance {
     this.byEntity = new Array(opts.capacity);
     const tf = this.sim.tf;
     this.features = new ServerRuntime(opts.features ?? [], {
-      players: () => this.conns.map((c) => c.entity),
+      players: () => this.players(),
       position: (e) => (this.sim.world.alive[e] && tf.has[e] ? { x: fxToFloat(tf.cols.x[e]), y: fxToFloat(tf.cols.y[e]), z: fxToFloat(tf.cols.z[e]) } : null),
       send: (e, bytes) => this.byEntity[e]?.transport.send(bytes, true),
       tick: () => this.sim.tick,
@@ -280,7 +280,7 @@ export class Instance {
         if (!r) conn.bad++; else this.opts.onReport?.(entity, r); // no listener (tests, bots): ignored
       } else conn.bad++; // unknown or malformed: counted, never thrown
     });
-    this.conns.push(conn);
+    this.conns.push(conn); this.playersView = null;
     this.byEntity[entity] = conn;
     this.tieneSeguro[entity] = 0; this.guardarSeguro(entity); // D-045: where you appear is safe (if it is over the world's minimum)
     const ref = this.opts.reference ?? { seed: 0, ticks: 0, n: 0, hash: 0 };
@@ -327,7 +327,7 @@ export class Instance {
   disconnect(entity: number): void {
     const i = this.conns.findIndex((c) => c.entity === entity);
     if (i < 0) return;
-    this.conns.splice(i, 1);
+    this.conns.splice(i, 1); this.playersView = null;
     this.byEntity[entity] = undefined;
     this.features.leave(entity); // still has a position here; no longer among the players
     this.sim.world.despawn(entity);
@@ -360,7 +360,7 @@ export class Instance {
       inputs[o] = c.entity; inputs[o + 1] = m.mx; inputs[o + 2] = m.mz; inputs[o + 3] = m.buttons; c.ack = m.seq;
     }
     b = performance.now(); f[0] = b - a; a = b; // entradas
-    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.sim, solidsFrom(this.features.allState())); } // U10
+    if (this.features.solidsVersion !== this.solidsVersion) { this.solidsVersion = this.features.solidsVersion; setSolids(this.sim, solidsFrom(this.features.allState())); this.solidosRehechos++; } // U10, E6: only when a solid changed
     if (this.opts.construirMalla && !this.mallaBuilding && this.features.stateVersion !== this.mallaVersion) this.quizaMalla(); // M6 h8, D2: only if a malla entry changed
     b = performance.now(); f[1] = b - a; a = b; // solidos
     // H2 historia 5: at most ORDENES_TICK_MAX orders go into this step; the rest stay queued, in order, for the next one.
@@ -426,6 +426,12 @@ export class Instance {
   }
 
   private solidsVersion = -1;
+  /** E6: times the solid boxes were redone (bench / tests). */
+  solidosRehechos = 0;
+  /** E6: the connected entities in join order, one frozen array shared by every reader until someone joins or
+   * leaves (then a new one replaces it: whoever is walking the old one keeps a whole, unchanged list). */
+  private playersView: readonly number[] | null = null;
+  players(): readonly number[] { return this.playersView ??= Object.freeze(this.conns.map((c) => c.entity)); }
   private mallaVersion = -1;
   private mallaBuilding = false;
   /** D2: `huellaMalla` of the last build started (null = none yet: the first change always builds, as before). */

@@ -135,7 +135,7 @@ const memoria = (g: Record<string, Saved>): FeatureStorage => ({ load: (f) => (g
 const esperarBucle = () => new Promise<void>((r) => setImmediate(r));
 const fnv = (s: string): number => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h >>> 0; };
 
-type RondaPiezas = { envio: number[]; sinEnvio: number[]; ciclos: number[]; entre: number[]; peor: number; hash: string; piezasMs: Map<string, number>; motorMs: number; mallas: number; cambiosEstado: number; mallaLista: boolean; medidos: number };
+type RondaPiezas = { envio: number[]; sinEnvio: number[]; ciclos: number[]; entre: number[]; peor: number; hash: string; piezasMs: Map<string, number>; motorMs: number; mallas: number; cambiosEstado: number; solidos: number; mallaLista: boolean; medidos: number };
 
 /** One round of the piezas scene: a fresh world, `ticks` ticks (first `warmup` not timed), the event loop let run
  * after every tick (where the mesh is built), hooks timed per feature. The fingerprint is the simulation's (with the
@@ -149,7 +149,7 @@ export async function rondaPiezas(o: { bots: number; ticks: number; warmup: numb
   const bots: Bot[] = [];
   for (let i = 0; i < o.bots; i++) bots.push(new Bot(inst.join(i), (7 ^ (i * 0x9e3779b1)) >>> 0));
   const ms: number[] = [], conEnvio: boolean[] = [], entre: number[] = [], piezasMs = new Map<string, number>();
-  let antesEnvio = false, motorMs = 0, mallasAntes = 0, versionAntes = 0;
+  let antesEnvio = false, motorMs = 0, mallasAntes = 0, versionAntes = 0, solidosAntes = 0;
   for (let t = 0; t < o.ticks; t++) {
     for (const b of bots) b.think();
     c.vaciar();
@@ -162,7 +162,7 @@ export async function rondaPiezas(o: { bots: number; ticks: number; warmup: numb
     const fuera = performance.now() - b0;
     c.vaciar(); // a hook that ran off the tick (none expected) is not charged to the tick
     const envio = inst.sim.tick % SNAPSHOT_EVERY === 0;
-    if (t === o.warmup - 1) { mallasAntes = mallas; versionAntes = inst.features.stateVersion; }
+    if (t === o.warmup - 1) { mallasAntes = mallas; versionAntes = inst.features.stateVersion; solidosAntes = inst.solidosRehechos; }
     if (t < o.warmup) { antesEnvio = envio; continue; }
     ms.push(d); conEnvio.push(envio); entre.push(fuera);
     let suma = 0;
@@ -171,7 +171,7 @@ export async function rondaPiezas(o: { bots: number; ticks: number; warmup: numb
   }
   const estado = [...inst.features.allState()].map(([k, v]) => `${k}=${JSON.stringify(v)}`).sort().join("\n");
   const hash = hex(fnv(`${hex(inst.hash())}|${estado}`));
-  return { ...separar(ms, conEnvio, SNAPSHOT_EVERY, antesEnvio), entre, peor: Math.max(0, ...ms), hash, piezasMs, motorMs, mallas: mallas - mallasAntes, cambiosEstado: inst.features.stateVersion - versionAntes, mallaLista: inst.sim.mesh !== null, medidos: ms.length };
+  return { ...separar(ms, conEnvio, SNAPSHOT_EVERY, antesEnvio), entre, peor: Math.max(0, ...ms), hash, piezasMs, motorMs, mallas: mallas - mallasAntes, cambiosEstado: inst.features.stateVersion - versionAntes, solidos: inst.solidosRehechos - solidosAntes, mallaLista: inst.sim.mesh !== null, medidos: ms.length };
 }
 
 const r2 = (x: number) => Math.round(x * 100) / 100, r3 = (x: number) => Math.round(x * 1000) / 1000, r4 = (x: number) => Math.round(x * 10000) / 10000;
@@ -220,8 +220,8 @@ export async function bancoPiezas(o: { bots: number; ticks: number; warmup: numb
     poblaciones: pob, metricas,
     // ms per tick (mean over the measured ticks, median over rounds); `porFuncion` = every feature by id
     costePorTickMs: Object.fromEntries(Object.entries(porPieza).map(([k, v]) => [k, r4(v)])), porFuncion,
-    // how often the world changed (each change makes the next tick redo the solids list) and how often the mesh was rebuilt (`construirMalla`: since D2 only when a `malla` entry changed)
-    cambiosDeEstadoPorSegundo: r2(median(rs.map((r) => r.cambiosEstado)) / segundos), mallaPedidaPorSegundo: r2(median(rs.map((r) => r.mallas)) / segundos),
+    // how often the world changed, how often the mesh was rebuilt (`construirMalla`: since D2 only when a `malla` entry changed) and the solid boxes redone (`solidsFrom`: since E6 only when a solid changed)
+    cambiosDeEstadoPorSegundo: r2(median(rs.map((r) => r.cambiosEstado)) / segundos), mallaPedidaPorSegundo: r2(median(rs.map((r) => r.mallas)) / segundos), solidosRehechosPorSegundo: r2(median(rs.map((r) => r.solidos)) / segundos),
   };
 }
 const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : 0; };
@@ -243,7 +243,7 @@ export async function ordenPiezas(o: { bots: number; ticks: number; warmup: numb
     l("ciclo (100 ms) p50", m.cicloP50Ms), l("tick con envío p50", m.tickConEnvioP50Ms), l("tick sin envío p50", m.tickSinEnvioP50Ms), l("entre ticks p50", m.entreTicksP50Ms),
     `  p99 de verdad (rondas juntas): con envío ${r.poblaciones.conEnvio.p99} ms (n=${r.poblaciones.conEnvio.n}) · ciclo ${r.poblaciones.ciclo.p99} ms · entre ticks ${r.poblaciones.entreTicks.p99} ms`,
     `  coste medio por tick: ${Object.entries(r.costePorTickMs).map(([k, v]) => `${k} ${v.toFixed(3)}`).join(" · ")} ms`,
-    `  el mundo cambia ${r.cambiosDeEstadoPorSegundo} veces/s; se rehace la malla ${r.mallaPedidaPorSegundo} veces/s (solo cuando cambia algo que es malla, D2)`,
+    `  el mundo cambia ${r.cambiosDeEstadoPorSegundo} veces/s; se rehace la malla ${r.mallaPedidaPorSegundo} veces/s (solo cuando cambia algo que es malla, D2) y los sólidos ${r.solidosRehechosPorSegundo} veces/s (solo cuando cambia un sólido, E6)`,
     `  margen: el tick con envío cabe ${r.margenSobreElTick} veces en 50 ms; el ciclo, ${r.margenSobreElCiclo} veces en 100 ms · huella ${r.huella}`,
     ...r.avisos.map((a) => `  ⚠ ${a}`),
   ].join("\n"));
