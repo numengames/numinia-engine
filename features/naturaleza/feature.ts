@@ -14,9 +14,9 @@ export const naturaleza = defineFeature({
   id: "naturaleza",
   version: 1,
   level: "base",
-  describe: "Naturaleza low poly de un mundo: relieve con zonas (prado, bosque, arena, roca, orilla), árboles con ramas que se mueven con el viento, hierba y un estanque, todo a partir de una semilla. El mundo la enciende con naturaleza.json (semilla, tamaño, plaza, densidad de árboles y de hierba, estanque, paleta de verano, otoño o primavera); sin ese fichero no cambia nada. El servidor solo guarda y envía el fichero ya comprobado; cada página construye el mismo paisaje.",
+  describe: "Naturaleza low poly de un mundo (relieve, árboles, hierba, estanque) a partir de una semilla. La enciende naturaleza.json; sin él no cambia nada.",
   state: {
-    describe: "Una entrada, «mundo»: activa (si la página dibuja la naturaleza), semilla (entero: mismo número = mismo paisaje), tamano y plaza (metros), arboles y hierba (densidad 0 a 1), estanque (si hay agua) y paleta (verano, otono o primavera: solo el color de los prados y las hojas).",
+    describe: "Una entrada, «mundo»: activa, semilla, tamano y plaza (metros), arboles y hierba (0 a 1), estanque y paleta (verano, otono, primavera).",
     fields: {
       activa: { kind: "bool" },
       semilla: { kind: "int", min: 0, max: 2147483647 },

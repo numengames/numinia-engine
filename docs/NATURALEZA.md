@@ -220,8 +220,9 @@ en el CPU (una vez, al cargar): terreno 25 ms + esparcido 20 ms + árboles 7 ms 
 a altura 0. Cerca de la plaza (radio llano, y por eso el punto de aparición sigue en altura 0) coincide con el relieve; lejos, en lomas y
 cuencas, el avatar **flota o se hunde** respecto a lo dibujado hasta N5. Probado andando con el avatar real: pasea por el prado a y = 0,00 sin caerse.
 
-**Tamaño de la página.** `npm run tamano`: 489,0 kB gz (era 482,5 antes de N4, ya sobre el tope de 480): N4 añade ~6,5 kB al arranque
-(`naturaleza.ts` + la declaración de la feature); los módulos del paisaje van en trozos perezosos que no cuentan.
+**Tamaño de la página (N4b, carga perezosa).** Medido con `npm run tamano`: origen limpio (82a612c) 482,5 kB gz; N4 sin perezosa 489,0; con N4b 483,4 (+0,9 kB sobre el origen; el origen ya pasa el tope de 480).
+En el arranque solo queda `render/naturaleza/cargador.ts` (sin three) y la declaración de la feature; `naturaleza.ts` y todo el paisaje son un trozo aparte (`naturaleza-*.js`) que se pide con `import()` la primera vez que el servidor manda datos; un mundo sin `naturaleza.json` no baja ni un byte de naturaleza.
+La validación vive en el servidor (`esquema.ts`); la página se fía del dato y solo comprueba `typeof === "object"`. Lo que no se puede quitar del arranque: la declaración de la feature (el cliente la necesita para leer el estado) y unos ~0,15 kB de `three/tsl`/`three.core` que los trozos compartidos conservan porque el paisaje los usa.
 
 **Copiado / cambiado / combinado.** Rejilla con jitter y comprobación voraz de distancia en rejilla hash: la técnica interior del muestreo
 Poisson-disc de Bridson (SIGGRAPH 2007) y el reparto por bioma del tutorial de mapas con ruido de Red Blob Games (solo la idea). Cambiado:

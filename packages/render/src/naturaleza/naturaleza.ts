@@ -11,6 +11,7 @@
 // water (agua-estilo.ts) and the engine's wind uniform (`vientoU`, entorno.ts); the scatter is esparcir.ts. What it adds: one
 // switch, one shared seed, palettes (meadow + leaves only), idempotent `aplicar`, a rebuild when the device tier changes.
 import * as THREE from "three/webgpu";
+import { uniform } from "three/tsl";
 import type { Nivel } from "../calidad.ts";
 import type { Paleta } from "./esparcir.ts";
 import { HIERBA_POR_NIVEL } from "./niveles.ts";
@@ -73,7 +74,7 @@ export type EstadisticasNaturaleza = {
 
 export function crearNaturaleza(h: HNaturaleza) {
   let real: Real | null = null, clave = "", ticket = 0, reloj = 0, ultimos: NaturalezaDatos | null = null;
-  const cargar = () => Promise.all([import("./terreno.ts"), import("./arboles.ts"), import("./hierba.ts"), import("./esparcir.ts"), import("../agua-estilo.ts"), import("three/tsl")]);
+  const cargar = () => Promise.all([import("./terreno.ts"), import("./arboles.ts"), import("./hierba.ts"), import("./esparcir.ts"), import("../agua-estilo.ts")]);
 
   function desmontar(): void {
     if (!real) return;
@@ -85,7 +86,7 @@ export function crearNaturaleza(h: HNaturaleza) {
   }
 
   function construir(m: Awaited<ReturnType<typeof cargar>>, d: NaturalezaNormal, nivel: Nivel): Real {
-    const [T, A, H, E, AG, TSL] = m, t0 = performance.now();
+    const [T, A, H, E, AG] = m, t0 = performance.now();
     const pal = COLORES_PALETA[d.paleta], grupo = new THREE.Group(); grupo.name = "naturaleza";
     const terreno = T.crearTerreno({ semilla: d.semilla, nivel, tamano: d.tamano, plaza: d.plaza, niebla: h.niebla(), escena: grupo, sinEstanque: !d.estanque, colores: pal.terreno, recibeSombra: nivel === "A" });
     terreno.malla.userData.mapa = "suelo";
@@ -96,7 +97,7 @@ export function crearNaturaleza(h: HNaturaleza) {
       { semilla: d.semilla, nivel, escena: grupo, empujaCamara: false, tabla: d.hierba >= 1 ? undefined : { tuftsMax: Math.max(40, Math.round(HIERBA_POR_NIVEL[nivel].tuftsMax * d.hierba)) } });
     let agua: Real["agua"] = null;
     if (d.estanque) {
-      const t = TSL.uniform(0) as unknown as { value: number }, r = terreno.estanque.radio * 1.2, forma = { tipo: "circulo" as const, radio: r };
+      const t = uniform(0) as unknown as { value: number }, r = terreno.estanque.radio * 1.2, forma = { tipo: "circulo" as const, radio: r };
       const detalle = (h.detalleAgua?.() ?? { olas: 0, espuma: false, lineas: false, caustica: false, destellos: false }) as never;
       const mat = AG.materialDeAgua({ color: 0x2f6f8f, forma, detalle, tiempo: t, luz: h.aguaLuz as never, bordeOculto: r * 0.12 }, 12);
       const malla = new THREE.Mesh(AG.geometriaDeAgua(forma, detalle, 12), mat);
