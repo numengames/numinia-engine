@@ -12,7 +12,9 @@ import { crearDardos } from "./dardos/server.ts";
 import type { Sitio as SitioDardos } from "./dardos/server.ts";
 import { crearDados } from "./dados/server.ts";
 import type { Torre as TorreDados } from "./dados/server.ts";
-import { leerAparicion, leerAparicionFoto } from "./entorno/esquema.ts";
+import { leerAparicion, leerAparicionFoto, leerSuelo } from "./entorno/esquema.ts";
+import { crearSuelo } from "./suelo/server.ts"; // D-045
+import type { SueloMundo } from "./entorno/esquema.ts";
 import { crearTeletransporte } from "./teletransporte/server.ts";
 import { crearWeb } from "./web/server.ts";
 import { leerWebMundo } from "./web/feature.ts";
@@ -41,7 +43,16 @@ export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) 
   const crudoWeb = leer("web.json");
   const leidoWeb = crudoWeb === undefined ? null : leerWebMundo(crudoWeb);
   for (const pr of leidoWeb?.problemas ?? []) log(`[mundo] web.json: ${pr.path}: ${pr.message} (esa parte no se usa)`);
-  return partes.map((p) => (p.feature.id === "web" && leidoWeb ? crearWeb(leidoWeb.valor) : p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
+  const sueloMundo = sueloDelMundo(leer); // D-045: the same values the instance got (logged once there)
+  return partes.map((p) => (p.feature.id === "suelo" && sueloMundo ? crearSuelo(sueloMundo) : p.feature.id === "web" && leidoWeb ? crearWeb(leidoWeb.valor) : p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
+}
+
+/** D-045: the world's void (entorno.json `sueloMinimo` + `vuelta`), or null: no file, no key, or a wrong one (logged). */
+export function sueloDelMundo(leer: (fichero: string) => unknown, log: (l: string) => void = () => {}): SueloMundo | null {
+  const r = leerSuelo(leer("entorno.json"));
+  if (r.ok) return r.value;
+  log(`[mundo] sueloMinimo/vuelta de entorno.json no se usan (este mundo no tiene vacío): ${r.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
+  return null;
 }
 
 /** The world's spawn area (entorno.json `aparicion`), or null: no file, no key, or a wrong one (logged, with its path). */

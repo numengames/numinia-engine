@@ -13,7 +13,7 @@
 // (e.g. motor.ejemplo.com); unset = the host each connection asks for (fine on a PC).
 import { startServer } from "./server.ts";
 import funciones from "../../../features/servidor.ts";
-import { aparicionDelMundo, conMundo } from "../../../features/mundo.ts";
+import { aparicionDelMundo, conMundo, sueloDelMundo } from "../../../features/mundo.ts";
 import { leerMundo } from "./mundo.ts";
 import { carpetaMundo, claves, escribirManifiesto, sembrar } from "./mundo-carpeta.ts";
 import { infoMotor } from "./version.ts";
@@ -42,6 +42,7 @@ const srv = await startServer({
   // SIN_FUNCIONES=1: the bare engine · the world's own environment and elements (entorno.json, elementos.json; H4)
   features: env.SIN_FUNCIONES === "1" ? [] : leerEntorno ? conMundo(funciones, leerEntorno, log) : funciones,
   aparicion: leerEntorno ? aparicionDelMundo(leerEntorno, log) : null,  // where people appear (entorno.json `aparicion`; a tower's floor)
+  suelo: leerEntorno ? sueloDelMundo(leerEntorno, log) : null,          // D-045: under `sueloMinimo` you come back to your last safe spot
   sesiones: env.SESIONES_DIR || c?.sesiones || "informes/sesiones", // T1: how each player entered
   datos,                                                              // S4: what features keep across restarts
   construir: env.MOTOR_CONSTRUIR === "todos" ? "todos" : "nadie",     // H1: who may build in a NEW world (then its stored roles: /construir)
