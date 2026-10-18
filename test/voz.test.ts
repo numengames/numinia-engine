@@ -7,8 +7,8 @@ import { setBody } from "../packages/sim/src/index.ts";
 import { fx } from "../packages/core/src/index.ts";
 import { VOZ_MULAW, VOZ_TRAMAS_S, aMulaw, deMulaw, codificarVozSubida, leerVozSubida } from "../packages/net/src/index.ts";
 
-function mundo(n: number, opts: { sinVoz?: boolean | (() => boolean) } = {}) {
-  const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, log: () => {}, sinVoz: opts.sinVoz });
+function mundo(n: number, opts: { sinVoz?: boolean | (() => boolean); oye?: (de: number, a: number) => boolean } = {}) {
+  const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, log: () => {}, sinVoz: opts.sinVoz, oye: opts.oye });
   const pages = Array.from({ length: n }, (_, i) => { const t = inst.join(i); const s = new ClientSession(t); const oido: number[] = []; s.onVoice = (v) => oido.push(v.entidad); return { t, s, oido }; });
   const pump = (k = 2) => { for (let i = 0; i < k; i++) { for (const p of pages) p.t.flush(); inst.tick(); for (const p of pages) p.t.flush(); } };
   pump();
@@ -61,4 +61,18 @@ test("U10 voz: the world's setting is asked at every frame (/voz acts at once, n
   sin = false;
   m.pages[0].s.sendVoice(VOZ_MULAW, new Uint8Array(10)); m.pump();
   assert.deepEqual(m.pages[1].oido, [m.pages[0].s.entity]);
+});
+
+test("F1 voz: `oye(de, a)` is asked per listener and frame: a listener it refuses gets nothing, the others still do", () => {
+  const vetado = new Set<number>();
+  const m = mundo(3, { oye: (_de, a) => !vetado.has(a) });
+  const [a, b, c] = m.pages;
+  for (const p of m.pages) setBody(m.inst.sim, p.s.entity, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0 });
+  m.pump(4);
+  vetado.add(b.s.entity);
+  a.s.sendVoice(VOZ_MULAW, new Uint8Array(10)); m.pump();
+  assert.deepEqual([b.oido, c.oido], [[], [a.s.entity]]);
+  vetado.clear();
+  a.s.sendVoice(VOZ_MULAW, new Uint8Array(10)); m.pump();
+  assert.deepEqual(b.oido, [a.s.entity], "asked again at the next frame");
 });

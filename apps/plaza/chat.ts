@@ -4,6 +4,7 @@
 // main.ts passes the chat of features/chat/client.ts (only composition roots import features/).
 import { escribiendo } from "./escribiendo.ts";
 import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
+import { anunciar } from "./paneles.ts"; // F1: an answer only for you («te han silenciado») also reaches the status region when the chat is closed
 
 type Linea = { tipo: "cerca" | "zona" | "antes" | "aviso"; quien: number; nombre: string; texto: string; tuyo: boolean };
 type Res = { ok: true } | { ok: false; why: string };
@@ -23,7 +24,7 @@ export function montarChat(chat: Chat, raiz: HTMLElement) {
   const pintar = (l: Linea) => {
     const li = document.createElement("li");
     li.className = l.tipo;
-    if (l.tipo === "aviso") li.textContent = l.texto;
+    if (l.tipo === "aviso") { li.textContent = l.texto; if (form.hidden) anunciar(l.texto); }
     else {
       const quien = document.createElement("b");
       quien.textContent = (l.tuyo ? "Tú" : l.nombre) + (l.tipo === "zona" ? " (a la zona)" : l.tipo === "antes" ? " (antes)" : "");

@@ -769,3 +769,14 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
   grep de ficheros (`test(` × 537) coincide hoy con el reporter.
 - Consumo: sin medir · Fable 5.1.
 - Siguiente: el recorte D2 (alias de three −24,5 kB, mapa/ficha/menú perezosos) y bajar `TOPE_GZ` con cada recorte.
+## 2026-10-18 12:51 · F1a silenciar · hecho
+- Qué: `/silenciar <persona> [min]` calla también la voz (la instancia pregunta `oye(de, a)` por trama y oyente) y se
+  guarda en el store de roles (`silencios`), así sobrevive a un reinicio y al volver se avisa «Sigues en silencio»;
+  `/hablar <persona>` lo levanta. Bloqueo personal `/bloquear` y `/desbloquear <persona>`: quien bloquea no lee ni oye
+  a esa persona (el resto sí); guardado por identidad (`b:<id>`); evento servidor «bloqueo» → el chat filtra con
+  `except` en el alcance; botón «Silenciar/Oír» por persona en el panel Gente. Avisos del servidor también al
+  `#avisos` (role=status) cuando el chat está cerrado.
+- Números: 540 tests (+3), build ok, layers ok. `blocks_per_person` 200 en limits.json. Sin e2e de navegador.
+- Consumo: sin medir · Fable 5.1 (subagente).
+- Commit: feat/mute-a-person → tren/motor-2026-10-18-3.
+- Siguiente: F1b (amigos, denunciar); marcar en Gente el estado real de bloqueo al recargar (hoy la marca es local).
