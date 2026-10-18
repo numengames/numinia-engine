@@ -6,7 +6,7 @@
 // goes back to), `rellenar` puts an uploaded image in it — the server measures its pixels (api.medidas, from the file,
 // never from the page) and fits it whole, centred, never distorted — and `vaciar` brings the card back. They work on
 // a pinned hole too: it stays where it is, only its picture changes.
-import { serverPart } from "../../packages/feature/src/index.ts";
+import { serverPart, transformarPuntos } from "../../packages/feature/src/index.ts";
 import type { Msg } from "../../packages/feature/src/index.ts";
 import { objetos, PASO, OBJETOS_MAX, DESHACER_MAX, TIPOS, EXTENSIONES, HUECO_MIN_M, HUECO_PX_MAX, ESCALA_MIN, encajar, colisionDe } from "./feature.ts";
 import type { Tipo, Colision } from "./feature.ts";
@@ -30,19 +30,15 @@ const TICK_HZ = 20;
 type Caja = [number, number, number, number, number, number]; // x0 y0 z0 x1 y1 z1
 
 /** U10: the world box (axis-aligned) of a thing's own box after its scale, turn (YXZ, degrees) and position: what
- * `solido` collides with. Computed here once, so every page and the server's simulation get the same numbers. */
+ * `solido` collides with. Computed here once, so every page and the server's simulation get the same numbers.
+ * M6 h8: the rotation itself is `transformarPuntos` (packages/feature), shared with the server wiring that turns a
+ * `malla` thing's .glb triangles into world space (R-1: one piece of maths, not two). */
 export function cajaEnMundo(o: Msg, c: Caja): Record<"bx0" | "by0" | "bz0" | "bx1" | "by1" | "bz1", number> {
-  const R = Math.PI / 180, [ax, ay, az] = [Number(o.rx) * R, Number(o.ry) * R, Number(o.rz) * R];
-  const [cx, sx_] = [Math.cos(ax), Math.sin(ax)], [cy, sy_] = [Math.cos(ay), Math.sin(ay)], [cz, sz_] = [Math.cos(az), Math.sin(az)];
+  const esquinas = new Float64Array(24);
+  for (let i = 0; i < 8; i++) { esquinas[i * 3] = i & 1 ? c[3] : c[0]; esquinas[i * 3 + 1] = i & 2 ? c[4] : c[1]; esquinas[i * 3 + 2] = i & 4 ? c[5] : c[2]; }
+  const p = transformarPuntos(esquinas, o);
   const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
-  for (let i = 0; i < 8; i++) {
-    let x = (i & 1 ? c[3] : c[0]) * Number(o.sx), y = (i & 2 ? c[4] : c[1]) * Number(o.sy), z = (i & 4 ? c[5] : c[2]) * Number(o.sz);
-    [x, y] = [x * cz - y * sz_, x * sz_ + y * cz];   // roll (z), then pitch (x), then yaw (y): three's "YXZ" order applied to a point
-    [y, z] = [y * cx - z * sx_, y * sx_ + z * cx];
-    [x, z] = [x * cy + z * sy_, -x * sy_ + z * cy];
-    const p = [x + Number(o.x), y + Number(o.y), z + Number(o.z)];
-    for (let k = 0; k < 3; k++) { min[k] = Math.min(min[k], p[k]); max[k] = Math.max(max[k], p[k]); }
-  }
+  for (let i = 0; i < 8; i++) for (let k = 0; k < 3; k++) { min[k] = Math.min(min[k], p[i * 3 + k]); max[k] = Math.max(max[k], p[i * 3 + k]); }
   const r = (v: number) => q(Math.max(-2000, Math.min(2000, v)), PASO.pos);
   return { bx0: r(min[0]), by0: r(min[1]), bz0: r(min[2]), bx1: r(max[0]), by1: r(max[1]), bz1: r(max[2]) };
 }
