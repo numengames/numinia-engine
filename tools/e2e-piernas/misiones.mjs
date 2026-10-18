@@ -41,7 +41,10 @@ async function caminar(p, x, z, cerca = 1.2, maxMs = 30000) {
     const held = [];
     if (Math.abs(dx) > cerca * 0.5) held.push(dx > 0 ? "KeyD" : "KeyA");
     if (Math.abs(dz) > cerca * 0.5) held.push(dz > 0 ? "KeyS" : "KeyW");
-    const ms = Math.max(100, Math.min(1500, ((Math.max(Math.abs(dx), Math.abs(dz)) - cerca * 0.4) / 4) * 1000));
+    // far: run (Shift, 4 m/s); near: walk (1.5 m/s) — the sim's RUN_SPEED/SPEED since #24 (walking used to be 4)
+    const corre = Math.max(Math.abs(dx), Math.abs(dz)) > 3;
+    if (corre) held.unshift("Shift");
+    const ms = Math.max(100, Math.min(1500, ((Math.max(Math.abs(dx), Math.abs(dz)) - cerca * 0.4) / (corre ? 4 : 1.5)) * 1000));
     for (const k of held) await p.keyboard.down(k);
     await p.waitForTimeout(ms);
     for (const k of held) await p.keyboard.up(k);
