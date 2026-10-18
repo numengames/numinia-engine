@@ -153,49 +153,62 @@ export function buildGrid(s: SimState): Grid {
 let cand = new Int32Array(1024);
 let prio = new Float64Array(1024);
 
-/** Pick at most k entities for this viewer: nearest rings only, highest accumulated priority. */
+/** Pick at most k entities for this viewer: nearest rings only, highest accumulated priority.
+ * E1: one pass per cell does the filter and the priority (no closure per call, locals instead of property loads);
+ * same candidates, same additions in the same float widths, same top k: the chosen list is identical. */
 export function selectVisible(s: SimState, grid: Grid, v: Viewer, k: number, ringMax = RING_MAX): number[] {
   const X = s.tf.cols.x, Z = s.tf.cols.z;
-  const vx = X[v.entity], vz = Z[v.entity];
-  const cx = cellOf(vx), cz = cellOf(vz);
+  const self = v.entity, vx = X[self], vz = Z[self], pr = v.priority;
+  const start = grid.start, items = grid.items;
+  const cx = cellOf(vx), cz = cellOf(vz), M = GRID_SIDE - 1;
   let n = 0;
-  const visit = (gx: number, gz: number) => {
-    const c = (gx & (GRID_SIDE - 1)) * GRID_SIDE + (gz & (GRID_SIDE - 1)), end = grid.start[c + 1];
-    if (n + (end - grid.start[c]) > cand.length) { const m = Math.max(cand.length * 2, n + end - grid.start[c]); const a = new Int32Array(m); a.set(cand); cand = a; prio = new Float64Array(m); }
-    for (let i = grid.start[c]; i < end; i++) {
-      const id = grid.items[i];
-      if (id !== v.entity && Math.abs(X[id] - vx) < ALIAS && Math.abs(Z[id] - vz) < ALIAS) cand[n++] = id;
-    }
-  };
   for (let r = 0; r <= ringMax && n < CAND_MIN; r++) {
-    if (r === 0) { visit(cx, cz); continue; }
+    // ring r: the two full columns gx = cx ± r, and the two cells gz = cz ± r of every column between (r = 0: one cell)
     for (let gx = cx - r; gx <= cx + r; gx++) {
-      if (gx === cx - r || gx === cx + r) for (let gz = cz - r; gz <= cz + r; gz++) visit(gx, gz);
-      else { visit(gx, cz - r); visit(gx, cz + r); }
+      const edge = r === 0 || gx === cx - r || gx === cx + r, stepZ = edge ? 1 : 2 * r, row = (gx & M) * GRID_SIDE;
+      for (let gz = cz - r; gz <= cz + r; gz += stepZ) {
+        const c = row + (gz & M), from = start[c], end = start[c + 1];
+        if (n + (end - from) > cand.length) { const m = Math.max(cand.length * 2, n + end - from); const a = new Int32Array(m); a.set(cand); cand = a; const p = new Float64Array(m); p.set(prio); prio = p; }
+        for (let i = from; i < end; i++) {
+          const id = items[i], xi = X[id], zi = Z[id];
+          if (id === self || !(Math.abs(xi - vx) < ALIAS && Math.abs(zi - vz) < ALIAS)) continue;
+          const dx = (xi - vx) / FX_ONE, dz = (zi - vz) / FX_ONE;
+          const p = pr[id] + 1 / (1 + (dx * dx + dz * dz) * 0.01); // closer accumulates faster
+          pr[id] = p; cand[n] = id; prio[n++] = p; // prio keeps the unrounded sum, as `prio[i] = (pr[id] += …)` did
+        }
+      }
     }
-  }
-  for (let i = 0; i < n; i++) {
-    const id = cand[i], dx = (X[id] - vx) / FX_ONE, dz = (Z[id] - vz) / FX_ONE;
-    prio[i] = (v.priority[id] += 1 / (1 + (dx * dx + dz * dz) * 0.01)); // closer accumulates faster
   }
   if (n > k) topK(n, k);
-  const m = Math.min(n, k), chosen = new Array<number>(m);
-  for (let i = 0; i < m; i++) { chosen[i] = cand[i]; v.priority[cand[i]] = 0; } // sent: back of the queue
-  return chosen.sort((a, b) => a - b);
+  const m = Math.min(n, k);
+  for (let i = 0; i < m; i++) pr[cand[i]] = 0; // sent: back of the queue
+  const out = new Array<number>(m); // ascending id: insertion sort (m ≤ k, a few dozen)
+  for (let i = 0; i < m; i++) { const id = cand[i]; let j = i; while (j > 0 && out[j - 1] > id) { out[j] = out[j - 1]; j--; } out[j] = id; }
+  return out;
 }
 
-/** Move the k best (priority desc, id asc) to the front of cand/prio. Quickselect, deterministic pivot. */
+/** Move the k best (priority desc, id asc) to the front of cand/prio (in no particular order). The k best are one fixed
+ * set (ids differ, so the order is total), so how they are found does not change what is sent. E1: a heap of the k
+ * kept with the worst on top, instead of quickselect: most candidates lose one comparison against the top. */
 function topK(n: number, k: number): void {
-  const better = (i: number, j: number) => prio[i] > prio[j] || (prio[i] === prio[j] && cand[i] < cand[j]);
-  const swap = (i: number, j: number) => { const c = cand[i]; cand[i] = cand[j]; cand[j] = c; const p = prio[i]; prio[i] = prio[j]; prio[j] = p; };
-  let lo = 0, hi = n - 1;
-  while (lo < hi) {
-    swap((lo + hi) >> 1, hi); // pivot to the end
-    let store = lo;
-    for (let i = lo; i < hi; i++) if (better(i, hi)) swap(i, store++);
-    swap(store, hi);
-    if (store === k - 1 || store === k) return;
-    if (store < k) lo = store + 1; else hi = store - 1;
+  const C = cand, P = prio;
+  // "a worse than b": lower priority, or the same priority and a higher id
+  const down = (i: number): void => { // sift the entry at i down the min-heap of [0, k)
+    const c = C[i], p = P[i];
+    for (;;) {
+      let w = 2 * i + 1;
+      if (w >= k) break;
+      const r = w + 1;
+      if (r < k && (P[r] < P[w] || (P[r] === P[w] && C[r] > C[w]))) w = r;
+      if (!(P[w] < p || (P[w] === p && C[w] > c))) break;
+      C[i] = C[w]; P[i] = P[w]; i = w;
+    }
+    C[i] = c; P[i] = p;
+  };
+  for (let i = (k >> 1) - 1; i >= 0; i--) down(i);
+  for (let i = k; i < n; i++) {
+    const p = P[i], c = C[i];
+    if (p > P[0] || (p === P[0] && c < C[0])) { C[i] = C[0]; P[i] = P[0]; C[0] = c; P[0] = p; down(0); }
   }
 }
 
@@ -209,22 +222,38 @@ function topK(n: number, k: number): void {
 const SNAP_HEADER = 30;
 const ZERO_Q = 32768; // quantPos(0)
 
-/** SNAPSHOT: own state at full precision (exact reconciliation, height included), others quantized. */
-export function encodeSnapshot(s: SimState, self: number, ack: number, visible: number[]): Uint8Array {
+/** E1: every avatar's three quantized coordinates, worked out once per snapshot tick instead of once per viewer that
+ * sees it (~50 times each with 1.000 people). Same `quantPos`, so the same 16 bits. */
+export type Cuantas = { x: Uint16Array; y: Uint16Array; z: Uint16Array };
+let cuantas: Cuantas = { x: new Uint16Array(0), y: new Uint16Array(0), z: new Uint16Array(0) };
+/** Fill (and return) the shared quantized table for this state. Valid until the next call or the next sim step. */
+export function cuantizar(s: SimState): Cuantas {
   const X = s.tf.cols.x, Y = s.tf.cols.y, Z = s.tf.cols.z;
+  if (cuantas.x.length < X.length) cuantas = { x: new Uint16Array(X.length), y: new Uint16Array(X.length), z: new Uint16Array(X.length) };
+  const qx = cuantas.x, qy = cuantas.y, qz = cuantas.z;
+  for (const id of s.world.query(s.tf)) { qx[id] = quantPos(X[id]); qy[id] = quantPos(Y[id]); qz[id] = quantPos(Z[id]); }
+  return cuantas;
+}
+
+/** SNAPSHOT: own state at full precision (exact reconciliation, height included), others quantized. `q` (E1, optional):
+ * the table from `cuantizar` for this same state; without it, it is filled here (same values: same state). */
+export function encodeSnapshot(s: SimState, self: number, ack: number, visible: number[], q?: Cuantas): Uint8Array {
+  const X = s.tf.cols.x, Y = s.tf.cols.y, Z = s.tf.cols.z, nv = visible.length;
+  const t = q ?? cuantizar(s), qxs = t.x, qys = t.y, qzs = t.z;
   let high = 0;
-  for (const id of visible) if (quantPos(Y[id]) !== ZERO_Q) high++;
-  const low = visible.length - high;
+  for (let i = 0; i < nv; i++) if (qys[visible[i]] !== ZERO_Q) high++;
+  const low = nv - high;
   const buf = new Uint8Array(SNAP_HEADER + low * 6 + high * 8), dv = new DataView(buf.buffer);
   dv.setUint8(0, MSG.SNAPSHOT); dv.setUint32(1, s.tick >>> 0); dv.setUint16(5, ack & 0xffff); dv.setUint16(7, self);
   dv.setInt32(9, X[self]); dv.setInt32(13, Z[self]); dv.setInt32(17, Y[self]); dv.setInt32(21, s.mo.cols.vy[self]);
   dv.setUint8(25, (s.mo.cols.air[self] & 1) | ((s.mo.cols.buf[self] & 3) << 1));
   dv.setUint16(26, low); dv.setUint16(28, high);
   let o = SNAP_HEADER, h = SNAP_HEADER + low * 6;
-  for (const id of visible) {
-    const qy = quantPos(Y[id]);
-    if (qy === ZERO_Q) { dv.setUint16(o, id); dv.setUint16(o + 2, quantPos(X[id])); dv.setUint16(o + 4, quantPos(Z[id])); o += 6; }
-    else { dv.setUint16(h, id); dv.setUint16(h + 2, quantPos(X[id])); dv.setUint16(h + 4, quantPos(Z[id])); dv.setUint16(h + 6, qy); h += 8; }
+  // big-endian 16-bit writes by hand (what DataView.setUint16 does by default), byte for byte the same
+  for (let i = 0; i < nv; i++) {
+    const id = visible[i], qx = qxs[id], qy = qys[id], qz = qzs[id];
+    if (qy === ZERO_Q) { buf[o] = id >> 8; buf[o + 1] = id; buf[o + 2] = qx >> 8; buf[o + 3] = qx; buf[o + 4] = qz >> 8; buf[o + 5] = qz; o += 6; }
+    else { buf[h] = id >> 8; buf[h + 1] = id; buf[h + 2] = qx >> 8; buf[h + 3] = qx; buf[h + 4] = qz >> 8; buf[h + 5] = qz; buf[h + 6] = qy >> 8; buf[h + 7] = qy; h += 8; }
   }
   return buf;
 }
