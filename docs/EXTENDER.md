@@ -104,6 +104,15 @@ export default clientPart(gestos, (api) => {
   cuadrado de la casa (40 m alrededor del origen). Es del servidor (viaja en la carpeta y el zip del mundo), no del cable.
   `"aparicionFoto": true` (N16, apagado si no está) deja que quien abre el enlace de una foto (`#foto=`) aparezca en
   su sitio (el servidor busca un sitio libre allí; si no hay, la columna de luz le guía como siempre).
+- El mismo `entorno.json` puede tener **vacío** (D-045, `features/suelo`): `"sueloMinimo": -4` (metros, −500…500) es
+  la altura bajo la cual se ha caído; el servidor guarda cada medio segundo (`SEGURO_CADA` ticks) dónde pisaba suelo
+  cada persona y, al bajar de ahí, la recoloca en ese sitio **dentro del paso de simulación** (una orden grabada con
+  las entradas: la repetición la reproduce; sin `sueloMinimo` nadie se mueve solo y la huella de referencia no cambia).
+  Opcional `"vuelta": { "x", "y", "z", "siempre": true }`: un punto fijo al que volver mientras no se conoce un sitio
+  seguro (con `siempre`, siempre). La página hace un fundido (`view.fundido(ms)`) y el evento `suelo.vuelta` (importancia
+  2) lo lee el lector de pantalla: «Has vuelto a un sitio seguro». El cable (D-041) y quien se queda atascado piden lo
+  mismo con la intención `suelo.volver` (la acción «vuelve_a_seguro»; una vez cada 5 s); una función del servidor, con
+  `api.volverASeguro(e)` o `api.onVuelta(cb)`. Prueba sin pantalla: `test/suelo.test.ts`; con hueco: `tools/e2e-piernas/suelo.mjs`.
 - Una función puede mover a un jugador a propósito con `api.teletransportar(e, { x, y, z }, { radios, rumbo, caida })`
   (N16): la instancia busca el primer sitio libre cerca (dentro del mundo, en un suelo como mucho `caida` m más
   abajo, sin sólidos; anillos `radios` en metros, ocho rumbos desde `rumbo` 0-7) y devuelve dónde quedó, o null sin
@@ -295,6 +304,15 @@ sha256 (la biblioteca de la casa o una subida al mundo, en `datos/activos/`, que
 cualquier imagen subida). Aquí, a diferencia de los demás formatos, se miden caracteres y **un campo desconocido se
 guarda** (un motor más nuevo puede añadir alguno). El nombre va al `<title>` de la página y a `GET /status` (`nombre`,
 `descripcion`, `portada` = `/a/<sha256>.<ext>` si el servidor la tiene). Sin ficha, todo como antes.
+
+**`avatar`** y **`aforo`** (H7, opcionales, dentro de la ficha): `avatar` = el id de un avatar de la casa
+(`activos/avatares/catalogo.json`: `astrodisco`, `skelly`…) que llevan TODOS mientras nadie elige el suyo (H10);
+`aforo` = cuántas personas caben a la vez, entero de 1 a 1000 (`limits.json` `world_people_cap`); el tope real es el
+menor entre ese aforo y la capacidad del motor. Los dos salen en `GET /status` (`avatar`, `aforo`; `aforo` sale siempre,
+sin ficha = la capacidad). Con el mundo lleno, el servidor cierra la conexión con el código **4004** y el motivo
+«lleno <dentro>/<aforo>»; la página lo enseña en el centro (`#mundo-lleno`, `role=alert`) y no reintenta sola. Un valor
+que no cabe deja la ficha entera sin cargar, con su motivo en el log (`[ficha] no se carga: ficha.json.aforo: …`).
+Hoy se editan en el fichero: no hay panel para cambiarlos en marcha.
 
 **`tema`** (opcional, dentro de la ficha): cómo se ve la página de ESTE mundo, para que un evento traiga su aire sin
 tocar el motor. Diez colores «#rrggbb» de los paneles — `fondo`, `superficie`, `elevado` (botones), `texto`, `texto2`,
@@ -852,6 +870,72 @@ poste, la caja en el suelo.
 - **Lo que no hace (todavía):** paredes que paren a quien no abre la puerta (es dibujo, no colisión: J6), botones
   con otra acción que una puerta (la señal ya existe; que otra función la escuche es una línea), coger con la mano
   física en VR (hoy, rayo y gatillo como el resto; J10 lo hace para las cosas de misión), y llevar más de una cosa.
+## Contadores (v1, D-044): temporizador y contador que todos ven
+
+`features/contadores` es la pieza del reloj de la sala de escape, del marcador del equipo y del reloj del mundo:
+**el servidor lleva el reloj**, publica el valor **una vez por segundo** (no a 20 Hz) y **solo a quien está en la zona**
+(estado con `at`, radio `ALCANCE_M` 60 m, J9). La página nunca cuenta por su cuenta: enseña el último valor que le llegó.
+
+- **Fichero del mundo** `MUNDO_DIR/contadores.json` (`numinia-engine/contadores@1`):
+  `{ "contadores": [{ "id": "sala", "nombre": "Sala 1", "tipo": "cuenta_atras", "segundos": 900, "x": 0, "z": 0, "donde": "ambos", "evento": "sala-a-cero", "manda": "todos" }] }`.
+  Tipos: `cuenta_atras` (`segundos`, 1 a 86.400), `contador` (`inicio` y `tope`; `tope` 0 = sin tope) y `reloj` (sube
+  desde 0, un cronómetro del mundo). `donde` = `panel` (la página), `cartel` (texto en el mundo) o `ambos` (si falta);
+  `manda` = `todos` (quien esté al alcance, `radio` 1-16 m, 4 si falta) o `dirige` (si falta: quien dirige, permiso
+  «Gestionar rituales» STD-052, desde donde sea). Cada línea mal formada **se deja fuera con su motivo** en el log
+  (`[mundo] contadores.json: contadores.contadores[3].tipo: … (esa línea no se usa)`); el resto se usa. Como mucho
+  32 por mundo (`limits.json`).
+- **Intenciones** (página, móvil, VR, agentes): `arranca {id}`, `para {id}`, `suma {id, cuanto}` (negativo resta; en una
+  cuenta atrás da o quita segundos), `reinicia {id}` (vuelve a `inicio`, parado) y `pulsar {id}` (la tecla E al lado: una
+  cuenta atrás o un reloj arranca/para; un marcador suma 1).
+- **Eventos:** `llegada {id, nombre, tipo, valor, evento, texto}` cuando una cuenta atrás llega a cero o un marcador a su
+  tope (se para y lo publica; suena `campana`, importancia 2). **Para el cable (D-041):** en el servidor,
+  `api.listen("contadores", "llegada", (m) => m.evento === "sala-a-cero" && …)` — el nombre viaja en `evento`, y los
+  oyentes del servidor lo oyen aunque el emit sea a la zona. `hito {id, nombre, texto}` dice en voz alta lo que un lector
+  de pantalla debe oír (arranca, parado, «quedan 5 minutos / 1 minuto / 30 s / 10 s», el marcador cambió); el valor del
+  panel NO es región viva (no se lee segundo a segundo). `rechazado {motivo}`.
+- **Cartel 3D:** la vía más barata que ya había: el rótulo sprite sobre una cosa (`api.view.tag`, un canvas que solo se
+  redibuja cuando cambia el texto: una vez por segundo en marcha, nunca parado), a 2,4 m del suelo del contador, con el
+  nombre debajo. Se ve también en VR.
+- **Panel HTML** (`apps/plaza/contadores.ts`, `#contadores-panel`): un grupo por contador (nombre, valor en `<output>`
+  con `aria-live="off"`, estado) y los botones (44 px) solo cuando estás al alcance: Arrancar/Parar y Reiniciar, o +1 / −1
+  / Reiniciar en un marcador.
+- **Chat:** `/contador sala arranca|para|suma 3|resta 1|reinicia`, `/contadores` (la lista con sus valores).
+- **Lo que no hace (todavía, historia 3):** guardar el valor entre reinicios del servidor (`persist`), un contador por
+  persona o por equipo con nombre libre, poner o quitar contadores desde dentro del mundo (hoy, solo el fichero), y el
+  cable que conecte `llegada` con otra pieza (D-041, otro agente).
+## El cable (D-041, v1): disparadores que un mundo escribe en datos, sin código
+
+La pieza `disparadores@1` (`features/disparadores`) es el cable del mundo: un constructor (o un agente que escribe JSON)
+conecta «cuando pase esto, haz aquello» en `MUNDO_DIR/disparadores.json` (`numinia-engine/disparadores@1`) y **nadie
+decide nada en su página**: el servidor vigila quién entra en cada zona (`api.onTick`, una distancia por persona y
+disparador), comprueba el alcance de cada pulsación (`api.within`), cuenta el cooldown en ticks y el «un solo uso»,
+avisa a los cercanos (`disparado`, `CERCA_M = 30`) y emite **una acción por receptor** como evento con alcance
+`"server"` (`accion`): la función dueña de esa acción la oye con `api.listen("disparadores", "accion", …)` y devuelve
+`true`. Hoy `features/objetos` hace `muestra` / `oculta` (pone `oculto` al objeto por id o por nombre exacto; la página no
+dibuja un modelo oculto al jugar y sí al construir); `teletransporta`, `da_paso`, `abre_enlace` y `suena` llegan en sus
+historias: mientras tanto el registro dice `nadie hace «teletransporta» en este servidor` en vez de callar.
+
+- **El fichero:** `{ "disparadores": [{ id, nombre, tipo: "zona" | "boton", x, y?, z, radio?, frase?, cooldown?, un_solo_uso?,
+  receptores: [{ accion, … }] }] }`. `id` es `[a-z0-9-]{1,16}`; `radio` es el de la zona (0,5-64 m, 3 por defecto) o desde
+  cuánto se pulsa el botón (1-16 m, 2); `frase` es lo que ve quien se acerca al botón («E: pulsar», en el ordenador,
+  el móvil y el visor; por defecto `pulsar <nombre>`); `cooldown` 0-3600 s; `un_solo_uso` gasta el disparador para
+  siempre (el botón deja de ofrecerse: su `alcance` pasa a 0). Receptores (hasta 8; una línea mala tira el disparador
+  entero, y el registro dice cuál): `{ "accion": "muestra" | "oculta", "objeto": "<id o nombre>" }`,
+  `{ "accion": "teletransporta", "x", "y"?, "z" }`, `{ "accion": "da_paso", "mision", "paso" }`, `{ "accion": "abre_enlace",
+  "enlace": "https://…" }`, `{ "accion": "suena", "sonido" }`. Hasta 64 disparadores por mundo; sin fichero no hay ninguno y
+  el motor no cambia (la huella de la simulación es la misma: `test/disparadores.test.ts`).
+- **Estado por disparador:** `nombre, tipo, x, y, z, radio, alcance, frase, cooldown, unSoloUso, usos, enEspera, agotado`;
+  intención `pulsar {disparador}` (2/s, ráfaga 4); eventos `disparado` (cercanos), `senal` y `accion` (solo servidor) y
+  `rechazado` («Acércate…», «Todavía no: … espera N s», «… ya se usó»). Una zona nunca regaña: si está en espera o
+  gastada, entrar no hace nada; se dispara al **entrar** (una vez por entrada, por persona) y salir y volver a entrar
+  vuelve a contar si el cooldown pasó.
+- **Ejemplo mínimo (botón que enciende una farola oculta):** `{ "disparadores": [{ "id": "rojo", "nombre": "Botón rojo",
+  "tipo": "boton", "x": 12, "z": 0, "frase": "E: pulsar", "cooldown": 5, "receptores": [{ "accion": "muestra", "objeto":
+  "Farola" }] }] }` con un objeto llamado «Farola» marcado como invisible al jugar en el constructor.
+- **Lo que no hace (todavía):** los receptores de las historias 3-4 (`teletransporta`, `da_paso`, `abre_enlace`, `suena`),
+  la etiqueta flotante de la zona y el botón móvil (historia 5), el catálogo para agentes y el ejemplo en la plaza
+  (historia 6), y disparadores que no sean zona o botón (la cerradura de D-042, el temporizador de D-044 son emisores
+  nuevos de este mismo cable).
 
 ## Agua (N2): estilizada, de color plano, un solo draw call
 

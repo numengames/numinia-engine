@@ -28,6 +28,7 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 | Entrada táctil | Joystick virtual + cámara con el dedo ✔ (izquierda anda, derecha mira, pellizco) | motor | Base | — / sí / — | cliente | bajo | N1 |
 | Gamepad | Xbox/PS/genérico ◐ (palancas y LB/RB; sin probar con un mando real) | motor | Base | sí / sí / mandos | cliente | bajo | N1 |
 | Salto y altura | Saltar y subir desniveles ✘ | motor | Base | tecla / botón / botón | C altura, S sim (cambia la huella) | bajo | J2 |
+| Volver al caer | Caer al vacío te devuelve a la última posición segura ✔ (D-045: `sueloMinimo` y `vuelta` en `entorno.json`; fundido y aviso leído; `suelo.volver` lo pide a propósito) | motor | Base | automático / automático / automático | S, C | bajo | D-045 |
 | Correr / agacharse / sentarse | Estados de postura | motor | Mejorado | sí / sí / sí | C estado, M | bajo | J4 |
 | Teletransporte a un punto | Saltar a un sitio marcado (el mapa ya marca destinos: J5) | ciudad | Base | menú / menú / apuntar | M, S | bajo | J5 |
 | Confort en VR | Giro a saltos, teletransporte, viñeta | motor | Base (en XR) | — / — / sí | cliente | medio | J6 |

@@ -14,6 +14,7 @@
     /* auditoría UI móvil: ancho topado a la pantalla (antes "white-space: pre" nunca envolvía y el
        texto largo se salía por el borde derecho, oculto bajo el minimapa); cada .linea recorta con "…" */
     #hud { position: fixed; top: 10px; left: 10px; max-width: calc(100vw - 20px); box-sizing: border-box; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #eef2f6; pointer-events: none; }
+    #mundo-lleno { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(480px, calc(100vw - 32px)); margin: 0; padding: 16px 20px; border-radius: 10px; background: rgba(20, 24, 30, .92); color: #eef2f6; font-size: 16px; line-height: 1.4; text-align: center; z-index: 20; }
     #hud b { color: #ffd27a; font-weight: 600; }
     #hud .linea { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
     /* en móvil (pantalla estrecha o táctil) el HUD comparte la fila superior con la barra de iconos:
@@ -83,6 +84,7 @@
     #mision-seguida { position: fixed; top: 156px; left: 10px; z-index: 4; max-width: calc(100% - 150px); margin: 0; padding: 5px 10px; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #ffd27a; pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #mision-nota { position: fixed; top: 34%; left: 50%; transform: translateX(-50%); max-width: calc(100% - 40px); padding: 6px 12px; border-radius: 8px; background: rgba(255, 210, 122, .95); color: #23303b; font-weight: 600; text-align: center; pointer-events: none; }
     /* V1: what happens, for screen readers (not shown on screen; the voice of V3 comes later) */
+    #fundido { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 40; } /* D-045: the fade when the server puts you back on a safe spot (features/suelo) */
     .solo-lector { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
     /* N2: the settings menu (a real <dialog>: keyboard, touch and screen readers) and what its settings change */
     :root { --ui: 1; }
@@ -135,6 +137,7 @@
 </head>
 <body>
   <div id="hud">Conectando…</div>
+  <p id="mundo-lleno" role="alert" hidden></p><!-- H7: the world is full (ficha `aforo`): the door's reason, read at once by screen readers -->
   <div id="barra-arriba" role="toolbar" aria-label="Botones del mundo"></div>
   <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · M: mapa · I: ficha · C: construir · Q: micrófono · L: gente · P: foto</div>
   <button id="ar" type="button" hidden>Entrar en AR</button>
@@ -164,6 +167,7 @@
     <p id="chat-estado" class="estado" role="status"></p>
     <button id="chat-boton" type="button" aria-expanded="false" aria-controls="chat-form" hidden>Chat</button>
   </section>
+  <div id="fundido" aria-hidden="true"></div>
   <div id="avisos" class="solo-lector" role="status" aria-live="polite"></div>
   <div id="avisos-urgentes" class="solo-lector" role="alert" aria-live="assertive"></div>
   <!-- N2: settings (gear or O; Escape closes). Filled by menu-ajustes.ts from the settings registry -->

@@ -5,6 +5,10 @@ import { fx, fxMul, fxSqrt, fxDiv, fxClamp, fnv1a, rngNext, FX_ONE } from "../..
 import { defineSchema } from "../../schema/src/index.ts";
 import { World } from "../../ecs/src/index.ts";
 import type { Store } from "../../ecs/src/index.ts";
+import { rayBvh } from "./bvh.ts";
+import type { Bvh } from "./bvh.ts";
+export { buildBvh, rayBvh, bvhFingerprint, quantizeTriangles, BVH_UNIT, BVH_LEAF, TRI_STRIDE, NODE_STRIDE } from "./bvh.ts";
+export type { Bvh, Hit } from "./bvh.ts";
 
 export const TICK_HZ = 20;
 export const SPEED = fx(1.5);                // walking, metres per second (human pace; was 4 — too fast to ever just walk)
@@ -12,6 +16,7 @@ export const STEP = fxDiv(SPEED, fx(TICK_HZ)); // metres per tick at full stick
 export const RUN_SPEED = fx(4);              // J2: running (Shift; touch/VR stick at its edge), like Hyperfy2 (was 8)
 export const RUN_STEP = fxDiv(RUN_SPEED, fx(TICK_HZ)); // exactly RUN_SPEED/SPEED x STEP
 export const BOUND = fx(2000);               // N1: half-size of the walkable world in metres (was 500; objects and quests already reached ±2000)
+export const Y_BOUND = fx(500);              // D-045: heights an order may name (Transform's y range)
 export const STICK_MAX = 127;                // input axes are int8
 
 // ---- J2: height. The feel is Hyperfy2's (PlayerLocal: gravity 20 m/s², jump height 1.5 m, one more jump in the
@@ -26,20 +31,42 @@ export const BTN_JUMP = 1, BTN_RUN = 2;
 const BTN_KNOWN = BTN_JUMP | BTN_RUN;
 /** Inputs are quadruples [entity, mx, mz, buttons]. */
 export const INPUT_STRIDE = 4;
+/** D-045: orders are quadruples [entity, x, y, z] (Q16.16): the server puts an avatar somewhere on purpose (back to its
+ * last safe spot after a fall). They are applied inside `step`, before the inputs, and a replay carries them tick by
+ * tick, so the fingerprint of a run with orders is reproducible; a run with none steps exactly as before. */
+export const ORDER_STRIDE = 4;
+const NO_ORDERS = new Int32Array(0);
+/** True when the avatar stands on its floor (vertical speed 0, feet at the ground under it). */
+export function onFloor(s: SimState, e: number): boolean {
+  const y = s.tf.cols.y[e];
+  return s.mo.cols.vy[e] === 0 && y === (s.solids.length ? groundHeight(s.tf.cols.x[e], s.tf.cols.z[e], s, y) : 0);
+}
 
 /** Height of the ground under (x, z), Q16.16. A flat plaza, plus (U10) the tops of solid things you stand above
- * when `s` is given: the highest top not more than STEP_UP over your feet `y`. M6 (physics) replaces this. */
+ * when `s` is given: the highest top not more than STEP_UP over your feet `y`; plus (M6) the world mesh when `s` has
+ * one: a ray straight down from STEP_UP over the feet (so a step up to STEP_UP counts as ground) to the bottom of
+ * the world. Without solids and without a mesh nothing is looked at (the reference fingerprint never sees them). */
 export function groundHeight(x: number, z: number, s?: SimState, y = 0): number {
   let g = 0;
-  const b = s?.solids;
-  if (!b) return g;
+  if (!s) return g;
+  const b = s.solids;
   for (let o = 0; o + 5 < b.length; o += 6) {
     if (x < b[o] || x > b[o + 3] || z < b[o + 2] || z > b[o + 5]) continue;
     const top = b[o + 4];
     if (top > g && top <= y + STEP_UP) g = top;
   }
+  const m = s.mesh;
+  if (m) {
+    const top = y + STEP_UP;
+    const h = rayBvh(m, x, top, z, 0, -FX_ONE, 0, top + MESH_FLOOR);
+    if (h && h.y > g) g = h.y;
+  }
   return g;
 }
+/** How far under the feet a world mesh is still ground (the `Transform` floor, 500 m). */
+const MESH_FLOOR = fx(500);
+/** Does the state have any geometry (solid boxes or a mesh) that the step must look at? */
+const hasGeometry = (s: SimState): boolean => s.solids.length > 0 || s.mesh !== null;
 
 // ---- U10: solid things (a boolean on a placed thing). World geometry, like the ground: NOT part of the state's
 // fingerprint (both sides build it from the same shared state). Boxes are axis-aligned, Q16.16:
@@ -87,6 +114,9 @@ export function sitioLibre(s: SimState, x: number, y: number, z: number, radios:
 }
 /** Replace the solid boxes (both the server and the page call it when the shared state of things changes). */
 export function setSolids(s: SimState, boxes: Int32Array): void { s.solids = boxes; }
+/** M6: set (or clear) the world's collision mesh, a tree built with `buildBvh` from the same quantized triangles on
+ * both sides. Not part of the state fingerprint. */
+export function setMesh(s: SimState, mesh: Bvh | null): void { s.mesh = mesh; }
 /** The boxes of every value with `solido: true` and its world box (bx0…bz1, metres), at most SOLIDS_MAX, in key order. */
 export function solidsFrom(values: Iterable<[string, Record<string, unknown>]>): Int32Array {
   const list = [...values].filter(([, v]) => v.solido === true && Number(v.bx1) > Number(v.bx0) && Number(v.bz1) > Number(v.bz0))
@@ -111,14 +141,14 @@ export const Motion = defineSchema("Motion", 1, {
   buf: { kind: "int", min: 0, max: JUMP_BUFFER },            // ticks a jump press may still wait for the ground
 });
 
-export type SimState = { world: World; tf: Store; av: Store; mo: Store; tick: number; rng: Uint32Array; solids: Int32Array };
+export type SimState = { world: World; tf: Store; av: Store; mo: Store; tick: number; rng: Uint32Array; solids: Int32Array; mesh: Bvh | null };
 
 export function createSim(capacity: number, seed: number): SimState {
   const world = new World(capacity);
   const tf = world.register(Transform);
   const av = world.register(Avatar);
   const mo = world.register(Motion);
-  return { world, tf, av, mo, tick: 0, rng: new Uint32Array([seed >>> 0]), solids: new Int32Array(0) };
+  return { world, tf, av, mo, tick: 0, rng: new Uint32Array([seed >>> 0]), solids: new Int32Array(0), mesh: null };
 }
 
 /** Where new avatars appear (metres): the square of half-side `radio` centred at (x, z). A vertical world (a tower)
@@ -162,10 +192,19 @@ export const sameBody = (a: Body, b: Body): boolean =>
  * An avatar advances ONLY when one of its inputs is applied (gravity included): one input = one step of its owner's
  * clock, so the owner's prediction stays exact even on ticks where the server got no input from it (J2).
  */
-export function step(s: SimState, inputs: Int32Array): void {
+export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_ORDERS): void {
   const n = (inputs.length / INPUT_STRIDE) | 0;
   const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => inputs[a * INPUT_STRIDE] - inputs[b * INPUT_STRIDE]);
   const X = s.tf.cols.x, Y = s.tf.cols.y, Z = s.tf.cols.z, VY = s.mo.cols.vy, AIR = s.mo.cols.air, BUF = s.mo.cols.buf;
+  // D-045: orders first (ascending entity, like inputs): the avatar is put there, still, on whatever floor the order says
+  const no = (orders.length / ORDER_STRIDE) | 0;
+  const oo = Array.from({ length: no }, (_, i) => i).sort((a, b) => orders[a * ORDER_STRIDE] - orders[b * ORDER_STRIDE]);
+  for (const i of oo) {
+    const o = i * ORDER_STRIDE, e = orders[o];
+    if (!s.world.alive[e] || !s.tf.has[e]) continue;
+    X[e] = fxClamp(orders[o + 1], -BOUND, BOUND); Y[e] = fxClamp(orders[o + 2], -Y_BOUND, Y_BOUND); Z[e] = fxClamp(orders[o + 3], -BOUND, BOUND);
+    VY[e] = 0; AIR[e] = 0; BUF[e] = 0;
+  }
   for (const i of order) {
     const o = i * INPUT_STRIDE, e = inputs[o];
     if (!s.world.alive[e] || !s.tf.has[e]) continue;
@@ -176,15 +215,16 @@ export function step(s: SimState, inputs: Int32Array): void {
     const len = fxSqrt(fxMul(mx, mx) + fxMul(mz, mz));
     if (len > FX_ONE) { mx = fxDiv(mx, len); mz = fxDiv(mz, len); } // no faster diagonals
     const st = buttons & BTN_RUN ? RUN_STEP : STEP;
-    // N1b: standing on something before this step (only with solids: the flat plaza never needs it, so the reference
-    // fingerprint stands)
-    const onGround = s.solids.length > 0 && VY[e] === 0 && Y[e] === groundHeight(X[e], Z[e], s, Y[e]);
+    // N1b: standing on something before this step (only with geometry — solids or a mesh: the flat plaza never needs
+    // it, so the reference fingerprint stands)
+    const geo = hasGeometry(s);
+    const onGround = geo && VY[e] === 0 && Y[e] === groundHeight(X[e], Z[e], s, Y[e]);
     const nx = fxClamp(X[e] + fxMul(mx, st), -BOUND, BOUND), nz = fxClamp(Z[e] + fxMul(mz, st), -BOUND, BOUND);
     if (s.solids.length === 0 || !blocked(s, nx, Y[e], nz)) { X[e] = nx; Z[e] = nz; }
     else if (!blocked(s, nx, Y[e], Z[e])) X[e] = nx;   // U10: slide along a wall
     else if (!blocked(s, X[e], Y[e], nz)) Z[e] = nz;
     // vertical (J2): jump from the ground, or the one jump in the air; then gravity, then the ground stops the fall
-    const ground = s.solids.length ? groundHeight(X[e], Z[e], s, Y[e]) : 0;
+    const ground = geo ? groundHeight(X[e], Z[e], s, Y[e]) : 0;
     let y = Y[e], vy = VY[e], air = AIR[e], buf = buttons & BTN_JUMP ? JUMP_BUFFER + 1 : BUF[e];
     if (onGround && ground < y && y - ground <= SNAP_DOWN) y = ground; // N1b: down a step, still on the ground
     if (buf > 0) {
@@ -226,13 +266,15 @@ export function snapshot(s: SimState): Uint8Array {
 export const stateHash = (s: SimState): number => fnv1a(snapshot(s));
 
 // ---- Replay: initial seed + per-tick inputs reproduces the run exactly ----
-export type Recording = { seed: number; capacity: number; spawns: number[]; ticks: Int32Array[] };
+export type Recording = { seed: number; capacity: number; spawns: number[]; ticks: Int32Array[];
+  /** D-045: the orders of each tick (same index as `ticks`; none or empty = no order that tick). */
+  orders?: (Int32Array | undefined)[] };
 
 export function replay(r: Recording): number[] {
   const s = createSim(r.capacity, r.seed);
   for (const owner of r.spawns) spawnAvatar(s, owner);
   const hashes: number[] = [];
-  for (const inputs of r.ticks) { step(s, inputs); hashes.push(stateHash(s)); }
+  r.ticks.forEach((inputs, t) => { step(s, inputs, r.orders?.[t] ?? NO_ORDERS); hashes.push(stateHash(s)); });
   return hashes;
 }
 

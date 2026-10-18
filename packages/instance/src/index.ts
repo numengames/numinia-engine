@@ -1,7 +1,7 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, BTN_JUMP, BTN_RUN, INPUT_STRIDE } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE } from "../../sim/src/index.ts";
 import type { SimState, SpawnArea } from "../../sim/src/index.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
@@ -37,6 +37,7 @@ export type InstanceOptions = {
   activo?: (sha256: string, ext: string) => boolean; // H9: is /a/<sha256>.<ext> on this server (library or uploaded)? (api.activo)
   medidas?: (sha256: string, ext: string) => { ancho: number; alto: number } | null; // U12: a picture's pixels (api.medidas)
   sinVoz?: boolean | (() => boolean); // U10: true = voice frames are not relayed; a function is asked at every frame (the world's /voz)
+  oye?: (de: number, a: number) => boolean; // F1: may entity `a` hear entity `de`? Asked per listener and frame (a muted speaker, a personal block); none = yes
   aventura?: (carpeta: string) => { fichero: string; texto: string }[]; // J5: the adventure's text files (server/aventura.ts); none = no adventure
   // P4: AI inhabitants. `sign` checks agent tickets (a secret apart from the guests'); `nombre` = the name the world
   // declares for that inhabitant id (its habitante@1 file), null = this world has no such inhabitant. None = no agents.
@@ -49,7 +50,17 @@ export type InstanceOptions = {
   aparicion?: SpawnArea | null;
   /** N10: the world's receipts for digital goods (server/recibos.ts crearRecibos); none = features get "" and refusals. */
   recibos?: { emisor: string; firmar(d: BienFirmable): string; verificar(token: string): ReciboLeido };
+  /** D-045 («suelo de la muerte»): the world's `sueloMinimo` (metres; entorno.json): under it you have fallen into the void
+   * and the server puts you back on your last safe spot (the one it keeps every SEGURO_CADA ticks while you stand on a
+   * floor at or over that height), or on `vuelta` (a fixed point; `siempre` = always there). None = no void: nobody is
+   * ever moved on their own (the reference fingerprint stands). */
+  suelo?: Suelo | null;
 };
+export type Suelo = { minimo: number; vuelta?: { x: number; y: number; z: number; siempre?: boolean } | null };
+/** D-045: how often (ticks) the last safe spot is kept: 10 = every half second. */
+export const SEGURO_CADA = 10;
+/** D-045: a return the instance made (the feature `suelo` tells the page). `motivo`: caida = under the floor, pedido = asked. */
+export type Vuelta = { entity: number; x: number; y: number; z: number; motivo: "caida" | "pedido" };
 
 /** Inputs wait in a queue; the server applies exactly ONE per tick (none = that avatar does not advance: J2). */
 export const MAX_QUEUE = 8;
@@ -93,7 +104,45 @@ export class Instance {
       emisor: opts.recibos ? () => opts.recibos!.emisor : undefined,
       verificarRecibo: opts.recibos ? (t) => { const l = opts.recibos!.verificar(t); return l.ok ? { ...l, nuestro: l.nuestro === true } : l; } : undefined,
       teletransportar: (e, cerca, o) => this.teletransportar(e, cerca, o),
+      volverASeguro: (e) => this.volverASeguro(e, "pedido"),
+      vueltas: () => this.vueltas.splice(0),
     });
+    this.seguro = new Int32Array(opts.capacity * 3); this.tieneSeguro = new Uint8Array(opts.capacity);
+  }
+
+  // ---- D-045: the last safe spot of each avatar, the orders waiting for the next step, the returns made ----
+  private readonly seguro: Int32Array; private readonly tieneSeguro: Uint8Array;
+  private ordenes: number[] = []; // [entity, x, y, z] Q16.16, applied by the next step (recorded: part of the replay)
+  private readonly pendiente = new Set<number>();
+  private readonly vueltas: Vuelta[] = [];
+  private avisado = false;
+  /** Keep where this avatar stands as its safe spot, if it stands on a floor at or over the world's minimum. */
+  private guardarSeguro(e: number): void {
+    const s = this.sim;
+    if (!onFloor(s, e)) return;
+    const y = s.tf.cols.y[e];
+    if (this.opts.suelo && y < fx(this.opts.suelo.minimo)) return;
+    this.seguro[e * 3] = s.tf.cols.x[e]; this.seguro[e * 3 + 1] = y; this.seguro[e * 3 + 2] = s.tf.cols.z[e]; this.tieneSeguro[e] = 1;
+  }
+  /** Where a return would put this avatar (Q16.16), or null: the world's fixed point when it says `siempre` or when no
+   * safe spot is known yet; else the last safe spot. A point under the world's minimum is never used (no loop). */
+  private destinoSeguro(e: number): { x: number; y: number; z: number } | null {
+    const v = this.opts.suelo?.vuelta, min = this.opts.suelo ? fx(this.opts.suelo.minimo) : -Infinity;
+    const fijo = v && [v.x, v.y, v.z].every(Number.isFinite) && fx(v.y) >= min ? { x: fx(v.x), y: fx(v.y), z: fx(v.z) } : null;
+    if (fijo && (v!.siempre || !this.tieneSeguro[e])) return fijo;
+    if (this.tieneSeguro[e]) return { x: this.seguro[e * 3], y: this.seguro[e * 3 + 1], z: this.seguro[e * 3 + 2] };
+    return fijo;
+  }
+  /** D-045: queue the order that puts a connected avatar back on its safe spot at the next step (recorded in the replay).
+   * Returns false when it is gone, already on its way, or there is nowhere safe to go (said once in the log). */
+  volverASeguro(entity: number, motivo: Vuelta["motivo"] = "pedido"): boolean {
+    const s = this.sim;
+    if (!this.byEntity[entity] || !s.world.alive[entity] || !s.tf.has[entity] || this.pendiente.has(entity)) return false;
+    const d = this.destinoSeguro(entity);
+    if (!d) { if (!this.avisado) { this.avisado = true; this.opts.log?.("[suelo] no hay sitio seguro al que volver (ni última posición ni «vuelta» en entorno.json)"); } return false; }
+    this.ordenes.push(entity, d.x, d.y, d.z); this.pendiente.add(entity);
+    this.vueltas.push({ entity, x: fxToFloat(d.x), y: fxToFloat(d.y), z: fxToFloat(d.z), motivo });
+    return true;
   }
 
   /** A client arrives over any transport: spawn its avatar (in the world's spawn area, if it has one), say welcome, listen. */
@@ -130,6 +179,7 @@ export class Instance {
     });
     this.conns.push(conn);
     this.byEntity[entity] = conn;
+    this.tieneSeguro[entity] = 0; this.guardarSeguro(entity); // D-045: where you appear is safe (if it is over the world's minimum)
     const ref = this.opts.reference ?? { seed: 0, ticks: 0, n: 0, hash: 0 };
     t.send(encodeWelcome({ entity, tick: this.sim.tick, x: this.sim.tf.cols.x[entity], z: this.sim.tf.cols.z[entity], ref }), true);
     this.features.join(entity); // catalog + shared state, only if this instance runs features
@@ -178,6 +228,7 @@ export class Instance {
     this.byEntity[entity] = undefined;
     this.features.leave(entity); // still has a position here; no longer among the players
     this.sim.world.despawn(entity);
+    this.tieneSeguro[entity] = 0; this.pendiente.delete(entity);
   }
 
   /** Convenience for headless runs: a loopback pair whose client end is returned. */
@@ -200,7 +251,16 @@ export class Instance {
       inputs[o] = c.entity; inputs[o + 1] = m.mx; inputs[o + 2] = m.mz; inputs[o + 3] = m.buttons; c.ack = m.seq;
     }
     if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.sim, solidsFrom(this.features.allState())); } // U10
-    step(this.sim, inputs.subarray(0, n * INPUT_STRIDE)); // authority
+    const ordenes = this.ordenes.length ? Int32Array.from(this.ordenes) : undefined; this.ordenes = []; this.pendiente.clear();
+    if (ordenes) this.opts.log?.(`[suelo] tick ${this.sim.tick}: ${ordenes.length / ORDER_STRIDE} orden(es) de vuelta a sitio seguro`);
+    step(this.sim, inputs.subarray(0, n * INPUT_STRIDE), ordenes); // authority (D-045: orders first, recorded with the inputs)
+    if (this.sim.tick % SEGURO_CADA === 0) { // D-045: every half second, keep the safe spot; under the floor, order the return
+      const s = this.sim, min = this.opts.suelo ? fx(this.opts.suelo.minimo) : null;
+      for (const c of this.conns) {
+        if (min !== null && s.tf.cols.y[c.entity] < min) this.volverASeguro(c.entity, "caida");
+        else this.guardarSeguro(c.entity);
+      }
+    }
     this.features.tick();   // game features: queued intents, then their tick hooks (no effect on the sim)
     if (this.sim.tick % this.opts.snapshotEvery === 0) { // 20 Hz sim, 10 Hz snapshots by default
       const grid = buildGrid(this.sim);
@@ -248,6 +308,7 @@ export class Instance {
       if (c === from || !c.visible?.includes(e)) continue;
       const dx = X[c.entity] - X[e], dz = Z[c.entity] - Z[e];
       if (dx * dx + dz * dz > r2) continue;
+      if (this.opts.oye && !this.opts.oye(e, c.entity)) continue; // F1: silenced by the world's roles, or blocked by this listener
       out ??= codificarVozBajada(bytes, e);
       c.transport.send(out, false); this.vozStats.enviadas++;
     }

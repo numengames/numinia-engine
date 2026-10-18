@@ -58,6 +58,8 @@ export function validarEntorno(json: unknown, base: Plano = porDefecto()): Resul
   if (!ap.ok) issues.push(...ap.issues);
   const af = leerAparicionFoto(json);
   if (!af.ok) issues.push(...af.issues);
+  const su = leerSuelo(json);
+  if (!su.ok) issues.push(...su.issues);
   const plano: Plano = { ...base };
   for (const [campo, ruta, color] of RUTAS) {
     const v = leer(json, ruta);
@@ -95,6 +97,34 @@ export function leerAparicion(json: unknown): Result<Aparicion | null> {
   };
   const x = num("x", -APARICION_XZ_MAX, APARICION_XZ_MAX), z = num("z", -APARICION_XZ_MAX, APARICION_XZ_MAX), radio = num("radio", APARICION_RADIO_MIN, APARICION_RADIO_MAX);
   return issues.length ? { ok: false, issues } : { ok: true, value: { x, z, radio } };
+}
+
+/** D-045: the world's void. `sueloMinimo` (metres, SUELO_MIN–SUELO_MAX): under it you have fallen and the server puts you
+ * back on your last safe spot; optional `vuelta: { x, y, z, siempre? }` = a fixed point to come back to (`siempre` = always
+ * there, else only until a safe spot is known). null when the file says nothing. The server's (instance + feature `suelo`),
+ * never on the wire as environment. */
+export const SUELO_MIN = -500, SUELO_MAX = 500;
+export type SueloMundo = { minimo: number; vuelta?: { x: number; y: number; z: number; siempre?: boolean } | null };
+export function leerSuelo(json: unknown): Result<SueloMundo | null> {
+  const o = typeof json === "object" && json !== null && !Array.isArray(json) ? (json as Record<string, unknown>) : {};
+  const m = o.sueloMinimo, v = o.vuelta;
+  if (m === undefined && v === undefined) return { ok: true, value: null };
+  const issues: Issue[] = [];
+  if (typeof m !== "number" || !Number.isFinite(m) || m < SUELO_MIN || m > SUELO_MAX) issues.push({ path: "entorno.sueloMinimo", message: `un número entre ${SUELO_MIN} y ${SUELO_MAX} (metros): bajo esa altura se cae al vacío y se vuelve a la última posición segura` });
+  let vuelta: SueloMundo["vuelta"] = null;
+  if (v !== undefined && v !== null) {
+    if (typeof v !== "object" || Array.isArray(v)) issues.push({ path: "entorno.vuelta", message: "un objeto { \"x\", \"y\", \"z\" } en metros (y opcional \"siempre\": true): el punto fijo al que se vuelve tras caer" });
+    else {
+      const p = v as Record<string, unknown>;
+      for (const [k, min, max] of [["x", -2000, 2000], ["y", SUELO_MIN, SUELO_MAX], ["z", -2000, 2000]] as const) {
+        const n = p[k];
+        if (typeof n !== "number" || !Number.isFinite(n) || n < min || n > max) issues.push({ path: `entorno.vuelta.${k}`, message: `un número entre ${min} y ${max} (metros)` });
+      }
+      if (p.siempre !== undefined && typeof p.siempre !== "boolean") issues.push({ path: "entorno.vuelta.siempre", message: "true o false" });
+      if (!issues.length) vuelta = { x: p.x as number, y: p.y as number, z: p.z as number, siempre: p.siempre === true };
+    }
+  }
+  return issues.length ? { ok: false, issues } : { ok: true, value: { minimo: m as number, vuelta } };
 }
 
 /**

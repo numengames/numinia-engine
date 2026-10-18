@@ -75,7 +75,7 @@ por capacidad, con lo que Hyperfy2 tiene, lo que tenemos hoy y la fila de `docs/
 | Chat de texto | un canal para todo el mundo; los 50 últimos al entrar | no | ✘ | J3 |
 | Bocadillos sobre quien habla | sí | no | ✘ | J3 |
 | Órdenes con barra | `/admin <código>`, `/name`, `/spawn set\|clear`, `/chat clear`, `/server stats`; las apps reciben `command` | no | ✘ | J3 + H3 |
-| Voz por cercanía | LiveKit, espacial, silenciar | no | ✘ | M17 (necesita aprobación) |
+| Voz por cercanía | LiveKit, espacial, silenciar | relé µ-law a 30 m (U10); silenciar por moderación y bloqueo personal también callan la voz (F1a) | ◐ | M17 (necesita aprobación) |
 | Compartir pantalla | LiveKit → una pantalla `Video` del mundo (`screenId`) | no | ✘ | M17 + M18 |
 
 ### 3.3 El mundo que se ve y se oye
@@ -153,10 +153,10 @@ por capacidad, con lo que Hyperfy2 tiene, lo que tenemos hoy y la fila de `docs/
 
 | Capacidad | Hyperfy2 | Nosotros hoy | Estado | Fila |
 |---|---|---|---|---|
-| Ajustes del mundo | título, descripción, imagen, modelo, avatar por defecto, público, límite de personas | no | ✘ | H7 |
+| Ajustes del mundo | título, descripción, imagen, modelo, avatar por defecto, público, límite de personas | `aventura/ficha.json`: nombre, descripción, portada, avatar de todos, aforo (fichero; sin panel) | ◐ | H7 |
 | Roles | admin (`/admin` + `ADMIN_CODE`) y constructor (= admin, o todos si el mundo es público) | no | ✘ | H3 |
 | Punto de aparición | `/spawn set\|clear` | fijo | ✘ | H3 |
-| Límite de personas | `playerLimit` | la capacidad sale en métricas; nadie es rechazado | ✘ | H7 |
+| Límite de personas | `playerLimit` | `aforo` en la ficha; el que sobra lee «lleno n/aforo» (cierre 4004) | ✔ | H7 |
 | Borrar el chat | `/chat clear` | no | ✘ | H3 |
 | Ver cómo va el servidor | `/server stats` (CPU, memoria) | `/metrics`, `/metrics.prom`, `/sesiones`, `npm run sesiones` | ✔ (más) | hecho (la orden, H3) |
 

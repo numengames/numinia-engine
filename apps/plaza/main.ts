@@ -2,7 +2,7 @@
 import { version as versionPaquete } from "../../package.json"; // only this field reaches the page (docs/VERSIONES.md)
 import { hex } from "../../packages/core/src/index.ts";
 import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX, BTN_JUMP, BTN_RUN } from "../../packages/sim/src/index.ts";
-import { webSocketClient } from "../../packages/net/src/index.ts";
+import { CIERRE_LLENO, webSocketClient } from "../../packages/net/src/index.ts";
 import { montarAjustes, leerAjuste } from "./menu-ajustes.ts"; // N2: settings menu + capabilities
 import { montarPulsaciones } from "./pulsaciones.ts"; // U26: a press you can see (and feel) on every button
 import { ClientSession, serverUrl, tomarPaseDeLaDireccion } from "../../packages/client/src/index.ts";
@@ -35,6 +35,8 @@ import { montarGente } from "./gente.ts";
 import { viajar } from "../../features/teletransporte/client.ts";
 import { dados } from "../../features/dados/client.ts"; // dados v1: dice the server rolls
 import { montarDados } from "./dados.ts";
+import { contadores } from "../../features/contadores/client.ts"; // D-044: timers and counters everyone sees
+import { montarContadores } from "./contadores.ts";
 import { pantallasWeb } from "../../features/web/client.ts"; // N17: web screens (the controller)
 import { montarWeb } from "./web.ts";
 import { montarVoz } from "./voz.ts";
@@ -52,8 +54,15 @@ const hud = document.getElementById("hud")!;
 const url = serverUrl(location, import.meta.env.PROD); // the built page (Caddy or the engine itself) always talks to its own origin
 // H1: files of things in the world come from the instance's server by their sha256 (ws://h:p -> http://h:p/a/<sha256>.glb)
 const activos = new URL(url.replace(/^ws/, "http")).origin;
+// H7: the world's settings (its aventura/ficha.json, served by GET /status): its name on the entry screen and the tab,
+// everyone's avatar when it names one, how many fit (`aforo`). Asked once, before the first draw, but never waited for
+// long: a slow or absent /status leaves the house defaults (the tab name and the look are fixed again below when it answers).
+type Estado = { version?: string; nombre?: string; tema?: unknown; avatar?: string; aforo?: number; conectados?: number };
+const estadoP: Promise<Estado | null> = fetch(`${activos}/status`).then((r) => r.json() as Promise<Estado>).catch(() => null);
+const estado = await Promise.race([estadoP, new Promise<null>((ok) => setTimeout(() => ok(null), 1500))]);
+if (estado?.nombre) { document.title = estado.nombre; hud.textContent = `Conectando a «${estado.nombre}»…`; }
 const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, movil: perfil().forzado ? perfil().movil : undefined, assetUrl: (m) => `${activos}/a/${m}.glb`,
-  avatares: { catalogo: catalogoDeAvatares(activos, params), yo: () => session.entity } }); // J1: VRM avatars (session exists by the first draw)
+  avatares: { catalogo: catalogoDeAvatares(activos, params, estado?.avatar), yo: () => session.entity } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar
 const transport = webSocketClient(url);
 // game features (J7): their client parts, and how they may draw (a label, a hop) over any avatar
 // I1: the guest token stays in this browser (no account, no personal data); private mode = a new guest each time
@@ -80,6 +89,8 @@ const session = new ClientSession(transport, {
     elemento: (k, v) => view.elementos.poner(k, v),
     // N18: what each person wears (features/bienes): a good's model in a hand or on the head
     lleva: (e, v) => view.vestir(e === session.entity ? "self" : e, v),
+    // D-045: a fade when the server puts me back on a safe spot (features/suelo); the live region reads the announcement
+    fundido: (ms) => { const f = document.getElementById("fundido")!; f.style.transition = "none"; f.style.opacity = "1"; f.offsetHeight; f.style.transition = `opacity ${ms}ms ease-out`; f.style.opacity = "0"; f.dataset.ultimo = String(Date.now()); },
     // V1: every announced event reaches screen readers (polite; safety = assertive). V3 adds the engine's own voice.
     announce: (a) => {
       if (a.feature === "chat") return; // J3: the chat box's own list (role=log, polite) reads the chat
@@ -92,6 +103,16 @@ const session = new ClientSession(transport, {
   },
 });
 transport.opened.catch(() => { hud.textContent = `No llego al servidor ${url}.\n¿Está arrancado (npm run server)?`; });
+// H7: the door was closed because the world is full (ficha `aforo`): say so where everyone reads it (the HUD and the
+// alert region for screen readers), with the way out; the page does not reconnect by itself
+void transport.closed.then((c) => {
+  if (c.code !== CIERRE_LLENO) return;
+  const n = /(\d+)\/(\d+)/.exec(c.reason), nombre = estado?.nombre ? `«${estado.nombre}»` : "Este mundo";
+  const texto = `${nombre} está lleno${n ? ` (${n[2]} persona${n[2] === "1" ? "" : "s"} como mucho)` : ""}. Espera un rato y vuelve a cargar la página.`;
+  hud.hidden = true; // the statistics block would repaint over any text put there
+  const aviso = document.getElementById("mundo-lleno")!;
+  aviso.textContent = texto; aviso.hidden = false; // role=alert: screen readers read it at once
+});
 
 // ---- the features' actions: a key on desktop, a button on touch screens; the help line lists them ----
 const acts = session.features.actions();
@@ -117,9 +138,10 @@ const soltar = montarSoltar({ session, view, puede: () => constructor.estado.pue
 const huecos = montarHuecos({ constructor, view, rellenar: soltar.rellenar, decir: (t) => soltar.decir(t), panel: document.getElementById("panel-construir") });
 montarEntorno(ambiente, elementos, view); // H4/H8: environment and elements, a section of its own while building
 montarDados({ dados, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) }); // dados v1: the dice card everyone near sees, the dice buttons beside a tower
+const contadoresPagina = montarContadores({ contadores, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) }); // D-044: the counters' panel (the sign in the world is the feature's own label)
 montarDirector({ dj: dirigir, ambiente, view }); // N6: the Game Director (who may direct: STD-052 manage-rituals): scenes, narrator, summons
 // ---- N16: «Gente» (L): go next to someone connected now; the light of every trip near you (none on tier D) ----
-const gente = montarGente({ viajar, barra: document.getElementById("barra-arriba") });
+const gente = montarGente({ viajar, barra: document.getElementById("barra-arriba"), orden: (t) => chatDePagina.decir(t) }); // F1: «Silenciar»/«Oír» per person = /bloquear and /desbloquear
 viajar.alDestello((d) => view.teletransporte.lanzar({ ...d, clave: d.quien === session.entity ? "self" : d.quien }));
 const webPagina = montarWeb({ web: pantallasWeb, view }); // N17: web screens — iframe in the world (PC/phone), card + «Abrir fuera» in VR
 // ---- pesca v1: nothing of it is in the start bundle; the HUD and the 3D arrive with the first fishing spot or float ----
@@ -272,7 +294,8 @@ setInterval(() => { vrBtn.textContent = view.vr.active ? "Salir de VR" : "Entrar
 // <date>», what /health, the installer and the world zip carry) only as the tooltip, for whoever helps with a fault ----
 const versionMotor = document.getElementById("version-motor");
 if (versionMotor) versionMotor.textContent = `v${versionPaquete}`;
-fetch(`${activos}/status`).then((r) => r.json()).then((st: { version?: string; nombre?: string; tema?: unknown }) => {
+void estadoP.then((st) => {
+  if (!st) return;
   if (st.nombre) document.title = st.nombre; // ADR-074: the world's name (its aventura/ficha.json), also when Caddy or vite serve the page
   if (st.tema) aplicarTema(st.tema, document.documentElement); // its look: CSS variables tema.css reads; none = the house's
   if (versionMotor && st.version) versionMotor.title = `build ${st.version}`;
@@ -380,7 +403,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, mapa, ficha, ambiente, elementos, voz, xr, pesca, bienes, dardos, dados, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, mapa, ficha, ambiente, elementos, voz, xr, pesca, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina };
 
 // ---- U11: the bar of icon buttons, top right (rightmost first): settings, build, microphone, full screen, VR, AR ----
 {

@@ -24,6 +24,13 @@ buttons]` (`INPUT_STRIDE` 4); the wire format is `WIRE_FORMAT` in `net` (sent at
 | sim 2 · wire 2 | J2 | `93b192c8` (height, vertical speed, jump in the air, jump buffer, running; the reference run presses jump 1 tick in 16 and runs half the time) |
 The fingerprint is pinned in `test/engine.test.ts` and `test/server.test.ts` (`/health`).
 
+**World geometry (M6):** solid boxes (`solids`) and the collision mesh (`mesh`, an integer BVH in
+`packages/sim/src/bvh.ts` built from triangles quantized to 1/64 m) are NOT in the state fingerprint: both sides
+build them from the same shared state and the same GLB, and `bvhFingerprint` (FNV-1a over the flat tree) checks
+they built the same tree. The ray (`rayBvh`, Möller–Trumbore on integers, one IEEE division for `t`) gives the same
+hit on every engine; `test/bvh.test.ts` compares Node and Chromium. The reference run has no solids and no mesh, so
+neither is ever consulted there and its fingerprint stands.
+
 **Not deterministic, and allowed to be:** the area of interest in `net` (decides what is SENT, never
 game state), timing measurements in `cli`, anything a renderer does. These must never write into
 the sim state.

@@ -18,6 +18,9 @@ import teletransporte from "./teletransporte/server.ts"; // N16: go next to some
 import web from "./web/server.ts";
 import puertas from "./puertas/server.ts"; // J4: doors the server opens and closes (a button may open one)
 import botones from "./botones/server.ts"; // J4: buttons the server counts; a server-only `senal` other features hear
-import cogibles from "./cogibles/server.ts"; // J4: things anyone picks up and puts down; drawn in the carrier's hand // N17: web screens (an iframe in the world on PC and phone; a card and «Abrir fuera» in VR)
-const funciones: ServerPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles];
+import cogibles from "./cogibles/server.ts"; // J4: things anyone picks up and puts down; drawn in the carrier's hand
+import suelo from "./suelo/server.ts"; // D-045: back to the last safe spot after a fall (the instance does it; this tells the page)
+import contadores from "./contadores/server.ts"; // D-044: timers and counters everyone sees (the server keeps the clock, publishes once a second to the zone)
+import disparadores from "./disparadores/server.ts"; // D-041: the cable — zone and button triggers a world wires in disparadores.json; one server-only `accion` per receiver
+const funciones: ServerPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores];
 export default funciones;

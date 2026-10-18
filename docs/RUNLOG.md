@@ -763,3 +763,29 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - **Consumo:** subagente; no medido.
 - **Commit:** este PR.
 - **Siguiente:** colisión de la hoja cerrada (J6), coger con la mano física en VR (como J10), más de una acción por botón.
+## 2026-10-18 12:47 · medidas (D2 cifra, D2 puerta, MED pruebas) · hecho
+- Qué: una sola cifra de arranque y una sola cifra de pruebas, con la orden que las produce. Nuevo `tools/tamano.mjs`
+  (`npm run tamano`, y una fila nueva en `npm run gates`): mide lo que baja la página antes de dibujar (html + css +
+  entrada + `modulepreload`, gzip -9 cada uno con `node:zlib`; qué entra y qué no, en `docs/MEDIDAS.md`) y falla por
+  encima del tope. Sin cambios funcionales. FICHA, BACKLOG D2, SABER, AGENTS y README citan la cifra nueva; las de 109,
+  261, 342 y 423 kB quedan como históricas (cada una contaba ficheros distintos).
+- Números (punta del tren `5362797`): **arranque 434,9 kB gz (434.850 B)**; tope de la puerta **480 kB** (medida + 10 %,
+  redondeado), meta D2 300 kB; `npm run gates` en verde con la puerta nueva. **`npm test`: 537 pruebas, 537 en verde,
+  26,5 s** (`ℹ tests 537` del reporter; carga 5). Los «375» de turnos anteriores eran la cuenta de su rama en su día; el
+  grep de ficheros (`test(` × 537) coincide hoy con el reporter.
+- Consumo: sin medir · Fable 5.1.
+- Siguiente: el recorte D2 (alias de three −24,5 kB, mapa/ficha/menú perezosos) y bajar `TOPE_GZ` con cada recorte.
+## 2026-10-18 13:10 · tren 3, integración en un solo PR · hecho · versión 0.9.0 (rama `tren3/integracion`, desde `main` 39a9f73)
+- Qué: los seis PRs que el tren 3 dejó abiertos y en conflicto entre sí (#52 silenciar, #54 contadores, #55 ajustes del
+  mundo, #56 colisión por objeto + GLB, #57 BVH entero y rayo, #58 cable `disparadores@1`) más `tren/motor-2026-10-18-3`
+  (#51 medidas, #53 suelo D-045), fusionados en este orden sobre `main` (que ya traía J4, 0.8.0). Un solo número:
+  0.8.0 → 0.9.0 (cosas nuevas que no rompen nada). Conflictos: solo registros (`features/cliente|servidor|mundo.ts`,
+  `packages/server/src/server.ts`, `limits.json`, EXTENDER, RUNLOG), resueltos conservando los dos lados.
+- Lo que aporta cada uno: F1a `/silenciar` también calla la voz (`oye`), se guarda con el mundo y `/bloquear` es
+  personal; D-044 temporizador, contador y reloj que todos ven (`contadores.json`, una vez por segundo a la zona);
+  H7 `avatar` y `aforo` en `ficha.json` (mundo lleno → cierre 4004); M6 h1-h4 esquema `colision` (objetos v6),
+  triángulos de un .glb en el servidor, BVH entero y rayo en enteros; D-041 `disparadores@1` (zona y botón con
+  cooldown y un solo uso, receptores muestra/oculta).
+- Números: ver el cuerpo del PR (`npm test`, `npm run layers`).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Siguiente: M6 historias 5-6 y 9; F1b; contadores historia 3; cable historias 3-6.

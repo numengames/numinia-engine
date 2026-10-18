@@ -254,7 +254,11 @@ export type ServerHost = {
   verificarRecibo?(token: string): ReciboLeido;                 // N10: check any world's receipt (its key is inside); none = refused
   emisor?(): string;                                            // N10: the public key this world signs receipts with; none = ""
   teletransportar?(entity: number, cerca: { x: number; y: number; z: number }, o?: Teletransporte): { x: number; y: number; z: number } | null; // N16: the instance moves an avatar to a free spot; none = null
+  volverASeguro?(entity: number): boolean;                      // D-045: the instance orders an avatar back to its last safe spot (next step, recorded); none = false
+  vueltas?(): Vuelta[];                                         // D-045: the returns the instance made since the last call (drained); none = []
 };
+/** D-045: a return the instance made: who, where to (metres) and why (caida = fell under the world's floor, pedido = asked). */
+export type Vuelta = { entity: number; x: number; y: number; z: number; motivo: "caida" | "pedido" };
 /** N16: how the instance looks for a free spot (rings in metres, 0 = the point; heading 0-7 from +z; most metres down). */
 export type Teletransporte = { radios?: readonly number[]; rumbo?: number; caida?: number };
 /** N10 (bienes digitales): what a feature asks the world to sign — the good (id = 24 hex, unique per world), its owner
@@ -264,7 +268,7 @@ export type BienFirmable = { id: string; objeto: { id: string; nombre: string; d
 export type ReciboLeido = { ok: true; recibo: BienFirmable & { v: 1; tipo: "bien"; mundo: string; emisor: string }; huella: string; nuestro: boolean } | { ok: false; motivo: string };
 /** Who gets an event: everyone, one player, the players near a player or a point, or (J3) "server": no page, only
  * the server-side listeners of other features (`api.listen`), e.g. a command typed in the chat. */
-export type Scope = "all" | "server" | { to: number } | { near: number | { x: number; z: number }; radius?: number };
+export type Scope = "all" | "server" | { to: number } | { all: true; except: number[] } | { near: number | { x: number; z: number }; radius?: number; except?: number[] }; // F1 `except`: these players never get it (someone they blocked)
 export const LISTEN_DEPTH = 4;            // J3: events that trigger events that trigger events… stop here
 export type HttpRequest = { method: "GET" | "POST"; path: string; params: Record<string, string>; query: Record<string, string>; body: string };
 export type HttpReply = { status?: number; type?: "json" | "html" | "text"; body: unknown };
@@ -329,6 +333,13 @@ export type ServerApi = {
    * the simulation a feature has: inside the world, on a floor at most `caida` m below, overlapping no solid). Returns where
    * it stands, or null (gone, no free spot, a server without it): nothing moved. Decide first whether they may go. */
   teletransportar(entity: number, cerca: { x: number; y: number; z: number }, o?: Teletransporte): { x: number; y: number; z: number } | null;
+  /** D-045: put this player back on the last spot where they stood on a floor (or the world's `vuelta` point). The INSTANCE
+   * does it at the next step with a recorded order (replayable). Returns false when nothing will move (gone, already on the
+   * way, no safe spot known). The return itself arrives through `onVuelta` (the instance also returns people on its own
+   * when they fall under the world's `sueloMinimo`). */
+  volverASeguro(entity: number): boolean;
+  /** D-045: the instance put someone back on a safe spot (after a fall, or because a feature asked): say it to the page. */
+  onVuelta(fn: (v: Vuelta) => void): void;
 };
 export type ServerPart = { feature: Feature; side: "server"; setup: (api: ServerApi) => void };
 export const serverPart = (feature: Feature, setup: (api: ServerApi) => void): ServerPart => ({ feature, side: "server", setup });
@@ -374,7 +385,7 @@ export class ServerRuntime {
   private readonly entries: Entry[];
   private readonly catalogBytes: Uint8Array;
   private readonly handlers = new Map<number, { feature: string; fn: (from: number, msg: Msg) => void }>();
-  private readonly hooks: { join: [string, (e: number) => void][]; leave: [string, (e: number) => void][]; tick: [string, (t: number) => void][]; identify: [string, (e: number, w: { id: string; nombre: string }) => void][] } = { join: [], leave: [], tick: [], identify: [] };
+  private readonly hooks: { join: [string, (e: number) => void][]; leave: [string, (e: number) => void][]; tick: [string, (t: number) => void][]; identify: [string, (e: number, w: { id: string; nombre: string }) => void][]; vuelta: [string, (v: Vuelta) => void][] } = { join: [], leave: [], tick: [], identify: [], vuelta: [] };
   private readonly routeList: Route[] = [];
   private readonly shared = new Map<string, Map<string, Entry2>>();
   /** U10: grows on every shared-state change (the instance rebuilds the solid boxes when it moves). */
@@ -416,10 +427,12 @@ export class ServerRuntime {
     if (typeof scope === "object" && "to" in scope) return this.host.position(scope.to) ? [scope.to] : []; // in the world = connected; no list scan (J3 sends names one by one)
     const all = this.host.players();
     if (scope === "all") return all.slice();
+    const except = scope.except?.length ? scope.except : null;
+    if ("all" in scope) return except ? all.filter((e) => !except.includes(e)) : all.slice();
     const c = typeof scope.near === "number" ? this.host.position(scope.near) : scope.near;
     if (!c) return [];
     const r2 = (scope.radius ?? NEAR_RADIUS_M) ** 2;
-    return all.filter((e) => { const p = this.host.position(e); return !!p && (p.x - c.x) ** 2 + (p.z - c.z) ** 2 <= r2; });
+    return all.filter((e) => { if (except?.includes(e)) return false; const p = this.host.position(e); return !!p && (p.x - c.x) ** 2 + (p.z - c.z) ** 2 <= r2; });
   }
 
   private api(f: Feature): ServerApi {
@@ -524,6 +537,8 @@ export class ServerRuntime {
       who: (e) => this.host.who?.(e) ?? null,
       onLeave: (fn) => { this.hooks.leave.push([id, fn]); },
       onTick: (fn) => { this.hooks.tick.push([id, fn]); },
+      onVuelta: (fn) => { this.hooks.vuelta.push([id, fn]); },
+      volverASeguro: (e) => { try { return this.host.volverASeguro?.(e) ?? false; } catch (x) { log(`volverASeguro: ${String((x as Error)?.message ?? x)}`); return false; } },
       players: () => this.host.players(),
       position: (e) => this.host.position(e),
       tick: () => this.host.tick(),
@@ -635,6 +650,7 @@ export class ServerRuntime {
       try { h.fn(it.from, it.msg); } catch (e) { this.fail(h.feature, `en on('${it.entry.name}')`, e); }
     }
     const t = this.host.tick();
+    if (this.hooks.vuelta.length) for (const v of this.host.vueltas?.() ?? []) for (const [id, fn] of this.hooks.vuelta) { try { fn(v); } catch (e) { this.fail(id, "en onVuelta", e); } } // D-045
     for (const [id, fn] of this.hooks.tick) { try { fn(t); } catch (e) { this.fail(id, "en onTick", e); } }
     this.refreshNear(t % STATE_REFRESH_TICKS); // a tenth of the players each tick: each one every 0.5 s, no spike
   }
@@ -739,6 +755,8 @@ export type ViewHooks = {
   elemento?(key: string, valores: Msg | null): void;
   /** N18: what a person wears — a model by its sha256 in a hand or on the head (features/bienes) — or `null` to take it off. */
   lleva?(entity: number, p: { model: string; donde: "mano" | "cabeza"; nombre?: string } | null): void;
+  /** D-045: the page goes dark at once and comes back to the world over `ms` (the server put this person somewhere else). */
+  fundido?(ms: number): void;
 };
 /** H1: a thing in the world as the page draws it. Rotation in degrees, applied yaw (ry), then pitch (rx), then roll (rz). */
 export type PlacedObject = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean;

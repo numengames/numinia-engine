@@ -111,13 +111,13 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | H5 | Paridad Hyperfy2: sonido del mundo — fuentes en objetos y puntos, grupos música/efectos (su nodo `Audio`) | espera a V6 | sí |
 | H9 | Paridad Hyperfy2: subir ficheros arrastrando — por hash, con tope, solo quien construye | hecho | sí |
 | H9b | Subidas: borrar lo que nadie usa y cupo por identidad | espera a H3 | sí |
-| H7 | Paridad Hyperfy2: ajustes del mundo — título, descripción, imagen, escenario, avatar por defecto, abierto a construir, límite de personas | espera a H3 | sí |
+| H7 | Paridad Hyperfy2: ajustes del mundo — título, descripción, imagen, escenario, avatar por defecto, abierto a construir, límite de personas | hecho (primer corte: fichero `ficha.json` con avatar y aforo, aviso al lleno; falta el panel) | sí |
 | H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | pendiente | sí |
 | H13 | Paridad Hyperfy2: nivel de detalle (LOD) de los modelos, generado en la ingesta | espera a M21 | sí |
 | H11 | Paridad Hyperfy2: importar de Hyperfy — `.hyp` → carpeta de app; un mundo entero → carpeta del mundo | espera a M19 | sí |
 | H14 | El mundo en un zip: bajarlo y subirlo en `/mundo` con el código de administración (`mundo-zip.ts`, `zip.ts`); falta: la aventura dentro del zip, la sala de numinia.com | hecho (primer corte) | sí |
 | H15 | Dónde aparece la gente: `aparicion { x, z, radio }` opcional en `entorno.json` (radio 1–40 m, x y z ±460; viaja en la carpeta y el zip del mundo, nunca por el cable) → `InstanceOptions.aparicion` → `spawnAvatar`; sin él, el cuadrado de 40 m de siempre con las mismas tiradas (huella de referencia `93b192c8` intacta) | hecho (16-10, rama `torre/aparicion-y-altura`) | sí |
-| F1 | Amigos, bloqueo y moderación (los roles son H3; toca red y guardado; de `docs/JUGADOR.md`) | para Opus | no |
+| F1 | Amigos, bloqueo y moderación (los roles son H3; toca red y guardado; de `docs/JUGADOR.md`). Primer corte (F1a, 18-10): `/silenciar` calla chat Y voz, se guarda con el mundo y sobrevive reinicios; `/hablar <persona>` lo levanta; bloqueo personal `/bloquear` `/desbloquear <persona>` (solo para quien bloquea: ni chat ni voz; guardado por identidad) y botón «Silenciar/Oír» en Gente; aviso accesible al silenciado. Sin tocar el tope de voces (D-024). Queda: amigos, denunciar | hecho (F1a) | sí |
 | F2 | Portales entre instancias y grupo (toca red e instancias; de `docs/JUGADOR.md`) | para Opus | no |
 | A1 | Página de multitud (50/200/1.000/2.000 robots, completos vs horneados) | pendiente | sí |
 | D1 | Puerta de tipos: TypeScript 7 estricto, 0 errores | pendiente | sí |
@@ -128,7 +128,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | A3 | Normales horneadas en la animación de textura (luz correcta al girar) | pendiente | sí |
 | A4 | Robots en la plaza: cercanos completos, lejanos horneados | pendiente | sí |
 | B3 | Telemetría en el visor: p99 de cuadro y cuadros perdidos | hecho (dentro de T1; sin probar en un visor real → X1) | sí |
-| D2 | Puerta de tamaño del cliente (≤ 300 kB comprimido) | pendiente (hoy 342 kB al arrancar: pasado) | sí |
+| D2 | Puerta de tamaño del cliente (meta ≤ 300 kB comprimido) | puerta hecha (18-10: `npm run tamano` y en `gates`, tope 480 kB); recorte pendiente (hoy 434,9 kB) | sí |
 | D3 | Fuzz de todos los decodificadores de red | pendiente | sí |
 | D4 | Los mensajes del núcleo (entrada, snapshot, bienvenida) salen del esquema, como ya los de las funciones (J7) | para Opus | no |
 | M16 | Carga de zonas: manifiesto por zona (arranque / fondo / perezoso), sha256 por fichero, caché del navegador por hash | pendiente | sí |
@@ -144,7 +144,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | P5a | El puente nuevo y el primer cerebro (E2 contesta, E4 construye si el mundo deja): clave sin eco (`--clave-ia`), topes, `<material>`, herramientas comprobadas en código | hecho (primer corte; falta: E1, probarlo con Claude en el VPS, D7 revisión del contrato) | no |
 | P5b | Iniciativa por evento (E3), gestos con clips, persona en `.md`, medidor de consumo por habitante y por mundo | espera a P5a | sí |
 | V12 | Guía IA: un agente que acompaña, describe y lleva (primero desde datos) | espera a P4b | sí |
-| M6 | Física: Rapier determinista en WASM y controlador de personaje compartido (cambia la huella) | para Opus | no |
+| M6 | Colisión con el escenario y física básica: malla GLB (trimesh + BVH propio en enteros, sin cambiar la huella), zonas que disparan, rayos; Rapier solo si hacen falta dinámicos | en curso (h1-h2 hechas 18-10) | no |
 | M6b | Terreno con altura (relieve y suelos pintados por capas) | espera a M6 | no |
 | M10 | Servidor de instancia completo: regiones en hilos (horizonte de 5.000) y copias cuando se llena | para Opus | no |
 | V9 | Mapa de caminos (navmesh) en el servidor + guía paso a paso + «mírame al objetivo» + escáner direccional | para Opus | no |
@@ -761,6 +761,8 @@ dinámicos viven solo en el servidor y llegan como estado, o en la simulación);
 (los usarán los scripts, M20); controlador cinemático para personajes no jugadores; articulaciones al final. Lo
 primero: pisar el escenario base, un objeto de H1.
 **De J2 (15-10):** `groundHeight(x, z)` en `packages/sim` es el enganche; falta pegar al suelo en pendientes, tiempo de coyote y juzgar la lista de alturas del snapshot respecto al suelo bajo cada avatar. La cámara que no atraviesa lo construido es N1b.
+**Decidido (18-10, diseño medido, opción A):** nada de Rapier por ahora: +1,2 MB gz en cada teléfono y 41 ms p50 por tick con 1.000 personas (el tope es 25) frente a ~3-8 ms de un trimesh + BVH propio en enteros que no toca la huella `93b192c8` (la malla, como las cajas, es geometría del mundo que ambos lados construyen del mismo estado). Quince historias de ≤ 30 min; Rapier solo en el servidor el día que hagan falta cuerpos dinámicos (H4c), con ficha propia.
+**Hecho (18-10, h1-h2, rama `feat/m6-collision-schema-glb`).** (h1) `objetos` versión 6, aditiva: campo `colision: ninguna | caja | malla` en el estado y en `ajustar`; `solido` se queda como la bandera de caja que leen la simulación y las páginas de antes (`solido: true` sin `colision` = `caja`; `colisionDe()` en `feature.ts`), el servidor escribe `colision: caja` al arrancar en lo guardado como v5; `malla` solo para un modelo (una imagen o un vídeo pueden ser caja), y hasta h5 un `malla` conserva su caja (nunca choca peor que `caja`). (h2) `packages/server/src/colision-glb.ts`: `triangulosDeGlb(bytes, { max })` lee un .glb sin three: nodos de la escena con sus transformaciones (matriz o TRS, padres primero), POSITION en todos los tipos de `KHR_mesh_quantization` (byte, short, normalizados o no, con `byteStride`), con índices u8/u16/u32 o sin ellos, listas, tiras y abanicos de triángulos; `EXT_meshopt_compression` descodificado con meshoptimizer (el mismo del optimizador); rechaza con motivo Draco, accessors dispersos, buffers fuera del fichero, más de `max` triángulos (`TRIANGULOS_MAX_MALLA` 50.000, propuesto; lo publica h15). Salida: vértices en el espacio del modelo, tres índices por triángulo, cuenta, nodos con malla, primitivas saltadas (puntos, líneas). **Medido:** `test/colision-glb.test.ts` (9): bloque 12, farolillo 220, RobotExpressive 3.237 triángulos; la copia meshopt del farolillo da los mismos 220 y la misma caja a < 1 cm; un .glb v5 guardado vuelve con `colision: caja`. **Falta:** h3-h15 (`DISENO-M6-fisica.md` §4): BVH entero, rayo, caja-triángulo, deslizar, escalones, presupuesto, la página, cámara, zonas, `api.rayo`, inspector, sufijos de Hyperfy, límites publicados.
 
 ### M10 — Servidor de instancia completo (para Opus)
 Regiones en `worker_threads` (una sola hebra se rompe entre 3.000 y 4.000), traspaso entre regiones sin
@@ -1000,6 +1002,11 @@ en la carpeta del mundo; los cambios llegan a todos al momento. Título, descrip
 `.md` del sitio para los agentes y la vista previa del enlace. Con el límite lleno, quien llega lee un aviso claro
 (con M10, entra en una copia). **Hecho cuando:** e2e: el admin cambia el título y el cielo y la otra pestaña lo
 ve; con límite 1, la segunda pestaña recibe el aviso.
+**Hecho, primer corte (18-10):** `ficha@1` gana `avatar` (id de la casa, lo llevan todos) y `aforo` (1–1000,
+`limits.json` `world_people_cap`, nunca por encima de la capacidad del motor); `GET /status` los publica; el nombre
+sale en la pestaña y en la pantalla de entrada («Conectando a «…»»); lleno = cierre 4004 «lleno n/aforo» y aviso
+centrado con `role=alert`. Abierto a construir ya lo cubre H3 (`/construir`). Falta: panel de administración para
+editarlos en marcha (hoy, el fichero) y el escenario base (M6).
 
 ### H8 — Partículas
 Su nodo `Particles`: forma (punto, esfera, cono, caja), ritmo y ráfagas, vida, velocidad, tamaño, giro, color y
@@ -1075,7 +1082,7 @@ Tope de mensajes cercanos por oyente y por segundo, y los nombres más cercanos 
 En una sesión inmersiva, un botón abre el teclado del sistema (o el dictado si existe) para el chat; si no hay teclado, frases rápidas. **Hecho cuando:** e2e con IWER manda una frase rápida; probado en Quest (X1).
 
 ### D2 — Peso del cliente al arrancar
-Tras la ola 2 (15-10) la página baja **342 kB gz** antes de dibujar (tope 300): `index` 84,6 + `three.core` 66,8 + `three.tsl` 188,9 + `calidad` 1,4 + `avatares-politica` 0,7. La mayor parte es TSL de three que solo usan piezas perezosas (cielo, agua, partículas), y el empaquetador lo pone en el trozo común. Medido por la rama entorno: alias de `three`, `three/webgpu` y `three/tsl` a sus fuentes en `vite.config.mjs` = −24,5 kB; además, mapa grande y ficha perezosos (~7 kB) y el dibujo del menú de ajustes al abrirlo (~4 kB). La pantalla de carga decide qué baja primero. **Hecho cuando:** una puerta mide el arranque en cada `npm run gates` y falla por encima de 300 kB.
+**Hecho, la puerta (18-10).** `tools/tamano.mjs` (`npm run tamano`, y una fila en `npm run gates`) mide lo que baja la página antes de dibujar (html + css + entrada + `modulepreload`, gzip -9 cada uno; qué entra y qué no, en `docs/MEDIDAS.md`): **434,9 kB gz** en `5362797`. Tope de la puerta 480 kB (medida + 10 %) para que pase hoy y pare cualquier subida; la meta sigue siendo 300: cada recorte baja el tope. **Falta:** el recorte (los pasos de abajo). Histórico (15-10, contaba solo los .js de entonces): la página bajaba 342 kB gz: `index` 84,6 + `three.core` 66,8 + `three.tsl` 188,9 + `calidad` 1,4 + `avatares-politica` 0,7. La mayor parte es TSL de three que solo usan piezas perezosas (cielo, agua, partículas), y el empaquetador lo pone en el trozo común. Medido por la rama entorno: alias de `three`, `three/webgpu` y `three/tsl` a sus fuentes en `vite.config.mjs` = −24,5 kB; además, mapa grande y ficha perezosos (~7 kB) y el dibujo del menú de ajustes al abrirlo (~4 kB). La pantalla de carga decide qué baja primero. **Hecho cuando:** una puerta mide el arranque en cada `npm run gates` y falla por encima de 300 kB.
 
 ### N3 — Ajustes dentro de VR
 Hoy el menú se oculta en XR. Un panel 3D legible (J6) con su gemelo HTML, con los mismos datos del registro. **Hecho cuando:** e2e con IWER cambia la sensibilidad desde el panel 3D.
