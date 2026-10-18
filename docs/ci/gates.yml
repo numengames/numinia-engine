@@ -1,0 +1,43 @@
+# gates (mejora #8 de work/biblioteca-motores/ESTUDIO/benchmarks-industria.md; fila X6 del BACKLOG:
+# "regresión en CI con línea base", como Bevy --save-baseline o Godot a_div_b): en cada pull request,
+# corre bench + puertas + tamaño del árbol del PR y los compara por RATIO (no solo un tope fijo) contra
+# `main`. Si el PR empeora el tick p50 o el tamaño de página en más de un 10 % frente a main, o si
+# `npm run gates` falla, el workflow falla.
+#
+# PARA PABLO: este fichero va en .github/workflows/gates.yml del repo numinia-engine. La App de Ursa no
+# puede escribir ahí (GitHub exige el permiso «Workflows»), así que lo subes tú, desde la web:
+#   Add file → Create new file → nombre `.github/workflows/gates.yml` → pegar esto → commit directo a
+#   main (es solo infraestructura de CI, no cambia el motor; no hace falta PR si no quieres uno).
+# Localmente, lo mismo lo hace `node tools/ci-gates.mjs` (sin script en package.json a propósito: ver
+# work/motor-vr/ola3/PREGUNTAS-ci-gates.md sobre si debe llamarse `npm run gates` o no).
+# Seguridad: igual que publicar-motor.yml — acciones fijadas por commit, sin secretos propios, checkout
+# sin credenciales guardadas, solo lectura.
+name: gates
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  puertas:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0   # el ratio necesita poder comparar con origin/main
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: bench + gates + tamaño, ratio contra main
+        run: node tools/ci-gates.mjs
