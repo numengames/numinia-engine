@@ -7,6 +7,7 @@ import type { DueloV } from "../../packages/render/src/dardos-duelo.ts";
 import type { DianaAR } from "../../packages/render/src/index.ts";
 import { crearLetreroPlaza } from "../../packages/render/src/dardos-duelo-plaza-3d.ts"; // AR-D4: the sign over the plaza board
 import type { PlazaDianas } from "../../packages/render/src/dardos-duelo-plaza-3d.ts";
+import { letreroDe } from "../../packages/render/src/dardos-duelo-plaza.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type SitioV = { id: string; ocupado?: boolean; duelo?: boolean; remoto?: boolean; rondas?: number; espera?: boolean };
@@ -80,7 +81,7 @@ export function montarDuelo(o: { dardos: Ctl; plaza?: Partial<PlazaDianas>; enti
     },
     /** The controller said `duelo` changed: repaint the 3D panel and the text line. */
     cambio(): void {
-      const d = dardos.duelo(), t = lineaDuelo(d, rondas);
+      const d = dardos.duelo(), t = lineaDuelo(d, (d && dardos.sitios().find((s) => s.id === d.sitio)?.rondas) || rondas); // the board's own rounds, also for a player who never hung it on a wall
       linea.textContent = t; linea.hidden = !t;
       ar?.refrescar(); sign();
       if (!d) o.alTerminar();
@@ -89,5 +90,10 @@ export function montarDuelo(o: { dardos: Ctl; plaza?: Partial<PlazaDianas>; enti
     enPartida: hayPartida,
     activo: () => activo,
     sitio: () => sitio,
+    /** Read-only, for the e2e (`__numinia.dardosHud.duelo()`): what the sign over the 3D board, the AR panel and the HUD line say. */
+    vista: () => {
+      const d = dardos.duelo(), l = letreroDe(d, (d && dardos.sitios().find((s) => s.id === d.sitio)?.rondas) || rondas);
+      return { linea: linea.hidden ? "" : linea.textContent ?? "", letrero: { visible: letrero?.estado().visible ?? false, etiqueta: l.etiqueta, fase: l.panel.fase, pie: l.pie.join(" "), filas: l.panel.filas }, panelAR: ar?.duelo() ?? null };
+    },
   };
 }

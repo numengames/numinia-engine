@@ -232,7 +232,7 @@ export function montarDardos(o: { dardos: Dardos; view: Vista; session: { entity
   hud.hidden = true;
   const api = {
     abierto: () => abierto, apuntar: (x: number, y: number) => { aim = { x, y }; }, apuntado, potencia: () => potenciaAhora(), cargando: () => cargando,
-    ar: () => arJuego?.estado() ?? null, flick: () => ultimoFlick, abrir, cerrar,
+    ar: () => arJuego?.estado() ?? null, duelo: () => duelo.vista(), flick: () => ultimoFlick, abrir, cerrar,
   };
   (globalThis as unknown as { __numinia?: Record<string, unknown> }).__numinia && (((globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia).dardosHud = api);
   return api;
