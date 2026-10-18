@@ -102,7 +102,7 @@ async function pierna(engine) {
     const ficha = await a.evaluate(() => {
       const f = document.getElementById("ficha-objeto"), bs = [...f.querySelectorAll("button")];
       return { visible: !f.hidden, titulo: f.querySelector("h3").textContent, n: bs.length, sinTexto: bs.every((b) => b.textContent.trim() === "" && b.querySelector("svg")),
-        completos: bs.every((b) => b.title && b.getAttribute("aria-label") === b.title && b.dataset.tip === b.title), tab: bs.every((b) => b.tabIndex >= 0 && !b.disabled), fijar: bs.some((b) => /^Fijar/.test(b.title)) };
+        completos: bs.every((b) => b.title && b.getAttribute("aria-label") === b.title && b.dataset.tip === b.title), tab: bs.every((b) => b.tabIndex >= 0 && !b.disabled), fijar: bs.some((b) => /^Anclar/.test(b.title)) };
     });
     paso("ficha visible con constructor abierto y objeto elegido", ficha.visible && ficha.titulo !== "" && ficha.n >= 8 && ficha.sinTexto && ficha.completos && ficha.tab && ficha.fijar, ficha);
     const ficha2 = await a.evaluate(() => document.getElementById("ficha-objeto").hidden);
