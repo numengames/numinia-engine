@@ -58,7 +58,10 @@
     #chat .estado { margin: 0; color: #23303b; min-height: 0; }
     #chat .estado:not(:empty) { padding: 3px 8px; border-radius: 6px; background: rgba(238, 242, 246, .85); }
     /* J4/J5: the prompt «E: hablar con…», the conversation box, the quest book, the tracked step and a short note */
-    #interactuar { position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%); padding: 8px 14px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .82); color: #ffd27a; font: inherit; font-weight: 600; }
+    #interactuar { position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%); padding: 8px 14px 8px 30px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .82); color: #ffd27a; font: inherit; font-weight: 600; }
+    /* J4 mantener-pulsado: a small progress ring grows clockwise (--progreso 0..1) while E/the button/the VR trigger is held */
+    #interactuar::before { content: ""; position: absolute; left: 8px; top: 50%; translate: 0 -50%; width: 14px; height: 14px; border-radius: 50%; visibility: hidden; background: conic-gradient(#ffd27a calc(var(--progreso, 0) * 360deg), rgba(255, 255, 255, .25) 0); }
+    #interactuar.manteniendo::before { visibility: visible; }
     #dialogo { position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 20px)); max-height: calc(100% - 90px); overflow: auto; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; background: rgba(20, 24, 30, .9); color: #eef2f6; }
     #dialogo h2 { margin: 0 0 4px; font-size: 15px; color: #ffd27a; }
     #dialogo .texto { margin: 0 0 8px; }

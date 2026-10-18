@@ -9,6 +9,8 @@ export const ALCANCE_M = 64;
 export const CERCA_M = 30;
 /** How long a pressed button stays lit (ticks at 20 Hz: 1 s). */
 export const LUZ_TICKS = 20;
+/** J4: how long you must hold «pulsar» before a button fires (s, mantener-pulsado). */
+export const MANTENER_S = 0.5;
 
 const ID = { kind: "text", maxBytes: 16 } as const;
 const X = { kind: "fixed", min: -2000, max: 2000, step: 0.01 } as const;
@@ -29,7 +31,7 @@ export const botones = defineFeature({
       pulsaciones: { kind: "int", min: 0, max: 1_000_000_000, default: 0 },
       puerta: ID,
     },
-    card: { role: "boton", name: "{nombre}", description: "Botón: se pulsa desde cerca; el servidor dispara lo que hace", at: ["x", "z"], actions: ["pulsar"], interact: { intent: "pulsar", prompt: "pulsar {nombre}", radius: "radio", key: "boton" } },
+    card: { role: "boton", name: "{nombre}", description: "Botón: se pulsa desde cerca; el servidor dispara lo que hace", at: ["x", "z"], actions: ["pulsar"], interact: { intent: "pulsar", prompt: "pulsar {nombre}", radius: "radio", key: "boton", hold: MANTENER_S } },
     radius: ALCANCE_M,
   },
   intents: {

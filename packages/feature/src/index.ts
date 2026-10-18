@@ -37,7 +37,9 @@ export type Card = { role: Role; name: string; description?: string; importance?
  * for the nearest one in reach (a button on touch screens) and sends `intent` with the thing's state key in the
  * intent's text field `key`; the server checks the distance again (`api.within`). `radius`: metres, or the name of a
  * numeric state field (each thing its own). */
-export type Interact = { intent: string; prompt: string; radius: number | string; key: string };
+export type Interact = { intent: string; prompt: string; radius: number | string; key: string;
+  /** J4: seconds to hold the key/button/trigger before it fires (a progress ring while held); undefined/0 = instant. */
+  hold?: number };
 export const INTERACT_RADIUS_MAX = 16;   // J4: metres
 export const INTERACT_SLACK_M = 1.5;     // J4: the server allows this much more than the page (latency, prediction)
 /** Reach in height (vertical worlds): a thing whose state carries a numeric `y` (metres, its feet or its shelf) is in
@@ -839,8 +841,10 @@ export const NO_VIEW: ViewHooks = { label() {}, bounce() {} };
 export type Announcement = { feature: string; event: string; text: string; sound: Sound; importance: Importance; at?: { x: number; z: number }; who?: number };
 /** A thing in the world as a screen reader or an agent reads it (V1). */
 export type CardView = { feature: string; key: string; role: Role; name: string; description?: string; importance: Importance; actions: string[]; at?: { x: number; z: number } };
-/** J4: a thing in reach as the page offers it: «E: <prompt>»; `use(feature, key)` sends its intent. */
-export type Reachable = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number };
+/** J4: a thing in reach as the page offers it: «E: <prompt>»; `use(feature, key)` sends its intent.
+ * `hold` (seconds, J4 mantener-pulsado): undefined/0 = fires at once; otherwise the page must hold the key/button/
+ * trigger that long (showing a progress ring) before it sends the intent. */
+export type Reachable = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; hold?: number };
 /** Fill `{field}` holes with the values (`{key}` = the state key). Unknown holes stay as they are. */
 export const fillTemplate = (t: string, values: Record<string, unknown>): string => t.replace(/\{([a-zA-Z0-9]+)\}/g, (all, k) => (values[k] === undefined ? all : String(values[k])));
 export type Action = { feature: string; id: string; label: string; key?: string; describe?: string; run: () => void };
@@ -948,7 +952,7 @@ export class ClientRuntime {
         const d = Math.hypot(Number(v[c.at[0]]) - x, Number(v[c.at[1]]) - z);
         if (!(r > 0 && d <= r) || (y !== undefined && !alAlcanceEnAltura(y, v.y))) continue; // J4: a thing whose radius field is 0 is not offered (e.g. carried)
         const vals = { key, ...v };
-        out.push({ feature: f.id, key, intent: it.intent, prompt: fillTemplate(it.prompt, vals), name: fillTemplate(c.name, vals).trim(), distance: d });
+        out.push({ feature: f.id, key, intent: it.intent, prompt: fillTemplate(it.prompt, vals), name: fillTemplate(c.name, vals).trim(), distance: d, ...(it.hold ? { hold: it.hold } : {}) });
       }
     }
     return out.sort((a, b) => a.distance - b.distance);

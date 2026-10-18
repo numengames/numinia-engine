@@ -867,9 +867,18 @@ poste, la caja en el suelo.
   (la huella de la simulación es la misma con y sin las tres; lo mide `test/interacciones.test.ts`). Un ejemplo
   mínimo: `{ "puertas": [{ "id": "norte", "nombre": "Puerta norte", "x": 6, "z": 0, "cierraEn": 10 }], "botones": [{ "id":
   "rojo", "nombre": "Botón rojo", "x": 12, "z": 0, "puerta": "norte" }], "cosas": [{ "id": "caja", "nombre": "Caja", "x": -6, "z": 0 }] }`.
+- **Mantener pulsado (J4, v2):** `card.interact.hold` (segundos; opcional en `Interact`/`Reachable`,
+  `packages/feature/src/index.ts`) hace que la página NO use la cosa al instante: E, el botón de acción (móvil) o el
+  gatillo en VR deben mantenerse ese tiempo (un anillo de progreso —`--progreso` 0..1— crece en `#interactuar`,
+  `apps/plaza/interactuar.ts`) antes de mandar el intent; soltar antes, o que el objetivo cambie, cancela sin mandar
+  nada. `puertas`/`botones`/`cogibles` (su `coger`, no su `soltar`) ya lo llevan (`MANTENER_S` en cada `feature.ts`);
+  el servidor no sabe nada de esto — solo decide CUÁNDO llega el intent, igual que siempre. En VR, el gatillo emite
+  un evento de más al soltar (`gatillo_fin`, `packages/render/src/manos.ts`/`apps/plaza/xr.ts`) para poder cancelar
+  un mantener a medias.
 - **Lo que no hace (todavía):** paredes que paren a quien no abre la puerta (es dibujo, no colisión: J6), botones
   con otra acción que una puerta (la señal ya existe; que otra función la escuche es una línea), coger con la mano
-  física en VR (hoy, rayo y gatillo como el resto; J10 lo hace para las cosas de misión), y llevar más de una cosa.
+  física en VR (hoy, rayo y gatillo como el resto; J10 lo hace para las cosas de misión), llevar más de una cosa, y
+  un anillo de progreso propio en el panel de muñeca de VR (J13).
 ## Contadores (v1, D-044): temporizador y contador que todos ven
 
 `features/contadores` es la pieza del reloj de la sala de escape, del marcador del equipo y del reloj del mundo:
