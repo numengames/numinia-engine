@@ -14,7 +14,11 @@ import biblioteca from "./biblioteca.json" with { type: "json" };
 
 export type Modelo = { id: string; nombre: string; modelo: string; fichero: string; licencia: string };
 type Autor = { autor: string | null; nombre: string | null; cuando: string };
-type Cambio = { id: string; antes: Msg | null; autor?: Autor; tick: number; mover?: boolean };
+/** M22c: one object's half of a change (what it was before, and who had touched it when it is a delete). */
+type Item = { id: string; antes: Msg | null; autor?: Autor };
+/** M22: a step on the undo stack. M22c: `items` can hold more than one object — a group action (move several,
+ * delete several) tagged with the same `lote` folds into ONE entry, so deshacer/rehacer treats it as one step. */
+type Cambio = { items: Item[]; tick: number; mover?: boolean; lote?: string };
 /** U12: what a hole shows when it is empty (its card), kept when it became a hole. */
 type Cartel = { modelo: string; ext: string; sx: number; sy: number; sz: number; nombre: string; decorado: boolean };
 const esHueco = (o: Msg | undefined | null) => Number(o?.huecoAncho) > 0 && Number(o?.huecoAlto) > 0;
@@ -57,13 +61,18 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
     if (!o) rechazar(from, `No hay ningún objeto «${String(id)}».`);
     return o;
   };
-  const apuntar = (from: number, c: Omit<Cambio, "tick">) => {
+  const apuntar = (from: number, item: Item, opts: { mover?: boolean; lote?: string } = {}) => {
     rehechos.delete(quien(from)); // M22: a new change ends what could be redone
     const pila = pilas.get(quien(from)) ?? [];
     const ultimo = pila[pila.length - 1], ahora = api.tick();
+    // M22c: a group action (move/delete/pin several at once) tags every message with the same `lote`; while the
+    // tag is fresh (within a second) they all land on the one entry that started it, so undo takes them back together.
+    if (opts.lote && ultimo?.lote === opts.lote && ahora - ultimo.tick <= TICK_HZ && !ultimo.items.some((it) => it.id === item.id)) {
+      ultimo.items.push(item); ultimo.tick = ahora; return;
+    }
     // a drag sends many moves: within a second they are one change (undo goes back to before the drag)
-    if (c.mover && ultimo?.mover && ultimo.id === c.id && ahora - ultimo.tick <= TICK_HZ) { ultimo.tick = ahora; return; }
-    pila.push({ ...c, tick: ahora });
+    if (opts.mover && !opts.lote && ultimo?.mover && !ultimo.lote && ultimo.items.length === 1 && ultimo.items[0].id === item.id && ahora - ultimo.tick <= TICK_HZ) { ultimo.tick = ahora; return; }
+    pila.push({ items: [item], tick: ahora, mover: opts.mover, lote: opts.lote });
     if (pila.length > DESHACER_MAX) pila.shift();
     pilas.set(quien(from), pila);
   };
@@ -131,7 +140,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
     const o = objeto(from, m.id), id = String(m.id);
     if (!o) return;
     if (o.fijado) return void rechazar(from, "Está fijado: suéltalo antes de moverlo.");
-    apuntar(from, { id, antes: o, mover: true });
+    apuntar(from, { id, antes: o }, { mover: true, lote: String(m.lote || "") });
     api.state.set(id, conCaja(id, {
       ...o, x: q(m.x, PASO.pos), y: q(m.y, PASO.pos), z: q(m.z, PASO.pos),
       rx: girado(Number(m.rx)), ry: girado(Number(m.ry)), rz: girado(Number(m.rz)),
@@ -168,7 +177,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
     const o = objeto(from, m.id), id = String(m.id);
     if (!o) return;
     if (o.fijado) return void rechazar(from, "Está fijado: suéltalo antes de borrarlo.");
-    apuntar(from, { id, antes: o, autor: autorDe(id) });
+    apuntar(from, { id, antes: o, autor: autorDe(id) }, { lote: String(m.lote || "") });
     api.state.delete(id);
     api.store.delete(`a:${id}`);
     hecho(from, id, "borrar");
@@ -178,7 +187,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
     if (!puede(from)) return;
     const o = objeto(from, m.id), id = String(m.id);
     if (!o) return;
-    apuntar(from, { id, antes: o });
+    apuntar(from, { id, antes: o }, { lote: String(m.lote || "") });
     api.state.set(id, { ...o, fijado: m.fijado === true });
     hecho(from, id, "fijar");
   });
@@ -277,15 +286,20 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
     if (!puede(from)) return;
     const k = quien(from), pila = de.get(k), c = pila?.pop();
     if (!c) return void rechazar(from, `No hay nada tuyo que ${accion}.`);
-    const ahora = api.state.get(c.id);
-    if (fijadoImpide(ahora, c.antes)) { pila!.push(c); return void rechazar(from, `Está fijado: suéltalo antes de ${accion}.`); }
+    const ahoras = c.items.map((it) => api.state.get(it.id));
+    for (let i = 0; i < c.items.length; i++) {
+      if (fijadoImpide(ahoras[i], c.items[i].antes)) { pila!.push(c); return void rechazar(from, `Está fijado: suéltalo antes de ${accion}.`); }
+    }
     const otra = a.get(k) ?? [];
-    otra.push({ id: c.id, antes: ahora ?? null, autor: ahora ? autorDe(c.id) : undefined, tick: api.tick() });
+    // M22c: whole group goes back on the other stack as ONE entry too, so redo/undo keeps moving them together
+    otra.push({ items: c.items.map((it, i) => ({ id: it.id, antes: ahoras[i] ?? null, autor: ahoras[i] ? autorDe(it.id) : undefined })), tick: api.tick(), lote: c.lote });
     if (otra.length > DESHACER_MAX) otra.shift();
     a.set(k, otra);
-    if (c.antes === null) { api.state.delete(c.id); api.store.delete(`a:${c.id}`); }
-    else { api.state.set(c.id, c.antes); if (c.autor) api.store.set(`a:${c.id}`, c.autor); }
-    hecho(from, c.id, accion);
+    for (const it of c.items) {
+      if (it.antes === null) { api.state.delete(it.id); api.store.delete(`a:${it.id}`); }
+      else { api.state.set(it.id, it.antes); if (it.autor) api.store.set(`a:${it.id}`, it.autor); }
+      hecho(from, it.id, accion);
+    }
   };
   api.on("deshacer", (from) => volver(from, pilas, rehechos, "deshacer"));
   api.on("rehacer", (from) => volver(from, rehechos, pilas, "rehacer"));

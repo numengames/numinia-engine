@@ -40,7 +40,7 @@ export const dondeDe = (o: Msg): Donde => Object.fromEntries(CAMPOS.map((k) => [
 /** One per page (tests make one per client). `constructor` is what a builder UI or an agent's helper calls. */
 export function crearCliente() {
   let api: ClientApi | null = null;
-  const estado = { puede: false, seleccionado: "", ultimoRechazo: "", modo: "" as Modo };
+  const estado = { puede: false, seleccionado: "", seleccionados: [] as string[], ultimoRechazo: "", modo: "" as Modo };
   const oyentes = new Set<(que: string) => void>();
   const avisar = (que: string) => { for (const fn of oyentes) { try { fn(que); } catch { /* a listener's error is its own */ } } };
   const enviar = (intent: string, msg: Msg): Res => api?.send(intent, msg) ?? { ok: false as const, why: "la página aún no ha arrancado" };
@@ -60,6 +60,13 @@ export function crearCliente() {
     enviar("mover", { id: o.id, ...acotarDonde({ ...dondeDe(o), ...cambio }) });
   const acotar = (v: number) => entre(v, LIMITES.escala);
   const elegir = (id: string) => { if (estado.seleccionado !== id) { estado.seleccionado = id; avisar("seleccion"); } };
+  /** M22c: replace the whole multi-selection («» = none); the last id given becomes the primary (gizmo, inspector). */
+  const elegirVarios = (ids: string[]) => {
+    const unicos = [...new Set(ids.filter((id) => api?.state.get(id)))];
+    estado.seleccionados = unicos;
+    elegir(unicos[unicos.length - 1] ?? "");
+    avisar("seleccion");
+  };
 
   const constructor = {
     estado,
@@ -124,19 +131,39 @@ export function crearCliente() {
     deshacer: () => enviar("deshacer", {}),
     /** M22: redo what you last undid (until you make a new change). */
     rehacer: () => enviar("rehacer", {}),
-    /** M22: select a thing by its id ("" = nothing). The page's gizmo and inspector follow. */
+    /** M22: select a thing by its id ("" = nothing). The page's gizmo and inspector follow. M22c: also replaces
+     * the multi-selection with just this one (shift+click/drag-box add to it instead — ver seleccionarVarios). */
     seleccionar: (id: string): Res => {
       if (id && !api?.state.get(id)) return { ok: false, why: `no hay ningún objeto «${id}»` };
-      elegir(id);
+      elegirVarios(id ? [id] : []);
       return { ok: true };
     },
-    /** M22: move, turn or scale a thing by its id; only the fields given change (metres, degrees, factor). */
-    transformar: (id: string, cambio: Partial<Donde>): Res => {
+    /** M22c: replace the multi-selection (shift+click, caja de arrastre). The order matters: the last id is the
+     * primary (gizmo attached, inspector). Unknown ids are dropped quietly. */
+    seleccionarVarios: (ids: string[]): Res => { elegirVarios(ids); return { ok: true }; },
+    /** M22c: add/remove one id from the multi-selection (shift+click), keeping the rest; `id` becomes primary if added. */
+    alternarSeleccion: (id: string): Res => {
+      if (!api?.state.get(id)) return { ok: false, why: `no hay ningún objeto «${id}»` };
+      const ya = estado.seleccionados.includes(id);
+      elegirVarios(ya ? estado.seleccionados.filter((x) => x !== id) : [...estado.seleccionados, id]);
+      return { ok: true };
+    },
+    /** M22: move, turn or scale a thing by its id; only the fields given change (metres, degrees, factor). M22c:
+     * `lote` (opcional) agrupa esta llamada con otras del mismo lote en un solo paso de deshacer (ver nuevoLote). */
+    transformar: (id: string, cambio: Partial<Donde>, lote = ""): Res => {
       const o = api?.state.get(id);
       if (!o) return { ok: false, why: `no hay ningún objeto «${id}»` };
       for (const [k, v] of Object.entries(cambio)) if (!(CAMPOS as readonly string[]).includes(k) || !Number.isFinite(v)) return { ok: false, why: `«${k}» no es un número de x y z rx ry rz sx sy sz` };
-      return transformar({ id, ...o }, cambio);
+      const d = acotarDonde({ ...dondeDe(o), ...cambio });
+      return enviar("mover", { id, ...d, lote });
     },
+    /** M22c: borrar/fijar por id (no por selección): para operar un grupo entero como una unidad, con un `lote`
+     * común para que el servidor lo deshaga de un solo paso (ver nuevoLote). */
+    borrarId: (id: string, lote = ""): Res => (api?.state.get(id) ? enviar("borrar", { id, lote }) : { ok: false, why: `no hay ningún objeto «${id}»` }),
+    fijarId: (id: string, fijado: boolean, lote = ""): Res => (api?.state.get(id) ? enviar("fijar", { id, fijado, lote }) : { ok: false, why: `no hay ningún objeto «${id}»` }),
+    /** M22c: un identificador corto para una acción de grupo (mover/borrar/fijar varios a la vez): úsalo como `lote`
+     * en cada llamada de ESA acción; el servidor las junta en un solo paso de deshacer mientras llegan seguidas. */
+    nuevoLote: (): string => Math.random().toString(36).slice(2, 10),
     /** M22: the tool: "coger" (follows the pointer), "mover", "girar", "escalar" (gizmo) or "" (only select). */
     modo: (m: string): Res => {
       if (!(MODOS as readonly string[]).includes(m)) return { ok: false, why: `modos: ${MODOS.filter(Boolean).join(", ")} o "" (solo seleccionar)` };
@@ -151,7 +178,7 @@ export function crearCliente() {
     api = a;
     a.state.onChange((key, v) => {
       a.view.place?.(key, v ? aDibujo(v) : null);
-      if (!v && key === estado.seleccionado) elegir("");
+      if (!v && estado.seleccionados.includes(key)) elegirVarios(estado.seleccionados.filter((x) => x !== key));
       avisar("estado");
     });
     a.on("permiso", (m) => { estado.puede = m.construir === true; avisar("permiso"); });

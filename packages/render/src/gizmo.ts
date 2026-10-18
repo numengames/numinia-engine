@@ -7,6 +7,8 @@
 // only update what is wanted (no rubber-banding); after the release they wait until the final transform comes back,
 // or MANTENER_MS at most (then the thing goes where the server says: a refused move goes back).
 import * as THREE from "three/webgpu";
+import { mejorEncaje } from "./encaje.ts";
+import type { Caja3 } from "./encaje.ts";
 
 export type Eje = "X" | "Y" | "Z";
 export type Herramienta = "mover" | "girar" | "escalar";
@@ -29,6 +31,7 @@ export type EditorCtx = {
 const RAD = Math.PI / 180;
 const MANTENER_MS = 1500; // after a release, at most this long the server's older echoes are ignored
 const ACTIVO_MS = 400;    // after any change here keep drawing this long (the page only draws while busy)
+const ENCAJE_M = 0.25;    // M22c: faces within this close (metres), while dragging on one axis, snap together
 
 /** Degrees into [-180, 180]. */
 export const envolver = (g: number): number => ((((g + 180) % 360) + 360) % 360) - 180;
@@ -87,6 +90,11 @@ export function crearEditor(ctx: EditorCtx) {
   mat.depthTest = false; mat.transparent = true; mat.opacity = 0.9;
   marco.renderOrder = 998; marco.visible = false; marco.name = "seleccion";
   ctx.scene.add(marco);
+  // M22c: one outline per id in the multi-selection, besides the primary's (above); a plain click leaves this empty.
+  const marcosVarios = new Map<string, THREE.Box3Helper>();
+  const cajaVarios = new Map<string, THREE.Box3>();
+  let variosIds: string[] = [];
+  const cajaOtra = new THREE.Box3(); // scratch for encaje's candidate boxes
 
   let sel: string | null = null, herramienta: Herramienta | null = null, eje: Eje | null = null, local = false;
   let paso: Paso = { pos: 0.5, grados: 15, escala: 0.1 };
@@ -105,6 +113,22 @@ export function crearEditor(ctx: EditorCtx) {
   };
   const claveDe = (o: THREE.Object3D | null): string | null => { for (; o; o = o.parent) if (o.name.startsWith("objeto:")) return o.name.slice(7); return null; };
   const candidatos = (ignorar?: string) => { const out: THREE.Object3D[] = []; for (const [k, g] of ctx.grupos()) if (k !== ignorar && !k.startsWith("~")) out.push(g); return out; };
+  /** M22c: snaps a dragged group's position so its face touches a neighbour's, along ONE axis (the gizmo's axis
+   * filter): the common case of aligning two blocks. Only while a single axis is chosen, to keep the intent clear. */
+  function intentarEncaje(g: THREE.Object3D, ejeSel: Eje): void {
+    const idx = ejeSel === "X" ? 0 : ejeSel === "Y" ? 1 : 2;
+    const propia = cajaDe(g, new THREE.Box3());
+    if (propia.isEmpty()) return;
+    const mia: Caja3 = { min: propia.min.toArray() as [number, number, number], max: propia.max.toArray() as [number, number, number] };
+    const otras: Caja3[] = [];
+    for (const o of candidatos(claveDe(g) ?? undefined)) {
+      cajaDe(o, cajaOtra);
+      if (!cajaOtra.isEmpty()) otras.push({ min: cajaOtra.min.toArray() as [number, number, number], max: cajaOtra.max.toArray() as [number, number, number] });
+    }
+    const d = mejorEncaje(mia, otras, idx as 0 | 1 | 2, ENCAJE_M);
+    if (d === null) return;
+    if (idx === 0) g.position.x += d; else if (idx === 1) g.position.y += d; else g.position.z += d;
+  }
 
   /** The gizmo follows the selection, the tool, the axis, the space and the snap. */
   function aplicar(): void {
@@ -136,7 +160,13 @@ export function crearEditor(ctx: EditorCtx) {
       }
       tocar();
     });
-    c.addEventListener("objectChange", () => { if (arrastre && c.dragging) avisar("cambia", arrastre.key, dondeDe(arrastre.g)); tocar(); });
+    c.addEventListener("objectChange", () => {
+      if (arrastre && c.dragging) {
+        if (tc!.mode === "translate" && eje) intentarEncaje(arrastre.g, eje);
+        avisar("cambia", arrastre.key, dondeDe(arrastre.g));
+      }
+      tocar();
+    });
     c.addEventListener("change", tocar); // a handle lights up under the pointer: draw it
     tc = c;
     aplicar();
@@ -166,6 +196,20 @@ export function crearEditor(ctx: EditorCtx) {
     },
     /** Outline a thing (null = nothing); the gizmo, if a tool is on, attaches to it. */
     seleccionar(key: string | null): void { if (sel !== key) { sel = key; aplicar(); } },
+    /** M22c: outline every id of the multi-selection besides the primary (its own `seleccionar` outline stays the
+     * gold one); these are a lighter blue, just to show "these move/borran together" without a gizmo on them. */
+    outlineVarios(ids: string[]): void {
+      variosIds = ids;
+      const want = new Set(ids);
+      for (const [k, h] of marcosVarios) if (!want.has(k)) { ctx.scene.remove(h); marcosVarios.delete(k); cajaVarios.delete(k); }
+      for (const k of want) if (!marcosVarios.has(k)) {
+        const b = new THREE.Box3(), h = new THREE.Box3Helper(b, 0x7ac3ff);
+        const m = h.material as THREE.LineBasicMaterial; m.depthTest = false; m.transparent = true; m.opacity = 0.65;
+        h.renderOrder = 997; h.name = "seleccion-grupo";
+        ctx.scene.add(h); marcosVarios.set(k, h); cajaVarios.set(k, b);
+      }
+      tocar();
+    },
     /** The gizmo's tool, or null (no gizmo). The first call downloads TransformControls. */
     herramienta(h: Herramienta | null): Promise<void> { herramienta = h; aplicar(); return h && !tc ? cargar() : Promise.resolve(); },
     /** Only one axis's handles (null = all of them), like Blender's X / Y / Z. */
@@ -234,6 +278,11 @@ export function crearEditor(ctx: EditorCtx) {
       const g = sel ? ctx.grupo(sel) : undefined;
       if (g) cajaDe(g, caja);
       marco.visible = !!g && !caja.isEmpty();
+      for (const [k, h] of marcosVarios) {
+        const og = ctx.grupo(k), b = cajaVarios.get(k)!;
+        if (og) cajaDe(og, b);
+        h.visible = !!og && !b.isEmpty();
+      }
     },
   };
 }
