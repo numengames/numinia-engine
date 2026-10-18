@@ -756,3 +756,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Versión **0.6.1 → 0.7.0** (menor): ajustes y capacidades nuevos, nada se rompe. (Las ramas traían 0.6.0 y
   0.6.1; `main` ya había tomado esos números con #46 y #47.)
 - Consumo: sin medir · Sonnet 5.5.
+
+## 2026-10-18 12:58 · D-041 cable h1-h2 · hecho
+- **Qué:** la pieza `disparadores@1` (`features/disparadores`): lectura con esquema de `MUNDO_DIR/disparadores.json` (cada línea mala fuera con su motivo, como `interacciones.json`), disparadores de **zona** (entrar) y **botón** (`pulsar` por la carta `interact`, «E: pulsar») que decide el servidor con cooldown y un solo uso, evento `disparado` a los cercanos y `senal`/`accion` solo servidor (una `accion` por receptor); `features/objetos` oye `muestra`/`oculta` (por id o nombre) y la página deja de dibujar un modelo oculto al jugar (`packages/render`, 2 líneas). Rama sobre el tren; trae la regla «radio 0 no se ofrece» de #50 idéntica para que la fusión sea limpia.
+- **Números:** `test/disparadores.test.ts`, 6 pruebas (declaración + limits.json, lectura línea a línea y topes, conMundo, botón: alcance/rechazo/cooldown/«todavía no»/receptor muestra, zona: una vez por entrada/un solo uso/receptor oculta/receptor sin dueño en el registro, huella de la simulación igual); suite entera 543/543; build OK.
+- **Consumo:** subagente; no medido.
+- **Commit:** este PR.
+- **Siguiente:** historias 3-6 del cable (teletransporta, da_paso, abre_enlace, suena; etiqueta de zona y botón móvil; catálogo y ejemplo en la plaza).
