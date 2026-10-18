@@ -37,6 +37,8 @@ export type HostMapa = {
   };
   /** `globalThis.__numinia`, read at each use: the optional contracts of other branches (misiones, chat) live there. */
   otros(): Record<string, any>;
+  /** U27 (MVL1): go to a marked site of the map (features/teletransporte): omitted = no «Ir» button (this world's page did not wire it). */
+  teletransporte?: { activo(): boolean; ir(x: number, z: number, nombre: string): void };
 };
 
 const PASO_MS = 200;               // the minimap looks 5 times a second; it draws only when the picture changed
@@ -406,6 +408,13 @@ export function montarMapa(h: HostMapa) {
     const e = elegido;
     b.addEventListener("click", () => marcarDestino(e));
     detalle.append(t, p, b);
+    if (h.teletransporte) { // U27 (MVL1): pick a site, press «Ir», appear there (the server decides; same in VR)
+      const activo = h.teletransporte.activo();
+      const g = boton(activo ? "Ir" : "Ir (apagado en este mundo)");
+      g.disabled = !activo;
+      g.addEventListener("click", () => h.teletransporte!.ir(e.x, e.z, e.nombre));
+      detalle.append(g);
+    }
   }
   function elegir(m: typeof elegido, centrar = false): void {
     elegido = m;

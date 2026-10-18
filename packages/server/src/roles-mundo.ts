@@ -14,8 +14,6 @@
 //   /solo-miembros sí|no            (manage-organization: visitors stay out)
 //   /construir todos|nadie          (manage-organization: «build-in-worlds» of @todos, so visitors and AIs build or not)
 //   /voz sí|no                      (manage-organization: the microphones are relayed or not; at once, no restart)
-//   /escenario [<persona> | quitar <persona> | nadie]   (manage-rituals, M17: whoever is on stage is heard by everyone,
-//                                   unpanned; the list is open to all; memory only — an event is live, not a setting)
 //   /agente añadir <id> <nombre…> <clave> [rol]   /agente quitar <id>   /agente   (manage-organization: the outside
 //                                   AIs this world lets in, ADR-080 — writes/deletes aventura/agentes/<id>.json; puerta.ts)
 // An AI (an inhabitant «ia-<id>» or an outside agent) is never a member nor an owner: its permissions are its role's
@@ -54,6 +52,7 @@ export const INTENTOS = 3;             // wrong administration codes per connect
 export const INTENTOS_PAUSA_MIN = 10;
 export const AVISO_MAX = 300;          // bytes (chat's AVISO_MAX)
 const MOTIVO_MAX = 200;
+export const NOMBRE_PROPIO_MAX = 48;   // bytes; mirrors chat's NOMBRE_MAX (packages never import features/: roles-mundo.ts cannot share it)
 export const RENOVAR_MIN_MS = 1000;      // an AI may renew its pass at most once a second (a signature check each)
 
 const quien = { kind: "int", min: 0, max: 65535 } as const;
@@ -67,6 +66,8 @@ export const rolesFeature = defineFeature({
     silencio: { describe: "Alguien queda en silencio en el chat y la voz tantos segundos (0 = vuelve a hablar).", fields: { quien, segundos: { kind: "int", min: 0, max: SILENCIO_MAX_MIN * 60 } }, announce: "silent" },
     bloqueo: { describe: "F1: `quien` deja de leer (si = 1) o vuelve a leer (si = 0) lo que dice `a`; el chat no le reenvía sus líneas.", fields: { quien, a: quien, si: { kind: "int", min: 0, max: 1 } }, announce: "silent" },
     cambio: { describe: "Lo que alguien puede hacer ha cambiado (un rol, un dueño): objetos vuelve a decirle si construye.", fields: { quien }, announce: "silent" },
+    nombreCambiado: { describe: "H3c: alguien se ha puesto otro nombre con /nombre (o vuelve a entrar con uno guardado); el chat lo usa sobre su cabeza y en lo que diga.", fields: { quien, nombre: { kind: "text", maxBytes: NOMBRE_PROPIO_MAX } }, announce: "silent" },
+    borrarHistorial: { describe: "H3c: /chat borrar; el chat vacía el historial de la zona (quien entre después ya no lo ve).", fields: {}, announce: "silent" },
   },
   store: { describe: "Los roles del mundo (forma de STD-052, con si @todos construye), quién tiene cada uno, los dueños, los vetados, los silenciados (hasta cuándo), a quién ha bloqueado cada persona y sus ajustes (config: solo para miembros, voz)." },
 });
@@ -101,8 +102,14 @@ const bytes = new TextEncoder();
 function cortar(s: string, max: number): string {
   if (bytes.encode(s).length <= max) return s;
   let out = "";
-  for (const ch of s) { if (bytes.encode(out + ch).length > max - 1) break; out += ch; }
+  for (const ch of s) { if (bytes.encode(out + ch).length > max - 3) break; out += ch; } // «…» is 3 bytes in UTF-8
   return out + "…";
+}
+/** A name shown to everybody (H3c /nombre): no control characters, one line, cut to NOMBRE_PROPIO_MAX bytes. Unlike
+ * pase.ts's own `limpiar`, this one never strips a trailing MARCA_IA: the order rejects it instead (see `ordenes.nombre`). */
+function limpiarNombre(texto: string, max: number): string {
+  const s = texto.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, " ").replace(/\s+/g, " ").trim();
+  return cortar(s, max).trim();
 }
 
 export function crearRoles(o: OpcionesRoles) {
@@ -120,9 +127,10 @@ export function crearRoles(o: OpcionesRoles) {
   const silencios = new Map<string, number>();         // guest id -> until (ms); stored («silencios»), so a restart does not lift a silence
   const bloqueos = new Map<string, Set<string>>();     // F1: listener id -> ids they blocked; stored («b:<id>»), so a reload keeps it
   const intentos = new Map<number, { n: number; hasta: number }>();
+  const nombres = new Map<string, string>();            // H3c: /nombre — guest id -> chosen name; stored («n:<id>»), never « · IA»
+  const apariciones = new Map<string, { x: number; y: number; z: number }>(); // H3c: /aparecer — guest id -> their own spawn point; stored («ap:<id>»)
   let soloMiembros = false;
   let voz = o.voz ?? true;                             // without the feature running (bare servers) the seed is the answer
-  const escenario = new Set<string>();                 // M17: person ids on stage (their voice reaches everyone). Memory only: an event is live, not a setting
   let config: Record<string, unknown> = {};            // the world's settings as stored (fields this engine does not know are kept)
   let api: ServerApi | null = null;
   let gestion: GestionAgentes | null = null;           // set when the feature starts: the one code path for /agente and the HTTP door
@@ -224,6 +232,11 @@ export function crearRoles(o: OpcionesRoles) {
       if (k.startsWith("m:")) { const v = a.store.get(k); if (Array.isArray(v)) miembros.set(k.slice(2), v.filter((x) => roles.some((r) => r.id === x))); }
       if (k.startsWith("veto:")) vetos.set(k.slice(5), a.store.get(k) as Veto);
       if (k.startsWith("b:")) { const v = a.store.get(k); if (Array.isArray(v)) bloqueos.set(k.slice(2), new Set(v.filter((x): x is string => typeof x === "string").slice(0, BLOQUEOS_MAX))); }
+      if (k.startsWith("n:")) { const v = a.store.get(k); if (typeof v === "string" && v && !v.endsWith(MARCA_IA)) nombres.set(k.slice(2), v); }
+      if (k.startsWith("ap:")) {
+        const v = a.store.get(k) as { x?: unknown; y?: unknown; z?: unknown } | undefined;
+        if (v && typeof v.x === "number" && typeof v.y === "number" && typeof v.z === "number") apariciones.set(k.slice(3), { x: v.x, y: v.y, z: v.z });
+      }
     }
     const silGuardados = a.store.get("silencios");
     if (Array.isArray(silGuardados)) for (const s of silGuardados as { id?: unknown; hasta?: unknown }[]) if (typeof s?.id === "string" && typeof s.hasta === "number" && s.hasta > ahora()) silencios.set(s.id, s.hasta);
@@ -245,9 +258,8 @@ export function crearRoles(o: OpcionesRoles) {
       avisar(from, min ? `${p.nombre} queda en silencio ${min} min (chat y voz).` : `${p.nombre} puede volver a hablar.`);
     };
 
-    /** <persona> at the start of `resto`: the longest name of someone connected that it begins with. `aMiTambien` lets the
-     * order name its author (the stage: you may put yourself on it). */
-    const persona = (from: number, resto: string, aMiTambien = false): { e: number; id: string; nombre: string; resto: string } | null => {
+    /** <persona> at the start of `resto`: the longest name of someone connected that it begins with. */
+    const persona = (from: number, resto: string): { e: number; id: string; nombre: string; resto: string } | null => {
       const k = resto.toLowerCase();
       let mejor: { e: number; id: string; nombre: string; resto: string } | null = null;
       for (const e of a.players()) {
@@ -257,7 +269,7 @@ export function crearRoles(o: OpcionesRoles) {
         if ((k === n || k.startsWith(n + " ")) && (!mejor || n.length > mejor.nombre.length)) mejor = { e, id: w.id, nombre: w.nombre, resto: resto.slice(n.length).trim() };
       }
       if (!mejor) avisar(from, resto ? `No veo a nadie conectado que se llame así. Escribe su nombre como lo ves sobre su cabeza.` : "¿A quién? Escribe su nombre como lo ves sobre su cabeza.");
-      else if (mejor.e === from && !aMiTambien) { avisar(from, "Eso no te lo puedes hacer a ti."); return null; }
+      else if (mejor.e === from) { avisar(from, "Eso no te lo puedes hacer a ti."); return null; }
       return mejor;
     };
     /** The actor may do `accion` on `p` (permission + strictly below). Says why not. */
@@ -319,40 +331,7 @@ export function crearRoles(o: OpcionesRoles) {
         const mios = yo.dueno ? "dueño del mundo" : pase ? [...pase.roles.map((r) => r.nombre), "@todos"].join(", ") + " (de numinia.com)" : [...roles.filter((r) => m?.roles.includes(r.id)).map((r) => r.nombre), "@todos"].join(", ");
         const puedo = (Object.keys(ACCION_PERMISO) as Accion[]).filter((x) => tiene(yo, x)).map((x) => ACCION_TEXTO[x]);
         avisar(from, `Eres: ${mios}. Puedes: ${puedo.length ? puedo.join(", ") : "mirar y hablar"}. Roles de este mundo: ${roles.map((r) => r.nombre).join(", ")}${soloMiembros ? " (solo para miembros)" : ""}.`);
-        avisar(from, "Órdenes: /dar y /quitar <persona> <rol> · /silenciar <persona> [minutos] · /hablar <persona> · /echar <persona> · /vetar <persona> <motivo> · /perdonar <nombre> · /solo-miembros sí|no · /construir todos|nadie · /voz sí|no · /escenario · /agente · /dueño <código>");
-      },
-      // M17: the stage. Whoever is on it is heard by everyone in the world, unpanned (the instance asks `enEscenario` per
-      // frame). Only moderation (manage-rituals) puts people on and takes them off; you may put yourself. Not stored.
-      escenario: (from, resto) => {
-        const [verbo = ""] = resto.split(/\s+/), v = plano(verbo);
-        if (v === "") {
-          const quienes = [...escenario].map((id) => conectadoComo(id).map(nombre)[0] ?? `(fuera: ${id})`);
-          avisar(from, quienes.length ? `En el escenario: ${quienes.join(", ")}. Su voz la oye todo el mundo.` : "No hay nadie en el escenario: cada voz llega solo a quien está cerca.");
-          if (tiene(accesoDe(a.who(from)?.id), "escenario")) avisar(from, "Órdenes: /escenario <persona> (sube; puedes subirte tú) · /escenario quitar <persona> · /escenario nadie.");
-          return;
-        }
-        if (!tiene(accesoDe(a.who(from)?.id), "escenario")) { avisar(from, `No tienes permiso para ${ACCION_TEXTO.escenario}.`); return; }
-        const todos = (texto: string) => { for (const e of a.players()) avisar(e, texto); }; // the whole zone hears who takes the stage (same fan-out as the chat)
-        if (v === "nadie") {
-          if (!escenario.size) { avisar(from, "El escenario ya está vacío."); return; }
-          escenario.clear();
-          log(`[roles] ${a.who(from)?.id} vacía el escenario`);
-          todos(`${nombre(from)} vacía el escenario: cada voz vuelve a llegar solo a quien está cerca.`);
-          return;
-        }
-        if (v === "quitar") {
-          const p = persona(from, resto.slice(verbo.length).trim(), true); if (!p) return;
-          if (!escenario.delete(p.id)) { avisar(from, `${p.nombre} no está en el escenario.`); return; }
-          log(`[roles] ${a.who(from)?.id} baja del escenario a ${p.id}`);
-          todos(`${p.nombre} baja del escenario.`);
-          return;
-        }
-        const p = persona(from, resto, true); if (!p) return;
-        if (esIA(p.id)) { avisar(from, "Una IA no sube al escenario."); return; }
-        if (escenario.has(p.id)) { avisar(from, `${p.nombre} ya está en el escenario.`); return; }
-        escenario.add(p.id);
-        log(`[roles] ${a.who(from)?.id} sube al escenario a ${p.id}`);
-        todos(`${p.nombre} sube al escenario: su voz la oye todo el mundo.`);
+        avisar(from, "Órdenes: /dar y /quitar <persona> <rol> · /silenciar <persona> [minutos] · /hablar <persona> · /echar <persona> · /vetar <persona> <motivo> · /perdonar <nombre> · /solo-miembros sí|no · /construir todos|nadie · /voz sí|no · /agente · /dueño <código> · /nombre <nombre> · /aparecer aquí|quitar · /chat borrar");
       },
       "dueño": (from, resto) => {
         const w = a.who(from);
@@ -486,6 +465,53 @@ export function crearRoles(o: OpcionesRoles) {
         }
         avisar(from, "Escribe /agente (lista), /agente añadir <id> <nombre…> <clave> [rol] o /agente quitar <id>.");
       },
+      // H3c: se guarda con la identidad (I1): el mismo id vuelve a tener este nombre en otra sesión o tras un reinicio.
+      // La cola « · IA» (MARCA_IA) la pone el servidor solo para agentes con billete (identidad.ts): nadie la escribe a mano.
+      nombre: (from, resto) => {
+        const w = a.who(from);
+        if (!w) { avisar(from, "Primero hace falta que el mundo sepa quién eres (recarga la página)."); return; }
+        if (esIA(w.id)) { avisar(from, "Una IA no se cambia el nombre por el chat: lo pone el servidor."); return; }
+        const nuevo = limpiarNombre(resto, NOMBRE_PROPIO_MAX);
+        if (!nuevo) { avisar(from, "Escribe /nombre <nombre>."); return; }
+        if (nuevo.endsWith(MARCA_IA)) { avisar(from, `Ese nombre no vale: termina en «${MARCA_IA}», que el servidor reserva para los agentes de IA.`); return; }
+        nombres.set(w.id, nuevo); a.store.set(`n:${w.id}`, nuevo);
+        log(`[roles] ${w.id} se pone el nombre «${nuevo}»`);
+        a.emit("nombreCambiado", { quien: from, nombre: nuevo }, "server");
+        avisar(from, `Desde ahora te llamas «${nuevo}».`);
+      },
+      // H3c: punto de reaparición propio (D-045 ya devuelve al último suelo seguro o al de la casa; esto fija el tuyo).
+      // Se guarda con la identidad; al volver a entrar (otra pestaña, otro día) apareces ahí (ver el onIdentify, abajo).
+      aparecer: (from, resto) => {
+        const w = a.who(from);
+        if (!w) { avisar(from, "Primero hace falta que el mundo sepa quién eres (recarga la página)."); return; }
+        if (esIA(w.id)) { avisar(from, "Una IA no tiene un punto de aparición propio."); return; }
+        const v = plano(resto);
+        if (v === "aqui") {
+          const p = a.position(from);
+          if (!p) { avisar(from, "No sé dónde estás: vuelve a intentarlo dentro del mundo."); return; }
+          apariciones.set(w.id, p); a.store.set(`ap:${w.id}`, p);
+          log(`[roles] ${w.id} fija su punto de aparición en (${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)})`);
+          avisar(from, "Hecho: desde ahora apareces aquí cuando entras en este mundo. /aparecer quitar lo deshace.");
+          return;
+        }
+        if (v === "quitar") {
+          if (!apariciones.delete(w.id)) { avisar(from, "No tenías un punto de aparición propio."); return; }
+          a.store.delete(`ap:${w.id}`);
+          log(`[roles] ${w.id} quita su punto de aparición`);
+          avisar(from, "Hecho: vuelves a aparecer donde aparece cualquiera.");
+          return;
+        }
+        avisar(from, "Escribe /aparecer aquí (para aparecer donde estás ahora) o /aparecer quitar (para dejarlo).");
+      },
+      // H3c: manage-organization, como /construir, /voz y /solo-miembros.
+      chat: (from, resto) => {
+        if (!ajusta(from)) return;
+        const v = plano(resto);
+        if (v !== "borrar") { avisar(from, "Escribe /chat borrar para vaciar el historial de la zona."); return; }
+        a.emit("borrarHistorial", {}, "server");
+        log(`[roles] ${a.who(from)?.id} borra el historial del chat de la zona`);
+        avisar(from, "Hecho: el historial de la zona está vacío. Quien entre a partir de ahora no verá lo de antes.");
+      },
     };
     ordenes.dueno = ordenes["dueño"];
     ordenes.agentes = ordenes.agente;
@@ -537,6 +563,11 @@ export function crearRoles(o: OpcionesRoles) {
         if (bloqueos.get(ow.id)?.has(w.id)) a.emit("bloqueo", { quien: otro, a: e, si: 1 }, "server");
       }
       if (m || conPase || (esIA(w.id) && pasesIA.has(w.id.slice(3)))) cambio(e);
+      // H3c: lo que se guarda con la identidad vuelve a aplicarse en cada conexión nueva de la misma persona.
+      const nc = nombres.get(w.id);
+      if (nc) a.emit("nombreCambiado", { quien: e, nombre: nc }, "server");
+      const ap = apariciones.get(w.id);
+      if (ap) a.teletransportar(e, ap);
     });
     a.onLeave((e) => {
       intentos.delete(e); pendientes.delete(e);
@@ -571,8 +602,6 @@ export function crearRoles(o: OpcionesRoles) {
     },
     /** F1: for tests and /status: whom this id has blocked. */
     bloqueados: (id: string): readonly string[] => [...(bloqueos.get(id) ?? [])],
-    /** M17: is this person on stage (/escenario)? The instance asks it per voice frame; a stage voice reaches everyone. */
-    enEscenario: (id: string | undefined): boolean => id !== undefined && escenario.has(id),
     get todosConstruyen() { return todosConstruyen(); },
     get conectado() { return api !== null; },
     /** Outside agents (ADR-080): list/add/remove, the code behind `/agente` and the HTTP door. null until the feature has started. */

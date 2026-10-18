@@ -250,6 +250,34 @@ test("teletransporte: the world folder's entorno.json turns the photo's place on
   assert.match(mal.log.join("\n"), /aparicionFoto/);
 });
 
+test("teletransporte: MVL1 — a marked site of the map; your own height, a free spot nearby, no name repeated", () => {
+  const W = mundo(2);
+  const [A, B] = W.gente;
+  W.pump(4);
+  W.poner(A, 0, 0);
+  const antes = W.pos(A);
+  assert.deepEqual(A.v.irAPunto(20, -15, "La fuente"), { ok: true });
+  W.pump(2);
+  const sale = A.luces.find((d) => d.tipo === "sale")!;
+  assert.ok(sale && dist(sale, antes) < 0.1, "the light takes you where you stand, like going to someone");
+  W.pump(DESMATERIALIZAR_TICKS + 4);
+  assert.ok(dist(W.pos(A), { x: 20, z: -15 }) < 0.2, "you stand at the site");
+  assert.equal(W.pos(A).y, antes.y, "your own height, not the site's (the map has no y)");
+  assert.equal(A.v.estado.viaje?.ok, true);
+  assert.match(A.v.estado.viaje!.texto, /Has llegado en La fuente\./);
+  // the same cooldown as going to someone (one trip every ESPERA_S)
+  A.v.irAPunto(5, 5, "Otro sitio");
+  W.pump(3);
+  assert.match(A.v.estado.viaje!.texto, /Espera \d+ s/);
+  // off: no one may go to a site either
+  W.pump(ESPERA_S * TICK_HZ);
+  W.decir(B, `/dueño ${ADMIN}`);
+  W.decir(B, "/teletransporte no");
+  A.v.irAPunto(1, 1, ""); W.pump(3);
+  assert.equal(A.v.estado.viaje?.ok, false);
+  assert.match(A.v.estado.viaje!.texto, /lo han apagado/);
+});
+
 test("the light: three masks, the body hidden between the cuts, no lights on tier D, few on Quest", async () => {
   const P = await import("../packages/render/src/teletransporte-politica.ts");
   // leaving: whole at the start, gone at the end; arriving: the reverse

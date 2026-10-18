@@ -1,16 +1,15 @@
 // U10: voice frames go only to who is near (area of interest + 30 m), are rate-capped, and µ-law round-trips.
-// M17 trozo 1: a listener hears at most VOZ_TOPE voices (the nearest speaking now); a stage speaker is heard by everyone.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Instance } from "../packages/instance/src/index.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
 import { setBody } from "../packages/sim/src/index.ts";
 import { fx } from "../packages/core/src/index.ts";
-import { VOZ_MULAW, VOZ_OPUS, VOZ_TOPE, VOZ_TRAMAS_S, VOZ_ESCENARIO, aMulaw, deMulaw, codificarVozSubida, codificarVozBajada, leerVozSubida, leerVozBajada, elegirVoces } from "../packages/net/src/index.ts";
+import { VOZ_MULAW, VOZ_TRAMAS_S, aMulaw, deMulaw, codificarVozSubida, leerVozSubida } from "../packages/net/src/index.ts";
 
-function mundo(n: number, opts: { sinVoz?: boolean | (() => boolean); oye?: (de: number, a: number) => boolean; escenario?: (entity: number) => boolean } = {}) {
-  const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, log: () => {}, sinVoz: opts.sinVoz, oye: opts.oye, escenario: opts.escenario });
-  const pages = Array.from({ length: n }, (_, i) => { const t = inst.join(i); const s = new ClientSession(t); const oido: number[] = []; const tramas: { entidad: number; escenario: boolean; codec: number }[] = []; s.onVoice = (v) => { oido.push(v.entidad); tramas.push({ entidad: v.entidad, escenario: v.escenario, codec: v.codec }); }; return { t, s, oido, tramas }; });
+function mundo(n: number, opts: { sinVoz?: boolean | (() => boolean); oye?: (de: number, a: number) => boolean } = {}) {
+  const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, log: () => {}, sinVoz: opts.sinVoz, oye: opts.oye });
+  const pages = Array.from({ length: n }, (_, i) => { const t = inst.join(i); const s = new ClientSession(t); const oido: number[] = []; s.onVoice = (v) => oido.push(v.entidad); return { t, s, oido }; });
   const pump = (k = 2) => { for (let i = 0; i < k; i++) { for (const p of pages) p.t.flush(); inst.tick(); for (const p of pages) p.t.flush(); } };
   pump();
   return { inst, pages, pump };
@@ -76,64 +75,4 @@ test("F1 voz: `oye(de, a)` is asked per listener and frame: a listener it refuse
   vetado.clear();
   a.s.sendVoice(VOZ_MULAW, new Uint8Array(10)); m.pump();
   assert.deepEqual(b.oido, [a.s.entity], "asked again at the next frame");
-});
-
-test("M17 voz: elegirVoces — the 8 nearest of 12, stage voices always and apart, ties by id, radius and area of interest respected", () => {
-  const h = (id: number, x: number, o: Partial<{ escenario: boolean; visible: boolean }> = {}) => ({ id, x, z: 0, escenario: false, visible: true, ...o });
-  const doce = Array.from({ length: 12 }, (_, i) => h(100 + i, 12 - i)); // id 100 at 12 m … id 111 at 1 m
-  assert.deepEqual(elegirVoces({ x: 0, z: 0 }, doce), [111, 110, 109, 108, 107, 106, 105, 104], "the 8 nearest, nearest first");
-  assert.equal(VOZ_TOPE, 8);
-  const conEscenario = [...doce, h(7, 500, { escenario: true, visible: false })];
-  assert.deepEqual(elegirVoces({ x: 0, z: 0 }, conEscenario), [7, 111, 110, 109, 108, 107, 106, 105, 104], "stage: always, first, not counted");
-  assert.deepEqual(elegirVoces({ x: 0, z: 0 }, [h(7, 5), h(3, 5), h(9, 5)], 1), [3], "same distance: lower id");
-  assert.deepEqual(elegirVoces({ x: 0, z: 0 }, [h(1, 31), h(2, 30), h(3, 4, { visible: false })]), [2], "beyond 30 m or outside the area of interest: not heard");
-  assert.deepEqual(elegirVoces({ x: 0, z: 0 }, []), []);
-  const bajada = leerVozBajada(codificarVozBajada(codificarVozSubida(VOZ_OPUS, 5, new Uint8Array([1, 2]))!, 300, true))!;
-  assert.deepEqual([bajada.codec, bajada.escenario, bajada.entidad, bajada.seq], [VOZ_OPUS, true, 300, 5], "the flag rides in the codec byte and comes off when read");
-  assert.equal(leerVozBajada(codificarVozBajada(codificarVozSubida(VOZ_MULAW, 1, new Uint8Array(3))!, 2))!.escenario, false);
-  assert.equal(VOZ_ESCENARIO, 0x80);
-});
-
-test("M17 voz: one listener, ten speakers at 1…10 m speaking in the same second — exactly the 8 nearest are heard", () => {
-  const { inst, pages, pump } = mundo(11);
-  const [oyente, ...hablantes] = pages;
-  setBody(inst.sim, oyente.s.entity, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0 });
-  hablantes.forEach((h, i) => setBody(inst.sim, h.s.entity, { x: fx(i + 1), y: 0, z: 0, vy: 0, air: 0, buf: 0 }));
-  pump(4);
-  for (const h of hablantes) assert.ok(h.s.sendVoice(VOZ_MULAW, new Uint8Array(10)));
-  pump(1);
-  const cercanos = hablantes.slice(0, VOZ_TOPE).map((h) => h.s.entity).sort((a, b) => a - b);
-  assert.deepEqual([...oyente.oido].sort((a, b) => a - b), cercanos, "nearest first, in arrival order: the two at 9 and 10 m are not relayed");
-  // the far ones first: a frame or two of theirs may slip through before the set settles, then it converges inside the same second
-  oyente.oido.length = 0;
-  for (const h of [...hablantes].reverse()) h.s.sendVoice(VOZ_MULAW, new Uint8Array(10));
-  pump(1);
-  for (const h of [...hablantes].reverse()) h.s.sendVoice(VOZ_MULAW, new Uint8Array(10));
-  pump(1);
-  const veces = new Map<number, number>();
-  for (const e of oyente.oido) veces.set(e, (veces.get(e) ?? 0) + 1);
-  for (const e of cercanos) assert.equal(veces.get(e), 2, `entity ${e} (near) heard both rounds`);
-  for (const h of hablantes.slice(VOZ_TOPE)) assert.ok((veces.get(h.s.entity) ?? 0) <= 1, `entity ${h.s.entity} (far) at most one stray frame`);
-  assert.equal(inst.vozStats.escenario, 0);
-});
-
-test("M17 voz: a speaker on stage is heard 100 m away with escenario=true; a speaker off stage at 100 m is not", () => {
-  let enEscenario = -1;
-  const { inst, pages, pump } = mundo(3, { escenario: (e) => e === enEscenario });
-  const [a, b, c] = pages;
-  setBody(inst.sim, a.s.entity, { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0 });
-  setBody(inst.sim, b.s.entity, { x: fx(100), y: 0, z: 0, vy: 0, air: 0, buf: 0 });
-  setBody(inst.sim, c.s.entity, { x: fx(200), y: 0, z: 0, vy: 0, air: 0, buf: 0 });
-  pump(4);
-  a.s.sendVoice(VOZ_MULAW, new Uint8Array(10)); c.s.sendVoice(VOZ_MULAW, new Uint8Array(10)); pump();
-  assert.deepEqual(b.oido, [], "nobody on stage: 100 m is too far");
-  enEscenario = a.s.entity; // moderation's /escenario, asked per frame: acts at once
-  a.s.sendVoice(VOZ_MULAW, new Uint8Array(10)); c.s.sendVoice(VOZ_MULAW, new Uint8Array(10)); pump();
-  assert.deepEqual(b.tramas, [{ entidad: a.s.entity, escenario: true, codec: VOZ_MULAW }], "the stage voice arrives flagged, with its codec intact");
-  assert.deepEqual(c.oido, [a.s.entity], "200 m away too: the stage reaches everyone");
-  assert.deepEqual(a.oido, [], "the speaker never hears itself");
-  assert.equal(inst.vozStats.escenario, 1);
-  enEscenario = -1;
-  a.s.sendVoice(VOZ_MULAW, new Uint8Array(10)); pump();
-  assert.equal(b.oido.length, 1, "off the stage: back to 30 m");
 });

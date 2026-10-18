@@ -40,7 +40,7 @@ export const teletransporte = defineFeature({
   id: "teletransporte",
   version: 1,
   level: "base",
-  describe: "Ir junto a alguien conectado ahora en este mundo (panel «Gente» o /ir <nombre>) y, si el mundo lo deja, aparecer donde se hizo una foto al abrir su enlace. El servidor decide: mismo mundo, un sitio libre a su lado sin sólidos, como mucho un viaje cada 10 s. Los dueños y quien dirige pueden apagarlo (/teletransporte no); cada persona puede no dejarse encontrar (/encontrable no).",
+  describe: "Ir junto a alguien conectado ahora en este mundo (panel «Gente» o /ir <nombre>), ir a un sitio marcado en el mapa (elegirlo y pulsar «Ir») y, si el mundo lo deja, aparecer donde se hizo una foto al abrir su enlace. El servidor decide: mismo mundo, un sitio libre sin sólidos, como mucho un viaje cada 10 s. Los dueños y quien dirige pueden apagarlo (/teletransporte no); cada persona puede no dejarse encontrar (/encontrable no).",
   state: {
     describe: "Una entrada, «mundo»: si aquí se puede ir junto a otros (activo) y si el mundo deja aparecer en el sitio de una foto (foto: entorno.json `aparicionFoto`, apagado si no lo dice).",
     fields: { activo: { kind: "bool" }, foto: { kind: "bool" } },
@@ -50,6 +50,7 @@ export const teletransporte = defineFeature({
     gente: { describe: "Pedir la lista de quién está conectado ahora en este mundo (llega como «persona», una por mensaje).", spoken: "ver quién está conectado", fields: {}, rate: { perSecond: 0.5, burst: 3 } },
     encontrable: { describe: "Dejarte encontrar (sí) o no: si no, nadie puede ir junto a ti y no sales en su lista.", spoken: "dejarte encontrar o no", fields: { si: { kind: "bool" } }, rate: { perSecond: 1, burst: 3 } },
     foto: { describe: "Aparecer en el sitio de una foto al entrar por su enlace: solo si el mundo lo deja, una vez y en los primeros 30 s.", spoken: "aparecer donde se hizo la foto", fields: { x: XZ, y: Y, z: XZ }, rate: { perSecond: 0.2, burst: 1 } },
+    punto: { describe: "Ir a un sitio marcado en el mapa (su x, z): te lleva la luz y apareces allí, en tu propia altura. Como mucho un viaje cada 10 s.", spoken: "ir a un sitio del mapa", fields: { x: XZ, z: XZ, nombre: NOMBRE }, rate: { perSecond: 0.5, burst: 3 } },
     permitir: { describe: "Encender o apagar el ir junto a otros en este mundo. Solo los dueños, la administración y quien dirige.", spoken: "permitir o no ir junto a otros", fields: { si: { kind: "bool" } }, rate: { perSecond: 1, burst: 3 } },
   },
   events: {

@@ -87,7 +87,7 @@ export function montarMovil(o: Opciones): void {
   const botonDe = (id: string): HTMLElement | null => { const e = porId(id); return e && !e.hidden && !e.hasAttribute("data-oculto") ? e : null; };
   const extras = (): (Entrada & { clic: () => void })[] => {
     const f: (Entrada & { clic: () => void })[] = [];
-    for (const [id, etiqueta, ic] of [["microfono", "Micrófono", "microphone"], ["gente-abrir", "Gente", "users"], ["foto-abrir", "Foto", "camera"], ["construir", "Construir", "crane-tower"], ["pantalla", "Pantalla completa", "desktop"], ["ar", "AR", "eye"], ["vr", "VR", "eye"]] as const) {
+    for (const [id, etiqueta, ic] of [["microfono", "Micrófono", "microphone"], ["gente-abrir", "Gente", "users"], ["inventario-abrir", "Inventario", "copy"], ["foto-abrir", "Foto", "camera"], ["construir", "Construir", "crane-tower"], ["pantalla", "Pantalla completa", "desktop"], ["ar", "AR", "eye"], ["vr", "VR", "eye"]] as const) {
       const b = botonDe(id); if (b) f.push({ id, etiqueta, icono: ic, clic: () => b.click() });
     }
     f.push({ id: "ficha", etiqueta: "Ficha", icono: "user", clic: () => o.mapa.botonFicha.click() });
