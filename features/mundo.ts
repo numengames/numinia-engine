@@ -16,6 +16,8 @@ import { leerAparicion, leerAparicionFoto } from "./entorno/esquema.ts";
 import { crearTeletransporte } from "./teletransporte/server.ts";
 import { crearWeb } from "./web/server.ts";
 import { leerWebMundo } from "./web/feature.ts";
+import { crearContadores } from "./contadores/server.ts";
+import { leerContadores } from "./contadores/feature.ts";
 import type { Aparicion } from "./entorno/esquema.ts";
 
 export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) => unknown, log: (l: string) => void = () => {}): ServerPart[] {
@@ -41,7 +43,12 @@ export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) 
   const crudoWeb = leer("web.json");
   const leidoWeb = crudoWeb === undefined ? null : leerWebMundo(crudoWeb);
   for (const pr of leidoWeb?.problemas ?? []) log(`[mundo] web.json: ${pr.path}: ${pr.message} (esa parte no se usa)`);
-  return partes.map((p) => (p.feature.id === "web" && leidoWeb ? crearWeb(leidoWeb.valor) : p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
+  // contadores.json (numinia-engine/contadores@1, D-044: { contadores: [{ id, nombre, tipo, x, z, segundos | inicio, tope, donde?, evento?, manda? }] }):
+  // the world's timers and counters; none = no counter. Each wrong line is left out with its reason; the rest is used.
+  const crudoContadores = leer("contadores.json");
+  const leidoContadores = crudoContadores === undefined ? null : leerContadores(crudoContadores);
+  for (const pr of leidoContadores?.problemas ?? []) log(`[mundo] contadores.json: ${pr.path}: ${pr.message} (esa línea no se usa)`);
+  return partes.map((p) => (p.feature.id === "contadores" && leidoContadores ? crearContadores({ contadores: leidoContadores.valor }) : p.feature.id === "web" && leidoWeb ? crearWeb(leidoWeb.valor) : p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
 }
 
 /** The world's spawn area (entorno.json `aparicion`), or null: no file, no key, or a wrong one (logged, with its path). */
