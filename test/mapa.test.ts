@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  proyectar, desproyectar, anguloFlecha, yawDePaso, alBorde, rumbo, distancia, enPalabras, lado, duracion,
+  proyectar, desproyectar, anguloFlecha, anguloBorde, yawDePaso, alBorde, rumbo, distancia, enPalabras, lado, duracion,
   crearLimitador, crearRegistro, reunir, contar, cercanos, firma, RUMBOS,
 } from "../packages/client/src/mapa.ts";
 import type { Vista, Marcador } from "../packages/client/src/mapa.ts";
@@ -47,6 +47,13 @@ test("objectives out of the minimap are pinned to its edge", () => {
   assert.deepEqual(alBorde(90, 80, 80, 80, 50), { px: 90, py: 80, fuera: false });
   const b = alBorde(80, -100, 80, 80, 50);
   assert.equal(b.fuera, true); cerca(b.px, 80); cerca(b.py, 30);
+});
+
+test("edge arrow: points at the pin from the map's centre, GPS-style (not a static dot)", () => {
+  cerca(anguloBorde(80, 30, 80, 80), 0);                 // pinned straight up (north): arrow stays up
+  cerca(anguloBorde(130, 80, 80, 80), Math.PI / 2);       // pinned right (east): arrow turns right
+  cerca(anguloBorde(80, 130, 80, 80), Math.PI);           // pinned down (south): arrow flips
+  cerca(anguloBorde(30, 80, 80, 80), -Math.PI / 2);       // pinned left (west): arrow turns left
 });
 
 test("direction words: eight compass points from here to there", () => {
