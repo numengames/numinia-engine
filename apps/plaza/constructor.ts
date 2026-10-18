@@ -9,6 +9,11 @@
 // Behaviour learnt from Hyperfy2's ClientBuilder (GPL: behaviour only, no code: modes on 1-4, Tab, T, Ctrl = free,
 // P), Blender (G / R, X / Y / Z, Shift+D, N, F) and OnCyber's studio (MIT: one undo step per drag; a click is a
 // press that did not move).
+// M22b-1, touch: a finger that lands on a placed thing is the builder's — a tap selects it, dragging moves it over the
+// ground and other things (the finger-thing offset is kept, so the finger never hides it); the camera and the page's
+// joystick never see that finger (the claim happens on `document` in the capture phase). A finger in the empty world
+// is still the camera's (one orbits, two pinch) or the joystick's. On coarse pointers «mover» shows no handles: the
+// thing itself is the handle. Design: ../mmo-browser-study/MODO-CONSTRUCTOR-MOVIL-VR.md.
 import type { Donde, Editor, Eje } from "../../packages/render/src/index.ts";
 import { icono } from "./iconos.ts";
 
@@ -61,6 +66,7 @@ export const AYUDA = [
   "Biblioteca: el modelo sigue al puntero y un clic lo coloca; «Delante de ti» lo coloca sin ratón.",
   "Doble clic en un objeto mientras juegas: abre construir con él seleccionado. Encima del objeto sale una barra con Mover, Girar, Escalar, Duplicar y Borrar.",
   "Imagen, Pantalla de vídeo y Zona de sonido (abajo): suben tu fichero y lo ponen delante de ti. La zona de sonido es una esfera: Escalar cambia su radio.",
+  "Con el dedo: toca un objeto para seleccionarlo y arrástralo para moverlo (sobre el suelo y sobre otros objetos). Un dedo en el vacío mueve la cámara; dos la acercan. Girar y escalar: los botones de encima y «Pasos con botones».",
   "Botones derecho y central del ratón, y la rueda: la cámara (cuando llegue la cámara nueva).",
 ];
 
@@ -204,6 +210,9 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   let puntero: { x: number; y: number } | null = null;
   let ctrl = false, eje: Eje | null = null, local = false, inspectorVisible = true, trasDuplicar = false;
   let abajo: { x: number; y: number; gizmo: boolean } | null = null, arrastrado = false, ultimoRaton = -Infinity;
+  // M22b-1: coarse pointer (a phone) → «mover» has no handles, the thing is the handle. Starts from the media query and
+  // turns on at the first touch (a laptop with a touch screen reports a fine pointer)
+  let tactil = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
   const pasoPos = () => (ctrl ? 0 : Number(selPos.value));
   const pasoGiro = () => (ctrl ? 0 : Number(selGiro.value));
 
@@ -354,13 +363,14 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     if (m !== "coger" && agarre) soltarAgarre(false);
     aplicarGizmo();
     const h = m === "mover" || m === "girar" || m === "escalar" ? m : null;
-    if (abierto()) decir(m === "coger" ? "Coger: haz clic en un objeto y llévalo; otro clic lo suelta." : h ? `${h[0].toUpperCase()}${h.slice(1)}: arrastra una asa (X roja, Y verde, Z azul).` : "Haz clic en un objeto para seleccionarlo.");
+    if (abierto()) decir(m === "coger" ? "Coger: haz clic en un objeto y llévalo; otro clic lo suelta." : h ? (tactil && h === "mover" ? "Mover: arrastra el objeto con el dedo." : `${h[0].toUpperCase()}${h.slice(1)}: arrastra una asa (X roja, Y verde, Z azul).`) : tactil ? "Toca un objeto para seleccionarlo." : "Haz clic en un objeto para seleccionarlo.");
     refrescar();
   }
-  /** The gizmo shows for the tool on the selection — not for a pinned thing (the server would refuse every move). */
+  /** The gizmo shows for the tool on the selection — not for a pinned thing (the server would refuse every move), and
+   * not for «mover» on a touch screen (M22b-1: the finger drags the thing itself; handles are small and the finger hides them). */
   function aplicarGizmo(): void {
     const m = c.estado.modo, o = c.objeto(c.estado.seleccionado);
-    const h = abierto() && !o?.fijado && (m === "mover" || m === "girar" || m === "escalar") ? m : null;
+    const h = abierto() && !o?.fijado && (m === "mover" || m === "girar" || m === "escalar") && !(tactil && m === "mover") ? m : null;
     if (ed.estado().herramienta !== h || (h && !ed.estado().cargado)) void ed.herramienta(h).then(() => programarRefresco());
   }
   function elegirEje(e: Eje | null): void {
@@ -602,6 +612,66 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     if (abierto() && e.pointerType !== "mouse" && (ed.estado().arrastrando || agarre || fantasma)) e.stopPropagation();
   });
 
+  // ---- M22b-1: a finger on a thing — tap = select, drag = move it (the thing is the handle) ----
+  // Claimed on `document` in the capture phase, before the camera (canvas, bubble), TransformControls (canvas) and the
+  // joystick (window) see it. A second finger while carrying is swallowed too (the gestures of M22b-2 will use it).
+  let dedo: { id: number; key: string; x0: number; y0: number; antes: Donde; desfase: { x: number; z: number } | null; movido: boolean } | null = null;
+  document.addEventListener("pointerdown", (e) => {
+    if (!abierto() || e.pointerType === "mouse" || e.target !== lienzo) return;
+    if (dedo) { if (e.pointerId !== dedo.id) e.stopPropagation(); return; }
+    if (!tactil) { tactil = true; aplicarGizmo(); }
+    if (!e.isPrimary || agarre || fantasma) return; // grab mode and the library preview keep today's path (tap = drop)
+    const key = ed.pick(e.clientX, e.clientY), antes = key ? ed.dondeEsta(key) : null;
+    if (!key || !antes) return;
+    e.stopPropagation();
+    dedo = { id: e.pointerId, key, x0: e.clientX, y0: e.clientY, antes, desfase: null, movido: false };
+    try { lienzo.setPointerCapture(e.pointerId); } catch { /* not capturable: window events still arrive */ }
+    cam()?.bloquear?.(true);
+    c.seleccionar(key);
+    ed.despertar();
+  }, { capture: true });
+  addEventListener("pointermove", (e) => {
+    if (!dedo || e.pointerId !== dedo.id) return;
+    e.stopPropagation();
+    if (!dedo.movido) {
+      if (Math.hypot(e.clientX - dedo.x0, e.clientY - dedo.y0) <= CLIC_PX) return;
+      const o = c.objeto(dedo.key);
+      if (!o) return;
+      if (o.fijado) return decir("Está fijado: suéltalo («Fijar / soltar») antes de moverlo.");
+      const p0 = ed.puntoBajo(dedo.x0, dedo.y0, dedo.key); // the ground (or thing) behind the first touch: the drag is measured there
+      if (!p0) return;
+      dedo.desfase = { x: dedo.antes.x - p0.x, z: dedo.antes.z - p0.z };
+      dedo.movido = true;
+      ed.sostener(dedo.key);
+      decir(`Cogido ${nombreDe(o)}: arrástralo y suelta para posarlo.`);
+    }
+    const p = ed.puntoBajo(e.clientX, e.clientY, dedo.key);
+    if (!p || !dedo.desfase) return;
+    const s = pasoPos() || 0.01;
+    ed.poner(dedo.key, { x: redondear(p.x + dedo.desfase.x, s), y: redondear(p.y, 0.01), z: redondear(p.z + dedo.desfase.z, s) });
+    programarEnvio(dedo.key);
+    const d = ed.dondeEsta(dedo.key);
+    if (d) mostrarDonde(d);
+  }, { capture: true });
+  const finDedo = (e: PointerEvent) => {
+    if (!dedo || e.pointerId !== dedo.id) return;
+    e.stopPropagation();
+    const fue = dedo;
+    dedo = null;
+    try { lienzo.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+    cam()?.bloquear?.(false);
+    const o = c.objeto(fue.key);
+    if (fue.movido) {
+      const final = terminarEnvio();
+      ed.sostener(null, final ?? undefined);
+      const d = final ?? ed.dondeEsta(fue.key);
+      decir(d ? `${nombreDe(o ?? { id: fue.key })} posado: x ${fmt(d.x)} y ${fmt(d.y)} z ${fmt(d.z)}.` : "Posado.");
+      refrescar();
+    } else decir(`Seleccionado: ${o ? nombreDe(o) : fue.key}. Arrástralo para moverlo; los botones de encima giran, duplican y borran.`);
+  };
+  addEventListener("pointerup", finDedo, { capture: true });
+  addEventListener("pointercancel", finDedo, { capture: true });
+
   // ---- U10: a bar that floats over the selected thing (like OnCyber's): the tools and «Borrar» where you look ----
   const barra = el("div", { id: "barra-objeto" });
   barra.setAttribute("role", "toolbar"); barra.setAttribute("aria-label", "Acciones del objeto seleccionado");
@@ -666,6 +736,13 @@ function estilo(): void {
 #barra-objeto button[aria-pressed="true"] { background: #ffd27a; }
 #barra-objeto button.peligro { background: #ffb4a8; }
 #barra-objeto button:focus-visible { outline: 3px solid #ffd27a; }
+/* M22b-1: on a touch screen every builder button is a thumb target (Apple HIG: ≥ 44 pt for frequent controls) */
+@media (pointer: coarse) {
+  #barra-objeto { gap: 8px; padding: 6px; }
+  #barra-objeto button, #panel-construir button { min-width: 44px; min-height: 44px; padding: 10px 14px; font-size: 14px; }
+  #panel-construir select, #panel-construir input[type=number], #panel-construir input[type=text] { min-height: 40px; font-size: 14px; }
+  #panel-construir { font-size: 14px; }
+}
 `;
   document.head.appendChild(s);
 }

@@ -960,3 +960,26 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `j4/usar-mantener-pulsado` sobre `tren/motor-2026-10-18-5` (ver `git log`), PR al tren.
 - Siguiente: una pierna de e2e real (Playwright) para los tres casos; dibujar el anillo también en el panel de
   muñeca de VR (J13); decidir si el clic directo sobre la cosa también debería pedir mantener pulsado.
+## 2026-10-18 03:20 · M22b-1 · constructor táctil mínimo: toque selecciona, arrastrar mueve · hecho (rama `constructor/tactil-minimo`)
+- Qué: primera pieza del constructor en el móvil, como EXTENSIÓN del de M22 (mismo `features/objetos/client.ts`,
+  mismo `gizmo.ts`, mismo `programarEnvio`): solo cambia la entrada. En `apps/plaza/constructor.ts` una capa de
+  dedo en `document` (fase de captura): un toque sobre una cosa la selecciona; arrastrarla la mueve por el suelo y
+  por encima de otras cosas conservando el desfase dedo-cosa (`ed.puntoBajo` + `ed.poner` + `ed.sostener`); la
+  cámara se bloquea mientras (`cam.bloquear`) y el joystick no ve ese dedo; en «mover» táctil no se cargan las asas
+  de TransformControls (la cosa es la asa); botones ≥ 44 px con `(pointer: coarse)`. Hallazgo al medir: en un
+  teléfono de 420 px el panel de construir (320) y el de entorno (270) tapaban el mundo ENTERO — no se podía tocar
+  nada. `apps/plaza/tema.css` (que manda con `!important`): hoja inferior ≤ 38 vh para construir y tira arriba a la
+  izquierda para entorno en `(pointer: coarse) and (max-width: 700px)`. Diseño completo de móvil + VR (M22b-1..5,
+  comparativa con cluster World Craft y el ClientBuilder de Hyperfy, puntuaciones):
+  `work/mmo-browser-study/MODO-CONSTRUCTOR-MOVIL-VR.md`. Versión **0.11.0** (menor: entrada nueva, nada roto).
+- Números: 376 pruebas en verde; puertas todas en verde (tick p99 12,3 ms, 26,7 kbit/s). Pierna nueva
+  `tools/e2e-piernas/constructor-tactil.mjs` (chromium, toques reales por CDP, 420×800, dos pestañas): 8 pasos en
+  verde — toque selecciona con la cámara quieta (yaw 0 → 0), arrastre de 150 px mueve el bloque 5,2 m y B lo ve,
+  sin asas, toque en el vacío deselecciona, deshacer devuelve en B, borrar. La pierna de ratón `constructor.mjs`
+  sigue en verde en chromium.
+- Consumo: sin medir · claude-fable-5-1.
+- Commit: rama `constructor/tactil-minimo` sobre origin/main 749e99a.
+- NO probado en un teléfono real (solo la emulación táctil de chromium: `pointer: coarse`, `maxTouchPoints 1`).
+  Defectos conocidos: `#barra-objeto` se sale por la derecha en 420 px; los botones de acción (Saltar, Saludar…) se
+  montan sobre la hoja; el HUD de depuración pisa la tira de entorno; `dblclick` táctil para abrir construir sin
+  probar. Siguiente: M22b-2 (dos dedos giran/escalan, retícula de colocar, hoja en 3 estados), M22b-3 (VR con mando).
