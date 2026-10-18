@@ -329,6 +329,15 @@ export function createManos(h: ManosHooks) {
       }
       return null;
     },
+    /** t_bf8947cf: where that hand's controller points, flattened (world, unit) — «según el mando» locomotion.
+     * null while that side has no controller connected (a tracked hand has no stick to read anyway). */
+    dirMando(lado: Lado): [number, number] | null {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente && !x.esMano);
+      if (!r) return null;
+      Dir.set(0, 0, -1).applyQuaternion(r.ctrl.getWorldQuaternion(Qw));
+      const l = Math.hypot(Dir.x, Dir.z);
+      return l > 0.2 ? [Dir.x / l, Dir.z / l] : null;
+    },
     /** What a hand's buttons say now: trigger (or a tracked hand's pinch, 0/1), grip, and whether it is a tracked hand. */
     entrada(lado: Lado): { gatillo: number; agarre: number; mano: boolean } | null {
       const r = ranuras.find((x) => x.lado === lado && x.fuente);

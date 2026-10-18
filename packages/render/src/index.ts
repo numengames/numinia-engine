@@ -168,6 +168,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     on(fn: (e: EventoMano) => void) { oyentesManos.add(fn); return () => oyentesManos.delete(fn); },
     ancla: (l: "izq" | "der") => manosReal?.ancla(l) ?? null,
     andar: () => manosReal?.andar() ?? null,
+    dirMando: (l: "izq" | "der") => manosReal?.dirMando(l) ?? null,
     vibrar: (l: "izq" | "der", v?: number, ms?: number) => manosReal?.vibrar(l, v, ms),
     entrada: (l: "izq" | "der") => manosReal?.entrada(l) ?? null,
     estado: () => manosReal?.estado() ?? { izq: null, der: null },
