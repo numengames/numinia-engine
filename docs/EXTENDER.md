@@ -305,6 +305,15 @@ cualquier imagen subida). Aquí, a diferencia de los demás formatos, se miden c
 guarda** (un motor más nuevo puede añadir alguno). El nombre va al `<title>` de la página y a `GET /status` (`nombre`,
 `descripcion`, `portada` = `/a/<sha256>.<ext>` si el servidor la tiene). Sin ficha, todo como antes.
 
+**`avatar`** y **`aforo`** (H7, opcionales, dentro de la ficha): `avatar` = el id de un avatar de la casa
+(`activos/avatares/catalogo.json`: `astrodisco`, `skelly`…) que llevan TODOS mientras nadie elige el suyo (H10);
+`aforo` = cuántas personas caben a la vez, entero de 1 a 1000 (`limits.json` `world_people_cap`); el tope real es el
+menor entre ese aforo y la capacidad del motor. Los dos salen en `GET /status` (`avatar`, `aforo`; `aforo` sale siempre,
+sin ficha = la capacidad). Con el mundo lleno, el servidor cierra la conexión con el código **4004** y el motivo
+«lleno <dentro>/<aforo>»; la página lo enseña en el centro (`#mundo-lleno`, `role=alert`) y no reintenta sola. Un valor
+que no cabe deja la ficha entera sin cargar, con su motivo en el log (`[ficha] no se carga: ficha.json.aforo: …`).
+Hoy se editan en el fichero: no hay panel para cambiarlos en marcha.
+
 **`tema`** (opcional, dentro de la ficha): cómo se ve la página de ESTE mundo, para que un evento traiga su aire sin
 tocar el motor. Diez colores «#rrggbb» de los paneles — `fondo`, `superficie`, `elevado` (botones), `texto`, `texto2`,
 `linea`, `foco` (lo que se toca), `accion` (el botón principal; la tinta encima, clara u oscura, la elige el motor),

@@ -13,6 +13,7 @@ import { AGENTE_ID, MARCA_IA } from "../../instance/src/identidad.ts";
 import { clavePublica } from "../../agent/src/llave.ts";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import catalogoAvatares from "../../../activos/avatares/catalogo.json" with { type: "json" };
 
 export const AVENTURA_FICHERO_MAX = 64 * 1024; // bytes per file
 export const AVENTURA_FICHEROS_MAX = 500;      // files per folder
@@ -47,8 +48,16 @@ export const FICHA_DESCRIPCION_MAX = 500;  // characters
  * travels in the zip), named like every other picture of the world (entorno@1 `imagen`): «<sha256>.png|jpg|webp». */
 export const FICHA_PORTADA = /^[0-9a-f]{64}\.(png|jpg|webp)$/;
 
-/** ficha@1. Fields this engine does not know are kept (a newer one may add some); `notas` is for people. */
-export type Ficha = { formato: typeof FICHA; nombre: string; descripcion?: string; portada?: string; [otro: string]: unknown };
+/** H7: the most people a world may ask for in `aforo` (limits.json `world_people_cap`): the engine's own ceiling
+ * (startServer maxPlayers, 1000 measured on the dev PC) still applies on top, so a world never raises it, only lowers it. */
+export const AFORO_MAX = 1000;
+/** H7: the house avatars a world may name as everyone's default (`avatar`): the ids of activos/avatares/catalogo.json. */
+export const AVATARES_CASA: readonly string[] = catalogoAvatares.modelos.map((m) => m.id);
+
+/** ficha@1. Fields this engine does not know are kept (a newer one may add some); `notas` is for people.
+ * H7 adds `avatar` (a house avatar id everyone wears until players choose their own, row H10) and `aforo` (how many may
+ * be inside at once, 1…AFORO_MAX; the next one is refused at the door with a reason). */
+export type Ficha = { formato: typeof FICHA; nombre: string; descripcion?: string; portada?: string; avatar?: string; aforo?: number; [otro: string]: unknown };
 
 const letras = (t: string): number => [...t].length;
 
@@ -61,6 +70,8 @@ export function validarFicha(o: unknown, donde = FICHA_FICHERO): { ok: true; val
   if (typeof f.nombre !== "string" || !f.nombre.trim() || letras(f.nombre) > FICHA_NOMBRE_MAX || /[<>\u0000-\u001f]/.test(f.nombre)) bad("nombre", `texto no vacío de hasta ${FICHA_NOMBRE_MAX} caracteres, sin < > ni saltos de línea`);
   if (f.descripcion !== undefined && (typeof f.descripcion !== "string" || letras(f.descripcion) > FICHA_DESCRIPCION_MAX)) bad("descripcion", `texto de hasta ${FICHA_DESCRIPCION_MAX} caracteres`);
   if (f.portada !== undefined && (typeof f.portada !== "string" || !FICHA_PORTADA.test(f.portada))) bad("portada", "«<sha256>.png|jpg|webp» de una imagen que ya está en el servidor (la biblioteca o datos/activos/, que viaja en el zip)");
+  if (f.avatar !== undefined && (typeof f.avatar !== "string" || !AVATARES_CASA.includes(f.avatar))) bad("avatar", `uno de los avatares de la casa: ${AVATARES_CASA.join(", ")}`);
+  if (f.aforo !== undefined && (typeof f.aforo !== "number" || !Number.isInteger(f.aforo) || f.aforo < 1 || f.aforo > AFORO_MAX)) bad("aforo", `un número entero de 1 a ${AFORO_MAX} (personas a la vez; limits.json world_people_cap)`);
   return issues.length ? { ok: false, issues } : { ok: true, value: { ...f, nombre: (f.nombre as string).trim() } as Ficha };
 }
 

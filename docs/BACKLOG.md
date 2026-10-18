@@ -111,7 +111,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | H5 | Paridad Hyperfy2: sonido del mundo — fuentes en objetos y puntos, grupos música/efectos (su nodo `Audio`) | espera a V6 | sí |
 | H9 | Paridad Hyperfy2: subir ficheros arrastrando — por hash, con tope, solo quien construye | hecho | sí |
 | H9b | Subidas: borrar lo que nadie usa y cupo por identidad | espera a H3 | sí |
-| H7 | Paridad Hyperfy2: ajustes del mundo — título, descripción, imagen, escenario, avatar por defecto, abierto a construir, límite de personas | espera a H3 | sí |
+| H7 | Paridad Hyperfy2: ajustes del mundo — título, descripción, imagen, escenario, avatar por defecto, abierto a construir, límite de personas | hecho (primer corte: fichero `ficha.json` con avatar y aforo, aviso al lleno; falta el panel) | sí |
 | H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | pendiente | sí |
 | H13 | Paridad Hyperfy2: nivel de detalle (LOD) de los modelos, generado en la ingesta | espera a M21 | sí |
 | H11 | Paridad Hyperfy2: importar de Hyperfy — `.hyp` → carpeta de app; un mundo entero → carpeta del mundo | espera a M19 | sí |
@@ -1000,6 +1000,11 @@ en la carpeta del mundo; los cambios llegan a todos al momento. Título, descrip
 `.md` del sitio para los agentes y la vista previa del enlace. Con el límite lleno, quien llega lee un aviso claro
 (con M10, entra en una copia). **Hecho cuando:** e2e: el admin cambia el título y el cielo y la otra pestaña lo
 ve; con límite 1, la segunda pestaña recibe el aviso.
+**Hecho, primer corte (18-10):** `ficha@1` gana `avatar` (id de la casa, lo llevan todos) y `aforo` (1–1000,
+`limits.json` `world_people_cap`, nunca por encima de la capacidad del motor); `GET /status` los publica; el nombre
+sale en la pestaña y en la pantalla de entrada («Conectando a «…»»); lleno = cierre 4004 «lleno n/aforo» y aviso
+centrado con `role=alert`. Abierto a construir ya lo cubre H3 (`/construir`). Falta: panel de administración para
+editarlos en marcha (hoy, el fichero) y el escenario base (M6).
 
 ### H8 — Partículas
 Su nodo `Particles`: forma (punto, esfera, cono, caja), ritmo y ráfagas, vida, velocidad, tamaño, giro, color y
