@@ -3,10 +3,12 @@
 // code, click-to-interact understood as `lucha:<key>`), and a name over it (`view.tag`). Feedback is cheap and all by
 // state: the tint fades towards grey as coherence drops; a blow flashes the block white for 80 ms and shows «−N» in the
 // tag for 700 ms; a dissolved creature is taken out of the scene; a returned one comes back. The page only asks
-// (`golpear`); the server decides. Nothing here touches the simulation.
+// (`golpear`); the server decides. Nothing here touches the simulation. PVP (L8): the `estado` event puts the rung
+// (icon + word, ROTULO) over the struck person through `view.label`, for whoever sees the blow; `reaparece` clears it.
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg, PlacedObject } from "../../packages/feature/src/index.ts";
 import { lucha as decl } from "./feature.ts";
+import type { Estado } from "./estados.ts";
 import biblioteca from "../objetos/biblioteca.json" with { type: "json" };
 
 const BLOQUE = biblioteca.modelos.find((m) => m.id === "bloque")?.modelo ?? "";
@@ -17,6 +19,11 @@ export const COLOR_CRITICO = "#ffd24a";
 export const textoDano = (dano: number, critico: boolean): string => (critico ? `  ¡CRÍTICO! −${dano}` : `  −${dano}`);
 /** Grey the colour fades to as coherence drops (PRI-008: flat colour, no new effect). */
 const GRIS = [0x6e, 0x6e, 0x6e];
+
+/** How long a person's Estado label stays over them (ms) before it fades; each new blow renews it. */
+export const ESTADO_MS = 8000, REAPARECE_MS = 2500;
+/** The icon + word over a person at each rung (same pattern as the creatures' coherence tint: by state, flat text, no new 3D). */
+export const ROTULO: Record<Estado, string> = { ninguno: "", desestabilizado: "≈ Desestabilizado", confundido: "? Confundido", colapsado: "‼ Colapsado", aletargado: "☾ Aletargado" };
 
 export type Criatura = { key: string; nombre: string; especie: string; x: number; y: number; z: number; radio: number; coherencia: number; coherenciaMax: number; modo: string; solido: boolean };
 type Res = { ok: true } | { ok: false; why: string };
@@ -44,6 +51,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
   const oyentes = new Set<() => void>();
   const avisar = () => { for (const fn of oyentes) fn(); };
   let ultimo = "";
+  const estados = new Map<number, Estado>();     // person (entity) → last rung this page heard; forgotten on reaparece
   let carga = 0;                                   // my Carga (0..100), as the server last said
   const luego = (key: string, ms: number, fn: () => void) => { const l = temporizadores.get(key) ?? []; l.push(setTimeout(fn, ms)); temporizadores.set(key, l); };
   const limpiar = (key: string) => { for (const t of temporizadores.get(key) ?? []) clearTimeout(t); temporizadores.delete(key); };
@@ -57,6 +65,8 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
   const lucha = {
     /** The creatures this page knows (state entries within the area of interest), dissolved ones included. */
     criaturas: (): Criatura[] => (A ? A.state.keys().map((k) => ({ key: k, ...(A!.state.get(k) as Msg) }) as Criatura) : []),
+    /** The Estado of a person (`p:<entity>`'s number) as this page last heard it: ninguno when it heard nothing. */
+    estadoDe: (entidad: number): Estado => estados.get(entidad) ?? "ninguno",
     /** The last line worth showing (a rejection). */
     aviso: () => ultimo,
     golpear: (objetivo?: string): Res => {
@@ -107,8 +117,22 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     });
     a.on("critico", (m) => { espia?.("critico", m); });
     a.on("aire", (m) => { espia?.("aire", m); });
-    a.on("estado", (m) => { espia?.("estado", m); });
-    a.on("reaparece", (m) => { espia?.("reaparece", m); });
+    a.on("estado", (m) => {
+      espia?.("estado", m);
+      const e = Number(String(m.objetivo).slice(2)), est = m.estado as Estado;
+      if (!Number.isInteger(e) || !(est in ROTULO)) return;
+      estados.set(e, est);
+      if (ROTULO[est]) a.view.label(e, ROTULO[est], ESTADO_MS);   // over the target, for whoever aims at them (and for them)
+      avisar();
+    });
+    a.on("reaparece", (m) => {
+      espia?.("reaparece", m);
+      const e = Number(String(m.objetivo).slice(2));
+      if (!Number.isInteger(e)) return;
+      estados.delete(e);
+      a.view.label(e, "Reaparece", REAPARECE_MS);
+      avisar();
+    });
     a.on("disuelta", (m) => { espia?.("disuelta", m); limpiar(String(m.objetivo)); });
     a.on("vuelve", (m) => { espia?.("vuelve", m); });
     a.on("rechazado", (m) => { espia?.("rechazado", m); ultimo = String(m.motivo); avisar(); });
