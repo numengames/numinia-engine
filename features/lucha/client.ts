@@ -94,6 +94,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     a.on("carga", (m) => { espia?.("carga", m); carga = Number(m.valor); avisar(); });
     a.on("habilidad", (m) => { espia?.("habilidad", m); });
     a.on("aire", (m) => { espia?.("aire", m); });
+    a.on("estado", (m) => { espia?.("estado", m); });
     a.on("disuelta", (m) => { espia?.("disuelta", m); limpiar(String(m.objetivo)); });
     a.on("vuelve", (m) => { espia?.("vuelve", m); });
     a.on("rechazado", (m) => { espia?.("rechazado", m); ultimo = String(m.motivo); avisar(); });
