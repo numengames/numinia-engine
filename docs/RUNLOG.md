@@ -6,6 +6,18 @@ b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 15-10 están en hora de Madrid
 (CEST, UTC+2); desde la de las 10:08, en UTC.
 
+## 2026-10-18 14:52 · h2-ordenes h1 · hecho
+- Qué: H2 historia 1 (sim: orden tipada). `ORDER_STRIDE` pasa de 4 a 6: una orden es `[entidad, tipo, a, b, c, d]`;
+  `ORDER_PONER` (1) es lo de D-045 (#53) con un byte de tipo delante, mismo efecto (sitio fijo, vy 0, salto limpio).
+  `Instance.volverASeguro` emite `ORDER_PONER`; `api.teletransportar`/`volverASeguro` no cambian su contrato. Base
+  para QUIETO/EMPUJAR/SENTAR/VOLAR (h2-h2..h2-h4).
+- Números: `test/ordenes.test.ts` nuevo (3 pruebas); `test/suelo.test.ts` sigue verde con el formato nuevo; huella
+  de referencia (sim 3) sigue en `0x7e630965` sin órdenes. `npm test`: mismos 23 fallos preexistentes (falta el
+  paquete `ws`, no instalado en este worktree) antes y después del cambio; nada roto por esta historia.
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `h2-ordenes/ola3`, PR contra `tren/motor-2026-10-18-5`.
+- Siguiente: h2 historia 2 (sim: QUIETO).
+
 ## 2026-10-14 23:40 · arranque · hecho
 - Qué: PP0 (arquitectura) y PP1 (esqueleto que anda) hechos; PP2 parte 1 (mil en una plaza) hecha;
   módulo de multitud escrito sin probar; montados los raíles del turno desatendido (`tools/auto.sh`,
@@ -794,6 +806,23 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Choques arreglados en un commit aparte: «Nombres» pasa al menú «…» en móvil; los avisos no tapan la barra ni el minimapa; el engranaje de Mínimo con perfil táctil forzado.
 - Versión **0.9.0 → 0.10.0** (menor): ajustes y piezas nuevos, nada se rompe. Las ramas traían 0.6.2–0.6.5 y 0.8.0; rebasada sobre `main` 0.9.0 (#49, #50, #60), una sola subida (`docs/VERSIONES.md`).
 - Consumo: sin medir · Sonnet 5.5.
+## 2026-10-18 14:48 · mover-girar (D-043 historias 1-2) · hecho (rama `mover-girar/ola3`, para `tren/motor-2026-10-18-5`)
+- Qué: pieza nueva `features/movedores` — mover y girar objetos del mundo con duración, igual para todos (D-043):
+  una plataforma o un ascensor que va y viene solo (`vaiven`: pose A → B → A…, con una pausa `espera` en cada punta)
+  y una puerta corredera que espera hasta que alguien cercano la activa (`interruptor`: la orden `activa`, el mismo
+  alcance que el «E: usar» de una puerta). El servidor lleva el reloj de cada ride (interpolación lineal pura,
+  `poseDe`/`lerpPose`) y publica la postura 5 veces por segundo mientras se mueve (no 20), solo a quien está en su
+  zona; al llegar a un lado emite `llegada` con el nombre de evento del fichero para que otra pieza (el cable) lo
+  use más adelante. Un mundo trae sus movedores en `entorno/movedores.json` (`numinia-engine/movedores@1`,
+  `leerMovedores`, cada línea mala fuera con su motivo). La página solo dibuja el modelo donde dice el servidor
+  (`view.place`), nunca decide la postura.
+- Números: `test/movedores.test.ts` (6 pruebas: declaración, pose pura, fichero, `conMundo`, vaiven de punta a
+  punta, interruptor con alcance e ignorando una orden a mitad de camino); `npm run gates` en verde (631 pruebas,
+  capas, determinismo `f455ffc1`, ancho de banda 26,6 kbit/s, plaza de 1.000 p99 8,4 ms, tamaño 452,4 kB).
+- Consumo: sin medir · Sonnet 5 (obrero ola 3).
+- Siguiente: cable (D-041) todavía no tiene un receptor `mueve` para disparar un movedor desde un botón o una zona
+  (lo deja para la historia del cable, que toca `ACCIONES` en `features/disparadores/feature.ts`); medir el coste
+  real de publicar varios movedores a la vez bajo carga (PUBLICA_CADA_TICKS=4 es una estimación, no una medida).
 ## 2026-10-18 14:57 · contadores-h3 · hecho
 - Qué: D-044 historia 3. `features/contadores` gana `state.persist: true` (S4): el valor y si está en marcha
   sobreviven a un reinicio (al arrancar lee lo guardado antes de usar `inicio` del fichero). Contador
@@ -821,3 +850,16 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
   esta rama por falta del paquete `three` en este entorno — nada tocado por esta historia.
 - Consumo: sin medir · Sonnet 5.
 - Siguiente: cable historias 5-6 (botón/zona con fases, etiqueta en móvil) quedan para otro obrero.
+## 2026-10-18 · cable-h5-6 · hecho (rama `cable-h5-6/ola3`)
+- Qué: cable (D-041), historias 5-6. Vista del constructor: `apps/plaza/cable.ts` añade al panel de construir una
+  lista de solo lectura de los disparadores del mundo (nombre, tipo, en espera/agotado/listo, usos) con un botón
+  «Probar» para disparar un botón sin acercarse (para comprobar el cableado). Editar los receptores sigue siendo
+  editar `disparadores.json` antes de arrancar: el servidor no lo reescribe en marcha y la página no recibe los
+  receptores (no son un secreto, solo no viajan todavía); la duda de si merece la pena un editor en vivo queda en
+  `PREGUNTAS-cable-h5-6.md` para Pablo. E2E de extremo a extremo: `tools/e2e-piernas/cable.mjs`, mundo propio
+  (8798/5180) con un botón que muestra una «Farola» oculta — pulsar, ver el cambio en dos pestañas, el cooldown
+  rechazando un segundo disparo y «Probar» desde el panel disparándolo de nuevo tras esperar.
+- Números: `npm test` 625/625 en verde; `npm run build` verde; e2e (`node tools/e2e-piernas/cable.mjs`) OK.
+- Consumo: sin medir · Sonnet 5 (obrero ola 3).
+- Siguiente: si Pablo quiere editar el cableado en vivo (no solo verlo), hace falta mandar los receptores al
+  cliente constructor y un camino para reescribir `disparadores.json` con la instancia corriendo.

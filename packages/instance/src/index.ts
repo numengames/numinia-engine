@@ -1,7 +1,7 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER } from "../../sim/src/index.ts";
 import type { SimState, SpawnArea } from "../../sim/src/index.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
@@ -13,7 +13,7 @@ import type { Who } from "./identidad.ts";
 export type { Who } from "./identidad.ts";
 import type { Transport, Viewer, Welcome } from "../../net/src/index.ts";
 import { ServerRuntime } from "../../feature/src/index.ts";
-import type { BienFirmable, FeatureStorage, ReciboLeido, ServerPart } from "../../feature/src/index.ts";
+import type { BienFirmable, FeatureStorage, ReciboLeido, ServerPart, RayHit } from "../../feature/src/index.ts";
 
 export type InstanceOptions = {
   seed: number; capacity: number; k: number; snapshotEvery: number;
@@ -64,6 +64,8 @@ export type Vuelta = { entity: number; x: number; y: number; z: number; motivo: 
 
 /** Inputs wait in a queue; the server applies exactly ONE per tick (none = that avatar does not advance: J2). */
 export const MAX_QUEUE = 8;
+/** M6 h12: a ray starts this high over the feet — between standing (BODY_HEIGHT 1.7 m) and a stooped look. */
+const EYE_HEIGHT = fx(1.6);
 
 type Conn = {
   entity: number; transport: Transport; viewer: Viewer;
@@ -106,13 +108,14 @@ export class Instance {
       teletransportar: (e, cerca, o) => this.teletransportar(e, cerca, o),
       volverASeguro: (e) => this.volverASeguro(e, "pedido"),
       vueltas: () => this.vueltas.splice(0),
+      rayo: (e, dir, max) => this.rayo(e, dir, max),
     });
     this.seguro = new Int32Array(opts.capacity * 3); this.tieneSeguro = new Uint8Array(opts.capacity);
   }
 
   // ---- D-045: the last safe spot of each avatar, the orders waiting for the next step, the returns made ----
   private readonly seguro: Int32Array; private readonly tieneSeguro: Uint8Array;
-  private ordenes: number[] = []; // [entity, x, y, z] Q16.16, applied by the next step (recorded: part of the replay)
+  private ordenes: number[] = []; // [entity, tipo, a, b, c, d] Q16.16, applied by the next step (recorded: part of the replay)
   private readonly pendiente = new Set<number>();
   private readonly vueltas: Vuelta[] = [];
   private avisado = false;
@@ -140,7 +143,7 @@ export class Instance {
     if (!this.byEntity[entity] || !s.world.alive[entity] || !s.tf.has[entity] || this.pendiente.has(entity)) return false;
     const d = this.destinoSeguro(entity);
     if (!d) { if (!this.avisado) { this.avisado = true; this.opts.log?.("[suelo] no hay sitio seguro al que volver (ni última posición ni «vuelta» en entorno.json)"); } return false; }
-    this.ordenes.push(entity, d.x, d.y, d.z); this.pendiente.add(entity);
+    this.ordenes.push(entity, ORDER_PONER, d.x, d.y, d.z, 0); this.pendiente.add(entity);
     this.vueltas.push({ entity, x: fxToFloat(d.x), y: fxToFloat(d.y), z: fxToFloat(d.z), motivo });
     return true;
   }
@@ -290,6 +293,21 @@ export class Instance {
 
   /** I1: the guest behind a connected entity (null for bots and before the page showed its token). */
   who(entity: number): Who | null { return this.byEntity[entity]?.who ?? null; }
+
+  /** M6 h12: a ray from this player's eyes (EYE_HEIGHT_M over its feet) in direction `dir`, against the world's
+   * collision mesh (`sim.mesh`, set by M6's server wiring; none yet = always null — darts and fishing get a clean
+   * "nothing there" until a world has a `malla` thing). `dir` need not be unit length; a zero vector is a miss. */
+  rayo(entity: number, dir: { x: number; y: number; z: number }, max: number): RayHit | null {
+    const s = this.sim;
+    if (!this.byEntity[entity] || !s.world.alive[entity] || !s.tf.has[entity] || !s.mesh) return null;
+    const len = Math.hypot(dir.x, dir.y, dir.z);
+    if (!(len > 0) || !(max > 0)) return null;
+    const ox = s.tf.cols.x[entity], oy = s.tf.cols.y[entity] + EYE_HEIGHT, oz = s.tf.cols.z[entity];
+    const dx = fx(dir.x / len), dy = fx(dir.y / len), dz = fx(dir.z / len);
+    const hit = rayBvh(s.mesh, ox, oy, oz, dx, dy, dz, fx(max));
+    if (!hit) return null;
+    return { x: fxToFloat(hit.x), y: fxToFloat(hit.y), z: fxToFloat(hit.z), nx: fxToFloat(hit.nx), ny: fxToFloat(hit.ny), nz: fxToFloat(hit.nz), distancia: fxToFloat(hit.t) };
+  }
 
   private solidsVersion = -1;
   /** U10: who hears a voice frame — players that have the speaker in their area of interest and within VOZ_RADIO_M.

@@ -75,6 +75,8 @@ export const NEAR_RADIUS_M = 32;          // default reach of an event sent { ne
 export const QUEUE_PER_PLAYER = 32;       // intents waiting for the next tick, per player
 export const STATE_KEY_BYTES = 64;
 export const RESERVED_PATHS = ["/health", "/metrics", "/ws"];
+export const RAYO_RATE: Rate = { perSecond: 4, burst: 8 }; // M6 h12: same cap as an intent (DISENO-M6 §4.1)
+export const RAYO_MAX_M = 50;             // M6 h12: how far a ray reaches when a feature does not say
 const TICK_HZ = 20;                        // same as sim; repeated to keep this package below sim
 
 const ID = /^[a-z][a-z0-9-]{1,31}$/, NAME = /^[a-z][a-zA-Z0-9]{0,31}$/;
@@ -256,7 +258,13 @@ export type ServerHost = {
   teletransportar?(entity: number, cerca: { x: number; y: number; z: number }, o?: Teletransporte): { x: number; y: number; z: number } | null; // N16: the instance moves an avatar to a free spot; none = null
   volverASeguro?(entity: number): boolean;                      // D-045: the instance orders an avatar back to its last safe spot (next step, recorded); none = false
   vueltas?(): Vuelta[];                                         // D-045: the returns the instance made since the last call (drained); none = []
+  /** M6 h12: a ray from this player's eyes (its position plus eye height) in direction `dir` (need not be unit length),
+   * up to `max` metres, against the world's collision mesh (M6: no mesh set yet = always null). The runtime itself
+   * rate-limits calls (RAYO_RATE): the host need not count them. */
+  rayo?(entity: number, dir: { x: number; y: number; z: number }, max: number): RayHit | null;
 };
+/** M6 h12: where a ray stopped — metres, and the unit normal of the surface it hit, facing the ray. */
+export type RayHit = { x: number; y: number; z: number; nx: number; ny: number; nz: number; distancia: number };
 /** D-045: a return the instance made: who, where to (metres) and why (caida = fell under the world's floor, pedido = asked). */
 export type Vuelta = { entity: number; x: number; y: number; z: number; motivo: "caida" | "pedido" };
 /** N16: how the instance looks for a free spot (rings in metres, 0 = the point; heading 0-7 from +z; most metres down). */
@@ -340,6 +348,11 @@ export type ServerApi = {
   volverASeguro(entity: number): boolean;
   /** D-045: the instance put someone back on a safe spot (after a fall, or because a feature asked): say it to the page. */
   onVuelta(fn: (v: Vuelta) => void): void;
+  /** M6 h12: a ray from this player's eyes in direction `dir` (need not be unit length), up to `max` metres (default
+   * RAYO_MAX_M), against the world's collision mesh — the house's eyes for a thing that reaches out: darts, fishing,
+   * a teleport beam, construir's own picker. Rate-limited per player (RAYO_RATE: 4/s, burst 8); over budget returns
+   * null, same as a miss. Returns null when nothing is hit, the player is gone, or the world has no mesh yet. */
+  rayo(entity: number, dir: { x: number; y: number; z: number }, max?: number): RayHit | null;
 };
 export type ServerPart = { feature: Feature; side: "server"; setup: (api: ServerApi) => void };
 export const serverPart = (feature: Feature, setup: (api: ServerApi) => void): ServerPart => ({ feature, side: "server", setup });
@@ -397,6 +410,7 @@ export class ServerRuntime {
   private queue: { from: number; entry: Entry; msg: Msg }[] = [];
   private readonly waiting = new Map<number, number>();
   private readonly buckets = new Map<number, Map<number, { tokens: number; tick: number }>>();
+  private readonly rayoBuckets = new Map<number, { tokens: number; tick: number }>(); // M6 h12
   private readonly failed = new Set<string>();
   private readonly listeners = new Map<string, { feature: string; fn: (msg: Msg) => boolean | void }[]>(); // J3: "feature.event" -> server-side listeners
   private depth = 0;
@@ -433,6 +447,18 @@ export class ServerRuntime {
     if (!c) return [];
     const r2 = (scope.radius ?? NEAR_RADIUS_M) ** 2;
     return all.filter((e) => { if (except?.includes(e)) return false; const p = this.host.position(e); return !!p && (p.x - c.x) ** 2 + (p.z - c.z) ** 2 <= r2; });
+  }
+
+  /** M6 h12: api.rayo, rate-limited per player (a token bucket like an intent's, but shared across every feature:
+   * one player asking through two functions still spends from the same budget). Over budget: null, like a miss. */
+  private rayo(entity: number, dir: { x: number; y: number; z: number }, max = RAYO_MAX_M): RayHit | null {
+    const now = this.host.tick();
+    let b = this.rayoBuckets.get(entity);
+    if (!b) this.rayoBuckets.set(entity, (b = { tokens: RAYO_RATE.burst, tick: now }));
+    b.tokens = Math.min(RAYO_RATE.burst, b.tokens + ((now - b.tick) * RAYO_RATE.perSecond) / TICK_HZ); b.tick = now;
+    if (b.tokens < 1) return null;
+    b.tokens -= 1;
+    try { return this.host.rayo?.(entity, dir, max) ?? null; } catch (e) { this.fail("rayo", "en api.rayo", e); return null; }
   }
 
   private api(f: Feature): ServerApi {
@@ -547,6 +573,7 @@ export class ServerRuntime {
       verificarRecibo: (token) => { try { return this.host.verificarRecibo?.(token) ?? { ok: false, motivo: "este mundo no comprueba recibos" }; } catch { return { ok: false, motivo: "no se pudo comprobar" }; } },
       emisor: () => this.host.emisor?.() ?? "",
       teletransportar: (e, cerca, o) => { try { return this.host.teletransportar?.(e, cerca, o) ?? null; } catch (x) { log(`teletransportar: ${String((x as Error)?.message ?? x)}`); return null; } },
+      rayo: (e, dir, max) => this.rayo(e, dir, max),
       puede: (e, accion) => { try { return this.host.puede?.(e, accion) ?? false; } catch { return false; } },
       activo: (sha256, ext = "glb") => { try { return /^[0-9a-f]{64}$/.test(sha256) && (this.host.activo?.(sha256, ext) ?? false); } catch { return false; } },
       medidas: (sha256, ext) => { try { return /^[0-9a-f]{64}$/.test(sha256) ? this.host.medidas?.(sha256, ext) ?? null : null; } catch { return null; } },
@@ -614,7 +641,7 @@ export class ServerRuntime {
 
   leave(entity: number): void {
     for (const [id, fn] of this.hooks.leave) { try { fn(entity); } catch (e) { this.fail(id, "en onLeave", e); } }
-    this.buckets.delete(entity); this.waiting.delete(entity); this.known.delete(entity);
+    this.buckets.delete(entity); this.waiting.delete(entity); this.known.delete(entity); this.rayoBuckets.delete(entity);
   }
 
   /** A FEATURE message from a player. Returns false if it is malformed (the caller counts it). */

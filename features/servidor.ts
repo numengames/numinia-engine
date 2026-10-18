@@ -23,5 +23,6 @@ import suelo from "./suelo/server.ts"; // D-045: back to the last safe spot afte
 import contadores from "./contadores/server.ts"; // D-044: timers and counters everyone sees (the server keeps the clock, publishes once a second to the zone)
 import disparadores from "./disparadores/server.ts"; // D-041: the cable — zone and button triggers a world wires in disparadores.json; one server-only `accion` per receiver
 import cerradura from "./cerradura/server.ts"; // D-042: a lock that opens with a code (keypad, HTML too) or a key; the server decides
-const funciones: ServerPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores, cerradura];
+import movedores from "./movedores/server.ts"; // D-043: things the server moves and rotates with a duration, same for everyone (platform, sliding door, lift)
+const funciones: ServerPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores, cerradura, movedores];
 export default funciones;

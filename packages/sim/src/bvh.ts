@@ -112,9 +112,61 @@ export function bvhFingerprint(b: Bvh): number {
   return fnv1a(new Uint8Array(b.idx.buffer, b.idx.byteOffset, b.idx.byteLength), h);
 }
 
+/** Triangle's own AABB (Q16.16 metres), from its three vertices (1/64 m ints). */
+export function triAabb(b: Bvh, tri: number): { x0: number; y0: number; z0: number; x1: number; y1: number; z1: number } {
+  const q = tri * TRI_STRIDE, tris = b.tris;
+  let x0 = tris[q], x1 = tris[q], y0 = tris[q + 1], y1 = tris[q + 1], z0 = tris[q + 2], z1 = tris[q + 2];
+  for (let v = 1; v < 3; v++) {
+    const vx = tris[q + v * 3], vy = tris[q + v * 3 + 1], vz = tris[q + v * 3 + 2];
+    if (vx < x0) x0 = vx; if (vx > x1) x1 = vx;
+    if (vy < y0) y0 = vy; if (vy > y1) y1 = vy;
+    if (vz < z0) z0 = vz; if (vz > z1) z1 = vz;
+  }
+  return { x0: x0 * BVH_UNIT, y0: y0 * BVH_UNIT, z0: z0 * BVH_UNIT, x1: x1 * BVH_UNIT, y1: y1 * BVH_UNIT, z1: z1 * BVH_UNIT };
+}
+
+/** Triangle's unit normal (Q16.16), always facing up (ny >= 0: a vertical wall keeps ny = 0 either way). Used to
+ * decide floor/ramp vs wall (M6 h6: a triangle steeper than MAX_SLOPE_COS is a wall, whichever way it winds). */
+export function triNormal(b: Bvh, tri: number): { nx: number; ny: number; nz: number } {
+  const q = tri * TRI_STRIDE, tris = b.tris;
+  const e1x = tris[q + 3] - tris[q], e1y = tris[q + 4] - tris[q + 1], e1z = tris[q + 5] - tris[q + 2];
+  const e2x = tris[q + 6] - tris[q], e2y = tris[q + 7] - tris[q + 1], e2z = tris[q + 8] - tris[q + 2];
+  let nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+  if (ny < 0) { nx = -nx; ny = -ny; nz = -nz; }
+  const len = isqrt(nx * nx + ny * ny + nz * nz) || 1;
+  return { nx: Math.trunc((nx * FX_ONE) / len) | 0, ny: Math.trunc((ny * FX_ONE) / len) | 0, nz: Math.trunc((nz * FX_ONE) / len) | 0 };
+}
+
+const BOX_STACK = new Int32Array(2 * BVH_MAX_DEPTH + 4);
+/** Triangles (indices) whose own AABB overlaps the box [x0,y0,z0]-[x1,y1,z1] (Q16.16 metres). Exact per triangle,
+ * not just the node's box: a candidate node is only a hint. M6 h5: the body-vs-mesh query (box-triangle). */
+export function boxBvh(b: Bvh, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): number[] {
+  const out: number[] = [];
+  if (b.count === 0) return out;
+  const nodes = b.nodes, idx = b.idx;
+  let sp = 0;
+  BOX_STACK[sp++] = 0;
+  while (sp > 0) {
+    const node = BOX_STACK[--sp], o = node * NODE_STRIDE;
+    const bx0 = (nodes[o] - 1) * BVH_UNIT, by0 = (nodes[o + 1] - 1) * BVH_UNIT, bz0 = (nodes[o + 2] - 1) * BVH_UNIT;
+    const bx1 = (nodes[o + 3] + 1) * BVH_UNIT, by1 = (nodes[o + 4] + 1) * BVH_UNIT, bz1 = (nodes[o + 5] + 1) * BVH_UNIT;
+    if (x1 <= bx0 || x0 >= bx1 || y1 <= by0 || y0 >= by1 || z1 <= bz0 || z0 >= bz1) continue;
+    const n = nodes[o + 7];
+    if (n === 0) { BOX_STACK[sp++] = nodes[o + 6]; BOX_STACK[sp++] = node + 1; continue; }
+    const first = nodes[o + 6];
+    for (let k = 0; k < n; k++) {
+      const tri = idx[first + k];
+      const t = triAabb(b, tri);
+      if (x1 <= t.x0 || x0 >= t.x1 || y1 <= t.y0 || y0 >= t.y1 || z1 <= t.z0 || z0 >= t.z1) continue;
+      out.push(tri);
+    }
+  }
+  return out;
+}
+
 /** Integer square root (floor) of an exact integer n < 2^53. Math.sqrt is correctly rounded by IEEE 754, so the seed
  * is the same everywhere; the two loops make it the exact floor anyway. */
-function isqrt(n: number): number {
+export function isqrt(n: number): number {
   if (n <= 0) return 0;
   let x = Math.floor(Math.sqrt(n));
   while (x * x > n) x--;
