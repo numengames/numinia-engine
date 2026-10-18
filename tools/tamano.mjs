@@ -27,7 +27,7 @@ export const gz = (buf) => gzipSync(buf, { level: constants.Z_BEST_COMPRESSION }
 export function medirArranque(distDir = dist) {
   const html = readFileSync(join(distDir, "index.html"), "utf8");
   const refs = [];
-  for (const m of html.matchAll(/<(script|link)\b([^>]*)>/g)) {
+  for (const m of html.matchAll(/<(script|link)\b([^>]*)>/gi)) {
     const attrs = m[2];
     const src = /\b(?:src|href)="([^"]+)"/.exec(attrs)?.[1];
     if (!src) continue;
