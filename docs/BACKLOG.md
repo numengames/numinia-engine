@@ -189,6 +189,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | I2 | Vincular el móvil con el ordenador o el visor (el ordenador enseña un QR, el móvil lo escanea) | necesita aprobación (Pablo, 15-10: de momento no) | no |
 | V2 | Con Pablo, 15 min con las gafas: ¿funcionan `speechSynthesis`, el reconocimiento de voz, «menos movimiento» y la vibración dentro de una sesión inmersiva (Quest 3, Pico 4) y en iPhone? | pendiente | no |
 | W1 | La plaza de entrada: primer mundo, al presupuesto de la Quest, con un portal a un mundo Hyperfy | necesita aprobación (Pablo: qué mundo lo estrena) | no |
+| AR-D1 | Duelo de dardos, servidor: dos jugadores (uno en el mundo, otro en su pared por AR) juegan la misma partida; `duelo`/`remoto`/`rondas` en `dardos.json`, eventos `duelo` y `finduelo` (dardos v2) | hecho (rama `ar/duelo-servidor`, sin PR) | no |
 | O5 | ADR y SYS del motor en la Summa (numinia.org) | necesita aprobación (Pablo) | no |
 
 **Punto de parada «accesible» (como los PP de `CONSTRUIR.md`):** con V1, V3, V4, V5, V6 y V7 hechas, una

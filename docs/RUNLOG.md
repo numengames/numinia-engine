@@ -1,7 +1,19 @@
 # Diario de turnos
 
 Una entrada por turno (desatendido o con Pablo), la más nueva abajo. En español, para personas.
-Formato: `## AAAA-MM-DD HH:MM · <ID> · <estado>` y cinco líneas: Qué, Números, Consumo (semana a % →
+Formato: `## 2026-10-18 17:31 · AR-D1 · hecho
+- Qué: duelo de dardos, parte del servidor (dardos v2). `dardos.json` acepta `duelo`, `remoto` y `rondas` (1-5, por
+  defecto 3); `jugar` admite `desde: "pared"` (solo en dianas `remoto`); el primero que juega espera, el segundo
+  empieza la partida, los turnos alternan (3 dardos), `lanzar` fuera de turno se rechaza, gana el total más alto
+  (o `empate`), y salir/desconectar/60 s sin tirar da la victoria al otro (`abandono`). Eventos nuevos `duelo` y
+  `finduelo`; `dardo` y `fin` llegan también a los dos jugadores sea cual sea la distancia. Una diana sin los
+  campos nuevos no cambia. Sin `duelos`/`ganados` en el marcador (rompería el evento fijado por la prueba v1).
+- Números: `test/dardos-duelo.test.ts` nuevo (8 pruebas) y `test/dardos.test.ts` (10) sin tocar, en verde.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `ar/duelo-servidor` sobre origin/main 91f73a5. Sin push ni PR.
+- Siguiente: historia de la página (controlador y vista del duelo, AR sin estar cerca) y lanzar en VR (otra sesión).
+
+## AAAA-MM-DD HH:MM · <ID> · <estado>` y cinco líneas: Qué, Números, Consumo (semana a % →
 b %, de `hermes usage`, y el modelo), Commit, Siguiente.
 Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 15-10 están en hora de Madrid
 (CEST, UTC+2); desde la de las 10:08, en UTC.

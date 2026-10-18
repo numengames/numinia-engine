@@ -746,7 +746,7 @@ Al acabar una aventura, un cofre puede dar un **objeto** que es del jugador: el 
 - **e2e**: `node tools/e2e-piernas/bienes.mjs` (arranca su propio servidor y página en 8796/5178 con una copia del mundo
   de ejemplo que confía en un «Mundo Vecino»; PC y móvil 390×844 táctil; `SHOTS=<carpeta>` guarda fotos).
 
-## Dardos (v1): una diana en la plaza, en tu móvil y en tu pared (AR)
+## Dardos (v1, con duelo en v2): una diana en la plaza, en tu móvil y en tu pared (AR)
 
 `features/dardos` es un minijuego que decide el servidor: una diana es una cosa del mundo (igual que un sitio de
 pesca), una tirada son tres dardos, y en cada dardo **el jugador elige adónde apunta y con qué fuerza lanza; el
@@ -806,8 +806,53 @@ servidor decide dónde se clava**. Los mismos verbos en el PC, en el móvil y en
 - **Límites de hoy**: `announce.sound` es fijo por evento (un 50 no suena distinto: haría falta un selector por
   campo en el motor). En AR la vista HTML de tiro no se ve en un visor (el marcador vive en la página: el
   `dom-overlay` de la sesión es `#hud`); la barra 3D sí. Después: diana de pared en el editor del mundo, partidas
-  a 301/501 y «alrededor del reloj», duelos por turnos entre dos jugadores, dardos lanzados con el gesto real del
+  a 301/501 y «alrededor del reloj», dardos lanzados con el gesto real del
   mando (velocidad de la mano en VR).
+
+### Duelo (v2): dos personas, una en el mundo y otra en su pared (AR)
+
+Una diana con `duelo: true` admite un segundo jugador y juega una **partida**; con `remoto: true`, un jugador
+puede entrar desde una pared real, lejos de la diana (casa, móvil o Quest), mientras el otro está en el mundo.
+El servidor lo decide todo; cada uno ve los dardos del otro y el marcador. Una diana **sin** esos campos se
+comporta exactamente como en v1. Es una pieza del motor: cualquier mundo la activa con una línea.
+
+```json
+{ "sitios": [{ "id": "torre", "nombre": "Diana de la Torre", "x": 10, "y": 0, "z": 4, "radio": 3,
+               "duelo": true, "remoto": true, "rondas": 3 }] }
+```
+
+- **Campos de la diana** (`dardos.json`, todos opcionales): `duelo` (bool), `remoto` (bool), `rondas` (entero
+  1-5, por defecto 3 = `RONDAS_DEFECTO`; cada ronda tira cada jugador sus 3 dardos). El estado compartido de la
+  diana suma `duelo`, `remoto`, `rondas`, `espera` (hay alguien esperando rival) y `jugadores` (0-2), para que
+  cualquier página muestre «esperando rival».
+- **Verbo.** `jugar{sitio, desde?}`: `desde` es `"sitio"` (por defecto: hay que estar en el radio, como en v1) o
+  `"pared"` (salta la comprobación de distancia, **solo** en una diana `remoto`; en otra se rechaza con «no admite
+  jugar desde una pared»). Los clientes que no mandan `desde` no notan nada.
+- **Partida.** El primer `jugar` es el anfitrión y la diana queda en `espera`; el segundo `jugar` de otra
+  persona empieza la partida (la diana pasa a `ocupado`); un tercero recibe «Ya hay un duelo en marcha». Los turnos
+  alternan anfitrión, invitado, anfitrión… (un turno = 3 dardos, mismo código y puntuación que v1). `lanzar`
+  fuera de turno → `rechazado` «No es tu turno»; mientras se espera rival → «Espera a tu rival». Tras `rondas`
+  rondas gana el total más alto; igual = empate. Un `lanzar` en una diana de duelo sin estar en la partida se
+  rechaza (hay que hacer `jugar`).
+- **Abandono.** Si uno hace `salir`, se desconecta o pasa `TURNO_INACTIVO_S` (60 s) sin lanzar en su turno,
+  la partida termina y gana el otro por defecto (`abandono`). Un anfitrión que espera solo 60 s se cancela como
+  una tirada suelta (`fin` con 0 dardos). En un duelo no se comprueba que sigas dentro del radio después de entrar.
+- **Eventos nuevos.** `duelo{sitio, ronda, turnoDe, a, nombreA, puntosA, b, nombreB, puntosB}` cada vez que
+  cambia el turno o cae un dardo (`ronda` 0 = esperando rival; `a` = anfitrión, `b` = invitado; los campos son
+  planos porque el esquema no tiene listas) y `finduelo{sitio, ganador, empate, abandono, a, nombreA, puntosA, b,
+  nombreB, puntosB, texto}` (con `empate` el `ganador` va a 0: la entidad 0 también existe, mira `empate`).
+  Van a los dos jugadores **sea cual sea la distancia** y a quien esté a `CERCA_M` de la diana; alguien lejos que
+  no juega no recibe nada. `dardo` llega además a los dos jugadores (la pared está a cientos de metros) y `fin`
+  (fin de turno) también a los dos en cada turno. Los nombres salen de `api.who`, sin caracteres de control y
+  con tope de 40 bytes, y viajan solo en campos `text`.
+- **Trampas.** Sigue sin `Math.random` (`azarDe` con tick, entidad, número de dardo y diana); el servidor es el
+  único juez; límites de ritmo sin cambios. Un cliente que manda `desde: "pared"` a una diana normal solo gana un rechazo.
+- **Pruebas**: `test/dardos-duelo.test.ts` (diana v1 intacta, espera/entrada/tercero, pared solo en `remoto`,
+  fuera de turno, dardos a 500 m, partida de 3 rondas igual en dos mundos, empate, abandono por salir/desconexión/
+  inactividad, huella de la simulación).
+- **Aún no**: contadores `duelos`/`ganados` en el marcador por invitado (cambiaría el evento `marcador` que
+  fija `test/dardos.test.ts`), la vista de la página (controlador y AR para el duelo: siguiente historia) y
+  lanzar con el gesto real en VR.
 
 ## Dados (v1): los tira el servidor y todos ven lo mismo
 
