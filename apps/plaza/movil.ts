@@ -21,6 +21,8 @@ type Opciones = {
   mapa: { abrir(): void; cerrar(): void; abierto(): boolean; botonFicha: HTMLElement };
   misiones: { dialogo(): unknown; alCambiar(fn: (q: string) => void): unknown };
   pesca: { estado: unknown };
+  /** U22: «Nombres» lives in «…» on a phone (a tap shows every name for a few seconds). */
+  nombres?: { unRato(): void };
   /** A phone profile forced on a desktop reports no notch or home bar: draw the zones a phone would have. */
   simulada: boolean;
   /** Report a chat line (who, what). Returns false when nothing receives it yet. */
@@ -89,6 +91,7 @@ export function montarMovil(o: Opciones): void {
       const b = botonDe(id); if (b) f.push({ id, etiqueta, icono: ic, clic: () => b.click() });
     }
     f.push({ id: "ficha", etiqueta: "Ficha", icono: "user", clic: () => o.mapa.botonFicha.click() });
+    if (o.nombres) f.push({ id: "nombres", etiqueta: "Nombres", icono: "users", clic: () => o.nombres!.unRato() });
     return f;
   };
   const cerrarMenu = () => { menu.hidden = true; ampliado = false; mas.setAttribute("aria-expanded", "false"); clearTimeout(tMenu); };

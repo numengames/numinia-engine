@@ -231,10 +231,9 @@ html[data-densidad-nivel="normal"] [data-densidad="completo"] { display: none !i
 html[data-densidad-nivel="minimo"] [data-solo]:not([data-solo~="minimo"]), html[data-densidad-nivel="normal"] [data-solo]:not([data-solo~="normal"]),
 html[data-densidad-nivel="completo"] [data-solo]:not([data-solo~="completo"]) { display: none !important; }
 /* a touch screen has no key O: in Mínimo the bar keeps only the gear, so the dial can always be turned back */
-@media (pointer: coarse) {
-  html[data-densidad-nivel="minimo"] #barra-arriba[data-densidad] { display: flex !important; }
-  html[data-densidad-nivel="minimo"] #barra-arriba > :not(#ajustes-abrir) { display: none !important; }
-}
+/* U25: touch = html.tactil (a forced profile too), not the media query */
+html.tactil[data-densidad-nivel="minimo"] #barra-arriba[data-densidad] { display: flex !important; }
+html.tactil[data-densidad-nivel="minimo"] #barra-arriba > :not(#ajustes-abrir) { display: none !important; }
 /* al_cambiar: the chat's lines show with each new line and fade after 6 s in Normal (Mínimo: folded to the pill; Completo: fixed,
    a taller list). «Menos movimiento»: nothing fades, it stays fixed. The open box (Enter) or the pointer over it keeps it shown. */
 html[data-densidad-nivel="normal"] #chat-lista { max-height: calc(4 * 1.45em); } /* four lines (the box adds its own padding); wide screens: the 440×150 box below */
@@ -278,3 +277,12 @@ html[data-densidad-nivel="normal"]:not(.menos-movimiento) #chat:has(#chat-form:n
 #avisos-pila p.saliendo { opacity: 0; }
 html[data-densidad-nivel="minimo"] #avisos-pila p:not(:last-child), html[data-densidad-nivel="normal"] #avisos-pila p:not(:last-child) { display: none; }
 @media (max-width: 899px) { #avisos-pila { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); width: min(440px, calc(100vw - 120px)); } #reloj { display: none; } } /* phones: their own story (D2) */
+/* U3 × U20 under 900 px on a desktop-class screen (the marcos sheet is off there): the notices leave the top bar's corner,
+   and the «E: …» prompt rides over the chat box instead of under it */
+@media (max-width: 899px) {
+  html:not([data-aparato^="movil"]) #avisos-pila { left: 10px; transform: none; width: min(440px, calc(100vw - 274px)); }
+  html:not([data-aparato^="movil"])[data-densidad-nivel="normal"] #interactuar { bottom: 180px; }
+  html:not([data-aparato^="movil"])[data-densidad-nivel="completo"] #interactuar { bottom: 220px; }
+}
+/* U24 × U3: on a phone layout the notices sit under the «Ahora» line's row (top left holds it, top right the gear and the map) */
+html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 12px)); top: calc(var(--st, 0px) + 8px + 52px + 6px); transform: none; width: min(300px, calc(100vw - var(--sl, 0px) - var(--sr, 0px) - 2 * var(--m, 12px))); }
