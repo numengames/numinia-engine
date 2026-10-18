@@ -50,6 +50,7 @@ import type { DianaAR } from "./dardos.ts";
 import { detalleAgua } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
 import { fundirAnimado } from "./fundir.ts";
+import { crearQuietos } from "./fundir-quietos.ts";
 import type { Fundido } from "./fundir.ts";
 import type { Parte } from "./lotes.ts";
 import { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
@@ -427,6 +428,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   }
   // N15: a model that animates is fused ONCE per file (fundir.ts): one skinned mesh per look sharing one skeleton, so
   // each copy costs 1-3 draw calls instead of one per piece (the house robot: 19 -> 1). Looks and moves the same.
+  const quietoDe = crearQuietos(); // E2: one without clips, one mesh per look (fundir-quietos.ts)
   const fundidos = new Map<string, Fundido | null>();
   function fundido(model: string, g: Gltf, clone: Tools["clone"]): Fundido | null {
     if (fundidos.has(model)) return fundidos.get(model)!;
@@ -526,6 +528,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         const quieto = !now.want.animate ? hornear(model, g.scene, merge) : null;
         let copy: THREE.Object3D;
         const fu = !quieto && now.want.animate ? fundido(model, g, clone) : null;
+        const qu = !quieto && !fu ? quietoDe(model, g.scene, g.animations) : null;
         if (quieto) {
           // J14: a thing painted a custom colour keeps its baked parts (pintar() cannot tint a merged,
           // vertex-coloured piece); anything else gets both LODs and starts at whichever distance picks.
@@ -533,8 +536,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
           now.piezaCerca = quieto; now.piezaLejos = pieza ?? undefined;
           now.lod = pieza ? decidirLOD(selfXZ ? Math.sqrt(distance2(now)) : 0, undefined) : "cerca";
           copy = representacion(now.lod === "lejos" && pieza ? [pieza] : quieto);
-        } else copy = clone(fu ? fu.escena : g.scene);
-        now.horneado = !!quieto; now.partes = quieto ?? partesEnteras(model, g) ?? undefined;
+        } else copy = clone(fu ? fu.escena : qu ? qu.escena : g.scene);
+        now.horneado = !!quieto; now.partes = quieto ?? qu?.partes ?? partesEnteras(model, g) ?? undefined;
         now.radio = radioDe(copy) * (now.want.animate ? 1.5 : 1); // an animation may reach out of its rest pose
         now.group.add(copy);
         if (now.want.animate && g.animations.length) { now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction((fu ? fu.clips : g.animations)[0]).play(); }

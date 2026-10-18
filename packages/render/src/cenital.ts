@@ -53,6 +53,7 @@ export function crearCenital(renderer: THREE.WebGPURenderer, scene: THREE.Scene,
     let c: string | null = null;
     o.traverse((ch) => {
       const m = (ch as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+      if (!c && typeof ch.userData.colorMapa === "string") c = ch.userData.colorMapa; // E2: a fused model's colours live in its vertices
       if (!c && m && !Array.isArray(m) && m.color && !m.map) c = `#${m.color.getHexString()}`;
     });
     return c ?? COSA;
