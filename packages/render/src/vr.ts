@@ -10,7 +10,13 @@ import * as THREE from "three/webgpu";
 import type { Panel } from "./manos.ts";
 import { empujaFuera } from "./vr-paredes.ts";
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
-export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void; andar?(): [number, number] | null };
+export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void; andar?(): [number, number] | null;
+  /** t_bf8947cf: where a controller points, flattened (world, unit); null without that controller. */
+  dirMando?(lado: "izq" | "der"): [number, number] | null };
+/** t_bf8947cf (MVL1): how the left stick's push becomes a world direction — settings menu, remembered.
+ * mirada: forward is where the head looks (as shipped). mando: forward is where the left controller points.
+ * cuerpo: forward is the rig's own facing (only snap turns move it) — looking around does not redirect it. */
+export type ModoMovimientoVR = "mirada" | "mando" | "cuerpo";
 
 export const SNAP_DEG = 30;
 export const DEADZONE = 0.2;
@@ -259,6 +265,7 @@ export function createVR(h: VRHooks) {
   let state: VRState = "off";
   let session: any = null;
   let comfort = 0.8; // 0 = off, 1 = strongest
+  let modoMovimiento: ModoMovimientoVR = "mirada"; // t_bf8947cf: settings menu, remembered by the registry
   let moveX = 0, moveZ = 0, turnLatched = false, yawSteps = 0, strength = 0, navLatched = false;
   let ultimoFotograma = 0; // performance.now() of the last update(): axes() goes stale after INTENCION_CADUCA_MS
   // J2: A (right) or X (left) = jump, like Hyperfy2's A; a press waits here until the page's next tick takes it
@@ -364,8 +371,13 @@ export function createVR(h: VRHooks) {
       }
     }
     xrCam.getWorldDirection(dir);
-    const len = Math.hypot(dir.x, dir.z) || 1;
-    const fx = dir.x / len, fz = dir.z / len;
+    // t_bf8947cf (MVL1): forward comes from the mode the player chose — head gaze (as shipped), the
+    // left controller's own pointing direction, or the rig's own facing (unaffected by head turns).
+    let fx: number, fz: number;
+    const dirMando = modoMovimiento === "mando" ? h.manos?.dirMando?.("izq") : null;
+    if (dirMando) { [fx, fz] = dirMando; }
+    else if (modoMovimiento === "cuerpo") { rig.getWorldDirection(dir); fx = dir.x; fz = dir.z; }
+    else { const len = Math.hypot(dir.x, dir.z) || 1; fx = dir.x / len; fz = dir.z / len; }
     moveX = fx * -ly + -fz * lx;
     moveZ = fz * -ly + fx * lx;
     const conMano = visible && !lx && !ly ? h.manos?.andar?.() : null; // tracked hands: pinch and hold in the air = walk where that hand points
@@ -398,6 +410,8 @@ export function createVR(h: VRHooks) {
     takeJump(): boolean { const j = jumpWanted; jumpWanted = false; return j; },
     get comfort() { return comfort; },
     set comfort(v: number) { comfort = Math.max(0, Math.min(1, v)); },
+    get modoMovimiento() { return modoMovimiento; },
+    set modoMovimiento(v: ModoMovimientoVR) { modoMovimiento = v === "mando" || v === "cuerpo" ? v : "mirada"; },
     get yawDegrees() { return yawSteps * SNAP_DEG; },
     get vignetteOpacity() { return strength; },
     /** What the panel shows now: the quest or the controls (Y goes quest → controls → hidden). */
