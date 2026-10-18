@@ -90,6 +90,71 @@ casi nunca (76–96 %): un empeoramiento del p99 se confirma con el enjambre, no
 Ejemplo real: dos pasadas iguales → todo «igual», salida 0; 1.100 personas frente a 1.000 (`--forzar`) → tick con envío +11 %,
 ciclo +11,3 %, «EMPEORA», salida 1. Para medir la base de un commit antiguo con este banco: copia este `bench.ts` a su árbol.
 
+## El banco con las piezas puestas (`bench --escena piezas`, C3)
+
+**Por qué.** La escena de siempre es una plaza plana y vacía: mide el corazón del motor (simulación, área de interés y fotos)
+y nada más. Un mundo de verdad tiene sólidos, una malla de colisión (M6), cable, temporizadores, objetos, movedores y
+cerraduras, y además todas las funciones de la casa. `--escena piezas` carga ese mundo, siempre igual, y lo mide con el
+**mismo método** `bench@2` (rondas, calentamiento fuera, tick con y sin envío, ciclo, p99 de todas las rondas juntas). La escena
+de siempre sigue por defecto y no cambia: misma huella (`e1fe4763` con 1.000 personas en `0ea08ce`).
+
+`node packages/server/src/bench.ts --escena piezas [--sin solidos,malla,cable,contadores,objetos,movedores,cerradura]`
+
+**El mundo** (`packages/server/src/bench-piezas.ts`, todo determinista): las 1.000 personas de siempre; **todas** las funciones
+de la casa (`features/servidor.ts` pasadas por `conMundo`, como el servidor); 200 cajas sólidas; una malla de terreno de
+80 × 80 m y 7.200 triángulos que construye la `construirMalla` real del servidor a partir de un .glb generado; 20 zonas del
+cable (que mueven un movedor, muestran u ocultan un objeto o suenan); 10 contadores (6 cuentas atrás y 2 relojes en marcha,
+2 marcadores); 300 objetos (las 200 cajas, el terreno y 99 de decorado); 12 movedores (10 de vaivén, 2 que mueve el cable);
+5 cerraduras. Objetos, contadores en marcha y cerraduras llegan como lo guardado (S4) de un mundo que se reinicia.
+
+**Qué añade a la salida** (además de todo lo de `bench@2`, con `escena: "piezas"` y su propia `huella`):
+
+| Campo | Qué es |
+|---|---|
+| `costePorTickMs` | ms por tick de cada pieza (media de los ticks medidos, mediana de las rondas): cable, contadores, objetos, movedores, cerradura, «otras de la casa», «motor» (lo que queda del tick: simulación con cajas y malla, lista de sólidos, fotos) y «entre ticks» |
+| `porFuncion` | lo mismo por cada función de la casa, por su id, con mediana, mínimo, máximo y dispersión de las rondas |
+| `metricas.entreTicks*`, `poblaciones.entreTicks` | lo que el hilo del servidor gasta **entre dos ticks**: ahí se rehace la malla (una promesa, fuera del tick) |
+| `cambiosDeEstadoPorSegundo`, `mallaPedidaPorSegundo` | cuántas veces cambia el estado compartido (cada cambio rehace la lista de sólidos en el tick siguiente) y cuántas se pide rehacer la malla |
+
+**Cómo se reparte el coste por pieza.** Cada gancho que registra una función (`on`, `onTick`, `onJoin`, `onLeave`,
+`onIdentify`, `listen`, `onVuelta`) lleva un cronómetro de tiempo **exclusivo**: si el cable oye a un contador dentro del
+gancho del contador, ese rato se le cuenta al cable y no dos veces. Lo que no pasa por un gancho (la simulación pisando cajas
+y malla) no tiene cronómetro propio: se saca **por diferencia** con `--sin`. Los cronómetros de B2 (`fasesTickMs`, `piezas.<id>`
+de `/metrics`) no estaban aún en el tren; cuando entren, esta escena puede leerlos en vez de los suyos.
+
+**Comprobado** (Ryzen 9 7950X, Node 24.21, `0ea08ce` = tren `motor-2026-10-18-5`, 18-10-2026 16:34–16:36 UTC, carga 1,5–5,1;
+1.000 personas, 5 rondas × 400 ticks medidos; **sin** el candado `.medir.lock`: lo tuvo cogido más de 25 min un proceso que no
+medía y la máquina estaba en calma):
+
+| Escena | ciclo p50 (100 ms de juego) | tick con envío p50 | tick sin envío p50 | entre ticks p50 | margen del ciclo | huella |
+|---|---|---|---|---|---|---|
+| plaza (por defecto), dos pasadas | 7,65 · 7,51 ms | 7,44 · 7,28 ms | 0,20 · 0,22 ms | — | ×13,1 · ×13,3 | `e1fe4763` |
+| **piezas**, dos pasadas | **19,89 · 20,07 ms** | 13,81 · 13,94 ms | 6,04 · 6,07 ms | 1,12 · 1,14 ms | ×5,0 · ×5,0 | `f58d19cb` |
+| piezas `--sin malla` | 15,85 ms | 11,62 ms | 4,27 ms | 0,01 ms | ×6,3 | `929cd9d0` |
+| piezas `--sin solidos` | 18,75 ms | 13,26 ms | 5,33 ms | 1,20 ms | ×5,3 | `4b9b5029` |
+| piezas `--sin solidos,malla` | 14,28 ms | 10,84 ms | 3,42 ms | 0,01 ms | ×7,0 | `637d1054` |
+
+Dispersión entre rondas del 1,5–3,8 % en todas; p99 de verdad del tick con envío 17,2 ms con piezas (8,5 ms en la plaza).
+
+**La cifra:** con las piezas puestas, el ciclo cuesta **2,6 veces** lo de la plaza (≈ 20 ms frente a ≈ 7,6 ms por cada 100 ms de
+juego) y el margen baja de ×13 a ×5. El tick sin envío, que en la plaza casi no cuesta (0,2 ms), pasa a 6 ms: con piezas ya no
+hay tick barato. De dónde salen los ~12,4 ms de más por ciclo (dos ticks):
+
+| Pieza | ms por ciclo | Cómo se sabe |
+|---|---|---|
+| malla de 7.200 triángulos (simulación pisándola) | ≈ 4,1 | diferencia con `--sin malla`; además ≈ 2,2 ms por ciclo **entre ticks** rehaciéndola |
+| cable (20 zonas × 1.000 personas cada tick) | ≈ 3,1 | cronómetro (1,57 ms por tick) |
+| otras de la casa (casi todo `chat`: ≈ 1,1 ms por tick con 1.000) | ≈ 2,2 | cronómetro; también está en cualquier mundo real y la plaza no lo veía |
+| 200 cajas sólidas | ≈ 1,3 | diferencia con `--sin solidos` |
+| movedores (12) | ≈ 0,6 | cronómetro |
+| contadores (10), objetos (300), cerraduras (5) | ≈ 0,1 · < 0,02 · 0 | cronómetro: sin gancho por tick, solo cuando alguien hace algo |
+| el resto (fotos con el estado de las funciones, lista de sólidos al cambiar el mundo) | ≈ 1 | lo que no cuadra con lo anterior |
+
+Dos cosas que solo se ven con esta escena: el estado compartido cambia **~71 veces por segundo** (contadores una vez por
+segundo, movedores cinco, cable al entrar en una zona) y la instancia pide rehacer la malla entera **~16 veces por segundo**
+(en cuanto cambia cualquier cosa, aunque no sea un objeto con malla), ≈ 1,1 ms de hilo por tick fuera del tick. Arreglarlo
+(rehacer la malla solo cuando cambia un objeto `malla`) es otra historia; esta solo lo mide.
+
 ## Sesiones reales: cómo entra cada jugador (T1)
 
 Cada página cuenta al servidor con qué entró (aparato, navegador, gráfica, XR, tiempos hasta jugar) y, cada
