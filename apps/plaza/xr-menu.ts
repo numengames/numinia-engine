@@ -26,6 +26,8 @@ export function montarMenuVR(o: {
   n: () => N;
   /** This world's city (null = none: the watch does not draw that button). */
   ciudadUrl: string | null;
+  /** The line under your name, as «Tú» writes it on the computer (avatar · world · how long). */
+  linea: () => string;
   /** The full-body portrait of your avatar (/retratos/<id>-cuerpo.webp) or null (the menu draws the silhouette). */
   retrato: () => string | null;
   /** Whether you may build here (constructor.estado.puede). */
@@ -74,7 +76,7 @@ export function montarMenuVR(o: {
     try { const s = n.misiones?.resumen?.(); if (s && Array.isArray(s.insignias)) ins = s.insignias.map(String); } catch { /* no quests */ }
     const who = n.session?.who as { id: string } | null | undefined;
     return {
-      tipo: "tu", nombre: o.nombre(), linea: who ? `Invitado ${who.id.slice(0, 6)}… · en VR` : "Esperando al servidor…", chip,
+      tipo: "tu", nombre: o.nombre(), linea: who ? o.linea() || "En VR" : "Esperando al servidor…", chip,
       reserva: r ? resumenTexto(r) : null, carga: c && c.max > 0 ? { valor: c.valor, max: c.max } : null,
       insignias: ins.map((nombre) => ({ nombre, conseguida: true })), retrato: o.retrato(),
     } as Contenido;

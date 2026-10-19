@@ -38,7 +38,7 @@ import { estadoCamara, filasDeAyuda } from "./menu-logica.ts";
 import { crearSonidos, ponerSonidos, RUTA_TABLA, sonidos } from "../../packages/render/src/audio/sonidos.ts"; // S6: the house catalogue (its table comes from /sonidos.json; the files are served by their sha256)
 import { montarMapa } from "./mapa.ts";
 import { montarFicha } from "./ficha.ts";
-import { avatarQueLlevas } from "./tu-logica.ts"; // «Tú»: which house avatar you wear, for its portrait
+import { avatarQueLlevas, lineaDeTu } from "./tu-logica.ts"; // «Tú»: which house avatar you wear, for its portrait
 import { montarObjetivo } from "./objetivo.ts";
 import { montarCombate, fuentesDeLucha } from "./combate.ts";
 import { montarInventario, resumenTexto } from "./inventario.ts"; // Y1: the Inventario panel (L)
@@ -596,7 +596,9 @@ const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById(
   const n = (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia;
   const menuVR = montarMenuVR({ vr: view.vr, n: () => n, ciudadUrl: ciudad.url, puedeConstruir: () => constructor.estado.puede,
     nombre: () => session.who?.nombre ?? "Invitado",
-    retrato: () => { const id = idAvatarDe(avatarUI?.eleccion("yo"), estado?.avatar); return id ? `/retratos/${id}-cuerpo.webp` : null; } });
+    // the same line «Tú» shows on the computer (avatar · world · how long), never the guest's raw id
+    linea: () => lineaDeTu({ avatar: miAvatar()?.nombre, mundo: nombreDelMundo, ms: informe.bienvenidaMs > 0 ? performance.now() - informe.bienvenidaMs : 0 }),
+    retrato: () => { const id = miAvatar()?.id ?? idAvatarDe(avatarUI?.eleccion("yo"), estado?.avatar); return id ? `/retratos/${id}-cuerpo.webp` : null; } });
   Object.assign(n, { menuVR });
 }
 
