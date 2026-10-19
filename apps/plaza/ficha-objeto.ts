@@ -31,3 +31,43 @@ export function enlaceDeObjeto(loc: { origin: string; pathname: string; search: 
   const s: Sitio = { x: Number(o.x), y: Number(o.y) + alto / 2, z: Number(o.z), yaw: 0, pitch: -0.3, dist: Math.min(30, Math.max(4, Math.max(alto, Math.abs(Number(o.sx) || 1)) * 3)) };
   return enlaceSitio(loc, s);
 }
+
+// C4: the card's tabs (the maqueta's «Ficha» · «Lógica» · «Ajustes»). «Ficha» is C3's facts; «Lógica» says what wires touch the object (read from the state the cable, the locks and the
+// counters already keep: no new network path); «Ajustes» edits what the inspector edits (through the same builder verbs).
+export const PESTANAS = [["ficha", "Ficha"], ["logica", "Lógica"], ["ajustes", "Ajustes"]] as const;
+export type Pestana = (typeof PESTANAS)[number][0];
+
+/** Arrow keys move between tabs (wrapping); Home and End jump to the ends. Returns the tab to select, or null for any other key. */
+export function pestanaConTecla(actual: Pestana, tecla: string): Pestana | null {
+  const ids = PESTANAS.map(([id]) => id), i = ids.indexOf(actual);
+  if (tecla === "ArrowRight") return ids[(i + 1) % ids.length];
+  if (tecla === "ArrowLeft") return ids[(i + ids.length - 1) % ids.length];
+  if (tecla === "Home") return ids[0];
+  if (tecla === "End") return ids[ids.length - 1];
+  return null;
+}
+
+type Receptor = Record<string, unknown>;
+export type PiezasMundo = {
+  disparadores: { id: string; nombre: string; tipo: string; x: number; z: number; receptores: Receptor[] }[];
+  cerraduras: { nombre: string; metodo: string; abierta: boolean; x: number; z: number }[];
+  contadores: { nombre: string; tipo: string; valor: number; x: number; z: number }[];
+};
+const VERBO: Record<string, string> = { muestra: "muestra", oculta: "oculta", teletransporta: "teletransporta", da_paso: "da un paso de misión", abre_enlace: "abre un enlace", suena: "suena", vuelve_a_seguro: "vuelve a un sitio seguro", mueve: "mueve" };
+const verbo = (r: Receptor) => `${VERBO[String(r.accion)] ?? String(r.accion)}${r.objeto ? ` «${String(r.objeto)}»` : ""}`;
+const AQUI_M = 1.5; // a trigger, lock or counter «at» an object stands within this many metres of it (on the ground plan)
+const cerca = (o: Obj, p: { x: number; z: number }) => num(o.x) && num(o.z) && Math.hypot(Number(o.x) - p.x, Number(o.z) - p.z) <= AQUI_M;
+
+/** The wires of one object, as lines of text: «Entran» (a trigger whose «muestra»/«oculta» receivers name this object, by id or by name), «Salen»
+ * (a trigger standing at the object, with what it does) and «Piezas» (locks and counters at the same spot). Pure. */
+export function logicaDeObjeto(o: Obj, w: PiezasMundo): { entran: string[]; salen: string[]; piezas: string[] } {
+  const nombre = String(o.nombre ?? "");
+  const apunta = (r: Receptor) => (r.accion === "muestra" || r.accion === "oculta") && r.objeto !== undefined && r.objeto !== "" && (r.objeto === o.id || (nombre !== "" && r.objeto === nombre));
+  const entran = w.disparadores.flatMap((d) => d.receptores.filter(apunta).map((r) => `«${d.nombre}» (${d.tipo}) ${verbo(r)}`));
+  const salen = w.disparadores.filter((d) => cerca(o, d)).map((d) => `«${d.nombre}» (${d.tipo}) → ${d.receptores.length ? d.receptores.map(verbo).join(", ") : "sin receptores"}`);
+  const piezas = [
+    ...w.cerraduras.filter((k) => cerca(o, k)).map((k) => `Cerradura «${k.nombre}» (${k.metodo === "codigo" ? "con código" : "con llave"}): ${k.abierta ? "abierta" : "cerrada"}`),
+    ...w.contadores.filter((k) => cerca(o, k)).map((k) => `Contador «${k.nombre}» (${k.tipo.replace("_", " ")}): ${dec(k.valor)}`),
+  ];
+  return { entran, salen, piezas };
+}

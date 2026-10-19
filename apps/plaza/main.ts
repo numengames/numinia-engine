@@ -176,7 +176,8 @@ if (esTactil()) {
 
 // ---- H1 + M22: the builder, for whoever may build (the server says so on entering): panel, gizmo, grab ----
 const constructorUI = montarConstructor(constructor, view, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!,
-  { volver: () => mapa.volver(), puedeVolver: () => mapa.puedeVolver() }); // C3: the object card; `mapa` is built below, it is only read later
+  { volver: () => mapa.volver(), puedeVolver: () => mapa.puedeVolver(),
+    mundo: () => ({ disparadores: disparadores.lista(), cerraduras: cerraduras.cerraduras(), contadores: contadores.lista() }), abrirCable: () => cable.mostrar() }); // C3, C4: : the object card; `mapa` is built below, it is only read later
 // ---- M22b-3: the same builder, picked and moved with a VR controller's ray instead of a mouse ----
 const constructorVR = montarConstructorVR(constructor, view);
 // ---- H9: drop your own .glb on the world (or «Subir modelo…» in the panel): uploaded by sha256, placed for everyone ----

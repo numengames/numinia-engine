@@ -100,11 +100,59 @@ async function pierna(engine) {
     paso("el gizmo se dibuja", conGizmo.calls > sinGizmo.calls, { llamadasSin: sinGizmo.calls, llamadasCon: conGizmo.calls });
     // C3: open + selected → the card is there: title, only icon buttons, each with title + aria-label + a tip, reachable by Tab
     const ficha = await a.evaluate(() => {
-      const f = document.getElementById("ficha-objeto"), bs = [...f.querySelectorAll("button")];
+      const f = document.getElementById("ficha-objeto"), bs = [...f.querySelectorAll("[role=toolbar] button")];
       return { visible: !f.hidden, titulo: f.querySelector("h3").textContent, n: bs.length, sinTexto: bs.every((b) => b.textContent.trim() === "" && b.querySelector("svg")),
         completos: bs.every((b) => b.title && b.getAttribute("aria-label") === b.title && b.dataset.tip === b.title), tab: bs.every((b) => b.tabIndex >= 0 && !b.disabled), fijar: bs.some((b) => /^Anclar/.test(b.title)) };
     });
     paso("ficha visible con constructor abierto y objeto elegido", ficha.visible && ficha.titulo !== "" && ficha.n >= 8 && ficha.sinTexto && ficha.completos && ficha.tab && ficha.fijar, ficha);
+    // C4: the card has tabs (Ficha · Lógica · Ajustes): tablist/tab/tabpanel with aria-selected, ←/→ move between them
+    const estadoTabs = () => a.evaluate(() => {
+      const f = document.getElementById("ficha-objeto"), lista = f.querySelector("[role=tablist]"), ts = [...f.querySelectorAll("[role=tab]")];
+      return { lista: !!lista, n: ts.length, nombres: ts.map((t) => t.textContent.trim()), sel: ts.filter((t) => t.getAttribute("aria-selected") === "true").map((t) => t.dataset.pestana),
+        paneles: ts.map((t) => { const p = document.getElementById(t.getAttribute("aria-controls")); return !!p && p.getAttribute("role") === "tabpanel" && p.getAttribute("aria-labelledby") === t.id && !p.hidden; }),
+        tips: ts.every((t) => t.title && t.dataset.tip === t.title && t.querySelector("svg")), foco: document.activeElement?.dataset?.pestana ?? "" };
+    });
+    const t0 = await estadoTabs();
+    paso("pestañas de la ficha: Ficha, Lógica y Ajustes, con la primera elegida", t0.lista && t0.n === 3 && t0.nombres.join() === "Ficha,Lógica,Ajustes" && t0.sel.join() === "ficha" && t0.paneles.join() === "true,false,false" && t0.tips, t0);
+    await a.locator("#ficha-tab-logica").click();
+    const t1 = await estadoTabs();
+    const logica = await a.evaluate(() => { const p = document.getElementById("ficha-panel-logica"); return { listas: p.querySelectorAll("ul").length, boton: !!p.querySelector("button.tx"), texto: p.textContent }; });
+    paso("cambiar a Lógica con un clic", t1.sel.join() === "logica" && t1.paneles.join() === "false,true,false" && logica.listas === 3 && logica.boton && /Entran/.test(logica.texto) && /Salen/.test(logica.texto), { ...t1, logica });
+    await a.locator("#ficha-tab-logica").focus();
+    await a.keyboard.press("ArrowRight");
+    const t2 = await estadoTabs();
+    await a.keyboard.press("ArrowRight");
+    const t3 = await estadoTabs();
+    await a.keyboard.press("ArrowLeft");
+    const t4 = await estadoTabs();
+    paso("flechas derecha e izquierda mueven entre pestañas (y el foco las sigue)", t2.sel.join() === "ajustes" && t2.foco === "ajustes" && t3.sel.join() === "ficha" && t4.sel.join() === "ajustes" && t4.foco === "ajustes", { t2: t2.sel, t3: t3.sel, t4: t4.sel });
+    // C4 «Lógica»: «Abrir el cable» brings the cable panel into view (focused); the card keeps working
+    await a.locator("#ficha-tab-logica").click();
+    await a.locator("#ficha-panel-logica button.tx").click();
+    const cable = await a.evaluate(() => document.activeElement?.id);
+    paso("«Abrir el cable» lleva al panel del cable", cable === "cable-panel", { cable });
+    // C4 «Ajustes»: a setting changes the object on the SERVER (B sees it): visible al jugar, nombre, anclado
+    await a.locator("#ficha-tab-ajustes").click();
+    await a.locator("#ficha-panel-ajustes input[type=checkbox]").nth(0).uncheck(); // «se ve al jugar»
+    const ocultoEnB = await esperaB(([k]) => globalThis.__numinia.session.features.stateOf("objetos").get(k)?.oculto === true, id);
+    await a.locator("#ficha-panel-ajustes input[type=checkbox]").nth(0).check();
+    const visibleEnB = await esperaB(([k]) => globalThis.__numinia.session.features.stateOf("objetos").get(k)?.oculto === false, id);
+    await a.locator("#ficha-panel-ajustes input[type=text]").fill("Mesa de ajustes");
+    await a.keyboard.press("Enter"); await a.locator("#ficha-panel-ajustes input[type=text]").blur();
+    const nombreEnB = await esperaB(([k]) => globalThis.__numinia.session.features.stateOf("objetos").get(k)?.nombre === "Mesa de ajustes", id);
+    await a.locator("#ficha-panel-ajustes input[type=checkbox]").nth(1).check(); // «anclado»
+    const ancladoEnB = await esperaB(([k]) => globalThis.__numinia.session.features.stateOf("objetos").get(k)?.fijado === true, id);
+    await a.locator("#ficha-panel-ajustes input[type=checkbox]").nth(1).uncheck();
+    const sueltoEnB = await esperaB(([k]) => globalThis.__numinia.session.features.stateOf("objetos").get(k)?.fijado !== true, id);
+    paso("un ajuste de la ficha cambia el objeto en el servidor (B lo ve)", ocultoEnB && visibleEnB && nombreEnB && ancladoEnB && sueltoEnB, { ocultoEnB, visibleEnB, nombreEnB, ancladoEnB, sueltoEnB });
+    const titulo = await a.evaluate(() => document.querySelector("#ficha-objeto h3").textContent);
+    paso("el título de la ficha sigue al nombre nuevo", titulo === "Mesa de ajustes", { titulo });
+    // «Abrir inspector (N)»: the inspector is shown and its first field takes the focus
+    await a.locator("#ficha-panel-ajustes button.tx").click();
+    const insp = await a.evaluate(() => { const i = document.querySelector("#panel-construir .inspector"); return { visible: !i.hidden, foco: i.contains(document.activeElement) }; });
+    paso("«Abrir inspector (N)» lleva al inspector", insp.visible && insp.foco, insp);
+    if (process.env.SHOTS === "1") { await a.locator("#ficha-tab-logica").click(); await a.screenshot({ path: `e2e-ficha-c4-${engine}.png` }); }
+    await a.locator("#ficha-tab-ficha").click(); await a.evaluate(() => document.activeElement?.blur());
     const ficha2 = await a.evaluate(() => document.getElementById("ficha-objeto").hidden);
     await a.keyboard.press("Escape");
     paso("ficha oculta sin objeto elegido", await a.waitForFunction(() => document.getElementById("ficha-objeto").hidden, null, { timeout: 3000 }).then(() => !ficha2, () => false));

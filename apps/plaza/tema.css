@@ -93,7 +93,7 @@ html, body { font-family: "Geist", system-ui, sans-serif; }
   background: var(--n-elev) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea) !important; border-radius: var(--n-r-control) !important; font-family: inherit;
 }
 #panel-construir button:hover, #libro button:hover, #dialogo button:not(.adios):hover, #ajustes button:hover, #panel-entorno button:hover, #minimapa button:hover, #ficha-objeto button:hover, #barra-arriba button:hover { border-color: var(--n-texto2) !important; }
-#panel-construir button[aria-pressed="true"], #minimapa button[aria-pressed="true"], #ficha-objeto button[aria-pressed="true"], #barra-arriba button[aria-pressed="true"], #panel-entorno button[aria-pressed="true"] {
+#panel-construir button[aria-pressed="true"], #minimapa button[aria-pressed="true"], #ficha-objeto button[aria-pressed="true"], #ficha-objeto button[aria-selected="true"], #barra-arriba button[aria-pressed="true"], #panel-entorno button[aria-pressed="true"] {
   background: var(--n-texto) !important; color: var(--n-fondo) !important; border-color: var(--n-texto) !important; font-weight: 600;
 }
 #panel-construir [data-eje="X"] { color: #F35059 !important; } #panel-construir [data-eje="Y"] { color: #8FC46B !important; } #panel-construir [data-eje="Z"] { color: #5D9BD6 !important; }
