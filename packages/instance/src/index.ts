@@ -1,8 +1,10 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX } from "../../sim/src/index.ts";
 import type { SimState, SpawnArea, Bvh } from "../../sim/src/index.ts";
+import { terrenoDelEstado, terrenoMalla, claveTerreno, combinarMallas, sueloMinimoTerreno } from "../../sim/src/terreno-malla.ts";
+import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, cuantizar, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
@@ -164,13 +166,14 @@ export class Instance {
     const s = this.sim;
     if (!onFloor(s, e)) return;
     const y = s.tf.cols.y[e];
-    if (this.opts.suelo && y < fx(this.opts.suelo.minimo)) return;
+    const suelo = this.sueloEfectivo();
+    if (suelo && y < fx(suelo.minimo)) return;
     this.seguro[e * 3] = s.tf.cols.x[e]; this.seguro[e * 3 + 1] = y; this.seguro[e * 3 + 2] = s.tf.cols.z[e]; this.tieneSeguro[e] = 1;
   }
   /** Where a return would put this avatar (Q16.16), or null: the world's fixed point when it says `siempre` or when no
    * safe spot is known yet; else the last safe spot. A point under the world's minimum is never used (no loop). */
   private destinoSeguro(e: number): { x: number; y: number; z: number } | null {
-    const v = this.opts.suelo?.vuelta, min = this.opts.suelo ? fx(this.opts.suelo.minimo) : -Infinity;
+    const suelo = this.sueloEfectivo(), v = suelo?.vuelta, min = suelo ? fx(suelo.minimo) : -Infinity;
     const fijo = v && [v.x, v.y, v.z].every(Number.isFinite) && fx(v.y) >= min ? { x: fx(v.x), y: fx(v.y), z: fx(v.z) } : null;
     if (fijo && (v!.siempre || !this.tieneSeguro[e])) return fijo;
     if (this.tieneSeguro[e]) return { x: this.seguro[e * 3], y: this.seguro[e * 3 + 1], z: this.seguro[e * 3 + 2] };
@@ -250,7 +253,9 @@ export class Instance {
 
   /** A client arrives over any transport: spawn its avatar (in the world's spawn area, if it has one), say welcome, listen. */
   connect(t: Transport, owner = this.conns.length, anfitrion?: string): number {
-    const entity = spawnAvatar(this.sim, owner, this.opts.aparicion);
+    this.sincronizarTerreno(); // N5: the nature's hills must be in the mesh before the first avatar stands on them
+    const entity = spawnAvatar(this.sim, owner, this.opts.aparicion ?? this.aparicionTerreno());
+    if (this.terreno) this.sim.tf.cols.y[entity] = groundHeight(this.sim.tf.cols.x[entity], this.sim.tf.cols.z[entity], this.sim, fx(this.terreno.hmax + 1)); // N5: appear ON the terrain
     const conn: Conn = { entity, transport: t, viewer: { entity, priority: new Float32Array(this.opts.capacity) }, queue: [], ack: 0, dropped: 0, bad: 0, anfitrion };
     t.onMessage((bytes) => {
       if (bytes[0] === MSG.INPUT && (bytes.length === 6 || bytes.length === 5)) { // 5 = from before J2 (no buttons)
@@ -362,6 +367,7 @@ export class Instance {
     }
     b = performance.now(); f[0] = b - a; a = b; // entradas
     if (this.features.solidsVersion !== this.solidsVersion) { this.solidsVersion = this.features.solidsVersion; setSolids(this.sim, solidsFrom(this.features.allState())); this.solidosRehechos++; } // U10, E6: only when a solid changed
+    this.sincronizarTerreno(); // N5: the seeded terrain joins the collision mesh (only when «naturaleza:mundo» changed)
     if (this.opts.construirMalla && !this.mallaBuilding && this.features.stateVersion !== this.mallaVersion) this.quizaMalla(); // M6 h8, D2: only if a malla entry changed
     b = performance.now(); f[1] = b - a; a = b; // solidos
     // H2 historia 5: at most ORDENES_TICK_MAX orders go into this step; the rest stay queued, in order, for the next one.
@@ -372,7 +378,7 @@ export class Instance {
     step(this.sim, inputs.subarray(0, n * INPUT_STRIDE), ordenes); // authority (D-045/H2: orders first, recorded with the inputs)
     b = performance.now(); f[2] = b - a; a = b; // simulacion
     if (this.sim.tick % SEGURO_CADA === 0) { // D-045: every half second, keep the safe spot; under the floor, order the return
-      const s = this.sim, min = this.opts.suelo ? fx(this.opts.suelo.minimo) : null;
+      const s = this.sim, suelo = this.sueloEfectivo(), min = suelo ? fx(suelo.minimo) : null;
       for (const c of this.conns) {
         if (min !== null && s.tf.cols.y[c.entity] < min) this.volverASeguro(c.entity, "caida");
         else this.guardarSeguro(c.entity);
@@ -427,6 +433,36 @@ export class Instance {
   }
 
   private solidsVersion = -1;
+  // ---- N5: the seeded terrain of naturaleza.json is part of the world's collision mesh (same `sim.mesh` the GLB mesh uses) ----
+  private terreno: TerrenoMalla | null = null;
+  private terrenoVersion = -1;
+  private mallaGlb: Bvh | null = null;
+  /** N5: follows the shared state's «naturaleza:mundo»: builds the terrain mesh from `alturaEn` (a few ms, once per change of the
+   * world's numbers, never inside `step`) and merges it with the GLB mesh. A world without naturaleza.json never gets here:
+   * one comparison per state change, `sim.mesh` untouched, the flat-ground path (and the reference fingerprint) as before. */
+  private sincronizarTerreno(): void {
+    const v = this.features.stateVersion;
+    if (v === this.terrenoVersion) return;
+    this.terrenoVersion = v;
+    const m = terrenoDelEstado(this.features.allState());
+    const clave = m ? claveTerreno(m) : null;
+    if (clave === (this.terreno?.clave ?? null)) return;
+    this.terreno = m ? terrenoMalla(m) : null;
+    this.aplicarMalla();
+    if (this.terreno) this.opts.log?.(`naturaleza: colisión del terreno lista (${this.terreno.triangulos} triángulos, celdas de ${m!.tamano / this.terreno.celdas} m, alturas ${this.terreno.hmin.toFixed(1)} a ${this.terreno.hmax.toFixed(1)} m)`);
+  }
+  /** The GLB mesh and the terrain are ONE tree for the sim; with a terrain there is no flat floor under it (`piso`). */
+  private aplicarMalla(): void {
+    setMesh(this.sim, combinarMallas(this.mallaGlb, this.terreno?.bvh ?? null), this.terreno ? PISO_SIN_SUELO : 0);
+  }
+  /** D-045: the world's void, or (naturaleza on, world gives none) a little under the lowest ground, so a fall off the map comes back. */
+  private sueloEfectivo(): Suelo | null {
+    return this.opts.suelo ?? (this.terreno ? { minimo: sueloMinimoTerreno(this.terreno.hmin), vuelta: null } : null);
+  }
+  /** N5: with naturaleza on and no `aparicion` in the world, people appear inside the flat plaza (its disc, 60 % of the radius so the square's corners stay in). */
+  private aparicionTerreno(): SpawnArea | null {
+    return this.terreno ? { x: 0, z: 0, radio: this.terreno.mundo.plaza * 0.6 } : null;
+  }
   /** E6: times the solid boxes were redone (bench / tests). */
   solidosRehechos = 0;
   /** E6: the connected entities in join order, one frozen array shared by every reader until someone joins or
@@ -458,7 +494,7 @@ export class Instance {
     const construir = this.opts.construirMalla!;
     this.mallaBuilding = true; this.mallasConstruidas++;
     construir(entradas)
-      .then((mesh) => { setMesh(this.sim, mesh); if (construir.faltaAlgo?.()) this.mallaReintentar = true; })
+      .then((mesh) => { this.mallaGlb = mesh; this.aplicarMalla(); if (construir.faltaAlgo?.()) this.mallaReintentar = true; }) // N5: GLB mesh + terrain = one tree
       .catch((e) => { this.mallaReintentar = true; this.opts.log?.(`[malla] no se pudo construir la malla del mundo: ${String((e as Error)?.message ?? e)}`); })
       .finally(() => { this.mallaBuilding = false; });
   }

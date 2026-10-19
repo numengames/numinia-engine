@@ -118,6 +118,8 @@ let avatarUI: { eleccion(clave: number | "yo"): number | undefined } | null = nu
 const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, movil: perfil().forzado ? perfil().movil : undefined, assetUrl: (m) => `${activos}/a/${m}.glb`,
   avatares: { catalogo: catalogoAvatares, yo: () => session.entity, eleccion: (c) => avatarUI?.eleccion(c) } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar; H10: your own choice
 const transport = webSocketClient(url);
+
+view.naturaleza.tablaFauna(() => import("../../features/naturaleza/fauna-casa.ts").then((m) => m.FAUNA_CASA)); // F4: the house fauna table, fetched only with the fauna
 // game features (J7): their client parts, and how they may draw (a label, a hop) over any avatar
 // I1: the guest token stays in this browser (no account, no personal data); private mode = a new guest each time
 const GUARDA = "numinia.invitado";
@@ -140,6 +142,9 @@ const session = new ClientSession(transport, {
     tag: (key, t) => view.tag(key, t),
     // H4/H8: the zone's environment and its elements (water, fire, smoke, dust)
     entorno: (v) => view.entorno.aplicar(v),
+
+    naturaleza: (v) => void view.naturaleza.aplicar(v), // N4
+
     elemento: (k, v) => view.elementos.poner(k, v),
     // N18: what each person wears (features/bienes): a good's model in a hand or on the head
     lleva: (e, v) => view.vestir(e === session.entity ? "self" : e, v),

@@ -48,6 +48,9 @@ import { crearCenital } from "./cenital.ts";
 export type { Huella, ImagenCenital } from "./cenital.ts";
 import { crearEntorno } from "./entorno.ts";
 import { vistaElementos } from "./elementos-vista.ts";
+
+import { crearNaturalezaPerezosa, horaDeEntorno } from "./naturaleza/cargador.ts"; // N4b: relief + trees + grass from a seed (the piece is a separate chunk, fetched only when a world asks)
+import { audio } from "./audio/nucleo.ts"; // F5: the creatures sound on the shared audio core (ambient bus)
 import { vistaPesca } from "./pesca-vista.ts";
 import { crearDianas3D, crearDianaAR } from "./dardos.ts";
 import { crearPantallasWeb } from "./web.ts";
@@ -65,6 +68,11 @@ import { crearPrecompilador } from "./precompilar.ts";
 export { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 export type { EntornoDatos } from "./entorno.ts";
 export type { Luz } from "./teletransporte.ts";
+// D-058 spike: «materia de bloques» — a shape of dice-shaped blocks that assembles and crumbles (materia.ts, materia-politica.ts)
+export { crearMateria } from "./materia.ts";
+export type { Materia } from "./materia.ts";
+export { mezcla, muestrear, muestrearMalla, cuantos, lado, areaForma, MEZCLA, BLOQUES_PIEZA } from "./materia-politica.ts";
+export type { Forma, Mezcla, Metodo, Muestra } from "./materia-politica.ts";
 export type { Calidad, Nivel } from "./calidad.ts";
 import { decidirLOD } from "./lod-politica.ts";
 export { decidirLOD, LOD_LEJOS_M, LOD_HISTERESIS_M } from "./lod-politica.ts";
@@ -259,6 +267,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     fichero: (f) => { const i = f.lastIndexOf("."); return (opts.assetUrl ?? ((m: string) => `/a/${m}.glb`))(f.slice(0, i)).replace(/\.glb$/, f.slice(i)); } });
   const elementos = vistaElementos({ renderer, scene, world, camera, entorno }); // H4/H8: water, fire, smoke, dust (lazy)
   const tele = crearTeletransporte({ world, nivel: () => entorno.nivel }); // N16: the light of a trip (none on tier D)
+
+  const yoNat = { x: 0, y: 0, z: 0 }; // F4 audit: one object reused every frame (the nature reads it at once)
+  const naturaleza = crearNaturalezaPerezosa({ padre: world, ground, vientoU: entorno.vientoU, nivel: () => entorno.nivel, camara: camera, yo: () => (selfXZ ? (yoNat.x = selfXZ.x, yoNat.y = selfXZ.y ?? 0, yoNat.z = selfXZ.z, yoNat) : null), niebla: () => (scene.fog instanceof THREE.Fog ? scene.fog.color.getHex() : 0xc9d8e4), aguaLuz: entorno.aguaLuz, detalleAgua: () => detalleAgua(entorno.nivel, entorno.calidadActual.agua), hora: () => horaDeEntorno(entorno.datos), nucleo: audio, hitos: () => hitos, atmosfera: entorno.atmosfera }); // R7.1 atmosphere; N4 + F4 + F5 (creature sound on the audio core's ambient bus) (hour of day for the fauna)
+
 
   // feature decorations (J7): a text label over an avatar and a short bounce; both expire on their own
   type Target = number | "self";
@@ -843,7 +855,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     updateThings(dtSeconds);
     selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
     editor.frame();
-    entorno.actualizar(); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ);
+    entorno.actualizar(); naturaleza.actualizar(dtSeconds); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ);
     if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); dardosVR.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
     pesca.actualizar(dtSeconds);
     if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
@@ -872,6 +884,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     vrSupported,
     /** H4 + H12: the environment (aplicar, estado, calidad, capacidades) — packages/render/src/entorno.ts. */
     entorno,
+    /** N4: the world's low-poly nature (aplicar, estadisticas, terreno) — packages/render/src/naturaleza/naturaleza.ts; builds nothing until a world asks. */
+    naturaleza,
     /** H4/H8: water, fire, smoke and dust (poner, contar) — packages/render/src/elementos.ts, loaded with the first one. */
     elementos,
     /** N16: the light of a trip (lanzar, estado) — packages/render/src/teletransporte.ts; the body hides meanwhile. */

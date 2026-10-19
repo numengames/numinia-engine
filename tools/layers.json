@@ -4,14 +4,15 @@
   "core": [],
   "schema": ["core"],
   "ecs": ["core", "schema"],
-  "sim": ["core", "schema", "ecs"],
+  "sim": ["core", "schema", "ecs", "relieve"],
   "net": ["core", "schema", "ecs", "sim"],
   "feature": ["core", "schema", "net"],
   "client": ["core", "schema", "ecs", "sim", "net", "feature"],
-  "render": [],
+  "relieve": [],
+  "render": ["relieve"],
   "instance": ["core", "schema", "ecs", "sim", "net", "feature"],
   "agent": ["core", "schema", "ecs", "sim", "net", "feature", "client", "instance"],
-  "server": ["core", "schema", "ecs", "sim", "net", "instance", "feature", "client", "agent"],
+  "server": ["core", "schema", "ecs", "sim", "net", "instance", "feature", "client", "agent", "relieve"],
   "cli": ["core", "schema", "ecs", "sim", "net", "instance", "feature"],
-  "features": ["core", "schema", "feature"]
+  "features": ["core", "schema", "feature", "relieve"]
 }

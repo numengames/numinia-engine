@@ -14,6 +14,10 @@ import { crearDados } from "./dados/server.ts";
 import type { Torre as TorreDados } from "./dados/server.ts";
 import { leerAparicion, leerAparicionFoto, leerSuelo } from "./entorno/esquema.ts";
 import { crearSuelo } from "./suelo/server.ts"; // D-045
+import { crearNaturaleza } from "./naturaleza/server.ts"; // N4
+import { leerNaturaleza } from "./naturaleza/esquema.ts";
+import { validarTabla } from "../packages/relieve/src/fauna.ts"; // F1
+import { FAUNA_CASA } from "./naturaleza/fauna-casa.ts";
 import type { SueloMundo } from "./entorno/esquema.ts";
 import { crearTeletransporte } from "./teletransporte/server.ts";
 import { crearWeb } from "./web/server.ts";
@@ -63,6 +67,16 @@ export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) 
   const inter = { puertas: crudoInter?.puertas, botones: crudoInter?.botones, cosas: crudoInter?.cosas };
   if (crudoInter !== undefined && !Array.isArray(inter.puertas) && !Array.isArray(inter.botones) && !Array.isArray(inter.cosas)) log(`[mundo] interacciones.json no tiene ninguna lista "puertas", "botones" o "cosas" (no pongo nada): ${JSON.stringify(crudoInter).slice(0, 160)}`);
   const sueloMundo = sueloDelMundo(leer); // D-045: the same values the instance got (logged once there)
+  // naturaleza.json (numinia-engine/naturaleza@1, N4: { activa?, semilla?, tamano?, plaza?, densidad?: { arboles?, hierba? }, estanque?, paleta? }):
+  // relief, trees and grass from a seed; none = the flat ground as always. A wrong file is not used (every issue logged with its path).
+  // fauna.json (numinia-engine/fauna@1, F1: { especies: [{ id, nombre, grupo, rareza, peso, colores, luz, zonas, hora, tamano, vuelo, bandada? }] }): the world's own
+  // animals instead of the house table (features/naturaleza/fauna.json); a wrong one is not used (every issue logged) and the house table stays.
+  const crudoFauna = leer("fauna.json"), leidaFauna = crudoFauna === undefined ? null : validarTabla(crudoFauna);
+  if (leidaFauna && !leidaFauna.ok) log(`[mundo] fauna.json no se usa (uso la tabla de la casa): ${leidaFauna.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
+  const tablaFauna = leidaFauna?.ok ? leidaFauna.value : undefined;
+  const crudoNat = leer("naturaleza.json"), leidoNat = crudoNat === undefined ? null : leerNaturaleza(crudoNat, (tablaFauna ?? FAUNA_CASA).especies.map((e) => e.id));
+  if (leidoNat && !leidoNat.ok) log(`[mundo] naturaleza.json no se usa (suelo plano): ${leidoNat.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
+  const natMundo = leidoNat?.ok ? leidoNat.value : null;
   // contadores.json (numinia-engine/contadores@1, D-044: { contadores: [{ id, nombre, tipo, x, z, segundos | inicio, tope, donde?, evento?, manda? }] }):
   // the world's timers and counters; none = no counter. Each wrong line is left out with its reason; the rest is used.
   const crudoContadores = leer("contadores.json");
@@ -89,7 +103,7 @@ export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) 
   // entorno.json `pvp` / `zonasPvp` (L8): may people strike people, in the world and in each zone; absent = nobody does. Each wrong line is said.
   const lp = leerPvp(crudoEntorno), pvpMundo = lp.ok ? lp.value : lp.parcial ?? null;
   if (!lp.ok) for (const i of lp.issues) log(`[mundo] ${i.path}: ${i.message} (esa parte no se usa)`);
-  return partes.map((p) => (p.feature.id === "lucha" && (Array.isArray(criaturas) || pvpMundo) ? crearLucha({ criaturas: Array.isArray(criaturas) ? criaturas as Criatura[] : undefined, pvp: pvpMundo ?? undefined }) : p.feature.id === "disparadores" && leidoDisp ? crearDisparadores({ disparadores: leidoDisp.disparadores, escribir: escribir ? (ds) => escribir("disparadores.json", serializarDisparadores(ds)) : undefined }) : p.feature.id === "contadores" && leidoContadores ? crearContadores({ contadores: leidoContadores.valor }) : p.feature.id === "movedores" && leidoMov ? crearMovedores({ movedores: leidoMov.valor }) : p.feature.id === "suelo" && sueloMundo ? crearSuelo(sueloMundo) : p.feature.id === "puertas" && Array.isArray(inter.puertas) ? crearPuertas({ puertas: inter.puertas as Puerta[] }) : p.feature.id === "botones" && Array.isArray(inter.botones) ? crearBotones({ botones: inter.botones as Boton[] }) : p.feature.id === "cogibles" && Array.isArray(inter.cosas) ? crearCogibles({ cosas: inter.cosas as CosaCogible[] }) : p.feature.id === "web" && leidoWeb ? crearWeb(leidoWeb.valor) : p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
+  return partes.map((p) => (p.feature.id === "lucha" && (Array.isArray(criaturas) || pvpMundo) ? crearLucha({ criaturas: Array.isArray(criaturas) ? criaturas as Criatura[] : undefined, pvp: pvpMundo ?? undefined }) : p.feature.id === "disparadores" && leidoDisp ? crearDisparadores({ disparadores: leidoDisp.disparadores, escribir: escribir ? (ds) => escribir("disparadores.json", serializarDisparadores(ds)) : undefined }) : p.feature.id === "contadores" && leidoContadores ? crearContadores({ contadores: leidoContadores.valor }) : p.feature.id === "movedores" && leidoMov ? crearMovedores({ movedores: leidoMov.valor }) : p.feature.id === "suelo" && sueloMundo ? crearSuelo(sueloMundo) : p.feature.id === "naturaleza" && natMundo ? crearNaturaleza(natMundo, tablaFauna) : p.feature.id === "puertas" && Array.isArray(inter.puertas) ? crearPuertas({ puertas: inter.puertas as Puerta[] }) : p.feature.id === "botones" && Array.isArray(inter.botones) ? crearBotones({ botones: inter.botones as Boton[] }) : p.feature.id === "cogibles" && Array.isArray(inter.cosas) ? crearCogibles({ cosas: inter.cosas as CosaCogible[] }) : p.feature.id === "web" && leidoWeb ? crearWeb(leidoWeb.valor) : p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
 }
 
 /** D-045: the world's void (entorno.json `sueloMinimo` + `vuelta`), or null: no file, no key, or a wrong one (logged). */

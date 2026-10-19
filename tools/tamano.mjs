@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { gzipSync, constants } from "node:zlib";
 import { spawnSync } from "node:child_process";
 
-export const TOPE_GZ = 1_000_000; // bytes gz. Pablo 2026-10-19: «podemos ir hasta 1 MB sin problema». Before: 480 kB (measure + 10 %, 18-10). Goal (D2): 300 kB.
+export const TOPE_GZ = 1_000_000; // bytes gz. Pablo 2026-10-19: «podemos ir hasta 1 MB sin problema» (the nature branch had the same 1 MB from his 18-10 «la página puede pesar 1 MB»). Before: 480 kB (measure + 10 %, 18-10). Goal (D2): 300 kB.
 export const META_GZ = 300_000;
 export const AVISO_GZ = 600_000; // bytes gz. Soft warning (Pablo 2026-10-19): prints a notice, never fails the gate.
 

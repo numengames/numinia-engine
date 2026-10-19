@@ -1269,3 +1269,21 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Opus 5.5.
 - Commit: rama `sonido/nucleo` (#168, reabierto), traída `origin/main`; versión 0.18.0 → 0.19.0.
 - Siguiente: que los pasos caigan cuando el pie de la animación toca el suelo.
+
+## 2026-10-19 17:38 · naturaleza/ola-1 · hecho
+- Qué: los mundos que lo pidan tienen naturaleza: relieve, árboles con pieza de máquina, hierba, estanque, cielo y fauna.
+  Detalle: entra todo lo de naturaleza que vivía fuera de `main` (R6/R7, banco gráfico v1, capa de materia D-058) y los
+  experimentos medidos E02 (terreno en trozos, apagado), E03 (agua de orilla a/b, elegible), E04 (cielo analítico,
+  apagado), E24 (bisel del engranaje, encendido), E05 (solo banco), E50 (árboles con máquina y copas de seta/sombrilla,
+  encendido) y E51 (agua «oceano», elegible). Solo se enciende en un mundo con `naturaleza.json` activo; el código de la
+  naturaleza llega en un trozo aparte solo cuando el mundo lo pide. Arreglo de la fusión: el tono Verdemar de las orillas
+  (R1) queda en el estanque de la naturaleza; el agua del constructor vuelve a ser la de `main`.
+- Números: 1311 pruebas, 1309–1310 en verde (las que fallan son de tiempo de reloj y pasan solas: `misiones` p99,
+  `naturaleza-sonido` tick máximo, `subidas`); en `main` 1096/1096. Paquete inicial 528,1 → 532,3 kB gz (+4,2).
+  Puertas: capas, determinismo, ancho de banda, plaza de 1.000 y tamaño en verde. e2e suave (carga, cámara,
+  constructor) falla en los mismos pasos que `main` con la máquina cargada; mismo coste de cuadro (85 llamadas, 27 522
+  triángulos). Naturaleza en la RTX 4080 (WebGPU): A 0,200 ms, D 0,162 ms de GPU por cuadro.
+- Consumo: sin medir · Opus 5.5 (subagente).
+- Commit: rama `naturaleza/ola-1` (origin/main 9c28379 + exp/e01-base 438e061 + e02 73e415f + e03 3a341c7 + e04 b2a4e10
+  + e24 f28b5fd + e05 1eaa128 + e50 63bad7e + e51 1906d45). Versión 0.19.0 → 0.20.0.
+- Siguiente: que Pablo elija agua (a/b/oceano) y cielo con las fotos; medir en la Quest por USB.
