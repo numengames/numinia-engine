@@ -22,7 +22,7 @@
 // because the wind must read the pre-transform height of each vertex). Zero CPU per tree per frame: `actualizar(t)` writes one uniform; the
 // near/far split is a throttled O(n) pass over typed arrays (see `repartir`).
 import * as THREE from "three/webgpu";
-import { uniform, float, vec2, vec3, attribute, instancedBufferAttribute, positionGeometry, normalFlat, transformNormalToView, normalize, sin, cos, pow, clamp, mix, length, max, abs, step, oneMinus, dot as dotN, smoothstep, varying } from "three/tsl";
+import { uniform, float, vec2, vec3, vec4, attribute, instancedBufferAttribute, positionGeometry, normalFlat, transformNormalToView, normalize, sin, cos, pow, clamp, mix, length, max, abs, step, oneMinus, dot as dotN, smoothstep, varying } from "three/tsl";
 import type { Nivel } from "../calidad.ts";
 import { crearAzar, hash2, valor2 } from "./semilla.ts";
 import { NATURALEZA_POR_NIVEL } from "./niveles.ts";
@@ -523,19 +523,24 @@ function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.Mesh
   // ForestGenerator's `deep → bright` by the baked occlusion (`tono` on a card: dark inside/below … lit rim/top), both from the instance's palette pair
   const nW = normalize(girar(attribute("nesf", "vec3") as unknown as V3N, giro)) as unknown as V3N;
   const luz = smoothstep(0, 1, dotN(nW, solDirU as unknown as V3N)) as N;
-  const hojaCarta = varying(mix(ic.xyz, id.xyz, clamp(luz.mul(0.5).add(tono.mul(0.5)).add(0.05), 0, 1)).mul(tono.mul(0.35).add(0.75)).mul(1.3)) as unknown as V3N;
-  mat.colorNode = mix(mix(mix(tronco, hoja, esHoja), metal, esMetal), hojaCarta, esCarta).mul(ao).mul(tinte.mul(0.16).add(0.92)).mul(1.25);
+  const hojaCarta = mix(ic.xyz, id.xyz, clamp(luz.mul(0.5).add(tono.mul(0.5)).add(0.05), 0, 1)).mul(tono.mul(0.35).add(0.75)).mul(1.3) as unknown as V3N;
+  // WebGPU allows 16 inter-stage variables: the whole colour is per-vertex data, so it crosses as ONE varying (read in the fragment it pulled
+  // every attribute it touches across one by one: 6 species positions, 4 instance vec4s, tono, parte… = more than 16, the pipeline failed)
+  mat.colorNode = varying(mix(mix(mix(tronco, hoja, esHoja), metal, esMetal), hojaCarta, esCarta).mul(ao).mul(tinte.mul(0.16).add(0.92)).mul(1.25));
   // R7.4 leaf flutter (Foliage.js: the alpha rotates in its card by the wind's strength; vertices do not move): a small turn, phased per card
   const fzU = length((c.vientoU as unknown as V3N).xz.add(BRISA)) as N, tU = c.tiempo as unknown as N;
-  const giroHoja = aletea ? varying(sin(tU.mul(2.7).add(fase).add(p0.x.mul(3.1)).add(p0.z.mul(2.3)).add(p0.y.mul(1.7))).mul(fzU.mul(0.05).add(0.12)).add(sin(tU.mul(0.9).add(p0.x.mul(1.3))).mul(0.15))) as N : float(0);
+  const giroV = aletea ? sin(tU.mul(2.7).add(fase).add(p0.x.mul(3.1)).add(p0.z.mul(2.3)).add(p0.y.mul(1.7))).mul(fzU.mul(0.05).add(0.12)).add(sin(tU.mul(0.9).add(p0.x.mul(1.3))).mul(0.15)) as N : float(0);
+  // the per-vertex scalars the fragment needs, packed in one varying: leaf mask, card mask, the spherical normal's height, the card's flutter turn
+  const marca = varying(vec4(esHoja, esCarta, nW.y, giroV)) as unknown as { x: N; y: N; z: N; w: N };
+  const giroHoja = aletea ? marca.w : float(0), esHojaF = marca.x, esCartaF = marca.y;
   mat.alphaToCoverage = true; // three wires it only where the target has samples; `coberturaHojas` falls back to an alpha test elsewhere
-  mat.opacityNode = coberturaHojas(mix(float(-1), distanciaHojas(giroHoja), esCarta) as N);
+  mat.opacityNode = coberturaHojas(mix(float(-1), distanciaHojas(giroHoja), esCartaF) as N);
   // faces still read flat, but a leaf's normal leans toward the sky (the sunless side of a crown no longer goes black): flat + up × (0.15 bark … 0.65 leaf)
-  const nFacetas = (normalFlat as unknown as V3N).mul(0.75).add((transformNormalToView(vec3(0, 1, 0)) as unknown as V3N).mul(esHoja.mul(0.65).add(0.3))); // 0.75 × flat so a face pointing straight down does not cancel to nothing (that read black)
+  const nFacetas = (normalFlat as unknown as V3N).mul(0.75).add((transformNormalToView(vec3(0, 1, 0)) as unknown as V3N).mul(esHojaF.mul(0.65).add(0.3))); // 0.75 × flat so a face pointing straight down does not cancel to nothing (that read black)
   const nCarta = varying(transformNormalToView(nW)) as unknown as V3N; // R7.4: Bruno's spherical normal: the crown lights as one soft volume
-  mat.normalNode = normalize(mix(nFacetas, nCarta, esCarta));
+  mat.normalNode = normalize(mix(nFacetas, nCarta, esCartaF));
   const arribaFacetas = clamp(dotN(normalFlat as unknown as V3N, transformNormalToView(vec3(0, 1, 0)) as unknown as V3N).mul(0.5).add(0.5), 0, 1);
-  mat.emissiveNode = nodoRelleno(mix(arribaFacetas, nW.y.mul(0.5).add(0.5), esCarta) as N); // R5.1: the shade fill (relleno.ts): the sunless side of trunks and branches reads sea-green, not black
+  mat.emissiveNode = nodoRelleno(mix(arribaFacetas, marca.z.mul(0.5).add(0.5), esCartaF) as N); // R5.1: the shade fill (relleno.ts): the sunless side of trunks and branches reads sea-green, not black
   return mat;
 }
 
