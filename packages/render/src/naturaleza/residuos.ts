@@ -1,37 +1,51 @@
-// residuos (naturaleza R4): old machinery of the Residuos (valves, lenses, coils, gears; glossary «Residuos») half buried in the
-// landscape, overgrown with moss and verdigris: the steampunk 40 % of the house mix, so the nature is Numinia's nature.
+// residuos (naturaleza R4, redesigned in R6.6): old machinery of the Residuos (glossary «Residuos») half buried in the landscape,
+// at heroic scale and taken from Pablo's relic art (work/naturaleza/referencias/hoja1-reliquias.jpg): the RING-PORTAL (Glido de
+// Turing), the cracked LENS-SPHERE (Disco de Janus), the CRESCENT BLADE stuck in the ground (Filo de Atlas), plus a big valve
+// wheel with spokes, a coil with copper windings and an upright gear. The steampunk 40 % of the house mix.
 // PURE: no three.js, no DOM, no Math.random, no clock. The same (seed, options, height, zone) gives the same sites on every
 // device, on the server and in a test. ZERO new draw calls: the pieces are BAKED as static triangles (positions + per-vertex
 // colours) that terreno.ts appends to its own single mesh; flat normals come from the terrain material's flatShading.
 //
-// Look (work/naturaleza/DIRECCION-ARTE.md): a Mediterranean garden with bronze machinery nobody uses any more — not a scrapyard,
-// not cyberpunk. Brass / copper / dark bronze with verdigris (cobreOxidado, verdín) creeping up from the ground, moss on the top
-// faces, one glass lens that catches the sun (light colour only, never emissive) and, on some pieces, ONE tiny turquoise / coral
-// led (cyber accent, well under 1 % of the pixels). Every colour is a mix of palette entries (paleta.ts is the only source).
+// Look (work/naturaleza/DISENO-LORE.md, binding): read at three distances: at 30 m the black silhouette tells the object (ring,
+// sphere with a flange, sickle, spoked wheel, spool, toothed disc), at 8 m the material (bright brass on the raised parts, a lighter
+// old-brass body, light verdigris on the faces that look at the sky and on the joints, dark where it goes into the ground), at
+// 2 m the detail (bands, the lens, the crack). One signal accent per piece at most (the ring's turquoise line, the lens's pupil,
+// or a tiny led on some machines). Every colour is a token or a mezcla() of tokens (paleta.ts; no raw hex here).
+// FEWER, LARGER pieces: 80–200 triangles each, so a site is one big anchor plus a machine or two and some stones.
 //
-// COPIED (technique only): lathe / surface-of-revolution modelling (the classic low-poly prop recipe, e.g. Kenney / Quaternius
-// style props), jittered-grid candidate sites (esparcir.ts) and vertex-colour gradients for fake ambient occlusion (terreno.ts).
-// CHANGED: pieces are 12–60 triangles built from a few lathes and extrusions; the burial, tilt, yaw, scale and tone of every piece are
-// seeded jitter, and the sites (3–7 pieces) are clustered so they read as ruins. COMBINED: relieve zones, semilla.ts hash, paleta.ts.
+// The landmark: the first quest of the demo world sends the player to (18, 0) «the brass ring of the east» (it was the engine's
+// gold pillar, hidden while the nature is on since R6.1). On every tier one ring-portal stands there, facing the plaza.
+//
+// COPIED (technique only): lathe / surface-of-revolution modelling and swept sections (the classic low-poly prop recipe),
+// jittered-grid candidate sites (esparcir.ts) and vertex-colour gradients for fake ambient occlusion (terreno.ts).
+// CHANGED: shapes from the relic sheet; patina by normal and by depth instead of a uniform olive wash. COMBINED: relieve zones,
+// semilla.ts hash, paleta.ts.
 import { crearAzar, hash2 } from "./semilla.ts";
-import { CASA, MAQUINA, SENAL, VERDES, mezcla } from "./paleta.ts";
+import { CASA, MAQUINA, SENAL, VERDES, PATINA, mezcla } from "./paleta.ts";
 import type { Nivel } from "../calidad.ts";
 import type { Zona } from "../../../relieve/src/relieve.ts";
 
-export type TipoPieza = "engranaje" | "valvula" | "bobina" | "lente" | "arco" | "veleta" | "columna" | "panel" | "tronco" | "roca";
-export const TIPOS_PIEZA: readonly TipoPieza[] = ["engranaje", "valvula", "bobina", "lente", "arco", "veleta", "columna", "panel", "tronco", "roca"];
+export type TipoPieza = "anillo" | "esfera" | "hoja" | "valvula" | "bobina" | "engranaje" | "roca";
+export const TIPOS_PIEZA: readonly TipoPieza[] = ["anillo", "esfera", "hoja", "valvula", "bobina", "engranaje", "roca"];
 
-/** Triangles the Residuos may bake into the terrain mesh per tier. They live INSIDE the terrain's share of the budget (niveles.ts `reparto.terreno`). */
-export const RESIDUOS_POR_NIVEL: Record<Nivel, number> = { A: 900, B: 450, C: 350, D: 0 };
+/** Triangles the Residuos may bake into the terrain mesh per tier. They live INSIDE the terrain's share of the budget (niveles.ts `reparto.terreno`).
+ *  R6.6: D carries only the landmark ring (the quest needs it on every device; niveles.ts D `terreno` grew to pay for it). */
+export const RESIDUOS_POR_NIVEL: Record<Nivel, number> = { A: 900, B: 450, C: 350, D: 110 };
+
+/** R6.6: the quest landmark (demo world, mision «primeros-pasos», step «anillo»): one ring-portal always stands here, facing the plaza. */
+export const ANILLO_HITO = { x: 18, z: 0 } as const;
+/** Bands of the ring per tier (each band = 3 segments × 8 triangles): coarser rings on smaller devices. */
+const BANDAS_ANILLO: Record<Nivel, number> = { A: 7, B: 5, C: 5, D: 4 };
 
 /** The colours the pieces are made of (hex). Every vertex colour is a blend of these. */
 export const PALETA_RESIDUOS: readonly number[] = [
   MAQUINA.laton, MAQUINA.latonSombra, MAQUINA.cobre, MAQUINA.cobreOxidado, MAQUINA.bronce, MAQUINA.hierro, MAQUINA.cristal,
-  VERDES.musgo, VERDES.verdin, VERDES.monteSombra, CASA.ceniza, CASA.arenaVelada, CASA.arena, CASA.ambarTostado, SENAL.turquesa, SENAL.coral,
+  VERDES.musgo, VERDES.verdin, VERDES.monteSombra, CASA.ceniza, CASA.arenaVelada, CASA.arena, CASA.ambarTostado, CASA.ambar,
+  CASA.verdemar, CASA.bronceOscuro, CASA.basalto, CASA.noche, SENAL.turquesa, SENAL.coral,
 ];
 
 export type Sitio = { x: number; y: number; z: number; tipo: TipoPieza; piezas: number; zona: Zona; radio: number };
-export type PiezaColocada = { tipo: TipoPieza; x: number; y: number; z: number; escala: number; giro: number };
+export type PiezaColocada = { tipo: TipoPieza; x: number; y: number; z: number; escala: number; giro: number; triangulos: number; senales: number };
 export type Residuos = {
   /** Triangle soup, 9 floats per triangle (x y z ×3), world space. */
   posiciones: Float32Array;
@@ -45,7 +59,7 @@ export type OpcionesResiduos = {
   nivel: Nivel;
   /** World side (m). */
   tamano: number;
-  /** Plaza radius (m): nothing inside it nor within MARGEN_PLAZA of it. */
+  /** Plaza radius (m): nothing inside it nor within MARGEN_PLAZA of it (the landmark ring excepted: it stands where the quest says). */
   plaza: number;
   /** The pond or null: nothing within `radio × 1.25 + 3` of it. */
   estanque: { x: number; z: number; radio: number } | null;
@@ -53,12 +67,15 @@ export type OpcionesResiduos = {
   maxTriangulos?: number;
 };
 export const MARGEN_PLAZA_RESIDUOS = 6, MARGEN_BORDE_RESIDUOS = 14, CELDA_SITIOS = 11;
+/** Other sites keep this far (m) from the landmark ring, so it reads alone from the plaza. */
+const LIBRE_ANILLO = 12;
 
 // ------------------------------------------------------------------ tiny geometry kit (local space, y up, base at y = 0)
 type V3 = [number, number, number];
-type Mat = "metal" | "piedra" | "madera" | "cristal" | "led";
-type Tri = { p: [V3, V3, V3]; c: number; m: Mat; /** hex per vertex when set (gradients) */ cv?: [number, number, number] };
-type Pieza = { tris: Tri[]; alto: number; radio: number; led: V3 | null; enterrar: [number, number] };
+/** metal/piedra take the patina; cristal stays light; led and grieta are drawn as given. */
+type Mat = "metal" | "piedra" | "cristal" | "led" | "grieta";
+type Tri = { p: [V3, V3, V3]; c: number; m: Mat };
+type Pieza = { tris: Tri[]; alto: number; radio: number; led: V3 | null; enterrar: [number, number]; /** carries its own signal accent */ senal: boolean };
 
 const sub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const cruz = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
@@ -68,159 +85,183 @@ const igual = (a: V3, b: V3) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + 
 class Constructor {
   tris: Tri[] = [];
   /** A triangle that faces away from `centro` (so closed shapes need no winding care). */
-  fuera(a: V3, b: V3, c: V3, col: number, m: Mat, centro: V3, cv?: [number, number, number]): void {
+  fuera(a: V3, b: V3, c: V3, col: number, m: Mat, centro: V3): void {
     if (igual(a, b) || igual(b, c) || igual(a, c)) return;
     const n = cruz(sub(b, a), sub(c, a)), g: V3 = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3];
-    if (dot(n, sub(g, centro)) >= 0) this.tris.push({ p: [a, b, c], c: col, m, cv });
-    else this.tris.push({ p: [a, c, b], c: col, m, cv: cv ? [cv[0], cv[2], cv[1]] : undefined });
+    this.tris.push({ p: dot(n, sub(g, centro)) >= 0 ? [a, b, c] : [a, c, b], c: col, m });
   }
-  /** A thin sheet seen from both sides (front colour on the side the winding faces, back colour on the other). */
-  doble(a: V3, b: V3, c: V3, col: number, m: Mat, atras = col): void {
-    if (igual(a, b) || igual(b, c) || igual(a, c)) return;
-    this.tris.push({ p: [a, b, c], c: col, m }); this.tris.push({ p: [a, c, b], c: atras, m });
-  }
+  /** A quad a-b-c-d facing away from `centro`. */
+  quad(a: V3, b: V3, c: V3, d: V3, col: number, m: Mat, centro: V3): void { this.fuera(a, b, c, col, m, centro); this.fuera(a, c, d, col, m, centro); }
   /** Surface of revolution around Y. `perfil` goes bottom → top as [radius, y]; band k takes colour cols[k % cols.length]. */
-  torno(perfil: [number, number][], seg: number, cols: number[], m: Mat, giro = 0, estirar = 1): void {
-    const anillo = (r: number, y: number): V3[] => Array.from({ length: seg }, (_, k) => { const a = giro + (k / seg) * Math.PI * 2; return [Math.cos(a) * r, y * estirar, Math.sin(a) * r] as V3; });
+  torno(perfil: [number, number][], seg: number, cols: number[], m: Mat, giro = 0): void {
+    const anillo = (r: number, y: number): V3[] => Array.from({ length: seg }, (_, k) => { const a = giro + (k / seg) * Math.PI * 2; return [Math.cos(a) * r, y, Math.sin(a) * r] as V3; });
     for (let b = 0; b + 1 < perfil.length; b++) {
       const A = anillo(perfil[b][0], perfil[b][1]), B = anillo(perfil[b + 1][0], perfil[b + 1][1]), col = cols[b % cols.length];
-      const ym = ((perfil[b][1] + perfil[b + 1][1]) / 2) * estirar;
-      for (let k = 0; k < seg; k++) {
-        const k2 = (k + 1) % seg, centro: V3 = [0, ym, 0];
-        this.fuera(A[k], A[k2], B[k2], col, m, centro); this.fuera(A[k], B[k2], B[k], col, m, centro);
-      }
+      const centro: V3 = [0, (perfil[b][1] + perfil[b + 1][1]) / 2, 0];
+      for (let k = 0; k < seg; k++) { const k2 = (k + 1) % seg; this.fuera(A[k], A[k2], B[k2], col, m, centro); this.fuera(A[k], B[k2], B[k], col, m, centro); }
     }
   }
-  /** Same as torno but about the X axis: a lying column / log / pipe (ends along +X). */
-  tumbado(perfil: [number, number][], seg: number, cols: number[], m: Mat, giro = 0): void {
-    const n0 = this.tris.length;
-    this.torno(perfil, seg, cols, m, giro);
-    for (let i = n0; i < this.tris.length; i++) this.tris[i].p = this.tris[i].p.map((v) => [v[1], v[0], v[2]] as V3) as [V3, V3, V3]; // swap x↔y mirrors: re-wind below
-    for (let i = n0; i < this.tris.length; i++) { const t = this.tris[i]; t.p = [t.p[0], t.p[2], t.p[1]]; if (t.cv) t.cv = [t.cv[0], t.cv[2], t.cv[1]]; }
+  /** Apply `f` to every vertex of the triangles from index `desde` on (winding is kept: only rigid moves). */
+  mover(desde: number, f: (v: V3) => V3): void { for (let i = desde; i < this.tris.length; i++) this.tris[i].p = this.tris[i].p.map(f) as [V3, V3, V3]; }
+  /**
+   * A swept rectangular section along an arc in the XY plane (centre `c`, centre-line radius `R`): a ring, a wheel rim.
+   * `est` lists the stations [angle, section scale, colour of the segment that STARTS here]; `tr` radial thickness, `dz` depth.
+   * The inner face takes `interior` when given (the relic's lit inner band). 8 triangles per segment, open ends.
+   */
+  aro(c: V3, R: number, tr: number, dz: number, est: [number, number, number][], m: Mat, interior?: number): void {
+    const sec = (a: number, s: number): V3[] => {
+      const ca = Math.cos(a), sa = Math.sin(a), ro = R + tr * s / 2, ri = R - tr * s / 2, z = dz * s / 2;
+      return [[c[0] + ca * ro, c[1] + sa * ro, c[2] + z], [c[0] + ca * ro, c[1] + sa * ro, c[2] - z], [c[0] + ca * ri, c[1] + sa * ri, c[2] - z], [c[0] + ca * ri, c[1] + sa * ri, c[2] + z]];
+    };
+    for (let i = 0; i + 1 < est.length; i++) {
+      const [a0, s0, col] = est[i], [a1, s1] = est[i + 1], A = sec(a0, s0), B = sec(a1, s1), am = (a0 + a1) / 2;
+      const centro: V3 = [c[0] + Math.cos(am) * R, c[1] + Math.sin(am) * R, c[2]];
+      for (let k = 0; k < 4; k++) { const k2 = (k + 1) % 4; this.quad(A[k], A[k2], B[k2], B[k], k === 2 && interior !== undefined && s0 === s1 ? interior : col, m, centro); }
+    }
   }
 }
 
 /** Uniform random in [a, b). */
 const entre = (r: () => number, a: number, b: number) => a + (b - a) * r();
 
-type Hechura = (r: () => number, cols: { metal: number; metal2: number; piedra: number; madera: number }) => Pieza;
+/** Per-site materials: the body (old brass or copper), the raised parts (bright brass), the joints (verdigris), the stone. */
+type Maniera = { cuerpo: number; realce: number; junta: number; piedra: number; verdin: number; musgo: number };
+type Hechura = (r: () => number, C: Maniera, nivel: Nivel) => Pieza;
 
-// Each builder returns a piece standing on y = 0 whose lower part is meant to sink into the ground.
-const engranaje: Hechura = (r, C) => {
-  const B = new Constructor(), T = r() < 0.5 ? 5 : 6, R = entre(r, 0.8, 1.15), raiz = R * 0.8, hub = R * 0.34, e = 0.2;
-  const alto = e, cima: V3[] = [], base: V3[] = [], cubo: V3[] = [];
-  for (let k = 0; k < 2 * T; k++) {
-    const a = (k / (2 * T)) * Math.PI * 2, rr = k % 2 === 0 ? R : raiz;
-    cima.push([Math.cos(a) * rr, e, Math.sin(a) * rr]); base.push([Math.cos(a) * rr, 0, Math.sin(a) * rr]); cubo.push([Math.cos(a) * hub, e, Math.sin(a) * hub]);
+// ------------------------------------------------------------------ the pieces (each stands on y = 0; its foot is meant to sink)
+
+/** RING-PORTAL (Glido de Turing): a thick faceted brass ring 5.6–6.6 m across standing in the XY plane (it looks along Z), sunk ~1 m,
+ *  raised bands every few segments, a lit inner face and ONE turquoise signal line running over the front of the crown. */
+const anillo: Hechura = (r, C, nivel) => {
+  const B = new Constructor(), R = entre(r, 2.45, 2.85), tr = 0.62, dz = 0.95, yc = R * 0.74;
+  const bandas = BANDAS_ANILLO[nivel], a0 = -1.25, a1 = Math.PI + 1.25, paso = (a1 - a0) / bandas, ancho = paso * 0.16;
+  const est: [number, number, number][] = [];
+  for (let b = 0; b < bandas; b++) {
+    const a = a0 + b * paso;
+    est.push([a, 1, C.realce], [a + ancho, 1.24, C.realce], [a + 2 * ancho, 1, C.cuerpo]); // a raised band (chevron section), then the plain run
   }
-  const arriba: V3 = [0, 5, 0], c0: V3 = [0, -3, 0];
-  for (let k = 0; k < 2 * T; k++) {
-    const k2 = (k + 1) % (2 * T);
-    B.fuera(cima[k], cima[k2], cubo[k2], C.metal, "metal", c0); B.fuera(cima[k], cubo[k2], cubo[k], C.metal, "metal", c0); // face (ring)
-    B.fuera(cima[k], base[k], base[k2], C.metal2, "metal", [0, e / 2, 0]); B.fuera(cima[k], base[k2], cima[k2], C.metal2, "metal", [0, e / 2, 0]); // teeth sides
+  est.push([a1, 1, C.cuerpo]);
+  B.aro([0, yc, 0], R, tr, dz, est, "metal", C.realce);
+  // the signal line: a thin strip on the back face (-Z: the side that looks at the plaza once placed), over the crown's plain runs (it slips under the raised bands)
+  const z = -(dz / 2 + 0.015), w = 0.06, n0 = Math.floor(bandas / 2) - 1;
+  for (let b = n0; b < n0 + 2; b++) {
+    const s = a0 + b * paso + 2 * ancho, e = a0 + (b + 1) * paso;
+    const P = (a: number, rr: number): V3 => [Math.cos(a) * rr, yc + Math.sin(a) * rr, z];
+    B.quad(P(s, R - w), P(s, R + w), P(e, R + w), P(e, R - w), SENAL.turquesa, "led", [0, yc, 0]);
   }
-  void arriba;
-  // raised hub
-  const h2 = Array.from({ length: 2 * T }, (_, k) => { const a = (k / (2 * T)) * Math.PI * 2; return [Math.cos(a) * hub * 0.7, e + 0.14, Math.sin(a) * hub * 0.7] as V3; });
-  for (let k = 0; k < 2 * T; k++) { const k2 = (k + 1) % (2 * T); B.fuera(cubo[k], cubo[k2], h2[k2], C.metal2, "metal", [0, e - 1, 0]); B.fuera(cubo[k], h2[k2], h2[k], C.metal2, "metal", [0, e - 1, 0]); }
-  return { tris: B.tris, alto: e + 0.14, radio: R, led: [0, e + 0.15, 0], enterrar: [0.35, 0.6] };
+  return { tris: B.tris, alto: yc + R + tr / 2, radio: R + tr, led: null, enterrar: [0, 0], senal: true };
 };
 
-const valvula: Hechura = (r, C) => {
-  const B = new Constructor(), s = entre(r, 0.9, 1.15);
-  B.torno([[0.26 * s, 0], [0.26 * s, 0.5 * s], [0.34 * s, 0.56 * s], [0.12 * s, 0.64 * s]], 5, [C.metal2, C.metal2, C.metal], "metal");
-  const y = 0.7 * s, R = 0.56 * s, ri = 0.4 * s, seg = 6, giro = r() * 1.0;
-  const f = (rr: number, k: number): V3 => { const a = giro + (k / seg) * Math.PI * 2; return [Math.cos(a) * rr, y, Math.sin(a) * rr]; };
-  for (let k = 0; k < seg; k++) { const k2 = (k + 1) % seg; B.doble(f(R, k), f(R, k2), f(ri, k2), C.metal, "metal", C.metal2); B.doble(f(R, k), f(ri, k2), f(ri, k), C.metal, "metal", C.metal2); }
-  for (let q = 0; q < 2; q++) { const a = giro + (q / 2) * Math.PI, c = Math.cos(a), sn = Math.sin(a), w = 0.045 * s; B.doble([c * ri, y, sn * ri], [-c * ri, y, -sn * ri], [-c * ri + sn * w, y, -sn * ri - c * w], C.metal2, "metal"); B.doble([c * ri, y, sn * ri], [-c * ri + sn * w, y, -sn * ri - c * w], [c * ri + sn * w, y, sn * ri - c * w], C.metal2, "metal"); }
-  return { tris: B.tris, alto: y, radio: R, led: [0.3 * s, 0.45 * s, 0.05], enterrar: [0.15, 0.35] };
+/** LENS-SPHERE (Disco de Janus): a ~3 m sphere with a wide brass equator flange, a lens on its front and a dark crack down its crown. */
+const esfera: Hechura = (r, C) => {
+  const B = new Constructor(), R = entre(r, 1.35, 1.6), seg = 7, g = r() * 6;
+  const perfil: [number, number][] = [0, 0.18, 0.5, 0.82, 1].map((u) => { const a = -Math.PI / 2 + u * Math.PI; return [Math.cos(a) * R, R + Math.sin(a) * R] as [number, number]; });
+  B.torno(perfil, seg, [C.cuerpo, C.cuerpo, C.junta, C.junta], "metal", g); // brass below, the verdigris crown of the relic above
+  // the crack: a zig-zag column of crown facets turned dark (no hole: the shell stays closed)
+  const k0 = Math.floor(r() * seg), sector = (t: Tri) => { const x = (t.p[0][0] + t.p[1][0] + t.p[2][0]) / 3, z = (t.p[0][2] + t.p[1][2] + t.p[2][2]) / 3; return Math.floor((((Math.atan2(z, x) - g) / (Math.PI * 2)) % 1 + 1) % 1 * seg); };
+  for (const t of B.tris) { const y = (t.p[0][1] + t.p[1][1] + t.p[2][1]) / 3, fila = y > R * 1.7 ? 0 : y > R * 1.15 ? 1 : 2; if (fila < 2 && sector(t) === (k0 + fila) % seg) { t.c = mezcla(CASA.noche, CASA.bronceOscuro, 0.4); t.m = "grieta"; } }
+  // the flange: a thin brass wing round the equator, wider than the shell (the silhouette at 30 m: a ball with a brim)
+  B.torno([[R * 0.97, R - 0.1], [R * 1.32, R - 0.02], [R * 0.97, R + 0.1]], seg, [C.realce, C.realce], "metal", g + Math.PI / seg);
+  // the lens, on the side away from the crack: a brass rim (verdigris joint) and a glass dome, with a turquoise pupil
+  const n0 = B.tris.length, vidrio = mezcla(MAQUINA.cristal, CASA.noche, 0.1);
+  B.torno([[0.5, 0], [0.5, 0.2], [0.38, 0.26]], 6, [C.realce, C.junta], "metal");
+  B.torno([[0.38, 0.26], [0.2, 0.36], [0, 0.4]], 6, [vidrio, MAQUINA.cristal], "cristal");
+  const la = g + ((k0 + seg / 2) / seg) * Math.PI * 2, cl = Math.cos(la), sl = Math.sin(la), fi = 0.15, ci = Math.cos(Math.PI / 2 - fi), si = Math.sin(Math.PI / 2 - fi);
+  // lathe axis Y → the sphere's outward normal at azimuth la, elevation fi (a rotation about Z, then about Y), seated on the shell
+  const n: V3 = [cl * Math.cos(fi), Math.sin(fi), sl * Math.cos(fi)], b0: V3 = [n[0] * R * 0.97, R + n[1] * R * 0.97, n[2] * R * 0.97];
+  B.mover(n0, ([x, y, z]) => { const x1 = x * ci + y * si, y1 = -x * si + y * ci; return [b0[0] + cl * x1 - sl * z, b0[1] + y1, b0[2] + sl * x1 + cl * z]; });
+  const pupila: V3 = [b0[0] + n[0] * 0.4, b0[1] + n[1] * 0.4, b0[2] + n[2] * 0.4];
+  return { tris: B.tris, alto: 2 * R, radio: R * 1.32, led: pupila, enterrar: [0.18, 0.3], senal: true };
 };
 
-const bobina: Hechura = (r, C) => {
-  const B = new Constructor(), s = entre(r, 0.85, 1.15), est = entre(r, 1.1, 2.0);
-  const p: [number, number][] = [[0.4 * s, 0], [0.4 * s, 0.12], [0.27 * s, 0.18], [0.4 * s, 0.3], [0.27 * s, 0.38], [0.2 * s, 0.45], [0, 0.5 * s]];
-  B.torno(p, 5, [C.metal2, C.metal, C.metal2, C.metal, C.piedra, C.metal2], "metal", r() * 1.2, est);
-  return { tris: B.tris, alto: 0.5 * s * est, radio: 0.4 * s, led: [0, 0.5 * s * est, 0], enterrar: [0.1, 0.3] };
-};
-
-const lente: Hechura = (r, C) => {
-  const B = new Constructor(), s = entre(r, 0.85, 1.2), g = r() * 1.0;
-  B.torno([[0.62 * s, 0], [0.62 * s, 0.16 * s], [0.54 * s, 0.2 * s]], 6, [C.metal, C.metal2], "metal", g);
-  // the glass: its own tone ring-by-ring (lighter towards the top, only light colours)
-  const vidrio = [mezcla(MAQUINA.cristal, CASA.noche, 0.12), MAQUINA.cristal, mezcla(MAQUINA.cristal, CASA.arena, 0.45)];
-  B.torno([[0.54 * s, 0.2 * s], [0.5 * s, 0.32 * s], [0.34 * s, 0.46 * s], [0, 0.55 * s]], 6, vidrio, "cristal", g);
-  return { tris: B.tris, alto: 0.55 * s, radio: 0.62 * s, led: [0.58 * s, 0.1, 0], enterrar: [0.15, 0.35] };
-};
-
-const arco: Hechura = (r, C) => {
-  const B = new Constructor(), R = entre(r, 1.0, 1.35), w = 0.2, N = 5, L = 0.5 * Math.PI;
-  const est: V3[][] = [];
+/** CRESCENT BLADE (Filo de Atlas): a 3.5–4 m sickle in the XY plane, one tip driven into the ground; a thick spine, bright bevelled
+ *  edges and a verdigris hub on its back. */
+const hoja: Hechura = (r, C) => {
+  const B = new Constructor(), Ro = entre(r, 1.9, 2.2), N = 8, amp = 1.25, ancho = Ro * 0.36, e = 0.13, giro = -0.35;
+  const rot = (x: number, y: number): [number, number] => [x * Math.cos(giro) - y * Math.sin(giro), x * Math.sin(giro) + y * Math.cos(giro)];
+  const plano = mezcla(C.cuerpo, C.realce, 0.5), filo: V3[] = [], lomoF: V3[] = [], lomoB: V3[] = [], medF: V3[] = [], medB: V3[] = [];
   for (let i = 0; i <= N; i++) {
-    const a = (i / N) * Math.PI, cx = Math.cos(a) * R, cy = Math.sin(a) * R; // centre of the section on the arc
-    const rx = Math.cos(a) * w, ry = Math.sin(a) * w;
-    est.push([[cx + rx, cy + ry, -w], [cx + rx, cy + ry, w], [cx - rx, cy - ry, w], [cx - rx, cy - ry, -w]]);
+    const t = i / N, a = -amp + 2 * amp * t, w = ancho * Math.pow(Math.sin(Math.PI * t), 0.8) + 0.01, ca = Math.cos(a), sa = Math.sin(a);
+    const P = (rr: number, z: number): V3 => { const [x, y] = rot(ca * rr, sa * rr); return [x, y, z]; };
+    filo.push(P(Ro, 0)); medF.push(P(Ro - w * 0.45, e * 0.7 * Math.sin(Math.PI * t) + 0.01)); medB.push(P(Ro - w * 0.45, -e * 0.7 * Math.sin(Math.PI * t) - 0.01));
+    lomoF.push(P(Ro - w, e * Math.sin(Math.PI * t) + 0.01)); lomoB.push(P(Ro - w, -e * Math.sin(Math.PI * t) - 0.01));
   }
-  void L;
-  for (let i = 0; i < N; i++) for (let k = 0; k < 4; k++) {
-    const k2 = (k + 1) % 4, col = (i + k) % 3 === 0 ? C.metal2 : C.metal, centro: V3 = [(est[i][0][0] + est[i][2][0]) / 2, (est[i][0][1] + est[i][2][1]) / 2, 0];
-    B.fuera(est[i][k], est[i][k2], est[i + 1][k2], col, "metal", centro); B.fuera(est[i][k], est[i + 1][k2], est[i + 1][k], col, "metal", centro);
+  for (let i = 0; i < N; i++) {
+    const c: V3 = [(medF[i][0] + medF[i + 1][0]) / 2 * 0.6, (medF[i][1] + medF[i + 1][1]) / 2 * 0.6, 0], j = i + 1;
+    B.quad(filo[i], filo[j], medF[j], medF[i], C.realce, "metal", [c[0], c[1], -1]); B.quad(filo[i], filo[j], medB[j], medB[i], C.realce, "metal", [c[0], c[1], 1]); // bright bevels
+    B.quad(medF[i], medF[j], lomoF[j], lomoF[i], plano, "metal", [c[0], c[1], -1]); B.quad(medB[i], medB[j], lomoB[j], lomoB[i], plano, "metal", [c[0], c[1], 1]); // the flats
+    B.quad(lomoF[i], lomoF[j], lomoB[j], lomoB[i], C.cuerpo, "metal", [(filo[i][0] + filo[j][0]) / 2, (filo[i][1] + filo[j][1]) / 2, 0]); // the spine (faces the arc's centre)
   }
-  return { tris: B.tris, alto: R + w, radio: R + w, led: [0, R + w, 0.0], enterrar: [0.08, 0.2] };
+  // the hub on the spine's middle: a short drum across the blade
+  const n0 = B.tris.length, [hx, hy] = rot(Ro - ancho - 0.1, 0);
+  B.torno([[0, -0.26], [0.24, -0.2], [0.24, 0.2], [0, 0.26]], 6, [C.realce, C.cuerpo, C.realce], "metal");
+  B.mover(n0, ([x, y, z]) => [hx + x, hy - z, y]); // a quarter turn about X: the drum's axis goes across the blade
+  // stand it up: the lower tip down into the ground (y = 0 is about 0.5 m above that tip)
+  const lo = Math.min(...B.tris.flatMap((t) => t.p.map((v) => v[1])));
+  B.mover(0, ([x, y, z]) => [x - Ro * 0.6, y - lo - 0.5, z]);
+  const alto = Math.max(...B.tris.flatMap((t) => t.p.map((v) => v[1])));
+  return { tris: B.tris, alto, radio: Ro * 0.9, led: [hx - Ro * 0.6, hy - lo - 0.5, 0.33], enterrar: [0, 0.04], senal: false };
 };
 
-const veleta: Hechura = (r, C) => {
-  const B = new Constructor(), s = entre(r, 0.85, 1.15), H = 1.55 * s;
-  B.torno([[0.08, 0], [0.05, H * 0.95], [0.085, H], [0, H + 0.07]], 4, [C.metal2, C.metal2, C.metal], "metal");
-  const g = r() * Math.PI * 2, c = Math.cos(g), sn = Math.sin(g), y = H + 0.08;
-  const P = (u: number, v: number): V3 => [c * u, y + v, sn * u]; // a vertical plane through the post, rotated by g
-  B.doble(P(0.5, 0), P(0.08, 0.1), P(0.08, -0.1), C.metal, "metal", C.metal2);
-  B.doble(P(-0.1, 0), P(-0.46, 0.2), P(-0.46, -0.2), C.metal2, "metal", C.metal);
-  const yb = H * 0.8, cc = Math.cos(g + 1.2), s2 = Math.sin(g + 1.2);
-  B.doble([-cc * 0.26, yb, -s2 * 0.26], [cc * 0.26, yb, s2 * 0.26], [cc * 0.26, yb + 0.04, s2 * 0.26], C.metal2, "metal");
-  B.doble([c * 0.26, yb, sn * 0.26], [-c * 0.26, yb, -sn * 0.26], [-c * 0.26, yb + 0.04, -sn * 0.26], C.metal2, "metal");
-  return { tris: B.tris, alto: y + 0.2, radio: 0.5, led: P(0.5, 0), enterrar: [0.04, 0.1] };
-};
-
-const columna: Hechura = (r, C) => {
-  const B = new Constructor(), s = entre(r, 0.85, 1.15), L = entre(r, 1.3, 1.8);
-  const col = [C.piedra, C.piedra, C.metal, C.metal2, C.metal2, C.piedra, C.piedra];
-  B.tumbado([[0.3 * s, 0], [0.3 * s, 0.45], [0.44 * s, 0.5], [0.44 * s, 0.62], [0.3 * s, 0.67], [0.3 * s, L]], 5, [col[0], col[1], C.metal, C.metal2, C.piedra], "piedra", r());
-  // colour the collar as metal
-  for (const t of B.tris) { const ym = (t.p[0][0] + t.p[1][0] + t.p[2][0]) / 3; if (ym > 0.46 && ym < 0.66) t.m = "metal"; }
-  return { tris: B.tris, alto: 0.6 * s, radio: L / 2, led: [0.56, 0.4 * s, 0.1], enterrar: [0.25, 0.4] };
-};
-
-const panel: Hechura = (r, C) => {
-  const B = new Constructor(), s = entre(r, 0.85, 1.15), H = 1.0 * s;
-  B.torno([[0.07, 0], [0.045, H], [0.08, H + 0.04]], 4, [C.metal2, C.metal], "metal");
-  const tilt = entre(r, 0.45, 0.7), ct = Math.cos(tilt), st = Math.sin(tilt), g = r() * Math.PI * 2, cg = Math.cos(g), sg = Math.sin(g), y0 = H + 0.1, petalos = 5;
-  const Pt = (rr: number, a: number): V3 => { const x = Math.cos(a) * rr, z = Math.sin(a) * rr, y = x * st; const x2 = x * ct; return [cg * x2 - sg * z, y0 + y, sg * x2 + cg * z]; };
-  const verde = mezcla(MAQUINA.cobreOxidado, CASA.noche, 0.45), brillo = mezcla(MAQUINA.cobreOxidado, MAQUINA.cristal, 0.25);
-  const centro = Pt(0, 0);
-  for (let k = 0; k < petalos; k++) {
-    const a = (k / petalos) * Math.PI * 2, m1 = Pt(0.28 * s, a - 0.4), m2 = Pt(0.28 * s, a + 0.4), tip = Pt(0.62 * s, a);
-    const cf = k % 2 === 0 ? verde : brillo;
-    B.doble(centro, tip, m1, cf, "cristal", C.metal2); B.doble(centro, m2, tip, cf, "cristal", C.metal2); // winding so the sky side is up
+/** VALVE: a pipe stub out of the ground with a flange, carrying an upright hand-wheel ~1.9 m across: thick rim, two crossing spokes. */
+const valvula: Hechura = (r, C) => {
+  const B = new Constructor(), s = entre(r, 0.92, 1.1), Rw = 0.9 * s, yw = 1.05 * s + Rw;
+  B.torno([[0.34 * s, 0], [0.34 * s, 0.78 * s], [0.5 * s, 0.84 * s], [0.5 * s, 0.98 * s], [0.16 * s, 1.08 * s]], 5, [C.cuerpo, C.junta, C.realce, C.cuerpo], "metal", r());
+  // the stem up to the hub: a square post
+  const q = 0.07 * s, top = yw;
+  for (let k = 0; k < 4; k++) { const a = (k / 4) * Math.PI * 2 + Math.PI / 4, b = ((k + 1) / 4) * Math.PI * 2 + Math.PI / 4; B.quad([Math.cos(a) * q, 1.0 * s, Math.sin(a) * q], [Math.cos(b) * q, 1.0 * s, Math.sin(b) * q], [Math.cos(b) * q, top, Math.sin(b) * q], [Math.cos(a) * q, top, Math.sin(a) * q], C.cuerpo, "metal", [0, (top + s) / 2, 0]); }
+  // the wheel in the XY plane: 8 rim segments, the rim raised (bright brass)
+  const est: [number, number, number][] = Array.from({ length: 9 }, (_, k) => [(k / 8) * Math.PI * 2 + Math.PI / 8, 1, C.realce]);
+  B.aro([0, yw, 0], Rw, 0.2 * s, 0.22 * s, est, "metal");
+  // two spokes crossing at the hub (square bars), turned 45° so they read as an X
+  for (const a of [Math.PI / 4, -Math.PI / 4]) {
+    const ca = Math.cos(a), sa = Math.sin(a), h = 0.06 * s, L = Rw - 0.05;
+    const P = (u: number, v: number, w: number): V3 => [ca * u - sa * v, yw + sa * u + ca * v, w];
+    const c: V3 = [0, yw, 0];
+    for (const [v0, w0, v1, w1] of [[-h, -h, h, -h], [h, -h, h, h], [h, h, -h, h], [-h, h, -h, -h]]) B.quad(P(-L, v0, w0), P(-L, v1, w1), P(L, v1, w1), P(L, v0, w0), C.cuerpo, "metal", c);
   }
-  return { tris: B.tris, alto: y0 + 0.5, radio: 0.62 * s, led: Pt(0.06, 0), enterrar: [0.04, 0.1] };
+  return { tris: B.tris, alto: yw + Rw, radio: Rw, led: [0, yw, 0.18 * s], enterrar: [0.04, 0.1], senal: false };
 };
 
-const tronco: Hechura = (r, C) => {
-  const B = new Constructor(), s = entre(r, 0.85, 1.2), L = entre(r, 1.7, 2.6), q = L * entre(r, 0.35, 0.6), rr = 0.24 * s;
-  B.tumbado([[rr, 0], [rr, q], [rr * 1.18, q + 0.01], [rr * 1.18, q + 0.13], [rr, q + 0.14], [rr, L], [0, L + 0.02]], 5, [C.madera, C.madera, C.metal, C.metal2, C.madera, C.madera], "madera", r());
-  for (const t of B.tris) { const xm = (t.p[0][0] + t.p[1][0] + t.p[2][0]) / 3; if (xm > q - 0.02 && xm < q + 0.15) t.m = "metal"; }
-  return { tris: B.tris, alto: rr * 2.4, radio: L / 2, led: null, enterrar: [0.15, 0.3] };
+/** COIL: an upright spool ~2 m tall, wide brass end plates and three proud copper windings between dark grooves. */
+const bobina: Hechura = (r, C) => {
+  const B = new Constructor(), s = entre(r, 0.9, 1.1), Rb = 0.78 * s, Rn = 0.56 * s, Rv = 0.66 * s, H = 2.0 * s;
+  const cobre = PATINA.cobre, surco = mezcla(C.cuerpo, CASA.bronceOscuro, 0.55);
+  const p: [number, number][] = [[Rb, 0], [Rb, 0.2 * H], [Rn, 0.24 * H], [Rv, 0.32 * H], [Rn, 0.42 * H], [Rv, 0.52 * H], [Rn, 0.62 * H], [Rv, 0.72 * H], [Rn, 0.8 * H], [Rb, 0.84 * H], [Rb, 0.95 * H], [0, H]];
+  B.torno(p, 5, [C.cuerpo, C.junta, cobre, cobre, cobre, cobre, cobre, cobre, C.junta, C.realce, C.realce], "metal", r() * 1.2);
+  // the grooves between windings: the down-sloping faces are turned dark so each winding reads as a separate ring
+  for (const t of B.tris) if (t.c === cobre) { const n = cruz(sub(t.p[1], t.p[0]), sub(t.p[2], t.p[0])); if (n[1] < 0) t.c = surco; }
+  return { tris: B.tris, alto: H, radio: Rb, led: [0, H, 0], enterrar: [0.12, 0.22], senal: false };
+};
+
+/** GEAR: a toothed disc 2.6–3.4 m across, set on edge and half sunk (closed both sides: it is seen from behind too); bright raised hub. */
+const engranaje: Hechura = (r, C) => {
+  const B = new Constructor(), T = r() < 0.5 ? 7 : 8, R = entre(r, 1.3, 1.7), raiz = R * 0.8, hub = R * 0.32, e = 0.28, n = 2 * T;
+  const cima: V3[] = [], base: V3[] = [], cubo: V3[] = [], h2: V3[] = [];
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * Math.PI * 2, rr = k % 2 === 0 ? R : raiz, ca = Math.cos(a), sa = Math.sin(a);
+    cima.push([ca * rr, e, sa * rr]); base.push([ca * rr, 0, sa * rr]); cubo.push([ca * hub, e, sa * hub]); h2.push([ca * hub * 0.7, e + 0.18, sa * hub * 0.7]);
+  }
+  const arriba: V3 = [0, -3, 0], abajo: V3 = [0, 3, 0], tapa: V3 = [0, e + 0.2, 0];
+  for (let k = 0; k < n; k++) {
+    const k2 = (k + 1) % n;
+    B.quad(cima[k], cima[k2], cubo[k2], cubo[k], C.cuerpo, "metal", arriba);                                // front face
+    B.quad(cima[k], base[k], base[k2], cima[k2], k % 2 === 0 ? C.realce : C.cuerpo, "metal", [0, e / 2, 0]); // teeth flanks
+    B.fuera(base[k], base[k2], [0, 0, 0], C.cuerpo, "metal", abajo);                                         // back face (a fan)
+  }
+  for (let k = 0; k < n; k += 2) { const k2 = (k + 2) % n; B.quad(cubo[k], cubo[k2], h2[k2], h2[k], C.realce, "metal", [0, e - 1, 0]); B.fuera(h2[k], h2[k2], tapa, C.realce, "metal", [0, 0, 0]); }
+  return { tris: B.tris, alto: e + 0.18, radio: R, led: [0, e + 0.19, 0], enterrar: [0.2, 0.5], senal: false };
 };
 
 const roca: Hechura = (r, C) => {
-  const B = new Constructor(), R = entre(r, 0.4, 0.9), seg = 5, g = r() * 6;
+  const B = new Constructor(), R = entre(r, 0.5, 1.0), seg = 5, g = r() * 6;
   const anillo = (rr: number, y: number, off: number): V3[] => Array.from({ length: seg }, (_, k) => { const a = g + off + (k / seg) * Math.PI * 2, j = 0.78 + 0.44 * r(); return [Math.cos(a) * rr * j, y * (0.85 + 0.3 * r()), Math.sin(a) * rr * j] as V3; });
   const A = anillo(R, 0, 0), M = anillo(R * 0.78, R * 0.5, 0.6), cima: V3 = [R * 0.08 * (r() - 0.5), R * 0.8, R * 0.08 * (r() - 0.5)], centro: V3 = [0, R * 0.2, 0];
   for (let k = 0; k < seg; k++) { const k2 = (k + 1) % seg; B.fuera(A[k], A[k2], M[k2], C.piedra, "piedra", centro); B.fuera(A[k], M[k2], M[k], C.piedra, "piedra", centro); B.fuera(M[k], M[k2], cima, C.piedra, "piedra", centro); }
-  return { tris: B.tris, alto: R * 0.8, radio: R, led: null, enterrar: [0.1, 0.3] };
+  return { tris: B.tris, alto: R * 0.8, radio: R, led: null, enterrar: [0.1, 0.3], senal: false };
 };
 
-const HECHURAS: Record<TipoPieza, Hechura> = { engranaje, valvula, bobina, lente, arco, veleta, columna, panel, tronco, roca };
+const HECHURAS: Record<TipoPieza, Hechura> = { anillo, esfera, hoja, valvula, bobina, engranaje, roca };
 
 // ------------------------------------------------------------------ colour
 const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
@@ -228,19 +269,24 @@ const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.
 export function aLineal(hex: number): [number, number, number] { return [lin(((hex >> 16) & 255) / 255), lin(((hex >> 8) & 255) / 255), lin((hex & 255) / 255)]; }
 const sstep = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-/** The metals a site may be built of: brass, copper, toasted amber (old brass), dark bronze; the stone is ash or sand-veiled ash. */
-const METALES = [MAQUINA.laton, MAQUINA.cobre, MAQUINA.latonSombra, MAQUINA.laton, MAQUINA.cobre, MAQUINA.bronce];
-type Maniera = { metal: number; metal2: number; piedra: number; madera: number; musgo: number; verdin: number };
+function maniera(r: () => number, zona: Zona): Maniera {
+  const cobre = r() < 0.25;
+  return {
+    cuerpo: cobre ? PATINA.cobre : mezcla(PATINA.cuerpo, PATINA.latonVivo, 0.3 * r()), realce: PATINA.latonVivo, junta: PATINA.verdin,
+    piedra: zona === "roca" || zona === "arena" ? mezcla(CASA.basalto, CASA.ceniza, 0.35 + 0.25 * r()) : mezcla(CASA.ceniza, CASA.arenaVelada, 0.35 * r()),
+    verdin: 0.72 + 0.2 * r(), musgo: 0.2 + 0.3 * r(),
+  };
+}
 
 // ------------------------------------------------------------------ sites
 const ANCLAS: Partial<Record<Zona, [TipoPieza, number][]>> = {
-  roca: [["engranaje", 3], ["columna", 2], ["bobina", 3], ["valvula", 1], ["arco", 1]],
-  bosque: [["tronco", 2], ["valvula", 3], ["arco", 3], ["veleta", 2], ["engranaje", 2], ["bobina", 1]],
-  prado: [["panel", 3], ["lente", 3], ["veleta", 2], ["valvula", 2], ["arco", 1], ["bobina", 1]],
-  orilla: [["arco", 3], ["valvula", 3], ["lente", 2]],
-  arena: [["engranaje", 3], ["lente", 2], ["columna", 2]],
+  roca: [["esfera", 3], ["hoja", 3], ["anillo", 1], ["engranaje", 1]], // the moor carries the big relics
+  arena: [["hoja", 2], ["esfera", 2], ["engranaje", 2]],
+  bosque: [["engranaje", 3], ["bobina", 2], ["hoja", 1], ["valvula", 1]],
+  prado: [["bobina", 2], ["engranaje", 2], ["esfera", 1], ["valvula", 1]],
+  orilla: [["valvula", 4], ["bobina", 1]],
 };
-const RELLENO: [TipoPieza, number][] = [["roca", 5], ["engranaje", 2], ["tronco", 1], ["valvula", 1], ["columna", 1], ["bobina", 1], ["lente", 1], ["veleta", 0.5], ["panel", 0.5]];
+const RELLENO: [TipoPieza, number][] = [["roca", 6], ["valvula", 1], ["bobina", 1], ["engranaje", 1]];
 const elegir = <T,>(tabla: [T, number][], u: number): T => { const tot = tabla.reduce((a, [, w]) => a + w, 0); let a = 0; for (const [t, w] of tabla) { a += w / tot; if (u < a) return t; } return tabla[tabla.length - 1][0]; };
 
 type Candidato = { cx: number; cz: number; prioridad: number; zona: Zona; ancla: TipoPieza; i: number; j: number };
@@ -252,6 +298,7 @@ function candidatos(semilla: number, o: OpcionesResiduos, alturaEn: (x: number, 
     if (Math.abs(x) > mitad - MARGEN_BORDE_RESIDUOS || Math.abs(z) > mitad - MARGEN_BORDE_RESIDUOS) continue;
     const d = Math.hypot(x, z);
     if (d < o.plaza + MARGEN_PLAZA_RESIDUOS + 4) continue;
+    if (Math.hypot(x - ANILLO_HITO.x, z - ANILLO_HITO.z) < LIBRE_ANILLO + 4) continue;
     if (o.estanque && Math.hypot(x - o.estanque.x, z - o.estanque.z) < o.estanque.radio * 1.25 + 5) continue;
     const zona = zonaEn(x, z);
     // rarer in the meadow, more along the edge of the rock and of the forest
@@ -271,46 +318,66 @@ function candidatos(semilla: number, o: OpcionesResiduos, alturaEn: (x: number, 
   return res.sort((a, b) => a.prioridad - b.prioridad);
 }
 
-type Colocada = { pieza: Pieza; tipo: TipoPieza; x: number; y: number; z: number; giro: number; escala: number; incl: [number, number]; fondo: number; mani: Maniera };
+type Colocada = { pieza: Pieza; tipo: TipoPieza; x: number; y: number; z: number; suelo: number; giro: number; escala: number; incl: [number, number]; fondo: number; mani: Maniera };
+
+/** Tilt of a piece as placed: the gear stands on edge (half sunk), the rest lean a little. */
+function inclinacion(r: () => number, tipo: TipoPieza): [number, number] {
+  if (tipo === "engranaje") return [(r() < 0.5 ? -1 : 1) * entre(r, 0.9, 1.2), entre(r, -0.15, 0.15)]; // leaning on edge: its face reads from most sides
+  if (tipo === "roca") return [entre(r, -0.1, 0.1), entre(r, -0.1, 0.1)];
+  if (tipo === "esfera") return [entre(r, -0.3, 0.3), entre(r, -0.3, 0.3)];
+  return [entre(r, -0.12, 0.12), entre(r, -0.12, 0.12)];
+}
+
+/** Add a tiny led pyramid (4 triangles) at `led` in the piece's local space. */
+function ponerLed(pieza: Pieza, led: V3, col: number, escala: number): void {
+  const t: Tri[] = [], e = 0.06 / escala, [lx, ly, lz] = led;
+  const A: V3 = [lx + e, ly, lz], Bq: V3 = [lx - e * 0.5, ly, lz + e * 0.87], Cq: V3 = [lx - e * 0.5, ly, lz - e * 0.87], D: V3 = [lx, ly + e * 1.4, lz];
+  for (const [p, q, w] of [[A, Bq, D], [Bq, Cq, D], [Cq, A, D], [A, Cq, Bq]] as [V3, V3, V3][]) t.push({ p: [p, q, w], c: col, m: "led" });
+  const g: V3 = [lx, ly + e * 0.35, lz]; // orient the little pyramid outwards
+  for (const q of t) { const nn = cruz(sub(q.p[1], q.p[0]), sub(q.p[2], q.p[0])), gg: V3 = [(q.p[0][0] + q.p[1][0] + q.p[2][0]) / 3, (q.p[0][1] + q.p[1][1] + q.p[2][1]) / 3, (q.p[0][2] + q.p[1][2] + q.p[2][2]) / 3]; if (dot(nn, sub(gg, g)) < 0) q.p = [q.p[0], q.p[2], q.p[1]]; }
+  pieza.tris.push(...t);
+}
 
 /** The pieces of one site, or null when it has fewer than 3 valid ones. */
 function armarSitio(semilla: number, o: OpcionesResiduos, c: Candidato, alturaEn: (x: number, z: number) => number, zonaEn: (x: number, z: number) => Zona): Colocada[] | null {
   const r = crearAzar(Math.floor(hash2(semilla + 4200, c.i, c.j) * 4294967296));
-  const metal = METALES[Math.floor(r() * METALES.length)], metal2 = METALES[Math.floor(r() * METALES.length)];
-  const mani: Maniera = { metal, metal2, piedra: r() < 0.5 ? CASA.ceniza : mezcla(CASA.ceniza, CASA.arenaVelada, 0.35), madera: mezcla(CASA.bronce, CASA.ambarTostado, 0.4), musgo: 0.1 + 0.3 * r(), verdin: 0.3 + 0.35 * r() };
-  const quiere = 3 + Math.floor(r() * 5), pzs: Colocada[] = [];
+  const mani = maniera(r, c.zona), quiere = 3 + Math.floor(r() * 3), pzs: Colocada[] = [];
   const cabe = (x: number, z: number) => {
     if (Math.hypot(x, z) < o.plaza + MARGEN_PLAZA_RESIDUOS) return false;
+    if (Math.hypot(x - ANILLO_HITO.x, z - ANILLO_HITO.z) < LIBRE_ANILLO) return false;
     if (o.estanque && Math.hypot(x - o.estanque.x, z - o.estanque.z) < o.estanque.radio * 1.25 + 3) return false;
     if (Math.abs(x) > o.tamano / 2 - MARGEN_BORDE_RESIDUOS + 4 || Math.abs(z) > o.tamano / 2 - MARGEN_BORDE_RESIDUOS + 4) return false;
     return true;
   };
   for (let k = 0; k < quiere * 3 && pzs.length < quiere; k++) {
-    const tipo: TipoPieza = k === 0 ? c.ancla : elegir(RELLENO, r()), a = r() * Math.PI * 2, d = k === 0 ? 0 : entre(r, 1.3, 4.6);
+    const tipo: TipoPieza = k === 0 ? c.ancla : elegir(RELLENO, r()), a = r() * Math.PI * 2, d = k === 0 ? 0 : entre(r, 2.6, 6.5);
     const x = c.cx + Math.cos(a) * d, z = c.cz + Math.sin(a) * d;
     if (!cabe(x, z)) continue;
-    if (pzs.some((q) => Math.hypot(q.x - x, q.z - z) < (q.pieza.radio + 0.5) * q.escala * 0.8 + 0.6)) continue;
-    const escala = entre(r, 1.2, 1.75) * (tipo === "roca" ? entre(r, 0.7, 1.1) : 1);
-    const pieza = HECHURAS[tipo](r, mani);
-    const fp = pieza.radio * escala * 0.6, hs = [alturaEn(x, z), alturaEn(x + fp, z), alturaEn(x - fp, z), alturaEn(x, z + fp), alturaEn(x, z - fp)];
+    const escala = tipo === "roca" ? entre(r, 0.8, 1.5) : entre(r, 0.92, 1.12);
+    const pieza = HECHURAS[tipo](r, mani, o.nivel);
+    if (pzs.some((q) => Math.hypot(q.x - x, q.z - z) < (q.pieza.radio * q.escala + pieza.radio * escala) * 0.75 + 0.3)) continue;
+    const fp = Math.min(pieza.radio * escala * 0.6, 2), hs = [alturaEn(x, z), alturaEn(x + fp, z), alturaEn(x - fp, z), alturaEn(x, z + fp), alturaEn(x, z - fp)];
     const suelo = Math.min(...hs);
-    if (suelo < -0.1 || Math.max(...hs) - suelo > 1.1 * pieza.radio * escala) continue;
-    if (zonaEn(x, z) === "arena" && tipo === "tronco") continue;
-    const incl: [number, number] = tipo === "engranaje" ? [entre(r, -0.6, 0.6), entre(r, -0.6, 0.6)] : tipo === "roca" ? [entre(r, -0.1, 0.1), entre(r, -0.1, 0.1)] : [entre(r, -0.2, 0.2), entre(r, -0.2, 0.2)];
-    const fondo = entre(r, pieza.enterrar[0], pieza.enterrar[1]) * pieza.alto * escala;
-    pzs.push({ pieza, tipo, x, y: suelo - fondo, z, giro: r() * Math.PI * 2, escala, incl, fondo, mani });
-    // a tiny led on about one piece in three (machines only)
-    if (pieza.led && tipo !== "roca" && r() < 0.34) {
-      const led = pieza.led, t: Tri[] = [], col = r() < 0.7 ? SENAL.turquesa : SENAL.coral, e = 0.045 / escala, [lx, ly, lz] = led;
-      const A: V3 = [lx + e, ly, lz], Bq: V3 = [lx - e * 0.5, ly, lz + e * 0.87], Cq: V3 = [lx - e * 0.5, ly, lz - e * 0.87], D: V3 = [lx, ly + e * 1.4, lz];
-      for (const [p, q, w] of [[A, Bq, D], [Bq, Cq, D], [Cq, A, D], [A, Cq, Bq]] as [V3, V3, V3][]) t.push({ p: [p, q, w], c: col, m: "led" });
-      // orient the little pyramid outwards
-      const g: V3 = [lx, ly + e * 0.35, lz];
-      for (const q of t) { const nn = cruz(sub(q.p[1], q.p[0]), sub(q.p[2], q.p[0])), gg: V3 = [(q.p[0][0] + q.p[1][0] + q.p[2][0]) / 3, (q.p[0][1] + q.p[1][1] + q.p[2][1]) / 3, (q.p[0][2] + q.p[1][2] + q.p[2][2]) / 3]; if (dot(nn, sub(gg, g)) < 0) q.p = [q.p[0], q.p[2], q.p[1]]; }
-      pieza.tris.push(...t);
-    }
+    if (suelo < -0.1 || Math.max(...hs) - suelo > Math.max(1.2, 0.7 * pieza.radio * escala)) continue;
+    const incl = inclinacion(r, tipo), fondo = entre(r, pieza.enterrar[0], pieza.enterrar[1]) * pieza.alto * escala;
+    pzs.push({ pieza, tipo, x, y: suelo - fondo, z, suelo, giro: r() * Math.PI * 2, escala, incl, fondo, mani });
+    // one signal accent at most: pieces without their own get a tiny led about one time in three (machines only)
+    if (pieza.led && !pieza.senal && tipo !== "roca" && r() < 0.34) { ponerLed(pieza, pieza.led, r() < 0.7 ? SENAL.turquesa : SENAL.coral, escala); pieza.senal = true; }
+    else if (pieza.led && pieza.senal && tipo === "esfera") ponerLed(pieza, pieza.led, SENAL.turquesa, escala); // the lens's pupil IS its accent
   }
   return pzs.length >= 3 ? pzs : null;
+}
+
+/** The landmark ring at ANILLO_HITO, facing the plaza, or null when the world is too small to hold it. */
+function anilloHito(semilla: number, o: OpcionesResiduos, alturaEn: (x: number, z: number) => number): Colocada | null {
+  const { x, z } = ANILLO_HITO;
+  if (Math.abs(x) > o.tamano / 2 - 6 || Math.abs(z) > o.tamano / 2 - 6) return null;
+  const r = crearAzar(Math.floor(hash2(semilla + 4250, 18, 0) * 4294967296)), mani = maniera(r, "roca");
+  mani.cuerpo = mezcla(PATINA.cuerpo, PATINA.latonVivo, 0.15);
+  const pieza = anillo(r, mani, o.nivel), hs = [-3, -1.5, 0, 1.5, 3].flatMap((dz) => [alturaEn(x - 0.5, z + dz), alturaEn(x + 0.5, z + dz)]), suelo = Math.min(...hs);
+  // the ring looks along its local Z: turn it so it looks along the radius from the plaza (you see through it from the plaza), plus a little lean
+  const giro = Math.atan2(x, z) + entre(r, -0.12, 0.12);
+  return { pieza, tipo: "anillo", x, y: suelo, z, suelo, giro, escala: 1, incl: [entre(r, -0.05, 0.05), entre(r, 0.04, 0.09)], fondo: 0, mani };
 }
 
 // ------------------------------------------------------------------ bake
@@ -323,45 +390,61 @@ function hornear(pz: Colocada, semilla: number, idx: number, pos: number[], col:
     const x2 = x * cz - y * sz, y2 = x * sz + y * cz; x = x2; y = y2;        // tilt about Z
     return [pz.x + x * cy + z * sy, pz.y + y, pz.z - x * sy + z * cy];       // yaw, move
   };
-  const M = pz.mani, alto = Math.max(0.3, pieza.alto);
+  const M = pz.mani;
   let t = 0;
   for (const tri of pieza.tris) {
     const w = tri.p.map(mundo) as [V3, V3, V3], n = cruz(sub(w[1], w[0]), sub(w[2], w[0])), ln = Math.hypot(n[0], n[1], n[2]) || 1, ny = n[1] / ln;
     const tono = hash2(semilla + 4300 + idx, t, 17) - 0.5; t++;
     for (let q = 0; q < 3; q++) {
-      const h = Math.min(1, Math.max(0, tri.p[q][1] / alto)); // 0 = foot of the piece … 1 = top
-      const hv = hash2(semilla + 4400 + idx, t * 3 + q, 5);
-      let c = tri.cv ? tri.cv[q] : tri.c;
-      if (tri.m === "led") { col.push(...aLineal(c)); pos.push(w[q][0], w[q][1], w[q][2]); continue; }
-      if (tri.m !== "cristal") {
-        if (tri.m === "metal") c = mezcla(mezcla(c, CASA.ceniza, 0.16), CASA.arenaVelada, 0.1); // weathered brass: lighter and duller than its paint chip
-        if (tri.m === "metal" || tri.m === "piedra") c = mezcla(c, hv < 0.5 ? MAQUINA.cobreOxidado : VERDES.verdin, Math.min(0.9, M.verdin * (0.15 + 1.4 * (1 - h) * (1 - h)) * (0.5 + hv))); // verdigris rises from the ground, with water-stain streaks
-        c = mezcla(c, CASA.arenaVelada, 0.2 * (1 - sstep(-0.2, 0.5, ny))); // baked fill light: the faces turned from the sun are never pure black
-        const sobre = sstep(0.25, 0.85, ny);
-        c = mezcla(c, VERDES.musgo, Math.min(0.85, M.musgo * sobre * (0.5 + hv) * (tri.m === "madera" ? 1.1 : 1)));            // moss on the top faces
-        c = mezcla(c, VERDES.monteSombra, Math.min(0.4, 0.3 * (1 - h) * (1 - h) * (1 - h)));                                             // earth swallows the foot
-        c = mezcla(c, tono > 0 ? CASA.arenaVelada : MAQUINA.latonSombra, Math.abs(tono) * 0.3);                                       // tone jitter
-      } else c = mezcla(c, CASA.arena, 0.2 * sstep(0.4, 1, ny) + Math.max(0, tono) * 0.2);                                         // glass: light colours only
+      let c = tri.c;
+      if (tri.m === "led" || tri.m === "grieta") { col.push(...aLineal(c)); pos.push(w[q][0], w[q][1], w[q][2]); continue; }
+      const hv = hash2(semilla + 4400 + idx, t * 3 + q, 5), dy = w[q][1] - pz.suelo;
+      if (tri.m === "cristal") c = mezcla(c, CASA.arena, 0.2 * sstep(0.4, 1, ny) + Math.max(0, tono) * 0.2); // glass: light colours only
+      else {
+        if (tri.m === "metal") c = mezcla(c, PATINA.verdin, M.verdin * sstep(0.5, 0.72, ny) * (0.8 + 0.4 * hv));        // verdigris on the faces that look at the sky
+        else c = mezcla(c, VERDES.musgo, Math.min(0.8, M.musgo * sstep(0.35, 0.85, ny) * (0.6 + hv)));                 // moss on the stones' tops
+        c = mezcla(c, CASA.arenaVelada, 0.12 * (1 - sstep(-0.2, 0.5, ny)));                                          // baked fill: faces turned from the sun are never black
+        c = mezcla(c, PATINA.enterrado, (tri.m === "metal" ? 0.8 : 0.45) * (1 - sstep(-0.05, 0.5, dy)));                                           // dark where it goes into the ground
+        if (tri.m === "metal") c = mezcla(c, tono > 0 ? PATINA.latonVivo : MAQUINA.latonSombra, Math.abs(tono) * 0.14); // tone jitter between facets
+      }
       pos.push(w[q][0], w[q][1], w[q][2]); col.push(...aLineal(c));
     }
   }
 }
 
+const SENALES = new Set([SENAL.turquesa, SENAL.coral] as number[]);
+const colocar = (p: Colocada): PiezaColocada => ({
+  tipo: p.tipo, x: p.x, y: p.y + p.fondo, z: p.z, escala: p.escala, giro: p.giro, triangulos: p.pieza.tris.length,
+  // signal accents of the piece: the ring's line counts as one, a led (4 triangles) as one
+  senales: p.pieza.tris.some((t) => t.m === "led" && SENALES.has(t.c)) ? 1 : 0,
+});
+
 /** Build the Residuos of a world: static triangles (positions + colours) and the list of sites. Pure and deterministic. */
 export function construirResiduos(semilla: number, o: OpcionesResiduos, alturaEn: (x: number, z: number) => number, zonaEn: (x: number, z: number) => Zona): Residuos {
   const tope = o.maxTriangulos ?? RESIDUOS_POR_NIVEL[o.nivel], pos: number[] = [], col: number[] = [], sitios: Sitio[] = [], piezas: PiezaColocada[] = [];
   let usados = 0;
-  if (tope > 0) for (const c of candidatos(semilla, o, alturaEn, zonaEn)) {
+  // the landmark first: the quest needs it on every tier that carries Residuos
+  const hito = tope > 0 ? anilloHito(semilla, o, alturaEn) : null;
+  if (hito && hito.pieza.tris.length <= tope) {
+    usados += hito.pieza.tris.length;
+    hornear(hito, semilla, 9001, pos, col); piezas.push(colocar(hito));
+    sitios.push({ x: hito.x, y: hito.suelo, z: hito.z, tipo: "anillo", piezas: 1, zona: zonaEn(hito.x, hito.z), radio: 4 });
+  }
+  const vistas = new Set<TipoPieza>(hito ? ["anillo"] : []);
+  if (tope > 0) for (const c0 of candidatos(semilla, o, alturaEn, zonaEn)) {
+    // variety: a site whose anchor kind is already standing takes the next kind of its zone's table that is not (heaviest first)
+    const libre = [...(ANCLAS[c0.zona] ?? ANCLAS.prado!)].sort((x, y) => y[1] - x[1]).find(([t]) => !vistas.has(t));
+    const c = vistas.has(c0.ancla) && libre ? { ...c0, ancla: libre[0] } : c0;
     let pzs = armarSitio(semilla, o, c, alturaEn, zonaEn);
     if (!pzs) continue;
     // fit the rest of the budget: drop the last fillers, a site keeps at least 3 pieces
     let coste = pzs.reduce((a, p) => a + p.pieza.tris.length, 0);
     while (pzs.length > 3 && usados + coste > tope) { coste -= pzs[pzs.length - 1].pieza.tris.length; pzs = pzs.slice(0, -1); }
     if (usados + coste > tope) continue;
-    usados += coste;
-    pzs.forEach((p, k) => { hornear(p, semilla, c.i * 131 + c.j * 7 + k, pos, col); piezas.push({ tipo: p.tipo, x: p.x, y: p.y + p.fondo, z: p.z, escala: p.escala, giro: p.giro }); });
+    usados += coste; vistas.add(c.ancla);
+    pzs.forEach((p, k) => { hornear(p, semilla, c.i * 131 + c.j * 7 + k, pos, col); piezas.push(colocar(p)); });
     const a = pzs[0];
-    sitios.push({ x: c.cx, y: a.y + a.fondo, z: c.cz, tipo: a.tipo, piezas: pzs.length, zona: c.zona, radio: 5 });
+    sitios.push({ x: c.cx, y: a.y + a.fondo, z: c.cz, tipo: a.tipo, piezas: pzs.length, zona: c.zona, radio: 7 });
   }
   return { posiciones: Float32Array.from(pos), colores: Float32Array.from(col), triangulos: pos.length / 9, sitios, piezas };
 }

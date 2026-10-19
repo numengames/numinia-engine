@@ -68,3 +68,16 @@ export function mezcla(a: number, b: number, t: number): number {
   const bl = Math.round((a & 255) * (1 - k) + (b & 255) * k);
   return (r << 16) | (g << 8) | bl;
 }
+
+// R6.6
+/**
+ * R6.6 · Pátina de los Residuos (residuos.ts): latón vivo en lo que sobresale, cuerpo de latón viejo (o cobre), verdín claro en lo que
+ * mira al cielo y en las juntas, oscuro en lo enterrado. Mezclas de tokens, ningún hex nuevo.
+ */
+export const PATINA = {
+  latonVivo: mezcla(MAQUINA.laton, CASA.ambar, 0.3),
+  cuerpo: mezcla(MAQUINA.laton, MAQUINA.latonSombra, 0.4),
+  cobre: mezcla(MAQUINA.cobre, CASA.ambar, 0.15),
+  verdin: mezcla(VERDES.verdin, CASA.verdemar, 0.45),
+  enterrado: mezcla(CASA.bronceOscuro, VERDES.monteSombra, 0.35),
+} as const;

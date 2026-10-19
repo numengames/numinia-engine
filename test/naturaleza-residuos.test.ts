@@ -1,7 +1,9 @@
 // R4 (naturaleza): the Residuos baked into the terrain mesh: determinism, exclusions, triangle share per tier, palette membership.
+// R6.6: heroic relic pieces (ring-portal, lens-sphere, crescent blade, valve wheel, coil, gear), the landmark ring at (18, 0), no raw hex.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { construirResiduos, RESIDUOS_POR_NIVEL, PALETA_RESIDUOS, aLineal, TIPOS_PIEZA } from "../packages/render/src/naturaleza/residuos.ts";
+import { readFileSync } from "node:fs";
+import { construirResiduos, RESIDUOS_POR_NIVEL, PALETA_RESIDUOS, aLineal, TIPOS_PIEZA, ANILLO_HITO } from "../packages/render/src/naturaleza/residuos.ts";
 import { crearTerreno, CELDAS_TERRENO, triangulosDeTerreno, alturaEn, zonaEn, estanqueDe } from "../packages/render/src/naturaleza/terreno.ts";
 import { PRESUPUESTO_NATURALEZA } from "../packages/render/src/naturaleza/niveles.ts";
 import { SENAL, COLOR_ESTANQUE } from "../packages/render/src/naturaleza/paleta.ts";
@@ -19,18 +21,31 @@ test("deterministic: same seed, same bytes; another seed, other sites", () => {
   assert.notDeepEqual(a.sitios, c.sitios);
 });
 
-test("seed 1234 snapshot: site count and pieces per tier", () => {
+test("seed 1234 snapshot: site count and pieces per tier (the landmark ring is a site of one)", () => {
   const cuenta = Object.fromEntries(NIVELES.map((n) => [n, hacer(n).sitios.length]));
-  assert.deepEqual(cuenta, { A: 6, B: 3, C: 2, D: 0 });
-  const a = hacer("A");
-  assert.ok(a.sitios.every((s) => s.piezas >= 3 && s.piezas <= 7), "a site is 3–7 pieces");
+  assert.deepEqual(cuenta, { A: 5, B: 3, C: 2, D: 1 });
+  const a = hacer("A"), [hito, ...resto] = a.sitios;
+  assert.equal(hito.tipo, "anillo"); assert.equal(hito.piezas, 1);
+  assert.ok(resto.every((s) => s.piezas >= 3 && s.piezas <= 5), "a ruin site is 3–5 pieces");
   assert.equal(a.piezas.length, a.sitios.reduce((t, s) => t + s.piezas, 0));
+});
+
+test("R6.6 the quest landmark: one ring-portal at (18, 0) on every tier, facing the plaza, nothing else crowding it", () => {
+  for (const semilla of [S, 7, 99, 31337]) for (const n of NIVELES) {
+    const r = hacer(n, semilla), anillos = r.piezas.filter((p) => p.tipo === "anillo" && p.x === ANILLO_HITO.x && p.z === ANILLO_HITO.z);
+    assert.equal(anillos.length, 1, `seed ${semilla} ${n}: the ring stands at (18, 0)`);
+    assert.ok(Math.abs(Math.sin(anillos[0].giro)) > 0.98, "it looks along the radius from the plaza (yaw ≈ ±90°)");
+    assert.equal(anillos[0].senales, 1, "one turquoise signal line");
+    for (const p of r.piezas) if (p !== anillos[0]) assert.ok(Math.hypot(p.x - 18, p.z) >= 12, `seed ${semilla} ${n}: ${p.tipo} crowds the ring`);
+  }
+  assert.equal(ANILLO_HITO.x, 18); assert.equal(ANILLO_HITO.z, 0);
 });
 
 test("nothing inside the plaza, the pond, the border; nothing under water", () => {
   for (const semilla of [S, 7, 99, 31337, 2024]) {
     const e = estanqueDe(semilla, 200), r = hacer("A", semilla);
     for (const p of r.piezas) {
+      if (p.tipo === "anillo" && p.x === 18 && p.z === 0) continue; // the landmark stands where the quest says
       assert.ok(Math.hypot(p.x, p.z) >= 12 + 6, `seed ${semilla}: piece ${p.tipo} in the plaza (${p.x.toFixed(1)}, ${p.z.toFixed(1)})`);
       assert.ok(Math.hypot(p.x - e.x, p.z - e.z) >= e.radio * 1.25 + 3 - 1e-6, `seed ${semilla}: piece ${p.tipo} in the pond`);
       assert.ok(Math.abs(p.x) < 100 - 8 && Math.abs(p.z) < 100 - 8, "inside the world");
@@ -51,15 +66,24 @@ test("triangle share per tier: baked pieces fit the tier's cap, and terrain + pr
     assert.ok(t.triangulos <= PRESUPUESTO_NATURALEZA[n].reparto.terreno, `${n}: terrain ${t.triangulos} > share ${PRESUPUESTO_NATURALEZA[n].reparto.terreno}`);
     t.dispose();
   }
-  assert.equal(hacer("D").triangulos, 0, "tier D carries none");
+  assert.equal(hacer("D").piezas.length, 1, "tier D carries only the landmark ring");
+  assert.ok(hacer("D").triangulos <= 110 && hacer("D").triangulos > 60);
   assert.ok(hacer("A").triangulos > 600, "tier A is not empty");
 });
 
-test("pieces are 12–60 triangles; at least 8 distinct kinds exist across a few seeds", () => {
+test("R6.6 fewer, larger pieces: machines are 70–200 triangles, every kind shows up across a few seeds, one signal accent per piece at most", () => {
   const vistos = new Set<string>();
-  for (const semilla of [S, 7, 99, 31337, 2024, 5, 6, 8, 9, 10]) for (const s of hacer("A", semilla).piezas) vistos.add(s.tipo);
-  assert.ok(vistos.size >= 8, `${vistos.size} kinds seen: ${[...vistos]}`);
-  assert.equal(TIPOS_PIEZA.length, 10);
+  for (const semilla of [S, 7, 99, 31337, 2024, 5, 6, 8, 9, 10]) for (const p of hacer("A", semilla).piezas) {
+    vistos.add(p.tipo);
+    if (p.tipo === "roca") assert.ok(p.triangulos <= 20); else assert.ok(p.triangulos >= 70 && p.triangulos <= 200, `${p.tipo}: ${p.triangulos}`);
+    assert.ok(p.senales <= 1);
+  }
+  assert.deepEqual([...vistos].sort(), [...TIPOS_PIEZA].sort(), `kinds seen: ${[...vistos]}`);
+});
+
+test("R6.6 no raw hex in residuos.ts: every colour is a paleta.ts token or a mezcla() of tokens", () => {
+  const src = readFileSync(new URL("../packages/render/src/naturaleza/residuos.ts", import.meta.url), "utf8");
+  assert.deepEqual(src.match(/0x[0-9a-f]{3,}/gi) ?? [], []);
 });
 
 /** Is the linear colour inside the convex hull of the palette (every colour is a blend of palette entries)? Frank-Wolfe on the simplex. */
