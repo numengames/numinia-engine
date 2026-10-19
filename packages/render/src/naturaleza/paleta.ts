@@ -162,6 +162,7 @@ export const PATINA = {
   cobre: mezcla(MAQUINA.cobre, CASA.ambar, 0.15),
   verdin: mezcla(VERDES.verdin, CASA.verdemar, 0.45),
   enterrado: mezcla(CASA.bronceOscuro, VERDES.monteSombra, 0.35),
+} as const;
 
 // R6.5
 /**

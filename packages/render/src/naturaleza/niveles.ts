@@ -60,15 +60,10 @@ export const HIERBA_POR_NIVEL: Record<Nivel, HierbaNivel> = {
  *  This is the ONE source of the caps: `triangulos` / `llamadas` for ALL nature together (terrain + trees + grass + water + fauna), and `reparto`, the share of
  *  triangles each piece may use (test/naturaleza-n4.test.ts checks every piece against its share; limits.json `nature_*` repeats the totals). */
 export const PRESUPUESTO_NATURALEZA: Record<Nivel, { triangulos: number; llamadas: number; reparto: { terreno: number; arboles: number; hierba: number; fauna: number } }> = {
-  A: { triangulos: 15000, llamadas: 8, reparto: { terreno: 3600, arboles: 5200, hierba: 4500, fauna: 1700 } },
-  B: { triangulos: 10000, llamadas: 7, reparto: { terreno: 1800, arboles: 3000, hierba: 2500, fauna: 1100 } },
-  C: { triangulos: 8000, llamadas: 6, reparto: { terreno: 1400, arboles: 2700, hierba: 1900, fauna: 800 } },
-  D: { triangulos: 4000, llamadas: 5, reparto: { terreno: 780, arboles: 1200, hierba: 1100, fauna: 400 } },
-
   A: { triangulos: 15000, llamadas: 8, reparto: { terreno: 4000, arboles: 5150, hierba: 4250, fauna: 1600 } }, // R6.5: +400 terrain for the baked flora (flora.ts), paid by 30 outer grass tufts and the trees'/fauna's unused slack
   B: { triangulos: 10000, llamadas: 7, reparto: { terreno: 2100, arboles: 3000, hierba: 2500, fauna: 1100 } },
   C: { triangulos: 8000, llamadas: 6, reparto: { terreno: 1650, arboles: 2700, hierba: 1900, fauna: 800 } },
-  D: { triangulos: 4000, llamadas: 5, reparto: { terreno: 800, arboles: 1200, hierba: 1100, fauna: 400 } },
+  D: { triangulos: 4000, llamadas: 5, reparto: { terreno: 880, arboles: 1120, hierba: 1100, fauna: 400 } }, // R6.5 flora + R6.6 ring at (18,0) on D too: terrain 852 measured
 };
 /** Most trees the scatter plants in the whole world per tier (memory + the O(n) near/far split): thinned evenly above it. */
 export const ARBOLES_MAX_POR_NIVEL: Record<Nivel, number> = { A: 1100, B: 750, C: 750, D: 300 };
