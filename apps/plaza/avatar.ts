@@ -10,6 +10,7 @@
 import { comprobarFichero, sha256Hex } from "../../packages/net/src/ficheros.ts";
 import { infoVrm, revisarAvatar } from "../../packages/server/src/vrm.ts";
 import type { CatalogoAvatares } from "../../packages/render/src/index.ts";
+import { elegirAvatar } from "../../packages/render/src/avatares-politica.ts";
 
 type Msg = Record<string, unknown>;
 type Res = { ok: true } | { ok: false; why: string };
@@ -50,6 +51,7 @@ export function montarAvatar(o: OpcionesAvatar) {
   const decir = (t: string) => { estado.textContent = t; };
 
   const casas = o.catalogo?.modelos ?? [];
+  const nCasa = casas.length; // ux2-gente: the house models only (uploads are pushed after them); avatares.ts's default counts these
   const subidos = new Map<string, number>(); // "sha.ext" -> index pushed into casas (shared with avatares.ts)
   function indiceDe(sha: string, ext: string): number {
     const k = `${sha}.${ext}`;
@@ -119,6 +121,16 @@ export function montarAvatar(o: OpcionesAvatar) {
       if (v.tipo === "casa") return casas.length ? (((v.modelo % casas.length) + casas.length) % casas.length) : undefined;
       if (v.tipo === "subido" && v.sha) return indiceDe(v.sha, v.ext || "vrm");
       return undefined;
+    },
+    /** ux2-gente: the house avatar someone wears (catalogue id and name) — their choice, or the per-entity default
+     * avatares.ts draws when they chose none; null for an uploaded one (it has no portrait) or no catalogue. */
+    deQuien(entidad: number): { id: string; nombre: string } | null {
+      if (!nCasa || entidad < 0) return null;
+      const v = o.session.features.stateOf("avatar").get(String(entidad)) as Eleccion | undefined;
+      if (v && v.tipo !== "casa") return null;
+      const i = v ? (((v.modelo % nCasa) + nCasa) % nCasa) : elegirAvatar(entidad, nCasa);
+      const m = casas[i];
+      return m?.id ? { id: m.id, nombre: m.nombre } : null;
     },
   };
 }

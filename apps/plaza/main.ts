@@ -51,6 +51,7 @@ import { montarEntorno } from "./entorno.ts";
 import { montarDirector } from "./director.ts";
 import { dirigir } from "../../features/director/client.ts";
 import { montarGente } from "./gente.ts";
+import { rumboHacia } from "./foto-nucleo.ts"; // ux2-gente: «Saludar» turns you towards them first
 import { viajar } from "../../features/teletransporte/client.ts";
 import { dados } from "../../features/dados/client.ts"; // dados v1: dice the server rolls
 import { montarDados } from "./dados.ts";
@@ -115,7 +116,7 @@ const enMovil = esMovil(perfil().clase); // U24: the phone layout: the joystick 
 const catalogoAvatares = catalogoDeAvatares(activos, params, estado?.avatar);
 // H10: montarAvatar() below needs `session` and `view`, both built after this; the hook itself is only read each
 // frame (avatares.ts sync()), so a holder filled in later is enough — nothing calls it before montarAvatar runs.
-let avatarUI: { eleccion(clave: number | "yo"): number | undefined } | null = null;
+let avatarUI: { eleccion(clave: number | "yo"): number | undefined; deQuien(entidad: number): { id: string; nombre: string } | null } | null = null;
 const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, movil: perfil().forzado ? perfil().movil : undefined, assetUrl: (m) => `${activos}/a/${m}.glb`,
   avatares: { catalogo: catalogoAvatares, yo: () => session.entity, eleccion: (c) => avatarUI?.eleccion(c) } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar; H10: your own choice
 const transport = webSocketClient(url);
@@ -238,7 +239,26 @@ montarDados({ dados, yo: () => (session.entity >= 0 ? session.selfPosition(1) : 
 const contadoresPagina = montarContadores({ contadores, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) }); // D-044: the counters' panel (the sign in the world is the feature's own label)
 montarDirector({ dj: dirigir, ambiente, view }); // N6: the Game Director (who may direct: STD-052 manage-rituals): scenes, narrator, summons
 // ---- N16: «Gente» (L): go next to someone connected now; the light of every trip near you (none on tier D) ----
-const gente = montarGente({ viajar, barra: document.getElementById("barra-arriba"), orden: (t) => chatDePagina.decir(t) }); // F1: «Silenciar»/«Oír» per person = /bloquear and /desbloquear
+// ux2-gente: friends kept in this browser, the sheet of whoever you pick, and the small card when you click someone in the
+// world (gente-tarjeta.ts). Silenciar = voz.ts drops their voice here; Bloquear = /bloquear; Denunciar = /denunciar.
+const distanciaA = (q: number): number | null => { if (session.entity < 0) return null; const r = session.remotePositions().find((x) => x.id === q); if (!r) return null; const y = session.selfPosition(1); return Math.hypot(r.x - y.x, r.z - y.z); };
+const gente = montarGente({ viajar, barra: document.getElementById("barra-arriba"), orden: (t) => chatDePagina.decir(t),
+  mundo: () => estado?.nombre ?? "",
+  mirada: {
+    avatar: (q) => avatarUI?.deQuien(q) ?? null,
+    distancia: distanciaA,
+    actividad: (q) => (pesca.flotadores().some((f) => f.quien === q) ? "Pescando" : gestosDePagina.deQuien(q) === "bailar" ? "Bailando" : null),
+    nombre: (q) => chatDePagina.nombres.get(q) ?? null,
+  },
+  voz: { silenciar: (q, si) => voz.silenciar(q, si), silenciado: (q) => voz.silenciado(q) },
+  chat: (t) => cajaChat.abrir(t),
+  saludar: (q) => { // turn towards them (the camera; the body follows it when you move) and wave: the house «saludar»
+    const r = session.remotePositions().find((x) => x.id === q), y = session.entity >= 0 ? session.selfPosition(1) : null;
+    if (r && y) view.cam.mirarHacia(rumboHacia(y.x, y.z, r.x, r.z));
+    return gestosDePagina.hacer("saludar");
+  },
+  vista: view });
+setTimeout(() => gente.pedir(), 3000); // once after joining: voices you silenced on an earlier visit stay silent
 viajar.alDestello((d) => view.teletransporte.lanzar({ ...d, clave: d.quien === session.entity ? "self" : d.quien }));
 const webPagina = montarWeb({ web: pantallasWeb, view }); // N17: web screens — iframe in the world (PC/phone), card + «Abrir fuera» in VR
 const ancestrosPagina = montarAncestros({ ancestros, view }); // ancestros v1: the hall in 3D, the two panels, and the law + our rule on screen when the hologram answers you
@@ -283,7 +303,8 @@ const compartir = montarPantalla({
 });
 
 // ---- J4/J5: what you can use from close by (E, a click, the prompt button), conversations, the quest book (J) ----
-const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k) && cerradurasPagina.ofrece(f, k) && lucha.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: (x, z, y) => [...huecos.cerca(x, z, y), ...cerradurasPagina.cerca(x, z), ...videoMandos.cerca(x, z)], pinchar: (key) => huecos.pinchar(key) || enlaces.pinchar(key) });
+const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k) && cerradurasPagina.ofrece(f, k) && lucha.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: (x, z, y) => [...huecos.cerca(x, z, y), ...cerradurasPagina.cerca(x, z), ...videoMandos.cerca(x, z)], pinchar: (key) => huecos.pinchar(key) || enlaces.pinchar(key),
+  persona: (x, y) => { const q = view.pickPerson(x, y); return q !== null && gente.tarjeta(q); } }); // ux2-gente: a click on someone = their card
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
 const xr = montarXR({ session, view, misiones, interaccion }); // J10: hands in VR take, point and answer; what you took is in your hand
 montarDialogo(misiones, document.getElementById("dialogo")!, view);

@@ -94,8 +94,12 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
     voces.set(entidad, v);
     return v;
   };
+  // ux2-gente: «Silenciar» someone (Gente, the card in the world) = their frames are dropped HERE, before any decoding:
+  // only you stop hearing them, nobody is told, and the server still relays (it is the page's choice, not a ban).
+  const silenciados = new Set<number>();
   o.session.onVoice = (m) => {
     estado.recibidas++;
+    if (silenciados.has(m.entidad)) return;
     const v = vozDe(m.entidad), ahora = performance.now();
     if (!v) return;
     if (ahora - v.marca > 700) { v.marca = ahora; o.view.label(m.entidad, "habla", 800); }
@@ -197,5 +201,13 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
   boton.addEventListener("click", (e) => { alternar(); if (e.detail > 0) boton.blur(); });
   addEventListener("keydown", (e) => { if (e.code === "KeyQ" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !o.escribiendo(e)) alternar(); });
   pintar();
-  return { estado, alternar };
+  return {
+    estado, alternar,
+    /** ux2-gente: stop (or start again) hearing one person, only in this page. */
+    silenciar(entidad: number, si: boolean): void {
+      if (si) { silenciados.add(entidad); const v = voces.get(entidad); if (v) { v.panner.disconnect(); v.dec?.close(); voces.delete(entidad); o.view.voz(entidad, 0); } }
+      else silenciados.delete(entidad);
+    },
+    silenciado: (entidad: number): boolean => silenciados.has(entidad),
+  };
 }

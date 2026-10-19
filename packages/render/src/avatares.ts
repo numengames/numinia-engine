@@ -11,7 +11,7 @@ import type { VRMAnimation } from "@pixiv/three-vrm-animation";
 
 /** What the page gives: the house avatars (VRM) and animations (VRMA), by URL. */
 export type CatalogoAvatares = {
-  modelos: { nombre: string; url: string }[];
+  modelos: { nombre: string; url: string; id?: string }[]; // id: the catalogue's (its portraits are /retratos/<id>-busto.webp; ux2-gente)
   /** By name: the speed-driven clips (Clip) and the moves' clips (J7b), each fetched only when first played. */
   animaciones: Partial<Record<string, { url: string; pasoPorCadera: number; duracion?: number }>>; // duracion: clip length (s), N1b
 };
