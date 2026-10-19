@@ -11,7 +11,8 @@ export type Anillo = "dobleBull" | "bull" | "simple" | "triple" | "doble" | "fue
 export type Dardo = { quien: number; sitio: string; numero: number; x: number; y: number; sector: number; anillo: Anillo; puntos: number; tirada: number; texto: string; cuando: number };
 export type Sitio = { id: string; nombre: string; x: number; y: number; z: number; radio: number; rumbo: number; ocupado: boolean;
   /** v2 (duel): optional, read from the shared state; a board without them is a v1 board. */
-  duelo?: boolean; remoto?: boolean; rondas?: number; espera?: boolean; jugadores?: number };
+  duelo?: boolean; remoto?: boolean; rondas?: number; espera?: boolean; jugadores?: number;
+  /** v3: teams the board takes (2-4). */ equipos?: number };
 export type Estado = {
   sitio: string;              // the board of my turn ("" = not throwing)
   dardos: number;             // darts thrown in this turn (0-3)
@@ -22,7 +23,8 @@ export type Estado = {
   marcador: { dardos: number; puntos: number; mejorDardo: number; mejorTirada: number; dianas: number };
 };
 /** `pared`: this player joined from a real wall (AR) instead of the board's throwing line. */
-export type Jugador = { entity: number; nombre: string; puntos: number; pared?: boolean };
+export type Jugador = { entity: number; nombre: string; puntos: number; pared?: boolean;
+  /** v3: this team is me / left the match. */ yo?: boolean; fuera?: boolean };
 export type FinDuelo = { ganador: number | null; empate: boolean; abandono: boolean; texto: string; gane: boolean; cuando: number };
 /** The match as this page sees it. Wire entity 0 is a real player: read `empate` / `ronda`, never `ganador === 0`. */
 export type Duelo = {
@@ -36,11 +38,19 @@ export type Duelo = {
   yoPuntos: number;           // my points when `yo`, else 0
   a: Jugador; b: Jugador | null; // host and guest as the server names them (always set; for bystanders too)
   fin: FinDuelo | null;       // how the match ended (kept DUELO_FIN_MS, then `duelo()` is null again)
+  /** v3: the teams that are seated, in order A..D (1 to 4; the same people as a, b), with `yo` marking mine. */
+  equipos: Jugador[];
+  maxEquipos: number;         // teams the board takes
+  turnoEq: number;            // 1-based team on turn (0 = nobody)
+  retirando: boolean;         // the visit is over: «retira los dardos», waiting for «cambiar» (RETIRANDO_S at most)
+  anfitrion: boolean;         // I am the host (team A)
+  puedeEmpezar: boolean;      // I am the host, waiting, and at least 2 teams are seated: `empezar()` is allowed
+  puedeCambiar: boolean;      // it is my turn in a live match: `cambiar()` is allowed
 };
 export type Que = "estado" | "sitios" | "clavados" | "duelo";
 /** After `finduelo`: how long (ms) the result stays in `duelo()` and the darts stay in the board before they come out. */
 export const DUELO_FIN_MS = 30000, DUELO_DARDOS_MS = 6000;
-type DatosDuelo = { sitio: string; ronda: number; turnoDe: number; a: Jugador; b: Jugador | null; fin: FinDuelo | null };
+type DatosDuelo = { sitio: string; ronda: number; turnoDe: number; a: Jugador; b: Jugador | null; fin: FinDuelo | null; equipos: Jugador[]; max: number; turnoEq: number; retirando: boolean };
 type Res = { ok: true } | { ok: false; why: string };
 const SIN: Res = { ok: false, why: "la función dardos no está en este servidor" };
 const ahora = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
@@ -57,12 +67,17 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
   let D: DatosDuelo | null = null; // the match I know about (mine or one near me), kept from `duelo` / `finduelo`
   let quitarDuelo: ReturnType<typeof setTimeout> | null = null, olvidarDuelo: ReturnType<typeof setTimeout> | null = null;
   const enJuego = (sitio?: string): boolean => !!D && !D.fin && (sitio === undefined || D.sitio === sitio);
-  const soyDe = (d: DatosDuelo): boolean => !!A && (d.a.entity === A.self() || (d.ronda > 0 && d.b !== null && d.b.entity === A.self()));
-  const tomar = (m: Msg, ronda: number, fin: FinDuelo | null): DatosDuelo => ({
-    sitio: String(m.sitio), ronda, turnoDe: Number(m.turnoDe ?? 0),
-    a: { entity: Number(m.a), nombre: String(m.nombreA), puntos: Number(m.puntosA), pared: m.paredA === true },
-    b: ronda > 0 || fin ? { entity: Number(m.b), nombre: String(m.nombreB), puntos: Number(m.puntosB), pared: m.paredB === true } : null, fin,
-  });
+  const soyDe = (d: DatosDuelo): boolean => !!A && d.equipos.some((j) => j.entity === A!.self() && !j.fuera);
+  const tomar = (m: Msg, ronda: number, fin: FinDuelo | null): DatosDuelo => {
+    const L = ["A", "B", "C", "D"] as const;
+    const plazas = m.plazas !== undefined ? Number(m.plazas) : ronda > 0 || fin ? 2 : 1; // a server of schema v2 has no `plazas`
+    const yo = A ? A.self() : -1;
+    const equipos: Jugador[] = L.slice(0, plazas).map((l) => { const entity = Number(m[l.toLowerCase()]); return { entity, nombre: String(m[`nombre${l}`] ?? ""), puntos: Number(m[`puntos${l}`] ?? 0), pared: m[`pared${l}`] === true, yo: entity === yo, fuera: m[`fuera${l}`] === true }; });
+    return {
+      sitio: String(m.sitio), ronda, turnoDe: Number(m.turnoDe ?? 0), a: equipos[0], b: equipos[1] ?? null, fin, equipos,
+      max: Number(m.equipos ?? 2), turnoEq: Number(m.turnoEq ?? 0), retirando: m.retirando === true,
+    };
+  };
 
   const dardos = {
     /** The match on a board near me (or mine), or null. Same object shape for a player and for a bystander (`yo` tells). */
@@ -71,11 +86,14 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
       // a bystander who walked out of the board's reach forgets it; a player on a far wall (outside the state's reach) keeps it
       if (!soyDe(D) && !D.fin && !dardos.sitios().some((s) => s.id === D!.sitio)) return null;
       const yo = soyDe(D), me = A.self(), vivo = !D.fin && D.ronda > 0;
-      const mio = yo ? (D.a.entity === me ? D.a : D.b) : null, otro = yo ? (D.a.entity === me ? D.b : D.a) : null;
+      const mio = yo ? D.equipos.find((j) => j.entity === me) ?? null : null, otro = yo && D.equipos.length === 2 ? D.equipos.find((j) => j.entity !== me) ?? null : null;
+      const esperando = !D.fin && D.ronda === 0, anfitrion = yo && D.a.entity === me;
       return {
-        sitio: D.sitio, ronda: D.ronda, esperando: !D.fin && D.ronda === 0, turnoDe: vivo ? D.turnoDe : null,
+        sitio: D.sitio, ronda: D.ronda, esperando, turnoDe: vivo ? D.turnoDe : null,
         yo, miTurno: yo && vivo && D.turnoDe === me, rival: otro ? { ...otro } : null, yoPuntos: mio?.puntos ?? 0,
         a: { ...D.a }, b: D.b ? { ...D.b } : null, fin: D.fin ? { ...D.fin } : null,
+        equipos: D.equipos.map((j) => ({ ...j })), maxEquipos: D.max, turnoEq: vivo ? D.turnoEq : 0, retirando: vivo && D.retirando, anfitrion,
+        puedeEmpezar: esperando && anfitrion && D.equipos.length >= 2, puedeCambiar: yo && vivo && D.turnoDe === me,
       };
     },
     estado: (): Readonly<Estado> => e,
@@ -104,6 +122,10 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     },
     // in a live match you can leave on the rival's turn too (the server hands them the win)
     salir: (): Res => (A ? (e.sitio || (D && !D.fin && soyDe(D)) ? A.send("salir", {}) : { ok: false, why: "no estás tirando" }) : SIN),
+    /** v3: hand the dice over (my turn only): the first press opens «retirando», the next one changes the turn. */
+    cambiar: (): Res => (A ? (D && !D.fin && soyDe(D) ? A.send("cambiar", { sitio: D.sitio }) : { ok: false, why: "no estás en un duelo" }) : SIN),
+    /** v3: the host starts the match (at least 2 teams seated). */
+    empezar: (): Res => (A ? (D && !D.fin && soyDe(D) ? A.send("empezar", { sitio: D.sitio }) : { ok: false, why: "no estás en un duelo" }) : SIN),
     alCambiar: (fn: (que: Que) => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
 
@@ -149,7 +171,11 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
         avisar("clavados");
       }
       if (olvidarDuelo) { clearTimeout(olvidarDuelo); olvidarDuelo = null; }
+      const antes = D;
       D = tomar(m, ronda, null);
+      if (antes && !antes.fin && antes.sitio === sitio && antes.retirando && !D.retirando && antes.turnoDe !== D.turnoDe) { // «cambiar»: the darts of that visit come out of the board
+        const l = (clavados.get(antes.turnoDe) ?? []).filter((d) => d.sitio !== sitio); if (l.length) clavados.set(antes.turnoDe, l); else clavados.delete(antes.turnoDe); avisar("clavados");
+      }
       avisar("duelo");
     });
     api.on("finduelo", (m) => {
