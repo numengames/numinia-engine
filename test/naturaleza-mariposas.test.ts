@@ -217,7 +217,8 @@ test("the window border never pops: at the border nothing is visible, 4 s after 
   assert.ok(vis(T0 + 60) >= 1);
   // the next window: refill, new animals, old ones gone
   const ids0 = [...ins.datos.mariposas.arr.iA.array.slice(0, hasta * 4)].join(",");
-  ins.actualizar(cam, T0 + VENTANA_S + 0.5);
+  // the refill is spread over frames by a per-frame time budget: a loaded machine may need a few calls (same instant), never zero progress
+  for (let i = 0; i < 200 && ins.estadisticas().relleno !== 2; i++) ins.actualizar(cam, T0 + VENTANA_S + 0.5);
   assert.equal(ins.estadisticas().relleno, 2);
   assert.notEqual([...ins.datos.mariposas.arr.iA.array.slice(0, ins.datos.mariposas.n * 4)].join(","), ids0);
   assert.ok(fundidoOps(OPS_NUM, 0.5) < 0.2, "the new ones start nearly invisible");
