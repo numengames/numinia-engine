@@ -11,7 +11,7 @@ import { ENFRIAMIENTO_TICKS } from "../features/lucha/feature.ts";
 import { crearLucha, HZ } from "../features/lucha/server.ts";
 import type { Criatura } from "../features/lucha/server.ts";
 import { VIDA_JUGADOR_MAX, REAPARICION_JUGADOR_TICKS } from "../features/lucha/feature.ts";
-import { crearCliente, nivelVisto } from "../features/lucha/client.ts";
+import { crearCliente, nivelVisto, ROTULO, ESTADO_MS, REAPARECE_MS } from "../features/lucha/client.ts";
 import type { Pvp } from "../features/lucha/estados.ts";
 import { leerPvp, pvpEn, pvpEntre } from "../features/lucha/estados.ts";
 import { conMundo } from "../features/mundo.ts";
@@ -28,9 +28,10 @@ function mundo(n = 2, pvp: boolean | Pvp = true, criaturas: Criatura[] = [], rel
   const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [crearLucha({ criaturas, semilla: 7, pvp })], log: (l) => log.push(l), identitySign: sign });
   const pages = Array.from({ length: n }, (_, i) => {
     const eventos: { event: string; msg: Record<string, unknown> }[] = [];
+    const seen: string[] = [];
     const t = inst.join(i), cli = crearCliente((event, msg) => eventos.push({ event, msg }), reloj), k = keeper();
-    const s = new ClientSession(t, { features: [cli.part], identity: k, view: {} });
-    return { t, s, l: cli.lucha, eventos };
+    const s = new ClientSession(t, { features: [cli.part], identity: k, view: { label: (e, text) => seen.push(`label ${e} ${text}`), bounce: () => {} } });
+    return { t, s, l: cli.lucha, eventos, seen };
   });
   const pump = (ticks = 1) => { for (let i = 0; i < ticks; i++) { for (const c of pages) c.t.flush(); inst.tick(); for (const c of pages) c.t.flush(); } };
   const place = (e: number, x: number, z: number) => { inst.sim.tf.cols.x[e] = fx(x); inst.sim.tf.cols.z[e] = fx(z); };
@@ -244,4 +245,25 @@ test("pvp flag: conMundo reads entorno.json — pvp true turns it on for a world
   const mal: string[] = [];
   conMundo([lucha], (f) => (f === "entorno.json" ? { pvp: "quizá" } : undefined), (l) => mal.push(l));
   assert.ok(mal.some((l) => l.includes("entorno.pvp") && l.includes("true")), mal.join("\n"));
+});
+
+test("pvp feedback: the Estado shows over the person struck (icon + word) for whoever sees the blow, climbs with each rung, and clears when they reappear", () => {
+  const W = mundo(3);
+  W.pump(2);
+  const [a, b, c] = W.pages;
+  W.place(a.s.entity, 0, 0); W.place(b.s.entity, 1, 0); W.place(c.s.entity, 6, 0); W.pump(12);
+  a.l.golpear(`p:${b.s.entity}`); W.pump(ENFRIAMIENTO_TICKS + 1);
+  a.l.golpear(`p:${b.s.entity}`); W.pump(ENFRIAMIENTO_TICKS + 1);
+  for (const who of [a, b, c]) {
+    assert.equal(who.l.estadoDe(b.s.entity), "confundido", "attacker, target and onlooker all know the rung");
+    assert.ok(who.seen.includes(`label ${b.s.entity} ${ROTULO.desestabilizado}`) && who.seen.includes(`label ${b.s.entity} ${ROTULO.confundido}`), who.seen.join("|"));
+  }
+  assert.equal(a.l.estadoDe(a.s.entity), "ninguno", "the attacker has nothing over them");
+  for (let i = 0; i < 2; i++) { a.l.golpear(`p:${b.s.entity}`); W.pump(ENFRIAMIENTO_TICKS + 1); }
+  assert.equal(a.l.estadoDe(b.s.entity), "aletargado");
+  assert.ok(a.seen.includes(`label ${b.s.entity} ${ROTULO.aletargado}`));
+  W.pump(INCAPACITADO_S * HZ + 4);
+  assert.equal(a.l.estadoDe(b.s.entity), "ninguno");
+  assert.ok(a.seen.includes(`label ${b.s.entity} Reaparece`));
+  assert.ok(ROTULO.ninguno === "" && ESTADO_MS > REAPARECE_MS);
 });
