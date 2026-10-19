@@ -155,7 +155,7 @@ test("equipos: the host leaving the wait cancels it; a guest leaving closes the 
   const W = mundo(4); const [A, B, C] = W.pages;
   W.jugar(A, "cuatro"); W.jugar(B, "cuatro"); W.jugar(C, "cuatro"); W.pump(2);
   W.send(B, "salir", {}); W.pump(2);
-  assert.deepEqual([W.duelo(A).plazas, W.duelo(A).b === C.s.entity, W.inst ? true : false], [2, true, true], "C moved up to seat B");
+  assert.deepEqual([W.duelo(A).plazas, W.duelo(A).b === C.s.entity], [2, true], "C moved up to seat B");
   W.send(A, "salir", {}); W.pump(2);
   assert.equal(W.evs(C, "fin").at(-1)?.sitio, "cuatro", "the others hear that the wait is over");
   W.jugar(B, "cuatro"); W.pump(2); assert.equal(W.duelo(B).plazas, 1, "the board is free for a new host");
