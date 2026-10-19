@@ -39,7 +39,7 @@ export const NOCHE = { fondo: 0x14110f, sombra: 0x1e1a17, luna: 0xc4b5a6 } as co
 
 /**
  * R5.1 · Relleno de sombra (relleno.ts): el color que toma la cara a la que no llega el sol, como un hemisferio horneado.
- * Abajo verdemar fresco tirando a verdín (la sombra BotW, nunca negra); arriba arena velada con un toque de verdemar (la sombra del suelo, templada). Mezclas de tokens, ningún hex nuevo.
+ * Abajo verdemar fresco tirando a verdín (sombra fresca, nunca negra); arriba arena velada con un toque de verdemar (la sombra del suelo, templada). Mezclas de tokens, ningún hex nuevo.
  */
 export const RELLENO = {
   abajo: mezcla(CASA.verdemar, VERDES.verdin, 0.15),
@@ -51,6 +51,29 @@ export const RELLENO = {
  * Turquesa profundo aclarado con Verdemar y apagado con Ceniza: un turquesa verdoso hondo y mate, nunca el azul saturado de antes.
  */
 export const COLOR_ESTANQUE = mezcla(mezcla(CASA.turquesaProfundo, CASA.verdemar, 0.35), CASA.ceniza, 0.2);
+
+/**
+ * R6.2 · Las tres franjas del suelo (DISENO-LORE.md): agua (musgo vivo y verdín junto al estanque, el cauce seco como banda
+ * clara de guijarros de sílice), jardín de colonia (pergamino claro: arena cálida, verdes secos de olivo, manchas de paja) y
+ * páramo de antracita (oscuro y dorado: basalto y ceniza con costra ocre y grietas). Solo mezclas de tokens.
+ */
+export const FRANJAS = {
+  agua: {
+    suelo: mezcla(mezcla(VERDES.hierba, VERDES.musgo, 0.4), CASA.ceniza, 0.08), fresco: mezcla(VERDES.hierba, CASA.verde, 0.15),
+    verdin: mezcla(mezcla(VERDES.musgo, VERDES.verdin, 0.45), CASA.ceniza, 0.12),
+  },
+  lecho: { claro: mezcla(CASA.arena, CASA.arenaVelada, 0.3), guijarro: mezcla(CASA.arenaVelada, CASA.ceniza, 0.3) },
+  jardin: {
+    arena: mezcla(CASA.arenaVelada, CASA.arena, 0.3), tierra: mezcla(CASA.arenaVelada, CASA.ambar, 0.12),
+    olivo: mezcla(VERDES.hierbaLuz, VERDES.musgo, 0.4), paja: mezcla(mezcla(CASA.arenaVelada, CASA.ambar, 0.26), CASA.arena, 0.2),
+    hierba: mezcla(mezcla(VERDES.hierbaLuz, CASA.ambar, 0.18), CASA.arenaVelada, 0.25),
+  },
+  paramo: {
+    ceniza: mezcla(CASA.ceniza, CASA.basalto, 0.5), basalto: mezcla(CASA.basalto, CASA.ceniza, 0.22),
+    costra: mezcla(mezcla(CASA.ambarTostado, CASA.ambar, 0.35), CASA.ceniza, 0.25), grieta: mezcla(CASA.basalto, CASA.noche, 0.5),
+    hierba: mezcla(mezcla(MAQUINA.laton, CASA.ambarTostado, 0.35), CASA.ceniza, 0.15),
+  },
+} as const;
 
 /** Paletas de estación: qué verde/hoja/flor usa cada una. Todo dentro de las tablas de arriba. */
 export const ESTACIONES = {

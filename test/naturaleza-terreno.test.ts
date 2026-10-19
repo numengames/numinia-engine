@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { crearAzar, hash2, valor2, simplex2, fbm } from "../packages/render/src/naturaleza/semilla.ts";
-import { alturaEn, zonaEn, crearTerreno, estanqueDe, CELDAS_TERRENO, triangulosDeTerreno, ZONAS } from "../packages/render/src/naturaleza/terreno.ts";
+import { alturaEn, zonaEn, crearTerreno, estanqueDe, CELDAS_TERRENO, triangulosDeTerreno, ZONAS, franjasEn } from "../packages/render/src/naturaleza/terreno.ts";
 import type { Nivel } from "../packages/render/src/calidad.ts";
 
 const NIVELES: Nivel[] = ["A", "B", "C", "D"];
@@ -132,7 +132,10 @@ test("R1: every ground vertex colour sits on the house palette (a palette colour
 test("R1: the ground is muted — no dry-land vertex is saturated or primary, and green is never lime", () => {
   const t = crearTerreno({ semilla: 1234, nivel: "A", residuos: false }), col = t.malla.geometry.attributes.color, c = new THREE.Color(), hsl = { h: 0, s: 0, l: 0 };
   const pos = t.malla.geometry.attributes.position;
-  for (let k = 0; k < col.count; k++) { if (Math.abs(pos.getX(k)) > 86 || Math.abs(pos.getZ(k)) > 86 || pos.getY(k) < 0) continue; c.setRGB(col.getX(k), col.getY(k), col.getZ(k)); c.getHSL(hsl); if (hsl.l > 0.12 && hsl.l < 0.95) assert.ok(hsl.s < 0.5, `vertex ${k}: saturation ${hsl.s.toFixed(2)}`); }
+  for (let k = 0; k < col.count; k++) { if (Math.abs(pos.getX(k)) > 86 || Math.abs(pos.getZ(k)) > 86 || pos.getY(k) < 0) continue; c.setRGB(col.getX(k), col.getY(k), col.getZ(k)); c.getHSL(hsl); if (!(hsl.l > 0.12 && hsl.l < 0.95)) continue;
+    // R6.2: the anthracite moor is «dark and golden» by design (DISENO-LORE.md): its ochre crust may be warmer, but only dark, amber-hued and on the moor
+    const oro = hsl.h > 0.06 && hsl.h < 0.14 && hsl.l < 0.3 && hsl.s < 0.9 && franjasEn(1234, pos.getX(k), pos.getZ(k), pos.getY(k)).paramo > 0.3;
+    if (!oro) assert.ok(hsl.s < 0.5, `vertex ${k}: saturation ${hsl.s.toFixed(2)}`); }
   t.dispose();
 });
 test("R1: a painted pond (tier D) wears sea-green/turquoise, whatever hex the caller passes", () => {

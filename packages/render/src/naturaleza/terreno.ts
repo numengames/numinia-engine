@@ -7,14 +7,14 @@
 //
 // COPIED (ideas and technique, no assets, no code): Red Blob Games «Making maps with noise» (elevation + moisture-like masks
 // choose the biome), Inigo Quilez «fbm» and «morenoise» (ridged detail on a mask), his smooth-max trick to lift basins.
-// Flat shading + per-vertex colours in a tight palette is the common low-poly look (Zelda BotW / Kenney / Quaternius style).
+// Flat shading + per-vertex colours in a tight palette is the common low-poly look (Kenney / Quaternius style).
 // CHANGED: everything is a function of an integer seed (semilla.ts); a `plaza` disc is forced flat (the spawn stays
 // walkable); a pond basin is carved at a seed-chosen place with a sand belt around it; the outer border fades to the fog
 // colour and drops into a skirt so there is no visible edge.
 import * as THREE from "three/webgpu";
 import type { Nivel } from "../calidad.ts";
 import { hash2, valor2, simplex2 } from "./semilla.ts";
-import { CASA, VERDES, ESTACIONES, COLOR_ESTANQUE, mezcla } from "./paleta.ts";
+import { CASA, VERDES, ESTACIONES, COLOR_ESTANQUE, FRANJAS, mezcla } from "./paleta.ts";
 import type { Estacion } from "./paleta.ts";
 
 import { ZONAS, PALETA_TERRENO, NIVEL_AGUA, alturaEn, zonaEn, estanqueDe, campo, sstep } from "../../../relieve/src/relieve.ts";
@@ -60,6 +60,8 @@ export type Terreno = {
   malla: THREE.Mesh;
   alturaEn: (x: number, z: number) => number;
   zonaEn: (x: number, z: number) => Zona;
+  /** R6.2: the ground bands at a point (pass the height when you have it: one relief sample less). */
+  franjaEn: (x: number, z: number, h?: number) => Franjas;
   estanque: { x: number; z: number; radio: number; nivel: number };
   /** Triangles and vertices of the mesh (draw calls: 1). Includes the baked Residuos. */
   triangulos: number; vertices: number;
@@ -84,40 +86,91 @@ export function estacionDe(hex?: number): (typeof ESTACIONES)[Estacion] {
 const lim = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /**
- * R1: the colour (hex) of the ground at a lattice vertex, ONLY from paleta.ts and mezcla(): muted Mediterranean greens, dry patches by noise,
- * warm sand, ash/bronze rock with a touch of moss, sea-green shallows to deep turquoise. Pure.
- * `w` = zone weights (ZONAS order), `valle` 0…1 (1 = hollow), `conv` = height above the neighbours' mean per metre (>0 ridge, <0 hollow), `pend` = slope.
- * Warmer toward the light on ridges and sunlit rises, cooler and darker in hollows; stream bed and rock ledges are colour only (the mesh keeps alturaEn).
+ * R6.2 · The three bands of the ground (DISENO-LORE.md), as soft weights at a world point: `agua` (the pond's surroundings and the
+ * banks of the dry stream bed), `lecho` (the bed itself: a pale band of silica pebbles), `paramo` (the anthracite moor on the higher,
+ * farther ground) and `jardin` (the colony garden: what is left). agua + paramo + jardin = 1; `lecho` lies inside `agua`.
+ * The bed is a meandering curve that leaves the pond and crosses the meadow beside the plaza (colour and grass only: alturaEn, the
+ * collision, is untouched). Transitions are gradual and broken by noise, never a line. Pure: a function of (seed, x, z, h).
  */
-export function colorTerreno(s: number, x: number, z: number, h: number, w: ArrayLike<number>, valle: number, conv: number, pend: number, est: (typeof ESTACIONES)[Estacion], plaza = PLAZA): number {
+export type Franjas = { agua: number; lecho: number; paramo: number; jardin: number };
+export function franjasEn(s: number, x: number, z: number, h: number, op?: OpcionesRelieve): Franjas {
+  const tam = op?.tamano ?? TAMANO, plaza = op?.plaza ?? PLAZA, r = Math.hypot(x, z);
+  const n1 = valor2(s + 141, x * 0.022, z * 0.022), n2 = valor2(s + 143, x * 0.07, z * 0.07);
+  let lecho = 0, orillaLecho = 0, aguaEst = 0;
+  if (!op?.sinEstanque) {
+    const e = estanqueDe(s, tam), de = Math.hypot(e.x, e.z) || 1;
+    // the bed's axis: from the pond, toward the far side, turned aside so it passes the plaza at a distance
+    const giro = (hash2(s, 7101, 5) < 0.5 ? -1 : 1) * 0.46, bx = -e.x / de, bz = -e.z / de;
+    const dx = bx * Math.cos(giro) - bz * Math.sin(giro), dz = bx * Math.sin(giro) + bz * Math.cos(giro);
+    const px = x - e.x, pz = z - e.z, u = px * dx + pz * dz, v = -px * dz + pz * dx;
+    const f1 = 0.045, f2 = 0.11, a1 = 8, a2 = 3.2, ph = hash2(s, 7102, 5) * 6.283;
+    const c = a1 * Math.sin(u * f1 + ph) + a2 * Math.sin(u * f2 + ph * 1.7) + 3 * simplex2(s + 93, u * 0.02, 1.7);
+    const dc = a1 * f1 * Math.cos(u * f1 + ph) + a2 * f2 * Math.cos(u * f2 + ph * 1.7);
+    const d = Math.abs(v - c) / Math.sqrt(1 + dc * dc), ancho = 3.4 + 2.2 * valor2(s + 94, u * 0.03, 0.5);
+    const tramo = sstep(e.radio * 0.6, e.radio * 1.1, u) * (1 - sstep(tam * 0.6, tam * 0.78, u)) * sstep(plaza * 1.05, plaza * 1.7, r);
+    lecho = (1 - sstep(ancho * 0.55, ancho, d + (n2 - 0.5) * 1.6)) * tramo;
+    orillaLecho = (1 - sstep(ancho, ancho + 6 + 7 * n1, d)) * tramo;
+    aguaEst = 1 - sstep(1.45, 2.6, Math.hypot(x - e.x, z - e.z) / e.radio + (n1 - 0.5) * 0.9);
+  }
+  const agua = Math.max(aguaEst, orillaLecho);
+  // the moor: farther from the plaza, higher, and where a slow noise says so; never at the plaza, faded under the water band
+  const lejos = sstep(plaza * 2, tam * 0.42, r), alto = lim(h / 6);
+  const base = 0.42 * lejos + 0.22 * alto + 0.55 * valor2(s + 147, x * 0.011 + 2.3, z * 0.011 - 4.1) + 0.18 * (n1 - 0.5);
+  const paramo = sstep(0.56, 0.74, base) * sstep(plaza * 1.6, plaza * 3.2, r) * (1 - agua);
+  return { agua, lecho, paramo, jardin: Math.max(0, 1 - agua - paramo) };
+}
+
+/**
+ * R1: the colour (hex) of the ground at a lattice vertex, ONLY from paleta.ts and mezcla(). Pure.
+ * R6.2: the open ground reads in three bands (franjasEn): the colony garden in light parchment (warm sand, dry olive patches,
+ * straw), the water band in livelier moss green and verdigris, the anthracite moor dark and golden (ash and basalt, ochre crust
+ * patches, faint crack lines); the dry stream bed is a pale band of silica pebbles. Forest floor, sand, rock and shore keep their
+ * zone colours, leaning toward the band they sit in.
+ * `w` = zone weights (ZONAS order), `valle` 0…1 (1 = hollow), `conv` = height above the neighbours' mean per metre (>0 ridge, <0 hollow), `pend` = slope.
+ * Warmer toward the light on ridges and sunlit rises, cooler and darker in hollows; the bed and rock ledges are colour only (the mesh keeps alturaEn).
+ */
+export function colorTerreno(s: number, x: number, z: number, h: number, w: ArrayLike<number>, valle: number, conv: number, pend: number, est: (typeof ESTACIONES)[Estacion], plaza = PLAZA, op?: OpcionesRelieve, fr: Franjas = franjasEn(s, x, z, h, { ...op, plaza })): number {
   const ruido = valor2(s + 37, x * 0.03, z * 0.03), fino = valor2(s + 23, x * 0.11, z * 0.11), mancha = valor2(s + 51, x * 0.045, z * 0.045);
   const seco = sstep(0.42, 0.7, ruido), sol = lim(conv * 4 + 0.5), hondo = lim(valle * 0.9 - conv * 3);
-  // meadow: green ↔ dry by noise; lush patches darker; ridges toward the light green; hollows toward the shade green
-  let prado = mezcla(est.hierba, est.hierbaLuz, 0.12 + 0.6 * seco + 0.3 * (fino - 0.5));
-  prado = mezcla(prado, VERDES.hierbaSombra, lim((1 - seco) * mancha * 0.38 + hondo * 0.5));
-  prado = mezcla(prado, est.hierbaLuz, lim((sol - 0.5) * 0.9 + lim((h - 1) / 9) * 0.22));
-  prado = mezcla(prado, CASA.arenaVelada, seco * 0.22);
-  // dry stream bed: a winding pale strip of pebbles, away from the plaza and the pond (colour only)
-  const r = Math.hypot(x, z), lecho = (1 - sstep(0.018, 0.05, Math.abs(simplex2(s + 91, x * 0.02 + 1.3 * simplex2(s + 92, z * 0.011, x * 0.011), z * 0.02)))) * sstep(plaza * 1.8, plaza * 3, r) * sstep(AGUA + 0.3, AGUA + 1.2, h) * w[0];
-  prado = mezcla(prado, mezcla(CASA.arenaVelada, CASA.ceniza, fino * 0.8), lecho * 0.85);
-  // forest floor: dark mountain green with moss on rises, deep shade in hollows
+  // garden (light parchment): warm sand and sun-baked earth, dry olive-green patches, straw; rises lighter, hollows a touch greener
+  let jardin = mezcla(FRANJAS.jardin.arena, FRANJAS.jardin.tierra, lim(0.35 + 0.6 * (fino - 0.5) + hondo * 0.3));
+  jardin = mezcla(jardin, mezcla(FRANJAS.jardin.olivo, est.hierba, 0.25), lim(sstep(0.42, 0.72, mancha) * 0.8 * (1 - 0.4 * seco) + hondo * 0.25));
+  jardin = mezcla(jardin, FRANJAS.jardin.paja, sstep(0.5, 0.78, ruido) * 0.65 * (1 - sstep(0.5, 0.7, mancha)));
+  jardin = mezcla(jardin, CASA.arena, lim((sol - 0.5) * 0.5));
+  // water band: fresh moss green, verdigris in the hollows and damp patches (the season's green leans in)
+  let agua = mezcla(mezcla(FRANJAS.agua.suelo, est.hierba, 0.3), FRANJAS.agua.fresco, lim(0.35 + 0.7 * (fino - 0.5) + (sol - 0.5) * 0.6));
+  agua = mezcla(agua, FRANJAS.agua.verdin, lim(hondo * 0.55 + sstep(0.62, 0.85, mancha) * 0.35));
+  // moor (dark and golden): ash and basalt, ochre/amber crust patches catching the light, faint crack lines
+  const costra = sstep(0.48, 0.72, valor2(s + 151, x * 0.06, z * 0.06)), grieta = 1 - sstep(0.035, 0.11, Math.abs(simplex2(s + 97, x * 0.045, z * 0.045)));
+  let paramo = mezcla(FRANJAS.paramo.ceniza, FRANJAS.paramo.basalto, lim(0.3 + hondo * 0.55 + (fino - 0.5) * 0.6 - (sol - 0.5) * 0.4));
+  paramo = mezcla(paramo, FRANJAS.paramo.costra, lim(costra * 0.7 + (sol - 0.5) * 0.35));
+  paramo = mezcla(paramo, FRANJAS.paramo.grieta, grieta * 0.55);
+  // the open ground: garden → moor → water by the band weights (they sum to 1), a chain of mezcla inside the palette hull
+  let prado = mezcla(jardin, paramo, fr.paramo / Math.max(fr.paramo + fr.jardin, 1e-6));
+  prado = mezcla(prado, agua, fr.agua);
+  // forest floor: dark mountain green with moss on rises, deep shade in hollows; it leans toward the band around it
   let bosque = mezcla(VERDES.monte, VERDES.musgo, lim(mancha * 0.55 + (sol - 0.5) * 0.7));
   bosque = mezcla(bosque, VERDES.monteSombra, lim(0.18 + hondo * 0.6));
+  bosque = mezcla(bosque, prado, 0.3 + 0.3 * fr.paramo);
   // sand: warm, two tones
   const arena = mezcla(mezcla(CASA.arenaVelada, CASA.arena, 0.2 + 0.5 * fino), VERDES.hierbaLuz, 0.22 + seco * 0.15 + hondo * 0.1);
-  // rock: ash with bronze strata (ledges follow the height and steepen with the slope), sunlit rises toward sand-light, a touch of moss
+  // rock: ash with bronze strata (ledges follow the height and steepen with the slope), sunlit rises toward sand-light, a touch of moss; darker on the moor
   const estrato = 0.5 + 0.5 * Math.sin(h * 2.3 + simplex2(s + 71, x * 0.05, z * 0.05) * 2);
   let roca = mezcla(CASA.ceniza, CASA.bronce, lim(0.12 + 0.3 * estrato * lim(pend * 0.8) + hondo * 0.45));
   roca = mezcla(roca, CASA.arenaVelada, lim((sol - 0.45) * 0.55));
-  roca = mezcla(roca, VERDES.musgo, sstep(0.66, 0.85, mancha) * (1 - lim(pend * 0.9)) * 0.5);
+  roca = mezcla(roca, VERDES.musgo, sstep(0.66, 0.85, mancha) * (1 - lim(pend * 0.9)) * 0.5 * (1 - fr.paramo));
+  roca = mezcla(roca, paramo, fr.paramo * 0.55);
   // shore above the water: damp sand with moss
   const orilla = mezcla(mezcla(CASA.arenaVelada, VERDES.musgo, 0.22 + 0.3 * fino), VERDES.hierbaSombra, hondo * 0.3);
   const zonas = [prado, bosque, arena, roca, orilla];
-  // the zone weights give the pond a wide sand belt; as colour only half of it stays pale sand, the rest reads as dry meadow (the weights and alturaEn stay as they are)
+  // the zone weights give the pond a wide sand belt; as colour only half of it stays pale sand, the rest reads as the water band's green (the weights and alturaEn stay as they are)
   const wc = [w[0] + w[2] * 0.55, w[1], w[2] * 0.45, w[3], w[4]];
   // linear blend of the five zone colours by weight, done as a chain of mezcla (stays inside the palette hull)
   let c = zonas[0], acum = wc[0];
   for (let q = 1; q < 5; q++) { acum += wc[q]; if (wc[q] > 0) c = mezcla(c, zonas[q], wc[q] / Math.max(acum, 1e-6)); }
+  // the dry stream bed: pale silica pebbles and sand over whatever zone it crosses (speckled by a fine noise), above the water only
+  const lecho = mezcla(FRANJAS.lecho.claro, FRANJAS.lecho.guijarro, lim(sstep(0.35, 0.75, fino) * 0.8 + (1 - sol) * 0.2));
+  c = mezcla(c, lecho, fr.lecho * 0.92 * sstep(AGUA, AGUA + 0.4, h));
   // underwater: sea-green shallows, turquoise, deep turquoise with depth (the pond's bed shows through the water)
   const prof = AGUA - h;
   if (prof > -0.1) {
@@ -133,7 +186,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
   const s = o.semilla, mitad = tam / 2, paso = tam / n;
   const nv = n + 1;
   // sample heights and zone weights once per lattice vertex, then colour in a second pass (slope and curvature need the neighbours)
-  const H = new Float32Array(nv * nv), W = new Float32Array(nv * nv * 5), V0 = new Float32Array(nv * nv), C = new Float32Array(nv * nv * 3);
+  const H = new Float32Array(nv * nv), W = new Float32Array(nv * nv * 5), V0 = new Float32Array(nv * nv), C = new Float32Array(nv * nv * 3), P = new Float32Array(nv * nv);
   const est = o.estacion ? ESTACIONES[o.estacion] : estacionDe(o.colores?.prado), niebla = new THREE.Color(o.niebla ?? 0xbcd6ee), nieblaHex = niebla.getHex();
   const borde = tam * 0.14, tmpC = new THREE.Color();
   for (let j = 0; j < nv; j++) for (let i = 0; i < nv; i++) {
@@ -146,7 +199,8 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
     const x = -mitad + i * paso, z = -mitad + j * paso, k = j * nv + i, h = H[k];
     const media = (Hh(i - 1, j) + Hh(i + 1, j) + Hh(i, j - 1) + Hh(i, j + 1)) / 4;
     const pend = Math.hypot(Hh(i + 1, j) - Hh(i - 1, j), Hh(i, j + 1) - Hh(i, j - 1)) / (2 * paso);
-    const hex = colorTerreno(s, x, z, h, W.subarray(k * 5, k * 5 + 5), V0[k], (h - media) / paso, pend, est, op.plaza ?? PLAZA);
+    const fr = franjasEn(s, x, z, h, op); P[k] = fr.paramo; // R6.2: the band weights; the moor's share also tints its facets below
+    const hex = colorTerreno(s, x, z, h, W.subarray(k * 5, k * 5 + 5), V0[k], (h - media) / paso, pend, est, op.plaza ?? PLAZA, op, fr);
     const f = sstep(mitad - borde, mitad, Math.max(Math.abs(x), Math.abs(z))); // 0 inside … 1 at the border
     tmpC.setHex(f > 0 ? mezcla(hex, nieblaHex, f) : hex);
     C[k * 3] = tmpC.r; C[k * 3 + 1] = tmpC.g; C[k * 3 + 2] = tmpC.b;
@@ -173,7 +227,10 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
       if (idx[q] < 0) { col[p * 3] = niebla.r; col[p * 3 + 1] = niebla.g; col[p * 3 + 2] = niebla.b; }
       else {
         const v = idx[q] * 3; tmpC.setRGB(C[v], C[v + 1], C[v + 2]);
-        if (u > 0.55 || u < 0.45) tmpC.setHex(u > 0.5 ? mezcla(tmpC.getHex(), CASA.arena, (u - 0.5) * 0.28) : mezcla(tmpC.getHex(), CASA.bronceOscuro, (0.5 - u) * 0.28));
+        const pm = P[idx[q]];
+        if (u > 0.55 || u < 0.45) tmpC.setHex(u > 0.5 ? mezcla(tmpC.getHex(), CASA.arena, (u - 0.5) * 0.28 * (1 - 0.7 * pm)) : mezcla(tmpC.getHex(), CASA.bronceOscuro, (0.5 - u) * 0.28));
+        // R6.2: on the moor some facets read as a crack (near-black basalt) or as a golden crust plate
+        if (pm > 0.05 && (u < 0.12 || u > 0.88)) tmpC.setHex(mezcla(tmpC.getHex(), u < 0.12 ? FRANJAS.paramo.grieta : FRANJAS.paramo.costra, u < 0.12 ? pm * 0.4 : lim((pm - 0.3) / 0.7) * 0.45));
         col[p * 3] = tmpC.r; col[p * 3 + 1] = tmpC.g; col[p * 3 + 2] = tmpC.b;
       }
       p++;
@@ -226,6 +283,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
   return {
     malla, estanque: { ...e, nivel: AGUA }, triangulos: tris, vertices: nvt, residuos: { triangulos: triRes, sitios: res?.sitios ?? [] },
     alturaEn: (x, z) => alturaEn(s, x, z, op), zonaEn: (x, z) => zonaEn(s, x, z, op),
+    franjaEn: (x, z, h) => franjasEn(s, x, z, h ?? alturaEn(s, x, z, op), op),
     dispose: () => { malla.removeFromParent(); g.dispose(); mat.dispose(); },
   };
 }

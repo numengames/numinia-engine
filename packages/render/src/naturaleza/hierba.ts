@@ -28,13 +28,13 @@
 import * as THREE from "three/webgpu";
 import { uniform, attribute, step, float, vec2, vec3, positionLocal, sin, cos, dot, length, normalize, max, clamp, smoothstep, mix, oneMinus, abs, transformNormalToView } from "three/tsl";
 import { hash2, valor2 } from "./semilla.ts";
-import { CASA, VERDES, ESTACIONES, mezcla } from "./paleta.ts";
+import { CASA, VERDES, ESTACIONES, FRANJAS, mezcla } from "./paleta.ts";
 import type { Estacion } from "./paleta.ts";
 import { estacionDe } from "./terreno.ts";
 import { HIERBA_POR_NIVEL } from "./niveles.ts";
 import type { HierbaNivel } from "./niveles.ts";
 import type { Nivel } from "../calidad.ts";
-import type { Zona } from "./terreno.ts";
+import type { Zona, Franjas } from "./terreno.ts";
 
 /** R5.2: the season's colours for this source: its `estacion` when given, else the legacy meadow hex mapped to the nearest season. */
 const estacionFuente = (f: { estacion?: Estacion; colores?: { prado?: number } }) => (f.estacion ? ESTACIONES[f.estacion] : estacionDe(f.colores?.prado));
@@ -46,12 +46,16 @@ export type Fuente = {
   colores?: { prado?: number; bosque?: number; seco?: number };
   /** R5.2: the world's season (paleta.ts ESTACIONES): picks the tip and flower colours; wins over the legacy `colores`. */
   estacion?: Estacion;
+  /** R6.2: the ground bands (terreno.ts `crearTerreno().franjaEn`): grass is fresh by the water, straw in the garden, sparse dark gold on the moor, none on the dry bed. Absent = the meadow as before. */
+  franjaEn?: (x: number, z: number, h?: number) => Franjas;
 };
 
 /** R1 palette (paleta.ts only): muted meadow green, mountain forest green, dry patch, three small flowers (sand, sea-green, amber). */
 export const PALETA_HIERBA = { prado: ESTACIONES.verano.hierba, bosque: VERDES.monte, seco: ESTACIONES.verano.hierbaLuz, raiz: VERDES.monteSombra, tallo: VERDES.hierbaSombra, flores: [CASA.arena, CASA.verdemar, CASA.ambar] as number[] };
 /** Share of the meadow's candidates kept under trees. */
 export const DENSIDAD_BOSQUE = 0.4;
+/** R6.2: share of the candidates kept on the full moor (the slots stay: same budget, fewer live tufts). */
+export const DENSIDAD_PARAMO = 0.4;
 /** Height (m) of a tuft at scale 1, and of a flower. */
 export const ALTO_TUFT = 0.9, ALTO_FLOR = 0.85;
 const TAU = Math.PI * 2;
@@ -85,6 +89,10 @@ export function tuftDe(semilla: number, cx: number, cz: number, k: number, f: Fu
   if (z2 !== "prado" && z2 !== "bosque" && azar(semilla, cx, cz, k, 4) < 0.6) return false;
   const y = f.alturaEn(x, z);
   if (azar(semilla, cx, cz, k, 5) >= 1 - paso(0.45, 0.95, pendiente(f, x, z, y))) return false; // steep ground: thinner
+  // R6.2: the bands: bare silica pebbles on the dry bed (a soft fringe), the moor thins out
+  const fr = f.franjaEn?.(x, z, y);
+  if (fr && fr.lecho > 0.2 && azar(semilla, cx, cz, k, 17) < paso(0.2, 0.55, fr.lecho)) return false;
+  if (fr && azar(semilla, cx, cz, k, 18) < fr.paramo * (1 - DENSIDAD_PARAMO)) return false;
   // R1: the TIP colour of the tuft, from the season's palette by mezcla(): lush ↔ dry patches by the same noise the terrain uses (so grass and ground agree),
   // a slow light/dark patchiness and a per-tuft nudge toward the light or the shade green. The root colour is derived in the shader (darker, same hue).
   const claro = valor2(semilla + 11, x * 0.06, z * 0.06), fino = valor2(semilla + 23, x * 0.11, z * 0.11), seco = paso(0.42, 0.7, valor2(semilla + 37, x * 0.03, z * 0.03));
@@ -95,11 +103,16 @@ export function tuftDe(semilla: number, cx: number, cz: number, k: number, f: Fu
     c = mezcla(c, VERDES.hierbaSombra, lim((1 - seco) * claro * 0.42));
   } else c = mezcla(VERDES.monte, VERDES.musgo, lim(0.25 + 0.5 * claro + (fino - 0.5) * 0.3));
   c = mezcla(c, est.hierbaLuz, 0.14); // the tip is the lit part of the blade
+  if (fr) { // R6.2: fresh green by the water, dry straw-olive in the garden (patchy), dark gold on the moor
+    c = mezcla(c, mezcla(FRANJAS.jardin.hierba, FRANJAS.jardin.paja, seco * 0.6), fr.jardin * (zona === "prado" ? 0.7 : 0.3));
+    c = mezcla(c, mezcla(FRANJAS.agua.fresco, est.hierba, 0.3), fr.agua * 0.75);
+    c = mezcla(c, mezcla(FRANJAS.paramo.hierba, FRANJAS.paramo.costra, fino * 0.6), fr.paramo * 0.9);
+  }
   c = nudge > 0 ? mezcla(c, est.hierbaLuz, nudge * 0.3) : mezcla(c, VERDES.hierbaSombra, -nudge * 0.3);
   tmp.setHex(c);
   out.x = x; out.y = y; out.z = z; out.giro = azar(semilla, cx, cz, k, 6) * TAU;
   const alto = (0.72 + 0.5 * azar(semilla, cx, cz, k, 8)) * (0.85 + 0.35 * claro * (1 - 0.5 * seco)); // lush clumps grow taller, dry patches stay short
-  out.escala = zona === "prado" ? alto : alto * 0.82;
+  out.escala = (zona === "prado" ? alto : alto * 0.82) * (fr ? 1 - 0.25 * fr.paramo + 0.12 * fr.agua : 1); // R6.2: low on the moor, lush by the water
   out.r = tmp.r; out.g = tmp.g; out.b = tmp.b;
   return true;
 }
@@ -112,6 +125,8 @@ export function florDe(semilla: number, cx: number, cz: number, k: number, f: Fu
   if (azar(semilla, cx, cz, k, 11) >= paso(0.52, 0.7, mancha) * 0.8) return false; // R1: fewer, in groups
   const y = f.alturaEn(x, z);
   if (pendiente(f, x, z, y) > 0.7) return false;
+  const fr = f.franjaEn?.(x, z, y); // R6.2: no flowers on the bed, few on the moor
+  if (fr && (fr.lecho > 0.3 || azar(semilla, cx, cz, k, 19) < fr.paramo * 0.8)) return false;
   const est = estacionFuente(f), grupo = valor2(semilla + 63, x * 0.05, z * 0.05), tono = azar(semilla, cx, cz, k, 12) < 0.15 ? azar(semilla, cx, cz, k, 13) : grupo;
   const otros = [est.flor, ...PALETA_HIERBA.flores.filter((h) => h !== est.flor)];
   tmp.setHex(otros[tono < 0.5 ? 0 : tono < 0.82 ? 1 : 2]);

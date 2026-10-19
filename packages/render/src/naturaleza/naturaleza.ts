@@ -150,7 +150,7 @@ export function crearNaturaleza(h: HNaturaleza) {
     const puntos = E.esparcirArboles(terreno, { semilla: d.semilla, tamano: d.tamano, plaza: d.plaza, densidad: d.arboles, nivel, paleta: estacion, estanque: d.estanque ? terreno.estanque : null });
     const arboles = A.crearArboles({ vientoU: h.vientoU as never, nivel, camara: h.camara }, puntos);
     grupo.add(arboles.grupo);
-    const hierba = H.crearHierba({ vientoU: h.vientoU, nivel }, { alturaEn: terreno.alturaEn, zonaEn: terreno.zonaEn, estacion },
+    const hierba = H.crearHierba({ vientoU: h.vientoU, nivel }, { alturaEn: terreno.alturaEn, zonaEn: terreno.zonaEn, franjaEn: terreno.franjaEn, estacion },
       { semilla: d.semilla, nivel, escena: grupo, empujaCamara: false, tabla: d.hierba >= 1 ? undefined : { tuftsMax: Math.max(40, Math.round(HIERBA_POR_NIVEL[nivel].tuftsMax * d.hierba)) } });
     let agua: Real["agua"] = null;
     if (d.estanque && nivel !== "D") { // N6: on tier D the pond is painted into the terrain mesh (one draw call less)
