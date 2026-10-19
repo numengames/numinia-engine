@@ -11,13 +11,14 @@ import { alturaEn, estanqueDe, NIVEL_AGUA } from "../packages/relieve/src/reliev
 
 const lum = (c: number[]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
 
-test("the atlas: 32 glyphs of 7×7 in 8 × 4 cells of 16 px (128×64 R8, 8 KB), families in order, no glyph empty or bleeding", () => {
+test("the atlas: 40 glyphs of 7×7 in 8 × 5 cells of 16 px (128×80 R8, 10 KB), families in order (plankton last), no glyph empty or bleeding", () => {
   assert.equal(ORDEN.length, ATLAS.columnas * ATLAS.filas);
   for (const k of ORDEN) { const g = GLIFOS[k]; assert.equal(g.length, 7, k); for (const fila of g) assert.equal(fila.length, 7, k); assert.ok(g.join("").includes("#"), k); }
   assert.deepEqual([ORDEN[0], ORDEN[1]], ["0", "1"]);
-  assert.equal(FAMILIAS.simbolos[1], ORDEN.length);
+  assert.equal(FAMILIAS.plancton[1], ORDEN.length);
+  assert.equal(ORDEN[FAMILIAS.plancton[0]], "disco");
   const { datos, ancho, alto } = pixelesAtlas();
-  assert.equal(ancho * alto, 128 * 64);
+  assert.equal(ancho * alto, 128 * 80);
   const t = atlasGlifos();
   assert.equal(t.format, THREE.RedFormat); assert.equal(t.generateMipmaps, false); assert.equal(atlasGlifos(), t, "one shared texture");
   // every cell has ink, and the cell's outer ring of texels stays empty (no bleeding into the neighbour under bilinear reads)
@@ -25,7 +26,7 @@ test("the atlas: 32 glyphs of 7×7 in 8 × 4 cells of 16 px (128×64 R8, 8 KB), 
     const cx = (k % 8) * 16, cy = Math.floor(k / 8) * 16;
     let tinta = 0, borde = 0;
     for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const v = datos[(cy + y) * ancho + cx + x]; if (v === 255) tinta++; if ((x === 0 || y === 0 || x === 15 || y === 15) && v > 200) borde++; }
-    assert.ok(tinta >= 12, `${ORDEN[k]} ink ${tinta}`);
+    assert.ok(tinta >= 8, `${ORDEN[k]} ink ${tinta}`);
     assert.equal(borde, 0, `${ORDEN[k]} bleeds`);
   }
 });

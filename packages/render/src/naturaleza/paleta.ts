@@ -258,9 +258,10 @@ export const AGUA_ORILLA = {
  * sobre el agua turquesa clara (el verdemar con arena de E03 se perdía). Solo mezclas de tokens, ningún hex nuevo.
  */
 export const AGUA_OCEANO = {
-  somera: mezcla(mezcla(CASA.turquesaProfundo, VERDES.verdin, 0.55), CASA.noche, 0.2),
-  media: mezcla(mezcla(CASA.turquesaProfundo, VERDES.verdin, 0.45), CASA.noche, 0.38),
-  honda: mezcla(mezcla(VERDES.verdin, CASA.turquesaProfundo, 0.5), CASA.noche, 0.6),
+  // Pablo 2026-10-19: «mucho más esmeralda y mucho más oscura» — Verdín por delante, hundido en Noche
+  somera: mezcla(mezcla(VERDES.verdin, CASA.turquesaProfundo, 0.35), CASA.noche, 0.55),
+  media: mezcla(mezcla(VERDES.verdin, CASA.turquesaProfundo, 0.3), CASA.noche, 0.7),
+  honda: mezcla(mezcla(VERDES.verdin, CASA.turquesaProfundo, 0.3), CASA.noche, 0.85),
   franja: mezcla(mezcla(CASA.turquesaProfundo, CASA.ceniza, 0.35), CASA.noche, 0.2),
   espuma: mezcla(CASA.arenaVelada, CASA.verdemar, 0.35),
   codigo: mezcla(CASA.turquesa, CASA.verdemar, 0.35),
@@ -271,4 +272,16 @@ export const AGUA_OCEANO = {
   /** E51 (referencia de Pablo): la cara esmeralda de la ola por la que pasa la luz — Turquesa profundo con Verdín y un
    * toque de Verdemar; las facetas de cristal la toman a escalones. */
   cristal: mezcla(mezcla(VERDES.verdin, CASA.turquesaProfundo, 0.3), CASA.verdemar, 0.25),
+} as const;
+
+// E51b
+/**
+ * E51 · Los glifos raros del agua con código (Pablo 2026-10-19, sobre e51-c-dorado): de vez en cuando —una minoría, ~15 %,
+ * elegida por glifo como luciérnagas— un glifo no es turquesa sino de otro color OSCURO: grana apagada, gris-negro o
+ * púrpura oscuro, unos más apagados y otros algo más vivos (el brillo lo pone el shader). Solo mezclas de tokens.
+ */
+export const AGUA_CODIGO_RARO = {
+  grana: mezcla(CASA.grana, CASA.noche, 0.45),
+  grisNegro: mezcla(CASA.ceniza, CASA.noche, 0.6),
+  purpura: mezcla(mezcla(CASA.grana, CASA.turquesaProfundo, 0.45), CASA.noche, 0.5),
 } as const;

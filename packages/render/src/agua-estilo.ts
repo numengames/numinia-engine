@@ -20,7 +20,7 @@
 // and the breaking foam line, like dinoflagellates) with a PULSE FRONT that sweeps the surface along the current (Rezmason's
 // raindrop brightness `1 − fract(t)`: a sharp head and a fading tail; one subtraction of time). The binaries of a/b now read
 // through the same atlas, bigger and in a darker ink. Still one mesh, one draw call; +1 texture read where glyphs are on.
-import { CASA, AGUA_ORILLA, AGUA_OCEANO } from "./naturaleza/paleta.ts";
+import { CASA, AGUA_ORILLA, AGUA_OCEANO, AGUA_CODIGO_RARO } from "./naturaleza/paleta.ts";
 import { atlasGlifos, ATLAS, BORDE_GLIFO } from "./agua-glifos.ts";
 import * as THREE from "three/webgpu";
 import { uniform, uv, vec2, vec3, vec4, float, mix, positionLocal, positionWorld, cameraPosition, normalize, dot, reflect, pow, max, min, clamp, abs, sin, cos, fract, smoothstep, exp, length, oneMinus, texture, floor, fwidth, step, mod } from "three/tsl";
@@ -94,7 +94,7 @@ export const BINARIOS_TENUE = 0.6;
 /** Glyph cell (m): along the current × across it; the glyph fills 14/16 of it. E03's digits were 0.6 × 1.0 with thin strokes. */
 export const CELDA_GLIFO = { largo: 0.8, ancho: 1.1 } as const;
 /** «oceano» (Pablo's reference): smaller, denser code — the glyphs are small against the waves. */
-export const CELDA_OCEANO = { largo: 0.36, ancho: 0.48 } as const;
+export const CELDA_OCEANO = { largo: 0.072, ancho: 0.096 } as const; // Pablo 19-10: 80 % smaller than 788d6e1's 0.36 × 0.48
 /** Glyphs fade out between these distances from the camera (m): they are a near-field detail. */
 export const LEJOS_GLIFO = [30, 70] as const;
 /** The pulse front: speed (m/s) along the current, distance between fronts (m), tail length (m). A front crosses the 41 m
@@ -278,6 +278,7 @@ export function materialDeAgua(o: OpcionesAgua, olasDesde: number): THREE.MeshLa
     }
   }
   // ---- E51 · «oceano»: the swell in the fragment (twin oleajeEn), crystalline faces of the wave bodies ----
+  let raro: N = float(0) as N, viveza: N = float(1) as N, tonoRaro = vec3(0, 0, 0) as unknown as ReturnType<typeof vec3>;
   let facetaO: N = float(0) as N, olaH: N = float(0) as N, olaN = vec3(0, 1, 0) as unknown as ReturnType<typeof vec3>, cara: N = float(0) as N, valle: N = float(0) as N;
   const h1 = (a: N, b: N) => fract(sin(a.mul(127.1).add(b.mul(311.7))).mul(43758.5453)) as N;
   if (oceano) {
@@ -379,28 +380,18 @@ export function materialDeAgua(o: OpcionesAgua, olasDesde: number): THREE.MeshLa
     const avance = largo.sub(reloj.mul(rapidez).mul(h1(fila, float(3.7)).mul(0.8).add(0.6))); // each row its own speed
     const celda = floor(avance.div(AL)), fx = fract(avance.div(AL)), fy = fract(traves.div(AN));
     const tramo = h1(floor(celda.div(7)), fila); // strings of 7 glyphs; a third (oceano: half) of them lit, each fading in and out
-    let escaso: N = float(1) as N;
     let encendido: N = step(oceano ? 0.5 : 0.66, tramo).mul(smoothstep(0.1, 0.7, sin(reloj.mul(0.45).add(tramo.mul(40))))) as N;
-    if (oceano) {
-      // sparse code: by day only ~1 glyph in 9 of a lit string stays (scattered, not a carpet); the dark brings the rest
-      // back (night and its pulse are kept as they were); near the camera fewer still, so the near ones read big and alone
-      const nocheV = oneMinus(smoothstep(-0.1, 0.15, (luz.solDir as unknown as ReturnType<typeof vec3>).y));
-      const cercaG = oneMinus(smoothstep(4, 14, length(cameraPosition.xz.sub(pw))));
-      const raro = mix(float(0.89), float(0.0), nocheV).add(cercaG.mul(0.06));
-      escaso = step(raro, h1(celda.add(17.7), fila.add(23))) as N;
-      encendido = encendido.mul(escaso) as N;
-    }
+    // (5e33c2a thinned the code by day to 1 in 9; Pablo, 19-10: «esta es la buena» about the DENSE look of 788d6e1 —
+    // undone; the glyphs are 80 % smaller instead, CELDA_OCEANO)
     // which glyph: a/b → 0 or 1; oceano → 50 % binaries, 32 % letters, 18 % symbols, re-drawn every ~2.5 s per cell
     const semilla = oceano ? celda.add(floor(reloj.mul(0.4).add(h1(celda, fila.add(5)).mul(7))).mul(13.1)) : celda;
     const r = h1(semilla as N, fila.add(17));
     const bin = step(0.5, fract(r.mul(7.31)));
-    const idx = oceano ? mix(bin, mix(floor(fract(r.mul(13.7)).mul(14)).add(2), floor(fract(r.mul(29.1)).mul(16)).add(16), step(0.82, r)), step(0.5, r)) : bin;
+    const codigo = mix(bin, mix(floor(fract(r.mul(13.7)).mul(14)).add(2), floor(fract(r.mul(29.1)).mul(16)).add(16), step(0.82, r)), step(0.5, r));
+    // Pablo 19-10: ~25 % are not code at all but plankton (atlas row 5: disc, ring, chain, rod, spiky star, …)
+    const idx = oceano ? mix(codigo, floor(fract(r.mul(53.1)).mul(8)).add(32), step(0.75, fract(r.mul(91.7)))) : bin;
     const C = ATLAS.columnas, F = ATLAS.filas, ins = 0.5 / ATLAS.celda;
-    // «oceano» (Ursa's review of the reference): each glyph its own size (45–100 % of the cell) and its own depth in the
-    // water; outside the shrunk glyph the clamped uv lands on the cell's empty ring, so nothing draws there
-    const talla = oceano ? h1(celda.add(3.3), fila.add(41)).mul(0.55).add(0.45) : float(1);
-    const gx0 = fx.sub(0.5).div(talla).add(0.5), gy0 = fy.sub(0.5).div(talla).add(0.5);
-    const uvG = vec2(mod(idx, C).add(clamp(gx0, ins, 1 - ins)), floor(idx.div(C)).add(clamp(gy0, ins, 1 - ins))).div(vec2(C, F));
+    const uvG = vec2(mod(idx, C).add(clamp(fx, ins, 1 - ins)), floor(idx.div(C)).add(clamp(fy, ins, 1 - ins))).div(vec2(C, F));
     const campo = texture(atlasGlifos(), uvG).r;
     const w = clamp(fwidth(campo), 0.02, 0.3);
     const umbral = BORDE_GLIFO - (oceano ? 0.06 : 0.13); // the ocean's code is a thinner stroke
@@ -412,7 +403,7 @@ export function materialDeAgua(o: OpcionesAgua, olasDesde: number): THREE.MeshLa
       const sP = largo.add(sin(traves0.mul(0.13).add(reloj.mul(0.25))).mul(2.5)).sub(reloj.mul(PULSO.vel));
       const fase = fract(sP.div(PULSO.lambda)); // twin: pulsoEn; the head is softened over 0.6 m so it never aliases
       pulso = exp(oneMinus(fase).mul(-PULSO.lambda / PULSO.cola)).mul(oneMinus(smoothstep(1 - 0.6 / PULSO.lambda, 1, fase))) as N;
-      lit = max(encendido, pulso.mul(0.55).mul(escaso)) as N; // the front wakes the dark strings too, at half strength: a band of code
+      lit = max(encendido, pulso.mul(0.55)) as N; // the front wakes the dark strings too, at half strength: a band of code
     }
     const lejos = oneMinus(smoothstep(LEJOS_GLIFO[0], LEJOS_GLIFO[1], dist)).mul(oceano ? oneMinus(smoothstep(0.25, 0.9, w)) : float(1)); // and where the glyph is under a pixel, it fades (no moiré)
     const fuera = (sh ? smoothstep(0.8, 2.5, aOrilla) : float(1)).mul(oneMinus(espuma));
@@ -420,9 +411,20 @@ export function materialDeAgua(o: OpcionesAgua, olasDesde: number): THREE.MeshLa
     // «oceano»: the code lives in the wave bodies (faces + troughs), barely on the backs; nearer = brighter (reference)
     const cuerpo = oceano ? smoothstep(0.15, 0.7, max(cara, valle)).mul(0.92).add(0.08).mul(oneMinus(smoothstep(4, 18, dist)).mul(0.8).add(1)) : float(1);
     halo = halo.mul(cuerpo) as N;
-    // depth inside the water: each glyph a random depth; deeper ones dimmer (and tinted by the water in the colour step)
-    const hondoG = oceano ? oneMinus(h1(celda.add(9.1), fila.add(7)).mul(0.65)) : float(1);
-    glifo = forma.mul(lit).mul(lejos).mul(fuera).mul(cuerpo).mul(hondoG) as N;
+    // Pablo 19-10 («como fitoplancton»): each glyph BREATHES — its own phase and a period of 3–8 s — so at any moment only
+    // ~1/3 read clearly and the rest sink almost into the water colour (a floor of 12 %), then come back
+    const respira = oceano ? mix(float(0.12), float(1), smoothstep(0.55, 0.95, sin(reloj.mul(h1(celda.add(5.5), fila.add(2)).mul(1.3).add(0.8)).add(h1(celda.add(8.8), fila.add(19)).mul(6.283))).mul(0.5).add(0.5))) : float(1);
+    glifo = forma.mul(lit).mul(lejos).mul(fuera).mul(cuerpo).mul(respira) as N;
+    halo = halo.mul(respira) as N;
+    if (oceano) {
+      // fireflies of another colour (Pablo 2026-10-19): ~15 % of the glyphs, picked per glyph by hash, take a dark garnet,
+      // a grey-black or a dark purple (paleta.ts AGUA_CODIGO_RARO), each with its own brightness (×0.55…1.45); the rest
+      // stay turquoise. Same hash family as the glyph pick: a few ALU, no texture, no call.
+      const hr = h1(semilla.add(51.7) as N, fila.add(13)), cual = floor(fract(hr.mul(31.3)).mul(3));
+      raro = step(0.85, hr) as N;
+      tonoRaro = mix(mix(c3(AGUA_CODIGO_RARO.grana), c3(AGUA_CODIGO_RARO.grisNegro), step(1, cual)), c3(AGUA_CODIGO_RARO.purpura), step(2, cual)) as unknown as typeof col;
+      viveza = fract(hr.mul(97.1)).mul(0.9).add(0.55) as N;
+    }
     // «a veces en la cresta»: where a slow swell peaks, a few strings come up lighter (the pond has no vertex waves)
     cresta = smoothstep(0.82, 0.97, sin(dot(pw, vec2(0.23, 0.17)).sub(reloj.mul(0.8))).mul(sin(dot(pw, vec2(-0.11, 0.29)).add(reloj.mul(0.5))))) as N;
     if (oceano) {
@@ -434,7 +436,8 @@ export function materialDeAgua(o: OpcionesAgua, olasDesde: number): THREE.MeshLa
       const punto = oneMinus(smoothstep(rad.mul(0.45), rad, length(fract(q).sub(0.5)))).mul(cerca.mul(0.4).add(0.6));
       motas = step(0.92, qh).mul(punto).mul(sin(reloj.mul(2.3).add(qh.mul(60))).mul(0.35).add(0.65)).mul(lejos).mul(fuera) as N;
       const dia = glifo.mul(vis * 0.4).mul(cresta.mul(0.6).add(1)).mul(pulso.mul(0.6).add(1)).mul(oneMinus(noche.mul(0.7)));
-      col = mix(col, mix(c3(AGUA_OCEANO.codigo), c3(AGUA_OCEANO.codigoCresta), cresta), clamp(dia, 0, 0.8)) as typeof col;
+      const tinta = mix(mix(c3(AGUA_OCEANO.codigo), c3(AGUA_OCEANO.codigoCresta), cresta), tonoRaro, raro);
+      col = mix(col, tinta, clamp(dia.mul(mix(float(1), viveza, raro)), 0, 0.8)) as typeof col;
     } else {
       // a/b (E51 raised): dark ink under the surface, a light glyph where a crest lifts it — both read on the light water
       const k = glifo.mul(vis * 0.85).mul(cresta.mul(0.5).add(1));
@@ -461,13 +464,16 @@ export function materialDeAgua(o: OpcionesAgua, olasDesde: number): THREE.MeshLa
     const brillo = max(max(noche, crep.mul(0.6)), 0.18);
     // the deep emerald keeps a little of its own light by day (scattered light inside the water), so a backlit ocean at golden
     // hour reads emerald-teal, not brown-black; gone at night (the night stays dark)
-    propia = propia.add(c3(AGUA_OCEANO.media).mul(oneMinus(noche).mul(0.22))) as typeof col;
+    // (Pablo 19-10: «mucho más esmeralda»): the lift is the emerald crystal tone itself, so warm sunlight on a dark albedo
+    // can't turn the body brown; the albedo stays very dark
+    propia = propia.add(c3(AGUA_OCEANO.cristal).mul(oneMinus(noche).mul(0.13))) as typeof col;
     const glow = glifo.add(halo.mul(0.15)).mul(pulso.mul(1.3).add(0.3)).mul(cresta.mul(0.8).add(1)).mul(vis);
     const fuente = mix(c3(AGUA_OCEANO.plancton), c3(AGUA_OCEANO.planctonPico), clamp(pulso.mul(0.6), 0, 1));
+    const fuenteG = mix(fuente, tonoRaro.mul(viveza.mul(1.6)), raro); // the odd glyphs glow in their own dark colour
     const mar = espuma.mul(0.45).mul(noche).add(pulso.mul(0.1).mul(smoothstep(0.8, 3, aOrilla)).mul(noche));
     // motes: plankton green at night, the sun's gold by day (the reference's bokeh is gold near the glint path)
     const mota = mix(mix(c3(CASA.ambar), fuente, 0.55), fuente, noche).mul(motas.mul(pulso.mul(1.5).add(0.35)).mul(vis).mul(brillo.mul(1.3)));
-    propia = propia.add(fuente.mul(glow.mul(brillo).add(mar).mul(0.9))).add(mota) as typeof col;
+    propia = propia.add(fuenteG.mul(glow.mul(brillo).mul(0.9))).add(fuente.mul(mar.mul(0.9))).add(mota) as typeof col;
     // the golden glint PATH: the sun reflected on the swell (+ a fine ripple), a wide broken lobe, strongest with the sun low
     // (the classic sun-glitter recipe: a wide lobe on the swell's normal, broken by fine ripples into sparks; webgpu_ocean /
     // Water.js do the lobe with a normal map, here two crossed sines at 2–4 m⁻¹ instead of a texture read)

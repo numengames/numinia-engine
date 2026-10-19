@@ -35,7 +35,7 @@ try {
   };
   // [technique, prefix, shots: [hour, framing, name, frames]]
   const PLAN = [
-    ["e51-nat-c", "c", [["dorado", "dorado", "e51-c-dorado", 90], ["dorado", "dorado-orilla", "e51-c-dorado-cerca", 90], [DIA, "conjunto", "e51-c-dia", 90], [DIA, "orilla", "e51-c-dia-orilla", 90], [NOCHE, "conjunto", "e51-c-noche", 90], [NOCHE, "orilla", "e51-c-noche-orilla", 90],
+    ["e51-nat-c", "c", [["dorado", "dorado", "e51-c-dorado", 90], ["dorado", "dorado-orilla", "e51-c-dorado-cerca", 90], ...[1, 2, 3].map((i) => ["dorado", "dorado", `e51-c-dorado-t${i}`, 108]), /* 1.5 s apart: glyphs breathing */ [DIA, "conjunto", "e51-c-dia", 90], [DIA, "orilla", "e51-c-dia-orilla", 90], [NOCHE, "conjunto", "e51-c-noche", 90], [NOCHE, "orilla", "e51-c-noche-orilla", 90],
       ...Array.from({ length: Number(opt("pulsos", 8)) }, (_, i) => [NOCHE, "conjunto", `e51-pulso-t${String(i + 1).padStart(2, "0")}`, 54])]], // 0.75 s apart; pick 4 in a row
     ["e51-nat-a-bin", "a", [[DIA, "conjunto", "e51-a-binarios-dia", 90], [DIA, "orilla", "e51-a-binarios-dia-orilla", 90]]],
     ["e51-nat-b-bin", "b", [[DIA, "conjunto", "e51-b-binarios-dia", 90], [DIA, "orilla", "e51-b-binarios-dia-orilla", 90]]],
@@ -53,7 +53,8 @@ try {
     if (err) throw new Error(`${t}: ${err}`);
     const info = await p.evaluate(() => window.__banco.estado.info);
     let hora = DIA, horaDorada = null;
-    for (let [h, k, nombre, cuadros] of tomas) {
+    const filtro = opt("tomas", null) ? new RegExp(opt("tomas", "")) : null;
+    for (let [h, k, nombre, cuadros] of tomas.filter((t) => !filtro || filtro.test(t[2]))) {
       if (h === "dorado") {
         // golden hour: the evening hour whose sun stands ~9° up (solDir.y ≈ 0.16), found by probing the environment
         if (horaDorada === null) {
