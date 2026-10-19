@@ -53,7 +53,7 @@ const HOJAS: Record<Especie, [Par, Par]> = {
   olivo: [{ oscuro: mezcla(VERDES.monte, CASA.arenaVelada, 0.2), claro: mezcla(PLATA, CASA.arenaVelada, 0.2) }, { oscuro: mezcla(VERDES.monte, CASA.ambarTostado, 0.3), claro: mezcla(PLATA, CASA.ambar, 0.25) }],
   arbusto: [{ oscuro: VERDES.monte, claro: mezcla(VERDES.hierba, VERDES.hierbaLuz, 0.3) }, { oscuro: VERDES.hierbaSombra, claro: mezcla(CASA.arena, CASA.verdemar, 0.3) }],
   // R6.3 willow: a cool green (monte toward verdín) under the dome, light sea-green tips on the curtains; autumn: the tips go straw-amber
-  sauce: [{ oscuro: mezcla(VERDES.monte, VERDES.verdin, 0.3), claro: mezcla(VERDES.hierbaLuz, CASA.verdemar, 0.35) }, { oscuro: mezcla(VERDES.monte, CASA.ambarTostado, 0.25), claro: mezcla(VERDES.hierbaLuz, CASA.ambar, 0.3) }],
+  sauce: [{ oscuro: mezcla(VERDES.monteSombra, VERDES.verdin, 0.35), claro: mezcla(VERDES.hierba, CASA.verdemar, 0.3) }, { oscuro: mezcla(VERDES.monte, CASA.ambarTostado, 0.25), claro: mezcla(VERDES.hierba, CASA.ambar, 0.3) }],
 };
 /** Bark (dark end; the shader lightens it toward ceniza up the trunk): brown with bronze/copper in it, olive grey and gnarled. */
 const TRONCOS: number[] = [mezcla(CASA.bronce, CASA.ceniza, 0.45), mezcla(mezcla(CASA.bronce, MAQUINA.cobre, 0.35), CASA.ceniza, 0.2), mezcla(CASA.bronce, CASA.ceniza, 0.55), mezcla(CASA.bronce, CASA.ceniza, 0.7), mezcla(CASA.bronce, CASA.ceniza, 0.3), mezcla(mezcla(CASA.bronce, VERDES.verdin, 0.15), CASA.ceniza, 0.4)];
@@ -112,7 +112,7 @@ type Forma = {
  * inside the dome, its ring of 4 sits just past the dome's rim (outer vertex lowest, so the curtain arches out from under the dome — the whiplash of
  * the Art Nouveau sheets), and its bottom vertex hangs almost to the ground, swept sideways (`barre`) so the hem is a row of curling tips, not a
  * fringe of diamonds. dome: top y, upper ring [y, r], lower ring [y, r], underside y, offset from the trunk top (dx, dz).
- * cortinas: [azimuth, top y, ring radius, ring y, half width, half thickness, tip y, sideways sweep].
+ * cortinas: [azimuth, top y, radius, side corners' y, half width, half thickness, tip y, sideways sweep].
  */
 type Lloron = { top: number; alto: [number, number]; bajo: [number, number]; pie: number; dx: number; dz: number; cortinas: [number, number, number, number, number, number, number, number][] };
 /**
@@ -159,15 +159,17 @@ const FORMA: Record<Especie, Forma> = {
     copa: { cx: 0, cy: 0.55, cz: 0, rx: 0.95, ry: 0.6, rz: 0.9, top: 1 }, collar: 0.05, jag: 0.2,
   },
   sauce: {
-    tronco: { alto: 2.7, r0: 0.34, r1: 0.18, lx: 0.75, lz: 0.2, curva: 0.3, tors: 0.35, bulto: 0.18 },
-    ramas: [[2.1, 0.7, 0.75, 1.4, 0.09], [2.3, 2.8, 0.7, 1.5, 0.085], [2.5, 4.7, 0.8, 1.3, 0.08]], // arching up into the dome
+    tronco: { alto: 2.8, r0: 0.27, r1: 0.13, lx: 0.75, lz: 0.2, curva: 0.3, tors: 0.35, bulto: 0.2 },
+    ramas: [[2.2, 0.7, 0.8, 1.4, 0.07], [2.4, 2.8, 0.75, 1.5, 0.065], [2.6, 4.7, 0.85, 1.3, 0.06]], // arching up into the dome
     matas: [[0, 0, 0, 1, 1, 1], [0, 0, 0, 1, 1, 1], [0, 0, 0, 1, 1, 1], [0, 0, 0, 1, 1, 1], [0, 0, 0, 1, 1, 1]], // unused (lloron)
     copa: { cx: 0.8, cy: 4.4, cz: 0.2, rx: 2.2, ry: 1.0, rz: 2.1, top: 1 }, collar: 0.6, jag: 0.12,
     lloron: {
-      top: 5.5, alto: [5.0, 1.45], bajo: [4.15, 2.25], pie: 3.55, dx: 0.12, dz: 0,
+      top: 5.5, alto: [5.0, 1.45], bajo: [4.15, 2.25], pie: 3.4, dx: 0.12, dz: 0,
+      // the curtains hang from the dome's rim (top vertex just inside it), widen straight down to a ring low on the tree and end in a short tip:
+      // long sheets, not icicles. `barre` swings the ring one way and curls the tip back (the S of a whiplash).
       cortinas: [
-        [0.35, 4.5, 2.0, 3.3, 1.12, 0.36, 0.5, 0.45], [1.6, 4.5, 2.05, 3.45, 1.05, 0.34, 0.95, -0.4], [2.85, 4.45, 1.95, 3.2, 1.1, 0.36, 0.62, 0.5],
-        [4.1, 4.5, 2.05, 3.4, 1.08, 0.34, 1.1, -0.45], [5.3, 4.45, 2.0, 3.25, 1.1, 0.36, 0.7, 0.4],
+        [0.35, 4.3, 1.75, 3.8, 1.02, 0.3, 0.4, 0.4], [1.6, 4.3, 1.8, 3.85, 0.98, 0.28, 0.75, -0.35], [2.85, 4.25, 1.75, 3.8, 1.02, 0.3, 0.35, 0.45],
+        [4.1, 4.3, 1.8, 3.85, 0.98, 0.28, 0.85, -0.4], [5.3, 4.25, 1.75, 3.8, 1.02, 0.3, 0.5, 0.35],
       ],
     },
   },
@@ -238,9 +240,14 @@ export function geometriaArbol(detalle = true): GeometriaArbol {
       W.cortinas.slice(0, nMatas).forEach(([az, yt, ra, ya, an, gr, yp, barre]) => {
         const X: V3 = [Math.cos(az), 0, Math.sin(az)], Z: V3 = [-Math.sin(az), 0, Math.cos(az)];
         const at = (r: number, s: number, y: number): V3 => [x0W + X[0] * r + Z[0] * s, y, z0W + X[2] * r + Z[2] * s];
-        put(at(ra * 0.5, 0, yt), 0.5, 1, 0.25);
-        for (let k = 0; k < 4; k++) { const a = (k / 4) * Math.PI * 2, ca = Math.cos(a); put(at(ra + ca * gr, Math.sin(a) * an, ya - 0.28 * ca + 0.06 * hv(v, 6)), 0.55, 1, 0.5); }
-        put(at(ra - 0.12, barre, yp), 0.2, 1, 1);
+        // ring (k = 0 outer, 1 side +, 2 inner, 3 side −): the two side corners sit high, right under the dome (the sheet's wide top), the outer one
+        // hangs low beside the bottom vertex: the front reads as a wide sheet with a ragged two-tipped hem, never a diamond.
+        put(at(ra * 0.75, 0, yt), 0.5, 1, 0.25);
+        put(at(ra + gr, 0.5 * an + 0.6 * barre, yp + 0.3 + 0.06 * hv(v, 6)), 0.55, 1, 1);
+        put(at(ra, an, ya), 0.55, 1, 0.4);
+        put(at(ra - gr, 0.2 * barre, (ya + yp) / 2), 0.55, 1, 0.6);
+        put(at(ra, -an, ya - 0.15), 0.55, 1, 0.4);
+        put(at(ra - 0.05, -0.45 * an + 0.3 * barre, yp), 0.2, 1, 1);
       });
     } else if (L) {
       // R5.4 spindle: long thin shells on the axis (same vertex order as a clump: top, ring of 4, bottom); ring radii alternate a little so
@@ -337,10 +344,12 @@ export const LEJOS: Record<Especie, number[]> = {
   cipres: [0.9, 0.2, 3.53, 0.7, 2.95, -0.58],
   olivo: [2.0, 0.34, 2.9, 1.8, 0.95, 0],
   arbusto: [0.12, 0.06, 0.55, 1.0, 0.6, 0],
-  sauce: [2.7, 0.3, 4.0, 2.1, 1.6, 0.5], // R6.3: ring raised (widest high); the shader drops 3 of its 5 ring vertices into hanging tips (CUELGA_LEJOS)
+  sauce: [2.7, 0.25, 4.0, 2.1, 1.6, 0.3], // R6.3: ring raised (widest high); the shader drops 3 of its 5 ring vertices into hanging tips (CUELGA_LEJOS)
 };
 /** R6.3: how far (in blob radii y) the far willow's three low ring vertices hang below the ring: the curtains' tips at about 1 m. */
 export const CUELGA_LEJOS = 2.2;
+/** R6.3: the far willow's top apex comes down this much (blob radii y): a low round dome, not a point. */
+export const TOPE_LEJOS = 0.35;
 const LADOS_TRONCO_LEJOS = 3, LADOS_COPA_LEJOS = 5;
 export type GeometriaEspecie = { geometria: THREE.BufferGeometry; triangulos: number; bytes: number };
 
@@ -447,7 +456,7 @@ function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.Mesh
   const col3 = (k: THREE.Color) => vec3(k.r, k.g, k.b) as unknown as V3N;
   const troncoO = porEsp(sp, TRONCOS.map((h) => col3(C(h)))), troncoC = mix(troncoO, col3(C(CASA.ceniza)), 0.5) as unknown as V3N;
   const tronco = mix(troncoO, troncoC, tono) as unknown as V3N;
-  const tonoW = max(clamp(hRel.sub(0.72).mul(3.6), 0, 1), cuelga.mul(0.95)).mul(0.85).add(0.1) as N; // willow: dark under the dome → light dome top and light curtain tips
+  const tonoW = max(clamp(hRel.sub(0.72).mul(3.6), 0, 1), cuelga.mul(cuelga).mul(0.95)).mul(0.85).add(0.1) as N; // willow: dark under the dome → light dome top and light curtain tips
   const tonoH = mix(mix(tono.mul(0.7).add(0.3), hRel.mul(0.75).add(0.12).add(tono.mul(0.13)), esCip), tonoW, esSau) as N; // cypress: dark foot → lighter, warmer sunlit top
   const hoja = mix(ic.xyz, id.xyz, tonoH).mul(1.4) as unknown as V3N; // the house greens are deep: lift them so the crowns read under the morning light
   const laton = mix(col3(C(MAQUINA.laton)), col3(C(MAQUINA.cobre)), step(1.5, flag)) as unknown as V3N;
@@ -473,7 +482,7 @@ function materialLejos(c: Comunes, inst: InstLejos): THREE.MeshLambertNodeMateri
   const s1 = step(0.5, parte) as N;
   // R6.3 willow: the ring's three low vertices (y < 0) hang down into curtain tips (a little inward), the bottom apex rises under the ring
   const esSau = step(4.5, ib.w) as N, anillo = s1.mul(oneMinus(step(0.5, abs(q.y)))) as N, cuelga = esSau.mul(anillo).mul(step(q.y, 0)) as N;
-  const qy = q.y.add(id.y.mul(oneMinus(q.y.mul(q.y)))).sub(cuelga.mul(CUELGA_LEJOS)).add(esSau.mul(s1).mul(step(q.y, -0.5)).mul(0.6)) as N; // R5.4: the ring moves by the per-species shift, the apexes (|y| ≈ 1) barely
+  const qy = q.y.add(id.y.mul(oneMinus(q.y.mul(q.y)))).sub(cuelga.mul(CUELGA_LEJOS)).add(esSau.mul(s1).mul(step(q.y, -0.5)).mul(0.6)).sub(esSau.mul(s1).mul(step(0.5, q.y)).mul(TOPE_LEJOS)) as N; // R5.4: the ring moves by the per-species shift, the apexes (|y| ≈ 1) barely
   const rx = ic.w.mul(oneMinus(cuelga.mul(0.1))) as N;
   const tronco = vec3(q.x.mul(ic.y), q.y.mul(ic.x), q.z.mul(ic.y)), copa = vec3(q.x.mul(rx), ic.z.add(qy.mul(id.x)), q.z.mul(rx));
   const p0 = mix(tronco, copa, s1) as unknown as V3N;
@@ -503,7 +512,7 @@ export type EstadisticasArboles = { cerca: number[]; lejos: number; arboles: num
 const REPARTO_S = 0.25;      // the near/far split runs at most this often (s) …
 const REPARTO_M = 1.5;       // … and only if the camera moved this far (m) since the last one
 const CAJAS = 64;
-const COLOR_LEJOS = ESPECIES.map((e) => [0, 1].map((v) => { const c = C(mezcla(HOJAS[e][v].oscuro, HOJAS[e][v].claro, 0.65)); return [c.r * 1.4, c.g * 1.4, c.b * 1.4]; }));
+const COLOR_LEJOS = ESPECIES.map((e) => [0, 1].map((v) => { const c = C(mezcla(HOJAS[e][v].oscuro, HOJAS[e][v].claro, e === "sauce" ? 0.45 : 0.65)); return [c.r * 1.4, c.g * 1.4, c.b * 1.4]; }));
 const FLOATS = 10; // per tree: x, y, z, scale, yaw, phase, variant, tint, species, collar flag
 /** Share of the trees that wear a collar; about 1 in 6. */
 export const COLLAR_PROB = 1 / 6;

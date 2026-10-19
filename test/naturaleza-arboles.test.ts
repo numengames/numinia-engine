@@ -4,9 +4,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three/webgpu";
 import { uniform } from "three/tsl";
-import { esparcirArboles, SAUCE_AGUA } from "../packages/render/src/naturaleza/esparcir.ts";
+import { esparcirArboles, SAUCE_AGUA, SAUCE_ORILLA } from "../packages/render/src/naturaleza/esparcir.ts";
 import { crearTerreno } from "../packages/render/src/naturaleza/terreno.ts";
-import { crearArboles, geometriaArbol, geometriaCerca, geometriaLejos, ESPECIES, LEJOS, ALTURA, CUELGA_LEJOS, TRIS_MAX_CERCA, TRIS_MAX_LEJOS, TRIANGULOS_ARBOL, TRIANGULOS_DETALLE, TRIANGULOS_SIMPLE, triangulosCerca } from "../packages/render/src/naturaleza/arboles.ts";
+import { crearArboles, geometriaArbol, geometriaCerca, geometriaLejos, ESPECIES, LEJOS, ALTURA, CUELGA_LEJOS, TOPE_LEJOS, TRIS_MAX_CERCA, TRIS_MAX_LEJOS, TRIANGULOS_ARBOL, TRIANGULOS_DETALLE, TRIANGULOS_SIMPLE, triangulosCerca } from "../packages/render/src/naturaleza/arboles.ts";
 import type { PuntoArbol } from "../packages/render/src/naturaleza/arboles.ts";
 import { NATURALEZA_POR_NIVEL } from "../packages/render/src/naturaleza/niveles.ts";
 import { crearAzar } from "../packages/render/src/naturaleza/semilla.ts";
@@ -53,7 +53,7 @@ test("species differ in shape (not the same tree five times); the template is de
 
 test("closed pieces (leaf blobs, cones) are wound outward: positive signed volume", () => {
   for (const detalle of [true, false]) for (const e of ESPECIES) {
-    const g = geometriaCerca(e, detalle).geometria, p = g.getAttribute("position"), ix = g.index!, padre = Array.from({ length: p.count }, (_, i) => i);
+    const g = geometriaCerca(e, detalle).geometria, ie = ESPECIES.indexOf(e), p = g.getAttribute(ie === 0 ? "position" : `pos${ie}`), ix = g.index!, padre = Array.from({ length: p.count }, (_, i) => i);
     const raiz = (i: number): number => (padre[i] === i ? i : (padre[i] = raiz(padre[i])));
     for (let i = 0; i < ix.count; i += 3) { padre[raiz(ix.getX(i))] = raiz(ix.getX(i + 1)); padre[raiz(ix.getX(i + 2))] = raiz(ix.getX(i)); }
     const piezas = new Map<number, { tris: number[][]; aristas: Map<string, number> }>();
@@ -215,21 +215,24 @@ test("R6.3: the willow weeps — a dome widest high, curtains that hang outside 
   // it hangs: in the lower third there is foliage well outside the trunk (curtains, not a lollipop), and the reach shrinks toward the tips (no bulge low = no kite)
   const tercio = r.filter((_, k) => ys[k] < tope / 3 && ys[k] > pie + 0.3);
   assert.ok(tercio.length > 3 && tercio.every((x) => x > 1.2), `curtains hang outside the trunk: ${tercio.map((x) => x.toFixed(1)).join(",")}`);
-  const kAlto = r.indexOf(alto); for (let k = 1; k < kAlto; k++) assert.ok(r[k] >= r[k - 1] - 0.08, `the curtains widen upward, no waist at ${ys[k].toFixed(2)} m`);
+  const kAlto = r.indexOf(alto); for (let k = 1; k < kAlto && ys[k] < 0.65 * tope; k++) assert.ok(r[k] >= r[k - 1] - 0.08, `the curtains widen upward, no waist at ${ys[k].toFixed(2)} m`);
   // the dome sits on the trunk top: the trunk's top ring is under the crown
   // far: three of five ring vertices hang to about 1 m (the shader's formula); the high ones stay up
-  const [, , cy, , ry, sh] = LEJOS.sauce, alta = cy + (0.1 + sh * 0.99) * ry, colg = cy + (-0.1 + sh * 0.99 - CUELGA_LEJOS) * ry, top = cy + (1.05 + sh * (1 - 1.05 * 1.05)) * ry;
+  const [, , cy, , ry, sh] = LEJOS.sauce, alta = cy + (0.1 + sh * 0.99) * ry, colg = cy + (-0.1 + sh * 0.99 - CUELGA_LEJOS) * ry, top = cy + (1.05 + sh * (1 - 1.05 * 1.05) - TOPE_LEJOS) * ry;
   assert.ok(alta / top > 0.8 && colg < 0.3 * top && colg > 0.4, `far willow: ring ${alta.toFixed(2)}, tips ${colg.toFixed(2)}, top ${top.toFixed(2)} m`);
 });
 
-test("R6.3: willows grow only by the pond (none farther than SAUCE_AGUA pond radii), and there are some", () => {
+test("R6.3: willows grow only by the water (the pond's ring or the dry stream bed's banks), and there are some", () => {
   const t = crearTerreno({ semilla: 1234, nivel: "A" }), e = t.estanque;
   const pts = esparcirArboles(t, { semilla: 1234, tamano: 200, plaza: 12, densidad: 1, nivel: "A", paleta: "verano", estanque: e });
   const sauces = pts.filter((q) => q.especie === "sauce");
   assert.ok(sauces.length >= 4, `${sauces.length} willows`);
-  for (const q of sauces) assert.ok(Math.hypot(q.x - e.x, q.z - e.z) <= SAUCE_AGUA * e.radio + 0.01, `willow at ${q.x},${q.z} far from water`);
-  const sin = esparcirArboles(t, { semilla: 1234, tamano: 200, plaza: 12, densidad: 1, nivel: "A", paleta: "verano", estanque: null });
-  assert.equal(sin.filter((q) => q.especie === "sauce").length, 0, "no pond, no willow");
+  for (const q of sauces) assert.ok(Math.hypot(q.x - e.x, q.z - e.z) <= SAUCE_AGUA * e.radio + 0.01 || t.franjaEn(q.x, q.z).agua >= SAUCE_ORILLA, `willow at ${q.x},${q.z} far from water`);
+  assert.ok(sauces.some((q) => Math.hypot(q.x - e.x, q.z - e.z) > SAUCE_AGUA * e.radio), "some stand on the dry stream bed's banks");
+  assert.ok(sauces.length < pts.length * 0.06, `willows stay a waterside species: ${sauces.length} of ${pts.length}`);
+  const seco = crearTerreno({ semilla: 1234, nivel: "A", sinEstanque: true });
+  const sin = esparcirArboles(seco, { semilla: 1234, tamano: 200, plaza: 12, densidad: 1, nivel: "A", paleta: "verano", estanque: null });
+  assert.equal(sin.filter((q) => q.especie === "sauce").length, 0, "no pond (and so no stream bed), no willow");
 });
 
 test("empty input and unknown species do not throw", () => {

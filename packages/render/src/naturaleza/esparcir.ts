@@ -26,15 +26,21 @@ export const PALETAS: readonly Paleta[] = ["verano", "otono", "primavera"];
 export const CELDA = 2.2;
 /** Radius (m) each species keeps free around it: two trees are at least 0.85 × (ra + rb) apart. */
 export const RADIO_ESPECIE: Record<Especie, number> = { encina: 2.1, pino: 1.8, cipres: 0.9, olivo: 1.9, arbusto: 0.8, sauce: 2.0 };
-/** R6.3: willows grow ONLY by the water: within this many pond radii of the pond's centre (the pond itself ends at 1.25 radii for trees). */
+/** R6.3: willows grow ONLY by the water: within this many pond radii of the pond's centre (the pond itself ends at 1.25 radii for trees) … */
 export const SAUCE_AGUA = 2.3;
+/** … or on the banks of the dry stream bed: where the ground's water band (`franjaEn().agua`) is at least this and the bed itself (`lecho`) is thin. */
+export const SAUCE_ORILLA = 0.6;
 export const SEPARACION = 0.85;
 /** Margin (m) kept free beyond the plaza's flat disc, and at the world's border. */
 export const MARGEN_PLAZA = 2.5, MARGEN_BORDE = 7;
 /** Steeper ground (rise over run) than this gets no tree. */
 export const PENDIENTE_MAX = 1.05;
 
-export type FuenteEsparcir = { alturaEn: (x: number, z: number) => number; zonaEn: (x: number, z: number) => Zona };
+export type FuenteEsparcir = {
+  alturaEn: (x: number, z: number) => number; zonaEn: (x: number, z: number) => Zona;
+  /** R6.2 ground bands (terreno.ts `franjaEn`), optional: R6.3 plants willows on the banks of the dry stream bed (`agua` high, `lecho` low). */
+  franjaEn?: (x: number, z: number, h?: number) => { agua: number; lecho: number };
+};
 export type OpcionesEsparcir = {
   semilla: number;
   /** World side (m). */
@@ -126,7 +132,11 @@ export function esparcirArboles(f: FuenteEsparcir, o: OpcionesEsparcir): PuntoAr
     const fuerza = sstep(0.62, 0.78, valor2(s + 503, x * 0.02 + 7, z * 0.02));
     let especie = zona === "prado" || zona === "bosque" ? (hash2(s + 110, i, j) < fuerza * 0.7 ? dom : elegir(mezcla, hash2(s + 104, i, j))) : elegir(mezcla, hash2(s + 104, i, j));
     if (viejo) especie = VIEJOS[Math.floor(hash2(s + 111, i, j) * VIEJOS.length * 0.999)];
-    else if (agua > 0 && zona !== "roca" && hash2(s + 112, i, j) < 0.85 * agua) especie = "sauce"; // R6.3: the willows of the Virelai, only here
+    else if (zona !== "roca") { // R6.3: the willows of the Virelai, only by the water (the pond's ring, the stream bed's banks)
+      const fr = agua < 0.85 && f.franjaEn ? f.franjaEn(x, z, y) : null;
+      const banco = fr && fr.lecho < 0.35 ? sstep(SAUCE_ORILLA, SAUCE_ORILLA + 0.25, fr.agua) * 0.7 : 0;
+      if (hash2(s + 112, i, j) < 0.85 * Math.max(agua, banco)) especie = "sauce";
+    }
     // size: bigger in the open, smaller in a crowd and on the shore; old trees are big; cypresses vary little, shrubs are small
     let escala = (zona === "orilla" ? 0.75 : 0.82) + 0.42 * hash2(s + 105, i, j);
     if (viejo) escala = 1.45 + 0.35 * hash2(s + 105, i, j);
