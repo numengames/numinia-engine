@@ -22,12 +22,13 @@
 // because the wind must read the pre-transform height of each vertex). Zero CPU per tree per frame: `actualizar(t)` writes one uniform; the
 // near/far split is a throttled O(n) pass over typed arrays (see `repartir`).
 import * as THREE from "three/webgpu";
-import { uniform, float, vec2, vec3, attribute, instancedBufferAttribute, positionGeometry, normalFlat, transformNormalToView, normalize, sin, cos, pow, clamp, mix, length, max, abs, step, oneMinus } from "three/tsl";
+import { uniform, float, vec2, vec3, attribute, instancedBufferAttribute, positionGeometry, normalFlat, transformNormalToView, normalize, sin, cos, pow, clamp, mix, length, max, abs, step, oneMinus, dot as dotN, smoothstep, varying } from "three/tsl";
 import type { Nivel } from "../calidad.ts";
-import { crearAzar, hash2 } from "./semilla.ts";
+import { crearAzar, hash2, valor2 } from "./semilla.ts";
 import { NATURALEZA_POR_NIVEL } from "./niveles.ts";
 import { CASA, VERDES, MAQUINA, ESTACIONES, mezcla } from "./paleta.ts";
-import { nodoRelleno } from "./relleno.ts";
+import { nodoRelleno, solDirU } from "./relleno.ts";
+import { copaDeCartas, esquinaHaciaCamara, distanciaHojas, coberturaHojas, INDICES_CARTA, UV_CARTA, type Lobulo } from "./follaje.ts";
 
 void crearAzar;
 export type Especie = "encina" | "pino" | "cipres" | "olivo" | "arbusto" | "sauce";
@@ -36,8 +37,8 @@ export const ESPECIES: readonly Especie[] = ["encina", "pino", "cipres", "olivo"
 export type PuntoArbol = { x: number; y: number; z: number; escala: number; giro: number; especie: Especie | string; variante?: 0 | 1 };
 export type Lod = "cerca" | "lejos";
 
-/** Triangle budgets (R2: the near tree is ~103 triangles; the far silhouette 16, so the trees' share of every tier still holds). */
-export const TRIS_MAX_CERCA = 108;
+/** Triangle budgets (R2: the near tree was ~103 triangles; R7.4 adds the leaf cards: 231 on tiers A/B, 116 on C/D; the far silhouette stays 16). */
+export const TRIS_MAX_CERCA = 240;
 export const TRIS_MAX_LEJOS = 18;
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -58,9 +59,9 @@ const HOJAS: Record<Especie, [Par, Par]> = {
 /** Bark (dark end; the shader lightens it toward ceniza up the trunk): brown with bronze/copper in it, olive grey and gnarled. */
 const TRONCOS: number[] = [mezcla(CASA.bronce, CASA.ceniza, 0.45), mezcla(mezcla(CASA.bronce, MAQUINA.cobre, 0.35), CASA.ceniza, 0.2), mezcla(CASA.bronce, CASA.ceniza, 0.55), mezcla(CASA.bronce, CASA.ceniza, 0.7), mezcla(CASA.bronce, CASA.ceniza, 0.3), mezcla(mezcla(CASA.bronce, VERDES.verdin, 0.15), CASA.ceniza, 0.4)];
 
-/** Per-instance tone: the two leaf colours of a species moved by up to ±8 % toward a lighter or a darker palette neighbour (u in −1…1). */
+/** Per-instance tone: the two leaf colours of a species moved by up to ±12 % toward a lighter or a darker palette neighbour (u in −1…1: R7.4 the regional drift). */
 function tonos(esp: Especie, v: number, u: number): { oscuro: THREE.Color; claro: THREE.Color } {
-  const h = HOJAS[esp][v], ref = u > 0 ? (esp === "olivo" ? CASA.arenaVelada : VERDES.hierbaLuz) : VERDES.monteSombra, t = 0.08 * Math.abs(u);
+  const h = HOJAS[esp][v], ref = u > 0 ? (esp === "olivo" ? CASA.arenaVelada : VERDES.hierbaLuz) : VERDES.monteSombra, t = 0.12 * Math.abs(u);
   return { oscuro: C(mezcla(h.oscuro, ref, t)), claro: C(mezcla(h.claro, ref, t)) };
 }
 
@@ -175,23 +176,36 @@ const FORMA: Record<Especie, Forma> = {
   },
 };
 export const LADOS_TRONCO = 4;
+/**
+ * R7.4 foliage crown (follaje.ts, Bruno Simon's Foliage.js, MIT): leaf cards per near tree on the detailed template (tiers A/B) and on the simple one
+ * (tiers C/D: fewer, larger cards — SpeedTree's «fewer, bigger leaves» LOD). Every species carries the cards in the shared topology; the species
+ * without them (`CON_CARTAS` false) keep their faceted crown and their cards collapse to a point (zero area, nothing rasterised). A species that
+ * gets cards collapses its faceted crown instead. R7.4 converts ONE test species, the holm oak (the commonest round crown); R7.5 the rest.
+ */
+export const CARTAS_DETALLE = 64, CARTAS_SIMPLE = 40;
+export const CON_CARTAS: Record<Especie, boolean> = { encina: true, pino: false, cipres: false, olivo: false, arbusto: false, sauce: false };
 /** Triangles of the detailed near tree (tiers A/B) and of the simple one (tiers C/D). */
-export const TRIANGULOS_DETALLE = 2 * LADOS_TRONCO * 2 + 3 * 6 + 8 + 1 + 5 * 8 + 20;
-export const TRIANGULOS_SIMPLE = 2 * LADOS_TRONCO + 8 + 20;
+export const TRIANGULOS_DETALLE = 2 * LADOS_TRONCO * 2 + 3 * 6 + 8 + 1 + 5 * 8 + 20 + 2 * CARTAS_DETALLE;
+export const TRIANGULOS_SIMPLE = 2 * LADOS_TRONCO + 8 + 20 + 2 * CARTAS_SIMPLE;
 export const TRIANGULOS_ARBOL = TRIANGULOS_DETALLE;
 export const triangulosCerca = (detalle: boolean) => (detalle ? TRIANGULOS_DETALLE : TRIANGULOS_SIMPLE);
-/** parte: 0 bark, 1 leaf, 2 collar band, 3 tag. */
-export const PARTE = { corteza: 0, hoja: 1, collar: 2, etiqueta: 3 } as const;
+/** parte: 0 bark, 1 leaf (faceted crown), 2 collar band, 3 tag, 4 leaf card (R7.4). */
+export const PARTE = { corteza: 0, hoja: 1, collar: 2, etiqueta: 3, carta: 4 } as const;
 
 export type GeometriaArbol = { geometria: THREE.BufferGeometry; triangulos: number; bytes: number };
 const cacheArbol: Record<string, GeometriaArbol> = {};
-/** The shared near template: 5 position sets (one per species), `tono` 0…1 (dark → light), `parte` (see PARTE), `mov` 0…1 (sway weight, tips most). */
+/** The shared near template: 6 position sets (one per species), `tono` 0…1 (dark → light; on a card: its baked occlusion), `parte` (see PARTE), `mov` 0…1
+ *  (sway weight, tips most); R7.4 cards also carry `esquina` (corner offset in the card's plane, m), `uv` (the leaf cluster) and `nesf` (Bruno's
+ *  spherical normal, tree space). The card attributes are written by species 0 (encina), the only species with cards in R7.4. */
 export function geometriaArbol(detalle = true): GeometriaArbol {
   const clave = detalle ? "d" : "s";
   if (cacheArbol[clave]) return cacheArbol[clave];
-  const nSeg = detalle ? 2 : 1, nMatas = detalle ? 5 : 1;
-  const nv = LADOS_TRONCO * (nSeg + 1) + (detalle ? 18 + 8 + 3 : 0) + nMatas * 6 + 12;
+  const nSeg = detalle ? 2 : 1, nMatas = detalle ? 5 : 1, nCartas = detalle ? CARTAS_DETALLE : CARTAS_SIMPLE;
+  const vCopa = LADOS_TRONCO * (nSeg + 1) + (detalle ? 18 + 8 + 3 : 0), vCartas = vCopa + nMatas * 6 + 12; // first vertex of the faceted crown / of the cards
+  const nv = vCartas + nCartas * 4;
   const pos = ESPECIES.map(() => new Float32Array(nv * 3)), tono = new Float32Array(nv), parte = new Float32Array(nv), mov = new Float32Array(nv);
+  const esquina = new Float32Array(nv * 2), uvs = new Float32Array(nv * 2), nesf = new Float32Array(nv * 3);
+  for (let i = 0; i < nv; i++) nesf[i * 3 + 1] = 1; // non-card vertices: a valid «up» (a zero vector would normalise to NaN and blacken the whole tree)
   const idx: number[] = [];
   let tagRef: V3 = [0, 0, 0];
   ESPECIES.forEach((esp, e) => {
@@ -285,6 +299,18 @@ export function geometriaArbol(detalle = true): GeometriaArbol {
       for (let k = 0; k < 5; k++) { const a = giro + ((k + 0.5) / 5) * Math.PI * 2, q = 0.894 * (1 + f.jag * (k % 2 ? 0.8 : -0.8) + 0.08 * hv(v, 14)); put([o.cx + Math.cos(a) * o.rx * q, o.cy - o.ry * 0.447 * (1 + 0.25 * hv(v, 15)), o.cz + Math.sin(a) * o.rz * q], 0.42, 1, 0.5); }
       put([o.cx + 0.1 * o.rx * hv(v, 16), o.cy - o.ry * 0.9 * j(17), o.cz + 0.1 * o.rz * hv(v, 18)], 0.18, 1, 0.45);
     }
+    // R7.4 leaf cards (follaje.ts): lobes = the faceted crown's own ellipsoid + its clumps (the branch tips lead into leaf masses); a species without
+    // cards parks its four corners on its crown centre (zero area). Vertex order per card: the corners of UV_CARTA.
+    const centroCopa: V3 = [f.copa.cx, f.copa.cy, f.copa.cz];
+    if (CON_CARTAS[esp]) {
+      const lobulos: Lobulo[] = [{ c: centroCopa, r: [f.copa.rx, f.copa.ry, f.copa.rz], peso: 0.4 }];
+      f.matas.slice(0, nMatas).forEach(([ox, oy, oz, rx, ry, rz], i) => { const o = i < 3 ? puntas[i] : cen0; lobulos.push({ c: [o[0] + ox, o[1] + oy, o[2] + oz], r: [rx, ry, rz], peso: 0.6 / nMatas }); });
+      const copa = copaDeCartas(lobulos, nCartas, 0x7c4 + e * 31);
+      for (const k of copa.cartas) for (let q = 0; q < 4; q++) {
+        if (e === 0) { esquina.set(k.esquinas[q], v * 2); uvs.set(UV_CARTA[q], v * 2); nesf.set(k.normales[q], v * 3); }
+        put(k.c, k.ao[q], PARTE.carta, k.mov);
+      }
+    } else for (let q = 0; q < nCartas * 4; q++) put(centroCopa, 0.5, PARTE.carta, 0.5);
   });
   // indices: winding is decided on species 0 (encina) and shared by all species (every part stays a convex star around its centre)
   const m = new Malla(); m.pos = Array.from(pos[0]); m.idx = idx;
@@ -318,12 +344,20 @@ export function geometriaArbol(detalle = true): GeometriaArbol {
     const ref = centro([...Array(12).keys()].map((i) => o + i)), top = o, u = (k: number) => o + 1 + (k % 5), l = (k: number) => o + 6 + (k % 5), bot = o + 11;
     for (let k = 0; k < 5; k++) { m.tri(top, u(k), u(k + 1), ref); m.tri(u(k), l(k), u(k + 1), ref); m.tri(l(k), l(k + 1), u(k + 1), ref); m.tri(bot, l(k), l(k + 1), ref); }
   }
+  o += 12;
+  // R7.4 cards: two triangles each, counter-clockwise toward the camera they face (not decided by `Malla.tri`: they turn with the view)
+  for (let k = 0; k < nCartas; k++) for (const i of INDICES_CARTA) idx.push(o + k * 4 + i);
+  // a species with cards collapses its faceted crown (clumps + icosahedron) to its crown centre, AFTER the shared winding was decided on it
+  ESPECIES.forEach((esp, e) => { if (!CON_CARTAS[esp]) return; const f = FORMA[esp]; for (let i = vCopa; i < vCartas; i++) pos[e].set([f.copa.cx, f.copa.cy, f.copa.cz], i * 3); });
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(pos[0], 3));
   for (let e = 1; e < ESPECIES.length; e++) g.setAttribute(`pos${e}`, new THREE.BufferAttribute(pos[e], 3));
   g.setAttribute("tono", new THREE.BufferAttribute(tono, 1));
   g.setAttribute("parte", new THREE.BufferAttribute(parte, 1));
   g.setAttribute("mov", new THREE.BufferAttribute(mov, 1));
+  g.setAttribute("esquina", new THREE.BufferAttribute(esquina, 2));
+  g.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+  g.setAttribute("nesf", new THREE.BufferAttribute(nesf, 3));
   g.setIndex(idx);
   g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 3.5, 0), 8);
   return (cacheArbol[clave] = { geometria: g, triangulos: idx.length / 3, bytes: bytesDe(g) });
@@ -426,7 +460,9 @@ function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.Mesh
   const giro = ib.x, fase = ib.y, sp = ib.z, tinte = ib.w, esc = ia.w, H = ic.w, flag = id.w;
   const parte = attribute("parte", "float") as unknown as N, tono = attribute("tono", "float") as unknown as N;
   const mov = attribute("mov", "float") as unknown as N, q = (k: string) => attribute(k, "vec3") as unknown as V3N;
-  const esHoja = step(0.5, parte).mul(oneMinus(step(1.5, parte))) as N, esMetal = step(1.5, parte) as N;
+  const esHoja = step(0.5, parte).mul(oneMinus(step(1.5, parte))) as N, esMetal = step(1.5, parte).mul(oneMinus(step(3.5, parte))) as N;
+  // R7.4: a leaf card of a species that wears cards (the others' cards are parked at a point: their expansion stays 0, nothing is drawn)
+  const esCarta = step(3.5, parte).mul(porEsp(sp, ESPECIES.map((e) => float(CON_CARTAS[e] ? 1 : 0)))) as N;
   let p0 = positionGeometry as unknown as V3N;
   for (let i = 1; i < ESPECIES.length; i++) p0 = mix(p0, q(`pos${i}`), step(i - 0.5, sp)) as unknown as V3N;
   // R5.4 cypress: ±8 % height per tree (from its phase), a lean that bows (none at the foot, most at the tip), sway and tone by height
@@ -452,7 +488,9 @@ function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.Mesh
   const punta = movE.mul(movE).mul(fz.mul(0.05).add(0.09)).mul(esc) as N;
   const ph = tt.mul(1.9).add(fase).add(p0.x.mul(2.3).add(p0.z.mul(1.7)).mul(oneMinus(esCip))) as N; // … and in one phase (its shells do not drift apart)
   const bal = vec3(dr.x.mul(sin(ph)).sub(dr.y.mul(cos(ph.mul(0.7))).mul(0.4)), sin(ph.mul(1.3)).mul(0.25), dr.y.mul(sin(ph)).add(dr.x.mul(cos(ph.mul(0.7))).mul(0.4))).mul(punta) as unknown as V3N;
-  mat.positionNode = girar(local, giro).mul(esc).add(ia.xyz).add(empuje(c, p0.y.div(H), esc.mul(H), movE.mul(0.7), fase)).add(bal);
+  // R7.4: a card's corners open along the camera's right/up around its swaying centre (follaje.ts `esquinaHaciaCamara`)
+  const abre = esquinaHaciaCamara(attribute("esquina", "vec2") as unknown as ReturnType<typeof vec2>).mul(esc.mul(esCarta));
+  mat.positionNode = girar(local, giro).mul(esc).add(ia.xyz).add(empuje(c, p0.y.div(H), esc.mul(H), movE.mul(0.7), fase)).add(bal).add(abre);
   const col3 = (k: THREE.Color) => vec3(k.r, k.g, k.b) as unknown as V3N;
   const troncoO = porEsp(sp, TRONCOS.map((h) => col3(C(h)))), troncoC = mix(troncoO, col3(C(CASA.ceniza)), 0.5) as unknown as V3N;
   const tronco = mix(troncoO, troncoC, tono) as unknown as V3N;
@@ -462,10 +500,23 @@ function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.Mesh
   const laton = mix(col3(C(MAQUINA.laton)), col3(C(MAQUINA.cobre)), step(1.5, flag)) as unknown as V3N;
   const metal = mix(laton, col3(C(mezcla(MAQUINA.laton, CASA.arena, 0.35))), step(2.5, parte)) as unknown as V3N;
   const ao = clamp(p0.y.div(H), 0, 1).mul(0.1).add(0.9) as N; // fake ambient occlusion: a little darker toward the ground
-  mat.colorNode = mix(mix(tronco, hoja, esHoja), metal, esMetal).mul(ao).mul(tinte.mul(0.16).add(0.92)).mul(1.25);
+  // R7.4 card colour (per vertex): Bruno's two tones by N·L on the spherical normal (Foliage.js `mix(colorA, colorB, smoothstep(0, 1, n·l))`) and
+  // ForestGenerator's `deep → bright` by the baked occlusion (`tono` on a card: dark inside/below … lit rim/top), both from the instance's palette pair
+  const nW = normalize(girar(attribute("nesf", "vec3") as unknown as V3N, giro)) as unknown as V3N;
+  const luz = smoothstep(0, 1, dotN(nW, solDirU as unknown as V3N)) as N;
+  const hojaCarta = varying(mix(ic.xyz, id.xyz, clamp(luz.mul(0.5).add(tono.mul(0.5)).add(0.05), 0, 1)).mul(tono.mul(0.35).add(0.75)).mul(1.3)) as unknown as V3N;
+  mat.colorNode = mix(mix(mix(tronco, hoja, esHoja), metal, esMetal), hojaCarta, esCarta).mul(ao).mul(tinte.mul(0.16).add(0.92)).mul(1.25);
+  // R7.4 leaf flutter (Foliage.js: the alpha rotates in its card by the wind's strength; vertices do not move): a small turn, phased per card
+  const fzU = length((c.vientoU as unknown as V3N).xz.add(BRISA)) as N, tU = c.tiempo as unknown as N;
+  const giroHoja = aletea ? varying(sin(tU.mul(2.7).add(fase).add(p0.x.mul(3.1)).add(p0.z.mul(2.3)).add(p0.y.mul(1.7))).mul(fzU.mul(0.05).add(0.12)).add(sin(tU.mul(0.9).add(p0.x.mul(1.3))).mul(0.15))) as N : float(0);
+  mat.alphaToCoverage = true; // three wires it only where the target has samples; `coberturaHojas` falls back to an alpha test elsewhere
+  mat.opacityNode = coberturaHojas(mix(float(-1), distanciaHojas(giroHoja), esCarta) as N);
   // faces still read flat, but a leaf's normal leans toward the sky (the sunless side of a crown no longer goes black): flat + up × (0.15 bark … 0.65 leaf)
-  mat.normalNode = normalize((normalFlat as unknown as V3N).mul(0.75).add((transformNormalToView(vec3(0, 1, 0)) as unknown as V3N).mul(esHoja.mul(0.65).add(0.3)))); // 0.75 × flat so a face pointing straight down does not cancel to nothing (that read black)
-  mat.emissiveNode = nodoRelleno(); // R5.1: the shade fill (relleno.ts): the sunless side of trunks and branches reads sea-green, not black
+  const nFacetas = (normalFlat as unknown as V3N).mul(0.75).add((transformNormalToView(vec3(0, 1, 0)) as unknown as V3N).mul(esHoja.mul(0.65).add(0.3))); // 0.75 × flat so a face pointing straight down does not cancel to nothing (that read black)
+  const nCarta = varying(transformNormalToView(nW)) as unknown as V3N; // R7.4: Bruno's spherical normal: the crown lights as one soft volume
+  mat.normalNode = normalize(mix(nFacetas, nCarta, esCarta));
+  const arribaFacetas = clamp(dotN(normalFlat as unknown as V3N, transformNormalToView(vec3(0, 1, 0)) as unknown as V3N).mul(0.5).add(0.5), 0, 1);
+  mat.emissiveNode = nodoRelleno(mix(arribaFacetas, nW.y.mul(0.5).add(0.5), esCarta) as N); // R5.1: the shade fill (relleno.ts): the sunless side of trunks and branches reads sea-green, not black
   return mat;
 }
 
@@ -513,7 +564,13 @@ const REPARTO_S = 0.25;      // the near/far split runs at most this often (s) �
 const REPARTO_M = 1.5;       // … and only if the camera moved this far (m) since the last one
 const CAJAS = 64;
 const COLOR_LEJOS = ESPECIES.map((e) => [0, 1].map((v) => { const c = C(mezcla(HOJAS[e][v].oscuro, HOJAS[e][v].claro, e === "sauce" ? 0.45 : 0.65)); return [c.r * 1.4, c.g * 1.4, c.b * 1.4]; }));
-const FLOATS = 10; // per tree: x, y, z, scale, yaw, phase, variant, tint, species, collar flag
+const FLOATS = 11; // per tree: x, y, z, scale, yaw, phase, variant, tint, species, collar flag, regional tone (−1…1)
+/** R7.4: per-instance regional colour drift, baked from a low-frequency noise of the position (ForestGenerator r186 `region`, MIT: «so the vertex-bound
+ *  shader taps no noise»); a quarter of it stays per-tree, so neighbours still differ a little. */
+export function tonoRegional(x: number, z: number, azar: number): number {
+  const r = Math.max(-1, Math.min(1, (valor2(0x7a, x * 0.03, z * 0.03) * 2 - 1) * 1.6));
+  return 0.75 * r + 0.25 * (azar * 2 - 1);
+}
 /** Share of the trees that wear a collar; about 1 in 6. */
 export const COLLAR_PROB = 1 / 6;
 
@@ -527,7 +584,7 @@ export function crearArboles(h: HArboles, puntos: readonly PuntoArbol[]) {
     const e0 = ESPECIES.indexOf(p.especie as Especie), e = e0 < 0 ? 0 : e0;
     const ix = Math.round(p.x * 16), iz = Math.round(p.z * 16), v = p.variante ?? (hash2(0x61, ix, iz) < 0.8 ? 0 : 1), o = i * FLOATS;
     const collar = e === 4 ? 0 : hash2(0x64, ix, iz) < COLLAR_PROB ? (hash2(0x66, ix, iz) < 0.3 ? 2 : 1) : 0;
-    datos.set([p.x, p.y, p.z, p.escala * (1 + 0.08 * (hash2(0x65, ix, iz) * 2 - 1)), p.giro, hash2(0x62, ix, iz) * 6.2832, v, hash2(0x63, ix, iz), e, collar], o); cuentaEsp[e]++;
+    datos.set([p.x, p.y, p.z, p.escala * (1 + 0.08 * (hash2(0x65, ix, iz) * 2 - 1)), p.giro, hash2(0x62, ix, iz) * 6.2832, v, hash2(0x63, ix, iz), e, collar, tonoRegional(p.x, p.z, hash2(0x63, ix, iz))], o); cuentaEsp[e]++;
     minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
   });
   const capCerca = Math.min(cfg.arbolesCerca, total), capLejos = Math.min(Math.max(0, cfg.arbolesVisibles - cfg.arbolesCerca), total);
@@ -581,7 +638,7 @@ export function crearArboles(h: HArboles, puntos: readonly PuntoArbol[]) {
     for (let o = 0, i = 0; o < total; o++, i += FLOATS) {
       const r = dist[o], e = datos[i + 8], v = datos[i + 6];
       if (r < rN && cerca.cuenta < cerca.cap) {
-        const k = cerca.cuenta++, hj = tonos(ESPECIES[e], v, datos[i + 7] * 2 - 1);
+        const k = cerca.cuenta++, hj = tonos(ESPECIES[e], v, datos[i + 10]);
         cerca.porEspecie[e]++; if (datos[i + 9] > 0) cerca.collares++;
         A[k * 4] = datos[i]; A[k * 4 + 1] = datos[i + 1]; A[k * 4 + 2] = datos[i + 2]; A[k * 4 + 3] = datos[i + 3];
         B[k * 4] = datos[i + 4]; B[k * 4 + 1] = datos[i + 5]; B[k * 4 + 2] = e; B[k * 4 + 3] = datos[i + 7];

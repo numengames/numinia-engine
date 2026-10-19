@@ -6,7 +6,8 @@ import * as THREE from "three/webgpu";
 import { uniform } from "three/tsl";
 import { esparcirArboles, SAUCE_AGUA, SAUCE_ORILLA } from "../packages/render/src/naturaleza/esparcir.ts";
 import { crearTerreno } from "../packages/render/src/naturaleza/terreno.ts";
-import { crearArboles, geometriaArbol, geometriaCerca, geometriaLejos, ESPECIES, LEJOS, ALTURA, CUELGA_LEJOS, TOPE_LEJOS, TRIS_MAX_CERCA, TRIS_MAX_LEJOS, TRIANGULOS_ARBOL, TRIANGULOS_DETALLE, TRIANGULOS_SIMPLE, triangulosCerca } from "../packages/render/src/naturaleza/arboles.ts";
+import { crearArboles, geometriaArbol, geometriaCerca, geometriaLejos, ESPECIES, LEJOS, ALTURA, CUELGA_LEJOS, TOPE_LEJOS, TRIS_MAX_CERCA, TRIS_MAX_LEJOS, TRIANGULOS_ARBOL, TRIANGULOS_DETALLE, TRIANGULOS_SIMPLE, triangulosCerca, CARTAS_DETALLE, CARTAS_SIMPLE, CON_CARTAS, PARTE, tonoRegional } from "../packages/render/src/naturaleza/arboles.ts";
+import { copaDeCartas, PESO_ESFERA } from "../packages/render/src/naturaleza/follaje.ts";
 import type { PuntoArbol } from "../packages/render/src/naturaleza/arboles.ts";
 import { NATURALEZA_POR_NIVEL } from "../packages/render/src/naturaleza/niveles.ts";
 import { crearAzar } from "../packages/render/src/naturaleza/semilla.ts";
@@ -25,7 +26,8 @@ test("R2: near templates (detailed ~103 triangles with branches, collar and tag;
   assert.equal(g.triangulos, TRIANGULOS_DETALLE);
   assert.ok(g.triangulos >= 95 && g.triangulos <= TRIS_MAX_CERCA, `${g.triangulos} triangles`);
   assert.equal(geometriaArbol(false).triangulos, TRIANGULOS_SIMPLE);
-  assert.ok(TRIANGULOS_SIMPLE >= 30 && TRIANGULOS_SIMPLE <= 40);
+  assert.ok(TRIANGULOS_SIMPLE - 2 * CARTAS_SIMPLE >= 30 && TRIANGULOS_SIMPLE - 2 * CARTAS_SIMPLE <= 40, "R7.4: the simple template without its cards stays 36");
+  assert.equal(TRIANGULOS_DETALLE - 2 * CARTAS_DETALLE, 103, "R7.4: the detailed template without its cards stays 103");
   for (const n of NIVELES) assert.equal(triangulosCerca(NATURALEZA_POR_NIVEL[n].arbolesDetalle), n === "A" || n === "B" ? TRIANGULOS_DETALLE : TRIANGULOS_SIMPLE);
   for (const e of ESPECIES) assert.equal(geometriaCerca(e).geometria, geo, "every species shares the geometry");
   const n = geo.getAttribute("position").count;
@@ -64,13 +66,14 @@ test("closed pieces (leaf blobs, cones) are wound outward: positive signed volum
     }
     let cerradas = 0;
     for (const pz of piezas.values()) {
-      if (![...pz.aristas.values()].every((c) => c === 2)) continue; // open pieces (branch prisms) have no volume
-      cerradas++;
+      if (![...pz.aristas.values()].every((c) => c === 2)) continue; // open pieces (branch prisms, leaf cards) have no volume
       let vol = 0; const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
       for (const t of pz.tris) { a.fromBufferAttribute(p, t[0]); b.fromBufferAttribute(p, t[1]); c.fromBufferAttribute(p, t[2]); vol += a.dot(b.clone().cross(c)) / 6; }
+      if (CON_CARTAS[e] && Math.abs(vol) < 1e-6) continue; // R7.4: a species with cards collapses its faceted crown to a point (zero volume)
+      cerradas++;
       assert.ok(vol > 0, `${e}: a closed piece is inside-out (${vol})`);
     }
-    assert.ok(cerradas >= (detalle ? 4 : 2), `${e}: ${cerradas} closed pieces`);
+    assert.ok(cerradas >= (CON_CARTAS[e] ? 0 : detalle ? 4 : 2), `${e}: ${cerradas} closed pieces`);
   }
 });
 
@@ -112,7 +115,8 @@ test("at most 2 draw calls whatever the mix; frustum-culling spheres cover the g
 });
 
 test("the near/far split honours each tier's caps and the triangle budget of the brief (trees alone)", () => {
-  const tope: Record<Nivel, number> = { A: 5200, B: 3000, C: 2700, D: 1200 }; // the trees' share of PRESUPUESTO_NATURALEZA (N6)
+  // R7.4: the trees' share PROPOSED for PRESUPUESTO_NATURALEZA under D-057 (A 100 k · B 60 k · C 35 k · D 12 k for all nature); niveles.ts is set at the R7 merge
+  const tope: Record<Nivel, number> = { A: 8000, B: 5000, C: 7700, D: 3500 };
   for (const n of NIVELES) {
     const cfg = NATURALEZA_POR_NIVEL[n], t = crearArboles({ vientoU: viento(), nivel: n }, campo(2500, 300));
     t.actualizar(0, new THREE.Vector3(0, 1.7, 0));
@@ -193,8 +197,9 @@ test("R5.4: the cypress is ONE flame — widest in its lower third, tapering abo
     assert.ok(pie >= 0.35 && pie <= 0.8, `a short trunk foot under the foliage: ${pie.toFixed(2)} m`);
   }
   // the old R2 cypress (clumps on branch tips) had notches deeper than a third of its girth; the other species keep their own crowns
-  const enc = perfil(true, 0, [3.0, 3.5]);
-  assert.ok(enc[0] > 1, "the holm oak's crown is untouched");
+  // (R7.4: the holm oak now wears leaf cards; the olive keeps the faceted crown it shared with it)
+  const oli = perfil(true, ESPECIES.indexOf("olivo"), [2.6, 3.0]);
+  assert.ok(oli[0] > 1, "the olive's crown is untouched");
   // far LOD: the shared bipyramid's ring, moved by the cypress's ring shift (the shader's formula), sits in its lower third
   const [, , cy, , ry, sh] = LEJOS.cipres, anillo = cy + (0 + sh * 1) * ry, alto = cy + (1.05 + sh * (1 - 1.05 * 1.05)) * ry;
   assert.ok(anillo / alto < 0.36, `far cypress widest at ${(anillo / alto).toFixed(2)} of its height`);
@@ -239,4 +244,68 @@ test("empty input and unknown species do not throw", () => {
   const h = { vientoU: viento(), nivel: "C" as Nivel };
   const v = crearArboles(h, []); v.actualizar(1, new THREE.Vector3()); assert.equal(v.estadisticas().arboles, 0); v.dispose();
   const u = crearArboles(h, [{ x: 1, y: 0, z: 1, escala: 1, giro: 0, especie: "baobab" }]); u.actualizar(1, new THREE.Vector3()); assert.equal(u.estadisticas().arboles, 1); u.dispose();
+});
+
+// ---- R7.4: the foliage crown (follaje.ts: Bruno Simon's Foliage.js, MIT; ForestGenerator r186, MIT) on ONE species, the holm oak ----
+test("R7.4: the crown builder is Bruno's: exact card count, deterministic, cards inside their lobes, spherical normals, occlusion dark inside/below", () => {
+  const lob = [{ c: [0, 3.5, 0] as [number, number, number], r: [1.5, 1.05, 1.4] as [number, number, number], peso: 0.4 }, { c: [1.2, 3.2, 0.4] as [number, number, number], r: [1, 0.7, 0.9] as [number, number, number], peso: 0.6 }];
+  const a = copaDeCartas(lob, 64, 9), b = copaDeCartas(lob, 64, 9);
+  assert.equal(a.cartas.length, 64); assert.equal(copaDeCartas(lob, 41, 9).cartas.length, 41);
+  assert.deepEqual(a, b, "same seed, same crown");
+  assert.notDeepEqual(a.cartas[0].c, copaDeCartas(lob, 64, 10).cartas[0].c);
+  let alineadas = 0, aoDentro = 0, nDentro = 0, aoFuera = 0, nFuera = 0;
+  for (const k of a.cartas) {
+    const enAlguno = lob.some((l) => ((k.c[0] - l.c[0]) / l.r[0]) ** 2 + ((k.c[1] - l.c[1]) / l.r[1]) ** 2 + ((k.c[2] - l.c[2]) / l.r[2]) ** 2 <= 1.0001);
+    assert.ok(enAlguno, "every card centre sits inside one of the lobes");
+    const rel = [0, 1, 2].map((i) => (k.c[i] - a.centro[i]) / a.radios[i]), l = Math.hypot(...rel) || 1;
+    for (const n of k.normales) { assert.ok(Math.abs(Math.hypot(...n) - 1) < 1e-5, "unit normals"); if ((n[0] * rel[0] + n[1] * rel[1] + n[2] * rel[2]) / l > 0.85) alineadas++; }
+    const m = k.ao.reduce((s, x) => s + x, 0) / 4;
+    if (l < 0.5 && rel[1] < 0) { aoDentro += m; nDentro++; } else if (l > 0.8 && rel[1] > 0) { aoFuera += m; nFuera++; }
+    for (const x of k.ao) assert.ok(x >= 0 && x <= 1);
+  }
+  assert.ok(alineadas / (a.cartas.length * 4) > 0.9, `normals follow the crown's sphere (lerp ${PESO_ESFERA}): ${alineadas}`);
+  assert.ok(nFuera > 0 && (nDentro === 0 || aoDentro / nDentro < aoFuera / nFuera - 0.2), "occlusion: deep/low cards darker than the lit top rim");
+});
+
+test("R7.4: the holm oak wears cards in the shared template (one draw call); other species keep their crowns and park their cards at a point", () => {
+  for (const detalle of [true, false]) {
+    const g = geometriaArbol(detalle).geometria, parte = g.getAttribute("parte"), n = parte.count, nc = detalle ? CARTAS_DETALLE : CARTAS_SIMPLE;
+    const cartas = Array.from({ length: n }, (_, i) => i).filter((i) => parte.getX(i) === PARTE.carta);
+    assert.equal(cartas.length, nc * 4, "four corners per card");
+    for (const k of ["esquina", "uv", "nesf"]) { assert.equal(g.getAttribute(k).count, n, k); assert.ok(Array.from(g.getAttribute(k).array).every(Number.isFinite), k); }
+    const esq = g.getAttribute("esquina"), uv = g.getAttribute("uv");
+    for (const i of cartas) { assert.ok(Math.hypot(esq.getX(i), esq.getY(i)) > 0.2, "a card has a real size (m)"); assert.ok([0, 1].includes(uv.getX(i)) && [0, 1].includes(uv.getY(i))); }
+    ESPECIES.forEach((e, ie) => {
+      const p = g.getAttribute(ie === 0 ? "position" : `pos${ie}`), punto = (i: number) => [p.getX(i), p.getY(i), p.getZ(i)].join(",");
+      const hoja = Array.from({ length: n }, (_, i) => i).filter((i) => parte.getX(i) === 1);
+      if (CON_CARTAS[e]) {
+        assert.equal(new Set(hoja.map(punto)).size, 1, `${e}: the faceted crown is collapsed`);
+        assert.ok(new Set(cartas.map(punto)).size >= nc * 0.9, `${e}: cards spread through the crown`);
+        const ys = cartas.map((i) => p.getY(i)); assert.ok(Math.min(...ys) > 1.2 && Math.max(...ys) < 6, `${e}: cards up in the crown`);
+      } else {
+        assert.equal(new Set(cartas.map(punto)).size, 1, `${e}: its cards are parked at one point`);
+        assert.ok(new Set(hoja.map(punto)).size > 6, `${e}: keeps its own crown`);
+      }
+    });
+  }
+  assert.equal(CON_CARTAS.encina, true, "R7.4 converts the holm oak first");
+  assert.equal(Object.values(CON_CARTAS).filter(Boolean).length, 1, "ONE test species in R7.4 (R7.5 does the rest)");
+  const t = crearArboles({ vientoU: viento(), nivel: "A" }, campo(200, 60));
+  t.actualizar(0, new THREE.Vector3(0, 1.7, 0));
+  assert.ok(t.estadisticas().llamadas <= 2, "no new draw call");
+  const mat = t.mallas[0].material as THREE.MeshLambertNodeMaterial;
+  assert.equal(mat.alphaToCoverage, true, "alpha to coverage where MSAA exists (three disables it without samples)");
+  assert.equal(mat.transparent, false, "no blending: the crowns stay in the opaque pass");
+  assert.ok(mat.opacityNode && mat.normalNode && mat.emissiveNode, "leaf alpha, spherical normals and the shade fill wired");
+  t.dispose();
+});
+
+test("R7.4: the regional colour drifts slowly over the land (neighbours alike, far trees differ), within −1…1", () => {
+  let cerca = 0, lejos = 0, n = 0;
+  for (let i = 0; i < 200; i++) {
+    const x = (i * 37) % 180 - 90, z = (i * 53) % 180 - 90, u = tonoRegional(x, z, 0.5);
+    assert.ok(u >= -1 && u <= 1);
+    cerca += Math.abs(u - tonoRegional(x + 1.5, z, 0.5)); lejos += Math.abs(u - tonoRegional(x + 40, z - 25, 0.5)); n++;
+  }
+  assert.ok(cerca / n < 0.5 * (lejos / n), `near ${(cerca / n).toFixed(3)} vs far ${(lejos / n).toFixed(3)}`);
 });
