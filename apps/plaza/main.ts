@@ -5,6 +5,7 @@ import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX, BTN_JUMP, BT
 import { CIERRE_LLENO, webSocketClient } from "../../packages/net/src/index.ts";
 import { montarAjustes, leerAjuste } from "./menu-ajustes.ts"; // N2: settings menu + capabilities
 import { montarCiudad } from "./ciudad.ts"; // t_5cff4f06: the corner button back to the city (a world's own ciudadUrl)
+import { montarMenuVR } from "./xr-menu.ts"; // rediseño v2: the VR wrist watch and menu (story E)
 import mundoPlaza from "./mundo.ajustes.json";
 import { montarPulsaciones } from "./pulsaciones.ts"; // U26: a press you can see (and feel) on every button
 import { carga } from "./carga.ts"; // MVL3 step 1: fades out the 2D "Cargando" screen once the first frame is drawn
@@ -23,7 +24,7 @@ import { montarEnlaces } from "./enlaces.ts"; // J4: click on a thing with a lin
 import { disparadores } from "../../features/disparadores/client.ts"; // D-041: the cable — controller
 import { montarCable } from "./cable.ts"; // D-041, historias 5-6: builder's live view + editor of the wiring
 import { montarVideoMandos } from "./video-mandos.ts";
-import { catalogoDeAvatares } from "./catalogo-avatares.ts"; // not "./a…": dev:lan proxies every path starting with /a to the server
+import { catalogoDeAvatares, idAvatarDe } from "./catalogo-avatares.ts"; // not "./a…": dev:lan proxies every path starting with /a to the server
 import { montarChat } from "./chat.ts";
 import { escribiendo } from "./escribiendo.ts";
 import { misiones } from "../../features/misiones/client.ts";
@@ -588,7 +589,16 @@ function drawHud() {
 
 // ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
 // of the bar's «Menú» (O), no longer a corner button ----
-montarCiudad({ mundo: mundoPlaza, boton: document.getElementById("volver-ciudad") as HTMLButtonElement, icono });
+const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById("volver-ciudad") as HTMLButtonElement, icono });
+
+// ---- rediseño v2 (story E): in VR, the wrist watch and the menu panel show what the computer's panels show ----
+{
+  const n = (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia;
+  const menuVR = montarMenuVR({ vr: view.vr, n: () => n, ciudadUrl: ciudad.url, puedeConstruir: () => constructor.estado.puede,
+    nombre: () => session.who?.nombre ?? "Invitado",
+    retrato: () => { const id = idAvatarDe(avatarUI?.eleccion("yo"), estado?.avatar); return id ? `/retratos/${id}-cuerpo.webp` : null; } });
+  Object.assign(n, { menuVR });
+}
 
 // ---- U11 + ux2-barra: the bar, top right — one thing, one place, one key. Left to right: Micrófono (Q) · Gente (L) ·
 // Bolsa (R) · Cámara (P: foto, grabar, compartir pantalla) · Construir (C, builders only) | Avisos (N) · Menú (O: ajustes,

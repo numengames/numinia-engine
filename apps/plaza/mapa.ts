@@ -633,6 +633,8 @@ export function montarMapa(h: HostMapa) {
     stats: () => ({ mini: limMini.stats, grande: limGrande.stats, imagenes, vueltas, ocultas, corte }),
     /** C2: go back to where you were before the last «Ir» (false when there is nowhere to go back to). */
     volver, puedeVolver: () => origenViaje !== null,
+    /** Rediseño v2 (the VR menu's «Mapa»): go to a marker as the map's own «Ir» does, and whether trips are allowed now. */
+    ir: (m: { id: string; nombre: string; x: number; z: number }): void => irA(m), puedeIr: (): boolean => !!h.teletransporte?.activo(),
     abrir: () => panel.abrir(), cerrar: () => panel.cerrar(), abierto: () => panel.abierto,
     /** The zone's picture: how it was made, what it cost, whether it has something in it (U14: where it was cut and how
      * many segments the cut gave). */

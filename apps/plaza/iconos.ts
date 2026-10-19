@@ -96,3 +96,9 @@ export function icono(nombre: string, px = 20): string {
   if (!p) return "";
   return `<svg class="icono" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="${px}" height="${px}" fill="currentColor" aria-hidden="true" focusable="false">${p}</svg>`;
 }
+/** Rediseño v2 (VR): the same icon's SVG path data (viewBox 256), for a canvas to fill as Path2D — the watch and the
+ * menu panel in VR are canvases on planes, where HTML cannot be drawn. [] for an unknown name. */
+export function pathsIcono(nombre: string): string[] {
+  const p = P[nombre];
+  return p ? [...p.matchAll(/\sd="([^"]+)"/g)].map((m) => m[1]) : [];
+}

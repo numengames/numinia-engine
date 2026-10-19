@@ -101,6 +101,25 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     opciones: [{ valor: "mirada", nombre: "Según la mirada" }, { valor: "mando", nombre: "Según el mando" }, { valor: "cuerpo", nombre: "De lado (según el cuerpo)" }],
     defecto: "mirada", requiere: ["xrVr"],
   },
+  // Rediseño v2 (story E): the VR menu's «Ajustes» — the same rows on the computer and in the headset
+  {
+    grupo: "controles", id: "giroVR", tipo: "eleccion", nombre: "Giro en VR",
+    describe: "Cuánto gira la vista con cada empujón de la palanca derecha del visor.",
+    opciones: [{ valor: "15", nombre: "15°" }, { valor: "30", nombre: "30°" }, { valor: "45", nombre: "45°" }],
+    defecto: "30", requiere: ["xrVr"],
+  },
+  {
+    grupo: "controles", id: "velocidadVR", tipo: "numero", min: 40, max: 100, paso: 10, unidad: "%", nombre: "Velocidad al andar en VR",
+    describe: "Lo deprisa que te lleva la palanca izquierda del visor. Menos: más cómodo si te mareas.", defecto: 100, requiere: ["xrVr"],
+  },
+  {
+    grupo: "controles", id: "confortVR", tipo: "numero", min: 0, max: 100, paso: 10, unidad: "%", nombre: "Viñeta de confort en VR",
+    describe: "Cuánto se oscurecen los bordes de la vista mientras te mueves o giras. 0: nada.", defecto: 80, requiere: ["xrVr"],
+  },
+  {
+    grupo: "controles", id: "alturaVR", tipo: "numero", min: -30, max: 60, paso: 10, unidad: "cm", nombre: "Altura en VR",
+    describe: "Sube o baja tu vista en el visor; súbela si juegas sentado.", defecto: 0, requiere: ["xrVr"],
+  },
   { grupo: "controles", id: "teclaAjustes", tipo: "tecla", soloVer: true, nombre: "Abrir y cerrar los ajustes", describe: "La tecla que abre este menú. Escape también lo cierra.", defecto: "KeyO" },
   { grupo: "controles", id: "teclaDensidad", tipo: "tecla", soloVer: true, nombre: "Cambiar la densidad de interfaz", describe: "La tecla que pasa de Mínimo a Normal, a Completo y vuelta.", defecto: "KeyU" },
   { grupo: "controles", id: "teclaBateria", tipo: "tecla", soloVer: true, nombre: "Modo batería", describe: "La tecla que enciende y apaga el modo batería.", defecto: "KeyB" },
