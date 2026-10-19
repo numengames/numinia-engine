@@ -15,15 +15,17 @@ export type NaturalezaNivel = {
   arbolesLejosM: number;
   /** Leaves flutter (a second, faster vertex term). Off on the oldest phones: fewer ALU per vertex. */
   arbolesAletean: boolean;
+  /** N7: the near template has branches with leaf clumps (78 triangles, tiers A/B) instead of the simple crown (36, tiers C/D). */
+  arbolesDetalle: boolean;
 };
 
 export const NATURALEZA_POR_NIVEL: Record<Nivel, NaturalezaNivel> = {
-  // N6 retune (was 55/340, 28/245, 28/245, 12/100 near/visible): a near tree is now ONE shared 34-triangle template for all species, a far one 26.
-  // A and B draw a second mesh of far silhouettes (2 calls); C and D draw only the near template (1 call), so their `arbolesVisibles` equals `arbolesCerca`.
-  A: { arbolesCerca: 24, arbolesVisibles: 184, arbolesCercaM: 30, arbolesLejosM: 150, arbolesAletean: true },
-  B: { arbolesCerca: 16, arbolesVisibles: 106, arbolesCercaM: 26, arbolesLejosM: 110, arbolesAletean: true },
-  C: { arbolesCerca: 66, arbolesVisibles: 66, arbolesCercaM: 70, arbolesLejosM: 70, arbolesAletean: true },
-  D: { arbolesCerca: 30, arbolesVisibles: 30, arbolesCercaM: 50, arbolesLejosM: 50, arbolesAletean: false },
+  // N7: near trees are 78 triangles with branches (A/B: 24 and 16 of them) or a 36-triangle irregular crown (C/D, one call); far silhouettes are 22 triangles (2 calls on A/B).
+  // Far counts shrank (148 and 78, were 160 and 90) to pay for the branches inside the trees' share (A 5200, B 3000, C 2700, D 1200).
+  A: { arbolesCerca: 24, arbolesVisibles: 172, arbolesCercaM: 30, arbolesLejosM: 150, arbolesAletean: true, arbolesDetalle: true },
+  B: { arbolesCerca: 16, arbolesVisibles: 94, arbolesCercaM: 26, arbolesLejosM: 110, arbolesAletean: true, arbolesDetalle: true },
+  C: { arbolesCerca: 66, arbolesVisibles: 66, arbolesCercaM: 70, arbolesLejosM: 70, arbolesAletean: true, arbolesDetalle: false },
+  D: { arbolesCerca: 30, arbolesVisibles: 30, arbolesCercaM: 50, arbolesLejosM: 50, arbolesAletean: false, arbolesDetalle: false },
 };
 
 // ---- grass (N3, hierba.ts) ----
@@ -40,14 +42,17 @@ export type HierbaNivel = {
   aleteo: boolean;
   /** CPU budget (ms) per frame for refilling cells. */
   presupuestoMs: number;
+  /** N7: a second, dense ring of small cells around the camera (same draw call): the ground at the player's feet is never bare. Counts in `tuftsMax` are NOT shared:
+   *  the tier sends `tuftsMax + cerca.tuftsMax` tufts in all. */
+  cerca?: { radio: number; celda: number; tuftsMax: number };
 };
 export const HIERBA_POR_NIVEL: Record<Nivel, HierbaNivel> = {
-  // N6 retune (was 5600 / 3200 / 3200 / 1700 tufts + a second call for flowers): flowers are now tufts of the SAME call (their blade tips wear the flower colour),
-  // so every tier draws grass in ONE call. `tuftsMax` counts every slot, flowers included, and every slot is sent to the GPU (3 triangles), alive or not.
-  A: { radio: 24, tuftsMax: 1400, celda: 8, floresMax: 0.1, aleteo: true, presupuestoMs: 0.4 },
-  B: { radio: 16, tuftsMax: 800, celda: 8, floresMax: 0.08, aleteo: true, presupuestoMs: 0.4 },
-  C: { radio: 14, tuftsMax: 600, celda: 8, floresMax: 0.08, aleteo: true, presupuestoMs: 0.4 },
-  D: { radio: 10, tuftsMax: 340, celda: 7, floresMax: 0.06, aleteo: false, presupuestoMs: 0.3 },
+  // N7: each tier's tufts are split into a coarse outer ring and a dense inner ring (A 1050 + 350 = 1400 as before, so the grass's share does not change):
+  // density ≈ 0.6 tufts/m² outside, ≈ 2.9 within the inner radius (was a flat 0.77), thinning with distance. Flowers are tufts of the outer ring.
+  A: { radio: 24, tuftsMax: 1030, celda: 8, floresMax: 0.1, aleteo: true, presupuestoMs: 0.4, cerca: { radio: 7, celda: 3.5, tuftsMax: 340 } },
+  B: { radio: 16, tuftsMax: 600, celda: 8, floresMax: 0.08, aleteo: true, presupuestoMs: 0.4, cerca: { radio: 6, celda: 3, tuftsMax: 190 } },
+  C: { radio: 14, tuftsMax: 450, celda: 8, floresMax: 0.08, aleteo: true, presupuestoMs: 0.4, cerca: { radio: 5.5, celda: 3, tuftsMax: 140 } },
+  D: { radio: 10, tuftsMax: 250, celda: 7, floresMax: 0.06, aleteo: false, presupuestoMs: 0.3, cerca: { radio: 4.5, celda: 3, tuftsMax: 80 } },
 };
 
 // ---- N4: the whole nature piece (naturaleza.ts) ----

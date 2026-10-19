@@ -19,8 +19,8 @@ import { crearTerreno, alturaEn, zonaEn, estanqueDe, NIVEL_AGUA, CELDAS_TERRENO,
 import { esparcirArboles, RADIO_ESPECIE, SEPARACION, MARGEN_PLAZA, CELDA, PENDIENTE_MAX } from "../packages/render/src/naturaleza/esparcir.ts";
 import type { Paleta } from "../packages/render/src/naturaleza/esparcir.ts";
 import { NATURALEZA_POR_NIVEL, HIERBA_POR_NIVEL, PRESUPUESTO_NATURALEZA, ARBOLES_MAX_POR_NIVEL } from "../packages/render/src/naturaleza/niveles.ts";
-import { anillo, TRIANGULOS_TUFT, TRIANGULOS_FLOR } from "../packages/render/src/naturaleza/hierba.ts";
-import { geometriaLejos, TRIANGULOS_ARBOL } from "../packages/render/src/naturaleza/arboles.ts";
+import { triangulosHierba } from "../packages/render/src/naturaleza/hierba.ts";
+import { geometriaLejos, triangulosCerca } from "../packages/render/src/naturaleza/arboles.ts";
 import { crearNaturaleza, normalizar, DEFECTOS_NATURALEZA } from "../packages/render/src/naturaleza/naturaleza.ts";
 import type { Nivel } from "../packages/render/src/calidad.ts";
 
@@ -196,10 +196,10 @@ test("scatter CPU: a full 200 m world builds in well under a second (pure code, 
 // ---------------------------------------------------------------- the budget
 test("budget: terrain + trees + grass fit the brief's triangles and draw calls on every tier, in the worst case", () => {
   for (const n of NIVELES) {
-    const cfg = NATURALEZA_POR_NIVEL[n], b = PRESUPUESTO_NATURALEZA[n], a = anillo(HIERBA_POR_NIVEL[n]);
+    const cfg = NATURALEZA_POR_NIVEL[n], b = PRESUPUESTO_NATURALEZA[n];
     const terreno = triangulosDeTerreno(CELDAS_TERRENO[n], n === "D");
-    const arboles = cfg.arbolesCerca * TRIANGULOS_ARBOL + (cfg.arbolesVisibles - cfg.arbolesCerca) * geometriaLejos().triangulos; // every near slot at the cap, every other at the far cap
-    const hierba = a.celdas.length * (a.capTuft * TRIANGULOS_TUFT + a.capFlor * TRIANGULOS_FLOR);
+    const arboles = cfg.arbolesCerca * triangulosCerca(cfg.arbolesDetalle) + (cfg.arbolesVisibles - cfg.arbolesCerca) * geometriaLejos().triangulos; // every near slot at the cap, every other at the far cap
+    const hierba = triangulosHierba(HIERBA_POR_NIVEL[n]); // N7: outer + dense inner ring
     assert.ok(terreno + arboles + hierba <= b.triangulos, `${n}: ${terreno} + ${arboles} + ${hierba} = ${terreno + arboles + hierba} > ${b.triangulos}`);
     const llamadas = 1 + (cfg.arbolesVisibles > cfg.arbolesCerca ? 2 : 1) + 1 + (n === "D" ? 0 : 1) + 2; // terrain + trees + grass (flowers inside) + water (D paints it into the terrain) + fauna (butterflies+fireflies, birds)
     assert.ok(llamadas <= b.llamadas, `${n}: ${llamadas} draw calls > ${b.llamadas}`);

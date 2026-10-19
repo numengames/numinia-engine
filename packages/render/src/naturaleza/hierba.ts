@@ -114,7 +114,16 @@ export function anillo(n: HierbaNivel): Anillo {
   const m = Math.ceil((n.radio + 1.2 * n.celda) / n.celda), celdas: { dx: number; dz: number }[] = [];
   for (let dz = -m; dz <= m; dz++) for (let dx = -m; dx <= m; dx++) if (Math.hypot(dx, dz) * n.celda <= n.radio + 1.2 * n.celda) celdas.push({ dx, dz });
   celdas.sort((a, b) => Math.hypot(a.dx, a.dz) - Math.hypot(b.dx, b.dz) || a.dz - b.dz || a.dx - b.dx);
-  return { celdas, lado: 2 * m + 1, capTuft: Math.max(1, Math.floor(n.tuftsMax / celdas.length)), capFlor: n.floresMax > 0 ? Math.max(1, Math.floor(n.floresMax * n.tuftsMax / celdas.length)) : 0 };
+  return { celdas, lado: 2 * m + 1, capTuft: Math.max(1, Math.floor(n.tuftsMax / celdas.length)), capFlor: n.floresMax > 0 ? Math.max(1, Math.round(n.floresMax * n.tuftsMax / celdas.length)) : 0 };
+}
+/** N7: the dense inner ring of a tier as a ring of its own (null when the tier has none). */
+export function anilloCerca(n: HierbaNivel): Anillo | null {
+  return n.cerca ? anillo({ ...n, radio: n.cerca.radio, celda: n.cerca.celda, tuftsMax: n.cerca.tuftsMax, floresMax: 0 }) : null;
+}
+/** Triangles one tier sends to the GPU for grass: every slot of both rings (3 per tuft, alive or not). */
+export function triangulosHierba(n: HierbaNivel): number {
+  const a = anillo(n), c = anilloCerca(n);
+  return (a.celdas.length * (a.capTuft * TRIANGULOS_TUFT + a.capFlor * TRIANGULOS_FLOR)) + (c ? c.celdas.length * c.capTuft * TRIANGULOS_TUFT : 0);
 }
 
 /** All the tufts / flowers of one cell, in candidate order (pure; tests and the server use it, the page fills buffers with it). */
@@ -166,11 +175,13 @@ export function geometriaFlor(): THREE.BufferGeometry {
 export const TRIANGULOS_TUFT = 3, TRIANGULOS_FLOR = 3; // N6: a flower is a tuft of the same geometry (3 triangles)
 /** N6: added to the `escala` of a flower instance (iCol.w); the shader splits it back into «flower?» and the scale. */
 export const FLOR_MARCA = 10;
+/** N7: added to the `escala` of a tuft of the dense inner ring (iCol.w), which fades over its own, smaller radius. */
+export const CERCA_MARCA = 100;
 
 // ---------------------------------------------------------------- material (TSL)
 type N = ReturnType<typeof float>;
 type Entrada = {
-  viento: ReturnType<typeof uniform>; tiempo: ReturnType<typeof uniform>; camara: ReturnType<typeof uniform>; radio: number;
+  viento: ReturnType<typeof uniform>; tiempo: ReturnType<typeof uniform>; camara: ReturnType<typeof uniform>; radio: number; radioCerca: number;
   empuja: ReturnType<typeof uniform>[]; aleteo: boolean; tam: number; flor: boolean;
 };
 /** The grass material: instanced placement attributes (iPos = x,y,z,yaw · iCol = linear rgb, scale), fade, wind, push, colour. */
@@ -179,13 +190,15 @@ export function materialHierba(e: Entrada): THREE.MeshLambertNodeMaterial {
   mat.name = e.flor ? "hierba-flores" : "hierba";
   const iPos = attribute("iPos", "vec4"), iCol = attribute("iCol", "vec4");
   const base = iPos.xyz as unknown as ReturnType<typeof vec3>, giro = iPos.w as unknown as N;
-  const marca = step(FLOR_MARCA / 2, iCol.w) as N, esc0 = (iCol.w as unknown as N).sub(marca.mul(FLOR_MARCA)) as N; // N6: flowers are tuft instances flagged by +FLOR_MARCA
+  const marcaC = step(CERCA_MARCA / 2, iCol.w) as N, w1 = (iCol.w as unknown as N).sub(marcaC.mul(CERCA_MARCA)) as N; // N7: inner-ring tufts are flagged by +CERCA_MARCA
+  const marca = step(FLOR_MARCA / 2, w1) as N, esc0 = w1.sub(marca.mul(FLOR_MARCA)) as N; // N6: flowers are tuft instances flagged by +FLOR_MARCA
   const bxz = base.xz as unknown as ReturnType<typeof vec2>;
   const rnd = giro.mul(1 / TAU) as N;
   const cam = e.camara as unknown as ReturnType<typeof vec3>;
   // ---- distance fade: dithered thinning (every tuft has its own threshold) and shrink to 0 at the edge: no popping ----
   const dist = length(bxz.sub(cam.xz));
-  const queda = oneMinus(smoothstep(e.radio * 0.7, e.radio, dist)) as N;
+  const radio = mix(float(e.radio), float(e.radioCerca), marcaC) as N;
+  const queda = oneMinus(smoothstep(radio.mul(0.7), radio, dist)) as N;
   const k = esc0.mul(clamp(queda.sub(rnd.mul(0.8)).mul(5), 0, 1)) as N;
   const alto = k.mul(e.tam) as N;
   const p = positionLocal as unknown as ReturnType<typeof vec3>;
@@ -266,8 +279,12 @@ const LEJOS = 1e6;
 export function crearHierba(h: HierbaH, fuente: Fuente, op: OpcionesHierba) {
   const nivel = op.nivel ?? h.nivel ?? "A";
   const cfg: HierbaNivel = { ...HIERBA_POR_NIVEL[nivel], ...op.tabla };
-  const a = anillo(cfg), hojas = op.hojas ?? 3;
-  const nSlots = a.celdas.length, nTuft = a.capTuft * nSlots, nFlor = a.capFlor * nSlots;
+  const hojas = op.hojas ?? 3;
+  // N7: two rings of cells share ONE instance buffer (one draw call): the outer ring (`radio`, coarse cells) and a small, dense inner ring around the camera
+  // (`cerca`: tufts flagged by +CERCA_MARCA in the scale channel, so the shader fades them over THEIR radius). No bare ground at eye level.
+  const cc: HierbaNivel | null = cfg.cerca ? { ...cfg, radio: cfg.cerca.radio, celda: cfg.cerca.celda, tuftsMax: cfg.cerca.tuftsMax, floresMax: 0 } : null;
+  const a = anillo(cfg), ac = anilloCerca(cfg);
+  const nSlots = a.celdas.length, nTuft = a.capTuft * nSlots, nFlor = a.capFlor * nSlots, nCerca = ac ? ac.capTuft * ac.celdas.length : 0;
   const uT = uniform(0), uCam = uniform(new THREE.Vector3(LEJOS, 0, LEJOS));
   const uP = [0, 1, 2, 3].map(() => uniform(new THREE.Vector4(LEJOS, 0, LEJOS, 0.8)));
   const grupo = new THREE.Group(); grupo.name = "hierba";
@@ -279,80 +296,97 @@ export function crearHierba(h: HierbaH, fuente: Fuente, op: OpcionesHierba) {
     g.setAttribute("iPos", pos); g.setAttribute("iCol", col);
     g.instanceCount = n;
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 4, 0), cfg.radio + 20);
-    const mat = materialHierba({ viento: h.vientoU as ReturnType<typeof uniform>, tiempo: uT, camara: uCam, radio: cfg.radio, empuja: uP, aleteo: cfg.aleteo, tam: flor ? ALTO_FLOR : ALTO_TUFT, flor });
+    const mat = materialHierba({ viento: h.vientoU as ReturnType<typeof uniform>, tiempo: uT, camara: uCam, radio: cfg.radio, radioCerca: cfg.cerca?.radio ?? cfg.radio, empuja: uP, aleteo: cfg.aleteo, tam: flor ? ALTO_FLOR : ALTO_TUFT, flor });
     const m = new THREE.Mesh(g, mat);
     m.name = flor ? "hierba-flores" : "hierba-tufts"; m.matrixAutoUpdate = false; m.castShadow = false; m.receiveShadow = false; m.frustumCulled = true; m.userData.sinSombra = true;
     grupo.add(m);
     return { m, g, pos, col, mat };
   };
-  const cap = a.capTuft + a.capFlor;   // N6: a slot's region holds its tufts, then its flowers (flower = a tuft with `escala` + FLOR_MARCA): ONE buffer, ONE call
-  const T = crear(geometriaTuft(hojas), nTuft + nFlor, false);
+  const T = crear(geometriaTuft(hojas), nTuft + nFlor + nCerca, false);
   op.escena?.add(grupo);
 
-  // slot state: which cell it holds, how far its fill got, how many it holds
-  type Slot = { cx: number; cz: number; k: number; nT: number; nF: number; hecho: boolean; vivo: boolean };
-  const slots: Slot[] = Array.from({ length: nSlots }, () => ({ cx: 0, cz: 0, k: 0, nT: 0, nF: 0, hecho: true, vivo: false }));
-  let cxA = NaN, czA = NaN, cola: number[] = [], vivosT = 0, vivosF = 0, llenadas = 0, msUltimo = 0, msMax = 0;
-  const sucios = new Set<number>();
   const pieza = nuevaPieza();
-
-  const limpiar = (s: number) => {
-    const st = slots[s];
-    vivosT -= st.nT; vivosF -= st.nF; st.nT = 0; st.nF = 0; st.k = 0;
-    T.pos.array.fill(0, s * cap * 4, (s + 1) * cap * 4); T.col.array.fill(0, s * cap * 4, (s + 1) * cap * 4);
-    sucios.add(s);
-  };
-  const recentrar = (cx0: number, cz0: number) => {
-    const quiere = new Map<string, { cx: number; cz: number }>(), tienen = new Map<string, number>();
-    for (const c of a.celdas) quiere.set(`${cx0 + c.dx},${cz0 + c.dz}`, { cx: cx0 + c.dx, cz: cz0 + c.dz });
-    const libres: number[] = [];
-    for (let s = 0; s < nSlots; s++) {
-      const st = slots[s], k = `${st.cx},${st.cz}`;
-      if (st.vivo && quiere.has(k)) { tienen.set(k, s); continue; }
-      if (st.vivo || st.nT || st.nF) limpiar(s);
-      st.vivo = false; st.hecho = true; libres.push(s);
-    }
-    for (const [k, q] of quiere) {            // the cells entering the ring take the slots the leaving ones freed
-      if (tienen.has(k)) continue;
-      const s = libres.pop()!, st = slots[s];
-      st.cx = q.cx; st.cz = q.cz; st.vivo = true; st.hecho = false; st.k = 0; tienen.set(k, s);
-    }
-    // nearest first so the ground at the player's feet grows before the far edge
-    const d = (s: number) => Math.hypot(slots[s].cx - cx0, slots[s].cz - cz0);
-    cola = [...tienen.values()].filter((s) => !slots[s].hecho).sort((p, q) => d(p) - d(q));
-    const c = T.g.boundingSphere!.center; c.set((cx0 + 0.5) * cfg.celda, 4, (cz0 + 0.5) * cfg.celda);
-  };
-  const llenar = (s: number, hasta: number): boolean => {
-    const st = slots[s], total = a.capTuft + a.capFlor;
-    let n = 0;
-    while (st.k < total && n < 12) {
-      const k = st.k++; n++;
-      if (k < a.capTuft) {
-        if (!tuftDe(op.semilla, st.cx, st.cz, k, fuente, cfg.celda, pieza)) continue;
-        const o = (s * cap + st.nT++) * 4; vivosT++;
-        T.pos.array[o] = pieza.x; T.pos.array[o + 1] = pieza.y; T.pos.array[o + 2] = pieza.z; T.pos.array[o + 3] = pieza.giro;
-        T.col.array[o] = pieza.r; T.col.array[o + 1] = pieza.g; T.col.array[o + 2] = pieza.b; T.col.array[o + 3] = pieza.escala;
-      } else {
-        if (!florDe(op.semilla, st.cx, st.cz, k - a.capTuft, fuente, cfg.celda, pieza)) continue;
-        const o = (s * cap + a.capTuft + st.nF++) * 4; vivosF++;
-        T.pos.array[o] = pieza.x; T.pos.array[o + 1] = pieza.y; T.pos.array[o + 2] = pieza.z; T.pos.array[o + 3] = pieza.giro;
-        T.col.array[o] = pieza.r; T.col.array[o + 1] = pieza.g; T.col.array[o + 2] = pieza.b; T.col.array[o + 3] = pieza.escala + FLOR_MARCA;
+  const sucios = new Set<number>(); // regions (start instance, length) dirty since the last upload, packed as start * 65536 + length
+  let llenadas = 0, msUltimo = 0, msMax = 0;
+  /** One ring of cells over a stretch of the buffer, starting at instance `base`: a pool of slots (a cell that leaves the ring frees its slot). */
+  function capa(c: HierbaNivel, an: Anillo, base: number, semilla: number, marca: number) {
+    const n = an.celdas.length, cap = an.capTuft + an.capFlor;
+    type Slot = { cx: number; cz: number; k: number; nT: number; nF: number; hecho: boolean; vivo: boolean };
+    const slots: Slot[] = Array.from({ length: n }, () => ({ cx: 0, cz: 0, k: 0, nT: 0, nF: 0, hecho: true, vivo: false }));
+    let cola: number[] = [], vivosT = 0, vivosF = 0;
+    const limpiar = (s: number) => {
+      const st = slots[s];
+      vivosT -= st.nT; vivosF -= st.nF; st.nT = 0; st.nF = 0; st.k = 0;
+      T.pos.array.fill(0, (base + s * cap) * 4, (base + (s + 1) * cap) * 4); T.col.array.fill(0, (base + s * cap) * 4, (base + (s + 1) * cap) * 4);
+      sucios.add((base + s * cap) * 65536 + cap);
+    };
+    const recentrar = (cx0: number, cz0: number) => {
+      const quiere = new Map<string, { cx: number; cz: number }>(), tienen = new Map<string, number>();
+      for (const q of an.celdas) quiere.set(`${cx0 + q.dx},${cz0 + q.dz}`, { cx: cx0 + q.dx, cz: cz0 + q.dz });
+      const libres: number[] = [];
+      for (let s = 0; s < n; s++) {
+        const st = slots[s], k = `${st.cx},${st.cz}`;
+        if (st.vivo && quiere.has(k)) { tienen.set(k, s); continue; }
+        if (st.vivo || st.nT || st.nF) limpiar(s);
+        st.vivo = false; st.hecho = true; libres.push(s);
       }
-    }
-    sucios.add(s);
-    if (st.k >= total) { st.hecho = true; llenadas++; return true; }
-    return performance.now() < hasta;
-  };
+      for (const [k, q] of quiere) {            // the cells entering the ring take the slots the leaving ones freed
+        if (tienen.has(k)) continue;
+        const s = libres.pop()!, st = slots[s];
+        st.cx = q.cx; st.cz = q.cz; st.vivo = true; st.hecho = false; st.k = 0; tienen.set(k, s);
+      }
+      // nearest first so the ground at the player's feet grows before the far edge
+      const d = (s: number) => Math.hypot(slots[s].cx - cx0, slots[s].cz - cz0);
+      cola = [...tienen.values()].filter((s) => !slots[s].hecho).sort((p, q) => d(p) - d(q));
+    };
+    const llenar = (s: number, hasta: number): boolean => {
+      const st = slots[s], total = an.capTuft + an.capFlor;
+      let k0 = 0;
+      while (st.k < total && k0 < 12) {
+        const k = st.k++; k0++;
+        if (k < an.capTuft) {
+          if (!tuftDe(semilla, st.cx, st.cz, k, fuente, c.celda, pieza)) continue;
+          const o = (base + s * cap + st.nT++) * 4; vivosT++;
+          T.pos.array[o] = pieza.x; T.pos.array[o + 1] = pieza.y; T.pos.array[o + 2] = pieza.z; T.pos.array[o + 3] = pieza.giro;
+          T.col.array[o] = pieza.r; T.col.array[o + 1] = pieza.g; T.col.array[o + 2] = pieza.b; T.col.array[o + 3] = pieza.escala + marca;
+        } else {
+          if (!florDe(semilla, st.cx, st.cz, k - an.capTuft, fuente, c.celda, pieza)) continue;
+          const o = (base + s * cap + an.capTuft + st.nF++) * 4; vivosF++;
+          T.pos.array[o] = pieza.x; T.pos.array[o + 1] = pieza.y; T.pos.array[o + 2] = pieza.z; T.pos.array[o + 3] = pieza.giro;
+          T.col.array[o] = pieza.r; T.col.array[o + 1] = pieza.g; T.col.array[o + 2] = pieza.b; T.col.array[o + 3] = pieza.escala + FLOR_MARCA;
+        }
+      }
+      sucios.add((base + s * cap) * 65536 + cap);
+      if (st.k >= total) { st.hecho = true; llenadas++; return true; }
+      return performance.now() < hasta;
+    };
+    return {
+      recentrar,
+      /** Refill queued cells until `hasta` (ms timestamp); false when the time ran out. */
+      trabajar(hasta: number) {
+        while (cola.length) {
+          const s = cola[0];
+          if (!slots[s].vivo || slots[s].hecho) { cola.shift(); continue; }
+          const seguir = llenar(s, hasta);
+          if (slots[s].hecho) cola.shift();
+          if (!seguir) return false;
+        }
+        return true;
+      },
+      vivos: () => ({ t: vivosT, f: vivosF, pendientes: cola.length }),
+    };
+  }
+  const capaFuera = capa(cfg, a, 0, op.semilla, 0);
+  const capaCerca = cc && ac ? capa(cc, ac, nTuft + nFlor, (op.semilla ^ 0x5bd1e995) | 0, CERCA_MARCA) : null;
   const subir = () => {
     if (!sucios.size) return;
-    for (const s of sucios) {
-      T.pos.addUpdateRange(s * cap * 4, cap * 4); T.col.addUpdateRange(s * cap * 4, cap * 4);
-    }
+    for (const r of sucios) { const ini = Math.floor(r / 65536), len = r % 65536; T.pos.addUpdateRange(ini * 4, len * 4); T.col.addUpdateRange(ini * 4, len * 4); }
     T.pos.needsUpdate = T.col.needsUpdate = true;
     sucios.clear();
   };
+  let cxA = NaN, czA = NaN, cxC = NaN, czC = NaN;
 
-  /** Call once per frame: sets the clock and the camera, recentres the ring at a cell border, refills ≤ presupuestoMs of cells. */
+  /** Call once per frame: sets the clock and the camera, recentres the rings at a cell border, refills ≤ presupuestoMs of cells (the inner ring first). */
   function actualizar(camara: THREE.Object3D, t: number, empujan: readonly Mover[] = []) {
     uT.value = t;
     const p = camara.position;
@@ -365,15 +399,10 @@ export function crearHierba(h: HierbaH, fuente: Fuente, op: OpcionesHierba) {
     }
     const t0 = performance.now();
     const cx0 = Math.floor(p.x / cfg.celda), cz0 = Math.floor(p.z / cfg.celda);
-    if (cx0 !== cxA || cz0 !== czA) { cxA = cx0; czA = cz0; recentrar(cx0, cz0); }
+    if (cx0 !== cxA || cz0 !== czA) { cxA = cx0; czA = cz0; capaFuera.recentrar(cx0, cz0); const c = T.g.boundingSphere!.center; c.set((cx0 + 0.5) * cfg.celda, 4, (cz0 + 0.5) * cfg.celda); }
+    if (capaCerca && cc) { const x1 = Math.floor(p.x / cc.celda), z1 = Math.floor(p.z / cc.celda); if (x1 !== cxC || z1 !== czC) { cxC = x1; czC = z1; capaCerca.recentrar(x1, z1); } }
     const hasta = t0 + cfg.presupuestoMs;
-    while (cola.length) {
-      const s = cola[0];
-      if (!slots[s].vivo || slots[s].hecho) { cola.shift(); continue; }
-      const seguir = llenar(s, hasta);
-      if (slots[s].hecho) cola.shift();
-      if (!seguir) break;
-    }
+    if (!capaCerca || capaCerca.trabajar(hasta)) capaFuera.trabajar(hasta);
     subir();
     msUltimo = performance.now() - t0; if (msUltimo > msMax) msMax = msUltimo;
   }
@@ -386,25 +415,28 @@ export function crearHierba(h: HierbaH, fuente: Fuente, op: OpcionesHierba) {
   function visibles(x: number, z: number) {
     let tufts = 0, flores = 0;
     const pos = T.pos.array as Float32Array, col = T.col.array as Float32Array;
-    for (let i = 0; i < nTuft + nFlor; i++) {
+    for (let i = 0; i < nTuft + nFlor + nCerca; i++) {
       let esc = col[i * 4 + 3]; if (esc <= 0) continue;
+      const cerca = esc >= CERCA_MARCA / 2; if (cerca) esc -= CERCA_MARCA;
       const flor = esc >= FLOR_MARCA / 2; if (flor) esc -= FLOR_MARCA;
-      const d = Math.hypot(pos[i * 4] - x, pos[i * 4 + 2] - z), q = 1 - paso(cfg.radio * 0.7, cfg.radio, d), rnd = pos[i * 4 + 3] / TAU;
+      const R = cerca ? cfg.cerca!.radio : cfg.radio;
+      const d = Math.hypot(pos[i * 4] - x, pos[i * 4 + 2] - z), q = 1 - paso(R * 0.7, R, d), rnd = pos[i * 4 + 3] / TAU;
       if (Math.min(1, Math.max(0, (q - rnd * 0.8) * 5)) > 0) { if (flor) flores++; else tufts++; }
     }
     return { tufts, flores, triangulos: (tufts + flores) * hojas };
   }
   function estadisticas(): EstadisticasHierba {
+    const o = capaFuera.vivos(), c = capaCerca?.vivos() ?? { t: 0, f: 0, pendientes: 0 };
     return {
-      dibujos: 1, instancias: nTuft + nFlor, tuftsVivos: vivosT, floresVivas: vivosF,
-      triangulosVivos: (vivosT + vivosF) * hojas, triangulosEnviados: (nTuft + nFlor) * hojas,
-      pendientes: cola.length, msUltimo, msMax, celdasLlenadas: llenadas,
+      dibujos: 1, instancias: nTuft + nFlor + nCerca, tuftsVivos: o.t + c.t, floresVivas: o.f + c.f,
+      triangulosVivos: (o.t + o.f + c.t + c.f) * hojas, triangulosEnviados: (nTuft + nFlor + nCerca) * hojas,
+      pendientes: o.pendientes + c.pendientes, msUltimo, msMax, celdasLlenadas: llenadas,
     };
   }
   function dispose() {
     grupo.removeFromParent();
     T.g.dispose(); T.mat.dispose();
   }
-  return { malla: grupo, mallas: [T.m], actualizar, llenarTodo, visibles, estadisticas, dispose, config: cfg, anillo: a, bytes: (nTuft + nFlor) * 32 };
+  return { malla: grupo, mallas: [T.m], actualizar, llenarTodo, visibles, estadisticas, dispose, config: cfg, anillo: a, anilloCerca: ac, bytes: (nTuft + nFlor + nCerca) * 32 };
 }
 export type Hierba = ReturnType<typeof crearHierba>;

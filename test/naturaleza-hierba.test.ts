@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three/webgpu";
 import { uniform } from "three/tsl";
-import { crearHierba, tuftsDeCelda, floresDeCelda, anillo, TRIANGULOS_TUFT, TRIANGULOS_FLOR } from "../packages/render/src/naturaleza/hierba.ts";
+import { crearHierba, tuftsDeCelda, floresDeCelda, anillo, anilloCerca, triangulosHierba } from "../packages/render/src/naturaleza/hierba.ts";
 import type { Fuente } from "../packages/render/src/naturaleza/hierba.ts";
 import { HIERBA_POR_NIVEL, PRESUPUESTO_NATURALEZA } from "../packages/render/src/naturaleza/niveles.ts";
 import type { Nivel } from "../packages/render/src/calidad.ts";
@@ -56,8 +56,9 @@ test("steeper ground gets fewer tufts than flat ground", () => {
 test("density per tier: tufts and triangles fit the grass share of the nature budget (N6); flowers are 3-12 % of the meadow's tufts", () => {
   for (const nv of NIVELES) {
     const t = HIERBA_POR_NIVEL[nv], a = anillo(t);
-    const enviados = a.capTuft * a.celdas.length * TRIANGULOS_TUFT + a.capFlor * a.celdas.length * TRIANGULOS_FLOR;
+    const enviados = triangulosHierba(t); // N7: outer ring + dense inner ring
     assert.ok(a.capTuft * a.celdas.length <= t.tuftsMax, nv);
+    assert.ok(t.cerca && anilloCerca(t)!.capTuft * anilloCerca(t)!.celdas.length <= t.cerca.tuftsMax, `${nv}: inner ring`);
     assert.ok(enviados <= PRESUPUESTO_NATURALEZA[nv].reparto.hierba, `${nv}: grass submits ${enviados} triangles, over its share ${PRESUPUESTO_NATURALEZA[nv].reparto.hierba}`);
   }
   assert.ok(HIERBA_POR_NIVEL.A.radio === 24 && HIERBA_POR_NIVEL.B.radio === 16 && HIERBA_POR_NIVEL.C.radio === 14 && HIERBA_POR_NIVEL.D.radio === 10);
@@ -75,7 +76,7 @@ for (const nv of NIVELES) {
     const e = h.estadisticas();
     assert.equal(e.pendientes, 0);
     assert.ok(e.dibujos === 1 && h.mallas.length === 1, `${e.dibujos} draw calls`);
-    assert.ok(e.tuftsVivos > 0 && e.tuftsVivos <= HIERBA_POR_NIVEL[nv].tuftsMax);
+    assert.ok(e.tuftsVivos > 0 && e.tuftsVivos <= HIERBA_POR_NIVEL[nv].tuftsMax + HIERBA_POR_NIVEL[nv].cerca!.tuftsMax);
     for (const m of h.mallas) {
       assert.equal(m.frustumCulled, true); assert.ok(m.geometry.boundingSphere!.radius > R);
       const pos = m.geometry.getAttribute("iPos").array as Float32Array, col = m.geometry.getAttribute("iCol").array as Float32Array;
@@ -101,7 +102,7 @@ test("a still camera does no work; crossing a cell border refills only the new c
   const t0 = performance.now(); let frames = 0;
   while (h.estadisticas().pendientes || frames === 0) { h.actualizar(cam, 1 + frames * 0.016); frames++; assert.ok(frames < 2000); }
   const nuevas = h.estadisticas().celdasLlenadas - llenadas, a = anillo(HIERBA_POR_NIVEL[nv]);
-  assert.ok(nuevas > 0 && nuevas <= 2 * Math.ceil(2 * HIERBA_POR_NIVEL[nv].radio / cel) + 6, `${nuevas} cells entered (ring has ${a.celdas.length})`);
+  assert.ok(nuevas > 0 && nuevas <= 2 * Math.ceil(2 * HIERBA_POR_NIVEL[nv].radio / cel) + 6 + 2 * Math.ceil(2 * HIERBA_POR_NIVEL[nv].cerca!.radio / HIERBA_POR_NIVEL[nv].cerca!.celda) + 6, `${nuevas} cells entered (ring has ${a.celdas.length})`);
   const fresco = crearHierba(viento(), fuente, { semilla: SEMILLA, nivel: nv });
   fresco.llenarTodo(cam);
   const vivos = (hh: typeof h) => { const p = hh.mallas[0].geometry.getAttribute("iPos").array as Float32Array, c = hh.mallas[0].geometry.getAttribute("iCol").array as Float32Array, r: string[] = []; for (let i = 0; i < p.length / 4; i++) if (c[i * 4 + 3] > 0) r.push(`${p[i * 4].toFixed(3)},${p[i * 4 + 2].toFixed(3)}`); return r.sort().join("|"); };
