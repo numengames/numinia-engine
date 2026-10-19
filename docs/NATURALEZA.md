@@ -657,3 +657,26 @@ de los ojos y la lámpara se ve sobre todo al anochecer. (5) «Dibujadas ahora, 
 La naturaleza ya usaba materiales con luz (Lambert); lo que fallaba era el entorno: con `hora.mueveElSol` la hora solo movía el sol, y de noche la «luna» seguía a intensidad 3 y el ambiente a 1, así que lo que mira hacia arriba (hierba, suelo) quedaba iluminado como de día. Ahora `entorno.ts` (`aplicar`) baja sol y ambiente según la altura del sol y los tiñe de azul (solo con `solHora`; el preset «noche» a mano no cambia), y todo lo que tiene luz lo sigue: dos escalares, cero llamadas y cero triángulos más (medir: A 52 157 tris / 12 llamadas, igual que antes).
 Luciérnagas: radio de halo ×4 (antes ×3; las raras siguen más grandes: legendaria 0,64 m), halo más ancho y brillo ×1,5; a 3/8/15 m una común mide ≈100/37/20 px de diámetro. Fotos en `work/naturaleza/fotos/f4b-*.png`.
 Queda feo: la arena y el agua siguen más claras que la hierba de noche, y el cielo de noche del mundo demo es negro (lo decide el preset, no la naturaleza).
+
+## F5 · Cómo suenan (sintetizado, casi gratis)
+
+`packages/render/src/naturaleza/sonido.ts` → `crearSonidoFauna({nucleo, nivel, camara, tabla, fauna}).actualizar(camara, tReloj)` / `.dispose()`. Ningún archivo de audio: todo sale de osciladores.
+
+| Criatura | Qué suena | Alcance | Cuándo |
+|---|---|---|---|
+| Pájaro | trino de 2–5 notas (triángulo/cuadrada/sierra + FM suave, desafinación cuantizada «bit-crush»); tono por tamaño (pequeño = agudo, 700–4800 Hz), contorno (sube, baja, trino, arco), notas y periodo por raza (`perfilAve`); las raras suman FM | 40 m | día y crepúsculo |
+| Luciérnaga | ping sinusoidal de 30–60 ms en cada pico de su luz (`PICOS_LUZ`, mismo patrón y fase que el shader); tono por el matiz del color (700–3700 Hz, rojo grave → magenta agudo); las raras suman parcial FM inarmónico y las legendarias resbalan hacia abajo | 12 m | noche (`oscuro ≥ 0,5`) |
+| Mariposa | siseo de ruido filtrado (banda 1,8–3,2 kHz, modulado al ritmo de su aleteo), ganancia máx. 0,035 | 4 m | día |
+
+- **Determinista sin red:** *quién* suena es F1 `habitantes` (celdas de 32 m alrededor de la cámara, cache por ventana de 120 s); *cuándo* es forma cerrada: las llamadas de un pájaro son función del hash de su `id` (periodo + desfase + 35 % de jitter), los pings de una luciérnaga de su patrón de luz, su `fase` y el reloj. Dos personas en el mismo sitio oyen los mismos trinos a la vez.
+- **Pool:** voces creadas UNA vez (osc + modulador FM + ganancia + `StereoPanner`) y reprogramadas con la automatización del reloj de audio; tope por nivel **A 6 · B 4 · C 3 · D 0** (D no crea ni un nodo, ni pide el contexto). A y B añaden una cadena de siseo (ruido en bucle de 1 s compartido). Si no hay sitio, suena la más cercana (roba la voz más lejana). Nodos totales: A 38 · B 28 · C 16 · D 0; no crece nunca (test).
+- **Panning:** `StereoPanner` por voz con el ángulo cámara-relativo (no `PannerNode`: no hay que actualizar el `AudioListener` ni HRTF; elegido por diseño, NO se midió contra `PannerNode`).
+- **Cierra con el núcleo de audio (S1):** bus `ambiente` (deslizador «efectos» de la persona, ducking al hablar −6 dB, limitador del máster, pausa por pestaña oculta). No construye nada hasta el primer gesto compartido y a que el contexto esté `running`; en pausa/oculta no programa nada; sin criaturas cerca desconecta su nodo `trim` del bus tras 2,5 s (el grafo no se procesa).
+- **Cableado:** `naturaleza.ts` lo importa con `import()` tras crear la fauna (tercer chunk perezoso: mundos sin fauna o en nivel D no bajan ni un byte); `index.ts` le pasa `audio()`. Apagar la fauna o cambiar su densidad lo desmonta (`dispose` para y desconecta todo).
+- **Medido** (Chromium headless, `tools/naturaleza-sonido-wav.mjs`): CPU por tick (10 Hz) media 0,04–0,08 ms, máx. 2,5–5,4 ms solo al cruzar celda/ventana (relee 25 celdas); chunk `sonido-*.js` **4,0 kB gz** (página principal sin cambio); 0 llamadas de dibujo y 0 triángulos más.
+- **Prueba de render offline:** `work/naturaleza/audio/{noche,dia,dia-B,noche-C}.wav` (10 s, 44,1 kHz estéreo, `OfflineAudioContext` por la misma cadena bus→VCA→máster→limitador): picos −18,4 dBFS (día) y −23 dBFS (noche), sin recorte, centroide 1,5 kHz (noche) / 5 kHz (día), nada bajo 80 Hz.
+- **Límites conocidos:** la posición del sonido usa la trayectoria de F1 (los pájaros de F3 llevan además un vuelo propio: unos metros de diferencia); suena todo `habitantes` en alcance aunque el tope de dibujo (`enVista`) no lo muestre; el reloj es el local de la pestaña (como el dibujo); sin oído real aún (Quest/móvil sin probar); los grillos no hacen falta.
+- **Pruebas:** `test/naturaleza-sonido.test.ts` (11).
+
+### F5b · Noche: la orilla
+La arena/orilla «más clara que la hierba» de noche no era la paleta del terreno (Lambert, ya atenuado por F4b) sino la **espuma y los destellos del agua** (`agua-estilo.ts`): llevan luz propia (`emissive = color del sol × 0,35`) y `aguaLuz.sol` era el color del sol sin intensidad, así que no bajaba de noche, y la espuma es opaca. Arreglo (`entorno.ts`, cero coste): `solColorU` se escala con el sol del reloj (`0,06 + 0,94·día`) cuando `solHora`. Fotos: `fotos/f5-noche-estanque-antes.png` / `-despues.png`.
