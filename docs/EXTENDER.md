@@ -314,6 +314,50 @@ sin ficha = la capacidad). Con el mundo lleno, el servidor cierra la conexión c
 que no cabe deja la ficha entera sin cargar, con su motivo en el log (`[ficha] no se carga: ficha.json.aforo: …`).
 Hoy se editan en el fichero: no hay panel para cambiarlos en marcha.
 
+**`audio`** (S6f, opcional, dentro de la ficha): lo que este mundo pide del sonido. **R-1: una línea lo enciende.**
+`{ "audio": { "ambiente": "ambiente-numinia" } }` y ya suena el colchón de fondo. Tres campos, todos opcionales:
+
+- **`ambiente`** — el id del catálogo de sonidos (`features/sonido/catalogo.json`) que suena como **cama única en
+  bucle**. Hoy el único que vale es `ambiente-numinia`: 113 s en CC0 que un amigo de Numinia hizo para Numinia.
+  Tiene que ser una fila **con fichero y con `bucle`**; se toca por **streaming**
+  (`MediaElementAudioSourceNode`), nunca descodificada — descodificarla serían ~46 MB de RAM por un sonido que
+  nadie escucha a propósito. **Sin este campo no suena ningún ambiente.**
+- **`ambiente_ganancia`** — su volumen (×), de 0 a 4. Sin decir nada, **×0,042** (−27,6 dB): el fichero está subido
+  a −23 LUFS desde los −50,6 LUFS del original y ese factor devuelve exactamente el nivel que quiso su autor. El
+  deslizador de «ambiente» del jugador manda por encima: **a cero, el colchón ni arranca ni se descarga.**
+- **`ambiente_sintetizado`** — hasta 8 ids de **receta** (`packages/render/src/audio/sintesis.ts`: `bed-*`,
+  `capa-*`…) que este mundo enciende por su nombre. **De serie, ninguna**: una cama o una capa sintetizada no
+  suena hasta que un mundo la nombra aquí (decisión de Pablo, 19-10). Encenderlas no enciende el colchón, ni al
+  revés.
+
+Un valor que no cabe deja la ficha entera sin cargar, con su motivo en el log. Va en `GET /status` (`audio`).
+
+### Cómo suena algo (S6f: una sola puerta)
+
+Todo el motor hace sonar algo por **`packages/render/src/audio/sonar.ts`**, con una regla: **cuando existe el
+fichero de un id, gana el fichero; la receta queda de respaldo.**
+
+```ts
+import { sonar } from "…/audio/sonar.ts";
+sonar("ui-pulsar");                       // tiene fichero CC0 → suena el fichero
+sonar("salto");                           // no tiene fichero  → suena la receta de sintesis.ts
+sonar("dados", { semilla, donde });       // la semilla la manda el SERVIDOR: todos oyen la misma variante
+```
+
+El `AudioBuffer` de una receta entra por el **mismo** pool de voces que un fichero: el mismo tope del aparato, la
+misma virtualización por prioridad-distancia, el mismo cooldown y el mismo bus. El buffer se genera **una sola
+vez** por id y variante y se guarda. Un id que no tiene ni fichero ni receta **avisa una vez** y no rompe nada.
+
+El **catálogo es la única lista de verdad**, también para lo sintetizado: una fila `"fuente": "receta"` no lleva
+fichero, pero sí bus, prioridad, cooldown y **texto accesible** (que es obligatorio: ningún sonido sin su texto).
+Si un día uno de esos ids consigue un fichero CC0, se le añade y el fichero gana sin tocar una línea de código.
+
+**Quién decide qué suena.** Lo **compartido** lo manda el **servidor** con su semilla (D-048): la puerta, los
+dados, el dardo, el pez cobrado y el teletransporte. `features/sonido/server.ts` se asoma con `api.listen` a los
+eventos que esas funciones **ya emiten**, así que una función nueva que quiera sonar no tiene que saber nada de
+sonido: emite su evento y se le añade una línea allí. Lo **local** (los botones, mis pasos, mi salto, mi
+aterrizaje) lo dispara la página y no viaja por la red: es de cada quien y se oye en la cabeza o a mis pies.
+
 **`tema`** (opcional, dentro de la ficha): cómo se ve la página de ESTE mundo, para que un evento traiga su aire sin
 tocar el motor. Diez colores «#rrggbb» de los paneles — `fondo`, `superficie`, `elevado` (botones), `texto`, `texto2`,
 `linea`, `foco` (lo que se toca), `accion` (el botón principal; la tinta encima, clara u oscura, la elige el motor),

@@ -1,12 +1,23 @@
-// Que todo suene (S6s): la página engancha los sonidos esquemáticos (packages/render/src/audio/sintesis.ts) a lo que pasa
-// en el mundo. Aquí solo hay pegamento: cada función del motor sigue en su sitio y solo se le escucha.
-//  - pasos, salto y aterrizaje: de `session.selfPosition` cada 50 ms (máquina pura `crearPasos`, probada en Node)
-//  - interfaz: un clic en cualquier botón = `ui-pulsar`
-//  - puertas, cerraduras, dados, dardos, teletransporte, pesca: de los `alCambiar`/`alDestello` de su función
-// Todo va por los buses del núcleo, así que los deslizadores de «Sonido» y el ducking de la voz ya lo gobiernan.
-// Cuando exista el fichero CC0 de un id, la página lo preferirá y esto queda de respaldo (historia S6).
-import { audio } from "../../packages/render/src/audio/nucleo.ts";
-import { crearSintetizador, type Sintetizador } from "../../packages/render/src/audio/sintesis.ts";
+// Que todo suene (S6s, fundido con S6 en S6f): la página engancha a lo que pasa en el mundo. Aquí solo hay pegamento:
+// cada función del motor sigue en su sitio y solo se le escucha.
+//
+// Todo pasa por la PUERTA ÚNICA (`packages/render/src/audio/sonar.ts`): el fichero del catálogo si lo hay, y si no la
+// receta de `sintesis.ts`. Esta página ya no llama al sintetizador: así hay un solo tope de voces, un solo cooldown y
+// un solo sitio donde mirar cuando algo no suena.
+//
+// REPARTO DE AUTORIDAD (D-048: el servidor manda en lo compartido):
+//  - LOCAL (cada quien oye lo suyo, aquí): los botones de interfaz, MIS pasos, MI salto, MI aterrizaje, y lo que solo
+//    ocurre en mi caña de pescar (lanzar y el chapuzón). No se mandan por la red: son de cada quien y van en la cabeza
+//    o a mis pies.
+//  - COMPARTIDO (lo manda el SERVIDOR, con su semilla, desde `features/sonido/server.ts`): la puerta, los dados, el
+//    dardo (lanzado e impacto), el pez cobrado y el teletransporte — tanto el mío como el de otra persona. Esta página
+//    NO los dispara: si lo hiciera, cada uno oiría su propia variante, y quien estuviera al lado oiría otra cosa.
+//    `COMPARTIDOS` es esa lista, y `sonarLocal` se niega a tocar cualquiera de ellos (si un día alguien lo intenta,
+//    sale en el registro una vez y no suena).
+//  - Pendientes de evento del servidor (quedan LOCALES, apuntados en docs/BACKLOG.md): la CERRADURA (su evento
+//    `cerradura.abierta` no dice dónde está) y la MÁQUINA (`movedores.llegada` tampoco).
+import { audio, type Nucleo } from "../../packages/render/src/audio/nucleo.ts";
+import { crearPuerta, materialDeSuelo, MATERIAL_DEF, type Material, type Opciones, type Puerta } from "../../packages/render/src/audio/sonar.ts";
 
 export type Cuerpo = { y: number; speed: number; grounded: boolean };
 export type Paso = "paso" | "salto" | "aterrizaje";
@@ -17,6 +28,9 @@ export const ZANCADA = { camina: 1.4, corre: 1.9 } as const;
 export const UMBRAL_CORRE = 6;
 /** Hay que haber estado así de tiempo en el aire (s) para que el aterrizaje suene: bajar un escalón no es un golpe. */
 export const AIRE_MIN_S = 0.25;
+
+/** Los sonidos que SOLO manda el servidor: esta página se niega a tocarlos por su cuenta (D-048). */
+export const COMPARTIDOS: readonly string[] = ["puerta", "dados", "dardo-lanzar", "dardo-impacto", "pesca-cobrar", "teleport"];
 
 /** Máquina de pasos: se le da el cuerpo y el tiempo que pasó, y devuelve los sonidos que tocan. Sin DOM, sin audio. */
 export function crearPasos() {
@@ -41,77 +55,94 @@ export function crearPasos() {
 
 export type Pagina = {
   session: { entity: number; selfPosition(alpha: number): Cuerpo };
-  puertas: { lista(): { id: string; abierta?: boolean }[]; alCambiar(fn: (id: string) => void): unknown };
   cerraduras: { alCambiar(fn: (q: string) => void): unknown };
-  dados: { alCambiar(fn: (q: string) => void): unknown };
-  dardos: { clavados(): unknown[]; alCambiar(fn: (q: string) => void): unknown };
   pesca: { estado(): { fase: string }; alCambiar(fn: (q: string) => void): unknown };
-  viajar: { alDestello(fn: (d: unknown) => void): unknown };
+  /** El tipo de suelo de la zona donde estoy (`entorno@1`), si el mundo lo dice. Sin esto, los pasos suenan a piedra. */
+  suelo?: () => string | null;
 };
 
-/** Engancha todo. Devuelve el sintetizador y una función para desmontar (pruebas). */
-export function montarSonidos(p: Pagina, sintetizador: Sintetizador = crearSintetizador(audio())) {
+export type Montado = {
+  puerta: Puerta;
+  /** Hacer sonar algo LOCAL. Devuelve false si el id es de los compartidos (eso lo manda el servidor) o si no sonó. */
+  sonarLocal(id: string, o?: Opciones, ms?: number): boolean;
+  /** Un paso con el material que toque (del suelo de la zona si el mundo lo dice; piedra si no). */
+  paso(material?: Material): boolean;
+  desmontar(): void;
+};
+
+/** Engancha todo. Devuelve la puerta, el disparador local y una función para desmontar (pruebas). */
+export function montarSonidos(p: Pagina, puerta: Puerta = crearPuerta({ nucleo: audio() as Nucleo })): Montado {
   const ultimo = new Map<string, number>();
-  /** Un mismo id no suena dos veces en menos de `ms` (clics a ráfagas, cambios que llegan duplicados). */
-  const sonar = (id: string, o: Parameters<Sintetizador["sonar"]>[1] = {}, ms = 60): void => {
+  const dichos = new Set<string>();
+  /** Un mismo id no suena dos veces en menos de `ms` (clics a ráfagas, cambios que llegan duplicados). Es un freno de
+   *  página, encima del cooldown del catálogo: aquí se cortan los rebotes de la interfaz, no las voces. */
+  const sonarLocal = (id: string, o: Opciones = {}, ms = 60): boolean => {
+    if (COMPARTIDOS.includes(id)) {
+      // no es un fallo de nadie: es el reparto. Se dice una vez para que no pase desapercibido en un cambio futuro.
+      if (!dichos.has(id)) { dichos.add(id); console.warn(`[sonidos] «${id}» lo manda el servidor (D-048): la página no lo toca`); }
+      return false;
+    }
     const t = performance.now();
-    if (t - (ultimo.get(id) ?? -1e9) < ms) return;
+    if (t - (ultimo.get(id) ?? -1e9) < ms) return false;
     ultimo.set(id, t);
-    sintetizador.sonar(id, o);
+    return puerta.sonar(id, o);
   };
   const quitar: (() => void)[] = [];
 
-  // interfaz: cualquier botón
+  // interfaz: cualquier botón. Local: es mi dedo, y suena en mi cabeza.
   const clic = (e: Event): void => {
     const b = (e.target as Element | null)?.closest?.("button,[role=button],summary,[role=tab]");
-    if (b && !(b as HTMLButtonElement).disabled && b.getAttribute("aria-disabled") !== "true") sonar("ui-pulsar", { vol: 0.5 });
+    if (b && !(b as HTMLButtonElement).disabled && b.getAttribute("aria-disabled") !== "true") sonarLocal("ui-pulsar", { gain: 0.5 });
   };
-  document.addEventListener("pointerdown", clic, true);
-  quitar.push(() => document.removeEventListener("pointerdown", clic, true));
+  // sin DOM (las pruebas, o un servidor que carga este módulo) no hay botones que escuchar: el resto sigue igual
+  if (typeof document !== "undefined") {
+    document.addEventListener("pointerdown", clic, true);
+    quitar.push(() => document.removeEventListener("pointerdown", clic, true));
+  }
 
-  // pasos, salto y aterrizaje
+  // El material bajo los pies. Hoy el motor solo sabe el tipo de suelo de la ZONA (`entorno@1`: hierba, tierra, arena,
+  // roca, nieve, liso), no una etiqueta por superficie: un tablado de madera sobre una zona de roca sigue sonando a
+  // piedra (eso es la historia S8 del diseño). Con `p.suelo` enchufado, al menos la hierba y la roca suenan a lo suyo;
+  // sin él, piedra, que es lo que había.
+  const materialAhora = (): Material => {
+    try { return p.suelo ? materialDeSuelo(p.suelo()) : MATERIAL_DEF; } catch { return MATERIAL_DEF; }
+  };
+  const paso = (material: Material = materialAhora()): boolean => {
+    // el cooldown y la variación (±4 % de tono, ±2 dB) los pone la puerta con la semilla: ya no hay que detunar a mano
+    const id = `pasos-${material}`;
+    return sonarLocal(id, { gain: 0.35 }, 120);
+  };
+
+  // pasos, salto y aterrizaje: míos, locales, a mis pies (bus «pasos-propios»)
   const pasos = crearPasos();
-  let tocar = 0;
   const reloj = setInterval(() => {
     if (p.session.entity < 0) return;
     for (const q of pasos(p.session.selfPosition(1), 0.05)) {
-      if (q === "salto") sonar("salto", { vol: 0.5 }, 150);
-      else if (q === "aterrizaje") sonar("aterrizaje", { vol: 0.7 }, 150);
-      else { tocar++; sonar("pasos-piedra", { vol: 0.35, tono: 0.92 + (tocar % 3) * 0.06 }, 120); }
+      if (q === "salto") sonarLocal("salto", { gain: 0.5 }, 150);
+      else if (q === "aterrizaje") sonarLocal("aterrizaje", { gain: 0.7 }, 150);
+      else paso();
     }
   }, 50);
+  // en Node (las pruebas) un intervalo mantiene vivo el proceso para siempre: `unref` lo deja sin voto
+  (reloj as unknown as { unref?: () => void })?.unref?.();
   quitar.push(() => clearInterval(reloj));
 
-  // puertas: abrirse o cerrarse
-  const abiertas = new Map<string, boolean>();
-  for (const d of p.puertas.lista()) abiertas.set(d.id, d.abierta === true);
-  p.puertas.alCambiar((id) => {
-    const d = p.puertas.lista().find((x) => x.id === id);
-    if (!d) { abiertas.delete(id); return; }
-    const ya = abiertas.get(id);
-    abiertas.set(id, d.abierta === true);
-    if (ya !== undefined && ya !== (d.abierta === true)) sonar("puerta", { vol: 0.8, tono: d.abierta ? 1 : 0.9 }, 200);
-  });
-  p.cerraduras.alCambiar((q) => { if (q === "abierta") sonar("cerradura", { vol: 0.8 }, 300); });
-  p.dados.alCambiar((q) => { if (q === "tirada") sonar("dados", { vol: 0.8 }, 300); });
-  let dardosAntes = p.dardos.clavados().length;
-  p.dardos.alCambiar((q) => {
-    if (q !== "clavados") return;
-    const n = p.dardos.clavados().length;
-    if (n > dardosAntes) { sonar("dardo-lanzar", { vol: 0.6 }, 100); setTimeout(() => sonar("dardo-impacto", { vol: 0.8 }, 100), 180); }
-    dardosAntes = n;
-  });
-  p.viajar.alDestello(() => sonar("teleport", { vol: 0.7 }, 500));
+  // la cerradura: LOCAL por ahora. Su evento de servidor (`cerradura.abierta`) no dice dónde está la cerradura, así
+  // que no se puede mandar a «quien esté cerca» sin inventarse un sitio. Apuntado en docs/BACKLOG.md.
+  p.cerraduras.alCambiar((q) => { if (q === "abierta") sonarLocal("cerradura", { gain: 0.8 }, 300); });
+
+  // la pesca: lanzar y el chapuzón son MÍOS (mi caña, mi mano). El pez cobrado lo manda el servidor, porque lo oyen
+  // los de alrededor: aquí ya no se toca.
   let faseAntes = p.pesca.estado().fase;
   p.pesca.alCambiar((q) => {
     if (q !== "estado") return;
     const f = p.pesca.estado().fase;
-    if (f !== faseAntes) {
-      if (f === "espera" && faseAntes === "nada") { sonar("pesca-lanzar", { vol: 0.7 }, 300); setTimeout(() => sonar("pesca-chapuzon", { vol: 0.6 }, 300), 450); }
-      else if (f === "nada" && faseAntes !== "nada") sonar("pesca-cobrar", { vol: 0.6 }, 300);
+    if (f !== faseAntes && f === "espera" && faseAntes === "nada") {
+      sonarLocal("pesca-lanzar", { gain: 0.7 }, 300);
+      setTimeout(() => sonarLocal("pesca-chapuzon", { gain: 0.6 }, 300), 450);
     }
     faseAntes = f;
   });
 
-  return { sintetizador, desmontar: () => quitar.forEach((f) => f()) };
+  return { puerta, sonarLocal, paso, desmontar: () => quitar.forEach((f) => f()) };
 }

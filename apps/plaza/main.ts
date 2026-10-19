@@ -83,10 +83,19 @@ void catalogoSonidos.cargar().then((hay) => {
   // los ocho avisos, descodificados ya: el primer «Misión completada» no llega tarde (son 18 kB entre todos)
   if (hay) void catalogoSonidos.precargar(Object.values(catalogoSonidos.tabla()?.casa ?? {}));
 });
+// S6f: el sonido que decide el SERVIDOR. Arranca tocando solo por fichero (lo que había) y lo cambia por la puerta
+// única en cuanto `./sonidos.ts` se carga: así las 47 recetas de `sintesis.ts` no entran en el paquete de arranque.
+type PeticionSonido = { id: string; semilla?: number; donde?: { x: number; y: number; z: number } | null; texto?: string };
+let sonarServidor: (s: PeticionSonido) => boolean = (s) => catalogoSonidos.suena(s);
 // H7: the world's settings (its aventura/ficha.json, served by GET /status): its name on the entry screen and the tab,
 // everyone's avatar when it names one, how many fit (`aforo`). Asked once, before the first draw, but never waited for
 // long: a slow or absent /status leaves the house defaults (the tab name and the look are fixed again below when it answers).
-type Estado = { version?: string; nombre?: string; tema?: unknown; avatar?: string; aforo?: number; conectados?: number };
+// S6f: `audio` es lo que el mundo pide del sonido (R-1: una línea en su ficha.json lo enciende). `ambiente` = el id
+// del catálogo que suena como cama única en bucle (hoy «ambiente-numinia», el colchón CC0); `ambiente_ganancia` = su
+// volumen (×0,042 por defecto, el que quiso su autor); `ambiente_sintetizado` = las camas y capas SINTETIZADAS que
+// este mundo enciende por nombre (de serie, ninguna).
+type Estado = { version?: string; nombre?: string; tema?: unknown; avatar?: string; aforo?: number; conectados?: number;
+  audio?: { ambiente?: string | null; ambiente_ganancia?: number; ambiente_sintetizado?: string[] } };
 const estadoP: Promise<Estado | null> = fetch(`${activos}/status`).then((r) => r.json() as Promise<Estado>).catch(() => null);
 const estado = await Promise.race([estadoP, new Promise<null>((ok) => setTimeout(() => ok(null), 1500))]);
 if (estado?.nombre) { document.title = estado.nombre; hud.textContent = `Conectando a «${estado.nombre}»…`; }
@@ -126,8 +135,12 @@ const session = new ClientSession(transport, {
     // S6: a sound the SERVER chose (features/sonido): its id and its seed, so every page plays the same variant at
     // the same instant. `donde: null` = in the head, with no panner (the notices and the interface). The accessible
     // text ALWAYS reaches the notices region, whether the file played or not (XAUR: no sound without its text).
+    // S6f: por la PUERTA ÚNICA — si el id tiene fichero en el catálogo gana el fichero; si no, la receta de
+    // `sintesis.ts` con la MISMA semilla del servidor (así todas las páginas eligen la misma variante). La puerta
+    // llega con `./sonidos.ts`, que se carga aparte (las 47 recetas no entran en el paquete de arranque): hasta
+    // entonces, los sonidos del servidor suenan por fichero, que es lo que había.
     sonido: (s) => {
-      const son = sonidos().suena(s);
+      const son = sonarServidor(s);
       if (s.texto) anunciar(s.texto);
       return son;
     },
@@ -208,8 +221,20 @@ pesca.alCambiar(() => { pescaHud ??= import("./pesca.ts").then((m) => (pescaPagi
 let dardosHud: Promise<unknown> | null = null;
 dardos.alCambiar(() => { dardosHud ??= import("./dardos.ts").then((m) => m.montarDardos({ dardos, view, session, hud: document.getElementById("dardos-hud")! })).catch((e) => console.warn(`[dardos] no se pudo cargar la página de dardos: ${(e as Error)?.message ?? e}`)); });
 
-// ---- S6s: everything sounds — the schematic synthesized sounds hooked to steps, jumps, doors, locks, dice, darts, travel, fishing and every button; lazy, so it is out of the start bundle ----
-import("./sonidos.ts").then((m) => m.montarSonidos({ session, puertas, cerraduras, dados, dardos, pesca, viajar })).catch((e) => console.warn(`[sonidos] no se pudieron montar: ${(e as Error)?.message ?? e}`));
+// ---- S6f: todo suena por UNA puerta — el fichero del catálogo si lo hay, y si no la receta sintetizada; los botones,
+// mis pasos, mi salto y mi aterrizaje son locales, y lo compartido (puerta, dados, dardos, pez, teleport) lo manda el
+// servidor. Perezoso, para que quede fuera del paquete de arranque. ----
+void import("./sonidos.ts").then(async (m) => {
+  const { crearPuerta, ponerPuerta } = await import("../../packages/render/src/audio/sonar.ts");
+  const puerta = ponerPuerta(crearPuerta());
+  sonarServidor = (s) => puerta.sonar(s.id, { semilla: s.semilla, donde: s.donde ?? null });
+  m.montarSonidos({ session, cerraduras, pesca, suelo: () => view.entorno.estado().suelo?.tipo ?? null }, puerta);
+  // El COLCHÓN de ambiente: solo si el mundo lo pide en su ficha (`audio.ambiente`), y con la ganancia que diga
+  // (×0,042 por defecto, el volumen que quiso su autor). Encima manda el deslizador de «ambiente» del jugador: a cero,
+  // ni arranca. Las camas y capas SINTETIZADAS siguen apagadas salvo las que el mundo nombre en `ambiente_sintetizado`.
+  const a = (await estadoP)?.audio;
+  if (a) puerta.ambiente({ id: a.ambiente ?? null, ganancia: a.ambiente_ganancia, sintetizado: a.ambiente_sintetizado });
+}).catch((e) => console.warn(`[sonidos] no se pudieron montar: ${(e as Error)?.message ?? e}`));
 
 // ---- U10: the microphone (button or Q): your voice to who is near; theirs from where they stand ----
 const voz = montarVoz({ session, view: { label: (t, text, ms) => view.label(t, text, ms), cam: view.cam, voz: (id, nivel) => view.voz(id, nivel) }, escribiendo, ajuste: leerAjuste, decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } } });

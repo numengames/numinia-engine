@@ -86,6 +86,9 @@ export type Peticion = {
   cooldown?: number;
   /** Variación para que no suene a bucle: ±`tono` en factor de velocidad y ±`volumen` en ganancia (0–1 cada uno). */
   variacion?: { tono?: number; volumen?: number };
+  /** Factor de velocidad BASE (1 = tal cual, 0,9 = un poco más grave). Lo pide quien llama; la variación de la
+   *  semilla se multiplica encima. Se acota a 0,25–4. */
+  tono?: number;
   /** Segundos desde los que empezar (`start(cuando, desplazamiento)`). Lo usa S4 para el reloj de pared: un bucle
    *  corto arranca justo en el instante que ya han oído los demás, no desde el principio. */
   desplazamiento?: number;
@@ -516,7 +519,11 @@ export function crearVoces(h: HechurasVoces = {}): Voces {
     // variación de tono y volumen de la MISMA secuencia de la semilla: todos oyen la misma variante y el mismo tono
     const varTono = Math.max(0, Math.min(1, num(p.variacion?.tono, 0)));
     const varVol = Math.max(0, Math.min(1, num(p.variacion?.volumen, 0)));
-    if (varTono > 0) f.tono = Math.max(0.25, 1 + (r() * 2 - 1) * varTono);
+    // `tono` es la base que pide quien llama (una puerta que se cierra suena un poco más grave que al abrirse);
+    // la variación de la semilla se multiplica encima, así que las dos cosas conviven.
+    const base = Math.max(0.25, Math.min(4, num(p.tono, 1)));
+    f.tono = base;
+    if (varTono > 0) f.tono = Math.max(0.25, base * (1 + (r() * 2 - 1) * varTono));
     if (varVol > 0) f.gain = Math.max(0, f.gain * (1 + (r() * 2 - 1) * varVol));
     f.buffer = buffer;
     fuentes.push(f);

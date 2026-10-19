@@ -17,9 +17,18 @@ import type { BusSonido } from "./feature.ts";
 import catalogoCrudo from "./catalogo.json" with { type: "json" };
 
 export type Variante = { fichero: string; sha256: string; bytes: number; peso: number; respaldo: string; respaldo_sha256: string; respaldo_bytes: number };
+/** De dónde sale un id: de un FICHERO CC0 de la biblioteca, o de una RECETA de `packages/render/src/audio/sintesis.ts`
+ *  (sin fichero: el motor lo sintetiza en el cliente). La regla de Pablo (19-10): cuando existe el fichero, **gana el
+ *  fichero** y la receta queda de respaldo. Una fila `receta` existe para que el catálogo siga siendo la ÚNICA lista de
+ *  verdad: ahí declara su bus, su prioridad, su cooldown y su texto accesible, igual que los demás. */
+export type FuenteSonido = "fichero" | "receta";
+/** Licencia que lleva una fila `receta`: no hay fichero de nadie, la receta es código del motor. */
+export const LICENCIA_RECETA = "propia";
 export type Sonido = {
   id: string; uso: string; bus: BusSonido; lote: string; prioridad: number; cooldown_ms: number; texto: string;
   duracion_s: number; bucle: boolean; licencia: string; autor: string[]; fuente: string[]; variantes: Variante[];
+  /** `"receta"` = esta fila no tiene fichero a propósito. */
+  fuente_tipo: FuenteSonido;
 };
 /** El catálogo ya leído: los ids que de verdad se pueden tocar, los siete avisos de la casa y lo que quedó fuera. */
 export type Catalogo = { sonidos: Map<string, Sonido>; casa: Record<string, string>; problemas: string[] };
@@ -60,7 +69,25 @@ export function leerSonido(s: unknown): { sonido: Sonido; problemas: string[] } 
   if (bus === "master") return `«${id}»: nada suena directamente en el máster (es la suma de los otros siete)`;
   const t = texto(o.texto, 120);
   if (!t) return `«${id}»: falta «texto» — todo sonido que importa lleva el suyo para quien no oye (XAUR, WCAG 2.2)`;
-  if (String(o.licencia ?? "") !== "CC0-1.0") return `«${id}»: licencia «${String(o.licencia).slice(0, 32)}»: en la biblioteca de la casa solo entra CC0-1.0 (docs/SABER.md §3.3)`;
+  // `"fuente": "receta"` marca una fila SIN fichero: el motor la sintetiza (`sintesis.ts`). Las demás filas traen en
+  // `fuente` la lista de enlaces de atribución, y entonces esto es un array.
+  const esReceta = o.fuente === "receta";
+  const licencia = String(o.licencia ?? "");
+  if (esReceta) {
+    if (licencia !== LICENCIA_RECETA) return `«${id}»: una fila «receta» no tiene fichero de nadie, así que su licencia es «${LICENCIA_RECETA}» (la receta es código del motor), no «${licencia.slice(0, 32)}»`;
+    if (Array.isArray(o.variantes) && o.variantes.length) return `«${id}»: una fila «receta» no lleva variantes (si ya tiene fichero, quita «fuente»: el fichero gana)`;
+    return {
+      sonido: {
+        id, uso: texto(o.uso, 120), bus: bus as BusSonido, lote: texto(o.lote, 16),
+        prioridad: Math.round(entre(o.prioridad, 0, PRIORIDAD_MAX, 50)),
+        cooldown_ms: Math.round(entre(o.cooldown_ms, 0, COOLDOWN_MAX_MS, 50)),
+        texto: t, duracion_s: entre(o.duracion_s, 0, 600, 0), bucle: o.bucle === true,
+        licencia: LICENCIA_RECETA, autor: [], fuente: ["receta"], variantes: [], fuente_tipo: "receta",
+      },
+      problemas: [],
+    };
+  }
+  if (licencia !== "CC0-1.0") return `«${id}»: licencia «${licencia.slice(0, 32)}»: en la biblioteca de la casa solo entra CC0-1.0 (docs/SABER.md §3.3)`;
   if (!Array.isArray(o.variantes) || o.variantes.length === 0) return `«${id}»: necesita al menos una variante`;
   if (o.variantes.length > VARIANTES_MAX) return `«${id}»: más de ${VARIANTES_MAX} variantes`;
   const variantes: Variante[] = [], problemas: string[] = [];
@@ -80,6 +107,7 @@ export function leerSonido(s: unknown): { sonido: Sonido; problemas: string[] } 
       autor: (Array.isArray(o.autor) ? o.autor : []).map((a) => texto(a, 80)).filter(Boolean),
       fuente: (Array.isArray(o.fuente) ? o.fuente : []).map((a) => texto(a, 200)).filter(Boolean),
       variantes,
+      fuente_tipo: "fichero",
     },
     problemas,
   };
@@ -118,11 +146,14 @@ export function leerCatalogo(crudo: unknown): Catalogo {
  *  mundo muerto. Devuelve los avisos; muta el catálogo. */
 export function comprobarFicheros(c: Catalogo, hay: (sha256: string, ext: string) => boolean): string[] {
   let total = 0, estan = 0;
+  // las filas `receta` no tienen fichero que comprobar: se saltan sin contarlas (si no, un catálogo de solo recetas
+  // parecería «servidor sin índice de activos»).
   for (const s of c.sonidos.values()) for (const v of s.variantes) { total++; if (hay(v.sha256, "opus")) estan++; }
   if (!total) return [];
   if (!estan) return [`este servidor no tiene índice de activos: no puedo comprobar los ${total} fichero(s) del catálogo (si es un servidor de verdad, falta activos/sonidos/: node tools/sonidos-catalogo.ts)`];
   const problemas: string[] = [];
   for (const [id, s] of [...c.sonidos]) {
+    if (s.fuente_tipo === "receta") continue;
     const buenas = s.variantes.filter((v) => {
       if (hay(v.sha256, "opus")) return true;
       problemas.push(`«${id}» → ${v.fichero}: no hay ningún ${v.sha256.slice(0, 12)}….opus en este servidor (¿cambió el fichero sin rehacer el catálogo? node tools/sonidos-catalogo.ts): esa variante no suena`);
@@ -152,6 +183,7 @@ export function tablaDePagina(c: Catalogo): Record<string, unknown> {
   for (const s of c.sonidos.values()) {
     sonidos[s.id] = {
       bus: s.bus, prioridad: s.prioridad, cooldown_ms: s.cooldown_ms, texto: s.texto, bucle: s.bucle,
+      fuente: s.fuente_tipo,
       variantes: s.variantes.map((v) => ({ url: `/a/${v.sha256}.opus`, respaldo: `/a/${v.respaldo_sha256}.m4a`, peso: v.peso })),
     };
   }
@@ -228,6 +260,59 @@ export const crearSonido = (opts: {
     const s3 = cat.sonidos.get(id) ?? (cat.casa[id] ? cat.sonidos.get(cat.casa[id]) : undefined);
     const enLaCabeza = !s3 || s3.bus === "interfaz";
     return suena(id, { donde: enLaCabeza ? null : { x: Number.isFinite(x) ? x : 0, y: Number(m.y) || 0, z: Number.isFinite(z) ? z : 0 } });
+  });
+
+  // ──────────────── S6f · REPARTO DE AUTORIDAD: lo COMPARTIDO lo manda el servidor ────────────────
+  // Decisión D-048: el servidor manda en lo compartido. Un sonido que varias personas tienen que oír igual (una
+  // puerta, una tirada de dados, un dardo que da en la diana) NO lo puede disparar cada página por su cuenta: cada
+  // una elegiría su variante y su tono, y quien está al lado oiría otra cosa — o nada, si su página no vio el cambio.
+  // Así que lo decide aquí el servidor, con su semilla, y lo manda a quien esté cerca.
+  //
+  // Esta pieza NO toca las otras funciones: se ASOMA a los eventos que ya emiten (`api.listen`), que es el camino que
+  // ya existía. Una función nueva que quiera sonar no tiene que saber nada de sonido: emite su evento y se le añade
+  // aquí una línea (R-1).
+  //
+  // Lo local (los botones de interfaz, mis pasos, mi salto, mi aterrizaje) NO pasa por aquí: es de cada quien, se oye
+  // en la cabeza, y mandarlo por la red sería ruido y retardo para nada.
+  const dondeDe = (quien: unknown): { x: number; y: number; z: number } | null => {
+    const e = Number(quien);
+    if (!Number.isFinite(e) || e < 0) return null;
+    return api.position(Math.round(e));
+  };
+
+  // la puerta: `quien` es quien la abrió o cerró, y está justo al lado, así que su sitio es el de la puerta. Cuando
+  // una puerta se cierra sola el evento no dice dónde está (no trae x/z): ese cierre se queda sin sonido, apuntado en
+  // docs/BACKLOG.md.
+  api.listen("puertas", "cambio", (m) => {
+    const donde = dondeDe(m.quien);
+    if (!donde) return false;
+    return suena("puerta", { donde });
+  });
+  // los dados: la tirada es de quien la tira, y la oyen los de alrededor
+  api.listen("dados", "tirada", (m) => {
+    const donde = dondeDe(m.quien);
+    return donde ? suena("dados", { donde }) : false;
+  });
+  // el dardo: al salir y al llegar. El evento trae la cara de la diana, no su sitio en el mundo, así que los dos
+  // suenan donde está quien tira (que es donde se oye el lanzamiento; el impacto queda un poco adelantado).
+  api.listen("dardos", "dardo", (m) => {
+    const donde = dondeDe(m.quien);
+    if (!donde) return false;
+    suena("dardo-lanzar", { donde });
+    // «fuera» es un dardo que no se clavó: no hay impacto en la diana, solo el silbido de la tirada
+    return String(m.anillo) === "fuera" ? true : suena("dardo-impacto", { donde });
+  });
+  // la pesca: el pez cobrado lo oyen los de alrededor (el lanzamiento y el chapuzón son tuyos, van en tu página)
+  api.listen("pesca", "fin", (m) => {
+    if (String(m.resultado) !== "captura") return false;
+    const donde = dondeDe(m.quien);
+    return donde ? suena("pesca-cobrar", { donde }) : false;
+  });
+  // el teletransporte: suena DONDE APARECE la persona, para todos los que estén allí (incluida ella)
+  api.listen("teletransporte", "llega", (m) => {
+    const x = Number(m.x), y = Number(m.y), z = Number(m.z);
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return false;
+    return suena("teleport", { donde: { x, y: Number.isFinite(y) ? y : 0, z } });
   });
 });
 

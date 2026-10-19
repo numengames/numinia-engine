@@ -19,7 +19,11 @@ import type { Variante as VarianteVoz, Voces, Voz } from "./voces.ts";
 
 /** Una variante como viene en la tabla de la página: su URL por contenido y su peso (a más peso, más veces sale). */
 export type VarianteTabla = { url: string; respaldo: string; peso: number };
-export type SonidoTabla = { bus: Bus; prioridad: number; cooldown_ms: number; texto: string; bucle: boolean; variantes: VarianteTabla[] };
+/** De dónde sale el sonido de un id: de un FICHERO CC0 del catálogo, o de una RECETA de `sintesis.ts` (sin fichero).
+ *  La regla de la fusión (Pablo, 19-10): cuando existe el fichero de un id, **gana el fichero** y la receta queda de
+ *  respaldo; una fila `receta` es una fila del catálogo sin fichero, que solo trae bus, prioridad, cooldown y texto. */
+export type FuenteTabla = "fichero" | "receta";
+export type SonidoTabla = { bus: Bus; prioridad: number; cooldown_ms: number; texto: string; bucle: boolean; fuente: FuenteTabla; variantes: VarianteTabla[] };
 /** `GET /sonidos.json`: los siete avisos de la casa (nombre → id) y los ids con sus variantes. */
 export type Tabla = { schema?: string; casa: Record<string, string>; sonidos: Record<string, SonidoTabla> };
 
@@ -27,7 +31,7 @@ export const RUTA_TABLA = "/sonidos.json";
 /** Variación por defecto de un sonido del catálogo: ±4 % de tono y ±2 dB, para que doce golpes no suenen a bucle. */
 export const VARIACION = { tono: 0.04, volumen: 0.12 } as const;
 
-export type Peticion = { id: string; semilla?: number; donde?: { x: number; y: number; z: number } | null; texto?: string; gain?: number };
+export type Peticion = { id: string; semilla?: number; donde?: { x: number; y: number; z: number } | null; texto?: string; gain?: number; tono?: number; bucle?: boolean };
 
 export type Sonidos = {
   /** ¿Está la tabla? Hasta que esté, `suena` devuelve false y quien llama se queda con su respaldo. */
@@ -39,8 +43,13 @@ export type Sonidos = {
   tabla(): Tabla | null;
   /** El id del catálogo de uno de los siete avisos de la casa («exito», «aviso», …), o null. */
   casa(nombre: string): string | null;
-  /** Toca lo que el SERVIDOR decidió. `donde` null = en la cabeza, sin panner. false = no pudo (sin tabla, sin audio,
-   *  id desconocido, o el cooldown lo cortó): quien llama se queda con su respaldo. */
+  /** La fila del catálogo de este id (bus, prioridad, cooldown, texto, de dónde sale), o null si no está. */
+  fila(id: string): SonidoTabla | null;
+  /** La URL de la variante `i` de un id CON FICHERO, en el formato que mide este navegador (null si no hay). */
+  uri(id: string, i?: number): string | null;
+  /** Toca lo que el SERVIDOR decidió, **por fichero**. `donde` null = en la cabeza, sin panner. false = no pudo (sin
+   *  tabla, sin audio, id desconocido, una fila sin fichero, o el cooldown lo cortó): quien llama se queda con su
+   *  respaldo — y el respaldo es la receta, por la puerta única de `sonar.ts`. */
   suena(p: Peticion): boolean;
   /** Descodifica ya los ficheros de unos ids (los avisos, al primer gesto de la persona) para que el primero no
    *  llegue tarde. Devuelve cuántos buffers quedaron en la caché. */
@@ -70,6 +79,7 @@ export function leerTabla(crudo: unknown, avisar: (m: string) => void = () => {}
   const sonidos: Record<string, SonidoTabla> = {};
   for (const [id, v] of Object.entries(fuente)) {
     const s = (v ?? {}) as Record<string, unknown>;
+    const esReceta = String(s.fuente ?? "fichero") === "receta";
     const vs = Array.isArray(s.variantes) ? s.variantes : [];
     const variantes: VarianteTabla[] = [];
     for (const x of vs) {
@@ -78,13 +88,17 @@ export function leerTabla(crudo: unknown, avisar: (m: string) => void = () => {}
       if (!url.startsWith("/a/")) { avisar(`«${id}»: una variante sin URL de activo: fuera`); continue; }
       variantes.push({ url, respaldo: respaldo.startsWith("/a/") ? respaldo : url, peso: Number(w.peso) > 0 ? Number(w.peso) : 1 });
     }
-    if (!variantes.length) { avisar(`«${id}» no tiene ninguna variante que suene: fuera`); continue; }
+    // una fila `receta` NO tiene fichero a propósito: es la fila del catálogo de un sonido que hace el motor con una
+    // receta de `sintesis.ts`. Sin esta excepción el catálogo dejaría de ser la única lista de verdad (los seis ids
+    // nuevos — salto, dano, moneda, pesca-picada, ui-abrir, ui-cerrar — no tendrían dónde declarar su bus ni su texto).
+    if (!variantes.length && !esReceta) { avisar(`«${id}» no tiene ninguna variante que suene: fuera`); continue; }
     sonidos[id] = {
       bus: (String(s.bus ?? "efectos") as Bus),
       prioridad: Number(s.prioridad) >= 0 ? Number(s.prioridad) : 50,
       cooldown_ms: Number(s.cooldown_ms) >= 0 ? Number(s.cooldown_ms) : 50,
       texto: String(s.texto ?? ""),
       bucle: s.bucle === true,
+      fuente: esReceta || !variantes.length ? "receta" : "fichero",
       variantes,
     };
   }
@@ -144,6 +158,8 @@ export function crearSonidos(h: HechurasSonidos = {}): Sonidos {
   const suena = (p: Peticion): boolean => {
     const s = tabla?.sonidos[p.id];
     if (!s) { fallados++; if (tabla) avisar(`«${p.id}» no está en el catálogo: no suena (y nada se rompe)`); return false; }
+    // una fila `receta` no tiene fichero: no es un fallo, es que este id lo hace la receta. Lo resuelve `sonar.ts`.
+    if (s.fuente !== "fichero" || !s.variantes.length) return false;
     let v: Voz | null = null;
     try {
       v = voces.reproducir({
@@ -151,12 +167,13 @@ export function crearSonidos(h: HechurasSonidos = {}): Sonidos {
         bus: s.bus,
         prioridad: s.prioridad,
         cooldown: s.cooldown_ms,
-        loop: s.bucle,
+        loop: p.bucle ?? s.bucle,
         // sin `donde` no hay panner: el aviso va en la cabeza, igual en los dos oídos (XAUR: los avisos no se buscan)
         posicion: p.donde ?? null,
         variantes: urlsDe(s),
         semilla: p.semilla,
         gain: p.gain,
+        tono: p.tono,
         variacion: VARIACION,
       });
     } catch (e) { avisar(`«${p.id}» no se deja tocar (${String(e)})`); }
@@ -170,6 +187,13 @@ export function crearSonidos(h: HechurasSonidos = {}): Sonidos {
     poner,
     tabla: () => tabla,
     casa: (nombre) => tabla?.casa[nombre] ?? null,
+    fila: (id) => tabla?.sonidos[id] ?? null,
+    uri: (id, i = 0) => {
+      const s = tabla?.sonidos[id];
+      const v = s?.variantes[i];
+      if (!s || !v) return null;
+      return formato === "opus" ? v.url : v.respaldo;
+    },
     suena,
     precargar: async (ids) => {
       if (!tabla) return 0;

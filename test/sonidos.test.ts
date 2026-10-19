@@ -19,10 +19,13 @@ import { signer } from "../packages/server/src/secret.ts";
 import { BUSES, crearNucleo } from "../packages/render/src/audio/nucleo.ts";
 import { crearVoces } from "../packages/render/src/audio/voces.ts";
 import { crearSonidos, leerTabla, RUTA_TABLA, VARIACION } from "../packages/render/src/audio/sonidos.ts";
+import { RECETAS } from "../packages/render/src/audio/sintesis.ts";
 import { sonido as decl, BUSES_SONIDO, ID_SONIDO_RE } from "../features/sonido/feature.ts";
 import { comprobarFicheros, crearSonido, leerCatalogo, leerSonido, leerVariante, tablaDePagina } from "../features/sonido/server.ts";
 import type { Suena } from "../features/sonido/server.ts";
 import { crearCliente as clienteSonido } from "../features/sonido/client.ts";
+import { crearDados } from "../features/dados/server.ts";
+import { crearCliente as clienteDados } from "../features/dados/client.ts";
 import { crearDisparadores, leerDisparadores } from "../features/disparadores/server.ts";
 import { crearCliente as clienteDisparadores } from "../features/disparadores/client.ts";
 import { fx } from "../packages/core/src/index.ts";
@@ -65,9 +68,41 @@ test("S6: /a/ sabe servir .opus y .m4a, y nadie los puede SUBIR", async () => {
 
 // ———————————————————————————— 2. el catálogo contra el disco ————————————————————————————
 
-test("S6: cada variante del catálogo existe, pesa lo que dice y su sha256 es el del fichero (los 178 ficheros)", () => {
+/** Las filas con fichero. Las de receta (S6f) no tienen ninguno: su `fuente` es la cadena «receta», no una lista de
+ *  enlaces de atribución. */
+const conFichero = () => sonidos().filter((s) => Array.isArray(s.fuente));
+/** Las filas sin fichero: las que hace el motor con una receta de `packages/render/src/audio/sintesis.ts`. */
+const deReceta = () => sonidos().filter((s) => !Array.isArray(s.fuente));
+/** El colchón de ambiente es el único fichero largo del catálogo: es una CAMA por streaming, no un disparo, así que
+ *  no vale medirlo con la vara de los demás (40 kB por fichero, 600 kB en total). */
+const COLCHON_ID = "ambiente-numinia";
+
+test("S6f: las seis filas de receta no tienen fichero, llevan su texto accesible y su licencia es «propia»", () => {
+  const ids = deReceta().map((s) => s.id).sort();
+  assert.deepEqual(ids, ["dano", "moneda", "pesca-picada", "salto", "ui-abrir", "ui-cerrar"]);
+  for (const s of deReceta()) {
+    assert.equal(s.fuente, "receta", `${s.id}: la marca de una fila sin fichero es «fuente»: "receta"`);
+    assert.equal(s.licencia, "propia", `${s.id}: una receta es código del motor, no el fichero de nadie`);
+    assert.deepEqual(s.variantes, [], `${s.id}: una fila de receta no lleva variantes`);
+    assert.ok(s.texto.trim().length > 3, `${s.id}: todo sonido lleva su texto para quien no oye (XAUR, WCAG 2.2)`);
+    assert.ok(RECETAS[s.id], `${s.id}: está en el catálogo como receta pero no hay receta en sintesis.ts`);
+  }
+});
+
+test("S6f: el colchón de ambiente está en el catálogo, en bucle, en el bus ambiente, y su autor está pendiente", () => {
+  const c = sonidos().find((s) => s.id === COLCHON_ID);
+  assert.ok(c, "falta la fila del colchón de ambiente");
+  assert.equal(c.bus, "ambiente");
+  assert.equal(c.bucle, true, "el colchón suena en bucle (se le cosió un fundido de 4 s)");
+  assert.equal(c.licencia, "CC0-1.0");
+  // TODO (Pablo): cuando diga el nombre del autor, se pone en COLCHON.autor (tools/sonidos-catalogo.ts) y esto cambia
+  assert.deepEqual(c.autor, ["pendiente (Pablo lo dirá)"], "el autor lo dirá Pablo: nadie se lo inventa");
+  assert.equal(c.variantes.length, 1, "el colchón es una cama única: una sola variante");
+});
+
+test("S6: cada variante del catálogo existe, pesa lo que dice y su sha256 es el del fichero (los 180 ficheros)", () => {
   assert.equal((catalogo as Cat).schema, "numinia-engine/sonidos@1");
-  let ficheros = 0, bytes = 0;
+  let ficheros = 0, bytes = 0, bytesColchon = 0;
   for (const s of sonidos()) {
     assert.ok(ID_SONIDO_RE.test(s.id), `id raro: ${s.id}`);
     for (const v of s.variantes) {
@@ -76,12 +111,14 @@ test("S6: cada variante del catálogo existe, pesa lo que dice y su sha256 es el
         const datos = readFileSync(abs);
         assert.equal(sha256(datos), sha, `${ruta}: el sha256 del catálogo no es el del fichero`);
         assert.equal(datos.length, peso, `${ruta}: bytes del catálogo ≠ bytes del fichero`);
-        ficheros++; bytes += datos.length;
+        ficheros++;
+        if (s.id === COLCHON_ID) bytesColchon += datos.length; else bytes += datos.length;
       }
     }
   }
-  assert.equal(ficheros, 178, "178 ficheros (89 variantes × opus + m4a)");
-  assert.ok(bytes < 600_000, `activos/sonidos/ son ${bytes} B: ¿se ha colado una cama de zona?`);
+  assert.equal(ficheros, 180, "180 ficheros (90 variantes × opus + m4a: 89 disparos + el colchón de ambiente)");
+  assert.ok(bytes < 600_000, `activos/sonidos/ son ${bytes} B sin el colchón: ¿se ha colado una cama de zona?`);
+  assert.ok(bytesColchon < 2_000_000, `el colchón de ambiente son ${bytesColchon} B: 113 s de música no pasan de 2 MB`);
 });
 
 test("S6: en activos/sonidos/ no hay NADA que el catálogo no nombre (ni camas ni capas de zona: esas son de mundo)", () => {
@@ -94,17 +131,21 @@ test("S6: en activos/sonidos/ no hay NADA que el catálogo no nombre (ni camas n
     for (const f of readdirSync(join(dir, d.name))) {
       const rel = `activos/sonidos/${d.name}/${f}`;
       if (!nombradas.has(rel)) sueltos.push(rel);
-      assert.ok(statSync(join(dir, d.name, f)).size < 40_000, `${rel}: un sonido de la casa no pasa de 40 kB`);
+      // el colchón es la única cama que vive en el motor (CC0, cedida para Numinia): se mide aparte
+      const tope = d.name === COLCHON_ID ? 1_000_000 : 40_000;
+      assert.ok(statSync(join(dir, d.name, f)).size < tope, `${rel}: un sonido de la casa no pasa de ${tope / 1000} kB`);
     }
   }
   assert.deepEqual(sueltos, [], "ficheros en activos/sonidos/ que el catálogo no nombra");
 });
 
 test("S6: todo es CC0, todo tiene autor, fuente y texto accesible, y todo es de los lotes nucleo o funcion", () => {
-  for (const s of sonidos()) {
+  for (const s of conFichero()) {
     assert.equal(s.licencia, "CC0-1.0", `${s.id}: en la biblioteca de la casa solo entra CC0`);
     assert.ok(s.autor.length > 0, `${s.id}: sin autor`);
-    assert.ok(s.fuente.length > 0 && s.fuente.every((u) => /^https?:\/\//.test(u)), `${s.id}: sin fuente verificable`);
+    // el colchón no viene de una URL: lo cedió un amigo de Numinia, y su procedencia es esa frase
+    if (s.id !== COLCHON_ID) assert.ok(s.fuente.length > 0 && s.fuente.every((u) => /^https?:\/\//.test(u)), `${s.id}: sin fuente verificable`);
+    else assert.ok(s.fuente.length > 0 && /Numinia/.test(s.fuente[0]), `${s.id}: su procedencia se dice en una frase`);
     assert.ok(s.texto.trim().length > 3, `${s.id}: todo sonido lleva su texto para quien no oye (XAUR, WCAG 2.2)`);
     assert.ok((LOTES as readonly string[]).includes(s.lote), `${s.id}: lote «${s.lote}» no entra en el motor`);
     assert.ok(MEZCLA[s.id], `${s.id}: sin prioridad ni cooldown en tools/sonidos-catalogo.ts`);
@@ -118,7 +159,9 @@ test("S6: todo es CC0, todo tiene autor, fuente y texto accesible, y todo es de 
 
 test("S6: LICENCIAS.md nombra cada id que entra, y solo esos", () => {
   const md = readFileSync(join(RAIZ, "activos/sonidos/LICENCIAS.md"), "utf8");
-  for (const s of sonidos()) assert.ok(md.includes(`\`sonidos/${s.id}/\``), `LICENCIAS.md no nombra «${s.id}»`);
+  for (const s of conFichero()) assert.ok(md.includes(`\`sonidos/${s.id}/\``), `LICENCIAS.md no nombra «${s.id}»`);
+  // las de receta no tienen fichero de nadie: no llevan fila de licencia, pero se dicen por su nombre
+  for (const s of deReceta()) assert.ok(md.includes(`\`${s.id}\``), `LICENCIAS.md no dice que «${s.id}» es una receta`);
   assert.ok(md.includes("CC0 1.0 Universal"), "LICENCIAS.md debe decir la licencia con su nombre");
   assert.ok(!/bed-|capa-/.test(md), "LICENCIAS.md nombra camas o capas de zona, que no están aquí");
 });
@@ -308,7 +351,60 @@ test("S6: la tabla de la página no lleva sha256 ni licencias, y apunta a /a/<sh
   assert.match(uno.variantes[0].url, /^\/a\/[0-9a-f]{64}\.opus$/);
   assert.match(uno.variantes[0].respaldo, /^\/a\/[0-9a-f]{64}\.m4a$/);
   assert.ok(uno.texto.length > 3, "el texto accesible sí va a la página");
-  assert.ok(crudo.length < 20_000, `la tabla son ${crudo.length} B: demasiado para una descarga de arranque`);
+  // una fila de receta llega a la página sin variantes, pero con su bus, su prioridad, su cooldown y su texto
+  const receta = (t.sonidos as Record<string, { fuente?: string; variantes: unknown[]; texto: string }>)["salto"];
+  assert.equal(receta.fuente, "receta");
+  assert.deepEqual(receta.variantes, [], "una fila de receta no lleva ficheros a la página");
+  assert.ok(receta.texto.length > 3, "pero sí su texto accesible");
+  assert.ok(crudo.length < 24_000, `la tabla son ${crudo.length} B: demasiado para una descarga de arranque`);
+});
+
+// ———————————— 4b. S6f · lo COMPARTIDO lo manda el servidor: la pieza se asoma a los eventos que ya hay ————————————
+
+/** Un mundo con dados Y sonido: la pieza de sonido escucha `dados:tirada` y manda el sonido a quien esté cerca. Es el
+ *  reparto de autoridad de D-048: la página no dispara una tirada de dados por su cuenta, porque entonces cada
+ *  persona oiría su propia variante. */
+function mundoConDados() {
+  const log: string[] = [];
+  const inst = new Instance({
+    seed: 1, capacity: 8, k: 50, snapshotEvery: 2, log: (l) => log.push(l), identitySign: sign,
+    features: [crearDados({ torres: [] }), crearSonido({})],
+  });
+  const pages = Array.from({ length: 2 }, (_, i) => {
+    const t = inst.join(i), c = clienteSonido(), d = clienteDados();
+    const s = new ClientSession(t, { identity: keeper(), features: [c.part, ...d.parts], view: { label() {}, bounce() {}, place() {}, here: () => ({ x: 0, y: 0, z: 0 }) } });
+    return { t, s, oido: c.estado, dados: d.dados };
+  });
+  const pump = (ticks = 3) => { for (let i = 0; i < ticks; i++) { for (const c of pages) c.t.flush(); inst.tick(); for (const c of pages) c.t.flush(); } };
+  const poner = (e: number, x: number, z: number) => { inst.sim.tf.cols.x[e] = fx(x); inst.sim.tf.cols.z[e] = fx(z); };
+  return { inst, pages, pump, poner, log };
+}
+
+test("S6f: una tirada de dados la SUENA el servidor, con una sola semilla para las dos páginas", () => {
+  const m = mundoConDados();
+  m.pump();
+  // las dos personas, juntas: el sonido de los dados es de los de alrededor, y el alcance lo pone el servidor
+  for (const c of m.pages) m.poner(c.s.entity, 0, 0);
+  m.pump();
+  assert.ok(m.pages[0].dados.tirar("2d6").ok, "la página pide la tirada (eso sí es suyo)");
+  m.pump();
+  const a = eventos(m.pages[0].s), b = eventos(m.pages[1].s);
+  assert.equal(a.length, 1, "el servidor mandó UN sonido de dados");
+  assert.equal(a[0].msg.sonido, "dados");
+  assert.equal(a[0].msg.semilla, b[0].msg.semilla, "una sola semilla: las dos páginas eligen la misma variante");
+  assert.equal(a[0].msg.espacial, true, "y con sitio: los de alrededor lo oyen desde donde está quien tiró");
+  assert.ok(m.pages[1].oido.ultimo!.donde, "la otra página lo recibe con su sitio, no en la cabeza");
+});
+
+test("S6f: sin la pieza de sonido, los dados siguen funcionando (nadie depende del sonido)", () => {
+  const log: string[] = [];
+  const inst = new Instance({ seed: 1, capacity: 8, k: 50, snapshotEvery: 2, log: (l) => log.push(l), identitySign: sign, features: [crearDados({ torres: [] })] });
+  const t = inst.join(0), d = clienteDados();
+  const s = new ClientSession(t, { identity: keeper(), features: d.parts });
+  for (let i = 0; i < 3; i++) { t.flush(); inst.tick(); t.flush(); }
+  assert.ok(d.dados.tirar("1d6").ok);
+  for (let i = 0; i < 3; i++) { t.flush(); inst.tick(); t.flush(); }
+  assert.equal(s.features.log.filter((l) => l.feature === "sonido").length, 0, "ni un evento de sonido, y la tirada salió");
 });
 
 // ———————————————————————————— 5. la página: misma semilla, cooldown, sin panner ————————————————————————————

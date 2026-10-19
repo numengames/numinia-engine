@@ -13,6 +13,35 @@
   },
   "sonidos": [
     {
+      "id": "ambiente-numinia",
+      "uso": "colchon de ambiente del mundo",
+      "bus": "ambiente",
+      "lote": "nucleo",
+      "prioridad": 100,
+      "cooldown_ms": 0,
+      "texto": "ambiente de fondo del mundo, muy bajo y continuo",
+      "duracion_s": 113.5065,
+      "bucle": true,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "pendiente (Pablo lo dirá)"
+      ],
+      "fuente": [
+        "cedido por un amigo de Numinia para Numinia (CC0, dicho por Pablo el 2026-10-19)"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/ambiente-numinia/numinia-ambiente-bucle.opus",
+          "sha256": "d805da80605c3d218ab3dad9f4ac363b911fe4d61d49db2a4381bd099e6a3252",
+          "bytes": 829030,
+          "peso": 1,
+          "respaldo": "activos/sonidos/ambiente-numinia/numinia-ambiente-bucle.m4a",
+          "respaldo_sha256": "bba229c7ba9b0aab2ac93c4df92ddbc48915286a5b8102f1e71ab65b37b7a9ac",
+          "respaldo_bytes": 935571
+        }
+      ]
+    },
+    {
       "id": "aterrizaje",
       "uso": "caida y salto",
       "bus": "pasos-propios",
@@ -237,6 +266,21 @@
           "respaldo_bytes": 4558
         }
       ]
+    },
+    {
+      "id": "dano",
+      "uso": "recibir dano",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 85,
+      "cooldown_ms": 120,
+      "texto": "te hacen dano",
+      "duracion_s": 0,
+      "bucle": false,
+      "licencia": "propia",
+      "autor": [],
+      "fuente": "receta",
+      "variantes": []
     },
     {
       "id": "dardo-impacto",
@@ -506,6 +550,21 @@
           "respaldo_bytes": 4317
         }
       ]
+    },
+    {
+      "id": "moneda",
+      "uso": "cobrar una moneda",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 60,
+      "cooldown_ms": 80,
+      "texto": "recoges una moneda",
+      "duracion_s": 0,
+      "bucle": false,
+      "licencia": "propia",
+      "autor": [],
+      "fuente": "receta",
+      "variantes": []
     },
     {
       "id": "pasos-agua",
@@ -1009,6 +1068,21 @@
       ]
     },
     {
+      "id": "pesca-picada",
+      "uso": "pesca: algo pica en el sedal",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 75,
+      "cooldown_ms": 150,
+      "texto": "algo ha picado en el sedal",
+      "duracion_s": 0,
+      "bucle": false,
+      "licencia": "propia",
+      "autor": [],
+      "fuente": "receta",
+      "variantes": []
+    },
+    {
       "id": "puerta",
       "uso": "abrir y cerrar",
       "bus": "efectos",
@@ -1076,6 +1150,21 @@
       ]
     },
     {
+      "id": "salto",
+      "uso": "el salto de tu propio avatar",
+      "bus": "pasos-propios",
+      "lote": "funcion",
+      "prioridad": 70,
+      "cooldown_ms": 150,
+      "texto": "saltas",
+      "duracion_s": 0,
+      "bucle": false,
+      "licencia": "propia",
+      "autor": [],
+      "fuente": "receta",
+      "variantes": []
+    },
+    {
       "id": "teleport",
       "uso": "salida y llegada",
       "bus": "efectos",
@@ -1114,6 +1203,21 @@
       ]
     },
     {
+      "id": "ui-abrir",
+      "uso": "se abre un panel",
+      "bus": "interfaz",
+      "lote": "funcion",
+      "prioridad": 100,
+      "cooldown_ms": 60,
+      "texto": "se abre un panel",
+      "duracion_s": 0,
+      "bucle": false,
+      "licencia": "propia",
+      "autor": [],
+      "fuente": "receta",
+      "variantes": []
+    },
+    {
       "id": "ui-aviso",
       "uso": "aviso del sistema",
       "bus": "interfaz",
@@ -1141,6 +1245,21 @@
           "respaldo_bytes": 1728
         }
       ]
+    },
+    {
+      "id": "ui-cerrar",
+      "uso": "se cierra un panel",
+      "bus": "interfaz",
+      "lote": "funcion",
+      "prioridad": 100,
+      "cooldown_ms": 60,
+      "texto": "se cierra el panel",
+      "duracion_s": 0,
+      "bucle": false,
+      "licencia": "propia",
+      "autor": [],
+      "fuente": "receta",
+      "variantes": []
     },
     {
       "id": "ui-chat",

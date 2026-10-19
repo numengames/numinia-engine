@@ -3,11 +3,19 @@
 Todo lo de `activos/sonidos/` es **CC0 1.0 Universal** (dominio público), de **Kenney.nl** y de
 **OpenGameArt filtrando por CC0**, verificado fuente a fuente al construir la biblioteca
 (`work/motor-ar/sonido/biblioteca/THIRD_PARTY_AUDIO.md` tiene la tabla completa, fichero a fichero, con el
-sha256 del original descargado; aquí van solo las filas de lo que entra al repo). CC0 no obliga a citar; lo
-citamos igual.
+sha256 del original descargado; aquí van solo las filas de lo que entra al repo), **más el colchón de ambiente
+`ambiente-numinia`**, que no sale de esa biblioteca: lo hizo un amigo de Numinia a propósito para Numinia y lo
+cedió en CC0 (dicho por Pablo el 2026-10-19). **TODO: falta el nombre de su autor**, pendiente de que Pablo lo
+diga; en cuanto esté se pone en `COLCHON.autor` (`tools/sonidos-catalogo.ts`) y vuelve a salir aquí. CC0 no
+obliga a citar; lo citamos igual.
 
-**27 ids · 89 variantes · 178 ficheros** (89 `.opus` = 193.220 B y
-89 `.m4a` de respaldo para Safari = 296.647 B; **489.867 B** en total).
+**6 ids del catálogo no tienen fichero** (`dano`, `moneda`, `pesca-picada`, `salto`, `ui-abrir`, `ui-cerrar`): los hace el
+motor con una receta de `packages/render/src/audio/sintesis.ts`, que es código nuestro bajo la licencia del
+repo. No hay nada de nadie que licenciar en ellos, así que no tienen fila en esta tabla. Cuando uno de esos ids
+consiga un fichero CC0, entra por la biblioteca y **el fichero gana**: la receta se queda de respaldo.
+
+**28 ids · 90 variantes · 180 ficheros** (90 `.opus` = 1.022.250 B y
+90 `.m4a` de respaldo para Safari = 1.232.218 B; **2.254.468 B** en total).
 Los sirve `GET /a/<sha256>.opus` (`packages/server/src/activos.ts`); la lista con el sha256 de cada fichero
 está en `features/sonido/catalogo.json` y `test/sonidos.test.ts` comprueba que cada sha256 es el de su fichero
 y que ninguna licencia deja de ser CC0.
@@ -17,10 +25,11 @@ con techo de pico en −2 dBFS, recodificación a Opus 40 kbps VBR mono 48 kHz y
 permite sin condiciones. Se rehacen con `python3 construir.py` dentro de la biblioteca y se traen aquí con
 `node tools/sonidos-catalogo.ts`.
 
-Autores: Fantozzi (subido por qubodup), Kenney Vleugels (kenney.nl), Peludo, Thimras, TinyWorlds, artisticdude, pyranostudios, rubberduck.
+Autores: Fantozzi (subido por qubodup), Kenney Vleugels (kenney.nl), Peludo, Thimras, TinyWorlds, artisticdude, pendiente (Pablo lo dirá), pyranostudios, rubberduck.
 
 | Carpeta | Para qué | Variantes | Lote | Bus | Licencia | Autor | Fuente |
 |---|---|---|---|---|---|---|---|
+| `sonidos/ambiente-numinia/` | colchon de ambiente del mundo | 1 | nucleo | ambiente | CC0-1.0 | pendiente (Pablo lo dirá) | <cedido por un amigo de Numinia para Numinia (CC0, dicho por Pablo el 2026-10-19)> |
 | `sonidos/aterrizaje/` | caida y salto | 3 | nucleo | pasos-propios | CC0-1.0 | Fantozzi (subido por qubodup); rubberduck | <https://opengameart.org/content/100-cc0-sfx> <https://opengameart.org/content/fantozzis-footsteps-grasssand-stone> |
 | `sonidos/cerradura/` | acierta o rechaza (D-042) | 2 | funcion | efectos | CC0-1.0 | Kenney Vleugels (kenney.nl) | <https://kenney.nl/assets/rpg-audio> |
 | `sonidos/coger-soltar/` | coger (3) y soltar (3) objeto | 6 | nucleo | efectos | CC0-1.0 | Kenney Vleugels (kenney.nl) | <https://kenney.nl/assets/interface-sounds> |
