@@ -1,9 +1,10 @@
 // M4: the character HUD frame (#hud-personaje, density Normal, glass). Three things, each ONLY from what reaches the page:
 //   · Estado — the 4-step ladder (Desestabilizado → Confundido → Colapsado → Aletargado; canon: the player has NO life bar);
 //   · Carga — what you carry / can carry;   · Aliento del Velo — a percentage.
-// None of the three is in the snapshot the server sends yet (BACKLOG L2: the player's states are a server effect not built), so
-// today each says «Próximamente» and nothing is invented. The day a source exists it plugs into `globalThis.__numinia` with the
-// SAME hook the sheet already reads for Estado (`estado.actual()`): `carga.actual() → {valor, max}` and `aliento.actual() → 0..100`.
+// Estado and Carga come from the lucha client once the page hears of fighting in this world (combate.ts `fuentesDeLucha` plugs
+// `estado.actual()` and `carga.actual() → {valor, max}` into `globalThis.__numinia`, the hook the sheet already reads for Estado);
+// before that, and for Aliento del Velo (no source yet: `aliento.actual() → 0..100` is where it will plug), each says «Próximamente»
+// and nothing is invented. The three skill slots under the HUD (#habilidades) are combate.ts too.
 // Only the name (session.who.nombre) is real today. Redraws once a second, touching the DOM only when something changed; no live region.
 import { icono } from "./iconos.ts";
 import { ESCALERA } from "./ficha.ts";

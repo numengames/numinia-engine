@@ -1142,3 +1142,16 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `constructor/anclar-explicar` sobre `origin/tren/motor-2026-10-18-6`.
 - Siguiente: nada pendiente de esta tarjeta; si se quiere, extender el mismo nombre a `rueda.ts` («Fijar en
   favoritos», uso distinto, no tocado aquí).
+
+## 2026-10-19 06:48 · pelea/combate-a-main · hecho
+- Qué: HUD de combate con Estado, Carga y las 3 habilidades (teclas 1-3), y PVP por mundo (apagado por defecto).
+  Lleva a main lo que solo vivía en las ramas `noche/combate-h*` y `noche/pvp-*`, conciliado con la vida y la caída
+  (#145) y el HUD de personaje (#160): kit Eclipse Mnémico, escalera de Estado, Aletargado reaparece en el último sitio
+  seguro, críticos 20 % x2, bandera `pvp`/`zonasPvp` en `entorno.json` e icono de Estado sobre quien recibe el golpe.
+  Versión 0.16.0 (menor: algo nuevo que no rompe nada).
+- Números: `node tools/gates.mjs`: 941 bien, 4 mal (enlaces ×3 por `qrcode-svg` ausente en el `node_modules` enlazado,
+  los mismos en main; subidas ×1, intermitente); capas, determinismo, ancho de banda y plaza de 1.000 en verde; página
+  512,3 kB gz antes de dibujar (main 510,0 kB; +2,2 kB; tope 1.000 kB).
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `pelea/combate-a-main` sobre `origin/main` cb35ef4, sin push.
+- Siguiente: decidir si `habilidad` hace que la criatura devuelva el golpe (`golpear` sí); activar `pvp` en un mundo real.

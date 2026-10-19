@@ -15,5 +15,7 @@ en un mundo de prueba; ignora `BASE` y lo borra todo al salir. Igual `suelo.mjs`
 desechable con `sueloMinimo: 1`, un punto de vuelta y una plataforma sólida a 3 m con un hueco alrededor; nada de
 producción.
 
+Igual `lucha.mjs` (combate h2, 8798/5180): un mundo desechable con la criatura de la casa junto a la aparición; comprueba la tarjeta de novedades, el HUD con Estado y Carga, que la tecla 3 sin Carga se rechaza con aviso, y que la tecla 1 sube la Carga y la 2 la baja. Con `E2E_PVP=1` (`pvp: true` en su `entorno.json`) entra una segunda persona en otro contexto del mismo navegador y mira los rótulos de Estado sobre ella.
+
 Lo que una pierna necesita como fixture (p. ej. `datos/pantalla.webm`, un segundo de vídeo de 667 bytes para la pierna
 `pantalla`) va en `datos/`: el bucle solo ejecuta `*.mjs`.

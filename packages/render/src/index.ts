@@ -873,8 +873,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       const c = document.createElement("canvas"); c.width = 256; c.height = 64;
       const g = c.getContext("2d")!;
       g.fillStyle = "rgba(20,30,40,0.85)"; g.fillRect(0, 0, 256, 64);
-      g.fillStyle = "#ffd27a"; g.font = "bold 34px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
-      g.fillText(text.slice(0, 18), 128, 34);
+      g.fillStyle = "#ffd27a"; g.textAlign = "center"; g.textBaseline = "middle";
+      const corto = text.slice(0, 18);
+      let tam = 34;                                    // shrink to fit the 256 px chip: «≈ Desestabilizado» used to be cut at both ends
+      g.font = `bold ${tam}px sans-serif`;
+      while (tam > 16 && g.measureText(corto).width > 244) { tam -= 2; g.font = `bold ${tam}px sans-serif`; }
+      g.fillText(corto, 128, 34);
       const mesh = new THREE.Mesh(labelGeo, new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
       mesh.renderOrder = 10;
       world.add(mesh);

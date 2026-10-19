@@ -6,12 +6,20 @@
 // changes: the tick hook only looks at the (usually empty) lists of dissolved creatures and fallen players and returns.
 // The creature does not move or chase yet (L3) — but every blow a player lands, it strikes back: the player's own life,
 // kept in server memory only (no shared state, no HUD yet: that is L2's next story), goes down by the same roll. At 0
-// the player falls (`caido`): `golpear` is refused until REAPARICION_JUGADOR_TICKS pass, then they come back whole.
+// the player falls (`caido`): `golpear` and `habilidad` are refused until REAPARICION_JUGADOR_TICKS pass, then they come
+// back whole. Two independent paths down, one way back each: the creature's strike-back (life → caído → jugadorVuelve) and,
+// only where the world turns pvp on, the Estado ladder (estados.ts: Aletargado → `reaparece` on the last safe spot). A person
+// at Colapsado or worse strikes nothing (creature or person); a fallen person strikes nothing. `habilidad` (Eclipse Mnémico
+// kit, habilidades.ts) provokes the same strike-back through the same function (`contraatacar`) when the creature survives
+// it; if the ability dissolves the creature (Discontinuidad deals 55, a creature has 50) nothing strikes back.
 import { rngNext } from "../../packages/core/src/index.ts";
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
-import { lucha, DANO_BASE, DANO_VAR, ENFRIAMIENTO_TICKS, REAPARICION_S, VER_M, VIDA_JUGADOR_MAX, REAPARICION_JUGADOR_TICKS } from "./feature.ts";
+import type { Pvp } from "./estados.ts";
+import { crearEscalera, NIVEL_COLAPSADO, NIVEL_ALETARGADO, ESCALERA, INCAPACITADO_S, pvpEntre } from "./estados.ts";
+import { lucha, ALCANCE_PVP_M, DANO_BASE, DANO_VAR, ENFRIAMIENTO_TICKS, REAPARICION_S, VER_M, VIDA_JUGADOR_MAX, REAPARICION_JUGADOR_TICKS } from "./feature.ts";
 import { BESTIARIO } from "./bestiario.ts";
+import { ECLIPSE, CRITICO_PCT, CRITICO_X, cargaTras, ticksDe } from "./habilidades.ts";
 
 /** The server's tick rate (Hz): cooldown and return are counted in ticks of it. */
 export const HZ = 20;
@@ -31,13 +39,18 @@ export function valorDe(c: Criatura): Msg | null {
     color: f.color,
   };
 }
+/** Does this ability roll a critical? CRITICO_PCT % from the engine's PRNG (pure given the state; tests use it). */
+export const tirarCritico = (rng: Uint32Array): boolean => rngNext(rng) % 100 < CRITICO_PCT;
 /** One blow's damage from the engine's PRNG: DANO_BASE..DANO_BASE+DANO_VAR−1 (pure; tests use it). */
 export const tirarDano = (rng: Uint32Array): number => DANO_BASE + (rngNext(rng) % DANO_VAR);
 
-export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number } = {}) => serverPart(lucha, (api: ServerApi) => {
+export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp?: boolean | Pvp } = {}) => serverPart(lucha, (api: ServerApi) => {
   const rng = new Uint32Array([(opts.semilla ?? 0x10c4a) >>> 0]);
   const criaturas = new Map<string, Criatura>();
   const puedeDesde = new Map<number, number>();   // player → first tick a blow counts again
+  const pvp: Pvp = typeof opts.pvp === "object" ? opts.pvp : { mundo: opts.pvp === true, zonas: [] }; // off unless the world turns it on (entorno.json pvp / zonasPvp)
+  const escalera = crearEscalera();                // the players' Estado ladder (server-owned, estados.ts)
+  const reaparecen = new Map<number, number>();    // Aletargado player → tick the server puts them back on their last safe spot
   const vuelven = new Map<string, number>();       // dissolved creature → tick it returns
   const vida = new Map<number, number>();          // player → life left (server memory only, L2 trozo 1)
   const caidos = new Map<number, number>();        // fallen player → tick they come back whole
@@ -54,10 +67,49 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number } = 
   const poner = (key: string, v: Msg) => { const c = criaturas.get(key)!; api.state.set(key, v, { at: { x: c.x, z: c.z } }); };
   const cerca = (key: string) => { const c = criaturas.get(key)!; return { near: { x: c.x, z: c.z }, radius: VER_M }; };
 
-  api.onLeave((e) => { puedeDesde.delete(e); vida.delete(e); caidos.delete(e); });
+  const carga = new Map<number, number>();         // player → Carga (0..100), lost on leaving
+  const habDesde = new Map<string, number>();      // `player:ability` → first tick it may be used again
+  api.onLeave((e) => { puedeDesde.delete(e); escalera.reiniciar(e); reaparecen.delete(e); vida.delete(e); caidos.delete(e); carga.delete(e); for (const k of [...habDesde.keys()]) if (k.startsWith(`${e}:`)) habDesde.delete(k); });
+
+  /** A person on the Estado ladder at Colapsado or worse «only reacts» (estados.ts): they strike no creature either. Never true without PVP. */
+  const colapsado = (e: number): boolean => escalera.size > 0 && escalera.nivel(e, api.tick()) >= NIVEL_COLAPSADO;
+
+  /** PVP blow (`objetivo: p:<entidad>`): the server decides if PVP is on, reach, cooldown and the rung; no damage number. */
+  const golpearPersona = (e: number, m: Msg) => {
+    const otro = Number(String(m.objetivo).slice(2)), t = api.tick();
+    if (!Number.isInteger(otro) || otro === e || !api.players().includes(otro)) return rechazar(e, "Ahí no hay nadie a quien golpear.");
+    if (t < (puedeDesde.get(e) ?? 0)) return;
+    if (escalera.nivel(e, t) >= NIVEL_COLAPSADO) return rechazar(e, "Estás colapsado: no puedes golpear.");
+    if (escalera.nivel(otro, t) >= NIVEL_ALETARGADO) return rechazar(e, "Esa persona ya está aletargada.");
+    const a = api.position(e), b = api.position(otro);
+    if (!a || !b) return rechazar(e, "Ahí no hay nadie a quien golpear.");
+    if (!pvpEntre(pvp, a, b)) return rechazar(e, "Aquí no se lucha entre personas.");   // the SERVER's flag, world and zone; the page cannot argue
+    if (Math.hypot(a.x - b.x, a.z - b.z) > ALCANCE_PVP_M) return api.emit("aire", { objetivo: String(m.objetivo) }, { to: e });
+    puedeDesde.set(e, t + ENFRIAMIENTO_TICKS);
+    const n = escalera.subir(otro, t);
+    api.emit("estado", { objetivo: `p:${otro}`, estado: ESCALERA[n], de: e }, { near: { x: b.x, z: b.z }, radius: VER_M });
+    if (n >= NIVEL_ALETARGADO) {                                  // «dying»: still for a while, then back on a safe spot; nothing of theirs is touched
+      api.ordenar(otro, { quieto: INCAPACITADO_S });
+      reaparecen.set(otro, t + INCAPACITADO_S * HZ);
+    }
+  };
+
+  /** The creature's strike-back: the ONE path both `golpear` and `habilidad` take. Lowers the player's life by `dano`
+   *  (server memory only), tells them (`jugadorHerido`) and, at 0, fells them (`jugadorCaido`) until REAPARICION_JUGADOR_TICKS pass. */
+  const contraatacar = (e: number, t: number, dano: number) => {
+    const vidaDespues = Math.max(0, (vida.get(e) ?? VIDA_JUGADOR_MAX) - dano);
+    vida.set(e, vidaDespues);
+    api.emit("jugadorHerido", { dano, vida: vidaDespues }, { to: e });
+    if (vidaDespues === 0) {
+      caidos.set(e, t + REAPARICION_JUGADOR_TICKS);
+      api.emit("jugadorCaido", {}, { to: e });
+    }
+  };
 
   api.on("golpear", (e, m) => {
-    if (caidos.has(e)) return rechazar(e, "Estás caído: espera a recuperarte.");
+    if (caidos.has(e)) return rechazar(e, "Estás caído: espera a recuperarte.");   // #145: a fallen player strikes nobody
+    if (/^p:/.test(String(m.objetivo))) return golpearPersona(e, m);
+    if (colapsado(e)) return rechazar(e, "Estás colapsado: no puedes golpear.");
     const key = String(m.objetivo), v = api.state.get(key);
     if (!v || !criaturas.has(key)) return rechazar(e, `No hay ninguna criatura «${key}».`);
     const t = api.tick();
@@ -77,17 +129,55 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number } = 
       const s = criaturas.get(key)!.reaparicion ?? REAPARICION_S;
       if (s > 0) vuelven.set(key, t + Math.round(s * HZ));
     }
-    // L2 trozo 1: the creature strikes back with the same roll (the fight's PRNG stream: still replayable).
-    const vidaAntes = vida.get(e) ?? VIDA_JUGADOR_MAX, vidaDespues = Math.max(0, vidaAntes - dano);
-    vida.set(e, vidaDespues);
-    api.emit("jugadorHerido", { dano, vida: vidaDespues }, { to: e });
-    if (vidaDespues === 0) {
-      caidos.set(e, t + REAPARICION_JUGADOR_TICKS);
-      api.emit("jugadorCaido", {}, { to: e });
+    contraatacar(e, t, dano);                                      // L2 trozo 1: the creature strikes back with the same roll
+  });
+
+  // An ability: same reach/dissolution rules as `golpear`, plus its own cooldown and the player's Carga. Damage is the table's.
+  api.on("habilidad", (e, m) => {
+    if (caidos.has(e)) return rechazar(e, "Estás caído: espera a recuperarte.");   // same rule as `golpear` (#145)
+    if (colapsado(e)) return rechazar(e, "Estás colapsado: no puedes golpear.");
+    const key = String(m.objetivo), cual = String(m.cual), h = ECLIPSE[cual], v = api.state.get(key);
+    if (!h) return rechazar(e, `No conozco la habilidad «${cual}».`);
+    if (!v || !criaturas.has(key)) return rechazar(e, `No hay ninguna criatura «${key}».`);
+    const t = api.tick(), clave = `${e}:${cual}`;
+    if (t < (habDesde.get(clave) ?? 0)) return;                      // cooling down: silent, the mouse repeats
+    if (v.modo === "disuelta") return rechazar(e, "Ahí ya no hay nada que golpear.");
+    const c = carga.get(e) ?? 0;
+    if (c < h.coste) return rechazar(e, `Te falta Carga para ${h.nombre} (${c}/${h.coste}).`);
+    if (!api.within(e, key)) return api.emit("aire", { objetivo: key }, { to: e });
+    habDesde.set(clave, t + ticksDe(h));
+    const nueva = cargaTras(c, h);
+    carga.set(e, nueva);
+    api.emit("carga", { valor: nueva }, { to: e });
+    rng[0] = (rng[0] ^ Math.imul(t + 1, 0x9e3779b1)) >>> 0;        // same mix as `golpear`: same inputs, same crits (replayable)
+    const critico = tirarCritico(rng), dano = h.dano * (critico ? CRITICO_X : 1), queda = Math.max(0, Number(v.coherencia) - dano);
+    if (queda > 0) {
+      poner(key, { ...v, coherencia: queda, modo: "alerta" });
+      api.emit("habilidad", { objetivo: key, de: e, cual, dano, queda, critico }, cerca(key));
+      if (critico) api.emit("critico", { objetivo: key, de: e, dano }, cerca(key));
+      contraatacar(e, t, tirarDano(rng));                          // the creature that survives strikes back, with ITS roll (not the ability's 55)
+      return;
     }
+    poner(key, { ...v, coherencia: 0, modo: "disuelta", solido: false });
+    api.emit("habilidad", { objetivo: key, de: e, cual, dano, queda: 0, critico }, cerca(key));
+    if (critico) api.emit("critico", { objetivo: key, de: e, dano }, cerca(key));
+    api.emit("disuelta", { objetivo: key, de: e }, cerca(key));
+    const s = criaturas.get(key)!.reaparicion ?? REAPARICION_S;
+    if (s > 0) vuelven.set(key, t + Math.round(s * HZ));                  // a creature the ability dissolves does NOT strike back: it is gone
   });
 
   api.onTick((t) => {
+    if (reaparecen.size > 0) {
+      for (const [e, en] of reaparecen) {
+        if (t < en) continue;
+        reaparecen.delete(e);
+        if (!api.position(e)) continue;                            // gone meanwhile (onLeave already forgot it)
+        if (!api.volverASeguro(e)) api.log(`lucha: ${e} reaparece donde está: no hay un sitio seguro al que volver`);
+        escalera.reiniciar(e);                                     // back to ninguno either way: items, avatar and name stay as they were
+        const p = api.position(e);
+        api.emit("reaparece", { objetivo: `p:${e}` }, p ? { near: { x: p.x, z: p.z }, radius: VER_M } : { to: e });
+      }
+    }
     if (vuelven.size > 0) for (const [key, en] of vuelven) {
       if (t < en) continue;
       vuelven.delete(key);

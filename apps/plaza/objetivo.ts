@@ -2,8 +2,7 @@
 // Objetivo shows the creature you could strike now (the one `interaccion` offers, feature «lucha») and, for 5 s after
 // you walk away, the last one: its name and its Coherencia (coherencia / coherenciaMax, the real state of the lucha
 // client). A creature has Coherencia, the player has no bar. Nothing is invented: «a N m» is the offered distance.
-// Habilidades: the client has no skill system yet (no skills, cooldowns or Carga cost reach it), so the three slots
-// are drawn as «Próximamente» — keys 1–3 are only labels, nothing is bound to them.
+// Habilidades (#habilidades): drawn by combate.ts — the kit's three slots once the page hears of fighting, «Próximamente» before.
 import { icono } from "./iconos.ts";
 import type { Criatura } from "../../features/lucha/client.ts";
 
@@ -15,15 +14,7 @@ export const GRACIA_MS = 5000;
 export const porcentaje = (coherencia: number, max: number): number => (max > 0 ? Math.round(Math.max(0, Math.min(1, coherencia / max)) * 100) : 0);
 
 export function montarObjetivo(o: { lucha: Lucha; interaccion: Interaccion }): { pintar(): void } {
-  const caja = document.getElementById("objetivo"), hab = document.getElementById("habilidades");
-  if (hab && !hab.childElementCount) {
-    const huecos: [string, string][] = [["1", "sword"], ["2", "target"], ["3", "sparkle"]];
-    hab.replaceChildren(...huecos.map(([t, ic]) => {
-      const d = document.createElement("div"); d.className = "hueco"; d.setAttribute("aria-disabled", "true"); d.setAttribute("aria-label", `Habilidad ${t}: próximamente`);
-      d.innerHTML = `<kbd>${t}</kbd>${icono(ic, 24)}<span class="prox">Próximamente</span>`;
-      return d;
-    }));
-  }
+  const caja = document.getElementById("objetivo");
   let ultima: { key: string; hasta: number; dist: number | null } | null = null, firma = "";
   const pintar = (): void => {
     if (!caja) return;
