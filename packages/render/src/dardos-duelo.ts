@@ -104,7 +104,7 @@ export function vueloRival(a: P3, b: P3, t: number, duracion = VUELO_RIVAL_S): {
 }
 
 /** Canvas size of the 3D panel (one texture, one plane): room for the title, four rows and the footer. */
-export const PANEL_PX = { w: 512, h: 250 } as const;
+export const PANEL_PX = { w: 512, h: 268 } as const;
 const TONO = { bien: "#9fe8a8", mal: "#ff8a80", neutro: "#d7dee6" } as const;
 const FILA_PX = 36;
 /** Where the footer (or the button that replaces it) sits for a panel of `n` rows (canvas px). */
