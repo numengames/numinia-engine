@@ -49,7 +49,19 @@ export type Atmosfera = {
   niebla: { cerca: number; lejos: number };
   /** Tone mapping while on (a TONOS key: "neutro" = Khronos PBR Neutral). */
   tono: string;
+  /**
+   * E04 (cielo-analitico.ts): another sky function in place of the 4-stop one. It gets the stops above (lerped by the hour here), the sun's
+   * colour, the day amount and the sun's direction, and gives the dome's colour, the fog's far-stop colour and the dome's far-plane vertex.
+   * With it the dome is drawn LIVE on every tier and LAST (after the opaque scene, depth-tested): only the sky left visible is shaded, and
+   * B–D bake no cube for the background. Absent = R7.1 as it was.
+   */
+  cielo?: (u: UniformesCielo) => { domo: (dir: Nodo) => Nodo; lejos: (dir: Nodo) => Nodo; vertice: Nodo };
 };
+type Nodo = ReturnType<typeof normalize>;
+/** What a sky function receives (E04): the atmosphere's uniforms (colours lerped by the hour, day amount) and the sun's direction. */
+export type UniformesCielo = { cenit: Nodo; alto: Nodo; horizonte: Nodo; suelo: Nodo; sol: Nodo; dia: Nodo; solDir: Nodo };
+/** E04: render order of a sky drawn last (after every opaque object; transparent ones are drawn after anyway). */
+const CIELO_AL_FINAL = 1000;
 const PARADAS = ["cenit", "alto", "horizonte", "suelo"] as const;
 
 type Sky = THREE.Mesh & { turbidity: { value: number }; rayleigh: { value: number }; mieCoefficient: { value: number }; mieDirectionalG: { value: number }; sunPosition: { value: THREE.Vector3 }; cloudCoverage: { value: number }; cloudDensity: { value: number }; showSunDisc: { value: number } };
@@ -110,7 +122,7 @@ export function crearEntorno(h: EntornoHooks) {
     velo: uniform(new THREE.Color()), bruma: uniform(new THREE.Color()), sol: uniform(new THREE.Color()), dia: uniform(1),
   };
   let atmClave = "";
-  let atmNodos: { domo: THREE.MeshBasicNodeMaterial; niebla: unknown } | null = null;
+  const atmNodosPor = new Map<Atmosfera["cielo"] | null, { domo: THREE.MeshBasicNodeMaterial; niebla: unknown }>(); // E04: one set per sky function
   /** The sky colour for a unit direction: horizon → upper sky → zenith above, horizon → ground haze below, plus the sun's halo by day. Shared by the dome and the fog. */
   const cielo4 = (dir: ReturnType<typeof normalize>) => {
     const y = dir.y;
@@ -120,10 +132,13 @@ export function crearEntorno(h: EntornoHooks) {
     const s = max(dot(dir, aguaLuz.solDir), 0.0);
     return mix(c, atmU.sol, pow(s, 8.0).mul(0.22).add(pow(s, 64.0).mul(0.5)).mul(atmU.dia));
   };
-  function nodosAtmosfera(): NonNullable<typeof atmNodos> {
-    if (atmNodos) return atmNodos;
+  function nodosAtmosfera(fn: Atmosfera["cielo"] | null = null): { domo: THREE.MeshBasicNodeMaterial; niebla: unknown } {
+    const hecho = atmNodosPor.get(fn);
+    if (hecho) return hecho;
     const domoAtm = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide, depthWrite: false, fog: false });
-    domoAtm.colorNode = cielo4(normalize(positionLocal));
+    const propio = fn ? fn({ ...atmU, solDir: aguaLuz.solDir } as never) : null; // E04: the sky function's nodes, over the same uniforms
+    if (propio) { domoAtm.colorNode = propio.domo(normalize(positionLocal)); domoAtm.vertexNode = propio.vertice as never; } // depth-tested, at the far plane
+    else domoAtm.colorNode = cielo4(normalize(positionLocal));
     // the fog's distances follow scene.fog live (cenital.ts pushes them away for the top-down map; ar.ts removes the fog): read at each render
     const f = () => scene.fog as THREE.Fog | null;
     const cercaU = uniform(0).onRenderUpdate(() => f()?.near ?? 1e9), lejosU = uniform(1).onRenderUpdate(() => f()?.far ?? 2e9);
@@ -131,10 +146,11 @@ export function crearEntorno(h: EntornoHooks) {
     const densU = uniform(0).onRenderUpdate(() => { const g = f(); return atm && g && g.far < 1e4 ? atm.bruma.densidad : 0; });
     const dir = normalize(positionWorld.sub(cameraPosition));
     const fDist = rangeFogFactor(cercaU, lejosU), fAlt = exponentialHeightFogFactor(densU, alturaU);
-    const rampa = mix(atmU.velo, cielo4(dir), smoothstep(0.3, 1.0, fDist));       // Firewatch ramp: mid-distance veil → the sky behind
+    const rampa = mix(atmU.velo, propio ? propio.lejos(dir) : cielo4(dir), smoothstep(0.3, 1.0, fDist)); // Firewatch ramp: mid-distance veil → the sky behind
     const color = mix(rampa, atmU.bruma, fAlt.mul(fDist.oneMinus()));              // the hollows' haze where the distance fog is still thin
-    atmNodos = { domo: domoAtm, niebla: fog(color, max(fDist, fAlt.mul(0.8))) };
-    return atmNodos;
+    const nodos = { domo: domoAtm, niebla: fog(color, max(fDist, fAlt.mul(0.8))) };
+    atmNodosPor.set(fn, nodos);
+    return nodos;
   }
   /** The atmosphere's colours for this sun (CPU, on apply only): day → night by the sun's height, a warm horizon band while it is low. */
   function colorearAtmosfera(a: Atmosfera, alt: number): void {
@@ -346,7 +362,7 @@ export function crearEntorno(h: EntornoHooks) {
           .catch((e: unknown) => console.warn(`[entorno] fondo sin imagen: ${(e as Error)?.message ?? e}`)).finally(() => { cargando--; avisar(); });
       } else if (fondoTex.tex) scene.background = fondoTex.tex;
     } else if (atm) { // R7.1: the nature's 4-stop dome, live on A (it takes the place of the live SkyMesh: same one draw); baked into the cube on B–D, as today
-      modoCielo = nivel === "A" ? "degradado" : "horneado";
+      modoCielo = nivel === "A" || atm.cielo ? "degradado" : "horneado"; // E04: a sky function is drawn live (last) on every tier
       if (modoCielo === "degradado") { cielosEnEscena(domo); scene.background = null; } else cielosEnEscena(null);
     } else if (tipo === "atmosfera") {
       if (sky) {
@@ -398,12 +414,13 @@ export function crearEntorno(h: EntornoHooks) {
      * Returns the undo: the world's own sky, fog and tone come back exactly as its data says (one re-apply), so worlds without nature never change.
      */
     atmosfera(a: Atmosfera): () => void {
-      const nodos = nodosAtmosfera();
+      const nodos = nodosAtmosfera(a.cielo ?? null);
       atm = a; domo.material = nodos.domo; scene.fogNode = nodos.niebla as THREE.Scene["fogNode"]; horneadoClave = "";
+      domo.renderOrder = a.cielo ? CIELO_AL_FINAL : -10; // E04: last, so the depth test skips the sky the scene covers
       if (d) aplicar(d);
       return () => {
         if (atm !== a) return; // another call took over: its own undo restores
-        atm = null; domo.material = domoMat; scene.fogNode = null; horneadoClave = "";
+        atm = null; domo.material = domoMat; scene.fogNode = null; horneadoClave = ""; domo.renderOrder = -10;
         if (d) aplicar(d);
       };
     },
@@ -422,7 +439,7 @@ export function crearEntorno(h: EntornoHooks) {
         suelo: { tipo: String(d?.suelo ?? ""), textura: !!sueloMat.map, relieve: !!sueloMat.normalMap, metros: n(d?.sueloMetros) },
         tono: String(d?.tono ?? ""), exposicion: renderer.toneMappingExposure,
         /** R7.1: a piece's atmosphere is on (the nature): the tone actually applied, and whether the fog is the gradient node. */
-        atmosfera: atm ? { tono: atm.tono, nieblaNodo: scene.fogNode !== null && scene.fogNode !== undefined, horizonte: hex(atmU.horizonte.value) } : null,
+        atmosfera: atm ? { tono: atm.tono, nieblaNodo: scene.fogNode !== null && scene.fogNode !== undefined, horizonte: hex(atmU.horizonte.value), cielo: atm.cielo ? "analitico" : "4-paradas" } : null,
         viento: { x: Math.round(viento.x * 100) / 100, z: Math.round(viento.z * 100) / 100, fuerza: n(d?.vientoFuerza) },
         hitos: h.hitos[0]?.visible ?? false, rejilla: grid.visible, mapaCorte: Math.max(0, n(d?.mapaCorte, 0)),
         nivel, calidad: { ...calidad }, aplicados, horneados, cargando,

@@ -884,3 +884,34 @@ función suave, y la espuma tiene que caer donde la ve el ojo); fuera de la mall
   `b`, `a-bin`, `b-bin`; medir con `--escena naturaleza --camara estanque` (vuelta por la orilla a 1,35 × radio: el
   recorrido de E01 nunca ve el estanque). Fotos: `tools/fotos-agua.mjs` (cámara fija con `__banco.retrato`).
 - **Estado:** experimento; el juego sigue con el agua N2 hasta que Pablo elija variante (saber-3d `queries/e03-agua-de-orilla.md`).
+
+## E04 · Cielo analítico (experimento; por defecto sigue R7.1)
+
+`packages/render/src/cielo-analitico.ts` dibuja todo el cielo con una función del shader del domo:
+- degradado cénit → turquesa pálido → horizonte de marfil, con banda de nácar (cálida hacia el sol, perla al otro lado);
+- resplandor de crepúsculo, disco del sol y halo prismático de 22° (fuerza 0,1);
+- estrellas: 6 % de día, plenas de noche;
+- luna en creciente a 40° de altura, al rumbo contrario al sol.
+
+Va enchufado por `Atmosfera.cielo` (`entorno.ts`). El domo se dibuja **vivo y al final** en los 4 niveles: vértice en el
+plano lejano, `renderOrder` 1000, con prueba de profundidad. Así solo se calcula el cielo que queda a la vista, y B–D ya
+no hornean cubo.
+
+La niebla no cambia, salvo su color lejano: es el mismo cielo, sin estrellas, luna ni halo.
+
+**Cómo encenderlo y ajustarlo:**
+- Encender: `CIELO_NATURALEZA = "analitico"` en `naturaleza/atmosfera.ts`.
+- Colores: `CIELO_E04` en `paleta.ts`.
+- Ajustes (halo, estrellas de día, luna): `CIELO_ANALITICO`.
+
+**Banco:**
+- `nat-cielo-analitico` frente a `nat-atmosfera`;
+- `naturaleza-cielo-analitico` frente a `naturaleza`;
+- `nat-cielo-analitico-primero` (control);
+- `foto-cielo?hora=&cielo=r71|analitico&vista=rumbo,cabeceo`.
+
+**Medida (RTX 4080).** En la escena entera, −0,005…−0,013 ms GPU p50 frente a R7.1, mismas llamadas y −1,5 k
+triángulos en B–D. Resultado completo: `work/saber-3d/queries/e04-cielo-analitico.md`.
+
+**Trampa de TSL:** `vec3(new THREE.Color(h))` sale **negro**, porque `vec3()` lee `.x/.y/.z`. Para un color constante,
+usa `uniform(new THREE.Color(h))`.
