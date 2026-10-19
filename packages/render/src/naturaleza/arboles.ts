@@ -48,7 +48,7 @@ const PLATA = mezcla(VERDES.musgo, CASA.arenaVelada, 0.3); // olive: silver-gree
 const HOJAS: Record<Especie, [Par, Par]> = {
   encina: [{ oscuro: VERDES.monteSombra, claro: mezcla(VERDES.musgo, VERDES.hierbaLuz, 0.3) }, { oscuro: ESTACIONES.otono.hoja, claro: ESTACIONES.otono.hojaLuz }],
   pino: [{ oscuro: VERDES.monteSombra, claro: mezcla(VERDES.monte, VERDES.musgo, 0.55) }, { oscuro: mezcla(VERDES.monteSombra, CASA.ambarTostado, 0.3), claro: mezcla(VERDES.musgo, CASA.ambar, 0.3) }],
-  cipres: [{ oscuro: VERDES.monteSombra, claro: VERDES.monte }, { oscuro: VERDES.monteSombra, claro: mezcla(VERDES.monte, CASA.ambarTostado, 0.2) }],
+  cipres: [{ oscuro: VERDES.monteSombra, claro: mezcla(VERDES.monte, VERDES.musgo, 0.4) }, { oscuro: VERDES.monteSombra, claro: mezcla(mezcla(VERDES.monte, VERDES.musgo, 0.4), CASA.ambarTostado, 0.2) }], // R5.4: the sunlit top a touch of moss warmer
   olivo: [{ oscuro: mezcla(VERDES.monte, CASA.arenaVelada, 0.2), claro: mezcla(PLATA, CASA.arenaVelada, 0.2) }, { oscuro: mezcla(VERDES.monte, CASA.ambarTostado, 0.3), claro: mezcla(PLATA, CASA.ambar, 0.25) }],
   arbusto: [{ oscuro: VERDES.monte, claro: mezcla(VERDES.hierba, VERDES.hierbaLuz, 0.3) }, { oscuro: VERDES.hierbaSombra, claro: mezcla(CASA.arena, CASA.verdemar, 0.3) }],
 };
@@ -98,7 +98,17 @@ type Forma = {
   ramas: Rama[]; matas: Mata[];
   copa: { cx: number; cy: number; cz: number; rx: number; ry: number; rz: number; top: number };
   collar: number; jag: number;
+  /** R5.4: a crown that is ONE spindle (the cypress) instead of clumps on branch tips; when set, `matas`/`copa` are ignored. */
+  llama?: Llama;
 };
+/**
+ * R5.4 cypress (Cupressus sempervirens): the crown is a single flame. The icosahedron is the body: bottom point at `pie`, its lower ring at the
+ * widest height (about 30 % of the tree), its upper ring higher and narrower, its top the tip. The five octahedra stop being clumps: they become
+ * long thin shells sharing the axis whose rings sit at other heights and turned between the body's vertices, just inside the body's widest
+ * extent — offset rings that read as vertical ridges and a rounded base, never as a stack of diamonds (no notch between them).
+ * anillos: [ring y, ring radius, top y, bottom y, turn (rad)]; the first one rounds the base (the only shell the simple C/D template keeps).
+ */
+type Llama = { pie: number; punta: number; bajo: [number, number]; alto: [number, number]; anillos: [number, number, number, number, number][] };
 const FORMA: Record<Especie, Forma> = {
   encina: {
     tronco: { alto: 2.3, r0: 0.34, r1: 0.17, lx: 0.3, lz: 0.1, curva: 0.12, tors: 0.4, bulto: 0.12 },
@@ -114,9 +124,13 @@ const FORMA: Record<Especie, Forma> = {
   },
   cipres: {
     tronco: { alto: 1.0, r0: 0.2, r1: 0.14, lx: 0.1, lz: 0.05, curva: 0.04, tors: 0.2, bulto: 0 },
-    ramas: [[0.5, 0.4, 1.25, 0.8, 0.06], [0.7, 2.5, 1.3, 0.8, 0.06], [0.9, 4.4, 1.3, 0.7, 0.05]],
+    ramas: [[0.5, 0.4, 1.3, 0.7, 0.05], [0.65, 2.5, 1.35, 0.7, 0.05], [0.8, 4.4, 1.35, 0.6, 0.045]], // hidden inside the spindle
     matas: [[0.05, 0.8, 0, 0.78, 1.0, 0.74], [-0.05, 1.7, 0.05, 0.68, 0.95, 0.64], [0.03, 2.6, 0, 0.52, 0.85, 0.5], [0.08, -2.0, 0.05, 0.88, 1.05, 0.82], [-0.08, -0.8, 0.04, 0.8, 1.0, 0.74]],
-    copa: { cx: 0.1, cy: 4.9, cz: 0, rx: 0.45, ry: 1.75, rz: 0.43, top: 1.25 }, collar: 0.45, jag: 0.16,
+    copa: { cx: 0.1, cy: 4.9, cz: 0, rx: 0.45, ry: 1.75, rz: 0.43, top: 1.25 }, collar: 0.36, jag: 0.16,
+    llama: {
+      pie: 0.62, punta: 6.8, bajo: [1.95, 0.82], alto: [4.5, 0.52],
+      anillos: [[1.0, 0.7, 2.7, 0.56, 0.2], [2.6, 0.72, 4.4, 1.4, 0.9], [3.5, 0.62, 5.3, 2.2, 1.9], [4.6, 0.48, 6.3, 3.3, 2.6], [5.6, 0.29, 6.72, 4.4, 0.5]],
+    },
   },
   olivo: {
     tronco: { alto: 1.5, r0: 0.4, r1: 0.2, lx: 0.5, lz: -0.3, curva: 0.35, tors: 2.2, bulto: 0.3 },
@@ -190,15 +204,31 @@ export function geometriaArbol(detalle = true): GeometriaArbol {
     }
     // clumps: faceted octahedra with a jagged ring, light on top
     const cc = cen(t.alto), cen0: V3 = [f.copa.cx, f.copa.cy, f.copa.cz];
-    void cc;
-    f.matas.slice(0, nMatas).forEach(([ox, oy, oz, rx, ry, rz], i) => {
+    const L = f.llama;
+    if (L) {
+      // R5.4 spindle: long thin shells on the axis (same vertex order as a clump: top, ring of 4, bottom); ring radii alternate a little so
+      // every shell adds two soft ridges, and the shells are turned so their ridges fall between the body's.
+      const ax = (y: number): V3 => [cc[0] + 0.03 * Math.sin(y * 1.3 + e), y, cc[2] + 0.03 * Math.cos(y * 1.1)];
+      L.anillos.slice(0, nMatas).forEach(([ry, r, ty, by, gi], i) => {
+        const a0 = ax(ry), at = ax(ty), ab = ax(by), soft = i === L.anillos.length - 1 ? 0.05 : 0; // the last shell's top: the soft, slightly bent tip
+        put([at[0] + soft, ty, at[2] + 0.5 * soft], 1, 1, 0.95);
+        for (let k = 0; k < 4; k++) { const a = gi + (k / 4) * Math.PI * 2, j = (k % 2 ? 1 - f.jag * 0.7 : 1) * (1 - 0.03 * Math.abs(hv(v, 5))); put([a0[0] + Math.cos(a) * r * j, ry + 0.06 * hv(v, 6), a0[2] + Math.sin(a) * r * j], 0.6, 1, 1); }
+        put([ab[0], by, ab[2]], 0.26, 1, 0.9);
+      });
+    } else f.matas.slice(0, nMatas).forEach(([ox, oy, oz, rx, ry, rz], i) => {
       const o: V3 = i < 3 ? puntas[i] : cen0, c: V3 = [o[0] + ox, o[1] + oy, o[2] + oz], giro = 0.5 + i * 1.3 + e * 0.4;
       put([c[0] + 0.1 * hv(v, 2), c[1] + ry * (1 + 0.12 * hv(v, 3)), c[2] + 0.1 * hv(v, 4)], 1, 1, 0.95);
       for (let k = 0; k < 4; k++) { const a = giro + (k / 4) * Math.PI * 2, j = 1 + f.jag * (k % 2 ? -1 : 1) + 0.1 * hv(v, 5); put([c[0] + Math.cos(a) * rx * j, c[1] + ry * (0.05 + 0.12 * hv(v, 6)), c[2] + Math.sin(a) * rz * j], 0.6, 1, 1); }
       put([c[0] + 0.08 * hv(v, 7), c[1] - ry * 0.7, c[2] + 0.08 * hv(v, 8)], 0.26, 1, 0.9);
     });
     // crown: a jittered icosahedron (top, upper ring of 5, lower ring of 5 turned half a step, bottom)
-    {
+    if (L) { // R5.4: the spindle's body: bottom at the foliage foot, lower ring = the widest girth, upper ring narrower, top = the tip
+      const giro = 0.3, x0 = cc[0], z0 = cc[2];
+      put([x0 + 0.02, L.punta, z0], 1, 1, 0.75);
+      for (let k = 0; k < 5; k++) { const a = giro + (k / 5) * Math.PI * 2, r = L.alto[1] * (k % 2 ? 0.9 : 1); put([x0 + Math.cos(a) * r, L.alto[0] + 0.12 * hv(v, 13), z0 + Math.sin(a) * r], 0.78, 1, 0.55); }
+      for (let k = 0; k < 5; k++) { const a = giro + ((k + 0.5) / 5) * Math.PI * 2, r = L.bajo[1] * (k % 2 ? 0.9 : 1); put([x0 + Math.cos(a) * r, L.bajo[0] + 0.1 * hv(v, 15), z0 + Math.sin(a) * r], 0.42, 1, 0.5); }
+      put([x0, L.pie, z0], 0.18, 1, 0.45);
+    } else {
       const o = f.copa, giro = 0.3 + e * 0.9, j = (k: number) => 1 + 0.16 * hv(v, k);
       put([o.cx + 0.12 * o.rx * hv(v, 9), o.cy + o.ry * o.top * j(10), o.cz + 0.12 * o.rz * hv(v, 11)], 1, 1, 0.75);
       for (let k = 0; k < 5; k++) { const a = giro + (k / 5) * Math.PI * 2, q = 0.894 * (1 + f.jag * hv(v, 12)); put([o.cx + Math.cos(a) * o.rx * q, o.cy + o.ry * 0.447 * (1 + 0.25 * hv(v, 13)), o.cz + Math.sin(a) * o.rz * q], 0.78, 1, 0.55); }
@@ -256,13 +286,14 @@ const bytesDe = (g: THREE.BufferGeometry) => Object.values(g.attributes).reduce(
 // ---------------------------------------------------------------------------------------------------------------------
 // far LOD: ONE parametric silhouette for every species (R2: a 3-sided trunk + ONE jittered pentagonal bipyramid, 16 triangles)
 // ---------------------------------------------------------------------------------------------------------------------
-/** Per species: [trunkH, trunkR, blob centre y, blob radius xz, blob radius y]. */
-const LEJOS: Record<Especie, number[]> = {
-  encina: [2.3, 0.3, 3.7, 1.9, 1.4],
-  pino: [5.4, 0.2, 6.1, 2.1, 0.7],
-  cipres: [1.3, 0.22, 3.7, 0.62, 2.6],
-  olivo: [2.0, 0.34, 2.9, 1.8, 0.95],
-  arbusto: [0.12, 0.06, 0.55, 1.0, 0.6],
+/** Per species: [trunkH, trunkR, blob centre y, blob radius xz, blob radius y, ring shift]. The ring shift (R5.4) moves the blob's widest ring
+ *  down (negative, in blob radii y) while its top and bottom stay put: the cypress's far silhouette becomes a flame, widest at ~30 % of its height. */
+export const LEJOS: Record<Especie, number[]> = {
+  encina: [2.3, 0.3, 3.7, 1.9, 1.4, 0],
+  pino: [5.4, 0.2, 6.1, 2.1, 0.7, 0],
+  cipres: [0.9, 0.2, 3.52, 0.8, 2.98, -0.5],
+  olivo: [2.0, 0.34, 2.9, 1.8, 0.95, 0],
+  arbusto: [0.12, 0.06, 0.55, 1.0, 0.6, 0],
 };
 const LADOS_TRONCO_LEJOS = 3, LADOS_COPA_LEJOS = 5;
 export type GeometriaEspecie = { geometria: THREE.BufferGeometry; triangulos: number; bytes: number };
@@ -341,8 +372,12 @@ function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.Mesh
   const esHoja = step(0.5, parte).mul(oneMinus(step(1.5, parte))) as N, esMetal = step(1.5, parte) as N;
   let p0 = positionGeometry as unknown as V3N;
   for (let i = 1; i < ESPECIES.length; i++) p0 = mix(p0, q(`pos${i}`), step(i - 0.5, sp)) as unknown as V3N;
+  // R5.4 cypress: ±8 % height per tree (from its phase), a lean that bows (none at the foot, most at the tip), sway and tone by height
+  const esCip = step(1.5, sp).mul(oneMinus(step(2.5, sp))) as N;
+  p0 = vec3(p0.x, p0.y.mul(esCip.mul(sin(fase.mul(3.7)).mul(0.08)).add(1)), p0.z) as unknown as V3N;
+  const hRel = clamp(p0.y.div(H), 0, 1) as N;
   // lean: the trunk shears toward a per-tree azimuth (from its phase), by a per-species amount
-  const inclina = vec2(sin(fase.mul(1.7)), cos(fase.mul(1.3))).mul(porEsp(sp, INCLINA.map((v) => float(v))).mul(tinte.mul(0.65).add(0.35))) as unknown as ReturnType<typeof vec2>;
+  const inclina = vec2(sin(fase.mul(1.7)), cos(fase.mul(1.3))).mul(porEsp(sp, INCLINA.map((v) => float(v))).mul(tinte.mul(0.65).add(0.35))).mul(esCip.mul(hRel.mul(1.5).sub(1)).add(1)) as unknown as ReturnType<typeof vec2>;
   // a collar (and its tag) without its flag goes under the ground
   let local = p0.add(vec3(inclina.x.mul(p0.y), esMetal.mul(oneMinus(step(0.5, flag))).mul(-60), inclina.y.mul(p0.y))) as unknown as V3N;
   if (aletea) { // leaves flutter: a small, fast wobble, phased per vertex, on leaf vertices only
@@ -353,14 +388,16 @@ function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.Mesh
   }
   // branches and leaf clumps sway on their own, more at the tips (`mov` 0 at a branch root … 1 at its tip), on top of the whole-tree lean
   const tt = c.tiempo as unknown as N, vel = (c.vientoU as unknown as V3N).xz.add(BRISA) as unknown as ReturnType<typeof vec2>, fz = length(vel) as N, dr = vel.div(fz) as unknown as ReturnType<typeof vec2>;
-  const punta = mov.mul(mov).mul(fz.mul(0.05).add(0.09)).mul(esc) as N;
-  const ph = tt.mul(1.9).add(fase).add(p0.x.mul(2.3)).add(p0.z.mul(1.7)) as N;
+  const movE = mix(mov, hRel.mul(0.9), esCip) as N; // the cypress sways as one body: by height, not by clump
+  const punta = movE.mul(movE).mul(fz.mul(0.05).add(0.09)).mul(esc) as N;
+  const ph = tt.mul(1.9).add(fase).add(p0.x.mul(2.3).add(p0.z.mul(1.7)).mul(oneMinus(esCip))) as N; // … and in one phase (its shells do not drift apart)
   const bal = vec3(dr.x.mul(sin(ph)).sub(dr.y.mul(cos(ph.mul(0.7))).mul(0.4)), sin(ph.mul(1.3)).mul(0.25), dr.y.mul(sin(ph)).add(dr.x.mul(cos(ph.mul(0.7))).mul(0.4))).mul(punta) as unknown as V3N;
-  mat.positionNode = girar(local, giro).mul(esc).add(ia.xyz).add(empuje(c, p0.y.div(H), esc.mul(H), mov.mul(0.7), fase)).add(bal);
+  mat.positionNode = girar(local, giro).mul(esc).add(ia.xyz).add(empuje(c, p0.y.div(H), esc.mul(H), movE.mul(0.7), fase)).add(bal);
   const col3 = (k: THREE.Color) => vec3(k.r, k.g, k.b) as unknown as V3N;
   const troncoO = porEsp(sp, TRONCOS.map((h) => col3(C(h)))), troncoC = mix(troncoO, col3(C(CASA.ceniza)), 0.5) as unknown as V3N;
   const tronco = mix(troncoO, troncoC, tono) as unknown as V3N;
-  const hoja = mix(ic.xyz, id.xyz, tono.mul(0.7).add(0.3)).mul(1.4) as unknown as V3N; // the house greens are deep: lift them so the crowns read under the morning light
+  const tonoH = mix(tono.mul(0.7).add(0.3), hRel.mul(0.75).add(0.12).add(tono.mul(0.13)), esCip) as N; // cypress: dark foot → lighter, warmer sunlit top
+  const hoja = mix(ic.xyz, id.xyz, tonoH).mul(1.4) as unknown as V3N; // the house greens are deep: lift them so the crowns read under the morning light
   const laton = mix(col3(C(MAQUINA.laton)), col3(C(MAQUINA.cobre)), step(1.5, flag)) as unknown as V3N;
   const metal = mix(laton, col3(C(mezcla(MAQUINA.laton, CASA.arena, 0.35))), step(2.5, parte)) as unknown as V3N;
   const ao = clamp(p0.y.div(H), 0, 1).mul(0.1).add(0.9) as N; // fake ambient occlusion: a little darker toward the ground
@@ -372,16 +409,17 @@ function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.Mesh
 }
 
 
-/** Far LOD: a = (x, y, z, escala) · b = (giro, fase, tinte, especie) · c = (trunkH, trunkR, blob y, blob r xz) · d = (blob r y, 0, 0, 0) · e = leaf colour (r, g, b, 0). */
+/** Far LOD: a = (x, y, z, escala) · b = (giro, fase, tinte, especie) · c = (trunkH, trunkR, blob y, blob r xz) · d = (blob r y, ring shift, 0, 0) · e = leaf colour (r, g, b, 0). */
 type InstLejos = Inst & { c: THREE.InstancedBufferAttribute; d: THREE.InstancedBufferAttribute; e: THREE.InstancedBufferAttribute };
 function materialLejos(c: Comunes, inst: InstLejos): THREE.MeshLambertNodeMaterial {
   const mat = new THREE.MeshLambertNodeMaterial({ flatShading: true });
   mat.name = "arbol-lejos";
   const ia = instancedBufferAttribute(inst.a) as unknown as { xyz: V3N; w: N }, ib = instancedBufferAttribute(inst.b) as unknown as { x: N; y: N; z: N; w: N };
-  const ic = instancedBufferAttribute(inst.c) as unknown as { x: N; y: N; z: N; w: N }, id = instancedBufferAttribute(inst.d) as unknown as { x: N };
+  const ic = instancedBufferAttribute(inst.c) as unknown as { x: N; y: N; z: N; w: N }, id = instancedBufferAttribute(inst.d) as unknown as { x: N; y: N };
   const ie = instancedBufferAttribute(inst.e) as unknown as V3N;
   const q = positionGeometry as unknown as V3N, parte = attribute("parte", "float") as unknown as N;
-  const tronco = vec3(q.x.mul(ic.y), q.y.mul(ic.x), q.z.mul(ic.y)), copa = vec3(q.x.mul(ic.w), ic.z.add(q.y.mul(id.x)), q.z.mul(ic.w));
+  const qy = q.y.add(id.y.mul(oneMinus(q.y.mul(q.y)))) as N; // R5.4: the ring moves by the per-species shift, the apexes (|y| ≈ 1) barely
+  const tronco = vec3(q.x.mul(ic.y), q.y.mul(ic.x), q.z.mul(ic.y)), copa = vec3(q.x.mul(ic.w), ic.z.add(qy.mul(id.x)), q.z.mul(ic.w));
   const s1 = step(0.5, parte) as N;
   const p0 = mix(tronco, copa, s1) as unknown as V3N;
   const H = ic.z.add(id.x) as N, esc = ia.w;
@@ -491,7 +529,7 @@ export function crearArboles(h: HArboles, puntos: readonly PuntoArbol[]) {
         ia[k * 4] = datos[i]; ia[k * 4 + 1] = datos[i + 1]; ia[k * 4 + 2] = datos[i + 2]; ia[k * 4 + 3] = datos[i + 3];
         ib[k * 4] = datos[i + 4]; ib[k * 4 + 1] = datos[i + 5]; ib[k * 4 + 2] = datos[i + 7]; ib[k * 4 + 3] = e;
         ic[k * 4] = p[0]; ic[k * 4 + 1] = p[1]; ic[k * 4 + 2] = p[2]; ic[k * 4 + 3] = p[3];
-        id[k * 4] = p[4];
+        id[k * 4] = p[4]; id[k * 4 + 1] = p[5];
         ie[k * 3] = col[0]; ie[k * 3 + 1] = col[1]; ie[k * 3 + 2] = col[2];
       }
     }

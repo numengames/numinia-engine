@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three/webgpu";
 import { uniform } from "three/tsl";
-import { crearArboles, geometriaArbol, geometriaCerca, geometriaLejos, ESPECIES, TRIS_MAX_CERCA, TRIS_MAX_LEJOS, TRIANGULOS_ARBOL, TRIANGULOS_DETALLE, TRIANGULOS_SIMPLE, triangulosCerca } from "../packages/render/src/naturaleza/arboles.ts";
+import { crearArboles, geometriaArbol, geometriaCerca, geometriaLejos, ESPECIES, LEJOS, TRIS_MAX_CERCA, TRIS_MAX_LEJOS, TRIANGULOS_ARBOL, TRIANGULOS_DETALLE, TRIANGULOS_SIMPLE, triangulosCerca } from "../packages/render/src/naturaleza/arboles.ts";
 import type { PuntoArbol } from "../packages/render/src/naturaleza/arboles.ts";
 import { NATURALEZA_POR_NIVEL } from "../packages/render/src/naturaleza/niveles.ts";
 import { crearAzar } from "../packages/render/src/naturaleza/semilla.ts";
@@ -153,6 +153,50 @@ test("the wind material graph builds (position + colour nodes) on every species,
     assert.equal(t.tiempo.value, 3.5);
     t.dispose();
   }
+});
+
+/** R5.4: the widest horizontal reach (m, from the axis) of the leaf triangles of one species' near template at height y (plane cut). */
+function perfil(detalle: boolean, especie: number, alturas: number[]): number[] {
+  const g = geometriaArbol(detalle).geometria, p = g.getAttribute(especie === 0 ? "position" : `pos${especie}`), parte = g.getAttribute("parte"), ix = g.index!;
+  const hojas: number[][] = [];
+  for (let i = 0; i < ix.count; i += 3) { const t = [ix.getX(i), ix.getX(i + 1), ix.getX(i + 2)]; if (t.every((k) => parte.getX(k) === 1)) hojas.push(t); }
+  let ax = 0, az = 0, n = 0; for (const t of hojas) for (const k of t) { ax += p.getX(k); az += p.getZ(k); n++; } ax /= n; az /= n;
+  return alturas.map((y) => {
+    let r = 0;
+    for (const t of hojas) for (let k = 0; k < 3; k++) {
+      const a = t[k], b = t[(k + 1) % 3], ya = p.getY(a), yb = p.getY(b);
+      if ((ya - y) * (yb - y) > 0 || ya === yb) continue;
+      const s = (y - ya) / (yb - ya), x = p.getX(a) + s * (p.getX(b) - p.getX(a)), z = p.getZ(a) + s * (p.getZ(b) - p.getZ(a));
+      r = Math.max(r, Math.hypot(x - ax, z - az));
+    }
+    return r;
+  });
+}
+
+test("R5.4: the cypress is ONE flame — widest in its lower third, tapering above it with no notch (not a stack of diamonds), narrow, short trunk foot", () => {
+  const cip = ESPECIES.indexOf("cipres");
+  for (const detalle of [true, false]) {
+    const g = geometriaArbol(detalle).geometria, p = g.getAttribute(`pos${cip}`), parte = g.getAttribute("parte");
+    let tope = 0, pie = Infinity;
+    for (let i = 0; i < p.count; i++) if (parte.getX(i) === 1) { tope = Math.max(tope, p.getY(i)); pie = Math.min(pie, p.getY(i)); }
+    const ys = Array.from({ length: 60 }, (_, k) => pie + ((tope - pie) * (k + 0.5)) / 60), r = perfil(detalle, cip, ys);
+    const rMax = Math.max(...r), kMax = r.indexOf(rMax), yMax = ys[kMax];
+    assert.ok(yMax >= 0.18 * tope && yMax <= tope / 3 + 0.05, `${detalle ? "A/B" : "C/D"}: widest at ${yMax.toFixed(2)} m of ${tope.toFixed(2)} m`);
+    assert.ok(tope / (2 * rMax) >= 3.5, `narrow: ${tope.toFixed(2)} m tall, ${(2 * rMax).toFixed(2)} m wide`);
+    // above its widest ring the outline only narrows: never wider than anything below it by more than a facet's jitter (6 % of the girth)
+    let menor = rMax;
+    for (let k = kMax + 1; k < ys.length; k++) { assert.ok(r[k] <= menor + 0.06 * rMax, `${detalle ? "A/B" : "C/D"}: bump at ${ys[k].toFixed(2)} m: ${r[k].toFixed(3)} > ${menor.toFixed(3)}`); menor = Math.min(menor, r[k]); }
+    assert.ok(r[ys.length - 1] < 0.15 * rMax, "a pointed tip");
+    assert.ok(r[Math.round(ys.length * 0.75)] < 0.6 * rMax, "the upper quarter clearly tapers");
+    assert.ok(pie >= 0.35 && pie <= 0.8, `a short trunk foot under the foliage: ${pie.toFixed(2)} m`);
+  }
+  // the old R2 cypress (clumps on branch tips) had notches deeper than a third of its girth; the other species keep their own crowns
+  const enc = perfil(true, 0, [3.0, 3.5]);
+  assert.ok(enc[0] > 1, "the holm oak's crown is untouched");
+  // far LOD: the shared bipyramid's ring, moved by the cypress's ring shift (the shader's formula), sits in its lower third
+  const [, , cy, , ry, sh] = LEJOS.cipres, anillo = cy + (0 + sh * 1) * ry, alto = cy + (1.05 + sh * (1 - 1.05 * 1.05)) * ry;
+  assert.ok(anillo / alto < 0.36, `far cypress widest at ${(anillo / alto).toFixed(2)} of its height`);
+  for (const e of ESPECIES) if (e !== "cipres") assert.equal(LEJOS[e][5], 0, `${e}: far ring unchanged`);
 });
 
 test("empty input and unknown species do not throw", () => {
