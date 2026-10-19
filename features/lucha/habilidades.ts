@@ -34,3 +34,9 @@ export const HABILIDADES = Object.keys(ECLIPSE);
 export const ticksDe = (h: Habilidad): number => Math.round(h.enfriamiento * HZ_HAB);
 /** Carga after a hit/spend, clamped to 0..CARGA_MAX (pure). */
 export const cargaTras = (carga: number, h: Habilidad): number => Math.max(0, Math.min(CARGA_MAX, carga - h.coste + h.genera));
+
+/** What the Carga bar shows for a given Carga (pure: the page paints it, tests read it). `listas` = abilities affordable now. */
+export function vistaCarga(carga: number): { pct: number; texto: string; listas: Record<string, boolean> } {
+  const c = Math.max(0, Math.min(CARGA_MAX, Math.round(Number.isFinite(carga) ? carga : 0)));
+  return { pct: c, texto: `Carga ${c}/${CARGA_MAX}`, listas: Object.fromEntries(Object.entries(ECLIPSE).map(([k, h]) => [k, c >= h.coste])) };
+}

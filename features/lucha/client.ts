@@ -7,6 +7,8 @@
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg, PlacedObject } from "../../packages/feature/src/index.ts";
 import { lucha as decl } from "./feature.ts";
+import { ESCALERA, CALMA_TICKS, NIVEL_ALETARGADO } from "./estados.ts";
+import { CARGA_MAX } from "./habilidades.ts";
 import biblioteca from "../objetos/biblioteca.json" with { type: "json" };
 
 const BLOQUE = biblioteca.modelos.find((m) => m.id === "bloque")?.modelo ?? "";
@@ -15,6 +17,15 @@ export const FLASH_MS = 80, DANO_MS = 700;
 /** Flash colour of a critical (gold, not white) and its damage text. */
 export const COLOR_CRITICO = "#ffd24a";
 export const textoDano = (dano: number, critico: boolean): string => (critico ? `  ¡CRÍTICO! −${dano}` : `  −${dano}`);
+/** The Estado rungs as the character HUD names them (index = rung, 0 = ninguno → no name = stable). */
+export const NOMBRE_ESTADO = ["", "Desestabilizado", "Confundido", "Colapsado", "Aletargado"] as const;
+/** The rung the page SHOWS, from the last one the server announced (`nivel`, at `desde` ms) and the clock (pure; display only).
+ * The server forgets one rung per CALMA_TICKS of calm without saying so, so the page counts the same calm; Aletargado is only left by
+ * `reaparece`. The server stays the authority: the next `estado` event overwrites whatever this guessed. */
+export function nivelVisto(nivel: number, desde: number, ahora: number): number {
+  if (nivel >= NIVEL_ALETARGADO) return nivel;
+  return Math.max(0, nivel - Math.floor(Math.max(0, ahora - desde) / ((CALMA_TICKS / 20) * 1000)));
+}
 /** Grey the colour fades to as coherence drops (PRI-008: flat colour, no new effect). */
 const GRIS = [0x6e, 0x6e, 0x6e];
 
@@ -38,13 +49,16 @@ export function aspecto(v: Msg, flash: boolean | string = false): PlacedObject &
 const nombre = (v: Msg, extra = "") => ({ text: `${v.nombre}${extra}`, x: Number(v.x), y: (Number(v.y) || 0) + (Number(v.by1) - Number(v.by0)) + 0.5, z: Number(v.z) });
 
 /** One per page (tests make one per client). `lucha` is what the page and an agent call; `espia` sees every event (tests). */
-export function crearCliente(espia?: (event: string, msg: Msg) => void) {
+export function crearCliente(espia?: (event: string, msg: Msg) => void, reloj: () => number = Date.now) {
   let A: ClientApi | null = null;
   const temporizadores = new Map<string, ReturnType<typeof setTimeout>[]>();
   const oyentes = new Set<() => void>();
+  const rechazos = new Set<(motivo: string) => void>();
   const avisar = () => { for (const fn of oyentes) fn(); };
   let ultimo = "";
   let carga = 0;                                   // my Carga (0..100), as the server last said
+  let rung = { nivel: 0, desde: 0 };               // my Estado rung, as the server last said (the HUD reads it, never decides)
+  let visto = false;                               // this world has fighting: a creature, my Carga or my Estado reached the page
   const luego = (key: string, ms: number, fn: () => void) => { const l = temporizadores.get(key) ?? []; l.push(setTimeout(fn, ms)); temporizadores.set(key, l); };
   const limpiar = (key: string) => { for (const t of temporizadores.get(key) ?? []) clearTimeout(t); temporizadores.delete(key); };
   const dibujar = (key: string, v: Msg | undefined) => {
@@ -76,14 +90,22 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     },
     /** My Carga (0..100), as the server last said. */
     carga: (): number => carga,
+    /** True once this page has heard of fighting in the world (a creature, a Carga or an Estado of mine): the HUD shows the kit. */
+    activo: (): boolean => visto,
+    /** My Estado rung (0 = ninguno … 4 = aletargado), as the server last said, settled by the same calm the server counts. */
+    nivelEstado: (): number => nivelVisto(rung.nivel, rung.desde, reloj()),
+    /** My Estado in the HUD's words («Desestabilizado» …), or undefined when stable. */
+    estado: (): string | undefined => NOMBRE_ESTADO[lucha.nivelEstado()] || undefined,
     /** J4: the prompt «E: golpear a …» is offered for every creature that is not dissolved. */
     ofrece: (feature: string, key: string): boolean => feature !== "lucha" || A?.state.get(key)?.modo !== "disuelta",
     alCambiar: (fn: () => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
+    /** The server refused something (out of reach, cooldown, not enough Carga …): called with its words, every time. */
+    alRechazar: (fn: (motivo: string) => void) => { rechazos.add(fn); return () => rechazos.delete(fn); },
   };
 
   const part: ClientPart = clientPart(decl, (a) => {
     A = a;
-    a.state.onChange((key, v) => { dibujar(key, v); avisar(); });
+    a.state.onChange((key, v) => { if (v) visto = true; dibujar(key, v); avisar(); });
     a.on("golpe", (m) => {
       espia?.("golpe", m);
       const key = String(m.objetivo), v = a.state.get(key);
@@ -94,7 +116,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
       luego(key, FLASH_MS, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.place?.(`lucha:${key}`, aspecto(w)); });
       luego(key, DANO_MS, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.tag?.(`lucha:${key}`, nombre(w)); });
     });
-    a.on("carga", (m) => { espia?.("carga", m); carga = Number(m.valor); avisar(); });
+    a.on("carga", (m) => { espia?.("carga", m); carga = Math.max(0, Math.min(CARGA_MAX, Number(m.valor) || 0)); visto = true; avisar(); });
     a.on("habilidad", (m) => {                      // same feedback as a blow; a critical flashes gold and shows ¡CRÍTICO!
       espia?.("habilidad", m);
       const key = String(m.objetivo), v = a.state.get(key), crit = m.critico === true;
@@ -107,11 +129,19 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     });
     a.on("critico", (m) => { espia?.("critico", m); });
     a.on("aire", (m) => { espia?.("aire", m); });
-    a.on("estado", (m) => { espia?.("estado", m); });
-    a.on("reaparece", (m) => { espia?.("reaparece", m); });
+    a.on("estado", (m) => {                          // only MY rung matters to the HUD; the others' are P3's icon over their head
+      espia?.("estado", m);
+      if (String(m.objetivo) !== `p:${a.self()}`) return;
+      rung = { nivel: Math.max(0, ESCALERA.indexOf(m.estado as (typeof ESCALERA)[number])), desde: reloj() }; visto = true; avisar();
+    });
+    a.on("reaparece", (m) => {
+      espia?.("reaparece", m);
+      if (String(m.objetivo) !== `p:${a.self()}`) return;
+      rung = { nivel: 0, desde: reloj() }; avisar();
+    });
     a.on("disuelta", (m) => { espia?.("disuelta", m); limpiar(String(m.objetivo)); });
     a.on("vuelve", (m) => { espia?.("vuelve", m); });
-    a.on("rechazado", (m) => { espia?.("rechazado", m); ultimo = String(m.motivo); avisar(); });
+    a.on("rechazado", (m) => { espia?.("rechazado", m); ultimo = String(m.motivo); for (const fn of rechazos) fn(ultimo); avisar(); });
     // L2 trozo 1: the player's own life stays server-memory-only for now (no HUD yet); just pipe through for tests.
     a.on("jugadorHerido", (m) => { espia?.("jugadorHerido", m); });
     a.on("jugadorCaido", (m) => { espia?.("jugadorCaido", m); });

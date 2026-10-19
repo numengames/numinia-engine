@@ -11,7 +11,7 @@ import { ENFRIAMIENTO_TICKS } from "../features/lucha/feature.ts";
 import { crearLucha, HZ } from "../features/lucha/server.ts";
 import type { Criatura } from "../features/lucha/server.ts";
 import { VIDA_JUGADOR_MAX, REAPARICION_JUGADOR_TICKS } from "../features/lucha/feature.ts";
-import { crearCliente } from "../features/lucha/client.ts";
+import { crearCliente, nivelVisto } from "../features/lucha/client.ts";
 import { crearEscalera, ESCALERA, CALMA_TICKS, INCAPACITADO_S } from "../features/lucha/estados.ts";
 import funciones from "../features/servidor.ts";
 
@@ -20,12 +20,12 @@ type Keeper = GuestKeeper & { token: string | null };
 const keeper = (): Keeper => { const k = { token: null as string | null, load: () => k.token, save: (t: string) => { k.token = t; } }; return k; };
 
 /** n people in a headless world with the lucha server (`pvp` as the world says), a pump by ticks. */
-function mundo(n = 2, pvp = true, criaturas: Criatura[] = []) {
+function mundo(n = 2, pvp = true, criaturas: Criatura[] = [], reloj: () => number = Date.now) {
   const log: string[] = [];
   const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [crearLucha({ criaturas, semilla: 7, pvp })], log: (l) => log.push(l), identitySign: sign });
   const pages = Array.from({ length: n }, (_, i) => {
     const eventos: { event: string; msg: Record<string, unknown> }[] = [];
-    const t = inst.join(i), cli = crearCliente((event, msg) => eventos.push({ event, msg })), k = keeper();
+    const t = inst.join(i), cli = crearCliente((event, msg) => eventos.push({ event, msg }), reloj), k = keeper();
     const s = new ClientSession(t, { features: [cli.part], identity: k, view: {} });
     return { t, s, l: cli.lucha, eventos };
   });
@@ -149,4 +149,39 @@ test("lucha: main's fall (#145) and the Estado ladder agree — a fallen or cola
   assert.equal(rb.length, 2);
   assert.ok(rb.every((m) => m.includes("colapsado")), rb.join(" | "));
   assert.equal(W.evs(b, "golpe").length + W.evs(b, "habilidad").length, h0, "no blow landed on the creature");
+});
+
+// ---- combate h2 / P2: the page mirrors MY rung for the character HUD (the server decides; the page only shows) ----
+test("lucha pvp page: my own rung reaches the HUD (only mine), settles with the same calm as the server, Aletargado stays until reaparece", () => {
+  let ahora = 1_000_000;
+  const W = mundo(2, true, [], () => ahora);
+  W.pump(2);
+  const [a, b] = W.pages;
+  W.place(a.s.entity, 0, 0); W.place(b.s.entity, 1, 0);
+  W.pump(12);
+  assert.equal(b.l.estado(), undefined, "stable at the start");
+  a.l.golpear(`p:${b.s.entity}`); W.pump(ENFRIAMIENTO_TICKS + 1);
+  assert.equal(b.l.estado(), "Desestabilizado", "b was hit: b's HUD says so");
+  assert.equal(a.l.estado(), undefined, "a saw the rung of b, but it is not a's own");
+  assert.equal(b.l.activo(), true);
+  a.l.golpear(`p:${b.s.entity}`); W.pump(ENFRIAMIENTO_TICKS + 1);
+  assert.equal(b.l.estado(), "Confundido");
+  ahora += (CALMA_TICKS / HZ) * 1000;
+  assert.equal(b.l.estado(), "Desestabilizado", "30 s of calm: one rung down, like the server");
+  ahora += (CALMA_TICKS / HZ) * 1000;
+  assert.equal(b.l.estado(), undefined, "another 30 s: stable");
+  for (let i = 0; i < 4; i++) { a.l.golpear(`p:${b.s.entity}`); W.pump(ENFRIAMIENTO_TICKS + 1); }
+  assert.equal(b.l.estado(), "Aletargado");
+  ahora += 10 * CALMA_TICKS * 50;
+  assert.equal(b.l.estado(), "Aletargado", "Aletargado does not settle by waiting");
+  W.pump(INCAPACITADO_S * HZ + 4);
+  assert.equal(b.l.estado(), undefined, "reaparece: back to stable");
+});
+
+test("lucha pvp page: nivelVisto is pure — a rung lasts CALMA_TICKS/20 s, Aletargado never settles", () => {
+  assert.equal(nivelVisto(3, 0, 29_999), 3);
+  assert.equal(nivelVisto(3, 0, 30_000), 2);
+  assert.equal(nivelVisto(1, 0, 90_000), 0);
+  assert.equal(nivelVisto(4, 0, 9e9), 4);
+  assert.equal(nivelVisto(2, 5_000, 0), 2, "a clock that went back does not raise it");
 });
