@@ -180,18 +180,6 @@ body #panel-entorno { top: 112px !important; }
 #panel-director input[type="text"] { width: 100%; box-sizing: border-box; min-height: 44px; margin: 4px 0 8px; padding: 0 10px; border: 1px solid var(--n-linea); border-radius: 6px; background: rgba(0,0,0,.25); color: var(--n-texto); font: inherit; }
 #panel-director input[type="range"] { width: 100%; min-height: 44px; }
 @media (prefers-reduced-motion: reduce) { #narrador { transition: none; } }
-/* N16: «Gente» — who is connected now, and «Ir» */
-#gente .gente-lista { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; max-height: min(50vh, 420px); overflow: auto; }
-#gente .gente-lista li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 4px 4px 8px; border: 1px solid var(--n-linea); border-radius: 6px; }
-#gente .gente-lista li .nombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-#gente .gente-lista li.vacio { border: 0; color: var(--n-texto2); padding: 4px 0; }
-#gente .gente-lista .nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#gente .opcion { display: flex; align-items: center; gap: 8px; min-height: 44px; }
-#gente .opcion[hidden] { display: none; }
-#gente .opcion input { width: 20px; height: 20px; }
-#gente .nota, #gente .estado { color: var(--n-texto2); margin: 4px 0; }
-#gente .gente-lista button { min-height: 44px; min-width: 64px; }
-
 /* contadores v1 (D-044): the panel with the counters near you (value once a second; orders while within reach) */
 #contadores-panel { position: fixed; top: max(84px, 12%); right: 12px; z-index: 6; display: flex; flex-direction: column; gap: 8px; max-width: min(240px, calc(100vw - 24px)); }
 #contadores-panel .contador { padding: 8px 12px; background: var(--n-sup); color: var(--n-texto); border: 1px solid var(--n-linea); border-left: 3px solid var(--n-ambar); border-radius: 8px; }
@@ -525,3 +513,99 @@ html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 
 #ajustes fieldset.solo-lectura dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
 #ajustes fieldset.solo-lectura dt { color: var(--n-texto2); }
 #ajustes fieldset.solo-lectura dd { margin: 0; color: var(--n-texto); overflow-wrap: anywhere; }
+/* ux2-gente */
+/* «Gente» (L) — tabs, the list on the left (bust 44 px, name, where, a green dot when connected), the
+   person picked on the right (full-body portrait, name + «En <mundo>», «Ahora», one main action; the delicate ones apart,
+   at the bottom). Narrow screens show one of the two (data-vista). Maqueta p3 (rediseño v2). */
+#gente.gente-panel { width: min(96vw, 1080px); }
+#gente .cuerpo { padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+#gente header { padding: 12px 16px; gap: 12px; }
+#gente header h2 { margin-right: auto; font-size: 18px; }
+#gente .gente-anadir, #gente .gente-botones button, #gente .gente-delicados button, #gente-denuncia button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 10px !important; font-weight: 500; }
+#gente .gente-pestanas { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--n-linea); }
+#gente .gente-pestanas button { background: transparent !important; border: 0 !important; border-bottom: 2px solid transparent !important; border-radius: 0 !important; padding: 12px 14px !important; color: var(--n-texto2) !important; font: 500 14px var(--n-titulos) !important; min-height: 44px; }
+#gente .gente-pestanas button[aria-selected="true"] { color: var(--n-texto) !important; border-bottom-color: var(--n-turquesa) !important; }
+#gente .gente-cuerpo { display: flex; min-height: min(480px, 70vh); max-height: calc(92vh - 140px); }
+#gente .gente-izq { flex: 0 0 290px; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; padding: 10px; border-right: 1px solid var(--n-linea); overflow: auto; }
+#gente .gente-buscar { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-fondo); color: var(--n-texto2); }
+#gente .gente-buscar input { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; color: var(--n-texto); font: 14px var(--n-titulos); outline: none; }
+#gente .gente-buscar:focus-within { outline: 2px solid var(--n-turquesa); outline-offset: 2px; }
+#gente .gente-lista { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+#gente .gente-seccion { margin: 12px 10px 4px; font: 600 11px var(--n-titulos); letter-spacing: .06em; text-transform: uppercase; color: var(--n-texto2); }
+#gente .gente-fila { width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px 10px !important; min-height: 60px; text-align: left; background: transparent !important; border: 1px solid transparent !important; border-radius: 6px !important; color: var(--n-texto) !important; cursor: pointer; }
+#gente .gente-fila:hover { background: var(--n-elev) !important; }
+#gente .gente-fila[aria-current="true"] { background: var(--n-elev) !important; border-color: var(--n-linea) !important; }
+#gente .gente-fila.fuera { opacity: .6; }
+#gente .gente-fila .textos { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#gente .gente-fila b { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#gente .gente-fila .sub { font-size: 12px; color: var(--n-texto2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#gente .punto, #gente-tarjeta .punto { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--n-hecho); }
+#gente .vacio { color: var(--n-texto2); margin: 10px; }
+#gente .opcion { display: flex; align-items: center; gap: 8px; min-height: 44px; margin: 8px 10px 0; color: var(--n-texto2); font-size: 13px; }
+#gente .opcion[hidden] { display: none; }
+#gente .opcion input { width: 18px; height: 18px; accent-color: var(--n-turquesa); }
+#gente .gente-letra, #gente-denuncia .gente-letra { margin: auto 10px 2px; padding-top: 10px; font-size: 11px; color: var(--n-texto2); }
+#gente .estado { margin: 0; padding: 6px 16px; min-height: 1.4em; font-size: 12px; color: var(--n-texto2); border-top: 1px solid var(--n-linea); }
+#gente .estado:empty { display: none; }
+#gente .gente-der { flex: 1; display: flex; min-width: 0; }
+#gente .gente-nadie { flex: 1; display: grid; place-items: center; color: var(--n-texto2); padding: 20px; text-align: center; }
+#gente .gente-figura { flex: 0 0 210px; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 60%, #2a2f3a, transparent 70%); }
+#gente .gente-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 18px; padding: 22px 18px 18px 6px; overflow: auto; }
+#gente .gente-titulo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#gente .gente-nombre { margin: 0; font: var(--n-titulos-peso) 26px/1.15 var(--n-titulos); color: var(--n-texto); overflow-wrap: anywhere; }
+#gente .gente-datos .sub { margin: 4px 0 0; color: var(--n-texto2); }
+#gente .chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid var(--n-linea); font-size: 12px; color: var(--n-texto2); white-space: nowrap; }
+#gente .chip.ok { color: var(--n-hecho); border-color: #3c5230; }
+#gente .gente-ahora h4 { margin: 0 0 6px; font: 600 12px var(--n-titulos); letter-spacing: .06em; text-transform: uppercase; color: var(--n-verdemar); }
+#gente .gente-ahora p { margin: 0; font-size: 14px; }
+#gente .gente-botones, #gente-denuncia .gente-botones { display: flex; gap: 8px; flex-wrap: wrap; }
+#gente .gente-delicados { margin-top: auto; display: flex; gap: 6px; flex-wrap: wrap; padding-top: 14px; border-top: 1px solid var(--n-linea); }
+#gente .gente-delicados .empuja { margin-left: auto; }
+#gente button.principal, #gente-tarjeta button.principal { background: var(--n-accion) !important; border-color: var(--n-accion) !important; color: var(--n-accion-tinta) !important; }
+#gente button.principal:hover:not(:disabled), #gente-tarjeta button.principal:hover { background: var(--n-accion-h) !important; }
+#gente button.fantasma { background: transparent !important; }
+#gente button.peligro-texto, #gente-tarjeta button.peligro-texto { background: transparent !important; color: #F35059 !important; }
+#gente button:disabled { opacity: .5; cursor: not-allowed; }
+#gente .gente-volver { display: none; align-self: flex-start; background: transparent !important; border: 0 !important; color: var(--n-texto2) !important; padding: 0 !important; min-height: 44px; }
+/* portraits: the house avatar's picture, or a silhouette (never a hole) */
+.retrato { flex: none; display: grid; place-items: center; overflow: hidden; color: var(--n-texto2); }
+.retrato.busto { width: 44px; height: 44px; border-radius: 6px; border: 1px solid var(--n-linea); background: #2a2f3a; }
+.retrato.busto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.retrato.cuerpo { width: 100%; height: 100%; max-height: 440px; }
+.retrato.cuerpo img { height: min(420px, 60vh); width: auto; max-width: 100%; object-fit: contain; display: block; }
+.retrato.apagado img { filter: grayscale(1); opacity: .7; }
+.retrato.silueta { opacity: .75; }
+@media (max-width: 760px) {
+  #gente .gente-cuerpo { min-height: 0; max-height: calc(92vh - 130px); }
+  #gente .gente-izq { flex: 1; border-right: 0; }
+  #gente .gente-cuerpo[data-vista="ficha"] .gente-izq, #gente .gente-cuerpo[data-vista="lista"] .gente-der { display: none; }
+  #gente .gente-der { flex-direction: column; overflow: auto; }
+  #gente .gente-figura { flex: none; height: 220px; }
+  #gente .gente-figura .retrato.cuerpo img { height: 210px; }
+  #gente .gente-info { padding: 12px 16px 16px; }
+  #gente .gente-volver { display: inline-flex; }
+  #gente header .gente-anadir span { display: none; }
+  #gente .gente-botones button, #gente .gente-delicados button, #gente .gente-fila { min-height: 44px; }
+}
+/* the report form */
+#gente-denuncia { width: min(92vw, 440px); }
+#gente-denuncia textarea { width: 100%; box-sizing: border-box; margin: 8px 0; padding: 8px 10px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-fondo); color: var(--n-texto); font: 14px var(--n-titulos); resize: vertical; }
+#gente-denuncia button.peligro { background: var(--n-grana) !important; color: #fff !important; border-color: var(--n-grana) !important; }
+#gente-denuncia .estado { color: var(--n-texto2); min-height: 1.2em; }
+/* the small card beside someone you click in the world (maqueta p4) */
+#gente-tarjeta { position: fixed; left: 0; top: 0; z-index: 8; width: 330px; max-width: calc(100vw - 16px); box-sizing: border-box; padding: 12px; background: var(--n-sup); color: var(--n-texto); border: 1px solid var(--n-linea); border-radius: 8px; font: 14px var(--n-titulos); }
+#gente-tarjeta[hidden] { display: none; }
+#gente-tarjeta .cab { display: flex; gap: 12px; align-items: center; }
+#gente-tarjeta .retrato.busto { width: 64px; height: 64px; }
+#gente-tarjeta .textos { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#gente-tarjeta .textos b { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#gente-tarjeta .textos .sub { font-size: 12px; color: var(--n-texto2); }
+#gente-tarjeta button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; min-width: 40px; padding: 0 10px; background: var(--n-elev); color: var(--n-texto); border: 1px solid var(--n-linea); border-radius: var(--n-r-control); font: 500 14px var(--n-titulos); cursor: pointer; }
+#gente-tarjeta button:hover { border-color: var(--n-texto2); }
+#gente-tarjeta .gente-mas { background: transparent; border-color: transparent; width: 40px; padding: 0; }
+#gente-tarjeta .acciones { display: flex; gap: 6px; margin-top: 12px; }
+#gente-tarjeta .acciones button:not(.solo-icono) { flex: 1; }
+#gente-tarjeta .gente-menu { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--n-linea); }
+#gente-tarjeta .gente-menu button { justify-content: flex-start; background: transparent; border-color: transparent; }
+#gente-tarjeta .gente-menu button:hover { background: var(--n-elev); }
+@media (pointer: coarse) { #gente-tarjeta button { min-height: 44px; min-width: 44px; } }

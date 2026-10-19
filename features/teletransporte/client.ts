@@ -6,7 +6,8 @@ import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, Msg } from "../../packages/feature/src/index.ts";
 import { teletransporte, MUNDO } from "./feature.ts";
 
-export type Persona = { quien: number; nombre: string };
+/** `huella`: a tag of their identity, the same on every visit (feature.ts huellaDe); "" from an older server. */
+export type Persona = { quien: number; nombre: string; huella: string };
 /** A moment of the light: someone leaves (`sale`) or arrives (`llega`) at x, y, z with this look. */
 export type Destello = { tipo: "sale" | "llega"; quien: number; nombre: string; x: number; y: number; z: number; variante: number };
 export type Cambio = "mundo" | "permiso" | "gente" | "viaje";
@@ -65,7 +66,7 @@ export function crearCliente() {
     a.on("persona", (m) => {
       const n = Number(m.n), total = Number(m.total);
       if (n === 0) nueva = [];
-      if (total > 0) nueva[n] = { quien: Number(m.quien), nombre: String(m.nombre) };
+      if (total > 0) nueva[n] = { quien: Number(m.quien), nombre: String(m.nombre), huella: String(m.huella ?? "") };
       if (total === 0 || n === total - 1) { estado.gente = nueva.filter(Boolean); estado.todos = Number(m.todos); nueva = []; avisar("gente"); }
     });
     a.on("viaje", (m) => { estado.viaje = { ok: m.ok === true, texto: String(m.texto) }; if (m.ok === true) estado.viajes++; avisar("viaje"); });
