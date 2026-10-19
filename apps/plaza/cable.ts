@@ -1,4 +1,4 @@
-// cable (D-041), builder view (historias 5-6): dentro del panel del constructor, una lista con cada disparador que
+// cable (D-041), builder view (historias 5-6): dentro del cajón «Cable» del constructor (ux2-dock), una lista con cada disparador que
 // el mundo cablea en disparadores.json — su nombre, tipo, estado (listo / en espera / agotado) y cuántas veces ha
 // disparado — con un botón «Probar» para los de tipo botón (dispararlo sin acercarse: cómodo para comprobar un
 // cooldown o un «un solo uso» antes de que nadie más esté cerca) y, ahora, un editor en vivo de sus receptores
@@ -12,7 +12,7 @@ export type OpcionesCable = {
   constructor: { estado: { puede: boolean }; escuchar(fn: (que: string) => void): () => void };
   disparadores: { lista(): Disparador[]; pulsar(id: string): Res; editarReceptores(id: string, receptores: Record<string, unknown>[]): Res; alCambiar(fn: (id: string) => void): () => void };
   decir(texto: string): void; // soltar.ts' status line (role=status)
-  panel: HTMLElement | null;  // the build panel: the «Cable» list goes at its end
+  panel: HTMLElement | null;  // the builder's «Cable» drawer: the list goes inside it (its heading says «Cable»)
 };
 
 const estadoTexto = (d: Disparador): string => d.agotado ? "agotado" : d.enEspera ? "en espera" : "listo";
@@ -20,9 +20,8 @@ const estadoTexto = (d: Disparador): string => d.agotado ? "agotado" : d.enEsper
 export function montarCable(o: OpcionesCable) {
   const caja = document.createElement("div");
   caja.id = "cable-panel"; caja.setAttribute("role", "group"); caja.setAttribute("aria-label", "Cable: disparadores del mundo");
-  const titulo = document.createElement("p"); titulo.textContent = "Cable (disparadores del mundo):";
   const lista = document.createElement("ul"); lista.id = "cable-lista";
-  caja.append(titulo, lista);
+  caja.append(lista);
   o.panel?.append(caja);
 
   const fila = (d: Disparador): HTMLLIElement => {
@@ -66,7 +65,7 @@ export function montarCable(o: OpcionesCable) {
   o.constructor.escuchar((que) => { if (que === "permiso") refrescar(); });
   o.disparadores.alCambiar(() => refrescar());
   refrescar();
-  // C4: the card's «Abrir el cable»: bring this list into view (the panel is already open while building) and focus it
+  // C4: the Inspector's «Abrir el cable» (it opens this drawer first): bring this list into view and focus it
   const mostrar = () => { caja.tabIndex = -1; caja.scrollIntoView?.({ block: "nearest" }); caja.focus(); };
   return { refrescar, mostrar };
 }

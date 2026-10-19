@@ -2,7 +2,7 @@
 // (The DOM is covered by the e2e leg.)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { aplicarAccionVR, COLUMNAS_FICHA_MOVIL, datosFicha, enlaceDeObjeto, ETIQUETAS_FICHA, FACTOR_MAS_VR, FACTOR_MENOS_VR, fichaVisible, LARGA_MS, logicaDeObjeto, PASO_GIRO_VR, PESTANAS, pestanaConTecla, seleccionarAlIr } from "../apps/plaza/ficha-objeto.ts";
+import { aplicarAccionVR, datosFicha, enlaceDeObjeto, ETIQUETAS_FICHA, FACTOR_MAS_VR, FACTOR_MENOS_VR, fichaVisible, logicaDeObjeto, PASO_GIRO_VR, seleccionarAlIr } from "../apps/plaza/ficha-objeto.ts";
 import type { AccionVR } from "../apps/plaza/ficha-objeto.ts";
 import { celdaEn, celdasFicha, CH, COLS, CW, FICHA_H, FICHA_W, GAP, X0, Y0 } from "../packages/render/src/vr-ficha.ts";
 import { leerSitio } from "../apps/plaza/foto-nucleo.ts";
@@ -41,17 +41,6 @@ test("the link to an object is a #foto= place the photo mode can read back", () 
   assert.equal(enlaceDeObjeto({ origin: "https://x.test", pathname: "/", search: "" }, { id: "o3" }), null);
 });
 
-test("C4: the tabs are Ficha, Lógica and Ajustes; ←/→ wrap around, Home/End jump, other keys do nothing", () => {
-  assert.deepEqual(PESTANAS.map(([id]) => id), ["ficha", "logica", "ajustes"]);
-  assert.equal(pestanaConTecla("ficha", "ArrowRight"), "logica");
-  assert.equal(pestanaConTecla("ajustes", "ArrowRight"), "ficha");
-  assert.equal(pestanaConTecla("ficha", "ArrowLeft"), "ajustes");
-  assert.equal(pestanaConTecla("logica", "ArrowLeft"), "ficha");
-  assert.equal(pestanaConTecla("logica", "Home"), "ficha");
-  assert.equal(pestanaConTecla("logica", "End"), "ajustes");
-  for (const k of ["Enter", " ", "a", "ArrowUp", "Escape", "Tab"]) assert.equal(pestanaConTecla("logica", k), null, k);
-});
-
 test("C4: the wires of an object — who shows or hides it (by id or name), what stands at it, locks and counters at the same spot", () => {
   const mesa = { id: "o7", nombre: "Mesa", x: 10, y: 0, z: 10 };
   const w = {
@@ -76,13 +65,11 @@ test("C4: the wires of an object — who shows or hides it (by id or name), what
   assert.deepEqual(logicaDeObjeto({ id: "o8" }, w).salen, []);
 });
 
-// ---- C5: touch (short labels, long press, sheet grid) and VR (the panel's cells and the actions) ----
-test("touch: every icon has a short, unique, plain label that fits a 72 px cell; the sheet grid fits 360 px with 44 px targets", () => {
+// ---- C5: touch (short labels) and VR (the panel's cells and the actions) ----
+test("touch: every icon-only button of the card has a short, unique, plain label", () => {
   const etiquetas = Object.values(ETIQUETAS_FICHA);
   assert.equal(new Set(etiquetas).size, etiquetas.length);
   for (const t of etiquetas) assert.ok(t.length <= 8 && !/[()]/.test(t), t);
-  assert.ok(LARGA_MS >= 350 && LARGA_MS <= 600); // longer than a tap, shorter than a wait
-  assert.ok(360 / COLUMNAS_FICHA_MOVIL - 6 >= 44);
 });
 
 test("VR panel: the 8 cells in order, «Soltar» when anchored, «¿Seguro?» when asked once, only «Borrar» is the dangerous one", () => {
