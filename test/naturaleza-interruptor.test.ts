@@ -107,6 +107,16 @@ test("interruptor: a world without naturaleza.json publishes nothing (as before)
   assert.equal(b.vistas.at(-1)?.activa, false);
 });
 
+test("interruptor: a world folder with no entorno/ yet (its zip brought none) gets it on the first switch", () => {
+  const raiz = mkdtempSync(join(tmpdir(), "nat-sin-entorno-")), dir = join(raiz, "entorno");
+  assert.ok(!existsSync(dir));
+  const { pages: [a], pump } = mundo(dir, 1);
+  a.nat.poner(true); pump();
+  assert.deepEqual(JSON.parse(leer(dir)), { schema: ESQUEMA, activa: true });
+  assert.equal(a.vistas.at(-1)?.activa, true);
+  assert.deepEqual(eventos(a.s, "rechazado"), [], "no refusal");
+});
+
 test("interruptor: a broken or wrong file is never overwritten; the builder is told to fix it by hand", () => {
   const roto = "{ \"semilla\": 5, ";
   const d1 = carpeta(roto);
