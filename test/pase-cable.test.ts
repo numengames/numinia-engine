@@ -216,6 +216,11 @@ test("WebSocket: maxPayload 2048 lets a 1.3 KB pass through; other messages keep
     s1.t.send(encodePase(pase())!, true);
     assert.ok(await espera(() => (srv.inst.conns.find((c) => c.entity === s1.entity)?.bad ?? 0) === 1));
     assert.ok(srv.inst.conns.some((c) => c.entity === s1.entity));
+
+    // 6) /status tells from outside what came of them: the good one, the 2048-byte garbage, and not the late duplicate
+    const st = await (await fetch(`http://127.0.0.1:${srv.port}/status`)).json() as { mundoPase?: string; pases?: unknown };
+    assert.equal(st.mundoPase, MUNDO);
+    assert.deepEqual(st.pases, { recibidos: 2, aceptados: 1, rechazados: 1, ultimoMotivo: "forma" });
     t1.close(); t3.close();
   } finally { await srv.close(); }
 });

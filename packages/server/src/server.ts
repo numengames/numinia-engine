@@ -280,7 +280,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       return void res.end(JSON.stringify({
         uptime: Math.floor((performance.now() - born) / 1000), conectados: personas, agentes: agentesConectados.length,
         total: inst.conns.length, agentesDe, commitHash: motor.commit ?? undefined, version, cerebro: cerebroEstado,
-        ...(cfgPase.pase ? { mundoPase: cfgPase.pase.mundo } : {}), ...fichaPublica,
+        ...(cfgPase.pase ? { mundoPase: cfgPase.pase.mundo, pases: roles.pases() } : {}), ...fichaPublica,
       }));
     }
     if (method === "GET" && path === "/metrics") return json(res, 200, metrics());
