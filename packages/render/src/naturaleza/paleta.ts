@@ -251,15 +251,15 @@ export const AGUA_ORILLA = {
 // E51
 /**
  * E51 · Agua de la orilla cyberpunk (agua-estilo.ts variante «oceano», MUNDO-PROYECTADO.md): no el azul de la Tierra sino
- * océano profundo casi negro-petróleo (Turquesa profundo hundido en Noche), recorrido por código (0/1, letras, símbolos de la
+ * océano profundo esmeralda-petróleo (Turquesa profundo con Verdín, hundido en Noche; caras de ola de cristal esmeralda), recorrido por código (0/1, letras, símbolos de la
  * casa) que de día apenas se ve (turquesa con verdemar) y de noche luce como plancton: verde-azulado bioluminiscente
  * (Turquesa + Verdemar; el pico del pulso, Verdemar con Arena). Espuma velada (Arena velada + Verdemar), nunca blanca.
  * `tinta` = los binarios de las variantes claras (a/b) subidos en E51: tinta de Turquesa profundo con verdín, que SÍ se lee
  * sobre el agua turquesa clara (el verdemar con arena de E03 se perdía). Solo mezclas de tokens, ningún hex nuevo.
  */
 export const AGUA_OCEANO = {
-  somera: mezcla(mezcla(CASA.turquesaProfundo, VERDES.verdin, 0.3), CASA.noche, 0.5),
-  media: mezcla(CASA.turquesaProfundo, CASA.noche, 0.7),
+  somera: mezcla(mezcla(CASA.turquesaProfundo, VERDES.verdin, 0.45), CASA.noche, 0.45),
+  media: mezcla(mezcla(CASA.turquesaProfundo, VERDES.verdin, 0.25), CASA.noche, 0.65),
   honda: mezcla(CASA.noche, CASA.turquesaProfundo, 0.15),
   franja: mezcla(mezcla(CASA.turquesaProfundo, CASA.ceniza, 0.35), CASA.noche, 0.2),
   espuma: mezcla(CASA.arenaVelada, CASA.verdemar, 0.35),
@@ -268,4 +268,7 @@ export const AGUA_OCEANO = {
   plancton: mezcla(CASA.turquesa, CASA.verdemar, 0.4),
   planctonPico: mezcla(CASA.verdemar, CASA.arena, 0.35),
   tinta: mezcla(CASA.turquesaProfundo, VERDES.verdin, 0.3),
+  /** E51 (referencia de Pablo): la cara esmeralda de la ola por la que pasa la luz — Turquesa profundo con Verdín y un
+   * toque de Verdemar; las facetas de cristal la toman a escalones. */
+  cristal: mezcla(mezcla(VERDES.verdin, CASA.turquesaProfundo, 0.3), CASA.verdemar, 0.25),
 } as const;

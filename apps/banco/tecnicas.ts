@@ -450,7 +450,7 @@ for (const [k, variante, binarios] of VARIANTES_E51) registrar({
       const viejo = malla.material as THREE.Material; malla.material = mat; viejo.dispose();
       quitarAgua = () => { fondo.textura.dispose(); };
     }
-    (window as unknown as { __e51: unknown }).__e51 = { hora: (h: number) => horaE51(e, h), reloj: () => tiempo.value };
+    (window as unknown as { __e51: unknown }).__e51 = { hora: (h: number) => horaE51(e, h), reloj: () => tiempo.value, sol: () => (e.aguaLuz.solDir as unknown as { value: THREE.Vector3 }).value.toArray() };
     let antes = 0;
     return {
       cuadro(dt, t) { tick(t); n.actualizar(t - antes); antes = t; tiempo.value += dt; },

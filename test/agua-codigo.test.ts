@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three/webgpu";
 import { uniform } from "three/tsl";
-import { fondoDeAgua, materialDeAgua, geometriaDeAgua, rampaOrilla, rampaOceano, nocheDeSol, pulsoEn, PULSO, BINARIOS_TENUE } from "../packages/render/src/agua-estilo.ts";
+import { fondoDeAgua, materialDeAgua, geometriaDeAgua, rampaOrilla, rampaOceano, nocheDeSol, pulsoEn, PULSO, BINARIOS_TENUE, oleajeEn, brilloCodigo, OLEAJE } from "../packages/render/src/agua-estilo.ts";
 import { atlasGlifos, pixelesAtlas, GLIFOS, ORDEN, ATLAS, FAMILIAS } from "../packages/render/src/agua-glifos.ts";
 import { AGUA_OCEANO } from "../packages/render/src/naturaleza/paleta.ts";
 import { alturaEn, estanqueDe, NIVEL_AGUA } from "../packages/relieve/src/relieve.ts";
@@ -67,4 +67,16 @@ test("the three variants ± code build on the SAME geometry (one mesh, one draw 
   }
   assert.equal(geometriaDeAgua(forma, detalle, 12).getAttribute("position").count, n);
   assert.ok(BINARIOS_TENUE > 0.35, "AG10 raised from E03's 0.35");
+});
+
+test("the swell (Pablo's reference): its slope is the true derivative of its height, and the code glows faint at noon, more at golden hour, fully at night", () => {
+  for (const [x, z, tt] of [[1, 2, 0], [-7.3, 4.1, 2.5], [13, -9, 7]]) {
+    const e = 1e-4, a = oleajeEn(x, z, tt), dx = (oleajeEn(x + e, z, tt).h - oleajeEn(x - e, z, tt).h) / (2 * e), dz = (oleajeEn(x, z + e, tt).h - oleajeEn(x, z - e, tt).h) / (2 * e);
+    assert.ok(Math.abs(a.gx - dx * OLEAJE.A) < 1e-6 && Math.abs(a.gz - dz * OLEAJE.A) < 1e-6);
+    assert.ok(Math.abs(a.h) <= 1);
+  }
+  const noon = brilloCodigo(0.9), dorada = brilloCodigo(0.17), noche = brilloCodigo(-0.4);
+  assert.ok(Math.abs(noon - 0.18) < 1e-9, `noon ${noon}`);
+  assert.ok(dorada > 0.4 && dorada < 0.65, `golden ${dorada}`);
+  assert.equal(noche, 1);
 });

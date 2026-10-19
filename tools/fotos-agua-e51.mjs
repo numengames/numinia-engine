@@ -13,7 +13,7 @@ const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(`--${k}`); return i >= 0 && args[i + 1] && !args[i + 1].startsWith("--") ? args[i + 1] : d; };
 const PUERTO = Number(opt("puerto", 5861)), NIVEL = opt("nivel", "A"), TAM = opt("tam", "1920x1080");
 const SALIDA = opt("salida", join(repo, "informes/e51-fotos")), SOLO = opt("solo", "c,a,b,antes").split(",");
-const NOCHE = Number(opt("noche", 23)), DIA = Number(opt("dia", 10.5));
+const NOCHE = Number(opt("noche", 23)), DIA = Number(opt("dia", 10.5)), DORADO = opt("dorado", "auto");
 if ((process.env.TMPDIR ?? "").length > 60) process.env.TMPDIR = "/tmp";
 mkdirSync(SALIDA, { recursive: true });
 
@@ -28,14 +28,14 @@ try {
   // pond of seed 1234: centre (17.9, 57.4), radius 17.1 m (same framings as tools/fotos-agua.mjs, angle 120°)
   const E = { x: 17.895532108348768, z: 57.37456597515798, r: 17.105361125431955 };
   const en = (ang, k, y) => [E.x + Math.cos(ang) * E.r * k, y, E.z + Math.sin(ang) * E.r * k];
-  const A = (120 * Math.PI) / 180;
+  const A = (120 * Math.PI) / 180, NIVEL_AGUA = -0.2; // relieve.ts NIVEL_AGUA
   const ENC = {
     conjunto: { pos: en(A, 1.24, null), alto: 2.0, mira: [E.x, -4.6, E.z] },
     orilla: { pos: en(A, 1.16, null), alto: 1.4, mira: en(A - Math.PI / 6, 0.92, -1.0) },
   };
   // [technique, prefix, shots: [hour, framing, name, frames]]
   const PLAN = [
-    ["e51-nat-c", "c", [[DIA, "conjunto", "e51-c-dia", 90], [DIA, "orilla", "e51-c-dia-orilla", 90], [NOCHE, "conjunto", "e51-c-noche", 90], [NOCHE, "orilla", "e51-c-noche-orilla", 90],
+    ["e51-nat-c", "c", [["dorado", "dorado", "e51-c-dorado", 90], ["dorado", "dorado-orilla", "e51-c-dorado-cerca", 90], [DIA, "conjunto", "e51-c-dia", 90], [DIA, "orilla", "e51-c-dia-orilla", 90], [NOCHE, "conjunto", "e51-c-noche", 90], [NOCHE, "orilla", "e51-c-noche-orilla", 90],
       ...Array.from({ length: Number(opt("pulsos", 8)) }, (_, i) => [NOCHE, "conjunto", `e51-pulso-t${String(i + 1).padStart(2, "0")}`, 54])]], // 0.75 s apart; pick 4 in a row
     ["e51-nat-a-bin", "a", [[DIA, "conjunto", "e51-a-binarios-dia", 90], [DIA, "orilla", "e51-a-binarios-dia-orilla", 90]]],
     ["e51-nat-b-bin", "b", [[DIA, "conjunto", "e51-b-binarios-dia", 90], [DIA, "orilla", "e51-b-binarios-dia-orilla", 90]]],
@@ -52,16 +52,37 @@ try {
     const err = await p.evaluate(() => window.__banco.estado.error);
     if (err) throw new Error(`${t}: ${err}`);
     const info = await p.evaluate(() => window.__banco.estado.info);
-    let hora = DIA;
-    for (const [h, k, nombre, cuadros] of tomas) {
+    let hora = DIA, horaDorada = null;
+    for (let [h, k, nombre, cuadros] of tomas) {
+      if (h === "dorado") {
+        // golden hour: the evening hour whose sun stands ~9° up (solDir.y ≈ 0.16), found by probing the environment
+        if (horaDorada === null) {
+          horaDorada = DORADO === "auto" ? null : Number(DORADO);
+          for (let hh = 16; horaDorada === null && hh <= 21; hh += 0.25) {
+            const y = await p.evaluate(async (hh) => { await window.__e51.hora(hh); return window.__e51.sol()[1]; }, hh);
+            if (y < 0.16) horaDorada = hh;
+          }
+          hora = -1;
+        }
+        h = horaDorada;
+      }
       if (h !== hora) {
         const ok = await p.evaluate(async (h) => { if (!window.__e51) return false; await window.__e51.hora(h); return true; }, h);
         if (!ok) throw new Error(`${t}: no __e51 hook for the hour`);
         hora = h;
       }
-      const f = ENC[k];
+      let f = ENC[k];
+      if (k.startsWith("dorado")) {
+        // Pablo's reference framing: low over the water, looking INTO the sun across the pond, the glint path in the middle
+        const s = await p.evaluate(() => window.__e51.sol());
+        const l = Math.hypot(s[0], s[2]) || 1, ux = s[0] / l, uz = s[2] / l, cerca = k === "dorado-orilla";
+        const d = cerca ? 0.7 : 1.02, alto = cerca ? 0.8 : 1.3;
+        const pos = [E.x - ux * E.r * d, null, E.z - uz * E.r * d];
+        f = { pos, alto, agua: NIVEL_AGUA, mira: [E.x + ux * E.r * 1.4, NIVEL_AGUA - (cerca ? 1.6 : 1.2), E.z + uz * E.r * 1.4] };
+        console.error(`dorado: hora ${h} · sol ${s.map((v) => v.toFixed(2)).join(",")}`);
+      }
       const url = await p.evaluate(([f, cuadros]) => {
-        const B = window.__banco, y = B.suelo(f.pos[0], f.pos[2]) + f.alto;
+        const B = window.__banco, y = Math.max(B.suelo(f.pos[0], f.pos[2]), f.agua ?? -1e9) + f.alto;
         return B.retrato({ pos: [f.pos[0], y, f.pos[2]], mira: f.mira, cuadros });
       }, [f, cuadros]);
       const reloj = await p.evaluate(() => window.__e51?.reloj?.() ?? null);
