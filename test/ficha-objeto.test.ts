@@ -2,7 +2,9 @@
 // (The DOM is covered by the e2e leg.)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { datosFicha, enlaceDeObjeto, fichaVisible, logicaDeObjeto, PESTANAS, pestanaConTecla, seleccionarAlIr } from "../apps/plaza/ficha-objeto.ts";
+import { aplicarAccionVR, COLUMNAS_FICHA_MOVIL, datosFicha, enlaceDeObjeto, ETIQUETAS_FICHA, FACTOR_MAS_VR, FACTOR_MENOS_VR, fichaVisible, LARGA_MS, logicaDeObjeto, PASO_GIRO_VR, PESTANAS, pestanaConTecla, seleccionarAlIr } from "../apps/plaza/ficha-objeto.ts";
+import type { AccionVR } from "../apps/plaza/ficha-objeto.ts";
+import { celdaEn, celdasFicha, CH, COLS, CW, FICHA_H, FICHA_W, GAP, X0, Y0 } from "../packages/render/src/vr-ficha.ts";
 import { leerSitio } from "../apps/plaza/foto-nucleo.ts";
 
 test("the card shows only for someone who may build, with the builder open and an object selected", () => {
@@ -72,4 +74,52 @@ test("C4: the wires of an object — who shows or hides it (by id or name), what
   assert.deepEqual(logicaDeObjeto(mesa, { disparadores: [], cerraduras: [], contadores: [] }), { entran: [], salen: [], piezas: [] });
   // no position in the model: nothing «stands at» it
   assert.deepEqual(logicaDeObjeto({ id: "o8" }, w).salen, []);
+});
+
+// ---- C5: touch (short labels, long press, sheet grid) and VR (the panel's cells and the actions) ----
+test("touch: every icon has a short, unique, plain label that fits a 72 px cell; the sheet grid fits 360 px with 44 px targets", () => {
+  const etiquetas = Object.values(ETIQUETAS_FICHA);
+  assert.equal(new Set(etiquetas).size, etiquetas.length);
+  for (const t of etiquetas) assert.ok(t.length <= 8 && !/[()]/.test(t), t);
+  assert.ok(LARGA_MS >= 350 && LARGA_MS <= 600); // longer than a tap, shorter than a wait
+  assert.ok(360 / COLUMNAS_FICHA_MOVIL - 6 >= 44);
+});
+
+test("VR panel: the 8 cells in order, «Soltar» when anchored, «¿Seguro?» when asked once, only «Borrar» is the dangerous one", () => {
+  const c = celdasFicha({ titulo: "Mesa", anclado: false });
+  assert.deepEqual(c.map((x) => x.id), ["mover", "girar", "mas", "menos", "duplicar", "anclar", "borrar", "cerrar"]);
+  assert.deepEqual(c.filter((x) => x.peligro).map((x) => x.id), ["borrar"]);
+  assert.equal(c[5].etiqueta, "Anclar"); assert.equal(c[6].etiqueta, "Borrar");
+  assert.equal(celdasFicha({ titulo: "Mesa", anclado: true })[5].etiqueta, "Soltar");
+  assert.equal(celdasFicha({ titulo: "Mesa", anclado: true }, true)[6].etiqueta, "¿Seguro?");
+});
+
+test("VR panel: celdaEn maps the centre of each cell to 1..8 and the gaps, the title and the outside to 0", () => {
+  for (let i = 0; i < 8; i++) {
+    const x = X0 + (i % COLS) * (CW + GAP) + CW / 2, y = Y0 + Math.floor(i / COLS) * (CH + GAP) + CH / 2;
+    assert.equal(celdaEn(x, y), i + 1, `cell ${i + 1}`);
+    assert.ok(CW >= 100 && CH >= 100); // big enough to point at (≥ 10° at 1.1 m on a 0.9 m wide panel)
+  }
+  assert.equal(celdaEn(X0 + CW + GAP / 2, Y0 + 10), 0); // gap between columns
+  assert.equal(celdaEn(X0 + 10, Y0 + CH + GAP / 2), 0); // gap between rows
+  assert.equal(celdaEn(100, 40), 0); // the title
+  assert.equal(celdaEn(-5, 200), 0); assert.equal(celdaEn(FICHA_W + 5, 200), 0); assert.equal(celdaEn(100, FICHA_H + 5), 0);
+  assert.equal(celdaEn(X0, Y0), 1); assert.equal(celdaEn(X0 + CW, Y0 + CH), 1); // the cell's own edges are inside
+  assert.ok(X0 + COLS * (CW + GAP) - GAP + X0 <= FICHA_W + 1 && Y0 + 2 * (CH + GAP) - GAP + 24 <= FICHA_H + 1); // the grid fits the canvas
+});
+
+test("VR actions run the builder's own verbs with fixed steps, say what happened, and report a refusal in words", () => {
+  const llamadas: string[] = [];
+  const bien = { ok: true } as const;
+  const c = {
+    modo: (m: string) => (llamadas.push(`modo ${m}`), bien), girar: (g: number) => (llamadas.push(`girar ${g}`), bien), escalar: (f: number) => (llamadas.push(`escalar ${f}`), bien),
+    duplicar: () => (llamadas.push("duplicar"), bien), fijar: () => (llamadas.push("fijar"), bien), borrar: () => (llamadas.push("borrar"), bien), seleccionar: (id: string) => (llamadas.push(`seleccionar "${id}"`), bien),
+  };
+  const acciones: AccionVR[] = ["mover", "girar", "mas", "menos", "duplicar", "anclar", "borrar", "cerrar"];
+  for (const a of acciones) assert.equal(aplicarAccionVR(c, a).res.ok, true);
+  assert.deepEqual(llamadas, ["modo mover", `girar ${PASO_GIRO_VR}`, `escalar ${FACTOR_MAS_VR}`, `escalar ${FACTOR_MENOS_VR}`, "duplicar", "fijar", "borrar", 'seleccionar ""']);
+  assert.ok(PASO_GIRO_VR === 15 && FACTOR_MAS_VR * FACTOR_MENOS_VR === 1); // bigger then smaller gets you back
+  const no = { ...c, borrar: () => ({ ok: false, why: "está anclado" }) as const };
+  assert.deepEqual(aplicarAccionVR(no, "borrar"), { res: { ok: false, why: "está anclado" }, dicho: "No: está anclado" });
+  assert.match(aplicarAccionVR(c, "mover").dicho, /gatillo/);
 });

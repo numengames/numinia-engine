@@ -16,7 +16,7 @@
 // thing itself is the handle. Design: ../mmo-browser-study/MODO-CONSTRUCTOR-MOVIL-VR.md.
 import type { Donde, Editor, Eje } from "../../packages/render/src/index.ts";
 import { icono } from "./iconos.ts";
-import { datosFicha, enlaceDeObjeto, fichaVisible, logicaDeObjeto, PESTANAS, pestanaConTecla, seleccionarAlIr } from "./ficha-objeto.ts";
+import { datosFicha, enlaceDeObjeto, ETIQUETAS_FICHA, fichaVisible, LARGA_MS, logicaDeObjeto, PESTANAS, pestanaConTecla, seleccionarAlIr } from "./ficha-objeto.ts";
 import type { Pestana, PiezasMundo } from "./ficha-objeto.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
@@ -702,20 +702,39 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   const fTitulo = el("h3"), fTipo = el("p", { className: "sub" }), fHechos = el("dl");
   const barra = el("div"); barra.setAttribute("role", "toolbar"); barra.setAttribute("aria-label", "Acciones del objeto seleccionado");
   // icon-only button: title + aria-label + data-tip (the tip also shows on keyboard focus)
-  const bIcono = (ic: string, titulo: string, fn: () => Res | void, clase = "") => {
+  // C5: + a short label under the icon (aria-hidden: the aria-label already says it all); CSS shows it on touch screens only
+  const contenidoIcono = (ic: string, corta: string) => `${icono(ic, 18)}<span class="et" aria-hidden="true">${corta}</span>`;
+  const bIcono = (ic: string, titulo: string, corta: string, fn: () => Res | void, clase = "") => {
     const b = boton2("", titulo, fn);
-    b.innerHTML = icono(ic, 18); b.setAttribute("aria-label", titulo); b.dataset.tip = titulo; b.className = `ic ${clase}`.trim();
+    b.innerHTML = contenidoIcono(ic, corta); b.setAttribute("aria-label", titulo); b.dataset.tip = titulo; b.className = `ic ${clase}`.trim();
     return b;
   };
   const sep = () => { const d = el("span", { className: "sep" }); d.setAttribute("aria-hidden", "true"); return d; };
   const herrBarra = ([["mover", "arrows-out-cardinal", "Mover (2 o G)"], ["girar", "arrows-clockwise", "Girar (3 o R)"], ["escalar", "arrows-out-simple", "Escalar (4)"]] as const)
-    .map(([m, ic, t]) => { const b = bIcono(ic, t, () => elegirModo(m)); b.dataset.modo = m; return b; });
-  const bFijar = bIcono("push-pin", "Anclar (P)", () => c.fijar());
-  const bCopiarEnlace = bIcono("link", "Copiar enlace a este sitio", () => copiarEnlace());
-  const bVolver = bIcono("arrow-u-up-left", "Volver a donde estabas", () => (extra?.volver?.() ? { ok: true } : { ok: false, why: "no hay a dónde volver" }));
-  const bCerrar = bIcono("x", "Cerrar la ficha (Esc)", () => { c.seleccionar(""); });
-  barra.append(...herrBarra, sep(), bIcono("copy", "Duplicar (Mayús+D)", () => duplicar()), bFijar, bCopiarEnlace,
-    bIcono("trash", "Borrar (Supr; Ctrl+Z lo devuelve)", () => borrarSeleccion(), "peligro"), sep(), bVolver, bCerrar);
+    .map(([m, ic, t]) => { const b = bIcono(ic, t, ETIQUETAS_FICHA[m], () => elegirModo(m)); b.dataset.modo = m; return b; });
+  const bFijar = bIcono("push-pin", "Anclar (P)", ETIQUETAS_FICHA.anclar, () => c.fijar());
+  const bCopiarEnlace = bIcono("link", "Copiar enlace a este sitio", ETIQUETAS_FICHA.enlace, () => copiarEnlace());
+  const bVolver = bIcono("arrow-u-up-left", "Volver a donde estabas", ETIQUETAS_FICHA.volver, () => (extra?.volver?.() ? { ok: true } : { ok: false, why: "no hay a dónde volver" }));
+  const bCerrar = bIcono("x", "Cerrar la ficha (Esc)", ETIQUETAS_FICHA.cerrar, () => { c.seleccionar(""); });
+  barra.append(...herrBarra, sep(), bIcono("copy", "Duplicar (Mayús+D)", ETIQUETAS_FICHA.duplicar, () => duplicar()), bFijar, bCopiarEnlace,
+    bIcono("trash", "Borrar (Supr; Ctrl+Z lo devuelve)", ETIQUETAS_FICHA.borrar, () => borrarSeleccion(), "peligro"), sep(), bVolver, bCerrar);
+  // C5: a long press on an icon (finger, pen) says its full title in one line under the bar and does NOT press it; the click that
+  // follows the lift is swallowed. A mouse has the tooltip, so it is left alone.
+  const pista = el("p", { id: "ficha-pista" }); pista.setAttribute("role", "status"); pista.hidden = true;
+  let temporizador = 0, ocultaPista = 0, larga = false;
+  const sueltaDedo = () => { clearTimeout(temporizador); temporizador = 0; };
+  barra.addEventListener("pointerdown", (e) => {
+    const b = e.pointerType === "mouse" ? null : (e.target as Element).closest<HTMLButtonElement>("button.ic");
+    if (!b) return;
+    larga = false; sueltaDedo();
+    temporizador = window.setTimeout(() => {
+      larga = true; pista.textContent = b.dataset.tip ?? ""; pista.hidden = false;
+      clearTimeout(ocultaPista); ocultaPista = window.setTimeout(() => { pista.hidden = true; }, 4000);
+    }, LARGA_MS);
+  });
+  for (const ev of ["pointerup", "pointercancel", "pointerleave"]) barra.addEventListener(ev, sueltaDedo);
+  barra.addEventListener("click", (e) => { if (larga) { larga = false; e.preventDefault(); e.stopPropagation(); } }, true);
+  barra.addEventListener("contextmenu", (e) => { if ((e as PointerEvent).pointerType !== "mouse") e.preventDefault(); }); // no browser menu on a long press
   // C4: tabs (role=tablist/tab/tabpanel; ←/→ move, Home/End jump) — «Ficha» (the facts above), «Lógica», «Ajustes». The
   // panels only read the shared state and call the builder's own verbs (nombrar, ajustar, fijar): no new network path.
   let pestana: Pestana = "ficha", firmaFicha = "";
@@ -764,7 +783,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     for (const [k, p] of Object.entries(paneles)) p.hidden = k !== id;
     firmaFicha = ""; pintarFicha();
   }
-  ficha.append(fTitulo, fTipo, tabs, paneles.ficha, paneles.logica, paneles.ajustes, barra);
+  ficha.append(fTitulo, fTipo, tabs, paneles.ficha, paneles.logica, paneles.ajustes, barra, pista);
   ficha.addEventListener("keydown", (e) => { // typing in the card stays in the card; Esc leaves it like the builder's Esc
     if (!esEntrada(e.target)) return;
     e.stopPropagation();
@@ -784,7 +803,8 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   function pintarFicha(): void {
     const o = c.estado.seleccionado ? c.objeto(c.estado.seleccionado) : null;
     const ver = fichaVisible(c.estado.puede, abierto(), o ? o.id : "");
-    if (!ver) { if (!ficha.hidden) ficha.hidden = true; firmaFicha = ""; return; }
+    if (!ver) { if (!ficha.hidden) { ficha.hidden = true; pista.hidden = true; } document.documentElement.classList.remove("ficha-hoja"); firmaFicha = ""; return; }
+    document.documentElement.classList.add("ficha-hoja"); // touch CSS: the card is a bottom sheet and the builder's panel steps aside
     // «Ajustes» fields follow the server's state every time (a rejected change puts the box back), but never under your cursor
     if (pestana === "ajustes") {
       const t = document.activeElement;
@@ -808,7 +828,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     fHechos.replaceChildren(...d.hechos.flatMap(([k, v]) => [el("dt", { textContent: k }), el("dd", { textContent: v })]));
     for (const b of herrBarra) b.setAttribute("aria-pressed", String(b.dataset.modo === c.estado.modo));
     const fij = o!.fijado === true, t = fij ? "Soltar (P)" : "Anclar (P)";
-    bFijar.innerHTML = icono(fij ? "push-pin-slash" : "push-pin", 18); bFijar.title = t; bFijar.dataset.tip = t; bFijar.setAttribute("aria-label", t);
+    bFijar.innerHTML = contenidoIcono(fij ? "push-pin-slash" : "push-pin", fij ? ETIQUETAS_FICHA.soltar : ETIQUETAS_FICHA.anclar); bFijar.title = t; bFijar.dataset.tip = t; bFijar.setAttribute("aria-label", t);
     bVolver.hidden = !volver;
     ficha.hidden = false;
   }
@@ -865,6 +885,7 @@ function estilo(): void {
 #ficha-objeto .sep { width: 1px; background: rgba(255, 255, 255, .14); margin: 0 3px; }
 #ficha-objeto button.ic { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; }
 #ficha-objeto button[hidden] { display: none; }
+#ficha-objeto button.ic .et, #ficha-objeto #ficha-pista { display: none; } /* C5: labels and the long-press line are for touch screens (below) */
 #ficha-objeto .pestanas { display: flex; gap: 2px; border-bottom: 1px solid rgba(255, 255, 255, .14); }
 #ficha-objeto .pestanas button { position: relative; display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border: 0; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0; background: transparent; color: #9aa7b4; font: 600 12px system-ui, sans-serif; cursor: pointer; }
 #ficha-objeto .pest-panel { margin-top: 6px; max-height: 34vh; overflow-y: auto; }
@@ -887,6 +908,20 @@ function estilo(): void {
   #ficha-objeto button.ic { padding: 0; }
   #panel-construir select, #panel-construir input[type=number], #panel-construir input[type=text] { min-height: 40px; font-size: 14px; }
   #panel-construir { font-size: 14px; }
+  /* C5: the card becomes a bottom sheet — never above 46 % of the screen, so the chosen object stays in view above it */
+  #ficha-objeto { left: 0; right: 0; bottom: 0; transform: none; width: auto; max-height: 46vh; box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; border-radius: 16px 16px 0 0; padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)); font-size: 14px; background: var(--n-fondo, #14110f) !important; border-radius: 16px 16px 0 0 !important; box-shadow: 0 -6px 18px rgba(0, 0, 0, .45) !important; } /* tema.css forces its own frame with !important: this wins by coming later */
+  html.ficha-hoja #panel-construir { display: none; } /* one sheet at a time: the object's card takes the builder's place while an object is selected */
+  #ficha-objeto h3 { display: inline-block; margin: 0 8px 4px 0; font-size: 16px; }
+  #ficha-objeto .sub { display: inline-block; margin: 0 0 4px; }
+  #ficha-objeto .pestanas button { flex: 1; justify-content: center; min-height: 44px; padding: 8px 4px; font-size: 14px; }
+  #ficha-objeto .pest-panel { max-height: 12vh; }
+  #ficha-objeto [role=toolbar] { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+  #ficha-objeto .sep { display: none; }
+  #ficha-objeto button.ic { width: auto; min-height: 48px; flex-direction: column; gap: 2px; padding: 4px 0; }
+  #ficha-objeto button.ic .et { display: block; font: 600 11px/1.1 system-ui, sans-serif; }
+  #ficha-objeto button[data-tip]:focus-visible::after { display: none; }
+  #ficha-objeto #ficha-pista { display: block; box-sizing: border-box; min-height: 28px; margin: 6px 0 0; padding: 4px 8px; border-radius: 6px; background: rgba(255, 210, 122, .16); color: #ffd27a; font-size: 13px; }
+  #ficha-objeto #ficha-pista[hidden] { display: block; visibility: hidden; } /* the line keeps its room: the icons must not jump under a finger when it shows */
 }
 `;
   document.head.appendChild(s);

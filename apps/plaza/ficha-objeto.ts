@@ -71,3 +71,29 @@ export function logicaDeObjeto(o: Obj, w: PiezasMundo): { entran: string[]; sale
   ];
   return { entran, salen, piezas };
 }
+
+// C5 (touch): no hover on a phone, so each icon of the bar carries a short visible label (CSS shows it only on coarse pointers;
+// the aria-label stays the full title) and a long press says the full title in one line under the bar.
+export const LARGA_MS = 450; // a finger resting this long on an icon says its title instead of pressing it
+export const ETIQUETAS_FICHA = { mover: "Mover", girar: "Girar", escalar: "Escalar", duplicar: "Copiar", anclar: "Anclar", soltar: "Soltar", enlace: "Enlace", borrar: "Borrar", volver: "Volver", cerrar: "Cerrar" } as const;
+export const COLUMNAS_FICHA_MOVIL = 5; // the bottom sheet's icon grid (360 px / 5 = 72 px a cell, ≥ 44 px a target)
+
+// C5: the same card in VR (packages/render/src/vr-ficha.ts draws it; the buttons run the builder's own verbs on what is selected).
+// There is no gizmo in VR, so «Mover» only arms the ray's hold and the turn and the scale are steps (15°, ×1,25 / ×0,8).
+export type AccionVR = "mover" | "girar" | "mas" | "menos" | "duplicar" | "anclar" | "borrar" | "cerrar";
+type Res = { ok: true } | { ok: false; why: string };
+export type VerbosFicha = { modo(m: string): Res; girar(g: number): Res; escalar(f: number): Res; duplicar(): Res; fijar(): Res; borrar(): Res; seleccionar(id: string): Res };
+export const PASO_GIRO_VR = 15, FACTOR_MAS_VR = 1.25, FACTOR_MENOS_VR = 0.8;
+export function aplicarAccionVR(c: VerbosFicha, a: AccionVR): { res: Res; dicho: string } {
+  const hecho = (res: Res, dicho: string) => ({ res, dicho: res.ok ? dicho : `No: ${res.why}` });
+  switch (a) {
+    case "mover": return hecho(c.modo("mover"), "Mover: apunta al objeto y mantén el gatillo para llevarlo.");
+    case "girar": return hecho(c.girar(PASO_GIRO_VR), `Girado ${PASO_GIRO_VR}°.`);
+    case "mas": return hecho(c.escalar(FACTOR_MAS_VR), "Más grande.");
+    case "menos": return hecho(c.escalar(FACTOR_MENOS_VR), "Más pequeño.");
+    case "duplicar": return hecho(c.duplicar(), "Duplicado.");
+    case "anclar": return hecho(c.fijar(), "Anclado o suelto.");
+    case "borrar": return hecho(c.borrar(), "Borrado.");
+    case "cerrar": return hecho(c.seleccionar(""), "Ficha cerrada.");
+  }
+}
