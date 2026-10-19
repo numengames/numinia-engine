@@ -7,10 +7,13 @@
 //
 // Parameters: ?backend=webgpu|webgl2  ?on=niebla,sombras  ?nivel=A|B|C|D (default B)  ?tam=3360x1760 (default: the
 // Quest 3's two eyes at render scale 100 %, 1680×1760 each)  ?cuadros=240  ?calentar=40
+// ?escena=naturaleza (E01): the same path, but the camera rides 1.7 m over the nature's relief (relieve alturaEn, seed
+// 1234, the plaza's demo world) in EVERY configuration, base included, so the nature pieces are seen as a player sees them.
 import * as THREE from "three/webgpu";
 import { TECNICAS } from "./tecnicas.ts";
 import type { Contexto, Montada } from "./tecnicas.ts";
 import type { Nivel } from "../../packages/render/src/calidad.ts";
+import { alturaEn } from "../../packages/relieve/src/relieve.ts";
 
 const q = new URLSearchParams(location.search);
 const backendPedido = q.get("backend") === "webgl2" ? "WebGL2" : "WebGPU";
@@ -24,6 +27,9 @@ const CALENTAR = Math.max(5, Number(q.get("calentar")) || 40);
 const SALIDA = q.get("salida") === "canvas" ? "canvas" : "rt";
 const pedidas = (q.get("on") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 const DT = 1 / 72; // the bench clock advances one Quest frame per drawn frame
+const ESCENA = q.get("escena") === "naturaleza" ? "naturaleza" : "plaza";
+const SEMILLA_NAT = 1234; // the plaza's demo world (work/naturaleza/mundo-demo/entorno/naturaleza.json)
+const suelo = (x: number, z: number) => (ESCENA === "naturaleza" ? Math.max(alturaEn(SEMILLA_NAT, x, z), -0.2) : 0);
 
 type Resumen = { mediana: number; p95: number; media: number; min: number; max: number; n: number };
 function resumen(xs: number[]): Resumen | null {
@@ -78,26 +84,28 @@ async function iniciar(): Promise<void> {
   camera = new THREE.PerspectiveCamera(60, W / H, 0.1, 400);
   const world = new THREE.Group();
   scene.add(world);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x556070, 1.6));
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x556070, 1.6);
+  scene.add(hemi);
   const sol = new THREE.DirectionalLight(0xffffff, 1.6);
   sol.position.set(6, 12, 4);
   scene.add(sol, sol.target);
-  const suelo = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: 0xa7b89c }));
-  suelo.rotation.x = -Math.PI / 2;
-  world.add(suelo);
+  const sueloMalla = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: 0xa7b89c }));
+  sueloMalla.rotation.x = -Math.PI / 2;
+  world.add(sueloMalla);
+  const hitos: THREE.Mesh[] = [];
   const pilar = new THREE.BoxGeometry(1, 3, 1), paleta = [0xd9a441, 0x5b8cc0, 0xc0605b, 0x6ea86a];
   const mats = paleta.map((c) => new THREE.MeshStandardMaterial({ color: c }));
   for (let i = 0; i < 24; i++) { // the plaza's landmarks (index.ts), same positions
     const a = (i / 24) * Math.PI * 2, r = 18 + (i % 3) * 9;
     const p = new THREE.Mesh(pilar, mats[i % 4]);
     p.position.set(Math.cos(a) * r, 1.5, Math.sin(a) * r);
-    world.add(p);
+    world.add(p); hitos.push(p);
   }
-  const ctx: Contexto = { renderer, scene, world, camera, sol, nivel };
+  const ctx: Contexto = { renderer, scene, world, camera, sol, nivel, hemi, suelo: sueloMalla, hitos, escena: ESCENA };
   for (const id of pedidas) montadas.push({ id, m: await TECNICAS.get(id)!.montar(ctx) });
   ponerCamara(0);
   await renderer.compileAsync(scene, camera);
-  estado.info = { backendPedido, backend, salida: SALIDA, gpu: gpuNombre, adaptador: adapt, timestamps: !!be.trackTimestamp, nivel, tam: [W, H], cuadros: CUADROS, calentar: CALENTAR, on: pedidas, three: THREE.REVISION, userAgent: navigator.userAgent };
+  estado.info = { backendPedido, backend, salida: SALIDA, escena: ESCENA, gpu: gpuNombre, adaptador: adapt, timestamps: !!be.trackTimestamp, nivel, tam: [W, H], cuadros: CUADROS, calentar: CALENTAR, on: pedidas, three: THREE.REVISION, userAgent: navigator.userAgent };
   estado.listo = true;
 }
 
@@ -106,8 +114,9 @@ async function iniciar(): Promise<void> {
  * range) behind them pass through the view. Frame number only, so every run draws the same frames. */
 function ponerCamara(i: number): void {
   const a = (i / CUADROS) * Math.PI * 2;
-  camera.position.set(Math.cos(a) * 14, 1.7, Math.sin(a) * 14);
-  camera.lookAt(Math.cos(a + Math.PI) * 4, 1.0, Math.sin(a + Math.PI) * 4);
+  const x = Math.cos(a) * 14, z = Math.sin(a) * 14, mx = Math.cos(a + Math.PI) * 4, mz = Math.sin(a + Math.PI) * 4;
+  camera.position.set(x, suelo(x, z) + 1.7, z);
+  camera.lookAt(mx, suelo(mx, mz) + 1.0, mz);
 }
 
 function cuadro(i: number): void {

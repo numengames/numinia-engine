@@ -29,6 +29,10 @@ const TAM = opt("tam", "3360x1760"), NIVEL = opt("nivel", "B");
 const BACKENDS = opt("backend", "webgpu,webgl2").split(",").filter(Boolean);
 const GPU = opt("gpu", "real");
 const SALIDA = join(repo, opt("salida", "informes/banco"));
+// E01: ?escena=naturaleza for every page (the camera rides over the nature's relief); --todas a,b = what the «todas» row switches on
+// (default: every technique measured; with pieces that overlap, e.g. «naturaleza» and its parts, name the real total here)
+const ESCENA = opt("escena", "");
+const TODAS = opt("todas", "");
 
 // Chromium puts its singleton socket under TMPDIR; a deep TMPDIR overflows the 108-byte socket path and it aborts
 if ((process.env.TMPDIR ?? "").length > 60) process.env.TMPDIR = "/tmp";
@@ -122,13 +126,14 @@ async function medirTodo() {
   const todas = await p0.evaluate(() => window.__banco.tecnicas());
   await p0.close();
   const ids = opt("tecnicas", todas.map((t) => t.id).join(",")).split(",").filter(Boolean);
-  const configs = [{ nombre: "base", on: [] }, ...ids.map((id) => ({ nombre: id, on: [id] })), ...(ids.length > 1 ? [{ nombre: "todas", on: ids }] : [])];
+  const juntas = TODAS ? TODAS.split(",").filter(Boolean) : ids;
+  const configs = [{ nombre: "base", on: [] }, ...ids.map((id) => ({ nombre: id, on: [id] })), ...(ids.length > 1 || TODAS ? [{ nombre: "todas", on: juntas }] : [])];
   const cargaAntes = carga();
   const crudo = [];
   for (let r = 0; r < RONDAS; r++) {
     const orden = configs.map((_, i) => configs[(i + r) % configs.length]); // rotate: no technique always runs first or last
     for (const backend of BACKENDS) for (const c of orden) {
-      const { p, errores } = await pagina({ backend, on: c.on.join(","), nivel: NIVEL, tam: TAM, cuadros: CUADROS, calentar: CALENTAR });
+      const { p, errores } = await pagina({ backend, on: c.on.join(","), nivel: NIVEL, tam: TAM, cuadros: CUADROS, calentar: CALENTAR, ...(ESCENA ? { escena: ESCENA } : {}) });
       const res = await p.evaluate(() => window.__banco.medir({ escalas: [1, 0.5] }));
       if (flag("fotos") && r === 0) { mkdirSync(SALIDA, { recursive: true }); await p.screenshot({ path: join(SALIDA, `foto-${backend}-${c.nombre}.png`) }); }
       await p.close();
@@ -139,7 +144,7 @@ async function medirTodo() {
   }
   const cargaDespues = carga();
   await cerrar();
-  return { crudo, configs, cargaAntes, cargaDespues, fecha: new Date().toISOString(), commit, opciones: { RONDAS, CUADROS, CALENTAR, TAM, NIVEL, BACKENDS, GPU, flags: FLAGS[GPU] } };
+  return { crudo, configs, cargaAntes, cargaDespues, fecha: new Date().toISOString(), commit, opciones: { RONDAS, CUADROS, CALENTAR, TAM, NIVEL, BACKENDS, GPU, ESCENA, TODAS, flags: FLAGS[GPU] } };
 }
 
 // ---- statistics: per backend × configuration × scale, the median over rounds of each round's median ----
