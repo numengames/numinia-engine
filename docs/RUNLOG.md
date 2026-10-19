@@ -1091,7 +1091,6 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `avatares/rueda-movimientos` (sobre 4eb6387).
 - Siguiente: probar con un móvil y un mando reales; que los agentes (`packages/agent`) usen la lista entera; que quien
   llega tarde vea un movimiento en curso (estado con `at`, J9); grabar los que UAL1 no trae (aplaudir, señalar…).
-<<<<<<< HEAD
 
 ## 2026-10-18 19:10 · sonido S3 · hecho
 - Qué: el pool de voces espacializadas (`packages/render/src/audio/voces.ts`, sobre el núcleo de S1). Cada disparo
@@ -1119,7 +1118,6 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Opus 5.
 - Commit: rama `sonido/voces`, PR contra `sonido/nucleo` (no contra `main`).
 - Siguiente: S4 (migrar `medios.ts` al núcleo) y S5 (enganchar el oyente a la cámara y a la pose del visor).
-=======
 ## 2026-10-16 21:09 · R1 trozo «imprimir los QR como SVG» · hecho (historia en sombra, Doulos; nada sube a origin)
 - Qué: solo el trozo de «Falta de R1» pedido: `npm run enlaces -- qr [base] [carpeta]` ahora escribe un
   `<carpeta>/<id>.svg` por punto de `enlaces.json` (carpeta por defecto `qr/`, añadida a `.gitignore`) y sigue
@@ -1230,4 +1228,3 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.
 - Commit: rama `creativo/c4-c5` (sin push).
 - Siguiente: si el objeto queda bajo la hoja (objetos muy cercanos a los pies), la cámara no se mueve sola.
->>>>>>> origin/main

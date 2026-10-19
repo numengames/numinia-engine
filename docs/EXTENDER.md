@@ -1025,7 +1025,6 @@ registro dice `nadie hace «teletransporta» en este servidor` en vez de callar.
   como el código de una cerradura). Crear o borrar disparadores enteros sigue siendo editar el fichero antes de
   arrancar.
 
-<<<<<<< HEAD
 ## Sonido (S6): el catálogo de la casa, con ficheros de verdad y su texto
 
 La pieza `sonido@1` (`features/sonido`) es el catálogo de sonidos del motor: **27 ids, 89 variantes, 178 ficheros**
@@ -1054,7 +1053,6 @@ avisos de la casa eran osciladores: pitidos sintetizados. Ahora son sonidos.
 - **Rehacer el catálogo:** `node tools/sonidos-catalogo.ts --biblioteca <carpeta>` copia los lotes `nucleo` y
   `funcion` de la biblioteca verificada, recalcula el sha256 de cada fichero y reescribe `features/sonido/catalogo.json`
   y `activos/sonidos/LICENCIAS.md`. Es idempotente: si nada cambió, no toca nada.
-=======
 ## Salón de los Ancestros y el tributo a Asimov (ancestros v1)
 
 `features/ancestros` es el Salón de los Ancestros del Ateneo (el Ayuntamiento de Numinia, donde el Consejo de Sabios
@@ -1086,7 +1084,6 @@ un homenaje a Isaac Asimov. Todo lo decide el servidor; la página dibuja y preg
 - **Lo que no hace (todavía):** más hologramas de otros Ancestros (basta con pasar `hologramas` a `crearAncestros`),
   un fichero `MUNDO_DIR/ancestros.json` como el de las torres de dados, techo y luz propia en la sala, y una pose
   del busto que siga tu altura.
->>>>>>> origin/main
 
 ## Agua (N2): estilizada, de color plano, un solo draw call
 

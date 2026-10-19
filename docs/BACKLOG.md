@@ -196,16 +196,14 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | V2 | Con Pablo, 15 min con las gafas: ¿funcionan `speechSynthesis`, el reconocimiento de voz, «menos movimiento» y la vibración dentro de una sesión inmersiva (Quest 3, Pico 4) y en iPhone? | pendiente | no |
 | W1 | La plaza de entrada: primer mundo, al presupuesto de la Quest, con un portal a un mundo Hyperfy | necesita aprobación (Pablo: qué mundo lo estrena) | no |
 | O5 | ADR y SYS del motor en la Summa (numinia.org) | necesita aprobación (Pablo) | no |
-<<<<<<< HEAD
 | S6f-1 | **La cerradura la manda el servidor.** Su evento `cerradura.abierta` solo trae `id` y `evento`: no dice dónde está la cerradura, así que la pieza de sonido no puede mandar el sonido «a quien esté cerca» sin inventarse un sitio. Hoy el clic de la cerradura es LOCAL (lo oye solo quien la abre). Arreglo: añadir `x`/`z` (o `quien`) al evento de `features/cerradura/` y una línea en `features/sonido/server.ts` | pendiente | sí |
 | S6f-2 | **La máquina la manda el servidor.** Igual que S6f-1: `movedores.llegada` trae `id`, `nombre`, `lado`, `evento` y ningún sitio. El sonido de una plataforma que llega es de los de alrededor, no de quien la llamó. Arreglo: `x`/`z` en el evento de `features/movedores/` + una línea en la pieza de sonido | pendiente | sí |
 | S6f-3 | **El impacto del dardo, donde está la diana.** `dardos.dardo` trae `x`/`y` de la CARA de la diana (sector y anillo), no su sitio en el mundo: hoy el lanzamiento y el impacto suenan los dos donde está quien tira, así que el impacto queda un poco adelantado. Arreglo: que el evento traiga el sitio de la diana (ya lo sabe por `sitio`) | pendiente | sí |
 | S6f-4 | **La puerta que se cierra sola no suena.** `puertas.cambio` trae `quien`, y cuando una puerta se cierra por su cuenta (temporizador) no hay nadie: la pieza de sonido no sabe dónde ponerlo. Arreglo: `x`/`z` en el evento (la puerta siempre sabe dónde está) | pendiente | sí |
 | S6f-5 | **Nadie ha oído nada en un navegador.** Todo el sonido (los 27 ficheros CC0, las 47 recetas, el colchón de ambiente, el reparto de autoridad) está probado con un `AudioContext` de mentira en Node: la forma del grafo y quién suena. Falta una sesión con Pablo delante de la plaza, con auriculares, para oír si la mezcla y el volumen del colchón están bien de verdad | pendiente | no |
 | S6f-6 | **El material del suelo es por ZONA, no por superficie.** Los pasos leen `entorno@1` (hierba, roca, nieve, liso…), así que un tablado de madera sobre una zona de roca suena a piedra. Es la historia S8 del diseño del sonido: una etiqueta de material por superficie | pendiente | no |
-=======
+| S6f-7 | **Deuda heredada (D-053), no es nuestra**: `test/subidas.test.ts:122` falla en `origin/main` limpio y con `node_modules` propio — la respuesta a un `HEAD` de un activo subido declara `content-length: 650` cuando el fichero tiene 1604 bytes. Comprobado en un árbol aparte de `origin/main`; el sonido no toca ese camino | pendiente | no |
 | AS1 | Tributo a Isaac Asimov: el Salón de los Ancestros (Ateneo) y un holograma que se enciende al acercarte y, con E, dice las Tres Leyes junto a nuestras reglas AGW (`features/ancestros`, `docs/EXTENDER.md`). Sin voz: cuando haya V3, que la lea con la voz grave y pausada de narrador | hecho (v1, 18-10) | sí |
->>>>>>> origin/main
 
 **Punto de parada «accesible» (como los PP de `CONSTRUIR.md`):** con V1, V3, V4, V5, V6 y V7 hechas, una
 persona ciega entra en la plaza desde el ordenador con su lector de pantalla, pregunta qué hay cerca, sigue
