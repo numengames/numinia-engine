@@ -68,11 +68,13 @@ test("one mesh, one draw call per tier, triangles and vertices within budget", (
     const t = crearTerreno({ semilla: 1234, nivel: n });
     const g = t.malla.geometry, esperado = triangulosDeTerreno(CELDAS_TERRENO[n]) + t.residuos.triangulos + t.flora.triangulos; // R4/R6.5: the baked Residuos and flora live inside the one mesh
     assert.equal(t.malla.isMesh, true);
-    assert.equal(g.index, null, "non-indexed: flat normals");
-    assert.equal(g.attributes.position.count, esperado * 3);
+    assert.ok(g.index, "R7.2: indexed: the lattice vertices are shared (smooth normals)");
+    assert.equal(g.index!.count, esperado * 3);
+    const nv = CELDAS_TERRENO[n] + 1;
+    assert.equal(g.attributes.position.count, nv * nv + (esperado - 2 * CELDAS_TERRENO[n] ** 2) * 3, "lattice once + 3 own vertices per loose triangle");
     assert.equal(t.triangulos, esperado);
     assert.ok(esperado <= TOPE_TRI[n] * 0.4, `${n}: ${esperado} triangles leave room for trees and grass`);
-    assert.ok(g.attributes.color && !g.attributes.normal, "vertex colours; flat normals come from the material (F4: no normal buffer)");
+    assert.ok(g.attributes.color && g.attributes.normal, "vertex colours; R7.2: a normal buffer (smooth on the lattice, per face on the baked pieces)");
     assert.ok(g.boundingSphere && g.boundingSphere.radius > 100, "bounding sphere set (frustum culling)");
     assert.equal(Object.keys(t.malla).includes("children") ? t.malla.children.length : 0, 0, "no child meshes");
     vistos.push(esperado);

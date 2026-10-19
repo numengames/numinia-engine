@@ -62,7 +62,7 @@ test("triangle share per tier: baked pieces fit the tier's cap, and terrain + pr
     const t = crearTerreno({ semilla: S, nivel: n, aguaPlana: n === "D" ? COLOR_ESTANQUE : undefined });
     assert.equal(t.residuos.triangulos, r.triangulos, "the terrain bakes exactly what construirResiduos returns");
     assert.equal(t.triangulos, triangulosDeTerreno(CELDAS_TERRENO[n], n === "D") + r.triangulos + t.flora.triangulos); // R6.5: the flora is baked too
-    assert.equal(t.malla.geometry.attributes.position.count, t.triangulos * 3);
+    assert.equal(t.malla.geometry.index!.count, t.triangulos * 3); // R7.2: indexed (shared lattice vertices)
     assert.ok(t.triangulos <= PRESUPUESTO_NATURALEZA[n].reparto.terreno, `${n}: terrain ${t.triangulos} > share ${PRESUPUESTO_NATURALEZA[n].reparto.terreno}`);
     t.dispose();
   }
