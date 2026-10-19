@@ -15,7 +15,7 @@
 // cooldown y el ducking valen igual para los dos — que era justo lo que el sintetizador por su cuenta no tenía.
 //
 // EL CATÁLOGO ES LA ÚNICA LISTA DE VERDAD, también para lo sintetizado: una receta sin fila en el catálogo suena con
-// los valores de la receta, pero los seis ids nuevos (`salto`, `dano`, `moneda`, `pesca-picada`, `ui-abrir`,
+// los valores de la receta, pero los ids sin fichero (`salto`, `dano`, `moneda`, `pesca-mordisqueo`, `pesca-picada`, `ui-abrir`,
 // `ui-cerrar`) tienen su fila SIN FICHERO (`"fuente": "receta"`), con su bus, su prioridad, su cooldown y su texto
 // accesible. El día que uno consiga un fichero CC0, se le añade el fichero y gana el fichero sin tocar una línea.
 //

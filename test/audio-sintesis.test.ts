@@ -89,3 +89,11 @@ test("el sintetizador cuelga del bus que toca y los bucles se pueden parar", () 
   // sin navegador con audio: no suena ni revienta
   assert.equal(crearSintetizador({ ctx: () => null, bus: () => null } as never).sonar("puerta"), null);
 });
+
+test("pesca-mordisqueo: tic corto y suave, distinto de la picada (más corto y más flojo)", () => {
+  const m = generar("pesca-mordisqueo")!, p = generar("pesca-picada")!;
+  const pico = (d: Float32Array) => d.reduce((a, x) => a + x * x, 0); // energía
+  assert.ok(RECETAS["pesca-mordisqueo"].dur < RECETAS["pesca-picada"].dur, "más corto");
+  assert.ok(pico(m.datos) < pico(p.datos), "menos energía (más suave)");
+  assert.equal(RECETAS["pesca-mordisqueo"].bus, "efectos");
+});

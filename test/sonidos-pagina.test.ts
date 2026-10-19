@@ -131,3 +131,21 @@ test("S6f: el material de los pasos sale del suelo de la zona si el mundo lo dic
   assert.deepEqual(q2.ids(), ["pasos-piedra"]);
   m2.desmontar();
 });
+
+test("sonar.ts: las piezas de VR suenan por la puerta única de la página, y lo compartido no pasa", async () => {
+  const { montarSonidos } = await import("../apps/plaza/sonidos.ts");
+  const { sonar, puente } = await import("../apps/plaza/sonar.ts");
+  assert.equal(sonar("coger-soltar"), false, "sin montar: silencio, no error");
+  const q = puertaFalsa();
+  const m = montarSonidos(paginaFalsa().p as never, q as never);
+  const antes = console.warn;
+  console.warn = () => {};
+  try {
+    assert.equal(sonar("coger-soltar", { gain: 0.5 }), true, "mi mano coge un dardo: local");
+    assert.equal(sonar("dardo-lanzar"), false, "el dardo lanzado lo manda el servidor (D-048): VR no lo duplica");
+  } finally { console.warn = antes; }
+  assert.deepEqual(q.ids(), ["coger-soltar"]);
+  m.desmontar();
+  assert.equal(puente.sonar, null, "al desmontar se suelta el puente");
+  assert.equal(sonar("coger-soltar"), false);
+});

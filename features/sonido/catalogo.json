@@ -1068,6 +1068,21 @@
       ]
     },
     {
+      "id": "pesca-mordisqueo",
+      "uso": "pesca: algo roza el cebo",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 55,
+      "cooldown_ms": 120,
+      "texto": "algo roza el cebo",
+      "duracion_s": 0,
+      "bucle": false,
+      "licencia": "propia",
+      "autor": [],
+      "fuente": "receta",
+      "variantes": []
+    },
+    {
       "id": "pesca-picada",
       "uso": "pesca: algo pica en el sedal",
       "bus": "efectos",

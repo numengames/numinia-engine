@@ -18,6 +18,7 @@
 //    `cerradura.abierta` no dice dónde está) y la MÁQUINA (`movedores.llegada` tampoco).
 import { audio, type Nucleo } from "../../packages/render/src/audio/nucleo.ts";
 import { crearPuerta, materialDeSuelo, MATERIAL_DEF, type Material, type Opciones, type Puerta } from "../../packages/render/src/audio/sonar.ts";
+import { puente } from "./sonar.ts";
 
 export type Cuerpo = { y: number; speed: number; grounded: boolean };
 export type Paso = "paso" | "salto" | "aterrizaje";
@@ -88,6 +89,9 @@ export function montarSonidos(p: Pagina, puerta: Puerta = crearPuerta({ nucleo: 
     return puerta.sonar(id, o);
   };
   const quitar: (() => void)[] = [];
+  // las piezas de VR (dardos-vr, pesca-sonido) suenan por `sonar.ts` sin cargar este módulo: aquí se les da la puerta
+  puente.sonar = sonarLocal;
+  quitar.push(() => { if (puente.sonar === sonarLocal) puente.sonar = null; });
 
   // interfaz: cualquier botón. Local: es mi dedo, y suena en mi cabeza.
   const clic = (e: Event): void => {

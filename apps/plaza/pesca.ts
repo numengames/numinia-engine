@@ -11,6 +11,7 @@ import { montarPescaManos } from "./pesca-vr.ts"; // N4: the rod in your hand in
 import { consejo } from "../../features/pesca/client.ts";
 import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
 import { audio } from "../../packages/render/src/audio/nucleo.ts"; // S1: one audio graph for the whole engine
+import { sonarFase } from "./pesca-sonido.ts"; // the nibble and the bite sound through the page's single door (sonar.ts bridge), once
 
 type Res = { ok: true } | { ok: false; why: string };
 type Estado = { fase: "nada" | "espera" | "mordisqueo" | "picada" | "pelea"; sitio: string; desde: number; ventana: number; pez: string; tension: number; progreso: number; arrancada: "no" | "aviso" | "si"; recogiendo: boolean; aviso: string; ultimo: { pez: string; cm: number; rareza: string; total: number } | null; cesta: { peces: number; mejor: string; mejorCm: number } };
@@ -123,18 +124,23 @@ export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud
     if (temporizador) clearTimeout(temporizador);
     temporizador = setTimeout(() => { temporizador = null; pintar(); }, RESULTADO_MS + 20);
   };
+  // every sound that plays is also written to hud.dataset.sonidos (last 8, comma separated): the e2e reads it, there is no mic in a test
+  const registro: string[] = [];
+  const anotar = (que: string) => { registro.push(que); if (registro.length > 8) registro.shift(); hud.dataset.sonidos = registro.join(","); };
   const pintar = () => {
     const e = o.pesca.estado();
     if (e.fase !== fase) {
+      const suena = sonarFase(fase, e.fase); // the nibble ticks and the bite knocks, at the server's moment, in VR and on a flat screen
+      if (suena) anotar(suena);
       if (e.fase === "picada") vibrar(80);
       if (e.fase === "pelea") vibrar([40, 30, 40]);
       if (e.fase === "nada" && fase !== "nada") { // the fight just ended: say clearly how
         if (e.ultimo && /^Has pescado/.test(e.aviso)) {
           mostrarResultado("pescado", "¡Pescado!", `🐟 ${e.ultimo.pez} · ${cmTexto(e.ultimo.cm)}`, `${RAREZA[e.ultimo.rareza] ?? e.ultimo.rareza} · En tu cesta: ${e.cesta.peces}`);
-          vibrar([60, 40, 60, 40, 220]); sonar("exito", contexto, ajuste, salida);
+          vibrar([60, 40, 60, 40, 220]); sonar("exito", contexto, ajuste, salida); anotar("exito");
         } else if (e.aviso && !/^Has recogido/.test(e.aviso)) {
           mostrarResultado("escapado", "Se ha escapado", e.aviso.replace(/\.$/, ""), "Vuelve a lanzar la caña");
-          vibrar(120); sonar("fallo", contexto, ajuste, salida);
+          vibrar(120); sonar("fallo", contexto, ajuste, salida); anotar("fallo");
         }
       }
       fase = e.fase;

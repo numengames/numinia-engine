@@ -204,7 +204,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // three gives a session's inputs only to controller slots that already exist: make both now (cheap, core three).
   for (const i of [0, 1]) { renderer.xr.getController(i); renderer.xr.getControllerGrip(i); renderer.xr.getHand(i); }
   let manosReal: Manos | null = null, manosCarga: Promise<Manos> | null = null;
-  const reglasManos: Parameters<Manos["reglas"]>[0] = {}, oyentesManos = new Set<(e: EventoMano) => void>();
+  const reglasManos: Parameters<Manos["reglas"]>[0] = {}, oyentesManos = new Set<(e: EventoMano) => void>(), ocupantesManos = new Map<string, (l: "izq" | "der") => boolean>();
   const cargarManos = () => (manosCarga ??= import("./manos.ts").then(({ createManos }) => {
     const m = createManos({
       renderer,
@@ -213,6 +213,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       paneles: () => [...vr.paneles(), ...web.paneles()], // N17: a web screen's «Abrir fuera de VR»
     });
     m.reglas(reglasManos);
+    for (const [n, f] of ocupantesManos) m.ocupar(n, f);
     m.on((e) => { for (const f of oyentesManos) f(e); });
     return (manosReal = m);
   }));
@@ -221,6 +222,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     montar: (p: THREE.Object3D | null) => manosReal?.montar(p),
     update: (c: THREE.Camera | null) => manosReal?.update(c),
     reglas(o: Parameters<Manos["reglas"]>[0]) { Object.assign(reglasManos, o); manosReal?.reglas(o); },
+    /** A feature that holds a hand (a dart in it): asked live; kept until the hands module arrives. */
+    ocupar(nombre: string, fn: (l: "izq" | "der") => boolean) { ocupantesManos.set(nombre, fn); return manosReal?.ocupar(nombre, fn) ?? (() => { if (ocupantesManos.get(nombre) === fn) ocupantesManos.delete(nombre); }); },
+    sondeo: (l: "izq" | "der") => manosReal?.sondeo(l) ?? null,
+    ocupadaPorOtros: (l: "izq" | "der", excepto: string) => manosReal?.ocupadaPorOtros(l, excepto) ?? false,
     on(fn: (e: EventoMano) => void) { oyentesManos.add(fn); return () => oyentesManos.delete(fn); },
     ancla: (l: "izq" | "der") => manosReal?.ancla(l) ?? null,
     rayo: (l: "izq" | "der") => manosReal?.rayo(l) ?? null,
@@ -309,6 +314,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   }
   // N4: the rod in your real hand in VR, and the gauge facing the camera that draws
   pesca.conManos({ ancla: (l) => (renderer.xr.isPresenting && vr.active ? manos.ancla(l) : null), camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera) });
+
+  // dardos in VR (packages/render/src/dardos-vr.ts): the dart in your hand, flying and falling; lazy, fetched by the page only on a VR-capable device
+  let dardosVRReal: import("./dardos-vr.ts").DardosVR | null = null, dardosVRCarga: Promise<import("./dardos-vr.ts").DardosVR> | null = null;
+  const dardosVR = {
+    cargar: () => (dardosVRCarga ??= import("./dardos-vr.ts").then((m) => (dardosVRReal = m.crearDardosVR({ world, ancla: (l) => manos.ancla(l), suelo: () => selfXZ?.y ?? 0, una: dardos.una })))),
+    actualizar: (dt: number) => dardosVRReal?.actualizar(dt),
+    real: () => dardosVRReal,
+    contar: () => dardosVRReal?.contar() ?? null,
+  };
 
   // beacons (R1): a column of light with a text at a world point; expires on its own
   const beacons: { group: THREE.Group; until: number }[] = [];
@@ -830,7 +844,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
     editor.frame();
     entorno.actualizar(); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ);
-    if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
+    if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); dardosVR.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
     pesca.actualizar(dtSeconds);
     if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
     cam.update(dtSeconds, selfXZ ? feet : null);
@@ -866,6 +880,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     pesca,
     /** dardos v1: boards near you and their darts (sitios, clavados, linea, contar) — packages/render/src/dardos.ts. */
     dardos,
+    /** dardos in VR: load the 3D side (`cargar()`), then enMano / volar / soltar / posicion / local / aMundo / cadaCuadro; `contar()` for checks. */
+    dardosVR,
     /** N17: web screens — a panel everywhere, the live page in CSS3D near you on PC/phone, «Abrir fuera de VR» in VR (web.ts). */
     web,
     /** ancestros v1: the Salón de los Ancestros (muros, hologramas, paneles, dice, contar) — packages/render/src/ancestros.ts. */

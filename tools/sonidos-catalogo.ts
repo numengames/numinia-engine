@@ -56,10 +56,11 @@ export const MEZCLA: Record<string, { prioridad: number; cooldown_ms: number }> 
   maquina: { prioridad: 65, cooldown_ms: 300 },
   // ── el colchón de ambiente (fichero, no sale de la biblioteca S2) ──
   "ambiente-numinia": { prioridad: 100, cooldown_ms: 0 },
-  // ── los seis ids que solo tienen receta (sin fichero): S6f ──
+  // ── los ids que solo tienen receta (sin fichero): S6f ──
   salto: { prioridad: 70, cooldown_ms: 150 },
   dano: { prioridad: 85, cooldown_ms: 120 },
   moneda: { prioridad: 60, cooldown_ms: 80 },
+  "pesca-mordisqueo": { prioridad: 55, cooldown_ms: 120 },
   "pesca-picada": { prioridad: 75, cooldown_ms: 150 },
   "ui-abrir": { prioridad: 100, cooldown_ms: 60 },
   "ui-cerrar": { prioridad: 100, cooldown_ms: 60 },
@@ -112,6 +113,7 @@ export const RECETAS_CATALOGO: SonidoReceta[] = ([
   ["salto", "pasos-propios", "el salto de tu propio avatar", "saltas"],
   ["dano", "efectos", "recibir dano", "te hacen dano"],
   ["moneda", "efectos", "cobrar una moneda", "recoges una moneda"],
+  ["pesca-mordisqueo", "efectos", "pesca: algo roza el cebo", "algo roza el cebo"],
   ["pesca-picada", "efectos", "pesca: algo pica en el sedal", "algo ha picado en el sedal"],
   ["ui-abrir", "interfaz", "se abre un panel", "se abre un panel"],
   ["ui-cerrar", "interfaz", "se cierra un panel", "se cierra el panel"],
@@ -158,7 +160,7 @@ export type Sonido = {
 };
 
 /** Lo que entra al repo: los dos lotes de la biblioteca, con el sha256 recalculado sobre los bytes de verdad, más las
- *  filas que no salen de la biblioteca (el colchón de ambiente y las seis filas de receta, S6f). */
+ *  filas que no salen de la biblioteca (el colchón de ambiente y las filas de receta, S6f). */
 export function construir(biblioteca: string): { sonidos: (Sonido | SonidoReceta)[]; copias: { de: string; a: string }[] } {
   const crudo = JSON.parse(readFileSync(join(biblioteca, "catalogo.json"), "utf8")) as { sonidos: SonidoBib[] };
   const sonidos: (Sonido | SonidoReceta)[] = [], copias: { de: string; a: string }[] = [];

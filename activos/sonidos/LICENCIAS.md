@@ -9,7 +9,7 @@ cedió en CC0 (dicho por Pablo el 2026-10-19). **TODO: falta el nombre de su aut
 diga; en cuanto esté se pone en `COLCHON.autor` (`tools/sonidos-catalogo.ts`) y vuelve a salir aquí. CC0 no
 obliga a citar; lo citamos igual.
 
-**6 ids del catálogo no tienen fichero** (`dano`, `moneda`, `pesca-picada`, `salto`, `ui-abrir`, `ui-cerrar`): los hace el
+**7 ids del catálogo no tienen fichero** (`dano`, `moneda`, `pesca-mordisqueo`, `pesca-picada`, `salto`, `ui-abrir`, `ui-cerrar`): los hace el
 motor con una receta de `packages/render/src/audio/sintesis.ts`, que es código nuestro bajo la licencia del
 repo. No hay nada de nadie que licenciar en ellos, así que no tienen fila en esta tabla. Cuando uno de esos ids
 consiga un fichero CC0, entra por la biblioteca y **el fichero gana**: la receta se queda de respaldo.

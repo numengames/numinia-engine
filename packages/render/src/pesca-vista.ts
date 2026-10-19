@@ -9,11 +9,11 @@ const NADA = { pescadores: 0, sitios: 0, peces: 0, enMano: [] as number[], manoR
 
 export function vistaPesca(h: Ayudas & AyudasVR) {
   let real: Real | null = null, carga: Promise<void> | null = null, fallo = "";
-  let sitios: Sitio3D[] = [], flotadores: Flotador3D[] = [], capturas: Captura3D[] = [], yo = -1, estado: Estado3D | null = null;
+  let instruccion = "", sitios: Sitio3D[] = [], flotadores: Flotador3D[] = [], capturas: Captura3D[] = [], yo = -1, estado: Estado3D | null = null;
   const cuadro = new Set<(dt: number) => void>(); // N4: the page's per-frame readers (VR rod gestures), after the hands moved
   const cargar = () => (carga ??= import("./pesca.ts").then((m) => {
     real = m.crearPesca(h);
-    real.sitios(sitios); real.flotadores(flotadores, yo); real.capturas(capturas, yo); if (estado) real.estado(estado);
+    real.sitios(sitios); real.flotadores(flotadores, yo); real.capturas(capturas, yo); if (estado) real.estado(estado); real.instruccion(instruccion);
   }).catch((e) => { fallo = String((e as Error)?.message ?? e); console.warn(`[pesca] no se pudo cargar: ${fallo}`); }));
   return {
     sitios(lista: Sitio3D[]): void { sitios = lista; if (real) real.sitios(lista); else if (lista.length) cargar(); },
@@ -33,6 +33,8 @@ export function vistaPesca(h: Ayudas & AyudasVR) {
     /** N4 (VR): the rod is in this real hand (taken from `sitio`'s holder) or back on its holder (null). */
     sujetar(lado: "izq" | "der" | null, sitio = ""): void { real?.sujetar(lado, sitio); },
     resaltar(id: string): void { real?.resaltar(id); },
+    /** N4 (VR): the line over my rod saying what to do now ("" = none). */
+    instruccion(t: string): void { instruccion = t; real?.instruccion(t); },
     /** N4 (VR): the real hand within reach of a holder's rod (which hand, which spot), or null. */
     alAlcance(conTomada = false): ReturnType<Real["alAlcance"]> { return real?.alAlcance(conTomada) ?? null; },
     mirada(): ReturnType<Real["mirada"]> { return real?.mirada() ?? null; },

@@ -87,10 +87,10 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
     lineasPanel(): string[] {
       if (view.vr.pagina === "mandos") return [
         "Mandos (Y: misión · otra vez: ocultar)",
-        "Palanca izquierda: andar · al borde: correr",
-        "Palanca derecha: girar a saltos",
+        "Izquierda: andar (al borde, correr) · derecha: girar",
         "Gatillo: hablar / usar lo que apuntas",
         "Agarre (o pellizco) junto a algo: cogerlo",
+        "Caña: muñeca lanza, tirón al picar · Dardos: agarre y gatillo",
         "A o X: saltar · B: salir del diálogo",
         "Sin mandos: pellizca y mantén en el aire = andar adonde apunta la mano",
         "Salir: el botón de abajo, pulsa dos veces",

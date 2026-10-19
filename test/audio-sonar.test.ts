@@ -331,9 +331,9 @@ test("S6f: el paso suena al material que toca, y a piedra cuando el motor no sab
 
 // ———————————————————————————— 7. el catálogo manda ————————————————————————————
 
-test("S6f: los seis ids nuevos están en el catálogo con bus, prioridad, cooldown y texto, y suenan por receta", () => {
+test("S6f: los ids sin fichero están en el catálogo con bus, prioridad, cooldown y texto, y suenan por receta", () => {
   const b = banco();
-  for (const id of ["salto", "dano", "moneda", "pesca-picada", "ui-abrir", "ui-cerrar"]) {
+  for (const id of ["salto", "dano", "moneda", "pesca-mordisqueo", "pesca-picada", "ui-abrir", "ui-cerrar"]) {
     const f = b.cat.fila(id);
     assert.ok(f, `«${id}» no está en el catálogo`);
     assert.equal(f.fuente, "receta");
