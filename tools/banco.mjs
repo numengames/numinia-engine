@@ -159,6 +159,7 @@ function estadistica({ crudo, configs, cargaAntes, cargaDespues, fecha, commit, 
     for (const e of ["1", "0.5"]) {
       const g = esc(e, "gpuMs").filter(Number.isFinite), gp95 = esc(e, "gpuMs", "p95");
       fila[e] = { px: rs[0].porEscala[e].px, gpu: med(g), gpuMin: g.length ? Math.min(...g) : NaN, gpuMax: g.length ? Math.max(...g) : NaN, gpuP95: med(gp95),
+        gpuP99: med(esc(e, "gpuMs", "p99")), cpuP99: med(esc(e, "cpuRenderMs", "p99")), // p99 per round (E01 asks p50/p99), median over rounds; older reports: undefined
         cpu: med(esc(e, "cpuRenderMs")), cpuTec: med(esc(e, "cpuTecnicasMs")), llamadas: med(esc(e, "drawCalls")), triangulos: med(esc(e, "triangulos")), cuadrosConGpu: med(rs.map((x) => x.porEscala[e].cuadrosConGpu)), rafaga: med(rs.map((x) => x.porEscala[e].rafagaMs)) };
     }
     const m = rs[0].memoria;
@@ -194,11 +195,11 @@ function tabla(inf) {
     out.push(`## ${i.backend}${i.backend.toLowerCase() !== backend ? ` (¡pedido ${backend}!)` : ""} — ${i.gpu || "GPU desconocida"} — temporizador GPU: ${i.timestamps ? "sí" : "NO"}`, "");
     const malas = fs.filter((f) => f.temporizador !== "ok").length;
     if (malas) out.push(`> ⚠ En ${malas} de ${fs.length} filas el temporizador GPU no pasa el control: en este backend, aquí, los ms de GPU no sirven; valen llamadas, triángulos, CPU y memoria.`, "");
-    out.push("| Configuración | Llamadas | Triángulos | GPU ms 100 % | Δ GPU | GPU ms 50 % | Δ GPU 50 % | Parte que escala con píxeles | Temporizador | CPU ms render | Δ CPU | ms/cuadro en ráfaga | Geometrías | Texturas |");
-    out.push("|---|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|");
+    out.push("| Configuración | Llamadas | Triángulos | GPU ms 100 % | GPU p99 | Δ GPU | GPU ms 50 % | Δ GPU 50 % | Parte que escala con píxeles | Temporizador | CPU ms render | CPU p99 | Δ CPU | ms/cuadro en ráfaga | Geometrías | Texturas |");
+    out.push("|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|");
     for (const f of fs) {
       const a = f["1"], b = f["0.5"];
-      out.push(`| ${f.config} | ${k(a.llamadas)} | ${k(a.triangulos)} | ${n(a.gpu)} (${n(a.gpuMin)}–${n(a.gpuMax)}) | ${f.config === "base" ? "" : s(a.dGpu)} | ${n(b.gpu)} | ${f.config === "base" ? "" : s(b.dGpu)} | ${f.partePixeles === null ? (f.config === "base" ? "" : "bajo el ruido") : `${Math.round(f.partePixeles * 100)} %`} | ${f.temporizador} | ${n(a.cpu)} | ${f.config === "base" ? "" : s(a.dCpu)} | ${n(a.rafaga)} | ${f.memoria.geometrias} | ${f.memoria.texturas} |`);
+      out.push(`| ${f.config} | ${k(a.llamadas)} | ${k(a.triangulos)} | ${n(a.gpu)} (${n(a.gpuMin)}–${n(a.gpuMax)}) | ${n(a.gpuP99)} | ${f.config === "base" ? "" : s(a.dGpu)} | ${n(b.gpu)} | ${f.config === "base" ? "" : s(b.dGpu)} | ${f.partePixeles === null ? (f.config === "base" ? "" : "bajo el ruido") : `${Math.round(f.partePixeles * 100)} %`} | ${f.temporizador} | ${n(a.cpu)} | ${n(a.cpuP99)} | ${f.config === "base" ? "" : s(a.dCpu)} | ${n(a.rafaga)} | ${f.memoria.geometrias} | ${f.memoria.texturas} |`);
     }
     out.push("");
   }

@@ -31,12 +31,12 @@ const ESCENA = q.get("escena") === "naturaleza" ? "naturaleza" : "plaza";
 const SEMILLA_NAT = 1234; // the plaza's demo world (work/naturaleza/mundo-demo/entorno/naturaleza.json)
 const suelo = (x: number, z: number) => (ESCENA === "naturaleza" ? Math.max(alturaEn(SEMILLA_NAT, x, z), -0.2) : 0);
 
-type Resumen = { mediana: number; p95: number; media: number; min: number; max: number; n: number };
+type Resumen = { mediana: number; p95: number; p99: number; media: number; min: number; max: number; n: number };
 function resumen(xs: number[]): Resumen | null {
   const v = xs.filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
   if (!v.length) return null;
   const at = (p: number) => v[Math.min(v.length - 1, Math.floor(p * (v.length - 1) + 0.5))];
-  return { mediana: at(0.5), p95: at(0.95), media: v.reduce((a, b) => a + b, 0) / v.length, min: v[0], max: v[v.length - 1], n: v.length };
+  return { mediana: at(0.5), p95: at(0.95), p99: at(0.99), media: v.reduce((a, b) => a + b, 0) / v.length, min: v[0], max: v[v.length - 1], n: v.length };
 }
 
 async function adaptador(): Promise<Record<string, unknown> | null> {
