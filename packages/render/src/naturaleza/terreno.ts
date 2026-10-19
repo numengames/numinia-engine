@@ -106,7 +106,7 @@ export function franjasEn(s: number, x: number, z: number, h: number, op?: Opcio
     const f1 = 0.045, f2 = 0.11, a1 = 8, a2 = 3.2, ph = hash2(s, 7102, 5) * 6.283;
     const c = a1 * Math.sin(u * f1 + ph) + a2 * Math.sin(u * f2 + ph * 1.7) + 3 * simplex2(s + 93, u * 0.02, 1.7);
     const dc = a1 * f1 * Math.cos(u * f1 + ph) + a2 * f2 * Math.cos(u * f2 + ph * 1.7);
-    const d = Math.abs(v - c) / Math.sqrt(1 + dc * dc), ancho = 3.4 + 2.2 * valor2(s + 94, u * 0.03, 0.5);
+    const d = Math.abs(v - c) / Math.sqrt(1 + dc * dc), ancho = 6 + 3 * valor2(s + 94, u * 0.03, 0.5);
     const tramo = sstep(e.radio * 0.6, e.radio * 1.1, u) * (1 - sstep(tam * 0.6, tam * 0.78, u)) * sstep(plaza * 1.05, plaza * 1.7, r);
     lecho = (1 - sstep(ancho * 0.55, ancho, d + (n2 - 0.5) * 1.6)) * tramo;
     orillaLecho = (1 - sstep(ancho, ancho + 6 + 7 * n1, d)) * tramo;
@@ -143,7 +143,7 @@ export function colorTerreno(s: number, x: number, z: number, h: number, w: Arra
   // moor (dark and golden): ash and basalt, ochre/amber crust patches catching the light, faint crack lines
   const costra = sstep(0.48, 0.72, valor2(s + 151, x * 0.06, z * 0.06)), grieta = 1 - sstep(0.035, 0.11, Math.abs(simplex2(s + 97, x * 0.045, z * 0.045)));
   let paramo = mezcla(FRANJAS.paramo.ceniza, FRANJAS.paramo.basalto, lim(0.3 + hondo * 0.55 + (fino - 0.5) * 0.6 - (sol - 0.5) * 0.4));
-  paramo = mezcla(paramo, FRANJAS.paramo.costra, lim(costra * 0.7 + (sol - 0.5) * 0.35));
+  paramo = mezcla(paramo, FRANJAS.paramo.costra, lim(costra * 0.55 + (sol - 0.5) * 0.3) * (1 - fr.agua)); // no gold crust in the damp band
   paramo = mezcla(paramo, FRANJAS.paramo.grieta, grieta * 0.55);
   // the open ground: garden → moor → water by the band weights (they sum to 1), a chain of mezcla inside the palette hull
   let prado = mezcla(jardin, paramo, fr.paramo / Math.max(fr.paramo + fr.jardin, 1e-6));
@@ -169,7 +169,7 @@ export function colorTerreno(s: number, x: number, z: number, h: number, w: Arra
   let c = zonas[0], acum = wc[0];
   for (let q = 1; q < 5; q++) { acum += wc[q]; if (wc[q] > 0) c = mezcla(c, zonas[q], wc[q] / Math.max(acum, 1e-6)); }
   // the dry stream bed: pale silica pebbles and sand over whatever zone it crosses (speckled by a fine noise), above the water only
-  const lecho = mezcla(FRANJAS.lecho.claro, FRANJAS.lecho.guijarro, lim(sstep(0.35, 0.75, fino) * 0.8 + (1 - sol) * 0.2));
+  const lecho = mezcla(FRANJAS.lecho.claro, FRANJAS.lecho.guijarro, lim(sstep(0.4, 0.8, fino) * 0.4 + (1 - sol) * 0.15));
   c = mezcla(c, lecho, fr.lecho * 0.92 * sstep(AGUA, AGUA + 0.4, h));
   // underwater: sea-green shallows, turquoise, deep turquoise with depth (the pond's bed shows through the water)
   const prof = AGUA - h;
@@ -186,7 +186,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
   const s = o.semilla, mitad = tam / 2, paso = tam / n;
   const nv = n + 1;
   // sample heights and zone weights once per lattice vertex, then colour in a second pass (slope and curvature need the neighbours)
-  const H = new Float32Array(nv * nv), W = new Float32Array(nv * nv * 5), V0 = new Float32Array(nv * nv), C = new Float32Array(nv * nv * 3), P = new Float32Array(nv * nv);
+  const H = new Float32Array(nv * nv), W = new Float32Array(nv * nv * 5), V0 = new Float32Array(nv * nv), C = new Float32Array(nv * nv * 3), P = new Float32Array(nv * nv), L = new Float32Array(nv * nv);
   const est = o.estacion ? ESTACIONES[o.estacion] : estacionDe(o.colores?.prado), niebla = new THREE.Color(o.niebla ?? 0xbcd6ee), nieblaHex = niebla.getHex();
   const borde = tam * 0.14, tmpC = new THREE.Color();
   for (let j = 0; j < nv; j++) for (let i = 0; i < nv; i++) {
@@ -199,7 +199,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
     const x = -mitad + i * paso, z = -mitad + j * paso, k = j * nv + i, h = H[k];
     const media = (Hh(i - 1, j) + Hh(i + 1, j) + Hh(i, j - 1) + Hh(i, j + 1)) / 4;
     const pend = Math.hypot(Hh(i + 1, j) - Hh(i - 1, j), Hh(i, j + 1) - Hh(i, j - 1)) / (2 * paso);
-    const fr = franjasEn(s, x, z, h, op); P[k] = fr.paramo; // R6.2: the band weights; the moor's share also tints its facets below
+    const fr = franjasEn(s, x, z, h, op); P[k] = fr.paramo; L[k] = h > AGUA + 0.2 ? fr.lecho : 0; // R6.2: the band weights; the moor's and the bed's shares also tint their facets below
     const hex = colorTerreno(s, x, z, h, W.subarray(k * 5, k * 5 + 5), V0[k], (h - media) / paso, pend, est, op.plaza ?? PLAZA, op, fr);
     const f = sstep(mitad - borde, mitad, Math.max(Math.abs(x), Math.abs(z))); // 0 inside … 1 at the border
     tmpC.setHex(f > 0 ? mezcla(hex, nieblaHex, f) : hex);
@@ -230,6 +230,8 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
         const pm = P[idx[q]];
         if (u > 0.55 || u < 0.45) tmpC.setHex(u > 0.5 ? mezcla(tmpC.getHex(), CASA.arena, (u - 0.5) * 0.28 * (1 - 0.7 * pm)) : mezcla(tmpC.getHex(), CASA.bronceOscuro, (0.5 - u) * 0.28));
         // R6.2: on the moor some facets read as a crack (near-black basalt) or as a golden crust plate
+        // R6.2: the dry bed is pebbly: a third of its facets read as grey silica pebbles, the rest as pale sand
+        if (L[idx[q]] > 0.05 && u < 0.36) tmpC.setHex(mezcla(tmpC.getHex(), FRANJAS.lecho.guijarro, L[idx[q]] * 0.55));
         if (pm > 0.05 && (u < 0.12 || u > 0.88)) tmpC.setHex(mezcla(tmpC.getHex(), u < 0.12 ? FRANJAS.paramo.grieta : FRANJAS.paramo.costra, u < 0.12 ? pm * 0.4 : lim((pm - 0.3) / 0.7) * 0.45));
         col[p * 3] = tmpC.r; col[p * 3 + 1] = tmpC.g; col[p * 3 + 2] = tmpC.b;
       }

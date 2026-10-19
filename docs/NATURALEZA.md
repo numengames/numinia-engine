@@ -799,3 +799,13 @@ Test nuevo en `test/naturaleza-arboles.test.ts`: corta el ciprés en 60 alturas 
 **Dónde** (`naturaleza/esparcir.ts`): solo junto al agua — en el anillo de 1,25–2,3 radios del estanque (`SAUCE_AGUA`) y en las orillas del cauce seco de R6.2 (`franjaEn().agua ≥ 0,6` con poco `lecho`, `SAUCE_ORILLA`); en la orilla sube un poco la probabilidad, en prado y bosque solo cambia la especie. Semilla 1234: 24 sauces de 850 árboles. Sin estanque, ninguno.
 
 Tests en `naturaleza-arboles`: perfil del sauce (copa más ancha arriba que abajo, hoja más baja < 20 % de la altura, cortinas fuera del tronco en el tercio bajo y sin cintura), puntas colgantes de lejos, solo junto al agua, y el test de caras hacia fuera ahora recorre todas las especies. Presupuesto: A 13 951/8 → 13 951/8, B 8 063/7 → 8 063/7, C 6 096/6 → 6 024/6, D 3 039/5 → 3 039/5. Fotos `work/naturaleza/fotos/r6-3-sauce-{cerca,8m,30m}-{antes,despues}.png`.
+
+## R6.2 · El suelo se lee en tres franjas: agua, jardín y páramo
+
+**Antes:** el suelo era un caqui uniforme que no era ni jardín ni ceniza; el cauce seco existía solo como una raya de ruido demasiado fina para la rejilla y no se veía (fotos `r6-2-*-antes.png`).
+
+**Ahora** (`naturaleza/terreno.ts` `franjasEn`, `colorTerreno`; `paleta.ts` `FRANJAS`): tres pesos suaves por altura, distancia a la plaza y ruido lento, con paso gradual: **agua** (musgo vivo y verdín alrededor del estanque y en las orillas del cauce), **jardín de colonia** (pergamino claro: arena cálida, manchas de olivo seco y de paja) y **páramo de antracita** (oscuro y dorado: ceniza y basalto, costra ocre que coge la luz, grietas por vértice y facetas sueltas de grieta o de placa dorada). El **cauce seco** es ahora una curva que sale del estanque, serpentea junto a la plaza y cruza el prado: banda clara de sílice (un tercio de sus caras son guijarros grises) entre dos orillas verdes. Solo color: `alturaEn` y la colisión no cambian.
+
+**Hierba** (`hierba.ts`, `Fuente.franjaEn`): fresca y algo más alta junto al agua, paja y olivo seco en el jardín, oro oscuro, baja y al 40 % en el páramo, ninguna mata ni flor sobre el cauce. Los huecos del búfer siguen siendo los mismos: mismo presupuesto.
+
+Presupuesto idéntico (terreno y hierba sin un triángulo más): A 13 951 tri/8 llamadas, B 8 063/7, C 6 024/6, D 3 039/5. Tests nuevos en `test/naturaleza-r6-2.test.ts` (pesos que suman 1, cauce que llega lejos, páramo más oscuro que el jardín, cauce más claro, agua más verde, hierba por franja, ningún hex suelto); el test R1 de «suelo apagado» admite el ocre oscuro solo en el páramo.

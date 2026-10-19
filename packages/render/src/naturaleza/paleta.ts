@@ -62,9 +62,9 @@ export const FRANJAS = {
     suelo: mezcla(mezcla(VERDES.hierba, VERDES.musgo, 0.4), CASA.ceniza, 0.08), fresco: mezcla(VERDES.hierba, CASA.verde, 0.15),
     verdin: mezcla(mezcla(VERDES.musgo, VERDES.verdin, 0.45), CASA.ceniza, 0.12),
   },
-  lecho: { claro: mezcla(CASA.arena, CASA.arenaVelada, 0.3), guijarro: mezcla(CASA.arenaVelada, CASA.ceniza, 0.3) },
+  lecho: { claro: mezcla(CASA.arena, CASA.verdemar, 0.14), guijarro: mezcla(mezcla(CASA.arenaVelada, CASA.ceniza, 0.45), CASA.verdemar, 0.12) },
   jardin: {
-    arena: mezcla(CASA.arenaVelada, CASA.arena, 0.3), tierra: mezcla(CASA.arenaVelada, CASA.ambar, 0.12),
+    arena: mezcla(CASA.arenaVelada, CASA.arena, 0.22), tierra: mezcla(CASA.arenaVelada, CASA.ambar, 0.16),
     olivo: mezcla(VERDES.hierbaLuz, VERDES.musgo, 0.4), paja: mezcla(mezcla(CASA.arenaVelada, CASA.ambar, 0.26), CASA.arena, 0.2),
     hierba: mezcla(mezcla(VERDES.hierbaLuz, CASA.ambar, 0.18), CASA.arenaVelada, 0.25),
   },
