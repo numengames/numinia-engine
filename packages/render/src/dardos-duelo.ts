@@ -3,11 +3,13 @@
 // side is dardos-duelo-ar.ts. The shapes below are the controller's `Duelo` (features/dardos/client.ts) seen
 // structurally, because render imports nothing from features.
 
-export type JugadorV = { entity: number; nombre: string; puntos: number };
+export type JugadorV = { entity: number; nombre: string; puntos: number; /** v3 (teams): this row is me / left the match */ yo?: boolean; fuera?: boolean };
 export type DueloV = {
   ronda: number; esperando: boolean; turnoDe: number | null; yo: boolean; miTurno: boolean;
   rival: JugadorV | null; yoPuntos: number; a: JugadorV; b: JugadorV | null;
   fin: { ganador: number | null; empate: boolean; abandono: boolean; texto: string; gane: boolean } | null;
+  /** v3: the seated teams in order A..D (when present they replace a/b), «retira los dardos», and what the buttons may do. */
+  equipos?: JugadorV[]; retirando?: boolean; puedeEmpezar?: boolean; puedeCambiar?: boolean;
 };
 export type DardoV = { quien: number; sitio: string; numero: number; x: number; y: number };
 
@@ -19,16 +21,21 @@ export type Panel = {
   /** «Ronda 2/3», or «» while waiting / for no match. */
   ronda: string;
   /** Two rows in the order host, guest. `turno`: whose turn it is (highlighted); `yo`: this row is me. */
-  filas: { nombre: string; puntos: number; turno: boolean; yo: boolean }[];
+  filas: { nombre: string; puntos: number; turno: boolean; yo: boolean; fuera?: boolean }[];
   /** The footer line: waiting, whose turn, or how it ended. */
   pie: string;
   /** Colour hint for the footer: good (you win / your turn), bad (you lose), neutral. */
   tono: "bien" | "mal" | "neutro";
+  /** v3: the button the footer turns into for ME («Empezar» for the host waiting with 2+ teams, «Cambiar turno» in «retira los dardos»), or null. */
+  boton: "empezar" | "cambiar" | null;
 };
+/** The label of each button. */
+export const TEXTO_BOTON = { empezar: "Empezar", cambiar: "Cambiar turno" } as const;
 
 /** Everything the panel shows, from the controller's `duelo()` (null = no match: an empty panel). `rondas` = rounds of the board. */
 export function panelDe(d: DueloV | null, rondas: number): Panel {
-  if (!d) return { fase: "nada", ronda: "", filas: [], pie: "", tono: "neutro" };
+  if (!d) return { fase: "nada", ronda: "", filas: [], pie: "", tono: "neutro", boton: null };
+  if (d.equipos && d.equipos.length > 0) return panelEquipos(d, rondas);
   const yoEsA = d.yo && d.rival !== null ? d.rival.entity !== d.a.entity : d.yo; // a player without a rival yet is the host
   const fila = (j: JugadorV | null, esA: boolean) => ({
     nombre: j ? j.nombre : "…", puntos: j ? j.puntos : 0, yo: d.yo && (esA === yoEsA),
@@ -38,18 +45,36 @@ export function panelDe(d: DueloV | null, rondas: number): Panel {
   if (d.fin) {
     const f = d.fin;
     const pie = !d.yo ? f.texto : f.empate ? "Empate" : f.gane ? (f.abandono ? "Ganas · tu rival se fue" : "Ganas") : "Pierdes";
-    return { fase: "fin", ronda: "", filas, pie, tono: !d.yo || f.empate ? "neutro" : f.gane ? "bien" : "mal" };
+    return { fase: "fin", ronda: "", filas, pie, tono: !d.yo || f.empate ? "neutro" : f.gane ? "bien" : "mal", boton: null };
   }
-  if (d.esperando) return { fase: "espera", ronda: "", filas, pie: "Esperando rival…", tono: "neutro" };
+  if (d.esperando) return { fase: "espera", ronda: "", filas, pie: "Esperando rival…", tono: "neutro", boton: null };
   const quien = d.turnoDe === d.a.entity ? d.a : d.b;
   const pie = d.miTurno ? "Tu turno" : `Es el turno de ${quien ? quien.nombre : "tu rival"}`;
-  return { fase: "juego", ronda: `Ronda ${d.ronda}/${Math.max(d.ronda, rondas)}`, filas, pie, tono: d.miTurno ? "bien" : "neutro" };
+  return { fase: "juego", ronda: `Ronda ${d.ronda}/${Math.max(d.ronda, rondas)}`, filas, pie, tono: d.miTurno ? "bien" : "neutro", boton: null };
+}
+
+/** v3: the panel of a match of N teams (1 to 4 rows). */
+function panelEquipos(d: DueloV, rondas: number): Panel {
+  const eq = d.equipos!;
+  const filas = eq.map((j) => ({ nombre: j.nombre || "…", puntos: j.puntos, yo: !!j.yo, turno: !d.esperando && !d.fin && d.turnoDe === j.entity && !j.fuera, ...(j.fuera ? { fuera: true } : {}) }));
+  if (d.fin) {
+    const f = d.fin;
+    const pie = !d.yo ? f.texto : f.empate ? "Empate" : f.gane ? (f.abandono ? "Ganas · tu rival se fue" : "Ganas") : "Pierdes";
+    return { fase: "fin", ronda: "", filas, pie, tono: !d.yo || f.empate ? "neutro" : f.gane ? "bien" : "mal", boton: null };
+  }
+  if (d.esperando) {
+    const pie = d.puedeEmpezar ? "Pulsa Empezar" : eq.length >= 2 ? "Esperando al anfitrión…" : "Esperando rival…";
+    return { fase: "espera", ronda: "", filas, pie, tono: "neutro", boton: d.puedeEmpezar ? "empezar" : null };
+  }
+  const quien = eq.find((j) => j.entity === d.turnoDe);
+  const pie = d.retirando ? (d.miTurno ? "Retira los dardos y pulsa Cambiar" : `${quien ? quien.nombre : "Tu rival"} retira los dardos`) : d.miTurno ? "Tu turno" : `Es el turno de ${quien ? quien.nombre : "tu rival"}`;
+  return { fase: "juego", ronda: `Ronda ${d.ronda}/${Math.max(d.ronda, rondas)}`, filas, pie, tono: d.miTurno ? "bien" : "neutro", boton: d.retirando && d.puedeCambiar ? "cambiar" : null };
 }
 
 /** A throw of mine is allowed only in a live match on my turn. `enDuelo`: this AR session joined a duel board (else v1: always). */
 export function puedeLanzar(d: DueloV | null, enDuelo: boolean): boolean {
   if (!enDuelo) return true;
-  return !!d && d.yo && d.miTurno && !d.esperando && !d.fin;
+  return !!d && d.yo && d.miTurno && !d.esperando && !d.fin && !d.retirando;
 }
 
 const clave = (x: DardoV) => `${x.quien}:${x.numero}`;
@@ -78,25 +103,44 @@ export function vueloRival(a: P3, b: P3, t: number, duracion = VUELO_RIVAL_S): {
   return { pos: { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u + lift, z: a.z + (b.z - a.z) * u }, u, lista: u >= 1 };
 }
 
-/** Canvas size of the 3D panel (one texture, one plane). */
-export const PANEL_PX = { w: 512, h: 192 } as const;
+/** Canvas size of the 3D panel (one texture, one plane): room for the title, four rows and the footer. */
+export const PANEL_PX = { w: 512, h: 250 } as const;
 const TONO = { bien: "#9fe8a8", mal: "#ff8a80", neutro: "#d7dee6" } as const;
-/** Paint the panel (plain canvas, like diana.ts: WebXR draws no DOM). Called only when the match changes. */
-export function pintarPanel(ctx: CanvasRenderingContext2D, p: Panel): void {
+const FILA_PX = 36;
+/** Where the footer (or the button that replaces it) sits for a panel of `n` rows (canvas px). */
+export const pieY = (n: number): number => 56 + Math.max(2, n) * FILA_PX + 30;
+/** The button's rectangle on the canvas (px), for painting it and for the ray test of AR. */
+export const rectBoton = (n: number): { x: number; y: number; w: number; h: number } => ({ x: 56, y: pieY(n) - 22, w: PANEL_PX.w - 112, h: 44 });
+/** A point of the canvas (px) inside the button of a panel? */
+export function enBoton(p: Panel, px: number, py: number): boolean {
+  if (!p.boton) return false;
+  const r = rectBoton(p.filas.length);
+  return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+}
+/** Paint the panel (plain canvas, like diana.ts: WebXR draws no DOM). Called only when the match changes.
+ * `conBoton`: the wall board paints the button (the plaza's sign cannot be pressed). */
+export function pintarPanel(ctx: CanvasRenderingContext2D, p: Panel, conBoton = false): void {
   const { w, h } = PANEL_PX;
   ctx.clearRect(0, 0, w, h);
   if (p.fase === "nada") return;
-  ctx.fillStyle = "rgba(20,24,30,.92)"; ctx.beginPath(); ctx.roundRect(0, 0, w, h, 22); ctx.fill();
+  const fy = pieY(p.filas.length);
+  ctx.fillStyle = "rgba(20,24,30,.92)"; ctx.beginPath(); ctx.roundRect(0, 0, w, Math.min(h, fy + 34), 22); ctx.fill();
   ctx.textBaseline = "middle";
   if (p.ronda) { ctx.fillStyle = "#c9d3dc"; ctx.font = "600 26px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.fillText(p.ronda, w / 2, 24); }
   const nombre = (s: string) => (s.length > 14 ? `${s.slice(0, 13)}…` : s);
   p.filas.forEach((f, i) => {
-    const y = 56 + i * 40;
-    if (f.turno) { ctx.fillStyle = "rgba(255,210,122,.22)"; ctx.beginPath(); ctx.roundRect(12, y - 18, w - 24, 36, 10); ctx.fill(); }
-    ctx.fillStyle = f.turno ? "#ffd27a" : "#eef2f6"; ctx.font = `${f.turno ? 800 : 600} 30px system-ui, sans-serif`;
+    const y = 56 + i * FILA_PX;
+    if (f.turno) { ctx.fillStyle = "rgba(255,210,122,.22)"; ctx.beginPath(); ctx.roundRect(12, y - 17, w - 24, 34, 10); ctx.fill(); }
+    ctx.fillStyle = f.fuera ? "#7f8993" : f.turno ? "#ffd27a" : "#eef2f6"; ctx.font = `${f.turno ? 800 : 600} 30px system-ui, sans-serif`;
     ctx.textAlign = "left"; ctx.fillText(`${f.turno ? "▶ " : ""}${nombre(f.nombre)}${f.yo ? " (tú)" : ""}`, 24, y);
     ctx.textAlign = "right"; ctx.fillText(String(f.puntos), w - 28, y);
   });
+  if (conBoton && p.boton) {
+    const r = rectBoton(p.filas.length);
+    ctx.fillStyle = "#ffd27a"; ctx.beginPath(); ctx.roundRect(r.x, r.y, r.w, r.h, 14); ctx.fill();
+    ctx.fillStyle = "#1b1f24"; ctx.font = "800 32px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.fillText(TEXTO_BOTON[p.boton], w / 2, fy);
+    return;
+  }
   ctx.fillStyle = TONO[p.tono]; ctx.font = "800 32px system-ui, sans-serif"; ctx.textAlign = "center";
-  ctx.fillText(p.pie.length > 30 ? `${p.pie.slice(0, 29)}…` : p.pie, w / 2, 160);
+  ctx.fillText(p.pie.length > 30 ? `${p.pie.slice(0, 29)}…` : p.pie, w / 2, fy);
 }

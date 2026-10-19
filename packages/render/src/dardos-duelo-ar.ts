@@ -8,7 +8,8 @@
 import * as THREE from "three/webgpu";
 import { RADIO_M, PINTADA } from "./diana.ts";
 import type { DianaAR, Dardo3D } from "./dardos.ts";
-import { llegadas, panelDe, pintarPanel, puedeLanzar, PANEL_PX, salidaRival, vueloRival, VUELO_RIVAL_S } from "./dardos-duelo.ts";
+import { enBoton, llegadas, panelDe, pintarPanel, puedeLanzar, PANEL_PX, salidaRival, vueloRival, VUELO_RIVAL_S } from "./dardos-duelo.ts";
+import type { Panel } from "./dardos-duelo.ts";
 import type { DueloV, P3 } from "./dardos-duelo.ts";
 
 export type OpcionesDuelo = {
@@ -22,12 +23,16 @@ export type OpcionesDuelo = {
   rondas(): number;
   /** Leave the match (the controller's `dardos.salir()`). */
   salir(): void;
+  /** v3: the panel's button was pressed (the AR ray hit «Cambiar turno» / «Empezar»). */
+  boton?(que: "empezar" | "cambiar"): void;
 };
 export type DianaDueloAR = DianaAR & {
   /** Call when `duelo()` changed (`alCambiar("duelo")`): repaints the panel. */
   refrescar(): void;
   /** For tests and the e2e: the panel's state and the darts in flight. */
-  duelo(): { visible: boolean; pie: string; volando: number };
+  duelo(): { visible: boolean; pie: string; volando: number; boton: "empezar" | "cambiar" | null };
+  /** For tests and the e2e: press the panel's button as the ray would (true if there was one). */
+  pulsarBoton(): boolean;
 };
 
 /** A light dart for the flight (the stuck ones are the board's own mesh): tip at the origin, pointing along -z. */
@@ -50,10 +55,10 @@ export function envolverDuelo(j: DianaAR, o: OpcionesDuelo): DianaDueloAR {
   const ancho = 0.64, alto = ancho * (PANEL_PX.h / PANEL_PX.w);
   const panel = new THREE.Mesh(new THREE.PlaneGeometry(ancho, alto), new THREE.MeshBasicMaterial({ map: textura, transparent: true }));
   panel.position.set(0, RADIO_M * PINTADA + 0.04 + alto / 2, 0.03); panel.visible = false; diana.add(panel);
-  let pie = "";
+  let pie = "", actual: Panel | null = null;
   const refrescar = (): void => {
     const p = panelDe(o.duelo(), o.rondas());
-    pie = p.pie; pintarPanel(ctx, p); textura.needsUpdate = true;
+    actual = p; pie = p.pie; pintarPanel(ctx, p, true); textura.needsUpdate = true;
     panel.visible = o.activo() && p.fase !== "nada";
   };
 
@@ -65,16 +70,31 @@ export function envolverDuelo(j: DianaAR, o: OpcionesDuelo): DianaDueloAR {
   const ahora = () => performance.now() / 1000;
   const clave = (x: Dardo3D) => `${x.quien}:${x.numero}`;
   const reenviar = () => j.clavados(ultima.filter((x) => !vuelos.has(clave(x))));
+  const rc = new THREE.Raycaster();
+  /** Is the ray on the panel's button? (the plane is hit, its uv becomes canvas px) */
+  const sobreBoton = (rayo: { origen: THREE.Vector3; dir: THREE.Vector3 } | undefined, cam: THREE.Camera): boolean => {
+    if (!panel.visible || !actual?.boton) return false;
+    const d = new THREE.Vector3(); cam.getWorldDirection(d);
+    const r = rayo ?? { origen: new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld), dir: d };
+    panel.updateWorldMatrix(true, false);
+    rc.set(r.origen, r.dir);
+    const hit = rc.intersectObject(panel, false)[0];
+    return !!hit?.uv && enBoton(actual, hit.uv.x * PANEL_PX.w, (1 - hit.uv.y) * PANEL_PX.h);
+  };
+  const apretar = (): boolean => { if (!actual?.boton || !panel.visible) return false; o.boton?.(actual.boton); return true; };
+  let traguePulsacion = false;
   const tope = new THREE.Vector3(), dir = new THREE.Vector3(), Z = new THREE.Vector3(0, 0, -1);
 
   return {
     ...j,
     refrescar,
     pulsar(rayo, cam) {
+      if (j.estado().fase === "colocada" && sobreBoton(rayo, cam)) { traguePulsacion = true; apretar(); return; } // the button, not a throw
       if (j.estado().fase === "colocada" && !puedeLanzar(o.duelo(), o.activo())) return; // not my turn: no power bar
       j.pulsar(rayo, cam);
     },
     soltar(rayo, cam) {
+      if (traguePulsacion) { traguePulsacion = false; return; }
       if (j.estado().fase === "colocada" && !puedeLanzar(o.duelo(), o.activo())) return;
       j.soltar(rayo, cam);
     },
@@ -111,7 +131,8 @@ export function envolverDuelo(j: DianaAR, o: OpcionesDuelo): DianaDueloAR {
       }
       reenviar();
     },
-    duelo: () => ({ visible: panel.visible, pie, volando: vuelos.size }),
+    duelo: () => ({ visible: panel.visible, pie, volando: vuelos.size, boton: actual?.boton ?? null }),
+    pulsarBoton: apretar,
   };
 }
 export { VUELO_RIVAL_S };
