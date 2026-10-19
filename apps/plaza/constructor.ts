@@ -16,6 +16,7 @@
 // thing itself is the handle. Design: ../mmo-browser-study/MODO-CONSTRUCTOR-MOVIL-VR.md.
 import type { Donde, Editor, Eje } from "../../packages/render/src/index.ts";
 import { icono } from "./iconos.ts";
+import { datosFicha, enlaceDeObjeto, fichaVisible, seleccionarAlIr } from "./ficha-objeto.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type Obj = Record<string, unknown> & { id: string };
@@ -64,9 +65,9 @@ export const AYUDA = [
   "Al mover un solo objeto con un eje elegido (X/Y/Z): si su cara queda a menos de 25 cm de otro objeto, encaja cara con cara.",
   "Ctrl + Z: deshacer · Ctrl + Mayús + Z o Ctrl + Y: rehacer · F: encuadrar · N: inspector.",
   "Biblioteca: el modelo sigue al puntero y un clic lo coloca; «Delante de ti» lo coloca sin ratón.",
-  "Doble clic en un objeto mientras juegas: abre construir con él seleccionado. Encima del objeto sale una barra con Mover, Girar, Escalar, Duplicar y Borrar.",
+  "Doble clic en un objeto mientras juegas: abre construir con él seleccionado. Con un objeto seleccionado sale su ficha (abajo) con iconos: Mover, Girar, Escalar, Duplicar, Anclar o Soltar, Copiar enlace, Borrar, Volver y Cerrar.",
   "Imagen, Pantalla de vídeo y Zona de sonido (abajo): suben tu fichero y lo ponen delante de ti. La zona de sonido es una esfera: Escalar cambia su radio.",
-  "Con el dedo: toca un objeto para seleccionarlo y arrástralo para moverlo (sobre el suelo y sobre otros objetos). Un dedo en el vacío mueve la cámara; dos la acercan. Girar y escalar: los botones de encima y «Pasos con botones».",
+  "Con el dedo: toca un objeto para seleccionarlo y arrástralo para moverlo (sobre el suelo y sobre otros objetos). Un dedo en el vacío mueve la cámara; dos la acercan. Girar y escalar: los iconos de la ficha y «Pasos con botones».",
   "Botones derecho y central del ratón, y la rueda: la cámara (cuando llegue la cámara nueva).",
 ];
 
@@ -87,7 +88,9 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLEl
   return e;
 }
 
-export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElement, panel: HTMLElement): void {
+/** C3: what the page lends the card: the map's «Volver», and a way to ask for the object chosen with «Ir». */
+export type ExtraConstructor = { volver?(): boolean; puedeVolver?(): boolean };
+export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElement, panel: HTMLElement, extra?: ExtraConstructor): { alIr(donde: { id: string }): boolean } {
   estilo();
   const ed = view.editor, lienzo = view.renderer.domElement;
   const cam = (): Cam | undefined => (view as Vista & { cam?: Cam }).cam;
@@ -447,6 +450,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     boton.toggleAttribute("data-oculto", !c.estado.puede);
     const aviso = avisoBiblioteca(c.biblioteca, c.estado.puede);
     avisoLib.textContent = aviso; avisoLib.hidden = !aviso;
+    pintarFicha();
     if (!abierto()) return;
     for (const b of botonesHerr) b.setAttribute("aria-pressed", String(b.dataset.modo === c.estado.modo));
     for (const b of botonesEje) b.setAttribute("aria-pressed", String((b.dataset.eje || null) === eje));
@@ -681,32 +685,62 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
       const d = final ?? ed.dondeEsta(fue.key);
       decir(d ? `${nombreDe(o ?? { id: fue.key })} posado: x ${fmt(d.x)} y ${fmt(d.y)} z ${fmt(d.z)}.` : "Posado.");
       refrescar();
-    } else decir(`Seleccionado: ${o ? nombreDe(o) : fue.key}. Arrástralo para moverlo; los botones de encima giran, duplican y borran.`);
+    } else decir(`Seleccionado: ${o ? nombreDe(o) : fue.key}. Arrástralo para moverlo; los iconos de la ficha giran, duplican y borran.`);
   };
   addEventListener("pointerup", finDedo, { capture: true });
   addEventListener("pointercancel", finDedo, { capture: true });
 
-  // ---- U10: a bar that floats over the selected thing (like OnCyber's): the tools and «Borrar» where you look ----
-  const barra = el("div", { id: "barra-objeto" });
-  barra.setAttribute("role", "toolbar"); barra.setAttribute("aria-label", "Acciones del objeto seleccionado");
-  const bBarra = (t: string, titulo: string, fn: () => Res | void, clase = "") => { const b = boton2(t, titulo, fn); if (clase) b.className = clase; return b; };
-  const herrBarra = HERRAMIENTAS.map(([m, t]) => { const b = bBarra(t, `${t} (las asas de colores)`, () => elegirModo(m)); b.dataset.modo = m; return b; });
-  barra.append(...herrBarra, bBarra("Duplicar", "Hacer una copia (Mayús+D)", () => duplicar()), bBarra("Borrar", "Quitarlo del mundo (Supr; Ctrl+Z lo devuelve)", () => borrarSeleccion(), "peligro"));
-  barra.hidden = true;
-  document.body.append(barra);
-  barra.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch, not a click on the world
-  const colocarBarra = () => {
-    const id = c.estado.seleccionado, o = abierto() && id ? c.objeto(id) : null, d = o ? ed.dondeEsta(id) : null;
-    const p = d ? ed.pantalla(d.x, d.y + Math.max(0.6, d.sy * (o?.tipo === "sonido" ? 1 : 0.5)) + 0.4, d.z) : null;
-    if (!p || p.y < 40 || p.y > innerHeight - 40 || p.x < 0 || p.x > innerWidth) { barra.hidden = true; } else {
-      barra.hidden = false;
-      for (const b of herrBarra) b.setAttribute("aria-pressed", String(b.dataset.modo === c.estado.modo));
-      barra.style.left = `${Math.max(8, Math.min(innerWidth - barra.offsetWidth - 8, p.x - barra.offsetWidth / 2))}px`;
-      barra.style.top = `${Math.max(8, p.y - barra.offsetHeight - 30)}px`;
-    }
-    requestAnimationFrame(colocarBarra);
+  // ---- C3: the object card (ficha): name, type, small facts and ONE row of icon buttons. It replaces U10's floating bar
+  // and reuses its handlers. It shows only for someone who may build here AND with the builder open (fichaVisible); the
+  // server still decides every action. Refreshed on events, never per frame. ----
+  const ficha = el("aside", { id: "ficha-objeto" });
+  ficha.setAttribute("aria-label", "Ficha del objeto seleccionado");
+  const fTitulo = el("h3"), fTipo = el("p", { className: "sub" }), fHechos = el("dl");
+  const barra = el("div"); barra.setAttribute("role", "toolbar"); barra.setAttribute("aria-label", "Acciones del objeto seleccionado");
+  // icon-only button: title + aria-label + data-tip (the tip also shows on keyboard focus)
+  const bIcono = (ic: string, titulo: string, fn: () => Res | void, clase = "") => {
+    const b = boton2("", titulo, fn);
+    b.innerHTML = icono(ic, 18); b.setAttribute("aria-label", titulo); b.dataset.tip = titulo; b.className = `ic ${clase}`.trim();
+    return b;
   };
-  requestAnimationFrame(colocarBarra);
+  const sep = () => { const d = el("span", { className: "sep" }); d.setAttribute("aria-hidden", "true"); return d; };
+  const herrBarra = ([["mover", "arrows-out-cardinal", "Mover (2 o G)"], ["girar", "arrows-clockwise", "Girar (3 o R)"], ["escalar", "arrows-out-simple", "Escalar (4)"]] as const)
+    .map(([m, ic, t]) => { const b = bIcono(ic, t, () => elegirModo(m)); b.dataset.modo = m; return b; });
+  const bFijar = bIcono("push-pin", "Anclar (P)", () => c.fijar());
+  const bCopiarEnlace = bIcono("link", "Copiar enlace a este sitio", () => copiarEnlace());
+  const bVolver = bIcono("arrow-u-up-left", "Volver a donde estabas", () => (extra?.volver?.() ? { ok: true } : { ok: false, why: "no hay a dónde volver" }));
+  const bCerrar = bIcono("x", "Cerrar la ficha (Esc)", () => { c.seleccionar(""); });
+  barra.append(...herrBarra, sep(), bIcono("copy", "Duplicar (Mayús+D)", () => duplicar()), bFijar, bCopiarEnlace,
+    bIcono("trash", "Borrar (Supr; Ctrl+Z lo devuelve)", () => borrarSeleccion(), "peligro"), sep(), bVolver, bCerrar);
+  ficha.append(fTitulo, fTipo, fHechos, barra);
+  ficha.hidden = true;
+  document.body.append(ficha);
+  ficha.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch, not a click on the world
+  function copiarEnlace(): Res {
+    const o = c.objeto(c.estado.seleccionado), url = o ? enlaceDeObjeto(location, o) : null;
+    if (!url) return { ok: false, why: "selecciona algo antes (clic)" };
+    navigator.clipboard?.writeText(url).then(() => decir("Enlace copiado."), () => decir(`Copia el enlace: ${url}`));
+    if (!navigator.clipboard) decir(`Copia el enlace: ${url}`);
+    return { ok: true };
+  }
+  let firmaFicha = "";
+  function pintarFicha(): void {
+    const o = c.estado.seleccionado ? c.objeto(c.estado.seleccionado) : null;
+    const ver = fichaVisible(c.estado.puede, abierto(), o ? o.id : "");
+    if (!ver) { if (!ficha.hidden) ficha.hidden = true; firmaFicha = ""; return; }
+    const volver = !!extra?.puedeVolver?.();
+    const firma = JSON.stringify([o!.id, c.estado.modo, o!.fijado, o!.nombre, o!.tipo, o!.x, o!.y, o!.z, o!.sx, o!.sy, o!.sz, volver]);
+    if (firma === firmaFicha && !ficha.hidden) return; // nothing changed: no DOM work
+    firmaFicha = firma;
+    const d = datosFicha(o!);
+    fTitulo.textContent = d.titulo; fTipo.textContent = d.tipo;
+    fHechos.replaceChildren(...d.hechos.flatMap(([k, v]) => [el("dt", { textContent: k }), el("dd", { textContent: v })]));
+    for (const b of herrBarra) b.setAttribute("aria-pressed", String(b.dataset.modo === c.estado.modo));
+    const fij = o!.fijado === true, t = fij ? "Soltar (P)" : "Anclar (P)";
+    bFijar.innerHTML = icono(fij ? "push-pin-slash" : "push-pin", 18); bFijar.title = t; bFijar.dataset.tip = t; bFijar.setAttribute("aria-label", t);
+    bVolver.hidden = !volver;
+    ficha.hidden = false;
+  }
 
   // ---- U10: a double click on a thing while playing opens Construir with it selected (the quick way in) ----
   lienzo.addEventListener("dblclick", (e) => {
@@ -720,6 +754,9 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   // who may build can change (H3 will give roles); the nearest thing changes as you walk
   setInterval(() => { if (!c.estado.puede && abierto()) abrir(false); refrescar(); }, 500);
   refrescar(); // set the button's visibility and the library's warning right away (not after the first tick)
+
+  // C3: «Ir» in the map, when you may build and the builder is open, selects that object so its card opens by itself
+  return { alIr: (donde) => { const sitio = seleccionarAlIr(c.estado.puede, abierto(), !!c.objeto(donde.id)); if (sitio) c.seleccionar(donde.id); return sitio; } };
 }
 
 function estilo(): void {
@@ -747,16 +784,25 @@ function estilo(): void {
 #panel-construir .aviso-biblioteca { color: #ffb4a8; font-weight: 600; }
 #panel-construir .aviso-biblioteca[hidden] { display: none; }
 #panel-construir input[type=range] { width: 140px; }
-#barra-objeto { position: fixed; z-index: 6; display: flex; gap: 4px; padding: 4px; border-radius: 8px; background: rgba(20, 24, 30, .86); }
-#barra-objeto[hidden] { display: none; }
-#barra-objeto button { padding: 6px 9px; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; font: 600 12px system-ui, sans-serif; }
-#barra-objeto button[aria-pressed="true"] { background: #ffd27a; }
-#barra-objeto button.peligro { background: #ffb4a8; }
-#barra-objeto button:focus-visible { outline: 3px solid #ffd27a; }
+#ficha-objeto { position: fixed; z-index: 6; left: 50%; bottom: 96px; transform: translateX(-50%); width: min(392px, calc(100vw - 16px)); padding: 10px 12px; border-radius: 10px; background: rgba(20, 24, 30, .86); color: #eef2f6; font: 12px system-ui, sans-serif; }
+#ficha-objeto[hidden] { display: none; }
+#ficha-objeto h3 { margin: 0 0 2px; font-size: 15px; overflow-wrap: anywhere; }
+#ficha-objeto .sub { margin: 0 0 6px; color: #9aa7b4; }
+#ficha-objeto dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 6px 0; }
+#ficha-objeto dt { color: #9aa7b4; } #ficha-objeto dd { margin: 0; }
+#ficha-objeto [role=toolbar] { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .14); }
+#ficha-objeto .sep { width: 1px; background: rgba(255, 255, 255, .14); margin: 0 3px; }
+#ficha-objeto button.ic { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; }
+#ficha-objeto button[hidden] { display: none; }
+#ficha-objeto button[aria-pressed="true"] { background: #ffd27a; }
+#ficha-objeto button.peligro { background: #ffb4a8; }
+#ficha-objeto button:focus-visible { outline: 3px solid #ffd27a; }
+#ficha-objeto button[data-tip]:focus-visible::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); white-space: nowrap; padding: 3px 7px; border-radius: 5px; background: #000; color: #fff; font-size: 11px; pointer-events: none; }
 /* M22b-1: on a touch screen every builder button is a thumb target (Apple HIG: ≥ 44 pt for frequent controls) */
 @media (pointer: coarse) {
-  #barra-objeto { gap: 8px; padding: 6px; }
-  #barra-objeto button, #panel-construir button { min-width: 44px; min-height: 44px; padding: 10px 14px; font-size: 14px; }
+  #ficha-objeto { bottom: 110px; }
+  #ficha-objeto button.ic, #panel-construir button { min-width: 44px; min-height: 44px; padding: 10px 14px; font-size: 14px; }
+  #ficha-objeto button.ic { padding: 0; }
   #panel-construir select, #panel-construir input[type=number], #panel-construir input[type=text] { min-height: 40px; font-size: 14px; }
   #panel-construir { font-size: 14px; }
 }

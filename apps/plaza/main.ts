@@ -174,7 +174,8 @@ if (esTactil()) {
 }
 
 // ---- H1 + M22: the builder, for whoever may build (the server says so on entering): panel, gizmo, grab ----
-montarConstructor(constructor, view, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!);
+const constructorUI = montarConstructor(constructor, view, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!,
+  { volver: () => mapa.volver(), puedeVolver: () => mapa.puedeVolver() }); // C3: the object card; `mapa` is built below, it is only read later
 // ---- M22b-3: the same builder, picked and moved with a VR controller's ray instead of a mouse ----
 const constructorVR = montarConstructorVR(constructor, view);
 // ---- H9: drop your own .glb on the world (or «Subir modelo…» in the panel): uploaded by sha256, placed for everyone ----
@@ -244,7 +245,7 @@ const inventario = montarInventario(inventarioCtl, document.getElementById("inve
 // ---- J5: minimap (corner), big map (M, «Mapa») and player sheet (I, «Ficha»); other branches' contracts are read
 // from __numinia when present (misiones.objetivos/resumen, ajustes.abrir, chat.nombres) ----
 const otros = () => (globalThis as unknown as { __numinia?: Record<string, unknown> }).__numinia ?? {};
-const mapa = montarMapa({ session, view, otros, teletransporte: { activo: () => viajar.activo(), ir: (x, z, nombre) => viajar.irAPunto(x, z, nombre) } });
+const mapa = montarMapa({ session, view, otros, alIr: (donde) => { constructorUI.alIr({ id: donde.id.replace(/^c:objetos:/, "") }); }, teletransporte: { activo: () => viajar.activo(), ir: (x, z, nombre) => viajar.irAPunto(x, z, nombre) } });
 // ---- N13: photo mode (P or the camera button): the photo owns the screen and the keys; your avatar stands still ----
 const foto = montarFoto({ view, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), mapa, boton: document.getElementById("foto-abrir") as HTMLButtonElement, ocupado: () => dardos.tirando(),
   aparecer: { puede: () => (viajar.estado.recibido ? viajar.foto() : null), pedir: (s) => { viajar.aparecerEnFoto(s.x, s.y, s.z); } }, // N16: the world may put you at the photo's place
@@ -492,7 +493,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, ambiente, elementos, voz, compartir, xr, pesca, lucha, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, ambiente, elementos, voz, compartir, xr, pesca, lucha, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina };
 
 // ---- t_5cff4f06: the corner button back to the city, top left (HUD simétrico: the gear's mirror on the right);
 // hidden unless this world's mundo.ajustes.json sets ciudadUrl ----

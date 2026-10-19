@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 // e2e leg M22 (constructor): the builder's hands with a REAL mouse and keyboard, two tabs, for chromium and firefox
 // (WebGPURenderer; BASE carries ?webgl2 = its WebGL2 backend). Tab A opens build mode with the key C, takes the
 // Bloque from the library and clicks the ground 3 m ahead (it follows the pointer, the click places it); B gets it.
@@ -47,6 +48,7 @@ async function arrastrar(p, from, dx, dy) {
 async function pierna(engine) {
   const browser = await launchers[engine]();
   const ctx = await browser.newContext({ viewport: { width: 1100, height: 700 } });
+  await ctx.addInitScript((v) => { try { localStorage.setItem("numinia.novedades.version", v); } catch {} }, JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version); // the «what is new» card shows once per version in a fresh browser and would cover the panel
   const errors = [];
   const open = async () => {
     const p = await ctx.newPage();
@@ -64,6 +66,8 @@ async function pierna(engine) {
     a = await open(); b = await open();
     r.backend = await a.evaluate(() => globalThis.__numinia.view.backend);
     await a.bringToFront();
+    // C3: playing (builder closed): the object card is not there
+    paso("ficha oculta con el constructor cerrado", await a.evaluate(() => { const f = document.getElementById("ficha-objeto"); return !!f && f.hidden; }));
     // 1. build mode with the key C: the panel shows, the gizmo arrives (dynamic import)
     await a.mouse.move(400, 300);
     await a.keyboard.press("KeyC");
@@ -94,6 +98,18 @@ async function pierna(engine) {
     const conGizmo = await a.evaluate(() => ({ sel: globalThis.__numinia.constructor.estado.seleccionado, ed: globalThis.__numinia.view.editor.estado(), calls: globalThis.__numinia.view.lastFrame().calls }));
     paso("seleccionar con un clic", sinGizmo.sel === "" && conGizmo.sel === id && conGizmo.ed.seleccionado === id && conGizmo.ed.herramienta === "mover", { sinGizmo: sinGizmo.sel, conGizmo: conGizmo.sel });
     paso("el gizmo se dibuja", conGizmo.calls > sinGizmo.calls, { llamadasSin: sinGizmo.calls, llamadasCon: conGizmo.calls });
+    // C3: open + selected → the card is there: title, only icon buttons, each with title + aria-label + a tip, reachable by Tab
+    const ficha = await a.evaluate(() => {
+      const f = document.getElementById("ficha-objeto"), bs = [...f.querySelectorAll("button")];
+      return { visible: !f.hidden, titulo: f.querySelector("h3").textContent, n: bs.length, sinTexto: bs.every((b) => b.textContent.trim() === "" && b.querySelector("svg")),
+        completos: bs.every((b) => b.title && b.getAttribute("aria-label") === b.title && b.dataset.tip === b.title), tab: bs.every((b) => b.tabIndex >= 0 && !b.disabled), fijar: bs.some((b) => /^Anclar/.test(b.title)) };
+    });
+    paso("ficha visible con constructor abierto y objeto elegido", ficha.visible && ficha.titulo !== "" && ficha.n >= 8 && ficha.sinTexto && ficha.completos && ficha.tab && ficha.fijar, ficha);
+    const ficha2 = await a.evaluate(() => document.getElementById("ficha-objeto").hidden);
+    await a.keyboard.press("Escape");
+    paso("ficha oculta sin objeto elegido", await a.waitForFunction(() => document.getElementById("ficha-objeto").hidden, null, { timeout: 3000 }).then(() => !ficha2, () => false));
+    await a.mouse.click(centro.x, centro.y);
+    await a.waitForFunction((k) => globalThis.__numinia.constructor.estado.seleccionado === k, id, { timeout: 3000 });
     // 4. drag the X handle (red arrow) to the right → B sees x change
     const ejeX = [];
     for (let t = 0.2; t <= 4; t += 0.1) ejeX.push([o0.x + t, 0, o0.z]);
@@ -133,11 +149,40 @@ async function pierna(engine) {
     const r2 = await esperaB(igual, id, { x: o2.x, ry: o2.ry });
     paso("deshacer y rehacer llegan a B", u1 && u2 && r1 && r2, { deshacerGiro: u1, deshacerMover: u2, rehacerMover: r1, rehacerGiro: r2 });
     if (process.env.SHOTS === "1") await a.screenshot({ path: `e2e-constructor-${engine}.png` });
+    // C3: closing the builder hides the card even with the selection kept; opening it brings it back
+    await a.keyboard.press("KeyC");
+    const cerrada = await a.waitForFunction(() => document.getElementById("panel-construir").hidden && document.getElementById("ficha-objeto").hidden, null, { timeout: 3000 }).then(() => true, () => false);
+    await a.keyboard.press("KeyC");
+    const vuelve = await a.waitForFunction(() => !document.getElementById("ficha-objeto").hidden, null, { timeout: 3000 }).then(() => true, () => false);
+    paso("ficha se oculta al cerrar el constructor y vuelve al abrirlo", cerrada && vuelve, { cerrada, vuelve });
+    // C3: «Ir» in the map (the hook main.ts wires): builder open → that object is selected and its card opens by itself;
+    // builder closed → «Ir» only travels (nothing selected, no card)
+    await a.keyboard.press("Escape");
+    const alIrAbierto = await a.evaluate((k) => { const n = globalThis.__numinia; return n.constructorUI.alIr({ id: k }); }, id);
+    const fichaIr = await a.waitForFunction((k) => globalThis.__numinia.constructor.estado.seleccionado === k && !document.getElementById("ficha-objeto").hidden, id, { timeout: 3000 }).then(() => true, () => false);
+    await a.keyboard.press("KeyC"); // close; the selection stays but the builder is shut
+    await a.keyboard.press("KeyC"); await a.keyboard.press("Escape"); await a.keyboard.press("KeyC");
+    const alIrCerrado = await a.evaluate((k) => globalThis.__numinia.constructorUI.alIr({ id: k }), id);
+    const sinFicha = await a.evaluate(() => document.getElementById("ficha-objeto").hidden);
+    paso("«Ir» abre la ficha solo con el constructor abierto", alIrAbierto && fichaIr && !alIrCerrado && sinFicha, { alIrAbierto, fichaIr, alIrCerrado, sinFicha });
+    await a.keyboard.press("KeyC");
+    await a.waitForFunction(() => !document.getElementById("panel-construir").hidden, null, { timeout: 3000 });
     // 7. Delete removes it; B sees it gone
     await a.keyboard.press("Delete");
     const borrado = await esperaB(([k]) => !globalThis.__numinia.session.features.stateOf("objetos").has(k), id);
     paso("Supr lo borra para todos", borrado);
     id = "";
+    // C3: a world where building is off (BASE_SIN): no card, whatever the keys do
+    if (process.env.BASE_SIN) {
+      const c = await ctx.newPage();
+      c.on("pageerror", (e) => errors.push(String(e)));
+      await c.goto(process.env.BASE_SIN + (process.env.BASE_SIN.includes("?") ? "&" : "?") + "pulso=2000");
+      await c.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
+      await c.mouse.move(400, 300); await c.keyboard.press("KeyC"); await c.waitForTimeout(800);
+      const sin = await c.evaluate(() => ({ puede: globalThis.__numinia.constructor.estado.puede, panel: document.getElementById("panel-construir").hidden, ficha: document.getElementById("ficha-objeto").hidden }));
+      paso("mundo sin permiso de construir: sin ficha", !sin.puede && sin.panel && sin.ficha, sin);
+      await c.close();
+    }
     r.ok = errors.length === 0;
   } catch (e) {
     r.error = String(e).split("\n")[0].slice(0, 300);

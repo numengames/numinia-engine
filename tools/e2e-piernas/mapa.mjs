@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 // e2e leg (J5): the minimap, the big map over the zone seen from above, waypoints, the HTML twin and the player sheet.
 // Two tabs per browser (chromium, then firefox; BROWSER=… runs one). Checks: the minimap draws you and tab B (read-only
 // hook with counts by kind), it redraws only when something changes (≤ 5/s) and never keeps the page busy; a block
@@ -24,6 +25,7 @@ const espera = (p, fn, arg, ms = 10000) => p.waitForFunction(fn, arg, { timeout:
 async function pasada(engine) {
   const browser = await launchers[engine]();
   const ctx = await browser.newContext({ viewport: { width: 900, height: 600 } });
+  await ctx.addInitScript((v) => { try { localStorage.setItem("numinia.novedades.version", v); } catch {} }, JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version); // see constructor.mjs
   const errors = [], r = { engine, checks: {} };
   const open = async () => {
     const p = await ctx.newPage();

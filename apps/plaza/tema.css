@@ -25,7 +25,7 @@
 html, body { font-family: "Geist", system-ui, sans-serif; }
 
 /* ---- frames: one surface, one hairline, 8px ---- */
-#hud, #panel-construir, #libro, #dialogo, #ajustes, #panel-entorno, #chat-lista:not(:empty), #barra-objeto, #mision-seguida,
+#hud, #panel-construir, #libro, #dialogo, #ajustes, #panel-entorno, #chat-lista:not(:empty), #ficha-objeto, #mision-seguida,
 #interactuar, .panel-j5, #subida-estado.con-texto {
   background: var(--n-sup) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea); border-radius: 8px !important; box-shadow: none !important;
 }
@@ -89,16 +89,16 @@ html, body { font-family: "Geist", system-ui, sans-serif; }
 #libro li.paso.bloqueado > .texto, #libro li.paso.bloqueado > .marca { opacity: .75; } /* dimmed, still ≥ 4.5:1 on the house surface */
 
 /* ---- controls: ghost by default, ink-on-paper when active, 6px (a world's tema may round them: --n-r-control) ---- */
-#panel-construir button, #libro button, #dialogo button:not(.adios), #ajustes button, #panel-entorno button, #minimapa button, .panel-j5 button, #barra-objeto button, #barra-arriba button {
+#panel-construir button, #libro button, #dialogo button:not(.adios), #ajustes button, #panel-entorno button, #minimapa button, .panel-j5 button, #ficha-objeto button, #barra-arriba button {
   background: var(--n-elev) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea) !important; border-radius: var(--n-r-control) !important; font-family: inherit;
 }
-#panel-construir button:hover, #libro button:hover, #dialogo button:not(.adios):hover, #ajustes button:hover, #panel-entorno button:hover, #minimapa button:hover, #barra-objeto button:hover, #barra-arriba button:hover { border-color: var(--n-texto2) !important; }
-#panel-construir button[aria-pressed="true"], #minimapa button[aria-pressed="true"], #barra-objeto button[aria-pressed="true"], #barra-arriba button[aria-pressed="true"], #panel-entorno button[aria-pressed="true"] {
+#panel-construir button:hover, #libro button:hover, #dialogo button:not(.adios):hover, #ajustes button:hover, #panel-entorno button:hover, #minimapa button:hover, #ficha-objeto button:hover, #barra-arriba button:hover { border-color: var(--n-texto2) !important; }
+#panel-construir button[aria-pressed="true"], #minimapa button[aria-pressed="true"], #ficha-objeto button[aria-pressed="true"], #barra-arriba button[aria-pressed="true"], #panel-entorno button[aria-pressed="true"] {
   background: var(--n-texto) !important; color: var(--n-fondo) !important; border-color: var(--n-texto) !important; font-weight: 600;
 }
 #panel-construir [data-eje="X"] { color: #F35059 !important; } #panel-construir [data-eje="Y"] { color: #8FC46B !important; } #panel-construir [data-eje="Z"] { color: #5D9BD6 !important; }
-#barra-objeto button.peligro, #panel-construir button.peligro { background: var(--n-grana) !important; color: #fff !important; border-color: var(--n-grana) !important; }
-#barra-objeto button.peligro:hover, #panel-construir button.peligro:hover { background: var(--n-grana-h) !important; }
+#ficha-objeto button.peligro, #panel-construir button.peligro { background: var(--n-grana) !important; color: #fff !important; border-color: var(--n-grana) !important; }
+#ficha-objeto button.peligro:hover, #panel-construir button.peligro:hover { background: var(--n-grana-h) !important; }
 #panel-construir input, #panel-construir select, #ajustes select, #panel-entorno select, #chat-texto { background: var(--n-fondo) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea) !important; border-radius: 6px !important; }
 #panel-construir input[type=checkbox], #panel-construir input[type=range], #ajustes input[type=checkbox], #ajustes input[type=range], #panel-entorno input[type=range], #panel-entorno input[type=checkbox] { accent-color: var(--n-turquesa) !important; }
 #chat-canal, #chat-boton { background: var(--n-accion) !important; color: var(--n-accion-tinta) !important; border-radius: var(--n-r-control) !important; }
