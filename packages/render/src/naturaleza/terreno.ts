@@ -110,14 +110,14 @@ export function colorTerreno(s: number, x: number, z: number, h: number, w: Arra
   // shore above the water: damp sand with moss
   const orilla = mezcla(mezcla(CASA.arenaVelada, VERDES.musgo, 0.22 + 0.3 * fino), VERDES.hierbaSombra, hondo * 0.3);
   const zonas = [prado, bosque, arena, roca, orilla];
+  // the zone weights give the pond a wide sand belt; as colour only half of it stays pale sand, the rest reads as dry meadow (the weights and alturaEn stay as they are)
+  const wc = [w[0] + w[2] * 0.55, w[1], w[2] * 0.45, w[3], w[4]];
   // linear blend of the five zone colours by weight, done as a chain of mezcla (stays inside the palette hull)
   let c = zonas[0], acum = wc[0];
   for (let q = 1; q < 5; q++) { acum += wc[q]; if (wc[q] > 0) c = mezcla(c, zonas[q], wc[q] / Math.max(acum, 1e-6)); }
   // underwater: sea-green shallows, turquoise, deep turquoise with depth (the pond's bed shows through the water)
   const prof = AGUA - h;
   if (prof > -0.1) {
-  // the zone weights give the pond a wide sand belt; as colour only half of it stays pale sand, the rest reads as dry meadow (the weights and alturaEn stay as they are)
-  const wc = [w[0] + w[2] * 0.55, w[1], w[2] * 0.45, w[3], w[4]];
     const fondo = mezcla(mezcla(CASA.arenaVelada, CASA.verdemar, sstep(0, 0.35, prof)), mezcla(mezcla(CASA.turquesa, CASA.ceniza, 0.3), mezcla(CASA.turquesaProfundo, CASA.bronce, 0.35), sstep(0.9, 1.9, prof)), sstep(0.35, 1.4, prof));
     c = mezcla(c, fondo, sstep(-0.1, 0.2, prof));
   }
