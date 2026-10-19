@@ -215,6 +215,8 @@ try {
   // A's page notes, the instant `finduelo` lands, how many of B's darts it shows: the client takes the darts out DUELO_DARDOS_MS (6 s)
   // after the end, so a slow machine (load 20+) reading them late would see 0 without any bug (the old flaky `dardosDeBenA`)
   await ctl(a, (e) => { const R = (globalThis.__reg = { fin: null, vistos: null }); globalThis.__numinia.dardos.alCambiar((que) => { if (que === "duelo" && !R.fin && globalThis.__numinia.dardos.duelo()?.fin) { R.fin = performance.now(); R.vistos = globalThis.__numinia.dardos.clavados("torre").filter((x) => x.quien !== e).length; } }); }, ea);
+  // the same for B's AR wall: the darts on it count at the instant the match ends
+  await ctl(b, () => { const R = (globalThis.__reg = { fin: null, clavados: null }); globalThis.__numinia.dardos.alCambiar((que) => { if (que === "duelo" && !R.fin && globalThis.__numinia.dardos.duelo()?.fin) { R.fin = performance.now(); R.clavados = globalThis.__numinia.dardosHud.ar().clavados; } }); });
   // 3d) B throws its 3 darts (trigger hold + release); B's own puntos come from the server (`estado().ultimo`)
   const tirosB = [];
   for (let n = 1; n <= 3; n++) {
@@ -231,6 +233,7 @@ try {
         aVeDeB: await ctl(a, (e) => globalThis.__numinia.dardos.clavados("torre").filter((x) => x.quien !== e).length, ea).catch(() => -1),
         aVeDeBAlAcabar: await ctl(a, () => globalThis.__reg?.vistos ?? null).catch(() => null), // what A showed at the very moment the match ended
         bVeAR: (await arEstado(b)).clavados,
+        bVeARAlAcabar: await ctl(b, () => globalThis.__reg?.clavados ?? null).catch(() => null),
       };
     }
   }
@@ -285,7 +288,7 @@ try {
     aFueraRechazado: /No es tu turno/i.test(`${res.aFueraDeTurno.aviso} ${res.aFueraDeTurno.resultado}`),
     bTresDardos: tirosB.length === 3 && tirosB.every((t) => typeof t.servidor.puntos === "number" && t.ar.ultimo),
     dardosDeBenA: Math.max(res.alFinalDeB.aVeDeB, res.alFinalDeB.aVeDeBAlAcabar ?? 0) >= 3 && (res.alFinalDeB.aVeDeBAlAcabar === null || res.alFinalDeB.aVeDeBAlAcabar >= 3),
-    dardosEnARdeB: res.alFinalDeB.bVeAR >= 6,
+    dardosEnARdeB: Math.max(res.alFinalDeB.bVeAR, res.alFinalDeB.bVeARAlAcabar ?? 0) >= 6 && (res.alFinalDeB.bVeARAlAcabar === null || res.alFinalDeB.bVeARAlAcabar >= 6),
     puntosIgualesA: f.dA.a.puntos + 0 === (f.dA.a.entity === ea ? sumaA : sumaB) && f.dA.b.puntos === (f.dA.b.entity === ea ? sumaA : sumaB),
     puntosIgualesEnAyB: f.dA.a.puntos === f.dB.a.puntos && f.dA.b.puntos === f.dB.b.puntos,
     veredictoA: unoDe(f.dA) === esperadoA && f.dA.fin.abandono === false,
