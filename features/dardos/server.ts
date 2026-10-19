@@ -176,12 +176,12 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     partidas.delete(P.sitio);
     poner(P.sitio, { ocupado: false, espera: false, jugadores: 0 });
   };
-  const terminarDuelo = (P: Partida, abandono: boolean, ganadorPorDefecto = -1): void => {
+  const terminarDuelo = (P: Partida, abandono: boolean, ganadorPorDefecto = -1, tambien: number[] = []): void => {
     const s = sitios.get(P.sitio)!;
     const r = resultado(P.puntos, P.fuera);
     const empate = !abandono && r.empate;
     const ganador = abandono ? ganadorPorDefecto : empate ? -1 : P.jug[r.ganador]; // -1 = nobody (entity 0 is a player)
-    const datos = pares(P), jugs = jugadoresDe(P);
+    const datos = pares(P), jugs = [...jugadoresDe(P), ...tambien];
     const texto = limpiarNombre(empate ? `Empate ${r.mejor}-${r.segundo}` : abandono ? `${nombreDe(ganador)} gana: su rival se fue` : `Gana ${nombreDe(ganador)} ${r.mejor}-${r.segundo}`, 120);
     soltarPartida(P);
     difundir("finduelo", { sitio: P.sitio, ganador: Math.max(0, ganador), empate, abandono, ...datos, retirando: false, texto }, s, jugs);
@@ -212,7 +212,9 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     if (tiradas.has(e)) terminar(e); // what the leaver threw this turn still counts for their scoreboard
     P.fuera[i] = true; enPartida.delete(e);
     const quedan = P.jug.filter((q, k) => !P.fuera[k]);
-    if (quedan.length <= 1) return terminarDuelo(P, true, quedan[0] ?? -1);
+    if (quedan.length <= 1) return terminarDuelo(P, true, quedan[0] ?? -1, [e]);
+    // the match goes on without e: e alone hears that it is over for them (their page drops the duel)
+    api.emit("finduelo", { sitio: P.sitio, ganador: 0, empate: false, abandono: true, ...pares(P), retirando: false, texto: "Has salido del duelo" }, { to: e });
     if (P.turnoEq === i) { P.retirando = false; P.visitas[i] = P.rondas; P.turnoEq = siguienteEquipo(P.fuera, i); if (terminada(P.visitas, P.fuera, P.rondas)) return terminarDuelo(P, false); empezarTurnoDuelo(P); } else emitirDuelo(P);
   };
   /** Join (or open) the duel of board `id`; the reason why not otherwise. */

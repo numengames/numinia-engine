@@ -148,7 +148,7 @@ test("equipos: a team that leaves mid-match is skipped; the last one standing wi
   assert.deepEqual([W.duelo(A).turnoEq, W.duelo(A).ronda], [1, 2], "B is skipped: A again, round 2");
   W.send(C, "salir", {}); W.pump(3);
   const f = W.evs(A, "finduelo").at(-1)!; assert.deepEqual([f.abandono, f.ganador], [true, A.s.entity]);
-  assert.equal(W.evs(B, "finduelo").length, 0, "B, who left, is not told");
+  assert.deepEqual(W.evs(B, "finduelo").map((x) => x.texto), ["Has salido del duelo"], "B, who left early, was told once for themself (the match went on)");
 });
 
 test("equipos: the host leaving the wait cancels it; a guest leaving closes the seat", () => {
