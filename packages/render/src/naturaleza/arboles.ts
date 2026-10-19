@@ -26,6 +26,7 @@ import type { Nivel } from "../calidad.ts";
 import { crearAzar, hash2 } from "./semilla.ts";
 import { NATURALEZA_POR_NIVEL } from "./niveles.ts";
 import { CASA, VERDES, MAQUINA, ESTACIONES, mezcla } from "./paleta.ts";
+import { nodoRelleno } from "./relleno.ts";
 
 void crearAzar;
 export type Especie = "encina" | "pino" | "cipres" | "olivo" | "arbusto";
@@ -366,6 +367,7 @@ function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.Mesh
   mat.colorNode = mix(mix(tronco, hoja, esHoja), metal, esMetal).mul(ao).mul(tinte.mul(0.16).add(0.92)).mul(1.25);
   // faces still read flat, but a leaf's normal leans toward the sky (the sunless side of a crown no longer goes black): flat + up × (0.15 bark … 0.65 leaf)
   mat.normalNode = normalize((normalFlat as unknown as V3N).mul(0.75).add((transformNormalToView(vec3(0, 1, 0)) as unknown as V3N).mul(esHoja.mul(0.65).add(0.3)))); // 0.75 × flat so a face pointing straight down does not cancel to nothing (that read black)
+  mat.emissiveNode = nodoRelleno(); // R5.1: the shade fill (relleno.ts): the sunless side of trunks and branches reads sea-green, not black
   return mat;
 }
 
@@ -389,6 +391,7 @@ function materialLejos(c: Comunes, inst: InstLejos): THREE.MeshLambertNodeMateri
   const vc = attribute("color", "vec3") as unknown as V3N;
   mat.colorNode = mix(vc, vc.mul(ie), s1).mul(ib.z.mul(0.16).add(0.92)).mul(1.25);
   mat.normalNode = normalize((normalFlat as unknown as V3N).mul(0.75).add((transformNormalToView(vec3(0, 1, 0)) as unknown as V3N).mul(s1.mul(0.65).add(0.3)))); // the sunless side leans toward the sky
+  mat.emissiveNode = nodoRelleno(); // R5.1: the shade fill (relleno.ts)
   return mat;
 }
 

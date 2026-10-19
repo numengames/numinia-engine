@@ -18,6 +18,7 @@ import type { Nivel } from "../calidad.ts";
 import type { TablaFauna } from "../../../relieve/src/fauna.ts";
 import type { Paleta } from "./esparcir.ts";
 import { HIERBA_POR_NIVEL } from "./niveles.ts";
+import { actualizarRelleno } from "./relleno.ts";
 
 /** What the page receives from features/naturaleza (flat, validated on the server). Every field optional: defaults below. */
 export type NaturalezaDatos = {
@@ -187,6 +188,7 @@ export function crearNaturaleza(h: HNaturaleza) {
     if (!real) return;
     if (h.nivel() !== real.nivel) { void aplicar(ultimos); return; } // the device tier changed (VR in/out): rebuild for the new one
     reloj += dt;
+    actualizarRelleno(real.grupo); // R5.1: the shade fill follows the hour and the world's ambient (two colour writes)
     const yo = h.yo();
     real.arboles.actualizar(reloj);
     real.hierba.actualizar(h.camara, reloj, yo ? (empuja[0] = yo, empuja) : SIN_EMPUJAR); // F4 audit: no array per frame

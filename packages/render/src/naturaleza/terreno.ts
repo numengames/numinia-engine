@@ -22,6 +22,7 @@ import type { Zona, OpcionesRelieve } from "../../../relieve/src/relieve.ts";
 export { ZONAS, PALETA_TERRENO, NIVEL_AGUA, alturaEn, zonaEn, estanqueDe };
 export type { Zona, OpcionesRelieve };
 import { construirResiduos } from "./residuos.ts";
+import { nodoRelleno } from "./relleno.ts";
 import type { Sitio } from "./residuos.ts";
 const TAMANO = 200, PLAZA = 12, AGUA = NIVEL_AGUA;
 
@@ -212,8 +213,9 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
   // F4 audit: no normal buffer (a third of the terrain's bytes): the faces are flat, so the material takes them from screen derivatives
   g.setAttribute("color", new THREE.BufferAttribute(col, 3));
   g.computeBoundingSphere(); g.computeBoundingBox();
-  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  const mat = new THREE.MeshLambertNodeMaterial({ vertexColors: true, flatShading: true });
   mat.name = "terreno-naturaleza";
+  mat.emissiveNode = nodoRelleno(); // R5.1: the shade fill (relleno.ts): sunless facets of ruins/rocks and shadowed ground read sea-green, not black
   const malla = new THREE.Mesh(g, mat);
   malla.name = "terreno-naturaleza";
   malla.userData.sinSombra = true; malla.receiveShadow = !!o.recibeSombra;
