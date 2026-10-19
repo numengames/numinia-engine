@@ -252,3 +252,21 @@ export const MAQUINA_ARBOL = {
   lente: mezcla(CASA.turquesa, CASA.verdemar, 0.2),
   corteza: mezcla(mezcla(CASA.bronce, CASA.ceniza, 0.4), MAQUINA.cobre, 0.12),
 } as const;
+
+/**
+ * E50 · copas en seta (Pablo, 19-10, `work/naturaleza/referencias/pablo-2026-10-19/paisaje-1..4`): troncos finos, retorcidos y pálidos;
+ * copas en sombrilla o seta, esponjosas, ocre, oro, naranja y óxido por encima, con láminas granate debajo. Las llevan el pino (sombrilla
+ * alta) y el olivo (racimo de setas de varios tallos). Solo mezclas de tokens (Ámbar, Ámbar tostado, Grana, Cobre, Bronce oscuro,
+ * Arena velada, Ceniza); el frío del contraste lo pone la vena turquesa y el cielo, no la copa.
+ */
+export const SETA_ARBOL = {
+  ocre: mezcla(CASA.ambar, MAQUINA.cobre, 0.35), // naranja ocre de la sombrilla (paisaje-2, -4)
+  oro: mezcla(CASA.ambar, CASA.arenaVelada, 0.25), // oro esponjoso del racimo (paisaje-1, -3)
+  oxido: mezcla(MAQUINA.cobre, CASA.grana, 0.25), // óxido (el segundo juego: otoño)
+  lamina: mezcla(CASA.grana, CASA.bronceOscuro, 0.5), // láminas granate de debajo
+  laminaOxido: mezcla(MAQUINA.cobre, CASA.bronceOscuro, 0.55),
+  laminaOro: mezcla(mezcla(CASA.grana, MAQUINA.cobre, 0.5), CASA.bronceOscuro, 0.35),
+  tronco: mezcla(CASA.arenaVelada, CASA.ceniza, 0.55), // corteza pálida (el sombreador la aclara aún hacia Ceniza al subir)
+  troncoTostado: mezcla(mezcla(CASA.arenaVelada, CASA.ceniza, 0.6), CASA.bronce, 0.25),
+} as const;
+

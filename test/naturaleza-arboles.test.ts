@@ -207,8 +207,9 @@ test("R5.4: the cypress is ONE flame — widest in its lower third, tapering abo
   }
   // the old R2 cypress (clumps on branch tips) had notches deeper than a third of its girth; the other species keep their own crowns
   // (R7.4: the holm oak now wears leaf cards; the olive keeps the faceted crown it shared with it)
-  const oli = perfil(true, ESPECIES.indexOf("olivo"), [2.6, 3.0]);
-  assert.ok(oli[0] > 1, "the olive's crown is untouched");
+  // E50 (Pablo's landscapes): the olive became a cluster of caps; its main cap stays broad at its rim
+  const oli = perfil(true, ESPECIES.indexOf("olivo"), [3.3, 3.4]);
+  assert.ok(oli[0] > 1, "the olive's main cap is broad");
   // far LOD: the shared bipyramid's ring, moved by the cypress's ring shift (the shader's formula), sits in its lower third
   const [, , cy, , ry, sh] = LEJOS.cipres, anillo = cy + (0 + sh * 1) * ry, alto = cy + (1.05 + sh * (1 - 1.05 * 1.05)) * ry;
   assert.ok(anillo / alto < 0.36, `far cypress widest at ${(anillo / alto).toFixed(2)} of its height`);
@@ -361,3 +362,21 @@ test("E50: the night factor follows the scene's hemisphere (day sky 0xbcd6ee →
   h.color.set(0xbcd6ee); t.actualizar(2, new THREE.Vector3()); assert.ok(nocheArbolesU.value < 0.02);
   t.dispose();
 });
+
+test("E50: the stone pine and the olive wear mushroom / umbrella caps on thin trunks (Pablo's landscapes, paisaje-1..4)", () => {
+  const g = geometriaArbol(true).geometria, parte = g.getAttribute("parte");
+  for (const esp of ["pino", "olivo"] as const) {
+    const e = ESPECIES.indexOf(esp), p = g.getAttribute(`pos${e}`);
+    let tope = 0, pie = Infinity;
+    for (let i = 0; i < p.count; i++) if (parte.getX(i) === 1) { tope = Math.max(tope, p.getY(i)); pie = Math.min(pie, p.getY(i)); }
+    // the cap: the widest leaf girth sits in the top third, and the leaf above the rim is flatter than wide (a dome, not a ball)
+    const ys = Array.from({ length: 40 }, (_, k) => pie + ((tope - pie) * (k + 0.5)) / 40), r = perfil(true, e, ys);
+    const rMax = Math.max(...r), yMax = ys[r.indexOf(rMax)];
+    assert.ok(yMax > tope - 0.35 * (tope - 0) && tope - yMax < rMax, `${esp}: widest at ${yMax.toFixed(2)} of ${tope.toFixed(2)} m, girth ${rMax.toFixed(2)}`);
+    // a thin trunk under it: the bark's lowest ring is narrow
+    let cx = 0, cz = 0; for (let i = 0; i < 4; i++) { cx += p.getX(i) / 4; cz += p.getZ(i) / 4; }
+    let rT = 0; for (let i = 0; i < 4; i++) rT = Math.max(rT, Math.hypot(p.getX(i) - cx, p.getZ(i) - cz));
+    assert.ok(rT < 0.26, `${esp}: thin trunk foot ${rT.toFixed(2)} m`);
+  }
+});
+

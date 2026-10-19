@@ -29,7 +29,7 @@ import { uniform, float, vec2, vec3, vec4, attribute, instancedBufferAttribute, 
 import type { Nivel } from "../calidad.ts";
 import { crearAzar, hash2, valor2 } from "./semilla.ts";
 import { NATURALEZA_POR_NIVEL } from "./niveles.ts";
-import { CASA, VERDES, MAQUINA, ESTACIONES, MAQUINA_ARBOL, mezcla } from "./paleta.ts";
+import { CASA, VERDES, MAQUINA, ESTACIONES, MAQUINA_ARBOL, SETA_ARBOL, mezcla } from "./paleta.ts";
 import { nodoRelleno, solDirU } from "./relleno.ts";
 import { copaDeCartas, esquinaHaciaCamara, distanciaHojas, coberturaHojas, INDICES_CARTA, UV_CARTA, type Lobulo } from "./follaje.ts";
 
@@ -49,22 +49,22 @@ export const TRIS_MAX_LEJOS = 18;
 // ---------------------------------------------------------------------------------------------------------------------
 const C = (hex: number) => new THREE.Color(hex);
 type Par = { oscuro: number; claro: number };
-const PLATA = mezcla(VERDES.musgo, CASA.arenaVelada, 0.3); // olive: silver-green
 const HOJAS: Record<Especie, [Par, Par]> = {
   encina: [{ oscuro: VERDES.monteSombra, claro: mezcla(VERDES.musgo, VERDES.hierbaLuz, 0.3) }, { oscuro: ESTACIONES.otono.hoja, claro: ESTACIONES.otono.hojaLuz }],
-  pino: [{ oscuro: VERDES.monteSombra, claro: mezcla(VERDES.monte, VERDES.musgo, 0.55) }, { oscuro: mezcla(VERDES.monteSombra, CASA.ambarTostado, 0.3), claro: mezcla(VERDES.musgo, CASA.ambar, 0.3) }],
+  // E50 (paisajes de Pablo): the stone pine is an ochre umbrella with garnet gills, the olive a cluster of gold caps; second set: rust
+  pino: [{ oscuro: SETA_ARBOL.lamina, claro: SETA_ARBOL.ocre }, { oscuro: SETA_ARBOL.laminaOxido, claro: SETA_ARBOL.oxido }],
   cipres: [{ oscuro: VERDES.monteSombra, claro: mezcla(VERDES.monte, VERDES.musgo, 0.4) }, { oscuro: VERDES.monteSombra, claro: mezcla(mezcla(VERDES.monte, VERDES.musgo, 0.4), CASA.ambarTostado, 0.2) }], // R5.4: the sunlit top a touch of moss warmer
-  olivo: [{ oscuro: mezcla(VERDES.monte, CASA.arenaVelada, 0.2), claro: mezcla(PLATA, CASA.arenaVelada, 0.2) }, { oscuro: mezcla(VERDES.monte, CASA.ambarTostado, 0.3), claro: mezcla(PLATA, CASA.ambar, 0.25) }],
+  olivo: [{ oscuro: SETA_ARBOL.laminaOro, claro: SETA_ARBOL.oro }, { oscuro: SETA_ARBOL.lamina, claro: SETA_ARBOL.ocre }],
   arbusto: [{ oscuro: VERDES.monte, claro: mezcla(VERDES.hierba, VERDES.hierbaLuz, 0.3) }, { oscuro: VERDES.hierbaSombra, claro: mezcla(CASA.arena, CASA.verdemar, 0.3) }],
   // R6.3 willow: a cool green (monte toward verdín) under the dome, light sea-green tips on the curtains; autumn: the tips go straw-amber
   sauce: [{ oscuro: mezcla(VERDES.monteSombra, VERDES.verdin, 0.35), claro: mezcla(VERDES.hierba, CASA.verdemar, 0.3) }, { oscuro: mezcla(VERDES.monte, CASA.ambarTostado, 0.25), claro: mezcla(VERDES.hierba, CASA.ambar, 0.3) }],
 };
 /** Bark (dark end; the shader lightens it toward ceniza up the trunk): brown with bronze/copper in it, olive grey and gnarled. */
-const TRONCOS: number[] = [mezcla(CASA.bronce, CASA.ceniza, 0.45), mezcla(mezcla(CASA.bronce, MAQUINA.cobre, 0.35), CASA.ceniza, 0.2), mezcla(CASA.bronce, CASA.ceniza, 0.55), mezcla(CASA.bronce, CASA.ceniza, 0.7), mezcla(CASA.bronce, CASA.ceniza, 0.3), mezcla(mezcla(CASA.bronce, VERDES.verdin, 0.15), CASA.ceniza, 0.4)];
+const TRONCOS: number[] = [mezcla(CASA.bronce, CASA.ceniza, 0.45), SETA_ARBOL.troncoTostado, mezcla(CASA.bronce, CASA.ceniza, 0.55), SETA_ARBOL.tronco, mezcla(CASA.bronce, CASA.ceniza, 0.3), mezcla(mezcla(CASA.bronce, VERDES.verdin, 0.15), CASA.ceniza, 0.4)];
 
 /** Per-instance tone: the two leaf colours of a species moved by up to ±12 % toward a lighter or a darker palette neighbour (u in −1…1: R7.4 the regional drift). */
 function tonos(esp: Especie, v: number, u: number): { oscuro: THREE.Color; claro: THREE.Color } {
-  const h = HOJAS[esp][v], ref = u > 0 ? (esp === "olivo" ? CASA.arenaVelada : VERDES.hierbaLuz) : VERDES.monteSombra, t = 0.12 * Math.abs(u);
+  const seta = !!FORMA[esp].seta, h = HOJAS[esp][v], ref = u > 0 ? (seta ? CASA.arena : VERDES.hierbaLuz) : seta ? CASA.bronceOscuro : VERDES.monteSombra, t = 0.12 * Math.abs(u);
   return { oscuro: C(mezcla(h.oscuro, ref, t)), claro: C(mezcla(h.claro, ref, t)) };
 }
 
@@ -87,7 +87,7 @@ class Malla {
 }
 
 /** The metres of height each species is drawn to (the wind's weight is height / this). */
-export const ALTURA: Record<Especie, number> = { encina: 4.8, pino: 7.0, cipres: 6.8, olivo: 3.9, arbusto: 1.5, sauce: 5.5 };
+export const ALTURA: Record<Especie, number> = { encina: 4.8, pino: 7.0, cipres: 6.8, olivo: 4.1, arbusto: 1.5, sauce: 5.5 };
 
 // ---------------------------------------------------------------------------------------------------------------------
 // two near templates, ONE vertex layout per template.
@@ -111,6 +111,10 @@ type Forma = {
   llama?: Llama;
   /** R6.3: a weeping crown (the willow): a high dome + hanging curtains instead of clumps; when set, `matas`/`copa` are ignored. */
   lloron?: Lloron;
+  /** E50: mushroom / umbrella caps (Pablo's landscapes): the crown's upper ring narrows (`alto` × radius), its lower ring is the widest
+   *  (`bajo` × radius) and drops to `cae` × ry under the centre, the underside is shallow (`pie` × ry); the clumps flatten into caps the
+   *  same way (`mataPie` × ry under the ring). Same vertices, same order: every part stays a convex star, the shared winding holds. */
+  seta?: { alto: number; bajo: number; cae: number; pie: number; mataPie: number };
 };
 /**
  * R6.3 willow (Salix babylonica, the willows along the Virelai in DISENO-LORE.md): the icosahedron is a dome set HIGH on the leaning trunk (its lower
@@ -136,11 +140,13 @@ const FORMA: Record<Especie, Forma> = {
     matas: [[0.1, 0.15, 0.1, 1.05, 0.78, 1.0], [-0.1, 0.2, 0, 1.0, 0.72, 0.95], [0, 0.2, 0.1, 0.9, 0.68, 0.85], [0.9, 0.55, -0.7, 0.95, 0.62, 0.88], [-0.8, 0.85, 0.5, 0.88, 0.6, 0.82]],
     copa: { cx: 0.15, cy: 3.55, cz: 0, rx: 1.5, ry: 1.05, rz: 1.4, top: 1 }, collar: 0.65, jag: 0.2,
   },
+  // E50 «sombrilla» (paisaje-2, -4): a tall, thin, twisted pale trunk; three ribs splay under a wide domed cap, a tier of smaller caps on their tips
   pino: {
-    tronco: { alto: 5.6, r0: 0.25, r1: 0.09, lx: 0.9, lz: 0.3, curva: 0.35, tors: 0.5, bulto: 0.05 },
-    ramas: [[4.0, 0.3, 0.4, 1.8, 0.07], [4.6, 2.4, 0.35, 2.0, 0.07], [4.9, 4.4, 0.45, 1.6, 0.06]],
-    matas: [[0.1, 0.1, 0, 1.6, 0.42, 1.5], [0, 0.1, 0.1, 1.5, 0.4, 1.4], [0, 0.15, 0, 1.3, 0.4, 1.2], [1.5, -0.25, -1.0, 1.2, 0.38, 1.1], [-1.3, -0.35, 0.9, 1.1, 0.36, 1.0]],
-    copa: { cx: 0.6, cy: 6.1, cz: 0.1, rx: 1.9, ry: 0.55, rz: 1.7, top: 1 }, collar: 1.0, jag: 0.24,
+    tronco: { alto: 5.5, r0: 0.17, r1: 0.07, lx: 0.8, lz: 0.25, curva: 0.45, tors: 1.8, bulto: 0.06 },
+    ramas: [[4.2, 0.3, 0.5, 1.5, 0.06], [4.7, 2.4, 0.45, 1.7, 0.055], [5.0, 4.4, 0.55, 1.3, 0.05]],
+    matas: [[0, 0.12, 0, 1.1, 0.4, 1.0], [0, 0.12, 0, 1.2, 0.38, 1.1], [0, 0.1, 0, 0.95, 0.36, 0.9], [1.3, -0.2, -0.9, 1.0, 0.34, 0.95], [-1.2, -0.3, 0.9, 0.95, 0.32, 0.9]],
+    copa: { cx: 0.8, cy: 6.15, cz: 0.25, rx: 2.3, ry: 0.8, rz: 2.1, top: 0.8 }, collar: 1.0, jag: 0.14,
+    seta: { alto: 0.62, bajo: 1.08, cae: 0.18, pie: 0.32, mataPie: 0.28 },
   },
   cipres: {
     tronco: { alto: 1.0, r0: 0.2, r1: 0.14, lx: 0.1, lz: 0.05, curva: 0.04, tors: 0.2, bulto: 0 },
@@ -152,11 +158,14 @@ const FORMA: Record<Especie, Forma> = {
       anillos: [[1.0, 0.62, 2.7, 0.56, 0.2], [2.6, 0.67, 4.4, 1.4, 0.9], [3.5, 0.58, 5.3, 2.2, 1.9], [4.6, 0.45, 6.3, 3.3, 2.6], [5.6, 0.26, 6.72, 4.4, 0.5]],
     },
   },
+  // E50 «racimo de setas» (paisaje-1, -3): a thin twisted pale main stem with the big cap, three side stems from low on it, each with its own
+  // cap (overlapping tiers), and two shelf caps gripping the main stem (the clumps 3-4) — grown or made, you cannot tell
   olivo: {
-    tronco: { alto: 1.5, r0: 0.4, r1: 0.2, lx: 0.5, lz: -0.3, curva: 0.35, tors: 2.2, bulto: 0.3 },
-    ramas: [[0.9, 0.2, 0.8, 1.4, 0.14], [1.1, 2.3, 0.7, 1.5, 0.13], [1.3, 4.3, 0.9, 1.2, 0.11]],
-    matas: [[0.1, 0.2, 0, 1.0, 0.55, 0.95], [0, 0.25, 0.1, 0.95, 0.5, 0.9], [-0.1, 0.2, 0, 0.85, 0.5, 0.8], [1.0, 0.25, -0.9, 0.8, 0.45, 0.75], [-1.0, 0.15, 0.9, 0.8, 0.45, 0.75]],
-    copa: { cx: 0.3, cy: 2.9, cz: 0, rx: 1.45, ry: 0.8, rz: 1.35, top: 1 }, collar: 0.5, jag: 0.22,
+    tronco: { alto: 3.0, r0: 0.2, r1: 0.1, lx: 0.35, lz: -0.2, curva: 0.3, tors: 2.6, bulto: 0.15 },
+    ramas: [[0.5, 0.4, 1.2, 2.3, 0.09], [0.7, 2.5, 1.12, 1.8, 0.08], [0.9, 4.4, 1.05, 1.4, 0.07]],
+    matas: [[0, 0.12, 0, 0.8, 0.4, 0.75], [0, 0.1, 0, 0.7, 0.36, 0.66], [0, 0.08, 0, 0.6, 0.32, 0.58], [0.2, -1.3, 0.25, 0.45, 0.18, 0.42], [-0.25, -2.2, -0.1, 0.38, 0.15, 0.36]],
+    copa: { cx: 0.35, cy: 3.45, cz: -0.2, rx: 1.3, ry: 0.62, rz: 1.2, top: 0.82 }, collar: 0.45, jag: 0.12,
+    seta: { alto: 0.6, bajo: 1.06, cae: 0.2, pie: 0.34, mataPie: 0.3 },
   },
   arbusto: {
     tronco: { alto: 0.18, r0: 0.07, r1: 0.05, lx: 0, lz: 0, curva: 0, tors: 0, bulto: 0 },
@@ -287,9 +296,10 @@ export function geometriaArbol(detalle = true): GeometriaArbol {
       });
     } else f.matas.slice(0, nMatas).forEach(([ox, oy, oz, rx, ry, rz], i) => {
       const o: V3 = i < 3 ? puntas[i] : cen0, c: V3 = [o[0] + ox, o[1] + oy, o[2] + oz], giro = 0.5 + i * 1.3 + e * 0.4;
-      put([c[0] + 0.1 * hv(v, 2), c[1] + ry * (1 + 0.12 * hv(v, 3)), c[2] + 0.1 * hv(v, 4)], 1, 1, 0.95);
-      for (let k = 0; k < 4; k++) { const a = giro + (k / 4) * Math.PI * 2, j = 1 + f.jag * (k % 2 ? -1 : 1) + 0.1 * hv(v, 5); put([c[0] + Math.cos(a) * rx * j, c[1] + ry * (0.05 + 0.12 * hv(v, 6)), c[2] + Math.sin(a) * rz * j], 0.6, 1, 1); }
-      put([c[0] + 0.08 * hv(v, 7), c[1] - ry * 0.7, c[2] + 0.08 * hv(v, 8)], 0.26, 1, 0.9);
+      const S = f.seta, anillo = S ? -0.08 : 0.05, pieM = S ? S.mataPie : 0.7; // E50: a cap — the ring is the rim, the underside shallow
+      put([c[0] + 0.1 * hv(v, 2), c[1] + ry * ((S ? 0.7 : 1) + 0.12 * hv(v, 3)), c[2] + 0.1 * hv(v, 4)], 1, 1, 0.95);
+      for (let k = 0; k < 4; k++) { const a = giro + (k / 4) * Math.PI * 2, j = 1 + f.jag * (k % 2 ? -1 : 1) + 0.1 * hv(v, 5); put([c[0] + Math.cos(a) * rx * j, c[1] + ry * (anillo + 0.12 * hv(v, 6)), c[2] + Math.sin(a) * rz * j], 0.6, 1, 1); }
+      put([c[0] + 0.08 * hv(v, 7), c[1] - ry * pieM, c[2] + 0.08 * hv(v, 8)], 0.26, 1, 0.9);
     });
     // crown: a jittered icosahedron (top, upper ring of 5, lower ring of 5 turned half a step, bottom)
     if (W) { // R6.3: the willow's dome, high on the trunk: lower ring = the widest girth, a flat underside
@@ -305,11 +315,13 @@ export function geometriaArbol(detalle = true): GeometriaArbol {
       for (let k = 0; k < 5; k++) { const a = giro + ((k + 0.5) / 5) * Math.PI * 2, r = L.bajo[1] * (k % 2 ? 0.9 : 1); put([x0 + Math.cos(a) * r, L.bajo[0] + 0.1 * hv(v, 15), z0 + Math.sin(a) * r], 0.42, 1, 0.5); }
       put([x0, L.pie, z0], 0.18, 1, 0.45);
     } else {
-      const o = f.copa, giro = 0.3 + e * 0.9, j = (k: number) => 1 + 0.16 * hv(v, k);
+      const o = f.copa, giro = 0.3 + e * 0.9, j = (k: number) => 1 + 0.16 * hv(v, k), S = f.seta;
+      // E50 cap: narrower upper ring, the lower ring the widest rim a little under the centre, a shallow underside (the gills: dark tone)
+      const [qa, qb, yb, yp] = S ? [S.alto, S.bajo, S.cae, S.pie] : [1, 1, 0.447, 0.9];
       put([o.cx + 0.12 * o.rx * hv(v, 9), o.cy + o.ry * o.top * j(10), o.cz + 0.12 * o.rz * hv(v, 11)], 1, 1, 0.75);
-      for (let k = 0; k < 5; k++) { const a = giro + (k / 5) * Math.PI * 2, q = 0.894 * (1 + f.jag * hv(v, 12)); put([o.cx + Math.cos(a) * o.rx * q, o.cy + o.ry * 0.447 * (1 + 0.25 * hv(v, 13)), o.cz + Math.sin(a) * o.rz * q], 0.78, 1, 0.55); }
-      for (let k = 0; k < 5; k++) { const a = giro + ((k + 0.5) / 5) * Math.PI * 2, q = 0.894 * (1 + f.jag * (k % 2 ? 0.8 : -0.8) + 0.08 * hv(v, 14)); put([o.cx + Math.cos(a) * o.rx * q, o.cy - o.ry * 0.447 * (1 + 0.25 * hv(v, 15)), o.cz + Math.sin(a) * o.rz * q], 0.42, 1, 0.5); }
-      put([o.cx + 0.1 * o.rx * hv(v, 16), o.cy - o.ry * 0.9 * j(17), o.cz + 0.1 * o.rz * hv(v, 18)], 0.18, 1, 0.45);
+      for (let k = 0; k < 5; k++) { const a = giro + (k / 5) * Math.PI * 2, q = 0.894 * qa * (1 + f.jag * hv(v, 12)); put([o.cx + Math.cos(a) * o.rx * q, o.cy + o.ry * 0.447 * (1 + 0.25 * hv(v, 13)), o.cz + Math.sin(a) * o.rz * q], 0.78, 1, 0.55); }
+      for (let k = 0; k < 5; k++) { const a = giro + ((k + 0.5) / 5) * Math.PI * 2, q = 0.894 * qb * (1 + f.jag * (k % 2 ? 0.8 : -0.8) + 0.08 * hv(v, 14)); put([o.cx + Math.cos(a) * o.rx * q, o.cy - o.ry * yb * (1 + 0.25 * hv(v, 15)), o.cz + Math.sin(a) * o.rz * q], 0.42, 1, 0.5); }
+      put([o.cx + 0.1 * o.rx * hv(v, 16), o.cy - o.ry * yp * j(17), o.cz + 0.1 * o.rz * hv(v, 18)], 0.18, 1, 0.45);
     }
     // R7.4 leaf cards (follaje.ts): lobes = the faceted crown's own ellipsoid + its clumps (the branch tips lead into leaf masses); a species without
     // cards parks its four corners on its crown centre (zero area). Vertex order per card: the corners of UV_CARTA.
@@ -456,9 +468,9 @@ const bytesDe = (g: THREE.BufferGeometry) => Object.values(g.attributes).reduce(
  *  down (negative, in blob radii y) while its top and bottom stay put: the cypress's far silhouette becomes a flame, widest at ~30 % of its height. */
 export const LEJOS: Record<Especie, number[]> = {
   encina: [2.3, 0.3, 3.7, 1.9, 1.4, 0],
-  pino: [5.4, 0.2, 6.1, 2.1, 0.7, 0],
+  pino: [5.4, 0.13, 6.15, 2.3, 0.55, 0], // E50: thin trunk, a flat wide umbrella
   cipres: [0.9, 0.2, 3.53, 0.7, 2.95, -0.58],
-  olivo: [2.0, 0.34, 2.9, 1.8, 0.95, 0],
+  olivo: [3.0, 0.16, 3.2, 1.6, 0.75, 0], // E50: a thin stem under the cluster of caps
   arbusto: [0.12, 0.06, 0.55, 1.0, 0.6, 0],
   sauce: [2.7, 0.25, 4.0, 2.1, 1.6, 0.3], // R6.3: ring raised (widest high); the shader drops 3 of its 5 ring vertices into hanging tips (CUELGA_LEJOS)
 };
@@ -677,8 +689,10 @@ function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca, detalleTpl 
   const troncoO = porEsp(sp, TRONCOS.map((h) => col3(C(h)))), troncoC = mix(troncoO, col3(C(CASA.ceniza)), 0.5) as unknown as V3N;
   const tronco = mix(troncoO, troncoC, tono) as unknown as V3N;
   const tonoW = max(clamp(hRel.sub(0.72).mul(3.6), 0, 1), cuelga.mul(cuelga).mul(0.95)).mul(0.85).add(0.1) as N; // willow: dark under the dome → light dome top and light curtain tips
-  const tonoH = mix(mix(tono.mul(0.7).add(0.3), hRel.mul(0.75).add(0.12).add(tono.mul(0.13)), esCip), tonoW, esSau) as N; // cypress: dark foot → lighter, warmer sunlit top
-  const hoja = mix(ic.xyz, id.xyz, tonoH).mul(1.4) as unknown as V3N; // the house greens are deep: lift them so the crowns read under the morning light
+  // E50 caps (pino, olivo): the underside (bottom vertex, rim) falls to the garnet gills, the dome to the ochre/gold top
+  const esSeta = porEsp(sp, ESPECIES.map((e) => float(FORMA[e].seta ? 1 : 0))).mul(oneMinus(esObra)) as N;
+  const tonoH = mix(mix(mix(tono.mul(0.7).add(0.3), hRel.mul(0.75).add(0.12).add(tono.mul(0.13)), esCip), tonoW, esSau), smoothstep(0.25, 0.85, tono), esSeta) as N; // cypress: dark foot → lighter, warmer sunlit top
+  const hoja = mix(ic.xyz, id.xyz, tonoH).mul(mix(float(1.4), float(1.05), esSeta)) as unknown as V3N; // the house greens are deep: lift them so the crowns read under the morning light (the warm caps need no lift)
   // E50 metals (paleta.ts MAQUINA_ARBOL): the clamp is bronze (a coppery one on a quarter of the trees, the old collar's copper), the strap tin;
   // the tag is a brass plate, a tin rivet plate, or — on a neon tree — the vein's chip in its own colour
   const MA = MAQUINA_ARBOL;
