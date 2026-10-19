@@ -8,8 +8,8 @@
 // CHROME=/path/to/chrome when playwright-core has no browser of its own. Run it after adding an avatar to the catalogue
 // (test/retratos.test.ts fails while a house avatar has no portrait).
 import { createServer } from "node:http";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import { extname, join, dirname, resolve, sep } from "node:path";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { extname, join, dirname, resolve, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -61,12 +61,21 @@ window.listo = true;
 </script>`;
 
 const TIPOS = { ".js": "text/javascript", ".mjs": "text/javascript", ".wasm": "application/wasm" };
+// The only files this server hands out, listed before it starts: the URL is a key into this map, never part of a path.
+const SERVIBLES = new Map();
+for (const dir of ["node_modules/three/build", "node_modules/three/examples/jsm", "node_modules/@pixiv/three-vrm/lib", "activos/avatares"]) {
+  const base = join(RAIZ, dir);
+  if (!existsSync(base)) continue;
+  for (const rel of readdirSync(base, { recursive: true })) {
+    const f = join(base, String(rel));
+    if (statSync(f).isFile()) SERVIBLES.set("/" + relative(RAIZ, f).split(sep).join("/"), f);
+  }
+}
 const srv = createServer((q, s) => {
   const u = decodeURIComponent((q.url ?? "/").split("?")[0]);
   if (u === "/") { s.writeHead(200, { "content-type": "text/html" }); return s.end(PAGINA); }
-  const f = resolve(RAIZ, "." + u);
-  const permitido = f.startsWith(join(RAIZ, "node_modules") + sep) || f.startsWith(join(RAIZ, "activos/avatares") + sep);
-  if (!permitido || !existsSync(f)) { s.writeHead(404); return s.end(); }
+  const f = SERVIBLES.get(u);
+  if (!f) { s.writeHead(404); return s.end(); }
   s.writeHead(200, { "content-type": TIPOS[extname(f)] ?? "application/octet-stream" }); s.end(readFileSync(f));
 });
 await new Promise((ok) => srv.listen(0, "127.0.0.1", ok));
