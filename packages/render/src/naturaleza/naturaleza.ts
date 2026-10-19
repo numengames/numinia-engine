@@ -18,7 +18,7 @@ import type { Nivel } from "../calidad.ts";
 import type { TablaFauna } from "../../../relieve/src/fauna.ts";
 import { ESTACIONES, COLOR_ESTANQUE } from "./paleta.ts";
 import type { Estacion } from "./paleta.ts";
-import { HIERBA_POR_NIVEL } from "./niveles.ts";
+import { HIERBA_POR_NIVEL, TROZOS_POR_NIVEL } from "./niveles.ts";
 import { actualizarRelleno } from "./relleno.ts";
 import { ocultarHitos } from "./hitos.ts";
 
@@ -80,6 +80,8 @@ export type HNaturaleza = {
   hitos?: () => Iterable<THREE.Object3D>;
   /** R7.1: entorno.ts `atmosfera`: lays the nature's sky + fog + tone over the world's while it is on; returns the undo. Absent = the world's own look. */
   atmosfera?: (a: import("../entorno.ts").Atmosfera) => () => void;
+  /** E02: build the terrain in ~64 m chunks with two detail rings (trozos.ts; still one draw call). Absent/false = the single mesh. */
+  trozos?: boolean;
 };
 
 type Real = {
@@ -97,6 +99,8 @@ export type EstadisticasNaturaleza = {
   arboles: number; msConstruir: number; /** F4: build time of the fauna alone (ms), 0 = off. */ msFauna: number;
   /** F4: what the fauna shows right now (null = off). `triangulosPeor` = every pool full. */
   fauna: import("./fauna.ts").EstadisticasFauna | null;
+  /** E02: the terrain's chunks right now (null = single mesh). `triangulos.terreno` stays the worst case (every chunk fine). */
+  trozos?: import("./trozos.ts").EstadisticasTrozos | null;
 };
 
 const SIN_EMPUJAR: readonly never[] = [];
@@ -152,7 +156,7 @@ export function crearNaturaleza(h: HNaturaleza) {
     const quitarAtmosfera = h.atmosfera ? h.atmosfera(AT.atmosferaNaturaleza(T.NIVEL_AGUA)) : null;
     const estacion = d.paleta, grupo = new THREE.Group(); grupo.name = "naturaleza";
     // R5.2: every colour comes from paleta.ts: the season picks the meadow/grass/leaf sets (ESTACIONES), the pond wears COLOR_ESTANQUE at every tier
-    const terreno = T.crearTerreno({ semilla: d.semilla, nivel, tamano: d.tamano, plaza: d.plaza, niebla: h.niebla(), escena: grupo, sinEstanque: !d.estanque, estacion, recibeSombra: nivel === "A", aguaPlana: nivel === "D" ? COLOR_ESTANQUE : undefined });
+    const terreno = T.crearTerreno({ semilla: d.semilla, nivel, tamano: d.tamano, plaza: d.plaza, niebla: h.niebla(), escena: grupo, sinEstanque: !d.estanque, estacion, recibeSombra: nivel === "A", aguaPlana: nivel === "D" ? COLOR_ESTANQUE : undefined, trozos: h.trozos ? TROZOS_POR_NIVEL[nivel] : null });
     terreno.malla.userData.mapa = "suelo";
     const puntos = E.esparcirArboles(terreno, { semilla: d.semilla, tamano: d.tamano, plaza: d.plaza, densidad: d.arboles, nivel, paleta: estacion, estanque: d.estanque ? terreno.estanque : null });
     const arboles = A.crearArboles({ vientoU: h.vientoU as never, nivel, camara: h.camara }, puntos);
@@ -173,6 +177,7 @@ export function crearNaturaleza(h: HNaturaleza) {
     const groundVisible = h.ground.visible; h.ground.visible = false;
     const mostrarHitos = h.hitos ? ocultarHitos(h.hitos()) : null; // R6.1: no toy boxes on the meadow (hidden, not recoloured)
     const p = h.camara.position;
+    terreno.trozos?.actualizar(p.x, p.z);             // E02: each chunk's ring for where the camera starts
     hierba.llenarTodo(h.camara);                      // fill the ring now (a one-off cost at the load), not over the first frames
     arboles.repartir(p.x, p.y, p.z);
     return { arboles, hierba, terreno, agua, grupo, nivel, datos: d, fauna: null, sonido: null, claveFauna: claveDeFauna(d), msFauna: 0, puntos, groundVisible, mostrarHitos, quitarAtmosfera, msConstruir: Math.round((performance.now() - t0) * 10) / 10 };
@@ -209,6 +214,7 @@ export function crearNaturaleza(h: HNaturaleza) {
     actualizarRelleno(real.grupo); // R5.1: the shade fill follows the hour and the world's ambient (two colour writes)
     const yo = h.yo();
     real.arboles.actualizar(reloj);
+    real.terreno.trozos?.actualizar(h.camara.position.x, h.camara.position.z); // E02: rewrites the index only when a chunk changes ring
     real.hierba.actualizar(h.camara, reloj, yo ? (empuja[0] = yo, empuja) : SIN_EMPUJAR); // F4 audit: no array per frame
     if (real.agua) real.agua.t.value = reloj;
     real.fauna?.actualizar(h.camara, reloj);
@@ -222,7 +228,7 @@ export function crearNaturaleza(h: HNaturaleza) {
     tris.fauna = ef?.triangulos ?? 0; tris.total = tris.terreno + tris.arboles + tris.hierba + tris.fauna;
     const ll = { terreno: 1, arboles: ea.llamadas, hierba: eh.dibujos, agua: real.agua ? 1 : 0, fauna: ef?.llamadas ?? 0, total: 0 };
     ll.total = ll.terreno + ll.arboles + ll.hierba + ll.agua + ll.fauna;
-    return { activa: true, nivel: real.nivel, clave, triangulos: tris, llamadas: ll, arboles: real.puntos.length, msConstruir: real.msConstruir, msFauna: real.msFauna, fauna: ef };
+    return { activa: true, nivel: real.nivel, clave, triangulos: tris, llamadas: ll, arboles: real.puntos.length, msConstruir: real.msConstruir, msFauna: real.msFauna, fauna: ef, trozos: real.terreno.trozos?.estadisticas() ?? null };
   }
 
   return {

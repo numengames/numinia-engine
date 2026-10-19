@@ -344,3 +344,69 @@ registrar({
     };
   },
 });
+
+// =====================================================================================================================
+// E02 (RT1 «trozos y relevo de detalle», plan-experimentos): the terrain in ~64 m chunks with two detail rings, in the SAME one
+// draw call (naturaleza/trozos.ts: index ranges over one vertex buffer + CDLOD-style morph). Compare each row with its E01 twin
+// measured in the same run: nat-residuos-trozos ↔ nat-residuos · naturaleza-trozos ↔ naturaleza · nat-mapa-2km-trozos ↔
+// nat-mapa-2km (a 2 × 2 km bare relief at the tier's cell size, no pond: what a growing map costs as ONE mesh vs chunks).
+// `cuenta` gives the chunks' state at the end (fine/coarse, triangles drawn, index uploads).
+// =====================================================================================================================
+const TROZOS_BANCO = { lado: 64, radioDetalle: 64 };
+
+registrar({
+  id: "nat-residuos-trozos", nombre: "Terreno con Residuos + flora EN TROZOS de 64 m, 2 anillos, 1 llamada (E02)", origen: "naturaleza/terreno.ts + trozos.ts",
+  async montar(c) {
+    const [T, , , , P] = await modsNat();
+    const t = T.crearTerreno({ semilla: NAT.semilla, nivel: c.nivel, tamano: NAT.tamano, plaza: NAT.plaza, niebla: nieblaHex(c), escena: c.world, estacion: NAT.estacion,
+      recibeSombra: c.nivel === "A", aguaPlana: c.nivel === "D" ? P.COLOR_ESTANQUE : undefined, trozos: TROZOS_BANCO });
+    const visto = c.suelo.visible; c.suelo.visible = false;
+    t.trozos!.actualizar(c.camera.position.x, c.camera.position.z);
+    return {
+      cuadro() { t.trozos!.actualizar(c.camera.position.x, c.camera.position.z); },
+      quitar() { t.dispose(); c.suelo.visible = visto; },
+      get cuenta() { const e = t.trozos!.estadisticas(); return { trozos: e.trozos, finos: e.finos, gruesos: e.gruesos, triangulos: e.triangulos, malla: e.triangulosMalla, subidas: e.cambios, lado: e.ladoM }; },
+    };
+  },
+});
+
+registrar({
+  id: "naturaleza-trozos", nombre: "Naturaleza ENTERA con el terreno EN TROZOS (E02; resto igual que «naturaleza»)", origen: "naturaleza/naturaleza.ts (trozos: true) + trozos.ts",
+  async montar(c) {
+    const { e, tick } = await entornoDe(c);
+    const [{ crearNaturaleza }, { FAUNA_CASA }] = await Promise.all([import("../../packages/render/src/naturaleza/naturaleza.ts"), import("../../features/naturaleza/fauna-casa.ts")]);
+    const n = crearNaturaleza({ padre: c.world, ground: c.suelo, vientoU: e.vientoU, nivel: () => c.nivel, camara: c.camera, yo: () => null,
+      niebla: () => nieblaHex(c), aguaLuz: e.aguaLuz, detalleAgua: () => detalleAgua(c.nivel, e.calidadActual.agua), hora: () => NAT.hora,
+      tablaFauna: async () => FAUNA_CASA, hitos: () => c.hitos, atmosfera: e.atmosfera, trozos: true });
+    await n.aplicar({ activa: true, semilla: NAT.semilla, tamano: NAT.tamano, plaza: NAT.plaza, arboles: 1, hierba: 1, estanque: true, paleta: NAT.estacion });
+    for (let i = 0; i < 40 && (e.ocupado() || i < 5); i++) { e.actualizar(); await new Promise((r) => setTimeout(r, 30)); }
+    let antes = 0;
+    return {
+      cuadro(_dt, t) { tick(t); n.actualizar(t - antes); antes = t; },
+      quitar() { n.dispose(); },
+      get cuenta() { const s = n.estadisticas(); return { triangulos: s.triangulos.total, llamadas: s.llamadas.total, terrenoPeor: s.triangulos.terreno, terrenoDibujado: s.trozos?.triangulos ?? 0, finos: s.trozos?.finos ?? 0, gruesos: s.trozos?.gruesos ?? 0 }; },
+    };
+  },
+});
+
+// radio 64 m = the catalogue's ring; radio 128 m = the coarse ring pushed out (the coarse − fine height error is p95 1–1.7 m: see e02-trozos.md)
+for (const [sufijo, trozos] of [["", null], ["-trozos", TROZOS_BANCO], ["-trozos-r128", { lado: 64, radioDetalle: 128 }]] as const) registrar({
+  id: "nat-mapa-2km" + sufijo,
+  nombre: trozos ? `Mapa 2×2 km EN TROZOS de 64 m, anillo fino ${trozos.radioDetalle} m (1 llamada)` : "Mapa 2×2 km como UNA malla (celda del nivel)",
+  origen: "naturaleza/terreno.ts" + (trozos ? " + trozos.ts" : ""),
+  async montar(c) {
+    const [T] = await modsNat();
+    const celdas = 2 * Math.round((2000 / (NAT.tamano / T.CELDAS_TERRENO[c.nivel])) / 2); // the tier's cell size kept: A 340 · B 240 · C 200 · D 160
+    const t0 = performance.now();
+    const t = T.crearTerreno({ semilla: NAT.semilla, nivel: c.nivel, tamano: 2000, plaza: NAT.plaza, celdas, niebla: nieblaHex(c), escena: c.world, estacion: NAT.estacion,
+      recibeSombra: c.nivel === "A", sinEstanque: true, residuos: false, trozos });
+    const ms = Math.round(performance.now() - t0);
+    const visto = c.suelo.visible; c.suelo.visible = false;
+    t.trozos?.actualizar(c.camera.position.x, c.camera.position.z);
+    return {
+      cuadro() { t.trozos?.actualizar(c.camera.position.x, c.camera.position.z); },
+      quitar() { t.dispose(); c.suelo.visible = visto; },
+      get cuenta() { const e = t.trozos?.estadisticas(); return { celdas, malla: t.triangulos, dibujados: e?.triangulos ?? t.triangulos, finos: e?.finos ?? 0, gruesos: e?.gruesos ?? 0, msConstruir: ms }; },
+    };
+  },
+});

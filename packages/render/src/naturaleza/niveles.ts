@@ -73,3 +73,13 @@ export const ARBOLES_MAX_POR_NIVEL: Record<Nivel, number> = { A: 1100, B: 750, C
 // ---- F1: the fauna (butterflies, fireflies, birds): who is in view per tier. The numbers live in relieve/fauna.ts (the server and the pages must
 // agree on them, and relieve is the layer both can import); re-exported here so the render stories read every tier table from niveles.ts.
 export { FAUNA_POR_NIVEL } from "../../../relieve/src/fauna.ts";
+
+// ---- E02 (trozos.ts, RT1): the terrain cut into ~64 m chunks with two detail rings, in the SAME one draw call (index ranges + CDLOD-style morph).
+// Chunk side is rounded to an even number of lattice cells (A 10 = 58.8 m · B 8 = 66.7 m · C 6 = 60 m · D 6 = 75 m); a chunk is fine while some point
+// of it is closer than `radioDetalle`, coarse (every second vertex: a quarter of the triangles) beyond. Off unless the page asks (HNaturaleza.trozos):
+// measured in work/saber-3d/queries/e02-trozos.md. The caps above do not move: chunks never draw more than the single mesh.
+// Fine ring 128 m, not the catalogue's 64 m: the coarse surface is off by p95 1.1–1.7 m (max ~4 m), and at 64 m it flattened the hills'
+// silhouettes on the horizon (2.2–3 % of pixels changed on the 2 km map); at 128 m 0.2–0.4 % for +2–4 % triangles and the same GPU ms.
+export const TROZOS_POR_NIVEL: Record<Nivel, { lado: number; radioDetalle: number }> = {
+  A: { lado: 64, radioDetalle: 128 }, B: { lado: 64, radioDetalle: 128 }, C: { lado: 64, radioDetalle: 128 }, D: { lado: 64, radioDetalle: 128 },
+};
