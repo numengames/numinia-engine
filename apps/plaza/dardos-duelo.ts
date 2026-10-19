@@ -2,7 +2,7 @@
 // the rival's darts, turn gating: packages/render/src/dardos-duelo-ar.ts) and one text line in the page's HUD for the
 // players on a flat screen. All new code lives here so apps/plaza/dardos.ts changes only by a few lines.
 import { envolverDuelo } from "../../packages/render/src/dardos-duelo-ar.ts";
-import { panelDe, puedeLanzar } from "../../packages/render/src/dardos-duelo.ts";
+import { panelDe, puedeLanzar, TEXTO_BOTON } from "../../packages/render/src/dardos-duelo.ts";
 import type { DueloV } from "../../packages/render/src/dardos-duelo.ts";
 import type { DianaAR } from "../../packages/render/src/index.ts";
 import { crearLetreroPlaza } from "../../packages/render/src/dardos-duelo-plaza-3d.ts"; // AR-D4: the sign over the plaza board
@@ -15,6 +15,8 @@ type SitioV = { id: string; ocupado?: boolean; duelo?: boolean; remoto?: boolean
 export type Ctl = {
   sitios(): SitioV[]; duelo(): DueloV | null; jugar(sitio?: string, desde?: "sitio" | "pared"): Res;
   lanzar(x: number, y: number, fuerza: number, sitio?: string): Res; salir(): Res; clavados(sitio?: string): unknown[];
+  /** v3 (teams): the buttons «Cambiar turno» and «Empezar». */
+  cambiar?(): Res; empezar?(): Res;
   alCambiar?(fn: (que: string) => void): () => void;
 };
 
@@ -37,6 +39,18 @@ export function montarDuelo(o: { dardos: Ctl; plaza?: Partial<PlazaDianas>; enti
   const linea = document.createElement("p"); linea.className = "duelo"; linea.hidden = true;
   linea.setAttribute("style", "margin:0;font-size:14px;font-weight:700;color:#ffd27a;text-align:center");
   o.hud.querySelector(".resultado")?.after(linea);
+  // v3: the two buttons of the match (HUD of a flat screen; AR has its own on the 3D panel). Shown only when they can be pressed.
+  const botones = document.createElement("div"); botones.className = "duelo-botones"; botones.hidden = true;
+  botones.setAttribute("style", "display:flex;gap:8px;justify-content:center;margin:4px 0");
+  const crear = (clase: string, texto: string, accion: () => Res | undefined): HTMLButtonElement => {
+    const b = document.createElement("button"); b.type = "button"; b.className = clase; b.textContent = texto; b.hidden = true;
+    b.setAttribute("style", "font:800 15px system-ui,sans-serif;padding:8px 16px;border-radius:12px;border:0;background:#ffd27a;color:#1b1f24;cursor:pointer");
+    b.onclick = () => { const r = accion(); if (r && !r.ok) o.avisar(r.why); };
+    botones.append(b); return b;
+  };
+  const bEmpezar = crear("empezar", TEXTO_BOTON.empezar, () => dardos.empezar?.());
+  const bCambiar = crear("cambiar", TEXTO_BOTON.cambiar, () => dardos.cambiar?.());
+  linea.after(botones);
   let activo = false, sitio = "", ar: ReturnType<typeof envolverDuelo> | null = null, rondas = 3;
   // AR-D4: in the plaza, the 3D board of the duel gets a scoreboard sign (any bystander sees it) and its remote darts fly in
   const letrero = o.plaza?.grupo && o.plaza.malla && o.plaza.alFotograma ? crearLetreroPlaza(o.plaza as PlazaDianas) : null;
@@ -76,6 +90,7 @@ export function montarDuelo(o: { dardos: Ctl; plaza?: Partial<PlazaDianas>; enti
         envolver: (j: DianaAR): DianaAR => (ar = envolverDuelo(j, {
           duelo: () => dardos.duelo(), yo: o.entity, activo: () => activo, rondas: () => rondas,
           salir: () => { dardos.salir(); activo = false; },
+          boton: (que) => { const r = que === "cambiar" ? dardos.cambiar?.() : dardos.empezar?.(); if (r && !r.ok) o.avisar(r.why); },
         })),
       };
     },
@@ -83,17 +98,21 @@ export function montarDuelo(o: { dardos: Ctl; plaza?: Partial<PlazaDianas>; enti
     cambio(): void {
       const d = dardos.duelo(), t = lineaDuelo(d, (d && dardos.sitios().find((s) => s.id === d.sitio)?.rondas) || rondas); // the board's own rounds, also for a player who never hung it on a wall
       linea.textContent = t; linea.hidden = !t;
+      const boton = d?.yo ? panelDe(d, rondas).boton : null;
+      bEmpezar.hidden = boton !== "empezar"; bCambiar.hidden = boton !== "cambiar"; botones.hidden = !boton;
       ar?.refrescar(); sign();
       if (!d) o.alTerminar();
     },
     /** True while a live match of mine is going (the HUD stays open for it). */
     enPartida: hayPartida,
     activo: () => activo,
+    /** Press a HUD button (e2e / agents): true when it was visible. */
+    pulsar: (que: "empezar" | "cambiar"): boolean => { const b = que === "cambiar" ? bCambiar : bEmpezar; if (b.hidden) return false; b.click(); return true; },
     sitio: () => sitio,
     /** Read-only, for the e2e (`__numinia.dardosHud.duelo()`): what the sign over the 3D board, the AR panel and the HUD line say. */
     vista: () => {
       const d = dardos.duelo(), l = letreroDe(d, (d && dardos.sitios().find((s) => s.id === d.sitio)?.rondas) || rondas);
-      return { linea: linea.hidden ? "" : linea.textContent ?? "", letrero: { visible: letrero?.estado().visible ?? false, etiqueta: l.etiqueta, fase: l.panel.fase, pie: l.pie.join(" "), filas: l.panel.filas }, panelAR: ar?.duelo() ?? null };
+      return { linea: linea.hidden ? "" : linea.textContent ?? "", letrero: { visible: letrero?.estado().visible ?? false, etiqueta: l.etiqueta, fase: l.panel.fase, pie: l.pie.join(" "), filas: l.panel.filas }, panelAR: ar?.duelo() ?? null, botones: { empezar: !bEmpezar.hidden, cambiar: !bCambiar.hidden } };
     },
   };
 }

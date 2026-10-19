@@ -22,7 +22,7 @@ type Sitio = { id: string; nombre: string; x: number; y: number; z: number; radi
 type Estado = { sitio: string; dardos: number; tirada: number; ultimo: Dardo | null; fin: { dardos: number; puntos: number; cuando: number } | null; aviso: string; marcador: { dardos: number; puntos: number; mejorDardo: number; mejorTirada: number; dianas: number } };
 type Dardos = {
   estado(): Readonly<Estado>; tirando(): boolean; sitios(): Sitio[]; clavados(sitio?: string): Dardo[];
-  duelo(): import("../../packages/render/src/dardos-duelo.ts").DueloV | null; jugar(sitio?: string, desde?: "sitio" | "pared"): Res; lanzar(x: number, y: number, fuerza: number, sitio?: string): Res; salir(): Res;
+  duelo(): import("../../packages/render/src/dardos-duelo.ts").DueloV | null; cambiar(): Res; empezar(): Res; jugar(sitio?: string, desde?: "sitio" | "pared"): Res; lanzar(x: number, y: number, fuerza: number, sitio?: string): Res; salir(): Res;
   alCambiar(fn: (que: "estado" | "sitios" | "clavados" | "duelo") => void): () => void;
 };
 type Vista = {
