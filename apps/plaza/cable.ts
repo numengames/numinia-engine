@@ -66,5 +66,7 @@ export function montarCable(o: OpcionesCable) {
   o.constructor.escuchar((que) => { if (que === "permiso") refrescar(); });
   o.disparadores.alCambiar(() => refrescar());
   refrescar();
-  return { refrescar };
+  // C4: the card's «Abrir el cable»: bring this list into view (the panel is already open while building) and focus it
+  const mostrar = () => { caja.tabIndex = -1; caja.scrollIntoView?.({ block: "nearest" }); caja.focus(); };
+  return { refrescar, mostrar };
 }

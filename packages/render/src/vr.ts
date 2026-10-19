@@ -8,6 +8,7 @@
 // moves through a dialogue's answers (A or the trigger chooses).
 import * as THREE from "three/webgpu";
 import type { Panel } from "./manos.ts";
+import type { AccionFichaVR, DatosFichaVR, FichaVR } from "./vr-ficha.ts"; // types only: the panel itself is fetched on first use (C5)
 import { empujaFuera } from "./vr-paredes.ts";
 import { audio } from "./audio/nucleo.ts"; // S1: the engine's one audio graph (it sleeps when the session ends)
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
@@ -274,7 +275,21 @@ export function createVR(h: VRHooks) {
   const held = { left: [false, false, false], right: [false, false, false] }; // [A/X, B/Y, -] last frame
   const dir = new THREE.Vector3();
   const set = (s: VRState) => { if (s !== state) { state = s; h.onChange?.(s); } };
-  const oyentes = { elegir: new Set<(n: number) => void>(), atras: new Set<() => void>() };
+  const oyentes = { elegir: new Set<(n: number) => void>(), atras: new Set<() => void>(), ficha: new Set<(a: AccionFichaVR) => void>() };
+  // C5: the object card panel — built the first time it is needed (a separate chunk: flat-screen players never download it)
+  let fichaVR: FichaVR | null = null, fichaPide: DatosFichaVR | null = null, fichaCargando = false;
+  // the object card sits LOW and to the LEFT (about 40° and 30° off the line of sight): the ray to the thing you are working on, straight
+  // ahead, must not pass through it, and the right hand — the one that points — stays clear of it
+  const fichaColocar = (m: THREE.Object3D) => {
+    const cam = h.renderer.xr.getCamera();
+    const ojo = new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld), dir = new THREE.Vector3();
+    cam.getWorldDirection(dir); dir.y = 0;
+    if (dir.lengthSq() < 1e-6) dir.set(0, 0, -1);
+    dir.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), 0.7);
+    const p = ojo.clone().addScaledVector(dir, 0.95); p.y -= 0.5;
+    rig.worldToLocal(p); m.position.copy(p);
+    m.lookAt(ojo);
+  };
 
   let lastError = ""; // why the last enter() failed (T1 report)
   async function enter(): Promise<boolean> {
@@ -292,7 +307,7 @@ export function createVR(h: VRHooks) {
     pagina = "mandos"; panel.visible = true; panelDelante = false; // the first thing you see: how the controllers work
     ajusteMalla.visible = false; salirMalla.visible = true;
     session.addEventListener("end", () => {
-      session = null; moveX = moveZ = 0; strength = 0;
+      session = null; moveX = moveZ = 0; strength = 0; fichaVR?.ocultar(); fichaPide = null;
       h.camera.remove(vignette, nota); rig.remove(h.camera); rig.visible = false;
       h.manos?.montar(null);
       h.renderer.xr.enabled = false;
@@ -394,6 +409,7 @@ export function createVR(h: VRHooks) {
     (vignette.material as THREE.MeshBasicMaterial).opacity = strength;
     if (nota.visible && performance.now() > notaHasta) nota.visible = false;
     h.manos?.update(h.renderer.xr.getCamera());
+    fichaVR?.tick();
     if (panel.visible) { pintarSalir(); pintarAjuste(); } // the highlight fades once the ray leaves; «¿Salir?» goes back after SALIR_CONFIRMA_MS
   }
 
@@ -431,7 +447,19 @@ export function createVR(h: VRHooks) {
       dialogoMalla.visible = !!session;
     },
     /** The panel the hands may point at (manos.ts asks for it). */
-    paneles(): Panel[] { const out: Panel[] = dialogo && dialogoMalla.visible ? [panelDialogo] : []; if (panel.visible) out.push(pagina === "ajustes" ? panelAjuste : panelSalir); return out; },
+    paneles(): Panel[] { const out: Panel[] = dialogo && dialogoMalla.visible ? [panelDialogo] : []; if (fichaVR?.visible) out.push(fichaVR.panel); if (panel.visible) out.push(pagina === "ajustes" ? panelAjuste : panelSalir); return out; },
+    /** C5: show the object card panel for this object (null hides it). Fetches the panel's code the first time. */
+    ficha(d: DatosFichaVR | null): void {
+      fichaPide = d;
+      if (!d || !session) { fichaVR?.ocultar(); return; }
+      if (fichaVR) { fichaVR.mostrar(d); return; }
+      if (fichaCargando) return;
+      fichaCargando = true;
+      void import("./vr-ficha.ts").then((m) => { fichaVR = m.crearFichaVR(rig, (a) => { for (const f of oyentes.ficha) f(a); }, fichaColocar); if (fichaPide && session) fichaVR.mostrar(fichaPide); }).finally(() => { fichaCargando = false; });
+    },
+    onFicha(fn: (a: AccionFichaVR) => void): () => void { oyentes.ficha.add(fn); return () => oyentes.ficha.delete(fn); },
+    /** For checks: the object card's panel (null until it was first shown). */
+    fichaPanel(): FichaVR | null { return fichaVR; },
     /** For checks: where the «Salir de VR» button sits in the world (null while the panel is hidden), and whether it asks. */
     salirMundo(): { x: number; y: number; z: number; pide: boolean } | null {
       if (!session || !panel.visible) return null;

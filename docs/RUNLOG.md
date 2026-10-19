@@ -1155,3 +1155,49 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.
 - Commit: rama `pelea/combate-a-main` sobre `origin/main` cb35ef4, sin push.
 - Siguiente: decidir si `habilidad` hace que la criatura devuelva el golpe (`golpear` sí); activar `pvp` en un mundo real.
+
+## 2026-10-19 07:25 · constructor/ficha-pestañas · hecho
+- Qué: la ficha del objeto gana las pestañas Ficha, Lógica y Ajustes (C4).
+  Detalle: la ficha del objeto (C3) gana pestañas accesibles (`role=tablist/tab/tabpanel`, flechas izquierda y derecha,
+  Inicio/Fin, `aria-selected`, tooltip con icono Phosphor de la casa en cada una): «Ficha» (los datos de siempre),
+  «Lógica» (disparadores del cable que muestran u ocultan el objeto por id o nombre, disparadores que nacen en él,
+  y cerraduras y contadores en el mismo punto; botón «Abrir el cable» que lleva al panel del cable) y «Ajustes»
+  (nombre, se ve al jugar, anclado y sólido, con los mismos verbos del inspector; botón «Abrir inspector (N)»).
+  Solo sale con permiso de construir y el constructor abierto (sin cambios); Esc la cierra como antes, también
+  desde el campo de nombre. Sin camino de red nuevo: lee el estado de `disparadores`, `cerradura` y `contadores`
+  y llama a `nombrar`/`ajustar`/`fijar`; el servidor valida. Lógica pura en `apps/plaza/ficha-objeto.ts`
+  (`logicaDeObjeto`, `pestanaConTecla`); la solidez del inspector pasa a una función compartida.
+- Números: `test/ficha-objeto.test.ts` 6/6 (2 nuevas). `npm test` 917/920 (los 3 rojos son los conocidos de
+  `enlaces`, falta `qrcode-svg`). Pierna e2e del constructor (chromium) en verde con 8 pasos nuevos (pestañas,
+  clic, flechas, «Abrir el cable», ajustes que cambian el objeto en el servidor y B lo ve, «Abrir inspector»).
+  Página antes de dibujar: 510,0 → 511,9 kB gz (+1,9 kB; tope 1000). Captura real en
+  `work/numinia-engine-wt-creativo2-captura-c4.png`. Sin subir la versión (la sube quien fusiona).
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `creativo/c4-c5` sobre `origin/main` cb35ef4 (sin push).
+- Siguiente: C5 (móvil/VR: los mismos iconos grandes, sin tooltips de ratón).
+
+## 2026-10-19 08:47 · constructor/ficha-movil-vr · hecho
+- Qué: la ficha del objeto con iconos grandes en móvil (hoja inferior) y en VR (panel con el rayo) (C5).
+  Detalle: la ficha del objeto (C3/C4) sin ratón. **Móvil** (pantallas táctiles, `pointer: coarse`): la ficha pasa a hoja
+  inferior a ancho completo (máx. 46 vh, opaca, el panel del constructor se aparta mientras hay objeto elegido: una
+  sola hoja a la vez); rejilla de 5 columnas con objetivos de 63×48 px; etiqueta corta visible bajo cada icono
+  («Mover», «Girar», «Escalar», «Copiar», «Anclar/Soltar», «Enlace», «Borrar», «Cerrar»; el `aria-label` no cambia);
+  pestañas a ancho completo de 44 px; pulsación larga (450 ms) sobre un icono dice su título completo en una línea
+  bajo la barra (`role=status`) y no lo pulsa; esa línea guarda su sitio para que los iconos no salten bajo el dedo.
+  El «#barra-objeto» de M22b-1 ya no existe en esta base (la ficha lo sustituyó en C3): no se duplica nada.
+  **VR**: panel plano (`packages/render/src/vr-ficha.ts`, trozo aparte que solo se descarga al elegir un objeto
+  dentro de una sesión VR) con 8 botones grandes (Mover, Girar 15°, Escalar +/−, Duplicar, Anclar/Soltar, Borrar
+  con doble pulsación, Cerrar), colocado abajo y a la izquierda para que el rayo hacia el objeto (de frente) y la
+  mano derecha no lo atraviesen; mismas reglas: solo con permiso de construir, y el servidor decide.
+- Números: `test/ficha-objeto.test.ts` 10/10 (4 nuevas: etiquetas, celdas VR, `celdaEn`, `aplicarAccionVR`).
+  `npm test` 921/924 (3 rojos conocidos de `enlaces`, falta `qrcode-svg`). Pierna táctil a 360×740 en verde con 7
+  pasos nuevos (hoja ≤ 46 vh, 5 columnas ≥ 44 px, etiquetas, pestañas, no tapa el bloque, pulsación larga sin
+  borrar, toque corto sigue pulsando). Pierna VR (IWER) con 4 pasos nuevos (ficha visible, «Escalar +» ×1,25 y B lo
+  ve, sigue elegido, «Cerrar»). Las dos piernas cierran ahora la tarjeta de novedades del navegador limpio y buscan
+  el chrome por glob. Aviso: el paso «moverlo ≥ 1 m» de la pierna VR falla a ratos con la máquina cargada, también
+  sin estos cambios (1 de 3 en la base). Página antes de dibujar: 511,9 → 513,6 kB gz (+1,7 kB; tope 1000); el
+  trozo VR pesa 1,4 kB gz y no entra en el arranque. Captura real 360×740 en
+  `work/numinia-engine-wt-creativo2-captura-c5-movil.png`.
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `creativo/c4-c5` (sin push).
+- Siguiente: si el objeto queda bajo la hoja (objetos muy cercanos a los pies), la cámara no se mueve sola.
