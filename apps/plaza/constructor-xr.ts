@@ -8,23 +8,28 @@
 // delete button needs a face/panel to press (J18's wrist menu, or a wrist panel row) — out of this slice, see
 // docs/BACKLOG.md M22b-3/M22b-4 and PROGRESO-M22b3.md.
 import type { Donde } from "../../packages/render/src/index.ts";
+import type { AccionFichaVR, DatosFichaVR } from "../../packages/render/src/vr-ficha.ts"; // types only
+import { aplicarAccionVR, datosFicha, fichaVisible } from "./ficha-objeto.ts";
+import type { VerbosFicha } from "./ficha-objeto.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type Obj = Record<string, unknown> & { id: string };
 type Lado = "izq" | "der";
 const LADOS: Lado[] = ["der", "izq"];
-type Builder = {
+type Builder = Partial<VerbosFicha> & {
   estado: { puede: boolean; seleccionado: string };
   objeto(id: string): Obj | null;
   seleccionar(id: string): Res;
   transformar(id: string, t: Partial<Donde>, lote?: string): Res;
   duplicar(): Res;
+  escuchar?(fn: (que: string) => void): () => void;
 };
 type Rayo = { origen: { x: number; y: number; z: number }; dir: { x: number; y: number; z: number } };
 type Manos = {
   rayoDe(lado: Lado): Rayo | null;
   entrada(lado: Lado): { gatillo: number; agarre: number; mano: boolean } | null;
   vibrar(lado: Lado, v?: number, ms?: number): void;
+  estado?(): Record<Lado, { apunta: string | null } | null>;
 };
 type Editor = {
   pickRayo(origen: Rayo["origen"], dir: Rayo["dir"]): string | null;
@@ -33,7 +38,7 @@ type Editor = {
   poner(key: string, d: Partial<Donde>): void;
   sostener(key: string | null, final?: Donde): void;
 };
-type Vista = { vr: { active: boolean; nota?(t: string): void }; editor: Editor; manos?: Manos };
+type Vista = { vr: { active: boolean; nota?(t: string): void; ficha?(d: DatosFichaVR | null): void; onFicha?(fn: (a: AccionFichaVR) => void): unknown }; editor: Editor; manos?: Manos };
 
 /** Held past this long (ms) on the already-selected thing: it is taken at the ray's end, not just re-selected. */
 export const PRENSION_MS = 180;
@@ -73,7 +78,25 @@ export function montarConstructorVR(c: Builder, view: Vista) {
     view.editor.sostener(null, final ?? undefined);
   }
 
+  // C5: the object card as a panel in front of you — only for someone who may build, in VR (where picking with the ray IS the edit
+  // mode: the HTML builder is not open in a headset) and with an object selected. The server still decides every action.
+  let firmaFicha = "";
+  function fichaVR(): void {
+    const o = view.vr.active && c.estado.puede && c.estado.seleccionado ? c.objeto(c.estado.seleccionado) : null;
+    const ver = !!o && fichaVisible(c.estado.puede, view.vr.active, o.id);
+    const d: DatosFichaVR | null = ver ? { titulo: datosFicha(o!).titulo, anclado: o!.fijado === true } : null;
+    const f = d ? `${o!.id}|${d.titulo}|${d.anclado}` : "";
+    if (f === firmaFicha) return;
+    firmaFicha = f; view.vr.ficha?.(d);
+  }
+  view.vr.onFicha?.((a) => {
+    if (!c.estado.puede || !view.vr.active) return;
+    const { res, dicho } = aplicarAccionVR(c as VerbosFicha, a);
+    view.vr.nota?.(dicho);
+    if (res.ok) view.manos?.vibrar("der", 0.4, 30);
+  });
   function cuadro(): void {
+    fichaVR();
     if (!view.vr.active || !c.estado.puede) {
       for (const l of LADOS) { soltar(l); gatilloAntes[l] = agarreAntes[l] = false; gatilloDesde[l] = 0; }
       return;
@@ -83,7 +106,9 @@ export function montarConstructorVR(c: Builder, view: Vista) {
     for (const lado of LADOS) {
       const en = m.entrada(lado);
       if (!en) { soltar(lado); gatilloAntes[lado] = agarreAntes[lado] = false; gatilloDesde[lado] = 0; continue; }
-      const gatillo = en.gatillo > 0.5, agarre = en.agarre > 0.6, rayo = m.rayoDe(lado);
+      const gatillo = en.gatillo > 0.5, agarre = en.agarre > 0.6;
+      // a ray on the card's panel is for its buttons (manos.ts presses them), not for the thing behind it
+      const rayo = c.estado.seleccionado && m.estado?.()[lado]?.apunta?.startsWith("panel:") ? null : m.rayoDe(lado);
       if (cogido[lado]) {
         if (!gatillo) { soltar(lado); } else if (rayo) {
           const p = view.editor.puntoBajoRayo(rayo.origen, rayo.dir, cogido[lado]!.key);

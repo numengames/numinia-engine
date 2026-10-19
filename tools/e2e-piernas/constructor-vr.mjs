@@ -10,7 +10,7 @@ import { createRequire } from "node:module";
 import { existsSync, readFileSync } from "node:fs";
 
 const PW = process.env.PW_CORE ?? new URL("../../node_modules/playwright-core", import.meta.url).pathname;
-const CHROME = process.env.CHROME ?? "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell";
+const CHROME = process.env.CHROME ?? (await import("node:fs")).globSync("/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell").sort().at(-1) ?? "";
 const BASE0 = process.env.BASE ?? "http://127.0.0.1:5173/?server=ws://127.0.0.1:8790";
 const BASE = BASE0.includes("webgl2") ? BASE0 : BASE0.replace("?", "?webgl2&"); // IWER draws through WebGL
 if (!existsSync(PW) || !existsSync(CHROME)) { console.error("playwright-core or chromium not found; set PW_CORE / CHROME"); process.exit(2); }
@@ -87,7 +87,7 @@ async function pierna() {
     const enB = await esperaB(([k, w]) => { const o = globalThis.__numinia.session.features.stateOf("objetos").get(k); return !!o && Math.abs(o.x - w.x) < 0.01 && Math.abs(o.z - w.z) < 0.01; }, id, dA);
     const o1 = await deB(id);
     const sueltoYa = await ctl(() => globalThis.__numinia.constructorVR.cogido("der"));
-    paso("moverlo ≥ 1 m con el rayo llega a B y se suelta", enB && movido >= 1 && sueltoYa === null, { movido: Math.round(movido * 100) / 100, o1: o1 && { x: o1.x, z: o1.z }, sueltoYa });
+    paso("moverlo ≥ 1 m con el rayo llega a B y se suelta", enB && movido >= 1 && sueltoYa === null, { movido: Math.round(movido * 100) / 100, o1: o1 && { x: o1.x, z: o1.z }, sueltoYa, manos: await ctl(() => JSON.stringify(globalThis.__numinia.view.manos.estado().der)), ficha: await ctl(() => JSON.stringify(globalThis.__numinia.view.vr.fichaPanel()?.estado() ?? null)) });
     if (process.env.SHOTS === "1") await a.screenshot({ path: "e2e-constructor-vr.png" });
     // 4. squeeze on the selection (ray still on it, not holding) duplicates it; best-effort — logged, not fatal
     // (the card's bar is step 3; see PROGRESO-M22b3.md for tightening this one under load)
@@ -101,6 +101,30 @@ async function pierna() {
     const id2 = await ctl(() => globalThis.__numinia.constructor.estado.seleccionado);
     const dup = await esperaB(([n1]) => globalThis.__numinia.session.features.stateOf("objetos").size > n1, n1);
     r.pasos.push({ paso: "apretar duplica (mejor esfuerzo, no bloquea la pierna)", ok: dup && id2 !== id && id2 !== "", id, id2 });
+    // 5. C5: the object card as a panel at your left and a little below (a separate chunk, fetched on the first selection in VR): with the
+    // object selected it shows; the ray on «Escalar +» and a trigger press scales it ×1.25 for B too; «Cerrar» deselects and hides it.
+    {
+      const idF = dup && id2 && id2 !== id ? id2 : id;
+      await ctl((k) => globalThis.__numinia.constructor.seleccionar(k), idF);
+      const panelVisible = () => ctl(() => globalThis.__numinia.view.vr.fichaPanel()?.estado().visible === true);
+      await esperar(() => globalThis.__numinia.view.vr.fichaPanel()?.estado().visible === true, null, 8000).catch(() => {});
+      const info = await ctl(() => { const f = globalThis.__numinia.view.vr.fichaPanel(); return f ? { ...f.estado(), c3: f.celdaMundo(3), c8: f.celdaMundo(8) } : null; });
+      paso("C5: la ficha aparece en VR con el objeto elegido", !!info && info.visible && !!info.c3, { info });
+      const s0 = (await deB(idF))?.sx ?? 1;
+      await ctl((w) => globalThis.__apuntar(w), info.c3);
+      await a.waitForTimeout(200);
+      await pulsarGatillo(80);
+      const crece = await esperaB(([k, s]) => { const o = globalThis.__numinia.session.features.stateOf("objetos").get(k); return !!o && Math.abs(o.sx - s * 1.25) < 0.02; }, idF, s0);
+      paso("C5: «Escalar +» con el rayo y el gatillo escala ×1,25 y B lo ve", crece, { s0, sx: (await deB(idF))?.sx });
+      paso("C5: el objeto sigue elegido tras pulsar el panel", (await ctl(() => globalThis.__numinia.constructor.estado.seleccionado)) === idF);
+      await ctl((w) => globalThis.__apuntar(w), info.c8);
+      await a.waitForTimeout(200);
+      await pulsarGatillo(80);
+      await a.waitForTimeout(300);
+      paso("C5: «Cerrar» deselecciona y esconde la ficha", (await ctl(() => globalThis.__numinia.constructor.estado.seleccionado)) === "" && !(await panelVisible()));
+      if (process.env.SHOTS === "1") await a.screenshot({ path: "e2e-constructor-vr-ficha.png" });
+      if (idF !== id) await ctl((k) => { const c = globalThis.__numinia.constructor; c.seleccionar(k); c.borrar(); }, idF); // the copy goes too
+    }
     await ctl(() => globalThis.__numinia.view.vr.exit());
     await esperar(() => !globalThis.__numinia.view.vr.active, null, 8000).catch(() => {});
     r.ok = errors.length === 0;
