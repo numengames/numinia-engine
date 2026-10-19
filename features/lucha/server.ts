@@ -10,7 +10,8 @@
 // back whole. Two independent paths down, one way back each: the creature's strike-back (life → caído → jugadorVuelve) and,
 // only where the world turns pvp on, the Estado ladder (estados.ts: Aletargado → `reaparece` on the last safe spot). A person
 // at Colapsado or worse strikes nothing (creature or person); a fallen person strikes nothing. `habilidad` (Eclipse Mnémico
-// kit, habilidades.ts) does not provoke the strike-back yet: Carga and cooldowns are its price.
+// kit, habilidades.ts) provokes the same strike-back through the same function (`contraatacar`) when the creature survives
+// it; if the ability dissolves the creature (Discontinuidad deals 55, a creature has 50) nothing strikes back.
 import { rngNext } from "../../packages/core/src/index.ts";
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
@@ -93,6 +94,18 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
     }
   };
 
+  /** The creature's strike-back: the ONE path both `golpear` and `habilidad` take. Lowers the player's life by `dano`
+   *  (server memory only), tells them (`jugadorHerido`) and, at 0, fells them (`jugadorCaido`) until REAPARICION_JUGADOR_TICKS pass. */
+  const contraatacar = (e: number, t: number, dano: number) => {
+    const vidaDespues = Math.max(0, (vida.get(e) ?? VIDA_JUGADOR_MAX) - dano);
+    vida.set(e, vidaDespues);
+    api.emit("jugadorHerido", { dano, vida: vidaDespues }, { to: e });
+    if (vidaDespues === 0) {
+      caidos.set(e, t + REAPARICION_JUGADOR_TICKS);
+      api.emit("jugadorCaido", {}, { to: e });
+    }
+  };
+
   api.on("golpear", (e, m) => {
     if (caidos.has(e)) return rechazar(e, "Estás caído: espera a recuperarte.");   // #145: a fallen player strikes nobody
     if (/^p:/.test(String(m.objetivo))) return golpearPersona(e, m);
@@ -116,14 +129,7 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
       const s = criaturas.get(key)!.reaparicion ?? REAPARICION_S;
       if (s > 0) vuelven.set(key, t + Math.round(s * HZ));
     }
-    // L2 trozo 1: the creature strikes back with the same roll (the fight's PRNG stream: still replayable).
-    const vidaAntes = vida.get(e) ?? VIDA_JUGADOR_MAX, vidaDespues = Math.max(0, vidaAntes - dano);
-    vida.set(e, vidaDespues);
-    api.emit("jugadorHerido", { dano, vida: vidaDespues }, { to: e });
-    if (vidaDespues === 0) {
-      caidos.set(e, t + REAPARICION_JUGADOR_TICKS);
-      api.emit("jugadorCaido", {}, { to: e });
-    }
+    contraatacar(e, t, dano);                                      // L2 trozo 1: the creature strikes back with the same roll
   });
 
   // An ability: same reach/dissolution rules as `golpear`, plus its own cooldown and the player's Carga. Damage is the table's.
@@ -149,6 +155,7 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
       poner(key, { ...v, coherencia: queda, modo: "alerta" });
       api.emit("habilidad", { objetivo: key, de: e, cual, dano, queda, critico }, cerca(key));
       if (critico) api.emit("critico", { objetivo: key, de: e, dano }, cerca(key));
+      contraatacar(e, t, tirarDano(rng));                          // the creature that survives strikes back, with ITS roll (not the ability's 55)
       return;
     }
     poner(key, { ...v, coherencia: 0, modo: "disuelta", solido: false });
@@ -156,7 +163,7 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
     if (critico) api.emit("critico", { objetivo: key, de: e, dano }, cerca(key));
     api.emit("disuelta", { objetivo: key, de: e }, cerca(key));
     const s = criaturas.get(key)!.reaparicion ?? REAPARICION_S;
-    if (s > 0) vuelven.set(key, t + Math.round(s * HZ));
+    if (s > 0) vuelven.set(key, t + Math.round(s * HZ));                  // a creature the ability dissolves does NOT strike back: it is gone
   });
 
   api.onTick((t) => {

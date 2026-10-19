@@ -63,7 +63,7 @@ export const lucha = defineFeature({
   },
   intents: {
     golpear: { describe: "Golpear a una criatura que tienes al alcance (su radio + 1,8 m). Un golpe cada 0,6 s; el servidor dice cuánto daño hizo (evento golpe) o que no llegaste (aire).", spoken: "golpear", fields: { objetivo: ID }, rate: { perSecond: 4, burst: 2 } },
-    habilidad: { describe: "Usar una habilidad del kit Eclipse Mnémico contra una criatura al alcance: corte-breve (12, 1 s, +12 Carga), incision-semantica (30, 4 s, cuesta 30 Carga) o discontinuidad (55, 8 s, cuesta 55 Carga). El servidor comprueba alcance, enfriamiento propio de cada habilidad y Carga (0-100).", spoken: "habilidad", fields: { objetivo: ID, cual: { kind: "enum", values: HABILIDADES } }, rate: { perSecond: 6, burst: 3 } },
+    habilidad: { describe: "Usar una habilidad del kit Eclipse Mnémico contra una criatura al alcance: corte-breve (12, 1 s, +12 Carga), incision-semantica (30, 4 s, cuesta 30 Carga) o discontinuidad (55, 8 s, cuesta 55 Carga). El servidor comprueba alcance, enfriamiento propio de cada habilidad y Carga (0-100). Si la criatura sigue en pie, devuelve el golpe como con golpear (tu vida baja); si la habilidad la disuelve, no.", spoken: "habilidad", fields: { objetivo: ID, cual: { kind: "enum", values: HABILIDADES } }, rate: { perSecond: 6, burst: 3 } },
   },
   events: {
     golpe: { describe: "Alguien (de) ha golpeado a una criatura: cuánto daño y cuánta coherencia le queda. A quien está a 40 m.", fields: { objetivo: ID, de: QUIEN, dano: DANO, queda: COH }, announce: { text: "Golpe: −{dano}, le quedan {queda}.", sound: "paso", importance: 1, who: "de" } },

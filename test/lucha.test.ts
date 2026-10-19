@@ -45,6 +45,11 @@ function mundo(n = 2, semilla = 7, criaturas = [G]) {
   return { inst, pages, pump, place, evs, estado, log };
 }
 
+/** Abilities are struck back now: a long loop can fell the player. Wait out a fall (jugadorCaido without its jugadorVuelve) so a loop tests what it means to. */
+function sano(W: ReturnType<typeof mundo>, p: ReturnType<typeof mundo>["pages"][number]) {
+  if (W.evs(p, "jugadorCaido").length > W.evs(p, "jugadorVuelve").length) W.pump(REAPARICION_JUGADOR_TICKS + 2);
+}
+
 test("lucha: the declaration meets the plug's rules and is in both lists; the sheet is sane", () => {
   assert.deepEqual(lucha.issues, []);
   assert.ok(funciones.some((f) => f.feature.id === "lucha") && clientes.some((f) => f.feature.id === "lucha"));
@@ -234,7 +239,7 @@ test("lucha h1: the kit table matches the design (damage / cooldown / cost / Car
 test("lucha h1: abilities in a loop respect their own cooldown and need Carga", () => {
   const big = { ...G, reaparicion: 0.05 };           // comes back whole a tick after dissolving: the dummy never runs out
   const W = mundo(1, 7, [big]);
-  const p = W.pages[0], hab = (c: string) => { p.l.habilidad(c); W.pump(1); };
+  const p = W.pages[0], hab = (c: string) => { sano(W, p); p.l.habilidad(c); W.pump(1); };
   W.pump(2); W.place(p.s.entity, 11, 0); W.pump(12);
   const usos = (c: string) => W.evs(p, "habilidad").filter((m) => m.cual === c).length;
   // no Carga: both spenders are refused with a reason, nothing happens
@@ -261,12 +266,14 @@ test("lucha h1: abilities in a loop respect their own cooldown and need Carga", 
   assert.equal(d.length, 1);
   assert.equal(d[0].dano, 55);
   assert.equal(p.l.carga(), 11);
-  // Discontinuidad cooldown 8 s = 160 ticks; with Carga 71 it is still refused silently until then
-  for (let i = 0; i < 6; i++) { hab("corte-breve"); W.pump(20); }
+  // Discontinuidad cooldown 8 s = 160 ticks; with Carga 59 (4 cortes: few enough that the strike-backs do not fell the player and
+  // stretch the clock) it is still refused silently until then
+  for (let i = 0; i < 4; i++) { hab("corte-breve"); W.pump(20); }
+  assert.equal(W.evs(p, "jugadorCaido").length, 0, "this section is about the cooldown, not about a fall");
   assert.ok(p.l.carga() >= 55);
   hab("discontinuidad"); W.pump(2);
   assert.equal(usos("discontinuidad"), 1, "still cooling down");
-  W.pump(60);
+  W.pump(80);                                                       // 4 × 20 + 80 ≥ 160: the cooldown is over
   hab("discontinuidad"); W.pump(2);
   assert.equal(usos("discontinuidad"), 2);
 });
@@ -292,7 +299,7 @@ function rafaga(semilla: number, n: number) {
   const W = mundo(1, semilla, [{ ...G, reaparicion: 0.05 }]);
   const p = W.pages[0];
   W.pump(2); W.place(p.s.entity, 11, 0); W.pump(12);
-  for (let i = 0; i < n; i++) { p.l.habilidad("corte-breve"); W.pump(20); }
+  for (let i = 0; i < n; i++) { sano(W, p); p.l.habilidad("corte-breve"); W.pump(20); }
   W.pump(2);
   return { W, p, hits: W.evs(p, "habilidad").map((m) => [m.critico === true, Number(m.dano)] as const) };
 }
@@ -317,6 +324,7 @@ test("lucha h3: a critical applies the doubled damage to coherence, and the page
   W.pump(2); W.place(p.s.entity, 11, 0); W.pump(12);
   let visto = false;
   for (let i = 0; i < 40 && !visto; i++) {
+    sano(W, p);
     const antes = Number(W.estado().coherencia);
     p.l.habilidad("corte-breve"); W.pump(2);
     const ult = W.evs(p, "habilidad").at(-1)!;
@@ -376,4 +384,76 @@ test("lucha h2: a page with no creature and no Carga yet does not claim there is
   assert.equal(W.pages[0].l.activo(), false);
   assert.equal(W.pages[0].l.estado(), undefined);
   assert.deepEqual(W.pages[0].l.habilidad("corte-breve"), { ok: false, why: "no hay ninguna criatura cerca" });
+});
+
+
+// ---- habilidad shares the creature's strike-back with `golpear` (Pablo 19-10, #145's life/fall) ----
+
+test("lucha: an ability the creature survives is struck back like a blow — jugadorHerido, life down by the creature's roll (not the ability's damage)", () => {
+  const W = mundo(1, 7);
+  const p = W.pages[0];
+  W.pump(2); W.place(p.s.entity, 11, 0); W.pump(12);
+  p.l.habilidad("corte-breve"); W.pump(2);
+  const h = W.evs(p, "habilidad");
+  assert.equal(h.length, 1);
+  const MAX = BESTIARIO[G.especie].coherenciaMax;
+  assert.equal(h[0].queda, MAX - Number(h[0].dano), "the creature survives (a critical doubles the 12)");
+  assert.ok(Number(h[0].queda) > 0);
+  const heridos = W.evs(p, "jugadorHerido");
+  assert.equal(heridos.length, 1, "one strike back for one ability");
+  assert.ok(Number(heridos[0].dano) >= DANO_BASE && Number(heridos[0].dano) < DANO_BASE + DANO_VAR, `the creature's own roll ${DANO_BASE}..${DANO_BASE + DANO_VAR - 1}, not the ability's 12 (was ${heridos[0].dano})`);
+  assert.equal(heridos[0].vida, VIDA_JUGADOR_MAX - Number(heridos[0].dano));
+  // a second ability a cooldown later keeps subtracting from the same life
+  W.pump(20);
+  p.l.habilidad("corte-breve"); W.pump(2);
+  const dos = W.evs(p, "jugadorHerido");
+  assert.equal(dos.length, 2);
+  assert.equal(dos[1].vida, VIDA_JUGADOR_MAX - Number(dos[0].dano) - Number(dos[1].dano));
+});
+
+test("lucha: abilities alone can fell the player (caído), and a fallen player's abilities are refused until jugadorVuelve", () => {
+  const W = mundo(1, 7, [{ ...G, reaparicion: 0.05 }]);
+  const p = W.pages[0];
+  W.pump(2); W.place(p.s.entity, 11, 0); W.pump(12);
+  for (let n = 0; n < 60 && W.evs(p, "jugadorCaido").length === 0; n++) {
+    if (W.estado().modo === "disuelta") { W.pump(2); continue; }
+    p.l.habilidad("corte-breve"); W.pump(20);
+  }
+  assert.equal(W.evs(p, "jugadorCaido").length, 1, "the strike-backs of abilities reach life 0");
+  assert.equal(W.evs(p, "jugadorHerido").at(-1)!.vida, 0);
+  const antes = W.evs(p, "habilidad").length;
+  if (W.estado().modo === "disuelta") W.pump(2);
+  p.l.habilidad("corte-breve"); W.pump(2);
+  assert.equal(W.evs(p, "habilidad").length, antes, "fallen: the ability does nothing");
+  assert.ok(W.evs(p, "rechazado").some((r) => String(r.motivo).includes("caído")));
+  W.pump(REAPARICION_JUGADOR_TICKS + 2);
+  assert.equal(W.evs(p, "jugadorVuelve").length, 1);
+});
+
+test("lucha: an ability that dissolves the creature (Discontinuidad 55 vs the Guardián's 40 coherence) is NOT struck back — it is gone", () => {
+  const W = mundo(1, 7, [{ ...G, reaparicion: 0.05 }]);    // comes back whole a tick after dissolving, so Carga can be built
+  const p = W.pages[0];
+  W.pump(2); W.place(p.s.entity, 11, 0); W.pump(12);
+  for (let n = 0; n < 40 && p.l.carga() < 55; n++) {      // Carga 55 for Discontinuidad, from Corte Breve
+    if (W.estado().modo === "disuelta") { W.pump(2); continue; }
+    p.l.habilidad("corte-breve"); W.pump(20);
+  }
+  assert.ok(p.l.carga() >= 55, `Carga ${p.l.carga()} should pay Discontinuidad`);
+  for (let n = 0; n < 20 && Number(W.estado().coherencia) < BESTIARIO[G.especie].coherenciaMax; n++) {   // finish the creature off with Corte Breve; it comes back whole
+    if (W.estado().modo !== "disuelta") { p.l.habilidad("corte-breve"); W.pump(20); } else W.pump(2);
+  }
+  W.pump(3);
+  assert.equal(W.estado().coherencia, BESTIARIO[G.especie].coherenciaMax, "a creature whole again");
+  assert.ok(p.l.carga() >= 55, "and the Carga is still there");
+  const heridos = W.evs(p, "jugadorHerido").length, caidos = W.evs(p, "jugadorCaido").length;
+  assert.equal(caidos, 0, "the player is still standing before the finisher");
+  const vistas = W.evs(p, "disuelta").length;
+  p.l.habilidad("discontinuidad"); W.pump(2);
+  const d = W.evs(p, "habilidad").filter((m) => m.cual === "discontinuidad");
+  assert.equal(d.length, 1);
+  assert.ok(Number(d[0].dano) >= 55 && Number(d[0].dano) > BESTIARIO[G.especie].coherenciaMax, "55 (or 110 critical) against 40 coherence");
+  assert.equal(d[0].queda, 0);
+  assert.equal(W.evs(p, "disuelta").length, vistas + 1, "the creature dissolved");
+  assert.equal(W.evs(p, "jugadorHerido").length, heridos, "a dissolved creature does not strike back: life untouched");
+  assert.equal(W.evs(p, "jugadorCaido").length, 0);
 });
