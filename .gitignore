@@ -6,3 +6,6 @@ dist/
 deploy/instalar-motor.sh
 informes/
 /qr/
+
+# a test (test/avatar.test.ts) writes here; it must never be tracked: publicar-version.sh refuses a dirty tree
+.tmp-avatar-test/
