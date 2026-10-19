@@ -12,6 +12,9 @@ import { crearLucha, HZ } from "../features/lucha/server.ts";
 import type { Criatura } from "../features/lucha/server.ts";
 import { VIDA_JUGADOR_MAX, REAPARICION_JUGADOR_TICKS } from "../features/lucha/feature.ts";
 import { crearCliente, nivelVisto } from "../features/lucha/client.ts";
+import type { Pvp } from "../features/lucha/estados.ts";
+import { leerPvp, pvpEn, pvpEntre } from "../features/lucha/estados.ts";
+import { conMundo } from "../features/mundo.ts";
 import { crearEscalera, ESCALERA, CALMA_TICKS, INCAPACITADO_S } from "../features/lucha/estados.ts";
 import funciones from "../features/servidor.ts";
 
@@ -20,7 +23,7 @@ type Keeper = GuestKeeper & { token: string | null };
 const keeper = (): Keeper => { const k = { token: null as string | null, load: () => k.token, save: (t: string) => { k.token = t; } }; return k; };
 
 /** n people in a headless world with the lucha server (`pvp` as the world says), a pump by ticks. */
-function mundo(n = 2, pvp = true, criaturas: Criatura[] = [], reloj: () => number = Date.now) {
+function mundo(n = 2, pvp: boolean | Pvp = true, criaturas: Criatura[] = [], reloj: () => number = Date.now) {
   const log: string[] = [];
   const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [crearLucha({ criaturas, semilla: 7, pvp })], log: (l) => log.push(l), identitySign: sign });
   const pages = Array.from({ length: n }, (_, i) => {
@@ -184,4 +187,61 @@ test("lucha pvp page: nivelVisto is pure — a rung lasts CALMA_TICKS/20 s, Alet
   assert.equal(nivelVisto(1, 0, 90_000), 0);
   assert.equal(nivelVisto(4, 0, 9e9), 4);
   assert.equal(nivelVisto(2, 5_000, 0), 2, "a clock that went back does not raise it");
+});
+
+test("pvp flag: entorno.json pvp/zonasPvp — absent = off; a «no» zone beats a «yes» one; both people must stand where it is on", () => {
+  assert.deepEqual(leerPvp({}), { ok: true, value: null });
+  assert.deepEqual(leerPvp({ pvp: true }), { ok: true, value: { mundo: true, zonas: [] } });
+  const l = leerPvp({ pvp: false, zonasPvp: [{ id: "arena", x: 50, z: 0, radio: 10, pvp: true }, { id: "paz", x: 58, z: 0, radio: 2, pvp: false }] });
+  assert.ok(l.ok && l.value);
+  const c = l.value!;
+  assert.equal(pvpEn(c, 0, 0), false, "outside every zone: the world's false");
+  assert.equal(pvpEn(c, 50, 5), true, "inside the arena");
+  assert.equal(pvpEn(c, 58, 0), false, "the safe place inside the arena stays safe");
+  assert.equal(pvpEntre(c, { x: 50, z: 0 }, { x: 55, z: 0 }), true);
+  assert.equal(pvpEntre(c, { x: 50, z: 0 }, { x: 0, z: 0 }), false, "one in, one out: no");
+  assert.equal(pvpEn({ mundo: true, zonas: [{ id: "paz", x: 0, z: 0, radio: 5, pvp: false }] }, 1, 1), false);
+  // wrong values: said with their path, the right part still used; a wrong pvp leaves the world at false
+  const m = leerPvp({ pvp: "si", zonasPvp: [{ x: 1, z: 1, radio: 0, pvp: true }, { id: "ok", x: 1, z: 1, radio: 3, pvp: true }] });
+  assert.ok(!m.ok && m.issues.map((i) => i.path).join() === "entorno.pvp,entorno.zonasPvp[0]" && m.parcial?.zonas.length === 1 && m.parcial.mundo === false);
+  assert.ok(!leerPvp({ zonasPvp: 3 }).ok);
+});
+
+test("pvp flag: the server refuses a blow between two people unless BOTH stand in PVP ground; nothing changes for them when refused", () => {
+  const zonas: Pvp = { mundo: false, zonas: [{ id: "arena", x: 50, z: 0, radio: 10, pvp: true }] };
+  const W = mundo(2, zonas);
+  W.pump(2);
+  const [a, b] = W.pages;
+  W.place(a.s.entity, 0, 0); W.place(b.s.entity, 1, 0); W.pump(12);           // both in the open world (false)
+  a.l.golpear(`p:${b.s.entity}`); W.pump(2);
+  assert.equal(W.evs(a, "rechazado").length, 1);
+  assert.equal(W.evs(b, "estado").length, 0);
+  W.place(a.s.entity, 50, 0); W.pump(12);                                        // attacker in the arena, target outside
+  a.l.golpear(`p:${b.s.entity}`); W.pump(2);
+  assert.equal(W.evs(a, "rechazado").length, 2);
+  W.place(a.s.entity, 50, 0); W.place(b.s.entity, 51, 0); W.pump(12);            // both in the arena
+  a.l.golpear(`p:${b.s.entity}`); W.pump(2);
+  assert.equal(W.evs(b, "estado").at(-1)?.estado, "desestabilizado");
+});
+
+test("pvp flag: conMundo reads entorno.json — pvp true turns it on for a world without lucha.json; no entorno or pvp false = off", () => {
+  const lucha = funciones.find((f) => f.feature.id === "lucha")!;
+  for (const [entorno, esperado] of [[{ pvp: true }, true], [undefined, false], [{ pvp: false }, false]] as const) {
+    const log: string[] = [], eventos: string[] = [];
+    const partes = conMundo([lucha], (f) => (f === "entorno.json" ? entorno : undefined), (l) => log.push(l));
+    const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: partes, log: (l) => log.push(l), identitySign: sign });
+    const c0 = crearCliente((ev, m) => { if (ev === "estado") eventos.push(String(m.estado)); }), c1 = crearCliente();
+    const ts = [inst.join(0), inst.join(1)];
+    const ss = [new ClientSession(ts[0], { features: [c0.part], identity: keeper(), view: {} }), new ClientSession(ts[1], { features: [c1.part], identity: keeper(), view: {} })];
+    const pump = (n: number) => { for (let i = 0; i < n; i++) { for (const x of ts) x.flush(); inst.tick(); for (const x of ts) x.flush(); } };
+    pump(2);
+    for (const [i, x] of [[0, 0], [1, 1]] as const) { inst.sim.tf.cols.x[ss[i].entity] = fx(x); inst.sim.tf.cols.z[ss[i].entity] = fx(0); }
+    pump(12);
+    c0.lucha.golpear(`p:${ss[1].entity}`); pump(3);
+    assert.equal(eventos.length > 0, esperado, `entorno ${JSON.stringify(entorno)} → ${eventos.join()}`);
+    assert.ok(log.every((l) => !l.includes("entorno.pvp")));
+  }
+  const mal: string[] = [];
+  conMundo([lucha], (f) => (f === "entorno.json" ? { pvp: "quizá" } : undefined), (l) => mal.push(l));
+  assert.ok(mal.some((l) => l.includes("entorno.pvp") && l.includes("true")), mal.join("\n"));
 });
