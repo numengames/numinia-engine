@@ -12,9 +12,18 @@
 // that comes and goes where the water is thinnest (starwild 021 idea); opacity grows with depth and the grazing angle.
 // Binaries = translucent 0/1 strings drifting with the current under the surface (parallax by depth), now and then lifted
 // to a crest; faint by default. Same mesh, same draw call, one texture read more per pixel.
-import { CASA, AGUA_ORILLA } from "./naturaleza/paleta.ts";
+// E51 (MUNDO-PROYECTADO: el agua de la orilla cyberpunk): a third variant «oceano» of the same material — deep-ocean colour
+// almost petrol-black (paleta.ts AGUA_OCEANO), crossed by CODE drawn from a 128×64 glyph atlas built in code (agua-glifos.ts:
+// 0/1, letters, house symbols; Rezmason/matrix's glyph sheet + Doss's glyph bombing pick), dragged by the current under the
+// surface and now and then at a crest; faint by day, glowing like bioluminescent plankton at night (the hour is read from the
+// sun's height in `luz.solDir`, as the glints already do; light only in the dark and where the water is «disturbed»: crests
+// and the breaking foam line, like dinoflagellates) with a PULSE FRONT that sweeps the surface along the current (Rezmason's
+// raindrop brightness `1 − fract(t)`: a sharp head and a fading tail; one subtraction of time). The binaries of a/b now read
+// through the same atlas, bigger and in a darker ink. Still one mesh, one draw call; +1 texture read where glyphs are on.
+import { CASA, AGUA_ORILLA, AGUA_OCEANO } from "./naturaleza/paleta.ts";
+import { atlasGlifos, ATLAS, BORDE_GLIFO } from "./agua-glifos.ts";
 import * as THREE from "three/webgpu";
-import { uniform, uv, vec2, vec3, vec4, float, mix, positionLocal, positionWorld, cameraPosition, normalize, dot, reflect, pow, max, min, clamp, abs, sin, cos, fract, smoothstep, exp, length, oneMinus, texture, floor, fwidth, step } from "three/tsl";
+import { uniform, uv, vec2, vec3, vec4, float, mix, positionLocal, positionWorld, cameraPosition, normalize, dot, reflect, pow, max, min, clamp, abs, sin, cos, fract, smoothstep, exp, length, oneMinus, texture, floor, fwidth, step, mod } from "three/tsl";
 import type { DetalleAgua } from "./calidad.ts";
 
 type N = ReturnType<typeof float>;
@@ -32,13 +41,14 @@ export type OpcionesAgua = {
   bordeOculto?: number;
   /** E03 · AG1: colour, shore band, foam and wash from the real depth of the bed (fondoDeAgua); without it, the N2 look. */
   orilla?: OrillaAgua;
-  /** E03 · AG10: how visible the drifting 0/1 strings are (0 = off, default off; 0.35 = «tenue», the spec's default). */
+  /** E03 · AG10: how visible the drifting 0/1 strings are (0 = off, default off; E51: BINARIOS_TENUE 0.6 = «tenue», raised
+   * from E03's 0.35, which hardly showed). With `orilla.variante = "oceano"` it is the code's strength (default 1). */
   binarios?: number;
   /** The current that drags the binaries (world vec3, m/s; e.g. entorno's `vientoU`): the water drifts at ~12 % of it. */
   corriente?: { value: THREE.Vector3 };
 };
 /** E03 variants Pablo picks from photos: one smooth gradient (Starwild-like) or the same gradient in 4 flat steps (PRI-008). */
-export type VarianteOrilla = "continuo" | "bandas";
+export type VarianteOrilla = "continuo" | "bandas" | "oceano";
 /** The bed under a water: depth texture over a square of side `lado` (m) whose corner is (x0, z0) in world xz. */
 export type FondoAgua = { textura: THREE.DataTexture; x0: number; z0: number; lado: number; res: number; datos: Uint8Array };
 /** Signed distance (m) to the zero crossings of a res² grid of depths (+ in the water): the crossings are found on every
@@ -78,6 +88,28 @@ export const tDeProfundidad = (d: number) => 1 - Math.exp(-Math.max(0, d) / PROF
 /** «bandas»: the same parameter in n flat levels 0, 1/(n−1) … 1 (the shader softens each edge by one pixel). */
 export const bandear = (t: number, n = BANDAS_ORILLA) => Math.min(Math.floor(Math.min(Math.max(t, 0), 0.99999) * n), n - 1) / (n - 1);
 const lin = (hex: number) => new THREE.Color(hex);
+// ---- E51 · the code in the water: shared constants + CPU twins (tests, docs) ----
+/** AG10 «tenue» after E51 (E03's 0.35 was nearly invisible in the photos). */
+export const BINARIOS_TENUE = 0.6;
+/** Glyph cell (m): along the current × across it; the glyph fills 14/16 of it. E03's digits were 0.6 × 1.0 with thin strokes. */
+export const CELDA_GLIFO = { largo: 0.8, ancho: 1.1 } as const;
+/** Glyphs fade out between these distances from the camera (m): they are a near-field detail. */
+export const LEJOS_GLIFO = [30, 70] as const;
+/** The pulse front: speed (m/s) along the current, distance between fronts (m), tail length (m). A front crosses the 41 m
+ * pond in ~8 s and comes back every 14 s. */
+export const PULSO = { vel: 5, lambda: 70, cola: 9 } as const;
+/** 0 by day … 1 at night, from the sun's height (solDir.y): the plankton only glows in the dark. */
+export const nocheDeSol = (y: number) => { const k = Math.min(1, Math.max(0, (y + 0.1) / 0.25)); return 1 - k * k * (3 - 2 * k); };
+/** CPU twin of the pulse brightness at `s` metres along the current at time t (without the wobble): 1 on the head,
+ * e^(−behind/cola) behind it, ~0 just ahead of it. */
+export const pulsoEn = (s: number, t: number) => { const u = (((s - t * PULSO.vel) / PULSO.lambda) % 1 + 1) % 1; return Math.exp(-(1 - u) * PULSO.lambda / PULSO.cola); };
+/** CPU twin of the «oceano» colour ramp (linear rgb, before light). */
+export function rampaOceano(t: number): [number, number, number] {
+  const ss = (a: number, b: number, x: number) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+  const s = lin(AGUA_OCEANO.somera), m = lin(AGUA_OCEANO.media), h = lin(AGUA_OCEANO.honda);
+  const a = ss(0, 0.45, t), b = ss(0.4, 1, t), mx = (p: number, q: number, k: number) => p + (q - p) * k;
+  return [mx(mx(s.r, m.r, a), h.r, b), mx(mx(s.g, m.g, a), h.g, b), mx(mx(s.b, m.b, a), h.b, b)];
+}
 /** CPU twin of the shader's colour ramp (linear rgb, before light): somera → media → honda (paleta.ts AGUA_ORILLA). */
 export function rampaOrilla(t: number): [number, number, number] {
   const ss = (a: number, b: number, x: number) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
@@ -183,7 +215,7 @@ export function materialDeAgua(o: OpcionesAgua, olasDesde: number): THREE.MeshLa
   const V = normalize(cameraPosition.sub(positionWorld));
   // ---- E03: the real depth of the bed (m) under this pixel; it replaces the outline's distance everywhere ----
   const orillaForma = orilla; // the outline's distance: the vertex waves keep fading on it (no texture read in the vertex stage)
-  const sh = o.orilla, bandas = sh?.variante === "bandas";
+  const sh = o.orilla, bandas = sh?.variante === "bandas", oceano = sh?.variante === "oceano";
   let prof: N = float(0) as N, aOrilla: N = float(0) as N; // depth (m) · signed distance to the waterline (m)
   if (sh) {
     const f = sh.fondo;
@@ -221,9 +253,14 @@ export function materialDeAgua(o: OpcionesAgua, olasDesde: number): THREE.MeshLa
   const c3 = (hex: number) => { const k = new THREE.Color(hex); return vec3(k.r, k.g, k.b); };
   if (sh) { // E03 ramp: somera → media → honda (paleta.ts AGUA_ORILLA); «bandas» samples the very same ramp at 4 flat levels
     const t = bandas ? bandearN(hondura, BANDAS_ORILLA) : hondura;
-    col = mix(mix(c3(AGUA_ORILLA.somera), c3(AGUA_ORILLA.media), smoothstep(0, 0.55, t)), c3(AGUA_ORILLA.honda), smoothstep(0.5, 1, t)) as typeof col;
-    // the shore band: a clear strip where the water barely covers the bed
-    col = mix(col, c3(AGUA_ORILLA.franja), bajo(aOrilla, ORILLA_M.franja, 0.6).mul(0.5)) as typeof col;
+    if (oceano) { // E51: the deep ocean ramp (darker sooner), the shore band a dark teal
+      col = mix(mix(c3(AGUA_OCEANO.somera), c3(AGUA_OCEANO.media), smoothstep(0, 0.45, t)), c3(AGUA_OCEANO.honda), smoothstep(0.4, 1, t)) as typeof col;
+      col = mix(col, c3(AGUA_OCEANO.franja), bajo(aOrilla, ORILLA_M.franja, 0.6).mul(0.45)) as typeof col;
+    } else {
+      col = mix(mix(c3(AGUA_ORILLA.somera), c3(AGUA_ORILLA.media), smoothstep(0, 0.55, t)), c3(AGUA_ORILLA.honda), smoothstep(0.5, 1, t)) as typeof col;
+      // the shore band: a clear strip where the water barely covers the bed
+      col = mix(col, c3(AGUA_ORILLA.franja), bajo(aOrilla, ORILLA_M.franja, 0.6).mul(0.5)) as typeof col;
+    }
   }
   if (conOlas) {
     const cresta = smoothstep(0.6, 0.65, alturaOla(pLocal)).mul(smoothstep(0, 2, orilla));
@@ -233,14 +270,14 @@ export function materialDeAgua(o: OpcionesAgua, olasDesde: number): THREE.MeshLa
     const s = sin(pw.x.mul(0.55).add(sin(pw.y.mul(0.8).add(reloj.mul(0.35))).mul(1.6)).add(reloj.mul(0.45)));
     const corte = smoothstep(0.1, 0.4, sin(pw.y.mul(0.9).sub(pw.x.mul(0.3)).add(reloj.mul(0.2))));
     const linea = smoothstep(0.93, 0.965, s).mul(corte).mul(smoothstep(0.1, 0.35, hondura));
-    col = mix(col, vec3(0.93, 0.98, 1), linea.mul(0.65)) as typeof col;
+    col = mix(col, vec3(0.93, 0.98, 1), linea.mul(oceano ? 0.1 : 0.65)) as typeof col; // E51: faint on the dark ocean
   }
   if (d.causticas) { // fake caustics: the net where three drifting sine waves cross zero, only in the shallows
     const q = pw.mul(1.6);
     const v = sin(q.x.add(sin(q.y.mul(1.3).add(reloj.mul(0.7))))).add(sin(q.y.add(sin(q.x.mul(1.7).sub(reloj.mul(0.6)))))).add(sin(q.x.add(q.y).mul(0.7).sub(reloj.mul(0.9))));
     const red = oneMinus(smoothstep(0.08, 0.3, abs(v)));
     // E03: over the real bed the shallows are wide, so the net stays faint and only where the water is thinnest
-    const zonaCaustica = sh ? oneMinus(smoothstep(0.08, 0.32, hondura)).mul(0.1) : oneMinus(smoothstep(0.15, 0.6, hondura)).mul(0.22);
+    const zonaCaustica = oceano ? float(0) : sh ? oneMinus(smoothstep(0.08, 0.32, hondura)).mul(0.1) : oneMinus(smoothstep(0.15, 0.6, hondura)).mul(0.22);
     col = col.add(vec3(1, 1, 0.92).mul(red.mul(zonaCaustica))) as typeof col;
   }
   // ---- ripple rings (pesca): pale rings leaving a point, fading in 4 s ----
@@ -253,7 +290,7 @@ export function materialDeAgua(o: OpcionesAgua, olasDesde: number): THREE.MeshLa
   }
   // ---- stepped fresnel toward the horizon: the water at a grazing angle takes the sky's colour, in two flat steps ----
   const fr = oneMinus(clamp(V.y, 0, 1));
-  const escalon = sh && !bandas ? smoothstep(0.8, 0.985, fr).mul(0.36) : smoothstep(0.86, 0.88, fr).mul(0.2).add(smoothstep(0.955, 0.965, fr).mul(0.16));
+  const escalon = sh && !bandas ? smoothstep(0.8, 0.985, fr).mul(oceano ? 0.12 : 0.36) : smoothstep(0.86, 0.88, fr).mul(0.2).add(smoothstep(0.955, 0.965, fr).mul(0.16));
   col = mix(col, luz.cielo as unknown as typeof col, escalon) as typeof col;
   // ---- shore foam: a band that breathes along the shore; with espumaViva a broken second line runs in to the shore ----
   const tt = d.espumaViva ? reloj : float(0);
@@ -275,15 +312,20 @@ export function materialDeAgua(o: OpcionesAgua, olasDesde: number): THREE.MeshLa
     const ola = sin(tt.mul(1.4).add(dot(pw, vec2(0.031, 0.041)).mul(6.2832))).mul(0.25).add(0.35);
     const lav = bajo(aOrilla, ORILLA_M.lavado * 0.5, ORILLA_M.lavado * 0.5).mul(ola);
     lavado = (bandas ? step(0.3, lav).mul(0.45) : lav) as N;
-    col = mix(col, c3(AGUA_ORILLA.espuma), lavado.mul(0.7)) as typeof col;
+    col = mix(col, c3(oceano ? AGUA_OCEANO.espuma : AGUA_ORILLA.espuma), lavado.mul(oceano ? 0.35 : 0.7)) as typeof col;
   } else if (d.espumaViva) {
     const fase = fract(reloj.mul(0.16).add(ruido.mul(0.12)));
     const donde = oneMinus(fase).mul(anchoEspuma * 3.2).add(anchoEspuma * 0.9);
     const linea2 = oneMinus(smoothstep(0.02, 0.06, abs(orilla.sub(donde)))).mul(fase).mul(smoothstep(0.35, 0.55, ruido));
     espuma = max(espuma, linea2) as N;
   }
-  // ---- E03 · AG10: 0/1 strings drifting with the current, under the surface (parallax by depth), now and then on a crest ----
-  const vis = Math.min(1, Math.max(0, o.binarios ?? 0));
+  // ---- E03 · AG10 / E51 code: glyph strings drifting with the current, under the surface (parallax by depth), now and then
+  // on a crest. a/b: binaries only (atlas 0–1), dark ink by day. «oceano»: 0/1 + letters + house symbols that mutate now and
+  // then (Rezmason's cycling symbols), faint by day, plankton glow at night with a pulse front. Glyph bombing: one cell → one
+  // random glyph (Doss §10.6), one atlas read per pixel (Codrops' ASCII renderer keeps the same budget).
+  const vis = Math.min(1, Math.max(0, o.binarios ?? (oceano ? 1 : 0)));
+  const noche = oneMinus(smoothstep(-0.1, 0.15, (luz.solDir as unknown as ReturnType<typeof vec3>).y)) as N; // twin: nocheDeSol
+  let glifo: N = float(0) as N, pulso: N = float(0) as N, cresta: N = float(0) as N, halo: N = float(0) as N, motas: N = float(0) as N;
   if (vis > 0) {
     const cur = (o.corriente ? (o.corriente as unknown as ReturnType<typeof vec3>).xz.mul(0.12) : vec2(0.24, 0.09)) as unknown as N2;
     const rapidez = max(length(cur), 0.05), dir = cur.div(rapidez) as unknown as N2;
@@ -291,21 +333,52 @@ export function materialDeAgua(o: OpcionesAgua, olasDesde: number): THREE.MeshLa
     const pB = pw.sub(V.xz.mul(bajoAgua.div(max(V.y, 0.25)))) as unknown as N2; // where the view ray meets a layer under the surface
     const largo = dot(pB, dir), traves0 = dot(pB, vec2(dir.y.negate(), dir.x));
     const traves = traves0.add(sin(largo.mul(0.35).add(reloj.mul(0.3))).mul(0.3)); // the strings meander with the flow
-    const fila = floor(traves.div(1.0)), h1 = (a: N, b: N) => fract(sin(a.mul(127.1).add(b.mul(311.7))).mul(43758.5453)) as N;
+    const AL = CELDA_GLIFO.largo, AN = CELDA_GLIFO.ancho;
+    const fila = floor(traves.div(AN)), h1 = (a: N, b: N) => fract(sin(a.mul(127.1).add(b.mul(311.7))).mul(43758.5453)) as N;
     const avance = largo.sub(reloj.mul(rapidez).mul(h1(fila, float(3.7)).mul(0.8).add(0.6))); // each row its own speed
-    const celda = floor(avance.div(0.6)), cx = fract(avance.div(0.6)).sub(0.5), cy = fract(traves.div(1.0)).sub(0.5); // digits ~0.35 × 0.7 m
-    const tramo = h1(floor(celda.div(7)), fila); // strings of 7 digits; a third of them lit, each fading in and out
-    const encendido = step(0.66, tramo).mul(smoothstep(0.1, 0.7, sin(reloj.mul(0.45).add(tramo.mul(40)))));
-    const cero = oneMinus(smoothstep(0.1, 0.19, abs(length(vec2(cx.div(0.27), cy.div(0.34))).sub(0.8))));
-    const uno = oneMinus(smoothstep(0.055, 0.09, abs(cx))).mul(oneMinus(smoothstep(0.28, 0.33, abs(cy))));
+    const celda = floor(avance.div(AL)), fx = fract(avance.div(AL)), fy = fract(traves.div(AN));
+    const tramo = h1(floor(celda.div(7)), fila); // strings of 7 glyphs; a third (oceano: half) of them lit, each fading in and out
+    const encendido = step(oceano ? 0.5 : 0.66, tramo).mul(smoothstep(0.1, 0.7, sin(reloj.mul(0.45).add(tramo.mul(40)))));
+    // which glyph: a/b → 0 or 1; oceano → 50 % binaries, 32 % letters, 18 % symbols, re-drawn every ~2.5 s per cell
+    const semilla = oceano ? celda.add(floor(reloj.mul(0.4).add(h1(celda, fila.add(5)).mul(7))).mul(13.1)) : celda;
+    const r = h1(semilla as N, fila.add(17));
+    const bin = step(0.5, fract(r.mul(7.31)));
+    const idx = oceano ? mix(bin, mix(floor(fract(r.mul(13.7)).mul(14)).add(2), floor(fract(r.mul(29.1)).mul(16)).add(16), step(0.82, r)), step(0.5, r)) : bin;
+    const C = ATLAS.columnas, F = ATLAS.filas, ins = 0.5 / ATLAS.celda;
+    const uvG = vec2(mod(idx, C).add(clamp(fx, ins, 1 - ins)), floor(idx.div(C)).add(clamp(fy, ins, 1 - ins))).div(vec2(C, F));
+    const campo = texture(atlasGlifos(), uvG).r;
+    const w = clamp(fwidth(campo), 0.02, 0.3);
+    const forma = smoothstep(float(BORDE_GLIFO - 0.13).sub(w), float(BORDE_GLIFO - 0.13).add(w), campo);
     const dist = length(cameraPosition.xz.sub(pw));
-    const glifo = mix(cero, uno, step(0.5, h1(celda, fila.add(17)))).mul(encendido).mul(oneMinus(smoothstep(25, 55, dist)))
-      .mul(sh ? smoothstep(0.8, 2.5, aOrilla) : float(1)).mul(oneMinus(espuma)) as N;
+    let lit: N = encendido as N;
+    if (oceano) {
+      // the pulse front (Rezmason raindrop: 1 − fract): sweeps along the current, a wobbling line, sharp head, 9 m tail
+      const sP = largo.add(sin(traves0.mul(0.13).add(reloj.mul(0.25))).mul(2.5)).sub(reloj.mul(PULSO.vel));
+      const fase = fract(sP.div(PULSO.lambda)); // twin: pulsoEn; the head is softened over 0.6 m so it never aliases
+      pulso = exp(oneMinus(fase).mul(-PULSO.lambda / PULSO.cola)).mul(oneMinus(smoothstep(1 - 0.6 / PULSO.lambda, 1, fase))) as N;
+      lit = max(encendido, pulso.mul(0.55)) as N; // the front wakes the dark strings too, at half strength: a band of code
+    }
+    const lejos = oneMinus(smoothstep(LEJOS_GLIFO[0], LEJOS_GLIFO[1], dist));
+    const fuera = (sh ? smoothstep(0.8, 2.5, aOrilla) : float(1)).mul(oneMinus(espuma));
+    halo = smoothstep(0.05, BORDE_GLIFO, campo).mul(oneMinus(forma)).mul(lit).mul(lejos).mul(fuera) as N; // the field's soft skirt
+    glifo = forma.mul(lit).mul(lejos).mul(fuera) as N;
     // «a veces en la cresta»: where a slow swell peaks, a few strings come up lighter (the pond has no vertex waves)
-    const cresta = smoothstep(0.82, 0.97, sin(dot(pw, vec2(0.23, 0.17)).sub(reloj.mul(0.8))).mul(sin(dot(pw, vec2(-0.11, 0.29)).add(reloj.mul(0.5)))));
-    col = mix(col, mix(c3(AGUA_ORILLA.codigo), c3(AGUA_ORILLA.codigoCresta), cresta), glifo.mul(vis * 0.7).mul(cresta.mul(0.6).add(1))) as typeof col;
+    cresta = smoothstep(0.82, 0.97, sin(dot(pw, vec2(0.23, 0.17)).sub(reloj.mul(0.8))).mul(sin(dot(pw, vec2(-0.11, 0.29)).add(reloj.mul(0.5))))) as N;
+    if (oceano) {
+      // plankton specks (ShaderKit «Bioluminescent Bay»: sparse sparkles on the waves): 1 in 12 cells of 0.35 m holds a dot that
+      // twinkles; they only show at night (emissive), dim always and bright in the pulse
+      const q = pB.mul(1 / 0.35), qc = floor(q), qh = h1(qc.x as N, qc.y as N);
+      const punto = oneMinus(smoothstep(0.06, 0.13, length(fract(q).sub(0.5))));
+      motas = step(0.92, qh).mul(punto).mul(sin(reloj.mul(2.3).add(qh.mul(60))).mul(0.35).add(0.65)).mul(lejos).mul(fuera) as N;
+      const dia = glifo.mul(vis * 0.45).mul(cresta.mul(0.6).add(1)).mul(pulso.mul(0.6).add(1)).mul(oneMinus(noche.mul(0.7)));
+      col = mix(col, mix(c3(AGUA_OCEANO.codigo), c3(AGUA_OCEANO.codigoCresta), cresta), clamp(dia, 0, 0.8)) as typeof col;
+    } else {
+      // a/b (E51 raised): dark ink under the surface, a light glyph where a crest lifts it — both read on the light water
+      const k = glifo.mul(vis * 0.85).mul(cresta.mul(0.5).add(1));
+      col = mix(col, mix(c3(AGUA_OCEANO.tinta), c3(AGUA_ORILLA.codigoCresta), cresta), clamp(k, 0, 0.75)) as typeof col;
+    }
   }
-  col = mix(col, sh ? c3(AGUA_ORILLA.espuma) : vec3(1, 1, 1), espuma) as typeof col;
+  col = mix(col, sh ? c3(oceano ? AGUA_OCEANO.espuma : AGUA_ORILLA.espuma) : vec3(1, 1, 1), espuma) as typeof col;
   mat.colorNode = col;
   // foam reads white even in shade (a little of its own light), like painted foam; the sun's colour tints it
   let propia = (luz.sol as unknown as typeof col).mul(espuma.mul(0.35)) as typeof col;
@@ -319,10 +392,16 @@ export function materialDeAgua(o: OpcionesAgua, olasDesde: number): THREE.MeshLa
     const chispa = smoothstep(0.45, 0.5, brillo).mul(oneMinus(espuma)).mul(smoothstep(0.0, 0.08, L.y));
     propia = propia.add((luz.sol as unknown as typeof col).mul(chispa.mul(1.3))) as typeof col;
   }
+  if (oceano) { // E51 · plankton at night: lit code (base + pulse head + crest), the breaking foam line, a faint wake of the front
+    const glow = glifo.add(halo.mul(0.3)).mul(pulso.mul(1.3).add(0.3)).mul(cresta.mul(0.8).add(1)).mul(vis);
+    const fuente = mix(c3(AGUA_OCEANO.plancton), c3(AGUA_OCEANO.planctonPico), clamp(pulso.mul(0.6), 0, 1));
+    const mar = espuma.mul(0.45).add(pulso.mul(0.1).mul(smoothstep(0.8, 3, aOrilla))).add(motas.mul(pulso.mul(1.5).add(0.25)).mul(vis));
+    propia = propia.add(fuente.mul(glow.add(mar).mul(noche).mul(0.9))) as typeof col;
+  }
   mat.emissiveNode = propia;
   if (sh) { // E03: thin water shows its bed, deep water and grazing views close it (starwild's opacity idea: depth over the view's cosine)
     const cubre = oneMinus(exp(max(prof, 0).mul(-1.8).div(max(V.y, 0.08)))) as N;
-    mat.opacityNode = max(max(mix(float(0.32), float(0.95), bandas ? bandearN(cubre, BANDAS_ORILLA) : cubre).add(escalon.mul(0.2)), espuma), lavado);
+    mat.opacityNode = max(max(mix(float(oceano ? 0.9 : 0.32), float(oceano ? 0.97 : 0.95), bandas ? bandearN(cubre, BANDAS_ORILLA) : cubre).add(escalon.mul(0.2)), espuma), lavado);
   } else mat.opacityNode = max(mix(float(0.76), float(0.93), banda1.mul(0.5).add(banda2.mul(0.5))).add(escalon.mul(0.2)), espuma);
   return mat;
 }

@@ -247,3 +247,25 @@ export const AGUA_ORILLA = {
   codigo: mezcla(CASA.verdemar, CASA.arena, 0.3),
   codigoCresta: mezcla(CASA.arena, CASA.verdemar, 0.25),
 } as const;
+
+// E51
+/**
+ * E51 · Agua de la orilla cyberpunk (agua-estilo.ts variante «oceano», MUNDO-PROYECTADO.md): no el azul de la Tierra sino
+ * océano profundo casi negro-petróleo (Turquesa profundo hundido en Noche), recorrido por código (0/1, letras, símbolos de la
+ * casa) que de día apenas se ve (turquesa con verdemar) y de noche luce como plancton: verde-azulado bioluminiscente
+ * (Turquesa + Verdemar; el pico del pulso, Verdemar con Arena). Espuma velada (Arena velada + Verdemar), nunca blanca.
+ * `tinta` = los binarios de las variantes claras (a/b) subidos en E51: tinta de Turquesa profundo con verdín, que SÍ se lee
+ * sobre el agua turquesa clara (el verdemar con arena de E03 se perdía). Solo mezclas de tokens, ningún hex nuevo.
+ */
+export const AGUA_OCEANO = {
+  somera: mezcla(mezcla(CASA.turquesaProfundo, VERDES.verdin, 0.3), CASA.noche, 0.5),
+  media: mezcla(CASA.turquesaProfundo, CASA.noche, 0.7),
+  honda: mezcla(CASA.noche, CASA.turquesaProfundo, 0.15),
+  franja: mezcla(mezcla(CASA.turquesaProfundo, CASA.ceniza, 0.35), CASA.noche, 0.2),
+  espuma: mezcla(CASA.arenaVelada, CASA.verdemar, 0.35),
+  codigo: mezcla(CASA.turquesa, CASA.verdemar, 0.35),
+  codigoCresta: mezcla(CASA.verdemar, CASA.arena, 0.3),
+  plancton: mezcla(CASA.turquesa, CASA.verdemar, 0.4),
+  planctonPico: mezcla(CASA.verdemar, CASA.arena, 0.35),
+  tinta: mezcla(CASA.turquesaProfundo, VERDES.verdin, 0.3),
+} as const;
