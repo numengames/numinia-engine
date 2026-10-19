@@ -10,7 +10,8 @@
 import { rngNext } from "../../packages/core/src/index.ts";
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
-import { lucha, DANO_BASE, DANO_VAR, ENFRIAMIENTO_TICKS, REAPARICION_S, VER_M, VIDA_JUGADOR_MAX, REAPARICION_JUGADOR_TICKS } from "./feature.ts";
+import { crearEscalera, NIVEL_COLAPSADO, NIVEL_ALETARGADO, ESCALERA } from "./estados.ts";
+import { lucha, ALCANCE_PVP_M, DANO_BASE, DANO_VAR, ENFRIAMIENTO_TICKS, REAPARICION_S, VER_M, VIDA_JUGADOR_MAX, REAPARICION_JUGADOR_TICKS } from "./feature.ts";
 import { BESTIARIO } from "./bestiario.ts";
 import { ECLIPSE, cargaTras, ticksDe } from "./habilidades.ts";
 
@@ -35,10 +36,11 @@ export function valorDe(c: Criatura): Msg | null {
 /** One blow's damage from the engine's PRNG: DANO_BASE..DANO_BASE+DANO_VAR−1 (pure; tests use it). */
 export const tirarDano = (rng: Uint32Array): number => DANO_BASE + (rngNext(rng) % DANO_VAR);
 
-export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number } = {}) => serverPart(lucha, (api: ServerApi) => {
+export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp?: boolean } = {}) => serverPart(lucha, (api: ServerApi) => {
   const rng = new Uint32Array([(opts.semilla ?? 0x10c4a) >>> 0]);
   const criaturas = new Map<string, Criatura>();
   const puedeDesde = new Map<number, number>();   // player → first tick a blow counts again
+  const escalera = crearEscalera();                // the players' Estado ladder (server-owned, estados.ts)
   const vuelven = new Map<string, number>();       // dissolved creature → tick it returns
   const vida = new Map<number, number>();          // player → life left (server memory only, L2 trozo 1)
   const caidos = new Map<number, number>();        // fallen player → tick they come back whole
@@ -57,10 +59,26 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number } = 
 
   const carga = new Map<number, number>();         // player → Carga (0..100), lost on leaving
   const habDesde = new Map<string, number>();      // `player:ability` → first tick it may be used again
-  api.onLeave((e) => { puedeDesde.delete(e); vida.delete(e); caidos.delete(e); carga.delete(e); for (const k of [...habDesde.keys()]) if (k.startsWith(`${e}:`)) habDesde.delete(k); });
+  api.onLeave((e) => { puedeDesde.delete(e); escalera.reiniciar(e); vida.delete(e); caidos.delete(e); carga.delete(e); for (const k of [...habDesde.keys()]) if (k.startsWith(`${e}:`)) habDesde.delete(k); });
+
+  /** PVP blow (`objetivo: p:<entidad>`): the server decides if PVP is on, reach, cooldown and the rung; no damage number. */
+  const golpearPersona = (e: number, m: Msg) => {
+    const otro = Number(String(m.objetivo).slice(2)), t = api.tick();
+    if (!Number.isInteger(otro) || otro === e || !api.players().includes(otro)) return rechazar(e, "Ahí no hay nadie a quien golpear.");
+    if (!opts.pvp) return rechazar(e, "Aquí no se lucha entre personas.");
+    if (t < (puedeDesde.get(e) ?? 0)) return;
+    if (escalera.nivel(e, t) >= NIVEL_COLAPSADO) return rechazar(e, "Estás colapsado: no puedes golpear.");
+    if (escalera.nivel(otro, t) >= NIVEL_ALETARGADO) return rechazar(e, "Esa persona ya está aletargada.");
+    const a = api.position(e), b = api.position(otro);
+    if (!a || !b || Math.hypot(a.x - b.x, a.z - b.z) > ALCANCE_PVP_M) return api.emit("aire", { objetivo: String(m.objetivo) }, { to: e });
+    puedeDesde.set(e, t + ENFRIAMIENTO_TICKS);
+    const n = escalera.subir(otro, t);
+    api.emit("estado", { objetivo: `p:${otro}`, estado: ESCALERA[n], de: e }, { near: { x: b.x, z: b.z }, radius: VER_M });
+  };
 
   api.on("golpear", (e, m) => {
-    if (caidos.has(e)) return rechazar(e, "Estás caído: espera a recuperarte.");
+    if (caidos.has(e)) return rechazar(e, "Estás caído: espera a recuperarte.");   // #145: a fallen player strikes nobody
+    if (/^p:/.test(String(m.objetivo))) return golpearPersona(e, m);
     const key = String(m.objetivo), v = api.state.get(key);
     if (!v || !criaturas.has(key)) return rechazar(e, `No hay ninguna criatura «${key}».`);
     const t = api.tick();
