@@ -837,3 +837,28 @@ Presupuesto idéntico (terreno y hierba sin un triángulo más): A 13 951 tri/8 
 La flora pequeña de `DISENO-LORE.md` ya está en el paisaje, horneada en la malla del terreno como los Residuos (cero llamadas nuevas): módulo puro `naturaleza/flora.ts`, llamado desde `terreno.ts`. En el **páramo** (zona roca): cactus fósiles de 1–2,5 m (columna acanalada de piedra clara salvia, uno o dos anillos de latón, brazo de candelabro en algunos altos y un punto turquesa diminuto de señal), espinas vítreas (4–6 esquirlas verdemar con alma turquesa) y cardos (cabeza grana empolvada). En el **jardín** (prado y bosque): montículos de brezo de luto (verde casi negro con espigas grana) y matas de azafrán seco (abanico ámbar). Nada en la plaza, el estanque, la orilla ni la arena. Los grupos (3–5 plantas) se alternan páramo/jardín y van primero los cercanos a la plaza, así hasta el tope de D se ve un cactus. Colores: bloque `// R6.5` (`FLORA`) al final de `paleta.ts`, solo mezclas de tokens.
 
 Presupuesto: tope de flora A 510 / B 300 / C 240 / D 120 triángulos dentro de la parte del terreno (`reparto.terreno` A 4000 · B 2100 · C 1650 · D 800). En A se paga con 30 matas de hierba del anillo exterior (`tuftsMax` 1030 → 1000) y holgura sin usar de árboles y fauna. Peor caso medido: A 13 951 → 14 279 · B 8 063 → 8 343 · C 6 096 → 6 326 · D 3 039 → 3 137; llamadas sin cambio (8/7/6/5). Test: `test/naturaleza-flora.test.ts`. Fotos: `fotos/r6-5-*`.
+
+## E03 · Agua de orilla (AG1) en dos variantes + binarios (AG10)
+
+**Qué:** el estanque toma el color de la **profundidad real del lecho** bajo cada píxel, no de la distancia al contorno.
+`fondoDeAgua()` (`agua-estilo.ts`) hornea una vez, en CPU, una textura RG8 de 64² (~8 KB) sobre el cuadrado del
+estanque: R = profundidad (−0,5…+2 m), G = distancia con signo a la línea de agua (−1…+8 m). La altura sale de la
+**malla del terreno que se dibuja** (`alturaDeMalla`: la red gruesa cruza el agua metros más allá de donde lo hace la
+función suave, y la espuma tiene que caer donde la ve el ojo); fuera de la malla, `alturaEn` del relieve.
+
+- **Color:** somera → media → honda (`AGUA_ORILLA` al final de `paleta.ts`: verdemar, turquesa, turquesa profundo,
+  verdín; turquesa verdosa y luminosa, sin gris). Profundidad «moderada»: `1 − e^(−d/0,55 m)`.
+- **Dos variantes** (`orilla.variante`): `continuo` (un degradado, la idea de Starwild) y `bandas` (el MISMO degradado
+  muestreado en 4 escalones planos, PRI-008; cada borde se suaviza un píxel con `fwidth`, no parpadea).
+- **Franja** clara hasta 1,4 m de la orilla, **espuma** fina en la línea de agua (arena con un poco de verdemar, nunca
+  blanco puro) y una segunda línea que entra hacia la orilla, **lavado** pálido que va y viene hasta 2,6 m (idea de
+  starwild 021). La opacidad crece con la profundidad y con lo rasante de la mirada (el lecho se ve en lo somero).
+- **Binarios** (`binarios`, 0 = apagado, 0,35 = tenue): hileras de 0 y 1 translúcidas bajo la superficie (paralaje
+  por profundidad), arrastradas por la corriente (`corriente` = `vientoU` × 12 %), cada hilera a su velocidad, que se
+  encienden y apagan; donde una ondulación lenta hace cresta suben más claros. Se apagan a 25–55 m y junto a la orilla.
+- **Coste:** misma malla, misma llamada, mismos triángulos; una lectura de textura más por píxel. En D el estanque va
+  pintado en el terreno y no cambia.
+- **Banco:** `e03-agua-*` (estanque solo) y `e03-nat-*` (naturaleza entera con el estanque re-vestido), variantes `a`,
+  `b`, `a-bin`, `b-bin`; medir con `--escena naturaleza --camara estanque` (vuelta por la orilla a 1,35 × radio: el
+  recorrido de E01 nunca ve el estanque). Fotos: `tools/fotos-agua.mjs` (cámara fija con `__banco.retrato`).
+- **Estado:** experimento; el juego sigue con el agua N2 hasta que Pablo elija variante (saber-3d `queries/e03-agua-de-orilla.md`).
