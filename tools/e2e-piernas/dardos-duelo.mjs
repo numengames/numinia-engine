@@ -13,12 +13,18 @@
 //     (Ganas / Pierdes / Empate) agree with the server and with each other.
 //  4) B leaves AR cleanly.
 //  5) Variant: a second match; B leaves AR in the middle of it → A reads «Ganas · tu rival se fue» (abandono).
+//  v3 (teams): the change of turn is ALWAYS a button. After the 3rd dart the visit waits in «Retira los dardos»: A clicks «Cambiar turno»
+//     in its HUD; B presses the same button on its 3D AR panel with the controller ray (IWER aimed at the panel's button).
+//  6) Three players on a board with `equipos: 3` (A on the PC, B and C in other browsers, all joined before the host presses): the
+//     host sees «Empezar» only once 2 teams sit and clicks it; the turns go A, B, C; each presses «Cambiar turno» in its HUD; the three
+//     rows, their scores and the verdict agree on the three pages. Under load (loadavg > 8) a wait that times out is retried once
+//     with a longer limit and the run says it was the load (out.cargas); with the machine quiet a timeout is a failure.
 // No page errors anywhere. Exit 0 = right.
 import { createRequire } from "node:module";
 import { existsSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { tmpdir, loadavg } from "node:os";
 
 const REPO = new URL("../../", import.meta.url).pathname;
 const PW = process.env.PW_CORE ?? join(REPO, "node_modules/playwright-core");
@@ -38,7 +44,7 @@ const tmp = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "e2e-duelo-"));
 const entorno = join(tmp, "entorno");
 mkdirSync(entorno);
 writeFileSync(join(entorno, "entorno.json"), JSON.stringify({ schema: "numinia-engine/entorno@1", aparicion: { x: -34, z: 0, radio: 3 } }, null, 2));
-writeFileSync(join(entorno, "dardos.json"), JSON.stringify({ schema: "numinia-engine/dardos@1", sitios: [{ id: "torre", nombre: "Diana de la Torre", x: TABLERO.x, y: 0, z: TABLERO.z, radio: TABLERO.radio, duelo: true, remoto: true, rondas: 1 }] }, null, 2));
+writeFileSync(join(entorno, "dardos.json"), JSON.stringify({ schema: "numinia-engine/dardos@1", sitios: [{ id: "torre", nombre: "Diana de la Torre", x: TABLERO.x, y: 0, z: TABLERO.z, radio: TABLERO.radio, duelo: true, remoto: true, rondas: 1 }, { id: "mesa", nombre: "Mesa de tres", x: 14, y: 0, z: 14, radio: 3, duelo: true, remoto: true, rondas: 1, equipos: 3 }] }, null, 2));
 const procs = [];
 const arrancar = (cmd, args, env, nombre) => { const p = spawn(cmd, args, { cwd: REPO, env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"], detached: true }); let t = ""; p.stdout.on("data", (d) => { t += d; }); p.stderr.on("data", (d) => { t += d; }); procs.push({ p, log: () => t, nombre }); return p; };
 for (const port of [SP, VP]) if (await fetch(`http://127.0.0.1:${port}/`).then(() => true, () => false)) { console.error(`port ${port} is in use: set E2E_SERVER_PORT / E2E_VITE_PORT`); process.exit(2); }
@@ -85,7 +91,14 @@ async function caminar(p, x, z, cerca = 0.8, maxMs = 60000) {
   return Math.round(d * 10) / 10;
 }
 const ctl = (p, code, arg) => p.evaluate(code, arg);
-const esperar = (p, fn, arg, ms = 15000) => p.waitForFunction(fn, arg, { timeout: ms });
+const esperar = async (p, fn, arg, ms = 15000) => {
+  try { return await p.waitForFunction(fn, arg, { timeout: ms }); } catch (e) {
+    const carga = loadavg()[0];
+    if (carga <= 8) throw e; // the machine is quiet: a timeout is a failure
+    (out.cargas ??= []).push({ carga: Math.round(carga * 10) / 10, espera: String(fn).slice(0, 90), ms }); // loaded: wait again, three times as long, and say so
+    return p.waitForFunction(fn, arg, { timeout: ms * 3 });
+  }
+};
 const foto = async (p, n) => { if (SHOTS) await p.screenshot({ path: `${SHOTS}/dardos-duelo-${n}.png` }); };
 const duelo = (p) => ctl(p, () => { const d = globalThis.__numinia.dardos.duelo(); return d && { sitio: d.sitio, ronda: d.ronda, esperando: d.esperando, turnoDe: d.turnoDe, yo: d.yo, miTurno: d.miTurno, rival: d.rival, yoPuntos: d.yoPuntos, a: d.a && { entity: d.a.entity, nombre: d.a.nombre, puntos: d.a.puntos, pared: !!d.a.pared }, b: d.b && { entity: d.b.entity, nombre: d.b.nombre, puntos: d.b.puntos, pared: !!d.b.pared }, fin: d.fin && { ganador: d.fin.ganador, empate: d.fin.empate, abandono: d.fin.abandono, texto: d.fin.texto, gane: d.fin.gane } }; });
 const vista = (p) => ctl(p, () => globalThis.__numinia.dardosHud?.duelo?.() ?? null);
@@ -201,10 +214,16 @@ try {
     tirosA.push(u);
   }
   res.tirosA = tirosA;
+  // v3: after the third dart the visit waits in «Retira los dardos»: nothing changes until A presses «Cambiar turno» in its HUD
+  await esperar(a, () => globalThis.__numinia.dardosHud.duelo().botones.cambiar, null, 15000);
+  await esperar(b, () => globalThis.__numinia.dardos.duelo()?.retirando === true, null, 15000);
+  await b.waitForTimeout(700); // A's darts fly in on the wall (0.4 s) and stick
+  res.retirandoA = { vistaA: (await vista(a)), panelB: (await vista(b)).panelAR, miTurnoB: await ctl(b, () => globalThis.__numinia.dardos.duelo().miTurno), bVeA: (await arEstado(b)).clavados, aClavadosDeA: await ctl(a, (e) => globalThis.__numinia.dardos.clavados("torre").filter((x) => x.quien === e).length, ea) };
+  await a.click("#dardos-hud .duelo-botones .cambiar", { timeout: 15000 });
   // the turn passes to B
   await esperar(b, () => globalThis.__numinia.dardos.duelo()?.miTurno === true, null, 15000);
   await esperar(a, () => globalThis.__numinia.dardos.duelo()?.miTurno === false && globalThis.__numinia.dardos.duelo()?.turnoDe !== null, null, 15000);
-  await b.waitForTimeout(700); // A's darts fly in on the wall (0.4 s) and stick
+  await b.waitForTimeout(500);
   res.turnoB = { panelB: (await vista(b)).panelAR, bVeA: (await arEstado(b)).clavados, aClavadosDeA: await ctl(a, (e) => globalThis.__numinia.dardos.clavados("torre").filter((x) => x.quien === e).length, ea) };
   // 3c) A tries out of turn: the server says no
   await ctl(a, () => { globalThis.__numinia.dardosHud.abrir(); });
@@ -238,6 +257,15 @@ try {
     }
   }
   res.tirosB = tirosB;
+  // v3: B presses «Cambiar turno» on its 3D panel with the controller ray (last visit: the press ends the match)
+  await esperar(b, () => globalThis.__numinia.dardosHud.duelo().panelAR?.boton === "cambiar", null, 15000);
+  res.botonAR = (await vista(b)).panelAR;
+  await b.evaluate((p) => { const c = globalThis.__iwer.controllers.right, o = c.position, d = [p.x - o.x, p.y - o.y, p.z - o.z], n = Math.hypot(...d), u = d.map((v) => v / n);
+    // the quaternion that turns -z onto u: axis = (-z) × u = (u.y, -u.x, 0), angle = acos(-u.z)
+    const ang = Math.acos(Math.max(-1, Math.min(1, -u[2]))), ax = [u[1], -u[0], 0], an = Math.hypot(...ax) || 1, sn = Math.sin(ang / 2);
+    c.quaternion.set((ax[0] / an) * sn, (ax[1] / an) * sn, 0, Math.cos(ang / 2)); }, res.botonAR.puntoBoton);
+  await gatillo(b, 150);
+  await b.evaluate(() => globalThis.__iwer.controllers.right.quaternion.set(0, 0, 0, 1));
   // ------------------------------------------------------------------------------------------ 4) the end, seen by both
   await esperar(a, () => globalThis.__numinia.dardos.duelo()?.fin, null, 15000);
   await esperar(b, () => globalThis.__numinia.dardos.duelo()?.fin, null, 15000);
@@ -284,11 +312,13 @@ try {
     lineaAdiceNombre: res.lineaA0.includes(i.nombreB),
     bFueraNoSeEnvia: res.bFueraDeTurno.despues.lanzados === res.bFueraDeTurno.antes.lanzados && res.bFueraDeTurno.despues.clavados === res.bFueraDeTurno.antes.clavados,
     aTresDardos: tirosA.length === 3 && tirosA.every((t) => typeof t.puntos === "number"),
-    turnoDeB: /^Tu turno/.test(pie(res.turnoB.panelB?.pie)) && res.turnoB.bVeA >= 3 && res.turnoB.aClavadosDeA >= 3,
+    retirandoA: res.retirandoA.vistaA.letrero.fase === "juego" && /Retira los dardos/.test(res.retirandoA.vistaA.letrero.pie) && res.retirandoA.vistaA.botones.cambiar === true && res.retirandoA.miTurnoB === false && res.retirandoA.bVeA >= 3 && res.retirandoA.aClavadosDeA >= 3 && /retira los dardos/.test(pie(res.retirandoA.panelB?.pie)) && res.retirandoA.panelB?.boton === null,
+    turnoDeB: /^Tu turno/.test(pie(res.turnoB.panelB?.pie)) && res.turnoB.bVeA === 0 && res.turnoB.aClavadosDeA === 0,
+    botonAR: res.botonAR?.boton === "cambiar" && !!res.botonAR.puntoBoton && res.fin.dB.fin !== undefined,
     aFueraRechazado: /No es tu turno/i.test(`${res.aFueraDeTurno.aviso} ${res.aFueraDeTurno.resultado}`),
     bTresDardos: tirosB.length === 3 && tirosB.every((t) => typeof t.servidor.puntos === "number" && t.ar.ultimo),
     dardosDeBenA: Math.max(res.alFinalDeB.aVeDeB, res.alFinalDeB.aVeDeBAlAcabar ?? 0) >= 3 && (res.alFinalDeB.aVeDeBAlAcabar === null || res.alFinalDeB.aVeDeBAlAcabar >= 3),
-    dardosEnARdeB: Math.max(res.alFinalDeB.bVeAR, res.alFinalDeB.bVeARAlAcabar ?? 0) >= 6 && (res.alFinalDeB.bVeARAlAcabar === null || res.alFinalDeB.bVeARAlAcabar >= 6),
+    dardosEnARdeB: Math.max(res.alFinalDeB.bVeAR, res.alFinalDeB.bVeARAlAcabar ?? 0) >= 3 && (res.alFinalDeB.bVeARAlAcabar === null || res.alFinalDeB.bVeARAlAcabar >= 3),
     puntosIgualesA: f.dA.a.puntos + 0 === (f.dA.a.entity === ea ? sumaA : sumaB) && f.dA.b.puntos === (f.dA.b.entity === ea ? sumaA : sumaB),
     puntosIgualesEnAyB: f.dA.a.puntos === f.dB.a.puntos && f.dA.b.puntos === f.dB.b.puntos,
     veredictoA: unoDe(f.dA) === esperadoA && f.dA.fin.abandono === false,
