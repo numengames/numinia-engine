@@ -52,7 +52,7 @@ export const crearNaturaleza = (mundo: NaturalezaMundo | null = null, fauna?: Ta
       valor = r.value;
       if (opts.escribir) {
         try { opts.escribir(FICHERO, nuevo, { nuevo: crudo === undefined }); }
-        catch (err) { api.log(`no pude escribir ${FICHERO}: ${(err as Error).message}`); return rechazar(e, "No he podido guardar naturaleza.json (mira el registro del servidor): la naturaleza no cambia."); }
+        catch (err) { api.log(`no pude escribir ${FICHERO}: ${(err as Error).message}`); return rechazar(e, `No he podido guardar naturaleza.json (${(err as NodeJS.ErrnoException).code ?? "error"}; más en el registro del servidor): la naturaleza no cambia.`); }
       } else api.log(`sin carpeta del mundo donde escribir: el cambio vale hasta que el servidor se reinicie`);
     } else {
       const ahora = api.state.get(MUNDO) as NaturalezaMundo | undefined;

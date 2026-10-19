@@ -2,7 +2,7 @@
 // Vuelve a generarlo con `npm run novedades` (también corre antes de "dev" y "build").
 /** La versión del motor cuando se generó este fichero (solo para quien lo lea; la comparación real la hace
  * apps/plaza/novedades.ts contra la versión del paquete que corre la página). */
-export const version = "0.22.1";
+export const version = "0.22.2";
 /** Hasta 3 líneas, la más nueva primero. Vacío si el diario no tenía ninguna entrada con «Qué». */
 export const items: readonly string[] = [
   "quien puede construir enciende o apaga la naturaleza desde dentro del mundo, con el interruptor «Naturaleza».",
