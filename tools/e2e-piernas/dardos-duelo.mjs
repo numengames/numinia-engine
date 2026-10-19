@@ -292,13 +292,58 @@ try {
   res.abandono = { dA: await duelo(a), signA: (await vista(a)).letrero, lineaA: (await vista(a)).linea };
   await foto(a, "4-abandono");
   nota("variante hecha", { fin: res.abandono.dA.fin });
-  await a.context().close(); await b.context().close();
+
+  // ------------------------------------------------------------------------------------------ 6) three teams, the host starts with a button
+  // C's browser opens BEFORE anybody joins (loading is the slow part on a loaded machine; a host waiting alone for 60 s is cancelled)
+  const c = await abrir("C", { viewport: { width: 640, height: 400 } });
+  const ec = await entidad(c);
+  const todos = [a, b, c], ents = [ea, eb, ec];
+  const unirse = (p) => ctl(p, () => globalThis.__numinia.dardos.jugar("mesa", "pared"));
+  // join first, open the HUD after (a stale result of the last match would close a HUD opened before: `alTerminar`)
+  const abrirHud = async (p) => { for (let i = 0; i < 3; i++) { await ctl(p, () => globalThis.__numinia.dardosHud.abrir()); if (await esperar(p, () => !document.getElementById("dardos-hud").hidden, null, 4000).then(() => true, () => false)) return; } throw new Error("el HUD no se abrió"); };
+  const equiposEn = (p) => ctl(p, () => globalThis.__numinia.dardos.duelo()?.equipos?.length ?? 0);
+  const botones = async (p) => (await vista(p)).botones;
+  const t3 = (res.t3 = {});
+  for (const p of todos) await esperar(p, () => globalThis.__numinia.dardos.sitios().some((x) => x.id === "mesa" && x.equipos === 3), null, 30000);
+  t3.estadoMesa = await ctl(a, () => { const x = globalThis.__numinia.dardos.sitios().find((y) => y.id === "mesa"); return { equipos: x.equipos, duelo: x.duelo }; });
+  await unirse(a); await esperar(a, () => globalThis.__numinia.dardos.duelo()?.sitio === "mesa" && globalThis.__numinia.dardos.duelo().esperando, null, 20000); await abrirHud(a);
+  t3.solo = await botones(a);                        // alone: no «Empezar»
+  await unirse(b); await esperar(a, () => globalThis.__numinia.dardos.duelo()?.equipos?.length === 2, null, 20000); await abrirHud(b);
+  await esperar(a, () => globalThis.__numinia.dardosHud.duelo().botones.empezar, null, 15000);
+  t3.con2 = { a: await botones(a), b: await botones(b), esperando: await ctl(a, () => globalThis.__numinia.dardos.duelo().esperando) };   // 2 teams but the host did not press: the 3rd may still come
+  await unirse(c); await esperar(a, () => globalThis.__numinia.dardos.duelo()?.equipos?.length === 3, null, 20000); await abrirHud(c);
+  for (const p of todos) await esperar(p, () => globalThis.__numinia.dardosHud.duelo()?.letrero.filas.length === 3 && globalThis.__numinia.dardos.duelo().esperando, null, 20000);
+  t3.espera = { botonesA: await botones(a), botonesB: await botones(b), botonesC: await botones(c), filas: (await vista(a)).letrero.filas.map((f) => f.nombre), pieB: (await vista(b)).letrero.pie, lineaA: (await vista(a)).linea };
+  await a.click("#dardos-hud .duelo-botones .empezar", { timeout: 15000 });
+  for (const p of todos) await esperar(p, () => { const d = globalThis.__numinia.dardos.duelo(); return d && !d.esperando && d.ronda === 1; }, null, 20000);
+  nota("tres equipos: empezó", { equipos: 3 });
+  t3.visitas = []; t3.turnos = [];
+  for (let k = 0; k < 3; k++) {
+    const p = todos[k];
+    await esperar(p, () => globalThis.__numinia.dardos.duelo()?.miTurno === true, null, 20000);
+    t3.turnos.push({ k, turnoEq: await ctl(p, () => globalThis.__numinia.dardos.duelo().turnoEq), botonesAntes: await botones(p) });
+    for (let n = 1; n <= 3; n++) { await ctl(p, () => globalThis.__numinia.dardos.lanzar(0.1, 0.6, 0.65, "mesa")); await esperar(p, (m) => globalThis.__numinia.dardos.estado().dardos >= m, n, 15000); await p.waitForTimeout(350); }
+    const tirada = await ctl(p, () => globalThis.__numinia.dardos.estado().tirada);
+    await esperar(p, () => globalThis.__numinia.dardosHud.duelo().botones.cambiar, null, 15000);
+    const otros = []; for (const q of todos) if (q !== p) otros.push((await botones(q)).cambiar);
+    const piePropio = (await vista(p)).letrero.pie;
+    t3.visitas.push({ k, tirada, otrosVenCambiar: otros, piePropio, retirandoEnTodos: await Promise.all(todos.map((q) => ctl(q, () => globalThis.__numinia.dardos.duelo().retirando))) });
+    await p.click("#dardos-hud .duelo-botones .cambiar", { timeout: 15000 });
+    if (k < 2) await esperar(todos[k + 1], () => globalThis.__numinia.dardos.duelo()?.miTurno === true, null, 20000);
+  }
+  for (const p of todos) await esperar(p, () => globalThis.__numinia.dardos.duelo()?.fin, null, 20000);
+  await a.waitForTimeout(400);
+  t3.fin = [];
+  for (const p of todos) t3.fin.push({ puntos: await ctl(p, () => globalThis.__numinia.dardos.duelo().equipos.map((x) => x.puntos)), fin: await ctl(p, () => { const f = globalThis.__numinia.dardos.duelo().fin; return { empate: f.empate, gane: f.gane, ganador: f.ganador, texto: f.texto }; }), filas: (await vista(p)).letrero.filas.length, pie: (await vista(p)).letrero.pie });
+  nota("tres equipos: acabó", { puntos: t3.fin[0].puntos });
+  await a.context().close(); await b.context().close(); await c.context().close();
 
   // ------------------------------------------------------------------------------------------ the verdict
   const unoDe = (d) => (d.fin.empate ? "Empate" : d.fin.gane ? "Ganas" : "Pierdes");
   const esperadoA = sumaA > sumaB ? "Ganas" : sumaA < sumaB ? "Pierdes" : "Empate";
   const esperadoB = sumaA > sumaB ? "Pierdes" : sumaA < sumaB ? "Ganas" : "Empate";
   const i = res.inicio, f = res.fin;
+  const tiradas3 = t3.visitas.map((v) => v.tirada), max3 = Math.max(...tiradas3), unico3 = tiradas3.filter((v) => v === max3).length === 1;
   const pie = (s) => s ?? "";
   res.checks = {
     esperaA: /Esperando rival/.test(pie(res.letreroEspera.pie)) && /AR/.test(pie(res.letreroEspera.pie)) && res.letreroEspera.visible && res.sitioEspera.espera === true,
@@ -328,6 +373,15 @@ try {
     panelFinB: f.panelB?.pie === esperadoB,
     arSalio: res.arSalio === "off" && res.arSalio2 === "off",
     abandono: res.abandono.dA.fin.abandono === true && res.abandono.dA.fin.gane === true && res.abandono.signA.pie === "Ganas · tu rival se fue" && /se fue/i.test(res.abandono.dA.fin.texto + " " + res.abandono.signA.pie),
+    // ---- six: three teams, the host starts by button ----
+    t3Tablero: t3.estadoMesa.equipos === 3 && t3.estadoMesa.duelo === true,
+    t3SinEmpezarSolo: t3.solo.empezar === false && t3.solo.cambiar === false,
+    t3EmpezarCon2: t3.con2.a.empezar === true && t3.con2.b.empezar === false && t3.con2.esperando === true,
+    t3TresFilas: t3.espera.filas.length === 3 && t3.espera.botonesA.empezar === true && !t3.espera.botonesB.empezar && !t3.espera.botonesC.empezar && /Esperando al anfitrión/.test(t3.espera.pieB) && /Pulsa Empezar/.test(t3.espera.lineaA),
+    t3OrdenAyBC: t3.turnos.every((t, k) => t.turnoEq === k + 1 && t.botonesAntes.cambiar === false),
+    t3RetirandoYBoton: t3.visitas.every((v) => v.otrosVenCambiar.every((x) => x === false) && /Retira los dardos/.test(v.piePropio) && v.retirandoEnTodos.every(Boolean)),
+    t3Puntos: t3.fin.every((x) => JSON.stringify(x.puntos) === JSON.stringify(tiradas3)) && t3.fin.every((x) => x.filas === 3),
+    t3Veredicto: t3.fin.every((x, k) => (unico3 ? x.fin.empate === false && x.fin.gane === (tiradas3[k] === max3) : x.fin.empate === true && x.fin.gane === false)),
     sinErrores: errors.length === 0,
   };
   ok = Object.values(res.checks).every(Boolean);
