@@ -213,6 +213,7 @@ export const ATMOSFERA = {
   bruma: mezcla(mezcla(CASA.verdemar, VERDES.verdin, 0.35), VERDES.musgo, 0.25),
   ocaso: mezcla(CASA.ambar, CASA.arena, 0.45),
   sol: mezcla(CASA.arena, CASA.ambar, 0.3),
+} as const;
 
 // R7.2
 /**
