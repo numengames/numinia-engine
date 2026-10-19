@@ -250,6 +250,15 @@ export function montarGente(o: OpcionesGente) {
   den.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
 
   // ---- drawing ----
+  /** Put `hijos` in `caja` only when they differ from what is there: the list refreshes every few seconds and on every
+   * change of anybody, and a row swapped under the pointer loses the click (and the focus) for nothing. */
+  const pintado = new WeakMap<HTMLElement, string>();
+  function poner(caja: HTMLElement, ...hijos: HTMLElement[]): void {
+    const firma = hijos.map((h) => h.outerHTML).join("");
+    if (pintado.get(caja) === firma && caja.childElementCount === hijos.length) return;
+    pintado.set(caja, firma);
+    caja.replaceChildren(...hijos);
+  }
   let vista: "lista" | "ficha" = "lista"; // a narrow screen shows one of the two; a wide one shows both
   function fila(p: Elegido, sub: string, conectado: boolean, clave: string): HTMLElement {
     const b = el("button", { type: "button", className: `gente-fila${conectado ? "" : " fuera"}` });
@@ -294,13 +303,13 @@ export function montarGente(o: OpcionesGente) {
       }
       if (viajar.estado.todos > g.length) filas.push(el("p", { className: "vacio", textContent: `Y ${viajar.estado.todos - g.length} más.` }));
     }
-    lista.replaceChildren(...filas);
+    poner(lista, ...filas);
   }
 
   function pintarFicha(): void {
     const p = actual();
     if (!p) {
-      der.replaceChildren(el("div", { className: "gente-nadie" }, el("p", { textContent: pestana === "amigos" && !amigos.length ? "Tus amigos aparecerán aquí." : "Elige a alguien de la lista para ver su ficha." })));
+      poner(der, el("div", { className: "gente-nadie" }, el("p", { textContent: pestana === "amigos" && !amigos.length ? "Tus amigos aparecerán aquí." : "Elige a alguien de la lista para ver su ficha." })));
       return;
     }
     const amigo = buscar(amigos, p), con = p.quien !== null;
@@ -350,7 +359,7 @@ export function montarGente(o: OpcionesGente) {
       delicados.append(q);
     }
     const info = el("div", { className: "gente-info" }, volver, datos, ahoraS, principales, delicados);
-    der.replaceChildren(el("div", { className: "gente-figura" }, retrato(base, p.avatar, "cuerpo", 300, !con)), info);
+    poner(der, el("div", { className: "gente-figura" }, retrato(base, p.avatar, "cuerpo", 300, !con)), info);
   }
 
   function pintar(): void {

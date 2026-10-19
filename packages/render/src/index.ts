@@ -1032,7 +1032,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
       ray.setFromCamera(ndc, camera);
       const hasta = camera.getWorldPosition(v).distanceTo(m.position) - 0.6;
-      const tapa = ray.intersectObjects([...things.values()].map((s) => s.group), true).find((h) => h.object.visible);
+      const tapa = ray.intersectObjects([...things.values()].map((s) => s.group), true).find((h: THREE.Intersection) => h.object.visible);
       return tapa && tapa.distance < hasta ? null : q;
     },
     /** ux2-gente: where a person's head is on the screen (CSS pixels) and how far from you, for the small card beside

@@ -31,7 +31,7 @@ export function montarMenuBarra(o: {
   }
   barra.appendChild(menu);
   let porTecladoAbierto = false;
-  const ocultas = () => entradas.map((b) => b.hidden);
+  const ocultas = () => entradas.map((b) => !!b.hidden); // `hidden` may also be "until-found"
   const visibles = () => entradasVisibles(ocultas());
 
   const m: MenuBarra = {

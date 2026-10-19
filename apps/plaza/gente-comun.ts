@@ -16,8 +16,8 @@ export type Mirada = {
   /** The name over their head (the chat's names: who the page draws near). */
   nombre(quien: number): string | null;
 };
-export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...hijos: (Node | string)[]) => {
-  const e = Object.assign(document.createElement(tag), props); e.append(...hijos); return e;
+export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...hijos: (Node | string)[]): HTMLElementTagNameMap[K] => {
+  const e: HTMLElementTagNameMap[K] = Object.assign(document.createElement(tag), props); e.append(...hijos); return e;
 };
 /** A button with a house icon and a text (the icon is a constant; the text a text node). */
 export const botonCon = (ic: string, texto: string, clase = "", px = 18): HTMLButtonElement => {
