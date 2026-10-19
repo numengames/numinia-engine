@@ -14,18 +14,18 @@ motor con una receta de `packages/render/src/audio/sintesis.ts`, que es código 
 repo. No hay nada de nadie que licenciar en ellos, así que no tienen fila en esta tabla. Cuando uno de esos ids
 consiga un fichero CC0, entra por la biblioteca y **el fichero gana**: la receta se queda de respaldo.
 
-**28 ids · 90 variantes · 180 ficheros** (90 `.opus` = 1.022.250 B y
-90 `.m4a` de respaldo para Safari = 1.232.218 B; **2.254.468 B** en total).
+**32 ids · 97 variantes · 194 ficheros** (97 `.opus` = 1.051.093 B y
+97 `.m4a` de respaldo para Safari = 1.274.267 B; **2.325.360 B** en total).
 Los sirve `GET /a/<sha256>.opus` (`packages/server/src/activos.ts`); la lista con el sha256 de cada fichero
 está en `features/sonido/catalogo.json` y `test/sonidos.test.ts` comprueba que cada sha256 es el de su fichero
 y que ninguna licencia deja de ser CC0.
 
 **Cambio nuestro**: los ficheros son derivados (recorte del silencio de cabeza y cola, ganancia a RMS −18 dBFS
-con techo de pico en −2 dBFS, recodificación a Opus 40 kbps VBR mono 48 kHz y a AAC 48 kbps), lo que CC0
+con techo de pico en −2 dBFS, en las voces de los PNJ un fundido de 5 ms al entrar y de 80 ms al salir, recodificación a Opus 40 kbps VBR mono 48 kHz y a AAC 48 kbps), lo que CC0
 permite sin condiciones. Se rehacen con `python3 construir.py` dentro de la biblioteca y se traen aquí con
 `node tools/sonidos-catalogo.ts`.
 
-Autores: Fantozzi (subido por qubodup), Kenney Vleugels (kenney.nl), Peludo, Thimras, TinyWorlds, artisticdude, pendiente (Pablo lo dirá), pyranostudios, rubberduck.
+Autores: Fantozzi (subido por qubodup), Kenney Vleugels (kenney.nl), Peludo, Sadiquecat (freesound.org), Thimras, TinyWorlds, artisticdude, pendiente (Pablo lo dirá), pyranostudios, rubberduck.
 
 | Carpeta | Para qué | Variantes | Lote | Bus | Licencia | Autor | Fuente |
 |---|---|---|---|---|---|---|---|
@@ -46,6 +46,10 @@ Autores: Fantozzi (subido por qubodup), Kenney Vleugels (kenney.nl), Peludo, Thi
 | `sonidos/pesca-chapuzon/` | el cebo entra en el agua | 3 | funcion | efectos | CC0-1.0 | Peludo; rubberduck | <https://opengameart.org/content/100-cc0-sfx> <https://opengameart.org/content/water-splash-and-sand-footsteps> |
 | `sonidos/pesca-cobrar/` | pez cobrado | 2 | funcion | efectos | CC0-1.0 | rubberduck | <https://opengameart.org/content/50-cc0-retro-synth-sfx> |
 | `sonidos/pesca-lanzar/` | lanzar la cana | 2 | funcion | efectos | CC0-1.0 | artisticdude; pyranostudios | <https://opengameart.org/content/air-whoosh> <https://opengameart.org/content/swishes-sound-pack> |
+| `sonidos/pnj-despedida-hombre-joven/` | un PNJ se despide al acabar la conversacion (voz hombre-joven) | 1 | funcion | efectos | CC0-1.0 | Sadiquecat (freesound.org) | <https://freesound.org/people/Sadiquecat/sounds/818216/> |
+| `sonidos/pnj-despedida-mujer-mayor/` | un PNJ se despide al acabar la conversacion (voz mujer-mayor) | 1 | funcion | efectos | CC0-1.0 | Sadiquecat (freesound.org) | <https://freesound.org/people/Sadiquecat/sounds/874443/> |
+| `sonidos/pnj-saludo-hombre-joven/` | un PNJ te saluda al empezar a hablar (voz hombre-joven) | 2 | funcion | efectos | CC0-1.0 | Sadiquecat (freesound.org) | <https://freesound.org/people/Sadiquecat/sounds/818157/> <https://freesound.org/people/Sadiquecat/sounds/818158/> |
+| `sonidos/pnj-saludo-mujer-mayor/` | un PNJ te saluda al empezar a hablar (voz mujer-mayor) | 3 | funcion | efectos | CC0-1.0 | Sadiquecat (freesound.org) | <https://freesound.org/people/Sadiquecat/sounds/874428/> <https://freesound.org/people/Sadiquecat/sounds/874439/> <https://freesound.org/people/Sadiquecat/sounds/874442/> |
 | `sonidos/puerta/` | abrir y cerrar | 2 | funcion | efectos | CC0-1.0 | Kenney Vleugels (kenney.nl) | <https://kenney.nl/assets/rpg-audio> |
 | `sonidos/renacer/` | vuelta a la ultima posicion segura (D-045) | 1 | funcion | efectos | CC0-1.0 | rubberduck | <https://opengameart.org/content/50-cc0-retro-synth-sfx> |
 | `sonidos/teleport/` | salida y llegada | 2 | funcion | efectos | CC0-1.0 | rubberduck | <https://opengameart.org/content/50-cc0-sci-fi-sfx> |

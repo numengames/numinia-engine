@@ -100,7 +100,7 @@ test("S6f: el colchón de ambiente está en el catálogo, en bucle, en el bus am
   assert.equal(c.variantes.length, 1, "el colchón es una cama única: una sola variante");
 });
 
-test("S6: cada variante del catálogo existe, pesa lo que dice y su sha256 es el del fichero (los 180 ficheros)", () => {
+test("S6: cada variante del catálogo existe, pesa lo que dice y su sha256 es el del fichero (los 194 ficheros)", () => {
   assert.equal((catalogo as Cat).schema, "numinia-engine/sonidos@1");
   let ficheros = 0, bytes = 0, bytesColchon = 0;
   for (const s of sonidos()) {
@@ -116,7 +116,7 @@ test("S6: cada variante del catálogo existe, pesa lo que dice y su sha256 es el
       }
     }
   }
-  assert.equal(ficheros, 180, "180 ficheros (90 variantes × opus + m4a: 89 disparos + el colchón de ambiente)");
+  assert.equal(ficheros, 194, "194 ficheros (97 variantes × opus + m4a: 96 disparos —7 son las voces de los PNJ— + el colchón de ambiente)");
   assert.ok(bytes < 600_000, `activos/sonidos/ son ${bytes} B sin el colchón: ¿se ha colado una cama de zona?`);
   assert.ok(bytesColchon < 2_000_000, `el colchón de ambiente son ${bytesColchon} B: 113 s de música no pasan de 2 MB`);
 });

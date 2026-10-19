@@ -1098,6 +1098,152 @@
       "variantes": []
     },
     {
+      "id": "pnj-despedida-hombre-joven",
+      "uso": "un PNJ se despide al acabar la conversacion (voz hombre-joven)",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 70,
+      "cooldown_ms": 800,
+      "texto": "la persona se despide",
+      "duracion_s": 0.421,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Sadiquecat (freesound.org)"
+      ],
+      "fuente": [
+        "https://freesound.org/people/Sadiquecat/sounds/818216/"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/pnj-despedida-hombre-joven/pnj-despedida-hombre-joven-01.opus",
+          "sha256": "b5e37cc87ba23fe4db7e7f1ae6243acd3290aedebe547f40ab4697f42ec75d2a",
+          "bytes": 2237,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pnj-despedida-hombre-joven/pnj-despedida-hombre-joven-01.m4a",
+          "respaldo_sha256": "4dd093b3051fc4ac356ac1feed230902334435b78fd8004c9d98abf6e222c104",
+          "respaldo_bytes": 3739
+        }
+      ]
+    },
+    {
+      "id": "pnj-despedida-mujer-mayor",
+      "uso": "un PNJ se despide al acabar la conversacion (voz mujer-mayor)",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 70,
+      "cooldown_ms": 800,
+      "texto": "la persona se despide",
+      "duracion_s": 0.754,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Sadiquecat (freesound.org)"
+      ],
+      "fuente": [
+        "https://freesound.org/people/Sadiquecat/sounds/874443/"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/pnj-despedida-mujer-mayor/pnj-despedida-mujer-mayor-01.opus",
+          "sha256": "3df6bed85aef47d174bc12316e551409e481b1c5e172bac906c7381539cd44df",
+          "bytes": 4068,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pnj-despedida-mujer-mayor/pnj-despedida-mujer-mayor-01.m4a",
+          "respaldo_sha256": "a8fc40cd456f9b2094a9a2cfa57e826f77beacfecf23e3266720c386df6d0b41",
+          "respaldo_bytes": 5638
+        }
+      ]
+    },
+    {
+      "id": "pnj-saludo-hombre-joven",
+      "uso": "un PNJ te saluda al empezar a hablar (voz hombre-joven)",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 70,
+      "cooldown_ms": 800,
+      "texto": "la persona te saluda",
+      "duracion_s": 1.153,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Sadiquecat (freesound.org)"
+      ],
+      "fuente": [
+        "https://freesound.org/people/Sadiquecat/sounds/818157/",
+        "https://freesound.org/people/Sadiquecat/sounds/818158/"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/pnj-saludo-hombre-joven/pnj-saludo-hombre-joven-01.opus",
+          "sha256": "0a84e7a361a9c9ce367efd2ba0ff4240be54eee0e15974ccd86868204463f288",
+          "bytes": 5868,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pnj-saludo-hombre-joven/pnj-saludo-hombre-joven-01.m4a",
+          "respaldo_sha256": "08768faa4a92e07735c9b7a894983a58651f5421fd0a66bde8d0a04f0a9856e7",
+          "respaldo_bytes": 8139
+        },
+        {
+          "fichero": "activos/sonidos/pnj-saludo-hombre-joven/pnj-saludo-hombre-joven-02.opus",
+          "sha256": "effb5cff23cff13e39a654527ea257bc01b9fd9ca6ddeff42aa37f60c201f215",
+          "bytes": 1145,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pnj-saludo-hombre-joven/pnj-saludo-hombre-joven-02.m4a",
+          "respaldo_sha256": "f68a27eb93aaffff01b32bcd9e09de7759340702244bc86b5fe0fe5c692e3d55",
+          "respaldo_bytes": 2210
+        }
+      ]
+    },
+    {
+      "id": "pnj-saludo-mujer-mayor",
+      "uso": "un PNJ te saluda al empezar a hablar (voz mujer-mayor)",
+      "bus": "efectos",
+      "lote": "funcion",
+      "prioridad": 70,
+      "cooldown_ms": 800,
+      "texto": "la persona te saluda",
+      "duracion_s": 1.187,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Sadiquecat (freesound.org)"
+      ],
+      "fuente": [
+        "https://freesound.org/people/Sadiquecat/sounds/874428/",
+        "https://freesound.org/people/Sadiquecat/sounds/874439/",
+        "https://freesound.org/people/Sadiquecat/sounds/874442/"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/pnj-saludo-mujer-mayor/pnj-saludo-mujer-mayor-01.opus",
+          "sha256": "0b031080eaa828520335e08db503fe711d7a798ab9cc02742326bbba878ed85b",
+          "bytes": 4669,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pnj-saludo-mujer-mayor/pnj-saludo-mujer-mayor-01.m4a",
+          "respaldo_sha256": "61168a64401183ed02a99a2b6a937b77ee9c6fb418048022118351f3872af74b",
+          "respaldo_bytes": 6643
+        },
+        {
+          "fichero": "activos/sonidos/pnj-saludo-mujer-mayor/pnj-saludo-mujer-mayor-02.opus",
+          "sha256": "92dd3b9cc855a574f3262029ec6514a1c5343bb2a5762d33a708ec266cb3b8d2",
+          "bytes": 4946,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pnj-saludo-mujer-mayor/pnj-saludo-mujer-mayor-02.m4a",
+          "respaldo_sha256": "a193eee94ff1b01d42ee97a3405a043cb3ed5eeabf58093e8f945e34ccba3814",
+          "respaldo_bytes": 7308
+        },
+        {
+          "fichero": "activos/sonidos/pnj-saludo-mujer-mayor/pnj-saludo-mujer-mayor-03.opus",
+          "sha256": "b9515a40510f87a118ee849cb46d6af4a58165920a67fb7baf2a4e72d8c5e64a",
+          "bytes": 5910,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pnj-saludo-mujer-mayor/pnj-saludo-mujer-mayor-03.m4a",
+          "respaldo_sha256": "83447d744a523eeaa561ad1e76d7f252c992cc932a6b9716372f61d6461b8026",
+          "respaldo_bytes": 8372
+        }
+      ]
+    },
+    {
       "id": "puerta",
       "uso": "abrir y cerrar",
       "bus": "efectos",

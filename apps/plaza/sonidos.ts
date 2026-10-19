@@ -8,7 +8,8 @@
 // REPARTO DE AUTORIDAD (D-048: el servidor manda en lo compartido):
 //  - LOCAL (cada quien oye lo suyo, aquí): los botones de interfaz, MIS pasos, MI salto, MI aterrizaje, y lo que solo
 //    ocurre en mi caña de pescar (lanzar y el chapuzón). No se mandan por la red: son de cada quien y van en la cabeza
-//    o a mis pies.
+//    o a mis pies. También la VOZ de un PNJ al abrir y al cerrar MI conversación con él (`pnj-voz.ts`): la charla es
+//    mía, así que solo la oigo yo, pero sale de la persona, colocada en 3D.
 //  - COMPARTIDO (lo manda el SERVIDOR, con su semilla, desde `features/sonido/server.ts`): la puerta, los dados, el
 //    dardo (lanzado e impacto), el pez cobrado y el teletransporte — tanto el mío como el de otra persona. Esta página
 //    NO los dispara: si lo hiciera, cada uno oiría su propia variante, y quien estuviera al lado oiría otra cosa.
@@ -19,6 +20,7 @@
 import { audio, type Nucleo } from "../../packages/render/src/audio/nucleo.ts";
 import { crearPuerta, materialDeSuelo, MATERIAL_DEF, type Material, type Opciones, type Puerta } from "../../packages/render/src/audio/sonar.ts";
 import { puente } from "./sonar.ts";
+import { montarVozPnj, type ConversacionPnj } from "./pnj-voz.ts";
 
 export type Cuerpo = { y: number; speed: number; grounded: boolean };
 export type Paso = "izquierdo" | "derecho" | "salto" | "aterrizaje";
@@ -64,6 +66,8 @@ export type Pagina = {
   pesca: { estado(): { fase: string }; alCambiar(fn: (q: string) => void): unknown };
   /** El tipo de suelo de la zona donde estoy (`entorno@1`), si el mundo lo dice. Sin esto, los pasos suenan a piedra. */
   suelo?: () => string | null;
+  /** Las conversaciones con los PNJ (las misiones de la página): un saludo al abrir, una despedida al cerrar. */
+  misiones?: ConversacionPnj;
 };
 
 export type Montado = {
@@ -146,6 +150,9 @@ export function montarSonidos(p: Pagina, puerta: Puerta = crearPuerta({ nucleo: 
     }
     faseAntes = f;
   });
+
+  // la voz de un PNJ: un saludo al abrir la conversación y una despedida al cerrarla, de su boca; las líneas, calladas
+  if (p.misiones) quitar.push(montarVozPnj(p.misiones, sonarLocal));
 
   return { puerta, sonarLocal, paso, desmontar: () => quitar.forEach((f) => f()) };
 }

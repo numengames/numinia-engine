@@ -218,6 +218,15 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     usadas: (): string[] => [...usadas],
     /** A person's trade («Carpintero»; "" = none, or not near enough to be known), for the map's list. */
     oficioDe: (pnj: string): string => String(P?.state.get(pnj)?.oficio ?? ""),
+    /** pnj@1 `voz` of a person ("" = none said: the page picks one from its id, always the same). */
+    vozDe: (pnj: string): string => String(P?.state.get(pnj)?.voz ?? ""),
+    /** Where a person stands now (a sequence playing moves it: its pose wins), or null if this page does not draw it. */
+    personaDe: (pnj: string): { x: number; y: number; z: number; escala: number } | null => {
+      const v = escenario.persona(pnj);
+      if (!v) return null;
+      const pose = rep?.poseDe(pnj) ?? null;
+      return pose ? { x: pose.x, y: pose.y, z: pose.z, escala: v.escala } : { x: v.x, y: v.y, z: v.z, escala: v.escala };
+    },
     /** Call `fn` when the book, the conversation or the on-screen note changes; returns how to stop. */
     alCambiar: (fn: (que: "libro" | "dialogo" | "nota") => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };

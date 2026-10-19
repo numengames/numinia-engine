@@ -250,7 +250,7 @@ void import("./sonidos.ts").then(async (m) => {
   const { crearPuerta, ponerPuerta } = await import("../../packages/render/src/audio/sonar.ts");
   const puerta = ponerPuerta(crearPuerta());
   sonarServidor = (s) => puerta.sonar(s.id, { semilla: s.semilla, donde: s.donde ?? null });
-  m.montarSonidos({ session, cerraduras, pesca, suelo: () => view.entorno.estado().suelo?.tipo ?? null }, puerta);
+  m.montarSonidos({ session, cerraduras, pesca, suelo: () => view.entorno.estado().suelo?.tipo ?? null, misiones }, puerta);
   // El COLCHÓN de ambiente: solo si el mundo lo pide en su ficha (`audio.ambiente`), y con la ganancia que diga
   // (×0,042 por defecto, el volumen que quiso su autor). Encima manda el deslizador de «ambiente» del jugador: a cero,
   // ni arranca. Las camas y capas SINTETIZADAS siguen apagadas salvo las que el mundo nombre en `ambiente_sintetizado`.

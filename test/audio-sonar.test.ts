@@ -359,8 +359,9 @@ test("S6f: sin tabla del catálogo, la receta sigue sonando (y lo que solo tiene
 test("S6f: las 47 recetas cubren los 27 ids del catálogo (menos el colchón): todos tienen respaldo", () => {
   const b = banco();
   const conF = Object.keys(b.cat.tabla()!.sonidos).filter((id) => b.cat.fila(id)!.fuente === "fichero");
-  const sinReceta = conF.filter((id) => !RECETAS[id]);
-  assert.deepEqual(sinReceta, ["ambiente-numinia"], "lo único sin receta de respaldo debería ser el colchón");
+  // las voces de los PNJ tampoco: una persona no se imita con un sintetizador; sin su fichero, calla
+  const sinReceta = conF.filter((id) => !RECETAS[id] && !id.startsWith("pnj-"));
+  assert.deepEqual(sinReceta, ["ambiente-numinia"], "lo único sin receta de respaldo debería ser el colchón (y las voces de los PNJ)");
   for (const id of conF) if (RECETAS[id]) assert.equal(b.p.fuenteDe(id), "fichero", `«${id}»: tiene las dos y debe ganar el fichero`);
 });
 

@@ -62,7 +62,7 @@ test("formats: pnj@1 `oficio` — valid, too long, not text, absent; the plug's 
   const raro = leerPnj({ ...base, oficios: "Carpintero" });
   assert.ok(!raro.ok && raro.issues.some((i) => i.path === "oficios" && /aquí van: .*oficio/.test(i.message)), "a typo lists the fields, oficio among them");
   assert.deepEqual([pnjDecl.issues, misionesDecl.issues], [[], []]);
-  assert.equal(pnjDecl.version, 3);
+  assert.equal(pnjDecl.version, 4); // v4: `voz` (test/pnj-voz.test.ts)
   assert.deepEqual(pnjDecl.state!.fields.oficio, { kind: "text", maxBytes: 40, default: "" });
   assert.equal(misionesDecl.version, 6); // v6 (N10): the server-only `concedido` for «objeto» rewards
   const ev = misionesDecl.events!.marcas;

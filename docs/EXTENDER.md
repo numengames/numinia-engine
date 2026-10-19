@@ -367,6 +367,11 @@ que en el mundo haría ruido —pasos, puertas, agua, un dardo que se clava, uno
 misión completada). **No suena la interfaz**: ni los botones, ni abrir un panel, ni cada paso de una misión. Lo frecuente y lo que ya se ve se queda en silencio: el silencio es lo
 que deja oír lo que informa. Antes de enchufar un sonido nuevo: ¿haría ruido de verdad?, ¿cuántas veces por minuto
 sonará?, ¿lo dice ya otra cosa (la vista, la vibración, el servidor)?
+Las **personas (PNJ)** hablan dos veces por conversación, sin palabras y bajito: un saludo corto («hmm», «¿ah?») cuando
+la conversación **se abre** y una despedida cuando **se cierra**; las líneas nuevas y las respuestas, calladas (cada paso
+con su voz saturaría). Sale de la persona, colocada en 3D a la altura de su boca, y solo la oye quien habla con ella
+(`apps/plaza/pnj-voz.ts`, bus «efectos», con freno de 0,8 s para quien abre y cierra deprisa). Cada persona suena
+siempre con la misma voz: la de su `voz` (pnj@1, abajo) o, sin ella, una elegida por su id.
 
 **`tema`** (opcional, dentro de la ficha): cómo se ve la página de ESTE mundo, para que un evento traiga su aire sin
 tocar el motor. Diez colores «#rrggbb» de los paneles — `fondo`, `superficie`, `elevado` (botones), `texto`, `texto2`,
@@ -566,6 +571,11 @@ paso. La insignia queda en su ficha (I) y en su libro.
 - Opcional `oficio` (1–40 bytes, U14 (4)): a qué se dedica («Carpintero», «Tejedora»). Sale en una segunda línea, más
   pequeña, bajo el nombre que flota sobre la persona; junto al nombre en el título de la conversación, y en la lista del
   mapa («Cosimo (Carpintero)»). Con oficio, deja el nombre corto: «Cosimo», no «Cosimo, el carpintero». Sin él, una línea.
+- Opcional `voz` (`hombre-joven` o `mujer-mayor`): cómo suena la persona al empezar y al acabar la conversación (un
+  saludo y una despedida cortos, sin palabras; las líneas no suenan). Sin `voz`, una de las dos elegida por su id:
+  siempre la misma, pero puede no pegarle; dila si importa. Las tomas son CC0 (`features/sonido/catalogo.json`,
+  `pnj-saludo-<voz>` y `pnj-despedida-<voz>`); una voz nueva entra por la biblioteca de sonido y por `VOCES_PNJ`
+  (`features/misiones/formato.ts`).
 
 **Marcas sobre las personas y las cosas («!» y «✓», U14 (4))** — las decide el servidor para cada jugador, con su
 progreso, y le llegan **solo a él** (a todas sus pestañas) tras cada libro (evento `marcas`). La aventura no escribe
@@ -625,7 +635,8 @@ Para agentes y páginas: `window.__numinia.misiones` (`libro()`, `objetivos()`, 
 texto, x, z, seguida }]` (uno por paso que toca: en un grupo, todos los que faltan); `resumen().seguida.grupo` =
 `{ nombre, hechos, total }` del grupo en curso de la misión seguida, o `null`. U14 (4): `marcas()` → `{ tiene, hecho,
 cosas }` (ids: personas con «!», personas con «✓», cosas con «!»; el mismo objeto mientras no cambian),
-`marcaDe(feature, clave)` → `"!"`, `"✓"` o `""` (`pnj` o `misiones`), `oficioDe(pnj)` y `dialogo().oficio`. U14 (5):
+`marcaDe(feature, clave)` → `"!"`, `"✓"` o `""` (`pnj` o `misiones`), `oficioDe(pnj)` y `dialogo().oficio`; `vozDe(pnj)` (su `voz`, `""` sin ella) y `personaDe(pnj)` (`{ x, y, z, escala }`
+donde está ahora, o `null`). U14 (5):
 cada paso de `libro()` lleva `espera` (los segundos que le faltaban al llegar el libro; 0 = ya se puede) y `listoEn`
 (cuándo se abre, en el reloj de la página); `secuencia()` (la que suena, o `null`), `alSecuencia(fn)` (oír cuándo
 empieza, cada línea, cada sonido y cuándo acaba) y `cuadro()` (la página la avanza en cada cuadro).

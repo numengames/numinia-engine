@@ -54,6 +54,12 @@ export const MEZCLA: Record<string, { prioridad: number; cooldown_ms: number }> 
   teleport: { prioridad: 85, cooldown_ms: 300 },
   renacer: { prioridad: 90, cooldown_ms: 500 },
   maquina: { prioridad: 65, cooldown_ms: 300 },
+  // ── las voces de los PNJ: un saludo al abrir la conversación y una despedida al cerrarla (Freesound, Sadiquecat,
+  //    CC0). El cooldown es el de quien abre y cierra deprisa: dentro de 0,8 s el segundo saludo no se apila. ──
+  "pnj-saludo-hombre-joven": { prioridad: 70, cooldown_ms: 800 },
+  "pnj-despedida-hombre-joven": { prioridad: 70, cooldown_ms: 800 },
+  "pnj-saludo-mujer-mayor": { prioridad: 70, cooldown_ms: 800 },
+  "pnj-despedida-mujer-mayor": { prioridad: 70, cooldown_ms: 800 },
   // ── el colchón de ambiente (fichero, no sale de la biblioteca S2) ──
   "ambiente-numinia": { prioridad: 100, cooldown_ms: 0 },
   // ── los ids que solo tienen receta (sin fichero): S6f ──
@@ -232,7 +238,7 @@ está en \`features/sonido/catalogo.json\` y \`test/sonidos.test.ts\` comprueba 
 y que ninguna licencia deja de ser CC0.
 
 **Cambio nuestro**: los ficheros son derivados (recorte del silencio de cabeza y cola, ganancia a RMS −18 dBFS
-con techo de pico en −2 dBFS, recodificación a Opus 40 kbps VBR mono 48 kHz y a AAC 48 kbps), lo que CC0
+con techo de pico en −2 dBFS, en las voces de los PNJ un fundido de 5 ms al entrar y de 80 ms al salir, recodificación a Opus 40 kbps VBR mono 48 kHz y a AAC 48 kbps), lo que CC0
 permite sin condiciones. Se rehacen con \`python3 construir.py\` dentro de la biblioteca y se traen aquí con
 \`node tools/sonidos-catalogo.ts\`.
 

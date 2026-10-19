@@ -21,6 +21,11 @@ export const FORMATOS = { mision: "mision@1", pnj: "pnj@1", cosa: "cosa@1" } as 
 export const TIPOS_PASO = ["llega_a", "habla_con", "usa", "coge", "entrega", "recibe"] as const; // new kinds go at the end (the wire's enum)
 export const ESTADOS = ["sin_empezar", "disponible", "activa", "hecha"] as const;
 export const ACCIONES = ["dar_mision", "avanzar_paso", "entregar", "despedir"] as const;
+/** The voices a person can have (pnj@1 `voz`): the house's NPC voice takes, a short wordless greeting when you start
+ *  talking and a farewell when you stop (features/sonido/catalogo.json: `pnj-saludo-<voz>`, `pnj-despedida-<voz>`). New
+ *  voices go at the end: a person without `voz` gets one from its id, and the order decides which. */
+export const VOCES_PNJ = ["hombre-joven", "mujer-mayor"] as const;
+export type VozPnj = (typeof VOCES_PNJ)[number];
 /** Lengths in UTF-8 bytes (what the wire carries; letters with accents count 2) and counts. */
 export const LIM = {
   id: 32, titulo: 80, descripcion: 300, textoPaso: 160, lugar: 60, nombre: 60, descripcionCosa: 140, linea: 400, opcion: 100,
@@ -71,9 +76,11 @@ export type Opcion = { texto: string; si: Condicion[]; ir?: string; accion?: Acc
 export type Nodo = { texto: string; opciones: Opcion[] };
 export type Apariencia = { modelo: string; escala: number };
 /** A person's `posicion.y` (optional, metres above the ground, 0–30: the floor of a tower it stands on; 0 when absent).
- * `oficio` (optional, 1–40 bytes; "" when absent): their trade («Carpintero»), a smaller line under the name (U14 (4)). */
+ * `oficio` (optional, 1–40 bytes; "" when absent): their trade («Carpintero»), a smaller line under the name (U14 (4)).
+ * `voz` (optional, one of VOCES_PNJ; "" when absent = chosen from the id, always the same): how they sound when you
+ * start and stop talking to them. */
 export type Pnj = {
-  formato: "pnj@1"; id: string; nombre: string; oficio: string; descripcion: string; apariencia: Apariencia; posicion: { x: number; z: number; y: number };
+  formato: "pnj@1"; id: string; nombre: string; oficio: string; voz: VozPnj | ""; descripcion: string; apariencia: Apariencia; posicion: { x: number; z: number; y: number };
   giro: number; radio: number; dialogo: { entradas: { si: Condicion[]; nodo: string }[]; nodos: Record<string, Nodo> };
 };
 /** A thing's `posicion.y` (optional, metres above the ground: a thing on a table or held up at chest height, reachable
@@ -380,8 +387,9 @@ export function leerPnj(v: unknown): Result<Pnj> {
   const is: Issue[] = [];
   const o = objeto(v, "", is);
   if (!o) return resultado(is, null as never);
-  campos(o, ["formato", "id", "nombre", "oficio", "descripcion", "apariencia", "posicion", "giro", "radio", "dialogo", "notas"], "", is);
+  campos(o, ["formato", "id", "nombre", "oficio", "voz", "descripcion", "apariencia", "posicion", "giro", "radio", "dialogo", "notas"], "", is);
   formato(o, FORMATOS.pnj, is);
+  const voz: VozPnj | "" = o.voz === undefined ? "" : VOCES_PNJ.includes(o.voz as VozPnj) ? (o.voz as VozPnj) : (is.push({ path: "voz", message: `una de: ${VOCES_PNJ.join(", ")} (sin «voz», una elegida por su id)` }), "");
   const d = objeto(o.dialogo, "dialogo", is) ?? {};
   campos(d, ["entradas", "nodos"], "dialogo", is);
   const nodosO = objeto(d.nodos, "dialogo.nodos", is) ?? {};
@@ -413,7 +421,7 @@ export function leerPnj(v: unknown): Result<Pnj> {
   });
   if (entradas.length && entradas[entradas.length - 1].si.length) is.push({ path: `dialogo.entradas[${entradas.length - 1}].si`, message: "la última entrada no lleva «si»: es lo que dice cuando nada más se cumple" });
   return resultado(is, {
-    formato: FORMATOS.pnj, id: id(o.id, "id", is), nombre: texto(o.nombre, "nombre", LIM.nombre, is), oficio: texto(o.oficio, "oficio", LIM.oficio, is, true), descripcion: texto(o.descripcion, "descripcion", LIM.descripcionCosa, is, true),
+    formato: FORMATOS.pnj, id: id(o.id, "id", is), nombre: texto(o.nombre, "nombre", LIM.nombre, is), oficio: texto(o.oficio, "oficio", LIM.oficio, is, true), voz, descripcion: texto(o.descripcion, "descripcion", LIM.descripcionCosa, is, true),
     apariencia: apariencia(o.apariencia, "apariencia", is), posicion: { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is, ALTURA_MAX) }, giro: numero(o.giro, "giro", -180, 180, is, 0),
     radio: numero(o.radio, "radio", 1, 8, is, 3), dialogo: { entradas, nodos },
   });
