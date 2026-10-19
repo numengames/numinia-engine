@@ -8,11 +8,14 @@ import catalogo from "./suelos.json" with { type: "json" };
 
 type Suelo = { nombre: string; color: string; normal: string; metros: number; rugosidad: number };
 const suelos = catalogo.suelos as Record<string, Suelo>;
+/** E3: a house sky's old sha256 (a world saved before it got lighter) → the file the server has now. */
+export const HDR_NUEVO: Record<string, string> = Object.fromEntries(Object.values(catalogo.cielos as Record<string, { hdr: string; antes?: string[] }>).flatMap((c) => (c.antes ?? []).map((a) => [a, c.hdr])));
 
 /** What the view draws: the state's fields plus the ground's files and size (render reads them by name). */
 export function aVista(v: Msg): Msg {
   const s = suelos[String(v.suelo)] ?? suelos.liso;
-  return { ...v, sueloMapa: s.color, sueloNormal: s.normal, sueloMetros: Math.max(0.1, s.metros * Number(v.sueloEscala ?? 1)), sueloRugosidad: s.rugosidad };
+  const hdr = HDR_NUEVO[String(v.hdr ?? "")];
+  return { ...v, ...(hdr ? { hdr } : {}), sueloMapa: s.color, sueloNormal: s.normal, sueloMetros: Math.max(0.1, s.metros * Number(v.sueloEscala ?? 1)), sueloRugosidad: s.rugosidad };
 }
 
 /** One per page (tests make one per client). */

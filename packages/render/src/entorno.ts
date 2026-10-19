@@ -6,6 +6,7 @@ import * as THREE from "three/webgpu";
 import { uniform, mix, smoothstep, normalize, positionLocal, positionWorld, cameraPosition, vec3, dot, max, pow, fog, rangeFogFactor, exponentialHeightFogFactor } from "three/tsl";
 import { CALIDAD_POR_NIVEL, SOMBRA_PX, CIELO_LUZ_PX, nivelDe, capacidades, acotarCalidad } from "./calidad.ts";
 import type { Calidad, Nivel } from "./calidad.ts";
+import { horizonteAtmosfera } from "./cielo-horizonte.ts";
 
 /** The environment as features/entorno sends it (flat fields) plus the ground's files resolved by its client part. */
 export type EntornoDatos = Record<string, unknown>;
@@ -152,24 +153,15 @@ export function crearEntorno(h: EntornoHooks) {
   const cieloEscena = new THREE.Scene();
   const cubo = new THREE.CubeRenderTarget(256, { type: THREE.HalfFloatType });
   const cuboCam = new THREE.CubeCamera(0.5, 1000, cubo);
-  // where the sky is drawn live (desktop) the fog colour only needs a tiny cube to sample the horizon from
-  const muestra = new THREE.CubeRenderTarget(16, { type: THREE.HalfFloatType });
-  const muestraCam = new THREE.CubeCamera(0.5, 1000, muestra);
-  cieloEscena.add(cuboCam, muestraCam);
-  let version = 0; // bumps with every environment applied (async results of an older one are dropped)
-  /** The fog takes the colour of the sky's horizon (the average of the four side faces' middle rows, linear HDR). */
-  function nieblaDelHorizonte(v: number, rt: THREE.CubeRenderTarget): void {
-    const s = rt.width;
-    const caras = [0, 1, 4, 5].map((f) => renderer.readRenderTargetPixelsAsync(rt, 0, s / 2 - 1, s, 2, 0, f) as Promise<ArrayLike<number>>);
-    Promise.all(caras).then((bufs) => {
-      if (v !== version || !(scene.fog instanceof THREE.Fog)) return;
-      let r = 0, g = 0, b = 0, k = 0;
-      for (const buf of bufs) for (let i = 0; i + 3 < buf.length; i += 4) {
-        const half = buf instanceof Uint16Array;
-        r += half ? THREE.DataUtils.fromHalfFloat(buf[i]) : buf[i]; g += half ? THREE.DataUtils.fromHalfFloat(buf[i + 1]) : buf[i + 1]; b += half ? THREE.DataUtils.fromHalfFloat(buf[i + 2]) : buf[i + 2]; k++;
-      }
-      if (k && Number.isFinite(r + g + b)) { scene.fog.color.setRGB(r / k, g / k, b / k, THREE.LinearSRGBColorSpace); avisar(); }
-    }).catch(() => { /* keep the colour the data gave */ });
+  cieloEscena.add(cuboCam);
+  /** The fog takes the colour of the sky's horizon (the average of the four side faces' middle rows of the cube it is
+   * baked into — 16 px where the sky is drawn live —, linear HDR). B3: worked out in JS with SkyMesh's own formulas
+   * (cielo-horizonte.ts) instead of reading the cube back: that read made the page wait for the whole GPU queue. */
+  function nieblaDelHorizonte(px: number): void {
+    if (!sky || !(scene.fog instanceof THREE.Fog)) return;
+    const [r, g, b] = horizonteAtmosfera({ turbidez: sky.turbidity.value, rayleigh: sky.rayleigh.value, mie: sky.mieCoefficient.value, mieG: sky.mieDirectionalG.value,
+      sol: sky.sunPosition.value, nubes: sky.cloudCoverage.value, densidad: sky.cloudDensity.value, px });
+    if (Number.isFinite(r + g + b)) { scene.fog.color.setRGB(r, g, b, THREE.LinearSRGBColorSpace); avisar(); }
   }
   let pmrem: THREE.PMREMGenerator | null = null;
   let envRT: THREE.RenderTarget | null = null;
@@ -200,8 +192,7 @@ export function crearEntorno(h: EntornoHooks) {
     if (sky && fuente === sky) sky.showSunDisc.value = 0;
     try {
       if (modoCielo === "horneado") { cuboCam.update(renderer as never, cieloEscena); scene.background = cubo.texture; }
-      else if (auto) muestraCam.update(renderer as never, cieloEscena);
-      if (auto) nieblaDelHorizonte(version, modoCielo === "horneado" ? cubo : muestra);
+      if (auto) nieblaDelHorizonte(modoCielo === "horneado" ? cubo.width : 16);
       if (luz) {
         pmrem ??= new THREE.PMREMGenerator(renderer);
         // a sky without its sun disc is smooth: a small cube lights as well as a big one, for a fraction of the work
@@ -299,7 +290,7 @@ export function crearEntorno(h: EntornoHooks) {
   function aplicar(v: EntornoDatos): void {
     d = v;
     if (!world.visible) { pendiente = true; return; }
-    pendiente = false; aplicados++; version++;
+    pendiente = false; aplicados++;
     // sun (the sky's) and the light (the moon when the sun is down)
     const alt = n(v.solAltura, 45), rumbo = n(v.solRumbo, 30);
     direccion(alt, rumbo, solDir);

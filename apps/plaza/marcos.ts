@@ -5,6 +5,7 @@ import { cssMarcos } from "../../packages/client/src/densidad.ts";
 import { montarDensidad } from "./densidad.ts";
 import { montarReloj } from "./reloj.ts";
 import { montarAvisos } from "./avisos.ts";
+import { montarHudPersonaje } from "./hud-personaje.ts";
 
 type Registro = { get(id: string): unknown; set(id: string, v: unknown): unknown; alAplicar(id: string, fn: (v: unknown) => void): void };
 
@@ -15,6 +16,6 @@ export function montarMarcos(a: Registro): ReturnType<typeof montarDensidad> {
   const cristal = () => html.toggleAttribute("data-sin-cristal", a.get("graficos.calidad") === "baja" || a.get("graficos.bateria") === true);
   a.alAplicar("graficos.calidad", cristal); a.alAplicar("graficos.bateria", cristal); cristal();
   const dial = montarDensidad(a);
-  montarReloj(a); montarAvisos();
+  montarReloj(a); montarAvisos(); montarHudPersonaje();
   return dial;
 }

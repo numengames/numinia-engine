@@ -15,6 +15,7 @@ import type { createView } from "../../packages/render/src/index.ts";
 import type { Calidad } from "../../packages/render/src/power.ts";
 import mundoPlaza from "./mundo.ajustes.json";
 import { AJUSTE_APARATO, capacidadesDelPerfil, nivelDelPerfil } from "../../packages/client/src/aparato.ts";
+import { icono } from "./iconos.ts";
 import { perfil, desarrollo, origenPerfil, cambiarAparato } from "./perfil-aparato.ts"; // U25
 
 type View = Awaited<ReturnType<typeof createView>>;
@@ -33,6 +34,7 @@ export const leerAjuste = (id: string): Valor | undefined => activo?.get(id);
 
 /** Typing in a box belongs to the box, not to the world: J3's one rule for every key listener of the page. */
 import { escribiendo } from "./escribiendo.ts";
+import { montarEdicion } from "./edicion.ts"; // M6: move and hide the frames
 import { montarMarcos } from "./marcos.ts"; // U20 + U3: the density dial, the frames, the clock, the notices
 export { escribiendo };
 /** Inside the menu, O closes it unless the key is text being typed. */
@@ -123,12 +125,16 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   a.alAplicar("controles.invertirY", camara);
   const zona = (_: Valor, l: Lectura) => extra.cam?.ajustar?.({ zonaMuerta: Number(l.get("controles.zonaMuerta")) / 100 });
   a.alAplicar("controles.zonaMuerta", zona);
+  // t_bf8947cf (MVL1): the VR rig always exists (unlike cam/entorno, built in parallel branches), so this
+  // writes straight to view.vr instead of going through Contratos.
+  a.alAplicar("controles.modoMovimientoVR", (v) => { view.vr.modoMovimiento = v as "mirada" | "mando" | "cuerpo"; });
   a.alAplicar("accesibilidad.menosMovimiento", (v) => { html.classList.toggle("menos-movimiento", v === true); });
   a.alAplicar("accesibilidad.textoGrande", (v) => { html.classList.toggle("texto-grande", v === true); });
   a.alAplicar("accesibilidad.altoContraste", (v) => { html.classList.toggle("alto-contraste", v === true); });
   a.alAplicar("accesibilidad.anunciar", (v) => { $("avisos")?.setAttribute("aria-live", v === true ? "polite" : "off"); }); // safety notices (assertive) always
   a.alAplicar("interfaz.tamano", (v) => { html.style.setProperty("--ui", String(Number(v) / 100)); });
   a.alAplicar("interfaz.ayuda", (v) => { const h = $("help"); if (h) h.hidden = v !== true; });
+  const edicion = montarEdicion(); Object.assign(o.numinia, { edicion });
   montarMarcos(a); // U20 + U3: which panels show at Mínimo / Normal / Completo (key U) and where each sits (the table of densidad.ts)
   // V7 «menos movimiento»: the features' hops are skipped (their label and announcement still say what happened)
   const rebote = view.bounce;
@@ -224,20 +230,66 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
     fs.hidden = !g.ajustes.some((s) => s.visible);
     return fs;
   }
-  const construir = () => lista.replaceChildren(...a.grupos().map(grupoDom));
+  // ---- the window: categories on the left, a search, «Restablecer esta página» (MMO interface, M2) ----
+  const CATEGORIAS: Array<{ id: string; nombre: string; icono: string }> = [
+    { id: "juego", nombre: "Juego", icono: "game-controller" }, { id: "interfaz", nombre: "Interfaz", icono: "desktop" },
+    { id: "controles", nombre: "Controles", icono: "hand-grabbing" }, { id: "graficos", nombre: "Gráficos", icono: "image-square" },
+    { id: "sonido", nombre: "Sonido y voz", icono: "music-notes" }, { id: "accesibilidad", nombre: "Accesibilidad", icono: "eye" },
+    { id: "cuenta", nombre: "Cuenta y privacidad", icono: "user" },
+  ];
+  /** Which category a registry group lives in: the engine's groups by id; features' and worlds' groups are «Juego». */
+  const categoriaDe = (grupo: string): string => ({ graficos: "graficos", sonido: "sonido", controles: "controles", accesibilidad: "accesibilidad", interfaz: "interfaz", privacidad: "cuenta" } as Record<string, string>)[grupo] ?? "juego";
+  let categoria = "", busqueda = "";
+  const cuerpo = document.createElement("div"); cuerpo.className = "ajustes-cuerpo";
+  const nav = document.createElement("nav"); nav.setAttribute("aria-label", "Categorías de ajustes");
+  lista.before(cuerpo); cuerpo.append(nav, lista);
+  const buscar = document.createElement("input"); buscar.type = "search"; buscar.id = "ajustes-buscar"; buscar.placeholder = "Buscar un ajuste";
+  const etqBuscar = document.createElement("label"); etqBuscar.htmlFor = "ajustes-buscar"; etqBuscar.className = "solo-lector"; etqBuscar.textContent = "Buscar un ajuste";
+  const cab = dlg.querySelector(".cabecera"); cab?.insertBefore(etqBuscar, cab.lastElementChild); cab?.insertBefore(buscar, cab.lastElementChild);
+  const pagina = document.createElement("button"); pagina.type = "button"; pagina.id = "ajustes-restablecer-pagina"; pagina.textContent = "Restablecer esta página";
+  $("ajustes-restablecer")?.before(pagina);
+  function mostrar(): void {
+    const q = busqueda.trim().toLowerCase();
+    const visibles = new Map(a.lista().map((x) => [x.id, x.visible])); // once per call: lista() rebuilds every view
+    for (const fs of lista.querySelectorAll<HTMLFieldSetElement>("fieldset")) {
+      const enCat = categoriaDe(fs.dataset.grupo ?? "") === categoria;
+      let alguno = false;
+      for (const f of fs.querySelectorAll<HTMLElement>(".ajuste")) {
+        const visible = visibles.get(f.dataset.id!) !== false;
+        const coincide = !q || (f.textContent ?? "").toLowerCase().includes(q);
+        f.hidden = !visible || !coincide; if (!f.hidden) alguno = true;
+      }
+      fs.hidden = !alguno || (!q && !enCat);
+    }
+    const con = (c: string) => [...lista.querySelectorAll<HTMLFieldSetElement>("fieldset")].some((fs) => categoriaDe(fs.dataset.grupo ?? "") === c && [...fs.querySelectorAll<HTMLElement>(".ajuste")].some((f) => visibles.get(f.dataset.id!) !== false));
+    for (const b of nav.querySelectorAll<HTMLButtonElement>("button")) { b.hidden = !con(b.dataset.cat!); b.setAttribute("aria-pressed", String(!q && b.dataset.cat === categoria)); }
+    if (!lista.querySelector("fieldset:not([hidden])")) { const v = lista.querySelector(".vacio") ?? Object.assign(document.createElement("p"), { className: "vacio" }); v.textContent = q ? "Ningún ajuste coincide." : "Esta categoría no tiene ajustes."; lista.append(v); } else lista.querySelector(".vacio")?.remove();
+    const editar = lista.querySelector<HTMLElement>("#ajustes-editar-interfaz"); if (editar) editar.hidden = !!q || categoria !== "interfaz" || !edicion.disponible;
+  }
+  const construir = () => {
+    lista.replaceChildren(...a.grupos().map(grupoDom));
+    nav.replaceChildren(...CATEGORIAS.map((c) => { const b = document.createElement("button"); b.type = "button"; b.dataset.cat = c.id; b.innerHTML = `${icono(c.icono, 18)}<span>${c.nombre}</span>`; /* constants only */ b.addEventListener("click", () => { categoria = c.id; busqueda = ""; buscar.value = ""; mostrar(); }); return b; }));
+    const fsI = lista.querySelector<HTMLElement>('fieldset[data-grupo="interfaz"]');
+    if (fsI) { const e = document.createElement("button"); e.type = "button"; e.id = "ajustes-editar-interfaz"; e.className = "grande"; e.textContent = "Editar interfaz"; e.hidden = true; e.dataset.listo = "1"; e.addEventListener("click", () => { cerrar(); edicion.abrir(); }); fsI.append(e); }
+    if (!categoria) categoria = CATEGORIAS.find((c) => [...lista.querySelectorAll<HTMLFieldSetElement>("fieldset")].some((fs) => categoriaDe(fs.dataset.grupo ?? "") === c.id && !fs.hidden))?.id ?? "juego";
+    mostrar();
+  };
+  buscar.addEventListener("input", () => { busqueda = buscar.value; mostrar(); });
+  pagina.addEventListener("click", () => {
+    for (const x of a.lista()) if (categoriaDe(x.grupo) === categoria) a.restablecer(x.id);
+    anunciar(`Página restablecida: ${CATEGORIAS.find((c) => c.id === categoria)?.nombre}.`);
+  });
   construir();
   // any change (the menu, an agent, the B key, a preset, a capability that arrived) updates the controls in place
   a.alCambiar((id) => {
     const s = a.lista().find((x) => x.id === id), fil = lista.querySelector<HTMLElement>(`.ajuste[data-id="${id}"]`);
     if (!s) return;
     if (!fil) { construir(); return; } // a setting declared later
-    fil.hidden = !s.visible;
     const c = $(cid(id));
     if (c instanceof HTMLInputElement && c.type === "checkbox") c.checked = s.valor === true;
     else if (c instanceof HTMLInputElement || c instanceof HTMLSelectElement) { if (c.value !== String(s.valor)) c.value = String(s.valor); }
     if (c instanceof HTMLInputElement && c.type === "range") { c.setAttribute("aria-valuetext", textoValor(s)); const out = $(`${cid(id)}-v`); if (out) out.textContent = textoValor(s); }
-    const fs = fil.closest("fieldset");
-    if (fs) fs.hidden = ![...fs.querySelectorAll<HTMLElement>(".ajuste")].some((x) => !x.hidden);
+    mostrar();
   });
 
   const enXR = () => view.vr.active || view.ar.state !== "off";

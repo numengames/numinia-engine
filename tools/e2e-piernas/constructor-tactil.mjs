@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
 
 const PW = process.env.PW_CORE ?? new URL("../../node_modules/playwright-core", import.meta.url).pathname;
-const CHROME = process.env.CHROME ?? "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell";
+const CHROME = process.env.CHROME ?? (await import("node:fs")).globSync("/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell").sort().at(-1) ?? "";
 const BASE0 = process.env.BASE ?? "http://127.0.0.1:5173/?webgl2";
 const BASE = BASE0 + (BASE0.includes("?") ? "&" : "?") + "pulso=2000";
 if (!existsSync(PW) || !existsSync(CHROME)) { console.error("playwright-core or chromium not found; set PW_CORE / CHROME"); process.exit(2); }
@@ -29,8 +29,10 @@ const toque = (p, cdp, at) => dedo(p, cdp, at, at, 1, 60);
 
 async function pierna() {
   const browser = await chromium.launch({ executablePath: CHROME, args: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"] });
-  const ctx = await browser.newContext({ viewport: { width: 420, height: 800 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  const [VW, VH] = (process.env.VISTA ?? "420x800").split("x").map(Number); // C5: VISTA=360x740 for the small phone
+  const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
   const errors = [];
+  await ctx.addInitScript((v) => { try { localStorage.setItem("numinia.novedades.version", v); } catch {} }, JSON.parse((await import("node:fs")).readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version); // the «what is new» card shows once per version in a fresh browser and would cover the world (see constructor.mjs)
   const open = async () => {
     const p = await ctx.newPage();
     p.on("pageerror", (e) => errors.push(String(e)));
@@ -69,6 +71,42 @@ async function pierna() {
     const sel = await a.evaluate(() => globalThis.__numinia.constructor.estado.seleccionado);
     const yaw1 = await a.evaluate(() => globalThis.__numinia.view.cam.yaw());
     paso("un toque selecciona sin girar la cámara", sel === id && Math.abs(yaw1 - yaw0) < 0.01, { sel, yaw0, yaw1 });
+    // 2b. C5: the card is a bottom sheet — full width, ≤ 46 vh, 5-column grid of ≥ 44 px icons each with a short visible label (aria-label
+    // unchanged), tabs across the whole width, the chosen block still on the canvas above it; a long press on «Borrar» says its title
+    // under the bar and does NOT delete; a short tap still presses.
+    await a.waitForFunction(() => !document.getElementById("ficha-objeto").hidden, null, { timeout: 4000 });
+    const hoja = await a.evaluate(() => {
+      const f = document.getElementById("ficha-objeto"), r = f.getBoundingClientRect(), vh = innerHeight, vw = innerWidth;
+      const ics = [...f.querySelectorAll("button.ic")].filter((b) => !b.hidden), caja = (b) => b.getBoundingClientRect();
+      const et = ics.map((b) => ({ aria: b.getAttribute("aria-label"), corta: b.querySelector(".et")?.textContent ?? "", visible: getComputedStyle(b.querySelector(".et")).display !== "none", w: caja(b).width, h: caja(b).height, x: Math.round(caja(b).left), y: Math.round(caja(b).top) }));
+      const fila1 = et.filter((e) => e.y === et[0].y).length, tabs = [...f.querySelectorAll(".pestanas button")].map((b) => caja(b));
+      const tr = f.querySelector(".pestanas").getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, vh, vw, alto: r.height, et, fila1, tabsW: tabs.reduce((s, t) => s + t.width, 0), tabsMin: Math.min(...tabs.map((t) => t.height)), barraW: tr.width, desborda: document.documentElement.scrollWidth > vw };
+    });
+    paso("C5: la ficha es una hoja inferior (ancho completo, ≤ 46 vh)", hoja.left === 0 && Math.round(hoja.right) === hoja.vw && hoja.alto <= hoja.vh * 0.46 + 1 && Math.round(hoja.bottom) === hoja.vh && !hoja.desborda, { top: hoja.top, alto: hoja.alto, vh: hoja.vh, vw: hoja.vw });
+    paso("C5: rejilla de 5 columnas, objetivos ≥ 44 px, etiqueta corta visible y aria-label intacto", hoja.fila1 === 5 && hoja.et.every((e) => e.w >= 44 && e.h >= 44 && e.visible && e.corta !== "" && e.aria !== e.corta && e.aria.length > e.corta.length), { fila1: hoja.fila1, et: hoja.et.map((e) => `${e.corta}|${e.aria}|${Math.round(e.w)}x${Math.round(e.h)}`) });
+    paso("C5: las pestañas ocupan todo el ancho y miden ≥ 44 px", Math.abs(hoja.tabsW - hoja.barraW) <= 6 && hoja.tabsMin >= 44, { tabsW: hoja.tabsW, barraW: hoja.barraW, tabsMin: hoja.tabsMin });
+    const libre = await pantalla(id);
+    const tapa = libre && (await a.evaluate((p) => document.elementFromPoint(p.x, p.y)?.tagName, libre));
+    paso("C5: la hoja no tapa el objeto elegido", !!libre && libre.y < hoja.top && tapa === "CANVAS", { libre, top: hoja.top, tapa });
+    const iconoBorrar = await a.evaluate(() => { const b = document.querySelector('#ficha-objeto button.peligro'), r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: iconoBorrar.x, y: iconoBorrar.y, radiusX: 8, radiusY: 8, force: 1, id: 1 }] });
+    await a.waitForTimeout(700); // past LARGA_MS
+    const pista = await a.evaluate(() => { const p = document.getElementById("ficha-pista"); return { oculta: p.hidden, texto: p.textContent, visible: getComputedStyle(p).display !== "none", rol: p.getAttribute("role"), top: document.getElementById("ficha-objeto").getBoundingClientRect().top, alto: document.getElementById("ficha-objeto").getBoundingClientRect().height, vh: innerHeight }; });
+    if (process.env.CAPTURA) await a.screenshot({ path: process.env.CAPTURA }); // while the finger rests: the title line is showing
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await a.waitForTimeout(250);
+    const sigue = await deB(id);
+    paso("C5: pulsación larga sobre «Borrar» dice su título completo y no borra", !pista.oculta && pista.visible && pista.texto.startsWith("Borrar (Supr") && pista.rol === "status" && !!sigue, { pista, sigue: !!sigue });
+    paso("C5: con la línea del título la hoja sigue ≤ 46 vh y sin tapar el objeto", pista.alto <= pista.vh * 0.46 + 1 && libre.y < pista.top, { top: pista.top, alto: pista.alto, y: libre.y });
+    const fijo0 = !!(await deB(id)).fijado;
+    const iconoFijar = await a.evaluate(() => { const b = [...document.querySelectorAll('#ficha-objeto button.ic')].find((x) => /^(Anclar|Soltar)/.test(x.getAttribute("aria-label"))), r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    await toque(a, cdp, iconoFijar);
+    const anclado = await esperaB(([k, v]) => !!globalThis.__numinia.session.features.stateOf("objetos").get(k)?.fijado === v, id, !fijo0);
+    paso("C5: un toque corto sobre «Anclar» sigue pulsando (B lo ve anclado)", anclado);
+    await a.waitForTimeout(300);
+    await toque(a, cdp, iconoFijar); // loose again, so the drag below can move it
+    paso("C5: y otro toque lo suelta", await esperaB(([k, v]) => !!globalThis.__numinia.session.features.stateOf("objetos").get(k)?.fijado === v, id, fijo0));
     // 3. one finger drags the block ~300 px to the right → it moves ≥ 1 m for B; the camera's yaw stays; the drag ran (busy)
     s = await pantalla(id);
     const antes = await a.evaluate((k) => globalThis.__numinia.view.editor.dondeEsta(k), id);

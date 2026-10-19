@@ -1008,6 +1008,23 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
   (§6 del diseño: avisar a quien sale «X ha sacado el Graboso»). Después: conectar con Y1, voces de otros en
   el clip, modelo fino, VR, compartir (M18c).
 
+## 2026-10-18 17:54 · ko-t_e8a450a4 · hecho (mitad)
+- Qué: H11 (importar de Hyperfy), la mitad `db.sqlite`+`assets/` → carpeta del mundo (la otra mitad, `.hyp` →
+  carpeta de app, sigue esperando a M19, que está «para Opus»; no se ha tocado). `packages/server/src/importar-hyperfy.ts`
+  lee `config`/`blueprints`/`entities` con `node:sqlite` (sin dependencia nueva), resuelve cada `asset://<sha256>.<ext>`,
+  copia el fichero a `datos/activos/`, convierte posición y cuaternión a los campos de H1 (grados, orden yaw→pitch→roll)
+  y escribe `datos/objetos.json` tal cual lo lee `FileStorage` al arrancar (a mano, sin importar `features/objetos`
+  desde `packages/`: lo prohíbe la regla de capas). H7: `aventura/ficha.json` con nombre/descripción/portada/aforo.
+  CLI `tools/importar-hyperfy.ts`; informe de lo traído (`informe-importacion.json`+`.txt`): leídos, importados,
+  omitidos con motivo, activos copiados/que faltan.
+- Números: `test/importar-hyperfy.test.ts` nuevo (5 pruebas, todas en verde); `npm test`: 777 bien, 0 mal;
+  `npm run gates`: todas las puertas en verde (capas 0, determinismo igual, ancho de banda 26,6 kbit/s, plaza de
+  1.000 p99 15,4 ms, página 469,1 kB). La prueba fuerte arranca de verdad la función `objetos` (`Instance` +
+  `FileStorage`) sobre lo que escribe el importador y comprueba la cosa en su sitio, giro y escala exactos.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `ko/t_e8a450a4` sobre `origin/tren/motor-2026-10-18-6`.
+- Siguiente: probar contra un `db.sqlite` real de un mundo Hyperfy (de momento solo el fijo de prueba); la mitad
+  `.hyp` → carpeta de app espera a M19.
 ## 2026-10-18 17:25 UTC — arreglo: el teclado de la cerradura tapaba el mundo desde que carga (0.14.1)
 - Visto por Pablo en vídeo (Alchemist Tower, v0.11): el teclado de la cerradura (D-042) sale al cargar, sin nombre, y ni «Abrir» ni «Cerrar» lo quitan: la capa ocupa toda la pantalla y el jugador queda bloqueado.
 - Causa: la capa llevaba `display: grid` en línea; un estilo en línea gana al atributo `hidden`, así que `capa.hidden = true` no la escondía nunca.
@@ -1074,3 +1091,127 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `avatares/rueda-movimientos` (sobre 4eb6387).
 - Siguiente: probar con un móvil y un mando reales; que los agentes (`packages/agent`) usen la lista entera; que quien
   llega tarde vea un movimiento en curso (estado con `at`, J9); grabar los que UAL1 no trae (aplaudir, señalar…).
+## 2026-10-16 21:09 · R1 trozo «imprimir los QR como SVG» · hecho (historia en sombra, Doulos; nada sube a origin)
+- Qué: solo el trozo de «Falta de R1» pedido: `npm run enlaces -- qr [base] [carpeta]` ahora escribe un
+  `<carpeta>/<id>.svg` por punto de `enlaces.json` (carpeta por defecto `qr/`, añadida a `.gitignore`) y sigue
+  imprimiendo id, nombre y ruta; sin ese argumento se comporta igual que antes (id, nombre, URL firmada). El
+  resto de «Falta de R1» (escuchar en la red de casa, comprobar la columna en un navegador real, medir con un
+  móvil real) queda sin tocar, como pedía la tarea.
+- Números: 252 pruebas (antes 249; 3 nuevas en `test/enlaces.test.ts`: modo normal, modo `qr` con SVGs válidos,
+  y el aviso sin `MOTOR_SECRET` en ambos modos); puertas en verde (capas 0, determinismo igual, ancho de banda
+  26,7 kbit/s, tick p99 7,6 ms con mil). e2e y `tools/auto.sh` no se han tocado ni corrido (no tocan a esta rama).
+- Consumo: no aplica (prueba de Doulos en un worktree desechable, sin `hermes usage` en este perfil); modelo
+  Sonnet 5.
+- Commit: este (rama `doulos/sombra-r1-qr`, solo local; no sube a origin, no hay PR).
+- Siguiente: el resto de «Falta de R1» (modo LAN del servidor, comprobación visual real de la columna, medición
+  con móvil real) sigue pendiente para quien tome la fila R1.
+
+## 2026-10-18 18:21 · lucha-l2-estados-jugador · hecho (trozo 1)
+- Qué: L2, primera historia: vida del jugador en memoria del servidor (`features/lucha/server.ts`). Cada golpe
+  que el jugador aterriza, la criatura golpea de vuelta con la misma tirada (`DANO_BASE..DANO_BASE+DANO_VAR-1`,
+  PRNG con semilla: reproducible); `VIDA_JUGADOR_MAX` (50, por encima de lo que cuesta matar al Guardián de
+  Crisálida en una pelea normal: no rompe el combate de L1) baja en memoria, sin estado compartido ni HUD (eso
+  es la siguiente historia de L2, con el diseño de canon Desestabilizado→Colapsado→Aletargado de
+  `docs/BACKLOG.md` fila L2). A 0, el jugador cae (`caido`): `golpear` se rechaza hasta que pasan
+  `REAPARICION_JUGADOR_TICKS` (100 = 5 s a 20 Hz), y entonces vuelve entero. Eventos nuevos `jugadorHerido`,
+  `jugadorCaido`, `jugadorVuelve` (solo al propio jugador); `client.ts` los escucha para que las pruebas los
+  vean (sin dibujar nada aún, por diseño).
+- Números: `test/lucha.test.ts` 10/10 (2 nuevas: herido→caído→reaparece, y mismo seguimiento con sha256 igual
+  en dos mundos con la misma semilla). `npm test` con `node_modules` enlazado del clon base: 773/774 (el único
+  rojo, `misiones-secuencia.test.ts` p99 de un gate de carga, es el conocido por contención de CPU — solo,
+  8/8 verde; sin ese enlace, los 23 fallos preexistentes por falta del paquete `ws` en este worktree, iguales
+  antes y después). `npm run build`: verde (842 ms).
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `ko/t_32744f07-v2` sobre `origin/tren/motor-2026-10-18-6`, PR #145.
+- Siguiente: la siguiente historia de L2 (HUD, velocidad, vuelta a `aparicion`, estado compartido por
+  invitado) cuando la pida el tablero; L3 (la criatura se mueve y persigue) sigue esperando a L2 entero.
+
+## 2026-10-18 19:30 · constructor/anclar-explicar · hecho
+- Qué: el botón «fijar» del constructor se renombra a «Anclar / soltar» (con icono) y lleva un tooltip claro
+  (t_72b0bdab), porque Pablo (vídeo 18-10): «fijar no se entiende». Renombrado en `apps/plaza/constructor.ts`
+  (botón con icono `push-pin` de Phosphor, `boton2` ahora acepta un icono opcional), tooltip explícito («Anclar:
+  nadie lo mueve, gira ni borra hasta que lo sueltes (P)»), etiqueta del checkbox del inspector, texto de ayuda
+  del constructor y los mensajes de estado del cliente (cogido/arrastrado) usan «anclado». Los mensajes de
+  rechazo del servidor (`features/objetos/server.ts`) siguen diciendo «fijado»: varias pruebas
+  (`test/objetos.test.ts`, `test/huecos.test.ts`) comprueban ese texto exacto; cambiarlo junto con las pruebas
+  se deja para otra tarjeta si se quiere, por no ensanchar esta historia de 20 min. El campo de datos y el
+  verbo de red siguen llamándose `fijado`/`fijar` (wire/schema sin tocar, D-055 no aplica aquí: es puro texto
+  de interfaz). `docs/JUGADOR.md` actualizado con el mismo texto.
+- Números: `npm test` y `npm run build` en verde (ver comprobado en el PR).
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `constructor/anclar-explicar` sobre `origin/tren/motor-2026-10-18-6`.
+- Siguiente: nada pendiente de esta tarjeta; si se quiere, extender el mismo nombre a `rueda.ts` («Fijar en
+  favoritos», uso distinto, no tocado aquí).
+
+## 2026-10-19 06:48 · pelea/combate-a-main · hecho
+- Qué: HUD de combate con Estado, Carga y las 3 habilidades (teclas 1-3), y PVP por mundo (apagado por defecto).
+  Lleva a main lo que solo vivía en las ramas `noche/combate-h*` y `noche/pvp-*`, conciliado con la vida y la caída
+  (#145) y el HUD de personaje (#160): kit Eclipse Mnémico, escalera de Estado, Aletargado reaparece en el último sitio
+  seguro, críticos 20 % x2, bandera `pvp`/`zonasPvp` en `entorno.json` e icono de Estado sobre quien recibe el golpe.
+  Versión 0.16.0 (menor: algo nuevo que no rompe nada).
+- Números: `node tools/gates.mjs`: 941 bien, 4 mal (enlaces ×3 por `qrcode-svg` ausente en el `node_modules` enlazado,
+  los mismos en main; subidas ×1, intermitente); capas, determinismo, ancho de banda y plaza de 1.000 en verde; página
+  512,3 kB gz antes de dibujar (main 510,0 kB; +2,2 kB; tope 1.000 kB).
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `pelea/combate-a-main` sobre `origin/main` cb35ef4, sin push.
+- Siguiente: decidir si `habilidad` hace que la criatura devuelva el golpe (`golpear` sí); activar `pvp` en un mundo real.
+
+## 2026-10-19 07:25 · constructor/ficha-pestañas · hecho
+- Qué: la ficha del objeto gana las pestañas Ficha, Lógica y Ajustes (C4).
+  Detalle: la ficha del objeto (C3) gana pestañas accesibles (`role=tablist/tab/tabpanel`, flechas izquierda y derecha,
+  Inicio/Fin, `aria-selected`, tooltip con icono Phosphor de la casa en cada una): «Ficha» (los datos de siempre),
+  «Lógica» (disparadores del cable que muestran u ocultan el objeto por id o nombre, disparadores que nacen en él,
+  y cerraduras y contadores en el mismo punto; botón «Abrir el cable» que lleva al panel del cable) y «Ajustes»
+  (nombre, se ve al jugar, anclado y sólido, con los mismos verbos del inspector; botón «Abrir inspector (N)»).
+  Solo sale con permiso de construir y el constructor abierto (sin cambios); Esc la cierra como antes, también
+  desde el campo de nombre. Sin camino de red nuevo: lee el estado de `disparadores`, `cerradura` y `contadores`
+  y llama a `nombrar`/`ajustar`/`fijar`; el servidor valida. Lógica pura en `apps/plaza/ficha-objeto.ts`
+  (`logicaDeObjeto`, `pestanaConTecla`); la solidez del inspector pasa a una función compartida.
+- Números: `test/ficha-objeto.test.ts` 6/6 (2 nuevas). `npm test` 917/920 (los 3 rojos son los conocidos de
+  `enlaces`, falta `qrcode-svg`). Pierna e2e del constructor (chromium) en verde con 8 pasos nuevos (pestañas,
+  clic, flechas, «Abrir el cable», ajustes que cambian el objeto en el servidor y B lo ve, «Abrir inspector»).
+  Página antes de dibujar: 510,0 → 511,9 kB gz (+1,9 kB; tope 1000). Captura real en
+  `work/numinia-engine-wt-creativo2-captura-c4.png`. Sin subir la versión (la sube quien fusiona).
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `creativo/c4-c5` sobre `origin/main` cb35ef4 (sin push).
+- Siguiente: C5 (móvil/VR: los mismos iconos grandes, sin tooltips de ratón).
+
+## 2026-10-19 08:47 · constructor/ficha-movil-vr · hecho
+- Qué: la ficha del objeto con iconos grandes en móvil (hoja inferior) y en VR (panel con el rayo) (C5).
+  Detalle: la ficha del objeto (C3/C4) sin ratón. **Móvil** (pantallas táctiles, `pointer: coarse`): la ficha pasa a hoja
+  inferior a ancho completo (máx. 46 vh, opaca, el panel del constructor se aparta mientras hay objeto elegido: una
+  sola hoja a la vez); rejilla de 5 columnas con objetivos de 63×48 px; etiqueta corta visible bajo cada icono
+  («Mover», «Girar», «Escalar», «Copiar», «Anclar/Soltar», «Enlace», «Borrar», «Cerrar»; el `aria-label` no cambia);
+  pestañas a ancho completo de 44 px; pulsación larga (450 ms) sobre un icono dice su título completo en una línea
+  bajo la barra (`role=status`) y no lo pulsa; esa línea guarda su sitio para que los iconos no salten bajo el dedo.
+  El «#barra-objeto» de M22b-1 ya no existe en esta base (la ficha lo sustituyó en C3): no se duplica nada.
+  **VR**: panel plano (`packages/render/src/vr-ficha.ts`, trozo aparte que solo se descarga al elegir un objeto
+  dentro de una sesión VR) con 8 botones grandes (Mover, Girar 15°, Escalar +/−, Duplicar, Anclar/Soltar, Borrar
+  con doble pulsación, Cerrar), colocado abajo y a la izquierda para que el rayo hacia el objeto (de frente) y la
+  mano derecha no lo atraviesen; mismas reglas: solo con permiso de construir, y el servidor decide.
+- Números: `test/ficha-objeto.test.ts` 10/10 (4 nuevas: etiquetas, celdas VR, `celdaEn`, `aplicarAccionVR`).
+  `npm test` 921/924 (3 rojos conocidos de `enlaces`, falta `qrcode-svg`). Pierna táctil a 360×740 en verde con 7
+  pasos nuevos (hoja ≤ 46 vh, 5 columnas ≥ 44 px, etiquetas, pestañas, no tapa el bloque, pulsación larga sin
+  borrar, toque corto sigue pulsando). Pierna VR (IWER) con 4 pasos nuevos (ficha visible, «Escalar +» ×1,25 y B lo
+  ve, sigue elegido, «Cerrar»). Las dos piernas cierran ahora la tarjeta de novedades del navegador limpio y buscan
+  el chrome por glob. Aviso: el paso «moverlo ≥ 1 m» de la pierna VR falla a ratos con la máquina cargada, también
+  sin estos cambios (1 de 3 en la base). Página antes de dibujar: 511,9 → 513,6 kB gz (+1,7 kB; tope 1000); el
+  trozo VR pesa 1,4 kB gz y no entra en el arranque. Captura real 360×740 en
+  `work/numinia-engine-wt-creativo2-captura-c5-movil.png`.
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `creativo/c4-c5` (sin push).
+- Siguiente: si el objeto queda bajo la hoja (objetos muy cercanos a los pies), la cámara no se mueve sola.
+
+## 2026-10-19 13:35 · identidad/i1-adoptar-progreso · hecho
+- Qué: al llegar el primer pase de numinia.com de alguien que estaba como invitado, el servidor adopta su progreso
+  (`ServerRuntime.adoptar(invitado, sub)`, llamado desde `Instance.identificar` justo tras `credencial`). Regla
+  genérica para cualquier almacén (`adoptarClaves`: toda clave `…:<invitado>` o `…:<invitado>~n` pasa a `sub`; si ya
+  existía, `fusionar`: listas unión, números el mayor, objetos clave a clave). Tres piezas con `onAdoptar` propio:
+  bienes (el dueño va dentro del valor y en el índice por páginas), inventario (renumera los objetos del invitado tras
+  la serie de `sub`; la caché sigue) y misiones (regla genérica + caché). Idempotente: tras adoptar no queda nada bajo
+  el invitado. Solo servidor, sin cliente ni UI.
+- Números: 958 tests en verde (4 nuevos en `test/identidad-adoptar.test.ts`); build ok; +78 líneas de código.
+- Consumo: sin medir · Sonnet 5 (subagente).
+- Commit: rama `identidad/i1-adoptar-progreso`, versión 0.17.0 → 0.18.0 (menor: algo nuevo que no rompe nada).
+- Siguiente: I2 (renovar el pase de personas con `vidaIA`); el recibo firmado de un bien sigue nombrando al invitado,
+  así que `traer` a otro mundo con ese recibo aún lo ve «de otro invitado» (I4 o una historia aparte).

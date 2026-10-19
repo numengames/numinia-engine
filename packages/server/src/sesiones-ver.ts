@@ -46,7 +46,39 @@ export function describir(f: Fila): string {
     `  batería: ${batIni === undefined ? "el navegador no la da" : `${Math.round(batIni * 100)} % → ${batFin === undefined ? "?" : Math.round(batFin * 100)} %`} · preferencias: ${[e.preferencias?.menosMovimiento && "menos movimiento", e.preferencias?.masContraste && "más contraste", e.preferencias?.oscuro && "oscuro"].filter(Boolean).join(", ") || "ninguna"}`,
   ];
   if (f.errores.length) lines.push(`  errores (${f.errores.length}): ${f.errores.slice(0, 3).map((x) => `${x.mensaje} @ ${x.donde}`).join(" | ")}`);
+  const b5 = tirones(p);
+  if (b5) lines.push(...b5);
   return lines.join("\n");
+}
+
+const suma = (xs: unknown[]) => xs.reduce<number>((a, x) => a + (typeof x === "number" && Number.isFinite(x) ? x : 0), 0);
+const maximo = (xs: unknown[]) => { const v = xs.filter((x): x is number => typeof x === "number" && Number.isFinite(x)); return v.length ? Math.max(...v) : NaN; };
+const r2 = (x: number) => (Number.isFinite(x) ? String(Math.round(x * 100) / 100) : "—");
+const minimo = (xs: unknown[]) => { const v = xs.filter((x): x is number => typeof x === "number" && Number.isFinite(x)); return v.length ? Math.min(...v) : NaN; };
+
+/** E4: the B5 fields of the pulse (docs/MEDIDAS.md, «Qué quiere decir cada cifra del pulso»), summed or taken at their
+ * worst over the session: freezes, long frames, LoAF, draw calls, triangles, shader programs, resolution changes. An
+ * old page sends none of them: then nothing is printed (not «0», which would say «none»). */
+export function tirones(p: Rec[]): string[] | null {
+  const hay = (k: string) => p.some((x) => x[k] !== undefined);
+  if (!["congelado", "largos", "loaf", "dc", "kTri", "cambiosRes", "programas", "ratio"].some(hay)) return null;
+  const out: string[] = [];
+  const partes: string[] = [];
+  if (hay("congelado")) {
+    const veces = suma(p.map((x) => x.congelado?.n));
+    partes.push(veces ? `congelada ${veces} ${veces === 1 ? "vez" : "veces"} (${n(suma(p.map((x) => x.congelado?.ms)), " ms")} en total, peor ${n(maximo(p.map((x) => x.congelado?.peor)), " ms")})` : "nunca congelada");
+  }
+  if (hay("largos")) partes.push(`cuadros largos (> 50 ms) ${suma(p.map((x) => x.largos))}`);
+  if (hay("loaf")) partes.push(`LoAF ${suma(p.map((x) => x.loaf?.n))} (bloqueo ${n(suma(p.map((x) => x.loaf?.bloqMs)), " ms")}, peor ${n(maximo(p.map((x) => x.loaf?.peorMs)), " ms")})`);
+  else if (hay("largos") || hay("congelado")) partes.push("LoAF: el navegador no lo mide");
+  if (partes.length) out.push(`  tirones: ${partes.join(" · ")}`);
+  const gpu: string[] = [];
+  if (hay("dc")) gpu.push(`dibujos p50 ${n(med(p.map((x) => x.dc?.p50)))} (peor ${n(maximo(p.map((x) => x.dc?.peor)))})`);
+  if (hay("kTri")) gpu.push(`miles de triángulos p50 ${n(med(p.map((x) => x.kTri?.p50)))} (peor ${n(maximo(p.map((x) => x.kTri?.peor)))})`);
+  if (hay("programas")) gpu.push(`programas máx ${n(maximo(p.map((x) => x.programas)))} (+${suma(p.map((x) => x.programasNuevos))} nuevos)`);
+  if (hay("cambiosRes") || hay("ratio")) gpu.push(`cambios de resolución ${suma(p.map((x) => x.cambiosRes))} (ratio mín ${r2(minimo(p.map((x) => x.ratio)))}, último ${r2(p.filter((x) => typeof x.ratio === "number").at(-1)?.ratio ?? NaN)})`);
+  if (gpu.length) out.push(`  dibujo: ${gpu.join(" · ")}`);
+  return out;
 }
 
 /** Totals by device class: sessions, median frame p99, lost frames. */
@@ -57,7 +89,9 @@ export function resumir(filas: Fila[]): string {
   for (const [k, fs] of [...by].sort()) {
     const p = fs.flatMap((f) => f.pulsos);
     const cuadros = p.reduce((a, x) => a + (x.cuadros ?? 0), 0), perdidos = p.reduce((a, x) => a + (x.perdidos ?? 0), 0);
-    out.push(`  ${k}: ${fs.length} sesiones · cuadro p99 ${n(med(p.map((x) => x.cuadroMs?.p99)), " ms")} · perdidos ${cuadros ? n((100 * perdidos) / cuadros, " %") : "—"} · ping ${n(med(p.map((x) => x.rttMs).filter((x) => x >= 0)), " ms")}`);
+    const congeladas = fs.filter((f) => f.pulsos.some((x) => (x.congelado?.n ?? 0) > 0)).length, conB5 = p.some((x) => x.congelado !== undefined || x.largos !== undefined);
+    out.push(`  ${k}: ${fs.length} sesiones · cuadro p99 ${n(med(p.map((x) => x.cuadroMs?.p99)), " ms")} · perdidos ${cuadros ? n((100 * perdidos) / cuadros, " %") : "—"} · ping ${n(med(p.map((x) => x.rttMs).filter((x) => x >= 0)), " ms")}` +
+      (conB5 ? ` · ${congeladas} con congelación · cuadros largos ${suma(p.map((x) => x.largos))}` : ""));
   }
   return out.join("\n");
 }

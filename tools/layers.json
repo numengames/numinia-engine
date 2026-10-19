@@ -1,6 +1,6 @@
 {
   "_doc": "Each package may import only the packages listed for it. Lower layers never import upper ones. render talks to three.js only. 'features' is the rule for every folder in features/ (game features: only the plug, no bare imports). Only the files in _composition may import features/.",
-  "_composition": ["packages/server/src/main.ts", "packages/cli/src/describe.ts", "apps/plaza/main.ts"],
+  "_composition": ["packages/server/src/main.ts", "packages/server/src/bench-piezas.ts", "packages/cli/src/describe.ts", "apps/plaza/main.ts"],
   "core": [],
   "schema": ["core"],
   "ecs": ["core", "schema"],

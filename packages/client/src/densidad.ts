@@ -62,7 +62,10 @@ export const MARCOS_PLAZA: readonly MarcoDensidad[] = [
   { id: "hud.barra", selector: "#barra-arriba", densidad: "normal", cuando: "siempre", caja: { ancla: "arriba-derecha", dx: 16, dy: 14 }, nombre: "Barra de botones" },
   { id: "hud.reloj", selector: "#reloj", densidad: "normal", cuando: "siempre", caja: { ancla: "arriba-derecha", dx: 16, dy: 62, alto: 28 }, cristal: 8, nombre: "Reloj" },
   { id: "hud.minimapa", selector: "#minimapa", densidad: "normal", cuando: "siempre", caja: { ancla: "arriba-derecha", dx: 16, dy: 94 }, nombre: "Minimapa" },
+  { id: "hud.personaje", selector: "#hud-personaje", densidad: "normal", cuando: "siempre", caja: { ancla: "arriba-izquierda", dx: 16, dy: 62, ancho: 290 }, cristal: 12, nombre: "Personaje: Estado, Carga y Aliento" },
   { id: "hud.misiones", selector: "#misiones", densidad: "normal", cuando: "bajo_demanda", tecla: "KeyJ", caja: { ancla: "arriba-derecha", dx: 16, dy: 292, ancho: 292, alto: 40 }, cristal: 12, nombre: "Misiones (botón; J abre el libro)" },
+  { id: "hud.objetivo", selector: "#objetivo", densidad: "normal", cuando: "siempre", caja: { ancla: "arriba-centro", dx: 0, dy: 108, ancho: 340 }, cristal: 12, nombre: "Objetivo (criatura apuntada)" },
+  { id: "hud.habilidades", selector: "#habilidades", densidad: "normal", cuando: "siempre", caja: { ancla: "abajo-centro", dx: 0, dy: 174, ancho: 360, alto: 66 }, cristal: 12, nombre: "Habilidades (3 huecos)" },
   { id: "hud.acciones", selector: "#acciones", densidad: "normal", cuando: "siempre", caja: { ancla: "abajo-centro", dx: 0, dy: 16, ancho: 360, alto: 80 }, cristal: 12, nombre: "Barra de acciones" },
   { id: "hud.ayuda", selector: "#help", densidad: "completo", cuando: "siempre", caja: { ancla: "abajo-derecha", dx: 16, dy: 16, ancho: 410 }, cristal: 12, nombre: "Ayuda de teclas" },
 ];

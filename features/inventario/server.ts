@@ -58,6 +58,17 @@ export const crearInventario = (opts: { donantes?: [string, string][] } = {}) =>
   }
 
   api.onIdentify((e) => { clave(e); enviar(e); });
+  // identidad/i1: a guest's first pass. The two Reservas join: the guest's objects come after sub's, renumbered (ids are
+  // o<serie> per person, so they would collide); the memory cache follows so an open tab of `sub` does not undo it.
+  api.onAdoptar((invitado, sub) => {
+    const mio = leerInventario(api.store.get(`i:${invitado}`)), suyo = cache.get(`g:${sub}`) ?? leerInventario(api.store.get(`i:${sub}`));
+    if (!mio.objetos.length) { api.store.delete(`i:${invitado}`); return; }
+    for (const o of mio.objetos) suyo.objetos.push({ ...o, id: `o${++suyo.serie}` });
+    const junto = leerInventario(suyo); // the limits hold (an over-full Reserva keeps the oldest; a stack keeps its size)
+    if (!api.store.set(`i:${sub}`, junto)) { api.log(`inventario: no pude juntar la Reserva de ${invitado} en ${sub}`); return; }
+    cache.set(`g:${sub}`, junto); cache.delete(`g:${invitado}`); api.store.delete(`i:${invitado}`);
+    for (const x of api.players()) if (claveDe.get(x) === `g:${sub}`) enviar(x);
+  });
   api.onLeave((e) => { const k = claveDe.get(e); claveDe.delete(e); if (k && !k.startsWith("g:")) cache.delete(k); else if (k && ![...claveDe.values()].includes(k)) cache.delete(k); });
 
   api.on("equipar", (e, m) => { const i = inv(e), r = equipar(i, String(m.id)); if (!r.ok) return rechazar(e, r.motivo); tras(e, i); });
