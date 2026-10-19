@@ -258,9 +258,9 @@ export const AGUA_ORILLA = {
  * sobre el agua turquesa clara (el verdemar con arena de E03 se perdía). Solo mezclas de tokens, ningún hex nuevo.
  */
 export const AGUA_OCEANO = {
-  somera: mezcla(mezcla(CASA.turquesaProfundo, VERDES.verdin, 0.45), CASA.noche, 0.45),
-  media: mezcla(mezcla(CASA.turquesaProfundo, VERDES.verdin, 0.25), CASA.noche, 0.65),
-  honda: mezcla(CASA.noche, CASA.turquesaProfundo, 0.15),
+  somera: mezcla(mezcla(CASA.turquesaProfundo, VERDES.verdin, 0.55), CASA.noche, 0.2),
+  media: mezcla(mezcla(CASA.turquesaProfundo, VERDES.verdin, 0.45), CASA.noche, 0.38),
+  honda: mezcla(mezcla(VERDES.verdin, CASA.turquesaProfundo, 0.5), CASA.noche, 0.6),
   franja: mezcla(mezcla(CASA.turquesaProfundo, CASA.ceniza, 0.35), CASA.noche, 0.2),
   espuma: mezcla(CASA.arenaVelada, CASA.verdemar, 0.35),
   codigo: mezcla(CASA.turquesa, CASA.verdemar, 0.35),
