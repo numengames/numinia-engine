@@ -53,7 +53,7 @@ test("steeper ground gets fewer tufts than flat ground", () => {
   assert.ok(tuftsDeCelda(SEMILLA, 1, 1, cuesta, n).length < 0.5 * tuftsDeCelda(SEMILLA, 1, 1, plano, n).length);
 });
 
-test("density per tier: tufts and triangles fit the grass share of the nature budget (N6); flowers are 3-12 % of the meadow's tufts", () => {
+test("density per tier: tufts and triangles fit the grass share of the nature budget (N6); flowers are 1.5-8 % (R1: fewer) of the meadow's tufts", () => {
   for (const nv of NIVELES) {
     const t = HIERBA_POR_NIVEL[nv], a = anillo(t);
     const enviados = triangulosHierba(t); // N7: outer ring + dense inner ring
@@ -65,7 +65,7 @@ test("density per tier: tufts and triangles fit the grass share of the nature bu
   const llano: Fuente = { alturaEn: () => 0, zonaEn: () => "prado" }, n = HIERBA_POR_NIVEL.A;
   let tufts = 0, flores = 0;
   for (let cx = -12; cx < 12; cx++) for (let cz = -12; cz < 12; cz++) { tufts += tuftsDeCelda(SEMILLA, cx, cz, llano, n).length; flores += floresDeCelda(SEMILLA, cx, cz, llano, n).length; }
-  assert.ok(flores / tufts > 0.03 && flores / tufts < 0.12, `flowers ${(100 * flores / tufts).toFixed(2)} % of tufts`);
+  assert.ok(flores / tufts > 0.015 && flores / tufts < 0.08, `flowers ${(100 * flores / tufts).toFixed(2)} % of tufts`);
 });
 
 for (const nv of NIVELES) {
@@ -124,4 +124,24 @@ test("CPU: refilling is spread over frames within the budget (each call ≈ pres
   console.log(`# hierba A: first fill ${frames - 200} frames, max ${Math.max(...tiempos).toFixed(2)} ms/frame; walking mean ${media.toFixed(3)} ms, max ${max.toFixed(2)} ms, ${h.estadisticas().celdasLlenadas} cells`);
   assert.ok(max < 4, `worst frame ${max.toFixed(2)} ms (budget 0.4 ms + one batch; a loaded machine may add a spike: re-run alone)`);
   h.dispose();
+});
+
+// ---- R1: palette membership of tufts and flowers (DIRECCION-ARTE.md)
+import { CASA, VERDES, ESTACIONES, mezcla } from "../packages/render/src/naturaleza/paleta.ts";
+test("R1: tuft and flower colours are palette colours or mezcla of two; flowers are only sand, sea-green or amber and stay small", () => {
+  const P = [...Object.values(CASA), ...Object.values(VERDES), ...Object.values(ESTACIONES).flatMap((e) => [e.hierba, e.hierbaLuz, e.flor])];
+  const rgb = (h: number) => [(h >> 16) & 255, (h >> 8) & 255, h & 255].map((v) => v / 255);
+  const dist = (c: number[]) => { let m = Infinity; for (const a of P) for (const b of P) { if (a > b) continue; const A = rgb(a), B = rgb(b), AB = B.map((v, i) => v - A[i]), AC = c.map((v, i) => v - A[i]), den = AB.reduce((s, v) => s + v * v, 0), t = den === 0 ? 0 : Math.min(1, Math.max(0, AC.reduce((s, v, i) => s + v * AB[i], 0) / den)); m = Math.min(m, Math.hypot(...AC.map((v, i) => v - t * AB[i]))); } return m; };
+  const srgb = (p: { r: number; g: number; b: number }) => { const c = new THREE.Color().setRGB(p.r, p.g, p.b); return rgb(c.getHex()); };
+  const n = HIERBA_POR_NIVEL.A; let peor = 0, hojas = 0, flores = 0; const matices = new Set<number>();
+  for (const prado of [undefined, 0xa9d46a, 0xc2ae54]) {
+    const f: Fuente = { ...fuente, colores: prado === undefined ? undefined : { prado } };
+    for (let cx = -6; cx < 6; cx++) for (let cz = -6; cz < 6; cz++) {
+      for (const p of tuftsDeCelda(SEMILLA, cx, cz, f, n)) { peor = Math.max(peor, dist(srgb(p))); hojas++; matices.add(Math.round(p.g * 400)); }
+      for (const p of floresDeCelda(SEMILLA, cx, cz, f, n)) { peor = Math.max(peor, dist(srgb(p))); flores++; assert.ok(p.escala <= 0.9, "small flowers"); }
+    }
+  }
+  assert.ok(hojas > 200 && flores > 5, `${hojas} tufts, ${flores} flowers`);
+  assert.ok(peor < 0.1, `worst tuft/flower colour is ${peor.toFixed(3)} from the palette`);
+  assert.ok(matices.size > 15, `tufts vary in hue/height within the palette (${matices.size} distinct greens)`);
 });

@@ -28,6 +28,8 @@
 import * as THREE from "three/webgpu";
 import { uniform, attribute, step, float, vec2, vec3, positionLocal, sin, cos, dot, length, normalize, max, clamp, smoothstep, mix, oneMinus, abs, transformNormalToView } from "three/tsl";
 import { hash2, valor2 } from "./semilla.ts";
+import { CASA, VERDES, ESTACIONES, mezcla } from "./paleta.ts";
+import { estacionDe } from "./terreno.ts";
 import { HIERBA_POR_NIVEL } from "./niveles.ts";
 import type { HierbaNivel } from "./niveles.ts";
 import type { Nivel } from "../calidad.ts";
@@ -40,8 +42,8 @@ export type Fuente = {
   colores?: { prado?: number; bosque?: number; seco?: number };
 };
 
-/** Palette (linear via THREE.Color): the brief's warm meadow green, a deeper forest green, a yellowing patch, three flowers. */
-export const PALETA_HIERBA = { prado: 0x9bc25a, bosque: 0x558c3b, seco: 0xc9cf62, flores: [0xfaf6ea, 0xffd84a, 0xf28fb5] as number[] };
+/** R1 palette (paleta.ts only): muted meadow green, mountain forest green, dry patch, three small flowers (sand, sea-green, amber). */
+export const PALETA_HIERBA = { prado: ESTACIONES.verano.hierba, bosque: VERDES.monte, seco: ESTACIONES.verano.hierbaLuz, raiz: VERDES.monteSombra, tallo: VERDES.hierbaSombra, flores: [CASA.arena, CASA.verdemar, CASA.ambar] as number[] };
 /** Share of the meadow's candidates kept under trees. */
 export const DENSIDAD_BOSQUE = 0.4;
 /** Height (m) of a tuft at scale 1, and of a flower. */
@@ -53,9 +55,8 @@ const paso = (a: number, b: number, v: number) => { const t = Math.min(1, Math.m
 /** A random number in 0…1 for (seed, cell, candidate, channel): every tuft draws the same numbers whatever the order. */
 const azar = (s: number, cx: number, cz: number, k: number, canal: number) => hash2((s + canal * 7919) | 0, cx * 1024 + k, cz * 16 + canal);
 
-const cPrado = new THREE.Color(PALETA_HIERBA.prado), cBosque = new THREE.Color(PALETA_HIERBA.bosque), cSeco = new THREE.Color(PALETA_HIERBA.seco);
-const cFlores = PALETA_HIERBA.flores.map((h) => new THREE.Color(h));
-const tmp = new THREE.Color(), tmp2 = new THREE.Color(), tmp3 = new THREE.Color(), tmp4 = new THREE.Color();
+const tmp = new THREE.Color();
+const lim = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /** One placed tuft: world position (y = ground), yaw, scale, linear colour. Written by `tuftDe`/`florDe` into a scratch. */
 export type Pieza = { x: number; y: number; z: number; giro: number; escala: number; r: number; g: number; b: number };
@@ -78,16 +79,21 @@ export function tuftDe(semilla: number, cx: number, cz: number, k: number, f: Fu
   if (z2 !== "prado" && z2 !== "bosque" && azar(semilla, cx, cz, k, 4) < 0.6) return false;
   const y = f.alturaEn(x, z);
   if (azar(semilla, cx, cz, k, 5) >= 1 - paso(0.45, 0.95, pendiente(f, x, z, y))) return false; // steep ground: thinner
-  const claro = valor2(semilla + 11, x * 0.06, z * 0.06), fino = valor2(semilla + 23, x * 0.11, z * 0.11), seco = paso(0.62, 0.9, valor2(semilla + 37, x * 0.03, z * 0.03));
-  const pal = f.colores, cp = pal?.prado !== undefined ? tmp2.set(pal.prado) : cPrado;
-  tmp.copy(zona === "prado" ? cp : pal?.bosque !== undefined ? tmp3.set(pal.bosque) : cBosque);
-  if (zona === "prado") tmp.lerp(pal?.seco !== undefined ? tmp4.set(pal.seco) : cSeco, seco * 0.55);
-  // a slow large-scale light/dark patchiness, a finer one and a per-tuft jitter
-  const luz = (0.66 + 0.5 * claro + (fino - 0.5) * 0.14) * (0.88 + 0.24 * azar(semilla, cx, cz, k, 7));
+  // R1: the TIP colour of the tuft, from the season's palette by mezcla(): lush ↔ dry patches by the same noise the terrain uses (so grass and ground agree),
+  // a slow light/dark patchiness and a per-tuft nudge toward the light or the shade green. The root colour is derived in the shader (darker, same hue).
+  const claro = valor2(semilla + 11, x * 0.06, z * 0.06), fino = valor2(semilla + 23, x * 0.11, z * 0.11), seco = paso(0.5, 0.82, valor2(semilla + 37, x * 0.03, z * 0.03));
+  const est = estacionDe(f.colores?.prado), nudge = azar(semilla, cx, cz, k, 7) - 0.5;
+  let c: number;
+  if (zona === "prado") {
+    c = mezcla(est.hierba, est.hierbaLuz, lim(0.12 + 0.62 * seco + (fino - 0.5) * 0.3));
+    c = mezcla(c, VERDES.hierbaSombra, lim((1 - seco) * claro * 0.42));
+  } else c = mezcla(VERDES.monte, VERDES.musgo, lim(0.25 + 0.5 * claro + (fino - 0.5) * 0.3));
+  c = nudge > 0 ? mezcla(c, est.hierbaLuz, nudge * 0.3) : mezcla(c, VERDES.hierbaSombra, -nudge * 0.3);
+  tmp.setHex(c);
   out.x = x; out.y = y; out.z = z; out.giro = azar(semilla, cx, cz, k, 6) * TAU;
-  const alto = 0.8 + 0.6 * azar(semilla, cx, cz, k, 8);
+  const alto = (0.72 + 0.5 * azar(semilla, cx, cz, k, 8)) * (0.85 + 0.35 * claro * (1 - 0.5 * seco)); // lush clumps grow taller, dry patches stay short
   out.escala = zona === "prado" ? alto : alto * 0.82;
-  out.r = tmp.r * luz; out.g = tmp.g * luz; out.b = tmp.b * luz;
+  out.r = tmp.r; out.g = tmp.g; out.b = tmp.b;
   return true;
 }
 
@@ -96,15 +102,17 @@ export function florDe(semilla: number, cx: number, cz: number, k: number, f: Fu
   const x = (cx + frac(azar(semilla, cx, cz, 0, 9) + k * R2A)) * celda, z = (cz + frac(azar(semilla, cx, cz, 0, 10) + k * R2B)) * celda;
   if (f.zonaEn(x, z) !== "prado") return false;                  // flowers only in the meadow
   const mancha = valor2(semilla + 51, x * 0.07, z * 0.07);
-  if (azar(semilla, cx, cz, k, 11) >= paso(0.36, 0.6, mancha)) return false;
+  if (azar(semilla, cx, cz, k, 11) >= paso(0.52, 0.7, mancha) * 0.8) return false; // R1: fewer, in groups
   const y = f.alturaEn(x, z);
   if (pendiente(f, x, z, y) > 0.7) return false;
-  const tono = azar(semilla, cx, cz, k, 12) < 0.2 ? azar(semilla, cx, cz, k, 13) : valor2(semilla + 63, x * 0.05, z * 0.05);
-  tmp.copy(cFlores[tono < 0.36 ? 0 : tono < 0.7 ? 1 : 2]);
-  const luz = 0.94 + 0.12 * azar(semilla, cx, cz, k, 14);
+  const est = estacionDe(f.colores?.prado), grupo = valor2(semilla + 63, x * 0.05, z * 0.05), tono = azar(semilla, cx, cz, k, 12) < 0.15 ? azar(semilla, cx, cz, k, 13) : grupo;
+  const otros = [est.flor, ...PALETA_HIERBA.flores.filter((h) => h !== est.flor)];
+  tmp.setHex(otros[tono < 0.5 ? 0 : tono < 0.82 ? 1 : 2]);
+  const luz = azar(semilla, cx, cz, k, 14);
   out.x = x; out.y = y; out.z = z; out.giro = azar(semilla, cx, cz, k, 15) * TAU;
-  out.escala = 0.7 + 0.55 * azar(semilla, cx, cz, k, 16);
-  out.r = tmp.r * luz; out.g = tmp.g * luz; out.b = tmp.b * luz;
+  out.escala = 0.5 + 0.35 * azar(semilla, cx, cz, k, 16);
+  const c = tmp.getHex(); tmp.setHex(luz < 0.5 ? mezcla(c, CASA.arena, (0.5 - luz) * 0.3) : mezcla(c, VERDES.hierbaSombra, (luz - 0.5) * 0.3));
+  out.r = tmp.r; out.g = tmp.g; out.b = tmp.b;
   return true;
 }
 
@@ -147,7 +155,7 @@ export function geometriaTuft(hojas = 3): THREE.BufferGeometry {
     const a = (i / hojas) * TAU + 0.35 + i * 0.1, rx = Math.cos(a), rz = Math.sin(a), tx = -rz, tz = rx, h = alturas[i % 5];
     const w = 0.38, b0 = 0.06, b1 = 0.42 * h;
     pos.push(rx * b0 - tx * w, 0, rz * b0 - tz * w, rx * b0 + tx * w, 0, rz * b0 + tz * w, rx * b1 + tx * 0.04, h, rz * b1 + tz * 0.04);
-    col.push(0.55, 0.68, 0.45, 0.55, 0.68, 0.45, 0.9, 1.08, 0.5);
+    col.push(0, 0, 0, 0, 0, 0, 1, 1, 1); // R1: a scalar gradient 0 (root) … 1 (tip); the shader turns it into colours from the tip colour of the tuft
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
@@ -159,12 +167,12 @@ export function geometriaTuft(hojas = 3): THREE.BufferGeometry {
 export function geometriaFlor(): THREE.BufferGeometry {
   const pos: number[] = [], col: number[] = [], cab: number[] = [];
   pos.push(-0.035, 0, 0, 0.035, 0, 0, 0.05, 0.84, 0.02);
-  col.push(0.1, 0.22, 0.05, 0.1, 0.22, 0.05, 0.24, 0.45, 0.1); cab.push(0, 0, 0);
+  col.push(0, 0, 0, 0, 0, 0, 0.5, 0.5, 0.5); cab.push(0, 0, 0);
   const r = 0.2, y0 = 0.72, y1 = 1.04, c = [[r, 0], [0, r], [-r, 0], [0, -r]];
   for (let i = 0; i < 4; i++) {
     const [ax, az] = c[i], [bx, bz] = c[(i + 1) % 4];
     pos.push(0.05 + ax, y0, 0.02 + az, 0.05 + bx, y0, 0.02 + bz, 0.05, y1, 0.02);
-    col.push(0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 1.2, 1.2, 1.2); cab.push(1, 1, 1);
+    col.push(1, 1, 1, 1, 1, 1, 1, 1, 1); cab.push(1, 1, 1);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
@@ -244,9 +252,12 @@ export function materialHierba(e: Entrada): THREE.MeshLambertNodeMaterial {
   const tinte = iCol.xyz as unknown as ReturnType<typeof vec3>;
   const brillo = gust.mul(S.mul(0.5).add(0.12)).toVarying("hierba_racha") as N;
   const cab = attribute("cab", "float") as unknown as N;
-  const tallo = mix(vc, vc.mul(vec3(0.7, 1.0, 0.55)), 0.5) as unknown as ReturnType<typeof vec3>;               // a flower's stem stays green …
-  const copa = mix(tallo, tinte.mul(1.12), smoothstep(0.38, 0.62, cab)) as unknown as ReturnType<typeof vec3>;    // … and its upper third wears the flower colour
-  const albedo = mix(vc.mul(tinte), copa, marca) as unknown as ReturnType<typeof vec3>;
+  const lin = (h: number) => { const c = new THREE.Color(h); return vec3(c.r, c.g, c.b); };
+  const raiz = mix(tinte, lin(PALETA_HIERBA.raiz), 0.6) as unknown as ReturnType<typeof vec3>;             // root: the tip colour pulled toward the dark forest green
+  const hoja = mix(raiz, tinte, smoothstep(0.0, 1.0, (vc as unknown as { x: N }).x)) as unknown as ReturnType<typeof vec3>;
+  const tallo = mix(lin(PALETA_HIERBA.raiz), lin(PALETA_HIERBA.tallo), (vc as unknown as { x: N }).x.mul(2)) as unknown as ReturnType<typeof vec3>; // a flower's stem stays green …
+  const copa = mix(tallo, tinte, smoothstep(0.38, 0.62, cab)) as unknown as ReturnType<typeof vec3>;           // … and its upper third wears the flower colour
+  const albedo = mix(hoja, copa, marca) as unknown as ReturnType<typeof vec3>;
   mat.colorNode = (albedo as unknown as ReturnType<typeof vec3>).mul(brillo.mul(0.4).add(0.88));
   // a soft, nearly upward normal on every blade: the meadow reads as one lit surface, not as spikes
   mat.normalNode = transformNormalToView(vec3(0, 1, 0));

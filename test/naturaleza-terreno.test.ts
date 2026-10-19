@@ -96,3 +96,48 @@ test("the mesh follows alturaEn and the border fades to the fog colour", () => {
   assert.equal(t.zonaEn(0, 0), "prado");
   t.dispose();
 });
+
+// ---- R1: palette membership (DIRECCION-ARTE.md): every ground colour is a palette colour or a mezcla() of palette colours
+import * as THREE from "three/webgpu";
+import { CASA, VERDES, ESTACIONES, mezcla } from "../packages/render/src/naturaleza/paleta.ts";
+const PALETA_TIERRA = [...Object.values(CASA), ...Object.values(VERDES), ...Object.values(ESTACIONES).flatMap((e) => [e.hierba, e.hierbaLuz])];
+const rgb = (h: number) => [(h >> 16) & 255, (h >> 8) & 255, h & 255].map((v) => v / 255);
+/** Distance (0…1 sRGB units) from a colour to the nearest segment between two palette colours. */
+function distanciaAPaleta(c: number[]): number {
+  let mejor = Infinity;
+  for (const a of PALETA_TIERRA) for (const b of PALETA_TIERRA) {
+    if (a > b) continue;
+    const A = rgb(a), B = rgb(b), AB = B.map((v, i) => v - A[i]), AC = c.map((v, i) => v - A[i]);
+    const den = AB.reduce((s, v) => s + v * v, 0), t = den === 0 ? 0 : Math.min(1, Math.max(0, AC.reduce((s, v, i) => s + v * AB[i], 0) / den));
+    mejor = Math.min(mejor, Math.hypot(...AC.map((v, i) => v - t * AB[i])));
+  }
+  return mejor;
+}
+test("R1: every ground vertex colour sits on the house palette (a palette colour or a mezcla of two), for every season", () => {
+  assert.ok(Math.abs(rgb(mezcla(0, 0xffffff, 0.5))[0] - 0.5) < 0.01);
+  let peor = 0, n = 0;
+  for (const prado of [undefined, 0xa9d46a, 0xc2ae54]) for (const nivel of NIVELES) {
+    const t = crearTerreno({ semilla: 1234, nivel, colores: prado === undefined ? undefined : { prado } });
+    const pos = t.malla.geometry.attributes.position, col = t.malla.geometry.attributes.color, c = new THREE.Color();
+    for (let k = 0; k < col.count; k++) {
+      if (Math.abs(pos.getX(k)) > 86 || Math.abs(pos.getZ(k)) > 86 || pos.getY(k) < t.alturaEn(pos.getX(k), pos.getZ(k)) - 5) continue; // fog border and skirt
+      c.setRGB(col.getX(k), col.getY(k), col.getZ(k)); // linear → sRGB through getHex
+      peor = Math.max(peor, distanciaAPaleta(rgb(c.getHex()))); n++;
+    }
+    t.dispose();
+  }
+  assert.ok(n > 3000);
+  assert.ok(peor < 0.1, `worst vertex is ${peor.toFixed(3)} from the palette hull segments`);
+});
+test("R1: the ground is muted — no dry-land vertex is saturated or primary, and green is never lime", () => {
+  const t = crearTerreno({ semilla: 1234, nivel: "A" }), col = t.malla.geometry.attributes.color, c = new THREE.Color(), hsl = { h: 0, s: 0, l: 0 };
+  const pos = t.malla.geometry.attributes.position;
+  for (let k = 0; k < col.count; k++) { if (Math.abs(pos.getX(k)) > 86 || Math.abs(pos.getZ(k)) > 86 || pos.getY(k) < 0) continue; c.setRGB(col.getX(k), col.getY(k), col.getZ(k)); c.getHSL(hsl); if (hsl.l > 0.12 && hsl.l < 0.95) assert.ok(hsl.s < 0.5, `vertex ${k}: saturation ${hsl.s.toFixed(2)}`); }
+  t.dispose();
+});
+test("R1: a painted pond (tier D) wears sea-green/turquoise, whatever hex the caller passes", () => {
+  const t = crearTerreno({ semilla: 1234, nivel: "D", aguaPlana: 0xff0000 }), col = t.malla.geometry.attributes.color, n = col.count, c = new THREE.Color();
+  c.setRGB(col.getX(n - 1), col.getY(n - 1), col.getZ(n - 1));
+  assert.ok(c.b > c.r && c.g > c.r, "water is not red");
+  t.dispose();
+});
