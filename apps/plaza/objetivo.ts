@@ -2,7 +2,7 @@
 // Objetivo shows the creature you could strike now (the one `interaccion` offers, feature «lucha») and, for 5 s after
 // you walk away, the last one: its name and its Coherencia (coherencia / coherenciaMax, the real state of the lucha
 // client). A creature has Coherencia, the player has no bar. Nothing is invented: «a N m» is the offered distance.
-// Habilidades (#habilidades): drawn by combate.ts — the kit's three slots once the page hears of fighting, «Próximamente» before.
+// Habilidades (#habilidades): drawn by combate.ts — the kit's three slots once the page hears of fighting, hidden before.
 import { icono } from "./iconos.ts";
 import type { Criatura } from "../../features/lucha/client.ts";
 

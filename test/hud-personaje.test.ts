@@ -9,7 +9,7 @@ import { MARCOS_PLAZA, validarMarcos, marcosVisibles, cajaDe } from "../packages
 
 const leer = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
 
-test("without a source nothing is invented: Estado, Carga and Aliento are «Próximamente» (null)", () => {
+test("without a source nothing is invented: Estado, Carga and Aliento are null (their rows are not drawn)", () => {
   assert.deepEqual(leerHud({}), { nombre: "Tú", estado: null, carga: null, aliento: null });
   assert.equal(leerHud({ nombre: " Siroco " }).nombre, "Siroco");
 });
@@ -45,13 +45,13 @@ test("the frame is in the table (movable and hideable by Editar interfaz) and in
 type FakeLucha = { activo(): boolean; carga(): number; estado(): string | undefined };
 const falsa = (o: Partial<{ activo: boolean; carga: number; estado: string }> = {}): FakeLucha => ({ activo: () => o.activo ?? false, carga: () => o.carga ?? 0, estado: () => o.estado });
 
-test("P2: with no fighting in the world the HUD keeps its «Próximamente» (Estado and Carga null), even though the hooks are plugged", () => {
+test("P2: with no fighting in the world Estado and Carga stay null (rows left out), even though the hooks are plugged", () => {
   const f = fuentesDeLucha(falsa());
   const v = leerHud({ estado: f.estado, carga: f.carga });
   assert.equal(v.estado, null);
   assert.equal(v.carga, null);
 });
-test("P2: once there is fighting the HUD shows the real Carga and Estado — and Aliento stays «Próximamente»", () => {
+test("P2: once there is fighting the HUD shows the real Carga and Estado — and Aliento stays null (no source yet)", () => {
   const l = { activo: true, carga: 36, estado: "Confundido" };
   const f = fuentesDeLucha(falsa(l));
   const v = leerHud({ estado: f.estado, carga: f.carga });
@@ -102,4 +102,11 @@ test("P2: wiring — main.ts plugs the hooks into __numinia and mounts the slots
   assert.ok(c.includes("capas.arriba()") && c.includes("escribiendo(e)"), "typing and open layers own the digits");
   assert.ok(c.includes("aria-keyshortcuts") && c.includes("aria-label"));
   assert.ok(!/numinia/i.test(c.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "")), "no brand in the UI text");
+});
+
+test("ux2 integration (Pablo: «nada de Próximamente»): the card and the skill bar leave out what the page does not receive", () => {
+  const code = (f: string) => leer(f).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+  for (const f of ["apps/plaza/hud-personaje.ts", "apps/plaza/combate.ts"]) assert.ok(!/Próximamente/i.test(code(f)), `${f} draws no «Próximamente»`);
+  assert.ok(/<section id="habilidades"[^>]*\bhidden\b/.test(leer("apps/plaza/index.html")), "the skill bar starts hidden");
+  assert.ok(code("apps/plaza/combate.ts").includes("hab.hidden = !activo"), "and shows only with fighting");
 });

@@ -3,8 +3,9 @@
 //   · Carga — what you carry / can carry;   · Aliento del Velo — a percentage.
 // Estado and Carga come from the lucha client once the page hears of fighting in this world (combate.ts `fuentesDeLucha` plugs
 // `estado.actual()` and `carga.actual() → {valor, max}` into `globalThis.__numinia`, the hook the sheet already reads for Estado);
-// before that, and for Aliento del Velo (no source yet: `aliento.actual() → 0..100` is where it will plug), each says «Próximamente»
-// and nothing is invented. The three skill slots under the HUD (#habilidades) are combate.ts too.
+// before that, and for Aliento del Velo (no source yet: `aliento.actual() → 0..100` is where it will plug), its row is simply not
+// drawn — no «Próximamente», nothing invented (ux2 integration, Pablo: «nada de Próximamente»); the row comes back by itself the
+// moment its source exists. The three skill slots under the HUD (#habilidades) are combate.ts too.
 // Only the name (session.who.nombre) is real today. Redraws once a second, touching the DOM only when something changed; no live region.
 // Rediseño v2 (B): your portrait on the left — the bust render of the avatar you wear (tu-logica.ts; the house silhouette for an
 // upload); the whole card is the button that opens «Tú» (I) (ux2-barra).
@@ -21,7 +22,7 @@ export type Fuentes = {
 };
 export type Vista = {
   nombre: string;
-  /** Index in ESCALERA, -1 = stable; null = the page does not receive it («Próximamente»). */
+  /** Index in ESCALERA, -1 = stable; null = the page does not receive it (the row is not drawn). */
   estado: number | null;
   carga: { valor: number; max: number; pct: number } | null;
   aliento: { pct: number } | null;
@@ -48,7 +49,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", texto = "")
 export function montarHudPersonaje(): void {
   const raiz = document.getElementById("hud-personaje");
   if (!raiz) return;
-  raiz.setAttribute("aria-label", "Tu personaje: estado, carga y aliento del Velo");
+  raiz.setAttribute("aria-label", "Tu personaje");
   raiz.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
   // ux2-barra: the whole card is the button of your sheet (I) — a real <button> laid over it (index.html), kept on every
   // repaint; main.ts hands it to the sheet's dialog, so the card opens and closes it and the focus comes back to it
@@ -79,30 +80,26 @@ export function montarHudPersonaje(): void {
 
     const cab = el("div", "hp-cab"); cab.append(el("b", "", v.nombre));
     const ico = (n: string) => { const s = el("span", "hp-ico"); s.innerHTML = icono(n, 12); return s; };
-    const pronto = () => el("span", "hp-pronto", "Próximamente");
-
-    // Estado
+    // Estado (only when the page receives it)
     const est = el("div", "hp-estado"), tit = el("div", "hp-fila"), nom = el("span", "hp-etq", "Estado");
     tit.append(nom);
     const ol = el("ol", "hp-pasos"); ol.setAttribute("aria-label", "Escalera del estado");
     ESCALERA.forEach((n, k) => { const li = el("li", v.estado !== null ? claseDePaso(k, v.estado) : ""); li.title = n; li.setAttribute("aria-label", n); if (k === v.estado) li.setAttribute("aria-current", "step"); ol.appendChild(li); });
-    if (v.estado === null) { tit.append(pronto()); est.dataset.pronto = ""; }
-    else tit.append(el("span", v.estado < 0 ? "hp-val ok" : "hp-val aviso", v.estado < 0 ? "Estable" : ESCALERA[v.estado]));
+    if (v.estado !== null) tit.append(el("span", v.estado < 0 ? "hp-val ok" : "hp-val aviso", v.estado < 0 ? "Estable" : ESCALERA[v.estado]));
     est.append(tit, ol);
 
-    // Carga y Aliento: one row each
-    const barra = (cls: string, etiqueta: string, icon: string, dato: { pct: number } | null, texto: string) => {
+    // Carga y Aliento: one row each, only for a value that reaches the page
+    const barra = (cls: string, etiqueta: string, icon: string, dato: { pct: number } | null, texto: string): HTMLElement[] => {
+      if (!dato) return [];
       const b = el("div", `hp-recurso ${cls}`), fila = el("div", "hp-fila"), n = el("span", "hp-etq"); n.append(ico(icon), document.createTextNode(` ${etiqueta}`));
       const tr = el("div", "hp-barra"); fila.append(n);
-      if (dato) {
-        fila.append(el("span", "hp-num", texto)); const r = el("i"); r.style.width = `${dato.pct}%`; tr.appendChild(r);
-        tr.setAttribute("role", "meter"); tr.setAttribute("aria-label", etiqueta); tr.setAttribute("aria-valuemin", "0"); tr.setAttribute("aria-valuemax", "100"); tr.setAttribute("aria-valuenow", String(Math.round(dato.pct))); tr.setAttribute("aria-valuetext", texto);
-      } else { fila.append(pronto()); b.dataset.pronto = ""; tr.setAttribute("aria-hidden", "true"); }
-      b.append(fila, tr); return b;
+      fila.append(el("span", "hp-num", texto)); const r = el("i"); r.style.width = `${dato.pct}%`; tr.appendChild(r);
+      tr.setAttribute("role", "meter"); tr.setAttribute("aria-label", etiqueta); tr.setAttribute("aria-valuemin", "0"); tr.setAttribute("aria-valuemax", "100"); tr.setAttribute("aria-valuenow", String(Math.round(dato.pct))); tr.setAttribute("aria-valuetext", texto);
+      b.append(fila, tr); return [b];
     };
-    cuerpo.replaceChildren(cab, est,
-      barra("carga", "Carga", "lightning", v.carga, v.carga ? `${v.carga.valor} / ${v.carga.max}` : ""),
-      barra("aliento", "Aliento del Velo", "moon-stars", v.aliento, v.aliento ? `${v.aliento.pct} %` : ""));
+    cuerpo.replaceChildren(cab, ...(v.estado !== null ? [est] : []),
+      ...barra("carga", "Carga", "lightning", v.carga, v.carga ? `${v.carga.valor} / ${v.carga.max}` : ""),
+      ...barra("aliento", "Aliento del Velo", "moon-stars", v.aliento, v.aliento ? `${v.aliento.pct} %` : ""));
     if (raiz.children.length !== (abrir ? 3 : 2) || !raiz.contains(retrato)) raiz.replaceChildren(...(abrir ? [abrir] : []), retrato, cuerpo);
     raiz.hidden = false;
   };

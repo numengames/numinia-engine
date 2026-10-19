@@ -350,7 +350,6 @@ html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 
 #hud-personaje .hp-ico { display: inline-flex; }
 #hud-personaje .hp-num { font: 12px/1 "Geist Mono", ui-monospace, monospace; }
 #hud-personaje .hp-val.ok { color: var(--n-hecho); } #hud-personaje .hp-val.aviso { color: var(--n-ambar); font-weight: 600; }
-#hud-personaje .hp-pronto { color: var(--n-texto2); font-size: 11px; border: 1px dashed var(--n-linea); border-radius: 4px; padding: 1px 6px; }
 #hud-personaje .hp-pasos { display: flex; gap: 4px; list-style: none; margin: 6px 0 0; padding: 0; }
 #hud-personaje .hp-pasos li { flex: 1; height: 10px; border-radius: 5px; background: var(--n-fondo); border: 1px solid var(--n-linea); }
 #hud-personaje .hp-pasos li.w { background: var(--n-ambar); border-color: var(--n-ambar); } #hud-personaje .hp-pasos li.r { background: var(--n-grana); border-color: var(--n-grana); }
@@ -358,7 +357,6 @@ html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 
 #hud-personaje .hp-barra { height: 8px; border-radius: 4px; background: var(--n-fondo); border: 1px solid var(--n-linea); overflow: hidden; margin-top: 4px; }
 #hud-personaje .hp-barra i { display: block; height: 100%; }
 #hud-personaje .carga .hp-barra i { background: var(--n-ambar); } #hud-personaje .aliento .hp-barra i { background: var(--n-turquesa); }
-#hud-personaje [data-pronto] .hp-barra, #hud-personaje [data-pronto] .hp-pasos { opacity: .45; }
 @media (max-width: 899px) { #hud-personaje { display: none; } } /* phones: their own story */
 /* ---- M5: Objetivo (the creature in reach: name + Coherencia) and the three skill slots ---- */
 #objetivo[hidden] { display: none !important; }
@@ -374,7 +372,7 @@ html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 
 #habilidades { display: flex; gap: 8px; padding: 8px; justify-content: center; }
 #habilidades .hueco { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-fondo); color: var(--n-texto2); font: 11px "Geist", system-ui, sans-serif; opacity: .7; }
 #habilidades .hueco kbd { position: absolute; top: 3px; left: 5px; font: 11px "Geist Mono", ui-monospace, monospace; color: var(--n-texto2); }
-#habilidades .hueco .prox { color: var(--n-ambar); font-size: 10px; }
+#habilidades[hidden] { display: none !important; } /* no fighting in this world: no slots (combate.ts) */
 /* combate nivel 2: a slot with a real ability is a button (combate.ts); lit when the Carga pays for it, dim otherwise */
 #habilidades button.hueco { cursor: pointer; padding: 0; opacity: .55; }
 #habilidades button.hueco.lista { opacity: 1; color: var(--n-texto); border-color: var(--n-ambar); }
