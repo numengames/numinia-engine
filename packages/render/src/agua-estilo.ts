@@ -5,6 +5,7 @@
 // (calidad.ts DETALLE_AGUA) — vertex waves on big water with lighter crests, drifting light streaks, fake caustics in the
 // shallows and stepped sun glints. No texture, no render target, no second scene pass: one draw call per water at every
 // tier; the cost is ALU per pixel (D: bands + foam + fresnel only). Lit by the scene (Lambert), so night darkens it.
+import { CASA, mezcla } from "./naturaleza/paleta.ts";
 import * as THREE from "three/webgpu";
 import { uniform, uv, vec2, vec3, vec4, float, mix, positionLocal, positionWorld, cameraPosition, normalize, dot, reflect, pow, max, min, clamp, abs, sin, cos, fract, smoothstep, exp, length, oneMinus } from "three/tsl";
 import type { DetalleAgua } from "./calidad.ts";
@@ -24,6 +25,9 @@ export type OpcionesAgua = {
   bordeOculto?: number;
 };
 
+/** R1: the house sea-green (paleta.ts CASA.verdemar) the shallows lean to, and the pond colour naturaleza.ts should pass (turquoise, muted). */
+const VERDEMAR = new THREE.Color(CASA.verdemar);
+export const COLOR_ESTANQUE = mezcla(CASA.turquesa, CASA.turquesaProfundo, 0.45);
 const LUZ_POR_DEFECTO: LuzAgua = { cielo: uniform(new THREE.Color(0xc9d8e4)), sol: uniform(new THREE.Color(0xffffff)), solDir: uniform(new THREE.Vector3(0.5, 0.8, 0.3).normalize()) } as unknown as LuzAgua;
 /** Wave height (m) the waves reach on water this big (shorter side): a lake swells, a sea swells more. */
 export const amplitudOlas = (lado: number) => Math.min(0.35, Math.max(0.05, lado * 0.006));
@@ -76,7 +80,7 @@ export function materialDeAgua(o: OpcionesAgua, olasDesde: number): THREE.MeshLa
   // three flat steps of the builder's colour (linear): a bright turquoise shallow, the colour itself, a deeper saturated one
   const hondo = vec3(base.r * 0.62, base.g * 0.78, base.b * 0.95);
   const medio = vec3(base.r * 1.05, base.g * 1.1, base.b * 1.1);
-  const claro = mix(vec3(base.r, base.g, base.b), vec3(0.32, 0.86, 0.8), 0.55).mul(1.15);
+  const claro = mix(vec3(base.r, base.g, base.b), vec3(VERDEMAR.r, VERDEMAR.g, VERDEMAR.b), 0.55).mul(1.05); // R1: shallows lean sea-green (house Verdemar), not neon turquoise
   const banda1 = smoothstep(0.16, 0.2, hondura), banda2 = smoothstep(0.55, 0.59, hondura);
   let col = mix(mix(claro, medio, banda1), hondo, banda2) as unknown as ReturnType<typeof vec3>;
   const pw = positionWorld.xz as unknown as N2;

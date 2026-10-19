@@ -81,13 +81,14 @@ export function tuftDe(semilla: number, cx: number, cz: number, k: number, f: Fu
   if (azar(semilla, cx, cz, k, 5) >= 1 - paso(0.45, 0.95, pendiente(f, x, z, y))) return false; // steep ground: thinner
   // R1: the TIP colour of the tuft, from the season's palette by mezcla(): lush ↔ dry patches by the same noise the terrain uses (so grass and ground agree),
   // a slow light/dark patchiness and a per-tuft nudge toward the light or the shade green. The root colour is derived in the shader (darker, same hue).
-  const claro = valor2(semilla + 11, x * 0.06, z * 0.06), fino = valor2(semilla + 23, x * 0.11, z * 0.11), seco = paso(0.5, 0.82, valor2(semilla + 37, x * 0.03, z * 0.03));
+  const claro = valor2(semilla + 11, x * 0.06, z * 0.06), fino = valor2(semilla + 23, x * 0.11, z * 0.11), seco = paso(0.42, 0.7, valor2(semilla + 37, x * 0.03, z * 0.03));
   const est = estacionDe(f.colores?.prado), nudge = azar(semilla, cx, cz, k, 7) - 0.5;
   let c: number;
   if (zona === "prado") {
-    c = mezcla(est.hierba, est.hierbaLuz, lim(0.12 + 0.62 * seco + (fino - 0.5) * 0.3));
+    c = mezcla(est.hierba, est.hierbaLuz, lim(0.3 + 0.55 * seco + (fino - 0.5) * 0.3)); // tips read lighter than the ground: the root is the dark part
     c = mezcla(c, VERDES.hierbaSombra, lim((1 - seco) * claro * 0.42));
   } else c = mezcla(VERDES.monte, VERDES.musgo, lim(0.25 + 0.5 * claro + (fino - 0.5) * 0.3));
+  c = mezcla(c, est.hierbaLuz, 0.14); // the tip is the lit part of the blade
   c = nudge > 0 ? mezcla(c, est.hierbaLuz, nudge * 0.3) : mezcla(c, VERDES.hierbaSombra, -nudge * 0.3);
   tmp.setHex(c);
   out.x = x; out.y = y; out.z = z; out.giro = azar(semilla, cx, cz, k, 6) * TAU;
@@ -253,7 +254,7 @@ export function materialHierba(e: Entrada): THREE.MeshLambertNodeMaterial {
   const brillo = gust.mul(S.mul(0.5).add(0.12)).toVarying("hierba_racha") as N;
   const cab = attribute("cab", "float") as unknown as N;
   const lin = (h: number) => { const c = new THREE.Color(h); return vec3(c.r, c.g, c.b); };
-  const raiz = mix(tinte, lin(PALETA_HIERBA.raiz), 0.6) as unknown as ReturnType<typeof vec3>;             // root: the tip colour pulled toward the dark forest green
+  const raiz = mix(tinte, lin(PALETA_HIERBA.raiz), 0.42) as unknown as ReturnType<typeof vec3>;             // root: the tip colour pulled toward the dark forest green
   const hoja = mix(raiz, tinte, smoothstep(0.0, 1.0, (vc as unknown as { x: N }).x)) as unknown as ReturnType<typeof vec3>;
   const tallo = mix(lin(PALETA_HIERBA.raiz), lin(PALETA_HIERBA.tallo), (vc as unknown as { x: N }).x.mul(2)) as unknown as ReturnType<typeof vec3>; // a flower's stem stays green …
   const copa = mix(tallo, tinte, smoothstep(0.38, 0.62, cab)) as unknown as ReturnType<typeof vec3>;           // … and its upper third wears the flower colour

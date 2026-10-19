@@ -82,9 +82,9 @@ const lim = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
  */
 export function colorTerreno(s: number, x: number, z: number, h: number, w: ArrayLike<number>, valle: number, conv: number, pend: number, est: (typeof ESTACIONES)[Estacion], plaza = PLAZA): number {
   const ruido = valor2(s + 37, x * 0.03, z * 0.03), fino = valor2(s + 23, x * 0.11, z * 0.11), mancha = valor2(s + 51, x * 0.045, z * 0.045);
-  const seco = sstep(0.5, 0.82, ruido), sol = lim(conv * 4 + 0.5), hondo = lim(valle * 0.9 - conv * 3);
+  const seco = sstep(0.42, 0.7, ruido), sol = lim(conv * 4 + 0.5), hondo = lim(valle * 0.9 - conv * 3);
   // meadow: green ↔ dry by noise; lush patches darker; ridges toward the light green; hollows toward the shade green
-  let prado = mezcla(est.hierba, est.hierbaLuz, 0.12 + 0.6 * seco + 0.25 * (fino - 0.5));
+  let prado = mezcla(est.hierba, est.hierbaLuz, 0.12 + 0.6 * seco + 0.3 * (fino - 0.5));
   prado = mezcla(prado, VERDES.hierbaSombra, lim((1 - seco) * mancha * 0.38 + hondo * 0.5));
   prado = mezcla(prado, est.hierbaLuz, lim((sol - 0.5) * 0.9 + lim((h - 1) / 9) * 0.22));
   prado = mezcla(prado, CASA.arenaVelada, seco * 0.22);
@@ -95,7 +95,7 @@ export function colorTerreno(s: number, x: number, z: number, h: number, w: Arra
   let bosque = mezcla(VERDES.monte, VERDES.musgo, lim(mancha * 0.55 + (sol - 0.5) * 0.7));
   bosque = mezcla(bosque, VERDES.monteSombra, lim(0.18 + hondo * 0.6));
   // sand: warm, two tones
-  const arena = mezcla(mezcla(CASA.arenaVelada, CASA.arena, 0.25 + 0.55 * fino), VERDES.hierbaLuz, seco * 0.1 + hondo * 0.1);
+  const arena = mezcla(mezcla(CASA.arenaVelada, CASA.arena, 0.2 + 0.5 * fino), VERDES.hierbaLuz, 0.22 + seco * 0.15 + hondo * 0.1);
   // rock: ash with bronze strata (ledges follow the height and steepen with the slope), sunlit rises toward sand-light, a touch of moss
   const estrato = 0.5 + 0.5 * Math.sin(h * 2.3 + simplex2(s + 71, x * 0.05, z * 0.05) * 2);
   let roca = mezcla(CASA.ceniza, CASA.bronce, lim(0.12 + 0.3 * estrato * lim(pend * 0.8) + hondo * 0.45));
@@ -105,11 +105,13 @@ export function colorTerreno(s: number, x: number, z: number, h: number, w: Arra
   const orilla = mezcla(mezcla(CASA.arenaVelada, VERDES.musgo, 0.22 + 0.3 * fino), VERDES.hierbaSombra, hondo * 0.3);
   const zonas = [prado, bosque, arena, roca, orilla];
   // linear blend of the five zone colours by weight, done as a chain of mezcla (stays inside the palette hull)
-  let c = zonas[0], acum = w[0];
-  for (let q = 1; q < 5; q++) { acum += w[q]; if (w[q] > 0) c = mezcla(c, zonas[q], w[q] / Math.max(acum, 1e-6)); }
+  let c = zonas[0], acum = wc[0];
+  for (let q = 1; q < 5; q++) { acum += wc[q]; if (wc[q] > 0) c = mezcla(c, zonas[q], wc[q] / Math.max(acum, 1e-6)); }
   // underwater: sea-green shallows, turquoise, deep turquoise with depth (the pond's bed shows through the water)
   const prof = AGUA - h;
   if (prof > -0.1) {
+  // the zone weights give the pond a wide sand belt; as colour only half of it stays pale sand, the rest reads as dry meadow (the weights and alturaEn stay as they are)
+  const wc = [w[0] + w[2] * 0.55, w[1], w[2] * 0.45, w[3], w[4]];
     const fondo = mezcla(mezcla(CASA.arenaVelada, CASA.verdemar, sstep(0, 0.35, prof)), mezcla(mezcla(CASA.turquesa, CASA.ceniza, 0.3), mezcla(CASA.turquesaProfundo, CASA.bronce, 0.35), sstep(0.9, 1.9, prof)), sstep(0.35, 1.4, prof));
     c = mezcla(c, fondo, sstep(-0.1, 0.2, prof));
   }
