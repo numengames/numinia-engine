@@ -229,3 +229,42 @@ export const SUELO_R72 = {
   /** Roca y tierra al aire en las caras empinadas: ceniza cálida con bronce; en el páramo, basalto. */
   roca: mezcla(mezcla(CASA.ceniza, CASA.bronce, 0.3), CASA.ambarTostado, 0.12), rocaParamo: FRANJAS.paramo.basalto,
 } as const;
+
+// E04
+/**
+ * E04 · Cielo analítico (cielo-analitico.ts; AC3 + AC9). Encargo: especificación «Entornos naturales» v0.1.0 §Cielo — amplio, claro y
+ * luminoso; azules que se deslizan a turquesa pálido, marfil cálido y nácar; horizonte con gradación limpia; fantasía medida (halo prismático,
+ * constelaciones apenas perceptibles de día); amanecer/día/crepúsculo/noche legibles. Las paradas `dia`/`noche` sustituyen a las de
+ * ATMOSFERA SOLO con el cielo analítico (entorno.ts las mezcla por la hora y la niebla lejana toma el mismo color). La noche sigue siendo
+ * jardín cálido (DIRECCION-ARTE), con el cénit un punto más azul para que se lean estrellas y luna. Solo mezclas de tokens, ningún hex nuevo.
+ */
+export const CIELO_E04 = {
+  dia: {
+    /** Cénit: azul claro de la Rara llevado a turquesa y aclarado con Verdemar (luminoso, no el azul físico saturado). */
+    cenit: mezcla(mezcla(RAREZA.rara, CASA.turquesa, 0.25), CASA.verdemar, 0.3),
+    /** Cielo alto: turquesa pálido. */
+    alto: mezcla(mezcla(CASA.verdemar, RAREZA.rara, 0.2), CASA.arena, 0.12),
+    /** Horizonte: marfil cálido con un velo de Verdemar (nácar). */
+    horizonte: mezcla(mezcla(CASA.arena, CASA.verdemar, 0.16), CASA.arenaVelada, 0.12),
+    /** Bajo el horizonte: la bruma del suelo, arena velada fresca. */
+    suelo: mezcla(CASA.arenaVelada, CASA.verdemar, 0.2),
+  },
+  noche: {
+    cenit: mezcla(CASA.noche, mezcla(RAREZA.rara, CASA.turquesaProfundo, 0.5), 0.13),
+    alto: mezcla(CASA.noche, CASA.turquesaProfundo, 0.2),
+    horizonte: mezcla(mezcla(NOCHE.sombra, CASA.turquesaProfundo, 0.12), CASA.ceniza, 0.22),
+    suelo: NOCHE.sombra,
+  },
+  /** La banda de nácar del horizonte: fría (lejos del sol: perla con un punto de Épica y Verdemar) y cálida (hacia el sol: marfil). */
+  nacarFrio: mezcla(mezcla(CASA.arena, RAREZA.epica, 0.14), CASA.verdemar, 0.2),
+  marfilCalido: mezcla(CASA.arena, CASA.ambar, 0.14),
+  /** Amanecer y ocaso: ámbar con un punto de coral, templado con arena. */
+  ocaso: mezcla(mezcla(CASA.ambar, CASA.coral, 0.25), CASA.arena, 0.35),
+  /** Sol (disco y resplandor). */
+  sol: mezcla(CASA.arena, CASA.ambar, 0.25),
+  /** Halo prismático de 22°: por dentro coral-ámbar, en medio verdemar, por fuera la Épica (orden de colores de un halo real). */
+  haloDentro: mezcla(CASA.coral, CASA.ambar, 0.55), haloMedio: CASA.verdemar, haloFuera: RAREZA.epica,
+  /** Estrellas (arena con verdemar) y luna (la luna de NOCHE aclarada con arena). */
+  estrella: mezcla(CASA.arena, CASA.verdemar, 0.25),
+  luna: mezcla(NOCHE.luna, CASA.arena, 0.6),
+} as const;

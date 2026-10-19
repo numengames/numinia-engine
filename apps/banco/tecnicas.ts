@@ -344,3 +344,79 @@ registrar({
     };
   },
 });
+
+// =====================================================================================================================
+// E04 (cielo analítico, plan-experimentos): the R7.1 4-stop dome (drawn FIRST over the whole screen; baked into a cube on B–D) against
+// cielo-analitico.ts (zenith → pale turquoise → ivory/nacre horizon, twilight, prismatic 22° halo, stars, crescent moon; drawn live and LAST,
+// depth-tested at the far plane, on every tier). Compare: nat-cielo-analitico vs nat-atmosfera (sky + fog + tone over the real entorno) and
+// naturaleza-cielo-analitico vs naturaleza (the whole piece). nat-cielo-analitico-primero = the same analytic shader drawn FIRST without depth
+// test (as R7.1 draws its dome): splits «what the shader costs» from «what drawing it last saves».
+// `foto-cielo` is for photos only (tools-free: work/naturaleza/e04/fotos-e04.mjs): ?hora=<h>&cielo=r71|analitico&vista=<rumbo>,<cabeceo>.
+// =====================================================================================================================
+async function atmosferaE04(c: Contexto, cielo: "r71" | "analitico", primero = false): Promise<Montada> {
+  const { e, tick } = await entornoDe(c);
+  const [{ atmosferaNaturaleza }, { NIVEL_AGUA }] = await Promise.all([import("../../packages/render/src/naturaleza/atmosfera.ts"), import("../../packages/render/src/naturaleza/terreno.ts")]);
+  const quitar = e.atmosfera(atmosferaNaturaleza(NIVEL_AGUA, cielo));
+  for (let i = 0; i < 40 && (e.ocupado() || i < 5); i++) { e.actualizar(); await new Promise((r) => setTimeout(r, 30)); }
+  const domo = c.world.children.find((o) => o.name === "cielo-degradado") as THREE.Mesh | undefined;
+  if (primero && domo) { domo.renderOrder = -10; (domo.material as THREE.Material).depthTest = false; } // bench only: R7.1's order
+  return { cuadro(_dt, t) { tick(t); }, quitar() { if (primero && domo) (domo.material as THREE.Material).depthTest = true; quitar(); },
+    get cuenta() { const s = e.estado(); return { cielo: s.modoCielo, analitico: s.atmosfera?.cielo ?? "—", orden: domo?.renderOrder ?? "—" }; } };
+}
+registrar({ id: "nat-cielo-analitico", nombre: "E04 · Atmósfera con cielo ANALÍTICO (vivo, al final) + niebla nodo + tono Neutral", origen: "cielo-analitico.ts, entorno.ts atmosfera()", montar: (c) => atmosferaE04(c, "analitico") });
+registrar({ id: "nat-cielo-analitico-primero", nombre: "E04 · control: el mismo cielo analítico dibujado PRIMERO sin prueba de profundidad", origen: "cielo-analitico.ts (orden de R7.1)", montar: (c) => atmosferaE04(c, "analitico", true) });
+
+/** The whole nature as the page builds it, with the sky the photo/row asks for and the world at hour `hora`. */
+async function naturalezaE04(c: Contexto, cielo: "r71" | "analitico", hora = NAT.hora): Promise<Montada> {
+  let eb: EntornoBanco;
+  if (hora === NAT.hora) eb = await entornoDe(c);
+  else { // photos at other hours: the same entorno set-up as entornoDe, at that hour
+    const [{ crearEntorno }, { baseDelMundo, conSol }, { aVista }] = await Promise.all([
+      import("../../packages/render/src/entorno.ts"), import("../../features/entorno/server.ts"), import("../../features/entorno/client.ts")]);
+    const e = crearEntorno({ renderer: c.renderer, scene: c.scene, world: c.world, camera: c.camera, hemi: c.hemi, sun: c.sol, ground: c.suelo, grid: new THREE.Group(), hitos: c.hitos,
+      aparato: { mobile: false }, fichero: (n) => `/no-hay-servidor/${n}`, foco: () => null });
+    e.simularNivel(c.nivel);
+    e.aplicar({ ...aVista(conSol(baseDelMundo({ ...ENTORNO_DEMO, hora: { ...ENTORNO_DEMO.hora, valor: hora } })) as Record<string, unknown>), suelo: "liso", sueloMapa: "", sueloNormal: "" });
+    for (let i = 0; i < 60 && (e.ocupado() || i < 10); i++) { e.actualizar(); await new Promise((r) => setTimeout(r, 30)); }
+    let ultimo = -1;
+    eb = { e, tick(t: number) { if (t !== ultimo) { ultimo = t; e.actualizar(); } } };
+  }
+  const { e, tick } = eb;
+  const [{ crearNaturaleza }, { FAUNA_CASA }, { atmosferaNaturaleza }, { NIVEL_AGUA }] = await Promise.all([import("../../packages/render/src/naturaleza/naturaleza.ts"),
+    import("../../features/naturaleza/fauna-casa.ts"), import("../../packages/render/src/naturaleza/atmosfera.ts"), import("../../packages/render/src/naturaleza/terreno.ts")]);
+  const n = crearNaturaleza({ padre: c.world, ground: c.suelo, vientoU: e.vientoU, nivel: () => c.nivel, camara: c.camera, yo: () => null,
+    niebla: () => nieblaHex(c), aguaLuz: e.aguaLuz, detalleAgua: () => detalleAgua(c.nivel, e.calidadActual.agua), hora: () => hora,
+    tablaFauna: async () => FAUNA_CASA, hitos: () => c.hitos, atmosfera: () => e.atmosfera(atmosferaNaturaleza(NIVEL_AGUA, cielo)) });
+  await n.aplicar({ activa: true, semilla: NAT.semilla, tamano: NAT.tamano, plaza: NAT.plaza, arboles: 1, hierba: 1, estanque: true, paleta: NAT.estacion });
+  for (let i = 0; i < 40 && (e.ocupado() || i < 5); i++) { e.actualizar(); await new Promise((r) => setTimeout(r, 30)); }
+  let antes = 0;
+  return {
+    cuadro(_dt, t) { tick(t); n.actualizar(t - antes); antes = t; },
+    quitar() { n.dispose(); },
+    get cuenta() { const s = n.estadisticas(); return { cielo, triangulos: s.triangulos.total, llamadas: s.llamadas.total }; },
+  };
+}
+registrar({ id: "naturaleza-cielo-analitico", nombre: "E04 · Naturaleza ENTERA con el cielo analítico (comparar con «naturaleza»)", origen: "naturaleza.ts + cielo-analitico.ts", montar: (c) => naturalezaE04(c, "analitico") });
+
+registrar({
+  id: "foto-cielo", nombre: "E04 · solo fotos: naturaleza a una hora y con un cielo, encuadre fijo (?hora, ?cielo, ?vista=rumbo,cabeceo)", origen: "naturaleza.ts + cielo-analitico.ts",
+  async montar(c) {
+    const q = new URLSearchParams(location.search);
+    const hora = Number(q.get("hora") ?? NAT.hora), cielo = q.get("cielo") === "analitico" ? "analitico" : "r71";
+    const [rumbo, cabeceo] = (q.get("vista") ?? "150,8").split(",").map(Number);
+    if (q.get("k")) { // tuning/debug only: ?k=halo:0.2,nacar:0 (CIELO_ANALITICO knobs, read when the sky is built)
+      const { CIELO_ANALITICO } = await import("../../packages/render/src/cielo-analitico.ts");
+      for (const par of q.get("k")!.split(",")) { const [k, v] = par.split(":"); (CIELO_ANALITICO as Record<string, number>)[k] = Number(v); }
+    }
+    const m = await naturalezaE04(c, cielo, hora);
+    // a fixed framing: from the plaza's north edge, looking along `rumbo` (from north towards east), `cabeceo` degrees up. The bench moves the
+    // camera every frame (position.set + lookAt): its lookAt is replaced for this page only.
+    const x = 0, z = -8, y = Math.max(alturaEnNat(x, z), -0.2) + 1.7, r = rumbo * Math.PI / 180, p = cabeceo * Math.PI / 180;
+    const objetivo = new THREE.Vector3(x + Math.cos(p) * Math.sin(r) * 10, y + Math.sin(p) * 10, z - Math.cos(p) * Math.cos(r) * 10);
+    const lookAt = THREE.Object3D.prototype.lookAt;
+    c.camera.lookAt = function (this: THREE.Object3D) { this.position.set(x, y, z); lookAt.call(this, objetivo); } as typeof c.camera.lookAt;
+    // ?solo=cielo: only the sky (every other mesh hidden) — to read the sky's own colours
+    const soloCielo = () => c.scene.traverse((o) => { if ((o as THREE.Mesh).isMesh && !/cielo/.test(o.name)) o.visible = false; });
+    return { cuadro: q.get("solo") === "cielo" ? (dt, t) => { m.cuadro(dt, t); soloCielo(); } : m.cuadro, quitar() { m.quitar(); }, get cuenta() { return { ...m.cuenta, hora, rumbo, cabeceo }; } };
+  },
+});
