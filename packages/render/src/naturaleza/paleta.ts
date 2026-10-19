@@ -150,3 +150,16 @@ export const COLORES_FAUNA: Record<string, ColoresBicho> = {
   "luciernaga-brasa": { cuerpo: cuerpoDe.legendaria, ala: cascara.legendaria, luz: mezcla(CASA.ambar, CASA.coral, 0.4), circuito: CASA.ambar },
   "luciernaga-prisma": { cuerpo: cuerpoDe.legendaria, ala: cascara.legendaria, luz: mezcla(CASA.ambar, CASA.arena, 0.45), circuito: CASA.ambar },
 };
+
+// R6.6
+/**
+ * R6.6 · Pátina de los Residuos (residuos.ts): latón vivo en lo que sobresale, cuerpo de latón viejo (o cobre), verdín claro en lo que
+ * mira al cielo y en las juntas, oscuro en lo enterrado. Mezclas de tokens, ningún hex nuevo.
+ */
+export const PATINA = {
+  latonVivo: mezcla(MAQUINA.laton, CASA.ambar, 0.3),
+  cuerpo: mezcla(MAQUINA.laton, MAQUINA.latonSombra, 0.4),
+  cobre: mezcla(MAQUINA.cobre, CASA.ambar, 0.15),
+  verdin: mezcla(VERDES.verdin, CASA.verdemar, 0.45),
+  enterrado: mezcla(CASA.bronceOscuro, VERDES.monteSombra, 0.35),
+} as const;

@@ -823,3 +823,11 @@ Presupuesto idéntico (terreno y hierba sin un triángulo más): A 13 951 tri/8 
 - **Pájaros** (`aves.ts`): el pico es placa de latón/cobre (la de su rareza) y los dos triángulos del ojo, lente turquesa (`pl` 3), con su brillo turquesa. Mismos 39 triángulos; el `specular` inicial sale de `CASA.ceniza` (sin hex suelto).
 
 **Medido** (`tools/naturaleza-medir.ts`, peor caso): A 13 951 → **13 807** tri/8 llamadas, B 8 063 → 7 967/7, C 6 096 → 6 036/6, D 3 039 → 3 027/5. Sin llamadas nuevas ni CPU por animal (todo en el shader; un atributo de vértice más en las mariposas, 7 de 8 búferes de WebGPU). Test nuevo `test/naturaleza-r6-7.test.ts` (sin hex suelto, épica vs coral, alas hondas, topes de triángulos, ojos, lágrima, pájaros); `naturaleza-mariposas.test.ts` ajustado (sin puntales, dos ojos, 24/19). Fotos `work/naturaleza/fotos/r6-7-{mariposas-2m,grupo,luciernagas-noche}-{antes,despues}.png`.
+
+## R6.6 · Residuos heroicos y legibles
+
+**Antes:** las ruinas eran palitos oscuros (veletas, columnas, troncos, paneles) y un bronce oliva uniforme: a 8 m nadie distinguía una válvula de una bobina.
+
+**Ahora** (`naturaleza/residuos.ts`): menos piezas y más grandes, sacadas de las reliquias de Pablo (`referencias/hoja1-reliquias.jpg`): el **anillo-portal** (aro facetado de latón de ~6 m, medio enterrado, con bandas en relieve, cara interior viva y UNA línea turquesa), la **esfera-lente** rota (~3 m, corona de verdín, ala ecuatorial de latón, lente con pupila turquesa y una grieta oscura), la **hoja creciente** clavada por la punta, la **válvula** con volante de radios (~1,9 m), la **bobina** con tres devanados de cobre y el **engranaje** de canto. Pátina por regla (`PATINA` en `paleta.ts`): latón vivo en lo que sobresale, verdín en lo que mira al cielo y en las juntas, oscuro donde entra en la tierra; una señal por pieza como mucho.
+
+**El hito de la misión:** en (18, 0), donde estaba el «pilar dorado» (oculto desde R6.1), hay siempre un anillo-portal que mira a la plaza, en todos los niveles (`ANILLO_HITO`). El nivel D lleva solo el anillo (`RESIDUOS_POR_NIVEL.D` 110; su reparto de terreno pasa de 700 a 780 dentro de los 4 000). Mismas llamadas; peor caso A 13 949/8, B 8 048/7, C 6 048/6, D 3 139/5. Fotos `fotos/r6-6-*-{antes,despues}.png`.

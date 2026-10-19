@@ -63,7 +63,7 @@ export const PRESUPUESTO_NATURALEZA: Record<Nivel, { triangulos: number; llamada
   A: { triangulos: 15000, llamadas: 8, reparto: { terreno: 3600, arboles: 5200, hierba: 4500, fauna: 1700 } },
   B: { triangulos: 10000, llamadas: 7, reparto: { terreno: 1800, arboles: 3000, hierba: 2500, fauna: 1100 } },
   C: { triangulos: 8000, llamadas: 6, reparto: { terreno: 1400, arboles: 2700, hierba: 1900, fauna: 800 } },
-  D: { triangulos: 4000, llamadas: 5, reparto: { terreno: 700, arboles: 1200, hierba: 1100, fauna: 400 } },
+  D: { triangulos: 4000, llamadas: 5, reparto: { terreno: 780, arboles: 1200, hierba: 1100, fauna: 400 } },
 };
 /** Most trees the scatter plants in the whole world per tier (memory + the O(n) near/far split): thinned evenly above it. */
 export const ARBOLES_MAX_POR_NIVEL: Record<Nivel, number> = { A: 1100, B: 750, C: 750, D: 300 };
