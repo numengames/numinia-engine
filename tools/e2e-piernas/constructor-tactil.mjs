@@ -52,16 +52,17 @@ async function pierna() {
     await a.bringToFront();
     const cdp = await ctx.newCDPSession(a);
     // 1. build mode (the page API: the C key needs a keyboard), a Bloque placed through the API 3 m ahead and 1 m to
-    // the right: on a 420 px phone the environment panel (#panel-entorno, 270 px, left) covers the left half of the
-    // world while building; M22b-1 folds both into strips, the rest (sheets) is M22b-2 / U24
+    // the right (ux2-dock: entering shows only the dock, at the bottom on a phone; nothing covers the world)
     const n0 = await a.evaluate(() => globalThis.__numinia.session.features.stateOf("objetos").size);
     await a.evaluate(() => { const n = globalThis.__numinia, me = n.session.selfPosition(1); if (document.getElementById("panel-construir").hidden) document.getElementById("construir").click(); n.constructor.colocarEn("bloque", { x: me.x + 1, y: 0, z: me.z - 3 }); });
     await a.waitForFunction((n0) => { const n = globalThis.__numinia; return !!n.constructor.estado.seleccionado && n.session.features.stateOf("objetos").size > n0 && n.view.editor.estado().cargado; }, n0, { timeout: 10000 });
     id = await a.evaluate(() => globalThis.__numinia.constructor.estado.seleccionado);
+    await b.waitForFunction((k) => globalThis.__numinia.session.features.stateOf("objetos").has(k), id, { timeout: 5000 }).catch(() => {}); // B hears it a beat later under load
     const o0 = await deB(id);
     paso("abrir y colocar un bloque", !!o0, { id });
     // 2. Esc deselects through the API; a TAP on the block selects it and the camera does not turn
     await a.evaluate(() => globalThis.__numinia.constructor.seleccionar(null));
+    await a.waitForFunction(() => document.getElementById("ficha-objeto").hidden, null, { timeout: 3000 }).catch(() => {}); // the card follows on the next frame
     const yaw0 = await a.evaluate(() => globalThis.__numinia.view.cam.yaw());
     let s = await pantalla(id);
     const encima = s && (await a.evaluate((p) => document.elementFromPoint(p.x, p.y)?.tagName, s));
@@ -71,34 +72,36 @@ async function pierna() {
     const sel = await a.evaluate(() => globalThis.__numinia.constructor.estado.seleccionado);
     const yaw1 = await a.evaluate(() => globalThis.__numinia.view.cam.yaw());
     paso("un toque selecciona sin girar la cámara", sel === id && Math.abs(yaw1 - yaw0) < 0.01, { sel, yaw0, yaw1 });
-    // 2b. C5: the card is a bottom sheet — full width, ≤ 46 vh, 5-column grid of ≥ 44 px icons each with a short visible label (aria-label
-    // unchanged), tabs across the whole width, the chosen block still on the canvas above it; a long press on «Borrar» says its title
-    // under the bar and does NOT delete; a short tap still presses.
+    // 2b. ux2-dock on touch: the dock goes to the bottom (44 px tall targets); the card is a sheet just above it (≤ 42 vh), its
+    // icon-only buttons with a short visible label (aria-label unchanged), the chosen block still on the canvas above it.
+    // «Añadir» rises as a sheet over the dock and the card gives way while it is open (one sheet at a time).
     await a.waitForFunction(() => !document.getElementById("ficha-objeto").hidden, null, { timeout: 4000 });
     const hoja = await a.evaluate(() => {
-      const f = document.getElementById("ficha-objeto"), r = f.getBoundingClientRect(), vh = innerHeight, vw = innerWidth;
-      const ics = [...f.querySelectorAll("button.ic")].filter((b) => !b.hidden), caja = (b) => b.getBoundingClientRect();
-      const et = ics.map((b) => ({ aria: b.getAttribute("aria-label"), corta: b.querySelector(".et")?.textContent ?? "", visible: getComputedStyle(b.querySelector(".et")).display !== "none", w: caja(b).width, h: caja(b).height, x: Math.round(caja(b).left), y: Math.round(caja(b).top) }));
-      const fila1 = et.filter((e) => e.y === et[0].y).length, tabs = [...f.querySelectorAll(".pestanas button")].map((b) => caja(b));
-      const tr = f.querySelector(".pestanas").getBoundingClientRect();
-      return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, vh, vw, alto: r.height, et, fila1, tabsW: tabs.reduce((s, t) => s + t.width, 0), tabsMin: Math.min(...tabs.map((t) => t.height)), barraW: tr.width, desborda: document.documentElement.scrollWidth > vw };
+      const f = document.getElementById("ficha-objeto"), r = f.getBoundingClientRect(), vh = innerHeight, vw = innerWidth, caja = (b) => b.getBoundingClientRect();
+      const d = document.getElementById("dock-construir"), rd = d.getBoundingClientRect(), dbs = [...d.querySelectorAll("button")].map((b) => caja(b));
+      const ics = [...f.querySelectorAll(".acciones button")].filter((b) => !b.hidden);
+      const et = [...f.querySelectorAll(".acciones button.ic")].filter((b) => !b.hidden).map((b) => ({ aria: b.getAttribute("aria-label"), corta: b.querySelector(".et")?.textContent ?? "", visible: getComputedStyle(b.querySelector(".et")).display !== "none" }));
+      return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, vh, vw, alto: r.height, dockTop: rd.top, dockBottom: rd.bottom, dockAlto: Math.min(...dbs.map((x) => x.height)), dockAncho: Math.min(...dbs.map((x) => x.width)), dockCabe: rd.left >= 0 && rd.right <= vw && d.scrollWidth <= d.clientWidth + 1,
+        accMin: Math.min(...ics.map((b) => caja(b).height)), et, desborda: document.documentElement.scrollWidth > vw };
     });
-    paso("C5: la ficha es una hoja inferior (ancho completo, ≤ 46 vh)", hoja.left === 0 && Math.round(hoja.right) === hoja.vw && hoja.alto <= hoja.vh * 0.46 + 1 && Math.round(hoja.bottom) === hoja.vh && !hoja.desborda, { top: hoja.top, alto: hoja.alto, vh: hoja.vh, vw: hoja.vw });
-    paso("C5: rejilla de 5 columnas, objetivos ≥ 44 px, etiqueta corta visible y aria-label intacto", hoja.fila1 === 5 && hoja.et.every((e) => e.w >= 44 && e.h >= 44 && e.visible && e.corta !== "" && e.aria !== e.corta && e.aria.length > e.corta.length), { fila1: hoja.fila1, et: hoja.et.map((e) => `${e.corta}|${e.aria}|${Math.round(e.w)}x${Math.round(e.h)}`) });
-    paso("C5: las pestañas ocupan todo el ancho y miden ≥ 44 px", Math.abs(hoja.tabsW - hoja.barraW) <= 6 && hoja.tabsMin >= 44, { tabsW: hoja.tabsW, barraW: hoja.barraW, tabsMin: hoja.tabsMin });
+    // above the chat line (52 px + margins), every icon 44 px tall and ≥ 36 px wide, the nine of them inside a 412 px screen
+    paso("táctil: el dock va abajo, entero, con objetivos de 44 px de alto", hoja.dockBottom > hoja.vh - 100 && hoja.dockAlto >= 44 && hoja.dockAncho >= 36 && hoja.dockCabe, { dockTop: hoja.dockTop, dockBottom: hoja.dockBottom, dockAlto: hoja.dockAlto, dockAncho: hoja.dockAncho, dockCabe: hoja.dockCabe, vh: hoja.vh });
+    paso("táctil: la tarjeta es una hoja sobre el dock (≤ 42 vh)", hoja.left <= 8 && hoja.right >= hoja.vw - 8 && hoja.alto <= hoja.vh * 0.42 + 1 && hoja.bottom <= hoja.dockTop && !hoja.desborda, { top: hoja.top, bottom: hoja.bottom, alto: hoja.alto, vh: hoja.vh, vw: hoja.vw, dockTop: hoja.dockTop });
+    paso("táctil: botones de la tarjeta ≥ 44 px, etiqueta corta visible y aria-label intacto", hoja.accMin >= 44 && hoja.et.length >= 2 && hoja.et.every((e) => e.visible && e.corta !== "" && e.aria.length > e.corta.length), { accMin: hoja.accMin, et: hoja.et.map((e) => `${e.corta}|${e.aria}`) });
     const libre = await pantalla(id);
     const tapa = libre && (await a.evaluate((p) => document.elementFromPoint(p.x, p.y)?.tagName, libre));
-    paso("C5: la hoja no tapa el objeto elegido", !!libre && libre.y < hoja.top && tapa === "CANVAS", { libre, top: hoja.top, tapa });
-    const iconoBorrar = await a.evaluate(() => { const b = document.querySelector('#ficha-objeto button.peligro'), r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: iconoBorrar.x, y: iconoBorrar.y, radiusX: 8, radiusY: 8, force: 1, id: 1 }] });
-    await a.waitForTimeout(700); // past LARGA_MS
-    const pista = await a.evaluate(() => { const p = document.getElementById("ficha-pista"); return { oculta: p.hidden, texto: p.textContent, visible: getComputedStyle(p).display !== "none", rol: p.getAttribute("role"), top: document.getElementById("ficha-objeto").getBoundingClientRect().top, alto: document.getElementById("ficha-objeto").getBoundingClientRect().height, vh: innerHeight }; });
-    if (process.env.CAPTURA) await a.screenshot({ path: process.env.CAPTURA }); // while the finger rests: the title line is showing
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    paso("táctil: la hoja no tapa el objeto elegido", !!libre && libre.y < hoja.top && tapa === "CANVAS", { libre, top: hoja.top, tapa });
+    if (process.env.CAPTURA) await a.screenshot({ path: process.env.CAPTURA });
+    const centroDe = (sel) => a.evaluate((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, sel);
+    await toque(a, cdp, await centroDe("#dock-anadir"));
     await a.waitForTimeout(250);
-    const sigue = await deB(id);
-    paso("C5: pulsación larga sobre «Borrar» dice su título completo y no borra", !pista.oculta && pista.visible && pista.texto.startsWith("Borrar (Supr") && pista.rol === "status" && !!sigue, { pista, sigue: !!sigue });
-    paso("C5: con la línea del título la hoja sigue ≤ 46 vh y sin tapar el objeto", pista.alto <= pista.vh * 0.46 + 1 && libre.y < pista.top, { top: pista.top, alto: pista.alto, y: libre.y });
+    const sube = await a.evaluate(() => { const c = document.getElementById("cajon-anadir"), r = c.getBoundingClientRect(), d = document.getElementById("dock-construir").getBoundingClientRect();
+      return { abierto: !c.hidden, alto: r.height, vh: innerHeight, encima: r.bottom <= d.top + 1, fichaVisible: getComputedStyle(document.getElementById("ficha-objeto")).display !== "none" }; });
+    if (process.env.CAPTURA_CAJON) await a.screenshot({ path: process.env.CAPTURA_CAJON });
+    await toque(a, cdp, await centroDe("#dock-anadir"));
+    await a.waitForTimeout(250);
+    const baja = await a.evaluate(() => ({ cerrado: document.getElementById("cajon-anadir").hidden, fichaVisible: getComputedStyle(document.getElementById("ficha-objeto")).display !== "none" }));
+    paso("táctil: «Añadir» sube como hoja sobre el dock y la tarjeta le cede el sitio", sube.abierto && sube.encima && sube.alto <= sube.vh * 0.5 + 1 && !sube.fichaVisible && baja.cerrado && baja.fichaVisible, { sube, baja });
     const fijo0 = !!(await deB(id)).fijado;
     const iconoFijar = await a.evaluate(() => { const b = [...document.querySelectorAll('#ficha-objeto button.ic')].find((x) => /^(Anclar|Soltar)/.test(x.getAttribute("aria-label"))), r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
     await toque(a, cdp, iconoFijar);

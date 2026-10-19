@@ -1,7 +1,7 @@
 // e2e leg H9 (subir): drop your own .glb onto the world. In tab A a model made from activos/casa/bloque.glb with a
 // new node name (new bytes, new sha256 every run, so the upload really runs) is dropped (a synthetic drop with a
 // DataTransfer) on a point of the ground; B sees the thing appear there and loads its file from /a/<sha256>.glb.
-// Then A picks the same file with «Subir modelo…» (the keyboard path; a real file chooser): HEAD says it is already
+// Then A picks the same file with «Añadir › Subir» (the keyboard path; a real file chooser): HEAD says it is already
 // there, so there is no second PUT, and it lands 3 m in front of A. A broken .glb is refused in the page. Both things
 // are deleted at the end. Gets BASE and SERVER_HTTP (tools/e2e-piernas/README.md); prints JSON; exit 0 only when right.
 import { createRequire } from "node:module";
@@ -39,6 +39,8 @@ const sha = async (b) => Buffer.from(await crypto.subtle.digest("SHA-256", b)).t
 async function pierna(engine) {
   const browser = await launchers[engine]();
   const ctx = await browser.newContext({ viewport: { width: 480, height: 300 } });
+  // the «Novedades» dialog would take the keyboard from «Añadir › Subir» (step 2): mark this version as seen
+  await ctx.addInitScript((v) => { try { localStorage.setItem("numinia.novedades.version", v); } catch {} }, JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version);
   const errors = [], puts = [], heads = [];
   const open = async () => {
     const p = await ctx.newPage();
@@ -79,15 +81,17 @@ async function pierna(engine) {
     const dibujoB = await b.evaluate(() => globalThis.__numinia.view.objects());
     const servido = await fetch(`${SERVER_HTTP}/a/${h}.glb`).then(async (r) => ({ status: r.status, igual: Buffer.from(await r.arrayBuffer()).equals(glb) }));
 
-    // 2) the same file again, through «Subir modelo…» (open the builder panel, focus the button, Enter → file chooser)
-    let camino = "boton";
+    // 2) the same file again, through «Añadir › Subir» (open the builder and its «Añadir» drawer, focus the button, Enter → file chooser)
+    let camino = "boton", porQue = "";
     const yo = await a.evaluate(() => globalThis.__numinia.session.selfPosition(0));
     try {
       if (!(await a.evaluate(() => !document.getElementById("panel-construir")?.hidden))) await a.locator("#construir").click({ timeout: 3000 });
-      await a.locator("#subir-modelo").focus({ timeout: 3000 });
+      if (await a.evaluate(() => document.getElementById("cajon-anadir")?.hidden !== false)) await a.locator("#dock-anadir").click({ timeout: 3000 });
+      await a.locator("#cajon-anadir #subir").focus({ timeout: 3000 });
       const [fc] = await Promise.all([a.waitForEvent("filechooser", { timeout: 5000 }), a.keyboard.press("Enter")]);
       await fc.setFiles({ name: `${nombre}.glb`, mimeType: "model/gltf-binary", buffer: glb });
-    } catch {
+    } catch (e) {
+      porQue = String(e).split("\n")[0].slice(0, 200);
       camino = "input"; // the panel changed shape (another branch): the same input, filled directly
       await a.setInputFiles("#subir-fichero", { name: `${nombre}.glb`, mimeType: "model/gltf-binary", buffer: glb });
     }
@@ -109,12 +113,12 @@ async function pierna(engine) {
     const quedanEnB = (await conModelo(b, h)).length;
     const cerca = (p, q, d) => !!p && !!q && Math.abs(p.x - q.x) <= d && Math.abs(p.z - q.z) <= d;
     Object.assign(out, {
-      sha256: h.slice(0, 12), drop, tras1, enB, dibujoB, servido, camino, tras2, delante, yo: { x: Math.round(yo.x * 100) / 100, z: Math.round(yo.z * 100) / 100 },
+      sha256: h.slice(0, 12), drop, tras1, enB, dibujoB, servido, camino, porQue, tras2, delante, yo: { x: Math.round(yo.x * 100) / 100, z: Math.round(yo.z * 100) / 100 },
       puts: puts.length - 0, heads: heads.length, tras3, putsTrasRoto: puts.length - putsAntes, quedanEnB, errors,
     });
     out.ok = drop.capa && !drop.capaTrasSoltar && /Colocado/.test(tras1) && cerca(enB, drop.suelo, 0.02) && enB?.nombre === nombre
       && dibujoB.failed === 0 && servido.status === 200 && servido.igual
-      && /Ya estaba en el servidor/.test(tras2) && /Colocado/.test(tras2) && enA.length === 2 && cerca(delante, { x: yo.x, z: yo.z - 3 }, 0.6)
+      && camino === "boton" && /Ya estaba en el servidor/.test(tras2) && /Colocado/.test(tras2) && enA.length === 2 && cerca(delante, { x: yo.x, z: yo.z - 3 }, 0.6)
       && puts.length === 1 && heads.length === 2 && /No se pudo subir «roto\.glb»/.test(tras3) && out.putsTrasRoto === 0
       && quedanEnB === 0 && errors.length === 0;
   } catch (e) { out.error = String(e).split("\n")[0]; out.errors = errors; }

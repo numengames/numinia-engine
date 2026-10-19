@@ -29,14 +29,13 @@
     #acciones button { padding: 10px 14px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #ffd27a; font: inherit; font-weight: 600; }
     #construir { position: fixed; top: 102px; right: 10px; display: none; padding: 10px 14px; border: 0; border-radius: 8px; background: #c9b6ff; color: #23303b; font: inherit; font-weight: 600; }
     #pantalla { position: fixed; top: 112px; left: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #eef2f6; font: inherit; font-weight: 600; }
-    #panel-construir { position: fixed; top: 150px; right: 10px; width: 300px; max-height: calc(100% - 210px); overflow: auto; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .82); color: #eef2f6; }
+    #panel-construir { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(560px, calc(100% - 16px)); color: #eef2f6; pointer-events: none; } /* ux2-dock: the dock and its one drawer (constructor.ts) */
     body.construyendo #minimapa { visibility: hidden; } /* while building the panel owns the right side (the minimap covered «Borrar» and the inspector) */
-    #panel-construir h2 { margin: 0 0 4px; font-size: 15px; color: #ffd27a; }
     #panel-construir p { margin: 6px 0 4px; }
     #panel-construir .fila { display: flex; flex-wrap: wrap; gap: 6px; }
     #panel-construir button { padding: 7px 9px; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; font: inherit; }
     #panel-construir button:focus-visible { outline: 3px solid #ffd27a; }
-    #panel-construir .estado { color: #ffd27a; min-height: 1.4em; }
+    #panel-construir .estado { color: #ffd27a; }
     /* J3: the chat box, bottom left: the list is always there (an empty one takes no room), the input opens with Enter */
     #chat { position: fixed; left: 10px; bottom: 34px; width: min(380px, 62vw, calc(100vw - 240px)); display: flex; flex-direction: column; gap: 4px; }
     /* auditoría UI móvil: en pantalla estrecha o táctil el minimapa/misiones viven arriba a la derecha
