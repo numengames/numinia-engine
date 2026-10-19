@@ -2,7 +2,7 @@
 // and are put in the world with `at` (only near players get them, J9). Dialogue and quest progress are decided here:
 // distances (api.within), step conditions and positions (api.position) are checked by this file, so a page can never
 // complete a step by asking. Progress is kept per guest (I1) in the store (S4) and reaches only its owner.
-import { serverPart } from "../../packages/feature/src/index.ts";
+import { adoptarClaves, serverPart } from "../../packages/feature/src/index.ts";
 import type { ServerApi, ServerPart } from "../../packages/feature/src/index.ts";
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
 import { cargarAventura, corta, LIM } from "./formato.ts";
@@ -219,6 +219,10 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     for (const c of A.cosas.values()) {
       api.state.set(c.id, { nombre: c.nombre, descripcion: c.descripcion, x: c.posicion.x, z: c.posicion.z, radio: c.radio, aviso: c.aviso, modelo: c.apariencia.modelo, escala: c.apariencia.escala, y: c.posicion.y, color: c.apariencia.color, modeloUsada: c.apariencia.usada?.modelo ?? "", escalaUsada: c.apariencia.usada?.escala ?? c.apariencia.escala }, { at: { x: c.posicion.x, z: c.posicion.z } }); // U14 (6): the used look travels with it; each page picks by its own book
     }
+    api.onAdoptar((invitado, sub) => { // identidad/i1: the generic move (paso: the more advanced; hechas: the union; grants once); the memory copy follows
+      adoptarClaves(api.store, invitado, sub);
+      progresos.delete(`g:${invitado}`); if (progresos.has(`g:${sub}`)) progresos.set(`g:${sub}`, leerProgreso(api.store.get(`p:${sub}`)));
+    });
     api.onIdentify((e) => {
       const antes = claveDe.get(e);
       if (antes?.startsWith("e")) progresos.delete(antes); // what it did before saying who it is is not kept

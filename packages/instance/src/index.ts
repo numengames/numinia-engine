@@ -318,6 +318,7 @@ export class Instance {
     const invitado: Who = { id, nombre: nombreDe(id) };
     // a pass the world accepts replaces the guest (same person on two devices = one person); one it refuses leaves the guest
     const persona = pase !== undefined && this.opts.credencial ? this.opts.credencial(entity, pase, invitado) : null;
+    if (persona && ok && persona.id !== id) this.features.adoptar(id, persona.id); // identidad/i1: what the guest had here is theirs now (once)
     conn.who = persona ?? invitado;
     if (persona) conn.invitado = id;
     conn.transport.send(encodeIdentity({ token: ok && !ok.renovar ? token : emitir(sign, id, day), ...conn.who }), true);
