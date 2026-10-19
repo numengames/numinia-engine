@@ -39,11 +39,11 @@ export const NOCHE = { fondo: 0x14110f, sombra: 0x1e1a17, luna: 0xc4b5a6 } as co
 
 /**
  * R5.1 · Relleno de sombra (relleno.ts): el color que toma la cara a la que no llega el sol, como un hemisferio horneado.
- * Abajo verdemar fresco tirando a verdín (la sombra BotW, nunca negra); arriba arena cálida. Mezclas de tokens, ningún hex nuevo.
+ * Abajo verdemar fresco tirando a verdín (la sombra BotW, nunca negra); arriba arena velada con un toque de verdemar (la sombra del suelo, templada). Mezclas de tokens, ningún hex nuevo.
  */
 export const RELLENO = {
-  abajo: mezcla(CASA.verdemar, VERDES.verdin, 0.3),
-  arriba: mezcla(CASA.arena, CASA.arenaVelada, 0.35),
+  abajo: mezcla(CASA.verdemar, VERDES.verdin, 0.15),
+  arriba: mezcla(CASA.arenaVelada, CASA.verdemar, 0.3),
 } as const;
 
 /** Paletas de estación: qué verde/hoja/flor usa cada una. Todo dentro de las tablas de arriba. */

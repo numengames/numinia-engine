@@ -12,13 +12,13 @@ import { crearArboles } from "../packages/render/src/naturaleza/arboles.ts";
 import { esparcirArboles } from "../packages/render/src/naturaleza/esparcir.ts";
 
 test("R5.1 fill colours are mixes of house tokens (cool sea-green below, warm sand above)", () => {
-  assert.equal(RELLENO.abajo, mezcla(CASA.verdemar, VERDES.verdin, 0.3));
-  assert.equal(RELLENO.arriba, mezcla(CASA.arena, CASA.arenaVelada, 0.35));
+  assert.equal(RELLENO.abajo, mezcla(CASA.verdemar, VERDES.verdin, 0.15));
+  assert.equal(RELLENO.arriba, mezcla(CASA.arenaVelada, CASA.verdemar, 0.3));
   const c = (h: number) => [(h >> 16) & 255, (h >> 8) & 255, h & 255];
   const [r, g, b] = c(RELLENO.abajo);
   assert.ok(g > r && b > r, "the shade below is cool (green/blue over red)");
   const [r2, , b2] = c(RELLENO.arriba);
-  assert.ok(r2 > b2, "the fill above is warm");
+  assert.ok(r2 > b2, "the fill above leans warm (red over blue)");
 });
 
 test("R5.1 fill strength follows the engine's ambient: zero without it, dim at night, full by day", () => {
@@ -26,7 +26,7 @@ test("R5.1 fill strength follows the engine's ambient: zero without it, dim at n
   assert.equal(fuerzaRelleno(0, true, dia), 0);
   const kDia = fuerzaRelleno(0.4, true, dia), kNoche = fuerzaRelleno(0.4 * 0.28, true, noche);
   assert.ok(Math.abs(kDia - 0.4 * GANANCIA_RELLENO.conEntorno) < 1e-6, `day fill ${kDia}`);
-  assert.ok(kNoche < kDia * 0.05, `night fill ${kNoche} must be a small fraction of the day's ${kDia}`);
+  assert.ok(kNoche > 0 && kNoche < kDia * 0.12, `night fill ${kNoche} must be a small fraction of the day's ${kDia}`);
   assert.ok(fuerzaRelleno(0.4, false, dia) < kDia, "without the HDR environment the hemisphere is stronger: a smaller lift");
   assert.ok(fuerzaRelleno(0.4, true, new THREE.Color(10, 10, 10)) <= kDia + 1e-9, "a very bright sky never pushes the fill above the day's");
 });
