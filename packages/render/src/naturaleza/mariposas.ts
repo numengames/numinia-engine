@@ -145,8 +145,8 @@ export function oscuridad(hora: number): number {
 }
 /** The light butterflies are shaded with (a scalar standing for the sun / hemisphere): 1 by day, 0.25 in the dark. */
 export const luzDelDia = (hora: number) => 1 - 0.75 * oscuridad(hora);
-/** Glow radius (m) of a firefly: body length × 3, and rare ones bigger (legendary ≈ 1.9×). Brightness 1 → 1.8. */
-export const radioLuz = (e: Pick<Especie, "tamano" | "rareza">) => e.tamano * 3 * (1 + 0.9 * (RAREZA_FACTOR[e.rareza] ?? 0));
+/** Glow radius (m) of a firefly: body length × 4, and rare ones bigger (legendary ≈ 1.9×). Brightness 1 → 1.8. */
+export const radioLuz = (e: Pick<Especie, "tamano" | "rareza">) => e.tamano * 4 * (1 + 0.9 * (RAREZA_FACTOR[e.rareza] ?? 0));
 export const brilloLuz = (e: Pick<Especie, "rareza">) => 1 + 0.8 * (RAREZA_FACTOR[e.rareza] ?? 0);
 /** Wing beat rate (rad/s): large butterflies ≈ 4 Hz, small ≈ 9 Hz. */
 export const aleteoRadS = (tamano: number) => TAU * (4 + 5 * Math.min(1, Math.max(0, (0.3 - tamano) / 0.16)));
@@ -273,11 +273,11 @@ export function materialLuciernagas(e: Entrada): THREE.MeshBasicNodeMaterial {
   const col = mix(T.color((k) => e.razas[k].luz), arcoiris(pu.hue), pu.prisma);
   const vCol = col.toVarying("luc_col"), vInt = pu.i.mul(vista).mul(brillo).toVarying("luc_int"), vRar = rar.toVarying("luc_rar");
   const d2 = esq.x.mul(esq.x).add(esq.y.mul(esq.y)), d = sqrt(d2);
-  const halo = pow(clamp(float(1).sub(d), 0, 1), 2.2), core = exp(d2.mul(-38));
+  const halo = pow(clamp(float(1).sub(d), 0, 1), 1.8), core = exp(d2.mul(-26)); // F4b: wider halo + core (a 15 m firefly was ~4 px of core)
   const anillo = exp(pow(d.sub(0.72).div(0.05), 2).negate()).mul(0.45).mul(smoothstep(0.5, 0.7, vRar));
   const estrella = exp(abs(esq.x).mul(-24).sub(abs(esq.y).mul(2.2))).add(exp(abs(esq.y).mul(-24).sub(abs(esq.x).mul(2.2)))).mul(0.55).mul(smoothstep(0.85, 0.95, vRar));
-  const forma = halo.mul(0.55).add(core).add(anillo).add(estrella).mul(smoothstep(1, 0.92, d));
-  mat.colorNode = mix(vCol, vec3(1, 1, 1), core.mul(0.3));
+  const forma = halo.mul(0.8).add(core).add(anillo).add(estrella).mul(smoothstep(1, 0.92, d));
+  mat.colorNode = mix(vCol, vec3(1, 1, 1), core.mul(0.3)).mul(1.5); // >1: additive over the tone map still reads as light in the dark
   mat.opacityNode = clamp(forma.mul(vInt), 0, 1);
   return mat;
 }
