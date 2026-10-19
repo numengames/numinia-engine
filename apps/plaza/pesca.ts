@@ -10,7 +10,6 @@ import { escribiendo } from "./escribiendo.ts";
 import { montarPescaManos } from "./pesca-vr.ts"; // N4: the rod in your hand in VR, and a gamepad
 import { consejo } from "../../features/pesca/client.ts";
 import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
-import { audio } from "../../packages/render/src/audio/nucleo.ts"; // S1: one audio graph for the whole engine
 import { sonarFase } from "./pesca-sonido.ts"; // the nibble and the bite sound through the page's single door (sonar.ts bridge), once
 
 type Res = { ok: true } | { ok: false; why: string };
@@ -60,28 +59,7 @@ const CSS = `
 
 const TEXTO: Record<Estado["fase"], string> = { nada: "", espera: "Esperando… algo picará", mordisqueo: "Algo mordisquea el cebo", picada: "¡PICA! Recoge ahora", pelea: "Pelea: {pez}" };
 
-/** Two short notes (a catch) or one low one (an escape), made here with the Web Audio API; follows the effects volume.
- *  `salida` (S1) is the audio core's «interfaz» bus: with it the person's volume is the graph's VCA, applied once. */
-function sonar(que: "exito" | "fallo", ctx: () => AudioContext | null, ajuste: (id: string) => unknown, salida?: () => AudioNode | null): void {
-  try {
-    const c = ctx(); if (!c) return;
-    const destino = salida?.() ?? null;
-    // the ids carry their group («sonido.efectos», not «efectos»): a bare name read undefined and the slider did nothing
-    const vol = destino ? 0.25 : (Number(ajuste("sonido.general") ?? 80) / 100) * (Number(ajuste("sonido.efectos") ?? 80) / 100) * 0.25;
-    if (vol <= 0) return;
-    const notas: [number, number, number][] = que === "exito" ? [[523, 0, 0.12], [784, 0.12, 0.22]] : [[196, 0, 0.3]];
-    for (const [f, t0, dur] of notas) {
-      const o = c.createOscillator(), g = c.createGain();
-      o.type = que === "exito" ? "triangle" : "sawtooth"; o.frequency.value = f;
-      g.gain.setValueAtTime(0, c.currentTime + t0); g.gain.linearRampToValueAtTime(vol, c.currentTime + t0 + 0.015); g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + t0 + dur);
-      o.connect(g).connect(destino ?? c.destination); o.start(c.currentTime + t0); o.stop(c.currentTime + t0 + dur + 0.05);
-    }
-  } catch { /* no audio here: the panel and the buzz still say it */ }
-}
-
-/** `ajuste` reads a setting (main.ts passes leerAjuste: importing it here would split the settings menu out of the start bundle). */
-export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud: HTMLElement; ajuste?: (id: string) => unknown; interaccion?: () => Manos["interaccion"] }) {
-  const ajuste = o.ajuste ?? (() => undefined);
+export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud: HTMLElement; interaccion?: () => Manos["interaccion"] }) {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const tactil = esTactil();
   const hud = o.hud;
@@ -100,9 +78,6 @@ export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud
   const recoger = hud.querySelector("#pesca-recoger") as HTMLButtonElement, soltar = hud.querySelector("#pesca-soltar") as HTMLButtonElement;
   const vibrar = (p: number | number[]) => { try { (navigator as Navigator & { vibrate?: (p: number | number[]) => boolean }).vibrate?.(p); } catch { /* not every browser lets a page vibrate */ } };
   const barra = (el: HTMLElement, v: number) => { (el.firstElementChild as HTMLElement).style.width = `${Math.max(0, Math.min(100, v))}%`; el.setAttribute("aria-valuenow", String(Math.round(v))); };
-  // S1: one audio graph for the whole engine; these two notes are interface, so they go out on the «interfaz» bus
-  const contexto = () => audio().ctx();
-  const salida = () => audio().bus("interfaz");
 
   // N4 on a phone: the HUD leaves the right column free (the action buttons: «Saltar», the touch bar's «Recoger»…)
   const hacerSitio = () => {
@@ -137,10 +112,10 @@ export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud
       if (e.fase === "nada" && fase !== "nada") { // the fight just ended: say clearly how
         if (e.ultimo && /^Has pescado/.test(e.aviso)) {
           mostrarResultado("pescado", "¡Pescado!", `🐟 ${e.ultimo.pez} · ${cmTexto(e.ultimo.cm)}`, `${RAREZA[e.ultimo.rareza] ?? e.ultimo.rareza} · En tu cesta: ${e.cesta.peces}`);
-          vibrar([60, 40, 60, 40, 220]); sonar("exito", contexto, ajuste, salida); anotar("exito");
+          vibrar([60, 40, 60, 40, 220]); // the catch sounds from the SERVER (pesca-cobrar), for everyone nearby, me too
         } else if (e.aviso && !/^Has recogido/.test(e.aviso)) {
           mostrarResultado("escapado", "Se ha escapado", e.aviso.replace(/\.$/, ""), "Vuelve a lanzar la caña");
-          vibrar(120); sonar("fallo", contexto, ajuste, salida); anotar("fallo");
+          vibrar(120); // an escape is silent: the slack line and the panel say it
         }
       }
       fase = e.fase;

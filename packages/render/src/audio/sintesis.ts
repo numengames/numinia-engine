@@ -178,7 +178,8 @@ export const RECETAS: Readonly<Record<string, Receta>> = {
   "pasos-metal": { dur: 0.3, bus: "pasos-propios", hacer: (b, r) => { [820, 1340, 2110, 3060].forEach((f, i) => tono(b, { f0: f, dur: 0.28, vol: 0.2 / (i + 1) ** 0.5, tau: 0.05 - i * 0.008 })); tono(b, { f0: 140, dur: 0.08, vol: 0.5, tau: 0.03 }); ruido(b, r, { dur: 0.02, vol: 0.3, filtro: "bp", f: 3000 }); } },
   "pasos-agua": { dur: 0.34, bus: "pasos-propios", hacer: (b, r) => { ruido(b, r, { dur: 0.24, vol: 0.45, filtro: "bp", f: 600, f1: 2500, q: 1.5, ataque: 0.02 }); tono(b, { f0: 500, f1: 1100, t0: 0.05, dur: 0.06, vol: 0.2 }); tono(b, { f0: 700, f1: 1500, t0: 0.12, dur: 0.06, vol: 0.2 }); } },
   "aterrizaje": { dur: 0.3, bus: "pasos-propios", hacer: (b, r) => { tono(b, { f0: 90, f1: 45, dur: 0.24, vol: 0.9, tau: 0.08 }); ruido(b, r, { dur: 0.2, vol: 0.5, filtro: "lp", f: 900, tau: 0.06 }); ruido(b, r, { dur: 0.03, vol: 0.2, filtro: "hp", f: 3000 }); } },
-  "salto": { dur: 0.3, bus: "pasos-propios", hacer: (b, r) => { tono(b, { f0: 220, f1: 520, dur: 0.16, vol: 0.35, onda: "tri", tau: 0.07 }); ruido(b, r, { dur: 0.12, vol: 0.2, filtro: "bp", f: 1500, q: 1, ataque: 0.04 }); } },
+  // el despegue es un roce de suela contra el suelo, sin tono: un «boing» que sube sería de dibujos animados
+  "salto": { dur: 0.15, bus: "pasos-propios", hacer: (b, r) => { ruido(b, r, { dur: 0.09, vol: 0.22, filtro: "bp", f: 900, q: 0.8, ataque: 0.006 }); } },
   "dano": { dur: 0.4, bus: "efectos", hacer: (b, r) => { tono(b, { f0: 200, f1: 80, dur: 0.28, vol: 0.5, onda: "sierra", tau: 0.1 }); ruido(b, r, { dur: 0.16, vol: 0.4, filtro: "lp", f: 1200 }); filtrar(b, "lp", 1800); } },
 
   // ── objetos y funciones ──

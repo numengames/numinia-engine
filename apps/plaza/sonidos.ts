@@ -93,16 +93,8 @@ export function montarSonidos(p: Pagina, puerta: Puerta = crearPuerta({ nucleo: 
   puente.sonar = sonarLocal;
   quitar.push(() => { if (puente.sonar === sonarLocal) puente.sonar = null; });
 
-  // interfaz: cualquier botón. Local: es mi dedo, y suena en mi cabeza.
-  const clic = (e: Event): void => {
-    const b = (e.target as Element | null)?.closest?.("button,[role=button],summary,[role=tab]");
-    if (b && !(b as HTMLButtonElement).disabled && b.getAttribute("aria-disabled") !== "true") sonarLocal("ui-pulsar", { gain: 0.5 });
-  };
-  // sin DOM (las pruebas, o un servidor que carga este módulo) no hay botones que escuchar: el resto sigue igual
-  if (typeof document !== "undefined") {
-    document.addEventListener("pointerdown", clic, true);
-    quitar.push(() => document.removeEventListener("pointerdown", clic, true));
-  }
+  // Los botones NO suenan (Pablo, 2026-10-19): suena lo que en el mundo haría ruido, no la interfaz. Un clic ya se ve y
+  // se siente; un tic encima de cada uno satura la mezcla y tapa lo que sí informa.
 
   // El material bajo los pies. Hoy el motor solo sabe el tipo de suelo de la ZONA (`entorno@1`: hierba, tierra, arena,
   // roca, nieve, liso), no una etiqueta por superficie: un tablado de madera sobre una zona de roca sigue sonando a

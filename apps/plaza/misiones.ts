@@ -146,11 +146,6 @@ function sonar(ctx: () => AudioContext | null, ajuste: (id: string) => unknown, 
     return true;
   } catch { return false; } // no audio here: the note and the screen reader still say it
 }
-/** The short positive sound of a step done (its `avance` announcement declares «exito»; until V6 gives every
- * announcement its own sound, the book plays this one): three rising notes. Returns whether it sounded. */
-export function sonarExito(ctx: () => AudioContext | null, ajuste: (id: string) => unknown, salida?: (c: AudioContext) => AudioNode | null): boolean {
-  return sonarCasa(ctx, ajuste, "exito", salida);
-}
 /** U14 (5): how many seconds a step still waits on this page's clock — 0 = none; at least 1 until the server sends the
  * book that opens it. */
 export const segundosDe = (s: { espera?: number; listoEn?: number }, ahora = performance.now()): number =>
@@ -333,7 +328,7 @@ export function montarLibro(c: Ctl, o: {
     if (event === "aceptada") { solo.aceptada(); quizasAbrir(); }
     if (event === "avance") {
       if (esObjeto(String(msg.texto ?? ""), c.libro().find((m) => m.id === String(msg.mision)))) mostrarNota(c.estado.nota, true);
-      if (o.ajuste) sonarExito(contexto, o.ajuste, salida);
+      // a step done is silent (it is frequent): only the whole mission, a rare milestone, sounds
     }
     if (event === "completada") { mostrarCompletada(msg); if (o.ajuste) sonarCompletada(contexto, o.ajuste, salida); }
   });

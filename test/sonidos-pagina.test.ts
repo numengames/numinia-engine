@@ -38,7 +38,7 @@ test("bajar un escalón (poco aire) no es un golpe y caerse de un borde no es un
 });
 
 // ———————————————————————————— S6f · el reparto de autoridad en la página ————————————————————————————
-// Lo LOCAL (botones, mis pasos, mi salto, mi aterrizaje) lo dispara la página. Lo COMPARTIDO (puerta, dados, dardos,
+// Lo LOCAL (mis pasos, mi salto, mi aterrizaje) lo dispara la página. Lo COMPARTIDO (puerta, dados, dardos,
 // pez cobrado, teleport) lo manda el SERVIDOR con su semilla (D-048): la página se niega a tocarlo, porque si cada
 // una lo disparara por su cuenta, dos personas al lado oirían cosas distintas.
 

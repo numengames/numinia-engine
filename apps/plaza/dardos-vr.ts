@@ -8,9 +8,8 @@
 // stand at the throwing line). A gesture that is too slow, backwards or sideways is not a throw: the dart falls from your
 // hand and you take another. The OTHER hand may hold anything (a quest thing, the fishing rod): only a hand that holds a
 // dart is busy, and a hand over a thing to take or pointing at something keeps its normal verbs.
-// Nothing is completed here: the dart flies to where the server says it landed. Sound: only taking the dart is ours
-// (`coger-soltar`, local); the throw and the hit are shared, so the SERVER sounds them for everyone (features/sonido).
-import { sonar } from "./sonar.ts";
+// Nothing is completed here: the dart flies to where the server says it landed. Sound: taking the dart only buzzes the
+// hand (a dart makes no noise in the fingers); the throw and the hit are shared, so the SERVER sounds them for everyone.
 import { DARDOS_TURNO } from "../../features/dardos/client.ts";
 import { lanzamiento, velocidadDe, duracionVuelo, FIN_PELLIZCO_MS, V_MIN } from "../../features/dardos/lanzamiento.ts";
 import type { Cara, Muestra, V3 } from "../../features/dardos/lanzamiento.ts";
@@ -145,7 +144,7 @@ export async function montarDardosVR(o: { dardos: Controlador; view: Vista; yo: 
         if (!en || !sitio) { sosteniendo = null; vrd.enMano(null); continue; } // controller asleep, hand lost, or the turn ended
         if (sosteniendo.mando ? subeG || bajaA : bajaG) lanzar(l, ahora, sosteniendo.mando);
       } else if (!sosteniendo && en && sitio && (en.mano ? subeG : subeA) && puedeCoger(l)) {
-        if (vrd.enMano(l)) { sosteniendo = { lado: l, mando: !en.mano }; view.manos.vibrar(l, 0.4, 40); sonar("coger-soltar", { gain: 0.5 }, 150); }
+        if (vrd.enMano(l)) { sosteniendo = { lado: l, mando: !en.mano }; view.manos.vibrar(l, 0.4, 40); }
       }
     }
     if (sosteniendo && !sitio) { sosteniendo = null; vrd.enMano(null); }

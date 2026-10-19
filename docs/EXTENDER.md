@@ -359,8 +359,15 @@ Si un día uno de esos ids consigue un fichero CC0, se le añade y el fichero ga
 **Quién decide qué suena.** Lo **compartido** lo manda el **servidor** con su semilla (D-048): la puerta, los
 dados, el dardo, el pez cobrado y el teletransporte. `features/sonido/server.ts` se asoma con `api.listen` a los
 eventos que esas funciones **ya emiten**, así que una función nueva que quiera sonar no tiene que saber nada de
-sonido: emite su evento y se le añade una línea allí. Lo **local** (los botones, mis pasos, mi salto, mi
-aterrizaje) lo dispara la página y no viaja por la red: es de cada quien y se oye en la cabeza o a mis pies.
+sonido: emite su evento y se le añade una línea allí. Lo **local** (mis pasos, mi salto, mi aterrizaje, mi caña)
+lo dispara la página y no viaja por la red: es de cada quien y se oye en la cabeza o a mis pies.
+
+**Qué suena y qué no** (Pablo, 2026-10-19: «solo ponemos sonido a lo que normalmente se pone sonido»). Suena lo
+que en el mundo haría ruido —pasos, puertas, agua, un dardo que se clava, unos dados— y los pocos hitos raros (una
+misión completada). **No suena la interfaz**: ni los botones, ni abrir un panel, ni cada paso de una misión, ni
+coger algo con la mano en VR (eso ya vibra). Lo frecuente y lo que ya se ve se queda en silencio: el silencio es lo
+que deja oír lo que informa. Antes de enchufar un sonido nuevo: ¿haría ruido de verdad?, ¿cuántas veces por minuto
+sonará?, ¿lo dice ya otra cosa (la vista, la vibración, el servidor)?
 
 **`tema`** (opcional, dentro de la ficha): cómo se ve la página de ESTE mundo, para que un evento traiga su aire sin
 tocar el motor. Diez colores «#rrggbb» de los paneles — `fondo`, `superficie`, `elevado` (botones), `texto`, `texto2`,

@@ -140,7 +140,7 @@ try {
   out.manoVaciaB = await ctl(b, () => globalThis.__numinia.view.pesca.contar().peces === 0);
   await esperar(a, () => document.getElementById("pesca-hud").hidden, null, 6000).catch(() => {});
   out.hudDespues = await ctl(a, () => document.getElementById("pesca-hud").hidden);
-  out.sonidos = await ctl(a, () => (document.getElementById("pesca-hud").dataset.sonidos ?? "").split(",").filter(Boolean)); // pesca-sonido.ts: the bite knocked, then the catch chimed
+  out.sonidos = await ctl(a, () => (document.getElementById("pesca-hud").dataset.sonidos ?? "").split(",").filter(Boolean)); // pesca-sonido.ts: the bite knocked (the catch sounds from the server)
   out.anuncio = await ctl(a, () => globalThis.__numinia.session.features.announcements.filter((x) => x.feature === "pesca").map((x) => `${x.event}: ${x.text}`));
   out.etiqueta = await ctl(a, () => document.getElementById("avisos")?.textContent ?? "");
   nota("fin", { resultado: out.despues.ultimo ? "captura" : out.despues.aviso });
@@ -156,7 +156,7 @@ try {
     && !!out.despues.ultimo && peces.includes(out.despues.ultimo.pez) && out.despues.cesta.peces >= 1 && /^Has pescado: /.test(out.despues.aviso) && out.hudDespues === true
     && out.anuncio.some((t) => t.startsWith("captura: Has pescado: ")) && out.b.fase === "nada" && !out.b.eventos.some((e) => ["picada", "pelea", "tension", "captura"].includes(e)) && errors.length === 0
     && enMano && panel && out.v2.bLanzado && out.manoVaciaB
-    && out.sonidos.includes("picada") && out.sonidos.lastIndexOf("exito") > out.sonidos.indexOf("picada");
+    && out.sonidos.includes("picada");
 } catch (e) { out.error = String(e).split("\n")[0]; }
 await browser.close();
 console.log(JSON.stringify(out, null, 1));

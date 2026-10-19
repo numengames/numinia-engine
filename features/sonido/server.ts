@@ -273,7 +273,7 @@ export const crearSonido = (opts: {
   // ya existía. Una función nueva que quiera sonar no tiene que saber nada de sonido: emite su evento y se le añade
   // aquí una línea (R-1).
   //
-  // Lo local (los botones de interfaz, mis pasos, mi salto, mi aterrizaje) NO pasa por aquí: es de cada quien, se oye
+  // Lo local (mis pasos, mi salto, mi aterrizaje) NO pasa por aquí: es de cada quien, se oye
   // en la cabeza, y mandarlo por la red sería ruido y retardo para nada.
   const dondeDe = (quien: unknown): { x: number; y: number; z: number } | null => {
     const e = Number(quien);
