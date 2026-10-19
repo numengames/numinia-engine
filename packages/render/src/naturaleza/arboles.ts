@@ -6,7 +6,7 @@
 // from screen derivatives). ALL colour comes from `paleta.ts` (art direction: work/naturaleza/DIRECCION-ARTE.md).
 //
 // COPIED / CHANGED (technique only, nothing unlicensed taken):
-//  - shape reference: the Breath-of-the-Wild look (big readable silhouettes, faceted clumps, soft vertex gradient) and the Quaternius / Kenney
+//  - shape reference: Numinia's 40/40/20 house mix and DISENO-LORE.md (big readable silhouettes, faceted clumps, soft vertex gradient) and the Quaternius / Kenney
 //    CC0 low-poly nature packs as a look to aim at; our meshes are generated here, no asset is read. A jittered icosahedron / octahedron blob is the
 //    classic low-poly crown (three.js IcosahedronGeometry vertex table, MIT).
 //  - wind: the "sway grows with height, canopy most" idea of the Codrops «foliage with three.js TSL» tutorials and the GDC talk on Ghost of
@@ -128,8 +128,8 @@ const FORMA: Record<Especie, Forma> = {
     matas: [[0.05, 0.8, 0, 0.78, 1.0, 0.74], [-0.05, 1.7, 0.05, 0.68, 0.95, 0.64], [0.03, 2.6, 0, 0.52, 0.85, 0.5], [0.08, -2.0, 0.05, 0.88, 1.05, 0.82], [-0.08, -0.8, 0.04, 0.8, 1.0, 0.74]],
     copa: { cx: 0.1, cy: 4.9, cz: 0, rx: 0.45, ry: 1.75, rz: 0.43, top: 1.25 }, collar: 0.36, jag: 0.16,
     llama: {
-      pie: 0.62, punta: 6.8, bajo: [1.95, 0.82], alto: [4.5, 0.52],
-      anillos: [[1.0, 0.7, 2.7, 0.56, 0.2], [2.6, 0.72, 4.4, 1.4, 0.9], [3.5, 0.62, 5.3, 2.2, 1.9], [4.6, 0.48, 6.3, 3.3, 2.6], [5.6, 0.29, 6.72, 4.4, 0.5]],
+      pie: 0.62, punta: 6.8, bajo: [1.95, 0.72], alto: [4.5, 0.46], // ~4.7 : 1, the narrow columnar cypress of the canon (DISENO-LORE.md)
+      anillos: [[1.0, 0.62, 2.7, 0.56, 0.2], [2.6, 0.67, 4.4, 1.4, 0.9], [3.5, 0.58, 5.3, 2.2, 1.9], [4.6, 0.45, 6.3, 3.3, 2.6], [5.6, 0.26, 6.72, 4.4, 0.5]],
     },
   },
   olivo: {
@@ -291,7 +291,7 @@ const bytesDe = (g: THREE.BufferGeometry) => Object.values(g.attributes).reduce(
 export const LEJOS: Record<Especie, number[]> = {
   encina: [2.3, 0.3, 3.7, 1.9, 1.4, 0],
   pino: [5.4, 0.2, 6.1, 2.1, 0.7, 0],
-  cipres: [0.9, 0.2, 3.52, 0.8, 2.98, -0.5],
+  cipres: [0.9, 0.2, 3.53, 0.7, 2.95, -0.58],
   olivo: [2.0, 0.34, 2.9, 1.8, 0.95, 0],
   arbusto: [0.12, 0.06, 0.55, 1.0, 0.6, 0],
 };
