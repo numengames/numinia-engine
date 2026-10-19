@@ -9,6 +9,7 @@
 //  · a gamepad on a flat screen: A casts at a spot (the «pescar» prompt), A or RT held reels, B lets go.
 // Everything goes through the controller (features/pesca/client.ts): the server decides, as with F and the button.
 import { crearGestos, conHisteresis } from "../../features/pesca/gestos.ts";
+import { instruccion } from "../../features/pesca/instrucciones.ts";
 
 type Lado = "izq" | "der";
 type Res = { ok: true } | { ok: false; why: string };
@@ -16,7 +17,7 @@ type Estado = { fase: "nada" | "espera" | "mordisqueo" | "picada" | "pelea"; sit
 type Pesca = { estado(): Readonly<Estado>; lanzar(sitio?: string): Res; recoger(activo: boolean): Res; pulsar(): Res; soltar(): Res; alCambiar(fn: (que: string) => void): () => void };
 type P3 = { x: number; y: number; z: number };
 type VistaPesca = {
-  cadaCuadro(fn: (dt: number) => void): () => void; sujetar(lado: Lado | null, sitio?: string): void; resaltar(id: string): void;
+  cadaCuadro(fn: (dt: number) => void): () => void; instruccion?(t: string): void; sujetar(lado: Lado | null, sitio?: string): void; resaltar(id: string): void;
   alAlcance(conTomada?: boolean): { lado: Lado; sitio: string; d: number } | null; punta(): P3 | null; soporte(id: string): P3 | null; mirada(): { x: number; z: number } | null;
 };
 type Vista = {
@@ -33,6 +34,7 @@ export const LEJOS_M = 6;
 export function montarPescaManos(o: { pesca: Pesca; view: Vista; session: Sesion; interaccion?: Interaccion }) {
   const { pesca, view } = o;
   const g = crearGestos(), apretado = conHisteresis();
+  let capturado = false, ultimoAntes: unknown = null, textoPuesto = "";
   let sujeta: Lado | null = null, sitio = "", reelVR = false, agarreAntes: Record<Lado, boolean> = { izq: false, der: false }, pellizcoAntes: Record<Lado, boolean> = { izq: false, der: false };
   const rastro: unknown[] = []; // the last gesture samples (the e2e reads them when a gesture is missed)
   let pinzaAntes = false, quietoHasta = 0, ultimoZumbido = 0, faseAntes: Estado["fase"] = "nada", arrancadaAntes: Estado["arrancada"] = "no";
@@ -41,14 +43,16 @@ export function montarPescaManos(o: { pesca: Pesca; view: Vista; session: Sesion
   let cercaLado: Lado | null = null;
   view.manos?.reglas({ ocupada: (l) => l === sujeta || l === cercaLado });
 
+  /** The line over my rod: what to do in this phase (features/pesca/instrucciones.ts); "" hides it. */
+  const decir = (t: string) => { if (t !== textoPuesto) { textoPuesto = t; view.pesca.instruccion?.(t); } };
   const zumbar = (v: number, ms: number) => { if (sujeta) view.manos?.vibrar(sujeta, v, ms); };
-  const tomar = (lado: Lado, id: string) => { agarreAntes[lado] = pellizcoAntes[lado] = pinzaAntes = true; quietoHasta = performance.now() + 300; sujeta = lado; sitio = id; g.reiniciar(); view.pesca.sujetar(lado, id); view.pesca.resaltar(""); view.manos?.vibrar(lado, 0.6, 60); view.vr.nota?.("Caña cogida: lánzala con un golpe de muñeca hacia delante"); };
+  const tomar = (lado: Lado, id: string) => { agarreAntes[lado] = pellizcoAntes[lado] = pinzaAntes = true; quietoHasta = performance.now() + 300; sujeta = lado; sitio = id; capturado = false; ultimoAntes = (pesca.estado() as { ultimo?: unknown }).ultimo; g.reiniciar(); view.pesca.sujetar(lado, id); view.pesca.resaltar(""); view.manos?.vibrar(lado, 0.6, 60); view.vr.nota?.("Caña cogida: lánzala con un golpe de muñeca hacia delante"); };
   const dejar = () => {
     if (!sujeta) return;
     if (reelVR) { reelVR = false; if (pesca.estado().fase !== "nada") pesca.recoger(false); }
     view.manos?.vibrar(sujeta, 0.3, 40);
     agarreAntes[sujeta] = pellizcoAntes[sujeta] = true; // the pinch/grip that put it back is still closed: open it before taking again
-    sujeta = null; sitio = ""; view.pesca.sujetar(null);
+    sujeta = null; sitio = ""; capturado = false; view.pesca.sujetar(null); decir("");
   };
   const flanco = (antes: Record<Lado, boolean>, l: Lado, ahora: boolean) => { const b = ahora && !antes[l]; antes[l] = ahora; return b; };
 
@@ -83,6 +87,9 @@ export function montarPescaManos(o: { pesca: Pesca; view: Vista; session: Sesion
       return;
     }
     cercaLado = null;
+    if ((e as { ultimo?: unknown }).ultimo !== ultimoAntes && e.fase === "nada") capturado = true; // I landed a fish: next, put the rod back
+    else if (e.fase !== "nada") { capturado = false; ultimoAntes = (e as { ultimo?: unknown }).ultimo; }
+    decir(instruccion({ fase: e.fase, tension: e.tension, arrancada: e.arrancada, capturado }));
     const en = m.entrada(sujeta);
     if (!en) { dejar(); return; } // the controller went to sleep or the hand was lost
     // put it back: grip again (controller), or a pinch with the rod at its holder while not fishing (hand)

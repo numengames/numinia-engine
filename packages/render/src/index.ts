@@ -22,6 +22,9 @@ export { limitesGraficos } from "./capacidades.ts"; // N2: max texture size for 
 export type { FrameCost } from "./power.ts";
 export { leerAparato, leerBateria, medidorDeCuadros } from "./sesion.ts";
 import { createCamara } from "./camara.ts";
+// S5: the engine's one listener — the only place the AudioListener moves (audio/oyente.ts). Type-only here: the
+// module itself is loaded lazily below, so it costs the start bundle nothing (D2, and the cap is already tight).
+import type { Oyente, Camara as CamaraOyente } from "./audio/oyente.ts";
 export { haciaMundo, TECLAS_CAMARA, CAMARA } from "./camara.ts";
 export type { Camara, ModoCamara } from "./camara.ts";
 import { crearEditor } from "./gizmo.ts";
@@ -180,12 +183,36 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const cam = createCamara(camera, renderer.domElement, { enXR: () => renderer.xr.isPresenting });
   const feet = { x: 0, y: 0, z: 0 };
 
+  // S5: THE listener. One per page, moved from one place only (audio/oyente.ts) and from the draw loop below:
+  // outside XR it follows this camera (position AND orientation — before S5 nothing followed the head); inside an
+  // immersive session it follows the headset's real pose (`XRFrame.getViewerPose`), centred between the two eyes,
+  // brought into world coordinates by the rig the camera hangs from. WebXR says nothing about audio: this copy is
+  // entirely ours (work/motor-ar/sonido/raw/02-web-audio-y-aparatos.md §e). Measured cost: 0.21 µs/frame flat,
+  // 0.43 µs in XR (≈0.004 % of a 90 Hz frame), so it runs every frame — no need to drop it to 30 Hz.
+  let oyente: Oyente | null = null;
+  void import("./audio/oyente.ts").then(({ crearOyente }) => {
+    oyente = crearOyente({
+      camara: () => camera as unknown as CamaraOyente,
+      xr: {
+        presentando: () => renderer.xr.isPresenting,
+        fotograma: () => (renderer.xr.getFrame?.() ?? null) as never,
+        espacio: () => renderer.xr.getReferenceSpace?.() ?? null,
+      },
+    });
+  }).catch(() => { /* no listener: everything else still draws and the voice still plays, just not head-tracked */ });
+  // entering and leaving an immersive session: attended at once, so the sound never lags a frame behind the eyes
+  // (on leaving, the listener goes back to the flat camera).
+  try {
+    renderer.xr.addEventListener?.("sessionstart", () => oyente?.alEntrarXR());
+    renderer.xr.addEventListener?.("sessionend", () => oyente?.alSalirXR());
+  } catch { /* a renderer without those events: the loop notices the change by itself */ }
+
   // J10: your hands in XR (manos.ts, loaded when you enter XR: not in the start bundle). What they may reach are the
   // placed things (never while AR shows the real room). Until it arrives, `manos` keeps the page's rules and listeners.
   // three gives a session's inputs only to controller slots that already exist: make both now (cheap, core three).
   for (const i of [0, 1]) { renderer.xr.getController(i); renderer.xr.getControllerGrip(i); renderer.xr.getHand(i); }
   let manosReal: Manos | null = null, manosCarga: Promise<Manos> | null = null;
-  const reglasManos: Parameters<Manos["reglas"]>[0] = {}, oyentesManos = new Set<(e: EventoMano) => void>();
+  const reglasManos: Parameters<Manos["reglas"]>[0] = {}, oyentesManos = new Set<(e: EventoMano) => void>(), ocupantesManos = new Map<string, (l: "izq" | "der") => boolean>();
   const cargarManos = () => (manosCarga ??= import("./manos.ts").then(({ createManos }) => {
     const m = createManos({
       renderer,
@@ -194,6 +221,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       paneles: () => [...vr.paneles(), ...web.paneles()], // N17: a web screen's «Abrir fuera de VR»
     });
     m.reglas(reglasManos);
+    for (const [n, f] of ocupantesManos) m.ocupar(n, f);
     m.on((e) => { for (const f of oyentesManos) f(e); });
     return (manosReal = m);
   }));
@@ -202,6 +230,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     montar: (p: THREE.Object3D | null) => manosReal?.montar(p),
     update: (c: THREE.Camera | null) => manosReal?.update(c),
     reglas(o: Parameters<Manos["reglas"]>[0]) { Object.assign(reglasManos, o); manosReal?.reglas(o); },
+    /** A feature that holds a hand (a dart in it): asked live; kept until the hands module arrives. */
+    ocupar(nombre: string, fn: (l: "izq" | "der") => boolean) { ocupantesManos.set(nombre, fn); return manosReal?.ocupar(nombre, fn) ?? (() => { if (ocupantesManos.get(nombre) === fn) ocupantesManos.delete(nombre); }); },
+    sondeo: (l: "izq" | "der") => manosReal?.sondeo(l) ?? null,
+    ocupadaPorOtros: (l: "izq" | "der", excepto: string) => manosReal?.ocupadaPorOtros(l, excepto) ?? false,
     on(fn: (e: EventoMano) => void) { oyentesManos.add(fn); return () => oyentesManos.delete(fn); },
     ancla: (l: "izq" | "der") => manosReal?.ancla(l) ?? null,
     rayo: (l: "izq" | "der") => manosReal?.rayo(l) ?? null,
@@ -294,6 +326,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   }
   // N4: the rod in your real hand in VR, and the gauge facing the camera that draws
   pesca.conManos({ ancla: (l) => (renderer.xr.isPresenting && vr.active ? manos.ancla(l) : null), camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera) });
+
+  // dardos in VR (packages/render/src/dardos-vr.ts): the dart in your hand, flying and falling; lazy, fetched by the page only on a VR-capable device
+  let dardosVRReal: import("./dardos-vr.ts").DardosVR | null = null, dardosVRCarga: Promise<import("./dardos-vr.ts").DardosVR> | null = null;
+  const dardosVR = {
+    cargar: () => (dardosVRCarga ??= import("./dardos-vr.ts").then((m) => (dardosVRReal = m.crearDardosVR({ world, ancla: (l) => manos.ancla(l), suelo: () => selfXZ?.y ?? 0, una: dardos.una })))),
+    actualizar: (dt: number) => dardosVRReal?.actualizar(dt),
+    real: () => dardosVRReal,
+    contar: () => dardosVRReal?.contar() ?? null,
+  };
 
   // beacons (R1): a column of light with a text at a world point; expires on its own
   const beacons: { group: THREE.Group; until: number }[] = [];
@@ -658,9 +699,16 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   function updateThings(dt: number): void {
     animatingNear = false; mediosSonando = false;
     const r2 = ANIMATE_WITHIN_M ** 2;
-    const oyente = selfXZ ? { x: selfXZ.x, y: (selfXZ.y ?? 0) + 1.5, z: selfXZ.z } : null;
+    // S4/S5: de dónde oyes es LO QUE DICE EL OYENTE (audio/oyente.ts): la cámara fuera de XR, la pose real del visor
+    // dentro. Antes era la posición DE RED del jugador +1,5 m y sin orientación, y por eso un sonido a tu izquierda
+    // sonaba igual que uno a tu derecha. Mientras el módulo del oyente no haya llegado (un par de fotogramas) se usa
+    // la cámara a secas, para que un sonido no nazca mudo.
+    const op = oyente?.pose();
+    const oido: { x: number; y: number; z: number } | null = op && op.fuente !== "ninguna"
+      ? { x: op.x, y: op.y, z: op.z }
+      : { x: camera.position.x, y: camera.position.y, z: camera.position.z };
     for (const s of things.values()) {
-      if (s.medio) { s.medio.actualizar(s.group, oyente, { hidden: !!s.want.hidden, volume: s.want.volume ?? 1, reach: s.want.reach ?? "burbuja", radius: s.want.radius ?? 8 }); if (s.want.kind === "video" && s.medio.sonando()) mediosSonando = true; }
+      if (s.medio) { s.medio.actualizar(s.group, oido, { hidden: !!s.want.hidden, volume: s.want.volume ?? 1, reach: s.want.reach ?? "burbuja", radius: s.want.radius ?? 8 }); if (s.want.kind === "video" && s.medio.sonando()) mediosSonando = true; }
       if (s.horneado) actualizarLOD(s); // J14: far baked figures drop to one piece (one draw call)
       if (!s.mixer) continue;
       if (distance2(s) <= r2) { s.mixer.update(dt); animatingNear = true; }
@@ -808,10 +856,11 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
     editor.frame();
     entorno.actualizar(); naturaleza.actualizar(dtSeconds); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ);
-    if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); dibujarCuadro(); return; } // N4: after the hands moved, so a held rod does not trail a frame
+    if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); dardosVR.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
     pesca.actualizar(dtSeconds);
     if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
     cam.update(dtSeconds, selfXZ ? feet : null);
+    oyente?.actualizar(); // S5: right after the camera moved — the listener is where you hear from, nothing else
     colocarLlevados();
     puestos.actualizar(); // N18: after the avatars moved (sync), so a lantern does not trail its hand
     dibujarCuadro();
@@ -845,6 +894,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     pesca,
     /** dardos v1: boards near you and their darts (sitios, clavados, linea, contar) — packages/render/src/dardos.ts. */
     dardos,
+    /** dardos in VR: load the 3D side (`cargar()`), then enMano / volar / soltar / posicion / local / aMundo / cadaCuadro; `contar()` for checks. */
+    dardosVR,
     /** N17: web screens — a panel everywhere, the live page in CSS3D near you on PC/phone, «Abrir fuera de VR» in VR (web.ts). */
     web,
     /** ancestros v1: the Salón de los Ancestros (muros, hologramas, paneles, dice, contar) — packages/render/src/ancestros.ts. */
@@ -1067,6 +1118,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** N1: the camera — orbit, zoom, first person, build mode. See camara.ts. */
     cam,
+    /** S5: the engine's one audio listener (it already runs every frame; this is for reading it). `null` only in
+     * the instant between the first frame and its lazy module arriving. */
+    oyente: (): Oyente | null => oyente,
     /** N1b: the world's solid boxes as the simulation holds them (Q16.16, `session.solidos()`): the camera does not go
      * through them and an avatar on a stair or a roof walks instead of «jumping». Cheap every frame (converted on change). */
     solidos(fx: Int32Array | null | undefined): void {

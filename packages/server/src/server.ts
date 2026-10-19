@@ -199,7 +199,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const aforo = Math.min(ficha?.aforo ?? maxPlayers, maxPlayers);
   if (ficha?.aforo) log(`[ficha] aforo ${ficha.aforo} persona${ficha.aforo === 1 ? "" : "s"}${ficha.aforo > maxPlayers ? ` (el motor admite ${maxPlayers}: ese es el tope)` : ""}${ficha.avatar ? ` · avatar de todos: ${ficha.avatar}` : ""}`);
   else if (ficha?.avatar) log(`[ficha] avatar de todos: ${ficha.avatar}`);
-  const fichaPublica = ficha ? { nombre: ficha.nombre, descripcion: ficha.descripcion, portada: portada ?? undefined, tema: tema ?? undefined, avatar: ficha.avatar, aforo } : { aforo };
+  const fichaPublica = ficha ? { nombre: ficha.nombre, descripcion: ficha.descripcion, portada: portada ?? undefined, tema: tema ?? undefined, avatar: ficha.avatar, aforo, ...(ficha.audio ? { audio: ficha.audio } : {}) } : { aforo };
   if (o.suelo) log(`[mundo] suelo mínimo ${o.suelo.minimo} m: bajo él se vuelve a la última posición segura${o.suelo.vuelta ? ` (punto de vuelta ${o.suelo.vuelta.x}, ${o.suelo.vuelta.y}, ${o.suelo.vuelta.z})` : ""}`);
   if (o.aparicion) log(`[mundo] la gente aparece en el cuadrado de ${2 * o.aparicion.radio} m centrado en (${o.aparicion.x}, ${o.aparicion.z})`);
   // N10: digital goods' receipts, signed with a key derived from the world's secret (none without MOTOR_SECRET: no goods)
@@ -251,7 +251,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const reply = (res: ServerResponse, r: HttpReply) => {
     const type = r.type ?? "json";
     const ct = type === "html" ? "text/html; charset=utf-8" : type === "text" ? "text/plain; charset=utf-8" : "application/json; charset=utf-8";
-    res.writeHead(r.status ?? 200, { "content-type": ct, "cache-control": "no-store" });
+    res.writeHead(r.status ?? 200, { "content-type": ct, "cache-control": r.cache ?? "no-store", ...(r.cors ? { "access-control-allow-origin": "*" } : {}) });
     res.end(type === "json" ? JSON.stringify(r.body) : String(r.body));
   };
   const agentesHttp = crearAgentesHttp({ pase: cfgPase.pase, agentes: () => roles.agentes, log });

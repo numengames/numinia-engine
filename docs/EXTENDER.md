@@ -318,6 +318,61 @@ sin ficha = la capacidad). Con el mundo lleno, el servidor cierra la conexión c
 que no cabe deja la ficha entera sin cargar, con su motivo en el log (`[ficha] no se carga: ficha.json.aforo: …`).
 Hoy se editan en el fichero: no hay panel para cambiarlos en marcha.
 
+**`audio`** (S6f, opcional, dentro de la ficha): lo que este mundo pide del sonido. **R-1: una línea lo enciende.**
+`{ "audio": { "ambiente": "ambiente-numinia" } }` y ya suena el colchón de fondo. Tres campos, todos opcionales:
+
+- **`ambiente`** — el id del catálogo de sonidos (`features/sonido/catalogo.json`) que suena como **cama única en
+  bucle**. Hoy el único que vale es `ambiente-numinia`: 113 s en CC0 que un amigo de Numinia hizo para Numinia.
+  Tiene que ser una fila **con fichero y con `bucle`**; se toca por **streaming**
+  (`MediaElementAudioSourceNode`), nunca descodificada — descodificarla serían ~46 MB de RAM por un sonido que
+  nadie escucha a propósito. **Sin este campo no suena ningún ambiente.**
+- **`ambiente_ganancia`** — su volumen (×), de 0 a 4. Sin decir nada, **×0,2** (−14 dB sobre un fichero a −23 LUFS:
+  debajo de todo, pero se oye; el nivel del original, ×0,042, no se oía). El
+  deslizador de «ambiente» del jugador manda por encima: **a cero, el colchón ni arranca ni se descarga.**
+- **`ambiente_sintetizado`** — hasta 8 ids de **receta** (`packages/render/src/audio/sintesis.ts`: `bed-*`,
+  `capa-*`…) que este mundo enciende por su nombre. **De serie, ninguna**: una cama o una capa sintetizada no
+  suena hasta que un mundo la nombra aquí (decisión de Pablo, 19-10). Encenderlas no enciende el colchón, ni al
+  revés.
+
+Un valor que no cabe deja la ficha entera sin cargar, con su motivo en el log. Va en `GET /status` (`audio`).
+
+### Cómo suena algo (S6f: una sola puerta)
+
+Todo el motor hace sonar algo por **`packages/render/src/audio/sonar.ts`**, con una regla: **cuando existe el
+fichero de un id, gana el fichero; la receta queda de respaldo.**
+
+```ts
+import { sonar } from "…/audio/sonar.ts";
+sonar("ui-pulsar");                       // tiene fichero CC0 → suena el fichero
+sonar("salto");                           // no tiene fichero  → suena la receta de sintesis.ts
+sonar("dados", { semilla, donde });       // la semilla la manda el SERVIDOR: todos oyen la misma variante
+```
+
+El `AudioBuffer` de una receta entra por el **mismo** pool de voces que un fichero: el mismo tope del aparato, la
+misma virtualización por prioridad-distancia, el mismo cooldown y el mismo bus. El buffer se genera **una sola
+vez** por id y variante y se guarda. Un id que no tiene ni fichero ni receta **avisa una vez** y no rompe nada.
+
+El **catálogo es la única lista de verdad**, también para lo sintetizado: una fila `"fuente": "receta"` no lleva
+fichero, pero sí bus, prioridad, cooldown y **texto accesible** (que es obligatorio: ningún sonido sin su texto).
+Si un día uno de esos ids consigue un fichero CC0, se le añade y el fichero gana sin tocar una línea de código.
+
+**Quién decide qué suena.** Lo **compartido** lo manda el **servidor** con su semilla (D-048): la puerta, los
+dados, el dardo, el pez cobrado y el teletransporte. `features/sonido/server.ts` se asoma con `api.listen` a los
+eventos que esas funciones **ya emiten**, así que una función nueva que quiera sonar no tiene que saber nada de
+sonido: emite su evento y se le añade una línea allí. Lo **local** (mis pasos, mi salto, mi aterrizaje, mi caña)
+lo dispara la página y no viaja por la red: es de cada quien y se oye en la cabeza o a mis pies.
+
+**Qué suena y qué no** (Pablo, 2026-10-19: «solo ponemos sonido a lo que normalmente se pone sonido»). Suena lo
+que en el mundo haría ruido —pasos, puertas, agua, un dardo que se clava, unos dados— y los pocos hitos raros (una
+misión completada). **No suena la interfaz**: ni los botones, ni abrir un panel, ni cada paso de una misión. Lo frecuente y lo que ya se ve se queda en silencio: el silencio es lo
+que deja oír lo que informa. Antes de enchufar un sonido nuevo: ¿haría ruido de verdad?, ¿cuántas veces por minuto
+sonará?, ¿lo dice ya otra cosa (la vista, la vibración, el servidor)?
+Las **personas (PNJ)** hablan dos veces por conversación, sin palabras y bajito: un saludo corto («hmm», «¿ah?») cuando
+la conversación **se abre** y una despedida cuando **se cierra**; las líneas nuevas y las respuestas, calladas (cada paso
+con su voz saturaría). Sale de la persona, colocada en 3D a la altura de su boca, y solo la oye quien habla con ella
+(`apps/plaza/pnj-voz.ts`, bus «efectos», con freno de 0,8 s para quien abre y cierra deprisa). Cada persona suena
+siempre con la misma voz: la de su `voz` (pnj@1, abajo) o, sin ella, una elegida por su id.
+
 **`tema`** (opcional, dentro de la ficha): cómo se ve la página de ESTE mundo, para que un evento traiga su aire sin
 tocar el motor. Diez colores «#rrggbb» de los paneles — `fondo`, `superficie`, `elevado` (botones), `texto`, `texto2`,
 `linea`, `foco` (lo que se toca), `accion` (el botón principal; la tinta encima, clara u oscura, la elige el motor),
@@ -516,6 +571,11 @@ paso. La insignia queda en su ficha (I) y en su libro.
 - Opcional `oficio` (1–40 bytes, U14 (4)): a qué se dedica («Carpintero», «Tejedora»). Sale en una segunda línea, más
   pequeña, bajo el nombre que flota sobre la persona; junto al nombre en el título de la conversación, y en la lista del
   mapa («Cosimo (Carpintero)»). Con oficio, deja el nombre corto: «Cosimo», no «Cosimo, el carpintero». Sin él, una línea.
+- Opcional `voz` (`hombre-joven` o `mujer-mayor`): cómo suena la persona al empezar y al acabar la conversación (un
+  saludo y una despedida cortos, sin palabras; las líneas no suenan). Sin `voz`, una de las dos elegida por su id:
+  siempre la misma, pero puede no pegarle; dila si importa. Las tomas son CC0 (`features/sonido/catalogo.json`,
+  `pnj-saludo-<voz>` y `pnj-despedida-<voz>`); una voz nueva entra por la biblioteca de sonido y por `VOCES_PNJ`
+  (`features/misiones/formato.ts`).
 
 **Marcas sobre las personas y las cosas («!» y «✓», U14 (4))** — las decide el servidor para cada jugador, con su
 progreso, y le llegan **solo a él** (a todas sus pestañas) tras cada libro (evento `marcas`). La aventura no escribe
@@ -575,7 +635,8 @@ Para agentes y páginas: `window.__numinia.misiones` (`libro()`, `objetivos()`, 
 texto, x, z, seguida }]` (uno por paso que toca: en un grupo, todos los que faltan); `resumen().seguida.grupo` =
 `{ nombre, hechos, total }` del grupo en curso de la misión seguida, o `null`. U14 (4): `marcas()` → `{ tiene, hecho,
 cosas }` (ids: personas con «!», personas con «✓», cosas con «!»; el mismo objeto mientras no cambian),
-`marcaDe(feature, clave)` → `"!"`, `"✓"` o `""` (`pnj` o `misiones`), `oficioDe(pnj)` y `dialogo().oficio`. U14 (5):
+`marcaDe(feature, clave)` → `"!"`, `"✓"` o `""` (`pnj` o `misiones`), `oficioDe(pnj)` y `dialogo().oficio`; `vozDe(pnj)` (su `voz`, `""` sin ella) y `personaDe(pnj)` (`{ x, y, z, escala }`
+donde está ahora, o `null`). U14 (5):
 cada paso de `libro()` lleva `espera` (los segundos que le faltaban al llegar el libro; 0 = ya se puede) y `listoEn`
 (cuándo se abre, en el reloj de la página); `secuencia()` (la que suena, o `null`), `alSecuencia(fn)` (oír cuándo
 empieza, cada línea, cada sonido y cuándo acaba) y `cuadro()` (la página la avanza en cada cuadro).
@@ -952,8 +1013,9 @@ disparador), comprueba el alcance de cada pulsación (`api.within`), cuenta el c
 avisa a los cercanos (`disparado`, `CERCA_M = 30`) y emite **una acción por receptor** como evento con alcance
 `"server"` (`accion`): la función dueña de esa acción la oye con `api.listen("disparadores", "accion", …)` y devuelve
 `true`. Hoy `features/objetos` hace `muestra` / `oculta` (pone `oculto` al objeto por id o por nombre exacto; la página no
-dibuja un modelo oculto al jugar y sí al construir); `teletransporta`, `da_paso`, `abre_enlace` y `suena` llegan en sus
-historias: mientras tanto el registro dice `nadie hace «teletransporta» en este servidor` en vez de callar.
+dibuja un modelo oculto al jugar y sí al construir); `features/sonido` hace `suena` (S6: toca el fichero del catálogo
+de la casa, no un pitido); `teletransporta`, `da_paso` y `abre_enlace` llegan en sus historias: mientras tanto el
+registro dice `nadie hace «teletransporta» en este servidor` en vez de callar.
 
 - **El fichero:** `{ "disparadores": [{ id, nombre, tipo: "zona" | "boton", x, y?, z, radio?, frase?, cooldown?, un_solo_uso?,
   receptores: [{ accion, … }] }] }`. `id` es `[a-z0-9-]{1,16}`; `radio` es el de la zona (0,5-64 m, 3 por defecto) o desde
@@ -980,6 +1042,34 @@ historias: mientras tanto el registro dice `nadie hace «teletransporta» en est
   como el código de una cerradura). Crear o borrar disparadores enteros sigue siendo editar el fichero antes de
   arrancar.
 
+## Sonido (S6): el catálogo de la casa, con ficheros de verdad y su texto
+
+La pieza `sonido@1` (`features/sonido`) es el catálogo de sonidos del motor: **27 ids, 89 variantes, 178 ficheros**
+(`.opus` + respaldo `.m4a`), **todo CC0 1.0** (Kenney y OpenGameArt), en `activos/sonidos/`. Antes de S6 los siete
+avisos de la casa eran osciladores: pitidos sintetizados. Ahora son sonidos.
+
+- **El servidor manda** (R-1 y D-041): nadie elige un sonido en su página. El servidor dice **qué id**, **dónde** y
+  con **qué semilla**; cada página calcula con esa semilla la misma variante y la misma pizca de tono y volumen
+  (`azarDe(semilla, id)`, xorshift32 con mezclador de murmur3, en `packages/render/src/audio/voces.ts`). Dos personas
+  en el mismo sitio oyen **el mismo golpe de madera**, no dos distintos.
+- **Cómo lo pide un mundo:** el receptor `suena` del cable (`{ "accion": "suena", "sonido": "golpe-madera" }`). Vale el
+  id del catálogo o el nombre del aviso de la casa (`campana`, `exito`, `error`, `aviso`, `suave`, `paso`, `magia`,
+  `completada`), que el motor traduce a su id. Un nombre que no está **no rompe nada**: el registro lo dice y el
+  mundo sigue.
+- **Cómo lo pide otra función del motor:** `crearSonido({ alArrancar: (suena) => … })` te da `suena(id, { donde, quien,
+  volumen })`; `donde: null` = en la cabeza (sin panner), `donde: {x,y,z}` = en el mundo, y solo lo oye quien esté a
+  `OYE_M`.
+- **Accesibilidad (XAUR, WCAG 2.2):** cada sonido del catálogo trae su **texto** y viaja en el evento; la página lo
+  lleva a la región de avisos (`anunciar`). Ningún sonido sin texto, y el aviso de la casa no se solapa con el
+  fichero (`announce: "silent"`: el sonido del evento *es* el fichero).
+- **El peso:** ni un `.opus` entra en el paquete de arranque. La página pide **una** tabla (`GET /sonidos.json`, media
+  hora de caché, ~9 kB) con id → variantes por su sha256, bus, prioridad, cooldown y texto; los ficheros se piden
+  luego a `/a/<sha256>.opus` (un año, inmutable), y solo los que hagan falta.
+- **Si falta un fichero:** al arrancar, la pieza compara el catálogo con lo que hay en disco (ids repetidos, sha256
+  que no cuadra, fichero que no está) y **avisa en el registro sin tirar el motor**; quien entra recibe `faltan`.
+- **Rehacer el catálogo:** `node tools/sonidos-catalogo.ts --biblioteca <carpeta>` copia los lotes `nucleo` y
+  `funcion` de la biblioteca verificada, recalcula el sha256 de cada fichero y reescribe `features/sonido/catalogo.json`
+  y `activos/sonidos/LICENCIAS.md`. Es idempotente: si nada cambió, no toca nada.
 ## Salón de los Ancestros y el tributo a Asimov (ancestros v1)
 
 `features/ancestros` es el Salón de los Ancestros del Ateneo (el Ayuntamiento de Numinia, donde el Consejo de Sabios

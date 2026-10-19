@@ -54,10 +54,25 @@ export const AFORO_MAX = 1000;
 /** H7: the house avatars a world may name as everyone's default (`avatar`): the ids of activos/avatares/catalogo.json. */
 export const AVATARES_CASA: readonly string[] = catalogoAvatares.modelos.map((m) => m.id);
 
+/** S6f: lo más que un mundo puede subir el colchón de ambiente (×4 = +12 dB sobre el fichero de −23 LUFS). Lo normal
+ *  es NO poner nada: el valor por defecto (×0,042) es el volumen que quiso el autor del fichero. */
+export const AMBIENTE_GANANCIA_MAX = 4;
+/** S6f: lo más que un mundo puede encender de camas y capas sintetizadas a la vez. */
+export const AMBIENTE_SINTETIZADO_MAX = 8;
+const ID_SONIDO = /^[a-z0-9][a-z0-9_-]{0,31}$/;
+
 /** ficha@1. Fields this engine does not know are kept (a newer one may add some); `notas` is for people.
  * H7 adds `avatar` (a house avatar id everyone wears until players choose their own, row H10) and `aforo` (how many may
- * be inside at once, 1…AFORO_MAX; the next one is refused at the door with a reason). */
-export type Ficha = { formato: typeof FICHA; nombre: string; descripcion?: string; portada?: string; avatar?: string; aforo?: number; [otro: string]: unknown };
+ * be inside at once, 1…AFORO_MAX; the next one is refused at the door with a reason).
+ * S6f añade `audio` (R-1: UNA línea enciende el sonido de ambiente de este mundo):
+ *   - `audio.ambiente`: el id del catálogo de sonidos que suena como CAMA ÚNICA EN BUCLE por streaming (hoy
+ *     «ambiente-numinia», el colchón CC0 que cedió un amigo de Numinia). Sin este campo NO suena ningún ambiente.
+ *   - `audio.ambiente_ganancia`: su volumen (×). Por defecto ×0,042 (−27,6 dB), que es el nivel original que quiso su
+ *     autor; el deslizador de «ambiente» del jugador manda por encima, y a cero el colchón no arranca.
+ *   - `audio.ambiente_sintetizado`: las camas y capas SINTETIZADAS que este mundo enciende por nombre. De serie,
+ *     ninguna: una receta del bus «ambiente» no suena hasta que un mundo la nombra aquí. */
+export type Audio = { ambiente?: string; ambiente_ganancia?: number; ambiente_sintetizado?: string[] };
+export type Ficha = { formato: typeof FICHA; nombre: string; descripcion?: string; portada?: string; avatar?: string; aforo?: number; audio?: Audio; [otro: string]: unknown };
 
 const letras = (t: string): number => [...t].length;
 
@@ -72,6 +87,19 @@ export function validarFicha(o: unknown, donde = FICHA_FICHERO): { ok: true; val
   if (f.portada !== undefined && (typeof f.portada !== "string" || !FICHA_PORTADA.test(f.portada))) bad("portada", "«<sha256>.png|jpg|webp» de una imagen que ya está en el servidor (la biblioteca o datos/activos/, que viaja en el zip)");
   if (f.avatar !== undefined && (typeof f.avatar !== "string" || !AVATARES_CASA.includes(f.avatar))) bad("avatar", `uno de los avatares de la casa: ${AVATARES_CASA.join(", ")}`);
   if (f.aforo !== undefined && (typeof f.aforo !== "number" || !Number.isInteger(f.aforo) || f.aforo < 1 || f.aforo > AFORO_MAX)) bad("aforo", `un número entero de 1 a ${AFORO_MAX} (personas a la vez; limits.json world_people_cap)`);
+  // S6f: `audio` — lo que este mundo pide del sonido. Todo opcional; lo que no se dice, no suena.
+  if (f.audio !== undefined) {
+    if (!f.audio || typeof f.audio !== "object" || Array.isArray(f.audio)) bad("audio", "un objeto {ambiente?, ambiente_ganancia?, ambiente_sintetizado?}");
+    else {
+      const a = f.audio as Record<string, unknown>;
+      if (a.ambiente !== undefined && (typeof a.ambiente !== "string" || !ID_SONIDO.test(a.ambiente))) bad("audio.ambiente", "el id de un sonido del catálogo en bucle (minúsculas, cifras, guiones; p. ej. «ambiente-numinia»)");
+      if (a.ambiente_ganancia !== undefined && (typeof a.ambiente_ganancia !== "number" || !Number.isFinite(a.ambiente_ganancia) || a.ambiente_ganancia < 0 || a.ambiente_ganancia > AMBIENTE_GANANCIA_MAX)) bad("audio.ambiente_ganancia", `un número de 0 a ${AMBIENTE_GANANCIA_MAX} (×; sin decir nada, 0.042 = el nivel que quiso el autor del fichero)`);
+      if (a.ambiente_sintetizado !== undefined) {
+        const xs = a.ambiente_sintetizado;
+        if (!Array.isArray(xs) || xs.length > AMBIENTE_SINTETIZADO_MAX || !xs.every((x) => typeof x === "string" && ID_SONIDO.test(x))) bad("audio.ambiente_sintetizado", `hasta ${AMBIENTE_SINTETIZADO_MAX} ids de receta que este mundo enciende (las camas y capas sintetizadas están apagadas de serie)`);
+      }
+    }
+  }
   return issues.length ? { ok: false, issues } : { ok: true, value: { ...f, nombre: (f.nombre as string).trim() } as Ficha };
 }
 

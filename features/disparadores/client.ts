@@ -22,9 +22,10 @@ export const tapa = (v: Pick<Disparador, "x" | "y" | "z" | "enEspera" | "agotado
 export function crearCliente() {
   let A: ClientApi | null = null;
   const oyentes = new Set<(id: string) => void>();
-  // D-041 historias 3-4: what the three receivers that only this page hears last did (for tests and agents; the
-  // player hears/reads it through the normal announce — `teletransportado`, `enlace`, `sonido`).
-  const estado = { ultimoEnlace: "", ultimoTeletransporte: null as { x: number; y: number; z: number } | null, ultimoSonido: "" };
+  // D-041 historias 3-4: what the receivers that only this page hears last did (for tests and agents; the player
+  // hears/reads it through the normal announce — `teletransportado`, `enlace`). S6: `suena` belongs to the sound
+  // piece now (features/sonido), which plays the house catalogue's file instead of the fixed beep that lived here.
+  const estado = { ultimoEnlace: "", ultimoTeletransporte: null as { x: number; y: number; z: number } | null };
   const disparadores = {
     estado,
     lista: (): Disparador[] => (A ? A.state.keys().map((k) => { const v = A!.state.get(k) as Msg; return { id: k, ...v, receptores: receptoresDe(v.receptores) } as Disparador; }) : []),
@@ -53,7 +54,6 @@ export function crearCliente() {
       estado.ultimoEnlace = enlace;
     });
     api.on("teletransportado", (m) => { estado.ultimoTeletransporte = { x: Number(m.x), y: Number(m.y), z: Number(m.z) }; });
-    api.on("sonido", (m) => { estado.ultimoSonido = String(m.sonido ?? ""); });
   });
   return { parts: [parte], disparadores };
 }

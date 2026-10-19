@@ -48,6 +48,14 @@ test("installer (H9): uploads live next to the saved world, and Caddy passes /a/
   assert.match(tpl, /handle \/a\/\* \{\n\t\treverse_proxy 127\.0\.0\.1:\$PORT\n\t\}/, "no method or size filter in front of /a/: the server decides");
 });
 
+test("installer: what the built page asks on its own origin reaches the server (/status, /sonidos.json), not the file server", () => {
+  const tpl = readFileSync("deploy/instalar-motor.plantilla.sh", "utf8");
+  // the page (apps/plaza/main.ts) fetches `${activos}/status` and `${activos}/sonidos.json`; built, `activos` is its origin
+  for (const ruta of ["/status", "/sonidos.json"]) {
+    assert.ok(tpl.includes(`\thandle ${ruta} {\n\t\treverse_proxy 127.0.0.1:$PORT\n\t}`), `Caddy passes ${ruta} to the server`);
+  }
+});
+
 test("installer (ADR-080): MOTOR_DOMINIO is fixed from --dominio, so no world can forge another's ticket by faking Host", () => {
   const tpl = readFileSync("deploy/instalar-motor.plantilla.sh", "utf8");
   const env = tpl.split("\n").find((l) => l.startsWith("Environment=")) ?? "";

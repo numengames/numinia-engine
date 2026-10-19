@@ -2,6 +2,7 @@
   "formato": "pnj@1",
   "id": "alma",
   "nombre": "Alma, la guía",
+  "voz": "mujer-mayor",
   "descripcion": "Guía de la plaza. Da la bienvenida y propone un primer paseo.",
   "posicion": { "x": 2, "z": -4 },
   "giro": 0,

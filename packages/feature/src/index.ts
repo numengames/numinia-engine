@@ -328,7 +328,11 @@ export type ReciboLeido = { ok: true; recibo: BienFirmable & { v: 1; tipo: "bien
 export type Scope = "all" | "server" | { to: number } | { all: true; except: number[] } | { near: number | { x: number; z: number }; radius?: number; except?: number[] }; // F1 `except`: these players never get it (someone they blocked)
 export const LISTEN_DEPTH = 4;            // J3: events that trigger events that trigger events… stop here
 export type HttpRequest = { method: "GET" | "POST"; path: string; params: Record<string, string>; query: Record<string, string>; body: string };
-export type HttpReply = { status?: number; type?: "json" | "html" | "text"; body: unknown };
+/** `cache`: qué poner en `cache-control` (S6: una tabla que no cambia mientras el motor vive se puede guardar un
+ *  rato). Sin decir nada, `no-store`: una respuesta de una función del motor suele depender de quién pregunta.
+ *  `cors: true`: cualquier origen puede leerla (solo datos públicos, como los ficheros /a/), p. ej. la página de dev,
+ *  que vive en otro puerto que su servidor. */
+export type HttpReply = { status?: number; type?: "json" | "html" | "text"; cache?: string; cors?: boolean; body: unknown };
 export type Msg = Record<string, unknown>;
 export type ServerApi = {
   readonly id: string;
@@ -924,6 +928,11 @@ export type ViewHooks = {
   /** J7b: play a move on an avatar (its clips by name, how it ends), or stop it (`null`). Returns false when this view
    * cannot play it there (no VRM for that avatar): the feature then shows a label instead. */
   movimiento?(entity: number, m: MovimientoVista | null): boolean;
+  /** S6: play a house sound the SERVER chose (features/sonido): its catalogue id, the seed every page shares (same
+   * variant, same pitch, same instant), where it is in metres (`null` = in the head: no panner, the interface and the
+   * notices) and the text whoever does not hear reads. Returns false when this view cannot play it (no Web Audio, the
+   * table has not arrived, an id it does not know): the feature then only records it. */
+  sonido?(s: { id: string; semilla: number; donde: { x: number; y: number; z: number } | null; texto: string }): boolean;
 };
 /** J7b: a move as the view plays it (features/gestos/movimientos.ts has the list). */
 export type MovimientoVista = { id: string; clips: readonly string[]; modo: "una" | "bucle" | "quedarse"; hastaS: number; viva: boolean };
