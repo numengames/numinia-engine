@@ -8,9 +8,9 @@ import { ClientSession } from "../packages/client/src/index.ts";
 import type { GuestKeeper } from "../packages/client/src/index.ts";
 import { signer } from "../packages/server/src/secret.ts";
 import { ENFRIAMIENTO_TICKS } from "../features/lucha/feature.ts";
-import { crearLucha } from "../features/lucha/server.ts";
+import { crearLucha, HZ } from "../features/lucha/server.ts";
 import { crearCliente } from "../features/lucha/client.ts";
-import { crearEscalera, ESCALERA, CALMA_TICKS } from "../features/lucha/estados.ts";
+import { crearEscalera, ESCALERA, CALMA_TICKS, INCAPACITADO_S } from "../features/lucha/estados.ts";
 import funciones from "../features/servidor.ts";
 
 const sign = signer("una-clave-de-prueba-larga");
@@ -92,4 +92,25 @@ test("lucha pvp: refused when the world has no PVP, on yourself, on nobody; out 
   b.l.golpear(`p:${a.s.entity}`); W.pump(2);
   assert.ok(W.evs(b, "rechazado").some((m) => String(m.motivo).includes("colapsado")));
   assert.ok(W.evs(a, "estado").every((m) => m.objetivo === `p:${b.s.entity}`), "a was never hit");
+});
+
+test("lucha pvp: reaching Aletargado freezes the person, then the server puts them on their last safe spot with Estado ninguno — nothing else of theirs is touched", () => {
+  const W = mundo(2);
+  W.pump(2);
+  const [a, b] = W.pages;
+  W.place(a.s.entity, 0, 0); W.place(b.s.entity, 1, 0);
+  W.pump(12);                                                   // b stands on the ground: that is its safe spot
+  const seguro = { x: 1, z: 0 };
+  for (let i = 0; i < 4; i++) { a.l.golpear(`p:${b.s.entity}`); W.pump(ENFRIAMIENTO_TICKS + 1); }
+  assert.equal(W.evs(b, "estado").at(-1)!.estado, "aletargado");
+  assert.equal(W.evs(b, "reaparece").length, 0, "not yet: still for a while");
+  W.place(b.s.entity, 6, 0); W.inst.sim.tf.cols.y[b.s.entity] = fx(40); // knocked off the floor meanwhile (e.g. by a world's mover): not a safe spot
+  W.pump(INCAPACITADO_S * HZ + 4);
+  assert.equal(W.evs(b, "reaparece").length, 1);
+  assert.equal(W.evs(a, "reaparece").length, 1, "the attacker, near, sees it too");
+  const x = W.inst.sim.tf.cols.x[b.s.entity] / 65536, z = W.inst.sim.tf.cols.z[b.s.entity] / 65536;
+  assert.ok(Math.hypot(x - seguro.x, z - seguro.z) < 2, `back on the safe spot, at ${x},${z}`);
+  // Estado is ninguno again: b can strike and be struck from the first rung
+  b.l.golpear(`p:${a.s.entity}`); W.pump(2);
+  assert.equal(W.evs(a, "estado").filter((m) => m.objetivo === `p:${a.s.entity}`).at(-1)?.estado, "desestabilizado");
 });

@@ -9,6 +9,8 @@ export type Estado = (typeof ESCALERA)[number];
 export const CALMA_TICKS = 600;
 /** The rung from which a player cannot strike («only react», design §1). */
 export const NIVEL_COLAPSADO = 3, NIVEL_ALETARGADO = 4;
+/** Seconds a person stays still and Aletargado before the server puts them back on their last safe spot (design §1: 10 s). */
+export const INCAPACITADO_S = 10;
 
 type Ficha = { nivel: number; desde: number };
 

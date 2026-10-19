@@ -10,7 +10,7 @@
 import { rngNext } from "../../packages/core/src/index.ts";
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
-import { crearEscalera, NIVEL_COLAPSADO, NIVEL_ALETARGADO, ESCALERA } from "./estados.ts";
+import { crearEscalera, NIVEL_COLAPSADO, NIVEL_ALETARGADO, ESCALERA, INCAPACITADO_S } from "./estados.ts";
 import { lucha, ALCANCE_PVP_M, DANO_BASE, DANO_VAR, ENFRIAMIENTO_TICKS, REAPARICION_S, VER_M, VIDA_JUGADOR_MAX, REAPARICION_JUGADOR_TICKS } from "./feature.ts";
 import { BESTIARIO } from "./bestiario.ts";
 import { ECLIPSE, cargaTras, ticksDe } from "./habilidades.ts";
@@ -41,6 +41,7 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
   const criaturas = new Map<string, Criatura>();
   const puedeDesde = new Map<number, number>();   // player → first tick a blow counts again
   const escalera = crearEscalera();                // the players' Estado ladder (server-owned, estados.ts)
+  const reaparecen = new Map<number, number>();    // Aletargado player → tick the server puts them back on their last safe spot
   const vuelven = new Map<string, number>();       // dissolved creature → tick it returns
   const vida = new Map<number, number>();          // player → life left (server memory only, L2 trozo 1)
   const caidos = new Map<number, number>();        // fallen player → tick they come back whole
@@ -59,7 +60,7 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
 
   const carga = new Map<number, number>();         // player → Carga (0..100), lost on leaving
   const habDesde = new Map<string, number>();      // `player:ability` → first tick it may be used again
-  api.onLeave((e) => { puedeDesde.delete(e); escalera.reiniciar(e); vida.delete(e); caidos.delete(e); carga.delete(e); for (const k of [...habDesde.keys()]) if (k.startsWith(`${e}:`)) habDesde.delete(k); });
+  api.onLeave((e) => { puedeDesde.delete(e); escalera.reiniciar(e); reaparecen.delete(e); vida.delete(e); caidos.delete(e); carga.delete(e); for (const k of [...habDesde.keys()]) if (k.startsWith(`${e}:`)) habDesde.delete(k); });
 
   /** PVP blow (`objetivo: p:<entidad>`): the server decides if PVP is on, reach, cooldown and the rung; no damage number. */
   const golpearPersona = (e: number, m: Msg) => {
@@ -74,6 +75,10 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
     puedeDesde.set(e, t + ENFRIAMIENTO_TICKS);
     const n = escalera.subir(otro, t);
     api.emit("estado", { objetivo: `p:${otro}`, estado: ESCALERA[n], de: e }, { near: { x: b.x, z: b.z }, radius: VER_M });
+    if (n >= NIVEL_ALETARGADO) {                                  // «dying»: still for a while, then back on a safe spot; nothing of theirs is touched
+      api.ordenar(otro, { quieto: INCAPACITADO_S });
+      reaparecen.set(otro, t + INCAPACITADO_S * HZ);
+    }
   };
 
   api.on("golpear", (e, m) => {
@@ -138,6 +143,18 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
   });
 
   api.onTick((t) => {
+    if (reaparecen.size > 0) {
+      for (const [e, en] of reaparecen) {
+        if (t < en) continue;
+        reaparecen.delete(e);
+        if (!api.position(e)) continue;                            // gone meanwhile (onLeave already forgot it)
+        if (!api.volverASeguro(e)) api.log(`lucha: ${e} reaparece donde está: no hay un sitio seguro al que volver`);
+        escalera.reiniciar(e);                                     // back to ninguno either way: items, avatar and name stay as they were
+        vida.delete(e); caidos.delete(e);                          // one way back: if #145's fall was pending, this return makes them whole too
+        const p = api.position(e);
+        api.emit("reaparece", { objetivo: `p:${e}` }, p ? { near: { x: p.x, z: p.z }, radius: VER_M } : { to: e });
+      }
+    }
     if (vuelven.size > 0) for (const [key, en] of vuelven) {
       if (t < en) continue;
       vuelven.delete(key);
