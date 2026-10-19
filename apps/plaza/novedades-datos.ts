@@ -2,10 +2,10 @@
 // Vuelve a generarlo con `npm run novedades` (también corre antes de "dev" y "build").
 /** La versión del motor cuando se generó este fichero (solo para quien lo lea; la comparación real la hace
  * apps/plaza/novedades.ts contra la versión del paquete que corre la página). */
-export const version = "0.18.0";
+export const version = "0.19.0";
 /** Hasta 3 líneas, la más nueva primero. Vacío si el diario no tenía ninguna entrada con «Qué». */
 export const items: readonly string[] = [
-  "el mundo suena (pasos, golpes, avisos y el colchón del mundo), y en VR los dardos se lanzan con la mano.",
-  "la ficha del objeto con iconos grandes en móvil (hoja inferior) y en VR (panel con el rayo) (C5).",
-  "la ficha del objeto gana las pestañas Ficha, Lógica y Ajustes (C4)."
+  "el sonido afinado con auriculares: todo lo provisional bajito, pasos por pie, el colchón de fondo y la voz de los PNJ.",
+  "al llegar el primer pase de numinia.com de alguien que estaba como invitado, el servidor adopta su progreso",
+  "el mundo suena (pasos, golpes, avisos y el colchón del mundo), y en VR los dardos se lanzan con la mano."
 ];

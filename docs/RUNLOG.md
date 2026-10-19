@@ -1244,3 +1244,28 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Opus 5.5.
 - Commit: rama `fusion/sonido-vr` sobre `sonido/nucleo` (#151) + `vr2/pesca-mango`. Versión 0.17.0 → 0.18.0.
 - Siguiente: S6f-5, oírlo con auriculares en el PC y en las gafas.
+
+## 2026-10-19 13:35 · identidad/i1-adoptar-progreso · hecho
+- Qué: al llegar el primer pase de numinia.com de alguien que estaba como invitado, el servidor adopta su progreso
+  (`ServerRuntime.adoptar(invitado, sub)`, llamado desde `Instance.identificar` justo tras `credencial`). Regla
+  genérica para cualquier almacén (`adoptarClaves`: toda clave `…:<invitado>` o `…:<invitado>~n` pasa a `sub`; si ya
+  existía, `fusionar`: listas unión, números el mayor, objetos clave a clave). Tres piezas con `onAdoptar` propio:
+  bienes (el dueño va dentro del valor y en el índice por páginas), inventario (renumera los objetos del invitado tras
+  la serie de `sub`; la caché sigue) y misiones (regla genérica + caché). Idempotente: tras adoptar no queda nada bajo
+  el invitado. Solo servidor, sin cliente ni UI.
+- Números: 958 tests en verde (4 nuevos en `test/identidad-adoptar.test.ts`); build ok; +78 líneas de código.
+- Consumo: sin medir · Sonnet 5 (subagente).
+- Commit: rama `identidad/i1-adoptar-progreso`, versión 0.17.0 → 0.18.0 (menor: algo nuevo que no rompe nada).
+- Siguiente: I2 (renovar el pase de personas con `vidaIA`); el recibo firmado de un bien sigue nombrando al invitado,
+  así que `traer` a otro mundo con ese recibo aún lo ve «de otro invitado» (I4 o una historia aparte).
+
+## 2026-10-19 13:52 · sonido/nucleo · hecho
+- Qué: el sonido afinado con auriculares: todo lo provisional bajito, pasos por pie, el colchón de fondo y la voz de los PNJ.
+  Detalle: suena el mundo, no la interfaz (fuera el clic de los botones y los pasos de misión); −10 dB a todo lo
+  provisional en un solo mando; un paso por pie a ritmo de persona, cada pie distinto y sin repetir grabación; el
+  colchón arranca en el primer clic aunque Firefox frene el autoplay; coger y soltar cosas suena; los PNJ saludan y se
+  despiden con una voz corta CC0 desde su boca.
+- Números: pruebas unitarias en verde salvo `subidas.test.ts`, intermitente y también en rojo sin estos cambios.
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `sonido/nucleo` (#168, reabierto), traída `origin/main`; versión 0.18.0 → 0.19.0.
+- Siguiente: que los pasos caigan cuando el pie de la animación toca el suelo.

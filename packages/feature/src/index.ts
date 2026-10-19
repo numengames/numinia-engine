@@ -349,6 +349,10 @@ export type ServerApi = {
   onJoin(fn: (entity: number) => void): void;
   /** I1: the page showed who it is (a guest id that stays the same across visits). Key per-person data by `who.id`, never by entity. */
   onIdentify(fn: (entity: number, who: { id: string; nombre: string }) => void): void;
+  /** identidad/i1: a guest's first numinia.com pass. Without this hook the engine moves every store key `…:<guest>` (and
+   * `…:<guest>~n` pages) under `sub`, joining with `fusionar` when `sub` already had it. Declare it only when the owner
+   * lives inside the values (bienes) or an in-memory cache must follow (inventario, misiones); then do the whole move. */
+  onAdoptar(fn: (invitado: string, sub: string) => void): void;
   /** I1: the guest behind an entity, or null (bots, or before onIdentify). */
   who(entity: number): { id: string; nombre: string } | null;
   onLeave(fn: (entity: number) => void): void;
@@ -453,6 +457,35 @@ export class NearIndex {
  * server reads these right after each tick (server/metrics.ts CosteTick); nothing here keeps history. */
 export type CosteGancho = { pieza: string; gancho: "intent" | "tick" | "vuelta" | "cerca"; ms: number; errores: number };
 
+/** identidad/i1: two progresses of one person, joined so nothing is lost: arrays are the union (in order, the `sub` side
+ * first), numbers the larger one (a quest's `paso`, a counter: the more advanced wins), objects key by key, and for the
+ * rest `sub`'s value stays unless it is empty. Pure; exported so a feature's own onAdoptar can use the same rule. */
+export function fusionar(a: unknown, b: unknown): unknown {
+  if (Array.isArray(a) && Array.isArray(b)) { const vistos = new Set(a.map((x) => JSON.stringify(x))); return [...a, ...b.filter((x) => !vistos.has(JSON.stringify(x)))]; }
+  if (typeof a === "number" && typeof b === "number") return Math.max(a, b);
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    const o: Record<string, unknown> = { ...(a as Record<string, unknown>) };
+    for (const [k, v] of Object.entries(b as Record<string, unknown>)) o[k] = k in o ? fusionar(o[k], v) : v;
+    return o;
+  }
+  return a === undefined || a === null || a === "" ? b : a;
+}
+/** identidad/i1: the generic move of one store: every key `<p>:<invitado>` or `<p>:<invitado>~n` goes to the same key
+ * with `sub`, joined with `fusionar` if `sub` already had it. Returns how many keys moved. A joined value past
+ * STORE_VALUE_MAX stays as it was (both keys kept: nothing lost, said in the log). */
+export function adoptarClaves(store: Pick<ServerApi["store"], "get" | "set" | "delete" | "keys">, invitado: string, sub: string): number {
+  let n = 0;
+  const sufijo = `:${invitado}`;
+  for (const k of store.keys()) {
+    const i = k.lastIndexOf(sufijo), resto = i < 0 ? null : k.slice(i + sufijo.length);
+    if (resto === null || (resto !== "" && !/^~\d+$/.test(resto))) continue;
+    const destino = `${k.slice(0, i)}:${sub}${resto}`;
+    const v = store.get(destino) === undefined ? store.get(k) : fusionar(store.get(destino), store.get(k));
+    if (store.set(destino, v)) { store.delete(k); n++; }
+  }
+  return n;
+}
+
 export class ServerRuntime {
   readonly catalog: Catalog;
   /** B2: one slot per feature and hook kind that runs inside tick(), in registration order (see CosteGancho). */
@@ -470,7 +503,8 @@ export class ServerRuntime {
   private readonly entries: Entry[];
   private readonly catalogBytes: Uint8Array;
   private readonly handlers = new Map<number, { feature: string; fn: (from: number, msg: Msg) => void; coste: CosteGancho }>();
-  private readonly hooks: { join: [string, (e: number) => void][]; leave: [string, (e: number) => void][]; tick: [string, (t: number) => void, CosteGancho][]; identify: [string, (e: number, w: { id: string; nombre: string }) => void][]; vuelta: [string, (v: Vuelta) => void, CosteGancho][] } = { join: [], leave: [], tick: [], identify: [], vuelta: [] };
+  private readonly hooks: { join: [string, (e: number) => void][]; leave: [string, (e: number) => void][]; tick: [string, (t: number) => void, CosteGancho][]; identify: [string, (e: number, w: { id: string; nombre: string }) => void][]; vuelta: [string, (v: Vuelta) => void, CosteGancho][]; adoptar: Map<string, (invitado: string, sub: string) => void> } = { join: [], leave: [], tick: [], identify: [], vuelta: [], adoptar: new Map() };
+  private readonly almacenes = new Map<string, ServerApi["store"]>(); // identidad/i1: every feature's store, for adoptar
   private readonly routeList: Route[] = [];
   private readonly shared = new Map<string, Map<string, Entry2>>();
   /** U10: grows on every shared-state change (the instance looks at the mesh's entries again when it moves, D2). */
@@ -562,7 +596,7 @@ export class ServerRuntime {
     if (saved) log(`recupero lo guardado: ${table.size} claves de estado, ${box.size} del almacén`);
     const save = (op: StorageOp) => storage?.record(id, f.version, op);
     const keyOk = (key: string, what: string) => { if (key.length === 0 || new TextEncoder().encode(key).length > STATE_KEY_BYTES) { log(`${what}: la clave debe tener 1-${STATE_KEY_BYTES} bytes`); return false; } return true; };
-    return {
+    const api: ServerApi = {
       id,
       on: (intent, fn) => {
         const e = this.entry(id, "intent", intent);
@@ -642,6 +676,7 @@ export class ServerRuntime {
       },
       onJoin: (fn) => { this.hooks.join.push([id, fn]); },
       onIdentify: (fn) => { this.hooks.identify.push([id, fn]); },
+      onAdoptar: (fn) => { this.hooks.adoptar.set(id, fn); },
       who: (e) => this.host.who?.(e) ?? null,
       onLeave: (fn) => { this.hooks.leave.push([id, fn]); },
       onTick: (fn) => { this.hooks.tick.push([id, fn, this.coste(id, "tick")]); },
@@ -678,6 +713,8 @@ export class ServerRuntime {
       },
       log,
     };
+    if (f.store) this.almacenes.set(id, api.store);
+    return api;
   }
 
   /** J3: run the server-side listeners of one feature's event (in the order they listened). Returns how many said
@@ -720,6 +757,20 @@ export class ServerRuntime {
     const w = this.host.who?.(entity);
     if (!this.active || !w) return;
     for (const [id, fn] of this.hooks.identify) { try { fn(entity, w); } catch (e) { this.fail(id, "en onIdentify", e); } }
+  }
+
+  /** identidad/i1: the first numinia.com pass of someone who was a guest here: what every feature's store kept under the
+   * guest id now hangs from the pass's `sub` (the generic move, or the feature's own onAdoptar). Done once: afterwards
+   * nothing is under the guest id, so the same pass again moves nothing. Returns how many keys the generic move touched. */
+  adoptar(invitado: string, sub: string): number {
+    let n = 0;
+    if (!this.active || !invitado || !sub || invitado === sub) return 0;
+    for (const [id, store] of this.almacenes) {
+      const propio = this.hooks.adoptar.get(id);
+      try { if (propio) propio(invitado, sub); else n += adoptarClaves(store, invitado, sub); } catch (e) { this.fail(id, "en onAdoptar", e); }
+    }
+    if (n) this.host.log(`[identidad] ${invitado} pasa a ser ${sub}: ${n} claves movidas`);
+    return n;
   }
 
   leave(entity: number): void {
