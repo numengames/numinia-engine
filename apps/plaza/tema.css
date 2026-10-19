@@ -448,3 +448,80 @@ html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 
 /* the news in the bell's history: its title and its lines, whole */
 #avisos-centro .avisos-lista .aviso-novedades { border-left-color: var(--n-ambar); } #avisos-centro .avisos-lista .aviso-novedades .ic { color: var(--n-ambar); }
 #avisos-centro .avisos-lista .aviso-novedades ul { margin: 6px 0 0; padding-left: 18px; } #avisos-centro .avisos-lista .aviso-novedades li { display: list-item; padding: 0; border: 0; margin: 0 0 4px; background: none; }
+/* ux2-tu — «Tú» (I): the player sheet at production level (rediseño v2, story B; maqueta p2). Horizontal tabs, two columns on
+   Personaje (your avatar's render / who you are), chips for the Estado ladder, badge tiles; the HUD card's portrait; the
+   read-only «Este aparato» and «Tu identidad» groups in Ajustes. Colours only from the house variables. */
+#ficha { width: min(96vw, 980px); }
+#ficha header { padding: 14px 16px; gap: 10px; justify-content: flex-start; border-bottom: 1px solid var(--n-linea); }
+#ficha header h2 { font-size: 18px !important; }
+#ficha header .tecla { font: 500 12px "Geist Mono", ui-monospace, monospace; color: var(--n-texto2); }
+#ficha header .cerrar { margin-left: auto; }
+#ficha .cuerpo { display: flex; flex-direction: column; gap: 0; padding: 0; align-items: stretch; }
+#ficha .pestanas { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--n-linea); flex: none; }
+#ficha .pestanas button { padding: 12px 14px !important; border: 0 !important; border-bottom: 2px solid transparent !important; border-radius: 0 !important; background: transparent !important; color: var(--n-texto2) !important; font: 500 14px "Geist", system-ui, sans-serif; cursor: pointer; min-width: 0; }
+#ficha .pestanas button:hover { color: var(--n-texto) !important; }
+#ficha .pestanas button[aria-selected="true"] { color: var(--n-texto) !important; border-bottom-color: var(--n-turquesa) !important; }
+#ficha .pestanas button:focus-visible { outline: 2px solid var(--n-turquesa); outline-offset: -2px; }
+#ficha .hoja { flex: 1 1 auto; min-height: min(540px, 62vh); overflow: auto; padding: 16px 20px 20px; } /* the same height on every tab: no jump */
+#ficha .hoja[data-pestana="personaje"] { padding: 0; }
+#ficha .hoja section + section { margin-top: 14px; }
+#ficha .hoja[data-pestana="personaje"] section + section { margin: 0; padding: 0 24px 20px 364px; }
+#ficha .hoja h3 { font: 600 12px "Geist", system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--n-verdemar); margin: 0 0 8px; }
+#ficha .nota { color: var(--n-texto2); font-size: 13px; margin: 8px 0 0; }
+#ficha .chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid var(--n-linea); background: transparent; font: 500 12px "Geist", system-ui, sans-serif; color: var(--n-texto2); }
+#ficha .chip.ok { color: var(--n-hecho); border-color: color-mix(in srgb, var(--n-hecho) 40%, var(--n-linea)); }
+#ficha .chip.aviso { color: var(--n-ambar); border-color: color-mix(in srgb, var(--n-ambar) 45%, var(--n-linea)); }
+#ficha .chip.mal { color: var(--n-texto); background: color-mix(in srgb, var(--n-grana) 30%, transparent); border-color: var(--n-grana); }
+#ficha .tu-chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+/* Personaje: the figure column (render on a soft gradient) and the data column */
+#ficha .tu-personaje { display: flex; min-height: 540px; }
+#ficha .tu-figura { flex: 0 0 340px; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; padding: 16px; border-right: 1px solid var(--n-linea); background: radial-gradient(ellipse at 50% 60%, #2a2f3a, transparent 70%); }
+#ficha .tu-marco { flex: 1 1 auto; display: grid; place-items: center; width: 100%; min-height: 0; }
+#ficha .tu-marco img { display: block; height: min(440px, 52vh); width: auto; max-width: 100%; object-fit: contain; }
+#ficha .tu-silueta { display: grid; place-items: center; width: 220px; height: min(440px, 52vh); color: var(--n-texto2); opacity: .55; }
+#ficha .tu-acciones { display: flex; gap: 8px; }
+#ficha .tu-acciones button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; min-width: 40px; padding: 0 12px; font: 500 14px "Geist", system-ui, sans-serif; cursor: pointer; }
+#ficha .tu-acciones button.tu-girar { padding: 0; width: 40px; }
+#ficha .tu-acciones button[hidden] { display: none; }
+#ficha .tu-datos { flex: 1 1 auto; min-width: 0; padding: 20px 24px; display: flex; flex-direction: column; gap: 22px; }
+#ficha .tu-cabeza { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#ficha .tu-nombre { margin: 0; font: 600 26px/1.15 "Geist", system-ui, sans-serif; color: var(--n-texto); overflow-wrap: anywhere; }
+#ficha .tu-linea { margin: -18px 0 0; color: var(--n-texto2); font-size: 14px; }
+#ficha .tu-bloque[hidden] { display: none; }
+#ficha .tu-bloque h4 { font: 600 12px "Geist", system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--n-verdemar); margin: 0 0 8px; }
+#ficha .tu-bloque p { margin: 0; }
+#ficha .tu-bloque .nota { margin-top: 8px; }
+#ficha .escalera { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 0; font: inherit; }
+#ficha .escalera li { padding: 0 10px; border-radius: 13px; background: transparent; }
+#ficha .escalera li[aria-current="step"] { background: transparent; }
+#ficha .tu-barra-fila { display: flex; align-items: center; gap: 12px; }
+#ficha .tu-barra { flex: 1; height: 10px; border-radius: 5px; background: var(--n-linea); overflow: hidden; }
+#ficha .tu-barra i { display: block; height: 100%; background: var(--n-verdemar); }
+#ficha .tu-num { font: 500 13px "Geist Mono", ui-monospace, monospace; color: var(--n-texto); }
+#ficha ul.insignias { list-style: none; display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; }
+#ficha li.insignia { width: 64px; height: 64px; border-radius: 8px; border: 1px solid var(--n-linea); display: grid; place-items: center; background: var(--n-elev); color: var(--n-ambar); }
+#ficha li.insignia.no { background: transparent; border-style: dashed; color: var(--n-texto2); opacity: .7; }
+#ficha ul.insignias.grandes { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+#ficha ul.insignias.grandes li.insignia { width: auto; height: auto; min-height: 64px; grid-template-columns: 40px 1fr; grid-template-rows: auto auto; place-items: center start; column-gap: 10px; padding: 10px 12px; }
+#ficha ul.insignias.grandes li.insignia .icono { grid-row: 1 / 3; justify-self: center; }
+#ficha ul.insignias.grandes .nombre { color: var(--n-texto); font-weight: 600; font-size: 14px; }
+#ficha ul.insignias.grandes .mision { color: var(--n-texto2); font-size: 12px; }
+#ficha .tu-cuenta { margin: 0 0 12px; color: var(--n-texto2); font: 500 13px "Geist Mono", ui-monospace, monospace; }
+@media (max-width: 760px) {
+  #ficha .tu-personaje { flex-direction: column; min-height: 0; }
+  #ficha .tu-figura { flex: none; border-right: 0; border-bottom: 1px solid var(--n-linea); }
+  #ficha .tu-marco img, #ficha .tu-silueta { height: 280px; }
+  #ficha .hoja[data-pestana="personaje"] section + section { padding: 0 16px 16px; }
+}
+/* the HUD card: your bust on the left opens «Tú» */
+#hud-personaje:not([hidden]) { display: flex; gap: 12px; align-items: flex-start; }
+#hud-personaje .hp-cuerpo { flex: 1 1 auto; min-width: 0; }
+#hud-personaje .hp-retrato { flex: none; width: 56px; height: 56px; padding: 0; overflow: hidden; display: grid; place-items: center; border: 1px solid var(--n-linea); border-radius: 6px; background: #2a2f3a; color: var(--n-texto2); cursor: pointer; }
+#hud-personaje .hp-retrato:hover { border-color: var(--n-texto2); }
+#hud-personaje .hp-retrato:focus-visible { outline: 2px solid var(--n-turquesa); outline-offset: 2px; }
+#hud-personaje .hp-retrato img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Ajustes: the read-only groups (Gráficos › Este aparato, Cuenta y privacidad › Tu identidad) */
+#ajustes fieldset.solo-lectura .ajuste.info { display: block; }
+#ajustes fieldset.solo-lectura dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
+#ajustes fieldset.solo-lectura dt { color: var(--n-texto2); }
+#ajustes fieldset.solo-lectura dd { margin: 0; color: var(--n-texto); overflow-wrap: anywhere; }

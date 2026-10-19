@@ -49,3 +49,8 @@ huesos, materiales, formas) es el mismo campo a campo; la herramienta lo comprue
 
 Para añadir otro: copia el `.vrm` aquí, escribe su fila con la fuente, y `node tools/avatares-catalogo.ts` (rechaza lo
 que no diga CC0 dentro o pase de 10.000 triángulos); `test/avatares.test.ts` lo comprueba.
+
+## Retratos (rediseño v2)
+`apps/plaza/public/retratos/<id>-busto|cuerpo|espalda.webp` son renders de estos mismos tres VRM (`tools/retratos.mjs`):
+obra derivada de modelos CC0, que no pide atribución ni impide derivar. Se publican igual, **CC0**; el autor de los
+modelos sigue siendo Polygonal Mind (100Avatars) y se apunta aquí por cortesía, no por obligación.

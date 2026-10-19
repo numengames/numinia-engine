@@ -102,14 +102,15 @@ async function pasada(engine) {
     await a.locator("#mapa-grande .detalle .volver").click();
     const sinVolver = await espera(a, () => !globalThis.__numinia.mapa.puedeVolver(), null, 3000);
     ok("irYvolver", sinOrigen === false && conOrigen && sinVolver, { sinOrigen, conOrigen, sinVolver });
-    // 6) I opens the sheet (the map closes) with your name; Escape closes it
+    // 6) I opens «Tú» (the map closes) with your name and no device numbers (they live in Ajustes › Gráficos); Escape closes it
     await a.keyboard.press("KeyI");
     const fichaAbierta = await espera(a, () => document.getElementById("ficha")?.open === true && document.getElementById("mapa-grande")?.open === false, null, 3000);
     const nombre = await a.evaluate(() => globalThis.__numinia.session.who?.nombre ?? "");
     const textoFicha = await a.evaluate(() => globalThis.__numinia.ficha.texto());
+    const aparato = await a.evaluate(() => document.querySelector("#ajustes fieldset[data-grupo=aparato]")?.textContent ?? "");
     await a.keyboard.press("Escape");
     const cerrada = await espera(a, () => document.getElementById("ficha")?.open === false, null, 2000);
-    ok("ficha", fichaAbierta && !!nombre && textoFicha.includes(nombre) && /WebGL2|WebGPU/.test(textoFicha) && cerrada, { nombre, fichaTieneAparato: /Cuadros por segundo/.test(textoFicha) });
+    ok("ficha", fichaAbierta && !!nombre && textoFicha.includes(nombre) && !/Cuadros por segundo/.test(textoFicha) && /WebGL2|WebGPU/.test(aparato) && cerrada, { nombre, fichaTieneAparato: /Cuadros por segundo/.test(textoFicha), ajustesTieneAparato: /Cuadros por segundo/.test(aparato) });
   } catch (e) { r.error = String(e).split("\n")[0]; }
   finally {
     // leave the world as it was: undo the block

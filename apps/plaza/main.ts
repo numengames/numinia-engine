@@ -37,6 +37,7 @@ import { estadoCamara, filasDeAyuda } from "./menu-logica.ts";
 import { crearSonidos, ponerSonidos, RUTA_TABLA, sonidos } from "../../packages/render/src/audio/sonidos.ts"; // S6: the house catalogue (its table comes from /sonidos.json; the files are served by their sha256)
 import { montarMapa } from "./mapa.ts";
 import { montarFicha } from "./ficha.ts";
+import { avatarQueLlevas } from "./tu-logica.ts"; // «Tú»: which house avatar you wear, for its portrait
 import { montarObjetivo } from "./objetivo.ts";
 import { montarCombate, fuentesDeLucha } from "./combate.ts";
 import { montarInventario, resumenTexto } from "./inventario.ts"; // Y1: the Inventario panel (L)
@@ -313,8 +314,12 @@ montarObjetivo({ lucha, interaccion });
 montarCombate({ lucha }); // combate nivel 2: the three skill slots (keys 1–3) — «Próximamente» until the page hears of fighting
 const fuentesLucha = fuentesDeLucha(lucha); // the character HUD's Estado and Carga come from the lucha client (hud-personaje.ts reads them from __numinia)
 // ux2-barra: your sheet (I) opens from your card, top left (hud-personaje.ts); no «Ficha» under the minimap any more
+// «Tú» (I): the avatar you wear (its portrait: tu-logica.ts) and the world's name, read when the sheet draws
 const botonFicha = document.getElementById("hud-personaje-abrir") as HTMLButtonElement;
-const ficha = montarFicha({ session, view, desde: () => informe.bienvenidaMs, otros }, botonFicha);
+let nombreDelMundo = estado?.nombre ?? "";
+const miAvatar = () => avatarQueLlevas(catalogoAvatares?.modelos, avatarUI?.eleccion("yo"), session.entity);
+const ficha = montarFicha({ session, view, desde: () => informe.bienvenidaMs, otros, avatar: miAvatar, mundo: () => nombreDelMundo,
+  ...(catalogoAvatares?.modelos.length ? { cambiarAvatar: () => avatarUI?.abrir() } : {}) }, botonFicha);
 montarBienes({ bienes, comprobar, ficha, boton: botonFicha, vitrina: (cv, model) => view.vitrina(cv, model) }); // N10: the sheet's «Inventario» = your goods, their receipts
 // ---- U24: the phone layout (six controls while playing): only a phone profile loads it, desktop and VR never see it ----
 if (enMovil) import("./movil.ts").then((m) => m.montarMovil({ interaccion, acciones: acts, saltar: pedirSalto, cajaChat, mapa, misiones, pesca, nombres, simulada: perfil().forzado && !matchMedia("(pointer: coarse)").matches })).catch((e) => console.warn(`[movil] no se pudo montar la disposición móvil: ${(e as Error)?.message ?? e}`));
@@ -447,6 +452,7 @@ if (versionMotor) versionMotor.textContent = `v${versionPaquete}`;
 montarNovedades(versionPaquete); // t_bdc2c2db: «qué hay de nuevo», una vez por versión que esta pestaña no haya visto
 void estadoP.then((st) => {
   if (!st) return;
+  if (st.nombre) nombreDelMundo = st.nombre;
   if (st.nombre) document.title = st.nombre; // ADR-074: the world's name (its aventura/ficha.json), also when Caddy or vite serve the page
   if (st.tema) aplicarTema(st.tema, document.documentElement); // its look: CSS variables tema.css reads; none = the house's
   if (versionMotor && st.version) versionMotor.title = `build ${st.version}`;
@@ -556,7 +562,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, ambiente, elementos, voz, compartir, xr, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina };
 
 // ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
 // of the bar's «Menú» (O), no longer a corner button ----
