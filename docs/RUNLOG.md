@@ -1308,6 +1308,6 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
   constructor, gente 14/14, ajustes, mapa, menu-vr 12/12 en verde; teletransporte 8/9 y foto 5/8 por umbrales de velocidad
   en un PC cargado (main falla los mismos pasos en esta máquina). VR sin probar en una Quest real.
 - Consumo: sin medir · Opus 5.5 (orquestador y subagentes).
-- Commit: rama `ux2/integracion` (desde origin/main 21fd5a35, historias `ux2/barra`, `ux2/tu`, `ux2/gente`, `ux2/dock`,
-  `ux2/vr`). Versión 0.22.1 → 0.23.0.
+- Commit: rama `ux2/integracion` (desde origin/main 8fdb0ba6, historias `ux2/barra`, `ux2/tu`, `ux2/gente`, `ux2/dock`,
+  `ux2/vr`). Versión 0.22.2 → 0.23.0.
 - Siguiente: probar el reloj en la Quest; la lista de amigos en el servidor espera la decisión de identidad.
