@@ -562,7 +562,7 @@ export const nocheArbolesU = uniform(0);
 const LUM_DIA = 0.62, LUM_NOCHE = 0.061;
 export const nocheDeHemi = (c: { r: number; g: number; b: number }) => Math.min(1, Math.max(0, (LUM_DIA - (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b)) / (LUM_DIA - LUM_NOCHE)));
 /** E50 emissive strength (×albedo of the vein / the glowing surface) by day and at night. Tuned on photos e50-*. */
-export const BRILLO_NEON = { dia: 0.9, noche: 2.6 } as const, BRILLO_OBRA = { dia: 0.45, noche: 1.6 } as const;
+export const BRILLO_NEON = { dia: 0.9, noche: 3.4 } as const, BRILLO_OBRA = { dia: 0.45, noche: 1.6 } as const;
 /** E50 vein: turns of the helix over the trunk's height, its half width (in u, 0…1 around the trunk ≈ 1.5 cm on a 1.5 m girth). */
 export const VENA = { vueltas: 1.15, ancho: 0.011 } as const;
 /** E50 fragment codes packed in the colour varying's w (integer part; fraction = phase / glow): no new varying. */
@@ -596,8 +596,9 @@ function detallesFragmento(base: V3N, w: N, t: N, pintaBanda: boolean): { color:
   const bronce = esK(COD.banda) as N, lata = esK(COD.banda + 1) as N;
   const junta = smoothstep(0.36, 0.42, v).mul(oneMinus(smoothstep(0.58, 0.64, v))) as N, lip = oneMinus(smoothstep(0.0, 0.2, v)) as N;
   color = mix(mix(color, color.mul(0.45), junta.mul(bronce)), col3(MA.verdin), lip.mul(bronce).mul(0.55)) as unknown as V3N;
-  // the tin strap: rivets (metres: a facet ≈ 0.34 m, the strap 0.25 m tall) and rolled edges
-  const riv = oneMinus(smoothstep(0.012, 0.019, length(vec2(fract(u.mul(8)).sub(0.5).mul(0.17), v.sub(0.5).mul(0.25))))) as N;
+  // the tin strap: rivets and rolled edges
+  // two rows of rivets (three per facet), as on a riveted boiler strap; cells in metres (facet ≈ 0.34 m wide, strap ≈ 0.25 m tall)
+  const riv = oneMinus(smoothstep(0.011, 0.017, length(vec2(fract(u.mul(12)).sub(0.5).mul(0.113), fract(v.mul(2)).sub(0.5).mul(0.125))))) as N;
   const borde = max(oneMinus(smoothstep(0.0, 0.12, v)), smoothstep(0.88, 1.0, v)) as N;
   color = mix(mix(color, color.mul(1.18), borde.mul(lata)), col3(MA.remache), riv.mul(lata)) as unknown as V3N;
   if (pintaBanda) { // C/D: the clamp / strap painted on the bark (a band at 20–29 % of the trunk; bronze shows its joint)
