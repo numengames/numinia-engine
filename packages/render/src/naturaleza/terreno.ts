@@ -21,10 +21,12 @@ import { ZONAS, PALETA_TERRENO, NIVEL_AGUA, alturaEn, zonaEn, estanqueDe, campo,
 import type { Zona, OpcionesRelieve } from "../../../relieve/src/relieve.ts";
 export { ZONAS, PALETA_TERRENO, NIVEL_AGUA, alturaEn, zonaEn, estanqueDe };
 export type { Zona, OpcionesRelieve };
+import { construirResiduos } from "./residuos.ts";
+import type { Sitio } from "./residuos.ts";
 const TAMANO = 200, PLAZA = 12, AGUA = NIVEL_AGUA;
 
 /** Grid cells per side by device tier (A desktop · B Quest · C mid phone · D old phone). Triangles = 2·n² + skirt (8·n). */
-export const CELDAS_TERRENO: Record<Nivel, number> = { A: 40, B: 28, C: 24, D: 16 };
+export const CELDAS_TERRENO: Record<Nivel, number> = { A: 34, B: 24, C: 20, D: 16 }; // R4: A/B/C shrank (were 40/28/24) so the baked Residuos (residuos.ts, RESIDUOS_POR_NIVEL) fit INSIDE the terrain's share of the budget
 
 export type OpcionesTerreno = {
   semilla: number;
@@ -46,6 +48,8 @@ export type OpcionesTerreno = {
   recibeSombra?: boolean;
   /** N6: paint the pond into the terrain mesh as a flat disc of `LADOS_AGUA_PLANA` triangles (colour hex) instead of a separate water mesh: one draw call less (tier D). */
   aguaPlana?: number;
+  /** R4: bake the Residuos (old machinery half buried in the landscape, residuos.ts) into this same mesh: no draw call. Default true; false = bare terrain. */
+  residuos?: boolean;
 };
 /** Triangles of the painted pond (a fan). */
 export const LADOS_AGUA_PLANA = 14;
@@ -54,8 +58,10 @@ export type Terreno = {
   alturaEn: (x: number, z: number) => number;
   zonaEn: (x: number, z: number) => Zona;
   estanque: { x: number; z: number; radio: number; nivel: number };
-  /** Triangles and vertices of the mesh (draw calls: 1). */
+  /** Triangles and vertices of the mesh (draw calls: 1). Includes the baked Residuos. */
   triangulos: number; vertices: number;
+  /** R4: the baked Residuos (triangles inside `triangulos`) and their sites (position, kind) for later features. */
+  residuos: { triangulos: number; sitios: Sitio[] };
   dispose: () => void;
 };
 
@@ -142,7 +148,16 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
     tmpC.setHex(f > 0 ? mezcla(hex, nieblaHex, f) : hex);
     C[k * 3] = tmpC.r; C[k * 3 + 1] = tmpC.g; C[k * 3 + 2] = tmpC.b;
   }
-  const e = estanqueDe(s, tam), plana = o.aguaPlana !== undefined && !o.sinEstanque, tris = triangulosDeTerreno(n, plana), nvt = tris * 3;
+  const e = estanqueDe(s, tam), plana = o.aguaPlana !== undefined && !o.sinEstanque;
+  // R4: the Residuos are baked into this mesh. They stand on the DRAWN surface (the grid's triangles, not the smooth alturaEn), so they never float or sink on a facet.
+  const alturaMalla = (x: number, z: number) => {
+    const fi = Math.min(n - 1e-6, Math.max(0, (x + mitad) / paso)), fj = Math.min(n - 1e-6, Math.max(0, (z + mitad) / paso)), i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j;
+    const a = H[j * nv + i], b = H[j * nv + i + 1], c = H[(j + 1) * nv + i], d = H[(j + 1) * nv + i + 1];
+    if ((i + j) & 1) return u + v <= 1 ? a + u * (b - a) + v * (c - a) : d + (1 - u) * (c - d) + (1 - v) * (b - d);
+    return u <= v ? a + v * (c - a) + u * (d - c) : a + u * (b - a) + v * (d - b);
+  };
+  const res = o.residuos === false ? null : construirResiduos(s, { nivel, tamano: tam, plaza: op.plaza ?? PLAZA, estanque: o.sinEstanque ? null : e }, alturaMalla, (x, z) => zonaEn(s, x, z, op));
+  const triRes = res?.triangulos ?? 0, tris = triangulosDeTerreno(n, plana) + triRes, nvt = tris * 3;
   const pos = new Float32Array(nvt * 3), col = new Float32Array(nvt * 3);
   let p = 0;
   const caida = 10; // skirt drop (m) below the border height
@@ -191,6 +206,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
       }
     }
   }
+  if (res && triRes > 0) { pos.set(res.posiciones, p * 3); col.set(res.colores, p * 3); p += triRes * 3; } // R4: the baked Residuos (flat triangles, vertex colours)
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   // F4 audit: no normal buffer (a third of the terrain's bytes): the faces are flat, so the material takes them from screen derivatives
@@ -204,7 +220,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
   malla.matrixAutoUpdate = false; malla.updateMatrix(); // never moves: no per-frame matrix work
   o.escena?.add(malla);
   return {
-    malla, estanque: { ...e, nivel: AGUA }, triangulos: tris, vertices: nvt,
+    malla, estanque: { ...e, nivel: AGUA }, triangulos: tris, vertices: nvt, residuos: { triangulos: triRes, sitios: res?.sitios ?? [] },
     alturaEn: (x, z) => alturaEn(s, x, z, op), zonaEn: (x, z) => zonaEn(s, x, z, op),
     dispose: () => { malla.removeFromParent(); g.dispose(); mat.dispose(); },
   };

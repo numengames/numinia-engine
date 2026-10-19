@@ -16,6 +16,7 @@ import clientes from "../features/cliente.ts";
 import { Instance } from "../packages/instance/src/index.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
 import { crearTerreno, alturaEn, zonaEn, estanqueDe, NIVEL_AGUA, CELDAS_TERRENO, triangulosDeTerreno } from "../packages/render/src/naturaleza/terreno.ts";
+import { RESIDUOS_POR_NIVEL } from "../packages/render/src/naturaleza/residuos.ts";
 import { esparcirArboles, RADIO_ESPECIE, SEPARACION, MARGEN_PLAZA, CELDA, PENDIENTE_MAX } from "../packages/render/src/naturaleza/esparcir.ts";
 import type { Paleta } from "../packages/render/src/naturaleza/esparcir.ts";
 import { NATURALEZA_POR_NIVEL, HIERBA_POR_NIVEL, PRESUPUESTO_NATURALEZA, ARBOLES_MAX_POR_NIVEL } from "../packages/render/src/naturaleza/niveles.ts";
@@ -197,7 +198,7 @@ test("scatter CPU: a full 200 m world builds in well under a second (pure code, 
 test("budget: terrain + trees + grass fit the brief's triangles and draw calls on every tier, in the worst case", () => {
   for (const n of NIVELES) {
     const cfg = NATURALEZA_POR_NIVEL[n], b = PRESUPUESTO_NATURALEZA[n];
-    const terreno = triangulosDeTerreno(CELDAS_TERRENO[n], n === "D");
+    const terreno = triangulosDeTerreno(CELDAS_TERRENO[n], n === "D") + RESIDUOS_POR_NIVEL[n]; // R4: the baked Residuos fit inside the terrain share
     const arboles = cfg.arbolesCerca * triangulosCerca(cfg.arbolesDetalle) + (cfg.arbolesVisibles - cfg.arbolesCerca) * geometriaLejos().triangulos; // every near slot at the cap, every other at the far cap
     const hierba = triangulosHierba(HIERBA_POR_NIVEL[n]); // N7: outer + dense inner ring
     assert.ok(terreno + arboles + hierba <= b.triangulos, `${n}: ${terreno} + ${arboles} + ${hierba} = ${terreno + arboles + hierba} > ${b.triangulos}`);
