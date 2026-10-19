@@ -620,3 +620,50 @@ registrar({
     return { cuadro: m.cuadro, quitar: m.quitar, get cuenta() { return { ...m.cuenta, hora, pos: P.toArray().map((v) => +v.toFixed(2)).join(","), mira: M.toArray().map((v) => +v.toFixed(2)).join(","), noche: noche ? +noche.value.toFixed(3) : "—", ...(elegido ? { arbol: JSON.stringify(elegido) } : {}) }; } };
   },
 });
+
+// =====================================================================================================================
+// E51 (agua con código, MUNDO-PROYECTADO.md): the pond re-dressed as the cyberpunk shore's deep ocean — agua-estilo.ts variant
+// «oceano»: petrol-dark colour, code glyphs from a 128×64 atlas built in code (0/1, letters, house symbols) dragged by the
+// current, faint by day, plankton glow at night with a pulse front — and E03's a/b with the binaries RAISED (BINARIOS_TENUE
+// 0.6, bigger glyphs, dark ink). Same mesh, same draw call: compare with `naturaleza` (E01) and `e03-nat-*` in the same run,
+// `--escena naturaleza --camara estanque`. Photos (tools/fotos-agua-e51.mjs) switch the hour with `__e51.hora(h)`.
+// =====================================================================================================================
+const VARIANTES_E51 = [["c", "oceano", undefined], ["a-bin", "continuo", 0.6], ["b-bin", "bandas", 0.6], ["a", "continuo", 0]] as const; // «a» = e03-nat-a with the hour hook (night photo of E03)
+
+/** Re-apply the bench's demo environment at another hour (photos: day/night). Returns once the sky has settled. */
+async function horaE51(e: import("../../packages/render/src/entorno.ts").Entorno, h: number): Promise<void> {
+  const [{ baseDelMundo, conSol }, { aVista }] = await Promise.all([import("../../features/entorno/server.ts"), import("../../features/entorno/client.ts")]);
+  const demo = { ...ENTORNO_DEMO, hora: { ...ENTORNO_DEMO.hora, valor: h } };
+  e.aplicar({ ...aVista(conSol(baseDelMundo(demo)) as Record<string, unknown>), suelo: "liso", sueloMapa: "", sueloNormal: "" });
+  for (let i = 0; i < 40 && (e.ocupado() || i < 8); i++) { e.actualizar(); await new Promise((r) => setTimeout(r, 30)); }
+}
+
+for (const [k, variante, binarios] of VARIANTES_E51) registrar({
+  id: `e51-nat-${k}`, nombre: `E51 · naturaleza ENTERA con el estanque «${variante}»${variante === "oceano" ? " (código + plancton)" : binarios ? " + binarios subidos" : " (= e03-nat-a, con gancho de hora)"} (frente a naturaleza y e03-nat-*)`,
+  origen: "naturaleza.ts (crearNaturaleza) + agua-estilo.ts (orilla oceano, glifos agua-glifos.ts)",
+  async montar(c) {
+    const { e, tick } = await entornoDe(c);
+    const [{ crearNaturaleza }, { FAUNA_CASA }] = await Promise.all([import("../../packages/render/src/naturaleza/naturaleza.ts"), import("../../features/naturaleza/fauna-casa.ts")]);
+    const n = crearNaturaleza({ padre: c.world, ground: c.suelo, vientoU: e.vientoU, nivel: () => c.nivel, camara: c.camera, yo: () => null,
+      niebla: () => nieblaHex(c), aguaLuz: e.aguaLuz, detalleAgua: () => detalleAgua(c.nivel, e.calidadActual.agua), hora: () => NAT.hora,
+      tablaFauna: async () => FAUNA_CASA, hitos: () => c.hitos, atmosfera: e.atmosfera });
+    await n.aplicar({ activa: true, semilla: NAT.semilla, tamano: NAT.tamano, plaza: NAT.plaza, arboles: 1, hierba: 1, estanque: true, paleta: NAT.estacion });
+    for (let i = 0; i < 40 && (e.ocupado() || i < 5); i++) { e.actualizar(); await new Promise((r) => setTimeout(r, 30)); }
+    const malla = c.world.getObjectByName("agua-naturaleza") as THREE.Mesh | undefined;
+    let suelo: THREE.Mesh | undefined; c.world.traverse((o) => { if (o.userData.mapa === "suelo") suelo = o as THREE.Mesh; });
+    const tiempo = uniform(0) as unknown as { value: number };
+    let quitarAgua = () => {};
+    if (malla && suelo) {
+      const { mat, fondo } = await materialE03(c, { variante: variante as never, binarios: binarios as never }, e.aguaLuz, e.vientoU as never, tiempo, detalleAgua(c.nivel, e.calidadActual.agua), suelo);
+      const viejo = malla.material as THREE.Material; malla.material = mat; viejo.dispose();
+      quitarAgua = () => { fondo.textura.dispose(); };
+    }
+    (window as unknown as { __e51: unknown }).__e51 = { hora: (h: number) => horaE51(e, h), reloj: () => tiempo.value, sol: () => (e.aguaLuz.solDir as unknown as { value: THREE.Vector3 }).value.toArray() };
+    let antes = 0;
+    return {
+      cuadro(dt, t) { tick(t); n.actualizar(t - antes); antes = t; tiempo.value += dt; },
+      quitar() { quitarAgua(); n.dispose(); },
+      get cuenta() { const s = n.estadisticas(); return { variante, binarios: binarios ?? "1 (oceano)", estanque: malla ? "re-vestido" : "pintado (D)", triangulos: s.triangulos.total, llamadas: s.llamadas.total }; },
+    };
+  },
+});
