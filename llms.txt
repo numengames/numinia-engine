@@ -28,6 +28,7 @@ Game features live in features/<id>/ and may import only core, schema and featur
 - npm run describe -- --catalogo   what the game features offer: verbs (intents) with their fields, events, state
 - npm run run -- --ticks 2000 --bots 50   fingerprint + timings
 - npm run server / dev / bots / e2e   plaza server, page, headless players, browser check
+- npm run banco       graphics bench: GPU/CPU ms, draw calls, fill-rate probe per technique (apps/banco, docs/BANCO-GRAFICO.md; needs a GPU, never a gate)
 
 ## Contracts you must not break
 - Determinism: sim uses integers / Q16.16 only; no Math.random, Date, Map/Set iteration to decide. See docs/DETERMINISM.md.
