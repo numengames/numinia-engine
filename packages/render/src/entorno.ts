@@ -227,6 +227,8 @@ export function crearEntorno(h: EntornoHooks) {
     // F4b: when the clock drives the sun (hora.mueveElSol) the light also follows it: a dim bluish moon and ambient at night, no jump at the horizon. Free: two scalars here, every lit material (nature, avatars, props) follows. A hand-set sun (presets: «noche») is the world's own and is left alone.
     const hSol = v.solHora === true, tD = Math.min(1, Math.max(0, (alt + 6) / 18)), dia = hSol ? tD * tD * (3 - 2 * tD) : 1, kSol = hSol ? 0.1 + 0.9 * dia : 1, kAmb = hSol ? 0.28 + 0.72 * dia : 1;
     sun.intensity = n(v.solIntensidad, 3) * (hSol ? kSol : alt > -1 ? Math.min(1, (alt + 1) / 6) : 1);
+    // F5: the water's own light (foam is drawn a little self-lit so it reads white in shade; its glints) is the sun's COLOUR, which at night stayed full: the shore foam glowed brighter than the grass. Scale it with the clock sun (free: one scalar on an existing uniform).
+    solColorU.value.multiplyScalar(hSol ? 0.06 + 0.94 * dia : 1);
     // ambient: hemisphere, lower when the HDR light is on (it is the ambient then)
     hemi.color.setHex(n(v.ambienteCielo, 0xbcd6ee)); hemi.groundColor.setHex(n(v.ambienteSuelo, 0x6b5a45));
     if (hSol && dia < 1) { hemi.color.lerp(noche1.setHex(0x33456e), 1 - dia); hemi.groundColor.lerp(noche2.setHex(0x0b0e14), 1 - dia); }
