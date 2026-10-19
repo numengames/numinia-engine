@@ -37,12 +37,14 @@ function mundo(sitios: Sitio[] = SITIOS, n = 5, opts: { sinDardos?: boolean } = 
   const evs = (c: P, ev: string) => c.eventos.filter((x) => x.event === ev).map((x) => x.msg);
   const jugar = (c: P, sitio = "duelo", desde?: string) => c.s.features.send("dardos", "jugar", desde ? { sitio, desde } : { sitio });
   const lanzar = (c: P, sitio = "duelo", x = 0, y = 0.605, fuerza = FUERZA_IDEAL) => c.s.features.send("dardos", "lanzar", { sitio, x, y, fuerza });
+  const cambiar = (c: P, sitio = "duelo") => c.s.features.send("dardos", "cambiar", { sitio });
+  const empezar = (c: P, sitio = "duelo") => c.s.features.send("dardos", "empezar", { sitio });
   const salir = (c: P) => c.s.features.send("dardos", "salir", {});
   const estado = (c: P, id = "duelo") => c.s.features.stateOf("dardos").get(id);
   const ultimoRechazo = (c: P) => String(evs(c, "rechazado").at(-1)?.motivo);
   /** The usual set-up: A at the duel board, B on a wall 500 m away, C beside the board, D far from everything. */
   const montar = () => { pump(2); const [A, B, C, D] = pages; place(A, 8, 0); place(B, 510, 0); place(C, 12, 2); place(D, -1500, 0); pump(12); };
-  return { inst, pages, pump, place, evs, jugar, lanzar, salir, estado, ultimoRechazo, montar };
+  return { inst, pages, pump, place, evs, jugar, lanzar, cambiar, empezar, salir, estado, ultimoRechazo, montar };
 }
 
 test("duelo: the declaration is valid, rounds are clamped, names lose control characters and fit 40 bytes", async () => {
@@ -74,7 +76,7 @@ test("duelo: the host waits (`espera`), a second player starts the match, a thir
   W.montar(); W.place(E, 9, 1); W.pump(2);
   assert.equal(W.jugar(A).ok, true); W.pump(2);
   assert.deepEqual([W.estado(C)?.espera, W.estado(C)?.jugadores, W.estado(C)?.ocupado], [true, 1, false], "every page can read «esperando rival»");
-  assert.deepEqual(W.evs(A, "duelo").at(-1), { sitio: "duelo", ronda: 0, turnoDe: 0, a: A.s.entity, nombreA: A.s.who!.nombre, puntosA: 0, b: 0, nombreB: "", puntosB: 0, paredA: false, paredB: false });
+  assert.deepEqual(W.evs(A, "duelo").at(-1), { sitio: "duelo", ronda: 0, turnoDe: 0, a: A.s.entity, nombreA: A.s.who!.nombre, puntosA: 0, b: 0, nombreB: "", puntosB: 0, paredA: false, paredB: false, c: 0, nombreC: "", puntosC: 0, d: 0, nombreD: "", puntosD: 0, paredC: false, paredD: false, equipos: 2, plazas: 1, turnoEq: 0, retirando: false, fueraA: false, fueraB: false, fueraC: false, fueraD: false });
   W.lanzar(A); W.pump();
   assert.match(W.ultimoRechazo(A), /Espera a tu rival/);
   // B on a wall 500 m away cannot join a board that is not `remoto` (nor without saying `desde`), but can join this one
@@ -99,6 +101,8 @@ test("duelo: out of turn is refused; both players get every dart 500 m apart; a 
   assert.equal(W.evs(B, "dardo").length, 0);
   for (let n = 1; n <= 3; n++) { W.lanzar(A); W.pump(3); }
   for (const who of [A, B, C]) assert.equal(W.evs(who, "dardo").length, 3);
+  assert.equal(W.evs(B, "turno").length, 0, "v3: after the third dart nobody has the dice until «cambiar»");
+  W.cambiar(A); W.pump(2);
   assert.equal(W.evs(D, "dardo").length, 0);
   assert.equal(W.evs(B, "fin").length, 1, "the turn end reaches the rival too"); assert.equal(W.evs(A, "fin").length, 1); assert.equal(W.evs(D, "fin").length, 0);
   assert.equal(W.evs(B, "turno").length, 1, "now it is B's turn");
@@ -115,7 +119,7 @@ function partidaCompleta() {
   const W = mundo(); const [A, B, C] = W.pages;
   W.montar(); W.jugar(A); W.jugar(B, "duelo", "pared"); W.pump(2);
   const tiros: [number, number, number][] = [[0, 0.6, 0.65], [0.3, 0.4, 0.8], [-0.5, 0.1, 0.5]];
-  for (let ronda = 0; ronda < RONDAS_DEFECTO; ronda++) for (const q of [A, B]) for (const [x, y, f] of tiros) { W.lanzar(q, "duelo", x, y, f); W.pump(3); }
+  for (let ronda = 0; ronda < RONDAS_DEFECTO; ronda++) for (const q of [A, B]) { for (const [x, y, f] of tiros) { W.lanzar(q, "duelo", x, y, f); W.pump(3); } W.cambiar(q); W.pump(3); }
   return { W, A, B, C };
 }
 
@@ -143,7 +147,7 @@ test("duelo: equal totals are a draw (`empate`, ganador 0)", () => {
   const W = mundo(); const [A, B] = W.pages;
   W.montar(); W.jugar(A); W.jugar(B, "duelo", "pared"); W.pump(2);
   // aim far outside the board: every dart is out (0 points) for both, so 0-0 is a tie by construction
-  for (let r = 0; r < RONDAS_DEFECTO; r++) for (const q of [A, B]) for (let i = 0; i < 3; i++) { W.lanzar(q, "duelo", 2.5, 2.5, FUERZA_IDEAL); W.pump(7); } // 7 ticks apart: inside the verb's rate limit
+  for (let r = 0; r < RONDAS_DEFECTO; r++) for (const q of [A, B]) { for (let i = 0; i < 3; i++) { W.lanzar(q, "duelo", 2.5, 2.5, FUERZA_IDEAL); W.pump(7); } W.cambiar(q); W.pump(7); } // 7 ticks apart: inside the verb's rate limit
   const f = W.evs(A, "finduelo").at(-1)!;
   assert.deepEqual([f.empate, f.ganador, f.puntosA, f.puntosB, f.abandono], [true, 0, 0, 0, false]);
   assert.match(String(f.texto), /^Empate/);
