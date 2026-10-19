@@ -70,11 +70,11 @@ ajustes del nivel; nada de copias. Las piezas de naturaleza y la capa de partíc
 |---|---:|---:|---:|---:|---:|
 | niebla | +0,002 ms | −0,002 ms | bajo el ruido | 11 (+0) | 122 |
 | sombras (512 px, nivel B) | +0,017 ms | +0,018 ms | 96 % | 22 (+11) | 244 |
-| partículas (2 fuegos + polvo, 1 280 partículas) | +0,038 ms | +0,037 ms | 91 % | 18 (+7) | 1,3 k |
-| teletransporte (6 luces en bucle) | +0,003 ms | +0,005 ms | bajo el ruido | 22 (+11) | 342 |
-| agua (30×30 m, 32 celdas) | +0,007 ms | +0,008 ms | 65 % | 12 (+1) | 1,3 k |
+| partículas (7 emisores: 2 fuegos con chispas y humo + polvo; 594 partículas) | +0,038 ms | +0,037 ms | 91 % | 18 (+7) | 1,3 k |
+| teletransporte (3 luces a la vez, el tope del nivel B, en bucle) | +0,003 ms | +0,005 ms | bajo el ruido | 22 (+11) | 342 |
+| agua (30×30 m, 32 celdas por lado, 1 152 triángulos) | +0,007 ms | +0,008 ms | 65 % | 12 (+1) | 1,3 k |
 | todas | +0,074 ms | +0,083 ms | 88 % | 37 | 2,7 k |
 
-Base: 0,076 ms GPU (WebGPU), 0,145 ms (WebGL2); CPU de `render()` 0,10–0,15 ms. Los dos backends coinciden en los Δ.
+Base: 0,076 ms GPU (WebGPU), 0,145 ms (WebGL2); CPU de `render()` 0,10–0,15 ms; memoria de texturas ≈71 MB (sin desglosar; se supone que es sobre todo el lienzo de 3360×1760), +2 MB con sombras. Los dos backends coinciden en los Δ.
 Lectura: en esta escena todo es barato en escritorio; lo que más pesa son las partículas y casi todo su coste es de
 píxeles (sobredibujado), que es lo que limita en Quest. Informe completo en `informes/banco-v1/` (no versionado).
