@@ -732,3 +732,13 @@ html[data-aparato^="movil"] #ficha-objeto .kv dd.tres, html[data-aparato^="movil
 html[data-aparato^="movil"] #ficha-objeto .kv .unidad input { width: 100%; }
 html[data-aparato^="movil"] #ficha-objeto .sub { margin: 2px 0 8px; }
 html[data-aparato^="movil"] #ficha-objeto .acciones { margin-top: 10px; }
+/* ux2-integracion — joining the stories. ux2-tu's `#hud-personaje:not([hidden]) { display: flex }` beat M4's phone rule
+   (`display: none` under 900 px): on a phone the card covered the top of the screen. The phone keeps its own layout. */
+@media (max-width: 899px) { #hud-personaje:not([hidden]) { display: none; } }
+/* Build mode on a window 900–1180 px wide (mouse): the centred dock would run into the bar on the right, so the dock and
+   its drawer sit right-aligned just left of the bar (bar = 16 px margin + 355 px), and your card steps aside while you build
+   (the drawer would cover it). Wider windows keep the dock centred (≥ 50 px from the bar at 1280 px). */
+@media (min-width: 900px) and (max-width: 1180px) and (pointer: fine) {
+  html:not([data-aparato^="movil"]) #panel-construir { left: auto; right: 387px; transform: none; align-items: flex-end; width: min(560px, calc(100% - 403px)); }
+  html:not([data-aparato^="movil"]) body.construyendo #hud-personaje { visibility: hidden; }
+}
