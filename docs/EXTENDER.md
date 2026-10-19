@@ -107,7 +107,7 @@ export default clientPart(gestos, (api) => {
 - El mismo `entorno.json` dice si la gente puede golpearse (L8, `features/lucha`): `"pvp": true` (apagado si no está) y,
   para arenas o sitios en paz, `"zonasPvp": [{ "id", "x", "z", "radio", "pvp": true|false }]` (círculos en metros; una
   zona en `false` gana a una en `true`). Solo se golpea a otra persona (`objetivo: p:<entidad>`) si **las dos** están donde
-  se puede; decide el servidor. Cada golpe sube un escalón de Estado (sin barra de vida).
+  se puede; decide el servidor. Cada golpe sube un escalón de Estado de quien lo recibe (no le quita vida). Sin `pvp` ni zona en `true`, el servidor rechaza el golpe a una persona («Aquí no se lucha entre personas»); `alchemiststower` y los demás mundos no lo activan. La página pone encima de la persona golpeada un rótulo con icono y palabra (`ROTULO` en `features/lucha/client.ts`, por `view.label`: un solo plano por persona, a 8 s, y solo para quien está dentro de los 40 m del golpe); decidir, decide siempre el servidor.
 - El mismo `entorno.json` puede tener **vacío** (D-045, `features/suelo`): `"sueloMinimo": -4` (metros, −500…500) es
   la altura bajo la cual se ha caído; el servidor guarda cada medio segundo (`SEGURO_CADA` ticks) dónde pisaba suelo
   cada persona y, al bajar de ahí, la recoloca en ese sitio **dentro del paso de simulación** (una orden grabada con
@@ -1061,4 +1061,4 @@ Crisálida» al acercarte. Diseño completo (combate y bestiario de 12): `mmo-br
 - **Un mundo** trae sus criaturas en `MUNDO_DIR/lucha.json` (`{ "criaturas": [{ id, especie, x, y, z, nombre?,
   reaparicion? }] }`, `features/mundo.ts`); sin fichero, el Guardián de la casa en (24, 10). Especie desconocida = se
   avisa y no se pone.
-- **Solo PVE**: el objetivo es siempre una criatura; PVP y que la criatura se mueva o devuelva el golpe son filas L2-L8.
+- **PVE por defecto**: el objetivo es una criatura salvo que el mundo active el PVP en su `entorno.json` (`pvp` / `zonasPvp`, arriba; objetivo `p:<entidad>`); que la criatura se mueva es fila L2-L8.
