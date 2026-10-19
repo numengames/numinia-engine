@@ -52,8 +52,29 @@ ajustes del nivel; nada de copias. Las piezas de naturaleza y la capa de partíc
   false`, con `timestamp-query`. Sin banderas: SwiftShader.
 - El primer `requestAdapter()` de cada página devuelve `null` y el segundo da la GPU; three pide uno solo y cae en
   silencio a WebGL2, así que la página pide antes hasta tener adaptador.
-- **WebGPU: temporizador fiable** (rondas a ±3 µs, siempre por debajo de la ráfaga). **WebGL2 (ANGLE/Vulkan headless):
-  la extensión existe pero los ms no sirven** (la misma configuración da 0,46–1,98 ms entre rondas y supera a la
-  ráfaga). La ráfaga de WebGL2 va en escalones de ~0,07 ms porque `readRenderTargetPixelsAsync` sondea por cuadro.
+- **WebGPU: temporizador fiable** en las dos pasadas completas (rondas a ±3 µs, siempre por debajo de la ráfaga).
+  **WebGL2 (ANGLE/Vulkan headless): fiable en una pasada y no en otra** — en la primera la misma configuración dio
+  0,46–1,98 ms entre rondas y superó a la ráfaga; en la segunda, estable y con los mismos Δ que WebGPU. El control de la
+  ráfaga lo detecta y la tabla lo marca (columna «Temporizador»); si sale «supera la ráfaga», repetir. La ráfaga de
+  WebGL2 va en escalones de ~0,07 ms porque `readRenderTargetPixelsAsync` sondea por cuadro.
+- En WebGPU `renderer.info.render.drawCalls` no cuenta las llamadas de la pasada de sombra (la pasada sí se dibuja y se
+  cronometra: 4 µs); WebGL2 sí las cuenta (base 11 → sombras 22). Causa sin investigar.
 - Los ms absolutos son de una GPU de escritorio: sirven para ordenar técnicas y ver si su coste es de píxeles o de
   vértices, no para decir cuánto cuesta en un Quest. Para eso: el procedimiento por USB del saber 3D (pendiente).
+
+## Primera medida (commit 277bab4, 2026-10-19 14:08 UTC, RTX 4080, nivel B, 3360×1760, 3 rondas × 240 cuadros)
+
+Δ GPU frente a `base` al 100 % (WebGPU / WebGL2) y parte del Δ que escala con píxeles (WebGPU):
+
+| Técnica | Δ GPU WebGPU | Δ GPU WebGL2 | Píxeles | Llamadas (WebGL2) | Triángulos |
+|---|---:|---:|---:|---:|---:|
+| niebla | +0,002 ms | −0,002 ms | bajo el ruido | 11 (+0) | 122 |
+| sombras (512 px, nivel B) | +0,017 ms | +0,018 ms | 96 % | 22 (+11) | 244 |
+| partículas (2 fuegos + polvo, 1 280 partículas) | +0,038 ms | +0,037 ms | 91 % | 18 (+7) | 1,3 k |
+| teletransporte (6 luces en bucle) | +0,003 ms | +0,005 ms | bajo el ruido | 22 (+11) | 342 |
+| agua (30×30 m, 32 celdas) | +0,007 ms | +0,008 ms | 65 % | 12 (+1) | 1,3 k |
+| todas | +0,074 ms | +0,083 ms | 88 % | 37 | 2,7 k |
+
+Base: 0,076 ms GPU (WebGPU), 0,145 ms (WebGL2); CPU de `render()` 0,10–0,15 ms. Los dos backends coinciden en los Δ.
+Lectura: en esta escena todo es barato en escritorio; lo que más pesa son las partículas y casi todo su coste es de
+píxeles (sobredibujado), que es lo que limita en Quest. Informe completo en `informes/banco-v1/` (no versionado).
