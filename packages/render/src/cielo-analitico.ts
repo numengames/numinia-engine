@@ -20,7 +20,7 @@
 // COMBINED: with entorno.ts R7.1 (its day/night stops lerped by the hour on the CPU feed this function) and the fog: the fog's far stop is
 // `lejos(dir)` — the same gradient, nacre band and glare, without stars, moon or halo (those never sit on the ground).
 import * as THREE from "three/webgpu";
-import { Fn, uniform, vec3, vec4, float, mix, smoothstep, normalize, positionLocal, modelViewMatrix, cameraProjectionMatrix, dot, max, pow, fract, floor, length, abs, cross, exp } from "three/tsl";
+import { Fn, If, uniform, vec3, vec4, float, mix, smoothstep, normalize, positionLocal, modelViewMatrix, cameraProjectionMatrix, dot, max, pow, fract, floor, length, abs, exp } from "three/tsl";
 import { CIELO_E04 } from "./naturaleza/paleta.ts";
 
 /** A TSL node (three/tsl has no exported node type that `node --test` type-stripping would check: keep it loose). */
@@ -86,6 +86,14 @@ export function cieloAnalitico(u: EntradasCielo, C: typeof CIELO_E04 = CIELO_E04
   const estrellasU = uniform(0).onRenderUpdate(() => cicloCielo(u.solDir.value.y).estrellas);
   const lunaU = uniform(0).onRenderUpdate(() => cicloCielo(u.solDir.value.y).luna);
   const lunaDir = uniform(lunaV).onRenderUpdate(() => direccionLuna(u.solDir.value, lunaV));
+  const corteV = new THREE.Vector3(), derecha = new THREE.Vector3(), arriba = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
+  const lunaCorte = uniform(corteV).onRenderUpdate(() => { // the crescent's cutting disc: the moon's centre nudged sideways (once per render)
+    const l = direccionLuna(u.solDir.value, corteV);
+    derecha.crossVectors(Y, l).normalize(); arriba.crossVectors(l, derecha);
+    return corteV.addScaledVector(derecha, -K.lunaCorte).addScaledVector(arriba, 0.004).normalize();
+  });
+  const solXZ = new THREE.Vector3();
+  const sxz = uniform(solXZ).onRenderUpdate(() => solXZ.set(u.solDir.value.x, 0, u.solDir.value.z + 1e-4).normalize()); // the sun's bearing
 
   /** Gradient + nacre band + twilight glow + glare: what both the dome and the fog see. */
   const base = (dir: Nodo): Nodo => {
@@ -94,7 +102,6 @@ export function cieloAnalitico(u: EntradasCielo, C: typeof CIELO_E04 = CIELO_E04
     const t = pow(smoothstep(0.0, 0.8, e), 0.65);
     let c = mix(mix(u.horizonte, u.alto, smoothstep(0.0, 0.45, t)), u.cenit, smoothstep(0.4, 1.0, t));
     // nacre: a clean band over the horizon, warm ivory towards the sun's bearing, cool pearl away from it (day only)
-    const sxz = normalize(vec3(u.solDir.x, 0.0, u.solDir.z).add(vec3(0.0, 0.0, 1e-4)));
     const haciaSol = dot(normalize(vec3(dir.x, 0.0, dir.z).add(vec3(0.0, 0.0, 1e-4))), sxz).mul(0.5).add(0.5);
     const banda = float(1.0).sub(smoothstep(0.0, K.nacarAlto, abs(y))).mul(u.dia).mul(K.nacar);
     c = mix(c, mix(col(C.nacarFrio), col(C.marfilCalido), haciaSol), banda);
@@ -106,31 +113,41 @@ export function cieloAnalitico(u: EntradasCielo, C: typeof CIELO_E04 = CIELO_E04
     return mix(c, u.sol, pow(s, 8.0).mul(0.18).add(pow(s, 64.0).mul(0.45)).mul(u.dia));
   };
 
-  const domo = (dir: Nodo): Nodo => {
-    let c = base(dir);
-    const y = dir.y, s = dot(dir, u.solDir);
-    const sobre = smoothstep(-0.015, 0.025, y); // sun, moon and stars only above the horizon
-    // AC9 · prismatic 22° halo: a thin ring, amber/coral inside → verdigris → violet outside (atoptics), faint
-    const d = s.sub(Math.cos(K.haloRadio)).div(Math.sin(K.haloRadio) * K.haloAncho); // ≈ (angle − 22°)/width, sign flipped (inside > 0)
-    const anillo = exp(d.mul(d).negate());
-    const prisma = mix(mix(col(C.haloFuera), col(C.haloMedio), smoothstep(-1.2, 0.0, d)), col(C.haloDentro), smoothstep(0.0, 1.2, d));
-    c = c.add(prisma.mul(anillo).mul(K.halo).mul(u.dia).mul(sobre));
-    // the sun's disc
-    c = mix(c, u.sol.mul(K.discoGanancia), smoothstep(K.discoFuera, K.discoDentro, s).mul(sobre).mul(max(u.dia, 0.15)));
-    // stars: one hashed cell per ~0.5°; a cell holds a star above the threshold; by day only the brightest show, faintly
-    const p = dir.mul(K.estrellasCeldas), celda = floor(p), h = hash31(celda);
-    const centro = celda.add(0.5).add(fract(vec3(h.mul(17.0), h.mul(29.0), h.mul(43.0))).sub(0.5).mul(0.6));
-    const brillo = smoothstep(K.estrellasUmbral, 1.0, h);
-    const estrella = float(1.0).sub(smoothstep(0.08, 0.32, length(p.sub(centro)))).mul(brillo);
-    const deDia = mix(smoothstep(0.6, 1.0, brillo), float(1.0), float(1.0).sub(u.dia)); // by day only the strongest cells
-    c = c.add(col(C.estrella).mul(estrella).mul(deDia).mul(estrellasU).mul(smoothstep(0.03, 0.3, y)).mul(1.4));
-    // crescent moon: a disc minus an offset disc (starwild), soft analytic edges
-    const ld = dot(dir, lunaDir);
-    const disco = smoothstep(K.lunaFuera, K.lunaDentro, ld);
-    const derecha = normalize(cross(vec3(0.0, 1.0, 0.0), lunaDir)), arriba = cross(lunaDir, derecha);
-    const corte = smoothstep(K.lunaFuera, K.lunaDentro, dot(dir, normalize(lunaDir.sub(derecha.mul(K.lunaCorte)).add(arriba.mul(0.004)))));
-    return mix(c, col(C.luna).mul(K.lunaGanancia), disco.mul(float(1.0).sub(corte)).mul(lunaU).mul(sobre));
-  };
+  // the dome: the base sky + sun, halo, stars and moon. Branches on the sky's own regions (contiguous on screen, so whole warps take the
+  // same side) and on the hour (uniform): by day the moon is skipped, the halo's maths only runs near its ring, the stars only above 1.7°.
+  const domoFn = Fn(([dir]: [Nodo]) => {
+    const c = base(dir).toVar();
+    const y = dir.y;
+    If(y.greaterThan(-0.015), () => {
+      const s = dot(dir, u.solDir);
+      const sobre = smoothstep(-0.015, 0.025, y); // sun, moon and stars only above the horizon
+      // AC9 · prismatic 22° halo: a thin ring, amber/coral inside → verdigris → violet outside (atoptics), faint
+      const d = s.sub(Math.cos(K.haloRadio)).div(Math.sin(K.haloRadio) * K.haloAncho); // ≈ (angle − 22°)/width, sign flipped (inside > 0)
+      If(abs(d).lessThan(3.0).and(u.dia.greaterThan(0.0)), () => {
+        const prisma = mix(mix(col(C.haloFuera), col(C.haloMedio), smoothstep(-1.2, 0.0, d)), col(C.haloDentro), smoothstep(0.0, 1.2, d));
+        c.addAssign(prisma.mul(exp(d.mul(d).negate())).mul(K.halo).mul(u.dia).mul(sobre));
+      });
+      // the sun's disc
+      c.assign(mix(c, u.sol.mul(K.discoGanancia), smoothstep(K.discoFuera, K.discoDentro, s).mul(sobre).mul(max(u.dia, 0.15))));
+      // stars: one hashed cell per ~0.5°; a cell holds a star above the threshold; by day only the brightest show, faintly
+      If(y.greaterThan(0.03).and(estrellasU.greaterThan(0.0)), () => {
+        const p = dir.mul(K.estrellasCeldas), celda = floor(p), h = hash31(celda);
+        const centro = celda.add(0.5).add(fract(vec3(h.mul(17.0), h.mul(29.0), h.mul(43.0))).sub(0.5).mul(0.6));
+        const brillo = smoothstep(K.estrellasUmbral, 1.0, h);
+        const estrella = float(1.0).sub(smoothstep(0.08, 0.32, length(p.sub(centro)))).mul(brillo);
+        const deDia = mix(smoothstep(0.6, 1.0, brillo), float(1.0), float(1.0).sub(u.dia)); // by day only the strongest cells
+        c.addAssign(col(C.estrella).mul(estrella).mul(deDia).mul(estrellasU).mul(smoothstep(0.03, 0.3, y)).mul(1.4));
+      });
+      // crescent moon: a disc minus an offset disc (starwild), soft analytic edges; the offset disc's centre comes from the CPU
+      If(lunaU.greaterThan(0.0), () => {
+        const disco = smoothstep(K.lunaFuera, K.lunaDentro, dot(dir, lunaDir));
+        const corte = smoothstep(K.lunaFuera, K.lunaDentro, dot(dir, lunaCorte));
+        c.assign(mix(c, col(C.luna).mul(K.lunaGanancia), disco.mul(float(1.0).sub(corte)).mul(lunaU).mul(sobre)));
+      });
+    });
+    return c;
+  });
+  const domo = (dir: Nodo): Nodo => (domoFn as unknown as (d: Nodo) => Nodo)(dir);
 
   // the far-plane vertex (three's Background.js recipe + starwild's 0.99999): rotation only, z pinned just inside the far plane
   const vertice = Fn((builder: { renderer?: { reversedDepthBuffer?: boolean } }) => {
