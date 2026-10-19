@@ -1228,3 +1228,19 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.
 - Commit: rama `creativo/c4-c5` (sin push).
 - Siguiente: si el objeto queda bajo la hoja (objetos muy cercanos a los pies), la cámara no se mueve sola.
+
+## 2026-10-19 12:24 · fusion/sonido-vr · hecho
+- Qué: el mundo suena (pasos, golpes, avisos y el colchón del mundo), y en VR los dardos se lanzan con la mano.
+  Detalle: el sonido (S6–S6f) y los dardos y la pesca en VR, juntos. En VR el dardo se lanza con la mano (el
+  balanceo da dirección y fuerza; el servidor decide dónde cae) y la caña es una malla con mango, halo al acercar la mano
+  y una instrucción por fase encima. Mordisqueo y picada suenan por la puerta única (`pesca-mordisqueo` nuevo, con su
+  fila de receta). Al probar el sonido en un Chromium de verdad salieron tres fallos que en Node no se veían: la página
+  de dev no podía leer `/sonidos.json` desde otro puerto (CORS), los ficheros `/a/` se pedían al puerto de la página y
+  no al del servidor, y Caddy no pasaba `/sonidos.json` ni `/status` (que lleva el colchón del mundo) al servidor.
+- Números: `npm test` 1.083/1.083; puertas en verde. Pierna nueva `tools/e2e-piernas/sonido.mjs` (sin AudioContext de
+  mentira): con la rama, tabla 200 del servidor, 13 ficheros 200 y 13 descodificados, 0 fallos, contexto `running`; en
+  `sonido/nucleo` sin el arreglo, la tabla no llega y suenan 0 ficheros. Piernas `pesca`, `dardos-vr` y `sonido` en
+  verde; `pesca-todas` falla los mismos pasos (caña en la mano, medidor, rayo) en la base que en la rama.
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `fusion/sonido-vr` sobre `sonido/nucleo` (#151) + `vr2/pesca-mango`. Versión 0.17.0 → 0.18.0.
+- Siguiente: S6f-5, oírlo con auriculares en el PC y en las gafas.
