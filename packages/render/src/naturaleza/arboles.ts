@@ -15,13 +15,14 @@
 //
 // R2 SPECIES (one vertex layout, five posed vertex sets picked per instance by `especie`, so the call count does not grow):
 //  encina (holm oak: broad asymmetric dome) · pino (stone pine: tall bent trunk, flat irregular umbrella) · cipres (tall narrow flame) ·
-//  olivo (gnarled twisted trunk, silver-green crown) · arbusto (shrub).
+//  olivo (gnarled twisted trunk, silver-green crown) · arbusto (shrub) · sauce (R6.3 weeping willow of the Virelai: leaning trunk, a high dome and
+//  five long hanging curtains that arch out from under it and fall almost to the ground; only near water, see esparcir.ts).
 // DRAW CALLS: near LOD = ONE mesh (all species), far LOD = ONE mesh (a shared parametric silhouette: trunk + one blob, proportions per instance):
 // 2 calls on tiers A/B, 1 on C/D. Hardware instancing on an InstancedBufferGeometry (custom per-instance attributes instead of an instanceMatrix,
 // because the wind must read the pre-transform height of each vertex). Zero CPU per tree per frame: `actualizar(t)` writes one uniform; the
 // near/far split is a throttled O(n) pass over typed arrays (see `repartir`).
 import * as THREE from "three/webgpu";
-import { uniform, float, vec2, vec3, attribute, instancedBufferAttribute, positionGeometry, normalFlat, transformNormalToView, normalize, sin, cos, pow, clamp, mix, length, max, step, oneMinus } from "three/tsl";
+import { uniform, float, vec2, vec3, attribute, instancedBufferAttribute, positionGeometry, normalFlat, transformNormalToView, normalize, sin, cos, pow, clamp, mix, length, max, abs, step, oneMinus } from "three/tsl";
 import type { Nivel } from "../calidad.ts";
 import { crearAzar, hash2 } from "./semilla.ts";
 import { NATURALEZA_POR_NIVEL } from "./niveles.ts";
@@ -29,8 +30,8 @@ import { CASA, VERDES, MAQUINA, ESTACIONES, mezcla } from "./paleta.ts";
 import { nodoRelleno } from "./relleno.ts";
 
 void crearAzar;
-export type Especie = "encina" | "pino" | "cipres" | "olivo" | "arbusto";
-export const ESPECIES: readonly Especie[] = ["encina", "pino", "cipres", "olivo", "arbusto"];
+export type Especie = "encina" | "pino" | "cipres" | "olivo" | "arbusto" | "sauce";
+export const ESPECIES: readonly Especie[] = ["encina", "pino", "cipres", "olivo", "arbusto", "sauce"];
 /** One tree to plant: where (m), size factor, yaw (rad) and species. `variante` (0 | 1) is optional: from the position otherwise. */
 export type PuntoArbol = { x: number; y: number; z: number; escala: number; giro: number; especie: Especie | string; variante?: 0 | 1 };
 export type Lod = "cerca" | "lejos";
@@ -51,9 +52,11 @@ const HOJAS: Record<Especie, [Par, Par]> = {
   cipres: [{ oscuro: VERDES.monteSombra, claro: mezcla(VERDES.monte, VERDES.musgo, 0.4) }, { oscuro: VERDES.monteSombra, claro: mezcla(mezcla(VERDES.monte, VERDES.musgo, 0.4), CASA.ambarTostado, 0.2) }], // R5.4: the sunlit top a touch of moss warmer
   olivo: [{ oscuro: mezcla(VERDES.monte, CASA.arenaVelada, 0.2), claro: mezcla(PLATA, CASA.arenaVelada, 0.2) }, { oscuro: mezcla(VERDES.monte, CASA.ambarTostado, 0.3), claro: mezcla(PLATA, CASA.ambar, 0.25) }],
   arbusto: [{ oscuro: VERDES.monte, claro: mezcla(VERDES.hierba, VERDES.hierbaLuz, 0.3) }, { oscuro: VERDES.hierbaSombra, claro: mezcla(CASA.arena, CASA.verdemar, 0.3) }],
+  // R6.3 willow: a cool green (monte toward verdín) under the dome, light sea-green tips on the curtains; autumn: the tips go straw-amber
+  sauce: [{ oscuro: mezcla(VERDES.monte, VERDES.verdin, 0.3), claro: mezcla(VERDES.hierbaLuz, CASA.verdemar, 0.35) }, { oscuro: mezcla(VERDES.monte, CASA.ambarTostado, 0.25), claro: mezcla(VERDES.hierbaLuz, CASA.ambar, 0.3) }],
 };
 /** Bark (dark end; the shader lightens it toward ceniza up the trunk): brown with bronze/copper in it, olive grey and gnarled. */
-const TRONCOS: number[] = [mezcla(CASA.bronce, CASA.ceniza, 0.45), mezcla(mezcla(CASA.bronce, MAQUINA.cobre, 0.35), CASA.ceniza, 0.2), mezcla(CASA.bronce, CASA.ceniza, 0.55), mezcla(CASA.bronce, CASA.ceniza, 0.7), mezcla(CASA.bronce, CASA.ceniza, 0.3)];
+const TRONCOS: number[] = [mezcla(CASA.bronce, CASA.ceniza, 0.45), mezcla(mezcla(CASA.bronce, MAQUINA.cobre, 0.35), CASA.ceniza, 0.2), mezcla(CASA.bronce, CASA.ceniza, 0.55), mezcla(CASA.bronce, CASA.ceniza, 0.7), mezcla(CASA.bronce, CASA.ceniza, 0.3), mezcla(mezcla(CASA.bronce, VERDES.verdin, 0.15), CASA.ceniza, 0.4)];
 
 /** Per-instance tone: the two leaf colours of a species moved by up to ±8 % toward a lighter or a darker palette neighbour (u in −1…1). */
 function tonos(esp: Especie, v: number, u: number): { oscuro: THREE.Color; claro: THREE.Color } {
@@ -80,7 +83,7 @@ class Malla {
 }
 
 /** The metres of height each species is drawn to (the wind's weight is height / this). */
-export const ALTURA: Record<Especie, number> = { encina: 4.8, pino: 7.0, cipres: 6.8, olivo: 3.9, arbusto: 1.5 };
+export const ALTURA: Record<Especie, number> = { encina: 4.8, pino: 7.0, cipres: 6.8, olivo: 3.9, arbusto: 1.5, sauce: 5.5 };
 
 // ---------------------------------------------------------------------------------------------------------------------
 // two near templates, ONE vertex layout per template.
@@ -100,7 +103,18 @@ type Forma = {
   collar: number; jag: number;
   /** R5.4: a crown that is ONE spindle (the cypress) instead of clumps on branch tips; when set, `matas`/`copa` are ignored. */
   llama?: Llama;
+  /** R6.3: a weeping crown (the willow): a high dome + hanging curtains instead of clumps; when set, `matas`/`copa` are ignored. */
+  lloron?: Lloron;
 };
+/**
+ * R6.3 willow (Salix babylonica, the willows along the Virelai in DISENO-LORE.md): the icosahedron is a dome set HIGH on the leaning trunk (its lower
+ * ring is the widest girth, its bottom a flat underside); the five octahedra become hanging curtains around its rim. Each curtain's top vertex hides
+ * inside the dome, its ring of 4 sits just past the dome's rim (outer vertex lowest, so the curtain arches out from under the dome — the whiplash of
+ * the Art Nouveau sheets), and its bottom vertex hangs almost to the ground, swept sideways (`barre`) so the hem is a row of curling tips, not a
+ * fringe of diamonds. dome: top y, upper ring [y, r], lower ring [y, r], underside y, offset from the trunk top (dx, dz).
+ * cortinas: [azimuth, top y, ring radius, ring y, half width, half thickness, tip y, sideways sweep].
+ */
+type Lloron = { top: number; alto: [number, number]; bajo: [number, number]; pie: number; dx: number; dz: number; cortinas: [number, number, number, number, number, number, number, number][] };
 /**
  * R5.4 cypress (Cupressus sempervirens): the crown is a single flame. The icosahedron is the body: bottom point at `pie`, its lower ring at the
  * widest height (about 30 % of the tree), its upper ring higher and narrower, its top the tip. The five octahedra stop being clumps: they become
@@ -143,6 +157,19 @@ const FORMA: Record<Especie, Forma> = {
     ramas: [[0.1, 0.3, 0.12, 0.55, 0.04], [0.12, 2.4, 0.1, 0.6, 0.04], [0.1, 4.3, 0.14, 0.5, 0.04]],
     matas: [[0, 0.2, 0, 0.5, 0.4, 0.5], [0, 0.18, 0, 0.46, 0.38, 0.46], [0, 0.22, 0, 0.44, 0.36, 0.44], [0.5, 0.0, -0.3, 0.45, 0.3, 0.42], [-0.45, 0.05, 0.4, 0.42, 0.3, 0.4]],
     copa: { cx: 0, cy: 0.55, cz: 0, rx: 0.95, ry: 0.6, rz: 0.9, top: 1 }, collar: 0.05, jag: 0.2,
+  },
+  sauce: {
+    tronco: { alto: 2.7, r0: 0.34, r1: 0.18, lx: 0.75, lz: 0.2, curva: 0.3, tors: 0.35, bulto: 0.18 },
+    ramas: [[2.1, 0.7, 0.75, 1.4, 0.09], [2.3, 2.8, 0.7, 1.5, 0.085], [2.5, 4.7, 0.8, 1.3, 0.08]], // arching up into the dome
+    matas: [[0, 0, 0, 1, 1, 1], [0, 0, 0, 1, 1, 1], [0, 0, 0, 1, 1, 1], [0, 0, 0, 1, 1, 1], [0, 0, 0, 1, 1, 1]], // unused (lloron)
+    copa: { cx: 0.8, cy: 4.4, cz: 0.2, rx: 2.2, ry: 1.0, rz: 2.1, top: 1 }, collar: 0.6, jag: 0.12,
+    lloron: {
+      top: 5.5, alto: [5.0, 1.45], bajo: [4.15, 2.25], pie: 3.55, dx: 0.12, dz: 0,
+      cortinas: [
+        [0.35, 4.5, 2.0, 3.3, 1.12, 0.36, 0.5, 0.45], [1.6, 4.5, 2.05, 3.45, 1.05, 0.34, 0.95, -0.4], [2.85, 4.45, 1.95, 3.2, 1.1, 0.36, 0.62, 0.5],
+        [4.1, 4.5, 2.05, 3.4, 1.08, 0.34, 1.1, -0.45], [5.3, 4.45, 2.0, 3.25, 1.1, 0.36, 0.7, 0.4],
+      ],
+    },
   },
 };
 export const LADOS_TRONCO = 4;
@@ -204,8 +231,18 @@ export function geometriaArbol(detalle = true): GeometriaArbol {
     }
     // clumps: faceted octahedra with a jagged ring, light on top
     const cc = cen(t.alto), cen0: V3 = [f.copa.cx, f.copa.cy, f.copa.cz];
-    const L = f.llama;
-    if (L) {
+    const L = f.llama, W = f.lloron, x0W = cc[0] + (W?.dx ?? 0), z0W = cc[2] + (W?.dz ?? 0);
+    if (W) {
+      // R6.3 curtains (same vertex order as a clump: top, ring of 4, bottom). The ring is a rotated ellipse (radial thickness × tangential width), so the
+      // handedness of the clump's ring is kept and the shared winding holds.
+      W.cortinas.slice(0, nMatas).forEach(([az, yt, ra, ya, an, gr, yp, barre]) => {
+        const X: V3 = [Math.cos(az), 0, Math.sin(az)], Z: V3 = [-Math.sin(az), 0, Math.cos(az)];
+        const at = (r: number, s: number, y: number): V3 => [x0W + X[0] * r + Z[0] * s, y, z0W + X[2] * r + Z[2] * s];
+        put(at(ra * 0.5, 0, yt), 0.5, 1, 0.25);
+        for (let k = 0; k < 4; k++) { const a = (k / 4) * Math.PI * 2, ca = Math.cos(a); put(at(ra + ca * gr, Math.sin(a) * an, ya - 0.28 * ca + 0.06 * hv(v, 6)), 0.55, 1, 0.5); }
+        put(at(ra - 0.12, barre, yp), 0.2, 1, 1);
+      });
+    } else if (L) {
       // R5.4 spindle: long thin shells on the axis (same vertex order as a clump: top, ring of 4, bottom); ring radii alternate a little so
       // every shell adds two soft ridges, and the shells are turned so their ridges fall between the body's.
       const ax = (y: number): V3 => [cc[0] + 0.03 * Math.sin(y * 1.3 + e), y, cc[2] + 0.03 * Math.cos(y * 1.1)];
@@ -222,7 +259,13 @@ export function geometriaArbol(detalle = true): GeometriaArbol {
       put([c[0] + 0.08 * hv(v, 7), c[1] - ry * 0.7, c[2] + 0.08 * hv(v, 8)], 0.26, 1, 0.9);
     });
     // crown: a jittered icosahedron (top, upper ring of 5, lower ring of 5 turned half a step, bottom)
-    if (L) { // R5.4: the spindle's body: bottom at the foliage foot, lower ring = the widest girth, upper ring narrower, top = the tip
+    if (W) { // R6.3: the willow's dome, high on the trunk: lower ring = the widest girth, a flat underside
+      const giro = 0.2;
+      put([x0W + 0.08, W.top, z0W + 0.05], 1, 1, 0.6);
+      for (let k = 0; k < 5; k++) { const a = giro + (k / 5) * Math.PI * 2, r = W.alto[1] * (k % 2 ? 0.88 : 1); put([x0W + Math.cos(a) * r, W.alto[0] + 0.12 * hv(v, 13), z0W + Math.sin(a) * r], 0.78, 1, 0.55); }
+      for (let k = 0; k < 5; k++) { const a = giro + ((k + 0.5) / 5) * Math.PI * 2, r = W.bajo[1] * (k % 2 ? 0.92 : 1.04); put([x0W + Math.cos(a) * r, W.bajo[0] + (k % 2 ? -0.12 : 0.1), z0W + Math.sin(a) * r], 0.42, 1, 0.5); }
+      put([x0W, W.pie, z0W], 0.18, 1, 0.45);
+    } else if (L) { // R5.4: the spindle's body: bottom at the foliage foot, lower ring = the widest girth, upper ring narrower, top = the tip
       const giro = 0.3, x0 = cc[0], z0 = cc[2];
       put([x0 + 0.02, L.punta, z0], 1, 1, 0.75);
       for (let k = 0; k < 5; k++) { const a = giro + (k / 5) * Math.PI * 2, r = L.alto[1] * (k % 2 ? 0.9 : 1); put([x0 + Math.cos(a) * r, L.alto[0] + 0.12 * hv(v, 13), z0 + Math.sin(a) * r], 0.78, 1, 0.55); }
@@ -294,7 +337,10 @@ export const LEJOS: Record<Especie, number[]> = {
   cipres: [0.9, 0.2, 3.53, 0.7, 2.95, -0.58],
   olivo: [2.0, 0.34, 2.9, 1.8, 0.95, 0],
   arbusto: [0.12, 0.06, 0.55, 1.0, 0.6, 0],
+  sauce: [2.7, 0.3, 4.0, 2.1, 1.6, 0.5], // R6.3: ring raised (widest high); the shader drops 3 of its 5 ring vertices into hanging tips (CUELGA_LEJOS)
 };
+/** R6.3: how far (in blob radii y) the far willow's three low ring vertices hang below the ring: the curtains' tips at about 1 m. */
+export const CUELGA_LEJOS = 2.2;
 const LADOS_TRONCO_LEJOS = 3, LADOS_COPA_LEJOS = 5;
 export type GeometriaEspecie = { geometria: THREE.BufferGeometry; triangulos: number; bytes: number };
 
@@ -354,7 +400,9 @@ const girar = (p: V3N, giro: N): V3N => {
 /** Pick one of `vals` by the species index `sp` (0…n−1) with a chain of steps; works for floats and vec3 nodes. */
 function porEsp<T>(sp: N, vals: T[]): T { let r = vals[0] as unknown as N; for (let i = 1; i < vals.length; i++) r = mix(r, vals[i] as unknown as N, step(i - 0.5, sp)) as N; return r as unknown as T; }
 /** Lean of the trunk's top as a fraction of its height, per species (the stone pine and the olive lean the most, the shrub not at all). */
-const INCLINA = [0.05, 0.09, 0.04, 0.07, 0];
+const INCLINA = [0.05, 0.09, 0.04, 0.07, 0, 0.05];
+/** R6.3: the willow's dome underside (m): leaf vertices below it lean with the dome but hang plumb (curtains do not shear with the trunk). */
+const PIE_SAUCE = 3.4;
 
 type Inst = { a: THREE.InstancedBufferAttribute; b: THREE.InstancedBufferAttribute };
 const instAttr = (n: number, k: number) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, n) * k), k); a.setUsage(THREE.DynamicDrawUsage); return a; };
@@ -376,10 +424,12 @@ function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.Mesh
   const esCip = step(1.5, sp).mul(oneMinus(step(2.5, sp))) as N;
   p0 = vec3(p0.x, p0.y.mul(esCip.mul(sin(fase.mul(3.7)).mul(0.08)).add(1)), p0.z) as unknown as V3N;
   const hRel = clamp(p0.y.div(H), 0, 1) as N;
+  const esSau = step(4.5, sp) as N, sauHoja = esSau.mul(esHoja) as N; // R6.3 willow
   // lean: the trunk shears toward a per-tree azimuth (from its phase), by a per-species amount
   const inclina = vec2(sin(fase.mul(1.7)), cos(fase.mul(1.3))).mul(porEsp(sp, INCLINA.map((v) => float(v))).mul(tinte.mul(0.65).add(0.35))).mul(esCip.mul(hRel.mul(1.5).sub(1)).add(1)) as unknown as ReturnType<typeof vec2>;
   // a collar (and its tag) without its flag goes under the ground
-  let local = p0.add(vec3(inclina.x.mul(p0.y), esMetal.mul(oneMinus(step(0.5, flag))).mul(-60), inclina.y.mul(p0.y))) as unknown as V3N;
+  const yInc = mix(p0.y, max(p0.y, float(PIE_SAUCE)), sauHoja) as N; // willow curtains: shifted with the dome, never sheared
+  let local = p0.add(vec3(inclina.x.mul(yInc), esMetal.mul(oneMinus(step(0.5, flag))).mul(-60), inclina.y.mul(yInc))) as unknown as V3N;
   if (aletea) { // leaves flutter: a small, fast wobble, phased per vertex, on leaf vertices only
     const t = c.tiempo as unknown as N, fuerza = length((c.vientoU as unknown as V3N).xz.add(BRISA)) as N;
     const f1 = sin(t.mul(6.5).add(p0.x.mul(9)).add(p0.z.mul(7)).add(fase)) as N;
@@ -388,7 +438,8 @@ function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.Mesh
   }
   // branches and leaf clumps sway on their own, more at the tips (`mov` 0 at a branch root … 1 at its tip), on top of the whole-tree lean
   const tt = c.tiempo as unknown as N, vel = (c.vientoU as unknown as V3N).xz.add(BRISA) as unknown as ReturnType<typeof vec2>, fz = length(vel) as N, dr = vel.div(fz) as unknown as ReturnType<typeof vec2>;
-  const movE = mix(mov, hRel.mul(0.9), esCip) as N; // the cypress sways as one body: by height, not by clump
+  const cuelga = clamp(float(0.66).sub(hRel).mul(1.7), 0, 1) as N; // R6.3: 0 at the willow's dome … 1 at a curtain's tip
+  const movE = mix(mix(mov, hRel.mul(0.9), esCip), max(mov.mul(0.6), cuelga), sauHoja) as N; // the cypress sways as one body; the willow's curtains swing most at their tips
   const punta = movE.mul(movE).mul(fz.mul(0.05).add(0.09)).mul(esc) as N;
   const ph = tt.mul(1.9).add(fase).add(p0.x.mul(2.3).add(p0.z.mul(1.7)).mul(oneMinus(esCip))) as N; // … and in one phase (its shells do not drift apart)
   const bal = vec3(dr.x.mul(sin(ph)).sub(dr.y.mul(cos(ph.mul(0.7))).mul(0.4)), sin(ph.mul(1.3)).mul(0.25), dr.y.mul(sin(ph)).add(dr.x.mul(cos(ph.mul(0.7))).mul(0.4))).mul(punta) as unknown as V3N;
@@ -396,7 +447,8 @@ function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.Mesh
   const col3 = (k: THREE.Color) => vec3(k.r, k.g, k.b) as unknown as V3N;
   const troncoO = porEsp(sp, TRONCOS.map((h) => col3(C(h)))), troncoC = mix(troncoO, col3(C(CASA.ceniza)), 0.5) as unknown as V3N;
   const tronco = mix(troncoO, troncoC, tono) as unknown as V3N;
-  const tonoH = mix(tono.mul(0.7).add(0.3), hRel.mul(0.75).add(0.12).add(tono.mul(0.13)), esCip) as N; // cypress: dark foot → lighter, warmer sunlit top
+  const tonoW = max(clamp(hRel.sub(0.72).mul(3.6), 0, 1), cuelga.mul(0.95)).mul(0.85).add(0.1) as N; // willow: dark under the dome → light dome top and light curtain tips
+  const tonoH = mix(mix(tono.mul(0.7).add(0.3), hRel.mul(0.75).add(0.12).add(tono.mul(0.13)), esCip), tonoW, esSau) as N; // cypress: dark foot → lighter, warmer sunlit top
   const hoja = mix(ic.xyz, id.xyz, tonoH).mul(1.4) as unknown as V3N; // the house greens are deep: lift them so the crowns read under the morning light
   const laton = mix(col3(C(MAQUINA.laton)), col3(C(MAQUINA.cobre)), step(1.5, flag)) as unknown as V3N;
   const metal = mix(laton, col3(C(mezcla(MAQUINA.laton, CASA.arena, 0.35))), step(2.5, parte)) as unknown as V3N;
@@ -418,9 +470,12 @@ function materialLejos(c: Comunes, inst: InstLejos): THREE.MeshLambertNodeMateri
   const ic = instancedBufferAttribute(inst.c) as unknown as { x: N; y: N; z: N; w: N }, id = instancedBufferAttribute(inst.d) as unknown as { x: N; y: N };
   const ie = instancedBufferAttribute(inst.e) as unknown as V3N;
   const q = positionGeometry as unknown as V3N, parte = attribute("parte", "float") as unknown as N;
-  const qy = q.y.add(id.y.mul(oneMinus(q.y.mul(q.y)))) as N; // R5.4: the ring moves by the per-species shift, the apexes (|y| ≈ 1) barely
-  const tronco = vec3(q.x.mul(ic.y), q.y.mul(ic.x), q.z.mul(ic.y)), copa = vec3(q.x.mul(ic.w), ic.z.add(qy.mul(id.x)), q.z.mul(ic.w));
   const s1 = step(0.5, parte) as N;
+  // R6.3 willow: the ring's three low vertices (y < 0) hang down into curtain tips (a little inward), the bottom apex rises under the ring
+  const esSau = step(4.5, ib.w) as N, anillo = s1.mul(oneMinus(step(0.5, abs(q.y)))) as N, cuelga = esSau.mul(anillo).mul(step(q.y, 0)) as N;
+  const qy = q.y.add(id.y.mul(oneMinus(q.y.mul(q.y)))).sub(cuelga.mul(CUELGA_LEJOS)).add(esSau.mul(s1).mul(step(q.y, -0.5)).mul(0.6)) as N; // R5.4: the ring moves by the per-species shift, the apexes (|y| ≈ 1) barely
+  const rx = ic.w.mul(oneMinus(cuelga.mul(0.1))) as N;
+  const tronco = vec3(q.x.mul(ic.y), q.y.mul(ic.x), q.z.mul(ic.y)), copa = vec3(q.x.mul(rx), ic.z.add(qy.mul(id.x)), q.z.mul(rx));
   const p0 = mix(tronco, copa, s1) as unknown as V3N;
   const H = ic.z.add(id.x) as N, esc = ia.w;
   const inclina = vec2(sin(ib.y.mul(1.7)), cos(ib.y.mul(1.3))).mul(porEsp(ib.w, INCLINA.map((v) => float(v))).mul(ib.z.mul(0.65).add(0.35))) as unknown as ReturnType<typeof vec2>;

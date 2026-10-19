@@ -129,7 +129,8 @@ test("scatter rules: none in the plaza, the pond, on sand or at the border; bush
     assert.ok(Math.abs(p.x) <= 93.01 && Math.abs(p.z) <= 93.01, "not at the border");
     const z = zonaEn(SEMILLA, p.x, p.z);
     assert.notEqual(z, "arena", "no tree on sand");
-    if (z === "roca" || z === "orilla") assert.equal(p.especie, "arbusto", `only bushes on ${z}`);
+    if (z === "roca") assert.equal(p.especie, "arbusto", `only bushes on ${z}`);
+    if (z === "orilla") assert.ok(p.especie === "arbusto" || p.especie === "sauce", `only bushes and willows on ${z}`); // R6.3
     (cuenta[z] ??= {})[p.especie as string] = ((cuenta[z] ??= {})[p.especie as string] ?? 0) + 1;
     const s = Math.hypot(alturaEn(SEMILLA, p.x + 0.7, p.z) - alturaEn(SEMILLA, p.x, p.z), alturaEn(SEMILLA, p.x, p.z + 0.7) - alturaEn(SEMILLA, p.x, p.z)) / 0.7;
     assert.ok(s <= PENDIENTE_MAX + 0.02, `slope ${s.toFixed(2)}`);

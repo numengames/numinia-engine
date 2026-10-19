@@ -6,7 +6,7 @@
 // the order never matters). The zone under the candidate (terreno.ts `zonaEn`) sets the chance and the species mix; a greedy
 // pass in raster order then drops any tree closer than the sum of two species' radii to one already kept (a hash grid makes it
 // O(n)). Rules (the brief): forest dense; meadow = sparse clusters (a slow value-noise mask) plus lone trees; shore: a few
-// bushes; sand and rock: nothing, except bushes on the edge of the rock; nothing inside the plaza (+ a margin), in the pond,
+// bushes on the edge of the rock; R6.3: weeping willows only on the ring of ground around the pond; nothing inside the plaza (+ a margin), in the pond,
 // on steep ground or at the very border of the world. Above the tier's cap the list is thinned evenly (by hash), not cut.
 //
 // COPIED (technique only): jittered / stratified sampling (e.g. Red Blob Games «Making maps with noise», trees placed by
@@ -25,7 +25,9 @@ export const PALETAS: readonly Paleta[] = ["verano", "otono", "primavera"];
 /** Side (m) of a candidate square. */
 export const CELDA = 2.2;
 /** Radius (m) each species keeps free around it: two trees are at least 0.85 × (ra + rb) apart. */
-export const RADIO_ESPECIE: Record<Especie, number> = { encina: 2.1, pino: 1.8, cipres: 0.9, olivo: 1.9, arbusto: 0.8 };
+export const RADIO_ESPECIE: Record<Especie, number> = { encina: 2.1, pino: 1.8, cipres: 0.9, olivo: 1.9, arbusto: 0.8, sauce: 2.0 };
+/** R6.3: willows grow ONLY by the water: within this many pond radii of the pond's centre (the pond itself ends at 1.25 radii for trees). */
+export const SAUCE_AGUA = 2.3;
 export const SEPARACION = 0.85;
 /** Margin (m) kept free beyond the plaza's flat disc, and at the world's border. */
 export const MARGEN_PLAZA = 2.5, MARGEN_BORDE = 7;
@@ -66,9 +68,9 @@ const elegir = (mezcla: [Especie, number][], u: number): Especie => {
 
 /** Share of the trees of a species drawn in their second colour set (autumn orange / yellow / blossom) per palette. */
 export const VARIANTE_POR_PALETA: Record<Paleta, Record<Especie, number>> = {
-  verano: { encina: 0.05, pino: 0.0, cipres: 0.0, olivo: 0.0, arbusto: 0.1 },
-  otono: { encina: 0.82, pino: 0.12, cipres: 0.0, olivo: 0.35, arbusto: 0.08 },
-  primavera: { encina: 0.0, pino: 0.0, cipres: 0.0, olivo: 0.0, arbusto: 0.72 },
+  verano: { encina: 0.05, pino: 0.0, cipres: 0.0, olivo: 0.0, arbusto: 0.1, sauce: 0.0 },
+  otono: { encina: 0.82, pino: 0.12, cipres: 0.0, olivo: 0.35, arbusto: 0.08, sauce: 0.4 },
+  primavera: { encina: 0.0, pino: 0.0, cipres: 0.0, olivo: 0.0, arbusto: 0.72, sauce: 0.0 },
 };
 
 const sstep = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -108,6 +110,9 @@ export function esparcirArboles(f: FuenteEsparcir, o: OpcionesEsparcir): PuntoAr
       p = (0.03 + 0.5 * sstep(0.56, 0.74, mancha)) * claro;        // … and a thin rain of lone trees between them
     } else if (zona === "orilla") p = 0.09;                        // a few bushes on the wet sand
     else p = bordeDeRoca(f, x, z) ? 0.13 : 0;                       // rock: bushes only along its edge
+    // R6.3: by the pond the chance rises (willows), most on the first ring of ground past the water
+    const agua = e ? sstep(SAUCE_AGUA, 1.5, Math.hypot(x - e.x, z - e.z) / e.radio) : 0;
+    if (agua > 0 && zona === "orilla") p = Math.max(p, 0.2 * agua); // the shore: a few more trees (willows) by the water; meadow and forest keep their density
     if (zona === "prado" || zona === "bosque") p *= 1 - 0.8 * cercaDeArena(f, x, z); // R2: thinning toward the sand (up to −80 %)
     // R2: a lone old tree: rare, in the open meadow, in the middle of a clearing-ish spot
     const viejo = zona === "prado" && hash2(s + 109, i, j) < 0.003 * dens && sstep(0.3, 0.5, valor2(s + 401, x * 0.045, z * 0.045)) > 0.5;
@@ -121,10 +126,12 @@ export function esparcirArboles(f: FuenteEsparcir, o: OpcionesEsparcir): PuntoAr
     const fuerza = sstep(0.62, 0.78, valor2(s + 503, x * 0.02 + 7, z * 0.02));
     let especie = zona === "prado" || zona === "bosque" ? (hash2(s + 110, i, j) < fuerza * 0.7 ? dom : elegir(mezcla, hash2(s + 104, i, j))) : elegir(mezcla, hash2(s + 104, i, j));
     if (viejo) especie = VIEJOS[Math.floor(hash2(s + 111, i, j) * VIEJOS.length * 0.999)];
+    else if (agua > 0 && zona !== "roca" && hash2(s + 112, i, j) < 0.85 * agua) especie = "sauce"; // R6.3: the willows of the Virelai, only here
     // size: bigger in the open, smaller in a crowd and on the shore; old trees are big; cypresses vary little, shrubs are small
     let escala = (zona === "orilla" ? 0.75 : 0.82) + 0.42 * hash2(s + 105, i, j);
     if (viejo) escala = 1.45 + 0.35 * hash2(s + 105, i, j);
     else if (especie === "cipres") escala = 0.9 + 0.35 * hash2(s + 105, i, j);
+    else if (especie === "sauce") escala = 0.85 + 0.35 * hash2(s + 105, i, j);
     const variante: 0 | 1 = hash2(s + 106, i, j) < VARIANTE_POR_PALETA[o.paleta][especie] ? 1 : 0;
     dentro.push({ x, y: Math.round(y * 100) / 100, z, escala: Math.round(escala * 1000) / 1000, giro: Math.round(hash2(s + 107, i, j) * 6283) / 1000, especie, variante });
   }
