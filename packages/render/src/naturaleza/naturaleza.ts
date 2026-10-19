@@ -167,7 +167,7 @@ export function crearNaturaleza(h: HNaturaleza) {
     if (d.estanque && nivel !== "D") { // N6: on tier D the pond is painted into the terrain mesh (one draw call less)
       const t = uniform(0) as unknown as { value: number }, r = terreno.estanque.radio * 1.2, forma = { tipo: "circulo" as const, radio: r };
       const detalle = (h.detalleAgua?.() ?? { olas: 0, espuma: false, lineas: false, caustica: false, destellos: false }) as never;
-      const mat = AG.materialDeAgua({ color: COLOR_ESTANQUE, forma, detalle, tiempo: t, luz: h.aguaLuz as never, bordeOculto: r * 0.12 }, 12);
+      const mat = AG.materialDeAgua({ color: COLOR_ESTANQUE, forma, detalle, tiempo: t, luz: h.aguaLuz as never, bordeOculto: r * 0.12, verdemar: true }, 12);
       const malla = new THREE.Mesh(AG.geometriaDeAgua(forma, detalle, 12), mat);
       malla.position.set(terreno.estanque.x, terreno.estanque.nivel, terreno.estanque.z);
       malla.name = "agua-naturaleza"; malla.userData.sinSombra = true; malla.frustumCulled = true; malla.matrixAutoUpdate = false; malla.updateMatrix();

@@ -39,6 +39,9 @@ export type OpcionesAgua = {
   luz?: LuzAgua; ondas?: Onda[];
   /** Metres of the outer edge hidden under a bank (the pond's earth ring): the foam starts past it. */
   bordeOculto?: number;
+  /** R1: shallows lean to the house Verdemar (the nature's pond). Absent = the turquoise shallows every other water had before
+   * the nature (the builder's water, elementos.ts): a world without nature looks as it did. */
+  verdemar?: boolean;
   /** E03 · AG1: colour, shore band, foam and wash from the real depth of the bed (fondoDeAgua); without it, the N2 look. */
   orilla?: OrillaAgua;
   /** E03 · AG10: how visible the drifting 0/1 strings are (0 = off, default off; E51: BINARIOS_TENUE 0.6 = «tenue», raised
@@ -262,7 +265,9 @@ export function materialDeAgua(o: OpcionesAgua, olasDesde: number): THREE.MeshLa
   // three flat steps of the builder's colour (linear): a bright turquoise shallow, the colour itself, a deeper saturated one
   const hondo = vec3(base.r * 0.62, base.g * 0.78, base.b * 0.95);
   const medio = vec3(base.r * 1.05, base.g * 1.1, base.b * 1.1);
-  const claro = mix(vec3(base.r, base.g, base.b), vec3(VERDEMAR.r, VERDEMAR.g, VERDEMAR.b), 0.55).mul(1.05); // R1: shallows lean sea-green (house Verdemar), not neon turquoise
+  const claro = o.verdemar
+    ? mix(vec3(base.r, base.g, base.b), vec3(VERDEMAR.r, VERDEMAR.g, VERDEMAR.b), 0.55).mul(1.05) // R1: the nature's shallows lean sea-green (house Verdemar), not neon turquoise
+    : mix(vec3(base.r, base.g, base.b), vec3(0.32, 0.86, 0.8), 0.55).mul(1.15); // every other water: as before the nature
   const banda1 = smoothstep(0.16, 0.2, hondura), banda2 = smoothstep(0.55, 0.59, hondura);
   let col = mix(mix(claro, medio, banda1), hondo, banda2) as unknown as ReturnType<typeof vec3>;
   const c3 = (hex: number) => { const k = new THREE.Color(hex); return vec3(k.r, k.g, k.b); };

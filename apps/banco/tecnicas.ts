@@ -280,7 +280,7 @@ registrar({
     const tiempo = uniform(0) as unknown as { value: number }, r = t.estanque.radio * 1.2, forma = { tipo: "circulo" as const, radio: r };
     const detalle = detalleAgua(c.nivel, calidadPagina(c.nivel).agua);
     const luz = { cielo: uniform(new THREE.Color(nieblaHex(c))), sol: uniform(new THREE.Color(0xffffff)), solDir: uniform(new THREE.Vector3(0.5, 0.8, 0.3).normalize()) };
-    const mat = AG.materialDeAgua({ color: P.COLOR_ESTANQUE, forma, detalle, tiempo, luz: luz as never, bordeOculto: r * 0.12 }, 12);
+    const mat = AG.materialDeAgua({ color: P.COLOR_ESTANQUE, forma, detalle, tiempo, luz: luz as never, bordeOculto: r * 0.12, verdemar: true }, 12);
     const m = new THREE.Mesh(AG.geometriaDeAgua(forma, detalle, 12), mat);
     m.position.set(t.estanque.x, t.estanque.nivel, t.estanque.z); m.userData.sinSombra = true;
     c.world.add(m);
@@ -429,7 +429,7 @@ async function materialE03(c: Contexto, v: AguaE03, luz: unknown, corriente: { v
   const [T, , , , P, AG] = await modsNat();
   const e = T.estanqueDe(NAT.semilla, NAT.tamano), r = e.radio * 1.2, forma = { tipo: "circulo" as const, radio: r };
   const fondo = AG.fondoDeAgua(AG.alturaDeMalla(suelo, e.x - r, e.z - r, r * 2, alturaEnNat), T.NIVEL_AGUA, e.x, e.z, r * 2);
-  const mat = AG.materialDeAgua({ color: P.COLOR_ESTANQUE, forma, detalle, tiempo, luz: luz as never, bordeOculto: r * 0.12, orilla: { variante: v.variante, fondo }, binarios: v.binarios, corriente }, 12);
+  const mat = AG.materialDeAgua({ color: P.COLOR_ESTANQUE, forma, detalle, tiempo, luz: luz as never, bordeOculto: r * 0.12, verdemar: true, orilla: { variante: v.variante, fondo }, binarios: v.binarios, corriente }, 12);
   return { mat, fondo, forma, e, r };
 }
 
