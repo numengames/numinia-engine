@@ -56,14 +56,16 @@ export const HIERBA_POR_NIVEL: Record<Nivel, HierbaNivel> = {
 };
 
 // ---- N4: the whole nature piece (naturaleza.ts) ----
-/** N6: the whole-scene budget (Pablo: «her budget rules»: PC ≤ 100 calls · 50 k triangles; headset ≤ 80 · 35 k; mobile ≤ 60 · 25 k) leaves nature a small slice.
- *  This is the ONE source of the caps: `triangulos` / `llamadas` for ALL nature together (terrain + trees + grass + water + fauna), and `reparto`, the share of
- *  triangles each piece may use (test/naturaleza-n4.test.ts checks every piece against its share; limits.json `nature_*` repeats the totals). */
+/** This is the ONE source of the caps: `triangulos` / `llamadas` for ALL nature together (terrain + trees + grass + water + fauna), and `reparto`, the share of
+ *  triangles each piece may use (test/naturaleza-n4.test.ts checks every piece against its share; limits.json `nature_*` repeats the totals).
+ *  R7.1 (D-057, Pablo 2026-10-19): the triangle caps rise to A 100 k · B 60 k · C 35 k · D 12 k (on the Quest what limits is draw calls and repainted
+ *  pixels, not opaque triangles: work/naturaleza/investigacion/04-presupuestos-estandar.md); the draw calls stay as they were (N6: 8 · 7 · 6 · 5).
+ *  The shares (`reparto`) are NOT raised here: each R7 story that spends the new room raises its own share, and the sum of shares stays ≤ `triangulos`. */
 export const PRESUPUESTO_NATURALEZA: Record<Nivel, { triangulos: number; llamadas: number; reparto: { terreno: number; arboles: number; hierba: number; fauna: number } }> = {
-  A: { triangulos: 15000, llamadas: 8, reparto: { terreno: 4000, arboles: 5150, hierba: 4250, fauna: 1600 } }, // R6.5: +400 terrain for the baked flora (flora.ts), paid by 30 outer grass tufts and the trees'/fauna's unused slack
-  B: { triangulos: 10000, llamadas: 7, reparto: { terreno: 2100, arboles: 3000, hierba: 2500, fauna: 1100 } },
-  C: { triangulos: 8000, llamadas: 6, reparto: { terreno: 1650, arboles: 2700, hierba: 1900, fauna: 800 } },
-  D: { triangulos: 4000, llamadas: 5, reparto: { terreno: 890, arboles: 1110, hierba: 1100, fauna: 400 } }, // R6.5 flora + R6.6 ring at (18,0) on D too: worst 654 grid + 110 Residuos + 120 flora = 884
+  A: { triangulos: 100000, llamadas: 8, reparto: { terreno: 4000, arboles: 5150, hierba: 4250, fauna: 1600 } }, // R6.5: +400 terrain for the baked flora (flora.ts), paid by 30 outer grass tufts and the trees'/fauna's unused slack
+  B: { triangulos: 60000, llamadas: 7, reparto: { terreno: 2100, arboles: 3000, hierba: 2500, fauna: 1100 } },
+  C: { triangulos: 35000, llamadas: 6, reparto: { terreno: 1650, arboles: 2700, hierba: 1900, fauna: 800 } },
+  D: { triangulos: 12000, llamadas: 5, reparto: { terreno: 890, arboles: 1110, hierba: 1100, fauna: 400 } }, // R6.5 flora + R6.6 ring at (18,0) on D too: worst 654 grid + 110 Residuos + 120 flora = 884
 };
 /** Most trees the scatter plants in the whole world per tier (memory + the O(n) near/far split): thinned evenly above it. */
 export const ARBOLES_MAX_POR_NIVEL: Record<Nivel, number> = { A: 1100, B: 750, C: 750, D: 300 };

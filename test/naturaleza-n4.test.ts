@@ -210,7 +210,8 @@ test("budget: terrain + trees + grass fit the brief's triangles and draw calls o
     const llamadas = 1 + (cfg.arbolesVisibles > cfg.arbolesCerca ? 2 : 1) + 1 + (n === "D" ? 0 : 1) + 2; // terrain + trees + grass (flowers inside) + water (D paints it into the terrain) + fauna (butterflies+fireflies, birds)
     assert.ok(llamadas <= b.llamadas, `${n}: ${llamadas} draw calls > ${b.llamadas}`);
   }
-  assert.deepEqual(NIVELES.map((n) => PRESUPUESTO_NATURALEZA[n].triangulos), [15000, 10000, 8000, 4000]);
+  assert.deepEqual(NIVELES.map((n) => PRESUPUESTO_NATURALEZA[n].triangulos), [100000, 60000, 35000, 12000]); // R7.1: D-057
+  for (const n of NIVELES) { const r = PRESUPUESTO_NATURALEZA[n].reparto; assert.ok(r.terreno + r.arboles + r.hierba + r.fauna <= PRESUPUESTO_NATURALEZA[n].triangulos, `${n}: shares over the total`); }
   assert.deepEqual(NIVELES.map((n) => PRESUPUESTO_NATURALEZA[n].llamadas), [8, 7, 6, 5]);
 });
 
