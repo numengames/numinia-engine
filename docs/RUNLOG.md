@@ -1157,7 +1157,8 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Siguiente: decidir si `habilidad` hace que la criatura devuelva el golpe (`golpear` sí); activar `pvp` en un mundo real.
 
 ## 2026-10-19 07:25 · constructor/ficha-pestañas · hecho
-- Qué: la ficha del objeto (C3) gana pestañas accesibles (`role=tablist/tab/tabpanel`, flechas izquierda y derecha,
+- Qué: la ficha del objeto gana las pestañas Ficha, Lógica y Ajustes (C4).
+  Detalle: la ficha del objeto (C3) gana pestañas accesibles (`role=tablist/tab/tabpanel`, flechas izquierda y derecha,
   Inicio/Fin, `aria-selected`, tooltip con icono Phosphor de la casa en cada una): «Ficha» (los datos de siempre),
   «Lógica» (disparadores del cable que muestran u ocultan el objeto por id o nombre, disparadores que nacen en él,
   y cerraduras y contadores en el mismo punto; botón «Abrir el cable» que lleva al panel del cable) y «Ajustes»
@@ -1176,7 +1177,8 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Siguiente: C5 (móvil/VR: los mismos iconos grandes, sin tooltips de ratón).
 
 ## 2026-10-19 08:47 · constructor/ficha-movil-vr · hecho
-- Qué: la ficha del objeto (C3/C4) sin ratón. **Móvil** (pantallas táctiles, `pointer: coarse`): la ficha pasa a hoja
+- Qué: la ficha del objeto con iconos grandes en móvil (hoja inferior) y en VR (panel con el rayo) (C5).
+  Detalle: la ficha del objeto (C3/C4) sin ratón. **Móvil** (pantallas táctiles, `pointer: coarse`): la ficha pasa a hoja
   inferior a ancho completo (máx. 46 vh, opaca, el panel del constructor se aparta mientras hay objeto elegido: una
   sola hoja a la vez); rejilla de 5 columnas con objetivos de 63×48 px; etiqueta corta visible bajo cada icono
   («Mover», «Girar», «Escalar», «Copiar», «Anclar/Soltar», «Enlace», «Borrar», «Cerrar»; el `aria-label` no cambia);
