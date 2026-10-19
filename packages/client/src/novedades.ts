@@ -37,6 +37,15 @@ export function novedadesDeRunlog(texto: string, n = 3): string[] {
   return entradas.slice(-n).reverse().map((t) => primeraFrase(t));
 }
 
+/** ux2-barra: the news as a notice of the bell's history — a title and the lines, plus the one sentence a screen reader
+ * hears (and the history's filters read). No lines, no notice. */
+export function avisoDeNovedades(version: string, lineas: readonly string[]): { titulo: string; lineas: string[]; texto: string } | null {
+  const l = lineas.map((x) => x.trim()).filter(Boolean);
+  if (!l.length) return null;
+  const titulo = `Novedades en v${version}`;
+  return { titulo, lineas: l, texto: `${titulo}: ${l.join(" ")}` };
+}
+
 /** Has this browser already seen `actual` (the engine's semantic version)? `null` = never opened the card before. */
 export function debeMostrarNovedades(actual: string, vista: string | null): boolean {
   return actual.length > 0 && actual !== vista;

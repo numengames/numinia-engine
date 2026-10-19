@@ -22,7 +22,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, texto = "", clase = "
 };
 
 export function montarInventario(c: Ctl, boton: HTMLButtonElement) {
-  const panel = crearDialogo({ id: "inventario", titulo: "Inventario", tecla: "KeyR", noConstruyendo: true, boton, alAbrir: () => pintar(true) });
+  const panel = crearDialogo({ id: "inventario", titulo: "Bolsa", tecla: "KeyR", noConstruyendo: true, boton, alAbrir: () => pintar(true) });
   let firma = "";
   const fila = (o: Objeto): HTMLElement => {
     const li = el("li", "", `objeto ${o.tipo}`);

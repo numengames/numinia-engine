@@ -47,6 +47,10 @@ export function montarHudPersonaje(): void {
   if (!raiz) return;
   raiz.setAttribute("aria-label", "Tu personaje: estado, carga y aliento del Velo");
   raiz.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
+  // ux2-barra: the whole card is the button of your sheet (I) — a real <button> laid over it (index.html), kept on every
+  // repaint; main.ts hands it to the sheet's dialog, so the card opens and closes it and the focus comes back to it
+  const abrir = raiz.querySelector<HTMLButtonElement>("#hud-personaje-abrir");
+  if (abrir) abrir.addEventListener("click", (e) => { if (e.detail > 0) abrir.blur(); }); // a mouse click leaves no focus (Space jumps)
   let firma = "";
   const pintar = () => {
     const g = (globalThis as unknown as { __numinia?: Record<string, unknown> }).__numinia ?? {};
@@ -77,7 +81,7 @@ export function montarHudPersonaje(): void {
       } else { fila.append(pronto()); b.dataset.pronto = ""; tr.setAttribute("aria-hidden", "true"); }
       b.append(fila, tr); return b;
     };
-    raiz.replaceChildren(cab, est,
+    raiz.replaceChildren(...(abrir ? [abrir] : []), cab, est,
       barra("carga", "Carga", "lightning", v.carga, v.carga ? `${v.carga.valor} / ${v.carga.max}` : ""),
       barra("aliento", "Aliento del Velo", "moon-stars", v.aliento, v.aliento ? `${v.aliento.pct} %` : ""));
     raiz.hidden = false;

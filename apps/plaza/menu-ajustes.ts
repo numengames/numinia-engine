@@ -134,6 +134,8 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   a.alAplicar("accesibilidad.anunciar", (v) => { $("avisos")?.setAttribute("aria-live", v === true ? "polite" : "off"); }); // safety notices (assertive) always
   a.alAplicar("interfaz.tamano", (v) => { html.style.setProperty("--ui", String(Number(v) / 100)); });
   a.alAplicar("interfaz.ayuda", (v) => { const h = $("help"); if (h) h.hidden = v !== true; });
+  // ux2-barra: the minimap turning with the camera (was its «N» button)
+  a.alAplicar("interfaz.minimapaGira", (v) => { (o.numinia.mapa as { minimapa?: { girar(si: boolean): void } } | undefined)?.minimapa?.girar(v === true); });
   const edicion = montarEdicion(); Object.assign(o.numinia, { edicion });
   montarMarcos(a); // U20 + U3: which panels show at Mínimo / Normal / Completo (key U) and where each sits (the table of densidad.ts)
   // V7 «menos movimiento»: the features' hops are skipped (their label and announcement still say what happened)
@@ -167,7 +169,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   };
   Object.assign(o.numinia, { ajustes: api, capacidades: caps.valores });
   const help = $("help");
-  if (help && !caps.valores.punteroGrueso) help.textContent += " · O ajustes · U densidad";
+  if (help && !caps.valores.punteroGrueso) help.textContent += " · O menú (ajustes, pantalla completa) · U densidad";
   if (!dlg || !boton || !lista || !estado) { console.warn("[ajustes] faltan #ajustes, #ajustes-abrir, #ajustes-grupos o #ajustes-estado en la página"); return api; }
 
   let espera: ReturnType<typeof setTimeout> | undefined;
@@ -323,10 +325,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   $("ajustes-restablecer")?.addEventListener("click", () => { a.restablecer(); anunciar("Ajustes restablecidos: cada uno vuelve a lo que da tu aparato."); });
   boton.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
   boton.addEventListener("click", () => { if (dlg.open) cerrar(); else abrir(); });
-  addEventListener("keydown", (e) => {
-    if (e.code !== "KeyO" || e.repeat || e.ctrlKey || e.altKey || e.metaKey || escribiendo(e)) return;
-    if (dlg.open) cerrar(); else abrir();
-  });
+  // ux2-barra: O opens the bar's «Menú» (main.ts, menu-barra.ts), whose first entry is this; inside the dialog O still closes it
   // hidden in XR (a 3D settings panel inside VR comes later)
   setInterval(() => { const x = enXR(); if (x) cerrar(); if (boton.hidden !== x) boton.hidden = x; }, 250);
   return api;
