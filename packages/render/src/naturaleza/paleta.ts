@@ -185,3 +185,18 @@ export const FLORA = {
   cardoFlor: mezcla(CASA.grana, CASA.ceniza, 0.3),
   cardoPua: CASA.arenaVelada,
 } as const;
+
+// R7.2
+/**
+ * R7.2 · Suelo sin facetas (terreno.ts `nodoSuelo`): los tonos hacia los que el ruido macro (manchas secas / manchas sanas) y la
+ * pendiente (roca y tierra al aire) llevan el color de cada zona. Cada par tiene su versión de páramo (oscuro y dorado) y su versión
+ * clara (jardín de pergamino y franja del agua); el shader elige por la luminancia del color base. Solo mezclas de tokens.
+ */
+export const SUELO_R72 = {
+  /** Mancha seca: paja del jardín; en el páramo, costra dorada. */
+  seco: FRANJAS.jardin.paja, secoParamo: FRANJAS.paramo.costra,
+  /** Mancha sana / húmeda: sombra de olivo; en el páramo, grieta de basalto. */
+  sano: mezcla(FRANJAS.jardin.olivo, VERDES.hierbaSombra, 0.45), sanoParamo: FRANJAS.paramo.grieta,
+  /** Roca y tierra al aire en las caras empinadas: ceniza cálida con bronce; en el páramo, basalto. */
+  roca: mezcla(mezcla(CASA.ceniza, CASA.bronce, 0.3), CASA.ambarTostado, 0.12), rocaParamo: FRANJAS.paramo.basalto,
+} as const;

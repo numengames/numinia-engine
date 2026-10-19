@@ -36,7 +36,7 @@ test("R5.1 terrain and both tree materials carry the fill; no new light, mesh or
   const t = crearTerreno({ semilla: 1234, nivel: "A", escena: grupo });
   const mt = t.malla.material as THREE.MeshLambertNodeMaterial;
   assert.ok(mt.isMeshLambertNodeMaterial && mt.emissiveNode, "terrain: Lambert node material with the fill as emissive");
-  assert.equal(mt.flatShading, true); assert.equal(mt.vertexColors, true);
+  assert.equal(mt.flatShading, false); assert.ok(mt.colorNode, "R7.2: smooth-shaded; the vertex colour is read by the ground node (terreno.ts nodoSuelo)");
   const puntos = esparcirArboles(t, { semilla: 1234, tamano: 200, plaza: 12, densidad: 1, nivel: "A", paleta: "verano", estanque: t.estanque });
   const a = crearArboles({ vientoU: uniform(new THREE.Vector3()) as never, nivel: "A", camara: new THREE.Object3D() }, puntos);
   grupo.add(a.grupo);
