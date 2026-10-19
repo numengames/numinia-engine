@@ -17,6 +17,7 @@ import { bajoElCorte } from "../../packages/render/src/corte.ts";
 import { MARCA_IA } from "../../packages/instance/src/identidad.ts";
 import { crearDialogo, anunciar } from "./paneles.ts";
 import { perfil } from "./perfil-aparato.ts";
+import { icono } from "./iconos.ts";
 import { esMovil } from "../../packages/client/src/movil.ts"; // U24
 import "./mapa.css";
 
@@ -39,11 +40,14 @@ export type HostMapa = {
   otros(): Record<string, any>;
   /** U27 (MVL1): go to a marked site of the map (features/teletransporte): omitted = no «Ir» button (this world's page did not wire it). */
   teletransporte?: { activo(): boolean; ir(x: number, z: number, nombre: string): void };
+  /** C2: called after «Ir» sent the trip, with what you went to (the page selects it in the builder, opens its card…). */
+  alIr?(donde: { id: string; nombre: string; x: number; z: number }): void;
 };
 
 const PASO_MS = 200;               // the minimap looks 5 times a second; it draws only when the picture changed
 const FICHAS_MS = 1000;            // the features' cards are re-read once a second (things rarely move)
 const TEXTO_MS = 2000;             // the minimap's text twin, at most every 2 s
+const LISTA_MAX = 400;             // C1: the big map lists everything in the world (nearest first), up to this many; the search narrows it
 const LISTA_MS = 1000;             // the big map's list, at most once a second while open
 const RADIOS = [15, 30, 60, 120];  // minimap zoom: metres from the centre to the edge
 const LLEGADA_M = 2.5;             // a waypoint this close is reached (and cleared, with a notice)
@@ -209,6 +213,22 @@ export function montarMapa(h: HostMapa) {
 
   // ---------- the waypoint ----------
   const limMini = crearLimitador(PASO_MS), limGrande = crearLimitador(PASO_MS);
+  // C2: «Ir» remembers where you were so «Volver» takes you back (the server still spaces trips by a few seconds)
+  let origenViaje: (Vec & { nombre: string }) | null = null;
+  function irA(m: { id: string; nombre: string; x: number; z: number }): void {
+    if (!h.teletransporte?.activo()) return;
+    if (yo) origenViaje = { x: yo.x, z: yo.z, nombre: "donde estabas" };
+    h.teletransporte.ir(m.x, m.z, m.nombre);
+    h.alIr?.({ id: m.id, nombre: m.nombre, x: m.x, z: m.z });
+    pintarDetalle();
+  }
+  function volver(): boolean {
+    if (!origenViaje || !h.teletransporte?.activo()) return false;
+    const o = origenViaje; origenViaje = null;
+    h.teletransporte.ir(o.x, o.z, o.nombre);
+    pintarDetalle();
+    return true;
+  }
   function marcarDestino(m: { id: string; nombre: string; x: number; z: number }): void {
     if (destino && destino.id === m.id) { quitarDestino("quitado"); return; }
     quitarDestino(null);
@@ -332,11 +352,13 @@ export function montarMapa(h: HostMapa) {
   zonaLienzo.append(gCanvas, controles, estadoImagen);
   const lado = document.createElement("aside");
   const detalle = document.createElement("section"); detalle.className = "detalle"; detalle.setAttribute("aria-live", "polite"); detalle.setAttribute("aria-label", "Detalle");
-  const hLista = document.createElement("h3"); hLista.id = "mapa-lista-titulo"; hLista.textContent = "Lo que hay cerca"; hLista.tabIndex = -1;
+  const hLista = document.createElement("h3"); hLista.id = "mapa-lista-titulo"; hLista.textContent = "Todo el mundo"; hLista.tabIndex = -1;
+  const buscar = document.createElement("input"); buscar.type = "search"; buscar.id = "mapa-buscar"; buscar.placeholder = "Buscar en el mundo…"; buscar.setAttribute("aria-label", "Buscar en la lista del mundo");
+  buscar.addEventListener("input", () => { listaT = -Infinity; pintarLista(); });
   const lista = document.createElement("ul"); lista.id = "mapa-lista"; lista.setAttribute("aria-labelledby", hLista.id);
   const hLeyenda = document.createElement("h3"); hLeyenda.textContent = "Leyenda";
   const leyenda = document.createElement("ul"); leyenda.className = "leyenda";
-  lado.append(detalle, hLista, lista, hLeyenda, leyenda);
+  lado.append(detalle, hLista, buscar, lista, hLeyenda, leyenda);
   panel.cuerpo.append(zonaLienzo, lado);
   const lg = lienzo(gCanvas);
   const gv: Vista = { cx: 0, cz: 0, escala: 3, giro: 0, ancho: 1, alto: 1 };
@@ -399,6 +421,12 @@ export function montarMapa(h: HostMapa) {
   // details of what you picked (a marker, or a point of the map) with «Marcar destino»
   function pintarDetalle(): void {
     detalle.replaceChildren();
+    if (origenViaje && h.teletransporte) {
+      const v = boton("", "Volver a donde estabas"); v.className = "ic volver"; v.innerHTML = icono("arrow-u-up-left", 18);
+      v.disabled = !h.teletransporte.activo();
+      v.addEventListener("click", () => volver());
+      detalle.append(v);
+    }
     if (!elegido) { const p = document.createElement("p"); p.textContent = "Elige algo en el mapa o en la lista para ver su detalle y marcarlo como destino."; detalle.append(p); return; }
     const t = document.createElement("h3"); t.textContent = elegido.nombre;
     const p = document.createElement("p");
@@ -412,7 +440,7 @@ export function montarMapa(h: HostMapa) {
       const activo = h.teletransporte.activo();
       const g = boton(activo ? "Ir" : "Ir (apagado en este mundo)");
       g.disabled = !activo;
-      g.addEventListener("click", () => h.teletransporte!.ir(e.x, e.z, e.nombre));
+      g.addEventListener("click", () => irA(e));
       detalle.append(g);
     }
   }
@@ -425,36 +453,44 @@ export function montarMapa(h: HostMapa) {
   // the HTML twin: nearest first, real buttons; rows are updated in place (focus never jumps), reordered only when
   // focus is outside the list
   let listaT = -Infinity;
-  const filas = new Map<string, { li: HTMLLIElement; ver: HTMLButtonElement; marcar: HTMLButtonElement; e: Entrada }>();
+  const filas = new Map<string, { li: HTMLLIElement; ver: HTMLButtonElement; marcar: HTMLButtonElement; ir: HTMLButtonElement; e: Entrada }>();
   function pintarLista(): void {
     if (!yo) return;
     // the waypoint is listed only when it is a point of the map (a marker that is the destination already says so)
     const real = destino && ultimos.some((m) => m.id === destino!.id) ? "destino" : "";
-    const entradas = cercanos(ultimos.filter((m) => m.id !== real), yo, reg, 50).map((e) => (e.id === "destino" && destino ? { ...e, id: destino.id } : e));
+    const q = buscar.value.trim().toLowerCase();
+    const entradas = cercanos(ultimos.filter((m) => m.id !== real), yo, reg, LISTA_MAX).filter((e) => !q || `${e.nombre} ${reg.tipo(e.tipo).nombre}`.toLowerCase().includes(q)).map((e) => (e.id === "destino" && destino ? { ...e, id: destino.id } : e));
     const vivos = new Set(entradas.map((e) => e.id));
     const foco = lista.contains(document.activeElement);
     for (const [id, f] of filas) if (!vivos.has(id)) { if (f.li.contains(document.activeElement)) hLista.focus(); f.li.remove(); filas.delete(id); }
     for (const e of entradas) {
       let f = filas.get(e.id);
       if (!f) {
-        const li = document.createElement("li"), ver = boton(""), marcar = boton("");
-        ver.className = "ver"; marcar.className = "marcar";
-        f = { li, ver, marcar, e };
+        const li = document.createElement("li"), ver = boton(""), marcar = boton(""), ir = boton("");
+        ver.className = "ver"; marcar.className = "marcar ic"; ir.className = "ir ic";
+        marcar.innerHTML = icono("map-pin", 18); ir.innerHTML = icono("crosshair", 18);
+        f = { li, ver, marcar, ir, e };
         const fx = f;
         ver.addEventListener("click", () => elegir({ id: fx.e.id, nombre: fx.e.nombre, tipo: fx.e.tipo, x: fx.e.x, z: fx.e.z, detalle: fx.e.detalle }, true));
         marcar.addEventListener("click", () => marcarDestino(fx.e));
-        li.append(ver, marcar); li.dataset.id = e.id;
+        if (h.teletransporte) li.append(ver, ir, marcar); else li.append(ver, marcar);
+        ir.addEventListener("click", () => irA(fx.e));
+        li.dataset.id = e.id;
         lista.appendChild(li); filas.set(e.id, f);
       }
       f.e = e;
       const texto = `${e.nombre} · ${reg.tipo(e.tipo).nombre.toLowerCase()} · ${e.texto}`;
       if (f.ver.textContent !== texto) f.ver.textContent = texto;
       const es = destino?.id === e.id, mt = es ? "Quitar destino" : "Marcar destino", ml = `${mt}: ${e.nombre}`;
-      if (f.marcar.textContent !== mt) f.marcar.textContent = mt;
-      if (f.marcar.getAttribute("aria-label") !== ml) f.marcar.setAttribute("aria-label", ml);
+      if (f.marcar.getAttribute("aria-label") !== ml) { f.marcar.setAttribute("aria-label", ml); f.marcar.title = mt; }
+      if (h.teletransporte) {
+        const activo = h.teletransporte.activo(), il = activo ? `Ir a ${e.nombre}` : "Ir (apagado en este mundo)";
+        if (f.ir.getAttribute("aria-label") !== il) { f.ir.setAttribute("aria-label", il); f.ir.title = il; }
+        f.ir.disabled = !activo;
+      }
     }
     if (!foco) for (const e of entradas) lista.appendChild(filas.get(e.id)!.li); // nearest first (moving rows only when focus is elsewhere)
-    if (!entradas.length && !lista.childElementCount) { const li = document.createElement("li"); li.textContent = "No hay nada cerca."; li.dataset.id = ""; lista.appendChild(li); }
+    if (!entradas.length && !lista.childElementCount) { const li = document.createElement("li"); li.textContent = q ? "Nada con ese nombre." : "No hay nada en el mundo."; li.dataset.id = ""; lista.appendChild(li); }
     else for (const li of [...lista.children] as HTMLElement[]) if (li.dataset.id === "") li.remove();
   }
   function pintarLeyenda(): void {
@@ -596,6 +632,8 @@ export function montarMapa(h: HostMapa) {
     /** Counts by kind at the last draw of each map, and how often each drew (redraw rate). */
     dibujado: () => ({ mini: { ...dibujado.mini }, grande: { ...dibujado.grande } }),
     stats: () => ({ mini: limMini.stats, grande: limGrande.stats, imagenes, vueltas, ocultas, corte }),
+    /** C2: go back to where you were before the last «Ir» (false when there is nowhere to go back to). */
+    volver, puedeVolver: () => origenViaje !== null,
     abrir: () => panel.abrir(), cerrar: () => panel.cerrar(), abierto: () => panel.abierto,
     /** The zone's picture: how it was made, what it cost, whether it has something in it (U14: where it was cut and how
      * many segments the cut gave). */

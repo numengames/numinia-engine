@@ -33,7 +33,10 @@
 #mapa-lista { list-style: none; padding: 0; }
 #mapa-lista li { display: flex; gap: 4px; margin: 3px 0; }
 #mapa-lista .ver { flex: 1; text-align: left; font-weight: 400; background: rgba(238, 242, 246, .1); }
-#mapa-lista .marcar { white-space: nowrap; background: #ffd27a; color: #23303b; }
+#mapa-lista .ic { flex: none; width: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: rgba(238, 242, 246, .14); }
+#mapa-lista .ir { background: #ffd27a; color: #23303b; }
+#mapa-lista .ic:disabled { opacity: .45; }
+#mapa-buscar { width: 100%; box-sizing: border-box; margin: 4px 0; }
 .leyenda { list-style: none; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; }
 .leyenda li { display: flex; align-items: center; gap: 6px; }
 .leyenda canvas { width: 18px; height: 18px; border-radius: 3px; }
@@ -88,3 +91,4 @@ html:not([data-aparato^="movil"]) #ficha .lateral { display: flex; flex-directio
 .panel-j5 .nota { font-size: 12px; color: #c9d3dc; margin: 0 0 6px; }
 .panel-j5 .veredicto.ok { color: #9fe8a8; }
 .panel-j5 .veredicto.mal { color: #ff9a9e; }
+#mapa-grande .detalle .volver { float: right; width: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: rgba(238, 242, 246, .14); }
