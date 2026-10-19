@@ -37,7 +37,7 @@ import { habitantes, trayectoria, especiesDe, ventanaDe, fundido, faseDelDia, FA
 import type { Habitante, Especie, TablaFauna } from "../../../relieve/src/fauna.ts";
 import type { Nivel } from "../calidad.ts";
 import type { Zona } from "./terreno.ts";
-import { CASA, MAQUINA } from "./paleta.ts";
+import { CASA, MAQUINA, FAUNA_R67 } from "./paleta.ts";
 import { RAREZA_FACTOR } from "./mariposas.ts";
 
 const TAU = Math.PI * 2;
@@ -178,8 +178,9 @@ export function geometriaAve(): GeometriaAve {
   const cabW = (i: number): [number, number, number, number] => (i === 0 ? [0.55, 0.45, 0, 1] : [0.05, 0.95, 0, 0.9]);
   const H0 = h0.map((r, i) => V(P_CABEZA, r, cabW(i), { far: { r: i === 0 ? [0, -0.05, 0.35] : r } }));
   const h1 = [[0, 0.38, 0.35], [0.38, -0.25, 0.35], [-0.38, -0.25, 0.35]] as R3[], punta: R3 = [0, -0.05, 0.35];
-  const H1 = h1.map((r, i) => V(P_PICO, r, cabW(i === 0 ? 1 : 2), { t: 0, far: { r: punta, t: 1 } }));
-  const BP = V(P_PICO, punta, [0.1, 0.55, 0.35, 0.7], { t: 1 });
+  // R6.7: the beak is a brass plate (pl 1: the rarity's polished brass / copper), no extra triangle
+  const H1 = h1.map((r, i) => V(P_PICO, r, cabW(i === 0 ? 1 : 2), { t: 0, far: { r: punta, t: 1 }, pl: 1 }));
+  const BP = V(P_PICO, punta, [0.1, 0.55, 0.35, 0.7], { t: 1, pl: 1 });
   anillo(H0, H1);
   for (let i = 0; i < 3; i++) tri(H1[i], H1[(i + 1) % 3], BP);
 
@@ -190,7 +191,8 @@ export function geometriaAve(): GeometriaAve {
   const a = norm(sub(h1[1], h0[1])), b = norm(sub(h0[0], h0[1])), nu = norm([0.82, 0.5, 0.27]), c: R3 = [cen[0] + nu[0] * 0.05, cen[1] + nu[1] * 0.05, cen[2] + nu[2] * 0.05];
   const at = (s: number, p: number, q: number): R3 => [c[0] + b[0] * p + a[0] * q, c[1] + b[1] * p + a[1] * q, c[2] + b[2] * p + a[2] * q].map((v, k) => (k === 0 ? v * s : v)) as R3;
   for (const s of [1, -1]) {
-    const f = { far: { r: h0[1] } };
+    // R6.7: pl 3 = an EYE: a turquoise lens (the goggles of the house), its glow turquoise too, set in the brass plate of the head
+    const f = { far: { r: h0[1] }, pl: 3 };
     tri(V(P_CABEZA, at(s, 0.16, 0), [0, 1, 1, 1], f), V(P_CABEZA, at(s, -0.12, -0.15), [0, 1, 1, 1], f), V(P_CABEZA, at(s, -0.12, 0.15), [0, 1, 1, 1], f));
   }
 
@@ -245,7 +247,7 @@ export type EntradaMaterial = {
 const luz3 = (n: N) => n as N;
 /** The bird material: instance attributes iA (anchor x,y,z · phase) iB (window start · breed · member · flock size) iC (loop phase q · entered at · seed · exposed yaw+1). */
 export function materialAves(e: EntradaMaterial): THREE.MeshPhongNodeMaterial {
-  const mat = new THREE.MeshPhongNodeMaterial({ side: THREE.DoubleSide, flatShading: true, shininess: 46, specular: new THREE.Color(0x8d96a3) });
+  const mat = new THREE.MeshPhongNodeMaterial({ side: THREE.DoubleSide, flatShading: true, shininess: 46, specular: new THREE.Color(CASA.ceniza) });  // the start value only: specularNode below rules
   mat.name = "aves"; mat.forceSinglePass = true;
   const uT = e.tiempo as N, uCam = e.camara as N, K = e.tabla as N, wind = e.viento as N;
   const iA = attribute("iA", "vec4") as N, iB = attribute("iB", "vec4") as N, iC = attribute("iC", "vec4") as N;
@@ -387,15 +389,15 @@ export function materialAves(e: EntradaMaterial): THREE.MeshPhongNodeMaterial {
   const rar = k1.w as N, vRar = rar.toVarying("ave_rar") as N;
   const lc = (hex: number) => { const c = new THREE.Color(hex); return vec3(c.r, c.g, c.b) as N; };
   const plato = mix(mix(lc(MAQUINA.laton), lc(MAQUINA.cobre), step(0.5, rar)), cuerpo, 0.3).mul(rar.mul(0.5).add(0.78)) as N;
-  const placa = clamp(aK.w, 0, 1) as N, valvula = clamp(aK.w.sub(1), 0, 1) as N;
+  const ojoA = clamp(aK.w.sub(2), 0, 1) as N, placa = clamp(aK.w, 0, 1) as N, valvula = clamp(aK.w.sub(1), 0, 1).sub(ojoA) as N;   // pl: 0–1 plate, 2 valve, 3 eye (R6.7)
   const pelo = ala.mul(aC.x).add(cuerpo.mul(aC.y)) as N;
   const tono = tj.sub(0.5) as N;
   const tonal = mix(mix(pelo, lc(CASA.bronce), step(tono, 0).mul(tono.abs()).mul(0.5)), lc(CASA.arena), step(0, tono).mul(tono).mul(0.4)).mul(tono.mul(0.24).add(1)) as N;
-  const colBase = mix(mix(tonal, plato, placa.mul(0.8)), lc(MAQUINA.laton).mul(1.25), valvula).mul(aC.w).mul(oneMinus(wl.mul(0.6))) as N;
+  const colBase = mix(mix(mix(tonal, plato, placa.mul(0.8)), lc(MAQUINA.laton).mul(1.25), valvula), lc(FAUNA_R67.ojoLente), ojoA).mul(aC.w).mul(oneMinus(wl.mul(0.6))) as N;
   mat.shininessNode = mix(float(12), float(95), vRar) as N;
   mat.specularNode = mix(vec3(0.3, 0.28, 0.26), vec3(0.95, 0.85, 0.6), vRar) as N;
   (mat as N).colorNode = luz3(colBase.toVarying("ave_col"));
-  const brillo = luz.mul(wl.add(valvula.mul(0.55))).mul(pulso.mul(0.8).add(0.25)).mul(2.4).toVarying("ave_luz") as N;
+  const brillo = mix(luz, lc(FAUNA_R67.ojoLente), ojoA).mul(wl.add(valvula.mul(0.55))).mul(pulso.mul(0.8).add(0.25)).mul(2.4).toVarying("ave_luz") as N;
   const circuloV = circ.toVarying("ave_cir") as N, pulsoC = pulso.mul(0.5).add(0.5).toVarying("ave_pc") as N;
   const aU = attribute("aU", "vec4") as N;
   const m1 = oneMinus(smoothstep(0.6, 1.0, abs(aU.x))) as N, m2 = oneMinus(smoothstep(0.6, 1.0, abs(aU.y))) as N;

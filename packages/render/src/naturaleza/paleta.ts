@@ -68,3 +68,62 @@ export function mezcla(a: number, b: number, t: number): number {
   const bl = Math.round((a & 255) * (1 - k) + (b & 255) * k);
   return (r << 16) | (g << 8) | bl;
 }
+
+// R6.7
+/**
+ * R6.7 · Fauna biomecánica en el idioma de la casa (las láminas de Pablo): ojos = dos lentes turquesa con aro de latón (las gafas de los
+ * personajes); alas de mariposa con marco de latón/cobre y relleno hondo (ámbar, grana, turquesa profundo, verdemar, latón), nunca pastel;
+ * luciérnagas = lágrimas de cristal con alma de color (Lágrimas Errantes). El tinte épico sale de la Épica de la escala de rareza, lejos del coral.
+ */
+export const FAUNA_R67 = {
+  /** Lente del ojo y su brillo central; el aro es latón. */
+  ojoLente: CASA.turquesa, ojoBrillo: CASA.verdemar, ojoAro: MAQUINA.laton,
+  /** Cáscara de la lágrima de cristal: verdemar del cristal templado con arena (se suma a la noche, nunca blanco puro). */
+  cristal: mezcla(MAQUINA.cristal, CASA.arena, 0.25),
+  /** Nervios de latón de la lágrima (épicas y legendarias). */
+  nervio: mezcla(MAQUINA.laton, CASA.ambar, 0.35),
+  /** Oro de las legendarias (cuerpo y marco). */
+  oro: mezcla(MAQUINA.laton, CASA.ambar, 0.6),
+  /** Épica de fauna: la Épica tirando a grana (orquídea), bien lejos del coral y de la Épica pura. */
+  epicaOrquidea: mezcla(RAREZA.epica, CASA.grana, 0.4),
+} as const;
+
+type ColoresBicho = { cuerpo: number; ala: number; luz: number; circuito: number };
+const cuerpoDe = { comun: CASA.bronce, comunHierro: MAQUINA.hierro, comunCeniza: CASA.ceniza, rara: MAQUINA.laton, epica: MAQUINA.cobre, legendaria: FAUNA_R67.oro } as const;
+/** Cáscara (ala) y filamento (circuito) de las luciérnagas por rareza: no se dibujan, pero la tabla los guarda (sonido, fichas). */
+const cascara = { comun: mezcla(CASA.bronce, CASA.ceniza, 0.35), rara: mezcla(RAREZA.rara, CASA.bronce, 0.55), epica: mezcla(MAQUINA.cobre, RAREZA.epica, 0.3), legendaria: mezcla(CASA.arena, CASA.ambar, 0.4) } as const;
+/**
+ * R6.7 · Colores de las 12 mariposas y las 12 luciérnagas de la casa. `features/naturaleza/fauna.json` los copia en hex (un JSON no
+ * importa TS); el test `naturaleza-r6-7` exige que coincidan, así ningún color de esas dos familias es un hex suelto.
+ */
+export const COLORES_FAUNA: Record<string, ColoresBicho> = {
+  // mariposas · comunes (cuerpo oscuro): relleno hondo
+  "mariposa-rele": { cuerpo: cuerpoDe.comun, ala: CASA.turquesaProfundo, luz: mezcla(CASA.turquesa, CASA.verdemar, 0.2), circuito: VERDES.verdin },
+  "mariposa-bobina": { cuerpo: cuerpoDe.comun, ala: mezcla(MAQUINA.cobre, CASA.grana, 0.3), luz: CASA.ambar, circuito: MAQUINA.cobre },
+  "mariposa-laton": { cuerpo: cuerpoDe.comunHierro, ala: MAQUINA.laton, luz: mezcla(CASA.ambar, CASA.arena, 0.25), circuito: CASA.ambarTostado },
+  "mariposa-lente": { cuerpo: cuerpoDe.comunCeniza, ala: mezcla(CASA.verdemar, CASA.turquesaProfundo, 0.4), luz: CASA.verdemar, circuito: CASA.turquesa },
+  "mariposa-engranaje": { cuerpo: cuerpoDe.comunHierro, ala: mezcla(CASA.grana, CASA.bronce, 0.3), luz: CASA.coral, circuito: CASA.grana },
+  // raras (cuerpo latón)
+  "mariposa-valvula": { cuerpo: cuerpoDe.rara, ala: mezcla(RAREZA.rara, CASA.turquesaProfundo, 0.35), luz: mezcla(RAREZA.rara, CASA.arena, 0.3), circuito: CASA.turquesaProfundo },
+  "mariposa-verdin": { cuerpo: cuerpoDe.rara, ala: mezcla(VERDES.verdin, CASA.verdemar, 0.3), luz: mezcla(CASA.verdemar, VERDES.verdin, 0.3), circuito: VERDES.verdin },
+  "mariposa-filamento": { cuerpo: cuerpoDe.rara, ala: CASA.ambar, luz: mezcla(CASA.ambar, CASA.coral, 0.25), circuito: mezcla(CASA.ambar, MAQUINA.cobre, 0.4) },
+  // épicas (cuerpo cobre): la Épica de la escala
+  "mariposa-condensador": { cuerpo: cuerpoDe.epica, ala: FAUNA_R67.epicaOrquidea, luz: RAREZA.epica, circuito: mezcla(RAREZA.epica, CASA.bronce, 0.4) },
+  "mariposa-cuarzo": { cuerpo: cuerpoDe.epica, ala: RAREZA.epica, luz: mezcla(RAREZA.epica, CASA.arena, 0.45), circuito: mezcla(RAREZA.epica, MAQUINA.cobre, 0.3) },
+  // legendarias (cuerpo de oro)
+  "mariposa-aurora": { cuerpo: cuerpoDe.legendaria, ala: mezcla(CASA.ambar, CASA.grana, 0.3), luz: mezcla(CASA.ambar, CASA.arena, 0.45), circuito: CASA.ambar },
+  "mariposa-gnomon": { cuerpo: cuerpoDe.legendaria, ala: mezcla(CASA.turquesaProfundo, CASA.noche, 0.35), luz: mezcla(CASA.ambar, CASA.arena, 0.45), circuito: CASA.ambar },
+  // luciérnagas: la luz es el alma de la lágrima
+  "luciernaga-ambar": { cuerpo: cuerpoDe.comun, ala: cascara.comun, luz: CASA.ambar, circuito: mezcla(CASA.ambar, CASA.bronce, 0.4) },
+  "luciernaga-arena": { cuerpo: cuerpoDe.comun, ala: cascara.comun, luz: mezcla(CASA.arena, CASA.ambar, 0.2), circuito: mezcla(CASA.arena, CASA.bronce, 0.4) },
+  "luciernaga-verde": { cuerpo: cuerpoDe.comun, ala: cascara.comun, luz: CASA.verde, circuito: mezcla(CASA.verde, CASA.bronce, 0.4) },
+  "luciernaga-verdemar": { cuerpo: cuerpoDe.comun, ala: cascara.comun, luz: CASA.verdemar, circuito: mezcla(CASA.verdemar, CASA.bronce, 0.4) },
+  "luciernaga-cristal": { cuerpo: cuerpoDe.rara, ala: cascara.rara, luz: RAREZA.rara, circuito: mezcla(RAREZA.rara, CASA.bronce, 0.4) },
+  "luciernaga-turquesa": { cuerpo: cuerpoDe.rara, ala: cascara.rara, luz: mezcla(CASA.turquesa, CASA.verdemar, 0.1), circuito: mezcla(CASA.turquesa, CASA.bronce, 0.3) },
+  "luciernaga-coral": { cuerpo: cuerpoDe.rara, ala: cascara.rara, luz: CASA.coral, circuito: mezcla(CASA.coral, CASA.bronce, 0.4) },
+  "luciernaga-verdin": { cuerpo: cuerpoDe.rara, ala: cascara.rara, luz: mezcla(VERDES.verdin, CASA.verde, 0.5), circuito: mezcla(VERDES.verdin, CASA.bronce, 0.3) },
+  "luciernaga-amatista": { cuerpo: cuerpoDe.epica, ala: cascara.epica, luz: RAREZA.epica, circuito: mezcla(RAREZA.epica, CASA.bronce, 0.4) },
+  "luciernaga-rele": { cuerpo: cuerpoDe.epica, ala: cascara.epica, luz: FAUNA_R67.epicaOrquidea, circuito: mezcla(FAUNA_R67.epicaOrquidea, CASA.bronce, 0.4) },
+  "luciernaga-brasa": { cuerpo: cuerpoDe.legendaria, ala: cascara.legendaria, luz: mezcla(CASA.ambar, CASA.coral, 0.4), circuito: CASA.ambar },
+  "luciernaga-prisma": { cuerpo: cuerpoDe.legendaria, ala: cascara.legendaria, luz: mezcla(CASA.ambar, CASA.arena, 0.45), circuito: CASA.ambar },
+};
