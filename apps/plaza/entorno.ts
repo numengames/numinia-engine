@@ -1,4 +1,4 @@
-// The environment and elements section of the builder (H4/H8): presets, a few sliders (sun, fog, wind, exposure),
+// The environment and elements section of the builder (H4/H8): the «Naturaleza» switch, presets, a few sliders (sun, fog, wind, exposure),
 // the ground, and «Elementos» (put water, fire, smoke or dust in front of you; resize, move, remove). Real HTML
 // buttons and labelled inputs (screen readers, keyboard). A section of its own, shown only to builders while the
 // build panel is open (the constructor agent owns that panel). It only asks: the server decides (features/entorno,
@@ -17,6 +17,8 @@ type Elementos = {
   aqui(): { x: number; z: number };
   poner(tipo: string, donde?: { x: number; y?: number; z: number }): Res; escalar(f: number): Res; desplazar(dx: number, dz: number): Res; quitar(): Res;
 };
+/** Interruptor «Naturaleza» (features/naturaleza/client.ts `interruptor`): the world's nature on or off; the server decides. */
+type Naturaleza = { estado: { ultimoRechazo: string }; activa(): boolean; poner(activa: boolean): Res };
 type Vista = {
   cam?: { yaw?: () => number };
   sueloBajo?: (x: number, y: number) => { x: number; y?: number; z: number } | null;
@@ -34,9 +36,16 @@ const CSS = `
 #panel-entorno button:focus-visible, #panel-entorno input:focus-visible, #panel-entorno select:focus-visible { outline: 3px solid #ffd27a; }
 #panel-entorno label { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; margin: 6px 0 2px; }
 #panel-entorno label input[type=range] { grid-column: 1 / 3; width: 100%; }
-#panel-entorno .estado { color: #ffd27a; min-height: 1.4em; }`;
+#panel-entorno .estado { color: #ffd27a; min-height: 1.4em; }
+#panel-entorno .interruptor { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; }
+#panel-entorno .interruptor[hidden] { display: none; }
+#panel-entorno button[role=switch] { position: relative; width: 52px; height: 30px; padding: 0; border-radius: 15px; background: #55606b; flex: none; }
+#panel-entorno button[role=switch]::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--n-texto, #eef2f6); transition: left .15s; }
+#panel-entorno button[role=switch][aria-checked="true"] { background: #4caf7a; }
+#panel-entorno button[role=switch][aria-checked="true"]::after { left: 25px; }
+#panel-entorno button[role=switch][aria-busy="true"] { opacity: .6; }`;
 
-export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista): void {
+export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu?: Naturaleza): void {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const panel = document.createElement("section");
   panel.id = "panel-entorno"; panel.hidden = true; panel.setAttribute("aria-label", "Entorno y elementos");
@@ -88,9 +97,27 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista): voi
     const here = elem.aqui();
     return { x: here.x - Math.sin(yaw) * 3, z: here.z - Math.cos(yaw) * 3 };
   };
+  // Interruptor «Naturaleza» (R-1): a phone-style switch, only for whoever may build (amb.estado.puede = the server's
+  // «construir»). Clicking only asks; the switch follows the server's state (the file it wrote), never its own click.
+  const filaNat = document.createElement("div"); filaNat.className = "interruptor"; filaNat.hidden = true;
+  const natTexto = document.createElement("span"); natTexto.id = "naturaleza-etiqueta"; natTexto.textContent = "Naturaleza";
+  const natBoton = document.createElement("button"); natBoton.type = "button"; natBoton.id = "naturaleza-interruptor";
+  natBoton.setAttribute("role", "switch"); natBoton.setAttribute("aria-checked", "false"); natBoton.setAttribute("aria-labelledby", "naturaleza-etiqueta");
+  natBoton.title = "Encender o apagar la naturaleza de este mundo (relieve, árboles, hierba, agua, fauna) para todos. Se guarda en naturaleza.json.";
+  let natEsperando: boolean | null = null;
+  natBoton.addEventListener("click", () => {
+    if (!natu) return;
+    const quiero = !natu.activa(), r = natu.poner(quiero);
+    natEsperando = r.ok ? quiero : null;
+    natBoton.setAttribute("aria-busy", String(r.ok));
+    estado.textContent = r.ok ? (quiero ? "Encendiendo la naturaleza…" : "Apagando la naturaleza…") : `No: ${r.why}`;
+    natBoton.blur();
+  });
+  filaNat.append(natTexto, natBoton);
   const sel = document.createElement("p");
   panel.append(
     titulo("h2", "Entorno"),
+    filaNat,
     fila("Entornos con nombre", ...presets),
     deslizador("Altura del sol", "solAltura", -30, 90, 1, (v) => `${v}°`),
     deslizador("Rumbo del sol", "solRumbo", -180, 180, 5, (v) => `${v}°`),
@@ -123,7 +150,16 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista): voi
     }
     const o = elem.seleccion();
     sel.textContent = o ? `Elemento: ${String(o.nombre) || ELEMENTO_NOMBRE[String(o.tipo)] || String(o.tipo)} · ${o.id}` : "Ningún elemento seleccionado ni a menos de 12 m.";
-    const rechazo = amb.estado.ultimoRechazo || elem.estado.ultimoRechazo;
-    if (rechazo) { estado.textContent = `No: ${rechazo}`; amb.estado.ultimoRechazo = ""; elem.estado.ultimoRechazo = ""; }
+    if (natu) {
+      filaNat.hidden = !amb.estado.puede;
+      const on = natu.activa();
+      natBoton.setAttribute("aria-checked", String(on));
+      if (natEsperando !== null && (on === natEsperando || natu.estado.ultimoRechazo)) {
+        if (on === natEsperando) estado.textContent = on ? "Naturaleza encendida." : "Naturaleza apagada.";
+        natEsperando = null; natBoton.setAttribute("aria-busy", "false");
+      }
+    }
+    const rechazo = amb.estado.ultimoRechazo || elem.estado.ultimoRechazo || (natu?.estado.ultimoRechazo ?? "");
+    if (rechazo) { estado.textContent = `No: ${rechazo}`; amb.estado.ultimoRechazo = ""; elem.estado.ultimoRechazo = ""; if (natu) natu.estado.ultimoRechazo = ""; }
   }, 300);
 }

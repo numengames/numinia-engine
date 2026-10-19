@@ -931,3 +931,22 @@ usa `uniform(new THREE.Color(h))`.
 
 **Medido** (banco, RTX 4080, WebGPU, 3360×1760, 2 rondas × 120 cuadros, frente a E01 `438e061` en la misma sesión): mismas llamadas y triángulos en A–D; escena entera +0,002 ms (A), +0,002 (B), **+0,013 (C)**, +0,003 (D) de GPU p50. El coste de C es del fragmento (100 % escala con píxeles; quitar la banda pintada no lo cambia). Tests: `test/naturaleza-arboles.test.ts` (pieza en cada árbol, ~1/30 obras, forma de la obra, factor de noche). Fotos: `work/naturaleza/fotos/e50-*.png`. Página: `work/saber-3d/queries/e50-arboles-con-maquina.md`. Es un aspecto nuevo: **decide Pablo**.
 
+
+## Interruptor · Encender y apagar la naturaleza desde dentro del mundo (`encender`)
+
+**Qué es.** Quien puede construir en un mundo (el mismo permiso que el constructor, el entorno y el cable: `api.puede(e, "construir")`,
+roles del mundo / pase de numinia.com / `/construir`; ningún rol nuevo) abre **Construir (C)** y, arriba del todo de la sección
+**Entorno**, ve un interruptor de móvil **«Naturaleza»**. Al pulsarlo la página solo pide (`naturaleza.encender { activa }`); el servidor
+comprueba el permiso, vuelve a leer `naturaleza.json` de la carpeta del mundo, cambia **solo** `activa` (las demás claves tal cual, en su
+orden; sin fichero lo crea con `{ schema, activa }`), lo valida igual que al arrancar, lo escribe de forma atómica (temporal + rename;
+`packages/server/src/mundo.ts escribirMundo`) y, solo si se escribió, cambia el estado. Todas las páginas lo montan o lo quitan en vivo
+(`view.naturaleza.aplicar`: al apagar libera todo y devuelve el suelo plano, los pilares `hitos` y el cielo del mundo) y la instancia
+rehace la colisión del terreno (N5) desde el mismo estado. Sin reiniciar.
+
+**Lo que no hace.** A quien no puede construir no le sale el interruptor y el servidor le dice que no. Un `naturaleza.json` roto (JSON mal
+escrito) o con errores **no se toca**: el constructor lee «arréglalo a mano». Un mundo sin fichero y sin pulsar nada no publica nada: se ve
+exactamente como antes. Sin carpeta de mundo (servidor sin `MUNDO_DIR`/`MOTOR_MUNDO`) el cambio vale hasta reiniciar.
+
+**Pruebas:** `test/naturaleza-interruptor.test.ts` (6: invitado rechazado y fichero intacto byte a byte, apagar y encender guardando las
+otras claves y sin dejar temporales, todas las páginas reciben el estado y el aviso, fichero que falta creado, roto o malo nunca pisado,
+sin carpeta solo en memoria).
