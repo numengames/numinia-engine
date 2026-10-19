@@ -1,7 +1,7 @@
 // S6s: la máquina de pasos (pura): cuándo suena un paso, un salto y un aterrizaje.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { crearPasos, ZANCADA, AIRE_MIN_S } from "../apps/plaza/sonidos.ts";
+import { crearPasos, PASO_M, AIRE_MIN_S } from "../apps/plaza/sonidos.ts";
 
 const DT = 0.05;
 test("quieto no suena", () => {
@@ -9,16 +9,33 @@ test("quieto no suena", () => {
   for (let i = 0; i < 40; i++) assert.deepEqual(p({ y: 0, speed: 0, grounded: true }, DT), []);
 });
 
-test("caminando a 4 m/s suena un paso cada zancada (≈ 2,9 por segundo)", () => {
-  const p = crearPasos(); let n = 0;
-  for (let i = 0; i < 20; i++) n += p({ y: 0, speed: 4, grounded: true }, DT).length; // 1 s
-  assert.ok(n === 2 || n === 3, `${n} pasos en 1 s a 4 m/s (zancada ${ZANCADA.camina} m)`);
+const contar = (speed: number, s = 1) => { const p = crearPasos(); const q: string[] = []; for (let i = 0; i < s / DT; i++) q.push(...p({ y: 0, speed, grounded: true }, DT)); return q; };
+
+test("caminando (1,5 m/s) suenan ≈ 2 pasos por segundo: la cadencia de una persona, un sonido por pie", () => {
+  const n = contar(1.5, 4).length / 4;
+  assert.ok(n >= 1.8 && n <= 2.2, `${n} pasos/s (cada pie ${PASO_M.camina} m)`);
 });
 
-test("corriendo la zancada es mayor pero el ritmo es mayor", () => {
-  const p = crearPasos(); let n = 0;
-  for (let i = 0; i < 20; i++) n += p({ y: 0, speed: 8, grounded: true }, DT).length;
-  assert.ok(n >= 4 && n <= 5, `${n}`);
+test("corriendo (4 m/s) el ritmo sube, ≈ 2,9 por segundo, sin ametrallar", () => {
+  const n = contar(4, 4).length / 4;
+  assert.ok(n >= 2.6 && n <= 3.1, `${n} pasos/s`);
+});
+
+test("los pies se turnan, empezando por el derecho, y vuelven a empezar tras pararse", () => {
+  const q = contar(1.5, 3);
+  assert.equal(q[0], "derecho");
+  q.forEach((x, i) => { if (i) assert.notEqual(x, q[i - 1], `dos «${x}» seguidos en ${i}`); });
+  const p = crearPasos(); const r: string[] = [];
+  for (let i = 0; i < 12; i++) r.push(...p({ y: 0, speed: 1.5, grounded: true }, DT));
+  for (let i = 0; i < 10; i++) p({ y: 0, speed: 0, grounded: true }, DT);
+  const tras: string[] = []; for (let i = 0; i < 12; i++) tras.push(...p({ y: 0, speed: 1.5, grounded: true }, DT));
+  assert.equal(tras[0], "derecho");
+});
+
+test("al arrancar, el primer pie apoya a medio paso (≈ 0,25 s caminando), no al instante", () => {
+  const p = crearPasos(); let t = 0;
+  while (!p({ y: 0, speed: 1.5, grounded: true }, DT).length) t += DT;
+  assert.ok(t >= 0.15 && t <= 0.35, `${t} s`);
 });
 
 test("el salto suena al despegar y el aterrizaje al caer tras un rato en el aire", () => {

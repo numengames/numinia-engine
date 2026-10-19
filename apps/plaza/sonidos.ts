@@ -21,12 +21,14 @@ import { crearPuerta, materialDeSuelo, MATERIAL_DEF, type Material, type Opcione
 import { puente } from "./sonar.ts";
 
 export type Cuerpo = { y: number; speed: number; grounded: boolean };
-export type Paso = "paso" | "salto" | "aterrizaje";
+export type Paso = "izquierdo" | "derecho" | "salto" | "aterrizaje";
 
-/** Zancada (m) al caminar y al correr: un paso suena cada vez que se recorre esa distancia. */
-export const ZANCADA = { camina: 1.4, corre: 1.9 } as const;
-/** Por encima de esta velocidad (m/s) se considera que corre (caminar ≈ 4, correr ≈ 8). */
-export const UMBRAL_CORRE = 6;
+/** Lo que avanza UN pie (m), no la zancada entera: cada pie que apoya suena una vez. Con la velocidad del motor
+ *  (caminar 1,5 m/s, correr 4: packages/sim) salen ≈ 2 pasos por segundo caminando y ≈ 2,9 corriendo, la cadencia
+ *  de una persona. Antes sonaba uno por cada 1,4 m: caminando, un solo pie cada segundo. */
+export const PASO_M = { camina: 0.75, corre: 1.4 } as const;
+/** Por encima de esta velocidad (m/s) corre (caminar 1,5, correr 4). */
+export const UMBRAL_CORRE = 2.5;
 /** Hay que haber estado así de tiempo en el aire (s) para que el aterrizaje suene: bajar un escalón no es un golpe. */
 export const AIRE_MIN_S = 0.25;
 
@@ -35,7 +37,7 @@ export const COMPARTIDOS: readonly string[] = ["puerta", "dados", "dardo-lanzar"
 
 /** Máquina de pasos: se le da el cuerpo y el tiempo que pasó, y devuelve los sonidos que tocan. Sin DOM, sin audio. */
 export function crearPasos() {
-  let yAntes: number | null = null, enAire = false, aire = 0, dist = 0;
+  let yAntes: number | null = null, enAire = false, aire = 0, dist = 0, quieto = true, izquierdo = false;
   return function paso(c: Cuerpo, dt: number): Paso[] {
     const fuera: Paso[] = [];
     const sube = yAntes !== null && c.y - yAntes > 0.04;
@@ -46,10 +48,12 @@ export function crearPasos() {
       return fuera;
     }
     if (enAire) { enAire = false; if (aire >= AIRE_MIN_S) fuera.push("aterrizaje"); aire = 0; }
-    if (c.speed < 0.5) { dist = 0; return fuera; }
+    const z = c.speed > UMBRAL_CORRE ? PASO_M.corre : PASO_M.camina;
+    if (c.speed < 0.5) { quieto = true; return fuera; }
+    // al arrancar, el primer pie apoya a medio paso (no al primer centímetro, ni un paso entero después)
+    if (quieto) { quieto = false; dist = z / 2; izquierdo = false; }
     dist += c.speed * dt;
-    const z = c.speed > UMBRAL_CORRE ? ZANCADA.corre : ZANCADA.camina;
-    if (dist >= z) { dist -= z; fuera.push("paso"); }
+    if (dist >= z) { dist -= z; fuera.push(izquierdo ? "izquierdo" : "derecho"); izquierdo = !izquierdo; }
     return fuera;
   };
 }
@@ -103,20 +107,23 @@ export function montarSonidos(p: Pagina, puerta: Puerta = crearPuerta({ nucleo: 
   const materialAhora = (): Material => {
     try { return p.suelo ? materialDeSuelo(p.suelo()) : MATERIAL_DEF; } catch { return MATERIAL_DEF; }
   };
-  const paso = (material: Material = materialAhora()): boolean => {
-    // el cooldown y la variación (±4 % de tono, ±2 dB) los pone la puerta con la semilla: ya no hay que detunar a mano
-    const id = `pasos-${material}`;
-    return sonarLocal(id, { gain: 0.35 }, 120);
-  };
+  // Los pasos propios son lo que más se repite de todo el motor: tienen que quedarse DEBAJO de la mezcla, que se
+  // sientan más que se oigan. Cada pie suena distinto (el izquierdo un poco más grave y más suave: nadie pisa igual
+  // con los dos) y la puerta nunca repite la misma grabación dos veces seguidas; encima va su variación de ±4 % de
+  // tono y ±1 dB. Correr pisa más fuerte que caminar.
+  const PIE = { izquierdo: { tono: 0.96, gain: 0.85 }, derecho: { tono: 1.02, gain: 1 } } as const;
+  const paso = (material: Material = materialAhora(), pie: keyof typeof PIE = "derecho", corre = false): boolean =>
+    sonarLocal(`pasos-${material}`, { gain: (corre ? 0.2 : 0.14) * PIE[pie].gain, tono: PIE[pie].tono }, 120);
 
   // pasos, salto y aterrizaje: míos, locales, a mis pies (bus «pasos-propios»)
   const pasos = crearPasos();
   const reloj = setInterval(() => {
     if (p.session.entity < 0) return;
-    for (const q of pasos(p.session.selfPosition(1), 0.05)) {
-      if (q === "salto") sonarLocal("salto", { gain: 0.5 }, 150);
-      else if (q === "aterrizaje") sonarLocal("aterrizaje", { gain: 0.7 }, 150);
-      else paso();
+    const c = p.session.selfPosition(1);
+    for (const q of pasos(c, 0.05)) {
+      if (q === "salto") sonarLocal("salto", { gain: 0.22 }, 150);
+      else if (q === "aterrizaje") sonarLocal("aterrizaje", { gain: 0.32 }, 150);
+      else paso(undefined, q, c.speed > UMBRAL_CORRE);
     }
   }, 50);
   // en Node (las pruebas) un intervalo mantiene vivo el proceso para siempre: `unref` lo deja sin voto

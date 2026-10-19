@@ -183,6 +183,21 @@ test("la misma semilla elige la misma variante (y el mismo tono) en dos clientes
   assert.equal(huella("pez"), huella("pez"));
 });
 
+test("sin semilla (lo local, mis pasos) nunca suena la misma grabación dos veces seguidas", () => {
+  const b = banco();
+  const variantes = [{ buffer: buf(1, "a") }, { buffer: buf(1, "b") }, { buffer: buf(1, "c") }];
+  const oidas: string[] = [];
+  for (let i = 0; i < 60; i++) {
+    const antes = fuentesDe(b).length;
+    b.v.reproducir({ id: "pasos", variantes, cooldown: 0 });
+    const f = fuentesDe(b);
+    if (f.length > antes) oidas.push((f.at(-1)!.buffer as unknown as { nombre: string }).nombre); // solo las que sonaron de verdad
+  }
+  assert.ok(oidas.length >= 20, `${oidas.length} sonaron`);
+  oidas.forEach((n, i) => { if (i) assert.notEqual(n, oidas[i - 1], `«${n}» dos veces seguidas en ${i}`); });
+  assert.ok(new Set(oidas).size >= 2, "y no se queda en una"); // el banco de pruebas fija el azar: en la página salen las tres
+});
+
 test("el cooldown por id descarta las repeticiones: veinte disparos juntos no revientan la mezcla", () => {
   const b = banco();
   b.v.oyente({ x: 0, y: 0, z: 0 });

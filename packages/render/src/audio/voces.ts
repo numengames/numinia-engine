@@ -241,6 +241,7 @@ export function crearVoces(h: HechurasVoces = {}): Voces {
   const cache = new Map<string, AudioBuffer>();
   const enVuelo = new Map<string, Promise<AudioBuffer | null>>();
   const cooldowns = new Map<string, number>();
+  const ultimaVariante = new Map<string, number>();
   const avisos: string[] = [];
   const dichos = new Set<string>();
   let memoria = 0, serie = 0, descartadas = 0;
@@ -510,7 +511,12 @@ export function crearVoces(h: HechurasVoces = {}): Voces {
     const semilla = Math.floor(num(p.semilla, Math.floor(azar() * 4294967296)));
     const r = azarDe(semilla, id);
     const variantes = p.variantes && p.variantes.length ? p.variantes : null;
-    const v = variantes ? variantes[elegirVariante(variantes, r())] : null;
+    let iv = variantes ? elegirVariante(variantes, r()) : -1;
+    // sin semilla del servidor (lo local: mis pasos) nunca la misma grabación dos veces seguidas: el oído caza la
+    // repetición enseguida (el «efecto ametralladora»). Con semilla, manda la semilla: todos tienen que oír lo mismo.
+    if (variantes && variantes.length > 1 && p.semilla === undefined && iv === ultimaVariante.get(id)) iv = (iv + 1 + Math.floor(r() * (variantes.length - 1))) % variantes.length;
+    if (variantes) ultimaVariante.set(id, iv);
+    const v = variantes ? variantes[iv] : null;
     const buffer = v?.buffer ?? p.buffer ?? null;
     const uri = v?.uri ?? p.uri ?? null;
     if (!buffer && !uri) { avisar(`«${id}» no trae ni buffer ni uri`); return null; }

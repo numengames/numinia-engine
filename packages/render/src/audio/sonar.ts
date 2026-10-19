@@ -290,7 +290,7 @@ export function crearPuerta(h: HechurasPuerta = {}): Puerta {
   }
 
   const paso = (material: Material = MATERIAL_DEF, o: Opciones = {}): boolean =>
-    sonar(PASO_DE[material] ?? PASO_DE[MATERIAL_DEF], { gain: 0.35, ...o });
+    sonar(PASO_DE[material] ?? PASO_DE[MATERIAL_DEF], { gain: 0.14, ...o });
 
   function ambiente(p: PeticionAmbiente = {}): boolean {
     // las camas sintetizadas: solo las que este mundo nombre, y solo si de verdad son recetas de ambiente
