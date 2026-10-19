@@ -71,22 +71,22 @@ export function mezcla(a: number, b: number, t: number): number {
 
 // R6.5
 /**
- * R6.5 · Flora menor del lore (flora.ts): cactus fósil del páramo de antracita (ceniza petrificada con un velo salvia, surcos de bronce, anillos de latón),
- * espinas vítreas (verdemar/cristal, alma turquesa profunda abajo, punta clara), brezo de luto (bronce oscuro con un poso de grana),
- * matas de azafrán seco (ámbar sobre ámbar tostado) y cardos (tallo ceniza-salvia, cabeza grana apagada, púas arena velada). Solo mezclas de tokens.
+ * R6.5 · Flora menor del lore (flora.ts): cactus fósil del páramo de antracita (piedra clara petrificada con velo salvia, surcos ceniza, anillos de latón),
+ * espinas vítreas (verdemar/cristal, alma turquesa profunda abajo, punta clara), brezo de luto (verde monte casi negro, copa y espigas grana empolvada),
+ * matas de azafrán seco (ámbar sobre ámbar tostado) y cardos (tallo ceniza-salvia, cabeza grana empolvada, púas arena velada). Solo mezclas de tokens.
  */
 export const FLORA = {
-  cactus: mezcla(mezcla(CASA.ceniza, VERDES.hierbaSombra, 0.45), CASA.arenaVelada, 0.12),
-  cactusSurco: mezcla(VERDES.monteSombra, CASA.bronce, 0.5),
-  cactusLuz: mezcla(CASA.arenaVelada, VERDES.hierbaLuz, 0.3),
+  cactus: mezcla(CASA.arenaVelada, VERDES.hierbaLuz, 0.35),
+  cactusSurco: mezcla(CASA.ceniza, VERDES.hierbaSombra, 0.4),
+  cactusLuz: mezcla(CASA.arena, VERDES.hierbaLuz, 0.25),
   espina: MAQUINA.cristal,
-  espinaHondo: mezcla(CASA.verdemar, CASA.turquesaProfundo, 0.5),
+  espinaHondo: mezcla(CASA.verdemar, CASA.turquesaProfundo, 0.35),
   espinaPunta: mezcla(CASA.verdemar, CASA.arena, 0.55),
-  brezo: mezcla(CASA.bronceOscuro, CASA.grana, 0.16),
-  brezoLuz: mezcla(mezcla(CASA.bronce, CASA.grana, 0.24), CASA.ceniza, 0.22),
+  brezo: mezcla(VERDES.monteSombra, CASA.noche, 0.3),
+  brezoLuz: mezcla(mezcla(CASA.grana, CASA.ceniza, 0.45), CASA.arena, 0.15),
   azafran: mezcla(CASA.ambar, CASA.ambarTostado, 0.2),
   azafranSeco: mezcla(CASA.ambarTostado, CASA.bronce, 0.25),
   cardoTallo: mezcla(CASA.ceniza, VERDES.hierbaSombra, 0.35),
-  cardoFlor: mezcla(CASA.grana, CASA.bronce, 0.4),
+  cardoFlor: mezcla(CASA.grana, CASA.ceniza, 0.3),
   cardoPua: CASA.arenaVelada,
 } as const;

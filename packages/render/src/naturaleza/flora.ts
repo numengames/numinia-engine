@@ -8,7 +8,7 @@
 // a golden fan, a stalk with a ball) tells the kind; the brass rings and the dot are the 2 m detail. Colours: paleta.ts `FLORA` only.
 //
 // COPIED (technique only): lathe modelling and jittered-grid clustered sites from residuos.ts (R4). CHANGED: lean per-plant meshes
-// (3–98 triangles), a mitred L-tube for the cactus arm, double-sided blades for the dry bushes, zone rules per kind.
+// (9–84 triangles), a mitred L-tube for the cactus arm, double-sided blades for the dry bushes, zone rules per kind.
 import { crearAzar, hash2 } from "./semilla.ts";
 import { CASA, FLORA, MAQUINA, SENAL, VERDES, mezcla } from "./paleta.ts";
 import type { Nivel } from "../calidad.ts";
@@ -92,10 +92,12 @@ const anilloY = (r: number, y: number, seg: number, giro: number, jit?: number[]
 // ------------------------------------------------------------------ the plants (each stands on y = 0; the foot sinks a little)
 /** Fossil cactus: a ribbed column (ribs = alternating facet tones), 1 ring (short) or 2 rings (tall) of brass, a candelabra arm on some tall ones, a turquoise dot. */
 function cactus(r: () => number, alto: boolean): Hecha {
-  const K = new Kit(), H = alto ? entre(r, 1.8, 2.5) : entre(r, 1.0, 1.5), R = H * entre(r, 0.1, 0.12), seg = alto ? 5 : 6, g = r() * 6;
+  const K = new Kit(), H = alto ? entre(r, 1.8, 2.5) : entre(r, 1.0, 1.5), R = H * entre(r, 0.13, 0.16), seg = alto ? 5 : 6, g = r() * 6;
   // profile [radius factor, height fraction, is brass]
-  const perfil: [number, number, boolean][] = alto
+  const brazo = alto && r() < 0.6; // a tall one carries either a candelabra arm and one ring, or two rings
+  const perfil: [number, number, boolean][] = alto && !brazo
     ? [[1.05, 0, false], [1, 0.3, false], [1.24, 0.34, true], [1, 0.38, false], [0.94, 0.66, false], [1.2, 0.7, true], [0.92, 0.74, false], [0.62, 0.95, false]]
+    : alto ? [[1.05, 0, false], [1, 0.62, false], [1.22, 0.66, true], [1, 0.7, false], [0.62, 0.95, false]]
     : [[1.05, 0, false], [1, 0.5, false], [1.25, 0.55, true], [1, 0.6, false], [0.6, 0.94, false]];
   const anillos = perfil.map(([f, y]) => anilloY(R * f, y * H, seg, g)), centros = perfil.map(([, y]) => [0, y * H, 0] as V3);
   const piel = (fila: number, k: number) => {
@@ -113,8 +115,8 @@ function cactus(r: () => number, alto: boolean): Hecha {
     const tono = ym < perfil[i][1] ? mezcla(MAQUINA.laton, MAQUINA.latonSombra, 0.3) : mezcla(MAQUINA.laton, CASA.arena, 0.2); // a crisp collar: shaded below, lit above
     t.m = "metal"; t.c = [tono, tono, tono];
   }
-  if (alto && r() < 0.6) { // the arm: out, then up (a 4-sided mitred L-tube)
-    const ya = H * entre(r, 0.42, 0.55), aa = r() * Math.PI * 2, u: V3 = [Math.cos(aa), 0, Math.sin(aa)], w: V3 = [-Math.sin(aa), 0, Math.cos(aa)], ra = R * 0.6, d = R * 2.4, sube = H * entre(r, 0.22, 0.32);
+  if (brazo) { // the arm: out, then up (a 4-sided mitred L-tube)
+    const ya = H * entre(r, 0.38, 0.5), aa = r() * Math.PI * 2, u: V3 = [Math.cos(aa), 0, Math.sin(aa)], w: V3 = [-Math.sin(aa), 0, Math.cos(aa)], ra = R * 0.6, d = R * 2.4, sube = H * entre(r, 0.22, 0.32);
     const at = (c: V3, e1: V3, e2: V3, rr: number): V3[] => [0, 1, 2, 3].map((q) => { const a = (q / 4) * Math.PI * 2 + Math.PI / 4, cc = Math.cos(a) * rr, ss = Math.sin(a) * rr; return [c[0] + e1[0] * cc + e2[0] * ss, c[1] + e1[1] * cc + e2[1] * ss, c[2] + e1[2] * cc + e2[2] * ss] as V3; });
     const P0: V3 = [u[0] * R * 0.6, ya, u[2] * R * 0.6], P1: V3 = [u[0] * d, ya, u[2] * d], P2: V3 = [u[0] * d, ya + sube, u[2] * d];
     const yv: V3 = [0, 1, 0], mit: V3 = [-u[0], 1, -u[2]];
@@ -133,9 +135,9 @@ function cactus(r: () => number, alto: boolean): Hecha {
 
 /** Glass spines: 3–6 thin three-sided shards leaning out of one root, sea-green glass with a deep turquoise heart and a light tip. */
 function espinas(r: () => number): Hecha {
-  const K = new Kit(), n = 3 + Math.floor(r() * 4); let alto = 0;
+  const K = new Kit(), n = 4 + Math.floor(r() * 3); let alto = 0;
   for (let q = 0; q < n; q++) {
-    const a = r() * Math.PI * 2, d = q === 0 ? 0 : entre(r, 0.12, 0.38), h = q === 0 ? entre(r, 0.9, 1.3) : entre(r, 0.4, 0.95), rb = entre(r, 0.06, 0.1), lean = q === 0 ? entre(r, 0, 0.12) : entre(r, 0.18, 0.5);
+    const a = r() * Math.PI * 2, d = q === 0 ? 0 : entre(r, 0.15, 0.45), h = q === 0 ? entre(r, 1.2, 1.7) : entre(r, 0.6, 1.25), rb = entre(r, 0.11, 0.17), lean = q === 0 ? entre(r, 0, 0.12) : entre(r, 0.2, 0.55);
     const cx = Math.cos(a) * d, cz = Math.sin(a) * d, g = r() * 6;
     const base = [0, 1, 2].map((k) => [cx + Math.cos(g + k * 2.094) * rb, -0.05, cz + Math.sin(g + k * 2.094) * rb] as V3);
     const tip: V3 = [cx + Math.cos(a) * Math.sin(lean) * h, Math.cos(lean) * h, cz + Math.sin(a) * Math.sin(lean) * h];
@@ -147,20 +149,27 @@ function espinas(r: () => number): Hecha {
 
 /** Dark heather: a low lumpy pillow (5 sides, two rows and an off-centre crown), mourning-dark with a dusty wine top. */
 function brezo(r: () => number): Hecha {
-  const K = new Kit(), R = entre(r, 0.55, 0.95), H = R * entre(r, 0.6, 0.85), seg = 5, g = r() * 6;
+  const K = new Kit(), R = entre(r, 0.6, 0.95), H = R * entre(r, 0.75, 0.95), seg = 5, g = r() * 6;
   const j0 = Array.from({ length: seg }, () => entre(r, 0.82, 1.15)), j1 = Array.from({ length: seg }, () => entre(r, 0.75, 1.2));
   const A = anilloY(R, -0.05, seg, g, j0), B = anilloY(R * 0.74, H * 0.62, seg, g + 0.4, j1), cima: V3 = [R * 0.18 * (r() - 0.5), H, R * 0.18 * (r() - 0.5)];
-  const col = (fila: number, k: number) => fila === 0 ? FLORA.brezo : mezcla(FLORA.brezo, FLORA.brezoLuz, 0.35 + 0.25 * ((k * 7) % 3) / 2);
+  const col = (fila: number, k: number) => fila === 0 ? FLORA.brezo : mezcla(FLORA.brezo, FLORA.brezoLuz, 0.3 + 0.2 * ((k * 7) % 3) / 2);
   K.bandas([A, B], [[0, 0, 0], [0, H * 0.62, 0]], col, "planta");
-  K.punta(B, [0, H * 0.4, 0], cima, (k) => col(1, k), FLORA.brezoLuz, "planta");
-  return { tris: K.tris, alto: H };
+  K.punta(B, [0, H * 0.4, 0], cima, (k) => col(1, k), mezcla(FLORA.brezo, FLORA.brezoLuz, 0.6), "planta");
+  // flower spikes poking out of the pillow: the bush reads as a plant, not a stone
+  const n = 3 + Math.floor(r() * 2); let alto = H;
+  for (let q = 0; q < n; q++) {
+    const a = g + (q / n) * Math.PI * 2 + entre(r, -0.3, 0.3), rr = R * entre(r, 0.25, 0.6), ca = Math.cos(a), sa = Math.sin(a), h = H * entre(r, 1.2, 1.5), w = 0.1;
+    const y0 = H * 0.55, b0: V3 = [ca * rr - sa * w, y0, sa * rr + ca * w], b1: V3 = [ca * rr + sa * w, y0, sa * rr - ca * w], tip: V3 = [ca * rr * 1.25, h, sa * rr * 1.25];
+    K.doble(b0, b1, tip, mezcla(FLORA.brezo, FLORA.brezoLuz, 0.5), mezcla(FLORA.brezo, FLORA.brezoLuz, 0.5), mezcla(FLORA.brezoLuz, CASA.arena, 0.25), "planta"); alto = Math.max(alto, h);
+  }
+  return { tris: K.tris, alto };
 }
 
 /** Dry saffron bush: 5–7 double-sided blades fanning out of one root, toasted amber at the foot, amber at the tips. */
 function azafran(r: () => number): Hecha {
-  const K = new Kit(), n = 5 + Math.floor(r() * 3), H = entre(r, 0.55, 0.95); let alto = 0;
+  const K = new Kit(), n = 6 + Math.floor(r() * 3), H = entre(r, 0.85, 1.25); let alto = 0;
   for (let q = 0; q < n; q++) {
-    const a = (q / n) * Math.PI * 2 + entre(r, -0.3, 0.3), out = entre(r, 0.18, 0.55), h = H * entre(r, 0.7, 1.05), w = entre(r, 0.06, 0.1);
+    const a = (q / n) * Math.PI * 2 + entre(r, -0.3, 0.3), out = entre(r, 0.3, 0.7), h = H * entre(r, 0.7, 1.05), w = entre(r, 0.09, 0.14);
     const ca = Math.cos(a), sa = Math.sin(a);
     const b0: V3 = [-sa * w, -0.04, ca * w], b1: V3 = [sa * w, -0.04, -ca * w], tip: V3 = [ca * out, h, sa * out];
     K.doble(b0, b1, tip, FLORA.azafranSeco, FLORA.azafranSeco, q % 2 ? FLORA.azafran : mezcla(FLORA.azafran, CASA.arena, 0.2), "planta");
@@ -171,14 +180,14 @@ function azafran(r: () => number): Hecha {
 
 /** Thistle: a thin stalk with a spiky head (ash-silver bracts below, muted crimson crown), two spiky base leaves; a second head on some. */
 function cardo(r: () => number): Hecha {
-  const K = new Kit(), H = entre(r, 0.8, 1.25), cabezas = r() < 0.5 ? 2 : 1, g = r() * 6;
+  const K = new Kit(), H = entre(r, 0.95, 1.35), cabezas = r() < 0.5 ? 2 : 1, g = r() * 6;
   for (let q = 0; q < cabezas; q++) {
     const h = q === 0 ? H : H * entre(r, 0.65, 0.8), a = r() * 6, off = q === 0 ? 0 : 0.18, hx = Math.cos(a) * off * 1.6, hz = Math.sin(a) * off * 1.6, rb = 0.035;
     const base = [0, 1, 2].map((k) => [Math.cos(a) * off * 0.3 + Math.cos(g + k * 2.094) * rb, -0.04, Math.sin(a) * off * 0.3 + Math.sin(g + k * 2.094) * rb] as V3);
     const cuello: V3 = [hx, h - 0.1, hz];
     for (let k = 0; k < 3; k++) K.fuera(base[k], base[(k + 1) % 3], cuello, FLORA.cardoTallo, FLORA.cardoTallo, FLORA.cardoTallo, "planta", [hx * 0.5, h * 0.4, hz * 0.5]);
     // head: a four-sided bipyramid, wider than tall, bracts below and crown above
-    const rc = entre(r, 0.11, 0.15), cen: V3 = [hx, h, hz], ec = anilloY(rc, 0, 4, g + q).map((v) => [v[0] + hx, h, v[2] + hz] as V3), bajo: V3 = [hx, h - 0.12, hz], alto: V3 = [hx, h + rc * 1.3, hz];
+    const rc = entre(r, 0.15, 0.2), cen: V3 = [hx, h, hz], ec = anilloY(rc, 0, 4, g + q).map((v) => [v[0] + hx, h, v[2] + hz] as V3), bajo: V3 = [hx, h - 0.12, hz], alto: V3 = [hx, h + rc * 1.3, hz];
     K.punta(ec, cen, bajo, () => FLORA.cardoPua, FLORA.cardoTallo, "planta");
     K.punta(ec, cen, alto, () => mezcla(FLORA.cardoFlor, FLORA.cardoPua, 0.15), FLORA.cardoFlor, "planta");
   }
@@ -217,7 +226,7 @@ function hornear(pp: Puesta, semilla: number, idx: number, pos: number[], col: n
         const h = Math.min(1, Math.max(0, tri.p[q][1] / alto));
         if (tri.m === "metal") c = mezcla(c, VERDES.verdin, 0.25 * sstep(0.3, 0.9, ny));                    // verdigris on the brass faces that look up
         else if (tri.m === "planta") c = mezcla(c, CASA.bronceOscuro, 0.32 * (1 - h) * (1 - h) * (1 - h));  // the ground swallows the foot
-        c = mezcla(c, CASA.arenaVelada, (tri.m === "cristal" ? 0.08 : 0.16) * (1 - sstep(-0.2, 0.5, ny)));  // baked fill: faces turned from the sky are never black
+        c = mezcla(c, CASA.arenaVelada, (tri.m === "cristal" ? 0.1 : 0.26) * (1 - sstep(-0.2, 0.5, ny)));  // baked fill: faces turned from the sky are never black
         c = mezcla(c, tono > 0 ? CASA.arenaVelada : CASA.bronce, Math.abs(tono) * (tri.m === "cristal" ? 0.12 : 0.2)); // per-face tone jitter
       }
       pos.push(w[q][0], w[q][1], w[q][2]); col.push(...aLineal(c));
@@ -229,6 +238,7 @@ function hornear(pp: Puesta, semilla: number, idx: number, pos: number[], col: n
 type Sitio = { x: number; z: number; zona: Zona; paramo: boolean; i: number; j: number; prioridad: number };
 const MOOR: [TipoPlanta, number][] = [["espinas", 3], ["cactus", 1.6], ["cardo", 1]];
 const JARDIN: [TipoPlanta, number][] = [["brezo", 2.2], ["azafran", 2], ["cardo", 0.8]];
+const ORDEN_MOOR: readonly TipoPlanta[] = ["cactus", "espinas", "cardo"], ORDEN_JARDIN: readonly TipoPlanta[] = ["brezo", "azafran", "brezo"];
 const elegir = (tabla: [TipoPlanta, number][], u: number): TipoPlanta => { const tot = tabla.reduce((a, [, w]) => a + w, 0); let a = 0; for (const [t, w] of tabla) { a += w / tot; if (u < a) return t; } return tabla[tabla.length - 1][0]; };
 
 /** Is (x, z) free of the plaza, the pond, the border and the avoided spots? */
@@ -240,7 +250,8 @@ function libre(o: OpcionesFlora, x: number, z: number, m = 0): boolean {
   return true;
 }
 
-function sitios(semilla: number, o: OpcionesFlora, alturaEn: (x: number, z: number) => number, zonaEn: (x: number, z: number) => Zona): Sitio[] {
+/** The candidate group sites of each band (moor, garden), nearest first. */
+function sitios(semilla: number, o: OpcionesFlora, alturaEn: (x: number, z: number) => number, zonaEn: (x: number, z: number) => Zona): [Sitio[], Sitio[]] {
   const s = semilla | 0, n = Math.floor((o.tamano - 2 * MARGEN_BORDE_FLORA) / CELDA_FLORA), x0 = (-n * CELDA_FLORA) / 2, moor: Sitio[] = [], jardin: Sitio[] = [];
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const x = x0 + (i + 0.2 + 0.6 * hash2(s + 6101, i, j)) * CELDA_FLORA, z = x0 + (j + 0.2 + 0.6 * hash2(s + 6102, i, j)) * CELDA_FLORA;
@@ -256,22 +267,20 @@ function sitios(semilla: number, o: OpcionesFlora, alturaEn: (x: number, z: numb
     (paramo ? moor : jardin).push({ x, z, zona, paramo, i, j, prioridad: p });
   }
   moor.sort((a, b) => a.prioridad - b.prioridad); jardin.sort((a, b) => a.prioridad - b.prioridad);
-  // interleave moor and garden sites so every tier's cap shows both bands
-  const res: Sitio[] = [];
-  for (let k = 0; k < Math.max(moor.length, jardin.length); k++) { if (moor[k]) res.push(moor[k]); if (jardin[k]) res.push(jardin[k]); }
-  return res;
+  return [moor, jardin];
 }
 
 function armar(semilla: number, o: OpcionesFlora, st: Sitio, alturaEn: (x: number, z: number) => number, zonaEn: (x: number, z: number) => Zona, ocupadas: Puesta[]): Puesta[] {
   const r = crearAzar(Math.floor(hash2(semilla + 6200, st.i, st.j) * 4294967296)), quiere = 3 + Math.floor(r() * 3), res: Puesta[] = [];
   for (let k = 0; k < quiere * 3 && res.length < quiere; k++) {
-    const tipo: TipoPlanta = k === 0 ? (st.paramo ? "cactus" : "brezo") : elegir(st.paramo ? MOOR : JARDIN, r());
-    const a = r() * Math.PI * 2, d = k === 0 ? 0 : entre(r, 1.1, 3.6), x = st.x + Math.cos(a) * d, z = st.z + Math.sin(a) * d;
+    // the first three of a group are fixed (each band shows its kinds even on a small cap), the rest drawn by weight
+    const orden = st.paramo ? ORDEN_MOOR : ORDEN_JARDIN, u = r(), tipo: TipoPlanta = res.length < orden.length ? orden[res.length] : elegir(st.paramo ? MOOR : JARDIN, u);
+    const a = r() * Math.PI * 2, d = res.length === 0 ? 0 : entre(r, 1.1, 3.6), x = st.x + Math.cos(a) * d, z = st.z + Math.sin(a) * d;
     if (!libre(o, x, z)) continue;
     const zona = zonaEn(x, z);
     if (!ZONAS_PLANTA[tipo].includes(zona)) continue;
     if ([...res, ...ocupadas].some((q) => Math.hypot(q.x - x, q.z - z) < 0.9)) continue;
-    const hecha = HACER[tipo](r, k === 0 || r() < 0.35);
+    const hecha = HACER[tipo](r, res.length === 0 || r() < 0.35);
     const y0 = alturaEn(x, z), hs = [y0, alturaEn(x + 0.4, z), alturaEn(x - 0.4, z), alturaEn(x, z + 0.4), alturaEn(x, z - 0.4)], suelo = Math.min(...hs);
     if (suelo < NIVEL_AGUA + 0.2 || Math.max(...hs) - suelo > 0.6) continue;
     const escala = entre(r, 0.85, 1.15), incl: [number, number] = tipo === "cactus" ? [entre(r, -0.06, 0.06), entre(r, -0.06, 0.06)] : [entre(r, -0.12, 0.12), entre(r, -0.12, 0.12)];
@@ -284,15 +293,19 @@ function armar(semilla: number, o: OpcionesFlora, st: Sitio, alturaEn: (x: numbe
 export function construirFlora(semilla: number, o: OpcionesFlora, alturaEn: (x: number, z: number) => number, zonaEn: (x: number, z: number) => Zona): Flora {
   const tope = o.maxTriangulos ?? FLORA_POR_NIVEL[o.nivel], pos: number[] = [], col: number[] = [], plantas: Planta[] = [], puestas: Puesta[] = [];
   let usados = 0;
-  if (tope > 0) for (const st of sitios(semilla, o, alturaEn, zonaEn)) {
-    if (tope - usados < 12) break;
+  const colas = sitios(semilla, o, alturaEn, zonaEn), hechos = [0, 0], pos0 = [0, 0];
+  // alternate the bands by groups placed (moor first), so even a small cap shows a moor group and a garden group
+  while (tope - usados >= 12) {
+    const libres = [0, 1].filter((b) => pos0[b] < colas[b].length);
+    if (!libres.length) break;
+    const banda = libres.length === 1 ? libres[0] : hechos[0] <= hechos[1] ? 0 : 1, st = colas[banda][pos0[banda]++];
     let grupo = armar(semilla, o, st, alturaEn, zonaEn, puestas);
     if (grupo.length < 2) continue;
     // fit the rest of the budget: drop the last plants, a group keeps at least two
     let coste = grupo.reduce((a, p) => a + p.hecha.tris.length, 0);
     while (grupo.length > 2 && usados + coste > tope) { coste -= grupo[grupo.length - 1].hecha.tris.length; grupo = grupo.slice(0, -1); }
     if (usados + coste > tope) continue;
-    usados += coste;
+    usados += coste; hechos[banda]++;
     grupo.forEach((p, k) => { hornear(p, semilla, st.i * 131 + st.j * 7 + k, pos, col); puestas.push(p); plantas.push({ tipo: p.tipo, x: p.x, y: p.y, z: p.z, alto: p.hecha.alto * p.escala, triangulos: p.hecha.tris.length, zona: p.zona }); });
   }
   return { posiciones: Float32Array.from(pos), colores: Float32Array.from(col), triangulos: pos.length / 9, plantas };
