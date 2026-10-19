@@ -1,9 +1,9 @@
 // combate on the page (level 2): what the character HUD and the three skill slots read from the lucha client.
 //   · fuentesDeLucha — the `estado` / `carga` hooks hud-personaje.ts reads (and the sheet's Estado). They exist only once the page has
-//     heard of fighting in this world; before that they say nothing and the HUD keeps its «Próximamente».
+//     heard of fighting in this world; before that they say nothing and the HUD leaves those rows out.
 //   · montarCombate — the three slots of #habilidades (below the Objetivo frame): the abilities of the Eclipse Mnémico kit, keys 1–3
 //     and click. They only ASK (lucha.habilidad → intent `habilidad`); the server decides reach, cooldown, cost and damage. No fighting
-//     in the world = the same three «Próximamente» slots as before.
+//     in the world = no slots at all (#habilidades hidden; ux2 integration: «nada de Próximamente»).
 import { escribiendo } from "./escribiendo.ts";
 import { icono } from "./iconos.ts";
 import * as capas from "./capas.ts";
@@ -16,7 +16,7 @@ export type Lucha = {
 };
 
 /** The sources hud-personaje.ts plugs into `__numinia`. `actual` is absent (not undefined-returning) until there is fighting, because
- * the HUD reads «no `actual`» as «this page does not receive it» (Próximamente) and «`actual()` says nothing» as «Estable». */
+ * the HUD reads «no `actual`» as «this page does not receive it» (row left out) and «`actual()` says nothing» as «Estable». */
 export function fuentesDeLucha(lucha: Pick<Lucha, "activo" | "carga" | "estado">) {
   return {
     estado: { get actual() { return lucha.activo() ? () => lucha.estado() : undefined; } },
@@ -65,14 +65,8 @@ export function montarCombate(o: { lucha: Lucha; decir?: (t: string) => void }):
     const f = String(c);
     if (f === firma) return;
     firma = f;
-    if (!activo) {                                    // no fighting here: the three slots stay as they were
-      hab.replaceChildren(...HABILIDADES.map((_, i) => {
-        const d = document.createElement("div"); d.className = "hueco"; d.setAttribute("aria-disabled", "true"); d.setAttribute("aria-label", `Habilidad ${i + 1}: próximamente`);
-        d.innerHTML = `<kbd>${i + 1}</kbd>${icono(["sword", "target", "sparkle"][i], 24)}<span class="prox">Próximamente</span>`;
-        return d;
-      }));
-      return;
-    }
+    hab.hidden = !activo;
+    if (!activo) { hab.replaceChildren(); return; }   // no fighting here: no slots (they appear the moment the page hears of it)
     // innerHTML below: only the kit's constant names and the page's own icon SVGs, never a person's text
     hab.replaceChildren(...casillas(c).map((s) => {
       const b = document.createElement("button"); b.type = "button"; b.className = `hueco real${s.lista ? " lista" : ""}`; b.dataset.habilidad = s.clave;

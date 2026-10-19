@@ -138,6 +138,7 @@ try {
   out.bienes.novedad = await ctl(a, () => !!document.querySelector("[data-novedad]"));
   await a.keyboard.press("KeyI");
   await esperar(a, () => document.getElementById("ficha")?.open, null, 3000);
+  await a.locator("#ficha-pestana-reserva").click(); // «Tú»: the inventario section is on the Reserva tab
   if (out.bienes.emisor) await esperar(a, () => /Recibo firmado ✓/.test(document.querySelector("#ficha [data-seccion=inventario]")?.textContent ?? ""), null, 5000);
   out.bienes.inventario = await ctl(a, () => document.querySelector("#ficha [data-seccion=inventario]")?.textContent ?? "");
   out.bienes.lista = await ctl(a, () => globalThis.__numinia.bienes.lista().map((b) => ({ nombre: b.nombre, licencia: b.licencia, recibo: b.recibo.slice(0, 4), largo: b.recibo.length })));
@@ -180,6 +181,7 @@ try {
   nota("token rechazado");
   await a.keyboard.press("KeyI");
   await esperar(a, () => document.getElementById("ficha")?.open === true, null, 3000);
+  await a.locator("#ficha-pestana-reserva").click();
   out.inventario.ficha = await ctl(a, () => [...document.querySelectorAll("#ficha h3")].map((h) => h.textContent + ": " + (h.nextElementSibling?.textContent ?? "")).find((t) => t.startsWith("Reserva")));
   await foto(a, "4c-ficha");
   await a.keyboard.press("KeyI");

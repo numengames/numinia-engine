@@ -28,7 +28,7 @@ import { crearCliente } from "../features/chat/client.ts";
 import objetosServer from "../features/objetos/server.ts";
 import objetosCliente from "../features/objetos/client.ts";
 import { acceso, plantilla, porDebajo, noPuedeDar, validarRoles, rolPorNombre, PERMISOS, tiene } from "../packages/server/src/roles.ts";
-import { crearRoles, ECHADO_MIN, INTENTOS } from "../packages/server/src/roles-mundo.ts";
+import { crearRoles, ECHADO_MIN, INTENTOS, DENUNCIA_PAUSA_MS } from "../packages/server/src/roles-mundo.ts";
 
 const sign = signer("una-clave-de-prueba-larga");
 const ADMIN = "codigo-de-administracion-largo";
@@ -446,4 +446,32 @@ test("H3c /chat borrar necesita manage-organization (como /construir, /voz, /sol
   W.gente.push(C);
   W.pump(3);
   assert.ok(!C.chat.lineas.some((l) => l.tipo === "antes"), "quien entra después no ve nada de antes de borrarlo");
+});
+
+test("ux2-gente /denunciar: whoever moderates and is connected hears it at once, it is kept for /denuncias, one a minute, never published", () => {
+  const storage = new MemoryStorage(), reloj = { ms: Date.parse("2026-10-19T10:00:00Z") };
+  const W = mundo(3, { storage, reloj });
+  const [A, B, C] = W.gente;
+  W.pump(3);
+  juntos(W);
+  W.decir(B, `/denunciar ${W.nombre(C)} insulta en el chat`);
+  assert.match(W.ultimo(B), /no hay nadie de moderación conectado/, "nobody moderates yet: kept for later");
+  assert.equal(W.roles.denuncias().length, 1);
+  W.decir(A, `/dueño ${ADMIN}`);
+  W.decir(A, "/denuncias");
+  assert.match(W.ultimo(A), /denuncia a .*«insulta en el chat»/, "an owner reads what was kept");
+  const lineasC = C.chat.lineas.length;
+  W.decir(B, `/denunciar ${W.nombre(C)} otra vez`);
+  assert.match(W.ultimo(B), /Espera \d+ s/, "one a minute");
+  reloj.ms += DENUNCIA_PAUSA_MS;
+  W.decir(B, `/denunciar ${W.nombre(C)} empuja a la gente`);
+  assert.match(W.ultimo(B), /Aviso enviado a moderación \(1 persona conectada\)/);
+  assert.match(W.ultimo(A), /Aviso para moderación: .* denuncia a .*«empuja a la gente»/, "the owner hears it at once");
+  assert.equal(C.chat.lineas.length, lineasC, "the reported person is not told");
+  W.decir(B, `/denunciar ${W.nombre(C)}`);
+  assert.match(W.ultimo(B), /Di qué ha pasado/);
+  W.decir(C, "/denuncias");
+  assert.match(W.ultimo(C), /Solo quien modera/);
+  const d = W.roles.denuncias();
+  assert.deepEqual(d.map((x) => [x.de, x.a, x.motivo]), [[W.inst.who(B.s.entity)!.id, W.inst.who(C.s.entity)!.id, "insulta en el chat"], [W.inst.who(B.s.entity)!.id, W.inst.who(C.s.entity)!.id, "empuja a la gente"]]);
 });

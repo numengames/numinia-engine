@@ -51,8 +51,10 @@ async function pierna(engine) {
     });
     const antes = await potencia(p);
     r.antes = antes;
-    // 1. O opens it, focus inside
+    // 1. O opens the bar's «Menú» (ux2-barra) with the focus on «Ajustes»; Enter opens it, focus inside
     await p.keyboard.press("KeyO");
+    await p.waitForFunction(() => !document.getElementById("menu-lista").hidden && document.activeElement?.id === "ajustes-abrir", null, { timeout: 3000 });
+    await p.keyboard.press("Enter");
     await p.waitForFunction(() => document.getElementById("ajustes").open, null, { timeout: 3000 });
     r.abreConO = true;
     r.focoDentro = await p.evaluate(() => document.getElementById("ajustes").contains(document.activeElement));
@@ -87,12 +89,14 @@ async function pierna(engine) {
     await p.evaluate(() => { const i = document.createElement("input"); i.id = "prueba-texto"; document.body.append(i); i.focus(); });
     await p.keyboard.press("KeyO");
     await p.waitForTimeout(200);
-    r.oEscribiendoAbre = await abierto(p);
+    r.oEscribiendoAbre = (await abierto(p)) || (await p.evaluate(() => !document.getElementById("menu-lista").hidden));
     await p.evaluate(() => { document.getElementById("prueba-texto")?.remove(); document.activeElement?.blur?.(); });
     // 7. agents: validation with paths, never a throw
     r.agente = await p.evaluate(() => globalThis.__numinia.ajustes.set("graficos.resolucion", 3));
-    // 8. «Restablecer todo» with the keyboard
+    // 8. «Restablecer todo» with the keyboard (O → «Menú», Enter → «Ajustes»)
     await p.keyboard.press("KeyO");
+    await p.waitForFunction(() => document.activeElement?.id === "ajustes-abrir", null, { timeout: 3000 });
+    await p.keyboard.press("Enter");
     await p.waitForFunction(() => document.getElementById("ajustes").open, null, { timeout: 3000 });
     r.tabsHastaRestablecer = await tabHasta(p, "ajustes-restablecer", 120);
     await p.keyboard.press("Enter");

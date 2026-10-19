@@ -19,17 +19,17 @@ html[data-aparato^="movil"] [hidden] { display: none !important; }
 html[data-aparato^="movil"] #help, html[data-aparato^="movil"] #acciones, html[data-aparato^="movil"] #interactuar, html[data-aparato^="movil"] #misiones, html[data-aparato^="movil"] #chat-boton, html[data-aparato^="movil"] #saltar { display: none !important; }
 html[data-aparato^="movil"] #hud { display: none; }
 html[data-aparato^="movil"].depura #hud { display: block; top: calc(var(--st) + 70px); left: calc(var(--sl) + var(--m)); max-width: min(300px, 72vw); white-space: pre-wrap; font-size: 11px; z-index: 6; }
-html[data-aparato^="movil"] #barra-arriba > :not(#ajustes-abrir) { display: none !important; }
+html[data-aparato^="movil"] #barra-arriba > :not(#menu-abrir):not(.menu-barra) { display: none !important; }
 
 /* ---- cristal ---- */
-html[data-aparato^="movil"] .cristal-movil, html[data-aparato^="movil"] #barra-arriba > #ajustes-abrir, html[data-aparato^="movil"] #mision-seguida, html[data-aparato^="movil"] #minimapa, html[data-aparato^="movil"] #mas, html[data-aparato^="movil"] #mas-menu, html[data-aparato^="movil"] #chat-pill, html[data-aparato^="movil"] #hoja-msg, html[data-aparato^="movil"] #dialogo, html[data-aparato^="movil"] #chat[data-estado="completo"] {
+html[data-aparato^="movil"] .cristal-movil, html[data-aparato^="movil"] #barra-arriba > #menu-abrir, html[data-aparato^="movil"] #mision-seguida, html[data-aparato^="movil"] #minimapa, html[data-aparato^="movil"] #mas, html[data-aparato^="movil"] #mas-menu, html[data-aparato^="movil"] #chat-pill, html[data-aparato^="movil"] #hoja-msg, html[data-aparato^="movil"] #dialogo, html[data-aparato^="movil"] #chat[data-estado="completo"] {
   background: var(--cr) !important; -webkit-backdrop-filter: var(--cr-blur); backdrop-filter: var(--cr-blur); border: 1px solid var(--cr-borde) !important; color: var(--n-texto);
 }
-@media (prefers-reduced-transparency: reduce) { M #barra-arriba > #ajustes-abrir, html[data-aparato^="movil"] #mision-seguida, html[data-aparato^="movil"] #minimapa, html[data-aparato^="movil"] #mas, html[data-aparato^="movil"] #mas-menu, html[data-aparato^="movil"] #chat-pill, html[data-aparato^="movil"] #hoja-msg, html[data-aparato^="movil"] #dialogo, html[data-aparato^="movil"] #chat[data-estado="completo"] { background: var(--cr-fuerte) !important; -webkit-backdrop-filter: none; backdrop-filter: none; } }
+@media (prefers-reduced-transparency: reduce) { M #barra-arriba > #menu-abrir, html[data-aparato^="movil"] #mision-seguida, html[data-aparato^="movil"] #minimapa, html[data-aparato^="movil"] #mas, html[data-aparato^="movil"] #mas-menu, html[data-aparato^="movil"] #chat-pill, html[data-aparato^="movil"] #hoja-msg, html[data-aparato^="movil"] #dialogo, html[data-aparato^="movil"] #chat[data-estado="completo"] { background: var(--cr-fuerte) !important; -webkit-backdrop-filter: none; backdrop-filter: none; } }
 
 /* ---- pulsado visible en TODO botón del HUD (U26) ---- */
 html[data-aparato^="movil"] .tocable { transition: transform .08s ease-out, background-color .08s, border-color .08s; }
-html[data-aparato^="movil"] .tocable.pulsado, html[data-aparato^="movil"] #accion.pulsado, html[data-aparato^="movil"] #barra-arriba > #ajustes-abrir.pulsado, html[data-aparato^="movil"] #minimapa.pulsado { transform: scale(.93); background-color: rgba(1, 142, 161, .62) !important; border-color: var(--n-verdemar) !important; }
+html[data-aparato^="movil"] .tocable.pulsado, html[data-aparato^="movil"] #accion.pulsado, html[data-aparato^="movil"] #barra-arriba > #menu-abrir.pulsado, html[data-aparato^="movil"] #minimapa.pulsado { transform: scale(.93); background-color: rgba(1, 142, 161, .62) !important; border-color: var(--n-verdemar) !important; }
 html[data-aparato^="movil"] #accion.pulsado { background-color: #016f7e !important; transform: scale(.92); }
 
 /* ---- arriba a la izquierda: la línea de «ahora» (solo lectura) ---- */
@@ -44,7 +44,7 @@ html[data-aparato^="movil"] body #mision-seguida::before { content: "Ahora"; dis
 
 /* ---- arriba a la derecha: ⚙ y el mapa (el minimapa plegado; tocarlo abre el mapa grande, donde viven −, + y N) ---- */
 html[data-aparato^="movil"] #barra-arriba { top: calc(var(--st) + 18px); right: calc(var(--sr) + var(--m) + 62px + 8px); z-index: 7; }
-html[data-aparato^="movil"] #barra-arriba > #ajustes-abrir { width: 44px; height: 44px; min-width: 44px; padding: 0 !important; border-radius: 50% !important; display: grid !important; place-items: center; }
+html[data-aparato^="movil"] #barra-arriba > #menu-abrir { width: 44px; height: 44px; min-width: 44px; padding: 0 !important; border-radius: 50% !important; display: grid !important; place-items: center; }
 html[data-aparato^="movil"] body #minimapa { top: calc(var(--st) + 8px) !important; right: calc(var(--sr) + var(--m)) !important; bottom: auto !important; left: auto !important; width: 62px; height: 62px; padding: 0; border-radius: 50%; overflow: hidden; z-index: 6; gap: 0; align-items: center; justify-content: center; }
 html[data-aparato^="movil"] #minimapa canvas { width: 62px !important; height: 62px !important; border: 0 !important; box-shadow: none !important; }
 html[data-aparato^="movil"] #minimapa .botones { display: none !important; }

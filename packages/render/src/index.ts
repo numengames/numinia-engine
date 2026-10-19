@@ -14,6 +14,9 @@ export type { Vitrina } from "./vitrina.ts";
 export type { Donde as DondePuesto } from "./puestos.ts";
 export { vrSupported } from "./vr.ts";
 export type { VRState, DialogoVR } from "./vr.ts";
+/** Rediseño v2: the VR session as the page wires its watch and menu (apps/plaza/xr-menu.ts). */
+export type MenuVR = ReturnType<typeof createVR>;
+export type { Contenido as ContenidoMenuVR } from "./menu-invocado.ts";
 import type { Manos, EventoMano } from "./manos.ts";
 export type { EventoMano, Lado } from "./manos.ts";
 import { createPower, readCaps, checkCost, conClase } from "./power.ts";
@@ -75,6 +78,7 @@ export { mezcla, muestrear, muestrearMalla, cuantos, lado, areaForma, MEZCLA, BL
 export type { Forma, Mezcla, Metodo, Muestra } from "./materia-politica.ts";
 export type { Calidad, Nivel } from "./calidad.ts";
 import { decidirLOD } from "./lod-politica.ts";
+import { personaEn, type Proyectada } from "./gente-politica.ts";
 export { decidirLOD, LOD_LEJOS_M, LOD_HISTERESIS_M } from "./lod-politica.ts";
 export type { EstadoLOD } from "./lod-politica.ts";
 
@@ -239,6 +243,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     rayo: (l: "izq" | "der") => manosReal?.rayo(l) ?? null,
     andar: () => manosReal?.andar() ?? null,
     dirMando: (l: "izq" | "der") => manosReal?.dirMando(l) ?? null,
+    muneca: (l: "izq" | "der", pos: THREE.Vector3, rot: THREE.Quaternion) => manosReal?.muneca(l, pos, rot) ?? null, // rediseño v2: the wrist watch
+    punta: (l: "izq" | "der", pos: THREE.Vector3) => manosReal?.punta(l, pos) ?? false,
     vibrar: (l: "izq" | "der", v?: number, ms?: number) => manosReal?.vibrar(l, v, ms),
     entrada: (l: "izq" | "der") => manosReal?.entrada(l) ?? null,
     rayoDe: (l: "izq" | "der") => manosReal?.rayoDe(l) ?? null,
@@ -1010,6 +1016,40 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         }
       }
       return null;
+    },
+    /** ux2-gente: the entity of the other person under a screen point (the nearest), or null. Each body is projected
+     * feet and head (cheap: one Vector3 per person on a click, never per frame); the rule is gente-politica.ts. */
+    pickPerson(clientX: number, clientY: number): number | null {
+      const r = renderer.domElement.getBoundingClientRect();
+      if (!r.width || !r.height) return null;
+      camera.updateMatrixWorld();
+      const v = new THREE.Vector3(), lista: Proyectada[] = [];
+      const aPantalla = (x: number, y: number, z: number) => { v.set(x, y, z).project(camera); return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height }; };
+      for (const [id, m] of others) {
+        if (!m.visible && !m.parent) continue;
+        const prof = v.copy(m.position).applyMatrix4(camera.matrixWorldInverse).z * -1;
+        lista.push({ id, prof, pies: aPantalla(m.position.x, m.position.y - 0.85, m.position.z), cabeza: aPantalla(m.position.x, m.position.y + 0.9, m.position.z) });
+      }
+      const q = personaEn(lista, clientX, clientY);
+      if (q === null) return null;
+      // not through a wall: a thing drawn between you and them (nearer than their body) keeps the click
+      const m = others.get(q)!;
+      ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+      ray.setFromCamera(ndc, camera);
+      const hasta = camera.getWorldPosition(v).distanceTo(m.position) - 0.6;
+      const tapa = ray.intersectObjects([...things.values()].map((s) => s.group), true).find((h: THREE.Intersection) => h.object.visible);
+      return tapa && tapa.distance < hasta ? null : q;
+    },
+    /** ux2-gente: where a person's head is on the screen (CSS pixels) and how far from you, for the small card beside
+     * them; null when they are gone or behind the camera. */
+    personaEnPantalla(id: number): { x: number; y: number; m: number } | null {
+      const m = others.get(id); if (!m) return null;
+      const r = renderer.domElement.getBoundingClientRect();
+      camera.updateMatrixWorld();
+      const v = new THREE.Vector3(m.position.x, m.position.y + 0.95, m.position.z).project(camera);
+      if (v.z > 1 || v.z < -1) return null;
+      const d = selfXZ ? Math.hypot(m.position.x - selfXZ.x, m.position.z - selfXZ.z) : 0;
+      return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height, m: d };
     },
     /** J5: a waypoint: a beacon that stays until `dropWaypoint(id)` and never keeps the page drawing. Returns its id. */
     waypoint(x: number, z: number, text: string): number { this.beacon(x, z, text, Infinity); waypoints.set(++waypointSeq, beacons.pop()!); return waypointSeq; },

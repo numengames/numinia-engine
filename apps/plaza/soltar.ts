@@ -1,6 +1,6 @@
 // soltar (H9): drop your own .glb on the page and it appears where you dropped it, for everyone, and stays. Only for
 // whoever may build (the server says so on entering: objetos.permiso); visitors never see the overlay nor the button.
-// The same path without a mouse: «Subir modelo…», a real button in the builder panel, puts it 3 m in front of you.
+// The same path without a mouse: «Subir» in the builder's «Añadir» drawer (ux2-dock) puts it 3 m in front of you.
 // Steps: check the file here (kind, cap, a GLB that reads: packages/net/src/ficheros.ts, the same check as the server)
 // → its sha256 → HEAD /a/<sha256>.glb (already there? no upload) → PUT with the guest token (I1) and visible progress
 // → colocar (features/objetos) named after the file, so screen readers and agents hear it. Every step is said in a
@@ -15,8 +15,8 @@ import { HUECO_PX_PAGINA } from "../../features/objetos/feature.ts";
 /** U10: what each file becomes in the world (features/objetos `tipo`). */
 const CLASE: Record<string, "modelo" | "imagen" | "video" | "sonido"> = { glb: "modelo", png: "imagen", jpg: "imagen", webp: "imagen", mp4: "video", webm: "video", mp3: "sonido", ogg: "sonido" };
 const QUE: Record<string, string> = { modelo: "el modelo", imagen: "la imagen", video: "la pantalla de vídeo", sonido: "la zona de sonido" };
-/** The file picker's filter per button (U10: one button per kind, so each is easy to find). */
-const ACEPTA = { todo: ".glb,.png,.jpg,.jpeg,.webp,.mp4,.webm,.mp3,.ogg", modelo: ".glb,model/gltf-binary", imagen: ".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp", video: ".mp4,.webm,video/mp4,video/webm", sonido: ".mp3,.ogg,audio/mpeg,audio/ogg" };
+/** The file picker's filter: every kind it can place (the kind is read from the extension, as on a drop). */
+const ACEPTA = ".glb,.png,.jpg,.jpeg,.webp,.mp4,.webm,.mp3,.ogg";
 
 type Res = { ok: true } | { ok: false; why: string };
 type Msg = Record<string, unknown>;
@@ -31,7 +31,6 @@ export type OpcionesSoltar = {
   puede(): boolean;          // may this player build? (features/objetos client: estado.puede)
   origen: string;            // the instance's server, where /a/ lives (http://host:port)
   billete(): string | null;  // the guest token the page keeps (localStorage numinia.invitado)
-  panel: HTMLElement | null; // the builder panel: the «Subir modelo…» button goes at its end
 };
 
 const CSS = `
@@ -221,27 +220,12 @@ export function montarSoltar(o: OpcionesSoltar) {
     void varios(Array.from(e.dataTransfer?.files ?? []), o.view.sueloBajo(e.clientX, e.clientY));
   });
 
-  // ---- the same without a mouse: a real button in the builder panel ----
-  const fila = document.createElement("div"); fila.className = "fila"; fila.setAttribute("role", "toolbar"); fila.setAttribute("aria-label", "Subir ficheros");
+  // ---- the same without a mouse: «Subir» in the builder's «Añadir» drawer (constructor.ts) opens this picker ----
   const entrada = document.createElement("input");
-  entrada.type = "file"; entrada.accept = ACEPTA.todo; entrada.multiple = true; entrada.hidden = true; entrada.id = "subir-fichero";
-  const botonDe = (id: string, texto: string, titulo: string, acepta: string) => {
-    const b = document.createElement("button");
-    b.type = "button"; b.id = id; b.textContent = texto; b.title = titulo;
-    b.addEventListener("click", () => { entrada.accept = acepta; entrada.click(); });
-    return b;
-  };
-  fila.append(
-    botonDe("subir-modelo", "Subir modelo…", `Un .glb tuyo (hasta ${TOPES_MB.glb} MB): se coloca a 3 m delante de ti. También puedes soltarlo sobre el mundo.`, ACEPTA.modelo),
-    botonDe("subir-imagen", "Imagen…", `Una imagen .png, .jpg o .webp (hasta ${TOPES_MB.png} MB) en un cuadro de pie, delante de ti.`, ACEPTA.imagen),
-    botonDe("subir-video", "Pantalla de vídeo…", `Un vídeo .mp4 o .webm (hasta ${TOPES_MB.mp4} MB) en una pantalla que lo repite; su sonido se oye al acercarse.`, ACEPTA.video),
-    botonDe("subir-sonido", "Zona de sonido…", `Un sonido .mp3 u .ogg (hasta ${TOPES_MB.mp3} MB): una esfera translúcida; dentro se oye. Su tamaño es el radio; puedes hacerla invisible.`, ACEPTA.sonido),
-    entrada,
-  );
+  entrada.type = "file"; entrada.accept = ACEPTA; entrada.multiple = true; entrada.hidden = true; entrada.id = "subir-fichero";
   entrada.addEventListener("change", () => { const fs = Array.from(entrada.files ?? []); entrada.value = ""; void varios(fs, null); });
-  o.panel?.append(fila);
-  let visible: boolean | null = null;
-  const mirarPermiso = () => { const si = o.puede(); if (si !== visible) { visible = si; fila.style.display = si ? "" : "none"; } }; // not `hidden`: the panel's .fila is display:flex
-  mirarPermiso(); setInterval(mirarPermiso, 500);
-  return { cuenta, subir: varios, rellenar, decir };
+  document.body.append(entrada);
+  /** Open the file picker (call it inside a click or a key press: browsers refuse a picker otherwise). */
+  const elegir = () => { if (o.puede()) entrada.click(); };
+  return { cuenta, subir: varios, rellenar, decir, elegir };
 }

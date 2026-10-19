@@ -167,12 +167,12 @@ try {
   const dg = Math.atan2(Math.sin(g1.yaw - j.yaw), Math.cos(g1.yaw - j.yaw));
   ok("mando", dg < -0.5 && gl > 1.0 * ANDA * 0.6 && gerr < 8 && gcorr === 0 && gstill, { giro: R(dg), metros: R(gl, 2), errorGrados: R(gerr, 1), correcciones: gcorr, quietaAlSoltar: gstill });
 
-  // full screen: a real button (the browser can do it here), on and off
+  // full screen: a real button (the browser can do it here), on and off — ux2-barra: an entry of the bar's «Menú» (O)
   const fs0 = await p.evaluate(() => ({ soporta: document.fullscreenEnabled, visible: !document.getElementById("pantalla").hidden, texto: document.getElementById("pantalla").textContent }));
-  await p.click("#pantalla");
+  await p.click("#menu-abrir"); await p.click("#pantalla");
   const fsOn = await p.waitForFunction(() => !!document.fullscreenElement, null, { timeout: 3000 }).then(() => true, () => false);
   const fs1 = await p.evaluate(() => document.getElementById("pantalla").textContent);
-  await p.click("#pantalla");
+  await p.click("#menu-abrir"); await p.click("#pantalla");
   const fsOff = await p.waitForFunction(() => !document.fullscreenElement, null, { timeout: 3000 }).then(() => true, () => false);
   ok("pantallaCompleta", !fs0.soporta || (fs0.visible && fsOn && fsOff && /Salir/.test(fs1)), { ...fs0, entra: fsOn, textoDentro: fs1, sale: fsOff });
 } catch (e) { checks.excepcion = { ok: false, error: String(e).split("\n")[0] }; }

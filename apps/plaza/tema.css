@@ -25,7 +25,7 @@
 html, body { font-family: "Geist", system-ui, sans-serif; }
 
 /* ---- frames: one surface, one hairline, 8px ---- */
-#hud, #panel-construir, #libro, #dialogo, #ajustes, #panel-entorno, #chat-lista:not(:empty), #ficha-objeto, #mision-seguida,
+#hud, #dock-construir, #panel-construir .cajon, #panel-construir .estado:not(:empty), #libro, #dialogo, #ajustes, #chat-lista:not(:empty), #ficha-objeto, #mision-seguida,
 #interactuar, .panel-j5, #subida-estado.con-texto {
   background: var(--n-sup) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea); border-radius: 8px !important; box-shadow: none !important;
 }
@@ -136,19 +136,10 @@ body #misiones[aria-expanded="true"] { background: var(--n-texto) !important; co
 body #libro { left: auto !important; right: 10px !important; top: calc(64px + var(--mini) + 4px + var(--botones-alto) + 11px + var(--mis-alto) + 9px) !important; bottom: auto !important; max-height: calc(100% - var(--mini) - 170px) !important; }
 body #mision-seguida { left: auto !important; right: 10px !important; top: calc(64px + var(--mini) + 4px + var(--botones-alto) + 11px + var(--mis-alto) + 9px) !important; max-width: min(320px, calc(100% - 20px)) !important; }
 @media (max-width: 899px) { body:has(#libro:not([hidden])) #mision-seguida { display: none; } } /* U3: on a wide screen the «now» line is top left, far from the book */
-/* while building the panel owns the right side */
+/* while building the dock owns the top centre and the object's card the right side (ux2-dock) */
 body.construyendo #reloj, body.construyendo #minimapa, body.construyendo #misiones, body.construyendo #libro, body.construyendo #mision-seguida { visibility: hidden; }
-body #panel-construir { top: 64px !important; max-height: calc(100% - 120px) !important; }
-body #panel-entorno { top: 112px !important; }
 #help { color: var(--n-fondo) !important; } /* narrow screens: dark text on the sky, as before */
 
-/* M22b-1: on a narrow phone the two panels (320 + 270 px) covered the whole world. The builder's becomes a bottom sheet
-   (≤ 38 % of the height, scrollable) and the environment's folds to a strip at the top-left; the three-state sheets
-   (hidden · bar · full) are M22b-2 / U24. */
-@media (pointer: coarse) and (max-width: 700px) {
-  body #panel-construir { top: auto !important; right: 0 !important; left: 0 !important; bottom: 0 !important; width: auto !important; max-height: 38vh !important; border-radius: 12px 12px 0 0 !important; padding-bottom: calc(8px + env(safe-area-inset-bottom)) !important; }
-  body #panel-entorno { top: 64px !important; left: 0 !important; width: 46vw !important; max-height: 22vh !important; font-size: 12px !important; border-radius: 0 8px 8px 0 !important; }
-}
 @media (min-width: 900px) { #help { max-width: calc(100vw - 440px) !important; } }
 #ajustes .version-motor { margin: 10px 0 0; font: 12px "Geist Mono", ui-monospace, monospace; color: var(--n-texto2); text-align: right; user-select: all; }
 #ajustes .version-motor:empty { display: none; }
@@ -180,18 +171,6 @@ body #panel-entorno { top: 112px !important; }
 #panel-director input[type="text"] { width: 100%; box-sizing: border-box; min-height: 44px; margin: 4px 0 8px; padding: 0 10px; border: 1px solid var(--n-linea); border-radius: 6px; background: rgba(0,0,0,.25); color: var(--n-texto); font: inherit; }
 #panel-director input[type="range"] { width: 100%; min-height: 44px; }
 @media (prefers-reduced-motion: reduce) { #narrador { transition: none; } }
-/* N16: «Gente» — who is connected now, and «Ir» */
-#gente .gente-lista { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; max-height: min(50vh, 420px); overflow: auto; }
-#gente .gente-lista li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 4px 4px 8px; border: 1px solid var(--n-linea); border-radius: 6px; }
-#gente .gente-lista li .nombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-#gente .gente-lista li.vacio { border: 0; color: var(--n-texto2); padding: 4px 0; }
-#gente .gente-lista .nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#gente .opcion { display: flex; align-items: center; gap: 8px; min-height: 44px; }
-#gente .opcion[hidden] { display: none; }
-#gente .opcion input { width: 20px; height: 20px; }
-#gente .nota, #gente .estado { color: var(--n-texto2); margin: 4px 0; }
-#gente .gente-lista button { min-height: 44px; min-width: 64px; }
-
 /* contadores v1 (D-044): the panel with the counters near you (value once a second; orders while within reach) */
 #contadores-panel { position: fixed; top: max(84px, 12%); right: 12px; z-index: 6; display: flex; flex-direction: column; gap: 8px; max-width: min(240px, calc(100vw - 24px)); }
 #contadores-panel .contador { padding: 8px 12px; background: var(--n-sup); color: var(--n-texto); border: 1px solid var(--n-linea); border-left: 3px solid var(--n-ambar); border-radius: 8px; }
@@ -251,7 +230,7 @@ html[data-densidad-nivel="completo"] [data-solo]:not([data-solo~="completo"]) { 
 /* a touch screen has no key O: in Mínimo the bar keeps only the gear, so the dial can always be turned back */
 /* U25: touch = html.tactil (a forced profile too), not the media query */
 html.tactil[data-densidad-nivel="minimo"] #barra-arriba[data-densidad] { display: flex !important; }
-html.tactil[data-densidad-nivel="minimo"] #barra-arriba > :not(#ajustes-abrir) { display: none !important; }
+html.tactil[data-densidad-nivel="minimo"] #barra-arriba > :not(#menu-abrir):not(.menu-barra) { display: none !important; } /* ux2-barra: the Menú (settings inside) stays */
 /* al_cambiar: the chat's lines show with each new line and fade after 6 s in Normal (Mínimo: folded to the pill; Completo: fixed,
    a taller list). «Menos movimiento»: nothing fades, it stays fixed. The open box (Enter) or the pointer over it keeps it shown. */
 html[data-densidad-nivel="normal"] #chat-lista { max-height: calc(4 * 1.45em); } /* four lines (the box adds its own padding); wide screens: the 440×150 box below */
@@ -371,7 +350,6 @@ html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 
 #hud-personaje .hp-ico { display: inline-flex; }
 #hud-personaje .hp-num { font: 12px/1 "Geist Mono", ui-monospace, monospace; }
 #hud-personaje .hp-val.ok { color: var(--n-hecho); } #hud-personaje .hp-val.aviso { color: var(--n-ambar); font-weight: 600; }
-#hud-personaje .hp-pronto { color: var(--n-texto2); font-size: 11px; border: 1px dashed var(--n-linea); border-radius: 4px; padding: 1px 6px; }
 #hud-personaje .hp-pasos { display: flex; gap: 4px; list-style: none; margin: 6px 0 0; padding: 0; }
 #hud-personaje .hp-pasos li { flex: 1; height: 10px; border-radius: 5px; background: var(--n-fondo); border: 1px solid var(--n-linea); }
 #hud-personaje .hp-pasos li.w { background: var(--n-ambar); border-color: var(--n-ambar); } #hud-personaje .hp-pasos li.r { background: var(--n-grana); border-color: var(--n-grana); }
@@ -379,7 +357,6 @@ html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 
 #hud-personaje .hp-barra { height: 8px; border-radius: 4px; background: var(--n-fondo); border: 1px solid var(--n-linea); overflow: hidden; margin-top: 4px; }
 #hud-personaje .hp-barra i { display: block; height: 100%; }
 #hud-personaje .carga .hp-barra i { background: var(--n-ambar); } #hud-personaje .aliento .hp-barra i { background: var(--n-turquesa); }
-#hud-personaje [data-pronto] .hp-barra, #hud-personaje [data-pronto] .hp-pasos { opacity: .45; }
 @media (max-width: 899px) { #hud-personaje { display: none; } } /* phones: their own story */
 /* ---- M5: Objetivo (the creature in reach: name + Coherencia) and the three skill slots ---- */
 #objetivo[hidden] { display: none !important; }
@@ -395,10 +372,373 @@ html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 
 #habilidades { display: flex; gap: 8px; padding: 8px; justify-content: center; }
 #habilidades .hueco { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-fondo); color: var(--n-texto2); font: 11px "Geist", system-ui, sans-serif; opacity: .7; }
 #habilidades .hueco kbd { position: absolute; top: 3px; left: 5px; font: 11px "Geist Mono", ui-monospace, monospace; color: var(--n-texto2); }
-#habilidades .hueco .prox { color: var(--n-ambar); font-size: 10px; }
+#habilidades[hidden] { display: none !important; } /* no fighting in this world: no slots (combate.ts) */
 /* combate nivel 2: a slot with a real ability is a button (combate.ts); lit when the Carga pays for it, dim otherwise */
 #habilidades button.hueco { cursor: pointer; padding: 0; opacity: .55; }
 #habilidades button.hueco.lista { opacity: 1; color: var(--n-texto); border-color: var(--n-ambar); }
 #habilidades button.hueco:focus-visible { outline: 2px solid var(--n-ambar); outline-offset: 2px; }
 #habilidades .hueco .cos { position: absolute; top: 3px; right: 5px; font: 11px "Geist Mono", ui-monospace, monospace; color: var(--n-ambar); }
 #habilidades .hueco .nom { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; padding: 0 4px; }
+
+/* ux2-barra: one thing, one place, one key. The bar, left to right: Micrófono (Q) · Gente (L) · Bolsa (R) · Cámara (P) ·
+   Construir (C) | Avisos (N) · Menú (O); the order lives here (modules add their buttons at different moments). Cámara and
+   Menú drop a small menu (menu-barra.ts) holding the modules' own buttons, with their names showing. The minimap is the
+   big map's button (no row under it); your card, top left, is the sheet's button (I). */
+#barra-arriba { flex-direction: row !important; }
+#barra-arriba > #microfono { order: 1; } #barra-arriba > #gente-abrir { order: 2; } #barra-arriba > #inventario-abrir { order: 3; }
+#barra-arriba > #camara-abrir { order: 4; } #barra-arriba > #construir { order: 5; } #barra-arriba > #dirigir { order: 6; }
+#barra-arriba > #vr { order: 7; } #barra-arriba > #ar { order: 8; } #barra-arriba > .separador { order: 10; }
+#barra-arriba > #avisos-abrir { order: 11; } #barra-arriba > #menu-abrir { order: 12; }
+#barra-arriba > .separador { align-self: center; width: 1px; height: 28px; margin: 0 2px; background: var(--n-linea); flex: none; }
+#barra-arriba > #construir[hidden] { display: none !important; } /* builders only: the attribute, beating the old inline-flex rule */
+#barra-arriba > #camara-abrir[aria-expanded="true"], #barra-arriba > #menu-abrir[aria-expanded="true"] { border-color: var(--n-turquesa) !important; }
+#barra-arriba > #camara-abrir, #barra-arriba > #avisos-abrir { position: relative !important; } /* their dot / count hang on them */
+#barra-arriba > #camara-abrir[data-estado]::after { content: ""; position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--n-grana); }
+#barra-arriba > #camara-abrir[data-estado="compartiendo"]::after { background: var(--n-verdemar); }
+/* the drop-down: hangs under its button, right edges together (menu-barra.ts sets `right`) */
+#barra-arriba > .menu-barra { position: absolute !important; top: calc(100% + 6px) !important; left: auto !important; bottom: auto !important; z-index: 8;
+  display: flex; flex-direction: column; gap: 2px; min-width: 220px; padding: 6px; box-sizing: border-box;
+  background: var(--n-sup); border: 1px solid var(--n-linea); border-radius: 8px; }
+#barra-arriba > .menu-barra[hidden] { display: none !important; }
+#barra-arriba .menu-barra > button { position: static !important; inset: auto !important; display: flex !important; align-items: center; justify-content: flex-start !important; gap: 10px; width: 100% !important; height: 40px !important; min-width: 0 !important;
+  margin: 0 !important; padding: 0 10px !important; box-sizing: border-box; text-align: left; font: 500 14px "Geist", system-ui, sans-serif !important; line-height: 1 !important; z-index: auto !important;
+  background: transparent !important; border: 1px solid transparent !important; color: var(--n-texto) !important; border-radius: var(--n-r-control) !important; }
+#barra-arriba .menu-barra > button:hover, #barra-arriba .menu-barra > button:focus-visible { background: var(--n-elev) !important; border-color: var(--n-linea) !important; }
+#barra-arriba .menu-barra > button[hidden] { display: none !important; }
+#barra-arriba .menu-barra > button .solo-lector { position: static !important; width: auto !important; height: auto !important; margin: 0 !important; overflow: visible !important; clip: auto !important; white-space: nowrap; }
+#barra-arriba .menu-barra > button .icono + span { margin-left: 0 !important; }
+#barra-arriba .menu-barra > button > span:not(.solo-lector) { display: inline-flex; align-items: center; gap: 10px; } /* pantalla.ts wraps icon + name in a span */
+#barra-arriba .menu-barra > button[aria-pressed="true"] { background: var(--n-elev) !important; color: var(--n-texto) !important; border-color: var(--n-grana) !important; font-weight: 600 !important; }
+#barra-arriba .menu-barra > #compartir-pantalla[aria-pressed="true"] { border-color: var(--n-verdemar) !important; }
+/* the minimap: the round picture IS the button of the big map (M); the wheel over it zooms */
+#minimapa #minimapa-abrir { display: block; padding: 0 !important; margin: 0; border: 0 !important; background: none !important; border-radius: 50% !important; cursor: pointer; line-height: 0; min-width: 0 !important; min-height: 0 !important; }
+#minimapa #minimapa-abrir:hover canvas { outline: 1px solid var(--n-texto2); outline-offset: 1px; }
+:root { --botones-alto: 0px !important; }
+@media (pointer: coarse) { :root { --botones-alto: 0px !important; } }
+/* your card, top left: a real button laid over it opens your sheet (I) */
+#hud-personaje > #hud-personaje-abrir { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 1px solid transparent; border-radius: inherit; background: transparent; cursor: pointer; z-index: 1; }
+#hud-personaje > #hud-personaje-abrir:hover { border-color: var(--n-texto2); }
+/* «Teclas y ayuda» (Menú › Teclas y ayuda, F1): the help line as a two-column list */
+#teclas .teclas-lista { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; max-height: 60vh; overflow: auto; }
+#teclas .teclas-lista dt { font: 600 12px "Geist Mono", ui-monospace, monospace; color: var(--n-verdemar); }
+#teclas .teclas-lista dd { margin: 0; color: var(--n-texto); }
+/* the news in the bell's history: its title and its lines, whole */
+#avisos-centro .avisos-lista .aviso-novedades { border-left-color: var(--n-ambar); } #avisos-centro .avisos-lista .aviso-novedades .ic { color: var(--n-ambar); }
+#avisos-centro .avisos-lista .aviso-novedades ul { margin: 6px 0 0; padding-left: 18px; } #avisos-centro .avisos-lista .aviso-novedades li { display: list-item; padding: 0; border: 0; margin: 0 0 4px; background: none; }
+/* ux2-tu — «Tú» (I): the player sheet at production level (rediseño v2, story B; maqueta p2). Horizontal tabs, two columns on
+   Personaje (your avatar's render / who you are), chips for the Estado ladder, badge tiles; the HUD card's portrait; the
+   read-only «Este aparato» and «Tu identidad» groups in Ajustes. Colours only from the house variables. */
+#ficha { width: min(96vw, 980px); }
+#ficha header { padding: 14px 16px; gap: 10px; justify-content: flex-start; border-bottom: 1px solid var(--n-linea); }
+#ficha header h2 { font-size: 18px !important; }
+#ficha header .tecla { font: 500 12px "Geist Mono", ui-monospace, monospace; color: var(--n-texto2); }
+#ficha header .cerrar { margin-left: auto; }
+#ficha .cuerpo { display: flex; flex-direction: column; gap: 0; padding: 0; align-items: stretch; }
+#ficha .pestanas { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--n-linea); flex: none; }
+#ficha .pestanas button { padding: 12px 14px !important; border: 0 !important; border-bottom: 2px solid transparent !important; border-radius: 0 !important; background: transparent !important; color: var(--n-texto2) !important; font: 500 14px "Geist", system-ui, sans-serif; cursor: pointer; min-width: 0; }
+#ficha .pestanas button:hover { color: var(--n-texto) !important; }
+#ficha .pestanas button[aria-selected="true"] { color: var(--n-texto) !important; border-bottom-color: var(--n-turquesa) !important; }
+#ficha .pestanas button:focus-visible { outline: 2px solid var(--n-turquesa); outline-offset: -2px; }
+#ficha .hoja { flex: 1 1 auto; min-height: min(540px, 62vh); overflow: auto; padding: 16px 20px 20px; } /* the same height on every tab: no jump */
+#ficha .hoja[data-pestana="personaje"] { padding: 0; }
+#ficha .hoja section + section { margin-top: 14px; }
+#ficha .hoja[data-pestana="personaje"] section + section { margin: 0; padding: 0 24px 20px 364px; }
+#ficha .hoja h3 { font: 600 12px "Geist", system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--n-verdemar); margin: 0 0 8px; }
+#ficha .nota { color: var(--n-texto2); font-size: 13px; margin: 8px 0 0; }
+#ficha .chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid var(--n-linea); background: transparent; font: 500 12px "Geist", system-ui, sans-serif; color: var(--n-texto2); }
+#ficha .chip.ok { color: var(--n-hecho); border-color: color-mix(in srgb, var(--n-hecho) 40%, var(--n-linea)); }
+#ficha .chip.aviso { color: var(--n-ambar); border-color: color-mix(in srgb, var(--n-ambar) 45%, var(--n-linea)); }
+#ficha .chip.mal { color: var(--n-texto); background: color-mix(in srgb, var(--n-grana) 30%, transparent); border-color: var(--n-grana); }
+#ficha .tu-chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+/* Personaje: the figure column (render on a soft gradient) and the data column */
+#ficha .tu-personaje { display: flex; min-height: 540px; }
+#ficha .tu-figura { flex: 0 0 340px; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; padding: 16px; border-right: 1px solid var(--n-linea); background: radial-gradient(ellipse at 50% 60%, #2a2f3a, transparent 70%); }
+#ficha .tu-marco { flex: 1 1 auto; display: grid; place-items: center; width: 100%; min-height: 0; }
+#ficha .tu-marco img { display: block; height: min(440px, 52vh); width: auto; max-width: 100%; object-fit: contain; }
+#ficha .tu-silueta { display: grid; place-items: center; width: 220px; height: min(440px, 52vh); color: var(--n-texto2); opacity: .55; }
+#ficha .tu-acciones { display: flex; gap: 8px; }
+#ficha .tu-acciones button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; min-width: 40px; padding: 0 12px; font: 500 14px "Geist", system-ui, sans-serif; cursor: pointer; }
+#ficha .tu-acciones button.tu-girar { padding: 0; width: 40px; }
+#ficha .tu-acciones button[hidden] { display: none; }
+#ficha .tu-datos { flex: 1 1 auto; min-width: 0; padding: 20px 24px; display: flex; flex-direction: column; gap: 22px; }
+#ficha .tu-cabeza { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#ficha .tu-nombre { margin: 0; font: 600 26px/1.15 "Geist", system-ui, sans-serif; color: var(--n-texto); overflow-wrap: anywhere; }
+#ficha .tu-linea { margin: -18px 0 0; color: var(--n-texto2); font-size: 14px; }
+#ficha .tu-bloque[hidden] { display: none; }
+#ficha .tu-bloque h4 { font: 600 12px "Geist", system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--n-verdemar); margin: 0 0 8px; }
+#ficha .tu-bloque p { margin: 0; }
+#ficha .tu-bloque .nota { margin-top: 8px; }
+#ficha .escalera { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 0; font: inherit; }
+#ficha .escalera li { padding: 0 10px; border-radius: 13px; background: transparent; }
+#ficha .escalera li[aria-current="step"] { background: transparent; }
+#ficha .tu-barra-fila { display: flex; align-items: center; gap: 12px; }
+#ficha .tu-barra { flex: 1; height: 10px; border-radius: 5px; background: var(--n-linea); overflow: hidden; }
+#ficha .tu-barra i { display: block; height: 100%; background: var(--n-verdemar); }
+#ficha .tu-num { font: 500 13px "Geist Mono", ui-monospace, monospace; color: var(--n-texto); }
+#ficha ul.insignias { list-style: none; display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; }
+#ficha li.insignia { width: 64px; height: 64px; border-radius: 8px; border: 1px solid var(--n-linea); display: grid; place-items: center; background: var(--n-elev); color: var(--n-ambar); }
+#ficha li.insignia.no { background: transparent; border-style: dashed; color: var(--n-texto2); opacity: .7; }
+#ficha ul.insignias.grandes { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+#ficha ul.insignias.grandes li.insignia { width: auto; height: auto; min-height: 64px; grid-template-columns: 40px 1fr; grid-template-rows: auto auto; place-items: center start; column-gap: 10px; padding: 10px 12px; }
+#ficha ul.insignias.grandes li.insignia .icono { grid-row: 1 / 3; justify-self: center; }
+#ficha ul.insignias.grandes .nombre { color: var(--n-texto); font-weight: 600; font-size: 14px; }
+#ficha ul.insignias.grandes .mision { color: var(--n-texto2); font-size: 12px; }
+#ficha .tu-cuenta { margin: 0 0 12px; color: var(--n-texto2); font: 500 13px "Geist Mono", ui-monospace, monospace; }
+@media (max-width: 760px) {
+  #ficha .tu-personaje { flex-direction: column; min-height: 0; }
+  #ficha .tu-figura { flex: none; border-right: 0; border-bottom: 1px solid var(--n-linea); }
+  #ficha .tu-marco img, #ficha .tu-silueta { height: 280px; }
+  #ficha .hoja[data-pestana="personaje"] section + section { padding: 0 16px 16px; }
+}
+/* the HUD card: your bust on the left opens «Tú» */
+#hud-personaje:not([hidden]) { display: flex; gap: 12px; align-items: flex-start; }
+#hud-personaje .hp-cuerpo { flex: 1 1 auto; min-width: 0; }
+#hud-personaje .hp-retrato { flex: none; width: 56px; height: 56px; padding: 0; overflow: hidden; display: grid; place-items: center; border: 1px solid var(--n-linea); border-radius: 6px; background: #2a2f3a; color: var(--n-texto2); cursor: pointer; }
+#hud-personaje .hp-retrato:hover { border-color: var(--n-texto2); }
+#hud-personaje .hp-retrato:focus-visible { outline: 2px solid var(--n-turquesa); outline-offset: 2px; }
+#hud-personaje .hp-retrato img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Ajustes: the read-only groups (Gráficos › Este aparato, Cuenta y privacidad › Tu identidad) */
+#ajustes fieldset.solo-lectura .ajuste.info { display: block; }
+#ajustes fieldset.solo-lectura dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
+#ajustes fieldset.solo-lectura dt { color: var(--n-texto2); }
+#ajustes fieldset.solo-lectura dd { margin: 0; color: var(--n-texto); overflow-wrap: anywhere; }
+/* ux2-gente */
+/* «Gente» (L) — tabs, the list on the left (bust 44 px, name, where, a green dot when connected), the
+   person picked on the right (full-body portrait, name + «En <mundo>», «Ahora», one main action; the delicate ones apart,
+   at the bottom). Narrow screens show one of the two (data-vista). Maqueta p3 (rediseño v2). */
+#gente.gente-panel { width: min(96vw, 1080px); }
+#gente .cuerpo { padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+#gente header { padding: 12px 16px; gap: 12px; }
+#gente header h2 { margin-right: auto; font-size: 18px; }
+#gente .gente-anadir, #gente .gente-botones button, #gente .gente-delicados button, #gente-denuncia button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 10px !important; font-weight: 500; }
+#gente .gente-pestanas { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--n-linea); }
+#gente .gente-pestanas button { background: transparent !important; border: 0 !important; border-bottom: 2px solid transparent !important; border-radius: 0 !important; padding: 12px 14px !important; color: var(--n-texto2) !important; font: 500 14px var(--n-titulos) !important; min-height: 44px; }
+#gente .gente-pestanas button[aria-selected="true"] { color: var(--n-texto) !important; border-bottom-color: var(--n-turquesa) !important; }
+#gente .gente-cuerpo { display: flex; min-height: min(480px, 70vh); max-height: calc(92vh - 140px); }
+#gente .gente-izq { flex: 0 0 290px; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; padding: 10px; border-right: 1px solid var(--n-linea); overflow: auto; }
+#gente .gente-buscar { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-fondo); color: var(--n-texto2); }
+#gente .gente-buscar input { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; color: var(--n-texto); font: 14px var(--n-titulos); outline: none; }
+#gente .gente-buscar:focus-within { outline: 2px solid var(--n-turquesa); outline-offset: 2px; }
+#gente .gente-lista { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+#gente .gente-seccion { margin: 12px 10px 4px; font: 600 11px var(--n-titulos); letter-spacing: .06em; text-transform: uppercase; color: var(--n-texto2); }
+#gente .gente-fila { width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px 10px !important; min-height: 60px; text-align: left; background: transparent !important; border: 1px solid transparent !important; border-radius: 6px !important; color: var(--n-texto) !important; cursor: pointer; }
+#gente .gente-fila:hover { background: var(--n-elev) !important; }
+#gente .gente-fila[aria-current="true"] { background: var(--n-elev) !important; border-color: var(--n-linea) !important; }
+#gente .gente-fila.fuera { opacity: .6; }
+#gente .gente-fila .textos { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#gente .gente-fila b { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#gente .gente-fila .sub { font-size: 12px; color: var(--n-texto2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#gente .punto, #gente-tarjeta .punto { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--n-hecho); }
+#gente .vacio { color: var(--n-texto2); margin: 10px; }
+#gente .opcion { display: flex; align-items: center; gap: 8px; min-height: 44px; margin: 8px 10px 0; color: var(--n-texto2); font-size: 13px; }
+#gente .opcion[hidden] { display: none; }
+#gente .opcion input { width: 18px; height: 18px; accent-color: var(--n-turquesa); }
+#gente .gente-letra, #gente-denuncia .gente-letra { margin: auto 10px 2px; padding-top: 10px; font-size: 11px; color: var(--n-texto2); }
+#gente .estado { margin: 0; padding: 6px 16px; min-height: 1.4em; font-size: 12px; color: var(--n-texto2); border-top: 1px solid var(--n-linea); }
+#gente .estado:empty { display: none; }
+#gente .gente-der { flex: 1; display: flex; min-width: 0; }
+#gente .gente-nadie { flex: 1; display: grid; place-items: center; color: var(--n-texto2); padding: 20px; text-align: center; }
+#gente .gente-figura { flex: 0 0 210px; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 60%, #2a2f3a, transparent 70%); }
+#gente .gente-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 18px; padding: 22px 18px 18px 6px; overflow: auto; }
+#gente .gente-titulo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#gente .gente-nombre { margin: 0; font: var(--n-titulos-peso) 26px/1.15 var(--n-titulos); color: var(--n-texto); overflow-wrap: anywhere; }
+#gente .gente-datos .sub { margin: 4px 0 0; color: var(--n-texto2); }
+#gente .chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid var(--n-linea); font-size: 12px; color: var(--n-texto2); white-space: nowrap; }
+#gente .chip.ok { color: var(--n-hecho); border-color: #3c5230; }
+#gente .gente-ahora h4 { margin: 0 0 6px; font: 600 12px var(--n-titulos); letter-spacing: .06em; text-transform: uppercase; color: var(--n-verdemar); }
+#gente .gente-ahora p { margin: 0; font-size: 14px; }
+#gente .gente-botones, #gente-denuncia .gente-botones { display: flex; gap: 8px; flex-wrap: wrap; }
+#gente .gente-delicados { margin-top: auto; display: flex; gap: 6px; flex-wrap: wrap; padding-top: 14px; border-top: 1px solid var(--n-linea); }
+#gente .gente-delicados .empuja { margin-left: auto; }
+#gente button.principal, #gente-tarjeta button.principal { background: var(--n-accion) !important; border-color: var(--n-accion) !important; color: var(--n-accion-tinta) !important; }
+#gente button.principal:hover:not(:disabled), #gente-tarjeta button.principal:hover { background: var(--n-accion-h) !important; }
+#gente button.fantasma { background: transparent !important; }
+#gente button.peligro-texto, #gente-tarjeta button.peligro-texto { background: transparent !important; color: #F35059 !important; }
+#gente button:disabled { opacity: .5; cursor: not-allowed; }
+#gente .gente-volver { display: none; align-self: flex-start; background: transparent !important; border: 0 !important; color: var(--n-texto2) !important; padding: 0 !important; min-height: 44px; }
+/* portraits: the house avatar's picture, or a silhouette (never a hole) */
+.retrato { flex: none; display: grid; place-items: center; overflow: hidden; color: var(--n-texto2); }
+.retrato.busto { width: 44px; height: 44px; border-radius: 6px; border: 1px solid var(--n-linea); background: #2a2f3a; }
+.retrato.busto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.retrato.cuerpo { width: 100%; height: 100%; max-height: 440px; }
+.retrato.cuerpo img { height: min(420px, 60vh); width: auto; max-width: 100%; object-fit: contain; display: block; }
+.retrato.apagado img { filter: grayscale(1); opacity: .7; }
+.retrato.silueta { opacity: .75; }
+@media (max-width: 760px) {
+  #gente .gente-cuerpo { min-height: 0; max-height: calc(92vh - 130px); }
+  #gente .gente-izq { flex: 1; border-right: 0; }
+  #gente .gente-cuerpo[data-vista="ficha"] .gente-izq, #gente .gente-cuerpo[data-vista="lista"] .gente-der { display: none; }
+  #gente .gente-der { flex-direction: column; overflow: auto; }
+  #gente .gente-figura { flex: none; height: 220px; }
+  #gente .gente-figura .retrato.cuerpo img { height: 210px; }
+  #gente .gente-info { padding: 12px 16px 16px; }
+  #gente .gente-volver { display: inline-flex; }
+  #gente header .gente-anadir span { display: none; }
+  #gente .gente-botones button, #gente .gente-delicados button, #gente .gente-fila { min-height: 44px; }
+}
+/* the report form */
+#gente-denuncia { width: min(92vw, 440px); }
+#gente-denuncia textarea { width: 100%; box-sizing: border-box; margin: 8px 0; padding: 8px 10px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-fondo); color: var(--n-texto); font: 14px var(--n-titulos); resize: vertical; }
+#gente-denuncia button.peligro { background: var(--n-grana) !important; color: #fff !important; border-color: var(--n-grana) !important; }
+#gente-denuncia .estado { color: var(--n-texto2); min-height: 1.2em; }
+/* the small card beside someone you click in the world (maqueta p4) */
+#gente-tarjeta { position: fixed; left: 0; top: 0; z-index: 8; width: 330px; max-width: calc(100vw - 16px); box-sizing: border-box; padding: 12px; background: var(--n-sup); color: var(--n-texto); border: 1px solid var(--n-linea); border-radius: 8px; font: 14px var(--n-titulos); }
+#gente-tarjeta[hidden] { display: none; }
+#gente-tarjeta .cab { display: flex; gap: 12px; align-items: center; }
+#gente-tarjeta .retrato.busto { width: 64px; height: 64px; }
+#gente-tarjeta .textos { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#gente-tarjeta .textos b { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#gente-tarjeta .textos .sub { font-size: 12px; color: var(--n-texto2); }
+#gente-tarjeta button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; min-width: 40px; padding: 0 10px; background: var(--n-elev); color: var(--n-texto); border: 1px solid var(--n-linea); border-radius: var(--n-r-control); font: 500 14px var(--n-titulos); cursor: pointer; }
+#gente-tarjeta button:hover { border-color: var(--n-texto2); }
+#gente-tarjeta .gente-mas { background: transparent; border-color: transparent; width: 40px; padding: 0; }
+#gente-tarjeta .acciones { display: flex; gap: 6px; margin-top: 12px; }
+#gente-tarjeta .acciones button:not(.solo-icono) { flex: 1; }
+#gente-tarjeta .gente-menu { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--n-linea); }
+#gente-tarjeta .gente-menu button { justify-content: flex-start; background: transparent; border-color: transparent; }
+#gente-tarjeta .gente-menu button:hover { background: var(--n-elev); }
+@media (pointer: coarse) { #gente-tarjeta button { min-height: 44px; min-width: 44px; } }
+/* ux2-dock: build mode is a row of icons (the dock, top centre) and ONE drawer under it (constructor.ts, cajones.ts);
+   the selected object's card on the right. On a touch screen or a narrow window — or with ?aparato=movil-… — the dock
+   goes to the bottom (above the chat line) and the drawer rises over it as a sheet; the card is a sheet too and gives way
+   while a drawer is open; the status line is read aloud but not drawn (it would sit under the card). */
+#panel-construir[hidden] { display: none !important; }
+#panel-construir > * { pointer-events: auto; box-sizing: border-box; }
+#dock-construir { display: flex; align-items: center; gap: 4px; padding: 6px; max-width: 100%; }
+#dock-construir .sep { width: 1px; height: 26px; margin: 0 4px; background: var(--n-linea, #3A332D); flex: none; }
+#panel-construir button.ic, #ficha-objeto button.ic { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; width: 40px; height: 40px; padding: 0; }
+#panel-construir button.ic[aria-expanded="true"] { background: var(--n-accion, #017C8D) !important; border-color: var(--n-turquesa, #018EA1) !important; color: #fff !important; }
+#panel-construir button[data-tip]:hover::after, #panel-construir button[data-tip]:focus-visible::after, #ficha-objeto button[data-tip]:hover::after, #ficha-objeto button[data-tip]:focus-visible::after {
+  content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 2; white-space: nowrap; padding: 4px 8px; border-radius: 6px;
+  background: var(--n-fondo, #14110F); color: var(--n-texto, #F9EBDC); border: 1px solid var(--n-linea, #3A332D); font: 500 12px "Geist", system-ui, sans-serif; pointer-events: none; }
+#panel-construir .cajon { width: 100%; max-height: calc(100vh - 140px); overflow: auto; overscroll-behavior: contain; padding: 14px; font-size: 13px; }
+#panel-construir .cajon[hidden] { display: none; }
+#panel-construir .cajon .cab { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+#panel-construir .cajon .cab h2 { margin: 0; font-size: 15px; }
+#panel-construir .cajon .cab .pista { color: var(--n-texto2, #C4B5A6); font-size: 13px; }
+#panel-construir .cajon .cab .cerrar { margin-left: auto; width: 32px; height: 32px; }
+#panel-construir .cajon .cab .cerrar[data-tip]:hover::after, #panel-construir .cajon .cab .cerrar[data-tip]:focus-visible::after { left: auto; right: 0; transform: none; }
+#panel-construir h3 { margin: 12px 0 4px; font-size: 13px; }
+#panel-construir .fila { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+#panel-construir .cajon button:not(.ic):not(.pieza) { display: inline-flex; align-items: center; gap: 6px; }
+#panel-construir .buscar-fila { flex-wrap: nowrap; gap: 8px; margin: 0; }
+#panel-construir .buscar { flex: 1; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px; border: 1px solid var(--n-linea, #3A332D); border-radius: 6px; background: var(--n-fondo, #14110F); color: var(--n-texto2, #C4B5A6); }
+#panel-construir .buscar input { flex: 1; min-width: 0; height: 100%; border: 0 !important; background: transparent !important; font: inherit; color: var(--n-texto, #F9EBDC) !important; }
+#panel-construir .buscar input:focus-visible { outline: none !important; }
+#panel-construir .buscar:focus-within { outline: 2px solid var(--n-turquesa, #018EA1); outline-offset: 2px; }
+#panel-construir button.subir { display: inline-flex; align-items: center; height: 40px; padding: 0 12px; }
+#panel-construir button.subir[hidden] { display: none; }
+#panel-construir .rejilla { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+#panel-construir .pieza { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 4px; font-size: 11px; color: var(--n-texto2, #C4B5A6) !important; cursor: grab; touch-action: none; }
+#panel-construir .pieza span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#panel-construir .pieza[hidden], #panel-construir .vacio[hidden] { display: none; }
+#panel-construir .pieza .icono { color: var(--n-ambar, #EFA517); }
+#panel-construir .vacio { color: var(--n-texto2, #C4B5A6); }
+#panel-construir [data-eje="X"] { color: #b3261e; font-weight: 700; }
+#panel-construir [data-eje="Y"] { color: #1e7b34; font-weight: 700; }
+#panel-construir [data-eje="Z"] { color: #1d4fb8; font-weight: 700; }
+#panel-construir fieldset { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; padding: 2px 6px 6px; border: 1px solid #55606b; border-radius: 6px; }
+#panel-construir legend { padding: 0 4px; }
+#panel-construir label { display: inline-flex; align-items: center; gap: 4px; margin: 2px 6px 2px 0; }
+#panel-construir .inspector input[type=number] { width: 58px; }
+#panel-construir .inspector input[type=text], #panel-construir .inspector input[type=url] { width: 220px; }
+#panel-construir input[type=range] { width: 140px; }
+#panel-construir input:focus-visible, #panel-construir select:focus-visible { outline: 3px solid #ffd27a; }
+#panel-construir ul { margin: 4px 0; padding-left: 18px; }
+#panel-construir label[hidden], #panel-construir section[hidden] { display: none; }
+#panel-construir h4 { margin: 6px 0 2px; font-size: 12px; color: var(--n-ambar, #EFA517); }
+#panel-construir li.vacio { list-style: none; margin-left: -18px; }
+#panel-construir .aviso-biblioteca { color: #ffb4a8; font-weight: 600; }
+#panel-construir .aviso-biblioteca[hidden] { display: none; }
+#panel-construir .estado { margin: 0; padding: 6px 12px; font-size: 13px; text-align: center; }
+#panel-construir .estado:empty { padding: 0; }
+#ficha-objeto { position: fixed; z-index: 6; right: 16px; top: 64px; width: min(320px, calc(100vw - 16px)); max-height: calc(100vh - 80px); overflow: auto; box-sizing: border-box; padding: 14px; color: #eef2f6; font: 13px "Geist", system-ui, sans-serif; }
+#ficha-objeto[hidden] { display: none; }
+#ficha-objeto .cab { display: flex; align-items: center; gap: 8px; }
+#ficha-objeto .cab .ico { display: inline-flex; color: var(--n-ambar, #EFA517); }
+#ficha-objeto h3 { flex: 1; min-width: 0; margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+#ficha-objeto .cab .cerrar { width: 32px; height: 32px; }
+#ficha-objeto .cab .cerrar[data-tip]:hover::after, #ficha-objeto .cab .cerrar[data-tip]:focus-visible::after { left: auto; right: 0; transform: none; }
+#ficha-objeto .sub { margin: 4px 0 12px; color: var(--n-texto2, #C4B5A6); font-size: 12px; }
+#ficha-objeto .sub .chip { display: inline; padding: 1px 3px !important; border: 0 !important; background: transparent !important; color: inherit !important; font: inherit; cursor: pointer; }
+#ficha-objeto .sub .chip[aria-pressed="true"] { color: var(--n-texto, #F9EBDC) !important; text-decoration: underline; text-underline-offset: 3px; }
+#ficha-objeto .sub .chip[data-tip]::after { display: none; }
+#ficha-objeto kbd { font: 600 11px "Geist Mono", ui-monospace, monospace; }
+#ficha-objeto .kv { display: grid; grid-template-columns: 72px 1fr; gap: 8px 10px; margin: 0; align-items: center; }
+#ficha-objeto .kv dt { color: var(--n-texto2, #C4B5A6); } #ficha-objeto .kv dd { margin: 0; display: flex; gap: 4px; align-items: center; min-width: 0; }
+#ficha-objeto .kv [hidden] { display: none; }
+#ficha-objeto .kv input, #ficha-objeto .campo { box-sizing: border-box; width: 100%; min-width: 0; height: 32px; padding: 0 8px; border: 1px solid var(--n-linea, #3A332D); border-radius: 6px; background: var(--n-fondo, #14110F); color: var(--n-texto, #F9EBDC); font: 500 12px "Geist Mono", ui-monospace, monospace; }
+#ficha-objeto .kv .unidad input { width: 72px; }
+#ficha-objeto .kv input { -moz-appearance: textfield; appearance: textfield; padding: 0 6px; }
+#ficha-objeto .kv input::-webkit-inner-spin-button, #ficha-objeto .kv input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+#ficha-objeto .campo.texto { display: flex; align-items: center; font-family: "Geist", system-ui, sans-serif; }
+#ficha-objeto .ranura .fila { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; }
+#ficha-objeto .acciones { display: flex; flex-wrap: nowrap; gap: 6px; align-items: center; margin-top: 14px; }
+#ficha-objeto .acciones .hueco-flex { flex: 1; }
+#ficha-objeto .acciones > button:not(.ic) { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 10px; }
+#ficha-objeto .acciones button.ic { width: 36px; height: 36px; }
+#ficha-objeto button[hidden] { display: none !important; }
+#ficha-objeto button.ic .et { display: none; }
+#ficha-objeto button:focus-visible, #ficha-objeto input:focus-visible { outline: 3px solid #ffd27a; }
+@media (pointer: coarse), (max-width: 899px) {
+  #panel-construir { top: auto !important; bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; flex-direction: column-reverse !important; width: calc(100% - 16px) !important; }
+  #dock-construir { width: 100%; gap: 2px; justify-content: center; }
+  #dock-construir .sep { margin: 0 2px; }
+  #panel-construir button.ic { width: 44px; height: 44px; }
+  #dock-construir button.ic { flex: 1 1 0; min-width: 36px; max-width: 48px; width: auto; }
+  #panel-construir button[data-tip]:hover::after { display: none; }
+  #panel-construir .cajon { max-height: 50vh; border-radius: 16px 16px 8px 8px !important; font-size: 14px; }
+  #panel-construir .rejilla { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  #panel-construir button { min-height: 44px; }
+  #panel-construir select, #panel-construir input[type=number], #panel-construir input[type=text] { min-height: 40px; font-size: 14px; }
+  #ficha-objeto { top: auto; left: 8px; right: 8px; width: auto; bottom: calc(144px + env(safe-area-inset-bottom, 0px)); max-height: 42vh; overscroll-behavior: contain; font-size: 14px; }
+  html.cajon-abierto #ficha-objeto { display: none; }
+  #ficha-objeto .kv input { height: 40px; font-size: 14px; }
+  #ficha-objeto .acciones > button:not(.ic), #ficha-objeto .acciones button.ic { min-height: 48px; }
+  #ficha-objeto .acciones button.ic { width: auto; min-width: 48px; flex-direction: column; gap: 2px; padding: 4px 6px; }
+  #ficha-objeto button.ic .et { display: block; font: 600 11px/1.1 system-ui, sans-serif; }
+#ficha-objeto .cab .cerrar .et { display: none; }
+#panel-construir .estado:not(:empty) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; padding: 0; border: 0; }
+  #ficha-objeto button[data-tip]:hover::after, #ficha-objeto button[data-tip]:focus-visible::after { display: none; }
+}
+html[data-aparato^="movil"] #panel-construir { top: auto !important; bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; flex-direction: column-reverse !important; width: calc(100% - 16px) !important; }
+html[data-aparato^="movil"] #dock-construir { width: 100%; gap: 2px; justify-content: center; }
+html[data-aparato^="movil"] #dock-construir .sep { margin: 0 2px; }
+html[data-aparato^="movil"] #panel-construir button.ic { width: 44px; height: 44px; }
+html[data-aparato^="movil"] #dock-construir button.ic { flex: 1 1 0; min-width: 36px; max-width: 48px; width: auto; }
+html[data-aparato^="movil"] #panel-construir button[data-tip]:hover::after { display: none; }
+html[data-aparato^="movil"] #panel-construir .cajon { max-height: 50vh; border-radius: 16px 16px 8px 8px !important; font-size: 14px; }
+html[data-aparato^="movil"] #panel-construir .rejilla { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+html[data-aparato^="movil"] #panel-construir button { min-height: 44px; }
+html[data-aparato^="movil"] #panel-construir select, html[data-aparato^="movil"] #panel-construir input[type=number], html[data-aparato^="movil"] #panel-construir input[type=text] { min-height: 40px; font-size: 14px; }
+html[data-aparato^="movil"] #ficha-objeto { top: auto; left: 8px; right: 8px; width: auto; bottom: calc(144px + env(safe-area-inset-bottom, 0px)); max-height: 42vh; overscroll-behavior: contain; font-size: 14px; }
+html[data-aparato^="movil"].cajon-abierto #ficha-objeto { display: none; }
+html[data-aparato^="movil"] #ficha-objeto .kv input { height: 40px; font-size: 14px; }
+html[data-aparato^="movil"] #ficha-objeto .acciones > button:not(.ic), html[data-aparato^="movil"] #ficha-objeto .acciones button.ic { min-height: 48px; }
+html[data-aparato^="movil"] #ficha-objeto .acciones button.ic { width: auto; min-width: 48px; flex-direction: column; gap: 2px; padding: 4px 6px; }
+html[data-aparato^="movil"] #ficha-objeto button.ic .et { display: block; font: 600 11px/1.1 system-ui, sans-serif; }
+html[data-aparato^="movil"] #ficha-objeto .cab .cerrar .et { display: none; }
+html[data-aparato^="movil"] #panel-construir .estado:not(:empty) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; padding: 0; border: 0; }
+html[data-aparato^="movil"] #ficha-objeto button[data-tip]:hover::after, html[data-aparato^="movil"] #ficha-objeto button[data-tip]:focus-visible::after { display: none; }
+
+/* ux2-dock on a phone: while building, the dock takes the chat line's place at the bottom (the chat comes back on «Salir»),
+   and the card packs «Giro» and «Tamaño» on one row, so the sheet stays under the middle of the screen where the chosen
+   thing is (a 420 × 800 phone: card top ≥ 55 % of the height). */
+html[data-aparato^="movil"] body.construyendo #chat { visibility: hidden; }
+html[data-aparato^="movil"] #panel-construir { bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important; }
+html[data-aparato^="movil"] #ficha-objeto { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+html[data-aparato^="movil"] #ficha-objeto .kv { grid-template-columns: auto 1fr auto 1fr; gap: 8px; }
+html[data-aparato^="movil"] #ficha-objeto .kv dd.tres, html[data-aparato^="movil"] #ficha-objeto .kv dt:nth-of-type(4) + dd { grid-column: span 3; } /* the position, and «Al tocarlo» */
+html[data-aparato^="movil"] #ficha-objeto .kv .unidad input { width: 100%; }
+html[data-aparato^="movil"] #ficha-objeto .sub { margin: 2px 0 8px; }
+html[data-aparato^="movil"] #ficha-objeto .acciones { margin-top: 10px; }
+/* ux2-integracion — joining the stories. ux2-tu's `#hud-personaje:not([hidden]) { display: flex }` beat M4's phone rule
+   (`display: none` under 900 px): on a phone the card covered the top of the screen. The phone keeps its own layout. */
+@media (max-width: 899px) { #hud-personaje:not([hidden]) { display: none; } }
+/* Build mode on a window 900–1180 px wide (mouse): the centred dock would run into the bar on the right, so the dock and
+   its drawer sit right-aligned just left of the bar (bar = 16 px margin + 355 px), and your card steps aside while you build
+   (the drawer would cover it). Wider windows keep the dock centred (≥ 50 px from the bar at 1280 px). */
+@media (min-width: 900px) and (max-width: 1180px) and (pointer: fine) {
+  html:not([data-aparato^="movil"]) #panel-construir { left: auto; right: 387px; transform: none; align-items: flex-end; width: min(560px, calc(100% - 403px)); }
+  html:not([data-aparato^="movil"]) body.construyendo #hud-personaje { visibility: hidden; }
+}

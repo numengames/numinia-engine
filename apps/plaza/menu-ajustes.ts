@@ -17,6 +17,7 @@ import mundoPlaza from "./mundo.ajustes.json";
 import { AJUSTE_APARATO, capacidadesDelPerfil, nivelDelPerfil } from "../../packages/client/src/aparato.ts";
 import { icono } from "./iconos.ts";
 import { perfil, desarrollo, origenPerfil, cambiarAparato } from "./perfil-aparato.ts"; // U25
+import { filasAparato, filasIdentidad, infoDom } from "./info-aparato.ts"; // «Este aparato» and «Tu identidad», read-only (they left the player sheet)
 
 type View = Awaited<ReturnType<typeof createView>>;
 /** Contracts of branches built in parallel (N1 camera, H4 environment): optional until they are merged. */
@@ -128,12 +129,19 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   // t_bf8947cf (MVL1): the VR rig always exists (unlike cam/entorno, built in parallel branches), so this
   // writes straight to view.vr instead of going through Contratos.
   a.alAplicar("controles.modoMovimientoVR", (v) => { view.vr.modoMovimiento = v as "mirada" | "mando" | "cuerpo"; });
+  // rediseño v2: the VR menu's «Ajustes» rows (also here on the computer)
+  a.alAplicar("controles.giroVR", (v) => { view.vr.giroGrados = Number(v); });
+  a.alAplicar("controles.velocidadVR", (v) => { view.vr.velocidad = Number(v) / 100; });
+  a.alAplicar("controles.confortVR", (v) => { view.vr.comfort = Number(v) / 100; });
+  a.alAplicar("controles.alturaVR", (v) => { view.vr.alturaM = Number(v) / 100; });
   a.alAplicar("accesibilidad.menosMovimiento", (v) => { html.classList.toggle("menos-movimiento", v === true); });
   a.alAplicar("accesibilidad.textoGrande", (v) => { html.classList.toggle("texto-grande", v === true); });
   a.alAplicar("accesibilidad.altoContraste", (v) => { html.classList.toggle("alto-contraste", v === true); });
   a.alAplicar("accesibilidad.anunciar", (v) => { $("avisos")?.setAttribute("aria-live", v === true ? "polite" : "off"); }); // safety notices (assertive) always
   a.alAplicar("interfaz.tamano", (v) => { html.style.setProperty("--ui", String(Number(v) / 100)); });
   a.alAplicar("interfaz.ayuda", (v) => { const h = $("help"); if (h) h.hidden = v !== true; });
+  // ux2-barra: the minimap turning with the camera (was its «N» button)
+  a.alAplicar("interfaz.minimapaGira", (v) => { (o.numinia.mapa as { minimapa?: { girar(si: boolean): void } } | undefined)?.minimapa?.girar(v === true); });
   const edicion = montarEdicion(); Object.assign(o.numinia, { edicion });
   montarMarcos(a); // U20 + U3: which panels show at Mínimo / Normal / Completo (key U) and where each sits (the table of densidad.ts)
   // V7 «menos movimiento»: the features' hops are skipped (their label and announcement still say what happened)
@@ -167,7 +175,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   };
   Object.assign(o.numinia, { ajustes: api, capacidades: caps.valores });
   const help = $("help");
-  if (help && !caps.valores.punteroGrueso) help.textContent += " · O ajustes · U densidad";
+  if (help && !caps.valores.punteroGrueso) help.textContent += " · O menú (ajustes, pantalla completa) · U densidad";
   if (!dlg || !boton || !lista || !estado) { console.warn("[ajustes] faltan #ajustes, #ajustes-abrir, #ajustes-grupos o #ajustes-estado en la página"); return api; }
 
   let espera: ReturnType<typeof setTimeout> | undefined;
@@ -238,7 +246,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
     { id: "cuenta", nombre: "Cuenta y privacidad", icono: "user" },
   ];
   /** Which category a registry group lives in: the engine's groups by id; features' and worlds' groups are «Juego». */
-  const categoriaDe = (grupo: string): string => ({ graficos: "graficos", sonido: "sonido", controles: "controles", accesibilidad: "accesibilidad", interfaz: "interfaz", privacidad: "cuenta" } as Record<string, string>)[grupo] ?? "juego";
+  const categoriaDe = (grupo: string): string => ({ graficos: "graficos", aparato: "graficos", sonido: "sonido", controles: "controles", accesibilidad: "accesibilidad", interfaz: "interfaz", privacidad: "cuenta", identidad: "cuenta" } as Record<string, string>)[grupo] ?? "juego";
   let categoria = "", busqueda = "";
   const cuerpo = document.createElement("div"); cuerpo.className = "ajustes-cuerpo";
   const nav = document.createElement("nav"); nav.setAttribute("aria-label", "Categorías de ajustes");
@@ -266,8 +274,15 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
     if (!lista.querySelector("fieldset:not([hidden])")) { const v = lista.querySelector(".vacio") ?? Object.assign(document.createElement("p"), { className: "vacio" }); v.textContent = q ? "Ningún ajuste coincide." : "Esta categoría no tiene ajustes."; lista.append(v); } else lista.querySelector(".vacio")?.remove();
     const editar = lista.querySelector<HTMLElement>("#ajustes-editar-interfaz"); if (editar) editar.hidden = !!q || categoria !== "interfaz" || !edicion.disponible;
   }
+  // read-only facts: the device and this visit under Gráficos, who you are under Cuenta y privacidad (live while open)
+  const fuente = { view, session, desde: () => Number((o.numinia.informe as { bienvenidaMs?: number } | undefined)?.bienvenidaMs) || 0, ahora: () => performance.now() };
+  const infos = [
+    infoDom("aparato", "Este aparato", "Lo que da tu aparato ahora y cómo va esta visita. Solo se lee: lo de arriba lo cambia.", () => filasAparato(fuente)),
+    infoDom("identidad", "Tu identidad", "Cómo te conoce este mundo desde este navegador. Solo se lee.", () => filasIdentidad(fuente)),
+  ];
+  setInterval(() => { if (dlg.open) for (const x of infos) x.pintar(); }, 1000);
   const construir = () => {
-    lista.replaceChildren(...a.grupos().map(grupoDom));
+    lista.replaceChildren(...a.grupos().map(grupoDom), ...infos.map((x) => x.fs));
     nav.replaceChildren(...CATEGORIAS.map((c) => { const b = document.createElement("button"); b.type = "button"; b.dataset.cat = c.id; b.innerHTML = `${icono(c.icono, 18)}<span>${c.nombre}</span>`; /* constants only */ b.addEventListener("click", () => { categoria = c.id; busqueda = ""; buscar.value = ""; mostrar(); }); return b; }));
     const fsI = lista.querySelector<HTMLElement>('fieldset[data-grupo="interfaz"]');
     if (fsI) { const e = document.createElement("button"); e.type = "button"; e.id = "ajustes-editar-interfaz"; e.className = "grande"; e.textContent = "Editar interfaz"; e.hidden = true; e.dataset.listo = "1"; e.addEventListener("click", () => { cerrar(); edicion.abrir(); }); fsI.append(e); }
@@ -297,6 +312,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   function abrir(): boolean {
     if (!dlg || dlg.open || enXR()) return !!dlg?.open;
     volverA = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    for (const x of infos) x.pintar();
     try { dlg.showModal(); } catch { dlg.setAttribute("open", ""); }
     boton!.setAttribute("aria-expanded", "true");
     titulo?.focus(); // a quiet start: the dialog's name is read, nothing changes by accident; Tab walks the settings
@@ -323,10 +339,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   $("ajustes-restablecer")?.addEventListener("click", () => { a.restablecer(); anunciar("Ajustes restablecidos: cada uno vuelve a lo que da tu aparato."); });
   boton.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
   boton.addEventListener("click", () => { if (dlg.open) cerrar(); else abrir(); });
-  addEventListener("keydown", (e) => {
-    if (e.code !== "KeyO" || e.repeat || e.ctrlKey || e.altKey || e.metaKey || escribiendo(e)) return;
-    if (dlg.open) cerrar(); else abrir();
-  });
+  // ux2-barra: O opens the bar's «Menú» (main.ts, menu-barra.ts), whose first entry is this; inside the dialog O still closes it
   // hidden in XR (a 3D settings panel inside VR comes later)
   setInterval(() => { const x = enXR(); if (x) cerrar(); if (boton.hidden !== x) boton.hidden = x; }, 250);
   return api;

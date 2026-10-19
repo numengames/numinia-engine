@@ -1,5 +1,5 @@
 // e2e leg M18b (el Graboso): one real tab. K takes the relic out: the head appears over the shoulder (view.graboso.visible),
-// the top-bar button reads «Guardar» (aria-pressed) and the recorder runs on canvas.captureStream + the fake microphone
+// the «Grabar» entry of the bar's «Cámara» menu reads «Guardar» (aria-pressed) and the recorder runs on canvas.captureStream + the fake microphone
 // (--use-fake-ui-for-media-stream / --use-fake-device-for-media-stream). K again keeps it: a clip exists, its blob has
 // bytes, its name is UTC, Descargar points at it and the <video> opens with «Ver». A short clip is marked short; the cap
 // select clamps; typing K in the chat box does nothing. Prints JSON; exit 0 only when right (tools/e2e-piernas/README.md).
@@ -26,7 +26,7 @@ try {
   out.inicio = await estado(p);
   checks.soporta = out.inicio.soporta && /^video\/webm/.test(out.inicio.tipo);
   checks.guardadoAlEmpezar = out.inicio.fase === "guardado" && out.inicio.clip === null && out.inicio.boton.pressed === "false" && !out.inicio.cabeza;
-  checks.ayuda = await p.evaluate(() => /K: Graboso/.test(document.getElementById("help")?.textContent ?? ""));
+  checks.ayuda = await p.evaluate(() => /K: grabar/.test(document.getElementById("help")?.textContent ?? ""));
 
   // K: out and recording
   await p.bringToFront();
@@ -48,7 +48,7 @@ try {
   checks.nombreUTC = /^graboso-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.webm$/.test(out.guardado.clip?.nombre ?? "");
   out.descarga = await p.evaluate(() => { const a = document.querySelector("#graboso-hud a"); return a ? { href: a.href, download: a.download, hidden: a.hidden } : null; });
   checks.descargar = !!out.descarga && /^blob:/.test(out.descarga.href) && out.descarga.download === out.guardado.clip?.nombre && !out.descarga.hidden;
-  checks.botonVuelve = out.guardado.boton.texto === "Graboso" && out.guardado.boton.pressed === "false";
+  checks.botonVuelve = out.guardado.boton.texto === "Grabar" && out.guardado.boton.pressed === "false";
   // the blob really is a WebM (EBML header 1A 45 DF A3)
   out.cabeceraWebm = await p.evaluate(async () => { const b = globalThis.__numinia.graboso.graboso.estado.clip?.blob; if (!b) return null; const u = new Uint8Array(await b.slice(0, 4).arrayBuffer()); return Array.from(u, (x) => x.toString(16).padStart(2, "0")).join(""); });
   checks.esWebm = out.cabeceraWebm === "1a45dfa3";

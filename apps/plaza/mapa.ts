@@ -256,27 +256,28 @@ export function montarMapa(h: HostMapa) {
   mini.id = "minimapa"; mini.setAttribute("aria-label", "Minimapa");
   const miniCanvas = document.createElement("canvas"); miniCanvas.setAttribute("aria-hidden", "true");
   const miniTexto = document.createElement("p"); miniTexto.className = "solo-lector"; miniTexto.id = "minimapa-texto";
-  const fila = document.createElement("div"); fila.className = "botones";
-  const bMenos = boton("−", "Alejar el minimapa"), bMas = boton("+", "Acercar el minimapa"), bGiro = boton("N", "Girar el minimapa con la cámara");
-  bGiro.setAttribute("aria-pressed", "false");
-  const bMapa = boton("Mapa"), bFicha = boton("Ficha");
-  bMapa.title = "Mapa de la zona (M)"; bFicha.title = "Tu ficha (I)";
-  fila.append(bMenos, bMas, bGiro, bMapa, bFicha);
-  mini.append(miniCanvas, miniTexto, fila);
+  // ux2-barra: the minimap IS the button of the big map (M): no «−», «+», «N», «Mapa», «Ficha» under it. The wheel over it
+  // zooms; turning with the camera is a setting (Ajustes › Interfaz, interfaz.minimapaGira); the sheet is your card (I).
+  const bMapa = document.createElement("button"); bMapa.type = "button"; bMapa.id = "minimapa-abrir";
+  bMapa.title = "Mapa de la zona (M) · rueda: acercar y alejar"; bMapa.setAttribute("aria-label", "Mapa de la zona (M)");
+  bMapa.append(miniCanvas);
+  mini.append(bMapa, miniTexto);
   document.body.appendChild(mini);
-  // a touch here is not the walking joystick; a mouse click leaves no focus behind (Space must jump, not press «+»)
+  // a touch here is not the walking joystick; a mouse click leaves no focus behind (Space must jump, not open the map)
   mini.addEventListener("pointerdown", (e) => e.stopPropagation());
-  fila.addEventListener("click", (e) => { if ((e as MouseEvent).detail > 0) (e.target as HTMLElement).blur?.(); });
-  miniCanvas.addEventListener("click", () => panel.abrir());
+  bMapa.addEventListener("click", (e) => { if (e.detail > 0) bMapa.blur(); });
   const lm = lienzo(miniCanvas);
   let zoom = 1, gira = false;
-  bMenos.addEventListener("click", () => { zoom = Math.min(RADIOS.length - 1, zoom + 1); limMini.forzar(); });
-  bMas.addEventListener("click", () => { zoom = Math.max(0, zoom - 1); limMini.forzar(); });
-  bGiro.addEventListener("click", () => {
-    gira = !gira;
-    bGiro.setAttribute("aria-pressed", String(gira)); bGiro.textContent = gira ? "⟳" : "N";
-    limMini.forzar(); textoT = -Infinity;
-  });
+  const ponerZoom = (i: number) => { const z = Math.max(0, Math.min(RADIOS.length - 1, i)); if (z !== zoom) { zoom = z; limMini.forzar(); textoT = -Infinity; } };
+  // the wheel over the minimap: away = farther (a bigger radius), toward you = closer; one notch, one step; never the camera's zoom
+  let ruedaT = 0;
+  mini.addEventListener("wheel", (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (!e.deltaY || e.timeStamp - ruedaT < 120) return; // a trackpad sends dozens of tiny events: one step per gesture beat
+    ruedaT = e.timeStamp;
+    ponerZoom(zoom + (e.deltaY > 0 ? 1 : -1));
+  }, { passive: false });
+  const ponerGiro = (si: boolean) => { if (si === gira) return; gira = si; limMini.forzar(); textoT = -Infinity; };
   // on touch screens the features' buttons live in the bottom-right corner: sit to their left
   const acciones = document.getElementById("acciones");
   const sitio = () => { if (!matchMedia("(pointer: coarse)").matches) return; /* U3: on a mouse screen the frame table places the map */ mini.style.right = acciones && acciones.childElementCount ? `${acciones.offsetWidth + 20}px` : ""; };
@@ -615,8 +616,6 @@ export function montarMapa(h: HostMapa) {
   }, PASO_MS);
 
   return {
-    /** The «Ficha» button lives in the minimap's row (the player sheet takes it). */
-    botonFicha: bFicha,
     registro: reg,
     /** Add or change a kind of marker (an adventure's own). */
     registrar: (id: string, t: Parameters<typeof reg.registrar>[1]): void => { reg.registrar(id, t); fichasV = NaN; limMini.forzar(); limGrande.forzar(); },
@@ -634,6 +633,8 @@ export function montarMapa(h: HostMapa) {
     stats: () => ({ mini: limMini.stats, grande: limGrande.stats, imagenes, vueltas, ocultas, corte }),
     /** C2: go back to where you were before the last «Ir» (false when there is nowhere to go back to). */
     volver, puedeVolver: () => origenViaje !== null,
+    /** Rediseño v2 (the VR menu's «Mapa»): go to a marker as the map's own «Ir» does, and whether trips are allowed now. */
+    ir: (m: { id: string; nombre: string; x: number; z: number }): void => irA(m), puedeIr: (): boolean => !!h.teletransporte?.activo(),
     abrir: () => panel.abrir(), cerrar: () => panel.cerrar(), abierto: () => panel.abierto,
     /** The zone's picture: how it was made, what it cost, whether it has something in it (U14: where it was cut and how
      * many segments the cut gave). */
@@ -655,6 +656,7 @@ export function montarMapa(h: HostMapa) {
       if (!m) return false; marcarDestino(m); return true;
     },
     quitarDestino: () => quitarDestino("quitado"),
-    minimapa: { girar(si: boolean) { if (si !== gira) bGiro.click(); }, zoom(i: number) { zoom = Math.max(0, Math.min(RADIOS.length - 1, i)); limMini.forzar(); } },
+    /** ux2-barra: the minimap's own state (zoom = index into the radii; gira = turns with the camera) and its controls. */
+    minimapa: { girar(si: boolean) { ponerGiro(si); }, zoom(i: number) { ponerZoom(i); }, estado: () => ({ zoom, gira, radio: RADIOS[zoom] }) },
   };
 }

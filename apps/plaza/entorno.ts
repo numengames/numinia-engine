@@ -1,7 +1,8 @@
 // The environment and elements section of the builder (H4/H8): the «Naturaleza» switch, presets, a few sliders (sun, fog, wind, exposure),
 // the ground, and «Elementos» (put water, fire, smoke or dust in front of you; resize, move, remove). Real HTML
-// buttons and labelled inputs (screen readers, keyboard). A section of its own, shown only to builders while the
-// build panel is open (the constructor agent owns that panel). It only asks: the server decides (features/entorno,
+// buttons and labelled inputs (screen readers, keyboard). Since ux2-dock it lives inside the builder's «Entorno» drawer
+// (constructor.ts lends the drawer's body as `padre`; one drawer open at a time, so it no longer covers the world as a
+// panel of its own), shown only to builders while building. It only asks: the server decides (features/entorno,
 // features/elementos). main.ts passes the controllers (only composition roots import features/).
 type Res = { ok: true } | { ok: false; why: string };
 type Valores = Record<string, unknown>;
@@ -27,9 +28,8 @@ type Vista = {
 const PRESET_NOMBRE: Record<string, string> = { día: "Día", amanecer: "Amanecer", atardecer: "Atardecer", noche: "Noche", niebla: "Niebla", tormenta: "Tormenta", nublado: "Nublado" };
 const ELEMENTO_NOMBRE: Record<string, string> = { agua: "Agua", fuego: "Fuego", humo: "Humo", polvo: "Polvo" };
 const CSS = `
-#panel-entorno { position: fixed; top: 110px; left: 10px; width: 270px; max-height: calc(100% - 170px); overflow: auto; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .82); color: #eef2f6; font: 13px/1.45 system-ui, sans-serif; }
-#panel-entorno h2, #panel-entorno h3 { margin: 4px 0; font-size: 15px; color: #ffd27a; }
-#panel-entorno h3 { font-size: 14px; margin-top: 10px; }
+#panel-entorno { font: 13px/1.45 "Geist", system-ui, sans-serif; }
+#panel-entorno h3 { margin: 12px 0 4px; font-size: 14px; }
 #panel-entorno .fila { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
 #panel-entorno button, #panel-entorno select { padding: 6px 8px; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; font: inherit; }
 #panel-entorno button[aria-pressed="true"] { background: #ffd27a; }
@@ -45,11 +45,11 @@ const CSS = `
 #panel-entorno button[role=switch][aria-checked="true"]::after { left: 25px; }
 #panel-entorno button[role=switch][aria-busy="true"] { opacity: .6; }`;
 
-export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu?: Naturaleza): void {
+export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu?: Naturaleza, padre?: HTMLElement): void {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const panel = document.createElement("section");
   panel.id = "panel-entorno"; panel.hidden = true; panel.setAttribute("aria-label", "Entorno y elementos");
-  document.body.appendChild(panel);
+  (padre ?? document.body).appendChild(panel);
   const estado = document.createElement("p"); estado.className = "estado"; estado.setAttribute("role", "status");
   const decir = (r: Res) => { estado.textContent = r.ok ? "Hecho." : `No: ${r.why}`; };
   const boton = (texto: string, titulo: string, fn: () => Res) => {
@@ -116,7 +116,6 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
   filaNat.append(natTexto, natBoton);
   const sel = document.createElement("p");
   panel.append(
-    titulo("h2", "Entorno"),
     filaNat,
     fila("Entornos con nombre", ...presets),
     deslizador("Altura del sol", "solAltura", -30, 90, 1, (v) => `${v}°`),

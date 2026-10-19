@@ -1,5 +1,5 @@
 // foto (N13): the photo mode — a pretty picture of the world that you can share, with a link that takes whoever opens
-// it to where it was made. P (or the camera button) hides the whole interface and frees the camera on a short leash
+// it to where it was made. «Foto» (the bar's «Cámara» menu, P) hides the whole interface and frees the camera on a short leash
 // (drag: frame · wheel or pinch: closer · WASD / left stick: move · Q E: down, up); 1-4 pick a filter inside the house
 // palette, F a frame with the WORLD's name (never the engine's brand); Enter / Space / the round button takes the
 // picture, drawn again at up to 2× and saved as PNG: «Compartir» (Web Share with the file, on phones), «Guardar»,
@@ -28,8 +28,9 @@ export type FotoOpts = {
   yo: () => Punto | null;                                   // where your avatar stands (null before the welcome)
   mapa?: { marcarDestino?(m: { id: string; nombre: string; x: number; z: number }): void; destino?(): { id: string } | null };
   decir: (texto: string) => void;                           // a short notice (screen readers too)
-  boton: HTMLButtonElement;
-  ocupado?: () => boolean;                                  // something else holds the keys (a dartboard in hand): P waits
+  boton: HTMLButtonElement;                                 // «Foto», an entry of the bar's «Cámara» menu (ux2-barra)
+  volverA?: () => HTMLElement | null;                       // where the focus goes back on leaving (the «Cámara» button)
+  ocupado?: () => boolean;                                  // something else holds the keys (a dartboard in hand)
   /** N16: whether this world puts you at a photo's place (null = not known yet) and the asking (the server decides). */
   aparecer?: { puede(): boolean | null; pedir(s: Sitio): void };
 };
@@ -93,8 +94,8 @@ export function montarFoto(o: FotoOpts) {
 
   // ---- the button in the top bar (U11: an icon, the words for screen readers) ----
   o.boton.classList.add("solo-icono");
-  o.boton.title = "Modo foto (P)";
-  o.boton.innerHTML = `${icono("camera")}<span class="solo-lector">Modo foto</span>`;
+  o.boton.title = "Foto: la interfaz se esconde, encuadras y disparas";
+  o.boton.innerHTML = `${icono("camera")}<span class="solo-lector">Foto</span>`;
   o.boton.addEventListener("click", () => (activo ? cerrar() : abrir()));
   setInterval(() => { const x = view.vr.active || view.ar.state !== "off"; if (o.boton.hidden !== x) o.boton.hidden = x; }, 500); // not in XR
 
@@ -148,7 +149,7 @@ export function montarFoto(o: FotoOpts) {
     document.body.classList.remove("modo-foto");
     raiz.hidden = true; panel.hidden = true; raiz.classList.remove("con-foto"); lienzo.style.filter = "";
     soltarHecha();
-    o.boton.focus({ preventScroll: true });
+    (o.volverA?.() ?? o.boton).focus({ preventScroll: true });
     o.decir("Fuera del modo foto.");
   }
   function volverAEncuadrar(): void { panel.hidden = true; raiz.classList.remove("con-foto"); pintarMarco(); soltarHecha(); bDisparar.focus({ preventScroll: true }); }
@@ -258,10 +259,7 @@ export function montarFoto(o: FotoOpts) {
   let rapido = false, ultimoPaso = 0;
   addEventListener("keydown", (e) => {
     if (escribiendo(e) || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (!activo) {
-      if (e.code === "KeyP" && !e.repeat && !document.body.classList.contains("construyendo") && !document.querySelector("dialog[open]") && !o.ocupado?.()) { e.preventDefault(); abrir(); }
-      return;
-    }
+    if (!activo) return; // ux2-barra: P opens the bar's «Cámara» menu (menu-barra.ts); «Foto» is its first entry
     if (PASAN.has(e.code) || ["+", "-", "=", "_"].includes(e.key)) return; // the camera's own keys
     e.stopImmediatePropagation();
     const enBoton = (e.target as HTMLElement | null)?.closest?.("#foto button");

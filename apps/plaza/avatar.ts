@@ -1,5 +1,6 @@
 // avatar (H10): choose one of the house avatars or drop your own .vrm. Shown to every visitor (unlike H9's panel,
-// builders only): a small floating panel, open with the "Avatar" button top-right. Picking a house avatar sends
+// builders only): a small floating panel. ux2-barra: no loose «Avatar» button in the corner any more — the panel opens
+// from the returned `abrirSelector()` / `alternarSelector()` (story B puts it inside «Tú»). Picking a house avatar sends
 // avatar.elegir with its index; picking a file is checked right here (packages/server/src/vrm.ts: CC0, <= 10,000
 // triangles — the same rule the house catalogue itself follows) BEFORE it is ever uploaded, then goes up the same
 // way as H9 (PUT /a/<sha256>.vrm with the guest token) and avatar.elegir tells the server which one it is.
@@ -10,6 +11,7 @@
 import { comprobarFichero, sha256Hex } from "../../packages/net/src/ficheros.ts";
 import { infoVrm, revisarAvatar } from "../../packages/server/src/vrm.ts";
 import type { CatalogoAvatares } from "../../packages/render/src/index.ts";
+import { elegirAvatar } from "../../packages/render/src/avatares-politica.ts";
 
 type Msg = Record<string, unknown>;
 type Res = { ok: true } | { ok: false; why: string };
@@ -26,7 +28,6 @@ export type OpcionesAvatar = {
 };
 
 const CSS = `
-#avatar-boton { position: fixed; top: 10px; right: 10px; z-index: 9; }
 #avatar-panel { position: fixed; top: 46px; right: 10px; z-index: 9; background: rgba(20, 24, 30, .92); color: #eef2f6;
   border-radius: 10px; padding: 10px; width: 230px; display: none; }
 #avatar-panel.abierto { display: block; }
@@ -43,13 +44,12 @@ const huella = async (b: Uint8Array): Promise<string> => {
 
 export function montarAvatar(o: OpcionesAvatar) {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
-  const boton = document.createElement("button"); boton.id = "avatar-boton"; boton.type = "button"; boton.textContent = "Avatar";
-  boton.title = "Elegir uno de los avatares de la casa o subir tu .vrm";
   const panel = document.createElement("div"); panel.id = "avatar-panel"; panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", "Elegir avatar");
   const estado = document.createElement("p"); estado.id = "avatar-estado"; estado.setAttribute("role", "status"); estado.setAttribute("aria-live", "polite");
   const decir = (t: string) => { estado.textContent = t; };
 
   const casas = o.catalogo?.modelos ?? [];
+  const nCasa = casas.length; // ux2-gente: the house models only (uploads are pushed after them); avatares.ts's default counts these
   const subidos = new Map<string, number>(); // "sha.ext" -> index pushed into casas (shared with avatares.ts)
   function indiceDe(sha: string, ext: string): number {
     const k = `${sha}.${ext}`;
@@ -105,10 +105,18 @@ export function montarAvatar(o: OpcionesAvatar) {
   }
   panel.append(subirBtn, entrada, estado);
 
-  boton.addEventListener("click", () => panel.classList.toggle("abierto"));
-  document.body.append(boton, panel);
+  panel.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
+  document.body.append(panel);
 
   return {
+    /** ux2-barra: the avatar chooser opens from whoever calls this (story B: inside «Tú»); no loose corner button. */
+    abrirSelector(): void { panel.classList.add("abierto"); },
+    cerrarSelector(): void { panel.classList.remove("abierto"); },
+    alternarSelector(): boolean { return panel.classList.toggle("abierto"); },
+    selectorAbierto: (): boolean => panel.classList.contains("abierto"),
+    panel,
+    /** Opens the chooser (the «Cambiar avatar» button of «Tú», ficha.ts): the same panel as abrirSelector, plus focus. */
+    abrir(): void { panel.classList.add("abierto"); (panel.querySelector("button") as HTMLButtonElement | null)?.focus(); },
     /** packages/render/src/avatares.ts `eleccion`: turn this entity's avatar.state into a model index in
      * `o.catalogo.modelos` (the same array avatares.ts reads), or undefined to keep the old per-entity default. */
     eleccion(clave: number | "yo"): number | undefined {
@@ -119,6 +127,16 @@ export function montarAvatar(o: OpcionesAvatar) {
       if (v.tipo === "casa") return casas.length ? (((v.modelo % casas.length) + casas.length) % casas.length) : undefined;
       if (v.tipo === "subido" && v.sha) return indiceDe(v.sha, v.ext || "vrm");
       return undefined;
+    },
+    /** ux2-gente: the house avatar someone wears (catalogue id and name) — their choice, or the per-entity default
+     * avatares.ts draws when they chose none; null for an uploaded one (it has no portrait) or no catalogue. */
+    deQuien(entidad: number): { id: string; nombre: string } | null {
+      if (!nCasa || entidad < 0) return null;
+      const v = o.session.features.stateOf("avatar").get(String(entidad)) as Eleccion | undefined;
+      if (v && v.tipo !== "casa") return null;
+      const i = v ? (((v.modelo % nCasa) + nCasa) % nCasa) : elegirAvatar(entidad, nCasa);
+      const m = casas[i];
+      return m?.id ? { id: m.id, nombre: m.nombre } : null;
     },
   };
 }

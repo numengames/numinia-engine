@@ -29,14 +29,13 @@
     #acciones button { padding: 10px 14px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #ffd27a; font: inherit; font-weight: 600; }
     #construir { position: fixed; top: 102px; right: 10px; display: none; padding: 10px 14px; border: 0; border-radius: 8px; background: #c9b6ff; color: #23303b; font: inherit; font-weight: 600; }
     #pantalla { position: fixed; top: 112px; left: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #eef2f6; font: inherit; font-weight: 600; }
-    #panel-construir { position: fixed; top: 150px; right: 10px; width: 300px; max-height: calc(100% - 210px); overflow: auto; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .82); color: #eef2f6; }
+    #panel-construir { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(560px, calc(100% - 16px)); color: #eef2f6; pointer-events: none; } /* ux2-dock: the dock and its one drawer (constructor.ts) */
     body.construyendo #minimapa { visibility: hidden; } /* while building the panel owns the right side (the minimap covered «Borrar» and the inspector) */
-    #panel-construir h2 { margin: 0 0 4px; font-size: 15px; color: #ffd27a; }
     #panel-construir p { margin: 6px 0 4px; }
     #panel-construir .fila { display: flex; flex-wrap: wrap; gap: 6px; }
     #panel-construir button { padding: 7px 9px; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; font: inherit; }
     #panel-construir button:focus-visible { outline: 3px solid #ffd27a; }
-    #panel-construir .estado { color: #ffd27a; min-height: 1.4em; }
+    #panel-construir .estado { color: #ffd27a; }
     /* J3: the chat box, bottom left: the list is always there (an empty one takes no room), the input opens with Enter */
     #chat { position: fixed; left: 10px; bottom: 34px; width: min(380px, 62vw, calc(100vw - 240px)); display: flex; flex-direction: column; gap: 4px; }
     /* auditoría UI móvil: en pantalla estrecha o táctil el minimapa/misiones viven arriba a la derecha
@@ -137,15 +136,6 @@
     html.alto-contraste #ajustes .describe { opacity: 1; }
     html.alto-contraste :focus-visible { outline: 3px solid #ffeb3b !important; outline-offset: 2px; }
     html.menos-movimiento *, html.menos-movimiento *::before, html.menos-movimiento *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
-    /* t_bdc2c2db: «Qué hay de nuevo», una sola vez por versión distinta a la vista (apps/plaza/novedades.ts) */
-    #novedades { position: fixed; inset: 10px auto auto 10px; margin: 0; width: min(380px, calc(100vw - 20px)); max-height: calc(100vh - 20px); overflow: auto; padding: 10px 12px 12px; border: 0; border-radius: 10px; background: rgb(20, 24, 30); color: #eef2f6; box-sizing: border-box; }
-    #novedades::backdrop { background: rgba(10, 14, 20, .25); }
-    #novedades .cabecera { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    #novedades h2 { margin: 0; font-size: 1.05em; color: #ffd27a; }
-    #novedades ul { margin: 8px 0 0; padding-left: 20px; }
-    #novedades li { margin: 0 0 6px; }
-    #novedades button { min-height: 36px; padding: 6px 12px; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; font: inherit; font-weight: 600; }
-    #novedades :focus-visible { outline: 3px solid #ffd27a; outline-offset: 1px; }
   /* auditoría UI móvil: objetivo táctil mínimo 44x44 px (Apple HIG / Material) para los controles que
      en escritorio ya iban sobrados de ratón pero en el dedo quedaban en 28-39px: el libro de misiones,
      saltar/saludar/bailar/recoger, abrir el chat, los botones del minimapa (−/+/N/Mapa/Ficha) y la fila
@@ -176,26 +166,26 @@
   <!-- t_5cff4f06: the city, top left (HUD simétrico: mirrors the gear's corner); hidden until a world's
        mundo.ajustes.json sets ciudadUrl (ciudad-logica.ts). The engine names no city here: main.ts fills the text. -->
   <button id="volver-ciudad" type="button" hidden></button>
-  <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · R: inventario · M: mapa · I: ficha · C: construir · Q: micrófono · L: gente · P: foto · K: Graboso</div>
+  <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · R: bolsa · M: mapa · I: ficha · C: construir · Q: micrófono · L: gente · P: cámara (foto, grabar, compartir pantalla) · K: grabar</div>
   <button id="ar" type="button" hidden>Entrar en AR</button>
   <button id="vr" type="button" hidden>Entrar en VR</button>
   <button id="construir" type="button" aria-expanded="false" aria-controls="panel-construir">Construir</button>
   <button id="pantalla" type="button" hidden>Pantalla completa</button>
-  <button id="foto-abrir" type="button" title="Modo foto (P)">Foto</button>
+  <button id="foto-abrir" type="button">Foto</button>
   <section id="panel-construir" aria-label="Construir" hidden></section>
   <button id="interactuar" type="button" hidden></button>
   <section id="dialogo" hidden></section>
   <button id="misiones" type="button" aria-expanded="false" aria-controls="libro">Misiones (J)</button>
-  <button id="inventario-abrir" type="button" aria-expanded="false" aria-controls="inventario">Inventario (R)</button>
+  <button id="inventario-abrir" type="button" aria-expanded="false" aria-controls="inventario">Bolsa (R)</button>
   <section id="libro" aria-label="Libro de misiones" hidden></section>
   <p id="mision-seguida" hidden></p>
   <p id="mision-nota" aria-hidden="true" hidden></p>
   <div id="mision-completada" role="status" aria-live="polite" aria-atomic="true"></div><!-- U14 (6): «Misión completada» (misiones.ts; empty when idle) -->
   <div id="acciones"></div>
   <section id="objetivo" role="group" aria-label="Objetivo" hidden></section><!-- M5: the creature in reach (objetivo.ts) -->
-  <section id="habilidades" role="group" aria-label="Habilidades"></section><!-- M5: three slots: «Próximamente» until the page hears of fighting, then the Eclipse Mnémico kit (combate.ts) -->
+  <section id="habilidades" role="group" aria-label="Habilidades" hidden></section><!-- M5: hidden until the page hears of fighting, then the Eclipse Mnémico kit's three slots (combate.ts) -->
   <p id="reloj" title="Hora local de tu aparato"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg><time id="reloj-hora"></time></p><!-- U3: the clock beside the minimap (reloj.ts) -->
-  <section id="hud-personaje" role="group" hidden></section><!-- M4: your character — Estado (4 steps), Carga, Aliento del Velo (hud-personaje.ts) -->
+  <section id="hud-personaje" role="group" hidden><button id="hud-personaje-abrir" type="button" title="Tu ficha (I)" aria-label="Tu ficha (I)"></button></section><!-- M4: your character — Estado (4 steps), Carga, Aliento del Velo (hud-personaje.ts) -->
   <div id="avisos-pila" aria-hidden="true"></div><!-- U3: the notices of #avisos, for eyes: ≤ 3, 6 s (avisos.ts) -->
   <section id="pesca-hud" hidden></section>
   <section id="dardos-hud" hidden></section>
@@ -215,7 +205,7 @@
   <div id="avisos" class="solo-lector" role="status" aria-live="polite"></div>
   <div id="avisos-urgentes" class="solo-lector" role="alert" aria-live="assertive"></div>
   <!-- N2: settings (gear or O; Escape closes). Filled by menu-ajustes.ts from the settings registry -->
-  <button id="ajustes-abrir" type="button" aria-haspopup="dialog" aria-controls="ajustes" aria-expanded="false" title="Ajustes (O)"><span aria-hidden="true">⚙</span><span class="solo-lector">Ajustes</span></button>
+  <button id="ajustes-abrir" type="button" aria-haspopup="dialog" aria-controls="ajustes" aria-expanded="false" title="Ajustes"><span aria-hidden="true">⚙</span><span class="solo-lector">Ajustes</span></button>
   <dialog id="ajustes" aria-labelledby="ajustes-titulo">
     <div class="cabecera"><h2 id="ajustes-titulo" tabindex="-1">Ajustes</h2><button id="ajustes-cerrar" type="button">Cerrar</button></div>
     <p id="ajustes-estado" class="estado" role="status" aria-live="polite"></p>
@@ -223,11 +213,7 @@
     <div class="pie"><button id="ajustes-restablecer" type="button">Restablecer todo</button></div>
     <p id="version-motor" class="version-motor"></p>
   </dialog>
-  <!-- t_bdc2c2db: «Qué hay de nuevo» — apps/plaza/novedades.ts fills it and opens it once per version -->
-  <dialog id="novedades" aria-labelledby="novedades-titulo">
-    <div class="cabecera"><h2 id="novedades-titulo" tabindex="-1"></h2><button id="novedades-cerrar" type="button">Cerrar</button></div>
-    <ul id="novedades-lista"></ul>
-  </dialog>
+  <!-- t_bdc2c2db + ux2-barra: «Qué hay de nuevo» is a notice in the bell's history now (apps/plaza/novedades.ts) -->
   <script type="module" src="./main.ts"></script>
 </body>
 </html>

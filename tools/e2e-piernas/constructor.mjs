@@ -73,89 +73,105 @@ async function pierna(engine) {
     await a.keyboard.press("KeyC");
     const abierto = await a.waitForFunction(() => !document.getElementById("panel-construir").hidden && globalThis.__numinia.view.editor.estado().cargado, null, { timeout: 10000 }).then(() => true, () => false);
     paso("abrir con C", abierto, { modo: await a.evaluate(() => globalThis.__numinia.constructor.estado.modo) });
-    // 2. «colocar donde apuntas»: the library's Bloque follows the pointer; a click on the ground 3 m ahead places it
+    // ux2-dock: entering shows ONLY the dock (9 icons with tooltip + aria-label), no drawer, the environment inside its drawer
+    const dock = await a.evaluate(() => {
+      const p = document.getElementById("panel-construir"), d = document.getElementById("dock-construir"), bs = [...d.querySelectorAll("button")];
+      return { n: bs.length, ids: bs.map((b) => b.id.replace("dock-", "")).join(), tips: bs.every((b) => b.title && b.getAttribute("aria-label") === b.title && b.querySelector("svg")),
+        abiertos: [...p.querySelectorAll(".cajon")].filter((c) => !c.hidden).length, alto: Math.round(p.getBoundingClientRect().height),
+        entornoDentro: !!document.querySelector("#cajon-entorno #panel-entorno"), ficha: document.getElementById("ficha-objeto").hidden };
+    });
+    paso("al entrar solo el dock, sin cajones", dock.n === 9 && dock.ids === "anadir,cable,entorno,precision,inspector,ayuda,deshacer,rehacer,salir" && dock.tips && dock.abiertos === 0 && dock.alto < 120 && dock.entornoDentro && dock.ficha, dock);
+    if (process.env.SHOTS === "1") await a.screenshot({ path: `e2e-dock-${engine}.png` });
+    // one drawer at a time: Añadir opens (its icon marked), Entorno replaces it, the same icon again closes it, Esc closes too
+    const cajones = () => a.evaluate(() => ({ abiertos: [...document.querySelectorAll("#panel-construir .cajon")].filter((c) => !c.hidden).map((c) => c.id.replace("cajon-", "")).join(),
+      marcados: [...document.querySelectorAll("#dock-construir [aria-expanded=true]")].map((b) => b.dataset.cajon).join() }));
+    await a.locator("#dock-anadir").click(); const k1 = await cajones();
+    await a.locator("#dock-entorno").click(); const k2 = await cajones();
+    await a.locator("#dock-entorno").click(); const k3 = await cajones();
+    await a.locator("#dock-precision").click(); await a.keyboard.press("Escape"); const k4 = await cajones();
+    paso("un solo cajón abierto a la vez (su icono marcado; otra vez o Esc lo cierra)", k1.abiertos === "anadir" && k1.marcados === "anadir" && k2.abiertos === "entorno" && k2.marcados === "entorno" && k3.abiertos === "" && k3.marcados === "" && k4.abiertos === "", { k1, k2, k3, k4 });
+    // «Añadir»: ONE library (each piece once), a search that filters it, «Subir» next to it
+    await a.locator("#dock-anadir").click();
+    const lib = await a.evaluate(() => { const ps = [...document.querySelectorAll("#cajon-anadir .pieza")]; return { n: ps.length, ids: ps.map((p) => p.dataset.pieza), bloques: document.querySelectorAll("#panel-construir [data-pieza=bloque]").length, subir: !!document.querySelector("#cajon-anadir #subir:not([hidden])") }; });
+    await a.locator("#buscar-biblioteca").fill("farol");
+    const filtradas = await a.evaluate(() => [...document.querySelectorAll("#cajon-anadir .pieza")].filter((p) => !p.hidden).map((p) => p.dataset.pieza).join());
+    await a.locator("#buscar-biblioteca").fill(""); await a.locator("#buscar-biblioteca").blur();
+    paso("Añadir: una sola biblioteca, buscador y Subir", lib.n > 0 && new Set(lib.ids).size === lib.n && lib.bloques === 1 && lib.subir && filtradas === "farolillo", { ...lib, filtradas });
+    if (process.env.SHOTS === "1") await a.screenshot({ path: `e2e-cajon-anadir-${engine}.png` });
+    // 2. «arrastra al mundo»: drag the library's Bloque out of the drawer onto the ground 3 m ahead and let go there
     const n0 = await a.evaluate(() => globalThis.__numinia.session.features.stateOf("objetos").size);
-    await a.locator('#panel-construir [aria-label="Biblioteca"] button', { hasText: "Bloque" }).click();
     const suelo = await a.evaluate(() => { const n = globalThis.__numinia, me = n.session.selfPosition(1); return { w: [me.x, 0, me.z - 3], s: n.view.editor.pantalla(me.x, 0, me.z - 3) }; });
-    await a.mouse.move(suelo.s.x - 30, suelo.s.y, { steps: 3 });
+    const pieza = await a.locator('#cajon-anadir [data-pieza="bloque"]').boundingBox();
+    await a.mouse.move(pieza.x + pieza.width / 2, pieza.y + pieza.height / 2);
+    await a.mouse.down();
+    await a.mouse.move(suelo.s.x - 30, suelo.s.y, { steps: 6 });
     await a.mouse.move(suelo.s.x, suelo.s.y, { steps: 3 });
     await a.waitForTimeout(200);
-    await a.mouse.click(suelo.s.x, suelo.s.y);
+    await a.mouse.up();
     await a.waitForFunction((n0) => { const n = globalThis.__numinia; return !!n.constructor.estado.seleccionado && n.session.features.stateOf("objetos").size > n0; }, n0, { timeout: 8000 });
     id = await a.evaluate(() => globalThis.__numinia.constructor.estado.seleccionado);
     const enB = await esperaB(([k]) => globalThis.__numinia.session.features.stateOf("objetos").has(k), id);
     const o0 = await deB(id);
-    paso("colocar donde apuntas", enB && Math.abs(o0.x - suelo.w[0]) <= 0.3 && Math.abs(o0.z - suelo.w[2]) <= 0.3 && o0.x * 2 === Math.round(o0.x * 2), { id, x: o0?.x, z: o0?.z, apuntado: suelo.w });
+    paso("arrastrar de la biblioteca al mundo", enB && Math.abs(o0.x - suelo.w[0]) <= 0.3 && Math.abs(o0.z - suelo.w[2]) <= 0.3 && o0.x * 2 === Math.round(o0.x * 2), { id, x: o0?.x, z: o0?.z, apuntado: suelo.w });
     await a.waitForFunction(() => globalThis.__numinia.view.objects().loaded >= globalThis.__numinia.view.objects().placed, null, { timeout: 20000 });
     await a.waitForTimeout(400);
-    // 3. Esc deselects; a real click on the thing selects it; the gizmo (mover) draws more than without it
+    // 3. the drawer stays open after a drop (to add more); its icon closes it. Esc deselects; a real click on the thing
+    // selects it; the gizmo (mover) draws more than without it
+    await a.locator("#dock-anadir").click();
+    // the view draws on demand and three's counters are reset by any pass (0 between frames): read the most draw calls
+    // seen over 600 ms of frames, not one instant (under load one instant may be a frame from before the change)
+    const llamadas = () => a.evaluate(() => new Promise((ok) => { let m = 0; const t0 = performance.now();
+      const mira = () => { m = Math.max(m, globalThis.__numinia.view.lastFrame().calls); if (performance.now() - t0 < 600) requestAnimationFrame(mira); else ok(m); }; mira(); }));
     await a.keyboard.press("Escape");
     await a.waitForTimeout(300);
-    const sinGizmo = await a.evaluate(() => ({ sel: globalThis.__numinia.constructor.estado.seleccionado, calls: globalThis.__numinia.view.lastFrame().calls }));
+    const sinGizmo = { sel: await a.evaluate(() => globalThis.__numinia.constructor.estado.seleccionado), calls: await llamadas() };
     const centro = await a.evaluate(([x, z]) => globalThis.__numinia.view.editor.pantalla(x, 0.5, z), [o0.x, o0.z]);
     await a.mouse.click(centro.x, centro.y);
-    await a.waitForTimeout(400);
-    const conGizmo = await a.evaluate(() => ({ sel: globalThis.__numinia.constructor.estado.seleccionado, ed: globalThis.__numinia.view.editor.estado(), calls: globalThis.__numinia.view.lastFrame().calls }));
+    await a.waitForTimeout(300);
+    const conGizmo = { ...(await a.evaluate(() => ({ sel: globalThis.__numinia.constructor.estado.seleccionado, ed: globalThis.__numinia.view.editor.estado() }))), calls: await llamadas() };
     paso("seleccionar con un clic", sinGizmo.sel === "" && conGizmo.sel === id && conGizmo.ed.seleccionado === id && conGizmo.ed.herramienta === "mover", { sinGizmo: sinGizmo.sel, conGizmo: conGizmo.sel });
     paso("el gizmo se dibuja", conGizmo.calls > sinGizmo.calls, { llamadasSin: sinGizmo.calls, llamadasCon: conGizmo.calls });
-    // C3: open + selected → the card is there: title, only icon buttons, each with title + aria-label + a tip, reachable by Tab
+    // C3 / ux2-dock: open + selected → the card on the right: name, «Seleccionado · G mover · R girar · 4 escala», position,
+    // turn, size, Duplicar, Borrar (red); its icon-only buttons each with title + aria-label + a tip, reachable by Tab
     const ficha = await a.evaluate(() => {
-      const f = document.getElementById("ficha-objeto"), bs = [...f.querySelectorAll("[role=toolbar] button")];
-      return { visible: !f.hidden, titulo: f.querySelector("h3").textContent, n: bs.length, sinTexto: bs.every((b) => b.textContent.trim() === "" && b.querySelector("svg")),
-        completos: bs.every((b) => b.title && b.getAttribute("aria-label") === b.title && b.dataset.tip === b.title), tab: bs.every((b) => b.tabIndex >= 0 && !b.disabled), fijar: bs.some((b) => /^Anclar/.test(b.title)) };
+      const f = document.getElementById("ficha-objeto"), r = f.getBoundingClientRect(), ics = [...f.querySelectorAll("button.ic")].filter((b) => !b.hidden);
+      return { visible: !f.hidden, titulo: f.querySelector("h3").textContent, sub: f.querySelector(".sub").textContent.replace(/\s+/g, " ").trim(), claves: [...f.querySelectorAll(".kv dt")].filter((d) => !d.hidden).map((d) => d.textContent).join(),
+        x: Number(f.querySelector("input[data-k=x]").value), botones: [...f.querySelectorAll(".acciones > button:not(.ic)")].map((b) => b.textContent.trim()).join(), rojo: f.querySelector("button.peligro")?.textContent.trim(),
+        completos: ics.every((b) => b.title && b.getAttribute("aria-label") === b.title && b.dataset.tip === b.title && b.querySelector("svg")), tab: ics.every((b) => b.tabIndex >= 0 && !b.disabled),
+        fijar: ics.some((b) => /^Anclar/.test(b.title)), derecha: r.right > innerWidth - 40 && r.left > innerWidth / 2, cajon: document.querySelectorAll("#panel-construir .cajon:not([hidden])").length };
     });
-    paso("ficha visible con constructor abierto y objeto elegido", ficha.visible && ficha.titulo !== "" && ficha.n >= 8 && ficha.sinTexto && ficha.completos && ficha.tab && ficha.fijar, ficha);
-    // C4: the card has tabs (Ficha · Lógica · Ajustes): tablist/tab/tabpanel with aria-selected, ←/→ move between them
-    const estadoTabs = () => a.evaluate(() => {
-      const f = document.getElementById("ficha-objeto"), lista = f.querySelector("[role=tablist]"), ts = [...f.querySelectorAll("[role=tab]")];
-      return { lista: !!lista, n: ts.length, nombres: ts.map((t) => t.textContent.trim()), sel: ts.filter((t) => t.getAttribute("aria-selected") === "true").map((t) => t.dataset.pestana),
-        paneles: ts.map((t) => { const p = document.getElementById(t.getAttribute("aria-controls")); return !!p && p.getAttribute("role") === "tabpanel" && p.getAttribute("aria-labelledby") === t.id && !p.hidden; }),
-        tips: ts.every((t) => t.title && t.dataset.tip === t.title && t.querySelector("svg")), foco: document.activeElement?.dataset?.pestana ?? "" };
-    });
-    const t0 = await estadoTabs();
-    paso("pestañas de la ficha: Ficha, Lógica y Ajustes, con la primera elegida", t0.lista && t0.n === 3 && t0.nombres.join() === "Ficha,Lógica,Ajustes" && t0.sel.join() === "ficha" && t0.paneles.join() === "true,false,false" && t0.tips, t0);
-    await a.locator("#ficha-tab-logica").click();
-    const t1 = await estadoTabs();
-    const logica = await a.evaluate(() => { const p = document.getElementById("ficha-panel-logica"); return { listas: p.querySelectorAll("ul").length, boton: !!p.querySelector("button.tx"), texto: p.textContent }; });
-    paso("cambiar a Lógica con un clic", t1.sel.join() === "logica" && t1.paneles.join() === "false,true,false" && logica.listas === 3 && logica.boton && /Entran/.test(logica.texto) && /Salen/.test(logica.texto), { ...t1, logica });
-    await a.locator("#ficha-tab-logica").focus();
-    await a.keyboard.press("ArrowRight");
-    const t2 = await estadoTabs();
-    await a.keyboard.press("ArrowRight");
-    const t3 = await estadoTabs();
-    await a.keyboard.press("ArrowLeft");
-    const t4 = await estadoTabs();
-    paso("flechas derecha e izquierda mueven entre pestañas (y el foco las sigue)", t2.sel.join() === "ajustes" && t2.foco === "ajustes" && t3.sel.join() === "ficha" && t4.sel.join() === "ajustes" && t4.foco === "ajustes", { t2: t2.sel, t3: t3.sel, t4: t4.sel });
-    // C4 «Lógica»: «Abrir el cable» brings the cable panel into view (focused); the card keeps working
-    await a.locator("#ficha-tab-logica").click();
-    await a.locator("#ficha-panel-logica button.tx").click();
-    const cable = await a.evaluate(() => document.activeElement?.id);
-    paso("«Abrir el cable» lleva al panel del cable", cable === "cable-panel", { cable });
-    // C4 «Ajustes»: a setting changes the object on the SERVER (B sees it): visible al jugar, nombre, anclado
-    await a.locator("#ficha-tab-ajustes").click();
-    await a.locator("#ficha-panel-ajustes input[type=checkbox]").nth(0).uncheck(); // «se ve al jugar»
+    paso("tarjeta a la derecha con lo básico del objeto elegido", ficha.visible && ficha.titulo !== "" && ficha.sub === "Seleccionado · G mover · R girar · 4 escala" && ficha.claves === "Posición,Giro,Tamaño"
+      && Math.abs(ficha.x - o0.x) < 0.01 && ficha.botones === "Duplicar,Borrar" && ficha.rojo === "Borrar" && ficha.completos && ficha.tab && ficha.fijar && ficha.derecha && ficha.cajon === 0, ficha);
+    if (process.env.SHOTS === "1") await a.screenshot({ path: `e2e-ficha-${engine}.png` });
+    // «Inspector» (was N): every field of the object and its «Lógica»; «Abrir el cable» opens the cable's drawer, focused
+    await a.locator("#dock-inspector").click();
+    const logica = await a.evaluate(() => { const p = document.querySelector("#cajon-inspector .logica"); return { abierto: !document.getElementById("cajon-inspector").hidden, inspector: !!document.querySelector("#cajon-inspector .inspector"), listas: p.querySelectorAll("ul").length, texto: p.textContent }; });
+    paso("Inspector: todos los campos y la lógica", logica.abierto && logica.inspector && logica.listas === 3 && /Entran/.test(logica.texto) && /Salen/.test(logica.texto), logica);
+    await a.locator("#cajon-inspector .logica button").click();
+    const cable = await a.evaluate(() => ({ foco: document.activeElement?.id, abiertos: [...document.querySelectorAll("#panel-construir .cajon:not([hidden])")].map((c) => c.id).join() }));
+    paso("«Abrir el cable» lleva al cajón del cable", cable.foco === "cable-panel" && cable.abiertos === "cajon-cable", cable);
+    // a field of the Inspector changes the object on the SERVER (B sees it): se ve al jugar, nombre, anclado
+    await a.locator("#dock-inspector").click();
+    const casilla = (t) => a.locator("#cajon-inspector .inspector label", { hasText: t }).locator("input[type=checkbox]");
+    await casilla("se ve al jugar").uncheck();
     const ocultoEnB = await esperaB(([k]) => globalThis.__numinia.session.features.stateOf("objetos").get(k)?.oculto === true, id);
-    await a.locator("#ficha-panel-ajustes input[type=checkbox]").nth(0).check();
+    await casilla("se ve al jugar").check();
     const visibleEnB = await esperaB(([k]) => globalThis.__numinia.session.features.stateOf("objetos").get(k)?.oculto === false, id);
-    await a.locator("#ficha-panel-ajustes input[type=text]").fill("Mesa de ajustes");
-    await a.keyboard.press("Enter"); await a.locator("#ficha-panel-ajustes input[type=text]").blur();
+    await a.locator("#cajon-inspector .inspector input[type=text]").fill("Mesa de ajustes");
+    await a.keyboard.press("Enter"); await a.locator("#cajon-inspector .inspector input[type=text]").blur();
     const nombreEnB = await esperaB(([k]) => globalThis.__numinia.session.features.stateOf("objetos").get(k)?.nombre === "Mesa de ajustes", id);
-    await a.locator("#ficha-panel-ajustes input[type=checkbox]").nth(1).check(); // «anclado»
+    await casilla("anclado").check();
     const ancladoEnB = await esperaB(([k]) => globalThis.__numinia.session.features.stateOf("objetos").get(k)?.fijado === true, id);
-    await a.locator("#ficha-panel-ajustes input[type=checkbox]").nth(1).uncheck();
+    await casilla("anclado").uncheck();
     const sueltoEnB = await esperaB(([k]) => globalThis.__numinia.session.features.stateOf("objetos").get(k)?.fijado !== true, id);
-    paso("un ajuste de la ficha cambia el objeto en el servidor (B lo ve)", ocultoEnB && visibleEnB && nombreEnB && ancladoEnB && sueltoEnB, { ocultoEnB, visibleEnB, nombreEnB, ancladoEnB, sueltoEnB });
+    paso("un campo del Inspector cambia el objeto en el servidor (B lo ve)", ocultoEnB && visibleEnB && nombreEnB && ancladoEnB && sueltoEnB, { ocultoEnB, visibleEnB, nombreEnB, ancladoEnB, sueltoEnB });
     const titulo = await a.evaluate(() => document.querySelector("#ficha-objeto h3").textContent);
-    paso("el título de la ficha sigue al nombre nuevo", titulo === "Mesa de ajustes", { titulo });
-    // «Abrir inspector (N)»: the inspector is shown and its first field takes the focus
-    await a.locator("#ficha-panel-ajustes button.tx").click();
-    const insp = await a.evaluate(() => { const i = document.querySelector("#panel-construir .inspector"); return { visible: !i.hidden, foco: i.contains(document.activeElement) }; });
-    paso("«Abrir inspector (N)» lleva al inspector", insp.visible && insp.foco, insp);
-    if (process.env.SHOTS === "1") { await a.locator("#ficha-tab-logica").click(); await a.screenshot({ path: `e2e-ficha-c4-${engine}.png` }); }
-    await a.locator("#ficha-tab-ficha").click(); await a.evaluate(() => document.activeElement?.blur());
+    paso("el título de la tarjeta sigue al nombre nuevo", titulo === "Mesa de ajustes", { titulo });
+    await a.evaluate(() => document.activeElement?.blur());
+    await a.keyboard.press("Escape"); // closes the Inspector
     const ficha2 = await a.evaluate(() => document.getElementById("ficha-objeto").hidden);
-    await a.keyboard.press("Escape");
-    paso("ficha oculta sin objeto elegido", await a.waitForFunction(() => document.getElementById("ficha-objeto").hidden, null, { timeout: 3000 }).then(() => !ficha2, () => false));
+    await a.keyboard.press("Escape"); // deselects
+    paso("tarjeta oculta sin objeto elegido", await a.waitForFunction(() => document.getElementById("ficha-objeto").hidden, null, { timeout: 3000 }).then(() => !ficha2, () => false));
     await a.mouse.click(centro.x, centro.y);
     await a.waitForFunction((k) => globalThis.__numinia.constructor.estado.seleccionado === k, id, { timeout: 3000 });
     // 4. drag the X handle (red arrow) to the right → B sees x change
@@ -202,7 +218,7 @@ async function pierna(engine) {
     const cerrada = await a.waitForFunction(() => document.getElementById("panel-construir").hidden && document.getElementById("ficha-objeto").hidden, null, { timeout: 3000 }).then(() => true, () => false);
     await a.keyboard.press("KeyC");
     const vuelve = await a.waitForFunction(() => !document.getElementById("ficha-objeto").hidden, null, { timeout: 3000 }).then(() => true, () => false);
-    paso("ficha se oculta al cerrar el constructor y vuelve al abrirlo", cerrada && vuelve, { cerrada, vuelve });
+    paso("la tarjeta se oculta al cerrar el constructor y vuelve al abrirlo", cerrada && vuelve, { cerrada, vuelve });
     // C3: «Ir» in the map (the hook main.ts wires): builder open → that object is selected and its card opens by itself;
     // builder closed → «Ir» only travels (nothing selected, no card)
     await a.keyboard.press("Escape");
@@ -215,6 +231,13 @@ async function pierna(engine) {
     paso("«Ir» abre la ficha solo con el constructor abierto", alIrAbierto && fichaIr && !alIrCerrado && sinFicha, { alIrAbierto, fichaIr, alIrCerrado, sinFicha });
     await a.keyboard.press("KeyC");
     await a.waitForFunction(() => !document.getElementById("panel-construir").hidden, null, { timeout: 3000 });
+    // the card's «Tamaño» field: one number for the three scales, applied on the server (B sees it)
+    await a.evaluate((k) => globalThis.__numinia.constructor.seleccionar(k), id);
+    await a.waitForFunction(() => !document.getElementById("ficha-objeto").hidden, null, { timeout: 3000 });
+    await a.locator("#ficha-objeto input[data-k=u]").fill("2");
+    await a.keyboard.press("Enter"); await a.locator("#ficha-objeto input[data-k=u]").blur();
+    const tamano = await esperaB(([k]) => { const o = globalThis.__numinia.session.features.stateOf("objetos").get(k); return !!o && o.sx === 2 && o.sy === 2 && o.sz === 2; }, id);
+    paso("el tamaño de la tarjeta llega a B", tamano, { o: await deB(id) });
     // 7. Delete removes it; B sees it gone
     await a.keyboard.press("Delete");
     const borrado = await esperaB(([k]) => !globalThis.__numinia.session.features.stateOf("objetos").has(k), id);

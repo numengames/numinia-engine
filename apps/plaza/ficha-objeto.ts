@@ -32,21 +32,8 @@ export function enlaceDeObjeto(loc: { origin: string; pathname: string; search: 
   return enlaceSitio(loc, s);
 }
 
-// C4: the card's tabs (the maqueta's «Ficha» · «Lógica» · «Ajustes»). «Ficha» is C3's facts; «Lógica» says what wires touch the object (read from the state the cable, the locks and the
-// counters already keep: no new network path); «Ajustes» edits what the inspector edits (through the same builder verbs).
-export const PESTANAS = [["ficha", "Ficha"], ["logica", "Lógica"], ["ajustes", "Ajustes"]] as const;
-export type Pestana = (typeof PESTANAS)[number][0];
-
-/** Arrow keys move between tabs (wrapping); Home and End jump to the ends. Returns the tab to select, or null for any other key. */
-export function pestanaConTecla(actual: Pestana, tecla: string): Pestana | null {
-  const ids = PESTANAS.map(([id]) => id), i = ids.indexOf(actual);
-  if (tecla === "ArrowRight") return ids[(i + 1) % ids.length];
-  if (tecla === "ArrowLeft") return ids[(i + ids.length - 1) % ids.length];
-  if (tecla === "Home") return ids[0];
-  if (tecla === "End") return ids[ids.length - 1];
-  return null;
-}
-
+// C4: «Lógica» says what wires touch the object (read from the state the cable, the locks and the counters already keep:
+// no new network path). Since ux2-dock it lives in the Inspector drawer, and the card's «Al tocarlo» reads its «Salen».
 type Receptor = Record<string, unknown>;
 export type PiezasMundo = {
   disparadores: { id: string; nombre: string; tipo: string; x: number; z: number; receptores: Receptor[] }[];
@@ -72,11 +59,9 @@ export function logicaDeObjeto(o: Obj, w: PiezasMundo): { entran: string[]; sale
   return { entran, salen, piezas };
 }
 
-// C5 (touch): no hover on a phone, so each icon of the bar carries a short visible label (CSS shows it only on coarse pointers;
-// the aria-label stays the full title) and a long press says the full title in one line under the bar.
-export const LARGA_MS = 450; // a finger resting this long on an icon says its title instead of pressing it
+// C5 (touch): no hover on a phone, so each icon-only button of the card carries a short visible label (CSS shows it only on
+// coarse pointers; the aria-label stays the full title).
 export const ETIQUETAS_FICHA = { mover: "Mover", girar: "Girar", escalar: "Escalar", duplicar: "Copiar", anclar: "Anclar", soltar: "Soltar", enlace: "Enlace", borrar: "Borrar", volver: "Volver", cerrar: "Cerrar" } as const;
-export const COLUMNAS_FICHA_MOVIL = 5; // the bottom sheet's icon grid (360 px / 5 = 72 px a cell, ≥ 44 px a target)
 
 // C5: the same card in VR (packages/render/src/vr-ficha.ts draws it; the buttons run the builder's own verbs on what is selected).
 // There is no gizmo in VR, so «Mover» only arms the ray's hold and the turn and the scale are steps (15°, ×1,25 / ×0,8).

@@ -329,6 +329,26 @@ export function createManos(h: ManosHooks) {
     on(fn: (e: EventoMano) => void): () => void { oyentes.add(fn); return () => oyentes.delete(fn); },
     /** Where a thing held in this hand goes (grip or pinch point), or null if that hand is not here. */
     ancla(lado: Lado): THREE.Object3D | null { const r = ranuras.find((x) => x.lado === lado && x.fuente); return r ? r.ancla : null; },
+    /** Rediseño v2 (the wrist watch): that hand's wrist in world space — a tracked hand's wrist joint, or the controller's
+     * grip — written into `pos`/`rot`; false when that hand is not here. */
+    muneca(lado: Lado, pos: THREE.Vector3, rot: THREE.Quaternion): { esMano: boolean } | null {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente);
+      if (!r) return null;
+      const o = r.esMano ? r.hand.joints?.wrist : r.grip;
+      if (!o?.visible || (r.esMano && !r.hand.visible)) return null;
+      o.updateWorldMatrix(true, false); o.getWorldPosition(pos); o.getWorldQuaternion(rot);
+      return { esMano: r.esMano };
+    },
+    /** What presses buttons by touch: a tracked hand's index fingertip, or the tip of a controller (its ray's origin),
+     * in world space into `pos`; false when that hand is not here. */
+    punta(lado: Lado, pos: THREE.Vector3): boolean {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente);
+      if (!r) return false;
+      const o = r.esMano ? r.hand.joints?.["index-finger-tip"] : r.ctrl;
+      if (!o?.visible) return false;
+      o.updateWorldMatrix(true, false); o.getWorldPosition(pos);
+      return true;
+    },
     /** This hand's ray right now (world space, plain numbers — not a page's job to hold onto a THREE.Vector3), or
      * null if that hand is not here. For a feature that needs its own aim at the exact moment a button changed
      * (dardos-vr.ts: the throw, read on `gatillo_fin`), not through the generic reach/point pipeline above (which
