@@ -25,6 +25,7 @@
 //  - `buffer.slice(0)` antes de `decodeAudioData` → `AudioLoader` de three.js: `decodeAudioData` DETACHA el
 //    ArrayBuffer, así que sin la copia la caché se queda con un buffer vacío.
 import { audio, type Bus, type Nucleo } from "./nucleo.ts";
+import { enCadaGesto } from "../gesto.ts";
 import type { Nivel } from "../calidad.ts";
 
 export type Punto = { x: number; y: number; z: number };
@@ -162,6 +163,8 @@ export type HechurasVoces = {
   medio?: (uri: string) => HTMLMediaElement;
   /** Semilla cuando el servidor no manda ninguna (sonidos puramente locales: la interfaz). */
   azar?: () => number;
+  /** Avisar en cada gesto de la persona (en las pruebas, a mano). */
+  enCadaGesto?: (fn: () => void) => void;
 };
 
 // ——— azar determinista: la misma semilla, la misma variante en todos los clientes ———
@@ -359,6 +362,20 @@ export function crearVoces(h: HechurasVoces = {}): Voces {
     llevar(f.nodos.g.gain, f.gain, CLIC_S);
   }
 
+  // Un `<audio>` que arranca antes del primer clic lo frena el navegador (Firefox siempre: autoplay) y su `play()`
+  // falla en silencio: el colchón se quedaba mudo para siempre. Las camas frenadas se reintentan en cada gesto.
+  const frenadas = new Map<Fuente, HTMLMediaElement>();
+  const cadaGesto = h.enCadaGesto ?? enCadaGesto;
+  let escuchando = false;
+  function tocar(f: Fuente, m: HTMLMediaElement): void {
+    const frenar = () => {
+      if (!f.viva || f.medio !== m) return;
+      frenadas.set(f, m);
+      if (!escuchando) { escuchando = true; cadaGesto(() => { for (const [g, n] of [...frenadas]) { frenadas.delete(g); tocar(g, n); } }); }
+    };
+    try { const pr = m.play?.(); if (pr && typeof pr.catch === "function") pr.catch(frenar); } catch { frenar(); }
+  }
+
   function arrancar(f: Fuente): void {
     const ctx = nucleo.ctx();
     if (!ctx || !f.viva || f.real) return;
@@ -368,7 +385,7 @@ export function crearVoces(h: HechurasVoces = {}): Voces {
       const m = f.medio;
       if (!m) { f.viva = false; return; }
       f.real = true; f.cargando = false; f.tInicio = ahora();
-      try { void m.play?.(); } catch { /* el gesto ya pasó; si no, el núcleo lo despierta */ }
+      tocar(f, m);
       return;
     }
     if (!f.buffer) return;

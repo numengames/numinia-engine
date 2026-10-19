@@ -293,6 +293,26 @@ test("la caché descodifica una vez por URI, con la copia del buffer que pide `A
   assert.equal(voz.real(), true, "…y en cuanto está el buffer, entra en el reparto");
 });
 
+test("si el navegador frena la cama antes del primer clic (Firefox), arranca en el siguiente gesto", async () => {
+  const f = falso();
+  const nucleo = crearNucleo({ crear: f.crear, hayGesto: () => true, trasGesto: (fn) => fn(), enCadaGesto: () => {}, visibilidad: () => false });
+  const gestos: (() => void)[] = [];
+  let permitido = false, tocado = 0;
+  const v = crearVoces({
+    nucleo, nivel: "A", traer: async () => new ArrayBuffer(8), azar: () => 0.5,
+    enCadaGesto: (fn) => gestos.push(fn),
+    medio: (uri) => ({ uri, loop: false, src: uri, pause() {}, play() { if (!permitido) return Promise.reject(new Error("NotAllowedError")); tocado++; return Promise.resolve(); } }) as unknown as HTMLMediaElement,
+  });
+  v.cama({ id: "colchon", uri: "a.opus", bus: "ambiente" });
+  await new Promise((r) => setImmediate(r));
+  assert.equal(tocado, 0, "sin gesto, el navegador no deja");
+  permitido = true;
+  for (const g of gestos) g();
+  assert.equal(tocado, 1, "al primer clic, suena");
+  for (const g of gestos) g();
+  assert.equal(tocado, 1, "y no se vuelve a pedir");
+});
+
 test("una cama larga va por MediaElementAudioSourceNode: no se descodifica a memoria", () => {
   const b = banco();
   const cama = b.v.cama({ id: "cama-bosque", uri: "sonidos/bosque.opus", bus: "ambiente" });
