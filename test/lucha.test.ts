@@ -218,3 +218,66 @@ test("lucha L2 trozo 1: mismo hash en dos mundos — misma semilla, mismos golpe
 });
 
 
+// ---- combate nivel 2, h1: the Eclipse Mnémico kit (server-side; no UI) ----
+import { ECLIPSE, cargaTras, CARGA_MAX } from "../features/lucha/habilidades.ts";
+
+test("lucha h1: the kit table matches the design (damage / cooldown / cost / Carga generated)", () => {
+  const f = (k: string) => { const h = ECLIPSE[k]; return [h.dano, h.enfriamiento, h.coste, h.genera]; };
+  assert.deepEqual(f("corte-breve"), [12, 1, 0, 12]);
+  assert.deepEqual(f("incision-semantica"), [30, 4, 30, 0]);
+  assert.deepEqual(f("discontinuidad"), [55, 8, 55, 0]);
+  assert.equal(cargaTras(95, ECLIPSE["corte-breve"]), CARGA_MAX, "Carga caps at 100");
+  assert.equal(cargaTras(40, ECLIPSE["incision-semantica"]), 10);
+  assert.ok(lucha.issues.length === 0);
+});
+
+test("lucha h1: abilities in a loop respect their own cooldown and need Carga", () => {
+  const big = { ...G, reaparicion: 0.05 };           // comes back whole a tick after dissolving: the dummy never runs out
+  const W = mundo(1, 7, [big]);
+  const p = W.pages[0], hab = (c: string) => { p.l.habilidad(c); W.pump(1); };
+  W.pump(2); W.place(p.s.entity, 11, 0); W.pump(12);
+  const usos = (c: string) => W.evs(p, "habilidad").filter((m) => m.cual === c).length;
+  // no Carga: both spenders are refused with a reason, nothing happens
+  hab("incision-semantica"); hab("discontinuidad"); W.pump(2);
+  assert.equal(W.evs(p, "habilidad").length, 0);
+  assert.equal(W.evs(p, "rechazado").length, 2);
+  assert.equal(p.l.carga(), 0);
+  // Corte Breve: 1 s cooldown (20 ticks). Spam 60 ticks → exactly 3 uses (ticks 0, 20, 40), +12 Carga each
+  for (let i = 0; i < 60; i++) hab("corte-breve");
+  W.pump(2);
+  assert.equal(usos("corte-breve"), 3);
+  assert.equal(p.l.carga(), 36);
+  // Incisión: costs 30 → Carga 6; the second try (no Carga, then cooldown) does nothing
+  hab("incision-semantica"); W.pump(2);
+  assert.equal(usos("incision-semantica"), 1);
+  assert.equal(p.l.carga(), 6);
+  hab("incision-semantica"); W.pump(2);
+  assert.equal(usos("incision-semantica"), 1);
+  // refill past 55 with Corte Breve (6 + 12*5 = 66), then Discontinuidad: 66 − 55 = 11, damage 55
+  for (let i = 0; i < 5; i++) { hab("corte-breve"); W.pump(20); }
+  assert.equal(p.l.carga(), 66);
+  hab("discontinuidad"); W.pump(2);
+  const d = W.evs(p, "habilidad").filter((m) => m.cual === "discontinuidad");
+  assert.equal(d.length, 1);
+  assert.equal(d[0].dano, 55);
+  assert.equal(p.l.carga(), 11);
+  // Discontinuidad cooldown 8 s = 160 ticks; with Carga 71 it is still refused silently until then
+  for (let i = 0; i < 6; i++) { hab("corte-breve"); W.pump(20); }
+  assert.ok(p.l.carga() >= 55);
+  hab("discontinuidad"); W.pump(2);
+  assert.equal(usos("discontinuidad"), 1, "still cooling down");
+  W.pump(60);
+  hab("discontinuidad"); W.pump(2);
+  assert.equal(usos("discontinuidad"), 2);
+});
+
+test("lucha h1: out of reach = aire and no Carga spent; unknown ability / creature are refused", () => {
+  const W = mundo(1);
+  const p = W.pages[0];
+  W.pump(2); W.place(p.s.entity, 40, 40); W.pump(12);
+  p.l.habilidad("corte-breve", KEY); W.pump(2);
+  assert.equal(W.evs(p, "aire").length, 1);
+  assert.equal(p.l.carga(), 0);
+  p.l.habilidad("corte-breve", "c:nada"); W.pump(2);
+  assert.equal(W.evs(p, "rechazado").length, 1);
+});

@@ -12,6 +12,7 @@ import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
 import { lucha, DANO_BASE, DANO_VAR, ENFRIAMIENTO_TICKS, REAPARICION_S, VER_M, VIDA_JUGADOR_MAX, REAPARICION_JUGADOR_TICKS } from "./feature.ts";
 import { BESTIARIO } from "./bestiario.ts";
+import { ECLIPSE, cargaTras, ticksDe } from "./habilidades.ts";
 
 /** The server's tick rate (Hz): cooldown and return are counted in ticks of it. */
 export const HZ = 20;
@@ -54,7 +55,9 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number } = 
   const poner = (key: string, v: Msg) => { const c = criaturas.get(key)!; api.state.set(key, v, { at: { x: c.x, z: c.z } }); };
   const cerca = (key: string) => { const c = criaturas.get(key)!; return { near: { x: c.x, z: c.z }, radius: VER_M }; };
 
-  api.onLeave((e) => { puedeDesde.delete(e); vida.delete(e); caidos.delete(e); });
+  const carga = new Map<number, number>();         // player → Carga (0..100), lost on leaving
+  const habDesde = new Map<string, number>();      // `player:ability` → first tick it may be used again
+  api.onLeave((e) => { puedeDesde.delete(e); vida.delete(e); caidos.delete(e); carga.delete(e); for (const k of [...habDesde.keys()]) if (k.startsWith(`${e}:`)) habDesde.delete(k); });
 
   api.on("golpear", (e, m) => {
     if (caidos.has(e)) return rechazar(e, "Estás caído: espera a recuperarte.");
@@ -85,6 +88,35 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number } = 
       caidos.set(e, t + REAPARICION_JUGADOR_TICKS);
       api.emit("jugadorCaido", {}, { to: e });
     }
+  });
+
+  // An ability: same reach/dissolution rules as `golpear`, plus its own cooldown and the player's Carga. Damage is the table's.
+  api.on("habilidad", (e, m) => {
+    if (caidos.has(e)) return rechazar(e, "Estás caído: espera a recuperarte.");   // same rule as `golpear` (#145)
+    const key = String(m.objetivo), cual = String(m.cual), h = ECLIPSE[cual], v = api.state.get(key);
+    if (!h) return rechazar(e, `No conozco la habilidad «${cual}».`);
+    if (!v || !criaturas.has(key)) return rechazar(e, `No hay ninguna criatura «${key}».`);
+    const t = api.tick(), clave = `${e}:${cual}`;
+    if (t < (habDesde.get(clave) ?? 0)) return;                      // cooling down: silent, the mouse repeats
+    if (v.modo === "disuelta") return rechazar(e, "Ahí ya no hay nada que golpear.");
+    const c = carga.get(e) ?? 0;
+    if (c < h.coste) return rechazar(e, `Te falta Carga para ${h.nombre} (${c}/${h.coste}).`);
+    if (!api.within(e, key)) return api.emit("aire", { objetivo: key }, { to: e });
+    habDesde.set(clave, t + ticksDe(h));
+    const nueva = cargaTras(c, h);
+    carga.set(e, nueva);
+    api.emit("carga", { valor: nueva }, { to: e });
+    const dano = h.dano, queda = Math.max(0, Number(v.coherencia) - dano);
+    if (queda > 0) {
+      poner(key, { ...v, coherencia: queda, modo: "alerta" });
+      api.emit("habilidad", { objetivo: key, de: e, cual, dano, queda }, cerca(key));
+      return;
+    }
+    poner(key, { ...v, coherencia: 0, modo: "disuelta", solido: false });
+    api.emit("habilidad", { objetivo: key, de: e, cual, dano, queda: 0 }, cerca(key));
+    api.emit("disuelta", { objetivo: key, de: e }, cerca(key));
+    const s = criaturas.get(key)!.reaparicion ?? REAPARICION_S;
+    if (s > 0) vuelven.set(key, t + Math.round(s * HZ));
   });
 
   api.onTick((t) => {

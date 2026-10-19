@@ -7,6 +7,7 @@
 // (server memory only, L2 trozo 1) goes down the same way, and at 0 you fall (`caido`) until you come back whole.
 // Design: mmo-browser-study/SISTEMA-DE-LUCHA-Y-BESTIARIO.md §1; recipe: docs/EXTENDER.md.
 import { defineFeature } from "../../packages/feature/src/index.ts";
+import { HABILIDADES, CARGA_MAX } from "./habilidades.ts";
 
 /** Melee reach (m) beyond the creature's own radius; the J4 slack is added by `within`. */
 export const ALCANCE_GOLPE_M = 1.8;
@@ -35,6 +36,8 @@ const QUIEN = { kind: "int", min: 0, max: 65535 } as const;
 const COH = { kind: "int", min: 0, max: 200 } as const;
 const DANO = { kind: "int", min: 0, max: 20 } as const;
 const VIDA = { kind: "int", min: 0, max: VIDA_JUGADOR_MAX } as const;
+const DANO_HAB = { kind: "int", min: 0, max: 250 } as const;
+const CARGA = { kind: "int", min: 0, max: CARGA_MAX } as const;
 
 export const lucha = defineFeature({
   id: "lucha",
@@ -57,9 +60,12 @@ export const lucha = defineFeature({
   },
   intents: {
     golpear: { describe: "Golpear a una criatura que tienes al alcance (su radio + 1,8 m). Un golpe cada 0,6 s; el servidor dice cuánto daño hizo (evento golpe) o que no llegaste (aire).", spoken: "golpear", fields: { objetivo: ID }, rate: { perSecond: 4, burst: 2 } },
+    habilidad: { describe: "Usar una habilidad del kit Eclipse Mnémico contra una criatura al alcance: corte-breve (12, 1 s, +12 Carga), incision-semantica (30, 4 s, cuesta 30 Carga) o discontinuidad (55, 8 s, cuesta 55 Carga). El servidor comprueba alcance, enfriamiento propio de cada habilidad y Carga (0-100).", spoken: "habilidad", fields: { objetivo: ID, cual: { kind: "enum", values: HABILIDADES } }, rate: { perSecond: 6, burst: 3 } },
   },
   events: {
     golpe: { describe: "Alguien (de) ha golpeado a una criatura: cuánto daño y cuánta coherencia le queda. A quien está a 40 m.", fields: { objetivo: ID, de: QUIEN, dano: DANO, queda: COH }, announce: { text: "Golpe: −{dano}, le quedan {queda}.", sound: "paso", importance: 1, who: "de" } },
+    habilidad: { describe: "Alguien (de) ha usado una habilidad sobre una criatura: cuál, cuánto daño y cuánta coherencia le queda. A quien está a 40 m.", fields: { objetivo: ID, de: QUIEN, cual: { kind: "enum", values: HABILIDADES }, dano: DANO_HAB, queda: COH }, announce: { text: "{cual}: −{dano}, le quedan {queda}.", sound: "paso", importance: 1, who: "de" } },
+    carga: { describe: "Tu Carga (0-100) tras usar una habilidad o al entrar. Solo a ti.", fields: { valor: CARGA }, announce: "silent" },
     aire: { describe: "Tu golpe no llegó: la criatura está fuera de tu alcance (o ya no está). Solo a ti.", fields: { objetivo: ID }, announce: { text: "Demasiado lejos.", sound: "suave", importance: 0 } },
     disuelta: { describe: "La criatura se ha disuelto (coherencia 0): deja de ser sólida y desaparece un rato. A quien está a 40 m.", fields: { objetivo: ID, de: QUIEN }, announce: { text: "La criatura se disuelve.", sound: "magia", importance: 2 } },
     vuelve: { describe: "Una criatura disuelta vuelve, entera. A quien está a 40 m.", fields: { objetivo: ID }, announce: { text: "Algo vuelve a tomar forma.", sound: "aviso", importance: 1 } },

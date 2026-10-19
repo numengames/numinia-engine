@@ -41,6 +41,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
   const oyentes = new Set<() => void>();
   const avisar = () => { for (const fn of oyentes) fn(); };
   let ultimo = "";
+  let carga = 0;                                   // my Carga (0..100), as the server last said
   const luego = (key: string, ms: number, fn: () => void) => { const l = temporizadores.get(key) ?? []; l.push(setTimeout(fn, ms)); temporizadores.set(key, l); };
   const limpiar = (key: string) => { for (const t of temporizadores.get(key) ?? []) clearTimeout(t); temporizadores.delete(key); };
   const dibujar = (key: string, v: Msg | undefined) => {
@@ -62,6 +63,16 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
       A.send("golpear", { objetivo: key });
       return { ok: true };
     },
+    /** Ask the server to use an ability of the kit on a creature (default: the first one standing). The server decides. */
+    habilidad: (cual: string, objetivo?: string): Res => {
+      if (!A) return SIN;
+      const key = objetivo ?? lucha.criaturas().find((c) => c.modo !== "disuelta")?.key;
+      if (!key) return { ok: false, why: "no hay ninguna criatura cerca" };
+      A.send("habilidad", { objetivo: key, cual });
+      return { ok: true };
+    },
+    /** My Carga (0..100), as the server last said. */
+    carga: (): number => carga,
     /** J4: the prompt «E: golpear a …» is offered for every creature that is not dissolved. */
     ofrece: (feature: string, key: string): boolean => feature !== "lucha" || A?.state.get(key)?.modo !== "disuelta",
     alCambiar: (fn: () => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
@@ -80,6 +91,8 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
       luego(key, FLASH_MS, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.place?.(`lucha:${key}`, aspecto(w)); });
       luego(key, DANO_MS, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.tag?.(`lucha:${key}`, nombre(w)); });
     });
+    a.on("carga", (m) => { espia?.("carga", m); carga = Number(m.valor); avisar(); });
+    a.on("habilidad", (m) => { espia?.("habilidad", m); });
     a.on("aire", (m) => { espia?.("aire", m); });
     a.on("disuelta", (m) => { espia?.("disuelta", m); limpiar(String(m.objetivo)); });
     a.on("vuelve", (m) => { espia?.("vuelve", m); });
