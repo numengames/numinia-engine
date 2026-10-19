@@ -21,7 +21,7 @@ export type Letrero = { panel: Panel; /** the tag under the sign, or null */ eti
 export function letreroDe(d: DueloV | null, rondas: number): Letrero {
   const panel = panelDe(d, rondas);
   if (panel.fase === "nada" || !d) return { panel, etiqueta: null, pie: [] };
-  const pie = panel.fase === "espera" ? [INVITACION.split(" — ")[0] + " —", INVITACION.split(" — ")[1]] : [panel.pie];
+  const pie = panel.fase === "espera" && panel.pie === "Esperando rival…" ? [INVITACION.split(" — ")[0] + " —", INVITACION.split(" — ")[1]] : [panel.pie];
   return { panel, etiqueta: d.a.pared || d.b?.pared ? TAG_PARED : null, pie };
 }
 /** A key that changes exactly when the sign must be repainted. */
@@ -46,7 +46,7 @@ export function pintarLetrero(ctx: CanvasRenderingContext2D, l: Letrero): void {
   const { w, h } = LETRERO_PX;
   ctx.clearRect(0, 0, w, h);
   if (l.panel.fase === "nada") return;
-  const espera = l.panel.fase === "espera";
+  const espera = l.panel.fase === "espera" && l.pie.length === 2; // the invitation is two lines; «Pulsa Empezar» / «Esperando al anfitrión» are the panel's own footer
   pintarPanel(ctx, espera ? { ...l.panel, pie: "" } : l.panel); // the waiting footer is two lines: drawn here
   if (espera) {
     ctx.fillStyle = "#ffd27a"; ctx.font = "800 27px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
