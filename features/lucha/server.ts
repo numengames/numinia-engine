@@ -6,7 +6,11 @@
 // changes: the tick hook only looks at the (usually empty) lists of dissolved creatures and fallen players and returns.
 // The creature does not move or chase yet (L3) — but every blow a player lands, it strikes back: the player's own life,
 // kept in server memory only (no shared state, no HUD yet: that is L2's next story), goes down by the same roll. At 0
-// the player falls (`caido`): `golpear` is refused until REAPARICION_JUGADOR_TICKS pass, then they come back whole.
+// the player falls (`caido`): `golpear` and `habilidad` are refused until REAPARICION_JUGADOR_TICKS pass, then they come
+// back whole. Two independent paths down, one way back each: the creature's strike-back (life → caído → jugadorVuelve) and,
+// only where the world turns pvp on, the Estado ladder (estados.ts: Aletargado → `reaparece` on the last safe spot). A person
+// at Colapsado or worse strikes nothing (creature or person); a fallen person strikes nothing. `habilidad` (Eclipse Mnémico
+// kit, habilidades.ts) does not provoke the strike-back yet: Carga and cooldowns are its price.
 import { rngNext } from "../../packages/core/src/index.ts";
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
@@ -64,6 +68,9 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
   const habDesde = new Map<string, number>();      // `player:ability` → first tick it may be used again
   api.onLeave((e) => { puedeDesde.delete(e); escalera.reiniciar(e); reaparecen.delete(e); vida.delete(e); caidos.delete(e); carga.delete(e); for (const k of [...habDesde.keys()]) if (k.startsWith(`${e}:`)) habDesde.delete(k); });
 
+  /** A person on the Estado ladder at Colapsado or worse «only reacts» (estados.ts): they strike no creature either. Never true without PVP. */
+  const colapsado = (e: number): boolean => escalera.size > 0 && escalera.nivel(e, api.tick()) >= NIVEL_COLAPSADO;
+
   /** PVP blow (`objetivo: p:<entidad>`): the server decides if PVP is on, reach, cooldown and the rung; no damage number. */
   const golpearPersona = (e: number, m: Msg) => {
     const otro = Number(String(m.objetivo).slice(2)), t = api.tick();
@@ -86,6 +93,7 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
   api.on("golpear", (e, m) => {
     if (caidos.has(e)) return rechazar(e, "Estás caído: espera a recuperarte.");   // #145: a fallen player strikes nobody
     if (/^p:/.test(String(m.objetivo))) return golpearPersona(e, m);
+    if (colapsado(e)) return rechazar(e, "Estás colapsado: no puedes golpear.");
     const key = String(m.objetivo), v = api.state.get(key);
     if (!v || !criaturas.has(key)) return rechazar(e, `No hay ninguna criatura «${key}».`);
     const t = api.tick();
@@ -118,6 +126,7 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
   // An ability: same reach/dissolution rules as `golpear`, plus its own cooldown and the player's Carga. Damage is the table's.
   api.on("habilidad", (e, m) => {
     if (caidos.has(e)) return rechazar(e, "Estás caído: espera a recuperarte.");   // same rule as `golpear` (#145)
+    if (colapsado(e)) return rechazar(e, "Estás colapsado: no puedes golpear.");
     const key = String(m.objetivo), cual = String(m.cual), h = ECLIPSE[cual], v = api.state.get(key);
     if (!h) return rechazar(e, `No conozco la habilidad «${cual}».`);
     if (!v || !criaturas.has(key)) return rechazar(e, `No hay ninguna criatura «${key}».`);
@@ -155,7 +164,6 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
         if (!api.position(e)) continue;                            // gone meanwhile (onLeave already forgot it)
         if (!api.volverASeguro(e)) api.log(`lucha: ${e} reaparece donde está: no hay un sitio seguro al que volver`);
         escalera.reiniciar(e);                                     // back to ninguno either way: items, avatar and name stay as they were
-        vida.delete(e); caidos.delete(e);                          // one way back: if #145's fall was pending, this return makes them whole too
         const p = api.position(e);
         api.emit("reaparece", { objetivo: `p:${e}` }, p ? { near: { x: p.x, z: p.z }, radius: VER_M } : { to: e });
       }

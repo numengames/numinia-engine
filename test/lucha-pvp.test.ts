@@ -9,6 +9,8 @@ import type { GuestKeeper } from "../packages/client/src/index.ts";
 import { signer } from "../packages/server/src/secret.ts";
 import { ENFRIAMIENTO_TICKS } from "../features/lucha/feature.ts";
 import { crearLucha, HZ } from "../features/lucha/server.ts";
+import type { Criatura } from "../features/lucha/server.ts";
+import { VIDA_JUGADOR_MAX, REAPARICION_JUGADOR_TICKS } from "../features/lucha/feature.ts";
 import { crearCliente } from "../features/lucha/client.ts";
 import { crearEscalera, ESCALERA, CALMA_TICKS, INCAPACITADO_S } from "../features/lucha/estados.ts";
 import funciones from "../features/servidor.ts";
@@ -18,9 +20,9 @@ type Keeper = GuestKeeper & { token: string | null };
 const keeper = (): Keeper => { const k = { token: null as string | null, load: () => k.token, save: (t: string) => { k.token = t; } }; return k; };
 
 /** n people in a headless world with the lucha server (`pvp` as the world says), a pump by ticks. */
-function mundo(n = 2, pvp = true) {
+function mundo(n = 2, pvp = true, criaturas: Criatura[] = []) {
   const log: string[] = [];
-  const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [crearLucha({ criaturas: [], semilla: 7, pvp })], log: (l) => log.push(l), identitySign: sign });
+  const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [crearLucha({ criaturas, semilla: 7, pvp })], log: (l) => log.push(l), identitySign: sign });
   const pages = Array.from({ length: n }, (_, i) => {
     const eventos: { event: string; msg: Record<string, unknown> }[] = [];
     const t = inst.join(i), cli = crearCliente((event, msg) => eventos.push({ event, msg })), k = keeper();
@@ -113,4 +115,38 @@ test("lucha pvp: reaching Aletargado freezes the person, then the server puts th
   // Estado is ninguno again: b can strike and be struck from the first rung
   b.l.golpear(`p:${a.s.entity}`); W.pump(2);
   assert.equal(W.evs(a, "estado").filter((m) => m.objetivo === `p:${a.s.entity}`).at(-1)?.estado, "desestabilizado");
+});
+
+test("lucha: main's fall (#145) and the Estado ladder agree — a fallen or colapsado person strikes neither creatures (blow or ability) nor people; one return path each", () => {
+  const G: Criatura = { id: "guardian-1", especie: "guardian-crisalida", x: 10, z: 0, y: 0, reaparicion: 0.05 };
+  const KEY = "c:guardian-1";
+  const W = mundo(3, true, [G]);
+  W.pump(2);
+  const [a, b, c] = W.pages;
+  W.place(a.s.entity, 11, 0); W.place(b.s.entity, 12, 0); W.place(c.s.entity, 30, 0);
+  W.pump(12);
+  // a is felled by the creature (#145: VIDA_JUGADOR_MAX life, 3-5 per blow)
+  for (let n = 0; W.evs(a, "jugadorCaido").length === 0 && n < 60; n++) {
+    a.l.golpear(KEY); W.pump(ENFRIAMIENTO_TICKS);
+  }
+  assert.equal(W.evs(a, "jugadorCaido").length, 1, `fallen after ${VIDA_JUGADOR_MAX} life of blows`);
+  const antes = { rech: W.evs(a, "rechazado").length, estados: W.evs(b, "estado").length };
+  a.l.habilidad("corte-breve", KEY); W.pump(2);
+  a.l.golpear(`p:${b.s.entity}`); W.pump(2);
+  const nuevos = W.evs(a, "rechazado").slice(antes.rech).map((m) => String(m.motivo));
+  assert.equal(nuevos.length, 2);
+  assert.ok(nuevos.every((m) => m.includes("caído")), `both refused for the fall: ${nuevos.join(" | ")}`);
+  assert.equal(W.evs(b, "estado").length, antes.estados, "a fallen person raises nobody's Estado");
+  W.pump(REAPARICION_JUGADOR_TICKS + 2);
+  assert.equal(W.evs(a, "jugadorVuelve").length, 1, "the fall ends by itself, whole");
+  // b is brought to colapsado by c (3 blows); from there b cannot strike the creature either, with a blow or an ability
+  W.place(c.s.entity, 13, 0); W.pump(12);
+  for (let i = 0; i < 3; i++) { c.l.golpear(`p:${b.s.entity}`); W.pump(ENFRIAMIENTO_TICKS + 1); }
+  assert.equal(W.evs(b, "estado").at(-1)!.estado, "colapsado");
+  const r0 = W.evs(b, "rechazado").length, h0 = W.evs(b, "golpe").length + W.evs(b, "habilidad").length;
+  b.l.golpear(KEY); W.pump(2); b.l.habilidad("corte-breve", KEY); W.pump(2);
+  const rb = W.evs(b, "rechazado").slice(r0).map((m) => String(m.motivo));
+  assert.equal(rb.length, 2);
+  assert.ok(rb.every((m) => m.includes("colapsado")), rb.join(" | "));
+  assert.equal(W.evs(b, "golpe").length + W.evs(b, "habilidad").length, h0, "no blow landed on the creature");
 });
