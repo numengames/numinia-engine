@@ -11,6 +11,7 @@
 // both players get every dart and the score whatever the distance. A board without those fields behaves as in v1.
 // Recipe: docs/EXTENDER.md «Dardos».
 import { defineFeature } from "../../packages/feature/src/index.ts";
+import { EQUIPOS_DEFECTO, EQUIPOS_MAX } from "./equipos.ts";
 
 /** Who gets a dartboard in the shared state, from afar (m): a landmark, same reach as pesca's pond. */
 export const ALCANCE_M = 120;
@@ -42,12 +43,12 @@ export const ANILLO_VALUES = ["dobleBull", "bull", "simple", "triple", "doble", 
 
 export const dardos = defineFeature({
   id: "dardos",
-  version: 2,
+  version: 3,
   level: "base",
   describe: "Jugar a los dardos en una diana del mundo: una tirada son tres dardos; en cada uno eliges adónde apuntas y con qué fuerza lanzas, y el servidor decide dónde se clava (un tiro flojo cae, uno fuerte sube y se abre, y el pulso mueve un poco cada dardo), cuenta sector, anillo y puntos y guarda el marcador por invitado. Igual en el PC (ratón), el móvil (gesto de lanzar) y en AR (la diana en tu pared).",
   store: { describe: "Por invitado (`d:<id>`): dardos tirados, puntos totales, el mejor dardo, la mejor tirada (3 dardos) y cuántas dianas (dobleBull) ha hecho. Nunca va a las páginas; a su dueño le llega como evento `marcador`." },
   state: {
-    describe: "Una diana por clave: nombre, dónde (x, z; y = altura del suelo, m), a qué distancia se tira (radio, m), hacia dónde mira su cara (rumbo, grados: 0 = mira a +z, 90 = a +x) si alguien tira ahí ahora (ocupado) y, en una diana de duelo, si admite un rival (duelo), si se puede entrar desde una pared lejana (remoto), si hay alguien esperando rival (espera) y cuántos jugadores hay en el duelo (jugadores, 0-2).",
+    describe: "Una diana por clave: nombre, dónde (x, z; y = altura del suelo, m), a qué distancia se tira (radio, m), hacia dónde mira su cara (rumbo, grados: 0 = mira a +z, 90 = a +x) si alguien tira ahí ahora (ocupado) y, en una diana de duelo, si admite un rival (duelo), si se puede entrar desde una pared lejana (remoto), si hay alguien esperando rival (espera) y cuántos jugadores hay en el duelo (jugadores, 0-4) y cuántos equipos admite (equipos, 2-4; v3).",
     fields: {
       nombre: { kind: "text", maxBytes: 60 }, x: X, y: Y, z: X,
       radio: { kind: "fixed", min: 1, max: 16, step: 0.1, default: 3 },
@@ -55,7 +56,8 @@ export const dardos = defineFeature({
       ocupado: { kind: "bool", default: false },
       duelo: { kind: "bool", default: false }, remoto: { kind: "bool", default: false },
       rondas: { kind: "int", min: 1, max: RONDAS_MAX, default: RONDAS_DEFECTO },
-      espera: { kind: "bool", default: false }, jugadores: { kind: "int", min: 0, max: 2, default: 0 },
+      espera: { kind: "bool", default: false }, jugadores: { kind: "int", min: 0, max: EQUIPOS_MAX, default: 0 },
+      equipos: { kind: "int", min: 2, max: EQUIPOS_MAX, default: EQUIPOS_DEFECTO },
     },
     card: { role: "lugar", name: "{nombre}", description: "Diana de dardos", at: ["x", "z"], actions: ["jugar"], interact: { intent: "jugar", prompt: "tirar dardos", radius: "radio", key: "sitio" } },
     radius: ALCANCE_M,
@@ -66,6 +68,8 @@ export const dardos = defineFeature({
       describe: "Lanzar un dardo de tu tirada: x, y = adónde apuntas en la cara de la diana, en radios (0, 0 = el centro; y hacia arriba; 1 = el borde del doble); fuerza 0-1 (0,65 va recto; menos cae, más sube y se abre). El servidor decide dónde se clava.",
       spoken: "lanzar un dardo", fields: { sitio: ID, x: CARA, y: CARA, fuerza: { kind: "fixed", min: 0, max: 1, step: 0.001 } }, rate: { perSecond: 3, burst: 4 },
     },
+    cambiar: { describe: "v3, duelo: pasar el turno. Tras tus 3 dardos (o antes, si quieres) la diana pide «retira los dardos»: nada puntúa hasta que quien tiene el turno pulsa cambiar (o pasan RETIRANDO_S segundos).", spoken: "cambiar de turno", fields: { sitio: ID }, rate: { perSecond: 2, burst: 4 } },
+    empezar: { describe: "v3, duelo: el anfitrión arranca la partida cuando hay al menos 2 equipos sentados (la diana espera hasta que lo haga si el mundo declara `equipos`).", spoken: "empezar el duelo", fields: { sitio: ID }, rate: { perSecond: 2, burst: 4 } },
     salir: { describe: "Dejar la tirada donde esté: lo lanzado cuenta, la diana queda libre.", spoken: "dejar los dardos", fields: {}, rate: { perSecond: 2, burst: 4 } },
   },
   events: {
@@ -85,13 +89,13 @@ export const dardos = defineFeature({
       announce: "silent",
     },
     duelo: {
-      describe: "El duelo cambió (turno nuevo o un dardo cayó): diana, ronda (0 = esperando rival), de quién es el turno (0 = de nadie aún) y los dos jugadores: entidad, nombre y puntos (a/b; el segundo vale 0 mientras se espera) y si cada uno juega desde su pared de AR (paredA/paredB). A los dos jugadores, vean donde vean, y a quien esté cerca de la diana.",
-      fields: { sitio: ID, ronda: { kind: "int", min: 0, max: RONDAS_MAX }, turnoDe: QUIEN, a: QUIEN, nombreA: NOMBRE, puntosA: DUELO_PUNTOS, b: QUIEN, nombreB: NOMBRE, puntosB: DUELO_PUNTOS, paredA: { kind: "bool", default: false }, paredB: { kind: "bool", default: false } },
+      describe: "El duelo cambió (turno nuevo o un dardo cayó): diana, ronda (0 = esperando rival), de quién es el turno (0 = de nadie aún) y los jugadores: entidad, nombre y puntos (a/b/c/d = equipos de 1 jugador; los no sentados valen 0; `plazas` = cuántos hay sentados, `equipos` = cuántos admite la diana, `turnoEq` 1-4 = equipo con turno (0 = nadie), `retirando` = fase «retira los dardos», `fueraX` = el equipo se fue) y si cada uno juega desde su pared de AR (paredA/paredB). A los dos jugadores, vean donde vean, y a quien esté cerca de la diana.",
+      fields: { sitio: ID, ronda: { kind: "int", min: 0, max: RONDAS_MAX }, turnoDe: QUIEN, a: QUIEN, nombreA: NOMBRE, puntosA: DUELO_PUNTOS, b: QUIEN, nombreB: NOMBRE, puntosB: DUELO_PUNTOS, paredA: { kind: "bool", default: false }, paredB: { kind: "bool", default: false }, c: QUIEN, nombreC: NOMBRE, puntosC: DUELO_PUNTOS, d: QUIEN, nombreD: NOMBRE, puntosD: DUELO_PUNTOS, paredC: { kind: "bool", default: false }, paredD: { kind: "bool", default: false }, equipos: { kind: "int", min: 2, max: EQUIPOS_MAX, default: EQUIPOS_DEFECTO }, plazas: { kind: "int", min: 0, max: EQUIPOS_MAX, default: 0 }, turnoEq: { kind: "int", min: 0, max: EQUIPOS_MAX, default: 0 }, retirando: { kind: "bool", default: false }, fueraA: { kind: "bool", default: false }, fueraB: { kind: "bool", default: false }, fueraC: { kind: "bool", default: false }, fueraD: { kind: "bool", default: false } },
       announce: "silent",
     },
     finduelo: {
       describe: "El duelo terminó: diana, ganador (entidad; 0 = empate), empate, abandono (el otro se fue o se quedó sin tirar y gana por defecto), los dos jugadores con sus puntos y una frase. A los dos jugadores y a quien esté cerca.",
-      fields: { sitio: ID, ganador: QUIEN, empate: { kind: "bool", default: false }, abandono: { kind: "bool", default: false }, a: QUIEN, nombreA: NOMBRE, puntosA: DUELO_PUNTOS, b: QUIEN, nombreB: NOMBRE, puntosB: DUELO_PUNTOS, paredA: { kind: "bool", default: false }, paredB: { kind: "bool", default: false }, texto: { kind: "text", maxBytes: 120 } },
+      fields: { sitio: ID, ganador: QUIEN, empate: { kind: "bool", default: false }, abandono: { kind: "bool", default: false }, a: QUIEN, nombreA: NOMBRE, puntosA: DUELO_PUNTOS, b: QUIEN, nombreB: NOMBRE, puntosB: DUELO_PUNTOS, paredA: { kind: "bool", default: false }, paredB: { kind: "bool", default: false }, c: QUIEN, nombreC: NOMBRE, puntosC: DUELO_PUNTOS, d: QUIEN, nombreD: NOMBRE, puntosD: DUELO_PUNTOS, paredC: { kind: "bool", default: false }, paredD: { kind: "bool", default: false }, equipos: { kind: "int", min: 2, max: EQUIPOS_MAX, default: EQUIPOS_DEFECTO }, plazas: { kind: "int", min: 0, max: EQUIPOS_MAX, default: 0 }, turnoEq: { kind: "int", min: 0, max: EQUIPOS_MAX, default: 0 }, retirando: { kind: "bool", default: false }, fueraA: { kind: "bool", default: false }, fueraB: { kind: "bool", default: false }, fueraC: { kind: "bool", default: false }, fueraD: { kind: "bool", default: false }, texto: { kind: "text", maxBytes: 120 } },
       announce: { text: "{texto}", sound: "suave", importance: 2 },
     },
     rechazado: { describe: "Lo que pediste no se hizo, y por qué.", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },

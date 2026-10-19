@@ -48,7 +48,7 @@ function mundo(sitios: Sitio[] = SITIOS, n = 5, opts: { sinDardos?: boolean } = 
 test("duelo: the declaration is valid, rounds are clamped, names lose control characters and fit 40 bytes", async () => {
   const { dardos } = await import("../features/dardos/feature.ts");
   assert.deepEqual(dardos.issues, []);
-  assert.equal(dardos.version, 2);
+  assert.equal(dardos.version, 3);
   assert.equal(rondasDe(undefined), RONDAS_DEFECTO); assert.equal(rondasDe(0), 1); assert.equal(rondasDe(99), 5); assert.equal(rondasDe(2.4), 2); assert.equal(rondasDe("x"), RONDAS_DEFECTO);
   assert.equal(limpiarNombre("Ana\u0000\n\u202EMar\tía"), "Ana Mar ía");
   assert.ok(Buffer.byteLength(limpiarNombre("ñ".repeat(60))) <= 40);
