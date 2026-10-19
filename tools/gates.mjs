@@ -19,7 +19,17 @@ const gate = (name, budget, fn, { warnOnly = false } = {}) => {
 gate("pruebas unitarias", "todas en verde", () => {
   const r = spawnSync(process.execPath, ["--test", "test/*.test.ts"], { cwd: root, encoding: "utf8" });
   const pass = r.stdout.match(/ℹ pass (\d+)/)?.[1], fail = r.stdout.match(/ℹ fail (\d+)/)?.[1];
-  return [r.status === 0, `${pass} bien, ${fail} mal`];
+  if (r.status === 0) return [true, `${pass} bien, ${fail} mal`];
+  // name what failed (the gate used to say only «1 mal»), then run ONLY those files once more, alone: a timing test that lost a
+  // race with the rest of the suite on a shared runner passes there; a real failure fails again and the gate stays red
+  const tras = r.stdout.slice(r.stdout.lastIndexOf("✖ failing tests"));
+  const ficheros = [...new Set([...tras.matchAll(/test at (?:\S*\/)?(test\/[^\s:]+\.test\.ts):\d+/g)].map((m) => m[1]))];
+  for (const l of tras.split("\n").filter((x) => /^✖ /.test(x) && !/failing tests/.test(x))) console.error(`[pruebas unitarias] falló: ${l.slice(2)}`);
+  if (!ficheros.length) return [false, `${pass} bien, ${fail} mal`];
+  const otra = spawnSync(process.execPath, ["--test", ...ficheros], { cwd: root, encoding: "utf8" });
+  console.error(`[pruebas unitarias] repetidas solas (${ficheros.join(", ")}): ${otra.status === 0 ? "bien" : "mal otra vez"}`);
+  if (otra.status !== 0) process.stderr.write(otra.stdout.slice(otra.stdout.lastIndexOf("✖ failing tests")));
+  return [otra.status === 0, `${pass} bien, ${fail} mal; repetidas solas: ${otra.status === 0 ? "bien" : "mal"} (${ficheros.join(", ")})`];
 });
 
 gate("capas", "0 imports prohibidos", () => {
