@@ -341,6 +341,14 @@ $SITE {
 	handle /a/* {
 		reverse_proxy 127.0.0.1:$PORT
 	}
+	# S6: the page's sound table (ids → /a/ files, buses, cooldowns); without it the page only plays the synthesised recipes
+	handle /sonidos.json {
+		reverse_proxy 127.0.0.1:$PORT
+	}
+	# the world's public card (name, theme, avatar, audio bed): the page reads it on its own origin
+	handle /status {
+		reverse_proxy 127.0.0.1:$PORT
+	}
 	# the world as a zip: the page, the download and the upload (the server asks the administration code; no size limit here)
 	handle /mundo* {
 		reverse_proxy 127.0.0.1:$PORT

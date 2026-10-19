@@ -261,11 +261,12 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
       case "vuelve_a_seguro":
         api.volverASeguro(quien);
         return true;
-      case "suena": {
-        const d = lista.get(String(m.disparador));
-        api.emit("sonido", { sonido: String(m.sonido).slice(0, 32) }, { near: { x: d?.x ?? 0, z: d?.z ?? 0 }, radius: CERCA_M });
-        return true;
-      }
+      // S6: «suena» ya NO se resuelve aquí. La pieza `sonido` (features/sonido) oye esta misma acción, busca el id en
+      // el catálogo de la casa, decide la semilla y manda `sonido.suena` con su texto accesible — un fichero de
+      // verdad en vez del pitido fijo que había aquí. Un receptor, un dueño: si lo resolviéramos los dos, cada
+      // disparo sonaría dos veces y se anunciaría dos veces.
+      case "suena":
+        return false;
       case "abre_enlace":
         api.emit("enlace", { quien, enlace: String(m.enlace) }, { to: quien });
         return true;

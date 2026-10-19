@@ -30,7 +30,9 @@ import { misiones } from "../../features/misiones/client.ts";
 import { montarInteraccion, construyendo } from "./interactuar.ts";
 import { montarDialogo } from "./dialogo.ts";
 import { montarVerNombres } from "./nombres-ver.ts";
-import { montarLibro } from "./misiones.ts";
+import { montarLibro, ponerCatalogoCasa } from "./misiones.ts";
+import { anunciar } from "./paneles.ts"; // S6: el texto accesible de cada sonido (XAUR)
+import { crearSonidos, ponerSonidos, RUTA_TABLA, sonidos } from "../../packages/render/src/audio/sonidos.ts"; // S6: the house catalogue (its table comes from /sonidos.json; the files are served by their sha256)
 import { montarMapa } from "./mapa.ts";
 import { montarFicha } from "./ficha.ts";
 import { montarObjetivo } from "./objetivo.ts";
@@ -54,6 +56,7 @@ import { montarDados } from "./dados.ts";
 import { contadores } from "../../features/contadores/client.ts"; // D-044: timers and counters everyone sees
 import { montarContadores } from "./contadores.ts";
 import { cerraduras } from "../../features/cerradura/client.ts"; // D-042: a lock that opens with a code (keypad) or a key
+import { puertas } from "../../features/puertas/client.ts"; // S6s: doors only to hear them open and close
 import { montarCerradura } from "./cerradura.ts";
 import { pantallasWeb } from "../../features/web/client.ts"; // N17: web screens (the controller)
 import { montarWeb } from "./web.ts";
@@ -81,10 +84,29 @@ const hud = document.getElementById("hud")!;
 const url = serverUrl(location, import.meta.env.PROD); // the built page (Caddy or the engine itself) always talks to its own origin
 // H1: files of things in the world come from the instance's server by their sha256 (ws://h:p -> http://h:p/a/<sha256>.glb)
 const activos = new URL(url.replace(/^ws/, "http")).origin;
+// S6: the house sound catalogue — one small JSON from the INSTANCE'S server (`${activos}/sonidos.json`, the same
+// origin the files come from: that way `dev:lan`, Caddy or a world on another host need no extra proxy rule), and
+// from then on the seven notices are FILES on the «interfaz» bus with no panner. Until the table lands, `sonarCasa`
+// keeps its oscillator notes, and every notice keeps its text in the live region either way (XAUR, WCAG 2.2).
+const catalogoSonidos = ponerSonidos(crearSonidos({ ruta: `${activos}${RUTA_TABLA}` }));
+ponerCatalogoCasa(catalogoSonidos);
+void catalogoSonidos.cargar().then((hay) => {
+  // los ocho avisos, descodificados ya: el primer «Misión completada» no llega tarde (son 18 kB entre todos)
+  if (hay) void catalogoSonidos.precargar(Object.values(catalogoSonidos.tabla()?.casa ?? {}));
+});
+// S6f: el sonido que decide el SERVIDOR. Arranca tocando solo por fichero (lo que había) y lo cambia por la puerta
+// única en cuanto `./sonidos.ts` se carga: así las 47 recetas de `sintesis.ts` no entran en el paquete de arranque.
+type PeticionSonido = { id: string; semilla?: number; donde?: { x: number; y: number; z: number } | null; texto?: string };
+let sonarServidor: (s: PeticionSonido) => boolean = (s) => catalogoSonidos.suena(s);
 // H7: the world's settings (its aventura/ficha.json, served by GET /status): its name on the entry screen and the tab,
 // everyone's avatar when it names one, how many fit (`aforo`). Asked once, before the first draw, but never waited for
 // long: a slow or absent /status leaves the house defaults (the tab name and the look are fixed again below when it answers).
-type Estado = { version?: string; nombre?: string; tema?: unknown; avatar?: string; aforo?: number; conectados?: number };
+// S6f: `audio` es lo que el mundo pide del sonido (R-1: una línea en su ficha.json lo enciende). `ambiente` = el id
+// del catálogo que suena como cama única en bucle (hoy «ambiente-numinia», el colchón CC0); `ambiente_ganancia` = su
+// volumen (×0,042 por defecto, el que quiso su autor); `ambiente_sintetizado` = las camas y capas SINTETIZADAS que
+// este mundo enciende por nombre (de serie, ninguna).
+type Estado = { version?: string; nombre?: string; tema?: unknown; avatar?: string; aforo?: number; conectados?: number;
+  audio?: { ambiente?: string | null; ambiente_ganancia?: number; ambiente_sintetizado?: string[] } };
 const estadoP: Promise<Estado | null> = fetch(`${activos}/status`).then((r) => r.json() as Promise<Estado>).catch(() => null);
 const estado = await Promise.race([estadoP, new Promise<null>((ok) => setTimeout(() => ok(null), 1500))]);
 if (estado?.nombre) { document.title = estado.nombre; hud.textContent = `Conectando a «${estado.nombre}»…`; }
@@ -125,6 +147,18 @@ const session = new ClientSession(transport, {
     fundido: (ms) => { const f = document.getElementById("fundido")!; f.style.transition = "none"; f.style.opacity = "1"; f.offsetHeight; f.style.transition = `opacity ${ms}ms ease-out`; f.style.opacity = "0"; f.dataset.ultimo = String(Date.now()); },
     // J7b: the moves of the wheel, played on the avatar's VRM (false = a capsule: the feature shows a label)
     movimiento: (e, m) => view.movimiento(e === session.entity ? "self" : e, m),
+    // S6: a sound the SERVER chose (features/sonido): its id and its seed, so every page plays the same variant at
+    // the same instant. `donde: null` = in the head, with no panner (the notices and the interface). The accessible
+    // text ALWAYS reaches the notices region, whether the file played or not (XAUR: no sound without its text).
+    // S6f: por la PUERTA ÚNICA — si el id tiene fichero en el catálogo gana el fichero; si no, la receta de
+    // `sintesis.ts` con la MISMA semilla del servidor (así todas las páginas eligen la misma variante). La puerta
+    // llega con `./sonidos.ts`, que se carga aparte (las 47 recetas no entran en el paquete de arranque): hasta
+    // entonces, los sonidos del servidor suenan por fichero, que es lo que había.
+    sonido: (s) => {
+      const son = sonarServidor(s);
+      if (s.texto) anunciar(s.texto);
+      return son;
+    },
     // V1: every announced event reaches screen readers (polite; safety = assertive). V3 adds the engine's own voice.
     announce: (a) => {
       if (a.feature === "chat") return; // J3: the chat box's own list (role=log, polite) reads the chat
@@ -204,13 +238,28 @@ const webPagina = montarWeb({ web: pantallasWeb, view }); // N17: web screens �
 const ancestrosPagina = montarAncestros({ ancestros, view }); // ancestros v1: the hall in 3D, the two panels, and the law + our rule on screen when the hologram answers you
 // ---- pesca v1: nothing of it is in the start bundle; the HUD and the 3D arrive with the first fishing spot or float ----
 let pescaHud: Promise<unknown> | null = null, pescaPagina: unknown = null; // N4: pescaPagina.manos (VR rod, gamepad) for the e2e
-pesca.alCambiar(() => { pescaHud ??= import("./pesca.ts").then((m) => (pescaPagina = m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, ajuste: leerAjuste, interaccion: () => interaccion }))).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); });
+pesca.alCambiar(() => { pescaHud ??= import("./pesca.ts").then((m) => (pescaPagina = m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, interaccion: () => interaccion }))).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); });
 // ---- dardos v1: the throwing view (mouse, flick, keys) and «En tu pared (AR)» arrive with the first dartboard ----
 let dardosHud: Promise<unknown> | null = null;
 dardos.alCambiar(() => { dardosHud ??= import("./dardos.ts").then((m) => m.montarDardos({ dardos, view, session, hud: document.getElementById("dardos-hud")! })).catch((e) => console.warn(`[dardos] no se pudo cargar la página de dardos: ${(e as Error)?.message ?? e}`)); });
 
+// ---- S6f: todo suena por UNA puerta — el fichero del catálogo si lo hay, y si no la receta sintetizada; los botones,
+// mis pasos, mi salto y mi aterrizaje son locales, y lo compartido (puerta, dados, dardos, pez, teleport) lo manda el
+// servidor. Perezoso, para que quede fuera del paquete de arranque. ----
+void import("./sonidos.ts").then(async (m) => {
+  const { crearPuerta, ponerPuerta } = await import("../../packages/render/src/audio/sonar.ts");
+  const puerta = ponerPuerta(crearPuerta());
+  sonarServidor = (s) => puerta.sonar(s.id, { semilla: s.semilla, donde: s.donde ?? null });
+  m.montarSonidos({ session, cerraduras, pesca, suelo: () => view.entorno.estado().suelo?.tipo ?? null, misiones }, puerta);
+  // El COLCHÓN de ambiente: solo si el mundo lo pide en su ficha (`audio.ambiente`), y con la ganancia que diga
+  // (×0,042 por defecto, el volumen que quiso su autor). Encima manda el deslizador de «ambiente» del jugador: a cero,
+  // ni arranca. Las camas y capas SINTETIZADAS siguen apagadas salvo las que el mundo nombre en `ambiente_sintetizado`.
+  const a = (await estadoP)?.audio;
+  if (a) puerta.ambiente({ id: a.ambiente ?? null, ganancia: a.ambiente_ganancia, sintetizado: a.ambiente_sintetizado });
+}).catch((e) => console.warn(`[sonidos] no se pudieron montar: ${(e as Error)?.message ?? e}`));
+
 // ---- U10: the microphone (button or Q): your voice to who is near; theirs from where they stand ----
-const voz = montarVoz({ session, view: { label: (t, text, ms) => view.label(t, text, ms), cam: view.cam, voz: (id, nivel) => view.voz(id, nivel) }, escribiendo, decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } } });
+const voz = montarVoz({ session, view: { label: (t, text, ms) => view.label(t, text, ms), cam: view.cam, voz: (id, nivel) => view.voz(id, nivel) }, escribiendo, ajuste: leerAjuste, decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } } });
 
 // ---- M18b: the Graboso (button or K): out = recording what your camera sees + your microphone, 30–60 s hard cap, then a clip to download ----
 const graboso = montarGraboso({ lienzo: view.renderer.domElement, view, barra: document.getElementById("barra-arriba"), decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } } });

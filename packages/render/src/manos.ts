@@ -182,8 +182,10 @@ export function createManos(h: ManosHooks) {
   const emitir = (e: EventoMano) => { for (const f of oyentes) { try { f(e); } catch (err) { console.warn("[manos]", err); } } };
   let agarrable: (key: string) => boolean = () => false;
   let apuntable: (key: string) => boolean = () => false;
-  /** A hand busy holding a tool of a feature (the fishing rod): no ray, no taking things, no pinch-walking with it. */
-  let ocupada: (lado: Lado) => boolean = () => false;
+  /** A hand busy holding a tool of a feature (the fishing rod, a dart): no ray, no taking things, no pinch-walking with it.
+   *  Several features may hold different hands: each registers under its own name (`reglas({ocupada})` is the name "reglas"). */
+  const ocupantes = new Map<string, (lado: Lado) => boolean>();
+  const ocupada = (lado: Lado): boolean => { for (const f of ocupantes.values()) if (f(lado)) return true; return false; };
 
   const ranuras: Ranura[] = [0, 1].map((i) => {
     const ctrl = h.renderer.xr.getController(i), grip = h.renderer.xr.getControllerGrip(i), hand = h.renderer.xr.getHand(i) as Ranura["hand"];
@@ -312,7 +314,16 @@ export function createManos(h: ManosHooks) {
     /** Put the hands under `padre` (VR: the rig; AR: its root) or take them away (null). */
     montar(padre: THREE.Object3D | null): void { if (padre) padre.add(raiz); else raiz.parent?.remove(raiz); },
     /** What a hand may take (quest things that the current step needs) and what the ray may use. */
-    reglas(o: { agarrable?: (key: string) => boolean; apuntable?: (key: string) => boolean; ocupada?: (lado: Lado) => boolean }): void { if (o.agarrable) agarrable = o.agarrable; if (o.apuntable) apuntable = o.apuntable; if (o.ocupada) ocupada = o.ocupada; },
+    reglas(o: { agarrable?: (key: string) => boolean; apuntable?: (key: string) => boolean; ocupada?: (lado: Lado) => boolean }): void { if (o.agarrable) agarrable = o.agarrable; if (o.apuntable) apuntable = o.apuntable; if (o.ocupada) ocupantes.set("reglas", o.ocupada); },
+    /** A feature that holds a hand (see `ocupada`): `fn(lado)` is asked live. Returns how to let go of the registration. */
+    ocupar(nombre: string, fn: (lado: Lado) => boolean): () => void { ocupantes.set(nombre, fn); return () => { if (ocupantes.get(nombre) === fn) ocupantes.delete(nombre); }; },
+    /** Is this hand held by any feature but `excepto` (a feature asks before it takes a hand for itself)? */
+    ocupadaPorOtros(lado: Lado, excepto: string): boolean { for (const [n, f] of ocupantes) if (n !== excepto && f(lado)) return true; return false; },
+    /** What a hand reaches (a quest thing it would take) and what its ray points at ("panel:n" or a thing's key), now. */
+    sondeo(lado: Lado): { candidato: string | null; apunta: string | null } | null {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente);
+      return r ? { candidato: r.candidato, apunta: r.apuntado ? (r.apuntado.tipo === "panel" ? `panel:${r.apuntado.fila}` : r.apuntado.key) : null } : null;
+    },
     /** Every frame while presenting. `camara` = the XR camera (sprites need it to be hit). */
     update(camara: THREE.Camera | null): void { if (!raiz.parent) return; raiz.updateMatrixWorld(); for (const r of ranuras) actualizarRanura(r, camara); },
     on(fn: (e: EventoMano) => void): () => void { oyentes.add(fn); return () => oyentes.delete(fn); },

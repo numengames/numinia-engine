@@ -64,7 +64,7 @@ function geometriaDardo(): THREE.BufferGeometry {
   return m;
 }
 let dardoGeo: THREE.BufferGeometry | null = null, dardoMat: THREE.MeshStandardMaterial | null = null;
-const dardoMalla = () => new THREE.Mesh((dardoGeo ??= geometriaDardo()), (dardoMat ??= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 })));
+export const dardoMalla = () => new THREE.Mesh((dardoGeo ??= geometriaDardo()), (dardoMat ??= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 })));
 
 /** A board face (real size) + its dark backboard; the face is the +z side, its centre at the origin. */
 function cara(): THREE.Group {
@@ -130,6 +130,8 @@ export function crearDianas3D(h: { world: THREE.Object3D }) {
       d.face.updateMatrixWorld();
       return rayoEnCara(new THREE.Matrix4().copy(d.face.matrixWorld).invert(), new THREE.Vector3(origen.x, origen.y, origen.z), new THREE.Vector3(dir.x, dir.y, dir.z));
     },
+    /** VR throws (dardos-vr.ts, lazy: it does the maths): a board's group, its scaled face and its site. */
+    una: (id: string) => dianas.get(id),
     contar: () => ({ dianas: dianas.size, dardos: [...dianas.values()].reduce((n, d) => n + d.dardos.size, 0) }),
   };
 }

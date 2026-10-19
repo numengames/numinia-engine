@@ -184,7 +184,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     P = api;
     cargar(api);
     for (const n of A.pnjs.values()) {
-      api.state.set(n.id, { nombre: n.nombre, descripcion: n.descripcion, x: n.posicion.x, z: n.posicion.z, y: n.posicion.y, giro: n.giro, radio: n.radio, modelo: n.apariencia.modelo, escala: n.apariencia.escala, oficio: n.oficio }, { at: { x: n.posicion.x, z: n.posicion.z } });
+      api.state.set(n.id, { nombre: n.nombre, descripcion: n.descripcion, x: n.posicion.x, z: n.posicion.z, y: n.posicion.y, giro: n.giro, radio: n.radio, modelo: n.apariencia.modelo, escala: n.apariencia.escala, oficio: n.oficio, voz: n.voz }, { at: { x: n.posicion.x, z: n.posicion.z } });
     }
     api.on("hablar", (e, msg) => {
       const n = A.pnjs.get(String(msg.pnj));

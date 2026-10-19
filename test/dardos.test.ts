@@ -19,7 +19,6 @@ import { crearCliente } from "../features/dardos/client.ts";
 import { ANILLOS_DIANA, SECTORES_DIANA, caraAPixel, pixelACara } from "../packages/render/src/diana.ts";
 import { rayoEnCara, potenciaDe } from "../packages/render/src/dardos.ts";
 import * as THREE from "three/webgpu";
-import { montarDardosVR } from "../apps/plaza/dardos-vr.ts";
 import funciones from "../features/servidor.ts";
 import paginas from "../features/cliente.ts";
 
@@ -201,9 +200,8 @@ test("MUNDO_DIR: dardos.json with valid JSON but no `sitios` array logs why and 
 
 // ---- VR (motor-vr t_5f6ff048): darts had no controller/hand throw in immersive-vr (only PC, phone and AR) — a
 // trigger near the board opened the turn (via the generic interact) and then nothing threw a dart. `rayoEnCara`
-// (the plaza board's ray math, shared with the AR wall) and `montarDardosVR` (the trigger-hold-release wiring,
-// per hand) now cover it; a hand busy holding something else never reaches `montarDardosVR` at all (manos.ts's
-// `pulsar()` already gates `gatillo` per hand before emitting it), so the OTHER hand throws regardless. ----
+// (the plaza board's ray math, shared with the AR wall) and `dardos-vr.ts` (a physical throw with the hand; see
+// test/dardos-vr.test.ts) now cover it. ----
 
 test("rayoEnCara: a ray straight at the face's centre lands at (0, 0); offset rays scale by the board's real radius", () => {
   const cara = new THREE.Matrix4(); // identity: the face's own space is the world here
@@ -217,53 +215,4 @@ test("rayoEnCara: a ray straight at the face's centre lands at (0, 0); offset ra
   // parallel to the face, or pointing away from it: no throw (null), not a wrong one
   assert.equal(rayoEnCara(cara.clone().invert(), new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0)), null);
   assert.equal(rayoEnCara(cara.clone().invert(), new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0, -1)), null);
-});
-
-test("montarDardosVR: each hand charges and throws on its OWN trigger — a busy hand never reaches this (manos.ts gates it before emitting), so the free hand still throws", () => {
-  const lanzados: { x: number; y: number; fuerza: number; sitio?: string }[] = [];
-  const nota: string[] = [];
-  const oyentes = new Set<(e: { tipo: string; lado: "izq" | "der" }) => void>();
-  const vibrado: Record<string, number> = {};
-  const view = {
-    vr: { active: true, nota: (t: string) => nota.push(t) },
-    ar: { jugando: false },
-    manos: {
-      on(fn: (e: { tipo: string; lado: "izq" | "der" }) => void) { oyentes.add(fn); return () => oyentes.delete(fn); },
-      rayo: (lado: "izq" | "der") => ({ origen: { x: lado === "der" ? 0.2 : -0.2, y: 1.5, z: 1 }, dir: { x: 0, y: 0, z: -1 } }),
-      vibrar: (lado: "izq" | "der", v = 0.5, ms = 60) => { vibrado[lado] = (vibrado[lado] ?? 0) + 1; },
-    },
-    dardos: { apuntar: (_id: string, origen: { x: number }, _dir: unknown) => ({ x: origen.x > 0 ? 0.3 : -0.3, y: 0 }) },
-  };
-  let tirando = true;
-  const dardos = {
-    estado: () => ({ sitio: "diana" }), tirando: () => tirando, sitios: () => [{ id: "diana" } as { id: string; nombre: string; x: number; y: number; z: number; radio: number; rumbo: number; ocupado: boolean }],
-    lanzar: (x: number, y: number, fuerza: number, sitio?: string) => { lanzados.push({ x, y, fuerza, sitio }); return { ok: true as const }; },
-  };
-  montarDardosVR({ dardos, view });
-  const emitir = (e: { tipo: string; lado: "izq" | "der" }) => { for (const fn of oyentes) fn(e); };
-
-  // der (the free hand) presses and releases at once: a throw, aimed by der's ray
-  emitir({ tipo: "gatillo", lado: "der" });
-  emitir({ tipo: "gatillo_fin", lado: "der" });
-  assert.equal(lanzados.length, 1, "no tiempo transcurrido: aun así lanza (una carga mínima, no 0)");
-  assert.equal(lanzados[0].x, 0.3, "apunta con el rayo de la mano DERECHA, no con un valor fijo");
-  assert.equal(lanzados[0].sitio, "diana");
-  assert.equal(vibrado.der, 1);
-  assert.equal(vibrado.izq, undefined, "la mano izquierda (la que estaría ocupada) nunca vibra: no lanzó");
-
-  // izq never sent a "gatillo" at all here (as if manos.ts had it gated, held object): no throw from it
-  emitir({ tipo: "gatillo_fin", lado: "izq" });
-  assert.equal(lanzados.length, 1, "un gatillo_fin sin su gatillo antes (la mano nunca cargó) no lanza nada");
-
-  // izq now DOES get a free trigger (the other hand is no longer busy, or never was): it throws too, independently
-  emitir({ tipo: "gatillo", lado: "izq" });
-  emitir({ tipo: "gatillo_fin", lado: "izq" });
-  assert.equal(lanzados.length, 2);
-  assert.equal(lanzados[1].x, -0.3, "apunta con el rayo de la mano IZQUIERDA");
-
-  // the turn ends (tirando() goes false) mid-charge: the pending charge is dropped, no stray throw
-  emitir({ tipo: "gatillo", lado: "der" });
-  tirando = false;
-  emitir({ tipo: "gatillo_fin", lado: "der" });
-  assert.equal(lanzados.length, 2, "no tirada abierta: no lanza, aunque el gatillo se soltara");
 });

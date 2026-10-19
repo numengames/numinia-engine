@@ -13,6 +13,8 @@ import { materialDeAgua as aguaEstilo, geometriaDeAgua } from "./agua-estilo.ts"
 import type { LuzAgua } from "./agua-estilo.ts";
 import { detalleAgua, OLAS_DESDE_M } from "./calidad.ts";
 import type { DetalleAgua } from "./calidad.ts";
+import { geometriaCana, LARGO_CANA, MANGO_M, CURVA_M, radioAgarre } from "./cana.ts";
+export { MANGO_M, AGARRE_ENTRA_M, AGARRE_SALE_M } from "./cana.ts";
 
 export type Sitio3D = { id: string; x: number; y: number; z: number; radio: number };
 export type Flotador3D = { quien: number; x: number; y: number; z: number };
@@ -24,10 +26,10 @@ export type Ayudas = { world: THREE.Group; posicionDe: (quien: Quien) => THREE.V
   /** N2: the scene's light for the water and the water detail of this tier (without them: the house light, tier C's detail). */
   agua?: { luz: LuzAgua; detalle: () => DetalleAgua } };
 
-const PUNTOS = 24, LARGO_CANA = 2.0, ALTO_MANO = 1.05, LADO_MANO = 0.32, LANZAMIENTO_MS = 900;
+const PUNTOS = 24, ALTO_MANO = 1.05, LADO_MANO = 0.32, LANZAMIENTO_MS = 900;
 /** N4 (VR): the rod in a real hand points along the hand's forward (-Z) raised this much (rad); the handle sticks out
- * behind the hand this much (m). Where the rod rests on its holder, a hand within AGARRE_M of the handle takes it. */
-export const INCLINA_CANA = 0.45, MANGO_M = 0.28, AGARRE_M = 0.3;
+ * behind the hand this much (m). Where the rod rests on its holder, a hand within AGARRE_ENTRA_M (AGARRE_SALE_M once it glows) of the handle takes it. */
+export const INCLINA_CANA = 0.45;
 /** N4 (given later through view.pesca.conManos): where a real hand holds things in VR (the grip or the pinch point; null
  * outside VR or without that hand), and the camera that draws now (the XR one in VR; the gauge on the rod faces it). */
 export type AyudasVR = { ancla?: (lado: "izq" | "der") => THREE.Object3D | null; camara?: () => THREE.Camera };
@@ -100,8 +102,8 @@ type Onda = { value: THREE.Vector4 };
 type Estanque = { grupo: THREE.Group; agua: THREE.Mesh; ondas: [Onda, Onda]; turno: number; s: Sitio3D; pantalan: { x: number; z: number }; rumbo: number };
 
 export function crearPesca(h: Ayudas & AyudasVR) {
-  const canaGeo = new THREE.CylinderGeometry(0.018, 0.045, LARGO_CANA, 6); canaGeo.translate(0, LARGO_CANA / 2, 0); // base at the origin, tip up +y
-  const canaMat = new THREE.MeshStandardMaterial({ color: 0x9a6b3a, roughness: 0.75 });
+  const canaGeo = geometriaCana(); // base at the origin, tip up +y; one merged mesh with vertex colours = one draw call
+  const canaMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.25 });
   const SEDAL = new THREE.Color(0xf2f2f2), TENSO = new THREE.Color(0xff3b30); // N4: my line reddens as it nears breaking
   const rojo = new THREE.MeshStandardMaterial({ color: 0xd62828, roughness: 0.5 }), blanco = new THREE.MeshStandardMaterial({ color: 0xf4f4f4, roughness: 0.5 });
   const bolaGeo = new THREE.SphereGeometry(0.11, 10, 8);
@@ -214,11 +216,11 @@ export function crearPesca(h: Ayudas & AyudasVR) {
   const dejarDeMirar = (quien: Quien) => { if (caras.delete(quien)) h.orientar?.(quien, undefined); };
 
   // ---- N4 (VR): a rod on a holder at every boardwalk, taken with a real hand; the gauge on the rod while you fish ----
-  type Soporte = { cana: THREE.Mesh; mat: THREE.MeshStandardMaterial; agarre: THREE.Vector3 };
+  type Soporte = { cana: THREE.Mesh; mat: THREE.MeshStandardMaterial; agarre: THREE.Vector3; halo: THREE.Mesh };
   const soportes = new Map<string, Soporte>();
   let sujeta: "izq" | "der" | null = null, tomadaDe = "", resaltado = "";
   const ocupados = new Set<string>(); // someone fishes there: its rod is in use, the holder stands empty
-  const verSoportes = () => { for (const [id, s] of soportes) s.cana.visible = id !== tomadaDe && !ocupados.has(id); };
+  const verSoportes = () => { for (const [id, s] of soportes) { s.cana.visible = id !== tomadaDe && !ocupados.has(id); if (!s.cana.visible) s.halo.visible = false; } };
   /** The holder: a post on the boardwalk's edge, beside where you stand to fish, with the rod standing in a tube (2 draw calls). */
   function nuevoSoporte(e: Estanque): void {
     const { R, dir } = trazaDeSitio(e.s);
@@ -227,13 +229,18 @@ export function crearPesca(h: Ayudas & AyudasVR) {
       pieza(new THREE.BoxGeometry(0.08, 0.95, 0.08), hex(0x4a3320), M(x, 0.47, z)),
       pieza(new THREE.CylinderGeometry(0.04, 0.035, 0.24, 8), hex(0x2f2a24), M(x, 0.92, z)),
     ]), maderaMat);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x9a6b3a, roughness: 0.75, emissive: 0x000000 });
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.25, emissive: 0x000000 });
     const cana = new THREE.Mesh(canaGeo.clone(), mat); cana.name = "cana-soporte";
-    cana.position.set(x, 0.82, z); cana.quaternion.setFromUnitVectors(up, tmp.set(-dir.x * 0.26, 0.966, -dir.y * 0.26).normalize()); // leaning over the water
-    e.grupo.add(poste, cana);
-    soportes.set(e.s.id, { cana, mat, agarre: new THREE.Vector3(x, 1.04, z) });
+    const inclinada = new THREE.Vector3(-dir.x * 0.26, 0.966, -dir.y * 0.26).normalize(); // leaning over the water
+    cana.position.set(x, 0.82, z); cana.quaternion.setFromUnitVectors(up, inclinada);
+    // the grab point is the middle of the handle (where the palm goes), and a ring around it lights up when a hand is close
+    const agarre = new THREE.Vector3(x, 0.82, z).addScaledVector(inclinada, MANGO_M);
+    const halo = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.012, 6, 20), new THREE.MeshBasicMaterial({ color: 0xffd35a, transparent: true, opacity: 0.9, depthTest: false }));
+    halo.position.copy(agarre); halo.quaternion.copy(cana.quaternion); halo.rotateX(Math.PI / 2); halo.renderOrder = 9; halo.visible = false; halo.name = "halo-mango";
+    e.grupo.add(poste, cana, halo);
+    soportes.set(e.s.id, { cana, mat, agarre, halo });
   }
-  const anclaQ = new THREE.Quaternion(), dirCana = new THREE.Vector3(), baseMano = new THREE.Vector3(), puntaMano = new THREE.Vector3();
+  const desvioPunta = new THREE.Vector3(), anclaQ = new THREE.Quaternion(), dirCana = new THREE.Vector3(), baseMano = new THREE.Vector3(), puntaMano = new THREE.Vector3();
   /** My rod in my real hand (VR): its base and tip in world-group coordinates; false when no hand holds it. */
   function canaEnMano(): boolean {
     if (!sujeta) return false;
@@ -251,30 +258,35 @@ export function crearPesca(h: Ayudas & AyudasVR) {
   }
   const canaMano = new THREE.Mesh(canaGeo, canaMat); canaMano.visible = false; canaMano.name = "cana-mano"; h.world.add(canaMano);
   // the gauge: what to do (one line) and two bars (tension, fish brought in), on a small card above the rod's hand
-  const lienzoMedidor = document.createElement("canvas"); lienzoMedidor.width = 320; lienzoMedidor.height = 140;
+  const lienzoMedidor = document.createElement("canvas"); lienzoMedidor.width = 360; lienzoMedidor.height = 170;
   const gm = lienzoMedidor.getContext("2d");
   const texMedidor = new THREE.CanvasTexture(lienzoMedidor); texMedidor.colorSpace = THREE.SRGBColorSpace;
-  const medidor = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.13), new THREE.MeshBasicMaterial({ map: texMedidor, transparent: true, depthTest: false }));
+  const medidor = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.17), new THREE.MeshBasicMaterial({ map: texMedidor, transparent: true, depthTest: false }));
   medidor.renderOrder = 10; medidor.visible = false; medidor.name = "medidor-pesca"; h.world.add(medidor);
-  let claveMedidor = "";
+  let claveMedidor = "", instruccionVR = "";
+  /** Break a line into at most 3 lines of `max` characters at spaces. */
+  const envolver = (t: string, max: number): string[] => { const out: string[] = []; let l = ""; for (const w of t.split(" ")) { if (l && (l + " " + w).length > max) { out.push(l); l = w; } else l = l ? l + " " + w : w; } if (l) out.push(l); return out.slice(0, 3); };
   function pintarMedidor(e: Estado3D): void {
-    const clave = `${e.fase}|${e.texto ?? ""}|${Math.round(e.tension / 3)}|${Math.round(e.progreso / 3)}|${e.arrancada}`;
+    const texto = instruccionVR || e.texto || "";
+    const clave = `${e.fase}|${texto}|${Math.round(e.tension / 3)}|${Math.round(e.progreso / 3)}|${e.arrancada}`;
     if (clave === claveMedidor || !gm) return;
     claveMedidor = clave;
-    const W = 320, H = 140, alta = e.tension >= 80, picada = e.fase === "picada";
+    const W = 360, H = 170, alta = e.tension >= 80, picada = e.fase === "picada";
     gm.clearRect(0, 0, W, H);
-    gm.fillStyle = "rgba(20,24,30,0.86)"; gm.beginPath(); gm.roundRect?.(0, 0, W, H, 18); if (!gm.roundRect) gm.rect(0, 0, W, H); gm.fill();
-    gm.fillStyle = picada || alta || e.arrancada !== "no" ? "#ff8a5b" : "#ffd27a"; gm.font = `bold ${picada ? 34 : 26}px system-ui, sans-serif`; gm.textAlign = "center"; gm.textBaseline = "middle";
-    const t = e.texto ?? "", corto = t.length > 26 ? t.slice(0, 25) + "…" : t;
-    gm.fillText(corto, W / 2, e.fase === "pelea" ? 30 : H / 2);
-    if (e.fase === "pelea") {
+    gm.fillStyle = "rgba(20,24,30,0.88)"; gm.beginPath(); gm.roundRect?.(0, 0, W, H, 18); if (!gm.roundRect) gm.rect(0, 0, W, H); gm.fill();
+    gm.fillStyle = picada || alta || e.arrancada !== "no" ? "#ff8a5b" : "#ffd27a"; gm.textAlign = "center"; gm.textBaseline = "middle";
+    const peleando = e.fase === "pelea", px = picada ? 34 : 27, lineas = envolver(texto, picada ? 17 : 22);
+    gm.font = `bold ${px}px system-ui, sans-serif`;
+    const alto = peleando ? 82 : H, paso = px + 4, y0 = alto / 2 - ((lineas.length - 1) * paso) / 2;
+    lineas.forEach((l, i) => gm.fillText(l, W / 2, y0 + i * paso));
+    if (peleando) {
       const barra = (y: number, v: number, color: string, nombre: string) => {
         gm.fillStyle = "rgba(255,255,255,0.16)"; gm.fillRect(20, y, W - 40, 26);
         gm.fillStyle = color; gm.fillRect(20, y, ((W - 40) * Math.max(0, Math.min(100, v))) / 100, 26);
         gm.fillStyle = "#eef2f6"; gm.font = "bold 18px system-ui, sans-serif"; gm.textAlign = "left"; gm.fillText(nombre, 26, y + 14);
       };
-      barra(62, e.tension, alta ? "#e5484d" : "#f0c35b", "Tensión");
-      barra(100, e.progreso, "#7bd389", "Pez");
+      barra(90, e.tension, alta ? "#e5484d" : "#f0c35b", "Tensión");
+      barra(128, e.progreso, "#7bd389", "Pez");
     }
     texMedidor.needsUpdate = true;
   }
@@ -302,6 +314,8 @@ export function crearPesca(h: Ayudas & AyudasVR) {
       const e = estanques.get(id), s = soportes.get(id);
       return e && s ? { x: e.grupo.position.x + s.agarre.x, y: e.grupo.position.y + s.agarre.y, z: e.grupo.position.z + s.agarre.z } : null;
     },
+    /** N4 (VR): the one line telling what to do now, over the rod in my hand (even before casting); "" = the server's own line. */
+    instruccion(t: string): void { instruccionVR = t; },
     /** N4 (VR): my rod is in this real hand (taken from the holder of `sitio`), or back on its holder (null). */
     sujetar(lado: "izq" | "der" | null, sitio = ""): void {
       sujeta = lado; tomadaDe = lado ? sitio : "";
@@ -311,9 +325,9 @@ export function crearPesca(h: Ayudas & AyudasVR) {
     resaltar(id: string): void {
       if (id === resaltado) return;
       resaltado = id;
-      for (const [k, s] of soportes) s.mat.emissive.setHex(k === id ? 0x6b4a10 : 0x000000);
+      for (const [k, s] of soportes) { s.mat.emissive.setHex(k === id ? 0xb07a12 : 0x000000); s.halo.visible = k === id && !ocupados.has(k) && k !== tomadaDe; }
     },
-    /** N4 (VR): the real hand nearest a holder's rod handle, within AGARRE_M (so a grip or a pinch there takes it), or null. */
+    /** N4 (VR): the real hand nearest a holder's rod handle, within the grab radius (so a grip or a pinch there takes it), or null. */
     alAlcance(conTomada = false): { lado: "izq" | "der"; sitio: string; d: number } | null { // conTomada: also the holder my rod came from (to put it back)
       let mejor: { lado: "izq" | "der"; sitio: string; d: number } | null = null;
       h.world.updateWorldMatrix(true, false);
@@ -323,7 +337,7 @@ export function crearPesca(h: Ayudas & AyudasVR) {
         for (const [id, s] of soportes) {
           const e = estanques.get(id); if (!e || (id === tomadaDe && !(conTomada && lado === sujeta)) || (ocupados.has(id) && id !== tomadaDe)) continue;
           const d = tmp2.copy(s.agarre).add(e.grupo.position).distanceTo(tmp);
-          if (d <= AGARRE_M && (!mejor || d < mejor.d)) mejor = { lado, sitio: id, d };
+          if (d <= radioAgarre(id === resaltado) && (!mejor || d < mejor.d)) mejor = { lado, sitio: id, d };
         }
       }
       return mejor;
@@ -399,6 +413,7 @@ export function crearPesca(h: Ayudas & AyudasVR) {
           a.cana.quaternion.copy(q.setFromUnitVectors(up, tip));
           tip.multiplyScalar(LARGO_CANA).add(m); // the tip, where the line starts
         }
+        tip.add(desvioPunta.set(0, 0, -CURVA_M).applyQuaternion(a.cana.quaternion)); // the rod bends: the line starts at its real tip
         // the float: a cast arc for the first second (a ripple when it lands), then bobbing; mine dips, sinks and comes in
         const t = (now - a.nacido) / LANZAMIENTO_MS;
         const f = a.flotador.position;
@@ -428,10 +443,10 @@ export function crearPesca(h: Ayudas & AyudasVR) {
       const conCana = canaEnMano();
       canaMano.visible = conCana && !anglers.has("self");
       if (canaMano.visible) { canaMano.position.copy(baseMano); canaMano.quaternion.copy(q.setFromUnitVectors(up, dirCana)); }
-      medidor.visible = conCana && estado.fase !== "nada" && anglers.has("self");
+      medidor.visible = conCana && ((estado.fase !== "nada" && anglers.has("self")) || (estado.fase === "nada" && !!instruccionVR));
       if (medidor.visible) {
         pintarMedidor(estado);
-        medidor.position.copy(baseMano).addScaledVector(dirCana, 0.5); medidor.position.y += 0.2;
+        medidor.position.copy(baseMano).addScaledVector(dirCana, 0.6); medidor.position.y += 0.25;
         const c = h.camara?.(); if (c) { c.getWorldPosition(tmp2); medidor.lookAt(tmp2); }
       }
       // the landed fish: a jump out of the water along an arc to the hand (SALTO_MS), then hanging from it, head up,

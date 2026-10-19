@@ -1091,6 +1091,33 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `avatares/rueda-movimientos` (sobre 4eb6387).
 - Siguiente: probar con un móvil y un mando reales; que los agentes (`packages/agent`) usen la lista entera; que quien
   llega tarde vea un movimiento en curso (estado con `at`, J9); grabar los que UAL1 no trae (aplaudir, señalar…).
+
+## 2026-10-18 19:10 · sonido S3 · hecho
+- Qué: el pool de voces espacializadas (`packages/render/src/audio/voces.ts`, sobre el núcleo de S1). Cada disparo
+  construye su cadena `AudioBufferSourceNode → GainNode → BiquadFilter(lowpass) → PannerNode → bus`; el lowpass nace
+  transparente (22.050 Hz) porque el aire y la oclusión de S11 son exactamente ese filtro. Nada de
+  `THREE.PositionalAudio`: fuerza `panningModel "HRTF"` y su oyente, hijo de la cámara estéreo, tartamudea en VR
+  (three.js #20920); de three.js copiamos solo el patrón de sacar la transformación y el `buffer.slice(0)` antes de
+  `decodeAudioData` (que detacha el ArrayBuffer). Defectos del emisor de Hyperfy v2 (`inverse`, ref 1 m, max 40 m,
+  rolloff 3, cono omni en radianes → grados), con `refDistance > 0` validado: con 0 el modelo `inverse` deja la voz
+  muda para siempre (trampa del spec). Tope de voces por aparato de `limits.json` (`audio_sources` A32/B16/C8/D4) con
+  virtualización NUESTRA (Web Audio no virtualiza): al llegar al tope no se mata, se para guardando el desplazamiento
+  y se reanuda por donde iba; prioridad efectiva `prioridad − 10·(d/maxDistance)` (Priority Distance Factor de Wwise),
+  histéresis de 1 para que dos voces iguales no se releven sin parar, y música y ambiente nunca se roban. HRTF
+  racionado con `audio_hrtf_max` (A24/B16/C12/D6, nuevo y `estimated`): solo las N más cercanas, conmutando con rampa
+  de 8 ms para que no haga clic. Variantes con pesos y variación de tono/volumen a partir de la SEMILLA DEL SERVIDOR
+  (xorshift32 + FNV-1a del id): todos los clientes oyen la misma variante. Cooldown por id (50 ms de defecto) para que
+  veinte disparos juntos no revienten la mezcla. Caché de `AudioBuffer` por URI con tope de 8 MB; las camas largas no
+  se descodifican, van por `MediaElementAudioSourceNode`. `parar`/`pararTodo`/`mover` desconectan los nodos a mano
+  (Web Audio no tiene `dispose()`). El oyente queda escrito (nueve `AudioParam` donde existan, `setPosition`/
+  `setOrientation` en la API vieja) pero SIN enganchar a cámara ni XR: eso es S5.
+- Números: `test/audio-voces.test.ts` nuevo, 14 pruebas en verde. Peso: 482.518 B gz antes de dibujar, los MISMOS que
+  antes del cambio (+0 B: nadie importa `voces.ts` todavía, el empaquetador lo deja fuera). Tres puertas en rojo
+  (pruebas, tick p99, tamaño) que ya están en rojo igual en `origin/main` (ahí 480,9 kB gz > 480 de tope y p99 69 ms):
+  no las toco.
+- Consumo: sin medir · Opus 5.
+- Commit: rama `sonido/voces`, PR contra `sonido/nucleo` (no contra `main`).
+- Siguiente: S4 (migrar `medios.ts` al núcleo) y S5 (enganchar el oyente a la cámara y a la pose del visor).
 ## 2026-10-16 21:09 · R1 trozo «imprimir los QR como SVG» · hecho (historia en sombra, Doulos; nada sube a origin)
 - Qué: solo el trozo de «Falta de R1» pedido: `npm run enlaces -- qr [base] [carpeta]` ahora escribe un
   `<carpeta>/<id>.svg` por punto de `enlaces.json` (carpeta por defecto `qr/`, añadida a `.gitignore`) y sigue
@@ -1202,6 +1229,22 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `creativo/c4-c5` (sin push).
 - Siguiente: si el objeto queda bajo la hoja (objetos muy cercanos a los pies), la cámara no se mueve sola.
 
+## 2026-10-19 12:24 · fusion/sonido-vr · hecho
+- Qué: el mundo suena (pasos, golpes, avisos y el colchón del mundo), y en VR los dardos se lanzan con la mano.
+  Detalle: el sonido (S6–S6f) y los dardos y la pesca en VR, juntos. En VR el dardo se lanza con la mano (el
+  balanceo da dirección y fuerza; el servidor decide dónde cae) y la caña es una malla con mango, halo al acercar la mano
+  y una instrucción por fase encima. Mordisqueo y picada suenan por la puerta única (`pesca-mordisqueo` nuevo, con su
+  fila de receta). Al probar el sonido en un Chromium de verdad salieron tres fallos que en Node no se veían: la página
+  de dev no podía leer `/sonidos.json` desde otro puerto (CORS), los ficheros `/a/` se pedían al puerto de la página y
+  no al del servidor, y Caddy no pasaba `/sonidos.json` ni `/status` (que lleva el colchón del mundo) al servidor.
+- Números: `npm test` 1.083/1.083; puertas en verde. Pierna nueva `tools/e2e-piernas/sonido.mjs` (sin AudioContext de
+  mentira): con la rama, tabla 200 del servidor, 13 ficheros 200 y 13 descodificados, 0 fallos, contexto `running`; en
+  `sonido/nucleo` sin el arreglo, la tabla no llega y suenan 0 ficheros. Piernas `pesca`, `dardos-vr` y `sonido` en
+  verde; `pesca-todas` falla los mismos pasos (caña en la mano, medidor, rayo) en la base que en la rama.
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `fusion/sonido-vr` sobre `sonido/nucleo` (#151) + `vr2/pesca-mango`. Versión 0.17.0 → 0.18.0.
+- Siguiente: S6f-5, oírlo con auriculares en el PC y en las gafas.
+
 ## 2026-10-19 13:35 · identidad/i1-adoptar-progreso · hecho
 - Qué: al llegar el primer pase de numinia.com de alguien que estaba como invitado, el servidor adopta su progreso
   (`ServerRuntime.adoptar(invitado, sub)`, llamado desde `Instance.identificar` justo tras `credencial`). Regla
@@ -1215,3 +1258,14 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `identidad/i1-adoptar-progreso`, versión 0.17.0 → 0.18.0 (menor: algo nuevo que no rompe nada).
 - Siguiente: I2 (renovar el pase de personas con `vidaIA`); el recibo firmado de un bien sigue nombrando al invitado,
   así que `traer` a otro mundo con ese recibo aún lo ve «de otro invitado» (I4 o una historia aparte).
+
+## 2026-10-19 13:52 · sonido/nucleo · hecho
+- Qué: el sonido afinado con auriculares: todo lo provisional bajito, pasos por pie, el colchón de fondo y la voz de los PNJ.
+  Detalle: suena el mundo, no la interfaz (fuera el clic de los botones y los pasos de misión); −10 dB a todo lo
+  provisional en un solo mando; un paso por pie a ritmo de persona, cada pie distinto y sin repetir grabación; el
+  colchón arranca en el primer clic aunque Firefox frene el autoplay; coger y soltar cosas suena; los PNJ saludan y se
+  despiden con una voz corta CC0 desde su boca.
+- Números: pruebas unitarias en verde salvo `subidas.test.ts`, intermitente y también en rojo sin estos cambios.
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `sonido/nucleo` (#168, reabierto), traída `origin/main`; versión 0.18.0 → 0.19.0.
+- Siguiente: que los pasos caigan cuando el pie de la animación toca el suelo.
