@@ -185,3 +185,32 @@ export const FLORA = {
   cardoFlor: mezcla(CASA.grana, CASA.ceniza, 0.3),
   cardoPua: CASA.arenaVelada,
 } as const;
+
+// R7.1
+/**
+ * R7.1 · Cielo y niebla de la naturaleza (entorno.ts `atmosfera`): un cielo de cuatro paradas (cenit, alto, horizonte, suelo) que la
+ * niebla COMPARTE, así lo lejano se funde con el cielo que tiene detrás (rampa de Firewatch, Alisavakis; capas de Sable). De día: cenit
+ * azul verdoso apagado (Rara con Turquesa profundo, velado de Ceniza), alto verdemar, horizonte de pergamino (Arena con Arena velada y un
+ * soplo de Verdemar), y por debajo del horizonte la bruma de arena y ceniza. Velo = la niebla a media distancia (pergamino tostado: dorado
+ * en el páramo, claro en el jardín). Bruma = la niebla de altura en las hondonadas y junto al agua (verdemar con verdín y musgo). Ocaso =
+ * la banda cálida del horizonte con el sol bajo; sol = su halo. Noche: jardín cálido (negros pardos, un hilo de turquesa profundo arriba).
+ * Solo mezclas de tokens, ningún hex nuevo.
+ */
+export const ATMOSFERA = {
+  dia: {
+    cenit: mezcla(mezcla(RAREZA.rara, CASA.turquesaProfundo, 0.35), CASA.ceniza, 0.22),
+    alto: mezcla(mezcla(mezcla(RAREZA.rara, CASA.turquesaProfundo, 0.35), CASA.verdemar, 0.55), CASA.arena, 0.15),
+    horizonte: mezcla(mezcla(CASA.arena, CASA.arenaVelada, 0.35), CASA.verdemar, 0.2),
+    suelo: mezcla(CASA.arenaVelada, CASA.ceniza, 0.35),
+  },
+  noche: {
+    cenit: mezcla(CASA.noche, CASA.turquesaProfundo, 0.1),
+    alto: mezcla(CASA.noche, CASA.turquesaProfundo, 0.18),
+    horizonte: mezcla(NOCHE.sombra, CASA.ceniza, 0.25),
+    suelo: NOCHE.sombra,
+  },
+  velo: mezcla(mezcla(CASA.arenaVelada, CASA.arena, 0.5), CASA.ambar, 0.12),
+  bruma: mezcla(mezcla(CASA.verdemar, VERDES.verdin, 0.35), VERDES.musgo, 0.25),
+  ocaso: mezcla(CASA.ambar, CASA.arena, 0.45),
+  sol: mezcla(CASA.arena, CASA.ambar, 0.3),
+} as const;

@@ -78,6 +78,8 @@ export type HNaturaleza = {
   nucleo?: () => import("./sonido.ts").HSonido["nucleo"];
   /** R6.1: the engine's landmark pillars (index.ts). Hidden while the nature is on (hitos.ts: no draw calls); off = back as the environment wants them. Absent = untouched. */
   hitos?: () => Iterable<THREE.Object3D>;
+  /** R7.1: entorno.ts `atmosfera`: lays the nature's sky + fog + tone over the world's while it is on; returns the undo. Absent = the world's own look. */
+  atmosfera?: (a: import("../entorno.ts").Atmosfera) => () => void;
 };
 
 type Real = {
@@ -86,6 +88,8 @@ type Real = {
   puntos: readonly import("./arboles.ts").PuntoArbol[]; groundVisible: boolean; msConstruir: number;
   /** R6.1: shows the landmark pillars again (as the environment wants them). */
   mostrarHitos: (() => void) | null;
+  /** R7.1: gives the world its own sky, fog and tone back. */
+  quitarAtmosfera: (() => void) | null;
 };
 export type EstadisticasNaturaleza = {
   activa: boolean; nivel: Nivel | null; clave: string;
@@ -99,7 +103,7 @@ const SIN_EMPUJAR: readonly never[] = [];
 export function crearNaturaleza(h: HNaturaleza) {
   const empuja: { x: number; y: number; z: number }[] = [];
   let real: Real | null = null, clave = "", ticket = 0, ticketSonido = 0, reloj = 0, ultimos: NaturalezaDatos | null = null;
-  const cargar = () => Promise.all([import("./terreno.ts"), import("./arboles.ts"), import("./hierba.ts"), import("./esparcir.ts"), import("../agua-estilo.ts")]);
+  const cargar = () => Promise.all([import("./terreno.ts"), import("./arboles.ts"), import("./hierba.ts"), import("./esparcir.ts"), import("../agua-estilo.ts"), import("./atmosfera.ts")]);
 
   /** Pure data → the part of the key that the fauna alone owns. */
   const claveDeFauna = (d: NaturalezaNormal) => JSON.stringify([d.fauna, d.faunaDensidad, d.faunaEspecies]);
@@ -138,11 +142,14 @@ export function crearNaturaleza(h: HNaturaleza) {
     real.grupo.removeFromParent();
     h.ground.visible = real.groundVisible;          // the flat ground comes back exactly as it was
     real.mostrarHitos?.();                          // R6.1: and so do the engine's landmark pillars
+    real.quitarAtmosfera?.();                       // R7.1: and the world's own sky, fog and tone
     real = null;
   }
 
   function construir(m: Awaited<ReturnType<typeof cargar>>, d: NaturalezaNormal, nivel: Nivel): Real {
-    const [T, A, H, E, AG] = m, t0 = performance.now();
+    const [T, A, H, E, AG, AT] = m, t0 = performance.now();
+    // R7.1: the nature's atmosphere first, so the terrain's border (h.niebla) already fades to the new horizon colour
+    const quitarAtmosfera = h.atmosfera ? h.atmosfera(AT.atmosferaNaturaleza(T.NIVEL_AGUA)) : null;
     const estacion = d.paleta, grupo = new THREE.Group(); grupo.name = "naturaleza";
     // R5.2: every colour comes from paleta.ts: the season picks the meadow/grass/leaf sets (ESTACIONES), the pond wears COLOR_ESTANQUE at every tier
     const terreno = T.crearTerreno({ semilla: d.semilla, nivel, tamano: d.tamano, plaza: d.plaza, niebla: h.niebla(), escena: grupo, sinEstanque: !d.estanque, estacion, recibeSombra: nivel === "A", aguaPlana: nivel === "D" ? COLOR_ESTANQUE : undefined });
@@ -168,7 +175,7 @@ export function crearNaturaleza(h: HNaturaleza) {
     const p = h.camara.position;
     hierba.llenarTodo(h.camara);                      // fill the ring now (a one-off cost at the load), not over the first frames
     arboles.repartir(p.x, p.y, p.z);
-    return { arboles, hierba, terreno, agua, grupo, nivel, datos: d, fauna: null, sonido: null, claveFauna: claveDeFauna(d), msFauna: 0, puntos, groundVisible, mostrarHitos, msConstruir: Math.round((performance.now() - t0) * 10) / 10 };
+    return { arboles, hierba, terreno, agua, grupo, nivel, datos: d, fauna: null, sonido: null, claveFauna: claveDeFauna(d), msFauna: 0, puntos, groundVisible, mostrarHitos, quitarAtmosfera, msConstruir: Math.round((performance.now() - t0) * 10) / 10 };
   }
 
   /** Switch the nature on, change it or switch it off. Idempotent: the same data on the same tier does nothing. Async only the first time (modules load). */
