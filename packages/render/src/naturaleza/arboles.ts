@@ -21,7 +21,7 @@
 // instanceMatrix, because the wind must read the pre-transform height of each vertex). Zero CPU per tree per frame:
 // `actualizar(t)` writes one uniform; the near/far split is a throttled O(n) pass over typed arrays (see `repartir`).
 import * as THREE from "three/webgpu";
-import { uniform, float, vec2, vec3, attribute, instancedBufferAttribute, positionGeometry, sin, cos, pow, clamp, mix, length, max, step, oneMinus } from "three/tsl";
+import { uniform, float, vec2, vec3, attribute, instancedBufferAttribute, positionGeometry, normalFlat, transformNormalToView, normalize, sin, cos, pow, clamp, mix, length, max, step, oneMinus } from "three/tsl";
 import type { Nivel } from "../calidad.ts";
 import { crearAzar, hash2 } from "./semilla.ts";
 import { NATURALEZA_POR_NIVEL } from "./niveles.ts";
@@ -40,7 +40,7 @@ export const TRIS_MAX_LEJOS = 26;
 // palette (the brief's ~12 colours: trunk brown, leaf greens + autumn orange + pink blossom, birch white)
 // ---------------------------------------------------------------------------------------------------------------------
 const C = (hex: number) => new THREE.Color(hex);
-const TRONCO = C(0x7d5a3c), TRONCO_OSC = C(0x4e3624); // N7: lighter bark (the N6 trunks read black under flat shading)
+const TRONCO = C(0xa07850), TRONCO_OSC = C(0x74502f); // N7: lighter bark (the N6 trunks read black under flat shading)
 const ABEDUL = C(0xe9e4d6), ABEDUL_OSC = C(0x34302c);
 type Hojas = { oscuro: THREE.Color; claro: THREE.Color; medio: number };
 const HOJAS: Record<Especie, [Hojas, Hojas]> = {
@@ -334,9 +334,11 @@ function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.Mesh
   const col3 = (k: THREE.Color) => vec3(k.r, k.g, k.b) as unknown as V3N;
   const birch = step(1.5, sp).mul(oneMinus(step(2.5, sp))) as N;
   const tronco = mix(mix(col3(TRONCO_N[0]), col3(TRONCO_N[1]), tono), mix(col3(ABEDUL_N[0]), col3(ABEDUL_N[1]), tono), birch) as unknown as V3N;
-  const hoja = mix(ic.xyz, id.xyz, tono.mul(0.85).add(0.15)) as unknown as V3N;
-  const ao = clamp(p0.y.div(H), 0, 1).mul(0.14).add(0.86) as N; // fake ambient occlusion: a little darker toward the ground
-  mat.colorNode = mix(tronco, hoja, parte).mul(ao).mul(tinte.mul(0.24).add(0.88));
+  const hoja = mix(ic.xyz, id.xyz, tono.mul(0.7).add(0.3)) as unknown as V3N;
+  const ao = clamp(p0.y.div(H), 0, 1).mul(0.1).add(0.9) as N; // fake ambient occlusion: a little darker toward the ground
+  mat.colorNode = mix(tronco, hoja, parte).mul(ao).mul(tinte.mul(0.24).add(0.88)).mul(1.25); // N7: ×1.25, the sunless side of a crown read black
+  // N7: faces still read flat, but a leaf's normal leans toward the sky (the sunless side of a crown no longer goes black): flat + up × (0.15 bark … 0.65 leaf)
+  mat.normalNode = normalize((normalFlat as unknown as V3N).add((transformNormalToView(vec3(0, 1, 0)) as unknown as V3N).mul(parte.mul(0.5).add(0.15))));
   return mat;
 }
 
@@ -356,7 +358,8 @@ function materialLejos(c: Comunes, inst: InstLejos): THREE.MeshLambertNodeMateri
   const H = max(ic.z.add(id.x), id.y.add(id.w)) as N, esc = ia.w;
   mat.positionNode = girar(p0, ib.x).mul(esc).add(ia.xyz).add(empuje(c, p0.y.div(H), esc.mul(H), float(0), ib.y));
   const vc = attribute("color", "vec3") as unknown as V3N;
-  mat.colorNode = mix(vc, vc.mul(ie), s1).mul(ib.z.mul(0.24).add(0.88));
+  mat.colorNode = mix(vc, vc.mul(ie), s1).mul(ib.z.mul(0.24).add(0.88)).mul(1.25);
+  mat.normalNode = normalize((normalFlat as unknown as V3N).add((transformNormalToView(vec3(0, 1, 0)) as unknown as V3N).mul(s1.mul(0.5).add(0.15)))); // N7: as the near trees, the sunless side leans toward the sky
   return mat;
 }
 
