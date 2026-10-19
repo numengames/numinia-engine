@@ -1,6 +1,7 @@
 // e2e-lenta — the whole darts duel (AR-D5) in two real browsers: A on a PC in the world, B on a wall in AR (IWER Quest 3).
 // Slow (~1-2 min on a loaded machine): tools/auto.sh e2e skips it unless E2E_LENTAS=1; run it alone:
-//   node tools/e2e-piernas/dardos-duelo.mjs        (SHOTS=<folder> saves A's pictures; DEBUG=1 prints the walking)
+//   node tools/e2e-piernas/dardos-duelo.mjs        (SHOTS=<folder> saves A's pictures; DEBUG=1 prints the walking;
+//   RETRASO_LECTURA_MS=7000 delays the read of the darts at the end: shows the client takes them out 6 s after `finduelo`)
 // It starts its OWN server and page (E2E_SERVER_PORT / E2E_VITE_PORT, default 8799 / 5181) on a throwaway world: entorno.json
 // puts everybody ~45 m west of the board (B stays far from it: farther than radius + CERCA_M, so only the duel events reach it)
 // and dardos.json has ONE board {id "torre", duelo, remoto, rondas 1}. Then:
@@ -211,6 +212,9 @@ try {
   await a.mouse.down(); await a.waitForTimeout(400); await a.mouse.up();
   await a.waitForTimeout(700);
   res.aFueraDeTurno = await aviso(a);
+  // A's page notes, the instant `finduelo` lands, how many of B's darts it shows: the client takes the darts out DUELO_DARDOS_MS (6 s)
+  // after the end, so a slow machine (load 20+) reading them late would see 0 without any bug (the old flaky `dardosDeBenA`)
+  await ctl(a, (e) => { const R = (globalThis.__reg = { fin: null, vistos: null }); globalThis.__numinia.dardos.alCambiar((que) => { if (que === "duelo" && !R.fin && globalThis.__numinia.dardos.duelo()?.fin) { R.fin = performance.now(); R.vistos = globalThis.__numinia.dardos.clavados("torre").filter((x) => x.quien !== e).length; } }); }, ea);
   // 3d) B throws its 3 darts (trigger hold + release); B's own puntos come from the server (`estado().ultimo`)
   const tirosB = [];
   for (let n = 1; n <= 3; n++) {
@@ -222,8 +226,10 @@ try {
     tirosB.push({ ar: (await arEstado(b)), servidor: await ctl(b, () => { const u = globalThis.__numinia.dardos.estado().ultimo; return { numero: u.numero, puntos: u.puntos }; }) });
     if (n === 3) {
       // everything that must be seen right at the third dart, before the match ends and the darts go
+      if (process.env.RETRASO_LECTURA_MS) await b.waitForTimeout(Number(process.env.RETRASO_LECTURA_MS)); // proof of the 6 s window: RETRASO_LECTURA_MS=7000 makes the late read see 0
       res.alFinalDeB = {
         aVeDeB: await ctl(a, (e) => globalThis.__numinia.dardos.clavados("torre").filter((x) => x.quien !== e).length, ea).catch(() => -1),
+        aVeDeBAlAcabar: await ctl(a, () => globalThis.__reg?.vistos ?? null).catch(() => null), // what A showed at the very moment the match ended
         bVeAR: (await arEstado(b)).clavados,
       };
     }
@@ -278,7 +284,7 @@ try {
     turnoDeB: /^Tu turno/.test(pie(res.turnoB.panelB?.pie)) && res.turnoB.bVeA >= 3 && res.turnoB.aClavadosDeA >= 3,
     aFueraRechazado: /No es tu turno/i.test(`${res.aFueraDeTurno.aviso} ${res.aFueraDeTurno.resultado}`),
     bTresDardos: tirosB.length === 3 && tirosB.every((t) => typeof t.servidor.puntos === "number" && t.ar.ultimo),
-    dardosDeBenA: res.alFinalDeB.aVeDeB >= 3,
+    dardosDeBenA: Math.max(res.alFinalDeB.aVeDeB, res.alFinalDeB.aVeDeBAlAcabar ?? 0) >= 3 && (res.alFinalDeB.aVeDeBAlAcabar === null || res.alFinalDeB.aVeDeBAlAcabar >= 3),
     dardosEnARdeB: res.alFinalDeB.bVeAR >= 6,
     puntosIgualesA: f.dA.a.puntos + 0 === (f.dA.a.entity === ea ? sumaA : sumaB) && f.dA.b.puntos === (f.dA.b.entity === ea ? sumaA : sumaB),
     puntosIgualesEnAyB: f.dA.a.puntos === f.dB.a.puntos && f.dA.b.puntos === f.dB.b.puntos,
