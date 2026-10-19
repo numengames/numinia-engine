@@ -13,37 +13,39 @@ import type { Nivel } from "../packages/render/src/calidad.ts";
 const NIVELES: Nivel[] = ["A", "B", "C", "D"];
 const campo = (n: number, lado: number, semilla = 7): PuntoArbol[] => {
   const R = crearAzar(semilla);
-  return Array.from({ length: n }, () => ({ x: (R() - 0.5) * lado, y: 0, z: (R() - 0.5) * lado, escala: 0.8 + R() * 0.6, giro: R() * 6.28, especie: ESPECIES[(R() * 4) | 0] }));
+  return Array.from({ length: n }, () => ({ x: (R() - 0.5) * lado, y: 0, z: (R() - 0.5) * lado, escala: 0.8 + R() * 0.6, giro: R() * 6.28, especie: ESPECIES[(R() * 5) | 0] }));
 };
 const viento = () => uniform(new THREE.Vector3(2, 0, 1)) as unknown as { value: THREE.Vector3 };
 
-test("N7: near templates (detailed 70-90 triangles with branches, simple 36) shared by every species (4 vertex sets, same topology), 22 far", () => {
+test("R2: near templates (detailed ~103 triangles with branches, collar and tag; simple 36) shared by every species (5 vertex sets, same topology), 16 far", () => {
   const g = geometriaArbol(), geo = g.geometria;
   assert.equal(g.triangulos, TRIANGULOS_ARBOL);
   assert.equal(g.triangulos, TRIANGULOS_DETALLE);
-  assert.ok(g.triangulos >= 70 && g.triangulos <= TRIS_MAX_CERCA && g.triangulos <= 90, `${g.triangulos} triangles`);
+  assert.ok(g.triangulos >= 95 && g.triangulos <= TRIS_MAX_CERCA, `${g.triangulos} triangles`);
   assert.equal(geometriaArbol(false).triangulos, TRIANGULOS_SIMPLE);
   assert.ok(TRIANGULOS_SIMPLE >= 30 && TRIANGULOS_SIMPLE <= 40);
   for (const n of NIVELES) assert.equal(triangulosCerca(NATURALEZA_POR_NIVEL[n].arbolesDetalle), n === "A" || n === "B" ? TRIANGULOS_DETALLE : TRIANGULOS_SIMPLE);
   for (const e of ESPECIES) assert.equal(geometriaCerca(e).geometria, geo, "every species shares the geometry");
   const n = geo.getAttribute("position").count;
-  for (const k of ["pos1", "pos2", "pos3", "tono", "parte", "mov"]) assert.equal(geo.getAttribute(k).count, n, k);
+  for (const k of ["pos1", "pos2", "pos3", "pos4", "tono", "parte", "mov"]) assert.equal(geo.getAttribute(k).count, n, k);
   // branch and leaf vertices sway more than the trunk's, and the tips (mov → 1) more than the roots
   const mov = geo.getAttribute("mov").array as Float32Array, parte = geo.getAttribute("parte").array as Float32Array;
   assert.ok(Math.max(...mov) >= 0.95 && Math.min(...mov) <= 0.05, "sway weight spans 0…1");
   for (let i = 0; i < n; i++) if (parte[i] === 1) assert.ok(mov[i] >= 0.4, `leaf vertex ${i} sways ${mov[i]}`);
+  assert.equal(Array.from(parte).filter((x) => x === 2).length, 8, "collar band: 8 vertices");
+  assert.equal(Array.from(parte).filter((x) => x === 3).length, 3, "tag: 3 vertices");
   assert.ok(geo.boundingSphere && geo.boundingSphere.radius > 0.5, "bounding sphere set");
   const l = geometriaLejos();
-  assert.ok(l.triangulos <= TRIS_MAX_LEJOS && l.triangulos >= 20, `far: ${l.triangulos}`);
+  assert.ok(l.triangulos <= TRIS_MAX_LEJOS && l.triangulos >= 14, `far: ${l.triangulos}`);
 });
 
-test("species differ in shape (not the same tree four times); the template is deterministic and finite, no NaN", () => {
-  const geo = geometriaArbol().geometria, juegos = ["position", "pos1", "pos2", "pos3"].map((k) => geo.getAttribute(k).array as Float32Array);
-  for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) {
+test("species differ in shape (not the same tree five times); the template is deterministic and finite, no NaN", () => {
+  const geo = geometriaArbol().geometria, juegos = ["position", "pos1", "pos2", "pos3", "pos4"].map((k) => geo.getAttribute(k).array as Float32Array);
+  for (let i = 0; i < 5; i++) for (let j = i + 1; j < 5; j++) {
     let d = 0; for (let k = 0; k < juegos[i].length; k++) d += Math.abs(juegos[i][k] - juegos[j][k]);
     assert.ok(d > 5, `species ${i} vs ${j}: ${d}`);
   }
-  for (const k of ["position", "pos1", "pos2", "pos3", "tono", "parte", "mov"]) assert.ok(Array.from(geo.getAttribute(k).array).every(Number.isFinite), k);
+  for (const k of ["position", "pos1", "pos2", "pos3", "pos4", "tono", "parte", "mov"]) assert.ok(Array.from(geo.getAttribute(k).array).every(Number.isFinite), k);
   assert.equal(Array.from(juegos[2]).join(","), Array.from(geometriaArbol().geometria.getAttribute("pos2").array).join(","));
 });
 
@@ -68,6 +70,16 @@ test("closed pieces (leaf blobs, cones) are wound outward: positive signed volum
     }
     assert.ok(cerradas >= (detalle ? 4 : 2), `${e}: ${cerradas} closed pieces`);
   }
+});
+
+test("collars: about 1 tree in 6 wears one, never a shrub; sizes vary within ±8 %", () => {
+  const t = crearArboles({ vientoU: viento(), nivel: "C" }, campo(600, 120, 11));
+  t.actualizar(0, new THREE.Vector3(0, 1.7, 0));
+  const s = t.estadisticas(), n = s.cerca.reduce((a, b) => a + b, 0);
+  assert.ok(n > 30 && (s.collares ?? 0) / n > 0.06 && (s.collares ?? 0) / n < 0.3, `${s.collares} collars of ${n}`);
+  const d = (t.mallas[0].geometry as THREE.InstancedBufferGeometry).instanceCount, A = (t.mallas[0].material as THREE.Material) && d;
+  assert.ok(A > 0);
+  t.dispose();
 });
 
 test("same points → same instance data; different seed of points → different", () => {

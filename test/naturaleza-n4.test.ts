@@ -144,8 +144,11 @@ test("scatter rules: none in the plaza, the pond, on sand or at the border; bush
   }
   assert.ok(minimo >= 1.3, `closest pair ${minimo.toFixed(2)} m`);
   // zones really get used with the brief's mix: forest holds pines and oaks, the meadow holds oaks and birches
-  assert.ok((cuenta.bosque?.pino ?? 0) > (cuenta.bosque?.abedul ?? 0), JSON.stringify(cuenta));
-  assert.ok((cuenta.prado?.roble ?? 0) > 0 && (cuenta.prado?.abedul ?? 0) > 0, JSON.stringify(cuenta));
+  // R2: five species spread over the zones, each of them used (groves make some zones lean to one species, but the mix stays wide)
+  const todas = new Set(puntos.map((p) => p.especie));
+  for (const e of ["encina", "pino", "cipres", "olivo", "arbusto"]) assert.ok(todas.has(e), `${e} is planted: ${JSON.stringify(cuenta)}`);
+  assert.ok(Object.keys(cuenta.bosque ?? {}).length >= 4 && Object.keys(cuenta.prado ?? {}).length >= 4, JSON.stringify(cuenta));
+  assert.ok(puntos.filter((p) => p.escala > 1.4).length >= 3, "some lone old trees");
   assert.ok(t.malla.isMesh);
   void CELDA;
 });
@@ -177,9 +180,9 @@ test("scatter: density scales the count; each tier's cap is honoured and thinnin
 
 test("palettes: autumn puts most oaks and birches in their orange / yellow set, spring puts blossom on the bushes, summer stays green", () => {
   const cuenta = (pal: Paleta, esp: string) => { const l = mundo(SEMILLA, "A", { paleta: pal }).puntos.filter((p) => p.especie === esp); return l.filter((p) => p.variante === 1).length / Math.max(1, l.length); };
-  assert.ok(cuenta("otono", "roble") > 0.7 && cuenta("otono", "abedul") > 0.7);
-  assert.ok(cuenta("verano", "roble") < 0.2 && cuenta("verano", "abedul") < 0.2);
-  assert.ok(cuenta("primavera", "arbusto") > 0.55 && cuenta("primavera", "roble") === 0);
+  assert.ok(cuenta("otono", "encina") > 0.7 && cuenta("otono", "olivo") > 0.15 && cuenta("otono", "cipres") === 0);
+  assert.ok(cuenta("verano", "encina") < 0.2 && cuenta("verano", "olivo") < 0.2);
+  assert.ok(cuenta("primavera", "arbusto") > 0.55 && cuenta("primavera", "encina") === 0);
   // the positions do not depend on the palette (only the colours do)
   const a = mundo(SEMILLA, "A", { paleta: "verano" }).puntos.map((p) => [p.x, p.z, p.especie]), b = mundo(SEMILLA, "A", { paleta: "otono" }).puntos.map((p) => [p.x, p.z, p.especie]);
   assert.deepEqual(a, b);

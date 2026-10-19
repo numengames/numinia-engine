@@ -25,7 +25,7 @@ export const PALETAS: readonly Paleta[] = ["verano", "otono", "primavera"];
 /** Side (m) of a candidate square. */
 export const CELDA = 2.2;
 /** Radius (m) each species keeps free around it: two trees are at least 0.85 × (ra + rb) apart. */
-export const RADIO_ESPECIE: Record<Especie, number> = { roble: 2.1, pino: 1.6, abedul: 1.4, arbusto: 0.8 };
+export const RADIO_ESPECIE: Record<Especie, number> = { encina: 2.1, pino: 1.8, cipres: 0.9, olivo: 1.9, arbusto: 0.8 };
 export const SEPARACION = 0.85;
 /** Margin (m) kept free beyond the plaza's flat disc, and at the world's border. */
 export const MARGEN_PLAZA = 2.5, MARGEN_BORDE = 7;
@@ -47,13 +47,17 @@ export type OpcionesEsparcir = {
   estanque: { x: number; z: number; radio: number } | null;
 };
 
-/** Species mix per zone: cumulative weights over [roble, pino, abedul, arbusto]. */
+/** Species mix per zone (R2: Mediterranean garden): weights over the five species. */
 const MEZCLA: Partial<Record<Zona, [Especie, number][]>> = {
-  prado: [["roble", 0.5], ["abedul", 0.3], ["pino", 0.05], ["arbusto", 0.15]],
-  bosque: [["pino", 0.44], ["roble", 0.34], ["abedul", 0.12], ["arbusto", 0.1]],
+  prado: [["encina", 0.3], ["olivo", 0.28], ["pino", 0.1], ["cipres", 0.06], ["arbusto", 0.26]],
+  bosque: [["pino", 0.3], ["encina", 0.3], ["cipres", 0.12], ["olivo", 0.1], ["arbusto", 0.18]],
   orilla: [["arbusto", 1]],
   roca: [["arbusto", 1]],
 };
+/** Groves of ONE species: a slow noise picks, per patch of ground, a dominant species; inside a grove most trees are that one. */
+const DOMINANTES: Especie[] = ["encina", "pino", "olivo", "encina", "pino", "cipres", "olivo", "encina"];
+/** Lone old trees stand alone in the meadow: bigger, and nothing is planted close around them. */
+export const VIEJOS: Especie[] = ["encina", "olivo", "pino"];
 const elegir = (mezcla: [Especie, number][], u: number): Especie => {
   let a = 0;
   for (const [e, w] of mezcla) { a += w; if (u < a) return e; }
@@ -62,12 +66,18 @@ const elegir = (mezcla: [Especie, number][], u: number): Especie => {
 
 /** Share of the trees of a species drawn in their second colour set (autumn orange / yellow / blossom) per palette. */
 export const VARIANTE_POR_PALETA: Record<Paleta, Record<Especie, number>> = {
-  verano: { roble: 0.07, pino: 0.0, abedul: 0.07, arbusto: 0.1 },
-  otono: { roble: 0.82, pino: 0.12, abedul: 0.88, arbusto: 0.08 },
-  primavera: { roble: 0.0, pino: 0.0, abedul: 0.0, arbusto: 0.72 },
+  verano: { encina: 0.05, pino: 0.0, cipres: 0.0, olivo: 0.0, arbusto: 0.1 },
+  otono: { encina: 0.82, pino: 0.12, cipres: 0.0, olivo: 0.35, arbusto: 0.08 },
+  primavera: { encina: 0.0, pino: 0.0, cipres: 0.0, olivo: 0.0, arbusto: 0.72 },
 };
 
 const sstep = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+/** 0…1: how much sand lies within ~6 m (four probes, 0.25 each). */
+function cercaDeArena(f: FuenteEsparcir, x: number, z: number): number {
+  const d = 6;
+  return ((f.zonaEn(x + d, z) === "arena" ? 1 : 0) + (f.zonaEn(x - d, z) === "arena" ? 1 : 0) + (f.zonaEn(x, z + d) === "arena" ? 1 : 0) + (f.zonaEn(x, z - d) === "arena" ? 1 : 0)) / 4;
+}
 
 /** True when the point is next to ground of another zone than `roca` (the edge of the rock: where bushes may grow). */
 function bordeDeRoca(f: FuenteEsparcir, x: number, z: number): boolean {
@@ -91,34 +101,44 @@ export function esparcirArboles(f: FuenteEsparcir, o: OpcionesEsparcir): PuntoAr
     if (!mezcla) continue;                                         // sand: nothing
     // chance by zone
     let p: number;
-    if (zona === "bosque") p = 0.86;
+    const claro = sstep(0.3, 0.42, valor2(s + 401, x * 0.045, z * 0.045)); // R2: clearings (a slow mask is low → no trees)
+    if (zona === "bosque") p = 0.86 * (0.25 + 0.75 * claro);
     else if (zona === "prado") {
       const mancha = valor2(s + 303, x * 0.03, z * 0.03);         // slow mask: clumps of trees …
-      p = 0.035 + 0.5 * sstep(0.56, 0.74, mancha);                 // … and a thin rain of lone trees between them
+      p = (0.03 + 0.5 * sstep(0.56, 0.74, mancha)) * claro;        // … and a thin rain of lone trees between them
     } else if (zona === "orilla") p = 0.09;                        // a few bushes on the wet sand
     else p = bordeDeRoca(f, x, z) ? 0.13 : 0;                       // rock: bushes only along its edge
-    if (hash2(s + 103, i, j) >= p * dens) continue;
+    if (zona === "prado" || zona === "bosque") p *= 1 - 0.8 * cercaDeArena(f, x, z); // R2: thinning toward the sand (up to −80 %)
+    // R2: a lone old tree: rare, in the open meadow, in the middle of a clearing-ish spot
+    const viejo = zona === "prado" && hash2(s + 109, i, j) < 0.003 * dens && sstep(0.3, 0.5, valor2(s + 401, x * 0.045, z * 0.045)) > 0.5;
+    if (!viejo && hash2(s + 103, i, j) >= p * dens) continue;
     const y = f.alturaEn(x, z);
     if (y < -0.05) continue;                                       // water level / basin
     const pend = Math.hypot(f.alturaEn(x + 0.7, z) - y, f.alturaEn(x, z + 0.7) - y) / 0.7;
     if (pend > PENDIENTE_MAX) continue;
-    const especie = elegir(mezcla, hash2(s + 104, i, j));
-    // size: bigger in the open, smaller in a crowd and on the shore
-    const escala = (zona === "orilla" ? 0.75 : 0.82) + 0.42 * hash2(s + 105, i, j);
+    // R2: groves of one species (a dominant species per patch of ground) over the zone's mix
+    const dom = DOMINANTES[Math.floor(valor2(s + 502, x * 0.017 + 3, z * 0.017) * DOMINANTES.length * 0.999)];
+    const fuerza = sstep(0.62, 0.78, valor2(s + 503, x * 0.02 + 7, z * 0.02));
+    let especie = zona === "prado" || zona === "bosque" ? (hash2(s + 110, i, j) < fuerza * 0.7 ? dom : elegir(mezcla, hash2(s + 104, i, j))) : elegir(mezcla, hash2(s + 104, i, j));
+    if (viejo) especie = VIEJOS[Math.floor(hash2(s + 111, i, j) * VIEJOS.length * 0.999)];
+    // size: bigger in the open, smaller in a crowd and on the shore; old trees are big; cypresses vary little, shrubs are small
+    let escala = (zona === "orilla" ? 0.75 : 0.82) + 0.42 * hash2(s + 105, i, j);
+    if (viejo) escala = 1.45 + 0.35 * hash2(s + 105, i, j);
+    else if (especie === "cipres") escala = 0.9 + 0.35 * hash2(s + 105, i, j);
     const variante: 0 | 1 = hash2(s + 106, i, j) < VARIANTE_POR_PALETA[o.paleta][especie] ? 1 : 0;
     dentro.push({ x, y: Math.round(y * 100) / 100, z, escala: Math.round(escala * 1000) / 1000, giro: Math.round(hash2(s + 107, i, j) * 6283) / 1000, especie, variante });
   }
   // spacing: greedy in raster order against a hash grid of the kept trees
-  const lado = 2 * RADIO_ESPECIE.roble * SEPARACION + 0.01, rejilla = new Map<number, PuntoArbol[]>();
+  const lado = 2 * RADIO_ESPECIE.encina * 1.9 * SEPARACION + 0.01, rejilla = new Map<number, PuntoArbol[]>();
   const clave = (cx: number, cz: number) => (cx + 4096) * 8192 + (cz + 4096);
   const hechos: PuntoArbol[] = [];
   for (const t of dentro) {
-    const cx = Math.floor(t.x / lado), cz = Math.floor(t.z / lado), ra = RADIO_ESPECIE[t.especie as Especie];
+    const cx = Math.floor(t.x / lado), cz = Math.floor(t.z / lado), ra = RADIO_ESPECIE[t.especie as Especie] * Math.max(1, t.escala * 0.95);
     let libre = true;
     for (let dz = -1; dz <= 1 && libre; dz++) for (let dx = -1; dx <= 1 && libre; dx++) {
       const v = rejilla.get(clave(cx + dx, cz + dz));
       if (!v) continue;
-      for (const u of v) { const min = (ra + RADIO_ESPECIE[u.especie as Especie]) * SEPARACION; if ((u.x - t.x) ** 2 + (u.z - t.z) ** 2 < min * min) { libre = false; break; } }
+      for (const u of v) { const min = (ra + RADIO_ESPECIE[u.especie as Especie] * Math.max(1, u.escala * 0.95)) * SEPARACION; if ((u.x - t.x) ** 2 + (u.z - t.z) ** 2 < min * min) { libre = false; break; } }
     }
     if (!libre) continue;
     const k = clave(cx, cz);
