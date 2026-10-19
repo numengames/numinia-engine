@@ -9,11 +9,14 @@
 // Quest 3's two eyes at render scale 100 %, 1680×1760 each)  ?cuadros=240  ?calentar=40
 // ?escena=naturaleza (E01): the same path, but the camera rides 1.7 m over the nature's relief (relieve alturaEn, seed
 // 1234, the plaza's demo world) in EVERY configuration, base included, so the nature pieces are seen as a player sees them.
+// ?camara=estanque (E03): a second path that SEES the pond (E01's 14 m circle never does: the pond is ~60 m out): a lap on
+// the bank at 1.35 × the pond's radius, eye height, looking at its centre, so the water fills about half of the frame.
+// `__banco.retrato({ pos, mira, cuadros })` (E03 photos) draws a fixed camera for N frames and returns the PNG (data URL).
 import * as THREE from "three/webgpu";
 import { TECNICAS } from "./tecnicas.ts";
 import type { Contexto, Montada } from "./tecnicas.ts";
 import type { Nivel } from "../../packages/render/src/calidad.ts";
-import { alturaEn } from "../../packages/relieve/src/relieve.ts";
+import { alturaEn, estanqueDe, NIVEL_AGUA } from "../../packages/relieve/src/relieve.ts";
 
 const q = new URLSearchParams(location.search);
 const backendPedido = q.get("backend") === "webgl2" ? "WebGL2" : "WebGPU";
@@ -30,6 +33,9 @@ const DT = 1 / 72; // the bench clock advances one Quest frame per drawn frame
 const ESCENA = q.get("escena") === "naturaleza" ? "naturaleza" : "plaza";
 const SEMILLA_NAT = 1234; // the plaza's demo world (work/naturaleza/mundo-demo/entorno/naturaleza.json)
 const suelo = (x: number, z: number) => (ESCENA === "naturaleza" ? Math.max(alturaEn(SEMILLA_NAT, x, z), -0.2) : 0);
+const CAMARA = q.get("camara") === "estanque" ? "estanque" : "plaza";
+const ESTANQUE = estanqueDe(SEMILLA_NAT, 200);
+let fija: { pos: number[]; mira: number[] } | null = null; // retrato(): a fixed camera instead of the path
 
 type Resumen = { mediana: number; p95: number; p99: number; media: number; min: number; max: number; n: number };
 function resumen(xs: number[]): Resumen | null {
@@ -54,7 +60,7 @@ async function adaptador(): Promise<Record<string, unknown> | null> {
 }
 
 const estado: { listo: boolean; error?: string; info?: Record<string, unknown> } = { listo: false };
-(window as unknown as { __banco: unknown }).__banco = { estado, medir, tecnicas: () => [...TECNICAS.values()].map(({ id, nombre, origen }) => ({ id, nombre, origen })) };
+(window as unknown as { __banco: unknown }).__banco = { estado, medir, retrato, estanque: ESTANQUE, suelo, tecnicas: () => [...TECNICAS.values()].map(({ id, nombre, origen }) => ({ id, nombre, origen })) };
 
 let renderer: THREE.WebGPURenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera;
 const montadas: Array<{ id: string; m: Montada }> = [];
@@ -105,7 +111,7 @@ async function iniciar(): Promise<void> {
   for (const id of pedidas) montadas.push({ id, m: await TECNICAS.get(id)!.montar(ctx) });
   ponerCamara(0);
   await renderer.compileAsync(scene, camera);
-  estado.info = { backendPedido, backend, salida: SALIDA, escena: ESCENA, gpu: gpuNombre, adaptador: adapt, timestamps: !!be.trackTimestamp, nivel, tam: [W, H], cuadros: CUADROS, calentar: CALENTAR, on: pedidas, three: THREE.REVISION, userAgent: navigator.userAgent };
+  estado.info = { backendPedido, backend, salida: SALIDA, escena: ESCENA, camara: CAMARA, gpu: gpuNombre, adaptador: adapt, timestamps: !!be.trackTimestamp, nivel, tam: [W, H], cuadros: CUADROS, calentar: CALENTAR, on: pedidas, three: THREE.REVISION, userAgent: navigator.userAgent };
   estado.listo = true;
 }
 
@@ -113,6 +119,14 @@ async function iniciar(): Promise<void> {
  * techniques' spots (fires, travel lights near the centre, the pond 22 m out) and the pillars and far ground (fog
  * range) behind them pass through the view. Frame number only, so every run draws the same frames. */
 function ponerCamara(i: number): void {
+  if (fija) { camera.position.fromArray(fija.pos); camera.lookAt(fija.mira[0], fija.mira[1], fija.mira[2]); return; }
+  if (CAMARA === "estanque") { // E03: a lap on the pond's bank looking at its centre (the water is ~half of the frame)
+    const a = (i / CUADROS) * Math.PI * 2, R = ESTANQUE.radio * 1.35;
+    const x = ESTANQUE.x + Math.cos(a) * R, z = ESTANQUE.z + Math.sin(a) * R;
+    camera.position.set(x, suelo(x, z) + 1.7, z);
+    camera.lookAt(ESTANQUE.x, NIVEL_AGUA - 4, ESTANQUE.z); // tilted down: the water fills about half of the frame
+    return;
+  }
   const a = (i / CUADROS) * Math.PI * 2;
   const x = Math.cos(a) * 14, z = Math.sin(a) * 14, mx = Math.cos(a + Math.PI) * 4, mz = Math.sin(a + Math.PI) * 4;
   camera.position.set(x, suelo(x, z) + 1.7, z);
@@ -145,6 +159,18 @@ async function foto(rt: THREE.RenderTarget): Promise<void> {
   document.body.appendChild(c);
 }
 const backendGL = () => !(renderer.backend as unknown as { isWebGPUBackend?: boolean }).isWebGPUBackend;
+
+/** E03 photos: a fixed camera, `cuadros` frames of the bench clock (the water and the wind move), then the PNG of the last one. */
+async function retrato(o: { pos: number[]; mira: number[]; cuadros?: number }): Promise<string> {
+  fija = o;
+  const rt = new THREE.RenderTarget(W, H, { samples: 4, depthBuffer: true });
+  rt.texture.colorSpace = THREE.SRGBColorSpace;
+  renderer.setRenderTarget(rt);
+  for (let i = 0; i < (o.cuadros ?? 60); i++) { cuadro(i); renderer.render(scene, camera); }
+  await foto(rt);
+  renderer.setRenderTarget(null); rt.dispose(); fija = null;
+  return (document.getElementById("foto") as HTMLCanvasElement).toDataURL("image/png");
+}
 
 async function medir(o: { escalas?: number[] } = {}): Promise<unknown> {
   const escalas = o.escalas ?? [1, 0.5];

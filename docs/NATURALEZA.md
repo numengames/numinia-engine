@@ -859,3 +859,28 @@ defecto. `celdas` permite mapas mayores con la densidad del nivel.
 triángulos; GPU igual ±1 µs). En un mapa de 2 km: A 234 k → 62 k triángulos, GPU p50 0,116 → 0,112 ms, p99 0,136 → 0,119; mismas llamadas.
 Pendiente: árboles y hierba se apoyan en la superficie fina (en trozos gruesos pueden flotar/hundirse hasta ~1,7 m p95); recorte por distancia
 y frustum de trozos (E07) y generación por trozos en worker (E11). Tests: `test/naturaleza-trozos.test.ts`.
+
+## E03 · Agua de orilla (AG1) en dos variantes + binarios (AG10)
+
+**Qué:** el estanque toma el color de la **profundidad real del lecho** bajo cada píxel, no de la distancia al contorno.
+`fondoDeAgua()` (`agua-estilo.ts`) hornea una vez, en CPU, una textura RG8 de 64² (~8 KB) sobre el cuadrado del
+estanque: R = profundidad (−0,5…+2 m), G = distancia con signo a la línea de agua (−1…+8 m). La altura sale de la
+**malla del terreno que se dibuja** (`alturaDeMalla`: la red gruesa cruza el agua metros más allá de donde lo hace la
+función suave, y la espuma tiene que caer donde la ve el ojo); fuera de la malla, `alturaEn` del relieve.
+
+- **Color:** somera → media → honda (`AGUA_ORILLA` al final de `paleta.ts`: verdemar, turquesa, turquesa profundo,
+  verdín; turquesa verdosa y luminosa, sin gris). Profundidad «moderada»: `1 − e^(−d/0,55 m)`.
+- **Dos variantes** (`orilla.variante`): `continuo` (un degradado, la idea de Starwild) y `bandas` (el MISMO degradado
+  muestreado en 4 escalones planos, PRI-008; cada borde se suaviza un píxel con `fwidth`, no parpadea).
+- **Franja** clara hasta 1,4 m de la orilla, **espuma** fina en la línea de agua (arena con un poco de verdemar, nunca
+  blanco puro) y una segunda línea que entra hacia la orilla, **lavado** pálido que va y viene hasta 2,6 m (idea de
+  starwild 021). La opacidad crece con la profundidad y con lo rasante de la mirada (el lecho se ve en lo somero).
+- **Binarios** (`binarios`, 0 = apagado, 0,35 = tenue): hileras de 0 y 1 translúcidas bajo la superficie (paralaje
+  por profundidad), arrastradas por la corriente (`corriente` = `vientoU` × 12 %), cada hilera a su velocidad, que se
+  encienden y apagan; donde una ondulación lenta hace cresta suben más claros. Se apagan a 25–55 m y junto a la orilla.
+- **Coste:** misma malla, misma llamada, mismos triángulos; una lectura de textura más por píxel. En D el estanque va
+  pintado en el terreno y no cambia.
+- **Banco:** `e03-agua-*` (estanque solo) y `e03-nat-*` (naturaleza entera con el estanque re-vestido), variantes `a`,
+  `b`, `a-bin`, `b-bin`; medir con `--escena naturaleza --camara estanque` (vuelta por la orilla a 1,35 × radio: el
+  recorrido de E01 nunca ve el estanque). Fotos: `tools/fotos-agua.mjs` (cámara fija con `__banco.retrato`).
+- **Estado:** experimento; el juego sigue con el agua N2 hasta que Pablo elija variante (saber-3d `queries/e03-agua-de-orilla.md`).

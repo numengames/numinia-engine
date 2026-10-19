@@ -410,3 +410,71 @@ for (const [sufijo, trozos] of [["", null], ["-trozos", TROZOS_BANCO], ["-trozos
     };
   },
 });
+
+// =====================================================================================================================
+// E03 (agua de orilla AG1 + binarios AG10, plan-experimentos): the pond with its colour from the REAL depth of the bed
+// (agua-estilo.ts `orilla`: fondoDeAgua bakes a 64² depth texture from the terrain's height function), in the two variants
+// Pablo picks from photos — «a» continuous gradient (Starwild-like) and «b» the same gradient in 4 flat bands (PRI-008) —
+// each with and without the 0/1 strings (binarios 0.35 = faint). Same mesh and geometry as E01's pond: 0 calls, 0 triangles
+// more. `e03-agua-*` = the pond alone (vs nat-agua); `e03-nat-*` = the whole nature with its pond re-dressed (vs naturaleza).
+// Measure with `--escena naturaleza --camara estanque` (E01's path never sees the pond). On D the pond is painted into the
+// terrain (no water mesh): the rows equal E01's.
+// =====================================================================================================================
+const VARIANTES_E03 = [["a", "continuo", 0], ["b", "bandas", 0], ["a-bin", "continuo", 0.35], ["b-bin", "bandas", 0.35]] as const;
+type AguaE03 = { variante: "continuo" | "bandas"; binarios: number };
+
+/** The E03 pond material for the bench tier, over the real bed: the DRAWN terrain mesh of this tier (agua-estilo alturaDeMalla),
+ * the smooth relieve function where no triangle covers a point. */
+async function materialE03(c: Contexto, v: AguaE03, luz: unknown, corriente: { value: THREE.Vector3 }, tiempo: { value: number }, detalle: ReturnType<typeof detalleAgua>, suelo: THREE.Mesh) {
+  const [T, , , , P, AG] = await modsNat();
+  const e = T.estanqueDe(NAT.semilla, NAT.tamano), r = e.radio * 1.2, forma = { tipo: "circulo" as const, radio: r };
+  const fondo = AG.fondoDeAgua(AG.alturaDeMalla(suelo, e.x - r, e.z - r, r * 2, alturaEnNat), T.NIVEL_AGUA, e.x, e.z, r * 2);
+  const mat = AG.materialDeAgua({ color: P.COLOR_ESTANQUE, forma, detalle, tiempo, luz: luz as never, bordeOculto: r * 0.12, orilla: { variante: v.variante, fondo }, binarios: v.binarios, corriente }, 12);
+  return { mat, fondo, forma, e, r };
+}
+
+for (const [k, variante, binarios] of VARIANTES_E03) registrar({
+  id: `e03-agua-${k}`, nombre: `E03 · estanque solo, agua de orilla «${variante}»${binarios ? " + binarios" : ""} (frente a nat-agua)`, origen: "agua-estilo.ts (orilla, binarios)",
+  async montar(c) {
+    if (c.nivel === "D") return { quitar() {}, cuenta: { agua: "pintada en el terreno" } };
+    const [, , , , , AG] = await modsNat();
+    const t = await terreno(c, false, null);
+    const tiempo = uniform(0) as unknown as { value: number };
+    const detalle = detalleAgua(c.nivel, calidadPagina(c.nivel).agua);
+    const luz = { cielo: uniform(new THREE.Color(nieblaHex(c))), sol: uniform(new THREE.Color(0xffffff)), solDir: uniform(new THREE.Vector3(0.5, 0.8, 0.3).normalize()) };
+    const { mat, fondo, forma } = await materialE03(c, { variante, binarios }, luz, vientoPropio() as never, tiempo, detalle, t.malla);
+    const m = new THREE.Mesh(AG.geometriaDeAgua(forma, detalle, 12), mat);
+    m.position.set(t.estanque.x, t.estanque.nivel, t.estanque.z); m.userData.sinSombra = true;
+    c.world.add(m);
+    return { cuadro(dt) { tiempo.value += dt; }, quitar() { m.removeFromParent(); m.geometry.dispose(); mat.dispose(); fondo.textura.dispose(); t.dispose(); }, cuenta: { variante, binarios, olas: detalle.olas, fondo: `${fondo.res}²` } };
+  },
+});
+
+for (const [k, variante, binarios] of VARIANTES_E03) registrar({
+  id: `e03-nat-${k}`, nombre: `E03 · naturaleza ENTERA con el estanque «${variante}»${binarios ? " + binarios" : ""} (frente a naturaleza)`, origen: "naturaleza.ts (crearNaturaleza) + agua-estilo.ts (orilla, binarios)",
+  async montar(c) {
+    const { e, tick } = await entornoDe(c);
+    const [{ crearNaturaleza }, { FAUNA_CASA }] = await Promise.all([import("../../packages/render/src/naturaleza/naturaleza.ts"), import("../../features/naturaleza/fauna-casa.ts")]);
+    const n = crearNaturaleza({ padre: c.world, ground: c.suelo, vientoU: e.vientoU, nivel: () => c.nivel, camara: c.camera, yo: () => null,
+      niebla: () => nieblaHex(c), aguaLuz: e.aguaLuz, detalleAgua: () => detalleAgua(c.nivel, e.calidadActual.agua), hora: () => NAT.hora,
+      tablaFauna: async () => FAUNA_CASA, hitos: () => c.hitos, atmosfera: e.atmosfera });
+    await n.aplicar({ activa: true, semilla: NAT.semilla, tamano: NAT.tamano, plaza: NAT.plaza, arboles: 1, hierba: 1, estanque: true, paleta: NAT.estacion });
+    for (let i = 0; i < 40 && (e.ocupado() || i < 5); i++) { e.actualizar(); await new Promise((r) => setTimeout(r, 30)); }
+    // re-dress the pond naturaleza.ts built (same mesh, same geometry): only its material changes
+    const malla = c.world.getObjectByName("agua-naturaleza") as THREE.Mesh | undefined;
+    let suelo: THREE.Mesh | undefined; c.world.traverse((o) => { if (o.userData.mapa === "suelo") suelo = o as THREE.Mesh; });
+    const tiempo = uniform(0) as unknown as { value: number };
+    let quitarAgua = () => {};
+    if (malla && suelo) {
+      const { mat, fondo } = await materialE03(c, { variante, binarios }, e.aguaLuz, e.vientoU as never, tiempo, detalleAgua(c.nivel, e.calidadActual.agua), suelo);
+      const viejo = malla.material as THREE.Material; malla.material = mat; viejo.dispose();
+      quitarAgua = () => { fondo.textura.dispose(); };
+    }
+    let antes = 0;
+    return {
+      cuadro(dt, t) { tick(t); n.actualizar(t - antes); antes = t; tiempo.value += dt; },
+      quitar() { quitarAgua(); n.dispose(); },
+      get cuenta() { const s = n.estadisticas(); return { variante, binarios, estanque: malla ? "re-vestido" : "pintado (D)", triangulos: s.triangulos.total, llamadas: s.llamadas.total }; },
+    };
+  },
+});

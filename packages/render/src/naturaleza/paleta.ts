@@ -229,3 +229,21 @@ export const SUELO_R72 = {
   /** Roca y tierra al aire en las caras empinadas: ceniza cálida con bronce; en el páramo, basalto. */
   roca: mezcla(mezcla(CASA.ceniza, CASA.bronce, 0.3), CASA.ambarTostado, 0.12), rocaParamo: FRANJAS.paramo.basalto,
 } as const;
+
+// E03
+/**
+ * E03 · Agua de orilla (agua-estilo.ts `orilla`, ficha AG1; binarios AG10). El color sale de la profundidad del fondo bajo cada
+ * píxel: somera verdemar luminosa junto a la arena, media turquesa verdosa y honda turquesa profundo aclarado con Turquesa y verdín (luminosa, sin gris)
+ * (DIRECCION-ARTE: «#A6DAD5 somera → #018EA1 profunda, apagada»; especificación §Agua: turquesa verdosa, luminosa, de profundidad
+ * moderada). Franja = la costa clara donde el agua apenas cubre; espuma y lavado = arena con un soplo de verdemar (nunca blanco
+ * puro). Código = los ceros y unos bajo la superficie (verdemar con arena) y su versión de cresta, más clara. Solo mezclas de tokens.
+ */
+export const AGUA_ORILLA = {
+  somera: mezcla(CASA.verdemar, CASA.turquesa, 0.22),
+  media: mezcla(mezcla(CASA.turquesa, CASA.verdemar, 0.3), VERDES.verdin, 0.12),
+  honda: mezcla(mezcla(CASA.turquesaProfundo, CASA.turquesa, 0.4), VERDES.verdin, 0.2),
+  franja: mezcla(CASA.verdemar, CASA.arena, 0.45),
+  espuma: mezcla(CASA.arena, CASA.verdemar, 0.12),
+  codigo: mezcla(CASA.verdemar, CASA.arena, 0.3),
+  codigoCresta: mezcla(CASA.arena, CASA.verdemar, 0.25),
+} as const;

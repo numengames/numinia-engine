@@ -33,6 +33,8 @@ const SALIDA = join(repo, opt("salida", "informes/banco"));
 // (default: every technique measured; with pieces that overlap, e.g. «naturaleza» and its parts, name the real total here)
 const ESCENA = opt("escena", "");
 const TODAS = opt("todas", "");
+// E03: ?camara=estanque = the path that sees the pond (apps/banco/main.ts)
+const CAMARA = opt("camara", "");
 
 // Chromium puts its singleton socket under TMPDIR; a deep TMPDIR overflows the 108-byte socket path and it aborts
 if ((process.env.TMPDIR ?? "").length > 60) process.env.TMPDIR = "/tmp";
@@ -133,7 +135,7 @@ async function medirTodo() {
   for (let r = 0; r < RONDAS; r++) {
     const orden = configs.map((_, i) => configs[(i + r) % configs.length]); // rotate: no technique always runs first or last
     for (const backend of BACKENDS) for (const c of orden) {
-      const { p, errores } = await pagina({ backend, on: c.on.join(","), nivel: NIVEL, tam: TAM, cuadros: CUADROS, calentar: CALENTAR, ...(ESCENA ? { escena: ESCENA } : {}) });
+      const { p, errores } = await pagina({ backend, on: c.on.join(","), nivel: NIVEL, tam: TAM, cuadros: CUADROS, calentar: CALENTAR, ...(ESCENA ? { escena: ESCENA } : {}), ...(CAMARA ? { camara: CAMARA } : {}) });
       const res = await p.evaluate(() => window.__banco.medir({ escalas: [1, 0.5] }));
       if (flag("fotos") && r === 0) { mkdirSync(SALIDA, { recursive: true }); await p.screenshot({ path: join(SALIDA, `foto-${backend}-${c.nombre}.png`) }); }
       await p.close();
@@ -144,7 +146,7 @@ async function medirTodo() {
   }
   const cargaDespues = carga();
   await cerrar();
-  return { crudo, configs, cargaAntes, cargaDespues, fecha: new Date().toISOString(), commit, opciones: { RONDAS, CUADROS, CALENTAR, TAM, NIVEL, BACKENDS, GPU, ESCENA, TODAS, flags: FLAGS[GPU] } };
+  return { crudo, configs, cargaAntes, cargaDespues, fecha: new Date().toISOString(), commit, opciones: { RONDAS, CUADROS, CALENTAR, TAM, NIVEL, BACKENDS, GPU, ESCENA, CAMARA, TODAS, flags: FLAGS[GPU] } };
 }
 
 // ---- statistics: per backend × configuration × scale, the median over rounds of each round's median ----
