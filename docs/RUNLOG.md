@@ -1155,3 +1155,22 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.
 - Commit: rama `pelea/combate-a-main` sobre `origin/main` cb35ef4, sin push.
 - Siguiente: decidir si `habilidad` hace que la criatura devuelva el golpe (`golpear` sí); activar `pvp` en un mundo real.
+
+## 2026-10-19 07:25 · constructor/ficha-pestañas · hecho
+- Qué: la ficha del objeto (C3) gana pestañas accesibles (`role=tablist/tab/tabpanel`, flechas izquierda y derecha,
+  Inicio/Fin, `aria-selected`, tooltip con icono Phosphor de la casa en cada una): «Ficha» (los datos de siempre),
+  «Lógica» (disparadores del cable que muestran u ocultan el objeto por id o nombre, disparadores que nacen en él,
+  y cerraduras y contadores en el mismo punto; botón «Abrir el cable» que lleva al panel del cable) y «Ajustes»
+  (nombre, se ve al jugar, anclado y sólido, con los mismos verbos del inspector; botón «Abrir inspector (N)»).
+  Solo sale con permiso de construir y el constructor abierto (sin cambios); Esc la cierra como antes, también
+  desde el campo de nombre. Sin camino de red nuevo: lee el estado de `disparadores`, `cerradura` y `contadores`
+  y llama a `nombrar`/`ajustar`/`fijar`; el servidor valida. Lógica pura en `apps/plaza/ficha-objeto.ts`
+  (`logicaDeObjeto`, `pestanaConTecla`); la solidez del inspector pasa a una función compartida.
+- Números: `test/ficha-objeto.test.ts` 6/6 (2 nuevas). `npm test` 917/920 (los 3 rojos son los conocidos de
+  `enlaces`, falta `qrcode-svg`). Pierna e2e del constructor (chromium) en verde con 8 pasos nuevos (pestañas,
+  clic, flechas, «Abrir el cable», ajustes que cambian el objeto en el servidor y B lo ve, «Abrir inspector»).
+  Página antes de dibujar: 510,0 → 511,9 kB gz (+1,9 kB; tope 1000). Captura real en
+  `work/numinia-engine-wt-creativo2-captura-c4.png`. Sin subir la versión (la sube quien fusiona).
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `creativo/c4-c5` sobre `origin/main` cb35ef4 (sin push).
+- Siguiente: C5 (móvil/VR: los mismos iconos grandes, sin tooltips de ratón).
