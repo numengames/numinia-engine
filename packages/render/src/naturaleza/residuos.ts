@@ -234,18 +234,25 @@ const bobina: Hechura = (r, C) => {
   return { tris: B.tris, alto: H, radio: Rb, led: [0, H, 0], enterrar: [0.12, 0.22], senal: false };
 };
 
-/** GEAR: a toothed disc 2.6–3.4 m across, set on edge and half sunk (closed both sides: it is seen from behind too); bright raised hub. */
+/** GEAR: a toothed disc 2.6–3.4 m across, set on edge and half sunk (closed both sides: it is seen from behind too); bright raised hub.
+ *  ED2 (work/saber-3d/comparisons/catalogo-tecnicas.md: «bisel + normales ponderadas»; http://wiki.polycount.com/wiki/Face_weighted_normals,
+ *  https://www.blog.radiator.debacle.us/2017/07/bevels-in-video-games.html): the front-face/flank corner at the tooth rim was a bare 90°
+ *  join (flat-shaded, reads as a hard line with no highlight: «the look of the 2000s»). A thin bright chamfer band now sits in its place —
+ *  a real bevel, not a shading trick — so the rim catches a rim-light streak at the silhouette, same recipe `hoja` already used on its edges. */
 const engranaje: Hechura = (r, C) => {
   const B = new Constructor(), T = r() < 0.5 ? 7 : 8, R = entre(r, 1.3, 1.7), raiz = R * 0.8, hub = R * 0.32, e = 0.28, n = 2 * T;
-  const cima: V3[] = [], base: V3[] = [], cubo: V3[] = [], h2: V3[] = [];
+  const BISEL = 0.05; // chamfer depth/inset (m): small and constant, so the cost stays "algunos tris más" at every tier
+  const cima: V3[] = [], base: V3[] = [], cubo: V3[] = [], h2: V3[] = [], bisel: V3[] = [];
   for (let k = 0; k < n; k++) {
     const a = (k / n) * Math.PI * 2, rr = k % 2 === 0 ? R : raiz, ca = Math.cos(a), sa = Math.sin(a);
     cima.push([ca * rr, e, sa * rr]); base.push([ca * rr, 0, sa * rr]); cubo.push([ca * hub, e, sa * hub]); h2.push([ca * hub * 0.7, e + 0.18, sa * hub * 0.7]);
+    bisel.push([ca * (rr - BISEL), e - BISEL, sa * (rr - BISEL)]); // inset ring: the chamfer's inner edge (front face and flank now meet here instead)
   }
   const arriba: V3 = [0, -3, 0], abajo: V3 = [0, 3, 0], tapa: V3 = [0, e + 0.2, 0];
   for (let k = 0; k < n; k++) {
     const k2 = (k + 1) % n;
-    B.quad(cima[k], cima[k2], cubo[k2], cubo[k], C.cuerpo, "metal", arriba);                                // front face
+    B.quad(bisel[k], bisel[k2], cubo[k2], cubo[k], C.cuerpo, "metal", arriba);                                // front face (now inset by the chamfer)
+    B.quad(cima[k], cima[k2], bisel[k2], bisel[k], C.realce, "metal", arriba);                                 // ED2 bevel band: bright, catches light at the rim
     B.quad(cima[k], base[k], base[k2], cima[k2], k % 2 === 0 ? C.realce : C.cuerpo, "metal", [0, e / 2, 0]); // teeth flanks
     B.fuera(base[k], base[k2], [0, 0, 0], C.cuerpo, "metal", abajo);                                         // back face (a fan)
   }
