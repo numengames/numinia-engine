@@ -62,6 +62,11 @@ import { crearPrecompilador } from "./precompilar.ts";
 export { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 export type { EntornoDatos } from "./entorno.ts";
 export type { Luz } from "./teletransporte.ts";
+// D-058 spike: «materia de bloques» — a shape of dice-shaped blocks that assembles and crumbles (materia.ts, materia-politica.ts)
+export { crearMateria } from "./materia.ts";
+export type { Materia } from "./materia.ts";
+export { mezcla, muestrear, muestrearMalla, cuantos, lado, areaForma, MEZCLA, BLOQUES_PIEZA } from "./materia-politica.ts";
+export type { Forma, Mezcla, Metodo, Muestra } from "./materia-politica.ts";
 export type { Calidad, Nivel } from "./calidad.ts";
 import { decidirLOD } from "./lod-politica.ts";
 export { decidirLOD, LOD_LEJOS_M, LOD_HISTERESIS_M } from "./lod-politica.ts";

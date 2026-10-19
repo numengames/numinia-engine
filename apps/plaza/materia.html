@@ -1,0 +1,19 @@
+<!doctype html>
+<!-- Dev-only test page of the «materia de bloques» spike (D-058): not in the build (vite builds index.html only).
+     npm run dev → http://127.0.0.1:5173/materia.html?nivel=A&metodo=relleno&forma=esfera&p=0.5&modo=junta&webgl=1
+     Without p the piece loops: assemble, hold, crumble. -->
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Materia de bloques · prueba</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #17242a; overflow: hidden; font: 13px system-ui, sans-serif; color: #f9ebdc; }
+    #info { position: fixed; left: 10px; top: 8px; background: #0008; padding: 4px 8px; border-radius: 4px; white-space: pre; }
+  </style>
+</head>
+<body>
+  <div id="info"></div>
+  <script type="module" src="./materia-demo.ts"></script>
+</body>
+</html>
