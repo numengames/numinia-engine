@@ -96,6 +96,9 @@ html, body { font-family: "Geist", system-ui, sans-serif; }
 #panel-construir button[aria-pressed="true"], #minimapa button[aria-pressed="true"], #ficha-objeto button[aria-pressed="true"], #ficha-objeto button[aria-selected="true"], #barra-arriba button[aria-pressed="true"], #panel-entorno button[aria-pressed="true"] {
   background: var(--n-texto) !important; color: var(--n-fondo) !important; border-color: var(--n-texto) !important; font-weight: 600;
 }
+/* the «Naturaleza» switch (apps/plaza/entorno.ts): a phone toggle, round track; on = the house action colour */
+#panel-entorno button[role="switch"] { border-radius: 15px !important; }
+#panel-entorno button[role="switch"][aria-checked="true"] { background: var(--n-accion) !important; border-color: var(--n-turquesa) !important; }
 #panel-construir [data-eje="X"] { color: #F35059 !important; } #panel-construir [data-eje="Y"] { color: #8FC46B !important; } #panel-construir [data-eje="Z"] { color: #5D9BD6 !important; }
 #ficha-objeto button.peligro, #panel-construir button.peligro { background: var(--n-grana) !important; color: #fff !important; border-color: var(--n-grana) !important; }
 #ficha-objeto button.peligro:hover, #panel-construir button.peligro:hover { background: var(--n-grana-h) !important; }

@@ -1287,3 +1287,15 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `naturaleza/ola-1` (origin/main 9c28379 + exp/e01-base 438e061 + e02 73e415f + e03 3a341c7 + e04 b2a4e10
   + e24 f28b5fd + e05 1eaa128 + e50 63bad7e + e51 1906d45). Versión 0.19.0 → 0.20.0.
 - Siguiente: que Pablo elija agua (a/b/oceano) y cielo con las fotos; medir en la Quest por USB.
+
+## 2026-10-19 19:41 · naturaleza/interruptor · hecho
+- Qué: quien puede construir enciende o apaga la naturaleza desde dentro del mundo, con el interruptor «Naturaleza».
+  Está arriba de la sección Entorno de Construir (C). El servidor comprueba el permiso de construir, escribe solo `activa` en el
+  `naturaleza.json` del mundo (lo crea si falta; nunca pisa uno roto) y todas las páginas la montan o la quitan sin reiniciar.
+- Números: `test/naturaleza-interruptor.test.ts` nuevo (6 pruebas); `node --test test/naturaleza*.test.ts` 195/195; entorno,
+  feature, capas, disparadores, conMundo y accesibilidad 118/118. En la página (Chromium sin GPU, mundo vacío, 5990/8990):
+  84 llamadas / 24 642 triángulos antes, igual que `main` cb0de4e con el mismo arnés; encendida 66 / 42 204 y el fichero
+  queda `{ schema, activa: true }`; apagada vuelve a 84 / 24 642 exactos.
+- Consumo: sin medir · Opus 5.5 (subagente).
+- Commit: rama `naturaleza/interruptor` (desde origin/main cb0de4e). Versión 0.21.1 → 0.22.0.
+- Siguiente: probarlo con Pablo en un mundo real con pase de numinia.com y dos páginas a la vez.
