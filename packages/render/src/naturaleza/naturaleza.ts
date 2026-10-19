@@ -134,7 +134,7 @@ export function crearNaturaleza(h: HNaturaleza) {
   function construir(m: Awaited<ReturnType<typeof cargar>>, d: NaturalezaNormal, nivel: Nivel): Real {
     const [T, A, H, E, AG] = m, t0 = performance.now();
     const pal = COLORES_PALETA[d.paleta], grupo = new THREE.Group(); grupo.name = "naturaleza";
-    const terreno = T.crearTerreno({ semilla: d.semilla, nivel, tamano: d.tamano, plaza: d.plaza, niebla: h.niebla(), escena: grupo, sinEstanque: !d.estanque, colores: pal.terreno, recibeSombra: nivel === "A" });
+    const terreno = T.crearTerreno({ semilla: d.semilla, nivel, tamano: d.tamano, plaza: d.plaza, niebla: h.niebla(), escena: grupo, sinEstanque: !d.estanque, colores: pal.terreno, recibeSombra: nivel === "A", aguaPlana: nivel === "D" ? 0x2f6f8f : undefined });
     terreno.malla.userData.mapa = "suelo";
     const puntos = E.esparcirArboles(terreno, { semilla: d.semilla, tamano: d.tamano, plaza: d.plaza, densidad: d.arboles, nivel, paleta: d.paleta, estanque: d.estanque ? terreno.estanque : null });
     const arboles = A.crearArboles({ vientoU: h.vientoU as never, nivel, camara: h.camara }, puntos);
@@ -142,7 +142,7 @@ export function crearNaturaleza(h: HNaturaleza) {
     const hierba = H.crearHierba({ vientoU: h.vientoU, nivel }, { alturaEn: terreno.alturaEn, zonaEn: terreno.zonaEn, colores: pal.hierba },
       { semilla: d.semilla, nivel, escena: grupo, empujaCamara: false, tabla: d.hierba >= 1 ? undefined : { tuftsMax: Math.max(40, Math.round(HIERBA_POR_NIVEL[nivel].tuftsMax * d.hierba)) } });
     let agua: Real["agua"] = null;
-    if (d.estanque) {
+    if (d.estanque && nivel !== "D") { // N6: on tier D the pond is painted into the terrain mesh (one draw call less)
       const t = uniform(0) as unknown as { value: number }, r = terreno.estanque.radio * 1.2, forma = { tipo: "circulo" as const, radio: r };
       const detalle = (h.detalleAgua?.() ?? { olas: 0, espuma: false, lineas: false, caustica: false, destellos: false }) as never;
       const mat = AG.materialDeAgua({ color: 0x2f6f8f, forma, detalle, tiempo: t, luz: h.aguaLuz as never, bordeOculto: r * 0.12 }, 12);

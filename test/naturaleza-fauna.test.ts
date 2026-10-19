@@ -167,8 +167,8 @@ test("caps per tier: never more than the cell cap of the tier, the cap follows t
   for (const nv of NIVELES_FAUNA) {
     const t = FAUNA_POR_NIVEL[nv];
     for (const g of GRUPOS) {
-      const base = Math.ceil(t.enVista[g] / celdasEnVista(nv));
-      assert.ok(t.celda[g] >= base && t.celda[g] <= base + 1, `${nv} ${g}: celda ${t.celda[g]} vs ceil(enVista / cells in view) ${base}`);
+      // N6: `enVista` (drawn) fell below what the world holds; the world must always hold at least what is drawn
+      assert.ok(t.celda[g] * celdasEnVista(nv) >= t.enVista[g], `${nv} ${g}: ${t.celda[g]} per cell cannot fill ${t.enVista[g]} in view`);
       const menor = NIVELES_FAUNA[NIVELES_FAUNA.indexOf(nv) + 1];
       if (menor) assert.ok(FAUNA_POR_NIVEL[menor].celda[g] <= t.celda[g] && FAUNA_POR_NIVEL[menor].enVista[g] < t.enVista[g], `${nv} > ${menor} for ${g}: a smaller tier never holds more`);
     }
@@ -199,7 +199,7 @@ test("caps per tier: never more than the cell cap of the tier, the cap follows t
     const media = suma / k, tope = FAUNA_POR_NIVEL[nv].celda.mariposa * (2 * cel + 1) ** 2;
     assert.ok(media <= tope * OCUPACION * 1.02 && media > tope * OCUPACION * 0.3, `${nv}: ${media.toFixed(1)} butterflies over ${(2 * cel + 1) ** 2} cells (cap ${tope})`);
   }
-  assert.ok(FAUNA_POR_NIVEL.A.enVista.mariposa === 60 && FAUNA_POR_NIVEL.B.enVista.mariposa === 36 && FAUNA_POR_NIVEL.C.enVista.mariposa === 24 && FAUNA_POR_NIVEL.D.enVista.mariposa === 10);
+  assert.ok(FAUNA_POR_NIVEL.A.enVista.mariposa === 24 && FAUNA_POR_NIVEL.B.enVista.mariposa === 16 && FAUNA_POR_NIVEL.C.enVista.mariposa === 10 && FAUNA_POR_NIVEL.D.enVista.mariposa === 6);
 });
 
 // ---------------------------------------------------------------- the probability table

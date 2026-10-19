@@ -680,3 +680,43 @@ Queda feo: la arena y el agua siguen más claras que la hierba de noche, y el ci
 
 ### F5b · Noche: la orilla
 La arena/orilla «más clara que la hierba» de noche no era la paleta del terreno (Lambert, ya atenuado por F4b) sino la **espuma y los destellos del agua** (`agua-estilo.ts`): llevan luz propia (`emissive = color del sol × 0,35`) y `aguaLuz.sol` era el color del sol sin intensidad, así que no bajaba de noche, y la espuma es opaca. Arreglo (`entorno.ts`, cero coste): `solColorU` se escala con el sol del reloj (`0,06 + 0,94·día`) cuando `solHora`. Fotos: `fotos/f5-noche-estanque-antes.png` / `-despues.png`.
+
+## N6 · Una porción pequeña de la escena: el presupuesto de naturaleza se encoge
+
+La casa adoptó el presupuesto de **escena entera** (PC ≤ 100 llamadas, 50 k triángulos, 40 MB de texturas, 24 sombras; móvil ≤ 60 / 25 k; visor ≤ 80 / 35 k).
+Un mundo sin naturaleza ya gasta 82-96 llamadas y 32-53 k triángulos, así que la naturaleza entera (terreno + árboles + hierba + agua + fauna) pasa a ser una porción pequeña.
+**Única fuente: `PRESUPUESTO_NATURALEZA` en `naturaleza/niveles.ts`** (totales + reparto por pieza `reparto`); `limits.json` (`nature_*`) y `FICHA-TECNICA.md` los repiten; los tests comprueban cada pieza contra su parte.
+
+| Nivel | triángulos | llamadas | reparto de triángulos (terreno / árboles / hierba / fauna) |
+|---|---|---|---|
+| A (PC) | ≤ 15 000 | ≤ 8 | 3 600 / 5 200 / 4 500 / 1 700 |
+| B (visor) | ≤ 10 000 | ≤ 7 | 1 800 / 3 000 / 2 500 / 1 100 |
+| C (móvil) | ≤ 8 000 | ≤ 6 | 1 400 / 2 700 / 1 900 / 800 |
+| D (móvil viejo) | ≤ 4 000 | ≤ 5 | 700 / 1 200 / 1 100 / 400 |
+
+**Qué se hizo (elecciones, no recortes lineales).**
+- **Árboles: 5 llamadas → 2 (A/B) o 1 (C/D).** Las cuatro especies son *una* plantilla de 40 triángulos (tronco de 5 lados + 3 copas de bipirámide pentagonal) con cuatro juegos de posiciones por vértice
+  (`position`, `pos1..3`); el shader elige el juego por instancia (`especie`). Los colores de hoja (otoño, flor) van por instancia. Lejos: silueta de 26 triángulos (tronco de 3 lados). En C/D no hay malla lejana.
+  Árboles cerca/visibles: A 24/184 (antes 55/340), B 16/106 (28/245), C 66/66, D 30/30.
+- **Hierba: 2 llamadas → 1.** Las flores son matas de la misma malla (3 triángulos); la punta de la hoja lleva el color de la flor (`FLOR_MARCA` en `iCol.w`). Matas más anchas y altas, radio menor: A 24 m / 1 400 matas (antes 38 m / 5 600),
+  B 16 m / 800, C 14 m / 600, D 10 m / 340. El fundido por distancia ya existía y reparte la densidad.
+- **Terreno:** celdas A 40 (antes 72), B 28 (48), C 24 (40), D 16 (28): es de caras planas y el relieve es el mismo. En D el estanque se pinta en la propia malla del terreno (14 triángulos, sin animación): una llamada menos.
+- **Fauna: se dibujan menos, no hay menos en el mundo.** `enVista` (los N más cercanos que se dibujan) baja: A 24 mariposas / 60 luciérnagas / 6 pájaros (antes 60/90/16); B 16/40/4; C 10/24/3; D 6/12/2.
+  `celda` (cuántos hay en el mundo por celda de 32 m) **no cambia**, y por eso **las probabilidades de rareza publicadas no cambian** (la tabla de arriba sigue valiendo). Comprobado: los N dibujados cubren siempre más de 12 m a la redonda
+  (peor caso, D con pájaros: ≈ 20 m), que es lo que mira el modelo (`aviso` = 12 m). Se conservan las 12 razas por grupo.
+
+### Antes / después (naturaleza entera, peor hora, mundo de semilla 1234, `tools/naturaleza-medir.ts`)
+
+| Nivel | triángulos antes → ahora | llamadas antes → ahora | buffers GPU antes → ahora | construcción (ms) antes → ahora* |
+|---|---|---|---|---|
+| A | 52 157 → 14 192 | 12 → 8 | 1 036 KB → 321 KB | 53 → 36 |
+| B | 29 839 → 8 126 | 10 → 7 | 512 KB → 173 KB | 31 → 22 |
+| C | 27 566 → 6 520 | 10 → 6 | 403 KB → 133 KB | 33 → 20 |
+| D | 12 276 → 3 245 | 8 → 5 | 226 KB → 73 KB | 19 → 14 |
+
+\* terreno + esparcido + árboles + hierba (el esparcido, ~15 ms, no cambia). Buffers: atributos de vértice + instancias + índices de terreno, árboles, hierba y fauna (sin el agua animada, que no cambia).
+Ahora la naturaleza ocupa, sobre el presupuesto de escena entera: A ≈ 8 llamadas y 14 k triángulos de 100 y 50 k; B ≈ 7 y 8 k de 80 y 35 k; C ≈ 6 y 6,5 k de 60 y 25 k.
+
+**Qué se ve peor** (fotos reales, `.run/n6/`, contra las de F4): copas más sencillas (3 bipirámides en vez de 3 octaedros más ramas; las ramas visibles de cerca desaparecen);
+hierba que acaba antes (24 m en vez de 38) y menos densa en el horizonte; menos mariposas y luciérnagas a la vez; el relieve se ve igual pero el contorno de las colinas lejanas es algo más anguloso;
+en D el estanque es un disco plano sin olas. **Cero opciones nuevas** (no hay `calidad` en `naturaleza.json`).

@@ -20,7 +20,7 @@ import { esparcirArboles, RADIO_ESPECIE, SEPARACION, MARGEN_PLAZA, CELDA, PENDIE
 import type { Paleta } from "../packages/render/src/naturaleza/esparcir.ts";
 import { NATURALEZA_POR_NIVEL, HIERBA_POR_NIVEL, PRESUPUESTO_NATURALEZA, ARBOLES_MAX_POR_NIVEL } from "../packages/render/src/naturaleza/niveles.ts";
 import { anillo, TRIANGULOS_TUFT, TRIANGULOS_FLOR } from "../packages/render/src/naturaleza/hierba.ts";
-import { TRIS_MAX_CERCA, TRIS_MAX_LEJOS } from "../packages/render/src/naturaleza/arboles.ts";
+import { geometriaLejos, TRIANGULOS_ARBOL } from "../packages/render/src/naturaleza/arboles.ts";
 import { crearNaturaleza, normalizar, DEFECTOS_NATURALEZA } from "../packages/render/src/naturaleza/naturaleza.ts";
 import type { Nivel } from "../packages/render/src/calidad.ts";
 
@@ -197,15 +197,15 @@ test("scatter CPU: a full 200 m world builds in well under a second (pure code, 
 test("budget: terrain + trees + grass fit the brief's triangles and draw calls on every tier, in the worst case", () => {
   for (const n of NIVELES) {
     const cfg = NATURALEZA_POR_NIVEL[n], b = PRESUPUESTO_NATURALEZA[n], a = anillo(HIERBA_POR_NIVEL[n]);
-    const terreno = triangulosDeTerreno(CELDAS_TERRENO[n]);
-    const arboles = cfg.arbolesCerca * TRIS_MAX_CERCA + (cfg.arbolesVisibles - cfg.arbolesCerca) * TRIS_MAX_LEJOS; // every near slot at the cap, every other at the far cap
+    const terreno = triangulosDeTerreno(CELDAS_TERRENO[n], n === "D");
+    const arboles = cfg.arbolesCerca * TRIANGULOS_ARBOL + (cfg.arbolesVisibles - cfg.arbolesCerca) * geometriaLejos().triangulos; // every near slot at the cap, every other at the far cap
     const hierba = a.celdas.length * (a.capTuft * TRIANGULOS_TUFT + a.capFlor * TRIANGULOS_FLOR);
     assert.ok(terreno + arboles + hierba <= b.triangulos, `${n}: ${terreno} + ${arboles} + ${hierba} = ${terreno + arboles + hierba} > ${b.triangulos}`);
-    const llamadas = 1 + 5 + (a.capFlor > 0 ? 2 : 1) + 1;
+    const llamadas = 1 + (cfg.arbolesVisibles > cfg.arbolesCerca ? 2 : 1) + 1 + (n === "D" ? 0 : 1) + 2; // terrain + trees + grass (flowers inside) + water (D paints it into the terrain) + fauna (butterflies+fireflies, birds)
     assert.ok(llamadas <= b.llamadas, `${n}: ${llamadas} draw calls > ${b.llamadas}`);
   }
-  assert.deepEqual(NIVELES.map((n) => PRESUPUESTO_NATURALEZA[n].triangulos), [60000, 35000, 35000, 15000]);
-  assert.deepEqual(NIVELES.map((n) => PRESUPUESTO_NATURALEZA[n].llamadas), [12, 10, 10, 8]);
+  assert.deepEqual(NIVELES.map((n) => PRESUPUESTO_NATURALEZA[n].triangulos), [15000, 10000, 8000, 4000]);
+  assert.deepEqual(NIVELES.map((n) => PRESUPUESTO_NATURALEZA[n].llamadas), [8, 7, 6, 5]);
 });
 
 // ---------------------------------------------------------------- the piece
@@ -231,7 +231,7 @@ test("the piece: off by default it builds nothing; on it hides the flat ground; 
   assert.equal(ground.visible, false, "the flat ground is hidden only while the nature is on");
   assert.equal(padre.children.length, 2);
   const grupo = n.grupo!, { geos, mats } = grabar(grupo);
-  assert.ok(geos.length >= 8, `${geos.length} meshes`);
+  assert.ok(geos.length >= 5, `${geos.length} meshes`);
   let liberados = 0;
   for (const g of geos) g.addEventListener("dispose", () => liberados++);
   for (const m of mats) m.addEventListener("dispose", () => liberados++);

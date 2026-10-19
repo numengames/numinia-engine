@@ -150,7 +150,7 @@ en Quest entra en todo.
 |---|---|---|---|---|
 | Triángulos en pantalla | 2–3 M | 300–500 k por ojo | 300–500 k | 150–250 k |
 | Draw calls | ≤ 1.500 | ≤ 150 por ojo | ≤ 150 | ≤ 80 |
-| Naturaleza entera (terreno + árboles + hierba + fauna): llamadas / triángulos, medido | ≤ 12 / 60 k | ≤ 10 / 35 k | ≤ 10 / 35 k | ≤ 8 / 15 k |
+| Naturaleza entera (terreno + árboles + hierba + fauna): llamadas / triángulos, medido | ≤ 8 / 15 k | ≤ 7 / 10 k | ≤ 6 / 8 k | ≤ 5 / 4 k |
 | Texturas (KTX2) | ≤ 1 GB | ≤ 256 MB | ≤ 256 MB | ≤ 128 MB |
 | Luces | varias + sombras | sol + 2 sin sombra | sol + 1 | sol |
 | Avatares completos | 60–100 | 12–25 | 12 | 6 |

@@ -26,7 +26,7 @@
 // compute); tufts are `InstancedBufferGeometry` (no 64-byte instance matrix per tuft: 32 bytes per tuft in all);
 // the zone, slope and shore edge decide density; stylised flowers in clumps of one colour.
 import * as THREE from "three/webgpu";
-import { uniform, attribute, float, vec2, vec3, positionLocal, sin, cos, dot, length, normalize, max, clamp, smoothstep, mix, oneMinus, abs, transformNormalToView } from "three/tsl";
+import { uniform, attribute, step, float, vec2, vec3, positionLocal, sin, cos, dot, length, normalize, max, clamp, smoothstep, mix, oneMinus, abs, transformNormalToView } from "three/tsl";
 import { hash2, valor2 } from "./semilla.ts";
 import { HIERBA_POR_NIVEL } from "./niveles.ts";
 import type { HierbaNivel } from "./niveles.ts";
@@ -45,7 +45,7 @@ export const PALETA_HIERBA = { prado: 0x9bc25a, bosque: 0x558c3b, seco: 0xc9cf62
 /** Share of the meadow's candidates kept under trees. */
 export const DENSIDAD_BOSQUE = 0.4;
 /** Height (m) of a tuft at scale 1, and of a flower. */
-export const ALTO_TUFT = 0.78, ALTO_FLOR = 0.85;
+export const ALTO_TUFT = 0.9, ALTO_FLOR = 0.85;
 const TAU = Math.PI * 2;
 const R2A = 0.7548776662466927, R2B = 0.5698402909980532;
 const frac = (v: number) => v - Math.floor(v);
@@ -136,14 +136,14 @@ export function geometriaTuft(hojas = 3): THREE.BufferGeometry {
   const alturas = [1, 0.78, 0.9, 0.7, 0.95];
   for (let i = 0; i < hojas; i++) {
     const a = (i / hojas) * TAU + 0.35 + i * 0.1, rx = Math.cos(a), rz = Math.sin(a), tx = -rz, tz = rx, h = alturas[i % 5];
-    const w = 0.3, b0 = 0.06, b1 = 0.42 * h;
+    const w = 0.38, b0 = 0.06, b1 = 0.42 * h;
     pos.push(rx * b0 - tx * w, 0, rz * b0 - tz * w, rx * b0 + tx * w, 0, rz * b0 + tz * w, rx * b1 + tx * 0.04, h, rz * b1 + tz * 0.04);
     col.push(0.55, 0.68, 0.45, 0.55, 0.68, 0.45, 0.9, 1.08, 0.5);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
-  g.setAttribute("cab", new THREE.Float32BufferAttribute(new Array(hojas * 3).fill(0), 1));
+  g.setAttribute("cab", new THREE.Float32BufferAttribute(Array.from({ length: hojas }, (_, i) => [0, 0, alturas[i % 5]]).flat(), 1)); // N6: = the vertex height 0…1 (a flower colours its upper part)
   return g;
 }
 /** Flower: a thin stem (1 triangle) and a 4-sided bud on top (4 triangles), height 1 (× ALTO_FLOR m). Head vertices carry `cab` = 1. */
@@ -163,7 +163,9 @@ export function geometriaFlor(): THREE.BufferGeometry {
   g.setAttribute("cab", new THREE.Float32BufferAttribute(cab, 1));
   return g;
 }
-export const TRIANGULOS_TUFT = 3, TRIANGULOS_FLOR = 5;
+export const TRIANGULOS_TUFT = 3, TRIANGULOS_FLOR = 3; // N6: a flower is a tuft of the same geometry (3 triangles)
+/** N6: added to the `escala` of a flower instance (iCol.w); the shader splits it back into «flower?» and the scale. */
+export const FLOR_MARCA = 10;
 
 // ---------------------------------------------------------------- material (TSL)
 type N = ReturnType<typeof float>;
@@ -176,7 +178,8 @@ export function materialHierba(e: Entrada): THREE.MeshLambertNodeMaterial {
   const mat = new THREE.MeshLambertNodeMaterial({ side: THREE.DoubleSide });
   mat.name = e.flor ? "hierba-flores" : "hierba";
   const iPos = attribute("iPos", "vec4"), iCol = attribute("iCol", "vec4");
-  const base = iPos.xyz as unknown as ReturnType<typeof vec3>, giro = iPos.w as unknown as N, esc0 = iCol.w as unknown as N;
+  const base = iPos.xyz as unknown as ReturnType<typeof vec3>, giro = iPos.w as unknown as N;
+  const marca = step(FLOR_MARCA / 2, iCol.w) as N, esc0 = (iCol.w as unknown as N).sub(marca.mul(FLOR_MARCA)) as N; // N6: flowers are tuft instances flagged by +FLOR_MARCA
   const bxz = base.xz as unknown as ReturnType<typeof vec2>;
   const rnd = giro.mul(1 / TAU) as N;
   const cam = e.camara as unknown as ReturnType<typeof vec3>;
@@ -219,14 +222,18 @@ export function materialHierba(e: Entrada): THREE.MeshLambertNodeMaterial {
     aplasta = aplasta.add(infl.mul(w).mul(0.55)) as N;
   }
   const cg = cos(giro) as N, sg = sin(giro) as N;
-  const lx = p.x.mul(e.tam).mul(k) as N, lz = p.z.mul(e.tam).mul(k) as N;
+  const ancho = marca.mul(0.35).add(1) as N; // a flower's blades are wider, so the coloured tip reads as a bud
+  const lx = p.x.mul(e.tam).mul(k).mul(ancho) as N, lz = p.z.mul(e.tam).mul(k).mul(ancho) as N;
   const ly = h.mul(alto).mul(oneMinus(clamp(aplasta, 0, 0.7))) as N;
   mat.positionNode = vec3(base.x.add(lx.mul(cg)).sub(lz.mul(sg)).add(dx), base.y.add(ly), base.z.add(lx.mul(sg)).add(lz.mul(cg)).add(dz));
   // ---- colour: vertex gradient × the tuft's colour (zone, patches, tint); flowers keep a green stem; light ripples with the gust ----
   const vc = attribute("color", "vec3") as unknown as ReturnType<typeof vec3>;
   const tinte = iCol.xyz as unknown as ReturnType<typeof vec3>;
   const brillo = gust.mul(S.mul(0.5).add(0.12)).toVarying("hierba_racha") as N;
-  const albedo = e.flor ? mix(vc, vc.mul(tinte), attribute("cab", "float") as unknown as N) : vc.mul(tinte);
+  const cab = attribute("cab", "float") as unknown as N;
+  const tallo = mix(vc, vc.mul(vec3(0.7, 1.0, 0.55)), 0.5) as unknown as ReturnType<typeof vec3>;               // a flower's stem stays green …
+  const copa = mix(tallo, tinte.mul(1.12), smoothstep(0.38, 0.62, cab)) as unknown as ReturnType<typeof vec3>;    // … and its upper third wears the flower colour
+  const albedo = mix(vc.mul(tinte), copa, marca) as unknown as ReturnType<typeof vec3>;
   mat.colorNode = (albedo as unknown as ReturnType<typeof vec3>).mul(brillo.mul(0.4).add(0.88));
   // a soft, nearly upward normal on every blade: the meadow reads as one lit surface, not as spikes
   mat.normalNode = transformNormalToView(vec3(0, 1, 0));
@@ -278,8 +285,8 @@ export function crearHierba(h: HierbaH, fuente: Fuente, op: OpcionesHierba) {
     grupo.add(m);
     return { m, g, pos, col, mat };
   };
-  const T = crear(geometriaTuft(hojas), nTuft, false);
-  const F = a.capFlor > 0 ? crear(geometriaFlor(), nFlor, true) : null;
+  const cap = a.capTuft + a.capFlor;   // N6: a slot's region holds its tufts, then its flowers (flower = a tuft with `escala` + FLOR_MARCA): ONE buffer, ONE call
+  const T = crear(geometriaTuft(hojas), nTuft + nFlor, false);
   op.escena?.add(grupo);
 
   // slot state: which cell it holds, how far its fill got, how many it holds
@@ -292,8 +299,7 @@ export function crearHierba(h: HierbaH, fuente: Fuente, op: OpcionesHierba) {
   const limpiar = (s: number) => {
     const st = slots[s];
     vivosT -= st.nT; vivosF -= st.nF; st.nT = 0; st.nF = 0; st.k = 0;
-    T.pos.array.fill(0, s * a.capTuft * 4, (s + 1) * a.capTuft * 4); T.col.array.fill(0, s * a.capTuft * 4, (s + 1) * a.capTuft * 4);
-    if (F) { F.pos.array.fill(0, s * a.capFlor * 4, (s + 1) * a.capFlor * 4); F.col.array.fill(0, s * a.capFlor * 4, (s + 1) * a.capFlor * 4); }
+    T.pos.array.fill(0, s * cap * 4, (s + 1) * cap * 4); T.col.array.fill(0, s * cap * 4, (s + 1) * cap * 4);
     sucios.add(s);
   };
   const recentrar = (cx0: number, cz0: number) => {
@@ -315,7 +321,6 @@ export function crearHierba(h: HierbaH, fuente: Fuente, op: OpcionesHierba) {
     const d = (s: number) => Math.hypot(slots[s].cx - cx0, slots[s].cz - cz0);
     cola = [...tienen.values()].filter((s) => !slots[s].hecho).sort((p, q) => d(p) - d(q));
     const c = T.g.boundingSphere!.center; c.set((cx0 + 0.5) * cfg.celda, 4, (cz0 + 0.5) * cfg.celda);
-    if (F) F.g.boundingSphere!.center.copy(c);
   };
   const llenar = (s: number, hasta: number): boolean => {
     const st = slots[s], total = a.capTuft + a.capFlor;
@@ -324,14 +329,14 @@ export function crearHierba(h: HierbaH, fuente: Fuente, op: OpcionesHierba) {
       const k = st.k++; n++;
       if (k < a.capTuft) {
         if (!tuftDe(op.semilla, st.cx, st.cz, k, fuente, cfg.celda, pieza)) continue;
-        const o = (s * a.capTuft + st.nT++) * 4; vivosT++;
+        const o = (s * cap + st.nT++) * 4; vivosT++;
         T.pos.array[o] = pieza.x; T.pos.array[o + 1] = pieza.y; T.pos.array[o + 2] = pieza.z; T.pos.array[o + 3] = pieza.giro;
         T.col.array[o] = pieza.r; T.col.array[o + 1] = pieza.g; T.col.array[o + 2] = pieza.b; T.col.array[o + 3] = pieza.escala;
-      } else if (F) {
+      } else {
         if (!florDe(op.semilla, st.cx, st.cz, k - a.capTuft, fuente, cfg.celda, pieza)) continue;
-        const o = (s * a.capFlor + st.nF++) * 4; vivosF++;
-        F.pos.array[o] = pieza.x; F.pos.array[o + 1] = pieza.y; F.pos.array[o + 2] = pieza.z; F.pos.array[o + 3] = pieza.giro;
-        F.col.array[o] = pieza.r; F.col.array[o + 1] = pieza.g; F.col.array[o + 2] = pieza.b; F.col.array[o + 3] = pieza.escala;
+        const o = (s * cap + a.capTuft + st.nF++) * 4; vivosF++;
+        T.pos.array[o] = pieza.x; T.pos.array[o + 1] = pieza.y; T.pos.array[o + 2] = pieza.z; T.pos.array[o + 3] = pieza.giro;
+        T.col.array[o] = pieza.r; T.col.array[o + 1] = pieza.g; T.col.array[o + 2] = pieza.b; T.col.array[o + 3] = pieza.escala + FLOR_MARCA;
       }
     }
     sucios.add(s);
@@ -341,10 +346,9 @@ export function crearHierba(h: HierbaH, fuente: Fuente, op: OpcionesHierba) {
   const subir = () => {
     if (!sucios.size) return;
     for (const s of sucios) {
-      T.pos.addUpdateRange(s * a.capTuft * 4, a.capTuft * 4); T.col.addUpdateRange(s * a.capTuft * 4, a.capTuft * 4);
-      if (F) { F.pos.addUpdateRange(s * a.capFlor * 4, a.capFlor * 4); F.col.addUpdateRange(s * a.capFlor * 4, a.capFlor * 4); }
+      T.pos.addUpdateRange(s * cap * 4, cap * 4); T.col.addUpdateRange(s * cap * 4, cap * 4);
     }
-    T.pos.needsUpdate = T.col.needsUpdate = true; if (F) F.pos.needsUpdate = F.col.needsUpdate = true;
+    T.pos.needsUpdate = T.col.needsUpdate = true;
     sucios.clear();
   };
 
@@ -378,33 +382,29 @@ export function crearHierba(h: HierbaH, fuente: Fuente, op: OpcionesHierba) {
     const antes = cfg.presupuestoMs; cfg.presupuestoMs = 1e9;
     actualizar(camara, uT.value as number); cfg.presupuestoMs = antes;
   }
-  /** Tufts that rasterise something right now (scale after the fade > 0), for the camera at (x, z): a counter, never per frame. */
+  /** Tufts / flowers that rasterise something right now (scale after the fade > 0), for the camera at (x, z): a counter, never per frame. */
   function visibles(x: number, z: number) {
     let tufts = 0, flores = 0;
-    const cuenta = (pos: Float32Array, col: Float32Array, n: number) => {
-      let c = 0;
-      for (let i = 0; i < n; i++) {
-        const esc = col[i * 4 + 3]; if (esc <= 0) continue;
-        const d = Math.hypot(pos[i * 4] - x, pos[i * 4 + 2] - z), q = 1 - paso(cfg.radio * 0.7, cfg.radio, d), rnd = pos[i * 4 + 3] / TAU;
-        if (Math.min(1, Math.max(0, (q - rnd * 0.8) * 5)) > 0) c++;
-      }
-      return c;
-    };
-    tufts = cuenta(T.pos.array as Float32Array, T.col.array as Float32Array, nTuft);
-    if (F) flores = cuenta(F.pos.array as Float32Array, F.col.array as Float32Array, nFlor);
-    return { tufts, flores, triangulos: tufts * TRIANGULOS_TUFT + flores * TRIANGULOS_FLOR };
+    const pos = T.pos.array as Float32Array, col = T.col.array as Float32Array;
+    for (let i = 0; i < nTuft + nFlor; i++) {
+      let esc = col[i * 4 + 3]; if (esc <= 0) continue;
+      const flor = esc >= FLOR_MARCA / 2; if (flor) esc -= FLOR_MARCA;
+      const d = Math.hypot(pos[i * 4] - x, pos[i * 4 + 2] - z), q = 1 - paso(cfg.radio * 0.7, cfg.radio, d), rnd = pos[i * 4 + 3] / TAU;
+      if (Math.min(1, Math.max(0, (q - rnd * 0.8) * 5)) > 0) { if (flor) flores++; else tufts++; }
+    }
+    return { tufts, flores, triangulos: (tufts + flores) * hojas };
   }
   function estadisticas(): EstadisticasHierba {
     return {
-      dibujos: F ? 2 : 1, instancias: nTuft + nFlor, tuftsVivos: vivosT, floresVivas: vivosF,
-      triangulosVivos: vivosT * hojas + vivosF * TRIANGULOS_FLOR, triangulosEnviados: nTuft * hojas + nFlor * TRIANGULOS_FLOR,
+      dibujos: 1, instancias: nTuft + nFlor, tuftsVivos: vivosT, floresVivas: vivosF,
+      triangulosVivos: (vivosT + vivosF) * hojas, triangulosEnviados: (nTuft + nFlor) * hojas,
       pendientes: cola.length, msUltimo, msMax, celdasLlenadas: llenadas,
     };
   }
   function dispose() {
     grupo.removeFromParent();
-    for (const x of [T, F]) if (x) { x.g.dispose(); x.mat.dispose(); }
+    T.g.dispose(); T.mat.dispose();
   }
-  return { malla: grupo, mallas: F ? [T.m, F.m] : [T.m], actualizar, llenarTodo, visibles, estadisticas, dispose, config: cfg, anillo: a, bytes: (nTuft + nFlor) * 32 };
+  return { malla: grupo, mallas: [T.m], actualizar, llenarTodo, visibles, estadisticas, dispose, config: cfg, anillo: a, bytes: (nTuft + nFlor) * 32 };
 }
 export type Hierba = ReturnType<typeof crearHierba>;

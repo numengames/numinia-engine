@@ -407,7 +407,7 @@ export type OpcionesAves = {
   plazas?: number; lejosM?: number;
 };
 /** Birds in the pool per tier: worst case = every entry a flock of 8 (the most F1 allows) → ≤ 5.0 k / 3.1 k / 2.2 k / 0.94 k triangles. */
-export const PLAZAS_POR_NIVEL: Record<Nivel, number> = { A: FAUNA_POR_NIVEL.A.enVista.pajaro * 8, B: FAUNA_POR_NIVEL.B.enVista.pajaro * 8, C: FAUNA_POR_NIVEL.C.enVista.pajaro * 8, D: FAUNA_POR_NIVEL.D.enVista.pajaro * 8 };
+export const PLAZAS_POR_NIVEL: Record<Nivel, number> = { A: FAUNA_POR_NIVEL.A.enVista.pajaro * 3, B: FAUNA_POR_NIVEL.B.enVista.pajaro * 3, C: FAUNA_POR_NIVEL.C.enVista.pajaro * 3, D: FAUNA_POR_NIVEL.D.enVista.pajaro * 3 };
 /** Beyond this distance (m) a bird morphs to its 5-triangle silhouette, and it is gone `DESVANECE` m later. */
 export const LEJOS_POR_NIVEL: Record<Nivel, number> = { A: 60, B: 48, C: 42, D: 32 };
 const DESVANECE = 14;

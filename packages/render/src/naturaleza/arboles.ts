@@ -21,7 +21,7 @@
 // instanceMatrix, because the wind must read the pre-transform height of each vertex). Zero CPU per tree per frame:
 // `actualizar(t)` writes one uniform; the near/far split is a throttled O(n) pass over typed arrays (see `repartir`).
 import * as THREE from "three/webgpu";
-import { uniform, float, vec2, vec3, attribute, instancedBufferAttribute, positionGeometry, sin, cos, pow, clamp, mix, length, max, step } from "three/tsl";
+import { uniform, float, vec2, vec3, attribute, instancedBufferAttribute, positionGeometry, sin, cos, pow, clamp, mix, length, max, step, oneMinus } from "three/tsl";
 import type { Nivel } from "../calidad.ts";
 import { crearAzar, hash2 } from "./semilla.ts";
 import { NATURALEZA_POR_NIVEL } from "./niveles.ts";
@@ -33,8 +33,8 @@ export type PuntoArbol = { x: number; y: number; z: number; escala: number; giro
 export type Lod = "cerca" | "lejos";
 
 /** Triangle budgets of the brief. */
-export const TRIS_MAX_CERCA = 220;
-export const TRIS_MAX_LEJOS = 60;
+export const TRIS_MAX_CERCA = 40;
+export const TRIS_MAX_LEJOS = 26;
 
 // ---------------------------------------------------------------------------------------------------------------------
 // palette (the brief's ~12 colours: trunk brown, leaf greens + autumn orange + pink blossom, birch white)
@@ -91,122 +91,66 @@ function prisma(m: Malla, a: V3, b: V3, r0: number, r1: number, n: number, c0: T
   }
 }
 
-const T = (1 + Math.sqrt(5)) / 2;
-const ICO: V3[] = ([[-1, T, 0], [1, T, 0], [-1, -T, 0], [1, -T, 0], [0, -1, T], [0, 1, T], [0, -1, -T], [0, 1, -T], [T, 0, -1], [T, 0, 1], [-T, 0, -1], [-T, 0, 1]] as V3[]).map(norm);
-const ICO_CARAS = [0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11, 4, 11, 10, 2, 10, 7, 6, 7, 1, 8, 3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9, 4, 9, 5, 2, 4, 11, 6, 2, 10, 8, 6, 7, 9, 8, 1];
-const OCTA: V3[] = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
-const OCTA_CARAS = [0, 2, 4, 4, 2, 1, 1, 2, 5, 5, 2, 0, 4, 3, 0, 1, 3, 4, 5, 3, 1, 0, 3, 5];
-
-/** A leaf blob: jittered icosahedron (20 faces) or octahedron (8), dark at its bottom, light on top, `leaf` flag for flutter. */
-function mancha(m: Malla, c: V3, r: V3, jit: number, R: () => number, tipo: "ico" | "octa", h: Hojas, rama: number) {
-  const verts = tipo === "ico" ? ICO : OCTA, caras = tipo === "ico" ? ICO_CARAS : OCTA_CARAS;
-  const ids = verts.map((d) => {
-    const j = 1 + jit * (R() * 2 - 1), b = 0.94 + 0.12 * R();
-    const t = suave(0.1, 0.9, d[1] * 0.5 + 0.5);
-    const col = h.oscuro.clone().lerp(h.claro, t);
-    return m.vert([c[0] + d[0] * r[0] * j, c[1] + d[1] * r[1] * j, c[2] + d[2] * r[2] * j], col, rama, 1, b);
-  });
-  for (let i = 0; i < caras.length; i += 3) m.tri(ids[caras[i]], ids[caras[i + 1]], ids[caras[i + 2]], c);
-}
-
-/** A cone (pine tier): `n` sides plus a flat dark underside. */
-function cono(m: Malla, base: V3, alto: number, radio: number, n: number, R: () => number, h: Hojas, lean: V3) {
-  const ring: number[] = [], apex = m.vert([base[0] + lean[0], base[1] + alto, base[2] + lean[2]], h.claro, 0, 1);
-  const centro = m.vert(base, h.oscuro, 0, 1), cap: number[] = [];
-  const rot = R() * Math.PI;
-  for (let k = 0; k < n; k++) {
-    const an = rot + (k / n) * Math.PI * 2, rr = radio * (0.9 + 0.2 * R());
-    const p: V3 = [base[0] + Math.cos(an) * rr, base[1] - 0.05 * R(), base[2] + Math.sin(an) * rr];
-    ring.push(m.vert(p, h.oscuro.clone().lerp(h.claro, 0.18), 0, 1));
-    cap.push(m.vert(p, h.oscuro, 0, 1, 0.8));
-  }
-  const mid: V3 = [base[0], base[1] + alto * 0.35, base[2]];
-  for (let k = 0; k < n; k++) {
-    const k2 = (k + 1) % n;
-    m.tri(ring[k], ring[k2], apex, mid);
-    m.tri(cap[k], cap[k2], centro, [base[0], base[1] + alto, base[2]]);
-  }
-}
-
-const rango = (R: () => number) => (a: number, b: number) => a + (b - a) * R();
-const dirEl = (az: number, el: number): V3 => [Math.cos(az) * Math.cos(el), Math.sin(el), Math.sin(az) * Math.cos(el)];
-const mas = (a: V3, d: V3, l: number): V3 => [a[0] + d[0] * l, a[1] + d[1] * l, a[2] + d[2] * l];
+const LADOS_COPA = 5;   // a leaf blob is a pentagonal bipyramid: 10 triangles, 7 vertices (apex, ring of 5, apex)
 
 /** The metres of height each species is drawn to (the wind's weight is height / this). */
 export const ALTURA: Record<Especie, number> = { roble: 4.7, pino: 6.8, abedul: 5.4, arbusto: 1.5 };
 
-/** One species, one variant. The same code path draws the same NUMBER of random values and primitives for both variants. */
-function construir(esp: Especie, v: 0 | 1): Malla {
-  const m = new Malla(), R = crearAzar(0x6e61 + ESPECIES.indexOf(esp) * 131 + v * 17), rr = rango(R), h = HOJAS[esp][v];
-  if (esp === "roble") {
-    const lx = rr(-0.12, 0.12), lz = rr(-0.12, 0.12), tope: V3 = [lx, 2.5, lz];
-    prisma(m, [0, -0.05, 0], tope, rr(0.27, 0.33), 0.12, 6, TRONCO_OSC, TRONCO, 0, R());
-    for (let i = 0; i < 4; i++) {
-      const az = (i / 4) * Math.PI * 2 + rr(-0.45, 0.45), s = lerp3([0, 0, 0], tope, rr(0.5, 0.78)), d = dirEl(az, rr(0.6, 0.95)), e = mas(s, d, rr(0.9, 1.35));
-      prisma(m, s, e, 0.075, 0.03, 4, TRONCO, TRONCO, 0.5);
-      const rb = rr(0.52, 0.68); mancha(m, [e[0], e[1] + 0.12, e[2]], [rb, rb * 0.85, rb], 0.14, R, "octa", h, 0.5);
-    }
-    const rc = rr(1.4, 1.65); mancha(m, [lx, rr(3.2, 3.5), lz], [rc, rc * 0.85, rc], 0.12, R, "ico", h, 0.2);
-    const a0 = R() * 6.28;
-    for (let i = 0; i < 2; i++) { const az = a0 + i * Math.PI * rr(0.8, 1.2), rs = rr(1.05, 1.25); mancha(m, [Math.cos(az) * 1.1, rr(2.6, 2.9), Math.sin(az) * 1.1], [rs, rs * 0.85, rs], 0.14, R, "ico", h, 0.2); }
-  } else if (esp === "pino") {
-    const lx = rr(-0.08, 0.08), lz = rr(-0.08, 0.08);
-    prisma(m, [0, -0.05, 0], [lx, 6.6, lz], rr(0.17, 0.22), 0.04, 6, TRONCO_OSC, TRONCO, 0);
-    for (let i = 0; i < 3; i++) {
-      const az = (i / 3) * Math.PI * 2 + rr(-0.5, 0.5), s: V3 = [lx * 0.1, rr(0.55, 1.15), lz * 0.1], e = mas(s, dirEl(az, rr(0.25, 0.5)), rr(0.5, 0.7));
-      prisma(m, s, e, 0.05, 0.022, 4, TRONCO, TRONCO, 0.5);
-      const rb = rr(0.2, 0.26); mancha(m, [e[0], e[1] + 0.03, e[2]], [rb, rb * 0.5, rb], 0.1, R, "octa", h, 0.5);
-    }
-    const bases = [1.35, 2.3, 3.3, 4.3, 5.2], altos = [1.9, 1.8, 1.6, 1.5, 1.55], radios = [1.55, 1.3, 1.05, 0.8, 0.55];
-    for (let i = 0; i < 5; i++) cono(m, [lx * (bases[i] / 6.6), bases[i], lz * (bases[i] / 6.6)], altos[i] * rr(0.92, 1.08), radios[i] * rr(0.92, 1.08), 7, R, h, [rr(-0.08, 0.08), 0, rr(-0.08, 0.08)]);
-  } else if (esp === "abedul") {
-    const pts: V3[] = [[0, -0.05, 0]];
-    for (let i = 1; i <= 3; i++) pts.push([rr(-0.14, 0.14) * i * 0.5, (i / 3) * 3.7, rr(-0.14, 0.14) * i * 0.5]);
-    for (let i = 0; i < 3; i++) prisma(m, pts[i], pts[i + 1], 0.12 - i * 0.025, 0.1 - i * 0.025, 5, ABEDUL_OSC, ABEDUL, 0, i);
-    for (let i = 0; i < 5; i++) {
-      const az = (i / 5) * Math.PI * 2 + rr(-0.4, 0.4), s = lerp3(pts[1], pts[3], rr(0.2, 0.95)), e = mas(s, dirEl(az, rr(0.8, 1.15)), rr(0.65, 1.0));
-      prisma(m, s, e, 0.05, 0.02, 4, ABEDUL, TRONCO, 0.5);
-      mancha(m, [e[0], e[1] + 0.2, e[2]], [rr(0.38, 0.48), rr(0.6, 0.75), rr(0.38, 0.48)], 0.12, R, "octa", h, 0.5);
-    }
-    mancha(m, [pts[3][0], rr(4.0, 4.3), pts[3][2]], [rr(1.05, 1.2), rr(1.3, 1.5), rr(1.05, 1.2)], 0.12, R, "ico", h, 0.2);
-    const az = R() * 6.28; mancha(m, [pts[3][0] + Math.cos(az) * 0.5, 3.1, pts[3][2] + Math.sin(az) * 0.5], [0.9, 1.0, 0.9], 0.12, R, "ico", h, 0.2);
-  } else {
-    for (let i = 0; i < 4; i++) {
-      const az = (i / 4) * Math.PI * 2 + rr(-0.4, 0.4), s: V3 = [0, 0.05, 0], e = mas(s, dirEl(az, rr(0.45, 0.8)), rr(0.5, 0.75));
-      prisma(m, s, e, 0.04, 0.02, 4, TRONCO_OSC, TRONCO, 0.5);
-      const rb = rr(0.55, 0.7); mancha(m, [e[0], e[1] + 0.05, e[2]], [rb, rb * 0.8, rb], 0.14, R, "ico", h, 0.5);
-    }
-    const rb = rr(0.75, 0.85); mancha(m, [0, 0.6, 0], [rb, rb * 0.85, rb], 0.12, R, "ico", h, 0.3);
-  }
-  // fake ambient occlusion on the whole tree: a little darker toward the ground
-  const H = ALTURA[esp];
-  for (let i = 0; i < m.pos.length / 3; i++) {
-    const k = 0.8 + 0.2 * Math.min(1, Math.max(0, m.pos[i * 3 + 1] / H));
-    m.col[i * 3] *= k; m.col[i * 3 + 1] *= k; m.col[i * 3 + 2] *= k;
-  }
-  return m;
-}
+// ---------------------------------------------------------------------------------------------------------------------
+// N6: ONE template for every species. A tree is a 5-sided trunk (10 triangles) + three leaf blobs (pentagonal bipyramids, 10 each) = 40
+// triangles and 31 vertices; each species is a different set of vertex positions of the SAME topology (attributes position, pos1, pos2,
+// pos3), picked per instance by `especie` in the vertex shader. So all four species are ONE draw call, and no instance pays for
+// vertices it does not use (the cost of merging species into one big geometry). Leaf colours (dark/light) are per-instance
+// attributes, which also carries the autumn / blossom variants (they used to be a second vertex set).
+// ---------------------------------------------------------------------------------------------------------------------
+/** Per species: trunk [height, base radius, top radius, lean x, lean z] and three leaf blobs [cx, cy, cz, rx, ry, rz, ring, top, bottom]:
+ *  the ring sits at cy + ring·ry, the apexes at cy + top·ry and cy − bottom·ry (an acorn-like dome for broadleaves, a cone for the pine). */
+const FORMA: Record<Especie, { tronco: number[]; hojas: number[][] }> = {
+  roble: { tronco: [2.6, 0.3, 0.12, 0.05, 0.03], hojas: [[0, 3.2, 0, 1.75, 1.45, 1.75, 0.0, 1.0, 0.32], [1.15, 2.55, 0.35, 1.2, 1.0, 1.2, 0.0, 0.95, 0.32], [-1.0, 2.5, -0.6, 1.15, 0.95, 1.15, 0.0, 0.95, 0.32]] },
+  pino: { tronco: [6.6, 0.2, 0.04, 0.03, 0.02], hojas: [[0, 2.1, 0, 1.55, 1.9, 1.55, -0.55, 1.0, 0.45], [0, 3.9, 0, 1.1, 1.6, 1.1, -0.55, 1.0, 0.45], [0, 5.4, 0, 0.68, 1.4, 0.68, -0.5, 1.0, 0.4]] },
+  abedul: { tronco: [3.8, 0.12, 0.08, 0.08, 0.05], hojas: [[0, 4.1, 0, 1.0, 1.5, 1.0, -0.05, 1.0, 0.35], [0.6, 3.2, 0.2, 0.8, 1.05, 0.8, -0.05, 1.0, 0.35], [-0.55, 3.0, -0.4, 0.78, 1.0, 0.78, -0.05, 1.0, 0.35]] },
+  arbusto: { tronco: [0.12, 0.06, 0.04, 0, 0], hojas: [[0, 0.62, 0, 0.9, 0.72, 0.9, 0, 0.95, 0.3], [0.65, 0.45, 0.2, 0.62, 0.5, 0.62, 0, 0.95, 0.3], [-0.58, 0.45, -0.25, 0.6, 0.48, 0.6, 0, 0.95, 0.3]] },
+};
+export const LADOS_TRONCO = 5;
+export const TRIANGULOS_ARBOL = 2 * LADOS_TRONCO + 3 * 2 * LADOS_COPA;
 
-export type GeometriaEspecie = { geometria: THREE.BufferGeometry; triangulos: number; bytes: number };
-const cacheGeo = new Map<string, GeometriaEspecie>();
-
-/** The merged near-LOD geometry of a species: both variants (position/colour sets A and B), indexed, with motion weights. */
-export function geometriaCerca(esp: Especie): GeometriaEspecie {
-  const hit = cacheGeo.get(esp); if (hit) return hit;
-  const a = construir(esp, 0), b = construir(esp, 1);
-  if (a.pos.length !== b.pos.length || a.idx.length !== b.idx.length) throw new Error(`arboles: the two variants of ${esp} must share one topology`);
+/** The shared template: 4 position sets (one per species), `tono` 0…1 (dark → light along the part) and `parte` 0 trunk / 1 leaf. */
+export type GeometriaArbol = { geometria: THREE.BufferGeometry; triangulos: number; bytes: number };
+let cacheArbol: GeometriaArbol | null = null;
+export function geometriaArbol(): GeometriaArbol {
+  if (cacheArbol) return cacheArbol;
+  const porCopa = LADOS_COPA + 2, nv = 2 * LADOS_TRONCO + 3 * porCopa, pos = ESPECIES.map(() => new Float32Array(nv * 3)), tono = new Float32Array(nv), parte = new Float32Array(nv), idx: number[] = [];
+  ESPECIES.forEach((esp, e) => {
+    const R = crearAzar(0x6e61 + e * 131), f = FORMA[esp], [alto, r0, r1, lx, lz] = f.tronco, P = pos[e];
+    let v = 0;
+    const put = (x: number, y: number, z: number, t: number, p: number) => { P[v * 3] = x; P[v * 3 + 1] = y; P[v * 3 + 2] = z; tono[v] = t; parte[v] = p; v++; };
+    for (let k = 0; k < LADOS_TRONCO; k++) { const a = (k / LADOS_TRONCO) * Math.PI * 2; put(Math.cos(a) * r0, -0.05, Math.sin(a) * r0, 0, 0); }
+    for (let k = 0; k < LADOS_TRONCO; k++) { const a = (k / LADOS_TRONCO) * Math.PI * 2; put(lx + Math.cos(a) * r1, alto, lz + Math.sin(a) * r1, 1, 0); }
+    for (const [cx, cy, cz, rx, ry, rz, ring, top, bot] of f.hojas) {
+      const giro = R() * Math.PI * 2, j = () => 1 + 0.14 * (R() * 2 - 1);
+      put(cx, cy + ry * top * j(), cz, 1, 1);                                         // top apex: the light end
+      for (let k = 0; k < LADOS_COPA; k++) { const a = giro + (k / LADOS_COPA) * Math.PI * 2, q = j(); put(cx + Math.cos(a) * rx * q, cy + ry * (ring + 0.12 * (R() * 2 - 1)), cz + Math.sin(a) * rz * q, 0.5 + 0.1 * (R() * 2 - 1), 1); }
+      put(cx, cy - ry * bot * j(), cz, 0.3, 1);                                         // bottom apex: the dark end (fake ambient occlusion)
+    }
+  });
+  const m = new Malla(); m.pos = Array.from(pos[0]); m.idx = idx; // winding helper: outward from an inner point of the part, the same indices for every species
+  for (let k = 0; k < LADOS_TRONCO; k++) { const k2 = (k + 1) % LADOS_TRONCO, ref: V3 = [0, 1, 0]; m.tri(k, k2, LADOS_TRONCO + k, ref); m.tri(k2, LADOS_TRONCO + k2, LADOS_TRONCO + k, ref); }
+  FORMA.roble.hojas.forEach((c, b) => {
+    const o = 2 * LADOS_TRONCO + b * porCopa, top = o, bot = o + porCopa - 1, ref: V3 = [c[0], c[1], c[2]];
+    for (let k = 0; k < LADOS_COPA; k++) { const a = o + 1 + k, a2 = o + 1 + ((k + 1) % LADOS_COPA); m.tri(top, a, a2, ref); m.tri(bot, a, a2, ref); }
+  });
   const g = new THREE.BufferGeometry();
-  g.setAttribute("position", new THREE.Float32BufferAttribute(a.pos, 3));
-  g.setAttribute("posB", new THREE.Float32BufferAttribute(b.pos, 3));
-  g.setAttribute("color", new THREE.Float32BufferAttribute(a.col, 3));
-  g.setAttribute("colB", new THREE.Float32BufferAttribute(b.col, 3));
-  g.setAttribute("mov", new THREE.Float32BufferAttribute(a.mov, 2));
-  g.setIndex(a.idx);
-  const rad = Math.max(2, ...Array.from({ length: a.pos.length / 3 }, (_, i) => Math.hypot(a.pos[i * 3], a.pos[i * 3 + 1], a.pos[i * 3 + 2])));
-  g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, ALTURA[esp] / 2, 0), rad);
-  const out = { geometria: g, triangulos: a.idx.length / 3, bytes: bytesDe(g) };
-  cacheGeo.set(esp, out); return out;
+  g.setAttribute("position", new THREE.BufferAttribute(pos[0], 3));
+  for (let e = 1; e < 4; e++) g.setAttribute(`pos${e}`, new THREE.BufferAttribute(pos[e], 3));
+  g.setAttribute("tono", new THREE.BufferAttribute(tono, 1));
+  g.setAttribute("parte", new THREE.BufferAttribute(parte, 1));
+  g.setIndex(idx);
+  g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 3.5, 0), 8);
+  return (cacheArbol = { geometria: g, triangulos: idx.length / 3, bytes: bytesDe(g) });
 }
+/** The triangles of one tree (every species draws the same template). Kept as a function for the old per-species callers. */
+export const geometriaCerca = (_esp: Especie): GeometriaArbol => geometriaArbol();
+
 
 const bytesDe = (g: THREE.BufferGeometry) => Object.values(g.attributes).reduce((s, at) => s + at.array.byteLength, 0) + (g.index ? g.index.array.byteLength : 0);
 
@@ -220,7 +164,8 @@ const LEJOS: Record<Especie, [number[], number[]]> = {
   abedul: [[3.5, 0.1, 4.2, 1.1, 1.4, 3.1, 0.95, 1.0], [3.5, 0.1, 4.2, 1.15, 1.4, 3.1, 0.95, 1.0]],
   arbusto: [[0.12, 0.06, 0.6, 1.0, 0.7, 0.5, 0.8, 0.55], [0.12, 0.06, 0.6, 1.05, 0.7, 0.5, 0.8, 0.55]],
 };
-const LADOS_LEJOS = 8;
+const LADOS_LEJOS = 5, LADOS_TRONCO_LEJOS = 3;
+export type GeometriaEspecie = { geometria: THREE.BufferGeometry; triangulos: number; bytes: number };
 
 let geoLejos: GeometriaEspecie | null = null;
 /** The shared far geometry: part 0 trunk (5-sided cone frustum), parts 1 and 2 bipyramids, all in unit size. */
@@ -230,10 +175,10 @@ export function geometriaLejos(): GeometriaEspecie {
   const vert = (p: V3, c: V3, k: number) => { pos.push(...p); col.push(c[0], c[1], c[2]); parte.push(k); return pos.length / 3 - 1; };
   const tr = [TRONCO_OSC.r, TRONCO_OSC.g, TRONCO_OSC.b] as V3, tc = [TRONCO.r, TRONCO.g, TRONCO.b] as V3;
   const a: number[] = [], b: number[] = [];
-  for (let k = 0; k < 5; k++) { const an = (k / 5) * Math.PI * 2; a.push(vert([Math.cos(an), 0, Math.sin(an)], tr, 0)); b.push(vert([Math.cos(an) * 0.5, 1, Math.sin(an) * 0.5], tc, 0)); }
+  for (let k = 0; k < LADOS_TRONCO_LEJOS; k++) { const an = (k / LADOS_TRONCO_LEJOS) * Math.PI * 2; a.push(vert([Math.cos(an), 0, Math.sin(an)], tr, 0)); b.push(vert([Math.cos(an) * 0.5, 1, Math.sin(an) * 0.5], tc, 0)); }
   const m = new Malla(); // only for its `tri` winding helper
   m.pos = pos;
-  for (let k = 0; k < 5; k++) { const k2 = (k + 1) % 5, ref: V3 = [0, 0.5, 0]; m.idx = idx; m.tri(a[k], a[k2], b[k], ref); m.tri(a[k2], b[k2], b[k], ref); }
+  for (let k = 0; k < LADOS_TRONCO_LEJOS; k++) { const k2 = (k + 1) % LADOS_TRONCO_LEJOS, ref: V3 = [0, 0.5, 0]; m.idx = idx; m.tri(a[k], a[k2], b[k], ref); m.tri(a[k2], b[k2], b[k], ref); }
   for (const p of [1, 2]) {
     const ring: number[] = [], top = vert([0, 1, 0], [1.15, 1.15, 1.15], p), bot = vert([0, -1, 0], [0.55, 0.55, 0.55], p);
     for (let k = 0; k < LADOS_LEJOS; k++) { const an = ((k + 0.5 * (p - 1)) / LADOS_LEJOS) * Math.PI * 2; ring.push(vert([Math.cos(an), 0, Math.sin(an)], [0.85, 0.85, 0.85], p)); }
@@ -280,26 +225,36 @@ const girar = (p: V3N, giro: N): V3N => {
 type Inst = { a: THREE.InstancedBufferAttribute; b: THREE.InstancedBufferAttribute };
 const instAttr = (n: number, k: number) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, n) * k), k); a.setUsage(THREE.DynamicDrawUsage); return a; };
 
-/** a = (x, y, z, escala) · b = (giro, fase, variante 0|1, tinte 0…1). */
-function materialCerca(esp: Especie, c: Comunes, aletea: boolean, inst: Inst): THREE.MeshLambertNodeMaterial {
+/** Near LOD, all species: a = (x, y, z, escala) · b = (giro, fase, especie 0…3, tinte) · c = (dark leaf rgb, height m) · d = (light leaf rgb, 0). */
+type InstCerca = Inst & { c: THREE.InstancedBufferAttribute; d: THREE.InstancedBufferAttribute };
+const TRONCO_N = [TRONCO_OSC, TRONCO], ABEDUL_N = [ABEDUL_OSC, ABEDUL];
+function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.MeshLambertNodeMaterial {
   const mat = new THREE.MeshLambertNodeMaterial({ flatShading: true });
-  mat.name = `arbol-${esp}`;
+  mat.name = "arbol-cerca";
   const ia = instancedBufferAttribute(inst.a) as unknown as { xyz: V3N; w: N }, ib = instancedBufferAttribute(inst.b) as unknown as { x: N; y: N; z: N; w: N };
-  const giro = ib.x, fase = ib.y, vari = ib.z, tinte = ib.w, esc = ia.w;
-  const mov = attribute("mov", "vec2") as unknown as ReturnType<typeof vec2>;
-  const p0 = mix(positionGeometry as unknown as V3N, attribute("posB", "vec3") as unknown as V3N, vari) as unknown as V3N;
+  const ic = instancedBufferAttribute(inst.c) as unknown as { xyz: V3N; w: N }, id = instancedBufferAttribute(inst.d) as unknown as { xyz: V3N };
+  const giro = ib.x, fase = ib.y, sp = ib.z, tinte = ib.w, esc = ia.w, H = ic.w;
+  const parte = attribute("parte", "float") as unknown as N, tono = attribute("tono", "float") as unknown as N;
+  const q = (k: string) => attribute(k, "vec3") as unknown as V3N;
+  const e01 = mix(positionGeometry as unknown as V3N, q("pos1"), step(0.5, sp)), e23 = mix(q("pos2"), q("pos3"), step(2.5, sp));
+  const p0 = mix(e01, e23, step(1.5, sp)) as unknown as V3N;
   let local = p0;
   if (aletea) { // leaves flutter: a small, fast wobble, phased per vertex, on leaf vertices only
     const t = c.tiempo as unknown as N, fuerza = length((c.vientoU as unknown as V3N).xz.add(BRISA)) as N;
     const f1 = sin(t.mul(6.5).add(p0.x.mul(9)).add(p0.z.mul(7)).add(fase)) as N;
-    const a = fuerza.mul(0.008).add(0.008).mul(mov.y) as N;
+    const a = fuerza.mul(0.008).add(0.008).mul(parte) as N;
     local = p0.add(vec3(f1, sin(t.mul(9.7).add(p0.y.mul(11)).add(p0.x.mul(5))), cos(t.mul(8.3).add(p0.x.mul(11)).add(p0.z.mul(3)))).mul(a)) as unknown as V3N;
   }
-  const H = ALTURA[esp];
-  mat.positionNode = girar(local, giro).mul(esc).add(ia.xyz).add(empuje(c, p0.y.div(H), esc.mul(H), mov.x, fase));
-  mat.colorNode = mix(attribute("color", "vec3") as unknown as V3N, attribute("colB", "vec3") as unknown as V3N, vari).mul(tinte.mul(0.24).add(0.88));
+  mat.positionNode = girar(local, giro).mul(esc).add(ia.xyz).add(empuje(c, p0.y.div(H), esc.mul(H), parte.mul(0.5), fase));
+  const col3 = (k: THREE.Color) => vec3(k.r, k.g, k.b) as unknown as V3N;
+  const birch = step(1.5, sp).mul(oneMinus(step(2.5, sp))) as N;
+  const tronco = mix(mix(col3(TRONCO_N[0]), col3(TRONCO_N[1]), tono), mix(col3(ABEDUL_N[0]), col3(ABEDUL_N[1]), tono), birch) as unknown as V3N;
+  const hoja = mix(ic.xyz, id.xyz, tono) as unknown as V3N;
+  const ao = clamp(p0.y.div(H), 0, 1).mul(0.14).add(0.86) as N; // fake ambient occlusion: a little darker toward the ground
+  mat.colorNode = mix(tronco, hoja, parte).mul(ao).mul(tinte.mul(0.24).add(0.88));
   return mat;
 }
+
 
 /** Far LOD: a = (x, y, z, escala) · b = (giro, fase, tinte, 0) · c = (trunkH, trunkR, c1y, r1xz) · d = (r1y, c2y, r2xz, r2y) · e = leaf colour (r, g, b, 0). */
 type InstLejos = Inst & { c: THREE.InstancedBufferAttribute; d: THREE.InstancedBufferAttribute; e: THREE.InstancedBufferAttribute };
@@ -322,7 +277,7 @@ function materialLejos(c: Comunes, inst: InstLejos): THREE.MeshLambertNodeMateri
 
 // ---------------------------------------------------------------------------------------------------------------------
 // the grove
-// ---------------------------------------------------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
 export type HArboles = {
   /** The engine's wind (entorno.ts `vientoU`): m/s on the ground plane. */
   vientoU: Viento;
@@ -337,37 +292,38 @@ const REPARTO_M = 1.5;       // … and only if the camera moved this far (m) si
 const CAJAS = 64;
 const LEJOS_PARAM = (e: number, v: number) => LEJOS[ESPECIES[e]][v];
 const COLOR_LEJOS = ESPECIES.map((e) => [0, 1].map((v) => { const c = new THREE.Color(HOJAS[e][v].medio); return [c.r, c.g, c.b]; }));
+const FLOATS = 9; // per tree: x, y, z, scale, yaw, phase, variant, tint, species
 
 export function crearArboles(h: HArboles, puntos: readonly PuntoArbol[]) {
   const cfg = NATURALEZA_POR_NIVEL[h.nivel];
   const tiempo = uniform(0), comunes: Comunes = { tiempo: tiempo as unknown as { value: number }, vientoU: h.vientoU };
-  // ---- bucket the points by species, with a per-tree phase, variant and tint that depend only on the position ----
-  const lista: number[][] = ESPECIES.map(() => []);
+  // ---- the trees as one typed array, with a per-tree phase, variant and tint that depend only on the position ----
+  const total = puntos.length, datos = new Float32Array(total * FLOATS), cuentaEsp = [0, 0, 0, 0];
   let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-  for (const p of puntos) {
-    const e = ESPECIES.indexOf(p.especie as Especie);
-    const ix = Math.round(p.x * 16), iz = Math.round(p.z * 16);
-    const v = p.variante ?? (hash2(0x61, ix, iz) < 0.8 ? 0 : 1);
-    lista[e < 0 ? 0 : e].push(p.x, p.y, p.z, p.escala, p.giro, hash2(0x62, ix, iz) * 6.2832, v, hash2(0x63, ix, iz));
+  puntos.forEach((p, i) => {
+    const e0 = ESPECIES.indexOf(p.especie as Especie), e = e0 < 0 ? 0 : e0;
+    const ix = Math.round(p.x * 16), iz = Math.round(p.z * 16), v = p.variante ?? (hash2(0x61, ix, iz) < 0.8 ? 0 : 1), o = i * FLOATS;
+    datos.set([p.x, p.y, p.z, p.escala, p.giro, hash2(0x62, ix, iz) * 6.2832, v, hash2(0x63, ix, iz), e], o); cuentaEsp[e]++;
     minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
-  }
-  const datos = lista.map((l) => Float32Array.from(l)), n = datos.map((d) => d.length / 8), total = n.reduce((a, b) => a + b, 0);
-  const capCerca = Math.min(cfg.arbolesCerca, total), capLejos = Math.min(cfg.arbolesVisibles, total);
+  });
+  const capCerca = Math.min(cfg.arbolesCerca, total), capLejos = Math.min(Math.max(0, cfg.arbolesVisibles - cfg.arbolesCerca), total);
+  const conLejos = capLejos > 0;   // tiers A/B draw a second, cheap silhouette mesh; C/D draw only the near template (one call)
   const esfera = total ? new THREE.Sphere(new THREE.Vector3((minX + maxX) / 2, (minY + maxY) / 2 + 3, (minZ + maxZ) / 2), Math.hypot(maxX - minX, maxY - minY + 8, maxZ - minZ) / 2 + 4) : new THREE.Sphere();
 
   const grupo = new THREE.Group(); grupo.name = "arboles"; grupo.userData.sinSombra = true;
   const mallas: THREE.Mesh[] = [], geos: THREE.BufferGeometry[] = [], mats: THREE.Material[] = [];
-  const cerca = ESPECIES.map((esp, e) => {
-    const capE = Math.min(n[e], capCerca), inst: Inst = { a: instAttr(capE, 4), b: instAttr(capE, 4) };
-    const base = geometriaCerca(esp).geometria, g = new THREE.InstancedBufferGeometry();
+  const cerca = (() => {
+    const inst: InstCerca = { a: instAttr(capCerca, 4), b: instAttr(capCerca, 4), c: instAttr(capCerca, 4), d: instAttr(capCerca, 4) };
+    const base = geometriaArbol().geometria, g = new THREE.InstancedBufferGeometry();
     for (const k of Object.keys(base.attributes)) g.setAttribute(k, base.attributes[k]);
     g.setIndex(base.index); g.instanceCount = 0; g.boundingSphere = esfera.clone();
-    const mat = materialCerca(esp, comunes, cfg.arbolesAletean, inst), mesh = new THREE.Mesh(g, mat);
-    mesh.name = `arboles-${esp}-cerca`; mesh.visible = false; mesh.castShadow = false; mesh.receiveShadow = false; mesh.userData.sinSombra = true;
+    const mat = materialCerca(comunes, cfg.arbolesAletean, inst), mesh = new THREE.Mesh(g, mat);
+    mesh.name = "arboles-cerca"; mesh.visible = false; mesh.castShadow = false; mesh.receiveShadow = false; mesh.userData.sinSombra = true;
     grupo.add(mesh); mallas.push(mesh); geos.push(g); mats.push(mat);
-    return { inst, g, mesh, cuenta: 0, cap: capE };
-  });
+    return { inst, g, mesh, cuenta: 0, cap: capCerca, porEspecie: [0, 0, 0, 0] };
+  })();
   const lejos = (() => {
+    if (!conLejos) return null;
     const base = geometriaLejos().geometria, g = new THREE.InstancedBufferGeometry();
     for (const k of Object.keys(base.attributes)) g.setAttribute(k, base.attributes[k]);
     g.setIndex(base.index); g.instanceCount = 0; g.boundingSphere = esfera.clone();
@@ -385,45 +341,42 @@ export function crearArboles(h: HArboles, puntos: readonly PuntoArbol[]) {
     return radio;
   };
   let cercaUltimo = 0, lejosUltimo = 0;
+  const rl0 = conLejos ? cfg.arbolesLejosM : cfg.arbolesCercaM;
   function repartir(cx: number, cy: number, cz: number) {
-    const rc = cfg.arbolesCercaM, rl = cfg.arbolesLejosM;
+    const rc = cfg.arbolesCercaM, rl = rl0;
     histCerca.fill(0); histTodo.fill(0);
-    let o = 0;
-    for (let e = 0; e < 4; e++) {
-      const d = datos[e];
-      for (let i = 0; i < d.length; i += 8, o++) {
-        const dx = d[i] - cx, dy = d[i + 1] - cy, dz = d[i + 2] - cz, r = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        dist[o] = r;
-        if (r < rl) { histTodo[(r / rl * CAJAS) | 0]++; if (r < rc) histCerca[(r / rc * CAJAS) | 0]++; }
+    for (let o = 0, i = 0; o < total; o++, i += FLOATS) {
+      const dx = datos[i] - cx, dy = datos[i + 1] - cy, dz = datos[i + 2] - cz, r = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      dist[o] = r;
+      if (r < rl) { histTodo[(r / rl * CAJAS) | 0]++; if (r < rc) histCerca[(r / rc * CAJAS) | 0]++; }
+    }
+    const rN = corte(histCerca, capCerca, rc), rV = conLejos ? corte(histTodo, capCerca + capLejos, rl) : rN;
+    cerca.cuenta = 0; cerca.porEspecie.fill(0);
+    if (lejos) lejos.cuenta = 0;
+    const A = cerca.inst.a.array as Float32Array, B = cerca.inst.b.array as Float32Array, Cc = cerca.inst.c.array as Float32Array, D = cerca.inst.d.array as Float32Array;
+    for (let o = 0, i = 0; o < total; o++, i += FLOATS) {
+      const r = dist[o], e = datos[i + 8], v = datos[i + 6];
+      if (r < rN && cerca.cuenta < cerca.cap) {
+        const k = cerca.cuenta++, hj = HOJAS[ESPECIES[e]][v];
+        cerca.porEspecie[e]++;
+        A[k * 4] = datos[i]; A[k * 4 + 1] = datos[i + 1]; A[k * 4 + 2] = datos[i + 2]; A[k * 4 + 3] = datos[i + 3];
+        B[k * 4] = datos[i + 4]; B[k * 4 + 1] = datos[i + 5]; B[k * 4 + 2] = e; B[k * 4 + 3] = datos[i + 7];
+        Cc[k * 4] = hj.oscuro.r; Cc[k * 4 + 1] = hj.oscuro.g; Cc[k * 4 + 2] = hj.oscuro.b; Cc[k * 4 + 3] = ALTURA[ESPECIES[e]];
+        D[k * 4] = hj.claro.r; D[k * 4 + 1] = hj.claro.g; D[k * 4 + 2] = hj.claro.b;
+      } else if (lejos && r < rV && lejos.cuenta < capLejos) {
+        const k = lejos.cuenta++, p = LEJOS_PARAM(e, v), col = COLOR_LEJOS[e][v];
+        const ia = lejos.inst.a.array as Float32Array, ib = lejos.inst.b.array as Float32Array, ic = lejos.inst.c.array as Float32Array, id = lejos.inst.d.array as Float32Array, ie = lejos.inst.e.array as Float32Array;
+        ia[k * 4] = datos[i]; ia[k * 4 + 1] = datos[i + 1]; ia[k * 4 + 2] = datos[i + 2]; ia[k * 4 + 3] = datos[i + 3];
+        ib[k * 4] = datos[i + 4]; ib[k * 4 + 1] = datos[i + 5]; ib[k * 4 + 2] = datos[i + 7];
+        ic[k * 4] = p[0]; ic[k * 4 + 1] = p[1]; ic[k * 4 + 2] = p[2]; ic[k * 4 + 3] = p[3];
+        id[k * 4] = p[4]; id[k * 4 + 1] = p[5]; id[k * 4 + 2] = p[6]; id[k * 4 + 3] = p[7];
+        ie[k * 3] = col[0]; ie[k * 3 + 1] = col[1]; ie[k * 3 + 2] = col[2];
       }
     }
-    const rN = corte(histCerca, capCerca, rc), rV = corte(histTodo, capLejos, rl);
-    for (const c of cerca) c.cuenta = 0;
-    lejos.cuenta = 0;
-    o = 0;
-    for (let e = 0; e < 4; e++) {
-      const d = datos[e], c = cerca[e], A = c.inst.a.array as Float32Array, B = c.inst.b.array as Float32Array;
-      for (let i = 0; i < d.length; i += 8, o++) {
-        const r = dist[o];
-        if (r < rN && c.cuenta < c.cap) {
-          const k = c.cuenta++;
-          A[k * 4] = d[i]; A[k * 4 + 1] = d[i + 1]; A[k * 4 + 2] = d[i + 2]; A[k * 4 + 3] = d[i + 3];
-          B[k * 4] = d[i + 4]; B[k * 4 + 1] = d[i + 5]; B[k * 4 + 2] = d[i + 6]; B[k * 4 + 3] = d[i + 7];
-        } else if (r < rV && lejos.cuenta < capLejos) {
-          const k = lejos.cuenta++, p = LEJOS_PARAM(e, d[i + 6]), col = COLOR_LEJOS[e][d[i + 6]];
-          const ia = lejos.inst.a.array as Float32Array, ib = lejos.inst.b.array as Float32Array, ic = lejos.inst.c.array as Float32Array, id = lejos.inst.d.array as Float32Array, ie = lejos.inst.e.array as Float32Array;
-          ia[k * 4] = d[i]; ia[k * 4 + 1] = d[i + 1]; ia[k * 4 + 2] = d[i + 2]; ia[k * 4 + 3] = d[i + 3];
-          ib[k * 4] = d[i + 4]; ib[k * 4 + 1] = d[i + 5]; ib[k * 4 + 2] = d[i + 7];
-          ic[k * 4] = p[0]; ic[k * 4 + 1] = p[1]; ic[k * 4 + 2] = p[2]; ic[k * 4 + 3] = p[3];
-          id[k * 4] = p[4]; id[k * 4 + 1] = p[5]; id[k * 4 + 2] = p[6]; id[k * 4 + 3] = p[7];
-          ie[k * 3] = col[0]; ie[k * 3 + 1] = col[1]; ie[k * 3 + 2] = col[2];
-        }
-      }
-    }
-    for (const c of cerca) { c.g.instanceCount = c.cuenta; c.mesh.visible = c.cuenta > 0; c.inst.a.needsUpdate = c.inst.b.needsUpdate = true; }
-    lejos.g.instanceCount = lejos.cuenta; lejos.mesh.visible = lejos.cuenta > 0;
-    for (const a of Object.values(lejos.inst)) a.needsUpdate = true;
-    cercaUltimo = cerca.reduce((s, c) => s + c.cuenta, 0); lejosUltimo = lejos.cuenta;
+    cerca.g.instanceCount = cerca.cuenta; cerca.mesh.visible = cerca.cuenta > 0;
+    for (const a of Object.values(cerca.inst)) a.needsUpdate = true;
+    if (lejos) { lejos.g.instanceCount = lejos.cuenta; lejos.mesh.visible = lejos.cuenta > 0; for (const a of Object.values(lejos.inst)) a.needsUpdate = true; }
+    cercaUltimo = cerca.cuenta; lejosUltimo = lejos?.cuenta ?? 0;
   }
 
   let ultimoT = -Infinity; const ultimaPos = new THREE.Vector3(Infinity, 0, 0), tmp = new THREE.Vector3();
@@ -437,11 +390,11 @@ export function crearArboles(h: HArboles, puntos: readonly PuntoArbol[]) {
     ultimoT = t; ultimaPos.copy(pos); repartir(pos.x, pos.y, pos.z);
   }
 
-  const bytesGeometria = ESPECIES.reduce((s, e) => s + geometriaCerca(e).bytes, 0) + geometriaLejos().bytes;
+  const bytesGeometria = geometriaArbol().bytes + (conLejos ? geometriaLejos().bytes : 0);
   function estadisticas(): EstadisticasArboles {
-    const tris = cerca.reduce((s, c, e) => s + c.cuenta * geometriaCerca(ESPECIES[e]).triangulos, 0) + lejos.cuenta * geometriaLejos().triangulos;
-    const bi = cerca.reduce((s, c) => s + c.inst.a.array.byteLength + c.inst.b.array.byteLength, 0) + Object.values(lejos.inst).reduce((s, a) => s + a.array.byteLength, 0);
-    return { cerca: cerca.map((c) => c.cuenta), lejos: lejos.cuenta, arboles: cercaUltimo + lejosUltimo, triangulos: tris, llamadas: mallas.filter((m) => m.visible).length, bytesGeometria, bytesInstancias: bi };
+    const tris = cerca.cuenta * geometriaArbol().triangulos + (lejos?.cuenta ?? 0) * geometriaLejos().triangulos;
+    const bi = Object.values(cerca.inst).reduce((s, a) => s + a.array.byteLength, 0) + (lejos ? Object.values(lejos.inst).reduce((s, a) => s + a.array.byteLength, 0) : 0);
+    return { cerca: cerca.porEspecie.slice(), lejos: lejos?.cuenta ?? 0, arboles: cercaUltimo + lejosUltimo, triangulos: tris, llamadas: mallas.filter((m) => m.visible).length, bytesGeometria, bytesInstancias: bi };
   }
   function dispose() { for (const g of geos) g.dispose(); for (const m of mats) m.dispose(); grupo.removeFromParent(); }
 

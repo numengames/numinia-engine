@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three/webgpu";
 import { uniform } from "three/tsl";
-import { crearArboles, geometriaCerca, geometriaLejos, ESPECIES, TRIS_MAX_CERCA, TRIS_MAX_LEJOS } from "../packages/render/src/naturaleza/arboles.ts";
+import { crearArboles, geometriaArbol, geometriaCerca, geometriaLejos, ESPECIES, TRIS_MAX_CERCA, TRIS_MAX_LEJOS, TRIANGULOS_ARBOL } from "../packages/render/src/naturaleza/arboles.ts";
 import type { PuntoArbol } from "../packages/render/src/naturaleza/arboles.ts";
 import { NATURALEZA_POR_NIVEL } from "../packages/render/src/naturaleza/niveles.ts";
 import { crearAzar } from "../packages/render/src/naturaleza/semilla.ts";
@@ -17,33 +17,26 @@ const campo = (n: number, lado: number, semilla = 7): PuntoArbol[] => {
 };
 const viento = () => uniform(new THREE.Vector3(2, 0, 1)) as unknown as { value: THREE.Vector3 };
 
-test("every species: 2 variants share one topology, within 220 triangles near and 60 far", () => {
-  for (const e of ESPECIES) {
-    const g = geometriaCerca(e);
-    assert.ok(g.triangulos > 60 && g.triangulos <= TRIS_MAX_CERCA, `${e}: ${g.triangulos} triangles`);
-    assert.equal(g.geometria.getAttribute("position").count, g.geometria.getAttribute("posB").count, "variant B has the same vertices");
-    assert.equal(g.geometria.getAttribute("color").count, g.geometria.getAttribute("colB").count);
-    assert.equal(g.geometria.getAttribute("mov").count, g.geometria.getAttribute("position").count);
-    assert.ok(g.geometria.boundingSphere && g.geometria.boundingSphere.radius > 0.5, "bounding sphere set");
-  }
+test("N6: ONE template for every species (4 vertex sets, same topology), within 40 triangles near and 26 far", () => {
+  const g = geometriaArbol(), geo = g.geometria;
+  assert.equal(g.triangulos, TRIANGULOS_ARBOL);
+  assert.ok(g.triangulos >= 30 && g.triangulos <= TRIS_MAX_CERCA, `${g.triangulos} triangles`);
+  for (const e of ESPECIES) assert.equal(geometriaCerca(e).geometria, geo, "every species shares the geometry");
+  const n = geo.getAttribute("position").count;
+  for (const k of ["pos1", "pos2", "pos3", "tono", "parte"]) assert.equal(geo.getAttribute(k).count, n, k);
+  assert.ok(geo.boundingSphere && geo.boundingSphere.radius > 0.5, "bounding sphere set");
   const l = geometriaLejos();
   assert.ok(l.triangulos <= TRIS_MAX_LEJOS && l.triangulos >= 20, `far: ${l.triangulos}`);
 });
 
-test("variants differ in shape and colour (not the same tree twice)", () => {
-  for (const e of ESPECIES) {
-    const g = geometriaCerca(e).geometria, a = g.getAttribute("position").array, b = g.getAttribute("posB").array, ca = g.getAttribute("color").array, cb = g.getAttribute("colB").array;
-    let dp = 0, dc = 0; for (let i = 0; i < a.length; i++) { dp += Math.abs(a[i] - b[i]); dc += Math.abs(ca[i] - cb[i]); }
-    assert.ok(dp > 1 && dc > 1, `${e}: ${dp} ${dc}`);
+test("species differ in shape (not the same tree four times); the template is deterministic and finite, no NaN", () => {
+  const geo = geometriaArbol().geometria, juegos = ["position", "pos1", "pos2", "pos3"].map((k) => geo.getAttribute(k).array as Float32Array);
+  for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) {
+    let d = 0; for (let k = 0; k < juegos[i].length; k++) d += Math.abs(juegos[i][k] - juegos[j][k]);
+    assert.ok(d > 5, `species ${i} vs ${j}: ${d}`);
   }
-});
-
-test("the geometry is deterministic and vertex colours are finite, no NaN anywhere", () => {
-  const una = ESPECIES.map((e) => Array.from(geometriaCerca(e).geometria.getAttribute("position").array).join(","));
-  const otra = ESPECIES.map((e) => Array.from(geometriaCerca(e).geometria.getAttribute("posB").array).join(","));
-  assert.equal(una.length, 4);
-  for (const e of ESPECIES) for (const k of ["position", "posB", "color", "colB", "mov"]) assert.ok(Array.from(geometriaCerca(e).geometria.getAttribute(k).array).every(Number.isFinite), `${e}.${k}`);
-  assert.deepEqual(otra, ESPECIES.map((e) => Array.from(geometriaCerca(e).geometria.getAttribute("posB").array).join(",")));
+  for (const k of ["position", "pos1", "pos2", "pos3", "tono", "parte"]) assert.ok(Array.from(geo.getAttribute(k).array).every(Number.isFinite), k);
+  assert.equal(Array.from(juegos[2]).join(","), Array.from(geometriaArbol().geometria.getAttribute("pos2").array).join(","));
 });
 
 test("closed pieces (leaf blobs, cones) are wound outward: positive signed volume", () => {
@@ -65,7 +58,7 @@ test("closed pieces (leaf blobs, cones) are wound outward: positive signed volum
       for (const t of pz.tris) { a.fromBufferAttribute(p, t[0]); b.fromBufferAttribute(p, t[1]); c.fromBufferAttribute(p, t[2]); vol += a.dot(b.clone().cross(c)) / 6; }
       assert.ok(vol > 0, `${e}: a closed piece is inside-out (${vol})`);
     }
-    assert.ok(cerradas >= 2, `${e}: ${cerradas} closed pieces`);
+    assert.ok(cerradas >= 3, `${e}: ${cerradas} closed pieces`);
   }
 });
 
@@ -81,13 +74,13 @@ test("same points → same instance data; different seed of points → different
   for (const x of [a, b, c]) x.dispose();
 });
 
-test("at most 5 draw calls whatever the mix; frustum-culling spheres cover the grove", () => {
+test("at most 2 draw calls whatever the mix; frustum-culling spheres cover the grove", () => {
   const h = { vientoU: viento(), nivel: "B" as Nivel }, pts = campo(600, 160);
   const t = crearArboles(h, pts);
-  assert.equal(t.mallas.length, 5, "4 species near + 1 shared far");
+  assert.equal(t.mallas.length, 2, "N6: all species share ONE near mesh + 1 shared far mesh");
   t.actualizar(0, new THREE.Vector3(0, 1.7, 0));
   const s = t.estadisticas();
-  assert.ok(s.llamadas <= 5 && s.llamadas >= 2, `${s.llamadas}`);
+  assert.ok(s.llamadas <= 2 && s.llamadas >= 1, `${s.llamadas}`);
   for (const m of t.mallas) {
     const sp = m.geometry.boundingSphere!; assert.ok(sp.radius > 70, "covers the 160 m grove");
     for (const p of pts) assert.ok(sp.center.distanceTo(new THREE.Vector3(p.x, p.y, p.z)) <= sp.radius, "every tree inside");
@@ -97,7 +90,7 @@ test("at most 5 draw calls whatever the mix; frustum-culling spheres cover the g
 });
 
 test("the near/far split honours each tier's caps and the triangle budget of the brief (trees alone)", () => {
-  const tope: Record<Nivel, number> = { A: 60000, B: 35000, C: 35000, D: 15000 };
+  const tope: Record<Nivel, number> = { A: 5200, B: 3000, C: 2700, D: 1200 }; // the trees' share of PRESUPUESTO_NATURALEZA (N6)
   for (const n of NIVELES) {
     const cfg = NATURALEZA_POR_NIVEL[n], t = crearArboles({ vientoU: viento(), nivel: n }, campo(2500, 300));
     t.actualizar(0, new THREE.Vector3(0, 1.7, 0));
@@ -106,7 +99,7 @@ test("the near/far split honours each tier's caps and the triangle budget of the
     assert.ok(s.arboles <= cfg.arbolesVisibles, `${n}: visible ${s.arboles}`);
     assert.ok(s.triangulos <= tope[n], `${n}: ${s.triangulos} triangles`);
     // worst case on paper (every slot at its maximum) also fits
-    assert.ok(cfg.arbolesCerca * TRIS_MAX_CERCA + (cfg.arbolesVisibles - cfg.arbolesCerca) * TRIS_MAX_LEJOS <= tope[n], `${n}: worst case`);
+    assert.ok(cfg.arbolesCerca * TRIANGULOS_ARBOL + (cfg.arbolesVisibles - cfg.arbolesCerca) * geometriaLejos().triangulos <= tope[n], `${n}: worst case`);
     t.dispose();
   }
   assert.equal(NATURALEZA_POR_NIVEL.D.arbolesAletean, false);

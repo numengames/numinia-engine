@@ -89,7 +89,7 @@ test("every tier: ONE mesh, ONE draw call, pool and triangles inside the budget"
     assert.equal(a.mallas.length, 1);
     assert.equal(s.dibujos, 1);
     assert.equal(a.plazas, PLAZAS_POR_NIVEL[n]);
-    assert.equal(a.plazas, FAUNA_POR_NIVEL[n].enVista.pajaro * 8);
+    assert.equal(a.plazas, FAUNA_POR_NIVEL[n].enVista.pajaro * 3);
     assert.ok(a.plazas * TRIANGULOS_AVE <= 6000, `${n}: worst pool ${a.plazas * TRIANGULOS_AVE}`);
     assert.ok(LEJOS_POR_NIVEL[n] > 0);
     void tope;
@@ -134,12 +134,22 @@ test("the ring refills only on a cell crossing or a window change; a steady fram
   a.dispose();
 });
 
-test("CPU: a steady frame is far under 0.3 ms and cell reads respect the per-frame budget", () => {
+test("CPU: a steady frame is cheap (median over many frames, relative to a baseline loop) and cell reads respect the per-frame budget", () => {
+  // N6: the old `max < 0.3 ms` failed under parallel load (a GC pause or a descheduled thread is not a regression). A real regression (a rebuild or a
+  // cell read every frame) moves the MEDIAN by an order of magnitude, so: median of 600 frames under 0.3 ms, and under 25x a baseline loop timed beside it.
   const a = hacer("A"), cam = camara(0, 0);
   a.llenarTodo(cam, 10);
-  let max = 0;
-  for (let i = 0; i < 300; i++) { const t0 = performance.now(); a.actualizar(cam, 10 + i / 60); max = Math.max(max, performance.now() - t0); }
-  assert.ok(max < 0.3, `steady frame max ${max.toFixed(3)} ms`);
+  const mediana = (v: number[]) => v.slice().sort((x, y) => x - y)[v.length >> 1];
+  const tiempos: number[] = [], base: number[] = [];
+  let sumidero = 0;
+  for (let i = 0; i < 600; i++) {
+    const t0 = performance.now(); a.actualizar(cam, 10 + i / 60); tiempos.push(performance.now() - t0);
+    const t1 = performance.now(); for (let k = 0; k < 2000; k++) sumidero += Math.sqrt(k * i + 1); base.push(performance.now() - t1);
+  }
+  const med = mediana(tiempos), medBase = mediana(base);
+  assert.ok(sumidero > 0);
+  assert.ok(med < 0.3 && med < Math.max(25 * medBase, 0.05), `steady frame median ${med.toFixed(4)} ms (baseline loop ${medBase.toFixed(4)} ms)`);
+  assert.ok(Math.max(...tiempos) < 25, `worst steady frame ${Math.max(...tiempos).toFixed(2)} ms (a stall, not a trend)`);
   // a cell crossing spreads the reads: each frame reads while under the budget, then stops
   const b = hacer("A", { presupuestoMs: 0.3 }), c2 = camara(0, 0);
   b.actualizar(c2, 10);

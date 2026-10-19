@@ -143,13 +143,15 @@ export const OCUPACION = 0.8;
 /** An animal outside the zones it prefers still weighs this much of its `peso`. */
 export const AFINIDAD_FUERA = 0.25;
 /** Per tier: the radius (m) of the view the nature piece fills, the most animals it ever shows at once in that view (`enVista`) and the
- *  most it ever puts in ONE cell (`celda` = ceil(enVista / cells in the view disc), raised where needed so a bigger tier never has a smaller cap than a smaller one; a test pins both). Birds count flocks as ONE entry
+ *  most it ever puts in ONE cell (`celda`: a bigger tier never has a smaller cap than a smaller one; since N6 it is no longer derived from `enVista` — a test pins that it never holds LESS than the view needs). Birds count flocks as ONE entry
  *  (each entry carries `n` birds). The tier only cuts the list short: tier D's animals are the first ones of tier A's. */
 export const FAUNA_POR_NIVEL: Record<NivelFauna, { radio: number; enVista: Record<Grupo, number>; celda: Record<Grupo, number> }> = {
-  A: { radio: 48, enVista: { mariposa: 60, luciernaga: 90, pajaro: 16 }, celda: { mariposa: 10, luciernaga: 14, pajaro: 3 } },
-  B: { radio: 36, enVista: { mariposa: 36, luciernaga: 54, pajaro: 10 }, celda: { mariposa: 10, luciernaga: 14, pajaro: 3 } },
-  C: { radio: 30, enVista: { mariposa: 24, luciernaga: 36, pajaro: 7 }, celda: { mariposa: 9, luciernaga: 14, pajaro: 3 } },
-  D: { radio: 24, enVista: { mariposa: 10, luciernaga: 16, pajaro: 3 }, celda: { mariposa: 6, luciernaga: 10, pajaro: 2 } },
+  // N6: `enVista` (what is DRAWN: the nearest N of the view) fell to fit the nature triangle budget; `celda` (how many animals the world holds in a cell, what the
+  // rarity maths depends on) did not move, so the odds of meeting a rare animal near you stay as published. The nearest animals are always the ones drawn.
+  A: { radio: 48, enVista: { mariposa: 24, luciernaga: 60, pajaro: 6 }, celda: { mariposa: 10, luciernaga: 14, pajaro: 3 } },
+  B: { radio: 36, enVista: { mariposa: 16, luciernaga: 40, pajaro: 4 }, celda: { mariposa: 10, luciernaga: 14, pajaro: 3 } },
+  C: { radio: 30, enVista: { mariposa: 10, luciernaga: 24, pajaro: 3 }, celda: { mariposa: 9, luciernaga: 14, pajaro: 3 } },
+  D: { radio: 24, enVista: { mariposa: 6, luciernaga: 12, pajaro: 2 }, celda: { mariposa: 6, luciernaga: 10, pajaro: 2 } },
 };
 /** How many 32 m cells fit in the view disc of a tier (area ratio). */
 export const celdasEnVista = (nivel: NivelFauna) => Math.PI * FAUNA_POR_NIVEL[nivel].radio ** 2 / (CELDA_M * CELDA_M);

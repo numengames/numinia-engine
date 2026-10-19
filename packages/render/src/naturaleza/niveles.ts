@@ -1,4 +1,4 @@
-// niveles (naturaleza): what the low-poly nature piece draws on each device tier (calidad.ts `Nivel`). Pure data (no three.js).
+// niveles (naturaleza; budgets N6): what the low-poly nature piece draws on each device tier (calidad.ts `Nivel`). Pure data (no three.js).
 // Each story appends its own fields (trees: `arboles*`; grass: `hierba*`), so the pieces stay independent. Budgets come from
 // the naturaleza brief: visible triangles ≤ 60 k A · 35 k B/C · 15 k D for ALL nature together; the trees' share is checked
 // in test/naturaleza-arboles.test.ts (worst case: every near slot at 220 triangles + every far slot at 60).
@@ -18,11 +18,12 @@ export type NaturalezaNivel = {
 };
 
 export const NATURALEZA_POR_NIVEL: Record<Nivel, NaturalezaNivel> = {
-  // N4 retune: terrain + trees + grass share ONE budget (see PRESUPUESTO_NATURALEZA below); the first values were N2's alone.
-  A: { arbolesCerca: 55, arbolesVisibles: 340, arbolesCercaM: 45, arbolesLejosM: 220, arbolesAletean: true },
-  B: { arbolesCerca: 28, arbolesVisibles: 245, arbolesCercaM: 34, arbolesLejosM: 150, arbolesAletean: true },
-  C: { arbolesCerca: 28, arbolesVisibles: 245, arbolesCercaM: 34, arbolesLejosM: 150, arbolesAletean: true },
-  D: { arbolesCerca: 12, arbolesVisibles: 100, arbolesCercaM: 22, arbolesLejosM: 100, arbolesAletean: false },
+  // N6 retune (was 55/340, 28/245, 28/245, 12/100 near/visible): a near tree is now ONE shared 34-triangle template for all species, a far one 26.
+  // A and B draw a second mesh of far silhouettes (2 calls); C and D draw only the near template (1 call), so their `arbolesVisibles` equals `arbolesCerca`.
+  A: { arbolesCerca: 24, arbolesVisibles: 184, arbolesCercaM: 30, arbolesLejosM: 150, arbolesAletean: true },
+  B: { arbolesCerca: 16, arbolesVisibles: 106, arbolesCercaM: 26, arbolesLejosM: 110, arbolesAletean: true },
+  C: { arbolesCerca: 66, arbolesVisibles: 66, arbolesCercaM: 70, arbolesLejosM: 70, arbolesAletean: true },
+  D: { arbolesCerca: 30, arbolesVisibles: 30, arbolesCercaM: 50, arbolesLejosM: 50, arbolesAletean: false },
 };
 
 // ---- grass (N3, hierba.ts) ----
@@ -41,18 +42,23 @@ export type HierbaNivel = {
   presupuestoMs: number;
 };
 export const HIERBA_POR_NIVEL: Record<Nivel, HierbaNivel> = {
-  // N4 retune (was 14000 / 7000 / 7000 / 3000 tufts): the grass gives room to the terrain and the trees. D has no flowers (one draw call less).
-  A: { radio: 38, tuftsMax: 5600, celda: 8, floresMax: 0.08, aleteo: true, presupuestoMs: 0.4 },
-  // F4 retune: B/C lose the flower draw call (0.05 → 0) so that the fauna fits the 10 calls (see docs/NATURALEZA.md F4); A keeps them.
-  B: { radio: 22, tuftsMax: 3200, celda: 8, floresMax: 0, aleteo: true, presupuestoMs: 0.4 },
-  C: { radio: 22, tuftsMax: 3200, celda: 8, floresMax: 0, aleteo: true, presupuestoMs: 0.4 },
-  D: { radio: 14, tuftsMax: 1700, celda: 7, floresMax: 0, aleteo: false, presupuestoMs: 0.3 },
+  // N6 retune (was 5600 / 3200 / 3200 / 1700 tufts + a second call for flowers): flowers are now tufts of the SAME call (their blade tips wear the flower colour),
+  // so every tier draws grass in ONE call. `tuftsMax` counts every slot, flowers included, and every slot is sent to the GPU (3 triangles), alive or not.
+  A: { radio: 24, tuftsMax: 1400, celda: 8, floresMax: 0.1, aleteo: true, presupuestoMs: 0.4 },
+  B: { radio: 16, tuftsMax: 800, celda: 8, floresMax: 0.08, aleteo: true, presupuestoMs: 0.4 },
+  C: { radio: 14, tuftsMax: 600, celda: 8, floresMax: 0.08, aleteo: true, presupuestoMs: 0.4 },
+  D: { radio: 10, tuftsMax: 340, celda: 7, floresMax: 0.06, aleteo: false, presupuestoMs: 0.3 },
 };
 
 // ---- N4: the whole nature piece (naturaleza.ts) ----
-/** The brief's hard limits for ALL nature together: triangles sent (terrain + trees + grass) and draw calls (water included). */
-export const PRESUPUESTO_NATURALEZA: Record<Nivel, { triangulos: number; llamadas: number }> = {
-  A: { triangulos: 60000, llamadas: 12 }, B: { triangulos: 35000, llamadas: 10 }, C: { triangulos: 35000, llamadas: 10 }, D: { triangulos: 15000, llamadas: 8 },
+/** N6: the whole-scene budget (Pablo: «her budget rules»: PC ≤ 100 calls · 50 k triangles; headset ≤ 80 · 35 k; mobile ≤ 60 · 25 k) leaves nature a small slice.
+ *  This is the ONE source of the caps: `triangulos` / `llamadas` for ALL nature together (terrain + trees + grass + water + fauna), and `reparto`, the share of
+ *  triangles each piece may use (test/naturaleza-n4.test.ts checks every piece against its share; limits.json `nature_*` repeats the totals). */
+export const PRESUPUESTO_NATURALEZA: Record<Nivel, { triangulos: number; llamadas: number; reparto: { terreno: number; arboles: number; hierba: number; fauna: number } }> = {
+  A: { triangulos: 15000, llamadas: 8, reparto: { terreno: 3600, arboles: 5200, hierba: 4500, fauna: 1700 } },
+  B: { triangulos: 10000, llamadas: 7, reparto: { terreno: 1800, arboles: 3000, hierba: 2500, fauna: 1100 } },
+  C: { triangulos: 8000, llamadas: 6, reparto: { terreno: 1400, arboles: 2700, hierba: 1900, fauna: 800 } },
+  D: { triangulos: 4000, llamadas: 5, reparto: { terreno: 700, arboles: 1200, hierba: 1100, fauna: 400 } },
 };
 /** Most trees the scatter plants in the whole world per tier (memory + the O(n) near/far split): thinned evenly above it. */
 export const ARBOLES_MAX_POR_NIVEL: Record<Nivel, number> = { A: 1100, B: 750, C: 750, D: 300 };

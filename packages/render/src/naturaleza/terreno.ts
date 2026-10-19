@@ -22,7 +22,7 @@ export type { Zona, OpcionesRelieve };
 const TAMANO = 200, PLAZA = 12, AGUA = NIVEL_AGUA;
 
 /** Grid cells per side by device tier (A desktop · B Quest · C mid phone · D old phone). Triangles = 2·n² + skirt (8·n). */
-export const CELDAS_TERRENO: Record<Nivel, number> = { A: 72, B: 48, C: 40, D: 28 };
+export const CELDAS_TERRENO: Record<Nivel, number> = { A: 40, B: 28, C: 24, D: 16 };
 
 export type OpcionesTerreno = {
   semilla: number;
@@ -42,7 +42,11 @@ export type OpcionesTerreno = {
   colores?: Partial<Record<Zona, number>>;
   /** N4: draw the mesh with shadows from the sun (tier A only: the caller decides). */
   recibeSombra?: boolean;
+  /** N6: paint the pond into the terrain mesh as a flat disc of `LADOS_AGUA_PLANA` triangles (colour hex) instead of a separate water mesh: one draw call less (tier D). */
+  aguaPlana?: number;
 };
+/** Triangles of the painted pond (a fan). */
+export const LADOS_AGUA_PLANA = 14;
 export type Terreno = {
   malla: THREE.Mesh;
   alturaEn: (x: number, z: number) => number;
@@ -54,7 +58,7 @@ export type Terreno = {
 };
 
 /** Number of triangles of a terrain with `n` cells per side: the grid plus a four-sided skirt. */
-export const triangulosDeTerreno = (n: number) => 2 * n * n + 8 * n;
+export const triangulosDeTerreno = (n: number, aguaPlana = false) => 2 * n * n + 8 * n + (aguaPlana ? LADOS_AGUA_PLANA : 0);
 
 /** Build the terrain: ONE mesh, flat-shaded, vertex colours, no texture. */
 export function crearTerreno(o: OpcionesTerreno): Terreno {
@@ -78,7 +82,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
     const f = sstep(mitad - borde, mitad, Math.max(Math.abs(x), Math.abs(z))); // 0 inside … 1 at the border
     C[k * 3] = r + (niebla.r - r) * f; C[k * 3 + 1] = g + (niebla.g - g) * f; C[k * 3 + 2] = b + (niebla.b - b) * f;
   }
-  const tris = triangulosDeTerreno(n), nvt = tris * 3;
+  const e = estanqueDe(s, tam), plana = o.aguaPlana !== undefined && !o.sinEstanque, tris = triangulosDeTerreno(n, plana), nvt = tris * 3;
   const pos = new Float32Array(nvt * 3), col = new Float32Array(nvt * 3);
   let p = 0;
   const caida = 10; // skirt drop (m) below the border height
@@ -112,6 +116,17 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
     pared(V(0, i), V(0, i + 1)); // west
     pared(V(n, i + 1), V(n, i)); // east
   }
+  if (plana) { // N6: the pond as a flat blue fan at the water level, slightly lighter at the rim (no animation, no extra draw call)
+    const r = e.radio * 1.2, c = new THREE.Color(o.aguaPlana), y = AGUA + 0.02;
+    for (let k = 0; k < LADOS_AGUA_PLANA; k++) {
+      const a0 = (k / LADOS_AGUA_PLANA) * Math.PI * 2, a1 = ((k + 1) / LADOS_AGUA_PLANA) * Math.PI * 2;
+      const q = [[e.x, y, e.z], [e.x + Math.cos(a1) * r, y, e.z + Math.sin(a1) * r], [e.x + Math.cos(a0) * r, y, e.z + Math.sin(a0) * r]];
+      for (let v = 0; v < 3; v++) {
+        pos[p * 3] = q[v][0]; pos[p * 3 + 1] = q[v][1]; pos[p * 3 + 2] = q[v][2];
+        const f = v === 0 ? 0.82 : 1; col[p * 3] = c.r * f; col[p * 3 + 1] = c.g * f; col[p * 3 + 2] = c.b * f; p++;
+      }
+    }
+  }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   // F4 audit: no normal buffer (a third of the terrain's bytes): the faces are flat, so the material takes them from screen derivatives
@@ -124,7 +139,6 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
   malla.userData.sinSombra = true; malla.receiveShadow = !!o.recibeSombra;
   malla.matrixAutoUpdate = false; malla.updateMatrix(); // never moves: no per-frame matrix work
   o.escena?.add(malla);
-  const e = estanqueDe(s, tam);
   return {
     malla, estanque: { ...e, nivel: AGUA }, triangulos: tris, vertices: nvt,
     alturaEn: (x, z) => alturaEn(s, x, z, op), zonaEn: (x, z) => zonaEn(s, x, z, op),
