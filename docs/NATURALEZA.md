@@ -837,3 +837,25 @@ Presupuesto idéntico (terreno y hierba sin un triángulo más): A 13 951 tri/8 
 La flora pequeña de `DISENO-LORE.md` ya está en el paisaje, horneada en la malla del terreno como los Residuos (cero llamadas nuevas): módulo puro `naturaleza/flora.ts`, llamado desde `terreno.ts`. En el **páramo** (zona roca): cactus fósiles de 1–2,5 m (columna acanalada de piedra clara salvia, uno o dos anillos de latón, brazo de candelabro en algunos altos y un punto turquesa diminuto de señal), espinas vítreas (4–6 esquirlas verdemar con alma turquesa) y cardos (cabeza grana empolvada). En el **jardín** (prado y bosque): montículos de brezo de luto (verde casi negro con espigas grana) y matas de azafrán seco (abanico ámbar). Nada en la plaza, el estanque, la orilla ni la arena. Los grupos (3–5 plantas) se alternan páramo/jardín y van primero los cercanos a la plaza, así hasta el tope de D se ve un cactus. Colores: bloque `// R6.5` (`FLORA`) al final de `paleta.ts`, solo mezclas de tokens.
 
 Presupuesto: tope de flora A 510 / B 300 / C 240 / D 120 triángulos dentro de la parte del terreno (`reparto.terreno` A 4000 · B 2100 · C 1650 · D 800). En A se paga con 30 matas de hierba del anillo exterior (`tuftsMax` 1030 → 1000) y holgura sin usar de árboles y fauna. Peor caso medido: A 13 951 → 14 279 · B 8 063 → 8 343 · C 6 096 → 6 326 · D 3 039 → 3 137; llamadas sin cambio (8/7/6/5). Test: `test/naturaleza-flora.test.ts`. Fotos: `fotos/r6-5-*`.
+
+## E02 · Terreno en trozos de 64 m con dos anillos de detalle, en UNA llamada
+
+**Qué:** `naturaleza/trozos.ts` (nuevo, puro) parte la rejilla del terreno en trozos de ~64 m (número par de celdas: A 10 = 58,8 m · B 8 = 66,7 m ·
+C 6 = 60 m · D 6 = 75 m). Cada trozo guarda dos tramos de índices sobre el MISMO búfer de vértices: fino (la rejilla tal cual) y grueso (un vértice
+de cada dos: ¼ de los triángulos). Al moverse la cámara, los tramos elegidos se copian seguidos en el índice de la malla y `setDrawRange` corta en
+su suma: **misma malla, mismo material, una sola llamada** (las llamadas de la naturaleza ya estaban en el tope). Se eligió esto frente a
+`BatchedMesh`/multi-draw porque en three r186 WebGPU emite un `drawIndexed` por instancia y pediría su propio camino de material.
+
+**Sin grietas ni saltos** (idea de CDLOD, F. Strugar 2009): cada vértice lleva lo que la superficie gruesa vale en su sitio (`grueso` = altura +
+normal, `colorGrueso`); el vértice se funde hacia ello por distancia horizontal a la cámara (`smoothstep(0,6 R, 0,95 R)`), así que en el borde
+fino/grueso el lado fino ya está entero en la superficie gruesa y el cambio de anillo no se ve. Los sueltos (faldón, Residuos, flora) se desplazan
+lo que la superficie gruesa difiere bajo ellos; el estanque pintado sigue plano. `alturaMalla` no cambia (Residuos byte a byte).
+
+**Uso:** `crearTerreno({ …, trozos: { lado: 64, radioDetalle: 128 } })` y `terreno.trozos.actualizar(x, z)` cada cuadro (sube el índice solo si un
+trozo cambia de anillo); `crearNaturaleza({ …, trozos: true })` lo hace solo con `TROZOS_POR_NIVEL` (anillo fino de 128 m). Apagado por
+defecto. `celdas` permite mapas mayores con la densidad del nivel.
+
+**Medido** (banco, RTX 4080, WebGPU; `work/saber-3d/queries/e02-trozos.md`): en el mundo de 200 m no hay nada que ganar (terreno 0,9–4 k
+triángulos; GPU igual ±1 µs). En un mapa de 2 km: A 234 k → 62 k triángulos, GPU p50 0,116 → 0,112 ms, p99 0,136 → 0,119; mismas llamadas.
+Pendiente: árboles y hierba se apoyan en la superficie fina (en trozos gruesos pueden flotar/hundirse hasta ~1,7 m p95); recorte por distancia
+y frustum de trozos (E07) y generación por trozos en worker (E11). Tests: `test/naturaleza-trozos.test.ts`.

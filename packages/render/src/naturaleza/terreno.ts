@@ -37,7 +37,7 @@ import * as THREE from "three/webgpu";
 import type { Nivel } from "../calidad.ts";
 import { hash2, valor2, simplex2 } from "./semilla.ts";
 import { CASA, VERDES, ESTACIONES, COLOR_ESTANQUE, FRANJAS, SUELO_R72, mezcla } from "./paleta.ts";
-import { Fn, float, vec2, vec3, color, floor, fract, mix, smoothstep, step, dot, max, abs, clamp, oneMinus, select, uint, vertexIndex, varying, attribute, positionLocal, positionWorld, normalWorld } from "three/tsl";
+import { Fn, float, vec2, vec3, color, floor, fract, mix, smoothstep, step, dot, max, abs, clamp, oneMinus, select, uint, vertexIndex, varying, attribute, positionLocal, positionWorld, normalWorld, positionGeometry, normalLocal, normalize, length, cameraPosition } from "three/tsl";
 import type { Estacion } from "./paleta.ts";
 
 import { ZONAS, PALETA_TERRENO, NIVEL_AGUA, alturaEn, zonaEn, estanqueDe, campo, sstep } from "../../../relieve/src/relieve.ts";
@@ -48,6 +48,8 @@ import { construirResiduos } from "./residuos.ts";
 import { nodoRelleno } from "./relleno.ts";
 import type { Sitio } from "./residuos.ts";
 import { construirFlora } from "./flora.ts"; // R6.5
+import { crearTrozos, gruesoEn, alturaGruesaEn, RELEVO } from "./trozos.ts"; // E02
+import type { OpcionesTrozos, EstadisticasTrozos } from "./trozos.ts";
 const TAMANO = 200, PLAZA = 12, AGUA = NIVEL_AGUA;
 
 /** Grid cells per side by device tier (A desktop · B Quest · C mid phone · D old phone). Triangles = 2·n² + skirt (8·n). */
@@ -79,6 +81,11 @@ export type OpcionesTerreno = {
   residuos?: boolean;
   /** R6.5: bake the lore's minor flora (flora.ts) into this same mesh: no draw call. Default: as `residuos` (so `residuos: false` stays bare terrain). */
   flora?: boolean;
+  /** E02 (trozos.ts): cut the lattice into ~64 m chunks with two detail rings, still ONE draw call (index ranges + CDLOD-style morph).
+   *  Absent/null = the single mesh as before (byte-identical index). Call `terreno.trozos.actualizar(x, z)` with the camera each frame. */
+  trozos?: OpcionesTrozos | null;
+  /** E02: cells per side (even), overriding the tier's CELDAS_TERRENO — for bigger maps at the tier's density (bench rows of 1–4 km). */
+  celdas?: number;
 };
 /** Triangles of the painted pond (a fan). */
 export const LADOS_AGUA_PLANA = 14;
@@ -97,6 +104,8 @@ export type Terreno = {
   flora: { triangulos: number };
   /** R7.2: the linear RGB the ground SHOWS at a world point (vertex colour + noise + slope, as the shader does): what R7.3's grass samples. */
   colorSueloEn: (x: number, z: number) => [number, number, number];
+  /** E02: the chunk driver (null = single mesh). `actualizar` picks each chunk's ring for a camera at (x, z) and uploads the index if it changed. */
+  trozos: { actualizar: (x: number, z: number) => boolean; estadisticas: () => EstadisticasTrozos } | null;
   /** R7.2: the ground's vertex colour (linear RGB) interpolated on the drawn triangle, before the shader's noise and slope. */
   colorBaseEn: (x: number, z: number) => [number, number, number];
   /** R7.2: the ground's smooth normal (unit, interpolated on the drawn triangle, as the fragment sees it). */
@@ -304,7 +313,7 @@ export function nodoSuelo(e: EntradaSuelo): V3 {
 
 /** Build the terrain: ONE mesh (one draw call), R7.2 smooth-shaded over shared lattice vertices, vertex colours + the ground node, no texture. */
 export function crearTerreno(o: OpcionesTerreno): Terreno {
-  const nivel = o.nivel ?? "A", n = CELDAS_TERRENO[nivel], tam = o.tamano ?? TAMANO, op: OpcionesRelieve = { tamano: tam, plaza: o.plaza ?? PLAZA, sinEstanque: o.sinEstanque };
+  const nivel = o.nivel ?? "A", n = o.celdas ?? CELDAS_TERRENO[nivel], tam = o.tamano ?? TAMANO, op: OpcionesRelieve = { tamano: tam, plaza: o.plaza ?? PLAZA, sinEstanque: o.sinEstanque };
   const s = o.semilla, mitad = tam / 2, paso = tam / n;
   const nv = n + 1;
   // sample heights and zone weights once per lattice vertex, then colour in a second pass (slope and curvature need the neighbours)
@@ -413,9 +422,32 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
   g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   g.setAttribute("normal", new THREE.BufferAttribute(nor, 3)); // R7.2: smooth on the lattice, per face on the loose triangles (F4 had dropped it while the faces were flat)
   g.setAttribute("color", new THREE.BufferAttribute(col, 3));
-  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  const atIdx = new THREE.BufferAttribute(idx, 1);
+  g.setIndex(atIdx);
   g.computeBoundingSphere(); g.computeBoundingBox();
-  const mat = materialSuelo({ semilla: s, nivel, nRejilla, mitad, borde });
+  // E02 · chunks with two detail rings in ONE draw call (trozos.ts): every vertex also carries the coarse surface's height, normal and
+  // colour at its place (`grueso` = h + normal, `colorGrueso`); the vertex shader morphs toward them by camera distance. Loose props
+  // (skirt, Residuos, flora) shift by the coarse − fine height under them, so they stay on the ground; the painted pond stays flat.
+  let trozos: Terreno["trozos"] = null;
+  if (o.trozos) {
+    const hG = gruesoEn(H, n, 1), nG = gruesoEn(NR, n, 3), cG = gruesoEn(C, n, 3);
+    const gr = new Float32Array(nvt * 4), cgr = new Float32Array(nvt * 3);
+    for (let k = 0; k < nRejilla; k++) { gr[k * 4] = hG[k]; gr[k * 4 + 1] = nG[k * 3]; gr[k * 4 + 2] = nG[k * 3 + 1]; gr[k * 4 + 3] = nG[k * 3 + 2]; cgr.set(cG.subarray(k * 3, k * 3 + 3), k * 3); }
+    const pond0 = nRejilla + 8 * n * 3, pond1 = pond0 + (plana ? LADOS_AGUA_PLANA * 3 : 0);
+    for (let k = nRejilla; k < nvt; k++) {
+      const x = pos[k * 3], y = pos[k * 3 + 1], z = pos[k * 3 + 2], estanq = k >= pond0 && k < pond1;
+      gr[k * 4] = estanq ? y : y + alturaGruesaEn(H, n, tam, x, z) - alturaMalla(x, z);
+      gr[k * 4 + 1] = nor[k * 3]; gr[k * 4 + 2] = nor[k * 3 + 1]; gr[k * 4 + 3] = nor[k * 3 + 2];
+      cgr[k * 3] = col[k * 3]; cgr[k * 3 + 1] = col[k * 3 + 1]; cgr[k * 3 + 2] = col[k * 3 + 2];
+    }
+    g.setAttribute("grueso", new THREE.BufferAttribute(gr, 4));
+    g.setAttribute("colorGrueso", new THREE.BufferAttribute(cgr, 3));
+    const T = crearTrozos({ n, tam, opciones: o.trozos }, idx, idx.slice(6 * n * n)); // the loose triangles go first (constant), the chunk ranges after
+    const subir = () => { atIdx.clearUpdateRanges(); atIdx.addUpdateRange(T.inicio, T.cuenta - T.inicio); atIdx.needsUpdate = true; g.setDrawRange(0, T.cuenta); };
+    subir();
+    trozos = { actualizar: (x, z) => { const c = T.actualizar(x, z); if (c) subir(); return c; }, estadisticas: () => T.estadisticas() };
+  }
+  const mat = materialSuelo({ semilla: s, nivel, nRejilla, mitad, borde, radioDetalle: o.trozos?.radioDetalle ?? 0 });
   const malla = new THREE.Mesh(g, mat);
   malla.name = "terreno-naturaleza";
   malla.userData.sinSombra = true; malla.receiveShadow = !!o.recibeSombra;
@@ -430,6 +462,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
     franjaEn: (x, z, h) => franjasEn(s, x, z, h ?? alturaEn(s, x, z, op), op),
     colorBaseEn, normalEn,
     colorSueloEn: (x, z) => sombrearSuelo(colorBaseEn(x, z), x, z, normalEn(x, z)[1], mascaraEn(x, z), s, nivel),
+    trozos,
     dispose: () => { malla.removeFromParent(); g.dispose(); mat.dispose(); },
   };
 }
@@ -444,14 +477,24 @@ function mascaraSuelo(x: number, z: number, h: number, mitad: number, borde: num
  * vertex stage: lattice vertices only (`vertexIndex` < nv²: the skirt, painted pond and baked Residuos/flora keep their own colours), the same
  * border fade and water line as `mascaraSuelo`, then interpolated (one varying).
  */
-function materialSuelo(q: { semilla: number; nivel: Nivel; nRejilla: number; mitad: number; borde: number }): THREE.MeshLambertNodeMaterial {
+function materialSuelo(q: { semilla: number; nivel: Nivel; nRejilla: number; mitad: number; borde: number; radioDetalle?: number }): THREE.MeshLambertNodeMaterial {
   const mat = new THREE.MeshLambertNodeMaterial();
   mat.name = "terreno-naturaleza";
   const pl = positionLocal as unknown as V3;
   const enRejilla = select(vertexIndex.lessThan(uint(q.nRejilla)), float(1), float(0)) as unknown as N;
   const fuera = smoothstep(q.mitad - q.borde, q.mitad, max(abs(pl.x), abs(pl.z)));
   const mascara = varying(enRejilla.mul(oneMinus(fuera)).mul(smoothstep(AGUA - 0.1, AGUA + 0.25, pl.y))) as unknown as N;
-  const base = attribute("color", "vec3") as unknown as V3;
+  let base = attribute("color", "vec3") as unknown as V3;
+  if (q.radioDetalle) { // E02: CDLOD-style morph toward the coarse ring by horizontal camera distance (trozos.ts factorRelevo is the CPU twin)
+    const pg = positionGeometry as unknown as V3, g = attribute("grueso", "vec4") as unknown as ReturnType<typeof vec3> & { x: N; yzw: V3 };
+    const d = length((pg.xz as unknown as V2).sub((cameraPosition as unknown as V3).xz)) as unknown as N;
+    const m = smoothstep(RELEVO[0] * q.radioDetalle, RELEVO[1] * q.radioDetalle, d) as unknown as N;
+    mat.positionNode = Fn(() => {
+      (normalLocal as unknown as { assign: (v: unknown) => void }).assign(normalize(mix(normalLocal as unknown as V3, g.yzw, m)));
+      return vec3(pg.x, mix(pg.y, g.x, m), pg.z);
+    })() as unknown as V3;
+    base = varying(mix(base, attribute("colorGrueso", "vec3") as unknown as V3, m)) as unknown as V3;
+  }
   mat.colorNode = nodoSuelo({ base, xz: (positionWorld as unknown as V3).xz as unknown as V2, ny: (normalWorld as unknown as V3).y as unknown as N, mascara, semilla: q.semilla, nivel: q.nivel });
   // R5.1 fill, weighted by the SMOOTH normal (relleno.ts's default is the flat facet's normal, which would bring the facets back in the shade)
   mat.emissiveNode = nodoRelleno(clamp((normalWorld as unknown as V3).y.mul(0.5).add(0.5), 0, 1) as unknown as N);
