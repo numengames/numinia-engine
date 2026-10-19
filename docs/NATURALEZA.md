@@ -837,3 +837,34 @@ Presupuesto idéntico (terreno y hierba sin un triángulo más): A 13 951 tri/8 
 La flora pequeña de `DISENO-LORE.md` ya está en el paisaje, horneada en la malla del terreno como los Residuos (cero llamadas nuevas): módulo puro `naturaleza/flora.ts`, llamado desde `terreno.ts`. En el **páramo** (zona roca): cactus fósiles de 1–2,5 m (columna acanalada de piedra clara salvia, uno o dos anillos de latón, brazo de candelabro en algunos altos y un punto turquesa diminuto de señal), espinas vítreas (4–6 esquirlas verdemar con alma turquesa) y cardos (cabeza grana empolvada). En el **jardín** (prado y bosque): montículos de brezo de luto (verde casi negro con espigas grana) y matas de azafrán seco (abanico ámbar). Nada en la plaza, el estanque, la orilla ni la arena. Los grupos (3–5 plantas) se alternan páramo/jardín y van primero los cercanos a la plaza, así hasta el tope de D se ve un cactus. Colores: bloque `// R6.5` (`FLORA`) al final de `paleta.ts`, solo mezclas de tokens.
 
 Presupuesto: tope de flora A 510 / B 300 / C 240 / D 120 triángulos dentro de la parte del terreno (`reparto.terreno` A 4000 · B 2100 · C 1650 · D 800). En A se paga con 30 matas de hierba del anillo exterior (`tuftsMax` 1030 → 1000) y holgura sin usar de árboles y fauna. Peor caso medido: A 13 951 → 14 279 · B 8 063 → 8 343 · C 6 096 → 6 326 · D 3 039 → 3 137; llamadas sin cambio (8/7/6/5). Test: `test/naturaleza-flora.test.ts`. Fotos: `fotos/r6-5-*`.
+
+## E04 · Cielo analítico (experimento; por defecto sigue R7.1)
+
+`packages/render/src/cielo-analitico.ts` dibuja todo el cielo con una función del shader del domo:
+- degradado cénit → turquesa pálido → horizonte de marfil, con banda de nácar (cálida hacia el sol, perla al otro lado);
+- resplandor de crepúsculo, disco del sol y halo prismático de 22° (fuerza 0,1);
+- estrellas: 6 % de día, plenas de noche;
+- luna en creciente a 40° de altura, al rumbo contrario al sol.
+
+Va enchufado por `Atmosfera.cielo` (`entorno.ts`). El domo se dibuja **vivo y al final** en los 4 niveles: vértice en el
+plano lejano, `renderOrder` 1000, con prueba de profundidad. Así solo se calcula el cielo que queda a la vista, y B–D ya
+no hornean cubo.
+
+La niebla no cambia, salvo su color lejano: es el mismo cielo, sin estrellas, luna ni halo.
+
+**Cómo encenderlo y ajustarlo:**
+- Encender: `CIELO_NATURALEZA = "analitico"` en `naturaleza/atmosfera.ts`.
+- Colores: `CIELO_E04` en `paleta.ts`.
+- Ajustes (halo, estrellas de día, luna): `CIELO_ANALITICO`.
+
+**Banco:**
+- `nat-cielo-analitico` frente a `nat-atmosfera`;
+- `naturaleza-cielo-analitico` frente a `naturaleza`;
+- `nat-cielo-analitico-primero` (control);
+- `foto-cielo?hora=&cielo=r71|analitico&vista=rumbo,cabeceo`.
+
+**Medida (RTX 4080).** En la escena entera, −0,005…−0,013 ms GPU p50 frente a R7.1, mismas llamadas y −1,5 k
+triángulos en B–D. Resultado completo: `work/saber-3d/queries/e04-cielo-analitico.md`.
+
+**Trampa de TSL:** `vec3(new THREE.Color(h))` sale **negro**, porque `vec3()` lee `.x/.y/.z`. Para un color constante,
+usa `uniform(new THREE.Color(h))`.
