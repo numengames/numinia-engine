@@ -25,7 +25,7 @@ function pilares(): THREE.Mesh[] {
 
 test("R5.3 HITOS are mixes of house tokens, muted (no primary colour), same order as the engine's", () => {
   assert.equal(HITOS.length, MOTOR.length);
-  assert.equal(HITOS[0], mezcla(MAQUINA.laton, CASA.bronce, 0.3), "the gold pillar of the example quest stays brass");
+  assert.equal(HITOS[0], mezcla(MAQUINA.laton, CASA.bronce, 0.4), "the gold pillar of the example quest stays brass");
   // chroma (max − min channel): every post is calmer than the toy colour it replaces and none is loud
   const croma = (c: number) => { const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255; return (Math.max(r, g, b) - Math.min(r, g, b)) / 255; };
   HITOS.forEach((c, i) => { assert.ok(croma(c) < croma(MOTOR[i]), `0x${c.toString(16)} calmer than 0x${MOTOR[i].toString(16)}`); assert.ok(croma(c) <= 0.42, `0x${c.toString(16)} chroma ${croma(c).toFixed(2)}`); });

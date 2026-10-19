@@ -12,7 +12,7 @@ import { HITOS } from "./paleta.ts";
 /** How deep a post goes into the ground below the lowest corner of its footprint (m): reads as planted, never floating. */
 export const HUNDIDO = 0.35;
 /** Metal look of the posts (MeshStandardMaterial): a little metal, matte, so the env light reads as worn bronze, not chrome. */
-export const METAL = { metalness: 0.35, roughness: 0.62 } as const;
+export const METAL = { metalness: 0.1, roughness: 0.82 } as const;
 
 type Mat = { color: THREE.Color; metalness?: number; roughness?: number };
 

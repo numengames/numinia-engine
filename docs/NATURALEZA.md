@@ -761,3 +761,14 @@ Fotos reales (SwiftShader, `.run/n7/fotos.mjs`) en `work/naturaleza/fotos/n7-*.p
 **Ahora:** `COLOR_ESTANQUE` vive en `paleta.ts` (Turquesa profundo + 35 % Verdemar, apagado con 20 % Ceniza) y lo llevan el agua de A–C (`agua-estilo.ts` lo reexporta) y el estanque pintado del nivel D (centro `COLOR_ESTANQUE`, orilla hacia Verdemar). `naturaleza.ts` pasa la estación (`estacion`) al terreno, la hierba y los árboles, que toman sus colores de `ESTACIONES`; no queda ningún hex en `naturaleza.ts` (un test lo vigila). `naturaleza.json` acepta `"estacion": "otono"`; `"paleta"` sigue valiendo igual (si vienen los dos, manda `estacion`).
 
 Píxel del fondo del estanque (10 h, antes → después): nivel A `#0d5872` → `#1f6d72`; nivel D `#42adab` → `#358683` (A y D ya se parecen). Otoño: idéntico (misma tabla `ESTACIONES.otono`, ahora por `estacion`). Presupuesto igual: A 13 951 tri/8 llamadas, B 8 063/7, C 6 096/6, D 3 039/5. Fotos `work/naturaleza/fotos/r5-2-*-{antes,despues}.png`.
+
+
+## R5.3 · Los pilares de colores se visten de máquina
+
+**De dónde salían:** no eran del mundo de demostración, sino del motor: `packages/render/src/index.ts` pone 24 cajas de 1×3×1 m en tres anillos (amarillo `0xd9a441`, azul `0x5b8cc0`, rojo `0xc0605b`, verde `0x6ea86a`) «para que se note el movimiento» en el suelo plano; el entorno las muestra salvo `hitos: false`. Con relieve, además, flotaban o se hundían (siempre a y = 1,5).
+
+**Ahora:** solo mientras un mundo tiene la naturaleza encendida, `naturaleza/hitos.ts` los viste como postes de latón, verdín con musgo, cobre y ceniza (`HITOS` en `paleta.ts`, mezclas de tokens oscurecidas con Bronce porque son MeshStandardMaterial a pleno sol: claras se quemaban a cian y blanco), un poco metálicos y mate, y los asienta 0,35 m por debajo de la esquina más baja de su huella. Al apagar la naturaleza (o reconstruirla en otro nivel) vuelven exactamente como estaban. Los mundos sin naturaleza siguen viendo los colores de siempre. El orden de colores se respeta: el «pilar dorado del este» de la misión de ejemplo es el de latón. `index.ts` solo pasa `hitos: () => hitos` (nota en NOTAS-UX-LOWPOLY). Coste: cero llamadas y cero triángulos (los mismos 24 materiales).
+
+En el mundo de demostración (`work/naturaleza/mundo-demo/aventura/cosas/`), la regadera pasa de `#3a7bd5` a Turquesa profundo `#016e7d` (sigue siendo «la azul» de la misión, ahora acento de señal pequeño) y el saco de semillas de `#e0b030` a Latón `#b98a2e`.
+
+Píxel de los pilares en la vista general (antes → después): menta `(136,236,169)` → verdín `(75,142,125)`; amarillo `(245,212,107)` → latón `(166,148,85)`; rosa `(236,137,147)` → cobre `(153,117,94)`. Test: `test/naturaleza-r5-3.test.ts`.

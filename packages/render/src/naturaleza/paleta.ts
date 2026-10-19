@@ -56,12 +56,14 @@ export const COLOR_ESTANQUE = mezcla(mezcla(CASA.turquesaProfundo, CASA.verdemar
  * R5.3 · Pilares de referencia del motor (index.ts, 24 cajas en anillos) vestidos de máquina mientras la naturaleza está encendida
  * (hitos.ts): postes de latón, verdín, cobre y ceniza en vez del amarillo/azul/rojo/verde de juguete. Mismo orden que la paleta del
  * motor, así el «pilar dorado» de la misión de ejemplo sigue siendo el de latón. Mezclas de tokens, ningún hex nuevo.
+ * Oscurecidos con Bronce a propósito: son MeshStandardMaterial a plena luz de sol (no Lambert con colores por vértice como el resto
+ * de la naturaleza) y en las fotos un verdín o una ceniza claros se quemaban hasta cian y blanco.
  */
 export const HITOS = [
-  mezcla(MAQUINA.laton, CASA.bronce, 0.3),        // was gold 0xd9a441
-  mezcla(MAQUINA.cobreOxidado, CASA.ceniza, 0.45), // was blue 0x5b8cc0
-  mezcla(MAQUINA.cobre, CASA.bronce, 0.35),       // was red 0xc0605b
-  mezcla(CASA.ceniza, CASA.arenaVelada, 0.25),    // was green 0x6ea86a
+  mezcla(MAQUINA.laton, CASA.bronce, 0.4),   // was gold 0xd9a441
+  mezcla(mezcla(VERDES.verdin, VERDES.musgo, 0.4), CASA.bronce, 0.3), // was blue 0x5b8cc0 (verdigris with moss: the sky ambient pushes it to teal)
+  mezcla(MAQUINA.cobre, CASA.bronce, 0.4),   // was red 0xc0605b
+  mezcla(CASA.ceniza, CASA.bronce, 0.4),     // was green 0x6ea86a
 ] as const;
 
 /** Paletas de estación: qué verde/hoja/flor usa cada una. Todo dentro de las tablas de arriba. */
