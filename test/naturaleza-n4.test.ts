@@ -3,6 +3,7 @@
 // client hands it to the view). (2) the scatter: pure, deterministic, the brief's rules per zone. (3) the budget: worst case of
 // terrain + trees + grass per tier. (4) the piece: off builds nothing, on hides the flat ground, switching off restores it and
 // disposes everything, `aplicar` is idempotent.
+import { FLORA_POR_NIVEL } from "../packages/render/src/naturaleza/flora.ts"; // R6.5
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three/webgpu";
@@ -201,7 +202,7 @@ test("scatter CPU: a full 200 m world builds in well under a second (pure code, 
 test("budget: terrain + trees + grass fit the brief's triangles and draw calls on every tier, in the worst case", () => {
   for (const n of NIVELES) {
     const cfg = NATURALEZA_POR_NIVEL[n], b = PRESUPUESTO_NATURALEZA[n];
-    const terreno = triangulosDeTerreno(CELDAS_TERRENO[n], n === "D") + RESIDUOS_POR_NIVEL[n]; // R4: the baked Residuos fit inside the terrain share
+    const terreno = triangulosDeTerreno(CELDAS_TERRENO[n], n === "D") + RESIDUOS_POR_NIVEL[n] + FLORA_POR_NIVEL[n]; // R4/R6.5: the baked Residuos and flora fit inside the terrain share
     const arboles = cfg.arbolesCerca * triangulosCerca(cfg.arbolesDetalle) + (cfg.arbolesVisibles - cfg.arbolesCerca) * geometriaLejos().triangulos; // every near slot at the cap, every other at the far cap
     const hierba = triangulosHierba(HIERBA_POR_NIVEL[n]); // N7: outer + dense inner ring
     assert.ok(terreno + arboles + hierba <= b.triangulos, `${n}: ${terreno} + ${arboles} + ${hierba} = ${terreno + arboles + hierba} > ${b.triangulos}`);

@@ -24,6 +24,7 @@ export type { Zona, OpcionesRelieve };
 import { construirResiduos } from "./residuos.ts";
 import { nodoRelleno } from "./relleno.ts";
 import type { Sitio } from "./residuos.ts";
+import { construirFlora } from "./flora.ts"; // R6.5
 const TAMANO = 200, PLAZA = 12, AGUA = NIVEL_AGUA;
 
 /** Grid cells per side by device tier (A desktop · B Quest · C mid phone · D old phone). Triangles = 2·n² + skirt (8·n). */
@@ -53,6 +54,8 @@ export type OpcionesTerreno = {
   aguaPlana?: number;
   /** R4: bake the Residuos (old machinery half buried in the landscape, residuos.ts) into this same mesh: no draw call. Default true; false = bare terrain. */
   residuos?: boolean;
+  /** R6.5: bake the lore's minor flora (flora.ts) into this same mesh: no draw call. Default: as `residuos` (so `residuos: false` stays bare terrain). */
+  flora?: boolean;
 };
 /** Triangles of the painted pond (a fan). */
 export const LADOS_AGUA_PLANA = 14;
@@ -65,6 +68,8 @@ export type Terreno = {
   triangulos: number; vertices: number;
   /** R4: the baked Residuos (triangles inside `triangulos`) and their sites (position, kind) for later features. */
   residuos: { triangulos: number; sitios: Sitio[] };
+  /** R6.5: the baked flora's triangles (inside `triangulos`). */
+  flora: { triangulos: number };
   dispose: () => void;
 };
 
@@ -160,7 +165,8 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
     return u <= v ? a + v * (c - a) + u * (d - c) : a + u * (b - a) + v * (d - b);
   };
   const res = o.residuos === false ? null : construirResiduos(s, { nivel, tamano: tam, plaza: op.plaza ?? PLAZA, estanque: o.sinEstanque ? null : e }, alturaMalla, (x, z) => zonaEn(s, x, z, op));
-  const triRes = res?.triangulos ?? 0, tris = triangulosDeTerreno(n, plana) + triRes, nvt = tris * 3;
+  const flo = !(o.flora ?? o.residuos !== false) ? null : construirFlora(s, { nivel, tamano: tam, plaza: op.plaza ?? PLAZA, estanque: o.sinEstanque ? null : e, evitar: res?.piezas }, alturaMalla, (x, z) => zonaEn(s, x, z, op)); // R6.5
+  const triRes = res?.triangulos ?? 0, triFlo = flo?.triangulos ?? 0, tris = triangulosDeTerreno(n, plana) + triRes + triFlo, nvt = tris * 3;
   const pos = new Float32Array(nvt * 3), col = new Float32Array(nvt * 3);
   let p = 0;
   const caida = 10; // skirt drop (m) below the border height
@@ -210,6 +216,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
     }
   }
   if (res && triRes > 0) { pos.set(res.posiciones, p * 3); col.set(res.colores, p * 3); p += triRes * 3; } // R4: the baked Residuos (flat triangles, vertex colours)
+  if (flo && triFlo > 0) { pos.set(flo.posiciones, p * 3); col.set(flo.colores, p * 3); p += triFlo * 3; } // R6.5: the baked flora
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   // F4 audit: no normal buffer (a third of the terrain's bytes): the faces are flat, so the material takes them from screen derivatives
@@ -224,7 +231,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
   malla.matrixAutoUpdate = false; malla.updateMatrix(); // never moves: no per-frame matrix work
   o.escena?.add(malla);
   return {
-    malla, estanque: { ...e, nivel: AGUA }, triangulos: tris, vertices: nvt, residuos: { triangulos: triRes, sitios: res?.sitios ?? [] },
+    malla, estanque: { ...e, nivel: AGUA }, triangulos: tris, vertices: nvt, residuos: { triangulos: triRes, sitios: res?.sitios ?? [] }, flora: { triangulos: triFlo },
     alturaEn: (x, z) => alturaEn(s, x, z, op), zonaEn: (x, z) => zonaEn(s, x, z, op),
     dispose: () => { malla.removeFromParent(); g.dispose(); mat.dispose(); },
   };

@@ -49,7 +49,7 @@ export type HierbaNivel = {
 export const HIERBA_POR_NIVEL: Record<Nivel, HierbaNivel> = {
   // N7: each tier's tufts are split into a coarse outer ring and a dense inner ring (A 1050 + 350 = 1400 as before, so the grass's share does not change):
   // density ≈ 0.6 tufts/m² outside, ≈ 2.9 within the inner radius (was a flat 0.77), thinning with distance. Flowers are tufts of the outer ring.
-  A: { radio: 24, tuftsMax: 1030, celda: 8, floresMax: 0.1, aleteo: true, presupuestoMs: 0.4, cerca: { radio: 7, celda: 3.5, tuftsMax: 340 } },
+  A: { radio: 24, tuftsMax: 1000, celda: 8, floresMax: 0.1, aleteo: true, presupuestoMs: 0.4, cerca: { radio: 7, celda: 3.5, tuftsMax: 340 } },
   B: { radio: 16, tuftsMax: 600, celda: 8, floresMax: 0.08, aleteo: true, presupuestoMs: 0.4, cerca: { radio: 6, celda: 3, tuftsMax: 190 } },
   C: { radio: 14, tuftsMax: 450, celda: 8, floresMax: 0.08, aleteo: true, presupuestoMs: 0.4, cerca: { radio: 5.5, celda: 3, tuftsMax: 140 } },
   D: { radio: 10, tuftsMax: 250, celda: 7, floresMax: 0.06, aleteo: false, presupuestoMs: 0.3, cerca: { radio: 4.5, celda: 3, tuftsMax: 80 } },
@@ -60,10 +60,10 @@ export const HIERBA_POR_NIVEL: Record<Nivel, HierbaNivel> = {
  *  This is the ONE source of the caps: `triangulos` / `llamadas` for ALL nature together (terrain + trees + grass + water + fauna), and `reparto`, the share of
  *  triangles each piece may use (test/naturaleza-n4.test.ts checks every piece against its share; limits.json `nature_*` repeats the totals). */
 export const PRESUPUESTO_NATURALEZA: Record<Nivel, { triangulos: number; llamadas: number; reparto: { terreno: number; arboles: number; hierba: number; fauna: number } }> = {
-  A: { triangulos: 15000, llamadas: 8, reparto: { terreno: 3600, arboles: 5200, hierba: 4500, fauna: 1700 } },
-  B: { triangulos: 10000, llamadas: 7, reparto: { terreno: 1800, arboles: 3000, hierba: 2500, fauna: 1100 } },
-  C: { triangulos: 8000, llamadas: 6, reparto: { terreno: 1400, arboles: 2700, hierba: 1900, fauna: 800 } },
-  D: { triangulos: 4000, llamadas: 5, reparto: { terreno: 700, arboles: 1200, hierba: 1100, fauna: 400 } },
+  A: { triangulos: 15000, llamadas: 8, reparto: { terreno: 4000, arboles: 5150, hierba: 4250, fauna: 1600 } }, // R6.5: +400 terrain for the baked flora (flora.ts), paid by 30 outer grass tufts and the trees'/fauna's unused slack
+  B: { triangulos: 10000, llamadas: 7, reparto: { terreno: 2100, arboles: 3000, hierba: 2500, fauna: 1100 } },
+  C: { triangulos: 8000, llamadas: 6, reparto: { terreno: 1650, arboles: 2700, hierba: 1900, fauna: 800 } },
+  D: { triangulos: 4000, llamadas: 5, reparto: { terreno: 800, arboles: 1200, hierba: 1100, fauna: 400 } },
 };
 /** Most trees the scatter plants in the whole world per tier (memory + the O(n) near/far split): thinned evenly above it. */
 export const ARBOLES_MAX_POR_NIVEL: Record<Nivel, number> = { A: 1100, B: 750, C: 750, D: 300 };

@@ -66,7 +66,7 @@ test("one mesh, one draw call per tier, triangles and vertices within budget", (
   const vistos: number[] = [];
   for (const n of NIVELES) {
     const t = crearTerreno({ semilla: 1234, nivel: n });
-    const g = t.malla.geometry, esperado = triangulosDeTerreno(CELDAS_TERRENO[n]) + t.residuos.triangulos; // R4: the baked Residuos live inside the one mesh
+    const g = t.malla.geometry, esperado = triangulosDeTerreno(CELDAS_TERRENO[n]) + t.residuos.triangulos + t.flora.triangulos; // R4/R6.5: the baked Residuos and flora live inside the one mesh
     assert.equal(t.malla.isMesh, true);
     assert.equal(g.index, null, "non-indexed: flat normals");
     assert.equal(g.attributes.position.count, esperado * 3);

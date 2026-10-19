@@ -68,3 +68,25 @@ export function mezcla(a: number, b: number, t: number): number {
   const bl = Math.round((a & 255) * (1 - k) + (b & 255) * k);
   return (r << 16) | (g << 8) | bl;
 }
+
+// R6.5
+/**
+ * R6.5 · Flora menor del lore (flora.ts): cactus fósil del páramo de antracita (ceniza petrificada con un velo salvia, surcos de bronce, anillos de latón),
+ * espinas vítreas (verdemar/cristal, alma turquesa profunda abajo, punta clara), brezo de luto (bronce oscuro con un poso de grana),
+ * matas de azafrán seco (ámbar sobre ámbar tostado) y cardos (tallo ceniza-salvia, cabeza grana apagada, púas arena velada). Solo mezclas de tokens.
+ */
+export const FLORA = {
+  cactus: mezcla(mezcla(CASA.ceniza, VERDES.hierbaSombra, 0.45), CASA.arenaVelada, 0.12),
+  cactusSurco: mezcla(VERDES.monteSombra, CASA.bronce, 0.5),
+  cactusLuz: mezcla(CASA.arenaVelada, VERDES.hierbaLuz, 0.3),
+  espina: MAQUINA.cristal,
+  espinaHondo: mezcla(CASA.verdemar, CASA.turquesaProfundo, 0.5),
+  espinaPunta: mezcla(CASA.verdemar, CASA.arena, 0.55),
+  brezo: mezcla(CASA.bronceOscuro, CASA.grana, 0.16),
+  brezoLuz: mezcla(mezcla(CASA.bronce, CASA.grana, 0.24), CASA.ceniza, 0.22),
+  azafran: mezcla(CASA.ambar, CASA.ambarTostado, 0.2),
+  azafranSeco: mezcla(CASA.ambarTostado, CASA.bronce, 0.25),
+  cardoTallo: mezcla(CASA.ceniza, VERDES.hierbaSombra, 0.35),
+  cardoFlor: mezcla(CASA.grana, CASA.bronce, 0.4),
+  cardoPua: CASA.arenaVelada,
+} as const;
