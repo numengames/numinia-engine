@@ -720,3 +720,30 @@ Ahora la naturaleza ocupa, sobre el presupuesto de escena entera: A ≈ 8 llamad
 **Qué se ve peor** (fotos reales, `.run/n6/`, contra las de F4): copas más sencillas (3 bipirámides en vez de 3 octaedros más ramas; las ramas visibles de cerca desaparecen);
 hierba que acaba antes (24 m en vez de 38) y menos densa en el horizonte; menos mariposas y luciérnagas a la vez; el relieve se ve igual pero el contorno de las colinas lejanas es algo más anguloso;
 en D el estanque es un disco plano sin olas. **Cero opciones nuevas** (no hay `calidad` en `naturaleza.json`).
+
+## N7 · Belleza dentro del presupuesto de N6: árboles con ramas y hierba junto a los pies
+
+N6 dejó los árboles como setas (bipirámides apiladas, sin ramas) y el suelo desnudo delante del avatar. N7 los arregla **sin tocar los topes** (`PRESUPUESTO_NATURALEZA` no cambia; los repartos por pieza tampoco, todo cabe en ellos).
+
+**Árboles (`naturaleza/arboles.ts`).**
+- **Plantilla cercana con detalle (niveles A/B, 78 triángulos):** tronco de 4 lados en 2 tramos con curva y conicidad (16) + 3 ramas de prisma de 3 lados (18) con una mata de hojas facetada en la punta (3 octaedros de ring irregular, 24) + copa de icosaedro con vértices desplazados (20). Las 4 especies siguen siendo **el mismo conjunto de vértices con 4 juegos de posiciones** (`position`, `pos1..3`), así que una sola llamada. Roble: copa grande irregular + ramas con matas colgando; pino: tres pisos de cono con borde dentado + punta de cono; abedul: tronco blanco curvo, copa alta estrecha, ramas finas; arbusto: copa baja y aplastada con matas a ras.
+- **Plantilla sencilla (niveles C/D, 36 triángulos):** tronco recto + copa icosaedro + una mata. Sin ramas (en C/D no hay segunda llamada que pagar, y 66 y 30 árboles cerca caben con 36 triángulos cada uno, no con 78).
+- **Lejos (A/B, 22 triángulos):** tronco de 3 lados + dos octaedros irregulares en vez de dos bipirámides pentagonales (antes 26).
+- **Viento en el shader:** cada vértice lleva un peso de balanceo `mov` (0 en la raíz de la rama, 1 en la punta); la punta se mueve con `mov²` (fase propia por vértice, hacia el viento y de lado), encima de la inclinación del árbol entero y del aleteo de hojas (que sigue apagado en D). Cero CPU por árbol.
+- **Luz:** la cara sin sol de una copa se veía negra; ahora la normal de una hoja se inclina hacia el cielo (plana + arriba × 0,15 corteza … 0,65 hoja; las caras siguen leyéndose planas), la corteza es más clara y el color va ×1,25. Sin luces nuevas.
+- **Cuántos:** cerca A 24 (como en N6; 30 m), B 16, C 66, D 30 (simples); lejos A 148 (antes 160), B 78 (antes 90).
+
+**Hierba (`naturaleza/hierba.ts`).** Dos anillos de celdas en el **mismo buffer y la misma llamada**: el exterior (radio y celda de N6, menos matas) y un **anillo interior denso** (`cerca` en `HIERBA_POR_NIVEL`: A 7 m / 340 matas, B 6 / 190, C 5,5 / 140, D 4,5 / 80). Las matas del interior llevan `CERCA_MARCA` (+100) en su canal de escala y el shader las desvanece, **encogiéndolas**, sobre su radio propio: sin borde ni salto. Densidad: ≈ 0,6 matas/m² fuera, ≈ 2,9 dentro (antes 0,77 plana). El total de matas por nivel no sube (A 1 030 + 340 frente a 1 400).
+
+### Antes / después (mundo semilla 1234, peor hora, `tools/naturaleza-medir.ts`)
+
+| Nivel | triángulos N6 → N7 (tope) | llamadas N6 → N7 (tope) | árboles: cerca/visibles y triángulos N6 → N7 | hierba enviada N6 → N7 (reparto) |
+|---|---|---|---|---|
+| A | 14 192 → 14 505 (15 000) | 8 → 8 (8) | 24/184, 5 120 → 24/172, 5 018 (5 200) | 4 200 → 4 419 (4 500) |
+| B | 8 126 → 8 030 (10 000) | 7 → 7 (7) | 16/106, 2 912 → 16/94, 2 832 (3 000) | 2 400 → 2 442 (2 500) |
+| C | 6 520 → 6 154 (8 000) | 6 → 6 (6) | 66/66, 2 640 → 66/66, 2 376 (2 700) | 1 800 → 1 773 (1 900) |
+| D | 3 245 → 3 003 (4 000) | 5 → 5 (5) | 30/30, 1 200 → 30/30, 1 044 (1 200) | 1 020 → 945 (1 100) |
+
+Fotos reales (SwiftShader, `.run/n7/fotos.mjs`) en `work/naturaleza/fotos/n7-*.png`: `n7-dia-plaza`, `n7-prado-cerca`, `n7-arbol-viento` y `n7-arbol-viento-b` (1,5 s después: las matas y ramas se han movido), `n7-noche-estanque`.
+
+**Qué sigue peor que en F4:** en C/D los árboles no tienen ramas; lejos (>30 m en A) siguen siendo dos octaedros; no hay flores nuevas. **Cero opciones nuevas.**
