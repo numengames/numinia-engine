@@ -6,7 +6,7 @@ import * as THREE from "three/webgpu";
 import { uniform } from "three/tsl";
 import { esparcirArboles, SAUCE_AGUA, SAUCE_ORILLA } from "../packages/render/src/naturaleza/esparcir.ts";
 import { crearTerreno } from "../packages/render/src/naturaleza/terreno.ts";
-import { crearArboles, geometriaArbol, geometriaCerca, geometriaLejos, ESPECIES, LEJOS, ALTURA, CUELGA_LEJOS, TOPE_LEJOS, TRIS_MAX_CERCA, TRIS_MAX_LEJOS, TRIANGULOS_ARBOL, TRIANGULOS_DETALLE, TRIANGULOS_SIMPLE, triangulosCerca, CARTAS_DETALLE, CARTAS_SIMPLE, CON_CARTAS, PARTE, tonoRegional } from "../packages/render/src/naturaleza/arboles.ts";
+import { crearArboles, geometriaArbol, geometriaCerca, geometriaLejos, ESPECIES, LEJOS, ALTURA, CUELGA_LEJOS, TOPE_LEJOS, TRIS_MAX_CERCA, TRIS_MAX_LEJOS, TRIANGULOS_ARBOL, TRIANGULOS_DETALLE, TRIANGULOS_SIMPLE, triangulosCerca, CARTAS_DETALLE, CARTAS_SIMPLE, CON_CARTAS, PARTE, tonoRegional, entrelazarCerca } from "../packages/render/src/naturaleza/arboles.ts";
 import { copaDeCartas, PESO_ESFERA } from "../packages/render/src/naturaleza/follaje.ts";
 import type { PuntoArbol } from "../packages/render/src/naturaleza/arboles.ts";
 import { NATURALEZA_POR_NIVEL } from "../packages/render/src/naturaleza/niveles.ts";
@@ -308,4 +308,15 @@ test("R7.4: the regional colour drifts slowly over the land (neighbours alike, f
     cerca += Math.abs(u - tonoRegional(x + 1.5, z, 0.5)); lejos += Math.abs(u - tonoRegional(x + 40, z - 25, 0.5)); n++;
   }
   assert.ok(cerca / n < 0.5 * (lejos / n), `near ${(cerca / n).toFixed(3)} vs far ${(lejos / n).toFixed(3)}`);
+});
+
+test("WebGPU: the near tree mesh stays within the default 8 vertex buffers per draw (interleaved template, 4 instance buffers)", () => {
+  for (const detalle of [true, false]) {
+    const base = geometriaArbol(detalle).geometria, g = new THREE.InstancedBufferGeometry();
+    entrelazarCerca(base, g);
+    const buffers = new Set(Object.values(g.attributes).map((a) => ((a as THREE.InterleavedBufferAttribute).isInterleavedBufferAttribute ? (a as THREE.InterleavedBufferAttribute).data : a)));
+    assert.ok(buffers.size + 4 <= 8, `near template: ${buffers.size} geometry buffers + 4 instance buffers`);
+    for (const k of Object.keys(base.attributes)) { const a = base.getAttribute(k), b = g.getAttribute(k);
+      assert.equal(b.count, a.count, k); for (let i = 0; i < a.count; i += 97) for (let c = 0; c < a.itemSize; c++) assert.equal(b.getComponent(i, c), a.getComponent(i, c), `${k}[${i}]`); }
+  }
 });

@@ -451,6 +451,25 @@ type Inst = { a: THREE.InstancedBufferAttribute; b: THREE.InstancedBufferAttribu
 const instAttr = (n: number, k: number) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, n) * k), k); a.setUsage(THREE.DynamicDrawUsage); return a; };
 
 /** Near LOD, all species: a = (x, y, z, escala) · b = (giro, fase, especie 0…4, tinte) · c = (dark leaf rgb, height m) · d = (light leaf rgb, collar flag 0 none / 1 bronze / 2 copper). */
+/** The near template on the GPU: WebGPU allows 8 vertex buffers per draw by default and the template has 12 per-vertex attributes
+ *  (+ 4 instance buffers = 16, so the pipeline failed and near trees were not drawn on WebGPU). The five other species' positions go
+ *  into ONE interleaved buffer and the six small attributes into another: position + 2 + 4 instance = 7 buffers, same data, same
+ *  shader (an interleaved attribute reads like a plain one). The CPU template (`geometriaArbol`) stays plain for tests and tools. */
+export function entrelazarCerca(base: THREE.BufferGeometry, g: THREE.BufferGeometry): void {
+  const n = base.getAttribute("position").count;
+  const grupo = (claves: string[]) => {
+    const tam = claves.map((k) => base.getAttribute(k).itemSize), paso = tam.reduce((a, b) => a + b, 0), datos = new Float32Array(n * paso);
+    claves.forEach((k, j) => { const a = base.getAttribute(k).array as Float32Array, t = tam[j], o = tam.slice(0, j).reduce((x, y) => x + y, 0);
+      for (let i = 0; i < n; i++) for (let c = 0; c < t; c++) datos[i * paso + o + c] = a[i * t + c]; });
+    const buf = new THREE.InterleavedBuffer(datos, paso);
+    claves.forEach((k, j) => g.setAttribute(k, new THREE.InterleavedBufferAttribute(buf, tam[j], tam.slice(0, j).reduce((x, y) => x + y, 0))));
+  };
+  g.setAttribute("position", base.getAttribute("position"));
+  const especies = Object.keys(base.attributes).filter((k) => /^pos\d+$/.test(k)), resto = Object.keys(base.attributes).filter((k) => k !== "position" && !especies.includes(k));
+  if (especies.length) grupo(especies);
+  if (resto.length) grupo(resto);
+}
+
 type InstCerca = Inst & { c: THREE.InstancedBufferAttribute; d: THREE.InstancedBufferAttribute };
 function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.MeshLambertNodeMaterial {
   const mat = new THREE.MeshLambertNodeMaterial({ flatShading: true });
@@ -596,7 +615,7 @@ export function crearArboles(h: HArboles, puntos: readonly PuntoArbol[]) {
   const cerca = (() => {
     const inst: InstCerca = { a: instAttr(capCerca, 4), b: instAttr(capCerca, 4), c: instAttr(capCerca, 4), d: instAttr(capCerca, 4) };
     const base = geometriaArbol(cfg.arbolesDetalle).geometria, g = new THREE.InstancedBufferGeometry();
-    for (const k of Object.keys(base.attributes)) g.setAttribute(k, base.attributes[k]);
+    entrelazarCerca(base, g);
     g.setIndex(base.index); g.instanceCount = 0; g.boundingSphere = esfera.clone();
     const mat = materialCerca(comunes, cfg.arbolesAletean, inst), mesh = new THREE.Mesh(g, mat);
     mesh.name = "arboles-cerca"; mesh.visible = false; mesh.castShadow = false; mesh.receiveShadow = false; mesh.userData.sinSombra = true;
