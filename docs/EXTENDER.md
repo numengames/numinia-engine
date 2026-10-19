@@ -935,6 +935,19 @@ comporta exactamente como en v1. Es una pieza del motor: cualquier mundo la acti
 - **Aún no**: contadores `duelos`/`ganados` en el marcador por invitado (cambiaría el evento `marcador` que
   fija `test/dardos.test.ts`) y lanzar con el gesto real en VR.
 
+### Dardos v3: duelo por equipos de 1 jugador (2 a 4), turno con botón
+
+Ajuste del mundo por diana (`dardos.json`): `"equipos": 2..4`. **Sin `equipos`** la diana es el duelo de 2 de antes: arranca sola al llegar
+el segundo. **Con `equipos`** el anfitrión (el primero que juega) arranca con el botón «Empezar» cuando hay al menos 2 sentados; hasta
+entonces pueden entrar más hasta el tope. El cambio de turno es **siempre** con botón: tras el 3.º dardo la visita queda en «retira los
+dardos» (`retirando`), nada puntúa (`lanzar` se rechaza) y quien tiene el turno pulsa «Cambiar turno» (HUD de la página o panel 3D en
+AR); si nadie pulsa, a los `RETIRANDO_S` = 12 s cambia sola. Al cambiar, los dardos de esa visita salen de la diana.
+Intents nuevos (`sitio`): `cambiar`, `empezar`. Eventos `duelo` / `finduelo`: se añaden campos planos `c`, `d`, `nombreC/D`, `puntosC/D`,
+`paredC/D`, `fueraA..D`, `equipos` (cuántos admite), `plazas` (cuántos sentados), `turnoEq` (1..4; 0 = nadie), `retirando`; el cliente
+viejo que solo lee a/b sigue funcionando. Esquema `version: 3`. Reglas puras en `features/dardos/equipos.ts` (sin dardos dentro, para
+reutilizarlas en la pesca). Un equipo que se va se salta; si queda uno, gana por defecto. Pruebas: `node --test test/dardos-equipos.test.ts
+test/dardos-duelo-equipos-vista.test.ts`; e2e: `node tools/e2e-piernas/dardos-duelo.mjs` (tramo 6: tres jugadores).
+
 ## Dados (v1): los tira el servidor y todos ven lo mismo
 
 `features/dados` es la tirada de una mesa de rol: **nadie decide un dado en su página**. Pides una tirada y el
