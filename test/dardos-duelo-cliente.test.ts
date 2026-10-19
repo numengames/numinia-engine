@@ -68,7 +68,9 @@ test("duelo cliente: waiting, joining from a wall, turns flip, miTurno is true f
   assert.ok(A.cambios.includes("duelo") && B.cambios.includes("duelo"));
   // A throws three; the turn passes to B and the flags flip
   for (let i = 0; i < 3; i++) { lanzar(A); W.pump(3); }
-  assert.deepEqual([A.d.duelo()!.miTurno, B.d.duelo()!.miTurno, C.d.duelo()!.turnoDe], [false, true, B.s.entity]);
+  assert.deepEqual([A.d.duelo()!.retirando, A.d.duelo()!.puedeCambiar, B.d.duelo()!.puedeCambiar, B.d.duelo()!.miTurno], [true, true, false, false], "v3: «retira los dardos», only A can press");
+  assert.equal(A.d.cambiar().ok, true); W.pump(3);
+  assert.deepEqual([A.d.duelo()!.miTurno, B.d.duelo()!.miTurno, C.d.duelo()!.turnoDe, B.d.duelo()!.retirando], [false, true, B.s.entity, false]);
   assert.equal(B.d.tirando(), true); assert.equal(A.d.tirando(), false);
   assert.equal(C.d.duelo()!.yo, false); assert.equal(C.d.duelo()!.rival, null); assert.equal(C.d.duelo()!.yoPuntos, 0);
   assert.equal(C.d.duelo()!.miTurno, false);
@@ -81,17 +83,21 @@ test("duelo cliente: the rival's darts of the current round stay visible 500 m a
   A.d.jugar("duelo"); B.d.jugar("duelo", "pared"); W.pump(3);
   for (let i = 0; i < 3; i++) { lanzar(A, 0, 0.6); W.pump(3); }
   assert.equal(B.d.clavados("duelo").length, 3, "B sees A's three darts after A's turn ended");
+  assert.equal(A.d.duelo()!.retirando, true);
   assert.equal(C.d.clavados("duelo").length, 3); assert.equal(D.d.clavados().length, 0);
   assert.equal(A.d.clavados("duelo").length, 3);
+  A.d.cambiar(); W.pump(3);
+  assert.equal(B.d.clavados("duelo").length, 0, "«cambiar»: A's darts come out of the board"); assert.equal(A.d.clavados("duelo").length, 0);
   lanzar(B, 0.3, 0.4, 0.8); W.pump(3);
-  assert.equal(B.d.clavados("duelo").length, 4); assert.equal(A.d.clavados("duelo").length, 4, "A, far from B's wall, sees B's dart");
-  assert.equal(A.d.duelo()!.yoPuntos, A.d.clavados().filter((d) => d.quien === A.s.entity).reduce((s, d) => s + d.puntos, 0));
+  assert.equal(B.d.clavados("duelo").length, 1); assert.equal(A.d.clavados("duelo").length, 1, "A, far from B's wall, sees B's dart");
   assert.equal(A.d.duelo()!.rival!.puntos, B.d.clavados().filter((d) => d.quien === B.s.entity)[0].puntos);
   for (let i = 0; i < 2; i++) { lanzar(B); W.pump(3); }
-  // round 2: A's first dart takes A's old darts out (v1 rule), B's stay until B's own next turn
+  assert.equal(A.d.clavados("duelo").filter((d) => d.quien === B.s.entity).length, 3, "B's three stay while B waits to change");
+  B.d.cambiar(); W.pump(3);
+  // round 2: B's darts came out with the change; A's first dart is the only one in the board
   lanzar(A, 0, 0.6); W.pump(3);
   assert.equal(B.d.clavados("duelo").filter((d) => d.quien === A.s.entity).length, 1);
-  assert.equal(B.d.clavados("duelo").filter((d) => d.quien === B.s.entity).length, 3);
+  assert.equal(B.d.clavados("duelo").filter((d) => d.quien === B.s.entity).length, 0);
 });
 
 /** A full match, with fixed throws; returns the pages. */
@@ -99,7 +105,7 @@ function partida(tiros: [number, number, number][]) {
   const W = mundo(); const [A, B] = W.pages; W.montar();
   A.d.jugar("duelo"); B.d.jugar("duelo", "pared"); W.pump(3);
   const vistos: number[] = [];
-  for (let r = 0; r < RONDAS_DEFECTO; r++) for (const q of [A, B]) for (const [x, y, f] of tiros) { lanzar(q, x, y, f); W.pump(3); vistos.push(W.pages[0].d.duelo()!.ronda ?? 0); }
+  for (let r = 0; r < RONDAS_DEFECTO; r++) for (const q of [A, B]) { for (const [x, y, f] of tiros) { lanzar(q, x, y, f); W.pump(3); vistos.push(W.pages[0].d.duelo()!.ronda ?? 0); } q.d.cambiar(); W.pump(3); }
   return { W, vistos };
 }
 
@@ -111,7 +117,7 @@ test("duelo cliente: a full match seen by both players and a bystander; scores a
     const a = A.d.duelo()!, b = B.d.duelo()!, c = C.d.duelo()!;
     assert.ok(a.fin && b.fin && c.fin);
     for (const x of [a, b, c]) assert.deepEqual([x.a.entity, x.b!.entity, x.a.puntos, x.b!.puntos, x.turnoDe, x.miTurno, x.ronda], [A.s.entity, B.s.entity, a.a.puntos, a.b!.puntos, null, false, 3]);
-    // the last round's darts are what is in the board; the totals are the sum of every dart each one threw
+    // the last visit's darts are what is in the board; the totals are the sum of every dart each one threw
     assert.equal(a.yoPuntos, a.a.puntos); assert.equal(b.yoPuntos, b.b!.puntos); assert.equal(a.rival!.puntos, b.yoPuntos);
     assert.equal(a.a.puntos + a.b!.puntos > 0, true);
     if (a.a.puntos === a.b!.puntos) {
@@ -126,8 +132,8 @@ test("duelo cliente: a full match seen by both players and a bystander; scores a
     assert.equal(D.d.duelo(), null);
     assert.ok(A.cambios.at(-1) === "estado" || A.cambios.includes("duelo"));
     // the darts of the last round stay a few seconds for both (and the bystander), then come out
-    assert.equal(A.d.clavados("duelo").length, 6); assert.equal(B.d.clavados("duelo").length, 6); assert.equal(C.d.clavados("duelo").length, 6);
-    mock.timers.tick(DUELO_DARDOS_MS - 100); assert.equal(B.d.clavados("duelo").length, 6);
+    assert.equal(A.d.clavados("duelo").length, 3); assert.equal(B.d.clavados("duelo").length, 3); assert.equal(C.d.clavados("duelo").length, 3);
+    mock.timers.tick(DUELO_DARDOS_MS - 100); assert.equal(B.d.clavados("duelo").length, 3);
     mock.timers.tick(200);
     for (const p of [A, B, C]) assert.equal(p.d.clavados("duelo").length, 0);
     assert.ok(A.d.duelo()?.fin, "the result outlives the darts");

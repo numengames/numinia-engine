@@ -108,12 +108,14 @@ test("controller + wire: a bystander near the board reads the waiting host, the 
   assert.equal(letreroDe(a, 3).panel.filas[0].yo, true);
   // a dart of the host (at the board): the bystander sees it, and it must NOT be flown in; then the guest's own
   for (let i = 0; i < 3; i++) { A.d.lanzar(0, 0.6, FUERZA_IDEAL, "torre"); pump(7); }
+  const delHost = C.d.clavados("torre").find((x) => x.quien === A.s.entity)!; assert.ok(delHost, "the bystander has the host's darts while he removes them");
+  A.d.cambiar(); pump(3); // v3: the host presses «cambiar» and his darts come out
   B.d.lanzar(0, 0.6, FUERZA_IDEAL, "torre"); pump(3);
   const mios = C.d.clavados("torre"), suyo = mios.find((x) => x.quien === B.s.entity)!;
-  assert.ok(suyo && mios.some((x) => x.quien === A.s.entity), "the bystander has both players' darts");
+  assert.ok(suyo && !mios.some((x) => x.quien === A.s.entity), "the bystander has the guest's dart; the host's came out with the change");
   const d = C.d.duelo()!;
   assert.equal(debeVolar(d, suyo, performance.now()), true, "the wall player's dart flies in");
-  assert.equal(debeVolar(d, mios.find((x) => x.quien === A.s.entity)!, performance.now() + 0), false, "the dart of the player at the board does not");
+  assert.equal(debeVolar(d, delHost, performance.now() + 0), false, "the dart of the player at the board does not");
   assert.equal(letreroDe(d, 3).panel.filas.find((f) => f.turno)!.nombre, B.s.who!.nombre);
 });
 
