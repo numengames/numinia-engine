@@ -25,10 +25,14 @@ export default serverPart(chat, (api) => {
   const conocidos = new Map<number, Set<number>>();  // player -> entities whose name its page holds
   const callados = new Map<number, number>();        // H3: entity -> tick until which it is silenced (the roles' «silencio»)
   const bloqueados = new Map<number, Set<number>>(); // F1: listener entity -> speakers it does not read (the roles' «bloqueo»)
+  const nombresPropios = new Map<number, string>();  // H3c: entity -> name chosen with /nombre (roles-mundo.ts), overrides the identity's
   const r2 = NOMBRES_M ** 2, olvido2 = (NOMBRES_M * OLVIDO) ** 2;
 
-  /** The name people see: the identity's (I1); a robot's after a second without one; null = not yet. */
+  /** The name people see: a chosen one (H3c /nombre) first, else the identity's (I1); a robot's after a second
+   * without one; null = not yet. */
   const nombreDe = (e: number): string | null => {
+    const propio = nombresPropios.get(e);
+    if (propio) return propio;
     const w = api.who(e);
     if (w) return limpiar(w.nombre, NOMBRE_MAX) || `Persona ${e}`;
     const t = llegada.get(e);
@@ -74,6 +78,16 @@ export default serverPart(chat, (api) => {
     if (s > 0) callados.set(e, api.tick() + s * TICKS_POR_SEGUNDO); else callados.delete(e);
     return true;
   });
+  // H3c: /nombre (roles-mundo.ts) — a chosen name, over heads and in what they say, until they leave or choose another.
+  api.listen("roles", "nombreCambiado", (m) => {
+    const e = Number(m.quien), n = limpiar(String(m.nombre ?? ""), NOMBRE_MAX);
+    if (!n) return true;
+    nombresPropios.set(e, n);
+    for (const [p, s] of conocidos) if (s.has(e)) api.emit("nombre", { quien: e, nombre: n }, { to: p });
+    return true;
+  });
+  // H3c: /chat borrar (roles-mundo.ts, manage-organization) — the zone's history, empty for whoever enters next.
+  api.listen("roles", "borrarHistorial", () => { historia.length = 0; return true; });
 
   api.onJoin((e) => {
     llegada.set(e, api.tick());
@@ -85,28 +99,47 @@ export default serverPart(chat, (api) => {
     if (n) for (const [p, s] of conocidos) if (s.has(e)) api.emit("nombre", { quien: e, nombre: n }, { to: p });
   });
   api.onLeave((e) => {
-    llegada.delete(e); conocidos.delete(e); callados.delete(e); bloqueados.delete(e);
+    llegada.delete(e); conocidos.delete(e); callados.delete(e); bloqueados.delete(e); nombresPropios.delete(e);
     for (const s of bloqueados.values()) s.delete(e);
     for (const [p, s] of conocidos) if (s.delete(e)) api.emit("nombre", { quien: e, nombre: "" }, { to: p });
   });
+
+  // D4: the positions a pass reads, read once per tick hook. A crowd's pages hold the same people: with 1,000 players
+  // each tick's tenth asked api.position ~9,000 times (a fresh object each) for ~1,000 entities. Nothing in this hook
+  // moves anyone (it only emits names to pages), so within one call a position cannot change; the stamp makes the
+  // next call read them again. NaN in px = gone (api.position gave null).
+  let vuelta = 0, marca = new Float64Array(0), px = new Float64Array(0), pz = new Float64Array(0);
+  const leer = (e: number): boolean => {
+    if (e >= marca.length) {
+      const n = Math.max(e + 1, marca.length * 2, 64), m = new Float64Array(n), x = new Float64Array(n), z = new Float64Array(n);
+      m.set(marca); x.set(px); z.set(pz); marca = m; px = x; pz = z;
+    }
+    if (marca[e] !== vuelta) {
+      marca[e] = vuelta;
+      const o = api.position(e);
+      if (o) { px[e] = o.x; pz[e] = o.z; } else px[e] = NaN;
+    }
+    return px[e] === px[e];
+  };
 
   /** One player's names: who its page draws within 24 m gets named (the nearest first, at most NOMBRES_POR_PASO per
    * pass, so a crowd entering at once spreads over a few passes); past 30 m (or gone) is forgotten. */
   const candidatos: { e: number; d2: number }[] = [];
   const repasar = (p: number) => {
-    const me = api.position(p);
-    if (!me) return;
+    if (!leer(p)) return;
+    const mx = px[p], mz = pz[p];
     let mine = conocidos.get(p);
     if (!mine) conocidos.set(p, (mine = new Set()));
     for (const e of mine) {
-      const o = api.position(e);
-      if (!o || (o.x - me.x) ** 2 + (o.z - me.z) ** 2 > olvido2) { mine.delete(e); api.emit("nombre", { quien: e, nombre: "" }, { to: p }); }
+      if (!leer(e) || (px[e] - mx) ** 2 + (pz[e] - mz) ** 2 > olvido2) { mine.delete(e); api.emit("nombre", { quien: e, nombre: "" }, { to: p }); }
     }
+    // D4: a page that already holds NOMBRES_MAX names gets no new one this pass (the loop below would stop before its
+    // first); with a crowd that is most passes, so skip looking for candidates (their positions, the sort) altogether
+    if (mine.size >= NOMBRES_MAX) return;
     candidatos.length = 0;
     for (const e of api.visible(p)) {
       if (mine.has(e) || e === p) continue;
-      const o = api.position(e);
-      const d2 = o ? (o.x - me.x) ** 2 + (o.z - me.z) ** 2 : Infinity;
+      const d2 = leer(e) ? (px[e] - mx) ** 2 + (pz[e] - mz) ** 2 : Infinity;
       if (d2 <= r2) candidatos.push({ e, d2 });
     }
     candidatos.sort((a, b) => a.d2 - b.d2 || a.e - b.e);
@@ -121,6 +154,7 @@ export default serverPart(chat, (api) => {
   };
   api.onTick((t) => {
     const players = api.players();
+    vuelta++;
     for (let i = t % NOMBRES_CADA_TICKS; i < players.length; i += NOMBRES_CADA_TICKS) repasar(players[i]);
   });
 });

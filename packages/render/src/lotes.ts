@@ -21,6 +21,7 @@ export function crearLotes(padre: THREE.Object3D) {
     if (!color) return mat;
     const nuevo = mat.clone() as THREE.MeshStandardMaterial;
     if (nuevo.color) nuevo.color.set(color);
+    if (nuevo.userData.colorEnVertices) nuevo.vertexColors = false; // E2: its colours live in the vertices; painted, one colour
     if ("map" in nuevo) nuevo.map = null;
     return nuevo;
   }

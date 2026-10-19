@@ -4,6 +4,7 @@ import type { ClientPart } from "../packages/feature/src/index.ts";
 import gestos from "./gestos/client.ts";
 import despertar from "./despertar/client.ts";
 import objetos from "./objetos/client.ts";
+import avatar from "./avatar/client.ts"; // H10: your avatar — house or uploaded .vrm, saved with your identity
 import chat from "./chat/client.ts";
 import misiones from "./misiones/client.ts"; // J5: two features: people (pnj) and quests (misiones)
 import entorno from "./entorno/client.ts";
@@ -25,7 +26,7 @@ import disparadores from "./disparadores/client.ts"; // D-041: the cable — a b
 import cerradura from "./cerradura/client.ts"; // D-042: the lock's data and its keypad (apps/plaza/cerradura.ts)
 import movedores from "./movedores/client.ts"; // D-043: the model wherever the server says, right now (`view.place`)
 import lucha from "./lucha/client.ts"; // L1: creatures drawn as the house block through view.place; «E: golpear»
+import ancestros from "./ancestros/client.ts"; // v1: the Salón de los Ancestros (3D: packages/render/src/ancestros.ts; panel: apps/plaza/ancestros.ts)
 import inventario from "./inventario/client.ts"; // Y1: the Reserva (panel in apps/plaza/inventario.ts)
 import sonido from "./sonido/client.ts"; // S6: the sounds of the house — the server says what sounds and with what seed; the page only mixes (view.sonido)
-const funciones: ClientPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores, cerradura, movedores, inventario, sonido];
-export default funciones;
+const funciones: ClientPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores, cerradura, movedores, inventario, ancestros, sonido];export default funciones;

@@ -92,6 +92,15 @@
     #mision-nota { position: fixed; top: 34%; left: 50%; transform: translateX(-50%); max-width: calc(100% - 40px); padding: 6px 12px; border-radius: 8px; background: rgba(255, 210, 122, .95); color: #23303b; font-weight: 600; text-align: center; pointer-events: none; }
     /* V1: what happens, for screen readers (not shown on screen; the voice of V3 comes later) */
     #fundido { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 40; } /* D-045: the fade when the server puts you back on a safe spot (features/suelo) */
+    /* MVL3 step 1: the 2D "Cargando" screen (moon + running dots), plain HTML so it paints before any script
+       runs — no black flash before the world. The 3D build-up sequence for heavy loads is a later step. */
+    #carga { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: #10141b; color: #eef2f6; transition: opacity .5s ease; }
+    #carga[hidden] { display: none; }
+    #carga.ida { opacity: 0; pointer-events: none; }
+    #carga .c-texto { margin: 14px 0 0; font: 16px/1 system-ui, sans-serif; letter-spacing: .04em; text-align: center; }
+    #carga .c-puntos::after { content: ""; animation: c-puntos 1.4s steps(4, end) infinite; }
+    @keyframes c-puntos { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } 100% { content: ""; } }
+    @media (prefers-reduced-motion: reduce) { #carga { transition: none; } #carga .c-puntos::after { animation: none; content: "…"; } }
     .solo-lector { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
     /* N2: the settings menu (a real <dialog>: keyboard, touch and screen readers) and what its settings change */
     :root { --ui: 1; }
@@ -128,6 +137,15 @@
     html.alto-contraste #ajustes .describe { opacity: 1; }
     html.alto-contraste :focus-visible { outline: 3px solid #ffeb3b !important; outline-offset: 2px; }
     html.menos-movimiento *, html.menos-movimiento *::before, html.menos-movimiento *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    /* t_bdc2c2db: «Qué hay de nuevo», una sola vez por versión distinta a la vista (apps/plaza/novedades.ts) */
+    #novedades { position: fixed; inset: 10px auto auto 10px; margin: 0; width: min(380px, calc(100vw - 20px)); max-height: calc(100vh - 20px); overflow: auto; padding: 10px 12px 12px; border: 0; border-radius: 10px; background: rgb(20, 24, 30); color: #eef2f6; box-sizing: border-box; }
+    #novedades::backdrop { background: rgba(10, 14, 20, .25); }
+    #novedades .cabecera { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    #novedades h2 { margin: 0; font-size: 1.05em; color: #ffd27a; }
+    #novedades ul { margin: 8px 0 0; padding-left: 20px; }
+    #novedades li { margin: 0 0 6px; }
+    #novedades button { min-height: 36px; padding: 6px 12px; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; font: inherit; font-weight: 600; }
+    #novedades :focus-visible { outline: 3px solid #ffd27a; outline-offset: 1px; }
   /* auditoría UI móvil: objetivo táctil mínimo 44x44 px (Apple HIG / Material) para los controles que
      en escritorio ya iban sobrados de ratón pero en el dedo quedaban en 28-39px: el libro de misiones,
      saltar/saludar/bailar/recoger, abrir el chat, los botones del minimapa (−/+/N/Mapa/Ficha) y la fila
@@ -143,9 +161,21 @@
   <link rel="stylesheet" href="./tema.css" /><!-- U11: Numinia Design System (colours, type, icons) and the right-hand layout -->
 </head>
 <body>
+  <div id="carga" aria-hidden="true"><!-- MVL3 step 1: moon + running dots, gone by main.ts once the first frame is drawn -->
+    <div class="c-caja">
+      <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <defs><mask id="c-luna-mask"><rect width="64" height="64" fill="#fff" /><circle cx="40" cy="24" r="22" fill="#000" /></mask></defs>
+        <circle cx="32" cy="32" r="26" fill="#eef2f6" mask="url(#c-luna-mask)" />
+      </svg>
+      <p class="c-texto">Cargando<span class="c-puntos"></span></p>
+    </div>
+  </div>
   <div id="hud">Conectando…</div>
   <p id="mundo-lleno" role="alert" hidden></p><!-- H7: the world is full (ficha `aforo`): the door's reason, read at once by screen readers -->
   <div id="barra-arriba" role="toolbar" aria-label="Botones del mundo"></div>
+  <!-- t_5cff4f06: the city, top left (HUD simétrico: mirrors the gear's corner); hidden until a world's
+       mundo.ajustes.json sets ciudadUrl (ciudad-logica.ts). The engine names no city here: main.ts fills the text. -->
+  <button id="volver-ciudad" type="button" hidden></button>
   <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · R: inventario · M: mapa · I: ficha · C: construir · Q: micrófono · L: gente · P: foto · K: Graboso</div>
   <button id="ar" type="button" hidden>Entrar en AR</button>
   <button id="vr" type="button" hidden>Entrar en VR</button>
@@ -162,7 +192,10 @@
   <p id="mision-nota" aria-hidden="true" hidden></p>
   <div id="mision-completada" role="status" aria-live="polite" aria-atomic="true"></div><!-- U14 (6): «Misión completada» (misiones.ts; empty when idle) -->
   <div id="acciones"></div>
+  <section id="objetivo" role="group" aria-label="Objetivo" hidden></section><!-- M5: the creature in reach (objetivo.ts) -->
+  <section id="habilidades" role="group" aria-label="Habilidades"></section><!-- M5: three slots: «Próximamente» until the page hears of fighting, then the Eclipse Mnémico kit (combate.ts) -->
   <p id="reloj" title="Hora local de tu aparato"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg><time id="reloj-hora"></time></p><!-- U3: the clock beside the minimap (reloj.ts) -->
+  <section id="hud-personaje" role="group" hidden></section><!-- M4: your character — Estado (4 steps), Carga, Aliento del Velo (hud-personaje.ts) -->
   <div id="avisos-pila" aria-hidden="true"></div><!-- U3: the notices of #avisos, for eyes: ≤ 3, 6 s (avisos.ts) -->
   <section id="pesca-hud" hidden></section>
   <section id="dardos-hud" hidden></section>
@@ -189,6 +222,11 @@
     <div id="ajustes-grupos"></div>
     <div class="pie"><button id="ajustes-restablecer" type="button">Restablecer todo</button></div>
     <p id="version-motor" class="version-motor"></p>
+  </dialog>
+  <!-- t_bdc2c2db: «Qué hay de nuevo» — apps/plaza/novedades.ts fills it and opens it once per version -->
+  <dialog id="novedades" aria-labelledby="novedades-titulo">
+    <div class="cabecera"><h2 id="novedades-titulo" tabindex="-1"></h2><button id="novedades-cerrar" type="button">Cerrar</button></div>
+    <ul id="novedades-lista"></ul>
   </dialog>
   <script type="module" src="./main.ts"></script>
 </body>

@@ -15,8 +15,9 @@ import { fileURLToPath } from "node:url";
 import { gzipSync, constants } from "node:zlib";
 import { spawnSync } from "node:child_process";
 
-export const TOPE_GZ = 480_000; // bytes gz. Measured 2026-10-18 (train tip 5362797): 434.850 B → cap = measure + 10 %, rounded. Goal (D2): 300 kB.
+export const TOPE_GZ = 1_000_000; // bytes gz. Pablo 2026-10-19: «podemos ir hasta 1 MB sin problema». Before: 480 kB (measure + 10 %, 18-10). Goal (D2): 300 kB.
 export const META_GZ = 300_000;
+export const AVISO_GZ = 600_000; // bytes gz. Soft warning (Pablo 2026-10-19): prints a notice, never fails the gate.
 
 const root = join(fileURLToPath(import.meta.url), "../..");
 const dist = join(root, "dist/plaza");
@@ -65,5 +66,6 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   console.log("-".repeat(70));
   console.log(`${w("Antes de dibujar", 46)}${w(kB(m.totalBytes), 12)}${kB(m.totalGz)} (${m.totalGz} B)`);
   console.log(`Tope ${kB(TOPE_GZ)} · meta D2 ${kB(META_GZ)} · ${m.pasa ? "PASA" : "FALLA"}`);
+  if (m.pasa && m.totalGz > AVISO_GZ) console.log(`AVISO: ${kB(m.totalGz)} supera ${kB(AVISO_GZ)}; el tope es ${kB(TOPE_GZ)}. Recorta antes de que llegue.`);
   process.exit(m.pasa ? 0 : 1);
 }

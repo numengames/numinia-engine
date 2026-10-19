@@ -1,6 +1,6 @@
 {
   "schema": "numinia-engine/suelos@1",
-  "describe": "Los suelos que se pueden poner (H4, «tierra»). Cada uno: su textura de color (1k) y de relieve (normal, 512 px), por su sha256 en /a/; metros = lo que mide una baldosa con escala 1; rugosidad del material. Solo CC0 (activos/texturas/LICENCIAS.md); test/entorno.test.ts comprueba cada sha256. «liso» = sin textura (el color del suelo).",
+  "describe": "Los suelos que se pueden poner (H4, «tierra»). Cada uno: su textura de color (1k) y de relieve (normal, 512 px), por su sha256 en /a/; metros = lo que mide una baldosa con escala 1; rugosidad del material. Solo CC0 (activos/texturas/LICENCIAS.md); test/entorno.test.ts comprueba cada sha256. «liso» = sin textura (el color del suelo). cielos.*.antes = los sha256 que tuvo ese mismo cielo (E3: el mismo cielo con 6 bits de mantisa); un mundo guardado con uno viejo recibe el nuevo.",
   "suelos": {
     "hierba": { "nombre": "Hierba", "color": "5ef0c982b64aa4622bf7cbe5468899f56290630da7f9b9036c1a7da8d37ce9de.webp", "normal": "d861c5738877f78e0c48b7527730729bc27a08d1428c0d8f8e2405402520bf83.webp", "metros": 4, "rugosidad": 0.95, "ficheros": ["activos/texturas/hierba-color.webp", "activos/texturas/hierba-normal.webp"], "licencia": "CC0-1.0", "fuente": "https://polyhaven.com/a/leafy_grass" },
     "tierra": { "nombre": "Tierra", "color": "856008f1f7218e51ec629bd3ce903b28f55db65454551b6b12bdb5d8cdaf6312.webp", "normal": "5b310044f7bd3970a2d1f71acc2de77eee84b275d756a7792b3079e5f3a48995.webp", "metros": 2.6, "rugosidad": 0.95, "ficheros": ["activos/texturas/tierra-color.webp", "activos/texturas/tierra-normal.webp"], "licencia": "CC0-1.0", "fuente": "https://polyhaven.com/a/brown_mud_dry" },
@@ -10,6 +10,6 @@
     "liso": { "nombre": "Liso", "color": "", "normal": "", "metros": 1, "rugosidad": 1, "ficheros": [], "licencia": "", "fuente": "" }
   },
   "cielos": {
-    "nublado": { "hdr": "fd94c84997b8a3c353b62c2125a9b44e19509956986a126e472684432a02d798.hdr", "fichero": "activos/cielos/kloofendal_48d_partly_cloudy_puresky_1k.hdr", "licencia": "CC0-1.0", "fuente": "https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky" }
+    "nublado": { "hdr": "6be2ed0595639f543dc88b380f244220fc9302f43a4106a61ee269d70fa15f42.hdr", "antes": ["fd94c84997b8a3c353b62c2125a9b44e19509956986a126e472684432a02d798.hdr"], "fichero": "activos/cielos/kloofendal_48d_partly_cloudy_puresky_1k.hdr", "licencia": "CC0-1.0", "fuente": "https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky" }
   }
 }

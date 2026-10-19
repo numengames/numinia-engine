@@ -61,3 +61,7 @@ raíz `Roll_RM` y `Sword_Attack_RM` (la cadera se sale de la cápsula), dos pose
 
 Los sha256 y bytes de cada uno están en `activos/avatares/catalogo.json`; la conversión (duraciones, pasos medidos,
 huesos) en `conversion.json`.
+
+E3 (2026-10-18): `andar`, `quieto` y `saltar` van empaquetados con `EXT_meshopt_compression` sin pérdida
+(`node tools/aligerar-activos.ts` tras `tools/vrma/convertir.mjs`; cada valor decodifica igual). `correr` y `trotar`
+no ganaban y se quedan como salen del conversor. La licencia (CC0) no cambia.

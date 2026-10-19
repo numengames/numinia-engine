@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 // e2e leg M22 (constructor): the builder's hands with a REAL mouse and keyboard, two tabs, for chromium and firefox
 // (WebGPURenderer; BASE carries ?webgl2 = its WebGL2 backend). Tab A opens build mode with the key C, takes the
 // Bloque from the library and clicks the ground 3 m ahead (it follows the pointer, the click places it); B gets it.
@@ -47,6 +48,7 @@ async function arrastrar(p, from, dx, dy) {
 async function pierna(engine) {
   const browser = await launchers[engine]();
   const ctx = await browser.newContext({ viewport: { width: 1100, height: 700 } });
+  await ctx.addInitScript((v) => { try { localStorage.setItem("numinia.novedades.version", v); } catch {} }, JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version); // the «what is new» card shows once per version in a fresh browser and would cover the panel
   const errors = [];
   const open = async () => {
     const p = await ctx.newPage();
@@ -64,6 +66,8 @@ async function pierna(engine) {
     a = await open(); b = await open();
     r.backend = await a.evaluate(() => globalThis.__numinia.view.backend);
     await a.bringToFront();
+    // C3: playing (builder closed): the object card is not there
+    paso("ficha oculta con el constructor cerrado", await a.evaluate(() => { const f = document.getElementById("ficha-objeto"); return !!f && f.hidden; }));
     // 1. build mode with the key C: the panel shows, the gizmo arrives (dynamic import)
     await a.mouse.move(400, 300);
     await a.keyboard.press("KeyC");
@@ -94,6 +98,66 @@ async function pierna(engine) {
     const conGizmo = await a.evaluate(() => ({ sel: globalThis.__numinia.constructor.estado.seleccionado, ed: globalThis.__numinia.view.editor.estado(), calls: globalThis.__numinia.view.lastFrame().calls }));
     paso("seleccionar con un clic", sinGizmo.sel === "" && conGizmo.sel === id && conGizmo.ed.seleccionado === id && conGizmo.ed.herramienta === "mover", { sinGizmo: sinGizmo.sel, conGizmo: conGizmo.sel });
     paso("el gizmo se dibuja", conGizmo.calls > sinGizmo.calls, { llamadasSin: sinGizmo.calls, llamadasCon: conGizmo.calls });
+    // C3: open + selected → the card is there: title, only icon buttons, each with title + aria-label + a tip, reachable by Tab
+    const ficha = await a.evaluate(() => {
+      const f = document.getElementById("ficha-objeto"), bs = [...f.querySelectorAll("[role=toolbar] button")];
+      return { visible: !f.hidden, titulo: f.querySelector("h3").textContent, n: bs.length, sinTexto: bs.every((b) => b.textContent.trim() === "" && b.querySelector("svg")),
+        completos: bs.every((b) => b.title && b.getAttribute("aria-label") === b.title && b.dataset.tip === b.title), tab: bs.every((b) => b.tabIndex >= 0 && !b.disabled), fijar: bs.some((b) => /^Anclar/.test(b.title)) };
+    });
+    paso("ficha visible con constructor abierto y objeto elegido", ficha.visible && ficha.titulo !== "" && ficha.n >= 8 && ficha.sinTexto && ficha.completos && ficha.tab && ficha.fijar, ficha);
+    // C4: the card has tabs (Ficha · Lógica · Ajustes): tablist/tab/tabpanel with aria-selected, ←/→ move between them
+    const estadoTabs = () => a.evaluate(() => {
+      const f = document.getElementById("ficha-objeto"), lista = f.querySelector("[role=tablist]"), ts = [...f.querySelectorAll("[role=tab]")];
+      return { lista: !!lista, n: ts.length, nombres: ts.map((t) => t.textContent.trim()), sel: ts.filter((t) => t.getAttribute("aria-selected") === "true").map((t) => t.dataset.pestana),
+        paneles: ts.map((t) => { const p = document.getElementById(t.getAttribute("aria-controls")); return !!p && p.getAttribute("role") === "tabpanel" && p.getAttribute("aria-labelledby") === t.id && !p.hidden; }),
+        tips: ts.every((t) => t.title && t.dataset.tip === t.title && t.querySelector("svg")), foco: document.activeElement?.dataset?.pestana ?? "" };
+    });
+    const t0 = await estadoTabs();
+    paso("pestañas de la ficha: Ficha, Lógica y Ajustes, con la primera elegida", t0.lista && t0.n === 3 && t0.nombres.join() === "Ficha,Lógica,Ajustes" && t0.sel.join() === "ficha" && t0.paneles.join() === "true,false,false" && t0.tips, t0);
+    await a.locator("#ficha-tab-logica").click();
+    const t1 = await estadoTabs();
+    const logica = await a.evaluate(() => { const p = document.getElementById("ficha-panel-logica"); return { listas: p.querySelectorAll("ul").length, boton: !!p.querySelector("button.tx"), texto: p.textContent }; });
+    paso("cambiar a Lógica con un clic", t1.sel.join() === "logica" && t1.paneles.join() === "false,true,false" && logica.listas === 3 && logica.boton && /Entran/.test(logica.texto) && /Salen/.test(logica.texto), { ...t1, logica });
+    await a.locator("#ficha-tab-logica").focus();
+    await a.keyboard.press("ArrowRight");
+    const t2 = await estadoTabs();
+    await a.keyboard.press("ArrowRight");
+    const t3 = await estadoTabs();
+    await a.keyboard.press("ArrowLeft");
+    const t4 = await estadoTabs();
+    paso("flechas derecha e izquierda mueven entre pestañas (y el foco las sigue)", t2.sel.join() === "ajustes" && t2.foco === "ajustes" && t3.sel.join() === "ficha" && t4.sel.join() === "ajustes" && t4.foco === "ajustes", { t2: t2.sel, t3: t3.sel, t4: t4.sel });
+    // C4 «Lógica»: «Abrir el cable» brings the cable panel into view (focused); the card keeps working
+    await a.locator("#ficha-tab-logica").click();
+    await a.locator("#ficha-panel-logica button.tx").click();
+    const cable = await a.evaluate(() => document.activeElement?.id);
+    paso("«Abrir el cable» lleva al panel del cable", cable === "cable-panel", { cable });
+    // C4 «Ajustes»: a setting changes the object on the SERVER (B sees it): visible al jugar, nombre, anclado
+    await a.locator("#ficha-tab-ajustes").click();
+    await a.locator("#ficha-panel-ajustes input[type=checkbox]").nth(0).uncheck(); // «se ve al jugar»
+    const ocultoEnB = await esperaB(([k]) => globalThis.__numinia.session.features.stateOf("objetos").get(k)?.oculto === true, id);
+    await a.locator("#ficha-panel-ajustes input[type=checkbox]").nth(0).check();
+    const visibleEnB = await esperaB(([k]) => globalThis.__numinia.session.features.stateOf("objetos").get(k)?.oculto === false, id);
+    await a.locator("#ficha-panel-ajustes input[type=text]").fill("Mesa de ajustes");
+    await a.keyboard.press("Enter"); await a.locator("#ficha-panel-ajustes input[type=text]").blur();
+    const nombreEnB = await esperaB(([k]) => globalThis.__numinia.session.features.stateOf("objetos").get(k)?.nombre === "Mesa de ajustes", id);
+    await a.locator("#ficha-panel-ajustes input[type=checkbox]").nth(1).check(); // «anclado»
+    const ancladoEnB = await esperaB(([k]) => globalThis.__numinia.session.features.stateOf("objetos").get(k)?.fijado === true, id);
+    await a.locator("#ficha-panel-ajustes input[type=checkbox]").nth(1).uncheck();
+    const sueltoEnB = await esperaB(([k]) => globalThis.__numinia.session.features.stateOf("objetos").get(k)?.fijado !== true, id);
+    paso("un ajuste de la ficha cambia el objeto en el servidor (B lo ve)", ocultoEnB && visibleEnB && nombreEnB && ancladoEnB && sueltoEnB, { ocultoEnB, visibleEnB, nombreEnB, ancladoEnB, sueltoEnB });
+    const titulo = await a.evaluate(() => document.querySelector("#ficha-objeto h3").textContent);
+    paso("el título de la ficha sigue al nombre nuevo", titulo === "Mesa de ajustes", { titulo });
+    // «Abrir inspector (N)»: the inspector is shown and its first field takes the focus
+    await a.locator("#ficha-panel-ajustes button.tx").click();
+    const insp = await a.evaluate(() => { const i = document.querySelector("#panel-construir .inspector"); return { visible: !i.hidden, foco: i.contains(document.activeElement) }; });
+    paso("«Abrir inspector (N)» lleva al inspector", insp.visible && insp.foco, insp);
+    if (process.env.SHOTS === "1") { await a.locator("#ficha-tab-logica").click(); await a.screenshot({ path: `e2e-ficha-c4-${engine}.png` }); }
+    await a.locator("#ficha-tab-ficha").click(); await a.evaluate(() => document.activeElement?.blur());
+    const ficha2 = await a.evaluate(() => document.getElementById("ficha-objeto").hidden);
+    await a.keyboard.press("Escape");
+    paso("ficha oculta sin objeto elegido", await a.waitForFunction(() => document.getElementById("ficha-objeto").hidden, null, { timeout: 3000 }).then(() => !ficha2, () => false));
+    await a.mouse.click(centro.x, centro.y);
+    await a.waitForFunction((k) => globalThis.__numinia.constructor.estado.seleccionado === k, id, { timeout: 3000 });
     // 4. drag the X handle (red arrow) to the right → B sees x change
     const ejeX = [];
     for (let t = 0.2; t <= 4; t += 0.1) ejeX.push([o0.x + t, 0, o0.z]);
@@ -133,11 +197,40 @@ async function pierna(engine) {
     const r2 = await esperaB(igual, id, { x: o2.x, ry: o2.ry });
     paso("deshacer y rehacer llegan a B", u1 && u2 && r1 && r2, { deshacerGiro: u1, deshacerMover: u2, rehacerMover: r1, rehacerGiro: r2 });
     if (process.env.SHOTS === "1") await a.screenshot({ path: `e2e-constructor-${engine}.png` });
+    // C3: closing the builder hides the card even with the selection kept; opening it brings it back
+    await a.keyboard.press("KeyC");
+    const cerrada = await a.waitForFunction(() => document.getElementById("panel-construir").hidden && document.getElementById("ficha-objeto").hidden, null, { timeout: 3000 }).then(() => true, () => false);
+    await a.keyboard.press("KeyC");
+    const vuelve = await a.waitForFunction(() => !document.getElementById("ficha-objeto").hidden, null, { timeout: 3000 }).then(() => true, () => false);
+    paso("ficha se oculta al cerrar el constructor y vuelve al abrirlo", cerrada && vuelve, { cerrada, vuelve });
+    // C3: «Ir» in the map (the hook main.ts wires): builder open → that object is selected and its card opens by itself;
+    // builder closed → «Ir» only travels (nothing selected, no card)
+    await a.keyboard.press("Escape");
+    const alIrAbierto = await a.evaluate((k) => { const n = globalThis.__numinia; return n.constructorUI.alIr({ id: k }); }, id);
+    const fichaIr = await a.waitForFunction((k) => globalThis.__numinia.constructor.estado.seleccionado === k && !document.getElementById("ficha-objeto").hidden, id, { timeout: 3000 }).then(() => true, () => false);
+    await a.keyboard.press("KeyC"); // close; the selection stays but the builder is shut
+    await a.keyboard.press("KeyC"); await a.keyboard.press("Escape"); await a.keyboard.press("KeyC");
+    const alIrCerrado = await a.evaluate((k) => globalThis.__numinia.constructorUI.alIr({ id: k }), id);
+    const sinFicha = await a.evaluate(() => document.getElementById("ficha-objeto").hidden);
+    paso("«Ir» abre la ficha solo con el constructor abierto", alIrAbierto && fichaIr && !alIrCerrado && sinFicha, { alIrAbierto, fichaIr, alIrCerrado, sinFicha });
+    await a.keyboard.press("KeyC");
+    await a.waitForFunction(() => !document.getElementById("panel-construir").hidden, null, { timeout: 3000 });
     // 7. Delete removes it; B sees it gone
     await a.keyboard.press("Delete");
     const borrado = await esperaB(([k]) => !globalThis.__numinia.session.features.stateOf("objetos").has(k), id);
     paso("Supr lo borra para todos", borrado);
     id = "";
+    // C3: a world where building is off (BASE_SIN): no card, whatever the keys do
+    if (process.env.BASE_SIN) {
+      const c = await ctx.newPage();
+      c.on("pageerror", (e) => errors.push(String(e)));
+      await c.goto(process.env.BASE_SIN + (process.env.BASE_SIN.includes("?") ? "&" : "?") + "pulso=2000");
+      await c.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
+      await c.mouse.move(400, 300); await c.keyboard.press("KeyC"); await c.waitForTimeout(800);
+      const sin = await c.evaluate(() => ({ puede: globalThis.__numinia.constructor.estado.puede, panel: document.getElementById("panel-construir").hidden, ficha: document.getElementById("ficha-objeto").hidden }));
+      paso("mundo sin permiso de construir: sin ficha", !sin.puede && sin.panel && sin.ficha, sin);
+      await c.close();
+    }
     r.ok = errors.length === 0;
   } catch (e) {
     r.error = String(e).split("\n")[0].slice(0, 300);

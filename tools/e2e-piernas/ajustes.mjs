@@ -46,7 +46,7 @@ async function pierna(engine) {
     r.capacidades = await p.evaluate(() => { const c = globalThis.__numinia.capacidades; return { nivel: c.nivel, backend: c.backend, movil: c.movil, maxTextura: c.maxTextura, menosMovimiento: c.menosMovimiento }; });
     r.ocultosSinContrato = await p.evaluate(() => globalThis.__numinia.ajustes.lista().filter((s) => !s.visible).map((s) => s.id));
     r.etiquetas = await p.evaluate(() => { // every control in the menu has a label and a description (screen readers)
-      const cs = [...document.querySelectorAll("#ajustes input, #ajustes select")];
+      const cs = [...document.querySelectorAll("#ajustes-grupos input, #ajustes-grupos select")];
       return { controles: cs.length, sinEtiqueta: cs.filter((c) => !c.labels?.length).map((c) => c.id), sinDescripcion: cs.filter((c) => !c.getAttribute("aria-describedby")).map((c) => c.id) };
     });
     const antes = await potencia(p);
@@ -57,6 +57,7 @@ async function pierna(engine) {
     r.abreConO = true;
     r.focoDentro = await p.evaluate(() => document.getElementById("ajustes").contains(document.activeElement));
     // 2. keyboard only: Tab to «Resolución», one step left
+    await p.click('#ajustes nav button[data-cat="graficos"]'); // the window shows one category at a time
     r.tabsHastaResolucion = await tabHasta(p, "ajuste-graficos.resolucion");
     await p.keyboard.press("ArrowLeft");
     await p.waitForFunction(() => globalThis.__numinia.ajustes.get("graficos.resolucion") === 95, null, { timeout: 3000 });

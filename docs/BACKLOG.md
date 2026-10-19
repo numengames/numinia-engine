@@ -38,7 +38,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | B1 | HTTPS en la red de casa para móviles y visores (certificado propio, `/ws` en el mismo origen) | hecho | sí |
 | J8 | AR de verdad: entrar en AR en Android, Quest 3 y Pico 4, suelo, anclar un objeto; iPhone en plano | hecho (emulado; falta probar en aparato real) | sí |
 | J6 | VR de verdad: entrar en VR, moverse, mandos, giro a saltos, viñeta, panel 3D (emulador IWER) | hecho (emulado) | sí |
-| R1 | Realidad cruzada 1 «Despertar»: un QR real hace que la plaza reaccione para todos (trozo 1 hecho; falta lo de «Falta de R1» en su detalle) | pendiente | sí |
+| R1 | Realidad cruzada 1 «Despertar»: un QR real hace que la plaza reaccione para todos (trozos 1 y 2 hechos; falta lo que queda de «Falta de R1» en su detalle) | pendiente | sí |
 | J2 | Salto, doble salto y correr en la simulación (cambia la huella fijada; permiso de Pablo, 14-10; delante de R2–R4 y V3–V7 por la paridad con Hyperfy2, Pablo 15-10) | hecho | sí |
 | J2b | Aviso en pantalla cuando el servidor habla otro formato («recarga la página») | pendiente | sí |
 | J1 | Avatares VRM de verdad (CC0) con animaciones CC0 en la plaza | hecho (trozo 1: avatares de la casa; elegir el tuyo → H10) | sí |
@@ -116,7 +116,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | H1 | Paridad Hyperfy2: objetos del mundo — colocar un GLB, moverlo, borrarlo, deshacer, en vivo, guardado como texto (sus `blueprints` + `entities`) | hecho | no |
 | H3 | Roles del mundo = los de numinia.com (STD-051/052; Pablo 15-10: «cada organización tiene sus roles; de momento los de Numinia»), no los de Hyperfy. Primer corte (H3a): plantilla «Comunidad» (Administración, Moderación, @todos), dueños con `/dueño <código>`, órdenes `/roles` `/dar` `/quitar` `/silenciar` `/echar` `/vetar` `/perdonar` `/solo-miembros` con la regla de altura; diseño `../mmo-browser-study/ROLES-MOTOR-Y-NUMINIA.md` | hecho (H3a) | sí |
 | H3b | El pase de numinia.com: el motor acepta un pase Ed25519 firmado por numinia.com (persona, organización, mundo, permisos, altura, 10 min, en `#`), clave pública en el instalador; sin pase = visitante. Hecho de punta a punta (verificador, `MOTOR_PASE_*`, roles por pase, mensaje PASE, página) | hecho | sí |
-| H3c | Órdenes de Hyperfy que faltan: `/nombre` (nunca acabado en « · IA»), `/aparecer`, `/chat borrar` (con `manage-organization`) | pendiente | sí |
+| H3c | Órdenes de Hyperfy que faltan: `/nombre` (nunca acabado en « · IA»), `/aparecer`, `/chat borrar` (con `manage-organization`) | hecho (ordenes/h3c-nombre-aparecer-chat) | sí |
 | H2 | Paridad Hyperfy2: lo que el servidor le hace a un jugador (teletransportar, congelar, frenar, empujar, sentarse, volar, salud) como entradas grabadas de la simulación | para Opus | no |
 | H4 | Paridad Hyperfy2: entorno — cielo, sol, niebla, mapa HDR y viento desde un JSON con esquema (su nodo `Sky`) | hecho | sí |
 | H4b | Entorno fino en el panel: colores de cielo, niebla y sol; fondo y HDR de la biblioteca o subidos (H9) | pendiente | sí |
@@ -131,9 +131,9 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | H9 | Paridad Hyperfy2: subir ficheros arrastrando — por hash, con tope, solo quien construye | hecho | sí |
 | H9b | Subidas: borrar lo que nadie usa y cupo por identidad | espera a H3 | sí |
 | H7 | Paridad Hyperfy2: ajustes del mundo — título, descripción, imagen, escenario, avatar por defecto, abierto a construir, límite de personas | hecho (primer corte: fichero `ficha.json` con avatar y aforo, aviso al lleno; falta el panel) | sí |
-| H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | pendiente | sí |
+| H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | hecho | sí |
 | H13 | Paridad Hyperfy2: nivel de detalle (LOD) de los modelos, generado en la ingesta | espera a M21 | sí |
-| H11 | Paridad Hyperfy2: importar de Hyperfy — `.hyp` → carpeta de app; un mundo entero → carpeta del mundo | espera a M19 | sí |
+| H11 | Paridad Hyperfy2: importar de Hyperfy — `.hyp` → carpeta de app; un mundo entero → carpeta del mundo | en curso (la mitad `db.sqlite`+`assets/` → carpeta del mundo, hecha; la mitad `.hyp` → carpeta de app sigue esperando a M19) | sí |
 | H14 | El mundo en un zip: bajarlo y subirlo en `/mundo` con el código de administración (`mundo-zip.ts`, `zip.ts`); falta: la aventura dentro del zip, la sala de numinia.com | hecho (primer corte) | sí |
 | H15 | Dónde aparece la gente: `aparicion { x, z, radio }` opcional en `entorno.json` (radio 1–40 m, x y z ±460; viaja en la carpeta y el zip del mundo, nunca por el cable) → `InstanceOptions.aparicion` → `spawnAvatar`; sin él, el cuadrado de 40 m de siempre con las mismas tiradas (huella de referencia `93b192c8` intacta) | hecho (16-10, rama `torre/aparicion-y-altura`) | sí |
 | F1 | Amigos, bloqueo y moderación (los roles son H3; toca red y guardado; de `docs/JUGADOR.md`). Primer corte (F1a, 18-10): `/silenciar` calla chat Y voz, se guarda con el mundo y sobrevive reinicios; `/hablar <persona>` lo levanta; bloqueo personal `/bloquear` `/desbloquear <persona>` (solo para quien bloquea: ni chat ni voz; guardado por identidad) y botón «Silenciar/Oír» en Gente; aviso accesible al silenciado. Sin tocar el tope de voces (D-024). Queda: amigos, denunciar | hecho (F1a) | sí |
@@ -175,7 +175,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | M22 | Constructor en el mundo, en vivo (paridad Hyperfy2): gizmos, duplicar, borrar, deshacer, soltar ficheros, inspector, biblioteca; para personas y agentes de IA, según su rol (el panel mínimo ya existe: H1) | hecho (escritorio; VR y móvil → M22b) | sí |
 | M22b | Constructor en el móvil y en VR — se parte: M22b-1 táctil mínimo (toque selecciona, arrastrar mueve) · M22b-2 gestos de dos dedos, retícula de colocar y hoja inferior · M22b-3 VR con mando · M22b-4 VR con manos y cara «Construir» del reloj · M22b-5 prueba real. Diseño: `work/mmo-browser-study/MODO-CONSTRUCTOR-MOVIL-VR.md` | en curso (M22b-1 hecha 18-10, rama `constructor/tactil-minimo`) | sí |
 | M22b-2 | Móvil: dos dedos giran (Y) / pellizcan (escala) / suben (Y) sobre la cosa tocada y el modo desambigua; colocar de la biblioteca con retícula central + «Colocar aquí» (cluster World Craft); pulsación larga = inspector; radio de gracia 12 px; TransformControls apagado del todo en táctil; hoja inferior oculto·barra·completo y `#barra-objeto` que quepa en 360 px; la barra flotante solo se recoloca con el constructor abierto | espera a M22b-1 | sí |
-| M22b-3 | VR con mando: `pickRayo`/`puntoBajoRayo` en gizmo.ts; `soltar`/`palanca`/fin de agarre en manos.ts; `apps/plaza/constructor-xr.ts`: gatillo corto selecciona, mantenido coge al final del rayo, palanca acerca/aleja y gira, agarre+palanca escala, A duplica, B devuelve; barra flotante 3D a 1,1 m (Panel); fila «Construir» en el menú de muñeca (J18) | espera a M22b-1, J18 | sí |
+| M22b-3 | VR con mando: `pickRayo`/`puntoBajoRayo` en gizmo.ts; `soltar`/`palanca`/fin de agarre en manos.ts; `apps/plaza/constructor-xr.ts`: gatillo corto selecciona, mantenido coge al final del rayo, palanca acerca/aleja y gira, agarre+palanca escala, A duplica, B devuelve; barra flotante 3D a 1,1 m (Panel); fila «Construir» en el menú de muñeca (J18) | en curso (primer corte 18-10: `pickRayo`/`puntoBajoRayo`, seleccionar+coger+mover+soltar con el gatillo, duplicar con el agarre; e2e IWER `tools/e2e-piernas/constructor-vr.mjs`; falta girar/escalar con la palanca, borrar, la barra 3D y la fila del reloj — esa espera a J18) | sí |
 | M22b-4 | VR con manos: pellizco a < 22 cm coge en la mano (sigue posición y giro Y), dos manos escalan, abrir posa; cara «Construir» del reloj con losetas de la biblioteca, Deshacer/Rehacer, Paso; loseta → fantasma a 2 m o cosa en la mano | espera a M22b-3 | sí |
 | M22b-5 | Constructor: 10 min en iPhone, Android y Quest 3S con Pablo (tamaños en mm, umbrales de gesto 6 %/8°, si llega `dblclick` táctil, `vibrate`, gatillo corto/mantenido) → números a `limits.json` | espera a M22b-2, M22b-3 | no |
 | M22c | Constructor: puntos de encaje, selección múltiple y jerarquía | en progreso (encaje + selección múltiple + mover/borrar en grupo, deshacer atómico; faltan caja de arrastre y jerarquía) | sí |
@@ -196,12 +196,16 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | V2 | Con Pablo, 15 min con las gafas: ¿funcionan `speechSynthesis`, el reconocimiento de voz, «menos movimiento» y la vibración dentro de una sesión inmersiva (Quest 3, Pico 4) y en iPhone? | pendiente | no |
 | W1 | La plaza de entrada: primer mundo, al presupuesto de la Quest, con un portal a un mundo Hyperfy | necesita aprobación (Pablo: qué mundo lo estrena) | no |
 | O5 | ADR y SYS del motor en la Summa (numinia.org) | necesita aprobación (Pablo) | no |
+<<<<<<< HEAD
 | S6f-1 | **La cerradura la manda el servidor.** Su evento `cerradura.abierta` solo trae `id` y `evento`: no dice dónde está la cerradura, así que la pieza de sonido no puede mandar el sonido «a quien esté cerca» sin inventarse un sitio. Hoy el clic de la cerradura es LOCAL (lo oye solo quien la abre). Arreglo: añadir `x`/`z` (o `quien`) al evento de `features/cerradura/` y una línea en `features/sonido/server.ts` | pendiente | sí |
 | S6f-2 | **La máquina la manda el servidor.** Igual que S6f-1: `movedores.llegada` trae `id`, `nombre`, `lado`, `evento` y ningún sitio. El sonido de una plataforma que llega es de los de alrededor, no de quien la llamó. Arreglo: `x`/`z` en el evento de `features/movedores/` + una línea en la pieza de sonido | pendiente | sí |
 | S6f-3 | **El impacto del dardo, donde está la diana.** `dardos.dardo` trae `x`/`y` de la CARA de la diana (sector y anillo), no su sitio en el mundo: hoy el lanzamiento y el impacto suenan los dos donde está quien tira, así que el impacto queda un poco adelantado. Arreglo: que el evento traiga el sitio de la diana (ya lo sabe por `sitio`) | pendiente | sí |
 | S6f-4 | **La puerta que se cierra sola no suena.** `puertas.cambio` trae `quien`, y cuando una puerta se cierra por su cuenta (temporizador) no hay nadie: la pieza de sonido no sabe dónde ponerlo. Arreglo: `x`/`z` en el evento (la puerta siempre sabe dónde está) | pendiente | sí |
 | S6f-5 | **Nadie ha oído nada en un navegador.** Todo el sonido (los 27 ficheros CC0, las 47 recetas, el colchón de ambiente, el reparto de autoridad) está probado con un `AudioContext` de mentira en Node: la forma del grafo y quién suena. Falta una sesión con Pablo delante de la plaza, con auriculares, para oír si la mezcla y el volumen del colchón están bien de verdad | pendiente | no |
 | S6f-6 | **El material del suelo es por ZONA, no por superficie.** Los pasos leen `entorno@1` (hierba, roca, nieve, liso…), así que un tablado de madera sobre una zona de roca suena a piedra. Es la historia S8 del diseño del sonido: una etiqueta de material por superficie | pendiente | no |
+=======
+| AS1 | Tributo a Isaac Asimov: el Salón de los Ancestros (Ateneo) y un holograma que se enciende al acercarte y, con E, dice las Tres Leyes junto a nuestras reglas AGW (`features/ancestros`, `docs/EXTENDER.md`). Sin voz: cuando haya V3, que la lea con la voz grave y pausada de narrador | hecho (v1, 18-10) | sí |
+>>>>>>> origin/main
 
 **Punto de parada «accesible» (como los PP de `CONSTRUIR.md`):** con V1, V3, V4, V5, V6 y V7 hechas, una
 persona ciega entra en la plaza desde el ordenador con su lector de pantalla, pregunta qué hay cerca, sigue
@@ -587,7 +591,14 @@ nunca `/metrics` (se queda en 127.0.0.1). El secreto que firma los tokens va en 
 nunca en el repositorio.
 
 **R1, trozo 1 hecho (15-10, turno):** `features/despertar/` (declaración, tokens, servidor, cliente, `enlaces.json` con 2 puntos). `GET /e/<id>.<firma>`: firma = HMAC-SHA256 con el secreto del servidor (`MOTOR_SECRET`, 16+ caracteres; el motor lo da a las funciones como `api.sign(texto)`, porque una función no puede importar `node:crypto`). Token falso o sin secreto → 404 sin efecto; token válido → un evento `despertado` a todos y página «Has despertado…»; mientras dura el efecto (`ms`), un segundo escaneo no repite. Página: `view.beacon` (opcional en `ViewHooks`) pinta columna de luz + texto. `npm run enlaces -- <base>` imprime las URLs firmadas. Proxy `/e` en modo LAN (`vite.config.mjs`) y en Caddy; el instalador crea `$PREFIX/secreto.env` una vez (root, 600) y lo carga el servicio. Medido: escaneo → efecto en la página 4 ms (WebSocket local); 51 pruebas en verde (4 nuevas); e2e verde.
-**Falta de R1:** imprimir los QR como SVG (hace falta un codificador QR: escribirlo o dependencia MIT exacta); opción para que el servidor escuche en la red de casa; comprobar en un navegador real que la columna se dibuja (hoy solo se prueba el evento sin pantalla; `beaconCount()` en render permite hacerlo en e2e); medir el tiempo con un móvil real.
+**Falta de R1 (queda, tras el trozo 2):** opción para que el servidor escuche en la red de casa; comprobar en un
+navegador real que la columna se dibuja (hoy solo se prueba el evento sin pantalla; `beaconCount()` en render
+permite hacerlo en e2e); medir el tiempo con un móvil real.
+**R1, trozo 2 hecho (16-10, historia en sombra de Doulos; rama `doulos/sombra-r1-qr`, solo local, no sube a
+origin):** `npm run enlaces -- qr [base] [carpeta]` escribe `<carpeta>/<id>.svg` por punto (por defecto `qr/`,
+en `.gitignore`), además de seguir imprimiendo id, nombre y ruta/URL. Codificador: dependencia `qrcode-svg`
+1.1.0 exacta (MIT, sin dependencias) en `tools/enlaces.ts` — nunca dentro de `features/despertar/`, que no
+importa nada fuera del repo. 252 pruebas (3 nuevas en `test/enlaces.test.ts`), puertas en verde.
 
 ### R2 — Semilla del Conocimiento
 **Ya hay (15-10):** identidad de invitado (I1: `api.onIdentify`, `api.who`) y guardado (S4: `state.persist`,
@@ -1133,6 +1144,24 @@ una función puede poner un avatar solo para la sesión (su `setSessionAvatar`).
 pestaña A cambia de avatar, la B lo ve, y al volver A sigue con él.
 Validar cada VRM subido con `packages/server/src/vrm.ts` (`revisarAvatar`: CC0 dentro del fichero, ≤ 10.000 triángulos; hecho en J1).
 
+### H11 — Importar de Hyperfy (en curso; la mitad `.hyp` sigue esperando a M19)
+**Hecho (18-10, rama `ko/t_fb4535c8`).** Función nueva `features/avatar/` (R-1): intent `elegir` (tipo casa+índice,
+o subido+sha256 de un `.vrm` ya en `/a/`), guardado por identidad (`store`, S4) y espejado a la entidad conectada
+como `state` compartido (todos lo ven; al identificarte, I1 te devuelve tu elección). El servidor solo confía en
+`api.activo` para un subido (el tamaño y la licencia los comprueba la página antes de subir, `vrm.ts` `revisarAvatar`,
+igual que el catálogo de la casa). Botón «Avatar» (top-right, para cualquier visitante, no solo quien construye,
+`apps/plaza/avatar.ts`): lista los avatares de la casa y «Subir tu .vrm…» (mismo camino que H9: hash, HEAD, PUT con
+el billete). `packages/render/src/avatares.ts` gana un gancho `eleccion(clave)` que sustituye el índice fijo por
+entidad (`elegirAvatar`) cuando hay una elección, para ti y para los demás (antes solo se recalculaba para «yo»: B no
+veía cambiar de avatar a A — corregido aquí). Un `.vrm` subido se añade una vez al mismo `catalogo.modelos` que los
+de la casa: `avatares.ts` no necesita un camino nuevo para dibujarlo. **Medido:** 4 pruebas nuevas
+(`test/avatar.test.ts`: elegir y ver el cambio, subido rechazado si no está en el servidor, sobrevive un reinicio);
+`npm test` en verde salvo una puerta de rendimiento ya roja antes de este cambio (`misiones-secuencia.test.ts`,
+flaky en esta máquina); `npm run layers` y `npm run build` en verde (471,5 kB gz, dentro de los 480 del gate D2: el
+`.vrm` grande sigue en el trozo diferido de `avatares-vrm.ts`). **Falta:** e2e real con dos pestañas de Playwright
+(se verificó con la instancia en memoria, no con el navegador); revisarAvatar repetido en el servidor (hoy solo la
+página lo comprueba antes de subir); limpiar un `.vrm` subido que nadie usa ya (H9b).
+
 ### H11 — Importar de Hyperfy (espera a M19)
 Para traer los mundos Numinia de hoy. Un `.hyp` (4 bytes con el tamaño de la cabecera + JSON + ficheros; ver
 `../mmo-browser-study/notes/16a-hyp-read-from-source.md`; el escritor es `src/core/extras/appTools.js`) → carpeta de
@@ -1141,6 +1170,24 @@ API no es la nuestra). Un mundo entero (su `db.sqlite`: tablas `config`, `bluepr
 `assets/`) → carpeta del mundo (H1, H7). Solo contenido nuestro o con licencia: los 351 `.hyp` de `hyperfy-apps`
 no tienen. **Hecho cuando:** test con un `.hyp` propio de prueba y un `db.sqlite` mínimo; informe de lo traído y
 de lo que queda por portar.
+
+**Hecho (18-10, la mitad `db.sqlite`+`assets/` → carpeta del mundo).** `packages/server/src/importar-hyperfy.ts`
+(`importarMundoHyperfy`) lee `config`/`blueprints`/`entities` de un `db.sqlite` con `node:sqlite` (sin dependencia
+nueva), resuelve el modelo de cada blueprint (`asset://<sha256>.<ext>`), copia el fichero a `datos/activos/` (lo
+que H9 sirve por `/a/<sha256>.<ext>`), convierte la posición y el cuaternión de cada entidad a los campos de H1
+(`x,y,z,rx,ry,rz,sx,sy,sz`, grados, orden yaw→pitch→roll como three.js) y escribe `datos/objetos.json` en el
+formato exacto que `FileStorage` carga al arrancar — sin importar `features/objetos` desde `packages/` (regla de
+capas): los valores por defecto están a mano y una prueba (`OBJETOS_VERSION`) avisa si el número de versión de la
+función se mueve sin tocar aquí. Los ajustes (H7) van a `aventura/ficha.json` (nombre, descripción, portada,
+aforo). CLI: `node tools/importar-hyperfy.ts <db.sqlite> <assets/> <carpeta destino>`; escribe también el informe
+de lo traído (`informe-importacion.json` + `.txt`): blueprints y entidades leídos, objetos importados y omitidos
+(con el motivo de cada uno), activos copiados y que faltan, si la ficha se importó. **Medido:**
+`test/importar-hyperfy.test.ts` (5 pruebas): un `db.sqlite` mínimo de prueba (3 entidades: una completa, una con
+el fichero que falta, una con blueprint que no existe) produce la carpeta del mundo y el informe cuenta cada
+caso; la prueba fuerte arranca de verdad la función `objetos` real (`Instance` + `FileStorage`) sobre el
+`datos/objetos.json` escrito y comprueba que la silla aparece en su sitio, giro y escala exactos — no solo que el
+JSON tiene buena pinta. **Falta:** la mitad `.hyp` → carpeta de app (M19), portar los scripts de las apps (no es
+nuestra API), probar contra un `db.sqlite` real de un mundo Hyperfy existente (de momento solo el de prueba).
 
 ### H12 — Calidad gráfica
 Sombras (no, baja, media, alta) y posprocesado (bloom, antialias), como sus ajustes, decididos por nivel de

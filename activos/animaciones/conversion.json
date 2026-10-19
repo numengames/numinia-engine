@@ -13,22 +13,30 @@
    "duration": 3.125,
    "frames": 95,
    "tracks": 53,
-   "bytes": 136648,
+   "bytes": 102464,
    "speedMs": 0,
    "speedPerHipHeight": 0,
    "minToeY": 0.002,
-   "sha256": "5db3f0b204d9aee25c6c9abfed1fa31d375b0004125c0f1f07328c0a03ac4d86"
+   "sha256": "252284db74bcf79bc810bc114f8b19623263d0e847483998dba3399fe7dce145",
+   "convertido": {
+    "sha256": "5db3f0b204d9aee25c6c9abfed1fa31d375b0004125c0f1f07328c0a03ac4d86",
+    "bytes": 136648
+   }
   },
   "andar": {
    "from": "Walk_Loop",
    "duration": 1.667,
    "frames": 51,
    "tracks": 53,
-   "bytes": 90780,
+   "bytes": 86948,
    "speedMs": 0.724,
    "speedPerHipHeight": 0.797,
    "minToeY": -0.005,
-   "sha256": "7afdd6c1a912b63dd4bef6c5fad55aa0d0b6d93d845834d7695e4db37a3776aa"
+   "sha256": "9508e8e2220d239e00fcf67b64b23ea66c46feb0404dd8068009baa47acec777",
+   "convertido": {
+    "sha256": "7afdd6c1a912b63dd4bef6c5fad55aa0d0b6d93d845834d7695e4db37a3776aa",
+    "bytes": 90780
+   }
   },
   "trotar": {
    "from": "Jog_Fwd_Loop",
@@ -57,11 +65,15 @@
    "duration": 3.125,
    "frames": 95,
    "tracks": 53,
-   "bytes": 136636,
+   "bytes": 105196,
    "speedMs": 0,
    "speedPerHipHeight": 0,
    "minToeY": -0.075,
-   "sha256": "f87d42354e4f0b502546f1afe8cfd6a1f1a39bd8eafef7bc0cc9e61b3578df61"
+   "sha256": "f5925ba5d8ef70d09f6612c3400aadb23eaea8ca7068afbf0d0372501ac901f7",
+   "convertido": {
+    "sha256": "f87d42354e4f0b502546f1afe8cfd6a1f1a39bd8eafef7bc0cc9e61b3578df61",
+    "bytes": 136636
+   }
   },
   "saludar": {
    "from": "Idle_Loop + saludo",

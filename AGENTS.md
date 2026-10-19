@@ -61,7 +61,7 @@ import `features/` except the composition roots listed in `layers.json` (`_compo
 | determinism | same seed → same hash | ~1 s |
 | bandwidth K=50 @10 Hz | ≤ 70 kbit/s per client | free (reuses the run) |
 | plaza of 1,000, one thread, everyone within 80 m | tick p99 ≤ 25 ms (half the 50 ms tick) | ~1.5 s |
-| page size before first draw (D2) | ≤ 480 kB gz (measured 434.9; goal 300; `tools/tamano.mjs`) | ~1 s (vite build) |
+| page size before first draw (D2) | ≤ 1 MB gz (Pablo 19-10; was 480 kB; goal 300; `tools/tamano.mjs`) | ~1 s (vite build) |
 
 Load test over real WebSockets (not in the default run, ~35 s, own port): `tools/swarm.sh 1000 30`. Capacity battery for a real server (stairs, soak, join storm, CPU bench, report): `docs/MEDIDAS.md`.
 Measured 2026-10-14 on the dev PC: 1,000 connected → tick p99 17–23 ms, 25.5 kbit/s per person; with jump and run

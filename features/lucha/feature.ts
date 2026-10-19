@@ -1,10 +1,14 @@
-// lucha — declaration (v1, L1). A creature is a thing of the world (state entry WITH `at`, a card and `interact`, like a
-// fishing spot): it has coherence instead of hit points (in Numinia a creature is dissolved, not killed), a solid box the
-// simulation already honours (`solido: true` + bx0…bz1, as objetos does), and you hit it with ONE verb (golpear). The
-// SERVER decides reach, cooldown and damage with the engine's seeded PRNG; the page only asks and shows. PVE only: the
-// target is always a creature (PVP is Pablo's decision, not this file's). In this slice the creature neither moves nor
-// strikes back. Design: mmo-browser-study/SISTEMA-DE-LUCHA-Y-BESTIARIO.md §1; recipe: docs/EXTENDER.md.
+// lucha — declaration (v1, L1 + L2 trozo 1 + kit + Estado). A creature is a thing of the world (state entry WITH `at`, a card and
+// `interact`, like a fishing spot): it has coherence instead of hit points (in Numinia a creature is dissolved, not
+// killed), a solid box the simulation already honours (`solido: true` + bx0…bz1, as objetos does), and you hit it
+// with ONE verb (golpear) or with the Eclipse Mnémico kit (habilidad). The SERVER decides reach, cooldown and damage with
+// the engine's seeded PRNG; the page only asks and shows. The target is a creature, or (L8, off by default) a person
+// `p:<entity>` whose Estado rises one rung (estados.ts). Every blow you land on a creature, it strikes back: your own life
+// (server memory only, L2 trozo 1) goes down the same way, and at 0 you fall (`caido`) until you come back whole.
+// Design: mmo-browser-study/SISTEMA-DE-LUCHA-Y-BESTIARIO.md §1; recipe: docs/EXTENDER.md.
 import { defineFeature } from "../../packages/feature/src/index.ts";
+import { HABILIDADES, CARGA_MAX } from "./habilidades.ts";
+import { ESCALERA } from "./estados.ts";
 
 /** Melee reach (m) beyond the creature's own radius; the J4 slack is added by `within`. */
 export const ALCANCE_GOLPE_M = 1.8;
@@ -16,7 +20,17 @@ export const DANO_BASE = 3, DANO_VAR = 3;
 export const REAPARICION_S = 20;
 /** Who sees a blow, a dissolution and a return (m). */
 export const VER_M = 40;
+/** Reach (m, horizontal) between two people for a PVP blow: arm's length plus the J4 slack. */
+export const ALCANCE_PVP_M = 2.5;
 export const MODOS = ["quieta", "alerta", "disuelta"] as const;
+
+/** L2 trozo 1: the player's own life, in server memory only (not shared state yet — that is the HUD story). Every
+ * blow a player lands, the creature strikes back for the same DANO_BASE..DANO_BASE+DANO_VAR-1 roll (same seeded
+ * PRNG stream: replayable). At 0 the player falls (`caido`): no more `golpear` until REAPARICION_JUGADOR_TICKS pass,
+ * then they come back whole. */
+export const VIDA_JUGADOR_MAX = 50;
+/** Ticks a fallen player waits before coming back whole (5 s at HZ=20). */
+export const REAPARICION_JUGADOR_TICKS = 100;
 
 const ID = { kind: "text", maxBytes: 32 } as const;
 const X = { kind: "fixed", min: -2000, max: 2000, step: 0.01 } as const;
@@ -24,12 +38,15 @@ const Y = { kind: "fixed", min: -100, max: 500, step: 0.01, default: 0 } as cons
 const QUIEN = { kind: "int", min: 0, max: 65535 } as const;
 const COH = { kind: "int", min: 0, max: 200 } as const;
 const DANO = { kind: "int", min: 0, max: 20 } as const;
+const VIDA = { kind: "int", min: 0, max: VIDA_JUGADOR_MAX } as const;
+const DANO_HAB = { kind: "int", min: 0, max: 250 } as const;
+const CARGA = { kind: "int", min: 0, max: CARGA_MAX } as const;
 
 export const lucha = defineFeature({
   id: "lucha",
   version: 1,
   level: "base",
-  describe: "Pelear contra criaturas del bestiario: te acercas a una (su radio) y la golpeas (golpear). El servidor decide si alcanzas, el enfriamiento entre golpes (0,6 s) y el daño (3-5, azar con semilla); la coherencia de la criatura baja y, a 0, se disuelve y deja de ser sólida; vuelve a los 20 s. Las criaturas son cajas sólidas: chocas con ellas. Solo contra criaturas (PVE).",
+  describe: "Pelear contra criaturas del bestiario: te acercas a una (su radio) y la golpeas (golpear). El servidor decide si alcanzas, el enfriamiento entre golpes (0,6 s) y el daño (3-5, azar con semilla); la coherencia de la criatura baja y, a 0, se disuelve y deja de ser sólida; vuelve a los 20 s. Las criaturas son cajas sólidas: chocas con ellas. Contra personas (`p:<entidad>`) solo si el mundo lo activa (pvp): un golpe que llega sube a esa persona un escalón de Estado (sin barra de vida).",
   state: {
     describe: "Una criatura por clave (`c:<id>`): nombre, especie (ficha del bestiario), dónde (x, y, z), su alcance (radio, m), coherencia actual y máxima, modo (quieta, alerta, disuelta), si es sólida y su caja (bx0 by0 bz0 bx1 by1 bz1, m) y su color.",
     fields: {
@@ -46,12 +63,21 @@ export const lucha = defineFeature({
   },
   intents: {
     golpear: { describe: "Golpear a una criatura que tienes al alcance (su radio + 1,8 m). Un golpe cada 0,6 s; el servidor dice cuánto daño hizo (evento golpe) o que no llegaste (aire).", spoken: "golpear", fields: { objetivo: ID }, rate: { perSecond: 4, burst: 2 } },
+    habilidad: { describe: "Usar una habilidad del kit Eclipse Mnémico contra una criatura al alcance: corte-breve (12, 1 s, +12 Carga), incision-semantica (30, 4 s, cuesta 30 Carga) o discontinuidad (55, 8 s, cuesta 55 Carga). El servidor comprueba alcance, enfriamiento propio de cada habilidad y Carga (0-100). Si la criatura sigue en pie, devuelve el golpe como con golpear (tu vida baja); si la habilidad la disuelve, no.", spoken: "habilidad", fields: { objetivo: ID, cual: { kind: "enum", values: HABILIDADES } }, rate: { perSecond: 6, burst: 3 } },
   },
   events: {
     golpe: { describe: "Alguien (de) ha golpeado a una criatura: cuánto daño y cuánta coherencia le queda. A quien está a 40 m.", fields: { objetivo: ID, de: QUIEN, dano: DANO, queda: COH }, announce: { text: "Golpe: −{dano}, le quedan {queda}.", sound: "paso", importance: 1, who: "de" } },
+    habilidad: { describe: "Alguien (de) ha usado una habilidad sobre una criatura: cuál, cuánto daño y cuánta coherencia le queda. A quien está a 40 m.", fields: { objetivo: ID, de: QUIEN, cual: { kind: "enum", values: HABILIDADES }, dano: DANO_HAB, queda: COH, critico: { kind: "bool", default: false } }, announce: { text: "{cual}: −{dano}, le quedan {queda}.", sound: "paso", importance: 1, who: "de" } },
+    critico: { describe: "Una habilidad ha sido crítica (20 %, el doble de daño): quién y cuánto. A quien está a 40 m, además del evento habilidad.", fields: { objetivo: ID, de: QUIEN, dano: DANO_HAB }, announce: { text: "¡Crítico! −{dano}.", sound: "magia", importance: 2, who: "de" } },
+    carga: { describe: "Tu Carga (0-100) tras usar una habilidad o al entrar. Solo a ti.", fields: { valor: CARGA }, announce: "silent" },
     aire: { describe: "Tu golpe no llegó: la criatura está fuera de tu alcance (o ya no está). Solo a ti.", fields: { objetivo: ID }, announce: { text: "Demasiado lejos.", sound: "suave", importance: 0 } },
     disuelta: { describe: "La criatura se ha disuelto (coherencia 0): deja de ser sólida y desaparece un rato. A quien está a 40 m.", fields: { objetivo: ID, de: QUIEN }, announce: { text: "La criatura se disuelve.", sound: "magia", importance: 2 } },
     vuelve: { describe: "Una criatura disuelta vuelve, entera. A quien está a 40 m.", fields: { objetivo: ID }, announce: { text: "Algo vuelve a tomar forma.", sound: "aviso", importance: 1 } },
+    estado: { describe: "El Estado de una persona ha subido un escalón por un golpe de otra (objetivo `p:<entidad>`; estado: ninguno, desestabilizado, confundido, colapsado, aletargado). A quien está a 40 m.", fields: { objetivo: ID, estado: { kind: "enum", values: ESCALERA }, de: QUIEN }, announce: { text: "Alguien queda {estado}.", sound: "aviso", importance: 1 } },
+    reaparece: { describe: "Una persona aletargada ha vuelto a su último punto seguro, con el Estado en ninguno y todo lo suyo intacto (objetivo `p:<entidad>`). A quien está a 40 m.", fields: { objetivo: ID }, announce: { text: "Alguien reaparece.", sound: "aviso", importance: 1 } },
     rechazado: { describe: "Lo que pediste no se hizo, y por qué.", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
+    jugadorHerido: { describe: "L2 trozo 1: la criatura te golpea de vuelta cuando la golpeas: cuánto daño y cuánta vida te queda (en memoria del servidor, sin HUD aún). Solo a ti.", fields: { dano: DANO, vida: VIDA }, announce: { text: "Te golpean: −{dano}, te quedan {vida}.", sound: "paso", importance: 1 } },
+    jugadorCaido: { describe: "Tu vida llega a 0: caes. No puedes golpear hasta que te recuperes. Solo a ti.", fields: {}, announce: { text: "Caes.", sound: "error", importance: 2 } },
+    jugadorVuelve: { describe: "Te recuperas del todo tras caer. Solo a ti.", fields: {}, announce: { text: "Te recuperas.", sound: "aviso", importance: 1 } },
   },
 });

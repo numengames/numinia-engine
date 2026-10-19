@@ -4,6 +4,7 @@ import type { ServerPart } from "../packages/feature/src/index.ts";
 import gestos from "./gestos/server.ts";
 import despertar from "./despertar/server.ts";
 import objetos from "./objetos/server.ts";
+import avatar from "./avatar/server.ts"; // H10: your avatar — house or uploaded .vrm, saved with your identity
 import chat from "./chat/server.ts";
 import misiones from "./misiones/server.ts"; // J5: two features, one engine: people (pnj) and quests (misiones)
 import entorno from "./entorno/server.ts";
@@ -25,7 +26,7 @@ import disparadores from "./disparadores/server.ts"; // D-041: the cable — zon
 import cerradura from "./cerradura/server.ts"; // D-042: a lock that opens with a code (keypad, HTML too) or a key; the server decides
 import movedores from "./movedores/server.ts"; // D-043: things the server moves and rotates with a duration, same for everyone (platform, sliding door, lift)
 import lucha from "./lucha/server.ts"; // L1: creatures with coherence and a solid box; one melee blow (the server decides reach, cooldown, damage)
+import ancestros from "./ancestros/server.ts"; // v1: the Salón de los Ancestros and the tribute to Asimov (a hologram that lights up near you and says the Three Laws + our AGW rules)
 import inventario from "./inventario/server.ts"; // Y1: what each person owns; after misiones, whose `otorga` it listens to
 import sonido from "./sonido/server.ts"; // S6: the catalogue of house sounds (27 CC0 ids served by their sha256); the server picks the id and the seed, so everyone hears the same variant at the same instant. Last, so it hears the cable's `suena`
-const funciones: ServerPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores, cerradura, movedores, inventario, sonido];
-export default funciones;
+const funciones: ServerPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores, cerradura, movedores, inventario, ancestros, sonido];export default funciones;

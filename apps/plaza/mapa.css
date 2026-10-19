@@ -33,11 +33,34 @@
 #mapa-lista { list-style: none; padding: 0; }
 #mapa-lista li { display: flex; gap: 4px; margin: 3px 0; }
 #mapa-lista .ver { flex: 1; text-align: left; font-weight: 400; background: rgba(238, 242, 246, .1); }
-#mapa-lista .marcar { white-space: nowrap; background: #ffd27a; color: #23303b; }
+#mapa-lista .ic { flex: none; width: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: rgba(238, 242, 246, .14); }
+#mapa-lista .ir { background: #ffd27a; color: #23303b; }
+#mapa-lista .ic:disabled { opacity: .45; }
+#mapa-buscar { width: 100%; box-sizing: border-box; margin: 4px 0; }
 .leyenda { list-style: none; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; }
 .leyenda li { display: flex; align-items: center; gap: 6px; }
 .leyenda canvas { width: 18px; height: 18px; border-radius: 3px; }
 #ficha .pie { margin-top: 10px; }
+/* M3: side tabs (Personaje, Reserva, Misiones, Insignias, Gente); the «pestanas» class also picks up the house's
+   generic touch styling from movil.css (.panel-j5 .pestanas), which turns this into a top strip on a phone. */
+#ficha .cuerpo { display: flex; gap: 14px; align-items: flex-start; }
+html:not([data-aparato^="movil"]) #ficha .lateral { display: flex; flex-direction: column; gap: 2px; flex: 0 0 136px; }
+#ficha .lateral { border: 0; padding: 0; margin: 0; }
+#ficha .lateral button { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--n-texto2); font: 600 13px "Geist", system-ui, sans-serif; text-align: left; cursor: pointer; }
+#ficha .lateral button:hover { color: var(--n-texto); border-color: var(--n-linea); }
+#ficha .lateral button[aria-selected="true"] { color: var(--n-texto); background: var(--n-elev); border-color: var(--n-linea); }
+#ficha .lateral button:focus-visible { outline: 2px solid var(--n-turquesa); outline-offset: 1px; }
+#ficha .lateral .icono { flex: none; }
+#ficha .hoja { flex: 1 1 auto; min-width: 0; }
+#ficha .hoja section + section { margin-top: 14px; }
+#ficha .escalera { list-style: none; display: flex; flex-wrap: wrap; gap: 4px; padding: 0; margin: 4px 0; font: 600 12px "Geist Mono", ui-monospace, monospace; }
+#ficha .escalera li { padding: 3px 8px; border-radius: 6px; background: var(--n-elev); color: var(--n-texto2); }
+#ficha .escalera li[aria-current="step"] { background: var(--n-ambar); color: var(--n-fondo); }
+#ficha .estado-actual { font-weight: 600; color: var(--n-texto); margin: 0 0 4px; }
+#ficha .nota { color: var(--n-texto2); font-size: 12px; margin: 4px 0; }
+@media (max-width: 640px) {
+  #ficha .cuerpo { flex-direction: column; }
+}
 @media (max-width: 640px), (max-height: 420px) {
   #mapa-grande .cuerpo { flex-direction: column; overflow: auto; }
   #mapa-grande .lienzo { flex: 0 0 55vh; }
@@ -68,3 +91,4 @@
 .panel-j5 .nota { font-size: 12px; color: #c9d3dc; margin: 0 0 6px; }
 .panel-j5 .veredicto.ok { color: #9fe8a8; }
 .panel-j5 .veredicto.mal { color: #ff9a9e; }
+#mapa-grande .detalle .volver { float: right; width: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: rgba(238, 242, 246, .14); }

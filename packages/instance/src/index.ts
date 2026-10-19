@@ -4,7 +4,7 @@ import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
 import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX } from "../../sim/src/index.ts";
 import type { SimState, SpawnArea, Bvh } from "../../sim/src/index.ts";
 import {
-  MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
+  MSG, buildGrid, selectVisible, encodeSnapshot, cuantizar, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
   decodeIdentityRequest, decodePase, encodeIdentity, leerVozSubida, codificarVozBajada, VOZ_RADIO_M, VOZ_TRAMAS_S,
 } from "../../net/src/index.ts";
@@ -59,13 +59,38 @@ export type InstanceOptions = {
    * "build-in-worlds")) or "todos". A feature can still grant it to one avatar (`concederVuelo`) whatever this says. */
   vuelo?: "nadie" | "constructores" | "todos";
   /** M6 h8: builds (or refreshes) the world's collision mesh from the shared state's `malla` things, off the sim
-   * tick (fetching and parsing a .glb is not a 20 Hz operation): called again whenever the shared state version
-   * changes, never twice at once. Returns null when there is nothing to build (no `malla` thing, or none readable).
-   * None = the world never gets a mesh (`sim.mesh` stays null, same as before M6: darts, fishing and walking into a
-   * `malla` wall all answer as if there is nothing there). packages/server/src/colision-mundo.ts builds the real one. */
-  construirMalla?: (objetos: Iterable<[string, Record<string, unknown>]>) => Promise<Bvh | null>;
+   * tick (fetching and parsing a .glb is not a 20 Hz operation), never twice at once. It gets only the entries whose
+   * value says `colision: "malla"` (`entradasMalla`), and is called again only when those change (`huellaMalla`, D2)
+   * — or, after a build that `faltaAlgo()` says could not read some .glb (or a build that threw), on the next change
+   * of any kind, so a file that arrives later still gets in. Returns null when there is nothing to build (no `malla`
+   * thing, or none readable). None = the world never gets a mesh (`sim.mesh` stays null, same as before M6: darts,
+   * fishing and walking into a `malla` wall all answer as if there is nothing there). packages/server/src/colision-mundo.ts
+   * builds the real one. */
+  construirMalla?: ConstruirMalla;
 };
+/** M6 h8 / D2: the world's mesh builder (InstanceOptions.construirMalla). `faltaAlgo` (optional): did the last build
+ * skip a `malla` thing because its file could not be read (yet)? Then any change retries, like before D2. */
+export type ConstruirMalla = ((objetos: Iterable<[string, Record<string, unknown>]>) => Promise<Bvh | null>) & { faltaAlgo?: () => boolean };
+/** D2: the shared-state entries the world's mesh is made of — every one whose value says `colision: "malla"`, in
+ * state order (the builder's whole input: colision-mundo.ts reads nothing else). */
+export function entradasMalla(estado: Iterable<[string, Record<string, unknown>]>): [string, Record<string, unknown>][] {
+  const out: [string, Record<string, unknown>][] = [];
+  for (const e of estado) if (e[1].colision === "malla") out.push(e);
+  return out;
+}
+/** D2: a fingerprint of exactly what the mesh is built from (key and whole value of each `malla` entry, in order).
+ * A counter ticking, a box moving or a chat line leaves it the same: no rebuild. A `malla` thing added, removed,
+ * moved, turned, rescaled or given another model changes it. */
+export function huellaMalla(entradas: readonly [string, Record<string, unknown>][]): string {
+  let h = "";
+  for (const [k, v] of entradas) h += `${k}\u0000${JSON.stringify(v)}\u0001`;
+  return h;
+}
 export type Suelo = { minimo: number; vuelta?: { x: number; y: number; z: number; siempre?: boolean } | null };
+/** B2: the phases of Instance.tick(), in order (Instance.fasesMs): inputs in, solid boxes rebuilt (only when a feature's
+ * shared state changed), the simulation step, the safe-spot pass, the features (server/metrics.ts splits it by feature),
+ * the snapshots out. */
+export const FASES_TICK = ["entradas", "solidos", "simulacion", "seguro", "piezas", "instantaneas"] as const;
 /** D-045: how often (ticks) the last safe spot is kept: 10 = every half second. */
 export const SEGURO_CADA = 10;
 /** D-045: a return the instance made (the feature `suelo` tells the page). `motivo`: caida = under the floor, pedido = asked. */
@@ -101,7 +126,7 @@ export class Instance {
     this.byEntity = new Array(opts.capacity);
     const tf = this.sim.tf;
     this.features = new ServerRuntime(opts.features ?? [], {
-      players: () => this.conns.map((c) => c.entity),
+      players: () => this.players(),
       position: (e) => (this.sim.world.alive[e] && tf.has[e] ? { x: fxToFloat(tf.cols.x[e]), y: fxToFloat(tf.cols.y[e]), z: fxToFloat(tf.cols.z[e]) } : null),
       send: (e, bytes) => this.byEntity[e]?.transport.send(bytes, true),
       tick: () => this.sim.tick,
@@ -255,7 +280,7 @@ export class Instance {
         if (!r) conn.bad++; else this.opts.onReport?.(entity, r); // no listener (tests, bots): ignored
       } else conn.bad++; // unknown or malformed: counted, never thrown
     });
-    this.conns.push(conn);
+    this.conns.push(conn); this.playersView = null;
     this.byEntity[entity] = conn;
     this.tieneSeguro[entity] = 0; this.guardarSeguro(entity); // D-045: where you appear is safe (if it is over the world's minimum)
     const ref = this.opts.reference ?? { seed: 0, ticks: 0, n: 0, hash: 0 };
@@ -302,7 +327,7 @@ export class Instance {
   disconnect(entity: number): void {
     const i = this.conns.findIndex((c) => c.entity === entity);
     if (i < 0) return;
-    this.conns.splice(i, 1);
+    this.conns.splice(i, 1); this.playersView = null;
     this.byEntity[entity] = undefined;
     this.features.leave(entity); // still has a position here; no longer among the players
     this.sim.world.despawn(entity);
@@ -316,7 +341,13 @@ export class Instance {
     return client;
   }
 
+  /** B2: what each phase of the LAST tick cost, in ms (wall clock), in the order of FASES_TICK. The server copies it into
+   * its windows right after tick() (server/metrics.ts); nothing here keeps history and nothing here touches the sim. */
+  readonly fasesMs = new Float64Array(FASES_TICK.length);
+
   tick(): void {
+    const f = this.fasesMs;
+    let a = performance.now(), b = a;
     for (const c of this.conns) c.transport.flush?.();
     // only avatars whose input arrived advance this tick (gravity too): one input = one step of the owner's clock,
     // so the owner's prediction stays exact when an input comes late (J2)
@@ -328,14 +359,17 @@ export class Instance {
       const o = n++ * INPUT_STRIDE;
       inputs[o] = c.entity; inputs[o + 1] = m.mx; inputs[o + 2] = m.mz; inputs[o + 3] = m.buttons; c.ack = m.seq;
     }
-    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.sim, solidsFrom(this.features.allState())); } // U10
-    if (this.opts.construirMalla && !this.mallaBuilding && this.features.stateVersion !== this.mallaVersion) this.reconstruirMalla();
+    b = performance.now(); f[0] = b - a; a = b; // entradas
+    if (this.features.solidsVersion !== this.solidsVersion) { this.solidsVersion = this.features.solidsVersion; setSolids(this.sim, solidsFrom(this.features.allState())); this.solidosRehechos++; } // U10, E6: only when a solid changed
+    if (this.opts.construirMalla && !this.mallaBuilding && this.features.stateVersion !== this.mallaVersion) this.quizaMalla(); // M6 h8, D2: only if a malla entry changed
+    b = performance.now(); f[1] = b - a; a = b; // solidos
     // H2 historia 5: at most ORDENES_TICK_MAX orders go into this step; the rest stay queued, in order, for the next one.
     const capInts = ORDENES_TICK_MAX * ORDER_STRIDE;
     const take = this.ordenes.slice(0, capInts); this.ordenes = this.ordenes.slice(capInts);
     const ordenes = take.length ? Int32Array.from(take) : undefined; this.pendiente.clear();
     if (ordenes) this.opts.log?.(`[suelo] tick ${this.sim.tick}: ${ordenes.length / ORDER_STRIDE} orden(es) aplicada(s)${this.ordenes.length ? `, ${this.ordenes.length / ORDER_STRIDE} esperando` : ""}`);
     step(this.sim, inputs.subarray(0, n * INPUT_STRIDE), ordenes); // authority (D-045/H2: orders first, recorded with the inputs)
+    b = performance.now(); f[2] = b - a; a = b; // simulacion
     if (this.sim.tick % SEGURO_CADA === 0) { // D-045: every half second, keep the safe spot; under the floor, order the return
       const s = this.sim, min = this.opts.suelo ? fx(this.opts.suelo.minimo) : null;
       for (const c of this.conns) {
@@ -343,15 +377,18 @@ export class Instance {
         else this.guardarSeguro(c.entity);
       }
     }
+    b = performance.now(); f[3] = b - a; a = b; // seguro
     this.features.tick();   // game features: queued intents, then their tick hooks (no effect on the sim)
+    b = performance.now(); f[4] = b - a; a = b; // piezas
     if (this.sim.tick % this.opts.snapshotEvery === 0) { // 20 Hz sim, 10 Hz snapshots by default
-      const grid = buildGrid(this.sim);
+      const grid = buildGrid(this.sim), q = cuantizar(this.sim); // E1: every avatar quantized once, not once per viewer
       for (const c of this.conns) {
         const visible = selectVisible(this.sim, grid, c.viewer, this.opts.k);
         c.visible = visible;
-        c.transport.send(encodeSnapshot(this.sim, c.entity, c.ack, visible), false);
+        c.transport.send(encodeSnapshot(this.sim, c.entity, c.ack, visible, q), false);
       }
     }
+    f[5] = performance.now() - a; // instantaneas
   }
 
   /** N16: move a connected avatar on purpose (a feature asked: «ir con», a photo's place) to the first free spot near
@@ -389,18 +426,39 @@ export class Instance {
   }
 
   private solidsVersion = -1;
+  /** E6: times the solid boxes were redone (bench / tests). */
+  solidosRehechos = 0;
+  /** E6: the connected entities in join order, one frozen array shared by every reader until someone joins or
+   * leaves (then a new one replaces it: whoever is walking the old one keeps a whole, unchanged list). */
+  private playersView: readonly number[] | null = null;
+  players(): readonly number[] { return this.playersView ??= Object.freeze(this.conns.map((c) => c.entity)); }
   private mallaVersion = -1;
   private mallaBuilding = false;
+  /** D2: `huellaMalla` of the last build started (null = none yet: the first change always builds, as before). */
+  private mallaHuella: string | null = null;
+  /** D2: the last build could not read some file, or threw: the next change of any kind builds again. */
+  private mallaReintentar = false;
+  /** Rebuilds a mesh started (bench / tests: how often the world's mesh is redone). */
+  mallasConstruidas = 0;
+  /** M6 h8 + D2: the state moved on since the last look. Rebuild the mesh only if what it is made of changed
+   * (`huellaMalla`) or the last build left something out; otherwise just remember this version. */
+  private quizaMalla(): void {
+    this.mallaVersion = this.features.stateVersion;
+    const entradas = entradasMalla(this.features.allState()), huella = huellaMalla(entradas);
+    if (huella === this.mallaHuella && !this.mallaReintentar) return;
+    this.mallaHuella = huella; this.mallaReintentar = false;
+    this.reconstruirMalla(entradas);
+  }
   /** M6 h8: rebuilds the world's collision mesh off the tick (async: fetching and parsing .glb files is not a 20 Hz
    * job). Captures the state version before starting; if the state moved on again while building, the next tick's
-   * check (`stateVersion !== mallaVersion`) sees it and starts over — never two builds in flight at once. Not part
+   * check (`stateVersion !== mallaVersion`) sees it and looks again — never two builds in flight at once. Not part
    * of the fingerprint: `setMesh` is the same no-op-on-replay side door `setSolids` already uses for U10's boxes. */
-  private reconstruirMalla(): void {
-    const version = this.features.stateVersion, snapshot = [...this.features.allState()];
-    this.mallaVersion = version; this.mallaBuilding = true;
-    this.opts.construirMalla!(snapshot)
-      .then((mesh) => { setMesh(this.sim, mesh); })
-      .catch((e) => { this.opts.log?.(`[malla] no se pudo construir la malla del mundo: ${String((e as Error)?.message ?? e)}`); })
+  private reconstruirMalla(entradas: [string, Record<string, unknown>][]): void {
+    const construir = this.opts.construirMalla!;
+    this.mallaBuilding = true; this.mallasConstruidas++;
+    construir(entradas)
+      .then((mesh) => { setMesh(this.sim, mesh); if (construir.faltaAlgo?.()) this.mallaReintentar = true; })
+      .catch((e) => { this.mallaReintentar = true; this.opts.log?.(`[malla] no se pudo construir la malla del mundo: ${String((e as Error)?.message ?? e)}`); })
       .finally(() => { this.mallaBuilding = false; });
   }
   /** U10: who hears a voice frame — players that have the speaker in their area of interest and within VOZ_RADIO_M.
