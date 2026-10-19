@@ -772,3 +772,11 @@ Píxel del fondo del estanque (10 h, antes → después): nivel A `#0d5872` → 
 En el mundo de demostración (`work/naturaleza/mundo-demo/aventura/cosas/`), la regadera pasa de `#3a7bd5` a Turquesa profundo `#016e7d` (sigue siendo «la azul» de la misión, ahora acento de señal pequeño) y el saco de semillas de `#e0b030` a Latón `#b98a2e`.
 
 Píxel de los pilares en la vista general (antes → después): menta `(136,236,169)` → verdín `(75,142,125)`; amarillo `(245,212,107)` → latón `(166,148,85)`; rosa `(236,137,147)` → cobre `(153,117,94)`. Test: `test/naturaleza-r5-3.test.ts`.
+
+## R6.1 · Los pilares del motor desaparecen con la naturaleza
+
+**Por qué:** Pablo no quiere los 24 pilares de referencia del motor (`index.ts`, cajas de 1×3×1 m en tres anillos) en los mundos con naturaleza, ni recoloreados: el relieve, los árboles y los Residuos ya marcan el movimiento, y las cajas se leen como juguetes en el prado. R5.3 los vestía de latón/verdín/cobre/ceniza; R6.1 los quita.
+
+**Ahora:** mientras la naturaleza está encendida, `naturaleza/hitos.ts` (`ocultarHitos`) los deja invisibles (`visible = false`): el renderizador no los dibuja, y el mapa cenital/minimapa (`cenital.ts`) y la maqueta AR (`ar.ts`) tampoco, porque los dos se saltan lo invisible. Si el entorno vuelve a aplicarse con la naturaleza encendida (cambio de nivel o de calidad: escribe `visible` según `hitos`), esa escritura se guarda pero no se ve; al apagar la naturaleza los pilares vuelven tal como el entorno los quiere, con su color y altura de motor intactos. Los mundos sin naturaleza no cambian. Se borran las mezclas `HITOS` de `paleta.ts` (ya nadie las usa). `index.ts` y `entorno.ts` sin tocar.
+
+**Medido** (nivel A, 10 h, llamadas GL de un fotograma de toda la escena): vista general 75 → 46, prado 67 → 44; pilares visibles 24 → 0. Presupuesto de la naturaleza igual: A 13 951 tri/8 llamadas, B 8 063/7, C 6 096/6, D 3 039/5. Fotos `work/naturaleza/fotos/r6-1-{vista-general,prado}-{antes,despues}.png`. Test: `test/naturaleza-r5-3.test.ts`.
