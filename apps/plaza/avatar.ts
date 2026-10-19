@@ -109,6 +109,8 @@ export function montarAvatar(o: OpcionesAvatar) {
   document.body.append(boton, panel);
 
   return {
+    /** Opens the chooser (the «Cambiar avatar» button of «Tú», ficha.ts): the same panel the «Avatar» button toggles. */
+    abrir(): void { panel.classList.add("abierto"); (panel.querySelector("button") as HTMLButtonElement | null)?.focus(); },
     /** packages/render/src/avatares.ts `eleccion`: turn this entity's avatar.state into a model index in
      * `o.catalogo.modelos` (the same array avatares.ts reads), or undefined to keep the old per-entity default. */
     eleccion(clave: number | "yo"): number | undefined {

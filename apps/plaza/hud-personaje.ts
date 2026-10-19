@@ -6,8 +6,11 @@
 // before that, and for Aliento del Velo (no source yet: `aliento.actual() → 0..100` is where it will plug), each says «Próximamente»
 // and nothing is invented. The three skill slots under the HUD (#habilidades) are combate.ts too.
 // Only the name (session.who.nombre) is real today. Redraws once a second, touching the DOM only when something changed; no live region.
+// Rediseño v2 (B): your portrait on the left — the bust render of the avatar you wear (tu-logica.ts; the house silhouette for an
+// upload) — is a button that opens «Tú» (I).
 import { icono } from "./iconos.ts";
 import { ESCALERA } from "./ficha.ts";
+import { retratoDe } from "./tu-logica.ts";
 
 export type Paso = (typeof ESCALERA)[number];
 export type Fuentes = {
@@ -47,11 +50,27 @@ export function montarHudPersonaje(): void {
   if (!raiz) return;
   raiz.setAttribute("aria-label", "Tu personaje: estado, carga y aliento del Velo");
   raiz.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
+  // the portrait: built once, its picture changed only when the avatar you wear changes
+  const retrato = el("button", "hp-retrato"); retrato.type = "button"; retrato.title = "Tú (I)"; retrato.setAttribute("aria-label", "Abrir Tú (I)"); retrato.setAttribute("aria-keyshortcuts", "I");
+  retrato.addEventListener("click", () => { const f = (globalThis as unknown as { __numinia?: { ficha?: { abrir?(): void } } }).__numinia?.ficha; f?.abrir?.(); });
+  const cuerpo = el("div", "hp-cuerpo");
+  let firmaRetrato: string | null = null;
+  const pintarRetrato = (g: Record<string, unknown>) => {
+    let av: { id?: string; nombre: string } | null = null;
+    try { av = (g.miAvatar as (() => { id?: string; nombre: string } | null) | undefined)?.() ?? null; } catch { av = null; }
+    const url = retratoDe(av?.id, "busto");
+    if (url === firmaRetrato && retrato.firstChild) return; firmaRetrato = url;
+    const silueta = () => { const s = el("span", "hp-silueta"); s.innerHTML = icono("user", 30); return s; }; // fixed house glyph
+    if (!url) return void retrato.replaceChildren(silueta());
+    const img = el("img"); img.alt = ""; img.decoding = "async"; img.addEventListener("error", () => img.replaceWith(silueta()), { once: true }); img.src = url;
+    retrato.replaceChildren(img);
+  };
   let firma = "";
   const pintar = () => {
     const g = (globalThis as unknown as { __numinia?: Record<string, unknown> }).__numinia ?? {};
     const sesion = g.session as { who?: { nombre?: string } } | undefined;
     const v = leerHud({ nombre: sesion?.who?.nombre, estado: g.estado as Fuentes["estado"], carga: g.carga as Fuentes["carga"], aliento: g.aliento as Fuentes["aliento"] });
+    pintarRetrato(g);
     const f = JSON.stringify(v); if (f === firma) return; firma = f;
 
     const cab = el("div", "hp-cab"); cab.append(el("b", "", v.nombre));
@@ -77,9 +96,10 @@ export function montarHudPersonaje(): void {
       } else { fila.append(pronto()); b.dataset.pronto = ""; tr.setAttribute("aria-hidden", "true"); }
       b.append(fila, tr); return b;
     };
-    raiz.replaceChildren(cab, est,
+    cuerpo.replaceChildren(cab, est,
       barra("carga", "Carga", "lightning", v.carga, v.carga ? `${v.carga.valor} / ${v.carga.max}` : ""),
       barra("aliento", "Aliento del Velo", "moon-stars", v.aliento, v.aliento ? `${v.aliento.pct} %` : ""));
+    if (raiz.firstChild !== retrato) raiz.replaceChildren(retrato, cuerpo);
     raiz.hidden = false;
   };
   pintar();

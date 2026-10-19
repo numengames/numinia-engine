@@ -17,6 +17,7 @@ import mundoPlaza from "./mundo.ajustes.json";
 import { AJUSTE_APARATO, capacidadesDelPerfil, nivelDelPerfil } from "../../packages/client/src/aparato.ts";
 import { icono } from "./iconos.ts";
 import { perfil, desarrollo, origenPerfil, cambiarAparato } from "./perfil-aparato.ts"; // U25
+import { filasAparato, filasIdentidad, infoDom } from "./info-aparato.ts"; // «Este aparato» and «Tu identidad», read-only (they left the player sheet)
 
 type View = Awaited<ReturnType<typeof createView>>;
 /** Contracts of branches built in parallel (N1 camera, H4 environment): optional until they are merged. */
@@ -238,7 +239,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
     { id: "cuenta", nombre: "Cuenta y privacidad", icono: "user" },
   ];
   /** Which category a registry group lives in: the engine's groups by id; features' and worlds' groups are «Juego». */
-  const categoriaDe = (grupo: string): string => ({ graficos: "graficos", sonido: "sonido", controles: "controles", accesibilidad: "accesibilidad", interfaz: "interfaz", privacidad: "cuenta" } as Record<string, string>)[grupo] ?? "juego";
+  const categoriaDe = (grupo: string): string => ({ graficos: "graficos", aparato: "graficos", sonido: "sonido", controles: "controles", accesibilidad: "accesibilidad", interfaz: "interfaz", privacidad: "cuenta", identidad: "cuenta" } as Record<string, string>)[grupo] ?? "juego";
   let categoria = "", busqueda = "";
   const cuerpo = document.createElement("div"); cuerpo.className = "ajustes-cuerpo";
   const nav = document.createElement("nav"); nav.setAttribute("aria-label", "Categorías de ajustes");
@@ -266,8 +267,15 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
     if (!lista.querySelector("fieldset:not([hidden])")) { const v = lista.querySelector(".vacio") ?? Object.assign(document.createElement("p"), { className: "vacio" }); v.textContent = q ? "Ningún ajuste coincide." : "Esta categoría no tiene ajustes."; lista.append(v); } else lista.querySelector(".vacio")?.remove();
     const editar = lista.querySelector<HTMLElement>("#ajustes-editar-interfaz"); if (editar) editar.hidden = !!q || categoria !== "interfaz" || !edicion.disponible;
   }
+  // read-only facts: the device and this visit under Gráficos, who you are under Cuenta y privacidad (live while open)
+  const fuente = { view, session, desde: () => Number((o.numinia.informe as { bienvenidaMs?: number } | undefined)?.bienvenidaMs) || 0, ahora: () => performance.now() };
+  const infos = [
+    infoDom("aparato", "Este aparato", "Lo que da tu aparato ahora y cómo va esta visita. Solo se lee: lo de arriba lo cambia.", () => filasAparato(fuente)),
+    infoDom("identidad", "Tu identidad", "Cómo te conoce este mundo desde este navegador. Solo se lee.", () => filasIdentidad(fuente)),
+  ];
+  setInterval(() => { if (dlg.open) for (const x of infos) x.pintar(); }, 1000);
   const construir = () => {
-    lista.replaceChildren(...a.grupos().map(grupoDom));
+    lista.replaceChildren(...a.grupos().map(grupoDom), ...infos.map((x) => x.fs));
     nav.replaceChildren(...CATEGORIAS.map((c) => { const b = document.createElement("button"); b.type = "button"; b.dataset.cat = c.id; b.innerHTML = `${icono(c.icono, 18)}<span>${c.nombre}</span>`; /* constants only */ b.addEventListener("click", () => { categoria = c.id; busqueda = ""; buscar.value = ""; mostrar(); }); return b; }));
     const fsI = lista.querySelector<HTMLElement>('fieldset[data-grupo="interfaz"]');
     if (fsI) { const e = document.createElement("button"); e.type = "button"; e.id = "ajustes-editar-interfaz"; e.className = "grande"; e.textContent = "Editar interfaz"; e.hidden = true; e.dataset.listo = "1"; e.addEventListener("click", () => { cerrar(); edicion.abrir(); }); fsI.append(e); }
@@ -297,6 +305,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   function abrir(): boolean {
     if (!dlg || dlg.open || enXR()) return !!dlg?.open;
     volverA = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    for (const x of infos) x.pintar();
     try { dlg.showModal(); } catch { dlg.setAttribute("open", ""); }
     boton!.setAttribute("aria-expanded", "true");
     titulo?.focus(); // a quiet start: the dialog's name is read, nothing changes by accident; Tab walks the settings

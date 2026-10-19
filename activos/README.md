@@ -25,5 +25,13 @@ al lado (`docs/SABER.md` §3.3: nada de Mixamo, ni bases de VRoid, ni «gratis»
 Los avatares y animaciones que dibuja la plaza están en `avatares/catalogo.json` (lo escribe
 `node tools/avatares-catalogo.ts`, que rechaza lo que no sea CC0 dentro del fichero o pase de 10.000 triángulos).
 
+Retratos (rediseño v2, «Tú»): cada avatar del catálogo tiene tres renders WebP en `apps/plaza/public/retratos/`
+(`<id>-busto.webp` 512×512 para la tarjeta de arriba a la izquierda; `<id>-cuerpo.webp` y `<id>-espalda.webp` 512×768
+para la ficha «Tú»), hechos con `node tools/retratos.mjs [id…]` (three + @pixiv/three-vrm + MeshoptDecoder en un
+Chromium sin ventana, brazos relajados, fondo transparente; `CHROME=/ruta/a/chrome` si playwright-core no trae el
+suyo). Son renders de los mismos VRM CC0 (`avatares/LICENCIAS.md`, «Retratos»). Tras añadir un avatar al catálogo,
+vuelve a lanzarlo: `test/tu-logica.test.ts` falla mientras falte un retrato. Un avatar subido por alguien no tiene
+retrato: la ficha y la tarjeta dibujan la silueta de la casa.
+
 E3: avatares, animaciones y cielo pasan por `node tools/aligerar-activos.ts` (sin pérdida en VRM/VRMA: el mismo JSON y
 los mismos valores; el cielo con 6 de sus 8 bits de mantisa, ≤ 1,6 % por píxel). Tras cambiar uno: `node tools/aligerar-activos.ts && node tools/avatares-catalogo.ts`.

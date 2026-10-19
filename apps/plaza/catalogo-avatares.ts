@@ -9,7 +9,7 @@ export function catalogoDeAvatares(origen: string, params: URLSearchParams, avat
   if (params.has("sinavatares")) return undefined;
   const animaciones: CatalogoAvatares["animaciones"] = {};
   for (const [clip, a] of Object.entries(catalogo.animaciones)) animaciones[clip as keyof CatalogoAvatares["animaciones"]] = { url: `${origen}/a/${a.sha256}.vrma`, pasoPorCadera: a.pasoPorCadera, duracion: a.duracion };
-  return { modelos: modelosDelMundo(catalogo.modelos, avatar).map((m) => ({ nombre: m.nombre, url: `${origen}/a/${m.sha256}.vrm` })), animaciones };
+  return { modelos: modelosDelMundo(catalogo.modelos, avatar).map((m) => ({ id: m.id, nombre: m.nombre, url: `${origen}/a/${m.sha256}.vrm` })), animaciones };
 }
 
 /** The models a world offers: the one it names, or all of them (pure, for tests). */
