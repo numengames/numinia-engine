@@ -651,3 +651,9 @@ bandada, 1 malla por nivel, topes y altura mínima por nivel, refresco solo al c
 tabla de mundo con más de 16 aves distintas se recortan a 16 (el `uniformArray`). (3) Sin sombra ni colisión; las aves no esquivan árboles (la
 altura mínima basta sobre el relieve, no sobre las copas: las copas de N2 no entran en `alturaEn`). (4) El brillo del circuito a mediodía es sutil; el
 de los ojos y la lámpara se ve sobre todo al anochecer. (5) «Dibujadas ahora, se cambiarán»: toda la forma vive en `geometriaAve` + `PLANES`/`RAZAS_AVE`.
+
+## F4b · La noche (sin coste)
+
+La naturaleza ya usaba materiales con luz (Lambert); lo que fallaba era el entorno: con `hora.mueveElSol` la hora solo movía el sol, y de noche la «luna» seguía a intensidad 3 y el ambiente a 1, así que lo que mira hacia arriba (hierba, suelo) quedaba iluminado como de día. Ahora `entorno.ts` (`aplicar`) baja sol y ambiente según la altura del sol y los tiñe de azul (solo con `solHora`; el preset «noche» a mano no cambia), y todo lo que tiene luz lo sigue: dos escalares, cero llamadas y cero triángulos más (medir: A 52 157 tris / 12 llamadas, igual que antes).
+Luciérnagas: radio de halo ×4 (antes ×3; las raras siguen más grandes: legendaria 0,64 m), halo más ancho y brillo ×1,5; a 3/8/15 m una común mide ≈100/37/20 px de diámetro. Fotos en `work/naturaleza/fotos/f4b-*.png`.
+Queda feo: la arena y el agua siguen más claras que la hierba de noche, y el cielo de noche del mundo demo es negro (lo decide el preset, no la naturaleza).
