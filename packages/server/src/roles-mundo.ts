@@ -161,12 +161,18 @@ export function crearRoles(o: OpcionesRoles) {
     return p ? p.acceso : acceso(roles, miembroDe(id));
   };
 
+  /** What came of the entry passes this world received since it started (public in /status: counts and the verifier's short reason,
+   * one of `MotivoPase`'s closed words, never a token). Only `credencial` counts: an organization AI's mid-session `renovar` answers
+   * its bridge directly and is not an entry. */
+  const cuentaPases: { recibidos: number; aceptados: number; rechazados: number; ultimoMotivo: string | null } = { recibidos: 0, aceptados: 0, rechazados: 0, ultimoMotivo: null };
   /** The world's side of a pass (Instance `credencial`): checks it; a good one names the person, a bad one leaves the guest
    * and queues one line saying why (the chat shows it right after identify). Without a configured key: passes are ignored. */
   const credencial = (entity: number, token: string, invitado: Who): Who | null => {
     if (!o.pase) return null;
+    cuentaPases.recibidos++;
     const v = verificarPase(token, o.pase.clave, { aud: o.pase.mundo, now: Math.floor(ahora() / 1000), org: o.pase.org });
-    if (!v.ok) { pendientes.set(entity, v.texto); log(`[pase] rechazado para ${invitado.id}: ${v.motivo}`); return null; }
+    if (!v.ok) { cuentaPases.rechazados++; cuentaPases.ultimoMotivo = v.motivo; pendientes.set(entity, v.texto); log(`[pase] rechazado para ${invitado.id}: ${v.motivo}`); return null; }
+    cuentaPases.aceptados++;
     const p = v.pase;
     if (p.kind === "agent") { // an organization's AI: not a person, no member list, ends with its pass
       for (const [e, x] of vidaIA) if (x.sub === p.sub && !x.cerrando) { x.cerrando = true; porCerrar.push({ e, motivo: "esta IA ha entrado desde otro sitio" }); } // one connection per agent
@@ -588,6 +594,8 @@ export function crearRoles(o: OpcionesRoles) {
     part, puede, credencial, renovar,
     /** For tests and the server: what someone with this id may do. */
     acceso: (id: string | undefined) => accesoDe(id),
+    /** For /status: how many passes arrived, were accepted or refused, and why the last refusal (the verifier's short reason). */
+    pases: () => ({ ...cuentaPases }),
     /** For /status (STD: personas vs agentes): `id` is an "ia-…" one. Its organization (ADR-080, a signed pass) when
      * it is one of numinia.com's agents; null for a world inhabitant (habitantes/<id>.json, P4) — those have no pass. */
     organizacionDeAgente: (id: string): string | null => (esIA(id) ? pasesIA.get(id.slice(3))?.org ?? null : null),
