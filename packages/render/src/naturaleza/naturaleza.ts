@@ -20,6 +20,7 @@ import { ESTACIONES, COLOR_ESTANQUE } from "./paleta.ts";
 import type { Estacion } from "./paleta.ts";
 import { HIERBA_POR_NIVEL } from "./niveles.ts";
 import { actualizarRelleno } from "./relleno.ts";
+import { vestirHitos } from "./hitos.ts";
 
 /** What the page receives from features/naturaleza (flat, validated on the server). Every field optional: defaults below. */
 export type NaturalezaDatos = {
@@ -75,12 +76,16 @@ export type HNaturaleza = {
   tablaFauna?: () => Promise<TablaFauna>;
   /** F5: the audio core (audio/nucleo.ts `audio()`), lazily. Absent = the fauna is silent. The sound module is a third lazy door: not fetched on tier D. */
   nucleo?: () => import("./sonido.ts").HSonido["nucleo"];
+  /** R5.3: the engine's landmark pillars (index.ts). While the nature is on they wear the palette (hitos.ts) and sit on the relief; off = back as they were. Absent = untouched. */
+  hitos?: () => Iterable<THREE.Object3D>;
 };
 
 type Real = {
   arboles: import("./arboles.ts").Arboles; hierba: import("./hierba.ts").Hierba; terreno: import("./terreno.ts").Terreno;
   agua: { malla: THREE.Mesh; t: { value: number } } | null; grupo: THREE.Group; nivel: Nivel; datos: NaturalezaNormal; fauna: import("./fauna.ts").Fauna | null; sonido: import("./sonido.ts").SonidoFauna | null; claveFauna: string; msFauna: number;
   puntos: readonly import("./arboles.ts").PuntoArbol[]; groundVisible: boolean; msConstruir: number;
+  /** R5.3: puts the landmark pillars back (colour, metal, height). */
+  desvestirHitos: (() => void) | null;
 };
 export type EstadisticasNaturaleza = {
   activa: boolean; nivel: Nivel | null; clave: string;
@@ -132,6 +137,7 @@ export function crearNaturaleza(h: HNaturaleza) {
     if (real.agua) { real.agua.malla.geometry.dispose(); (real.agua.malla.material as THREE.Material).dispose(); }
     real.grupo.removeFromParent();
     h.ground.visible = real.groundVisible;          // the flat ground comes back exactly as it was
+    real.desvestirHitos?.();                        // R5.3: and so do the engine's landmark pillars
     real = null;
   }
 
@@ -158,10 +164,11 @@ export function crearNaturaleza(h: HNaturaleza) {
     }
     h.padre.add(grupo);
     const groundVisible = h.ground.visible; h.ground.visible = false;
+    const desvestirHitos = h.hitos ? vestirHitos(h.hitos(), terreno.alturaEn) : null; // R5.3: no toy-coloured boxes on the meadow
     const p = h.camara.position;
     hierba.llenarTodo(h.camara);                      // fill the ring now (a one-off cost at the load), not over the first frames
     arboles.repartir(p.x, p.y, p.z);
-    return { arboles, hierba, terreno, agua, grupo, nivel, datos: d, fauna: null, sonido: null, claveFauna: claveDeFauna(d), msFauna: 0, puntos, groundVisible, msConstruir: Math.round((performance.now() - t0) * 10) / 10 };
+    return { arboles, hierba, terreno, agua, grupo, nivel, datos: d, fauna: null, sonido: null, claveFauna: claveDeFauna(d), msFauna: 0, puntos, groundVisible, desvestirHitos, msConstruir: Math.round((performance.now() - t0) * 10) / 10 };
   }
 
   /** Switch the nature on, change it or switch it off. Idempotent: the same data on the same tier does nothing. Async only the first time (modules load). */

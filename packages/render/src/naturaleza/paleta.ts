@@ -52,6 +52,18 @@ export const RELLENO = {
  */
 export const COLOR_ESTANQUE = mezcla(mezcla(CASA.turquesaProfundo, CASA.verdemar, 0.35), CASA.ceniza, 0.2);
 
+/**
+ * R5.3 · Pilares de referencia del motor (index.ts, 24 cajas en anillos) vestidos de máquina mientras la naturaleza está encendida
+ * (hitos.ts): postes de latón, verdín, cobre y ceniza en vez del amarillo/azul/rojo/verde de juguete. Mismo orden que la paleta del
+ * motor, así el «pilar dorado» de la misión de ejemplo sigue siendo el de latón. Mezclas de tokens, ningún hex nuevo.
+ */
+export const HITOS = [
+  mezcla(MAQUINA.laton, CASA.bronce, 0.3),        // was gold 0xd9a441
+  mezcla(MAQUINA.cobreOxidado, CASA.ceniza, 0.45), // was blue 0x5b8cc0
+  mezcla(MAQUINA.cobre, CASA.bronce, 0.35),       // was red 0xc0605b
+  mezcla(CASA.ceniza, CASA.arenaVelada, 0.25),    // was green 0x6ea86a
+] as const;
+
 /** Paletas de estación: qué verde/hoja/flor usa cada una. Todo dentro de las tablas de arriba. */
 export const ESTACIONES = {
   verano: { hierba: VERDES.hierba, hierbaLuz: VERDES.hierbaLuz, hoja: VERDES.monte, hojaLuz: VERDES.musgo, flor: CASA.arena },
