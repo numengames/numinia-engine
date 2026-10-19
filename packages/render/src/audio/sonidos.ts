@@ -89,8 +89,8 @@ export function leerTabla(crudo: unknown, avisar: (m: string) => void = () => {}
       variantes.push({ url, respaldo: respaldo.startsWith("/a/") ? respaldo : url, peso: Number(w.peso) > 0 ? Number(w.peso) : 1 });
     }
     // una fila `receta` NO tiene fichero a propósito: es la fila del catálogo de un sonido que hace el motor con una
-    // receta de `sintesis.ts`. Sin esta excepción el catálogo dejaría de ser la única lista de verdad (los seis ids
-    // nuevos — salto, dano, moneda, pesca-picada, ui-abrir, ui-cerrar — no tendrían dónde declarar su bus ni su texto).
+    // receta de `sintesis.ts`. Sin esta excepción el catálogo dejaría de ser la única lista de verdad (los ids sin
+    // fichero —salto, dano, moneda, pesca-mordisqueo, pesca-picada, ui-abrir, ui-cerrar— no tendrían dónde declarar su bus ni su texto).
     if (!variantes.length && !esReceta) { avisar(`«${id}» no tiene ninguna variante que suene: fuera`); continue; }
     sonidos[id] = {
       bus: (String(s.bus ?? "efectos") as Bus),
@@ -114,6 +114,9 @@ export function crearSonidos(h: HechurasSonidos = {}): Sonidos {
   const nucleo = h.nucleo ?? audio();
   const voces = h.voces ?? crearVoces({ nucleo });
   const ruta = h.ruta ?? RUTA_TABLA;
+  // los ficheros `/a/…` de la tabla son del SERVIDOR que la sirve: si la tabla vino de otro origen (la página de dev en
+  // :5173 y el servidor en :8790), sus ficheros también; si la ruta es relativa (página y servidor en el mismo sitio), nada
+  const base = /^https?:\/\//.test(ruta) ? new URL(ruta).origin : "";
   const avisos: string[] = [];
   const avisar = (m: string): void => { if (avisos.length < AVISOS_MAX) { avisos.push(m); console.warn(`[sonidos] ${m}`); } };
 
@@ -152,8 +155,8 @@ export function crearSonidos(h: HechurasSonidos = {}): Sonidos {
     return pidiendo;
   };
 
-  const urlsDe = (s: SonidoTabla): VarianteVoz[] =>
-    s.variantes.map((v) => ({ uri: formato === "opus" ? v.url : v.respaldo, peso: v.peso }));
+  const urlDe = (v: { url: string; respaldo: string }): string => base + (formato === "opus" ? v.url : v.respaldo);
+  const urlsDe = (s: SonidoTabla): VarianteVoz[] => s.variantes.map((v) => ({ uri: urlDe(v), peso: v.peso }));
 
   const suena = (p: Peticion): boolean => {
     const s = tabla?.sonidos[p.id];
@@ -192,7 +195,7 @@ export function crearSonidos(h: HechurasSonidos = {}): Sonidos {
       const s = tabla?.sonidos[id];
       const v = s?.variantes[i];
       if (!s || !v) return null;
-      return formato === "opus" ? v.url : v.respaldo;
+      return urlDe(v);
     },
     suena,
     precargar: async (ids) => {

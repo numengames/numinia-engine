@@ -241,7 +241,8 @@ export const crearSonido = (opts: {
   // variantes por su sha256, bus, prioridad, cooldown y texto. Media hora de caché: el catálogo no cambia mientras
   // el motor vive, y si cambia, cambia también el sha256 de cada fichero (que se pide a /a/ con un año).
   const tabla = tablaDePagina(cat);
-  api.route("GET", "/sonidos.json", () => ({ status: 200, type: "json", cache: "public, max-age=1800", body: tabla }));
+  // la tabla es pública (como los ficheros /a/): `cors` deja leerla a la página de dev, que vive en otro puerto
+  api.route("GET", "/sonidos.json", () => ({ status: 200, type: "json", cache: "public, max-age=1800", cors: true, body: tabla }));
 
   api.onJoin(() => {
     if (problemas.length) api.emit("faltan", { cuantos: problemas.length, motivo: texto(problemas[0], 200) }, "server");

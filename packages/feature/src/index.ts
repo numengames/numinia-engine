@@ -329,8 +329,10 @@ export type Scope = "all" | "server" | { to: number } | { all: true; except: num
 export const LISTEN_DEPTH = 4;            // J3: events that trigger events that trigger events… stop here
 export type HttpRequest = { method: "GET" | "POST"; path: string; params: Record<string, string>; query: Record<string, string>; body: string };
 /** `cache`: qué poner en `cache-control` (S6: una tabla que no cambia mientras el motor vive se puede guardar un
- *  rato). Sin decir nada, `no-store`: una respuesta de una función del motor suele depender de quién pregunta. */
-export type HttpReply = { status?: number; type?: "json" | "html" | "text"; cache?: string; body: unknown };
+ *  rato). Sin decir nada, `no-store`: una respuesta de una función del motor suele depender de quién pregunta.
+ *  `cors: true`: cualquier origen puede leerla (solo datos públicos, como los ficheros /a/), p. ej. la página de dev,
+ *  que vive en otro puerto que su servidor. */
+export type HttpReply = { status?: number; type?: "json" | "html" | "text"; cache?: string; cors?: boolean; body: unknown };
 export type Msg = Record<string, unknown>;
 export type ServerApi = {
   readonly id: string;

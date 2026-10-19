@@ -77,9 +77,9 @@ const deReceta = () => sonidos().filter((s) => !Array.isArray(s.fuente));
  *  no vale medirlo con la vara de los demás (40 kB por fichero, 600 kB en total). */
 const COLCHON_ID = "ambiente-numinia";
 
-test("S6f: las seis filas de receta no tienen fichero, llevan su texto accesible y su licencia es «propia»", () => {
+test("S6f: las filas de receta no tienen fichero, llevan su texto accesible y su licencia es «propia»", () => {
   const ids = deReceta().map((s) => s.id).sort();
-  assert.deepEqual(ids, ["dano", "moneda", "pesca-picada", "salto", "ui-abrir", "ui-cerrar"]);
+  assert.deepEqual(ids, ["dano", "moneda", "pesca-mordisqueo", "pesca-picada", "salto", "ui-abrir", "ui-cerrar"]);
   for (const s of deReceta()) {
     assert.equal(s.fuente, "receta", `${s.id}: la marca de una fila sin fichero es «fuente»: "receta"`);
     assert.equal(s.licencia, "propia", `${s.id}: una receta es código del motor, no el fichero de nadie`);
@@ -440,14 +440,25 @@ function falso() {
 }
 
 /** Una página de mentira con la tabla de verdad del catálogo ya puesta. Apunta qué URI pidió cada voz. */
-function pagina(opts: { formato?: "opus" | "m4a" } = {}) {
+function pagina(opts: { formato?: "opus" | "m4a"; ruta?: string } = {}) {
   const f = falso();
   const nucleo = crearNucleo({ crear: f.crear, hayGesto: () => true, trasGesto: (fn) => fn(), enCadaGesto: () => {}, visibilidad: () => false });
   const pedidas: string[] = [];
   const voces = crearVoces({ nucleo, nivel: "A", traer: async (uri) => { pedidas.push(uri); return new ArrayBuffer(8); } });
-  const s = crearSonidos({ nucleo, voces, traer: async () => tablaDePagina(leerCatalogo(catalogo)), puede: () => (opts.formato ?? "opus") === "opus" });
+  const s = crearSonidos({ nucleo, voces, ruta: opts.ruta, traer: async () => tablaDePagina(leerCatalogo(catalogo)), puede: () => (opts.formato ?? "opus") === "opus" });
   return { ...f, nucleo, voces, s, pedidas, avanzar: (seg: number) => { f.ctx.currentTime += seg; } };
 }
+
+test("S6: si la tabla vino del servidor en otro origen (dev: página :5173, servidor :8790), sus ficheros también", async () => {
+  const lejos = pagina({ ruta: "http://localhost:8790/sonidos.json" });
+  assert.ok(await lejos.s.cargar());
+  assert.match(lejos.s.uri("golpe-material") ?? "", /^http:\/\/localhost:8790\/a\/[0-9a-f]{64}\.opus$/);
+  assert.equal(lejos.s.suena({ id: "golpe-material", semilla: 1 }), true);
+  assert.match(lejos.pedidas.at(-1) ?? "", /^http:\/\/localhost:8790\/a\//, "la voz pide el fichero al servidor, no a la página");
+  const cerca = pagina(); // ruta relativa: página y servidor en el mismo sitio (Caddy), la URL se queda como está
+  assert.ok(await cerca.s.cargar());
+  assert.match(cerca.s.uri("golpe-material") ?? "", /^\/a\//);
+});
 
 test("S6: la misma semilla elige la misma variante en dos páginas (clientes distintos, mismo instante)", async () => {
   // una página nueva por disparo: `voces.ts` guarda cada fichero en caché y solo lo PIDE la primera vez, así que una
@@ -596,6 +607,8 @@ test("S6: el servidor de verdad sirve /sonidos.json y cada .opus por su sha256, 
     assert.equal(r.status, 200);
     assert.match(r.headers.get("content-type") ?? "", /application\/json/);
     assert.match(r.headers.get("cache-control") ?? "", /max-age=1800/); // la tabla se guarda media hora
+    // una página servida desde otro puerto (dev, gafas por USB) puede leerla: sin esto, solo sonarían las recetas
+    assert.equal(r.headers.get("access-control-allow-origin"), "*");
     const t = leerTabla(await r.json());
     assert.ok(t, "la tabla que sirve el motor se lee");
     assert.equal(Object.keys(t!.sonidos).length, sonidos().length);
@@ -607,6 +620,7 @@ test("S6: el servidor de verdad sirve /sonidos.json y cada .opus por su sha256, 
     assert.equal(a.status, 200);
     assert.equal(a.headers.get("content-type"), "audio/ogg");
     assert.match(a.headers.get("cache-control") ?? "", /max-age=31536000, immutable/);
+    assert.equal(a.headers.get("access-control-allow-origin"), "*");
     const bytes = new Uint8Array(await a.arrayBuffer());
     assert.equal(sha256(bytes), uno.variantes[0].sha256, "lo que sirve /a/ es el fichero del catálogo, byte a byte");
     assert.equal(bytes.length, uno.variantes[0].bytes);
