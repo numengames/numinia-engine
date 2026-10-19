@@ -48,6 +48,7 @@ import { montarDados } from "./dados.ts";
 import { contadores } from "../../features/contadores/client.ts"; // D-044: timers and counters everyone sees
 import { montarContadores } from "./contadores.ts";
 import { cerraduras } from "../../features/cerradura/client.ts"; // D-042: a lock that opens with a code (keypad) or a key
+import { puertas } from "../../features/puertas/client.ts"; // S6s: doors only to hear them open and close
 import { montarCerradura } from "./cerradura.ts";
 import { pantallasWeb } from "../../features/web/client.ts"; // N17: web screens (the controller)
 import { montarWeb } from "./web.ts";
@@ -206,6 +207,9 @@ pesca.alCambiar(() => { pescaHud ??= import("./pesca.ts").then((m) => (pescaPagi
 // ---- dardos v1: the throwing view (mouse, flick, keys) and «En tu pared (AR)» arrive with the first dartboard ----
 let dardosHud: Promise<unknown> | null = null;
 dardos.alCambiar(() => { dardosHud ??= import("./dardos.ts").then((m) => m.montarDardos({ dardos, view, session, hud: document.getElementById("dardos-hud")! })).catch((e) => console.warn(`[dardos] no se pudo cargar la página de dardos: ${(e as Error)?.message ?? e}`)); });
+
+// ---- S6s: everything sounds — the schematic synthesized sounds hooked to steps, jumps, doors, locks, dice, darts, travel, fishing and every button; lazy, so it is out of the start bundle ----
+import("./sonidos.ts").then((m) => m.montarSonidos({ session, puertas, cerraduras, dados, dardos, pesca, viajar })).catch((e) => console.warn(`[sonidos] no se pudieron montar: ${(e as Error)?.message ?? e}`));
 
 // ---- U10: the microphone (button or Q): your voice to who is near; theirs from where they stand ----
 const voz = montarVoz({ session, view: { label: (t, text, ms) => view.label(t, text, ms), cam: view.cam, voz: (id, nivel) => view.voz(id, nivel) }, escribiendo, ajuste: leerAjuste, decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } } });
