@@ -5,6 +5,8 @@
 
 export const CARGA_MAX = 100;
 export const HZ_HAB = 20;
+/** Critical hit (all abilities of the kit, «Resonancia»): chance in percent and damage multiplier. */
+export const CRITICO_PCT = 20, CRITICO_X = 2;
 
 export type Habilidad = {
   nombre: string;
