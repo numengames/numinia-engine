@@ -1,9 +1,12 @@
 // arboles (naturaleza N2, redone in R2 for the 2026-10-19 art direction): Mediterranean-garden trees with a little bronze machinery.
 // Procedural and seed-driven. A near tree is ONE indexed BufferGeometry with a per-vertex tone (dark underside → light tips = free fake
 // ambient occlusion), a faceted crown made of several leaf clumps (octahedra + a jittered icosahedron), a leaning, tapered trunk, thin
-// branches that carry the clumps, and — on about 1 tree in 6 — a bronze or copper collar with a tiny brass tag (a few triangles that the
-// shader drops under the ground when the per-instance flag is 0). No texture, no light, no shadow of its own, no normals (flat shading
-// from screen derivatives). ALL colour comes from `paleta.ts` (art direction: work/naturaleza/DIRECCION-ARTE.md).
+// branches that carry the clumps, and — E50, «cada árbol lleva su pieza de máquina» (work/naturaleza/MUNDO-PROYECTADO.md) — on EVERY tree
+// one machine piece chosen per instance: a bronze clamp, a riveted tin strap, or a thin neon vein climbing the bark (turquoise or coral,
+// brighter at night); about 1 tree in 30 is a «tree-artwork» (a spiral trunk gripping a ring-portal or a lens) — a second shape of the SAME
+// template, chosen in the shader. Zero extra draw calls, zero extra triangles: the band/tag are the old collar's triangles, the vein, rivets,
+// joints and the C/D painted band are fragment patterns over the trunk's uv. No texture, no light, no shadow of its own, no normals (flat
+// shading from screen derivatives). ALL colour comes from `paleta.ts` (art direction: work/naturaleza/DIRECCION-ARTE.md).
 //
 // COPIED / CHANGED (technique only, nothing unlicensed taken):
 //  - shape reference: Numinia's 40/40/20 house mix and DISENO-LORE.md (big readable silhouettes, faceted clumps, soft vertex gradient) and the Quaternius / Kenney
@@ -22,11 +25,11 @@
 // because the wind must read the pre-transform height of each vertex). Zero CPU per tree per frame: `actualizar(t)` writes one uniform; the
 // near/far split is a throttled O(n) pass over typed arrays (see `repartir`).
 import * as THREE from "three/webgpu";
-import { uniform, float, vec2, vec3, vec4, attribute, instancedBufferAttribute, positionGeometry, normalFlat, transformNormalToView, normalize, sin, cos, pow, clamp, mix, length, max, abs, step, oneMinus, dot as dotN, smoothstep, varying } from "three/tsl";
+import { uniform, float, vec2, vec3, vec4, attribute, instancedBufferAttribute, positionGeometry, normalFlat, transformNormalToView, normalize, sin, cos, pow, clamp, mix, length, max, min, abs, step, oneMinus, dot as dotN, smoothstep, varying, floor, fract, fwidth, uv as uvNodo } from "three/tsl";
 import type { Nivel } from "../calidad.ts";
 import { crearAzar, hash2, valor2 } from "./semilla.ts";
 import { NATURALEZA_POR_NIVEL } from "./niveles.ts";
-import { CASA, VERDES, MAQUINA, ESTACIONES, mezcla } from "./paleta.ts";
+import { CASA, VERDES, MAQUINA, ESTACIONES, MAQUINA_ARBOL, mezcla } from "./paleta.ts";
 import { nodoRelleno, solDirU } from "./relleno.ts";
 import { copaDeCartas, esquinaHaciaCamara, distanciaHojas, coberturaHojas, INDICES_CARTA, UV_CARTA, type Lobulo } from "./follaje.ts";
 
@@ -90,7 +93,9 @@ export const ALTURA: Record<Especie, number> = { encina: 4.8, pino: 7.0, cipres:
 // two near templates, ONE vertex layout per template.
 //   detalle (tiers A, B; 103 triangles): leaning tapered 4-sided trunk in 2 segments (16) + 3 branches, 3-sided prisms (18), a collar band (8) + a tag (1),
 //     5 leaf clumps = faceted octahedra (40; three sit on the branch tips, two fill the crown) + the crown, a jittered icosahedron (20).
-//   simple (tiers C, D; 36 triangles): straight 4-sided trunk (8) + ONE clump (8) + the crown (20): irregular, no branches, no collar.
+//   simple (tiers C, D; 36 triangles): straight 4-sided trunk (8) + ONE clump (8) + the crown (20): irregular, no branches, no collar
+//     (E50: the clamp / strap is PAINTED on the trunk's bark by the fragment; the neon vein is the same pattern as on A/B).
+//   E50: every trunk ring and the band carry one seam vertex more (uv without a wrap); the triangle counts do not change.
 // Every species is a different set of vertex positions of the SAME topology (attributes position, pos1..4).
 // ---------------------------------------------------------------------------------------------------------------------
 /** Branch: y on the trunk (m), azimuth, elevation (rad), length (m), base radius. */
@@ -191,6 +196,9 @@ export const TRIANGULOS_ARBOL = TRIANGULOS_DETALLE;
 export const triangulosCerca = (detalle: boolean) => (detalle ? TRIANGULOS_DETALLE : TRIANGULOS_SIMPLE);
 /** parte: 0 bark, 1 leaf (faceted crown), 2 collar band, 3 tag, 4 leaf card (R7.4). */
 export const PARTE = { corteza: 0, hoja: 1, collar: 2, etiqueta: 3, carta: 4 } as const;
+/** E50: what each template vertex becomes on a tree-artwork (`obra` attribute, w = rol + 0.5 × glow): spiral trunk, arms, clasp, (tag hidden),
+ *  ring segments (the clumps), lens / membrane (the crown's icosahedron), crest leaves (the cards). */
+export const ROL_OBRA = { tronco: 0, rama: 1, banda: 2, etiqueta: 3, mata: 4, copa: 5, carta: 6 } as const;
 
 export type GeometriaArbol = { geometria: THREE.BufferGeometry; triangulos: number; bytes: number };
 const cacheArbol: Record<string, GeometriaArbol> = {};
@@ -201,7 +209,10 @@ export function geometriaArbol(detalle = true): GeometriaArbol {
   const clave = detalle ? "d" : "s";
   if (cacheArbol[clave]) return cacheArbol[clave];
   const nSeg = detalle ? 2 : 1, nMatas = detalle ? 5 : 1, nCartas = detalle ? CARTAS_DETALLE : CARTAS_SIMPLE;
-  const vCopa = LADOS_TRONCO * (nSeg + 1) + (detalle ? 18 + 8 + 3 : 0), vCartas = vCopa + nMatas * 6 + 12; // first vertex of the faceted crown / of the cards
+  // E50: trunk rings and the band carry ONE extra vertex each (the seam, a copy of the first at u = 1) so `uv` (u around, v up) runs without a wrap:
+  // the neon vein, the painted band (C/D) and the tin rivets are drawn in the fragment from it. Same triangles.
+  const LU = LADOS_TRONCO + 1;
+  const vCopa = LU * (nSeg + 1) + (detalle ? 18 + 2 * LU + 3 : 0), vCartas = vCopa + nMatas * 6 + 12; // first vertex of the faceted crown / of the cards
   const nv = vCartas + nCartas * 4;
   const pos = ESPECIES.map(() => new Float32Array(nv * 3)), tono = new Float32Array(nv), parte = new Float32Array(nv), mov = new Float32Array(nv);
   const esquina = new Float32Array(nv * 2), uvs = new Float32Array(nv * 2), nesf = new Float32Array(nv * 3);
@@ -210,17 +221,18 @@ export function geometriaArbol(detalle = true): GeometriaArbol {
   let tagRef: V3 = [0, 0, 0];
   ESPECIES.forEach((esp, e) => {
     const f = FORMA[esp], P = pos[e], t = f.tronco;
-    const hv = (v: number, k: number) => hash2(0x7e + k + e * 29, v, 0x33) * 2 - 1; // deterministic per-vertex jitter −1…1
-    let v = 0;
+    let v = 0, sem = 0; // E50: `sem` = seam vertices put so far: the jitter keeps hashing the pre-E50 vertex number (the same crowns, vertex for vertex)
+    const hv = (v: number, k: number) => hash2(0x7e + k + e * 29, v - sem, 0x33) * 2 - 1; // deterministic per-vertex jitter −1…1
+    const costura = () => { if (e === 0) tono[v - 1] = tono[v - 1 - LADOS_TRONCO]; sem++; }; // the seam copies its ring's first tone
     const put = (p: V3, to: number, pa: number, mo: number) => { P[v * 3] = p[0]; P[v * 3 + 1] = p[1]; P[v * 3 + 2] = p[2]; if (e === 0) { tono[v] = Math.min(1, Math.max(0, to + 0.1 * hv(v, 1))); parte[v] = pa; mov[v] = mo; } v++; };
     const qq = (y: number) => Math.min(1, Math.max(0, y / t.alto));
     // the trunk's axis: leans (quadratic), sways in a curve, olive: a spiral
     const cen = (y: number): V3 => { const q = qq(y), sp = Math.sin(q * Math.PI * 2); return [t.lx * q * q + t.curva * Math.sin(q * Math.PI) + 0.12 * t.tors * sp, y, t.lz * q * q + 0.6 * t.curva * Math.sin(q * Math.PI + 1) + 0.12 * t.tors * (Math.cos(q * Math.PI * 2) - 1)]; };
     const rad = (y: number) => { const q = qq(y); return (t.r0 + (t.r1 - t.r0) * q) * (1 + t.bulto * Math.sin(q * Math.PI)); };
-    // trunk: rings at y = −0.05, mid, top
+    // trunk: rings at y = −0.05, mid, top (E50: u = k / 4 around, v = q up; the seam vertex closes the ring at u = 1)
     for (let s = 0; s <= nSeg; s++) {
       const y = s === 0 ? -0.05 : (t.alto * s) / nSeg, q = qq(y), r = rad(y), c = cen(y);
-      for (let k = 0; k < LADOS_TRONCO; k++) { const a = ((k + 0.5) / LADOS_TRONCO) * Math.PI * 2 + t.tors * q; put([c[0] + Math.cos(a) * r, c[1], c[2] + Math.sin(a) * r], q, 0, q * 0.3); }
+      for (let k = 0; k <= LADOS_TRONCO; k++) { const a = ((k + 0.5) / LADOS_TRONCO) * Math.PI * 2 + t.tors * q; if (e === 0) uvs.set([k / LADOS_TRONCO, q], v * 2); put([c[0] + Math.cos(a) * r, c[1], c[2] + Math.sin(a) * r], q, 0, q * 0.3); if (k === LADOS_TRONCO) costura(); }
     }
     // branches (prisms)
     const puntas: V3[] = [];
@@ -238,7 +250,7 @@ export function geometriaArbol(detalle = true): GeometriaArbol {
     // collar band (bronze / copper) and its tag: shown per instance, dropped under the ground by the shader otherwise
     if (detalle) {
       const y0 = f.collar, q0 = qq(y0), rc = rad(y0) * 1.38 + 0.02;
-      for (const y of [y0, y0 + 0.13]) { const c = cen(y); for (let k = 0; k < LADOS_TRONCO; k++) { const a = ((k + 0.5) / LADOS_TRONCO) * Math.PI * 2 + t.tors * q0; put([c[0] + Math.cos(a) * rc, c[1], c[2] + Math.sin(a) * rc], 0.7, 2, q0 * 0.3); } }
+      for (const [j, y] of [y0, y0 + 0.13].entries()) { const c = cen(y); for (let k = 0; k <= LADOS_TRONCO; k++) { const a = ((k + 0.5) / LADOS_TRONCO) * Math.PI * 2 + t.tors * q0; if (e === 0) uvs.set([k / LADOS_TRONCO, j], v * 2); put([c[0] + Math.cos(a) * rc, c[1], c[2] + Math.sin(a) * rc], 0.7, 2, q0 * 0.3); if (k === LADOS_TRONCO) costura(); } }
       const c = cen(y0), a0 = (0.5 / LADOS_TRONCO) * Math.PI * 2 + t.tors * q0;
       put([c[0] + Math.cos(a0) * (rc + 0.01), y0 + 0.02, c[2] + Math.sin(a0) * (rc + 0.01)], 0.8, 3, q0 * 0.3);
       put([c[0] + Math.cos(a0 + 0.3) * (rc + 0.01), y0 + 0.02, c[2] + Math.sin(a0 + 0.3) * (rc + 0.01)], 0.8, 3, q0 * 0.3);
@@ -318,20 +330,20 @@ export function geometriaArbol(detalle = true): GeometriaArbol {
   const centro = (ids: number[]): V3 => { const s: V3 = [0, 0, 0]; for (const i of ids) { const p = P0(i); s[0] += p[0]; s[1] += p[1]; s[2] += p[2]; } return [s[0] / ids.length, s[1] / ids.length, s[2] / ids.length]; };
   let o = 0;
   for (let s = 0; s < nSeg; s++) {
-    const a = o + s * LADOS_TRONCO, b = a + LADOS_TRONCO, ref = centro([...Array(2 * LADOS_TRONCO).keys()].map((i) => a + i));
-    for (let k = 0; k < LADOS_TRONCO; k++) { const k2 = (k + 1) % LADOS_TRONCO; m.tri(a + k, a + k2, b + k, ref); m.tri(a + k2, b + k2, b + k, ref); }
+    const a = o + s * LU, b = a + LU, ref = centro([...Array(LADOS_TRONCO).keys()].flatMap((i) => [a + i, b + i]));
+    for (let k = 0; k < LADOS_TRONCO; k++) { const k2 = k + 1; m.tri(a + k, a + k2, b + k, ref); m.tri(a + k2, b + k2, b + k, ref); }
   }
-  o += LADOS_TRONCO * (nSeg + 1);
+  o += LU * (nSeg + 1);
   if (detalle) {
     for (let i = 0; i < 3; i++) {
       const a = o + i * 6, ref = centro([a, a + 1, a + 2, a + 3, a + 4, a + 5]);
       for (let k = 0; k < 3; k++) { const k2 = (k + 1) % 3; m.tri(a + k, a + k2, a + 3 + k, ref); m.tri(a + k2, a + 3 + k2, a + 3 + k, ref); }
     }
     o += 18;
-    { // collar band: two rings of 4
-      const ref = centro([...Array(8).keys()].map((i) => o + i));
-      for (let k = 0; k < 4; k++) { const k2 = (k + 1) % 4; m.tri(o + k, o + k2, o + 4 + k, ref); m.tri(o + k2, o + 4 + k2, o + 4 + k, ref); }
-      o += 8;
+    { // collar band: two rings of 4 (+ the seam vertex each, E50)
+      const ref = centro([...Array(LADOS_TRONCO).keys()].flatMap((i) => [o + i, o + LU + i]));
+      for (let k = 0; k < LADOS_TRONCO; k++) { const k2 = k + 1; m.tri(o + k, o + k2, o + LU + k, ref); m.tri(o + k2, o + LU + k2, o + LU + k, ref); }
+      o += 2 * LU;
     }
     m.tri(o, o + 1, o + 2, tagRef); o += 3;
   }
@@ -358,10 +370,80 @@ export function geometriaArbol(detalle = true): GeometriaArbol {
   g.setAttribute("esquina", new THREE.BufferAttribute(esquina, 2));
   g.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
   g.setAttribute("nesf", new THREE.BufferAttribute(nesf, 3));
+  g.setAttribute("obra", new THREE.BufferAttribute(formaObra(detalle, nv, nSeg, nMatas, nCartas), 4));
+  // E50: the shader reads tono, parte and mov packed as ONE vec3 (`tpm`): with `uv` and `obra` read too, the near draw would bind 17 vertex
+  // attributes (6 positions, tono, parte, mov, esquina, uv, nesf, obra + 4 instance vec4s) — WebGPU's default limit is 16. Packed: 15.
+  const tpm = new Float32Array(nv * 3); for (let i = 0; i < nv; i++) tpm.set([tono[i], parte[i], mov[i]], i * 3);
+  g.setAttribute("tpm", new THREE.BufferAttribute(tpm, 3));
   g.setIndex(idx);
   g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 3.5, 0), 8);
   return (cacheArbol[clave] = { geometria: g, triangulos: idx.length / 3, bytes: bytesDe(g) });
 }
+/**
+ * E50 · the tree-artwork («árbol-obra», work/naturaleza/MUNDO-PROYECTADO.md): ONE sculpture shape for every species, baked as a second position per
+ * vertex of the SAME near template (`obra`, w = rol + 0.5 × glow), so a rare tree switches form in the shader: no new mesh, no new triangle.
+ * Read as: a trunk that twists as it rises (the olive's spiral, `tors`, pushed to a quarter turn per segment), three arms that grip a vertical ring
+ * (the five leaf clumps become the ring's five faceted segments) around a lens or a portal membrane (the crown's icosahedron, as a sphere or flattened
+ * to a disc), and a crest of the species' own leaves (its cards). Shapes from the relics of work/naturaleza/referencias/hoja1 (Glido de Turing: the
+ * ring-portal; Disco de Janus / Ojo de Kairós: the lens), the spiral and the vein from hoja2. COPIED: the vertex order and handedness of our own
+ * clumps, crown and branch prisms (so the winding decided on species 0 still faces out: each part is mapped by a rotation, never a mirror); the idea
+ * of «one template, a second shape per instance» is three r186 `examples/jsm/generators/ForestGenerator.js`' per-instance variety (MIT), pushed to a
+ * whole alternative silhouette like the morph targets of `webgl_morphtargets` (MIT).
+ */
+export const OBRA = { cy: 3.7, R: 1.2, alto: 2.62, r0: 0.34, r1: 0.16, giro: 2.6, lente: 0.78, portal: [0.66, 0.66, 0.06] as V3, grosor: 0.14, cartas: 0.55 } as const;
+function formaObra(detalle: boolean, nv: number, nSeg: number, nMatas: number, nCartas: number): Float32Array {
+  const out = new Float32Array(nv * 4), LU = LADOS_TRONCO + 1, { cy, R, alto, r0, r1 } = OBRA;
+  let v = 0;
+  const put = (p: V3, rol: number, brillo = 0) => { out.set([p[0], p[1], p[2], rol + 0.5 * brillo], v * 4); v++; };
+  const qq = (y: number) => Math.min(1, Math.max(0, y / alto));
+  const giroDe = (q: number) => q * (detalle ? OBRA.giro : OBRA.giro * 0.5); // C/D: one segment, half the twist (the quads stay outward)
+  const eje = (y: number): V3 => { const q = qq(y); return [0.08 * Math.sin(q * Math.PI), y, 0.05 * Math.sin(q * Math.PI * 2)]; };
+  const rad = (y: number) => r0 + (r1 - r0) * qq(y);
+  // the spiral trunk: the same rings (seam included), turned by height
+  for (let s = 0; s <= nSeg; s++) {
+    const y = s === 0 ? -0.05 : (alto * s) / nSeg, q = qq(y), c = eje(y), r = rad(y);
+    for (let k = 0; k <= LADOS_TRONCO; k++) { const a = ((k + 0.5) / LADOS_TRONCO) * Math.PI * 2 + giroDe(q); put([c[0] + Math.cos(a) * r, y, c[2] + Math.sin(a) * r], ROL_OBRA.tronco); }
+  }
+  const enAnillo = (ang: number, rr = R, z = 0): V3 => [Math.cos(ang) * rr, cy + Math.sin(ang) * rr, z];
+  if (detalle) {
+    // three arms (the branch prisms, same frame formula as geometriaArbol): two grip the ring's sides, the third climbs in front of it
+    const brazos: [V3, V3, number][] = [[[0.02, 2.2, 0.02], enAnillo(-0.62, R, 0.1), 0.1], [[-0.02, 2.3, -0.02], enAnillo(Math.PI + 0.62, R, -0.1), 0.1], [[0.05, 1.5, 0.12], [0.3, cy + R * 0.98, 0.32], 0.085]];
+    brazos.forEach(([base, tip, br], i) => {
+      const ax = norm(sub(tip, base)), tt: V3 = Math.abs(ax[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0], u = norm(cross(tt, ax)), w = cross(ax, u);
+      for (const [p, r] of [[base, br], [tip, br * 0.4]] as [V3, number][]) for (let k = 0; k < 3; k++) {
+        const a = (k / 3) * Math.PI * 2 + i, d: V3 = [u[0] * Math.cos(a) + w[0] * Math.sin(a), u[1] * Math.cos(a) + w[1] * Math.sin(a), u[2] * Math.cos(a) + w[2] * Math.sin(a)];
+        put([p[0] + d[0] * r, p[1] + d[1] * r, p[2] + d[2] * r], ROL_OBRA.rama);
+      }
+    });
+    // the clasp where the trunk meets the ring (the band's two rings + seam), and the tag goes under the ground
+    const y0 = alto - 0.3, q0 = qq(y0), rc = rad(y0) * 1.38 + 0.02;
+    for (const y of [y0, y0 + 0.13]) { const c = eje(y); for (let k = 0; k <= LADOS_TRONCO; k++) { const a = ((k + 0.5) / LADOS_TRONCO) * Math.PI * 2 + giroDe(q0); put([c[0] + Math.cos(a) * rc, y, c[2] + Math.sin(a) * rc], ROL_OBRA.banda); } }
+    for (let k = 0; k < 3; k++) put([0, -60, 0], ROL_OBRA.etiqueta);
+  }
+  // the ring: each clump (top, ring of 4, bottom) becomes one faceted segment; top → one end, bottom → the other, its ring of 4 → the section.
+  // Basis (e1 radial, t along the segment, e2 = e1 × t) is a rotation of the clump's (x, y, z): the winding stays outward.
+  for (let i = 0; i < nMatas; i++) {
+    const fi = -Math.PI / 2 + ((i + 0.5) * 2 * Math.PI) / 5, a = enAnillo(fi - Math.PI / 5 - 0.03), b = enAnillo(fi + Math.PI / 5 + 0.03);
+    const t = norm(sub(a, b)), e1: V3 = [Math.cos(fi), Math.sin(fi), 0], e2 = cross(e1, t), m = enAnillo(fi, R * 0.9), th = OBRA.grosor, giro = 0.5 + i * 1.3;
+    put(a, ROL_OBRA.mata);
+    for (let k = 0; k < 4; k++) { const ak = giro + (k / 4) * Math.PI * 2, c = Math.cos(ak) * th, s2 = Math.sin(ak) * th; put([m[0] + e1[0] * c + e2[0] * s2, m[1] + e1[1] * c + e2[1] * s2, m[2] + e1[2] * c + e2[2] * s2], ROL_OBRA.mata); }
+    put(b, ROL_OBRA.mata);
+  }
+  // the lens / membrane: the crown's icosahedron as unit directions, poles on the ring's axis (z); the shader scales it to a sphere or a disc.
+  // (x, y, z) → (x, −z, y) is a quarter turn about x: a rotation. Poles glow full, the rings a quarter (the disc's rim fades into brass).
+  const g0 = 0.3;
+  put([0, 0, 1], ROL_OBRA.copa, 1);
+  for (let k = 0; k < 5; k++) { const a = g0 + (k / 5) * Math.PI * 2; put([0.894 * Math.cos(a), -0.894 * Math.sin(a), 0.447], ROL_OBRA.copa, 0.25); }
+  for (let k = 0; k < 5; k++) { const a = g0 + ((k + 0.5) / 5) * Math.PI * 2; put([0.894 * Math.cos(a), -0.894 * Math.sin(a), -0.447], ROL_OBRA.copa, 0.25); }
+  put([0, 0, -1], ROL_OBRA.copa, 1);
+  // the crest: the species' leaf cards (Bruno's crown builder, follaje.ts) on the ring's top, its sides and the trunk's middle
+  const lob: Lobulo[] = [{ c: [0, cy + R + 0.35, 0], r: [0.75, 0.32, 0.45], peso: 0.45 }, { c: [R * 0.98, cy + 0.15, 0], r: [0.42, 0.5, 0.4], peso: 0.15 },
+    { c: [-R * 0.98, cy + 0.35, 0], r: [0.4, 0.45, 0.38], peso: 0.15 }, { c: [0.15, 1.7, 0.1], r: [0.5, 0.45, 0.5], peso: 0.2 }];
+  for (const k of copaDeCartas(lob, nCartas, 0x0b7a, 0.7).cartas) for (let q = 0; q < 4; q++) put(k.c, ROL_OBRA.carta);
+  if (v !== nv) throw new Error(`formaObra: ${v} vertices for a ${nv}-vertex template`);
+  return out;
+}
+
 /** The near template (every species draws the same one). Kept as a function for the old per-species callers. */
 export const geometriaCerca = (_esp: Especie, detalle = true): GeometriaArbol => geometriaArbol(detalle);
 
@@ -450,7 +532,7 @@ const PIE_SAUCE = 3.4;
 type Inst = { a: THREE.InstancedBufferAttribute; b: THREE.InstancedBufferAttribute };
 const instAttr = (n: number, k: number) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, n) * k), k); a.setUsage(THREE.DynamicDrawUsage); return a; };
 
-/** Near LOD, all species: a = (x, y, z, escala) · b = (giro, fase, especie 0…4, tinte) · c = (dark leaf rgb, height m) · d = (light leaf rgb, collar flag 0 none / 1 bronze / 2 copper). */
+/** Near LOD, all species: a = (x, y, z, escala) · b = (giro, fase, especie 0…4, tinte) · c = (dark leaf rgb, height m) · d = (light leaf rgb, E50 machine piece: PIEZA). */
 /** The near template on the GPU: WebGPU allows 8 vertex buffers per draw by default and the template has 12 per-vertex attributes
  *  (+ 4 instance buffers = 16, so the pipeline failed and near trees were not drawn on WebGPU). The five other species' positions go
  *  into ONE interleaved buffer and the six small attributes into another: position + 2 + 4 instance = 7 buffers, same data, same
@@ -471,29 +553,108 @@ export function entrelazarCerca(base: THREE.BufferGeometry, g: THREE.BufferGeome
 }
 
 type InstCerca = Inst & { c: THREE.InstancedBufferAttribute; d: THREE.InstancedBufferAttribute };
-function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.MeshLambertNodeMaterial {
+/** E50: the machine piece of a tree (instance d.w). Every tree but a shrub wears exactly one. */
+export const PIEZA = { ninguna: 0, bronce: 1, hojalata: 2, neonTurquesa: 3, neonCoral: 4, obraPortal: 5, obraLente: 6 } as const;
+/** E50: 0 by day … 1 at night, from the scene's hemisphere colour (entorno.ts lerps it to 0x33456e as the clock sun sets): the neon and the
+ *  artwork's glow grow at night. One shared uniform, written by `actualizar` (one luminance per frame). */
+export const nocheArbolesU = uniform(0);
+/** Linear luminance of the day sky-ambient (0xbcd6ee) and of the night one (0x33456e): the night factor runs between them. */
+const LUM_DIA = 0.62, LUM_NOCHE = 0.061;
+export const nocheDeHemi = (c: { r: number; g: number; b: number }) => Math.min(1, Math.max(0, (LUM_DIA - (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b)) / (LUM_DIA - LUM_NOCHE)));
+/** E50 emissive strength (×albedo of the vein / the glowing surface) by day and at night. Tuned on photos e50-*. */
+export const BRILLO_NEON = { dia: 0.9, noche: 2.6 } as const, BRILLO_OBRA = { dia: 0.45, noche: 1.6 } as const;
+/** E50 vein: turns of the helix over the trunk's height, its half width (in u, 0…1 around the trunk ≈ 1.5 cm on a 1.5 m girth). */
+export const VENA = { vueltas: 1.15, ancho: 0.011 } as const;
+/** E50 fragment codes packed in the colour varying's w (integer part; fraction = phase / glow): no new varying. */
+const COD = { tronco: 0, banda: 5, brillo: 7, espiral: 8 } as const;
+/**
+ * E50 fragment patterns of the machine pieces, from ONE packed varying (rgb = the vertex colour, w = code + fraction, see COD) and the template's
+ * `uv` (u around the trunk / band, v up). Everything is masks of steps (no branch): every tree fragment pays a few ALU ops, nothing else.
+ *  - neon vein (codes 3/4, on the trunk): a helix line `fract(u − v·turns + phase)` with a small wobble, anti-aliased by its screen derivative and
+ *    energy-conserving when thinner than a pixel (Ben Golus, «The Best Darn Grid Shader (Yet)», 2023, technique: the line widens to ~1 px and its
+ *    intensity drops by the same factor, so a far vein fades instead of turning into a neon wash). Emissive grows at night and pulses up the trunk.
+ *  - bronze clamp (5): two rings with a dark joint between them and a verdigris lip at the bottom edge.
+ *  - tin strap (6): a row of rivets (two per facet) and rolled, lighter edges.
+ *  - painted band (codes 1/2 on the trunk, tiers C/D only, where the template has no band): the cheapest readable clamp/strap, in the bark's colour.
+ *  - glow (7): the artwork's lens / membrane and the vein's chip light themselves (× glow fraction), more at night.
+ */
+function detallesFragmento(base: V3N, w: N, t: N, pintaBanda: boolean): { color: V3N; emisivo: V3N } {
+  const MA = MAQUINA_ARBOL, col3 = (h: number | string) => { const k = C(h as never); return vec3(k.r, k.g, k.b) as unknown as V3N; };
+  const k = floor(w) as N, f = clamp(fract(w).sub(0.05).div(0.9), 0, 1) as N;
+  const esK = (n: number) => step(n - 0.5, k).mul(step(k, n + 0.5)) as N;
+  const uvF = uvNodo() as unknown as { x: N; y: N }, u = uvF.x, v = uvF.y;
+  const noche = nocheArbolesU as unknown as N;
+  // the vein
+  const esVena = esK(PIEZA.neonTurquesa).add(esK(PIEZA.neonCoral)) as N;
+  const s = u.sub(v.mul(VENA.vueltas)).add(f).add(sin(v.mul(19).add(f.mul(6.283))).mul(0.035)) as N;
+  const d = abs(fract(s.add(0.5)).sub(0.5)) as N, anchoE = max(float(VENA.ancho), fwidth(s).mul(0.75)) as N;
+  const linea = oneMinus(smoothstep(anchoE.mul(0.45), anchoE, d)).mul(float(VENA.ancho).div(anchoE)).mul(esVena) as N;
+  const pulso = mix(float(1), sin(t.mul(2.2).sub(v.mul(9)).add(f.mul(6.283))).mul(0.4).add(0.6), noche) as N;
+  const neon = mix(col3(MA.neonTurquesa), col3(MA.neonCoral), esK(PIEZA.neonCoral)) as unknown as V3N;
+  let color = mix(base, neon, linea.mul(0.9)) as unknown as V3N;
+  // the bronze clamp: joint and verdigris
+  const bronce = esK(COD.banda) as N, lata = esK(COD.banda + 1) as N;
+  const junta = smoothstep(0.36, 0.42, v).mul(oneMinus(smoothstep(0.58, 0.64, v))) as N, lip = oneMinus(smoothstep(0.0, 0.2, v)) as N;
+  color = mix(mix(color, color.mul(0.45), junta.mul(bronce)), col3(MA.verdin), lip.mul(bronce).mul(0.55)) as unknown as V3N;
+  // the tin strap: rivets (metres: a facet ≈ 0.34 m, the strap 0.25 m tall) and rolled edges
+  const riv = oneMinus(smoothstep(0.012, 0.019, length(vec2(fract(u.mul(8)).sub(0.5).mul(0.17), v.sub(0.5).mul(0.25))))) as N;
+  const borde = max(oneMinus(smoothstep(0.0, 0.12, v)), smoothstep(0.88, 1.0, v)) as N;
+  color = mix(mix(color, color.mul(1.18), borde.mul(lata)), col3(MA.remache), riv.mul(lata)) as unknown as V3N;
+  if (pintaBanda) { // C/D: the clamp / strap painted on the bark (a band at 20–29 % of the trunk; bronze shows its joint)
+    const pinta = esK(PIEZA.bronce).add(esK(PIEZA.hojalata)) as N, aa = fwidth(v).mul(0.7) as N;
+    const m = smoothstep(float(0.2).sub(aa), float(0.2).add(aa), v).mul(oneMinus(smoothstep(float(0.29).sub(aa), float(0.29).add(aa), v))) as N;
+    const gap = smoothstep(0.237, 0.243, v).mul(oneMinus(smoothstep(0.247, 0.253, v))).mul(esK(PIEZA.bronce)) as N;
+    const metal = mix(col3(MA.bronce), col3(MA.hojalata), esK(PIEZA.hojalata)) as unknown as V3N;
+    color = mix(color, metal.mul(oneMinus(gap.mul(0.55))).mul(1.25), m.mul(pinta)) as unknown as V3N;
+  }
+  // the portal artwork's trunk: a brass inlay that spirals up with the twist (half a turn more than the bark's), wide enough to read from afar
+  const sE = u.sub(v.mul(0.6)) as N, dE = abs(fract(sE.mul(2).add(0.5)).sub(0.5)) as N, aaE = fwidth(sE.mul(2)).mul(0.7) as N;
+  const espiral = oneMinus(smoothstep(float(0.11).sub(aaE), float(0.11).add(aaE), dE)).mul(esK(COD.espiral)) as N;
+  color = mix(color, col3(MA.laton).mul(1.15), espiral) as unknown as V3N;
+  const brillo = esK(COD.brillo).mul(f) as N;
+  const emisivo = neon.mul(linea.mul(pulso).mul(mix(float(BRILLO_NEON.dia), float(BRILLO_NEON.noche), noche))).add(base.mul(brillo.mul(mix(float(BRILLO_OBRA.dia), float(BRILLO_OBRA.noche), noche)))) as unknown as V3N;
+  return { color, emisivo };
+}
+
+function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca, detalleTpl = true): THREE.MeshLambertNodeMaterial {
   const mat = new THREE.MeshLambertNodeMaterial({ flatShading: true });
   mat.name = "arbol-cerca";
   const ia = instancedBufferAttribute(inst.a) as unknown as { xyz: V3N; w: N }, ib = instancedBufferAttribute(inst.b) as unknown as { x: N; y: N; z: N; w: N };
   const ic = instancedBufferAttribute(inst.c) as unknown as { xyz: V3N; w: N }, id = instancedBufferAttribute(inst.d) as unknown as { xyz: V3N; w: N };
   const giro = ib.x, fase = ib.y, sp = ib.z, tinte = ib.w, esc = ia.w, H = ic.w, flag = id.w;
-  const parte = attribute("parte", "float") as unknown as N, tono = attribute("tono", "float") as unknown as N;
-  const mov = attribute("mov", "float") as unknown as N, q = (k: string) => attribute(k, "vec3") as unknown as V3N;
-  const esHoja = step(0.5, parte).mul(oneMinus(step(1.5, parte))) as N, esMetal = step(1.5, parte).mul(oneMinus(step(3.5, parte))) as N;
-  // R7.4: a leaf card of a species that wears cards (the others' cards are parked at a point: their expansion stays 0, nothing is drawn)
-  const esCarta = step(3.5, parte).mul(porEsp(sp, ESPECIES.map((e) => float(CON_CARTAS[e] ? 1 : 0)))) as N;
+  const tpm = attribute("tpm", "vec3") as unknown as { x: N; y: N; z: N }; // E50: (tono, parte, mov) in one attribute (see geometriaArbol)
+  const parte = tpm.y, tono = tpm.x, mov = tpm.z, q = (k: string) => attribute(k, "vec3") as unknown as V3N;
+  // E50: the machine piece (PIEZA) and the tree-artwork. `es(k)` = the flag is k; every mask is a step product (no branch, mobile-friendly).
+  const es = (k: number) => step(k - 0.5, flag).mul(step(flag, k + 0.5)) as N;
+  const esObra = step(PIEZA.obraPortal - 0.5, flag) as N, esLente = es(PIEZA.obraLente), esTin = es(PIEZA.hojalata), esNeon = es(PIEZA.neonTurquesa).add(es(PIEZA.neonCoral)) as N;
+  const ob = attribute("obra", "vec4") as unknown as { xyz: V3N; w: N; x: N; y: N; z: N }, rol = floor(ob.w) as N, brilloV = fract(ob.w).mul(2) as N;
+  const esRol = (k: number) => step(k - 0.5, rol).mul(step(rol, k + 0.5)) as N;
+  const uvA = attribute("uv", "vec2") as unknown as { x: N; y: N };
+  const esHoja0 = step(0.5, parte).mul(oneMinus(step(1.5, parte))) as N, esMetal = step(1.5, parte).mul(oneMinus(step(3.5, parte))) as N;
+  const esBanda = step(1.5, parte).mul(oneMinus(step(2.5, parte))) as N, esTag = step(2.5, parte).mul(oneMinus(step(3.5, parte))) as N;
+  const esHoja = esHoja0.mul(oneMinus(esObra)) as N; // on an artwork the faceted crown is brass and glass, not leaves
+  // R7.4: a leaf card of a species that wears cards (the others' cards are parked at a point: their expansion stays 0, nothing is drawn); E50: an artwork wears its crest
+  const esCarta = step(3.5, parte).mul(max(porEsp(sp, ESPECIES.map((e) => float(CON_CARTAS[e] ? 1 : 0))), esObra)) as N;
   let p0 = positionGeometry as unknown as V3N;
   for (let i = 1; i < ESPECIES.length; i++) p0 = mix(p0, q(`pos${i}`), step(i - 0.5, sp)) as unknown as V3N;
   // R5.4 cypress: ±8 % height per tree (from its phase), a lean that bows (none at the foot, most at the tip), sway and tone by height
-  const esCip = step(1.5, sp).mul(oneMinus(step(2.5, sp))) as N;
+  const esCip = step(1.5, sp).mul(oneMinus(step(2.5, sp))).mul(oneMinus(esObra)) as N;
   p0 = vec3(p0.x, p0.y.mul(esCip.mul(sin(fase.mul(3.7)).mul(0.08)).add(1)), p0.z) as unknown as V3N;
+  // E50 tin strap: the band's upper ring rises (a taller strap than the bronze clamp)
+  p0 = p0.add(vec3(0, uvA.y.mul(esBanda).mul(esTin).mul(0.12), 0)) as unknown as V3N;
+  // E50 artwork: the second shape. The icosahedron's unit directions become a lens (sphere) or a portal membrane (a disc in the ring)
+  const escCopa = mix(vec3(...OBRA.portal), vec3(OBRA.lente, OBRA.lente, OBRA.lente), esLente) as unknown as V3N;
+  const pCopa = vec3(0, OBRA.cy, 0).add(ob.xyz.mul(escCopa)) as unknown as V3N;
+  p0 = mix(p0, mix(ob.xyz, pCopa, esRol(ROL_OBRA.copa)), esObra) as unknown as V3N;
   const hRel = clamp(p0.y.div(H), 0, 1) as N;
   const esSau = step(4.5, sp) as N, sauHoja = esSau.mul(esHoja) as N; // R6.3 willow
   // lean: the trunk shears toward a per-tree azimuth (from its phase), by a per-species amount
   const inclina = vec2(sin(fase.mul(1.7)), cos(fase.mul(1.3))).mul(porEsp(sp, INCLINA.map((v) => float(v))).mul(tinte.mul(0.65).add(0.35))).mul(esCip.mul(hRel.mul(1.5).sub(1)).add(1)) as unknown as ReturnType<typeof vec2>;
-  // a collar (and its tag) without its flag goes under the ground
+  // E50: the band shows on bronze and tin, the tag on every piece but none (on neon it is the vein's glowing chip); the rest goes under the ground
+  const tieneBanda = es(PIEZA.bronce).add(esTin) as N, tieneTag = step(0.5, flag).mul(oneMinus(esObra)) as N;
+  const oculto = esBanda.mul(oneMinus(tieneBanda)).add(esTag.mul(oneMinus(tieneTag))).mul(oneMinus(esObra)) as N;
   const yInc = mix(p0.y, max(p0.y, float(PIE_SAUCE)), sauHoja) as N; // willow curtains: shifted with the dome, never sheared
-  let local = p0.add(vec3(inclina.x.mul(yInc), esMetal.mul(oneMinus(step(0.5, flag))).mul(-60), inclina.y.mul(yInc))) as unknown as V3N;
+  let local = p0.add(vec3(inclina.x.mul(yInc), oculto.mul(-60), inclina.y.mul(yInc))) as unknown as V3N;
   if (aletea) { // leaves flutter: a small, fast wobble, phased per vertex, on leaf vertices only
     const t = c.tiempo as unknown as N, fuerza = length((c.vientoU as unknown as V3N).xz.add(BRISA)) as N;
     const f1 = sin(t.mul(6.5).add(p0.x.mul(9)).add(p0.z.mul(7)).add(fase)) as N;
@@ -508,16 +669,29 @@ function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.Mesh
   const ph = tt.mul(1.9).add(fase).add(p0.x.mul(2.3).add(p0.z.mul(1.7)).mul(oneMinus(esCip))) as N; // … and in one phase (its shells do not drift apart)
   const bal = vec3(dr.x.mul(sin(ph)).sub(dr.y.mul(cos(ph.mul(0.7))).mul(0.4)), sin(ph.mul(1.3)).mul(0.25), dr.y.mul(sin(ph)).add(dr.x.mul(cos(ph.mul(0.7))).mul(0.4))).mul(punta) as unknown as V3N;
   // R7.4: a card's corners open along the camera's right/up around its swaying centre (follaje.ts `esquinaHaciaCamara`)
-  const abre = esquinaHaciaCamara(attribute("esquina", "vec2") as unknown as ReturnType<typeof vec2>).mul(esc.mul(esCarta));
-  mat.positionNode = girar(local, giro).mul(esc).add(ia.xyz).add(empuje(c, p0.y.div(H), esc.mul(H), movE.mul(0.7), fase)).add(bal).add(abre);
+  const abre = esquinaHaciaCamara(attribute("esquina", "vec2") as unknown as ReturnType<typeof vec2>).mul(esc.mul(esCarta).mul(mix(float(1), float(OBRA.cartas), esObra)));
+  const mueve = mix(float(1), esRol(ROL_OBRA.carta), esObra) as N; // an artwork does not sway (bronze and glass); its leaves do
+  mat.positionNode = girar(local, giro).mul(esc).add(ia.xyz).add(empuje(c, p0.y.div(H), esc.mul(H), movE.mul(0.7), fase).add(bal).mul(mueve)).add(abre);
   const col3 = (k: THREE.Color) => vec3(k.r, k.g, k.b) as unknown as V3N;
   const troncoO = porEsp(sp, TRONCOS.map((h) => col3(C(h)))), troncoC = mix(troncoO, col3(C(CASA.ceniza)), 0.5) as unknown as V3N;
   const tronco = mix(troncoO, troncoC, tono) as unknown as V3N;
   const tonoW = max(clamp(hRel.sub(0.72).mul(3.6), 0, 1), cuelga.mul(cuelga).mul(0.95)).mul(0.85).add(0.1) as N; // willow: dark under the dome → light dome top and light curtain tips
   const tonoH = mix(mix(tono.mul(0.7).add(0.3), hRel.mul(0.75).add(0.12).add(tono.mul(0.13)), esCip), tonoW, esSau) as N; // cypress: dark foot → lighter, warmer sunlit top
   const hoja = mix(ic.xyz, id.xyz, tonoH).mul(1.4) as unknown as V3N; // the house greens are deep: lift them so the crowns read under the morning light
-  const laton = mix(col3(C(MAQUINA.laton)), col3(C(MAQUINA.cobre)), step(1.5, flag)) as unknown as V3N;
-  const metal = mix(laton, col3(C(mezcla(MAQUINA.laton, CASA.arena, 0.35))), step(2.5, parte)) as unknown as V3N;
+  // E50 metals (paleta.ts MAQUINA_ARBOL): the clamp is bronze (a coppery one on a quarter of the trees, the old collar's copper), the strap tin;
+  // the tag is a brass plate, a tin rivet plate, or — on a neon tree — the vein's chip in its own colour
+  const MA = MAQUINA_ARBOL;
+  const bronce = mix(col3(C(MA.bronce)), col3(C(MAQUINA.cobre)), step(0.75, tinte)) as unknown as V3N;
+  const neonV = mix(col3(C(MA.neonTurquesa)), col3(C(MA.neonCoral)), es(PIEZA.neonCoral)) as unknown as V3N;
+  const banda = mix(bronce, col3(C(MA.hojalata)), esTin) as unknown as V3N;
+  const tag = mix(mix(col3(C(MA.placa)), col3(C(MA.remache)), esTin), neonV, esNeon) as unknown as V3N;
+  const metalN = mix(banda, tag, esTag) as unknown as V3N;
+  // the artwork: bark that turns to bronze as it rises, brass arms toward their tips, a bronze clasp, a brass ring, a lens that glows turquoise or a
+  // membrane that glows amber (the Glido de Turing's light), its leaves the species' own
+  const latonO = col3(C(MA.laton)), brilloCol = mix(col3(C(MA.ambar)), col3(C(MA.lente)), esLente) as unknown as V3N;
+  const obraCol = mix(mix(mix(mix(col3(C(MA.corteza)), latonO, hRel.mul(0.55)), mix(col3(C(MA.corteza)), latonO, mov.mul(0.8).add(0.2)), esRol(ROL_OBRA.rama)), col3(C(MA.bronce)), esRol(ROL_OBRA.banda)),
+    mix(latonO, brilloCol, max(brilloV, esLente.mul(esRol(ROL_OBRA.copa)))), esRol(ROL_OBRA.mata).add(esRol(ROL_OBRA.copa))) as unknown as V3N;
+  const metal = metalN;
   const ao = clamp(p0.y.div(H), 0, 1).mul(0.1).add(0.9) as N; // fake ambient occlusion: a little darker toward the ground
   // R7.4 card colour (per vertex): Bruno's two tones by N·L on the spherical normal (Foliage.js `mix(colorA, colorB, smoothstep(0, 1, n·l))`) and
   // ForestGenerator's `deep → bright` by the baked occlusion (`tono` on a card: dark inside/below … lit rim/top), both from the instance's palette pair
@@ -526,7 +700,21 @@ function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.Mesh
   const hojaCarta = mix(ic.xyz, id.xyz, clamp(luz.mul(0.5).add(tono.mul(0.5)).add(0.05), 0, 1)).mul(tono.mul(0.35).add(0.75)).mul(1.3) as unknown as V3N;
   // WebGPU allows 16 inter-stage variables: the whole colour is per-vertex data, so it crosses as ONE varying (read in the fragment it pulled
   // every attribute it touches across one by one: 6 species positions, 4 instance vec4s, tono, parte… = more than 16, the pipeline failed)
-  mat.colorNode = varying(mix(mix(mix(tronco, hoja, esHoja), metal, esMetal), hojaCarta, esCarta).mul(ao).mul(tinte.mul(0.16).add(0.92)).mul(1.25));
+  // E50: the obra's colours replace the tree's (its cards keep the leaf colour); `ao`/tint/lift as before
+  const colArbol = mix(mix(mix(tronco, hoja, esHoja), metal, esMetal.mul(oneMinus(esObra))), obraCol, oneMinus(esCarta).mul(esObra)) as unknown as V3N;
+  const colV = mix(colArbol, hojaCarta, esCarta).mul(ao).mul(tinte.mul(0.16).add(0.92)).mul(1.25) as unknown as V3N;
+  // E50 fragment code (see COD): trunk (bark of a plain tree, or of the lens artwork) = piece + phase; band = 5 + tin; glowing surface = 7 + glow.
+  // The integer part says which fragment pattern runs; offsets 0.05…0.95 keep `floor` safe under interpolation (every vertex of a triangle shares it).
+  const fasePieza = fract(fase.mul(0.159155)) as N; // the tree's own phase, 0…1
+  const esTronco = oneMinus(step(0.5, parte)).mul(esRol(ROL_OBRA.tronco)) as N; // the trunk's rings (rol 0 in every tree; branches are rol 1)
+  const codTronco = mix(flag, mix(float(COD.espiral), float(PIEZA.neonTurquesa), esLente), esObra) as N; // artwork trunk: brass spiral (portal) or the vein (lens)
+  const codBanda = float(COD.banda).add(esTin.mul(oneMinus(esObra))) as N;
+  const esBrillo = mix(esTag.mul(esNeon), esRol(ROL_OBRA.copa), esObra) as N;
+  const brilloF = mix(float(1), max(brilloV, esLente), esObra) as N; // the lens glows whole, the membrane from its centre
+  const w = esTronco.mul(codTronco.add(0.05).add(fasePieza.mul(0.9))).add(esBanda.mul(min(tieneBanda.add(esObra), 1)).mul(codBanda.add(0.5))).add(esBrillo.mul(float(COD.brillo).add(0.05).add(brilloF.mul(0.9)))) as N;
+  const cv = varying(vec4(colV, w)) as unknown as { rgb: V3N; w: N };
+  const fx = detallesFragmento(cv.rgb, cv.w, c.tiempo as unknown as N, !detalleTpl);
+  mat.colorNode = fx.color;
   // R7.4 leaf flutter (Foliage.js: the alpha rotates in its card by the wind's strength; vertices do not move): a small turn, phased per card
   const fzU = length((c.vientoU as unknown as V3N).xz.add(BRISA)) as N, tU = c.tiempo as unknown as N;
   const giroV = aletea ? sin(tU.mul(2.7).add(fase).add(p0.x.mul(3.1)).add(p0.z.mul(2.3)).add(p0.y.mul(1.7))).mul(fzU.mul(0.05).add(0.12)).add(sin(tU.mul(0.9).add(p0.x.mul(1.3))).mul(0.15)) as N : float(0);
@@ -540,7 +728,7 @@ function materialCerca(c: Comunes, aletea: boolean, inst: InstCerca): THREE.Mesh
   const nCarta = varying(transformNormalToView(nW)) as unknown as V3N; // R7.4: Bruno's spherical normal: the crown lights as one soft volume
   mat.normalNode = normalize(mix(nFacetas, nCarta, esCartaF));
   const arribaFacetas = clamp(dotN(normalFlat as unknown as V3N, transformNormalToView(vec3(0, 1, 0)) as unknown as V3N).mul(0.5).add(0.5), 0, 1);
-  mat.emissiveNode = nodoRelleno(mix(arribaFacetas, marca.z.mul(0.5).add(0.5), esCartaF) as N); // R5.1: the shade fill (relleno.ts): the sunless side of trunks and branches reads sea-green, not black
+  mat.emissiveNode = nodoRelleno(mix(arribaFacetas, marca.z.mul(0.5).add(0.5), esCartaF) as N).add(fx.emisivo); // R5.1: the shade fill (relleno.ts): the sunless side of trunks and branches reads sea-green, not black; E50: + neon / glow
   return mat;
 }
 
@@ -582,21 +770,36 @@ export type HArboles = {
   /** The camera the near/far split is measured from (else pass a position to `actualizar`). */
   camara?: THREE.Object3D;
 };
-export type EstadisticasArboles = { cerca: number[]; lejos: number; arboles: number; triangulos: number; llamadas: number; bytesGeometria: number; bytesInstancias: number; collares?: number };
+export type EstadisticasArboles = { cerca: number[]; lejos: number; arboles: number; triangulos: number; llamadas: number; bytesGeometria: number; bytesInstancias: number; collares?: number; piezas?: number[] };
 
 const REPARTO_S = 0.25;      // the near/far split runs at most this often (s) …
 const REPARTO_M = 1.5;       // … and only if the camera moved this far (m) since the last one
 const CAJAS = 64;
 const COLOR_LEJOS = ESPECIES.map((e) => [0, 1].map((v) => { const c = C(mezcla(HOJAS[e][v].oscuro, HOJAS[e][v].claro, e === "sauce" ? 0.45 : 0.65)); return [c.r * 1.4, c.g * 1.4, c.b * 1.4]; }));
-const FLOATS = 11; // per tree: x, y, z, scale, yaw, phase, variant, tint, species, collar flag, regional tone (−1…1)
+const FLOATS = 11; // per tree: x, y, z, scale, yaw, phase, variant, tint, species, machine piece (E50, PIEZA), regional tone (−1…1)
 /** R7.4: per-instance regional colour drift, baked from a low-frequency noise of the position (ForestGenerator r186 `region`, MIT: «so the vertex-bound
  *  shader taps no noise»); a quarter of it stays per-tree, so neighbours still differ a little. */
 export function tonoRegional(x: number, z: number, azar: number): number {
   const r = Math.max(-1, Math.min(1, (valor2(0x7a, x * 0.03, z * 0.03) * 2 - 1) * 1.6));
   return 0.75 * r + 0.25 * (azar * 2 - 1);
 }
-/** Share of the trees that wear a collar; about 1 in 6. */
-export const COLLAR_PROB = 1 / 6;
+/** E50: share of the trees (not shrubs) that are a tree-artwork, about 1 in 30. */
+export const OBRA_PROB = 1 / 30;
+/**
+ * E50: the machine piece every tree wears (MUNDO-PROYECTADO.md: «cada árbol lleva su pieza de máquina»), from its position only. Pieces cluster by
+ * district (a low-frequency value noise, like `tonoRegional`): the solarpunk garden ties its trees with bronze, the steampunk moor straps them with
+ * tin, the cyberpunk shore runs a neon vein up the bark — about 40 / 40 / 20 over the land, with a minority of the other two in every district
+ * (Pablo: «todo está muy mezclado»). Willows stand by the water: mostly neon. Neon is turquoise, a third coral. Shrubs wear nothing.
+ */
+export function piezaDeArbol(x: number, z: number, especie: Especie | string): number {
+  if (especie === "arbusto") return PIEZA.ninguna;
+  const ix = Math.round(x * 16), iz = Math.round(z * 16);
+  if (hash2(0x67, ix, iz) < OBRA_PROB) return hash2(0x68, ix, iz) < 0.5 ? PIEZA.obraPortal : PIEZA.obraLente;
+  const r = Math.min(1, Math.max(0, (valor2(0x5e, x * 0.025, z * 0.025) - 0.5) * 2.2 + 0.5)), h = hash2(0x64, ix, iz);
+  const [pb, pt] = especie === "sauce" ? [0.15, 0.15] : r < 0.42 ? [0.72, 0.14] : r < 0.8 ? [0.14, 0.72] : [0.16, 0.16];
+  const neon = hash2(0x66, ix, iz) < 0.67 ? PIEZA.neonTurquesa : PIEZA.neonCoral;
+  return h < pb ? PIEZA.bronce : h < pb + pt ? PIEZA.hojalata : neon;
+}
 
 export function crearArboles(h: HArboles, puntos: readonly PuntoArbol[]) {
   const cfg = NATURALEZA_POR_NIVEL[h.nivel];
@@ -607,7 +810,7 @@ export function crearArboles(h: HArboles, puntos: readonly PuntoArbol[]) {
   puntos.forEach((p, i) => {
     const e0 = ESPECIES.indexOf(p.especie as Especie), e = e0 < 0 ? 0 : e0;
     const ix = Math.round(p.x * 16), iz = Math.round(p.z * 16), v = p.variante ?? (hash2(0x61, ix, iz) < 0.8 ? 0 : 1), o = i * FLOATS;
-    const collar = e === 4 ? 0 : hash2(0x64, ix, iz) < COLLAR_PROB ? (hash2(0x66, ix, iz) < 0.3 ? 2 : 1) : 0;
+    const collar = piezaDeArbol(p.x, p.z, ESPECIES[e]); // E50: the machine piece (PIEZA)
     datos.set([p.x, p.y, p.z, p.escala * (1 + 0.08 * (hash2(0x65, ix, iz) * 2 - 1)), p.giro, hash2(0x62, ix, iz) * 6.2832, v, hash2(0x63, ix, iz), e, collar, tonoRegional(p.x, p.z, hash2(0x63, ix, iz))], o); cuentaEsp[e]++;
     minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
   });
@@ -622,10 +825,10 @@ export function crearArboles(h: HArboles, puntos: readonly PuntoArbol[]) {
     const base = geometriaArbol(cfg.arbolesDetalle).geometria, g = new THREE.InstancedBufferGeometry();
     entrelazarCerca(base, g);
     g.setIndex(base.index); g.instanceCount = 0; g.boundingSphere = esfera.clone();
-    const mat = materialCerca(comunes, cfg.arbolesAletean, inst), mesh = new THREE.Mesh(g, mat);
+    const mat = materialCerca(comunes, cfg.arbolesAletean, inst, cfg.arbolesDetalle), mesh = new THREE.Mesh(g, mat);
     mesh.name = "arboles-cerca"; mesh.visible = false; mesh.castShadow = false; mesh.receiveShadow = false; mesh.userData.sinSombra = true;
     grupo.add(mesh); mallas.push(mesh); geos.push(g); mats.push(mat);
-    return { inst, g, mesh, cuenta: 0, cap: capCerca, porEspecie: ESPECIES.map(() => 0), collares: 0 };
+    return { inst, g, mesh, cuenta: 0, cap: capCerca, porEspecie: ESPECIES.map(() => 0), collares: 0, piezas: [0, 0, 0, 0, 0, 0, 0] };
   })();
   const lejos = (() => {
     if (!conLejos) return null;
@@ -656,14 +859,14 @@ export function crearArboles(h: HArboles, puntos: readonly PuntoArbol[]) {
       if (r < rl) { histTodo[(r / rl * CAJAS) | 0]++; if (r < rc) histCerca[(r / rc * CAJAS) | 0]++; }
     }
     const rN = corte(histCerca, capCerca, rc), rV = conLejos ? corte(histTodo, capCerca + capLejos, rl) : rN;
-    cerca.cuenta = 0; cerca.porEspecie.fill(0); cerca.collares = 0;
+    cerca.cuenta = 0; cerca.porEspecie.fill(0); cerca.collares = 0; cerca.piezas.fill(0);
     if (lejos) lejos.cuenta = 0;
     const A = cerca.inst.a.array as Float32Array, B = cerca.inst.b.array as Float32Array, Cc = cerca.inst.c.array as Float32Array, D = cerca.inst.d.array as Float32Array;
     for (let o = 0, i = 0; o < total; o++, i += FLOATS) {
       const r = dist[o], e = datos[i + 8], v = datos[i + 6];
       if (r < rN && cerca.cuenta < cerca.cap) {
         const k = cerca.cuenta++, hj = tonos(ESPECIES[e], v, datos[i + 10]);
-        cerca.porEspecie[e]++; if (datos[i + 9] > 0) cerca.collares++;
+        cerca.porEspecie[e]++; if (datos[i + 9] > 0) cerca.collares++; cerca.piezas[datos[i + 9]]++;
         A[k * 4] = datos[i]; A[k * 4 + 1] = datos[i + 1]; A[k * 4 + 2] = datos[i + 2]; A[k * 4 + 3] = datos[i + 3];
         B[k * 4] = datos[i + 4]; B[k * 4 + 1] = datos[i + 5]; B[k * 4 + 2] = e; B[k * 4 + 3] = datos[i + 7];
         Cc[k * 4] = hj.oscuro.r; Cc[k * 4 + 1] = hj.oscuro.g; Cc[k * 4 + 2] = hj.oscuro.b; Cc[k * 4 + 3] = ALTURA[ESPECIES[e]];
@@ -686,8 +889,13 @@ export function crearArboles(h: HArboles, puntos: readonly PuntoArbol[]) {
 
   let ultimoT = -Infinity; const ultimaPos = new THREE.Vector3(Infinity, 0, 0), tmp = new THREE.Vector3();
   /** Advance the shader clock (one uniform) and, at most every 250 ms and if the camera moved, redo the near/far split. */
+  let raizVista: THREE.Object3D | null = null, hemi: THREE.HemisphereLight | null = null;
   function actualizar(t: number, desde?: THREE.Vector3) {
     tiempo.value = t;
+    // E50: the night factor from the scene's own hemisphere (entorno's, a direct child of the scene), found once per scene
+    let raiz: THREE.Object3D = grupo; while (raiz.parent) raiz = raiz.parent;
+    if (raiz !== raizVista) { raizVista = raiz; hemi = null; for (const o of raiz.children) if (!hemi && (o as THREE.HemisphereLight).isHemisphereLight) hemi = o as THREE.HemisphereLight; }
+    if (hemi) nocheArbolesU.value = nocheDeHemi(hemi.color);
     const pos = desde ?? (h.camara ? h.camara.getWorldPosition(tmp) : null);
     if (!pos || !total) return;
     if (t - ultimoT < REPARTO_S && ultimoT !== -Infinity) return;
@@ -699,7 +907,7 @@ export function crearArboles(h: HArboles, puntos: readonly PuntoArbol[]) {
   function estadisticas(): EstadisticasArboles {
     const tris = cerca.cuenta * geometriaArbol(cfg.arbolesDetalle).triangulos + (lejos?.cuenta ?? 0) * geometriaLejos().triangulos;
     const bi = Object.values(cerca.inst).reduce((s, a) => s + a.array.byteLength, 0) + (lejos ? Object.values(lejos.inst).reduce((s, a) => s + a.array.byteLength, 0) : 0);
-    return { cerca: cerca.porEspecie.slice(), lejos: lejos?.cuenta ?? 0, arboles: cercaUltimo + lejosUltimo, triangulos: tris, llamadas: mallas.filter((m) => m.visible).length, bytesGeometria, bytesInstancias: bi, collares: cerca.collares };
+    return { cerca: cerca.porEspecie.slice(), lejos: lejos?.cuenta ?? 0, arboles: cercaUltimo + lejosUltimo, triangulos: tris, llamadas: mallas.filter((m) => m.visible).length, bytesGeometria, bytesInstancias: bi, collares: cerca.collares, piezas: cerca.piezas.slice() };
   }
   function dispose() { for (const g of geos) g.dispose(); for (const m of mats) m.dispose(); grupo.removeFromParent(); }
 

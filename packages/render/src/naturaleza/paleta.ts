@@ -229,3 +229,26 @@ export const SUELO_R72 = {
   /** Roca y tierra al aire en las caras empinadas: ceniza cálida con bronce; en el páramo, basalto. */
   roca: mezcla(mezcla(CASA.ceniza, CASA.bronce, 0.3), CASA.ambarTostado, 0.12), rocaParamo: FRANJAS.paramo.basalto,
 } as const;
+
+// E50
+/**
+ * E50 · Árboles con máquina (work/naturaleza/MUNDO-PROYECTADO.md: «cada árbol lleva su pieza de máquina»): bronce de la abrazadera
+ * (entre latón y cobre, con verdín en la junta), hojalata del fleje y sus remaches, la vena de neón (turquesa o coral, solo una línea fina)
+ * y los materiales del árbol-obra (latón de la escultura, el resplandor ámbar del anillo-portal como el Glido de Turing, la lente turquesa
+ * del Disco de Janus). La casa NO tiene token de hojalata ni de acero: la hojalata es una mezcla fría PROPUESTA (Ceniza con Cristal y un
+ * velo de Arena velada: un gris frío que se lee como chapa); si Pablo quiere un token propio, se cambia aquí. Ningún hex nuevo.
+ */
+export const MAQUINA_ARBOL = {
+  bronce: mezcla(MAQUINA.laton, MAQUINA.cobre, 0.45),
+  bronceJunta: mezcla(mezcla(MAQUINA.laton, MAQUINA.cobre, 0.45), CASA.bronceOscuro, 0.55),
+  verdin: mezcla(VERDES.verdin, CASA.verdemar, 0.35),
+  hojalata: mezcla(mezcla(CASA.ceniza, MAQUINA.cristal, 0.4), CASA.arenaVelada, 0.3),
+  remache: mezcla(MAQUINA.hierro, CASA.ceniza, 0.35),
+  placa: mezcla(MAQUINA.laton, CASA.arena, 0.35),
+  neonTurquesa: SENAL.turquesa,
+  neonCoral: SENAL.coral,
+  laton: mezcla(MAQUINA.laton, MAQUINA.latonSombra, 0.25),
+  ambar: mezcla(SENAL.ambar, MAQUINA.laton, 0.2),
+  lente: mezcla(CASA.turquesa, CASA.verdemar, 0.2),
+  corteza: mezcla(mezcla(CASA.bronce, CASA.ceniza, 0.4), MAQUINA.cobre, 0.12),
+} as const;

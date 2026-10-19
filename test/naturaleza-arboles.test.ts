@@ -6,7 +6,7 @@ import * as THREE from "three/webgpu";
 import { uniform } from "three/tsl";
 import { esparcirArboles, SAUCE_AGUA, SAUCE_ORILLA } from "../packages/render/src/naturaleza/esparcir.ts";
 import { crearTerreno } from "../packages/render/src/naturaleza/terreno.ts";
-import { crearArboles, geometriaArbol, geometriaCerca, geometriaLejos, ESPECIES, LEJOS, ALTURA, CUELGA_LEJOS, TOPE_LEJOS, TRIS_MAX_CERCA, TRIS_MAX_LEJOS, TRIANGULOS_ARBOL, TRIANGULOS_DETALLE, TRIANGULOS_SIMPLE, triangulosCerca, CARTAS_DETALLE, CARTAS_SIMPLE, CON_CARTAS, PARTE, tonoRegional, entrelazarCerca } from "../packages/render/src/naturaleza/arboles.ts";
+import { crearArboles, geometriaArbol, geometriaCerca, geometriaLejos, ESPECIES, LEJOS, ALTURA, CUELGA_LEJOS, TOPE_LEJOS, TRIS_MAX_CERCA, TRIS_MAX_LEJOS, TRIANGULOS_ARBOL, TRIANGULOS_DETALLE, TRIANGULOS_SIMPLE, triangulosCerca, CARTAS_DETALLE, CARTAS_SIMPLE, CON_CARTAS, PARTE, tonoRegional, entrelazarCerca, PIEZA, piezaDeArbol, ROL_OBRA, OBRA, nocheDeHemi, nocheArbolesU } from "../packages/render/src/naturaleza/arboles.ts";
 import { copaDeCartas, PESO_ESFERA } from "../packages/render/src/naturaleza/follaje.ts";
 import type { PuntoArbol } from "../packages/render/src/naturaleza/arboles.ts";
 import { NATURALEZA_POR_NIVEL } from "../packages/render/src/naturaleza/niveles.ts";
@@ -36,7 +36,7 @@ test("R2: near templates (detailed ~103 triangles with branches, collar and tag;
   const mov = geo.getAttribute("mov").array as Float32Array, parte = geo.getAttribute("parte").array as Float32Array;
   assert.ok(Math.max(...mov) >= 0.95 && Math.min(...mov) <= 0.05, "sway weight spans 0…1");
   for (let i = 0; i < n; i++) if (parte[i] === 1) assert.ok(mov[i] >= 0.4, `leaf vertex ${i} sways ${mov[i]}`);
-  assert.equal(Array.from(parte).filter((x) => x === 2).length, 8, "collar band: 8 vertices");
+  assert.equal(Array.from(parte).filter((x) => x === 2).length, 10, "collar band: 2 rings of 4 + their seam vertex (E50 uv)");
   assert.equal(Array.from(parte).filter((x) => x === 3).length, 3, "tag: 3 vertices");
   assert.ok(geo.boundingSphere && geo.boundingSphere.radius > 0.5, "bounding sphere set");
   const l = geometriaLejos();
@@ -77,11 +77,20 @@ test("closed pieces (leaf blobs, cones) are wound outward: positive signed volum
   }
 });
 
-test("collars: about 1 tree in 6 wears one, never a shrub; sizes vary within ±8 %", () => {
+test("E50: every tree wears a machine piece (bronze, tin or neon), never a shrub; about 1 in 30 is a tree-artwork", () => {
   const t = crearArboles({ vientoU: viento(), nivel: "C" }, campo(600, 120, 11));
   t.actualizar(0, new THREE.Vector3(0, 1.7, 0));
-  const s = t.estadisticas(), n = s.cerca.reduce((a, b) => a + b, 0);
-  assert.ok(n > 30 && (s.collares ?? 0) / n > 0.06 && (s.collares ?? 0) / n < 0.3, `${s.collares} collars of ${n}`);
+  const s = t.estadisticas(), n = s.cerca.reduce((a, b) => a + b, 0), arbustos = s.cerca[ESPECIES.indexOf("arbusto")];
+  assert.ok(n > 30 && s.collares === n - arbustos, `${s.collares} pieces on ${n - arbustos} trees`);
+  // over many positions: the three pieces all occur, the artwork is rare, shrubs never wear one
+  const cuenta = [0, 0, 0, 0, 0, 0, 0];
+  for (let i = 0; i < 20000; i++) cuenta[piezaDeArbol((i % 200) * 1.37 - 137, Math.floor(i / 200) * 1.41 - 70, "encina")]++;
+  const obra = (cuenta[PIEZA.obraPortal] + cuenta[PIEZA.obraLente]) / 20000, neon = (cuenta[PIEZA.neonTurquesa] + cuenta[PIEZA.neonCoral]) / 20000;
+  assert.equal(cuenta[PIEZA.ninguna], 0);
+  assert.ok(obra > 0.02 && obra < 0.05, `artworks: ${(obra * 100).toFixed(1)} %`);
+  for (const k of [PIEZA.bronce, PIEZA.hojalata]) assert.ok(cuenta[k] / 20000 > 0.15, `piece ${k}: ${cuenta[k]}`);
+  assert.ok(neon > 0.1 && neon < 0.4 && cuenta[PIEZA.neonCoral] > 0 && cuenta[PIEZA.obraLente] > 0, `neon ${(neon * 100).toFixed(1)} %`);
+  assert.equal(piezaDeArbol(3, 4, "arbusto"), PIEZA.ninguna);
   const d = (t.mallas[0].geometry as THREE.InstancedBufferGeometry).instanceCount, A = (t.mallas[0].material as THREE.Material) && d;
   assert.ok(A > 0);
   t.dispose();
@@ -319,4 +328,36 @@ test("WebGPU: the near tree mesh stays within the default 8 vertex buffers per d
     for (const k of Object.keys(base.attributes)) { const a = base.getAttribute(k), b = g.getAttribute(k);
       assert.equal(b.count, a.count, k); for (let i = 0; i < a.count; i += 97) for (let c = 0; c < a.itemSize; c++) assert.equal(b.getComponent(i, c), a.getComponent(i, c), `${k}[${i}]`); }
   }
+});
+
+test("E50: the tree-artwork is a second shape of the SAME template (no new mesh): one obra vertex per vertex, ring + lens + spiral trunk", () => {
+  for (const detalle of [true, false]) {
+    const g = geometriaArbol(detalle).geometria, ob = g.getAttribute("obra"), p = g.getAttribute("position"), uv = g.getAttribute("uv"), parte = g.getAttribute("parte");
+    assert.equal(ob.count, p.count);
+    const rol = (i: number) => Math.floor(ob.getW(i));
+    // the ring: its segments' vertices sit on a circle of radius R around (0, cy) in the x–y plane (± the segment's thickness)
+    let anillo = 0;
+    for (let i = 0; i < ob.count; i++) if (rol(i) === ROL_OBRA.mata) { anillo++; const r = Math.hypot(ob.getX(i), ob.getY(i) - OBRA.cy); assert.ok(Math.abs(r - OBRA.R) < 0.3, `ring vertex at r = ${r}`); }
+    assert.ok(anillo >= 6);
+    // the lens: unit directions with a glow, poles full
+    let lente = 0;
+    for (let i = 0; i < ob.count; i++) if (rol(i) === ROL_OBRA.copa) { lente++; assert.ok(Math.abs(Math.hypot(ob.getX(i), ob.getY(i), ob.getZ(i)) - 1) < 1e-3); assert.ok(ob.getW(i) % 1 > 0); }
+    assert.equal(lente, 12);
+    // the trunk turns as it rises (the spiral) and its uv runs 0…1 around, seam included
+    let top = -1, bot = -1;
+    for (let i = 0; i < ob.count; i++) if (parte.getX(i) === 0 && rol(i) === ROL_OBRA.tronco) { if (uv.getX(i) === 0 && uv.getY(i) === 0) bot = i; if (uv.getX(i) === 0 && uv.getY(i) === 1) top = i; }
+    assert.ok(top >= 0 && bot >= 0);
+    const giro = Math.atan2(ob.getZ(top), ob.getX(top)) - Math.atan2(ob.getZ(bot), ob.getX(bot));
+    assert.ok(Math.abs(giro) > 0.5, `spiral: ${giro.toFixed(2)} rad`);
+  }
+});
+
+test("E50: the night factor follows the scene's hemisphere (day sky 0xbcd6ee → 0, night 0x33456e → 1)", () => {
+  assert.ok(nocheDeHemi(new THREE.Color(0xbcd6ee)) < 0.02);
+  assert.ok(nocheDeHemi(new THREE.Color(0x33456e)) > 0.98);
+  const t = crearArboles({ vientoU: viento(), nivel: "A" }, campo(50, 30)), escena = new THREE.Scene();
+  const h = new THREE.HemisphereLight(0x33456e, 0x2a2e3a, 1); escena.add(h, t.grupo);
+  t.actualizar(1, new THREE.Vector3()); assert.ok(nocheArbolesU.value > 0.98);
+  h.color.set(0xbcd6ee); t.actualizar(2, new THREE.Vector3()); assert.ok(nocheArbolesU.value < 0.02);
+  t.dispose();
 });
