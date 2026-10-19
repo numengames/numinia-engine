@@ -450,8 +450,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   }
   /** Toolbar, selection line and inspector follow the shared state. */
   function refrescar(): void {
-    boton.style.display = c.estado.puede ? "" : "none";
-    boton.toggleAttribute("data-oculto", !c.estado.puede);
+    if (boton.hidden === c.estado.puede) boton.hidden = !c.estado.puede; // ux2-barra: the bar hides with the `hidden` attribute only
     const aviso = avisoBiblioteca(c.biblioteca, c.estado.puede);
     avisoLib.textContent = aviso; avisoLib.hidden = !aviso;
     pintarFicha();

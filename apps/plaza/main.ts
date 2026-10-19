@@ -31,7 +31,9 @@ import { montarInteraccion, construyendo } from "./interactuar.ts";
 import { montarDialogo } from "./dialogo.ts";
 import { montarVerNombres } from "./nombres-ver.ts";
 import { montarLibro, ponerCatalogoCasa } from "./misiones.ts";
-import { anunciar } from "./paneles.ts"; // S6: el texto accesible de cada sonido (XAUR)
+import { anunciar, crearDialogo } from "./paneles.ts"; // S6: el texto accesible de cada sonido (XAUR)
+import { montarMenuBarra } from "./menu-barra.ts"; // ux2-barra: the bar's «Cámara» (P) and «Menú» (O) drop-downs
+import { estadoCamara, filasDeAyuda } from "./menu-logica.ts";
 import { crearSonidos, ponerSonidos, RUTA_TABLA, sonidos } from "../../packages/render/src/audio/sonidos.ts"; // S6: the house catalogue (its table comes from /sonidos.json; the files are served by their sha256)
 import { montarMapa } from "./mapa.ts";
 import { montarFicha } from "./ficha.ts";
@@ -115,7 +117,7 @@ const enMovil = esMovil(perfil().clase); // U24: the phone layout: the joystick 
 const catalogoAvatares = catalogoDeAvatares(activos, params, estado?.avatar);
 // H10: montarAvatar() below needs `session` and `view`, both built after this; the hook itself is only read each
 // frame (avatares.ts sync()), so a holder filled in later is enough — nothing calls it before montarAvatar runs.
-let avatarUI: { eleccion(clave: number | "yo"): number | undefined } | null = null;
+let avatarUI: ReturnType<typeof montarAvatar> | null = null; // ux2-barra: also abrirSelector()/alternarSelector() for story B («Tú»)
 const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, movil: perfil().forzado ? perfil().movil : undefined, assetUrl: (m) => `${activos}/a/${m}.glb`,
   avatares: { catalogo: catalogoAvatares, yo: () => session.entity, eleccion: (c) => avatarUI?.eleccion(c) } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar; H10: your own choice
 const transport = webSocketClient(url);
@@ -304,14 +306,16 @@ const inventario = montarInventario(inventarioCtl, document.getElementById("inve
 const otros = () => (globalThis as unknown as { __numinia?: Record<string, unknown> }).__numinia ?? {};
 const mapa = montarMapa({ session, view, otros, alIr: (donde) => { constructorUI.alIr({ id: donde.id.replace(/^c:objetos:/, "") }); }, teletransporte: { activo: () => viajar.activo(), ir: (x, z, nombre) => viajar.irAPunto(x, z, nombre) } });
 // ---- N13: photo mode (P or the camera button): the photo owns the screen and the keys; your avatar stands still ----
-const foto = montarFoto({ view, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), mapa, boton: document.getElementById("foto-abrir") as HTMLButtonElement, ocupado: () => dardos.tirando(),
+const foto = montarFoto({ view, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), mapa, boton: document.getElementById("foto-abrir") as HTMLButtonElement, volverA: () => document.getElementById("camara-abrir"), ocupado: () => dardos.tirando(),
   aparecer: { puede: () => (viajar.estado.recibido ? viajar.foto() : null), pedir: (s) => { viajar.aparecerEnFoto(s.x, s.y, s.z); } }, // N16: the world may put you at the photo's place
   decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); } });
 montarObjetivo({ lucha, interaccion });
 montarCombate({ lucha }); // combate nivel 2: the three skill slots (keys 1–3) — «Próximamente» until the page hears of fighting
 const fuentesLucha = fuentesDeLucha(lucha); // the character HUD's Estado and Carga come from the lucha client (hud-personaje.ts reads them from __numinia)
-const ficha = montarFicha({ session, view, desde: () => informe.bienvenidaMs, otros }, mapa.botonFicha);
-montarBienes({ bienes, comprobar, ficha, boton: mapa.botonFicha, vitrina: (cv, model) => view.vitrina(cv, model) }); // N10: the sheet's «Inventario» = your goods, their receipts
+// ux2-barra: your sheet (I) opens from your card, top left (hud-personaje.ts); no «Ficha» under the minimap any more
+const botonFicha = document.getElementById("hud-personaje-abrir") as HTMLButtonElement;
+const ficha = montarFicha({ session, view, desde: () => informe.bienvenidaMs, otros }, botonFicha);
+montarBienes({ bienes, comprobar, ficha, boton: botonFicha, vitrina: (cv, model) => view.vitrina(cv, model) }); // N10: the sheet's «Inventario» = your goods, their receipts
 // ---- U24: the phone layout (six controls while playing): only a phone profile loads it, desktop and VR never see it ----
 if (enMovil) import("./movil.ts").then((m) => m.montarMovil({ interaccion, acciones: acts, saltar: pedirSalto, cajaChat, mapa, misiones, pesca, nombres, simulada: perfil().forzado && !matchMedia("(pointer: coarse)").matches })).catch((e) => console.warn(`[movil] no se pudo montar la disposición móvil: ${(e as Error)?.message ?? e}`));
 
@@ -454,7 +458,7 @@ if (document.fullscreenEnabled) {
   const pintar = () => {
     const oculto = view.vr.active || view.ar.state !== "off", texto = document.fullscreenElement ? "Salir de pantalla completa" : "Pantalla completa";
     if (pantalla.hidden !== oculto) pantalla.hidden = oculto;
-    if (pantalla.title !== texto) { pantalla.title = texto; pantalla.innerHTML = `${icono("desktop")}<span class="solo-lector">${texto}</span>`; } // U11: an icon
+    if (pantalla.title !== texto) { pantalla.title = texto; pantalla.innerHTML = `${icono(document.fullscreenElement ? "corners-in" : "corners-out")}<span class="solo-lector">${texto}</span>`; } // U11: an icon; ux2-barra: an entry of «Menú»
   };
   pantalla.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
   pantalla.classList.add("solo-icono");
@@ -554,21 +558,71 @@ function drawHud() {
 // handle for automated checks (tools/e2e.mjs)
 (globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, ambiente, elementos, voz, compartir, xr, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina };
 
-// ---- t_5cff4f06: the corner button back to the city, top left (HUD simétrico: the gear's mirror on the right);
-// hidden unless this world's mundo.ajustes.json sets ciudadUrl ----
+// ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
+// of the bar's «Menú» (O), no longer a corner button ----
 montarCiudad({ mundo: mundoPlaza, boton: document.getElementById("volver-ciudad") as HTMLButtonElement, icono });
 
-// ---- U11: the bar of icon buttons, top right (rightmost first): settings, build, microphone, share screen (M18), full screen, VR, AR ----
+// ---- U11 + ux2-barra: the bar, top right — one thing, one place, one key. Left to right: Micrófono (Q) · Gente (L) ·
+// Bolsa (R) · Cámara (P: foto, grabar, compartir pantalla) · Construir (C, builders only) | Avisos (N) · Menú (O: ajustes,
+// pantalla completa, volver a la ciudad, teclas y ayuda). The order is CSS (`order`, tema.css ux2-barra): modules add
+// their own buttons at different moments. The menus move the modules' own buttons in (menu-barra.ts): same ids, same
+// handlers, same `hidden` rules ----
 {
   const barra = document.getElementById("barra-arriba")!;
   const gear = document.getElementById("ajustes-abrir")!;
-  gear.classList.add("solo-icono"); gear.innerHTML = `${icono("gear")}<span class="solo-lector">Ajustes</span>`;
+  gear.classList.add("solo-icono"); gear.innerHTML = `${icono("gear")}<span class="solo-lector">Ajustes</span>`; gear.title = "Ajustes";
   const mis = document.getElementById("misiones")!;
   mis.innerHTML = `${icono("scroll", 18)}<span>Misiones</span>`; mis.title = "Misiones (J)";
   const invB = document.getElementById("inventario-abrir")!;
-  invB.classList.add("solo-icono"); invB.innerHTML = `${icono("copy")}<span class="solo-lector">Inventario</span>`; invB.title = "Inventario (R)";
-  for (const id of ["ajustes-abrir", "construir", "microfono", "compartir-pantalla", "gente-abrir", "inventario-abrir", "foto-abrir", "graboso", "pantalla", "vr", "ar"]) { const e = document.getElementById(id); if (e) barra.appendChild(e); }
+  invB.classList.add("solo-icono"); invB.innerHTML = `${icono("package")}<span class="solo-lector">Bolsa</span>`; invB.title = "Bolsa (R)";
+  for (const id of ["construir", "microfono", "gente-abrir", "inventario-abrir", "vr", "ar"]) { const e = document.getElementById(id); if (e) barra.appendChild(e); }
   barra.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
+  const separador = document.createElement("span"); separador.className = "separador"; separador.setAttribute("aria-hidden", "true");
+  barra.appendChild(separador);
+  const botonBarra = (id: string, ic: string, nombre: string, tecla: string) => {
+    const b = document.createElement("button"); b.type = "button"; b.id = id; b.className = "solo-icono";
+    b.title = `${nombre} (${tecla})`; b.setAttribute("aria-keyshortcuts", tecla);
+    b.innerHTML = `${icono(ic)}<span class="solo-lector">${nombre}</span>`; // constants only
+    barra.appendChild(b); return b;
+  };
+  const libre = () => !document.body.classList.contains("construyendo") && !document.querySelector("dialog[open]") && !foto.activo() && !dardos.tirando();
+
+  // «Cámara» (P): photo, record (K still records on its own), share the screen (where the browser can)
+  const camaraB = botonBarra("camara-abrir", "camera", "Cámara", "P");
+  const camara = montarMenuBarra({
+    id: "camara-menu", barra, boton: camaraB, etiqueta: "Cámara", tecla: "KeyP", puedeTecla: libre,
+    entradas: [document.getElementById("foto-abrir"), graboso.boton, document.getElementById("compartir-pantalla")].filter((b): b is HTMLButtonElement => b instanceof HTMLButtonElement),
+  });
+  // the camera button says what is running behind it: recording (red) or sharing (sea green)
+  const pintarCamara = () => {
+    const e = estadoCamara({ grabando: graboso.boton.getAttribute("aria-pressed") === "true", compartiendo: compartir.estado.compartiendo });
+    if ((camaraB.dataset.estado ?? null) !== e) { if (e) camaraB.dataset.estado = e; else delete camaraB.dataset.estado; }
+    const t = e === "grabando" ? "Cámara (P): grabando" : e === "compartiendo" ? "Cámara (P): compartiendo tu pantalla" : "Cámara (P)";
+    if (camaraB.title !== t) camaraB.title = t;
+  };
+  new MutationObserver(pintarCamara).observe(graboso.boton, { attributes: true, attributeFilter: ["aria-pressed"] });
+  setInterval(pintarCamara, 500); pintarCamara();
+
+  // «Teclas y ayuda»: the keys of this page, from the help line (#help) every module already writes into
+  const ayudaB = document.createElement("button"); ayudaB.type = "button"; ayudaB.id = "teclas-abrir";
+  ayudaB.innerHTML = `${icono("keyboard")}<span class="solo-lector">Teclas y ayuda</span>`; ayudaB.title = "Teclas y ayuda";
+  const teclas = crearDialogo({ id: "teclas", titulo: "Teclas y ayuda", tecla: "F1", boton: ayudaB, alAbrir: () => {
+    const lista = document.createElement("dl"); lista.className = "teclas-lista";
+    for (const p of filasDeAyuda(document.getElementById("help")?.textContent ?? "")) {
+      const dt = document.createElement("dt"), dd = document.createElement("dd");
+      dt.textContent = p.tecla; dd.textContent = p.que; lista.append(dt, dd);
+    }
+    teclas.cuerpo.replaceChildren(lista);
+  } });
+  ayudaB.hidden = !!enMovil; // a phone names no key
+
+  // «Menú» (O): settings, full screen, back to the city (only where the world names one), the keys
+  const menuB = botonBarra("menu-abrir", "list", "Menú", "O");
+  montarMenuBarra({
+    id: "menu-lista", barra, boton: menuB, etiqueta: "Menú", tecla: "KeyO", puedeTecla: () => !document.querySelector("dialog[open]"),
+    entradas: [gear, document.getElementById("pantalla"), document.getElementById("volver-ciudad"), ayudaB].filter((b): b is HTMLButtonElement => b instanceof HTMLButtonElement),
+  });
+  Object.assign((globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia, { barra: { camara, menu: { abrir: () => document.getElementById("menu-abrir")?.click() } }, avatar: avatarUI });
 }
 
 // ---- N2: settings and capabilities (menu-ajustes.ts): gear + O, window.__numinia.ajustes / .capacidades. Applied here,

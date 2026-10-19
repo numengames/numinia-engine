@@ -42,7 +42,7 @@ for (const d of DEVICES) {
   // 2) Botones de acción táctiles (Saltar, correr) medidos
   const tamanos = await page.evaluate(() => {
     const out = {};
-    for (const sel of ["#ajustes-abrir", "#misiones", "#saltar", "#minimapa canvas", "#misiones", "#chat-boton", "#interactuar", "#construir", "#microfono", "#pantalla"]) {
+    for (const sel of ["#menu-abrir", "#misiones", "#saltar", "#minimapa canvas", "#misiones", "#chat-boton", "#interactuar", "#construir", "#microfono", "#pantalla"]) {
       const el = document.querySelector(sel);
       if (!el) { out[sel] = null; continue; }
       const r = el.getBoundingClientRect();
@@ -75,7 +75,7 @@ for (const d of DEVICES) {
   await page.waitForTimeout(100);
 
   // 5) Menú de ajustes abierto
-  await page.click("#ajustes-abrir");
+  await page.click("#menu-abrir"); await page.click("#ajustes-abrir"); // ux2-barra: «Ajustes» lives in the bar's «Menú»
   await page.waitForTimeout(200);
   await shot("04-ajustes");
   await page.click("#ajustes-cerrar");

@@ -141,6 +141,8 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     describe: "El reloj junto al minimapa: la hora de tu aparato o la hora universal (UTC), la misma para todos.",
     opciones: [{ valor: "local", nombre: "Local" }, { valor: "utc", nombre: "UTC" }], defecto: "local",
   },
+  // ux2-barra: was the «N» button under the minimap; a setting now (the minimap keeps no buttons)
+  { grupo: "interfaz", id: "minimapaGira", tipo: "bool", nombre: "El minimapa gira con la cámara", describe: "Apagado: el norte siempre arriba. Encendido: lo que tienes delante queda arriba.", defecto: false },
   { grupo: "interfaz", id: "ayuda", tipo: "bool", nombre: "Ayuda de teclas", describe: "La línea de abajo que dice qué tecla hace qué.", defecto: true },
   // U25: the device profile, forced (development or ?debug only: `desarrollo`). The page decides it once before the
   // first frame (packages/client/src/aparato.ts), so a change reloads the page. ?aparato=… does the same for one load.

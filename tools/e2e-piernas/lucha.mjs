@@ -64,14 +64,18 @@ try {
   const carga = () => a.evaluate(() => Math.round(globalThis.__numinia.lucha.carga()));
   const foto = async (n) => { if (SHOTS) await a.screenshot({ path: `${SHOTS}/${n}.png` }); };
 
-  // 1) the news card, then the HUD
+  // 1) the news, then the HUD — ux2-barra: the news is a notice in the bell's history (no card over the HUD): the bell
+  // counts it, opening the bell shows it whole and remembers the version
   const version = JSON.parse((await import("node:fs")).readFileSync(join(REPO, "package.json"), "utf8")).version;
-  await a.waitForFunction(() => document.getElementById("novedades")?.open, null, { timeout: 8000 }).catch(() => {});
-  const tarjeta = await a.evaluate(() => ({ abierta: !!document.getElementById("novedades")?.open, titulo: document.getElementById("novedades-titulo")?.textContent ?? "", items: [...document.querySelectorAll("#novedades-lista li")].map((l) => l.textContent) }));
-  nota("1 tarjeta de novedades", tarjeta);
-  if (!tarjeta.abierta || !tarjeta.titulo.includes(version)) throw new Error(`news card for ${version} not shown: ${JSON.stringify(tarjeta)}`);
+  await a.waitForFunction(() => { const n = document.querySelector("#avisos-abrir .insignia-n"); return n && !n.hidden; }, null, { timeout: 8000 }).catch(() => {});
+  const campana = await a.evaluate(() => ({ contador: document.querySelector("#avisos-abrir .insignia-n")?.hidden === false ? document.querySelector("#avisos-abrir .insignia-n").textContent : "", tarjeta: !!document.getElementById("novedades") }));
+  await a.click("#avisos-abrir");
+  await a.waitForFunction(() => document.getElementById("avisos-centro")?.open, null, { timeout: 3000 }).catch(() => {});
+  const tarjeta = await a.evaluate(() => { const li = document.querySelector("#avisos-centro .aviso-novedades"); return { titulo: li?.querySelector("b")?.textContent ?? "", items: [...(li?.querySelectorAll("li") ?? [])].map((l) => l.textContent), guardada: localStorage.getItem("numinia.novedades.version") }; });
+  nota("1 novedades en la campana", { ...campana, ...tarjeta });
+  if (campana.tarjeta || !campana.contador || !tarjeta.titulo.includes(version) || !tarjeta.items.length || tarjeta.guardada !== version) throw new Error(`news for ${version} not in the bell: ${JSON.stringify({ campana, tarjeta })}`);
   await foto("novedades");
-  await a.click("#novedades-cerrar");
+  await a.keyboard.press("Escape");
   await a.waitForFunction(() => globalThis.__numinia.lucha.activo(), null, { timeout: 15000 });
   await a.waitForFunction(() => document.querySelectorAll("#habilidades button[data-habilidad]").length === 3, null, { timeout: 5000 });
   await a.waitForFunction(() => document.querySelector("#hud-personaje .hp-estado .hp-val"), null, { timeout: 5000 });   // the HUD re-reads once a second

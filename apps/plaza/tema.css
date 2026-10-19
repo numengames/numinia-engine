@@ -251,7 +251,7 @@ html[data-densidad-nivel="completo"] [data-solo]:not([data-solo~="completo"]) { 
 /* a touch screen has no key O: in Mínimo the bar keeps only the gear, so the dial can always be turned back */
 /* U25: touch = html.tactil (a forced profile too), not the media query */
 html.tactil[data-densidad-nivel="minimo"] #barra-arriba[data-densidad] { display: flex !important; }
-html.tactil[data-densidad-nivel="minimo"] #barra-arriba > :not(#ajustes-abrir) { display: none !important; }
+html.tactil[data-densidad-nivel="minimo"] #barra-arriba > :not(#menu-abrir):not(.menu-barra) { display: none !important; } /* ux2-barra: the Menú (settings inside) stays */
 /* al_cambiar: the chat's lines show with each new line and fade after 6 s in Normal (Mínimo: folded to the pill; Completo: fixed,
    a taller list). «Menos movimiento»: nothing fades, it stays fixed. The open box (Enter) or the pointer over it keeps it shown. */
 html[data-densidad-nivel="normal"] #chat-lista { max-height: calc(4 * 1.45em); } /* four lines (the box adds its own padding); wide screens: the 440×150 box below */
@@ -402,3 +402,49 @@ html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 
 #habilidades button.hueco:focus-visible { outline: 2px solid var(--n-ambar); outline-offset: 2px; }
 #habilidades .hueco .cos { position: absolute; top: 3px; right: 5px; font: 11px "Geist Mono", ui-monospace, monospace; color: var(--n-ambar); }
 #habilidades .hueco .nom { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; padding: 0 4px; }
+
+/* ux2-barra: one thing, one place, one key. The bar, left to right: Micrófono (Q) · Gente (L) · Bolsa (R) · Cámara (P) ·
+   Construir (C) | Avisos (N) · Menú (O); the order lives here (modules add their buttons at different moments). Cámara and
+   Menú drop a small menu (menu-barra.ts) holding the modules' own buttons, with their names showing. The minimap is the
+   big map's button (no row under it); your card, top left, is the sheet's button (I). */
+#barra-arriba { flex-direction: row !important; }
+#barra-arriba > #microfono { order: 1; } #barra-arriba > #gente-abrir { order: 2; } #barra-arriba > #inventario-abrir { order: 3; }
+#barra-arriba > #camara-abrir { order: 4; } #barra-arriba > #construir { order: 5; } #barra-arriba > #dirigir { order: 6; }
+#barra-arriba > #vr { order: 7; } #barra-arriba > #ar { order: 8; } #barra-arriba > .separador { order: 10; }
+#barra-arriba > #avisos-abrir { order: 11; } #barra-arriba > #menu-abrir { order: 12; }
+#barra-arriba > .separador { align-self: center; width: 1px; height: 28px; margin: 0 2px; background: var(--n-linea); flex: none; }
+#barra-arriba > #construir[hidden] { display: none !important; } /* builders only: the attribute, beating the old inline-flex rule */
+#barra-arriba > #camara-abrir[aria-expanded="true"], #barra-arriba > #menu-abrir[aria-expanded="true"] { border-color: var(--n-turquesa) !important; }
+#barra-arriba > #camara-abrir, #barra-arriba > #avisos-abrir { position: relative !important; } /* their dot / count hang on them */
+#barra-arriba > #camara-abrir[data-estado]::after { content: ""; position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--n-grana); }
+#barra-arriba > #camara-abrir[data-estado="compartiendo"]::after { background: var(--n-verdemar); }
+/* the drop-down: hangs under its button, right edges together (menu-barra.ts sets `right`) */
+#barra-arriba > .menu-barra { position: absolute !important; top: calc(100% + 6px) !important; left: auto !important; bottom: auto !important; z-index: 8;
+  display: flex; flex-direction: column; gap: 2px; min-width: 220px; padding: 6px; box-sizing: border-box;
+  background: var(--n-sup); border: 1px solid var(--n-linea); border-radius: 8px; }
+#barra-arriba > .menu-barra[hidden] { display: none !important; }
+#barra-arriba .menu-barra > button { position: static !important; inset: auto !important; display: flex !important; align-items: center; justify-content: flex-start !important; gap: 10px; width: 100% !important; height: 40px !important; min-width: 0 !important;
+  margin: 0 !important; padding: 0 10px !important; box-sizing: border-box; text-align: left; font: 500 14px "Geist", system-ui, sans-serif !important; line-height: 1 !important; z-index: auto !important;
+  background: transparent !important; border: 1px solid transparent !important; color: var(--n-texto) !important; border-radius: var(--n-r-control) !important; }
+#barra-arriba .menu-barra > button:hover, #barra-arriba .menu-barra > button:focus-visible { background: var(--n-elev) !important; border-color: var(--n-linea) !important; }
+#barra-arriba .menu-barra > button[hidden] { display: none !important; }
+#barra-arriba .menu-barra > button .solo-lector { position: static !important; width: auto !important; height: auto !important; margin: 0 !important; overflow: visible !important; clip: auto !important; white-space: nowrap; }
+#barra-arriba .menu-barra > button .icono + span { margin-left: 0 !important; }
+#barra-arriba .menu-barra > button > span:not(.solo-lector) { display: inline-flex; align-items: center; gap: 10px; } /* pantalla.ts wraps icon + name in a span */
+#barra-arriba .menu-barra > button[aria-pressed="true"] { background: var(--n-elev) !important; color: var(--n-texto) !important; border-color: var(--n-grana) !important; font-weight: 600 !important; }
+#barra-arriba .menu-barra > #compartir-pantalla[aria-pressed="true"] { border-color: var(--n-verdemar) !important; }
+/* the minimap: the round picture IS the button of the big map (M); the wheel over it zooms */
+#minimapa #minimapa-abrir { display: block; padding: 0 !important; margin: 0; border: 0 !important; background: none !important; border-radius: 50% !important; cursor: pointer; line-height: 0; min-width: 0 !important; min-height: 0 !important; }
+#minimapa #minimapa-abrir:hover canvas { outline: 1px solid var(--n-texto2); outline-offset: 1px; }
+:root { --botones-alto: 0px !important; }
+@media (pointer: coarse) { :root { --botones-alto: 0px !important; } }
+/* your card, top left: a real button laid over it opens your sheet (I) */
+#hud-personaje > #hud-personaje-abrir { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 1px solid transparent; border-radius: inherit; background: transparent; cursor: pointer; z-index: 1; }
+#hud-personaje > #hud-personaje-abrir:hover { border-color: var(--n-texto2); }
+/* «Teclas y ayuda» (Menú › Teclas y ayuda, F1): the help line as a two-column list */
+#teclas .teclas-lista { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; max-height: 60vh; overflow: auto; }
+#teclas .teclas-lista dt { font: 600 12px "Geist Mono", ui-monospace, monospace; color: var(--n-verdemar); }
+#teclas .teclas-lista dd { margin: 0; color: var(--n-texto); }
+/* the news in the bell's history: its title and its lines, whole */
+#avisos-centro .avisos-lista .aviso-novedades { border-left-color: var(--n-ambar); } #avisos-centro .avisos-lista .aviso-novedades .ic { color: var(--n-ambar); }
+#avisos-centro .avisos-lista .aviso-novedades ul { margin: 6px 0 0; padding-left: 18px; } #avisos-centro .avisos-lista .aviso-novedades li { display: list-item; padding: 0; border: 0; margin: 0 0 4px; background: none; }

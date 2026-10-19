@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { novedadesDeRunlog, primeraFrase, debeMostrarNovedades } from "../packages/client/src/novedades.ts";
+import { novedadesDeRunlog, primeraFrase, debeMostrarNovedades, avisoDeNovedades } from "../packages/client/src/novedades.ts";
 
 const DIARIO_SINTETICO = `# Diario de turnos
 
@@ -59,4 +59,13 @@ test("the real docs/RUNLOG.md yields up to 3 non-empty novelties (catches a diar
   const r = novedadesDeRunlog(diario, 3);
   assert.ok(r.length > 0 && r.length <= 3, `expected 1-3 items, got ${r.length}`);
   for (const t of r) assert.ok(t.length > 0 && new TextEncoder().encode(t).length <= 161, `item too long or empty: ${t}`);
+});
+
+test("ux2-barra: the news is a notice of the bell — its title, every line, one sentence for screen readers; none without lines", () => {
+  const a = avisoDeNovedades("0.23.0", ["Una cosa nueva.", "  ", "Otra más."]);
+  assert.deepEqual(a, { titulo: "Novedades en v0.23.0", lineas: ["Una cosa nueva.", "Otra más."], texto: "Novedades en v0.23.0: Una cosa nueva. Otra más." });
+  assert.equal(avisoDeNovedades("0.23.0", []), null);
+  assert.equal(avisoDeNovedades("0.23.0", [" "]), null);
+  const pagina = readFileSync(new URL("../apps/plaza/index.html", import.meta.url), "utf8");
+  assert.ok(!pagina.includes('id="novedades"'), "no card over the top-left corner any more");
 });
