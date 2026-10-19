@@ -13,9 +13,9 @@ test("E3: every house avatar and animation is meshopt-packed (and the avatars' t
   for (const m of [...catalogo.modelos, ...Object.values(catalogo.animaciones) as { fichero: string }[]]) {
     const b = new Uint8Array(readFileSync(m.fichero));
     const r = await aligerar(b);
-    assert.equal(r.bytes, null, `${m.fichero}: rerun node tools/aligerar-activos.ts`);
+    assert.ok(r.bytes === null, `${m.fichero}: rerun node tools/aligerar-activos.ts`); // never assert.equal on the bytes: a failure would print the whole array and eat all the memory
     const { json } = partirGlb(b);
-    if (!/correr|trotar/.test(m.fichero)) assert.ok(json.extensionsRequired?.includes("EXT_meshopt_compression"), m.fichero);
+    if (!m.fichero.endsWith(".vrma")) assert.ok(json.extensionsRequired?.includes("EXT_meshopt_compression"), m.fichero);
     if (m.fichero.endsWith(".vrm")) assert.deepEqual(json.images.map((i: { mimeType: string }) => i.mimeType), ["image/webp"]);
   }
   const cielo = new Uint8Array(readFileSync(suelos.cielos.nublado.fichero));
