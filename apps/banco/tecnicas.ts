@@ -554,3 +554,69 @@ registrar({
     return { cuadro: q.get("solo") === "cielo" ? (dt, t) => { m.cuadro(dt, t); soloCielo(); } : m.cuadro, quitar() { m.quitar(); }, get cuenta() { return { ...m.cuenta, hora, rumbo, cabeceo }; } };
   },
 });
+
+// =====================================================================================================================
+// E50 · árboles con máquina (work/naturaleza/MUNDO-PROYECTADO.md). The cost rows are E01's own `nat-arboles` and `naturaleza` run on this
+// branch (the machine pieces live INSIDE the tree meshes: same rows, same draw calls). `foto-e50` is for photos only
+// (work/naturaleza/e50/fotos-e50.mjs): the whole nature at ?hora, a fixed framing — ?pos=x,y,z&mira=x,y,z, or ?buscar=<piece>
+// (bronce | hojalata | neon | obra | obraPortal | obraLente) to frame the nearest tree wearing it from ?dist m (it prints where, so the
+// «antes» photo on E01's code can reuse the same pos/mira). Reads the E50 exports dynamically: it also runs on E01's arboles.ts.
+// =====================================================================================================================
+async function naturalezaAHora(c: Contexto, hora: number): Promise<Montada & { puntos: import("../../packages/render/src/naturaleza/arboles.ts").PuntoArbol[] }> {
+  const [{ crearEntorno }, { baseDelMundo, conSol }, { aVista }] = await Promise.all([
+    import("../../packages/render/src/entorno.ts"), import("../../features/entorno/server.ts"), import("../../features/entorno/client.ts")]);
+  const e = crearEntorno({ renderer: c.renderer, scene: c.scene, world: c.world, camera: c.camera, hemi: c.hemi, sun: c.sol, ground: c.suelo, grid: new THREE.Group(), hitos: c.hitos,
+    aparato: { mobile: false }, fichero: (n) => `/no-hay-servidor/${n}`, foco: () => null });
+  e.simularNivel(c.nivel);
+  e.aplicar({ ...aVista(conSol(baseDelMundo({ ...ENTORNO_DEMO, hora: { ...ENTORNO_DEMO.hora, valor: hora } })) as Record<string, unknown>), suelo: "liso", sueloMapa: "", sueloNormal: "" });
+  for (let i = 0; i < 60 && (e.ocupado() || i < 10); i++) { e.actualizar(); await new Promise((r) => setTimeout(r, 30)); }
+  const [{ crearNaturaleza }, { FAUNA_CASA }] = await Promise.all([import("../../packages/render/src/naturaleza/naturaleza.ts"), import("../../features/naturaleza/fauna-casa.ts")]);
+  const n = crearNaturaleza({ padre: c.world, ground: c.suelo, vientoU: e.vientoU, nivel: () => c.nivel, camara: c.camera, yo: () => null,
+    niebla: () => nieblaHex(c), aguaLuz: e.aguaLuz, detalleAgua: () => detalleAgua(c.nivel, e.calidadActual.agua), hora: () => hora,
+    tablaFauna: async () => FAUNA_CASA, hitos: () => c.hitos, atmosfera: e.atmosfera });
+  await n.aplicar({ activa: true, semilla: NAT.semilla, tamano: NAT.tamano, plaza: NAT.plaza, arboles: 1, hierba: 1, estanque: true, paleta: NAT.estacion });
+  for (let i = 0; i < 40 && (e.ocupado() || i < 5); i++) { e.actualizar(); await new Promise((r) => setTimeout(r, 30)); }
+  // the same points naturaleza.ts scatters (same call), to find a tree by its piece
+  const [, A, , E] = await modsNat(), t = await terreno(c, false, null);
+  const puntos = E.esparcirArboles(t, { semilla: NAT.semilla, tamano: NAT.tamano, plaza: NAT.plaza, densidad: 1, nivel: c.nivel, paleta: NAT.estacion, estanque: t.estanque });
+  void A;
+  let antes = 0, ultimo = -1;
+  return { puntos, cuadro(_dt, tt) { if (tt !== ultimo) { ultimo = tt; e.actualizar(); } n.actualizar(tt - antes); antes = tt; }, quitar() { n.dispose(); t.dispose(); },
+    get cuenta() { const s = n.estadisticas(); return { triangulos: s.triangulos.total, llamadas: s.llamadas.total, arboles: s.triangulos.arboles }; } };
+}
+registrar({
+  id: "foto-e50", nombre: "E50 · solo fotos: naturaleza a una hora, encuadre fijo o el árbol más cercano con una pieza (?hora, ?pos, ?mira, ?buscar, ?dist)", origen: "naturaleza.ts + arboles.ts (E50)",
+  async montar(c) {
+    const q = new URLSearchParams(location.search), hora = Number(q.get("hora") ?? NAT.hora);
+    const m = await naturalezaAHora(c, hora);
+    const A = await import("../../packages/render/src/naturaleza/arboles.ts") as Record<string, unknown>;
+    const vec = (k: string) => q.get(k) ? new THREE.Vector3(...(q.get(k)!.split(",").map(Number) as [number, number, number])) : null;
+    let pos = vec("pos"), mira = vec("mira"), elegido: Record<string, unknown> | null = null;
+    const buscar = q.get("buscar"), PZ = A.PIEZA as Record<string, number> | undefined, pieza = A.piezaDeArbol as ((x: number, z: number, e: string) => number) | undefined;
+    if (buscar && PZ && pieza) {
+      const quiere = buscar === "neon" ? [PZ.neonTurquesa, PZ.neonCoral] : buscar === "obra" ? [PZ.obraPortal, PZ.obraLente] : [PZ[buscar]];
+      const desde = vec("desde") ?? new THREE.Vector3(0, 0, -8), salta = Number(q.get("salta") ?? 0), sp = q.get("especie");
+      const cand = m.puntos.filter((p) => quiere.includes(pieza(p.x, p.z, String(p.especie))) && (!sp || p.especie === sp)).sort((a, b) => Math.hypot(a.x - desde.x, a.z - desde.z) - Math.hypot(b.x - desde.x, b.z - desde.z));
+      const p = cand[Math.min(salta, cand.length - 1)];
+      if (p) {
+        const d = Number(q.get("dist") ?? 6), alto = Number(q.get("alto") ?? 1.6), rumbo = Number(q.get("rumbo") ?? NaN);
+        // from the side facing `desde` (or along ?rumbo degrees), at eye height over the ground there; looking at `alto` m up the tree
+        const dir = Number.isFinite(rumbo) ? new THREE.Vector3(Math.sin(rumbo * Math.PI / 180), 0, -Math.cos(rumbo * Math.PI / 180)) : new THREE.Vector3(desde.x - p.x, 0, desde.z - p.z).normalize();
+        const cx = p.x + dir.x * d, cz = p.z + dir.z * d;
+        pos = new THREE.Vector3(cx, Math.max(alturaEnNat(cx, cz), -0.2) + Number(q.get("ojo") ?? 1.7), cz);
+        mira = new THREE.Vector3(p.x, p.y + alto * p.escala, p.z);
+        elegido = { x: +p.x.toFixed(2), y: +p.y.toFixed(2), z: +p.z.toFixed(2), especie: p.especie, escala: +p.escala.toFixed(2), pieza: pieza(p.x, p.z, String(p.especie)), candidatos: cand.length };
+      }
+    }
+    if (!pos || !mira) { // default framing: E04's (from the plaza's north edge, ?vista = rumbo,cabeceo)
+      const [rumbo, cabeceo] = (q.get("vista") ?? "150,8").split(",").map(Number);
+      const x = 0, z = -8, y = Math.max(alturaEnNat(x, z), -0.2) + 1.7, r = rumbo * Math.PI / 180, pp = cabeceo * Math.PI / 180;
+      pos = new THREE.Vector3(x, y, z); mira = new THREE.Vector3(x + Math.cos(pp) * Math.sin(r) * 10, y + Math.sin(pp) * 10, z - Math.cos(pp) * Math.cos(r) * 10);
+    }
+    if (q.get("fov")) { (c.camera as THREE.PerspectiveCamera).fov = Number(q.get("fov")); (c.camera as THREE.PerspectiveCamera).updateProjectionMatrix(); }
+    const P = pos, M = mira, lookAt = THREE.Object3D.prototype.lookAt;
+    c.camera.lookAt = function (this: THREE.Object3D) { this.position.copy(P); lookAt.call(this, M); } as typeof c.camera.lookAt;
+    const noche = A.nocheArbolesU as { value: number } | undefined;
+    return { cuadro: m.cuadro, quitar: m.quitar, get cuenta() { return { ...m.cuenta, hora, pos: P.toArray().map((v) => +v.toFixed(2)).join(","), mira: M.toArray().map((v) => +v.toFixed(2)).join(","), noche: noche ? +noche.value.toFixed(3) : "—", ...(elegido ? { arbol: JSON.stringify(elegido) } : {}) }; } };
+  },
+});

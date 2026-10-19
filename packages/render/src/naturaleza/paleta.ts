@@ -286,3 +286,44 @@ export const CIELO_E04 = {
   estrella: mezcla(CASA.arena, CASA.verdemar, 0.25),
   luna: mezcla(NOCHE.luna, CASA.arena, 0.6),
 } as const;
+
+// E50
+/**
+ * E50 · Árboles con máquina (work/naturaleza/MUNDO-PROYECTADO.md: «cada árbol lleva su pieza de máquina»): bronce de la abrazadera
+ * (entre latón y cobre, con verdín en la junta), hojalata del fleje y sus remaches, la vena de neón (turquesa o coral, solo una línea fina)
+ * y los materiales del árbol-obra (latón de la escultura, el resplandor ámbar del anillo-portal como el Glido de Turing, la lente turquesa
+ * del Disco de Janus). La casa NO tiene token de hojalata ni de acero: la hojalata es una mezcla fría PROPUESTA (Ceniza con Cristal,
+ * oscurecida con Hierro: un gris frío que se lee como chapa); si Pablo quiere un token propio, se cambia aquí. Ningún hex nuevo.
+ */
+export const MAQUINA_ARBOL = {
+  bronce: mezcla(MAQUINA.laton, MAQUINA.cobre, 0.45),
+  bronceJunta: mezcla(mezcla(MAQUINA.laton, MAQUINA.cobre, 0.45), CASA.bronceOscuro, 0.55),
+  verdin: mezcla(VERDES.verdin, CASA.verdemar, 0.35),
+  hojalata: mezcla(mezcla(CASA.ceniza, MAQUINA.cristal, 0.3), MAQUINA.hierro, 0.3), // chapa gris fría a media luz (con Arena velada salía casi blanca al sol)
+  remache: mezcla(MAQUINA.hierro, CASA.ceniza, 0.35),
+  placa: mezcla(MAQUINA.laton, CASA.arena, 0.35),
+  neonTurquesa: SENAL.turquesa,
+  neonCoral: SENAL.coral,
+  laton: mezcla(MAQUINA.laton, MAQUINA.latonSombra, 0.25),
+  ambar: mezcla(SENAL.ambar, MAQUINA.laton, 0.2),
+  lente: mezcla(CASA.turquesa, CASA.verdemar, 0.2),
+  corteza: mezcla(mezcla(CASA.bronce, CASA.ceniza, 0.4), MAQUINA.cobre, 0.12),
+} as const;
+
+/**
+ * E50 · copas en seta (Pablo, 19-10, `work/naturaleza/referencias/pablo-2026-10-19/paisaje-1..4`): troncos finos, retorcidos y pálidos;
+ * copas en sombrilla o seta, esponjosas, ocre, oro, naranja y óxido por encima, con láminas granate debajo. Las llevan el pino (sombrilla
+ * alta) y el olivo (racimo de setas de varios tallos). Solo mezclas de tokens (Ámbar, Ámbar tostado, Grana, Cobre, Bronce oscuro,
+ * Arena velada, Ceniza); el frío del contraste lo pone la vena turquesa y el cielo, no la copa.
+ */
+export const SETA_ARBOL = {
+  ocre: mezcla(CASA.ambar, MAQUINA.cobre, 0.35), // naranja ocre de la sombrilla (paisaje-2, -4)
+  oro: mezcla(CASA.ambar, CASA.arenaVelada, 0.25), // oro esponjoso del racimo (paisaje-1, -3)
+  oxido: mezcla(MAQUINA.cobre, CASA.grana, 0.25), // óxido (el segundo juego: otoño)
+  lamina: mezcla(CASA.grana, CASA.bronceOscuro, 0.5), // láminas granate de debajo
+  laminaOxido: mezcla(MAQUINA.cobre, CASA.bronceOscuro, 0.55),
+  laminaOro: mezcla(mezcla(CASA.grana, MAQUINA.cobre, 0.5), CASA.bronceOscuro, 0.35),
+  tronco: mezcla(CASA.arenaVelada, CASA.ceniza, 0.55), // corteza pálida (el sombreador la aclara aún hacia Ceniza al subir)
+  troncoTostado: mezcla(mezcla(CASA.arenaVelada, CASA.ceniza, 0.6), CASA.bronce, 0.25),
+} as const;
+
