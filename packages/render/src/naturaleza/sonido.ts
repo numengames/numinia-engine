@@ -57,7 +57,7 @@ export function perfilAve(e: Pick<Especie, "tamano" | "rareza">, orden: number):
   return {
     base, notas, durNota: 0.04 + 0.05 * Math.min(1, e.tamano), paso,
     onda: (["triangle", "square", "triangle", "sawtooth"] as const)[orden % 4], fm: 0.1 + 0.5 * rar, ratio: 2.01 + 0.5 * (orden % 3),
-    pico: orden % 4 === 1 ? 0.07 : 0.1, periodo: 4 + 0.6 * ((orden * 7) % 10) + 3 * (1 - rar),
+    pico: orden % 4 === 1 ? 0.22 : 0.32, periodo: 4 + 0.6 * ((orden * 7) % 10) + 3 * (1 - rar),
   };
 }
 const RAR: Record<string, number> = { comun: 0, rara: 1 / 3, epica: 2 / 3, legendaria: 1 };
@@ -95,7 +95,7 @@ export type PerfilLuciernaga = { freq: number; durMs: number; indice: number; ra
  *  ratio grow with rarity) and the legendary ones slide down. Pure. */
 export function perfilLuciernaga(e: Pick<Especie, "colores" | "rareza" | "luz">): PerfilLuciernaga {
   const rar = RAR[e.rareza] ?? 0, tono = (tonoDe(e.colores.luz) + 0.1) % 1; // +0.1: reds sit at both ends of the hue circle, they all go low
-  return { freq: 700 * 2 ** (2.4 * tono), durMs: 30 + 20 * (1 - rar), indice: rar * 3, ratio: 1.5 + 2 * rar, deslizar: rar >= 1 ? 0.6 : rar > 0.5 ? 0.85 : 1, pico: 0.07 + 0.02 * rar, luz: e.luz, rit: 1 - 0.4 * rar };
+  return { freq: 700 * 2 ** (2.4 * tono), durMs: 30 + 20 * (1 - rar), indice: rar * 3, ratio: 1.5 + 2 * rar, deslizar: rar >= 1 ? 0.6 : rar > 0.5 ? 0.85 : 1, pico: 0.2 + 0.06 * rar, luz: e.luz, rit: 1 - 0.4 * rar };
 }
 /** How dark the world is for the fireflies (same curve as mariposas.ts `oscuridad`, without importing three). */
 export function oscuro(hora: number): number {
@@ -105,8 +105,8 @@ export function oscuro(hora: number): number {
   if (h >= 17.5 && h < 20.5) return ss(17.5, 20.5, h);
   return h >= 8 && h < 17.5 ? 0 : 1;
 }
-/** Linear fall-off to 0 at the range (squared: close things pop, far ones are a whisper). */
-export const atenuacion = (d: number, alcance: number): number => { const k = Math.max(0, 1 - d / alcance); return k * k; };
+/** Fall-off to 0 at the range (k^1.5: close things are clear, far ones a whisper). */
+export const atenuacion = (d: number, alcance: number): number => { const k = Math.max(0, 1 - d / alcance); return k * Math.sqrt(k); };
 
 // ------------------------------------------------------------------------------------------------------------------ the engine side
 export type HSonido = {
@@ -271,7 +271,7 @@ export function crearSonidoFauna(h: HSonido) {
     }
     vocesActivas = 0; for (let q = 0; q < cap; q++) if (ocupada[q] > ahoraCtx) vocesActivas++;
     if (whir) {
-      const tgt = mejorMarC ? 0.02 * atenuacion(mejorMar, ALCANCE_M.mariposa) * fun : 0;
+      const tgt = mejorMarC ? 0.035 * atenuacion(mejorMar, ALCANCE_M.mariposa) * fun : 0;
       if (mejorMarC) {
         const beat = 3 + 3 * Math.min(1, Math.max(0, (0.3 - mejorMarC.esp.tamano) / 0.16)); // wing beat Hz (big = slow)
         whir.lfo.frequency.setTargetAtTime(beat * 2, ahoraCtx, 0.05); whir.bp.frequency.setTargetAtTime(1800 + 1400 * Math.min(1, 0.1 / mejorMarC.esp.tamano), ahoraCtx, 0.05);

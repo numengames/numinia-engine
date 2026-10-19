@@ -69,11 +69,13 @@ export type HNaturaleza = {
   hora?: () => number;
   /** F4: the fauna table (F1). Absent = no fauna (the page's composition root hands over the house table, lazily). */
   tablaFauna?: () => Promise<TablaFauna>;
+  /** F5: the audio core (audio/nucleo.ts `audio()`), lazily. Absent = the fauna is silent. The sound module is a third lazy door: not fetched on tier D. */
+  nucleo?: () => import("./sonido.ts").HSonido["nucleo"];
 };
 
 type Real = {
   arboles: import("./arboles.ts").Arboles; hierba: import("./hierba.ts").Hierba; terreno: import("./terreno.ts").Terreno;
-  agua: { malla: THREE.Mesh; t: { value: number } } | null; grupo: THREE.Group; nivel: Nivel; datos: NaturalezaNormal; fauna: import("./fauna.ts").Fauna | null; claveFauna: string; msFauna: number;
+  agua: { malla: THREE.Mesh; t: { value: number } } | null; grupo: THREE.Group; nivel: Nivel; datos: NaturalezaNormal; fauna: import("./fauna.ts").Fauna | null; sonido: import("./sonido.ts").SonidoFauna | null; claveFauna: string; msFauna: number;
   puntos: readonly import("./arboles.ts").PuntoArbol[]; groundVisible: boolean; msConstruir: number;
 };
 export type EstadisticasNaturaleza = {
@@ -87,7 +89,7 @@ export type EstadisticasNaturaleza = {
 const SIN_EMPUJAR: readonly never[] = [];
 export function crearNaturaleza(h: HNaturaleza) {
   const empuja: { x: number; y: number; z: number }[] = [];
-  let real: Real | null = null, clave = "", ticket = 0, reloj = 0, ultimos: NaturalezaDatos | null = null;
+  let real: Real | null = null, clave = "", ticket = 0, ticketSonido = 0, reloj = 0, ultimos: NaturalezaDatos | null = null;
   const cargar = () => Promise.all([import("./terreno.ts"), import("./arboles.ts"), import("./hierba.ts"), import("./esparcir.ts"), import("../agua-estilo.ts")]);
 
   /** Pure data → the part of the key that the fauna alone owns. */
@@ -97,12 +99,19 @@ export function crearNaturaleza(h: HNaturaleza) {
   /** Fauna only: remove the old one and, when wanted, build the new one. Terrain, trees and grass are not touched. */
   function ponerFauna(F: typeof import("./fauna.ts") | null, tabla: TablaFauna | null, d: NaturalezaNormal): void {
     if (!real) return;
-    real.fauna?.dispose(); real.fauna = null;
+    real.fauna?.dispose(); real.fauna = null; real.sonido?.dispose(); real.sonido = null;
     real.datos = d; real.claveFauna = claveDeFauna(d); real.msFauna = 0;
     if (!F || !tabla) return;
     const t0 = performance.now();
     real.fauna = F.crearFauna({ semilla: d.semilla, nivel: real.nivel, densidad: d.faunaDensidad, especies: d.faunaEspecies, vientoU: h.vientoU, camara: h.camara, escena: real.grupo, hora: h.hora ?? (() => 12), tabla, turnos: real.nivel !== "A", alturaEn: real.terreno.alturaEn, zonaEn: real.terreno.zonaEn });
     real.fauna.llenarTodo(h.camara, reloj);
+    if (h.nucleo && real.nivel !== "D") { // F5: the creatures' sound, a lazy chunk of its own; it builds no node until the shared gesture
+      const r = real, mi = ticketSonido = ++ticketSonido;
+      void import("./sonido.ts").then((S) => {
+        if (real !== r || r.fauna === null || mi !== ticketSonido || r.sonido) return;
+        r.sonido = S.crearSonidoFauna({ nucleo: h.nucleo!(), nivel: r.nivel, camara: h.camara, tabla, fauna: { semilla: d.semilla, densidad: d.faunaDensidad, especies: d.faunaEspecies ? d.faunaEspecies.split(",").map((x) => x.trim()).filter(Boolean) : undefined, alturaEn: r.terreno.alturaEn, zonaEn: r.terreno.zonaEn, hora: h.hora ?? (() => 12) } });
+      });
+    }
     real.msFauna = Math.round((performance.now() - t0) * 10) / 10;
   }
   /** The fauna wants a table and a non-zero density; only then is its chunk fetched. */
@@ -114,7 +123,7 @@ export function crearNaturaleza(h: HNaturaleza) {
 
   function desmontar(): void {
     if (!real) return;
-    real.fauna?.dispose();
+    real.fauna?.dispose(); real.sonido?.dispose(); ticketSonido++;
     real.hierba.dispose(); real.arboles.dispose(); real.terreno.dispose();
     if (real.agua) { real.agua.malla.geometry.dispose(); (real.agua.malla.material as THREE.Material).dispose(); }
     real.grupo.removeFromParent();
@@ -147,7 +156,7 @@ export function crearNaturaleza(h: HNaturaleza) {
     const p = h.camara.position;
     hierba.llenarTodo(h.camara);                      // fill the ring now (a one-off cost at the load), not over the first frames
     arboles.repartir(p.x, p.y, p.z);
-    return { arboles, hierba, terreno, agua, grupo, nivel, datos: d, fauna: null, claveFauna: claveDeFauna(d), msFauna: 0, puntos, groundVisible, msConstruir: Math.round((performance.now() - t0) * 10) / 10 };
+    return { arboles, hierba, terreno, agua, grupo, nivel, datos: d, fauna: null, sonido: null, claveFauna: claveDeFauna(d), msFauna: 0, puntos, groundVisible, msConstruir: Math.round((performance.now() - t0) * 10) / 10 };
   }
 
   /** Switch the nature on, change it or switch it off. Idempotent: the same data on the same tier does nothing. Async only the first time (modules load). */
@@ -183,6 +192,7 @@ export function crearNaturaleza(h: HNaturaleza) {
     real.hierba.actualizar(h.camara, reloj, yo ? (empuja[0] = yo, empuja) : SIN_EMPUJAR); // F4 audit: no array per frame
     if (real.agua) real.agua.t.value = reloj;
     real.fauna?.actualizar(h.camara, reloj);
+    real.sonido?.actualizar(h.camara, reloj);  // F5: returns at once except every ~0.1 s
   }
 
   function estadisticas(): EstadisticasNaturaleza {
@@ -204,6 +214,8 @@ export function crearNaturaleza(h: HNaturaleza) {
     get grupo(): THREE.Group | null { return real?.grupo ?? null; },
     /** F4: the live fauna (insectos, aves) for tests and photos; null while off. */
     get fauna(): import("./fauna.ts").Fauna | null { return real?.fauna ?? null; },
+    /** F5: the live creature sound (null while off, on tier D, or before its chunk arrives). */
+    get sonido(): import("./sonido.ts").SonidoFauna | null { return real?.sonido ?? null; },
   };
 }
 export type Naturaleza = ReturnType<typeof crearNaturaleza>;

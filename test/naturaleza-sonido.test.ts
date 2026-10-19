@@ -6,6 +6,10 @@ import assert from "node:assert/strict";
 import { FAUNA_CASA } from "../features/naturaleza/fauna-casa.ts";
 import { crearSonidoFauna, VOCES_POR_NIVEL, ALCANCE_M, hashTexto, mezcla, perfilAve, perfilLuciernaga, frecuenciaNota, proximaLlamada, proximoPulso, tonoDe, PICOS_LUZ, atenuacion, BUS_FAUNA } from "../packages/render/src/naturaleza/sonido.ts";
 import { alturaEn, zonaEn } from "../packages/relieve/src/relieve.ts";
+import { habitantes, trayectoria } from "../packages/relieve/src/fauna.ts";
+import * as THREE from "three/webgpu";
+import { uniform } from "three/tsl";
+import { crearNaturaleza } from "../packages/render/src/naturaleza/naturaleza.ts";
 import type { Nivel } from "../packages/render/src/calidad.ts";
 
 const param = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {}, setTargetAtTime() {}, cancelScheduledValues() {} });
@@ -143,4 +147,36 @@ test("CPU: a tick is cheap and the graph rests (disconnected from the bus) when 
   assert.equal(vacio.estadisticas().conectado, false); assert.equal(vacio.estadisticas().eventos, 0);
   assert.equal(s.estadisticas().conectado === true || s.estadisticas().conectado === false, true);
   void f;
+});
+
+test("butterfly whir: only within 4 m, very faint, by day", () => {
+  const sem = 1234, ctxh = { zonaEn: (x: number, z: number) => zonaEn(sem, x, z, OP), alturaEn: (x: number, z: number) => alturaEn(sem, x, z, OP), hora: 12, densidad: 1, nivel: "A" as Nivel };
+  let b: ReturnType<typeof habitantes>[number] | undefined;
+  for (let cx = 0; cx < 4 && !b; cx++) b = habitantes(sem, { cx, cz: 0 }, 0, FAUNA_CASA, ctxh).find((a) => a.id.startsWith("m"));
+  assert.ok(b, "a butterfly lives near the origin");
+  const esp = FAUNA_CASA.especies.find((e) => e.id === b!.especie)!, tl = 60, pos = trayectoria(b!, esp, tl);
+  const mk = (dx: number) => { const f = falso(), s = crearSonidoFauna({ nucleo: f.nucleo, nivel: "A", camara: camara() as never, tabla: FAUNA_CASA, fauna: { semilla: sem, densidad: 1, alturaEn: ctxh.alturaEn, zonaEn: ctxh.zonaEn, hora: () => 12 }, oculta: () => false }); const c = camara(pos.x + dx, pos.z); c.matrixWorld.elements[13] = pos.y; for (let t = tl; t < tl + 1; t += 0.1) s.actualizar(c as never, t); return s; };
+  const cerca = mk(1).ganaciaMariposa, lejos = mk(6).ganaciaMariposa;
+  assert.ok(cerca > 0 && cerca <= 0.04, `close: ${cerca}`);
+  assert.ok(lejos < cerca, "far is quieter");
+  assert.equal(banco("C", 12).s.estadisticas().nodos, 0);
+});
+
+test("wiring: naturaleza hands the core to the sound only with fauna on and not on tier D; no node before the gesture; fauna off = no sound", async () => {
+  const mk = (nivel: Nivel, gesto: boolean, nucleo = true) => {
+    const f = falso({ corre: gesto, gesto }), padre = new THREE.Group(), ground = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial()); padre.add(ground);
+    const cam = new THREE.PerspectiveCamera(); cam.position.set(20, 1.7, 15);
+    const n = crearNaturaleza({ padre, ground, vientoU: uniform(new THREE.Vector3(1, 0, 0)), nivel: () => nivel, camara: cam, yo: () => null, niebla: () => 0xc9d8e4, hora: () => 12, tablaFauna: async () => FAUNA_CASA, ...(nucleo ? { nucleo: () => f.nucleo } : {}) });
+    return { n, f };
+  };
+  const a = mk("A", false); await a.n.aplicar({ semilla: 1234 }); await new Promise((r) => setTimeout(r, 50));
+  assert.ok(a.n.sonido, "A: the sound exists"); for (let t = 0; t < 2; t += 0.1) a.n.actualizar(0.1);
+  assert.equal(a.f.nodos.filter((x) => x.tipo !== "bus").length, 0, "no gesture = no node");
+  a.n.dispose();
+  const d = mk("D", true); await d.n.aplicar({ semilla: 1234 }); await new Promise((r) => setTimeout(r, 50)); assert.equal(d.n.sonido, null, "tier D: not even built"); d.n.dispose();
+  const off = mk("A", true); await off.n.aplicar({ semilla: 1234, fauna: false }); await new Promise((r) => setTimeout(r, 50)); assert.equal(off.n.sonido, null, "fauna off: silent"); off.n.dispose();
+  const sin = mk("A", true, false); await sin.n.aplicar({ semilla: 1234 }); await new Promise((r) => setTimeout(r, 50)); assert.equal(sin.n.sonido, null, "no audio core handed over: silent"); sin.n.dispose();
+  const on = mk("A", true); await on.n.aplicar({ semilla: 1234 }); await new Promise((r) => setTimeout(r, 50)); for (let t = 0; t < 130; t += 0.1) on.n.actualizar(0.1);
+  assert.ok(on.n.sonido!.estadisticas().nodos > 10 && on.n.sonido!.estadisticas().eventos > 0); const nodos = on.f.nodos.filter((x) => x.tipo !== "bus");
+  on.n.dispose(); for (const x of nodos) assert.ok(x.desconectado >= 1); assert.equal(on.n.sonido, null);
 });
