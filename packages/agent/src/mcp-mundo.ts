@@ -10,12 +10,13 @@
 // Reconnects with backoff; a close with 4003 (the world took it out, or its key was removed) is final.
 // What people write (names, chat, objects' names, the world's name) is UNTRUSTED (STD-050): it only ever goes inside one
 // fenced <material> block per answer, cleaned so nothing can close the fence.
-import type { KeyObject } from "node:crypto";
+// NO `node:` HERE (M1, remote MCP): the a2 ticket is signed by whoever builds the bridge (`firmar`; tools/mcp-mundo.ts
+// passes llave.ts's `firmarBillete`), so the token way runs on any JS runtime with fetch + WebSocket (a Cloudflare
+// Worker too). `scripts/empaquetar-puente.mjs` bundles it with platform neutral; test/puente-sin-node.test.ts keeps it so.
 import { webSocketClient } from "../../net/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
 import { MARCA_IA, mundoDeUrl } from "../../instance/src/identidad.ts";
 import { Cuerpo, limpia } from "./index.ts";
-import { firmarBillete } from "./llave.ts";
 import { estadoDelPase } from "./pase-org.ts";
 import type { PedirPase } from "./pase-org.ts";
 import { ALCANCE_M, ALTURA_MAX, COMO_ES, ESCALA_MAX, ESCALA_MIN, Obra } from "./obra.ts";
@@ -36,6 +37,8 @@ const HZ = 20;
 
 export type Oida = { n: number; nombre: string; texto: string; canal: "cerca" | "zona" | "aviso"; ms: number };
 type Conexion = Transport & { opened: Promise<void>; closed: Promise<{ code: number; reason: string }>; close(): void };
+/** Signs a fresh a2 ticket for this world (key way; llave.ts `firmarBillete` with the agent's private key). May be async (WebCrypto). */
+export type FirmarBillete = (b: { id: string; mundo: string; ahora: number }) => string | Promise<string>;
 
 const f1 = (v: number) => (Math.round(v * 10) / 10).toString();
 const plano = (t: string): string => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -63,7 +66,7 @@ export class PuenteMundo {
   private parado = false;
   private cola: Promise<unknown> = Promise.resolve();
   private readonly obras: number[] = [];
-  private readonly privada: KeyObject | null;
+  private readonly firmar: FirmarBillete | null;
   private readonly log: (l: string) => void;
   private readonly ahora: () => number;
   private readonly abrir: (url: string) => Conexion;
@@ -74,12 +77,12 @@ export class PuenteMundo {
   private temporizador: ReturnType<typeof setTimeout> | null = null;
   private llamada = 0;               // ms of the last time someone called it by name
 
-  constructor(o: { url: string; id: string; privada?: KeyObject; biblioteca?: readonly Modelo3D[]; log?: (l: string) => void; ahora?: () => number; abrir?: (url: string) => Conexion;
+  constructor(o: { url: string; id: string; firmar?: FirmarBillete; biblioteca?: readonly Modelo3D[]; log?: (l: string) => void; ahora?: () => number; abrir?: (url: string) => Conexion;
     /** Organization mode: asks numinia.com for the pass (pedirPaseHttp); `mundo` = this world's id in numinia.com (else read from the world's /status). */
     pedirPase?: PedirPase; mundo?: string; renovarMs?: number }) {
-    this.url = o.url; this.id = o.id; this.privada = o.privada ?? null; this.mundo = mundoDeUrl(o.url);
+    this.url = o.url; this.id = o.id; this.firmar = o.firmar ?? null; this.mundo = mundoDeUrl(o.url);
     if (!this.mundo) throw new Error(`MUNDO_URL «${o.url}» no es una URL ws:// o wss://`);
-    if (!this.privada && !o.pedirPase) throw new Error("sin clave privada ni forma de pedir pase: el puente no puede entrar");
+    if (!this.firmar && !o.pedirPase) throw new Error("sin clave privada ni forma de pedir pase: el puente no puede entrar");
     this.biblioteca = o.biblioteca ?? []; this.log = o.log ?? (() => {}); this.ahora = o.ahora ?? Date.now;
     this.abrir = o.abrir ?? webSocketClient;
     this.pedirPase = o.pedirPase ?? null; this.aud = o.mundo ?? null; this.renovarMs = o.renovarMs ?? RENOVAR_PASE_MS;
@@ -103,10 +106,12 @@ export class PuenteMundo {
       if (!p) return this.reintentar("no tengo pase de numinia.com", REINTENTO_PASE_S);
       pase = p;
     }
+    const billete = pase ? "" : await this.firmar!({ id: this.id, mundo: this.mundo, ahora: this.ahora() });
+    if (this.parado || this.final) return;
     const t = this.abrir(this.url);
     this.conexion = t;
     try { await t.opened; } catch { return this.reintentar("no llego al mundo"); }
-    const c = new Cuerpo(t, pase ? "" : firmarBillete({ id: this.id, privada: this.privada!, mundo: this.mundo, ahora: this.ahora() }), pase);
+    const c = new Cuerpo(t, billete, pase);
     if (pase) this.programarRenovacion();
     this.cuerpo = c; this.obra = new Obra(c, this.biblioteca); this.puedeConstruir = false; this.conectado = true;
     c.alOir((o) => this.oir(o.nombre, o.texto, o.canal));

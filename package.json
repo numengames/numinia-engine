@@ -1,7 +1,7 @@
 {
   "name": "numinia-engine",
   "private": true,
-  "version": "0.19.0",
+  "version": "0.20.0",
   "license": "AGPL-3.0-only",
   "type": "module",
   "engines": {
@@ -31,7 +31,8 @@
     "concesiones": "node packages/server/src/concesiones.ts",
     "bienes": "node packages/server/src/bienes.ts",
     "optimizar": "node packages/server/src/optimizar-cli.ts",
-    "sonidos": "node tools/sonidos-catalogo.ts"
+    "sonidos": "node tools/sonidos-catalogo.ts",
+    "puente": "node tools/empaquetar-puente.mjs"
   },
   "dependencies": {
     "@gltf-transform/core": "4.5.1",
