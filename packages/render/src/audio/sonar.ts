@@ -43,10 +43,11 @@ import { generar as generarReceta, RECETAS, SR, type Sonido as Receta } from "./
 export const VARIANTES_RECETA = 4;
 /** Tope de memoria de los buffers sintetizados guardados (PCM float32 a 22,05 kHz: ~88 kB por segundo). */
 export const MEMORIA_RECETAS = 4 * 1024 * 1024;
-/** La ganancia por defecto del colchón de ambiente: ×0,042 = −27,6 dB. El fichero está subido a −23 LUFS desde los
- *  −50,6 LUFS del original, y este factor devuelve EXACTAMENTE el nivel que quiso su autor. El director del mundo
- *  puede cambiarlo (`ficha.json` → `audio.ambiente_ganancia`) y el deslizador del jugador manda por encima. */
-export const AMBIENTE_GANANCIA_DEF = 0.042;
+/** La ganancia por defecto del colchón de ambiente: ×0,2 = −14 dB sobre un fichero subido a −23 LUFS (≈ −37 LUFS:
+ *  debajo de todo, pero se oye). El nivel del original (×0,042, −50,6 LUFS) no se oía en unos auriculares (Pablo,
+ *  2026-10-19). El director del mundo puede cambiarlo (`ficha.json` → `audio.ambiente_ganancia`) y el deslizador del
+ *  jugador manda por encima. */
+export const AMBIENTE_GANANCIA_DEF = 0.2;
 /** Lo más que un mundo puede subir el colchón: ×4 (+12 dB sobre un fichero de −23 LUFS). */
 export const AMBIENTE_GANANCIA_MAX = 4;
 /** El bus de las camas y capas de ambiente: lo que suene aquí por receta está apagado salvo que un mundo lo pida. */

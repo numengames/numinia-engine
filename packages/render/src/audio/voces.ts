@@ -52,6 +52,10 @@ export const MARGEN_HRTF_M = 1;
 /** Un mismo sonido no se dispara dos veces dentro de este rato (cooldown de FMOD): 20 disparos juntos no revientan
  *  la mezcla ni se suman en fase. Cada llamada puede pedir el suyo. */
 export const COOLDOWN_DEF_MS = 50;
+/** Los sonidos de hoy son PROVISIONALES (bibliotecas CC0 y recetas): mejor que se queden bajos que altos (Pablo,
+ *  2026-10-19). Un solo mando, por bus, aplicado a cada voz: −10 dB a los efectos, la interfaz y mis pasos. Las voces
+ *  de la gente y del lector, la música y el colchón no se tocan. Cuando lleguen los definitivos, esta tabla vuelve a 1. */
+export const NIVEL_PROVISIONAL: Readonly<Partial<Record<Bus, number>>> = { efectos: 0.32, interfaz: 0.32, "pasos-propios": 0.32 };
 /** Rampa cortísima para apagar y encender una voz sin clic (virtualizar, revivir, cambiar de panner). */
 export const CLIC_S = 0.008;
 /** Buses que NUNCA se roban ni se virtualizan: la música y el ambiente son continuos y volver «desde el tiempo
@@ -472,7 +476,7 @@ export function crearVoces(h: HechurasVoces = {}): Voces {
       n: ++serie, id, bus, prioridad: num(p.prioridad, PRIORIDAD_DEF), loop: !!p.loop, cama,
       posicion: p.posicion ? { ...p.posicion } : null,
       dist: { distanceModel: d.distanceModel ?? DISTANCIA.distanceModel, refDistance: ref, maxDistance: max, rolloffFactor: Math.max(0, num(d.rolloffFactor, DISTANCIA.rolloffFactor)) },
-      gain: Math.max(0, num(p.gain, 1)), tono: 1,
+      gain: Math.max(0, num(p.gain, 1)) * (cama ? 1 : NIVEL_PROVISIONAL[bus] ?? 1), tono: 1,
       buffer: null, medio: null, nodos: null, src: null,
       offset: Math.max(0, num(p.desplazamiento, 0)), tInicio: 0, real: false, cargando: false, viva: true, panning: null,
     };

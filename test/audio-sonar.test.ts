@@ -224,9 +224,9 @@ test("S6f: dos páginas con la MISMA semilla eligen la misma variante por el cam
 
 // ———————————————————————————— 4. el colchón de ambiente ————————————————————————————
 
-test("S6f: el colchón va por STREAMING y con ×0,042 por defecto", () => {
+test("S6f: el colchón va por STREAMING y con ×0,2 por defecto", () => {
   const b = banco();
-  assert.equal(AMBIENTE_GANANCIA_DEF, 0.042, "el volumen de referencia del fichero original (−27,6 dB)");
+  assert.equal(AMBIENTE_GANANCIA_DEF, 0.2, "−14 dB: debajo de todo, pero se oye");
   assert.equal(b.p.ambiente({ id: "ambiente-numinia" }), true);
   assert.equal(b.p.estado().colchon?.id, "ambiente-numinia");
   assert.equal(b.p.estado().colchon?.ganancia, AMBIENTE_GANANCIA_DEF, "sin que el mundo diga nada, el que quiso su autor");

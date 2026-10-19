@@ -326,8 +326,8 @@ Hoy se editan en el fichero: no hay panel para cambiarlos en marcha.
   Tiene que ser una fila **con fichero y con `bucle`**; se toca por **streaming**
   (`MediaElementAudioSourceNode`), nunca descodificada — descodificarla serían ~46 MB de RAM por un sonido que
   nadie escucha a propósito. **Sin este campo no suena ningún ambiente.**
-- **`ambiente_ganancia`** — su volumen (×), de 0 a 4. Sin decir nada, **×0,042** (−27,6 dB): el fichero está subido
-  a −23 LUFS desde los −50,6 LUFS del original y ese factor devuelve exactamente el nivel que quiso su autor. El
+- **`ambiente_ganancia`** — su volumen (×), de 0 a 4. Sin decir nada, **×0,2** (−14 dB sobre un fichero a −23 LUFS:
+  debajo de todo, pero se oye; el nivel del original, ×0,042, no se oía). El
   deslizador de «ambiente» del jugador manda por encima: **a cero, el colchón ni arranca ni se descarga.**
 - **`ambiente_sintetizado`** — hasta 8 ids de **receta** (`packages/render/src/audio/sintesis.ts`: `bed-*`,
   `capa-*`…) que este mundo enciende por su nombre. **De serie, ninguna**: una cama o una capa sintetizada no
@@ -364,8 +364,7 @@ lo dispara la página y no viaja por la red: es de cada quien y se oye en la cab
 
 **Qué suena y qué no** (Pablo, 2026-10-19: «solo ponemos sonido a lo que normalmente se pone sonido»). Suena lo
 que en el mundo haría ruido —pasos, puertas, agua, un dardo que se clava, unos dados— y los pocos hitos raros (una
-misión completada). **No suena la interfaz**: ni los botones, ni abrir un panel, ni cada paso de una misión, ni
-coger algo con la mano en VR (eso ya vibra). Lo frecuente y lo que ya se ve se queda en silencio: el silencio es lo
+misión completada). **No suena la interfaz**: ni los botones, ni abrir un panel, ni cada paso de una misión. Lo frecuente y lo que ya se ve se queda en silencio: el silencio es lo
 que deja oír lo que informa. Antes de enchufar un sonido nuevo: ¿haría ruido de verdad?, ¿cuántas veces por minuto
 sonará?, ¿lo dice ya otra cosa (la vista, la vibración, el servidor)?
 

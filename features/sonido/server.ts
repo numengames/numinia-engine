@@ -309,6 +309,11 @@ export const crearSonido = (opts: {
     const donde = dondeDe(m.quien);
     return donde ? suena("pesca-cobrar", { donde }) : false;
   });
+  // coger o soltar una cosa del mundo: la oyen los de alrededor (la cosa está en la mano de quien la coge)
+  api.listen("cogibles", "cambio", (m) => {
+    const donde = dondeDe(m.quien);
+    return donde ? suena("coger-soltar", { donde }) : false;
+  });
   // el teletransporte: suena DONDE APARECE la persona, para todos los que estén allí (incluida ella)
   api.listen("teletransporte", "llega", (m) => {
     const x = Number(m.x), y = Number(m.y), z = Number(m.z);
