@@ -37,6 +37,8 @@ import { habitantes, trayectoria, especiesDe, ventanaDe, fundido, faseDelDia, FA
 import type { Habitante, Especie, TablaFauna } from "../../../relieve/src/fauna.ts";
 import type { Nivel } from "../calidad.ts";
 import type { Zona } from "./terreno.ts";
+import { CASA, MAQUINA } from "./paleta.ts";
+import { RAREZA_FACTOR } from "./mariposas.ts";
 
 const TAU = Math.PI * 2;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -81,8 +83,8 @@ export const RAZAS_AVE: Record<string, { plan: PlanAve; sobre: Partial<Forma> }>
   "martin-zafiro": { plan: "dardo", sobre: { headR: 0.13, beakL: 0.22, beakW: 0.5, tailL: 0.16, tailFork: 0, tailTipW: 0.09, cR: 0.22, cT: 0.09, sweep: 0.12, L: 0.5, hz: 11, amp: 0.7, glide: 0.2, gx: 0.09, gy: 0.09 } },
   "buho-relojeria": { plan: "rapaz", sobre: { L: 0.42, gx: 0.15, gy: 0.16, headR: 0.14, neckF: 0, neckU: 0, beakL: 0.03, beakW: 0.6, tailL: 0.16, tailTipW: 0.1, cR: 0.38, cT: 0.22, sweep: 0.02, hz: 3.6, amp: 0.55, glide: 0.35, legL: 0.08, bank: 1 } },
   "cuervo-hierro": { plan: "rapaz", sobre: { L: 0.55, gx: 0.11, gy: 0.11, headR: 0.08, beakL: 0.11, beakW: 0.85, tailL: 0.3, cR: 0.26, cT: 0.13, sweep: 0.08, hz: 3.2, amp: 0.7, glide: 0.5, bank: 1.4 } },
-  "grulla-mercurio": { plan: "zancuda", sobre: {} },
-  "aguila-cuarzo": { plan: "rapaz", sobre: { L: 0.38, gx: 0.09, gy: 0.09, headR: 0.06, neckF: 0.05, beakL: 0.06, beakDrop: 0.04, tailL: 0.22, tailTipW: 0.13, cR: 0.36, cT: 0.22, sweep: 0, hz: 1.6, amp: 0.5, glide: 0.95, bank: 2.2 } },
+  "grulla-ambar": { plan: "zancuda", sobre: {} },
+  "aguila-astrolabio": { plan: "rapaz", sobre: { L: 0.38, gx: 0.09, gy: 0.09, headR: 0.06, neckF: 0.05, beakL: 0.06, beakDrop: 0.04, tailL: 0.22, tailTipW: 0.13, cR: 0.36, cT: 0.22, sweep: 0, hz: 1.6, amp: 0.5, glide: 0.95, bank: 2.2 } },
 };
 /** Plan for a bird the house table does not know: by size and speed. */
 export function planPorTamano(e: Pick<Especie, "tamano" | "vuelo">): PlanAve {
@@ -99,12 +101,12 @@ export function formaDe(e: Pick<Especie, "id" | "tamano" | "vuelo">): { plan: Pl
 /** Floats per breed row in the shader table: 11 × vec4. */
 export const NK = 11;
 const color = new THREE.Color();
-/** The 11 vec4 (as 44 numbers) of a breed. 0 cuerpo+tam · 1 ala · 2 circuito+pulso · 3 luz+hz · 4 L,gx,gy,headR · 5 neckF,neckU,beakL,beakDrop · 6 tailL,tipW,fork,legL ·
+/** The 11 vec4 (as 44 numbers) of a breed. 0 cuerpo+tam · 1 ala+rarity(0 común … 1 legendaria) · 2 circuito+pulso · 3 luz+hz · 4 L,gx,gy,headR · 5 neckF,neckU,beakL,beakDrop · 6 tailL,tipW,fork,legL ·
  *  7 cR,cT,sweep,dihedral · 8 amp,glide,hop,form · 9 radio,vel,dAlt,hover · 10 bank,tilt,rootW,beakW. Colours are linear (THREE.Color converts from sRGB). */
 export function filaEspecie(e: Especie): number[] {
   const { forma: f } = formaDe(e), rgb = (hex: number) => { color.setHex(hex); return [color.r, color.g, color.b]; };
   return [
-    ...rgb(e.colores.cuerpo), e.tamano, ...rgb(e.colores.ala), 0, ...rgb(e.colores.circuito), Math.max(0, LUCES_FAUNA.indexOf(e.luz)), ...rgb(e.colores.luz), f.hz,
+    ...rgb(e.colores.cuerpo), e.tamano, ...rgb(e.colores.ala), RAREZA_FACTOR[e.rareza] ?? 0, ...rgb(e.colores.circuito), Math.max(0, LUCES_FAUNA.indexOf(e.luz)), ...rgb(e.colores.luz), f.hz,
     f.L, f.gx, f.gy, f.headR, f.neckF, f.neckU, f.beakL, f.beakDrop, f.tailL, f.tailTipW, f.tailFork, f.legL, f.cR, f.cT, f.sweep, f.dihedral, f.amp, f.glide, f.hop, f.form,
     e.vuelo.radio, e.vuelo.velocidad, e.vuelo.altura[1] - e.vuelo.altura[0], f.hover, f.bank, f.tilt, f.tailRootW, f.beakW,
   ];
@@ -135,11 +137,12 @@ export function desfaseMiembro(form: number, m: number, tam: number, semilla01: 
 const P_TORSO = 0, P_CUELLO = 1, P_CABEZA = 2, P_PICO = 3, P_COLA = 5, P_ALA = 6, P_PATA = 7;
 const APAGADO = 99;
 type R3 = [number, number, number];
-type Vtx = { r: R3; t: number; far: [number, number, number, number]; part: number; side: number; w: [number, number, number, number]; u: [number, number, number, number] };
+type Vtx = { r: R3; t: number; far: [number, number, number, number]; part: number; side: number; w: [number, number, number, number]; u: [number, number, number, number]; pl: number };
 /** w = (share of `ala`, share of `cuerpo`, share of `luz` glow, shade). u = (line 1 distance, line 2 distance, line 1 flow, line 2 flow). */
-const V = (part: number, r: R3, w: [number, number, number, number], o: { t?: number; side?: number; far?: Partial<{ r: R3; t: number }>; u?: [number, number, number, number] } = {}): Vtx => {
+/** `pl` (R3) = how much of the vertex is a brass/copper PLATE (0 = the breed's plumage colour, 1 = polished plate); 2 = the dorsal valve tip. */
+const V = (part: number, r: R3, w: [number, number, number, number], o: { t?: number; side?: number; far?: Partial<{ r: R3; t: number }>; u?: [number, number, number, number]; pl?: number } = {}): Vtx => {
   const t = o.t ?? 0, fr = o.far?.r ?? r;
-  return { r, t, far: [fr[0], fr[1], fr[2], o.far?.t ?? t], part, side: o.side ?? 0, w, u: o.u ?? [APAGADO, APAGADO, 0, 0] };
+  return { r, t, far: [fr[0], fr[1], fr[2], o.far?.t ?? t], part, side: o.side ?? 0, w, u: o.u ?? [APAGADO, APAGADO, 0, 0], pl: o.pl ?? 0 };
 };
 
 export type GeometriaAve = { geometria: THREE.BufferGeometry; triangulos: number; triangulosLejos: number; vertices: number };
@@ -155,18 +158,19 @@ export function geometriaAve(): GeometriaAve {
 
   // ---- torso (9): tail end + 2 rings (ridge on top, flat belly) ----
   const tip = V(P_TORSO, TIP, [1, 0, 0, 0.88], { u: linea(0, -0.5) });
-  const ring1 = [[0, 0.75, -0.25], [0.62, -0.35, -0.25], [-0.62, -0.35, -0.25]] as R3[];
+  // R3: the middle back vertex rises into a small dorsal VALVE / turbine stack (no extra triangle: the ring-1 ridge is pulled up and tinted brass)
+  const ring1 = [[0, 1.85, -0.22], [0.62, -0.35, -0.25], [-0.62, -0.35, -0.25]] as R3[];
   const ring2 = [[0, 1, 0.22], [1, -0.45, 0.22], [-1, -0.45, 0.22]] as R3[];
   const peso = (i: number, lamp: number): [number, number, number, number] => (i === 0 ? [1, 0, 0, 1] : [0.12, 0.88, lamp, 0.84]);
-  const R1 = ring1.map((r, i) => V(P_TORSO, r, peso(i, 0), { far: { r: TIP }, u: linea(r[0], r[2]) }));
-  const R2 = ring2.map((r, i) => V(P_TORSO, r, peso(i, 0.4), { far: i === 0 ? { r: TIP } : {}, u: linea(r[0], r[2]) }));
+  const R1 = ring1.map((r, i) => V(P_TORSO, r, peso(i, 0), { far: { r: TIP }, u: linea(r[0], r[2]), pl: i === 0 ? 2 : 0.7 }));
+  const R2 = ring2.map((r, i) => V(P_TORSO, r, peso(i, 0.4), { far: i === 0 ? { r: TIP } : {}, u: linea(r[0], r[2]), pl: i === 0 ? 0.25 : 1 }));
   for (let i = 0; i < 3; i++) tri(tip, R1[i], R1[(i + 1) % 3]);
   anillo(R1, R2);
 
   // ---- neck (6): from the chest ring to the back of the head ----
   const h0 = [[0, 0.85, -0.55], [0.8, -0.45, -0.55], [-0.8, -0.45, -0.55]] as R3[];
   const cuelloW = (i: number): [number, number, number, number] => (i === 0 ? [0.8, 0.2, 0, 0.95] : [0.1, 0.9, 0, 0.82]);
-  const N0 = ring2.map((r, i) => V(P_CUELLO, r, cuelloW(i), { t: 0, far: { r: TIP, t: 0 }, u: linea(r[0], 0) }));
+  const N0 = ring2.map((r, i) => V(P_CUELLO, r, cuelloW(i), { t: 0, far: { r: TIP, t: 0 }, u: linea(r[0], 0), pl: i === 0 ? 0.25 : 1 }));
   const N1 = h0.map((r, i) => V(P_CUELLO, r, cuelloW(i), { t: 1, far: { r: TIP, t: 0 } }));
   anillo(N0, N1);
 
@@ -201,7 +205,7 @@ export function geometriaAve(): GeometriaAve {
   // ---- wings (4 each): inner panel (2), outer panel, trailing feather. u = span 0…1 (|x|), v = chord 0 (leading edge)…1 (trailing). Far: one triangle ----
   const alaW = (u: number): [number, number, number, number] => [0.92 - 0.35 * u, 0.08 + 0.35 * u, 0, 1 - 0.3 * u * u];
   for (const s of [1, -1]) {
-    const W = (u: number, v: number, far?: R3) => V(P_ALA, [s * u, 0, v], alaW(u), { side: s, far: far ? { r: far } : undefined, u: [(v - 0.5) / 0.07, (v - 0.8) / 0.045, u * 12, u * 9 + 3] });
+    const W = (u: number, v: number, far?: R3) => V(P_ALA, [s * u, 0, v], alaW(u), { side: s, far: far ? { r: far } : undefined, u: [(v - 0.5) / 0.07, (v - 0.8) / 0.045, u * 12, u * 9 + 3], pl: u < 0.01 ? 1 : u < 0.6 ? 0.55 : 0 });  // R3: root + inner panel brass plating, outer panel = glass/plumage
     const T0: R3 = [s * 1, 0, 0.25];
     const Rf = W(0, 0), Rb = W(0, 1), Mf = W(0.55, 0, T0), Mb = W(0.55, 1.05, T0), Tt = W(1, 0), Tb = W(0.8, 1.3, T0);
     tri(Rf, Rb, Mb); tri(Rf, Mb, Mf); tri(Mf, Mb, Tt); tri(Mb, Tb, Tt);
@@ -214,7 +218,7 @@ export function geometriaAve(): GeometriaAve {
   }
 
   const n = T.length, pos = new Float32Array(n * 3), far = new Float32Array(n * 4), aK = new Float32Array(n * 4), aC = new Float32Array(n * 4), aU = new Float32Array(n * 4);
-  T.forEach((v, i) => { pos.set(v.r, i * 3); far.set(v.far, i * 4); aK.set([v.part, v.t, v.side, 0], i * 4); aC.set(v.w, i * 4); aU.set(v.u, i * 4); });
+  T.forEach((v, i) => { pos.set(v.r, i * 3); far.set(v.far, i * 4); aK.set([v.part, v.t, v.side, v.pl], i * 4); aC.set(v.w, i * 4); aU.set(v.u, i * 4); });
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); g.setAttribute("aF", new THREE.BufferAttribute(far, 4)); g.setAttribute("aK", new THREE.BufferAttribute(aK, 4));
   g.setAttribute("aC", new THREE.BufferAttribute(aC, 4)); g.setAttribute("aU", new THREE.BufferAttribute(aU, 4));
@@ -257,7 +261,8 @@ export function materialAves(e: EntradaMaterial): THREE.MeshPhongNodeMaterial {
   const fund = clamp(min(tl.div(4), float(VENTANA_S).sub(tl).div(4)), 0, 1) as N;
   const entra = smoothstep(0, 1.5, wrap(uT.sub(iC.y))) as N;
   const tam = k0.w as N;
-  const jitter = fract(semilla.mul(7).add(m.mul(0.37))).mul(0.16).add(0.92) as N;
+  const tj = fract(semilla.mul(7).add(m.mul(0.37)).add(fase.mul(3.1))) as N;                  // R3: one per-bird random 0…1 (size, tone, wing-beat)
+  const jitter = fract(semilla.mul(7).add(m.mul(0.37))).mul(0.24).add(0.88) as N;
 
   // ---- the path: F1 `trayectoria` 1:1 (Lissajous around the anchor), with the hummingbird's stop-and-go warp ----
   const r = k9.x as N, vel = k9.y as N, dAlt = k9.z as N, hover = k9.w as N;
@@ -341,7 +346,7 @@ export function materialAves(e: EntradaMaterial): THREE.MeshPhongNodeMaterial {
   const xw = gx.mul(0.5).add(u.mul(float(0.5).sub(gx.mul(0.5)))) as N;
   const cuerda = mix(cR, cT.mul(0.6), u) as N;
   const zl = L.mul(0.18).add(0.02).sub(sweep.mul(pow(max(u, 1e-3), 1.3))).sub(v.mul(cuerda)) as N;
-  const hz = k3.w as N, th0 = tl.mul(hz).mul(TAU).add(fase.mul(TAU * 3)).add(m.mul(1.7)) as N;
+  const hz = k3.w.mul(tj.mul(0.24).add(0.88)) as N, th0 = tl.mul(hz).mul(TAU).add(fase.mul(TAU * 3)).add(m.mul(1.7)) as N;
   const onda = sin(th0.sub(u.mul(1.1))).add(sin(th0.mul(2).add(0.8).sub(u.mul(2))).mul(0.22)) as N;
   const rafaga = smoothstep(0.3, 0.75, sin(tl.mul(TAU / 11).add(fase.mul(TAU)).add(m.mul(0.2)))) as N;
   const env = mix(float(1), rafaga, glide) as N;
@@ -377,9 +382,20 @@ export function materialAves(e: EntradaMaterial): THREE.MeshPhongNodeMaterial {
   const hue = vec3(cos(tl.mul(0.9).add(ph2)), cos(tl.mul(0.9).add(ph2).add(2.094)), cos(tl.mul(0.9).add(ph2).add(4.188))).mul(0.5).add(0.5) as N;
   const luz = select(es(7), mix(luzBase, hue, 0.85), luzBase) as N;
   const wl = aC.z as N;
-  const colBase = ala.mul(aC.x).add(cuerpo.mul(aC.y)).mul(aC.w).mul(oneMinus(wl.mul(0.6))) as N;
+  // R3 materials: the breed's plumage (ala back, cuerpo belly) with PLATES in house brass / copper on torso, neck and wing roots; rarer = more polished
+  // (brighter plates + a harder, brighter highlight). Per-bird tone nudge inside the palette (towards bronze or arena, ±12 % brightness).
+  const rar = k1.w as N, vRar = rar.toVarying("ave_rar") as N;
+  const lc = (hex: number) => { const c = new THREE.Color(hex); return vec3(c.r, c.g, c.b) as N; };
+  const plato = mix(mix(lc(MAQUINA.laton), lc(MAQUINA.cobre), step(0.5, rar)), cuerpo, 0.3).mul(rar.mul(0.5).add(0.78)) as N;
+  const placa = clamp(aK.w, 0, 1) as N, valvula = clamp(aK.w.sub(1), 0, 1) as N;
+  const pelo = ala.mul(aC.x).add(cuerpo.mul(aC.y)) as N;
+  const tono = tj.sub(0.5) as N;
+  const tonal = mix(mix(pelo, lc(CASA.bronce), step(tono, 0).mul(tono.abs()).mul(0.5)), lc(CASA.arena), step(0, tono).mul(tono).mul(0.4)).mul(tono.mul(0.24).add(1)) as N;
+  const colBase = mix(mix(tonal, plato, placa.mul(0.8)), lc(MAQUINA.laton).mul(1.25), valvula).mul(aC.w).mul(oneMinus(wl.mul(0.6))) as N;
+  mat.shininessNode = mix(float(12), float(95), vRar) as N;
+  mat.specularNode = mix(vec3(0.3, 0.28, 0.26), vec3(0.95, 0.85, 0.6), vRar) as N;
   (mat as N).colorNode = luz3(colBase.toVarying("ave_col"));
-  const brillo = luz.mul(wl).mul(pulso.mul(0.8).add(0.25)).mul(2.4).toVarying("ave_luz") as N;
+  const brillo = luz.mul(wl.add(valvula.mul(0.55))).mul(pulso.mul(0.8).add(0.25)).mul(2.4).toVarying("ave_luz") as N;
   const circuloV = circ.toVarying("ave_cir") as N, pulsoC = pulso.mul(0.5).add(0.5).toVarying("ave_pc") as N;
   const aU = attribute("aU", "vec4") as N;
   const m1 = oneMinus(smoothstep(0.6, 1.0, abs(aU.x))) as N, m2 = oneMinus(smoothstep(0.6, 1.0, abs(aU.y))) as N;

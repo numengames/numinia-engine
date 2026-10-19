@@ -12,8 +12,9 @@
 //    operator set and instantiated twice: with plain numbers (CPU: tests, `visibles`) and with TSL nodes (GPU). Same source, so the two
 //    paths cannot drift; the test checks the number instance against F1's own `trayectoria` and against finite differences.
 //    The same trick is used for `fundidoOps` (the fade at the window border) and `pulsoOps` (the 8 light patterns).
-//  - A butterfly is one merged geometry (≈ 21 triangles): a 4-triangle spindle body (thin dark metal), a glow dot, two antennae, two
-//    wings of 3 triangles each plus two thin «circuit line» slivers per wing (on both faces). Vertex colours are ROLES (wing colour,
+//  - A butterfly is one merged geometry (30 triangles; R3 art direction: biomechanical): a 4-triangle spindle body, a hexagram thorax (two
+//    triangles: the lens / gear, the pulsing LED), two clock-spring antennae (stalk + hook, 2 triangles each), two wings of 4 panel triangles
+//    each carrying BRASS VEIN STRUTS (two per face), one glowing circuit line and an LED pad on the top face. Vertex colours are ROLES (wing colour,
 //    shadow tone, circuit line, light) resolved against the instance's palette in the shader, so one material draws 12 breeds. The wing
 //    tips and the dot are unlit (emissive-looking, they pulse with the breed's light pattern), the rest is shaded by one scalar (day
 //    light 1 → night 0.25): no light loop, so it is cheaper than Lambert. Wings flap in the vertex shader (rate per breed, glide
@@ -36,6 +37,7 @@ import { habitantes, ventanaDe, FAUNA_POR_NIVEL, CELDA_M, VENTANA_S, LUCES_FAUNA
 import type { Especie, Habitante, TablaFauna, Grupo } from "../../../relieve/src/fauna.ts";
 import type { Nivel } from "../calidad.ts";
 import type { Zona } from "./terreno.ts";
+import { CASA, MAQUINA, mezcla } from "./paleta.ts";
 
 const TAU = Math.PI * 2;
 
@@ -145,8 +147,8 @@ export function oscuridad(hora: number): number {
 }
 /** The light butterflies are shaded with (a scalar standing for the sun / hemisphere): 1 by day, 0.25 in the dark. */
 export const luzDelDia = (hora: number) => 1 - 0.75 * oscuridad(hora);
-/** Glow radius (m) of a firefly: body length × 4, and rare ones bigger (legendary ≈ 1.9×). Brightness 1 → 1.8. */
-export const radioLuz = (e: Pick<Especie, "tamano" | "rareza">) => e.tamano * 4 * (1 + 0.9 * (RAREZA_FACTOR[e.rareza] ?? 0));
+/** Glow radius (m) of a firefly: body length × 2.8, and rare ones a little bigger (legendary ≈ 1.3×). R3: smaller and softer than F4b (was ×4 and ≈1.9×): readable at 8 m, never a blob. Brightness 1 → 1.8. */
+export const radioLuz = (e: Pick<Especie, "tamano" | "rareza">) => e.tamano * 2.8 * (1 + 0.3 * (RAREZA_FACTOR[e.rareza] ?? 0));
 export const brilloLuz = (e: Pick<Especie, "rareza">) => 1 + 0.8 * (RAREZA_FACTOR[e.rareza] ?? 0);
 /** Wing beat rate (rad/s): large butterflies ≈ 4 Hz, small ≈ 9 Hz. */
 export const aleteoRadS = (tamano: number) => TAU * (4 + 5 * Math.min(1, Math.max(0, (0.3 - tamano) / 0.16)));
@@ -156,21 +158,27 @@ export const RAZAS_MAX = 32;
 // ================================================================================ geometry
 type V3 = [number, number, number];
 type Rol = [number, number, number, number]; // wing colour, shadow tone, glowing circuit line, steady light (the rest is the body metal)
-/** `aleta` codes: 0 body · 1 wing (flaps) · 2 pulsing LED on the body · 3 pulsing LED on a wing. */
-const CUERPO_: 0 = 0, ALA_: 1 = 1, LED_CUERPO: 2 = 2, LED_ALA: 3 = 3;
-/** One butterfly in a unit where the wing span is 2 (half-span 1), +z forward, +y up. `detalle` false = tier D: no antennae, the glowing lines and LEDs on the top face only. */
+/** `aleta` codes: 0 body · 1 wing (flaps) · 2 pulsing LED on the body · 3 pulsing LED on a wing; +4 = brass metal (a vein strut / a spring: lit brass, not the dark body tone). */
+const CUERPO_: 0 = 0, ALA_: 1 = 1, LED_CUERPO: 2 = 2, LED_ALA: 3 = 3, METAL = 4;
+/** One butterfly in a unit where the wing span is 2 (half-span 1), +z forward, +y up. `detalle` false = tier D: no antennae, one thorax triangle, the glowing lines and LEDs on the top face only. */
 export function geometriaMariposa(detalle = true): THREE.BufferGeometry {
   const pos: number[] = [], rol: number[] = [], aleta: number[] = [];
-  const tri = (a: V3, b: V3, c: V3, ra: Rol, rb: Rol, rc: Rol, w: 0 | 1 | 2 | 3) => { pos.push(...a, ...b, ...c); rol.push(...ra, ...rb, ...rc); aleta.push(w, w, w); };
+  const tri = (a: V3, b: V3, c: V3, ra: Rol, rb: Rol, rc: Rol, w: number) => { pos.push(...a, ...b, ...c); rol.push(...ra, ...rb, ...rc); aleta.push(w, w, w); };
   const CUERPO: Rol = [0, 0, 0, 0], ROOT: Rol = [0.15, 0.85, 0, 0], ALA: Rol = [1, 0, 0, 0], PUNTA: Rol = [0.35, 0, 0, 0.65], PUNTA2: Rol = [0.6, 0, 0, 0.4], CIRC: Rol = [0, 0, 1, 0], LUZ: Rol = [0, 0, 0, 1];
   // body: an elongated tetrahedron (4 triangles): ridge F–R on top, L–Q below
   const F: V3 = [0, 0.04, 0.5], R: V3 = [0, 0.04, -0.55], L: V3 = [-0.09, -0.05, 0], Q: V3 = [0.09, -0.05, 0];
   const RF: Rol = [0, 0.05, 0, 0.1], RR: Rol = [0, 0.3, 0, 0];
   tri(F, R, L, RF, RR, CUERPO, CUERPO_); tri(F, R, Q, RF, RR, CUERPO, CUERPO_); tri(F, L, Q, RF, CUERPO, CUERPO, CUERPO_); tri(R, L, Q, RR, CUERPO, CUERPO, CUERPO_);
-  // the circuit-glow dot on the thorax: one tiny roof triangle, a pulsing LED
+  // the thorax lens: a pulsing LED roof triangle; on the detailed butterfly a second triangle upside down makes a six-point gear / lens star
   tri([0, 0.11, 0.17], [-0.065, 0.045, 0.07], [0.065, 0.045, 0.07], CUERPO, CUERPO, CUERPO, LED_CUERPO);
-  if (detalle) for (const s of [-1, 1]) tri([s * 0.015, 0.04, 0.49], [s * 0.05, 0.04, 0.49], [s * 0.34, 0.2, 0.92], CUERPO, CUERPO, LUZ, CUERPO_);
-  // wings: right wing in half-span units (x out, z forward), mirrored for the left; three triangles, then per face two glowing lines ending in an LED pad
+  if (detalle) tri([0, 0.08, 0.02], [0.07, 0.085, 0.2], [-0.07, 0.085, 0.2], CUERPO, CUERPO, CUERPO, LED_CUERPO);
+  // clock-spring antennae (2 triangles each): a stalk rising forward, then a hook curling back and down; the tip is a lit brass bead
+  if (detalle) for (const s of [-1, 1]) {
+    tri([s * 0.015, 0.04, 0.49], [s * 0.05, 0.04, 0.49], [s * 0.2, 0.2, 0.84], CUERPO, CUERPO, CUERPO, CUERPO_ + METAL);
+    tri([s * 0.2, 0.2, 0.84], [s * 0.2, 0.16, 0.8], [s * 0.4, 0.1, 0.7], CUERPO, CUERPO, LUZ, CUERPO_ + METAL);
+  }
+  // wings: right wing in half-span units (x out, z forward), mirrored for the left; four panel triangles, then per face two brass vein struts; the top face also
+  // carries one glowing circuit line and an LED pad
   const a: V3 = [0.04, 0, 0.13], b: V3 = [0.04, 0, -0.13], c: V3 = [0.46, 0, 0.54], d: V3 = [1, 0, 0.32], n: V3 = [0.8, 0, -0.1], f: V3 = [0.62, 0, -0.72];
   const e = 0.018; // lift of the lines above the wing (half-span units): ≈ 1.5 mm on a 0.16 m butterfly
   for (const s of [1, -1]) {
@@ -178,9 +186,13 @@ export function geometriaMariposa(detalle = true): THREE.BufferGeometry {
     const MED: Rol = [0.65, 0.3, 0, 0.05];
     tri(m(a), m(c), m(d), ROOT, ALA, PUNTA, ALA_); tri(m(a), m(d), m(n), ROOT, PUNTA, MED, ALA_); tri(m(a), m(n), m(b), ROOT, MED, ROOT, ALA_); tri(m(b), m(n), m(f), ROOT, MED, PUNTA2, ALA_);
     for (const y of detalle ? [e, -e] : [e]) {
-      tri(m([0.07, 0, 0.1], y), m([0.07, 0, 0.17], y), m([0.86, 0, 0.3], y), CIRC, CIRC, CIRC, ALA_);
-      tri(m([0.07, 0, -0.03], y), m([0.07, 0, -0.1], y), m([0.7, 0, -0.55], y), CIRC, CIRC, CIRC, ALA_);
-      for (const [cx, cz] of [[0.85, 0.3], [0.69, -0.55]]) tri(m([cx, 0, cz + 0.075], y * 1.4), m([cx - 0.065, 0, cz - 0.045], y * 1.4), m([cx + 0.065, 0, cz - 0.045], y * 1.4), CUERPO, CUERPO, CUERPO, LED_ALA);
+      // leading-edge strut (root → wing tip) and mid strut (root → hind corner): brass, both faces
+      tri(m([0.05, 0, 0.18], y), m([0.06, 0, 0.1], y), m([0.99, 0, 0.33], y), CUERPO, CUERPO, CUERPO, ALA_ + METAL);
+      tri(m([0.05, 0, 0.02], y), m([0.06, 0, -0.06], y), m([0.79, 0, -0.1], y), CUERPO, CUERPO, CUERPO, ALA_ + METAL);
+      if (y > 0) {
+        tri(m([0.07, 0, -0.1], y), m([0.07, 0, -0.17], y), m([0.64, 0, -0.7], y), CIRC, CIRC, CIRC, ALA_);
+        tri(m([0.62, 0, -0.62 + 0.075], y * 1.4), m([0.62 - 0.065, 0, -0.62 - 0.045], y * 1.4), m([0.62 + 0.065, 0, -0.62 - 0.045], y * 1.4), CUERPO, CUERPO, CUERPO, LED_ALA);
+      }
     }
   }
   const g = new THREE.BufferGeometry();
@@ -207,11 +219,22 @@ export function geometriaLuciernaga(): THREE.BufferGeometry {
 // indexing, no texture): butterflies use 3 geometry + 3 instance buffers, fireflies 2 + 3.
 type Entrada = { tiempo: Nodo; camara: Nodo; derecha: Nodo; arriba: Nodo; luzDia: Nodo; osc: Nodo; radio: number; razas: BichoPaleta[] };
 const attr4 = (n: string): Nodo => attribute(n, "vec4");
-/** Hue wheel → pastel RGB (so the prisma breeds read as a shifting light, not a saturated paint). */
-function arcoiris(h: Nodo): Nodo {
-  const rgb = clamp(abs(fract(vec3(h, h, h).add(vec3(0, 2 / 3, 1 / 3))).mul(6).sub(3)).sub(1), 0, 1);
-  return mix(vec3(1, 1, 1), rgb, 0.7);
+const lin = (hex: number) => { const c = new THREE.Color(hex); return vec3(c.r, c.g, c.b); };
+/** The prisma pulse (R3): NOT a rainbow. `h` (0…1) walks a loop that stays inside the house palette: ámbar → arena → verdemar → ámbar. */
+export const CICLO_PRISMA = [CASA.ambar, CASA.arena, CASA.verdemar] as const;
+export function arcoiris(h: Nodo): Nodo {
+  const sx = h.mul(3), f = smoothstep(0, 1, fract(sx)), [c0, c1, c2] = CICLO_PRISMA.map(lin);
+  return mix(mix(mix(c0, c1, f), mix(c1, c2, f), step(1, sx)), mix(c2, c0, f), step(2, sx));
 }
+/** Same loop on the CPU (tests): the colour (sRGB ints) at hue h. */
+export function colorPrisma(h: number): number {
+  const sx = (((h % 1) + 1) % 1) * 3, k = Math.min(2, Math.floor(sx)), t = ss(0, 1, sx - k);
+  return mezcla(CICLO_PRISMA[k], CICLO_PRISMA[(k + 1) % 3], t);
+}
+/** Wing silhouette per breed (by its order in the group): [chord scale, tip sweep back, wing width scale]. Cycles for tables with more breeds. */
+export const SILUETAS: readonly (readonly [number, number, number])[] = [
+  [1, 0, 1], [0.8, 0.12, 1.05], [1.15, 0.05, 0.9], [0.9, 0, 1.12], [1.05, 0.22, 0.88], [1.2, 0.1, 1], [0.85, 0.3, 0.92], [1, -0.08, 1.1], [0.75, 0.2, 1.15], [1.25, 0.15, 0.85], [0.95, 0.28, 1.05], [1.1, -0.12, 0.95],
+];
 /** Selects, per instance, a constant of its breed: one mask per breed (1 for the breed whose index is `idx`), summed. */
 function tablaRazas(idx: Nodo, n: number) {
   const mask = Array.from({ length: n }, (_, k) => float(1).sub(step(0.5, abs(idx.sub(k)))));
@@ -229,26 +252,36 @@ export function materialMariposas(e: Entrada): THREE.MeshBasicNodeMaterial {
   const iA = attr4("iA"), iB = attr4("iB"), iC = attr4("iC"), tl = e.tiempo, fund = fundidoOps(OPS_TSL, tl);
   const tr = trayectoriaOps(OPS_TSL, { hx: iA.x, hy: iA.y, hz: iA.z, rad: iB.x, w: iB.y, p: iB.z, q: iB.w, ampY: iC.x }, tl);
   const T = tablaRazas(iA.w, e.razas.length);
-  const span = T.escalar((k) => e.razas[k].especie.tamano).mul(iC.z.mul(0.16).add(0.92));
+  const rarK = T.escalar((k2) => e.razas[k2].rar);
+  const span = T.escalar((k) => e.razas[k].especie.tamano).mul(iC.z.mul(0.34).add(0.83));   // R3: ±17 % size
   const dist = length(vec2(tr.x, tr.z).sub(e.camara.xz));
   const k = fund.mul(float(1).sub(smoothstep(e.radio * 0.7, e.radio, dist)));       // shrink to nothing at the window border and at the edge of the view
   const S = span.mul(0.5).mul(k);
   // flap: glide bursts (amplitude and opening angle swell and ebb), a per-breed rate, a per-animal phase
-  const phi = T.escalar((k2) => aleteoRadS(e.razas[k2].especie.tamano)).mul(tl).add(iC.y.mul(TAU));
+  const phi = T.escalar((k2) => aleteoRadS(e.razas[k2].especie.tamano)).mul(iC.w.mul(0.3).add(0.85)).mul(tl).add(iC.y.mul(TAU));   // R3: ±15 % wing-beat rate
   const aleteando = smoothstep(-0.4, 0.4, sin(tl.mul(0.5).add(iB.w)));
   const theta = mix(0.2, 0.5, aleteando).add(mix(0.15, 0.8, aleteando).mul(sin(phi)));
   const p = positionLocal as Nodo, code = attribute("aleta", "float");
-  const nodo = floor(code.mul(0.5)), lado = code.sub(nodo.mul(2));                 // code = wing + 2·LED
-  const ax = abs(p.x), sg = step(0, p.x).mul(2).sub(1);
-  const lx = mix(p.x, sg.mul(ax).mul(cos(theta)), lado), ly = mix(p.y, p.y.add(ax.mul(sin(theta))), lado), lz = p.z;
+  const metal = step(3.5, code), cod = code.sub(metal.mul(4));                   // code = wing + 2·LED + 4·brass
+  const nodo = floor(cod.mul(0.5)), lado = cod.sub(nodo.mul(2));
+  const ax0 = abs(p.x), sg = step(0, p.x).mul(2).sub(1);
+  // R3 silhouette: chord, tip sweep and width differ per breed (only wing vertices; the body is not touched)
+  const chord = mix(float(1), T.escalar((k2) => SILUETAS[k2 % SILUETAS.length][0]), lado), barrido = T.escalar((k2) => SILUETAS[k2 % SILUETAS.length][1]).mul(lado), anchoK = mix(float(1), T.escalar((k2) => SILUETAS[k2 % SILUETAS.length][2]), lado);
+  const ax = ax0.mul(anchoK);
+  const lx = mix(p.x, sg.mul(ax).mul(cos(theta)), lado), ly = mix(p.y, p.y.add(ax.mul(sin(theta))), lado), lz = p.z.mul(chord).sub(barrido.mul(ax0).mul(ax0));
   const dir = normalize(vec2(tr.vx, tr.vz).add(vec2(1e-4, 1e-4)));
   const fx = dir.x, fz = dir.y;
   const bob = span.mul(0.05).mul(cos(phi)).mul(k);
   mat.positionNode = vec3(tr.x.add(lx.mul(fz).add(lz.mul(fx)).mul(S)), tr.y.add(ly.mul(S)).add(bob), tr.z.add(lz.mul(fz).sub(lx.mul(fx)).mul(S)));
   // colour: roles → the breed's palette; the lines, tips and LEDs are unlit and pulse with the breed's light pattern
-  const rol = attribute("rol", "vec4"), ala = T.color((k2) => e.razas[k2].ala), cuerpo = T.color((k2) => e.razas[k2].cuerpo).mul(0.4), luz = T.color((k2) => e.razas[k2].luz), circ = T.color((k2) => e.razas[k2].circuito);
+  // R3: per-animal tone jitter INSIDE the palette (a nudge towards bronze or towards arena, ±12 % brightness), never a new hue
+  const tono = iC.z.sub(0.5), fria = T.color((k2) => e.razas[k2].ala);
+  const rol = attribute("rol", "vec4"), ala = mix(mix(fria, lin(CASA.bronce), step(0, tono.negate()).mul(tono.abs()).mul(0.5)), lin(CASA.arena), step(0, tono).mul(tono).mul(0.45)).mul(tono.mul(0.24).add(1));
+  const cuerpoB = T.color((k2) => e.razas[k2].cuerpo), cuerpo = cuerpoB.mul(float(0.4).add(rarK.mul(0.35))), luz = T.color((k2) => e.razas[k2].luz), circ = T.color((k2) => e.razas[k2].circuito);
   const sombra = ala.mul(0.42).add(circ.mul(0.35)), resto = clamp(float(1).sub(rol.x.add(rol.y).add(rol.z).add(rol.w)), 0, 1);
-  const lit = ala.mul(rol.x).add(sombra.mul(rol.y)).add(cuerpo.mul(resto));
+  // brass struts / springs: the machine brass lit by the breed's body metal; rarer = more polished (a glint that runs along the wings as they flap)
+  const laton = mix(lin(MAQUINA.laton), cuerpoB, 0.35).mul(float(0.62).add(rarK.mul(0.3))), brilla = pow(max(sin(phi.mul(0.5).add(p.x.mul(3.2))), 0), 7).mul(rarK).mul(0.3);
+  const lit = ala.mul(rol.x).add(sombra.mul(rol.y)).add(cuerpo.mul(resto).mul(float(1).sub(metal))).add(laton.mul(resto).mul(metal)).add(lin(CASA.arena).mul(brilla).mul(float(1).sub(nodo)));
   const pu = pulsoOps(OPS_TSL, T.escalar((k2) => e.razas[k2].luzId), tl, iC.y, float(1).sub(T.escalar((k2) => e.razas[k2].rar).mul(0.4)));
   const luzCol = mix(luz, arcoiris(pu.hue), pu.prisma);
   const linea = mix(circ, luzCol, 0.7);
@@ -268,16 +301,16 @@ export function materialLuciernagas(e: Entrada): THREE.MeshBasicNodeMaterial {
   const rar = T.escalar((k) => e.razas[k].rar), brillo = float(1).add(rar.mul(0.8));
   const pu = pulsoOps(OPS_TSL, T.escalar((k) => e.razas[k].luzId), tl, iC.y, float(1).sub(rar.mul(0.4)));
   const vista = fund.mul(float(1).sub(smoothstep(e.radio * 0.7, e.radio, dist))).mul(e.osc);
-  const esq = attribute("esq", "vec2"), R = T.escalar((k) => radioLuz(e.razas[k].especie)).mul(iC.z.mul(0.16).add(0.92));
+  const esq = attribute("esq", "vec2"), R = T.escalar((k) => radioLuz(e.razas[k].especie)).mul(iC.z.mul(0.3).add(0.85));
   mat.positionNode = vec3(tr.x, tr.y, tr.z).add(e.derecha.mul(esq.x.mul(R))).add(e.arriba.mul(esq.y.mul(R)));
   const col = mix(T.color((k) => e.razas[k].luz), arcoiris(pu.hue), pu.prisma);
   const vCol = col.toVarying("luc_col"), vInt = pu.i.mul(vista).mul(brillo).toVarying("luc_int"), vRar = rar.toVarying("luc_rar");
   const d2 = esq.x.mul(esq.x).add(esq.y.mul(esq.y)), d = sqrt(d2);
-  const halo = pow(clamp(float(1).sub(d), 0, 1), 1.8), core = exp(d2.mul(-26)); // F4b: wider halo + core (a 15 m firefly was ~4 px of core)
-  const anillo = exp(pow(d.sub(0.72).div(0.05), 2).negate()).mul(0.45).mul(smoothstep(0.5, 0.7, vRar));
-  const estrella = exp(abs(esq.x).mul(-24).sub(abs(esq.y).mul(2.2))).add(exp(abs(esq.y).mul(-24).sub(abs(esq.x).mul(2.2)))).mul(0.55).mul(smoothstep(0.85, 0.95, vRar));
-  const forma = halo.mul(0.8).add(core).add(anillo).add(estrella).mul(smoothstep(1, 0.92, d));
-  mat.colorNode = mix(vCol, vec3(1, 1, 1), core.mul(0.3)).mul(1.5); // >1: additive over the tone map still reads as light in the dark
+  const halo = pow(clamp(float(1).sub(d), 0, 1), 2.2), core = exp(d2.mul(-30)); // R3: tighter, softer halo (power 2.6) + a small hot core: warm point of light, not a blob
+  const anillo = exp(pow(d.sub(0.72).div(0.05), 2).negate()).mul(0.22).mul(smoothstep(0.5, 0.7, vRar));   // R3: a faint ring, no longer a target
+  const estrella = exp(abs(esq.x).mul(-24).sub(abs(esq.y).mul(2.2))).add(exp(abs(esq.y).mul(-24).sub(abs(esq.x).mul(2.2)))).mul(0.3).mul(smoothstep(0.85, 0.95, vRar));
+  const forma = halo.mul(0.7).add(core).add(anillo).add(estrella).mul(smoothstep(1, 0.92, d));
+  mat.colorNode = mix(vCol, lin(CASA.arena), core.mul(0.35)).mul(1.3); // >1: additive over the tone map still reads as light in the dark
   mat.opacityNode = clamp(forma.mul(vInt), 0, 1);
   return mat;
 }
@@ -351,7 +384,7 @@ export function crearInsectos(h: HInsectos, fuente: FuenteInsectos, op: Opciones
     const v = paramsVuelo(a, b.especie, escalaRadio), A = G.arr.iA.array, B = G.arr.iB.array, C = G.arr.iC.array, o = i * 4;
     A[o] = v.hx as number; A[o + 1] = v.hy as number; A[o + 2] = v.hz as number; A[o + 3] = b.orden;
     B[o] = v.rad as number; B[o + 1] = v.w as number; B[o + 2] = v.p as number; B[o + 3] = v.q as number;
-    C[o] = v.ampY as number; C[o + 1] = a.fase; C[o + 2] = jit(a.semillaPropia); C[o + 3] = 0;
+    C[o] = v.ampY as number; C[o + 1] = a.fase; C[o + 2] = jit(a.semillaPropia); C[o + 3] = jit(a.semillaPropia >>> 8 ^ 0x9e37);
   }
   /** Replace the instances by exactly these animals (capped by the buffers). Photos and tests; the page never calls it. */
   function fijar(lista: readonly Habitante[], o?: { origen?: number; escalaRadio?: number }) {
