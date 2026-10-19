@@ -5,7 +5,7 @@
 // (calidad.ts DETALLE_AGUA) — vertex waves on big water with lighter crests, drifting light streaks, fake caustics in the
 // shallows and stepped sun glints. No texture, no render target, no second scene pass: one draw call per water at every
 // tier; the cost is ALU per pixel (D: bands + foam + fresnel only). Lit by the scene (Lambert), so night darkens it.
-import { CASA, mezcla } from "./naturaleza/paleta.ts";
+import { CASA } from "./naturaleza/paleta.ts";
 import * as THREE from "three/webgpu";
 import { uniform, uv, vec2, vec3, vec4, float, mix, positionLocal, positionWorld, cameraPosition, normalize, dot, reflect, pow, max, min, clamp, abs, sin, cos, fract, smoothstep, exp, length, oneMinus } from "three/tsl";
 import type { DetalleAgua } from "./calidad.ts";
@@ -25,9 +25,9 @@ export type OpcionesAgua = {
   bordeOculto?: number;
 };
 
-/** R1: the house sea-green (paleta.ts CASA.verdemar) the shallows lean to, and the pond colour naturaleza.ts should pass (turquoise, muted). */
+/** R1: the house sea-green (paleta.ts CASA.verdemar) the shallows lean to. R5.2: the pond colour lives in paleta.ts (re-exported here). */
 const VERDEMAR = new THREE.Color(CASA.verdemar);
-export const COLOR_ESTANQUE = mezcla(CASA.turquesa, CASA.turquesaProfundo, 0.45);
+export { COLOR_ESTANQUE } from "./naturaleza/paleta.ts";
 const LUZ_POR_DEFECTO: LuzAgua = { cielo: uniform(new THREE.Color(0xc9d8e4)), sol: uniform(new THREE.Color(0xffffff)), solDir: uniform(new THREE.Vector3(0.5, 0.8, 0.3).normalize()) } as unknown as LuzAgua;
 /** Wave height (m) the waves reach on water this big (shorter side): a lake swells, a sea swells more. */
 export const amplitudOlas = (lado: number) => Math.min(0.35, Math.max(0.05, lado * 0.006));

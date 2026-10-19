@@ -46,6 +46,12 @@ export const RELLENO = {
   arriba: mezcla(CASA.arenaVelada, CASA.verdemar, 0.3),
 } as const;
 
+/**
+ * R5.2 · Color del estanque (el cuerpo del agua: agua-estilo.ts lo oscurece en lo hondo y lo aclara hacia Verdemar en la orilla).
+ * Turquesa profundo aclarado con Verdemar y apagado con Ceniza: un turquesa verdoso hondo y mate, nunca el azul saturado de antes.
+ */
+export const COLOR_ESTANQUE = mezcla(mezcla(CASA.turquesaProfundo, CASA.verdemar, 0.35), CASA.ceniza, 0.2);
+
 /** Paletas de estación: qué verde/hoja/flor usa cada una. Todo dentro de las tablas de arriba. */
 export const ESTACIONES = {
   verano: { hierba: VERDES.hierba, hierbaLuz: VERDES.hierbaLuz, hoja: VERDES.monte, hojaLuz: VERDES.musgo, flor: CASA.arena },

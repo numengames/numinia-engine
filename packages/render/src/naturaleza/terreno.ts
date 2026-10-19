@@ -14,7 +14,7 @@
 import * as THREE from "three/webgpu";
 import type { Nivel } from "../calidad.ts";
 import { hash2, valor2, simplex2 } from "./semilla.ts";
-import { CASA, VERDES, ESTACIONES, mezcla } from "./paleta.ts";
+import { CASA, VERDES, ESTACIONES, COLOR_ESTANQUE, mezcla } from "./paleta.ts";
 import type { Estacion } from "./paleta.ts";
 
 import { ZONAS, PALETA_TERRENO, NIVEL_AGUA, alturaEn, zonaEn, estanqueDe, campo, sstep } from "../../../relieve/src/relieve.ts";
@@ -45,6 +45,8 @@ export type OpcionesTerreno = {
   sinEstanque?: boolean;
   /** N4: colours (hex) over the house palette, per zone: the world's palette (verano / otoño / primavera) changes the meadow only. */
   colores?: Partial<Record<Zona, number>>;
+  /** R5.2: the world's season (paleta.ts ESTACIONES): picks the meadow colours; wins over the legacy `colores`. */
+  estacion?: Estacion;
   /** N4: draw the mesh with shadows from the sun (tier A only: the caller decides). */
   recibeSombra?: boolean;
   /** N6: paint the pond into the terrain mesh as a flat disc of `LADOS_AGUA_PLANA` triangles (colour hex) instead of a separate water mesh: one draw call less (tier D). */
@@ -132,7 +134,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
   const nv = n + 1;
   // sample heights and zone weights once per lattice vertex, then colour in a second pass (slope and curvature need the neighbours)
   const H = new Float32Array(nv * nv), W = new Float32Array(nv * nv * 5), V0 = new Float32Array(nv * nv), C = new Float32Array(nv * nv * 3);
-  const est = estacionDe(o.colores?.prado), niebla = new THREE.Color(o.niebla ?? 0xbcd6ee), nieblaHex = niebla.getHex();
+  const est = o.estacion ? ESTACIONES[o.estacion] : estacionDe(o.colores?.prado), niebla = new THREE.Color(o.niebla ?? 0xbcd6ee), nieblaHex = niebla.getHex();
   const borde = tam * 0.14, tmpC = new THREE.Color();
   for (let j = 0; j < nv; j++) for (let i = 0; i < nv; i++) {
     const c = campo(s, -mitad + i * paso, -mitad + j * paso, op), k = j * nv + i;
@@ -197,7 +199,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
     pared(V(n, i + 1), V(n, i)); // east
   }
   if (plana) { // N6: the pond as a flat blue fan at the water level, slightly lighter at the rim (no animation, no extra draw call)
-    const r = e.radio * 1.2, y = AGUA + 0.02, c0 = new THREE.Color(mezcla(CASA.verdemar, CASA.turquesa, 0.5)), c1 = new THREE.Color(mezcla(CASA.verdemar, CASA.turquesa, 0.28)); // palette water, the hex the caller passes only switches the painted pond on
+    const r = e.radio * 1.2, y = AGUA + 0.02, c0 = new THREE.Color(COLOR_ESTANQUE), c1 = new THREE.Color(mezcla(COLOR_ESTANQUE, CASA.verdemar, 0.5)); // R5.2: the pond's palette colour (the same body as tier A's water), a sea-green rim; the hex the caller passes only switches the painted pond on
     for (let k = 0; k < LADOS_AGUA_PLANA; k++) {
       const a0 = (k / LADOS_AGUA_PLANA) * Math.PI * 2, a1 = ((k + 1) / LADOS_AGUA_PLANA) * Math.PI * 2;
       const q = [[e.x, y, e.z], [e.x + Math.cos(a1) * r, y, e.z + Math.sin(a1) * r], [e.x + Math.cos(a0) * r, y, e.z + Math.sin(a0) * r]];

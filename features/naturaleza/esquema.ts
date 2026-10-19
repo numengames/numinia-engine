@@ -11,7 +11,7 @@ export type NaturalezaMundo = { activa: boolean; semilla: number; tamano: number
 /** What a file that says nothing gets (kept equal to packages/render/src/naturaleza/naturaleza.ts `DEFECTOS_NATURALEZA`; a test compares). */
 export const DEFECTOS: NaturalezaMundo = { activa: true, semilla: 1234, tamano: 200, plaza: 12, arboles: 1, hierba: 1, estanque: true, paleta: "verano", fauna: true, faunaDensidad: 1, faunaEspecies: "" };
 
-const CLAVES = ["schema", "activa", "semilla", "tamano", "plaza", "densidad", "estanque", "paleta", "fauna"];
+const CLAVES = ["schema", "activa", "semilla", "tamano", "plaza", "densidad", "estanque", "paleta", "estacion", "fauna"];
 /** F1: the `especies` list travels as one comma-separated text (empty = every species of the table); this is its room in bytes. */
 export const FAUNA_ESPECIES_BYTES = 512;
 const obj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -37,9 +37,11 @@ export function leerNaturaleza(json: unknown, idsFauna?: readonly string[]): Res
   ent("semilla", 0, 2147483647, "mismo número = mismo paisaje; prueba con 1, 2, 3… hasta que te guste");
   ent("tamano", 100, 400, "metros de lado del mundo; 200 es lo normal");
   ent("plaza", 4, 40, "radio en metros del círculo llano donde aparece la gente; sin árboles");
-  if (json.paleta !== undefined) {
-    if (typeof json.paleta === "string" && (PALETAS as readonly string[]).includes(json.paleta)) v.paleta = json.paleta as Paleta;
-    else issues.push({ path: "naturaleza.paleta", message: `una de: ${PALETAS.map((p) => `"${p}"`).join(", ")} (solo cambia el color de los prados y las hojas)` });
+  // R5.2: the season. `estacion` is its clear name; `paleta` (N4) still works and means the same; if both come, `estacion` wins.
+  for (const k of ["paleta", "estacion"] as const) {
+    if (json[k] === undefined) continue;
+    if (typeof json[k] === "string" && (PALETAS as readonly string[]).includes(json[k])) v.paleta = json[k] as Paleta;
+    else issues.push({ path: `naturaleza.${k}`, message: `una de: ${PALETAS.map((p) => `"${p}"`).join(", ")} (la estación: solo cambia el color de los prados y las hojas)` });
   }
   if (json.densidad !== undefined) {
     if (!obj(json.densidad)) issues.push({ path: "naturaleza.densidad", message: 'un objeto { "arboles": 0 a 1, "hierba": 0 a 1 }; 1 = lo máximo que aguanta el aparato, 0 = nada' });

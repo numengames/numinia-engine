@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { construirResiduos, RESIDUOS_POR_NIVEL, PALETA_RESIDUOS, aLineal, TIPOS_PIEZA } from "../packages/render/src/naturaleza/residuos.ts";
 import { crearTerreno, CELDAS_TERRENO, triangulosDeTerreno, alturaEn, zonaEn, estanqueDe } from "../packages/render/src/naturaleza/terreno.ts";
 import { PRESUPUESTO_NATURALEZA } from "../packages/render/src/naturaleza/niveles.ts";
-import { SENAL } from "../packages/render/src/naturaleza/paleta.ts";
+import { SENAL, COLOR_ESTANQUE } from "../packages/render/src/naturaleza/paleta.ts";
 import type { Nivel } from "../packages/render/src/calidad.ts";
 
 const NIVELES: Nivel[] = ["A", "B", "C", "D"], S = 1234;
@@ -44,7 +44,7 @@ test("triangle share per tier: baked pieces fit the tier's cap, and terrain + pr
     assert.ok(r.triangulos <= RESIDUOS_POR_NIVEL[n], `${n}: ${r.triangulos} > ${RESIDUOS_POR_NIVEL[n]}`);
     assert.equal(r.posiciones.length, r.triangulos * 9);
     assert.equal(r.colores.length, r.triangulos * 9);
-    const t = crearTerreno({ semilla: S, nivel: n, aguaPlana: n === "D" ? 0x2f6f8f : undefined });
+    const t = crearTerreno({ semilla: S, nivel: n, aguaPlana: n === "D" ? COLOR_ESTANQUE : undefined });
     assert.equal(t.residuos.triangulos, r.triangulos, "the terrain bakes exactly what construirResiduos returns");
     assert.equal(t.triangulos, triangulosDeTerreno(CELDAS_TERRENO[n], n === "D") + r.triangulos);
     assert.equal(t.malla.geometry.attributes.position.count, t.triangulos * 3);

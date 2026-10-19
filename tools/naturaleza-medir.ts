@@ -12,6 +12,7 @@ import type { Paleta } from "../packages/render/src/naturaleza/esparcir.ts";
 import { crearFauna } from "../packages/render/src/naturaleza/fauna.ts";
 import { FAUNA_CASA } from "../features/naturaleza/fauna-casa.ts";
 import { PRESUPUESTO_NATURALEZA } from "../packages/render/src/naturaleza/niveles.ts";
+import { COLOR_ESTANQUE } from "../packages/render/src/naturaleza/paleta.ts";
 import type { Nivel } from "../packages/render/src/calidad.ts";
 
 const semilla = Number(process.argv[2] ?? 1234), paleta = (process.argv[3] ?? "verano") as Paleta;
@@ -28,7 +29,7 @@ const gpuBytes = (...raices: (THREE.Object3D | THREE.Object3D[] | undefined)[]) 
 const filas: string[] = [];
 for (const nivel of ["A", "B", "C", "D"] as Nivel[]) {
   const t0 = performance.now();
-  const terreno = crearTerreno({ semilla, nivel, aguaPlana: nivel === "D" ? 0x2f6f8f : undefined });
+  const terreno = crearTerreno({ semilla, nivel, aguaPlana: nivel === "D" ? COLOR_ESTANQUE : undefined });
   const t1 = performance.now();
   const puntos = esparcirArboles(terreno, { semilla, tamano: 200, plaza: 12, densidad: 1, nivel, paleta, estanque: terreno.estanque });
   const t2 = performance.now();

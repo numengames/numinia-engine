@@ -16,19 +16,29 @@ import * as THREE from "three/webgpu";
 import { uniform } from "three/tsl";
 import type { Nivel } from "../calidad.ts";
 import type { TablaFauna } from "../../../relieve/src/fauna.ts";
-import type { Paleta } from "./esparcir.ts";
+import { ESTACIONES, COLOR_ESTANQUE } from "./paleta.ts";
+import type { Estacion } from "./paleta.ts";
 import { HIERBA_POR_NIVEL } from "./niveles.ts";
 import { actualizarRelleno } from "./relleno.ts";
 
 /** What the page receives from features/naturaleza (flat, validated on the server). Every field optional: defaults below. */
 export type NaturalezaDatos = {
-  activa?: boolean; semilla?: number; tamano?: number; plaza?: number; arboles?: number; hierba?: number; estanque?: boolean; paleta?: string;
+  activa?: boolean; semilla?: number; tamano?: number; plaza?: number; arboles?: number; hierba?: number; estanque?: boolean;
+  /** The world's season (paleta.ts ESTACIONES: verano, otono, primavera). `paleta` is its legacy name; R5.2 also reads `estacion` (wins). */
+  paleta?: string; estacion?: string;
   /** F1: the fauna switch, its density 0–1 and the allow-list of species ids joined by commas ("" = all). */
   fauna?: boolean; faunaDensidad?: number; faunaEspecies?: string;
 };
-export type NaturalezaNormal = { activa: boolean; semilla: number; tamano: number; plaza: number; arboles: number; hierba: number; estanque: boolean; paleta: Paleta; fauna: boolean; faunaDensidad: number; faunaEspecies: string };
+/** `paleta` = the world's season (kept under its N4 name: it is the field the server state travels with). */
+export type NaturalezaNormal = { activa: boolean; semilla: number; tamano: number; plaza: number; arboles: number; hierba: number; estanque: boolean; paleta: Estacion; fauna: boolean; faunaDensidad: number; faunaEspecies: string };
 /** Defaults: kept equal to features/naturaleza/esquema.ts `DEFECTOS` (a test compares them). */
 export const DEFECTOS_NATURALEZA: NaturalezaNormal = { activa: true, semilla: 1234, tamano: 200, plaza: 12, arboles: 1, hierba: 1, estanque: true, paleta: "verano", fauna: true, faunaDensidad: 1, faunaEspecies: "" };
+
+/** R5.2: the season a world asks for: `estacion` (new key) or the legacy `paleta` (same values); anything else = summer. */
+export function estacionDeDatos(d: { estacion?: unknown; paleta?: unknown }): Estacion {
+  const e = d.estacion ?? d.paleta;
+  return typeof e === "string" && (Object.keys(ESTACIONES) as string[]).includes(e) ? (e as Estacion) : "verano";
+}
 
 const num = (v: unknown, d: number, a: number, b: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(b, Math.max(a, v)) : d);
 /** Clamp whatever arrives into a usable set (the server already validated; this keeps the page safe against a newer/older server). */
@@ -37,17 +47,10 @@ export function normalizar(d: NaturalezaDatos): NaturalezaNormal {
   return {
     activa: d.activa !== false, semilla: Math.round(num(d.semilla, D.semilla, 0, 2147483647)), tamano: Math.round(num(d.tamano, D.tamano, 100, 400)), plaza: Math.round(num(d.plaza, D.plaza, 4, 40)),
     arboles: num(d.arboles, D.arboles, 0, 1), hierba: num(d.hierba, D.hierba, 0, 1), estanque: d.estanque !== false,
-    paleta: d.paleta === "otono" || d.paleta === "primavera" ? d.paleta : "verano",
+    paleta: estacionDeDatos(d),
     fauna: d.fauna !== false, faunaDensidad: num(d.faunaDensidad, D.faunaDensidad, 0, 1), faunaEspecies: typeof d.faunaEspecies === "string" ? d.faunaEspecies.slice(0, 512) : "",
   };
 }
-
-/** Meadow and forest-floor colours per palette (hex). Leaves change through esparcir.ts (`VARIANTE_POR_PALETA`: which trees wear their second colour set). */
-export const COLORES_PALETA: Record<Paleta, { terreno: { prado?: number; bosque?: number }; hierba: { prado?: number; bosque?: number; seco?: number } }> = {
-  verano: { terreno: {}, hierba: {} },
-  primavera: { terreno: { prado: 0xa9d46a, bosque: 0x5a9a4a }, hierba: { prado: 0xa9d46a, bosque: 0x5a9a4a, seco: 0xd8dd88 } },
-  otono: { terreno: { prado: 0xc2ae54, bosque: 0x8a7a38 }, hierba: { prado: 0xc2ae54, bosque: 0x8f8a3a, seco: 0xb9803a } },
-};
 
 export type HNaturaleza = {
   /** Where the nature group goes (the engine's `world` group). */
@@ -134,19 +137,20 @@ export function crearNaturaleza(h: HNaturaleza) {
 
   function construir(m: Awaited<ReturnType<typeof cargar>>, d: NaturalezaNormal, nivel: Nivel): Real {
     const [T, A, H, E, AG] = m, t0 = performance.now();
-    const pal = COLORES_PALETA[d.paleta], grupo = new THREE.Group(); grupo.name = "naturaleza";
-    const terreno = T.crearTerreno({ semilla: d.semilla, nivel, tamano: d.tamano, plaza: d.plaza, niebla: h.niebla(), escena: grupo, sinEstanque: !d.estanque, colores: pal.terreno, recibeSombra: nivel === "A", aguaPlana: nivel === "D" ? 0x2f6f8f : undefined });
+    const estacion = d.paleta, grupo = new THREE.Group(); grupo.name = "naturaleza";
+    // R5.2: every colour comes from paleta.ts: the season picks the meadow/grass/leaf sets (ESTACIONES), the pond wears COLOR_ESTANQUE at every tier
+    const terreno = T.crearTerreno({ semilla: d.semilla, nivel, tamano: d.tamano, plaza: d.plaza, niebla: h.niebla(), escena: grupo, sinEstanque: !d.estanque, estacion, recibeSombra: nivel === "A", aguaPlana: nivel === "D" ? COLOR_ESTANQUE : undefined });
     terreno.malla.userData.mapa = "suelo";
-    const puntos = E.esparcirArboles(terreno, { semilla: d.semilla, tamano: d.tamano, plaza: d.plaza, densidad: d.arboles, nivel, paleta: d.paleta, estanque: d.estanque ? terreno.estanque : null });
+    const puntos = E.esparcirArboles(terreno, { semilla: d.semilla, tamano: d.tamano, plaza: d.plaza, densidad: d.arboles, nivel, paleta: estacion, estanque: d.estanque ? terreno.estanque : null });
     const arboles = A.crearArboles({ vientoU: h.vientoU as never, nivel, camara: h.camara }, puntos);
     grupo.add(arboles.grupo);
-    const hierba = H.crearHierba({ vientoU: h.vientoU, nivel }, { alturaEn: terreno.alturaEn, zonaEn: terreno.zonaEn, colores: pal.hierba },
+    const hierba = H.crearHierba({ vientoU: h.vientoU, nivel }, { alturaEn: terreno.alturaEn, zonaEn: terreno.zonaEn, estacion },
       { semilla: d.semilla, nivel, escena: grupo, empujaCamara: false, tabla: d.hierba >= 1 ? undefined : { tuftsMax: Math.max(40, Math.round(HIERBA_POR_NIVEL[nivel].tuftsMax * d.hierba)) } });
     let agua: Real["agua"] = null;
     if (d.estanque && nivel !== "D") { // N6: on tier D the pond is painted into the terrain mesh (one draw call less)
       const t = uniform(0) as unknown as { value: number }, r = terreno.estanque.radio * 1.2, forma = { tipo: "circulo" as const, radio: r };
       const detalle = (h.detalleAgua?.() ?? { olas: 0, espuma: false, lineas: false, caustica: false, destellos: false }) as never;
-      const mat = AG.materialDeAgua({ color: 0x2f6f8f, forma, detalle, tiempo: t, luz: h.aguaLuz as never, bordeOculto: r * 0.12 }, 12);
+      const mat = AG.materialDeAgua({ color: COLOR_ESTANQUE, forma, detalle, tiempo: t, luz: h.aguaLuz as never, bordeOculto: r * 0.12 }, 12);
       const malla = new THREE.Mesh(AG.geometriaDeAgua(forma, detalle, 12), mat);
       malla.position.set(terreno.estanque.x, terreno.estanque.nivel, terreno.estanque.z);
       malla.name = "agua-naturaleza"; malla.userData.sinSombra = true; malla.frustumCulled = true; malla.matrixAutoUpdate = false; malla.updateMatrix();
