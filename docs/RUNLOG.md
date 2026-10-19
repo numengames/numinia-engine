@@ -1299,3 +1299,15 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Opus 5.5 (subagente).
 - Commit: rama `naturaleza/interruptor` (desde origin/main cb0de4e). Versión 0.21.1 → 0.22.0.
 - Siguiente: probarlo con Pablo en un mundo real con pase de numinia.com y dos páginas a la vez.
+
+## 2026-10-19 23:11 · rediseño v2 de la interfaz · hecho
+- Qué: interfaz nueva: 7 botones arriba, tu avatar en «Tú», amigos en Gente, construir sin paneles y un reloj en VR.
+  Detalle: la barra pasa de 11 a 7 (Cámara y Menú agrupan lo demás), Gente tiene la ficha de cada persona y la tarjeta al
+  pulsar a alguien, construir es una fila de iconos con un solo cajón, y en VR girar la muñeca saca el reloj con el menú.
+- Números: `npm test` 1349/1349 (A–D) y 1336/1336 (E) antes de juntarlas; gates en verde (página 548 kB). Piernas e2e:
+  constructor, gente 14/14, ajustes, mapa, menu-vr 12/12 en verde; teletransporte 8/9 y foto 5/8 por umbrales de velocidad
+  en un PC cargado (main falla los mismos pasos en esta máquina). VR sin probar en una Quest real.
+- Consumo: sin medir · Opus 5.5 (orquestador y subagentes).
+- Commit: rama `ux2/integracion` (desde origin/main 21fd5a35, historias `ux2/barra`, `ux2/tu`, `ux2/gente`, `ux2/dock`,
+  `ux2/vr`). Versión 0.22.1 → 0.23.0.
+- Siguiente: probar el reloj en la Quest; la lista de amigos en el servidor espera la decisión de identidad.
