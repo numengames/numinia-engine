@@ -294,7 +294,11 @@ export type OpcionesInsectos = {
   presupuestoMs?: number;
   /** Override the tier's caps (tests, photos). */
   tope?: Partial<Record<"mariposa" | "luciernaga", number>>;
+  /** F4: butterflies and fireflies take turns (butterflies while osc ≤ TURNO_OSC, fireflies after) so they never cost two draw calls at once. B/C/D set it. */
+  turnos?: boolean;
 };
+/** Darkness (0–1, `oscuridad`) at which the turn passes from the butterflies to the fireflies when `turnos` is on (≈ 18:40 and 06:50). */
+export const TURNO_OSC = 0.4;
 export type HInsectos = {
   vientoU?: unknown; nivel?: Nivel; camara?: THREE.Object3D; tabla: TablaFauna;
   /** The world's hour of day, 0–24 (`entorno`'s clock). */
@@ -421,7 +425,8 @@ export function crearInsectos(h: HInsectos, fuente: FuenteInsectos, op: Opciones
     while (cola.length && performance.now() < hasta) { const c = cola.shift()!; pedir(c.cx, c.cz); }
     if (sucio && !cola.length) confirmar();
     tUlt = tReloj; uT.value = tReloj - origen;
-    M.m.visible = M.n > 0; L.m.visible = L.n > 0 && (uOsc.value as number) > 0.01;
+    const oscuro = (uOsc.value as number) > (op.turnos ? TURNO_OSC : 0.01);
+    M.m.visible = M.n > 0 && !(op.turnos && oscuro); L.m.visible = L.n > 0 && oscuro;
     (M.g.boundingSphere as THREE.Sphere).center.set(camX, me[13], camZ); (L.g.boundingSphere as THREE.Sphere).center.set(camX, me[13], camZ);
     msUltimo = performance.now() - t0; if (msUltimo > msMax) msMax = msUltimo;
   }

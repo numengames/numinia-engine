@@ -298,6 +298,8 @@ export function crearEntorno(h: EntornoHooks) {
     get nivel(): Nivel { return nivel; },
     get calidadActual(): Calidad { return calidad; },
     aplicar,
+    /** F4: the last environment data applied (the world's hour for the fauna reads it); null before the first. */
+    get datos(): EntornoDatos | null { return d; },
     /** H12 + settings menu: choose quality (any subset); asking for more than this device allows is clamped. Returns what applies now. */
     calidad(c?: Partial<Calidad>): Calidad {
       if (c) { pedido = { ...pedido, ...c }; cambiarCalidad(); }

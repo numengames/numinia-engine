@@ -43,8 +43,9 @@ export type HierbaNivel = {
 export const HIERBA_POR_NIVEL: Record<Nivel, HierbaNivel> = {
   // N4 retune (was 14000 / 7000 / 7000 / 3000 tufts): the grass gives room to the terrain and the trees. D has no flowers (one draw call less).
   A: { radio: 38, tuftsMax: 5600, celda: 8, floresMax: 0.08, aleteo: true, presupuestoMs: 0.4 },
-  B: { radio: 22, tuftsMax: 3200, celda: 8, floresMax: 0.05, aleteo: true, presupuestoMs: 0.4 },
-  C: { radio: 22, tuftsMax: 3200, celda: 8, floresMax: 0.05, aleteo: true, presupuestoMs: 0.4 },
+  // F4 retune: B/C lose the flower draw call (0.05 → 0) so that the fauna fits the 10 calls (see docs/NATURALEZA.md F4); A keeps them.
+  B: { radio: 22, tuftsMax: 3200, celda: 8, floresMax: 0, aleteo: true, presupuestoMs: 0.4 },
+  C: { radio: 22, tuftsMax: 3200, celda: 8, floresMax: 0, aleteo: true, presupuestoMs: 0.4 },
   D: { radio: 14, tuftsMax: 1700, celda: 7, floresMax: 0, aleteo: false, presupuestoMs: 0.3 },
 };
 

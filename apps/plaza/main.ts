@@ -81,6 +81,8 @@ const enMovil = esMovil(perfil().clase); // U24: the phone layout: the joystick 
 const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, movil: perfil().forzado ? perfil().movil : undefined, assetUrl: (m) => `${activos}/a/${m}.glb`,
   avatares: { catalogo: catalogoDeAvatares(activos, params, estado?.avatar), yo: () => session.entity } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar
 const transport = webSocketClient(url);
+
+view.naturaleza.tablaFauna(() => import("../../features/naturaleza/fauna-casa.ts").then((m) => m.FAUNA_CASA)); // F4: the house fauna table, fetched only with the fauna
 // game features (J7): their client parts, and how they may draw (a label, a hop) over any avatar
 // I1: the guest token stays in this browser (no account, no personal data); private mode = a new guest each time
 const GUARDA = "numinia.invitado";
