@@ -13,7 +13,7 @@ import { crearCliente as crearChat } from "../features/chat/client.ts";
 import { crearTeletransporte, rumboHacia, siNo, normal } from "../features/teletransporte/server.ts";
 import { crearCliente as crearViaje } from "../features/teletransporte/client.ts";
 import type { Destello } from "../features/teletransporte/client.ts";
-import { teletransporte, ESPERA_S, DESMATERIALIZAR_TICKS, FOTO_VENTANA_S } from "../features/teletransporte/feature.ts";
+import { teletransporte, huellaDe, ESPERA_S, DESMATERIALIZAR_TICKS, FOTO_VENTANA_S } from "../features/teletransporte/feature.ts";
 import { leerAparicionFoto } from "../features/entorno/esquema.ts";
 import { conMundo } from "../features/mundo.ts";
 import { crearRoles } from "../packages/server/src/roles-mundo.ts";
@@ -85,6 +85,12 @@ test("teletransporte: Gente lists who is here now; ir puts you next to them, nev
   W.pump(3);
   assert.deepEqual(A.v.estado.gente.map((g) => g.nombre).sort(), [W.nombre(B), W.nombre(C)].sort(), "everyone but you");
   assert.equal(A.v.estado.todos, 2);
+  // ux2-gente: each one comes with a tag of their identity (16 hex), the page's key for a friend; never the id itself
+  const huellas = A.v.estado.gente.map((g) => g.huella);
+  assert.ok(huellas.every((h) => /^[0-9a-f]{16}$/.test(h)) && huellas[0] !== huellas[1], JSON.stringify(huellas));
+  assert.deepEqual(new Set(huellas), new Set([B, C].map((p) => huellaDe(W.inst.who(p.s.entity)!.id))));
+  assert.ok(!A.v.estado.gente.some((g) => g.huella.includes(W.inst.who(B.s.entity)!.id)));
+  assert.equal(huellaDe("abcdefghijkl"), huellaDe("abcdefghijkl"), "the same identity, the same tag");
   assert.ok(A.v.activo());
   assert.equal(A.v.foto(), false, "a photo's place is off unless the world says so");
   const antes = W.pos(A);

@@ -6,7 +6,7 @@
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { ServerApi } from "../../packages/feature/src/index.ts";
 import {
-  teletransporte, ESPERA_S, DESMATERIALIZAR_TICKS, FOTO_VENTANA_S, JUNTO_M, FOTO_M, FOTO_CAIDA_M, GENTE_MAX, VARIANTES, VER_M, NOMBRE_MAX, MUNDO,
+  teletransporte, huellaDe, ESPERA_S, DESMATERIALIZAR_TICKS, FOTO_VENTANA_S, JUNTO_M, FOTO_M, FOTO_CAIDA_M, GENTE_MAX, VARIANTES, VER_M, NOMBRE_MAX, MUNDO,
 } from "./feature.ts";
 
 const TICKS_POR_SEGUNDO = 20; // the sim's TICK_HZ (features import only core, schema, feature)
@@ -114,8 +114,8 @@ export const crearTeletransporte = (o: { foto?: boolean } = {}) => serverPart(te
   api.on("punto", (from, m) => punto(from, Number(m.x), Number(m.z), String(m.nombre ?? "")));
   api.on("gente", (from) => {
     const lista = gente(from), total = Math.min(lista.length, GENTE_MAX);
-    if (!total) { api.emit("persona", { quien: 0, nombre: "", n: 0, total: 0, todos: 0 }, { to: from }); return; }
-    lista.slice(0, total).forEach((p, n) => api.emit("persona", { quien: p.e, nombre: p.nombre, n, total, todos: lista.length }, { to: from }));
+    if (!total) { api.emit("persona", { quien: 0, nombre: "", n: 0, total: 0, todos: 0, huella: "" }, { to: from }); return; }
+    lista.slice(0, total).forEach((p, n) => api.emit("persona", { quien: p.e, nombre: p.nombre, n, total, todos: lista.length, huella: huellaDe(api.who(p.e)?.id ?? "") }, { to: from }));
   });
   const encontrable = (from: number, si: boolean, porChat: boolean) => {
     const w = api.who(from);
