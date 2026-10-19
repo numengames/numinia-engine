@@ -74,18 +74,20 @@ test("the 8 light patterns: ids match F1's LUCES_FAUNA, stay in 0…1, differ fr
   assert.ok(Math.abs(p(0).hue - p(2.5).hue) > 0.3 && p(7).hue >= 0 && p(7).hue < 1, "prisma cycles its hue");
 });
 
-test("geometry (R3): butterfly = body 4 + thorax lens 1 (+ gear triangle, 2 springs × 2) + wings 2 × (4 panels + brass vein struts + circuit line); 30 triangles (was 31); firefly = 2 triangles; nothing degenerate", () => {
+test("geometry (R6.7): butterfly = body 4 + thorax lens 1 (+ gear triangle, 2 springs × 2) + 2 eyes + wings 2 × (4 framed panels + circuit line + LED); 24 triangles (R3: 30, F2: 31); firefly = 2 triangles; nothing degenerate", () => {
   const g = geometriaMariposa(true), gd = geometriaMariposa(false);
   assert.equal(g.getAttribute("position").count / 3, trianglesMariposa(true));
   const codigos = Array.from({ length: g.getAttribute("position").count / 3 }, (_, i) => g.getAttribute("aleta").getX(i * 3));
   assert.equal(codigos.filter((w) => w === 0).length, 4, "body spindle 4 (the thorax LED is code 2)");
   assert.equal(codigos.filter((w) => w === 4).length, 4, "two clock-spring antennae of 2 triangles, brass");
-  assert.equal(codigos.filter((w) => w === 5).length, 2 * 2 * 2, "brass vein struts: 2 per face, 2 faces, 2 wings");
+  assert.equal(codigos.filter((w) => w === 5).length, 0, "R6.7: no strut triangles (the wing frame is drawn from `bord`)");
+  assert.equal(codigos.filter((w) => w === 8).length, 2, "R6.7: two eye triangles");
   assert.equal(codigos.filter((w) => w === 2).length, 2, "thorax lens + gear star (hexagram)");
   const dd = Array.from({ length: gd.getAttribute("position").count / 3 }, (_, i) => gd.getAttribute("aleta").getX(i * 3));
   assert.equal(dd.filter((w) => w === 4).length, 0, "tier D: no antennae");
   assert.ok(trianglesMariposa(true) <= 31 && trianglesMariposa(false) <= 21, "R3 never exceeds the F2 triangle counts (31 / 21)");
   assert.ok(trianglesMariposa(true) <= 31 && trianglesMariposa(false) <= 21, `${trianglesMariposa(true)} / ${trianglesMariposa(false)} triangles`);
+  assert.equal(trianglesMariposa(true), 24); assert.equal(trianglesMariposa(false), 19);
   assert.ok(gd.getAttribute("position").count < g.getAttribute("position").count);
   for (const geo of [g, gd, geometriaLuciernaga()]) {
     const p = geo.getAttribute("position");
@@ -105,8 +107,8 @@ test("two draw calls, one mesh each; fireflies are additive, fog-free, depth-wri
   assert.equal(ins.mallas.length, 2);
   const [m, l] = ins.mallas.map((x) => x.material as THREE.MeshBasicNodeMaterial);
   assert.ok(m.positionNode && m.colorNode && !m.transparent);
-  // WebGPU's default is 8 vertex buffers per draw: butterflies use position+rol+aleta + 3 instance buffers, fireflies position+esq + 3
-  for (const x of ins.mallas) assert.ok(Object.keys((x.geometry as THREE.BufferGeometry).attributes).length <= 6, "≤ 6 vertex buffers");
+  // WebGPU's default is 8 vertex buffers per draw: butterflies use position+rol+aleta+bord (R6.7) + 3 instance buffers, fireflies position+esq + 3
+  for (const x of ins.mallas) assert.ok(Object.keys((x.geometry as THREE.BufferGeometry).attributes).length <= 7, "≤ 7 vertex buffers (WebGPU default limit 8)");
   assert.ok(l.positionNode && l.colorNode && l.opacityNode);
   assert.equal(l.blending, THREE.AdditiveBlending); assert.equal(l.depthWrite, false); assert.equal(l.fog, false); assert.equal(l.transparent, true);
   for (const x of ins.mallas) assert.ok(x instanceof THREE.Mesh && (x.geometry as THREE.BufferGeometry).boundingSphere, "bounding sphere set");
