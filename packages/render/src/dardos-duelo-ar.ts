@@ -8,7 +8,7 @@
 import * as THREE from "three/webgpu";
 import { RADIO_M, PINTADA } from "./diana.ts";
 import type { DianaAR, Dardo3D } from "./dardos.ts";
-import { enBoton, llegadas, panelDe, pintarPanel, puedeLanzar, PANEL_PX, salidaRival, vueloRival, VUELO_RIVAL_S } from "./dardos-duelo.ts";
+import { enBoton, rectBoton, llegadas, panelDe, pintarPanel, puedeLanzar, PANEL_PX, salidaRival, vueloRival, VUELO_RIVAL_S } from "./dardos-duelo.ts";
 import type { Panel } from "./dardos-duelo.ts";
 import type { DueloV, P3 } from "./dardos-duelo.ts";
 
@@ -30,7 +30,8 @@ export type DianaDueloAR = DianaAR & {
   /** Call when `duelo()` changed (`alCambiar("duelo")`): repaints the panel. */
   refrescar(): void;
   /** For tests and the e2e: the panel's state and the darts in flight. */
-  duelo(): { visible: boolean; pie: string; volando: number; boton: "empezar" | "cambiar" | null };
+  duelo(): { visible: boolean; pie: string; volando: number; boton: "empezar" | "cambiar" | null;
+    /** world position of the button's centre (for the e2e to aim the controller at), or null without a button */ puntoBoton: { x: number; y: number; z: number } | null };
   /** For tests and the e2e: press the panel's button as the ray would (true if there was one). */
   pulsarBoton(): boolean;
 };
@@ -131,7 +132,16 @@ export function envolverDuelo(j: DianaAR, o: OpcionesDuelo): DianaDueloAR {
       }
       reenviar();
     },
-    duelo: () => ({ visible: panel.visible, pie, volando: vuelos.size, boton: actual?.boton ?? null }),
+    duelo: () => {
+      let puntoBoton: { x: number; y: number; z: number } | null = null;
+      if (panel.visible && actual?.boton) {
+        const r = rectBoton(actual.filas.length);
+        diana.updateWorldMatrix(true, true);
+        const w = panel.localToWorld(new THREE.Vector3(((r.x + r.w / 2) / PANEL_PX.w - 0.5) * ancho, (0.5 - (r.y + r.h / 2) / PANEL_PX.h) * alto, 0));
+        puntoBoton = { x: w.x, y: w.y, z: w.z };
+      }
+      return { visible: panel.visible, pie, volando: vuelos.size, boton: actual?.boton ?? null, puntoBoton };
+    },
     pulsarBoton: apretar,
   };
 }
