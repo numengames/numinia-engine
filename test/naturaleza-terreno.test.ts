@@ -72,7 +72,7 @@ test("one mesh, one draw call per tier, triangles and vertices within budget", (
     assert.equal(g.attributes.position.count, esperado * 3);
     assert.equal(t.triangulos, esperado);
     assert.ok(esperado <= TOPE_TRI[n] * 0.4, `${n}: ${esperado} triangles leave room for trees and grass`);
-    assert.ok(g.attributes.color && g.attributes.normal, "vertex colours + flat normals");
+    assert.ok(g.attributes.color && !g.attributes.normal, "vertex colours; flat normals come from the material (F4: no normal buffer)");
     assert.ok(g.boundingSphere && g.boundingSphere.radius > 100, "bounding sphere set (frustum culling)");
     assert.equal(Object.keys(t.malla).includes("children") ? t.malla.children.length : 0, 0, "no child meshes");
     vistos.push(esperado);

@@ -79,18 +79,15 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
     C[k * 3] = r + (niebla.r - r) * f; C[k * 3 + 1] = g + (niebla.g - g) * f; C[k * 3 + 2] = b + (niebla.b - b) * f;
   }
   const tris = triangulosDeTerreno(n), nvt = tris * 3;
-  const pos = new Float32Array(nvt * 3), col = new Float32Array(nvt * 3), nor = new Float32Array(nvt * 3);
+  const pos = new Float32Array(nvt * 3), col = new Float32Array(nvt * 3);
   let p = 0;
   const caida = 10; // skirt drop (m) below the border height
   const tri = (a: number[], b: number[], c: number[], ia: number, ib: number, ic: number, fog: boolean) => {
     const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
-    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
-    const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
     const tinte = fog ? 1 : 0.94 + hash2(s, (a[0] * 7) | 0, (a[2] * 7) | 0) * 0.12; // a faint per-face tint so the facets read
     const idx = [ia, ib, ic], pts = [a, b, c];
     for (let q = 0; q < 3; q++) {
       pos[p * 3] = pts[q][0]; pos[p * 3 + 1] = pts[q][1]; pos[p * 3 + 2] = pts[q][2];
-      nor[p * 3] = nx; nor[p * 3 + 1] = ny; nor[p * 3 + 2] = nz;
       if (idx[q] < 0) { col[p * 3] = niebla.r; col[p * 3 + 1] = niebla.g; col[p * 3 + 2] = niebla.b; }
       else { col[p * 3] = C[idx[q] * 3] * tinte; col[p * 3 + 1] = C[idx[q] * 3 + 1] * tinte; col[p * 3 + 2] = C[idx[q] * 3 + 2] * tinte; }
       p++;
@@ -117,10 +114,10 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-  g.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+  // F4 audit: no normal buffer (a third of the terrain's bytes): the faces are flat, so the material takes them from screen derivatives
   g.setAttribute("color", new THREE.BufferAttribute(col, 3));
   g.computeBoundingSphere(); g.computeBoundingBox();
-  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
   mat.name = "terreno-naturaleza";
   const malla = new THREE.Mesh(g, mat);
   malla.name = "terreno-naturaleza";

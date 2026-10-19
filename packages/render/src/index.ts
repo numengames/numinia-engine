@@ -200,7 +200,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const elementos = vistaElementos({ renderer, scene, world, camera, entorno }); // H4/H8: water, fire, smoke, dust (lazy)
   const tele = crearTeletransporte({ world, nivel: () => entorno.nivel }); // N16: the light of a trip (none on tier D)
 
-  const naturaleza = crearNaturalezaPerezosa({ padre: world, ground, vientoU: entorno.vientoU, nivel: () => entorno.nivel, camara: camera, yo: () => (selfXZ ? { x: selfXZ.x, y: selfXZ.y ?? 0, z: selfXZ.z } : null), niebla: () => (scene.fog instanceof THREE.Fog ? scene.fog.color.getHex() : 0xc9d8e4), aguaLuz: entorno.aguaLuz, detalleAgua: () => detalleAgua(entorno.nivel, entorno.calidadActual.agua), hora: () => horaDeEntorno(entorno.datos) }); // N4 + F4 (hour of day for the fauna)
+  const yoNat = { x: 0, y: 0, z: 0 }; // F4 audit: one object reused every frame (the nature reads it at once)
+  const naturaleza = crearNaturalezaPerezosa({ padre: world, ground, vientoU: entorno.vientoU, nivel: () => entorno.nivel, camara: camera, yo: () => (selfXZ ? (yoNat.x = selfXZ.x, yoNat.y = selfXZ.y ?? 0, yoNat.z = selfXZ.z, yoNat) : null), niebla: () => (scene.fog instanceof THREE.Fog ? scene.fog.color.getHex() : 0xc9d8e4), aguaLuz: entorno.aguaLuz, detalleAgua: () => detalleAgua(entorno.nivel, entorno.calidadActual.agua), hora: () => horaDeEntorno(entorno.datos) }); // N4 + F4 (hour of day for the fauna)
 
 
   // feature decorations (J7): a text label over an avatar and a short bounce; both expire on their own

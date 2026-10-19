@@ -274,7 +274,7 @@ export function crearHierba(h: HierbaH, fuente: Fuente, op: OpcionesHierba) {
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 4, 0), cfg.radio + 20);
     const mat = materialHierba({ viento: h.vientoU as ReturnType<typeof uniform>, tiempo: uT, camara: uCam, radio: cfg.radio, empuja: uP, aleteo: cfg.aleteo, tam: flor ? ALTO_FLOR : ALTO_TUFT, flor });
     const m = new THREE.Mesh(g, mat);
-    m.name = flor ? "hierba-flores" : "hierba-tufts"; m.matrixAutoUpdate = false; m.castShadow = false; m.receiveShadow = false; m.frustumCulled = true;
+    m.name = flor ? "hierba-flores" : "hierba-tufts"; m.matrixAutoUpdate = false; m.castShadow = false; m.receiveShadow = false; m.frustumCulled = true; m.userData.sinSombra = true;
     grupo.add(m);
     return { m, g, pos, col, mat };
   };
@@ -353,8 +353,12 @@ export function crearHierba(h: HierbaH, fuente: Fuente, op: OpcionesHierba) {
     uT.value = t;
     const p = camara.position;
     (uCam.value as THREE.Vector3).copy(p);
-    const lista: Mover[] = op.empujaCamara === false ? [...empujan] : [{ x: p.x, y: p.y - 1.7, z: p.z }, ...empujan];
-    for (let i = 0; i < 4; i++) { const v = uP[i].value as THREE.Vector4, m = lista[i]; if (m) v.set(m.x, m.y, m.z, 0.8); else v.set(LEJOS, 0, LEJOS, 0.8); }
+    // F4 audit: no list is built per frame (the camera is slot 0 when it pushes the grass, the rest follow)
+    const sinCam = op.empujaCamara === false ? 0 : 1;
+    for (let i = 0; i < 4; i++) {
+      const v = uP[i].value as THREE.Vector4, m = i < sinCam ? null : empujan[i - sinCam];
+      if (i < sinCam) v.set(p.x, p.y - 1.7, p.z, 0.8); else if (m) v.set(m.x, m.y, m.z, 0.8); else v.set(LEJOS, 0, LEJOS, 0.8);
+    }
     const t0 = performance.now();
     const cx0 = Math.floor(p.x / cfg.celda), cz0 = Math.floor(p.z / cfg.celda);
     if (cx0 !== cxA || cz0 !== czA) { cxA = cx0; czA = cz0; recentrar(cx0, cz0); }

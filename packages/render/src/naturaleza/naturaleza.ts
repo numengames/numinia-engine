@@ -73,18 +73,20 @@ export type HNaturaleza = {
 
 type Real = {
   arboles: import("./arboles.ts").Arboles; hierba: import("./hierba.ts").Hierba; terreno: import("./terreno.ts").Terreno;
-  agua: { malla: THREE.Mesh; t: { value: number } } | null; grupo: THREE.Group; nivel: Nivel; datos: NaturalezaNormal; fauna: import("./fauna.ts").Fauna | null; claveFauna: string;
+  agua: { malla: THREE.Mesh; t: { value: number } } | null; grupo: THREE.Group; nivel: Nivel; datos: NaturalezaNormal; fauna: import("./fauna.ts").Fauna | null; claveFauna: string; msFauna: number;
   puntos: readonly import("./arboles.ts").PuntoArbol[]; groundVisible: boolean; msConstruir: number;
 };
 export type EstadisticasNaturaleza = {
   activa: boolean; nivel: Nivel | null; clave: string;
   triangulos: { terreno: number; arboles: number; hierba: number; hierbaVivos: number; fauna: number; total: number }; llamadas: { terreno: number; arboles: number; hierba: number; agua: number; fauna: number; total: number };
-  arboles: number; msConstruir: number;
+  arboles: number; msConstruir: number; /** F4: build time of the fauna alone (ms), 0 = off. */ msFauna: number;
   /** F4: what the fauna shows right now (null = off). `triangulosPeor` = every pool full. */
   fauna: import("./fauna.ts").EstadisticasFauna | null;
 };
 
+const SIN_EMPUJAR: readonly never[] = [];
 export function crearNaturaleza(h: HNaturaleza) {
+  const empuja: { x: number; y: number; z: number }[] = [];
   let real: Real | null = null, clave = "", ticket = 0, reloj = 0, ultimos: NaturalezaDatos | null = null;
   const cargar = () => Promise.all([import("./terreno.ts"), import("./arboles.ts"), import("./hierba.ts"), import("./esparcir.ts"), import("../agua-estilo.ts")]);
 
@@ -96,10 +98,12 @@ export function crearNaturaleza(h: HNaturaleza) {
   function ponerFauna(F: typeof import("./fauna.ts") | null, tabla: TablaFauna | null, d: NaturalezaNormal): void {
     if (!real) return;
     real.fauna?.dispose(); real.fauna = null;
-    real.datos = d; real.claveFauna = claveDeFauna(d);
+    real.datos = d; real.claveFauna = claveDeFauna(d); real.msFauna = 0;
     if (!F || !tabla) return;
+    const t0 = performance.now();
     real.fauna = F.crearFauna({ semilla: d.semilla, nivel: real.nivel, densidad: d.faunaDensidad, especies: d.faunaEspecies, vientoU: h.vientoU, camara: h.camara, escena: real.grupo, hora: h.hora ?? (() => 12), tabla, turnos: real.nivel !== "A", alturaEn: real.terreno.alturaEn, zonaEn: real.terreno.zonaEn });
     real.fauna.llenarTodo(h.camara, reloj);
+    real.msFauna = Math.round((performance.now() - t0) * 10) / 10;
   }
   /** The fauna wants a table and a non-zero density; only then is its chunk fetched. */
   const quiereFauna = (d: NaturalezaNormal) => d.fauna && d.faunaDensidad > 0 && !!h.tablaFauna;
@@ -143,7 +147,7 @@ export function crearNaturaleza(h: HNaturaleza) {
     const p = h.camara.position;
     hierba.llenarTodo(h.camara);                      // fill the ring now (a one-off cost at the load), not over the first frames
     arboles.repartir(p.x, p.y, p.z);
-    return { arboles, hierba, terreno, agua, grupo, nivel, datos: d, fauna: null, claveFauna: claveDeFauna(d), puntos, groundVisible, msConstruir: Math.round((performance.now() - t0) * 10) / 10 };
+    return { arboles, hierba, terreno, agua, grupo, nivel, datos: d, fauna: null, claveFauna: claveDeFauna(d), msFauna: 0, puntos, groundVisible, msConstruir: Math.round((performance.now() - t0) * 10) / 10 };
   }
 
   /** Switch the nature on, change it or switch it off. Idempotent: the same data on the same tier does nothing. Async only the first time (modules load). */
@@ -176,19 +180,19 @@ export function crearNaturaleza(h: HNaturaleza) {
     reloj += dt;
     const yo = h.yo();
     real.arboles.actualizar(reloj);
-    real.hierba.actualizar(h.camara, reloj, yo ? [yo] : []);
+    real.hierba.actualizar(h.camara, reloj, yo ? (empuja[0] = yo, empuja) : SIN_EMPUJAR); // F4 audit: no array per frame
     if (real.agua) real.agua.t.value = reloj;
     real.fauna?.actualizar(h.camara, reloj);
   }
 
   function estadisticas(): EstadisticasNaturaleza {
-    if (!real) return { activa: false, nivel: null, clave, triangulos: { terreno: 0, arboles: 0, hierba: 0, hierbaVivos: 0, fauna: 0, total: 0 }, llamadas: { terreno: 0, arboles: 0, hierba: 0, agua: 0, fauna: 0, total: 0 }, arboles: 0, msConstruir: 0, fauna: null };
+    if (!real) return { activa: false, nivel: null, clave, triangulos: { terreno: 0, arboles: 0, hierba: 0, hierbaVivos: 0, fauna: 0, total: 0 }, llamadas: { terreno: 0, arboles: 0, hierba: 0, agua: 0, fauna: 0, total: 0 }, arboles: 0, msConstruir: 0, msFauna: 0, fauna: null };
     const ea = real.arboles.estadisticas(), eh = real.hierba.estadisticas();
     const tris = { terreno: real.terreno.triangulos, arboles: ea.triangulos, hierba: eh.triangulosEnviados, hierbaVivos: eh.triangulosVivos, fauna: 0, total: 0 }, ef = real.fauna?.estadisticas() ?? null;
     tris.fauna = ef?.triangulos ?? 0; tris.total = tris.terreno + tris.arboles + tris.hierba + tris.fauna;
     const ll = { terreno: 1, arboles: ea.llamadas, hierba: eh.dibujos, agua: real.agua ? 1 : 0, fauna: ef?.llamadas ?? 0, total: 0 };
     ll.total = ll.terreno + ll.arboles + ll.hierba + ll.agua + ll.fauna;
-    return { activa: true, nivel: real.nivel, clave, triangulos: tris, llamadas: ll, arboles: real.puntos.length, msConstruir: real.msConstruir, fauna: ef };
+    return { activa: true, nivel: real.nivel, clave, triangulos: tris, llamadas: ll, arboles: real.puntos.length, msConstruir: real.msConstruir, msFauna: real.msFauna, fauna: ef };
   }
 
   return {

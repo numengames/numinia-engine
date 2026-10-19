@@ -440,7 +440,7 @@ export function crearAves(h: HAves, fuente: FuenteAves, op: OpcionesAves = {}) {
   g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1);
   const mat = materialAves({ viento: h.vientoU, tiempo: uT, camara: uCam, tabla, lejos: lejosM, lejosFin: lejosM + 10, desvanece: lejosM + DESVANECE, desvaneceFin: lejosM + DESVANECE + 16 });
   const malla = new THREE.Mesh(g, mat);
-  malla.name = "aves"; malla.matrixAutoUpdate = false; malla.castShadow = false; malla.receiveShadow = false; malla.frustumCulled = true;
+  malla.name = "aves"; malla.matrixAutoUpdate = false; malla.castShadow = false; malla.receiveShadow = false; malla.frustumCulled = true; malla.userData.sinSombra = true;
   op.escena?.add(malla);
 
   // cells of the ring around the camera's cell (the camera sits anywhere inside it: reach = view + fade + half a cell diagonal)
