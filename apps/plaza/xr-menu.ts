@@ -94,7 +94,7 @@ export function montarMenuVR(o: {
     if (!r) return { tipo: "lista", titulo: "Bolsa", vacio: "Este servidor no lleva inventario.", filas: [] } as Contenido;
     const lista = (inv.lista?.() ?? []) as { nombre: string; n: number; portado: boolean; tipo?: string }[];
     return { tipo: "lista", titulo: "Bolsa", nota: resumenTexto(r), vacio: resumenTexto(r),
-      filas: lista.map((x) => ({ texto: x.n > 1 ? `${x.nombre} × ${x.n}` : x.nombre, detalle: x.portado ? "Contigo" : "Guardado", icono: "package" })) } as Contenido;
+      filas: lista.map((x) => ({ texto: x.n > 1 ? `${x.nombre} × ${x.n}` : x.nombre, detalle: x.portado ? "Contigo" : "Guardado", icono: x.tipo === "captura" ? "fish" : "package" })) } as Contenido;
   }
   function misiones(): Contenido {
     const m = o.n().misiones;

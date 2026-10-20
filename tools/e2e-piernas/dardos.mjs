@@ -1,7 +1,7 @@
 // e2e leg (dardos v1): darts in a real browser, three ways.
 // 1) PC (1280×800, mouse): A waits for the board's card («lugar: Diana de la plaza»), walks to its throwing line (the
 //    3D board's view.dardos.linea), the prompt says «E: tirar dardos», E opens the turn and the throwing view; three
-//    times: mouse over the board, press, hold ~0.7 s (power bar near the gold mark), release → the server lands a dart
+//    times: mouse over the board, press, hold ~0.7 s (the bar beside the board near its gold window; after the release the word PERFECTO / CASI / FLOJO ↓ / FUERTE ↑ shows), release → the server lands a dart
 //    (sector/ring/points), the HUD counts; after the third, «fin», the scoreboard line and the 3D board has 3 darts.
 //    Tab B (another guest 8 m away) sees A's darts land (clavados) and takes them out at A's `fin`.
 // 2) Phone (390×844, touch): walk to the line, tap the prompt button, then FLICK upward on the board (CDP touch
@@ -95,15 +95,20 @@ if (!SOLO || SOLO === "pc") try {
   await a.waitForTimeout(900); // the camera eases round to the board
   res.pcCamara = await ctl(a, () => { const l = globalThis.__numinia.view.dardos.linea("diana"), y = globalThis.__numinia.view.cam.yaw(), d = l.rumbo - Math.PI - y; return Math.round(Math.abs(Math.atan2(Math.sin(d), Math.cos(d))) * 100) / 100; });
   await foto(a, "pc-1-abierto");
-  const box = await a.evaluate(() => { const r = document.querySelector("#dardos-hud canvas").getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+  const box = await a.evaluate(() => { const r = document.querySelector("#dardos-hud canvas.diana").getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
   const tiros = [];
   for (let n = 1; n <= 3; n++) {
     // aim at the treble 20 (a bit above the centre) — the hand sway and the server's tremor move it
     await a.mouse.move(box.x + box.w / 2, box.y + box.h / 2 - box.h * 0.22);
     await a.mouse.down();
-    await a.waitForTimeout(690);
+    await a.waitForTimeout(715); // the bar reaches the straight mark (0.65 of a 1.1 s ramp) at 715 ms
     const pot = await ctl(a, () => globalThis.__numinia.dardosHud.potencia());
     await a.mouse.up();
+    if (n === 1) { // v4: the bar beside the board (28 css px wide track, the board's height), the word and the aim ring after the release
+      res.pcBarra = await a.evaluate(() => { const b = document.querySelector("#dardos-hud canvas.barra").getBoundingClientRect(), d = document.querySelector("#dardos-hud canvas.diana").getBoundingClientRect(); return { visible: b.width > 0 && getComputedStyle(document.querySelector("#dardos-hud .guia")).display !== "none", ancho: Math.round(b.width), altoIgual: Math.abs(b.height - d.height) < 2, derecha: b.left >= d.right - 1, zona: globalThis.__numinia.dardosHud.zona() }; });
+      res.pcSuelta = await a.evaluate(() => ({ dato: globalThis.__numinia.dardosHud.suelto(), texto: document.querySelector("#dardos-hud .suelta")?.textContent ?? "", visible: !document.querySelector("#dardos-hud .suelta")?.hidden }));
+      await foto(a, "pc-1b-suelta");
+    }
     await esperar(a, (k) => globalThis.__numinia.dardos.estado().marcador.dardos >= k || (globalThis.__numinia.dardos.estado().ultimo?.numero ?? 0) >= k, n, 6000).catch(() => {});
     await a.waitForTimeout(250);
     const e = await estado(a);
@@ -130,7 +135,7 @@ if (!SOLO || SOLO === "movil") try {
   await m.evaluate(() => document.getElementById("interactuar").click());
   await esperar(m, () => globalThis.__numinia.dardos.tirando() && !!globalThis.__numinia.dardosHud?.abierto(), null, 8000);
   res.movilCoarse = await m.evaluate(() => matchMedia("(pointer: coarse)").matches);
-  const box = await m.evaluate(() => { const r = document.querySelector("#dardos-hud canvas").getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+  const box = await m.evaluate(() => { const r = document.querySelector("#dardos-hud canvas.diana").getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
   const cdp = await m.context().newCDPSession(m);
   res.movilEncima = await m.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e ? `${e.tagName}#${e.id}.${e.className}` : ""; }, [box.x + box.w / 2, box.y + box.h * 0.62]);
   res.movilCaja = box;
@@ -206,7 +211,7 @@ if (!SOLO || SOLO === "ar") try {
     await esperar(r, (k) => globalThis.__numinia.dardosHud.ar().lanzados > k, n0, 4000).catch(() => {});
     await esperar(r, (k) => globalThis.__numinia.dardosHud.ar().clavados >= k || !globalThis.__numinia.dardos.tirando(), n, 5000).catch(() => {});
     await r.waitForTimeout(200);
-    tiros.push({ ar: await ctl(r, () => { const s = globalThis.__numinia.dardosHud.ar(); return { lanzados: s.lanzados, clavados: s.clavados, ultimo: s.ultimo }; }), servidor: (await estado(r)).ultimo });
+    tiros.push({ ar: await ctl(r, () => { const s = globalThis.__numinia.dardosHud.ar(); return { lanzados: s.lanzados, clavados: s.clavados, ultimo: s.ultimo, zona: s.zona }; }), servidor: (await estado(r)).ultimo });
   }
   await esperar(r, () => !globalThis.__numinia.dardos.tirando(), null, 6000).catch(() => {});
   res.ar = { tiros, fin: (await estado(r)).fin };
@@ -221,9 +226,10 @@ if (!SOLO || SOLO === "ar") try {
 await browser.close();
 const okPC = SOLO && SOLO !== "pc" ? true : /dardos/i.test(res.pcPrompt ?? "") && res.pcHud && res.pc?.tiros.length === 3 && res.pc.tiros.every((t) => typeof t.puntos === "number" && t.texto)
   && res.pc.fin?.dardos === 3 && res.pc.fin.puntos === res.pc.tiros.reduce((s, t) => s + t.puntos, 0) && res.pc.marcador.dardos === 3 && res.pc.en3D.dardos === 3 && /Marcador: 3 dardos/.test(res.pc.hud.marcador)
-  && res.pc.tiros.filter((t) => Math.abs(t.potencia - 0.65) < 0.2).length >= 2 && res.bVio?.clavados === 0 && res.pcCamara < 0.35;
+  && res.pc.tiros.filter((t) => Math.abs(t.potencia - 0.65) < 0.2).length >= 2 && res.bVio?.clavados === 0 && res.pcCamara < 0.35
+  && res.pcBarra?.visible && res.pcBarra.altoIgual && res.pcBarra.derecha && res.pcBarra.zona === 0.04 && res.pcSuelta?.visible && /PERFECTO|CASI|FLOJO|FUERTE/.test(res.pcSuelta.texto) && res.pcSuelta.dato?.via === "raton";
 const okMovil = SOLO && SOLO !== "movil" ? true : res.movilCoarse && res.movil?.tiros.length === 3 && res.movil.fin?.dardos === 3 && res.movil.tiros.every((t) => typeof t.puntos === "number") && res.movil.tiros[2].y < res.movil.tiros[1].y - 0.3 && res.movil.seMovioM < 0.3; // the lazy flick drops; the board never moved the avatar
-const okAR = SOLO && SOLO !== "ar" ? true : res.arJugando?.jugando && res.arColocada?.pared === true && res.ar?.tiros.length === 3 && res.ar.tiros.every((t) => t.ar.ultimo && t.servidor) && res.ar.tiros.some((t) => Math.hypot(t.ar.ultimo.x, t.ar.ultimo.y) < 0.6) && res.ar.fin?.dardos === 3 && res.arSalio === "off";
+const okAR = SOLO && SOLO !== "ar" ? true : res.arJugando?.jugando && res.arColocada?.pared === true && res.ar?.tiros.length === 3 && res.ar.tiros.every((t) => t.ar.ultimo && t.servidor && t.ar.zona === 0.06) && res.ar.tiros.some((t) => Math.hypot(t.ar.ultimo.x, t.ar.ultimo.y) < 0.6) && res.ar.fin?.dardos === 3 && res.arSalio === "off";
 const ok = okPC && okMovil && okAR && errors.length === 0;
 console.log(JSON.stringify({ ...res, okPC, okMovil, okAR, ...out }, null, 1));
 console.log(ok ? "E2E DARDOS OK" : "E2E DARDOS FALLA");

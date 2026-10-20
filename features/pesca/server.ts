@@ -1,7 +1,8 @@
 // pesca — server part (v1). The server owns the whole cycle: cast → wait (3-12 s) → maybe one nibble → bite with a hook
 // window → fight (tension vs progress at 20 Hz, telegraphed surges, a tired fish) → catch or escape. The page only sends
 // lanzar / recoger { activo } / soltar and animates what it is told. One angler per spot (as Lakeside's `reserved`);
-// others near see the float (lanzado / fin). What you caught is kept per guest in the store (I1 + S4), never per entity.
+// others near see the float (lanzado / fin). What you caught is kept per guest in the store (I1 + S4), never per entity, and (v3) every fish also goes to the
+// Inventario through our server-only `otorga` event.
 // Randomness: the engine's seeded PRNG (core rngNext, mulberry32) with the feature's own state — never Math.random.
 // Numbers and the tension/progress integration follow bridge-mind/tideline (MIT, src/gameplay/reelMinigame.js,
 // src/fish/spawning.js), re-expressed for a 20 Hz server tick and a single fish table (features/pesca/peces.json).
@@ -9,6 +10,7 @@ import { rngNext } from "../../packages/core/src/index.ts";
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
 import { pesca, CERCA_M, ESPERA_S, MORDISQUEO_EN, MORDISQUEO_P, MOTIVOS, PELEA, RAREZAS, VENTANA_POR_RAREZA, VENTANA_S } from "./feature.ts";
+import { otorgaDeCaptura } from "./otorga.ts";
 import tabla from "./peces.json" with { type: "json" };
 
 export type Rareza = (typeof RAREZAS)[number];
@@ -168,8 +170,10 @@ export const crearPesca = (opts: { sitios?: Sitio[]; peces?: Pez[]; semilla?: nu
         else if (f.arrancada === "si" && (f.dura -= DT) <= 0) { f.arrancada = "no"; const [a, b] = f.pez.arrancadas; f.proxima = entre(rng, a, b) * (f.t > f.pez.aguante ? 1.6 : 1); }
         const fin = pasoPelea(f, DT);
         if (fin === "captura") {
+          // v3: the fish goes to the Inventario (inventario hears our `otorga`; it answers whether it kept it — a full Reserva says no)
+          const guardado = api.emit("otorga", otorgaDeCaptura(e, f.pez), "server") > 0;
           const total = anotar(e, f.pez);
-          api.emit("captura", { pez: f.pez.nombre, cm: f.pez.cm, rareza: f.pez.rareza, total }, { to: e });
+          api.emit("captura", { pez: f.pez.nombre, cm: f.pez.cm, rareza: f.pez.rareza, total, guardado }, { to: e });
           cesta(e);
           terminar(e, "captura");
         } else if (fin) terminar(e, "escape", fin);

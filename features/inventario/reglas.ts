@@ -1,8 +1,11 @@
 // inventario — the rules, pure (no network, no clock, no randomness): what an object is, how it stacks, what you
 // can carry. The canon (lore 06, Fragmento 2) decides the limits: one weapon carried, three relics carried; the
-// rest waits in your Reserva. Tokens (Semillas, Células) stack by class and colour and are never carried.
-export const TIPOS = ["arma", "reliquia", "token"] as const;
+// rest waits in your Reserva. Tokens (Semillas, Células) stack by class and colour and are never carried; so do the
+// catches of the fishing (v2 of this feature: «captura», one stack per species and rarity colour, never carried).
+export const TIPOS = ["arma", "reliquia", "token", "captura"] as const;
 export type Tipo = (typeof TIPOS)[number];
+/** Types that stack (same type, class and colour = one line with a count) and are only kept, never carried. */
+export const apila = (t: Tipo): boolean => t === "token" || t === "captura";
 export const COLORES = ["", "verde", "azul", "plateada", "dorada", "roja"] as const;
 export type Color = (typeof COLORES)[number];
 /** Prestige points of one Semilla del Conocimiento by colour (lore 06, «Morfología de las Semillas»). */
@@ -22,9 +25,9 @@ export type Objeto = {
   clase: string;    // what it is: "semilla", "celula", "hoja"… (the canon names things; the engine stores them)
   nombre: string;
   icono: string;    // a house icon's name (apps/plaza/iconos.ts); "" = the type's icon
-  color: Color;     // tokens only today
+  color: Color;     // tokens (their colour) and catches (their rarity: plateada común, azul rara, dorada legendaria)
   valor: number;    // prestige points per unit; 0 if none
-  n: number;        // units (tokens stack); weapons and relics are always 1
+  n: number;        // units (tokens and catches stack); weapons and relics are always 1
   portado: boolean; // carried with you (weapons and relics only)
 };
 export type Inventario = { v: 1; serie: number; objetos: Objeto[] };
@@ -52,7 +55,7 @@ export function leerInventario(raw: unknown): Inventario {
     objetos.push({
       id: r.id, tipo: r.tipo, clase: corta(r.clase, LIM.clase), nombre: corta(r.nombre, LIM.nombre), icono: corta(r.icono, LIM.icono),
       color: esColor(r.color) ? r.color : "", valor: Math.max(0, Math.floor(Number(r.valor) || 0)),
-      n: r.tipo === "token" ? n : 1, portado: r.tipo !== "token" && r.portado === true,
+      n: apila(r.tipo) ? n : 1, portado: !apila(r.tipo) && r.portado === true,
     });
     ids.add(r.id);
   }
@@ -73,14 +76,14 @@ export type Resultado = { ok: true; objeto: Objeto } | { ok: false; motivo: stri
 
 /** Hand something to this person. Tokens stack with the same class and colour; the Reserva has a size. */
 export function dar(inv: Inventario, e: Entrega): Resultado {
-  if (!esTipo(e.tipo)) return { ok: false, motivo: "Eso no es un arma, una reliquia ni un token." };
+  if (!esTipo(e.tipo)) return { ok: false, motivo: "Eso no es un arma, una reliquia, un token ni una captura." };
   const clase = corta(e.clase, LIM.clase), nombre = corta(e.nombre, LIM.nombre);
   if (!clase || !nombre) return { ok: false, motivo: "Un objeto necesita clase y nombre." };
   const color: Color = esColor(e.color) ? e.color : "";
-  const n = e.tipo === "token" ? Math.max(1, Math.min(LIM.pila, Math.floor(Number(e.n) || 1))) : 1;
+  const n = apila(e.tipo) ? Math.max(1, Math.min(LIM.pila, Math.floor(Number(e.n) || 1))) : 1;
   const valor = Math.max(0, Math.floor(Number(e.valor ?? (clase === "semilla" && color ? VALOR_SEMILLA[color] : 0)) || 0));
-  if (e.tipo === "token") {
-    const pila = inv.objetos.find((x) => x.tipo === "token" && x.clase === clase && x.color === color);
+  if (apila(e.tipo)) {
+    const pila = inv.objetos.find((x) => x.tipo === e.tipo && x.clase === clase && x.color === color);
     if (pila) {
       if (pila.n + n > LIM.pila) return { ok: false, motivo: `No caben más de ${LIM.pila} ${pila.nombre}.` };
       pila.n += n;
@@ -99,7 +102,7 @@ export function quitar(inv: Inventario, id: string, n?: number): Resultado {
   const i = inv.objetos.findIndex((x) => x.id === id);
   if (i < 0) return { ok: false, motivo: "No tienes eso." };
   const o = inv.objetos[i];
-  const cuantos = o.tipo === "token" ? Math.max(1, Math.min(o.n, Math.floor(Number(n) || o.n))) : 1;
+  const cuantos = apila(o.tipo) ? Math.max(1, Math.min(o.n, Math.floor(Number(n) || o.n))) : 1;
   if (cuantos < o.n) { o.n -= cuantos; return { ok: true, objeto: o }; }
   inv.objetos.splice(i, 1);
   return { ok: true, objeto: { ...o, n: 0 } };
@@ -110,6 +113,7 @@ export function equipar(inv: Inventario, id: string): Resultado {
   const o = inv.objetos.find((x) => x.id === id);
   if (!o) return { ok: false, motivo: "No tienes eso." };
   if (o.tipo === "token") return { ok: false, motivo: "Los tokens no se llevan encima: se guardan." };
+  if (o.tipo === "captura") return { ok: false, motivo: "Los peces no se llevan encima: se guardan." };
   if (o.portado) return { ok: true, objeto: o };
   const portados = inv.objetos.filter((x) => x.portado && x.tipo === o.tipo).length;
   if (o.tipo === "arma" && portados >= LIM.armaPortada) return { ok: false, motivo: "Solo puedes llevar un arma contigo; guarda la otra antes." };

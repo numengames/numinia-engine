@@ -82,12 +82,14 @@ test("polar / aterrizaje / textoDe: the face's geometry and how a throw is bent"
   assert.deepEqual(aterrizaje(0.2, 0.6, FUERZA_IDEAL, [0, 0]), { x: 0.2, y: 0.6 });
   // weak drops (a lot), hard climbs (a little)
   assert.ok(aterrizaje(0, 0, 0.2, [0, 0]).y < -0.6);
+  // v4: the climb is SUBIDA per unit beyond the window (1 - 0.65 - 0.04 = 0.31 → 0.26), so «fuerte» stays between 0.15 and 0.3
   const fuerte = aterrizaje(0, 0, 1, [0.25, 0]).y; assert.ok(fuerte > 0.15 && fuerte < 0.3);
   // at the ideal strength the tremor never moves a dart more than TEMBLOR
   for (let t = 0; t < 400; t++) { const p = aterrizaje(0, 0, FUERZA_IDEAL, azarDe(t, 3, 1, 7)); assert.ok(Math.hypot(p.x, p.y) <= TEMBLOR + 0.001); }
-  // and it is spread: aiming at the eye with a perfect throw is NOT 50 every time, but a bull (25+) almost always
+  // and it is spread: aiming at the eye with a perfect throw is NOT 50 every time, but a bull (25+) always.
+  // v4 (TEMBLOR 0.15 → 0.08): the double bull is now (0.0747/0.08)² ≈ 87 % of perfect throws, was ≈ 25 %.
   let eye = 0, bull = 0; for (let t = 0; t < 400; t++) { const p = aterrizaje(0, 0, FUERZA_IDEAL, azarDe(t, 3, 1, 7)); const r = Math.hypot(p.x, p.y); if (r <= ANILLOS.dobleBull) eye++; if (r <= ANILLOS.bull) bull++; }
-  assert.ok(eye > 40 && eye < 200, `diana ${eye}/400`); assert.equal(bull, 400);
+  assert.ok(eye > 320 && eye < 380, `diana ${eye}/400`); assert.equal(bull, 400);
   assert.deepEqual(azarDe(5, 6, 7), azarDe(5, 6, 7)); assert.notDeepEqual(azarDe(5, 6, 7), azarDe(6, 6, 7));
   assert.equal(textoDe({ sector: 20, anillo: "triple", puntos: 60 }), "Triple 20 · 60");
   assert.equal(textoDe({ sector: 0, anillo: "dobleBull", puntos: 50 }), "¡Diana! · 50");

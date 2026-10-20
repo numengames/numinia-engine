@@ -335,7 +335,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     labels.delete(t);
   }
   // N4: the rod in your real hand in VR, and the gauge facing the camera that draws
-  pesca.conManos({ ancla: (l) => (renderer.xr.isPresenting && vr.active ? manos.ancla(l) : null), camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera) });
+  pesca.conManos({ ancla: (l) => (renderer.xr.isPresenting && vr.active ? manos.ancla(l) : null), camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera), xr: () => renderer.xr.isPresenting });
 
   // dardos in VR (packages/render/src/dardos-vr.ts): the dart in your hand, flying and falling; lazy, fetched by the page only on a VR-capable device
   let dardosVRReal: import("./dardos-vr.ts").DardosVR | null = null, dardosVRCarga: Promise<import("./dardos-vr.ts").DardosVR> | null = null;
@@ -868,7 +868,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     editor.frame();
     entorno.actualizar(); naturaleza.actualizar(dtSeconds); espacioBase.actualizar(dtSeconds); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ);
     if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); dardosVR.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
-    pesca.actualizar(dtSeconds);
+    pesca.actualizar(dtSeconds); dardos.actualizar(dtSeconds);
     if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
     cam.update(dtSeconds, selfXZ ? feet : null);
     oyente?.actualizar(); // S5: right after the camera moved — the listener is where you hear from, nothing else
@@ -915,8 +915,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     ancestros,
     /** dardos v1 in AR: enter immersive-ar with a real-size board for your wall (dardos.ts crearDianaAR); null if the
      * session could not start. Press/hold/release throws: `alLanzar` gets aim (board radii) and strength. */
-    async dardosAR(o: { alLanzar: (x: number, y: number, fuerza: number) => void; alColocar?: (pared: boolean) => void }): Promise<DianaAR | null> {
-      const j = crearDianaAR(o);
+    async dardosAR(o: { alLanzar: (x: number, y: number, fuerza: number) => void; alColocar?: (pared: boolean) => void; zona?: number; envolver?: (j: DianaAR) => DianaAR }): Promise<DianaAR | null> {
+      const j = (o.envolver ?? ((x: DianaAR) => x))(crearDianaAR(o)); // AR-D3: the duel wraps the wall board (dardos-duelo-ar.ts)
       return (await ar.jugar(j)) ? j : null;
     },
     /** M18b: the Graboso over your shoulder (mostrar, grabando, visible) — packages/render/src/graboso.ts, loaded when first invoked. */
