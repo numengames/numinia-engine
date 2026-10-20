@@ -355,6 +355,10 @@ export type ServerApi = {
    * `…:<guest>~n` pages) under `sub`, joining with `fusionar` when `sub` already had it. Declare it only when the owner
    * lives inside the values (bienes) or an in-memory cache must follow (inventario, misiones); then do the whole move. */
   onAdoptar(fn: (invitado: string, sub: string) => void): void;
+  /** Read-only look at the shared state of ANOTHER feature on this server (its keys and values, as every page gets them).
+   * For a piece that must know what the world holds before it decides (the cable's «Decirlo» lists the real objects).
+   * Never writes; a feature this server does not have gives an empty view. */
+  estadoDe(feature: string): { keys(): string[]; get(key: string): Msg | undefined };
   /** I1: the guest behind an entity, or null (bots, or before onIdentify). */
   who(entity: number): { id: string; nombre: string } | null;
   onLeave(fn: (entity: number) => void): void;
@@ -683,6 +687,7 @@ export class ServerRuntime {
       onIdentify: (fn) => { this.hooks.identify.push([id, fn]); },
       onAdoptar: (fn) => { this.hooks.adoptar.set(id, fn); },
       who: (e) => this.host.who?.(e) ?? null,
+      estadoDe: (feature) => ({ keys: () => [...(this.shared.get(feature)?.keys() ?? [])], get: (key) => this.shared.get(feature)?.get(key)?.value }),
       onLeave: (fn) => { this.hooks.leave.push([id, fn]); },
       onTick: (fn) => { this.hooks.tick.push([id, fn, this.coste(id, "tick")]); },
       onVuelta: (fn) => { this.hooks.vuelta.push([id, fn, this.coste(id, "vuelta")]); },
