@@ -20,7 +20,7 @@ const CSS_AVISO = `
 #inventario-abrir.recibe, #mas.recibe { animation: bolsa-pulso .7s ease-out 2; }
 @keyframes bolsa-pulso { 0% { box-shadow: 0 0 0 0 rgba(255, 210, 122, .9); transform: scale(1); } 40% { transform: scale(1.18); } 100% { box-shadow: 0 0 0 14px rgba(255, 210, 122, 0); transform: scale(1); } }
 .bolsa-mas { position: fixed; z-index: 30; pointer-events: none; padding: 1px 7px; border-radius: 999px; background: #ffd27a; color: #23303b; font: 700 13px/1.5 system-ui, sans-serif; box-shadow: 0 1px 4px rgba(0,0,0,.4); animation: bolsa-mas 1.6s ease-out forwards; }
-@keyframes bolsa-mas { 0% { opacity: 0; transform: translateY(6px) scale(.7); } 15% { opacity: 1; transform: translateY(0) scale(1.1); } 70% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px); } }
+@keyframes bolsa-mas { 0% { opacity: 0; transform: translateY(-8px) scale(.7); } 15% { opacity: 1; transform: translateY(0) scale(1.1); } 70% { opacity: 1; } 100% { opacity: 0; transform: translateY(12px); } }
 @media (prefers-reduced-motion: reduce) { #inventario-abrir.recibe, #mas.recibe { animation: none; outline: 3px solid #ffd27a; } .bolsa-mas { animation: bolsa-mas-quieta 1.6s linear forwards; } @keyframes bolsa-mas-quieta { 0%, 85% { opacity: 1; } 100% { opacity: 0; } } }`;
 /** Something just went into the Inventario (a fish landed): the Bolsa button pulses and a «+1» rises from it for a moment.
  * On a phone the button lives behind «…»: then that button pulses instead. Cheap: one class, one short-lived element. */
@@ -33,7 +33,7 @@ export function avisarRecibido(texto = "+1"): void {
   objetivo.classList.remove("recibe"); void objetivo.offsetWidth; objetivo.classList.add("recibe");
   setTimeout(() => objetivo.classList.remove("recibe"), 1500);
   const r = objetivo.getBoundingClientRect(), chip = el("span", texto, "bolsa-mas");
-  chip.setAttribute("aria-hidden", "true"); chip.style.left = `${Math.round(r.right - 14)}px`; chip.style.top = `${Math.round(r.top - 8)}px`;
+  chip.setAttribute("aria-hidden", "true"); chip.style.left = `${Math.round(r.right - 26)}px`; chip.style.top = `${Math.round(r.bottom - 6)}px`; // under the button: the top bar sits at the very top of the screen
   document.body.appendChild(chip);
   setTimeout(() => chip.remove(), 1700);
 }
@@ -53,7 +53,7 @@ export function montarInventario(c: Ctl, boton: HTMLButtonElement) {
   const fila = (o: Objeto): HTMLElement => {
     const li = el("li", "", `objeto ${o.tipo}`);
     const ic = el("span", "", "icono-objeto"); ic.innerHTML = icono(o.icono || ICONO_TIPO[o.tipo], 20); // safe: icono() only returns a house SVG from its fixed table ("" for an unknown name), never the object's text
-    const nombre = el("span", o.n > 1 ? `${o.nombre} × ${o.n}` : o.nombre, "nombre");
+    const nombre = el("span", o.n > 1 || o.tipo === "captura" ? `${o.nombre} × ${o.n}` : o.nombre, "nombre"); // a fish always shows its count
     const detalle = el("span", o.tipo === "captura" ? detalleDeCaptura(o) : o.tipo === "token" ? (o.valor ? `${o.valor * o.n} ${o.valor * o.n === 1 ? "punto" : "puntos"} de Prestigio` : "token") : o.tipo, "detalle");
     if (o.tipo === "captura") ic.dataset.rareza = RAREZA_DE_COLOR[o.color] ?? "común";
     li.append(ic, nombre, detalle);
