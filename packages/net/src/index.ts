@@ -10,7 +10,10 @@ import type { Field } from "../../schema/src/index.ts";
 // 10 (I1, additive): IDENTITY. page -> server: the guest token it kept (or nothing); server -> page: {token, id, nombre}.
 // 11 (U10, additive): VOICE, a frame of a person's microphone; the server relays it only to who is near (voz.ts).
 // 12 (H3b, additive): PASE, numinia.com's world pass (a compact JWS), page -> server, before IDENTITY. Own cap PASE_MAX (2048).
-export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8, REPORT: 9, IDENTITY: 10, VOICE: 11, PASE: 12 } as const;
+// 13-14 (condiciones/c2, additive): CONDICIONES (server -> page: the world's conditions of entry and where you stand; page -> server,
+// one byte: "send them again") and ACEPTAR (page -> server: what you accept). See the end of this file.
+// 15 (condiciones/c5, additive): LEYENDO, server -> page: who is still reading the norms (the others draw them inside a bubble). Only a world with the gate on sends it.
+export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8, REPORT: 9, IDENTITY: 10, VOICE: 11, PASE: 12, CONDICIONES: 13, ACEPTAR: 14, LEYENDO: 15 } as const;
 export * from "./voz.ts";
 
 /** Wire format version, sent at the end of WELCOME. 1 = everything before J2 (it was never written on the wire);
@@ -400,6 +403,97 @@ export function decodePase(bytes: Uint8Array): string | null {
   let s = "";
   for (let i = 1; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
   return PASE_FORMA.test(s) ? s : null;
+}
+
+// ---------- CONDICIONES (13) and ACEPTAR (14), condiciones/c2 (additive): the conditions of entry and their gate ----------
+// The text lives in the world's aventura/condiciones.json (condiciones@1, packages/server/src/condiciones.ts). Two kinds of point:
+// `norma` (the service's terms: a mandatory one closes the gate until accepted) and `datos` (optional data permissions: refusing
+// them NEVER closes the gate, EDPB 05/2020 §39). The server decides (the gate is off unless the world turns it on).
+//   server -> page  [13, JSON CondicionesMensaje]   sent by itself after IDENTITY when the gate is on, and whenever asked
+//   page -> server  [13]                            (one byte) «send me the conditions and where I stand»: answered at any time
+//   page -> server  [14, JSON {versiones, datos}]   what you accept; answered with a CondicionesMensaje WITHOUT `capas`
+export type CondicionesPunto = { id: string; titulo: string; texto: string; obligatorio: boolean; tipo: "norma" | "datos" };
+/** c6 (additive): what changed in one layer since the version this person accepted. Only present when they accepted ANOTHER version of
+ * this layer before and the server kept its fingerprints; an old page ignores it and simply shows everything. A `datos` point that is
+ * `nuevo` or `cambiado` is offered with its box EMPTY (a changed point loses the permission given before); one that is not listed
+ * here was not changed: nothing is asked again and what the person said stays. `antes` = the previous titles of `cambiados` and `quitados`. */
+export type CondicionesCambios = { desde: string; nuevos: string[]; cambiados: string[]; quitados: string[]; antes?: Record<string, string> };
+export type CondicionesCapa = { capa: string; nombre?: string; version: string; puntos: CondicionesPunto[]; cambios?: CondicionesCambios };
+export type CondicionesAceptado = { versiones: Record<string, string>; datos: string[]; en: string };
+export type CondicionesMensaje = {
+  formato: "condiciones-estado@1";
+  puerta: boolean;                  // the world's gate is on
+  abierta: boolean;                 // you may move, talk, build…: gate off, or every layer with a mandatory norma accepted at its current version
+  faltan: string[];                 // the layers (`capa`) whose current version you still have to accept
+  aceptado: CondicionesAceptado | null; // what the server keeps of you (the layers' versions you accepted, the data points you said yes to, UTC)
+  capas?: CondicionesCapa[];        // the whole text: only in the offer (on entering, and when asked), not in the answer to ACEPTAR
+  porPase?: string[];               // w5 (additive): the layers whose NORMS count as accepted because the signed pass said so (numinia.com); their `puntos` in `capas` are only the data points, or the layer is not there
+};
+/** What a page may accept in ACEPTAR: `versiones` = capa -> the version it read; `datos` = ids of the `datos` points it ticked. */
+export type Aceptacion = { versiones: Record<string, string>; datos: string[] };
+/** Largest ACEPTAR frame (the type byte included): under WS_FRAME_MAX. */
+export const ACEPTAR_MAX = 900;
+const ACEPTAR_CAPAS_MAX = 4, ACEPTAR_DATOS_MAX = 40, ACEPTAR_TEXTO_MAX = 40;
+/** page -> server: «send me the conditions». */
+export const encodePedirCondiciones = (): Uint8Array => new Uint8Array([MSG.CONDICIONES]);
+/** server -> page. */
+export function encodeCondiciones(m: CondicionesMensaje): Uint8Array {
+  const j = utf8enc.encode(JSON.stringify(m));
+  const out = new Uint8Array(j.length + 1); out[0] = MSG.CONDICIONES; out.set(j, 1); return out;
+}
+/** null for anything that is not a CondicionesMensaje (never throws). */
+export function decodeCondiciones(bytes: Uint8Array): CondicionesMensaje | null {
+  if (bytes[0] !== MSG.CONDICIONES || bytes.length < 2) return null;
+  try {
+    const o = JSON.parse(utf8dec.decode(bytes.subarray(1)));
+    return o && o.formato === "condiciones-estado@1" && typeof o.puerta === "boolean" && typeof o.abierta === "boolean" && Array.isArray(o.faltan) ? o : null;
+  } catch { return null; }
+}
+/** page -> server. null when it does not fit ACEPTAR_MAX. */
+export function encodeAceptar(a: Aceptacion): Uint8Array | null {
+  const j = utf8enc.encode(JSON.stringify({ versiones: a.versiones, datos: a.datos }));
+  if (j.length + 1 > ACEPTAR_MAX) return null;
+  const out = new Uint8Array(j.length + 1); out[0] = MSG.ACEPTAR; out.set(j, 1); return out;
+}
+/** The acceptance, or null when it is not `{versiones: {capa: version}, datos: [id…]}` within the caps (never throws). */
+export function decodeAceptar(bytes: Uint8Array): Aceptacion | null {
+  if (bytes[0] !== MSG.ACEPTAR || bytes.length < 2 || bytes.length > ACEPTAR_MAX) return null;
+  try {
+    const o = JSON.parse(utf8dec.decode(bytes.subarray(1)));
+    const v = o?.versiones, d = o?.datos ?? [];
+    if (!v || typeof v !== "object" || Array.isArray(v) || !Array.isArray(d) || d.length > ACEPTAR_DATOS_MAX) return null;
+    const ks = Object.keys(v);
+    if (ks.length > ACEPTAR_CAPAS_MAX || ks.some((k) => typeof v[k] !== "string" || v[k].length > ACEPTAR_TEXTO_MAX)) return null;
+    if (d.some((x: unknown) => typeof x !== "string" || x.length > ACEPTAR_TEXTO_MAX)) return null;
+    return { versiones: Object.fromEntries(ks.map((k) => [k, v[k]])), datos: d };
+  } catch { return null; }
+}
+
+// ---------- LEYENDO (15), condiciones/c5 (additive): who is still reading the norms ----------
+// With the gate on, a person who has not been let through yet stands inside a bubble for everybody else. The state of one entity is
+// sent ONLY when it changes (arrives and has to read; accepts; leaves) and once, as a list, to someone who connects: nothing per tick, no
+// bytes in the snapshot, nothing at all in a world whose gate is off. A page keeps the set and draws a bubble over each member it sees.
+//   server -> page  [15, (entity u16 big-endian, state u8)…]   state 1 = reading now, 0 = no longer (accepted or gone)
+// 3 bytes per entity + the type byte: a change is 4 bytes; the list is capped so a frame stays under WS_FRAME_MAX.
+export type Leyendo = { entidad: number; leyendo: boolean };
+export const LEYENDO_POR_MENSAJE = 300; // 1 + 300×3 = 901 bytes: under WS_FRAME_MAX
+/** server -> page. At most LEYENDO_POR_MENSAJE entries (the caller splits longer lists); null when empty (nothing is sent for «no change»). */
+export function encodeLeyendo(l: readonly Leyendo[]): Uint8Array | null {
+  const n = Math.min(l.length, LEYENDO_POR_MENSAJE);
+  if (n === 0) return null;
+  const out = new Uint8Array(1 + 3 * n); out[0] = MSG.LEYENDO;
+  for (let i = 0; i < n; i++) { const e = l[i].entidad & 0xffff; out[1 + 3 * i] = e >> 8; out[2 + 3 * i] = e & 0xff; out[3 + 3 * i] = l[i].leyendo ? 1 : 0; }
+  return out;
+}
+/** null for anything that is not a whole LEYENDO (wrong type, empty, a length that is not 1 + 3n, a state other than 0/1); never throws. */
+export function decodeLeyendo(bytes: Uint8Array): Leyendo[] | null {
+  if (bytes[0] !== MSG.LEYENDO || bytes.length < 4 || (bytes.length - 1) % 3 !== 0 || bytes.length > 1 + 3 * LEYENDO_POR_MENSAJE) return null;
+  const out: Leyendo[] = [];
+  for (let i = 1; i < bytes.length; i += 3) {
+    if (bytes[i + 2] > 1) return null;
+    out.push({ entidad: (bytes[i] << 8) | bytes[i + 1], leyendo: bytes[i + 2] === 1 });
+  }
+  return out;
 }
 
 /** H7: close code the server sends when the world is full (its ficha `aforo`); the reason reads «lleno <inside>/<aforo>». */

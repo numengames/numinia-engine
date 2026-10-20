@@ -81,6 +81,7 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
     if (t < (puedeDesde.get(e) ?? 0)) return;
     if (escalera.nivel(e, t) >= NIVEL_COLAPSADO) return rechazar(e, "Estás colapsado: no puedes golpear.");
     if (escalera.nivel(otro, t) >= NIVEL_ALETARGADO) return rechazar(e, "Esa persona ya está aletargada.");
+    if (api.leyendoNormas(otro)) return rechazar(e, "Esa persona está leyendo las normas: ahora no se la puede golpear.");   // condiciones/c5: inside the bubble nobody touches you
     const a = api.position(e), b = api.position(otro);
     if (!a || !b) return rechazar(e, "Ahí no hay nadie a quien golpear.");
     if (!pvpEntre(pvp, a, b)) return rechazar(e, "Aquí no se lucha entre personas.");   // the SERVER's flag, world and zone; the page cannot argue

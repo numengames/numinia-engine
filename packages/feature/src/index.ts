@@ -301,6 +301,8 @@ export type ServerHost = {
   rayo?(entity: number, dir: { x: number; y: number; z: number }, max: number): RayHit | null;
   /** H2 historia 5: make an avatar do something on purpose (api.ordenar); none = always false. */
   ordenar?(entity: number, orden: Orden): boolean;
+  /** condiciones/c5: is this avatar inside the bubble, reading the world's norms? (none = false) */
+  leyendoNormas?(entity: number): boolean;
 };
 /** M6 h12: where a ray stopped — metres, and the unit normal of the surface it hit, facing the ray. */
 export type RayHit = { x: number; y: number; z: number; nx: number; ny: number; nz: number; distancia: number };
@@ -416,6 +418,9 @@ export type ServerApi = {
    * this avatar may not fly (entorno.json's `vuelo`, or a grant from another feature) — said once in the log.
    * Everything else queues for the next step (ORDENES_TICK_MAX per tick; the rest wait their turn, in order). */
   ordenar(entity: number, orden: Orden): boolean;
+  /** condiciones/c5: is this person still inside the bubble, reading the world's norms? Nothing may touch them while they are (the instance refuses
+   * `empujar`, `quieto` and `sentar` on them already; a feature that hurts or moves people another way asks this first). Always false with the gate off. */
+  leyendoNormas(entity: number): boolean;
 };
 export type ServerPart = { feature: Feature; side: "server"; setup: (api: ServerApi) => void };
 export const serverPart = (feature: Feature, setup: (api: ServerApi) => void): ServerPart => ({ feature, side: "server", setup });
@@ -692,6 +697,7 @@ export class ServerRuntime {
       teletransportar: (e, cerca, o) => { try { return this.host.teletransportar?.(e, cerca, o) ?? null; } catch (x) { log(`teletransportar: ${String((x as Error)?.message ?? x)}`); return null; } },
       rayo: (e, dir, max) => this.rayo(e, dir, max),
       ordenar: (e, orden) => { try { return this.host.ordenar?.(e, orden) ?? false; } catch (x) { log(`ordenar: ${String((x as Error)?.message ?? x)}`); return false; } },
+      leyendoNormas: (e) => { try { return this.host.leyendoNormas?.(e) ?? false; } catch { return false; } },
       puede: (e, accion) => { try { return this.host.puede?.(e, accion) ?? false; } catch { return false; } },
       activo: (sha256, ext = "glb") => { try { return /^[0-9a-f]{64}$/.test(sha256) && (this.host.activo?.(sha256, ext) ?? false); } catch { return false; } },
       medidas: (sha256, ext) => { try { return /^[0-9a-f]{64}$/.test(sha256) ? this.host.medidas?.(sha256, ext) ?? null : null; } catch { return null; } },
