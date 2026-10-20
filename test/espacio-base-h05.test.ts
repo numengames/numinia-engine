@@ -50,13 +50,13 @@ test("the logo's licence and the numbers of its placement (measured from the glT
 
 test("born once: an espacio base world has the logo as an ordinary object, 8 m ahead and on the ground; a restart does not duplicate it", async () => {
   const dir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "h05-"));
-  const s1 = new FileStorage(dir), w1 = arranque({ "espacio-base.json": {} }, s1);
+  const s1 = new FileStorage(dir), w1 = arranque({ "espacio-base.json": { agentes: 0 } }, s1);
   assert.equal(w1.cosas().length, 1);
   const o = w1.cosas()[0];
   assert.equal(o.modelo, LOGO_SHA); assert.equal(o.nombre, "Logo Khepri"); assert.equal(o.decorado, false);
   assert.equal(o.x, 0); assert.equal(o.z, -8); assert.equal(o.fijado, false);
   await s1.flush();
-  const w2 = arranque({ "espacio-base.json": {} }, new FileStorage(dir));
+  const w2 = arranque({ "espacio-base.json": { agentes: 0 } }, new FileStorage(dir));
   assert.equal(w2.cosas().length, 1, "restart: not duplicated");
 });
 
@@ -74,12 +74,12 @@ function conConstructor(mundo: Record<string, unknown>, storage: FileStorage) {
 
 test("a builder who deleted the logo does not get it back on restart", async () => {
   const dir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "h05-")), s1 = new FileStorage(dir);
-  const w1 = conConstructor({ "espacio-base.json": {} }, s1);
+  const w1 = conConstructor({ "espacio-base.json": { agentes: 0 } }, s1);
   assert.equal(w1.ids().length, 1);
   assert.equal(w1.cli.constructor.borrarId(w1.ids()[0]).ok, true); w1.pump();
   assert.equal(w1.ids().length, 0, "deleted");
   await s1.flush();
-  const w2 = conConstructor({ "espacio-base.json": {} }, new FileStorage(dir));
+  const w2 = conConstructor({ "espacio-base.json": { agentes: 0 } }, new FileStorage(dir));
   assert.equal(w2.ids().length, 0, "not recreated");
 });
 
@@ -95,7 +95,7 @@ test("a world that already has things of its own never gets the logo (it is mark
 });
 
 test("`objeto: null` plants nothing; a world without espacio-base is unchanged; espacio-base off plants nothing", () => {
-  assert.equal(arranque({ "espacio-base.json": { objeto: null } }).cosas().length, 0);
+  assert.equal(arranque({ "espacio-base.json": { objeto: null, agentes: 0 } }).cosas().length, 0);
   assert.equal(arranque({}).cosas().length, 0);
   assert.equal(arranque({ "espacio-base.json": { activa: false } }).cosas().length, 0);
 });

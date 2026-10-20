@@ -44,7 +44,7 @@ export function cajaEnMundo(o: Msg, c: Caja): Record<"bx0" | "by0" | "bz0" | "bx
 }
 
 /** H5: a thing the world is born with (planted once, see `sembrar`). Same fields `colocar` would give it; `modelo` is a library id. */
-export type Sembrado = { modelo: string; nombre: string; x: number; y: number; z: number; ry?: number; escala?: number };
+export type Sembrado = { modelo: string; nombre: string; x: number; y: number; z: number; ry?: number; escala?: number; forma?: readonly [number, number, number] };
 
 /** `modelos` only for tests; the real list is biblioteca.json. `sembrar` (H5, R-1: any world piece may ask for it): things planted ONCE, the first
  * time this world's objects start empty; after that the mark `sembrado` (in the store) says it was done, so a world that already had things of
@@ -107,9 +107,9 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     if (api.state.keys().length === 0) for (const t of sembrar) {
       const m = modelos.find((x) => x.id === t.modelo);
       if (!m) { api.log(`[objetos] sembrar: «${t.modelo}» no está en la biblioteca (no pongo nada)`); continue; }
-      const s = q(t.escala ?? 1, PASO.escala), id = nuevoId();
+      const s = q(t.escala ?? 1, PASO.escala), f = t.forma ?? [1, 1, 1], id = nuevoId();
       api.state.set(id, {
-        modelo: m.modelo, x: q(t.x, PASO.pos), y: q(t.y, PASO.pos), z: q(t.z, PASO.pos), rx: 0, ry: girado(t.ry ?? 0), rz: 0, sx: s, sy: s, sz: s,
+        modelo: m.modelo, x: q(t.x, PASO.pos), y: q(t.y, PASO.pos), z: q(t.z, PASO.pos), rx: 0, ry: girado(t.ry ?? 0), rz: 0, sx: q(s * f[0], PASO.escala), sy: q(s * f[1], PASO.escala), sz: q(s * f[2], PASO.escala),
         nombre: t.nombre, decorado: false, fijado: false, animar: true, tipo: "modelo", ext: "glb", oculto: false, volumen: 1, solido: false, colision: "ninguna",
       });
       api.log(`[objetos] sembrado «${t.nombre}» (${id})`);
