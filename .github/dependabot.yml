@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: 2026 Numen Games S.L.
+# SPDX-License-Identifier: CC0-1.0
+#
+# Dependabot: each ecosystem sends ONE pull request with all its updates (group `all-dependencies`), so
+# there is never a pile of separate ones. Dependabot cannot group across ecosystems, so npm, github-actions
+# and docker each still open their own.
+# Cooldown: a version is proposed only after it has been public for 7 days, so a hijacked or broken release
+# is usually flagged by others first (security updates ignore the cooldown).
+# A bump here is a proposal only: AGENTS.md rules still apply to it (free licence, exact versions) and
+# nobody merges their own pull request (CONTRIBUTING.md).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"
+    cooldown:
+      default-days: 7
+    groups:
+      all-dependencies:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci(deps)"
+    cooldown:
+      default-days: 7
+    groups:
+      all-dependencies:
+        patterns: ["*"]
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"
+    cooldown:
+      default-days: 7
+    groups:
+      all-dependencies:
+        patterns: ["*"]

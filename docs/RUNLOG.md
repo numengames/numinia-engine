@@ -1311,3 +1311,12 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `ux2/integracion` (desde origin/main 8fdb0ba6, historias `ux2/barra`, `ux2/tu`, `ux2/gente`, `ux2/dock`,
   `ux2/vr`). Versión 0.22.2 → 0.23.0.
 - Siguiente: probar el reloj en la Quest; la lista de amigos en el servidor espera la decisión de identidad.
+
+## 2026-10-20 10:30 · dependabot-grupos · hecho
+- Qué: nuevo `.github/dependabot.yml` (el motor no tenía): un solo PR de Dependabot por ecosistema (npm,
+  github-actions, docker; grupo `all-dependencies`), semanal y con espera de 7 días. Solo configuración; versión
+  0.23.0 → 0.23.1 (parche, nada cambia para quien usa el motor).
+- Números: sin código tocado; el YAML se lee bien; `test/version.test.ts` pide solo versión válida y lock igual.
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `ci/dependabot-one-pr-per-ecosystem`, PR contra `main` (lo revisa y fusiona una persona).
+- Siguiente: que Pablo decida si el motor quiere Dependabot (hoy no lo tenía) y si los PR se fusionan solos o a mano.
