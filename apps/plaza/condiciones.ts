@@ -7,11 +7,17 @@
 //   · it cannot be closed: no Escape, no click outside, no key reaches the world while it is up; Tab stays inside the panel
 //     (role=dialog, aria-modal, the rest of the page `inert`); «Salir» is the only way out besides accepting;
 //   · accepting sends ACEPTAR; when the server answers `abierta: true` the bubble bursts (a short animation) and you walk.
+// c6: someone who comes back after a layer went up a version sees «Han cambiado las normas» with ONLY what changed — each point tagged
+// NUEVO / CAMBIADO (the old title struck through), the removed ones in a line «ya no está», «v1.0 → v1.1» — and accepts that; what did not
+// change is not asked again (condiciones-logica.ts `planificar`, from the server's `capa.cambios`).
 // The gate itself is the server's (c2): this is only the face of it. With the gate off the server sends nothing by itself and
 // this file does nothing at all (no element, no listener on keys). The text comes from the world's file (titles and all):
 // no brand here. c4 (VR) and c5 (the bubble seen from outside) read `estado` and call the same methods.
-import type { CondicionesCapa, CondicionesMensaje, CondicionesPunto } from "../../packages/net/src/index.ts";
-import { aceptacion, marcasVacias, pideBurbuja, planificar, porcentajeLeido, puedeSeguir, ROTULO_TODO, rotuloSinOpcional, todoMarcado } from "./condiciones-logica.ts";
+import type { CondicionesAceptado, CondicionesCapa, CondicionesMensaje, CondicionesPunto } from "../../packages/net/src/index.ts";
+import {
+  aceptacion, conservados, ETIQUETAS, esVuelta, flechaVersion, lineaQuitado, marcasVacias, NOTA_DATOS_VUELVE, pideBurbuja, planificar, porcentajeLeido, puedeSeguir, ROTULO_TODO,
+  rotuloAcepto, rotuloSinOpcional, SUBTITULO_CAMBIOS, TITULO_CAMBIOS, todoMarcado,
+} from "./condiciones-logica.ts";
 import type { Marcas, Paso } from "./condiciones-logica.ts";
 
 type Sesion = {
@@ -106,6 +112,23 @@ const CSS = `
 #condiciones .decision { min-width: 190px; text-align: center; }
 #condiciones .despedida { margin: auto; text-align: center; max-width: 420px; }
 #condiciones .despedida h1 { font-size: 20px; }
+#condiciones .pasos[hidden] { display: none; }
+/* c6: what changed (maqueta 6): amber bar, the tag, the old title struck, the removed in a grey line */
+#condiciones .cambios { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+#condiciones .cambio { padding: 10px 14px; border-left: 3px solid var(--n-ambar, #EFA517); border-radius: 0 8px 8px 0; background: rgba(239,165,23,.09); font-size: 14.5px; line-height: 1.45; }
+#condiciones .cambio .marca { display: inline-block; margin-right: 8px; font: 600 10.5px "Geist Mono", ui-monospace, monospace; letter-spacing: .09em; color: #14110F; background: var(--n-ambar, #EFA517); border-radius: 4px; padding: 1px 6px; vertical-align: 1px; }
+#condiciones .cambio .antes { color: #9A8C7C; text-decoration: line-through; }
+#condiciones .cambio .flecha { color: #9A8C7C; margin: 0 4px; }
+#condiciones .cambio .ahora { color: var(--n-ambar, #EFA517); font-weight: 600; }
+#condiciones .cambio.nuevo .ahora { color: var(--n-texto, #F9EBDC); font-weight: 500; }
+#condiciones .cambio .detalle { margin: 6px 0 0; font-size: 12.5px; color: var(--n-texto2, #C4B5A6); white-space: pre-line; }
+#condiciones .cambio.quitado { border-left-color: #6B5F52; background: rgba(154,140,124,.08); color: #9A8C7C; }
+#condiciones .cambio.quitado s { color: #9A8C7C; }
+#condiciones .cambio.quitado em { margin-left: 8px; font-size: 12.5px; font-style: italic; }
+#condiciones .cambio.igual { border-left-color: #3A332D; background: rgba(154,140,124,.08); color: var(--n-texto2, #C4B5A6); font-size: 13.5px; }
+#condiciones .permiso .marca { display: inline-block; margin-left: 8px; font: 600 10.5px "Geist Mono", ui-monospace, monospace; letter-spacing: .09em; color: #14110F; background: var(--n-ambar, #EFA517); border-radius: 4px; padding: 1px 6px; vertical-align: 1px; }
+#condiciones .acepto { margin-top: 4px; background: rgba(239,165,23,.10); border: 1px solid rgba(239,165,23,.45); }
+#condiciones .ver .ver-todo { background: none; border: 0; padding: 0; color: var(--n-verdemar, #A6DAD5); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 #condiciones .solo-lector { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 /* phone, upright: the panel takes almost the whole screen (maqueta 4) */
 #condiciones.movil .cond-panel { left: 10px; right: 10px; bottom: 10px; top: 56px; width: auto; height: auto; transform: none; border-radius: 18px; }
@@ -150,6 +173,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
   let panel: HTMLElement | null = null, titulo: HTMLElement | null = null, cuerpo: HTMLElement | null = null, pie: HTMLElement | null = null, cab: HTMLElement | null = null;
   let aviso: HTMLElement | null = null, anuncio: HTMLElement | null = null;
   let pasos: Paso[] = [], capas: CondicionesCapa[] = [], firma = "";
+  let aceptado: CondicionesAceptado | null = null, verTexto = false; // c6: what the server kept of this person; «Ver todo el texto» of the changes
   let marcas: Marcas = marcasVacias();
   let i = 0, enviando = false, saliendo = false, estallando = false, textoAbierto = true;
   let espera: ReturnType<typeof setTimeout> | null = null, fin: ReturnType<typeof setTimeout> | null = null;
@@ -191,15 +215,17 @@ export function montarCondiciones(o: OpcionesCondiciones) {
   // ---------- drawing ----------
   const hayDatos = () => pasos.some((p) => p.tipo === "datos");
   const ultimo = () => i >= pasos.length - 1;
-  const textos = (a: Paso) => (a.tipo === "capa" ? a.normas : a.permisos.map((x) => x.punto));
+  const huella = (cs: CondicionesCapa[]) => JSON.stringify(cs.map((c) => [c.capa, c.version, c.puntos.map((p) => p.id), c.cambios ?? null])); // what makes this bubble a different one
+  const vuelta = () => esVuelta(pasos); // c6: the person is back; only what changed is shown
 
   function cabecera(p: Paso): void {
     const mundo = o.mundo();
     cab!.replaceChildren();
-    cab!.append(el("div", "etq", mundo ? `Antes de entrar · ${mundo}` : "Antes de entrar"));
+    cab!.append(el("div", "etq", p.tipo === "capa" && p.cambios ? `${p.nombre} · ${flechaVersion(p.cambios.desde, p.version)}` : mundo ? `Antes de entrar · ${mundo}` : "Antes de entrar"));
     titulo = el("h1"); titulo.id = "condiciones-titulo"; titulo.tabIndex = -1;
     const sub = el("p", "sub"); sub.id = "condiciones-sub";
-    if (p.tipo === "datos") { titulo.textContent = "Lo que tú eliges"; sub.textContent = "Esto es opcional: entras igual digas sí o no. Ninguna casilla sale marcada."; }
+    if (p.tipo === "capa" && p.cambios) { titulo.textContent = TITULO_CAMBIOS; sub.textContent = SUBTITULO_CAMBIOS; }
+    else if (p.tipo === "datos") { titulo.textContent = "Lo que tú eliges"; sub.textContent = "Esto es opcional: entras igual digas sí o no. Ninguna casilla sale marcada."; }
     else if (p.capa === "casa") { titulo.textContent = "Las normas de este sitio"; sub.textContent = "Mientras no aceptes estás en esta burbuja: ves el mundo, pero nadie te oye y no puedes tocar nada."; }
     else {
       const propio = capas.find((c) => c.capa === p.capa)?.nombre;
@@ -207,7 +233,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
       sub.textContent = `${propio ?? "La comunidad"} añade estas normas a las anteriores. No pueden quitar nada de ellas.`;
     }
     cab!.append(titulo, sub);
-    const lista = el("ol", "pasos"); lista.setAttribute("aria-label", "Pasos");
+    const lista = el("ol", "pasos"); lista.setAttribute("aria-label", "Pasos"); lista.hidden = vuelta() && pasos.length === 1; // one page, no steps to count
     pasos.forEach((x, k) => {
       const li = el("li", `paso${k === i ? " activo" : ""}${k < i ? " hecho" : ""}`);
       if (k === i) li.setAttribute("aria-current", "step");
@@ -228,7 +254,40 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     return { fila, input, zona };
   }
 
+  /** c6: only what changed on this layer: each point with its tag, the removed ones in a line, and the box for the new version. */
+  function paginaDeCambios(p: Extract<Paso, { tipo: "capa" }>): void {
+    const cb = p.cambios!, col = el("div", "col");
+    const ul = el("ul", "cambios"); ul.setAttribute("aria-label", "Lo que ha cambiado");
+    for (const n of p.normas) {
+      const etq = cb.etiquetas[n.id] ?? "nuevo", antes = cb.antes[n.id];
+      const li = el("li", `cambio ${etq}`); li.dataset.punto = n.id; li.dataset.cambio = etq;
+      li.append(el("span", "marca", ETIQUETAS[etq]));
+      if (etq === "cambiado" && antes && antes !== n.titulo) li.append(el("span", "antes", antes), el("span", "flecha", "→"));
+      li.append(el("span", "ahora", n.titulo));
+      if (verTexto) li.append(el("p", "detalle", n.texto));
+      ul.append(li);
+    }
+    for (const q of cb.quitados) {
+      const l = lineaQuitado(q), li = el("li", "cambio quitado"); li.dataset.punto = q.id; li.dataset.cambio = "quitado";
+      li.append(el("s", "", l.tachado), el("em", "", l.nota));
+      ul.append(li);
+    }
+    if (!ul.children.length) {
+      const otros = Object.keys(cb.etiquetas).length > 0; // only data permissions changed: they are the next step
+      const li = el("li", "cambio igual", otros ? "Las normas son las mismas. Lo que cambia son permisos opcionales: están en el paso siguiente." : "Las normas son las mismas: solo ha cambiado el número de versión.");
+      li.dataset.cambio = "igual"; ul.append(li);
+    }
+    col.append(ul);
+    if (p.exige) {
+      const c = caja(rotuloAcepto(p), marcas.normas[p.capa] === true, (v) => { marcas.normas[p.capa] = v; limpiarAviso(); pintarPie(); avisarCambio(); }, "acepto");
+      c.input.id = `condiciones-ok-${p.capa}`; c.input.setAttribute("aria-required", "true");
+      col.append(c.fila);
+    }
+    filas!.append(col);
+  }
+
   function paginaDeCapa(p: Extract<Paso, { tipo: "capa" }>): void {
+    if (p.cambios) { paginaDeCambios(p); return; }
     const izq = el("div", "col"), der = el("div", "col");
     izq.append(el("div", "etq", "Lo esencial"));
     const ul = el("ul", "esencial");
@@ -269,10 +328,12 @@ export function montarCondiciones(o: OpcionesCondiciones) {
       const c = caja(punto.titulo, marcas.datos.has(punto.id), (v) => { if (v) marcas.datos.add(punto.id); else marcas.datos.delete(punto.id); limpiarAviso(); pintarPie(); avisarCambio(); }, "");
       c.input.dataset.punto = punto.id; c.zona.textContent = "";
       const b = el("b", "", punto.titulo), pequena = el("small", "", punto.texto);
+      const etq = p.permisos.find((x) => x.punto.id === punto.id)?.etiqueta;
+      if (etq) { const m = el("span", "marca", ETIQUETAS[etq]); m.dataset.cambio = etq; b.append(m); }
       c.zona.append(b, pequena);
       li.append(c.fila); ul.append(li);
     }
-    col.append(ul, el("p", "nota-datos", "Ninguna sale marcada."));
+    col.append(ul, el("p", "nota-datos", p.vuelve ? NOTA_DATOS_VUELVE : "Ninguna sale marcada."));
     filas!.append(col);
   }
 
@@ -280,7 +341,12 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     const p = pasos[i]; if (!p || !pie) return;
     pie.replaceChildren();
     const ver = el("div", "ver");
-    for (const x of pasos) if (x.tipo === "capa") ver.append(el("span", x === p ? "actual" : "otra", `${x.nombre} · v${x.version}`));
+    for (const x of pasos) if (x.tipo === "capa") ver.append(el("span", x === p ? "actual" : "otra", x.cambios ? `${x.nombre} · ${flechaVersion(x.cambios.desde, x.version)}` : `${x.nombre} · v${x.version}`));
+    if (p.tipo === "capa" && p.cambios && p.normas.length) { // c6: the whole text of the changed points, on demand (maqueta 6, «Ver todo el texto»)
+      const t = el("button", "ver-todo", verTexto ? "Ocultar el texto entero" : "Ver todo el texto ↗"); t.type = "button"; t.id = "condiciones-ver-todo"; t.setAttribute("aria-pressed", String(verTexto));
+      t.addEventListener("click", () => { verTexto = !verTexto; pintar(false); });
+      ver.append(t);
+    }
     const der = el("div", "der");
     const btn = (texto: string, clase: string, alPulsar: () => void, id: string, desactivado = false): HTMLButtonElement => {
       const b = el("button", `btn ${clase}`.trim(), texto); b.type = "button"; b.id = id; b.disabled = desactivado || enviando || saliendo; b.addEventListener("click", alPulsar); return b;
@@ -292,7 +358,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
       // the same size and the same colour (AEPD: refusing is as easy as accepting)
       der.append(btn(rotuloSinOpcional(marcas.datos.size), "prim decision", () => enviar("marcadas"), "condiciones-sin-opcional", !todoMarcado(pasos, marcas)));
       der.append(btn(ROTULO_TODO, "prim decision", () => enviar("todo"), "condiciones-todo", !todoMarcado(pasos, marcas)));
-    } else der.append(btn("Aceptar y entrar", "prim", () => enviar("ninguna"), "condiciones-aceptar", !puedeSeguir(p, marcas)));
+    } else der.append(btn(vuelta() ? "Acepto y entro" : "Aceptar y entrar", "prim", () => enviar("ninguna"), "condiciones-aceptar", !puedeSeguir(p, marcas)));
     pie.append(ver, der);
     if (p.tipo === "capa" && p.exige && !puedeSeguir(p, marcas)) { const ayuda = el("span", "solo-lector", "Marca la casilla de aceptar para seguir."); ayuda.id = "condiciones-ayuda"; pie.append(ayuda); }
   }
@@ -323,7 +389,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
   function enviar(modo: "marcadas" | "todo" | "ninguna"): void {
     if (enviando || saliendo || !todoMarcado(pasos, marcas)) return;
     if (modo === "todo") for (const p of pasos) if (p.tipo === "datos") for (const x of p.permisos) marcas.datos.add(x.punto.id);
-    const a = aceptacion(pasos, marcas, modo);
+    const a = aceptacion(pasos, marcas, modo, conservados(capas, aceptado));
     if (!s.aceptar(a.versiones, a.datos)) { fallo("No he podido enviar tu respuesta. Prueba otra vez."); return; }
     enviando = true; pintarPie(); panel?.setAttribute("aria-busy", "true"); decir("Enviando tu respuesta…");
     espera = setTimeout(() => { if (enviando) fallo("El servidor no contesta. Prueba otra vez."); }, o.esperaMs ?? ESPERA_RESPUESTA_MS);
@@ -360,10 +426,10 @@ export function montarCondiciones(o: OpcionesCondiciones) {
 
   // ---------- showing and bursting ----------
   function mostrar(m: CondicionesMensaje): void {
-    capas = m.capas ?? [];
-    const plan = planificar(capas);
+    capas = m.capas ?? []; aceptado = m.aceptado ?? null;
+    const plan = planificar(capas, aceptado);
     if (!plan.length) { s.pedirCondiciones(); return; }
-    pasos = plan; firma = JSON.stringify(capas.map((c) => [c.capa, c.version, c.puntos.map((p) => p.id)]));
+    pasos = plan; firma = huella(capas); verTexto = false;
     marcas = marcasVacias(); i = 0; enviando = saliendo = estallando = false; textoAbierto = !movil();
     if (!estilo) { estilo = el("style"); estilo.textContent = CSS; estilo.dataset.condiciones = "1"; }
     if (!estilo.isConnected) document.head.append(estilo);
@@ -385,7 +451,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     document.addEventListener("focusin", guardiaFoco);
     matchMedia("(max-width: 640px)").addEventListener?.("change", reajustar);
     pintar(true);
-    decir(`Antes de entrar: ${pasos.length === 1 ? "una página" : `${pasos.length} pasos`}. Hasta que aceptes las normas estás en una burbuja: ves el mundo, pero no puedes moverte ni hablar.`);
+    decir(`${vuelta() ? `${TITULO_CAMBIOS}. ` : ""}Antes de entrar: ${pasos.length === 1 ? "una página" : `${pasos.length} pasos`}. Hasta que aceptes las normas estás en una burbuja: ves el mundo, pero no puedes moverte ni hablar.`);
   }
   function reajustar(): void { if (raiz) { raiz.classList.toggle("movil", movil()); } }
 
@@ -425,7 +491,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     }
     if (saliendo) return;
     if (!m.capas) { if (!raiz) s.pedirCondiciones(); else if (enviando) fallo("El servidor no ha dado por buenas las normas. Vuelve a leerlas y acepta otra vez."), s.pedirCondiciones(); return; }
-    const nueva = JSON.stringify(m.capas.map((c) => [c.capa, c.version, c.puntos.map((p) => p.id)]));
+    const nueva = huella(m.capas);
     if (!raiz) { mostrar(m); return; }
     if (nueva !== firma) { // the text changed under the person's feet: start again with the new one, and say so
       const dicho = enviando; mostrar_de_nuevo(m); if (dicho) fallo("Las normas han cambiado mientras leías. Vuelve a leerlas."); return;
@@ -433,7 +499,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     if (enviando) { fallo("El servidor no ha dado por buenas las normas. Vuelve a leerlas y acepta otra vez."); s.pedirCondiciones(); }
   }
   function mostrar_de_nuevo(m: CondicionesMensaje): void {
-    capas = m.capas ?? []; pasos = planificar(capas); firma = JSON.stringify(capas.map((c) => [c.capa, c.version, c.puntos.map((p) => p.id)]));
+    capas = m.capas ?? []; aceptado = m.aceptado ?? null; pasos = planificar(capas, aceptado); firma = huella(capas); verTexto = false;
     marcas = marcasVacias(); i = 0; enviando = false; if (espera) clearTimeout(espera); espera = null; pintar(true);
   }
 
