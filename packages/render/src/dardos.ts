@@ -18,6 +18,9 @@ export type Dardo3D = { quien: number; sitio: string; numero: number; x: number;
 export const ESCALA_PLAZA = 2.4;
 /** The ideal strength (features/dardos FUERZA_IDEAL): the power bar marks it. */
 export const IDEAL = 0.65;
+/** Half-width of the straight-throw window of the AR wall bar (features/dardos ZONA_FUERZA.ar; test/dardos-barra.test.ts checks they agree).
+ *  The page passes the real table's number (`zona`); this is only the default. */
+export const ZONA_AR = 0.06;
 /** One full fill of the power bar (s); it then empties at the same pace and fills again. */
 export const CICLO_S = 1.1;
 
@@ -149,24 +152,36 @@ export type DianaAR = JuegoAR & {
   clavados(lista: Dardo3D[]): void;
   /** Take the board off the wall and look for a place again. */
   recolocar(): void;
-  estado(): { fase: FaseAR; pared: boolean | null; cargando: boolean; potencia: number; lanzados: number; clavados: number; ultimo: { x: number; y: number; fuerza: number } | null };
+  estado(): { fase: FaseAR; pared: boolean | null; cargando: boolean; potencia: number; lanzados: number; clavados: number; ultimo: { x: number; y: number; fuerza: number } | null; zona: number };
 };
 /** The power bar: 0 → 1 in CICLO_S, then back to 0, and again (timing matters: IDEAL is marked). */
 export const potenciaDe = (s: number): number => { const t = (s / CICLO_S) % 2; return t <= 1 ? t : 2 - t; };
 
-export function crearDianaAR(o: { alLanzar: (x: number, y: number, fuerza: number) => void; alColocar?: (pared: boolean) => void }): DianaAR {
+export function crearDianaAR(o: { alLanzar: (x: number, y: number, fuerza: number) => void; alColocar?: (pared: boolean) => void; zona?: number }): DianaAR {
+  const zona = o.zona ?? ZONA_AR;
   const root = new THREE.Group();
   const reticula = new THREE.Mesh(new THREE.RingGeometry(0.05, 0.07, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd27a, side: THREE.DoubleSide }));
   reticula.matrixAutoUpdate = false; reticula.visible = false; root.add(reticula);
   const diana = new THREE.Group(); diana.visible = false; root.add(diana);
   const face = cara(); diana.add(face);
-  // the power bar, to the right of the board: a frame, the fill (scaled in y) and the IDEAL mark
+  // the power bar, to the right of the board: a white frame, a dark track, the fill (scaled in y: teal under the window, red over
+  // it), and the straight-throw WINDOW (±zona, the server's number): a flat gold band with a white border and two notches that
+  // lights up while the bar is inside it. The fill is never gold, so the window is never hidden by another gold.
   const altoBarra = RADIO_M * PINTADA * 2;
-  const barra = new THREE.Group(); barra.position.set(RADIO_M * PINTADA * 1.45, 0, 0.02); diana.add(barra);
-  barra.add(new THREE.Mesh(new THREE.PlaneGeometry(0.04, altoBarra + 0.01), new THREE.MeshBasicMaterial({ color: 0x14171c, transparent: true, opacity: 0.8 })));
-  const relleno = new THREE.Mesh(new THREE.PlaneGeometry(0.03, altoBarra).translate(0, altoBarra / 2, 0.001), new THREE.MeshBasicMaterial({ color: 0x3fb6a8 }));
-  relleno.position.y = -altoBarra / 2; barra.add(relleno);
-  const marca = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.006).translate(0, 0, 0.002), new THREE.MeshBasicMaterial({ color: 0xffd27a })); marca.position.y = -altoBarra / 2 + altoBarra * IDEAL; barra.add(marca);
+  const barra = new THREE.Group(); barra.position.set(RADIO_M * PINTADA * 1.5, 0, 0.02); diana.add(barra);
+  const plano = (w: number, h: number, color: number, z: number, y = 0) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color })); m.position.set(0, y, z); barra.add(m); return m; };
+  plano(0.092, altoBarra + 0.02, 0xffffff, 0);                       // white frame
+  plano(0.08, altoBarra + 0.008, 0x0b0e12, 0.003);                   // dark track
+  const relleno = new THREE.Mesh(new THREE.PlaneGeometry(0.05, altoBarra).translate(0, altoBarra / 2, 0), new THREE.MeshBasicMaterial({ color: 0x3fb6a8 }));
+  relleno.position.set(0, -altoBarra / 2, 0.006); barra.add(relleno);
+  const yIdeal = -altoBarra / 2 + altoBarra * IDEAL, altoZona = Math.max(0.012, 2 * zona * altoBarra);
+  plano(0.092, altoZona + 0.01, 0xffffff, 0.009, yIdeal);            // the window's white border
+  const banda = plano(0.084, altoZona, 0xffd27a, 0.012, yIdeal);     // the window
+  for (const lado of [-1, 1]) { // two white notches on the sides, pointing at the window
+    const m = new THREE.Mesh(new THREE.CircleGeometry(0.014, 3), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    if (lado > 0) m.rotation.z = Math.PI;
+    m.position.set(lado * 0.064, yIdeal, 0.012); barra.add(m);
+  }
   barra.visible = false;
   // where you aim right now (the gaze on a phone): a small dot on the face
   const punto = new THREE.Mesh(new THREE.CircleGeometry(0.006, 12).translate(0, 0, 0.014), new THREE.MeshBasicMaterial({ color: 0xffffff })); punto.visible = false; face.add(punto);
@@ -245,7 +260,9 @@ export function crearDianaAR(o: { alLanzar: (x: number, y: number, fuerza: numbe
       if (cargando) {
         potencia = potenciaDe(ahora() - desde);
         relleno.scale.y = Math.max(0.001, potencia);
-        (relleno.material as THREE.MeshBasicMaterial).color.setHex(Math.abs(potencia - IDEAL) < 0.08 ? 0xffd27a : potencia > IDEAL ? 0xc8453a : 0x3fb6a8);
+        const dentro = Math.abs(Math.round((potencia - IDEAL) * 1e6) / 1e6) <= zona;
+        (relleno.material as THREE.MeshBasicMaterial).color.setHex(potencia > IDEAL + zona ? 0xe5484d : 0x3fb6a8);
+        (banda.material as THREE.MeshBasicMaterial).color.setHex(dentro ? 0xfff4cf : 0xffd27a); // lit while inside the window
       } else relleno.scale.y = Math.max(0.001, potencia);
       if (vuelo.visible) {
         const t = Math.min(1, (ahora() - vueloDesde) / 0.28);
@@ -269,6 +286,6 @@ export function crearDianaAR(o: { alLanzar: (x: number, y: number, fuerza: numbe
       for (const [k, m] of clav) if (!vistos.has(k)) { face.remove(m); clav.delete(k); }
     },
     recolocar() { fase = "buscando"; diana.visible = false; barra.visible = false; pared = null; },
-    estado: () => ({ fase, pared, cargando, potencia: Math.round(potencia * 1000) / 1000, lanzados, clavados: clav.size, ultimo }),
+    estado: () => ({ fase, pared, cargando, potencia: Math.round(potencia * 1000) / 1000, lanzados, clavados: clav.size, ultimo, zona }),
   };
 }

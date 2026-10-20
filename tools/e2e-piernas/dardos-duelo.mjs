@@ -199,13 +199,13 @@ try {
   const b1 = await arEstado(b);
   res.bFueraDeTurno = { antes: { lanzados: b0.lanzados, clavados: b0.clavados }, despues: { lanzados: b1.lanzados, clavados: b1.clavados }, aviso: await aviso(b) };
   // 3b) A throws its 3 darts (mouse hold + release as in the v1 leg)
-  const box = await a.evaluate(() => { const r = document.querySelector("#dardos-hud canvas").getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+  const box = await a.evaluate(() => { const r = document.querySelector("#dardos-hud canvas.diana").getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
   const tirosA = [];
   for (let n = 1; n <= 3; n++) {
     await a.mouse.move(box.x + box.w / 2, box.y + box.h / 2 - box.h * 0.22);
     await a.mouse.down();
-    await a.waitForTimeout(690);
-    if (process.env.DEBUG) console.error("cargando", await ctl(a, () => ({ c: globalThis.__numinia.dardosHud.cargando(), p: globalThis.__numinia.dardosHud.potencia(), box: document.querySelector("#dardos-hud canvas").getBoundingClientRect().toJSON(), top: (() => { const e = document.elementFromPoint(640, 400); return e && e.outerHTML.slice(0, 160); })() })), JSON.stringify(box));
+    await a.waitForTimeout(715);
+    if (process.env.DEBUG) console.error("cargando", await ctl(a, () => ({ c: globalThis.__numinia.dardosHud.cargando(), p: globalThis.__numinia.dardosHud.potencia(), box: document.querySelector("#dardos-hud canvas.diana").getBoundingClientRect().toJSON(), top: (() => { const e = document.elementFromPoint(640, 400); return e && e.outerHTML.slice(0, 160); })() })), JSON.stringify(box));
     await a.mouse.up();
     if (process.env.DEBUG) { await a.waitForTimeout(1500); console.error("tras soltar", JSON.stringify(await aviso(a)), JSON.stringify(await ctl(a, () => globalThis.__numinia.dardos.estado().ultimo))); }
     await esperar(a, (k) => (globalThis.__numinia.dardos.estado().ultimo?.numero ?? 0) >= k, n, 12000);

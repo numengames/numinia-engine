@@ -838,17 +838,21 @@ Al acabar una aventura, un cofre puede dar un **objeto** que es del jugador: el 
 pesca), una tirada son tres dardos, y en cada dardo **el jugador elige adónde apunta y con qué fuerza lanza; el
 servidor decide dónde se clava**. Los mismos verbos en el PC, en el móvil y en AR.
 
-- **Verbos.** `jugar{sitio}` empieza la tirada (la diana queda `ocupado`); `lanzar{sitio, x, y, fuerza}` lanza un
+- **Verbos.** `jugar{sitio}` empieza la tirada (la diana queda `ocupado`); `lanzar{sitio, x, y, fuerza, via?}` lanza un
   dardo: `x, y` = el punto de la cara adonde apuntas, en radios de la diana (0, 0 el centro, y hacia arriba, 1 = el
-  borde exterior del doble); `fuerza` 0-1. Un `lanzar` sin tirada la empieza (un agente puede simplemente lanzar).
+  borde exterior del doble); `fuerza` 0-1; `via` (v4, opcional; `raton` si falta, así que un cliente de la v3 sigue
+  valiendo) = cómo se lanzó: `raton`, `teclado`, `tactil`, `vr` o `ar`. Un `lanzar` sin tirada la empieza (un agente puede simplemente lanzar).
   `salir{}` la deja donde esté (lo lanzado cuenta). Alejarse del radio, desconectarse o 60 s sin lanzar
   (`TURNO_INACTIVO_S`) la cierran también.
-- **Dónde cae** (`aterrizaje`, pura): con `FUERZA_IDEAL = 0,65` el dardo va recto; más flojo **cae**
-  (`CAIDA = 1,6` radios por unidad de fuerza que falta) y se abre un poco; más fuerte **sube** algo (`SUBIDA = 0,6`)
-  y se abre bastante más (`ABRE_FUERTE`). Encima, un **pulso** (`TEMBLOR = 0,15` radios en un tiro perfecto):
+- **Dónde cae** (`aterrizaje`, pura): con `FUERZA_IDEAL = 0,65` el dardo va recto **dentro de una zona** (v4:
+  `ZONA_FUERZA[via]`, tabla exportada de `features/dardos/feature.ts`: ratón y teclado ±0,04 —±44 ms de una rampa de
+  1,1 s—, táctil ±0,07, VR y AR ±0,06; el servidor la elige por la `via` del tiro y el cliente dibuja **ese mismo
+  número**). Dentro no hay caída ni dispersión extra. Fuera, solo cuenta lo que se sale (`e = |Δ| − zona`): más flojo
+  **cae** (`CAIDA = 1,6` radios por unidad de `e`) y se abre (`ABRE_FLOJO = 0,5`); más fuerte **sube**
+  (`SUBIDA = 0,85`) y se abre más (`ABRE_FUERTE = 1,0`). Encima, un **pulso** (`TEMBLOR = 0,08` radios en un tiro perfecto):
   un punto uniforme en un disco cuya dirección sale de un hash del tick en que llegó el tiro, quién tiró, qué
   dardo y qué diana (`azarDe`) — sin `Math.random`: los mismos tiros en los mismos ticks caen en el mismo sitio
-  (la prueba lo fija). Apuntar al centro con la fuerza justa da bull casi siempre y diana (50) ~1 de cada 4.
+  (la prueba lo fija). Apuntar al centro con la fuerza dentro de la zona da bull siempre y diana (50) ~87 de cada 100 (con el pulso de 0,15 de la v3 era 1 de cada 4). El servidor no puede comprobar la `via` ni el imán de un cliente trucado: la zona es justicia entre aparatos honestos, el `TEMBLOR` es lo que protege.
 - **Puntuación** (`resolverTiro`, `sectorDe`, `polar`, puras; proporciones de una diana real de 451 mm con el radio
   del doble = 1): `ANILLOS` (dobleBull ≤ 0,0747 = 50, bull ≤ 0,187 = 25, triple 0,582-0,629 = ×3, doble
   0,953-1,0 = ×2, fuera > 1 = 0) y `SECTORES` (los 20 reales, horario desde arriba). La pintura de la diana
@@ -865,9 +869,15 @@ servidor decide dónde se clava**. Los mismos verbos en el PC, en el móvil y en
   rumbo? }] }`, mismo patrón que `pesca.json`).
 - **Página** (`features/dardos/client.ts` = el controlador: turno, dardos clavados por diana, marcador;
   `apps/plaza/dardos.ts` = la vista de tiro, perezosa con la primera diana):
-  - **PC**: el ratón mueve la mira (con un pequeño vaivén de pulso); mantener pulsado llena y vacía la barra de
-    fuerza (`potenciaDe`, un ciclo de `CICLO_S = 1,1` s; la marca dorada = recto); soltar lanza. Teclado: flechas
-    apuntan, Espacio mantener/soltar, Esc deja la tirada.
+  - **PC** (v4, `apps/plaza/dardos.ts`; lo puro en `features/dardos/barra.ts`): el ratón mueve la mira con un vaivén
+    de pulso (reposo ±0,03, **se calma** a ±0,012 en 0,3 s al pulsar, tras 1 s mantenido **deriva** hasta ±0,06 a los
+    2,2 s; un patrón de fase por dardo; nunca más de 0,25 radios/s). Mantener pulsado llena y vacía la **barra
+    vertical** junto a la diana (`potenciaDe`, `CICLO_S = 1,1` s): pista oscura, relleno verde azulado/rojo (nunca
+    dorado) y la **zona** (`ZONA_FUERZA[via]`) como banda dorada con borde blanco de 2 px y dos muescas, que se
+    ilumina mientras la barra está dentro. Soltar lanza (la fuerza se lee con el `timeStamp` del evento, no con el
+    reloj del manejador) y durante 900 ms se ve una marca blanca donde soltaste y la palabra **PERFECTO / CASI /
+    FLOJO ↓ / FUERTE ↑** (`etiquetaSuelta`); en la diana, un anillo donde apuntaste y una línea hasta donde cayó
+    (1,5 s). Teclado: flechas o **WASD** apuntan (Mayús = paso fino 0,01), Espacio mantener/soltar, Esc deja la tirada.
   - **Móvil**: pones el dedo (la mira va 56 px por encima, que el dedo no la tape) y **lo lanzas hacia arriba**:
     la fuerza es la velocidad del gesto (`fuerzaDeFlick`, `FLICK_LLENO = 2,6` alturas de la diana por segundo);
     la mira es donde empezó el gesto. Se mide con las muestras crudas del puntero (`getCoalescedEvents`) y su
@@ -879,7 +889,7 @@ servidor decide dónde se clava**. Los mismos verbos en el PC, en el móvil y en
     pared → la diana cuelga ahí, de cara a ti; suelo/mesa → se pone de pie con el centro a 1,73 m; sin superficie
     → a 2,37 m delante, a la altura de los ojos). Un toque o el gatillo la cuelga; luego **mantener y soltar**
     (pantalla o gatillo): la barra de fuerza junto a la diana, y el dardo sale por el rayo del toque o del mando
-    hacia donde corta la cara. Tamaño real (`RADIO_M = 0,17`). La sesión dura `AR_JUEGO_MS` en un móvil.
+    hacia donde corta la cara; la banda dorada de esa barra usa `ZONA_FUERZA.ar` y se ve a 5 cm de alto. Tamaño real (`RADIO_M = 0,17`). La sesión dura `AR_JUEGO_MS` en un móvil.
   - **3D en la plaza** (`crearDianas3D`, `view.dardos`): tablero en un poste (`ESCALA_PLAZA = 2,4` veces el
     tamaño real, para leerla desde la cámara), línea de tiro dorada en el suelo y los dardos clavados de quien
     tire cerca; los tuyos siguen unos segundos tras la tirada.
