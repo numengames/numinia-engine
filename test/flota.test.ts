@@ -214,7 +214,8 @@ test("C6: copia → comprobar → importar (an EMPTY folder only) gives the same
   const destino = join(tmp("cli-dest-"), "mundo"); mkdirSync(destino);
   const imp = await cli("importar", destino, zip);
   assert.equal(imp.code, 0, imp.err);
-  assert.deepEqual(readdirSync(destino).sort(), ["aventura", "datos", "mundo.json"]);
+  assert.deepEqual(readdirSync(destino).sort(), ["aventura", "datos", "entorno", "mundo.json"], "H8: a new world is born in the espacio base, and that choice travels in the zip");
+  assert.deepEqual(JSON.parse(readFileSync(join(destino, "entorno", "espacio-base.json"), "utf8")), { schema: "numinia-engine/espacio-base@1", activa: true, semilla: 42 });
   assert.equal(readFileSync(join(destino, "datos", "objetos.jsonl"), "utf8"), '{"op":"s","key":"o2","value":{"x":2}}\n', "only complete lines travel");
   assert.ok(readFileSync(join(destino, "aventura", "pnj", "bruno.json")).equals(readFileSync(join(origen.aventura, "pnj", "bruno.json"))));
   assert.ok(!existsSync(join(destino, "claves.env")));

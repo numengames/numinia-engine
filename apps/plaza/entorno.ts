@@ -1,4 +1,4 @@
-// The environment and elements section of the builder (H4/H8): the «Naturaleza» switch, presets, a few sliders (sun, fog, wind, exposure),
+// The environment and elements section of the builder (H4/H8): the «Espacio base» and «Naturaleza» switches, «Restaurar el mundo» (two steps), presets, a few sliders (sun, fog, wind, exposure),
 // the ground, and «Elementos» (put water, fire, smoke or dust in front of you; resize, move, remove). Real HTML
 // buttons and labelled inputs (screen readers, keyboard). Since ux2-dock it lives inside the builder's «Entorno» drawer
 // (constructor.ts lends the drawer's body as `padre`; one drawer open at a time, so it no longer covers the world as a
@@ -16,10 +16,15 @@ type Elementos = {
   tipos: string[];
   seleccion(): (Valores & { id: string }) | null;
   aqui(): { x: number; z: number };
+  vaciar?(): Res;
   poner(tipo: string, donde?: { x: number; y?: number; z: number }): Res; escalar(f: number): Res; desplazar(dx: number, dz: number): Res; quitar(): Res;
 };
 /** Interruptor «Naturaleza» (features/naturaleza/client.ts `interruptor`): the world's nature on or off; the server decides. */
 type Naturaleza = { estado: { ultimoRechazo: string }; activa(): boolean; poner(activa: boolean): Res };
+/** Interruptor «Espacio base» (features/espaciobase/client.ts `interruptor`) + `restaurar`: the empty night world on or off, or the file as a new world's. */
+type Base = { estado: { ultimoRechazo: string }; activa(): boolean; poner(activa: boolean): Res; restaurar(): Res; semilla(): number; ponerSemilla(n: number): Res };
+/** «Restaurar el mundo» also empties the objects (features/objetos/client.ts `constructor.reiniciar`): the server plants the logo and the moñoni again. */
+type Objetos = { reiniciar(): Res };
 type Vista = {
   cam?: { yaw?: () => number };
   sueloBajo?: (x: number, y: number) => { x: number; y?: number; z: number } | null;
@@ -43,9 +48,12 @@ const CSS = `
 #panel-entorno button[role=switch]::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--n-texto, #eef2f6); transition: left .15s; }
 #panel-entorno button[role=switch][aria-checked="true"] { background: #4caf7a; }
 #panel-entorno button[role=switch][aria-checked="true"]::after { left: 25px; }
-#panel-entorno button[role=switch][aria-busy="true"] { opacity: .6; }`;
+#panel-entorno button[role=switch][aria-busy="true"] { opacity: .6; }
+#panel-entorno .nota { margin: 2px 0 6px; color: #aab6c2; font-size: 12px; }
+#panel-entorno .nota[hidden], #panel-entorno .fila[hidden] { display: none; }
+#panel-entorno button.peligro { background: #f0b4aa; }`;
 
-export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu?: Naturaleza, padre?: HTMLElement): void {
+export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu?: Naturaleza, padre?: HTMLElement, base?: Base, objetos?: Objetos): void {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const panel = document.createElement("section");
   panel.id = "panel-entorno"; panel.hidden = true; panel.setAttribute("aria-label", "Entorno y elementos");
@@ -107,16 +115,73 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
   let natEsperando: boolean | null = null;
   natBoton.addEventListener("click", () => {
     if (!natu) return;
-    const quiero = !natu.activa(), r = natu.poner(quiero);
+    const quiero = !natu.activa();
+    if (quiero && base?.activa()) base.poner(false); // the two grounds never go together (the nature wins): the espacio base steps aside FIRST, so the pages tear one ground down before they raise the other
+    const r = natu.poner(quiero);
     natEsperando = r.ok ? quiero : null;
     natBoton.setAttribute("aria-busy", String(r.ok));
     estado.textContent = r.ok ? (quiero ? "Encendiendo la naturaleza…" : "Apagando la naturaleza…") : `No: ${r.why}`;
     natBoton.blur();
   });
   filaNat.append(natTexto, natBoton);
+  // Interruptor «Espacio base» (H8, same pattern): the empty night world; only for builders; follows the server's state.
+  const filaBase = document.createElement("div"); filaBase.className = "interruptor"; filaBase.hidden = true;
+  const baseTexto = document.createElement("span"); baseTexto.id = "espacio-base-etiqueta"; baseTexto.textContent = "Espacio base";
+  const baseBoton = document.createElement("button"); baseBoton.type = "button"; baseBoton.id = "espacio-base-interruptor";
+  baseBoton.setAttribute("role", "switch"); baseBoton.setAttribute("aria-checked", "false"); baseBoton.setAttribute("aria-labelledby", "espacio-base-etiqueta");
+  baseBoton.title = "Encender o apagar el espacio base de este mundo (el lienzo en blanco: de noche, suelo de líneas luminosas, sin árboles ni hierba) para todos. Se guarda en espacio-base.json. Si la naturaleza está encendida, se apaga. / Turn the blank base space (night, glowing line ground, no trees or grass) on or off for everyone; turning it on turns nature off.";
+  let baseEsperando: boolean | null = null;
+  baseBoton.addEventListener("click", () => {
+    if (!base) return;
+    const quiero = !base.activa();
+    if (quiero && natu?.activa()) natu.poner(false); // the nature would win over the espacio base: it is turned off FIRST (one ground down before the other goes up)
+    const r = base.poner(quiero);
+    baseEsperando = r.ok ? quiero : null;
+    baseBoton.setAttribute("aria-busy", String(r.ok));
+    estado.textContent = r.ok ? (quiero ? "Encendiendo el espacio base…" : "Apagando el espacio base…") : `No: ${r.why}`;
+    baseBoton.blur();
+  });
+  filaBase.append(baseTexto, baseBoton);
+  const nota = document.createElement("p"); nota.className = "nota"; nota.hidden = true;
+  nota.textContent = "Espacio base: el lienzo en blanco, de noche. Naturaleza: relieve, árboles y hierba. Solo una a la vez: al encender una, se apaga la otra. / Base space: the blank canvas, at night. Nature: relief, trees and grass. One at a time: turning one on turns the other off.";
+  // «Restaurar el mundo»: two steps (ask, then confirm); it empties what was built and puts the world back in the espacio base.
+  const confirmar = document.createElement("div"); confirmar.className = "fila"; confirmar.hidden = true; confirmar.setAttribute("role", "group"); confirmar.setAttribute("aria-label", "Confirmar restaurar el mundo");
+  const restaurarBoton = boton("Restaurar el mundo", "Borrar todo lo construido y volver al espacio base (la hoja en blanco). Pide confirmación. / Delete everything built and go back to the base space. Asks first.", () => ({ ok: true }));
+  restaurarBoton.id = "mundo-restaurar";
+  const sino = document.createElement("span"); sino.textContent = "Se borra todo lo construido y vuelves al espacio base. No se puede deshacer. / Everything built is deleted and you go back to the base space. It cannot be undone.";
+  const si = document.createElement("button"); si.type = "button"; si.id = "mundo-restaurar-si"; si.className = "peligro"; si.textContent = "Sí, restaurar el mundo";
+  const no = document.createElement("button"); no.type = "button"; no.id = "mundo-restaurar-no"; no.textContent = "No, dejarlo como está";
+  confirmar.append(sino, si, no);
+  let arrepentirse: ReturnType<typeof setTimeout> | null = null;
+  const cerrarConfirmar = () => { if (arrepentirse) clearTimeout(arrepentirse); arrepentirse = null; confirmar.hidden = true; restaurarBoton.hidden = false; };
+  restaurarBoton.addEventListener("click", () => { restaurarBoton.hidden = true; confirmar.hidden = false; si.focus(); arrepentirse = setTimeout(cerrarConfirmar, 10000); });
+  no.addEventListener("click", () => { cerrarConfirmar(); estado.textContent = "Dejado como estaba."; restaurarBoton.focus(); });
+  si.addEventListener("click", () => {
+    cerrarConfirmar();
+    const fallos: string[] = [];
+    if (natu?.activa()) natu.poner(false); // first: the nature's ground goes down before the espacio base's goes up
+    for (const r of [base?.restaurar(), objetos?.reiniciar(), elem.vaciar?.()]) if (r && !r.ok) fallos.push(r.why);
+    estado.textContent = fallos.length ? `No del todo: ${fallos[0]}` : "Mundo restaurado: vuelves al espacio base.";
+  });
+  const filaRestaurar = document.createElement("div"); filaRestaurar.hidden = true; filaRestaurar.append(fila("Restaurar el mundo", restaurarBoton), confirmar);
+  // Seed of the espacio base (H8): a number and two buttons, no file to edit. Live for everyone; the logo and the moñoni stay where they are.
+  const filaSemilla = document.createElement("div"); filaSemilla.className = "fila"; filaSemilla.hidden = true; filaSemilla.setAttribute("role", "group"); filaSemilla.setAttribute("aria-label", "Semilla del espacio base / Base space seed");
+  const semEtiqueta = document.createElement("label"); semEtiqueta.style.display = "flex"; semEtiqueta.style.gap = "6px"; semEtiqueta.style.alignItems = "center";
+  const semTexto = document.createElement("span"); semTexto.textContent = "Semilla / Seed";
+  const semInput = document.createElement("input"); semInput.type = "number"; semInput.id = "espacio-base-semilla"; semInput.min = "0"; semInput.max = "2147483647"; semInput.step = "1"; semInput.style.width = "9em";
+  semInput.title = "El relieve de alrededor de la meseta: el mismo número da el mismo relieve. / The relief around the plateau: the same number gives the same relief.";
+  semEtiqueta.append(semTexto, semInput);
+  const semIr = (n: number) => { const r = base?.ponerSemilla(n) ?? { ok: false as const, why: "no hay espacio base" }; estado.textContent = r.ok ? `Semilla ${n}…` : `No: ${r.why}`; };
+  const semAplicar = boton("Aplicar", "Usar esta semilla / Use this seed", () => { const n = Number(semInput.value); if (!Number.isInteger(n) || n < 0 || n > 2147483647) return { ok: false, why: "un número entero entre 0 y 2147483647" }; semIr(n); return { ok: true }; });
+  const semAzar = boton("Otra al azar", "Probar otra semilla al azar / Try a random seed", () => { const n = Math.floor(Math.random() * 1_000_000); semInput.value = String(n); semIr(n); return { ok: true }; });
+  filaSemilla.append(semEtiqueta, semAplicar, semAzar);
   const sel = document.createElement("p");
   panel.append(
+    filaBase,
     filaNat,
+    nota,
+    filaSemilla,
+    filaRestaurar,
     fila("Entornos con nombre", ...presets),
     deslizador("Altura del sol", "solAltura", -30, 90, 1, (v) => `${v}°`),
     deslizador("Rumbo del sol", "solRumbo", -180, 180, 5, (v) => `${v}°`),
@@ -158,7 +223,18 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
         natEsperando = null; natBoton.setAttribute("aria-busy", "false");
       }
     }
-    const rechazo = amb.estado.ultimoRechazo || elem.estado.ultimoRechazo || (natu?.estado.ultimoRechazo ?? "");
-    if (rechazo) { estado.textContent = `No: ${rechazo}`; amb.estado.ultimoRechazo = ""; elem.estado.ultimoRechazo = ""; if (natu) natu.estado.ultimoRechazo = ""; }
+    if (base) {
+      filaBase.hidden = !amb.estado.puede; nota.hidden = !amb.estado.puede || !natu; filaRestaurar.hidden = !amb.estado.puede;
+      const on = base.activa();
+      baseBoton.setAttribute("aria-checked", String(on));
+      filaSemilla.hidden = !amb.estado.puede || !on;
+      if (document.activeElement !== semInput) semInput.value = String(base.semilla());
+      if (baseEsperando !== null && (on === baseEsperando || base.estado.ultimoRechazo)) {
+        if (on === baseEsperando) estado.textContent = on ? "Espacio base encendido." : "Espacio base apagado.";
+        baseEsperando = null; baseBoton.setAttribute("aria-busy", "false");
+      }
+    }
+    const rechazo = amb.estado.ultimoRechazo || elem.estado.ultimoRechazo || (natu?.estado.ultimoRechazo ?? "") || (base?.estado.ultimoRechazo ?? "");
+    if (rechazo) { estado.textContent = `No: ${rechazo}`; amb.estado.ultimoRechazo = ""; elem.estado.ultimoRechazo = ""; if (natu) natu.estado.ultimoRechazo = ""; if (base) base.estado.ultimoRechazo = ""; }
   }, 300);
 }

@@ -143,6 +143,8 @@ export function crearCliente() {
     vaciar: (id: string) => enviar("vaciar", { id }),
     /** U12: the zone's holes: where each is, its frame (metres) and whether it holds a work. */
     huecos: (): Hueco[] => (api ? (huecosLeidos ??= leerHuecos()) : []).map((h) => ({ ...h })), // fresh copies: a caller may change them
+    /** H8: restore the world — every object goes and what the world is born with is planted again (the server asks «construir»; it cannot be undone). */
+    reiniciar: () => enviar("reiniciar", {}),
     deshacer: () => enviar("deshacer", {}),
     /** M22: redo what you last undid (until you make a new change). */
     rehacer: () => enviar("rehacer", {}),

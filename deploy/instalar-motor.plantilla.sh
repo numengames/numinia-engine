@@ -178,6 +178,12 @@ if [ ! -d "$STATE/aventura" ]; then
   rm -rf "$STATE/.aventura-nueva"; cp -r "$PREFIX/app/aventuras/ejemplo" "$STATE/.aventura-nueva"
   chown -R "$USER_NAME:$USER_NAME" "$STATE/.aventura-nueva"; mv "$STATE/.aventura-nueva" "$STATE/aventura"
   say "mundo: su aventura es una copia de la de ejemplo ($STATE/aventura); desde ahora es suya"
+  # H8: a new world is born in the espacio base (the same file the server's `sembrar` writes); an existing entorno/ is never touched
+  if [ ! -d "$STATE/entorno" ]; then
+    mkdir -p "$STATE/entorno"
+    printf '{\n  "schema": "numinia-engine/espacio-base@1",\n  "activa": true,\n  "semilla": 42\n}\n' > "$STATE/entorno/espacio-base.json"
+    chown -R "$USER_NAME:$USER_NAME" "$STATE/entorno"
+  fi
 fi
 
 # ---------- systemd service ----------

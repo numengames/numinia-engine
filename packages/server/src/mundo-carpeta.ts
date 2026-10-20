@@ -33,9 +33,18 @@ export function carpetaMundo(raiz: string): Carpeta {
   return { raiz: r, manifiesto: join(r, "mundo.json"), datos: join(r, "datos"), activos: join(r, "datos", "activos"), aventura: join(r, "aventura"), entorno: join(r, "entorno"), sesiones: join(r, "sesiones"), claves: join(r, "claves.env") };
 }
 
-/** A new or empty world gets the folder and a copy of the example adventure (only when it has no aventura/ at all). */
+/** H8: what a NEW world's entorno/espacio-base.json says (kept equal to features/espaciobase/server.ts `ficheroNuevo()`; a test compares): on, default seed. */
+export const ESPACIO_BASE_NUEVO = { schema: "numinia-engine/espacio-base@1", activa: true, semilla: 42 };
+
+/** A new or empty world gets the folder and a copy of the example adventure (only when it has no aventura/ at all) and is born in the
+ * espacio base (H8: entorno/espacio-base.json on, unless the folder already brings an entorno/ of its own). A world that already exists is never touched. */
 export function sembrar(c: Carpeta, log: (l: string) => void = () => {}, ejemplo: string = EJEMPLO): boolean {
   mkdirSync(c.raiz, { recursive: true });
+  if (!existsSync(c.aventura) && !existsSync(c.entorno)) {
+    mkdirSync(c.entorno, { recursive: true });
+    writeFileSync(join(c.entorno, "espacio-base.json"), JSON.stringify(ESPACIO_BASE_NUEVO, null, 2) + "\n");
+    log(`[mundo] mundo nuevo: nace en el espacio base (${join(c.entorno, "espacio-base.json")}); se apaga o se cambia desde Construir → Entorno`);
+  }
   if (existsSync(c.aventura) || !existsSync(ejemplo)) return false;
   const tmp = join(c.raiz, `.aventura-nueva-${process.pid}`);
   cpSync(ejemplo, tmp, { recursive: true });
