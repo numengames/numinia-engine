@@ -9,11 +9,12 @@ import {
   MSG, buildGrid, selectVisible, encodeSnapshot, cuantizar, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
   decodeIdentityRequest, decodePase, encodeIdentity, leerVozSubida, codificarVozBajada, VOZ_RADIO_M, VOZ_TRAMAS_S,
+  encodeCondiciones, decodeAceptar,
 } from "../../net/src/index.ts";
 import { agenteDe, emitir, nombreDe, nuevoId, today, verificar, verificarAgente } from "./identidad.ts";
 import type { Who } from "./identidad.ts";
 export type { Who } from "./identidad.ts";
-import type { Transport, Viewer, Welcome } from "../../net/src/index.ts";
+import type { Aceptacion, CondicionesMensaje, Transport, Viewer, Welcome } from "../../net/src/index.ts";
 import { ServerRuntime } from "../../feature/src/index.ts";
 import type { BienFirmable, FeatureStorage, ReciboLeido, ServerPart, RayHit, Orden } from "../../feature/src/index.ts";
 
@@ -69,7 +70,24 @@ export type InstanceOptions = {
    * fishing and walking into a `malla` wall all answer as if there is nothing there). packages/server/src/colision-mundo.ts
    * builds the real one. */
   construirMalla?: ConstruirMalla;
+  /** condiciones/c2: the gate of the world's conditions of entry (server/condiciones-puerta.ts builds it). With `activa`, a
+   * connection that has not accepted the current norms is frozen where it arrived and its chat, voice and every feature
+   * message (build, play) are ignored — see `puertaCerrada`. None, or `activa` false = the behaviour as before. */
+  condiciones?: PuertaCondiciones;
 };
+/** condiciones/c2: what the instance needs from the conditions' gate. The rules (which points, which versions) are the server's. */
+export type PuertaCondiciones = {
+  /** Is the gate on? Off = nothing is refused and nothing is sent by itself. */
+  activa: boolean;
+  /** May this person act? True when nothing is mandatory or they accepted the current version of every layer that has a mandatory norm. */
+  abierta(who: Who): boolean;
+  /** The message that tells a page where it stands; `conCapas` adds the whole text (the offer). `who` null = not identified yet. */
+  estado(who: Who | null, conCapas: boolean): CondicionesMensaje;
+  /** Keep what this person accepts (only current versions and known data points count) and say where they stand now. */
+  aceptar(who: Who, a: Aceptacion): CondicionesMensaje;
+};
+/** condiciones/c2: refusals made by the gate (tests, /metrics later). */
+export type PuertaStats = { entradas: number; funciones: number; voz: number; aceptaciones: number; malas: number };
 /** M6 h8 / D2: the world's mesh builder (InstanceOptions.construirMalla). `faltaAlgo` (optional): did the last build
  * skip a `malla` thing because its file could not be read (yet)? Then any change retries, like before D2. */
 export type ConstruirMalla = ((objetos: Iterable<[string, Record<string, unknown>]>) => Promise<Bvh | null>) & { faltaAlgo?: () => boolean };
@@ -115,6 +133,8 @@ type Conn = {
   visible?: number[]; // J3: who its last snapshot carried (features ask with api.visible: names over heads)
   voz?: { desde: number; n: number }; // U10: voice frames this second (rate cap)
   anfitrion?: string; // ADR-080: the host this connection asked for (an outside agent signs the world's name)
+  admitido?: true; // condiciones/c2: the gate let this connection through (it accepted, or it is an AI); a connection never goes back
+  acepta?: { desde: number; n: number }; // condiciones/c2: ACEPTAR messages this second (rate cap)
 };
 
 export class Instance {
@@ -259,11 +279,13 @@ export class Instance {
     const conn: Conn = { entity, transport: t, viewer: { entity, priority: new Float32Array(this.opts.capacity) }, queue: [], ack: 0, dropped: 0, bad: 0, anfitrion };
     t.onMessage((bytes) => {
       if (bytes[0] === MSG.INPUT && (bytes.length === 6 || bytes.length === 5)) { // 5 = from before J2 (no buttons)
+        if (this.cerrada(conn)) { this.puertaStats.entradas++; return; } // condiciones/c2: frozen where it arrived until it accepts
         conn.queue.push(decodeInput(bytes));
         if (conn.queue.length > MAX_QUEUE) { conn.queue.shift(); conn.dropped++; } // faster-than-tick senders lose inputs
       } else if (bytes[0] === MSG.PING && bytes.length === 5) {
         t.send(encodePong(decodeTime(bytes)), true);
       } else if (bytes[0] === MSG.FEATURE && this.features.active) {
+        if (this.cerrada(conn)) { this.puertaStats.funciones++; return; } // condiciones/c2: chat, build, every game action: ignored (not «bad»)
         if (!this.features.receive(entity, bytes)) conn.bad++;
       } else if (bytes[0] === MSG.IDENTITY && this.opts.identitySign) {
         const token = conn.who ? null : decodeIdentityRequest(bytes); // once per connection
@@ -278,8 +300,18 @@ export class Instance {
         if (pase === null) conn.bad++;
         else if (this.opts.identitySign && this.opts.credencial) conn.pase = pase; // a world that takes no passes ignores it (the person enters as a guest)
       } else if (bytes[0] === MSG.VOICE) {
+        if (this.cerrada(conn)) { this.puertaStats.voz++; return; } // condiciones/c2: nothing of its microphone is relayed
         const sinVoz = typeof this.opts.sinVoz === "function" ? this.opts.sinVoz() : this.opts.sinVoz;
         if (!sinVoz) this.relayVoice(conn, bytes);
+      } else if (bytes[0] === MSG.CONDICIONES && this.opts.condiciones) { // condiciones/c2: «send me the conditions» (one byte), asked at any time
+        if (bytes.length !== 1) conn.bad++;
+        else t.send(encodeCondiciones(this.opts.condiciones.estado(conn.who ?? null, true)), true);
+      } else if (bytes[0] === MSG.ACEPTAR && this.opts.condiciones) { // condiciones/c2: what this person accepts; needs to be identified (it is kept by who)
+        const a = decodeAceptar(bytes), now = this.sim.tick, w = (conn.acepta ??= { desde: now, n: 0 });
+        if (now - w.desde >= 20) { w.desde = now; w.n = 0; } // 20 ticks = 1 s: a store write each, so a cap
+        if (!a || !conn.who || conn.who.ia || ++w.n > 5) { conn.bad++; this.puertaStats.malas++; return; }
+        this.puertaStats.aceptaciones++;
+        t.send(encodeCondiciones(this.opts.condiciones.aceptar(conn.who, a)), true);
       } else if (bytes[0] === MSG.REPORT) {
         const r = decodeReport(bytes);
         if (!r) conn.bad++; else this.opts.onReport?.(entity, r); // no listener (tests, bots): ignored
@@ -328,7 +360,23 @@ export class Instance {
     if (persona) conn.invitado = id;
     conn.transport.send(encodeIdentity({ token: ok && !ok.renovar ? token : emitir(sign, id, day), ...conn.who }), true);
     this.features.identify(entity);
+    if (this.opts.condiciones?.activa) conn.transport.send(encodeCondiciones(this.opts.condiciones.estado(conn.who, true)), true); // condiciones/c2: the offer, by itself, once identified
   }
+
+  /** condiciones/c2: is this entity held behind the gate? (see `cerrada`; uploads ask it too.) Not connected = false. */
+  puertaCerrada(entity: number): boolean { const c = this.byEntity[entity]; return !!c && this.cerrada(c); }
+  /** condiciones/c2: the gate. True while this connection has not been let through: the world's gate is on, it is not an AI
+   * inhabitant/agent (they hold a signed ticket and have no bubble to click), and it has not accepted every mandatory norm of the
+   * current version. Not identified yet = closed (the acceptance is kept by who). Off or no gate = always false, one comparison.
+   * Once open a connection stays open (the conditions are read at start, so they cannot change under it). */
+  private cerrada(conn: Conn): boolean {
+    const p = this.opts.condiciones;
+    if (!p?.activa || conn.admitido) return false;
+    const w = conn.who;
+    if (w && (w.ia || p.abierta(w))) { conn.admitido = true; return false; }
+    return true;
+  }
+  readonly puertaStats: PuertaStats = { entradas: 0, funciones: 0, voz: 0, aceptaciones: 0, malas: 0 };
 
   disconnect(entity: number): void {
     const i = this.conns.findIndex((c) => c.entity === entity);
