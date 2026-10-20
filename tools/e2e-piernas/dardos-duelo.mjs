@@ -125,12 +125,16 @@ const INIT_AR = IWER + `;
 const gatillo = (r, ms) => r.evaluate((ms) => new Promise((ok) => { const c = globalThis.__iwer.controllers.right; c.updateButtonValue("trigger", 1); setTimeout(() => { c.updateButtonValue("trigger", 0); setTimeout(ok, 150); }, ms); }), ms);
 const arEstado = (r) => ctl(r, () => { const s = globalThis.__numinia.dardosHud.ar(); return s && { fase: s.fase, pared: s.pared, lanzados: s.lanzados, clavados: s.clavados, ultimo: s.ultimo }; });
 
-/** B opens the darts view (a far player has no board to press E at: the page's test hook opens it), starts AR and hangs the board. */
+/** B joins from afar like a person: the page offers «Dardos: jugar en <diana>» (R4) → its lobby → «En tu pared (AR)» → hangs the board. */
 async function bEnPared(b) {
   await b.bringToFront();
-  await esperar(b, () => globalThis.__numinia.dardosHud && globalThis.__numinia.dardos.sitios().some((s) => s.id === "torre"), null, 20000);
-  await ctl(b, () => globalThis.__numinia.dardosHud.abrir());
-  await esperar(b, () => !document.querySelector("#dardos-hud button.ar").hidden, null, 8000);
+  await esperar(b, () => globalThis.__numinia.dardosHud && !document.getElementById("dardos-unirse").hidden && document.querySelector('#dardos-unirse button[data-sitio="torre"]'), null, 30000);
+  out.chip ??= await b.evaluate(() => { const bt = document.querySelector('#dardos-unirse button[data-sitio="torre"]'); return { titulo: bt.querySelector("b").textContent, estado: bt.querySelector("span").textContent, alto: bt.getBoundingClientRect().height }; });
+  if (SHOTS && !out.chipFoto) { out.chipFoto = true; await foto(b, "unirse-pc"); const vp = b.viewportSize(); await b.setViewportSize({ width: 390, height: 780 }); await b.waitForTimeout(400); await foto(b, "unirse-movil"); await b.setViewportSize(vp); await b.waitForTimeout(300); }
+  await b.evaluate(() => document.querySelector('#dardos-unirse button[data-sitio="torre"]').click());
+  await esperar(b, () => !document.getElementById("dardos-hud").hidden && document.getElementById("dardos-hud").classList.contains("lobby") && !document.querySelector("#dardos-hud button.ar").hidden, null, 8000);
+  out.lobby ??= await b.evaluate(() => ({ nombre: document.querySelector("#dardos-hud .nombre").textContent, cuenta: document.querySelector("#dardos-hud .cuenta").textContent, unirse: !document.querySelector("#dardos-hud button.unirse").hidden }));
+  if (SHOTS && !out.lobbyFoto) { out.lobbyFoto = true; await foto(b, "unirse-lobby"); }
   out.arBoton ??= await b.evaluate(() => document.querySelector("#dardos-hud button.ar").textContent);
   await b.evaluate(() => document.querySelector("#dardos-hud button.ar").click());
   await esperar(b, () => globalThis.__numinia.view.ar.jugando, null, 20000);
@@ -143,6 +147,9 @@ async function bEnPared(b) {
 const salirAR = async (b) => {
   await b.evaluate(() => globalThis.__numinia.view.ar.exit());
   await esperar(b, () => globalThis.__numinia.view.ar.state === "off", null, 10000).catch(() => {});
+  // R4: the HUD's AR button must say «En tu pared (AR)» again AT ONCE (not «Salir de AR» until the next state change)
+  await b.waitForTimeout(150);
+  (out.arBotonTras ??= []).push(await b.evaluate(() => document.querySelector("#dardos-hud button.ar").textContent));
   return b.evaluate(() => globalThis.__numinia.view.ar.state);
 };
 
@@ -349,6 +356,9 @@ try {
     esperaA: /Esperando rival/.test(pie(res.letreroEspera.pie)) && /AR/.test(pie(res.letreroEspera.pie)) && res.letreroEspera.visible && res.sitioEspera.espera === true,
     bLejos: res.bLejos > TABLERO.radio + CERCA_M,
     arBoton: /pared \(AR\)/.test(out.arBoton),
+    chipDeUnirse: out.chip?.titulo === "Dardos: jugar en Diana de la Torre" && /Esperando rival/.test(out.chip.estado) && out.chip.alto >= 44,
+    lobbyAbre: out.lobby?.unirse === true && /Diana de la Torre/.test(out.lobby.nombre),
+    botonARtrasSalir: out.arBotonTras?.length >= 2 && out.arBotonTras.every((t) => t === "En tu pared (AR)"),
     bJugoDesdePared: i.dB.yo && i.dB.a.pared === true || i.dB.b?.pared === true,
     aVeAB: i.dA.rival?.nombre === i.nombreB && i.nombreB && i.dA.rival.entity === eb,
     aVeEtiqueta: res.sign0.etiqueta === "En su pared (AR)" && res.sign0.visible,

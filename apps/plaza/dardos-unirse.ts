@@ -44,6 +44,7 @@ export const estaLejos = (s: { x: number; z: number; radio: number }, yo: { x: n
 const CSS = `
 #dardos-unirse { position: fixed; left: 50%; top: 64px; transform: translateX(-50%); z-index: 29; display: grid; gap: 6px; width: min(92vw, 340px); font: 14px/1.3 system-ui, sans-serif; }
 #dardos-unirse[hidden] { display: none; }
+@media (max-width: 600px) { #dardos-unirse { left: 8px; transform: none; width: min(calc(100vw - 150px), 340px); } } /* the minimap sits top right on a phone */
 #dardos-unirse button { display: grid; gap: 1px; justify-items: start; min-height: 48px; padding: 8px 14px; border: 0; border-radius: 14px; background: rgba(20, 24, 30, .94); color: #eef2f6; box-shadow: 0 4px 16px rgba(0,0,0,.4); text-align: left; cursor: pointer; font: inherit; }
 #dardos-unirse button b { color: #ffd27a; font-weight: 800; }
 #dardos-unirse button span { font-size: 12px; color: #c9d3dc; }

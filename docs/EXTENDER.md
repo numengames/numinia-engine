@@ -923,7 +923,16 @@ comporta exactamente como en v1. Es una pieza del motor: cualquier mundo la acti
   cualquier página muestre «esperando rival».
 - **Verbo.** `jugar{sitio, desde?}`: `desde` es `"sitio"` (por defecto: hay que estar en el radio, como en v1) o
   `"pared"` (salta la comprobación de distancia, **solo** en una diana `remoto`; en otra se rechaza con «no admite
-  jugar desde una pared»). Los clientes que no mandan `desde` no notan nada.
+  jugar desde una pared»). Los clientes que no mandan `desde` no notan nada. v5 suma `"lejos"`: lo mismo que
+  `"pared"` pero desde una pantalla plana (PC o móvil) lejos de la diana; también solo en `remoto`.
+- **Unirse desde lejos (R4).** Una diana `remoto` la conoce **todo el mundo**, esté donde esté (su estado compartido
+  no lleva `at`; las demás solo las conoce quien está a `ALCANCE_M`; `api.within` lee el lugar de la diana en su
+  ficha). La página muestra entonces un chip «Dardos: jugar en <diana>» (`apps/plaza/dardos-unirse.ts`, con el
+  estado: «Esperando rival · 1/2», «Libre», «Partida en marcha»), que abre la vista de dardos en su *sala de
+  espera* con «Jugar desde aquí» (entra `desde: lejos`) y «En tu pared (AR)» (si el aparato lo permite; la pared
+  entra en la diana elegida). En el panel 3D de la pared, si no estás en ninguna partida y hay una diana libre,
+  aparece «Unirme a la partida». Funciona con ratón y con el dedo (el chip mide ≥ 48 px). Un mundo lo activa solo
+  con `"remoto": true` en su `dardos.json`; el servidor sigue decidiendo quién entra.
 - **Partida.** El primer `jugar` es el anfitrión y la diana queda en `espera`; el segundo `jugar` de otra
   persona empieza la partida (la diana pasa a `ocupado`); un tercero recibe «Ya hay un duelo en marcha». Los turnos
   alternan anfitrión, invitado, anfitrión… (un turno = 3 dardos, mismo código y puntuación que v1). `lanzar`
