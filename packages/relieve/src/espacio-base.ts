@@ -8,6 +8,10 @@
 // non-periodic) and the sector shape is bounded so EVERY seed has a mountain, so the ring is never empty (see `relieveDe`).
 import { hash2, valor2 } from "./semilla.ts";
 
+/** H7: the seed every world with no `semilla` of its own is born with, so all empty worlds share one landscape (Pablo, 20-10). The ONE place the number lives:
+ * the server's schema (features/espaciobase), the page's defaults (render/espacio-base) and the collision mesh (sim/terreno-malla) all import it. A world changes it in its espacio-base.json. */
+export const SEMILLA_BASE_DEFECTO = 42;
+
 /** Radius (m) of the dead-flat plateau around the spawn: the height is exactly 0 for every distance ≤ this. */
 export const RADIO_MESETA = 26;
 /** Distance (m) at which the mask reaches full strength. */

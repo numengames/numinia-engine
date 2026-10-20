@@ -2,6 +2,7 @@
 // The espacio base is the place every character is born in: an EMPTY world (no grass, trees or fauna) whose ground is a luminous line mesh over
 // near-black, a night with stars and moon by default (day and night are the ENGINE's: entorno's clock, not a key here). Every key is optional (the file's presence is the switch: `activa` defaults to true);
 // an unknown key or a wrong value is an issue that says how to fix it (never thrown). A wrong file is not used (features/mundo.ts logs why).
+import { SEMILLA_BASE_DEFECTO } from "../../packages/relieve/src/espacio-base.ts";
 import type { Issue, Result } from "../../packages/core/src/index.ts";
 
 export const ESQUEMA = "numinia-engine/espacio-base@1";
@@ -12,7 +13,7 @@ export const OBJETO_DEFECTO = "logo-khepri";
 /** What a file that says nothing gets (kept equal to packages/render/src/espacio-base/espacio-base.ts `DEFECTOS_ESPACIO_BASE`; a test compares). */
 /** H6: how many moñonis (round agents, switched OFF) the world is born with: 0…5. */
 export const AGENTES_DEFECTO = 1, AGENTES_MAX = 5;
-export const DEFECTOS: EspacioBaseMundo = { activa: true, semilla: 1234, objeto: OBJETO_DEFECTO, agentes: AGENTES_DEFECTO };
+export const DEFECTOS: EspacioBaseMundo = { activa: true, semilla: SEMILLA_BASE_DEFECTO, objeto: OBJETO_DEFECTO, agentes: AGENTES_DEFECTO };
 const CLAVES = ["schema", "activa", "semilla", "objeto", "agentes"];
 const obj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 

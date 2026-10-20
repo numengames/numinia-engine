@@ -48,49 +48,58 @@
       "fuente": "https://numinia.com/es/archive/ndg-019d3e75-7731-7261-913d-842515f90190"
     },
     {
-      "id": "bolita-ambar",
-      "nombre": "Moñoni ámbar",
-      "modelo": "7fe33eaa68602430faf3a85cfbb68cea06a0a92cf4bfe84e149bdb33f9fc2b01",
-      "fichero": "activos/bolitas/bolita-ambar.glb",
+      "id": "bolita-rica-ambar",
+      "nombre": "Moñoni ámbar (cuerpo)",
+      "modelo": "4918923d19dee758af0faf3e846edb58bf4ffae68164753a549887954abe9708",
+      "fichero": "activos/bolitas/bolita-rica-ambar.glb",
       "licencia": "CC0-1.0",
-      "autor": "Numen Games (obra propia): la bolita del gemelo digital del Ayuntamiento de Alchemist Towers",
-      "fuente": "work/ayuntamiento/bolita-gemelo.mjs (F5c; 160 triángulos, 1 material, sin texturas)"
+      "autor": "Numen Games (obra propia, CC0 1.0 declarado dentro del propio .glb): el moñoni del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita.mjs (cuerpo, color ambar; 1.246 triángulos, 3 materiales, ojos incluidos, sin texturas)"
     },
     {
-      "id": "bolita-turquesa",
-      "nombre": "Moñoni turquesa",
-      "modelo": "1bd09b1e1a091d15cae77aab2e90726f8abdbeeec3917aa14525183ab0732723",
-      "fichero": "activos/bolitas/bolita-turquesa.glb",
+      "id": "bolita-rica-turquesa",
+      "nombre": "Moñoni turquesa (cuerpo)",
+      "modelo": "8abab2d5e76eedfdfa21277f4179af19290924ce09512c6efd57abec4f11309f",
+      "fichero": "activos/bolitas/bolita-rica-turquesa.glb",
       "licencia": "CC0-1.0",
-      "autor": "Numen Games (obra propia): la bolita del gemelo digital del Ayuntamiento de Alchemist Towers",
-      "fuente": "work/ayuntamiento/bolita-gemelo.mjs (F5c; 160 triángulos, 1 material, sin texturas)"
+      "autor": "Numen Games (obra propia, CC0 1.0 declarado dentro del propio .glb): el moñoni del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita.mjs (cuerpo, color turquesa; 1.246 triángulos, 3 materiales, ojos incluidos, sin texturas)"
     },
     {
-      "id": "bolita-coral",
-      "nombre": "Moñoni coral",
-      "modelo": "e92d6fd10ca88f0a4273038be5295237377547538b07befc2dd324fd34a55e9e",
-      "fichero": "activos/bolitas/bolita-coral.glb",
+      "id": "bolita-rica-coral",
+      "nombre": "Moñoni coral (cuerpo)",
+      "modelo": "7e4c1dfb05178952c1f03112c784b560ec22bba7a02466996321efdf92ca7cf1",
+      "fichero": "activos/bolitas/bolita-rica-coral.glb",
       "licencia": "CC0-1.0",
-      "autor": "Numen Games (obra propia): la bolita del gemelo digital del Ayuntamiento de Alchemist Towers",
-      "fuente": "work/ayuntamiento/bolita-gemelo.mjs (F5c; 160 triángulos, 1 material, sin texturas)"
+      "autor": "Numen Games (obra propia, CC0 1.0 declarado dentro del propio .glb): el moñoni del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita.mjs (cuerpo, color coral; 1.246 triángulos, 3 materiales, ojos incluidos, sin texturas)"
     },
     {
-      "id": "bolita-verde",
-      "nombre": "Moñoni verde",
-      "modelo": "af1c1fd459116c1f6da4de84d6ca88fcda2938f66a82deaddd5ab7f8af6c2dd4",
-      "fichero": "activos/bolitas/bolita-verde.glb",
+      "id": "bolita-rica-verde",
+      "nombre": "Moñoni verde (cuerpo)",
+      "modelo": "692b9149dbf215a642ebb7e89da4f3f78a835ce198f407715f86459d054804f5",
+      "fichero": "activos/bolitas/bolita-rica-verde.glb",
       "licencia": "CC0-1.0",
-      "autor": "Numen Games (obra propia): la bolita del gemelo digital del Ayuntamiento de Alchemist Towers",
-      "fuente": "work/ayuntamiento/bolita-gemelo.mjs (F5c; 160 triángulos, 1 material, sin texturas)"
+      "autor": "Numen Games (obra propia, CC0 1.0 declarado dentro del propio .glb): el moñoni del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita.mjs (cuerpo, color verde; 1.246 triángulos, 3 materiales, ojos incluidos, sin texturas)"
     },
     {
-      "id": "bolita-verdemar",
-      "nombre": "Moñoni verde mar",
-      "modelo": "ced7a256cbba255ed07dea0897665b375bd66f3e188f0f4b26f563a35b33bf58",
-      "fichero": "activos/bolitas/bolita-verdemar.glb",
+      "id": "bolita-rica-verdemar",
+      "nombre": "Moñoni verde mar (cuerpo)",
+      "modelo": "95ccc77f6c6a4be88af3b9e89325d33a990fefbfbd438846d1b474447aca5ec2",
+      "fichero": "activos/bolitas/bolita-rica-verdemar.glb",
       "licencia": "CC0-1.0",
-      "autor": "Numen Games (obra propia): la bolita del gemelo digital del Ayuntamiento de Alchemist Towers",
-      "fuente": "work/ayuntamiento/bolita-gemelo.mjs (F5c; 160 triángulos, 1 material, sin texturas)"
+      "autor": "Numen Games (obra propia, CC0 1.0 declarado dentro del propio .glb): el moñoni del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita.mjs (cuerpo, color verdemar; 1.246 triángulos, 3 materiales, ojos incluidos, sin texturas)"
+    },
+    {
+      "id": "bolita-rica-boca",
+      "nombre": "Moñoni (boca)",
+      "modelo": "211bed925a75b1a65d8c26e5972f0d1782ae4033baba6aa1b995adcfbb1010a6",
+      "fichero": "activos/bolitas/bolita-rica-boca.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia, CC0 1.0 declarado dentro del propio .glb): el moñoni del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita.mjs (boca aparte, mismo origen que el cuerpo; 2 materiales, sin texturas)"
     }
   ]
 }
