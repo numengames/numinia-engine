@@ -6,12 +6,14 @@ import type { Issue, Result } from "../../packages/core/src/index.ts";
 
 export const ESQUEMA = "numinia-engine/espacio-base@1";
 /** The validated world, flat, as it travels (the state's fields). */
-export type EspacioBaseMundo = { activa: boolean; semilla: number; objeto: string | null };
+export type EspacioBaseMundo = { activa: boolean; semilla: number; objeto: string | null; agentes: number };
 /** H5: the model the espacio base is born with (a house-library id, features/objetos/biblioteca.json): the Logo Khepri. `objeto: null` = none. */
 export const OBJETO_DEFECTO = "logo-khepri";
 /** What a file that says nothing gets (kept equal to packages/render/src/espacio-base/espacio-base.ts `DEFECTOS_ESPACIO_BASE`; a test compares). */
-export const DEFECTOS: EspacioBaseMundo = { activa: true, semilla: 1234, objeto: OBJETO_DEFECTO };
-const CLAVES = ["schema", "activa", "semilla", "objeto"];
+/** H6: how many moñonis (round agents, switched OFF) the world is born with: 0…5. */
+export const AGENTES_DEFECTO = 1, AGENTES_MAX = 5;
+export const DEFECTOS: EspacioBaseMundo = { activa: true, semilla: 1234, objeto: OBJETO_DEFECTO, agentes: AGENTES_DEFECTO };
+const CLAVES = ["schema", "activa", "semilla", "objeto", "agentes"];
 const obj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 export function leerEspacioBase(json: unknown): Result<EspacioBaseMundo> {
@@ -29,6 +31,11 @@ export function leerEspacioBase(json: unknown): Result<EspacioBaseMundo> {
     if (json.objeto === null) v.objeto = null;
     else if (typeof json.objeto === "string" && /^[a-z0-9][a-z0-9-]{0,39}$/.test(json.objeto)) v.objeto = json.objeto;
     else issues.push({ path: "espacio-base.objeto", message: "el id de un modelo de la biblioteca de la casa (p. ej. \"logo-khepri\"), o null para no poner ninguno" });
+  }
+  if (json.agentes !== undefined) {
+    const n = json.agentes;
+    if (typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= AGENTES_MAX) v.agentes = n;
+    else issues.push({ path: "espacio-base.agentes", message: `un número entero de 0 a ${AGENTES_MAX} (cuántos moñonis, las bolas-agente de Alchemist Towers, nacen apagados cerca del inicio; 0 = ninguno)` });
   }
   return issues.length ? { ok: false, issues } : { ok: true, value: v };
 }

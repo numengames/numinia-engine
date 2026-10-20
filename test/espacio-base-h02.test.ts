@@ -18,13 +18,13 @@ import { ESPACIO_BASE } from "../packages/render/src/naturaleza/paleta.ts";
 
 test("esquema: defaults, valid file, and every wrong value says how to fix it", () => {
   assert.deepEqual(leerEspacioBase({}), { ok: true, value: DEFECTOS });
-  assert.deepEqual(leerEspacioBase({ schema: ESQUEMA, activa: true, semilla: 7 }), { ok: true, value: { activa: true, semilla: 7, objeto: "logo-khepri" } });
+  assert.deepEqual(leerEspacioBase({ schema: ESQUEMA, activa: true, semilla: 7 }), { ok: true, value: { activa: true, semilla: 7, objeto: "logo-khepri", agentes: 1 } });
   for (const mal of [[], null, 3, { semilla: -1 }, { semilla: 1.5 }, { modo: "noche" }, { activa: "si" }, { arboles: 3 }, { schema: "x" }]) {
     const r = leerEspacioBase(mal); assert.equal(r.ok, false, JSON.stringify(mal));
     if (!r.ok) assert.ok(r.issues.length > 0 && r.issues.every((i) => i.message.length > 10));
   }
 });
-test("the page's defaults are the schema's", () => { const { objeto: _o, ...paraLaPagina } = DEFECTOS; assert.deepEqual(DEFECTOS_ESPACIO_BASE, paraLaPagina); assert.deepEqual(normalizar({}), paraLaPagina); });
+test("the page's defaults are the schema's", () => { const { objeto: _o, agentes: _a, ...paraLaPagina } = DEFECTOS; assert.deepEqual(DEFECTOS_ESPACIO_BASE, paraLaPagina); assert.deepEqual(normalizar({}), paraLaPagina); });
 
 test("activation: the file turns the feature on; without it, nothing is published; a wrong file is logged and not used; nature wins if both", () => {
   const publica = (leer: (f: string) => unknown, log: string[] = []) => {

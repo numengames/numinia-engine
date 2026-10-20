@@ -46,6 +46,51 @@
       "licencia": "CC0-1.0",
       "autor": "Archivo de numinia.com (Logo Khepri 0.1.3, CC0); aquí con metallicFactor 0 y roughnessFactor 0,9 (de noche el metal sin entorno se ve negro); mismos vértices y textura",
       "fuente": "https://numinia.com/es/archive/ndg-019d3e75-7731-7261-913d-842515f90190"
+    },
+    {
+      "id": "bolita-ambar",
+      "nombre": "Moñoni ámbar",
+      "modelo": "7fe33eaa68602430faf3a85cfbb68cea06a0a92cf4bfe84e149bdb33f9fc2b01",
+      "fichero": "activos/bolitas/bolita-ambar.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia): la bolita del gemelo digital del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita-gemelo.mjs (F5c; 160 triángulos, 1 material, sin texturas)"
+    },
+    {
+      "id": "bolita-turquesa",
+      "nombre": "Moñoni turquesa",
+      "modelo": "1bd09b1e1a091d15cae77aab2e90726f8abdbeeec3917aa14525183ab0732723",
+      "fichero": "activos/bolitas/bolita-turquesa.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia): la bolita del gemelo digital del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita-gemelo.mjs (F5c; 160 triángulos, 1 material, sin texturas)"
+    },
+    {
+      "id": "bolita-coral",
+      "nombre": "Moñoni coral",
+      "modelo": "e92d6fd10ca88f0a4273038be5295237377547538b07befc2dd324fd34a55e9e",
+      "fichero": "activos/bolitas/bolita-coral.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia): la bolita del gemelo digital del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita-gemelo.mjs (F5c; 160 triángulos, 1 material, sin texturas)"
+    },
+    {
+      "id": "bolita-verde",
+      "nombre": "Moñoni verde",
+      "modelo": "af1c1fd459116c1f6da4de84d6ca88fcda2938f66a82deaddd5ab7f8af6c2dd4",
+      "fichero": "activos/bolitas/bolita-verde.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia): la bolita del gemelo digital del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita-gemelo.mjs (F5c; 160 triángulos, 1 material, sin texturas)"
+    },
+    {
+      "id": "bolita-verdemar",
+      "nombre": "Moñoni verde mar",
+      "modelo": "ced7a256cbba255ed07dea0897665b375bd66f3e188f0f4b26f563a35b33bf58",
+      "fichero": "activos/bolitas/bolita-verdemar.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia): la bolita del gemelo digital del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita-gemelo.mjs (F5c; 160 triángulos, 1 material, sin texturas)"
     }
   ]
 }
