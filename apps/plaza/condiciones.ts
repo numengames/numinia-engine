@@ -112,6 +112,7 @@ const CSS = `
 #condiciones .decision { min-width: 190px; text-align: center; }
 #condiciones .despedida { margin: auto; text-align: center; max-width: 420px; }
 #condiciones .despedida h1 { font-size: 20px; }
+#condiciones .pasos[hidden] { display: none; }
 /* c6: what changed (maqueta 6): amber bar, the tag, the old title struck, the removed in a grey line */
 #condiciones .cambios { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 #condiciones .cambio { padding: 10px 14px; border-left: 3px solid var(--n-ambar, #EFA517); border-radius: 0 8px 8px 0; background: rgba(239,165,23,.09); font-size: 14.5px; line-height: 1.45; }

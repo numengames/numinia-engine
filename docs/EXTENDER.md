@@ -1286,6 +1286,12 @@ ni un byte) y solo contesta si la página pregunta. El registro del arranque dic
   `abierta` = puedes moverte, hablar y construir (puerta apagada, o ya aceptaste lo vigente). `faltan` = las capas cuya versión
   vigente tienes que aceptar. `capas` (el texto entero) va en la oferta y no en la respuesta a `ACEPTAR`. Con la puerta encendida
   la oferta llega sola justo después de `IDENTITY`.
+  **c6, campo aditivo `cambios` por capa** (solo cuando esa persona aceptó antes OTRA versión de esa capa y el servidor guardó las huellas;
+  un cliente viejo lo ignora y enseña todo): `capas[i].cambios = { desde: "1.0", nuevos: [id…], cambiados: [id…], quitados: [id…], antes?: { id: "título de antes" } }`.
+  `nuevos` y `cambiados` están en `puntos`; `quitados` ya no (solo su id y, en `antes`, su título). Cambia el título, el texto, `obligatorio` o
+  `tipo` = `cambiado`. Un punto `datos` nuevo o cambiado se ofrece con la casilla VACÍA: el permiso de uno cambiado se pierde (consentimiento
+  informado) y el de uno sin cambios sigue dado (`aceptado.datos` lo conserva aunque la página no lo muestre). Un registro de c2 (sin huellas) o una
+  capa nunca aceptada: sin `cambios`, se pide todo. La capa con la misma versión aceptada no entra en `faltan` ni lleva `cambios`.
 - **`CONDICIONES` (13), página → servidor**: un solo byte `[13]` = «mándame las condiciones y dónde estoy». Se contesta siempre
   (puerta encendida o apagada, antes o después de `IDENTITY`).
 - **`ACEPTAR` (14), página → servidor**: `[14, JSON]` con `{ versiones: { capa: "versión que leíste" }, datos: ["id de dato marcado"…] }`
