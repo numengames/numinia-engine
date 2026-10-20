@@ -1,0 +1,6 @@
+{
+  "formato": "ficha@1",
+  "nombre": "Torre de los Alquimistas (prueba de la burbuja)",
+  "descripcion": "Mundo de PRUEBA para ver la burbuja de entrada: su condiciones.json enciende la puerta, así que hasta aceptar las normas no te mueves. Los textos son de ejemplo.",
+  "notas": "Mundo de pruebas de condiciones/c3. Se arranca con AVENTURA_DIR=aventuras/condiciones-prueba (ver LEEME.md). No es una plantilla para producción: los textos de las normas son de ejemplo."
+}

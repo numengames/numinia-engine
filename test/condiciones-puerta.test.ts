@@ -362,3 +362,13 @@ test("server: a file that makes a data point mandatory is not used (the house ex
     assert.ok(logs.some((l) => l.includes("puerta apagada")), "and the house example does not ask for the gate");
   } finally { await srv.close(); }
 });
+
+test("c3: the offer carries each layer's `nombre` when the file gave one (the bubble's step names), and none when it did not", () => {
+  const cond: Condiciones = { formato: "condiciones@1", capas: [
+    { capa: "casa", nombre: "Casa de prueba", version: "1", puntos: [{ id: "uso", titulo: "Uso", texto: "t", obligatorio: true, tipo: "norma" }] },
+    { capa: "comunidad", version: "A", puntos: [{ id: "x", titulo: "X", texto: "t", obligatorio: false, tipo: "norma" }] },
+  ] };
+  const m = crearPuertaCondiciones({ condiciones: cond, activa: true }).estado(null, true);
+  assert.equal(m.capas?.[0].nombre, "Casa de prueba");
+  assert.ok(!("nombre" in (m.capas?.[1] ?? {})), "no name, no key");
+});

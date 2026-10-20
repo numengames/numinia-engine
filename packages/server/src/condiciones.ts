@@ -24,7 +24,8 @@ export const TIPOS = ["norma", "datos"] as const;
 export type TipoPunto = (typeof TIPOS)[number];
 /** `tipo`: `norma` (default) can close the gate when mandatory; `datos` is a permission about data and never can. */
 export interface Punto { id: string; titulo: string; texto: string; obligatorio: boolean; tipo: TipoPunto }
-export interface Capa { capa: CapaId; version: string; puntos: Punto[] }
+/** `nombre` (optional, 1–60): what the bubble calls this layer in its steps («Numen Games»); none = the page says «Las de la casa» / «Las de la comunidad». */
+export interface Capa { capa: CapaId; nombre?: string; version: string; puntos: Punto[] }
 /** `puerta`: the file asks for the gate (the server's own option, MOTOR_CONDICIONES_PUERTA, wins over it); none = the engine's default (off). */
 export interface Condiciones { formato: typeof CONDICIONES; capas: Capa[]; puerta?: boolean }
 
@@ -57,6 +58,7 @@ export function validarCondiciones(o: unknown): { ok: true; value: Condiciones }
     if (idx < 0) issues.push(`${p}.capa: una de ${CAPAS.join(", ")}`);
     else if (idx !== i) issues.push(`${p}.capa: el orden es ${CAPAS.join(" → ")}`);
     if (typeof c?.version !== "string" || !c.version || c.version.length > 40) issues.push(`${p}.version: texto de 1 a 40 caracteres`);
+    if (c?.nombre !== undefined && (typeof c.nombre !== "string" || !c.nombre.trim() || c.nombre.length > 60)) issues.push(`${p}.nombre: texto de 1 a 60 caracteres (o quita la clave)`);
     const ps = c?.puntos;
     if (!Array.isArray(ps) || ps.length < 1 || ps.length > MAX_PUNTOS) { issues.push(`${p}.puntos: de 1 a ${MAX_PUNTOS}`); return; }
     const vistos = new Set<string>();
@@ -75,7 +77,7 @@ export function validarCondiciones(o: unknown): { ok: true; value: Condiciones }
       if (tipo === "datos" && x?.obligatorio === true) issues.push(`${q}.obligatorio: un punto de datos nunca puede ser obligatorio (rechazarlo no puede cerrar la puerta). Pon "obligatorio": false; o, si es una norma del servicio y no un permiso sobre datos, pon "tipo": "norma"`);
       puntos.push({ id: String(x?.id), titulo: String(x?.titulo), texto: String(x?.texto), obligatorio: x?.obligatorio === true, tipo });
     });
-    capas.push({ capa: CAPAS[Math.max(idx, 0)], version: String(c?.version), puntos });
+    capas.push({ capa: CAPAS[Math.max(idx, 0)], ...(typeof c?.nombre === "string" ? { nombre: c.nombre.trim() } : {}), version: String(c?.version), puntos });
   });
   return issues.length ? { ok: false, issues } : { ok: true, value: { formato: CONDICIONES, capas, ...(typeof r.puerta === "boolean" ? { puerta: r.puerta } : {}) } };
 }
