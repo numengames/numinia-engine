@@ -157,8 +157,8 @@ try {
   await esperar(a, () => performance.now() - globalThis.__vigia.tEnMano >= 1020, null, 6000).catch(() => {});
   await fotoSiempre(a, "inventario-vuelo"); // the fish leaves the hand 1.1 s after it arrived and flies 0.45 s
   if (SHOTS) await a.evaluate(() => { document.getElementById("pesca-hud").style.visibility = ""; });
-  await esperar(a, () => !!document.querySelector(".bolsa-mas"), null, 8000).catch(() => {});
-  await a.waitForTimeout(250); await fotoSiempre(a, "inventario-bolsa");
+  await esperar(a, () => { const c = document.querySelector(".bolsa-mas"); if (!c || +getComputedStyle(c).opacity < 0.9) return false; c.style.animationPlayState = "paused"; document.getElementById("inventario-abrir")?.getAnimations().forEach((x) => x.pause()); return true; }, null, 8000).catch(() => {}); // the «+1» fully shown (its animation starts at opacity 0), frozen: a shot takes longer than the chip lives
+  await fotoSiempre(a, "inventario-bolsa");
   await esperar(a, () => globalThis.__vigia.oculto && globalThis.__vigia.pulso && globalThis.__vigia.chip, null, 8000).catch(() => {});
   out.guardado = await ctl(a, () => ({ ...globalThis.__vigia, hudGuardados: document.getElementById("pesca-hud").dataset.guardados ?? "0", msEnLaManoYVuelo: Math.round(globalThis.__vigia.tOculto - globalThis.__vigia.tEnMano) }));
   await foto(a, "pescado");
