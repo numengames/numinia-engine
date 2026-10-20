@@ -68,15 +68,25 @@ try {
   // #hud (the statistics line) is off by default since U23: the interface that must go and come back is the bar and the minimap
   ok("abrir", c0.modo === "foto" && enFoto.length === 1 && enFoto[0] === "foto" && antes.includes("minimapa") && antes.includes("barra-arriba"), { antes, enFoto, modo: c0.modo });
 
-  // W walks the camera, not you; Space does not jump
-  await p.keyboard.down("KeyW"); await p.waitForTimeout(1000); await p.keyboard.up("KeyW");
+  // W walks the camera, not you; Space does not jump. Hold it until it has actually covered a
+  // fixed distance (not a fixed wall-clock time): under a loaded machine a real-time hold can
+  // render too few frames and fall short even though the camera works fine — it just needs more
+  // wall-clock time to cover the same ground. The timeout below is a generous safety net for a
+  // genuinely broken camera, not the measurement itself.
+  const OBJETIVO_M = 1; // metres the free camera must cover before we let go of W
+  await p.keyboard.down("KeyW");
+  await p.waitForFunction(({ x0, z0, objetivo }) => {
+    const e = globalThis.__numinia.view.cam.estado();
+    return Math.hypot(e.pivote.x - x0, e.pivote.z - z0) >= objetivo;
+  }, { x0: c0.pivote.x, z0: c0.pivote.z, objetivo: OBJETIVO_M }, { timeout: 60000 });
+  await p.keyboard.up("KeyW");
   await p.keyboard.press("Space"); // the focused round button: makes a picture (no jump)
   await p.waitForFunction(() => !!globalThis.__numinia.foto.ultima(), null, { timeout: 15000 });
   await p.keyboard.press("Escape"); // back to framing
   await settle(p);
   const c1 = await cam(p), m1 = await me(p);
   const avance = Math.hypot(c1.pivote.x - c0.pivote.x, c1.pivote.z - c0.pivote.z);
-  ok("quieto", Math.hypot(m1.x - m0.x, m1.z - m0.z) < 0.01 && Math.abs(m1.y - m0.y) < 0.01 && avance > 0.8 && avance <= 12.01, { avatarSeMueve: R(Math.hypot(m1.x - m0.x, m1.z - m0.z), 3), camaraAvanza: R(avance) });
+  ok("quieto", Math.hypot(m1.x - m0.x, m1.z - m0.z) < 0.01 && Math.abs(m1.y - m0.y) < 0.01 && avance >= OBJETIVO_M && avance <= 12.01, { avatarSeMueve: R(Math.hypot(m1.x - m0.x, m1.z - m0.z), 3), camaraAvanza: R(avance) });
 
   // a left drag turns the camera (in play mode a plain left drag also orbits; here it must too, no click)
   await p.mouse.move(500, 400); await p.mouse.down(); await p.mouse.move(700, 380, { steps: 10 }); await p.mouse.up(); await settle(p);
