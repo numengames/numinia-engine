@@ -115,6 +115,11 @@ type Estado = { version?: string; nombre?: string; tema?: unknown; avatar?: stri
   audio?: { ambiente?: string | null; ambiente_ganancia?: number; ambiente_sintetizado?: string[] } };
 const estadoP: Promise<Estado | null> = fetch(`${activos}/status`).then((r) => r.json() as Promise<Estado>).catch(() => null);
 const estado = await Promise.race([estadoP, new Promise<null>((ok) => setTimeout(() => ok(null), 1500))]);
+// H4: a world with an espacio base shows the line mesh drawing itself on the loading screen (apps/plaza/carga.ts); any other keeps the moon
+carga.etapa("codigo");
+const pintarEstadoCarga = (st: { espacioBase?: boolean } | null) => { if (st?.espacioBase) carga.espacioBase(); carga.etapa("estado"); };
+pintarEstadoCarga(estado);
+void estadoP.then(pintarEstadoCarga); // a slow /status (past the 1.5 s) still turns the mesh on, late
 if (estado?.nombre) { document.title = estado.nombre; hud.textContent = `Conectando a «${estado.nombre}»…`; }
 const enMovil = esMovil(perfil().clase); // U24: the phone layout: the joystick owns the left third, a bigger stick, the rest of the screen looks
 const catalogoAvatares = catalogoDeAvatares(activos, params, estado?.avatar);
@@ -123,6 +128,7 @@ const catalogoAvatares = catalogoDeAvatares(activos, params, estado?.avatar);
 let avatarUI: ReturnType<typeof montarAvatar> | null = null; // ux2-barra: also abrirSelector()/alternarSelector() for story B («Tú»)
 const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, movil: perfil().forzado ? perfil().movil : undefined, assetUrl: (m) => `${activos}/a/${m}.glb`,
   avatares: { catalogo: catalogoAvatares, yo: () => session.entity, eleccion: (c) => avatarUI?.eleccion(c) } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar; H10: your own choice
+carga.etapa("vista"); // H4
 const transport = webSocketClient(url);
 
 view.naturaleza.tablaFauna(() => import("../../features/naturaleza/fauna-casa.ts").then((m) => m.FAUNA_CASA)); // F4: the house fauna table, fetched only with the fauna
@@ -538,12 +544,14 @@ let lastActive = 0, lastSig = "", cost: { calls: number; triangles: number; cpuM
 const signature = () => { const s = session.entity >= 0 ? session.selfPosition(0) : null; let h = s ? s.x + s.z + s.y * 7 : 0; for (const r of session.remotePositions()) h += r.x * 3 + r.z + r.y * 5; return h.toFixed(2); };
 let last = performance.now(), acc = 0, frames = 0, fps = 0, fpsT = last;
 setInterval(() => session.ping(), 1000);
+let mallaLista = false; // H4
 view.loop((now) => {
   const dt = Math.min(250, now - last); last = now;
   acc += dt;
   while (acc >= TICK_MS) { const [mx, mz] = readAxes(); session.tick(mx, mz, readButtons()); acc -= TICK_MS; }
   if (session.welcome && !probe.done) runProbe();
-  if (session.welcome && !informe.bienvenidaMs) informe.bienvenidaMs = Math.round(performance.now());
+  if (session.welcome && !informe.bienvenidaMs) { informe.bienvenidaMs = Math.round(performance.now()); carga.etapa("bienvenida"); }
+  if (informe.bienvenidaMs && !mallaLista && !informe.primerCuadroMs && carga.conMalla() && view.espacioBase.estadisticas().activa) { mallaLista = true; carga.etapa("mundo"); } // H4: the espacio base's own mesh is built
   if (probe.done && informe.primerCuadroMs && !informe.entrada) void enviarEntrada();
   // power policy (P2): skip the draw when hidden or when nothing changes; the 20 Hz ticks above never skip
   const enSecuencia = misiones.cuadro(); // U14 (5): a sequence only this player sees moves its people (no work when none plays)
