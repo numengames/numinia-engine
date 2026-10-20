@@ -191,11 +191,23 @@ try {
     const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
     const p = await abrir(ctx, URL_CON);
     await p.waitForSelector("#condiciones .cond-panel", { timeout: 15000 });
-    await p.locator("#condiciones-salir").click(); await sleep(700);
-    const s = await p.evaluate(() => ({ titulo: document.querySelector("#condiciones h1")?.textContent, reiniciar: !!document.getElementById("condiciones-reiniciar"), hay: !!document.getElementById("condiciones") }));
-    verifica(s.hay && s.titulo === "Has salido de este mundo" && s.reiniciar, `Salir: ${JSON.stringify(s)}`);
+    // the world's own page says where «Salir» goes (mundo.ajustes.json `ciudadUrl`); the default world has one: the city
+    const ciudades = []; await ctx.route(/^https:\/\/numinia\.com(\/.*)?$/, (r) => { ciudades.push(r.request().url()); return r.fulfill({ status: 200, contentType: "text/html", body: "<title>la ciudad</title>" }); });
+    await p.locator("#condiciones-salir").click(); await p.waitForURL(/numinia\.com/, { timeout: 8000 }).catch(() => null);
+    verifica(ciudades.length >= 1 && /^https:\/\/numinia\.com/.test(p.url()), `Salir lleva a la ciudad del mundo: ${p.url()} ${ciudades}`);
+    nota("5 «Salir» va a la ciudad del mundo", { url: p.url() });
+    await ctx.close();
+  }
+  {
+    // without a city: the farewell stays on the page and nothing was accepted
+    const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+    const p = await abrir(ctx, URL_CON);
+    await p.waitForSelector("#condiciones .cond-panel", { timeout: 15000 });
+    await p.evaluate(() => globalThis.__numinia.condiciones.salir(true)); await sleep(700);
+    const s = await p.evaluate(() => ({ titulo: document.querySelector("#condiciones h1")?.textContent, reiniciar: !!document.getElementById("condiciones-reiniciar"), hay: !!document.getElementById("condiciones"), aceptado: globalThis.__numinia.session.condiciones.aceptado }));
+    verifica(s.hay && s.titulo === "Has salido de este mundo" && s.reiniciar && !s.aceptado, `despedida: ${JSON.stringify(s)}`);
     await foto(p, "pc-6-salir");
-    nota("5 «Salir» saca del mundo", s);
+    nota("5b sin ciudad: la despedida se queda", s);
     await ctx.close();
   }
 

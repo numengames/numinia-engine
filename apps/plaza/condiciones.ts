@@ -287,7 +287,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
       const b = el("button", `btn ${clase}`.trim(), texto); b.type = "button"; b.id = id; b.disabled = desactivado || enviando || saliendo; b.addEventListener("click", alPulsar); return b;
     };
     if (i > 0) der.append(btn("← Atrás", "secundario", () => ir(i - 1), "condiciones-atras"));
-    der.append(btn("Salir", "secundario", salir, "condiciones-salir", false));
+    der.append(btn("Salir", "secundario", () => salir(), "condiciones-salir", false));
     if (!ultimo()) der.append(btn("Siguiente →", "prim", () => ir(i + 1), "condiciones-siguiente", !puedeSeguir(p, marcas)));
     else if (hayDatos() && p.tipo === "datos") {
       // the same size and the same colour (AEPD: refusing is as easy as accepting)
@@ -336,11 +336,11 @@ export function montarCondiciones(o: OpcionesCondiciones) {
   }
 
   // ---------- leaving ----------
-  function salir(): void {
+  function salir(sinCiudad = false): void { // `sinCiudad`: for tests and for worlds where the city is not reachable; the farewell page stays
     if (saliendo) return;
     saliendo = true;
     o.cerrarConexion?.(); // the server hears the goodbye: it never saw an acceptance
-    const ciudad = o.ciudadUrl?.() ?? null;
+    const ciudad = sinCiudad ? null : o.ciudadUrl?.() ?? null;
     if (ciudad) { location.href = ciudad; return; }
     if (panel) {
       cab!.replaceChildren(el("div", "etq", "Has salido"));
@@ -446,7 +446,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     cerrada: (): boolean => !!raiz && !estallando,
     /** c4 and c5 subscribe: the panel changed (step, boxes, sending, bursting) */
     alCambiar: (f: () => void): void => { cambios.push(f); },
-    ir, enviar, salir,
+    ir, enviar, salir: (sinCiudad = false): void => salir(sinCiudad),
     marcarNorma: (capa: string, v: boolean): void => { marcas.normas[capa] = v; pintarPie(); avisarCambio(); },
     marcarDato: (id: string, v: boolean): void => { if (v) marcas.datos.add(id); else marcas.datos.delete(id); pintarPie(); avisarCambio(); },
     /** for tests of the page and for a future «change my mind» (c6): ask the server again and redraw */
