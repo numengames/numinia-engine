@@ -30,8 +30,9 @@ const RAREZA: Record<string, string> = { comun: "común", rara: "rara", legendar
 export const cmTexto = (cm: number): string => `${String(Math.round(cm * 10) / 10).replace(".", ",")} cm`;
 /** v3 — the last line of «¡Pescado!»: «rara · A tu Inventario (× 3)» when the server put the fish in the Inventario (how many of
  * that species you now have, if the page already knows), else the old basket line («común · En tu cesta: 3», a full Reserva or no inventario). */
-export function notaDePescado(u: { pez: string; rareza: string; guardado: boolean }, cesta: number, cuantos = 0): string {
+export function notaDePescado(u: { pez: string; rareza: string; guardado: boolean }, cesta: number, cuantos = 0, llena: { ocupados: number; huecos: number } | null = null): string {
   const r = RAREZA[u.rareza] ?? u.rareza;
+  if (!u.guardado && llena) return `${r} · Tu Bolsa está llena (${llena.ocupados}/${llena.huecos}): vuelve al agua`; // La Bolsa galáctica has no slot for a new species: the fish goes back, the cesta still counts it
   return u.guardado ? `${r} · A tu Inventario${cuantos > 1 ? ` (× ${cuantos})` : ""}` : `${r} · En tu cesta: ${cesta}`;
 }
 
@@ -85,6 +86,8 @@ export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud
   const tension = hud.querySelector(".barra.tension") as HTMLElement, progreso = hud.querySelector(".barra.progreso") as HTMLElement;
   const recoger = hud.querySelector("#pesca-recoger") as HTMLButtonElement, soltar = hud.querySelector("#pesca-soltar") as HTMLButtonElement;
   // how many of this species the Inventario holds now (read loosely, like the sheet does: the page may have no inventario)
+  /** The server said «Tu Bolsa está llena» for the last refusal: how full it is, else null (no inventario, or the fish was kept). */
+  const bolsaLlena = (): { ocupados: number; huecos: number } | null => { try { const inv = (globalThis as unknown as { __numinia?: { inventario?: { estado?: { llena?: boolean }; bolsa?: () => { ocupados: number; huecos: number } } } }).__numinia?.inventario; return inv?.estado?.llena ? inv.bolsa?.() ?? null : null; } catch { return null; } };
   const enLaBolsa = (pez: string): number => { try { const inv = (globalThis as unknown as { __numinia?: { inventario?: { lista?: () => { tipo: string; nombre: string; n: number }[] } } }).__numinia?.inventario; return (inv?.lista?.() ?? []).filter((x) => x.tipo === "captura" && x.nombre === pez).reduce((s, x) => s + x.n, 0); } catch { return 0; } };
   const vibrar = (p: number | number[]) => { try { (navigator as Navigator & { vibrate?: (p: number | number[]) => boolean }).vibrate?.(p); } catch { /* not every browser lets a page vibrate */ } };
   const barra = (el: HTMLElement, v: number) => { (el.firstElementChild as HTMLElement).style.width = `${Math.max(0, Math.min(100, v))}%`; el.setAttribute("aria-valuenow", String(Math.round(v))); };
@@ -121,7 +124,7 @@ export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud
       if (e.fase === "pelea") vibrar([40, 30, 40]);
       if (e.fase === "nada" && fase !== "nada") { // the fight just ended: say clearly how
         if (e.ultimo && /^Has pescado/.test(e.aviso)) {
-          mostrarResultado("pescado", "¡Pescado!", `🐟 ${e.ultimo.pez} · ${cmTexto(e.ultimo.cm)}`, notaDePescado(e.ultimo, e.cesta.peces, enLaBolsa(e.ultimo.pez)), e.ultimo.guardado);
+          mostrarResultado("pescado", "¡Pescado!", `🐟 ${e.ultimo.pez} · ${cmTexto(e.ultimo.cm)}`, notaDePescado(e.ultimo, e.cesta.peces, enLaBolsa(e.ultimo.pez), bolsaLlena()), e.ultimo.guardado);
           vibrar([60, 40, 60, 40, 220]); // the catch sounds from the SERVER (pesca-cobrar), for everyone nearby, me too
         } else if (e.aviso && !/^Has recogido/.test(e.aviso)) {
           mostrarResultado("escapado", "Se ha escapado", e.aviso.replace(/\.$/, ""), "Vuelve a lanzar la caña");
