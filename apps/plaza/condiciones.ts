@@ -16,7 +16,7 @@
 import type { CondicionesAceptado, CondicionesCapa, CondicionesMensaje, CondicionesPunto } from "../../packages/net/src/index.ts";
 import {
   aceptacion, botonesDePie, conservados, ETIQUETAS, esVuelta, flechaVersion, lineaQuitado, marcasVacias, NOTA_DATOS_VUELVE, pideBurbuja, planificar, porcentajeLeido, puedeSeguir,
-  rotuloNormas, textosDePaso, todoMarcado,
+  rotuloNormas, textosDePaso, TITULO_CAMBIOS, todoMarcado,
 } from "./condiciones-logica.ts";
 import type { Marcas, Paso } from "./condiciones-logica.ts";
 
