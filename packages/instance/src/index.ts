@@ -9,7 +9,7 @@ import {
   MSG, buildGrid, selectVisible, encodeSnapshot, cuantizar, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
   decodeIdentityRequest, decodePase, encodeIdentity, leerVozSubida, codificarVozBajada, VOZ_RADIO_M, VOZ_TRAMAS_S,
-  encodeCondiciones, decodeAceptar,
+  encodeCondiciones, decodeAceptar, encodeLeyendo, LEYENDO_POR_MENSAJE,
 } from "../../net/src/index.ts";
 import { agenteDe, emitir, nombreDe, nuevoId, today, verificar, verificarAgente } from "./identidad.ts";
 import type { Who } from "./identidad.ts";
@@ -87,7 +87,7 @@ export type PuertaCondiciones = {
   aceptar(who: Who, a: Aceptacion): CondicionesMensaje;
 };
 /** condiciones/c2: refusals made by the gate (tests, /metrics later). */
-export type PuertaStats = { entradas: number; funciones: number; voz: number; aceptaciones: number; malas: number };
+export type PuertaStats = { entradas: number; funciones: number; voz: number; aceptaciones: number; malas: number; leyendoBytes: number; empujes: number };
 /** M6 h8 / D2: the world's mesh builder (InstanceOptions.construirMalla). `faltaAlgo` (optional): did the last build
  * skip a `malla` thing because its file could not be read (yet)? Then any change retries, like before D2. */
 export type ConstruirMalla = ((objetos: Iterable<[string, Record<string, unknown>]>) => Promise<Bvh | null>) & { faltaAlgo?: () => boolean };
@@ -133,6 +133,7 @@ type Conn = {
   visible?: number[]; // J3: who its last snapshot carried (features ask with api.visible: names over heads)
   voz?: { desde: number; n: number }; // U10: voice frames this second (rate cap)
   anfitrion?: string; // ADR-080: the host this connection asked for (an outside agent signs the world's name)
+  leyendo?: true; // condiciones/c5: the others have been told this person is reading the norms (set once identified and still behind the gate; cleared on accepting or leaving)
   admitido?: true; // condiciones/c2: the gate let this connection through (it accepted, or it is an AI); a connection never goes back
   acepta?: { desde: number; n: number }; // condiciones/c2: ACEPTAR messages this second (rate cap)
 };
@@ -169,6 +170,7 @@ export class Instance {
       vueltas: () => this.vueltas.splice(0),
       rayo: (e, dir, max) => this.rayo(e, dir, max),
       ordenar: (e, orden) => this.ordenar(e, orden),
+      leyendoNormas: (e) => this.leyendoNormas(e),
     });
     this.seguro = new Int32Array(opts.capacity * 3); this.tieneSeguro = new Uint8Array(opts.capacity);
   }
@@ -232,6 +234,7 @@ export class Instance {
   ordenar(entity: number, orden: Orden): boolean {
     const s = this.sim;
     if (!this.byEntity[entity] || !s.world.alive[entity] || !s.tf.has[entity]) return false;
+    if (("empujar" in orden || "quieto" in orden || "sentar" in orden) && this.leyendoNormas(entity)) { this.puertaStats.empujes++; return false; } // condiciones/c5: nobody pushes, freezes or seats someone still reading the norms
     const finite = (...ns: number[]) => ns.every((n) => Number.isFinite(n));
     if ("poner" in orden) {
       const { x, y, z } = orden.poner;
@@ -312,6 +315,7 @@ export class Instance {
         if (!a || !conn.who || conn.who.ia || ++w.n > 5) { conn.bad++; this.puertaStats.malas++; return; }
         this.puertaStats.aceptaciones++;
         t.send(encodeCondiciones(this.opts.condiciones.aceptar(conn.who, a)), true);
+        if (conn.leyendo && !this.cerrada(conn)) this.avisarLeyendo(conn, false); // condiciones/c5: the bubble bursts for everybody
       } else if (bytes[0] === MSG.REPORT) {
         const r = decodeReport(bytes);
         if (!r) conn.bad++; else this.opts.onReport?.(entity, r); // no listener (tests, bots): ignored
@@ -323,6 +327,7 @@ export class Instance {
     const ref = this.opts.reference ?? { seed: 0, ticks: 0, n: 0, hash: 0 };
     t.send(encodeWelcome({ entity, tick: this.sim.tick, x: this.sim.tf.cols.x[entity], z: this.sim.tf.cols.z[entity], ref }), true);
     this.features.join(entity); // catalog + shared state, only if this instance runs features
+    if (this.opts.condiciones?.activa) this.enviarLectores(conn); // condiciones/c5: who is inside a bubble right now (usually nobody: then nothing is sent)
     return entity;
   }
 
@@ -361,6 +366,7 @@ export class Instance {
     conn.transport.send(encodeIdentity({ token: ok && !ok.renovar ? token : emitir(sign, id, day), ...conn.who }), true);
     this.features.identify(entity);
     if (this.opts.condiciones?.activa) conn.transport.send(encodeCondiciones(this.opts.condiciones.estado(conn.who, true)), true); // condiciones/c2: the offer, by itself, once identified
+    if (this.cerrada(conn)) this.avisarLeyendo(conn, true); // condiciones/c5: and everybody else sees them inside a bubble (no one if they accepted before)
   }
 
   /** condiciones/c2: is this entity held behind the gate? (see `cerrada`; uploads ask it too.) Not connected = false. */
@@ -376,11 +382,28 @@ export class Instance {
     if (w && (w.ia || p.abierta(w))) { conn.admitido = true; return false; }
     return true;
   }
-  readonly puertaStats: PuertaStats = { entradas: 0, funciones: 0, voz: 0, aceptaciones: 0, malas: 0 };
+  /** condiciones/c5: tell everybody else that this person starts (`true`) or stops (`false`) reading the norms: ONE 4-byte message each way, only on
+   * the change, so a world pays nothing per tick and a world whose gate is off sends nothing. The person already knows (the bubble is theirs). */
+  private avisarLeyendo(conn: Conn, leyendo: boolean): void {
+    if (leyendo === !!conn.leyendo) return;
+    conn.leyendo = leyendo ? true : undefined;
+    const b = encodeLeyendo([{ entidad: conn.entity, leyendo }])!;
+    for (const c of this.conns) if (c !== conn) { c.transport.send(b, true); this.puertaStats.leyendoBytes += b.length; }
+  }
+  /** condiciones/c5: the people inside a bubble now, to one who has just connected (in frames of LEYENDO_POR_MENSAJE). Nobody reading = nothing sent. */
+  private enviarLectores(para: Conn): void {
+    const l = this.conns.filter((c) => c.leyendo && c !== para).map((c) => ({ entidad: c.entity, leyendo: true }));
+    for (let i = 0; i < l.length; i += LEYENDO_POR_MENSAJE) { const b = encodeLeyendo(l.slice(i, i + LEYENDO_POR_MENSAJE))!; para.transport.send(b, true); this.puertaStats.leyendoBytes += b.length; }
+  }
+  /** condiciones/c5: is this entity inside the bubble, reading the norms (the others were told so)? An exemption for everything that
+   * would touch them while they cannot answer: nothing pushes or hits someone who is still reading. */
+  leyendoNormas(entity: number): boolean { return !!this.byEntity[entity]?.leyendo; }
+  readonly puertaStats: PuertaStats = { entradas: 0, funciones: 0, voz: 0, aceptaciones: 0, malas: 0, leyendoBytes: 0, empujes: 0 };
 
   disconnect(entity: number): void {
     const i = this.conns.findIndex((c) => c.entity === entity);
     if (i < 0) return;
+    if (this.conns[i].leyendo) this.avisarLeyendo(this.conns[i], false); // condiciones/c5: its bubble goes (the entity number may be someone else's next)
     this.conns.splice(i, 1); this.playersView = null;
     this.byEntity[entity] = undefined;
     this.features.leave(entity); // still has a position here; no longer among the players

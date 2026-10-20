@@ -269,7 +269,7 @@ test("gate off (the default): the same session gives the same simulation, the sa
   const apagada = mundo(2, { activa: false, condiciones: CONDICIONES_CASA });
   const con = sesion(apagada);
   assert.deepEqual(con, sin, "identical");
-  assert.deepEqual(apagada.inst.puertaStats, { entradas: 0, funciones: 0, voz: 0, aceptaciones: 0, malas: 0 });
+  assert.deepEqual(apagada.inst.puertaStats, { entradas: 0, funciones: 0, voz: 0, aceptaciones: 0, malas: 0, leyendoBytes: 0, empujes: 0 });
   assert.equal(apagada.gente[0].s.condiciones, null, "nothing is sent by itself");
   assert.equal(apagada.inst.conns.every((c) => c.bad === 0), true);
   assert.equal(apagada.log.some((l) => l.includes("condiciones")), false, "and no new feature registered");

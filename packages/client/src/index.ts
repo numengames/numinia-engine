@@ -5,7 +5,7 @@ import { fxToFloat } from "../../core/src/index.ts";
 import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, PISO_SIN_SUELO, TICK_HZ } from "../../sim/src/index.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import type { Body, SimState } from "../../sim/src/index.ts";
-import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, encodeIdentityRequest, encodePase, decodeIdentity, decodeCondiciones, encodePedirCondiciones, encodeAceptar, seqNewer, codificarVozSubida, leerVozBajada } from "../../net/src/index.ts";
+import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, encodeIdentityRequest, encodePase, decodeIdentity, decodeCondiciones, decodeLeyendo, encodePedirCondiciones, encodeAceptar, seqNewer, codificarVozSubida, leerVozBajada } from "../../net/src/index.ts";
 import type { CondicionesMensaje, Transport, Welcome } from "../../net/src/index.ts";
 import { ClientRuntime } from "../../feature/src/index.ts";
 import type { ClientPart, ViewHooks } from "../../feature/src/index.ts";
@@ -144,6 +144,12 @@ export class ClientSession {
     return true;
   }
 
+  /** condiciones/c5: the people who are still reading the world's norms (entity numbers; never yourself). The page draws each one it can see inside a
+   * bubble. The server sends it only when someone starts/stops reading (and once, as a list, when you connect): a world with the gate off never does. */
+  readonly leyendo = new Set<number>();
+  /** condiciones/c5: someone started (`true`) or stopped (`false`: accepted, or left) reading the norms. */
+  onLeyendo: ((entidad: number, leyendo: boolean) => void) | null = null;
+
   /** U10: someone near spoke (a frame of their microphone). The page plays it (apps/plaza/voz.ts). */
   onVoice: ((v: { codec: number; seq: number; entidad: number; trama: Uint8Array }) => void) | null = null;
   private vozSeq = 0;
@@ -159,6 +165,15 @@ export class ClientSession {
   handle(bytes: Uint8Array, now: number): void {
     const type = bytes[0];
     if (type === MSG.VOICE) { const v = leerVozBajada(bytes); if (v) this.onVoice?.(v); return; }
+    if (type === MSG.LEYENDO) { // c5
+      for (const l of decodeLeyendo(bytes) ?? []) {
+        if (l.entidad === this.entity) continue; // the bubble of your own gate is the page's panel, not a sphere over you
+        if (l.leyendo === this.leyendo.has(l.entidad)) continue;
+        if (l.leyendo) this.leyendo.add(l.entidad); else this.leyendo.delete(l.entidad);
+        this.onLeyendo?.(l.entidad, l.leyendo);
+      }
+      return;
+    }
     if (type === MSG.CONDICIONES) { // c2
       const m = decodeCondiciones(bytes);
       if (m) { this.condiciones = { ...m, capas: m.capas ?? this.condiciones?.capas }; this.onCondiciones?.(this.condiciones); }

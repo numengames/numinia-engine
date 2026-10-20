@@ -194,6 +194,9 @@ void transport.closed.then((c) => {
   aviso.textContent = texto; aviso.hidden = false; // role=alert: screen readers read it at once
 });
 
+// condiciones/c5: whoever else is still reading the norms is drawn inside a bubble with «<name> · leyendo las normas…»; the server only says so when it changes (nothing with the gate off).
+session.onLeyendo = (entidad, si) => view.leyendo(entidad, si);
+
 // condiciones/c3: with the world's gate on, the server sends its conditions after you join and you stand in a bubble until you accept;
 // with it off it sends nothing and this does nothing. The gate itself is the server's; here the walking input is also held still.
 const condiciones = montarCondiciones({ session, mundo: () => nombreDelMundo, decir: (t) => anunciar(t), ciudadUrl: () => ciudad.url, cerrarConexion: () => transport.close(), movil: () => enMovil });
