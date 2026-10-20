@@ -70,6 +70,7 @@ import { ancestros } from "../../features/ancestros/client.ts"; // ancestros v1:
 import { montarAncestros } from "./ancestros.ts";
 import { montarVoz } from "./voz.ts";
 import { montarPantalla } from "./pantalla.ts";
+import { montarCondiciones } from "./condiciones.ts"; // condiciones/c3: the bubble of entry (only when the world's gate is on; the server decides)
 import { montarGraboso } from "./graboso.ts"; // M18b: the relic that records what you see (K)
 import { icono } from "./iconos.ts";
 import { gestosDePagina } from "../../features/gestos/client.ts";
@@ -192,6 +193,10 @@ void transport.closed.then((c) => {
   const aviso = document.getElementById("mundo-lleno")!;
   aviso.textContent = texto; aviso.hidden = false; // role=alert: screen readers read it at once
 });
+
+// condiciones/c3: with the world's gate on, the server sends its conditions after you join and you stand in a bubble until you accept;
+// with it off it sends nothing and this does nothing. The gate itself is the server's; here the walking input is also held still.
+const condiciones = montarCondiciones({ session, mundo: () => nombreDelMundo, decir: (t) => anunciar(t), ciudadUrl: () => ciudad.url, cerrarConexion: () => transport.close(), movil: () => enMovil });
 
 // ---- the features' actions: a key on desktop, a button on touch screens; the help line lists them ----
 const acts = session.features.actions();
@@ -393,6 +398,7 @@ const rueda = montarRueda({ gestos: gestosDePagina, favoritosIniciales: FAVORITO
   haciendo: () => view.avatares().lista.find((a) => a.id === "yo")?.movimiento ?? null });
 
 function readAxes(): [number, number] {
+  if (condiciones.cerrada()) { soltarEntradaPlana(); return [0, 0]; } // condiciones/c3: inside the bubble nobody walks (the server holds them too)
   if (rueda.abierta()) return [0, 0]; // J7b: choosing a move never walks (walking would end it)
   // motor-vr t_ab71cff0: while the headset presents, ITS input is the only source of movement. A flat-page input
   // left held when the headset took over (a touch whose pointerup never comes, a stale Gamepad-API pad, a key)
@@ -436,6 +442,7 @@ if (esTactil()) {
 }
 function readButtons(): number {
   let b = 0;
+  if (condiciones.cerrada()) { saltoPendiente = false; return 0; } // condiciones/c3
   if (foto.activo()) { saltoPendiente = false; return 0; } // N13
   if (view.vr.takeJump() || view.ar.takeJump() || saltoPendiente) { saltoPendiente = false; if (!rueda.abierta()) b |= BTN_JUMP; }
   // RUN_EDGE close to 1: most of the stick's travel walks (human pace), only the very end runs
@@ -585,7 +592,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina };
 
 // ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
 // of the bar's «Menú» (O), no longer a corner button ----

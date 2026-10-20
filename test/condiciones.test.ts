@@ -84,3 +84,14 @@ test("c2 tipo: the house example's «informe» is data and optional, its mandato
   assert.ok(v.ok && v.value.puerta === true);
   assert.ok(!validarCondiciones({ ...con(pt({})), puerta: "si" }).ok);
 });
+
+test("c3: a layer may carry a `nombre` (what the bubble calls it); a bad one is refused with its path; none is fine", () => {
+  const con = (nombre: unknown) => ({ ...bueno, capas: [{ ...bueno.capas[0], nombre }, bueno.capas[1]] });
+  const ok = validarCondiciones(con("  Casa de prueba "));
+  assert.ok(ok.ok); if (ok.ok) { assert.equal(ok.value.capas[0].nombre, "Casa de prueba"); assert.equal(ok.value.capas[1].nombre, undefined, "no key = no name"); }
+  for (const malo of ["", "   ", "x".repeat(61), 5, null]) {
+    const r = validarCondiciones(con(malo));
+    assert.ok(!r.ok && r.issues.some((i) => i.startsWith("capas[0].nombre")), `${JSON.stringify(malo)} is refused`);
+  }
+  assert.ok(validarCondiciones(bueno).ok);
+});

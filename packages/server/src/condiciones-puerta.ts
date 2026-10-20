@@ -55,7 +55,7 @@ export function crearPuertaCondiciones(o: OpcionesPuerta): PuertaCondiciones & {
     return {
       formato: "condiciones-estado@1", puerta: activa, abierta: !activa || f.length === 0, faltan: f,
       aceptado: r ? { versiones: { ...r.v }, datos: [...r.d], en: r.en } : null,
-      ...(conCapas ? { capas: condiciones.capas.map((c) => ({ capa: c.capa, version: c.version, puntos: c.puntos.map((p) => ({ ...p })) })) } : {}),
+      ...(conCapas ? { capas: condiciones.capas.map((c) => ({ capa: c.capa, ...(c.nombre ? { nombre: c.nombre } : {}), version: c.version, puntos: c.puntos.map((p) => ({ ...p })) })) } : {}),
     };
   };
   const aceptar = (who: Who, a: Aceptacion): CondicionesMensaje => {
