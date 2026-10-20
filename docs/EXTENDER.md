@@ -1027,20 +1027,43 @@ registro dice `nadie hace «teletransporta» en este servidor` en vez de callar.
   "enlace": "https://…" }`, `{ "accion": "suena", "sonido" }`. Hasta 64 disparadores por mundo; sin fichero no hay ninguno y
   el motor no cambia (la huella de la simulación es la misma: `test/disparadores.test.ts`).
 - **Estado por disparador:** `nombre, tipo, x, y, z, radio, alcance, frase, cooldown, unSoloUso, usos, enEspera, agotado`;
-  intención `pulsar {disparador}` (2/s, ráfaga 4); eventos `disparado` (cercanos), `senal` y `accion` (solo servidor) y
+  intención `pulsar {disparador}` (2/s, ráfaga 4) y, para quien construye, `editarReceptores`, `crearDisparador` y `borrarDisparador` (más abajo); eventos `disparado` (cercanos), `senal` y `accion` (solo servidor) y
   `rechazado` («Acércate…», «Todavía no: … espera N s», «… ya se usó»). Una zona nunca regaña: si está en espera o
   gastada, entrar no hace nada; se dispara al **entrar** (una vez por entrada, por persona) y salir y volver a entrar
   vuelve a contar si el cooldown pasó.
 - **Ejemplo mínimo (botón que enciende una farola oculta):** `{ "disparadores": [{ "id": "rojo", "nombre": "Botón rojo",
   "tipo": "boton", "x": 12, "z": 0, "frase": "E: pulsar", "cooldown": 5, "receptores": [{ "accion": "muestra", "objeto":
   "Farola" }] }] }` con un objeto llamado «Farola» marcado como invisible al jugar en el constructor.
-- **Lo que no hace (todavía):** el catálogo para agentes y el ejemplo en la plaza que esta ficha no cubre todavía.
-  La vista del constructor (`apps/plaza/cable.ts`, historias 5-6) lista cada disparador, deja «Probar» un botón y
-  edita en vivo sus receptores (intención `editarReceptores`, solo con permiso de construir: el servidor valida
-  cada receptor igual que al leer el fichero y, si acepta, reescribe `disparadores.json` sin reiniciar la
-  instancia — el campo `receptores` del estado viaja a toda página, como el resto de la ficha; no es un secreto
-  como el código de una cerradura). Crear o borrar disparadores enteros sigue siendo editar el fichero antes de
-  arrancar.
+- **Crear y borrar cables en vivo (historia A, «cable sin JSON»):** quien tiene permiso de construir ya no necesita
+  tocar el fichero. En el panel Cable (cajón del constructor), **«+ Nuevo cable»** crea un botón en el sitio donde
+  estás (id `cable-1`, `cable-2`…, frase «E: pulsar», con un receptor de partida `suena «campana»` que luego
+  cambias) y cada cable tiene su **«Borrar»**, que pide confirmación en la propia fila («¿Borrar «X»? Sí, borrar /
+  Cancelar»). Todo se puede hacer con teclado y los botones llevan `aria-label`. Detrás hay dos intenciones nuevas,
+  limitadas igual que `editarReceptores` (1/s, ráfaga 3), solo con permiso de construir:
+  - `crearDisparador {disparador, nombre, tipo, x, y, z, radio, frase, senal, cooldown, unSoloUso, receptores}` — la
+    misma forma que una línea de `disparadores.json` (`receptores` viaja como JSON en texto, hasta 512 bytes; `radio`
+    es el de la zona o el alcance del botón; `tipo` es `zona`, `boton` o `senal`). **El servidor la valida con el
+    mismo lector que lee el fichero** (`leerDisparador`: nada se copia), así que vale exactamente lo que valdría
+    escrito a mano, y añade los topes del mundo: **64 cables por mundo**, **8 receptores por cable**, id
+    `[a-z0-9-]{1,16}` y **único**. Si lo acepta, el cable aparece para todos al momento (zonas, botones y señales
+    funcionan igual que los del fichero), avisa a quien lo creó (`creado`) y **reescribe `disparadores.json` sin
+    reiniciar**.
+  - `borrarDisparador {disparador}` — quita el cable del estado y de la vigilancia de zonas y señales (también si
+    venía del fichero), avisa (`borrado`) y reescribe el fichero. Un id que no existe se rechaza diciendo cuál.
+  - Los rechazos (`rechazado`) dicen cómo arreglarlo: «No puedes construir aquí…», «Ya hay un cable «x»: elige otro
+    id o bórralo antes», «Este mundo ya tiene 64 cables… borra alguno antes», «receptores: un cable lleva como mucho
+    8; quita alguno», «id «…»: usa minúsculas, cifras y guiones (hasta 16)». Nada de esto corre en el tick: crear o
+    borrar solo toca una tabla, y un mundo sin cables sigue dando la misma huella de simulación.
+  - Pieza reutilizable (R-1): cualquier mundo que cargue `disparadores` lo trae; la página no decide nada, solo
+    manda la petición y pinta el estado que el servidor deja. En código: `disparadores.crearDisparador(…)` y
+    `disparadores.borrarDisparador(id)` en `features/disparadores/client.ts`.
+- **Lo que no hace (todavía):** cambiar el tipo o el sitio de un cable ya creado (hoy se borra y se crea de nuevo);
+  la frase legible en vez de JSON para los receptores (historia B), los huecos desplegables (C) y «Decirlo» con
+  una IA (D). La vista del constructor (`apps/plaza/cable.ts`) lista cada disparador, deja «Probar» un botón y edita
+  en vivo sus receptores (`editarReceptores`: el servidor valida cada receptor igual que al leer el fichero y, si
+  acepta, reescribe `disparadores.json`; el campo `receptores` del estado viaja a toda página, como el resto de la
+  ficha; no es un secreto como el código de una cerradura). Sin servidor con escritor de ficheros el cambio vale
+  hasta reiniciar y el registro lo dice.
 
 ## Sonido (S6): el catálogo de la casa, con ficheros de verdad y su texto
 

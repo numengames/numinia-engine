@@ -106,6 +106,33 @@ try {
   if (!/2 uso\(s\)/.test(textoTrasProbar)) throw new Error(`«Probar» no disparó una segunda vez: ${textoTrasProbar}`);
   await foto(2);
 
+  // 5) historia A (cable sin JSON): «+ Nuevo cable» creates a cable live (B sees it without touching anything), and
+  // «Borrar» asks first, then removes it for both. Builder mode on + the Cable drawer open, as a person would.
+  await a.keyboard.press("KeyC");
+  await a.locator("#dock-cable").click();
+  const ids = (p) => p.evaluate(() => globalThis.__numinia.disparadores.lista().map((d) => d.id).sort().join());
+  await a.locator("#cable-nuevo").click();
+  await a.waitForFunction(() => globalThis.__numinia.disparadores.lista().some((d) => d.id === "cable-1"), null, { timeout: 5000 });
+  await b.waitForFunction(() => globalThis.__numinia.disparadores.lista().some((d) => d.id === "cable-1"), null, { timeout: 5000 });
+  await sleep(300);
+  const creado = await fila(a);
+  nota("5 «+ Nuevo cable» crea un cable para A y B", { creado, idsB: await ids(b) });
+  if (!/Cable 1 \(boton\)/.test(creado)) throw new Error(`el cable nuevo no sale en el panel: ${creado}`);
+  await a.screenshot({ path: SHOTS ? `${SHOTS}/A-panel-cable.png` : undefined }).catch(() => {});
+  // «Borrar» first asks («¿Borrar «Cable 1»?»); «Cancelar» keeps it; «Sí, borrar» removes it for everyone
+  const fila1 = a.locator("#cable-lista li", { hasText: "Cable 1" });
+  await fila1.locator(".cable-borrar").click();
+  const pregunta = await fila(a);
+  if (!/¿Borrar «Cable 1»\?/.test(pregunta)) throw new Error(`«Borrar» no pidió confirmación: ${pregunta}`);
+  await fila1.locator(".cable-borrar-no").click();
+  if (!(await ids(a)).includes("cable-1")) throw new Error("«Cancelar» no debería borrar");
+  await fila1.locator(".cable-borrar").click();
+  await fila1.locator(".cable-borrar-si").click();
+  await a.waitForFunction(() => !globalThis.__numinia.disparadores.lista().some((d) => d.id === "cable-1"), null, { timeout: 5000 });
+  await b.waitForFunction(() => !globalThis.__numinia.disparadores.lista().some((d) => d.id === "cable-1"), null, { timeout: 5000 });
+  nota("6 «Borrar» pide confirmación y lo quita para A y B", { idsA: await ids(a), idsB: await ids(b) });
+  if ((await ids(a)) !== "rojo") throw new Error(`debería quedar solo «rojo»: ${await ids(a)}`);
+
   ok = errors.length === 0;
 } catch (e) {
   out.fallo = String(e?.stack ?? e);

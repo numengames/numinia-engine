@@ -1332,3 +1332,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5 (historias) y Opus 5 (jefe del tren).
 - Commit: rama `condiciones/version-0-24`, PR contra `tren/motor-2026-10-20`.
 - Siguiente: que Pablo pruebe la burbuja en la Quest (paso a paso en el PR #187) y decida cuándo se enciende la puerta en cada mundo; texto legal de los abogados.
+## 2026-10-20 13:40 · cable sin JSON, historia A · hecho
+- Qué: quien construye crea y borra cables en vivo, sin tocar JSON. En el panel Cable hay «+ Nuevo cable» (un botón en tu sitio, con un receptor de partida) y un «Borrar» por cable que pide confirmación. Detrás, dos intenciones nuevas de `disparadores`: `crearDisparador` y `borrarDisparador`, solo con permiso de construir.
+  El servidor valida con el mismo lector que lee `disparadores.json` (64 por mundo, 8 receptores, id `[a-z0-9-]{1,16}` único) y reescribe el fichero sin reiniciar. La página solo manda la petición.
+- Números: `test/disparadores.test.ts` 20/20 (6 pruebas nuevas: crear, sin permiso, id repetido o malo, el 65.º, más de 8 receptores, borrar, id desconocido, fichero que se relee igual); `npm test` 1377/1377; gates en verde (página 560,5 kB gz); build en verde. La huella de simulación no cambia (la prueba de siempre, intacta). Tick: sin código nuevo en el tick (crear y borrar solo tocan una tabla al llegar la intención), sin medida nueva. Pierna `tools/e2e-piernas/cable.mjs` ampliada (crear y borrar con dos personas): ok.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `cable/sin-json` (desde origin/main bd2ee141), sin subir.
+- Siguiente: historias B (frase legible), C (huecos desplegables) y D («Decirlo» con IA); y decidir si sube la versión.
