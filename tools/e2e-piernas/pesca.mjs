@@ -105,6 +105,7 @@ try {
   await esperar(a, () => globalThis.__numinia.pesca.estado().fase === "pelea", null, 3000);
   out.pelea = await estado(a);
   out.hudPelea = await ctl(a, () => ({ barras: !document.querySelector("#pesca-hud .barras").hidden, pulsado: document.getElementById("pesca-recoger").getAttribute("aria-pressed") }));
+  out.boya = await ctl(a, () => { const c = globalThis.__numinia.view.pesca.contar(); return { visible: c.boya, escala: c.boyaEscala }; }); // the gauge on my float, at the waterline
   await a.keyboard.up("KeyF");
   // the fight runs in the page (60 ms polling); the photo is taken meanwhile so the fish does not slip while the shot is made
   const peleando = ctl(a, () => new Promise((res) => {
@@ -152,7 +153,7 @@ try {
   out.v2 = { enMano, panel, bLanzado: out.b.eventos.includes("lanzado") && out.b.eventos.includes("fin"), manoVaciaB: out.manoVaciaB };
   ok = sitio.role === "lugar" && sitio.name === "Estanque de la plaza" && /^E: pescar$/.test(out.prompt) && out.hud.visible && /Esperando/.test(out.hud.texto) && out.hud.boton === "Recoger"
     && out.dibujo.cargado && out.dibujo.pescadores === 1 && out.dibujo.sitios === 1 && out.flotadores === 1
-    && out.esperaS >= 2.5 && out.esperaS <= 13 && enPicada.fase === "picada" && out.pelea.fase === "pelea" && peces.includes(out.pelea.pez) && out.hudPelea.barras && out.hudPelea.pulsado === "true"
+    && out.esperaS >= 2.5 && out.esperaS <= 13 && enPicada.fase === "picada" && out.pelea.fase === "pelea" && peces.includes(out.pelea.pez) && out.hudPelea.barras && out.hudPelea.pulsado === "true" && out.boya.visible === true && out.boya.escala >= 0.8
     && !!out.despues.ultimo && peces.includes(out.despues.ultimo.pez) && out.despues.cesta.peces >= 1 && /^Has pescado: /.test(out.despues.aviso) && out.hudDespues === true
     && out.anuncio.some((t) => t.startsWith("captura: Has pescado: ")) && out.b.fase === "nada" && !out.b.eventos.some((e) => ["picada", "pelea", "tension", "captura"].includes(e)) && errors.length === 0
     && enMano && panel && out.v2.bLanzado && out.manoVaciaB
