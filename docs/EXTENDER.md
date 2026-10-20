@@ -1191,7 +1191,23 @@ ejemplo de la casa; fichero roto = una línea en el registro con la ruta del fal
   **nunca** puede ser obligatorio (EDPB 05/2020 §39, RGPD 7.4): `obligatorio: true` con `tipo: "datos"` es un error del
   validador y el mensaje dice cómo arreglarlo (`"obligatorio": false`, o `"tipo": "norma"` si en realidad es una norma).
   Rechazar un punto de datos no bloquea nunca.
+- **`nombre`** (por capa, opcional, 1–60 caracteres, c3): cómo llama la burbuja a esa capa en sus pasos («Numen Games»); sin él dice «La casa» / «La comunidad». El motor no lleva marca: los nombres salen de este fichero.
 - **`puerta`** (opcional, `true`/`false`): pide encender la puerta del servidor para este mundo.
+
+### La burbuja de entrada (c3, PC y móvil: `apps/plaza/condiciones.ts`)
+
+Con la puerta encendida, la página recibe `condiciones-estado@1` con `puerta: true, abierta: false` y pone al jugador en una pompa: el mundo se
+ve detrás, borroso y oscurecido (un solo `backdrop-filter` CSS: nada de post-proceso GPU, barato en móvil) y un panel `role="dialog"` `aria-modal`
+pide, paso a paso, una página por capa (casa, luego comunidad: lo esencial, el texto entero y una casilla obligatoria) y al final «Tus datos · entras
+igual digas sí o no»: los puntos `datos` como casillas VACÍAS y dos botones iguales («Entrar sin lo opcional», «Aceptar todo y entrar»).
+Además «← Atrás» y «Salir» (a la `ciudadUrl` del mundo si la tiene; si no, una despedida con «Volver atrás» / «Volver a empezar»). No se cierra con
+Escape ni con clic fuera, el foco se queda dentro del panel (Tab da vueltas) y el resto de la página va `inert`; mientras está, ninguna tecla llega al
+mundo y `readAxes` devuelve 0 (el servidor también te sujeta). Al aceptar manda `ACEPTAR` (`session.aceptar(versiones, datos)`); cuando el servidor
+contesta `abierta: true` la pompa estalla (650 ms, o 30 ms con `prefers-reduced-motion`) y se camina. Móvil vertical (ventana estrecha o
+`?aparato=movil-vertical`): el panel ocupa casi toda la pantalla. Con la puerta APAGADA (por defecto) no se crea ningún elemento ni estilo.
+`apps/plaza/condiciones-logica.ts` guarda las decisiones sin navegador (pasos, qué manda ACEPTAR, qué cierra la puerta) y las prueba
+`test/condiciones-burbuja.test.ts`; `__numinia.condiciones` expone `estado`, `cerrada()` y `alCambiar()` para c4 (VR) y c5 (la pompa vista desde fuera).
+Mundo de pruebas: `aventuras/condiciones-prueba/` (ver su `LEEME.md`); e2e: `node tools/e2e-piernas/condiciones.mjs` (con `SHOTS=carpeta`, fotos de cada paso en PC 1400×900 y móvil 390×844).
 
 ### La puerta (apagada por defecto)
 

@@ -59,7 +59,7 @@ const CSS = `
 #condiciones .cab { padding: 16px 22px 12px; border-bottom: 1px solid rgba(154,140,124,.18); flex: none; }
 #condiciones .etq { font: 600 11px "Geist Mono", ui-monospace, monospace; letter-spacing: .15em; text-transform: uppercase; color: var(--n-verdemar, #A6DAD5); }
 #condiciones h1 { margin: 4px 0 2px; font: 650 22px/1.2 "Geist", system-ui, sans-serif; letter-spacing: -.01em; color: var(--n-texto, #F9EBDC); }
-#condiciones h1:focus { outline: none; }
+#condiciones h1:focus, #condiciones h1:focus-visible { outline: none; box-shadow: none; }
 #condiciones .sub { margin: 0; color: var(--n-texto2, #C4B5A6); font-size: 13px; }
 #condiciones .pasos { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; }
 #condiciones .paso { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; border: 1px solid #3A332D; color: var(--n-texto2, #C4B5A6); font-size: 13px; }
@@ -103,7 +103,6 @@ const CSS = `
 #condiciones .btn.prim { background: #F3E6D6; color: #14110F; border-color: #F3E6D6; }
 #condiciones .btn:disabled { opacity: .4; cursor: not-allowed; }
 #condiciones .btn:not(:disabled):not(.prim):hover { border-color: var(--n-texto2, #C4B5A6); }
-#condiciones .btn.prim:not(:disabled):hover { filter: brightness(1.06); }
 #condiciones .decision { min-width: 190px; text-align: center; }
 #condiciones .despedida { margin: auto; text-align: center; max-width: 420px; }
 #condiciones .despedida h1 { font-size: 20px; }

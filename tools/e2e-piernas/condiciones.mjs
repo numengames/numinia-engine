@@ -253,6 +253,7 @@ try {
     const marco = await (async () => { for (let i = 0; i < 60; i++) { const f = p.frames().find((x) => x !== p.mainFrame()); if (f) return f; await sleep(500); } return null; })();
     verifica(marco, "?aparato=movil-vertical: hay un marco con el mundo");
     await marco.waitForSelector("#condiciones .cond-panel", { timeout: 30000 });
+    await marco.waitForFunction(() => { const c = document.getElementById("carga"); return !c || c.hidden || getComputedStyle(c).opacity === "0" || getComputedStyle(c).display === "none"; }, null, { timeout: 15000 }).catch(() => null); await sleep(800);
     const m = await marco.evaluate(() => ({ movil: document.getElementById("condiciones").classList.contains("movil"), ancho: innerWidth, dataset: document.documentElement.dataset.aparato }));
     verifica(m.movil && m.ancho <= 400, `?aparato=movil-vertical: ${JSON.stringify(m)}`);
     if (SHOTS) await p.screenshot({ path: join(SHOTS, "movil-5-parametro-aparato.png") });
