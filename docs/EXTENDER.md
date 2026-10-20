@@ -1230,6 +1230,33 @@ comunidad: `/es/communities/<id>/normas/`):
 - **Probarlo en local**: un servidor HTTP cualquiera que sirva ese JSON en `http://127.0.0.1:<puerto>/…` sirve de numinia.com
   (`test/condiciones-fuente.test.ts` lo hace: nueva versión → nueva oferta; red caída → copia; JSON inválido → casa/copia).
 
+### El pase dice lo que ya aceptaste en numinia.com (w5: `pase.ts`, `condiciones-puerta.ts`)
+
+Quien ya aceptó las condiciones de numinia.com al iniciar sesión no tiene por qué leerlas otra vez al entrar a un mundo suyo. El pase
+firmado con el que entra (`#pass=…`, el de «Entrar») puede llevar un campo más, **`acepto`**: `{ "acepto": { "casa": "terms@1.0.1+privacy@2.1.0" } }`
+(la versión exacta de los textos que la web le hizo aceptar; el motor ignora las claves que no conoce, hoy `casa` y `comunidad`).
+
+**Cómo lo declara quien hace el mundo**: en la capa `casa` de `condiciones.json`, `"versionWeb": "<esa misma cadena>"` — «el texto de esta
+capa ES el que numinia.com muestra en esa versión». Sin `versionWeb` el mundo no se cree el pase y pregunta como siempre.
+
+```json
+{ "capa": "casa", "version": "2026-10", "versionWeb": "terms@1.0.1+privacy@2.1.0", "puntos": [ … ] }
+```
+
+Reglas (el servidor las aplica en `crearPuertaCondiciones`, en un solo sitio):
+- **Solo cuenta si el pase es bueno**: firma Ed25519 válida, no caducado, de este mundo (todo lo de `verificarPase`). Un pase falso, caducado,
+  de otro mundo o recortado no da nada: la persona entra como invitada y se le pregunta todo. El campo no alarga el pase (`exp` es el suyo) ni
+  toca los permisos, la altura ni los roles. En el pase de una IA el campo está prohibido (la IA no acepta nada).
+- **Coincidencia exacta**: `acepto.casa === versionWeb`. Si la web sube sus textos y el autor del mundo aún no ha revisado el suyo, no coincide
+  y se pregunta como siempre (y, si la persona ya aceptó antes en este mundo, c6 le enseña solo lo que cambió).
+- **Cubre las NORMAS de esa capa, nunca los permisos de datos**: la oferta (`condiciones-estado@1`) añade `porPase: ["casa"]`, no cuenta esa
+  capa en `faltan`, y la lista en `capas` solo con sus puntos `datos` (o sin la capa si no tiene ninguno). Si no queda nada por pedir, `abierta: true`
+  y la burbuja ni sale; si falta la comunidad, empieza en la comunidad y al final pide «Tus datos» con las casillas vacías. Un permiso de datos
+  solo existe si la persona lo marca en el mundo.
+- **No se guarda como aceptación**: la aceptación de la casa vive en la web; en el mundo solo se guarda lo que la persona acepta aquí. Al volver
+  con un pase al día vuelve a valer; sin pase (invitado) se pregunta.
+- El mundo no manda `acepto` a la página (la identidad que recibe el navegador no lo lleva).
+
 ### La burbuja de entrada (c3, PC y móvil: `apps/plaza/condiciones.ts`)
 
 Con la puerta encendida, la página recibe `condiciones-estado@1` con `puerta: true, abierta: false` y pone al jugador en una pompa: el mundo se

@@ -68,9 +68,12 @@ export function crearPuertaCondiciones(o: OpcionesPuerta): PuertaCondiciones & {
     const r = api?.store.get(`a:${id}`);
     return registroValido(r) ? r : memoria.get(id) ?? null;
   };
-  const faltan = (id: string | undefined): string[] => {
-    const r = id ? registro(id) : null;
-    return piden.filter((c) => r?.v[c.capa] !== c.version).map((c) => c.capa);
+  /** w5: does the verified pass of this person say they accepted, on numinia.com, the very text this layer reproduces (`versionWeb`)? The
+   * pass is the only place `who.acepto` comes from (pase.ts, signature checked), the match is exact, and it covers the NORMS only. */
+  const porPase = (who: Who | null | undefined, c: Capa): boolean => !!c.versionWeb && !who?.ia && who?.acepto?.[c.capa] === c.versionWeb;
+  const faltan = (who: Who | null | undefined): string[] => {
+    const r = who ? registro(who.id) : null;
+    return piden.filter((c) => r?.v[c.capa] !== c.version && !porPase(who, c)).map((c) => c.capa);
   };
   /** c6: what changed in this layer since the version the person accepted. Nothing (undefined) when they never accepted this layer,
    * accepted this very version, or the record has no fingerprints (c2's): then the page asks everything. */
@@ -85,13 +88,16 @@ export function crearPuertaCondiciones(o: OpcionesPuerta): PuertaCondiciones & {
     return { desde, nuevos, cambiados, quitados, ...(Object.keys(antes).length ? { antes } : {}) };
   };
   const estado = (who: Who | null, conCapas: boolean): CondicionesMensaje => {
-    const r = who ? registro(who.id) : null, f = faltan(who?.id);
+    const r = who ? registro(who.id) : null, f = faltan(who), cubiertas = condiciones.capas.filter((c) => porPase(who, c)).map((c) => c.capa as string);
     return {
       formato: "condiciones-estado@1", puerta: activa, abierta: !activa || f.length === 0, faltan: f,
       aceptado: r ? { versiones: { ...r.v }, datos: [...r.d], en: r.en } : null,
-      ...(conCapas ? { capas: condiciones.capas.map((c) => {
-        const cambios = cambiosDe(r, c);
-        return { capa: c.capa, ...(c.nombre ? { nombre: c.nombre } : {}), version: c.version, puntos: c.puntos.map((p) => ({ ...p })), ...(cambios ? { cambios } : {}) };
+      ...(cubiertas.length ? { porPase: cubiertas } : {}),
+      ...(conCapas ? { capas: condiciones.capas.flatMap((c) => {
+        // w5: a layer the pass covers is offered with its data points only (the norms are accepted; permissions are never given by a pass);
+        // with none left it is not offered at all. A covered layer shows no «what changed» either: nothing of it is asked.
+        const cubierta = cubiertas.includes(c.capa), cambios = cubierta ? undefined : cambiosDe(r, c), puntos = (cubierta ? c.puntos.filter((p) => p.tipo === "datos") : c.puntos).map((p) => ({ ...p }));
+        return cubierta && !puntos.length ? [] : [{ capa: c.capa, ...(c.nombre ? { nombre: c.nombre } : {}), version: c.version, puntos, ...(cambios ? { cambios } : {}) }];
       }) } : {}),
     };
   };
@@ -134,5 +140,5 @@ export function crearPuertaCondiciones(o: OpcionesPuerta): PuertaCondiciones & {
 
   const part = serverPart(condicionesFeature, (a) => { api = a; });
   const poner = (c: Condiciones): void => { condiciones = c; derivar(); }; // condiciones/w4: the text for whoever arrives (or asks) from now on
-  return { activa, abierta: (who) => faltan(who.id).length === 0, estado, aceptar, part, registro, poner };
+  return { activa, abierta: (who) => faltan(who).length === 0, estado, aceptar, part, registro, poner };
 }
