@@ -1432,3 +1432,16 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `cable/sin-json`, sin subir.
 - Siguiente: decidir cómo recibe la clave el servidor instalado; probar con una clave real (con permiso); ja/ko/pt-br.
+
+## 2026-10-20 21:48 · dardos+pesca · hecho
+- Qué: dos ramas en una PR, 0.26.0. Dardos: duelo y equipos de 2-4 entre PC, móvil, AR y VR (feature v5: `lanzar.via`,
+  `jugar desde:"lejos"`), barra de fuerza nueva en PC con la ventana que decide el servidor por dispositivo
+  (`ZONA_FUERZA`; `TEMBLOR` 0,15 → 0,08, zona muerta: cambia las puntuaciones de todos), chip «Dardos: jugar en
+  <diana>» para unirse a una diana `remoto` desde lejos, botón AR que se repinta al salir. Pesca v3: el medidor de
+  tensión va en la boya a ras de agua (PC, móvil, VR); cada pez pescado entra al Inventario (inventario v2, objeto
+  «captura» apilado por especie). Aditivo en el cable.
+- Números: `npm test` 1622/1622; `npm run gates` en verde; tamaño antes de dibujar 588368 → 592670 B gz (+4302);
+  e2e dardos-duelo, dardos, pesca y dardos-vr en verde (ver la PR). Sin probar en Quest ni móvil reales.
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `juegos/dardos-pesca` (ar/duelo-servidor + pesca/barra-boya + origin/main 54a4cf89), PR contra `main`.
+- Siguiente: probar el duelo con gafas y móvil reales; decidir si `TEMBLOR`/`ZONA_FUERZA` se quedan como están.
