@@ -112,17 +112,20 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
   const partidas = new Map<string, Partida>(); // board → its duel
   const enPartida = new Map<number, string>(); // player → the board of their duel
 
+  /** A `remoto` board is known to EVERYBODY (the state entry has no `at`: a player far from it in a big world must find it to join from a
+   *  wall or a screen); the others only to who is near (ALCANCE_M). `api.within` reads the board's place from its card either way. */
+  const donde = (s: Sitio): { at: { x: number; z: number } } | undefined => (s.remoto === true ? undefined : { at: { x: s.x, z: s.z } });
   // the boards: a world's dardos.json or the house default; one state entry each (a thing of the world, with a card)
   const lista = (opts.sitios ?? SITIOS_DEFECTO).filter((s) => /^[a-z0-9-]{1,16}$/.test(String(s.id)) && Number.isFinite(s.x) && Number.isFinite(s.z));
   for (const s of lista) {
     const rumbo = Number.isFinite(s.rumbo) ? Math.max(-180, Math.min(180, Number(s.rumbo))) : rumboHaciaElCentro(s.x, s.z);
     const v: Msg = { nombre: String(s.nombre || "Diana de dardos").slice(0, 60), x: s.x, y: s.y ?? 0, z: s.z, radio: s.radio ?? 3.5, rumbo, ocupado: false, duelo: s.duelo === true, remoto: s.remoto === true, rondas: rondasDe(s.rondas), espera: false, jugadores: 0, equipos: equiposDe(s.equipos) };
-    if (api.state.set(s.id, v, { at: { x: s.x, z: s.z } })) sitios.set(s.id, s); else api.log(`dardos: la diana «${s.id}» no cabe en el esquema y no se pone`);
+    if (api.state.set(s.id, v, donde(s))) sitios.set(s.id, s); else api.log(`dardos: la diana «${s.id}» no cabe en el esquema y no se pone`);
   }
   api.log(`dardos: ${sitios.size} diana(s)`);
 
   const rechazar = (e: number, motivo: string) => { api.emit("rechazado", { motivo }, { to: e }); };
-  const poner = (id: string, cambio: Msg) => { const v = api.state.get(id); const s = sitios.get(id); if (v && s) api.state.set(id, { ...v, ...cambio }, { at: { x: s.x, z: s.z } }); };
+  const poner = (id: string, cambio: Msg) => { const v = api.state.get(id); const s = sitios.get(id); if (v && s) api.state.set(id, { ...v, ...cambio }, donde(s)); };
   const ocupar = (id: string, si: boolean) => poner(id, { ocupado: si });
   /** Send an event to whoever is near the board and, directly, to each of `quienes` that is farther than CERCA_M
    * (a thrower on a real wall far away, the rival of a duel): nobody gets it twice. */
@@ -220,7 +223,7 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     if (P.turnoEq === i) { P.retirando = false; P.visitas[i] = P.rondas; P.turnoEq = siguienteEquipo(P.fuera, i); if (terminada(P.visitas, P.fuera, P.rondas)) return terminarDuelo(P, false); empezarTurnoDuelo(P); } else emitirDuelo(P);
   };
   /** Join (or open) the duel of board `id`; the reason why not otherwise. */
-  const unirse = (e: number, id: string, remoto: boolean): string | null => {
+  const unirse = (e: number, id: string, remoto: boolean, pared = remoto): string | null => {
     const s = sitios.get(id)!;
     if (enPartida.get(e) === id) return null; // already in: nothing to do
     if (enPartida.has(e) || tiradas.has(e)) return "Ya estás tirando en otra diana: termina esa tirada antes.";
@@ -228,7 +231,7 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     const P = partidas.get(id);
     if (!P) {
       const max = equiposDe(s.equipos);
-      const nueva: Partida = { sitio: id, jug: [e], estado: "espera", pared: [remoto], fuera: [false], visitas: [0], puntos: [0], turnoEq: 0, retirando: false, retiraTick: 0, ultimo: api.tick(), rondas: rondasDe(s.rondas), max, auto: s.equipos === undefined };
+      const nueva: Partida = { sitio: id, jug: [e], estado: "espera", pared: [pared], fuera: [false], visitas: [0], puntos: [0], turnoEq: 0, retirando: false, retiraTick: 0, ultimo: api.tick(), rondas: rondasDe(s.rondas), max, auto: s.equipos === undefined };
       partidas.set(id, nueva); enPartida.set(e, id);
       poner(id, { espera: true, jugadores: 1 });
       emitirDuelo(nueva);
@@ -236,7 +239,7 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     }
     if (P.estado !== "espera") return "Ya hay un duelo en marcha en esta diana.";
     if (P.jug.length >= P.max) return "La partida está completa: espera a que acabe.";
-    P.jug.push(e); P.pared.push(remoto); P.fuera.push(false); P.visitas.push(0); P.puntos.push(0); enPartida.set(e, id);
+    P.jug.push(e); P.pared.push(pared); P.fuera.push(false); P.visitas.push(0); P.puntos.push(0); enPartida.set(e, id);
     poner(id, { jugadores: P.jug.length });
     if (P.auto && P.jug.length >= P.max) comenzar(P); else { P.ultimo = api.tick(); emitirDuelo(P); }
     return null;
@@ -264,10 +267,11 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
   api.onLeave((e) => { if (enPartida.has(e)) dejarDuelo(e); else terminar(e); });
 
   api.on("jugar", (e, m) => {
-    const id = String(m.sitio), s = sitios.get(id), pared = m.desde === "pared";
-    if (s && pared && !s.remoto) return rechazar(e, `${s.nombre} no admite jugar desde una pared: hay que estar en su línea de tiro.`);
-    if (s?.duelo) { const r = unirse(e, id, pared); if (r) rechazar(e, r); return; }
-    const t = empezar(e, id, pared); if (typeof t === "string") rechazar(e, t);
+    // `desde`: sitio (at the throwing line), pared (a real wall: AR) or lejos (a flat screen far from the board); the last two need `remoto`
+    const id = String(m.sitio), s = sitios.get(id), pared = m.desde === "pared", lejos = pared || m.desde === "lejos";
+    if (s && lejos && !s.remoto) return rechazar(e, `${s.nombre} no admite jugar desde ${pared ? "una pared" : "lejos"}: hay que estar en su línea de tiro.`);
+    if (s?.duelo) { const r = unirse(e, id, lejos, pared); if (r) rechazar(e, r); return; }
+    const t = empezar(e, id, lejos); if (typeof t === "string") rechazar(e, t);
   });
 
   // a `lanzar` without a turn starts one (an agent or a page can simply throw); in a duel only on your turn

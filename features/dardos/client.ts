@@ -107,12 +107,13 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     clavados: (sitio?: string): Dardo[] => [...clavados.values()].flat().filter((d) => !sitio || d.sitio === sitio),
     /** J4: offer the «E: tirar dardos» prompt only while this page is not throwing already. */
     ofrece: (feature: string, _key: string): boolean => feature !== "dardos" || (e.sitio === "" && !(D && !D.fin && soyDe(D))),
-    /** `desde: "pared"` joins a `remoto` board from a real wall far from it (the server refuses it elsewhere). */
-    jugar: (sitio?: string, desde?: "sitio" | "pared"): Res => {
+    /** `desde: "pared"` joins a `remoto` board from a real wall far from it (AR); `"lejos"` (v5) from a flat screen far from it
+     *  (the server refuses both elsewhere). */
+    jugar: (sitio?: string, desde?: "sitio" | "pared" | "lejos"): Res => {
       if (!A) return SIN;
       const id = sitio ?? dardos.sitios().find((s) => !s.ocupado)?.id;
       if (!id) return { ok: false, why: "no hay ninguna diana cerca" };
-      return A.send("jugar", desde === "pared" ? { sitio: id, desde } : { sitio: id });
+      return A.send("jugar", desde === "pared" || desde === "lejos" ? { sitio: id, desde } : { sitio: id });
     },
     /** Throw: aim (x, y) on the face in board radii, strength 0-1. Without a turn the server starts one. v4: `via` = how it was
      *  thrown (raton, teclado, tactil, vr, ar); it sets the width of the straight-strength window (ZONA_FUERZA). Missing = raton. */

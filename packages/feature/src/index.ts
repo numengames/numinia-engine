@@ -717,10 +717,13 @@ export class ServerRuntime {
         try { return this.host.aventura?.(carpeta) ?? []; } catch (e) { log(`aventura('${carpeta}'): ${String((e as Error)?.message ?? e)}`); return []; }
       },
       within: (e, key) => {
-        const s = table.get(key), me = this.host.position(e), it = f.state?.card?.interact;
-        if (!s?.at || !me || !it) return false;
+        const s = table.get(key), me = this.host.position(e), c = f.state?.card, it = c?.interact;
+        if (!s || !me || !it) return false;
+        // a thing everybody knows (set without `at`) has its place in the card's own fields
+        const at = s.at ?? (c.at ? { x: Number(s.value[c.at[0]]), z: Number(s.value[c.at[1]]) } : null);
+        if (!at || !Number.isFinite(at.x) || !Number.isFinite(at.z)) return false;
         const r = (typeof it.radius === "number" ? it.radius : Number(s.value[it.radius])) + INTERACT_SLACK_M;
-        return (s.at.x - me.x) ** 2 + (s.at.z - me.z) ** 2 <= r * r && alAlcanceEnAltura(me.y, s.value.y);
+        return (at.x - me.x) ** 2 + (at.z - me.z) ** 2 <= r * r && alAlcanceEnAltura(me.y, s.value.y);
       },
       log,
     };

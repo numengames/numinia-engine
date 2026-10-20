@@ -25,7 +25,7 @@ test("ZONA_FUERZA: one exported table, narrow for a mouse/keyboard and wider for
   cerca(ZONA_FUERZA.raton * CICLO_S * 1000, 44);
   const v = dardos.intents.lanzar.fields.via as { kind: string; values: readonly string[]; default: string };
   assert.deepEqual([v.kind, [...v.values], v.default], ["enum", [...VIAS], "raton"]);
-  assert.equal(dardos.version, 4); assert.deepEqual(dardos.issues, []);
+  assert.equal(dardos.version, 5); assert.deepEqual(dardos.issues, []);
 });
 
 test("desvioFuerza: 0.69 is exactly 0.04 away (no float dust), and strength is clamped to 0-1", () => {

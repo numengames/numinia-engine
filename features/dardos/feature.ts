@@ -54,12 +54,12 @@ export const ANILLO_VALUES = ["dobleBull", "bull", "simple", "triple", "doble", 
 
 export const dardos = defineFeature({
   id: "dardos",
-  version: 4,
+  version: 5,
   level: "base",
   describe: "Jugar a los dardos en una diana del mundo: una tirada son tres dardos; en cada uno eliges adónde apuntas y con qué fuerza lanzas, y el servidor decide dónde se clava (un tiro flojo cae, uno fuerte sube y se abre, y el pulso mueve un poco cada dardo), cuenta sector, anillo y puntos y guarda el marcador por invitado. Igual en el PC (ratón), el móvil (gesto de lanzar) y en AR (la diana en tu pared).",
   store: { describe: "Por invitado (`d:<id>`): dardos tirados, puntos totales, el mejor dardo, la mejor tirada (3 dardos) y cuántas dianas (dobleBull) ha hecho. Nunca va a las páginas; a su dueño le llega como evento `marcador`." },
   state: {
-    describe: "Una diana por clave: nombre, dónde (x, z; y = altura del suelo, m), a qué distancia se tira (radio, m), hacia dónde mira su cara (rumbo, grados: 0 = mira a +z, 90 = a +x) si alguien tira ahí ahora (ocupado) y, en una diana de duelo, si admite un rival (duelo), si se puede entrar desde una pared lejana (remoto), si hay alguien esperando rival (espera) y cuántos jugadores hay en el duelo (jugadores, 0-4) y cuántos equipos admite (equipos, 2-4; v3).",
+    describe: "Una diana por clave: nombre, dónde (x, z; y = altura del suelo, m), a qué distancia se tira (radio, m), hacia dónde mira su cara (rumbo, grados: 0 = mira a +z, 90 = a +x) si alguien tira ahí ahora (ocupado) y, en una diana de duelo, si admite un rival (duelo), si se puede entrar desde lejos (remoto: una diana `remoto` la ve todo el mundo, esté donde esté; las demás solo quien está a ALCANCE_M), si hay alguien esperando rival (espera) y cuántos jugadores hay en el duelo (jugadores, 0-4) y cuántos equipos admite (equipos, 2-4; v3).",
     fields: {
       nombre: { kind: "text", maxBytes: 60 }, x: X, y: Y, z: X,
       radio: { kind: "fixed", min: 1, max: 16, step: 0.1, default: 3 },
@@ -74,7 +74,7 @@ export const dardos = defineFeature({
     radius: ALCANCE_M,
   },
   intents: {
-    jugar: { describe: "Empezar una tirada de tres dardos en la diana que tienes al lado (su radio). Mientras tiras, la diana es tuya. En una diana de duelo, el primero espera rival y el segundo empieza el duelo. `desde: \"pared\"` (solo en dianas `remoto`) te deja jugar desde una pared real lejos de la diana.", spoken: "jugar a los dardos", fields: { sitio: ID, desde: { kind: "enum", values: ["sitio", "pared"], default: "sitio" } }, rate: { perSecond: 2, burst: 4 } },
+    jugar: { describe: "Empezar una tirada de tres dardos en la diana que tienes al lado (su radio). Mientras tiras, la diana es tuya. En una diana de duelo, el primero espera rival y el segundo empieza el duelo. `desde: \"pared\"` (solo en dianas `remoto`) te deja jugar desde una pared real lejos de la diana (AR) y `desde: \"lejos\"` (v5, también solo `remoto`) desde una pantalla lejos de la diana (página de PC o móvil).", spoken: "jugar a los dardos", fields: { sitio: ID, desde: { kind: "enum", values: ["sitio", "pared", "lejos"], default: "sitio" } }, rate: { perSecond: 2, burst: 4 } },
     lanzar: {
       describe: "Lanzar un dardo de tu tirada: x, y = adónde apuntas en la cara de la diana, en radios (0, 0 = el centro; y hacia arriba; 1 = el borde del doble); fuerza 0-1 (0,65 va recto dentro de una zona estrecha; fuera de ella, menos cae y más sube y se abre). v4: `via` (raton, teclado, tactil, vr, ar; si falta, raton) dice cómo lanzaste y fija el ancho de esa zona (ZONA_FUERZA). El servidor decide dónde se clava.",
       spoken: "lanzar un dardo", fields: { sitio: ID, x: CARA, y: CARA, fuerza: { kind: "fixed", min: 0, max: 1, step: 0.001 }, via: { kind: "enum", values: VIAS, default: "raton" } }, rate: { perSecond: 3, burst: 4 },
