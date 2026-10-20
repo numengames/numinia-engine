@@ -34,6 +34,7 @@ import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
 import { leerFicha, leerTema, lectorAventura } from "./aventura.ts";
 import { leerCondiciones, PUERTA_POR_DEFECTO } from "./condiciones.ts";
 import { crearPuertaCondiciones } from "./condiciones-puerta.ts"; // condiciones/c2: the gate
+import { elegirFuente, iniciarFuente, ESPERA_ARRANQUE_MS } from "./condiciones-fuente.ts"; // condiciones/w4: the community's norms, pulled
 import { crearRoles } from "./roles-mundo.ts";
 import { configPase } from "./pase.ts";
 import { crearAgentesHttp } from "./agentes-http.ts";
@@ -58,6 +59,8 @@ export type ServerOptions = {
   sesiones?: string | null; // T1: folder for the session log (one JSONL per UTC day); default null = keep in memory only
   datos?: string | null;    // S4: folder where the features' saved state and stores live; default null = memory only
   construir?: "todos" | "nadie"; // H1/H3: whether @todos builds in a NEW world (its roles are stored after that; /construir); default "nadie" (env MOTOR_CONSTRUIR)
+  condicionesFuente?: string;    // condiciones/w4: where the community layer is downloaded from (https URL; "no" = never); default: env MOTOR_CONDICIONES_FUENTE, else `comunidad.fuente` of aventura/condiciones.json, else none
+  condicionesFuenteMs?: number;  // condiciones/w4: ms between downloads (the env path never goes under 5 minutes); default 15 minutes
   condicionesPuerta?: boolean;   // condiciones/c2: the gate of the conditions of entry (condiciones-puerta.ts): until someone accepts the mandatory norms they stay where they arrived and are not heard or read; default: env MOTOR_CONDICIONES_PUERTA (si|no), else the `puerta` of aventura/condiciones.json, else off
   voz?: boolean;                 // U10: whether microphones are relayed in a NEW world (stored after that; /voz); default: env MOTOR_VOZ, on unless "no"
   biblioteca?: string | null;    // H1: the house library served at /a/<sha256>.<ext>; default the repo's activos/ (null = none)
@@ -218,6 +221,9 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   if (recibos) log(`[bienes] los recibos de este mundo los firma ${recibos.emisor}`); else log("[bienes] sin MOTOR_SECRET este mundo no da bienes digitales (no tiene con qué firmar sus recibos)");
   const leerActivo = (h: string, ext: string): Uint8Array | null => { const ruta = activos.buscar(h, ext); if (!ruta) return null; try { return readFileSync(ruta); } catch { return null; } }; // M6 h8: /a/<sha256>.<ext>'s own bytes, for the world's collision mesh
   const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, renovarPase: roles.renovar, activo: (h, ext) => activos.buscar(h, ext) !== null, medidas: (h, ext) => activos.medidas(h, ext), aventura: lector, agentes, externos: { verificar: puerta.verificar }, recibos: recibos ?? undefined, sinVoz: () => !roles.voz, oye: (de, a) => roles.oye(inst.who(de), inst.who(a)), aparicion: o.aparicion ?? null, suelo: o.suelo ?? null, construirMalla: construirMalla(leerActivo), condiciones: puertaCondiciones }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz); M6 h8: malla things build the world's mesh
+  // condiciones/w4: the community's norms arrive by themselves (copy in aventura/condiciones-comunidad.json, then a download every few minutes); whoever arrives next is offered the newest
+  const fuenteCondiciones = iniciarFuente({ dir: o.aventura ?? null, base: condiciones, fuente: elegirFuente(o.condicionesFuente, o.aventura ?? null, log), log, intervaloMs: o.condicionesFuenteMs, poner: (c, motivo) => { puertaCondiciones.poner(c); if (motivo === "nueva") inst.ofrecerCondiciones(); } });
+  const primeraFuente = !fuenteCondiciones.activa ? Promise.resolve() : fuenteCondiciones.conCopia ? (void fuenteCondiciones.actualizar(), Promise.resolve()) : fuenteCondiciones.actualizar(ESPERA_ARRANQUE_MS).then(() => {}); // with no copy yet the first listening waits a few seconds for the first answer
   // H9: uploads (PUT /a/<sha256>.<ext>) by whoever may build; the page shows its guest token (I1) to say who it is
   const subidas = new Subidas({
     dir: o.subidas ?? null, activos, log, topesMB: o.subir?.topesMB, totalMB: o.subir?.totalMB,
@@ -360,13 +366,13 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   stats.unref();
   // stop the world for good (before a swap of datos/): no tick, nobody connected, no new connections, all written
   apagar = async () => {
-    stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats);
+    stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); fuenteCondiciones.parar();
     for (const c of wss.clients) c.terminate();
     wss.close(); http.close(); http.closeIdleConnections();
     await Promise.all([sesiones.vaciar(), datos?.flush(), optimizar.parar()]);
   };
 
-  return new Promise((ok, ko) => {
+  return primeraFuente.then(() => new Promise<RunningServer>((ok, ko) => {
     http.once("error", ko);
     http.listen(o.port, o.host, () => {
       const addr = http.address();
@@ -379,11 +385,11 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       ok({
         port, inst, sesiones, datos, fingerprint: hex(refHash), metrics, optimizar,
         close: () => new Promise<void>((done) => {
-          stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); runtime.close();
+          stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); fuenteCondiciones.parar(); runtime.close();
           for (const c of wss.clients) c.terminate();
           wss.close(); http.close(() => void Promise.all([sesiones.vaciar(), datos?.flush(), optimizar.parar()]).then(() => done()));
         }),
       });
     });
-  });
+  }));
 }

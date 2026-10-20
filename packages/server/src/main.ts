@@ -19,6 +19,7 @@ import { carpetaMundo, claves, escribirManifiesto, sembrar } from "./mundo-carpe
 import { infoMotor } from "./version.ts";
 import { configPase } from "./pase.ts";
 import { puertaDeEntorno } from "./condiciones.ts";
+import { intervaloDeEntorno } from "./condiciones-fuente.ts"; // condiciones/w4
 
 const env = process.env;
 const log = (l: string) => console.log(l);
@@ -47,6 +48,7 @@ const srv = await startServer({
   sesiones: env.SESIONES_DIR || c?.sesiones || "informes/sesiones", // T1: how each player entered
   datos,                                                              // S4: what features keep across restarts
   construir: env.MOTOR_CONSTRUIR === "todos" ? "todos" : "nadie",     // H1: who may build in a NEW world (then its stored roles: /construir)
+  condicionesFuente: env.MOTOR_CONDICIONES_FUENTE, condicionesFuenteMs: intervaloDeEntorno(env.MOTOR_CONDICIONES_FUENTE_MIN), // condiciones/w4: where the community's norms are pulled from (https URL, else the file's `comunidad.fuente`), every N minutes (≥ 5)
   condicionesPuerta: puertaDeEntorno(env.MOTOR_CONDICIONES_PUERTA), // condiciones/c2: the gate of the conditions of entry (si|no; unset = the file, else off)
   voz: env.MOTOR_VOZ !== "no",                                        // U10: microphones on in a NEW world (then its stored setting: /voz)
   subidas: env.ACTIVOS_DIR || `${datos}/activos`,                     // H9: uploaded files by sha256, next to the saved world; activos/ is always served
