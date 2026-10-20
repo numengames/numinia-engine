@@ -12,7 +12,8 @@ import type { Field } from "../../schema/src/index.ts";
 // 12 (H3b, additive): PASE, numinia.com's world pass (a compact JWS), page -> server, before IDENTITY. Own cap PASE_MAX (2048).
 // 13-14 (condiciones/c2, additive): CONDICIONES (server -> page: the world's conditions of entry and where you stand; page -> server,
 // one byte: "send them again") and ACEPTAR (page -> server: what you accept). See the end of this file.
-export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8, REPORT: 9, IDENTITY: 10, VOICE: 11, PASE: 12, CONDICIONES: 13, ACEPTAR: 14 } as const;
+// 15 (condiciones/c5, additive): LEYENDO, server -> page: who is still reading the norms (the others draw them inside a bubble). Only a world with the gate on sends it.
+export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8, REPORT: 9, IDENTITY: 10, VOICE: 11, PASE: 12, CONDICIONES: 13, ACEPTAR: 14, LEYENDO: 15 } as const;
 export * from "./voz.ts";
 
 /** Wire format version, sent at the end of WELCOME. 1 = everything before J2 (it was never written on the wire);
@@ -460,6 +461,33 @@ export function decodeAceptar(bytes: Uint8Array): Aceptacion | null {
     if (d.some((x: unknown) => typeof x !== "string" || x.length > ACEPTAR_TEXTO_MAX)) return null;
     return { versiones: Object.fromEntries(ks.map((k) => [k, v[k]])), datos: d };
   } catch { return null; }
+}
+
+// ---------- LEYENDO (15), condiciones/c5 (additive): who is still reading the norms ----------
+// With the gate on, a person who has not been let through yet stands inside a bubble for everybody else. The state of one entity is
+// sent ONLY when it changes (arrives and has to read; accepts; leaves) and once, as a list, to someone who connects: nothing per tick, no
+// bytes in the snapshot, nothing at all in a world whose gate is off. A page keeps the set and draws a bubble over each member it sees.
+//   server -> page  [15, (entity u16 big-endian, state u8)…]   state 1 = reading now, 0 = no longer (accepted or gone)
+// 3 bytes per entity + the type byte: a change is 4 bytes; the list is capped so a frame stays under WS_FRAME_MAX.
+export type Leyendo = { entidad: number; leyendo: boolean };
+export const LEYENDO_POR_MENSAJE = 300; // 1 + 300×3 = 901 bytes: under WS_FRAME_MAX
+/** server -> page. At most LEYENDO_POR_MENSAJE entries (the caller splits longer lists); null when empty (nothing is sent for «no change»). */
+export function encodeLeyendo(l: readonly Leyendo[]): Uint8Array | null {
+  const n = Math.min(l.length, LEYENDO_POR_MENSAJE);
+  if (n === 0) return null;
+  const out = new Uint8Array(1 + 3 * n); out[0] = MSG.LEYENDO;
+  for (let i = 0; i < n; i++) { const e = l[i].entidad & 0xffff; out[1 + 3 * i] = e >> 8; out[2 + 3 * i] = e & 0xff; out[3 + 3 * i] = l[i].leyendo ? 1 : 0; }
+  return out;
+}
+/** null for anything that is not a whole LEYENDO (wrong type, empty, a length that is not 1 + 3n, a state other than 0/1); never throws. */
+export function decodeLeyendo(bytes: Uint8Array): Leyendo[] | null {
+  if (bytes[0] !== MSG.LEYENDO || bytes.length < 4 || (bytes.length - 1) % 3 !== 0 || bytes.length > 1 + 3 * LEYENDO_POR_MENSAJE) return null;
+  const out: Leyendo[] = [];
+  for (let i = 1; i < bytes.length; i += 3) {
+    if (bytes[i + 2] > 1) return null;
+    out.push({ entidad: (bytes[i] << 8) | bytes[i + 1], leyendo: bytes[i + 2] === 1 });
+  }
+  return out;
 }
 
 /** H7: close code the server sends when the world is full (its ficha `aforo`); the reason reads «lleno <inside>/<aforo>». */

@@ -1206,8 +1206,28 @@ mundo y `readAxes` devuelve 0 (el servidor también te sujeta). Al aceptar manda
 contesta `abierta: true` la pompa estalla (650 ms, o 30 ms con `prefers-reduced-motion`) y se camina. Móvil vertical (ventana estrecha o
 `?aparato=movil-vertical`): el panel ocupa casi toda la pantalla. Con la puerta APAGADA (por defecto) no se crea ningún elemento ni estilo.
 `apps/plaza/condiciones-logica.ts` guarda las decisiones sin navegador (pasos, qué manda ACEPTAR, qué cierra la puerta) y las prueba
-`test/condiciones-burbuja.test.ts`; `__numinia.condiciones` expone `estado`, `cerrada()` y `alCambiar()` para c4 (VR) y c5 (la pompa vista desde fuera).
+`test/condiciones-burbuja.test.ts`; `__numinia.condiciones` expone `estado`, `cerrada()` y `alCambiar()` para c4 (VR); c5 (la pompa vista desde fuera) va aparte, justo debajo.
 Mundo de pruebas: `aventuras/condiciones-prueba/` (ver su `LEEME.md`); e2e: `node tools/e2e-piernas/condiciones.mjs` (con `SHOTS=carpeta`, fotos de cada paso en PC 1400×900 y móvil 390×844).
+
+### La pompa vista desde fuera (c5: `packages/render/src/pompas.ts`)
+
+Quien aún está leyendo las normas (puerta encendida y no abierta) se ve, para todos los demás, **dentro de una pompa translúcida** con un
+rótulo «Nombre · leyendo las normas…» (el rótulo de nombres de siempre, `nombres.ts`, que además se queda encendido y un poco más alto mientras
+dura). Es una esfera con **una sola geometría y un solo material compartidos** (sin shader propio, sin refracción: un dibujo por persona que
+lee y se ve, como mucho 24); al aceptar estalla en ~⅓ s sobre una copia del material que solo existe durante el estallido. Una pompa quieta no
+pide fotogramas (`busy()`). Con la puerta apagada no se crea ni la geometría. Para comprobarlo: `__numinia.view.pompas()` y
+`__numinia.view.nameTags()`; e2e: `node tools/e2e-piernas/condiciones-pompa.mjs`.
+
+- **`LEYENDO` (15), servidor → página**, aditivo: `[15, (entidad u16 BE, estado u8)…]`, estado 1 = está leyendo, 0 = ya no (aceptó o se fue).
+  Se manda **solo al cambiar** (llega y tiene que leer; acepta; se desconecta) y **una vez, como lista, a quien se conecta**: 4 bytes por
+  cambio a cada otra conexión, **0 bytes por tick**, nada en la instantánea. Quien ya aceptó esa versión no genera nada al volver; con la puerta
+  apagada no sale ni un byte (test: mismos bytes que sin puerta). Una conexión nunca recibe su propio estado (su pompa es el panel de c3).
+  Hasta 300 entidades por mensaje. Cliente: `session.leyendo` (conjunto de entidades) y `session.onLeyendo(entidad, leyendo)`; la página lo
+  pasa a `view.leyendo(entidad, si)`.
+- **Ni se la oye ni se la empuja**: su voz no se reenvía (c2) y, mientras lee, el servidor rechaza `ordenar(…, { empujar | quieto | sentar })`
+  sobre ella (`Instance.leyendoNormas(entidad)`, `api.leyendoNormas`) y `lucha` rechaza el golpe PVP («Esa persona está leyendo las normas»).
+  No hay colisión cuerpo a cuerpo en el simulador, así que nada más la mueve. Una función nueva que mueva o dañe a otra persona pregunta
+  `api.leyendoNormas(e)` antes.
 
 ### La puerta (apagada por defecto)
 
