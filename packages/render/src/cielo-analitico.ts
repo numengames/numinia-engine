@@ -46,6 +46,8 @@ export const CIELO_ANALITICO = {
   discoFuera: Math.cos(0.03), discoDentro: Math.cos(0.024), discoGanancia: 3.0,
   /** The moon (outer/inner cos of its radius), its crescent's offset and its HDR gain. */
   lunaFuera: Math.cos(0.024), lunaDentro: Math.cos(0.021), lunaCorte: 0.013, lunaGanancia: 1.7,
+  /** H2: the full moon of the espacio base (outer/inner cos of its radius, ≈ 2°). */
+  lunaLlenaFuera: Math.cos(0.036), lunaLlenaDentro: Math.cos(0.032),
   /** The nacre band over the horizon: how thick (elevation where it fades) and how strong. */
   nacarAlto: 0.22, nacar: 0.45,
 } as const;
@@ -61,8 +63,8 @@ export function cicloCielo(solY: number): { ocaso: number; estrellas: number; lu
   return { ocaso, estrellas: Math.max(noche, CIELO_ANALITICO.estrellasDeDia * dia), luna: noche };
 }
 /** The moon's direction for this sun: 40° up, opposite the sun's bearing (entorno.ts puts the night light there). */
-export function direccionLuna(sol: THREE.Vector3, out = new THREE.Vector3()): THREE.Vector3 {
-  const h = Math.hypot(sol.x, sol.z) || 1, c = Math.cos(40 * Math.PI / 180), s = Math.sin(40 * Math.PI / 180);
+export function direccionLuna(sol: THREE.Vector3, out = new THREE.Vector3(), grados = 40): THREE.Vector3 {
+  const h = Math.hypot(sol.x, sol.z) || 1, c = Math.cos(grados * Math.PI / 180), s = Math.sin(grados * Math.PI / 180);
   return out.set(-sol.x / h * c, s, -sol.z / h * c);
 }
 
@@ -75,7 +77,7 @@ const hash31 = (p: Nodo): Nodo => {
 
 /** The analytic sky over entorno.ts's stops. One function for the dome, a lighter one for the fog's far stop, and the far-plane vertex.
  *  `C` = the accent colours (nacre, twilight, halo, stars, moon): any world may bring its own (R-1); the nature's are paleta.ts CIELO_E04. */
-export function cieloAnalitico(u: EntradasCielo, C: typeof CIELO_E04 = CIELO_E04): NodosCielo {
+export function cieloAnalitico(u: EntradasCielo, C: typeof CIELO_E04 = CIELO_E04, o: { lunaLlena?: boolean } = {}): NodosCielo {
   const K = CIELO_ANALITICO;
   // NOT vec3(new THREE.Color(h)): vec3() reads .x/.y/.z and a Color has none (it came out BLACK on the GPU: found in the E04 photos).
   // A uniform takes the Color as it is (sRGB hex → linear working space), like entorno.ts's stops.
@@ -85,7 +87,7 @@ export function cieloAnalitico(u: EntradasCielo, C: typeof CIELO_E04 = CIELO_E04
   const ocasoU = uniform(0).onRenderUpdate(() => cicloCielo(u.solDir.value.y).ocaso);
   const estrellasU = uniform(0).onRenderUpdate(() => cicloCielo(u.solDir.value.y).estrellas);
   const lunaU = uniform(0).onRenderUpdate(() => cicloCielo(u.solDir.value.y).luna);
-  const lunaDir = uniform(lunaV).onRenderUpdate(() => direccionLuna(u.solDir.value, lunaV));
+  const lunaDir = uniform(lunaV).onRenderUpdate(() => direccionLuna(u.solDir.value, lunaV, o.lunaLlena ? 22 : 40)); // H2: the espacio base's full moon hangs lower (22°), inside the first-person frame
   const corteV = new THREE.Vector3(), derecha = new THREE.Vector3(), arriba = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
   const lunaCorte = uniform(corteV).onRenderUpdate(() => { // the crescent's cutting disc: the moon's centre nudged sideways (once per render)
     const l = direccionLuna(u.solDir.value, corteV);
@@ -140,9 +142,16 @@ export function cieloAnalitico(u: EntradasCielo, C: typeof CIELO_E04 = CIELO_E04
       });
       // crescent moon: a disc minus an offset disc (starwild), soft analytic edges; the offset disc's centre comes from the CPU
       If(lunaU.greaterThan(0.0), () => {
-        const disco = smoothstep(K.lunaFuera, K.lunaDentro, dot(dir, lunaDir));
-        const corte = smoothstep(K.lunaFuera, K.lunaDentro, dot(dir, lunaCorte));
-        c.assign(mix(c, col(C.luna).mul(K.lunaGanancia), disco.mul(float(1.0).sub(corte)).mul(lunaU).mul(sobre)));
+        const cosLuna = dot(dir, lunaDir);
+        if (o.lunaLlena) { // H2: a full moon (a bigger round disc and a soft halo), as in the espacio base's approved prototype
+          const disco = smoothstep(K.lunaLlenaFuera, K.lunaLlenaDentro, cosLuna);
+          c.addAssign(col(C.luna).mul(pow(max(cosLuna, 0.0), 260.0)).mul(0.22).mul(lunaU).mul(sobre));
+          c.assign(mix(c, col(C.luna).mul(K.lunaGanancia), disco.mul(lunaU).mul(sobre)));
+        } else {
+          const disco = smoothstep(K.lunaFuera, K.lunaDentro, cosLuna);
+          const corte = smoothstep(K.lunaFuera, K.lunaDentro, dot(dir, lunaCorte));
+          c.assign(mix(c, col(C.luna).mul(K.lunaGanancia), disco.mul(float(1.0).sub(corte)).mul(lunaU).mul(sobre)));
+        }
       });
     });
     return c;

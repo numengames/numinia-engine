@@ -365,3 +365,39 @@ export const AGUA_CODIGO_RARO = {
   grisNegro: mezcla(CASA.ceniza, CASA.noche, 0.6),
   purpura: mezcla(mezcla(CASA.grana, CASA.turquesaProfundo, 0.45), CASA.noche, 0.5),
 } as const;
+
+// H2
+/**
+ * H2 · El espacio base (packages/render/src/espacio-base/; prototipo aprobado por Pablo: work/naturaleza/espacio-base/malla.py y hoja2-42.png).
+ * Un mundo vacío y nocturno: el suelo es una malla de líneas luminosas sobre casi negro. Las líneas son Turquesa que vira a Verdemar con la altura
+ * y a Coral en las hendiduras; las curvas de nivel y el anillo de la meseta son Ámbar; los acentos raros (puntitos) son coral, ámbar, Épica (morado)
+ * y verde. El cielo de noche, un punto más claro y verdoso hacia el horizonte para que el borde del mundo se funda con él. Solo mezclas de tokens,
+ * ningún hex nuevo (el morado y el verde ya son tokens: RAREZA.epica y CASA.verde).
+ */
+export const ESPACIO_BASE = {
+  /** Noche: turquesa que vira a verdemar con la altura y a coral en las hendiduras. */
+  linea: { baja: CASA.turquesa, alta: CASA.verdemar, hendidura: CASA.coral },
+  /** Día (mitad de abajo de hoja2-42): turquesa profundo sobre arena, ámbar tostado en altura. */
+  lineaDia: { baja: CASA.turquesaProfundo, alta: CASA.ambarTostado, hendidura: CASA.grana },
+  curva: CASA.ambar, anillo: CASA.ambar, curvaDia: CASA.ambarTostado,
+  /** Acentos puntuales raros. */
+  acentos: { coral: CASA.coral, ambar: CASA.ambar, morado: RAREZA.epica, verde: CASA.verde },
+  /** De día los acentos se oscurecen un punto para leerse sobre la arena. */
+  acentosDia: { [CASA.coral]: CASA.grana, [CASA.ambar]: CASA.ambarTostado, [RAREZA.epica]: mezcla(RAREZA.epica, CASA.noche, 0.35), [CASA.verde]: mezcla(CASA.verde, CASA.noche, 0.3) } as Record<number, number>,
+  /** Cielo de noche: casi negro con un hilo de turquesa profundo; el suelo (bajo el horizonte) es su mismo color, así el borde del mundo se funde. */
+  noche: {
+    cenit: mezcla(CASA.noche, mezcla(RAREZA.rara, CASA.turquesaProfundo, 0.5), 0.07),
+    alto: mezcla(CASA.noche, CASA.turquesaProfundo, 0.1),
+    horizonte: mezcla(CASA.noche, mezcla(CASA.turquesaProfundo, CASA.verdemar, 0.3), 0.2),
+    suelo: mezcla(CASA.noche, CASA.turquesaProfundo, 0.06),
+  },
+  /** Cielo de día: verdemar claro arriba, arena en el horizonte y bajo él. */
+  dia: {
+    cenit: mezcla(CASA.verdemar, CASA.turquesa, 0.25),
+    alto: mezcla(CASA.verdemar, CASA.arena, 0.25),
+    horizonte: mezcla(CASA.arena, CASA.verdemar, 0.12),
+    suelo: CASA.arena,
+  },
+  estrella: mezcla(CASA.arena, CASA.verdemar, 0.12),
+  luna: mezcla(CASA.arena, NOCHE.luna, 0.25),
+} as const;

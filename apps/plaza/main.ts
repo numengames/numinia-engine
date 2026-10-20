@@ -150,6 +150,7 @@ const session = new ClientSession(transport, {
     entorno: (v) => view.entorno.aplicar(v),
 
     naturaleza: (v) => void view.naturaleza.aplicar(v), // N4
+    espacioBase: (v) => void view.espacioBase.aplicar(v), // H2
 
     elemento: (k, v) => view.elementos.poner(k, v),
     // N18: what each person wears (features/bienes): a good's model in a hand or on the head
