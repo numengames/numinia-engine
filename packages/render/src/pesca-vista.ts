@@ -5,7 +5,7 @@ import type * as THREE from "three/webgpu";
 import type { Sitio3D, Flotador3D, Captura3D, Estado3D, Ayudas, AyudasVR } from "./pesca.ts";
 
 type Real = ReturnType<typeof import("./pesca.ts")["crearPesca"]>;
-const NADA = { pescadores: 0, sitios: 0, peces: 0, enMano: [] as number[], manoReal: false, cargado: false, soportes: 0, sujeta: null as "izq" | "der" | null, canaMano: false, medidor: false, medidorTexto: "", resaltado: "" };
+const NADA = { pescadores: 0, sitios: 0, peces: 0, enMano: [] as number[], manoReal: false, cargado: false, soportes: 0, sujeta: null as "izq" | "der" | null, canaMano: false, medidor: false, boya: false, boyaEscala: 0, medidorTexto: "", resaltado: "" };
 
 export function vistaPesca(h: Ayudas & AyudasVR) {
   let real: Real | null = null, carga: Promise<void> | null = null, fallo = "";

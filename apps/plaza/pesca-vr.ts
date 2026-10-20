@@ -4,7 +4,8 @@
 //    glows) and press the grip — or pinch, with a tracked hand — to take it; it is then in your real hand. Cast with a
 //    flick of the rod forward (where you look); hold the trigger (or keep pinching) to reel; lift the rod sharply to
 //    strike at the bite. The rod buzzes when a fish nibbles, hard at the bite, and with the line's tension in the
-//    fight. A small gauge above the rod says what to do and shows the tension and the fish. Grip again (or pinch at the
+//    fight. A small gauge above the rod says what to do and shows the fish; the line's tension is a bar standing
+//    on the water beside your float (packages/render/src/pesca-boya.ts), where your eyes are while you fish. Grip again (or pinch at the
 //    holder) to put the rod back; walking away from the pond puts it back too.
 //  · a gamepad on a flat screen: A casts at a spot (the «pescar» prompt), A or RT held reels, B lets go.
 // Everything goes through the controller (features/pesca/client.ts): the server decides, as with F and the button.
