@@ -369,12 +369,19 @@ export class Instance {
     if (this.cerrada(conn)) this.avisarLeyendo(conn, true); // condiciones/c5: and everybody else sees them inside a bubble (no one if they accepted before)
   }
 
+  /** condiciones/w4: the text of the conditions changed (a new version of the community's norms): offer it again, with its text, to everyone
+   * still behind the gate (their bubble starts over with the new one). Who is already inside is told nothing. Gate off = nothing. */
+  ofrecerCondiciones(): void {
+    const p = this.opts.condiciones;
+    if (!p?.activa) return;
+    for (const c of this.conns) if (c.who && this.cerrada(c)) c.transport.send(encodeCondiciones(p.estado(c.who, true)), true);
+  }
   /** condiciones/c2: is this entity held behind the gate? (see `cerrada`; uploads ask it too.) Not connected = false. */
   puertaCerrada(entity: number): boolean { const c = this.byEntity[entity]; return !!c && this.cerrada(c); }
   /** condiciones/c2: the gate. True while this connection has not been let through: the world's gate is on, it is not an AI
    * inhabitant/agent (they hold a signed ticket and have no bubble to click), and it has not accepted every mandatory norm of the
    * current version. Not identified yet = closed (the acceptance is kept by who). Off or no gate = always false, one comparison.
-   * Once open a connection stays open (the conditions are read at start, so they cannot change under it). */
+   * Once open a connection stays open (w4: even if the community publishes a newer text meanwhile; it applies to whoever arrives later). */
   private cerrada(conn: Conn): boolean {
     const p = this.opts.condiciones;
     if (!p?.activa || conn.admitido) return false;

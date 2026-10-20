@@ -1194,6 +1194,42 @@ ejemplo de la casa; fichero roto = una línea en el registro con la ruta del fal
 - **`nombre`** (por capa, opcional, 1–60 caracteres, c3): cómo llama la burbuja a esa capa en sus pasos («Numen Games»); sin él dice «La casa» / «La comunidad». El motor no lleva marca: los nombres salen de este fichero.
 - **`puerta`** (opcional, `true`/`false`): pide encender la puerta del servidor para este mundo.
 
+### Las normas de la comunidad llegan solas al mundo (w4: `packages/server/src/condiciones-fuente.ts`)
+
+Cuando una comunidad publica una versión de sus normas en numinia.com (Ajustes → «Normas de vuestros espacios»), sus mundos la usan sin que
+nadie copie nada a mano, y **cada mundo guarda su copia en su carpeta**: si numinia.com está caída, el mundo sigue con la última que bajó
+(file over app). El motor **tira** (pull); numinia.com no necesita saber dónde vive el mundo ni tener llave para escribir en él.
+
+Un autor lo activa con una línea en el `aventura/condiciones.json` del mundo (la dirección está en la página pública de normas de su
+comunidad: `/es/communities/<id>/normas/`):
+
+```json
+{ "formato": "condiciones@1", "puerta": true,
+  "comunidad": { "fuente": "https://numinia.com/api/community-terms?comunidad=numen-games" },
+  "capas": [ { "capa": "casa", "version": "2026-10", "puntos": [ … ] } ] }
+```
+
+- **Qué hace**: al arrancar y luego cada 15 minutos (`MOTOR_CONDICIONES_FUENTE_MIN`, nunca menos de 5: numinia.com guarda la respuesta 5
+  minutos) descarga ese JSON (`community-terms-public@1`), valida la capa con el mismo lector de C1 (un punto `datos` obligatorio se
+  rechaza aquí también) y, si es válida y distinta, la escribe en **`aventura/condiciones-comunidad.json`** y la pone encima de la capa de
+  la casa. La capa `casa` sigue saliendo de `condiciones.json` (o del ejemplo); la `comunidad` descargada sustituye a la que el autor
+  hubiera escrito a mano.
+- **A quién le toca**: la oferta cambia para **quien llega después**; quien ya está dentro sigue dentro (la conexión admitida no se
+  vuelve a cerrar) y quien está dentro de la burbuja recibe el texto nuevo y la burbuja empieza de nuevo con él. Como la versión de la
+  capa cambia, quien aceptó la anterior tiene que aceptar la nueva (c6 enseñará solo lo que cambió).
+- **Si falla algo** (red caída, HTTP ≠ 200, JSON roto, respuesta de otra comunidad, publicación más vieja que la copia, más de 256 KB,
+  más de 8 s): una línea `[condiciones] …` en el registro y sigue lo que había (la copia; sin copia, la casa y lo que el fichero lleve
+  a mano). Nunca impide arrancar. Con copia el servidor arranca sin esperar; **sin copia espera hasta 5 s la primera respuesta** para que
+  el primero en llegar ya vea las normas de su comunidad. Una copia de otra fuente (otra comunidad) no se usa.
+- **Seguridad**: solo `https` (`http` únicamente en `localhost`/`127.0.0.1`, para pruebas); sin usuario ni contraseña en la dirección;
+  sin dependencias nuevas (`fetch` de Node); tope de tamaño y de tiempo.
+- **El operador manda**: `MOTOR_CONDICIONES_FUENTE=<url>` (o la opción `condicionesFuente`) sustituye a la del fichero; `=no` la apaga.
+- **La copia** (`condiciones-comunidad@1`) se lee, se compara y se guarda en git como cualquier fichero del mundo:
+  `{ "formato": "condiciones-comunidad@1", "fuente": "<url>", "descargadoEn": "<UTC>", "publicadoEn": "<UTC>", "capa": { "capa": "comunidad", "version": "…", "puntos": [ … ] } }`.
+  Se puede borrar sin miedo (se vuelve a bajar); solo se usa mientras el mundo tenga esa misma `fuente`.
+- **Probarlo en local**: un servidor HTTP cualquiera que sirva ese JSON en `http://127.0.0.1:<puerto>/…` sirve de numinia.com
+  (`test/condiciones-fuente.test.ts` lo hace: nueva versión → nueva oferta; red caída → copia; JSON inválido → casa/copia).
+
 ### La burbuja de entrada (c3, PC y móvil: `apps/plaza/condiciones.ts`)
 
 Con la puerta encendida, la página recibe `condiciones-estado@1` con `puerta: true, abierta: false` y pone al jugador en una pompa: el mundo se

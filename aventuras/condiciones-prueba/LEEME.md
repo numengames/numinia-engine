@@ -12,3 +12,7 @@ npm run dev                                                      # la página, e
 ```
 
 Sin tocar el fichero, la puerta también se enciende en cualquier mundo con `MOTOR_CONDICIONES_PUERTA=si`.
+
+Las normas de la comunidad pueden llegar solas (w4): añade a su `condiciones.json`
+`"comunidad": { "fuente": "https://numinia.com/api/community-terms?comunidad=<id>" }` y el servidor las baja, las copia a
+`condiciones-comunidad.json` y las ofrece a quien llegue después (docs/EXTENDER.md «Las normas de la comunidad llegan solas al mundo»).

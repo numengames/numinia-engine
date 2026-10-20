@@ -33,14 +33,19 @@ const registroValido = (x: unknown): x is Registro => {
 export type OpcionesPuerta = { condiciones: Condiciones; activa: boolean; log?: (l: string) => void; ahora?: () => number };
 
 /** The gate for these conditions. `part` is the feature that keeps the acceptances (add it to the server's features only when `activa`). */
-export function crearPuertaCondiciones(o: OpcionesPuerta): PuertaCondiciones & { part: ServerPart; registro(id: string): Registro | null } {
-  const { condiciones, activa } = o, ahora = o.ahora ?? Date.now;
+export function crearPuertaCondiciones(o: OpcionesPuerta): PuertaCondiciones & { part: ServerPart; registro(id: string): Registro | null; poner(c: Condiciones): void } {
+  const { activa } = o, ahora = o.ahora ?? Date.now;
   let api: ServerApi | null = null;
   const memoria = new Map<string, Registro>(); // no feature store (a bare world): lost on restart
-  // the layers whose mandatory norms must be accepted, and the data points that can be ticked
-  const piden = condiciones.capas.filter((c) => c.puntos.some((p) => p.obligatorio && p.tipo === "norma"));
-  const datosIds = new Set(condiciones.capas.flatMap((c) => c.puntos.filter((p) => p.tipo === "datos").map((p) => p.id)));
-  const versionDe = new Map(condiciones.capas.map((c) => [c.capa as string, c.version]));
+  // the layers whose mandatory norms must be accepted, and the data points that can be ticked. condiciones/w4: `poner` swaps the
+  // text (the community published a new version) and these are derived again; whoever is already inside stays inside (Instance.admitido)
+  let condiciones = o.condiciones, piden: Condiciones["capas"] = [], datosIds = new Set<string>(), versionDe = new Map<string, string>();
+  const derivar = (): void => {
+    piden = condiciones.capas.filter((c) => c.puntos.some((p) => p.obligatorio && p.tipo === "norma"));
+    datosIds = new Set(condiciones.capas.flatMap((c) => c.puntos.filter((p) => p.tipo === "datos").map((p) => p.id)));
+    versionDe = new Map(condiciones.capas.map((c) => [c.capa as string, c.version]));
+  };
+  derivar();
 
   const registro = (id: string): Registro | null => {
     const r = api?.store.get(`a:${id}`);
@@ -70,5 +75,6 @@ export function crearPuertaCondiciones(o: OpcionesPuerta): PuertaCondiciones & {
   };
 
   const part = serverPart(condicionesFeature, (a) => { api = a; });
-  return { activa, abierta: (who) => faltan(who.id).length === 0, estado, aceptar, part, registro };
+  const poner = (c: Condiciones): void => { condiciones = c; derivar(); }; // condiciones/w4: the text for whoever arrives (or asks) from now on
+  return { activa, abierta: (who) => faltan(who.id).length === 0, estado, aceptar, part, registro, poner };
 }
