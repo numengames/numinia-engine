@@ -326,7 +326,8 @@ export function crearPesca(h: Ayudas & AyudasVR) {
     const fx = 16 + (BW - 32) * r.progreso; c.fillStyle = "#fff"; c.beginPath(); c.ellipse(fx, 95, 11, 6, 0, 0, Math.PI * 2); c.moveTo(fx - 9, 95); c.lineTo(fx - 19, 88); c.lineTo(fx - 19, 102); c.closePath(); c.fill();
     texBoya.needsUpdate = true;
   }
-  const ojoBoya = new THREE.Vector3();
+  const ojoBoya = new THREE.Vector3(), derechaBoya = new THREE.Vector3(), qBoya = new THREE.Quaternion();
+  let ladoBoya = 1; // 1 = the card stands to the right of the float as the camera sees it, -1 = to the left (toward the middle of the screen)
   /** Stand the gauge on the water beside my float (or hide it); called every frame after the anglers moved. */
   function colocarBoya(): void {
     const mio = anglers.get("self");
@@ -335,12 +336,19 @@ export function crearPesca(h: Ayudas & AyudasVR) {
     if (!ver || !mio) return;
     pintarBoya(estado);
     const f = mio.flotador.position;
-    boya.position.set(f.x, mio.destino.y + 0.04, f.z); // the waterline: where the float rests, not where it bobs or dips
     const c = h.camara?.();
-    if (c) { c.getWorldPosition(ojoBoya); h.world.worldToLocal(ojoBoya); } else ojoBoya.set(f.x, f.y + 1.6, f.z + 6);
-    boya.rotation.set(0, Math.atan2(ojoBoya.x - f.x, ojoBoya.z - f.z), 0); // yaw only: it stands upright on the water
-    escalaBoyaPuesta = escalaBoya(Math.hypot(ojoBoya.x - f.x, ojoBoya.y - f.y, ojoBoya.z - f.z));
-    boya.scale.setScalar(escalaBoyaPuesta * pulsoBoya(estado.arrancada, performance.now()));
+    if (c) { c.getWorldPosition(ojoBoya); h.world.worldToLocal(ojoBoya); derechaBoya.set(1, 0, 0).applyQuaternion(c.getWorldQuaternion(qBoya)).applyQuaternion(h.world.getWorldQuaternion(qBoya).invert()); } else ojoBoya.set(f.x, f.y + 1.6, f.z + 6);
+    const dist = Math.hypot(ojoBoya.x - f.x, ojoBoya.y - f.y, ojoBoya.z - f.z);
+    const yaw = Math.atan2(ojoBoya.x - f.x, ojoBoya.z - f.z);
+    // keep the card toward the middle of the screen (never behind a side panel): switch sides when the float drifts well off the camera's axis
+    const lateral = ((f.x - ojoBoya.x) * derechaBoya.x + (f.z - ojoBoya.z) * derechaBoya.z) / Math.max(0.5, dist);
+    if (lateral > 0.08) ladoBoya = -1; else if (lateral < -0.08) ladoBoya = 1;
+    const k = escalaBoya(dist), s = k * pulsoBoya(estado.arrancada, performance.now());
+    escalaBoyaPuesta = k;
+    boya.rotation.set(0, yaw, 0); // yaw only: it stands upright on the water
+    boya.scale.setScalar(s);
+    const lado = ladoBoya < 0 ? -(2 * HUECO_M + ANCHO_M) * k : 0; // to the left: shift back by one card width along the camera's right
+    boya.position.set(f.x + Math.cos(yaw) * lado, mio.destino.y + 0.04, f.z - Math.sin(yaw) * lado); // the waterline: where the float rests, not where it bobs or dips
   }
 
   return {

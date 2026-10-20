@@ -14,7 +14,7 @@ export const TENSION_ALTA = 80;
 export const TENSION_MEDIA = 60;
 export const VERDE = "#7bd389", AMARILLO = "#f0c35b", ROJO = "#e5484d", NARANJA = "#ff8a5b";
 /** Width of the card (m) at its smallest scale, and the distance (m) to the eye at which scale 1 is reached. */
-export const ANCHO_M = 0.62, DIST_UNO_M = 4, ESCALA_MIN = 0.8, ESCALA_MAX = 2.6;
+export const ANCHO_M = 0.75, DIST_UNO_M = 4, ESCALA_MIN = 0.8, ESCALA_MAX = 4;
 
 const limitar = (v: number, a: number, b: number) => (Number.isFinite(v) ? Math.max(a, Math.min(b, v)) : a);
 
