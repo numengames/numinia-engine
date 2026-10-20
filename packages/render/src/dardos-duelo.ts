@@ -26,11 +26,17 @@ export type Panel = {
   pie: string;
   /** Colour hint for the footer: good (you win / your turn), bad (you lose), neutral. */
   tono: "bien" | "mal" | "neutro";
-  /** v3: the button the footer turns into for ME («Empezar» for the host waiting with 2+ teams, «Cambiar turno» in «retira los dardos»), or null. */
-  boton: "empezar" | "cambiar" | null;
+  /** v3: the button the footer turns into for ME («Empezar» for the host waiting with 2+ teams, «Cambiar turno» in «retira los dardos»), or null.
+   *  R4: «unirse» on the wall board of somebody who is not in a match (it ended, or he never sat) while a remote board is free. */
+  boton: "empezar" | "cambiar" | "unirse" | null;
 };
 /** The label of each button. */
-export const TEXTO_BOTON = { empezar: "Empezar", cambiar: "Cambiar turno" } as const;
+export const TEXTO_BOTON = { empezar: "Empezar", cambiar: "Cambiar turno", unirse: "Unirme a la partida" } as const;
+
+/** R4: the panel of a wall board that is in no match while a remote board takes players: its name and the button to sit down. Pure. */
+export function panelUnirse(nombre: string): Panel {
+  return { fase: "espera", ronda: nombre.length > 24 ? `${nombre.slice(0, 23)}…` : nombre, filas: [], pie: "Toca para jugar", tono: "neutro", boton: "unirse" };
+}
 
 /** Everything the panel shows, from the controller's `duelo()` (null = no match: an empty panel). `rondas` = rounds of the board. */
 export function panelDe(d: DueloV | null, rondas: number): Panel {

@@ -14,6 +14,7 @@ import { crearCliente } from "../features/dardos/client.ts";
 import { entradas, estadoEntrada, estaLejos, tituloEntrada, CERCA_EXTRA_M } from "../apps/plaza/dardos-unirse.ts";
 import type { SitioU } from "../apps/plaza/dardos-unirse.ts";
 import { elegirSitioAR } from "../apps/plaza/dardos-duelo.ts";
+import { panelUnirse } from "../packages/render/src/dardos-duelo.ts";
 
 const s = (id: string, o: Partial<SitioU> = {}): SitioU => ({ id, nombre: `Diana ${id}`, x: 10, z: 0, radio: 3, ocupado: false, ...o });
 
@@ -128,4 +129,33 @@ test("`lejos` and `pared` on a board without `remoto` are refused; a single-thro
   assert.equal(B.d.lanzar(0, 0, 0.65, "suelta").ok, true); pump(3);
   assert.equal(B.d.estado().dardos, 1);
   void A;
+});
+
+// ---- the AR session's `end`: the game's `fin()` is what the HUD hangs its button and the match on ----
+test("leaving AR mid-match: the wrapped game's fin() runs the HUD hook and leaves the match, the rival gets the win", async () => {
+  const THREE = await import("three/webgpu");
+  const lienzo = { width: 0, height: 0, getContext: () => new Proxy({}, { get: (_t, k) => (k === "measureText" ? () => ({ width: 10 }) : () => {}), set: () => true }) };
+  (globalThis as unknown as { document?: unknown }).document = { createElement: () => lienzo };
+  try {
+    const { envolverDuelo } = await import("../packages/render/src/dardos-duelo-ar.ts");
+    const { pages: [A, B], pump, poner } = mundo(2);
+    poner(0, 8, 0); poner(1, 1500, 0); pump(12);
+    A.d.jugar("torre"); pump(3); B.d.jugar("torre", "pared"); pump(3);
+    assert.equal(B.d.duelo()?.yo, true);
+    let activo = true, finJuego = 0, botonRepintado = 0;
+    const raiz = new THREE.Group(); raiz.add(new THREE.Group());
+    const juego = { root: raiz, estado: () => ({ fase: "colocada" }), pulsar() {}, soltar() {}, update() {}, fin() { finJuego++; }, clavados() {} };
+    const w = envolverDuelo(juego as never, {
+      duelo: () => B.d.duelo() as never, yo: () => B.s.entity, activo: () => activo, rondas: () => 3,
+      salir: () => { B.d.salir(); activo = false; },
+      unirse: () => (B.d.duelo() ? null : "Torre"),
+    });
+    // what apps/plaza/dardos.ts does around it
+    const enReal = { ...w, fin() { w.fin(); botonRepintado++; } };
+    enReal.fin(); pump(3);
+    assert.equal(finJuego, 1); assert.equal(botonRepintado, 1);
+    assert.equal(A.d.duelo()!.fin?.abandono, true, "the rival is not left hanging: A won by abandonment");
+    assert.equal(A.d.duelo()!.fin?.gane, true);
+    assert.equal(panelUnirse("Torre").boton, "unirse"); assert.equal(panelUnirse("x".repeat(40)).ronda.length, 24);
+  } finally { delete (globalThis as { document?: unknown }).document; }
 });

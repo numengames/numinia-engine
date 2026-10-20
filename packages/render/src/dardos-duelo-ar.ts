@@ -8,7 +8,7 @@
 import * as THREE from "three/webgpu";
 import { RADIO_M, PINTADA } from "./diana.ts";
 import type { DianaAR, Dardo3D } from "./dardos.ts";
-import { enBoton, rectBoton, llegadas, panelDe, pintarPanel, puedeLanzar, PANEL_PX, salidaRival, vueloRival, VUELO_RIVAL_S } from "./dardos-duelo.ts";
+import { enBoton, rectBoton, llegadas, panelDe, panelUnirse, pintarPanel, puedeLanzar, PANEL_PX, salidaRival, vueloRival, VUELO_RIVAL_S } from "./dardos-duelo.ts";
 import type { Panel } from "./dardos-duelo.ts";
 import type { DueloV, P3 } from "./dardos-duelo.ts";
 
@@ -23,14 +23,16 @@ export type OpcionesDuelo = {
   rondas(): number;
   /** Leave the match (the controller's `dardos.salir()`). */
   salir(): void;
-  /** v3: the panel's button was pressed (the AR ray hit «Cambiar turno» / «Empezar»). */
-  boton?(que: "empezar" | "cambiar"): void;
+  /** v3: the panel's button was pressed (the AR ray hit «Cambiar turno» / «Empezar» / R4: «Unirme a la partida»). */
+  boton?(que: "empezar" | "cambiar" | "unirse"): void;
+  /** R4: the name of the remote board this wall board could join right now (it is in no match and one is free), or null. */
+  unirse?(): string | null;
 };
 export type DianaDueloAR = DianaAR & {
   /** Call when `duelo()` changed (`alCambiar("duelo")`): repaints the panel. */
   refrescar(): void;
   /** For tests and the e2e: the panel's state and the darts in flight. */
-  duelo(): { visible: boolean; pie: string; volando: number; boton: "empezar" | "cambiar" | null;
+  duelo(): { visible: boolean; pie: string; volando: number; boton: "empezar" | "cambiar" | "unirse" | null;
     /** world position of the button's centre (for the e2e to aim the controller at), or null without a button */ puntoBoton: { x: number; y: number; z: number } | null };
   /** For tests and the e2e: press the panel's button as the ray would (true if there was one). */
   pulsarBoton(): boolean;
@@ -58,9 +60,10 @@ export function envolverDuelo(j: DianaAR, o: OpcionesDuelo): DianaDueloAR {
   panel.position.set(0, RADIO_M * PINTADA + 0.04 + alto / 2, 0.03); panel.visible = false; diana.add(panel);
   let pie = "", actual: Panel | null = null;
   const refrescar = (): void => {
-    const p = panelDe(o.duelo(), o.rondas());
+    const d = o.duelo(), libre = d ? null : o.unirse?.() ?? null; // in no match (never sat, or the result went): a free remote board offers the seat
+    const p = !d && libre ? panelUnirse(libre) : panelDe(d, o.rondas());
     actual = p; pie = p.pie; pintarPanel(ctx, p, true); textura.needsUpdate = true;
-    panel.visible = o.activo() && p.fase !== "nada";
+    panel.visible = (o.activo() || p.boton === "unirse") && p.fase !== "nada";
   };
 
   // ---- the rival's darts: fly in, then stick (the board's own mesh takes over) ----

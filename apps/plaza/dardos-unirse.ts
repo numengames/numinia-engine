@@ -19,7 +19,7 @@ export const CERCA_EXTRA_M = 1.5;
 export const tituloEntrada = (nombre: string): string => `Dardos: jugar en ${nombre || "la diana"}`;
 
 /** What a remote board offers right now, from its shared state. Pure. */
-export function estadoEntrada(s: SitioU): { texto: string; libre: boolean } {
+export function estadoEntrada(s: Pick<SitioU, "ocupado" | "duelo" | "espera" | "jugadores" | "equipos">): { texto: string; libre: boolean } {
   const n = s.jugadores ?? 0, max = s.equipos ?? 2;
   if (!s.duelo) return s.ocupado ? { texto: "Alguien está tirando", libre: false } : { texto: "Libre", libre: true };
   if (s.espera && n >= max) return { texto: "Completa · va a empezar", libre: false };
