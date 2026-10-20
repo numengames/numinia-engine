@@ -10,7 +10,7 @@
 import * as THREE from "three/webgpu";
 import type { Nivel } from "../calidad.ts";
 import type { Atmosfera } from "../entorno.ts";
-import { alturaBase } from "../../../relieve/src/espacio-base.ts";
+import { alturaBase, SEMILLA_BASE_DEFECTO } from "../../../relieve/src/espacio-base.ts";
 import { ocultarHitos } from "../naturaleza/hitos.ts";
 import { atmosferaEspacioBase } from "./atmosfera.ts";
 import { construirMalla, LLAMADAS } from "./malla.ts";
@@ -21,7 +21,7 @@ import { crearMaterialBase, crearMaterialPuntos } from "./material.ts";
 export type EspacioBaseDatos = { activa?: boolean; semilla?: number };
 export type EspacioBaseNormal = { activa: boolean; semilla: number };
 /** Defaults: kept equal to features/espaciobase/esquema.ts `DEFECTOS` (a test compares them). */
-export const DEFECTOS_ESPACIO_BASE: EspacioBaseNormal = { activa: true, semilla: 1234 };
+export const DEFECTOS_ESPACIO_BASE: EspacioBaseNormal = { activa: true, semilla: SEMILLA_BASE_DEFECTO };
 /** Clamp whatever arrives into a usable set (the server already validated; this keeps the page safe against a newer/older server). */
 export function normalizar(d: EspacioBaseDatos): EspacioBaseNormal {
   const D = DEFECTOS_ESPACIO_BASE;

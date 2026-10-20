@@ -8,7 +8,7 @@
 // neighbours share the exact vertex: no crack to fall through), plus a wall around the border (a steep triangle blocks, M6 h6).
 // World geometry, like `solids` and the GLB mesh: NOT part of the state fingerprint. Never called inside `step`.
 import { alturaEn } from "../../relieve/src/relieve.ts";
-import { alturaBase } from "../../relieve/src/espacio-base.ts";
+import { alturaBase, SEMILLA_BASE_DEFECTO } from "../../relieve/src/espacio-base.ts";
 import { buildBvh, TRI_STRIDE } from "./bvh.ts";
 import type { Bvh } from "./bvh.ts";
 
@@ -39,7 +39,7 @@ export function terrenoDelEstado(objetos: Iterable<[string, Record<string, unkno
   for (const [k, v] of objetos) {
     if (k === CLAVE_ESPACIO_BASE) { // H2: the espacio base; the server never publishes both (features/mundo.ts keeps the nature if both are on)
       if (!v || v.activa === false) continue;
-      return { semilla: ent(v.semilla, 0, 2147483647, 1234), tamano: TAMANO_ESPACIO_BASE, plaza: 12, estanque: false, base: true };
+      return { semilla: ent(v.semilla, 0, 2147483647, SEMILLA_BASE_DEFECTO), tamano: TAMANO_ESPACIO_BASE, plaza: 12, estanque: false, base: true };
     }
     if (k !== CLAVE_NATURALEZA) continue;
     if (!v || v.activa === false) return null;
