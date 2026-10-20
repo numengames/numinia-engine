@@ -20,4 +20,15 @@ export const espacioBase = defineFeature({
       semilla: { kind: "int", min: 0, max: 2147483647 },
     },
   },
+  // Interruptor (H8, R-1): quien puede construir enciende o apaga el espacio base desde dentro; el servidor escribe `activa` en espacio-base.json (el
+  // fichero manda) y todas las páginas dibujan o quitan la malla en vivo. «restaurar» deja el fichero como el de un mundo nuevo.
+  intents: {
+    encender: { describe: "Encender (activa true) o apagar (false) el espacio base del mundo. Solo quien tiene permiso de construir; el servidor escribe «activa» en espacio-base.json (si no existe, lo crea con la semilla por defecto y no pisa la que ya hay) y todas las páginas lo aplican sin reiniciar. Si la naturaleza también está encendida, gana la naturaleza: apágala antes.", spoken: "encender o apagar el espacio base", fields: { activa: { kind: "bool" } }, rate: { perSecond: 1, burst: 3 } },
+    semilla: { describe: "Cambiar la semilla del espacio base (el relieve de alrededor de la meseta; el mismo número da el mismo relieve). Solo quien tiene permiso de construir; el servidor escribe «semilla» en espacio-base.json y todas las páginas lo aplican sin reiniciar.", spoken: "cambiar la semilla del espacio base", fields: { semilla: { kind: "int", min: 0, max: 2147483647 } }, rate: { perSecond: 2, burst: 4 } },
+    restaurar: { describe: "Dejar espacio-base.json como el de un mundo nuevo: encendido y con la semilla por defecto. Solo quien tiene permiso de construir. Lo construido (objetos, elementos) lo quitan sus propias piezas.", spoken: "restaurar el espacio base", fields: {}, rate: { perSecond: 1, burst: 3 } },
+  },
+  events: {
+    cambiado: { describe: "El espacio base del mundo se ha encendido o apagado.", fields: { estado: { kind: "enum", values: ["encendido", "apagado"] } }, announce: { text: "El espacio base del mundo está {estado}", sound: "suave", importance: 0 } },
+    rechazado: { describe: "Tu cambio del espacio base no se hizo, y por qué.", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
+  },
 });
