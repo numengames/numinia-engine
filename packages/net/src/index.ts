@@ -413,7 +413,12 @@ export function decodePase(bytes: Uint8Array): string | null {
 //   page -> server  [13]                            (one byte) «send me the conditions and where I stand»: answered at any time
 //   page -> server  [14, JSON {versiones, datos}]   what you accept; answered with a CondicionesMensaje WITHOUT `capas`
 export type CondicionesPunto = { id: string; titulo: string; texto: string; obligatorio: boolean; tipo: "norma" | "datos" };
-export type CondicionesCapa = { capa: string; nombre?: string; version: string; puntos: CondicionesPunto[] };
+/** c6 (additive): what changed in one layer since the version this person accepted. Only present when they accepted ANOTHER version of
+ * this layer before and the server kept its fingerprints; an old page ignores it and simply shows everything. A `datos` point that is
+ * `nuevo` or `cambiado` is offered with its box EMPTY (a changed point loses the permission given before); one that is not listed
+ * here was not changed: nothing is asked again and what the person said stays. `antes` = the previous titles of `cambiados` and `quitados`. */
+export type CondicionesCambios = { desde: string; nuevos: string[]; cambiados: string[]; quitados: string[]; antes?: Record<string, string> };
+export type CondicionesCapa = { capa: string; nombre?: string; version: string; puntos: CondicionesPunto[]; cambios?: CondicionesCambios };
 export type CondicionesAceptado = { versiones: Record<string, string>; datos: string[]; en: string };
 export type CondicionesMensaje = {
   formato: "condiciones-estado@1";

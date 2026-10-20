@@ -2,9 +2,12 @@
 // world with the gate OFF is untouched (apps/plaza/condiciones.ts reads no `document` until a bubble is asked for).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { aceptacion, marcasVacias, nombreDeCapa, pideBurbuja, planificar, porcentajeLeido, puedeSeguir, ROTULO_TODO, rotuloSinOpcional, todoMarcado } from "../apps/plaza/condiciones-logica.ts";
+import {
+  aceptacion, conservados, esVuelta, flechaVersion, lineaQuitado, marcasVacias, nombreDeCapa, pideBurbuja, planificar, porcentajeLeido, puedeSeguir, ROTULO_TODO, rotuloAcepto, rotuloSinOpcional,
+  SUBTITULO_CAMBIOS, TITULO_CAMBIOS, todoMarcado,
+} from "../apps/plaza/condiciones-logica.ts";
 import { montarCondiciones } from "../apps/plaza/condiciones.ts";
-import type { CondicionesCapa, CondicionesMensaje } from "../packages/net/src/index.ts";
+import type { CondicionesAceptado, CondicionesCapa, CondicionesMensaje } from "../packages/net/src/index.ts";
 
 const capas: CondicionesCapa[] = [
   { capa: "casa", nombre: "Casa de prueba", version: "1.0", puntos: [
@@ -92,6 +95,75 @@ test("porcentajeLeido: from the scroll box; a box that fits whole is read", () =
   assert.equal(porcentajeLeido(200, 100, 300), 100);
   assert.equal(porcentajeLeido(999, 100, 300), 100);
   assert.equal(porcentajeLeido(0, 100, 100), 100);
+});
+
+// ---------- c6: the person is back and a layer went up a version ----------
+const nueva = (id: string, titulo: string, tipo: "norma" | "datos" = "norma") => ({ id, titulo, texto: `texto de ${id}`, obligatorio: tipo === "norma", tipo });
+/** The house is as the person accepted it (1.0); the community went 1.0 → 1.1: `fotos` changed, `viernes` is new, `ruido` is gone; of the data points `ia` is
+ * unchanged, `avisos` changed and `sorteo` is new. */
+const capasVuelta: CondicionesCapa[] = [
+  { capa: "casa", nombre: "Casa de prueba", version: "1.0", puntos: capas[0].puntos },
+  { capa: "comunidad", nombre: "Numen Games", version: "1.1",
+    puntos: [nueva("turno", "Respeta el turno"), nueva("fotos", "No grabes ni retransmitas a otros sin pedírselo."), nueva("viernes", "Los viernes la plaza es solo para el encuentro."), nueva("ia", "Que la IA me escuche", "datos"), nueva("avisos", "Avisos y novedades", "datos"), nueva("sorteo", "El sorteo mensual", "datos")],
+    cambios: { desde: "1.0", nuevos: ["viernes", "sorteo"], cambiados: ["fotos", "avisos"], quitados: ["ruido"], antes: { fotos: "No grabes a otros sin pedírselo.", avisos: "Avisos", ruido: "No hagas ruido de noche." } } },
+];
+const dados: CondicionesAceptado = { versiones: { casa: "1.0", comunidad: "1.0" }, datos: ["informe", "ia", "avisos"], en: "2026-10-20T12:00:00.000Z" };
+
+test("c6 planificar: only the layer that changed has a page, only with the new and changed points; the removed ones in a line; the old title kept", () => {
+  const p = planificar(capasVuelta, dados);
+  assert.deepEqual(p.map((x) => x.tipo === "capa" ? x.capa : "datos"), ["comunidad", "datos"], "the house did not change: no page");
+  const c = p[0]; assert.ok(c.tipo === "capa");
+  assert.deepEqual(c.normas.map((n) => n.id), ["fotos", "viernes"], "the unchanged norm `turno` is not asked again; data points are not norms");
+  assert.deepEqual(c.cambios!.etiquetas, { viernes: "nuevo", sorteo: "nuevo", fotos: "cambiado", avisos: "cambiado" });
+  assert.equal(c.cambios!.desde, "1.0"); assert.equal(c.version, "1.1"); assert.equal(c.exige, true, "the version is still a mandatory acceptance");
+  assert.deepEqual(c.cambios!.quitados, [{ id: "ruido", titulo: "No hagas ruido de noche." }]);
+  assert.equal(c.cambios!.antes.fotos, "No grabes a otros sin pedírselo.");
+  assert.equal(esVuelta(p), true); assert.equal(esVuelta(planificar(capas)), false, "a first visit is not a return");
+});
+
+test("c6 planificar: «Tus datos» holds only the new and the changed data points, tagged, and every box starts empty", () => {
+  const d = planificar(capasVuelta, dados)[1]; assert.ok(d.tipo === "datos");
+  assert.deepEqual(d.permisos.map((x) => [x.capa, x.punto.id, x.etiqueta]), [["comunidad", "avisos", "cambiado"], ["comunidad", "sorteo", "nuevo"]]);
+  assert.equal(d.vuelve, true);
+  assert.deepEqual([...marcasVacias().datos], [], "nothing ticked by itself");
+});
+
+test("c6 planificar: no new data point → no data step; a version that changed with the same text still has its box; a layer never accepted is asked in full", () => {
+  const solo: CondicionesCapa[] = [{ capa: "comunidad", version: "1.1", puntos: [nueva("turno", "Respeta el turno")], cambios: { desde: "1.0", nuevos: [], cambiados: [], quitados: [] } }];
+  const p = planificar(solo, { versiones: { comunidad: "1.0" }, datos: [], en: "" });
+  assert.deepEqual(p.map((x) => x.tipo), ["capa"]); assert.ok(p[0].tipo === "capa" && p[0].normas.length === 0 && p[0].exige && !!p[0].cambios);
+  // the world adds the community layer: the house one is as accepted (no page), the community one never was (all of it, no labels)
+  const alta: CondicionesCapa[] = [{ ...capasVuelta[0], cambios: { desde: "0.9", nuevos: [], cambiados: ["trato"], quitados: [] } }, { ...capasVuelta[1], cambios: undefined }];
+  const q = planificar(alta, { versiones: { casa: "0.9" }, datos: [], en: "" });
+  assert.deepEqual(q.map((x) => x.tipo === "capa" ? `${x.capa}${x.cambios ? "*" : ""}` : "datos"), ["casa*", "comunidad", "datos"]);
+  const full = q[1]; assert.ok(full.tipo === "capa"); assert.equal(full.normas.length, 6 - 3, "norms of the new layer, in full");
+});
+
+test("c6 conservados/aceptacion: the permissions given for what was not asked travel in ACEPTAR; the new and changed never do by themselves", () => {
+  assert.deepEqual(conservados(capasVuelta, dados), ["informe", "ia"], "`informe` (the house layer, not shown) and `ia` (unchanged) stay; `avisos` changed: given up");
+  assert.deepEqual(conservados(capas, dados), [], "a first visit (no `cambios`): nothing is carried");
+  assert.deepEqual(conservados(capasVuelta, null), []);
+  const casaDatos: CondicionesAceptado = { ...dados, datos: ["informe", "ia"] };
+  assert.deepEqual(conservados([{ ...capasVuelta[0], puntos: capas[0].puntos }, capasVuelta[1]], casaDatos), ["informe", "ia"], "a layer not shown (same version accepted): what was given there stays given");
+  const p = planificar(capasVuelta, dados), m = marcasVacias(); m.normas.comunidad = true;
+  const gu = conservados(capasVuelta, dados);
+  assert.deepEqual(aceptacion(p, m, "ninguna", gu), { versiones: { comunidad: "1.1" }, datos: ["informe", "ia"] }, "«sin lo opcional» refuses what is on screen, not what was not asked");
+  assert.deepEqual(aceptacion(p, m, "marcadas", gu).datos, ["informe", "ia"], "boxes empty = new and changed permissions not given");
+  m.datos.add("sorteo"); assert.deepEqual(aceptacion(p, m, "marcadas", gu).datos, ["sorteo", "informe", "ia"]);
+  assert.deepEqual(aceptacion(p, m, "todo", gu).datos, ["avisos", "sorteo", "informe", "ia"]);
+  assert.deepEqual(aceptacion(planificar(capas), marcasVacias(), "ninguna").datos, [], "a first visit: as before");
+});
+
+test("c6 words: the title, the box of the version, the arrow of versions and the line of a removed point", () => {
+  assert.equal(TITULO_CAMBIOS, "Han cambiado las normas"); assert.match(SUBTITULO_CAMBIOS, /solo te enseñamos lo que ha cambiado/);
+  assert.equal(flechaVersion("1.0", "1.1"), "v1.0 → v1.1");
+  const c = planificar(capasVuelta, dados)[0]; assert.ok(c.tipo === "capa");
+  assert.equal(rotuloAcepto(c), "Acepto la versión 1.1 de las normas de Numen Games");
+  assert.equal(rotuloAcepto({ capa: "casa", propio: null, version: "2" }), "Acepto la versión 2 de las normas de la casa");
+  assert.equal(rotuloAcepto({ capa: "comunidad", propio: null, version: "B" }), "Acepto la versión B de las normas de la comunidad");
+  assert.deepEqual(lineaQuitado({ id: "ruido", titulo: "No hagas ruido." }), { tachado: "No hagas ruido.", nota: "ya no está" });
+  assert.deepEqual(lineaQuitado({ id: "ruido", titulo: null }), { tachado: "ruido", nota: "ya no está" }, "no old title kept: the id");
+  assert.equal(puedeSeguir(c, marcasVacias()), false, "the new version needs its box");
 });
 
 test("gate OFF: nothing is built, no element, no key listener, nobody is held (this runs with no `document` at all)", () => {
