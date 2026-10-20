@@ -76,6 +76,12 @@ try {
   if (!vistaA) throw new Error("el panel del constructor no se ve para quien construye");
   if (!/Botón rojo.*boton.*listo/.test(textoInicial)) throw new Error(`fila inesperada: ${textoInicial}`);
 
+  // 1b) historia B (cable sin JSON): the cable reads as a sentence and its JSON is folded in a closed «Ver datos»
+  const frase = await a.evaluate(() => ({ f: document.querySelector("#cable-lista .cable-frase")?.textContent ?? "", abierto: document.querySelector("#cable-lista details.cable-datos")?.open, resumen: document.querySelector("#cable-lista details.cable-datos summary")?.textContent }));
+  nota("1b frase y «Ver datos» cerrado", frase);
+  if (frase.f !== "Cuando alguien pulse “Botón rojo”, muestra “Farola”. Espera 2 s.") throw new Error(`frase inesperada: ${frase.f}`);
+  if (frase.abierto !== false || frase.resumen !== "Ver datos") throw new Error(`«Ver datos» debería estar cerrado: ${JSON.stringify(frase)}`);
+
   // 2) presses it (the point of the cable: the prompt and the send live in interactuar.ts for a visitor; here the
   // controller's own `pulsar`, exactly what that prompt calls) — Farola appears for A AND for B (never touched the panel)
   await a.bringToFront();

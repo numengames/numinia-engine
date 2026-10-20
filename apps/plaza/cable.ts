@@ -45,8 +45,8 @@ export function montarCable(o: OpcionesCable) {
     li.append(texto);
     // Historia B: the cable said as a sentence (the same pure function the server will use to ask for confirmation).
     const frase = document.createElement("p");
-    frase.className = "cable-frase"; frase.textContent = fraseDeCable(d, idioma());
-    li.append(document.createElement("br"), frase);
+    frase.className = "cable-frase"; frase.style.margin = "2px 0"; frase.textContent = fraseDeCable(d, idioma());
+    li.append(frase);
     if (d.tipo === "boton") {
       const b = document.createElement("button");
       b.type = "button"; b.textContent = "Probar";

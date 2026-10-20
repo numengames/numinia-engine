@@ -1339,3 +1339,11 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `cable/sin-json` (desde origin/main bd2ee141), sin subir.
 - Siguiente: historias B (frase legible), C (huecos desplegables) y D («Decirlo» con IA); y decidir si sube la versión.
+
+## 2026-10-20 13:48 · cable sin JSON, historia B · hecho
+- Qué: el panel Cable cuenta cada cable como una frase («Cuando alguien pulse “Botón rojo”, muestra “Farola”. Espera 5 s.») y el JSON queda dentro de un desplegable «Ver datos» (con su área de texto y «Guardar»; los botones «Probar», «Borrar» y «+ Nuevo cable» siguen). La frase la hace `fraseDeCable(disparador, idioma)` en `features/disparadores/cable-frase.ts`: función pura, sin DOM ni reloj, que no tira nunca; cubre los 3 «cuando» (boton, zona, senal), las **8** acciones del motor (muestra, oculta, mueve, teletransporta, da_paso, abre_enlace, suena, vuelve_a_seguro), varios receptores, cooldown y un solo uso. Ninguna palabra sale del código: los textos están en `cable-frases.es.ts` y `cable-frases.en.ts` (mismas claves; reglas de unir 2 o más receptores incluidas). La historia D la importará desde el servidor. R-1: pieza reutilizable, sin nada propio de la plaza; la página solo pinta.
+- **Pendiente: los idiomas ja, ko y pt-br.** No existe ningún fichero para ellos; hoy caen en español. Añadir uno = copiar `cable-frases.es.ts`, traducir y registrarlo (docs/EXTENDER.md «El cable»); el test de claves lo comprueba.
+- Números: `test/cable-frases.test.ts` 10/10 (cada «cuando» × cada acción × es/en, varios receptores, cooldown, un solo uso, comillas, desconocidos, paridad de claves y de parámetros, pureza, la frase exacta del ejemplo); `npm test` 1387 pruebas, 1386 bien y 1 de tiempo de la hierba (`naturaleza-hierba`) que falló por carga y pasa sola; gates en verde (página 561,8 kB gz; huella de simulación intacta, sin código nuevo en el tick); build en verde. Pierna `tools/e2e-piernas/cable.mjs` ampliada (frase y «Ver datos» cerrado): ok. Captura: `work/motor-cable/capturas/B-panel-cable.png` (y `-abierto`).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `cable/sin-json`, sin subir.
+- Siguiente: historia C (huecos desplegables en la misma frase) y D («Decirlo» con IA, que enseña la frase para confirmar).
