@@ -209,6 +209,12 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | S6f-6 | **El material del suelo es por ZONA, no por superficie.** Los pasos leen `entorno@1` (hierba, roca, nieve, liso…), así que un tablado de madera sobre una zona de roca suena a piedra. Es la historia S8 del diseño del sonido: una etiqueta de material por superficie | pendiente | no |
 | S6f-7 | **Deuda heredada (D-053), no es nuestra**: `test/subidas.test.ts:122` falla **de forma intermitente** en `origin/main` limpio y con `node_modules` propio (reproducido allí) — la respuesta a un `HEAD` de un activo subido declara `content-length: 650` cuando el fichero tiene 1604 bytes. El sonido no toca ese camino | pendiente | no |
 | AS1 | Tributo a Isaac Asimov: el Salón de los Ancestros (Ateneo) y un holograma que se enciende al acercarte y, con E, dice las Tres Leyes junto a nuestras reglas AGW (`features/ancestros`, `docs/EXTENDER.md`). Sin voz: cuando haya V3, que la lea con la voz grave y pausada de narrador | hecho (v1, 18-10) | sí |
+| FM1 | Física del mundo, capa 1: ficha `fisica@1` con las constantes de hoy (gravedad, salto, andar, correr, escalón, pendiente, caída máx.) como valores por defecto; la simulación las lee del estado compartido. **Baja prioridad (Pablo, 20-10): la primera fila que se para si hace falta capacidad.** | pendiente | sí |
+| FM2 | Física del mundo, capa 2-3: plantillas Juego · Realista · Luna · Sin gravedad · Bajo el agua + ajustes sueltos con topes (salto por ALTURA, no por fuerza) | espera a FM1 | sí |
+| FM3 | Física del mundo, capa 4a: zona de física (caja/esfera con su plantilla; gravedad hacia un punto) | espera a FM2 | sí |
+| FM4 | Física del mundo, capa 4b: material del suelo (agarre, freno, rebote) por superficie; resuelve S6f-6 para los pasos | espera a FM1 | sí |
+| FM5 | Física del mundo, capa VR: altura de cámara estable en saltos largos + «salto cómodo»; el tope se mide con Pablo en el Quest 3S | espera a FM2 | no |
+| FM6 | Física del mundo en la Torre (solo local o servidor 3): una sala «Luna» y un charco de hielo | espera a FM3 | sí |
 
 **Punto de parada «accesible» (como los PP de `CONSTRUIR.md`):** con V1, V3, V4, V5, V6 y V7 hechas, una
 persona ciega entra en la plaza desde el ordenador con su lector de pantalla, pregunta qué hay cerca, sigue
@@ -1457,3 +1463,22 @@ invitado, mismas insignias.
 
 ### U5–U9
 Ver `INTERFAZ-Y-MODS.md` §6–§9 y la tabla de límites §10 (todos `estimated` en `limits.json` hasta medirlos).
+
+### FM1–FM6 — Física del mundo (estándar, plantillas, ajustes, zonas y materiales)
+Pedido de Pablo (20-10): gravedad y físicas por mundo, lo más ligero para móvil y gafas. Estudio en
+`../motor-vr/INVESTIGACION-fisicas-mundo.md` (Roblox: plantillas Classic/Realistic/Action; VRChat: números por mundo
+con multiplicador de gravedad; Unreal Physics Volume y Godot Area3D: zonas; material físico de Unity; guía de
+locomoción de Meta: en VR marea la aceleración). **Prioridad baja** (Pablo: «sin una prioridad muy alta»; si hay que
+parar algo para dar capacidad a otra cosa, se para esto).
+- **Sin motor nuevo:** todo son números dentro de `packages/sim` (enteros, servidor manda, el navegador predice
+  igual). Peso medido 20-10 (gz) de lo que NO se mete: cannon-es 75 kB, crashcat 236 kB, Jolt 877 kB, Rapier 1,21 MB.
+- **FM1. Hecho cuando:** la ficha existe con esquema y valores de hoy, `step` lee de ella, la huella de referencia
+  `93b192c8` no cambia (sin ficha = valores de hoy) y un test cambia la gravedad y ve otra altura de salto.
+- **FM2:** el constructor elige plantilla; pide **altura** de salto y el motor calcula la fuerza con √(2·g·h) (como
+  `JUMP_V`): bajar la gravedad nunca lanza a nadie 18 m. Valores de partida (a probar, no medidos): Juego 20 m/s² y
+  1,5 m (la de hoy); Realista 9,8 y 0,6 m; Luna 1,6 y 3 m; Sin gravedad 0 (moverse = VOLAR); Bajo el agua 2, frena mucho.
+- **FM3:** zona = caja o esfera con plantilla propia o gravedad hacia un punto; entrar/salir lo decide el servidor.
+- **FM4:** el material va en la superficie (objeto o malla), no en la zona de `entorno@1`; sirve también para los
+  pasos (S6f-6) y para el agarre del coche (`../motor-vr/INVESTIGACION-vehiculos.md` §5).
+- **FM5:** no desatendible: necesita a Pablo con el Quest 3S por USB.
+- **FM6:** nunca en alchemiststower sin permiso de Pablo.
