@@ -7,7 +7,7 @@ import type { EspacioBaseMundo } from "./esquema.ts";
 
 export const crearEspacioBase = (mundo: EspacioBaseMundo | null = null) => serverPart(espacioBase, (api) => {
   if (!mundo) return;
-  api.state.set(MUNDO, { ...mundo });
+  api.state.set(MUNDO, { activa: mundo.activa, semilla: mundo.semilla }); // `objeto` is not state: features/objetos plants it once (H5)
   api.log(`espacio base: ${mundo.activa ? "encendido" : "apagado"} (semilla ${mundo.semilla})`);
 });
 

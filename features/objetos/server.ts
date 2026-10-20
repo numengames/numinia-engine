@@ -43,8 +43,13 @@ export function cajaEnMundo(o: Msg, c: Caja): Record<"bx0" | "by0" | "bz0" | "bx
   return { bx0: r(min[0]), by0: r(min[1]), bz0: r(min[2]), bx1: r(max[0]), by1: r(max[1]), bz1: r(max[2]) };
 }
 
-/** `modelos` only for tests; the real list is biblioteca.json. */
-export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPart(objetos, (api) => {
+/** H5: a thing the world is born with (planted once, see `sembrar`). Same fields `colocar` would give it; `modelo` is a library id. */
+export type Sembrado = { modelo: string; nombre: string; x: number; y: number; z: number; ry?: number; escala?: number };
+
+/** `modelos` only for tests; the real list is biblioteca.json. `sembrar` (H5, R-1: any world piece may ask for it): things planted ONCE, the first
+ * time this world's objects start empty; after that the mark `sembrado` (in the store) says it was done, so a world that already had things of
+ * its own, or whose builder deleted the planted one, never gets it back. They are ordinary things (move, delete, undo, rename all work). */
+export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: readonly Sembrado[] = []) => serverPart(objetos, (api) => {
   const enBiblioteca = new Map(modelos.map((m) => [m.modelo, m]));
   const pilas = new Map<string, Cambio[]>();
   const rehechos = new Map<string, Cambio[]>(); // M22: what each builder undid, ready to redo; a new change of theirs empties it
@@ -95,6 +100,20 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos) => serverPa
   for (const k of api.state.keys()) {
     const o = api.state.get(k);
     if (o && o.solido === true && colisionDe(o) !== String(o.colision)) api.state.set(k, { ...o, colision: colisionDe(o) });
+  }
+
+  if (sembrar.length > 0 && !api.store.get("sembrado")) {
+    api.store.set("sembrado", true);
+    if (api.state.keys().length === 0) for (const t of sembrar) {
+      const m = modelos.find((x) => x.id === t.modelo);
+      if (!m) { api.log(`[objetos] sembrar: «${t.modelo}» no está en la biblioteca (no pongo nada)`); continue; }
+      const s = q(t.escala ?? 1, PASO.escala), id = nuevoId();
+      api.state.set(id, {
+        modelo: m.modelo, x: q(t.x, PASO.pos), y: q(t.y, PASO.pos), z: q(t.z, PASO.pos), rx: 0, ry: girado(t.ry ?? 0), rz: 0, sx: s, sy: s, sz: s,
+        nombre: t.nombre, decorado: false, fijado: false, animar: true, tipo: "modelo", ext: "glb", oculto: false, volumen: 1, solido: false, colision: "ninguna",
+      });
+      api.log(`[objetos] sembrado «${t.nombre}» (${id})`);
+    }
   }
 
   const avisar = (e: number) => { api.emit("permiso", { construir: api.puede(e, "construir") }, { to: e }); };

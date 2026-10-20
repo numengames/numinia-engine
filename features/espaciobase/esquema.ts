@@ -6,10 +6,12 @@ import type { Issue, Result } from "../../packages/core/src/index.ts";
 
 export const ESQUEMA = "numinia-engine/espacio-base@1";
 /** The validated world, flat, as it travels (the state's fields). */
-export type EspacioBaseMundo = { activa: boolean; semilla: number };
+export type EspacioBaseMundo = { activa: boolean; semilla: number; objeto: string | null };
+/** H5: the model the espacio base is born with (a house-library id, features/objetos/biblioteca.json): the Logo Khepri. `objeto: null` = none. */
+export const OBJETO_DEFECTO = "logo-khepri";
 /** What a file that says nothing gets (kept equal to packages/render/src/espacio-base/espacio-base.ts `DEFECTOS_ESPACIO_BASE`; a test compares). */
-export const DEFECTOS: EspacioBaseMundo = { activa: true, semilla: 1234 };
-const CLAVES = ["schema", "activa", "semilla"];
+export const DEFECTOS: EspacioBaseMundo = { activa: true, semilla: 1234, objeto: OBJETO_DEFECTO };
+const CLAVES = ["schema", "activa", "semilla", "objeto"];
 const obj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 export function leerEspacioBase(json: unknown): Result<EspacioBaseMundo> {
@@ -22,6 +24,11 @@ export function leerEspacioBase(json: unknown): Result<EspacioBaseMundo> {
     const s = json.semilla;
     if (typeof s === "number" && Number.isInteger(s) && s >= 0 && s <= 2147483647) v.semilla = s;
     else issues.push({ path: "espacio-base.semilla", message: "un número entero entre 0 y 2147483647 (mismo número = mismo relieve; la meseta del centro es llana para todos)" });
+  }
+  if (json.objeto !== undefined) {
+    if (json.objeto === null) v.objeto = null;
+    else if (typeof json.objeto === "string" && /^[a-z0-9][a-z0-9-]{0,39}$/.test(json.objeto)) v.objeto = json.objeto;
+    else issues.push({ path: "espacio-base.objeto", message: "el id de un modelo de la biblioteca de la casa (p. ej. \"logo-khepri\"), o null para no poner ninguno" });
   }
   return issues.length ? { ok: false, issues } : { ok: true, value: v };
 }

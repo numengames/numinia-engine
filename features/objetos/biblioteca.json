@@ -37,6 +37,15 @@
       "licencia": "CC0-1.0",
       "autor": "Numen Games (obra propia)",
       "fuente": "tools/hacer-terreno.mjs"
+    },
+    {
+      "id": "logo-khepri",
+      "nombre": "Logo Khepri",
+      "modelo": "d3c97061aa84f098bdfed1ec88c689acef867025e5399b20c74f917410e4492d",
+      "fichero": "activos/espacio-base/logo-khepri.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Archivo de numinia.com (Logo Khepri 0.1.3, CC0); aquí con metallicFactor 0 y roughnessFactor 0,9 (de noche el metal sin entorno se ve negro); mismos vértices y textura",
+      "fuente": "https://numinia.com/es/archive/ndg-019d3e75-7731-7261-913d-842515f90190"
     }
   ]
 }
