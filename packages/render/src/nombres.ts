@@ -150,7 +150,7 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
       for (const t of lectores.size ? new Set([...texts.keys(), ...lectores.keys()]) : texts.keys()) {
         const text = textoDe(t), a = t === "self" || !text ? undefined : o.avatarOf(t); // your own name is never drawn over you
         let p = tags.get(t);
-        if (!a || far(a, NOMBRE_VISIBLE_M) || !nombreVisible({ todos: ver.todos, mirado: ver.mirado === t, habla: bubbles.has(t), marca: lectores.has(t) })) { if (p) p.mesh.visible = false; continue; }
+        if (!a || far(a, NOMBRE_VISIBLE_M) || !nombreVisible({ todos: ver.todos, mirado: ver.mirado === t, habla: bubbles.has(t) || lectores.has(t) })) { if (p) p.mesh.visible = false; continue; }
         shown.push({ t, a, d: me ? (a.position.x - me.position.x) ** 2 + (a.position.z - me.position.z) ** 2 : 0 });
         if (p && p.text !== text) { drop(tags, t); p = undefined; } // the words changed (they started or stopped reading)
         if (!p) tags.set(t, nameplate(text));
