@@ -75,7 +75,7 @@ export class ClientSession {
    * a world says it has nature: a world without naturaleza.json never downloads it and its flat path is untouched. */
   private sincronizarTerreno(): void {
     let pide = false;
-    for (const [k, v] of this.features.allState()) if (k === "naturaleza:mundo") { pide = (v as { activa?: boolean }).activa !== false; break; }
+    for (const [k, v] of this.features.allState()) if (k === "naturaleza:mundo" || k === "espacio-base:mundo") { pide = (v as { activa?: boolean }).activa !== false; break; }
     if (!pide && !this.terreno) return;
     if (!this.terrenoMod) { void import("../../sim/src/terreno-malla.ts").then((m) => { this.terrenoMod = m; this.sincronizarTerreno(); }, () => {}); return; }
     const M = this.terrenoMod, m = M.terrenoDelEstado(this.features.allState());

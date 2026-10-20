@@ -303,8 +303,8 @@ export function crearEntorno(h: EntornoHooks) {
   }
 
   /** Apply an environment (flat fields). Safe to call at any time; with AR on, it waits until the world shows again. */
-  function aplicar(v: EntornoDatos): void {
-    d = v;
+  function aplicar(pedido: EntornoDatos): void {
+    d = pedido; const v = pedido;
     if (!world.visible) { pendiente = true; return; }
     pendiente = false; aplicados++;
     // sun (the sky's) and the light (the moon when the sun is down)
@@ -397,6 +397,8 @@ export function crearEntorno(h: EntornoHooks) {
 
   return {
     solDir, luzDir, viento, vientoU, solColorU, aguaLuz,
+    /** H2: the day factor the sky already follows (uniform, 0 night … 1 day): pieces that only change colour read it (espacio-base/material.ts). */
+    diaU: atmU.dia,
     get nivel(): Nivel { return nivel; },
     get calidadActual(): Calidad { return calidad; },
     aplicar,

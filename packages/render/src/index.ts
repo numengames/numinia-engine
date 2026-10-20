@@ -53,6 +53,7 @@ export type { Huella, ImagenCenital } from "./cenital.ts";
 import { crearEntorno } from "./entorno.ts";
 import { vistaElementos } from "./elementos-vista.ts";
 
+import { crearEspacioBasePerezoso } from "./espacio-base/cargador.ts"; // H2: the empty night world of luminous lines (a separate chunk, fetched only when a world asks)
 import { crearNaturalezaPerezosa, horaDeEntorno } from "./naturaleza/cargador.ts"; // N4b: relief + trees + grass from a seed (the piece is a separate chunk, fetched only when a world asks)
 import { audio } from "./audio/nucleo.ts"; // F5: the creatures sound on the shared audio core (ambient bus)
 import { vistaPesca } from "./pesca-vista.ts";
@@ -277,6 +278,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
 
   const yoNat = { x: 0, y: 0, z: 0 }; // F4 audit: one object reused every frame (the nature reads it at once)
   const naturaleza = crearNaturalezaPerezosa({ padre: world, ground, vientoU: entorno.vientoU, nivel: () => entorno.nivel, camara: camera, yo: () => (selfXZ ? (yoNat.x = selfXZ.x, yoNat.y = selfXZ.y ?? 0, yoNat.z = selfXZ.z, yoNat) : null), niebla: () => (scene.fog instanceof THREE.Fog ? scene.fog.color.getHex() : 0xc9d8e4), aguaLuz: entorno.aguaLuz, detalleAgua: () => detalleAgua(entorno.nivel, entorno.calidadActual.agua), hora: () => horaDeEntorno(entorno.datos), nucleo: audio, hitos: () => hitos, atmosfera: entorno.atmosfera }); // R7.1 atmosphere; N4 + F4 + F5 (creature sound on the audio core's ambient bus) (hour of day for the fauna)
+  const espacioBase = crearEspacioBasePerezoso({ padre: world, ground, nivel: () => entorno.nivel, dia: entorno.diaU, hitos: () => hitos, atmosfera: entorno.atmosfera }); // H2: builds nothing until a world brings espacio-base.json
 
 
   // feature decorations (J7): a text label over an avatar and a short bounce; both expire on their own
@@ -864,7 +866,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     updateThings(dtSeconds);
     selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
     editor.frame();
-    entorno.actualizar(); naturaleza.actualizar(dtSeconds); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ);
+    entorno.actualizar(); naturaleza.actualizar(dtSeconds); espacioBase.actualizar(dtSeconds); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ);
     if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); dardosVR.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
     pesca.actualizar(dtSeconds);
     if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
@@ -895,6 +897,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     entorno,
     /** N4: the world's low-poly nature (aplicar, estadisticas, terreno) — packages/render/src/naturaleza/naturaleza.ts; builds nothing until a world asks. */
     naturaleza,
+    /** H2: the espacio base (aplicar, estadisticas, alturaEn) — packages/render/src/espacio-base/espacio-base.ts; builds nothing until a world asks. */
+    espacioBase,
     /** H4/H8: water, fire, smoke and dust (poner, contar) — packages/render/src/elementos.ts, loaded with the first one. */
     elementos,
     /** N16: the light of a trip (lanzar, estado) — packages/render/src/teletransporte.ts; the body hides meanwhile. */

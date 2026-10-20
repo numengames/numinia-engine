@@ -100,6 +100,21 @@
     #carga .c-puntos::after { content: ""; animation: c-puntos 1.4s steps(4, end) infinite; }
     @keyframes c-puntos { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } 100% { content: ""; } }
     @media (prefers-reduced-motion: reduce) { #carga { transition: none; } #carga .c-puntos::after { animation: none; content: "…"; } }
+    /* H4: only for a world with an espacio base (carga.ts adds «eb» once /status says so): the house's line mesh draws itself in
+       perspective as the real load advances (--p, 0…1, set a few times by carga.ts; no script runs per frame). 19 SVG lines, no image,
+       no library, nothing downloaded; any other world keeps the moon above, untouched. */
+    @property --p { syntax: "<number>"; inherits: true; initial-value: 0; }
+    #carga .c-malla, #carga .c-pie { display: none; }
+    #carga.eb { background: #14110f; --p: 0; transition: opacity .6s ease, --p .7s ease-out; }
+    #carga.eb .c-caja { display: none; }
+    #carga.eb .c-malla { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
+    #carga.eb .c-pie { display: block; position: absolute; left: 0; right: 0; bottom: 7vh; margin: 0; font: 13px/1 system-ui, sans-serif; letter-spacing: .12em; text-align: center; color: #a6dad5; }
+    #carga .c-malla path { fill: none; stroke: #018ea1; stroke-width: .24; stroke-dasharray: 1; stroke-dashoffset: calc(1 - clamp(0, (var(--p) - var(--a)) / var(--d, .25), 1)); }
+    #carga .c-malla .h { stroke: #a6dad5; }
+    #carga .c-malla .r { stroke: #efa517; }
+    #carga .c-malla .z { animation: c-brilla 2.4s ease-in-out infinite alternate; }
+    @keyframes c-brilla { from { opacity: .55; } to { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { #carga.eb { transition: none; } #carga .c-malla .z { animation: none; } }
     .solo-lector { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
     /* N2: the settings menu (a real <dialog>: keyboard, touch and screen readers) and what its settings change */
     :root { --ui: 1; }
@@ -152,6 +167,8 @@
 </head>
 <body>
   <div id="carga" aria-hidden="true"><!-- MVL3 step 1: moon + running dots, gone by main.ts once the first frame is drawn -->
+    <svg class="c-malla" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false"><path pathLength="1" style="--a:0.02;--d:.3" d="M-60 96L80 36"/><path pathLength="1" style="--a:0.06;--d:.3" d="M-12 96L80 36"/><path pathLength="1" style="--a:0.10;--d:.3" d="M24 96L80 36"/><path pathLength="1" style="--a:0.14;--d:.3" d="M52 96L80 36"/><path pathLength="1" style="--a:0.18;--d:.3" d="M80 96L80 36"/><path pathLength="1" style="--a:0.22;--d:.3" d="M108 96L80 36"/><path pathLength="1" style="--a:0.26;--d:.3" d="M136 96L80 36"/><path pathLength="1" style="--a:0.30;--d:.3" d="M172 96L80 36"/><path pathLength="1" style="--a:0.34;--d:.3" d="M220 96L80 36"/><path pathLength="1" style="--a:0.04;--d:.2" d="M-20 88L180 88"/><path pathLength="1" style="--a:0.11;--d:.2" d="M-20 72L180 72"/><path pathLength="1" style="--a:0.17;--d:.2" d="M-20 60L180 60"/><path pathLength="1" style="--a:0.24;--d:.2" d="M-20 52L180 52"/><path pathLength="1" style="--a:0.30;--d:.2" d="M-20 46L180 46"/><path pathLength="1" style="--a:0.36;--d:.2" d="M-20 42L180 42"/><path pathLength="1" style="--a:0.43;--d:.2" d="M-20 39.5L180 39.5"/><path pathLength="1" style="--a:0.49;--d:.2" d="M-20 38L180 38"/><path class="h" pathLength="1" style="--a:0;--d:.12" d="M-20 36L180 36"/><path class="r z" pathLength="1" style="--a:.66;--d:.3" d="M-10 36L8 25L20 30L38 14L52 26L66 19L80 31L96 17L112 27L128 12L146 28L160 22L170 36"/></svg>
+    <p class="c-pie">Cargando <span class="c-pct">0 %</span></p><!-- H4: only with the mesh («eb») -->
     <div class="c-caja">
       <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
         <defs><mask id="c-luna-mask"><rect width="64" height="64" fill="#fff" /><circle cx="40" cy="24" r="22" fill="#000" /></mask></defs>

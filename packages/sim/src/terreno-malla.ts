@@ -8,12 +8,18 @@
 // neighbours share the exact vertex: no crack to fall through), plus a wall around the border (a steep triangle blocks, M6 h6).
 // World geometry, like `solids` and the GLB mesh: NOT part of the state fingerprint. Never called inside `step`.
 import { alturaEn } from "../../relieve/src/relieve.ts";
+import { alturaBase, SEMILLA_BASE_DEFECTO } from "../../relieve/src/espacio-base.ts";
 import { buildBvh, TRI_STRIDE } from "./bvh.ts";
 import type { Bvh } from "./bvh.ts";
 
 /** The shared-state key the naturaleza feature publishes the world under (features/naturaleza/feature.ts: `naturaleza` + `:` + MUNDO).
  * A test pins it; the sim cannot import features/, so the string lives here. */
 export const CLAVE_NATURALEZA = "naturaleza:mundo";
+/** H2: the key of the espacio base (features/espaciobase: `espacio-base` + `:` + `mundo`). Its ground is `alturaBase` (a flat plateau at 0, then relief),
+ * walked with the very same mesh, wall and quantisation as the nature's terrain. */
+export const CLAVE_ESPACIO_BASE = "espacio-base:mundo";
+/** H2: the espacio base's world is a fixed square (m) and its plateau radius is `RADIO_MESETA` (relieve/espacio-base.ts): the collision wall stands at the edge. */
+export const TAMANO_ESPACIO_BASE = 400;
 /** Collision cell (m): coarser than the drawing (72 cells on a 200 m world = 2.78 m on tier A, 7 m on tier D). */
 export const CELDA_COLISION_M = 2;
 /** Cells per side at most: 100 → 20 000 triangles + 800 of wall. A bigger world gets bigger cells (400 m → 4 m). */
@@ -23,7 +29,7 @@ export const MURO_ALTO_M = 8;
 export const MURO_BAJO_M = 4;
 
 /** What the shared state says about the world's nature, validated and clamped to the schema's ranges (esquema.ts). */
-export type TerrenoMundo = { semilla: number; tamano: number; plaza: number; estanque: boolean };
+export type TerrenoMundo = { semilla: number; tamano: number; plaza: number; estanque: boolean; /** H2: true = the espacio base's ground (`alturaBase`), not the nature's. */ base?: boolean };
 export type TerrenoMalla = { bvh: Bvh; mundo: TerrenoMundo; celdas: number; triangulos: number; hmin: number; hmax: number; clave: string };
 
 const ent = (v: unknown, min: number, max: number, def: number): number => typeof v === "number" && Number.isInteger(v) && v >= min && v <= max ? v : def;
@@ -31,6 +37,10 @@ const ent = (v: unknown, min: number, max: number, def: number): number => typeo
 /** The terrain a shared state asks for, or null (no naturaleza, switched off, or not there yet). `objetos` are `allState()` entries. */
 export function terrenoDelEstado(objetos: Iterable<[string, Record<string, unknown>]>): TerrenoMundo | null {
   for (const [k, v] of objetos) {
+    if (k === CLAVE_ESPACIO_BASE) { // H2: the espacio base; the server never publishes both (features/mundo.ts keeps the nature if both are on)
+      if (!v || v.activa === false) continue;
+      return { semilla: ent(v.semilla, 0, 2147483647, SEMILLA_BASE_DEFECTO), tamano: TAMANO_ESPACIO_BASE, plaza: 12, estanque: false, base: true };
+    }
     if (k !== CLAVE_NATURALEZA) continue;
     if (!v || v.activa === false) return null;
     return { semilla: ent(v.semilla, 0, 2147483647, 1234), tamano: ent(v.tamano, 100, 400, 200), plaza: ent(v.plaza, 4, 40, 12), estanque: v.estanque !== false };
@@ -38,12 +48,12 @@ export function terrenoDelEstado(objetos: Iterable<[string, Record<string, unkno
   return null;
 }
 
-export const claveTerreno = (m: TerrenoMundo): string => `${m.semilla}|${m.tamano}|${m.plaza}|${m.estanque ? 1 : 0}`;
+export const claveTerreno = (m: TerrenoMundo): string => `${m.base ? "b" : ""}${m.semilla}|${m.tamano}|${m.plaza}|${m.estanque ? 1 : 0}`;
 /** Cells per side the collision mesh uses for a world of this side. */
 export const celdasColision = (tamano: number): number => Math.min(CELDAS_COLISION_MAX, Math.max(1, Math.ceil(tamano / CELDA_COLISION_M)));
 
 /** Triangles (1/64 m ints, `bvh.ts` TRI_STRIDE each) of the terrain plus its border wall, and the height range (m). */
-export function triangulosDeTerreno(m: TerrenoMundo, altura: (x: number, z: number) => number = (x, z) => alturaEn(m.semilla, x, z, { tamano: m.tamano, plaza: m.plaza, sinEstanque: !m.estanque })): { tris: Int32Array; celdas: number; hmin: number; hmax: number } {
+export function triangulosDeTerreno(m: TerrenoMundo, altura: (x: number, z: number) => number = m.base ? (x, z) => alturaBase(m.semilla, x, z) : (x, z) => alturaEn(m.semilla, x, z, { tamano: m.tamano, plaza: m.plaza, sinEstanque: !m.estanque })): { tris: Int32Array; celdas: number; hmin: number; hmax: number } {
   const n = celdasColision(m.tamano), nv = n + 1, mitad = m.tamano / 2, paso = m.tamano / n;
   const X = new Int32Array(nv), H = new Int32Array(nv * nv);
   for (let i = 0; i < nv; i++) X[i] = Math.round((-mitad + i * paso) * 64);

@@ -540,7 +540,7 @@ export class Instance {
   }
   /** N5: with naturaleza on and no `aparicion` in the world, people appear inside the flat plaza (its disc, 60 % of the radius so the square's corners stay in). */
   private aparicionTerreno(): SpawnArea | null {
-    return this.terreno ? { x: 0, z: 0, radio: this.terreno.mundo.plaza * 0.6 } : null;
+    return this.terreno ? { x: 0, z: 0, radio: this.terreno.mundo.base ? 3 : this.terreno.mundo.plaza * 0.6 } : null; // H2: the espacio base is born at spawnBase() (0, 0), a few metres around it
   }
   /** E6: times the solid boxes were redone (bench / tests). */
   solidosRehechos = 0;

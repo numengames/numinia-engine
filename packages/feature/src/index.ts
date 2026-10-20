@@ -930,6 +930,8 @@ export type ViewHooks = {
   entorno?(valores: Msg): void;
   /** N4: the world's low-poly nature (relief, trees, grass) by field name — features/naturaleza; render/naturaleza/naturaleza.ts builds it. */
   naturaleza?(valores: Msg): void;
+  /** H2: the world's espacio base (luminous line mesh, empty night) by field name — features/espaciobase; render/espacio-base/espacio-base.ts draws it. */
+  espacioBase?(valores: Msg): void;
   /** H4/H8: an element of the world (water, fire, smoke, dust) by key, or `null` to take it away — features/elementos. */
   elemento?(key: string, valores: Msg | null): void;
   /** N18: what a person wears — a model by its sha256 in a hand or on the head (features/bienes) — or `null` to take it off. */
