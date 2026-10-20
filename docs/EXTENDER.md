@@ -1169,3 +1169,59 @@ Crisálida» al acercarte. Diseño completo (combate y bestiario de 12): `mmo-br
   reaparicion? }] }`, `features/mundo.ts`); sin fichero, el Guardián de la casa en (24, 10). Especie desconocida = se
   avisa y no se pone.
 - **PVE por defecto**: el objetivo es una criatura salvo que el mundo active el PVP en su `entorno.json` (`pvp` / `zonasPvp`, arriba; objetivo `p:<entidad>`); que la criatura se mueva es fila L2-L8.
+
+## Condiciones de entrada (condiciones/c1-c2): las normas del mundo y la puerta del servidor
+
+Un mundo dice qué hay que aceptar para entrar en `aventura/condiciones.json` (formato `condiciones@1`; sin fichero, el
+ejemplo de la casa; fichero roto = una línea en el registro con la ruta del fallo y el ejemplo de la casa).
+
+```json
+{ "formato": "condiciones@1", "puerta": true,
+  "capas": [
+    { "capa": "casa", "version": "2026-10", "puntos": [
+      { "id": "uso",     "titulo": "Normas de uso", "texto": "…", "obligatorio": true,  "tipo": "norma" },
+      { "id": "informe", "titulo": "Informe anónimo de rendimiento", "texto": "…", "obligatorio": false, "tipo": "datos" } ] },
+    { "capa": "comunidad", "version": "A", "puntos": [ … ] } ] }
+```
+
+- **Capas**: `casa` (la plataforma) y `comunidad` (la organización), cada una con su `version`. Aceptar una capa es aceptar
+  esa versión; si el texto cambia y subes la versión, todos vuelven a tener que aceptarla.
+- **`tipo`** (por punto, opcional, por defecto `"norma"`): `norma` = una condición del servicio, y si es `obligatorio` cierra
+  la puerta hasta que se acepta; `datos` = un permiso sobre datos (informe de sesión, IA que escucha, avisos…) que
+  **nunca** puede ser obligatorio (EDPB 05/2020 §39, RGPD 7.4): `obligatorio: true` con `tipo: "datos"` es un error del
+  validador y el mensaje dice cómo arreglarlo (`"obligatorio": false`, o `"tipo": "norma"` si en realidad es una norma).
+  Rechazar un punto de datos no bloquea nunca.
+- **`puerta`** (opcional, `true`/`false`): pide encender la puerta del servidor para este mundo.
+
+### La puerta (apagada por defecto)
+
+Con la puerta **encendida**, una persona que no ha aceptado todas las normas obligatorias de la versión actual de cada capa
+se queda quieta donde llegó (sus entradas de movimiento se ignoran), y se ignoran su chat, su voz (no se reenvía nada de su
+micrófono) y todo mensaje de función: colocar y construir, y cualquier acción de juego. Ver y oír a los demás no se toca.
+No es un error del cliente: no suma a los mensajes malos. Una IA con su billete firmado no pasa por la puerta (no tiene
+burbuja que pulsar).
+
+Quién decide si está encendida, por orden: la opción del servidor `condicionesPuerta` (`startServer`) o la variable de
+entorno `MOTOR_CONDICIONES_PUERTA=si|no` → la clave `puerta` de `condiciones.json` → **apagada**. Con la puerta apagada el
+servidor se comporta exactamente como antes (no envía nada por su cuenta, no registra la función `condiciones`, no cambia
+ni un byte) y solo contesta si la página pregunta. El registro del arranque dice una línea con el estado
+(`[condiciones] puerta apagada|ENCENDIDA …`).
+
+### Los mensajes (net, tipos 13 y 14, aditivos; `WIRE_FORMAT` sigue en 2)
+
+- **`CONDICIONES` (13), servidor → página**: `[13, JSON]` con
+  `{ formato: "condiciones-estado@1", puerta, abierta, faltan: [capa…], aceptado: { versiones: {capa: versión}, datos: [id…], en: ISO } | null, capas?: [{ capa, version, puntos: [{ id, titulo, texto, obligatorio, tipo }] }] }`.
+  `abierta` = puedes moverte, hablar y construir (puerta apagada, o ya aceptaste lo vigente). `faltan` = las capas cuya versión
+  vigente tienes que aceptar. `capas` (el texto entero) va en la oferta y no en la respuesta a `ACEPTAR`. Con la puerta encendida
+  la oferta llega sola justo después de `IDENTITY`.
+- **`CONDICIONES` (13), página → servidor**: un solo byte `[13]` = «mándame las condiciones y dónde estoy». Se contesta siempre
+  (puerta encendida o apagada, antes o después de `IDENTITY`).
+- **`ACEPTAR` (14), página → servidor**: `[14, JSON]` con `{ versiones: { capa: "versión que leíste" }, datos: ["id de dato marcado"…] }`
+  (hasta 4 capas, 40 ids, 40 caracteres cada texto, 900 bytes). Solo cuentan las versiones **vigentes** y los ids que existen
+  como puntos `datos`; lo demás se ignora. `datos` es exactamente la lista de permisos marcados (otra aceptación la sustituye:
+  desmarcar es retirar). Hace falta haberse identificado (se guarda por persona); hasta 5 por segundo. Se contesta con un
+  `CONDICIONES` sin `capas`.
+- Se guarda por persona (`a:<id>` en el almacén de la función `condiciones`, `datos/condiciones.json`; solo existe con la puerta
+  encendida): `{ v: {capa: versión}, d: [ids], en: ISO UTC }`; sobrevive a reinicios y viaja con la persona.
+- Cliente (`ClientSession`): `condiciones` (último mensaje; conserva el último `capas`), `onCondiciones`, `pedirCondiciones()` y
+  `aceptar(versiones, datos = [])`.
