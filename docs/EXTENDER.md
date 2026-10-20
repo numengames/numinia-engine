@@ -1057,9 +1057,21 @@ registro dice `nadie hace «teletransporta» en este servidor` en vez de callar.
   - Pieza reutilizable (R-1): cualquier mundo que cargue `disparadores` lo trae; la página no decide nada, solo
     manda la petición y pinta el estado que el servidor deja. En código: `disparadores.crearDisparador(…)` y
     `disparadores.borrarDisparador(id)` en `features/disparadores/client.ts`.
+- **El cable dicho como frase (historia B, «cable sin JSON»):** el panel Cable enseña cada cable como una frase
+  («Cuando alguien pulse “Botón rojo”, muestra “Farola”. Espera 5 s.») y deja el JSON dentro de un desplegable
+  **«Ver datos»** (con el área de texto y «Guardar» de siempre). La frase la hace una función **pura**,
+  `fraseDeCable(disparador, idioma)` en `features/disparadores/cable-frase.ts`: sin DOM, sin reloj, nunca tira (lo
+  que no entiende sale como una frase segura) y cubre los 3 «cuando» (`boton`, `zona`, `senal`), las 8 acciones, varios
+  receptores, el cooldown y el «un solo uso». Como no depende de la página, la misma función sirve al servidor y a
+  los agentes (la historia D la usará para enseñar la frase antes de confirmar). **Ninguna palabra sale del código:**
+  los textos viven en un fichero por idioma, `cable-frases.es.ts` y `cable-frases.en.ts`, con parámetros `{nombre}`,
+  `{objeto}`, `{segundos}`… y las reglas de unir varios receptores (`lista.dos`, `lista.sep`, `lista.ultimo`; en
+  inglés lleva la coma final). **Añadir un idioma:** copia `cable-frases.es.ts`, traduce los valores (mismas claves,
+  mismos `{parámetros}`), regístralo en `FRASES` e `IDIOMAS` de `cable-frase.ts`; `test/cable-frases.test.ts`
+  falla si falta una clave o cambia un parámetro. El idioma de la página es el `lang` del documento (`es` si no hay
+  o no existe). Hoy hay `es` y `en`; **`ja`, `ko` y `pt-br` están pendientes** y caen en español.
 - **Lo que no hace (todavía):** cambiar el tipo o el sitio de un cable ya creado (hoy se borra y se crea de nuevo);
-  la frase legible en vez de JSON para los receptores (historia B), los huecos desplegables (C) y «Decirlo» con
-  una IA (D). La vista del constructor (`apps/plaza/cable.ts`) lista cada disparador, deja «Probar» un botón y edita
+  los huecos desplegables (C) y «Decirlo» con una IA (D). La vista del constructor (`apps/plaza/cable.ts`) lista cada disparador, deja «Probar» un botón y edita
   en vivo sus receptores (`editarReceptores`: el servidor valida cada receptor igual que al leer el fichero y, si
   acepta, reescribe `disparadores.json`; el campo `receptores` del estado viaja a toda página, como el resto de la
   ficha; no es un secreto como el código de una cerradura). Sin servidor con escritor de ficheros el cambio vale

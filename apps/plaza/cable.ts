@@ -9,8 +9,9 @@
 // receptor de partida (suena «campana») y cada cable tiene su «Borrar» con confirmación en la propia fila. La página
 // SOLO manda la petición (crearDisparador / borrarDisparador) y pinta lo que el servidor deja en el estado: él valida,
 // pone el tope de 64 y escribe el fichero. Solo quien tiene permiso de construir. Visitors never see this panel.
+import { fraseDeCable, idiomaDe } from "../../features/disparadores/cable-frase.ts";
 type Res = { ok: true } | { ok: false; why: string };
-export type Disparador = { id: string; nombre: string; tipo: "zona" | "boton" | "senal"; cooldown: number; unSoloUso: boolean; usos: number; enEspera: boolean; agotado: boolean; receptores: Record<string, unknown>[] };
+export type Disparador = { id: string; nombre: string; tipo: "zona" | "boton" | "senal"; senal?: string; cooldown: number; unSoloUso: boolean; usos: number; enEspera: boolean; agotado: boolean; receptores: Record<string, unknown>[] };
 /** What «+ Nuevo cable» sends: one line of disparadores.json (the server fills nothing in and checks everything). */
 export type NuevoCable = { id: string; tipo: "boton"; nombre: string; x: number; y: number; z: number; radio: number; frase: string; cooldown: number; receptores: Record<string, unknown>[] };
 export type OpcionesCable = {
@@ -18,12 +19,14 @@ export type OpcionesCable = {
   disparadores: { lista(): Disparador[]; pulsar(id: string): Res; editarReceptores(id: string, receptores: Record<string, unknown>[]): Res; crearDisparador(d: NuevoCable): Res; borrarDisparador(id: string): Res; alCambiar(fn: (id: string) => void): () => void };
   aqui?(): { x: number; y: number; z: number } | null; // where the builder stands: a new cable goes there
   decir(texto: string): void; // soltar.ts' status line (role=status)
+  idioma?: string;            // language of the sentences (default: the page's <html lang>, then Spanish)
   panel: HTMLElement | null;  // the builder's «Cable» drawer: the list goes inside it (its heading says «Cable»)
 };
 
 const estadoTexto = (d: Disparador): string => d.agotado ? "agotado" : d.enEspera ? "en espera" : "listo";
 
 export function montarCable(o: OpcionesCable) {
+  const idioma = (): string => idiomaDe(o.idioma ?? (typeof document !== "undefined" ? document.documentElement.lang : ""));
   const caja = document.createElement("div");
   caja.id = "cable-panel"; caja.setAttribute("role", "group"); caja.setAttribute("aria-label", "Cable: disparadores del mundo");
   const nuevo = document.createElement("button");
@@ -40,6 +43,10 @@ export function montarCable(o: OpcionesCable) {
     const texto = document.createElement("span");
     texto.textContent = `${d.nombre} (${d.tipo}${d.unSoloUso ? ", un solo uso" : ""}) · ${estadoTexto(d)} · ${d.usos} uso(s)`;
     li.append(texto);
+    // Historia B: the cable said as a sentence (the same pure function the server will use to ask for confirmation).
+    const frase = document.createElement("p");
+    frase.className = "cable-frase"; frase.textContent = fraseDeCable(d, idioma());
+    li.append(document.createElement("br"), frase);
     if (d.tipo === "boton") {
       const b = document.createElement("button");
       b.type = "button"; b.textContent = "Probar";
@@ -62,7 +69,12 @@ export function montarCable(o: OpcionesCable) {
       const r = o.disparadores.editarReceptores(d.id, receptores as Record<string, unknown>[]);
       if (!r.ok) o.decir(`No: ${r.why}.`);
     });
-    li.append(document.createElement("br"), area, " ", guardar);
+    // Historia B: the JSON stays, folded away in a native <details> (keyboard: Tab to the summary, Enter/Space opens it).
+    const datos = document.createElement("details");
+    datos.className = "cable-datos";
+    const resumen = document.createElement("summary"); resumen.textContent = "Ver datos";
+    datos.append(resumen, area, " ", guardar);
+    li.append(datos);
     // Historia A: «Borrar» pide confirmación en la propia fila (sin ventanas del navegador, que no se leen igual).
     li.append(document.createElement("br"));
     if (!confirmando.has(d.id)) {
