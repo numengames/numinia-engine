@@ -5,8 +5,8 @@ import { fxToFloat } from "../../core/src/index.ts";
 import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, PISO_SIN_SUELO, TICK_HZ } from "../../sim/src/index.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import type { Body, SimState } from "../../sim/src/index.ts";
-import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, encodeIdentityRequest, encodePase, decodeIdentity, seqNewer, codificarVozSubida, leerVozBajada } from "../../net/src/index.ts";
-import type { Transport, Welcome } from "../../net/src/index.ts";
+import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, encodeIdentityRequest, encodePase, decodeIdentity, decodeCondiciones, decodeLeyendo, encodePedirCondiciones, encodeAceptar, seqNewer, codificarVozSubida, leerVozBajada } from "../../net/src/index.ts";
+import type { CondicionesMensaje, Transport, Welcome } from "../../net/src/index.ts";
 import { ClientRuntime } from "../../feature/src/index.ts";
 import type { ClientPart, ViewHooks } from "../../feature/src/index.ts";
 
@@ -129,6 +129,27 @@ export class ClientSession {
     return true;
   }
 
+  /** condiciones/c2: the last CONDICIONES the server sent (the offer with the text, or where you stand after ACEPTAR); the bubble (c3) reads it.
+   * `capas` is kept from the last message that had them. null until the server sends one (a gate that is off sends nothing by itself). */
+  condiciones: CondicionesMensaje | null = null;
+  onCondiciones: ((m: CondicionesMensaje) => void) | null = null;
+  /** condiciones/c2: ask the server for the conditions and where you stand (answered at any time, gate on or off). */
+  pedirCondiciones(): boolean { if (this.entity < 0) return false; this.t.send(encodePedirCondiciones(), true); return true; }
+  /** condiciones/c2: accept: `versiones` = layer -> the version you read, `datos` = the ids of the data points you ticked (none = refuse them all;
+   * refusing data never keeps you out). The server answers with CONDICIONES (`abierta` says whether you may now move and talk). false if it does not fit. */
+  aceptar(versiones: Record<string, string>, datos: string[] = []): boolean {
+    const b = this.entity >= 0 ? encodeAceptar({ versiones, datos }) : null;
+    if (!b) return false;
+    this.t.send(b, true);
+    return true;
+  }
+
+  /** condiciones/c5: the people who are still reading the world's norms (entity numbers; never yourself). The page draws each one it can see inside a
+   * bubble. The server sends it only when someone starts/stops reading (and once, as a list, when you connect): a world with the gate off never does. */
+  readonly leyendo = new Set<number>();
+  /** condiciones/c5: someone started (`true`) or stopped (`false`: accepted, or left) reading the norms. */
+  onLeyendo: ((entidad: number, leyendo: boolean) => void) | null = null;
+
   /** U10: someone near spoke (a frame of their microphone). The page plays it (apps/plaza/voz.ts). */
   onVoice: ((v: { codec: number; seq: number; entidad: number; trama: Uint8Array }) => void) | null = null;
   private vozSeq = 0;
@@ -144,6 +165,20 @@ export class ClientSession {
   handle(bytes: Uint8Array, now: number): void {
     const type = bytes[0];
     if (type === MSG.VOICE) { const v = leerVozBajada(bytes); if (v) this.onVoice?.(v); return; }
+    if (type === MSG.LEYENDO) { // c5
+      for (const l of decodeLeyendo(bytes) ?? []) {
+        if (l.entidad === this.entity) continue; // the bubble of your own gate is the page's panel, not a sphere over you
+        if (l.leyendo === this.leyendo.has(l.entidad)) continue;
+        if (l.leyendo) this.leyendo.add(l.entidad); else this.leyendo.delete(l.entidad);
+        this.onLeyendo?.(l.entidad, l.leyendo);
+      }
+      return;
+    }
+    if (type === MSG.CONDICIONES) { // c2
+      const m = decodeCondiciones(bytes);
+      if (m) { this.condiciones = { ...m, capas: m.capas ?? this.condiciones?.capas }; this.onCondiciones?.(this.condiciones); }
+      return;
+    }
     if (type === MSG.WELCOME) {
       const w = decodeWelcome(bytes);
       this.welcome = w; this.entity = w.entity;

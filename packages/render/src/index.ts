@@ -45,6 +45,7 @@ export type { Movimiento } from "./avatares-politica.ts";
 export type { CatalogoAvatares } from "./avatares.ts";
 import type { CatalogoAvatares } from "./avatares.ts";
 import { createNombres, NOMBRE_VISIBLE_M } from "./nombres.ts";
+import { createPompas } from "./pompas.ts"; // condiciones/c5: the bubble over someone who is still reading the norms
 import { elegirMirado, escalaAcotada, nombreVisible, NOMBRE_GRADOS_MAX, type Mirable } from "./carteles.ts";
 export { NOMBRE_VISIBLE_M, NOMBRES_DIBUJADOS, BOCADILLO_VISIBLE_M } from "./nombres.ts";
 import { crearCenital } from "./cenital.ts";
@@ -287,6 +288,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const labelGeo = new THREE.PlaneGeometry(1.6, 0.4);
   const meshOf = (t: Target): THREE.Mesh | undefined => (t === "self" ? (selfMesh.visible ? selfMesh : undefined) : others.get(t));
   const nombres = createNombres({ world, camera, avatarOf: meshOf }); // J3: names over heads and speech bubbles
+  const pompas = createPompas({ world, avatarOf: (t) => meshOf(t) }); // condiciones/c5: a bubble around whoever is reading the norms (one shared sphere)
   // pesca v1: rods, lines and floats of whoever fishes near (lazy: packages/render/src/pesca.ts). "self" hides in first person, so the rod uses the capsule's place anyway
   const pesca = vistaPesca({ world, posicionDe: (t) => (t === "self" ? selfMesh.position : others.get(t)?.position) ?? null,
     manoDe: (t, out) => avs.mano(t === "self" ? "yo" : t, "derecha", out), orientar: (t, rumbo) => avs.orientar(t === "self" ? "yo" : t, rumbo),
@@ -368,6 +370,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       d.mesh.quaternion.copy(camera.quaternion); // always faces whoever looks
     }
     updateRotulos(now);
+    pompas.update(now);
   }
 
   // ---- U22: who shows a name. The one in the middle of your view (a person, or a name over a thing), whoever speaks,
@@ -1149,10 +1152,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** J3: names and bubbles the page holds, and whether each is drawn now (for checks). */
     nameTags() { return nombres.nameTags(); },
     bubbles() { return nombres.bubbles(); },
+    /** condiciones/c5: this avatar is (`true`) or is no longer (`false`: it accepted, it bursts) inside a bubble reading the world's norms; its plate says so
+     * («<name> · <etiqueta>»). Cheap: one shared sphere and material; nothing is drawn for a world with nobody reading. */
+    leyendo(entidad: number, si: boolean, etiqueta?: string): void { nombres.leyendo(entidad, si, etiqueta); pompas.poner(entidad, si, performance.now()); rotulosPendiente = true; },
+    /** condiciones/c5 (for checks): who has a bubble, whether it is drawn, who is bursting, and how much the bubbles share. */
+    pompas() { return { lista: pompas.lista(), ...pompas.compartidos() }; },
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
     /** U10: draw hidden spheres of sound (while building) or not (while playing). */
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */

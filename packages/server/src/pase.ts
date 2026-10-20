@@ -31,6 +31,8 @@ export type EstadoIA = "activa" | "dormida";
 export type Pase = {
   sub: string; aud: string; org: string; permisos: Permiso[]; altura: number; dueno: boolean; kind?: "agent"; state?: EstadoIA;
   roles: { nombre: string; color: string | null }[]; nombre?: string; iat: number; exp: number;
+  /** w5: the versions of the texts this person already accepted on numinia.com, per layer (`casa`). Only what the signature vouches for. */
+  acepto?: Record<string, string>;
 };
 export type MotivoPase = "forma" | "cabecera" | "clave" | "firma" | "contenido" | "caducado" | "adelantado" | "mundo" | "organizacion";
 /** `texto` is what the person reads (Spanish, like the roles' answers): it says how to fix it, never what the pass held. */
@@ -93,7 +95,9 @@ export function configPase(env: Record<string, string | undefined>): { ok: true;
 
 const esTexto = (v: unknown): v is string => typeof v === "string";
 const REQUERIDOS = ["v", "iss", "aud", "sub", "org", "perm", "height", "roles", "iat", "exp"];
-const OPCIONALES = ["name", "kind", "state"];
+const OPCIONALES = ["name", "kind", "state", "acepto"];
+export const ACEPTO_MAX = 80;        // characters of one accepted version («terms@1.0.1+privacy@2.1.0»)
+const ACEPTO_CAPAS = ["casa", "comunidad"]; // the layers of condiciones@1; any other key in `acepto` is ignored (numinia.com may add some)
 
 /** A name shown to everybody: no control characters, one line, short, and never one that says «· IA» (that mark is the server's). */
 function limpiar(texto: string, max: number): string {
@@ -121,10 +125,18 @@ function leerCarga(json: unknown): Pase | null {
   }
   if (r.name !== undefined && !esTexto(r.name)) return null;
   const nombre = esTexto(r.name) ? limpiar(r.name, NOMBRE_PASE_MAX) : "";
+  // w5: what the person already accepted on numinia.com. A person's pass only (an AI accepts nothing); the field is a plain object, and a
+  // version that is not a short text of printable characters counts as «not accepted», never as a refused pass.
+  let acepto: Record<string, string> | undefined;
+  if (r.acepto !== undefined) {
+    const a = r.acepto as Record<string, unknown> | null;
+    if (ia || typeof a !== "object" || a === null || Array.isArray(a)) return null;
+    for (const capa of ACEPTO_CAPAS) { const v = a[capa]; if (esTexto(v) && v.length > 0 && v.length <= ACEPTO_MAX && !/[\u0000-\u001f\u007f-\u009f]/.test(v)) (acepto ??= {})[capa] = v; }
+  }
   // permissions this engine does not know are dropped (numinia.com may add some), like roles.ts
   const permisos = PERMISOS.filter((p) => (r.perm as string[]).includes(p));
   const dueno = r.height >= Number.MAX_VALUE && !ia; // an AI is never an owner, whatever its height says
-  return { sub: r.sub, aud: r.aud, org: r.org, permisos, altura: dueno ? Number.POSITIVE_INFINITY : r.height, dueno, roles, ...(nombre ? { nombre } : {}), ...(ia ? { kind: "agent" as const, state: r.state as EstadoIA } : {}), iat: r.iat, exp: r.exp };
+  return { sub: r.sub, aud: r.aud, org: r.org, permisos, altura: dueno ? Number.POSITIVE_INFINITY : r.height, dueno, roles, ...(nombre ? { nombre } : {}), ...(acepto ? { acepto } : {}), ...(ia ? { kind: "agent" as const, state: r.state as EstadoIA } : {}), iat: r.iat, exp: r.exp };
 }
 
 function json(bytes: Buffer): unknown {

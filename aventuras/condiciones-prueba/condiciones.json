@@ -1,0 +1,97 @@
+{
+  "formato": "condiciones@1",
+  "puerta": true,
+  "capas": [
+    {
+      "capa": "casa",
+      "nombre": "Numinia",
+      "version": "1.0",
+      "puntos": [
+        {
+          "id": "trato",
+          "titulo": "Trata bien a los demás: sin acoso, amenazas ni odio.",
+          "texto": "1. Trato. Aquí se juega y se conversa con gente de verdad: nada de acoso, amenazas, insultos ni odio hacia nadie.\n\nEste párrafo existe para que el texto entero sea largo y se pueda leer rodando o arrastrando; en una condición de verdad aquí iría el detalle: qué se espera de ti, qué puede pasar si no se cumple y a quién te diriges si algo no va bien.\n\nSi algo de esto no te encaja, el botón «Salir» te saca del mundo sin que se guarde nada.",
+          "obligatorio": true,
+          "tipo": "norma"
+        },
+        {
+          "id": "voz",
+          "titulo": "Lo que dices en voz no se graba; el texto del chat se guarda poco tiempo.",
+          "texto": "2. Voz y chat. La voz se oye a quien tienes cerca y no se graba; el texto del chat se guarda unos días para poder atender un aviso.\n\nEste párrafo existe para que el texto entero sea largo y se pueda leer rodando o arrastrando; en una condición de verdad aquí iría el detalle: qué se espera de ti, qué puede pasar si no se cumple y a quién te diriges si algo no va bien.\n\nSi algo de esto no te encaja, el botón «Salir» te saca del mundo sin que se guarde nada.",
+          "obligatorio": true,
+          "tipo": "norma"
+        },
+        {
+          "id": "obra",
+          "titulo": "Lo que construyes es tuyo; no subas cosas de otros sin permiso.",
+          "texto": "3. Lo que construyes. Es tuyo, pero no subas obras, modelos ni sonidos de otras personas sin su permiso.\n\nEste párrafo existe para que el texto entero sea largo y se pueda leer rodando o arrastrando; en una condición de verdad aquí iría el detalle: qué se espera de ti, qué puede pasar si no se cumple y a quién te diriges si algo no va bien.\n\nSi algo de esto no te encaja, el botón «Salir» te saca del mundo sin que se guarde nada.",
+          "obligatorio": true,
+          "tipo": "norma"
+        },
+        {
+          "id": "sancion",
+          "titulo": "Quien incumpla puede ser silenciado o expulsado del mundo.",
+          "texto": "4. Si se incumple. Quien lo haga puede ser silenciado o expulsado del mundo por quien lo administra.\n\nEste párrafo existe para que el texto entero sea largo y se pueda leer rodando o arrastrando; en una condición de verdad aquí iría el detalle: qué se espera de ti, qué puede pasar si no se cumple y a quién te diriges si algo no va bien.\n\nSi algo de esto no te encaja, el botón «Salir» te saca del mundo sin que se guarde nada.",
+          "obligatorio": true,
+          "tipo": "norma"
+        },
+        {
+          "id": "edad",
+          "titulo": "Tienes la edad mínima que exige este mundo.",
+          "texto": "5. Edad. Declaras tener la edad mínima que exige este mundo.\n\nEste párrafo existe para que el texto entero sea largo y se pueda leer rodando o arrastrando; en una condición de verdad aquí iría el detalle: qué se espera de ti, qué puede pasar si no se cumple y a quién te diriges si algo no va bien.\n\nSi algo de esto no te encaja, el botón «Salir» te saca del mundo sin que se guarde nada.",
+          "obligatorio": true,
+          "tipo": "norma"
+        },
+        {
+          "id": "informe",
+          "titulo": "Enviar el informe de la sesión",
+          "texto": "Cómo va el mundo en tu aparato (fps, errores). Nada de voz ni de chat.",
+          "obligatorio": false,
+          "tipo": "datos"
+        }
+      ]
+    },
+    {
+      "capa": "comunidad",
+      "nombre": "Numen Games",
+      "version": "1.0",
+      "puntos": [
+        {
+          "id": "turno",
+          "titulo": "En los encuentros, respeta el turno de palabra.",
+          "texto": "1. Encuentros. Cuando alguien presenta o explica, espera tu turno para hablar.\n\nEste párrafo existe para que el texto entero sea largo y se pueda leer rodando o arrastrando; en una condición de verdad aquí iría el detalle: qué se espera de ti, qué puede pasar si no se cumple y a quién te diriges si algo no va bien.\n\nSi algo de esto no te encaja, el botón «Salir» te saca del mundo sin que se guarde nada.",
+          "obligatorio": true,
+          "tipo": "norma"
+        },
+        {
+          "id": "fotos",
+          "titulo": "No grabes ni hagas fotos a otros sin pedírselo.",
+          "texto": "2. Fotos y grabaciones. Pídelo antes de grabar o fotografiar a otra persona.\n\nEste párrafo existe para que el texto entero sea largo y se pueda leer rodando o arrastrando; en una condición de verdad aquí iría el detalle: qué se espera de ti, qué puede pasar si no se cumple y a quién te diriges si algo no va bien.\n\nSi algo de esto no te encaja, el botón «Salir» te saca del mundo sin que se guarde nada.",
+          "obligatorio": true,
+          "tipo": "norma"
+        },
+        {
+          "id": "pruebas",
+          "titulo": "La torre es un sitio de pruebas: algunas cosas pueden fallar.",
+          "texto": "3. Pruebas. Este mundo se está construyendo: puede haber fallos y cambios sin aviso.\n\nEste párrafo existe para que el texto entero sea largo y se pueda leer rodando o arrastrando; en una condición de verdad aquí iría el detalle: qué se espera de ti, qué puede pasar si no se cumple y a quién te diriges si algo no va bien.\n\nSi algo de esto no te encaja, el botón «Salir» te saca del mundo sin que se guarde nada.",
+          "obligatorio": true,
+          "tipo": "norma"
+        },
+        {
+          "id": "ia",
+          "titulo": "Que la IA de este mundo me escuche",
+          "texto": "Para que conteste hablando. Apagado hasta que lo validen los abogados.",
+          "obligatorio": false,
+          "tipo": "datos"
+        },
+        {
+          "id": "avisos",
+          "titulo": "Avisos de Numen Games",
+          "texto": "Te avisamos de sus encuentros. Lo quitas cuando quieras.",
+          "obligatorio": false,
+          "tipo": "datos"
+        }
+      ]
+    }
+  ]
+}

@@ -190,7 +190,7 @@ export function crearRoles(o: OpcionesRoles) {
     pases.set(p.sub, { pase: p, acceso: p.dueno ? { permisos: new Set(PERMISOS), altura: Number.POSITIVE_INFINITY, dueno: true } : { permisos: new Set(p.permisos), altura: p.altura, dueno: false } });
     deEntidad.set(entity, p.sub);
     log(`[pase] ${p.sub} entra con su pase de numinia.com (${p.dueno ? "dueño" : `altura ${p.altura}`}, ${p.permisos.length} permisos)`);
-    return { id: p.sub, nombre: p.nombre ?? nombreDe(p.sub) };
+    return { id: p.sub, nombre: p.nombre ?? nombreDe(p.sub), ...(p.acepto ? { acepto: p.acepto } : {}) }; // condiciones/w5: the signed pass vouches for these acceptances
   };
   /** A fresh pass in mid-session for an organization AI (Instance `renovarPase`): same agent, world and organization, never older
    * than the one held. Applies its permissions at once (asleep = no building). null = done, else why not. */
