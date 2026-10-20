@@ -8,8 +8,8 @@ import * as THREE from "three/webgpu";
 
 export type Target = number;
 export const POMPA_RADIO_M = 1.0;       // the capsule is 1.7 m tall: 1 m of radius wraps it with a hand to spare
-export const POMPA_OPACIDAD = 0.17;
-export const POMPA_COLOR = 0x9fe3f0;
+export const POMPA_OPACIDAD = 0.3;
+export const POMPA_COLOR = 0xb8f0f8;
 export const POMPA_ESTALLIDO_MS = 340;
 export const POMPAS_DIBUJADAS = 24;     // at most this many bubbles drawn at once (draw calls on phones); a world rarely has more than a few at a time
 export const POMPA_SOBRE_M = 0.22;      // the name plate over a bubble sits this much higher so the text clears the sphere's top

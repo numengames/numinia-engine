@@ -63,8 +63,15 @@ const vista = (p) => p.evaluate(() => {
 });
 // accept as a person would (the page's own function: what the panel sends)
 const aceptar = (p) => p.evaluate(() => { const s = globalThis.__numinia.session, c = s.condiciones; const versiones = {}; for (const k of c?.capas ?? []) versiones[k.capa] = k.version; return s.aceptar(versiones, []); });
-// turn the camera of `p` toward the other person and put it near enough to read the plate
-const mirarAlOtro = (p) => p.evaluate(() => { const n = globalThis.__numinia, r = n.session.remotePositions()[0], y = n.session.selfPosition(1); if (!r) return false; n.view.cam.mirarHacia(Math.atan2(-(r.x - y.x), -(r.z - y.z)), 0.25); return Math.hypot(r.x - y.x, r.z - y.z); });
+// walk `p` toward the other person with W (the camera turned to them) until it is 5 m away; returns the distance
+const irAlOtro = async (p) => {
+  const mira = () => p.evaluate(() => { const n = globalThis.__numinia, o = n.session.remotePositions()[0], y = n.session.selfPosition(1); if (!o) return -1; n.view.cam.mirarHacia(Math.atan2(-(o.x - y.x), -(o.z - y.z)), 0.25); return Math.hypot(o.x - y.x, o.z - y.z); });
+  let d = await mira();
+  await p.keyboard.down("KeyW");
+  for (let i = 0; i < 60 && d > 5; i++) { await sleep(500); d = await mira(); }
+  await p.keyboard.up("KeyW"); await sleep(800);
+  return mira();
+};
 
 try {
   // ---------- 1) A inside, B arrives and does not accept ----------
@@ -83,7 +90,7 @@ try {
   await B.waitForSelector("#condiciones .cond-panel", { timeout: 15000 });
   await A.waitForFunction(() => globalThis.__numinia.session.leyendo.size === 1, null, { timeout: 15000 });
   await sleep(800);
-  const dist = await mirarAlOtro(A); await sleep(1200);
+  const dist = await irAlOtro(A); await sleep(1500);
   const v1 = await vista(A);
   nota("1b A ve a B dentro de una pompa con letrero", { dist, ...v1 });
   verifica(v1.leyendo.length === 1 && v1.pompas.length === 1 && v1.pompas[0].drawn && !v1.pompas[0].estallando, `A ve una pompa dibujada: ${JSON.stringify(v1.pompas)}`);

@@ -14,7 +14,7 @@ import type { Condiciones } from "../packages/server/src/condiciones.ts";
 import { crearPuertaCondiciones } from "../packages/server/src/condiciones-puerta.ts";
 import { crearLucha } from "../features/lucha/server.ts";
 import { crearCliente } from "../features/lucha/client.ts";
-import { createPompas, POMPAS_DIBUJADAS } from "../packages/render/src/pompas.ts";
+import { createPompas, POMPAS_DIBUJADAS, POMPA_OPACIDAD } from "../packages/render/src/pompas.ts";
 import * as THREE from "three/webgpu";
 
 const sign = signer("una-clave-de-prueba-larga");
@@ -194,7 +194,7 @@ test("render: one shared geometry and one shared material for any number of bubb
   assert.equal(P.estado(0), "estallando"); assert.equal(P.busy(), true);
   P.update(1170); const quedan = world.children.length;
   const mitad = (world.children.find((m) => (m as THREE.Mesh).material !== compartido) as THREE.Mesh | undefined);
-  assert.ok(mitad && (mitad.material as THREE.MeshBasicMaterial).opacity < 0.17 && mitad.scale.x > 1, "growing and fading on its own copy of the material");
+  assert.ok(mitad && (mitad.material as THREE.MeshBasicMaterial).opacity < POMPA_OPACIDAD && mitad.scale.x > 1, "growing and fading on its own copy of the material");
   P.update(1400); assert.equal(P.estado(0), "no"); assert.equal(world.children.length, quedan - 1, "the burst is gone from the scene");
   assert.equal(P.busy(), false);
   // a bubble nobody ever saw (its avatar was out of sight) leaves without a burst
