@@ -427,6 +427,7 @@ export type CondicionesMensaje = {
   faltan: string[];                 // the layers (`capa`) whose current version you still have to accept
   aceptado: CondicionesAceptado | null; // what the server keeps of you (the layers' versions you accepted, the data points you said yes to, UTC)
   capas?: CondicionesCapa[];        // the whole text: only in the offer (on entering, and when asked), not in the answer to ACEPTAR
+  porPase?: string[];               // w5 (additive): the layers whose NORMS count as accepted because the signed pass said so (numinia.com); their `puntos` in `capas` are only the data points, or the layer is not there
 };
 /** What a page may accept in ACEPTAR: `versiones` = capa -> the version it read; `datos` = ids of the `datos` points it ticked. */
 export type Aceptacion = { versiones: Record<string, string>; datos: string[] };

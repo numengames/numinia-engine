@@ -363,7 +363,8 @@ export class Instance {
     if (persona && ok && persona.id !== id) this.features.adoptar(id, persona.id); // identidad/i1: what the guest had here is theirs now (once)
     conn.who = persona ?? invitado;
     if (persona) conn.invitado = id;
-    conn.transport.send(encodeIdentity({ token: ok && !ok.renovar ? token : emitir(sign, id, day), ...conn.who }), true);
+    const { acepto: _soloServidor, ...publico } = conn.who; // condiciones/w5: what the pass said about acceptances stays on the server
+    conn.transport.send(encodeIdentity({ token: ok && !ok.renovar ? token : emitir(sign, id, day), ...publico }), true);
     this.features.identify(entity);
     if (this.opts.condiciones?.activa) conn.transport.send(encodeCondiciones(this.opts.condiciones.estado(conn.who, true)), true); // condiciones/c2: the offer, by itself, once identified
     if (this.cerrada(conn)) this.avisarLeyendo(conn, true); // condiciones/c5: and everybody else sees them inside a bubble (no one if they accepted before)
