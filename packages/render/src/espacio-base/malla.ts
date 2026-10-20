@@ -18,8 +18,8 @@ export const LADO_MUNDO = 400;
 export const CELDAS_POR_NIVEL: Record<Nivel, number> = { A: 64, B: 48, C: 32, D: 20 };
 /** The most line segments the whole mesh (lattice + contours + ring + accents) may send per tier; a test checks. D is the bare minimum. */
 export const LINEAS_TOPE: Record<Nivel, number> = { A: 9500, B: 5600, C: 2700, D: 1200 };
-/** Draw calls of the piece itself (the sky dome is the engine's). */
-export const LLAMADAS = 1;
+/** Draw calls of the piece itself (the sky dome is the engine's): the line mesh + the accents' dots (one tiny quad mesh, ~600 vertices at most). */
+export const LLAMADAS = 2;
 /** Contour interval (m of height) and the lowest height that gets one (the plateau and its lip stay clean). */
 export const PASO_CURVA = 12;
 /** Probability that a lattice vertex carries an accent tick. */
@@ -33,6 +33,8 @@ const ALTO_ACENTO = 1.6;
 export type Malla = {
   n: number; nv: number; posicion: Float32Array; tipo: Float32Array; indice: Uint16Array;
   /** Segments (= indice.length / 2) and how many are of each kind. */
+  /** The accents' dots (puntos.ts-free): one camera-facing quad per accent, at the tick's tip — position (x,y,z)×4, corner (±1,±1)×4, tipo×4, Uint16 index ×6. */
+  puntos: { posicion: Float32Array; esquina: Float32Array; tipo: Float32Array; indice: Uint16Array };
   lineas: number; porTipo: { red: number; curva: number; anillo: number; acentos: number }; vertices: number; hmin: number; hmax: number;
 };
 
@@ -55,6 +57,7 @@ export function construirMalla(semilla: SemillaBase, nivel: Nivel): Malla {
     if (y < hmin) hmin = y; if (y > hmax) hmax = y;
   }
   let red = 0, curva = 0, anillo = 0, acentos = 0;
+  const pp: number[] = [], pe: number[] = [], pt: number[] = [], pi: number[] = [];
   for (let j = 0; j < nv; j++) for (let i = 0; i < nv; i++) {
     const a = j * nv + i;
     if (i < n) { idx.push(a, a + 1); red++; }
@@ -87,7 +90,9 @@ export function construirMalla(semilla: SemillaBase, nivel: Nivel): Malla {
     if (Math.hypot(x, z) < 14 || hash(i, j, semilla) >= PROBABILIDAD_ACENTO) continue;
     const r = hash(j + 311, i + 77, semilla), t = r < 0.3 ? TIPO.coral : r < 0.6 ? TIPO.ambar : r < 0.8 ? TIPO.morado : TIPO.verde, y = H[j * nv + i];
     idx.push(nuevo(x, y, z, t), nuevo(x, y + ALTO_ACENTO, z, t)); acentos++;
+    for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { pp.push(x, y + ALTO_ACENTO, z); pe.push(a, b); pt.push(t); }
+    pi.push(4 * (acentos - 1), 4 * acentos - 3, 4 * acentos - 2, 4 * (acentos - 1), 4 * acentos - 2, 4 * acentos - 1);
   }
   if (tipo.length > 65535) throw new Error("espacio-base: más de 65535 vértices (los índices son Uint16)");
-  return { n, nv, posicion: new Float32Array(pos), tipo: new Float32Array(tipo), indice: new Uint16Array(idx), lineas: idx.length / 2, porTipo: { red, curva, anillo, acentos }, vertices: tipo.length, hmin, hmax };
+  return { n, nv, posicion: new Float32Array(pos), tipo: new Float32Array(tipo), indice: new Uint16Array(idx), puntos: { posicion: new Float32Array(pp), esquina: new Float32Array(pe), tipo: new Float32Array(pt), indice: new Uint16Array(pi) }, lineas: idx.length / 2, porTipo: { red, curva, anillo, acentos }, vertices: tipo.length, hmin, hmax };
 }

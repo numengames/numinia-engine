@@ -63,9 +63,11 @@ export function cicloCielo(solY: number): { ocaso: number; estrellas: number; lu
   return { ocaso, estrellas: Math.max(noche, CIELO_ANALITICO.estrellasDeDia * dia), luna: noche };
 }
 /** The moon's direction for this sun: 40° up, opposite the sun's bearing (entorno.ts puts the night light there). */
-export function direccionLuna(sol: THREE.Vector3, out = new THREE.Vector3(), grados = 40): THREE.Vector3 {
+export function direccionLuna(sol: THREE.Vector3, out = new THREE.Vector3(), grados = 40, mismoRumbo = false): THREE.Vector3 {
   const h = Math.hypot(sol.x, sol.z) || 1, c = Math.cos(grados * Math.PI / 180), s = Math.sin(grados * Math.PI / 180);
-  return out.set(-sol.x / h * c, s, -sol.z / h * c);
+  const k = mismoRumbo ? 1 : -1; // H2b: the espacio base's moon keeps the (set) sun's bearing: at midnight it is due north, where the spawn's view of the mountain looks (opposite it fell behind the camera)
+  const x = k * sol.x / h, z = k * sol.z / h, g = mismoRumbo ? 0.35 : 0, cg = Math.cos(g), sg = Math.sin(g); // …and 20° towards +x: centred in the on-foot frame, clear of the HUD's corners
+  return out.set((x * cg - z * sg) * c, s, (x * sg + z * cg) * c);
 }
 
 /** Hoskins' «hash without sine» (vec3 → float in [0, 1)), as three's SkyMesh writes it. */
@@ -87,7 +89,7 @@ export function cieloAnalitico(u: EntradasCielo, C: typeof CIELO_E04 = CIELO_E04
   const ocasoU = uniform(0).onRenderUpdate(() => cicloCielo(u.solDir.value.y).ocaso);
   const estrellasU = uniform(0).onRenderUpdate(() => cicloCielo(u.solDir.value.y).estrellas);
   const lunaU = uniform(0).onRenderUpdate(() => cicloCielo(u.solDir.value.y).luna);
-  const lunaDir = uniform(lunaV).onRenderUpdate(() => direccionLuna(u.solDir.value, lunaV, o.lunaLlena ? 22 : 40)); // H2: the espacio base's full moon hangs lower (22°), inside the first-person frame
+  const lunaDir = uniform(lunaV).onRenderUpdate(() => direccionLuna(u.solDir.value, lunaV, o.lunaLlena ? 8 : 40, !!o.lunaLlena)); // H2b: the espacio base's full moon hangs low (8°; at 22° it fell above the on-foot frame): in view from the spawn looking at the mountain
   const corteV = new THREE.Vector3(), derecha = new THREE.Vector3(), arriba = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
   const lunaCorte = uniform(corteV).onRenderUpdate(() => { // the crescent's cutting disc: the moon's centre nudged sideways (once per render)
     const l = direccionLuna(u.solDir.value, corteV);
