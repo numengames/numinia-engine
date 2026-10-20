@@ -211,7 +211,7 @@ if (!SOLO || SOLO === "ar") try {
     await esperar(r, (k) => globalThis.__numinia.dardosHud.ar().lanzados > k, n0, 4000).catch(() => {});
     await esperar(r, (k) => globalThis.__numinia.dardosHud.ar().clavados >= k || !globalThis.__numinia.dardos.tirando(), n, 5000).catch(() => {});
     await r.waitForTimeout(200);
-    tiros.push({ ar: await ctl(r, () => { const s = globalThis.__numinia.dardosHud.ar(); return { lanzados: s.lanzados, clavados: s.clavados, ultimo: s.ultimo }; }), servidor: (await estado(r)).ultimo });
+    tiros.push({ ar: await ctl(r, () => { const s = globalThis.__numinia.dardosHud.ar(); return { lanzados: s.lanzados, clavados: s.clavados, ultimo: s.ultimo, zona: s.zona }; }), servidor: (await estado(r)).ultimo });
   }
   await esperar(r, () => !globalThis.__numinia.dardos.tirando(), null, 6000).catch(() => {});
   res.ar = { tiros, fin: (await estado(r)).fin };
@@ -229,7 +229,7 @@ const okPC = SOLO && SOLO !== "pc" ? true : /dardos/i.test(res.pcPrompt ?? "") &
   && res.pc.tiros.filter((t) => Math.abs(t.potencia - 0.65) < 0.2).length >= 2 && res.bVio?.clavados === 0 && res.pcCamara < 0.35
   && res.pcBarra?.visible && res.pcBarra.altoIgual && res.pcBarra.derecha && res.pcBarra.zona === 0.04 && res.pcSuelta?.visible && /PERFECTO|CASI|FLOJO|FUERTE/.test(res.pcSuelta.texto) && res.pcSuelta.dato?.via === "raton";
 const okMovil = SOLO && SOLO !== "movil" ? true : res.movilCoarse && res.movil?.tiros.length === 3 && res.movil.fin?.dardos === 3 && res.movil.tiros.every((t) => typeof t.puntos === "number") && res.movil.tiros[2].y < res.movil.tiros[1].y - 0.3 && res.movil.seMovioM < 0.3; // the lazy flick drops; the board never moved the avatar
-const okAR = SOLO && SOLO !== "ar" ? true : res.arJugando?.jugando && res.arColocada?.pared === true && res.ar?.tiros.length === 3 && res.ar.tiros.every((t) => t.ar.ultimo && t.servidor) && res.ar.tiros.some((t) => Math.hypot(t.ar.ultimo.x, t.ar.ultimo.y) < 0.6) && res.ar.fin?.dardos === 3 && res.arSalio === "off";
+const okAR = SOLO && SOLO !== "ar" ? true : res.arJugando?.jugando && res.arColocada?.pared === true && res.ar?.tiros.length === 3 && res.ar.tiros.every((t) => t.ar.ultimo && t.servidor && t.ar.zona === 0.06) && res.ar.tiros.some((t) => Math.hypot(t.ar.ultimo.x, t.ar.ultimo.y) < 0.6) && res.ar.fin?.dardos === 3 && res.arSalio === "off";
 const ok = okPC && okMovil && okAR && errors.length === 0;
 console.log(JSON.stringify({ ...res, okPC, okMovil, okAR, ...out }, null, 1));
 console.log(ok ? "E2E DARDOS OK" : "E2E DARDOS FALLA");

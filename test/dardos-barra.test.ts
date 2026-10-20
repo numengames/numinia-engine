@@ -9,7 +9,9 @@ import { signer } from "../packages/server/src/secret.ts";
 import { dardos, FUERZA_IDEAL, VIAS, ZONA_FUERZA, zonaDe, desvioFuerza } from "../features/dardos/feature.ts";
 import { crearDardos, aterrizaje, azarDe, TEMBLOR, CAIDA, SUBIDA, ABRE_FUERTE, ABRE_FLOJO } from "../features/dardos/server.ts";
 import { etiquetaSuelta, amplitudVaiven, amplitudTrasSoltar, vaivenDe, patronDe, VAIVEN_REPOSO, VAIVEN_FIRME, VAIVEN_MAX, VAIVEN_VEL_MAX, PASO, PASO_FINO, TECLAS_APUNTAR } from "../features/dardos/barra.ts";
-import { ZONA_AR, CICLO_S, IDEAL } from "../packages/render/src/dardos.ts";
+import { ZONA_AR, CICLO_S, IDEAL, crearDianaAR } from "../packages/render/src/dardos.ts";
+import { RADIO_M, PINTADA } from "../packages/render/src/diana.ts";
+import * as THREE from "three/webgpu";
 
 const cerca = (a: number, b: number, eps = 1e-9) => assert.ok(Math.abs(a - b) <= eps, `${a} ≉ ${b}`);
 
@@ -144,4 +146,26 @@ test("`lanzar` carries `via`: every way is accepted, none is the mouse's, and th
   assert.deepEqual(run().d, run("teclado").d, "teclado has the same window as raton");
   assert.notDeepEqual(run(undefined, 0.55).d, run("tactil", 0.55).d, "a wider window changes what 0.55 does");
   assert.equal(run("nave-espacial").d.length, 0, "an unknown way is refused by the schema, not guessed");
+});
+
+test("AR wall bar: the gold window is the server's ZONA_FUERZA.ar tall (centred on FUERZA_IDEAL), with a white border and two notches", () => {
+  // the board's texture needs a 2D canvas: a stub whose every call does nothing is enough for the geometry
+  const noop: unknown = new Proxy(function () {}, { get: (_t, k) => (k === "measureText" ? () => ({ width: 10 }) : k === "createRadialGradient" || k === "createLinearGradient" ? () => ({ addColorStop() {} }) : noop), apply: () => noop, set: () => true });
+  (globalThis as { document?: unknown }).document = { createElement: () => ({ width: 0, height: 0, getContext: () => noop }) };
+  try {
+    const j = crearDianaAR({ alLanzar() {}, zona: ZONA_FUERZA.ar });
+    assert.equal(j.estado().zona, ZONA_FUERZA.ar); assert.equal(crearDianaAR({ alLanzar() {} }).estado().zona, ZONA_FUERZA.ar, "default = the table's AR window");
+    j.root.updateMatrixWorld(true);
+    const hex = (o: THREE.Object3D) => ((o as THREE.Mesh).material as THREE.MeshBasicMaterial).color.getHexString();
+    const planos = j.root.children.flatMap((c) => c.children).flatMap((c) => c.children).filter((o) => (o as THREE.Mesh).isMesh && (o as THREE.Mesh).geometry.type === "PlaneGeometry") as THREE.Mesh[];
+    const caja = (o: THREE.Object3D) => { const b = new THREE.Box3().setFromObject(o), s = new THREE.Vector3(); b.getSize(s); return { s, c: b.getCenter(new THREE.Vector3()) }; };
+    const banda = planos.find((o) => hex(o) === "ffd27a")!, track = planos.find((o) => hex(o) === "0b0e12")!, borde = planos.filter((o) => hex(o) === "ffffff");
+    const alto = RADIO_M * PINTADA * 2;
+    cerca(caja(banda).s.y, 2 * ZONA_FUERZA.ar * alto, 1e-6);
+    assert.ok(caja(banda).s.y > 0.04, "at least 4 cm tall: you can see it on a wall");
+    cerca(caja(banda).c.y - caja(track).c.y, alto * (FUERZA_IDEAL - 0.5) , 1e-6);
+    assert.ok(borde.some((o) => caja(o).s.y > caja(banda).s.y && Math.abs(caja(o).c.y - caja(banda).c.y) < 1e-6), "a white border around the window");
+    const notas = j.root.children.flatMap((c) => c.children).flatMap((c) => c.children).filter((o) => (o as THREE.Mesh).isMesh && (o as THREE.Mesh).geometry.type === "CircleGeometry" && Math.abs(caja(o).c.y - caja(banda).c.y) < 1e-6);
+    assert.equal(notas.length, 2, "two notches, one each side");
+  } finally { delete (globalThis as { document?: unknown }).document; }
 });

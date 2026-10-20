@@ -61,7 +61,7 @@ const CSS = `
 #dardos-hud.pc { width: min(96vw, 500px); }
 #dardos-hud .mesa { display: flex; align-items: stretch; gap: 4px; }
 #dardos-hud .tablero { position: relative; width: min(86vw, 340px); aspect-ratio: 1; touch-action: none; user-select: none; -webkit-user-select: none; cursor: crosshair; }
-#dardos-hud.pc .tablero { width: min(calc(96vw - 170px), 340px); }
+#dardos-hud.pc .tablero { width: max(180px, min(calc(96vw - 170px), 340px, calc(100vh - 330px))); } /* a short window shrinks the board, never the bar's height match */
 #dardos-hud canvas.diana { width: 100%; height: 100%; display: block; border-radius: 50%; }
 #dardos-hud .guia { position: relative; display: flex; align-items: stretch; }
 #dardos-hud .guia[hidden] { display: none; }
