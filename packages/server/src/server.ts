@@ -274,6 +274,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     // size); `agentes` and `total` are new. `agentesDe` says whose each agent is: a world inhabitant (habitante, P4,
     // never anyone's but the world's own) or one of numinia.com's organizations (ADR-080, a signed pass), by org id.
     if (method === "GET" && path === "/status") {
+      const espacioBaseActivo = () => { for (const [k, v] of inst.features.allState()) if (k === "espacio-base:mundo") return (v as { activa?: boolean }).activa !== false; return false; };
       const agentesConectados = inst.conns.filter((c) => c.who?.id.startsWith("ia-"));
       const personas = inst.conns.length - agentesConectados.length;
       const agentesDe: { habitante: number; organizacion: Record<string, number> } = { habitante: 0, organizacion: {} };
@@ -286,6 +287,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
         uptime: Math.floor((performance.now() - born) / 1000), conectados: personas, agentes: agentesConectados.length,
         total: inst.conns.length, agentesDe, commitHash: motor.commit ?? undefined, version, cerebro: cerebroEstado,
         ...(cfgPase.pase ? { mundoPase: cfgPase.pase.mundo, pases: roles.pases() } : {}), ...fichaPublica,
+        // H4: the loading screen draws the line mesh only for a world whose espacio base is on (its state is public anyway)
+        ...(espacioBaseActivo() ? { espacioBase: true } : {}),
       }));
     }
     if (method === "GET" && path === "/metrics") return json(res, 200, metrics());
