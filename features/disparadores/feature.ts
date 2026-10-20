@@ -40,7 +40,7 @@ export const disparadores = defineFeature({
   id: "disparadores",
   version: 1,
   level: "base",
-  describe: "El cable del mundo: disparadores que un constructor escribe en disparadores.json (una zona en la que se entra, un botón que se pulsa «E: pulsar», o una señal que oye de otra pieza: una cerradura que se abre, un movedor que llega), con tiempo de espera entre usos y, si quiere, de un solo uso. El servidor decide cada disparo, avisa a los cercanos y da una acción por receptor a la función que la hace (mostrar u ocultar un objeto, teletransportar, dar paso de misión, abrir enlace, sonar, mover otro movedor). D-041 historias 5-6: quien tiene permiso de construir también ve y edita en vivo los receptores de cada disparador, sin reiniciar: el servidor reescribe disparadores.json al vuelo.",
+  describe: "El cable del mundo: disparadores que un constructor escribe en disparadores.json (una zona en la que se entra, un botón que se pulsa «E: pulsar», o una señal que oye de otra pieza: una cerradura que se abre, un movedor que llega), con tiempo de espera entre usos y, si quiere, de un solo uso. El servidor decide cada disparo, avisa a los cercanos y da una acción por receptor a la función que la hace (mostrar u ocultar un objeto, teletransportar, dar paso de misión, abrir enlace, sonar, mover otro movedor). D-041 historias 5-6: quien tiene permiso de construir también ve y edita en vivo los receptores de cada disparador, sin reiniciar: el servidor reescribe disparadores.json al vuelo. Historia A: también crea y borra disparadores enteros en vivo (crearDisparador, borrarDisparador).",
   state: {
     describe: "Un disparador por clave: nombre, tipo (zona, boton o senal), dónde (x, z; y = altura, m), radio de la zona (m), desde cuánto se pulsa un botón (alcance, m; 0 = no se ofrece), la frase del botón, la señal que oye (senal; solo tipo senal), cooldown (s), si es de un solo uso, cuántas veces ha disparado (usos), si está en espera ahora (enEspera), si ya se agotó (agotado) y sus receptores (JSON de la lista «qué hace cada disparo»; viaja a todos, como la vista del constructor de historia 5 — no es un secreto como el código de una cerradura).",
     fields: {
@@ -67,6 +67,23 @@ export const disparadores = defineFeature({
       fields: { disparador: ID, receptores: { kind: "text", maxBytes: RECEPTORES_JSON_MAX_BYTES } },
       rate: { perSecond: 1, burst: 3 },
     },
+    crearDisparador: {
+      describe: "Historia A del cable sin JSON: crea en vivo un disparador nuevo (la misma forma que una línea de disparadores.json: id, nombre, tipo, dónde, radio, frase, señal, cooldown, un solo uso y sus receptores como JSON). Solo quien tiene permiso de construir. El servidor lo valida con el mismo lector que lee el fichero (hasta 64 por mundo, 8 receptores, id único) y, si lo acepta, lo pone al momento y reescribe disparadores.json sin reiniciar.",
+      spoken: "crear un cable",
+      fields: {
+        disparador: ID, nombre: { kind: "text", maxBytes: 60, default: "" }, tipo: { kind: "enum", values: [...TIPOS] }, x: X, y: Y, z: X,
+        radio: { kind: "fixed", min: 0.5, max: 64, step: 0.1, default: 3 }, frase: { kind: "text", maxBytes: 60, default: "" }, senal: SENAL,
+        cooldown: { kind: "int", min: 0, max: COOLDOWN_MAX_S, default: 0 }, unSoloUso: { kind: "bool", default: false },
+        receptores: { kind: "text", maxBytes: RECEPTORES_JSON_MAX_BYTES },
+      },
+      rate: { perSecond: 1, burst: 3 },
+    },
+    borrarDisparador: {
+      describe: "Historia A del cable sin JSON: borra en vivo un disparador que existe (también de disparadores.json). Solo quien tiene permiso de construir; un id que no existe se rechaza diciendo cuál.",
+      spoken: "borrar un cable",
+      fields: { disparador: ID },
+      rate: { perSecond: 1, burst: 3 },
+    },
   },
   events: {
     disparado: {
@@ -84,12 +101,14 @@ export const disparadores = defineFeature({
       fields: { quien: QUIEN, disparador: ID, accion: { kind: "enum", values: ACCIONES }, objeto: NOMBRE, x: X, y: Y, z: X, mision: { kind: "text", maxBytes: 32 }, paso: { kind: "int", min: 0, max: 999, default: 0 }, enlace: { kind: "text", maxBytes: 200 }, sonido: { kind: "text", maxBytes: 32 } },
       announce: "silent",
     },
-    rechazado: { describe: "No disparó, y por qué (lejos, todavía no, ya se usó, no hay tal disparador). También lo usa editar_receptores cuando el cambio no se hace (sin permiso de construir, id inexistente, receptor mal escrito).", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
+    rechazado: { describe: "No disparó, y por qué (lejos, todavía no, ya se usó, no hay tal disparador). También lo usan editarReceptores, crearDisparador y borrarDisparador cuando el cambio no se hace (sin permiso de construir, id inexistente o repetido, receptor mal escrito, mundo lleno).", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
     editado: {
       describe: "D-041 historias 5-6: editar_receptores se hizo (el disparador que cambió). Solo para quien lo editó; todos los demás ven el cambio en el estado del disparador.",
       fields: { disparador: ID },
       announce: "silent",
     },
+    creado: { describe: "Historia A: crearDisparador se hizo (el disparador nuevo). Solo para quien lo creó; los demás ven el disparador nuevo en el estado.", fields: { disparador: ID }, announce: { text: "Cable «{disparador}» creado.", sound: "exito", importance: 1 } },
+    borrado: { describe: "Historia A: borrarDisparador se hizo (el disparador que ya no está). Solo para quien lo borró; los demás lo ven desaparecer del estado.", fields: { disparador: ID }, announce: { text: "Cable «{disparador}» borrado.", sound: "suave", importance: 1 } },
     // D-041 historias 3-4: the cable's own actions (no other feature owns moving someone or sounding a note); `da_paso`
     // goes to features/misiones instead (api.listen), so it has no event here.
     teletransportado: {

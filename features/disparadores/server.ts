@@ -135,14 +135,16 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
   const dentro = new Map<string, Set<number>>();   // zone → who is inside now
   const agotados = new Set<string>();
   const porSenal = new Map<string, Disparador[]>(); // D-041 h5: senal name → the «senal» triggers that listen for it
-  for (const d of opts.disparadores ?? []) {
+  /** Put one (already validated) trigger in the world: its state, its zone set, its senal index. False = the schema refused it. */
+  const montar = (d: Disparador): boolean => {
     const v: Msg = { nombre: d.nombre, tipo: d.tipo, x: d.x, y: d.y, z: d.z, radio: d.radio, alcance: d.alcance, frase: d.frase, senal: d.senal, cooldown: d.cooldown, unSoloUso: d.unSoloUso, usos: 0, enEspera: false, agotado: false, receptores: JSON.stringify(d.receptores) };
-    if (api.state.set(d.id, v, { at: { x: d.x, z: d.z } })) {
-      lista.set(d.id, d);
-      if (d.tipo === "zona") dentro.set(d.id, new Set());
-      if (d.tipo === "senal") porSenal.set(d.senal, [...(porSenal.get(d.senal) ?? []), d]);
-    } else api.log(`disparadores: «${d.id}» no cabe en el esquema y no se pone`);
-  }
+    if (!api.state.set(d.id, v, { at: { x: d.x, z: d.z } })) return false;
+    lista.set(d.id, d);
+    if (d.tipo === "zona") dentro.set(d.id, new Set());
+    if (d.tipo === "senal") porSenal.set(d.senal, [...(porSenal.get(d.senal) ?? []), d]);
+    return true;
+  };
+  for (const d of opts.disparadores ?? []) if (!montar(d)) api.log(`disparadores: «${d.id}» no cabe en el esquema y no se pone`);
   if (lista.size) api.log(`disparadores: ${lista.size} disparador(es)`);
   const nombreDe = (e: number) => cortar(api.who(e)?.nombre ?? `Persona ${e}`, 40) || `Persona ${e}`;
   const rechazar = (e: number, motivo: string) => { api.emit("rechazado", { motivo: cortar(motivo, 160) }, { to: e }); };
@@ -207,6 +209,46 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
     api.log(`[disparadores] «${d.id}»: ${nombreDe(e)} edita sus receptores en vivo (${receptores.length})`);
     try { opts.escribir?.(Array.from(lista.values())); }
     catch (err) { api.log(`[disparadores] «${d.id}»: el cambio se aplicó pero no pude escribir disparadores.json: ${(err as Error).message}`); }
+  });
+
+  /** Rewrite disparadores.json from memory (when the world has a writer); a failure is logged, never thrown. */
+  const guardar = (id: string) => {
+    try { opts.escribir?.(Array.from(lista.values())); }
+    catch (err) { api.log(`[disparadores] «${id}»: el cambio se aplicó pero no pude escribir disparadores.json: ${(err as Error).message}`); }
+  };
+
+  // Historia A (cable sin JSON): crear y borrar disparadores enteros en vivo. Solo con permiso de construir. El
+  // servidor decide: la línea nueva pasa por el MISMO lector que lee disparadores.json (leerDisparador), así que
+  // vale exactamente lo que valdría escrito a mano; aquí solo se añaden los topes del mundo (64, id único).
+  api.on("crearDisparador", (e, m) => {
+    if (!api.puede(e, "construir")) return rechazar(e, "No puedes construir aquí: crear un cable es cosa de quien tiene permiso de construir.");
+    const id = String(m.disparador ?? "");
+    if (!ID_RE.test(id)) return rechazar(e, `id «${cortar(id, 16)}»: usa minúsculas, cifras y guiones (hasta 16), por ejemplo «luz-1».`);
+    if (lista.has(id)) return rechazar(e, `Ya hay un cable «${id}»: elige otro id o bórralo antes.`);
+    if (lista.size >= DISPARADORES_MAX) return rechazar(e, `Este mundo ya tiene ${DISPARADORES_MAX} cables, que es el máximo: borra alguno antes de crear otro.`);
+    let crudo: unknown;
+    try { crudo = JSON.parse(String(m.receptores ?? "")); }
+    catch { return rechazar(e, "receptores: no es JSON válido."); }
+    if (Array.isArray(crudo) && crudo.length > RECEPTORES_MAX) return rechazar(e, `receptores: un cable lleva como mucho ${RECEPTORES_MAX}; quita alguno.`);
+    const leido = leerDisparador({ id, nombre: m.nombre, tipo: m.tipo, x: m.x, y: m.y, z: m.z, radio: m.radio, frase: m.frase, senal: m.senal, cooldown: m.cooldown, un_solo_uso: m.unSoloUso === true, receptores: crudo });
+    if (typeof leido === "string") return rechazar(e, leido);
+    if (new TextEncoder().encode(JSON.stringify(leido.receptores)).length > RECEPTORES_JSON_MAX_BYTES) return rechazar(e, `receptores: demasiado grande (más de ${RECEPTORES_JSON_MAX_BYTES} bytes codificados): acórtalo.`);
+    if (!montar(leido)) return rechazar(e, `No pude poner el cable «${id}» en el mundo (no cabe en el esquema): revisa sus números.`);
+    api.emit("creado", { disparador: id }, { to: e });
+    api.log(`[disparadores] «${id}»: ${nombreDe(e)} crea un cable en vivo (${lista.size}/${DISPARADORES_MAX})`);
+    guardar(id);
+  });
+
+  api.on("borrarDisparador", (e, m) => {
+    if (!api.puede(e, "construir")) return rechazar(e, "No puedes construir aquí: borrar un cable es cosa de quien tiene permiso de construir.");
+    const id = String(m.disparador ?? ""), d = lista.get(id);
+    if (!d) return rechazar(e, `No hay ningún cable «${cortar(id, 16)}» que borrar.`);
+    lista.delete(id); listos.delete(id); dentro.delete(id); agotados.delete(id);
+    if (d.tipo === "senal") { const resto = (porSenal.get(d.senal) ?? []).filter((x) => x.id !== id); if (resto.length) porSenal.set(d.senal, resto); else porSenal.delete(d.senal); }
+    api.state.delete(id);
+    api.emit("borrado", { disparador: id }, { to: e });
+    api.log(`[disparadores] «${id}»: ${nombreDe(e)} borra un cable en vivo (${lista.size}/${DISPARADORES_MAX})`);
+    guardar(id);
   });
 
   // D-041 h5: «senal» triggers fire not from a place or a press but from another piece's own event — a lock that

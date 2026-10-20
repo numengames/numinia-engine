@@ -245,7 +245,7 @@ avatarUI = montarAvatar({ session, catalogo: catalogoAvatares, origen: activos, 
 const huecos = montarHuecos({ constructor, view, rellenar: soltar.rellenar, decir: (t) => soltar.decir(t), panel: constructorUI.ranuraFicha });
 // ---- J4: a thing may carry a link (set in the inspector); a click on it opens it in a new tab, after confirming ----
 const enlaces = montarEnlaces({ constructor, view, construyendo: () => construyendo(view) });
-const cable = montarCable({ constructor, disparadores, decir: (t) => soltar.decir(t), panel: constructorUI.cajon("cable") });
+const cable = montarCable({ constructor, disparadores, aqui: () => (session.entity >= 0 ? session.selfPosition(1) : null), decir: (t) => soltar.decir(t), panel: constructorUI.cajon("cable") });
 // ---- D-042: a code lock opens its own keypad (HTML); a key lock keeps the plain J4 flow ----
 const cerradurasPagina = montarCerradura({ cerradura: cerraduras });
 // ---- U14: mandos del vídeo — pausar/reanudar (E, clic o el mando en VR) y mi propio volumen (deslizador, pantalla plana) ----

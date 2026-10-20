@@ -5,12 +5,18 @@
 // («qué hace cada disparo»): un área de texto con el JSON de la lista y un botón «Guardar» que lo manda al servidor
 // (intención editar_receptores). El servidor valida cada receptor igual que al leer el fichero y, si lo acepta,
 // todo el mundo ve el cambio al momento y, si el mundo lo permite, reescribe disparadores.json — ya no hace falta
-// reiniciar para cablear de otra manera. Solo quien tiene permiso de construir. Visitors never see this panel.
+// reiniciar para cablear de otra manera. Historia A (cable sin JSON): «+ Nuevo cable» crea un botón en tu sitio con un
+// receptor de partida (suena «campana») y cada cable tiene su «Borrar» con confirmación en la propia fila. La página
+// SOLO manda la petición (crearDisparador / borrarDisparador) y pinta lo que el servidor deja en el estado: él valida,
+// pone el tope de 64 y escribe el fichero. Solo quien tiene permiso de construir. Visitors never see this panel.
 type Res = { ok: true } | { ok: false; why: string };
-export type Disparador = { id: string; nombre: string; tipo: "zona" | "boton"; cooldown: number; unSoloUso: boolean; usos: number; enEspera: boolean; agotado: boolean; receptores: Record<string, unknown>[] };
+export type Disparador = { id: string; nombre: string; tipo: "zona" | "boton" | "senal"; cooldown: number; unSoloUso: boolean; usos: number; enEspera: boolean; agotado: boolean; receptores: Record<string, unknown>[] };
+/** What «+ Nuevo cable» sends: one line of disparadores.json (the server fills nothing in and checks everything). */
+export type NuevoCable = { id: string; tipo: "boton"; nombre: string; x: number; y: number; z: number; radio: number; frase: string; cooldown: number; receptores: Record<string, unknown>[] };
 export type OpcionesCable = {
   constructor: { estado: { puede: boolean }; escuchar(fn: (que: string) => void): () => void };
-  disparadores: { lista(): Disparador[]; pulsar(id: string): Res; editarReceptores(id: string, receptores: Record<string, unknown>[]): Res; alCambiar(fn: (id: string) => void): () => void };
+  disparadores: { lista(): Disparador[]; pulsar(id: string): Res; editarReceptores(id: string, receptores: Record<string, unknown>[]): Res; crearDisparador(d: NuevoCable): Res; borrarDisparador(id: string): Res; alCambiar(fn: (id: string) => void): () => void };
+  aqui?(): { x: number; y: number; z: number } | null; // where the builder stands: a new cable goes there
   decir(texto: string): void; // soltar.ts' status line (role=status)
   panel: HTMLElement | null;  // the builder's «Cable» drawer: the list goes inside it (its heading says «Cable»)
 };
@@ -20,8 +26,13 @@ const estadoTexto = (d: Disparador): string => d.agotado ? "agotado" : d.enEsper
 export function montarCable(o: OpcionesCable) {
   const caja = document.createElement("div");
   caja.id = "cable-panel"; caja.setAttribute("role", "group"); caja.setAttribute("aria-label", "Cable: disparadores del mundo");
+  const nuevo = document.createElement("button");
+  nuevo.type = "button"; nuevo.id = "cable-nuevo"; nuevo.textContent = "+ Nuevo cable";
+  nuevo.setAttribute("aria-label", "Nuevo cable: crear un botón en tu posición");
+  nuevo.title = "Crea un cable nuevo: un botón en el sitio donde estás. Luego cambia qué hace.";
   const lista = document.createElement("ul"); lista.id = "cable-lista";
-  caja.append(lista);
+  caja.append(nuevo, lista);
+  const confirmando = new Set<string>(); // cables whose «Borrar» is waiting for «Sí, borrar»
   o.panel?.append(caja);
 
   const fila = (d: Disparador): HTMLLIElement => {
@@ -52,16 +63,46 @@ export function montarCable(o: OpcionesCable) {
       if (!r.ok) o.decir(`No: ${r.why}.`);
     });
     li.append(document.createElement("br"), area, " ", guardar);
+    // Historia A: «Borrar» pide confirmación en la propia fila (sin ventanas del navegador, que no se leen igual).
+    li.append(document.createElement("br"));
+    if (!confirmando.has(d.id)) {
+      const borrar = document.createElement("button");
+      borrar.type = "button"; borrar.className = "cable-borrar"; borrar.dataset.cableBf = d.id; borrar.textContent = "Borrar";
+      borrar.setAttribute("aria-label", `Borrar el cable ${d.nombre}`);
+      borrar.addEventListener("click", () => { confirmando.add(d.id); refrescar(); li.ownerDocument.querySelector<HTMLButtonElement>(`[data-cable-sf="${d.id}"]`)?.focus(); });
+      li.append(borrar);
+    } else {
+      const aviso = document.createElement("span"); aviso.setAttribute("role", "alert"); aviso.textContent = `¿Borrar «${d.nombre}»? `;
+      const si = document.createElement("button");
+      si.type = "button"; si.className = "cable-borrar-si"; si.textContent = "Sí, borrar"; si.dataset.cableSf = d.id;
+      si.setAttribute("aria-label", `Sí, borrar el cable ${d.nombre}`);
+      si.addEventListener("click", () => { confirmando.delete(d.id); const r = o.disparadores.borrarDisparador(d.id); if (!r.ok) o.decir(`No: ${r.why}.`); refrescar(); nuevo.focus(); });
+      const no = document.createElement("button");
+      no.type = "button"; no.className = "cable-borrar-no"; no.textContent = "Cancelar";
+      no.setAttribute("aria-label", `No borrar el cable ${d.nombre}`);
+      no.addEventListener("click", () => { confirmando.delete(d.id); refrescar(); li.ownerDocument.querySelector<HTMLButtonElement>(`[data-cable-bf="${d.id}"]`)?.focus(); });
+      li.append(aviso, si, " ", no);
+    }
     return li;
   };
 
-  const refrescar = () => {
-    caja.style.display = o.constructor.estado.puede ? "" : "none";
-    if (!o.constructor.estado.puede) return;
+  /** The first free «cable-N» id (the server still has the last word: unique, 16 chars). */
+  const idLibre = (): string => { const usados = new Set(o.disparadores.lista().map((d) => d.id)); for (let n = 1; ; n++) if (!usados.has(`cable-${n}`)) return `cable-${n}`; };
+  nuevo.addEventListener("click", () => {
+    const id = idLibre(), p = o.aqui?.() ?? { x: 0, y: 0, z: 0 };
+    const r = o.disparadores.crearDisparador({ id, tipo: "boton", nombre: `Cable ${id.slice(6)}`, x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100, z: Math.round(p.z * 100) / 100, radio: 2, frase: "E: pulsar", cooldown: 0, receptores: [{ accion: "suena", sonido: "campana" }] });
+    if (!r.ok) o.decir(`No: ${r.why}.`);
+  });
+
+  function refrescar() {
+    const puede = o.constructor.estado.puede;
+    caja.style.display = puede ? "" : "none";
+    if (!puede) { confirmando.clear(); return; }
     const ds = o.disparadores.lista();
-    if (!ds.length) { lista.replaceChildren(Object.assign(document.createElement("li"), { textContent: "Sin disparadores: añádelos en disparadores.json." })); return; }
+    for (const id of [...confirmando]) if (!ds.some((d) => d.id === id)) confirmando.delete(id);
+    if (!ds.length) { lista.replaceChildren(Object.assign(document.createElement("li"), { textContent: "Sin cables todavía: pulsa «+ Nuevo cable»." })); return; }
     lista.replaceChildren(...ds.map(fila));
-  };
+  }
   o.constructor.escuchar((que) => { if (que === "permiso") refrescar(); });
   o.disparadores.alCambiar(() => refrescar());
   refrescar();

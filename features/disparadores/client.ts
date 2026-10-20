@@ -9,6 +9,8 @@ import { disparadores as decl } from "./feature.ts";
 const MODELO = "32fce59977a24c3c15eb40084c700c1537e59853747f92ce1d01c6fd65958588";
 export const LADO_M = 0.3, ALTURA_M = 1.0;
 export type Disparador = { id: string; nombre: string; tipo: "zona" | "boton"; x: number; y: number; z: number; radio: number; alcance: number; frase: string; cooldown: number; unSoloUso: boolean; usos: number; enEspera: boolean; agotado: boolean; receptores: Record<string, unknown>[] };
+/** What `crearDisparador` takes: one line of disparadores.json (`radio` = the zone's radius or the button's reach). */
+export type NuevoDisparador = { id: string; tipo: "zona" | "boton" | "senal"; receptores: Record<string, unknown>[]; nombre?: string; x?: number; y?: number; z?: number; radio?: number; frase?: string; senal?: string; cooldown?: number; unSoloUso?: boolean };
 type Res = { ok: true } | { ok: false; why: string };
 const SIN: Res = { ok: false, why: "la función disparadores no está en este servidor" };
 /** D-041 historias 5-6: lo que llega en el campo `receptores` del estado (JSON) o se manda a editar_receptores, sin
@@ -33,6 +35,10 @@ export function crearCliente() {
     // D-041 historias 5-6: reemplaza en vivo los receptores de un disparador (solo construir); el servidor valida y,
     // si acepta, todos ven el cambio al momento (alCambiar) y, si el mundo lo permite, reescribe disparadores.json.
     editarReceptores: (id: string, receptores: Record<string, unknown>[]): Res => (A ? A.send("editarReceptores", { disparador: id, receptores: JSON.stringify(receptores) }) : SIN),
+    // Historia A (cable sin JSON): crea o borra un disparador entero en vivo (solo construir). La página solo manda la
+    // petición; el servidor valida (mismo lector que disparadores.json), pone o quita el cable para todos y reescribe el fichero.
+    crearDisparador: (d: NuevoDisparador): Res => (A ? A.send("crearDisparador", { disparador: d.id, nombre: d.nombre ?? "", tipo: d.tipo, x: d.x ?? 0, y: d.y ?? 0, z: d.z ?? 0, radio: d.radio ?? 3, frase: d.frase ?? "", senal: d.senal ?? "", cooldown: d.cooldown ?? 0, unSoloUso: d.unSoloUso ?? false, receptores: JSON.stringify(d.receptores) }) : SIN),
+    borrarDisparador: (id: string): Res => (A ? A.send("borrarDisparador", { disparador: id }) : SIN),
     alCambiar: (fn: (id: string) => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
   const parte: ClientPart = clientPart(decl, (api) => {
