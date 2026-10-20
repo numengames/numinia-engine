@@ -102,7 +102,8 @@ const CSS = `
 #condiciones .btn { border-radius: 7px; padding: 9px 16px; font: 600 14px "Geist", system-ui, sans-serif; border: 1px solid #3A332D; background: none; color: var(--n-texto, #F9EBDC); cursor: pointer; }
 #condiciones .btn.prim { background: #F3E6D6; color: #14110F; border-color: #F3E6D6; }
 #condiciones .btn:disabled { opacity: .4; cursor: not-allowed; }
-#condiciones .btn:not(:disabled):hover { border-color: var(--n-texto2, #C4B5A6); }
+#condiciones .btn:not(:disabled):not(.prim):hover { border-color: var(--n-texto2, #C4B5A6); }
+#condiciones .btn.prim:not(:disabled):hover { filter: brightness(1.06); }
 #condiciones .decision { min-width: 190px; text-align: center; }
 #condiciones .despedida { margin: auto; text-align: center; max-width: 420px; }
 #condiciones .despedida h1 { font-size: 20px; }
@@ -349,11 +350,13 @@ export function montarCondiciones(o: OpcionesCondiciones) {
       d.append(titulo, el("p", "sub", "No has aceptado las normas, así que no has entrado. Puedes cerrar esta pestaña, o volver a cargar la página si cambias de idea."));
       cuerpo.append(d);
       pie!.replaceChildren();
-      const der = el("div", "der"); const otra = el("button", "btn prim", "Volver a empezar"); otra.type = "button"; otra.id = "condiciones-reiniciar"; otra.addEventListener("click", () => location.reload());
-      der.append(otra); pie!.append(el("div", "ver"), der);
+      const der = el("div", "der");
+      const boton = (texto: string, id: string, f: () => void) => { const x = el("button", "btn prim", texto); x.type = "button"; x.id = id; x.addEventListener("click", f); return x; };
+      if (history.length > 1) der.append(boton("Volver atrás", "condiciones-volver", () => history.back())); // to wherever you came from (a link, the city); the page never throws you out by itself
+      der.append(boton("Volver a empezar", "condiciones-reiniciar", () => location.reload()));
+      pie!.append(el("div", "ver"), der);
       titulo.focus(); decir("Has salido de este mundo.");
     }
-    if (history.length > 1) setTimeout(() => { try { history.back(); } catch { /* stay on the farewell */ } }, 600); // back to where you came from, when there is a «where»
   }
 
   // ---------- showing and bursting ----------
