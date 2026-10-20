@@ -32,6 +32,7 @@ import { infoMotor } from "./version.ts";
 import type { Motor } from "./version.ts";
 import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
 import { leerFicha, leerTema, lectorAventura } from "./aventura.ts";
+import { leerCondiciones } from "./condiciones.ts";
 import { crearRoles } from "./roles-mundo.ts";
 import { configPase } from "./pase.ts";
 import { crearAgentesHttp } from "./agentes-http.ts";
@@ -133,6 +134,10 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   for (const p of fichaMal) log(`[ficha] no se carga: ${p}`);
   const { tema, problemas: temaMal } = leerTema(ficha?.tema); // how its page looks (an event's colours and titles); a bad value drops only itself
   for (const p of temaMal) log(`[ficha] ${p}: lo dejo fuera`);
+  // C1: its conditions of entry, from aventura/condiciones.json; none or broken = the house example (said in the log)
+  const { condiciones, deFichero: condicionesPropias, problemas: condicionesMal } = leerCondiciones(o.aventura ?? null);
+  for (const p of condicionesMal) log(`[condiciones] no se carga, uso las de la casa: ${p}`);
+  log(`[condiciones] ${condicionesPropias ? "del mundo" : "de la casa"}: ${condiciones.capas.map((c) => `${c.capa} ${c.version} (${c.puntos.length})`).join(" → ")}`);
   const pagina = o.www ? new Pagina(o.www, { titulo: ficha?.nombre ?? null }) : null; // C1: the page from the engine itself (one port per world)
 
   const t0 = performance.now();
