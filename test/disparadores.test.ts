@@ -322,3 +322,212 @@ test("D-041 h5: a movedor's arrival fires the cable's «senal» (movedores.llega
   assert.equal(eventos(s, "sonido", "suena").length, 1, "the movedor's own arrival rang the cable, no button or zone involved");
   assert.equal(eventos(s, "sonido", "suena").at(-1)?.msg.sonido, "ui-pulsar"); // S6: «paso» es el nombre de casa; el fichero es ui-pulsar
 });
+
+// ---- Historia A (cable sin JSON): crearDisparador / borrarDisparador en vivo ----
+const NUEVO = { id: "luz-1", tipo: "boton" as const, nombre: "Botón nuevo", x: 5, y: 0, z: 5, radio: 2, frase: "E: encender", cooldown: 3, receptores: [{ accion: "muestra", objeto: "Farola" }] };
+const ultimoRechazo = (s: ClientSession) => String(eventos(s, "disparadores", "rechazado").at(-1)?.msg.motivo ?? "");
+type Escritura = ReturnType<typeof leerDisparadores>["disparadores"];
+
+test("cable sin JSON: a builder creates a trigger live, everyone sees it, it works, and disparadores.json is rewritten and reloads identically", () => {
+  const escrituras: Escritura[] = [];
+  const { pages: [a, b], pump, place } = mundo(2, [BOTON], { escribir: (ds) => escrituras.push(ds) });
+  pump(3);
+  const r = a.d.crearDisparador(NUEVO);
+  assert.ok(r.ok, JSON.stringify(r)); pump(3);
+  assert.equal(eventos(a.s, "disparadores", "rechazado").length, 0, ultimoRechazo(a.s));
+  assert.equal(eventos(a.s, "disparadores", "creado").length, 1, "the creator is told");
+  for (const p of [a, b]) {
+    const d = p.d.lista().find((x) => x.id === "luz-1");
+    assert.ok(d, "every page sees the new trigger");
+    assert.equal(d.tipo, "boton"); assert.equal(d.nombre, "Botón nuevo"); assert.equal(d.alcance, 2); assert.equal(d.cooldown, 3); assert.equal(d.frase, "E: encender");
+    assert.deepEqual(d.receptores, NUEVO.receptores);
+  }
+  // it is a real trigger: pressed from close by, it runs its receiver
+  place(0, 5, 5); pump(2);
+  a.d.pulsar("luz-1"); pump(3);
+  assert.equal(eventos(a.s, "disparadores", "disparado").filter((l) => l.msg.disparador === "luz-1").length, 1);
+  // the file: one write, same shape the loader reads, identical after a reload
+  assert.equal(escrituras.length, 1);
+  assert.deepEqual(escrituras[0].map((d) => d.id), ["rojo", "luz-1"]);
+  const releido = leerDisparadores(JSON.parse(JSON.stringify(serializarDisparadores(escrituras[0]))));
+  assert.deepEqual(releido.problemas, []);
+  assert.deepEqual(releido.disparadores, escrituras[0], "reload gives the same triggers");
+});
+
+test("cable sin JSON: a new zone fires on entry and a new «senal» is accepted without x/z", () => {
+  const { pages: [a], pump, place } = mundo(1, [], {});
+  pump(2);
+  a.d.crearDisparador({ id: "z1", tipo: "zona", x: 20, z: 0, radio: 3, receptores: [{ accion: "oculta", objeto: "Farola" }] });
+  a.d.crearDisparador({ id: "s1", tipo: "senal", senal: "puerta-abierta", receptores: [{ accion: "suena", sonido: "campana" }] });
+  pump(3);
+  assert.equal(eventos(a.s, "disparadores", "rechazado").length, 0, ultimoRechazo(a.s));
+  assert.deepEqual(a.d.lista().map((d) => d.id).sort(), ["s1", "z1"]);
+  place(0, 20, 0); pump(3);
+  assert.equal(eventos(a.s, "disparadores", "disparado").filter((l) => l.msg.disparador === "z1").length, 1, "the live zone fires on entry");
+});
+
+test("cable sin JSON: creating is refused without build permission, for a duplicate or bad id, a full world and too many receivers; nothing changes", () => {
+  let puede = false;
+  const escrituras: Escritura[] = [];
+  const { pages: [a], pump } = mundo(1, [BOTON], { puede: () => puede, escribir: (ds) => escrituras.push(ds) });
+  pump(25);
+  const ids = () => a.d.lista().map((d) => d.id).sort().join(",");
+  a.d.crearDisparador(NUEVO); pump(25);
+  assert.match(ultimoRechazo(a.s), /No puedes construir/);
+  puede = true;
+  a.d.crearDisparador({ ...NUEVO, id: "rojo" }); pump(25);
+  assert.match(ultimoRechazo(a.s), /Ya hay un cable «rojo»/);
+  a.d.crearDisparador({ ...NUEVO, id: "Mal Id" }); pump(25);
+  assert.match(ultimoRechazo(a.s), /minúsculas, cifras y guiones/);
+  a.d.crearDisparador({ ...NUEVO, id: "" }); pump(25);
+  assert.match(ultimoRechazo(a.s), /minúsculas, cifras y guiones/);
+  a.d.crearDisparador({ ...NUEVO, receptores: Array.from({ length: RECEPTORES_MAX + 1 }, () => ({ accion: "vuelve_a_seguro" })) }); pump(25);
+  assert.match(ultimoRechazo(a.s), new RegExp(`como mucho ${RECEPTORES_MAX}`));
+  a.d.crearDisparador({ ...NUEVO, receptores: [] }); pump(25);
+  assert.match(ultimoRechazo(a.s), /al menos uno/);
+  a.d.crearDisparador({ ...NUEVO, receptores: [{ accion: "explota" }] }); pump(25);
+  assert.match(ultimoRechazo(a.s), /accion «explota»/);
+  a.d.crearDisparador({ ...NUEVO, tipo: "boton", x: 99999 }); pump(25);
+  assert.equal(ids(), "rojo", "nothing was created");
+  assert.equal(eventos(a.s, "disparadores", "creado").length, 0);
+  assert.equal(escrituras.length, 0, "the file was never rewritten");
+});
+
+test("cable sin JSON: the 65th trigger of a world is refused and says how to fix it", () => {
+  const lleno = Array.from({ length: DISPARADORES_MAX }, (_, i) => ({ id: `z${i}`, tipo: "zona", x: (i % 8) * 3 - 10, z: 15 + Math.floor(i / 8) * 3, radio: 1, receptores: [{ accion: "vuelve_a_seguro" }] }));
+  const { pages: [a], pump, log } = mundo(1, lleno);
+  pump(25);
+  assert.equal(a.d.lista().length, DISPARADORES_MAX);
+  a.d.crearDisparador(NUEVO); pump(25);
+  assert.match(ultimoRechazo(a.s), new RegExp(`${DISPARADORES_MAX} cables.*borra alguno`));
+  assert.equal(a.d.lista().length, DISPARADORES_MAX);
+  // deleting one makes room again
+  a.d.borrarDisparador("z0"); pump(25);
+  a.d.crearDisparador(NUEVO); pump(25);
+  assert.equal(a.d.lista().length, DISPARADORES_MAX);
+  assert.ok(a.d.lista().some((d) => d.id === "luz-1"));
+});
+
+test("cable sin JSON: a builder deletes a trigger live (state, zone bookkeeping, file); unknown id and no permission are refused", () => {
+  let puede = true;
+  const escrituras: Escritura[] = [];
+  const { pages: [a, b], pump, place } = mundo(2, [BOTON, ZONA], { puede: () => puede, escribir: (ds) => escrituras.push(ds) });
+  pump(25);
+  a.d.borrarDisparador("umbral"); pump(25);
+  assert.equal(eventos(a.s, "disparadores", "borrado").length, 1);
+  for (const p of [a, b]) assert.deepEqual(p.d.lista().map((d) => d.id), ["rojo"], "gone for everyone");
+  assert.equal(escrituras.length, 1);
+  assert.deepEqual(escrituras[0].map((d) => d.id), ["rojo"]);
+  assert.deepEqual(leerDisparadores(serializarDisparadores(escrituras[0])).disparadores, escrituras[0]);
+  // walking into where the zone was does nothing now (and nothing throws)
+  place(0, -20, 0); pump(4);
+  assert.equal(eventos(a.s, "disparadores", "disparado").filter((l) => l.msg.disparador === "umbral").length, 0);
+  // the same id can be created again (nothing of the old one lingers, e.g. «agotado»)
+  a.d.crearDisparador({ ...NUEVO, id: "umbral" }); pump(25);
+  assert.equal(a.d.lista().find((d) => d.id === "umbral")?.agotado, false);
+  // refused: unknown id, no permission
+  a.d.borrarDisparador("no-existe"); pump(25);
+  assert.match(ultimoRechazo(a.s), /No hay ningún cable «no-existe»/);
+  puede = false;
+  a.d.borrarDisparador("rojo"); pump(25);
+  assert.match(ultimoRechazo(a.s), /No puedes construir/);
+  assert.ok(a.d.lista().some((d) => d.id === "rojo"), "still there");
+});
+
+test("cable sin JSON: the intents are rate-limited like editarReceptores", () => {
+  const i = disparadores.intents!;
+  assert.deepEqual(i.crearDisparador.rate, i.editarReceptores.rate);
+  assert.deepEqual(i.borrarDisparador.rate, i.editarReceptores.rate);
+});
+
+// ---- historia C (cable sin JSON): editarDisparador, the one save of the sentence with blanks ----
+const CAMBIO = { id: "rojo", nombre: "Botón azul", tipo: "boton" as const, senal: "", cooldown: 10, unSoloUso: true, receptores: [{ accion: "oculta", objeto: "Farola" }, { accion: "suena", sonido: "campana" }] };
+
+test("cable sin JSON C: a builder edits name, wait, one-use and receivers in one go; everyone sees it, uses are kept, the file is rewritten and reloads identically", () => {
+  const escrituras: Escritura[] = [];
+  const { pages: [a, b], pump, place } = mundo(2, [BOTON, ZONA], { escribir: (ds) => escrituras.push(ds) });
+  pump(3);
+  place(0, 12, 0); pump(2);
+  a.d.pulsar("rojo"); pump(3);
+  assert.equal(a.d.lista().find((d) => d.id === "rojo")?.usos, 1);
+  assert.ok(a.d.editarDisparador(CAMBIO).ok); pump(3);
+  assert.equal(eventos(a.s, "disparadores", "rechazado").length, 0, ultimoRechazo(a.s));
+  assert.equal(eventos(a.s, "disparadores", "cableEditado").length, 1, "the editor is told");
+  assert.equal(eventos(b.s, "disparadores", "cableEditado").length, 0, "nobody else is");
+  for (const p of [a, b]) {
+    const d = p.d.lista().find((x) => x.id === "rojo")!;
+    assert.equal(d.nombre, "Botón azul"); assert.equal(d.cooldown, 10); assert.equal(d.unSoloUso, true); assert.equal(d.usos, 1, "the count of uses stays");
+    assert.deepEqual(d.receptores, CAMBIO.receptores);
+    assert.equal(d.x, 12, "it stays where it stood"); assert.equal(d.alcance, 2, "and keeps its reach");
+  }
+  assert.equal(escrituras.length, 1);
+  const releido = leerDisparadores(JSON.parse(JSON.stringify(serializarDisparadores(escrituras[0]))));
+  assert.deepEqual(releido.problemas, []);
+  assert.deepEqual(releido.disparadores, escrituras[0]);
+  assert.equal(escrituras[0].find((d) => d.id === "rojo")?.unSoloUso, true);
+  // the others are untouched
+  assert.deepEqual(a.d.lista().find((d) => d.id === "umbral")?.receptores, ZONA.receptores);
+  // the edited cable really runs its new receivers: once, then it is spent
+  a.d.pulsar("rojo"); pump(3);
+  assert.equal(a.d.lista().find((d) => d.id === "rojo")?.agotado, true);
+});
+
+test("cable sin JSON C: changing the kind rebuilds the bookkeeping (zone ↔ button ↔ senal) and `mover` puts it somewhere new", () => {
+  const { pages: [a], pump, place } = mundo(1, [BOTON, ZONA]);
+  pump(25);
+  // a zone becomes a button standing where the builder asks; the old zone no longer fires
+  a.d.editarDisparador({ id: "umbral", nombre: "Umbral", tipo: "boton", senal: "", cooldown: 0, unSoloUso: false, receptores: ZONA.receptores, mover: { x: 30, y: 0, z: 30 } }); pump(3);
+  const d = a.d.lista().find((x) => x.id === "umbral")!;
+  assert.equal(d.tipo, "boton"); assert.equal(d.x, 30); assert.equal(d.z, 30); assert.equal(d.alcance, 2); assert.equal(d.radio, 0.5);
+  place(0, -20, 0); pump(4);
+  assert.equal(eventos(a.s, "disparadores", "disparado").length, 0, "the old zone is gone");
+  // a button becomes a signal listener: it needs a signal name
+  a.d.editarDisparador({ ...CAMBIO, tipo: "senal", senal: "" }); pump(3);
+  assert.match(ultimoRechazo(a.s), /senal debe ser/);
+  a.d.editarDisparador({ ...CAMBIO, tipo: "senal", senal: "puerta-abierta" }); pump(3);
+  assert.equal(a.d.lista().find((x) => x.id === "rojo")?.tipo, "senal");
+  assert.equal(a.d.lista().find((x) => x.id === "rojo")?.senal, "puerta-abierta");
+});
+
+test("cable sin JSON C: editing is refused without permission, for an unknown id, a bad receiver, too many, an oversized list; nothing changes and nothing is written", () => {
+  let puede = true;
+  const escrituras: Escritura[] = [];
+  const { pages: [a], pump } = mundo(1, [BOTON], { puede: () => puede, escribir: (ds) => escrituras.push(ds) });
+  pump(3);
+  const antes = JSON.stringify(a.d.lista());
+  const malo = (c: Partial<typeof CAMBIO> & { receptores?: unknown }, re: RegExp) => { a.d.editarDisparador({ ...CAMBIO, ...c } as never); pump(25); assert.match(ultimoRechazo(a.s), re); assert.equal(JSON.stringify(a.d.lista()), antes, "unchanged"); assert.equal(escrituras.length, 0); };
+  malo({ id: "no-existe" }, /No hay ningún cable «no-existe» que editar/);
+  malo({ receptores: [{ accion: "muestra", objeto: "" }] }, /receptor 1: muestra: falta «objeto»/);
+  malo({ receptores: [{ accion: "abre_enlace", enlace: "http://x.org" }] }, /https:\/\//);
+  malo({ receptores: [] }, /al menos uno/);
+  malo({ receptores: Array.from({ length: 9 }, () => ({ accion: "vuelve_a_seguro" })) }, /como mucho 8/);
+  // (a list over 512 bytes never reaches the handler: the field of the intent is capped by the schema, like editarReceptores)
+  // (a kind outside zona/boton/senal never reaches the handler either: it is an enum of the intent)
+  puede = false;
+  malo({}, /No puedes construir/);
+});
+
+test("cable sin JSON C: the cap of 64 and the id rules are untouched by editing (edit never adds a cable, never renames one)", () => {
+  const lista = Array.from({ length: DISPARADORES_MAX }, (_, i) => ({ ...BOTON, id: `z${i}`, nombre: `Z${i}` }));
+  const { pages: [a], pump } = mundo(1, lista);
+  pump(25);
+  a.d.editarDisparador({ ...CAMBIO, id: "z3" }); pump(25);
+  assert.equal(a.d.lista().length, DISPARADORES_MAX);
+  assert.equal(a.d.lista().find((d) => d.id === "z3")?.nombre, "Botón azul");
+  a.d.editarDisparador({ ...CAMBIO, id: "NUEVO-id" }); pump(25);
+  assert.match(ultimoRechazo(a.s), /No hay ningún cable/);
+  assert.equal(a.d.lista().length, DISPARADORES_MAX);
+});
+
+test("cable sin JSON C: editarDisparador is rate-limited like its siblings, and `alResponder` hands the server's answer to the page", () => {
+  const i = disparadores.intents!;
+  assert.deepEqual(i.editarDisparador.rate, i.editarReceptores.rate);
+  const { pages: [a], pump } = mundo(1, [BOTON]);
+  const r: { que: string; motivo: string }[] = [];
+  a.d.alResponder((x) => r.push(x));
+  pump(3);
+  a.d.editarDisparador(CAMBIO); pump(25);
+  a.d.editarDisparador({ ...CAMBIO, id: "nada" }); pump(25);
+  assert.deepEqual(r.map((x) => x.que), ["ok", "no"]);
+  assert.match(r[1]!.motivo, /No hay ningún cable/);
+});
