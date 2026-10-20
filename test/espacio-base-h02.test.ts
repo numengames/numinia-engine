@@ -49,8 +49,16 @@ test("a world WITHOUT the file has the same features, state and flat ground as b
   assert.equal(terrenoDelEstado(new Map()), null);
 });
 
-test("mesh: ONE draw call, a few thousand lines inside the tier caps, Uint16 indices, plateau flat at 0, built in milliseconds", () => {
-  assert.equal(LLAMADAS, 1); assert.equal(LADO_MUNDO, TAMANO_ESPACIO_BASE);
+test("accent dots: one quad per accent (4 vertices, 6 indices), tiny, kinds 3–6", () => {
+  for (const nv of ["A", "B", "C", "D"] as const) {
+    const m = construirMalla(1234, nv), P = m.puntos, k = m.porTipo.acentos;
+    assert.ok(k > 0); assert.equal(P.posicion.length, k * 12); assert.equal(P.esquina.length, k * 8); assert.equal(P.tipo.length, k * 4); assert.equal(P.indice.length, k * 6);
+    assert.ok(Math.max(...P.indice) < k * 4 && P.tipo.every((t) => t >= TIPO.coral && t <= TIPO.verde));
+  }
+});
+
+test("mesh: two draw calls (lines + accent dots), a few thousand lines inside the tier caps, Uint16 indices, plateau flat at 0, built in milliseconds", () => {
+  assert.equal(LLAMADAS, 2); assert.equal(LADO_MUNDO, TAMANO_ESPACIO_BASE);
   const lineas: Record<string, number> = {}, vert: Record<string, number> = {};
   for (const nv of ["A", "B", "C", "D"] as const) {
     const t0 = performance.now(), m = construirMalla(1234, nv), ms = performance.now() - t0;
