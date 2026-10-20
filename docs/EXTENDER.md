@@ -1272,6 +1272,35 @@ contesta `abierta: true` la pompa estalla (650 ms, o 30 ms con `prefers-reduced-
 `test/condiciones-burbuja.test.ts`; `__numinia.condiciones` expone `estado`, `cerrada()` y `alCambiar()` para c4 (VR); c5 (la pompa vista desde fuera) va aparte, justo debajo.
 Mundo de pruebas: `aventuras/condiciones-prueba/` (ver su `LEEME.md`); e2e: `node tools/e2e-piernas/condiciones.mjs` (con `SHOTS=carpeta`, fotos de cada paso en PC 1400×900 y móvil 390×844).
 
+### La burbuja de entrada en VR (c4: `apps/plaza/condiciones-xr.ts` + `packages/render/src/condiciones-vr.ts`)
+
+Con el visor puesto la misma burbuja es **un panel en el mundo**: a 1,2 m delante, a la altura de los ojos, quieto (se pone una vez; si te das la
+vuelta y lo dejas de mirar 2,5 s vuelve delante de ti) y con la letra grande (≥ 1,2°; los botones ≥ 3°). Es **otra vista de la misma lógica**, no otra
+lógica: los pasos, los textos de cada paso, los botones del pie y cuándo están apagados, el rótulo de la casilla y lo que manda ACEPTAR salen de
+`condiciones-logica.ts` (`textosDePaso`, `botonesDePie`, `rotuloNormas`); la burbuja plana sigue siendo la dueña del estado (paso, casillas, «enviando») y el
+panel VR llama a los mismos métodos (`ir`, `marcarNorma`, `marcarDato`, `enviar`, `salir`). Por tanto:
+
+- **Menos texto por página**: un paso de normas = «Lo esencial» (los títulos de las normas, numerados) y después el texto entero a 7 líneas por página;
+  un paso de cambios (c6) = primero lo nuevo / cambiado / quitado y después el texto de lo que cambió; «Tus datos» = 2 permisos por página, todas las
+  casillas VACÍAS y los dos botones iguales («Entrar sin lo opcional» / «Aceptar todo y entrar») en todas las páginas, más «Atrás» y «Salir». La casilla
+  que acepta las normas se ve siempre, en cualquier página del texto. Las páginas solo recorren el texto; la ley sigue estando en la casilla.
+  Paginación sin navegador: `apps/plaza/condiciones-vr-logica.ts` (`test/condiciones-vr.test.ts`).
+- **Cómo se maneja**: rayo de cualquiera de los dos mandos + gatillo; pellizco del rayo de una mano seguida (lo hace `manos.ts` con cualquier `Panel`); tocar con
+  la punta del dedo (a ≤ 15 mm, una vez, hay que despegar para repetir); la **palanca** (izquierda o derecha, ← →) pasa de página — dentro de la burbuja la
+  palanca no gira ni mueve. «Salir» pregunta dos veces en VR (un rayo se desliza fácil); si sales, termina la sesión de VR para que se lea la despedida plana.
+- **Locomoción**: con la burbuja abierta `vr.update` pone el movimiento y el giro a 0 (el cliente ni lo intenta; el servidor ya te sujeta) y no hay reloj
+  ni menú de muñeca. Al estallar la pompa se vuelve a andar.
+- **La pompa alrededor**: una esfera de 1,6 m vista desde dentro, un solo material plano, opacidad 0,16 como mucho y que sube en 1 s: el mundo nunca se oscurece
+  de golpe y no hay viñeta. Estalla en ~⅓ s (crece ×1,35 y se desvanece; el panel se va con ella). Un solo lienzo → una textura, y se redibuja solo cuando
+  cambia el modelo (paso, casilla, página) o el resalte (como mucho cada 100 ms).
+- **Casos**: *PC con el visor, burbuja a medias* → al entrar en VR (botón «Entrar en VR» de la propia burbuja, porque la barra queda tras ella) el panel sale en el
+  mismo paso y con las mismas casillas; la burbuja plana sigue montada bajo el visor (en el monitor se ve como siempre) y lo que hagas en uno se ve en el otro.
+  *Quest, la burbuja plana sale antes de entrar en VR* → igual; el navegador de la Quest también la tiene (con su «Entrar en VR»). *Salir de VR con la burbuja
+  abierta* → sigues en el mismo paso en la burbuja plana. *Servidor con la puerta apagada* → no se carga nada de VR de la burbuja.
+- Se carga bajo demanda (`import()` en cuanto la burbuja sale en un navegador con VR, para que entrar no espere). Comprobación: `__numinia.view.vr.condiciones()?.estado()`
+  y `.zonaMundo(id|botón)`; e2e con IWER (Quest 3 emulada): `node tools/e2e-piernas/condiciones-vr.mjs` (puertos 8861/5193; `SHOTS=carpeta` guarda el lienzo del panel).
+  **No probado en una Quest real** (ver el PR: paso a paso por USB).
+
 ### La pompa vista desde fuera (c5: `packages/render/src/pompas.ts`)
 
 Quien aún está leyendo las normas (puerta encendida y no abierta) se ve, para todos los demás, **dentro de una pompa translúcida** con un

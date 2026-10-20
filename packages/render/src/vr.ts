@@ -16,6 +16,8 @@ import { createMenuInvocado, type Proveedor } from "./menu-invocado.ts";
 import type { BotonReloj, Vista } from "./menu-vr.ts";
 import type { PathsIcono } from "./vr-pintura.ts";
 import type { AccionFichaVR, DatosFichaVR, FichaVR } from "./vr-ficha.ts"; // types only: the panel itself is fetched on first use (C5)
+import type { CondicionesVR } from "./condiciones-vr.ts"; // types only: the entry bubble's panel is fetched on first use (c4)
+import { palancaPagina, type ModeloVR, type Zona } from "./condiciones-vr-geom.ts"; // pure numbers, no three.js
 import { empujaFuera } from "./vr-paredes.ts";
 import { audio } from "./audio/nucleo.ts"; // S1: the engine's one audio graph (it sleeps when the session ends)
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
@@ -295,6 +297,9 @@ export function createVR(h: VRHooks) {
   const oyentes = { elegir: new Set<(n: number) => void>(), atras: new Set<() => void>(), ficha: new Set<(a: AccionFichaVR) => void>() };
   // C5: the object card panel — built the first time it is needed (a separate chunk: flat-screen players never download it)
   let fichaVR: FichaVR | null = null, fichaPide: DatosFichaVR | null = null, fichaCargando = false;
+  // c4: the entry bubble's panel (condiciones-vr.ts), built the first time the page asks, and who listens to its presses and to the stick turning pages
+  let condPendiente: ModeloVR | null = null, condVR: CondicionesVR | null = null, condCargando: Promise<CondicionesVR> | null = null, pagLatched = false;
+  const oyentesCond = { pulsa: new Set<(z: Zona) => void>(), pagina: new Set<(dir: -1 | 1) => void>() };
   // the object card sits LOW and to the LEFT (about 40° and 30° off the line of sight): the ray to the thing you are working on, straight
   // ahead, must not pass through it, and the right hand — the one that points — stays clear of it
   const fichaColocar = (m: THREE.Object3D) => {
@@ -327,7 +332,7 @@ export function createVR(h: VRHooks) {
   }
   /** «Menú» / Y: open the menu in front of the eyes (at `en`, or where it was) or close it. Returns whether it is open. */
   function alternarMenu(en?: Vista): boolean {
-    if (!session) return false;
+    if (!session || condVR?.abierto) return false; // c4: with the entry bubble up there is no menu (nothing in it works yet)
     leerOjos();
     const abre = !menu.abierto;
     const ok = menu.alternar(ojoV, miraV, en);
@@ -357,7 +362,7 @@ export function createVR(h: VRHooks) {
     pagina = "mandos"; panel.visible = true; panelDelante = false; // the first thing you see: how the controllers work
     ajusteMalla.visible = false; salirMalla.visible = true;
     session.addEventListener("end", () => {
-      session = null; moveX = moveZ = 0; strength = 0; fichaVR?.ocultar(); fichaPide = null; reloj.cerrar(); menu.cerrar();
+      session = null; moveX = moveZ = 0; strength = 0; fichaVR?.ocultar(); fichaPide = null; reloj.cerrar(); menu.cerrar(); condVR?.ocultar(false); condPendiente = null; pagLatched = false;
       h.camera.remove(vignette, nota); rig.remove(h.camera); rig.visible = false;
       h.manos?.montar(null);
       h.renderer.xr.enabled = false;
@@ -408,7 +413,13 @@ export function createVR(h: VRHooks) {
     } else if (Math.abs(ry) <= 0.6) navLatched = false;
     // snap turn: one step per push, re-armed when the stick returns to the middle
     let turned = false;
-    if (Math.abs(rx) > 0.6) {
+    if (condVR?.abierto || condPendiente) { // c4: inside the bubble the stick turns pages (either one: the left one walks nobody), it does not turn you
+      const p = palancaPagina(Math.abs(rx) > Math.abs(lx) ? rx : lx, !pagLatched);
+      pagLatched = !p.armado;
+      if (p.dir) for (const f of oyentesCond.pagina) f(p.dir);
+      turnLatched = Math.abs(rx) > 0.6;
+    } else if (Math.abs(rx) > 0.6) {
+      pagLatched = false;
       if (!turnLatched) { turnLatched = true; yawDeg += rx > 0 ? -giroDeg : giroDeg; rig.rotation.y = (yawDeg * Math.PI) / 180; turned = true; }
     } else turnLatched = false;
     // movement in the direction the head looks (flattened), stick up = forward.
@@ -446,6 +457,7 @@ export function createVR(h: VRHooks) {
     moveZ = fz * -ly + fx * lx;
     const conMano = visible && !lx && !ly ? h.manos?.andar?.() : null; // tracked hands: pinch and hold in the air = walk where that hand points
     if (conMano) { moveX = conMano[0] * 0.7; moveZ = conMano[1] * 0.7; } // walking pace (the edge, 0.9, runs)
+    if (condVR?.abierto || condPendiente) { moveX = moveZ = 0; turned = false; } // c4: inside the bubble the sticks turn pages, they do not move or turn you (the server holds you too)
     const m = Math.hypot(moveX, moveZ);
     if (m > 1) { moveX /= m; moveZ /= m; }
     moveX *= velocidad; moveZ *= velocidad; // rediseño v2: the menu's «Velocidad» (1 = as shipped)
@@ -458,10 +470,15 @@ export function createVR(h: VRHooks) {
     if (nota.visible && performance.now() > notaHasta) nota.visible = false;
     // rediseño v2: the watch on the left wrist (pressed by the right hand's fingertip or ray) and the still menu
     ojoV.setFromMatrixPosition(xrCam.matrixWorld); xrCam.getWorldDirection(miraV);
-    const mun = visible ? h.manos?.muneca?.(LADO_RELOJ, munPos, munRot) : null;
+    const mun = visible && !condVR?.abierto ? h.manos?.muneca?.(LADO_RELOJ, munPos, munRot) : null; // c4: no watch inside the bubble
     const hayPunta = visible && !!h.manos?.punta?.(LADO_PUNTA, puntaV);
     reloj.update(ojoV, miraV, mun ? { posicion: munPos, rotacion: munRot, esMano: mun.esMano, lado: LADO_RELOJ } : null, hayPunta ? puntaV : null);
     menu.update(ojoV);
+    if (condPendiente && condVR && ojoV.y > 0.1) { // c4: the bubble's panel comes up in front of the eyes once they have a pose
+      menu.cerrar(); reloj.cerrar(); panel.visible = false; // one thing in front of you: the old help card and the menu step aside
+      const m = condPendiente; condPendiente = null; condVR.mostrar(m, ojoV, miraV);
+    }
+    condVR?.update(ojoV, miraV, hayPunta ? puntaV : null);
     h.manos?.update(h.renderer.xr.getCamera());
     fichaVR?.tick();
     if (panel.visible) { pintarSalir(); pintarAjuste(); } // the highlight fades once the ray leaves; «¿Salir?» goes back after SALIR_CONFIRMA_MS
@@ -522,7 +539,26 @@ export function createVR(h: VRHooks) {
       dialogoMalla.visible = !!session;
     },
     /** The panel the hands may point at (manos.ts asks for it). */
-    paneles(): Panel[] { const out: Panel[] = dialogo && dialogoMalla.visible ? [panelDialogo] : []; out.push(...menu.paneles(), ...reloj.paneles()); if (fichaVR?.visible) out.push(fichaVR.panel); if (panel.visible) out.push(pagina === "ajustes" ? panelAjuste : panelSalir); return out; },
+    paneles(): Panel[] { const out: Panel[] = dialogo && dialogoMalla.visible ? [panelDialogo] : []; out.push(...menu.paneles(), ...reloj.paneles(), ...(condVR?.paneles() ?? [])); if (fichaVR?.visible) out.push(fichaVR.panel); if (panel.visible) out.push(pagina === "ajustes" ? panelAjuste : panelSalir); return out; },
+    /** c4: the entry bubble's panel (null until it has been loaded), and loading it. The page asks for it as soon as the bubble is up on a
+     * headset-capable browser, so entering VR does not wait for it. */
+    condiciones(): CondicionesVR | null { return condVR; },
+    condicionesCargar(): Promise<CondicionesVR> {
+      if (condVR) return Promise.resolve(condVR);
+      condCargando ??= import("./condiciones-vr.ts").then((m) => { condVR = m.createCondicionesVR({ scene: h.scene, alPulsar: (z) => { for (const f of oyentesCond.pulsa) try { f(z); } catch (e) { console.warn("[condiciones-vr]", e); } }, alSonar: avisarPulsa }); return condVR; });
+      return condCargando;
+    },
+    /** c4: show (or update) the bubble's panel with this model, in front of you; null closes it, `estallido` with the bubble's burst. */
+    condicionesModelo(m: ModeloVR | null, estallido = false): void {
+      if (!condVR) return;
+      if (!m || !session) { condPendiente = null; condVR.ocultar(estallido && !!session); return; }
+      if (condVR.abierto && !condVR.estallando) { condVR.actualizar(m); return; }
+      condPendiente = m; // placed in the next update(): the eyes' pose is only read there (the XR camera is refreshed by the frame, not before it)
+    },
+    /** c4: a button, a box or an arrow of the panel was pressed (the page does what it means). */
+    onCondicion(fn: (z: Zona) => void): () => void { oyentesCond.pulsa.add(fn); return () => oyentesCond.pulsa.delete(fn); },
+    /** c4: the stick was pushed to the left (−1) or the right (+1) inside the bubble: turn a page. */
+    onCondicionPagina(fn: (dir: -1 | 1) => void): () => void { oyentesCond.pagina.add(fn); return () => oyentesCond.pagina.delete(fn); },
     /** C5: show the object card panel for this object (null hides it). Fetches the panel's code the first time. */
     ficha(d: DatosFichaVR | null): void {
       fichaPide = d;
