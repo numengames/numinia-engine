@@ -6,7 +6,7 @@
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
 import { equiposDe, siguienteEquipo, terminada, resultado, RETIRANDO_S } from "./equipos.ts";
-import { dardos, CERCA_M, DARDOS_TURNO, FUERZA_IDEAL, TURNO_INACTIVO_S, RONDAS_DEFECTO, RONDAS_MAX } from "./feature.ts";
+import { dardos, CERCA_M, DARDOS_TURNO, TURNO_INACTIVO_S, RONDAS_DEFECTO, RONDAS_MAX, zonaDe, desvioFuerza, ZONA_FUERZA } from "./feature.ts";
 
 export type Sitio = { id: string; nombre: string; x: number; z: number; y?: number; radio?: number; rumbo?: number;
   /** v2: the board takes a second player and plays a match; `remoto`: a player may join from a real wall far away; `rondas`: 1-5 (default 3). */
@@ -62,13 +62,13 @@ export function textoDe(r: { sector: number; anillo: Anillo; puntos: number }): 
   }
 }
 
-/** The hand tremor's radius (board radii) on a perfect throw: aiming at the bull's eye with FUERZA_IDEAL lands inside the
- * double bull about a quarter of the time ((0.0747 / 0.15)²), inside the bull nearly always. */
-export const TEMBLOR = 0.15;
-/** How far a throw drops per unit of strength under FUERZA_IDEAL, and climbs per unit over it (radii). */
-export const CAIDA = 1.6, SUBIDA = 0.6;
-/** Extra scatter per unit of strength over / under FUERZA_IDEAL (radii). */
-export const ABRE_FUERTE = 0.5, ABRE_FLOJO = 0.15;
+/** The hand tremor's radius (board radii) on a throw inside the strength window: aiming at the bull's eye with a straight
+ * throw lands inside the double bull about 87 % of the time ((0.0747 / 0.08)²), inside the bull always. (v4: was 0.15.) */
+export const TEMBLOR = 0.08;
+/** Per unit of strength BEYOND the window (ZONA_FUERZA of the throw's `via`): how far a throw drops under FUERZA_IDEAL, and climbs over it (radii). */
+export const CAIDA = 1.6, SUBIDA = 0.85;
+/** Extra scatter per unit of strength beyond the window, over / under FUERZA_IDEAL (radii). */
+export const ABRE_FUERTE = 1.0, ABRE_FLOJO = 0.5;
 /** Two numbers in [0, 1) from integers, no state (a 32-bit integer hash; the same inputs always give the same pair). */
 export function azarDe(...n: number[]): [number, number] {
   let h = 0x9e3779b9;
@@ -77,11 +77,13 @@ export function azarDe(...n: number[]): [number, number] {
   let g = Math.imul(h ^ 0x27d4eb2f, 0x165667b1); g ^= g >>> 15; g = Math.imul(g, 0x85ebca6b); g ^= g >>> 13;
   return [a, (g >>> 0) / 4294967296];
 }
-/** Where a dart aimed at (x, y) with strength `fuerza` lands; `u` = the tremor's two numbers (azarDe). Pure. */
-export function aterrizaje(x: number, y: number, fuerza: number, u: [number, number]): { x: number; y: number } {
-  const d = Math.max(0, Math.min(1, fuerza)) - FUERZA_IDEAL;
-  const vertical = d < 0 ? d * CAIDA : d * SUBIDA;
-  const abre = TEMBLOR + Math.max(0, d) * ABRE_FUERTE + Math.max(0, -d) * ABRE_FLOJO;
+/** Where a dart aimed at (x, y) with strength `fuerza` lands; `u` = the tremor's two numbers (azarDe); `zona` = the half-width
+ * of the straight window (zonaDe(via)). INSIDE the window: no drop and no extra scatter, only the tremor. Outside, only the part
+ * beyond it counts (`e`): it drops (under) or climbs (over) and scatters more. Pure. */
+export function aterrizaje(x: number, y: number, fuerza: number, u: [number, number], zona: number = ZONA_FUERZA.raton): { x: number; y: number } {
+  const d = desvioFuerza(fuerza), e = Math.max(0, Math.round((Math.abs(d) - zona) * 1e6) / 1e6);
+  const vertical = e === 0 ? 0 : d < 0 ? -e * CAIDA : e * SUBIDA;
+  const abre = TEMBLOR + e * (d > 0 ? ABRE_FUERTE : ABRE_FLOJO);
   const ang = u[0] * Math.PI * 2, mag = abre * Math.sqrt(u[1]); // uniform over the disc
   const r3 = (v: number) => Math.round(v * 1000) / 1000;
   return { x: r3(Math.max(-3, Math.min(3, x + Math.cos(ang) * mag))), y: r3(Math.max(-3, Math.min(3, y + vertical + Math.sin(ang) * mag))) };
@@ -284,7 +286,7 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     const s = sitios.get(id)!;
     const tick = api.tick();
     const n = t.dardos + 1;
-    const cae = aterrizaje(Number(m.x) || 0, Number(m.y) || 0, Number(m.fuerza) || 0, azarDe(tick, e, n, hashTexto(id)));
+    const cae = aterrizaje(Number(m.x) || 0, Number(m.y) || 0, Number(m.fuerza) || 0, azarDe(tick, e, n, hashTexto(id)), zonaDe(m.via));
     const p = polar(cae.x, cae.y);
     const r = resolverTiro(p.angulo, p.radio);
     t.dardos = n; t.puntos += r.puntos; t.ultimo = tick;

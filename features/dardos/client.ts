@@ -5,8 +5,10 @@
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
 import { dardos as decl, DARDOS_TURNO, FUERZA_IDEAL } from "./feature.ts";
+import type { Via } from "./feature.ts";
 
 export { DARDOS_TURNO, FUERZA_IDEAL };
+export type { Via };
 export type Anillo = "dobleBull" | "bull" | "simple" | "triple" | "doble" | "fuera";
 export type Dardo = { quien: number; sitio: string; numero: number; x: number; y: number; sector: number; anillo: Anillo; puntos: number; tirada: number; texto: string; cuando: number };
 export type Sitio = { id: string; nombre: string; x: number; y: number; z: number; radio: number; rumbo: number; ocupado: boolean;
@@ -112,13 +114,14 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
       if (!id) return { ok: false, why: "no hay ninguna diana cerca" };
       return A.send("jugar", desde === "pared" ? { sitio: id, desde } : { sitio: id });
     },
-    /** Throw: aim (x, y) on the face in board radii, strength 0-1. Without a turn the server starts one. */
-    lanzar: (x: number, y: number, fuerza: number, sitio?: string): Res => {
+    /** Throw: aim (x, y) on the face in board radii, strength 0-1. Without a turn the server starts one. v4: `via` = how it was
+     *  thrown (raton, teclado, tactil, vr, ar); it sets the width of the straight-strength window (ZONA_FUERZA). Missing = raton. */
+    lanzar: (x: number, y: number, fuerza: number, sitio?: string, via?: Via): Res => {
       if (!A) return SIN;
       const id = sitio ?? (e.sitio || dardos.sitios()[0]?.id);
       if (!id) return { ok: false, why: "no hay ninguna diana cerca" };
       const c = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Number.isFinite(v) ? v : 0));
-      return A.send("lanzar", { sitio: id, x: r3(c(x, -3, 3)), y: r3(c(y, -3, 3)), fuerza: r3(c(fuerza, 0, 1)) });
+      return A.send("lanzar", { sitio: id, x: r3(c(x, -3, 3)), y: r3(c(y, -3, 3)), fuerza: r3(c(fuerza, 0, 1)), ...(via ? { via } : {}) });
     },
     // in a live match you can leave on the rival's turn too (the server hands them the win)
     salir: (): Res => (A ? (e.sitio || (D && !D.fin && soyDe(D)) ? A.send("salir", {}) : { ok: false, why: "no estás tirando" }) : SIN),

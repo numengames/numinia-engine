@@ -14,7 +14,7 @@ type SitioV = { id: string; ocupado?: boolean; duelo?: boolean; remoto?: boolean
 /** The part of the controller (features/dardos/client.ts) this glue uses. */
 export type Ctl = {
   sitios(): SitioV[]; duelo(): DueloV | null; jugar(sitio?: string, desde?: "sitio" | "pared"): Res;
-  lanzar(x: number, y: number, fuerza: number, sitio?: string): Res; salir(): Res; clavados(sitio?: string): unknown[];
+  lanzar(x: number, y: number, fuerza: number, sitio?: string, via?: "ar"): Res; salir(): Res; clavados(sitio?: string): unknown[];
   /** v3 (teams): the buttons «Cambiar turno» and «Empezar». */
   cambiar?(): Res; empezar?(): Res;
   alCambiar?(fn: (que: string) => void): () => void;
@@ -84,7 +84,7 @@ export function montarDuelo(o: { dardos: Ctl; plaza?: Partial<PlazaDianas>; enti
         alLanzar: (x: number, y: number, f: number) => {
           if (!activo) { base.alLanzar(x, y, f); return; }
           if (!puedeLanzar(dardos.duelo(), true)) return; // out of turn: not even sent
-          const r = dardos.lanzar(x, y, f, sitio); if (!r.ok) o.avisar(r.why);
+          const r = dardos.lanzar(x, y, f, sitio, "ar"); if (!r.ok) o.avisar(r.why);
         },
         alColocar: (pared: boolean) => { base.alColocar?.(pared); entrar(); },
         envolver: (j: DianaAR): DianaAR => (ar = envolverDuelo(j, {

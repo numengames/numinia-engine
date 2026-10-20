@@ -23,6 +23,17 @@ export const DARDOS_TURNO = 3;
 export const TURNO_INACTIVO_S = 60;
 /** The throw that flies straight to where you aimed (0-1). Weaker drops, harder climbs a little and scatters more. */
 export const FUERZA_IDEAL = 0.65;
+/** v4: how the dart was thrown (the `via` of `lanzar`; a missing one is `raton`, so a client of v3 keeps working). */
+export const VIAS = ["raton", "teclado", "tactil", "vr", "ar"] as const;
+export type Via = (typeof VIAS)[number];
+/** v4: the half-width of the straight-throw window around FUERZA_IDEAL (strength, 0-1) PER WAY OF THROWING. Inside it the dart
+ *  neither drops nor scatters more; outside it pays (server.ts `aterrizaje`). The PC bar, the phone, VR and the AR wall bar
+ *  draw THIS number, so what you see is what the server judges. A mouse or key is exact (narrow); a flick or a hand is noisier (wider). */
+export const ZONA_FUERZA: Readonly<Record<Via, number>> = { raton: 0.04, teclado: 0.04, tactil: 0.07, vr: 0.06, ar: 0.06 };
+/** The window of a `via`; an unknown or missing one is the mouse's (the narrowest: nobody gains by sending garbage). */
+export const zonaDe = (via: unknown): number => ZONA_FUERZA[(VIAS as readonly unknown[]).includes(via) ? (via as Via) : "raton"];
+/** How far a strength is from the straight one, to 6 decimals (so 0.69 - 0.65 is 0.04, not 0.04000000000000004, on both sides of the wire). Pure. */
+export const desvioFuerza = (fuerza: number): number => Math.round((Math.max(0, Math.min(1, fuerza)) - FUERZA_IDEAL) * 1e6) / 1e6;
 /** Rounds of a duel by default (every round: each player throws their DARDOS_TURNO darts) and the allowed range. */
 export const RONDAS_DEFECTO = 3, RONDAS_MAX = 5;
 
@@ -43,7 +54,7 @@ export const ANILLO_VALUES = ["dobleBull", "bull", "simple", "triple", "doble", 
 
 export const dardos = defineFeature({
   id: "dardos",
-  version: 3,
+  version: 4,
   level: "base",
   describe: "Jugar a los dardos en una diana del mundo: una tirada son tres dardos; en cada uno eliges adónde apuntas y con qué fuerza lanzas, y el servidor decide dónde se clava (un tiro flojo cae, uno fuerte sube y se abre, y el pulso mueve un poco cada dardo), cuenta sector, anillo y puntos y guarda el marcador por invitado. Igual en el PC (ratón), el móvil (gesto de lanzar) y en AR (la diana en tu pared).",
   store: { describe: "Por invitado (`d:<id>`): dardos tirados, puntos totales, el mejor dardo, la mejor tirada (3 dardos) y cuántas dianas (dobleBull) ha hecho. Nunca va a las páginas; a su dueño le llega como evento `marcador`." },
@@ -65,8 +76,8 @@ export const dardos = defineFeature({
   intents: {
     jugar: { describe: "Empezar una tirada de tres dardos en la diana que tienes al lado (su radio). Mientras tiras, la diana es tuya. En una diana de duelo, el primero espera rival y el segundo empieza el duelo. `desde: \"pared\"` (solo en dianas `remoto`) te deja jugar desde una pared real lejos de la diana.", spoken: "jugar a los dardos", fields: { sitio: ID, desde: { kind: "enum", values: ["sitio", "pared"], default: "sitio" } }, rate: { perSecond: 2, burst: 4 } },
     lanzar: {
-      describe: "Lanzar un dardo de tu tirada: x, y = adónde apuntas en la cara de la diana, en radios (0, 0 = el centro; y hacia arriba; 1 = el borde del doble); fuerza 0-1 (0,65 va recto; menos cae, más sube y se abre). El servidor decide dónde se clava.",
-      spoken: "lanzar un dardo", fields: { sitio: ID, x: CARA, y: CARA, fuerza: { kind: "fixed", min: 0, max: 1, step: 0.001 } }, rate: { perSecond: 3, burst: 4 },
+      describe: "Lanzar un dardo de tu tirada: x, y = adónde apuntas en la cara de la diana, en radios (0, 0 = el centro; y hacia arriba; 1 = el borde del doble); fuerza 0-1 (0,65 va recto dentro de una zona estrecha; fuera de ella, menos cae y más sube y se abre). v4: `via` (raton, teclado, tactil, vr, ar; si falta, raton) dice cómo lanzaste y fija el ancho de esa zona (ZONA_FUERZA). El servidor decide dónde se clava.",
+      spoken: "lanzar un dardo", fields: { sitio: ID, x: CARA, y: CARA, fuerza: { kind: "fixed", min: 0, max: 1, step: 0.001 }, via: { kind: "enum", values: VIAS, default: "raton" } }, rate: { perSecond: 3, burst: 4 },
     },
     cambiar: { describe: "v3, duelo: pasar el turno. Tras tus 3 dardos (o antes, si quieres) la diana pide «retira los dardos»: nada puntúa hasta que quien tiene el turno pulsa cambiar (o pasan RETIRANDO_S segundos).", spoken: "cambiar de turno", fields: { sitio: ID }, rate: { perSecond: 2, burst: 4 } },
     empezar: { describe: "v3, duelo: el anfitrión arranca la partida cuando hay al menos 2 equipos sentados (la diana espera hasta que lo haga si el mundo declara `equipos`).", spoken: "empezar el duelo", fields: { sitio: ID }, rate: { perSecond: 2, burst: 4 } },
