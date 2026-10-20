@@ -1347,3 +1347,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `cable/sin-json`, sin subir.
 - Siguiente: historia C (huecos desplegables en la misma frase) y D («Decirlo» con IA, que enseña la frase para confirmar).
+
+## 2026-10-20 14:20 · cable sin JSON, historia C · hecho
+- Qué: la frase del cable es el editor: cada hueco es un desplegable con solo lo válido (tipo, acción, objeto/movedor/misión/sonido del mundo, espera) y texto solo para nombre, señal, enlace https y coordenadas. «Guardar cambios» manda una petición nueva, `editarDisparador` (mismo permiso y ritmo que `editarReceptores`; el servidor revalida con el lector del fichero, conserva id y usos, reescribe `disparadores.json`) y el error en español sale junto al control. «+ Nuevo cable» abre los mismos huecos y no crea nada hasta «Crear cable». Piezas puras: `cable-huecos.ts` y `cable-contexto.ts`; textos en `cable-frases.es/en.ts` (paridad vigilada). Accesible: `aria-label` en cada control, frase entera como grupo, blancos de 44 px, 360 px sin desbordar. «Ver datos» intacto.
+- Tests: `test/cable-huecos.test.ts` (nuevo), 5 pruebas nuevas en `test/disparadores.test.ts`; e2e `tools/e2e-piernas/cable.mjs` maneja los desplegables reales (cambia objeto, espera y un solo uso, guarda, lo ve otra página; rechazo de enlace sin https). Simulación y huella sin tocar: nada en el tick.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `cable/sin-json`, sin subir.
+- Siguiente: historia D («Decirlo» con IA) reutilizando `editarDisparador`.

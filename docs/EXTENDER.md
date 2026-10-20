@@ -1070,8 +1070,28 @@ registro dice `nadie hace «teletransporta» en este servidor` en vez de callar.
   mismos `{parámetros}`), regístralo en `FRASES` e `IDIOMAS` de `cable-frase.ts`; `test/cable-frases.test.ts`
   falla si falta una clave o cambia un parámetro. El idioma de la página es el `lang` del documento (`es` si no hay
   o no existe). Hoy hay `es` y `en`; **`ja`, `ko` y `pt-br` están pendientes** y caen en español.
-- **Lo que no hace (todavía):** cambiar el tipo o el sitio de un cable ya creado (hoy se borra y se crea de nuevo);
-  los huecos desplegables (C) y «Decirlo» con una IA (D). La vista del constructor (`apps/plaza/cable.ts`) lista cada disparador, deja «Probar» un botón y edita
+- **La frase es el editor (historia C, «cable sin JSON»):** en el panel Cable, cada hueco de la frase es un control:
+  «Cuando [alguien pulse el botón ▾] [nombre], [muestra ▾] [Farola ▾]. Espera [5 s ▾]. ☐ Solo funciona una vez».
+  Solo se puede **elegir lo válido**: el tipo (3), la acción (8), el objeto de la lista real del mundo (o el
+  movedor, para «mueve»), la misión, el sonido del catálogo, la espera (0, 1, 2, 5, 10, 30, 60, 300 s y, si el cable
+  trae otra, también esa). Texto libre solo donde no hay otra forma: el nombre, el nombre de la señal, el enlace
+  (https) y las coordenadas (con «Mi posición»). Hasta 8 acciones («+ Otra acción», «✕» para quitar). **La página no
+  tiene reglas:** las opciones y las partes de la frase las da una función **pura**,
+  `huecosDeCable(cable, idioma, contexto)` en `features/disparadores/cable-huecos.ts` (la frase como lista de textos y
+  huecos; los textos salen de `cable-frases.es.ts`/`.en.ts`, claves `editor.*`, `opcion.*`, `boton.*`), y la lista
+  del mundo la reúne `contextoDelCable(…)` (`cable-contexto.ts`, también pura). «Guardar cambios» manda UNA petición,
+  **`disparadores.editarDisparador({ id, nombre, tipo, senal, cooldown, unSoloUso, receptores, mover? })`**: mismo
+  permiso de construir y mismo límite de ritmo que `editarReceptores`; el servidor valida la línea entera con el
+  mismo lector de `disparadores.json` (8 receptores, 512 bytes, nombre ≤ 60 bytes), conserva el id y el contador de
+  usos, reescribe el fichero y responde a quien edita; si rechaza, el motivo, en español, sale junto al control
+  (`aria-invalid` y `role=alert`). `mover` solo hace falta al pasar de «señal» a botón o zona (el cable aún no tiene
+  sitio). **«+ Nuevo cable»** abre los mismos huecos con valores de partida y no existe hasta pulsar «Crear cable».
+  Accesibilidad: cada control tiene `aria-label`; la frase entera es un `role=group` con su texto completo como
+  `aria-label` (se lee en orden); todo es nativo (Tab, flechas, Espacio); blancos táctiles de 44 px (ya con el
+  «Tamaño de la interfaz»); a 360 px la frase baja de línea sin desbordar. «Ver datos» sigue como estaba.
+  La historia D reutilizará este mismo `editarDisparador` y su validación.
+- **Lo que no hace (todavía):** «Decirlo» con una IA (D); mover un cable ya creado a otro sitio desde la página
+  (`editarDisparador` ya lo admite con `mover`, la página solo lo usa al salir de «señal»). La vista del constructor (`apps/plaza/cable.ts`) lista cada disparador, deja «Probar» un botón y edita
   en vivo sus receptores (`editarReceptores`: el servidor valida cada receptor igual que al leer el fichero y, si
   acepta, reescribe `disparadores.json`; el campo `receptores` del estado viaja a toda página, como el resto de la
   ficha; no es un secreto como el código de una cerradura). Sin servidor con escritor de ficheros el cambio vale

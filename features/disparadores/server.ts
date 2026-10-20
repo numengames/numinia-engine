@@ -239,15 +239,49 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
     guardar(id);
   });
 
+  /** Take a trigger out of the server's own tables (not its state): used by delete and by edit. */
+  const desmontar = (d: Disparador) => {
+    lista.delete(d.id); listos.delete(d.id); dentro.delete(d.id); agotados.delete(d.id);
+    if (d.tipo === "senal") { const resto = (porSenal.get(d.senal) ?? []).filter((x) => x.id !== d.id); if (resto.length) porSenal.set(d.senal, resto); else porSenal.delete(d.senal); }
+  };
+
   api.on("borrarDisparador", (e, m) => {
     if (!api.puede(e, "construir")) return rechazar(e, "No puedes construir aquí: borrar un cable es cosa de quien tiene permiso de construir.");
     const id = String(m.disparador ?? ""), d = lista.get(id);
     if (!d) return rechazar(e, `No hay ningún cable «${cortar(id, 16)}» que borrar.`);
-    lista.delete(id); listos.delete(id); dentro.delete(id); agotados.delete(id);
-    if (d.tipo === "senal") { const resto = (porSenal.get(d.senal) ?? []).filter((x) => x.id !== id); if (resto.length) porSenal.set(d.senal, resto); else porSenal.delete(d.senal); }
+    desmontar(d);
     api.state.delete(id);
     api.emit("borrado", { disparador: id }, { to: e });
     api.log(`[disparadores] «${id}»: ${nombreDe(e)} borra un cable en vivo (${lista.size}/${DISPARADORES_MAX})`);
+    guardar(id);
+  });
+
+  // Historia C (cable sin JSON): the sentence with blanks saves here, in ONE intent, so a cable is never half-edited.
+  // The merged line goes through the same reader as the file (leerDisparador): the page holds no rules. The id, and
+  // where the cable stands (unless `mover`), stay; the count of uses stays; cooldown/spent start fresh.
+  api.on("editarDisparador", (e, m) => {
+    if (!api.puede(e, "construir")) return rechazar(e, "No puedes construir aquí: editar un cable es cosa de quien tiene permiso de construir.");
+    const id = String(m.disparador ?? ""), d = lista.get(id);
+    if (!d) return rechazar(e, `No hay ningún cable «${cortar(id, 16)}» que editar.`);
+    let crudo: unknown;
+    try { crudo = JSON.parse(String(m.receptores ?? "")); }
+    catch { return rechazar(e, "receptores: no es JSON válido."); }
+    if (Array.isArray(crudo) && crudo.length > RECEPTORES_MAX) return rechazar(e, `receptores: un cable lleva como mucho ${RECEPTORES_MAX}; quita alguno.`);
+    const tipo = String(m.tipo ?? "");
+    const mover = m.mover === true;
+    const radio = tipo === "zona" ? (d.tipo === "zona" ? d.radio : 3) : (d.tipo === "boton" ? d.alcance : 2);
+    const leido = leerDisparador({
+      id, nombre: m.nombre, tipo, x: mover ? m.x : d.x, y: mover ? m.y : d.y, z: mover ? m.z : d.z, radio,
+      frase: d.frase, senal: m.senal, cooldown: m.cooldown, un_solo_uso: m.unSoloUso === true, receptores: crudo,
+    });
+    if (typeof leido === "string") return rechazar(e, leido);
+    if (new TextEncoder().encode(JSON.stringify(leido.receptores)).length > RECEPTORES_JSON_MAX_BYTES) return rechazar(e, `receptores: demasiado grande (más de ${RECEPTORES_JSON_MAX_BYTES} bytes codificados): acórtalo.`);
+    const usos = Number(api.state.get(id)?.usos ?? 0);
+    desmontar(d);
+    if (!montar(leido)) { montar(d); return rechazar(e, `No pude cambiar el cable «${id}» (no cabe en el esquema): revisa sus números.`); }
+    if (usos > 0) poner(leido, { usos });
+    api.emit("cableEditado", { disparador: id }, { to: e });
+    api.log(`[disparadores] «${id}»: ${nombreDe(e)} edita el cable en vivo`);
     guardar(id);
   });
 

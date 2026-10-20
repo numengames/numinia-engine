@@ -78,6 +78,17 @@ export const disparadores = defineFeature({
       },
       rate: { perSecond: 1, burst: 3 },
     },
+    editarDisparador: {
+      describe: "Historia C del cable sin JSON: cambia en vivo un disparador que ya existe de una vez (nombre, tipo, señal, espera, un solo uso y todos sus receptores como JSON); si `mover` es verdadero también lo pone en x, y, z. Solo quien tiene permiso de construir. El servidor revalida la línea entera con el mismo lector que lee disparadores.json (8 receptores, 512 bytes), lo cambia al momento para todos —conserva cuántas veces ha disparado— y reescribe disparadores.json. El id no cambia.",
+      spoken: "editar un cable",
+      fields: {
+        disparador: ID, nombre: { kind: "text", maxBytes: 60, default: "" }, tipo: { kind: "enum", values: [...TIPOS] }, senal: SENAL,
+        cooldown: { kind: "int", min: 0, max: COOLDOWN_MAX_S, default: 0 }, unSoloUso: { kind: "bool", default: false },
+        receptores: { kind: "text", maxBytes: RECEPTORES_JSON_MAX_BYTES },
+        mover: { kind: "bool", default: false }, x: X, y: Y, z: X,
+      },
+      rate: { perSecond: 1, burst: 3 },
+    },
     borrarDisparador: {
       describe: "Historia A del cable sin JSON: borra en vivo un disparador que existe (también de disparadores.json). Solo quien tiene permiso de construir; un id que no existe se rechaza diciendo cuál.",
       spoken: "borrar un cable",
@@ -101,12 +112,13 @@ export const disparadores = defineFeature({
       fields: { quien: QUIEN, disparador: ID, accion: { kind: "enum", values: ACCIONES }, objeto: NOMBRE, x: X, y: Y, z: X, mision: { kind: "text", maxBytes: 32 }, paso: { kind: "int", min: 0, max: 999, default: 0 }, enlace: { kind: "text", maxBytes: 200 }, sonido: { kind: "text", maxBytes: 32 } },
       announce: "silent",
     },
-    rechazado: { describe: "No disparó, y por qué (lejos, todavía no, ya se usó, no hay tal disparador). También lo usan editarReceptores, crearDisparador y borrarDisparador cuando el cambio no se hace (sin permiso de construir, id inexistente o repetido, receptor mal escrito, mundo lleno).", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
+    rechazado: { describe: "No disparó, y por qué (lejos, todavía no, ya se usó, no hay tal disparador). También lo usan editarReceptores, editarDisparador, crearDisparador y borrarDisparador cuando el cambio no se hace (sin permiso de construir, id inexistente o repetido, receptor mal escrito, mundo lleno).", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
     editado: {
       describe: "D-041 historias 5-6: editar_receptores se hizo (el disparador que cambió). Solo para quien lo editó; todos los demás ven el cambio en el estado del disparador.",
       fields: { disparador: ID },
       announce: "silent",
     },
+    cableEditado: { describe: "Historia C: editarDisparador se hizo (el disparador que cambió). Solo para quien lo editó; los demás ven el cambio en el estado.", fields: { disparador: ID }, announce: "silent" },
     creado: { describe: "Historia A: crearDisparador se hizo (el disparador nuevo). Solo para quien lo creó; los demás ven el disparador nuevo en el estado.", fields: { disparador: ID }, announce: { text: "Cable «{disparador}» creado.", sound: "exito", importance: 1 } },
     borrado: { describe: "Historia A: borrarDisparador se hizo (el disparador que ya no está). Solo para quien lo borró; los demás lo ven desaparecer del estado.", fields: { disparador: ID }, announce: { text: "Cable «{disparador}» borrado.", sound: "suave", importance: 1 } },
     // D-041 historias 3-4: the cable's own actions (no other feature owns moving someone or sounding a note); `da_paso`

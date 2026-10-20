@@ -439,3 +439,95 @@ test("cable sin JSON: the intents are rate-limited like editarReceptores", () =>
   assert.deepEqual(i.crearDisparador.rate, i.editarReceptores.rate);
   assert.deepEqual(i.borrarDisparador.rate, i.editarReceptores.rate);
 });
+
+// ---- historia C (cable sin JSON): editarDisparador, the one save of the sentence with blanks ----
+const CAMBIO = { id: "rojo", nombre: "Botón azul", tipo: "boton" as const, senal: "", cooldown: 10, unSoloUso: true, receptores: [{ accion: "oculta", objeto: "Farola" }, { accion: "suena", sonido: "campana" }] };
+
+test("cable sin JSON C: a builder edits name, wait, one-use and receivers in one go; everyone sees it, uses are kept, the file is rewritten and reloads identically", () => {
+  const escrituras: Escritura[] = [];
+  const { pages: [a, b], pump, place } = mundo(2, [BOTON, ZONA], { escribir: (ds) => escrituras.push(ds) });
+  pump(3);
+  place(0, 12, 0); pump(2);
+  a.d.pulsar("rojo"); pump(3);
+  assert.equal(a.d.lista().find((d) => d.id === "rojo")?.usos, 1);
+  assert.ok(a.d.editarDisparador(CAMBIO).ok); pump(3);
+  assert.equal(eventos(a.s, "disparadores", "rechazado").length, 0, ultimoRechazo(a.s));
+  assert.equal(eventos(a.s, "disparadores", "cableEditado").length, 1, "the editor is told");
+  assert.equal(eventos(b.s, "disparadores", "cableEditado").length, 0, "nobody else is");
+  for (const p of [a, b]) {
+    const d = p.d.lista().find((x) => x.id === "rojo")!;
+    assert.equal(d.nombre, "Botón azul"); assert.equal(d.cooldown, 10); assert.equal(d.unSoloUso, true); assert.equal(d.usos, 1, "the count of uses stays");
+    assert.deepEqual(d.receptores, CAMBIO.receptores);
+    assert.equal(d.x, 12, "it stays where it stood"); assert.equal(d.alcance, 2, "and keeps its reach");
+  }
+  assert.equal(escrituras.length, 1);
+  const releido = leerDisparadores(JSON.parse(JSON.stringify(serializarDisparadores(escrituras[0]))));
+  assert.deepEqual(releido.problemas, []);
+  assert.deepEqual(releido.disparadores, escrituras[0]);
+  assert.equal(escrituras[0].find((d) => d.id === "rojo")?.unSoloUso, true);
+  // the others are untouched
+  assert.deepEqual(a.d.lista().find((d) => d.id === "umbral")?.receptores, ZONA.receptores);
+  // the edited cable really runs its new receivers: once, then it is spent
+  a.d.pulsar("rojo"); pump(3);
+  assert.equal(a.d.lista().find((d) => d.id === "rojo")?.agotado, true);
+});
+
+test("cable sin JSON C: changing the kind rebuilds the bookkeeping (zone ↔ button ↔ senal) and `mover` puts it somewhere new", () => {
+  const { pages: [a], pump, place } = mundo(1, [BOTON, ZONA]);
+  pump(25);
+  // a zone becomes a button standing where the builder asks; the old zone no longer fires
+  a.d.editarDisparador({ id: "umbral", nombre: "Umbral", tipo: "boton", senal: "", cooldown: 0, unSoloUso: false, receptores: ZONA.receptores, mover: { x: 30, y: 0, z: 30 } }); pump(3);
+  const d = a.d.lista().find((x) => x.id === "umbral")!;
+  assert.equal(d.tipo, "boton"); assert.equal(d.x, 30); assert.equal(d.z, 30); assert.equal(d.alcance, 2); assert.equal(d.radio, 0.5);
+  place(0, -20, 0); pump(4);
+  assert.equal(eventos(a.s, "disparadores", "disparado").length, 0, "the old zone is gone");
+  // a button becomes a signal listener: it needs a signal name
+  a.d.editarDisparador({ ...CAMBIO, tipo: "senal", senal: "" }); pump(3);
+  assert.match(ultimoRechazo(a.s), /senal debe ser/);
+  a.d.editarDisparador({ ...CAMBIO, tipo: "senal", senal: "puerta-abierta" }); pump(3);
+  assert.equal(a.d.lista().find((x) => x.id === "rojo")?.tipo, "senal");
+  assert.equal(a.d.lista().find((x) => x.id === "rojo")?.senal, "puerta-abierta");
+});
+
+test("cable sin JSON C: editing is refused without permission, for an unknown id, a bad receiver, too many, an oversized list; nothing changes and nothing is written", () => {
+  let puede = true;
+  const escrituras: Escritura[] = [];
+  const { pages: [a], pump } = mundo(1, [BOTON], { puede: () => puede, escribir: (ds) => escrituras.push(ds) });
+  pump(3);
+  const antes = JSON.stringify(a.d.lista());
+  const malo = (c: Partial<typeof CAMBIO> & { receptores?: unknown }, re: RegExp) => { a.d.editarDisparador({ ...CAMBIO, ...c } as never); pump(25); assert.match(ultimoRechazo(a.s), re); assert.equal(JSON.stringify(a.d.lista()), antes, "unchanged"); assert.equal(escrituras.length, 0); };
+  malo({ id: "no-existe" }, /No hay ningún cable «no-existe» que editar/);
+  malo({ receptores: [{ accion: "muestra", objeto: "" }] }, /receptor 1: muestra: falta «objeto»/);
+  malo({ receptores: [{ accion: "abre_enlace", enlace: "http://x.org" }] }, /https:\/\//);
+  malo({ receptores: [] }, /al menos uno/);
+  malo({ receptores: Array.from({ length: 9 }, () => ({ accion: "vuelve_a_seguro" })) }, /como mucho 8/);
+  // (a list over 512 bytes never reaches the handler: the field of the intent is capped by the schema, like editarReceptores)
+  // (a kind outside zona/boton/senal never reaches the handler either: it is an enum of the intent)
+  puede = false;
+  malo({}, /No puedes construir/);
+});
+
+test("cable sin JSON C: the cap of 64 and the id rules are untouched by editing (edit never adds a cable, never renames one)", () => {
+  const lista = Array.from({ length: DISPARADORES_MAX }, (_, i) => ({ ...BOTON, id: `z${i}`, nombre: `Z${i}` }));
+  const { pages: [a], pump } = mundo(1, lista);
+  pump(25);
+  a.d.editarDisparador({ ...CAMBIO, id: "z3" }); pump(25);
+  assert.equal(a.d.lista().length, DISPARADORES_MAX);
+  assert.equal(a.d.lista().find((d) => d.id === "z3")?.nombre, "Botón azul");
+  a.d.editarDisparador({ ...CAMBIO, id: "NUEVO-id" }); pump(25);
+  assert.match(ultimoRechazo(a.s), /No hay ningún cable/);
+  assert.equal(a.d.lista().length, DISPARADORES_MAX);
+});
+
+test("cable sin JSON C: editarDisparador is rate-limited like its siblings, and `alResponder` hands the server's answer to the page", () => {
+  const i = disparadores.intents!;
+  assert.deepEqual(i.editarDisparador.rate, i.editarReceptores.rate);
+  const { pages: [a], pump } = mundo(1, [BOTON]);
+  const r: { que: string; motivo: string }[] = [];
+  a.d.alResponder((x) => r.push(x));
+  pump(3);
+  a.d.editarDisparador(CAMBIO); pump(25);
+  a.d.editarDisparador({ ...CAMBIO, id: "nada" }); pump(25);
+  assert.deepEqual(r.map((x) => x.que), ["ok", "no"]);
+  assert.match(r[1]!.motivo, /No hay ningún cable/);
+});
