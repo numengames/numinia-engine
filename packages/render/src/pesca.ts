@@ -7,22 +7,28 @@
 // landing, bite, jump); no texture, no reflection render-target (phones). Per spot: 7 draw calls (water, bank, stones, reeds, boardwalk,
 // sign, its text); per angler: 3 (rod, line, float); per landed fish: 1 (body, tail, fins and eyes merged, vertex
 // colours by species). The page's chunk (apps/plaza/pesca.ts) loads this with the first spot.
+// While MY fish bites or fights, a gauge stands on the water beside MY float (the waterline; see pesca-boya.ts): one quad,
+// one canvas texture repainted only when a value moves by 1 %, turned (yaw only) toward the drawing camera — the XR one in
+// VR, read in the same per-frame call that draws — and scaled with the distance to the eye. +1 draw call, only in the fight.
 import * as THREE from "three/webgpu";
 import { uniform } from "three/tsl";
 import { materialDeAgua as aguaEstilo, geometriaDeAgua } from "./agua-estilo.ts";
 import type { LuzAgua } from "./agua-estilo.ts";
 import { detalleAgua, OLAS_DESDE_M } from "./calidad.ts";
 import type { DetalleAgua } from "./calidad.ts";
+import { boyaVisible, colorTension, escalaBoya, pulsoBoya, marcoBoya, claveBoya, rellenos, ANCHO_M, TENSION_ALTA, VERDE, NARANJA } from "./pesca-boya.ts";
 import { geometriaCana, LARGO_CANA, MANGO_M, CURVA_M, radioAgarre } from "./cana.ts";
 export { MANGO_M, AGARRE_ENTRA_M, AGARRE_SALE_M } from "./cana.ts";
 
 export type Sitio3D = { id: string; x: number; y: number; z: number; radio: number };
 export type Flotador3D = { quien: number; x: number; y: number; z: number };
-export type Captura3D = { quien: number; pez: string; cm: number; rareza: string; desde: number };
+export type Captura3D = { quien: number; pez: string; cm: number; rareza: string; desde: number; guardado?: boolean };
 export type Fase = "nada" | "espera" | "mordisqueo" | "picada" | "pelea";
 export type Estado3D = { fase: Fase; desde: number; tension: number; progreso: number; arrancada: "no" | "aviso" | "si"; texto?: string };
 export type Quien = number | "self";
-export type Ayudas = { world: THREE.Group; posicionDe: (quien: Quien) => THREE.Vector3 | null; manoDe?: (quien: Quien, out: THREE.Vector3) => THREE.Vector3 | null; orientar?: (quien: Quien, rumbo: number | undefined) => void;
+/** v3: my landed fish just went into my Inventario (flown to the camera, or popped in VR): the page pulses the Bolsa button. */
+export type Guardada = { pez: string; rareza: string; vr: boolean };
+export type Ayudas = { alGuardar?: (c: Guardada) => void; world: THREE.Group; posicionDe: (quien: Quien) => THREE.Vector3 | null; manoDe?: (quien: Quien, out: THREE.Vector3) => THREE.Vector3 | null; orientar?: (quien: Quien, rumbo: number | undefined) => void;
   /** N2: the scene's light for the water and the water detail of this tier (without them: the house light, tier C's detail). */
   agua?: { luz: LuzAgua; detalle: () => DetalleAgua } };
 
@@ -32,9 +38,11 @@ const PUNTOS = 24, ALTO_MANO = 1.05, LADO_MANO = 0.32, LANZAMIENTO_MS = 900;
 export const INCLINA_CANA = 0.45;
 /** N4 (given later through view.pesca.conManos): where a real hand holds things in VR (the grip or the pinch point; null
  * outside VR or without that hand), and the camera that draws now (the XR one in VR; the gauge on the rod faces it). */
-export type AyudasVR = { ancla?: (lado: "izq" | "der") => THREE.Object3D | null; camara?: () => THREE.Camera };
+export type AyudasVR = { ancla?: (lado: "izq" | "der") => THREE.Object3D | null; camara?: () => THREE.Camera; xr?: () => boolean };
 /** The fish's flight from the water to the hand (ms) and how far an angler may step before the fish is put away (m). */
 export const SALTO_MS = 1300, PASO_SUELTA_M = 0.6;
+/** v3: a fish that goes to the Inventario hangs this long in the hand after landing (ms), then flies to the camera in VUELO_GUARDA_MS (shrinking) or, in VR, pops at the hand in POP_MS. */
+export const MUESTRA_MS = 1100, VUELO_GUARDA_MS = 450, POP_MS = 220;
 const sag = (dist: number, tension: number) => dist * 0.085 * (1 - tension * 0.85);
 /** Body colour by species (the table's names); unknown fish are silver. */
 const COLORES: Record<string, number> = { Carpa: 0xb8863a, Trucha: 0x6f9a5a, Lucio: 0x5e7a3c };
@@ -97,7 +105,7 @@ export function geometriaDePez(especie: string): THREE.BufferGeometry {
 }
 
 type Angler = { grupo: THREE.Group; cana: THREE.Mesh; sedal: THREE.Line; flotador: THREE.Group; destino: THREE.Vector3; quien: Quien; nacido: number; pos: Float32Array; cayo: boolean; sedalMat: THREE.LineBasicMaterial };
-type Pez3D = { grupo: THREE.Group; malla: THREE.Mesh; quien: Quien; desde: number; origen: THREE.Vector3; donde: THREE.Vector3; largo: number; guardado: boolean };
+type Pez3D = { grupo: THREE.Group; malla: THREE.Mesh; quien: Quien; desde: number; origen: THREE.Vector3; donde: THREE.Vector3; largo: number; guardado: boolean; alInventario: boolean; avisado: boolean; pez: string; rareza: string };
 type Onda = { value: THREE.Vector4 };
 type Estanque = { grupo: THREE.Group; agua: THREE.Mesh; ondas: [Onda, Onda]; turno: number; s: Sitio3D; pantalan: { x: number; z: number }; rumbo: number };
 
@@ -199,9 +207,12 @@ export function crearPesca(h: Ayudas & AyudasVR) {
     const largo = Math.max(0.12, c.cm / 100);
     const malla = new THREE.Mesh(g, pezMat); malla.scale.setScalar(largo); malla.castShadow = true;
     const grupo = new THREE.Group(); grupo.add(malla); grupo.position.copy(origen); h.world.add(grupo);
-    return { grupo, malla, quien, desde: performance.now(), origen: origen.clone(), donde: new THREE.Vector3(NaN, 0, 0), largo, guardado: false };
+    return { grupo, malla, quien, desde: performance.now(), origen: origen.clone(), donde: new THREE.Vector3(NaN, 0, 0), largo, guardado: false, alInventario: c.guardado === true && quien === "self", avisado: false, pez: c.pez, rareza: c.rareza };
   };
   const quitarPez = (p: Pez3D) => { h.world.remove(p.grupo); };
+  const guardaA = new THREE.Vector3(), guardaB = new THREE.Vector3();
+  /** My fish is in my Inventario: tell the page once (it pulses the Bolsa button; in VR it writes the note). */
+  const avisarGuardada = (p: Pez3D) => { if (!p.alInventario || p.avisado) return; p.avisado = true; h.alGuardar?.({ pez: p.pez, rareza: p.rareza, vr: h.xr?.() === true }); };
   /** The right hand of an angler: the avatar's bone when it wears one, else beside the capsule, at hand height. */
   let manoReal = false; // whether my own hand was the avatar's bone in the last frame (for checks)
   function mano(quien: Quien, p: THREE.Vector3, haciaX: number, haciaZ: number, out: THREE.Vector3): THREE.Vector3 {
@@ -257,7 +268,7 @@ export function crearPesca(h: Ayudas & AyudasVR) {
     return true;
   }
   const canaMano = new THREE.Mesh(canaGeo, canaMat); canaMano.visible = false; canaMano.name = "cana-mano"; h.world.add(canaMano);
-  // the gauge: what to do (one line) and two bars (tension, fish brought in), on a small card above the rod's hand
+  // the gauge: what to do (one line) and the fish brought in, on a small card above the rod's hand (the tension is on the float)
   const lienzoMedidor = document.createElement("canvas"); lienzoMedidor.width = 360; lienzoMedidor.height = 170;
   const gm = lienzoMedidor.getContext("2d");
   const texMedidor = new THREE.CanvasTexture(lienzoMedidor); texMedidor.colorSpace = THREE.SRGBColorSpace;
@@ -268,7 +279,7 @@ export function crearPesca(h: Ayudas & AyudasVR) {
   const envolver = (t: string, max: number): string[] => { const out: string[] = []; let l = ""; for (const w of t.split(" ")) { if (l && (l + " " + w).length > max) { out.push(l); l = w; } else l = l ? l + " " + w : w; } if (l) out.push(l); return out.slice(0, 3); };
   function pintarMedidor(e: Estado3D): void {
     const texto = instruccionVR || e.texto || "";
-    const clave = `${e.fase}|${texto}|${Math.round(e.tension / 3)}|${Math.round(e.progreso / 3)}|${e.arrancada}`;
+    const clave = `${e.fase}|${texto}|${e.tension >= 80}|${Math.round(e.progreso / 3)}|${e.arrancada}`; // the tension bar lives on the float now (pesca-boya.ts)
     if (clave === claveMedidor || !gm) return;
     claveMedidor = clave;
     const W = 360, H = 170, alta = e.tension >= 80, picada = e.fase === "picada";
@@ -285,10 +296,66 @@ export function crearPesca(h: Ayudas & AyudasVR) {
         gm.fillStyle = color; gm.fillRect(20, y, ((W - 40) * Math.max(0, Math.min(100, v))) / 100, 26);
         gm.fillStyle = "#eef2f6"; gm.font = "bold 18px system-ui, sans-serif"; gm.textAlign = "left"; gm.fillText(nombre, 26, y + 14);
       };
-      barra(90, e.tension, alta ? "#e5484d" : "#f0c35b", "Tensión");
-      barra(128, e.progreso, "#7bd389", "Pez");
+      barra(100, e.progreso, "#7bd389", "Pez"); // the tension bar is on the float, at the waterline
     }
     texMedidor.needsUpdate = true;
+  }
+
+  // ---- the gauge on my float, at the waterline: tension (green → yellow → red from 80 %) and the fish coming closer ----
+  const BW = 256, BH = 128, ALTO_M = ANCHO_M * BH / BW, HUECO_M = 0.1; // canvas px; card height (m); gap between the float and the card
+  const lienzoBoya = document.createElement("canvas"); lienzoBoya.width = BW; lienzoBoya.height = BH;
+  const gb = lienzoBoya.getContext("2d");
+  const texBoya = new THREE.CanvasTexture(lienzoBoya); texBoya.colorSpace = THREE.SRGBColorSpace;
+  const boyaGeo = new THREE.PlaneGeometry(ANCHO_M, ALTO_M); boyaGeo.translate(HUECO_M + ANCHO_M / 2, ALTO_M / 2, 0); // origin = the card's bottom-left: it stands on the water, to the right of the float
+  const boya = new THREE.Mesh(boyaGeo, new THREE.MeshBasicMaterial({ map: texBoya, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+  boya.renderOrder = 8; boya.visible = false; boya.frustumCulled = false; boya.name = "boya-pesca"; h.world.add(boya);
+  let claveBoyaPuesta = "", escalaBoyaPuesta = 1;
+  function pintarBoya(e: Estado3D): void {
+    const clave = claveBoya(e);
+    if (clave === claveBoyaPuesta || !gb) return;
+    claveBoyaPuesta = clave;
+    const c = gb, marco = marcoBoya(e), r = rellenos(e);
+    c.clearRect(0, 0, BW, BH);
+    c.fillStyle = "rgba(20,24,30,0.9)"; c.beginPath(); if (c.roundRect) c.roundRect(2, 2, BW - 4, BH - 4, 16); else c.rect(2, 2, BW - 4, BH - 4); c.fill();
+    if (marco) { c.lineWidth = 7; c.strokeStyle = marco; c.stroke(); }
+    c.textBaseline = "middle";
+    if (e.fase === "picada") { c.fillStyle = NARANJA; c.textAlign = "center"; c.font = "bold 54px system-ui, sans-serif"; c.fillText("¡PICA!", BW / 2, BH / 2 + 2); texBoya.needsUpdate = true; return; }
+    const barra = (y: number, alto: number, v: number, color: string, nombre: string) => {
+      c.fillStyle = "rgba(255,255,255,0.18)"; c.fillRect(16, y, BW - 32, alto);
+      c.fillStyle = color; c.fillRect(16, y, (BW - 32) * v, alto);
+      c.fillStyle = "#fff"; c.textAlign = "left"; c.font = `bold ${Math.round(alto * 0.5)}px system-ui, sans-serif`; c.shadowColor = "rgba(0,0,0,0.8)"; c.shadowBlur = 4; c.fillText(nombre, 24, y + alto / 2 + 1); c.shadowBlur = 0;
+    };
+    barra(18, 48, r.tension, colorTension(e.tension), "Tensión");
+    const x80 = 16 + (BW - 32) * TENSION_ALTA / 100; // the notch: past it the line may snap
+    c.fillStyle = "#fff"; c.fillRect(x80 - 2, 12, 4, 60);
+    barra(80, 30, r.progreso, VERDE, "Pez");
+    // the fish at the end of its bar: a body and a tail
+    const fx = 16 + (BW - 32) * r.progreso; c.fillStyle = "#fff"; c.beginPath(); c.ellipse(fx, 95, 11, 6, 0, 0, Math.PI * 2); c.moveTo(fx - 9, 95); c.lineTo(fx - 19, 88); c.lineTo(fx - 19, 102); c.closePath(); c.fill();
+    texBoya.needsUpdate = true;
+  }
+  const ojoBoya = new THREE.Vector3(), derechaBoya = new THREE.Vector3(), qBoya = new THREE.Quaternion();
+  let ladoBoya = 1; // 1 = the card stands to the right of the float as the camera sees it, -1 = to the left (toward the middle of the screen)
+  /** Stand the gauge on the water beside my float (or hide it); called every frame after the anglers moved. */
+  function colocarBoya(): void {
+    const mio = anglers.get("self");
+    const ver = !!mio && mio.grupo.visible && boyaVisible(estado.fase, true);
+    boya.visible = ver;
+    if (!ver || !mio) return;
+    pintarBoya(estado);
+    const f = mio.flotador.position;
+    const c = h.camara?.();
+    if (c) { c.getWorldPosition(ojoBoya); h.world.worldToLocal(ojoBoya); derechaBoya.set(1, 0, 0).applyQuaternion(c.getWorldQuaternion(qBoya)).applyQuaternion(h.world.getWorldQuaternion(qBoya).invert()); } else ojoBoya.set(f.x, f.y + 1.6, f.z + 6);
+    const dist = Math.hypot(ojoBoya.x - f.x, ojoBoya.y - f.y, ojoBoya.z - f.z);
+    const yaw = Math.atan2(ojoBoya.x - f.x, ojoBoya.z - f.z);
+    // keep the card toward the middle of the screen (never behind a side panel): switch sides when the float drifts well off the camera's axis
+    const lateral = ((f.x - ojoBoya.x) * derechaBoya.x + (f.z - ojoBoya.z) * derechaBoya.z) / Math.max(0.5, dist);
+    if (lateral > 0.08) ladoBoya = -1; else if (lateral < -0.08) ladoBoya = 1;
+    const k = escalaBoya(dist), s = k * pulsoBoya(estado.arrancada, performance.now());
+    escalaBoyaPuesta = k;
+    boya.rotation.set(0, yaw, 0); // yaw only: it stands upright on the water
+    boya.scale.setScalar(s);
+    const lado = ladoBoya < 0 ? -(2 * HUECO_M + ANCHO_M) * k : 0; // to the left: shift back by one card width along the camera's right
+    boya.position.set(f.x + Math.cos(yaw) * lado, mio.destino.y + 0.04, f.z - Math.sin(yaw) * lado); // the waterline: where the float rests, not where it bobs or dips
   }
 
   return {
@@ -439,6 +506,7 @@ export function crearPesca(h: Ayudas & AyudasVR) {
         (a.sedal.geometry.getAttribute("position") as THREE.BufferAttribute).needsUpdate = true;
         a.sedalMat.color.copy(SEDAL).lerp(TENSO, mio && fase === "pelea" ? THREE.MathUtils.clamp((tension - 0.6) / 0.35, 0, 1) : 0);
       }
+      colocarBoya();
       // N4 (VR): the rod in my hand before casting, and the gauge above it while I fish
       const conCana = canaEnMano();
       canaMano.visible = conCana && !anglers.has("self");
@@ -456,7 +524,7 @@ export function crearPesca(h: Ayudas & AyudasVR) {
         pz.grupo.visible = !!p && !pz.guardado;
         if (!p || pz.guardado) continue;
         if (Number.isNaN(pz.donde.x)) pz.donde.copy(p);
-        if (Math.hypot(p.x - pz.donde.x, p.z - pz.donde.z) > PASO_SUELTA_M) { pz.guardado = true; pz.grupo.visible = false; continue; }
+        if (Math.hypot(p.x - pz.donde.x, p.z - pz.donde.z) > PASO_SUELTA_M) { pz.guardado = true; pz.grupo.visible = false; avisarGuardada(pz); continue; }
         const m = mano(pz.quien, p, pz.origen.x - p.x, pz.origen.z - p.z, tmp);
         const k = Math.min(1, (now - pz.desde) / SALTO_MS);
         if (k < 1) {
@@ -473,12 +541,25 @@ export function crearPesca(h: Ayudas & AyudasVR) {
           pz.grupo.rotation.set(0, Math.atan2(pz.origen.x - p.x, pz.origen.z - p.z) + Math.PI / 2, Math.PI / 2 + Math.sin(now / 900) * 0.08); // head at the hand, tail down
           pz.malla.rotation.y = Math.sin(now / 160) * 0.08 * Math.exp(-(now - pz.desde - SALTO_MS) / 1500);
           pz.malla.position.set(-0.45, 0, 0).multiplyScalar(pz.largo);
+          // v3: my fish that went to my Inventario: after MUESTRA_MS in the hand it flies to the camera shrinking (a pop at the hand in VR), then is gone
+          const tg = now - pz.desde - SALTO_MS - MUESTRA_MS;
+          if (pz.alInventario && tg >= 0) {
+            const vr = h.xr?.() === true, kk = Math.min(1, tg / (vr ? POP_MS : VUELO_GUARDA_MS)), e = kk * kk * (3 - 2 * kk);
+            if (vr) pz.grupo.scale.setScalar(kk < 0.4 ? 1 + 0.45 * (kk / 0.4) : 1.45 * (1 - (kk - 0.4) / 0.6));
+            else {
+              const cam = h.camara?.();
+              if (cam) { cam.getWorldPosition(guardaA); cam.getWorldDirection(guardaB); guardaA.addScaledVector(guardaB, 0.45); h.world.worldToLocal(guardaA); } else guardaA.copy(m).setY(m.y + 1.2);
+              pz.grupo.position.lerp(guardaA, e); pz.grupo.position.y += Math.sin(kk * Math.PI) * 0.25; pz.grupo.rotation.y += kk * 0.6;
+              pz.grupo.scale.setScalar(Math.max(0.05, 1 - 0.95 * e));
+            }
+            if (kk >= 1) { pz.guardado = true; pz.grupo.visible = false; avisarGuardada(pz); }
+          }
         }
       }
     },
     /** True while someone fishes, a fish flies or hangs, or a ripple still spreads — keeps the frame loop awake. */
     ocupado: (): boolean => anglers.size > 0 || [...peces.values()].some((p) => !p.guardado) || [...estanques.values()].some((e) => e.ondas.some((o) => tiempo.value - o.value.z < 4)),
     contar: () => ({ pescadores: anglers.size, sitios: estanques.size, peces: [...peces.values()].filter((p) => p.grupo.visible).length, enMano: [...peces.values()].filter((p) => p.grupo.visible && performance.now() - p.desde >= SALTO_MS).map((p) => (p.quien === "self" ? self : p.quien)), manoReal, cargado: true,
-      soportes: soportes.size, sujeta, canaMano: canaMano.visible, medidor: medidor.visible, medidorTexto: medidor.visible ? estado.texto ?? "" : "", resaltado }),
+      soportes: soportes.size, sujeta, canaMano: canaMano.visible, medidor: medidor.visible, boya: boya.visible, boyaEscala: boya.visible ? Math.round(escalaBoyaPuesta * 100) / 100 : 0, medidorTexto: medidor.visible ? estado.texto ?? "" : "", resaltado }),
   };
 }

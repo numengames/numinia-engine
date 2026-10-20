@@ -75,6 +75,9 @@
     #inventario ul.objetos { list-style: none; padding: 0; margin: 4px 0; }
     #inventario li.objeto { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(238, 242, 246, .1); }
     #inventario li.objeto .icono-objeto { display: inline-flex; width: 22px; justify-content: center; color: #ffd27a; }
+    #inventario li.objeto .icono-objeto[data-rareza="rara"] { color: #7fb4ff; }
+    #inventario li.objeto .icono-objeto[data-rareza="legendaria"] { color: #ffb347; }
+    #inventario li.objeto .icono-objeto[data-rareza="común"] { color: #c9d3dc; }
     #inventario li.objeto .nombre { flex: 1 1 auto; }
     #inventario li.objeto .detalle { opacity: .7; font-size: 12px; }
     #inventario p.vacio { opacity: .7; }

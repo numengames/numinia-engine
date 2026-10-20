@@ -13,14 +13,14 @@ export type Estado = {
   pez: string; fuerza: number;                               // the fish fighting (name as the server says it)
   tension: number; progreso: number; arrancada: "no" | "aviso" | "si";
   recogiendo: boolean;                                       // what we last asked for
-  ultimo: { pez: string; cm: number; rareza: string; total: number } | null;
+  ultimo: { pez: string; cm: number; rareza: string; total: number; guardado: boolean } | null; // guardado: the server put it in your Inventario
   aviso: string;                                             // the last line worth showing (escape, rejection, catch)
   cesta: { peces: number; clases: number; mejor: string; mejorCm: number };
 };
 export type Sitio = { id: string; nombre: string; x: number; y: number; z: number; radio: number; ocupado: boolean };
 export type Flotador = { quien: number; sitio: string; x: number; y: number; z: number };
 /** v2: a fish just landed, held in its angler's hand for a while (the 3D draws it there; everyone near sees it). */
-export type Captura = { quien: number; sitio: string; pez: string; cm: number; rareza: string; desde: number };
+export type Captura = { quien: number; sitio: string; pez: string; cm: number; rareza: string; desde: number; guardado: boolean }; // guardado: MY fish that went to my Inventario (the 3D takes it from the hand to the camera)
 /** How long a landed fish stays in the hand (ms) unless its angler walks away (the 3D decides that part). */
 export const EN_MANO_MS = 7000;
 /** «23,1 cm»: the fish's size as people write it here. */
@@ -111,7 +111,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     api.on("pelea", (m) => { fase("pelea"); e.pez = String(m.pez); e.fuerza = Number(m.fuerza); e.tension = 18; e.progreso = 8; e.arrancada = "no"; avisar("estado"); });
     api.on("tension", (m) => { e.tension = Number(m.tension); e.progreso = Number(m.progreso); e.arrancada = m.arrancada as Estado["arrancada"]; avisar("estado"); });
     api.on("captura", (m) => {
-      e.ultimo = { pez: String(m.pez), cm: Number(m.cm), rareza: String(m.rareza), total: Number(m.total) };
+      e.ultimo = { pez: String(m.pez), cm: Number(m.cm), rareza: String(m.rareza), total: Number(m.total), guardado: m.guardado === true };
       e.ultimo.cm = Math.round(e.ultimo.cm * 10) / 10; // Q16.16 on the wire: 33.3 arrives as 33.300000000000004
       e.aviso = `Has pescado: ${e.ultimo.pez} de ${cmTexto(e.ultimo.cm)}`;
       api.view.bounce(api.self(), 1200);
@@ -124,7 +124,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
       if (quien === api.self()) { reposo(); avisar("estado"); }
       avisar("flotadores");
       if (m.resultado === "captura" && m.pez) { // v2: the fish goes to the angler's hand, for everyone near to see
-        const c: Captura = { quien, sitio: String(m.sitio), pez: String(m.pez), cm: Math.round(Number(m.cm) * 10) / 10, rareza: String(m.rareza), desde: ahora() };
+        const c: Captura = { quien, sitio: String(m.sitio), pez: String(m.pez), cm: Math.round(Number(m.cm) * 10) / 10, rareza: String(m.rareza), desde: ahora(), guardado: quien === api.self() && e.ultimo?.guardado === true && e.ultimo.pez === String(m.pez) };
         capturas.set(quien, c);
         api.view.label(quien, `🐟 ${c.pez} · ${cmTexto(c.cm)}`, EN_MANO_MS);
         avisar("capturas");

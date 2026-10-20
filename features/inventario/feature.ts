@@ -16,9 +16,9 @@ const OBJETO = {
 
 export const inventario = defineFeature({
   id: "inventario",
-  version: 1,
+  version: 2, // v2: tipo «captura» (the fish of the pesca: stackable, never carried)
   level: "base",
-  describe: "Tu Inventario (canon: no una mochila, un diario en movimiento): armas, reliquias y tokens. Llevas contigo 1 arma y hasta 3 reliquias; el resto espera en tu Reserva. Los tokens (Semillas del Conocimiento) apilan. Se guarda por invitado y solo te llega a ti.",
+  describe: "Tu Inventario (canon: no una mochila, un diario en movimiento): armas, reliquias, tokens y capturas. Llevas contigo 1 arma y hasta 3 reliquias; el resto espera en tu Reserva. Los tokens (Semillas del Conocimiento) y las capturas (los peces que pescas, por especie) apilan. Se guarda por invitado y solo te llega a ti.",
   store: { describe: "Por invitado (`i:<id>`): su Reserva entera (serie para los ids, lista de objetos). Solo le llega a su dueño, como eventos." },
   intents: {
     equipar: { describe: "Llevar contigo un arma o una reliquia de tu Reserva (1 arma, 3 reliquias como mucho).", spoken: "llevar un objeto", fields: { id: ID }, rate: { perSecond: 4, burst: 8 } },
@@ -27,7 +27,7 @@ export const inventario = defineFeature({
   },
   events: {
     lista: { describe: "Llega tu inventario entero (al entrar y tras cada cambio): olvida el anterior; detrás vienen sus objetos.", fields: { total: { kind: "int", min: 0, max: LIM.reserva } }, announce: "silent" },
-    objeto: { describe: "Un objeto tuyo: tipo (arma, reliquia, token), clase (semilla…), nombre, icono de la casa, color (tokens), valor en Prestigio por unidad, cuántos y si lo llevas contigo.", fields: OBJETO, announce: "silent" },
+    objeto: { describe: "Un objeto tuyo: tipo (arma, reliquia, token, captura), clase (semilla…), nombre, icono de la casa, color (tokens; en una captura, su rareza: plateada común, azul rara, dorada legendaria), valor por unidad, cuántos y si lo llevas contigo.", fields: OBJETO, announce: "silent" },
     recibido: { describe: "Te han dado algo (y cuántos tienes ahora).", fields: { id: ID, nombre: { kind: "text", maxBytes: LIM.nombre }, n: { kind: "int", min: 1, max: LIM.pila } }, announce: { text: "Recibes {nombre}.", sound: "magia", importance: 1 } },
     rechazado: { describe: "Lo que pediste no se hizo, y por qué.", fields: { motivo: MOTIVO }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
   },

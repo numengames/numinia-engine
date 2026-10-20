@@ -2,14 +2,16 @@
 // landed fish: pesca.ts) is fetched with the first fishing spot or float that arrives, so a world without fishing
 // never downloads it.
 import type * as THREE from "three/webgpu";
-import type { Sitio3D, Flotador3D, Captura3D, Estado3D, Ayudas, AyudasVR } from "./pesca.ts";
+import type { Sitio3D, Flotador3D, Captura3D, Estado3D, Ayudas, AyudasVR, Guardada } from "./pesca.ts";
 
 type Real = ReturnType<typeof import("./pesca.ts")["crearPesca"]>;
-const NADA = { pescadores: 0, sitios: 0, peces: 0, enMano: [] as number[], manoReal: false, cargado: false, soportes: 0, sujeta: null as "izq" | "der" | null, canaMano: false, medidor: false, medidorTexto: "", resaltado: "" };
+const NADA = { pescadores: 0, sitios: 0, peces: 0, enMano: [] as number[], manoReal: false, cargado: false, soportes: 0, sujeta: null as "izq" | "der" | null, canaMano: false, medidor: false, boya: false, boyaEscala: 0, medidorTexto: "", resaltado: "" };
 
 export function vistaPesca(h: Ayudas & AyudasVR) {
   let real: Real | null = null, carga: Promise<void> | null = null, fallo = "";
   let instruccion = "", sitios: Sitio3D[] = [], flotadores: Flotador3D[] = [], capturas: Captura3D[] = [], yo = -1, estado: Estado3D | null = null;
+  const guardadas = new Set<(c: Guardada) => void>(); // v3: the page's listeners to «my fish went to my Inventario»
+  h.alGuardar = (c) => { for (const f of guardadas) { try { f(c); } catch (e) { console.warn("[pesca]", e); } } };
   const cuadro = new Set<(dt: number) => void>(); // N4: the page's per-frame readers (VR rod gestures), after the hands moved
   const cargar = () => (carga ??= import("./pesca.ts").then((m) => {
     real = m.crearPesca(h);
@@ -23,6 +25,8 @@ export function vistaPesca(h: Ayudas & AyudasVR) {
     /** v2: the fish landed near you (yours included), each held in its angler's hand for a while. */
     capturas(lista: Captura3D[], self: number): void { capturas = lista; yo = self; if (real) real.capturas(lista, self); else if (lista.length) cargar(); },
     estado(e: Estado3D): void { estado = e; real?.estado(e); },
+    /** v3: `fn` runs once when my landed fish has gone into my Inventario (after it flew to the camera); returns how to stop. */
+    alGuardar(fn: (c: Guardada) => void): () => void { guardadas.add(fn); return () => guardadas.delete(fn); },
     actualizar(dt: number): void { real?.actualizar(dt); for (const f of cuadro) { try { f(dt); } catch (e) { console.warn("[pesca]", e); } } },
     /** N4: the VR helpers (the real hands' anchors, the drawing camera); the 3D reads them through the same object. */
     conManos(o: AyudasVR): void { Object.assign(h, o); },

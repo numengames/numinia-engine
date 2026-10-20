@@ -5,6 +5,10 @@
 // in the basket (estado().ultimo, cesta.peces ≥ 1), «Has pescado» is announced, the HUD shows «¡Pescado!» with the fish,
 // its size and «En tu cesta: 1», and the fish is drawn in A's hand (contar().enMano) — in tab B too (another guest 10 m
 // away: it gets `fin` with the fish, never A's phases). Then the HUD hides. No page errors.
+// v3 (pesca → inventario): the same fish is in A's Inventario (estado «captura», icono fish, n ≥ 1, `guardado` from the server), the HUD
+// says «A tu Inventario», A's own fish reaches the hand and then goes to the camera (hidden), the Bolsa button pulses and a «+1» rises
+// from it, and the Inventario panel lists the fish with its icon, count and rarity (B, who only watched, owns nothing). SHOTS also
+// gets pesca-inventario-hud / -vuelo / -bolsa / -panel .png.
 // Needs the server + page running (tools/auto.sh e2e starts them). Env: BASE, SERVER_HTTP (unused). Exit 0 = right.
 import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
@@ -59,6 +63,7 @@ async function caminar(p, x, z, cerca = 1.0, maxMs = 60000) {
 const ctl = (p, code, arg) => p.evaluate(code, arg);
 const esperar = (p, fn, arg, ms = 8000) => p.waitForFunction(fn, arg, { timeout: ms });
 const estado = (p) => ctl(p, () => { const e = globalThis.__numinia.pesca.estado(); return { fase: e.fase, tension: e.tension, progreso: e.progreso, pez: e.pez, aviso: e.aviso, ultimo: e.ultimo, cesta: e.cesta }; });
+const fotoSiempre = async (p, n) => { if (SHOTS) await p.screenshot({ path: `${SHOTS}/pesca-${n}.png` }); };
 const foto = async (p, n, sinHud = false) => { if (!SHOTS) return; if (sinHud) await p.evaluate(() => { document.getElementById("pesca-hud").style.visibility = "hidden"; }); await p.screenshot({ path: `${SHOTS}/pesca-${n}.png` }); if (sinHud) await p.evaluate(() => { document.getElementById("pesca-hud").style.visibility = ""; }); };
 const prompt = (p) => ctl(p, () => { const b = document.getElementById("interactuar"); return b && !b.hidden ? b.textContent : ""; });
 
@@ -100,11 +105,23 @@ try {
   const enPicada = await estado(a);
   out.picada = enPicada;
   nota("picada", { fase: enPicada.fase });
+  // v3: a page-side watcher (50 ms) of what happens to MY fish after the catch: in the hand, the pulse on the Bolsa button, the «+1», gone
+  await ctl(a, () => {
+    const w = globalThis.__vigia = { enMano: false, pulso: false, chip: false, oculto: false, tEnMano: 0, tOculto: 0 }, yo = globalThis.__numinia.session.entity;
+    setInterval(() => {
+      const c = globalThis.__numinia.view.pesca.contar(), ahora = performance.now();
+      if (c.enMano.includes(yo) && !w.enMano) { w.enMano = true; w.tEnMano = ahora; }
+      if (w.enMano && !w.oculto && !c.enMano.includes(yo) && c.peces === 0) { w.oculto = true; w.tOculto = ahora; }
+      if (document.getElementById("inventario-abrir")?.classList.contains("recibe") || document.getElementById("mas")?.classList.contains("recibe")) w.pulso = true;
+      if (document.querySelector(".bolsa-mas")) w.chip = true;
+    }, 50);
+  });
   // 4. hook with F, then the one-button fight from the page, watching the bars as a person would
   await a.keyboard.down("KeyF");
   await esperar(a, () => globalThis.__numinia.pesca.estado().fase === "pelea", null, 3000);
   out.pelea = await estado(a);
   out.hudPelea = await ctl(a, () => ({ barras: !document.querySelector("#pesca-hud .barras").hidden, pulsado: document.getElementById("pesca-recoger").getAttribute("aria-pressed") }));
+  out.boya = await ctl(a, () => { const c = globalThis.__numinia.view.pesca.contar(); return { visible: c.boya, escala: c.boyaEscala }; }); // the gauge on my float, at the waterline
   await a.keyboard.up("KeyF");
   // the fight runs in the page (60 ms polling); the photo is taken meanwhile so the fish does not slip while the shot is made
   const peleando = ctl(a, () => new Promise((res) => {
@@ -126,10 +143,24 @@ try {
   out.despues = await estado(a);
   // 5. the result is unmistakable: the panel «¡Pescado!» with the fish, its size and the basket; the fish flies to the hand
   out.panel = await ctl(a, () => { const r = document.querySelector("#pesca-hud .resultado"); return { visible: !document.getElementById("pesca-hud").hidden && !r.hidden, clase: r.className, titulo: r.querySelector(".titulo").textContent, pez: r.querySelector(".pez").textContent, nota: r.querySelector(".nota").textContent }; });
-  await esperar(a, (yo) => globalThis.__numinia.view.pesca.contar().enMano.includes(yo), await ctl(a, () => globalThis.__numinia.session.entity), 6000).catch(() => {});
-  out.enMano = await ctl(a, () => globalThis.__numinia.view.pesca.contar());
+  await a.waitForTimeout(450); await fotoSiempre(a, "inventario-hud"); // the result panel, as the player sees it (after its 250 ms entrance)
+  await esperar(a, () => globalThis.__vigia.enMano, null, 6000).catch(() => {});
+  out.enMano = await ctl(a, () => ({ ...globalThis.__numinia.view.pesca.contar(), enMano: globalThis.__vigia.enMano ? [globalThis.__numinia.session.entity] : [] })); // A's fish did reach the hand (it leaves it for the Inventario after ~1 s)
+  // v3: it hangs a moment, flies to the camera and is gone; the Bolsa pulses and a «+1» rises from it
+  // B (a neighbour) sees the same fish hanging for its 7 s, whatever happens to A's
   await esperar(b, (quien) => globalThis.__numinia.view.pesca.contar().enMano.includes(quien), await ctl(a, () => globalThis.__numinia.session.entity), 6000).catch(() => {});
   out.enManoB = await ctl(b, () => ({ ...globalThis.__numinia.view.pesca.contar(), capturas: globalThis.__numinia.pesca.capturas().map((c) => [c.quien, c.pez, c.cm]) }));
+  // the HUD covers the angler: hide it for two shots, the fish hanging in the hand and (1.05 s later) as it leaves for the camera
+  await esperar(a, () => globalThis.__vigia.enMano && performance.now() - globalThis.__vigia.tEnMano >= 250, null, 6000).catch(() => {});
+  if (SHOTS) await a.evaluate(() => { document.getElementById("pesca-hud").style.visibility = "hidden"; });
+  await fotoSiempre(a, "inventario-mano");
+  await esperar(a, () => performance.now() - globalThis.__vigia.tEnMano >= 1020, null, 6000).catch(() => {});
+  await fotoSiempre(a, "inventario-vuelo"); // the fish leaves the hand 1.1 s after it arrived and flies 0.45 s
+  if (SHOTS) await a.evaluate(() => { document.getElementById("pesca-hud").style.visibility = ""; });
+  await esperar(a, () => { const c = document.querySelector(".bolsa-mas"); if (!c || +getComputedStyle(c).opacity < 0.9) return false; c.style.animationPlayState = "paused"; document.getElementById("inventario-abrir")?.getAnimations().forEach((x) => x.pause()); return true; }, null, 8000).catch(() => {}); // the «+1» fully shown (its animation starts at opacity 0), frozen: a shot takes longer than the chip lives
+  await fotoSiempre(a, "inventario-bolsa");
+  await esperar(a, () => globalThis.__vigia.oculto && globalThis.__vigia.pulso && globalThis.__vigia.chip, null, 8000).catch(() => {});
+  out.guardado = await ctl(a, () => ({ ...globalThis.__vigia, hudGuardados: document.getElementById("pesca-hud").dataset.guardados ?? "0", msEnLaManoYVuelo: Math.round(globalThis.__vigia.tOculto - globalThis.__vigia.tEnMano) }));
   await foto(a, "pescado");
   // the fish in the hand, from the front and closer (drag = orbit, wheel = zoom), without the HUD over it
   await a.mouse.move(320, 150); await a.mouse.down(); await a.mouse.move(60, 150, { steps: 12 }); await a.mouse.up();
@@ -145,18 +176,32 @@ try {
   out.etiqueta = await ctl(a, () => document.getElementById("avisos")?.textContent ?? "");
   nota("fin", { resultado: out.despues.ultimo ? "captura" : out.despues.aviso });
   out.b = await ctl(b, () => ({ eventos: globalThis.__numinia.session.features.log.filter((e) => e.feature === "pesca").map((e) => e.event), fase: globalThis.__numinia.pesca.estado().fase }));
+  // v3: the fish is in A's Inventario (and only A's); the panel lists it with icon, count and rarity
+  const capturadoA = out.despues.ultimo?.pez;
+  out.inventario = await ctl(a, () => globalThis.__numinia.inventario.lista().map((o) => ({ tipo: o.tipo, nombre: o.nombre, icono: o.icono, color: o.color, n: o.n, portado: o.portado })));
+  out.inventarioB = await ctl(b, () => globalThis.__numinia.inventario.lista().length);
+  await ctl(a, () => globalThis.__numinia.inventario.abrir());
+  await esperar(a, () => document.querySelectorAll("#inventario li.objeto").length > 0, null, 4000).catch(() => {});
+  out.panelInventario = await ctl(a, () => [...document.querySelectorAll("#inventario li.objeto")].map((li) => ({ texto: li.textContent, icono: !!li.querySelector(".icono-objeto svg"), boton: !!li.querySelector("button") })));
+  out.tituloInventario = await ctl(a, () => [...document.querySelectorAll("#inventario h3")].map((h) => h.textContent));
+  await fotoSiempre(a, "inventario-panel");
+  const fila = out.panelInventario.find((x) => x.texto.includes(capturadoA ?? "?"));
+  const inventarioOk = out.inventario.some((o) => o.tipo === "captura" && o.nombre === capturadoA && o.icono === "fish" && o.n >= 1 && !o.portado) && out.inventarioB === 0
+    && !!fila && fila.icono && !fila.boton && /× \d+pez · (común|rara|legendaria)/.test(fila.texto) && out.tituloInventario.includes("Pescado")
+    && out.guardado.enMano && out.guardado.oculto && out.guardado.pulso && out.guardado.chip && out.guardado.hudGuardados === "1";
+  out.v3 = { inventarioOk, nota: out.panel.nota };
   const peces = ["Carpa", "Trucha", "Lucio"];
   const yoA = await ctl(a, () => globalThis.__numinia.session.entity);
   const enMano = out.enMano.enMano.includes(yoA) && out.enManoB.enMano.includes(yoA) && out.enManoB.capturas.some((c) => c[0] === yoA && c[1] === out.despues.ultimo?.pez);
-  const panel = out.panel.visible && /pescado/.test(out.panel.clase) && out.panel.titulo === "¡Pescado!" && out.panel.pez.startsWith(`🐟 ${out.despues.ultimo?.pez} · `) && /En tu cesta: \d+/.test(out.panel.nota);
+  const panel = out.panel.visible && /pescado/.test(out.panel.clase) && out.panel.titulo === "¡Pescado!" && out.panel.pez.startsWith(`🐟 ${out.despues.ultimo?.pez} · `) && /A tu Inventario/.test(out.panel.nota) && /guardado/.test(out.panel.clase);
   out.v2 = { enMano, panel, bLanzado: out.b.eventos.includes("lanzado") && out.b.eventos.includes("fin"), manoVaciaB: out.manoVaciaB };
   ok = sitio.role === "lugar" && sitio.name === "Estanque de la plaza" && /^E: pescar$/.test(out.prompt) && out.hud.visible && /Esperando/.test(out.hud.texto) && out.hud.boton === "Recoger"
     && out.dibujo.cargado && out.dibujo.pescadores === 1 && out.dibujo.sitios === 1 && out.flotadores === 1
-    && out.esperaS >= 2.5 && out.esperaS <= 13 && enPicada.fase === "picada" && out.pelea.fase === "pelea" && peces.includes(out.pelea.pez) && out.hudPelea.barras && out.hudPelea.pulsado === "true"
+    && out.esperaS >= 2.5 && out.esperaS <= 13 && enPicada.fase === "picada" && out.pelea.fase === "pelea" && peces.includes(out.pelea.pez) && out.hudPelea.barras && out.hudPelea.pulsado === "true" && out.boya.visible === true && out.boya.escala >= 0.8
     && !!out.despues.ultimo && peces.includes(out.despues.ultimo.pez) && out.despues.cesta.peces >= 1 && /^Has pescado: /.test(out.despues.aviso) && out.hudDespues === true
     && out.anuncio.some((t) => t.startsWith("captura: Has pescado: ")) && out.b.fase === "nada" && !out.b.eventos.some((e) => ["picada", "pelea", "tension", "captura"].includes(e)) && errors.length === 0
     && enMano && panel && out.v2.bLanzado && out.manoVaciaB
-    && out.sonidos.includes("picada");
+    && out.sonidos.includes("picada") && inventarioOk;
 } catch (e) { out.error = String(e).split("\n")[0]; }
 await browser.close();
 console.log(JSON.stringify(out, null, 1));

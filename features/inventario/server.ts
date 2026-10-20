@@ -2,7 +2,7 @@
 // whole to its owner (every tab of the same guest) on identify and after each change. Objects enter through one
 // door: any feature emits its own `otorga` event with scope "server" ({ quien: entity, tipo, clase, nombre, color?,
 // icono?, valor?, n? }) and this part hears it (`api.listen`) — misiones does it when a quest's reward is a
-// Semilla. Deterministic: no clock, no randomness; ids come from a per-person counter (reglas.ts).
+// Semilla, pesca when a fish is landed (tipo «captura»). Deterministic: no clock, no randomness; ids come from a per-person counter (reglas.ts).
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
 import { inventario } from "./feature.ts";
@@ -10,7 +10,7 @@ import { dar, desequipar, equipar, leerInventario, nuevoInventario, quitar } fro
 import type { Color, Entrega, Inventario, Objeto, Tipo } from "./reglas.ts";
 
 /** Who hands objects over today. A feature not on this server is logged by `listen` and simply never heard. */
-export const DONANTES: [feature: string, event: string][] = [["misiones", "otorga"]];
+export const DONANTES: [feature: string, event: string][] = [["misiones", "otorga"], ["pesca", "otorga"]];
 
 export const crearInventario = (opts: { donantes?: [string, string][] } = {}) => serverPart(inventario, (api: ServerApi) => {
   const cache = new Map<string, Inventario>();   // "g:<guest>" (saved) or "e<entity>" (no identity: memory only)
@@ -52,8 +52,8 @@ export const crearInventario = (opts: { donantes?: [string, string][] } = {}) =>
     api.listen(f, ev, (m) => {
       const e = Number(m.quien);
       if (!Number.isInteger(e) || !api.players().includes(e)) return;
-      otorgar(e, { tipo: String(m.tipo) as Tipo, clase: String(m.clase ?? ""), nombre: String(m.nombre ?? ""), icono: typeof m.icono === "string" ? m.icono : "", color: (typeof m.color === "string" ? m.color : "") as Color, valor: typeof m.valor === "number" ? m.valor : undefined, n: typeof m.n === "number" ? m.n : 1 });
-      return true;
+      const r = otorgar(e, { tipo: String(m.tipo) as Tipo, clase: String(m.clase ?? ""), nombre: String(m.nombre ?? ""), icono: typeof m.icono === "string" ? m.icono : "", color: (typeof m.color === "string" ? m.color : "") as Color, valor: typeof m.valor === "number" ? m.valor : undefined, n: typeof m.n === "number" ? m.n : 1 });
+      return r.ok; // «handled» = it is in the Reserva (a full Reserva says no: the donor can tell its player)
     });
   }
 
