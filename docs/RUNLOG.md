@@ -1320,3 +1320,15 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.
 - Commit: rama `ci/dependabot-one-pr-per-ecosystem`, PR contra `main` (lo revisa y fusiona una persona).
 - Siguiente: que Pablo decida si el motor quiere Dependabot (hoy no lo tenía) y si los PR se fusionan solos o a mano.
+
+## 2026-10-20 15:10 · condiciones (tren de la noche) · hecho
+- Qué: condiciones de entrada en los mundos: una burbuja que pide aceptar las normas de la casa y de la comunidad antes de entrar, en PC, móvil y VR.
+  Los permisos de datos salen siempre sin marcar y nunca cierran la puerta. La puerta viene APAGADA en todos los mundos: se enciende con
+  `"puerta": true` en `aventura/condiciones.json` o con `MOTOR_CONDICIONES_PUERTA=si`. Versión 0.23.2 → 0.24.0.
+- Números: PRs #181–#187 al tren (servidor, burbuja PC/móvil, pompa vista desde fuera, normas que llegan solas de numinia.com,
+  versión nueva con solo lo cambiado, pase que dice lo ya aceptado, burbuja en VR). Mensajes de red 13/14/15 aditivos;
+  `WIRE_FORMAT` sigue en 2. Campos nuevos de `condiciones@1`: `tipo`, `puerta`, `nombre`, `comunidad.fuente`, `versionWeb`.
+  Env nuevas: `MOTOR_CONDICIONES_PUERTA`, `MOTOR_CONDICIONES_FUENTE`, `MOTOR_CONDICIONES_FUENTE_MIN`.
+- Consumo: sin medir · Sonnet 5 (historias) y Opus 5 (jefe del tren).
+- Commit: rama `condiciones/version-0-24`, PR contra `tren/motor-2026-10-20`.
+- Siguiente: que Pablo pruebe la burbuja en la Quest (paso a paso en el PR #187) y decida cuándo se enciende la puerta en cada mundo; texto legal de los abogados.
