@@ -5,6 +5,7 @@
 import { createServer } from "node:http";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { signer } from "./secret.ts";
 import { crearRecibos } from "./recibos.ts"; // N10: digital goods' ownership receipts
 import { randomBytes, randomInt } from "node:crypto";
@@ -13,13 +14,13 @@ import type { WebSocket } from "ws";
 import { hex } from "../../core/src/index.ts";
 import { REFERENCE, referenceRecording, replayFingerprint, TICK_HZ } from "../../sim/src/index.ts";
 import type { SpawnArea } from "../../sim/src/index.ts";
-import { Instance } from "../../instance/src/index.ts";
+import { FASES_TICK, Instance } from "../../instance/src/index.ts";
 import type { Suelo } from "../../instance/src/index.ts";
 import { construirMalla } from "./colision-mundo.ts";
 import { CIERRE_LLENO, MSG, PASE_MAX, WS_FRAME_MAX } from "../../net/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
 import type { HttpReply, ServerPart } from "../../feature/src/index.ts";
-import { buildMetrics, ByteWindow, TickWindow, toPrometheus } from "./metrics.ts";
+import { buildMetrics, ByteWindow, CosteTick, OPENMETRICS, PROM_TEXT, quiereOpenMetrics, TickWindow, toPrometheus } from "./metrics.ts";
 import { entorno, Runtime } from "./runtime.ts";
 import { KEEP_DAYS, Sesiones } from "./sesiones.ts";
 import { FileStorage } from "./datos.ts";
@@ -31,12 +32,17 @@ import { infoMotor } from "./version.ts";
 import type { Motor } from "./version.ts";
 import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
 import { leerFicha, leerTema, lectorAventura } from "./aventura.ts";
+import { leerCondiciones, PUERTA_POR_DEFECTO } from "./condiciones.ts";
+import { crearPuertaCondiciones } from "./condiciones-puerta.ts"; // condiciones/c2: the gate
+import { elegirFuente, iniciarFuente, ESPERA_ARRANQUE_MS } from "./condiciones-fuente.ts"; // condiciones/w4: the community's norms, pulled
 import { crearRoles } from "./roles-mundo.ts";
 import { configPase } from "./pase.ts";
 import { crearAgentesHttp } from "./agentes-http.ts";
 import type { ConfigPase } from "./pase.ts";
 import type { Who } from "../../instance/src/index.ts";
-import { leerHabitantes } from "../../agent/src/formato.ts";
+import { crearHabitantesGestion } from "./habitantes.ts";
+import { crearHabitantesHttp } from "./habitantes-http.ts";
+import { MODELO_POR_DEFECTO } from "../../agent/src/cerebro.ts";
 import { crearPuerta } from "./puerta.ts";
 import { ColaOptimizar } from "./optimizar-cola.ts";
 import type { Metrics } from "./metrics.ts";
@@ -53,6 +59,9 @@ export type ServerOptions = {
   sesiones?: string | null; // T1: folder for the session log (one JSONL per UTC day); default null = keep in memory only
   datos?: string | null;    // S4: folder where the features' saved state and stores live; default null = memory only
   construir?: "todos" | "nadie"; // H1/H3: whether @todos builds in a NEW world (its roles are stored after that; /construir); default "nadie" (env MOTOR_CONSTRUIR)
+  condicionesFuente?: string;    // condiciones/w4: where the community layer is downloaded from (https URL; "no" = never); default: env MOTOR_CONDICIONES_FUENTE, else `comunidad.fuente` of aventura/condiciones.json, else none
+  condicionesFuenteMs?: number;  // condiciones/w4: ms between downloads (the env path never goes under 5 minutes); default 15 minutes
+  condicionesPuerta?: boolean;   // condiciones/c2: the gate of the conditions of entry (condiciones-puerta.ts): until someone accepts the mandatory norms they stay where they arrived and are not heard or read; default: env MOTOR_CONDICIONES_PUERTA (si|no), else the `puerta` of aventura/condiciones.json, else off
   voz?: boolean;                 // U10: whether microphones are relayed in a NEW world (stored after that; /voz); default: env MOTOR_VOZ, on unless "no"
   biblioteca?: string | null;    // H1: the house library served at /a/<sha256>.<ext>; default the repo's activos/ (null = none)
   subidas?: string | null;       // H1/H9: folder of uploaded files named <sha256>.<ext>; default null (= no uploads)
@@ -64,6 +73,7 @@ export type ServerOptions = {
   admin?: string;                // the administration code for /mundo and /dueño (env MOTOR_ADMIN; main.ts also ADMIN_CODE); none or short = /mundo answers 403
   pase?: ConfigPase | null;      // H3b: numinia.com's world pass (key, this world's id, org); undefined = read MOTOR_PASE_* from the environment; null = ignore passes
   reiniciar?: () => void;        // after a world was uploaded and swapped in: the installed server exits (systemd starts it again)
+  recargarHabitantes?: () => void; // told after /habitantes writes or deletes a file (default: `systemctl restart numinia-habitantes`, best effort)
   mundo?: string | null;         // C2: the world folder (MOTOR_MUNDO): a world upload swaps datos/ aventura/ entorno/ in it
   entorno?: string | null;       // the world's entorno/ folder (entorno.json, elementos.json): travels in the world's zip
   aparicion?: SpawnArea | null;  // where people appear (entorno.json `aparicion`, read by the composition root); none = the house square of 40 m
@@ -129,6 +139,14 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   for (const p of fichaMal) log(`[ficha] no se carga: ${p}`);
   const { tema, problemas: temaMal } = leerTema(ficha?.tema); // how its page looks (an event's colours and titles); a bad value drops only itself
   for (const p of temaMal) log(`[ficha] ${p}: lo dejo fuera`);
+  // C1: its conditions of entry, from aventura/condiciones.json; none or broken = the house example (said in the log)
+  const { condiciones, deFichero: condicionesPropias, problemas: condicionesMal } = leerCondiciones(o.aventura ?? null);
+  for (const p of condicionesMal) log(`[condiciones] no se carga, uso las de la casa: ${p}`);
+  log(`[condiciones] ${condicionesPropias ? "del mundo" : "de la casa"}: ${condiciones.capas.map((c) => `${c.capa} ${c.version} (${c.puntos.length})`).join(" → ")}`);
+  // c2: the gate. Off unless asked (without the bubble of c3 nobody could accept and the world would stay shut): the option, then the file, then the default.
+  const puertaActiva = o.condicionesPuerta ?? condiciones.puerta ?? PUERTA_POR_DEFECTO;
+  const puertaCondiciones = crearPuertaCondiciones({ condiciones, activa: puertaActiva, log });
+  log(`[condiciones] puerta ${puertaActiva ? "ENCENDIDA: nadie se mueve, habla ni construye hasta aceptar las normas obligatorias" : "apagada (MOTOR_CONDICIONES_PUERTA=si o \"puerta\": true en condiciones.json la enciende)"}`);
   const pagina = o.www ? new Pagina(o.www, { titulo: ficha?.nombre ?? null }) : null; // C1: the page from the engine itself (one port per world)
 
   const t0 = performance.now();
@@ -150,19 +168,35 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   if (!cfgPase.ok) return Promise.reject(new Error(cfgPase.error));
   log(cfgPase.pase ? `[pase] el mundo «${cfgPase.pase.mundo}» acepta pases de numinia.com (clave ${cfgPase.pase.clave.kid}${cfgPase.pase.org ? `, organización ${cfgPase.pase.org}` : ""})` : "[pase] sin MOTOR_PASE_CLAVE: los pases de numinia.com se ignoran (todos entran como invitados)");
   const sockets = new Map<number, WebSocket>();
-  // P4: who may enter as an AI inhabitant = the habitantes/ of the adventure, with a ticket of the agents' secret
   const lector = lectorAventura(o.aventura ?? null, log);
-  const hab = leerHabitantes(lector("habitantes"));
-  for (const p of hab.problemas) log(`[habitantes] no se carga: ${p}`);
+  // P4: who may enter as an AI inhabitant = the habitantes/ of the adventure, with a ticket of the agents' secret.
+  // Its own door (GET/POST/DELETE /habitantes, camino A of «Add an AI») writes and deletes those files and reads
+  // the folder again; the separate service that walks and talks them (numinia-habitantes) only reads it at its own
+  // start, so a change here calls `recargarHabitantes` once it loads (default: restart that service; env
+  // MOTOR_HABITANTES_SIN_RECARGA=1 to skip it, e.g. in tests). `puertaRef` (an id taken by the OTHER kind of AI,
+  // agentes/) is filled in once `puerta` exists just below, breaking the chicken-and-egg between the two doors.
+  const puertaRef: { puerta: ReturnType<typeof crearPuerta> | null } = { puerta: null };
+  const hab = crearHabitantesGestion({
+    aventura: o.aventura ?? null, agentesExternos: () => new Set(puertaRef.puerta?.agentes.map((a) => a.id) ?? []),
+    recargar: o.recargarHabitantes ?? (process.env.MOTOR_HABITANTES_SIN_RECARGA === "1" ? undefined : () => {
+      try { execFileSync("systemctl", ["restart", "numinia-habitantes"], { stdio: "ignore" }); } catch (e) { log(`[habitantes] no he podido recargar numinia-habitantes: ${(e as Error).message}`); }
+    }), log,
+  });
+  // P5a / «Add an AI» historia 2: whether THIS machine can think (a provider key is configured) and which model —
+  // read straight from env, same as the inhabitants' service (packages/agent/src/main.ts); the key itself never
+  // leaves this scope (only the boolean and the model id reach /status).
+  const claveCerebro = process.env.CEREBRO_CLAVE ?? process.env.ANTHROPIC_API_KEY ?? "";
+  const cerebroEstado = { pensar: claveCerebro.length >= 20, modelo: process.env.CEREBRO_MODELO || MODELO_POR_DEFECTO };
   // ADR-080: outside agents = the adventure's agentes/ (their public keys); they sign their own a2 tickets
   const dominios = o.dominios ?? (process.env.MOTOR_DOMINIO ?? "").split(",").filter((d) => d.trim());
   const puerta = crearPuerta({ aventura: o.aventura ?? null, habitantes: () => new Set(hab.habitantes.map((h) => h.id)), dominios, log });
+  puertaRef.puerta = puerta;
   if (puerta.leer()) log(`[agentes] agentes de fuera que pueden entrar: ${puerta.agentes.map((x) => `${x.nombre} (${x.id}${x.rol ? `, rol ${x.rol}` : ""})`).join(", ")}${dominios.length ? ` · el mundo firma como ${dominios.join(", ")}` : ""}`);
   const roles = crearRoles({
     construir: construir === "todos", voz: o.voz ?? process.env.MOTOR_VOZ !== "no", admin: o.admin ?? process.env.MOTOR_ADMIN, log, firmar: identitySign, pase: cfgPase.pase, puerta,
     cerrar: (e) => { sockets.get(e)?.close(CIERRE_ROLES, "fuera"); }, // the reason went out in the chat just before
   });
-  const funciones = o.features?.length ? [...o.features, roles.part] : o.features; // no features (bare tests) = the pre-J7 wire
+  const funciones = o.features?.length ? [...o.features, roles.part, ...(puertaActiva ? [puertaCondiciones.part] : [])] : o.features; // the gate keeps what people accepted in a feature of its own, only when it is on; no features (bare tests) = the pre-J7 wire
   const puede = (who: Who | null, accion: string) => roles.puede(who, accion);
   const activos = new Activos(o.biblioteca === undefined ? BIBLIOTECA : o.biblioteca, o.subidas ?? null, log);
   const optimizar = new ColaOptimizar(activos, log, o.optimizar ?? process.env.MOTOR_OPTIMIZAR !== "no"); // N22
@@ -179,14 +213,17 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const aforo = Math.min(ficha?.aforo ?? maxPlayers, maxPlayers);
   if (ficha?.aforo) log(`[ficha] aforo ${ficha.aforo} persona${ficha.aforo === 1 ? "" : "s"}${ficha.aforo > maxPlayers ? ` (el motor admite ${maxPlayers}: ese es el tope)` : ""}${ficha.avatar ? ` · avatar de todos: ${ficha.avatar}` : ""}`);
   else if (ficha?.avatar) log(`[ficha] avatar de todos: ${ficha.avatar}`);
-  const fichaPublica = ficha ? { nombre: ficha.nombre, descripcion: ficha.descripcion, portada: portada ?? undefined, tema: tema ?? undefined, avatar: ficha.avatar, aforo } : { aforo };
+  const fichaPublica = ficha ? { nombre: ficha.nombre, descripcion: ficha.descripcion, portada: portada ?? undefined, tema: tema ?? undefined, avatar: ficha.avatar, aforo, ...(ficha.audio ? { audio: ficha.audio } : {}) } : { aforo };
   if (o.suelo) log(`[mundo] suelo mínimo ${o.suelo.minimo} m: bajo él se vuelve a la última posición segura${o.suelo.vuelta ? ` (punto de vuelta ${o.suelo.vuelta.x}, ${o.suelo.vuelta.y}, ${o.suelo.vuelta.z})` : ""}`);
   if (o.aparicion) log(`[mundo] la gente aparece en el cuadrado de ${2 * o.aparicion.radio} m centrado en (${o.aparicion.x}, ${o.aparicion.z})`);
   // N10: digital goods' receipts, signed with a key derived from the world's secret (none without MOTOR_SECRET: no goods)
   const recibos = crearRecibos(secret, dominios[0]?.trim() || "local");
   if (recibos) log(`[bienes] los recibos de este mundo los firma ${recibos.emisor}`); else log("[bienes] sin MOTOR_SECRET este mundo no da bienes digitales (no tiene con qué firmar sus recibos)");
   const leerActivo = (h: string, ext: string): Uint8Array | null => { const ruta = activos.buscar(h, ext); if (!ruta) return null; try { return readFileSync(ruta); } catch { return null; } }; // M6 h8: /a/<sha256>.<ext>'s own bytes, for the world's collision mesh
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, renovarPase: roles.renovar, activo: (h, ext) => activos.buscar(h, ext) !== null, medidas: (h, ext) => activos.medidas(h, ext), aventura: lector, agentes, externos: { verificar: puerta.verificar }, recibos: recibos ?? undefined, sinVoz: () => !roles.voz, oye: (de, a) => roles.oye(inst.who(de), inst.who(a)), aparicion: o.aparicion ?? null, suelo: o.suelo ?? null, construirMalla: construirMalla(leerActivo) }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz); M6 h8: malla things build the world's mesh
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, renovarPase: roles.renovar, activo: (h, ext) => activos.buscar(h, ext) !== null, medidas: (h, ext) => activos.medidas(h, ext), aventura: lector, agentes, externos: { verificar: puerta.verificar }, recibos: recibos ?? undefined, sinVoz: () => !roles.voz, oye: (de, a) => roles.oye(inst.who(de), inst.who(a)), aparicion: o.aparicion ?? null, suelo: o.suelo ?? null, construirMalla: construirMalla(leerActivo), condiciones: puertaCondiciones }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz); M6 h8: malla things build the world's mesh
+  // condiciones/w4: the community's norms arrive by themselves (copy in aventura/condiciones-comunidad.json, then a download every few minutes); whoever arrives next is offered the newest
+  const fuenteCondiciones = iniciarFuente({ dir: o.aventura ?? null, base: condiciones, fuente: elegirFuente(o.condicionesFuente, o.aventura ?? null, log), log, intervaloMs: o.condicionesFuenteMs, poner: (c, motivo) => { puertaCondiciones.poner(c); if (motivo === "nueva") inst.ofrecerCondiciones(); } });
+  const primeraFuente = !fuenteCondiciones.activa ? Promise.resolve() : fuenteCondiciones.conCopia ? (void fuenteCondiciones.actualizar(), Promise.resolve()) : fuenteCondiciones.actualizar(ESPERA_ARRANQUE_MS).then(() => {}); // with no copy yet the first listening waits a few seconds for the first answer
   // H9: uploads (PUT /a/<sha256>.<ext>) by whoever may build; the page shows its guest token (I1) to say who it is
   const subidas = new Subidas({
     dir: o.subidas ?? null, activos, log, topesMB: o.subir?.topesMB, totalMB: o.subir?.totalMB,
@@ -196,7 +233,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       const c = inst.conns.find((k) => (k.invitado ?? k.who?.id) === v.id); // connected now: its name and entity (H3: roles per identity; H3b: a numinia.com person is found by the guest token their page still holds)
       return { who: c?.who ?? { id: v.id, nombre: nombreDe(v.id) }, entity: c?.entity ?? -1 };
     },
-    puede: (who) => puede(who, "construir"), // the same question every building intent asks (api.puede)
+    puede: (who, entity) => !(puertaActiva && (entity >= 0 ? inst.puertaCerrada(entity) : !puertaCondiciones.abierta(who))) && puede(who, "construir"), // the same question every building intent asks (api.puede); c2: and the gate is open for them
     guardado: (hash, tipo) => optimizar.pedir(hash, tipo), // N22: its lighter copy, in the background
   });
 
@@ -211,6 +248,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
 
   const ticks = new TickWindow(200), lags = new TickWindow(200), responses = new TickWindow(200), bytes = new ByteWindow(11);
   const runtime = new Runtime(), env = entorno();
+  const coste = new CosteTick(FASES_TICK, 200); // B2: where each tick's time goes (phases, features)
   const counts = { aceptadas: 0, cerradas: 0, rechazadasLlenas: 0 };
   const tickMs = 1000 / TICK_HZ;
   let n = 0, lagMs = 0, start = 0, stopped = false, tickSumMs = 0;
@@ -220,6 +258,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     version, uptimeMs: performance.now() - born, tick: inst.sim.tick, tickHz: TICK_HZ, people: inst.conns.length,
     capacity: aforo, ticks, bytes, lagMs, mem: process.memoryUsage(),
     lags, responses, runtime: runtime.window(), entorno: env, counts, bytesTotal: bytesOut, tickSumMs,
+    coste, erroresDe: inst.features.erroresDe, piezasStats: inst.features.stats,
   });
 
   const json = (res: ServerResponse, code: number, body: unknown) => {
@@ -229,10 +268,11 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const reply = (res: ServerResponse, r: HttpReply) => {
     const type = r.type ?? "json";
     const ct = type === "html" ? "text/html; charset=utf-8" : type === "text" ? "text/plain; charset=utf-8" : "application/json; charset=utf-8";
-    res.writeHead(r.status ?? 200, { "content-type": ct, "cache-control": "no-store" });
+    res.writeHead(r.status ?? 200, { "content-type": ct, "cache-control": r.cache ?? "no-store", ...(r.cors ? { "access-control-allow-origin": "*" } : {}) });
     res.end(type === "json" ? JSON.stringify(r.body) : String(r.body));
   };
   const agentesHttp = crearAgentesHttp({ pase: cfgPase.pase, agentes: () => roles.agentes, log });
+  const habitantesHttp = crearHabitantesHttp({ pase: cfgPase.pase, habitantes: () => hab, log });
   const http: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
     const [path, qs = ""] = (req.url ?? "/").split("?");
     const method = req.method ?? "GET";
@@ -246,6 +286,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     // size); `agentes` and `total` are new. `agentesDe` says whose each agent is: a world inhabitant (habitante, P4,
     // never anyone's but the world's own) or one of numinia.com's organizations (ADR-080, a signed pass), by org id.
     if (method === "GET" && path === "/status") {
+      const espacioBaseActivo = () => { for (const [k, v] of inst.features.allState()) if (k === "espacio-base:mundo") return (v as { activa?: boolean }).activa !== false; return false; };
       const agentesConectados = inst.conns.filter((c) => c.who?.id.startsWith("ia-"));
       const personas = inst.conns.length - agentesConectados.length;
       const agentesDe: { habitante: number; organizacion: Record<string, number> } = { habitante: 0, organizacion: {} };
@@ -256,16 +297,23 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "access-control-allow-origin": "*" });
       return void res.end(JSON.stringify({
         uptime: Math.floor((performance.now() - born) / 1000), conectados: personas, agentes: agentesConectados.length,
-        total: inst.conns.length, agentesDe, commitHash: motor.commit ?? undefined, version,
-        ...(cfgPase.pase ? { mundoPase: cfgPase.pase.mundo } : {}), ...fichaPublica,
+        total: inst.conns.length, agentesDe, commitHash: motor.commit ?? undefined, version, cerebro: cerebroEstado,
+        ...(cfgPase.pase ? { mundoPase: cfgPase.pase.mundo, pases: roles.pases() } : {}), ...fichaPublica,
+        // H4: the loading screen draws the line mesh only for a world whose espacio base is on (its state is public anyway)
+        ...(espacioBaseActivo() ? { espacioBase: true } : {}),
       }));
     }
     if (method === "GET" && path === "/metrics") return json(res, 200, metrics());
     if (method === "GET" && path === "/sesiones") return json(res, 200, { schema: "numinia-engine/sesiones@1", carpeta: sesiones.dir, resumen: sesiones.resumen(), ahora: sesiones.ahora() });
-    if (method === "GET" && path === "/metrics.prom") { res.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8", "cache-control": "no-store" }); return void res.end(toPrometheus(metrics())); }
+    if (method === "GET" && path === "/metrics.prom") { // B2: OpenMetrics 1.0 when the scraper asks for it, Prometheus text 0.0.4 otherwise
+      const om = quiereOpenMetrics(req.headers.accept);
+      res.writeHead(200, { "content-type": om ? OPENMETRICS : PROM_TEXT, "cache-control": "no-store", vary: "Accept" });
+      return void res.end(toPrometheus(metrics(), { coste, gc: runtime.gcHist, erroresDe: inst.features.erroresDe }, om));
+    }
     if ((method === "GET" || method === "HEAD") && path.startsWith("/a/") && activos.servir(path, res, method === "HEAD", req.headers.range, String(req.headers["accept-encoding"] ?? ""), String(req.headers.accept ?? ""))) return; // H1: files by their sha256
     if ((method === "PUT" || method === "OPTIONS") && path.startsWith("/a/")) return subidas.atender(method, path, req, res); // H9: uploads
     if (agentesHttp.atender(method, path, req, res)) return; // ADR-080: numinia.com's panel manages the outside agents (pass-authenticated)
+    if (habitantesHttp.atender(method, path, req, res)) return; // the panel manages this world's own AI inhabitants (pass-authenticated)
     if (copia.atender(method, path, req, res)) return; // the world as a zip
     if (pagina?.servir(method, path, req, res)) return; // C1: the page (index.html, assets/) when the engine serves it
     if (method !== "GET" && method !== "POST") return json(res, 405, { error: "solo GET o POST" });
@@ -308,6 +356,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     inst.tick();
     const took = performance.now() - a;
     ticks.record(took); lags.record(Math.max(0, lagMs)); responses.record(Math.max(0, lagMs) + took); tickSumMs += took;
+    coste.record(took, inst.fasesMs, inst.features.costes);
     n++;
     timer = setTimeout(loop, Math.max(0, start + n * tickMs - performance.now()));
   };
@@ -320,13 +369,13 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   stats.unref();
   // stop the world for good (before a swap of datos/): no tick, nobody connected, no new connections, all written
   apagar = async () => {
-    stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats);
+    stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); fuenteCondiciones.parar();
     for (const c of wss.clients) c.terminate();
     wss.close(); http.close(); http.closeIdleConnections();
     await Promise.all([sesiones.vaciar(), datos?.flush(), optimizar.parar()]);
   };
 
-  return new Promise((ok, ko) => {
+  return primeraFuente.then(() => new Promise<RunningServer>((ok, ko) => {
     http.once("error", ko);
     http.listen(o.port, o.host, () => {
       const addr = http.address();
@@ -339,11 +388,11 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       ok({
         port, inst, sesiones, datos, fingerprint: hex(refHash), metrics, optimizar,
         close: () => new Promise<void>((done) => {
-          stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); runtime.close();
+          stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); fuenteCondiciones.parar(); runtime.close();
           for (const c of wss.clients) c.terminate();
           wss.close(); http.close(() => void Promise.all([sesiones.vaciar(), datos?.flush(), optimizar.parar()]).then(() => done()));
         }),
       });
     });
-  });
+  }));
 }

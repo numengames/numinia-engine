@@ -14,6 +14,9 @@ export type { Vitrina } from "./vitrina.ts";
 export type { Donde as DondePuesto } from "./puestos.ts";
 export { vrSupported } from "./vr.ts";
 export type { VRState, DialogoVR } from "./vr.ts";
+/** Rediseño v2: the VR session as the page wires its watch and menu (apps/plaza/xr-menu.ts). */
+export type MenuVR = ReturnType<typeof createVR>;
+export type { Contenido as ContenidoMenuVR } from "./menu-invocado.ts";
 import type { Manos, EventoMano } from "./manos.ts";
 export type { EventoMano, Lado } from "./manos.ts";
 import { createPower, readCaps, checkCost, conClase } from "./power.ts";
@@ -22,6 +25,9 @@ export { limitesGraficos } from "./capacidades.ts"; // N2: max texture size for 
 export type { FrameCost } from "./power.ts";
 export { leerAparato, leerBateria, medidorDeCuadros } from "./sesion.ts";
 import { createCamara } from "./camara.ts";
+// S5: the engine's one listener — the only place the AudioListener moves (audio/oyente.ts). Type-only here: the
+// module itself is loaded lazily below, so it costs the start bundle nothing (D2, and the cap is already tight).
+import type { Oyente, Camara as CamaraOyente } from "./audio/oyente.ts";
 export { haciaMundo, TECLAS_CAMARA, CAMARA } from "./camara.ts";
 export type { Camara, ModoCamara } from "./camara.ts";
 import { crearEditor } from "./gizmo.ts";
@@ -34,31 +40,47 @@ import { createAvatares } from "./avatares.ts";
 import { sueloBajo } from "./avatares-politica.ts";
 import { prepararGltf, usarRenderer } from "./gltf.ts";
 import { ordenCarga, puedeEmpezar } from "./carga-orden.ts";
+import type { Movimiento } from "./avatares-politica.ts";
+export type { Movimiento } from "./avatares-politica.ts";
 export type { CatalogoAvatares } from "./avatares.ts";
 import type { CatalogoAvatares } from "./avatares.ts";
 import { createNombres, NOMBRE_VISIBLE_M } from "./nombres.ts";
+import { createPompas } from "./pompas.ts"; // condiciones/c5: the bubble over someone who is still reading the norms
 import { elegirMirado, escalaAcotada, nombreVisible, NOMBRE_GRADOS_MAX, type Mirable } from "./carteles.ts";
 export { NOMBRE_VISIBLE_M, NOMBRES_DIBUJADOS, BOCADILLO_VISIBLE_M } from "./nombres.ts";
 import { crearCenital } from "./cenital.ts";
 export type { Huella, ImagenCenital } from "./cenital.ts";
 import { crearEntorno } from "./entorno.ts";
 import { vistaElementos } from "./elementos-vista.ts";
+
+import { crearEspacioBasePerezoso } from "./espacio-base/cargador.ts"; // H2: the empty night world of luminous lines (a separate chunk, fetched only when a world asks)
+import { crearNaturalezaPerezosa, horaDeEntorno } from "./naturaleza/cargador.ts"; // N4b: relief + trees + grass from a seed (the piece is a separate chunk, fetched only when a world asks)
+import { audio } from "./audio/nucleo.ts"; // F5: the creatures sound on the shared audio core (ambient bus)
 import { vistaPesca } from "./pesca-vista.ts";
 import { crearDianas3D, crearDianaAR } from "./dardos.ts";
 import { crearPantallasWeb } from "./web.ts";
+import { crearSalon } from "./ancestros.ts";
 import type { DianaAR } from "./dardos.ts";
 import { detalleAgua } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
 import { fundirAnimado } from "./fundir.ts";
+import { crearQuietos } from "./fundir-quietos.ts";
 import type { Fundido } from "./fundir.ts";
 import type { Parte } from "./lotes.ts";
 import { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 import { crearTeletransporte } from "./teletransporte.ts";
+import { crearPrecompilador } from "./precompilar.ts";
 export { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 export type { EntornoDatos } from "./entorno.ts";
 export type { Luz } from "./teletransporte.ts";
+// D-058 spike: «materia de bloques» — a shape of dice-shaped blocks that assembles and crumbles (materia.ts, materia-politica.ts)
+export { crearMateria } from "./materia.ts";
+export type { Materia } from "./materia.ts";
+export { mezcla, muestrear, muestrearMalla, cuantos, lado, areaForma, MEZCLA, BLOQUES_PIEZA } from "./materia-politica.ts";
+export type { Forma, Mezcla, Metodo, Muestra } from "./materia-politica.ts";
 export type { Calidad, Nivel } from "./calidad.ts";
 import { decidirLOD } from "./lod-politica.ts";
+import { personaEn, type Proyectada } from "./gente-politica.ts";
 export { decidirLOD, LOD_LEJOS_M, LOD_HISTERESIS_M } from "./lod-politica.ts";
 export type { EstadoLOD } from "./lod-politica.ts";
 
@@ -82,7 +104,24 @@ export const EN_MANO_M = 0.16;
 const LOADS_AT_ONCE = 4;   // H1: model files downloading at the same time; the nearest first
 const ANIMATE_WITHIN_M = 40; // H1: farther than this, a model's animation stands still (cold phones)
 
-export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number } } = {}) {
+/** T1: the graphics chip's name, read once (B3: at start, before any shader is queued; a WebGL read waits for the
+ * whole GPU queue). WebGPU: the adapter's info. "" when the browser hides it. */
+async function leerGpu(renderer: THREE.WebGPURenderer, backend: Backend): Promise<string> {
+  try {
+    const b = renderer.backend as unknown as { device?: { adapterInfo?: Record<string, string> }; gl?: WebGL2RenderingContext };
+    if (backend === "WebGPU") {
+      const nav = navigator as Navigator & { gpu?: { requestAdapter(): Promise<{ info?: Record<string, string> } | null> } };
+      const info = b.device?.adapterInfo ?? (await nav.gpu?.requestAdapter())?.info;
+      return info ? [info.vendor, info.architecture, info.description].filter(Boolean).join(" ").slice(0, 120) : "";
+    }
+    const gl = b.gl;
+    if (!gl) return "";
+    const ext = gl.getExtension("WEBGL_debug_renderer_info");
+    return String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? "").slice(0, 120);
+  } catch { return ""; }
+}
+
+export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number; eleccion?: (clave: number | "yo") => number | undefined } } = {}) {
   // U25: `movil` = the device class a forced profile declares (?aparato, development only); undefined = read the device
   const power = createPower(conClase(readCaps(), opts.movil), { battery: opts.battery, maxFps: opts.maxFps });
   // XR on a WebGPU backend needs the session's "webgpu" feature (XRGPUBinding); Quest Browser 152 has neither (measured
@@ -93,6 +132,13 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   usarRenderer(renderer); // N22: KTX2 textures transcode to what this GPU takes
   await renderer.init();
   const backend: Backend = (renderer as unknown as { backend: { isWebGPUBackend?: boolean } }).backend.isWebGPUBackend ? "WebGPU" : "WebGL2";
+  // B3: the synchronous questions to the GPU are asked ONCE, here, while its queue is still empty. Asked later (three
+  // reads the anisotropy limit on the first texture; the T1 pulse read the chip's name after the welcome) each one
+  // waited for every shader compile queued before it: R6 measured 0.52 s and 0.14-0.27 s during the events load.
+  const gl = (renderer.backend as unknown as { gl?: WebGL2RenderingContext }).gl;
+  try { (renderer.backend as unknown as { capabilities?: { getMaxAnisotropy?(): number } }).capabilities?.getMaxAnisotropy?.(); } catch { /* WebGPU: nothing to ask */ }
+  const paralelo = backend === "WebGPU" || !!gl?.getSupportedExtensions()?.includes("KHR_parallel_shader_compile"); // three takes it at init
+  const gpuNombre = leerGpu(renderer, backend);
   renderer.setPixelRatio(power.pixelRatio());
   renderer.setSize(innerWidth, innerHeight);
   parent.appendChild(renderer.domElement);
@@ -143,12 +189,36 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const cam = createCamara(camera, renderer.domElement, { enXR: () => renderer.xr.isPresenting });
   const feet = { x: 0, y: 0, z: 0 };
 
+  // S5: THE listener. One per page, moved from one place only (audio/oyente.ts) and from the draw loop below:
+  // outside XR it follows this camera (position AND orientation — before S5 nothing followed the head); inside an
+  // immersive session it follows the headset's real pose (`XRFrame.getViewerPose`), centred between the two eyes,
+  // brought into world coordinates by the rig the camera hangs from. WebXR says nothing about audio: this copy is
+  // entirely ours (work/motor-ar/sonido/raw/02-web-audio-y-aparatos.md §e). Measured cost: 0.21 µs/frame flat,
+  // 0.43 µs in XR (≈0.004 % of a 90 Hz frame), so it runs every frame — no need to drop it to 30 Hz.
+  let oyente: Oyente | null = null;
+  void import("./audio/oyente.ts").then(({ crearOyente }) => {
+    oyente = crearOyente({
+      camara: () => camera as unknown as CamaraOyente,
+      xr: {
+        presentando: () => renderer.xr.isPresenting,
+        fotograma: () => (renderer.xr.getFrame?.() ?? null) as never,
+        espacio: () => renderer.xr.getReferenceSpace?.() ?? null,
+      },
+    });
+  }).catch(() => { /* no listener: everything else still draws and the voice still plays, just not head-tracked */ });
+  // entering and leaving an immersive session: attended at once, so the sound never lags a frame behind the eyes
+  // (on leaving, the listener goes back to the flat camera).
+  try {
+    renderer.xr.addEventListener?.("sessionstart", () => oyente?.alEntrarXR());
+    renderer.xr.addEventListener?.("sessionend", () => oyente?.alSalirXR());
+  } catch { /* a renderer without those events: the loop notices the change by itself */ }
+
   // J10: your hands in XR (manos.ts, loaded when you enter XR: not in the start bundle). What they may reach are the
   // placed things (never while AR shows the real room). Until it arrives, `manos` keeps the page's rules and listeners.
   // three gives a session's inputs only to controller slots that already exist: make both now (cheap, core three).
   for (const i of [0, 1]) { renderer.xr.getController(i); renderer.xr.getControllerGrip(i); renderer.xr.getHand(i); }
   let manosReal: Manos | null = null, manosCarga: Promise<Manos> | null = null;
-  const reglasManos: Parameters<Manos["reglas"]>[0] = {}, oyentesManos = new Set<(e: EventoMano) => void>();
+  const reglasManos: Parameters<Manos["reglas"]>[0] = {}, oyentesManos = new Set<(e: EventoMano) => void>(), ocupantesManos = new Map<string, (l: "izq" | "der") => boolean>();
   const cargarManos = () => (manosCarga ??= import("./manos.ts").then(({ createManos }) => {
     const m = createManos({
       renderer,
@@ -157,6 +227,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       paneles: () => [...vr.paneles(), ...web.paneles()], // N17: a web screen's «Abrir fuera de VR»
     });
     m.reglas(reglasManos);
+    for (const [n, f] of ocupantesManos) m.ocupar(n, f);
     m.on((e) => { for (const f of oyentesManos) f(e); });
     return (manosReal = m);
   }));
@@ -165,11 +236,20 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     montar: (p: THREE.Object3D | null) => manosReal?.montar(p),
     update: (c: THREE.Camera | null) => manosReal?.update(c),
     reglas(o: Parameters<Manos["reglas"]>[0]) { Object.assign(reglasManos, o); manosReal?.reglas(o); },
+    /** A feature that holds a hand (a dart in it): asked live; kept until the hands module arrives. */
+    ocupar(nombre: string, fn: (l: "izq" | "der") => boolean) { ocupantesManos.set(nombre, fn); return manosReal?.ocupar(nombre, fn) ?? (() => { if (ocupantesManos.get(nombre) === fn) ocupantesManos.delete(nombre); }); },
+    sondeo: (l: "izq" | "der") => manosReal?.sondeo(l) ?? null,
+    ocupadaPorOtros: (l: "izq" | "der", excepto: string) => manosReal?.ocupadaPorOtros(l, excepto) ?? false,
     on(fn: (e: EventoMano) => void) { oyentesManos.add(fn); return () => oyentesManos.delete(fn); },
     ancla: (l: "izq" | "der") => manosReal?.ancla(l) ?? null,
+    rayo: (l: "izq" | "der") => manosReal?.rayo(l) ?? null,
     andar: () => manosReal?.andar() ?? null,
+    dirMando: (l: "izq" | "der") => manosReal?.dirMando(l) ?? null,
+    muneca: (l: "izq" | "der", pos: THREE.Vector3, rot: THREE.Quaternion) => manosReal?.muneca(l, pos, rot) ?? null, // rediseño v2: the wrist watch
+    punta: (l: "izq" | "der", pos: THREE.Vector3) => manosReal?.punta(l, pos) ?? false,
     vibrar: (l: "izq" | "der", v?: number, ms?: number) => manosReal?.vibrar(l, v, ms),
     entrada: (l: "izq" | "der") => manosReal?.entrada(l) ?? null,
+    rayoDe: (l: "izq" | "der") => manosReal?.rayoDe(l) ?? null,
     estado: () => manosReal?.estado() ?? { izq: null, der: null },
   };
   const ar = createAR({ renderer, scene, world, domOverlayRoot: document.getElementById("hud") ?? undefined, maxMs: opts.arMaxMs, manos,
@@ -189,12 +269,17 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // N1b: the solid boxes in metres (view.solidos): the camera does not go through them, avatars stand on them
   let cajasM: ArrayLike<number> = [], cajasFx: Int32Array | null = null;
   const avs = createAvatares({ world, mobile: power.mobile, xr: () => renderer.xr.isPresenting, catalogo: opts.avatares?.catalogo, yo: opts.avatares?.yo, compilar: (o) => renderer.compileAsync(o, camera, scene),
-    suelo: (x, z, y) => sueloBajo(x, z, y, cajasM) });
+    suelo: (x, z, y) => sueloBajo(x, z, y, cajasM), eleccion: opts.avatares?.eleccion });
   // H4 + H12: sky, sun, light, fog, wind and ground come from data (features/entorno), quality from the device tier
   const entorno = crearEntorno({ renderer, scene, world, camera, hemi, sun, ground, grid, hitos, aparato: { mobile: power.mobile, deviceMemoryGB: readCaps().deviceMemoryGB, saveData: readCaps().saveData }, foco: () => selfXZ,
     fichero: (f) => { const i = f.lastIndexOf("."); return (opts.assetUrl ?? ((m: string) => `/a/${m}.glb`))(f.slice(0, i)).replace(/\.glb$/, f.slice(i)); } });
   const elementos = vistaElementos({ renderer, scene, world, camera, entorno }); // H4/H8: water, fire, smoke, dust (lazy)
   const tele = crearTeletransporte({ world, nivel: () => entorno.nivel }); // N16: the light of a trip (none on tier D)
+
+  const yoNat = { x: 0, y: 0, z: 0 }; // F4 audit: one object reused every frame (the nature reads it at once)
+  const naturaleza = crearNaturalezaPerezosa({ padre: world, ground, vientoU: entorno.vientoU, nivel: () => entorno.nivel, camara: camera, yo: () => (selfXZ ? (yoNat.x = selfXZ.x, yoNat.y = selfXZ.y ?? 0, yoNat.z = selfXZ.z, yoNat) : null), niebla: () => (scene.fog instanceof THREE.Fog ? scene.fog.color.getHex() : 0xc9d8e4), aguaLuz: entorno.aguaLuz, detalleAgua: () => detalleAgua(entorno.nivel, entorno.calidadActual.agua), hora: () => horaDeEntorno(entorno.datos), nucleo: audio, hitos: () => hitos, atmosfera: entorno.atmosfera }); // R7.1 atmosphere; N4 + F4 + F5 (creature sound on the audio core's ambient bus) (hour of day for the fauna)
+  const espacioBase = crearEspacioBasePerezoso({ padre: world, ground, nivel: () => entorno.nivel, dia: entorno.diaU, hitos: () => hitos, atmosfera: entorno.atmosfera }); // H2: builds nothing until a world brings espacio-base.json
+
 
   // feature decorations (J7): a text label over an avatar and a short bounce; both expire on their own
   type Target = number | "self";
@@ -203,6 +288,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const labelGeo = new THREE.PlaneGeometry(1.6, 0.4);
   const meshOf = (t: Target): THREE.Mesh | undefined => (t === "self" ? (selfMesh.visible ? selfMesh : undefined) : others.get(t));
   const nombres = createNombres({ world, camera, avatarOf: meshOf }); // J3: names over heads and speech bubbles
+  const pompas = createPompas({ world, avatarOf: (t) => meshOf(t) }); // condiciones/c5: a bubble around whoever is reading the norms (one shared sphere)
   // pesca v1: rods, lines and floats of whoever fishes near (lazy: packages/render/src/pesca.ts). "self" hides in first person, so the rod uses the capsule's place anyway
   const pesca = vistaPesca({ world, posicionDe: (t) => (t === "self" ? selfMesh.position : others.get(t)?.position) ?? null,
     manoDe: (t, out) => avs.mano(t === "self" ? "yo" : t, "derecha", out), orientar: (t, rumbo) => avs.orientar(t === "self" ? "yo" : t, rumbo),
@@ -239,6 +325,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     grabando(si: boolean): void { grabosoQuiere.grabando = si; graboso3d?.grabando(si); },
     visible(): boolean { return graboso3d?.visible() ?? false; },
   };
+  const ancestros = crearSalon({ world, camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera) }); // ancestros v1: the hall and the hologram of the tribute to Asimov (ancestros.ts)
   function dropLabel(t: Target): void {
     const d = labels.get(t);
     if (!d) return;
@@ -249,6 +336,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   }
   // N4: the rod in your real hand in VR, and the gauge facing the camera that draws
   pesca.conManos({ ancla: (l) => (renderer.xr.isPresenting && vr.active ? manos.ancla(l) : null), camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera) });
+
+  // dardos in VR (packages/render/src/dardos-vr.ts): the dart in your hand, flying and falling; lazy, fetched by the page only on a VR-capable device
+  let dardosVRReal: import("./dardos-vr.ts").DardosVR | null = null, dardosVRCarga: Promise<import("./dardos-vr.ts").DardosVR> | null = null;
+  const dardosVR = {
+    cargar: () => (dardosVRCarga ??= import("./dardos-vr.ts").then((m) => (dardosVRReal = m.crearDardosVR({ world, ancla: (l) => manos.ancla(l), suelo: () => selfXZ?.y ?? 0, una: dardos.una })))),
+    actualizar: (dt: number) => dardosVRReal?.actualizar(dt),
+    real: () => dardosVRReal,
+    contar: () => dardosVRReal?.contar() ?? null,
+  };
 
   // beacons (R1): a column of light with a text at a world point; expires on its own
   const beacons: { group: THREE.Group; until: number }[] = [];
@@ -274,6 +370,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       d.mesh.quaternion.copy(camera.quaternion); // always faces whoever looks
     }
     updateRotulos(now);
+    pompas.update(now);
   }
 
   // ---- U22: who shows a name. The one in the middle of your view (a person, or a name over a thing), whoever speaks,
@@ -313,7 +410,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** N12: the baked parts (copies of one model share them: a lote draws them), and a sphere round the group's origin that holds the model (m, before scale). */
     partes?: Parte[]; radio?: number;
     /** J14: a baked figure's two LODs (cerca = its baked parts, lejos = one piece) */
-    piezaCerca?: Pieza[]; piezaLejos?: Pieza; lod?: "cerca" | "lejos" };
+    piezaCerca?: Pieza[]; piezaLejos?: Pieza; lod?: "cerca" | "lejos";
+    /** B3: set while this copy's shaders are being prepared (precompilar.ts); a new model or pose for the slot drops it. */
+    preparando?: object };
   const esferaTmp = new THREE.Sphere();
   /** N12: the radius (m, before the copy's scale) of a sphere round the origin that holds `o`, a copy not yet in the world. */
   const radioDe = (o: THREE.Object3D): number => { o.updateMatrixWorld(true); tmpBox.setFromObject(o); if (tmpBox.isEmpty()) return 1; tmpBox.getBoundingSphere(esferaTmp); return esferaTmp.center.length() + esferaTmp.radius; };
@@ -445,6 +544,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   }
   // N15: a model that animates is fused ONCE per file (fundir.ts): one skinned mesh per look sharing one skeleton, so
   // each copy costs 1-3 draw calls instead of one per piece (the house robot: 19 -> 1). Looks and moves the same.
+  const quietoDe = crearQuietos(); // E2: one without clips, one mesh per look (fundir-quietos.ts)
   const fundidos = new Map<string, Fundido | null>();
   function fundido(model: string, g: Gltf, clone: Tools["clone"]): Fundido | null {
     if (fundidos.has(model)) return fundidos.get(model)!;
@@ -500,6 +600,11 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     s.group.add(representacion(nuevo === "lejos" ? [s.piezaLejos] : s.piezaCerca));
   }
   const files = new Map<string, Promise<{ g: Gltf; clone: Tools["clone"]; merge: Merge }>>(); // model -> its parsed file, shared by every copy
+  // B3: shaders ready before a model shows (precompilar.ts): batches through compileAsync, in parallel where the GPU can
+  const precompilar = crearPrecompilador({ compilar: (g) => renderer.compileAsync(g as unknown as THREE.Object3D, camera, scene), grupo: () => new THREE.Group() as never, paralelo: () => paralelo });
+  const instanciasPreparadas = new Set<string>();
+  const copiasDe = (model: string) => { let n = 0; for (const t of things.values()) if (t.model === model) n++; return n; };
+  const sombrasPuestas = () => sun.castShadow && sun.shadow.autoUpdate;
   const things = new Map<string, Slot>();
   const waiting = new Set<string>();
   let loading = 0, animatingNear = false;
@@ -540,24 +645,43 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       loading++; if (cerca) cercaCargando++;
       file.then(({ g, clone, merge }) => {
         const now = things.get(best);
-        if (!now || now.model !== model || now.loaded) return; // removed or changed while it downloaded
+        if (!now || now.model !== model || now.loaded || now.preparando) return; // removed or changed while it downloaded
         const quieto = !now.want.animate ? hornear(model, g.scene, merge) : null;
         let copy: THREE.Object3D;
         const fu = !quieto && now.want.animate ? fundido(model, g, clone) : null;
-        if (quieto) {
-          // J14: a thing painted a custom colour keeps its baked parts (pintar() cannot tint a merged,
-          // vertex-coloured piece); anything else gets both LODs and starts at whichever distance picks.
-          const pieza = now.want.color ? null : hornearPieza(model, quieto, merge);
-          now.piezaCerca = quieto; now.piezaLejos = pieza ?? undefined;
-          now.lod = pieza ? decidirLOD(selfXZ ? Math.sqrt(distance2(now)) : 0, undefined) : "cerca";
-          copy = representacion(now.lod === "lejos" && pieza ? [pieza] : quieto);
-        } else copy = clone(fu ? fu.escena : g.scene);
-        now.horneado = !!quieto; now.partes = quieto ?? partesEnteras(model, g) ?? undefined;
-        now.radio = radioDe(copy) * (now.want.animate ? 1.5 : 1); // an animation may reach out of its rest pose
-        now.group.add(copy);
-        if (now.want.animate && g.animations.length) { now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction((fu ? fu.clips : g.animations)[0]).play(); }
-        now.loaded = true; now.color = undefined; pintar(now);
-        if (llevados.has(best) && now.group.parent !== world) { const d = llevados.get(best)!; soltarLlevado(best); llevados.set(best, d); } // re-fit in the hand
+        const qu = !quieto && !fu ? quietoDe(model, g.scene, g.animations) : null;
+        // J14: a thing painted a custom colour keeps its baked parts (pintar() cannot tint a merged,
+        // vertex-coloured piece); anything else gets both LODs and starts at whichever distance picks.
+        const pieza = quieto && !now.want.color ? hornearPieza(model, quieto, merge) : null;
+        const lod: "cerca" | "lejos" = pieza ? decidirLOD(selfXZ ? Math.sqrt(distance2(now)) : 0, undefined) : "cerca";
+        if (quieto) copy = representacion(lod === "lejos" && pieza ? [pieza] : quieto);
+        else copy = clone(fu ? fu.escena : qu ? qu.escena : g.scene); // E2: a still model drawn merged
+        const partes = quieto ?? qu?.partes ?? partesEnteras(model, g) ?? undefined;
+        // B3: its shaders are prepared first (precompilar.ts) and only then is it shown; the first copy of a model
+        // compiles, the rest find the programs ready. Copies drawn together (lotes.ts) use instanced programs: a
+        // one-instance stand-in per part prepares those too, once per model, when the world has enough copies of it.
+        // The LOD it is not showing yet (J14) is prepared alongside, so switching later does not stall either.
+        const objs: THREE.Object3D[] = [copy];
+        if (quieto && pieza) objs.push(representacion(lod === "lejos" ? quieto : [pieza]));
+        if (partes && !instanciasPreparadas.has(model) && copiasDe(model) >= INSTANCIAR_DESDE) {
+          instanciasPreparadas.add(model);
+          for (const q of partes) { const im = new THREE.InstancedMesh(q.geo, q.mat, 1); im.castShadow = q.sombra; objs.push(im); }
+        }
+        if (sombrasPuestas()) for (const o of objs) o.traverse((x) => { if ((x as THREE.Mesh).isMesh && !x.userData.sinSombra) { x.castShadow = true; x.receiveShadow = true; } }); // as entorno marks them: same shader
+        const yo = {};
+        now.preparando = yo;
+        precompilar.preparar(objs, () => {
+          if (things.get(best) !== now || now.preparando !== yo || now.model !== model || now.loaded) return; // removed or changed while it compiled
+          now.preparando = undefined;
+          // J14's LODs are set only now: actualizarLOD() must not show the copy before its shaders are ready
+          if (quieto) { now.piezaCerca = quieto; now.piezaLejos = pieza ?? undefined; now.lod = lod; }
+          now.horneado = !!quieto; now.partes = partes;
+          now.radio = radioDe(copy) * (now.want.animate ? 1.5 : 1); // an animation may reach out of its rest pose
+          now.group.add(copy);
+          if (now.want.animate && g.animations.length) { now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction((fu ? fu.clips : g.animations)[0]).play(); }
+          now.loaded = true; now.color = undefined; pintar(now);
+          if (llevados.has(best) && now.group.parent !== world) { const d = llevados.get(best)!; soltarLlevado(best); llevados.set(best, d); } // re-fit in the hand
+        });
       }).catch((e) => {
         const now = things.get(best);
         if (now && now.model === model) now.failed = true;
@@ -586,9 +710,16 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   function updateThings(dt: number): void {
     animatingNear = false; mediosSonando = false;
     const r2 = ANIMATE_WITHIN_M ** 2;
-    const oyente = selfXZ ? { x: selfXZ.x, y: (selfXZ.y ?? 0) + 1.5, z: selfXZ.z } : null;
+    // S4/S5: de dónde oyes es LO QUE DICE EL OYENTE (audio/oyente.ts): la cámara fuera de XR, la pose real del visor
+    // dentro. Antes era la posición DE RED del jugador +1,5 m y sin orientación, y por eso un sonido a tu izquierda
+    // sonaba igual que uno a tu derecha. Mientras el módulo del oyente no haya llegado (un par de fotogramas) se usa
+    // la cámara a secas, para que un sonido no nazca mudo.
+    const op = oyente?.pose();
+    const oido: { x: number; y: number; z: number } | null = op && op.fuente !== "ninguna"
+      ? { x: op.x, y: op.y, z: op.z }
+      : { x: camera.position.x, y: camera.position.y, z: camera.position.z };
     for (const s of things.values()) {
-      if (s.medio) { s.medio.actualizar(s.group, oyente, { hidden: !!s.want.hidden, volume: s.want.volume ?? 1, reach: s.want.reach ?? "burbuja", radius: s.want.radius ?? 8 }); if (s.want.kind === "video" && s.medio.sonando()) mediosSonando = true; }
+      if (s.medio) { s.medio.actualizar(s.group, oido, { hidden: !!s.want.hidden, volume: s.want.volume ?? 1, reach: s.want.reach ?? "burbuja", radius: s.want.radius ?? 8 }); if (s.want.kind === "video" && s.medio.sonando()) mediosSonando = true; }
       if (s.horneado) actualizarLOD(s); // J14: far baked figures drop to one piece (one draw call)
       if (!s.mixer) continue;
       if (distance2(s) <= r2) { s.mixer.update(dt); animatingNear = true; }
@@ -735,11 +866,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     updateThings(dtSeconds);
     selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
     editor.frame();
-    entorno.actualizar(); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds);
-    if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); dibujarCuadro(); return; } // N4: after the hands moved, so a held rod does not trail a frame
+    entorno.actualizar(); naturaleza.actualizar(dtSeconds); espacioBase.actualizar(dtSeconds); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ);
+    if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); dardosVR.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
     pesca.actualizar(dtSeconds); dardos.actualizar(dtSeconds);
     if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
     cam.update(dtSeconds, selfXZ ? feet : null);
+    oyente?.actualizar(); // S5: right after the camera moved — the listener is where you hear from, nothing else
     colocarLlevados();
     puestos.actualizar(); // N18: after the avatars moved (sync), so a lantern does not trail its hand
     dibujarCuadro();
@@ -750,21 +882,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     backend,
     power,
     renderer,
-    /** T1: the graphics chip as the browser names it ("" when it hides it). */
-    async gpu(): Promise<string> {
-      try {
-        const b = renderer.backend as unknown as { device?: { adapterInfo?: Record<string, string> }; gl?: WebGL2RenderingContext };
-        if (backend === "WebGPU") {
-          const nav = navigator as Navigator & { gpu?: { requestAdapter(): Promise<{ info?: Record<string, string> } | null> } };
-          const info = b.device?.adapterInfo ?? (await nav.gpu?.requestAdapter())?.info;
-          return info ? [info.vendor, info.architecture, info.description].filter(Boolean).join(" ").slice(0, 120) : "";
-        }
-        const gl = b.gl;
-        if (!gl) return "";
-        const ext = gl.getExtension("WEBGL_debug_renderer_info");
-        return String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? "").slice(0, 120);
-      } catch { return ""; }
-    },
+    /** T1: the graphics chip as the browser names it ("" when it hides it). Read once at start (B3), then remembered. */
+    gpu(): Promise<string> { return gpuNombre; },
     /** T1: refresh rate of the XR session (Hz); 0 outside XR or when the browser does not say. */
     xrHz(): number {
       const s = renderer.xr.getSession() as unknown as { frameRate?: number } | null;
@@ -776,6 +895,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     vrSupported,
     /** H4 + H12: the environment (aplicar, estado, calidad, capacidades) — packages/render/src/entorno.ts. */
     entorno,
+    /** N4: the world's low-poly nature (aplicar, estadisticas, terreno) — packages/render/src/naturaleza/naturaleza.ts; builds nothing until a world asks. */
+    naturaleza,
+    /** H2: the espacio base (aplicar, estadisticas, alturaEn) — packages/render/src/espacio-base/espacio-base.ts; builds nothing until a world asks. */
+    espacioBase,
     /** H4/H8: water, fire, smoke and dust (poner, contar) — packages/render/src/elementos.ts, loaded with the first one. */
     elementos,
     /** N16: the light of a trip (lanzar, estado) — packages/render/src/teletransporte.ts; the body hides meanwhile. */
@@ -784,8 +907,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     pesca,
     /** dardos v1: boards near you and their darts (sitios, clavados, linea, contar) — packages/render/src/dardos.ts. */
     dardos,
+    /** dardos in VR: load the 3D side (`cargar()`), then enMano / volar / soltar / posicion / local / aMundo / cadaCuadro; `contar()` for checks. */
+    dardosVR,
     /** N17: web screens — a panel everywhere, the live page in CSS3D near you on PC/phone, «Abrir fuera de VR» in VR (web.ts). */
     web,
+    /** ancestros v1: the Salón de los Ancestros (muros, hologramas, paneles, dice, contar) — packages/render/src/ancestros.ts. */
+    ancestros,
     /** dardos v1 in AR: enter immersive-ar with a real-size board for your wall (dardos.ts crearDianaAR); null if the
      * session could not start. Press/hold/release throws: `alLanzar` gets aim (board radii) and strength. */
     async dardosAR(o: { alLanzar: (x: number, y: number, fuerza: number) => void; alColocar?: (pared: boolean) => void; envolver?: (j: DianaAR) => DianaAR }): Promise<DianaAR | null> {
@@ -824,8 +951,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       const c = document.createElement("canvas"); c.width = 256; c.height = 64;
       const g = c.getContext("2d")!;
       g.fillStyle = "rgba(20,30,40,0.85)"; g.fillRect(0, 0, 256, 64);
-      g.fillStyle = "#ffd27a"; g.font = "bold 34px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
-      g.fillText(text.slice(0, 18), 128, 34);
+      g.fillStyle = "#ffd27a"; g.textAlign = "center"; g.textBaseline = "middle";
+      const corto = text.slice(0, 18);
+      let tam = 34;                                    // shrink to fit the 256 px chip: «≈ Desestabilizado» used to be cut at both ends
+      g.font = `bold ${tam}px sans-serif`;
+      while (tam > 16 && g.measureText(corto).width > 244) { tam -= 2; g.font = `bold ${tam}px sans-serif`; }
+      g.fillText(corto, 128, 34);
       const mesh = new THREE.Mesh(labelGeo, new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
       mesh.renderOrder = 10;
       world.add(mesh);
@@ -893,6 +1024,40 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       }
       return null;
     },
+    /** ux2-gente: the entity of the other person under a screen point (the nearest), or null. Each body is projected
+     * feet and head (cheap: one Vector3 per person on a click, never per frame); the rule is gente-politica.ts. */
+    pickPerson(clientX: number, clientY: number): number | null {
+      const r = renderer.domElement.getBoundingClientRect();
+      if (!r.width || !r.height) return null;
+      camera.updateMatrixWorld();
+      const v = new THREE.Vector3(), lista: Proyectada[] = [];
+      const aPantalla = (x: number, y: number, z: number) => { v.set(x, y, z).project(camera); return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height }; };
+      for (const [id, m] of others) {
+        if (!m.visible && !m.parent) continue;
+        const prof = v.copy(m.position).applyMatrix4(camera.matrixWorldInverse).z * -1;
+        lista.push({ id, prof, pies: aPantalla(m.position.x, m.position.y - 0.85, m.position.z), cabeza: aPantalla(m.position.x, m.position.y + 0.9, m.position.z) });
+      }
+      const q = personaEn(lista, clientX, clientY);
+      if (q === null) return null;
+      // not through a wall: a thing drawn between you and them (nearer than their body) keeps the click
+      const m = others.get(q)!;
+      ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+      ray.setFromCamera(ndc, camera);
+      const hasta = camera.getWorldPosition(v).distanceTo(m.position) - 0.6;
+      const tapa = ray.intersectObjects([...things.values()].map((s) => s.group), true).find((h: THREE.Intersection) => h.object.visible);
+      return tapa && tapa.distance < hasta ? null : q;
+    },
+    /** ux2-gente: where a person's head is on the screen (CSS pixels) and how far from you, for the small card beside
+     * them; null when they are gone or behind the camera. */
+    personaEnPantalla(id: number): { x: number; y: number; m: number } | null {
+      const m = others.get(id); if (!m) return null;
+      const r = renderer.domElement.getBoundingClientRect();
+      camera.updateMatrixWorld();
+      const v = new THREE.Vector3(m.position.x, m.position.y + 0.95, m.position.z).project(camera);
+      if (v.z > 1 || v.z < -1) return null;
+      const d = selfXZ ? Math.hypot(m.position.x - selfXZ.x, m.position.z - selfXZ.z) : 0;
+      return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height, m: d };
+    },
     /** J5: a waypoint: a beacon that stays until `dropWaypoint(id)` and never keeps the page drawing. Returns its id. */
     waypoint(x: number, z: number, text: string): number { this.beacon(x, z, text, Infinity); waypoints.set(++waypointSeq, beacons.pop()!); return waypointSeq; },
     dropWaypoint(id: number): void { const w = waypoints.get(id); if (w) { dropBeacon(w); waypoints.delete(id); } },
@@ -914,7 +1079,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       }
       s.want = t; if (!editor.retiene(key, t) && !llevados.has(key)) placeGroup(s);
       pintar(s);
-      if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.partes = undefined; s.radio = undefined; s.horneado = false; s.piezaCerca = undefined; s.piezaLejos = undefined; s.lod = undefined; s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpPronto(); } // a baked copy cannot move: load it whole
+      if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.partes = undefined; s.radio = undefined; s.horneado = false; s.piezaCerca = undefined; s.piezaLejos = undefined; s.lod = undefined; s.preparando = undefined; s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpPronto(); } // a baked copy cannot move: load it whole
       else if (!t.animate && s.mixer) { s.mixer.stopAllAction(); s.mixer = undefined; }
     },
     /** H1: things placed, how many have their model drawn, and how many failed to load (for checks). `~` keys = the page's previews, not counted. */
@@ -940,6 +1105,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       s.medio.enVivo(stream);
       return true;
     },
+    /** B3: how the world's models got their shaders ready before showing (precompilar.ts): prepared, batches, failures,
+     * shown without waiting (ESPERA_MAX_MS), in the queue, ms per batch, and whether this GPU links in parallel. */
+    shaders() { return precompilar.estado(); },
     /** J10: carry a placed thing (`key` as in place): in a hand in XR, beside you on a flat screen; `null` puts it back. */
     llevar(key: string, donde: Llevar | null): void {
       if (!donde) { if (llevados.has(key)) soltarLlevado(key); return; }
@@ -968,6 +1136,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     labels(): Target[] { return [...labels.keys()]; },
     /** J1: VRM avatars (for checks): files loaded, clips, who wears which avatar and which clip plays. */
     avatares(): ReturnType<typeof avs.stats> { return avs.stats(); },
+    /** J7b: play a move (the wheel's) on an avatar's VRM, or stop it (`null`); false = no VRM there (show a label). */
+    movimiento(t: Target, mov: Movimiento | null): boolean { return avs.movimiento(t === "self" ? "yo" : t, mov); },
     /** J3: the name over an avatar (`null` takes it away); drawn for the nearest 32 within 24 m, never over yourself. */
     nameTag(t: Target, text: string | null): void { nombres.nameTag(t, text); },
     /** J3: a speech bubble over an avatar for `ms` (wrapped, up to 6 lines); the latest replaces the one before. */
@@ -982,10 +1152,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** J3: names and bubbles the page holds, and whether each is drawn now (for checks). */
     nameTags() { return nombres.nameTags(); },
     bubbles() { return nombres.bubbles(); },
+    /** condiciones/c5: this avatar is (`true`) or is no longer (`false`: it accepted, it bursts) inside a bubble reading the world's norms; its plate says so
+     * («<name> · <etiqueta>»). Cheap: one shared sphere and material; nothing is drawn for a world with nobody reading. */
+    leyendo(entidad: number, si: boolean, etiqueta?: string): void { nombres.leyendo(entidad, si, etiqueta); pompas.poner(entidad, si, performance.now()); rotulosPendiente = true; },
+    /** condiciones/c5 (for checks): who has a bubble, whether it is drawn, who is bursting, and how much the bubbles share. */
+    pompas() { return { lista: pompas.lista(), ...pompas.compartidos() }; },
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
     /** U10: draw hidden spheres of sound (while building) or not (while playing). */
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado() || graboso.visible(); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */
@@ -995,6 +1170,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** N1: the camera — orbit, zoom, first person, build mode. See camara.ts. */
     cam,
+    /** S5: the engine's one audio listener (it already runs every frame; this is for reading it). `null` only in
+     * the instant between the first frame and its lazy module arriving. */
+    oyente: (): Oyente | null => oyente,
     /** N1b: the world's solid boxes as the simulation holds them (Q16.16, `session.solidos()`): the camera does not go
      * through them and an avatar on a stair or a roof walks instead of «jumping». Cheap every frame (converted on change). */
     solidos(fx: Int32Array | null | undefined): void {

@@ -3,8 +3,11 @@
 Para quien tenga que decidir si monta algo sobre el motor. La versión para máquinas es
 [`limits.json`](../limits.json) (esquema `numinia-engine/limits@1`); un test (`test/limits.test.ts`)
 comprueba que cada número tiene estado y fuente. **Medido** = lo mide una prueba del repositorio
-(se nombra). **Estimado** = viene de estudios y de lo que publican otros; se sustituye por una medida
-cuando exista. Versión 1 · 15 de octubre de 2026.
+(se nombra) y la cifra lleva fecha, versión (commit), aparato y orden. **Ajuste** = una constante del
+código (no se mide; se dice dónde está). **Estimado** = viene de estudios, de lo que publican otros o
+de una pasada a mano **sin informe guardado** (así se dice); se sustituye por una medida cuando exista.
+Versión 1 · 15 de octubre de 2026; cifras del servidor y de la página revisadas el 18-10-2026 en
+`30da0fd` (v0.10.0), en el PC de desarrollo (AMD Ryzen 9 7950X, 32 hilos, Linux 7.2.9, Node 24.21).
 
 ## Qué sale hoy en cada nivel
 
@@ -20,16 +23,22 @@ Se detecta por capacidad, nunca por nombre de navegador.
 
 | Dato | Valor | Estado |
 |---|---|---|
-| Paso de simulación / reparto | 20 Hz / 10 Hz | medido (`tools/gates.mjs`) |
-| Tráfico por persona (K=50 a 10 Hz) | tope 70 kbit/s; real **27,2 kbit/s** (J2: con altura; 25,6 antes) | medido (`tools/gates.mjs`, `tools/swarm.sh`) |
-| Plaza de 1.000, un hilo | tick p99 ≤ 25 ms; real 16–23 ms | medido (`tools/gates.mjs`), en el PC de desarrollo |
-| Memoria con 1.000 conectados | 169 MB | medido (`tools/swarm.sh`) |
-| Conectar 500 bots | ~0,4 s | medido (`tools/swarm.sh`) |
-| Personas por instancia, un hilo | PC de desarrollo 1.000 (medido); VPS-1 ~500, VPS-2 ~1.000 (estimado) | medido (`tools/swarm.sh`) y estimado |
+| Paso de simulación / reparto | 20 Hz / 10 Hz | **ajuste** del código (`TICK_HZ` en `packages/sim`, `snapshotEvery: 2` en `server.ts`); nada lo mide |
+| Tráfico por persona (K=50 a 10 Hz) | tope 70 kbit/s. Sin red: **26,6 kbit/s** (`npm run gates`, 50 robots, 18-10 15:06 UTC, `30da0fd`). Por WebSocket **depende de cuánta gente hay en la sala** (cada uno recibe a sus 50 más cercanos): 14,3 con 25 robots, 26,8 con 50, 27,3 con 100 (`tools/swarm.sh`, 18-10, builds `39a9f73` y `d76d71a`) | medido; los 27,2 kbit/s con 1.000 del 15-10, **sin informe guardado** |
+| Plaza de 1.000, un hilo, sin red | tope tick p99 ≤ 25 ms. Sale **8,4–8,6 ms** (`npm run gates`, 18-10 14:41 y 15:06 UTC, `30da0fd`). Ojo: la puerta toma 80 ticks, así que su «p99» es **el peor de 80**; y no lleva piezas, sólidos, objetos ni red | medido (`tools/gates.mjs`) |
+| Plaza de 1.000 por WebSocket real (robots en el mismo PC) | tick p99 16–23 ms (14-10; el RUNLOG de ese día dice 17–23) | **sin informe guardado** (`tools/swarm.sh`) |
+| Memoria del servidor vacío | **161–164 MB** de RSS (`GET /metrics` a los 14–17 s de arrancar, 18-10 15:08 UTC, `30da0fd`); 160–166 MB en `39a9f73`/`d76d71a` y 146–160 MB con 100 robots (18-10) | lectura a mano de `/metrics` (la orden, en la nota de `memory_rss_1000_people` de `limits.json`) |
+| Memoria con 1.000 conectados | 169 MB (15-10): **no cuadra** con lo que ya ocupa en vacío; hay que volver a medirlo | **sin informe guardado** |
+| Conectar 500 bots | ~0,4 s (15-10) | **sin informe guardado** |
+| Personas por instancia, un hilo | PC de desarrollo: 100 medidas el 18-10 con `tools/swarm.sh` (tick p99 3,3–4,2 ms; informes guardados fuera del repo, en la carpeta de la ola 1 de rendimiento); 1.000 el 15-10 **sin informe guardado**. VPS-1 ~500, VPS-2 ~1.000 | medido hasta 100; 1.000 sin informe; VPS estimado |
 | Voz por cercanía | 230 suscripciones por núcleo | estimado (LiveKit) |
 
-Máquinas (OVH, sin IVA): VPS-1 3,81 €, VPS-2 7,21 €, SYS-3 (8 núcleos dedicados) 41,99 €. Hasta
-1.000 en una instancia basta un hilo; más allá habría que repartir por regiones.
+Máquinas (OVH, sin IVA; [ovhcloud.com/fr/vps](https://www.ovhcloud.com/fr/vps/), leído el 18-10-2026): VPS-1 3,81 €
+(**2 vCores, 4 GB**), VPS-2 7,21 € (4 vCores, 8 GB), SYS-3 (8 núcleos dedicados) 41,99 €. La página en español
+enseña otra gama (VPS-1 con 4 vCores y 8 GB por 5,52 €): mira la de tu país antes de comprar. Las estimaciones de
+personas suponen un núcleo compartido porque el motor usa **un hilo por instancia**; los vCores de más no suben esa
+cifra, sirven para Caddy, los robots de prueba o una segunda instancia. Hasta 1.000 en una instancia basta un hilo;
+más allá habría que repartir por regiones.
 
 ## Presupuesto de tamaño de mensajes (H3b)
 
@@ -90,7 +99,7 @@ sitio, giro, escala y nombre. Medido por `test/objetos.test.ts`.
 | Dato | Valor |
 |---|---|
 | Objetos por zona | hasta 2.000; la lista entera llega a quien entra |
-| Entrar en una zona llena (2.000) | 186,8 kB en 2.001 mensajes; 0,3 ms del servidor por persona |
+| Entrar en una zona llena (2.000) | 186,8 kB en 2.001 mensajes; 0,3 ms del servidor por persona (pasada a mano del 15-10: la prueba solo comprueba < 200 ms) |
 | Quién construye | por rol (H3, personas y agentes igual); @todos sí o no lo guarda el mundo (`MOTOR_CONSTRUIR` solo siembra uno nuevo; luego `/construir todos\|nadie`) |
 | Deshacer | los 50 últimos cambios de cada constructor; un arrastre de menos de 1 s cuenta como uno |
 | Ficheros | `GET /a/<sha256>.glb`, caché de un año; se bajan 4 a la vez, el más cercano primero |
@@ -134,7 +143,7 @@ Las misiones, las personas que las dan y las cosas que se cogen las escribe la a
 
 | Dato | Valor |
 |---|---|
-| Coste por tick | 1.000 jugadores esperando llegar a un sitio: p99 0,18 ms (p50 0,09); solo se mira a quien tiene un paso «llega a», cada 0,2 s |
+| Coste por tick | 1.000 jugadores esperando llegar a un sitio: p99 0,18 ms (p50 0,09; pasada a mano del 15-10: la prueba solo comprueba < 5 ms); solo se mira a quien tiene un paso «llega a», cada 0,2 s |
 | Alcance para hablar o coger | el radio de cada persona o cosa (1-8 m; el ejemplo, 3 y 2 m); el servidor acepta 1,5 m más |
 | Límites | 16 misiones activas, 16 pasos por misión, 4 respuestas por nodo, 64 nodos por persona; textos en bytes UTF-8 |
 | Progreso | por invitado (I1), en el almacén del servidor (S4); solo le llega a su dueño |
@@ -150,6 +159,7 @@ en Quest entra en todo.
 |---|---|---|---|---|
 | Triángulos en pantalla | 2–3 M | 300–500 k por ojo | 300–500 k | 150–250 k |
 | Draw calls | ≤ 1.500 | ≤ 150 por ojo | ≤ 150 | ≤ 80 |
+| Naturaleza entera (terreno + árboles + hierba + fauna): llamadas / triángulos, medido | ≤ 8 / 15 k | ≤ 7 / 10 k | ≤ 6 / 8 k | ≤ 5 / 4 k |
 | Texturas (KTX2) | ≤ 1 GB | ≤ 256 MB | ≤ 256 MB | ≤ 128 MB |
 | Luces | varias + sombras | sol + 2 sin sombra | sol + 1 | sol |
 | Avatares completos | 60–100 | 12–25 | 12 | 6 |
@@ -184,7 +194,7 @@ El menú de ajustes (tecla O o el engranaje) es HTML de verdad; lo leen los lect
 | WebGL2 | nivel Base, todos los navegadores objetivo |
 | WebGPU | Chromium sí; Firefox en Windows/Mac; Safari 26+ (estimado) |
 | WebSocket | transporte actual (medido, `test/server.test.ts`) |
-| Lo que baja la página antes de dibujar | **434,9 kB gz** (medido 18-10-2026, `npm run tamano`: html + css + módulos de arranque, gzip -9 cada uno; meta D2 300 kB, tope de la puerta 480 kB; detalle en `docs/MEDIDAS.md`) |
+| Lo que baja la página antes de dibujar | **451,5 kB gz** en 11 ficheros (medido 18-10-2026 15:06 UTC en `30da0fd`, `npm run gates` / `npm run tamano`: html + css + módulos de arranque, gzip -9 cada uno; meta D2 300 kB, tope de la puerta 480 kB). Lo que de verdad viaja es **brotli**: 376,3 kB los mismos ficheros. Detalle en `docs/MEDIDAS.md` |
 | WebTransport | no implementado |
 
 ## Cómo se mantiene

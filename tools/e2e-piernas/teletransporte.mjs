@@ -1,9 +1,9 @@
 // e2e leg N16 (teletransporte): «Gente» and /ir <nombre> take you next to someone connected now, with the light.
-// PC (1280×720): L opens «Gente», the other tab is listed, «Ir» → the light where you stood (both tabs draw it), and
+// PC (1280×720): L opens «Gente», the other tab is listed («Aquí ahora»), picking them and «Ir a su lado» → the light where you stood (both tabs draw it), and
 // a moment later you stand 1–3.5 m from them (the server moved you; the page follows); asking again at once says
 // «Espera…». The other tab goes back with the chat's /ir <nombre>. Tier D (simulated on the watching tab): nobody's
 // light is drawn there, the trip still happens. Phone (390×844, touch): the people button, «Ir» by tapping, the panel
-// inside the screen. VR (IWER Quest 3): /ir from the headset, the light at tier B (3 at most), the rig ends next to
+// inside the screen (ux2-gente: tapping the row shows their sheet, whose «Ir a su lado» is ≥ 44 px). VR (IWER Quest 3): /ir from the headset, the light at tier B (3 at most), the rig ends next to
 // them. A photo's link in a world that does not allow it still leads with the waypoint (no trip); with BASE_FOTO (a
 // second server whose MUNDO_DIR's entorno.json says `aparicionFoto: true`) the link puts you at the photo's place.
 // Usage (tools/auto.sh e2e runs it): BASE=http://127.0.0.1:5174/?webgl2&server=ws://127.0.0.1:8792 node tools/e2e-piernas/teletransporte.mjs
@@ -16,12 +16,14 @@ const BASE = process.env.BASE ?? "http://127.0.0.1:5173/?webgl2";
 if (!existsSync(PW) || !existsSync(CHROME)) { console.error("playwright-core or chromium not found; set PW_CORE / CHROME"); process.exit(2); }
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright";
 const { chromium } = createRequire(import.meta.url)(PW);
+const VERSION = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version;
 const IWER = readFileSync(new URL("../../node_modules/iwer/build/iwer.min.js", import.meta.url), "utf8");
 const browser = await chromium.launch({ executablePath: CHROME, args: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"] });
 const errors = [];
 const open = async (ctx, url = BASE) => {
   const p = await ctx.newPage();
   p.on("pageerror", (e) => errors.push(String(e)));
+  await p.addInitScript((v) => { try { localStorage.setItem("numinia.novedades.version", v); } catch { /* */ } }, VERSION); // «Novedades» would cover the top bar on a phone
   await p.goto(url);
   await p.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0 && !!globalThis.__numinia.session.who && globalThis.__numinia.viajar.estado.recibido, null, { timeout: 60000 });
   return p;
@@ -61,15 +63,17 @@ try {
   const a = await open(ctx), b = await open(ctxB);
   const A = await ent(a), B = await ent(b);
   ok("mundo", await a.evaluate(() => globalThis.__numinia.viajar.activo() && !globalThis.__numinia.viajar.foto()), {});
-  // L opens «Gente»; B is listed with an «Ir» button
+  // L opens «Gente»; B is listed in «Aquí ahora»; picking B shows their sheet with «Ir a su lado»
   await a.bringToFront();
   await a.mouse.click(640, 420);
   await a.keyboard.press("KeyL");
-  await a.waitForFunction((q) => document.getElementById("gente")?.open && !!document.querySelector(`#gente li[data-quien="${q}"] button`), B, { timeout: 8000 });
-  const lista = await a.evaluate(() => [...document.querySelectorAll("#gente li[data-quien]")].map((l) => Number(l.dataset.quien)));
+  await a.waitForFunction((q) => document.getElementById("gente")?.open && !!document.querySelector(`#gente [data-quien="${q}"] .gente-fila`), B, { timeout: 8000 });
+  const lista = await a.evaluate(() => [...document.querySelectorAll("#gente [data-quien]")].map((l) => Number(l.dataset.quien)));
   ok("lista", lista.includes(B) && !lista.includes(A), { lista, A, B });
   const luzA0 = await luz(a), luzB0 = await luz(b);
-  await a.click(`#gente li[data-quien="${B}"] button`);
+  await a.click(`#gente [data-quien="${B}"] .gente-fila`);
+  await a.waitForSelector("#gente-ir:not([disabled])", { timeout: 3000 });
+  await a.click("#gente-ir");
   const cerrado = await a.waitForFunction(() => !document.getElementById("gente").open, null, { timeout: 3000 }).then(() => true, () => false);
   // during the trip the watching tab hides A's body for a moment
   let oculto = 0;
@@ -109,10 +113,19 @@ try {
   // ---------------- phone (touch) ----------------
   const mctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
   const m = await open(mctx);
-  const boton = await m.evaluate(() => { const b = document.getElementById("gente-abrir"), r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, w: r.width, visible: r.width > 0 && getComputedStyle(b).visibility !== "hidden" }; });
-  await m.touchscreen.tap(boton.x, boton.y);
-  await m.waitForFunction((q) => document.getElementById("gente")?.open && !!document.querySelector(`#gente li[data-quien="${q}"] button`), A, { timeout: 8000 });
-  const ir = await m.evaluate((q) => { const r = document.querySelector(`#gente li[data-quien="${q}"] button`).getBoundingClientRect(), d = document.getElementById("gente").getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, alto: r.height, dentro: d.right <= innerWidth + 0.5 && d.bottom <= innerHeight + 0.5 && d.x >= -0.5 }; }, A);
+  // on a phone «Gente» lives in the «…» menu (movil.ts): tap it, then its «Gente» entry (behind «más» when needed)
+  await m.waitForSelector("#mas", { state: "visible", timeout: 15000 });
+  await m.touchscreen.tap(...(await m.evaluate(() => { const r = document.getElementById("mas").getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })));
+  await m.waitForTimeout(300);
+  const visto = () => m.evaluate(() => (document.querySelector('#mas-menu [data-id="gente-abrir"]')?.getBoundingClientRect().width ?? 0) > 0);
+  if (!(await visto())) { await m.tap("#mas-mas"); await m.waitForTimeout(300); }
+  const boton = await m.evaluate(() => { const b = document.querySelector('#mas-menu [data-id="gente-abrir"]'), r = b?.getBoundingClientRect(); return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2, w: Math.min(r.width, r.height), visible: r.width > 0 } : { visible: false, w: 0 }; });
+  if (boton.visible) await m.touchscreen.tap(boton.x, boton.y);
+  await m.waitForFunction((q) => document.getElementById("gente")?.open && !!document.querySelector(`#gente [data-quien="${q}"] .gente-fila`), A, { timeout: 8000 });
+  const fila = await m.evaluate((q) => { const r = document.querySelector(`#gente [data-quien="${q}"] .gente-fila`).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }, A);
+  await m.touchscreen.tap(fila.x, fila.y);
+  await m.waitForFunction(() => { const b = document.getElementById("gente-ir"); return !!b && !b.disabled && b.getBoundingClientRect().width > 0; }, null, { timeout: 4000 });
+  const ir = await m.evaluate(() => { const r = document.getElementById("gente-ir").getBoundingClientRect(), d = document.getElementById("gente").getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, alto: r.height, dentro: d.right <= innerWidth + 0.5 && d.bottom <= innerHeight + 0.5 && d.x >= -0.5 && r.bottom <= innerHeight }; });
   await m.touchscreen.tap(ir.x, ir.y);
   const dMA = await hastaJunto(m, A);
   ok("movil", boton.visible && boton.w >= 44 && ir.alto >= 44 && ir.dentro && dMA <= 3.5, { boton, ir, distancia: R(dMA) });

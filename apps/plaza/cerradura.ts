@@ -63,7 +63,7 @@ export function montarCerradura(o: OpcionesCerradura) {
   capa.append(caja);
   document.body.append(capa);
 
-  const cerrarTeclado = () => { capa.hidden = true; capa.style.display = "none"; /* an inline display beats [hidden]: the desktop page showed the keypad over everything */ abierto = null; digitos = ""; aviso.textContent = ""; };
+  const cerrarTeclado = () => { capa.hidden = true; capa.style.display = "none"; abierto = null; digitos = ""; aviso.textContent = ""; };
   cerrar.addEventListener("click", cerrarTeclado);
   capa.addEventListener("click", (e) => { if (e.target === capa) cerrarTeclado(); });
   addEventListener("keydown", (e) => { if (!capa.hidden && e.code === "Escape") cerrarTeclado(); });
@@ -74,7 +74,7 @@ export function montarCerradura(o: OpcionesCerradura) {
     if (!l) return { ok: false, why: `«${id}» no es una cerradura` };
     abierto = id; digitos = ""; aviso.textContent = ""; refrescarPantalla();
     titulo.textContent = l.nombre;
-    capa.hidden = false; capa.style.display = "grid";
+    capa.hidden = false; capa.style.display = "grid"; // an inline display beats the [hidden] attribute, so show/hide drives display too
     return { ok: true };
   };
   c.alCambiar((que) => {

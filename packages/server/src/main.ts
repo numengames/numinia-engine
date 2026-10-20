@@ -18,6 +18,9 @@ import { leerMundo, escribirMundo } from "./mundo.ts";
 import { carpetaMundo, claves, escribirManifiesto, sembrar } from "./mundo-carpeta.ts";
 import { infoMotor } from "./version.ts";
 import { configPase } from "./pase.ts";
+import { puertaDeEntorno } from "./condiciones.ts";
+import { intervaloDeEntorno } from "./condiciones-fuente.ts"; // condiciones/w4
+import { pensadorDeCable } from "./cable-ia.ts";
 
 const env = process.env;
 const log = (l: string) => console.log(l);
@@ -40,12 +43,14 @@ const srv = await startServer({
   host: env.HOST ?? "127.0.0.1",
   statsMs: Number(env.STATS_MS ?? 30000),
   // SIN_FUNCIONES=1: the bare engine · the world's own environment and elements (entorno.json, elementos.json; H4)
-  features: env.SIN_FUNCIONES === "1" ? [] : leerEntorno ? conMundo(funciones, leerEntorno, log, entorno ? escribirMundo(entorno, log) : undefined) : funciones,
+  features: env.SIN_FUNCIONES === "1" ? [] : leerEntorno ? conMundo(funciones, leerEntorno, log, entorno ? escribirMundo(entorno, log) : undefined, { decir: pensadorDeCable(env, log) }) : funciones,
   aparicion: leerEntorno ? aparicionDelMundo(leerEntorno, log) : null,  // where people appear (entorno.json `aparicion`; a tower's floor)
   suelo: leerEntorno ? sueloDelMundo(leerEntorno, log) : null,          // D-045: under `sueloMinimo` you come back to your last safe spot
   sesiones: env.SESIONES_DIR || c?.sesiones || "informes/sesiones", // T1: how each player entered
   datos,                                                              // S4: what features keep across restarts
   construir: env.MOTOR_CONSTRUIR === "todos" ? "todos" : "nadie",     // H1: who may build in a NEW world (then its stored roles: /construir)
+  condicionesFuente: env.MOTOR_CONDICIONES_FUENTE, condicionesFuenteMs: intervaloDeEntorno(env.MOTOR_CONDICIONES_FUENTE_MIN), // condiciones/w4: where the community's norms are pulled from (https URL, else the file's `comunidad.fuente`), every N minutes (≥ 5)
+  condicionesPuerta: puertaDeEntorno(env.MOTOR_CONDICIONES_PUERTA), // condiciones/c2: the gate of the conditions of entry (si|no; unset = the file, else off)
   voz: env.MOTOR_VOZ !== "no",                                        // U10: microphones on in a NEW world (then its stored setting: /voz)
   subidas: env.ACTIVOS_DIR || `${datos}/activos`,                     // H9: uploaded files by sha256, next to the saved world; activos/ is always served
   aventura: env.AVENTURA_DIR === "" ? null : (env.AVENTURA_DIR ?? c?.aventura ?? "aventuras/ejemplo"), // J5: quests, people, things (AVENTURA_DIR= for none)

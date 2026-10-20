@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 // e2e leg (J5): the minimap, the big map over the zone seen from above, waypoints, the HTML twin and the player sheet.
 // Two tabs per browser (chromium, then firefox; BROWSER=… runs one). Checks: the minimap draws you and tab B (read-only
 // hook with counts by kind), it redraws only when something changes (≤ 5/s) and never keeps the page busy; a block
@@ -24,6 +25,7 @@ const espera = (p, fn, arg, ms = 10000) => p.waitForFunction(fn, arg, { timeout:
 async function pasada(engine) {
   const browser = await launchers[engine]();
   const ctx = await browser.newContext({ viewport: { width: 900, height: 600 } });
+  await ctx.addInitScript((v) => { try { localStorage.setItem("numinia.novedades.version", v); } catch {} }, JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version); // see constructor.mjs
   const errors = [], r = { engine, checks: {} };
   const open = async () => {
     const p = await ctx.newPage();
@@ -93,14 +95,22 @@ async function pasada(engine) {
     const quitado = await espera(a, () => globalThis.__numinia.mapa.destino() === null, null, 3000);
     const beacons2 = await a.evaluate(() => globalThis.__numinia.view.beaconCount());
     ok("destino", marcado && enMapas && beacons1.n === beacons0 + 1 && quitado && beacons2 === beacons0, { balizas: [beacons0, beacons1.n, beacons2], botonActivo: beacons1.boton, busyConDestino: beacons1.busy });
-    // 6) I opens the sheet (the map closes) with your name; Escape closes it
+    // 5b) C2: «Ir» (icon button) remembers where you were; «Volver» appears and, pressed, forgets the origin
+    const sinOrigen = await a.evaluate(() => globalThis.__numinia.mapa.puedeVolver());
+    await a.locator(`${fila} .ir`).click();
+    const conOrigen = await espera(a, () => globalThis.__numinia.mapa.puedeVolver() && !!document.querySelector("#mapa-grande .detalle .volver"), null, 3000);
+    await a.locator("#mapa-grande .detalle .volver").click();
+    const sinVolver = await espera(a, () => !globalThis.__numinia.mapa.puedeVolver(), null, 3000);
+    ok("irYvolver", sinOrigen === false && conOrigen && sinVolver, { sinOrigen, conOrigen, sinVolver });
+    // 6) I opens «Tú» (the map closes) with your name and no device numbers (they live in Ajustes › Gráficos); Escape closes it
     await a.keyboard.press("KeyI");
     const fichaAbierta = await espera(a, () => document.getElementById("ficha")?.open === true && document.getElementById("mapa-grande")?.open === false, null, 3000);
     const nombre = await a.evaluate(() => globalThis.__numinia.session.who?.nombre ?? "");
     const textoFicha = await a.evaluate(() => globalThis.__numinia.ficha.texto());
+    const aparato = await a.evaluate(() => document.querySelector("#ajustes fieldset[data-grupo=aparato]")?.textContent ?? "");
     await a.keyboard.press("Escape");
     const cerrada = await espera(a, () => document.getElementById("ficha")?.open === false, null, 2000);
-    ok("ficha", fichaAbierta && !!nombre && textoFicha.includes(nombre) && /WebGL2|WebGPU/.test(textoFicha) && cerrada, { nombre, fichaTieneAparato: /Cuadros por segundo/.test(textoFicha) });
+    ok("ficha", fichaAbierta && !!nombre && textoFicha.includes(nombre) && !/Cuadros por segundo/.test(textoFicha) && /WebGL2|WebGPU/.test(aparato) && cerrada, { nombre, fichaTieneAparato: /Cuadros por segundo/.test(textoFicha), ajustesTieneAparato: /Cuadros por segundo/.test(aparato) });
   } catch (e) { r.error = String(e).split("\n")[0]; }
   finally {
     // leave the world as it was: undo the block

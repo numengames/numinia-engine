@@ -6,6 +6,7 @@
 // themselves be found. The light that takes you and leaves you (three variants at random, the same for everyone who sees
 // it) is the page's: packages/render/src/teletransporte.ts. Design: mmo-browser-study/RELOJ-CRISTAL-TELETRANSPORTE.md §4–5.
 import { defineFeature } from "../../packages/feature/src/index.ts";
+import { fnv1a, hex } from "../../packages/core/src/index.ts";
 
 /** Seconds between two trips of the same person (a photo's arrival does not count). */
 export const ESPERA_S = 10;
@@ -26,6 +27,14 @@ export const VARIANTES = 3;
 /** Reach of the light's events: whoever is this near sees someone leave or arrive. */
 export const VER_M = 48;
 export const NOMBRE_MAX = 64;
+/** ux2-gente: a tag of someone's identity a page may keep (the friends list in the browser, apps/plaza/amigos.ts): the
+ * same for the same person on every visit and in every world, and the identity itself cannot be read back from it
+ * (two FNV-1a of it, 64 bits, 16 hex characters). Pure. */
+export function huellaDe(id: string): string {
+  const b = new TextEncoder().encode(id);
+  return hex(fnv1a(b)) + hex(fnv1a(b, 0x9e3779b9));
+}
+export const HUELLA = { kind: "text", maxBytes: 16 } as const;
 /** The state's only key: what this world allows. */
 export const MUNDO = "mundo";
 
@@ -40,7 +49,7 @@ export const teletransporte = defineFeature({
   id: "teletransporte",
   version: 1,
   level: "base",
-  describe: "Ir junto a alguien conectado ahora en este mundo (panel «Gente» o /ir <nombre>) y, si el mundo lo deja, aparecer donde se hizo una foto al abrir su enlace. El servidor decide: mismo mundo, un sitio libre a su lado sin sólidos, como mucho un viaje cada 10 s. Los dueños y quien dirige pueden apagarlo (/teletransporte no); cada persona puede no dejarse encontrar (/encontrable no).",
+  describe: "Ir junto a alguien conectado ahora en este mundo (panel «Gente» o /ir <nombre>), ir a un sitio marcado en el mapa (elegirlo y pulsar «Ir») y, si el mundo lo deja, aparecer donde se hizo una foto al abrir su enlace. El servidor decide: mismo mundo, un sitio libre sin sólidos, como mucho un viaje cada 10 s. Los dueños y quien dirige pueden apagarlo (/teletransporte no); cada persona puede no dejarse encontrar (/encontrable no).",
   state: {
     describe: "Una entrada, «mundo»: si aquí se puede ir junto a otros (activo) y si el mundo deja aparecer en el sitio de una foto (foto: entorno.json `aparicionFoto`, apagado si no lo dice).",
     fields: { activo: { kind: "bool" }, foto: { kind: "bool" } },
@@ -50,10 +59,11 @@ export const teletransporte = defineFeature({
     gente: { describe: "Pedir la lista de quién está conectado ahora en este mundo (llega como «persona», una por mensaje).", spoken: "ver quién está conectado", fields: {}, rate: { perSecond: 0.5, burst: 3 } },
     encontrable: { describe: "Dejarte encontrar (sí) o no: si no, nadie puede ir junto a ti y no sales en su lista.", spoken: "dejarte encontrar o no", fields: { si: { kind: "bool" } }, rate: { perSecond: 1, burst: 3 } },
     foto: { describe: "Aparecer en el sitio de una foto al entrar por su enlace: solo si el mundo lo deja, una vez y en los primeros 30 s.", spoken: "aparecer donde se hizo la foto", fields: { x: XZ, y: Y, z: XZ }, rate: { perSecond: 0.2, burst: 1 } },
+    punto: { describe: "Ir a un sitio marcado en el mapa (su x, z): te lleva la luz y apareces allí, en tu propia altura. Como mucho un viaje cada 10 s.", spoken: "ir a un sitio del mapa", fields: { x: XZ, z: XZ, nombre: NOMBRE }, rate: { perSecond: 0.5, burst: 3 } },
     permitir: { describe: "Encender o apagar el ir junto a otros en este mundo. Solo los dueños, la administración y quien dirige.", spoken: "permitir o no ir junto a otros", fields: { si: { kind: "bool" } }, rate: { perSecond: 1, burst: 3 } },
   },
   events: {
-    persona: { describe: "Alguien conectado ahora (respuesta a «gente», una por mensaje, n desde 0 hasta total-1; total 0 = no hay nadie más).", fields: { quien, nombre: NOMBRE, n: { kind: "int", min: 0, max: 255 }, total: { kind: "int", min: 0, max: 255 }, todos: { kind: "int", min: 0, max: 65535 } }, announce: "silent" },
+    persona: { describe: "Alguien conectado ahora (respuesta a «gente», una por mensaje, n desde 0 hasta total-1; total 0 = no hay nadie más). huella: una marca de su identidad, la misma en cada visita y en cada mundo, de la que no se saca la identidad (para la lista de amigos que la página guarda).", fields: { quien, nombre: NOMBRE, n: { kind: "int", min: 0, max: 255 }, total: { kind: "int", min: 0, max: 255 }, todos: { kind: "int", min: 0, max: 65535 }, huella: HUELLA }, announce: "silent" },
     sale: { describe: "Alguien se va en un haz de luz desde aquí (variante del efecto, la misma para todos los que miran).", fields: { quien, nombre: NOMBRE, x: XZ, y: Y, z: XZ, variante: VARIANTE }, announce: { text: "{nombre} se va en un haz de luz", sound: "magia", importance: 0 } },
     llega: { describe: "Alguien aparece aquí en un haz de luz (o vuelve a donde estaba si no pudo ir).", fields: { quien, nombre: NOMBRE, x: XZ, y: Y, z: XZ, variante: VARIANTE }, announce: { text: "{nombre} aparece en un haz de luz", sound: "magia", importance: 1 } },
     viaje: { describe: "Cómo fue tu viaje, o por qué no se hizo (solo para quien lo pidió).", fields: { ok: { kind: "bool" }, texto: TEXTO }, announce: { text: "{texto}", sound: "suave", importance: 1 } },

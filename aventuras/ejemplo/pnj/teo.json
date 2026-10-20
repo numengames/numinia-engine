@@ -2,6 +2,7 @@
   "formato": "pnj@1",
   "id": "teo",
   "nombre": "Teo, el jardinero",
+  "voz": "hombre-joven",
   "descripcion": "Quiere plantar un jardín en la plaza, pero le faltan su regadera y sus semillas.",
   "posicion": {
     "x": -8,

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { encodeReport, decodeReport, MSG, REPORT_MAX } from "../packages/net/src/index.ts";
 import { Sesiones, limpiar, SHAPES, KEEP_DAYS, TEXT_MAX, CONTEO_MAX } from "../packages/server/src/sesiones.ts";
-import { agrupar, describir } from "../packages/server/src/sesiones-ver.ts";
+import { agrupar, describir, resumir, tirones } from "../packages/server/src/sesiones-ver.ts";
 import { startServer } from "../packages/server/src/server.ts";
 import { nombreNavegador, claseAparato, nombreSistema, medidorDeCuadros, CONGELACION_MS, LARGO_MS } from "../packages/render/src/sesion.ts";
 
@@ -227,4 +227,25 @@ test("B5: a session's freezes add up in its closing line and in GET /sesiones' s
   const sale = readFileSync(join(dir, "sesiones-2026-10-18.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((l) => l.k === "sale");
   assert.deepEqual(sale[0].cliente, { pulsos: 2, congelaciones: 3, congeladoMs: 4300, congeladoPeorMs: 2000, largos: 5, cambiosRes: 2, loaf: 5, programasMax: 33 });
   assert.equal(sale[1].cliente.congelaciones, 0);
+});
+
+test("E4: the reader shows the B5 pulse fields (freezes, long frames, LoAF, draw calls, triangles, resolution); an old page shows none", () => {
+  const base = { k: "pulso", sesion: "s1", t: "2026-10-15T10:00:10.000Z", modo: "plano", cuadros: 300, perdidos: 3, cuadroMs: { p50: 16.7, p99: 40 }, rttMs: 20 };
+  const lineas = [
+    { k: "entrada", sesion: "s1", t: "2026-10-15T10:00:00.000Z", clase: "escritorio", navegador: "Chrome 141" },
+    { ...base, congelado: { n: 1, ms: 1200, peor: 1200 }, largos: 4, loaf: { n: 3, bloqMs: 180, peorMs: 90 }, dc: { p50: 40, peor: 90 }, kTri: { p50: 120, peor: 300 }, cambiosRes: 1, ratio: 1 },
+    { ...base, t: "2026-10-15T10:00:20.000Z", congelado: { n: 0, ms: 0, peor: 0 }, largos: 2, dc: { p50: 60, peor: 70 }, kTri: { p50: 140, peor: 200 }, cambiosRes: 0, ratio: 0.75 },
+  ].map((x) => JSON.stringify(x));
+  const [f] = agrupar(lineas);
+  const txt = describir(f);
+  assert.match(txt, /congelada 1 vez \(1200 ms en total, peor 1200 ms\)/);
+  assert.match(txt, /cuadros largos \(> 50 ms\) 6/);
+  assert.match(txt, /LoAF 3 \(bloqueo 180 ms, peor 90 ms\)/);
+  assert.match(txt, /dibujos p50 60 \(peor 90\)/);
+  assert.match(txt, /miles de triángulos p50 140 \(peor 300\)/);
+  assert.match(txt, /cambios de resolución 1 \(ratio mín 0.75, último 0.75\)/);
+  assert.match(resumir([f]), /1 con congelación · cuadros largos 6/);
+  const viejo = agrupar([lineas[0], JSON.stringify(base)]);
+  assert.equal(tirones(viejo[0].pulsos), null);
+  assert.doesNotMatch(describir(viejo[0]) + resumir(viejo), /tirones|dibujo:|congelación/);
 });

@@ -1,11 +1,11 @@
-// pantalla (M18, trozo 2): «Compartir pantalla» — LOCAL ONLY. A real button (and the P key) asks the browser for your
+// pantalla (M18, trozo 2): «Compartir pantalla» — LOCAL ONLY. A real button (an entry of the bar's «Cámara» menu, P) asks the browser for your
 // screen (getDisplayMedia) and shows the live picture on the nearest video screen of the world (within 30 m), or in a
 // floating window if none is near. Nothing leaves this page: no wire message, nothing to the server, no feature state
 // changes; other people keep seeing the screen's file. Sending it to others is the next slice (M18 trozo 3).
 // Where it works: desktop Chrome, Firefox and Safari, and iPhone with iOS 27; NOT Android Chrome, Firefox Android or the
 // Quest Browser (MDN compat data: no getDisplayMedia) — there the button is hidden (`hidden` attribute) and the help says so.
 // The browser opens its picker only inside the click or key handler: getDisplayMedia is called with nothing awaited before it.
-// Phones stay cool: when the share stops (the button, P, the browser's own «stop sharing», the track ending) the stream's
+// Phones stay cool: when the share stops (the entry, the window's ×, the browser's own «stop sharing», the track ending) the stream's
 // tracks are stopped, the screen gets its file back and the VideoTexture is disposed.
 import { icono } from "./iconos.ts";
 import { pantallaMasCercana, sePuedeCompartir, fraseInicio, PANTALLA_CERCA_M } from "./pantalla-logica.ts";
@@ -35,21 +35,23 @@ export function montarPantalla(o: { view: Vista; decir(t: string): void; escribi
   // the floating window, for when no screen of the world is near
   const vista = document.createElement("div"); vista.id = "pantalla-vista"; vista.hidden = true; vista.setAttribute("role", "region"); vista.setAttribute("aria-label", "Tu pantalla compartida");
   const video = document.createElement("video"); video.muted = true; video.autoplay = true; video.playsInline = true; video.setAttribute("playsinline", ""); video.setAttribute("muted", "");
-  const cerrar = document.createElement("button"); cerrar.type = "button"; cerrar.innerHTML = `${icono("x", 18)}<span class="solo-lector">Dejar de compartir la pantalla</span>`; cerrar.title = "Dejar de compartir (P)";
+  const cerrar = document.createElement("button"); cerrar.type = "button"; cerrar.innerHTML = `${icono("x", 18)}<span class="solo-lector">Dejar de compartir la pantalla</span>`; cerrar.title = "Dejar de compartir";
   vista.append(video, cerrar);
   document.body.appendChild(vista);
   for (const el of [vista, cerrar]) el.addEventListener("pointerdown", (e) => e.stopPropagation());
 
   // the help line says where this works (the button is hidden where it does not)
   const ayuda = document.getElementById("help");
-  if (ayuda) ayuda.append(puede ? " · P: compartir pantalla" : " · Compartir pantalla: solo en ordenador (y iPhone con iOS 27)");
+  if (ayuda && !puede) ayuda.append(" · Compartir pantalla: solo en ordenador (y iPhone con iOS 27)"); // where it works, P: cámara says it
 
   const estado = { puede, compartiendo: false, pantalla: null as string | null, error: "", veces: 0 };
   let flujo: MediaStream | null = null;
   const pintar = () => {
     boton.setAttribute("aria-pressed", String(estado.compartiendo));
-    const t = estado.compartiendo ? "Compartiendo tu pantalla (solo la ves tú por ahora; P deja de compartir)" : "Compartir pantalla (P): se ve en la pantalla más cercana del mundo, solo en tu navegador por ahora";
-    texto.innerHTML = `${icono("screencast")}<span class="solo-lector">${t}</span>`; boton.title = t;
+    // ux2-barra: an entry of the bar's «Cámara» menu (P opens the menu): a short name, the long sentence in the tooltip
+    const corto = estado.compartiendo ? "Dejar de compartir" : "Compartir pantalla";
+    const t = estado.compartiendo ? "Compartiendo tu pantalla (solo la ves tú por ahora)" : "Compartir pantalla: se ve en la pantalla más cercana del mundo, solo en tu navegador por ahora";
+    texto.innerHTML = `${icono("screencast")}<span class="solo-lector">${corto}</span>`; boton.title = t;
   };
   function mostrar(stream: MediaStream): void {
     flujo = stream;
@@ -81,8 +83,7 @@ export function montarPantalla(o: { view: Vista; decir(t: string): void; escribi
   const alternar = () => { if (estado.compartiendo) parar(); else empezar(); };
   boton.addEventListener("click", (e) => { alternar(); if (e.detail > 0) boton.blur(); });
   cerrar.addEventListener("click", () => parar());
-  // P toggles it, unless you are typing or building (while building P pins the selected thing)
-  addEventListener("keydown", (e) => { if (e.code === "KeyP" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !o.escribiendo(e) && !o.construyendo?.() && !boton.hidden) alternar(); });
+  // ux2-barra: no key of its own any more — P opens the bar's «Cámara» menu, where this is the third entry
   pintar();
   return { estado, alternar, parar };
 }

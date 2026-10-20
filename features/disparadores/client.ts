@@ -9,6 +9,15 @@ import { disparadores as decl } from "./feature.ts";
 const MODELO = "32fce59977a24c3c15eb40084c700c1537e59853747f92ce1d01c6fd65958588";
 export const LADO_M = 0.3, ALTURA_M = 1.0;
 export type Disparador = { id: string; nombre: string; tipo: "zona" | "boton"; x: number; y: number; z: number; radio: number; alcance: number; frase: string; cooldown: number; unSoloUso: boolean; usos: number; enEspera: boolean; agotado: boolean; receptores: Record<string, unknown>[] };
+/** What `crearDisparador` takes: one line of disparadores.json (`radio` = the zone's radius or the button's reach). */
+export type NuevoDisparador = { id: string; tipo: "zona" | "boton" | "senal"; receptores: Record<string, unknown>[]; nombre?: string; x?: number; y?: number; z?: number; radio?: number; frase?: string; senal?: string; cooldown?: number; unSoloUso?: boolean };
+/** What `editarDisparador` takes: the whole editable part of a cable (historia C). `mover` also puts it at x, y, z. */
+export type CambioDisparador = { id: string; nombre: string; tipo: "zona" | "boton" | "senal"; senal: string; cooldown: number; unSoloUso: boolean; receptores: Record<string, unknown>[]; mover?: { x: number; y: number; z: number } };
+/** What the server answered about an edit the page asked for: «ok» (editado) or «no» with its Spanish reason (rechazado). */
+export type RespuestaCable = { que: "ok" | "no"; motivo: string; id: string };
+/** Historia D («Decirlo»): what the server told this page about it. `puede` false + `motivo` = hide the text box and show the reason. */
+export type EstadoDecir = { puede: boolean; motivo: string };
+export type RespuestaDecir = { que: "propuesta"; propuesta: string; frase: string } | { que: "no"; motivo: string } | { que: "creado"; id: string };
 type Res = { ok: true } | { ok: false; why: string };
 const SIN: Res = { ok: false, why: "la función disparadores no está en este servidor" };
 /** D-041 historias 5-6: lo que llega en el campo `receptores` del estado (JSON) o se manda a editar_receptores, sin
@@ -22,9 +31,14 @@ export const tapa = (v: Pick<Disparador, "x" | "y" | "z" | "enEspera" | "agotado
 export function crearCliente() {
   let A: ClientApi | null = null;
   const oyentes = new Set<(id: string) => void>();
-  // D-041 historias 3-4: what the three receivers that only this page hears last did (for tests and agents; the
-  // player hears/reads it through the normal announce — `teletransportado`, `enlace`, `sonido`).
-  const estado = { ultimoEnlace: "", ultimoTeletransporte: null as { x: number; y: number; z: number } | null, ultimoSonido: "" };
+  const respuestas = new Set<(r: RespuestaCable) => void>();
+  const decires = new Set<(r: RespuestaDecir) => void>();
+  const puedeDecir: EstadoDecir = { puede: false, motivo: "" };
+  const alPuede = new Set<() => void>();
+  // D-041 historias 3-4: what the receivers that only this page hears last did (for tests and agents; the player
+  // hears/reads it through the normal announce — `teletransportado`, `enlace`). S6: `suena` belongs to the sound
+  // piece now (features/sonido), which plays the house catalogue's file instead of the fixed beep that lived here.
+  const estado = { ultimoEnlace: "", ultimoTeletransporte: null as { x: number; y: number; z: number } | null };
   const disparadores = {
     estado,
     lista: (): Disparador[] => (A ? A.state.keys().map((k) => { const v = A!.state.get(k) as Msg; return { id: k, ...v, receptores: receptoresDe(v.receptores) } as Disparador; }) : []),
@@ -32,6 +46,23 @@ export function crearCliente() {
     // D-041 historias 5-6: reemplaza en vivo los receptores de un disparador (solo construir); el servidor valida y,
     // si acepta, todos ven el cambio al momento (alCambiar) y, si el mundo lo permite, reescribe disparadores.json.
     editarReceptores: (id: string, receptores: Record<string, unknown>[]): Res => (A ? A.send("editarReceptores", { disparador: id, receptores: JSON.stringify(receptores) }) : SIN),
+    // Historia A (cable sin JSON): crea o borra un disparador entero en vivo (solo construir). La página solo manda la
+    // petición; el servidor valida (mismo lector que disparadores.json), pone o quita el cable para todos y reescribe el fichero.
+    crearDisparador: (d: NuevoDisparador): Res => (A ? A.send("crearDisparador", { disparador: d.id, nombre: d.nombre ?? "", tipo: d.tipo, x: d.x ?? 0, y: d.y ?? 0, z: d.z ?? 0, radio: d.radio ?? 3, frase: d.frase ?? "", senal: d.senal ?? "", cooldown: d.cooldown ?? 0, unSoloUso: d.unSoloUso ?? false, receptores: JSON.stringify(d.receptores) }) : SIN),
+    borrarDisparador: (id: string): Res => (A ? A.send("borrarDisparador", { disparador: id }) : SIN),
+    // Historia C: the sentence with blanks saves in one go; the server revalidates everything and answers `cableEditado`
+    // (ok) or `rechazado` (its Spanish reason) — `alResponder` hands either to the panel, which shows it by the control.
+    editarDisparador: (c: CambioDisparador): Res => (A ? A.send("editarDisparador", { disparador: c.id, nombre: c.nombre, tipo: c.tipo, senal: c.senal, cooldown: c.cooldown, unSoloUso: c.unSoloUso, receptores: JSON.stringify(c.receptores), mover: !!c.mover, x: c.mover?.x ?? 0, y: c.mover?.y ?? 0, z: c.mover?.z ?? 0 }) : SIN),
+    // Historia D: say a cable in words. The page only sends the sentence (and its language); the SERVER asks the AI, checks the
+    // answer like disparadores.json and sends back a proposal with its sentence; nothing changes until `confirmarCable`.
+    decir: {
+      estado: puedeDecir,
+      pedir: (texto: string, idioma = "es"): Res => (A ? A.send("decirCable", { texto, idioma }) : SIN),
+      confirmar: (propuesta: string): Res => (A ? A.send("confirmarCable", { propuesta }) : SIN),
+      alResponder: (fn: (r: RespuestaDecir) => void) => { decires.add(fn); return () => decires.delete(fn); },
+      alCambiar: (fn: () => void) => { alPuede.add(fn); return () => alPuede.delete(fn); },
+    },
+    alResponder: (fn: (r: RespuestaCable) => void) => { respuestas.add(fn); return () => respuestas.delete(fn); },
     alCambiar: (fn: (id: string) => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
   const parte: ClientPart = clientPart(decl, (api) => {
@@ -43,6 +74,12 @@ export function crearCliente() {
       api.view.tag?.(`disparadores:${key}`, boton ? { text: String(v.nombre), x: Number(v.x), y: Number(v.y) + ALTURA_M + 0.5, z: Number(v.z) } : null);
       for (const fn of oyentes) fn(key);
     });
+    api.on("cableEditado", (m) => { for (const fn of respuestas) fn({ que: "ok", motivo: "", id: String(m.disparador ?? "") }); });
+    api.on("creado", (m) => { for (const fn of respuestas) fn({ que: "ok", motivo: "", id: String(m.disparador ?? "") }); for (const fn of decires) fn({ que: "creado", id: String(m.disparador ?? "") }); });
+    api.on("puedeDecir", (m) => { puedeDecir.puede = m.puede === true; puedeDecir.motivo = String(m.motivo ?? ""); for (const fn of alPuede) fn(); });
+    api.on("cablePropuesto", (m) => { for (const fn of decires) fn({ que: "propuesta", propuesta: String(m.propuesta ?? ""), frase: String(m.frase ?? "") }); });
+    api.on("decirRechazado", (m) => { for (const fn of decires) fn({ que: "no", motivo: String(m.motivo ?? "") }); });
+    api.on("rechazado", (m) => { for (const fn of respuestas) fn({ que: "no", motivo: String(m.motivo ?? ""), id: "" }); });
     api.on("disparado", (m) => { if (Number(m.quien)) api.view.bounce(Number(m.quien), 300); });
     // D-041 historia 4: the page only ASKS before opening a world-wired link (abre_enlace); it never auto-navigates.
     api.on("enlace", (m) => {
@@ -53,7 +90,6 @@ export function crearCliente() {
       estado.ultimoEnlace = enlace;
     });
     api.on("teletransportado", (m) => { estado.ultimoTeletransporte = { x: Number(m.x), y: Number(m.y), z: Number(m.z) }; });
-    api.on("sonido", (m) => { estado.ultimoSonido = String(m.sonido ?? ""); });
   });
   return { parts: [parte], disparadores };
 }

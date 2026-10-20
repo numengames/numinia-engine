@@ -1074,3 +1074,361 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `ar/duelo-servidor` (ver `git log`). Sin push ni PR.
 - Siguiente: botón real para que quien está lejos abra la vista de dardos (hoy solo el gancho de prueba); el etiquetado
   «Salir de AR» del botón no se refresca al salir de AR hasta el siguiente cambio de estado.
+
+## 2026-10-18 17:54 · ko-t_e8a450a4 · hecho (mitad)
+- Qué: H11 (importar de Hyperfy), la mitad `db.sqlite`+`assets/` → carpeta del mundo (la otra mitad, `.hyp` →
+  carpeta de app, sigue esperando a M19, que está «para Opus»; no se ha tocado). `packages/server/src/importar-hyperfy.ts`
+  lee `config`/`blueprints`/`entities` con `node:sqlite` (sin dependencia nueva), resuelve cada `asset://<sha256>.<ext>`,
+  copia el fichero a `datos/activos/`, convierte posición y cuaternión a los campos de H1 (grados, orden yaw→pitch→roll)
+  y escribe `datos/objetos.json` tal cual lo lee `FileStorage` al arrancar (a mano, sin importar `features/objetos`
+  desde `packages/`: lo prohíbe la regla de capas). H7: `aventura/ficha.json` con nombre/descripción/portada/aforo.
+  CLI `tools/importar-hyperfy.ts`; informe de lo traído (`informe-importacion.json`+`.txt`): leídos, importados,
+  omitidos con motivo, activos copiados/que faltan.
+- Números: `test/importar-hyperfy.test.ts` nuevo (5 pruebas, todas en verde); `npm test`: 777 bien, 0 mal;
+  `npm run gates`: todas las puertas en verde (capas 0, determinismo igual, ancho de banda 26,6 kbit/s, plaza de
+  1.000 p99 15,4 ms, página 469,1 kB). La prueba fuerte arranca de verdad la función `objetos` (`Instance` +
+  `FileStorage`) sobre lo que escribe el importador y comprueba la cosa en su sitio, giro y escala exactos.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `ko/t_e8a450a4` sobre `origin/tren/motor-2026-10-18-6`.
+- Siguiente: probar contra un `db.sqlite` real de un mundo Hyperfy (de momento solo el fijo de prueba); la mitad
+  `.hyp` → carpeta de app espera a M19.
+## 2026-10-18 17:25 UTC — arreglo: el teclado de la cerradura tapaba el mundo desde que carga (0.14.1)
+- Visto por Pablo en vídeo (Alchemist Tower, v0.11): el teclado de la cerradura (D-042) sale al cargar, sin nombre, y ni «Abrir» ni «Cerrar» lo quitan: la capa ocupa toda la pantalla y el jugador queda bloqueado.
+- Causa: la capa llevaba `display: grid` en línea; un estilo en línea gana al atributo `hidden`, así que `capa.hidden = true` no la escondía nunca.
+- Arreglo: la capa nace con `display: none`; abrir pone `grid`, cerrar vuelve a `none`. Prueba nueva `test/cerradura-teclado-oculto.test.ts` (falla con el código viejo, pasa con el nuevo). Versión 0.14.1 (parche).
+## 2026-10-18 01:15 · Y1 · El Inventario v1 · hecho (rama `inventario/version-1`, rebasada sobre main 0.10.0)
+- Qué: el cimiento que faltaba (Pablo, 18-10). `features/inventario/` (reglas puras `reglas.ts` + servidor + cliente):
+  un objeto es {id, tipo arma/reliquia/token, clase, nombre, icono, color, valor, n, portado}; límites del canon
+  leídos del manual (lore 06, Fragmento 2): 1 arma contigo, 3 reliquias contigo, el resto en la Reserva; los tokens
+  (Semillas por color, valor 1-5 de Prestigio) apilan y no se portan. Guardado por invitado en `api.store`
+  (`i:<quien.id>`, S4), enviado entero solo al dueño (todas sus pestañas). Puerta para dar objetos sin acoplar
+  funciones: cualquier función emite su `otorga` con `scope: "server"` y el inventario lo oye (`api.listen`, J3).
+  `misiones` lo usa: `recompensas` admite `{ "tipo": "semilla", "color": "verde" }` (la misión de ejemplo lo lleva)
+  → al completarla, «Recibes Semilla verde». Panel `apps/plaza/inventario.ts` (tecla R, botón en la barra de arriba):
+  «Llevas contigo» y «Reserva», icono de la casa por fila, «Llevar/Guardar» en armas y reliquias; la ficha (I)
+  resume. Versión **0.10.0 → 0.11.0** (menor: función nueva, nada roto). Diseño: `work/mmo-browser-study/INVENTARIO-DISENO.md`.
+  Honestidad: la «pregunta en un sitio real» de R2 NO existía como función; lo que había era `despertar` (QR).
+  Hoy la Semilla entra por la misión completada; R2 usará la misma puerta `otorga`.
+- Números: 8 pruebas nuevas (`test/inventario.test.ts`), 384 en total, 383 en verde + la mala conocida de
+  `test/chat.test.ts` (coste de nombres; la máquina a carga 26; sola pasa). Puertas: capas, determinismo (huella
+  f719d31b intacta), ancho de banda 26,7 kbit/s, tick p99 11,2 ms OK. 1.000 personas entran con 8 objetos cada
+  una: 59 ms en total. Una Reserva llena (24) con nombres largos cabe en una clave de S4 (≤ 4.096 bytes).
+  `npm run build` OK. e2e real (chromium, pierna `misiones.mjs` ampliada): la Semilla aparece en el panel R con su
+  icono, sin botón (token), la ficha dice «1 objeto · Semillas: 1 punto de Prestigio», otro invitado no la ve.
+- Consumo: sin medir · Fable 5.1 (sesión de Pablo).
+- Commit: rama `inventario/version-1` sobre origin/main 749e99a (ver `git log`). Sin push ni PR (Pablo decide).
+- Siguiente: Y2 (llevar de verdad: mano del avatar, ficha V1; arrastrar y soltar), Y3 (`objeto@1` por aventura y
+  `coge` que da armas/reliquias), iconos propios (Phosphor `backpack`/`sword`/`plant`: decisión del Oráculo).
+- Solapes con `bienes` (N10/N18, ya en main), resueltos dejando lo de main intacto: (1) la sección «Inventario» de la ficha es de
+  `bienes` (`apps/plaza/bienes.ts`); la Reserva va en otra sección, «Reserva» (orden 71). (2) La tecla L ya es «Gente» y H es «Bailar»:
+  el panel usa R (con `noConstruyendo` en `crearDialogo`: el constructor usa R). (3) `bienes` = cosas con recibo firmado que salen de un
+  cofre (`concedido`); `inventario` = armas/reliquias/tokens de la Reserva (`otorga`): dos almacenes y dos eventos de servidor distintos,
+  sin cruce. Si algún día un `objeto` de `bienes` debe poder llevarse como reliquia, hay que decidirlo (no se hizo).
+## 2026-10-16 15:40 · J1 · el VRM ya no «corre despacito» · hecho (sesión con Pablo, sin subir)
+- Qué: Pablo: «va como corriendo despacito, depende del avatar». Medido en la Torre: andando a 4 m/s suena el trote
+  (`Jog_Fwd_Loop`) al 0,87 de su velocidad, el ritmo que deja los pies quietos en el suelo; pero ese bucle da 2 pasos
+  muy largos (1,17 s), así que a ese ritmo son ≈ 90 pasos por minuto: un trote a cámara lenta. Ahora el trote y el
+  sprint se encuentran a medio camino (media geométrica) con una cadencia natural (`CADENCIA` 2,75 y 3,15 pasos/s
+  para caderas de 0,9 m, más rápida para piernas cortas): Astrodisco anda al 1,19 (≈ 122 pasos/min), los pies
+  resbalan un poco. Andar despacio no cambia. `view.avatares()` da velocidad, ritmo y cadera de cada uno.
+- Números: 282 pruebas en verde; build bien; en la Torre ritmo 0,87 → 1,19 a 4 m/s (`work/torre/paso-qa.mjs`).
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `avatares/paso-natural` (sobre main e8468e8).
+- Siguiente: que Pablo lo vea; si sigue raro, el arreglo de fondo es un ciclo de trote con más pasos por bucle o
+  andar más despacio que 4 m/s (eso cambia la simulación).
+## 2026-10-16 19:27 · J7b · rueda de movimientos · hecho (sesión con Pablo, sin subir)
+- Qué: Pablo: «coges esos 45 movimientos… la típica rueda». De los 45 clips de Quaternius UAL1 (CC0) entran 33: los 5 de
+  andar y 28 más, en 29 `.vrma` nuevos (el 29.º, el saludo, que UAL1 gratis no trae, es el cuerpo de `Idle_Loop` con el brazo derecho escrito
+  en el conversor). Fuera, con su porqué en `LICENCIAS.md`: pose T, ciclos que se desplazan, gemelos `_RM`, dos poses de
+  un fotograma y dos salidas. 27 movimientos como datos (`features/gestos/movimientos.ts`) en 4 grupos; `gestos` pasa a
+  versión 2 (el `enum` es la lista + `parar`; aditivo, la huella 93b192c8 igual). En el VRM: entrada + bucle (sentarse →
+  sentado), una vez, o quedarse en la última pose; andar o saltar lo termina en todas las pantallas; cada clip se baja
+  la primera vez que alguien cerca lo hace. Rueda: G mantenida (toque = saludar), botón «Movimientos» en táctil, Y en
+  el mando; 8 porciones, anillo de favoritos guardado en el navegador (F), ↑↓ anillos, ←→ 1–8 Intro, Esc; HTML con
+  botones para el lector de pantalla, sin animación con «menos movimiento»; mientras está abierta nadie anda. Aspecto
+  Nocturno (tema.css), sin marca. Por qué G y no otra tecla: es la tecla de los gestos desde J7 y la mano ya está ahí;
+  K/L/U estaban libres pero lejos de WASD.
+- Números: 288 pruebas en verde (6 nuevas en `test/rueda.test.ts`); puertas en verde (tick p99 8,1 ms); build bien
+  (arranque 301 kB, 113,5 kB comprimidos; los clips no van en el paquete). e2e chromium contra servidor propio
+  (8870/5370): `tools/e2e.mjs` OK, pierna avatares OK (295 kB de animaciones al entrar, las mismas de antes), pierna
+  nueva `tools/e2e-piernas/rueda.mjs` OK: A mantiene G, apunta, suelta → baila; B (a 6 m) lo ve bailar; `bailar.vrma`
+  se baja una vez por pestaña y solo entonces; A anda → termina en las dos; teclado, favoritos y Esc bien.
+  Clips nuevos: 29 ficheros, 3,0 MB en el repositorio, 44–243 kB cada uno.
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `avatares/rueda-movimientos` (sobre 4eb6387).
+- Siguiente: probar con un móvil y un mando reales; que los agentes (`packages/agent`) usen la lista entera; que quien
+  llega tarde vea un movimiento en curso (estado con `at`, J9); grabar los que UAL1 no trae (aplaudir, señalar…).
+
+## 2026-10-18 19:10 · sonido S3 · hecho
+- Qué: el pool de voces espacializadas (`packages/render/src/audio/voces.ts`, sobre el núcleo de S1). Cada disparo
+  construye su cadena `AudioBufferSourceNode → GainNode → BiquadFilter(lowpass) → PannerNode → bus`; el lowpass nace
+  transparente (22.050 Hz) porque el aire y la oclusión de S11 son exactamente ese filtro. Nada de
+  `THREE.PositionalAudio`: fuerza `panningModel "HRTF"` y su oyente, hijo de la cámara estéreo, tartamudea en VR
+  (three.js #20920); de three.js copiamos solo el patrón de sacar la transformación y el `buffer.slice(0)` antes de
+  `decodeAudioData` (que detacha el ArrayBuffer). Defectos del emisor de Hyperfy v2 (`inverse`, ref 1 m, max 40 m,
+  rolloff 3, cono omni en radianes → grados), con `refDistance > 0` validado: con 0 el modelo `inverse` deja la voz
+  muda para siempre (trampa del spec). Tope de voces por aparato de `limits.json` (`audio_sources` A32/B16/C8/D4) con
+  virtualización NUESTRA (Web Audio no virtualiza): al llegar al tope no se mata, se para guardando el desplazamiento
+  y se reanuda por donde iba; prioridad efectiva `prioridad − 10·(d/maxDistance)` (Priority Distance Factor de Wwise),
+  histéresis de 1 para que dos voces iguales no se releven sin parar, y música y ambiente nunca se roban. HRTF
+  racionado con `audio_hrtf_max` (A24/B16/C12/D6, nuevo y `estimated`): solo las N más cercanas, conmutando con rampa
+  de 8 ms para que no haga clic. Variantes con pesos y variación de tono/volumen a partir de la SEMILLA DEL SERVIDOR
+  (xorshift32 + FNV-1a del id): todos los clientes oyen la misma variante. Cooldown por id (50 ms de defecto) para que
+  veinte disparos juntos no revienten la mezcla. Caché de `AudioBuffer` por URI con tope de 8 MB; las camas largas no
+  se descodifican, van por `MediaElementAudioSourceNode`. `parar`/`pararTodo`/`mover` desconectan los nodos a mano
+  (Web Audio no tiene `dispose()`). El oyente queda escrito (nueve `AudioParam` donde existan, `setPosition`/
+  `setOrientation` en la API vieja) pero SIN enganchar a cámara ni XR: eso es S5.
+- Números: `test/audio-voces.test.ts` nuevo, 14 pruebas en verde. Peso: 482.518 B gz antes de dibujar, los MISMOS que
+  antes del cambio (+0 B: nadie importa `voces.ts` todavía, el empaquetador lo deja fuera). Tres puertas en rojo
+  (pruebas, tick p99, tamaño) que ya están en rojo igual en `origin/main` (ahí 480,9 kB gz > 480 de tope y p99 69 ms):
+  no las toco.
+- Consumo: sin medir · Opus 5.
+- Commit: rama `sonido/voces`, PR contra `sonido/nucleo` (no contra `main`).
+- Siguiente: S4 (migrar `medios.ts` al núcleo) y S5 (enganchar el oyente a la cámara y a la pose del visor).
+## 2026-10-16 21:09 · R1 trozo «imprimir los QR como SVG» · hecho (historia en sombra, Doulos; nada sube a origin)
+- Qué: solo el trozo de «Falta de R1» pedido: `npm run enlaces -- qr [base] [carpeta]` ahora escribe un
+  `<carpeta>/<id>.svg` por punto de `enlaces.json` (carpeta por defecto `qr/`, añadida a `.gitignore`) y sigue
+  imprimiendo id, nombre y ruta; sin ese argumento se comporta igual que antes (id, nombre, URL firmada). El
+  resto de «Falta de R1» (escuchar en la red de casa, comprobar la columna en un navegador real, medir con un
+  móvil real) queda sin tocar, como pedía la tarea.
+- Números: 252 pruebas (antes 249; 3 nuevas en `test/enlaces.test.ts`: modo normal, modo `qr` con SVGs válidos,
+  y el aviso sin `MOTOR_SECRET` en ambos modos); puertas en verde (capas 0, determinismo igual, ancho de banda
+  26,7 kbit/s, tick p99 7,6 ms con mil). e2e y `tools/auto.sh` no se han tocado ni corrido (no tocan a esta rama).
+- Consumo: no aplica (prueba de Doulos en un worktree desechable, sin `hermes usage` en este perfil); modelo
+  Sonnet 5.
+- Commit: este (rama `doulos/sombra-r1-qr`, solo local; no sube a origin, no hay PR).
+- Siguiente: el resto de «Falta de R1» (modo LAN del servidor, comprobación visual real de la columna, medición
+  con móvil real) sigue pendiente para quien tome la fila R1.
+
+## 2026-10-18 18:21 · lucha-l2-estados-jugador · hecho (trozo 1)
+- Qué: L2, primera historia: vida del jugador en memoria del servidor (`features/lucha/server.ts`). Cada golpe
+  que el jugador aterriza, la criatura golpea de vuelta con la misma tirada (`DANO_BASE..DANO_BASE+DANO_VAR-1`,
+  PRNG con semilla: reproducible); `VIDA_JUGADOR_MAX` (50, por encima de lo que cuesta matar al Guardián de
+  Crisálida en una pelea normal: no rompe el combate de L1) baja en memoria, sin estado compartido ni HUD (eso
+  es la siguiente historia de L2, con el diseño de canon Desestabilizado→Colapsado→Aletargado de
+  `docs/BACKLOG.md` fila L2). A 0, el jugador cae (`caido`): `golpear` se rechaza hasta que pasan
+  `REAPARICION_JUGADOR_TICKS` (100 = 5 s a 20 Hz), y entonces vuelve entero. Eventos nuevos `jugadorHerido`,
+  `jugadorCaido`, `jugadorVuelve` (solo al propio jugador); `client.ts` los escucha para que las pruebas los
+  vean (sin dibujar nada aún, por diseño).
+- Números: `test/lucha.test.ts` 10/10 (2 nuevas: herido→caído→reaparece, y mismo seguimiento con sha256 igual
+  en dos mundos con la misma semilla). `npm test` con `node_modules` enlazado del clon base: 773/774 (el único
+  rojo, `misiones-secuencia.test.ts` p99 de un gate de carga, es el conocido por contención de CPU — solo,
+  8/8 verde; sin ese enlace, los 23 fallos preexistentes por falta del paquete `ws` en este worktree, iguales
+  antes y después). `npm run build`: verde (842 ms).
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `ko/t_32744f07-v2` sobre `origin/tren/motor-2026-10-18-6`, PR #145.
+- Siguiente: la siguiente historia de L2 (HUD, velocidad, vuelta a `aparicion`, estado compartido por
+  invitado) cuando la pida el tablero; L3 (la criatura se mueve y persigue) sigue esperando a L2 entero.
+
+## 2026-10-18 19:30 · constructor/anclar-explicar · hecho
+- Qué: el botón «fijar» del constructor se renombra a «Anclar / soltar» (con icono) y lleva un tooltip claro
+  (t_72b0bdab), porque Pablo (vídeo 18-10): «fijar no se entiende». Renombrado en `apps/plaza/constructor.ts`
+  (botón con icono `push-pin` de Phosphor, `boton2` ahora acepta un icono opcional), tooltip explícito («Anclar:
+  nadie lo mueve, gira ni borra hasta que lo sueltes (P)»), etiqueta del checkbox del inspector, texto de ayuda
+  del constructor y los mensajes de estado del cliente (cogido/arrastrado) usan «anclado». Los mensajes de
+  rechazo del servidor (`features/objetos/server.ts`) siguen diciendo «fijado»: varias pruebas
+  (`test/objetos.test.ts`, `test/huecos.test.ts`) comprueban ese texto exacto; cambiarlo junto con las pruebas
+  se deja para otra tarjeta si se quiere, por no ensanchar esta historia de 20 min. El campo de datos y el
+  verbo de red siguen llamándose `fijado`/`fijar` (wire/schema sin tocar, D-055 no aplica aquí: es puro texto
+  de interfaz). `docs/JUGADOR.md` actualizado con el mismo texto.
+- Números: `npm test` y `npm run build` en verde (ver comprobado en el PR).
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `constructor/anclar-explicar` sobre `origin/tren/motor-2026-10-18-6`.
+- Siguiente: nada pendiente de esta tarjeta; si se quiere, extender el mismo nombre a `rueda.ts` («Fijar en
+  favoritos», uso distinto, no tocado aquí).
+
+## 2026-10-19 06:48 · pelea/combate-a-main · hecho
+- Qué: HUD de combate con Estado, Carga y las 3 habilidades (teclas 1-3), y PVP por mundo (apagado por defecto).
+  Lleva a main lo que solo vivía en las ramas `noche/combate-h*` y `noche/pvp-*`, conciliado con la vida y la caída
+  (#145) y el HUD de personaje (#160): kit Eclipse Mnémico, escalera de Estado, Aletargado reaparece en el último sitio
+  seguro, críticos 20 % x2, bandera `pvp`/`zonasPvp` en `entorno.json` e icono de Estado sobre quien recibe el golpe.
+  Versión 0.16.0 (menor: algo nuevo que no rompe nada).
+- Números: `node tools/gates.mjs`: 941 bien, 4 mal (enlaces ×3 por `qrcode-svg` ausente en el `node_modules` enlazado,
+  los mismos en main; subidas ×1, intermitente); capas, determinismo, ancho de banda y plaza de 1.000 en verde; página
+  512,3 kB gz antes de dibujar (main 510,0 kB; +2,2 kB; tope 1.000 kB).
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `pelea/combate-a-main` sobre `origin/main` cb35ef4, sin push.
+- Siguiente: decidir si `habilidad` hace que la criatura devuelva el golpe (`golpear` sí); activar `pvp` en un mundo real.
+
+## 2026-10-19 07:25 · constructor/ficha-pestañas · hecho
+- Qué: la ficha del objeto gana las pestañas Ficha, Lógica y Ajustes (C4).
+  Detalle: la ficha del objeto (C3) gana pestañas accesibles (`role=tablist/tab/tabpanel`, flechas izquierda y derecha,
+  Inicio/Fin, `aria-selected`, tooltip con icono Phosphor de la casa en cada una): «Ficha» (los datos de siempre),
+  «Lógica» (disparadores del cable que muestran u ocultan el objeto por id o nombre, disparadores que nacen en él,
+  y cerraduras y contadores en el mismo punto; botón «Abrir el cable» que lleva al panel del cable) y «Ajustes»
+  (nombre, se ve al jugar, anclado y sólido, con los mismos verbos del inspector; botón «Abrir inspector (N)»).
+  Solo sale con permiso de construir y el constructor abierto (sin cambios); Esc la cierra como antes, también
+  desde el campo de nombre. Sin camino de red nuevo: lee el estado de `disparadores`, `cerradura` y `contadores`
+  y llama a `nombrar`/`ajustar`/`fijar`; el servidor valida. Lógica pura en `apps/plaza/ficha-objeto.ts`
+  (`logicaDeObjeto`, `pestanaConTecla`); la solidez del inspector pasa a una función compartida.
+- Números: `test/ficha-objeto.test.ts` 6/6 (2 nuevas). `npm test` 917/920 (los 3 rojos son los conocidos de
+  `enlaces`, falta `qrcode-svg`). Pierna e2e del constructor (chromium) en verde con 8 pasos nuevos (pestañas,
+  clic, flechas, «Abrir el cable», ajustes que cambian el objeto en el servidor y B lo ve, «Abrir inspector»).
+  Página antes de dibujar: 510,0 → 511,9 kB gz (+1,9 kB; tope 1000). Captura real en
+  `work/numinia-engine-wt-creativo2-captura-c4.png`. Sin subir la versión (la sube quien fusiona).
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `creativo/c4-c5` sobre `origin/main` cb35ef4 (sin push).
+- Siguiente: C5 (móvil/VR: los mismos iconos grandes, sin tooltips de ratón).
+
+## 2026-10-19 08:47 · constructor/ficha-movil-vr · hecho
+- Qué: la ficha del objeto con iconos grandes en móvil (hoja inferior) y en VR (panel con el rayo) (C5).
+  Detalle: la ficha del objeto (C3/C4) sin ratón. **Móvil** (pantallas táctiles, `pointer: coarse`): la ficha pasa a hoja
+  inferior a ancho completo (máx. 46 vh, opaca, el panel del constructor se aparta mientras hay objeto elegido: una
+  sola hoja a la vez); rejilla de 5 columnas con objetivos de 63×48 px; etiqueta corta visible bajo cada icono
+  («Mover», «Girar», «Escalar», «Copiar», «Anclar/Soltar», «Enlace», «Borrar», «Cerrar»; el `aria-label` no cambia);
+  pestañas a ancho completo de 44 px; pulsación larga (450 ms) sobre un icono dice su título completo en una línea
+  bajo la barra (`role=status`) y no lo pulsa; esa línea guarda su sitio para que los iconos no salten bajo el dedo.
+  El «#barra-objeto» de M22b-1 ya no existe en esta base (la ficha lo sustituyó en C3): no se duplica nada.
+  **VR**: panel plano (`packages/render/src/vr-ficha.ts`, trozo aparte que solo se descarga al elegir un objeto
+  dentro de una sesión VR) con 8 botones grandes (Mover, Girar 15°, Escalar +/−, Duplicar, Anclar/Soltar, Borrar
+  con doble pulsación, Cerrar), colocado abajo y a la izquierda para que el rayo hacia el objeto (de frente) y la
+  mano derecha no lo atraviesen; mismas reglas: solo con permiso de construir, y el servidor decide.
+- Números: `test/ficha-objeto.test.ts` 10/10 (4 nuevas: etiquetas, celdas VR, `celdaEn`, `aplicarAccionVR`).
+  `npm test` 921/924 (3 rojos conocidos de `enlaces`, falta `qrcode-svg`). Pierna táctil a 360×740 en verde con 7
+  pasos nuevos (hoja ≤ 46 vh, 5 columnas ≥ 44 px, etiquetas, pestañas, no tapa el bloque, pulsación larga sin
+  borrar, toque corto sigue pulsando). Pierna VR (IWER) con 4 pasos nuevos (ficha visible, «Escalar +» ×1,25 y B lo
+  ve, sigue elegido, «Cerrar»). Las dos piernas cierran ahora la tarjeta de novedades del navegador limpio y buscan
+  el chrome por glob. Aviso: el paso «moverlo ≥ 1 m» de la pierna VR falla a ratos con la máquina cargada, también
+  sin estos cambios (1 de 3 en la base). Página antes de dibujar: 511,9 → 513,6 kB gz (+1,7 kB; tope 1000); el
+  trozo VR pesa 1,4 kB gz y no entra en el arranque. Captura real 360×740 en
+  `work/numinia-engine-wt-creativo2-captura-c5-movil.png`.
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `creativo/c4-c5` (sin push).
+- Siguiente: si el objeto queda bajo la hoja (objetos muy cercanos a los pies), la cámara no se mueve sola.
+
+## 2026-10-19 12:24 · fusion/sonido-vr · hecho
+- Qué: el mundo suena (pasos, golpes, avisos y el colchón del mundo), y en VR los dardos se lanzan con la mano.
+  Detalle: el sonido (S6–S6f) y los dardos y la pesca en VR, juntos. En VR el dardo se lanza con la mano (el
+  balanceo da dirección y fuerza; el servidor decide dónde cae) y la caña es una malla con mango, halo al acercar la mano
+  y una instrucción por fase encima. Mordisqueo y picada suenan por la puerta única (`pesca-mordisqueo` nuevo, con su
+  fila de receta). Al probar el sonido en un Chromium de verdad salieron tres fallos que en Node no se veían: la página
+  de dev no podía leer `/sonidos.json` desde otro puerto (CORS), los ficheros `/a/` se pedían al puerto de la página y
+  no al del servidor, y Caddy no pasaba `/sonidos.json` ni `/status` (que lleva el colchón del mundo) al servidor.
+- Números: `npm test` 1.083/1.083; puertas en verde. Pierna nueva `tools/e2e-piernas/sonido.mjs` (sin AudioContext de
+  mentira): con la rama, tabla 200 del servidor, 13 ficheros 200 y 13 descodificados, 0 fallos, contexto `running`; en
+  `sonido/nucleo` sin el arreglo, la tabla no llega y suenan 0 ficheros. Piernas `pesca`, `dardos-vr` y `sonido` en
+  verde; `pesca-todas` falla los mismos pasos (caña en la mano, medidor, rayo) en la base que en la rama.
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `fusion/sonido-vr` sobre `sonido/nucleo` (#151) + `vr2/pesca-mango`. Versión 0.17.0 → 0.18.0.
+- Siguiente: S6f-5, oírlo con auriculares en el PC y en las gafas.
+
+## 2026-10-19 13:35 · identidad/i1-adoptar-progreso · hecho
+- Qué: al llegar el primer pase de numinia.com de alguien que estaba como invitado, el servidor adopta su progreso
+  (`ServerRuntime.adoptar(invitado, sub)`, llamado desde `Instance.identificar` justo tras `credencial`). Regla
+  genérica para cualquier almacén (`adoptarClaves`: toda clave `…:<invitado>` o `…:<invitado>~n` pasa a `sub`; si ya
+  existía, `fusionar`: listas unión, números el mayor, objetos clave a clave). Tres piezas con `onAdoptar` propio:
+  bienes (el dueño va dentro del valor y en el índice por páginas), inventario (renumera los objetos del invitado tras
+  la serie de `sub`; la caché sigue) y misiones (regla genérica + caché). Idempotente: tras adoptar no queda nada bajo
+  el invitado. Solo servidor, sin cliente ni UI.
+- Números: 958 tests en verde (4 nuevos en `test/identidad-adoptar.test.ts`); build ok; +78 líneas de código.
+- Consumo: sin medir · Sonnet 5 (subagente).
+- Commit: rama `identidad/i1-adoptar-progreso`, versión 0.17.0 → 0.18.0 (menor: algo nuevo que no rompe nada).
+- Siguiente: I2 (renovar el pase de personas con `vidaIA`); el recibo firmado de un bien sigue nombrando al invitado,
+  así que `traer` a otro mundo con ese recibo aún lo ve «de otro invitado» (I4 o una historia aparte).
+
+## 2026-10-19 13:52 · sonido/nucleo · hecho
+- Qué: el sonido afinado con auriculares: todo lo provisional bajito, pasos por pie, el colchón de fondo y la voz de los PNJ.
+  Detalle: suena el mundo, no la interfaz (fuera el clic de los botones y los pasos de misión); −10 dB a todo lo
+  provisional en un solo mando; un paso por pie a ritmo de persona, cada pie distinto y sin repetir grabación; el
+  colchón arranca en el primer clic aunque Firefox frene el autoplay; coger y soltar cosas suena; los PNJ saludan y se
+  despiden con una voz corta CC0 desde su boca.
+- Números: pruebas unitarias en verde salvo `subidas.test.ts`, intermitente y también en rojo sin estos cambios.
+- Consumo: sin medir · Opus 5.5.
+- Commit: rama `sonido/nucleo` (#168, reabierto), traída `origin/main`; versión 0.18.0 → 0.19.0.
+- Siguiente: que los pasos caigan cuando el pie de la animación toca el suelo.
+
+## 2026-10-19 17:38 · naturaleza/ola-1 · hecho
+- Qué: los mundos que lo pidan tienen naturaleza: relieve, árboles con pieza de máquina, hierba, estanque, cielo y fauna.
+  Detalle: entra todo lo de naturaleza que vivía fuera de `main` (R6/R7, banco gráfico v1, capa de materia D-058) y los
+  experimentos medidos E02 (terreno en trozos, apagado), E03 (agua de orilla a/b, elegible), E04 (cielo analítico,
+  apagado), E24 (bisel del engranaje, encendido), E05 (solo banco), E50 (árboles con máquina y copas de seta/sombrilla,
+  encendido) y E51 (agua «oceano», elegible). Solo se enciende en un mundo con `naturaleza.json` activo; el código de la
+  naturaleza llega en un trozo aparte solo cuando el mundo lo pide. Arreglo de la fusión: el tono Verdemar de las orillas
+  (R1) queda en el estanque de la naturaleza; el agua del constructor vuelve a ser la de `main`.
+- Números: 1311 pruebas, 1309–1310 en verde (las que fallan son de tiempo de reloj y pasan solas: `misiones` p99,
+  `naturaleza-sonido` tick máximo, `subidas`); en `main` 1096/1096. Paquete inicial 528,1 → 532,3 kB gz (+4,2).
+  Puertas: capas, determinismo, ancho de banda, plaza de 1.000 y tamaño en verde. e2e suave (carga, cámara,
+  constructor) falla en los mismos pasos que `main` con la máquina cargada; mismo coste de cuadro (85 llamadas, 27 522
+  triángulos). Naturaleza en la RTX 4080 (WebGPU): A 0,200 ms, D 0,162 ms de GPU por cuadro.
+- Consumo: sin medir · Opus 5.5 (subagente).
+- Commit: rama `naturaleza/ola-1` (origin/main 9c28379 + exp/e01-base 438e061 + e02 73e415f + e03 3a341c7 + e04 b2a4e10
+  + e24 f28b5fd + e05 1eaa128 + e50 63bad7e + e51 1906d45). Versión 0.19.0 → 0.20.0.
+- Siguiente: que Pablo elija agua (a/b/oceano) y cielo con las fotos; medir en la Quest por USB.
+
+## 2026-10-19 19:41 · naturaleza/interruptor · hecho
+- Qué: quien puede construir enciende o apaga la naturaleza desde dentro del mundo, con el interruptor «Naturaleza».
+  Está arriba de la sección Entorno de Construir (C). El servidor comprueba el permiso de construir, escribe solo `activa` en el
+  `naturaleza.json` del mundo (lo crea si falta; nunca pisa uno roto) y todas las páginas la montan o la quitan sin reiniciar.
+- Números: `test/naturaleza-interruptor.test.ts` nuevo (6 pruebas); `node --test test/naturaleza*.test.ts` 195/195; entorno,
+  feature, capas, disparadores, conMundo y accesibilidad 118/118. En la página (Chromium sin GPU, mundo vacío, 5990/8990):
+  84 llamadas / 24 642 triángulos antes, igual que `main` cb0de4e con el mismo arnés; encendida 66 / 42 204 y el fichero
+  queda `{ schema, activa: true }`; apagada vuelve a 84 / 24 642 exactos.
+- Consumo: sin medir · Opus 5.5 (subagente).
+- Commit: rama `naturaleza/interruptor` (desde origin/main cb0de4e). Versión 0.21.1 → 0.22.0.
+- Siguiente: probarlo con Pablo en un mundo real con pase de numinia.com y dos páginas a la vez.
+
+## 2026-10-19 23:11 · rediseño v2 de la interfaz · hecho
+- Qué: interfaz nueva: 7 botones arriba, tu avatar en «Tú», amigos en Gente, construir sin paneles y un reloj en VR.
+  Detalle: la barra pasa de 11 a 7 (Cámara y Menú agrupan lo demás), Gente tiene la ficha de cada persona y la tarjeta al
+  pulsar a alguien, construir es una fila de iconos con un solo cajón, y en VR girar la muñeca saca el reloj con el menú.
+- Números: `npm test` 1349/1349 (A–D) y 1336/1336 (E) antes de juntarlas; gates en verde (página 548 kB). Piernas e2e:
+  constructor, gente 14/14, ajustes, mapa, menu-vr 12/12 en verde; teletransporte 8/9 y foto 5/8 por umbrales de velocidad
+  en un PC cargado (main falla los mismos pasos en esta máquina). VR sin probar en una Quest real.
+- Consumo: sin medir · Opus 5.5 (orquestador y subagentes).
+- Commit: rama `ux2/integracion` (desde origin/main 8fdb0ba6, historias `ux2/barra`, `ux2/tu`, `ux2/gente`, `ux2/dock`,
+  `ux2/vr`). Versión 0.22.2 → 0.23.0.
+- Siguiente: probar el reloj en la Quest; la lista de amigos en el servidor espera la decisión de identidad.
+
+## 2026-10-20 10:30 · dependabot-grupos · hecho
+- Qué: nuevo `.github/dependabot.yml` (el motor no tenía): un solo PR de Dependabot por ecosistema (npm,
+  github-actions, docker; grupo `all-dependencies`), semanal y con espera de 7 días. Solo configuración; versión
+  0.23.0 → 0.23.1 (parche, nada cambia para quien usa el motor).
+- Números: sin código tocado; el YAML se lee bien; `test/version.test.ts` pide solo versión válida y lock igual.
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `ci/dependabot-one-pr-per-ecosystem`, PR contra `main` (lo revisa y fusiona una persona).
+- Siguiente: que Pablo decida si el motor quiere Dependabot (hoy no lo tenía) y si los PR se fusionan solos o a mano.
+
+## 2026-10-20 15:10 · condiciones (tren de la noche) · hecho
+- Qué: condiciones de entrada en los mundos: una burbuja que pide aceptar las normas de la casa y de la comunidad antes de entrar, en PC, móvil y VR.
+  Los permisos de datos salen siempre sin marcar y nunca cierran la puerta. La puerta viene APAGADA en todos los mundos: se enciende con
+  `"puerta": true` en `aventura/condiciones.json` o con `MOTOR_CONDICIONES_PUERTA=si`. Versión 0.23.2 → 0.24.0.
+- Números: PRs #181–#187 al tren (servidor, burbuja PC/móvil, pompa vista desde fuera, normas que llegan solas de numinia.com,
+  versión nueva con solo lo cambiado, pase que dice lo ya aceptado, burbuja en VR). Mensajes de red 13/14/15 aditivos;
+  `WIRE_FORMAT` sigue en 2. Campos nuevos de `condiciones@1`: `tipo`, `puerta`, `nombre`, `comunidad.fuente`, `versionWeb`.
+  Env nuevas: `MOTOR_CONDICIONES_PUERTA`, `MOTOR_CONDICIONES_FUENTE`, `MOTOR_CONDICIONES_FUENTE_MIN`.
+- Consumo: sin medir · Sonnet 5 (historias) y Opus 5 (jefe del tren).
+- Commit: rama `condiciones/version-0-24`, PR contra `tren/motor-2026-10-20`.
+- Siguiente: que Pablo pruebe la burbuja en la Quest (paso a paso en el PR #187) y decida cuándo se enciende la puerta en cada mundo; texto legal de los abogados.
+## 2026-10-20 13:40 · cable sin JSON, historia A · hecho
+- Qué: quien construye crea y borra cables en vivo, sin tocar JSON. En el panel Cable hay «+ Nuevo cable» (un botón en tu sitio, con un receptor de partida) y un «Borrar» por cable que pide confirmación. Detrás, dos intenciones nuevas de `disparadores`: `crearDisparador` y `borrarDisparador`, solo con permiso de construir.
+  El servidor valida con el mismo lector que lee `disparadores.json` (64 por mundo, 8 receptores, id `[a-z0-9-]{1,16}` único) y reescribe el fichero sin reiniciar. La página solo manda la petición.
+- Números: `test/disparadores.test.ts` 20/20 (6 pruebas nuevas: crear, sin permiso, id repetido o malo, el 65.º, más de 8 receptores, borrar, id desconocido, fichero que se relee igual); `npm test` 1377/1377; gates en verde (página 560,5 kB gz); build en verde. La huella de simulación no cambia (la prueba de siempre, intacta). Tick: sin código nuevo en el tick (crear y borrar solo tocan una tabla al llegar la intención), sin medida nueva. Pierna `tools/e2e-piernas/cable.mjs` ampliada (crear y borrar con dos personas): ok.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `cable/sin-json` (desde origin/main bd2ee141), sin subir.
+- Siguiente: historias B (frase legible), C (huecos desplegables) y D («Decirlo» con IA); y decidir si sube la versión.
+
+## 2026-10-20 13:48 · cable sin JSON, historia B · hecho
+- Qué: el panel Cable cuenta cada cable como una frase («Cuando alguien pulse “Botón rojo”, muestra “Farola”. Espera 5 s.») y el JSON queda dentro de un desplegable «Ver datos» (con su área de texto y «Guardar»; los botones «Probar», «Borrar» y «+ Nuevo cable» siguen). La frase la hace `fraseDeCable(disparador, idioma)` en `features/disparadores/cable-frase.ts`: función pura, sin DOM ni reloj, que no tira nunca; cubre los 3 «cuando» (boton, zona, senal), las **8** acciones del motor (muestra, oculta, mueve, teletransporta, da_paso, abre_enlace, suena, vuelve_a_seguro), varios receptores, cooldown y un solo uso. Ninguna palabra sale del código: los textos están en `cable-frases.es.ts` y `cable-frases.en.ts` (mismas claves; reglas de unir 2 o más receptores incluidas). La historia D la importará desde el servidor. R-1: pieza reutilizable, sin nada propio de la plaza; la página solo pinta.
+- **Pendiente: los idiomas ja, ko y pt-br.** No existe ningún fichero para ellos; hoy caen en español. Añadir uno = copiar `cable-frases.es.ts`, traducir y registrarlo (docs/EXTENDER.md «El cable»); el test de claves lo comprueba.
+- Números: `test/cable-frases.test.ts` 10/10 (cada «cuando» × cada acción × es/en, varios receptores, cooldown, un solo uso, comillas, desconocidos, paridad de claves y de parámetros, pureza, la frase exacta del ejemplo); `npm test` 1387 pruebas, 1386 bien y 1 de tiempo de la hierba (`naturaleza-hierba`) que falló por carga y pasa sola; gates en verde (página 561,8 kB gz; huella de simulación intacta, sin código nuevo en el tick); build en verde. Pierna `tools/e2e-piernas/cable.mjs` ampliada (frase y «Ver datos» cerrado): ok. Captura: `work/motor-cable/capturas/B-panel-cable.png` (y `-abierto`).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `cable/sin-json`, sin subir.
+- Siguiente: historia C (huecos desplegables en la misma frase) y D («Decirlo» con IA, que enseña la frase para confirmar).
+
+## 2026-10-20 14:20 · cable sin JSON, historia C · hecho
+- Qué: la frase del cable es el editor: cada hueco es un desplegable con solo lo válido (tipo, acción, objeto/movedor/misión/sonido del mundo, espera) y texto solo para nombre, señal, enlace https y coordenadas. «Guardar cambios» manda una petición nueva, `editarDisparador` (mismo permiso y ritmo que `editarReceptores`; el servidor revalida con el lector del fichero, conserva id y usos, reescribe `disparadores.json`) y el error en español sale junto al control. «+ Nuevo cable» abre los mismos huecos y no crea nada hasta «Crear cable». Piezas puras: `cable-huecos.ts` y `cable-contexto.ts`; textos en `cable-frases.es/en.ts` (paridad vigilada). Accesible: `aria-label` en cada control, frase entera como grupo, blancos de 44 px, 360 px sin desbordar. «Ver datos» intacto.
+- Tests: `test/cable-huecos.test.ts` (nuevo), 5 pruebas nuevas en `test/disparadores.test.ts`; e2e `tools/e2e-piernas/cable.mjs` maneja los desplegables reales (cambia objeto, espera y un solo uso, guarda, lo ve otra página; rechazo de enlace sin https). Simulación y huella sin tocar: nada en el tick.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `cable/sin-json`, sin subir.
+- Siguiente: historia D («Decirlo» con IA) reutilizando `editarDisparador`.
+
+## 2026-10-20 14:45 · cable sin JSON, historia D · hecho
+- Qué: «Decírselo al mundo» en el panel Cable. Quien construye escribe una frase («que al entrar en el círculo suene la campana», ≤300 caracteres); el **servidor** (nunca la página) se la da a la IA del mundo con una herramienta cerrada (3 tipos, 8 acciones, solo los objetos/movedores/misiones/sonidos que ese mundo tiene), valida la respuesta con el mismo lector que `disparadores.json` y los nombres reales, y devuelve una **propuesta** con su frase (`fraseDeCable`, en el idioma de quien pregunta). Nada cambia hasta **Aplicar** (`confirmarCable`: misma persona, 2 min, vuelve a validar, reescribe el fichero). Sin IA, sin cupo o con la IA caída el cuadro se oculta y se ve el motivo (`puedeDecir`).
+- La clave: la misma del cerebro de los habitantes (`CEREBRO_CLAVE`/`ANTHROPIC_API_KEY`, `cerebroClaude`), leída solo en `packages/server/src/cable-ia.ts`; ningún mensaje, estado, registro ni error la lleva (test). Topes: 3/min por persona, `CABLE_DIA_MAX` (100) por día y mundo. Cambios de apoyo: `forzar` (tool_choice) en `cerebro.ts`; `api.estadoDe(feature)` (lectura) en `packages/feature`.
+- **Ojo (para Pablo):** `instalar-motor.sh --clave-ia` guarda la clave en `cerebro.env`, que solo carga el servicio de los habitantes (su cortafuegos solo sale a Anthropic). El servidor no la carga: en una instalación así «Decirlo» queda apagado (con su motivo) hasta que se decida darle la clave al servidor. No lo he tocado: es dinero y cambia lo que la casa exige.
+- Tests: `test/cable-decir.test.ts` (18: propuesta buena, objeto/movedor/misión/sonido inexistente, salida inválida, sin permiso, sin IA, topes, texto largo, caída del modelo, confirmar, otra persona, caducada, mundo cambiado, inyección en el turno de usuario, clave nunca visible, adaptador con fetch falso, huella igual); `npm test` 1418/1418 (naturaleza-hierba, de tiempo, falló una vez bajo carga y pasa sola); gates en verde; build ok. e2e `tools/e2e-piernas/cable-decir.mjs` (cerebro eco `CEREBRO_ECO=1`, navegador real, 1000 px y 360x640, un mundo con IA y otro sin).
+- **No verificado:** ninguna llamada a Claude de verdad (ni con clave, ni de red). Todo con el cerebro eco y un `fetch` falso.
+- Idiomas: es y en (claves `decir.*`, paridad en verde). **`ja`, `ko` y `pt-br` siguen pendientes** (caen en español).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `cable/sin-json`, sin subir.
+- Siguiente: decidir cómo recibe la clave el servidor instalado; probar con una clave real (con permiso); ja/ko/pt-br.

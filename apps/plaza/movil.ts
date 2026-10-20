@@ -18,7 +18,7 @@ type Opciones = {
   acciones: readonly Accion[];
   saltar: () => void;
   cajaChat: { cerrar(): void };
-  mapa: { abrir(): void; cerrar(): void; abierto(): boolean; botonFicha: HTMLElement };
+  mapa: { abrir(): void; cerrar(): void; abierto(): boolean };
   misiones: { dialogo(): unknown; alCambiar(fn: (q: string) => void): unknown };
   pesca: { estado: unknown };
   /** U22: «Nombres» lives in «…» on a phone (a tap shows every name for a few seconds). */
@@ -50,7 +50,7 @@ export function montarMovil(o: Opciones): void {
   if (o.simulada) { const z = ZONA_SEGURA_SIMULADA[clase]; for (const [k, v] of Object.entries(z)) html.style.setProperty(`--zs-${k}`, `${v}px`); }
 
   // ---- U26 (for the HUD only): a visible and a short buzzing response to every press ----
-  const pulsado = (e: Event, on: boolean) => { const t = (e.target as Element | null)?.closest?.(".tocable, #accion, #mas, #chat-pill, #ajustes-abrir, #minimapa canvas"); if (t) t.classList.toggle("pulsado", on); };
+  const pulsado = (e: Event, on: boolean) => { const t = (e.target as Element | null)?.closest?.(".tocable, #accion, #mas, #chat-pill, #menu-abrir, #minimapa-abrir"); if (t) t.classList.toggle("pulsado", on); };
   addEventListener("pointerdown", (e) => { pulsado(e, true); const t = (e.target as Element | null)?.closest?.("#accion, #mas, #mas-menu button"); if (t) vibrar(); }, true);
   for (const t of ["pointerup", "pointercancel"]) addEventListener(t, () => document.querySelectorAll(".pulsado").forEach((x) => x.classList.remove("pulsado")), true);
   const noJoystick = (e: Element) => e.addEventListener("pointerdown", (ev) => ev.stopPropagation()); // a tap on a control is not a joystick touch
@@ -87,10 +87,10 @@ export function montarMovil(o: Opciones): void {
   const botonDe = (id: string): HTMLElement | null => { const e = porId(id); return e && !e.hidden && !e.hasAttribute("data-oculto") ? e : null; };
   const extras = (): (Entrada & { clic: () => void })[] => {
     const f: (Entrada & { clic: () => void })[] = [];
-    for (const [id, etiqueta, ic] of [["microfono", "Micrófono", "microphone"], ["gente-abrir", "Gente", "users"], ["foto-abrir", "Foto", "camera"], ["construir", "Construir", "crane-tower"], ["pantalla", "Pantalla completa", "desktop"], ["ar", "AR", "eye"], ["vr", "VR", "eye"]] as const) {
+    for (const [id, etiqueta, ic] of [["microfono", "Micrófono", "microphone"], ["gente-abrir", "Gente", "users"], ["inventario-abrir", "Bolsa", "package"], ["foto-abrir", "Foto", "camera"], ["construir", "Construir", "crane-tower"], ["pantalla", "Pantalla completa", "desktop"], ["ar", "AR", "eye"], ["vr", "VR", "eye"]] as const) {
       const b = botonDe(id); if (b) f.push({ id, etiqueta, icono: ic, clic: () => b.click() });
     }
-    f.push({ id: "ficha", etiqueta: "Ficha", icono: "user", clic: () => o.mapa.botonFicha.click() });
+    f.push({ id: "ficha", etiqueta: "Ficha", icono: "user", clic: () => document.getElementById("hud-personaje-abrir")?.click() }); // ux2-barra: the card's button
     if (o.nombres) f.push({ id: "nombres", etiqueta: "Nombres", icono: "users", clic: () => o.nombres!.unRato() });
     return f;
   };

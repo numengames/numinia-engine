@@ -52,15 +52,27 @@ export function estadoPor(velocidad: number, altura: number): Estado {
  * jog cycle, whichever stride is closer to the speed (a short avatar jogs where a tall one walks); a clip that is
  * missing falls back to the nearest one there is.
  */
-export function clipPara(estado: Estado, velocidad: number, cadera: number, natural: Partial<Record<Clip, number>>, hay: (c: Clip) => boolean): { clip: Clip; ritmo: number } | null {
+export function clipPara(estado: Estado, velocidad: number, cadera: number, natural: Partial<Record<Clip, number>>, hay: (c: Clip) => boolean, duracion: Partial<Record<Clip, number>> = {}): { clip: Clip; ritmo: number } | null {
   const orden: Clip[] = estado === "quieto" ? ["quieto"] : estado === "saltar" ? ["saltar", "quieto"]
     : estado === "correr" ? ["correr", "trotar", "andar", "quieto"] : elegirPaso(velocidad / Math.max(0.1, cadera), natural);
   const clip = orden.find(hay);
   if (!clip) return null;
-  const n = natural[clip] ?? 0;
-  const ritmo = n > 0 && clip !== "quieto" && clip !== "saltar" ? Math.min(2, Math.max(0.5, velocidad / (n * Math.max(0.1, cadera)))) : 1;
+  const n = natural[clip] ?? 0, h = Math.max(0.1, cadera);
+  let ritmo = n > 0 && clip !== "quieto" && clip !== "saltar" ? velocidad / (n * h) : 1; // the feet stay still on the ground
+  // N1b (Pablo, 16-10: «va como corriendo despacito»): the house jog and sprint loops take 2 long steps per loop, so
+  // played at the speed that keeps the feet still they bound in slow motion (≈ 90 steps a minute at 4 m/s). Meet a
+  // natural step rate half way (geometric mean): `CADENCIA` steps a second for hips of 0.9 m, faster for shorter legs
+  // (∝ 1/√hips, like a pendulum); the feet slide a little, the gait stops floating.
+  const d = duracion[clip] ?? 0;
+  if ((clip === "trotar" || clip === "correr") && d > 0 && ritmo > 0) {
+    const porCadencia = (CADENCIA[clip] * Math.sqrt(0.9 / h)) / (2 / d);
+    ritmo = Math.sqrt(ritmo * porCadencia);
+  }
+  if (clip !== "quieto" && clip !== "saltar") ritmo = Math.min(2, Math.max(0.5, ritmo));
   return { clip, ritmo };
 }
+/** Steps a second a person of hips 0.9 m takes jogging and sprinting (our choice, ≈ 165 and 190 steps a minute). */
+export const CADENCIA = { trotar: 2.75, correr: 3.15 } as const;
 function elegirPaso(relativa: number, natural: Partial<Record<Clip, number>>): Clip[] {
   const a = natural.andar ?? 0.8, t = natural.trotar ?? 5.2;
   return relativa < Math.sqrt(a * t) ? ["andar", "trotar", "quieto"] : ["trotar", "andar", "quieto"];
@@ -129,4 +141,47 @@ export function nivelBoca(rms: number): number {
 export function decaerBoca(anterior: number, rms: number | null, factor = 0.55): number {
   const decaido = anterior * factor;
   return rms === null ? decaido : Math.max(decaido, nivelBoca(rms));
+}
+
+// ---- J7b: moves (the movement wheel) over the speed-driven clips ----
+/** A move as the view plays it (same shape as the feature's MovimientoVista; render does not import packages/feature). */
+export type Movimiento = { id: string; clips: readonly string[]; modo: "una" | "bucle" | "quedarse"; hastaS: number; viva: boolean };
+/** One avatar's move in progress. `desde` = when its first clip started (ms), null while its files are still loading. */
+export type EnCurso = { mov: Movimiento; pedido: number; desde: number | null; serie: number };
+/** A move whose files have not all arrived after this long is dropped (a slow network must not freeze someone later). */
+export const ESPERA_CARGA_MS = 5000;
+let series = 0;
+export const empezarMovimiento = (mov: Movimiento, ahora: number): EnCurso => ({ mov, pedido: ahora, desde: null, serie: ++series });
+
+/** What to play now for a move: `fin` (over: back to the speed-driven clip), `esperar` (files loading: keep what plays)
+ * or a clip with `bucle` (loop it) and `tramo` (which of its clips: a new tramo restarts the action). Walking or jumping
+ * (`estado` other than quieto) ends any move at once, on every screen, because every screen sees the same walk. */
+export function pasoDeMovimiento(e: EnCurso, ahora: number, estado: Estado, duracion: (clip: string) => number | undefined, listo: (clip: string) => boolean):
+  { fin: true } | { fin: false; esperar: true } | { fin: false; esperar: false; clip: string; bucle: boolean; tramo: number; mantener: boolean } {
+  if (estado !== "quieto") return { fin: true };
+  const clips = e.mov.clips;
+  if (!clips.length) return { fin: true };
+  if (e.desde === null) {
+    if (clips.every(listo)) e.desde = ahora;
+    else return ahora - e.pedido > ESPERA_CARGA_MS ? { fin: true } : { fin: false, esperar: true };
+  }
+  let t = (ahora - e.desde) / 1000;
+  if (t > e.mov.hastaS) return { fin: true };
+  for (let i = 0; i < clips.length - 1; i++) { // the lead-in clips play once each (sit down, then sit)
+    const d = duracion(clips[i]) ?? 0;
+    if (t < d) return { fin: false, esperar: false, clip: clips[i], bucle: false, tramo: i, mantener: false };
+    t -= d;
+  }
+  const ultimo = clips.length - 1, d = duracion(clips[ultimo]) ?? 0;
+  if (e.mov.modo === "bucle") return { fin: false, esperar: false, clip: clips[ultimo], bucle: true, tramo: ultimo, mantener: false };
+  if (e.mov.modo === "quedarse") return { fin: false, esperar: false, clip: clips[ultimo], bucle: false, tramo: ultimo, mantener: true };
+  return t < d ? { fin: false, esperar: false, clip: clips[ultimo], bucle: false, tramo: ultimo, mantener: false } : { fin: true };
+}
+
+/** Does a move keep the page drawing? Lively ones and the lead-ins do; a calm loop or a held pose draws at the idle rate. */
+export function movimientoOcupa(e: EnCurso, ahora: number, duracion: (clip: string) => number | undefined): boolean {
+  if (e.mov.viva || e.desde === null) return true;
+  let entrada = 0;
+  for (const c of e.mov.modo === "bucle" ? e.mov.clips.slice(0, -1) : e.mov.clips) entrada += duracion(c) ?? 0;
+  return (ahora - e.desde) / 1000 < entrada + FUNDIDO_S;
 }

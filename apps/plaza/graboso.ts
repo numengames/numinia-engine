@@ -1,5 +1,5 @@
-// graboso (M18b): the page's side of the Graboso, the relic that records what you see. A «Graboso» button in the top
-// bar and the K key take it out (it starts recording at once) and put it away (the clip is kept); the hard cap
+// graboso (M18b): the page's side of the Graboso, the relic that records what you see. A «Grabar» entry in the top
+// bar's «Cámara» menu and the K key take it out (it starts recording at once) and put it away (the clip is kept); the hard cap
 // (packages/client/src/graboso.ts, 30–60 s) puts it away by itself. Video = canvas.captureStream() of the engine's
 // canvas (what your camera sees, HUD excluded); audio = your microphone with the browser's permission (denied or no
 // https → silent clip, said aloud). A pill at the top centre shows «● 0:12 / 1:00» and, after, Descargar / Ver / Quitar.
@@ -7,6 +7,7 @@
 // A CONECTAR CON Y1 (el inventario) cuando se fusione: hoy todo jugador tiene el Graboso (acceso directo); entonces el
 // botón saldrá solo si el inventario trae una reliquia `clase: "graboso"` portada, y «Invocar» irá también en el panel L.
 // Design: ../../../mmo-browser-study/GRABOSO-DISENO.md.
+import { icono } from "./iconos.ts";
 import { crearGraboso, elegirFormato, TOPE_S, type Clip, type Estado, type Grabador } from "../../packages/client/src/graboso.ts";
 import { escribiendo } from "./escribiendo.ts";
 
@@ -75,8 +76,10 @@ export function montarGraboso(o: OpcionesGraboso) {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const boton = document.createElement("button");
   boton.type = "button"; boton.id = "graboso"; boton.setAttribute("aria-pressed", "false"); boton.setAttribute("aria-keyshortcuts", "K");
-  boton.textContent = "Graboso";
-  boton.title = "El Graboso (K): sácalo y graba lo que ves y dices, de 30 s a 1 min; guárdalo y descarga el clip.";
+  // ux2-barra: «Grabar», an entry of the bar's «Cámara» menu (K still takes the Graboso out and puts it away)
+  const etiqueta = (t: string) => { boton.innerHTML = `${icono("record")}<span class="solo-lector">${t}</span>`; }; // constants only
+  etiqueta("Grabar");
+  boton.title = "Grabar (K): el Graboso graba lo que ves y dices, de 30 s a 1 min; guárdalo y descarga el clip.";
   if (o.barra) o.barra.appendChild(boton); else document.body.appendChild(boton);
   boton.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
 
@@ -99,7 +102,7 @@ export function montarGraboso(o: OpcionesGraboso) {
   const pintar = (e: Estado) => {
     const fuera = e.fase !== "guardado";
     boton.setAttribute("aria-pressed", String(fuera));
-    boton.textContent = e.fase === "grabando" ? "Guardar" : e.fase === "despertando" ? "Graboso…" : "Graboso";
+    etiqueta(e.fase === "grabando" ? "Guardar" : e.fase === "despertando" ? "Grabar…" : "Grabar");
     o.view.graboso.mostrar(fuera); o.view.graboso.grabando(e.fase === "grabando");
     hud.classList.toggle("visible", fuera || !!e.clip);
     hud.classList.toggle("listo", !fuera && !!e.clip);

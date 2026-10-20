@@ -6,7 +6,7 @@
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { ServerApi } from "../../packages/feature/src/index.ts";
 import {
-  teletransporte, ESPERA_S, DESMATERIALIZAR_TICKS, FOTO_VENTANA_S, JUNTO_M, FOTO_M, FOTO_CAIDA_M, GENTE_MAX, VARIANTES, VER_M, NOMBRE_MAX, MUNDO,
+  teletransporte, huellaDe, ESPERA_S, DESMATERIALIZAR_TICKS, FOTO_VENTANA_S, JUNTO_M, FOTO_M, FOTO_CAIDA_M, GENTE_MAX, VARIANTES, VER_M, NOMBRE_MAX, MUNDO,
 } from "./feature.ts";
 
 const TICKS_POR_SEGUNDO = 20; // the sim's TICK_HZ (features import only core, schema, feature)
@@ -38,7 +38,7 @@ export function rumboHacia(x0: number, z0: number, x1: number, z1: number): numb
   return ((Math.round(Math.atan2(dx, dz) / (Math.PI / 4)) % 8) + 8) % 8;
 }
 
-type Destino = { tipo: "persona"; quien: number } | { tipo: "punto"; x: number; y: number; z: number };
+type Destino = { tipo: "persona"; quien: number } | { tipo: "punto"; x: number; y: number; z: number; nombre?: string };
 type Viaje = { destino: Destino; cuando: number; variante: number; porChat: boolean; foto: boolean; };
 
 /** `foto`: the world lets people appear at a photo's place (entorno.json `aparicionFoto`; features/mundo.ts reads it). */
@@ -98,11 +98,24 @@ export const crearTeletransporte = (o: { foto?: boolean } = {}) => serverPart(te
     if (porChat) responder(from, true, `Vas con ${nombreDe(quien)}…`, true);
   };
 
+  // U27 (MVL1): go to a marked site of the map (own x, z picked there; own height — the server snaps to the floor nearby).
+  const punto = (from: number, x: number, z: number, nombre: string) => {
+    if (!activo) return responder(from, false, APAGADO, false);
+    if (viajes.has(from)) return responder(from, false, "Ya vas de camino.", false);
+    const espera = (ultimo.get(from) ?? -Infinity) + ESPERA_S * TICKS_POR_SEGUNDO - api.tick();
+    if (espera > 0) return responder(from, false, `Espera ${Math.ceil(espera / TICKS_POR_SEGUNDO)} s para volver a viajar.`, false);
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return responder(from, false, "Ese sitio no es válido.", false);
+    const p = api.position(from);
+    if (!p) return;
+    empezar(from, { tipo: "punto", x, y: p.y, z, nombre: limpiar(nombre, NOMBRE_MAX) || undefined }, false, false);
+  };
+
   api.on("ir", (from, m) => ir(from, Number(m.quien), false));
+  api.on("punto", (from, m) => punto(from, Number(m.x), Number(m.z), String(m.nombre ?? "")));
   api.on("gente", (from) => {
     const lista = gente(from), total = Math.min(lista.length, GENTE_MAX);
-    if (!total) { api.emit("persona", { quien: 0, nombre: "", n: 0, total: 0, todos: 0 }, { to: from }); return; }
-    lista.slice(0, total).forEach((p, n) => api.emit("persona", { quien: p.e, nombre: p.nombre, n, total, todos: lista.length }, { to: from }));
+    if (!total) { api.emit("persona", { quien: 0, nombre: "", n: 0, total: 0, todos: 0, huella: "" }, { to: from }); return; }
+    lista.slice(0, total).forEach((p, n) => api.emit("persona", { quien: p.e, nombre: p.nombre, n, total, todos: lista.length, huella: huellaDe(api.who(p.e)?.id ?? "") }, { to: from }));
   });
   const encontrable = (from: number, si: boolean, porChat: boolean) => {
     const w = api.who(from);
@@ -144,9 +157,13 @@ export const crearTeletransporte = (o: { foto?: boolean } = {}) => serverPart(te
           donde = api.teletransportar(e, q, { radios: JUNTO_M, rumbo: rumboHacia(q.x, q.z, p.x, p.z), caida: 1 });
           motivo = donde ? `Estás junto a ${a}.` : `No hay sitio libre junto a ${a}: vuelves donde estabas.`;
         }
-      } else {
-        donde = api.teletransportar(e, v.destino, { radios: v.foto ? FOTO_M : [0, 1, 2], caida: v.foto ? FOTO_CAIDA_M : 1 });
+      } else if (v.foto) {
+        donde = api.teletransportar(e, v.destino, { radios: FOTO_M, caida: FOTO_CAIDA_M });
         motivo = donde ? "Estás donde se hizo la foto." : "No hay sitio libre donde se hizo la foto: sigue la luz hasta allí.";
+      } else {
+        const sitio = v.destino.nombre ? ` en ${v.destino.nombre}` : "";
+        donde = api.teletransportar(e, v.destino, { radios: [0, 1, 2], caida: 1 });
+        motivo = donde ? `Has llegado${sitio}.` : `No hay sitio libre${sitio}: sigue la luz hasta allí.`;
       }
       const fin = donde ?? p; // no trip: the light leaves you where you were
       api.emit("llega", { quien: e, nombre: nombreDe(e), x: fin.x, y: fin.y, z: fin.z, variante: v.variante }, { near: e, radius: VER_M });

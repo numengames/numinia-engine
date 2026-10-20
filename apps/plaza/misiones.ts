@@ -16,6 +16,7 @@ import { icono } from "./iconos.ts";
 import { anunciar } from "./paneles.ts";
 import { esTactil, perfil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
 import { cercaDeAlguien } from "../../packages/client/src/movil.ts"; // U24: no «pulsa E» on a phone
+import { audio } from "../../packages/render/src/audio/nucleo.ts"; // S1: one audio graph for the whole engine
 
 type Res = { ok: true } | { ok: false; why: string };
 type Paso = { n: number; texto: string; hecho: boolean; donde: string; tipo?: string; espera?: number; listoEn?: number };
@@ -77,9 +78,11 @@ export function esObjeto(texto: string, m: { lista: readonly Paso[] } | undefine
   return /^Has recibido: /.test(texto) || !!m?.lista.some((s) => s.tipo === "coge" && s.texto === texto);
 }
 
-/** The house sounds as short Web Audio notes, made here (no file), until V6 gives every announcement its real sound:
- * per sound a wave and its notes [Hz, start s, length s]. «exito» is a step done (U14 (3)); a sequence (U14 (5)) may ask
- * for any of the engine's sounds (packages/feature SOUNDS). */
+/** S6: the house sounds are FILES now (`features/sonido/catalogo.json`, all CC0), played on the audio core's
+ * «interfaz» bus and WITHOUT a panner: a notice lives in the head, not in the world. These oscillator notes stay as
+ * the **fallback** for when the catalogue is not there yet (the first seconds of the page, a browser with no Web
+ * Audio, a world that does not serve `/sonidos.json`): per sound a wave and its notes [Hz, start s, length s]. Every
+ * notice keeps its text in the announcement, catalogue or not (XAUR, WCAG 2.2): whoever does not hear, reads. */
 export const NOTAS_CASA: Record<string, { onda: OscillatorType; notas: [number, number, number][] }> = {
   exito: { onda: "triangle", notas: [[523.25, 0, 0.1], [659.25, 0.08, 0.1], [783.99, 0.16, 0.24]] },
   magia: { onda: "sine", notas: [[783.99, 0, 0.14], [1046.5, 0.07, 0.14], [1318.51, 0.14, 0.16], [1567.98, 0.21, 0.4]] },
@@ -94,35 +97,54 @@ export const NOTAS_EXITO: readonly (readonly [number, number, number])[] = NOTAS
 /** U14 (6): «Misión completada» — a C major chord (C5 E5 G5 C6) held under a second, coming in just after the three
  * notes of the step that completed the quest (both arrive in the same moment): one short fanfare, no file to load. */
 export const ACORDE_COMPLETADA: readonly (readonly [number, number, number])[] = [[523.25, 0.3, 0.9], [659.25, 0.3, 0.9], [783.99, 0.3, 0.9], [1046.5, 0.3, 0.9]];
-/** Play one house sound at the settings' general × effects volume (0 = silent). Returns whether it sounded. */
-export function sonarCasa(ctx: () => AudioContext | null, ajuste: (id: string) => unknown, sonido = "exito"): boolean {
+/** S6: the catalogue of the house, as `sonarCasa` needs it. Injectable so a test can play without Web Audio. */
+export type CatalogoCasa = { listo(): boolean; casa(nombre: string): string | null; suena(p: { id: string; donde?: null; texto?: string }): boolean };
+/** S6: which catalogue `sonarCasa` asks first. The page sets it once (apps/plaza/main.ts); a test puts a fake one. */
+let catalogoCasa: CatalogoCasa | null = null;
+export function ponerCatalogoCasa(c: CatalogoCasa | null): void { catalogoCasa = c; }
+export const catalogoDeCasa = (): CatalogoCasa | null => catalogoCasa;
+
+/** Play one house sound at the settings' general × effects volume (0 = silent). Returns whether it sounded.
+ *  `salida` (S1) is the audio core's «interfaz» bus: when it is there, the person's volume lives in the graph's VCA
+ *  (packages/render/src/audio/nucleo.ts) and is not applied twice here.
+ *  S6: the FILE first (the catalogue's `ui-*`, on the «interfaz» bus and with no panner: a notice is in your head);
+ *  the oscillator notes only when the catalogue cannot (no table yet, no audio, an id it does not know). */
+export function sonarCasa(ctx: () => AudioContext | null, ajuste: (id: string) => unknown, sonido = "exito", salida?: (c: AudioContext) => AudioNode | null): boolean {
+  if (sonarDelCatalogo(sonido)) return true;
   const s = NOTAS_CASA[sonido];
-  return !!s && sonar(ctx, ajuste, s.onda, s.notas, 0.2);
+  return !!s && sonar(ctx, ajuste, s.onda, s.notas, 0.2, salida);
 }
-export function sonarCompletada(ctx: () => AudioContext | null, ajuste: (id: string) => unknown): boolean {
-  return sonar(ctx, ajuste, "triangle", ACORDE_COMPLETADA, 0.07); // four notes at once: each one softer
+export function sonarCompletada(ctx: () => AudioContext | null, ajuste: (id: string) => unknown, salida?: (c: AudioContext) => AudioNode | null): boolean {
+  if (sonarDelCatalogo("completada")) return true;
+  return sonar(ctx, ajuste, "triangle", ACORDE_COMPLETADA, 0.07, salida); // four notes at once: each one softer
 }
-function sonar(ctx: () => AudioContext | null, ajuste: (id: string) => unknown, onda: OscillatorType, notas: readonly (readonly [number, number, number])[], fuerza: number): boolean {
+/** S6: try the house catalogue for this notice name. `donde: null` = no panner, in the head. */
+function sonarDelCatalogo(nombre: string): boolean {
+  const c = catalogoCasa;
+  if (!c?.listo()) return false;
+  const id = c.casa(nombre);
+  if (!id) return false;
+  try { return c.suena({ id, donde: null }); } catch { return false; }
+}
+function sonar(ctx: () => AudioContext | null, ajuste: (id: string) => unknown, onda: OscillatorType, notas: readonly (readonly [number, number, number])[], fuerza: number, salida?: (c: AudioContext) => AudioNode | null): boolean {
   try {
-    const vol = (Number(ajuste("general") ?? 80) / 100) * (Number(ajuste("efectos") ?? 80) / 100) * fuerza;
-    if (!(vol > 0)) return false;
     const c = ctx();
     if (!c) return false;
+    const destino = salida?.(c) ?? null;
+    // the ids carry their group («sonido.general», not «general»): the settings registry indexes them as
+    // `${grupo}.${nombre}` (packages/client/src/ajustes.ts), so a bare name read undefined and nothing ever moved
+    const vol = destino ? fuerza : (Number(ajuste("sonido.general") ?? 80) / 100) * (Number(ajuste("sonido.efectos") ?? 80) / 100) * fuerza;
+    if (!(vol > 0)) return false;
     if (c.state === "suspended") void c.resume().catch(() => {});
     const t = c.currentTime;
     for (const [f, t0, dur] of notas) {
       const o = c.createOscillator(), g = c.createGain();
       o.type = onda; o.frequency.value = f;
       g.gain.setValueAtTime(0, t + t0); g.gain.linearRampToValueAtTime(vol, t + t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.001, t + t0 + dur);
-      o.connect(g).connect(c.destination); o.start(t + t0); o.stop(t + t0 + dur + 0.05);
+      o.connect(g).connect(destino ?? c.destination); o.start(t + t0); o.stop(t + t0 + dur + 0.05);
     }
     return true;
   } catch { return false; } // no audio here: the note and the screen reader still say it
-}
-/** The short positive sound of a step done (its `avance` announcement declares «exito»; until V6 gives every
- * announcement its own sound, the book plays this one): three rising notes. Returns whether it sounded. */
-export function sonarExito(ctx: () => AudioContext | null, ajuste: (id: string) => unknown): boolean {
-  return sonarCasa(ctx, ajuste, "exito");
 }
 /** U14 (5): how many seconds a step still waits on this page's clock — 0 = none; at least 1 until the server sends the
  * book that opens it. */
@@ -283,8 +305,9 @@ export function montarLibro(c: Ctl, o: {
     if (que === "nota" && c.estado.nota) mostrarNota(c.estado.nota);
   });
   // the server's events after the controller has taken them (listeners run before taps): its note is already set
-  let audio: AudioContext | null = null;
-  const contexto = () => { try { return (audio ??= new AudioContext()); } catch { return null; } };
+  // S1: the house avisos go out through the audio core's «interfaz» bus — one graph, one context, never their own
+  const contexto = () => audio().ctx();
+  const salida = () => audio().bus("interfaz");
   // U14 (6): «Misión completada» — the banner: what you finished and what you got, in the world's look (tema.css); it
   // takes neither the keyboard nor a click, it is read once by screen readers (main.ts leaves this event out of the
   // general announcements) and the small note that says the same steps aside while it shows
@@ -305,14 +328,14 @@ export function montarLibro(c: Ctl, o: {
     if (event === "aceptada") { solo.aceptada(); quizasAbrir(); }
     if (event === "avance") {
       if (esObjeto(String(msg.texto ?? ""), c.libro().find((m) => m.id === String(msg.mision)))) mostrarNota(c.estado.nota, true);
-      if (o.ajuste) sonarExito(contexto, o.ajuste);
+      // a step done is silent (it is frequent): only the whole mission, a rare milestone, sounds
     }
-    if (event === "completada") { mostrarCompletada(msg); if (o.ajuste) sonarCompletada(contexto, o.ajuste); }
+    if (event === "completada") { mostrarCompletada(msg); if (o.ajuste) sonarCompletada(contexto, o.ajuste, salida); }
   });
   // U14 (5): a sequence's lines are read aloud (the note itself is hidden from screen readers) and its sounds play
   c.alSecuencia?.((s) => {
     if (s.tipo === "texto" && s.texto) anunciar(s.texto);
-    if (s.tipo === "sonido" && s.sonido && o.ajuste) sonarCasa(contexto, o.ajuste, s.sonido);
+    if (s.tipo === "sonido" && s.sonido && o.ajuste) sonarCasa(contexto, o.ajuste, s.sonido, salida);
   });
   let esperas = ""; // U14 (5): the countdowns shown in the open book
   setInterval(() => {

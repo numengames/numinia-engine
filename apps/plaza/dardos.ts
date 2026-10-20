@@ -5,6 +5,7 @@
 // · Phone (touch): put your finger on the board (the crosshair sits a bit above it, so you see it) and FLICK upward:
 //   the faster the flick, the harder the throw (a lazy one drops, a wild one climbs); the aim is where the flick began.
 // · Keyboard: arrows aim, hold Space and release to throw, Esc leaves.
+// · VR (where the device has it): take a dart with the grip or a pinch and throw it with your hand (dardos-vr.ts).
 // · AR (where the device has it): «En tu pared (AR)» — the board hangs on your real wall, life size (dardos-ar in
 //   packages/render/src/dardos.ts).
 // Everything asked goes through the controller (features/dardos/client.ts): the server decides where each dart lands.
@@ -26,10 +27,13 @@ type Dardos = {
   alCambiar(fn: (que: "estado" | "sitios" | "clavados" | "duelo") => void): () => void;
 };
 type Vista = {
-  dardos: { sitios(l: Sitio[]): void; clavados(l: Dardo[]): void } & Partial<PlazaDianas>;
+  dardos: { sitios(l: Sitio[]): void; clavados(l: Dardo[]): void; apuntar(id: string, origen: { x: number; y: number; z: number }, dir: { x: number; y: number; z: number }): { x: number; y: number } | null } & Partial<PlazaDianas>;
   dardosAR(o: { alLanzar: (x: number, y: number, fuerza: number) => void; alColocar?: (pared: boolean) => void; envolver?: (j: DianaAR) => DianaAR }): Promise<DianaAR | null>;
   arSupported(): Promise<boolean>;
+  vrSupported(): Promise<boolean>;
   ar: { exit(): Promise<void>; readonly jugando: boolean };
+  vr: { active: boolean; nota?(t: string): void };
+  manos?: { on(fn: (e: { tipo: string; lado: "izq" | "der" }) => void): () => void; rayo(lado: "izq" | "der"): { origen: { x: number; y: number; z: number }; dir: { x: number; y: number; z: number } } | null; vibrar(lado: "izq" | "der", v?: number, ms?: number): void };
 };
 
 /** How long the turn's result stays (ms) after the third dart. */
@@ -230,9 +234,12 @@ export function montarDardos(o: { dardos: Dardos; view: Vista; session: { entity
   });
   view.dardos.sitios(dardos.sitios()); view.dardos.clavados(dardos.clavados());
   hud.hidden = true;
+  // VR: throw with the hand (dardos-vr.ts). Only a headset-capable device fetches it, after start, never before requestSession.
+  let vrApi: unknown = null;
+  void view.vrSupported().then((ok) => ok ? import("./dardos-vr.ts") : null).then((m) => m && m.montarDardosVR({ dardos, view: view as never, yo: () => o.session.entity })).then((a) => { vrApi = a; }).catch((e) => console.warn(`[dardos] VR: ${(e as Error)?.message ?? e}`));
   const api = {
     abierto: () => abierto, apuntar: (x: number, y: number) => { aim = { x, y }; }, apuntado, potencia: () => potenciaAhora(), cargando: () => cargando,
-    ar: () => arJuego?.estado() ?? null, duelo: () => duelo.vista(), flick: () => ultimoFlick, abrir, cerrar,
+    ar: () => arJuego?.estado() ?? null, duelo: () => duelo.vista(), flick: () => ultimoFlick, abrir, cerrar, vr: () => vrApi,
   };
   (globalThis as unknown as { __numinia?: Record<string, unknown> }).__numinia && (((globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia).dardosHud = api);
   return api;

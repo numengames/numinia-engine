@@ -2,6 +2,7 @@
   "formato": "pnj@1",
   "id": "bruno",
   "nombre": "Bruno, el farolero",
+  "voz": "hombre-joven",
   "descripcion": "Cuida de los faroles de la plaza. Ha perdido su caja de herramientas.",
   "posicion": { "x": 10, "z": 8 },
   "giro": -90,

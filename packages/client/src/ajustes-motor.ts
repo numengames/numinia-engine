@@ -95,6 +95,31 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     grupo: "controles", id: "zonaMuerta", tipo: "numero", min: 0, max: 50, paso: 5, unidad: "%", nombre: "Zona muerta del mando",
     describe: "Cuánto hay que mover una palanca antes de que cuente. Más: ignora el temblor de palancas gastadas; menos: respuesta más fina.", defecto: 15, requiere: ["camara", "mando"],
   },
+  {
+    grupo: "controles", id: "modoMovimientoVR", tipo: "eleccion", nombre: "Dirección al andar en VR",
+    describe: "Hacia dónde tira la palanca izquierda del visor: tu mirada, tu mando, o tu cuerpo (mirar no cambia el rumbo).",
+    opciones: [{ valor: "mirada", nombre: "Según la mirada" }, { valor: "mando", nombre: "Según el mando" }, { valor: "cuerpo", nombre: "De lado (según el cuerpo)" }],
+    defecto: "mirada", requiere: ["xrVr"],
+  },
+  // Rediseño v2 (story E): the VR menu's «Ajustes» — the same rows on the computer and in the headset
+  {
+    grupo: "controles", id: "giroVR", tipo: "eleccion", nombre: "Giro en VR",
+    describe: "Cuánto gira la vista con cada empujón de la palanca derecha del visor.",
+    opciones: [{ valor: "15", nombre: "15°" }, { valor: "30", nombre: "30°" }, { valor: "45", nombre: "45°" }],
+    defecto: "30", requiere: ["xrVr"],
+  },
+  {
+    grupo: "controles", id: "velocidadVR", tipo: "numero", min: 40, max: 100, paso: 10, unidad: "%", nombre: "Velocidad al andar en VR",
+    describe: "Lo deprisa que te lleva la palanca izquierda del visor. Menos: más cómodo si te mareas.", defecto: 100, requiere: ["xrVr"],
+  },
+  {
+    grupo: "controles", id: "confortVR", tipo: "numero", min: 0, max: 100, paso: 10, unidad: "%", nombre: "Viñeta de confort en VR",
+    describe: "Cuánto se oscurecen los bordes de la vista mientras te mueves o giras. 0: nada.", defecto: 80, requiere: ["xrVr"],
+  },
+  {
+    grupo: "controles", id: "alturaVR", tipo: "numero", min: -30, max: 60, paso: 10, unidad: "cm", nombre: "Altura en VR",
+    describe: "Sube o baja tu vista en el visor; súbela si juegas sentado.", defecto: 0, requiere: ["xrVr"],
+  },
   { grupo: "controles", id: "teclaAjustes", tipo: "tecla", soloVer: true, nombre: "Abrir y cerrar los ajustes", describe: "La tecla que abre este menú. Escape también lo cierra.", defecto: "KeyO" },
   { grupo: "controles", id: "teclaDensidad", tipo: "tecla", soloVer: true, nombre: "Cambiar la densidad de interfaz", describe: "La tecla que pasa de Mínimo a Normal, a Completo y vuelta.", defecto: "KeyU" },
   { grupo: "controles", id: "teclaBateria", tipo: "tecla", soloVer: true, nombre: "Modo batería", describe: "La tecla que enciende y apaga el modo batería.", defecto: "KeyB" },
@@ -135,6 +160,8 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     describe: "El reloj junto al minimapa: la hora de tu aparato o la hora universal (UTC), la misma para todos.",
     opciones: [{ valor: "local", nombre: "Local" }, { valor: "utc", nombre: "UTC" }], defecto: "local",
   },
+  // ux2-barra: was the «N» button under the minimap; a setting now (the minimap keeps no buttons)
+  { grupo: "interfaz", id: "minimapaGira", tipo: "bool", nombre: "El minimapa gira con la cámara", describe: "Apagado: el norte siempre arriba. Encendido: lo que tienes delante queda arriba.", defecto: false },
   { grupo: "interfaz", id: "ayuda", tipo: "bool", nombre: "Ayuda de teclas", describe: "La línea de abajo que dice qué tecla hace qué.", defecto: true },
   // U25: the device profile, forced (development or ?debug only: `desarrollo`). The page decides it once before the
   // first frame (packages/client/src/aparato.ts), so a change reloads the page. ?aparato=… does the same for one load.

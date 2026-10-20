@@ -17,6 +17,8 @@ import { dardos, FUERZA_IDEAL, TURNO_INACTIVO_S } from "../features/dardos/featu
 import { crearDardos, sectorDe, resolverTiro, polar, aterrizaje, azarDe, textoDe, rumboHaciaElCentro, ANILLOS, SECTORES, HZ, TEMBLOR, SITIOS_DEFECTO } from "../features/dardos/server.ts";
 import { crearCliente } from "../features/dardos/client.ts";
 import { ANILLOS_DIANA, SECTORES_DIANA, caraAPixel, pixelACara } from "../packages/render/src/diana.ts";
+import { rayoEnCara, potenciaDe } from "../packages/render/src/dardos.ts";
+import * as THREE from "three/webgpu";
 import funciones from "../features/servidor.ts";
 import paginas from "../features/cliente.ts";
 
@@ -194,4 +196,23 @@ test("MUNDO_DIR: dardos.json with valid JSON but no `sitios` array logs why and 
   writeFileSync(join(dir, "dardos.json"), JSON.stringify({ sitios: [{ id: "taberna", nombre: "Diana de la taberna", x: 3, z: 4, rumbo: 90 }] }));
   const otras = conMundo(funciones, leerMundo(dir, () => {}), () => {});
   assert.notEqual(otras.find((p) => p.feature.id === "dardos"), funciones.find((p) => p.feature.id === "dardos"));
+});
+
+// ---- VR (motor-vr t_5f6ff048): darts had no controller/hand throw in immersive-vr (only PC, phone and AR) — a
+// trigger near the board opened the turn (via the generic interact) and then nothing threw a dart. `rayoEnCara`
+// (the plaza board's ray math, shared with the AR wall) and `dardos-vr.ts` (a physical throw with the hand; see
+// test/dardos-vr.test.ts) now cover it. ----
+
+test("rayoEnCara: a ray straight at the face's centre lands at (0, 0); offset rays scale by the board's real radius", () => {
+  const cara = new THREE.Matrix4(); // identity: the face's own space is the world here
+  assert.deepEqual(rayoEnCara(cara.clone().invert(), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)), { x: 0, y: 0 });
+  // RADIO_M (packages/render/src/diana.ts) = 0.17 m: a ray 0.17 m to the right of the centre lands at x = 1 (the double's outer edge)
+  const p = rayoEnCara(cara.clone().invert(), new THREE.Vector3(0.17, 0, 1), new THREE.Vector3(0, 0, -1))!;
+  assert.ok(Math.abs(p.x - 1) < 1e-6 && p.y === 0, JSON.stringify(p));
+  // a wild throw clamps to the board's [-3, 3] radii (client.lanzar clamps the same way): never "too far"
+  const lejos = rayoEnCara(cara.clone().invert(), new THREE.Vector3(5, 0, 1), new THREE.Vector3(0, 0, -1))!;
+  assert.equal(lejos.x, 3);
+  // parallel to the face, or pointing away from it: no throw (null), not a wrong one
+  assert.equal(rayoEnCara(cara.clone().invert(), new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0)), null);
+  assert.equal(rayoEnCara(cara.clone().invert(), new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0, -1)), null);
 });

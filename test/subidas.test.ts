@@ -117,7 +117,9 @@ test("upload: stored once by its sha256, served like the library, the second tim
     assert.match(g.headers.get("cache-control") ?? "", /immutable/);
     assert.equal(g.headers.get("content-type"), "model/gltf-binary");
     assert.equal(sha(new Uint8Array(await g.arrayBuffer())), h);
-    const head = await fetch(url(h), { method: "HEAD" });
+    // identity: the gzip copy is made in the background after the GET; a fetch that accepts gzip would get its
+    // (smaller) length once it is ready, and on a fast machine it already is (CI after #170: 650 !== 1604)
+    const head = await fetch(url(h), { method: "HEAD", headers: { "accept-encoding": "identity" } });
     assert.equal(head.status, 200);
     assert.equal(head.headers.get("content-length"), String(mio.length));
     const lineas = readFileSync(join(dir, "subidas.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));

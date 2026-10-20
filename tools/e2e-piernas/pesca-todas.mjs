@@ -7,7 +7,7 @@
 //  3. VR (IWER as a Quest 3): a rod stands on a holder on the boardwalk; the right controller at its handle makes it
 //     glow, the grip takes it (in the real hand); a flick forward casts (a float lands); at the bite a sharp lift hooks;
 //     the trigger reels the fight to the end; the rod buzzes (haptics) and a gauge above it says what to do. Grip
-//     again: the rod is back on its holder. Then with TRACKED HANDS: a pinch at the handle takes it, a flick casts, a
+//     again: the rod is back on its holder. The bite and the catch SOUND (hud.dataset.sonidos), the nibble too when it came. Then with TRACKED HANDS: a pinch at the handle takes it, a flick casts, a
 //     pinch at the holder puts it back (after letting go). 0 page errors.
 // Needs the server + page running (tools/auto.sh e2e starts them). Env: BASE; SHOTS=<folder> saves pictures. Exit 0 = right.
 import { createRequire } from "node:module";
@@ -204,6 +204,8 @@ const XR = IWER + `;
   globalThis.__levantar = (inp) => { const N = globalThis.__numinia, m = N.view.pesca.mirada() ?? { x: 0, z: -1 }, me = N.session.selfPosition(1);
     const a = { x: me.x + m.x * 0.5 + 0.2, y: me.y + 1.0, z: me.z + m.z * 0.5 }, b = { x: me.x + m.x * 0.3 + 0.2, y: me.y + 1.9, z: me.z + m.z * 0.3 };
     return globalThis.__barrer(inp, a, b, 220); };`;
+/** The bite sounded (and the catch after it); a nibble sounded too if the rod buzzed for one (it is random: 65 % of casts). */
+const sonidoOk = (s = [], z = []) => s.includes("picada") && s.lastIndexOf("exito") > s.indexOf("picada") && (!z.some(([, , ph]) => ph === "mordisqueo") || s.includes("mordisqueo"));
 async function vr() {
   const { ctx, p } = await abrir({}, XR);
   const r = {};
@@ -270,6 +272,7 @@ async function vr() {
       await p.waitForTimeout(800);
     }
     r.zumbidos = await ctl(p, () => globalThis.__zumbidos);
+    r.sonidos = await ctl(p, () => (document.getElementById("pesca-hud").dataset.sonidos ?? "").split(",").filter(Boolean)); // what played, in order (pesca-sonido.ts)
     r.huecos = await ctl(p, () => globalThis.__huecos.slice(0, 40)); // frames slower than 150 ms (a loaded machine), with the phase
     // grip again: the rod goes back on its holder
     await ctl(p, () => globalThis.__iwer.controllers.right.updateButtonValue("squeeze", 1)); await p.waitForTimeout(450);
@@ -307,7 +310,7 @@ async function vr() {
     && r.trasLance === "espera" && r.espera?.pescadores === 1 && !r.espera.canaMano
     && r.engancha?.f === "pelea" && r.medidor?.medidor && /Pelea|Afloja|tirar|Arrancada/.test(r.medidor.medidorTexto)
     && r.fin?.fase === "nada" && r.fin.medidor > 3 && r.cesta >= 1
-    && z.some(([, f, ph]) => ph === "picada" && f >= 0.9) && z.filter(([, , ph]) => ph === "pelea").length >= 3
+    && z.some(([, f, ph]) => ph === "picada" && f >= 0.9) && sonidoOk(r.sonidos, z) && z.filter(([, , ph]) => ph === "pelea").length >= 3
     && r.devuelta?.sujeta === null && !r.devuelta.canaMano
     && r.mano?.sujeta === "der" && r.manoFase === "nada" && r.manoLance === "espera" && r.manoDevuelta?.sujeta === null && !r.error);
   out.vr = r; nota("vr", { ok: r.ok });

@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
 
 const PW = process.env.PW_CORE ?? new URL("../../node_modules/playwright-core", import.meta.url).pathname;
-const CHROME = process.env.CHROME ?? "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell";
+const CHROME = process.env.CHROME ?? (await import("node:fs")).globSync("/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell").sort().at(-1) ?? "";
 const BASE0 = process.env.BASE ?? "http://127.0.0.1:5173/?webgl2";
 const BASE = BASE0 + (BASE0.includes("?") ? "&" : "?") + "pulso=2000";
 if (!existsSync(PW) || !existsSync(CHROME)) { console.error("playwright-core or chromium not found; set PW_CORE / CHROME"); process.exit(2); }
@@ -29,8 +29,10 @@ const toque = (p, cdp, at) => dedo(p, cdp, at, at, 1, 60);
 
 async function pierna() {
   const browser = await chromium.launch({ executablePath: CHROME, args: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"] });
-  const ctx = await browser.newContext({ viewport: { width: 420, height: 800 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  const [VW, VH] = (process.env.VISTA ?? "420x800").split("x").map(Number); // C5: VISTA=360x740 for the small phone
+  const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
   const errors = [];
+  await ctx.addInitScript((v) => { try { localStorage.setItem("numinia.novedades.version", v); } catch {} }, JSON.parse((await import("node:fs")).readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version); // the «what is new» card shows once per version in a fresh browser and would cover the world (see constructor.mjs)
   const open = async () => {
     const p = await ctx.newPage();
     p.on("pageerror", (e) => errors.push(String(e)));
@@ -50,16 +52,17 @@ async function pierna() {
     await a.bringToFront();
     const cdp = await ctx.newCDPSession(a);
     // 1. build mode (the page API: the C key needs a keyboard), a Bloque placed through the API 3 m ahead and 1 m to
-    // the right: on a 420 px phone the environment panel (#panel-entorno, 270 px, left) covers the left half of the
-    // world while building; M22b-1 folds both into strips, the rest (sheets) is M22b-2 / U24
+    // the right (ux2-dock: entering shows only the dock, at the bottom on a phone; nothing covers the world)
     const n0 = await a.evaluate(() => globalThis.__numinia.session.features.stateOf("objetos").size);
     await a.evaluate(() => { const n = globalThis.__numinia, me = n.session.selfPosition(1); if (document.getElementById("panel-construir").hidden) document.getElementById("construir").click(); n.constructor.colocarEn("bloque", { x: me.x + 1, y: 0, z: me.z - 3 }); });
     await a.waitForFunction((n0) => { const n = globalThis.__numinia; return !!n.constructor.estado.seleccionado && n.session.features.stateOf("objetos").size > n0 && n.view.editor.estado().cargado; }, n0, { timeout: 10000 });
     id = await a.evaluate(() => globalThis.__numinia.constructor.estado.seleccionado);
+    await b.waitForFunction((k) => globalThis.__numinia.session.features.stateOf("objetos").has(k), id, { timeout: 5000 }).catch(() => {}); // B hears it a beat later under load
     const o0 = await deB(id);
     paso("abrir y colocar un bloque", !!o0, { id });
     // 2. Esc deselects through the API; a TAP on the block selects it and the camera does not turn
     await a.evaluate(() => globalThis.__numinia.constructor.seleccionar(null));
+    await a.waitForFunction(() => document.getElementById("ficha-objeto").hidden, null, { timeout: 3000 }).catch(() => {}); // the card follows on the next frame
     const yaw0 = await a.evaluate(() => globalThis.__numinia.view.cam.yaw());
     let s = await pantalla(id);
     const encima = s && (await a.evaluate((p) => document.elementFromPoint(p.x, p.y)?.tagName, s));
@@ -69,6 +72,44 @@ async function pierna() {
     const sel = await a.evaluate(() => globalThis.__numinia.constructor.estado.seleccionado);
     const yaw1 = await a.evaluate(() => globalThis.__numinia.view.cam.yaw());
     paso("un toque selecciona sin girar la cámara", sel === id && Math.abs(yaw1 - yaw0) < 0.01, { sel, yaw0, yaw1 });
+    // 2b. ux2-dock on touch: the dock goes to the bottom (44 px tall targets); the card is a sheet just above it (≤ 42 vh), its
+    // icon-only buttons with a short visible label (aria-label unchanged), the chosen block still on the canvas above it.
+    // «Añadir» rises as a sheet over the dock and the card gives way while it is open (one sheet at a time).
+    await a.waitForFunction(() => !document.getElementById("ficha-objeto").hidden, null, { timeout: 4000 });
+    const hoja = await a.evaluate(() => {
+      const f = document.getElementById("ficha-objeto"), r = f.getBoundingClientRect(), vh = innerHeight, vw = innerWidth, caja = (b) => b.getBoundingClientRect();
+      const d = document.getElementById("dock-construir"), rd = d.getBoundingClientRect(), dbs = [...d.querySelectorAll("button")].map((b) => caja(b));
+      const ics = [...f.querySelectorAll(".acciones button")].filter((b) => !b.hidden);
+      const et = [...f.querySelectorAll(".acciones button.ic")].filter((b) => !b.hidden).map((b) => ({ aria: b.getAttribute("aria-label"), corta: b.querySelector(".et")?.textContent ?? "", visible: getComputedStyle(b.querySelector(".et")).display !== "none" }));
+      return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, vh, vw, alto: r.height, dockTop: rd.top, dockBottom: rd.bottom, dockAlto: Math.min(...dbs.map((x) => x.height)), dockAncho: Math.min(...dbs.map((x) => x.width)), dockCabe: rd.left >= 0 && rd.right <= vw && d.scrollWidth <= d.clientWidth + 1,
+        accMin: Math.min(...ics.map((b) => caja(b).height)), et, desborda: document.documentElement.scrollWidth > vw };
+    });
+    // above the chat line (52 px + margins), every icon 44 px tall and ≥ 36 px wide, the nine of them inside a 412 px screen
+    paso("táctil: el dock va abajo, entero, con objetivos de 44 px de alto", hoja.dockBottom > hoja.vh - 100 && hoja.dockAlto >= 44 && hoja.dockAncho >= 36 && hoja.dockCabe, { dockTop: hoja.dockTop, dockBottom: hoja.dockBottom, dockAlto: hoja.dockAlto, dockAncho: hoja.dockAncho, dockCabe: hoja.dockCabe, vh: hoja.vh });
+    paso("táctil: la tarjeta es una hoja sobre el dock (≤ 42 vh)", hoja.left <= 8 && hoja.right >= hoja.vw - 8 && hoja.alto <= hoja.vh * 0.42 + 1 && hoja.bottom <= hoja.dockTop && !hoja.desborda, { top: hoja.top, bottom: hoja.bottom, alto: hoja.alto, vh: hoja.vh, vw: hoja.vw, dockTop: hoja.dockTop });
+    paso("táctil: botones de la tarjeta ≥ 44 px, etiqueta corta visible y aria-label intacto", hoja.accMin >= 44 && hoja.et.length >= 2 && hoja.et.every((e) => e.visible && e.corta !== "" && e.aria.length > e.corta.length), { accMin: hoja.accMin, et: hoja.et.map((e) => `${e.corta}|${e.aria}`) });
+    const libre = await pantalla(id);
+    const tapa = libre && (await a.evaluate((p) => document.elementFromPoint(p.x, p.y)?.tagName, libre));
+    paso("táctil: la hoja no tapa el objeto elegido", !!libre && libre.y < hoja.top && tapa === "CANVAS", { libre, top: hoja.top, tapa });
+    if (process.env.CAPTURA) await a.screenshot({ path: process.env.CAPTURA });
+    const centroDe = (sel) => a.evaluate((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, sel);
+    await toque(a, cdp, await centroDe("#dock-anadir"));
+    await a.waitForTimeout(250);
+    const sube = await a.evaluate(() => { const c = document.getElementById("cajon-anadir"), r = c.getBoundingClientRect(), d = document.getElementById("dock-construir").getBoundingClientRect();
+      return { abierto: !c.hidden, alto: r.height, vh: innerHeight, encima: r.bottom <= d.top + 1, fichaVisible: getComputedStyle(document.getElementById("ficha-objeto")).display !== "none" }; });
+    if (process.env.CAPTURA_CAJON) await a.screenshot({ path: process.env.CAPTURA_CAJON });
+    await toque(a, cdp, await centroDe("#dock-anadir"));
+    await a.waitForTimeout(250);
+    const baja = await a.evaluate(() => ({ cerrado: document.getElementById("cajon-anadir").hidden, fichaVisible: getComputedStyle(document.getElementById("ficha-objeto")).display !== "none" }));
+    paso("táctil: «Añadir» sube como hoja sobre el dock y la tarjeta le cede el sitio", sube.abierto && sube.encima && sube.alto <= sube.vh * 0.5 + 1 && !sube.fichaVisible && baja.cerrado && baja.fichaVisible, { sube, baja });
+    const fijo0 = !!(await deB(id)).fijado;
+    const iconoFijar = await a.evaluate(() => { const b = [...document.querySelectorAll('#ficha-objeto button.ic')].find((x) => /^(Anclar|Soltar)/.test(x.getAttribute("aria-label"))), r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    await toque(a, cdp, iconoFijar);
+    const anclado = await esperaB(([k, v]) => !!globalThis.__numinia.session.features.stateOf("objetos").get(k)?.fijado === v, id, !fijo0);
+    paso("C5: un toque corto sobre «Anclar» sigue pulsando (B lo ve anclado)", anclado);
+    await a.waitForTimeout(300);
+    await toque(a, cdp, iconoFijar); // loose again, so the drag below can move it
+    paso("C5: y otro toque lo suelta", await esperaB(([k, v]) => !!globalThis.__numinia.session.features.stateOf("objetos").get(k)?.fijado === v, id, fijo0));
     // 3. one finger drags the block ~300 px to the right → it moves ≥ 1 m for B; the camera's yaw stays; the drag ran (busy)
     s = await pantalla(id);
     const antes = await a.evaluate((k) => globalThis.__numinia.view.editor.dondeEsta(k), id);

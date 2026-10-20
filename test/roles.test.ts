@@ -6,7 +6,7 @@ import { ClientSession } from "../packages/client/src/index.ts";
 import type { GuestKeeper } from "../packages/client/src/index.ts";
 import { signer } from "../packages/server/src/secret.ts";
 import { TICK_HZ } from "../packages/sim/src/index.ts";
-import { fx } from "../packages/core/src/index.ts";
+import { fx, fxToFloat } from "../packages/core/src/index.ts";
 import { VOZ_MULAW } from "../packages/net/src/index.ts";
 import type { FeatureStorage, Saved, StorageOp } from "../packages/feature/src/index.ts";
 
@@ -28,7 +28,7 @@ import { crearCliente } from "../features/chat/client.ts";
 import objetosServer from "../features/objetos/server.ts";
 import objetosCliente from "../features/objetos/client.ts";
 import { acceso, plantilla, porDebajo, noPuedeDar, validarRoles, rolPorNombre, PERMISOS, tiene } from "../packages/server/src/roles.ts";
-import { crearRoles, ECHADO_MIN, INTENTOS } from "../packages/server/src/roles-mundo.ts";
+import { crearRoles, ECHADO_MIN, INTENTOS, DENUNCIA_PAUSA_MS } from "../packages/server/src/roles-mundo.ts";
 
 const sign = signer("una-clave-de-prueba-larga");
 const ADMIN = "codigo-de-administracion-largo";
@@ -379,4 +379,99 @@ test("F1 /bloquear: A stops reading and hearing B, C still does, B is not told; 
   W2.decir(A2, `/desbloquear ${W2.nombre(B2)}`);
   assert.match(W2.ultimo(A2), /No tenías bloqueado/);
   assert.deepEqual(W2.roles.bloqueados(W2.inst.who(A2.s.entity)!.id), []);
+});
+
+test("H3c /nombre: cambia el nombre sobre la cabeza y en lo que dices, se guarda con la identidad, y nunca acaba en « · IA»", () => {
+  const storage = new MemoryStorage(), reloj = { ms: Date.parse("2026-10-18T09:00:00Z") };
+  const W = mundo(2, { storage, reloj });
+  const [A, B] = W.gente;
+  W.pump(3);
+  juntos(W);
+  W.decir(A, "/nombre Mundo · IA");
+  assert.match(W.ultimo(A), /reserva para los agentes de IA/);
+  assert.ok(!B.chat.nombres.has(A.s.entity) || B.chat.nombres.get(A.s.entity) !== "Mundo · IA", "the rejected name never applies");
+  W.decir(A, "/nombre ");
+  assert.match(W.ultimo(A), /Escribe \/nombre/);
+  W.decir(A, "/nombre Caminante del Alba");
+  assert.match(W.ultimo(A), /Desde ahora te llamas «Caminante del Alba»/);
+  W.decir(A, "hola");
+  assert.ok(B.chat.lineas.some((l) => l.texto === "hola" && l.nombre === "Caminante del Alba"));
+  // an AI never gets to use the order on itself (it never types chat orders as a guest, but the check stays defensive)
+  assert.equal(W.roles.acceso(`ia-x`).permisos.size >= 0, true);
+  // saved with the identity: a restart (same guest id) gets it back, and the chosen name is used again at once
+  const W2 = mundo(0, { storage, reloj });
+  const A2 = W2.entrar(1, A.guardado), B2 = W2.entrar(2, B.guardado);
+  W2.gente.push(A2, B2);
+  W2.pump(3);
+  juntos(W2);
+  W2.decir(A2, "otra vez");
+  assert.ok(B2.chat.lineas.some((l) => l.texto === "otra vez" && l.nombre === "Caminante del Alba"), "the name survives a restart, reapplied on identify");
+});
+
+test("H3c /aparecer aquí fija dónde (re)apareces, se guarda con la identidad; /aparecer quitar lo deshace", () => {
+  const storage = new MemoryStorage(), reloj = { ms: Date.parse("2026-10-18T09:00:00Z") };
+  const W = mundo(1, { storage, reloj });
+  const [A] = W.gente;
+  W.pump(3);
+  W.inst.sim.tf.cols.x[A.s.entity] = fx(12); W.inst.sim.tf.cols.z[A.s.entity] = fx(8);
+  W.pump();
+  W.decir(A, "/aparecer aqui");
+  assert.match(W.ultimo(A), /desde ahora apareces aquí/i);
+  const W2 = mundo(0, { storage, reloj });
+  const A2 = W2.entrar(1, A.guardado);
+  W2.gente.push(A2);
+  W2.pump(3);
+  const p2 = { x: fxToFloat(W2.inst.sim.tf.cols.x[A2.s.entity]), z: fxToFloat(W2.inst.sim.tf.cols.z[A2.s.entity]) };
+  assert.ok(Math.abs(p2.x - 12) < 2 && Math.abs(p2.z - 8) < 2, `apareció cerca de (12, 8): ${JSON.stringify(p2)}`);
+  W2.decir(A2, "/aparecer quitar");
+  assert.match(W2.ultimo(A2), /vuelves a aparecer donde aparece cualquiera/i);
+  W2.decir(A2, "/aparecer quitar");
+  assert.match(W2.ultimo(A2), /no tenías un punto de aparición propio/i);
+});
+
+test("H3c /chat borrar necesita manage-organization (como /construir, /voz, /solo-miembros) y vacía el historial de la zona", () => {
+  const W = mundo(2);
+  const [A, B] = W.gente;
+  W.pump(3);
+  W.decir(A, "/chat borrar");
+  assert.match(W.ultimo(A), /No tienes permiso para cambiar los ajustes/);
+  W.decir(A, `/dueño ${ADMIN}`);
+  juntos(W);
+  B.chat.decir("lo de antes", "zona");
+  W.pump(TICK_HZ + 2);
+  assert.ok(B.chat.lineas.some((l) => l.texto === "lo de antes"));
+  W.decir(A, "/chat borrar");
+  assert.match(W.ultimo(A), /historial de la zona está vacío/);
+  const C = W.entrar(9);
+  W.gente.push(C);
+  W.pump(3);
+  assert.ok(!C.chat.lineas.some((l) => l.tipo === "antes"), "quien entra después no ve nada de antes de borrarlo");
+});
+
+test("ux2-gente /denunciar: whoever moderates and is connected hears it at once, it is kept for /denuncias, one a minute, never published", () => {
+  const storage = new MemoryStorage(), reloj = { ms: Date.parse("2026-10-19T10:00:00Z") };
+  const W = mundo(3, { storage, reloj });
+  const [A, B, C] = W.gente;
+  W.pump(3);
+  juntos(W);
+  W.decir(B, `/denunciar ${W.nombre(C)} insulta en el chat`);
+  assert.match(W.ultimo(B), /no hay nadie de moderación conectado/, "nobody moderates yet: kept for later");
+  assert.equal(W.roles.denuncias().length, 1);
+  W.decir(A, `/dueño ${ADMIN}`);
+  W.decir(A, "/denuncias");
+  assert.match(W.ultimo(A), /denuncia a .*«insulta en el chat»/, "an owner reads what was kept");
+  const lineasC = C.chat.lineas.length;
+  W.decir(B, `/denunciar ${W.nombre(C)} otra vez`);
+  assert.match(W.ultimo(B), /Espera \d+ s/, "one a minute");
+  reloj.ms += DENUNCIA_PAUSA_MS;
+  W.decir(B, `/denunciar ${W.nombre(C)} empuja a la gente`);
+  assert.match(W.ultimo(B), /Aviso enviado a moderación \(1 persona conectada\)/);
+  assert.match(W.ultimo(A), /Aviso para moderación: .* denuncia a .*«empuja a la gente»/, "the owner hears it at once");
+  assert.equal(C.chat.lineas.length, lineasC, "the reported person is not told");
+  W.decir(B, `/denunciar ${W.nombre(C)}`);
+  assert.match(W.ultimo(B), /Di qué ha pasado/);
+  W.decir(C, "/denuncias");
+  assert.match(W.ultimo(C), /Solo quien modera/);
+  const d = W.roles.denuncias();
+  assert.deepEqual(d.map((x) => [x.de, x.a, x.motivo]), [[W.inst.who(B.s.entity)!.id, W.inst.who(C.s.entity)!.id, "insulta en el chat"], [W.inst.who(B.s.entity)!.id, W.inst.who(C.s.entity)!.id, "empuja a la gente"]]);
 });

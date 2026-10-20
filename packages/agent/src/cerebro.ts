@@ -18,7 +18,7 @@ export type Mensaje = { role: Rol; content: string };
 export type Herramienta = { name: string; description: string; input_schema: { type: "object"; properties: Record<string, unknown>; required?: string[]; additionalProperties?: boolean } };
 export type Llamada = { nombre: string; entrada: Record<string, unknown> };
 export type Pensado = { texto: string; acciones: Llamada[]; uso: { entrada: number; salida: number; cache: number } };
-export type Peticion = { sistema: string; mensajes: Mensaje[]; herramientas: Herramienta[]; modelo?: string }; // modelo: the inhabitant's own (habitante@1)
+export type Peticion = { sistema: string; mensajes: Mensaje[]; herramientas: Herramienta[]; modelo?: string; forzar?: string }; // forzar: the model MUST call this tool (the cable's «Decirlo» wants one closed answer, never free text) // modelo: the inhabitant's own (habitante@1)
 
 export interface Cerebro {
   readonly nombre: string;  // what the service log says («claude claude-sonnet-5», «eco»); never the key
@@ -42,7 +42,7 @@ export function cerebroClaude(o: { clave: string; modelo?: string; url?: string;
       const res = await f(`${url}/messages`, {
         method: "POST",
         headers: { "content-type": "application/json", "x-api-key": o.clave, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: p.modelo || modelo, max_tokens: o.maxTokens ?? MAX_TOKENS, system: [{ type: "text", text: p.sistema, cache_control: { type: "ephemeral" } }], tools, messages: alternar(p.mensajes) }),
+        body: JSON.stringify({ model: p.modelo || modelo, max_tokens: o.maxTokens ?? MAX_TOKENS, system: [{ type: "text", text: p.sistema, cache_control: { type: "ephemeral" } }], tools, ...(p.forzar ? { tool_choice: { type: "tool", name: p.forzar } } : {}), messages: alternar(p.mensajes) }),
         signal,
       });
       if (!res.ok) throw new Error(`el proveedor contestó HTTP ${res.status}`); // never the body: it may echo what we sent

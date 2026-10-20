@@ -79,7 +79,7 @@ export default clientPart(gestos, (api) => {
     if (msg.gesto === "bailar") api.view.bounce(Number(msg.quien), 2000);
   });
   api.action({ id: "saludar", label: "Saludar", key: "KeyG", run: () => api.send("hacer", { gesto: "saludar" }) });
-  api.action({ id: "bailar", label: "Bailar", key: "KeyH", run: () => api.send("hacer", { gesto: "bailar" }) });
+  api.action({ id: "bailar", label: "Bailar", key: "KeyR", run: () => api.send("hacer", { gesto: "bailar" }) });
 });
 ```
 
@@ -104,6 +104,10 @@ export default clientPart(gestos, (api) => {
   cuadrado de la casa (40 m alrededor del origen). Es del servidor (viaja en la carpeta y el zip del mundo), no del cable.
   `"aparicionFoto": true` (N16, apagado si no está) deja que quien abre el enlace de una foto (`#foto=`) aparezca en
   su sitio (el servidor busca un sitio libre allí; si no hay, la columna de luz le guía como siempre).
+- El mismo `entorno.json` dice si la gente puede golpearse (L8, `features/lucha`): `"pvp": true` (apagado si no está) y,
+  para arenas o sitios en paz, `"zonasPvp": [{ "id", "x", "z", "radio", "pvp": true|false }]` (círculos en metros; una
+  zona en `false` gana a una en `true`). Solo se golpea a otra persona (`objetivo: p:<entidad>`) si **las dos** están donde
+  se puede; decide el servidor. Cada golpe sube un escalón de Estado de quien lo recibe (no le quita vida). Sin `pvp` ni zona en `true`, el servidor rechaza el golpe a una persona («Aquí no se lucha entre personas»); `alchemiststower` y los demás mundos no lo activan. La página pone encima de la persona golpeada un rótulo con icono y palabra (`ROTULO` en `features/lucha/client.ts`, por `view.label`: un solo plano por persona, a 8 s, y solo para quien está dentro de los 40 m del golpe); decidir, decide siempre el servidor.
 - El mismo `entorno.json` puede tener **vacío** (D-045, `features/suelo`): `"sueloMinimo": -4` (metros, −500…500) es
   la altura bajo la cual se ha caído; el servidor guarda cada medio segundo (`SEGURO_CADA` ticks) dónde pisaba suelo
   cada persona y, al bajar de ahí, la recoloca en ese sitio **dentro del paso de simulación** (una orden grabada con
@@ -314,6 +318,61 @@ sin ficha = la capacidad). Con el mundo lleno, el servidor cierra la conexión c
 que no cabe deja la ficha entera sin cargar, con su motivo en el log (`[ficha] no se carga: ficha.json.aforo: …`).
 Hoy se editan en el fichero: no hay panel para cambiarlos en marcha.
 
+**`audio`** (S6f, opcional, dentro de la ficha): lo que este mundo pide del sonido. **R-1: una línea lo enciende.**
+`{ "audio": { "ambiente": "ambiente-numinia" } }` y ya suena el colchón de fondo. Tres campos, todos opcionales:
+
+- **`ambiente`** — el id del catálogo de sonidos (`features/sonido/catalogo.json`) que suena como **cama única en
+  bucle**. Hoy el único que vale es `ambiente-numinia`: 113 s en CC0 que un amigo de Numinia hizo para Numinia.
+  Tiene que ser una fila **con fichero y con `bucle`**; se toca por **streaming**
+  (`MediaElementAudioSourceNode`), nunca descodificada — descodificarla serían ~46 MB de RAM por un sonido que
+  nadie escucha a propósito. **Sin este campo no suena ningún ambiente.**
+- **`ambiente_ganancia`** — su volumen (×), de 0 a 4. Sin decir nada, **×0,2** (−14 dB sobre un fichero a −23 LUFS:
+  debajo de todo, pero se oye; el nivel del original, ×0,042, no se oía). El
+  deslizador de «ambiente» del jugador manda por encima: **a cero, el colchón ni arranca ni se descarga.**
+- **`ambiente_sintetizado`** — hasta 8 ids de **receta** (`packages/render/src/audio/sintesis.ts`: `bed-*`,
+  `capa-*`…) que este mundo enciende por su nombre. **De serie, ninguna**: una cama o una capa sintetizada no
+  suena hasta que un mundo la nombra aquí (decisión de Pablo, 19-10). Encenderlas no enciende el colchón, ni al
+  revés.
+
+Un valor que no cabe deja la ficha entera sin cargar, con su motivo en el log. Va en `GET /status` (`audio`).
+
+### Cómo suena algo (S6f: una sola puerta)
+
+Todo el motor hace sonar algo por **`packages/render/src/audio/sonar.ts`**, con una regla: **cuando existe el
+fichero de un id, gana el fichero; la receta queda de respaldo.**
+
+```ts
+import { sonar } from "…/audio/sonar.ts";
+sonar("ui-pulsar");                       // tiene fichero CC0 → suena el fichero
+sonar("salto");                           // no tiene fichero  → suena la receta de sintesis.ts
+sonar("dados", { semilla, donde });       // la semilla la manda el SERVIDOR: todos oyen la misma variante
+```
+
+El `AudioBuffer` de una receta entra por el **mismo** pool de voces que un fichero: el mismo tope del aparato, la
+misma virtualización por prioridad-distancia, el mismo cooldown y el mismo bus. El buffer se genera **una sola
+vez** por id y variante y se guarda. Un id que no tiene ni fichero ni receta **avisa una vez** y no rompe nada.
+
+El **catálogo es la única lista de verdad**, también para lo sintetizado: una fila `"fuente": "receta"` no lleva
+fichero, pero sí bus, prioridad, cooldown y **texto accesible** (que es obligatorio: ningún sonido sin su texto).
+Si un día uno de esos ids consigue un fichero CC0, se le añade y el fichero gana sin tocar una línea de código.
+
+**Quién decide qué suena.** Lo **compartido** lo manda el **servidor** con su semilla (D-048): la puerta, los
+dados, el dardo, el pez cobrado y el teletransporte. `features/sonido/server.ts` se asoma con `api.listen` a los
+eventos que esas funciones **ya emiten**, así que una función nueva que quiera sonar no tiene que saber nada de
+sonido: emite su evento y se le añade una línea allí. Lo **local** (mis pasos, mi salto, mi aterrizaje, mi caña)
+lo dispara la página y no viaja por la red: es de cada quien y se oye en la cabeza o a mis pies.
+
+**Qué suena y qué no** (Pablo, 2026-10-19: «solo ponemos sonido a lo que normalmente se pone sonido»). Suena lo
+que en el mundo haría ruido —pasos, puertas, agua, un dardo que se clava, unos dados— y los pocos hitos raros (una
+misión completada). **No suena la interfaz**: ni los botones, ni abrir un panel, ni cada paso de una misión. Lo frecuente y lo que ya se ve se queda en silencio: el silencio es lo
+que deja oír lo que informa. Antes de enchufar un sonido nuevo: ¿haría ruido de verdad?, ¿cuántas veces por minuto
+sonará?, ¿lo dice ya otra cosa (la vista, la vibración, el servidor)?
+Las **personas (PNJ)** hablan dos veces por conversación, sin palabras y bajito: un saludo corto («hmm», «¿ah?») cuando
+la conversación **se abre** y una despedida cuando **se cierra**; las líneas nuevas y las respuestas, calladas (cada paso
+con su voz saturaría). Sale de la persona, colocada en 3D a la altura de su boca, y solo la oye quien habla con ella
+(`apps/plaza/pnj-voz.ts`, bus «efectos», con freno de 0,8 s para quien abre y cierra deprisa). Cada persona suena
+siempre con la misma voz: la de su `voz` (pnj@1, abajo) o, sin ella, una elegida por su id.
+
 **`tema`** (opcional, dentro de la ficha): cómo se ve la página de ESTE mundo, para que un evento traiga su aire sin
 tocar el motor. Diez colores «#rrggbb» de los paneles — `fondo`, `superficie`, `elevado` (botones), `texto`, `texto2`,
 `linea`, `foco` (lo que se toca), `accion` (el botón principal; la tinta encima, clara u oscura, la elige el motor),
@@ -440,7 +499,8 @@ servidor; al acabar vuelve exactamente a donde dice el servidor.
   eventos y 554 bytes el vuelo de arriba) y los manda solo a ese jugador; las esperas pendientes se miran 5 veces por
   segundo, solo las de quien tiene una (1.000 jugadores esperando: tick de las funciones p99 ≈ 0,15 ms).
 
-Recompensas: hoy solo insignias (recuerdos de lo hecho; sin economía). `requisitos.misiones`: las que hay que haber
+Recompensas: `insignia` (un recuerdo de lo hecho) o `semilla` (`{ "tipo": "semilla", "color": "verde", "n": 1 }`: una
+Semilla del Conocimiento al inventario de quien la completa, Y1); sin economía. `requisitos.misiones`: las que hay que haber
 completado antes. Hasta 16 pasos, 16 misiones activas por jugador.
 
 **La recompensa, apuntada una sola vez (U14 (6)).** Al completar una misión con `recompensas`, el servidor apunta en el
@@ -511,6 +571,11 @@ paso. La insignia queda en su ficha (I) y en su libro.
 - Opcional `oficio` (1–40 bytes, U14 (4)): a qué se dedica («Carpintero», «Tejedora»). Sale en una segunda línea, más
   pequeña, bajo el nombre que flota sobre la persona; junto al nombre en el título de la conversación, y en la lista del
   mapa («Cosimo (Carpintero)»). Con oficio, deja el nombre corto: «Cosimo», no «Cosimo, el carpintero». Sin él, una línea.
+- Opcional `voz` (`hombre-joven` o `mujer-mayor`): cómo suena la persona al empezar y al acabar la conversación (un
+  saludo y una despedida cortos, sin palabras; las líneas no suenan). Sin `voz`, una de las dos elegida por su id:
+  siempre la misma, pero puede no pegarle; dila si importa. Las tomas son CC0 (`features/sonido/catalogo.json`,
+  `pnj-saludo-<voz>` y `pnj-despedida-<voz>`); una voz nueva entra por la biblioteca de sonido y por `VOCES_PNJ`
+  (`features/misiones/formato.ts`).
 
 **Marcas sobre las personas y las cosas («!» y «✓», U14 (4))** — las decide el servidor para cada jugador, con su
 progreso, y le llegan **solo a él** (a todas sus pestañas) tras cada libro (evento `marcas`). La aventura no escribe
@@ -570,7 +635,8 @@ Para agentes y páginas: `window.__numinia.misiones` (`libro()`, `objetivos()`, 
 texto, x, z, seguida }]` (uno por paso que toca: en un grupo, todos los que faltan); `resumen().seguida.grupo` =
 `{ nombre, hechos, total }` del grupo en curso de la misión seguida, o `null`. U14 (4): `marcas()` → `{ tiene, hecho,
 cosas }` (ids: personas con «!», personas con «✓», cosas con «!»; el mismo objeto mientras no cambian),
-`marcaDe(feature, clave)` → `"!"`, `"✓"` o `""` (`pnj` o `misiones`), `oficioDe(pnj)` y `dialogo().oficio`. U14 (5):
+`marcaDe(feature, clave)` → `"!"`, `"✓"` o `""` (`pnj` o `misiones`), `oficioDe(pnj)` y `dialogo().oficio`; `vozDe(pnj)` (su `voz`, `""` sin ella) y `personaDe(pnj)` (`{ x, y, z, escala }`
+donde está ahora, o `null`). U14 (5):
 cada paso de `libro()` lleva `espera` (los segundos que le faltaban al llegar el libro; 0 = ya se puede) y `listoEn`
 (cuándo se abre, en el reloj de la página); `secuencia()` (la que suena, o `null`), `alSecuencia(fn)` (oír cuándo
 empieza, cada línea, cada sonido y cuándo acaba) y `cuadro()` (la página la avanza en cada cuadro).
@@ -601,7 +667,27 @@ Una aventura trae sus escenas en `escenas/<id>.json` (el id es el nombre del fic
   convocó ve cuántas vienen.
 - `node tools/aventura.ts <carpeta>` comprueba las escenas; una mal escrita no se carga y el registro dice por qué.
 
-## Agentes de fuera: gestionarlos por HTTP (ADR-080, para el panel de numinia.com)
+## El Inventario (Y1): dar objetos a una persona desde tu función
+
+El inventario (`features/inventario`) guarda por invitado lo que posee (`api.store`, clave `i:<quien.id>`, S4) y se
+lo manda entero solo a él (`lista` + un `objeto` por cada uno). El canon manda los límites: **1 arma** contigo, **3
+reliquias** contigo, el resto en la Reserva; los **tokens** (Semillas del Conocimiento por color) apilan y no se portan.
+
+Tu función no importa el inventario ni él a ti: declaras en tus `events` uno tuyo, p. ej.
+
+```ts
+otorga: { describe: "Solo en el servidor: doy un objeto a quien (entidad).", announce: "silent",
+  fields: { quien: { kind: "int", min: 0, max: 65535 }, tipo: { kind: "enum", values: ["arma", "reliquia", "token"] },
+            clase: { kind: "text", maxBytes: 32 }, nombre: { kind: "text", maxBytes: 40 },
+            color: { kind: "enum", values: ["", "verde", "azul", "plateada", "dorada", "roja"] }, n: { kind: "int", min: 1, max: 999, default: 1 } } }
+```
+
+y lo emites con `api.emit("otorga", { quien: e, tipo: "token", clase: "semilla", nombre: "Semilla verde", color: "verde", n: 1 }, "server")`:
+ninguna página lo recibe; el inventario lo oye (`api.listen`, lista `DONANTES` en `features/inventario/server.ts`: añade
+tu `[id, "otorga"]`) y se lo da a esa persona, que oye «Recibes Semilla verde». Lo que una misión da va en su
+`recompensas` (arriba). Reglas puras para probar sin red: `features/inventario/reglas.ts` (`dar`, `quitar`, `equipar`,
+`desequipar`, `leerInventario`). Panel de la página: `apps/plaza/inventario.ts` (R); resumen en la ficha (I, sección «Reserva»).
+
 
 Lo que el dueño hace en el chat con `/agente añadir|quitar` lo hace también el panel de numinia.com por HTTP, con el mismo
 código (`roles-mundo.ts`, `agentes`) y el mismo fichero (`aventura/agentes/<id>.json`):
@@ -1066,8 +1152,9 @@ disparador), comprueba el alcance de cada pulsación (`api.within`), cuenta el c
 avisa a los cercanos (`disparado`, `CERCA_M = 30`) y emite **una acción por receptor** como evento con alcance
 `"server"` (`accion`): la función dueña de esa acción la oye con `api.listen("disparadores", "accion", …)` y devuelve
 `true`. Hoy `features/objetos` hace `muestra` / `oculta` (pone `oculto` al objeto por id o por nombre exacto; la página no
-dibuja un modelo oculto al jugar y sí al construir); `teletransporta`, `da_paso`, `abre_enlace` y `suena` llegan en sus
-historias: mientras tanto el registro dice `nadie hace «teletransporta» en este servidor` en vez de callar.
+dibuja un modelo oculto al jugar y sí al construir); `features/sonido` hace `suena` (S6: toca el fichero del catálogo
+de la casa, no un pitido); `teletransporta`, `da_paso` y `abre_enlace` llegan en sus historias: mientras tanto el
+registro dice `nadie hace «teletransporta» en este servidor` en vez de callar.
 
 - **El fichero:** `{ "disparadores": [{ id, nombre, tipo: "zona" | "boton", x, y?, z, radio?, frase?, cooldown?, un_solo_uso?,
   receptores: [{ accion, … }] }] }`. `id` es `[a-z0-9-]{1,16}`; `radio` es el de la zona (0,5-64 m, 3 por defecto) o desde
@@ -1079,20 +1166,175 @@ historias: mientras tanto el registro dice `nadie hace «teletransporta» en est
   "enlace": "https://…" }`, `{ "accion": "suena", "sonido" }`. Hasta 64 disparadores por mundo; sin fichero no hay ninguno y
   el motor no cambia (la huella de la simulación es la misma: `test/disparadores.test.ts`).
 - **Estado por disparador:** `nombre, tipo, x, y, z, radio, alcance, frase, cooldown, unSoloUso, usos, enEspera, agotado`;
-  intención `pulsar {disparador}` (2/s, ráfaga 4); eventos `disparado` (cercanos), `senal` y `accion` (solo servidor) y
+  intención `pulsar {disparador}` (2/s, ráfaga 4) y, para quien construye, `editarReceptores`, `crearDisparador` y `borrarDisparador` (más abajo); eventos `disparado` (cercanos), `senal` y `accion` (solo servidor) y
   `rechazado` («Acércate…», «Todavía no: … espera N s», «… ya se usó»). Una zona nunca regaña: si está en espera o
   gastada, entrar no hace nada; se dispara al **entrar** (una vez por entrada, por persona) y salir y volver a entrar
   vuelve a contar si el cooldown pasó.
 - **Ejemplo mínimo (botón que enciende una farola oculta):** `{ "disparadores": [{ "id": "rojo", "nombre": "Botón rojo",
   "tipo": "boton", "x": 12, "z": 0, "frase": "E: pulsar", "cooldown": 5, "receptores": [{ "accion": "muestra", "objeto":
   "Farola" }] }] }` con un objeto llamado «Farola» marcado como invisible al jugar en el constructor.
-- **Lo que no hace (todavía):** el catálogo para agentes y el ejemplo en la plaza que esta ficha no cubre todavía.
-  La vista del constructor (`apps/plaza/cable.ts`, historias 5-6) lista cada disparador, deja «Probar» un botón y
-  edita en vivo sus receptores (intención `editarReceptores`, solo con permiso de construir: el servidor valida
-  cada receptor igual que al leer el fichero y, si acepta, reescribe `disparadores.json` sin reiniciar la
-  instancia — el campo `receptores` del estado viaja a toda página, como el resto de la ficha; no es un secreto
-  como el código de una cerradura). Crear o borrar disparadores enteros sigue siendo editar el fichero antes de
-  arrancar.
+- **Crear y borrar cables en vivo (historia A, «cable sin JSON»):** quien tiene permiso de construir ya no necesita
+  tocar el fichero. En el panel Cable (cajón del constructor), **«+ Nuevo cable»** crea un botón en el sitio donde
+  estás (id `cable-1`, `cable-2`…, frase «E: pulsar», con un receptor de partida `suena «campana»` que luego
+  cambias) y cada cable tiene su **«Borrar»**, que pide confirmación en la propia fila («¿Borrar «X»? Sí, borrar /
+  Cancelar»). Todo se puede hacer con teclado y los botones llevan `aria-label`. Detrás hay dos intenciones nuevas,
+  limitadas igual que `editarReceptores` (1/s, ráfaga 3), solo con permiso de construir:
+  - `crearDisparador {disparador, nombre, tipo, x, y, z, radio, frase, senal, cooldown, unSoloUso, receptores}` — la
+    misma forma que una línea de `disparadores.json` (`receptores` viaja como JSON en texto, hasta 512 bytes; `radio`
+    es el de la zona o el alcance del botón; `tipo` es `zona`, `boton` o `senal`). **El servidor la valida con el
+    mismo lector que lee el fichero** (`leerDisparador`: nada se copia), así que vale exactamente lo que valdría
+    escrito a mano, y añade los topes del mundo: **64 cables por mundo**, **8 receptores por cable**, id
+    `[a-z0-9-]{1,16}` y **único**. Si lo acepta, el cable aparece para todos al momento (zonas, botones y señales
+    funcionan igual que los del fichero), avisa a quien lo creó (`creado`) y **reescribe `disparadores.json` sin
+    reiniciar**.
+  - `borrarDisparador {disparador}` — quita el cable del estado y de la vigilancia de zonas y señales (también si
+    venía del fichero), avisa (`borrado`) y reescribe el fichero. Un id que no existe se rechaza diciendo cuál.
+  - Los rechazos (`rechazado`) dicen cómo arreglarlo: «No puedes construir aquí…», «Ya hay un cable «x»: elige otro
+    id o bórralo antes», «Este mundo ya tiene 64 cables… borra alguno antes», «receptores: un cable lleva como mucho
+    8; quita alguno», «id «…»: usa minúsculas, cifras y guiones (hasta 16)». Nada de esto corre en el tick: crear o
+    borrar solo toca una tabla, y un mundo sin cables sigue dando la misma huella de simulación.
+  - Pieza reutilizable (R-1): cualquier mundo que cargue `disparadores` lo trae; la página no decide nada, solo
+    manda la petición y pinta el estado que el servidor deja. En código: `disparadores.crearDisparador(…)` y
+    `disparadores.borrarDisparador(id)` en `features/disparadores/client.ts`.
+- **El cable dicho como frase (historia B, «cable sin JSON»):** el panel Cable enseña cada cable como una frase
+  («Cuando alguien pulse “Botón rojo”, muestra “Farola”. Espera 5 s.») y deja el JSON dentro de un desplegable
+  **«Ver datos»** (con el área de texto y «Guardar» de siempre). La frase la hace una función **pura**,
+  `fraseDeCable(disparador, idioma)` en `features/disparadores/cable-frase.ts`: sin DOM, sin reloj, nunca tira (lo
+  que no entiende sale como una frase segura) y cubre los 3 «cuando» (`boton`, `zona`, `senal`), las 8 acciones, varios
+  receptores, el cooldown y el «un solo uso». Como no depende de la página, la misma función sirve al servidor y a
+  los agentes (la historia D la usará para enseñar la frase antes de confirmar). **Ninguna palabra sale del código:**
+  los textos viven en un fichero por idioma, `cable-frases.es.ts` y `cable-frases.en.ts`, con parámetros `{nombre}`,
+  `{objeto}`, `{segundos}`… y las reglas de unir varios receptores (`lista.dos`, `lista.sep`, `lista.ultimo`; en
+  inglés lleva la coma final). **Añadir un idioma:** copia `cable-frases.es.ts`, traduce los valores (mismas claves,
+  mismos `{parámetros}`), regístralo en `FRASES` e `IDIOMAS` de `cable-frase.ts`; `test/cable-frases.test.ts`
+  falla si falta una clave o cambia un parámetro. El idioma de la página es el `lang` del documento (`es` si no hay
+  o no existe). Hoy hay `es` y `en`; **`ja`, `ko` y `pt-br` están pendientes** y caen en español.
+- **La frase es el editor (historia C, «cable sin JSON»):** en el panel Cable, cada hueco de la frase es un control:
+  «Cuando [alguien pulse el botón ▾] [nombre], [muestra ▾] [Farola ▾]. Espera [5 s ▾]. ☐ Solo funciona una vez».
+  Solo se puede **elegir lo válido**: el tipo (3), la acción (8), el objeto de la lista real del mundo (o el
+  movedor, para «mueve»), la misión, el sonido del catálogo, la espera (0, 1, 2, 5, 10, 30, 60, 300 s y, si el cable
+  trae otra, también esa). Texto libre solo donde no hay otra forma: el nombre, el nombre de la señal, el enlace
+  (https) y las coordenadas (con «Mi posición»). Hasta 8 acciones («+ Otra acción», «✕» para quitar). **La página no
+  tiene reglas:** las opciones y las partes de la frase las da una función **pura**,
+  `huecosDeCable(cable, idioma, contexto)` en `features/disparadores/cable-huecos.ts` (la frase como lista de textos y
+  huecos; los textos salen de `cable-frases.es.ts`/`.en.ts`, claves `editor.*`, `opcion.*`, `boton.*`), y la lista
+  del mundo la reúne `contextoDelCable(…)` (`cable-contexto.ts`, también pura). «Guardar cambios» manda UNA petición,
+  **`disparadores.editarDisparador({ id, nombre, tipo, senal, cooldown, unSoloUso, receptores, mover? })`**: mismo
+  permiso de construir y mismo límite de ritmo que `editarReceptores`; el servidor valida la línea entera con el
+  mismo lector de `disparadores.json` (8 receptores, 512 bytes, nombre ≤ 60 bytes), conserva el id y el contador de
+  usos, reescribe el fichero y responde a quien edita; si rechaza, el motivo, en español, sale junto al control
+  (`aria-invalid` y `role=alert`). `mover` solo hace falta al pasar de «señal» a botón o zona (el cable aún no tiene
+  sitio). **«+ Nuevo cable»** abre los mismos huecos con valores de partida y no existe hasta pulsar «Crear cable».
+  Accesibilidad: cada control tiene `aria-label`; la frase entera es un `role=group` con su texto completo como
+  `aria-label` (se lee en orden); todo es nativo (Tab, flechas, Espacio); blancos táctiles de 44 px (ya con el
+  «Tamaño de la interfaz»); a 360 px la frase baja de línea sin desbordar. «Ver datos» sigue como estaba.
+  La historia D reutilizará este mismo `editarDisparador` y su validación.
+- **«Decírselo al mundo» (historia D, «cable sin JSON»):** en el panel Cable, quien puede construir escribe una frase
+  («que al entrar en el círculo suene la campana», hasta 300 caracteres), pulsa **Decirlo** y la página enseña lo que
+  entendió, ya escrito como frase, con **Aplicar** / **Cancelar**. Hasta pulsar Aplicar **no cambia nada**.
+  - **Quién llama al modelo:** el **servidor**, nunca la página. `decirCable {texto, idioma}` pide a la IA del mundo
+    que rellene **una herramienta cerrada** (`proponer_cable`, `features/disparadores/cable-decir.ts`): los 3 tipos,
+    las 8 acciones y, en los huecos de nombre, **solo** los objetos, movedores, misiones y sonidos que ese mundo tiene
+    de verdad (la herramienta se arma con sus listas y la API obliga al modelo a llamarla: `tool_choice`). Las reglas
+    van en el turno de sistema, fijas y sin datos del mundo; la frase del usuario y las listas van en el turno de usuario,
+    dentro de bloques de datos (`<material>`, `<frase>`), con `<` y `>` quitados para que nada cierre el bloque. Lo que
+    devuelve el modelo es **solo un dato**: pasa por el mismo lector que `disparadores.json` (`leerDisparador`: 8
+    receptores, tamaño, https, id…), por una comprobación de que cada nombre existe en el mundo, y nunca se ejecuta.
+    Si algo no cuadra, la persona recibe el motivo en español (`decirRechazado`) y no se aplica nada.
+  - **Dos pasos:** `decirCable` solo devuelve una **propuesta** (`cablePropuesto`: número y frase, calculada en el
+    servidor con `fraseDeCable` en el idioma de quien la pidió). `confirmarCable {propuesta}` la aplica, **solo la
+    misma persona, en 2 minutos** y con permiso de construir, volviendo a validar todo (el mundo pudo cambiar: un
+    objeto borrado, el tope de 64) y reescribiendo `disparadores.json`. La propuesta vive en la memoria del servidor.
+    Un cable de tipo botón o zona se pone **donde está quien lo pidió**, igual que «+ Nuevo cable».
+  - **Topes** (como los Topes del cerebro de los habitantes): 3 peticiones por minuto y persona, `CABLE_DIA_MAX` por día
+    UTC y mundo (100; `CABLE_MINUTO` cambia lo de por persona), una petición a la vez por persona y 4 en vuelo, 20 s
+    de espera al modelo. Si el modelo falla, durante 1 minuto se dice «La IA no contesta ahora mismo» sin repetir
+    lo que contestó el proveedor (puede repetir lo enviado; solo va al registro del servidor, 120 caracteres).
+  - **Dónde vive la clave:** donde ya vive la del cerebro de los habitantes, **no hay un segundo sitio**: `CEREBRO_CLAVE`
+    (o `ANTHROPIC_API_KEY`) y `CEREBRO_MODELO` en el entorno del servidor, leídos solo en `packages/server/src/cable-ia.ts`
+    y usados con `cerebroClaude` de `packages/agent/src/cerebro.ts`. La clave nunca sale de ahí: ningún mensaje, estado,
+    registro ni error la lleva, y la página no la ve (test con la clave puesta y búsqueda en todo lo que ven las páginas).
+    **Ojo con la instalación:** `instalar-motor.sh --clave-ia` guarda la clave en `cerebro.env`, que **solo carga el
+    servicio de los habitantes** (su usuario y su cortafuegos, que solo sale a Anthropic). El servicio del servidor
+    no la carga, así que **en una instalación así «Decirlo» queda apagado hasta que el dueño decida** darle la clave
+    al servidor (`EnvironmentFile=-…/cerebro.env` en su unidad y salida a Anthropic). No se hizo solo: es dinero y
+    cambia lo que la casa exige.
+  - **Sin IA no hay caja muerta:** el estado `puedeDecir {puede, motivo}` (solo para quien construye) dice si se puede
+    y, si no, por qué en español («Este mundo no tiene una IA conectada. Pide al dueño que la añada.», «Hoy este mundo
+    ya ha usado sus 100 peticiones…», «La IA no contesta ahora mismo…»). La página **oculta el cuadro y enseña el
+    motivo** en su lugar. En pruebas el modelo es una función inyectable (`crearDisparadores({ decir: { pensar } })`);
+    el servidor de pruebas e2e usa el cerebro eco con `CEREBRO_ECO=1` y `CABLE_ECO_RESPUESTAS=<fichero.json>`
+    (`{"<frase>": <entrada de proponer_cable>}`): solo existe si se arranca así, ninguna ruta de producción lo activa.
+  - **No toca la simulación:** la llamada es asíncrona y fuera del tick; la huella no cambia. Pieza reutilizable
+    (R-1): cualquier mundo que cargue `disparadores` y le enchufe un `pensar` lo tiene. Textos en `cable-frases.es.ts` y
+    `cable-frases.en.ts` (claves `decir.*`); `ja`, `ko` y `pt-br` siguen pendientes. En código: `disparadores.decir.pedir(texto)`,
+    `.confirmar(propuesta)`, `.estado`, `.alResponder(fn)`; página: `apps/plaza/cable-decir.ts`. Leg e2e: `tools/e2e-piernas/cable-decir.mjs`.
+- **Lo que no hace (todavía):** mover un cable ya creado a otro sitio desde la página
+  (`editarDisparador` ya lo admite con `mover`, la página solo lo usa al salir de «señal»). La vista del constructor (`apps/plaza/cable.ts`) lista cada disparador, deja «Probar» un botón y edita
+  en vivo sus receptores (`editarReceptores`: el servidor valida cada receptor igual que al leer el fichero y, si
+  acepta, reescribe `disparadores.json`; el campo `receptores` del estado viaja a toda página, como el resto de la
+  ficha; no es un secreto como el código de una cerradura). Sin servidor con escritor de ficheros el cambio vale
+  hasta reiniciar y el registro lo dice.
+
+## Sonido (S6): el catálogo de la casa, con ficheros de verdad y su texto
+
+La pieza `sonido@1` (`features/sonido`) es el catálogo de sonidos del motor: **27 ids, 89 variantes, 178 ficheros**
+(`.opus` + respaldo `.m4a`), **todo CC0 1.0** (Kenney y OpenGameArt), en `activos/sonidos/`. Antes de S6 los siete
+avisos de la casa eran osciladores: pitidos sintetizados. Ahora son sonidos.
+
+- **El servidor manda** (R-1 y D-041): nadie elige un sonido en su página. El servidor dice **qué id**, **dónde** y
+  con **qué semilla**; cada página calcula con esa semilla la misma variante y la misma pizca de tono y volumen
+  (`azarDe(semilla, id)`, xorshift32 con mezclador de murmur3, en `packages/render/src/audio/voces.ts`). Dos personas
+  en el mismo sitio oyen **el mismo golpe de madera**, no dos distintos.
+- **Cómo lo pide un mundo:** el receptor `suena` del cable (`{ "accion": "suena", "sonido": "golpe-madera" }`). Vale el
+  id del catálogo o el nombre del aviso de la casa (`campana`, `exito`, `error`, `aviso`, `suave`, `paso`, `magia`,
+  `completada`), que el motor traduce a su id. Un nombre que no está **no rompe nada**: el registro lo dice y el
+  mundo sigue.
+- **Cómo lo pide otra función del motor:** `crearSonido({ alArrancar: (suena) => … })` te da `suena(id, { donde, quien,
+  volumen })`; `donde: null` = en la cabeza (sin panner), `donde: {x,y,z}` = en el mundo, y solo lo oye quien esté a
+  `OYE_M`.
+- **Accesibilidad (XAUR, WCAG 2.2):** cada sonido del catálogo trae su **texto** y viaja en el evento; la página lo
+  lleva a la región de avisos (`anunciar`). Ningún sonido sin texto, y el aviso de la casa no se solapa con el
+  fichero (`announce: "silent"`: el sonido del evento *es* el fichero).
+- **El peso:** ni un `.opus` entra en el paquete de arranque. La página pide **una** tabla (`GET /sonidos.json`, media
+  hora de caché, ~9 kB) con id → variantes por su sha256, bus, prioridad, cooldown y texto; los ficheros se piden
+  luego a `/a/<sha256>.opus` (un año, inmutable), y solo los que hagan falta.
+- **Si falta un fichero:** al arrancar, la pieza compara el catálogo con lo que hay en disco (ids repetidos, sha256
+  que no cuadra, fichero que no está) y **avisa en el registro sin tirar el motor**; quien entra recibe `faltan`.
+- **Rehacer el catálogo:** `node tools/sonidos-catalogo.ts --biblioteca <carpeta>` copia los lotes `nucleo` y
+  `funcion` de la biblioteca verificada, recalcula el sha256 de cada fichero y reescribe `features/sonido/catalogo.json`
+  y `activos/sonidos/LICENCIAS.md`. Es idempotente: si nada cambió, no toca nada.
+## Salón de los Ancestros y el tributo a Asimov (ancestros v1)
+
+`features/ancestros` es el Salón de los Ancestros del Ateneo (el Ayuntamiento de Numinia, donde el Consejo de Sabios
+expone y prueba sus proyectos: `numinia-archive/lore/game/manual/es/05-geografia-y-cultura-de-numinia.md`) y, dentro,
+un homenaje a Isaac Asimov. Todo lo decide el servidor; la página dibuja y pregunta.
+
+- **La sala:** cuatro muros de piedra con puerta al sur (hacia la plaza), en `SALON` (`x: 0, z: -48`, 12 m de lado,
+  4 m de alto). Cada muro es una cosa del estado con `solido` y su caja `bx0…bz1`: **la misma caja la lee la simulación**
+  (`solidsFrom`), así que lo que ves es lo que te para, sin tocar `packages/sim`. Los muros no tienen nombre: ni ficha
+  ni rótulo, solo decorado.
+- **El holograma** («asimov»): una cosa con ficha (`objeto`, acción `hablar`) e `interact` a `radio` m (3). En 3D
+  (`packages/render/src/ancestros.ts`) es un **busto que evoca sin imitar**: pedestal, cono de luz y cabeza + hombros de
+  geometría simple en cian translúcido con una malla encima. Nada de .glb ni de modelos realistas.
+- **Cercanía:** el servidor mira cada `CADA_TICKS` quién está a `DESPIERTA_M` (8 m) de cada holograma (el mismo patrón
+  de las misiones con `llega_a`), pone `encendido` en el estado (lo ven todos) y avisa **solo a quien llegó**
+  (`despierta`). Con histéresis: se apaga a `DUERME_M` (10 m), para que nadie lo haga parpadear en el borde. Encendido,
+  en la página se vuelve hacia ti y titila; es lo único que cuesta un cuadro, y solo si estás a `VIVO_M` (40 m).
+- **Hablar** (`E` o pinchar su nombre): el servidor dice la **siguiente de las Tres Leyes** (1, 2, 3, 1… por holograma,
+  igual para todos, sin azar) y, al lado, **una de nuestras cuatro reglas AGW** elegidas (`NUESTRAS`: AGW-007, 003, 006,
+  012; rotan solas). Evento `dice` a quien habló y a quien está a `CERCA_M` (14 m): el anuncio lo lee en voz al lector
+  de pantalla; la página pone una placa sobre su cabeza (9 s) y, a quien le habló, el panel `#ancestros-panel` (Esc o
+  «Cerrar»). Lejos: `rechazado` con el motivo.
+- **Los dos paneles** detrás del holograma (las Tres Leyes · «Las nuestras, 80 años después») los pinta la página una
+  vez por texto (`view.ancestros.paneles`), con los textos que la función le da (`ancestros.textos`), para que un agente
+  lea lo mismo.
+- **Voz:** ninguna. No hay TTS propio del motor (V3) y **queda prohibido clonar la voz real de Asimov** (derechos de
+  su patrimonio). Cuando V3 exista, que lea el texto con una voz genérica grave y pausada de narrador. El rótulo del
+  holograma, la ficha y el panel dicen siempre «dramatización, no una grabación».
+- **Lo que no hace (todavía):** más hologramas de otros Ancestros (basta con pasar `hologramas` a `crearAncestros`),
+  un fichero `MUNDO_DIR/ancestros.json` como el de las torres de dados, techo y luz propia en la sala, y una pose
+  del busto que siga tu altura.
 
 ## Agua (N2): estilizada, de color plano, un solo draw call
 
@@ -1117,6 +1359,23 @@ escena (Lambert), así que de noche se oscurece sola.
 - La opción «Agua» del menú: «Sencilla» / «Con destellos»; ya no hay `WaterMesh` reflectante (`view.elementos.contar().reflejos`
   queda en 0; `aguaDetalle` dice qué dibuja el agua en este nivel).
 - Pruebas: `test/agua.test.ts`.
+
+## Naturaleza (N4): relieve, árboles y hierba que enciende un fichero
+
+`features/naturaleza` es la pieza más corta de copiar para «el servidor solo guarda y manda un fichero del mundo; la página construye»:
+`MUNDO_DIR/naturaleza.json` (`numinia-engine/naturaleza@1`: `activa`, `semilla`, `tamano`, `plaza`, `densidad: { arboles, hierba }`,
+`estanque`, `paleta`; todo opcional, claves de más rechazadas con cómo arreglarlas) → `features/mundo.ts` lo valida (si está mal, lo dice en
+el log y el mundo sigue plano) → la página llama a `view.naturaleza.aplicar(datos)`. Sin el fichero no cambia nada. Detalle, números y
+la advertencia de que aún no hay colisión con el terreno (N5): `docs/NATURALEZA.md` sección N4.
+
+## Fauna (F1): quién hay en el mundo, sin red y sin reloj
+
+Para repartir bichos (o cualquier cosa «viva» que salga y se vaya) sin mandar ni un mensaje, copia `packages/relieve/src/fauna.ts`: una **tabla**
+de razas con `rareza` y `peso` (como `features/pesca/peces.json`, más una `epica`) y una función pura
+`habitantes(semilla, celda, ventana, tabla, ctx)` que dice quién vive en una celda de 32 m durante 120 s del reloj del mundo; servidor y páginas
+dan el mismo resultado. La tabla de la casa es `features/naturaleza/fauna.json` (36 razas: mariposas, luciérnagas por color, pájaros, todos
+electrónicos); un mundo trae el suyo con `fauna.json` y lo enciende o recorta con `naturaleza.json` → `fauna: { activa, densidad, especies }`.
+`probabilidad()` y `pVerRareza()` dan la tabla de probabilidades para documentos y diarios. Detalle, números y objetivo de rareza: `docs/NATURALEZA.md` sección F1.
 
 ## Enrutador de capas (U2, H1: la pieza, aún sin enchufar)
 
@@ -1143,4 +1402,194 @@ Crisálida» al acercarte. Diseño completo (combate y bestiario de 12): `mmo-br
 - **Un mundo** trae sus criaturas en `MUNDO_DIR/lucha.json` (`{ "criaturas": [{ id, especie, x, y, z, nombre?,
   reaparicion? }] }`, `features/mundo.ts`); sin fichero, el Guardián de la casa en (24, 10). Especie desconocida = se
   avisa y no se pone.
-- **Solo PVE**: el objetivo es siempre una criatura; PVP y que la criatura se mueva o devuelva el golpe son filas L2-L8.
+- **PVE por defecto**: el objetivo es una criatura salvo que el mundo active el PVP en su `entorno.json` (`pvp` / `zonasPvp`, arriba; objetivo `p:<entidad>`); que la criatura se mueva es fila L2-L8.
+
+## Condiciones de entrada (condiciones/c1-c2): las normas del mundo y la puerta del servidor
+
+Un mundo dice qué hay que aceptar para entrar en `aventura/condiciones.json` (formato `condiciones@1`; sin fichero, el
+ejemplo de la casa; fichero roto = una línea en el registro con la ruta del fallo y el ejemplo de la casa).
+
+```json
+{ "formato": "condiciones@1", "puerta": true,
+  "capas": [
+    { "capa": "casa", "version": "2026-10", "puntos": [
+      { "id": "uso",     "titulo": "Normas de uso", "texto": "…", "obligatorio": true,  "tipo": "norma" },
+      { "id": "informe", "titulo": "Informe anónimo de rendimiento", "texto": "…", "obligatorio": false, "tipo": "datos" } ] },
+    { "capa": "comunidad", "version": "A", "puntos": [ … ] } ] }
+```
+
+- **Capas**: `casa` (la plataforma) y `comunidad` (la organización), cada una con su `version`. Aceptar una capa es aceptar
+  esa versión; si el texto cambia y subes la versión, todos vuelven a tener que aceptarla.
+- **`tipo`** (por punto, opcional, por defecto `"norma"`): `norma` = una condición del servicio, y si es `obligatorio` cierra
+  la puerta hasta que se acepta; `datos` = un permiso sobre datos (informe de sesión, IA que escucha, avisos…) que
+  **nunca** puede ser obligatorio (EDPB 05/2020 §39, RGPD 7.4): `obligatorio: true` con `tipo: "datos"` es un error del
+  validador y el mensaje dice cómo arreglarlo (`"obligatorio": false`, o `"tipo": "norma"` si en realidad es una norma).
+  Rechazar un punto de datos no bloquea nunca.
+- **`nombre`** (por capa, opcional, 1–60 caracteres, c3): cómo llama la burbuja a esa capa en sus pasos («Numen Games»); sin él dice «La casa» / «La comunidad». El motor no lleva marca: los nombres salen de este fichero.
+- **`puerta`** (opcional, `true`/`false`): pide encender la puerta del servidor para este mundo.
+
+### Las normas de la comunidad llegan solas al mundo (w4: `packages/server/src/condiciones-fuente.ts`)
+
+Cuando una comunidad publica una versión de sus normas en numinia.com (Ajustes → «Normas de vuestros espacios»), sus mundos la usan sin que
+nadie copie nada a mano, y **cada mundo guarda su copia en su carpeta**: si numinia.com está caída, el mundo sigue con la última que bajó
+(file over app). El motor **tira** (pull); numinia.com no necesita saber dónde vive el mundo ni tener llave para escribir en él.
+
+Un autor lo activa con una línea en el `aventura/condiciones.json` del mundo (la dirección está en la página pública de normas de su
+comunidad: `/es/communities/<id>/normas/`):
+
+```json
+{ "formato": "condiciones@1", "puerta": true,
+  "comunidad": { "fuente": "https://numinia.com/api/community-terms?comunidad=numen-games" },
+  "capas": [ { "capa": "casa", "version": "2026-10", "puntos": [ … ] } ] }
+```
+
+- **Qué hace**: al arrancar y luego cada 15 minutos (`MOTOR_CONDICIONES_FUENTE_MIN`, nunca menos de 5: numinia.com guarda la respuesta 5
+  minutos) descarga ese JSON (`community-terms-public@1`), valida la capa con el mismo lector de C1 (un punto `datos` obligatorio se
+  rechaza aquí también) y, si es válida y distinta, la escribe en **`aventura/condiciones-comunidad.json`** y la pone encima de la capa de
+  la casa. La capa `casa` sigue saliendo de `condiciones.json` (o del ejemplo); la `comunidad` descargada sustituye a la que el autor
+  hubiera escrito a mano.
+- **A quién le toca**: la oferta cambia para **quien llega después**; quien ya está dentro sigue dentro (la conexión admitida no se
+  vuelve a cerrar) y quien está dentro de la burbuja recibe el texto nuevo y la burbuja empieza de nuevo con él. Como la versión de la
+  capa cambia, quien aceptó la anterior tiene que aceptar la nueva (c6 enseñará solo lo que cambió).
+- **Si falla algo** (red caída, HTTP ≠ 200, JSON roto, respuesta de otra comunidad, publicación más vieja que la copia, más de 256 KB,
+  más de 8 s): una línea `[condiciones] …` en el registro y sigue lo que había (la copia; sin copia, la casa y lo que el fichero lleve
+  a mano). Nunca impide arrancar. Con copia el servidor arranca sin esperar; **sin copia espera hasta 5 s la primera respuesta** para que
+  el primero en llegar ya vea las normas de su comunidad. Una copia de otra fuente (otra comunidad) no se usa.
+- **Seguridad**: solo `https` (`http` únicamente en `localhost`/`127.0.0.1`, para pruebas); sin usuario ni contraseña en la dirección;
+  sin dependencias nuevas (`fetch` de Node); tope de tamaño y de tiempo.
+- **El operador manda**: `MOTOR_CONDICIONES_FUENTE=<url>` (o la opción `condicionesFuente`) sustituye a la del fichero; `=no` la apaga.
+- **La copia** (`condiciones-comunidad@1`) se lee, se compara y se guarda en git como cualquier fichero del mundo:
+  `{ "formato": "condiciones-comunidad@1", "fuente": "<url>", "descargadoEn": "<UTC>", "publicadoEn": "<UTC>", "capa": { "capa": "comunidad", "version": "…", "puntos": [ … ] } }`.
+  Se puede borrar sin miedo (se vuelve a bajar); solo se usa mientras el mundo tenga esa misma `fuente`.
+- **Probarlo en local**: un servidor HTTP cualquiera que sirva ese JSON en `http://127.0.0.1:<puerto>/…` sirve de numinia.com
+  (`test/condiciones-fuente.test.ts` lo hace: nueva versión → nueva oferta; red caída → copia; JSON inválido → casa/copia).
+
+### El pase dice lo que ya aceptaste en numinia.com (w5: `pase.ts`, `condiciones-puerta.ts`)
+
+Quien ya aceptó las condiciones de numinia.com al iniciar sesión no tiene por qué leerlas otra vez al entrar a un mundo suyo. El pase
+firmado con el que entra (`#pass=…`, el de «Entrar») puede llevar un campo más, **`acepto`**: `{ "acepto": { "casa": "terms@1.0.1+privacy@2.1.0" } }`
+(la versión exacta de los textos que la web le hizo aceptar; el motor ignora las claves que no conoce, hoy `casa` y `comunidad`).
+
+**Cómo lo declara quien hace el mundo**: en la capa `casa` de `condiciones.json`, `"versionWeb": "<esa misma cadena>"` — «el texto de esta
+capa ES el que numinia.com muestra en esa versión». Sin `versionWeb` el mundo no se cree el pase y pregunta como siempre.
+
+```json
+{ "capa": "casa", "version": "2026-10", "versionWeb": "terms@1.0.1+privacy@2.1.0", "puntos": [ … ] }
+```
+
+Reglas (el servidor las aplica en `crearPuertaCondiciones`, en un solo sitio):
+- **Solo cuenta si el pase es bueno**: firma Ed25519 válida, no caducado, de este mundo (todo lo de `verificarPase`). Un pase falso, caducado,
+  de otro mundo o recortado no da nada: la persona entra como invitada y se le pregunta todo. El campo no alarga el pase (`exp` es el suyo) ni
+  toca los permisos, la altura ni los roles. En el pase de una IA el campo está prohibido (la IA no acepta nada).
+- **Coincidencia exacta**: `acepto.casa === versionWeb`. Si la web sube sus textos y el autor del mundo aún no ha revisado el suyo, no coincide
+  y se pregunta como siempre (y, si la persona ya aceptó antes en este mundo, c6 le enseña solo lo que cambió).
+- **Cubre las NORMAS de esa capa, nunca los permisos de datos**: la oferta (`condiciones-estado@1`) añade `porPase: ["casa"]`, no cuenta esa
+  capa en `faltan`, y la lista en `capas` solo con sus puntos `datos` (o sin la capa si no tiene ninguno). Si no queda nada por pedir, `abierta: true`
+  y la burbuja ni sale; si falta la comunidad, empieza en la comunidad y al final pide «Tus datos» con las casillas vacías. Un permiso de datos
+  solo existe si la persona lo marca en el mundo.
+- **No se guarda como aceptación**: la aceptación de la casa vive en la web; en el mundo solo se guarda lo que la persona acepta aquí. Al volver
+  con un pase al día vuelve a valer; sin pase (invitado) se pregunta.
+- El mundo no manda `acepto` a la página (la identidad que recibe el navegador no lo lleva).
+
+### La burbuja de entrada (c3, PC y móvil: `apps/plaza/condiciones.ts`)
+
+Con la puerta encendida, la página recibe `condiciones-estado@1` con `puerta: true, abierta: false` y pone al jugador en una pompa: el mundo se
+ve detrás, borroso y oscurecido (un solo `backdrop-filter` CSS: nada de post-proceso GPU, barato en móvil) y un panel `role="dialog"` `aria-modal`
+pide, paso a paso, una página por capa (casa, luego comunidad: lo esencial, el texto entero y una casilla obligatoria) y al final «Tus datos · entras
+igual digas sí o no»: los puntos `datos` como casillas VACÍAS y dos botones iguales («Entrar sin lo opcional», «Aceptar todo y entrar»).
+Además «← Atrás» y «Salir» (a la `ciudadUrl` del mundo si la tiene; si no, una despedida con «Volver atrás» / «Volver a empezar»). No se cierra con
+Escape ni con clic fuera, el foco se queda dentro del panel (Tab da vueltas) y el resto de la página va `inert`; mientras está, ninguna tecla llega al
+mundo y `readAxes` devuelve 0 (el servidor también te sujeta). Al aceptar manda `ACEPTAR` (`session.aceptar(versiones, datos)`); cuando el servidor
+contesta `abierta: true` la pompa estalla (650 ms, o 30 ms con `prefers-reduced-motion`) y se camina. Móvil vertical (ventana estrecha o
+`?aparato=movil-vertical`): el panel ocupa casi toda la pantalla. Con la puerta APAGADA (por defecto) no se crea ningún elemento ni estilo.
+`apps/plaza/condiciones-logica.ts` guarda las decisiones sin navegador (pasos, qué manda ACEPTAR, qué cierra la puerta) y las prueba
+`test/condiciones-burbuja.test.ts`; `__numinia.condiciones` expone `estado`, `cerrada()` y `alCambiar()` para c4 (VR); c5 (la pompa vista desde fuera) va aparte, justo debajo.
+Mundo de pruebas: `aventuras/condiciones-prueba/` (ver su `LEEME.md`); e2e: `node tools/e2e-piernas/condiciones.mjs` (con `SHOTS=carpeta`, fotos de cada paso en PC 1400×900 y móvil 390×844).
+
+### La burbuja de entrada en VR (c4: `apps/plaza/condiciones-xr.ts` + `packages/render/src/condiciones-vr.ts`)
+
+Con el visor puesto la misma burbuja es **un panel en el mundo**: a 1,2 m delante, a la altura de los ojos, quieto (se pone una vez; si te das la
+vuelta y lo dejas de mirar 2,5 s vuelve delante de ti) y con la letra grande (≥ 1,2°; los botones ≥ 3°). Es **otra vista de la misma lógica**, no otra
+lógica: los pasos, los textos de cada paso, los botones del pie y cuándo están apagados, el rótulo de la casilla y lo que manda ACEPTAR salen de
+`condiciones-logica.ts` (`textosDePaso`, `botonesDePie`, `rotuloNormas`); la burbuja plana sigue siendo la dueña del estado (paso, casillas, «enviando») y el
+panel VR llama a los mismos métodos (`ir`, `marcarNorma`, `marcarDato`, `enviar`, `salir`). Por tanto:
+
+- **Menos texto por página**: un paso de normas = «Lo esencial» (los títulos de las normas, numerados) y después el texto entero a 7 líneas por página;
+  un paso de cambios (c6) = primero lo nuevo / cambiado / quitado y después el texto de lo que cambió; «Tus datos» = 2 permisos por página, todas las
+  casillas VACÍAS y los dos botones iguales («Entrar sin lo opcional» / «Aceptar todo y entrar») en todas las páginas, más «Atrás» y «Salir». La casilla
+  que acepta las normas se ve siempre, en cualquier página del texto. Las páginas solo recorren el texto; la ley sigue estando en la casilla.
+  Paginación sin navegador: `apps/plaza/condiciones-vr-logica.ts` (`test/condiciones-vr.test.ts`).
+- **Cómo se maneja**: rayo de cualquiera de los dos mandos + gatillo; pellizco del rayo de una mano seguida (lo hace `manos.ts` con cualquier `Panel`); tocar con
+  la punta del dedo (a ≤ 15 mm, una vez, hay que despegar para repetir); la **palanca** (izquierda o derecha, ← →) pasa de página — dentro de la burbuja la
+  palanca no gira ni mueve. «Salir» pregunta dos veces en VR (un rayo se desliza fácil); si sales, termina la sesión de VR para que se lea la despedida plana.
+- **Locomoción**: con la burbuja abierta `vr.update` pone el movimiento y el giro a 0 (el cliente ni lo intenta; el servidor ya te sujeta) y no hay reloj
+  ni menú de muñeca. Al estallar la pompa se vuelve a andar.
+- **La pompa alrededor**: una esfera de 1,6 m vista desde dentro, un solo material plano, opacidad 0,16 como mucho y que sube en 1 s: el mundo nunca se oscurece
+  de golpe y no hay viñeta. Estalla en ~⅓ s (crece ×1,35 y se desvanece; el panel se va con ella). Un solo lienzo → una textura, y se redibuja solo cuando
+  cambia el modelo (paso, casilla, página) o el resalte (como mucho cada 100 ms).
+- **Casos**: *PC con el visor, burbuja a medias* → al entrar en VR (botón «Entrar en VR» de la propia burbuja, porque la barra queda tras ella) el panel sale en el
+  mismo paso y con las mismas casillas; la burbuja plana sigue montada bajo el visor (en el monitor se ve como siempre) y lo que hagas en uno se ve en el otro.
+  *Quest, la burbuja plana sale antes de entrar en VR* → igual; el navegador de la Quest también la tiene (con su «Entrar en VR»). *Salir de VR con la burbuja
+  abierta* → sigues en el mismo paso en la burbuja plana. *Servidor con la puerta apagada* → no se carga nada de VR de la burbuja.
+- Se carga bajo demanda (`import()` en cuanto la burbuja sale en un navegador con VR, para que entrar no espere). Comprobación: `__numinia.view.vr.condiciones()?.estado()`
+  y `.zonaMundo(id|botón)`; e2e con IWER (Quest 3 emulada): `node tools/e2e-piernas/condiciones-vr.mjs` (puertos 8861/5193; `SHOTS=carpeta` guarda el lienzo del panel).
+  **No probado en una Quest real** (ver el PR: paso a paso por USB).
+
+### La pompa vista desde fuera (c5: `packages/render/src/pompas.ts`)
+
+Quien aún está leyendo las normas (puerta encendida y no abierta) se ve, para todos los demás, **dentro de una pompa translúcida** con un
+rótulo «Nombre · leyendo las normas…» (el rótulo de nombres de siempre, `nombres.ts`, que además se queda encendido y un poco más alto mientras
+dura). Es una esfera con **una sola geometría y un solo material compartidos** (sin shader propio, sin refracción: un dibujo por persona que
+lee y se ve, como mucho 24); al aceptar estalla en ~⅓ s sobre una copia del material que solo existe durante el estallido. Una pompa quieta no
+pide fotogramas (`busy()`). Con la puerta apagada no se crea ni la geometría. Para comprobarlo: `__numinia.view.pompas()` y
+`__numinia.view.nameTags()`; e2e: `node tools/e2e-piernas/condiciones-pompa.mjs`.
+
+- **`LEYENDO` (15), servidor → página**, aditivo: `[15, (entidad u16 BE, estado u8)…]`, estado 1 = está leyendo, 0 = ya no (aceptó o se fue).
+  Se manda **solo al cambiar** (llega y tiene que leer; acepta; se desconecta) y **una vez, como lista, a quien se conecta**: 4 bytes por
+  cambio a cada otra conexión, **0 bytes por tick**, nada en la instantánea. Quien ya aceptó esa versión no genera nada al volver; con la puerta
+  apagada no sale ni un byte (test: mismos bytes que sin puerta). Una conexión nunca recibe su propio estado (su pompa es el panel de c3).
+  Hasta 300 entidades por mensaje. Cliente: `session.leyendo` (conjunto de entidades) y `session.onLeyendo(entidad, leyendo)`; la página lo
+  pasa a `view.leyendo(entidad, si)`.
+- **Ni se la oye ni se la empuja**: su voz no se reenvía (c2) y, mientras lee, el servidor rechaza `ordenar(…, { empujar | quieto | sentar })`
+  sobre ella (`Instance.leyendoNormas(entidad)`, `api.leyendoNormas`) y `lucha` rechaza el golpe PVP («Esa persona está leyendo las normas»).
+  No hay colisión cuerpo a cuerpo en el simulador, así que nada más la mueve. Una función nueva que mueva o dañe a otra persona pregunta
+  `api.leyendoNormas(e)` antes.
+
+### La puerta (apagada por defecto)
+
+Con la puerta **encendida**, una persona que no ha aceptado todas las normas obligatorias de la versión actual de cada capa
+se queda quieta donde llegó (sus entradas de movimiento se ignoran), y se ignoran su chat, su voz (no se reenvía nada de su
+micrófono) y todo mensaje de función: colocar y construir, y cualquier acción de juego. Ver y oír a los demás no se toca.
+No es un error del cliente: no suma a los mensajes malos. Una IA con su billete firmado no pasa por la puerta (no tiene
+burbuja que pulsar).
+
+Quién decide si está encendida, por orden: la opción del servidor `condicionesPuerta` (`startServer`) o la variable de
+entorno `MOTOR_CONDICIONES_PUERTA=si|no` → la clave `puerta` de `condiciones.json` → **apagada**. Con la puerta apagada el
+servidor se comporta exactamente como antes (no envía nada por su cuenta, no registra la función `condiciones`, no cambia
+ni un byte) y solo contesta si la página pregunta. El registro del arranque dice una línea con el estado
+(`[condiciones] puerta apagada|ENCENDIDA …`).
+
+### Los mensajes (net, tipos 13 y 14, aditivos; `WIRE_FORMAT` sigue en 2)
+
+- **`CONDICIONES` (13), servidor → página**: `[13, JSON]` con
+  `{ formato: "condiciones-estado@1", puerta, abierta, faltan: [capa…], aceptado: { versiones: {capa: versión}, datos: [id…], en: ISO } | null, capas?: [{ capa, version, puntos: [{ id, titulo, texto, obligatorio, tipo }] }] }`.
+  `abierta` = puedes moverte, hablar y construir (puerta apagada, o ya aceptaste lo vigente). `faltan` = las capas cuya versión
+  vigente tienes que aceptar. `capas` (el texto entero) va en la oferta y no en la respuesta a `ACEPTAR`. Con la puerta encendida
+  la oferta llega sola justo después de `IDENTITY`.
+  **c6, campo aditivo `cambios` por capa** (solo cuando esa persona aceptó antes OTRA versión de esa capa y el servidor guardó las huellas;
+  un cliente viejo lo ignora y enseña todo): `capas[i].cambios = { desde: "1.0", nuevos: [id…], cambiados: [id…], quitados: [id…], antes?: { id: "título de antes" } }`.
+  `nuevos` y `cambiados` están en `puntos`; `quitados` ya no (solo su id y, en `antes`, su título). Cambia el título, el texto, `obligatorio` o
+  `tipo` = `cambiado`. Un punto `datos` nuevo o cambiado se ofrece con la casilla VACÍA: el permiso de uno cambiado se pierde (consentimiento
+  informado) y el de uno sin cambios sigue dado (`aceptado.datos` lo conserva aunque la página no lo muestre). Un registro de c2 (sin huellas) o una
+  capa nunca aceptada: sin `cambios`, se pide todo. La capa con la misma versión aceptada no entra en `faltan` ni lleva `cambios`.
+- **`CONDICIONES` (13), página → servidor**: un solo byte `[13]` = «mándame las condiciones y dónde estoy». Se contesta siempre
+  (puerta encendida o apagada, antes o después de `IDENTITY`).
+- **`ACEPTAR` (14), página → servidor**: `[14, JSON]` con `{ versiones: { capa: "versión que leíste" }, datos: ["id de dato marcado"…] }`
+  (hasta 4 capas, 40 ids, 40 caracteres cada texto, 900 bytes). Solo cuentan las versiones **vigentes** y los ids que existen
+  como puntos `datos`; lo demás se ignora. `datos` es exactamente la lista de permisos marcados (otra aceptación la sustituye:
+  desmarcar es retirar). Hace falta haberse identificado (se guarda por persona); hasta 5 por segundo. Se contesta con un
+  `CONDICIONES` sin `capas`.
+- Se guarda por persona (`a:<id>` en el almacén de la función `condiciones`, `datos/condiciones.json`; solo existe con la puerta
+  encendida): `{ v: {capa: versión}, d: [ids], en: ISO UTC }`; sobrevive a reinicios y viaja con la persona.
+- Cliente (`ClientSession`): `condiciones` (último mensaje; conserva el último `capas`), `onCondiciones`, `pedirCondiciones()` y
+  `aceptar(versiones, datos = [])`.

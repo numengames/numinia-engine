@@ -1,5 +1,7 @@
-// The builder (H1 + M22): a «Construir» button (C or Tab) for whoever may build; a panel of real HTML controls that
-// screen readers and keyboards can use (tools, library, inspector, snap, help, status); and the hands in the 3D view
+// The builder (H1 + M22): a «Construir» button (C or Tab) for whoever may build; real HTML controls that screen readers
+// and keyboards can use — since ux2-dock a row of icons (the dock: Añadir, Cable, Entorno, Precisión, Inspector, Ayuda |
+// Deshacer, Rehacer | Salir) with ONE drawer open at a time under it (cajones.ts), and the selected object's card on the
+// right — so building no longer covers the world; and the hands in the 3D view
 // (packages/render/src/gizmo.ts): a click selects, the gizmo's handles (X red, Y green, Z blue) move, turn and scale,
 // grab mode («coger») follows the pointer. It only asks the server (features/objetos): every change reaches everyone.
 // main.ts passes the builder of features/objetos/client.ts (only composition roots import features/) and the view.
@@ -16,6 +18,10 @@
 // thing itself is the handle. Design: ../mmo-browser-study/MODO-CONSTRUCTOR-MOVIL-VR.md.
 import type { Donde, Editor, Eje } from "../../packages/render/src/index.ts";
 import { icono } from "./iconos.ts";
+import { datosFicha, enlaceDeObjeto, ETIQUETAS_FICHA, fichaVisible, logicaDeObjeto, seleccionarAlIr } from "./ficha-objeto.ts";
+import type { PiezasMundo } from "./ficha-objeto.ts";
+import { ACCIONES_DOCK, alTocarlo, alternarCajon, CAJONES, esArrastre, filtrarBiblioteca, iconoDePieza, queCierraEscape, tamanoUniforme } from "./cajones.ts";
+import type { Cajon } from "./cajones.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type Obj = Record<string, unknown> & { id: string };
@@ -59,14 +65,14 @@ export const AYUDA = [
   "2 o G mover · 3 o R girar · 4 escalar: arrastra las asas X roja, Y verde, Z azul.",
   "X, Y o Z: solo ese eje (otra vez: todos) · T: ejes del objeto o del mundo.",
   "Con paso: 0,5 m, 15°, escala 0,1 (cámbialo abajo); Ctrl mantenido: libre.",
-  "Mayús + D o Ctrl + D: duplicar y coger la copia · Supr o Retroceso: borrar · P: fijar o soltar.",
+  "Mayús + D o Ctrl + D: duplicar y coger la copia · Supr o Retroceso: borrar · P: anclar o soltar (un objeto anclado no se puede mover, girar ni borrar hasta soltarlo).",
   "Mayús + clic: suma o quita del grupo seleccionado (varios a la vez); el gizmo los mueve juntos, Supr los borra juntos, Ctrl+Z los deshace juntos.",
   "Al mover un solo objeto con un eje elegido (X/Y/Z): si su cara queda a menos de 25 cm de otro objeto, encaja cara con cara.",
-  "Ctrl + Z: deshacer · Ctrl + Mayús + Z o Ctrl + Y: rehacer · F: encuadrar · N: inspector.",
-  "Biblioteca: el modelo sigue al puntero y un clic lo coloca; «Delante de ti» lo coloca sin ratón.",
-  "Doble clic en un objeto mientras juegas: abre construir con él seleccionado. Encima del objeto sale una barra con Mover, Girar, Escalar, Duplicar y Borrar.",
-  "Imagen, Pantalla de vídeo y Zona de sonido (abajo): suben tu fichero y lo ponen delante de ti. La zona de sonido es una esfera: Escalar cambia su radio.",
-  "Con el dedo: toca un objeto para seleccionarlo y arrástralo para moverlo (sobre el suelo y sobre otros objetos). Un dedo en el vacío mueve la cámara; dos la acercan. Girar y escalar: los botones de encima y «Pasos con botones».",
+  "Ctrl + Z: deshacer · Ctrl + Mayús + Z o Ctrl + Y: rehacer · F: encuadrar.",
+  "Arriba, una fila de iconos: Añadir, Cable, Entorno, Precisión, Inspector y Ayuda abren su cajón (uno a la vez; otra vez o Esc lo cierra); Deshacer, Rehacer y Salir.",
+  "Añadir: pulsa una pieza para ponerla delante de ti, o arrástrala al mundo y suéltala donde la quieras (la rueda la gira). «Subir»: tu modelo .glb, imagen, vídeo o sonido, delante de ti; también puedes soltar el fichero sobre el mundo. La zona de sonido es una esfera: Escalar cambia su radio.",
+  "Doble clic en un objeto mientras juegas: abre construir con él seleccionado. Con un objeto seleccionado sale su tarjeta (a la derecha): nombre, Mover, Girar y Escalar, posición, giro, tamaño, qué hace al tocarlo, Duplicar, Borrar, Anclar, Copiar enlace y Volver. Todos los campos y la lógica (qué cables, cerraduras y contadores lo tocan): el cajón Inspector.",
+  "Con el dedo: toca un objeto para seleccionarlo y arrástralo para moverlo (sobre el suelo y sobre otros objetos). Un dedo en el vacío mueve la cámara; dos la acercan. Girar y escalar: el cajón Precisión.",
   "Botones derecho y central del ratón, y la rueda: la cámara (cuando llegue la cámara nueva).",
 ];
 
@@ -75,6 +81,10 @@ const redondear = (v: number, paso: number) => Number((Math.round(v / paso) * pa
 const esEntrada = (t: EventTarget | null) => t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
 const nombreDe = (o: Obj) => String(o.nombre ?? "") || "(decorado)";
 const fmt = (v: unknown) => String(Math.round(Number(v) * 100) / 100);
+/** Backlog (PROGRESO-M22c.md): an empty library used to look like an editor bug. If it is empty AND the player has no
+ * build role, say why (instead of a silent blank list); otherwise "" (an empty library for any other reason is not this). */
+export const SIN_ROL_CONSTRUIR = "No tienes permiso para construir en este mundo (pide el rol a quien lo administra).";
+export const avisoBiblioteca = (biblioteca: readonly unknown[], puede: boolean): string => (biblioteca.length === 0 && !puede ? SIN_ROL_CONSTRUIR : "");
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...hijos: (Node | string)[]): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -83,19 +93,36 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLEl
   return e;
 }
 
-export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElement, panel: HTMLElement): void {
-  estilo();
+/** C3: what the page lends the card: the map's «Volver», and a way to ask for the object chosen with «Ir». */
+/** C4: and the world's wires, locks and counters to read («Lógica»), and a way to bring the cable's list into view. */
+/** ux2-dock: and «Subir» (soltar.ts' file picker) for the «Añadir» drawer. */
+export type ExtraConstructor = { volver?(): boolean; puedeVolver?(): boolean; mundo?(): PiezasMundo; abrirCable?(): void; subir?(): void };
+export type ConstructorUI = {
+  alIr(donde: { id: string }): boolean;
+  cajon(id: Cajon): HTMLElement; ranuraFicha: HTMLElement;
+  abrirCajon(id: Cajon | ""): void; cajonAbierto(): Cajon | "";
+};
+export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElement, panel: HTMLElement, extra?: ExtraConstructor): ConstructorUI {
   const ed = view.editor, lienzo = view.renderer.domElement;
   const cam = (): Cam | undefined => (view as Vista & { cam?: Cam }).cam;
   const abierto = () => !panel.hidden;
 
-  // ---- the panel: real buttons, selects and inputs (screen readers and keyboards) ----
+  // ---- ux2-dock: the panel is a row of icons (the dock) and at most ONE drawer under it — real buttons, selects and
+  // inputs (screen readers and keyboards). `panel` (#panel-construir) is still the element whose `hidden` says «building». ----
   const estado = el("p", { className: "estado" });
   estado.setAttribute("role", "status");
-  const decir = (t: string) => { estado.textContent = t; };
+  let borraEstado = 0;
+  const decir = (t: string) => { estado.textContent = t; clearTimeout(borraEstado); if (t) borraEstado = window.setTimeout(() => { estado.textContent = ""; }, 8000); };
+  // Backlog M22c: an empty library with no build role looked like an editor bug; say why instead.
+  const avisoLib = el("p", { className: "aviso-biblioteca" });
+  avisoLib.setAttribute("role", "status");
+  avisoLib.hidden = true;
   const responder = (r: Res, bien = "Hecho.") => decir(r.ok ? bien : `No: ${r.why}`);
-  const boton2 = (texto: string, titulo: string, fn: () => Res | void) => {
-    const b = el("button", { type: "button", textContent: texto, title: titulo });
+  const boton2 = (texto: string, titulo: string, fn: () => Res | void, iconoNombre?: string) => {
+    const b = el("button", { type: "button", title: titulo });
+    // iconoNombre is always a hardcoded literal from our own callers (never user input); same pattern as the
+    // house-icon button above (U11). icono() only emits the fixed house-icon SVGs from iconos.ts.
+    if (iconoNombre) { b.innerHTML = `${icono(iconoNombre, 18)} `; b.append(texto); } else b.textContent = texto;
     // after a mouse click the focus goes back to the page: Space (jump) must not press «Borrar» again
     b.addEventListener("click", (e) => { const r = fn(); if (r) responder(r); if (e.detail > 0) b.blur(); });
     return b;
@@ -106,7 +133,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     return d;
   };
   const botonesHerr = HERRAMIENTAS.map(([m, t, k]) => { const b = boton2(t, `${t} (tecla ${k})`, () => elegirModo(m)); b.dataset.modo = m; return b; });
-  const botonesEje = (["", "X", "Y", "Z"] as const).map((e) => { const b = boton2(e || "Ejes: todos", e ? `Solo el eje ${e} (tecla ${e}; otra vez: todos)` : "Todos los ejes", () => elegirEje(e || null)); b.dataset.eje = e; return b; });
+  const botonesEje = (["", "X", "Y", "Z"] as const).map((e) => { const b = boton2(e || "Todos", e ? `Solo el eje ${e} (tecla ${e}; otra vez: todos)` : "Todos los ejes", () => elegirEje(e || null)); b.dataset.eje = e; return b; });
   const botonEspacio = boton2("Mundo", "Ejes del mundo o del objeto (T)", () => cambiarEspacio());
   const opciones = (s: HTMLSelectElement, vals: number[], txt: (v: number) => string, def: number) => { for (const v of vals) s.append(el("option", { value: String(v), textContent: v ? txt(v) : "libre" })); s.value = String(def); return s; };
   const selPos = opciones(el("select"), PASOS_POS, (v) => `${String(v).replace(".", ",")} m`, 0.5);
@@ -117,7 +144,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     s.addEventListener("keydown", () => { conRaton = false; });
     s.addEventListener("change", () => { aplicarPaso(); if (conRaton) s.blur(); });
   }
-  const sel = el("p");
+  const sel = el("p", { className: "sel" });
   const campo = (k: string, texto: string, paso: string) => { const i = el("input", { type: "number", step: paso }); i.dataset.k = k; i.addEventListener("change", () => aplicarCampo(i)); return { i, l: el("label", {}, `${texto} `, i) }; };
   const campos: Record<string, { i: HTMLInputElement; l: HTMLLabelElement }> = {
     x: campo("x", "x", "0.1"), y: campo("y", "y", "0.1"), z: campo("z", "z", "0.1"),
@@ -144,22 +171,23 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   const enlace = el("input", { type: "url", maxLength: 300, placeholder: "https://…" });
   const lEnlace = el("label", {}, "Enlace al hacer clic ", enlace);
   const grupo = (leyenda: string, ...hijos: Node[]) => el("fieldset", {}, el("legend", { textContent: leyenda }), ...hijos);
-  const datos = el("div", {},
+  const datos = el("div", { className: "inspector" },
     el("label", {}, "Nombre ", nombre), el("label", {}, decorado, " decorado (sin nombre a propósito)"),
     grupo("Posición (m)", campos.x.l, campos.y.l, campos.z.l),
     grupo("Giro (grados)", campos.rx.l, campos.ry.l, campos.rz.l),
     grupo("Escala", campos.sx.l, campos.sy.l, campos.sz.l, campos.u.l),
-    el("label", {}, fijado, " fijado (nadie lo mueve ni lo borra)"), lSolido, lVisible, lVolumen, lAlcance, lRadio, lEnlace);
-  const inspector = el("section", { className: "inspector" }, el("h3", { textContent: "Inspector (N)" }), datos);
-  inspector.setAttribute("aria-label", "Inspector del objeto seleccionado: Intro aplica");
+    el("label", {}, fijado, " anclado (nadie lo mueve, gira ni borra hasta que lo sueltes)"), lSolido, lVisible, lVolumen, lAlcance, lRadio, lEnlace);
+  datos.setAttribute("aria-label", "Inspector del objeto seleccionado: Intro aplica");
   nombre.addEventListener("change", () => responder(c.nombrar(nombre.value.trim(), decorado.checked), "Nombre puesto."));
   decorado.addEventListener("change", () => responder(c.nombrar(decorado.checked ? "" : nombre.value.trim(), decorado.checked)));
-  fijado.addEventListener("change", () => { const o = c.objeto(c.estado.seleccionado); if (o && !!o.fijado !== fijado.checked) responder(c.fijar(), fijado.checked ? "Fijado." : "Suelto."); });
-  solido.addEventListener("change", () => {
-    const id = c.estado.seleccionado, caja = solido.checked && id ? ed.cajaPropia?.(id) ?? null : null;
-    if (solido.checked && !caja) { solido.checked = false; return decir("Espera a que se vea el modelo y vuelve a marcarlo."); }
-    responder(c.ajustar({ solido: solido.checked, caja }), solido.checked ? "Sólido: ya no se puede atravesar." : "Ya se puede atravesar.");
-  });
+  fijado.addEventListener("change", () => { const o = c.objeto(c.estado.seleccionado); if (o && !!o.fijado !== fijado.checked) responder(c.fijar(), fijado.checked ? "Anclado." : "Suelto."); });
+  /** Solid on/off for the inspector's checkbox: the box is measured on this page; the server decides. */
+  function cambiarSolido(cb: HTMLInputElement): void {
+    const id = c.estado.seleccionado, caja = cb.checked && id ? ed.cajaPropia?.(id) ?? null : null;
+    if (cb.checked && !caja) { cb.checked = false; return decir("Espera a que se vea el modelo y vuelve a marcarlo."); }
+    responder(c.ajustar({ solido: cb.checked, caja }), cb.checked ? "Sólido: ya no se puede atravesar." : "Ya se puede atravesar.");
+  }
+  solido.addEventListener("change", () => cambiarSolido(solido));
   visible.addEventListener("change", () => responder(c.ajustar({ oculto: !visible.checked }), visible.checked ? "Se verá al jugar." : "Invisible al jugar (la ves mientras construyes)."));
   volumen.addEventListener("change", () => responder(c.ajustar({ volumen: volumen.valueAsNumber }), `Volumen ${Math.round(volumen.valueAsNumber * 100)} %.`));
   alcance.addEventListener("change", () => {
@@ -173,42 +201,134 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     responder(o.tipo === "sonido" ? c.transformar(id, { sx: m, sy: m, sz: m }) : c.ajustar({ radio: m }), `Radio de la burbuja: ${m} m.`);
   });
   enlace.addEventListener("change", () => responder(c.ajustar({ enlace: enlace.value.trim() }), enlace.value.trim() ? "Enlace puesto: un clic en el objeto lo abrirá." : "Enlace quitado."));
+  // C4 «Lógica» (was a tab of the card): what wires touch the object, read from the state the cable, the locks and the
+  // counters already keep — no new network path — and the way into the cable's drawer
+  const lEntran = el("ul"), lSalen = el("ul"), lPiezas = el("ul");
+  const bAbrirCable = boton2("Abrir el cable", "Abrir el cajón del cable (disparadores y receptores del mundo)", () => { abrirCajon("cable"); extra?.abrirCable?.(); decir("Cable a la vista: ahí se editan los receptores."); }, "lightning");
+  const logica = el("section", { className: "logica" }, el("h3", { textContent: "Lógica" }),
+    el("h4", { textContent: "Entran (disparadores que lo muestran u ocultan)" }), lEntran,
+    el("h4", { textContent: "Salen (disparadores que nacen aquí)" }), lSalen,
+    el("h4", { textContent: "Piezas en este punto" }), lPiezas, bAbrirCable);
+  logica.setAttribute("aria-label", "Lógica del objeto seleccionado");
+  logica.hidden = !extra?.mundo;
+  let firmaLogica = "";
 
-  panel.append(
-    el("h2", { textContent: "Construir" }),
-    fila("Herramienta", ...botonesHerr),
-    fila("Ejes", ...botonesEje, botonEspacio),
-    fila("", el("label", {}, "Paso ", selPos), el("label", {}, "Giro ", selGiro)),
-    el("p", { textContent: "Biblioteca (sigue al puntero; clic en el mundo para colocarlo):" }),
-    fila("Biblioteca", ...c.biblioteca.map((m) => boton2(m.nombre, `${m.nombre}: llévalo con el ratón y haz clic donde lo quieras (Esc cancela)`, () => empezarFantasma(m)))),
-    el("p", { textContent: "Delante de ti:" }),
-    fila("Colocar delante de ti", ...c.biblioteca.map((m) => boton2(m.nombre, `Colocar ${m.nombre} a 3 m delante de ti`, () => c.colocar(m.id)))),
-    sel,
-    fila("Acciones",
-      boton2("Duplicar", "Hacer una copia y cogerla (Mayús+D o Ctrl+D)", () => duplicar()),
-      boton2("Fijar / soltar", "Fijado: nadie lo mueve ni lo borra (P)", () => c.fijar()),
-      boton2("Borrar", "Quitarlo del mundo; con varios seleccionados, los borra juntos (Supr o Retroceso)", () => borrarSeleccion()),
-      boton2("Deshacer", "Deshacer tu último cambio (Ctrl+Z)", () => c.deshacer()),
-      boton2("Rehacer", "Rehacer lo deshecho (Ctrl+Mayús+Z o Ctrl+Y)", () => c.rehacer()),
-      boton2("Encuadrar", "Mirar lo seleccionado (F)", () => encuadrar())),
-    inspector,
-    el("details", {}, el("summary", { textContent: "Pasos con botones" }),
-      fila("Girar", boton2("⟲ 15°", "Girar a la izquierda", () => c.girar(15)), boton2("⟳ 15°", "Girar a la derecha", () => c.girar(-15))),
-      fila("Desplazar", boton2("← 1 m", "Mover a la izquierda", () => c.desplazar(-1, 0)), boton2("→ 1 m", "Mover a la derecha", () => c.desplazar(1, 0)),
-        boton2("↑ 1 m", "Mover hacia el fondo", () => c.desplazar(0, -1)), boton2("↓ 1 m", "Mover hacia ti", () => c.desplazar(0, 1))),
-      fila("Altura y tamaño", boton2("Subir", "Subir medio metro", () => c.subir(0.5)), boton2("Bajar", "Bajar medio metro", () => c.subir(-0.5)),
-        boton2("Más grande", "Agrandar un 25 %", () => c.escalar(1.25)), boton2("Más pequeño", "Reducir un 20 %", () => c.escalar(0.8)))),
-    el("details", {}, el("summary", { textContent: "Teclas y ratón" }), el("ul", {}, ...AYUDA.map((t) => el("li", { textContent: t })))),
-    estado,
-  );
-  // what is typed in the panel stays in the panel (the page's other keys — walk, gestures, battery — never see it)
-  panel.addEventListener("keydown", (e) => { if (esEntrada(e.target)) e.stopPropagation(); });
+  // ---- the dock: one icon per drawer, then undo / redo, then leave. Each icon: tooltip + aria-label (+ its key) ----
+  const dock = el("div", { id: "dock-construir" });
+  dock.setAttribute("role", "toolbar"); dock.setAttribute("aria-label", "Construir");
+  const botonDock = (ic: string, titulo: string, fn: () => Res | void) => {
+    const b = el("button", { type: "button", title: titulo, className: "ic" });
+    b.innerHTML = icono(ic, 20); b.setAttribute("aria-label", titulo); b.dataset.tip = titulo;
+    b.addEventListener("click", (e) => { const r = fn(); if (r) responder(r); if (e.detail > 0) b.blur(); });
+    return b;
+  };
+  const PISTA: Record<Cajon, string> = { anadir: "arrastra al mundo o pulsa para ponerlo delante", cable: "lo que hace cada botón o zona", entorno: "para todos los que están aquí", precision: "para lo que tengas elegido", inspector: "todos los campos del objeto elegido", ayuda: "teclas y ratón" };
+  const secciones = {} as Record<Cajon, HTMLElement>, cuerpos = {} as Record<Cajon, HTMLElement>, botonesCajon = {} as Record<Cajon, HTMLButtonElement>;
+  for (const [id, ic, titulo, tip] of CAJONES) {
+    const b = botonDock(ic, tip, () => abrirCajon(alternarCajon(cajon, id)));
+    b.id = `dock-${id}`; b.dataset.cajon = id; b.setAttribute("aria-expanded", "false"); b.setAttribute("aria-controls", `cajon-${id}`);
+    botonesCajon[id] = b;
+    const h = el("h2", { id: `cajon-${id}-titulo`, textContent: titulo });
+    const cerrar = botonDock("x", "Cerrar (Esc)", () => abrirCajon("")); cerrar.classList.add("cerrar");
+    const cuerpo = el("div", { className: "cuerpo" });
+    const s = el("section", { id: `cajon-${id}`, className: "cajon" }, el("div", { className: "cab" }, h, el("span", { className: "pista", textContent: PISTA[id] }), cerrar), cuerpo);
+    s.setAttribute("aria-labelledby", h.id); s.hidden = true;
+    secciones[id] = s; cuerpos[id] = cuerpo;
+  }
+  const sepDock = () => { const d = el("span", { className: "sep" }); d.setAttribute("aria-hidden", "true"); return d; };
+  const dDeshacer = botonDock(ACCIONES_DOCK.deshacer[0], ACCIONES_DOCK.deshacer[1], () => c.deshacer()); dDeshacer.id = "dock-deshacer";
+  const dRehacer = botonDock(ACCIONES_DOCK.rehacer[0], ACCIONES_DOCK.rehacer[1], () => c.rehacer()); dRehacer.id = "dock-rehacer";
+  const dSalir = botonDock(ACCIONES_DOCK.salir[0], ACCIONES_DOCK.salir[1], () => abrir(false)); dSalir.id = "dock-salir";
+  dock.append(...CAJONES.map(([id]) => botonesCajon[id]), sepDock(), dDeshacer, dRehacer, sepDock(), dSalir);
+
+  // «Añadir»: ONE library (search + grid) and «Subir» (soltar.ts' picker). A press on a piece puts it 3 m in front of you;
+  // dragging it out of the drawer makes it follow the pointer over the world, and letting go there places it.
+  const buscar = el("input", { type: "search", id: "buscar-biblioteca", placeholder: "Buscar en la biblioteca", autocomplete: "off" });
+  buscar.setAttribute("aria-label", "Buscar en la biblioteca");
+  const cajaBuscar = el("label", { className: "buscar" }); cajaBuscar.innerHTML = icono("magnifying-glass", 18); cajaBuscar.append(buscar);
+  const bSubir = el("button", { type: "button", id: "subir", className: "subir", title: "Subir un fichero tuyo: modelo .glb, imagen .png .jpg .webp, vídeo .mp4 .webm o sonido .mp3 .ogg. Se pone delante de ti; también puedes soltarlo sobre el mundo." });
+  bSubir.innerHTML = `${icono("upload-simple", 18)}<span>Subir</span>`;
+  bSubir.addEventListener("click", (e) => { extra?.subir?.(); if (e.detail > 0) bSubir.blur(); });
+  bSubir.hidden = !extra?.subir;
+  const rejilla = el("div", { className: "rejilla" }); rejilla.setAttribute("role", "group"); rejilla.setAttribute("aria-label", "Biblioteca");
+  let arrastre: { m: { id: string; nombre: string; modelo: string }; x0: number; y0: number; pid: number; activo: boolean } | null = null, sinClic = false;
+  const piezas = c.biblioteca.map((m) => {
+    const b = el("button", { type: "button", className: "pieza", title: `${m.nombre}: pulsa para ponerlo delante de ti, o arrástralo al mundo` });
+    b.innerHTML = icono(iconoDePieza(m.id), 28); b.append(el("span", { textContent: m.nombre })); b.dataset.pieza = m.id;
+    b.addEventListener("pointerdown", (e) => { if (e.button === 0) arrastre = { m, x0: e.clientX, y0: e.clientY, pid: e.pointerId, activo: false }; });
+    b.addEventListener("click", (e) => {
+      if (sinClic) { sinClic = false; return; } // the end of a drag, not a press
+      responder(c.colocar(m.id), `${m.nombre}: delante de ti.`);
+      if (e.detail > 0) b.blur();
+    });
+    return b;
+  });
+  rejilla.append(...piezas);
+  const sinResultado = el("p", { className: "vacio", textContent: "Ninguna pieza se llama así." }); sinResultado.hidden = true;
+  buscar.addEventListener("input", () => {
+    const ids = new Set(filtrarBiblioteca(c.biblioteca, buscar.value).map((m) => m.id));
+    for (const b of piezas) b.hidden = !ids.has(b.dataset.pieza ?? "");
+    sinResultado.hidden = ids.size > 0;
+  });
+  addEventListener("pointermove", (e) => {
+    if (!arrastre || e.pointerId !== arrastre.pid) return;
+    if (!arrastre.activo) {
+      if (!esArrastre(e.clientX - arrastre.x0, e.clientY - arrastre.y0)) return;
+      arrastre.activo = true; empezarFantasma(arrastre.m);
+    }
+    puntero = { x: e.clientX, y: e.clientY };
+    if (document.elementFromPoint(e.clientX, e.clientY) === lienzo) seguir(e.clientX, e.clientY);
+  }, { capture: true });
+  const finArrastre = (e: PointerEvent) => {
+    if (!arrastre || e.pointerId !== arrastre.pid) return;
+    const a = arrastre; arrastre = null;
+    if (!a.activo) return;
+    sinClic = true; setTimeout(() => { sinClic = false; }, 0);
+    if (e.type === "pointerup" && document.elementFromPoint(e.clientX, e.clientY) === lienzo) soltarFantasma(e.clientX, e.clientY);
+    else { quitarFantasma(); decir("Suéltalo sobre el mundo para colocarlo."); }
+  };
+  addEventListener("pointerup", finArrastre, { capture: true });
+  addEventListener("pointercancel", finArrastre, { capture: true });
+  cuerpos.anadir.append(avisoLib, el("div", { className: "fila buscar-fila" }, cajaBuscar, bSubir), rejilla, sinResultado);
+
+  // «Precisión»: the tools, the axes, the snap steps and the step buttons (touch screens turn and scale here)
+  cuerpos.precision.append(
+    el("h3", { textContent: "Herramienta" }), fila("Herramienta", ...botonesHerr),
+    el("h3", { textContent: "Ejes" }), fila("Ejes", ...botonesEje, botonEspacio),
+    el("h3", { textContent: "Pasos al arrastrar" }), fila("", el("label", {}, "Paso ", selPos), el("label", {}, "Giro ", selGiro)),
+    el("h3", { textContent: "Con botones" }),
+    fila("Girar", boton2("⟲ 15°", "Girar a la izquierda", () => c.girar(15)), boton2("⟳ 15°", "Girar a la derecha", () => c.girar(-15)),
+      boton2("Encuadrar", "Mirar lo seleccionado (F)", () => encuadrar(), "crosshair")),
+    fila("Desplazar", boton2("← 1 m", "Mover a la izquierda", () => c.desplazar(-1, 0)), boton2("→ 1 m", "Mover a la derecha", () => c.desplazar(1, 0)),
+      boton2("↑ 1 m", "Mover hacia el fondo", () => c.desplazar(0, -1)), boton2("↓ 1 m", "Mover hacia ti", () => c.desplazar(0, 1))),
+    fila("Altura y tamaño", boton2("Subir", "Subir medio metro", () => c.subir(0.5)), boton2("Bajar", "Bajar medio metro", () => c.subir(-0.5)),
+      boton2("Más grande", "Agrandar un 25 %", () => c.escalar(1.25)), boton2("Más pequeño", "Reducir un 20 %", () => c.escalar(0.8))));
+  cuerpos.inspector.append(sel, datos, logica);
+  cuerpos.ayuda.append(el("ul", {}, ...AYUDA.map((t) => el("li", { textContent: t }))));
+  panel.append(dock, ...CAJONES.map(([id]) => secciones[id]), estado);
+  // what is typed in the panel stays in the panel (the page's other keys — walk, gestures, battery — never see it);
+  // Escape in a field leaves it and closes the drawer
+  panel.addEventListener("keydown", (e) => {
+    if (!esEntrada(e.target)) return;
+    e.stopPropagation();
+    if (e.key === "Escape") { (e.target as HTMLElement).blur(); abrirCajon(""); }
+  });
+
+  /** Open one drawer ("" = none): the others close, its dock icon shows pressed (aria-expanded). */
+  let cajon: Cajon | "" = "";
+  function abrirCajon(id: Cajon | ""): void {
+    cajon = id;
+    for (const [k] of CAJONES) { secciones[k].hidden = k !== id; botonesCajon[k].setAttribute("aria-expanded", String(k === id)); }
+    document.documentElement.classList.toggle("cajon-abierto", !!id);
+    firmaLogica = "";
+    refrescar();
+  }
 
   // ---- the hands' state ----
   let agarre: { key: string; antes: Donde } | null = null;
   let fantasma: { id: string; nombre: string; modelo: string; p: Punto | null; ry: number } | null = null;
   let puntero: { x: number; y: number } | null = null;
-  let ctrl = false, eje: Eje | null = null, local = false, inspectorVisible = true, trasDuplicar = false;
+  let ctrl = false, eje: Eje | null = null, local = false, trasDuplicar = false;
   let abajo: { x: number; y: number; gizmo: boolean } | null = null, arrastrado = false, ultimoRaton = -Infinity;
   // M22b-1: coarse pointer (a phone) → «mover» has no handles, the thing is the handle. Starts from the media query and
   // turns on at the first touch (a laptop with a touch screen reports a fine pointer)
@@ -273,7 +393,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   function empezarAgarre(key: string): void {
     const o = c.objeto(key), antes = ed.dondeEsta(key);
     if (!o || !antes) return;
-    if (o.fijado) return decir("Está fijado: suéltalo (P) antes de cogerlo.");
+    if (o.fijado) return decir("Está anclado: suéltalo (P) antes de cogerlo.");
     if (agarre) soltarAgarre(false);
     agarre = { key, antes };
     ed.sostener(key);
@@ -340,7 +460,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     quitarFantasma();
     fantasma = { id: m.id, nombre: m.nombre, modelo: m.modelo, p: null, ry: 0 };
     cam()?.bloquear?.(true); // like grab mode, the preview owns the wheel
-    decir(`${m.nombre}: llévalo con el ratón y haz clic donde lo quieras (rueda: girar · Esc: cancelar).`);
+    decir(`${m.nombre}: suéltalo donde lo quieras (rueda: girar · Esc: cancelar).`);
     if (puntero) seguir(puntero.x, puntero.y);
   }
   function soltarFantasma(x: number, y: number): void {
@@ -402,11 +522,14 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     camara.frame({ x: d.x, y: d.y + d.sy / 2, z: d.z }, Math.max(1, d.sx, d.sy, d.sz) * 1.5);
     return { ok: true };
   }
+  /** Escape undoes the most transient thing first: the piece following the pointer, grab mode, the open drawer, the selection. */
   function escape(): void {
-    if (fantasma) { quitarFantasma(); return decir("Cancelado."); }
-    if (agarre) return cancelarAgarre();
-    c.seleccionar("");
-    decir("Nada seleccionado.");
+    switch (queCierraEscape({ fantasma: !!fantasma, agarre: !!agarre, cajon, seleccion: c.estado.seleccionado })) {
+      case "fantasma": quitarFantasma(); return decir("Cancelado.");
+      case "agarre": return cancelarAgarre();
+      case "cajon": return abrirCajon("");
+      default: c.seleccionar(""); decir("Nada seleccionado.");
+    }
   }
   /** M22c: borrar lo seleccionado; si hay varios, un `lote` compartido los junta en un solo paso de deshacer. */
   function borrarSeleccion(): Res {
@@ -425,14 +548,20 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     if (!Number.isFinite(v)) return decir("Eso no es un número.");
     responder(k === "u" ? c.transformar(id, { sx: v, sy: v, sz: v }) : c.transformar(id, { [k]: v }));
   }
+  /** The inspector's fields and the card's follow what is drawn (never under your cursor). */
   function mostrarDonde(d: Donde): void {
     for (const k of ["x", "y", "z", "rx", "ry", "rz", "sx", "sy", "sz"] as const) if (document.activeElement !== campos[k].i) campos[k].i.value = fmt(d[k]);
-    if (document.activeElement !== campos.u.i) campos.u.i.value = d.sx === d.sy && d.sy === d.sz ? fmt(d.sx) : "";
+    for (const k of ["x", "y", "z", "ry"] as const) if (document.activeElement !== tc[k]) tc[k].value = fmt(d[k]);
+    const u = tamanoUniforme(d.sx, d.sy, d.sz);
+    if (document.activeElement !== campos.u.i) campos.u.i.value = u;
+    if (document.activeElement !== tc.u) tc.u.value = u;
   }
-  /** Toolbar, selection line and inspector follow the shared state. */
+  /** The dock's drawers, the selection line, the inspector and the card follow the shared state. */
   function refrescar(): void {
-    boton.style.display = c.estado.puede ? "" : "none";
-    boton.toggleAttribute("data-oculto", !c.estado.puede);
+    if (boton.hidden === c.estado.puede) boton.hidden = !c.estado.puede; // ux2-barra: the bar hides with the `hidden` attribute only
+    const aviso = avisoBiblioteca(c.biblioteca, c.estado.puede);
+    avisoLib.textContent = aviso; avisoLib.hidden = !aviso;
+    pintarFicha();
     if (!abierto()) return;
     for (const b of botonesHerr) b.setAttribute("aria-pressed", String(b.dataset.modo === c.estado.modo));
     for (const b of botonesEje) b.setAttribute("aria-pressed", String((b.dataset.eje || null) === eje));
@@ -440,14 +569,14 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     botonEspacio.setAttribute("aria-pressed", String(local));
     const o = c.objeto(c.estado.seleccionado), cerca = o ? null : c.seleccion();
     const grupo = c.estado.seleccionados.length > 1 ? ` · ${c.estado.seleccionados.length} seleccionados (Supr los borra juntos, el gizmo los mueve juntos)` : "";
-    sel.textContent = o ? `Seleccionado: ${nombreDe(o)} · ${o.id}${o.fijado ? " · fijado" : ""}${grupo}`
+    sel.textContent = o ? `Seleccionado: ${nombreDe(o)} · ${o.id}${o.fijado ? " · anclado" : ""}${grupo}`
       : cerca ? `Nada seleccionado; los botones usan lo más cercano: ${nombreDe(cerca)} · ${cerca.id}` : "Nada seleccionado: haz clic en un objeto.";
-    inspector.hidden = !inspectorVisible;
+    pintarLogica(o);
     for (const f of datos.querySelectorAll("fieldset")) f.disabled = !o;
     nombre.disabled = decorado.disabled = fijado.disabled = !o;
     const tipo = String(o?.tipo ?? "modelo");
     const suena = tipo === "sonido" || tipo === "video";
-    lSolido.hidden = !o || tipo === "sonido"; lVisible.hidden = !o || tipo !== "sonido"; lVolumen.hidden = lAlcance.hidden = !o || !suena;
+    lSolido.hidden = !o || tipo === "sonido"; lVisible.hidden = !o; // «se ve al jugar» for every object (it was the card's Ajustes tab) lVolumen.hidden = lAlcance.hidden = !o || !suena;
     lRadio.hidden = !o || !suena || (o.alcance ?? "burbuja") !== "burbuja";
     lEnlace.hidden = !o;
     if (!o) return;
@@ -461,6 +590,18 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     if (document.activeElement !== nombre) nombre.value = String(o.nombre ?? "");
     decorado.checked = o.decorado === true;
     fijado.checked = o.fijado === true;
+  }
+  /** «Lógica» in the Inspector drawer: redrawn only when open and when something changed. */
+  function pintarLogica(o: Obj | null): void {
+    if (cajon !== "inspector" || !extra?.mundo) return;
+    const lg = o ? logicaDeObjeto(o, extra.mundo()) : { entran: [], salen: [], piezas: [] };
+    const firma = JSON.stringify(lg);
+    if (firma === firmaLogica) return;
+    firmaLogica = firma;
+    const lista = (ul: HTMLUListElement, filas: string[], vacio: string) => ul.replaceChildren(...(filas.length ? filas : [vacio]).map((t) => el("li", { textContent: t, className: filas.length ? "" : "vacio" })));
+    lista(lEntran, lg.entran, o ? "Ningún disparador lo muestra ni lo oculta." : "Elige un objeto.");
+    lista(lSalen, lg.salen, o ? "Ningún disparador nace aquí." : "—");
+    lista(lPiezas, lg.piezas, o ? "Sin cerraduras ni contadores aquí." : "—");
   }
   let refrescoPendiente = false;
   const programarRefresco = () => { if (!refrescoPendiente) { refrescoPendiente = true; requestAnimationFrame(() => { refrescoPendiente = false; refrescar(); }); } };
@@ -502,8 +643,9 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
       ed.seleccionar(c.estado.seleccionado || null);
       aplicarPaso();
       aplicarModo();
-      decir("Construir: haz clic en un objeto para seleccionarlo, o elige uno de la biblioteca.");
+      decir(tactil ? "Construir: toca un objeto para elegirlo, o «Añadir» (+) para poner uno." : "Construir: haz clic en un objeto para elegirlo, o «Añadir» (+) para poner uno.");
     } else {
+      abrirCajon(""); // the next visit starts with the world clear: only the dock
       quitarFantasma();
       if (agarre) soltarAgarre(false);
       void ed.herramienta(null);
@@ -542,7 +684,6 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
       case "Delete": case "Backspace": return () => borrarSeleccion();
       case "KeyP": return () => c.fijar();
       case "KeyF": return () => encuadrar();
-      case "KeyN": return () => { inspectorVisible = !inspectorVisible; refrescar(); decir(inspectorVisible ? "Inspector a la vista." : "Inspector oculto (N lo vuelve a mostrar)."); };
     }
     return null;
   }
@@ -637,7 +778,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
       if (Math.hypot(e.clientX - dedo.x0, e.clientY - dedo.y0) <= CLIC_PX) return;
       const o = c.objeto(dedo.key);
       if (!o) return;
-      if (o.fijado) return decir("Está fijado: suéltalo («Fijar / soltar») antes de moverlo.");
+      if (o.fijado) return decir("Está anclado: suéltalo («Anclar / soltar») antes de moverlo.");
       const p0 = ed.puntoBajo(dedo.x0, dedo.y0, dedo.key); // the ground (or thing) behind the first touch: the drag is measured there
       if (!p0) return;
       dedo.desfase = { x: dedo.antes.x - p0.x, z: dedo.antes.z - p0.z };
@@ -667,32 +808,91 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
       const d = final ?? ed.dondeEsta(fue.key);
       decir(d ? `${nombreDe(o ?? { id: fue.key })} posado: x ${fmt(d.x)} y ${fmt(d.y)} z ${fmt(d.z)}.` : "Posado.");
       refrescar();
-    } else decir(`Seleccionado: ${o ? nombreDe(o) : fue.key}. Arrástralo para moverlo; los botones de encima giran, duplican y borran.`);
+    } else decir(`Seleccionado: ${o ? nombreDe(o) : fue.key}. Arrástralo para moverlo; los iconos de la ficha giran, duplican y borran.`);
   };
   addEventListener("pointerup", finDedo, { capture: true });
   addEventListener("pointercancel", finDedo, { capture: true });
 
-  // ---- U10: a bar that floats over the selected thing (like OnCyber's): the tools and «Borrar» where you look ----
-  const barra = el("div", { id: "barra-objeto" });
-  barra.setAttribute("role", "toolbar"); barra.setAttribute("aria-label", "Acciones del objeto seleccionado");
-  const bBarra = (t: string, titulo: string, fn: () => Res | void, clase = "") => { const b = boton2(t, titulo, fn); if (clase) b.className = clase; return b; };
-  const herrBarra = HERRAMIENTAS.map(([m, t]) => { const b = bBarra(t, `${t} (las asas de colores)`, () => elegirModo(m)); b.dataset.modo = m; return b; });
-  barra.append(...herrBarra, bBarra("Duplicar", "Hacer una copia (Mayús+D)", () => duplicar()), bBarra("Borrar", "Quitarlo del mundo (Supr; Ctrl+Z lo devuelve)", () => borrarSeleccion(), "peligro"));
-  barra.hidden = true;
-  document.body.append(barra);
-  barra.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch, not a click on the world
-  const colocarBarra = () => {
-    const id = c.estado.seleccionado, o = abierto() && id ? c.objeto(id) : null, d = o ? ed.dondeEsta(id) : null;
-    const p = d ? ed.pantalla(d.x, d.y + Math.max(0.6, d.sy * (o?.tipo === "sonido" ? 1 : 0.5)) + 0.4, d.z) : null;
-    if (!p || p.y < 40 || p.y > innerHeight - 40 || p.x < 0 || p.x > innerWidth) { barra.hidden = true; } else {
-      barra.hidden = false;
-      for (const b of herrBarra) b.setAttribute("aria-pressed", String(b.dataset.modo === c.estado.modo));
-      barra.style.left = `${Math.max(8, Math.min(innerWidth - barra.offsetWidth - 8, p.x - barra.offsetWidth / 2))}px`;
-      barra.style.top = `${Math.max(8, p.y - barra.offsetHeight - 30)}px`;
-    }
-    requestAnimationFrame(colocarBarra);
+  // ---- the object card (C3; ux2-dock: the maqueta's card on the right): the basics of what is selected — its name, the
+  // three handles with their real keys, position, turn, size, what touching it does, Duplicar and Borrar (+ anchor, link,
+  // back). Every other field is the Inspector drawer's. It shows only for someone who may build here AND with the builder
+  // open (fichaVisible); the server still decides every action. Refreshed on events, never per frame. ----
+  const ficha = el("aside", { id: "ficha-objeto" });
+  ficha.setAttribute("aria-label", "Tarjeta del objeto seleccionado");
+  // icon-only button: title + aria-label + data-tip (the tip also shows on keyboard focus); a short label for touch screens
+  const bIcono = (ic: string, titulo: string, corta: string, fn: () => Res | void, clase = "") => {
+    const b = boton2("", titulo, fn);
+    b.innerHTML = `${icono(ic, 18)}<span class="et" aria-hidden="true">${corta}</span>`; b.setAttribute("aria-label", titulo); b.dataset.tip = titulo; b.className = `ic ${clase}`.trim();
+    return b;
   };
-  requestAnimationFrame(colocarBarra);
+  const fIcono = el("span", { className: "ico" }); fIcono.innerHTML = icono("package", 20);
+  const fTitulo = el("h3");
+  const bCerrar = bIcono("x", "Cerrar la tarjeta (Esc)", ETIQUETAS_FICHA.cerrar, () => { c.seleccionar(""); }, "cerrar");
+  const fSel = el("span", { textContent: "Seleccionado" });
+  const herrTarjeta = ([["mover", "G", "mover", "Mover (2 o G)"], ["girar", "R", "girar", "Girar (3 o R)"], ["escalar", "4", "escala", "Escalar (4)"]] as const).map(([m, k, t, tit]) => {
+    const b = boton2("", tit, () => elegirModo(m));
+    b.className = "chip"; b.dataset.modo = m; b.setAttribute("aria-label", tit); b.dataset.tip = tit;
+    b.innerHTML = `<kbd>${k}</kbd> ${t}`; // fixed literals (never user input)
+    return b;
+  });
+  const sub = el("p", { className: "sub" }, fSel, ...herrTarjeta.flatMap((b) => [" · ", b]));
+  const campoT = (k: string, paso: string, etiqueta: string) => { const i = el("input", { type: "number", step: paso }); i.dataset.k = k; i.setAttribute("aria-label", etiqueta); i.addEventListener("change", () => aplicarCampo(i)); return i; };
+  const tc = { x: campoT("x", "0.1", "Posición x"), y: campoT("y", "0.1", "Posición y"), z: campoT("z", "0.1", "Posición z"), ry: campoT("ry", "1", "Giro en grados"), u: campoT("u", "0.1", "Tamaño") };
+  tc.u.placeholder = "varía"; tc.u.min = "0.05";
+  const fAlTocar = el("span", { className: "campo texto" });
+  const rAlTocar = [el("dt", { textContent: "Al tocarlo" }), el("dd", {}, fAlTocar)];
+  const kv = el("dl", { className: "kv" },
+    el("dt", { textContent: "Posición" }), el("dd", { className: "tres" }, tc.x, tc.y, tc.z),
+    el("dt", { textContent: "Giro" }), el("dd", { className: "unidad" }, tc.ry, el("span", { textContent: "°" })),
+    el("dt", { textContent: "Tamaño" }), el("dd", {}, tc.u), ...rAlTocar);
+  const ranura = el("div", { className: "ranura" }); // huecos.ts puts «Hacer hueco / Poner obra / Vaciar» here for a picture
+  const bDuplicar = boton2("Duplicar", "Hacer una copia y cogerla (Mayús+D o Ctrl+D)", () => duplicar(), "copy");
+  const bBorrar = boton2("Borrar", "Quitarlo del mundo; con varios elegidos, los borra juntos (Supr; Ctrl+Z lo devuelve)", () => borrarSeleccion(), "trash");
+  bBorrar.classList.add("peligro");
+  const bFijar = bIcono("push-pin", "Anclar (P)", ETIQUETAS_FICHA.anclar, () => c.fijar());
+  const bCopiarEnlace = bIcono("link", "Copiar enlace a este sitio", ETIQUETAS_FICHA.enlace, () => copiarEnlace());
+  const bVolver = bIcono("arrow-u-up-left", "Volver a donde estabas", ETIQUETAS_FICHA.volver, () => (extra?.volver?.() ? { ok: true } : { ok: false, why: "no hay a dónde volver" }));
+  const acciones = el("div", { className: "acciones" }, bDuplicar, bBorrar, el("span", { className: "hueco-flex" }), bFijar, bCopiarEnlace, bVolver);
+  acciones.setAttribute("role", "toolbar"); acciones.setAttribute("aria-label", "Acciones del objeto seleccionado");
+  ficha.append(el("div", { className: "cab" }, fIcono, fTitulo, bCerrar), sub, kv, ranura, acciones);
+  ficha.addEventListener("keydown", (e) => { // typing in the card stays in the card; Esc leaves it like the builder's Esc
+    if (!esEntrada(e.target)) return;
+    e.stopPropagation();
+    if (e.key === "Escape") { (e.target as HTMLElement).blur(); c.seleccionar(""); decir("Nada seleccionado."); }
+  });
+  ficha.hidden = true;
+  document.body.append(ficha);
+  ficha.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch, not a click on the world
+  function copiarEnlace(): Res {
+    const o = c.objeto(c.estado.seleccionado), url = o ? enlaceDeObjeto(location, o) : null;
+    if (!url) return { ok: false, why: "selecciona algo antes (clic)" };
+    navigator.clipboard?.writeText(url).then(() => decir("Enlace copiado."), () => decir(`Copia el enlace: ${url}`));
+    if (!navigator.clipboard) decir(`Copia el enlace: ${url}`);
+    return { ok: true };
+  }
+  let firmaFicha = "";
+  function pintarFicha(): void {
+    const o = c.estado.seleccionado ? c.objeto(c.estado.seleccionado) : null;
+    const ver = fichaVisible(c.estado.puede, abierto(), o ? o.id : "");
+    if (!ver) { if (!ficha.hidden) ficha.hidden = true; document.documentElement.classList.remove("ficha-hoja"); firmaFicha = ""; return; }
+    document.documentElement.classList.add("ficha-hoja"); // touch CSS: the card is a sheet over the dock
+    const volver = !!extra?.puedeVolver?.();
+    const toca = alTocarlo(o!, extra?.mundo ? logicaDeObjeto(o!, extra.mundo()).salen : []);
+    const n = c.estado.seleccionados.length;
+    const firma = JSON.stringify([o!.id, c.estado.modo, o!.fijado, o!.nombre, o!.tipo, volver, toca, n]);
+    if (firma === firmaFicha && !ficha.hidden) return; // nothing changed: no DOM work (the numbers follow mostrarDonde)
+    firmaFicha = firma;
+    const d = datosFicha(o!);
+    fTitulo.textContent = d.titulo; fIcono.title = d.tipo;
+    fSel.textContent = n > 1 ? `${n} seleccionados` : "Seleccionado";
+    for (const b of herrTarjeta) b.setAttribute("aria-pressed", String(b.dataset.modo === c.estado.modo));
+    fAlTocar.textContent = toca; for (const e of rAlTocar) e.hidden = !toca;
+    const fij = o!.fijado === true, t = fij ? "Soltar (P)" : "Anclar (P)";
+    bFijar.innerHTML = `${icono(fij ? "push-pin-slash" : "push-pin", 18)}<span class="et" aria-hidden="true">${fij ? ETIQUETAS_FICHA.soltar : ETIQUETAS_FICHA.anclar}</span>`;
+    bFijar.title = t; bFijar.dataset.tip = t; bFijar.setAttribute("aria-label", t); bFijar.setAttribute("aria-pressed", String(fij));
+    bVolver.hidden = !volver;
+    ficha.hidden = false;
+  }
 
   // ---- U10: a double click on a thing while playing opens Construir with it selected (the quick way in) ----
   lienzo.addEventListener("dblclick", (e) => {
@@ -705,44 +905,13 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
 
   // who may build can change (H3 will give roles); the nearest thing changes as you walk
   setInterval(() => { if (!c.estado.puede && abierto()) abrir(false); refrescar(); }, 500);
-}
+  refrescar(); // set the button's visibility and the library's warning right away (not after the first tick)
 
-function estilo(): void {
-  if (document.getElementById("estilo-constructor")) return;
-  const s = document.createElement("style");
-  s.id = "estilo-constructor";
-  s.textContent = `
-#panel-construir { width: 320px; font-size: 12px; }
-#panel-construir h3 { margin: 8px 0 2px; font-size: 13px; color: #ffd27a; }
-#panel-construir .fila { margin: 4px 0; }
-#panel-construir button[aria-pressed="true"] { background: #ffd27a; font-weight: 600; }
-#panel-construir [data-eje="X"] { color: #b3261e; font-weight: 700; }
-#panel-construir [data-eje="Y"] { color: #1e7b34; font-weight: 700; }
-#panel-construir [data-eje="Z"] { color: #1d4fb8; font-weight: 700; }
-#panel-construir fieldset { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; padding: 2px 6px 6px; border: 1px solid #55606b; border-radius: 6px; }
-#panel-construir legend { padding: 0 4px; }
-#panel-construir label { display: inline-flex; align-items: center; gap: 4px; margin: 2px 6px 2px 0; }
-#panel-construir input[type=number] { width: 58px; }
-#panel-construir input[type=text] { width: 190px; }
-#panel-construir input:focus-visible, #panel-construir select:focus-visible, #panel-construir summary:focus-visible { outline: 3px solid #ffd27a; }
-#panel-construir details { margin: 6px 0; }
-#panel-construir summary { cursor: pointer; }
-#panel-construir ul { margin: 4px 0; padding-left: 18px; }
-#panel-construir label[hidden] { display: none; }
-#panel-construir input[type=range] { width: 140px; }
-#barra-objeto { position: fixed; z-index: 6; display: flex; gap: 4px; padding: 4px; border-radius: 8px; background: rgba(20, 24, 30, .86); }
-#barra-objeto[hidden] { display: none; }
-#barra-objeto button { padding: 6px 9px; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; font: 600 12px system-ui, sans-serif; }
-#barra-objeto button[aria-pressed="true"] { background: #ffd27a; }
-#barra-objeto button.peligro { background: #ffb4a8; }
-#barra-objeto button:focus-visible { outline: 3px solid #ffd27a; }
-/* M22b-1: on a touch screen every builder button is a thumb target (Apple HIG: ≥ 44 pt for frequent controls) */
-@media (pointer: coarse) {
-  #barra-objeto { gap: 8px; padding: 6px; }
-  #barra-objeto button, #panel-construir button { min-width: 44px; min-height: 44px; padding: 10px 14px; font-size: 14px; }
-  #panel-construir select, #panel-construir input[type=number], #panel-construir input[type=text] { min-height: 40px; font-size: 14px; }
-  #panel-construir { font-size: 14px; }
-}
-`;
-  document.head.appendChild(s);
+  // C3: «Ir» in the map, when you may build and the builder is open, selects that object so its card opens by itself
+  return {
+    alIr: (donde) => { const sitio = seleccionarAlIr(c.estado.puede, abierto(), !!c.objeto(donde.id)); if (sitio) c.seleccionar(donde.id); return sitio; },
+    /** ux2-dock: where the other parts of the page put their controls — a drawer's body, the card's slot */
+    cajon: (id) => cuerpos[id], ranuraFicha: ranura,
+    abrirCajon: (id) => abrirCajon(id), cajonAbierto: () => cajon,
+  };
 }

@@ -182,8 +182,10 @@ export function createManos(h: ManosHooks) {
   const emitir = (e: EventoMano) => { for (const f of oyentes) { try { f(e); } catch (err) { console.warn("[manos]", err); } } };
   let agarrable: (key: string) => boolean = () => false;
   let apuntable: (key: string) => boolean = () => false;
-  /** A hand busy holding a tool of a feature (the fishing rod): no ray, no taking things, no pinch-walking with it. */
-  let ocupada: (lado: Lado) => boolean = () => false;
+  /** A hand busy holding a tool of a feature (the fishing rod, a dart): no ray, no taking things, no pinch-walking with it.
+   *  Several features may hold different hands: each registers under its own name (`reglas({ocupada})` is the name "reglas"). */
+  const ocupantes = new Map<string, (lado: Lado) => boolean>();
+  const ocupada = (lado: Lado): boolean => { for (const f of ocupantes.values()) if (f(lado)) return true; return false; };
 
   const ranuras: Ranura[] = [0, 1].map((i) => {
     const ctrl = h.renderer.xr.getController(i), grip = h.renderer.xr.getControllerGrip(i), hand = h.renderer.xr.getHand(i) as Ranura["hand"];
@@ -312,12 +314,52 @@ export function createManos(h: ManosHooks) {
     /** Put the hands under `padre` (VR: the rig; AR: its root) or take them away (null). */
     montar(padre: THREE.Object3D | null): void { if (padre) padre.add(raiz); else raiz.parent?.remove(raiz); },
     /** What a hand may take (quest things that the current step needs) and what the ray may use. */
-    reglas(o: { agarrable?: (key: string) => boolean; apuntable?: (key: string) => boolean; ocupada?: (lado: Lado) => boolean }): void { if (o.agarrable) agarrable = o.agarrable; if (o.apuntable) apuntable = o.apuntable; if (o.ocupada) ocupada = o.ocupada; },
+    reglas(o: { agarrable?: (key: string) => boolean; apuntable?: (key: string) => boolean; ocupada?: (lado: Lado) => boolean }): void { if (o.agarrable) agarrable = o.agarrable; if (o.apuntable) apuntable = o.apuntable; if (o.ocupada) ocupantes.set("reglas", o.ocupada); },
+    /** A feature that holds a hand (see `ocupada`): `fn(lado)` is asked live. Returns how to let go of the registration. */
+    ocupar(nombre: string, fn: (lado: Lado) => boolean): () => void { ocupantes.set(nombre, fn); return () => { if (ocupantes.get(nombre) === fn) ocupantes.delete(nombre); }; },
+    /** Is this hand held by any feature but `excepto` (a feature asks before it takes a hand for itself)? */
+    ocupadaPorOtros(lado: Lado, excepto: string): boolean { for (const [n, f] of ocupantes) if (n !== excepto && f(lado)) return true; return false; },
+    /** What a hand reaches (a quest thing it would take) and what its ray points at ("panel:n" or a thing's key), now. */
+    sondeo(lado: Lado): { candidato: string | null; apunta: string | null } | null {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente);
+      return r ? { candidato: r.candidato, apunta: r.apuntado ? (r.apuntado.tipo === "panel" ? `panel:${r.apuntado.fila}` : r.apuntado.key) : null } : null;
+    },
     /** Every frame while presenting. `camara` = the XR camera (sprites need it to be hit). */
     update(camara: THREE.Camera | null): void { if (!raiz.parent) return; raiz.updateMatrixWorld(); for (const r of ranuras) actualizarRanura(r, camara); },
     on(fn: (e: EventoMano) => void): () => void { oyentes.add(fn); return () => oyentes.delete(fn); },
     /** Where a thing held in this hand goes (grip or pinch point), or null if that hand is not here. */
     ancla(lado: Lado): THREE.Object3D | null { const r = ranuras.find((x) => x.lado === lado && x.fuente); return r ? r.ancla : null; },
+    /** Rediseño v2 (the wrist watch): that hand's wrist in world space — a tracked hand's wrist joint, or the controller's
+     * grip — written into `pos`/`rot`; false when that hand is not here. */
+    muneca(lado: Lado, pos: THREE.Vector3, rot: THREE.Quaternion): { esMano: boolean } | null {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente);
+      if (!r) return null;
+      const o = r.esMano ? r.hand.joints?.wrist : r.grip;
+      if (!o?.visible || (r.esMano && !r.hand.visible)) return null;
+      o.updateWorldMatrix(true, false); o.getWorldPosition(pos); o.getWorldQuaternion(rot);
+      return { esMano: r.esMano };
+    },
+    /** What presses buttons by touch: a tracked hand's index fingertip, or the tip of a controller (its ray's origin),
+     * in world space into `pos`; false when that hand is not here. */
+    punta(lado: Lado, pos: THREE.Vector3): boolean {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente);
+      if (!r) return false;
+      const o = r.esMano ? r.hand.joints?.["index-finger-tip"] : r.ctrl;
+      if (!o?.visible) return false;
+      o.updateWorldMatrix(true, false); o.getWorldPosition(pos);
+      return true;
+    },
+    /** This hand's ray right now (world space, plain numbers — not a page's job to hold onto a THREE.Vector3), or
+     * null if that hand is not here. For a feature that needs its own aim at the exact moment a button changed
+     * (dardos-vr.ts: the throw, read on `gatillo_fin`), not through the generic reach/point pipeline above (which
+     * only reports keys it was given rules for). */
+    rayo(lado: Lado): { origen: { x: number; y: number; z: number }; dir: { x: number; y: number; z: number } } | null {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente);
+      if (!r || !r.ctrl.visible) return null;
+      r.ctrl.updateMatrixWorld();
+      const o = r.ctrl.getWorldPosition(new THREE.Vector3()), d = new THREE.Vector3(0, 0, -1).applyQuaternion(r.ctrl.getWorldQuaternion(new THREE.Quaternion()));
+      return { origen: { x: o.x, y: o.y, z: o.z }, dir: { x: d.x, y: d.y, z: d.z } };
+    },
     /** Walking with tracked hands: the flattened direction (world, unit) of a hand pinching in empty air for ANDAR_MS. */
     andar(): [number, number] | null {
       const ahora = performance.now();
@@ -329,6 +371,15 @@ export function createManos(h: ManosHooks) {
       }
       return null;
     },
+    /** t_bf8947cf: where that hand's controller points, flattened (world, unit) — «según el mando» locomotion.
+     * null while that side has no controller connected (a tracked hand has no stick to read anyway). */
+    dirMando(lado: Lado): [number, number] | null {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente && !x.esMano);
+      if (!r) return null;
+      Dir.set(0, 0, -1).applyQuaternion(r.ctrl.getWorldQuaternion(Qw));
+      const l = Math.hypot(Dir.x, Dir.z);
+      return l > 0.2 ? [Dir.x / l, Dir.z / l] : null;
+    },
     /** What a hand's buttons say now: trigger (or a tracked hand's pinch, 0/1), grip, and whether it is a tracked hand. */
     entrada(lado: Lado): { gatillo: number; agarre: number; mano: boolean } | null {
       const r = ranuras.find((x) => x.lado === lado && x.fuente);
@@ -338,6 +389,14 @@ export function createManos(h: ManosHooks) {
       return { gatillo: b[0]?.value ?? 0, agarre: b[1]?.value ?? 0, mano: false };
     },
     vibrar(lado: Lado, v = 0.5, ms = 60): void { const r = ranuras.find((x) => x.lado === lado); if (r) vibrar(r, v, ms); },
+    /** M22b-3: this hand's ray now (world space), or null when it is not drawn (no controller, or holding something close). For
+     * features that pick their own things along it (the builder) instead of waiting for `apuntado`'s own list. */
+    rayoDe(lado: Lado): { origen: { x: number; y: number; z: number }; dir: { x: number; y: number; z: number } } | null {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente);
+      if (!r || !r.rayo.visible) return null;
+      r.ctrl.getWorldPosition(O); Dir.set(0, 0, -1).applyQuaternion(r.ctrl.getWorldQuaternion(Qw));
+      return { origen: { x: O.x, y: O.y, z: O.z }, dir: { x: Dir.x, y: Dir.y, z: Dir.z } };
+    },
     /** For checks: per hand, what is connected and drawn, how bent the fingers are, what it reaches and points at. */
     estado() {
       const out: Record<Lado, { tipo: "mando" | "mano"; dibujada: boolean; articulaciones: number; indice: number; resto: number; candidato: string | null; apunta: string | null; rayo: boolean } | null> = { izq: null, der: null };

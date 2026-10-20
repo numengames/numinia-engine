@@ -2,10 +2,11 @@
 // Own avatar: predicted with the SAME sim step the server runs, reconciled exactly on each snapshot.
 // Others: drawn slightly in the past, interpolated between snapshots.
 import { fxToFloat } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, TICK_HZ } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, PISO_SIN_SUELO, TICK_HZ } from "../../sim/src/index.ts";
+import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import type { Body, SimState } from "../../sim/src/index.ts";
-import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, encodeIdentityRequest, encodePase, decodeIdentity, seqNewer, codificarVozSubida, leerVozBajada } from "../../net/src/index.ts";
-import type { Transport, Welcome } from "../../net/src/index.ts";
+import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, encodeIdentityRequest, encodePase, decodeIdentity, decodeCondiciones, decodeLeyendo, encodePedirCondiciones, encodeAceptar, seqNewer, codificarVozSubida, leerVozBajada } from "../../net/src/index.ts";
+import type { CondicionesMensaje, Transport, Welcome } from "../../net/src/index.ts";
 import { ClientRuntime } from "../../feature/src/index.ts";
 import type { ClientPart, ViewHooks } from "../../feature/src/index.ts";
 
@@ -67,6 +68,27 @@ export class ClientSession {
   /** Game features (J7): their client parts, the server's catalog, their recent events. */
   readonly features: ClientRuntime;
   private solidsVersion = -1; // U10: the solid boxes follow the shared state
+  private terreno: TerrenoMalla | null = null; // N5: the hills of naturaleza.json, built from the same alturaEn as the server's mesh
+  private terrenoMod: typeof import("../../sim/src/terreno-malla.ts") | null = null;
+  /** N5: follows the shared state's «naturaleza:mundo» like the server does (same function, same numbers → same triangles), so the
+   * prediction walks over the same hills. The terrain code (noise, mesh) is a separate chunk of the page, asked for only the first time
+   * a world says it has nature: a world without naturaleza.json never downloads it and its flat path is untouched. */
+  private sincronizarTerreno(): void {
+    let pide = false;
+    for (const [k, v] of this.features.allState()) if (k === "naturaleza:mundo" || k === "espacio-base:mundo") { pide = (v as { activa?: boolean }).activa !== false; break; }
+    if (!pide && !this.terreno) return;
+    if (!this.terrenoMod) { void import("../../sim/src/terreno-malla.ts").then((m) => { this.terrenoMod = m; this.sincronizarTerreno(); }, () => {}); return; }
+    const M = this.terrenoMod, m = M.terrenoDelEstado(this.features.allState());
+    const clave = m ? M.claveTerreno(m) : null;
+    if (clave === (this.terreno?.clave ?? null)) return;
+    this.terreno = m ? M.terrenoMalla(m) : null;
+    setMesh(this.local, this.terreno?.bvh ?? null, this.terreno ? PISO_SIN_SUELO : 0);
+    if (this.terreno) { // the body that was standing at the flat ground height now stands on the hill
+      const b = getBody(this.local, 0), g = groundHeight(b.x, b.z, this.local, this.terreno.hmax * 65536 + 65536);
+      if (b.y < g) { this.setLocal({ ...b, y: g, vy: 0 }); this.prev = this.cur; }
+    }
+  }
+
   /** I1: who the server says you are (guest id + name); null until it answers, or when no keeper was given. */
   who: { id: string; nombre: string } | null = null;
   private readonly keeper?: GuestKeeper;
@@ -91,7 +113,7 @@ export class ClientSession {
     this.pending.push({ seq: this.seq, mx, mz, buttons });
     if (this.pending.length > 64) this.pending.shift();
     this.prev = this.cur;
-    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.local, solidsFrom(this.features.allState())); } // U10: the same walls as the server
+    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.local, solidsFrom(this.features.allState())); this.sincronizarTerreno(); } // U10: the same walls as the server; N5: and the same hills
     step(this.local, new Int32Array([0, mx, mz, buttons]));
     this.cur = getBody(this.local, 0);
   }
@@ -106,6 +128,27 @@ export class ClientSession {
     this.t.send(bytes, true);
     return true;
   }
+
+  /** condiciones/c2: the last CONDICIONES the server sent (the offer with the text, or where you stand after ACEPTAR); the bubble (c3) reads it.
+   * `capas` is kept from the last message that had them. null until the server sends one (a gate that is off sends nothing by itself). */
+  condiciones: CondicionesMensaje | null = null;
+  onCondiciones: ((m: CondicionesMensaje) => void) | null = null;
+  /** condiciones/c2: ask the server for the conditions and where you stand (answered at any time, gate on or off). */
+  pedirCondiciones(): boolean { if (this.entity < 0) return false; this.t.send(encodePedirCondiciones(), true); return true; }
+  /** condiciones/c2: accept: `versiones` = layer -> the version you read, `datos` = the ids of the data points you ticked (none = refuse them all;
+   * refusing data never keeps you out). The server answers with CONDICIONES (`abierta` says whether you may now move and talk). false if it does not fit. */
+  aceptar(versiones: Record<string, string>, datos: string[] = []): boolean {
+    const b = this.entity >= 0 ? encodeAceptar({ versiones, datos }) : null;
+    if (!b) return false;
+    this.t.send(b, true);
+    return true;
+  }
+
+  /** condiciones/c5: the people who are still reading the world's norms (entity numbers; never yourself). The page draws each one it can see inside a
+   * bubble. The server sends it only when someone starts/stops reading (and once, as a list, when you connect): a world with the gate off never does. */
+  readonly leyendo = new Set<number>();
+  /** condiciones/c5: someone started (`true`) or stopped (`false`: accepted, or left) reading the norms. */
+  onLeyendo: ((entidad: number, leyendo: boolean) => void) | null = null;
 
   /** U10: someone near spoke (a frame of their microphone). The page plays it (apps/plaza/voz.ts). */
   onVoice: ((v: { codec: number; seq: number; entidad: number; trama: Uint8Array }) => void) | null = null;
@@ -122,6 +165,20 @@ export class ClientSession {
   handle(bytes: Uint8Array, now: number): void {
     const type = bytes[0];
     if (type === MSG.VOICE) { const v = leerVozBajada(bytes); if (v) this.onVoice?.(v); return; }
+    if (type === MSG.LEYENDO) { // c5
+      for (const l of decodeLeyendo(bytes) ?? []) {
+        if (l.entidad === this.entity) continue; // the bubble of your own gate is the page's panel, not a sphere over you
+        if (l.leyendo === this.leyendo.has(l.entidad)) continue;
+        if (l.leyendo) this.leyendo.add(l.entidad); else this.leyendo.delete(l.entidad);
+        this.onLeyendo?.(l.entidad, l.leyendo);
+      }
+      return;
+    }
+    if (type === MSG.CONDICIONES) { // c2
+      const m = decodeCondiciones(bytes);
+      if (m) { this.condiciones = { ...m, capas: m.capas ?? this.condiciones?.capas }; this.onCondiciones?.(this.condiciones); }
+      return;
+    }
     if (type === MSG.WELCOME) {
       const w = decodeWelcome(bytes);
       this.welcome = w; this.entity = w.entity;

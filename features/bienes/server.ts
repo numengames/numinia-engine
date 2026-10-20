@@ -177,6 +177,14 @@ export const crearBienes = (o: { confianza?: () => { fichero: string; texto: str
     return true;
   });
 
+  // identidad/i1: a guest's first pass. Each good's `dueno` becomes `sub` (the receipt keeps naming the guest: it is the
+  // signed proof of the grant), the index pages are rebuilt under `sub`, what was worn follows if `sub` wore nothing.
+  api.onAdoptar((invitado, sub) => {
+    for (const k of claves(invitado)) { const b = leerBien(api.store.get(k)); if (b && b.dueno === invitado && api.store.set(k, { ...b, dueno: sub })) indexar(sub, k); }
+    for (let n = 1; api.store.get(pagina(invitado, n)) !== undefined; n++) api.store.delete(pagina(invitado, n));
+    const puesto = api.store.get(PREFIJO_PUESTO + invitado);
+    if (puesto !== undefined) { if (api.store.get(PREFIJO_PUESTO + sub) === undefined) api.store.set(PREFIJO_PUESTO + sub, puesto); api.store.delete(PREFIJO_PUESTO + invitado); }
+  });
   api.onIdentify((e, w) => {
     inventario(e);
     const p = puesto(w.id);

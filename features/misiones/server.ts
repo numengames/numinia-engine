@@ -2,7 +2,7 @@
 // and are put in the world with `at` (only near players get them, J9). Dialogue and quest progress are decided here:
 // distances (api.within), step conditions and positions (api.position) are checked by this file, so a page can never
 // complete a step by asking. Progress is kept per guest (I1) in the store (S4) and reaches only its owner.
-import { serverPart } from "../../packages/feature/src/index.ts";
+import { adoptarClaves, serverPart } from "../../packages/feature/src/index.ts";
 import type { ServerApi, ServerPart } from "../../packages/feature/src/index.ts";
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
 import { cargarAventura, corta, LIM } from "./formato.ts";
@@ -85,7 +85,10 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   };
 
   // ---- the book: sent whole on entering and after each change, only to its owner ----
-  const recompensa = (m: Mision) => corta(m.recompensas.map((r) => `${r.tipo === "objeto" ? "Objeto" : "Insignia"} «${r.nombre}»`).join(", "), 120); // N10: an «objeto» is a digital good of yours
+  const nombreSemilla = (r: { color: string; n: number }) => `Semilla ${r.color}${r.n > 1 ? ` ×${r.n}` : ""}`;
+  /** Y1: what goes to the inventory (misiones never stores objects): one server-only `otorga` per Semilla reward; whoever listens (inventario) keeps it. */
+  const otorgar = (e: number, m: Mision) => { for (const r of m.recompensas) if (r.tipo === "semilla") M!.emit("otorga", { quien: e, tipo: "token", clase: "semilla", nombre: `Semilla ${r.color}`, color: r.color, n: r.n }, "server"); };
+  const recompensa = (m: Mision) => corta(m.recompensas.map((r) => (r.tipo === "semilla" ? nombreSemilla(r) : `${r.tipo === "objeto" ? "Objeto" : "Insignia"} «${r.nombre}»`)).join(", "), 120); // N10: an «objeto» is a digital good of yours
   // `paso` = the first step still to do; inside a grupo the others of its block are to do too (each `paso` says its
   // grupo, and `hecho` is true for what is already done in the block); `espera` = the seconds a step to do still waits
   const enviarMision = (to: number, p: Progreso, m: Mision, t: number) => {
@@ -134,6 +137,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
         M!.emit("avance", { mision: m.id, texto }, { to: x });
         if (h.completada) M!.emit("completada", { mision: m.id, titulo: m.titulo, texto: m.textos.completada, recompensa: recompensa(m) }, { to: x });
       }
+      if (h.completada) otorgar(e, m);
     }
     enviarLibro(e);
     revisarLlegadas(e);
@@ -180,7 +184,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     P = api;
     cargar(api);
     for (const n of A.pnjs.values()) {
-      api.state.set(n.id, { nombre: n.nombre, descripcion: n.descripcion, x: n.posicion.x, z: n.posicion.z, y: n.posicion.y, giro: n.giro, radio: n.radio, modelo: n.apariencia.modelo, escala: n.apariencia.escala, oficio: n.oficio }, { at: { x: n.posicion.x, z: n.posicion.z } });
+      api.state.set(n.id, { nombre: n.nombre, descripcion: n.descripcion, x: n.posicion.x, z: n.posicion.z, y: n.posicion.y, giro: n.giro, radio: n.radio, modelo: n.apariencia.modelo, escala: n.apariencia.escala, oficio: n.oficio, voz: n.voz }, { at: { x: n.posicion.x, z: n.posicion.z } });
     }
     api.on("hablar", (e, msg) => {
       const n = A.pnjs.get(String(msg.pnj));
@@ -215,6 +219,10 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     for (const c of A.cosas.values()) {
       api.state.set(c.id, { nombre: c.nombre, descripcion: c.descripcion, x: c.posicion.x, z: c.posicion.z, radio: c.radio, aviso: c.aviso, modelo: c.apariencia.modelo, escala: c.apariencia.escala, y: c.posicion.y, color: c.apariencia.color, modeloUsada: c.apariencia.usada?.modelo ?? "", escalaUsada: c.apariencia.usada?.escala ?? c.apariencia.escala }, { at: { x: c.posicion.x, z: c.posicion.z } }); // U14 (6): the used look travels with it; each page picks by its own book
     }
+    api.onAdoptar((invitado, sub) => { // identidad/i1: the generic move (paso: the more advanced; hechas: the union; grants once); the memory copy follows
+      adoptarClaves(api.store, invitado, sub);
+      progresos.delete(`g:${invitado}`); if (progresos.has(`g:${sub}`)) progresos.set(`g:${sub}`, leerProgreso(api.store.get(`p:${sub}`)));
+    });
     api.onIdentify((e) => {
       const antes = claveDe.get(e);
       if (antes?.startsWith("e")) progresos.delete(antes); // what it did before saying who it is is not kept

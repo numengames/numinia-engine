@@ -28,6 +28,78 @@
       "licencia": "CC0-1.0",
       "autor": "Tomás Laulhé (Quaternius); cambios de Don McCurdy",
       "fuente": "https://github.com/mrdoob/three.js/tree/dev/examples/models/gltf/RobotExpressive"
+    },
+    {
+      "id": "loma",
+      "nombre": "Loma (terreno)",
+      "modelo": "bc858f7faf1aeb21d71ad88a4f6c908a0170a6903f5f706a11e2c7fda5431cf2",
+      "fichero": "activos/terreno/loma.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia)",
+      "fuente": "tools/hacer-terreno.mjs"
+    },
+    {
+      "id": "logo-khepri",
+      "nombre": "Logo Khepri",
+      "modelo": "d3c97061aa84f098bdfed1ec88c689acef867025e5399b20c74f917410e4492d",
+      "fichero": "activos/espacio-base/logo-khepri.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Archivo de numinia.com (Logo Khepri 0.1.3, CC0); aquí con metallicFactor 0 y roughnessFactor 0,9 (de noche el metal sin entorno se ve negro); mismos vértices y textura",
+      "fuente": "https://numinia.com/es/archive/ndg-019d3e75-7731-7261-913d-842515f90190"
+    },
+    {
+      "id": "bolita-rica-ambar",
+      "nombre": "Moñoni ámbar (cuerpo)",
+      "modelo": "4918923d19dee758af0faf3e846edb58bf4ffae68164753a549887954abe9708",
+      "fichero": "activos/bolitas/bolita-rica-ambar.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia, CC0 1.0 declarado dentro del propio .glb): el moñoni del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita.mjs (cuerpo, color ambar; 1.246 triángulos, 3 materiales, ojos incluidos, sin texturas)"
+    },
+    {
+      "id": "bolita-rica-turquesa",
+      "nombre": "Moñoni turquesa (cuerpo)",
+      "modelo": "8abab2d5e76eedfdfa21277f4179af19290924ce09512c6efd57abec4f11309f",
+      "fichero": "activos/bolitas/bolita-rica-turquesa.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia, CC0 1.0 declarado dentro del propio .glb): el moñoni del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita.mjs (cuerpo, color turquesa; 1.246 triángulos, 3 materiales, ojos incluidos, sin texturas)"
+    },
+    {
+      "id": "bolita-rica-coral",
+      "nombre": "Moñoni coral (cuerpo)",
+      "modelo": "7e4c1dfb05178952c1f03112c784b560ec22bba7a02466996321efdf92ca7cf1",
+      "fichero": "activos/bolitas/bolita-rica-coral.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia, CC0 1.0 declarado dentro del propio .glb): el moñoni del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita.mjs (cuerpo, color coral; 1.246 triángulos, 3 materiales, ojos incluidos, sin texturas)"
+    },
+    {
+      "id": "bolita-rica-verde",
+      "nombre": "Moñoni verde (cuerpo)",
+      "modelo": "692b9149dbf215a642ebb7e89da4f3f78a835ce198f407715f86459d054804f5",
+      "fichero": "activos/bolitas/bolita-rica-verde.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia, CC0 1.0 declarado dentro del propio .glb): el moñoni del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita.mjs (cuerpo, color verde; 1.246 triángulos, 3 materiales, ojos incluidos, sin texturas)"
+    },
+    {
+      "id": "bolita-rica-verdemar",
+      "nombre": "Moñoni verde mar (cuerpo)",
+      "modelo": "95ccc77f6c6a4be88af3b9e89325d33a990fefbfbd438846d1b474447aca5ec2",
+      "fichero": "activos/bolitas/bolita-rica-verdemar.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia, CC0 1.0 declarado dentro del propio .glb): el moñoni del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita.mjs (cuerpo, color verdemar; 1.246 triángulos, 3 materiales, ojos incluidos, sin texturas)"
+    },
+    {
+      "id": "bolita-rica-boca",
+      "nombre": "Moñoni (boca)",
+      "modelo": "211bed925a75b1a65d8c26e5972f0d1782ae4033baba6aa1b995adcfbb1010a6",
+      "fichero": "activos/bolitas/bolita-rica-boca.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia, CC0 1.0 declarado dentro del propio .glb): el moñoni del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita.mjs (boca aparte, mismo origen que el cuerpo; 2 materiales, sin texturas)"
     }
   ]
 }

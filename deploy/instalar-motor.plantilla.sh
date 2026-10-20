@@ -178,6 +178,12 @@ if [ ! -d "$STATE/aventura" ]; then
   rm -rf "$STATE/.aventura-nueva"; cp -r "$PREFIX/app/aventuras/ejemplo" "$STATE/.aventura-nueva"
   chown -R "$USER_NAME:$USER_NAME" "$STATE/.aventura-nueva"; mv "$STATE/.aventura-nueva" "$STATE/aventura"
   say "mundo: su aventura es una copia de la de ejemplo ($STATE/aventura); desde ahora es suya"
+  # H8: a new world is born in the espacio base (the same file the server's `sembrar` writes); an existing entorno/ is never touched
+  if [ ! -d "$STATE/entorno" ]; then
+    mkdir -p "$STATE/entorno"
+    printf '{\n  "schema": "numinia-engine/espacio-base@1",\n  "activa": true,\n  "semilla": 42\n}\n' > "$STATE/entorno/espacio-base.json"
+    chown -R "$USER_NAME:$USER_NAME" "$STATE/entorno"
+  fi
 fi
 
 # ---------- systemd service ----------
@@ -205,7 +211,9 @@ Wants=network-online.target
 User=$USER_NAME
 Group=$USER_NAME
 WorkingDirectory=$PREFIX/app
-Environment=PORT=$PORT HOST=127.0.0.1 STATS_MS=30000 NODE_ENV=production MOTOR_MUNDO=$STATE SESIONES_DIR=$STATE/sesiones DATOS_DIR=/var/lib/numinia-motor/datos ACTIVOS_DIR=/var/lib/numinia-motor/datos/activos MOTOR_CONSTRUIR=$CONSTRUIR
+Environment=PORT=$PORT HOST=127.0.0.1 STATS_MS=30000 NODE_ENV=production MOTOR_MUNDO=$STATE SESIONES_DIR=$STATE/sesiones DATOS_DIR=/var/lib/numinia-motor/datos ACTIVOS_DIR=/var/lib/numinia-motor/datos/activos MOTOR_CONSTRUIR=$CONSTRUIR MOTOR_DOMINIO=$DOMAIN
+# ADR-080: fixing MOTOR_DOMINIO here to the --dominio this install was given (empty counts as unset for the server)
+# stops an outside world from forging a ticket under this one's name by sending another Host header
 # C2: the whole world in one folder (datos/, aventura/, entorno/, sesiones/), the same layout as a container's /mundo
 # H1: who may place, move and delete things in a NEW world (--construir todos|nadie; todos = people and AI inhabitants alike);
 # once the world has stored its roles they decide (ADR-074: the world folder is the truth) and an owner types /construir
@@ -337,6 +345,14 @@ $SITE {
 	# H1 + H9: files of things in the world, by their sha256 — GET/HEAD for everyone, PUT (uploads) only for who may
 	# build (the server checks the guest token and the caps: 12 MB per .glb, see limits.json); no size limit here
 	handle /a/* {
+		reverse_proxy 127.0.0.1:$PORT
+	}
+	# S6: the page's sound table (ids → /a/ files, buses, cooldowns); without it the page only plays the synthesised recipes
+	handle /sonidos.json {
+		reverse_proxy 127.0.0.1:$PORT
+	}
+	# the world's public card (name, theme, avatar, audio bed): the page reads it on its own origin
+	handle /status {
 		reverse_proxy 127.0.0.1:$PORT
 	}
 	# the world as a zip: the page, the download and the upload (the server asks the administration code; no size limit here)

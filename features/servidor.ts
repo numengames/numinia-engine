@@ -4,6 +4,7 @@ import type { ServerPart } from "../packages/feature/src/index.ts";
 import gestos from "./gestos/server.ts";
 import despertar from "./despertar/server.ts";
 import objetos from "./objetos/server.ts";
+import avatar from "./avatar/server.ts"; // H10: your avatar — house or uploaded .vrm, saved with your identity
 import chat from "./chat/server.ts";
 import misiones from "./misiones/server.ts"; // J5: two features, one engine: people (pnj) and quests (misiones)
 import entorno from "./entorno/server.ts";
@@ -19,11 +20,16 @@ import web from "./web/server.ts";
 import puertas from "./puertas/server.ts"; // J4: doors the server opens and closes (a button may open one)
 import botones from "./botones/server.ts"; // J4: buttons the server counts; a server-only `senal` other features hear
 import cogibles from "./cogibles/server.ts"; // J4: things anyone picks up and puts down; drawn in the carrier's hand
+import naturaleza from "./naturaleza/server.ts"; // N4: relief, trees and grass from a seed (the world's naturaleza.json; the page builds it)
+import espacioBase from "./espaciobase/server.ts"; // H2: the espacio base from the world's espacio-base.json (the page draws it)
 import suelo from "./suelo/server.ts"; // D-045: back to the last safe spot after a fall (the instance does it; this tells the page)
 import contadores from "./contadores/server.ts"; // D-044: timers and counters everyone sees (the server keeps the clock, publishes once a second to the zone)
 import disparadores from "./disparadores/server.ts"; // D-041: the cable — zone and button triggers a world wires in disparadores.json; one server-only `accion` per receiver
 import cerradura from "./cerradura/server.ts"; // D-042: a lock that opens with a code (keypad, HTML too) or a key; the server decides
 import movedores from "./movedores/server.ts"; // D-043: things the server moves and rotates with a duration, same for everyone (platform, sliding door, lift)
 import lucha from "./lucha/server.ts"; // L1: creatures with coherence and a solid box; one melee blow (the server decides reach, cooldown, damage)
-const funciones: ServerPart[] = [gestos, despertar, objetos, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, contadores, disparadores, cerradura, movedores];
+import ancestros from "./ancestros/server.ts"; // v1: the Salón de los Ancestros and the tribute to Asimov (a hologram that lights up near you and says the Three Laws + our AGW rules)
+import inventario from "./inventario/server.ts"; // Y1: what each person owns; after misiones, whose `otorga` it listens to
+import sonido from "./sonido/server.ts"; // S6: the catalogue of house sounds (27 CC0 ids served by their sha256); the server picks the id and the seed, so everyone hears the same variant at the same instant. Last, so it hears the cable's `suena`
+const funciones: ServerPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, naturaleza, espacioBase, contadores, disparadores, cerradura, movedores, inventario, ancestros, sonido];
 export default funciones;

@@ -1,17 +1,18 @@
 {
   "_doc": "Each package may import only the packages listed for it. Lower layers never import upper ones. render talks to three.js only. 'features' is the rule for every folder in features/ (game features: only the plug, no bare imports). Only the files in _composition may import features/.",
-  "_composition": ["packages/server/src/main.ts", "packages/cli/src/describe.ts", "apps/plaza/main.ts"],
+  "_composition": ["packages/server/src/main.ts", "packages/server/src/bench-piezas.ts", "packages/cli/src/describe.ts", "apps/plaza/main.ts"],
   "core": [],
   "schema": ["core"],
   "ecs": ["core", "schema"],
-  "sim": ["core", "schema", "ecs"],
+  "sim": ["core", "schema", "ecs", "relieve"],
   "net": ["core", "schema", "ecs", "sim"],
   "feature": ["core", "schema", "net"],
   "client": ["core", "schema", "ecs", "sim", "net", "feature"],
-  "render": [],
+  "relieve": [],
+  "render": ["relieve"],
   "instance": ["core", "schema", "ecs", "sim", "net", "feature"],
   "agent": ["core", "schema", "ecs", "sim", "net", "feature", "client", "instance"],
-  "server": ["core", "schema", "ecs", "sim", "net", "instance", "feature", "client", "agent"],
+  "server": ["core", "schema", "ecs", "sim", "net", "instance", "feature", "client", "agent", "relieve"],
   "cli": ["core", "schema", "ecs", "sim", "net", "instance", "feature"],
-  "features": ["core", "schema", "feature"]
+  "features": ["core", "schema", "feature", "relieve"]
 }

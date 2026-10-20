@@ -57,7 +57,7 @@ const ctl = (p, code, arg) => p.evaluate(code, arg);
 const esperar = (p, fn, arg, ms = 10000) => p.waitForFunction(fn, arg, { timeout: ms });
 const foto = async (p, n) => { if (SHOTS) await p.screenshot({ path: `${SHOTS}/bienes-${n}.png` }); };
 const inventario = (p) => ctl(p, () => document.querySelector("#ficha [data-seccion=inventario]")?.textContent ?? "");
-const abrirFicha = async (p) => { if (!(await ctl(p, () => globalThis.__numinia.ficha.abierto()))) await ctl(p, () => globalThis.__numinia.ficha.abrir()); await esperar(p, () => !!document.querySelector("#ficha [data-seccion=inventario] input[type=file]")); };
+const abrirFicha = async (p) => { await ctl(p, () => globalThis.__numinia.ficha.abrir("reserva")); await esperar(p, () => !!document.querySelector("#ficha [data-seccion=inventario] input[type=file]")); };
 const traer = async (p, f) => { await abrirFicha(p); await p.setInputFiles("#ficha [data-seccion=inventario] input[type=file]", f); };
 const ETIQUETA = { "Ver en 3D": (n) => `Ver ${n} en 3D`, "En la mano": (n) => `Llevar ${n} en la mano`, "Sobre la cabeza": (n) => `Llevar ${n} sobre la cabeza`, "Quitártelo": (n) => `Quitarte ${n}` };
 /** A good's button by its accessible name (what a screen reader says), as a person would find it. */

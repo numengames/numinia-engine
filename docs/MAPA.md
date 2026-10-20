@@ -31,7 +31,7 @@ Para quien llega nuevo (persona o IA). La versión de una página para máquinas
 | poner una IA que viva en el mundo (habitante) | `aventuras/<nombre>/habitantes/<id>.json` (`habitante@1`), comprobar con `node tools/aventura.ts`; cuerpo y guion en `packages/agent/`, servicio `packages/agent/src/main.ts`; diseño `../mmo-browser-study/DISENO-IAS-MOTOR.md` |
 | diseñar o equilibrar una economía (Prestigio, Semillas, Reliquias, daño) antes de programarla | `tools/economia/` (diagrama como datos + simulador determinista), modelos en `tools/economia/modelos/`, `node tools/economia.ts prestigio\|reliquias`; el método, `../mmo-browser-study/MAQUINACIONES-APRENDIZAJE.md` |
 | escribir misiones y personas de una aventura | ficheros en `aventuras/<nombre>/` (`mision@1`, `pnj@1`, `cosa@1`), comprobar con `node tools/aventura.ts`; el motor en `features/misiones/` |
-| cambiar el mapa, el minimapa o la ficha | `apps/plaza/mapa.ts`, `ficha.ts`, `paneles.ts`; las cuentas en `packages/client/src/mapa.ts`; la imagen cenital en `packages/render/src/cenital.ts` |
+| cambiar el mapa, el minimapa o la ficha «Tú» | `apps/plaza/mapa.ts`, `ficha.ts` (lo que decide: `tu-logica.ts`; retratos: `tools/retratos.mjs`; lo del aparato, en Ajustes: `info-aparato.ts`), `paneles.ts`; las cuentas en `packages/client/src/mapa.ts`; la imagen cenital en `packages/render/src/cenital.ts` |
 | cambiar el cielo, la luz, el suelo, el agua o el fuego | `features/entorno/`, `features/elementos/`; el dibujo en `packages/render/src/entorno.ts`, `calidad.ts`, `particulas.ts`, `elementos.ts`; el panel, `apps/plaza/entorno.ts` |
 
 Capas (de abajo arriba): `core → schema → ecs → sim → net → feature → {client, instance} → agent → server`, y `instance → cli`;

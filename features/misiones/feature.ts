@@ -20,12 +20,12 @@ const GIRO = { kind: "fixed", min: -180, max: 180, step: 0.1, default: 0 } as co
 
 export const pnj = defineFeature({
   id: "pnj",
-  version: 3, // v3: the state gains `oficio` (a person's trade, a smaller line under the name); v2: `y` (the height a person stands at)
+  version: 4, // v4: the state gains `voz` (how a person sounds when you start and stop talking; "" = from its id); v3: the state gains `oficio` (a person's trade, a smaller line under the name); v2: `y` (the height a person stands at)
   level: "base",
   describe: "Personas del mundo que no son jugadores (PNJ). Se les habla de cerca y contestan con un diálogo de opciones, igual para todos y decidido por el servidor, que cambia según tus misiones. Las escribe la aventura (pnj@1).",
   state: {
-    describe: "Una entrada por persona (clave = su id): nombre, su oficio (vacío = ninguno; va bajo el nombre), dónde está (y = altura sobre el suelo, m: su planta), hacia dónde mira (grados), a qué distancia se le habla (m, y a menos de 2,5 m de altura) y su modelo (sha256 de un .glb; vacío = el robot de la casa).",
-    fields: { nombre: { kind: "text", maxBytes: LIM.nombre }, descripcion: DESCRIPCION, x: X, z: X, giro: { kind: "fixed", min: -180, max: 180, step: 0.1, default: 0 }, radio: { kind: "fixed", min: 0.5, max: 16, step: 0.1, default: 3 }, modelo: MODELO, escala: ESCALA, y: { kind: "fixed", min: 0, max: ALTURA_MAX, step: 0.01, default: 0 }, oficio: { kind: "text", maxBytes: LIM.oficio, default: "" } },
+    describe: "Una entrada por persona (clave = su id): nombre, su oficio (vacío = ninguno; va bajo el nombre), su voz (una de VOCES_PNJ; vacío = la que salga de su id), dónde está (y = altura sobre el suelo, m: su planta), hacia dónde mira (grados), a qué distancia se le habla (m, y a menos de 2,5 m de altura) y su modelo (sha256 de un .glb; vacío = el robot de la casa).",
+    fields: { nombre: { kind: "text", maxBytes: LIM.nombre }, descripcion: DESCRIPCION, x: X, z: X, giro: { kind: "fixed", min: -180, max: 180, step: 0.1, default: 0 }, radio: { kind: "fixed", min: 0.5, max: 16, step: 0.1, default: 3 }, modelo: MODELO, escala: ESCALA, y: { kind: "fixed", min: 0, max: ALTURA_MAX, step: 0.01, default: 0 }, oficio: { kind: "text", maxBytes: LIM.oficio, default: "" }, voz: { kind: "text", maxBytes: 16, default: "" } },
     card: { role: "persona", name: "{nombre}", description: "{descripcion}", at: ["x", "z"], actions: ["hablar"], interact: { intent: "hablar", prompt: "hablar con {nombre}", radius: "radio", key: "pnj" } },
   },
   intents: {
@@ -86,6 +86,11 @@ export const misiones = defineFeature({
       announce: { text: "Misión completada: {titulo}. {texto} {recompensa}", sound: "campana", importance: 2 },
     },
     aviso: { describe: "Algo de tus misiones que conviene saber (dejaste una, ya no sigues ninguna…).", fields: { texto: { kind: "text", maxBytes: 160 } }, announce: { text: "{texto}", sound: "suave", importance: 1 } },
+    otorga: {
+      describe: "Solo en el servidor (Y1): una misión completada da un objeto a quien la hizo (quien = su entidad). Lo oye la función inventario y lo guarda; ninguna página lo recibe.",
+      fields: { quien: { kind: "int", min: 0, max: 65535 }, tipo: { kind: "enum", values: ["arma", "reliquia", "token"] }, clase: { kind: "text", maxBytes: 32 }, nombre: { kind: "text", maxBytes: 40 }, color: { kind: "enum", values: ["", "verde", "azul", "plateada", "dorada", "roja"] }, n: { kind: "int", min: 1, max: 999, default: 1 } },
+      announce: "silent",
+    },
     rechazado: { describe: "Lo que pediste no se hizo, y por qué.", fields: { motivo: MOTIVO }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
     marcas: {
       describe: "Qué personas y cosas tienen marca para ti (tras cada libro; solo a ti). Ids separados por comas: tiene = personas con «!» (te dan una misión que puedes coger o un paso tuyo de ahora es con ellas), hecho = personas con «✓» (ya hiciste lo suyo y no te queda nada con ellas), cosas = cosas con «!» (un paso tuyo de ahora es cogerlas o usarlas).",

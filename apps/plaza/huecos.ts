@@ -3,8 +3,8 @@
 // to one (the J4 prompt, apps/plaza/interactuar.ts: E, the prompt button or a click on the hole) and the file picker
 // opens at once — a browser opens it only inside the click or the key press, so nothing waits before it. The picture
 // goes up like any other (soltar.ts `rellenar`: checked, at most HUECO_PX_PAGINA px, a JPEG without its EXIF) and the
-// server measures it and fits it whole into the frame (objetos.rellenar). In the build panel, with a picture selected:
-// «Hacer hueco» (its frame = the picture's size now), «Poner obra…» and «Vaciar hueco». Visitors see none of it.
+// server measures it and fits it whole into the frame (objetos.rellenar). On the selected object's card (ux2-dock), with a
+// picture selected: «Hacer hueco» (its frame = the picture's size now), «Poner obra…» and «Vaciar hueco». Visitors see none of it.
 type Res = { ok: true } | { ok: false; why: string };
 type Hueco = { id: string; nombre: string; x: number; y: number; z: number; ancho: number; alto: number; lleno: boolean; fijado: boolean };
 /** What interactuar.ts offers: a thing in reach whose use runs here, on the page (`local`), instead of an intent. */
@@ -22,7 +22,7 @@ export type OpcionesHuecos = {
   view: { editor?: { cajaPropia?(key: string): Caja | null } };
   rellenar(id: string, file: File): Promise<void>; // soltar.ts: prepare, upload, objetos.rellenar
   decir(texto: string): void;                      // soltar.ts' status line (role=status)
-  panel: HTMLElement | null;                       // the build panel: the «Hueco» row goes at its end
+  panel: HTMLElement | null;                       // the object card's slot (constructor.ts ranuraFicha): the «Hueco» row
 };
 
 /** How close a hole is offered (metres on the ground) and how far above or below your eyes it may hang. */
@@ -61,7 +61,7 @@ export function montarHuecos(o: OpcionesHuecos) {
   /** A click on a thing while playing: a hole you may fill opens the picker. True = it was a hole. */
   const pinchar = (key: string): boolean => c.estado.puede && !!deId(key) && abrir(key).ok;
 
-  // ---- the build panel: what a selected picture can do ----
+  // ---- the object's card: what a selected picture can do ----
   const fila = document.createElement("div");
   fila.className = "fila"; fila.setAttribute("role", "toolbar"); fila.setAttribute("aria-label", "Hueco");
   const texto = document.createElement("span");

@@ -5,6 +5,7 @@
 // Convention for features: draw an interactive thing with view.place(`<feature>:<key>`) so a click on it is understood.
 // U12: a page module may offer things whose use runs on the page first (`locales`: a hole opens the file picker, which a
 // browser allows only inside the key press or the click), and claim a click on a thing drawn by its plain key (`pinchar`).
+// ux2-gente: a plain click on no thing goes to `persona` (the card of whoever is under it: things and NPCs always win).
 // J4 «mantener pulsado»: a thing whose card sets `hold` (seconds) is not used at once — E / the mobile button / the VR
 // trigger must be HELD that long (a progress ring fills on the button, --progreso 0..1) before the intent is sent;
 // letting go early, or the target changing, cancels with nothing sent. A thing without `hold` fires as before.
@@ -27,6 +28,8 @@ export const fraccionMantenida = (desde: number, ahora: number, holdS?: number):
 export function montarInteraccion(o: {
   session: Sesion; view: Vista; boton: HTMLButtonElement; ofrece: (feature: string, key: string) => boolean; ocupado: () => boolean;
   locales?: (x: number, z: number, y?: number) => Cerca[]; pinchar?: (key: string) => boolean;
+  /** ux2-gente: a plain click that hit no thing may land on a person (their small card); true = claimed. */
+  persona?: (clientX: number, clientY: number) => boolean;
 }) {
   const tactil = esTactil();
   let actual: Cerca | null = null, ultimo: Res | null = null;
@@ -79,7 +82,7 @@ export function montarInteraccion(o: {
     abajo = null;
     if (!a || e.button !== 0 || Math.hypot(e.clientX - a.x, e.clientY - a.y) > 6 || !libre()) return;
     const k = o.view.pickThing?.(e.clientX, e.clientY), i = k ? k.indexOf(":") : -1;
-    if (!k) return;
+    if (!k) { o.persona?.(e.clientX, e.clientY); return; }
     if (i < 1) { o.pinchar?.(k); return; } // a thing drawn by its plain key (objetos): a page module may claim it (U12)
     const feature = k.slice(0, i), key = k.slice(i + 1);
     if (o.ofrece(feature, key)) usar({ feature, key, intent: "", prompt: "", name: "", distance: 0 });

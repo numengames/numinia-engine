@@ -5,7 +5,8 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Hist, median } from "../packages/server/src/hist.ts";
-import { parseProcStat, Runtime } from "../packages/server/src/runtime.ts";
+import { maquinaNoFiable, PUERTAS } from "../packages/server/src/puertas.ts";
+import { parseProcStat, parseSchedstat, Runtime } from "../packages/server/src/runtime.ts";
 import { startServer } from "../packages/server/src/server.ts";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -36,6 +37,13 @@ test("parseProcStat: busy and steal from the first line of /proc/stat, guest not
   assert.equal(parseProcStat("cpu  1 2 3"), null);
 });
 
+test("parseSchedstat (D3): the run-queue wait, in ms, from a thread's schedstat", () => {
+  assert.equal(parseSchedstat("123456789 25000000 42\n"), 25); // ns on CPU · ns waiting · timeslices
+  assert.equal(parseSchedstat("nada"), null);
+  assert.equal(parseSchedstat("12"), null);
+  assert.equal(parseSchedstat("1 -5 3"), null);
+});
+
 test("Runtime: a window with finite numbers after two samples", async () => {
   const r = new Runtime();
   const t = performance.now(); while (performance.now() - t < 30) { /* burn a little CPU */ }
@@ -43,6 +51,9 @@ test("Runtime: a window with finite numbers after two samples", async () => {
   const w = r.window();
   for (const v of [w.cpuPct, w.cpuSegundos, w.utilizacionBucle, w.bucleMs.p99, w.gc.totalMs]) assert.ok(Number.isFinite(v) && v >= 0, JSON.stringify(w));
   assert.ok(w.utilizacionBucle <= 1);
+  if (process.platform === "linux") { // D3: the main thread's wait for a CPU, a share of the wall clock
+    assert.ok(w.esperaCpu && w.esperaCpu.pct >= 0 && w.esperaCpu.segundos >= 0, JSON.stringify(w.esperaCpu));
+  } else assert.equal(w.esperaCpu, null);
   r.close();
 });
 
@@ -65,14 +76,19 @@ test("server: the extra /metrics numbers and /metrics.prom in Prometheus text fo
     const types = new Map<string, string>();
     for (const l of lines) {
       if (l.startsWith("# HELP ")) continue;
-      const t = l.match(/^# TYPE ([a-z_:][a-z0-9_:]*) (gauge|counter)$/);
+      const t = l.match(/^# TYPE ([a-z_:][a-z0-9_:]*) (gauge|counter|histogram)$/);
       if (t) { types.set(t[1], t[2]); continue; }
-      const s = l.match(/^([a-z_:][a-z0-9_:]*)(\{[a-z_]+="[a-z_]+"(,[a-z_]+="[a-z_]+")*\})? (-?[0-9.]+(e[+-]?[0-9]+)?)$/);
+      // label values: snake_case words, feature ids (a-z0-9-) and bucket edges (le="0.025", le="+Inf")
+      const s = l.match(/^([a-z_:][a-z0-9_:]*)(\{[a-z_]+="[A-Za-z0-9_.+-]+"(,[a-z_]+="[A-Za-z0-9_.+-]+")*\})? (-?[0-9.]+(e[+-]?[0-9]+)?)$/);
       assert.ok(s, `not a valid sample line: ${l}`);
-      assert.ok(types.has(s[1]), `${s[1]} has no # TYPE before it`);
+      const family = types.has(s[1]) ? s[1] : s[1].replace(/_(bucket|sum|count)$/, "");
+      assert.ok(types.has(family), `${s[1]} has no # TYPE before it`);
+      if (family !== s[1]) assert.equal(types.get(family), "histogram", `${s[1]}: only histograms have _bucket/_sum/_count`);
     }
     for (const [name, type] of types) assert.equal(type === "counter", name.endsWith("_total"), `${name}: counters end in _total and only they do`);
+    assert.ok(types.get("numinia_tick_seconds") === "histogram" && types.get("numinia_tick_phase_seconds") === "histogram", "B2 histograms");
     assert.ok(types.has("process_cpu_seconds_total") && types.has("nodejs_eventloop_lag_p99_seconds"));
+    if (process.platform === "linux") assert.ok(types.has("numinia_mainthread_cpu_wait_seconds_total") && types.has("numinia_mainthread_cpu_wait_ratio"), "D3: CPU wait exported");
     assert.ok(!lines.some((l) => /NaN|undefined|Infinity/.test(l)));
   } finally { await srv.close(); }
 });
@@ -101,5 +117,27 @@ test("swarm: a real run against a real server writes a report with server and cl
     assert.equal(typeof r.veredicto.pasa, "boolean");
     assert.ok(Array.isArray(r.veredicto.motivos) && Array.isArray(r.veredicto.avisos));
     assert.ok(readdirSync(out).some((f) => f.endsWith(".md")));
+    // E7: the server's CPU wait is in the report and decides the report's reliability with the same rule as the level.
+    if (process.platform === "linux") assert.equal(typeof r.servidor.esperaCpuMaxPct, "number", JSON.stringify(r.servidor));
+    assert.equal(typeof rep.fiable, "boolean");
+    assert.equal(rep.fiable, rep.resultados.every((x: { veredicto: { fiable: boolean } }) => x.veredicto.fiable));
+    assert.equal(r.veredicto.fiable === false, r.veredicto.avisos.some((a: string) => a.startsWith("NO FIABLE")));
+    if (r.servidor.esperaCpuMaxPct > PUERTAS.esperaCpuMaxPct) {
+      assert.equal(rep.fiable, false);
+      assert.match(readFileSync(join(out, json[0].replace(/json$/, "md")), "utf8"), /NO FIABLE[\s\S]*espera de CPU/);
+    }
   } finally { await srv.close(); rmSync(out, { recursive: true, force: true }); }
+});
+
+test("E7: a measurement with the server's CPU wait or steal above 2 % is of the machine (NO FIABLE, with the reason)", () => {
+  assert.equal(PUERTAS.esperaCpuMaxPct, 2);
+  assert.deepEqual(maquinaNoFiable({ stealMaxPct: 0, esperaCpuMaxPct: 0.7 }), []);
+  assert.deepEqual(maquinaNoFiable({ stealMaxPct: 0, esperaCpuMaxPct: 2 }), [], "2 % exactly still passes, like steal");
+  assert.deepEqual(maquinaNoFiable({ stealMaxPct: 0, esperaCpuMaxPct: null }), [], "unknown is not a reason (it is a warning)");
+  const w = maquinaNoFiable({ stealMaxPct: 0, esperaCpuMaxPct: 3.73 });
+  assert.equal(w.length, 1);
+  assert.match(w[0], /espera de CPU 3\.73 % > 2 %.*máquina/);
+  const both = maquinaNoFiable({ stealMaxPct: 2.5, esperaCpuMaxPct: 5 });
+  assert.equal(both.length, 2);
+  assert.match(both[0], /^steal 2\.5 %/);
 });

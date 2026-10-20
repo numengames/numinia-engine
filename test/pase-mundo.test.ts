@@ -134,6 +134,24 @@ test("pase: a refused pass leaves a visitor and one line saying why (expired, ot
   assert.ok(W.log.some((l) => l.includes("[pase] rechazado") && l.includes("caducado")));
 });
 
+test("pase: the world counts the passes it received, accepted and refused, with the last refusal's short reason (for /status)", () => {
+  const W = mundo();
+  assert.deepEqual(W.roles.pases(), { recibidos: 0, aceptados: 0, rechazados: 0, ultimoMotivo: null });
+  W.llegar();
+  assert.equal(W.roles.pases().recibidos, 0, "a guest without a pass is not a pass");
+  W.llegar(pase());
+  assert.deepEqual(W.roles.pases(), { recibidos: 1, aceptados: 1, rechazados: 0, ultimoMotivo: null });
+  W.llegar(pase(carga({ sub: sub("b"), iat: T0 / 1000 - 900, exp: T0 / 1000 - 300 })));
+  assert.deepEqual(W.roles.pases(), { recibidos: 2, aceptados: 1, rechazados: 1, ultimoMotivo: "caducado" });
+  W.llegar(pase(carga({ sub: sub("c"), aud: "otro-mundo" })));
+  assert.deepEqual(W.roles.pases(), { recibidos: 3, aceptados: 1, rechazados: 2, ultimoMotivo: "mundo" });
+  const copia = W.roles.pases(); copia.recibidos = 99;
+  assert.equal(W.roles.pases().recibidos, 3, "a copy: /status cannot change the counts");
+  const Wsin = mundo({ pase: null });
+  Wsin.llegar(pase());
+  assert.equal(Wsin.roles.pases().recibidos, 0, "without a key passes are ignored, not counted");
+});
+
 test("pase: a pass for another organization is refused when MOTOR_PASE_ORG is set", () => {
   const W = mundo({ pase: { clave: CLAVE, mundo: MUNDO, org: "org-2" } });
   const A = W.llegar(pase());
@@ -221,13 +239,18 @@ test("pase: the server refuses to start with a key that is set but invalid, and 
     delete process.env.MOTOR_PASE_CLAVE;
     const lineas: string[] = [];
     const s = await startServer({ port: 0, host: "127.0.0.1", log: (l) => lineas.push(l), secret: "una-clave-de-prueba-larga" });
+    const st = await (await fetch(`http://127.0.0.1:${s.port}/status`)).json() as Record<string, unknown>;
     await s.close();
     assert.ok(lineas.some((l) => /\[pase\] sin MOTOR_PASE_CLAVE/.test(l)), "one line says passes are ignored");
+    assert.ok(!("pases" in st) && !("mundoPase" in st), "without a key /status says nothing about passes");
     process.env.MOTOR_PASE_CLAVE = RAW; process.env.MOTOR_PASE_MUNDO = MUNDO;
     const lineas2: string[] = [];
     const s2 = await startServer({ port: 0, host: "127.0.0.1", log: (l) => lineas2.push(l), secret: "una-clave-de-prueba-larga" });
+    const st2 = await (await fetch(`http://127.0.0.1:${s2.port}/status`)).json() as Record<string, unknown>;
     await s2.close();
     assert.ok(lineas2.some((l) => l.includes(`acepta pases de numinia.com (clave ${KID}`)));
+    assert.equal(st2.mundoPase, MUNDO);
+    assert.deepEqual(st2.pases, { recibidos: 0, aceptados: 0, rechazados: 0, ultimoMotivo: null }, "with a key /status counts the passes");
     assert.ok(!lineas2.some((l) => l.includes(RAW)), "the key is public, but the log says only its kid");
   } finally {
     for (const [k, v] of [["MOTOR_PASE_CLAVE", antes.c], ["MOTOR_PASE_MUNDO", antes.m]] as const) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }

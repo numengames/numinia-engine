@@ -14,6 +14,8 @@ export const NOMBRES_DIBUJADOS = 32;    // at most this many name plates at once
 export const BOCADILLO_VISIBLE_M = 30;  // bubbles are drawn this far (near chat only arrives within 20 m anyway)
 export const BOCADILLO_LINEAS = 6;      // longer texts end in «…» (the list of the chat box has all of it)
 const CRECE_DESDE_M = 8, CRECE_MAX = 3; // plates keep their size on screen beyond 8 m, up to three times bigger
+export const LEYENDO_ETIQUETA = "leyendo las normas…"; // condiciones/c5: what the plate over someone inside a bubble says after their name
+const LEYENDO_SOBRE_M = 0.22;                                // …and how much higher it sits, to clear the bubble's top (pompas.ts)
 const NOMBRE_ALTO_M = 0.26, BOCADILLO_ANCHO_M = 2.6, HUECO_M = 0.06; // letters ~0.17 m tall in both: ~1° at 10 m
 
 type Top = (t: Target, avatar: THREE.Object3D) => number;
@@ -55,6 +57,8 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
   const texts = new Map<Target, string>();             // names as the server sent them (kept while the avatar is out of sight)
   const tags = new Map<Target, Plate>();               // plates drawn now (made when first shown)
   const bubbles = new Map<Target, Plate & { until: number }>();
+  const lectores = new Map<Target, string>();           // condiciones/c5: who is reading the norms -> the words after their name; their plate is always on
+  const textoDe = (t: Target): string => { const base = texts.get(t) ?? "", et = lectores.get(t); return et ? (base ? `${base} · ${et}` : et) : base; };
   let top: Top = (_t, m) => m.position.y + 0.85;       // the capsule: its centre + half its height (index.ts draws it at y 0.85)
   const cam = new THREE.Vector3(), camQ = new THREE.Quaternion();
   const distTo = (x: number, y: number, z: number) => Math.hypot(x - cam.x, y - cam.y, z - cam.z);
@@ -107,6 +111,12 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
       texts.set(t, text);
       if (tags.get(t)?.text !== text) drop(tags, t); // made again (with the new text) when next shown
     },
+    /** condiciones/c5: this avatar is reading the world's norms (`true`): its plate says «<name> · leyendo las normas…» and stays on, a little higher
+     * (the bubble of pompas.ts is under it); `false` puts the plain name back. `etiqueta` = the words after the name (the page's own text). */
+    leyendo(t: Target, si: boolean, etiqueta = LEYENDO_ETIQUETA): void {
+      if (si) lectores.set(t, etiqueta); else lectores.delete(t);
+      drop(tags, t); // remade with the new words when next shown
+    },
     /** A bubble over an avatar for `ms`; the latest replaces the one before. */
     bubble(t: Target, text: string, ms: number): void {
       drop(bubbles, t);
@@ -137,11 +147,12 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
       const far = (a: THREE.Object3D, m: number) => !!me && (a.position.x - me.position.x) ** 2 + (a.position.z - me.position.z) ** 2 > m * m;
       // names: the nearest NOMBRES_DIBUJADOS avatars with a name within NOMBRE_VISIBLE_M of you
       const shown: { t: Target; a: THREE.Object3D; d: number }[] = [];
-      for (const [t, text] of texts) {
-        const a = t === "self" ? undefined : o.avatarOf(t); // your own name is never drawn over you
-        const p = tags.get(t);
-        if (!a || far(a, NOMBRE_VISIBLE_M) || !nombreVisible({ todos: ver.todos, mirado: ver.mirado === t, habla: bubbles.has(t) })) { if (p) p.mesh.visible = false; continue; }
+      for (const t of lectores.size ? new Set([...texts.keys(), ...lectores.keys()]) : texts.keys()) {
+        const text = textoDe(t), a = t === "self" || !text ? undefined : o.avatarOf(t); // your own name is never drawn over you
+        let p = tags.get(t);
+        if (!a || far(a, NOMBRE_VISIBLE_M) || !nombreVisible({ todos: ver.todos, mirado: ver.mirado === t, habla: bubbles.has(t) || lectores.has(t) })) { if (p) p.mesh.visible = false; continue; }
         shown.push({ t, a, d: me ? (a.position.x - me.position.x) ** 2 + (a.position.z - me.position.z) ** 2 : 0 });
+        if (p && p.text !== text) { drop(tags, t); p = undefined; } // the words changed (they started or stopped reading)
         if (!p) tags.set(t, nameplate(text));
       }
       shown.sort((x, y) => x.d - y.d);
@@ -149,7 +160,7 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
         const p = tags.get(t)!;
         p.mesh.visible = i < NOMBRES_DIBUJADOS;
         if (!p.mesh.visible) return;
-        const y0 = top(t, a) + HUECO_M, s = escalaAcotada(scaleAt(a.position.x, y0, a.position.z), p.h, distTo(a.position.x, y0, a.position.z), NOMBRE_GRADOS_MAX);
+        const y0 = top(t, a) + HUECO_M + (lectores.has(t) ? LEYENDO_SOBRE_M : 0), s = escalaAcotada(scaleAt(a.position.x, y0, a.position.z), p.h, distTo(a.position.x, y0, a.position.z), NOMBRE_GRADOS_MAX);
         p.mesh.scale.setScalar(s);
         p.mesh.position.set(a.position.x, y0 + (p.h * s) / 2, a.position.z);
         p.mesh.quaternion.copy(camQ);
@@ -167,7 +178,8 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
     },
     /** For checks: every name the page holds and whether its plate is drawn now. */
     nameTags(): { target: Target; text: string; drawn: boolean }[] {
-      return [...texts].map(([target, text]) => ({ target, text, drawn: !!tags.get(target)?.mesh.visible }));
+      const claves = lectores.size ? new Set([...texts.keys(), ...lectores.keys()]) : texts.keys();
+      return [...claves].map((target) => ({ target, text: textoDe(target), drawn: !!tags.get(target)?.mesh.visible }));
     },
     /** For checks: bubbles alive now. */
     bubbles(): { target: Target; text: string; drawn: boolean }[] {

@@ -29,14 +29,13 @@
     #acciones button { padding: 10px 14px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #ffd27a; font: inherit; font-weight: 600; }
     #construir { position: fixed; top: 102px; right: 10px; display: none; padding: 10px 14px; border: 0; border-radius: 8px; background: #c9b6ff; color: #23303b; font: inherit; font-weight: 600; }
     #pantalla { position: fixed; top: 112px; left: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #eef2f6; font: inherit; font-weight: 600; }
-    #panel-construir { position: fixed; top: 150px; right: 10px; width: 300px; max-height: calc(100% - 210px); overflow: auto; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .82); color: #eef2f6; }
+    #panel-construir { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(560px, calc(100% - 16px)); color: #eef2f6; pointer-events: none; } /* ux2-dock: the dock and its one drawer (constructor.ts) */
     body.construyendo #minimapa { visibility: hidden; } /* while building the panel owns the right side (the minimap covered «Borrar» and the inspector) */
-    #panel-construir h2 { margin: 0 0 4px; font-size: 15px; color: #ffd27a; }
     #panel-construir p { margin: 6px 0 4px; }
     #panel-construir .fila { display: flex; flex-wrap: wrap; gap: 6px; }
     #panel-construir button { padding: 7px 9px; border: 0; border-radius: 6px; background: #eef2f6; color: #23303b; font: inherit; }
     #panel-construir button:focus-visible { outline: 3px solid #ffd27a; }
-    #panel-construir .estado { color: #ffd27a; min-height: 1.4em; }
+    #panel-construir .estado { color: #ffd27a; }
     /* J3: the chat box, bottom left: the list is always there (an empty one takes no room), the input opens with Enter */
     #chat { position: fixed; left: 10px; bottom: 34px; width: min(380px, 62vw, calc(100vw - 240px)); display: flex; flex-direction: column; gap: 4px; }
     /* auditoría UI móvil: en pantalla estrecha o táctil el minimapa/misiones viven arriba a la derecha
@@ -71,6 +70,14 @@
     #dialogo .adios { margin-top: 8px; background: transparent; color: #eef2f6; text-decoration: underline; }
     #dialogo .estado { margin: 6px 0 0; color: #ffb4a8; min-height: 1em; }
     #misiones { position: fixed; left: 10px; bottom: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: #ffd27a; color: #23303b; font: inherit; font-weight: 600; }
+    #inventario-abrir { position: fixed; left: 130px; bottom: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: #ffd27a; color: #23303b; font: inherit; font-weight: 600; }
+    #inventario .resumen { color: #9ad0ff; }
+    #inventario ul.objetos { list-style: none; padding: 0; margin: 4px 0; }
+    #inventario li.objeto { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(238, 242, 246, .1); }
+    #inventario li.objeto .icono-objeto { display: inline-flex; width: 22px; justify-content: center; color: #ffd27a; }
+    #inventario li.objeto .nombre { flex: 1 1 auto; }
+    #inventario li.objeto .detalle { opacity: .7; font-size: 12px; }
+    #inventario p.vacio { opacity: .7; }
     /* the book opens top left, under the HUD and «Pantalla completa», over the chat (it used to open behind the chat) */
     #libro { position: fixed; left: 10px; top: 156px; z-index: 5; width: 320px; max-width: calc(100% - 20px); max-height: max(160px, calc(100% - 420px)); overflow: auto; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .88); color: #eef2f6; }
     #libro h2 { margin: 0 0 6px; font-size: 15px; color: #ffd27a; }
@@ -84,6 +91,30 @@
     #mision-nota { position: fixed; top: 34%; left: 50%; transform: translateX(-50%); max-width: calc(100% - 40px); padding: 6px 12px; border-radius: 8px; background: rgba(255, 210, 122, .95); color: #23303b; font-weight: 600; text-align: center; pointer-events: none; }
     /* V1: what happens, for screen readers (not shown on screen; the voice of V3 comes later) */
     #fundido { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 40; } /* D-045: the fade when the server puts you back on a safe spot (features/suelo) */
+    /* MVL3 step 1: the 2D "Cargando" screen (moon + running dots), plain HTML so it paints before any script
+       runs — no black flash before the world. The 3D build-up sequence for heavy loads is a later step. */
+    #carga { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: #10141b; color: #eef2f6; transition: opacity .5s ease; }
+    #carga[hidden] { display: none; }
+    #carga.ida { opacity: 0; pointer-events: none; }
+    #carga .c-texto { margin: 14px 0 0; font: 16px/1 system-ui, sans-serif; letter-spacing: .04em; text-align: center; }
+    #carga .c-puntos::after { content: ""; animation: c-puntos 1.4s steps(4, end) infinite; }
+    @keyframes c-puntos { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } 100% { content: ""; } }
+    @media (prefers-reduced-motion: reduce) { #carga { transition: none; } #carga .c-puntos::after { animation: none; content: "…"; } }
+    /* H4: only for a world with an espacio base (carga.ts adds «eb» once /status says so): the house's line mesh draws itself in
+       perspective as the real load advances (--p, 0…1, set a few times by carga.ts; no script runs per frame). 19 SVG lines, no image,
+       no library, nothing downloaded; any other world keeps the moon above, untouched. */
+    @property --p { syntax: "<number>"; inherits: true; initial-value: 0; }
+    #carga .c-malla, #carga .c-pie { display: none; }
+    #carga.eb { background: #14110f; --p: 0; transition: opacity .6s ease, --p .7s ease-out; }
+    #carga.eb .c-caja { display: none; }
+    #carga.eb .c-malla { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
+    #carga.eb .c-pie { display: block; position: absolute; left: 0; right: 0; bottom: 7vh; margin: 0; font: 13px/1 system-ui, sans-serif; letter-spacing: .12em; text-align: center; color: #a6dad5; }
+    #carga .c-malla path { fill: none; stroke: #018ea1; stroke-width: .24; stroke-dasharray: 1; stroke-dashoffset: calc(1 - clamp(0, (var(--p) - var(--a)) / var(--d, .25), 1)); }
+    #carga .c-malla .h { stroke: #a6dad5; }
+    #carga .c-malla .r { stroke: #efa517; }
+    #carga .c-malla .z { animation: c-brilla 2.4s ease-in-out infinite alternate; }
+    @keyframes c-brilla { from { opacity: .55; } to { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { #carga.eb { transition: none; } #carga .c-malla .z { animation: none; } }
     .solo-lector { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
     /* N2: the settings menu (a real <dialog>: keyboard, touch and screen readers) and what its settings change */
     :root { --ui: 1; }
@@ -135,25 +166,43 @@
   <link rel="stylesheet" href="./tema.css" /><!-- U11: Numinia Design System (colours, type, icons) and the right-hand layout -->
 </head>
 <body>
+  <div id="carga" aria-hidden="true"><!-- MVL3 step 1: moon + running dots, gone by main.ts once the first frame is drawn -->
+    <svg class="c-malla" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false"><path pathLength="1" style="--a:0.02;--d:.3" d="M-60 96L80 36"/><path pathLength="1" style="--a:0.06;--d:.3" d="M-12 96L80 36"/><path pathLength="1" style="--a:0.10;--d:.3" d="M24 96L80 36"/><path pathLength="1" style="--a:0.14;--d:.3" d="M52 96L80 36"/><path pathLength="1" style="--a:0.18;--d:.3" d="M80 96L80 36"/><path pathLength="1" style="--a:0.22;--d:.3" d="M108 96L80 36"/><path pathLength="1" style="--a:0.26;--d:.3" d="M136 96L80 36"/><path pathLength="1" style="--a:0.30;--d:.3" d="M172 96L80 36"/><path pathLength="1" style="--a:0.34;--d:.3" d="M220 96L80 36"/><path pathLength="1" style="--a:0.04;--d:.2" d="M-20 88L180 88"/><path pathLength="1" style="--a:0.11;--d:.2" d="M-20 72L180 72"/><path pathLength="1" style="--a:0.17;--d:.2" d="M-20 60L180 60"/><path pathLength="1" style="--a:0.24;--d:.2" d="M-20 52L180 52"/><path pathLength="1" style="--a:0.30;--d:.2" d="M-20 46L180 46"/><path pathLength="1" style="--a:0.36;--d:.2" d="M-20 42L180 42"/><path pathLength="1" style="--a:0.43;--d:.2" d="M-20 39.5L180 39.5"/><path pathLength="1" style="--a:0.49;--d:.2" d="M-20 38L180 38"/><path class="h" pathLength="1" style="--a:0;--d:.12" d="M-20 36L180 36"/><path class="r z" pathLength="1" style="--a:.66;--d:.3" d="M-10 36L8 25L20 30L38 14L52 26L66 19L80 31L96 17L112 27L128 12L146 28L160 22L170 36"/></svg>
+    <p class="c-pie">Cargando <span class="c-pct">0 %</span></p><!-- H4: only with the mesh («eb») -->
+    <div class="c-caja">
+      <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <defs><mask id="c-luna-mask"><rect width="64" height="64" fill="#fff" /><circle cx="40" cy="24" r="22" fill="#000" /></mask></defs>
+        <circle cx="32" cy="32" r="26" fill="#eef2f6" mask="url(#c-luna-mask)" />
+      </svg>
+      <p class="c-texto">Cargando<span class="c-puntos"></span></p>
+    </div>
+  </div>
   <div id="hud">Conectando…</div>
   <p id="mundo-lleno" role="alert" hidden></p><!-- H7: the world is full (ficha `aforo`): the door's reason, read at once by screen readers -->
   <div id="barra-arriba" role="toolbar" aria-label="Botones del mundo"></div>
-  <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · M: mapa · I: ficha · C: construir · Q: micrófono · L: gente · P: foto · K: Graboso</div>
+  <!-- t_5cff4f06: the city, top left (HUD simétrico: mirrors the gear's corner); hidden until a world's
+       mundo.ajustes.json sets ciudadUrl (ciudad-logica.ts). The engine names no city here: main.ts fills the text. -->
+  <button id="volver-ciudad" type="button" hidden></button>
+  <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · R: bolsa · M: mapa · I: ficha · C: construir · Q: micrófono · L: gente · P: cámara (foto, grabar, compartir pantalla) · K: grabar</div>
   <button id="ar" type="button" hidden>Entrar en AR</button>
   <button id="vr" type="button" hidden>Entrar en VR</button>
   <button id="construir" type="button" aria-expanded="false" aria-controls="panel-construir">Construir</button>
   <button id="pantalla" type="button" hidden>Pantalla completa</button>
-  <button id="foto-abrir" type="button" title="Modo foto (P)">Foto</button>
+  <button id="foto-abrir" type="button">Foto</button>
   <section id="panel-construir" aria-label="Construir" hidden></section>
   <button id="interactuar" type="button" hidden></button>
   <section id="dialogo" hidden></section>
   <button id="misiones" type="button" aria-expanded="false" aria-controls="libro">Misiones (J)</button>
+  <button id="inventario-abrir" type="button" aria-expanded="false" aria-controls="inventario">Bolsa (R)</button>
   <section id="libro" aria-label="Libro de misiones" hidden></section>
   <p id="mision-seguida" hidden></p>
   <p id="mision-nota" aria-hidden="true" hidden></p>
   <div id="mision-completada" role="status" aria-live="polite" aria-atomic="true"></div><!-- U14 (6): «Misión completada» (misiones.ts; empty when idle) -->
   <div id="acciones"></div>
+  <section id="objetivo" role="group" aria-label="Objetivo" hidden></section><!-- M5: the creature in reach (objetivo.ts) -->
+  <section id="habilidades" role="group" aria-label="Habilidades" hidden></section><!-- M5: hidden until the page hears of fighting, then the Eclipse Mnémico kit's three slots (combate.ts) -->
   <p id="reloj" title="Hora local de tu aparato"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg><time id="reloj-hora"></time></p><!-- U3: the clock beside the minimap (reloj.ts) -->
+  <section id="hud-personaje" role="group" hidden><button id="hud-personaje-abrir" type="button" title="Tu ficha (I)" aria-label="Tu ficha (I)"></button></section><!-- M4: your character — Estado (4 steps), Carga, Aliento del Velo (hud-personaje.ts) -->
   <div id="avisos-pila" aria-hidden="true"></div><!-- U3: the notices of #avisos, for eyes: ≤ 3, 6 s (avisos.ts) -->
   <section id="pesca-hud" hidden></section>
   <section id="dardos-hud" hidden></section>
@@ -173,7 +222,7 @@
   <div id="avisos" class="solo-lector" role="status" aria-live="polite"></div>
   <div id="avisos-urgentes" class="solo-lector" role="alert" aria-live="assertive"></div>
   <!-- N2: settings (gear or O; Escape closes). Filled by menu-ajustes.ts from the settings registry -->
-  <button id="ajustes-abrir" type="button" aria-haspopup="dialog" aria-controls="ajustes" aria-expanded="false" title="Ajustes (O)"><span aria-hidden="true">⚙</span><span class="solo-lector">Ajustes</span></button>
+  <button id="ajustes-abrir" type="button" aria-haspopup="dialog" aria-controls="ajustes" aria-expanded="false" title="Ajustes"><span aria-hidden="true">⚙</span><span class="solo-lector">Ajustes</span></button>
   <dialog id="ajustes" aria-labelledby="ajustes-titulo">
     <div class="cabecera"><h2 id="ajustes-titulo" tabindex="-1">Ajustes</h2><button id="ajustes-cerrar" type="button">Cerrar</button></div>
     <p id="ajustes-estado" class="estado" role="status" aria-live="polite"></p>
@@ -181,6 +230,7 @@
     <div class="pie"><button id="ajustes-restablecer" type="button">Restablecer todo</button></div>
     <p id="version-motor" class="version-motor"></p>
   </dialog>
+  <!-- t_bdc2c2db + ux2-barra: «Qué hay de nuevo» is a notice in the bell's history now (apps/plaza/novedades.ts) -->
   <script type="module" src="./main.ts"></script>
 </body>
 </html>

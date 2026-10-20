@@ -53,6 +53,8 @@ export function crearCliente() {
       ? { ancho: acotar(Number(o.ancho) * f, 0.2, 200), largo: acotar(Number(o.largo) * f, 0.2, 200) }
       : { tamano: acotar(Number(o.tamano) * f, 0.1, 10), alto: acotar(Number(o.alto) * f, 0, 100) }))),
     desplazar: (dx: number, dz: number) => conSeleccion((o) => enviar("cambiar", todo(o, { x: Number(o.x) + dx, z: Number(o.z) + dz }))),
+    /** H8: remove every element (part of «restaurar el mundo»). */
+    vaciar: () => enviar("vaciar", {}),
     quitar: (id?: string) => (id ? enviar("quitar", { id }) : conSeleccion((o) => enviar("quitar", { id: o.id }))),
   };
   const part = clientPart(decl, (a) => {

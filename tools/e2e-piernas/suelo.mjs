@@ -8,14 +8,17 @@
 //  3) A asks on purpose (`suelo.volver`): back again, motivo «pedido».
 // Env: SHOTS=<folder> saves pictures. Prints JSON; exit 0 only when all is right.
 import { createRequire } from "node:module";
-import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 const REPO = new URL("../../", import.meta.url).pathname;
 const PW = process.env.PW_CORE ?? join(REPO, "node_modules/playwright-core");
-const CHROME = process.env.CHROME ?? "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell";
+// CHROME wins; else the newest chrome-headless-shell the Playwright cache has (highest revision), whatever number it is today.
+const CACHE = "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright";
+const nuevo = () => { try { return readdirSync(CACHE).filter((d) => /^chromium_headless_shell-\d+$/.test(d)).sort((a, b) => Number(b.split("-")[1]) - Number(a.split("-")[1])).map((d) => join(CACHE, d, "chrome-headless-shell-linux64/chrome-headless-shell")).find((p) => existsSync(p)); } catch { return undefined; } };
+const CHROME = process.env.CHROME ?? nuevo() ?? "";
 const SHOTS = process.env.SHOTS ?? "";
 const SP = Number(process.env.E2E_SERVER_PORT ?? 8797), VP = Number(process.env.E2E_VITE_PORT ?? 5179);
 if (!existsSync(PW) || !existsSync(CHROME)) { console.error("playwright-core or chromium not found; set PW_CORE / CHROME"); process.exit(2); }

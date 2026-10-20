@@ -59,20 +59,34 @@ try {
   await p.bringToFront();
   const antes = await visibles(p);
   await p.mouse.click(640, 400); // focus the page (a click on the world, no drag)
+  // ux2-barra: P opens the bar's «Cámara» menu with the focus on «Foto»; Enter takes the photo mode
   await p.keyboard.press("KeyP");
+  await p.waitForFunction(() => document.activeElement?.id === "foto-abrir", null, { timeout: 3000 });
+  await p.keyboard.press("Enter");
   await p.waitForFunction(() => globalThis.__numinia.foto.activo());
   const enFoto = await visibles(p), c0 = await cam(p), m0 = await me(p);
-  ok("abrir", c0.modo === "foto" && enFoto.length === 1 && enFoto[0] === "foto" && antes.includes("hud") && antes.includes("barra-arriba"), { antes, enFoto, modo: c0.modo });
+  // #hud (the statistics line) is off by default since U23: the interface that must go and come back is the bar and the minimap
+  ok("abrir", c0.modo === "foto" && enFoto.length === 1 && enFoto[0] === "foto" && antes.includes("minimapa") && antes.includes("barra-arriba"), { antes, enFoto, modo: c0.modo });
 
-  // W walks the camera, not you; Space does not jump
-  await p.keyboard.down("KeyW"); await p.waitForTimeout(1000); await p.keyboard.up("KeyW");
+  // W walks the camera, not you; Space does not jump. Hold it until it has actually covered a
+  // fixed distance (not a fixed wall-clock time): under a loaded machine a real-time hold can
+  // render too few frames and fall short even though the camera works fine — it just needs more
+  // wall-clock time to cover the same ground. The timeout below is a generous safety net for a
+  // genuinely broken camera, not the measurement itself.
+  const OBJETIVO_M = 1; // metres the free camera must cover before we let go of W
+  await p.keyboard.down("KeyW");
+  await p.waitForFunction(({ x0, z0, objetivo }) => {
+    const e = globalThis.__numinia.view.cam.estado();
+    return Math.hypot(e.pivote.x - x0, e.pivote.z - z0) >= objetivo;
+  }, { x0: c0.pivote.x, z0: c0.pivote.z, objetivo: OBJETIVO_M }, { timeout: 60000 });
+  await p.keyboard.up("KeyW");
   await p.keyboard.press("Space"); // the focused round button: makes a picture (no jump)
   await p.waitForFunction(() => !!globalThis.__numinia.foto.ultima(), null, { timeout: 15000 });
   await p.keyboard.press("Escape"); // back to framing
   await settle(p);
   const c1 = await cam(p), m1 = await me(p);
   const avance = Math.hypot(c1.pivote.x - c0.pivote.x, c1.pivote.z - c0.pivote.z);
-  ok("quieto", Math.hypot(m1.x - m0.x, m1.z - m0.z) < 0.01 && Math.abs(m1.y - m0.y) < 0.01 && avance > 0.8 && avance <= 12.01, { avatarSeMueve: R(Math.hypot(m1.x - m0.x, m1.z - m0.z), 3), camaraAvanza: R(avance) });
+  ok("quieto", Math.hypot(m1.x - m0.x, m1.z - m0.z) < 0.01 && Math.abs(m1.y - m0.y) < 0.01 && avance >= OBJETIVO_M && avance <= 12.01, { avatarSeMueve: R(Math.hypot(m1.x - m0.x, m1.z - m0.z), 3), camaraAvanza: R(avance) });
 
   // a left drag turns the camera (in play mode a plain left drag also orbits; here it must too, no click)
   await p.mouse.move(500, 400); await p.mouse.down(); await p.mouse.move(700, 380, { steps: 10 }); await p.mouse.up(); await settle(p);
@@ -113,7 +127,7 @@ try {
   await p.mouse.click(640, 400);
   await p.keyboard.down("KeyW"); await p.waitForTimeout(600); await p.keyboard.up("KeyW"); await p.waitForTimeout(300);
   const m3 = await me(p);
-  ok("cerrar", c3.modo === "juego" && fuera.includes("hud") && fuera.includes("barra-arriba") && !fuera.includes("foto") && Math.hypot(m3.x - m1.x, m3.z - m1.z) > 0.5
+  ok("cerrar", c3.modo === "juego" && fuera.includes("minimapa") && fuera.includes("barra-arriba") && !fuera.includes("foto") && Math.hypot(m3.x - m1.x, m3.z - m1.z) > 0.5
     && (await p.evaluate(() => globalThis.__numinia.view.renderer.domElement.style.filter)) === "", { fuera, modo: c3.modo, anda: R(Math.hypot(m3.x - m1.x, m3.z - m1.z)) });
 
   // the link opened in a new tab: hash taken out, the place is the waypoint, the camera turns toward it
@@ -141,7 +155,13 @@ try {
     const cdp = await mctx.newCDPSession(t);
     const touch = async (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map(([x, y], id) => ({ x, y, id })) });
     const swipe = async (a, b, steps = 8) => { await touch("touchStart", [a]); for (let i = 1; i <= steps; i++) await touch("touchMove", [[a[0] + ((b[0] - a[0]) * i) / steps, a[1] + ((b[1] - a[1]) * i) / steps]]); await touch("touchEnd", []); };
-    const boton = await t.evaluate(() => { const b = document.getElementById("foto-abrir"), r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, visible: r.width > 0 && getComputedStyle(b).visibility !== "hidden" }; });
+    // ux2-barra: on a phone the top bar shows only «Menú»; «Foto» is in the «Más» menu (#mas): its unfolding entry
+    // (the one with no data-id) shows the rest, «Foto» among them. On a wider screen: «Cámara» › «Foto».
+    const centro = (sel) => t.evaluate((sel) => { const b = document.querySelector(sel); if (!b) return { visible: false }; const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, visible: r.width > 0 && getComputedStyle(b).visibility !== "hidden" }; }, sel);
+    const tocar = async (sel) => { const c = await centro(sel); if (c.visible) { await t.touchscreen.tap(c.x, c.y); await t.waitForTimeout(250); } return c.visible; };
+    if (!(await tocar("#camara-abrir"))) { await tocar("#mas"); if (!(await centro('#mas-menu button[data-id="foto-abrir"]')).visible) await tocar("#mas-menu button:not([data-id])"); }
+    const sel = (await centro("#foto-abrir")).visible ? "#foto-abrir" : '#mas-menu button[data-id="foto-abrir"]';
+    const boton = await centro(sel);
     await t.touchscreen.tap(boton.x, boton.y);
     await t.waitForFunction(() => globalThis.__numinia.foto.activo());
     const v = await visibles(t), mm0 = await me(t), tc0 = await cam(t);

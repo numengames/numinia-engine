@@ -7,7 +7,7 @@
 export const TOKEN_DAYS = 180;      // a token older than this is not accepted: a new guest id is given
 export const RENEW_AFTER_DAYS = 30; // an older (still valid) token is replaced by a fresh one for the same id
 export const TOKEN_MAX = 120;
-export type Who = { id: string; nombre: string; ia?: true }; // ia: an AI inhabitant (P4), never a person
+export type Who = { id: string; nombre: string; ia?: true; acepto?: Record<string, string> }; // ia: an AI inhabitant (P4), never a person; acepto (w5): versions accepted on numinia.com, from a VERIFIED pass only — never sent to anyone
 type Sign = (text: string) => string;
 
 const ID = /^[a-z2-7]{12}$/;

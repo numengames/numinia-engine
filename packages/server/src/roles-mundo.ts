@@ -9,6 +9,8 @@
 //   /hablar <persona>               (mute-members: the same as /silenciar <persona> 0)
 //   /bloquear <persona>             (anyone: YOU stop reading and hearing that person; the rest still do; stored by identity)
 //   /desbloquear <persona>          (anyone: read and hear them again)
+//   /denunciar <persona> <motivo>   (anyone: tells whoever moderates, connected now, and keeps it for them; one a minute)
+//   /denuncias                      (mute-, remove- or ban-members: the last reports, newest first)
 //   /echar <persona>                (remove-members; 10 min out)
 //   /vetar <persona> <motivo>       (ban-members, for good)        /perdonar <nombre> (ban-members: lifts both)
 //   /solo-miembros sí|no            (manage-organization: visitors stay out)
@@ -52,7 +54,11 @@ export const INTENTOS = 3;             // wrong administration codes per connect
 export const INTENTOS_PAUSA_MIN = 10;
 export const AVISO_MAX = 300;          // bytes (chat's AVISO_MAX)
 const MOTIVO_MAX = 200;
-export const RENOVAR_MIN_MS = 1000;      // an AI may renew its pass at most once a second (a signature check each)
+export const NOMBRE_PROPIO_MAX = 48;   // bytes; mirrors chat's NOMBRE_MAX (packages never import features/: roles-mundo.ts cannot share it)
+export const RENOVAR_MIN_MS = 1000;
+export const DENUNCIAS_MAX = 100;      // reports a world keeps (the oldest goes first)
+export const DENUNCIA_PAUSA_MS = 60_000; // one report a minute per person: a flood never reaches the moderators
+export const DENUNCIAS_VER = 5;        // reports /denuncias reads out      // an AI may renew its pass at most once a second (a signature check each)
 
 const quien = { kind: "int", min: 0, max: 65535 } as const;
 export const rolesFeature = defineFeature({
@@ -65,8 +71,10 @@ export const rolesFeature = defineFeature({
     silencio: { describe: "Alguien queda en silencio en el chat y la voz tantos segundos (0 = vuelve a hablar).", fields: { quien, segundos: { kind: "int", min: 0, max: SILENCIO_MAX_MIN * 60 } }, announce: "silent" },
     bloqueo: { describe: "F1: `quien` deja de leer (si = 1) o vuelve a leer (si = 0) lo que dice `a`; el chat no le reenvía sus líneas.", fields: { quien, a: quien, si: { kind: "int", min: 0, max: 1 } }, announce: "silent" },
     cambio: { describe: "Lo que alguien puede hacer ha cambiado (un rol, un dueño): objetos vuelve a decirle si construye.", fields: { quien }, announce: "silent" },
+    nombreCambiado: { describe: "H3c: alguien se ha puesto otro nombre con /nombre (o vuelve a entrar con uno guardado); el chat lo usa sobre su cabeza y en lo que diga.", fields: { quien, nombre: { kind: "text", maxBytes: NOMBRE_PROPIO_MAX } }, announce: "silent" },
+    borrarHistorial: { describe: "H3c: /chat borrar; el chat vacía el historial de la zona (quien entre después ya no lo ve).", fields: {}, announce: "silent" },
   },
-  store: { describe: "Los roles del mundo (forma de STD-052, con si @todos construye), quién tiene cada uno, los dueños, los vetados, los silenciados (hasta cuándo), a quién ha bloqueado cada persona y sus ajustes (config: solo para miembros, voz)." },
+  store: { describe: "Los roles del mundo (forma de STD-052, con si @todos construye), quién tiene cada uno, los dueños, los vetados, los silenciados (hasta cuándo), a quién ha bloqueado cada persona, los avisos para moderación (/denunciar, los últimos 100) y sus ajustes (config: solo para miembros, voz)." },
 });
 
 export type OpcionesRoles = {
@@ -81,6 +89,8 @@ export type OpcionesRoles = {
   puerta?: Pick<Puerta, "agente" | "anadir" | "quitar" | "esHabitante" | "agentes">; // ADR-080: outside agents; none = /agente says there is no door
 };
 type Veto = { nombre: string; motivo: string; por: string; cuando: string };
+/** ux2-gente: a report — who reported (id, name), about whom (id, name), why, when (ISO). Kept in the store «denuncias». */
+export type Denuncia = { de: string; deNombre: string; a: string; aNombre: string; motivo: string; cuando: string };
 /** What the order `/agente` and numinia.com's panel (GET/POST/DELETE /agentes, agentes-http.ts) both do: ONE code path. */
 export type AgenteDato = { id: string; nombre: string; clave: string; rol?: string };
 export type AgenteVista = { id: string; nombre: string; rol: string | null; permisos: string[]; presente: boolean; organizacion?: true; estado?: EstadoIA };
@@ -99,8 +109,14 @@ const bytes = new TextEncoder();
 function cortar(s: string, max: number): string {
   if (bytes.encode(s).length <= max) return s;
   let out = "";
-  for (const ch of s) { if (bytes.encode(out + ch).length > max - 1) break; out += ch; }
+  for (const ch of s) { if (bytes.encode(out + ch).length > max - 3) break; out += ch; } // «…» is 3 bytes in UTF-8
   return out + "…";
+}
+/** A name shown to everybody (H3c /nombre): no control characters, one line, cut to NOMBRE_PROPIO_MAX bytes. Unlike
+ * pase.ts's own `limpiar`, this one never strips a trailing MARCA_IA: the order rejects it instead (see `ordenes.nombre`). */
+function limpiarNombre(texto: string, max: number): string {
+  const s = texto.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, " ").replace(/\s+/g, " ").trim();
+  return cortar(s, max).trim();
 }
 
 export function crearRoles(o: OpcionesRoles) {
@@ -118,6 +134,8 @@ export function crearRoles(o: OpcionesRoles) {
   const silencios = new Map<string, number>();         // guest id -> until (ms); stored («silencios»), so a restart does not lift a silence
   const bloqueos = new Map<string, Set<string>>();     // F1: listener id -> ids they blocked; stored («b:<id>»), so a reload keeps it
   const intentos = new Map<number, { n: number; hasta: number }>();
+  const nombres = new Map<string, string>();            // H3c: /nombre — guest id -> chosen name; stored («n:<id>»), never « · IA»
+  const apariciones = new Map<string, { x: number; y: number; z: number }>(); // H3c: /aparecer — guest id -> their own spawn point; stored («ap:<id>»)
   let soloMiembros = false;
   let voz = o.voz ?? true;                             // without the feature running (bare servers) the seed is the answer
   let config: Record<string, unknown> = {};            // the world's settings as stored (fields this engine does not know are kept)
@@ -150,12 +168,18 @@ export function crearRoles(o: OpcionesRoles) {
     return p ? p.acceso : acceso(roles, miembroDe(id));
   };
 
+  /** What came of the entry passes this world received since it started (public in /status: counts and the verifier's short reason,
+   * one of `MotivoPase`'s closed words, never a token). Only `credencial` counts: an organization AI's mid-session `renovar` answers
+   * its bridge directly and is not an entry. */
+  const cuentaPases: { recibidos: number; aceptados: number; rechazados: number; ultimoMotivo: string | null } = { recibidos: 0, aceptados: 0, rechazados: 0, ultimoMotivo: null };
   /** The world's side of a pass (Instance `credencial`): checks it; a good one names the person, a bad one leaves the guest
    * and queues one line saying why (the chat shows it right after identify). Without a configured key: passes are ignored. */
   const credencial = (entity: number, token: string, invitado: Who): Who | null => {
     if (!o.pase) return null;
+    cuentaPases.recibidos++;
     const v = verificarPase(token, o.pase.clave, { aud: o.pase.mundo, now: Math.floor(ahora() / 1000), org: o.pase.org });
-    if (!v.ok) { pendientes.set(entity, v.texto); log(`[pase] rechazado para ${invitado.id}: ${v.motivo}`); return null; }
+    if (!v.ok) { cuentaPases.rechazados++; cuentaPases.ultimoMotivo = v.motivo; pendientes.set(entity, v.texto); log(`[pase] rechazado para ${invitado.id}: ${v.motivo}`); return null; }
+    cuentaPases.aceptados++;
     const p = v.pase;
     if (p.kind === "agent") { // an organization's AI: not a person, no member list, ends with its pass
       for (const [e, x] of vidaIA) if (x.sub === p.sub && !x.cerrando) { x.cerrando = true; porCerrar.push({ e, motivo: "esta IA ha entrado desde otro sitio" }); } // one connection per agent
@@ -166,7 +190,7 @@ export function crearRoles(o: OpcionesRoles) {
     pases.set(p.sub, { pase: p, acceso: p.dueno ? { permisos: new Set(PERMISOS), altura: Number.POSITIVE_INFINITY, dueno: true } : { permisos: new Set(p.permisos), altura: p.altura, dueno: false } });
     deEntidad.set(entity, p.sub);
     log(`[pase] ${p.sub} entra con su pase de numinia.com (${p.dueno ? "dueño" : `altura ${p.altura}`}, ${p.permisos.length} permisos)`);
-    return { id: p.sub, nombre: p.nombre ?? nombreDe(p.sub) };
+    return { id: p.sub, nombre: p.nombre ?? nombreDe(p.sub), ...(p.acepto ? { acepto: p.acepto } : {}) }; // condiciones/w5: the signed pass vouches for these acceptances
   };
   /** A fresh pass in mid-session for an organization AI (Instance `renovarPase`): same agent, world and organization, never older
    * than the one held. Applies its permissions at once (asleep = no building). null = done, else why not. */
@@ -221,7 +245,15 @@ export function crearRoles(o: OpcionesRoles) {
       if (k.startsWith("m:")) { const v = a.store.get(k); if (Array.isArray(v)) miembros.set(k.slice(2), v.filter((x) => roles.some((r) => r.id === x))); }
       if (k.startsWith("veto:")) vetos.set(k.slice(5), a.store.get(k) as Veto);
       if (k.startsWith("b:")) { const v = a.store.get(k); if (Array.isArray(v)) bloqueos.set(k.slice(2), new Set(v.filter((x): x is string => typeof x === "string").slice(0, BLOQUEOS_MAX))); }
+      if (k.startsWith("n:")) { const v = a.store.get(k); if (typeof v === "string" && v && !v.endsWith(MARCA_IA)) nombres.set(k.slice(2), v); }
+      if (k.startsWith("ap:")) {
+        const v = a.store.get(k) as { x?: unknown; y?: unknown; z?: unknown } | undefined;
+        if (v && typeof v.x === "number" && typeof v.y === "number" && typeof v.z === "number") apariciones.set(k.slice(3), { x: v.x, y: v.y, z: v.z });
+      }
     }
+    const denGuardadas = a.store.get("denuncias");
+    const denuncias: Denuncia[] = Array.isArray(denGuardadas) ? (denGuardadas as Denuncia[]).filter((d) => typeof d?.a === "string" && typeof d.motivo === "string").slice(-DENUNCIAS_MAX) : [];
+    const ultimaDenuncia = new Map<string, number>(); // id -> ms of their last report (one a minute)
     const silGuardados = a.store.get("silencios");
     if (Array.isArray(silGuardados)) for (const s of silGuardados as { id?: unknown; hasta?: unknown }[]) if (typeof s?.id === "string" && typeof s.hasta === "number" && s.hasta > ahora()) silencios.set(s.id, s.hasta);
     log(`[roles] ${roles.map((r) => r.nombre).join(", ")} · ${duenos.size} dueños, ${miembros.size} con rol, ${vetos.size} vetados${soloMiembros ? " · solo para miembros" : ""} · @todos ${todosConstruyen() ? "construye" : "no construye"}${voz ? "" : " · sin voz"}`);
@@ -263,6 +295,8 @@ export function crearRoles(o: OpcionesRoles) {
       if (!porDebajo(yo, accesoDe(p.id))) { avisar(from, "Esa persona está a tu altura o por encima (o es dueña del mundo)."); return null; }
       return yo;
     };
+    /** ux2-gente: who reads the reports: anyone who may silence, take out or ban (owners included). */
+    const modera = (x: Acceso): boolean => tiene(x, "silenciar") || tiene(x, "echar") || tiene(x, "vetar");
     const sacar = (e: number, motivo: string) => { avisar(e, motivo); porCerrar.push({ e, motivo }); };
     // ADR-080: managing the outside agents. The chat order and the HTTP door (agentes-http.ts) both call these two.
     const vistaAgente = (x: { id: string; nombre: string; rol?: string }): AgenteVista =>
@@ -315,7 +349,7 @@ export function crearRoles(o: OpcionesRoles) {
         const mios = yo.dueno ? "dueño del mundo" : pase ? [...pase.roles.map((r) => r.nombre), "@todos"].join(", ") + " (de numinia.com)" : [...roles.filter((r) => m?.roles.includes(r.id)).map((r) => r.nombre), "@todos"].join(", ");
         const puedo = (Object.keys(ACCION_PERMISO) as Accion[]).filter((x) => tiene(yo, x)).map((x) => ACCION_TEXTO[x]);
         avisar(from, `Eres: ${mios}. Puedes: ${puedo.length ? puedo.join(", ") : "mirar y hablar"}. Roles de este mundo: ${roles.map((r) => r.nombre).join(", ")}${soloMiembros ? " (solo para miembros)" : ""}.`);
-        avisar(from, "Órdenes: /dar y /quitar <persona> <rol> · /silenciar <persona> [minutos] · /hablar <persona> · /echar <persona> · /vetar <persona> <motivo> · /perdonar <nombre> · /solo-miembros sí|no · /construir todos|nadie · /voz sí|no · /agente · /dueño <código>");
+        avisar(from, "Órdenes: /dar y /quitar <persona> <rol> · /silenciar <persona> [minutos] · /hablar <persona> · /echar <persona> · /vetar <persona> <motivo> · /perdonar <nombre> · /denunciar <persona> <motivo> · /denuncias · /solo-miembros sí|no · /construir todos|nadie · /voz sí|no · /agente · /dueño <código> · /nombre <nombre> · /aparecer aquí|quitar · /chat borrar");
       },
       "dueño": (from, resto) => {
         const w = a.who(from);
@@ -367,6 +401,29 @@ export function crearRoles(o: OpcionesRoles) {
         if (mios.size) a.store.set(`b:${w.id}`, [...mios]); else { bloqueos.delete(w.id); a.store.delete(`b:${w.id}`); }
         avisarBloqueo(w.id, p.id, false);
         avisar(from, `Vuelves a leer y oír a ${p.nombre}.`);
+      },
+      // ux2-gente: a report about someone, for whoever moderates (mute-, remove- or ban-members): those connected now hear
+      // it at once, and it stays in the store so a moderator who comes later reads it with /denuncias. Never published.
+      denunciar: (from, resto) => {
+        const w = a.who(from); if (!w) { avisar(from, "Primero hace falta que el mundo sepa quién eres (recarga la página)."); return; }
+        const p = persona(from, resto); if (!p) return;
+        const motivo = cortar(p.resto, MOTIVO_MAX);
+        if (!motivo) { avisar(from, `Di qué ha pasado: /denunciar ${p.nombre} <motivo>.`); return; }
+        const antes = ultimaDenuncia.get(w.id);
+        if (antes !== undefined && ahora() - antes < DENUNCIA_PAUSA_MS) { avisar(from, `Espera ${Math.ceil((DENUNCIA_PAUSA_MS - (ahora() - antes)) / 1000)} s para enviar otro aviso.`); return; }
+        ultimaDenuncia.set(w.id, ahora());
+        const d: Denuncia = { de: w.id, deNombre: w.nombre, a: p.id, aNombre: p.nombre, motivo, cuando: new Date(ahora()).toISOString() };
+        denuncias.push(d); while (denuncias.length > DENUNCIAS_MAX) denuncias.shift();
+        a.store.set("denuncias", denuncias);
+        const mods = a.players().filter((e) => e !== from && e !== p.e && modera(accesoDe(a.who(e)?.id)));
+        for (const e of mods) avisar(e, `Aviso para moderación: ${w.nombre} denuncia a ${p.nombre}: «${motivo}». /denuncias para ver los últimos.`);
+        log(`[roles] ${w.id} denuncia a ${p.id}: ${motivo}`);
+        avisar(from, mods.length ? `Aviso enviado a moderación (${mods.length} ${mods.length === 1 ? "persona conectada" : "personas conectadas"}). Queda guardado para quien modere este mundo.` : "Aviso guardado: ahora no hay nadie de moderación conectado; lo leerán al entrar con /denuncias.");
+      },
+      denuncias: (from) => {
+        if (!modera(accesoDe(a.who(from)?.id))) { avisar(from, "Solo quien modera este mundo lee los avisos."); return; }
+        if (!denuncias.length) { avisar(from, "No hay ningún aviso de moderación."); return; }
+        for (const d of denuncias.slice(-DENUNCIAS_VER).reverse()) avisar(from, `${d.cuando.slice(0, 16).replace("T", " ")} UTC · ${d.deNombre} denuncia a ${d.aNombre}: «${d.motivo}»`);
       },
       echar: (from, resto) => {
         const p = persona(from, resto); if (!p || !sobre(from, "echar", p)) return;
@@ -449,6 +506,53 @@ export function crearRoles(o: OpcionesRoles) {
         }
         avisar(from, "Escribe /agente (lista), /agente añadir <id> <nombre…> <clave> [rol] o /agente quitar <id>.");
       },
+      // H3c: se guarda con la identidad (I1): el mismo id vuelve a tener este nombre en otra sesión o tras un reinicio.
+      // La cola « · IA» (MARCA_IA) la pone el servidor solo para agentes con billete (identidad.ts): nadie la escribe a mano.
+      nombre: (from, resto) => {
+        const w = a.who(from);
+        if (!w) { avisar(from, "Primero hace falta que el mundo sepa quién eres (recarga la página)."); return; }
+        if (esIA(w.id)) { avisar(from, "Una IA no se cambia el nombre por el chat: lo pone el servidor."); return; }
+        const nuevo = limpiarNombre(resto, NOMBRE_PROPIO_MAX);
+        if (!nuevo) { avisar(from, "Escribe /nombre <nombre>."); return; }
+        if (nuevo.endsWith(MARCA_IA)) { avisar(from, `Ese nombre no vale: termina en «${MARCA_IA}», que el servidor reserva para los agentes de IA.`); return; }
+        nombres.set(w.id, nuevo); a.store.set(`n:${w.id}`, nuevo);
+        log(`[roles] ${w.id} se pone el nombre «${nuevo}»`);
+        a.emit("nombreCambiado", { quien: from, nombre: nuevo }, "server");
+        avisar(from, `Desde ahora te llamas «${nuevo}».`);
+      },
+      // H3c: punto de reaparición propio (D-045 ya devuelve al último suelo seguro o al de la casa; esto fija el tuyo).
+      // Se guarda con la identidad; al volver a entrar (otra pestaña, otro día) apareces ahí (ver el onIdentify, abajo).
+      aparecer: (from, resto) => {
+        const w = a.who(from);
+        if (!w) { avisar(from, "Primero hace falta que el mundo sepa quién eres (recarga la página)."); return; }
+        if (esIA(w.id)) { avisar(from, "Una IA no tiene un punto de aparición propio."); return; }
+        const v = plano(resto);
+        if (v === "aqui") {
+          const p = a.position(from);
+          if (!p) { avisar(from, "No sé dónde estás: vuelve a intentarlo dentro del mundo."); return; }
+          apariciones.set(w.id, p); a.store.set(`ap:${w.id}`, p);
+          log(`[roles] ${w.id} fija su punto de aparición en (${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)})`);
+          avisar(from, "Hecho: desde ahora apareces aquí cuando entras en este mundo. /aparecer quitar lo deshace.");
+          return;
+        }
+        if (v === "quitar") {
+          if (!apariciones.delete(w.id)) { avisar(from, "No tenías un punto de aparición propio."); return; }
+          a.store.delete(`ap:${w.id}`);
+          log(`[roles] ${w.id} quita su punto de aparición`);
+          avisar(from, "Hecho: vuelves a aparecer donde aparece cualquiera.");
+          return;
+        }
+        avisar(from, "Escribe /aparecer aquí (para aparecer donde estás ahora) o /aparecer quitar (para dejarlo).");
+      },
+      // H3c: manage-organization, como /construir, /voz y /solo-miembros.
+      chat: (from, resto) => {
+        if (!ajusta(from)) return;
+        const v = plano(resto);
+        if (v !== "borrar") { avisar(from, "Escribe /chat borrar para vaciar el historial de la zona."); return; }
+        a.emit("borrarHistorial", {}, "server");
+        log(`[roles] ${a.who(from)?.id} borra el historial del chat de la zona`);
+        avisar(from, "Hecho: el historial de la zona está vacío. Quien entre a partir de ahora no verá lo de antes.");
+      },
     };
     ordenes.dueno = ordenes["dueño"];
     ordenes.agentes = ordenes.agente;
@@ -500,6 +604,11 @@ export function crearRoles(o: OpcionesRoles) {
         if (bloqueos.get(ow.id)?.has(w.id)) a.emit("bloqueo", { quien: otro, a: e, si: 1 }, "server");
       }
       if (m || conPase || (esIA(w.id) && pasesIA.has(w.id.slice(3)))) cambio(e);
+      // H3c: lo que se guarda con la identidad vuelve a aplicarse en cada conexión nueva de la misma persona.
+      const nc = nombres.get(w.id);
+      if (nc) a.emit("nombreCambiado", { quien: e, nombre: nc }, "server");
+      const ap = apariciones.get(w.id);
+      if (ap) a.teletransportar(e, ap);
     });
     a.onLeave((e) => {
       intentos.delete(e); pendientes.delete(e);
@@ -520,6 +629,8 @@ export function crearRoles(o: OpcionesRoles) {
     part, puede, credencial, renovar,
     /** For tests and the server: what someone with this id may do. */
     acceso: (id: string | undefined) => accesoDe(id),
+    /** For /status: how many passes arrived, were accepted or refused, and why the last refusal (the verifier's short reason). */
+    pases: () => ({ ...cuentaPases }),
     /** For /status (STD: personas vs agentes): `id` is an "ia-…" one. Its organization (ADR-080, a signed pass) when
      * it is one of numinia.com's agents; null for a world inhabitant (habitantes/<id>.json, P4) — those have no pass. */
     organizacionDeAgente: (id: string): string | null => (esIA(id) ? pasesIA.get(id.slice(3))?.org ?? null : null),
@@ -534,6 +645,8 @@ export function crearRoles(o: OpcionesRoles) {
     },
     /** F1: for tests and /status: whom this id has blocked. */
     bloqueados: (id: string): readonly string[] => [...(bloqueos.get(id) ?? [])],
+    /** ux2-gente: the reports this world keeps (for tests and /denuncias), oldest first. */
+    denuncias: (): readonly Denuncia[] => (api ? ((api.store.get("denuncias") as Denuncia[] | undefined) ?? []) : []),
     get todosConstruyen() { return todosConstruyen(); },
     get conectado() { return api !== null; },
     /** Outside agents (ADR-080): list/add/remove, the code behind `/agente` and the HTTP door. null until the feature has started. */

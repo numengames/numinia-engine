@@ -78,7 +78,8 @@ function emit(): void {
     schema: "numinia-engine/bots@1", pid: process.pid, pedidos: n, conectados: bots.length, fallaron: failed, primerError: firstError, caidos: dropped,
     steadySecs: Math.round((performance.now() - steadyAt) / 100) / 10, snapshots: stat.snaps, saltados: stat.skipped, tardios: stat.late,
     h: { connect: stat.connect.toJSON(), first: stat.first.toJSON(), rtt: stat.rtt.toJSON(), gap: stat.gap.toJSON(), jitter: jitter.toJSON() },
-    gen: { bucleP99Ms: Math.round(gen.percentile(99) / 1e4) / 100, bucleMaxMs: Math.round(gen.max / 1e4) / 100, cpuPct: Math.round(((c.user + c.system) / 1000 / Math.max(1, wall)) * 10000) / 100 },
+    gen: { bucleP99Ms: Math.round(gen.percentile(99) / 1e4) / 100, bucleRealP99Ms: Math.max(0, Math.round(gen.percentile(99) / 1e4) / 100 - 10), // E4: minus the monitor's 10 ms resolution
+       bucleMaxMs: Math.round(gen.max / 1e4) / 100, cpuPct: Math.round(((c.user + c.system) / 1000 / Math.max(1, wall)) * 10000) / 100 },
   }));
 }
 

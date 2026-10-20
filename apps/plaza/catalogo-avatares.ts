@@ -8,8 +8,15 @@ import type { CatalogoAvatares } from "../../packages/render/src/index.ts";
 export function catalogoDeAvatares(origen: string, params: URLSearchParams, avatar?: string): CatalogoAvatares | undefined {
   if (params.has("sinavatares")) return undefined;
   const animaciones: CatalogoAvatares["animaciones"] = {};
-  for (const [clip, a] of Object.entries(catalogo.animaciones)) animaciones[clip as keyof CatalogoAvatares["animaciones"]] = { url: `${origen}/a/${a.sha256}.vrma`, pasoPorCadera: a.pasoPorCadera };
-  return { modelos: modelosDelMundo(catalogo.modelos, avatar).map((m) => ({ nombre: m.nombre, url: `${origen}/a/${m.sha256}.vrm` })), animaciones };
+  for (const [clip, a] of Object.entries(catalogo.animaciones)) animaciones[clip as keyof CatalogoAvatares["animaciones"]] = { url: `${origen}/a/${a.sha256}.vrma`, pasoPorCadera: a.pasoPorCadera, duracion: a.duracion };
+  return { modelos: modelosDelMundo(catalogo.modelos, avatar).map((m) => ({ id: m.id, nombre: m.nombre, url: `${origen}/a/${m.sha256}.vrm` })), animaciones };
+}
+
+/** Rediseño v2 (the VR menu's «Tú»): the house id of the model at `indice` of what this world offers (the index
+ * `eleccion` gives), for its portrait /retratos/<id>-cuerpo.webp; null when unknown. */
+export function idAvatarDe(indice: number | undefined, avatar?: string): string | null {
+  if (indice === undefined || indice < 0) return null;
+  return modelosDelMundo(catalogo.modelos, avatar)[indice]?.id ?? null;
 }
 
 /** The models a world offers: the one it names, or all of them (pure, for tests). */

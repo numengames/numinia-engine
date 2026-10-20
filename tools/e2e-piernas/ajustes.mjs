@@ -46,17 +46,20 @@ async function pierna(engine) {
     r.capacidades = await p.evaluate(() => { const c = globalThis.__numinia.capacidades; return { nivel: c.nivel, backend: c.backend, movil: c.movil, maxTextura: c.maxTextura, menosMovimiento: c.menosMovimiento }; });
     r.ocultosSinContrato = await p.evaluate(() => globalThis.__numinia.ajustes.lista().filter((s) => !s.visible).map((s) => s.id));
     r.etiquetas = await p.evaluate(() => { // every control in the menu has a label and a description (screen readers)
-      const cs = [...document.querySelectorAll("#ajustes input, #ajustes select")];
+      const cs = [...document.querySelectorAll("#ajustes-grupos input, #ajustes-grupos select")];
       return { controles: cs.length, sinEtiqueta: cs.filter((c) => !c.labels?.length).map((c) => c.id), sinDescripcion: cs.filter((c) => !c.getAttribute("aria-describedby")).map((c) => c.id) };
     });
     const antes = await potencia(p);
     r.antes = antes;
-    // 1. O opens it, focus inside
+    // 1. O opens the bar's «Menú» (ux2-barra) with the focus on «Ajustes»; Enter opens it, focus inside
     await p.keyboard.press("KeyO");
+    await p.waitForFunction(() => !document.getElementById("menu-lista").hidden && document.activeElement?.id === "ajustes-abrir", null, { timeout: 3000 });
+    await p.keyboard.press("Enter");
     await p.waitForFunction(() => document.getElementById("ajustes").open, null, { timeout: 3000 });
     r.abreConO = true;
     r.focoDentro = await p.evaluate(() => document.getElementById("ajustes").contains(document.activeElement));
     // 2. keyboard only: Tab to «Resolución», one step left
+    await p.click('#ajustes nav button[data-cat="graficos"]'); // the window shows one category at a time
     r.tabsHastaResolucion = await tabHasta(p, "ajuste-graficos.resolucion");
     await p.keyboard.press("ArrowLeft");
     await p.waitForFunction(() => globalThis.__numinia.ajustes.get("graficos.resolucion") === 95, null, { timeout: 3000 });
@@ -86,12 +89,14 @@ async function pierna(engine) {
     await p.evaluate(() => { const i = document.createElement("input"); i.id = "prueba-texto"; document.body.append(i); i.focus(); });
     await p.keyboard.press("KeyO");
     await p.waitForTimeout(200);
-    r.oEscribiendoAbre = await abierto(p);
+    r.oEscribiendoAbre = (await abierto(p)) || (await p.evaluate(() => !document.getElementById("menu-lista").hidden));
     await p.evaluate(() => { document.getElementById("prueba-texto")?.remove(); document.activeElement?.blur?.(); });
     // 7. agents: validation with paths, never a throw
     r.agente = await p.evaluate(() => globalThis.__numinia.ajustes.set("graficos.resolucion", 3));
-    // 8. «Restablecer todo» with the keyboard
+    // 8. «Restablecer todo» with the keyboard (O → «Menú», Enter → «Ajustes»)
     await p.keyboard.press("KeyO");
+    await p.waitForFunction(() => document.activeElement?.id === "ajustes-abrir", null, { timeout: 3000 });
+    await p.keyboard.press("Enter");
     await p.waitForFunction(() => document.getElementById("ajustes").open, null, { timeout: 3000 });
     r.tabsHastaRestablecer = await tabHasta(p, "ajustes-restablecer", 120);
     await p.keyboard.press("Enter");

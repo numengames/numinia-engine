@@ -1,17 +1,20 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX } from "../../sim/src/index.ts";
 import type { SimState, SpawnArea, Bvh } from "../../sim/src/index.ts";
+import { terrenoDelEstado, terrenoMalla, claveTerreno, combinarMallas, sueloMinimoTerreno } from "../../sim/src/terreno-malla.ts";
+import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import {
-  MSG, buildGrid, selectVisible, encodeSnapshot, decodeSnapshot, encodeInput, decodeInput,
+  MSG, buildGrid, selectVisible, encodeSnapshot, cuantizar, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
   decodeIdentityRequest, decodePase, encodeIdentity, leerVozSubida, codificarVozBajada, VOZ_RADIO_M, VOZ_TRAMAS_S,
+  encodeCondiciones, decodeAceptar, encodeLeyendo, LEYENDO_POR_MENSAJE,
 } from "../../net/src/index.ts";
 import { agenteDe, emitir, nombreDe, nuevoId, today, verificar, verificarAgente } from "./identidad.ts";
 import type { Who } from "./identidad.ts";
 export type { Who } from "./identidad.ts";
-import type { Transport, Viewer, Welcome } from "../../net/src/index.ts";
+import type { Aceptacion, CondicionesMensaje, Transport, Viewer, Welcome } from "../../net/src/index.ts";
 import { ServerRuntime } from "../../feature/src/index.ts";
 import type { BienFirmable, FeatureStorage, ReciboLeido, ServerPart, RayHit, Orden } from "../../feature/src/index.ts";
 
@@ -59,13 +62,55 @@ export type InstanceOptions = {
    * "build-in-worlds")) or "todos". A feature can still grant it to one avatar (`concederVuelo`) whatever this says. */
   vuelo?: "nadie" | "constructores" | "todos";
   /** M6 h8: builds (or refreshes) the world's collision mesh from the shared state's `malla` things, off the sim
-   * tick (fetching and parsing a .glb is not a 20 Hz operation): called again whenever the shared state version
-   * changes, never twice at once. Returns null when there is nothing to build (no `malla` thing, or none readable).
-   * None = the world never gets a mesh (`sim.mesh` stays null, same as before M6: darts, fishing and walking into a
-   * `malla` wall all answer as if there is nothing there). packages/server/src/colision-mundo.ts builds the real one. */
-  construirMalla?: (objetos: Iterable<[string, Record<string, unknown>]>) => Promise<Bvh | null>;
+   * tick (fetching and parsing a .glb is not a 20 Hz operation), never twice at once. It gets only the entries whose
+   * value says `colision: "malla"` (`entradasMalla`), and is called again only when those change (`huellaMalla`, D2)
+   * — or, after a build that `faltaAlgo()` says could not read some .glb (or a build that threw), on the next change
+   * of any kind, so a file that arrives later still gets in. Returns null when there is nothing to build (no `malla`
+   * thing, or none readable). None = the world never gets a mesh (`sim.mesh` stays null, same as before M6: darts,
+   * fishing and walking into a `malla` wall all answer as if there is nothing there). packages/server/src/colision-mundo.ts
+   * builds the real one. */
+  construirMalla?: ConstruirMalla;
+  /** condiciones/c2: the gate of the world's conditions of entry (server/condiciones-puerta.ts builds it). With `activa`, a
+   * connection that has not accepted the current norms is frozen where it arrived and its chat, voice and every feature
+   * message (build, play) are ignored — see `puertaCerrada`. None, or `activa` false = the behaviour as before. */
+  condiciones?: PuertaCondiciones;
 };
+/** condiciones/c2: what the instance needs from the conditions' gate. The rules (which points, which versions) are the server's. */
+export type PuertaCondiciones = {
+  /** Is the gate on? Off = nothing is refused and nothing is sent by itself. */
+  activa: boolean;
+  /** May this person act? True when nothing is mandatory or they accepted the current version of every layer that has a mandatory norm. */
+  abierta(who: Who): boolean;
+  /** The message that tells a page where it stands; `conCapas` adds the whole text (the offer). `who` null = not identified yet. */
+  estado(who: Who | null, conCapas: boolean): CondicionesMensaje;
+  /** Keep what this person accepts (only current versions and known data points count) and say where they stand now. */
+  aceptar(who: Who, a: Aceptacion): CondicionesMensaje;
+};
+/** condiciones/c2: refusals made by the gate (tests, /metrics later). */
+export type PuertaStats = { entradas: number; funciones: number; voz: number; aceptaciones: number; malas: number; leyendoBytes: number; empujes: number };
+/** M6 h8 / D2: the world's mesh builder (InstanceOptions.construirMalla). `faltaAlgo` (optional): did the last build
+ * skip a `malla` thing because its file could not be read (yet)? Then any change retries, like before D2. */
+export type ConstruirMalla = ((objetos: Iterable<[string, Record<string, unknown>]>) => Promise<Bvh | null>) & { faltaAlgo?: () => boolean };
+/** D2: the shared-state entries the world's mesh is made of — every one whose value says `colision: "malla"`, in
+ * state order (the builder's whole input: colision-mundo.ts reads nothing else). */
+export function entradasMalla(estado: Iterable<[string, Record<string, unknown>]>): [string, Record<string, unknown>][] {
+  const out: [string, Record<string, unknown>][] = [];
+  for (const e of estado) if (e[1].colision === "malla") out.push(e);
+  return out;
+}
+/** D2: a fingerprint of exactly what the mesh is built from (key and whole value of each `malla` entry, in order).
+ * A counter ticking, a box moving or a chat line leaves it the same: no rebuild. A `malla` thing added, removed,
+ * moved, turned, rescaled or given another model changes it. */
+export function huellaMalla(entradas: readonly [string, Record<string, unknown>][]): string {
+  let h = "";
+  for (const [k, v] of entradas) h += `${k}\u0000${JSON.stringify(v)}\u0001`;
+  return h;
+}
 export type Suelo = { minimo: number; vuelta?: { x: number; y: number; z: number; siempre?: boolean } | null };
+/** B2: the phases of Instance.tick(), in order (Instance.fasesMs): inputs in, solid boxes rebuilt (only when a feature's
+ * shared state changed), the simulation step, the safe-spot pass, the features (server/metrics.ts splits it by feature),
+ * the snapshots out. */
+export const FASES_TICK = ["entradas", "solidos", "simulacion", "seguro", "piezas", "instantaneas"] as const;
 /** D-045: how often (ticks) the last safe spot is kept: 10 = every half second. */
 export const SEGURO_CADA = 10;
 /** D-045: a return the instance made (the feature `suelo` tells the page). `motivo`: caida = under the floor, pedido = asked. */
@@ -88,6 +133,9 @@ type Conn = {
   visible?: number[]; // J3: who its last snapshot carried (features ask with api.visible: names over heads)
   voz?: { desde: number; n: number }; // U10: voice frames this second (rate cap)
   anfitrion?: string; // ADR-080: the host this connection asked for (an outside agent signs the world's name)
+  leyendo?: true; // condiciones/c5: the others have been told this person is reading the norms (set once identified and still behind the gate; cleared on accepting or leaving)
+  admitido?: true; // condiciones/c2: the gate let this connection through (it accepted, or it is an AI); a connection never goes back
+  acepta?: { desde: number; n: number }; // condiciones/c2: ACEPTAR messages this second (rate cap)
 };
 
 export class Instance {
@@ -101,7 +149,7 @@ export class Instance {
     this.byEntity = new Array(opts.capacity);
     const tf = this.sim.tf;
     this.features = new ServerRuntime(opts.features ?? [], {
-      players: () => this.conns.map((c) => c.entity),
+      players: () => this.players(),
       position: (e) => (this.sim.world.alive[e] && tf.has[e] ? { x: fxToFloat(tf.cols.x[e]), y: fxToFloat(tf.cols.y[e]), z: fxToFloat(tf.cols.z[e]) } : null),
       send: (e, bytes) => this.byEntity[e]?.transport.send(bytes, true),
       tick: () => this.sim.tick,
@@ -122,6 +170,7 @@ export class Instance {
       vueltas: () => this.vueltas.splice(0),
       rayo: (e, dir, max) => this.rayo(e, dir, max),
       ordenar: (e, orden) => this.ordenar(e, orden),
+      leyendoNormas: (e) => this.leyendoNormas(e),
     });
     this.seguro = new Int32Array(opts.capacity * 3); this.tieneSeguro = new Uint8Array(opts.capacity);
   }
@@ -139,13 +188,14 @@ export class Instance {
     const s = this.sim;
     if (!onFloor(s, e)) return;
     const y = s.tf.cols.y[e];
-    if (this.opts.suelo && y < fx(this.opts.suelo.minimo)) return;
+    const suelo = this.sueloEfectivo();
+    if (suelo && y < fx(suelo.minimo)) return;
     this.seguro[e * 3] = s.tf.cols.x[e]; this.seguro[e * 3 + 1] = y; this.seguro[e * 3 + 2] = s.tf.cols.z[e]; this.tieneSeguro[e] = 1;
   }
   /** Where a return would put this avatar (Q16.16), or null: the world's fixed point when it says `siempre` or when no
    * safe spot is known yet; else the last safe spot. A point under the world's minimum is never used (no loop). */
   private destinoSeguro(e: number): { x: number; y: number; z: number } | null {
-    const v = this.opts.suelo?.vuelta, min = this.opts.suelo ? fx(this.opts.suelo.minimo) : -Infinity;
+    const suelo = this.sueloEfectivo(), v = suelo?.vuelta, min = suelo ? fx(suelo.minimo) : -Infinity;
     const fijo = v && [v.x, v.y, v.z].every(Number.isFinite) && fx(v.y) >= min ? { x: fx(v.x), y: fx(v.y), z: fx(v.z) } : null;
     if (fijo && (v!.siempre || !this.tieneSeguro[e])) return fijo;
     if (this.tieneSeguro[e]) return { x: this.seguro[e * 3], y: this.seguro[e * 3 + 1], z: this.seguro[e * 3 + 2] };
@@ -184,6 +234,7 @@ export class Instance {
   ordenar(entity: number, orden: Orden): boolean {
     const s = this.sim;
     if (!this.byEntity[entity] || !s.world.alive[entity] || !s.tf.has[entity]) return false;
+    if (("empujar" in orden || "quieto" in orden || "sentar" in orden) && this.leyendoNormas(entity)) { this.puertaStats.empujes++; return false; } // condiciones/c5: nobody pushes, freezes or seats someone still reading the norms
     const finite = (...ns: number[]) => ns.every((n) => Number.isFinite(n));
     if ("poner" in orden) {
       const { x, y, z } = orden.poner;
@@ -225,15 +276,19 @@ export class Instance {
 
   /** A client arrives over any transport: spawn its avatar (in the world's spawn area, if it has one), say welcome, listen. */
   connect(t: Transport, owner = this.conns.length, anfitrion?: string): number {
-    const entity = spawnAvatar(this.sim, owner, this.opts.aparicion);
+    this.sincronizarTerreno(); // N5: the nature's hills must be in the mesh before the first avatar stands on them
+    const entity = spawnAvatar(this.sim, owner, this.opts.aparicion ?? this.aparicionTerreno());
+    if (this.terreno) this.sim.tf.cols.y[entity] = groundHeight(this.sim.tf.cols.x[entity], this.sim.tf.cols.z[entity], this.sim, fx(this.terreno.hmax + 1)); // N5: appear ON the terrain
     const conn: Conn = { entity, transport: t, viewer: { entity, priority: new Float32Array(this.opts.capacity) }, queue: [], ack: 0, dropped: 0, bad: 0, anfitrion };
     t.onMessage((bytes) => {
       if (bytes[0] === MSG.INPUT && (bytes.length === 6 || bytes.length === 5)) { // 5 = from before J2 (no buttons)
+        if (this.cerrada(conn)) { this.puertaStats.entradas++; return; } // condiciones/c2: frozen where it arrived until it accepts
         conn.queue.push(decodeInput(bytes));
         if (conn.queue.length > MAX_QUEUE) { conn.queue.shift(); conn.dropped++; } // faster-than-tick senders lose inputs
       } else if (bytes[0] === MSG.PING && bytes.length === 5) {
         t.send(encodePong(decodeTime(bytes)), true);
       } else if (bytes[0] === MSG.FEATURE && this.features.active) {
+        if (this.cerrada(conn)) { this.puertaStats.funciones++; return; } // condiciones/c2: chat, build, every game action: ignored (not «bad»)
         if (!this.features.receive(entity, bytes)) conn.bad++;
       } else if (bytes[0] === MSG.IDENTITY && this.opts.identitySign) {
         const token = conn.who ? null : decodeIdentityRequest(bytes); // once per connection
@@ -248,19 +303,31 @@ export class Instance {
         if (pase === null) conn.bad++;
         else if (this.opts.identitySign && this.opts.credencial) conn.pase = pase; // a world that takes no passes ignores it (the person enters as a guest)
       } else if (bytes[0] === MSG.VOICE) {
+        if (this.cerrada(conn)) { this.puertaStats.voz++; return; } // condiciones/c2: nothing of its microphone is relayed
         const sinVoz = typeof this.opts.sinVoz === "function" ? this.opts.sinVoz() : this.opts.sinVoz;
         if (!sinVoz) this.relayVoice(conn, bytes);
+      } else if (bytes[0] === MSG.CONDICIONES && this.opts.condiciones) { // condiciones/c2: «send me the conditions» (one byte), asked at any time
+        if (bytes.length !== 1) conn.bad++;
+        else t.send(encodeCondiciones(this.opts.condiciones.estado(conn.who ?? null, true)), true);
+      } else if (bytes[0] === MSG.ACEPTAR && this.opts.condiciones) { // condiciones/c2: what this person accepts; needs to be identified (it is kept by who)
+        const a = decodeAceptar(bytes), now = this.sim.tick, w = (conn.acepta ??= { desde: now, n: 0 });
+        if (now - w.desde >= 20) { w.desde = now; w.n = 0; } // 20 ticks = 1 s: a store write each, so a cap
+        if (!a || !conn.who || conn.who.ia || ++w.n > 5) { conn.bad++; this.puertaStats.malas++; return; }
+        this.puertaStats.aceptaciones++;
+        t.send(encodeCondiciones(this.opts.condiciones.aceptar(conn.who, a)), true);
+        if (conn.leyendo && !this.cerrada(conn)) this.avisarLeyendo(conn, false); // condiciones/c5: the bubble bursts for everybody
       } else if (bytes[0] === MSG.REPORT) {
         const r = decodeReport(bytes);
         if (!r) conn.bad++; else this.opts.onReport?.(entity, r); // no listener (tests, bots): ignored
       } else conn.bad++; // unknown or malformed: counted, never thrown
     });
-    this.conns.push(conn);
+    this.conns.push(conn); this.playersView = null;
     this.byEntity[entity] = conn;
     this.tieneSeguro[entity] = 0; this.guardarSeguro(entity); // D-045: where you appear is safe (if it is over the world's minimum)
     const ref = this.opts.reference ?? { seed: 0, ticks: 0, n: 0, hash: 0 };
     t.send(encodeWelcome({ entity, tick: this.sim.tick, x: this.sim.tf.cols.x[entity], z: this.sim.tf.cols.z[entity], ref }), true);
     this.features.join(entity); // catalog + shared state, only if this instance runs features
+    if (this.opts.condiciones?.activa) this.enviarLectores(conn); // condiciones/c5: who is inside a bubble right now (usually nobody: then nothing is sent)
     return entity;
   }
 
@@ -293,16 +360,59 @@ export class Instance {
     const invitado: Who = { id, nombre: nombreDe(id) };
     // a pass the world accepts replaces the guest (same person on two devices = one person); one it refuses leaves the guest
     const persona = pase !== undefined && this.opts.credencial ? this.opts.credencial(entity, pase, invitado) : null;
+    if (persona && ok && persona.id !== id) this.features.adoptar(id, persona.id); // identidad/i1: what the guest had here is theirs now (once)
     conn.who = persona ?? invitado;
     if (persona) conn.invitado = id;
-    conn.transport.send(encodeIdentity({ token: ok && !ok.renovar ? token : emitir(sign, id, day), ...conn.who }), true);
+    const { acepto: _soloServidor, ...publico } = conn.who; // condiciones/w5: what the pass said about acceptances stays on the server
+    conn.transport.send(encodeIdentity({ token: ok && !ok.renovar ? token : emitir(sign, id, day), ...publico }), true);
     this.features.identify(entity);
+    if (this.opts.condiciones?.activa) conn.transport.send(encodeCondiciones(this.opts.condiciones.estado(conn.who, true)), true); // condiciones/c2: the offer, by itself, once identified
+    if (this.cerrada(conn)) this.avisarLeyendo(conn, true); // condiciones/c5: and everybody else sees them inside a bubble (no one if they accepted before)
   }
+
+  /** condiciones/w4: the text of the conditions changed (a new version of the community's norms): offer it again, with its text, to everyone
+   * still behind the gate (their bubble starts over with the new one). Who is already inside is told nothing. Gate off = nothing. */
+  ofrecerCondiciones(): void {
+    const p = this.opts.condiciones;
+    if (!p?.activa) return;
+    for (const c of this.conns) if (c.who && this.cerrada(c)) c.transport.send(encodeCondiciones(p.estado(c.who, true)), true);
+  }
+  /** condiciones/c2: is this entity held behind the gate? (see `cerrada`; uploads ask it too.) Not connected = false. */
+  puertaCerrada(entity: number): boolean { const c = this.byEntity[entity]; return !!c && this.cerrada(c); }
+  /** condiciones/c2: the gate. True while this connection has not been let through: the world's gate is on, it is not an AI
+   * inhabitant/agent (they hold a signed ticket and have no bubble to click), and it has not accepted every mandatory norm of the
+   * current version. Not identified yet = closed (the acceptance is kept by who). Off or no gate = always false, one comparison.
+   * Once open a connection stays open (w4: even if the community publishes a newer text meanwhile; it applies to whoever arrives later). */
+  private cerrada(conn: Conn): boolean {
+    const p = this.opts.condiciones;
+    if (!p?.activa || conn.admitido) return false;
+    const w = conn.who;
+    if (w && (w.ia || p.abierta(w))) { conn.admitido = true; return false; }
+    return true;
+  }
+  /** condiciones/c5: tell everybody else that this person starts (`true`) or stops (`false`) reading the norms: ONE 4-byte message each way, only on
+   * the change, so a world pays nothing per tick and a world whose gate is off sends nothing. The person already knows (the bubble is theirs). */
+  private avisarLeyendo(conn: Conn, leyendo: boolean): void {
+    if (leyendo === !!conn.leyendo) return;
+    conn.leyendo = leyendo ? true : undefined;
+    const b = encodeLeyendo([{ entidad: conn.entity, leyendo }])!;
+    for (const c of this.conns) if (c !== conn) { c.transport.send(b, true); this.puertaStats.leyendoBytes += b.length; }
+  }
+  /** condiciones/c5: the people inside a bubble now, to one who has just connected (in frames of LEYENDO_POR_MENSAJE). Nobody reading = nothing sent. */
+  private enviarLectores(para: Conn): void {
+    const l = this.conns.filter((c) => c.leyendo && c !== para).map((c) => ({ entidad: c.entity, leyendo: true }));
+    for (let i = 0; i < l.length; i += LEYENDO_POR_MENSAJE) { const b = encodeLeyendo(l.slice(i, i + LEYENDO_POR_MENSAJE))!; para.transport.send(b, true); this.puertaStats.leyendoBytes += b.length; }
+  }
+  /** condiciones/c5: is this entity inside the bubble, reading the norms (the others were told so)? An exemption for everything that
+   * would touch them while they cannot answer: nothing pushes or hits someone who is still reading. */
+  leyendoNormas(entity: number): boolean { return !!this.byEntity[entity]?.leyendo; }
+  readonly puertaStats: PuertaStats = { entradas: 0, funciones: 0, voz: 0, aceptaciones: 0, malas: 0, leyendoBytes: 0, empujes: 0 };
 
   disconnect(entity: number): void {
     const i = this.conns.findIndex((c) => c.entity === entity);
     if (i < 0) return;
-    this.conns.splice(i, 1);
+    if (this.conns[i].leyendo) this.avisarLeyendo(this.conns[i], false); // condiciones/c5: its bubble goes (the entity number may be someone else's next)
+    this.conns.splice(i, 1); this.playersView = null;
     this.byEntity[entity] = undefined;
     this.features.leave(entity); // still has a position here; no longer among the players
     this.sim.world.despawn(entity);
@@ -316,7 +426,13 @@ export class Instance {
     return client;
   }
 
+  /** B2: what each phase of the LAST tick cost, in ms (wall clock), in the order of FASES_TICK. The server copies it into
+   * its windows right after tick() (server/metrics.ts); nothing here keeps history and nothing here touches the sim. */
+  readonly fasesMs = new Float64Array(FASES_TICK.length);
+
   tick(): void {
+    const f = this.fasesMs;
+    let a = performance.now(), b = a;
     for (const c of this.conns) c.transport.flush?.();
     // only avatars whose input arrived advance this tick (gravity too): one input = one step of the owner's clock,
     // so the owner's prediction stays exact when an input comes late (J2)
@@ -328,30 +444,37 @@ export class Instance {
       const o = n++ * INPUT_STRIDE;
       inputs[o] = c.entity; inputs[o + 1] = m.mx; inputs[o + 2] = m.mz; inputs[o + 3] = m.buttons; c.ack = m.seq;
     }
-    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.sim, solidsFrom(this.features.allState())); } // U10
-    if (this.opts.construirMalla && !this.mallaBuilding && this.features.stateVersion !== this.mallaVersion) this.reconstruirMalla();
+    b = performance.now(); f[0] = b - a; a = b; // entradas
+    if (this.features.solidsVersion !== this.solidsVersion) { this.solidsVersion = this.features.solidsVersion; setSolids(this.sim, solidsFrom(this.features.allState())); this.solidosRehechos++; } // U10, E6: only when a solid changed
+    this.sincronizarTerreno(); // N5: the seeded terrain joins the collision mesh (only when «naturaleza:mundo» changed)
+    if (this.opts.construirMalla && !this.mallaBuilding && this.features.stateVersion !== this.mallaVersion) this.quizaMalla(); // M6 h8, D2: only if a malla entry changed
+    b = performance.now(); f[1] = b - a; a = b; // solidos
     // H2 historia 5: at most ORDENES_TICK_MAX orders go into this step; the rest stay queued, in order, for the next one.
     const capInts = ORDENES_TICK_MAX * ORDER_STRIDE;
     const take = this.ordenes.slice(0, capInts); this.ordenes = this.ordenes.slice(capInts);
     const ordenes = take.length ? Int32Array.from(take) : undefined; this.pendiente.clear();
     if (ordenes) this.opts.log?.(`[suelo] tick ${this.sim.tick}: ${ordenes.length / ORDER_STRIDE} orden(es) aplicada(s)${this.ordenes.length ? `, ${this.ordenes.length / ORDER_STRIDE} esperando` : ""}`);
     step(this.sim, inputs.subarray(0, n * INPUT_STRIDE), ordenes); // authority (D-045/H2: orders first, recorded with the inputs)
+    b = performance.now(); f[2] = b - a; a = b; // simulacion
     if (this.sim.tick % SEGURO_CADA === 0) { // D-045: every half second, keep the safe spot; under the floor, order the return
-      const s = this.sim, min = this.opts.suelo ? fx(this.opts.suelo.minimo) : null;
+      const s = this.sim, suelo = this.sueloEfectivo(), min = suelo ? fx(suelo.minimo) : null;
       for (const c of this.conns) {
         if (min !== null && s.tf.cols.y[c.entity] < min) this.volverASeguro(c.entity, "caida");
         else this.guardarSeguro(c.entity);
       }
     }
+    b = performance.now(); f[3] = b - a; a = b; // seguro
     this.features.tick();   // game features: queued intents, then their tick hooks (no effect on the sim)
+    b = performance.now(); f[4] = b - a; a = b; // piezas
     if (this.sim.tick % this.opts.snapshotEvery === 0) { // 20 Hz sim, 10 Hz snapshots by default
-      const grid = buildGrid(this.sim);
+      const grid = buildGrid(this.sim), q = cuantizar(this.sim); // E1: every avatar quantized once, not once per viewer
       for (const c of this.conns) {
         const visible = selectVisible(this.sim, grid, c.viewer, this.opts.k);
         c.visible = visible;
-        c.transport.send(encodeSnapshot(this.sim, c.entity, c.ack, visible), false);
+        c.transport.send(encodeSnapshot(this.sim, c.entity, c.ack, visible, q), false);
       }
     }
+    f[5] = performance.now() - a; // instantaneas
   }
 
   /** N16: move a connected avatar on purpose (a feature asked: «ir con», a photo's place) to the first free spot near
@@ -389,18 +512,69 @@ export class Instance {
   }
 
   private solidsVersion = -1;
+  // ---- N5: the seeded terrain of naturaleza.json is part of the world's collision mesh (same `sim.mesh` the GLB mesh uses) ----
+  private terreno: TerrenoMalla | null = null;
+  private terrenoVersion = -1;
+  private mallaGlb: Bvh | null = null;
+  /** N5: follows the shared state's «naturaleza:mundo»: builds the terrain mesh from `alturaEn` (a few ms, once per change of the
+   * world's numbers, never inside `step`) and merges it with the GLB mesh. A world without naturaleza.json never gets here:
+   * one comparison per state change, `sim.mesh` untouched, the flat-ground path (and the reference fingerprint) as before. */
+  private sincronizarTerreno(): void {
+    const v = this.features.stateVersion;
+    if (v === this.terrenoVersion) return;
+    this.terrenoVersion = v;
+    const m = terrenoDelEstado(this.features.allState());
+    const clave = m ? claveTerreno(m) : null;
+    if (clave === (this.terreno?.clave ?? null)) return;
+    this.terreno = m ? terrenoMalla(m) : null;
+    this.aplicarMalla();
+    if (this.terreno) this.opts.log?.(`naturaleza: colisión del terreno lista (${this.terreno.triangulos} triángulos, celdas de ${m!.tamano / this.terreno.celdas} m, alturas ${this.terreno.hmin.toFixed(1)} a ${this.terreno.hmax.toFixed(1)} m)`);
+  }
+  /** The GLB mesh and the terrain are ONE tree for the sim; with a terrain there is no flat floor under it (`piso`). */
+  private aplicarMalla(): void {
+    setMesh(this.sim, combinarMallas(this.mallaGlb, this.terreno?.bvh ?? null), this.terreno ? PISO_SIN_SUELO : 0);
+  }
+  /** D-045: the world's void, or (naturaleza on, world gives none) a little under the lowest ground, so a fall off the map comes back. */
+  private sueloEfectivo(): Suelo | null {
+    return this.opts.suelo ?? (this.terreno ? { minimo: sueloMinimoTerreno(this.terreno.hmin), vuelta: null } : null);
+  }
+  /** N5: with naturaleza on and no `aparicion` in the world, people appear inside the flat plaza (its disc, 60 % of the radius so the square's corners stay in). */
+  private aparicionTerreno(): SpawnArea | null {
+    return this.terreno ? { x: 0, z: 0, radio: this.terreno.mundo.base ? 3 : this.terreno.mundo.plaza * 0.6 } : null; // H2: the espacio base is born at spawnBase() (0, 0), a few metres around it
+  }
+  /** E6: times the solid boxes were redone (bench / tests). */
+  solidosRehechos = 0;
+  /** E6: the connected entities in join order, one frozen array shared by every reader until someone joins or
+   * leaves (then a new one replaces it: whoever is walking the old one keeps a whole, unchanged list). */
+  private playersView: readonly number[] | null = null;
+  players(): readonly number[] { return this.playersView ??= Object.freeze(this.conns.map((c) => c.entity)); }
   private mallaVersion = -1;
   private mallaBuilding = false;
+  /** D2: `huellaMalla` of the last build started (null = none yet: the first change always builds, as before). */
+  private mallaHuella: string | null = null;
+  /** D2: the last build could not read some file, or threw: the next change of any kind builds again. */
+  private mallaReintentar = false;
+  /** Rebuilds a mesh started (bench / tests: how often the world's mesh is redone). */
+  mallasConstruidas = 0;
+  /** M6 h8 + D2: the state moved on since the last look. Rebuild the mesh only if what it is made of changed
+   * (`huellaMalla`) or the last build left something out; otherwise just remember this version. */
+  private quizaMalla(): void {
+    this.mallaVersion = this.features.stateVersion;
+    const entradas = entradasMalla(this.features.allState()), huella = huellaMalla(entradas);
+    if (huella === this.mallaHuella && !this.mallaReintentar) return;
+    this.mallaHuella = huella; this.mallaReintentar = false;
+    this.reconstruirMalla(entradas);
+  }
   /** M6 h8: rebuilds the world's collision mesh off the tick (async: fetching and parsing .glb files is not a 20 Hz
    * job). Captures the state version before starting; if the state moved on again while building, the next tick's
-   * check (`stateVersion !== mallaVersion`) sees it and starts over — never two builds in flight at once. Not part
+   * check (`stateVersion !== mallaVersion`) sees it and looks again — never two builds in flight at once. Not part
    * of the fingerprint: `setMesh` is the same no-op-on-replay side door `setSolids` already uses for U10's boxes. */
-  private reconstruirMalla(): void {
-    const version = this.features.stateVersion, snapshot = [...this.features.allState()];
-    this.mallaVersion = version; this.mallaBuilding = true;
-    this.opts.construirMalla!(snapshot)
-      .then((mesh) => { setMesh(this.sim, mesh); })
-      .catch((e) => { this.opts.log?.(`[malla] no se pudo construir la malla del mundo: ${String((e as Error)?.message ?? e)}`); })
+  private reconstruirMalla(entradas: [string, Record<string, unknown>][]): void {
+    const construir = this.opts.construirMalla!;
+    this.mallaBuilding = true; this.mallasConstruidas++;
+    construir(entradas)
+      .then((mesh) => { this.mallaGlb = mesh; this.aplicarMalla(); if (construir.faltaAlgo?.()) this.mallaReintentar = true; }) // N5: GLB mesh + terrain = one tree
+      .catch((e) => { this.mallaReintentar = true; this.opts.log?.(`[malla] no se pudo construir la malla del mundo: ${String((e as Error)?.message ?? e)}`); })
       .finally(() => { this.mallaBuilding = false; });
   }
   /** U10: who hears a voice frame — players that have the speaker in their area of interest and within VOZ_RADIO_M.

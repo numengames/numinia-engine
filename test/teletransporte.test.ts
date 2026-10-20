@@ -13,7 +13,7 @@ import { crearCliente as crearChat } from "../features/chat/client.ts";
 import { crearTeletransporte, rumboHacia, siNo, normal } from "../features/teletransporte/server.ts";
 import { crearCliente as crearViaje } from "../features/teletransporte/client.ts";
 import type { Destello } from "../features/teletransporte/client.ts";
-import { teletransporte, ESPERA_S, DESMATERIALIZAR_TICKS, FOTO_VENTANA_S } from "../features/teletransporte/feature.ts";
+import { teletransporte, huellaDe, ESPERA_S, DESMATERIALIZAR_TICKS, FOTO_VENTANA_S } from "../features/teletransporte/feature.ts";
 import { leerAparicionFoto } from "../features/entorno/esquema.ts";
 import { conMundo } from "../features/mundo.ts";
 import { crearRoles } from "../packages/server/src/roles-mundo.ts";
@@ -85,6 +85,12 @@ test("teletransporte: Gente lists who is here now; ir puts you next to them, nev
   W.pump(3);
   assert.deepEqual(A.v.estado.gente.map((g) => g.nombre).sort(), [W.nombre(B), W.nombre(C)].sort(), "everyone but you");
   assert.equal(A.v.estado.todos, 2);
+  // ux2-gente: each one comes with a tag of their identity (16 hex), the page's key for a friend; never the id itself
+  const huellas = A.v.estado.gente.map((g) => g.huella);
+  assert.ok(huellas.every((h) => /^[0-9a-f]{16}$/.test(h)) && huellas[0] !== huellas[1], JSON.stringify(huellas));
+  assert.deepEqual(new Set(huellas), new Set([B, C].map((p) => huellaDe(W.inst.who(p.s.entity)!.id))));
+  assert.ok(!A.v.estado.gente.some((g) => g.huella.includes(W.inst.who(B.s.entity)!.id)));
+  assert.equal(huellaDe("abcdefghijkl"), huellaDe("abcdefghijkl"), "the same identity, the same tag");
   assert.ok(A.v.activo());
   assert.equal(A.v.foto(), false, "a photo's place is off unless the world says so");
   const antes = W.pos(A);
@@ -248,6 +254,34 @@ test("teletransporte: the world folder's entorno.json turns the photo's place on
   const mal = estado({ schema: "numinia-engine/entorno@1", aparicionFoto: 1 });
   assert.equal(mal.foto, false);
   assert.match(mal.log.join("\n"), /aparicionFoto/);
+});
+
+test("teletransporte: MVL1 — a marked site of the map; your own height, a free spot nearby, no name repeated", () => {
+  const W = mundo(2);
+  const [A, B] = W.gente;
+  W.pump(4);
+  W.poner(A, 0, 0);
+  const antes = W.pos(A);
+  assert.deepEqual(A.v.irAPunto(20, -15, "La fuente"), { ok: true });
+  W.pump(2);
+  const sale = A.luces.find((d) => d.tipo === "sale")!;
+  assert.ok(sale && dist(sale, antes) < 0.1, "the light takes you where you stand, like going to someone");
+  W.pump(DESMATERIALIZAR_TICKS + 4);
+  assert.ok(dist(W.pos(A), { x: 20, z: -15 }) < 0.2, "you stand at the site");
+  assert.equal(W.pos(A).y, antes.y, "your own height, not the site's (the map has no y)");
+  assert.equal(A.v.estado.viaje?.ok, true);
+  assert.match(A.v.estado.viaje!.texto, /Has llegado en La fuente\./);
+  // the same cooldown as going to someone (one trip every ESPERA_S)
+  A.v.irAPunto(5, 5, "Otro sitio");
+  W.pump(3);
+  assert.match(A.v.estado.viaje!.texto, /Espera \d+ s/);
+  // off: no one may go to a site either
+  W.pump(ESPERA_S * TICK_HZ);
+  W.decir(B, `/dueño ${ADMIN}`);
+  W.decir(B, "/teletransporte no");
+  A.v.irAPunto(1, 1, ""); W.pump(3);
+  assert.equal(A.v.estado.viaje?.ok, false);
+  assert.match(A.v.estado.viaje!.texto, /lo han apagado/);
 });
 
 test("the light: three masks, the body hidden between the cuts, no lights on tier D, few on Quest", async () => {

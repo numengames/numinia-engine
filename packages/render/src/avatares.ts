@@ -4,17 +4,19 @@
 // The capsules stay as anchors: labels, bounces, the camera and the jump read them; a capsule that has a VRM is only
 // hidden from every camera (layers), never `.visible = false`, so those keep working.
 import * as THREE from "three/webgpu";
-import { ANIMAR_HASTA_M, FUNDIDO_S, clipPara, cupoVRM, elegirAvatar, elegirCercanos, estadoPor, nuevaMarcha, seguir } from "./avatares-politica.ts";
-import type { Clip, Estado, Marcha } from "./avatares-politica.ts";
+import { ANIMAR_HASTA_M, FUNDIDO_S, clipPara, cupoVRM, elegirAvatar, elegirCercanos, empezarMovimiento, estadoPor, movimientoOcupa, nuevaMarcha, pasoDeMovimiento, seguir } from "./avatares-politica.ts";
+import type { Clip, EnCurso, Estado, Marcha, Movimiento } from "./avatares-politica.ts";
 import type { Copia, Plantilla } from "./avatares-vrm.ts";
 import type { VRMAnimation } from "@pixiv/three-vrm-animation";
 
 /** What the page gives: the house avatars (VRM) and animations (VRMA), by URL. */
 export type CatalogoAvatares = {
-  modelos: { nombre: string; url: string }[];
-  animaciones: Partial<Record<Clip, { url: string; pasoPorCadera: number }>>;
+  /** `id` = the house catalogue's id (its portraits: apps/plaza/tu-logica.ts); an upload has none. */
+  modelos: { nombre: string; url: string; id?: string }[];
+  /** By name: the speed-driven clips (Clip) and the moves' clips (J7b), each fetched only when first played. */
+  animaciones: Partial<Record<string, { url: string; pasoPorCadera: number; duracion?: number }>>; // duracion: clip length (s), N1b
 };
-export type EstadoAvatar = { id: number | "yo"; modelo: string; estado: Estado; clip: Clip | null; dibujado: boolean; cerca: boolean };
+export type EstadoAvatar = { id: number | "yo"; modelo: string; estado: Estado; clip: string | null; movimiento: string | null; dibujado: boolean; cerca: boolean; velocidad: number; ritmo: number; cadera: number };
 
 const ALTURA_CAPSULA = 0.85; // capsule centre over the ground (index.ts): the VRM stands at capsule.y − this
 const REPASO_MS = 500;       // who wears a VRM is decided twice a second
@@ -24,19 +26,23 @@ const PRIMERO: Clip[] = ["quieto", "andar", "trotar"]; // asked for with the fir
 type Vrm = typeof import("./avatares-vrm.ts");
 type Avatar = {
   clave: number | "yo"; modelo: number; marcha: Marcha; estado: Estado; copia?: Copia;
-  clip?: Clip; accion?: THREE.AnimationAction; saliente?: THREE.AnimationAction; fundidoHasta: number;
+  clip?: string; tramo?: string; accion?: THREE.AnimationAction; saliente?: THREE.AnimationAction; fundidoHasta: number;
   ancla?: THREE.Object3D; mascara?: number; cerca: boolean;
   rumboFijo?: number; // pesca v2: while fishing the body faces the water (only while standing still)
 };
 
-export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: () => boolean; catalogo?: CatalogoAvatares; yo?: () => number; compilar?: (raiz: THREE.Object3D) => Promise<unknown>; suelo?: (x: number, z: number, y: number) => number }) {
+export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: () => boolean; catalogo?: CatalogoAvatares; yo?: () => number; compilar?: (raiz: THREE.Object3D) => Promise<unknown>; suelo?: (x: number, z: number, y: number) => number;
+  /** H10: which house avatar (index into `catalogo.modelos`, possibly grown with uploads by the caller) this player
+   * wears right now, or undefined to keep the old per-entity default (`elegirAvatar`). Asked every sync(). */
+  eleccion?: (clave: number | "yo") => number | undefined }) {
   const cat = o.catalogo;
   const n = cat?.modelos.length ?? 0;
   let vrm: Promise<{ m: Vrm; carga: ReturnType<Vrm["crearCargador"]> }> | null = null;
   let modulo: Vrm | null = null; // the heavy half, once it has arrived
   const herramientas = () => (vrm ??= import("./avatares-vrm.ts").then((m) => { modulo = m; return { m, carga: m.crearCargador() }; }));
   const plantillas = new Map<number, Plantilla>(), pedidas = new Set<number>(), fallidas = new Set<number>();
-  const anims = new Map<Clip, VRMAnimation>(), animPedidas = new Set<Clip>();
+  const anims = new Map<string, VRMAnimation>(), animPedidas = new Set<string>();
+  const movs = new Map<number | "yo", EnCurso>(); // J7b: who is making a move (only avatars that wear a VRM)
   const poza = new Map<number, Copia[]>();
   const avatares = new Map<number | "yo", Avatar>();
   const altos = new WeakMap<THREE.Object3D, { cima: number }>(); // N18: top of each VRM copy's head over its head bone
@@ -44,7 +50,9 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
   let conVrm = new Set<number>();
   const nivelesVoz = new Map<number, number>(); // U13: who you hear right now, 0..1 (apps/plaza/voz.ts pushes this)
   const natural: Partial<Record<Clip, number>> = {};
-  for (const [c, a] of Object.entries(cat?.animaciones ?? {})) natural[c as Clip] = a!.pasoPorCadera;
+  const duracion: Record<string, number> = {}; // N1b: loop lengths (s), for the step rate; J7b: how long each move's clip lasts
+  for (const [c, a] of Object.entries(cat?.animaciones ?? {})) { natural[c as Clip] = a!.pasoPorCadera; duracion[c] = a!.duracion ?? 0; }
+  const durDe = (c: string) => duracion[c];
 
   const fallo = (que: string, e: unknown) => { errores++; console.warn(`[avatares] ${que}: ${(e as Error)?.message ?? e}`); };
   function pedirModelo(i: number): void {
@@ -65,7 +73,7 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
       .catch((e) => { fallidas.add(i); fallo(`no se pudo cargar ${cat.modelos[i].url}`, e); })
       .finally(() => { cargando--; });
   }
-  function pedirAnim(c: Clip): void {
+  function pedirAnim(c: string): void {
     const a = cat?.animaciones[c];
     if (!a || animPedidas.has(c)) return;
     animPedidas.add(c); cargando++;
@@ -89,14 +97,17 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     const libres = poza.get(a.modelo) ?? [];
     if (libres.length < POZA) { libres.push(c); poza.set(a.modelo, libres); }
     else void herramientas().then(({ m }) => m.soltar(c));
-    a.copia = undefined; a.accion = undefined; a.saliente = undefined; a.clip = undefined;
+    a.copia = undefined; a.accion = undefined; a.saliente = undefined; a.clip = undefined; a.tramo = undefined;
+    movs.delete(a.clave);
   }
 
-  function poner(a: Avatar, clip: Clip, ahora: number, m: Vrm): void {
+  function poner(a: Avatar, clip: string, ahora: number, m: Vrm, bucle = true): void {
     const c = a.copia!;
     const nueva = c.mixer.clipAction(m.clipDe(c.plantilla, clip, anims.get(clip)!));
     if (a.saliente && a.saliente !== nueva) a.saliente.stop(); // a third clip mid-fade: the oldest goes
     a.saliente = undefined;
+    nueva.setLoop(bucle ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
+    nueva.clampWhenFinished = !bucle; // J7b: a move played once keeps its last pose until the next clip fades in
     nueva.reset(); nueva.setEffectiveWeight(1); nueva.setEffectiveTimeScale(1); nueva.play();
     if (a.accion && a.accion !== nueva) { nueva.crossFadeFrom(a.accion, FUNDIDO_S, false); a.saliente = a.accion; a.fundidoHasta = ahora + FUNDIDO_S * 1000; }
     a.accion = nueva; a.clip = clip;
@@ -113,11 +124,11 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     if (!p) { pedirModelo(a.modelo); return; }
     if (!m) return;
     const hay = (c: Clip) => anims.has(c);
-    const quiere = clipPara(a.estado, a.marcha.velocidad, p.cadera, natural, (c) => !!cat?.animaciones[c]);
+    const quiere = clipPara(a.estado, a.marcha.velocidad, p.cadera, natural, (c) => !!cat?.animaciones[c], duracion);
     if (quiere && !hay(quiere.clip)) pedirAnim(quiere.clip);
     if (!a.copia) {
       // dressed only when a first clip is there: never a frame of T-pose
-      const primero = clipPara(a.estado, a.marcha.velocidad, p.cadera, natural, hay);
+      const primero = clipPara(a.estado, a.marcha.velocidad, p.cadera, natural, hay, duracion);
       if (!primero) return;
       vestir(a, m, p);
       poner(a, primero.clip, ahora, m);
@@ -128,10 +139,21 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     c.raiz.position.set(pos.x, altura, pos.z);
     c.raiz.rotation.y = a.rumboFijo !== undefined && a.estado === "quieto" ? a.rumboFijo : a.marcha.rumbo;
     c.raiz.visible = !oculto;
-    // keep the old clip until the new one has loaded, then fade (SABER §3.4)
-    if (quiere && quiere.clip !== a.clip && hay(quiere.clip)) poner(a, quiere.clip, ahora, m);
+    // J7b: a move, while there is one, plays over the speed-driven clip; walking or jumping ends it (pasoDeMovimiento)
+    const mov = movs.get(a.clave);
+    let paso = mov ? pasoDeMovimiento(mov, ahora, a.estado, durDe, hay) : null;
+    if (mov) for (const c of mov.mov.clips) if (!hay(c)) pedirAnim(c); // fetched only now that someone plays it
+    if (paso?.fin) { movs.delete(a.clave); paso = null; }
+    if (mov && paso && !paso.esperar) {
+      const tramo = `${mov.serie}:${paso.tramo}`;
+      if (a.tramo !== tramo) { poner(a, paso.clip, ahora, m, paso.bucle); a.tramo = tramo; }
+    } else {
+      a.tramo = undefined;
+      // keep the old clip until the new one has loaded, then fade (SABER §3.4)
+      if (quiere && quiere.clip !== a.clip && hay(quiere.clip)) poner(a, quiere.clip, ahora, m);
+      if (a.accion && quiere && quiere.clip === a.clip) a.accion.setEffectiveTimeScale(quiere.ritmo);
+    }
     if (a.saliente && ahora > a.fundidoHasta) { a.saliente.stop(); a.saliente = undefined; }
-    if (a.accion && quiere && quiere.clip === a.clip) a.accion.setEffectiveTimeScale(quiere.ritmo);
     if (a.cerca && !oculto) { c.mixer.update(dt); c.humanoid.update(); } // far ones stand still (cold phones)
     // U13: your mouth shape is never driven here (you never hear yourself, voz.ts); others' comes from who you hear
     if (c.boca.length && typeof a.clave === "number") {
@@ -157,7 +179,7 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
       const quien = new Set<number | "yo">();
       if (yo) {
         quien.add("yo");
-        const modelo = elegirAvatar(Math.max(0, o.yo?.() ?? 0), n);
+        const modelo = o.eleccion?.("yo") ?? elegirAvatar(Math.max(0, o.yo?.() ?? 0), n);
         let a = avatares.get("yo");
         if (a && a.modelo !== modelo) { desvestir(a); avatares.delete("yo"); a = undefined; }
         if (!a) { a = { clave: "yo", modelo, marcha: nuevaMarcha(), estado: "quieto", fundidoHasta: 0, cerca: true }; avatares.set("yo", a); }
@@ -167,12 +189,24 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
         const ancla = otros.get(id);
         if (!ancla) continue;
         quien.add(id);
+        const modelo = o.eleccion?.(id) ?? elegirAvatar(id, n);
         let a = avatares.get(id);
-        if (!a) { a = { clave: id, modelo: elegirAvatar(id, n), marcha: nuevaMarcha(), estado: "quieto", fundidoHasta: 0, cerca: true }; avatares.set(id, a); }
+        if (a && a.modelo !== modelo) { desvestir(a); avatares.delete(id); a = undefined; } // H10: someone else just changed avatar
+        if (!a) { a = { clave: id, modelo, marcha: nuevaMarcha(), estado: "quieto", fundidoHasta: 0, cerca: true }; avatares.set(id, a); }
         actualizar(a, ancla, false, desde, ahora, dt, modulo);
       }
       for (const [k, a] of avatares) if (!quien.has(k)) { desvestir(a); avatares.delete(k); if (typeof k === "number") nivelesVoz.delete(k); }
-      ocupado = cargando > 0 || [...avatares.values()].some((a) => a.copia && a.cerca && (a.estado !== "quieto" || ahora < a.fundidoHasta));
+      ocupado = cargando > 0 || [...avatares.values()].some((a) => a.copia && a.cerca && (a.estado !== "quieto" || ahora < a.fundidoHasta || (movs.has(a.clave) && movimientoOcupa(movs.get(a.clave)!, ahora, durDe))));
+    },
+    /** J7b: play a move on this avatar (`null` stops it). False when it wears no VRM now (the caller shows a label). */
+    movimiento(clave: number | "yo", mov: Movimiento | null): boolean {
+      const a = avatares.get(clave);
+      if (!mov) { movs.delete(clave); return !!a?.copia; }
+      if (!a?.copia || !mov.clips.every((c) => cat?.animaciones[c])) return false;
+      for (const c of mov.clips) pedirAnim(c);
+      movs.set(clave, empezarMovimiento(mov, performance.now()));
+      ocupado = true; // draw the next frames even if the scene stood still
+      return true;
     },
     /** U13: who you hear right now, 0..1 (apps/plaza/voz.ts, the decoded/receiving side's volume) — `0` or
      * omitted stops driving that avatar's mouth (it closes on its own next frame, same as not being heard). */
@@ -214,7 +248,8 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     orientar(clave: number | "yo", rumbo: number | undefined): void { const a = avatares.get(clave); if (a) a.rumboFijo = rumbo; },
     /** For checks and the HUD: files, clips, and who wears what. */
     stats(): { cupo: number; modelos: { pedidos: number; cargados: number; fallidos: number }; animaciones: string[]; dibujados: number; errores: number; lista: EstadoAvatar[] } {
-      const lista: EstadoAvatar[] = [...avatares.values()].map((a) => ({ id: a.clave, modelo: cat?.modelos[a.modelo]?.nombre ?? "", estado: a.estado, clip: a.clip ?? null, dibujado: !!a.copia?.raiz.visible && !!a.copia?.raiz.parent, cerca: a.cerca }));
+      const lista: EstadoAvatar[] = [...avatares.values()].map((a) => ({ id: a.clave, modelo: cat?.modelos[a.modelo]?.nombre ?? "", estado: a.estado, clip: a.clip ?? null, movimiento: movs.get(a.clave)?.mov.id ?? null, dibujado: !!a.copia?.raiz.visible && !!a.copia?.raiz.parent, cerca: a.cerca,
+        velocidad: Math.round(a.marcha.velocidad * 100) / 100, ritmo: Math.round((a.accion?.getEffectiveTimeScale() ?? 0) * 100) / 100, cadera: Math.round((plantillas.get(a.modelo)?.cadera ?? 0) * 1000) / 1000 }));
       return { cupo: cupoVRM({ mobile: o.mobile, xr: o.xr() }), modelos: { pedidos: pedidas.size, cargados: plantillas.size, fallidos: fallidas.size }, animaciones: [...anims.keys()], dibujados: lista.filter((a) => a.dibujado).length, errores, lista };
     },
   };

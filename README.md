@@ -78,6 +78,7 @@ render talks to three.js only; game features live in features/<id>/
 | `core` | fixed point, seeded RNG, state hash, `Result` |
 | `schema` | one description per component/message: defaults, validation with paths, bits per field |
 | `ecs` | entities and columns (one `Int32Array` per field), ascending-id queries |
+| `relieve` | the pure terrain function of a naturaleza world (drawn by the page, collided by the sim) |
 | `sim` | deterministic 20 Hz step, snapshot, fingerprint, replay |
 | `net` | bit packing, quantised snapshots, area of interest, transports |
 | `feature` | the plug for game features, with accessibility built in |

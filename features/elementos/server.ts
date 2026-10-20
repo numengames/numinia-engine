@@ -59,6 +59,12 @@ export const crearElementos = (mundo?: unknown) => serverPart(elementos, (api) =
     poner(id, limpio({ ...m, nombre: m.nombre === undefined ? o.nombre : m.nombre }, o.tipo as Tipo));
     hecho(from, id, "cambiar");
   });
+  // H8 (R-1): «restaurar el mundo» — every element goes (whoever may build).
+  api.on("vaciar", (from) => {
+    if (!puede(from)) return;
+    for (const k of [...api.state.keys()]) { api.state.delete(k); api.store.delete(`a:${k}`); }
+    hecho(from, "", "vaciar");
+  });
   api.on("quitar", (from, m) => {
     if (!puede(from)) return;
     const id = String(m.id);
