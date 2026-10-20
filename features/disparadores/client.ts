@@ -15,6 +15,9 @@ export type NuevoDisparador = { id: string; tipo: "zona" | "boton" | "senal"; re
 export type CambioDisparador = { id: string; nombre: string; tipo: "zona" | "boton" | "senal"; senal: string; cooldown: number; unSoloUso: boolean; receptores: Record<string, unknown>[]; mover?: { x: number; y: number; z: number } };
 /** What the server answered about an edit the page asked for: «ok» (editado) or «no» with its Spanish reason (rechazado). */
 export type RespuestaCable = { que: "ok" | "no"; motivo: string; id: string };
+/** Historia D («Decirlo»): what the server told this page about it. `puede` false + `motivo` = hide the text box and show the reason. */
+export type EstadoDecir = { puede: boolean; motivo: string };
+export type RespuestaDecir = { que: "propuesta"; propuesta: string; frase: string } | { que: "no"; motivo: string } | { que: "creado"; id: string };
 type Res = { ok: true } | { ok: false; why: string };
 const SIN: Res = { ok: false, why: "la función disparadores no está en este servidor" };
 /** D-041 historias 5-6: lo que llega en el campo `receptores` del estado (JSON) o se manda a editar_receptores, sin
@@ -29,6 +32,9 @@ export function crearCliente() {
   let A: ClientApi | null = null;
   const oyentes = new Set<(id: string) => void>();
   const respuestas = new Set<(r: RespuestaCable) => void>();
+  const decires = new Set<(r: RespuestaDecir) => void>();
+  const puedeDecir: EstadoDecir = { puede: false, motivo: "" };
+  const alPuede = new Set<() => void>();
   // D-041 historias 3-4: what the receivers that only this page hears last did (for tests and agents; the player
   // hears/reads it through the normal announce — `teletransportado`, `enlace`). S6: `suena` belongs to the sound
   // piece now (features/sonido), which plays the house catalogue's file instead of the fixed beep that lived here.
@@ -47,6 +53,15 @@ export function crearCliente() {
     // Historia C: the sentence with blanks saves in one go; the server revalidates everything and answers `cableEditado`
     // (ok) or `rechazado` (its Spanish reason) — `alResponder` hands either to the panel, which shows it by the control.
     editarDisparador: (c: CambioDisparador): Res => (A ? A.send("editarDisparador", { disparador: c.id, nombre: c.nombre, tipo: c.tipo, senal: c.senal, cooldown: c.cooldown, unSoloUso: c.unSoloUso, receptores: JSON.stringify(c.receptores), mover: !!c.mover, x: c.mover?.x ?? 0, y: c.mover?.y ?? 0, z: c.mover?.z ?? 0 }) : SIN),
+    // Historia D: say a cable in words. The page only sends the sentence (and its language); the SERVER asks the AI, checks the
+    // answer like disparadores.json and sends back a proposal with its sentence; nothing changes until `confirmarCable`.
+    decir: {
+      estado: puedeDecir,
+      pedir: (texto: string, idioma = "es"): Res => (A ? A.send("decirCable", { texto, idioma }) : SIN),
+      confirmar: (propuesta: string): Res => (A ? A.send("confirmarCable", { propuesta }) : SIN),
+      alResponder: (fn: (r: RespuestaDecir) => void) => { decires.add(fn); return () => decires.delete(fn); },
+      alCambiar: (fn: () => void) => { alPuede.add(fn); return () => alPuede.delete(fn); },
+    },
     alResponder: (fn: (r: RespuestaCable) => void) => { respuestas.add(fn); return () => respuestas.delete(fn); },
     alCambiar: (fn: (id: string) => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
@@ -60,7 +75,10 @@ export function crearCliente() {
       for (const fn of oyentes) fn(key);
     });
     api.on("cableEditado", (m) => { for (const fn of respuestas) fn({ que: "ok", motivo: "", id: String(m.disparador ?? "") }); });
-    api.on("creado", (m) => { for (const fn of respuestas) fn({ que: "ok", motivo: "", id: String(m.disparador ?? "") }); });
+    api.on("creado", (m) => { for (const fn of respuestas) fn({ que: "ok", motivo: "", id: String(m.disparador ?? "") }); for (const fn of decires) fn({ que: "creado", id: String(m.disparador ?? "") }); });
+    api.on("puedeDecir", (m) => { puedeDecir.puede = m.puede === true; puedeDecir.motivo = String(m.motivo ?? ""); for (const fn of alPuede) fn(); });
+    api.on("cablePropuesto", (m) => { for (const fn of decires) fn({ que: "propuesta", propuesta: String(m.propuesta ?? ""), frase: String(m.frase ?? "") }); });
+    api.on("decirRechazado", (m) => { for (const fn of decires) fn({ que: "no", motivo: String(m.motivo ?? "") }); });
     api.on("rechazado", (m) => { for (const fn of respuestas) fn({ que: "no", motivo: String(m.motivo ?? ""), id: "" }); });
     api.on("disparado", (m) => { if (Number(m.quien)) api.view.bounce(Number(m.quien), 300); });
     // D-041 historia 4: the page only ASKS before opening a world-wired link (abre_enlace); it never auto-navigates.

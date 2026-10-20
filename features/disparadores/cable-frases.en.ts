@@ -77,4 +77,15 @@ export const FRASES_EN: Record<keyof typeof FRASES_ES, string> = {
   "nota.maximo": "A cable carries at most {max} actions.",
   "nota.sinOpciones": "(none yet)",
   "nota.elige": "Choose…",
+  // historia D — «Decirlo»: say what you want in a sentence; the server proposes a cable and waits for Apply
+  "decir.titulo": "Tell the world",
+  "decir.etiqueta": "Tell the world what you want to happen",
+  "decir.ejemplo": "For example: when someone steps into the circle, ring the bell",
+  "decir.boton": "Say it",
+  "decir.pensando": "Thinking…",
+  "decir.propuesta": "This is what I understood. Nothing has changed yet:",
+  "decir.aplicar": "Apply",
+  "decir.cancelar": "Cancel",
+  "decir.hecho": "Done: the cable is in place where you stand.",
+  "decir.cancelado": "Nothing was changed.",
 };

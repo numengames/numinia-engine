@@ -88,4 +88,15 @@ export const FRASES_ES = {
   "nota.maximo": "Un cable lleva como mucho {max} acciones.",
   "nota.sinOpciones": "(no hay ninguno)",
   "nota.elige": "Elige…",
+  // historia D — «Decirlo»: say what you want in a sentence; the server proposes a cable and waits for Aplicar
+  "decir.titulo": "Decírselo al mundo",
+  "decir.etiqueta": "Cuéntale al mundo qué quieres que pase",
+  "decir.ejemplo": "Por ejemplo: que al entrar en el círculo suene la campana",
+  "decir.boton": "Decirlo",
+  "decir.pensando": "Pensando…",
+  "decir.propuesta": "Esto es lo que he entendido. No se ha cambiado nada todavía:",
+  "decir.aplicar": "Aplicar",
+  "decir.cancelar": "Cancelar",
+  "decir.hecho": "Hecho: el cable está puesto en tu sitio.",
+  "decir.cancelado": "No se ha cambiado nada.",
 } as const;

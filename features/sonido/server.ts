@@ -144,6 +144,14 @@ export function leerCatalogo(crudo: unknown): Catalogo {
  *  el resto sigue sonando. Si NO aparece ni uno, este servidor no tiene índice de activos (una prueba, `npm run
  *  describe`): entonces no se quita nada y se dice una sola vez — mejor un catálogo entero sin comprobar que un
  *  mundo muerto. Devuelve los avisos; muta el catálogo. */
+/** The sounds a cable's «suena» may name (Historia D: «Decirlo» offers the model only these): the house names («campana»…, what
+ * `suena` takes besides a catalogue id) and the catalogue ids, not the looping beds nor the body's own steps. The page never gets
+ * this list from here (it asks the table over HTTP); only the server's composition root. */
+export const sonidosParaCable = (): string[] => {
+  const c = leerCatalogo(catalogoCrudo);
+  return [...Object.keys(c.casa), ...[...c.sonidos.values()].filter((x) => !x.bucle && x.bus !== "pasos-propios").map((x) => x.id)];
+};
+
 export function comprobarFicheros(c: Catalogo, hay: (sha256: string, ext: string) => boolean): string[] {
   let total = 0, estan = 0;
   // las filas `receta` no tienen fichero que comprobar: se saltan sin contarlas (si no, un catálogo de solo recetas

@@ -9,6 +9,8 @@
 // por idioma); la página SOLO pinta un control por hueco y manda UNA petición (editarDisparador o crearDisparador): el
 // servidor valida todo con el lector del fichero y su error, en español, sale junto al control. «+ Nuevo cable» abre
 // los mismos huecos con valores de partida; no existe hasta pulsar «Crear cable». Solo quien tiene permiso de construir.
+import { ESTILO_DECIR, montarDecir } from "./cable-decir.ts";
+import type { OpcionesDecir } from "./cable-decir.ts";
 import { idiomaDe, FRASES } from "../../features/disparadores/cable-frase.ts";
 import type { ClaveFrase } from "../../features/disparadores/cable-frase.ts";
 import { CONTEXTO_VACIO, huecosDeCable, receptorNuevo } from "../../features/disparadores/cable-huecos.ts";
@@ -19,11 +21,12 @@ export type Disparador = { id: string; nombre: string; tipo: Tipo; senal?: strin
 /** What «Crear cable» sends: one line of disparadores.json (the server fills nothing in and checks everything). */
 export type NuevoCable = { id: string; tipo: Tipo; nombre: string; x: number; y: number; z: number; radio: number; frase: string; senal: string; cooldown: number; unSoloUso: boolean; receptores: Record<string, unknown>[] };
 export type CambioCable = { id: string; nombre: string; tipo: Tipo; senal: string; cooldown: number; unSoloUso: boolean; receptores: Record<string, unknown>[]; mover?: { x: number; y: number; z: number } };
+type DecirDelCable = OpcionesDecir["decir"];
 export type OpcionesCable = {
   constructor: { estado: { puede: boolean }; escuchar(fn: (que: string) => void): () => void };
   disparadores: {
     lista(): Disparador[]; pulsar(id: string): Res; editarReceptores(id: string, receptores: Record<string, unknown>[]): Res; crearDisparador(d: NuevoCable): Res; borrarDisparador(id: string): Res;
-    editarDisparador(c: CambioCable): Res; alResponder(fn: (r: { que: "ok" | "no"; motivo: string; id: string }) => void): () => void; alCambiar(fn: (id: string) => void): () => void;
+    editarDisparador(c: CambioCable): Res; decir?: DecirDelCable; alResponder(fn: (r: { que: "ok" | "no"; motivo: string; id: string }) => void): () => void; alCambiar(fn: (id: string) => void): () => void;
   };
   aqui?(): { x: number; y: number; z: number } | null; // where the builder stands: a new cable goes there
   contexto?(): ContextoCable; // what the world offers to choose (objects, movers, quests, sounds); empty if not given
@@ -70,7 +73,7 @@ export function montarCable(o: OpcionesCable) {
   const idioma = (): string => idiomaDe(o.idioma ?? (typeof document !== "undefined" ? document.documentElement.lang : ""));
   const T = (k: ClaveFrase, v: Record<string, string> = {}): string => FRASES[idiomaDe(idioma())][k].replace(/\{(\w+)\}/g, (m, n: string) => v[n] ?? m);
   const ctx = (): ContextoCable => o.contexto?.() ?? CONTEXTO_VACIO;
-  if (!document.getElementById("cable-estilo")) { const st = document.createElement("style"); st.id = "cable-estilo"; st.textContent = ESTILO; document.head.append(st); }
+  if (!document.getElementById("cable-estilo")) { const st = document.createElement("style"); st.id = "cable-estilo"; st.textContent = ESTILO + ESTILO_DECIR; document.head.append(st); }
   const caja = document.createElement("div");
   caja.id = "cable-panel"; caja.setAttribute("role", "group"); caja.setAttribute("aria-label", "Cable: disparadores del mundo");
   const nuevo = document.createElement("button");
@@ -78,6 +81,9 @@ export function montarCable(o: OpcionesCable) {
   nuevo.setAttribute("aria-label", "Nuevo cable: preparar un botón en tu posición");
   nuevo.title = "Prepara un cable nuevo: un botón en el sitio donde estás. Elige qué hace y pulsa «Crear cable».";
   const lista = document.createElement("ul"); lista.id = "cable-lista";
+  // Historia D: «Decírselo al mundo» sits first; the server says whether this world has an AI (else the box hides and the reason shows)
+  const decirUI = o.disparadores.decir ? montarDecir({ decir: o.disparadores.decir, idioma, avisar: o.decir }) : null;
+  if (decirUI) caja.append(decirUI.raiz);
   caja.append(nuevo, lista);
   const confirmando = new Set<string>(); // cables whose «Borrar» is waiting for «Sí, borrar»
   o.panel?.append(caja);
@@ -324,6 +330,7 @@ export function montarCable(o: OpcionesCable) {
     const puede = o.constructor.estado.puede;
     caja.style.display = puede ? "" : "none";
     if (!puede) { confirmando.clear(); return; }
+    decirUI?.refrescar();
     const ds = o.disparadores.lista();
     for (const id of [...confirmando]) if (!ds.some((d) => d.id === id)) confirmando.delete(id);
     for (const id of [...filas.keys()]) if (!ds.some((d) => d.id === id)) filas.delete(id);

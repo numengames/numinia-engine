@@ -1090,7 +1090,47 @@ registro dice `nadie hace «teletransporta» en este servidor` en vez de callar.
   `aria-label` (se lee en orden); todo es nativo (Tab, flechas, Espacio); blancos táctiles de 44 px (ya con el
   «Tamaño de la interfaz»); a 360 px la frase baja de línea sin desbordar. «Ver datos» sigue como estaba.
   La historia D reutilizará este mismo `editarDisparador` y su validación.
-- **Lo que no hace (todavía):** «Decirlo» con una IA (D); mover un cable ya creado a otro sitio desde la página
+- **«Decírselo al mundo» (historia D, «cable sin JSON»):** en el panel Cable, quien puede construir escribe una frase
+  («que al entrar en el círculo suene la campana», hasta 300 caracteres), pulsa **Decirlo** y la página enseña lo que
+  entendió, ya escrito como frase, con **Aplicar** / **Cancelar**. Hasta pulsar Aplicar **no cambia nada**.
+  - **Quién llama al modelo:** el **servidor**, nunca la página. `decirCable {texto, idioma}` pide a la IA del mundo
+    que rellene **una herramienta cerrada** (`proponer_cable`, `features/disparadores/cable-decir.ts`): los 3 tipos,
+    las 8 acciones y, en los huecos de nombre, **solo** los objetos, movedores, misiones y sonidos que ese mundo tiene
+    de verdad (la herramienta se arma con sus listas y la API obliga al modelo a llamarla: `tool_choice`). Las reglas
+    van en el turno de sistema, fijas y sin datos del mundo; la frase del usuario y las listas van en el turno de usuario,
+    dentro de bloques de datos (`<material>`, `<frase>`), con `<` y `>` quitados para que nada cierre el bloque. Lo que
+    devuelve el modelo es **solo un dato**: pasa por el mismo lector que `disparadores.json` (`leerDisparador`: 8
+    receptores, tamaño, https, id…), por una comprobación de que cada nombre existe en el mundo, y nunca se ejecuta.
+    Si algo no cuadra, la persona recibe el motivo en español (`decirRechazado`) y no se aplica nada.
+  - **Dos pasos:** `decirCable` solo devuelve una **propuesta** (`cablePropuesto`: número y frase, calculada en el
+    servidor con `fraseDeCable` en el idioma de quien la pidió). `confirmarCable {propuesta}` la aplica, **solo la
+    misma persona, en 2 minutos** y con permiso de construir, volviendo a validar todo (el mundo pudo cambiar: un
+    objeto borrado, el tope de 64) y reescribiendo `disparadores.json`. La propuesta vive en la memoria del servidor.
+    Un cable de tipo botón o zona se pone **donde está quien lo pidió**, igual que «+ Nuevo cable».
+  - **Topes** (como los Topes del cerebro de los habitantes): 3 peticiones por minuto y persona, `CABLE_DIA_MAX` por día
+    UTC y mundo (100; `CABLE_MINUTO` cambia lo de por persona), una petición a la vez por persona y 4 en vuelo, 20 s
+    de espera al modelo. Si el modelo falla, durante 1 minuto se dice «La IA no contesta ahora mismo» sin repetir
+    lo que contestó el proveedor (puede repetir lo enviado; solo va al registro del servidor, 120 caracteres).
+  - **Dónde vive la clave:** donde ya vive la del cerebro de los habitantes, **no hay un segundo sitio**: `CEREBRO_CLAVE`
+    (o `ANTHROPIC_API_KEY`) y `CEREBRO_MODELO` en el entorno del servidor, leídos solo en `packages/server/src/cable-ia.ts`
+    y usados con `cerebroClaude` de `packages/agent/src/cerebro.ts`. La clave nunca sale de ahí: ningún mensaje, estado,
+    registro ni error la lleva, y la página no la ve (test con la clave puesta y búsqueda en todo lo que ven las páginas).
+    **Ojo con la instalación:** `instalar-motor.sh --clave-ia` guarda la clave en `cerebro.env`, que **solo carga el
+    servicio de los habitantes** (su usuario y su cortafuegos, que solo sale a Anthropic). El servicio del servidor
+    no la carga, así que **en una instalación así «Decirlo» queda apagado hasta que el dueño decida** darle la clave
+    al servidor (`EnvironmentFile=-…/cerebro.env` en su unidad y salida a Anthropic). No se hizo solo: es dinero y
+    cambia lo que la casa exige.
+  - **Sin IA no hay caja muerta:** el estado `puedeDecir {puede, motivo}` (solo para quien construye) dice si se puede
+    y, si no, por qué en español («Este mundo no tiene una IA conectada. Pide al dueño que la añada.», «Hoy este mundo
+    ya ha usado sus 100 peticiones…», «La IA no contesta ahora mismo…»). La página **oculta el cuadro y enseña el
+    motivo** en su lugar. En pruebas el modelo es una función inyectable (`crearDisparadores({ decir: { pensar } })`);
+    el servidor de pruebas e2e usa el cerebro eco con `CEREBRO_ECO=1` y `CABLE_ECO_RESPUESTAS=<fichero.json>`
+    (`{"<frase>": <entrada de proponer_cable>}`): solo existe si se arranca así, ninguna ruta de producción lo activa.
+  - **No toca la simulación:** la llamada es asíncrona y fuera del tick; la huella no cambia. Pieza reutilizable
+    (R-1): cualquier mundo que cargue `disparadores` y le enchufe un `pensar` lo tiene. Textos en `cable-frases.es.ts` y
+    `cable-frases.en.ts` (claves `decir.*`); `ja`, `ko` y `pt-br` siguen pendientes. En código: `disparadores.decir.pedir(texto)`,
+    `.confirmar(propuesta)`, `.estado`, `.alResponder(fn)`; página: `apps/plaza/cable-decir.ts`. Leg e2e: `tools/e2e-piernas/cable-decir.mjs`.
+- **Lo que no hace (todavía):** mover un cable ya creado a otro sitio desde la página
   (`editarDisparador` ya lo admite con `mover`, la página solo lo usa al salir de «señal»). La vista del constructor (`apps/plaza/cable.ts`) lista cada disparador, deja «Probar» un botón y edita
   en vivo sus receptores (`editarReceptores`: el servidor valida cada receptor igual que al leer el fichero y, si
   acepta, reescribe `disparadores.json`; el campo `receptores` del estado viaja a toda página, como el resto de la

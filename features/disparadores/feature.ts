@@ -24,6 +24,13 @@ export type Accion = (typeof ACCIONES)[number];
  * esquema del motor no tiene un tipo «lista»; hasta RECEPTORES_MAX objetos pequeños caben de sobra en este tope,
  * y 512 es el máximo que admite un campo de texto del motor). */
 export const RECEPTORES_JSON_MAX_BYTES = 512;
+/** Historia D («Decirlo»): the longest sentence a builder may say (characters), how long a proposal waits for «Aplicar»
+ * (seconds) and the world's default cap of asks to the AI per UTC day (the installer's CEREBRO_DIA_MAX does not count here:
+ * this one is the cable's own, `CABLE_DIA_MAX`). */
+export const DECIR_TEXTO_MAX = 300;
+export const PROPUESTA_VIDA_S = 120;
+export const DECIR_DIA_MAX = 100;
+export const DECIR_MINUTO_PERSONA = 3;
 export const TIPOS = ["zona", "boton", "senal"] as const;
 export type Tipo = (typeof TIPOS)[number];
 
@@ -89,6 +96,18 @@ export const disparadores = defineFeature({
       },
       rate: { perSecond: 1, burst: 3 },
     },
+    decirCable: {
+      describe: "Historia D del cable sin JSON («Decirlo»): quien construye escribe una frase («que al entrar en el círculo suene la campana») y el SERVIDOR (nunca la página) se la da a la IA conectada al mundo, que solo puede elegir de listas cerradas (los 3 tipos, las 8 acciones, los objetos, movedores, misiones y sonidos que de verdad hay). La respuesta se valida con el mismo lector que disparadores.json y NO se aplica: vuelve como una propuesta (`cablePropuesto`, con la frase ya escrita) que hay que confirmar con confirmarCable. Solo con permiso de construir, 3 por minuto por persona, un tope por día y mundo, hasta 300 caracteres. Sin IA conectada o sin cupo se rechaza diciendo por qué (y `puedeDecir` ya lo había dicho).",
+      spoken: "decirle al mundo qué cable quieres",
+      fields: { texto: { kind: "text", maxBytes: 512 }, idioma: { kind: "enum", values: ["es", "en"], default: "es" } },
+      rate: { perSecond: 2, burst: 4 },
+    },
+    confirmarCable: {
+      describe: "Historia D: aplica la propuesta que devolvió decirCable. Solo la misma persona que la pidió, durante 2 minutos, y con permiso de construir. El servidor vuelve a validarlo todo (mismo lector, objetos que existan, tope de 64) antes de crear el cable y reescribir disparadores.json; si algo ya no cuadra, no hace nada y lo dice.",
+      spoken: "aplicar el cable propuesto",
+      fields: { propuesta: ID },
+      rate: { perSecond: 1, burst: 3 },
+    },
     borrarDisparador: {
       describe: "Historia A del cable sin JSON: borra en vivo un disparador que existe (también de disparadores.json). Solo quien tiene permiso de construir; un id que no existe se rechaza diciendo cuál.",
       spoken: "borrar un cable",
@@ -118,6 +137,9 @@ export const disparadores = defineFeature({
       fields: { disparador: ID },
       announce: "silent",
     },
+    puedeDecir: { describe: "Historia D: ¿puede ESTA persona usar «Decirlo» ahora? (`puede`) y, si no, el motivo en español para enseñarlo donde estaría el cuadro («Este mundo no tiene una IA conectada…», cupo del día agotado, la IA no contesta). Solo para quien construye; no lleva ninguna clave ni dato del proveedor.", fields: { puede: { kind: "bool" }, motivo: { kind: "text", maxBytes: 200, default: "" } }, announce: "silent" },
+    cablePropuesto: { describe: "Historia D: la IA entendió la frase y lo que propone ya pasó la validación del servidor; `frase` es el cable dicho en palabras (en el idioma que pidió la persona) y `propuesta` el número con el que se confirma. Nada se ha aplicado todavía. Solo para quien lo pidió.", fields: { propuesta: ID, frase: { kind: "text", maxBytes: 512 } }, announce: "silent" },
+    decirRechazado: { describe: "Historia D: decirCable o confirmarCable no se hizo, y por qué (sin permiso, sin IA, sin cupo, frase vacía o demasiado larga, la IA no contestó o propuso algo que el mundo no acepta, propuesta caducada o de otra persona).", fields: { motivo: { kind: "text", maxBytes: 200 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
     cableEditado: { describe: "Historia C: editarDisparador se hizo (el disparador que cambió). Solo para quien lo editó; los demás ven el cambio en el estado.", fields: { disparador: ID }, announce: "silent" },
     creado: { describe: "Historia A: crearDisparador se hizo (el disparador nuevo). Solo para quien lo creó; los demás ven el disparador nuevo en el estado.", fields: { disparador: ID }, announce: { text: "Cable «{disparador}» creado.", sound: "exito", importance: 1 } },
     borrado: { describe: "Historia A: borrarDisparador se hizo (el disparador que ya no está). Solo para quien lo borró; los demás lo ven desaparecer del estado.", fields: { disparador: ID }, announce: { text: "Cable «{disparador}» borrado.", sound: "suave", importance: 1 } },

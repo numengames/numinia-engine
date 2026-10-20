@@ -1354,3 +1354,14 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `cable/sin-json`, sin subir.
 - Siguiente: historia D («Decirlo» con IA) reutilizando `editarDisparador`.
+
+## 2026-10-20 14:45 · cable sin JSON, historia D · hecho
+- Qué: «Decírselo al mundo» en el panel Cable. Quien construye escribe una frase («que al entrar en el círculo suene la campana», ≤300 caracteres); el **servidor** (nunca la página) se la da a la IA del mundo con una herramienta cerrada (3 tipos, 8 acciones, solo los objetos/movedores/misiones/sonidos que ese mundo tiene), valida la respuesta con el mismo lector que `disparadores.json` y los nombres reales, y devuelve una **propuesta** con su frase (`fraseDeCable`, en el idioma de quien pregunta). Nada cambia hasta **Aplicar** (`confirmarCable`: misma persona, 2 min, vuelve a validar, reescribe el fichero). Sin IA, sin cupo o con la IA caída el cuadro se oculta y se ve el motivo (`puedeDecir`).
+- La clave: la misma del cerebro de los habitantes (`CEREBRO_CLAVE`/`ANTHROPIC_API_KEY`, `cerebroClaude`), leída solo en `packages/server/src/cable-ia.ts`; ningún mensaje, estado, registro ni error la lleva (test). Topes: 3/min por persona, `CABLE_DIA_MAX` (100) por día y mundo. Cambios de apoyo: `forzar` (tool_choice) en `cerebro.ts`; `api.estadoDe(feature)` (lectura) en `packages/feature`.
+- **Ojo (para Pablo):** `instalar-motor.sh --clave-ia` guarda la clave en `cerebro.env`, que solo carga el servicio de los habitantes (su cortafuegos solo sale a Anthropic). El servidor no la carga: en una instalación así «Decirlo» queda apagado (con su motivo) hasta que se decida darle la clave al servidor. No lo he tocado: es dinero y cambia lo que la casa exige.
+- Tests: `test/cable-decir.test.ts` (18: propuesta buena, objeto/movedor/misión/sonido inexistente, salida inválida, sin permiso, sin IA, topes, texto largo, caída del modelo, confirmar, otra persona, caducada, mundo cambiado, inyección en el turno de usuario, clave nunca visible, adaptador con fetch falso, huella igual); `npm test` 1418/1418 (naturaleza-hierba, de tiempo, falló una vez bajo carga y pasa sola); gates en verde; build ok. e2e `tools/e2e-piernas/cable-decir.mjs` (cerebro eco `CEREBRO_ECO=1`, navegador real, 1000 px y 360x640, un mundo con IA y otro sin).
+- **No verificado:** ninguna llamada a Claude de verdad (ni con clave, ni de red). Todo con el cerebro eco y un `fetch` falso.
+- Idiomas: es y en (claves `decir.*`, paridad en verde). **`ja`, `ko` y `pt-br` siguen pendientes** (caen en español).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `cable/sin-json`, sin subir.
+- Siguiente: decidir cómo recibe la clave el servidor instalado; probar con una clave real (con permiso); ja/ko/pt-br.
