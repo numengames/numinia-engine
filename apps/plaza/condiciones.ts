@@ -15,8 +15,8 @@
 // no brand here. c4 (VR) and c5 (the bubble seen from outside) read `estado` and call the same methods.
 import type { CondicionesAceptado, CondicionesCapa, CondicionesMensaje, CondicionesPunto } from "../../packages/net/src/index.ts";
 import {
-  aceptacion, conservados, ETIQUETAS, esVuelta, flechaVersion, lineaQuitado, marcasVacias, NOTA_DATOS_VUELVE, pideBurbuja, planificar, porcentajeLeido, puedeSeguir, ROTULO_TODO,
-  rotuloAcepto, rotuloSinOpcional, SUBTITULO_CAMBIOS, TITULO_CAMBIOS, todoMarcado,
+  aceptacion, botonesDePie, conservados, ETIQUETAS, esVuelta, flechaVersion, lineaQuitado, marcasVacias, NOTA_DATOS_VUELVE, pideBurbuja, planificar, porcentajeLeido, puedeSeguir,
+  rotuloNormas, textosDePaso, todoMarcado,
 } from "./condiciones-logica.ts";
 import type { Marcas, Paso } from "./condiciones-logica.ts";
 
@@ -42,6 +42,9 @@ export type OpcionesCondiciones = {
   movil?(): boolean;
   /** time budget, for tests */
   esperaMs?: number;
+  /** c4: where the page can enter VR (the headset's browser, a PC with a headset). While the bubble is up the page behind it is `inert`, so
+   * the bar's «Entrar en VR» cannot be reached: the bubble carries its own button. `soportado` is read at each draw. */
+  vr?: { soportado(): boolean; activo(): boolean; entrar(): void };
 };
 
 const ESPERA_RESPUESTA_MS = 5000;
@@ -171,7 +174,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
   let raiz: HTMLElement | null = null;
   let filas: HTMLElement | null = null;
   let panel: HTMLElement | null = null, titulo: HTMLElement | null = null, cuerpo: HTMLElement | null = null, pie: HTMLElement | null = null, cab: HTMLElement | null = null;
-  let aviso: HTMLElement | null = null, anuncio: HTMLElement | null = null;
+  let aviso: HTMLElement | null = null, anuncio: HTMLElement | null = null, textoAviso = ""; // c4: the alert's words, for the headset's panel
   let pasos: Paso[] = [], capas: CondicionesCapa[] = [], firma = "";
   let aceptado: CondicionesAceptado | null = null, verTexto = false; // c6: what the server kept of this person; «Ver todo el texto» of the changes
   let marcas: Marcas = marcasVacias();
@@ -190,6 +193,14 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     get pasos(): Paso[] { return pasos; },
     get marcas(): Marcas { return marcas; },
     get enviando(): boolean { return enviando; },
+    /** c4: the bubble is leaving (the farewell page is up, or the city is loading) */
+    get saliendo(): boolean { return saliendo; },
+    /** c4: the server let you through and the bubble is bursting */
+    get estallando(): boolean { return estallando; },
+    /** c4: what the alert says now ('' = nothing) */
+    get aviso(): string { return textoAviso; },
+    /** c4: the capas as the server sent them (the headset's panel needs the layers' names) */
+    get capas(): CondicionesCapa[] { return capas; },
   };
   const avisarCambio = () => { for (const f of cambios) try { f(); } catch { /* an observer never breaks the panel */ } };
 
@@ -213,25 +224,15 @@ export function montarCondiciones(o: OpcionesCondiciones) {
   const guardiaFoco = (e: FocusEvent) => { if (raiz && !raiz.contains(e.target as Node)) titulo?.focus({ preventScroll: true }); };
 
   // ---------- drawing ----------
-  const hayDatos = () => pasos.some((p) => p.tipo === "datos");
-  const ultimo = () => i >= pasos.length - 1;
   const huella = (cs: CondicionesCapa[]) => JSON.stringify(cs.map((c) => [c.capa, c.version, c.puntos.map((p) => p.id), c.cambios ?? null])); // what makes this bubble a different one
   const vuelta = () => esVuelta(pasos); // c6: the person is back; only what changed is shown
 
   function cabecera(p: Paso): void {
-    const mundo = o.mundo();
+    const t = textosDePaso(p, capas, o.mundo()); // c4: the same words in the headset (condiciones-logica.ts)
     cab!.replaceChildren();
-    cab!.append(el("div", "etq", p.tipo === "capa" && p.cambios ? `${p.nombre} · ${flechaVersion(p.cambios.desde, p.version)}` : mundo ? `Antes de entrar · ${mundo}` : "Antes de entrar"));
-    titulo = el("h1"); titulo.id = "condiciones-titulo"; titulo.tabIndex = -1;
-    const sub = el("p", "sub"); sub.id = "condiciones-sub";
-    if (p.tipo === "capa" && p.cambios) { titulo.textContent = TITULO_CAMBIOS; sub.textContent = SUBTITULO_CAMBIOS; }
-    else if (p.tipo === "datos") { titulo.textContent = "Lo que tú eliges"; sub.textContent = "Esto es opcional: entras igual digas sí o no. Ninguna casilla sale marcada."; }
-    else if (p.capa === "casa") { titulo.textContent = "Las normas de este sitio"; sub.textContent = "Mientras no aceptes estás en esta burbuja: ves el mundo, pero nadie te oye y no puedes tocar nada."; }
-    else {
-      const propio = capas.find((c) => c.capa === p.capa)?.nombre;
-      titulo.textContent = propio ? `Las normas de ${propio}` : "Las normas de la comunidad";
-      sub.textContent = `${propio ?? "La comunidad"} añade estas normas a las anteriores. No pueden quitar nada de ellas.`;
-    }
+    cab!.append(el("div", "etq", t.eyebrow));
+    titulo = el("h1", "", t.titulo); titulo.id = "condiciones-titulo"; titulo.tabIndex = -1;
+    const sub = el("p", "sub", t.subtitulo); sub.id = "condiciones-sub";
     cab!.append(titulo, sub);
     const lista = el("ol", "pasos"); lista.setAttribute("aria-label", "Pasos"); lista.hidden = vuelta() && pasos.length === 1; // one page, no steps to count
     pasos.forEach((x, k) => {
@@ -279,7 +280,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     }
     col.append(ul);
     if (p.exige) {
-      const c = caja(rotuloAcepto(p), marcas.normas[p.capa] === true, (v) => { marcas.normas[p.capa] = v; limpiarAviso(); pintarPie(); avisarCambio(); }, "acepto");
+      const c = caja(rotuloNormas(p, capas), marcas.normas[p.capa] === true, (v) => { marcas.normas[p.capa] = v; limpiarAviso(); pintarPie(); avisarCambio(); }, "acepto");
       c.input.id = `condiciones-ok-${p.capa}`; c.input.setAttribute("aria-required", "true");
       col.append(c.fila);
     }
@@ -310,7 +311,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     });
     der.append(leer, texto, barra, pieLectura);
     if (p.exige) {
-      const c = caja(`He leído y acepto las normas${p.capa === "casa" ? "" : ` de ${capas.find((x) => x.capa === p.capa)?.nombre ?? "la comunidad"}`}`, marcas.normas[p.capa] === true, (v) => { marcas.normas[p.capa] = v; limpiarAviso(); pintarPie(); avisarCambio(); }, "oblig");
+      const c = caja(rotuloNormas(p, capas), marcas.normas[p.capa] === true, (v) => { marcas.normas[p.capa] = v; limpiarAviso(); pintarPie(); avisarCambio(); }, "oblig");
       c.input.id = `condiciones-ok-${p.capa}`;
       const obl = el("em", "", "Obligatorio"); c.fila.append(obl);
       der.append(c.fila);
@@ -348,17 +349,17 @@ export function montarCondiciones(o: OpcionesCondiciones) {
       ver.append(t);
     }
     const der = el("div", "der");
-    const btn = (texto: string, clase: string, alPulsar: () => void, id: string, desactivado = false): HTMLButtonElement => {
-      const b = el("button", `btn ${clase}`.trim(), texto); b.type = "button"; b.id = id; b.disabled = desactivado || enviando || saliendo; b.addEventListener("click", alPulsar); return b;
-    };
-    if (i > 0) der.append(btn("← Atrás", "secundario", () => ir(i - 1), "condiciones-atras"));
-    der.append(btn("Salir", "secundario", () => salir(), "condiciones-salir", false));
-    if (!ultimo()) der.append(btn("Siguiente →", "prim", () => ir(i + 1), "condiciones-siguiente", !puedeSeguir(p, marcas)));
-    else if (hayDatos() && p.tipo === "datos") {
-      // the same size and the same colour (AEPD: refusing is as easy as accepting)
-      der.append(btn(rotuloSinOpcional(marcas.datos.size), "prim decision", () => enviar("marcadas"), "condiciones-sin-opcional", !todoMarcado(pasos, marcas)));
-      der.append(btn(ROTULO_TODO, "prim decision", () => enviar("todo"), "condiciones-todo", !todoMarcado(pasos, marcas)));
-    } else der.append(btn(vuelta() ? "Acepto y entro" : "Aceptar y entrar", "prim", () => enviar("ninguna"), "condiciones-aceptar", !puedeSeguir(p, marcas)));
+    const ocupado = enviando || saliendo;
+    const acciones: Record<string, () => void> = { atras: () => ir(i - 1), salir: () => salir(), siguiente: () => ir(i + 1), "sin-opcional": () => enviar("marcadas"), todo: () => enviar("todo"), aceptar: () => enviar("ninguna") };
+    for (const bt of botonesDePie(pasos, i, marcas, ocupado)) { // c4: the buttons and when they are off are condiciones-logica.ts's, the headset reads the same
+      // the two decisions: the same size and the same colour (AEPD: refusing is as easy as accepting)
+      const b = el("button", `btn ${bt.prim ? "prim" : "secundario"}${bt.decision ? " decision" : ""}`, bt.texto); b.type = "button"; b.id = `condiciones-${bt.id}`; b.disabled = bt.desactivado;
+      b.addEventListener("click", acciones[bt.id]); der.append(b);
+    }
+    if (o.vr?.soportado() && !o.vr.activo()) { // c4: the page behind is inert, so the bar's button is out of reach: this one enters VR (the bubble comes with you)
+      const v = el("button", "btn secundario", "Entrar en VR"); v.type = "button"; v.id = "condiciones-vr"; v.disabled = ocupado; v.title = "Sigues en este mismo paso, con las casillas como las dejaste";
+      v.addEventListener("click", () => o.vr!.entrar()); der.prepend(v);
+    }
     pie.append(ver, der);
     if (p.tipo === "capa" && p.exige && !puedeSeguir(p, marcas)) { const ayuda = el("span", "solo-lector", "Marca la casilla de aceptar para seguir."); ayuda.id = "condiciones-ayuda"; pie.append(ayuda); }
   }
@@ -367,7 +368,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     const p = pasos[i]; if (!p || !panel || !cuerpo) return;
     raiz!.dataset.paso = p.tipo === "datos" ? "datos" : "capa";
     cabecera(p);
-    aviso = el("p", "aviso"); aviso.setAttribute("role", "alert"); // empty = no room taken
+    aviso = el("p", "aviso"); aviso.setAttribute("role", "alert"); textoAviso = ""; // empty = no room taken
     filas = el("div", "filas");
     cuerpo.replaceChildren(aviso, filas);
     if (p.tipo === "capa") paginaDeCapa(p); else paginaDeDatos(p);
@@ -377,7 +378,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     avisarCambio();
   }
 
-  const limpiarAviso = () => { if (aviso) aviso.textContent = ""; };
+  const limpiarAviso = () => { if (aviso) aviso.textContent = ""; textoAviso = ""; };
 
   function ir(k: number): void {
     if (enviando || saliendo || k < 0 || k >= pasos.length || (k > i && !puedeSeguir(pasos[i], marcas))) return;
@@ -391,19 +392,19 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     if (modo === "todo") for (const p of pasos) if (p.tipo === "datos") for (const x of p.permisos) marcas.datos.add(x.punto.id);
     const a = aceptacion(pasos, marcas, modo, conservados(capas, aceptado));
     if (!s.aceptar(a.versiones, a.datos)) { fallo("No he podido enviar tu respuesta. Prueba otra vez."); return; }
-    enviando = true; pintarPie(); panel?.setAttribute("aria-busy", "true"); decir("Enviando tu respuesta…");
+    enviando = true; pintarPie(); panel?.setAttribute("aria-busy", "true"); decir("Enviando tu respuesta…"); avisarCambio();
     espera = setTimeout(() => { if (enviando) fallo("El servidor no contesta. Prueba otra vez."); }, o.esperaMs ?? ESPERA_RESPUESTA_MS);
   }
   function fallo(texto: string): void {
     enviando = false; if (espera) clearTimeout(espera); espera = null;
     panel?.removeAttribute("aria-busy");
-    if (aviso) aviso.textContent = texto; decir(texto); pintarPie();
+    if (aviso) aviso.textContent = texto; textoAviso = texto; decir(texto); pintarPie(); avisarCambio();
   }
 
   // ---------- leaving ----------
   function salir(sinCiudad = false): void { // `sinCiudad`: for tests and for worlds where the city is not reachable; the farewell page stays
     if (saliendo) return;
-    saliendo = true;
+    saliendo = true; avisarCambio();
     o.cerrarConexion?.(); // the server hears the goodbye: it never saw an acceptance
     const ciudad = sinCiudad ? null : o.ciudadUrl?.() ?? null;
     if (ciudad) { location.href = ciudad; return; }

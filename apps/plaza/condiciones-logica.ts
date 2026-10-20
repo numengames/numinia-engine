@@ -121,3 +121,41 @@ export function porcentajeLeido(scrollTop: number, clientHeight: number, scrollH
   if (recorrido <= 1) return 100;
   return Math.max(0, Math.min(100, Math.round(((scrollTop) / recorrido) * 100)));
 }
+
+// ---- c4 (VR): the words of a step and the footer's buttons, shared by the flat panel (condiciones.ts) and the one in the headset
+// (condiciones-vr-logica.ts): the two are views of THIS file, so what a button says and when it is off cannot drift apart. ----
+
+/** The three texts above a step: the small line, the title and the one-line explanation. `mundo` is the world's name ('' = none). */
+export function textosDePaso(p: Paso, capas: CondicionesCapa[], mundo: string): { eyebrow: string; titulo: string; subtitulo: string } {
+  const eyebrow = p.tipo === "capa" && p.cambios ? `${p.nombre} · ${flechaVersion(p.cambios.desde, p.version)}` : mundo ? `Antes de entrar · ${mundo}` : "Antes de entrar";
+  if (p.tipo === "capa" && p.cambios) return { eyebrow, titulo: TITULO_CAMBIOS, subtitulo: SUBTITULO_CAMBIOS };
+  if (p.tipo === "datos") return { eyebrow, titulo: "Lo que tú eliges", subtitulo: "Esto es opcional: entras igual digas sí o no. Ninguna casilla sale marcada." };
+  if (p.capa === "casa") return { eyebrow, titulo: "Las normas de este sitio", subtitulo: "Mientras no aceptes estás en esta burbuja: ves el mundo, pero nadie te oye y no puedes tocar nada." };
+  const propio = capas.find((c) => c.capa === p.capa)?.nombre;
+  return { eyebrow, titulo: propio ? `Las normas de ${propio}` : "Las normas de la comunidad", subtitulo: `${propio ?? "La comunidad"} añade estas normas a las anteriores. No pueden quitar nada de ellas.` };
+}
+
+/** The label of the box that accepts a layer's norms («He leído y acepto las normas», or the returning layer's «Acepto la versión 1.1…»). */
+export function rotuloNormas(p: PasoCapa, capas: CondicionesCapa[]): string {
+  if (p.cambios) return rotuloAcepto(p);
+  return `He leído y acepto las normas${p.capa === "casa" ? "" : ` de ${capas.find((x) => x.capa === p.capa)?.nombre ?? "la comunidad"}`}`;
+}
+
+export type BotonPie = { id: "atras" | "salir" | "siguiente" | "sin-opcional" | "todo" | "aceptar"; texto: string; /** the filled style (the two decisions share it) */ prim: boolean; decision: boolean; desactivado: boolean };
+/** The footer's buttons in order: «← Atrás» (not on the first step), «Salir», then «Siguiente →» or, on the last step, the way in
+ * (two equal buttons after «Tus datos», one otherwise). `ocupado` = answer sent or leaving: every button is off. */
+export function botonesDePie(pasos: Paso[], i: number, m: Marcas, ocupado = false): BotonPie[] {
+  const p = pasos[i];
+  if (!p) return [];
+  const out: BotonPie[] = [];
+  const b = (id: BotonPie["id"], texto: string, prim: boolean, decision: boolean, desactivado: boolean): void => { out.push({ id, texto, prim, decision, desactivado: desactivado || ocupado }); };
+  if (i > 0) b("atras", "← Atrás", false, false, false);
+  b("salir", "Salir", false, false, false);
+  const vuelta = esVuelta(pasos);
+  if (!esUltimo(pasos, i)) b("siguiente", "Siguiente →", true, false, !puedeSeguir(p, m));
+  else if (pasos.some((x) => x.tipo === "datos") && p.tipo === "datos") {
+    b("sin-opcional", rotuloSinOpcional(m.datos.size), true, true, !todoMarcado(pasos, m));
+    b("todo", ROTULO_TODO, true, true, !todoMarcado(pasos, m));
+  } else b("aceptar", vuelta ? "Acepto y entro" : "Aceptar y entrar", true, false, !puedeSeguir(p, m));
+  return out;
+}

@@ -70,6 +70,7 @@ import { ancestros } from "../../features/ancestros/client.ts"; // ancestros v1:
 import { montarAncestros } from "./ancestros.ts";
 import { montarVoz } from "./voz.ts";
 import { montarPantalla } from "./pantalla.ts";
+import { montarCondicionesXR } from "./condiciones-xr.ts"; // condiciones/c4: the same bubble as a panel inside the headset
 import { montarCondiciones } from "./condiciones.ts"; // condiciones/c3: the bubble of entry (only when the world's gate is on; the server decides)
 import { montarGraboso } from "./graboso.ts"; // M18b: the relic that records what you see (K)
 import { icono } from "./iconos.ts";
@@ -199,7 +200,9 @@ session.onLeyendo = (entidad, si) => view.leyendo(entidad, si);
 
 // condiciones/c3: with the world's gate on, the server sends its conditions after you join and you stand in a bubble until you accept;
 // with it off it sends nothing and this does nothing. The gate itself is the server's; here the walking input is also held still.
-const condiciones = montarCondiciones({ session, mundo: () => nombreDelMundo, decir: (t) => anunciar(t), ciudadUrl: () => ciudad.url, cerrarConexion: () => transport.close(), movil: () => enMovil });
+const condiciones = montarCondiciones({ session, mundo: () => nombreDelMundo, decir: (t) => anunciar(t), ciudadUrl: () => ciudad.url, cerrarConexion: () => transport.close(), movil: () => enMovil,
+  vr: { soportado: () => vrDisponible, activo: () => view.vr.active, entrar: () => { if (view.vr.state === "off") void view.vr.enter().then((ok) => { if (!ok) session.report({ k: "xr", modo: "vr", accion: "falla", detalle: view.vr.lastError }); }); } } });
+let vrDisponible = false; // set once the browser says it can present VR (below); the bubble then offers its own «Entrar en VR»
 
 // ---- the features' actions: a key on desktop, a button on touch screens; the help line lists them ----
 const acts = session.features.actions();
@@ -320,6 +323,7 @@ const interaccion = montarInteraccion({ session, view, boton: document.getElemen
   persona: (x, y) => { const q = view.pickPerson(x, y); return q !== null && gente.tarjeta(q); } }); // ux2-gente: a click on someone = their card
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
 const xr = montarXR({ session, view, misiones, interaccion }); // J10: hands in VR take, point and answer; what you took is in your hand
+const condicionesXR = montarCondicionesXR({ condiciones, vr: view.vr as never, mundo: () => nombreDelMundo, soportado: () => vrDisponible }); // condiciones/c4
 montarDialogo(misiones, document.getElementById("dialogo")!, view);
 const nombres = montarVerNombres(view); // U22: Alt / «Nombres» button / gamepad Back: every name; otherwise only who you look at and who speaks
 misiones.alCambiar((que) => { if (que === "dialogo") view.hablando(misiones.dialogo() ? `pnj:${misiones.dialogo()!.pnj}` : null); }); // U22: the one you talk to shows its name
@@ -472,6 +476,7 @@ setInterval(() => { arBtn.textContent = view.ar.jugando ? "Dardos en tu pared (s
 const vrBtn = document.getElementById("vr") as HTMLButtonElement;
 view.vrSupported().then((ok) => {
   if (!ok) return;
+  vrDisponible = true;
   vrBtn.hidden = false;
   vrBtn.onclick = () => { if (view.vr.state === "off") void view.vr.enter().then((ok) => { if (!ok) session.report({ k: "xr", modo: "vr", accion: "falla", detalle: view.vr.lastError }); }); else void view.vr.exit(); };
 });
@@ -555,6 +560,7 @@ view.loop((now) => {
   if (session.welcome && !informe.bienvenidaMs) informe.bienvenidaMs = Math.round(performance.now());
   if (probe.done && informe.primerCuadroMs && !informe.entrada) void enviarEntrada();
   // power policy (P2): skip the draw when hidden or when nothing changes; the 20 Hz ticks above never skip
+  condicionesXR.tick(); // condiciones/c4: the bubble inside the headset (nothing to do unless the bubble is up and VR is presenting)
   const enSecuencia = misiones.cuadro(); // U14 (5): a sequence only this player sees moves its people (no work when none plays)
   const sig = lastSig; lastSig = signature();
   if (sig !== lastSig || keys.size > 0 || touch || view.vr.active || view.ar.state !== "off" || view.busy() || enSecuencia) lastActive = now;
