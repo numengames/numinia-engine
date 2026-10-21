@@ -1519,3 +1519,14 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `feat/ia-llamar` (S8–S11 y el puente de `feat/ia-puente`, con origin/main 9573c2ae), PR contra `main`.
 - Siguiente: S14 (numinia-web refresca `puente-mundo.mjs` para dar estas herramientas a las IAs conectadas); S16 completo en el puente; idiomas.
+
+
+## 2026-10-21 · funciones f3 · hecho
+- Qué: historia f3 (0.33.0): el bloque «Funciones de este mundo» en el cajón Entorno (PC y móvil), debajo de «Espacio base»: interruptores
+  «Normas de entrada», «Dardos» y «Pesca» con el mismo aspecto que el de «Espacio base», el estado real del servidor, `fija` desactivado con
+  «Lo fija el servidor.», y sin bloque para quien no construye. Lógica pura y textos es/en en `features/funciones/panel.ts` (+ `frases.*.ts`).
+- Pruebas: `test/funciones-panel.test.ts`; pierna de navegador `tools/e2e-piernas/funciones-interruptores.mjs` (8871/5271): normas apagadas →
+  una página nueva entra sin burbuja, encendidas → la siguiente la ve; dardos apagados → la diana desaparece; capturas PC y móvil.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `funciones/f3-interruptores-pc-movil` (sobre f2), sin subir.
+- Pendiente: ja, ko, pt-br de los textos del bloque.
