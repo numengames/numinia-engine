@@ -23,6 +23,8 @@ import { ALCANCE_M, ALTURA_MAX, COMO_ES, ESCALA_MAX, ESCALA_MIN, Obra } from "./
 import type { AccionObra, Modelo3D } from "./obra.ts";
 import { BuzonLlamadas, ESPERA_LLAMADA_MAX_S } from "./buzon-llamadas.ts";
 import type { ModoLlamada, Novedades } from "./buzon-llamadas.ts";
+import { GESTOS_IA, TIPOS_GESTO } from "./gesto-ia.ts";
+import type { TipoGesto } from "./gesto-ia.ts";
 import { ErrorHerramienta } from "./mcp.ts";
 import type { HerramientaMcp } from "./mcp.ts";
 
@@ -81,6 +83,7 @@ export class PuenteMundo {
   private paseExp = 0;               // seconds: when the pass held by the connection ends
   private temporizador: ReturnType<typeof setTimeout> | null = null;
   private llamada = 0;               // ms of the last time someone called it (by the world's `llamada` event; on an old world, by its name in the chat)
+  private pararGesto: ReturnType<typeof setTimeout> | null = null; // the pending «parar» of a gesture that would loop
   private ultimaAtenta = -Infinity;  // ms of the last «attentive» report that left
 
   constructor(o: { url: string; id: string; firmar?: FirmarBillete; biblioteca?: readonly Modelo3D[]; log?: (l: string) => void; ahora?: () => number; abrir?: (url: string) => Conexion;
@@ -102,7 +105,7 @@ export class PuenteMundo {
     this.reloj ??= setInterval(() => this.cuerpo?.paso(), 1000 / HZ);
     void this.conectar();
   }
-  parar(): void { this.parado = true; this.buzon.parar(); if (this.reloj) clearInterval(this.reloj); this.reloj = null; if (this.temporizador) clearTimeout(this.temporizador); this.temporizador = null; this.conexion?.close(); }
+  parar(): void { this.parado = true; this.buzon.parar(); if (this.pararGesto) clearTimeout(this.pararGesto); if (this.reloj) clearInterval(this.reloj); this.reloj = null; if (this.temporizador) clearTimeout(this.temporizador); this.temporizador = null; this.conexion?.close(); }
 
   private async conectar(): Promise<void> {
     if (this.parado || this.final) return;
@@ -308,20 +311,23 @@ export class PuenteMundo {
     };
     return [
       {
-        name: "mirar", description: `Lo que percibe tu cuerpo en el mundo: dónde estás, la gente y los objetos a menos de ${ALCANCE_M} m (con su id), si puedes construir y qué modelos puedes colocar.`,
+        name: "mirar", description: `Lo que percibe tu cuerpo en el mundo: dónde estás, la gente y los objetos a menos de ${ALCANCE_M} m (con su id), quién está dentro de tu burbuja (la zona que te rodea: ahí te pueden llamar), si puedes construir y qué modelos puedes colocar.`,
         inputSchema: obj({}),
         ejecutar: async () => {
           const c = await this.dentro(), p = c.s.selfPosition(1);
           const gente = c.cercanos(ALCANCE_M);
           const objetos = [...c.s.features.stateOf("objetos")].map(([id, v]) => ({ id, v, d: Math.hypot(Number(v.x) - p.x, Number(v.z) - p.z) }))
             .filter((x) => x.d <= ALCANCE_M).sort((a, b) => a.d - b.d).slice(0, 40);
+          const dentroDeTuBurbuja = [...this.buzon.dentro];
           return [
             `Eres «${c.nombre}» (entidad ${c.entidad}) en ${this.mundo}: x ${f1(p.x)} y ${f1(p.y)} z ${f1(p.z)} (metros; y = altura, el suelo es 0). ${c.meta ? (c.meta.tipo === "ir" ? `Vas hacia x ${f1(c.meta.x)} z ${f1(c.meta.z)}.` : "Sigues a alguien.") : "Estás parado."}`,
             ...(this.estado ? [this.dormida ? "Estado: dormida (baja atención). Oyes y miras, pero solo hablas si te llaman por tu nombre y no construyes." : "Estado: activa. Atenta y dispuesta a interactuar."] : []),
             `Construir: ${this.puedeConstruir && !this.dormida ? "sí" : this.dormida ? "no (estás dormida)" : "no (este mundo no te deja ahora)"}. Modelos que puedes colocar: ${this.modelos()}.`,
+            ...(this.tiene("burbuja") ? [dentroDeTuBurbuja.length ? `En tu burbuja: ${dentroDeTuBurbuja.length} (sus nombres van en el material).` : "En tu burbuja: nadie."] : []),
             `Gente a menos de ${ALCANCE_M} m: ${gente.length}; objetos: ${objetos.length}. Sus nombres van en el material:`,
             material([
               ...(this.ficha ? [`Nombre del mundo: «${limpia(this.ficha)}»`] : []),
+              ...dentroDeTuBurbuja.map(([, x]) => `- en tu burbuja «${limpia(sinMarca(x.nombre))}»${x.esIA ? " (IA)" : ""} a ${f1(x.distanciaDm / 10)} m`),
               ...gente.map((g) => `- persona «${limpia(sinMarca(g.nombre ?? `entidad ${g.entidad}`))}»${g.ia ? " (IA)" : ""} a ${f1(g.distancia)} m, en x ${f1(g.x)} z ${f1(g.z)}`),
               ...objetos.map(({ id, v, d }) => `- objeto ${limpia(id)} · ${this.obra?.idDe(v.modelo) ?? "?"} · «${limpia(String(v.nombre ?? ""))}» · a ${f1(d)} m · x ${f1(Number(v.x))} y ${f1(Number(v.y))} z ${f1(Number(v.z))} · giro ${f1(Number(v.ry))}° · escala ${f1(Number(v.sx))}×${f1(Number(v.sy))}×${f1(Number(v.sz))}${v.fijado ? " · fijado" : ""}`),
             ]),
@@ -424,13 +430,32 @@ export class PuenteMundo {
           return this.informe(n, `Nadie te ha llamado en estos ${Math.min(ESPERA_LLAMADA_MAX_S, Math.max(1, Math.round(segundos)))} s. Vuelve a llamar a «esperar_llamada» para seguir a la escucha.`);
         },
       },
+      {
+        name: "gesto", description: "Haz un gesto con tu cuerpo para que lo vea quien esté cerca (a menos de 30 m): «saludar» (saludas con la mano), «asentir» (dices que sí), «pensar» (te tomas un momento) o «señalar» (indicas lo que tienes delante). Sirve para contestar sin palabras o para avisar de que has visto a alguien. Como mucho uno por segundo; andar lo termina.",
+        inputSchema: obj({ tipo: { type: "string", enum: [...TIPOS_GESTO], description: "saludar, asentir, pensar o señalar" } }, ["tipo"]),
+        ejecutar: async (a) => {
+          const c = await this.dentro();
+          if (!this.tiene("gestos")) throw new ErrorHerramienta("Este mundo no tiene gestos (no tiene la función «gestos»): usa «decir».");
+          const tipo = String(a.tipo) as TipoGesto, g = GESTOS_IA[tipo];
+          if (!g) throw new ErrorHerramienta(`Ese gesto no existe: elige uno de ${TIPOS_GESTO.join(", ")}.`);
+          const r = c.hacer("gestos", "hacer", { gesto: g.movimiento });
+          if (!r.ok) throw new ErrorHerramienta(`No he hecho el gesto: ${r.why}`);
+          // a new gesture takes over from the old one: its pending «parar» must not cut it
+          if (this.pararGesto) { clearTimeout(this.pararGesto); this.pararGesto = null; }
+          if (g.paraS) {
+            this.pararGesto = setTimeout(() => { this.pararGesto = null; try { this.cuerpo?.hacer("gestos", "hacer", { gesto: "parar" }); } catch { /* it left */ } }, g.paraS * 1000);
+            this.pararGesto.unref?.();
+          }
+          return `Hecho: ${tipo} — ${g.como}.${g.propio ? "" : " (El mundo aún no tiene un movimiento propio para este gesto: se ve el más parecido.)"}`;
+        },
+      },
     ];
   }
 }
 
 /** What the bridge tells the model about itself (MCP initialize «instructions»). */
 export const INSTRUCCIONES = [
-  "Herramientas para estar con cuerpo de avatar en un mundo 3D de Numinia: mirar, decir, ir_a, colocar, mover, borrar, deshacer, oir, llamadas, esperar_llamada.",
+  "Herramientas para estar con cuerpo de avatar en un mundo 3D de Numinia: mirar, decir, ir_a, colocar, mover, borrar, deshacer, oir, llamadas, esperar_llamada, gesto.",
   "Para atender a quien te llama: «esperar_llamada» (hasta 25 s; vuelve en cuanto alguien te llama) y «llamadas» (las que no has leído); contesta con «decir». Mientras las uses, el mundo muestra que tu cerebro está atento.",
   "Eres una IA y todos te ven con « · IA» en el nombre. Mira antes de actuar; las coordenadas son metros (x, z en el suelo; y = altura).",
   "Si «mirar» te dice que estás dormida (solo las IAs de una organización), no construyes y solo hablas si alguien te llama por tu nombre.",

@@ -1493,3 +1493,11 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `feat/ia-puente` (sobre `feat/ia-llamar`), sin PR.
 - Siguiente: S13 (`gesto` y «En tu burbuja» en `mirar`), S14 (numinia-web refresca el paquete).
+
+## 2026-10-21 21:40 · ia-llamar S13 (gesto y «En tu burbuja») · hecho
+- Qué: herramienta `gesto` {tipo: saludar|asentir|pensar|señalar} del puente: manda un movimiento de la función `gestos` (lo ven quienes están a menos de 30 m). Solo «saludar» tiene animación propia; «asentir» usa `hablar`, «pensar» `agacharse` (ambos paran solos a los 2 y 4 s) y «señalar» `usar`; la herramienta lo dice y la tabla está en `packages/agent/src/gesto-ia.ts` (cuando haya clips propios se cambia una línea; una prueba comprueba que cada movimiento exista). `mirar` añade «En tu burbuja: nadie / N» y, dentro del material, quién (con distancia), a partir de los eventos de `burbuja`; sin esa función no dice nada de burbuja.
+- Números: 4 pruebas nuevas en `test/puente-llamadas.test.ts` (tabla contra la lista real del mundo, `mirar`, gesto real visto por otra persona, mundo sin `gestos`).
+- Idiomas: textos para el cerebro en español; **`en`, `ja`, `ko` y `pt-br` pendientes**.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `feat/ia-puente`, sin PR.
+- Siguiente: S14 (numinia-web refresca `puente-mundo.mjs` y lo reenvía).

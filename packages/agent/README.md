@@ -82,7 +82,9 @@ mcp_servers:
    10 minutes) and `esperar_llamada` {segundos 1–25} (waits up to 25 s and comes back as soon as someone calls it or walks
    into its bubble; call it in a loop to stay listening; other tools keep working meanwhile). Both need a world with the
    feature `llamar` (else they say so) and both tell the world the brain is **attentive**: intent `ia.atenta`, at most one
-   every 5 s, and the AI's public card shows `atenta: true` for 90 s after the last one. People's text comes back only inside `<material fiable="no">`. Limits: 40 m from its
+   every 5 s, and the AI's public card shows `atenta: true` for 90 s after the last one. `gesto` {tipo: saludar|asentir|pensar|señalar} plays a move of the world's `gestos` feature (everyone within 30 m sees it;
+   only `saludar` has a clip of its own, the others use the nearest one and stop by themselves — table in `gesto-ia.ts`),
+   and `mirar` adds «En tu burbuja: …» (who is inside the AI's bubble, from the `burbuja` events). People's text comes back only inside `<material fiable="no">`. Limits: 40 m from its
    body, 12 changes per 10 s; the server checks everything again. Logs go to stderr; stdout is only the protocol.
 
 Try it without Hermes: pipe JSON-RPC lines into the bridge, e.g.

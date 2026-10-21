@@ -1,5 +1,6 @@
-// ia-llamar S12: the bridge's tools for being called — `llamadas`, `esperar_llamada` (≤ 25 s) and the «atenta» report (feature `ia`, 90 s). Two layers:
-// (1) the mailbox alone, with a fake clock and fake timers; (2) the real bridge over an in-memory world with the real chat, ia, burbuja, llamar and gestos features, a person calling it with `/ada …`, and the
+// ia-llamar S12/S13: the bridge's tools for being called — `llamadas`, `esperar_llamada` (≤ 25 s), the «atenta» report (feature `ia`, 90 s), `gesto` and
+// «En tu burbuja» in `mirar`. Three layers: (1) the mailbox alone, with a fake clock and fake timers; (2) the gesture table against the world's real
+// list; (3) the real bridge over an in-memory world with the real chat, ia, burbuja, llamar and gestos features, a person calling it with `/ada …`, and the
 // same bridge in a world that has no `llamar` (the old behaviour). No network, no model.
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
@@ -12,6 +13,8 @@ import { loopbackPair } from "../packages/net/src/index.ts";
 import { signer } from "../packages/server/src/secret.ts";
 import type { Msg, ServerPart } from "../packages/feature/src/index.ts";
 import { PuenteMundo } from "../packages/agent/src/mcp-mundo.ts";
+import { GESTOS_IA, TIPOS_GESTO } from "../packages/agent/src/gesto-ia.ts";
+import { MOVIMIENTOS, GESTOS } from "../features/gestos/movimientos.ts";
 import { BUZON_MAX, BUZON_TTL_MS, BuzonLlamadas, ESPERA_LLAMADA_MAX_S } from "../packages/agent/src/buzon-llamadas.ts";
 import { ATENTA_S, ATENTA_TICKS, ia as iaFeature } from "../features/ia/feature.ts";
 import chatServer from "../features/chat/server.ts";
@@ -119,7 +122,22 @@ test("mailbox: esperar returns at once when something is waiting, ends at the ti
   assert.equal(await b.esperar(25), "parada");
 });
 
-// ---------- (2) the bridge in a world ----------
+// ---------- (2) the gestures ----------
+
+test("gesto: the four types exist, each plays a move that is in the world's list, and the ones without a clip of their own say so and stop by themselves", () => {
+  assert.deepEqual([...TIPOS_GESTO], ["saludar", "asentir", "pensar", "señalar"]);
+  const ids = new Set(MOVIMIENTOS.map((m) => m.id));
+  for (const tipo of TIPOS_GESTO) {
+    const g = GESTOS_IA[tipo];
+    assert.ok(ids.has(g.movimiento) && GESTOS.includes(g.movimiento), `${tipo} → «${g.movimiento}» is not a move of features/gestos/movimientos.ts`);
+    assert.ok(g.como.length > 10);
+    if (!g.propio && MOVIMIENTOS.find((m) => m.id === g.movimiento)!.modo !== "una") assert.ok((g.paraS ?? 0) > 0, `${tipo}: a looping move must be stopped`);
+  }
+  assert.equal(GESTOS_IA.saludar.propio, true);
+  assert.equal(MOVIMIENTOS.find((m) => m.id === GESTOS_IA.saludar.movimiento)!.dice, "¡Hola!");
+});
+
+// ---------- (3) the bridge in a world ----------
 
 const SUB = `ia-a_${"0f".repeat(16)}`;
 type Mundo = Awaited<ReturnType<typeof montar>>;
@@ -179,7 +197,7 @@ test("S12: `llamadas` and `esperar_llamada` are in the bridge's list with plain-
   const m = await mundoCompleto();
   try {
     const nombres = m.puente.herramientas().map((h) => h.name);
-    assert.deepEqual(nombres.slice(-2), ["llamadas", "esperar_llamada"]);
+    assert.deepEqual(nombres.slice(-3), ["llamadas", "esperar_llamada", "gesto"]);
     const e = m.herr("esperar_llamada");
     assert.deepEqual(e.inputSchema.properties.segundos, { type: "integer", minimum: 1, maximum: 25, description: e.inputSchema.properties.segundos.description });
     assert.deepEqual(e.inputSchema.required, []);
@@ -311,3 +329,56 @@ async function usarFalla(m: Mundo, porque: string): Promise<void> {
   await assert.rejects(m.usar("decir", { texto: "hola" }), /dormida|llaman/, porque);
 }
 
+test("S13: `mirar` adds «En tu burbuja» (who is inside, from the bubble events; names inside the fence); leaving removes them", { timeout: 30_000 }, async () => {
+  const m = await mundoCompleto();
+  try {
+    assert.match(await m.usar("mirar"), /En tu burbuja: nadie\./);
+    const ana = await m.persona(1.5, 0);
+    for (let i = 0; i < 40 && m.puente.buzon.dentro.size === 0; i++) await espera(50);
+    const dentro = await m.usar("mirar");
+    assert.match(dentro, /En tu burbuja: 1 \(sus nombres van en el material\)\./);
+    const abre = dentro.indexOf("<material"), cierra = dentro.lastIndexOf("</material>");
+    assert.match(dentro.slice(abre, cierra), /- en tu burbuja «[^»]+» a [0-9.]+ m/);
+    assert.doesNotMatch(dentro.slice(0, abre), new RegExp(ana.nombre.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), "the person's name is only inside the fence");
+    m.poner(ana.e, 50, 50);
+    for (let i = 0; i < 60 && m.puente.buzon.dentro.size > 0; i++) await espera(50);
+    assert.match(await m.usar("mirar"), /En tu burbuja: nadie\./);
+  } finally { m.cerrarTodo(); }
+});
+
+test("S13: `gesto` plays the move of its type, everyone near sees it; the types without a clip of their own say so and stop by themselves; bad type is refused", { timeout: 30_000 }, async () => {
+  const m = await mundoCompleto();
+  try {
+    const luis = await m.persona(2, 0);
+    const r = await m.usar("gesto", { tipo: "saludar" });
+    assert.match(r, /^Hecho: saludar — saludas con la mano\./);
+    assert.doesNotMatch(r, /aún no tiene/);
+    await espera(300);
+    assert.deepEqual(luis.gestos.map((g) => [g.quien, g.gesto]), [[m.ai, "saludar"]]);
+    luis.gestos.length = 0;
+    await espera(1100); // the world allows one move a second
+    const a = await m.usar("gesto", { tipo: "asentir" });
+    assert.match(a, /^Hecho: asentir — /);
+    assert.match(a, /aún no tiene un movimiento propio/);
+    await espera(300);
+    assert.deepEqual(luis.gestos.map((g) => g.gesto), ["hablar"]);
+    await espera(GESTOS_IA.asentir.paraS! * 1000 + 300);
+    assert.deepEqual(luis.gestos.map((g) => g.gesto), ["hablar", "parar"], "it ends by itself");
+    // a new gesture cancels the pending «parar» of the old one
+    luis.gestos.length = 0;
+    await m.usar("gesto", { tipo: "pensar" });
+    await espera(1100);
+    await m.usar("gesto", { tipo: "señalar" });
+    await espera(GESTOS_IA.pensar.paraS! * 1000 + 300);
+    assert.deepEqual(luis.gestos.map((g) => g.gesto), ["agacharse", "usar"], "señalar is not cut by the old «parar»");
+    await assert.rejects(m.herr("gesto").ejecutar({ tipo: "bailar" }), /Ese gesto no existe: elige uno de saludar, asentir, pensar, señalar/);
+    assert.deepEqual(m.herr("gesto").inputSchema.properties.tipo.enum, ["saludar", "asentir", "pensar", "señalar"]);
+  } finally { m.cerrarTodo(); }
+});
+
+test("S13: `gesto` in a world without the feature `gestos` says so", { timeout: 20_000 }, async () => {
+  const m = await montar({ partes: [chatServer] });
+  try {
+    await assert.rejects(m.usar("gesto", { tipo: "saludar" }), /no tiene gestos/);
+  } finally { m.cerrarTodo(); }
+});
