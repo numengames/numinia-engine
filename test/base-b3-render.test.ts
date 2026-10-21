@@ -81,3 +81,36 @@ test("hitos and atmosphere: the base's wins and survives the nature leaving", ()
   w();
   assert.deepEqual(f.lleno, ["on:nat", "on:base", "off:base"]);
 });
+
+test("B6 fill: indiceRelleno = 2 triangles per cell inside the lattice, same diagonal as the collision mesh; 3 children, 3 draw calls; off frees all three geometries", async () => {
+  const { construirMalla, CELDAS_POR_NIVEL, LLAMADAS } = await import("../packages/render/src/espacio-base/malla.ts");
+  for (const nivel of ["A", "B", "C", "D"] as const) {
+    const n = CELDAS_POR_NIVEL[nivel], m = construirMalla(42, nivel);
+    assert.ok(m.indiceRelleno instanceof Uint32Array);
+    assert.equal(m.indiceRelleno.length / 3, 2 * n * n);
+    for (const i of m.indiceRelleno) assert.ok(i < m.nv * m.nv, "only lattice vertices");
+    // the diagonal of cell (0,0) is a–d, of (1,0) is b–c (alternating, like terreno-malla.ts)
+    const t = (c: number) => [...m.indiceRelleno.slice(6 * c, 6 * c + 6)];
+    assert.ok(t(0).includes(0) && t(0).includes(m.nv + 1), "even cell: a–d");
+    assert.ok(t(1).includes(2) && t(1).includes(m.nv + 1), "odd cell: b–c");
+  }
+  const f = fabrica();
+  const b = crearEspacioBase({ padre: f.padre, ground: f.ground, nivel: () => "D", dia: uniform(1) as never });
+  await b.aplicar({ activa: true, semilla: 42 });
+  const g = b.grupo!;
+  assert.equal(g.children.length, 3); assert.equal(b.estadisticas().llamadas, 3); assert.equal(LLAMADAS, 3);
+  const r = g.getObjectByName("espacio-base-relleno") as THREE.Mesh, l = g.children.find((o) => o.name === "espacio-base") as THREE.LineSegments;
+  const mat = r.material as THREE.MeshBasicMaterial;
+  assert.equal(mat.transparent, true); assert.equal(mat.depthWrite, false); assert.equal(mat.side, THREE.DoubleSide);
+  assert.ok(r.renderOrder < l.renderOrder, "lines over the fill");
+  assert.equal(r.frustumCulled, false); assert.equal(r.matrixAutoUpdate, false); assert.equal(r.userData.sinSombra, true);
+  assert.equal(r.geometry.getAttribute("position"), l.geometry.getAttribute("position"), "one shared position buffer");
+  const t = crearTerreno({ semilla: 1, base: 42, nivel: "D" }), tm = t.malla.material as THREE.Material;
+  assert.ok(mat.polygonOffsetFactor > tm.polygonOffsetFactor && mat.polygonOffsetUnits > tm.polygonOffsetUnits, "fill sits under the nature's terrain");
+  t.dispose();
+  let libres = 0;
+  for (const o of g.children as THREE.Mesh[]) o.geometry.addEventListener("dispose", () => libres++);
+  await b.aplicar({ activa: false });
+  assert.equal(libres, 3); assert.equal(b.estadisticas().llamadas, 0); assert.equal(f.padre.children.length, 0);
+  b.dispose();
+});

@@ -12,6 +12,13 @@ Los dos pueden estar encendidos a la vez. El servidor publica la semilla de la b
 cuenca de estanque (ni arena ni orilla), mientras las zonas de pintura (prado, bosque, roca) siguen saliendo del campo de la naturaleza. Al apagar
 la naturaleza, nada cambia de altura; al apagar la base, el suelo vuelve a ser el de la naturaleza.
 
+## B6 · Relleno traslúcido bajo la malla
+
+La malla del espacio base lleva por debajo un relleno blanco traslúcido (~12 % de noche, ~35 % de día; se ve también desde abajo). Reutiliza el buffer de
+posiciones de las líneas: solo añade un índice de triángulos (`indiceRelleno`, Uint32, 2·n·n triángulos: 96 KB en el nivel A, 9,6 KB en el D), **1 draw call**
+más (3 en total) y cero coste por cuadro (un uniform, el `dia` de siempre). No escribe profundidad y lleva `polygonOffset` 4/4 (mayor que el 2/2 del terreno de la
+naturaleza): si la naturaleza está encendida, su terreno tapa el relleno; las líneas siempre quedan encima.
+
 ## N1 · Terreno con relieve y zonas (semilla)
 
 Ficheros: `packages/render/src/naturaleza/semilla.ts` (azar y ruido puros), `packages/render/src/naturaleza/terreno.ts`

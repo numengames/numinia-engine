@@ -58,8 +58,8 @@ test("accent dots: one quad per accent (4 vertices, 6 indices), tiny, kinds 3–
   }
 });
 
-test("mesh: two draw calls (lines + accent dots), a few thousand lines inside the tier caps, Uint16 indices, plateau flat at 0, built in milliseconds", () => {
-  assert.equal(LLAMADAS, 2); assert.equal(LADO_MUNDO, TAMANO_ESPACIO_BASE);
+test("mesh: three draw calls (lines + accent dots + fill), a few thousand lines inside the tier caps, Uint16 indices, plateau flat at 0, built in milliseconds", () => {
+  assert.equal(LLAMADAS, 3); assert.equal(LADO_MUNDO, TAMANO_ESPACIO_BASE);
   const lineas: Record<string, number> = {}, vert: Record<string, number> = {};
   for (const nv of ["A", "B", "C", "D"] as const) {
     const t0 = performance.now(), m = construirMalla(1234, nv), ms = performance.now() - t0;
