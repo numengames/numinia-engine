@@ -50,8 +50,9 @@ const tiene = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, 
 export type OpcionesPuerta = { condiciones: Condiciones; activa: boolean; log?: (l: string) => void; ahora?: () => number };
 
 /** The gate for these conditions. `part` is the feature that keeps the acceptances (add it to the server's features only when `activa`). */
-export function crearPuertaCondiciones(o: OpcionesPuerta): PuertaCondiciones & { part: ServerPart; registro(id: string): Registro | null; poner(c: Condiciones): void } {
-  const { activa } = o, ahora = o.ahora ?? Date.now;
+export function crearPuertaCondiciones(o: OpcionesPuerta): PuertaCondiciones & { part: ServerPart; registro(id: string): Registro | null; poner(c: Condiciones): void; fijar(activa: boolean): void } {
+  let activa = o.activa; // funciones/f1: the «normas» switch turns the gate on and off live (`fijar`); the Instance reads `activa` on every question
+  const ahora = o.ahora ?? Date.now;
   let api: ServerApi | null = null;
   const memoria = new Map<string, Registro>(); // no feature store (a bare world): lost on restart
   // the layers whose mandatory norms must be accepted, and the data points that can be ticked. condiciones/w4: `poner` swaps the
@@ -140,5 +141,6 @@ export function crearPuertaCondiciones(o: OpcionesPuerta): PuertaCondiciones & {
 
   const part = serverPart(condicionesFeature, (a) => { api = a; });
   const poner = (c: Condiciones): void => { condiciones = c; derivar(); }; // condiciones/w4: the text for whoever arrives (or asks) from now on
-  return { activa, abierta: (who) => faltan(who).length === 0, estado, aceptar, part, registro, poner };
+  const fijar = (si: boolean): void => { activa = si; }; // funciones/f1: Instance.puertaCambiada(si) lets the readers in (off) or leaves everyone inside alone (on)
+  return { get activa() { return activa; }, abierta: (who) => faltan(who).length === 0, estado, aceptar, part, registro, poner, fijar };
 }

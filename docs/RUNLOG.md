@@ -1452,3 +1452,16 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Fable 5.1 (Ursa, en el escritorio).
 - Commit: rama `onboarding/lienzo` (desde origin/main 1b04bd1d), sin subir.
 - Siguiente: el «Taller» (guía, 11 misiones, flecha a los botones) sobre el lienzo; una farola de pie CC0 para la biblioteca (hoy hay «Farolillo»); idiomas ja, ko y pt-br de las frases del cable (siguen pendientes).
+
+## 2026-10-21 18:30 · funciones f1 · hecho
+- Qué: historia f1 de los interruptores de funciones (0.28.0, solo servidor + protocolo; la vista va en f3/v3). Pieza nueva
+  `features/funciones`: quien puede construir enciende y apaga en caliente `normas` (la puerta de condiciones de entrada),
+  `dardos` y `pesca` con el verbo `poner`; se guarda en `entorno/funciones.json` (`funciones@1`, mismo escritor atómico que el
+  espacio base) y sobrevive al reinicio. Apagar las normas deja entrar a quien las leía; encenderlas solo pide a quien llegue después.
+  Prioridad de la puerta: opción de `startServer` / `MOTOR_CONDICIONES_PUERTA` > `funciones.json` > `"puerta"` de `condiciones.json`.
+  Estado `normas|dardos|pesca` = `{ activa, fija }` para las páginas (`__numinia.funciones`). `dardos` y `pesca` solo se guardan y
+  se publican: esconderlos es f2. Sin `funciones.json`, todo como hoy (huella `7e630965`).
+- Números: `test/funciones-interruptores.test.ts` (8 pruebas); ver la PR para `npm test`, gates y tamaño.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `funciones/f1-interruptores-servidor`, sin subir.
+- Siguiente: f2 (esconder dianas y estanque con el interruptor), f3/v3 (panel con los interruptores).

@@ -34,6 +34,7 @@ import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
 import { leerFicha, leerTema, lectorAventura } from "./aventura.ts";
 import { leerCondiciones, PUERTA_POR_DEFECTO } from "./condiciones.ts";
 import { crearPuertaCondiciones } from "./condiciones-puerta.ts"; // condiciones/c2: the gate
+import { conEnlace } from "../../feature/src/index.ts"; // funciones/f1: the switches piece the features bring
 import { elegirFuente, iniciarFuente, ESPERA_ARRANQUE_MS } from "./condiciones-fuente.ts"; // condiciones/w4: the community's norms, pulled
 import { crearRoles } from "./roles-mundo.ts";
 import { configPase } from "./pase.ts";
@@ -143,10 +144,13 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const { condiciones, deFichero: condicionesPropias, problemas: condicionesMal } = leerCondiciones(o.aventura ?? null);
   for (const p of condicionesMal) log(`[condiciones] no se carga, uso las de la casa: ${p}`);
   log(`[condiciones] ${condicionesPropias ? "del mundo" : "de la casa"}: ${condiciones.capas.map((c) => `${c.capa} ${c.version} (${c.puntos.length})`).join(" → ")}`);
-  // c2: the gate. Off unless asked (without the bubble of c3 nobody could accept and the world would stay shut): the option, then the file, then the default.
-  const puertaActiva = o.condicionesPuerta ?? condiciones.puerta ?? PUERTA_POR_DEFECTO;
+  // c2: the gate. Off unless asked (without the bubble of c3 nobody could accept and the world would stay shut): the option (or MOTOR_CONDICIONES_PUERTA),
+  // then funciones.json `normas` (f1: the world's own switch, flipped live), then the `puerta` of condiciones.json, then the default.
+  const enlaceFunciones = (o.features ?? []).find(conEnlace)?.enlace ?? null; // f1: the features' `funciones` piece, if this server runs it
+  const normasEscritas = enlaceFunciones?.normasEscritas();
+  const puertaActiva = o.condicionesPuerta ?? normasEscritas ?? condiciones.puerta ?? PUERTA_POR_DEFECTO;
   const puertaCondiciones = crearPuertaCondiciones({ condiciones, activa: puertaActiva, log });
-  log(`[condiciones] puerta ${puertaActiva ? "ENCENDIDA: nadie se mueve, habla ni construye hasta aceptar las normas obligatorias" : "apagada (MOTOR_CONDICIONES_PUERTA=si o \"puerta\": true en condiciones.json la enciende)"}`);
+  log(`[condiciones] puerta ${puertaActiva ? "ENCENDIDA: nadie se mueve, habla ni construye hasta aceptar las normas obligatorias" : "apagada (MOTOR_CONDICIONES_PUERTA=si, \"normas\": true en funciones.json o \"puerta\": true en condiciones.json la enciende)"}${o.condicionesPuerta !== undefined ? " · fijada por el entorno del servidor" : normasEscritas !== undefined ? " · según funciones.json" : ""}`);
   const pagina = o.www ? new Pagina(o.www, { titulo: ficha?.nombre ?? null }) : null; // C1: the page from the engine itself (one port per world)
 
   const t0 = performance.now();
@@ -196,7 +200,14 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     construir: construir === "todos", voz: o.voz ?? process.env.MOTOR_VOZ !== "no", admin: o.admin ?? process.env.MOTOR_ADMIN, log, firmar: identitySign, pase: cfgPase.pase, puerta,
     cerrar: (e) => { sockets.get(e)?.close(CIERRE_ROLES, "fuera"); }, // the reason went out in the chat just before
   });
-  const funciones = o.features?.length ? [...o.features, roles.part, ...(puertaActiva ? [puertaCondiciones.part] : [])] : o.features; // the gate keeps what people accepted in a feature of its own, only when it is on; no features (bare tests) = the pre-J7 wire
+  // f1: the «normas» switch exists only if this world has conditions of entry (its own file, a community source, or the gate forced from outside); then the gate's feature is always there (who accepted is kept even while it is off)
+  const fuenteElegida = elegirFuente(o.condicionesFuente, o.aventura ?? null, log);
+  const normasConInterruptor = !!enlaceFunciones && (condicionesPropias || o.condicionesPuerta !== undefined || fuenteElegida !== undefined);
+  enlaceFunciones?.conectar({
+    normas: normasConInterruptor ? { fija: o.condicionesPuerta !== undefined, activa: () => puertaCondiciones.activa, poner: (si) => { puertaCondiciones.fijar(si); inst.puertaCambiada(si); log(`[condiciones] puerta ${si ? "ENCENDIDA desde el mundo: solo se pide a quien llegue después; quien ya está dentro sigue" : "APAGADA desde el mundo: quien leía las normas entra"}`); } } : null,
+    presentes: (o.features ?? []).map((p) => p.feature.id),
+  });
+  const funciones = o.features?.length ? [...o.features, roles.part, ...(puertaActiva || normasConInterruptor ? [puertaCondiciones.part] : [])] : o.features; // the gate keeps what people accepted in a feature of its own, only when it is on; no features (bare tests) = the pre-J7 wire
   const puede = (who: Who | null, accion: string) => roles.puede(who, accion);
   const activos = new Activos(o.biblioteca === undefined ? BIBLIOTECA : o.biblioteca, o.subidas ?? null, log);
   const optimizar = new ColaOptimizar(activos, log, o.optimizar ?? process.env.MOTOR_OPTIMIZAR !== "no"); // N22
@@ -222,7 +233,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const leerActivo = (h: string, ext: string): Uint8Array | null => { const ruta = activos.buscar(h, ext); if (!ruta) return null; try { return readFileSync(ruta); } catch { return null; } }; // M6 h8: /a/<sha256>.<ext>'s own bytes, for the world's collision mesh
   const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, renovarPase: roles.renovar, activo: (h, ext) => activos.buscar(h, ext) !== null, medidas: (h, ext) => activos.medidas(h, ext), aventura: lector, agentes, externos: { verificar: puerta.verificar }, recibos: recibos ?? undefined, sinVoz: () => !roles.voz, oye: (de, a) => roles.oye(inst.who(de), inst.who(a)), aparicion: o.aparicion ?? null, suelo: o.suelo ?? null, construirMalla: construirMalla(leerActivo), condiciones: puertaCondiciones }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz); M6 h8: malla things build the world's mesh
   // condiciones/w4: the community's norms arrive by themselves (copy in aventura/condiciones-comunidad.json, then a download every few minutes); whoever arrives next is offered the newest
-  const fuenteCondiciones = iniciarFuente({ dir: o.aventura ?? null, base: condiciones, fuente: elegirFuente(o.condicionesFuente, o.aventura ?? null, log), log, intervaloMs: o.condicionesFuenteMs, poner: (c, motivo) => { puertaCondiciones.poner(c); if (motivo === "nueva") inst.ofrecerCondiciones(); } });
+  const fuenteCondiciones = iniciarFuente({ dir: o.aventura ?? null, base: condiciones, fuente: fuenteElegida, log, intervaloMs: o.condicionesFuenteMs, poner: (c, motivo) => { puertaCondiciones.poner(c); if (motivo === "nueva") inst.ofrecerCondiciones(); } });
   const primeraFuente = !fuenteCondiciones.activa ? Promise.resolve() : fuenteCondiciones.conCopia ? (void fuenteCondiciones.actualizar(), Promise.resolve()) : fuenteCondiciones.actualizar(ESPERA_ARRANQUE_MS).then(() => {}); // with no copy yet the first listening waits a few seconds for the first answer
   // H9: uploads (PUT /a/<sha256>.<ext>) by whoever may build; the page shows its guest token (I1) to say who it is
   const subidas = new Subidas({
@@ -233,7 +244,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       const c = inst.conns.find((k) => (k.invitado ?? k.who?.id) === v.id); // connected now: its name and entity (H3: roles per identity; H3b: a numinia.com person is found by the guest token their page still holds)
       return { who: c?.who ?? { id: v.id, nombre: nombreDe(v.id) }, entity: c?.entity ?? -1 };
     },
-    puede: (who, entity) => !(puertaActiva && (entity >= 0 ? inst.puertaCerrada(entity) : !puertaCondiciones.abierta(who))) && puede(who, "construir"), // the same question every building intent asks (api.puede); c2: and the gate is open for them
+    puede: (who, entity) => !(puertaCondiciones.activa && (entity >= 0 ? inst.puertaCerrada(entity) : !puertaCondiciones.abierta(who))) && puede(who, "construir"), // the same question every building intent asks (api.puede); c2: and the gate is open for them
     guardado: (hash, tipo) => optimizar.pedir(hash, tipo), // N22: its lighter copy, in the background
   });
 
