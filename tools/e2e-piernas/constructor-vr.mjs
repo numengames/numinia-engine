@@ -57,6 +57,9 @@ async function pierna() {
     await esperar(() => globalThis.__numinia.view.vr.active, null, 15000);
     await esperar(() => globalThis.__numinia.view.manos.estado().der?.tipo === "mando", null, 20000); // the hands load a few seconds in (index.ts)
     await a.waitForTimeout(500);
+    // v2 paridad: the hands build once the mode is on — the VR menu's «Construir» turns it on (tools/e2e-piernas/menu-vr.mjs presses it)
+    const entro = await ctl(() => globalThis.__numinia.constructorVR.entrar());
+    if (!entro.ok) throw new Error("el modo construir de VR no entra: " + JSON.stringify(entro));
     // 1. place a Bloque 3 m ahead through the API (the library's own preview is a later M22b-3 slice)
     const n0 = await ctl(() => globalThis.__numinia.session.features.stateOf("objetos").size);
     const p0 = await ctl(() => { const me = globalThis.__numinia.session.selfPosition(1); return { x: me.x, y: 1, z: me.z - 3 }; });

@@ -6,6 +6,7 @@
 // the rules (verbs, glyphs, chat states, long press) are pure and tested: packages/client/src/movil.ts.
 import "./movil.css"; // U24: every rule is scoped to html[data-aparato^="movil"]
 import { icono } from "./iconos.ts";
+import { iconoDe, nombreDe } from "../../packages/render/src/menu-secciones.ts"; // v2 paridad: the same names and icons as the bar and the VR menu
 import { perfil } from "./perfil-aparato.ts";
 import { anunciar } from "./paneles.ts";
 import { PULSACION_LARGA_MS, PULSACION_LARGA_TOLERANCIA, ZONA_SEGURA_SIMULADA, elegirAccion, entradasDelMenu, esPulsacionLarga, siguienteChat, ultimaLinea } from "../../packages/client/src/movil.ts";
@@ -87,10 +88,11 @@ export function montarMovil(o: Opciones): void {
   const botonDe = (id: string): HTMLElement | null => { const e = porId(id); return e && !e.hidden && !e.hasAttribute("data-oculto") ? e : null; };
   const extras = (): (Entrada & { clic: () => void })[] => {
     const f: (Entrada & { clic: () => void })[] = [];
-    for (const [id, etiqueta, ic] of [["microfono", "Micrófono", "microphone"], ["gente-abrir", "Gente", "users"], ["inventario-abrir", "Bolsa", "package"], ["foto-abrir", "Foto", "camera"], ["construir", "Construir", "crane-tower"], ["pantalla", "Pantalla completa", "desktop"], ["ar", "AR", "eye"], ["vr", "VR", "eye"]] as const) {
-      const b = botonDe(id); if (b) f.push({ id, etiqueta, icono: ic, clic: () => b.click() });
+    // [the page's button, its section in the one list (packages/render/src/menu-secciones.ts)]
+    for (const [id, sec] of [["microfono", "micro"], ["gente-abrir", "gente"], ["inventario-abrir", "bolsa"], ["foto-abrir", "foto"], ["construir", "construir"], ["pantalla", "pantalla"], ["ar", "ar"], ["vr", "vr"]] as const) {
+      const b = botonDe(id); if (b) f.push({ id, etiqueta: nombreDe(sec), icono: iconoDe(sec), clic: () => b.click() });
     }
-    f.push({ id: "ficha", etiqueta: "Ficha", icono: "user", clic: () => document.getElementById("hud-personaje-abrir")?.click() }); // ux2-barra: the card's button
+    f.push({ id: "ficha", etiqueta: nombreDe("tu"), icono: iconoDe("tu"), clic: () => document.getElementById("hud-personaje-abrir")?.click() }); // ux2-barra: the card's button («Tú»)
     if (o.nombres) f.push({ id: "nombres", etiqueta: "Nombres", icono: "users", clic: () => o.nombres!.unRato() });
     return f;
   };

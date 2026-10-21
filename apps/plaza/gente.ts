@@ -15,6 +15,7 @@
 import type { Cambio, Persona } from "../../features/teletransporte/client.ts";
 import { crearDialogo, anunciar } from "./paneles.ts";
 import { icono } from "./iconos.ts";
+import { rotularBoton } from "./menu-secciones-ui.ts"; // v2 paridad: icon, name and tooltip from the one list of sections
 import {
   CLAVE_AMIGOS, CLAVE_SILENCIADOS, CLAVE_BLOQUEADOS, leerAmigos, escribirAmigos, leerMarcas, escribirMarcas, anadir, quitar,
   buscar, claveDe, normal, fusionar, filtrar, haceTexto, fechaTexto, distanciaTexto, type Amigo, type Conectado,
@@ -78,8 +79,8 @@ export function montarGente(o: OpcionesGente) {
   const guardarAmigos = () => escribir(CLAVE_AMIGOS, escribirAmigos(amigos));
   const guardarMarcas = () => { escribir(CLAVE_SILENCIADOS, escribirMarcas(silenciados)); escribir(CLAVE_BLOQUEADOS, escribirMarcas(bloqueados)); };
 
-  const boton = el("button", { type: "button", id: "gente-abrir", className: "solo-icono", title: "Gente (L)" });
-  boton.innerHTML = `${icono("users")}<span class="solo-lector">Gente</span>`; // constants only
+  const boton = el("button", { type: "button", id: "gente-abrir", className: "solo-icono" });
+  rotularBoton(boton, "gente"); // v2 paridad: icon, name and tooltip from the one list of sections
   const foto = document.getElementById("foto-abrir");
   if (o.barra && foto?.parentElement === o.barra) foto.before(boton); else (o.barra ?? document.body).appendChild(boton);
 

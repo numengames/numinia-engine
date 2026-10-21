@@ -488,6 +488,29 @@ el servidor lo ve:
 | `coge` | `cosa` | la coge a su alcance (E); queda «llevada» para una `entrega` |
 | `entrega` | `pnj` y `cosa`, o `cosas` (una lista de 1 a 8) | las lleva todas (cada una con un `coge` o un `recibe` antes en la misma misión) y elige `entregar` (o le habla, si no hay esa respuesta); se las da todas a la vez |
 
+**`hace`: que quien construye haga algo de verdad (T1).** `{ "id", "tipo": "hace", "texto", "accion", "modelo"?, "disparador"?, "senala"? }`.
+Lo decide el servidor a partir de lo que las otras piezas ya cuentan (no hay nada nuevo en el tick); solo cuenta si ese
+paso es el que toca, y **sin permiso de construir no cuenta ninguna acción**. Un tutorial del constructor lo usa para
+que cada misión enseñe un botón y no avance hasta que se ha usado de verdad. Ejemplo:
+`{ "id": "pon-farolillo", "tipo": "hace", "texto": "Añade un farolillo al mundo", "accion": "coloca", "modelo": "farolillo", "senala": "dock-anadir" }`.
+
+| `accion` | Cuenta cuando… |
+|---|---|
+| `coloca` | pones un objeto nuevo (no un duplicado); con `modelo` (el id de la biblioteca: `bloque`, `farolillo`…) solo uno de ese modelo |
+| `mueve` · `gira` · `escala` | un objeto cambia de sitio · de giro (también la acción de girar) · de tamaño (un arrastre que cambia varias cosas cuenta una sola: la primera que pide la misión) |
+| `oculta` | un ajuste deja el objeto oculto al jugar (si el ajuste lo deja visible, no cuenta) |
+| `borra` | quitas un objeto |
+| `crea_cable` · `edita_cable` · `borra_cable` | creas, editas o borras un cable (disparador); con `disparador` solo ese cable |
+| `dispara_cable` | pulsas un botón o entras en una zona de un cable; con `disparador` solo ese |
+| `abre_construir` · `abre_cable` · `abre_biblioteca` | la página abre el panel Construir, el cajón Cable o el cajón Añadir. El servidor no lo ve: la página lo dice con la orden `misiones.hace` y **solo estas tres** se aceptan (cualquier otra se rechaza); la página solo lo manda si hay un paso que lo pide |
+
+`modelo` solo va con `coloca`; `disparador`, solo con las acciones de cable. **`senala`** (opcional, vale en **cualquier**
+tipo de paso): el id del botón de la página al que apuntará la flecha (`[a-z0-9-]`, 1 a 32; p. ej. `construir`,
+`dock-cable`). El motor solo lo valida, lo guarda y lo manda a la página con el paso (`misiones.senala()`); un paso `hace`
+no tiene sitio en el mundo, así que no pone baliza ni marca en el mapa. La flecha (`apps/plaza/flecha.ts`, T3) ya lo lee: señala ese botón y, si no se ve, el que lleva a él
+(`cable-nuevo` → `dock-cable` → `construir` → `mas` en móvil; lógica pura en `flecha-logica.ts`). Para oír esto las piezas dicen quién hizo qué con
+dos eventos solo-servidor: `objetos.hizo` y `disparadores.hizo` (más `persona` en `disparadores.senal`).
+
 **En cualquier orden: `grupo`.** Pasos **seguidos** con el mismo `grupo` (un texto de 1 a 40 bytes) forman un bloque que
 se hace en el orden que quiera el jugador; la misión pasa al siguiente paso cuando están todos. El `grupo` es también el
 nombre del contador que ve arriba de la pantalla. Un `grupo` repetido más adelante, separado, es un error (junta esos
@@ -1550,8 +1573,14 @@ Regla R-1: cada pieza del motor se enciende sin tocar código. El mundo guarda u
   mal escrito no se sobrescribe nunca (el log y el rechazo dicen cómo arreglarlo). Sin carpeta de mundo, el cambio vale hasta reiniciar.
 - **En la página**: estado compartido `normas` / `dardos` / `pesca`, cada uno `{ activa, fija }` (una función que el mundo no tiene no
   aparece); `__numinia.funciones.actual()` → `{ normas?, dardos?, pesca? }`, `.fija(nombre)` y `.ponerFuncion(nombre, si)`. Para un agente:
-  el verbo `poner { funcion, activa }` de la pieza `funciones`. El panel que los pinta es f3/v3.
-- Pruebas: `test/funciones-interruptores.test.ts` (f1), `test/funciones-obedecen.test.ts` (f2).
+  el verbo `poner { funcion, activa }` de la pieza `funciones`. El panel que los pinta es f3 (abajo).
+- **El panel (f3)**: en el cajón «Entorno» del constructor (PC y móvil), debajo de «Espacio base», el bloque «Funciones de este mundo» con un
+  interruptor por función que el mundo tiene (`actual()`): «Normas de entrada» (con la ayuda «Apagadas, se entra sin aceptar normas. Para demos.»),
+  «Dardos» y «Pesca». Mismo componente y estilo que «Espacio base»; muestra el estado del servidor, nunca el del clic; si la función es `fija`
+  sale desactivada con «Lo fija el servidor.»; quien no puede construir no ve el bloque. Lógica pura (filas, textos es/en, si se puede
+  pulsar) en `features/funciones/panel.ts` (+ `frases.es.ts`, `frases.en.ts`, mismas claves; ja, ko y pt-br pendientes); la página
+  (`apps/plaza/entorno.ts`) solo las dibuja. Pruebas: `test/funciones-panel.test.ts`; navegador: `tools/e2e-piernas/funciones-interruptores.mjs`.
+- Pruebas: `test/funciones-interruptores.test.ts` (f1), `test/funciones-obedecen.test.ts` (f2), `test/funciones-panel.test.ts` (f3).
 
 ### Las normas de la comunidad llegan solas al mundo (w4: `packages/server/src/condiciones-fuente.ts`)
 

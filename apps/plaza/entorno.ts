@@ -4,6 +4,9 @@
 // (constructor.ts lends the drawer's body as `padre`; one drawer open at a time, so it no longer covers the world as a
 // panel of its own), shown only to builders while building. It only asks: the server decides (features/entorno,
 // features/elementos). main.ts passes the controllers (only composition roots import features/).
+import { filasFunciones, textoCambio, tituloGrupo } from "../../features/funciones/panel.ts";
+import type { FilaFuncion } from "../../features/funciones/panel.ts";
+import type { Funcion } from "../../features/funciones/feature.ts";
 type Res = { ok: true } | { ok: false; why: string };
 type Valores = Record<string, unknown>;
 type Ambiente = {
@@ -23,6 +26,8 @@ type Elementos = {
 type Naturaleza = { estado: { ultimoRechazo: string }; activa(): boolean; poner(activa: boolean): Res };
 /** Interruptor «Espacio base» (features/espaciobase/client.ts `interruptor`) + `restaurar`: the empty night world on or off, or the file as a new world's. */
 type Base = { estado: { ultimoRechazo: string }; activa(): boolean; poner(activa: boolean): Res; restaurar(): Res; semilla(): number; ponerSemilla(n: number): Res };
+/** Interruptores «Funciones de este mundo» (features/funciones/client.ts `interruptores`): normas, dardos, pesca on or off; the server decides (funciones/f3). */
+type Funciones = { estado: { ultimoRechazo: string }; actual(): Partial<Record<Funcion, boolean>>; fija(f: Funcion): boolean; ponerFuncion(f: Funcion, si: boolean): Res };
 /** «Restaurar el mundo» also empties the objects (features/objetos/client.ts `constructor.reiniciar`): the server plants the logo and the moñoni again. */
 type Objetos = { reiniciar(): Res };
 /** An «Interruptor» of a piece (features/<pieza>/client.ts `interruptor`): on/off for the whole world, shown only to who the server says may (`estado.puede`: who directs or rules). */
@@ -51,11 +56,14 @@ const CSS = `
 #panel-entorno button[role=switch][aria-checked="true"] { background: #4caf7a; }
 #panel-entorno button[role=switch][aria-checked="true"]::after { left: 25px; }
 #panel-entorno button[role=switch][aria-busy="true"] { opacity: .6; }
+#panel-entorno button[role=switch][disabled] { opacity: .5; cursor: not-allowed; }
+#panel-entorno .funciones { margin-bottom: 10px; }
+#panel-entorno .funciones[hidden] { display: none; }
 #panel-entorno .nota { margin: 2px 0 6px; color: #aab6c2; font-size: 12px; }
 #panel-entorno .nota[hidden], #panel-entorno .fila[hidden] { display: none; }
 #panel-entorno button.peligro { background: #f0b4aa; }`;
 
-export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu?: Naturaleza, padre?: HTMLElement, base?: Base, objetos?: Objetos, piezas: Pieza[] = []): void {
+export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu?: Naturaleza, padre?: HTMLElement, base?: Base, objetos?: Objetos, piezas: Pieza[] = [], funcs?: Funciones): void {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const panel = document.createElement("section");
   panel.id = "panel-entorno"; panel.hidden = true; panel.setAttribute("aria-label", "Entorno y elementos");
@@ -193,6 +201,65 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
     fila.append(texto, boton);
     return { pz, fila, boton, esperando: () => esperando, limpiar: () => { esperando = null; boton.setAttribute("aria-busy", "false"); } };
   });
+  // «Funciones de este mundo» (funciones/f3): one switch per function the world has (normas, dardos, pesca), the same shape as «Espacio base».
+  // Which rows, what they say and whether they can be pressed is features/funciones/panel.ts (pure); here they are only drawn and follow the server.
+  const grupoFunciones = document.createElement("div"); grupoFunciones.className = "funciones"; grupoFunciones.id = "funciones-mundo"; grupoFunciones.hidden = true;
+  grupoFunciones.setAttribute("role", "group"); grupoFunciones.setAttribute("aria-label", tituloGrupo("es") + " / " + tituloGrupo("en"));
+  const grupoTitulo = titulo("h3", tituloGrupo("es")); grupoTitulo.title = tituloGrupo("en");
+  grupoFunciones.append(grupoTitulo);
+  const idioma = () => (typeof document !== "undefined" ? document.documentElement.lang : "");
+  type FilaDom = { fila: HTMLElement; boton: HTMLButtonElement; notas: HTMLElement; clave: string };
+  const filasDom = new Map<Funcion, FilaDom>();
+  const funcEsperando = new Map<Funcion, boolean>();
+  const pulsarFuncion = (f: Funcion) => {
+    if (!funcs) return;
+    if (funcs.fija(f)) { estado.textContent = textoCambio(f, "fija", idioma()); return; }
+    const quiero = !(funcs.actual()[f] ?? false);
+    const r = funcs.ponerFuncion(f, quiero);
+    if (r.ok) funcEsperando.set(f, quiero); else funcEsperando.delete(f);
+    const d = filasDom.get(f); if (d) { d.boton.setAttribute("aria-busy", String(r.ok)); d.boton.blur(); }
+    estado.textContent = r.ok ? textoCambio(f, quiero ? "encendiendo" : "apagando", idioma()) : `No: ${r.why}`;
+  };
+  const dibujarFila = (r: FilaFuncion): FilaDom => {
+    const fila = document.createElement("div"); fila.className = "interruptor";
+    const texto = document.createElement("span"); texto.id = `funcion-${r.funcion}-etiqueta`;
+    const boton = document.createElement("button"); boton.type = "button"; boton.id = `funcion-${r.funcion}-interruptor`; boton.dataset.funcion = r.funcion;
+    boton.setAttribute("role", "switch"); boton.setAttribute("aria-labelledby", texto.id);
+    boton.addEventListener("click", () => pulsarFuncion(r.funcion));
+    fila.append(texto, boton);
+    const notas = document.createElement("div"); notas.dataset.funcion = r.funcion;
+    return { fila, boton, notas, clave: "" };
+  };
+  /** Redraw the rows from the server's state: add the new ones, drop those the world lost, keep the DOM of the rest (focus, busy). */
+  const pintarFunciones = (): void => {
+    const filas = funcs ? filasFunciones({ actual: funcs.actual(), fija: { normas: funcs.fija("normas"), dardos: funcs.fija("dardos"), pesca: funcs.fija("pesca") }, puede: amb.estado.puede }, idioma()) : [];
+    grupoFunciones.hidden = filas.length === 0;
+    const ids = new Set(filas.map((r) => r.funcion));
+    for (const [f, d] of filasDom) if (!ids.has(f)) { d.fila.remove(); d.notas.remove(); filasDom.delete(f); funcEsperando.delete(f); }
+    let anterior: HTMLElement = grupoTitulo;
+    for (const r of filas) {
+      let d = filasDom.get(r.funcion);
+      if (!d) { d = dibujarFila(r); filasDom.set(r.funcion, d); }
+      if (anterior.nextSibling !== d.fila) anterior.after(d.fila);
+      if (d.fila.nextSibling !== d.notas) d.fila.after(d.notas);
+      anterior = d.notas;
+      const clave = JSON.stringify(r);
+      if (d.clave !== clave) {
+        d.clave = clave;
+        (d.fila.firstChild as HTMLElement).textContent = r.etiqueta;
+        d.boton.title = r.titulo;
+        d.boton.disabled = !r.pulsable;
+        d.boton.setAttribute("aria-checked", String(r.activa));
+        d.boton.setAttribute("aria-description", r.notas.join(" "));
+        d.notas.replaceChildren(...r.notas.map((n) => { const p = document.createElement("p"); p.className = "nota"; p.textContent = n; return p; }));
+      }
+      const espera = funcEsperando.get(r.funcion);
+      if (espera !== undefined && (r.activa === espera || funcs?.estado.ultimoRechazo)) {
+        if (r.activa === espera) estado.textContent = textoCambio(r.funcion, espera ? "encendida" : "apagada", idioma());
+        funcEsperando.delete(r.funcion); d.boton.setAttribute("aria-busy", "false");
+      }
+    }
+  };
   const sel = document.createElement("p");
   panel.append(
     ...filasPieza.map((f) => f.fila),
@@ -201,6 +268,7 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
     nota,
     filaSemilla,
     filaRestaurar,
+    grupoFunciones,
     fila("Entornos con nombre", ...presets),
     deslizador("Altura del sol", "solAltura", -30, 90, 1, (v) => `${v}°`),
     deslizador("Rumbo del sol", "solRumbo", -180, 180, 5, (v) => `${v}°`),
@@ -262,7 +330,8 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
       if (i.estado.ultimoRechazo && !(q !== null)) { estado.textContent = `No: ${i.estado.ultimoRechazo}`; }
       if (i.estado.ultimoRechazo) i.estado.ultimoRechazo = "";
     }
-    const rechazo = amb.estado.ultimoRechazo || elem.estado.ultimoRechazo || (natu?.estado.ultimoRechazo ?? "") || (base?.estado.ultimoRechazo ?? "");
-    if (rechazo) { estado.textContent = `No: ${rechazo}`; amb.estado.ultimoRechazo = ""; elem.estado.ultimoRechazo = ""; if (natu) natu.estado.ultimoRechazo = ""; if (base) base.estado.ultimoRechazo = ""; }
+    pintarFunciones();
+    const rechazo = amb.estado.ultimoRechazo || elem.estado.ultimoRechazo || (natu?.estado.ultimoRechazo ?? "") || (base?.estado.ultimoRechazo ?? "") || (funcs?.estado.ultimoRechazo ?? "");
+    if (rechazo) { estado.textContent = `No: ${rechazo}`; amb.estado.ultimoRechazo = ""; elem.estado.ultimoRechazo = ""; if (natu) natu.estado.ultimoRechazo = ""; if (base) base.estado.ultimoRechazo = ""; if (funcs) funcs.estado.ultimoRechazo = ""; }
   }, 300);
 }

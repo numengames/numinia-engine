@@ -1485,7 +1485,7 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 
 
 ## 2026-10-21 20:40 · sala de rol: báculo del Director, asientos y burbujas de voz · hecho
-- Qué: 0.31.0. Tres piezas de «mesa de rol» que cualquier mundo enciende con un fichero o un interruptor de Entorno: el báculo del Director de juego (`entorno/baculos.json`; quien lo lleva dirige), sentarse con «E» (`entorno/asientos.json`) y la burbuja de voz de mesa (`entorno/burbujas.json`; el servidor solo reenvía la voz entre los de dentro). Tres interruptores en Entorno (báculo, asientos, burbujas) más el de dados (`dados.json` con `activa`). La barra de acciones muestra solo lo posible ahora. **Un mundo sin `dados.json` tiene ahora los dados apagados.**
+- Qué: 0.39.0. Tres piezas de «mesa de rol» que cualquier mundo enciende con un fichero o un interruptor de Entorno: el báculo del Director de juego (`entorno/baculos.json`; quien lo lleva dirige), sentarse con «E» (`entorno/asientos.json`) y la burbuja de voz de mesa (`entorno/burbujas.json`; el servidor solo reenvía la voz entre los de dentro). Tres interruptores en Entorno (báculo, asientos, burbujas) más el de dados (`dados.json` con `activa`). La barra de acciones muestra solo lo posible ahora. **Un mundo sin `dados.json` tiene ahora los dados apagados.**
 - Números: ver el cuerpo de la PR (`npm test`, gates, build, `tamano`). Sin probar con micrófono real, ni la pose de rodillas al sentarse, ni VR/móvil/Quest.
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `sala-rol/baculo-asiento-voz` (cuatro commits de `voz/burbuja-de-mesa` sobre origin/main c387252b + versión), PR contra `main`.
@@ -1528,3 +1528,48 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `feat/ia-llamar` (S8–S11 y el puente de `feat/ia-puente`, con origin/main 9573c2ae), PR contra `main`.
 - Siguiente: S14 (numinia-web refresca `puente-mundo.mjs` para dar estas herramientas a las IAs conectadas); S16 completo en el puente; idiomas.
+
+## 2026-10-21 21:58 · status-semver (0.33.1) · hecho
+- Qué: `/status` dice la versión del motor en `semver` («0.32.1»), para que numinia.com sepa si un mundo entiende el bloque de la IA en el pase (desde 0.29.0); `version` y `commitHash` siguen como estaban. Se lee una sola vez al arrancar (del `build.json` del instalador, que ahora la lleva, o del `package.json` en un checkout), nunca por petición. Y la burbuja de una IA ya no tiñe de verde la vista cuando la cámara está dentro: el relleno se dibuja solo por su cara delantera, y las líneas del borde siguen.
+- Números: `test/flota.test.ts` (`/status` trae `semver` = la del `package.json`), `test/version.test.ts` (`semverMotor`, el sello de `build-deploy`), `test/burbuja-vista.test.ts` (el relleno es `FrontSide`). Captura desde dentro en `work/ia-organizacion/capturas/llamar/` (`*-v4.png`).
+- Idiomas: sin textos nuevos.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `feat/status-semver` (desde origin/main 1a771dfb).
+- Siguiente: numinia-web (#232) lee `semver` para decidir si da el bloque `ia` al pase.
+
+
+## 2026-10-21 · funciones f3 · hecho
+- Qué: historia f3 (0.33.0): el bloque «Funciones de este mundo» en el cajón Entorno (PC y móvil), debajo de «Espacio base»: interruptores
+  «Normas de entrada», «Dardos» y «Pesca» con el mismo aspecto que el de «Espacio base», el estado real del servidor, `fija` desactivado con
+  «Lo fija el servidor.», y sin bloque para quien no construye. Lógica pura y textos es/en en `features/funciones/panel.ts` (+ `frases.*.ts`).
+- Pruebas: `test/funciones-panel.test.ts`; pierna de navegador `tools/e2e-piernas/funciones-interruptores.mjs` (8871/5271): normas apagadas →
+  una página nueva entra sin burbuja, encendidas → la siguiente la ve; dardos apagados → la diana desaparece; capturas PC y móvil.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `funciones/f3-interruptores-pc-movil` (sobre f2), sin subir.
+- Pendiente: ja, ko, pt-br de los textos del bloque.
+## 2026-10-21 19:00 · T1 paso de misión `hace` + `senala` · hecho
+- Qué: nuevo tipo de paso `hace` en `mision@1` (13 acciones: coloca, mueve, gira, escala, oculta, borra, crea/edita/borra/dispara_cable y las tres de página abre_construir, abre_cable, abre_biblioteca) y el campo `senala` (id del botón al que apuntará la flecha; vale en cualquier paso; solo se valida, se guarda y viaja con el paso). El servidor lo decide oyendo eventos que ya existían: nuevos `objetos.hizo` y `disparadores.hizo` (solo-servidor, con la entidad autora; `mover` dice si cambió sitio, giro o escala) y `persona` en `disparadores.senal`; las tres acciones de página entran por la orden nueva `misiones.hace`, que solo acepta esas tres. Sin permiso de construir no cuenta nada; un `hace` que no es el paso actual no cuenta. Nada en el tick. El cliente expone `misiones.hace(accion)` y `misiones.senala()`; la plaza avisa al abrir Construir, Añadir y Cable solo si un paso lo pide. Aditivo: `misiones` v7 (el evento `paso` gana `accion` y `senala`, intent `hace`); `objetos` y `disparadores` no cambian de versión (eventos solo-servidor).
+- Números: `test/misiones-hace.test.ts` (7 pruebas) nuevo; tres pruebas viejas actualizadas (lista de campos del paso, versión 7). Huella de determinismo intacta (un mundo con misiones `hace` hashea igual que sin ellas).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `taller` (desde origin/main a4e967ec), sin subir.
+- Siguiente: la flecha que lea `misiones.senala()` y señale el botón; las 11 misiones del Taller.
+
+## 2026-10-21 18:54 · T3 flecha · hecho
+- Qué: la flecha que señala el botón del paso actual (`#flecha-guia`, `apps/plaza/flecha.ts`). Lee `misiones.senala()` y se pega al borde del botón (debajo si está en la mitad de arriba de la pantalla, encima si no), con latido suave que `prefers-reduced-motion` apaga. Si el botón no se ve señala el que lleva a él (`objetivoDeFlecha`, módulo sin DOM `flecha-logica.ts`): `cable-nuevo` → `dock-cable` → `construir` → `mas` (móvil). Sin flecha no hay observador ni bucle: se arma solo mientras hay una (MutationObserver + un rAF por cambio + resize).
+- Números: `test/flecha.test.ts` (6 pruebas) nuevo; `npm test` 1638 bien, 0 mal; puertas en verde; página D2 593,4 kB → 594,3 kB gz (+0,9 kB). Prueba real `plantillas/taller/flecha.mjs` (Chromium, escritorio): flecha a 4 px de «Construir» y de «Añadir»; fotos `fotos/20-flecha-construir.png` y `21-flecha-anadir.png`.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `taller`, sin subir.
+- Siguiente: T4 (zip del Taller).
+
+## 2026-10-21 21:50 · T4 recorrido del Taller · dos arreglos hallados al recorrerlo en el navegador
+- Qué: el paso 2 de la misión 5 del Taller señalaba `cable-probar`, que no existe en la página (el botón «Probar» de cada fila era solo una clase) y la flecha no salía. Ahora cada «Probar» lleva `id="cable-probar-<cable>"` (`apps/plaza/cable.ts`) y `padreDeBoton` manda `cable-probar-<id>` → `dock-cable` → `construir` → `mas` (`apps/plaza/flecha-logica.ts`). La misión usa `senala: "cable-probar-boton-rojo"`. Segundo hallazgo: el «Guardar» de la frase del cable (`editarDisparador`) no avisaba con `hizo`, así que un paso `edita_cable` nunca se cumplía desde la interfaz (solo desde el JSON de «Ver datos», `editarReceptores`); ahora `features/disparadores/server.ts` lo emite también.
+- Números: `test/flecha.test.ts` +1 prueba y una aserción; `test/misiones-hace.test.ts` +1 prueba (falla sin el arreglo); `npm test` 1639 bien, 0 mal; puertas en verde; build ok (594,4 kB gz). Prueba real: `plantillas/taller/recorrido.mjs`.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `taller`, sin subir.
+
+## 2026-10-21 21:05 · T4 Taller recorrido entero (11 misiones) · hecho
+- Qué: la pierna `work/plantillas/taller/recorrido.mjs` recorre las 11 misiones de «La plaza a oscuras» con la interfaz real (C, arrastrar el Farolillo, asas, «se ve al jugar», Probar, «+ Nuevo cable», huecos de la frase, Lumen) y acaba con la insignia «Constructor»; `recorrido-movil.mjs` hace la misión 1 en móvil desde «…» → «más». Arreglo en `apps/plaza/flecha.ts`: cuando el paso pide un botón que nadie ve todavía (el diálogo o el cajón del móvil lo tapan), la flecha se escondía y DEJABA DE VIGILAR, así que no volvía nunca; ahora sigue vigilando mientras un paso pida algo y solo se apaga del todo cuando ningún paso lo pide (nada corre sin flecha).
+- Números: escritorio 11/11 misiones (exit 0, cero errores de página); móvil 8/8 pasos; `taller.zip` 15 kB y `lienzo.zip` 6,4 kB (`comprobar` ok, importados y arrancados: «Taller», 11 misiones, 1 cable; «Lienzo»). Tests/puertas/build en el commit.
+- Consumo: sin medir · Fable 5.1 (Ursa, en el escritorio) + Sonnet 5.5 (subagente T4, que murió a mitad; su trabajo se recogió).
+- Commit: rama `taller`, sin subir.
+- Siguiente: PR de la rama `taller` (T1 paso `hace`, T3 flecha, arreglos) cuando Pablo diga; farola de pie CC0; ja/ko/pt-br.

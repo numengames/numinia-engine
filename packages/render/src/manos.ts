@@ -380,6 +380,15 @@ export function createManos(h: ManosHooks) {
       const l = Math.hypot(Dir.x, Dir.z);
       return l > 0.2 ? [Dir.x / l, Dir.z / l] : null;
     },
+    /** v6: where that hand points now (world, unit, 3D): a controller's ray or a tracked hand's pinch ray, drawn or not (a hand
+     * holding a dart has no ray drawn, yet the dart must point where it points). null while that side is not here. */
+    dirRayo(lado: Lado): [number, number, number] | null {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente);
+      if (!r) return null;
+      r.ctrl.updateWorldMatrix(true, false);
+      Dir.set(0, 0, -1).applyQuaternion(r.ctrl.getWorldQuaternion(Qw));
+      return [Dir.x, Dir.y, Dir.z];
+    },
     /** What a hand's buttons say now: trigger (or a tracked hand's pinch, 0/1), grip, and whether it is a tracked hand. */
     entrada(lado: Lado): { gatillo: number; agarre: number; mano: boolean } | null {
       const r = ranuras.find((x) => x.lado === lado && x.fuente);

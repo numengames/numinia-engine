@@ -20,6 +20,7 @@ import { montarConstructorVR } from "./constructor-xr.ts";
 import { montarSoltar } from "./soltar.ts";
 import { montarAvatar } from "./avatar.ts"; // H10: your avatar — house or uploaded .vrm, for every visitor
 import { montarHuecos } from "./huecos.ts";
+import { montarFlecha } from "./flecha.ts"; // T3: the arrow that points at the button of the current mission step
 import { montarEnlaces } from "./enlaces.ts"; // J4: click on a thing with a link opens it (new tab, after confirming)
 import { disparadores } from "../../features/disparadores/client.ts"; // D-041: the cable — controller
 import { montarCable } from "./cable.ts"; // D-041, historias 5-6 + C: builder's live view + the cable as a sentence with blanks
@@ -86,6 +87,8 @@ import { montarCondicionesXR } from "./condiciones-xr.ts"; // condiciones/c4: th
 import { montarCondiciones } from "./condiciones.ts"; // condiciones/c3: the bubble of entry (only when the world's gate is on; the server decides)
 import { montarGraboso } from "./graboso.ts"; // M18b: the relic that records what you see (K)
 import { icono } from "./iconos.ts";
+import { rotularBoton } from "./menu-secciones-ui.ts"; // v2 paridad: the bar reads the one list of sections
+import { nombreDe, seccion, tituloDe } from "../../packages/render/src/menu-secciones.ts";
 import { gestosDePagina } from "../../features/gestos/client.ts";
 import { FAVORITOS_INICIALES } from "../../features/gestos/movimientos.ts";
 import { montarRueda } from "./rueda.ts";
@@ -274,6 +277,7 @@ if (esTactil()) {
 const constructorUI = montarConstructor(constructor, view, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!,
   { volver: () => mapa.volver(), puedeVolver: () => mapa.puedeVolver(),
     mundo: () => ({ disparadores: disparadores.lista(), cerraduras: cerraduras.cerraduras(), contadores: contadores.lista() }), abrirCable: () => cable.mostrar(),
+    alAbrir: (q) => { misiones.hace(q === "construir" ? "abre_construir" : q === "anadir" ? "abre_biblioteca" : "abre_cable"); }, // T1: only sent while a step asks for it
     subir: () => soltar.elegir() }); // C3, C4, ux2-dock: the card, «Lógica», «Subir»; `mapa`, `cable` and `soltar` are built below, only read later
 // ---- M22b-3: the same builder, picked and moved with a VR controller's ray instead of a mouse ----
 const constructorVR = montarConstructorVR(constructor, view);
@@ -297,7 +301,7 @@ montarEntorno(ambiente, elementos, view, interruptorNaturaleza, constructorUI.ca
   { id: "asientos", etiqueta: "Asientos", titulo: "Encender o apagar los asientos de este mundo («E» junto a un asiento y te sientas) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en asientos.json. / Turn the seats on or off for the whole world.", encendida: "Asientos encendidos.", apagada: "Asientos apagados.", interruptor: interruptorAsiento },
   { id: "burbujas", etiqueta: "Burbujas de voz", titulo: "Encender o apagar las burbujas de voz de este mundo (dentro de una, solo se oyen entre sí los que están dentro; es privacidad de oído, no cifrado) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en burbujas.json. / Turn the voice bubbles on or off for the whole world.", encendida: "Burbujas de voz encendidas.", apagada: "Burbujas de voz apagadas.", interruptor: interruptorBurbujas },
   { id: "dados", etiqueta: "Dados", titulo: "Encender o apagar los dados de este mundo (la torre de dados y /tirar) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en dados.json. / Turn the dice on or off for the whole world.", encendida: "Dados encendidos.", apagada: "Dados apagados.", interruptor: interruptorDados },
-]); // H4/H8: environment and elements, inside the builder's «Entorno» drawer (ux2-dock)
+], interruptoresFunciones); // H4/H8: environment and elements, inside the builder's «Entorno» drawer (ux2-dock)
 montarBurbuja({ burbujas, cartel: document.getElementById("burbuja-cartel")! }); // burbujas v1: the small label while you are inside a bubble
 montarDados({ dados, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) }); // dados v1: the dice card everyone near sees, the dice buttons beside a tower
 const contadoresPagina = montarContadores({ contadores, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) }); // D-044: the counters' panel (the sign in the world is the feature's own label)
@@ -378,6 +382,7 @@ misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step
 const xr = montarXR({ session, view, misiones, interaccion }); // J10: hands in VR take, point and answer; what you took is in your hand
 const condicionesXR = montarCondicionesXR({ condiciones, vr: view.vr as never, mundo: () => nombreDelMundo, soportado: () => vrDisponible }); // condiciones/c4
 montarDialogo(misiones, document.getElementById("dialogo")!, view);
+montarFlecha({ misiones }); // T3: idle costs nothing; with a step that points at a button it follows the button
 const nombres = montarVerNombres(view); // U22: Alt / «Nombres» button / gamepad Back: every name; otherwise only who you look at and who speaks
 misiones.alCambiar((que) => { if (que === "dialogo") view.hablando(misiones.dialogo() ? `pnj:${misiones.dialogo()!.pnj}` : null); }); // U22: the one you talk to shows its name
 montarLibro(misiones, {
@@ -680,7 +685,7 @@ const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById(
 // ---- rediseño v2 (story E): in VR, the wrist watch and the menu panel show what the computer's panels show ----
 {
   const n = (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia;
-  const menuVR = montarMenuVR({ vr: view.vr, n: () => n, ciudadUrl: ciudad.url, puedeConstruir: () => constructor.estado.puede,
+  const menuVR = montarMenuVR({ vr: view.vr, n: () => n, ciudadUrl: ciudad.url, puedeConstruir: () => constructor.estado.puede, construirVR: constructorVR,
     nombre: () => session.who?.nombre ?? "Invitado",
     // the same line «Tú» shows on the computer (avatar · world · how long), never the guest's raw id
     linea: () => lineaDeTu({ avatar: miAvatar()?.nombre, mundo: nombreDelMundo, ms: informe.bienvenidaMs > 0 ? performance.now() - informe.bienvenidaMs : 0 }),
@@ -696,25 +701,26 @@ const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById(
 {
   const barra = document.getElementById("barra-arriba")!;
   const gear = document.getElementById("ajustes-abrir")!;
-  gear.classList.add("solo-icono"); gear.innerHTML = `${icono("gear")}<span class="solo-lector">Ajustes</span>`; gear.title = "Ajustes";
+  // v2 paridad: icon, name and tooltip of every section come from the world's one list (menu-secciones.ts), the VR menu's too
+  gear.classList.add("solo-icono"); rotularBoton(gear, "ajustes"); gear.title = nombreDe("ajustes"); // its key (O) is the «Menú»'s
   const mis = document.getElementById("misiones")!;
-  mis.innerHTML = `${icono("scroll", 18)}<span>Misiones</span>`; mis.title = "Misiones (J)";
+  rotularBoton(mis, "misiones", { visible: true, px: 18 });
   const invB = document.getElementById("inventario-abrir")!;
-  invB.classList.add("solo-icono"); invB.innerHTML = `${icono("package")}<span class="solo-lector">Bolsa</span>`; invB.title = "Bolsa (R)";
+  invB.classList.add("solo-icono"); rotularBoton(invB, "bolsa");
   for (const id of ["construir", "microfono", "gente-abrir", "inventario-abrir", "vr", "ar"]) { const e = document.getElementById(id); if (e) barra.appendChild(e); }
   barra.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
   const separador = document.createElement("span"); separador.className = "separador"; separador.setAttribute("aria-hidden", "true");
   barra.appendChild(separador);
-  const botonBarra = (id: string, ic: string, nombre: string, tecla: string) => {
+  const botonBarra = (id: string, seccionId: string) => {
     const b = document.createElement("button"); b.type = "button"; b.id = id; b.className = "solo-icono";
-    b.title = `${nombre} (${tecla})`; b.setAttribute("aria-keyshortcuts", tecla);
-    b.innerHTML = `${icono(ic)}<span class="solo-lector">${nombre}</span>`; // constants only
+    const tecla = seccion(seccionId).tecla; if (tecla) b.setAttribute("aria-keyshortcuts", tecla);
+    rotularBoton(b, seccionId);
     barra.appendChild(b); return b;
   };
   const libre = () => !document.body.classList.contains("construyendo") && !document.querySelector("dialog[open]") && !foto.activo() && !dardos.tirando();
 
   // «Cámara» (P): photo, record (K still records on its own), share the screen (where the browser can)
-  const camaraB = botonBarra("camara-abrir", "camera", "Cámara", "P");
+  const camaraB = botonBarra("camara-abrir", "camara");
   const camara = montarMenuBarra({
     id: "camara-menu", barra, boton: camaraB, etiqueta: "Cámara", tecla: "KeyP", puedeTecla: libre,
     entradas: [document.getElementById("foto-abrir"), graboso.boton, document.getElementById("compartir-pantalla")].filter((b): b is HTMLButtonElement => b instanceof HTMLButtonElement),
@@ -723,7 +729,7 @@ const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById(
   const pintarCamara = () => {
     const e = estadoCamara({ grabando: graboso.boton.getAttribute("aria-pressed") === "true", compartiendo: compartir.estado.compartiendo });
     if ((camaraB.dataset.estado ?? null) !== e) { if (e) camaraB.dataset.estado = e; else delete camaraB.dataset.estado; }
-    const t = e === "grabando" ? "Cámara (P): grabando" : e === "compartiendo" ? "Cámara (P): compartiendo tu pantalla" : "Cámara (P)";
+    const t = e === "grabando" ? `${tituloDe("camara")}: grabando` : e === "compartiendo" ? `${tituloDe("camara")}: compartiendo tu pantalla` : tituloDe("camara");
     if (camaraB.title !== t) camaraB.title = t;
   };
   new MutationObserver(pintarCamara).observe(graboso.boton, { attributes: true, attributeFilter: ["aria-pressed"] });
@@ -731,7 +737,7 @@ const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById(
 
   // «Teclas y ayuda»: the keys of this page, from the help line (#help) every module already writes into
   const ayudaB = document.createElement("button"); ayudaB.type = "button"; ayudaB.id = "teclas-abrir";
-  ayudaB.innerHTML = `${icono("keyboard")}<span class="solo-lector">Teclas y ayuda</span>`; ayudaB.title = "Teclas y ayuda";
+  rotularBoton(ayudaB, "teclas");
   const teclas = crearDialogo({ id: "teclas", titulo: "Teclas y ayuda", tecla: "F1", boton: ayudaB, alAbrir: () => {
     const lista = document.createElement("dl"); lista.className = "teclas-lista";
     for (const p of filasDeAyuda(document.getElementById("help")?.textContent ?? "")) {
@@ -743,7 +749,7 @@ const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById(
   ayudaB.hidden = !!enMovil; // a phone names no key
 
   // «Menú» (O): settings, full screen, back to the city (only where the world names one), the keys
-  const menuB = botonBarra("menu-abrir", "list", "Menú", "O");
+  const menuB = botonBarra("menu-abrir", "menu");
   montarMenuBarra({
     id: "menu-lista", barra, boton: menuB, etiqueta: "Menú", tecla: "KeyO", puedeTecla: () => !document.querySelector("dialog[open]"),
     entradas: [gear, document.getElementById("pantalla"), document.getElementById("volver-ciudad"), ayudaB].filter((b): b is HTMLButtonElement => b instanceof HTMLButtonElement),

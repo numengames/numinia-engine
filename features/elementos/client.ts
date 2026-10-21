@@ -55,6 +55,7 @@ export function crearCliente() {
     desplazar: (dx: number, dz: number) => conSeleccion((o) => enviar("cambiar", todo(o, { x: Number(o.x) + dx, z: Number(o.z) + dz }))),
     /** H8: remove every element (part of «restaurar el mundo»). */
     vaciar: () => enviar("vaciar", {}),
+    aguaHeredada: () => enviar("aguaHeredada", {}), // B9: the pond where the nature had it
     quitar: (id?: string) => (id ? enviar("quitar", { id }) : conSeleccion((o) => enviar("quitar", { id: o.id }))),
   };
   const part = clientPart(decl, (a) => {

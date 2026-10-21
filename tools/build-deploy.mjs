@@ -78,7 +78,7 @@ function main() {
   // the build stamp the engine reads (packages/server/src/version.ts): /status, the world zip's compose.yml and the
   // container image (Dockerfile checks it against the commit it is tagged with) all come from these same bytes
   const commit = run("git", ["rev-parse", "HEAD"]);
-  writeFileSync(join(app, "build.json"), JSON.stringify({ build, commit, limpio: !dirty }, null, 1) + "\n");
+  writeFileSync(join(app, "build.json"), JSON.stringify({ build, commit, semver: JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version, limpio: !dirty }, null, 1) + "\n");
   const tgz = join(tmp, "numinia-deploy.tgz");
   run("tar", ["-czf", tgz, "-C", stage, "app", "www", "actualizar.sh"]);
   const payloadB64 = readFileSync(tgz).toString("base64");

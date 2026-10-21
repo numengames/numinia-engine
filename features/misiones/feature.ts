@@ -3,7 +3,7 @@
 //   misiones  your quest book (only to you, saved by guest) and the quest things in the world (take or use)
 // What exists (quests, people, things) comes from the adventure's text files (formato.ts; docs/EXTENDER.md).
 import { defineFeature, SOUNDS } from "../../packages/feature/src/index.ts";
-import { ALTURA_MAX, ESPERA_MAX, LIM, LIM_SECUENCIA, MUNDO, TIPOS_PASO, TIPOS_PISTA } from "./formato.ts";
+import { ACCIONES_PAGINA, ALTURA_MAX, ESPERA_MAX, LIM, LIM_SECUENCIA, MUNDO, TIPOS_PASO, TIPOS_PISTA } from "./formato.ts";
 
 const ID = { kind: "text", maxBytes: LIM.id } as const;
 const X = { kind: "fixed", min: -MUNDO, max: MUNDO, step: 0.01 } as const;
@@ -46,7 +46,7 @@ export const pnj = defineFeature({
 
 export const misiones = defineFeature({
   id: "misiones",
-  version: 6, // v6: a reward may be an «objeto» (a digital good, N10): event `concedido` goes to the server only (features/bienes signs and keeps it); v5: a step may wait (`paso.espera`: seconds left) and a done step may play a moment only you see (events secuencia, pista, clave); and a quest thing's used look (state `modeloUsada`, `escalaUsada`: cosa@1 apariencia.usada, U14 (6)); v4: marks for you over people and things (event `marcas`: «!» something for you now, «✓» done); v3: steps in any order (`paso.grupo`), a person gives you a thing (step type «recibe»); v2: a thing's `y` reaches ALTURA_MAX
+  version: 7, // v7 (T1): step type `hace` (the builder does something), the step event carries `accion` and `senala`, and the intent `hace` (the page says it opened a panel); v6: a reward may be an «objeto» (a digital good, N10): event `concedido` goes to the server only (features/bienes signs and keeps it); v5: a step may wait (`paso.espera`: seconds left) and a done step may play a moment only you see (events secuencia, pista, clave); and a quest thing's used look (state `modeloUsada`, `escalaUsada`: cosa@1 apariencia.usada, U14 (6)); v4: marks for you over people and things (event `marcas`: «!» something for you now, «✓» done); v3: steps in any order (`paso.grupo`), a person gives you a thing (step type «recibe»); v2: a thing's `y` reaches ALTURA_MAX
   level: "base",
   describe: "Misiones: encargos por pasos (llegar a un sitio, hablar con alguien, recibir algo de alguien, usar o coger algo, entregarlo; los de un mismo grupo, en cualquier orden) que da una persona y que comprueba el servidor. Un paso puede esperar unos segundos antes de poder hacerse y, al hacerse, poner una secuencia que solo ves tú. Tu libro llega solo a ti y se guarda por invitado. Las escribe la aventura (mision@1, cosa@1, secuencia@1).",
   store: { describe: "El progreso de cada invitado (`p:<id>`): misiones activas con su paso, lo que lleva (cogido o recibido) y lo hecho del grupo en curso, las completadas y la que sigue. Solo le llega a su dueño, como eventos. Y cada recompensa concedida, una sola vez (`c:<misión>:<id>`: jugador, nombre, misión, recompensas, instante, estado), que lista `npm run concesiones`." },
@@ -59,6 +59,7 @@ export const misiones = defineFeature({
     aceptar: { describe: "Aceptar una misión que ofrece alguien que tienes al lado.", spoken: "aceptar una misión", fields: { mision: ID } },
     abandonar: { describe: "Dejar una misión activa (se pierde lo avanzado en ella).", spoken: "abandonar una misión", fields: { mision: ID } },
     seguir: { describe: "Seguir una misión activa: su objetivo se marca en el mundo y en el mapa (vacío = no seguir ninguna).", spoken: "seguir una misión", fields: { mision: { kind: "text", maxBytes: LIM.id, default: "" } } },
+    hace: { describe: `T1: avisar de algo que solo la página ve (${ACCIONES_PAGINA.join(", ")}: abrir el panel de construir, la biblioteca o el cable) para un paso «hace» de tu misión. Solo vale con permiso de construir y esas tres acciones; el resto de lo que hace quien construye lo ve el servidor solo.`, spoken: "avisar de que has abierto un panel", fields: { accion: { kind: "text", maxBytes: 16 } }, rate: { perSecond: 2, burst: 4 } },
     usar: { describe: "Coger o usar una cosa de una misión que tienes al lado.", spoken: "coger o usar algo", fields: { cosa: ID }, rate: { perSecond: 2, burst: 4 } },
   },
   events: {
@@ -69,8 +70,8 @@ export const misiones = defineFeature({
       announce: "silent",
     },
     paso: {
-      describe: "Un paso de una misión de tu libro y dónde está su objetivo (x, z, donde = su nombre; que = el id de la persona o la cosa). Los pasos seguidos con el mismo grupo se hacen en cualquier orden (grupo = el nombre de su contador; vacío = ninguno). espera = cuántos segundos faltan para poder hacerlo (0 = ya se puede; la página descuenta sola y el servidor manda el libro otra vez cuando se abre).",
-      fields: { mision: ID, n: { kind: "int", min: 0, max: LIM.pasos - 1 }, texto: { kind: "text", maxBytes: LIM.textoPaso }, tipo: { kind: "enum", values: TIPOS_PASO }, hecho: { kind: "bool" }, x: X, z: X, donde: { kind: "text", maxBytes: LIM.lugar }, que: { kind: "text", maxBytes: LIM.id, default: "" }, grupo: { kind: "text", maxBytes: LIM.grupo, default: "" }, espera: { kind: "int", min: 0, max: ESPERA_MAX, default: 0 } },
+      describe: "Un paso de una misión de tu libro y dónde está su objetivo (x, z, donde = su nombre; que = el id de la persona o la cosa). Los pasos seguidos con el mismo grupo se hacen en cualquier orden (grupo = el nombre de su contador; vacío = ninguno). accion = lo que hay que hacer en un paso «hace» (vacío en los demás); senala = el id del botón de la página que la flecha señalará (vacío = ninguno). espera = cuántos segundos faltan para poder hacerlo (0 = ya se puede; la página descuenta sola y el servidor manda el libro otra vez cuando se abre).",
+      fields: { mision: ID, n: { kind: "int", min: 0, max: LIM.pasos - 1 }, texto: { kind: "text", maxBytes: LIM.textoPaso }, tipo: { kind: "enum", values: TIPOS_PASO }, hecho: { kind: "bool" }, x: X, z: X, donde: { kind: "text", maxBytes: LIM.lugar }, que: { kind: "text", maxBytes: LIM.id, default: "" }, grupo: { kind: "text", maxBytes: LIM.grupo, default: "" }, espera: { kind: "int", min: 0, max: ESPERA_MAX, default: 0 }, accion: { kind: "text", maxBytes: 16, default: "" }, senala: { kind: "text", maxBytes: 32, default: "" } },
       announce: "silent",
     },
     aceptada: { describe: "Aceptaste una misión.", fields: { mision: ID, titulo: { kind: "text", maxBytes: LIM.titulo }, texto: { kind: "text", maxBytes: LIM.textoMision, default: "" } }, announce: { text: "Misión nueva: {titulo}. {texto}", sound: "magia", importance: 1 } },
