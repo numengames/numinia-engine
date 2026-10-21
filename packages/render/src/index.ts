@@ -126,7 +126,7 @@ async function leerGpu(renderer: THREE.WebGPURenderer, backend: Backend): Promis
   } catch { return ""; }
 }
 
-export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number; eleccion?: (clave: number | "yo") => number | undefined } } = {}) {
+export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number; eleccion?: (clave: number | "yo") => number | undefined; agua?: () => import("./avatares-politica.ts").ZonaAgua | null; chapuzon?: (entra: boolean) => void } } = {}) {
   // U25: `movil` = the device class a forced profile declares (?aparato, development only); undefined = read the device
   const power = createPower(conClase(readCaps(), opts.movil), { battery: opts.battery, maxFps: opts.maxFps });
   // XR on a WebGPU backend needs the session's "webgpu" feature (XRGPUBinding); Quest Browser 152 has neither (measured
@@ -274,9 +274,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // N1b: the solid boxes in metres (view.solidos): the camera does not go through them, avatars stand on them
   let cajasM: ArrayLike<number> = [], cajasFx: Int32Array | null = null;
   let sueloT: SueloTerreno | null = null; // a world with relieve: the ground the simulation walks on (view.sueloTerreno); null = the plaza and the boxes
+  let ondas: import("./nadar-onda.ts").Ondas | null = null, ondasCarga: Promise<import("./nadar-onda.ts").Ondas> | null = null;
   const avs = createAvatares({ world, mobile: power.mobile, xr: () => renderer.xr.isPresenting, catalogo: opts.avatares?.catalogo, yo: opts.avatares?.yo, compilar: (o) => renderer.compileAsync(o, camera, scene),
     suelo: sueloDeVista(() => cajasM, () => sueloT),
-    asentar: (x, z, y) => { const dib = sueloT && naturaleza.terreno?.alturaDibujadaEn; return dib ? asentadoEn(sueloT!, dib, x, z, y) : 0; }, eleccion: opts.avatares?.eleccion });
+    asentar: (x, z, y) => { const dib = sueloT && naturaleza.terreno?.alturaDibujadaEn; return dib ? asentadoEn(sueloT!, dib, x, z, y) : 0; }, eleccion: opts.avatares?.eleccion,
+    agua: opts.avatares?.agua, // agua/nadar: null while the world's switch is off, so nothing below ever runs
+    alAgua: (x, z, nivel, entra, yo) => { // agua/nadar: a ring on the water (lazy chunk) and, for you, the splash
+      (ondasCarga ??= import("./nadar-onda.ts").then((m) => (ondas = m.crearOndas(world)))).then((o) => o.lanzar(x, nivel, z, entra), () => {});
+      if (yo) opts.avatares?.chapuzon?.(entra);
+    } });
   // H4 + H12: sky, sun, light, fog, wind and ground come from data (features/entorno), quality from the device tier
   const entorno = crearEntorno({ renderer, scene, world, camera, hemi, sun, ground, grid, hitos, aparato: { mobile: power.mobile, deviceMemoryGB: readCaps().deviceMemoryGB, saveData: readCaps().saveData }, foco: () => selfXZ,
     fichero: (f) => { const i = f.lastIndexOf("."); return (opts.assetUrl ?? ((m: string) => `/a/${m}.glb`))(f.slice(0, i)).replace(/\.glb$/, f.slice(i)); } });
@@ -880,6 +886,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     entorno.actualizar(); naturaleza.actualizar(dtSeconds); espacioBase.actualizar(dtSeconds); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ);
     if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); dardosVR.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
     pesca.actualizar(dtSeconds); dardos.actualizar(dtSeconds);
+    ondas?.actualizar(dtSeconds);
     if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
     cam.update(dtSeconds, selfXZ ? feet : null);
     oyente?.actualizar(); // S5: right after the camera moved — the listener is where you hear from, nothing else

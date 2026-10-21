@@ -135,9 +135,13 @@ const enMovil = esMovil(perfil().clase); // U24: the phone layout: the joystick 
 const catalogoAvatares = catalogoDeAvatares(activos, params, estado?.avatar);
 // H10: montarAvatar() below needs `session` and `view`, both built after this; the hook itself is only read each
 // frame (avatares.ts sync()), so a holder filled in later is enough — nothing calls it before montarAvatar runs.
+const estanqueDeVista: { f: (() => { x: number; z: number; radio: number; nivel: number } | null) | null } = { f: null }; // agua/nadar: filled once `view` exists (nothing asks before)
 let avatarUI: ReturnType<typeof montarAvatar> | null = null; // ux2-barra: also abrirSelector()/alternarSelector() for story B («Tú»)
 const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, movil: perfil().forzado ? perfil().movil : undefined, assetUrl: (m) => `${activos}/a/${m}.glb`,
-  avatares: { catalogo: catalogoAvatares, yo: () => session.entity, eleccion: (c) => avatarUI?.eleccion(c) } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar; H10: your own choice
+  avatares: { catalogo: catalogoAvatares, yo: () => session.entity, eleccion: (c) => avatarUI?.eleccion(c),
+  agua: () => (interruptoresFunciones.actual().nadar === true ? estanqueDeVista.f?.() ?? null : null), // agua/nadar: the pond, only while the world's switch is on
+  chapuzon: (entra) => { void import("./sonar.ts").then((m) => m.sonar("pesca-chapuzon", { gain: entra ? 0.6 : 0.35 }, 300)); } } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar; H10: your own choice
+estanqueDeVista.f = () => view.naturaleza.terreno?.estanque ?? null;
 carga.etapa("vista"); // H4
 const transport = webSocketClient(url);
 

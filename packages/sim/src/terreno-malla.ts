@@ -7,10 +7,11 @@
 // Changed: coarser than the drawing (2 m cells, ≤ 100 per side → ≤ 20 000 triangles), heights rounded ONCE per lattice vertex (so
 // neighbours share the exact vertex: no crack to fall through), plus a wall around the border (a steep triangle blocks, M6 h6).
 // World geometry, like `solids` and the GLB mesh: NOT part of the state fingerprint. Never called inside `step`.
-import { alturaEn } from "../../relieve/src/relieve.ts";
+import { alturaEn, estanqueDe, NIVEL_AGUA } from "../../relieve/src/relieve.ts";
 import { alturaBase, SEMILLA_BASE_DEFECTO } from "../../relieve/src/espacio-base.ts";
 import { buildBvh, TRI_STRIDE } from "./bvh.ts";
 import type { Bvh } from "./bvh.ts";
+import { fx } from "../../core/src/index.ts";
 
 /** The shared-state key the naturaleza feature publishes the world under (features/naturaleza/feature.ts: `naturaleza` + `:` + MUNDO).
  * A test pins it; the sim cannot import features/, so the string lives here. */
@@ -46,6 +47,22 @@ export function terrenoDelEstado(objetos: Iterable<[string, Record<string, unkno
     nat = { semilla: ent(v.semilla, 0, 2147483647, 1234), tamano: ent(v.tamano, 100, 400, 200), plaza: ent(v.plaza, 4, 40, 12), estanque: v.estanque !== false };
   }
   return nat; // no base on: the nature's own terrain, or null
+}
+
+/** The shared-state key of the `nadar` switch (features/funciones: feature id `funciones` + `:` + `nadar`; `{ activa, fija }`). */
+export const CLAVE_NADAR = "funciones:nadar";
+/** agua/nadar: the water zones the sim swims in, `[x, z, radio, nivel]` per disc in Q16.16 (`setAgua`), or an empty array. Only the seeded pond of
+ * the nature (`estanqueDe`, surface `NIVEL_AGUA`, radius a little over the drawn water so the shore is inside) and ONLY while the world's `nadar`
+ * switch is ON: no switch, off, no nature or `estanque: false` = empty = the simulation as before. Pure; the server and the page both ask it. */
+export function aguaDelEstado(objetos: Iterable<[string, Record<string, unknown>]>): Int32Array {
+  let nadar = false;
+  const lista = [...objetos];
+  for (const [k, v] of lista) if (k === CLAVE_NADAR) nadar = !!v && v.activa === true;
+  if (!nadar) return new Int32Array(0);
+  const m = terrenoDelEstado(lista);
+  if (!m || m.base || !m.estanque) return new Int32Array(0);
+  const e = estanqueDe(m.semilla, m.tamano);
+  return Int32Array.of(fx(e.x), fx(e.z), fx(e.radio * 1.2), fx(NIVEL_AGUA));
 }
 
 export const claveTerreno = (m: TerrenoMundo): string => `${m.base ? "b" : ""}${m.semilla}|${m.tamano}|${m.plaza}|${m.estanque ? 1 : 0}`;

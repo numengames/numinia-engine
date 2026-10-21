@@ -2,7 +2,7 @@
 // Own avatar: predicted with the SAME sim step the server runs, reconciled exactly on each snapshot.
 // Others: drawn slightly in the past, interpolated between snapshots.
 import { fxToFloat } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, PISO_SIN_SUELO, TICK_HZ } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, setAgua, PISO_SIN_SUELO, TICK_HZ } from "../../sim/src/index.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import { crearSueloTerreno } from "./suelo-terreno.ts";
 import type { Body, SimState } from "../../sim/src/index.ts";
@@ -79,7 +79,7 @@ export class ClientSession {
     let pide = false;
     for (const [k, v] of this.features.allState()) if (k === "naturaleza:mundo" || k === "espacio-base:mundo") { pide = (v as { activa?: boolean }).activa !== false; break; }
     if (!pide && !this.terreno) return;
-    if (!this.terrenoMod) { void import("../../sim/src/terreno-malla.ts").then((m) => { this.terrenoMod = m; this.sincronizarTerreno(); }, () => {}); return; }
+    if (!this.terrenoMod) { void import("../../sim/src/terreno-malla.ts").then((m) => { this.terrenoMod = m; this.sincronizarTerreno(); this.sincronizarAgua(); }, () => {}); return; }
     const M = this.terrenoMod, m = M.terrenoDelEstado(this.features.allState());
     const clave = m ? M.claveTerreno(m) : null;
     if (clave === (this.terreno?.clave ?? null)) return;
@@ -90,6 +90,20 @@ export class ClientSession {
       const b = getBody(this.local, 0), g = groundHeight(b.x, b.z, this.local, this.terreno.hmax * 65536 + 65536);
       if (b.y < g) { this.setLocal({ ...b, y: g, vy: 0 }); this.prev = this.cur; }
     }
+  }
+
+  private aguaClave = "";
+  /** agua/nadar: the water zones of the sim, from the same state and the same function as the server (so the prediction swims like it). While the world's `nadar`
+   * switch is off or absent nothing is asked of the terrain chunk and `local.agua` stays empty. */
+  private sincronizarAgua(): void {
+    let pide = false;
+    for (const [k, v] of this.features.allState()) if (k === "funciones:nadar") { pide = (v as { activa?: boolean }).activa === true; break; }
+    if (!pide && this.aguaClave === "") return;
+    if (!this.terrenoMod) return; // the terrain chunk is being fetched (sincronizarTerreno asks for it); its arrival comes back here
+    const z = this.terrenoMod.aguaDelEstado(this.features.allState()), clave = z.join(",");
+    if (clave === this.aguaClave) return;
+    this.aguaClave = clave;
+    setAgua(this.local, z);
   }
 
   /** I1: who the server says you are (guest id + name); null until it answers, or when no keeper was given. */
@@ -116,7 +130,7 @@ export class ClientSession {
     this.pending.push({ seq: this.seq, mx, mz, buttons });
     if (this.pending.length > 64) this.pending.shift();
     this.prev = this.cur;
-    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.local, solidsFrom(this.features.allState())); this.sincronizarTerreno(); } // U10: the same walls as the server; N5: and the same hills
+    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.local, solidsFrom(this.features.allState())); this.sincronizarTerreno(); this.sincronizarAgua(); } // U10: the same walls as the server; N5: and the same hills; agua/nadar: and the same water
     step(this.local, new Int32Array([0, mx, mz, buttons]));
     this.cur = getBody(this.local, 0);
   }

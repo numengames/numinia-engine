@@ -43,8 +43,25 @@ const ASENTAR_MAX_M = 4, SIN_SUELO_M = -100;
 /** Crossfade between clips (s). */
 export const FUNDIDO_S = 0.2;
 
-export type Estado = "quieto" | "andar" | "correr" | "saltar";
-export type Clip = "quieto" | "andar" | "trotar" | "correr" | "saltar";
+export type Estado = "quieto" | "andar" | "correr" | "saltar" | "nadar";
+export type Clip = "quieto" | "andar" | "trotar" | "correr" | "saltar" | "flotar";
+
+// ---- agua/nadar (R-1): the page only DRAWS what the simulation decided. The sim (packages/sim: nivelDeAgua / VADEO) is the rule; this is the same
+// test in metres for the avatar that is drawn, only asked while the world's `nadar` switch is on (the caller passes null otherwise).
+/** A pond as the nature draws it: centre (m), radius (m) and the surface height (m). */
+export type ZonaAgua = { x: number; z: number; radio: number; nivel: number };
+/** The sim swims in a disc 1.2 × the drawn radius (terreno-malla.ts `aguaDelEstado`) and from `VADEO_M` under the surface (sim `VADEO`). Pinned by a test. */
+export const RADIO_NADO = 1.2, VADEO_M = 0.3;
+/** Are feet at (x, y, z) swimming in this pond? Pure. */
+export const nadaEn = (z: ZonaAgua | null, x: number, y: number, zz: number): boolean =>
+  z !== null && Math.hypot(x - z.x, zz - z.z) <= z.radio * RADIO_NADO && y < z.nivel - VADEO_M;
+/** The ring that spreads where someone crosses the shore: radius (m) and opacity at `t` seconds; null once it is gone. Flat, cheap, no shader. */
+export const ONDA = { dura: 1.1, desde: 0.3, hasta: 2.2, opacidad: 0.7 } as const;
+export function ondaEn(t: number): { radio: number; opacidad: number } | null {
+  if (!(t >= 0) || t >= ONDA.dura) return null;
+  const k = t / ONDA.dura;
+  return { radio: ONDA.desde + (ONDA.hasta - ONDA.desde) * (1 - (1 - k) * (1 - k)), opacidad: ONDA.opacidad * (1 - k) };
+}
 
 export function cupoVRM(c: { mobile: boolean; xr: boolean }): number {
   return c.xr ? CUPO_VRM.visor : c.mobile ? CUPO_VRM.movil : CUPO_VRM.escritorio;
@@ -56,7 +73,8 @@ export function elegirAvatar(id: number, n: number): number {
   return ((id % n) + n) % n;
 }
 
-export function estadoPor(velocidad: number, altura: number): Estado {
+export function estadoPor(velocidad: number, altura: number, nadando = false): Estado {
+  if (nadando) return "nadar"; // agua/nadar: floats in the water, never «in the air» even though the feet are off the bed
   if (altura > EN_EL_AIRE_M) return "saltar";
   if (velocidad < QUIETO_MS) return "quieto";
   return velocidad > CORRER_MS ? "correr" : "andar";
@@ -70,11 +88,12 @@ export function estadoPor(velocidad: number, altura: number): Estado {
  */
 export function clipPara(estado: Estado, velocidad: number, cadera: number, natural: Partial<Record<Clip, number>>, hay: (c: Clip) => boolean, duracion: Partial<Record<Clip, number>> = {}): { clip: Clip; ritmo: number } | null {
   const orden: Clip[] = estado === "quieto" ? ["quieto"] : estado === "saltar" ? ["saltar", "quieto"]
+    : estado === "nadar" ? ["flotar", "andar", "quieto"] // agua/nadar: the catalogue's Swim_Idle_Loop (there is no travelling swim clip: UAL1's Swim_Fwd_Loop is left out on purpose, LICENCIAS.md)
     : estado === "correr" ? ["correr", "trotar", "andar", "quieto"] : elegirPaso(velocidad / Math.max(0.1, cadera), natural);
   const clip = orden.find(hay);
   if (!clip) return null;
   const n = natural[clip] ?? 0, h = Math.max(0.1, cadera);
-  let ritmo = n > 0 && clip !== "quieto" && clip !== "saltar" ? velocidad / (n * h) : 1; // the feet stay still on the ground
+  let ritmo = n > 0 && clip !== "quieto" && clip !== "saltar" && clip !== "flotar" ? velocidad / (n * h) : 1; // the feet stay still on the ground
   // N1b (Pablo, 16-10: «va como corriendo despacito»): the house jog and sprint loops take 2 long steps per loop, so
   // played at the speed that keeps the feet still they bound in slow motion (≈ 90 steps a minute at 4 m/s). Meet a
   // natural step rate half way (geometric mean): `CADENCIA` steps a second for hips of 0.9 m, faster for shorter legs
@@ -84,7 +103,7 @@ export function clipPara(estado: Estado, velocidad: number, cadera: number, natu
     const porCadencia = (CADENCIA[clip] * Math.sqrt(0.9 / h)) / (2 / d);
     ritmo = Math.sqrt(ritmo * porCadencia);
   }
-  if (clip !== "quieto" && clip !== "saltar") ritmo = Math.min(2, Math.max(0.5, ritmo));
+  if (clip !== "quieto" && clip !== "saltar" && clip !== "flotar") ritmo = Math.min(2, Math.max(0.5, ritmo));
   return { clip, ritmo };
 }
 /** Steps a second a person of hips 0.9 m takes jogging and sprinting (our choice, ≈ 165 and 190 steps a minute). */

@@ -108,6 +108,33 @@ export const SOLIDS_MAX = 512;
  * «snap-to-ground»): no «in the air» flicker on every step. A jump is never snapped. */
 export const SNAP_DOWN = fx(0.45); // boxes the simulation looks at (the nearest are not chosen: the first 512)
 
+// ---- nadar (agua/nadar, R-1): where the world has water you swim in. `s.agua` is world geometry like `solids` and the mesh: NOT part of
+// the fingerprint, set by both sides from the same shared state (`setAgua`), and EMPTY unless the world switched `nadar` on — the step
+// then takes none of the branches below and runs exactly as before. A zone is a disc [x, z, radio, nivel] (Q16.16, nivel = the water
+// surface). You swim where the ground under you is deeper than VADEO below the surface: half the walking pace (running adds nothing,
+// the jump is ignored) and you float at FLOTA under the surface instead of standing on the bed. The server runs this very step, so a
+// page cannot swim faster.
+export const AGUA_STRIDE = 4;
+export const VADEO = fx(0.3);  // wading: less deep than this you still walk
+export const FLOTA = fx(1.1);  // feet this far under the surface while swimming (chest in the water), or on the bed if that is higher
+/** The surface (Q16.16) of the water zone around (x, z), or null when there is none. Integers only. */
+export function nivelDeAgua(s: SimState, x: number, z: number): number | null {
+  const a = s.agua;
+  for (let o = 0; o + AGUA_STRIDE <= a.length; o += AGUA_STRIDE) {
+    const dx = x - a[o], dz = z - a[o + 1];
+    if (fxMul(dx, dx) + fxMul(dz, dz) <= fxMul(a[o + 2], a[o + 2])) return a[o + 3];
+  }
+  return null;
+}
+/** Is a body with its feet at (x, y, z) swimming? (water here and the feet more than VADEO under the surface). */
+export function nadando(s: SimState, x: number, y: number, z: number): boolean {
+  if (s.agua.length === 0) return false;
+  const n = nivelDeAgua(s, x, z);
+  return n !== null && y < n - VADEO;
+}
+/** Set (or clear, with an empty array) the world's water zones: [x, z, radio, nivel] per disc, Q16.16. */
+export function setAgua(s: SimState, zonas: Int32Array): void { s.agua = zonas; }
+
 // ---- N1 h1: a uniform grid over `solids`, consulted by cell instead of scanning the whole list on every avatar
 // move. Cell = 32 m. Built once per `solids` array (cached by its identity: `setSolids` always hands a fresh array,
 // the grid is derived data, never part of the state's fingerprint) with a CSR layout (two typed arrays, no
@@ -256,14 +283,14 @@ export const Motion = defineSchema("Motion", 2, {
   iz: { kind: "fixed", min: -2, max: 2, step: 1 / 65536 },
 });
 
-export type SimState = { world: World; tf: Store; av: Store; mo: Store; tick: number; rng: Uint32Array; solids: Int32Array; mesh: Bvh | null; piso: number };
+export type SimState = { world: World; tf: Store; av: Store; mo: Store; tick: number; rng: Uint32Array; solids: Int32Array; mesh: Bvh | null; piso: number; agua: Int32Array };
 
 export function createSim(capacity: number, seed: number): SimState {
   const world = new World(capacity);
   const tf = world.register(Transform);
   const av = world.register(Avatar);
   const mo = world.register(Motion);
-  return { world, tf, av, mo, tick: 0, rng: new Uint32Array([seed >>> 0]), solids: new Int32Array(0), mesh: null, piso: 0 };
+  return { world, tf, av, mo, tick: 0, rng: new Uint32Array([seed >>> 0]), solids: new Int32Array(0), mesh: null, piso: 0, agua: new Int32Array(0) };
 }
 
 /** Where new avatars appear (metres): the square of half-side `radio` centred at (x, z). A vertical world (a tower)
@@ -366,7 +393,10 @@ export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_OR
     if (MODO[e] === MODO_QUIETO) { mx = 0; mz = 0; }
     const len = fxSqrt(fxMul(mx, mx) + fxMul(mz, mz));
     if (len > FX_ONE) { mx = fxDiv(mx, len); mz = fxDiv(mz, len); } // no faster diagonals
-    const st = buttons & BTN_RUN ? RUN_STEP : STEP;
+    // agua/nadar: swimming (decided on where the body is BEFORE this move): half the walking pace, running adds nothing
+    const aguaAntes = s.agua.length > 0 && MODO[e] !== MODO_VOLANDO ? nivelDeAgua(s, X[e], Z[e]) : null;
+    const nada = aguaAntes !== null && Y[e] < aguaAntes - VADEO;
+    const st = nada ? STEP >> 1 : buttons & BTN_RUN ? RUN_STEP : STEP;
     // N1b: standing on something before this step (only with geometry — solids or a mesh: the flat plaza never needs
     // it, so the reference fingerprint stands)
     const geo = hasGeometry(s);
@@ -387,6 +417,12 @@ export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_OR
       if (buttons & BTN_JUMP) y += vst;
       if (buttons & BTN_BAJAR) y -= vst;
       Y[e] = fxClamp(y, -Y_BOUND, Y_BOUND); VY[e] = 0; AIR[e] = 0; BUF[e] = 0;
+      continue;
+    }
+    if (nada) { // agua/nadar: float at FLOTA under the surface (or on the bed where it is higher); no gravity, no jump
+      const fondo = geo ? groundHeight(X[e], Z[e], s, Y[e]) : 0, flota = aguaAntes! - FLOTA;
+      Y[e] = fxClamp(fondo > flota ? fondo : flota, -Y_BOUND, Y_BOUND); VY[e] = 0; AIR[e] = 0; BUF[e] = 0;
+      if (MODO[e] === MODO_QUIETO) { CNT[e]--; if (CNT[e] <= 0) { CNT[e] = 0; MODO[e] = MODO_PIE; } }
       continue;
     }
     const ground = geo ? groundHeight(X[e], Z[e], s, Y[e]) : 0;

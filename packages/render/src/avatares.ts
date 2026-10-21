@@ -4,8 +4,8 @@
 // The capsules stay as anchors: labels, bounces, the camera and the jump read them; a capsule that has a VRM is only
 // hidden from every camera (layers), never `.visible = false`, so those keep working.
 import * as THREE from "three/webgpu";
-import { ANIMAR_HASTA_M, FUNDIDO_S, clipPara, cupoVRM, elegirAvatar, elegirCercanos, empezarMovimiento, estadoPor, movimientoOcupa, nuevaMarcha, pasoDeMovimiento, seguir } from "./avatares-politica.ts";
-import type { Clip, EnCurso, Estado, Marcha, Movimiento } from "./avatares-politica.ts";
+import { ANIMAR_HASTA_M, FUNDIDO_S, nadaEn, clipPara, cupoVRM, elegirAvatar, elegirCercanos, empezarMovimiento, estadoPor, movimientoOcupa, nuevaMarcha, pasoDeMovimiento, seguir } from "./avatares-politica.ts";
+import type { Clip, EnCurso, Estado, Marcha, Movimiento, ZonaAgua } from "./avatares-politica.ts";
 import type { Copia, Plantilla } from "./avatares-vrm.ts";
 import type { VRMAnimation } from "@pixiv/three-vrm-animation";
 
@@ -28,6 +28,7 @@ type Avatar = {
   clave: number | "yo"; modelo: number; marcha: Marcha; estado: Estado; copia?: Copia;
   clip?: string; tramo?: string; accion?: THREE.AnimationAction; saliente?: THREE.AnimationAction; fundidoHasta: number;
   ancla?: THREE.Object3D; mascara?: number; cerca: boolean;
+  nadando?: boolean; // agua/nadar: undefined until the first sample (arriving in the water makes no splash)
   rumboFijo?: number; // pesca v2: while fishing the body faces the water (only while standing still)
 };
 
@@ -36,7 +37,11 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
   asentar?: (x: number, z: number, y: number) => number;
   /** H10: which house avatar (index into `catalogo.modelos`, possibly grown with uploads by the caller) this player
    * wears right now, or undefined to keep the old per-entity default (`elegirAvatar`). Asked every sync(). */
-  eleccion?: (clave: number | "yo") => number | undefined }) {
+  eleccion?: (clave: number | "yo") => number | undefined;
+  /** agua/nadar: the pond people swim in (centre, radius, surface; metres) while the world's `nadar` switch is ON, else null. Asked once per sync(). */
+  agua?: () => ZonaAgua | null;
+  /** agua/nadar: someone crossed the shore (`entra`: into the water). Only called with the switch on; the caller draws the ring and plays the splash. */
+  alAgua?: (x: number, z: number, nivel: number, entra: boolean, yo: boolean) => void }) {
   const cat = o.catalogo;
   const n = cat?.modelos.length ?? 0;
   let vrm: Promise<{ m: Vrm; carga: ReturnType<Vrm["crearCargador"]> }> | null = null;
@@ -115,12 +120,16 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     a.accion = nueva; a.clip = clip;
   }
 
+  let zonaAgua: ZonaAgua | null = null; // agua/nadar: refreshed at the top of each sync()
   function actualizar(a: Avatar, ancla: THREE.Object3D, oculto: boolean, desde: { x: number; z: number } | null, ahora: number, dt: number, m: Vrm | null): void {
     const pos = ancla.position;
     seguir(a.marcha, pos.x, pos.z, dt);
     let altura = pos.y - ALTURA_CAPSULA;
-    a.estado = estadoPor(a.marcha.velocidad, altura - (o.suelo?.(pos.x, pos.z, altura) ?? 0)); // over the ground under you
-    if (o.asentar && a.estado !== "saltar") altura += o.asentar(pos.x, pos.z, altura); // on relieve: drawn on the drawn ground, not buried in the collision mesh
+    const nadando = nadaEn(zonaAgua, pos.x, altura, pos.z);
+    if (zonaAgua && a.nadando !== undefined && nadando !== a.nadando) o.alAgua?.(pos.x, pos.z, zonaAgua.nivel, nadando, a.clave === "yo");
+    a.nadando = zonaAgua ? nadando : undefined;
+    a.estado = estadoPor(a.marcha.velocidad, altura - (o.suelo?.(pos.x, pos.z, altura) ?? 0), nadando); // over the ground under you
+    if (o.asentar && !nadando && a.estado !== "saltar") altura += o.asentar(pos.x, pos.z, altura); // on relieve: drawn on the drawn ground, not buried in the collision mesh (not while swimming)
     a.cerca = a.clave === "yo" || !desde || Math.hypot(pos.x - desde.x, pos.z - desde.z) <= ANIMAR_HASTA_M;
     if (fallidas.has(a.modelo)) return;
     const p = plantillas.get(a.modelo);
@@ -172,6 +181,7 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
       if (!n) return;
       const dt = antes < 0 ? 0 : Math.min(0.25, (ahora - antes) / 1000);
       antes = ahora;
+      zonaAgua = o.agua?.() ?? null;
       if (++cuadros < 2) return; // after the first frame: the plaza shows before any avatar is asked for
       const desde = yo ? { x: yo.position.x, z: yo.position.z } : null;
       if (ahora - ultimoRepaso >= REPASO_MS) {

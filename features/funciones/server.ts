@@ -6,6 +6,7 @@
 //     reading gets in. On: only whoever arrives afterwards is asked (nobody already inside is put out). The file beats condiciones.json's
 //     `puerta`; MOTOR_CONDICIONES_PUERTA and startServer's `condicionesPuerta` beat the file (then `fija` is true and the switch refuses).
 //     The switch exists only if the world has conditions (its own condiciones.json, a community source, or the gate forced from outside).
+//   · nadar — off by default; ON makes the sim (server and pages alike) take the pond as water to swim in: half pace, no jump, floating; needs the nature (naturaleza).
 //   · dardos, pesca — f1 keeps and publishes the state (default on, as today); f2: their own servers read it (`api.estadoDe("funciones")`) and refuse + close what ran, their pages draw nothing.
 // A world with no funciones.json behaves exactly as before. No folder to write in: the change lasts until the server restarts.
 import { serverPart } from "../../packages/feature/src/index.ts";
@@ -23,7 +24,7 @@ export type OpcionesFunciones = {
 };
 
 const cortar = (t: string, n = 150) => (new TextEncoder().encode(t).length <= n ? t : `${t.slice(0, n - 1)}…`);
-const NOMBRE: Record<Funcion, string> = { normas: "las normas de entrada", dardos: "los dardos", pesca: "la pesca" };
+const NOMBRE: Record<Funcion, string> = { normas: "las normas de entrada", dardos: "los dardos", pesca: "la pesca", nadar: "agua para nadar" };
 
 export function crearFunciones(opts: OpcionesFunciones = {}): ParteConEnlace {
   // what the file says now (a missing or wrong file says nothing; a wrong one is logged once the piece starts)
@@ -38,6 +39,7 @@ export function crearFunciones(opts: OpcionesFunciones = {}): ParteConEnlace {
     const valor = (f: Funcion): { activa: boolean; fija: boolean } | null => {
       if (!seam) return null;
       if (f === "normas") return seam.normas ? { activa: seam.normas.activa(), fija: seam.normas.fija } : null;
+      if (f === "nadar") return seam.presentes.includes("naturaleza") ? { activa: escrito.nadar ?? false, fija: false } : null; // nadar: needs the nature's pond; OFF unless the world says so (R-1: the sim's swim rule only runs while it is on)
       return seam.presentes.includes(f) ? { activa: escrito[f] ?? true, fija: false } : null; // dardos, pesca: loaded by default
     };
     const publicar = (f: Funcion) => { const v = valor(f); if (v) api.state.set(f, v); else api.state.delete(f); };

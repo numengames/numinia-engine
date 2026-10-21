@@ -1,5 +1,5 @@
 // funciones — the file format `numinia-engine/funciones@1` (f1): the world's feature switches. Pure: no engine, no DOM.
-// { "schema": "numinia-engine/funciones@1", "normas": false, "dardos": true, "pesca": true } — every key optional; a key that is not there
+// { "schema": "numinia-engine/funciones@1", "normas": false, "dardos": true, "pesca": true, "nadar": false } — every key optional; a key that is not there
 // says nothing (the world keeps what it does today). `normas` is the gate of the conditions of entry and, when it is there, it beats the
 // `puerta` of aventura/condiciones.json (the environment's MOTOR_CONDICIONES_PUERTA and startServer's `condicionesPuerta` still beat it).
 // An unknown key or a non-boolean value is an issue that says how to fix it (never thrown); a wrong file is not used.

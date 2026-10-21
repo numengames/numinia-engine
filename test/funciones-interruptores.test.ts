@@ -81,7 +81,7 @@ test("f1: a world WITHOUT funciones.json behaves as today — gate off, no file 
     assert.ok(m.logs.some((l) => l.includes("[condiciones] puerta apagada")));
     const a = await llegar(m);
     assert.ok(await espera(() => a.f.actual().dardos !== undefined));
-    assert.deepEqual(a.f.actual(), { normas: false, dardos: true, pesca: true });
+    assert.deepEqual(a.f.actual(), { normas: false, dardos: true, pesca: true, nadar: false });
     assert.equal(a.f.fija("normas"), false);
     assert.ok(await andar(a, m) > 1, "walks at once"); assert.equal(a.s.condiciones, null, "and was sent nothing");
     assert.equal(existsSync(c.fichero), false, "reading the state writes nothing");
@@ -158,7 +158,7 @@ test("f1: a visitor who may not build cannot flip anything; file and state stay 
     for (const [f, si] of [["normas", true], ["dardos", false], ["pesca", false]] as const) { v.f.ponerFuncion(f, si); await sleep(1100); } // one per second at most
     assert.ok(await espera(() => v.rechazos().length >= 1));
     assert.match(v.rechazos()[0], /permiso de construir/);
-    assert.equal(c.leer(), original); assert.deepEqual(v.f.actual(), { normas: false, dardos: true, pesca: true }); assert.deepEqual(w.f.actual(), v.f.actual());
+    assert.equal(c.leer(), original); assert.deepEqual(v.f.actual(), { normas: false, dardos: true, pesca: true, nadar: false }); assert.deepEqual(w.f.actual(), v.f.actual());
     assert.ok(await andar(v, m) > 1, "the gate stayed off");
     cierra(v, w);
   } finally { await m.srv.close(); }
@@ -170,20 +170,20 @@ test("f1: dardos and pesca are kept and published (nothing is hidden yet); the f
   try {
     const a = await llegar(m);
     assert.ok(await espera(() => a.f.actual().dardos !== undefined));
-    assert.deepEqual(a.f.actual(), { dardos: true, pesca: true }, "no conditions of its own: no «normas» switch");
+    assert.deepEqual(a.f.actual(), { dardos: true, pesca: true, nadar: false }, "no conditions of its own: no «normas» switch");
     a.f.ponerFuncion("normas", true);
     assert.ok(await espera(() => a.rechazos().length === 1)); assert.match(a.rechazos()[0], /no tiene condiciones de entrada/);
     a.f.ponerFuncion("dardos", false);
     assert.ok(await espera(() => a.f.actual().dardos === false));
     assert.deepEqual(JSON.parse(c.leer()), { schema: ESQUEMA, pesca: true, dardos: false });
-    assert.deepEqual(a.f.actual(), { dardos: false, pesca: true });
+    assert.deepEqual(a.f.actual(), { dardos: false, pesca: true, nadar: false });
     cierra(a);
   } finally { await m.srv.close(); }
   const m2 = await abrir(c); // restart: dardos stays off
   try {
     const a = await llegar(m2);
     assert.ok(await espera(() => a.f.actual().dardos !== undefined));
-    assert.deepEqual(a.f.actual(), { dardos: false, pesca: true });
+    assert.deepEqual(a.f.actual(), { dardos: false, pesca: true, nadar: false });
     cierra(a);
   } finally { await m2.srv.close(); }
 });

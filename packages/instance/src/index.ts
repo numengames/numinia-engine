@@ -1,9 +1,9 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, setSolids, setAgua, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX } from "../../sim/src/index.ts";
 import type { SimState, SpawnArea, Bvh } from "../../sim/src/index.ts";
-import { terrenoDelEstado, terrenoMalla, claveTerreno, combinarMallas, sueloMinimoTerreno } from "../../sim/src/terreno-malla.ts";
+import { aguaDelEstado, terrenoDelEstado, terrenoMalla, claveTerreno, combinarMallas, sueloMinimoTerreno } from "../../sim/src/terreno-malla.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import {
   MSG, buildGrid, selectVisible, encodeSnapshot, cuantizar, decodeSnapshot, encodeInput, decodeInput,
@@ -465,6 +465,7 @@ export class Instance {
     b = performance.now(); f[0] = b - a; a = b; // entradas
     if (this.features.solidsVersion !== this.solidsVersion) { this.solidsVersion = this.features.solidsVersion; setSolids(this.sim, solidsFrom(this.features.allState())); this.solidosRehechos++; } // U10, E6: only when a solid changed
     this.sincronizarTerreno(); // N5: the seeded terrain joins the collision mesh (only when «naturaleza:mundo» changed)
+    this.sincronizarAgua(); // agua/nadar: the water zones follow the world's `nadar` switch (nothing at all while it is off)
     if (this.opts.construirMalla && !this.mallaBuilding && this.features.stateVersion !== this.mallaVersion) this.quizaMalla(); // M6 h8, D2: only if a malla entry changed
     b = performance.now(); f[1] = b - a; a = b; // solidos
     // H2 historia 5: at most ORDENES_TICK_MAX orders go into this step; the rest stay queued, in order, for the next one.
@@ -561,6 +562,19 @@ export class Instance {
       this.ordenes.push(e, ORDER_PONER, x, h, z, 0);
       this.pendiente.add(e);
     }
+  }
+  private aguaVersion = -1;
+  private aguaClave = "";
+  /** agua/nadar: the sim's water zones follow the shared state («naturaleza:mundo» + «funciones:nadar»), once per state change. A world with the switch off or absent keeps `sim.agua` empty. */
+  private sincronizarAgua(): void {
+    const v = this.features.stateVersion;
+    if (v === this.aguaVersion) return;
+    this.aguaVersion = v;
+    const z = aguaDelEstado(this.features.allState()), clave = z.join(",");
+    if (clave === this.aguaClave) return;
+    this.aguaClave = clave;
+    setAgua(this.sim, z);
+    if (z.length) this.opts.log?.("nadar: el agua del estanque se nada (interruptor encendido)");
   }
   /** The GLB mesh and the terrain are ONE tree for the sim; with a terrain there is no flat floor under it (`piso`). */
   private aplicarMalla(): void {

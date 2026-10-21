@@ -5,7 +5,7 @@
 import { defineFeature } from "../../packages/feature/src/index.ts";
 
 /** The pieces that have a switch, in the order a panel lists them. */
-export const FUNCIONES = ["normas", "dardos", "pesca"] as const;
+export const FUNCIONES = ["normas", "dardos", "pesca", "nadar"] as const;
 export type Funcion = (typeof FUNCIONES)[number];
 
 /** funciones/f2: is this piece on, given its entry in the `funciones` state ({ activa, fija })? No entry — a server without the switches, or a world
@@ -14,13 +14,16 @@ export const encendida = (v: { activa?: unknown } | undefined): boolean => v?.ac
 /** funciones/f2: what a page may draw of a piece's things (boards, ponds, floats): all of them while the piece is on, none while it is off. Pure. */
 export const verSi = <T>(cosas: readonly T[], v: { activa?: unknown } | undefined): T[] => (encendida(v) ? [...cosas] : []);
 
+/** funciones/nadar: unlike dardos and pesca, `nadar` is OFF until a world switches it on (no entry, or `activa` not true = off): swimming changes how everybody moves. Pure. */
+export const encendidaSiDice = (v: { activa?: unknown } | undefined): boolean => v?.activa === true;
+
 export const funciones = defineFeature({
   id: "funciones",
   version: 1,
   level: "base",
-  describe: "Interruptores de funciones del mundo (normas de entrada, dardos, pesca): quien puede construir los enciende y apaga en caliente; se guardan en funciones.json y sobreviven al reinicio.",
+  describe: "Interruptores de funciones del mundo (normas de entrada, dardos, pesca, nadar): quien puede construir los enciende y apaga en caliente; se guardan en funciones.json y sobreviven al reinicio.",
   state: {
-    describe: "Una entrada por función que este mundo tiene («normas», «dardos», «pesca»): activa (encendida ahora) y fija (true = la fija el entorno del servidor, MOTOR_CONDICIONES_PUERTA o la opción de arranque, y el interruptor no la cambia). «normas» solo está si el mundo tiene condiciones de entrada.",
+    describe: "Una entrada por función que este mundo tiene («normas», «dardos», «pesca», «nadar»): activa (encendida ahora) y fija (true = la fija el entorno del servidor, MOTOR_CONDICIONES_PUERTA o la opción de arranque, y el interruptor no la cambia). «normas» solo está si el mundo tiene condiciones de entrada.",
     fields: {
       activa: { kind: "bool" },
       fija: { kind: "bool" },

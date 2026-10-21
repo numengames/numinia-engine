@@ -1545,11 +1545,18 @@ Regla R-1: cada pieza del motor se enciende sin tocar código. El mundo guarda u
   `encendida(estado)` y `verSi(cosas, estado)` en `features/funciones/feature.ts`; la página lee el interruptor de otra pieza con
   `api.estadoDe("funciones")` (solo lectura, como en el servidor). Una pieza que se enciende sin código: un mundo cuyo único cambio es
   `"dardos": true` ya los tiene. Pruebas: `test/funciones-obedecen.test.ts`.
+- **`nadar`** (agua/nadar): a diferencia de dardos y pesca, **apagada por defecto** (cambia cómo se mueve todo el mundo) y solo existe si el mundo
+  tiene la naturaleza con su estanque. Encendida, **el servidor** trata el estanque como agua: con los pies a más de 0,3 m bajo la superficie
+  se nada a la mitad del paso (correr no añade nada), sin salto, flotando a 1,1 m bajo la superficie; en la orilla se vuelve a andar. El cliente
+  predice con la misma función (`aguaDelEstado` + `step`) y solo dibuja: estado `nadar` con el clip `flotar` del catálogo (Swim_Idle_Loop; sin
+  clip, `andar`), un anillo plano en la orilla (chunk perezoso `nadar-onda.ts`, solo si el mundo lo enciende) y el chapuzón del sintetizador.
+  Apagada, la simulación no tiene zonas de agua y da la misma huella que hoy. Encender: `"nadar": true` en `entorno/funciones.json`, o
+  `__numinia.funciones.ponerFuncion("nadar", true)` / verbo `poner { funcion: "nadar", activa: true }`. Pruebas: `test/nadar.test.ts`.
 - **Quién**: quien puede construir (`api.puede(e, "construir")`, igual que el interruptor «Espacio base»). El servidor reescribe solo la
   clave pedida (las demás se quedan; sin fichero lo crea con `{ schema, <función> }`), lo valida y lo escribe de forma atómica; un fichero
   mal escrito no se sobrescribe nunca (el log y el rechazo dicen cómo arreglarlo). Sin carpeta de mundo, el cambio vale hasta reiniciar.
 - **En la página**: estado compartido `normas` / `dardos` / `pesca`, cada uno `{ activa, fija }` (una función que el mundo no tiene no
-  aparece); `__numinia.funciones.actual()` → `{ normas?, dardos?, pesca? }`, `.fija(nombre)` y `.ponerFuncion(nombre, si)`. Para un agente:
+  aparece); `__numinia.funciones.actual()` → `{ normas?, dardos?, pesca?, nadar? }`, `.fija(nombre)` y `.ponerFuncion(nombre, si)`. Para un agente:
   el verbo `poner { funcion, activa }` de la pieza `funciones`. El panel que los pinta es f3/v3.
 - Pruebas: `test/funciones-interruptores.test.ts` (f1), `test/funciones-obedecen.test.ts` (f2).
 
