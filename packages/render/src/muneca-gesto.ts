@@ -5,10 +5,16 @@
 // it. The watch's buttons are pressed with the OTHER hand (fingertip or ray + trigger): muneca.ts, menu-vr.ts.
 // First written in U6/J13b (11d2637) as a read-only watch; the numbers are the same.
 
-/** To open, all must hold for `ms`: back-of-hand · (wrist → eye) ≥ dorso (cos 60°), wrist inside the view cone, wrist near. */
-export const ABRIR = { dorso: 0.5, conoGrados: 35, cercaMinM: 0.2, cercaMaxM: 0.65, ms: 300 } as const;
-/** To close: the back turns away (cos 75°) for `ms`, or the wrist leaves a wider cone for `fueraMs`. */
-export const CERRAR = { dorso: 0.26, conoGrados: 50, ms: 400, fueraMs: 1000 } as const;
+/** To open, all must hold for `ms`: back-of-hand · (wrist → eye) ≥ dorso (cos 60°), wrist inside the view cone, wrist near.
+ * v1 (the watch must be easy to find): the cone went 35° → 45° and the hold 300 → 200 ms. Why: looking at a watch you drop
+ * your EYES to the wrist more than you tilt your head, and the cone is measured from the head's direction, so 35° missed
+ * the natural glance; 300 ms felt like the gesture had failed. What stops it from opening by accident: the back must still
+ * face the eyes within 60°, the wrist must be 0.2–0.65 m away, and a hand at the chest (wrist ≥ 53° below the gaze) or
+ * hanging (≥ 0.65 m, ≥ 70° below) stays outside (test/vr-muneca.test.ts). The worst a false opening does is show the
+ * 12 cm disc (the menu opens only when «Menú» is pressed) and it fades when the back turns away. Not measured on a Quest. */
+export const ABRIR = { dorso: 0.5, conoGrados: 45, cercaMinM: 0.2, cercaMaxM: 0.65, ms: 200 } as const;
+/** To close: the back turns away (cos 75°) for `ms`, or the wrist leaves a wider cone for `fueraMs` (kept 15° wider than ABRIR). */
+export const CERRAR = { dorso: 0.26, conoGrados: 60, ms: 400, fueraMs: 1000 } as const;
 /** A tracked wrist that stops arriving keeps the watch where it was this long, then hides it. */
 export const PERDIDA_MS = 1000;
 
