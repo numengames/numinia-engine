@@ -15,6 +15,7 @@ import type { Field } from "../../schema/src/index.ts";
 // 15 (condiciones/c5, additive): LEYENDO, server -> page: who is still reading the norms (the others draw them inside a bubble). Only a world with the gate on sends it.
 export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8, REPORT: 9, IDENTITY: 10, VOICE: 11, PASE: 12, CONDICIONES: 13, ACEPTAR: 14, LEYENDO: 15 } as const;
 export * from "./voz.ts";
+export * from "./enlace.ts"; // dardos enlazados (E1): the «visita de enlace»
 
 /** Wire format version, sent at the end of WELCOME. 1 = everything before J2 (it was never written on the wire);
  * 2 = J2: SNAPSHOT carries height (own vertical state exact, others with height in their own list), INPUT has a

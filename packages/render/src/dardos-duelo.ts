@@ -3,7 +3,7 @@
 // side is dardos-duelo-ar.ts. The shapes below are the controller's `Duelo` (features/dardos/client.ts) seen
 // structurally, because render imports nothing from features.
 
-export type JugadorV = { entity: number; nombre: string; puntos: number; /** v3 (teams): this row is me / left the match */ yo?: boolean; fuera?: boolean };
+export type JugadorV = { entity: number; nombre: string; puntos: number; /** joined from a real wall (AR) */ pared?: boolean; /** v6: the world they came from through a link */ mundo?: string; /** v3 (teams): this row is me / left the match */ yo?: boolean; fuera?: boolean };
 export type DueloV = {
   ronda: number; esperando: boolean; turnoDe: number | null; yo: boolean; miTurno: boolean;
   rival: JugadorV | null; yoPuntos: number; a: JugadorV; b: JugadorV | null;

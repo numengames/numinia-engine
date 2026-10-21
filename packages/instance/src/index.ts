@@ -132,6 +132,8 @@ type Conn = {
   pase?: string; // H3b: the world pass the page sent (PASE), held until its IDENTITY arrives, then handed to identificar and forgotten
   visible?: number[]; // J3: who its last snapshot carried (features ask with api.visible: names over heads)
   voz?: { desde: number; n: number }; // U10: voice frames this second (rate cap)
+  /** dardos enlazados (net/enlace.ts): a «visita de enlace» — takes part in these features only, has no visible avatar, never moves, gets no snapshots/voice. */
+  enlace?: readonly string[];
   anfitrion?: string; // ADR-080: the host this connection asked for (an outside agent signs the world's name)
   leyendo?: true; // condiciones/c5: the others have been told this person is reading the norms (set once identified and still behind the gate; cleared on accepting or leaving)
   admitido?: true; // condiciones/c2: the gate let this connection through (it accepted, or it is an AI); a connection never goes back
@@ -152,7 +154,7 @@ export class Instance {
     this.features = new ServerRuntime(opts.features ?? [], {
       players: () => this.players(),
       position: (e) => (this.sim.world.alive[e] && tf.has[e] ? { x: fxToFloat(tf.cols.x[e]), y: fxToFloat(tf.cols.y[e]), z: fxToFloat(tf.cols.z[e]) } : null),
-      send: (e, bytes) => this.byEntity[e]?.transport.send(bytes, true),
+      send: (e, bytes) => { const c = this.byEntity[e]; if (!c) return; if (c.enlace) { const f = this.features.funcionDe(bytes); if (f !== null && !c.enlace.includes(f)) return; } c.transport.send(bytes, true); }, // a visit hears only its own features
       tick: () => this.sim.tick,
       log: opts.log ?? (() => {}),
       sign: opts.sign,
@@ -276,12 +278,14 @@ export class Instance {
   }
 
   /** A client arrives over any transport: spawn its avatar (in the world's spawn area, if it has one), say welcome, listen. */
-  connect(t: Transport, owner = this.conns.length, anfitrion?: string): number {
+  connect(t: Transport, owner = this.conns.length, anfitrion?: string, enlace?: readonly string[]): number {
     this.sincronizarTerreno(); // N5: the nature's hills must be in the mesh before the first avatar stands on them
     const entity = spawnAvatar(this.sim, owner, this.opts.aparicion ?? this.aparicionTerreno());
     if (this.terreno) this.sim.tf.cols.y[entity] = groundHeight(this.sim.tf.cols.x[entity], this.sim.tf.cols.z[entity], this.sim, fx(this.terreno.hmax + 1)); // N5: appear ON the terrain
-    const conn: Conn = { entity, transport: t, viewer: { entity, priority: new Float32Array(this.opts.capacity) }, queue: [], ack: 0, dropped: 0, bad: 0, anfitrion };
+    const conn: Conn = { entity, transport: t, viewer: { entity, priority: new Float32Array(this.opts.capacity) }, queue: [], ack: 0, dropped: 0, bad: 0, anfitrion, ...(enlace?.length ? { enlace, visible: [] } : {}) };
+    if (conn.enlace) this.ocultas.add(entity);
     t.onMessage((bytes) => {
+      if (conn.enlace && (bytes[0] === MSG.INPUT || bytes[0] === MSG.VOICE)) { conn.bad++; return; } // a visit does not walk and does not talk aloud
       if (bytes[0] === MSG.INPUT && (bytes.length === 6 || bytes.length === 5)) { // 5 = from before J2 (no buttons)
         if (this.cerrada(conn)) { this.puertaStats.entradas++; return; } // condiciones/c2: frozen where it arrived until it accepts
         conn.queue.push(decodeInput(bytes));
@@ -290,6 +294,7 @@ export class Instance {
         t.send(encodePong(decodeTime(bytes)), true);
       } else if (bytes[0] === MSG.FEATURE && this.features.active) {
         if (this.cerrada(conn)) { this.puertaStats.funciones++; return; } // condiciones/c2: chat, build, every game action: ignored (not «bad»)
+        if (conn.enlace && !conn.enlace.includes(this.features.funcionDe(bytes) ?? "")) { conn.bad++; return; } // a visit may only play the game it came for
         if (!this.features.receive(entity, bytes)) conn.bad++;
       } else if (bytes[0] === MSG.IDENTITY && this.opts.identitySign) {
         const token = conn.who ? null : decodeIdentityRequest(bytes); // once per connection
@@ -327,8 +332,8 @@ export class Instance {
     this.tieneSeguro[entity] = 0; this.guardarSeguro(entity); // D-045: where you appear is safe (if it is over the world's minimum)
     const ref = this.opts.reference ?? { seed: 0, ticks: 0, n: 0, hash: 0 };
     t.send(encodeWelcome({ entity, tick: this.sim.tick, x: this.sim.tf.cols.x[entity], z: this.sim.tf.cols.z[entity], ref }), true);
-    this.features.join(entity); // catalog + shared state, only if this instance runs features
-    if (this.opts.condiciones?.activa) this.enviarLectores(conn); // condiciones/c5: who is inside a bubble right now (usually nobody: then nothing is sent)
+    this.features.join(entity, conn.enlace); // catalog + shared state, only if this instance runs features
+    if (this.opts.condiciones?.activa && !conn.enlace) this.enviarLectores(conn); // condiciones/c5: who is inside a bubble right now (usually nobody: then nothing is sent)
     return entity;
   }
 
@@ -345,7 +350,7 @@ export class Instance {
       if (!id || !nombre) { conn.bad++; this.opts.log?.(`[agentes] billete de agente rechazado (${id ? `«${id}» no es habitante de este mundo` : "firma o fecha"})`); return; }
       conn.who = agenteDe(id, nombre);
       conn.transport.send(encodeIdentity({ token, id: conn.who.id, nombre: conn.who.nombre }), true);
-      this.features.identify(entity);
+      this.features.identify(entity, conn.enlace);
       return;
     }
     if (token.startsWith("a2.")) { // ADR-080: an outside agent signs with its own key; the world lists the public one
@@ -353,7 +358,7 @@ export class Instance {
       if (!r) { conn.bad++; if (!this.opts.externos) this.opts.log?.("[agentes] billete de agente de fuera rechazado (este servidor no tiene puerta para agentes)"); return; }
       conn.who = agenteDe(r.id, r.nombre);
       conn.transport.send(encodeIdentity({ token: "", id: conn.who.id, nombre: conn.who.nombre }), true); // the ticket is never echoed
-      this.features.identify(entity);
+      this.features.identify(entity, conn.enlace);
       return;
     }
     const ok = token ? verificar(sign, token, day) : null;
@@ -366,9 +371,9 @@ export class Instance {
     if (persona) conn.invitado = id;
     const { acepto: _soloServidor, ...publico } = conn.who; // condiciones/w5: what the pass said about acceptances stays on the server
     conn.transport.send(encodeIdentity({ token: ok && !ok.renovar ? token : emitir(sign, id, day), ...publico }), true);
-    this.features.identify(entity);
+    this.features.identify(entity, conn.enlace);
     if (this.opts.condiciones?.activa) conn.transport.send(encodeCondiciones(this.opts.condiciones.estado(conn.who, true)), true); // condiciones/c2: the offer, by itself, once identified
-    if (this.cerrada(conn)) this.avisarLeyendo(conn, true); // condiciones/c5: and everybody else sees them inside a bubble (no one if they accepted before)
+    if (this.cerrada(conn) && !conn.enlace) this.avisarLeyendo(conn, true); // condiciones/c5: and everybody else sees them inside a bubble (no one if they accepted before)
   }
 
   /** condiciones/w4: the text of the conditions changed (a new version of the community's norms): offer it again, with its text, to everyone
@@ -414,7 +419,7 @@ export class Instance {
     if (leyendo === !!conn.leyendo) return;
     conn.leyendo = leyendo ? true : undefined;
     const b = encodeLeyendo([{ entidad: conn.entity, leyendo }])!;
-    for (const c of this.conns) if (c !== conn) { c.transport.send(b, true); this.puertaStats.leyendoBytes += b.length; }
+    for (const c of this.conns) if (c !== conn && !c.enlace) { c.transport.send(b, true); this.puertaStats.leyendoBytes += b.length; }
   }
   /** condiciones/c5: the people inside a bubble now, to one who has just connected (in frames of LEYENDO_POR_MENSAJE). Nobody reading = nothing sent. */
   private enviarLectores(para: Conn): void {
@@ -430,17 +435,18 @@ export class Instance {
     const i = this.conns.findIndex((c) => c.entity === entity);
     if (i < 0) return;
     if (this.conns[i].leyendo) this.avisarLeyendo(this.conns[i], false); // condiciones/c5: its bubble goes (the entity number may be someone else's next)
-    this.conns.splice(i, 1); this.playersView = null;
+    const enlace = this.conns[i].enlace;
+    this.conns.splice(i, 1); this.playersView = null; this.ocultas.delete(entity);
     this.byEntity[entity] = undefined;
-    this.features.leave(entity); // still has a position here; no longer among the players
+    this.features.leave(entity, enlace); // still has a position here; no longer among the players
     this.sim.world.despawn(entity);
     this.tieneSeguro[entity] = 0; this.pendiente.delete(entity);
   }
 
   /** Convenience for headless runs: a loopback pair whose client end is returned. */
-  join(owner: number, anfitrion?: string): Transport & { flush(): void } {
+  join(owner: number, anfitrion?: string, enlace?: readonly string[]): Transport & { flush(): void } {
     const [server, client] = loopbackPair();
-    this.connect(server, owner, anfitrion);
+    this.connect(server, owner, anfitrion, enlace);
     return client;
   }
 
@@ -487,7 +493,9 @@ export class Instance {
     if (this.sim.tick % this.opts.snapshotEvery === 0) { // 20 Hz sim, 10 Hz snapshots by default
       const grid = buildGrid(this.sim), q = cuantizar(this.sim); // E1: every avatar quantized once, not once per viewer
       for (const c of this.conns) {
-        const visible = selectVisible(this.sim, grid, c.viewer, this.opts.k);
+        if (c.enlace) continue; // a visit walks nowhere and sees nobody: no snapshot (its page never asks for one)
+        let visible = selectVisible(this.sim, grid, c.viewer, this.opts.k);
+        if (this.ocultas.size) visible = visible.filter((id) => !this.ocultas.has(id)); // the visits are nobody's neighbours
         c.visible = visible;
         c.transport.send(encodeSnapshot(this.sim, c.entity, c.ack, visible, q), false);
       }
@@ -580,6 +588,10 @@ export class Instance {
    * leaves (then a new one replaces it: whoever is walking the old one keeps a whole, unchanged list). */
   private playersView: readonly number[] | null = null;
   players(): readonly number[] { return this.playersView ??= Object.freeze(this.conns.map((c) => c.entity)); }
+  /** dardos enlazados: the entities of the «visitas de enlace» (net/enlace.ts): they are in the sim (a number, a spot for the features) but nobody sees them. */
+  private readonly ocultas = new Set<number>();
+  /** The connected entities that are a visit of a link and not a person walking the world (tests, /status). */
+  visitasDeEnlace(): number[] { return [...this.ocultas]; }
   private mallaVersion = -1;
   private mallaBuilding = false;
   /** D2: `huellaMalla` of the last build started (null = none yet: the first change always builds, as before). */

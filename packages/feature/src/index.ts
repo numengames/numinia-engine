@@ -746,7 +746,16 @@ export class ServerRuntime {
   }
 
   /** Someone joined: send what the server runs and the current shared state, then tell the features. */
-  join(entity: number): void {
+  /** Which feature a message of ours belongs to (FEATURE: its intent/event; STATE: its table), or null for anything else / unknown.
+   * The instance uses it to keep a «visita de enlace» (net/enlace.ts) to the features it may talk to. */
+  funcionDe(bytes: Uint8Array): string | null {
+    if (bytes[0] === MSG.FEATURE) return this.entries[featureIndex(bytes)]?.feature ?? null;
+    if (bytes[0] === MSG.STATE) return this.catalog.features[featureIndex(bytes)]?.id ?? null;
+    return null;
+  }
+
+  /** `solo`: a visit that may talk to those features only (net/enlace.ts): the others' join hooks do not run for it. */
+  join(entity: number, solo?: readonly string[]): void {
     if (!this.active) return;
     this.host.send(entity, this.catalogBytes);
     const me = this.host.position(entity);
@@ -763,14 +772,14 @@ export class ServerRuntime {
         }
       }
     });
-    for (const [id, fn] of this.hooks.join) { try { fn(entity); } catch (e) { this.fail(id, "en onJoin", e); } }
+    for (const [id, fn] of this.hooks.join) { if (solo && !solo.includes(id)) continue; try { fn(entity); } catch (e) { this.fail(id, "en onJoin", e); } }
   }
 
   /** I1: the instance bound a guest identity to this entity. */
-  identify(entity: number): void {
+  identify(entity: number, solo?: readonly string[]): void {
     const w = this.host.who?.(entity);
     if (!this.active || !w) return;
-    for (const [id, fn] of this.hooks.identify) { try { fn(entity, w); } catch (e) { this.fail(id, "en onIdentify", e); } }
+    for (const [id, fn] of this.hooks.identify) { if (solo && !solo.includes(id)) continue; try { fn(entity, w); } catch (e) { this.fail(id, "en onIdentify", e); } }
   }
 
   /** identidad/i1: the first numinia.com pass of someone who was a guest here: what every feature's store kept under the
@@ -787,8 +796,8 @@ export class ServerRuntime {
     return n;
   }
 
-  leave(entity: number): void {
-    for (const [id, fn] of this.hooks.leave) { try { fn(entity); } catch (e) { this.fail(id, "en onLeave", e); } }
+  leave(entity: number, solo?: readonly string[]): void {
+    for (const [id, fn] of this.hooks.leave) { if (solo && !solo.includes(id)) continue; try { fn(entity); } catch (e) { this.fail(id, "en onLeave", e); } }
     this.buckets.delete(entity); this.waiting.delete(entity); this.known.delete(entity); this.rayoBuckets.delete(entity);
   }
 

@@ -23,4 +23,4 @@ Lo que una pierna necesita como fixture (p. ej. `datos/pantalla.webm`, un segund
 **Piernas lentas.** Una pierna cuya primera línea es `// e2e-lenta` tarda minutos (con la máquina cargada, hasta 3) y trae su
 propio servidor: `tools/auto.sh e2e` la salta salvo que pongas `E2E_LENTAS=1`. Hoy, `dardos-duelo.mjs` (AR-D5, 8799/5181;
 `E2E_SERVER_PORT`/`E2E_VITE_PORT`): el duelo de dardos entero con un PC y una Quest 3 emulada con pared; se corre sola con
-`node tools/e2e-piernas/dardos-duelo.mjs`.
+`node tools/e2e-piernas/dardos-duelo.mjs`. Y `dardos-enlace.mjs` (dardos enlazados E1; 8913 Torre / 8911 otro mundo / 5311, `E2E_TORRE_PORT`/`E2E_MUNDO_PORT`/`E2E_VITE_PORT`): dos servidores y dos navegadores; la Quest emulada de un mundo pulsa «Entrar en AR», elige los dardos de la Torre, acepta sus normas en pantalla y juega en su pared (E2: selector, normas y clics reales; más una pasada de móvil, la Torre sin enlace y la Torre caída).

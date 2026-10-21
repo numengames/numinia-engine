@@ -51,6 +51,7 @@ import { interruptor as interruptorBase } from "../../features/espaciobase/clien
 import { interruptores as interruptoresFunciones } from "../../features/funciones/client.ts"; // f1: the world's feature switches (normas, dardos, pesca), read and flipped from `__numinia.funciones`
 import { interruptor as interruptorNaturaleza } from "../../features/naturaleza/client.ts"; // the «Naturaleza» switch in the builder's Entorno section
 import { elementos } from "../../features/elementos/client.ts";
+import { ajusteDeEstado, enlaceVigente } from "../../features/dardos/enlace.ts"; // dardos enlazados (E1): the setting only (a few lines); the connection is its own chunk (./dardos-enlace.ts)
 import { dardos } from "../../features/dardos/client.ts"; // dardos v1: the controller; its throwing view (apps/plaza/dardos.ts) loads with the first board
 import { lucha } from "../../features/lucha/client.ts"; // L1: the controller (golpear); the creature is drawn by view.place like any thing
 import { pesca } from "../../features/pesca/client.ts"; // pesca v1: the controller; its HUD (apps/plaza/pesca.ts) and 3D load with the first spot
@@ -124,7 +125,7 @@ let sonarServidor: (s: PeticionSonido) => boolean = (s) => catalogoSonidos.suena
 // del catálogo que suena como cama única en bucle (hoy «ambiente-numinia», el colchón CC0); `ambiente_ganancia` = su
 // volumen (×0,042 por defecto, el que quiso su autor); `ambiente_sintetizado` = las camas y capas SINTETIZADAS que
 // este mundo enciende por nombre (de serie, ninguna).
-type Estado = { version?: string; nombre?: string; tema?: unknown; avatar?: string; aforo?: number; conectados?: number;
+type Estado = { dardosEnlace?: unknown; version?: string; nombre?: string; tema?: unknown; avatar?: string; aforo?: number; conectados?: number;
   audio?: { ambiente?: string | null; ambiente_ganancia?: number; ambiente_sintetizado?: string[] } };
 const estadoP: Promise<Estado | null> = fetch(`${activos}/status`).then((r) => r.json() as Promise<Estado>).catch(() => null);
 const estado = await Promise.race([estadoP, new Promise<null>((ok) => setTimeout(() => ok(null), 1500))]);
@@ -314,6 +315,22 @@ const ancestrosPagina = montarAncestros({ ancestros, view }); // ancestros v1: t
 // ---- pesca v1: nothing of it is in the start bundle; the HUD and the 3D arrive with the first fishing spot or float ----
 let pescaHud: Promise<unknown> | null = null, pescaPagina: unknown = null; // N4: pescaPagina.manos (VR rod, gamepad) for the e2e
 pesca.alCambiar(() => { if (!pesca.sitios().length) return; /* f2: fishing switched off: nothing to load */ pescaHud ??= import("./pesca.ts").then((m) => (pescaPagina = m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, interaccion: () => interaccion }))).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); });
+// ---- dardos enlazados (E1): AR in ANY world shows the darts board of another one (the Alchemist Tower), through a second, light connection
+// that exists only once something asks for it (./dardos-enlace.ts is its own chunk). What the link is = the engine's constant unless this world's
+// dardos.json says otherwise (/status `dardosEnlace`); a world never links to itself nor when it has an AR board of its own. E2 puts the UI on it.
+let ajusteEnlace = ajusteDeEstado(estado?.dardosEnlace);
+let enlaceDardos: Promise<import("./dardos-enlace.ts").EnlaceDardosPagina> | null = null;
+const dardosEnlace = {
+  /** The link this page would use right now (`enlace` null + `motivo` when none): read-only, loads nothing. */
+  vigente: () => enlaceVigente({ ajuste: ajusteEnlace, servidorActual: url, sitios: dardos.sitios() }),
+  /** The link object (state, conectar, jugarEnPared, salir, cerrar, aceptar…), loading its chunk the first time; null when the link does not apply. */
+  async enlace() {
+    const v = dardosEnlace.vigente(); if (!v.enlace) return null;
+    const e = v.enlace;
+    return (enlaceDardos ??= import("./dardos-enlace.ts").then((m) => m.crearEnlaceDardos({ enlace: e, view, nombre: () => session.who?.nombre ?? "Invitado", mundo: () => nombreDelMundo || document.title })));
+  },
+};
+
 // ---- dardos v1: the throwing view (mouse, flick, keys) and «En tu pared (AR)» arrive with the first dartboard ----
 let dardosHud: Promise<unknown> | null = null;
 dardos.alCambiar(() => { if (!dardos.sitios().length) return; /* f2: darts switched off: nothing to load */ dardosHud ??= import("./dardos.ts").then((m) => m.montarDardos({ dardos, view, session, hud: document.getElementById("dardos-hud")! })).catch((e) => console.warn(`[dardos] no se pudo cargar la página de dardos: ${(e as Error)?.message ?? e}`)); });
@@ -502,7 +519,24 @@ const decirAviso = (t: string) => { const box = document.getElementById("avisos"
 view.arSupported().then((ok) => {
   if (!ok) return;
   arBtn.hidden = false; // the hidden ATTRIBUTE, not a style: the icon bar (tema.css) sets display on its buttons
-  arBtn.onclick = () => { if (view.ar.state === "off") void view.ar.enter().then((ok) => { if (!ok) { session.report({ k: "xr", modo: "ar", accion: "falla", detalle: view.ar.lastError }); decirAviso(mensajeFalloAR(view.ar.lastErrorName)); } }); else void view.ar.exit(); };
+  // the miniature (the plaza on your table): `enter()` must start the session in the click's own call stack (ar.ts), so nothing is awaited before it
+  const entrarMiniatura = (): void => { void view.ar.enter().then((ok) => { if (!ok) { session.report({ k: "xr", modo: "ar", accion: "falla", detalle: view.ar.lastError }); decirAviso(mensajeFalloAR(view.ar.lastErrorName)); } }); };
+  // dardos enlazados (E2): where the world has a link, the button opens a little chooser (the Tower's darts on your wall / the miniature). The
+  // chooser is its own chunk, prefetched here so that opening it needs no wait; the darts' connection and norms are settled INSIDE it, before the
+  // click that enters AR (ar-elegir.ts). No link (the Tower itself, `enlace: false`, an own AR board): the button is what it always was.
+  let elegirAR: Promise<import("./ar-elegir.ts").ElegirAR> | null = null;
+  const cargarElegir = (): Promise<import("./ar-elegir.ts").ElegirAR> => (elegirAR ??= import("./ar-elegir.ts").then((m) => m.crearElegirAR({
+    enlace: dardosEnlace, view, condiciones: montarCondiciones, alMiniatura: entrarMiniatura, movil: () => enMovil, decir: decirAviso,
+    falloAR: () => mensajeFalloAR(view.ar.lastErrorName), informarFallo: () => session.report({ k: "xr", modo: "ar", accion: "falla", detalle: view.ar.lastError }),
+  })).catch((e) => { elegirAR = null; throw e; }));
+  const sinElegir = (): void => { console.warn("[ar] no se pudo cargar la elección de AR: se entra con la maqueta"); };
+  arBtn.onclick = () => {
+    if (view.ar.state !== "off") { void view.ar.exit(); return; }
+    if (!dardosEnlace.vigente().enlace) { entrarMiniatura(); return; }
+    // a link applies: the chooser. Its chunk is normally here already (prefetched below); if not, the chooser opens as soon as it has loaded (it enters AR on a later click anyway)
+    void cargarElegir().then((c) => { if (view.ar.state === "off") void c.abrir(); }, sinElegir);
+  };
+  setTimeout(() => { if (dardosEnlace.vigente().enlace) void cargarElegir().catch(() => {}); }, 2500); // prefetch (the chunk only; nothing is connected)
 });
 setInterval(() => { arBtn.textContent = view.ar.jugando ? "Dardos en tu pared (salir)" : arLabel[view.ar.state]; }, 250); // dardos v1: a minigame may hold the AR session
 
@@ -525,6 +559,7 @@ montarNovedades(versionPaquete); // t_bdc2c2db: «qué hay de nuevo», una vez p
 void estadoP.then((st) => {
   if (!st) return;
   if (st.nombre) nombreDelMundo = st.nombre;
+  ajusteEnlace = ajusteDeEstado(st.dardosEnlace); // dardos enlazados: the link this world's server says (late /status: same)
   if (st.nombre) document.title = st.nombre; // ADR-074: the world's name (its aventura/ficha.json), also when Caddy or vite serve the page
   if (st.tema) aplicarTema(st.tema, document.documentElement); // its look: CSS variables tema.css reads; none = the house's
   if (versionMotor && st.version) versionMotor.title = `build ${st.version}`;
@@ -652,7 +687,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones };
 
 // ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
 // of the bar's «Menú» (O), no longer a corner button ----
