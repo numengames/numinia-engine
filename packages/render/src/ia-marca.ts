@@ -31,3 +31,14 @@ export function estiloCartel(estado: EstadoIA | null | undefined): EstiloCartel 
 export function nombreSinMarca(texto: string): string {
   return texto.length > MARCA_NOMBRE.length && texto.endsWith(MARCA_NOMBRE) ? texto.slice(0, -MARCA_NOMBRE.length) : texto;
 }
+
+/** Colour and opacity of the ring on the floor under an AI (S5): bright when active, faint when asleep. */
+export function estiloAro(estado: EstadoIA): { color: number; opacidad: number } {
+  return estado === "dormida" ? { color: 0x6fb3a9, opacidad: 0.4 } : { color: 0x14897a, opacidad: 0.95 };
+}
+/** How many rings a device draws at once (draw calls on phones); the nearest ones win. */
+export const AROS_PC = 24, AROS_MOVIL = 8;
+export const arosMax = (movil: boolean): number => (movil ? AROS_MOVIL : AROS_PC);
+/** The ring grows with the distance (seen from afar without reading), up to ×3, the way a name plate does from 8 m. */
+export const ARO_CRECE_DESDE_M = 8, ARO_CRECE_MAX = 3;
+export const escalaAro = (distM: number): number => Math.min(ARO_CRECE_MAX, Math.max(1, distM / ARO_CRECE_DESDE_M));

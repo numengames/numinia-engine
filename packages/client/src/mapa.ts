@@ -120,7 +120,7 @@ export function crearLimitador(minMs = 200) {
 }
 
 // ---------- markers and their kinds (a registry: an adventure adds its own) ----------
-export type Forma = "flecha" | "punto" | "cuadrado" | "rombo" | "estrella" | "anillo" | "triangulo" | "exclamacion" | "visto";
+export type Forma = "flecha" | "punto" | "cuadrado" | "rombo" | "estrella" | "anillo" | "triangulo" | "exclamacion" | "visto" | "rombo-hueco";
 /** How a kind of marker looks and behaves. Shape AND colour: colour alone never tells kinds apart. */
 export type Tipo = {
   nombre: string;    // the legend's word, and what a screen reader says
@@ -144,6 +144,8 @@ export const TIPOS_BASE: Readonly<Record<string, Tipo>> = {
   hecho: { nombre: "Ya hecho", color: "#2f9e44", forma: "visto", tam: 5, orden: 75, enLista: true, alBorde: false },
   persona: { nombre: "Persona", color: "#2f6fd0", forma: "punto", tam: 4, orden: 80, enLista: true, alBorde: false },
   agente: { nombre: "Agente (IA)", color: "#14897a", forma: "rombo", tam: 4, orden: 75, enLista: true, alBorde: false },
+  // ia-visible S5: an AI that sleeps (state `dormida` of features/ia): the same green diamond, but hollow — shape AND fill tell it from an awake one
+  "agente-dormida": { nombre: "Agente (IA) dormida", color: "#14897a", forma: "rombo-hueco", tam: 4, orden: 74, enLista: true, alBorde: false },
   npc: { nombre: "Personaje", color: "#8a3fc0", forma: "rombo", tam: 5, orden: 70, enLista: true, alBorde: false },
   portal: { nombre: "Salida o portal", color: "#0f8a6a", forma: "anillo", tam: 5, orden: 60, enLista: true, alBorde: true },
   elemento: { nombre: "Elemento (agua, fuego…)", color: "#1679a8", forma: "triangulo", tam: 5, orden: 50, enLista: true, alBorde: false },

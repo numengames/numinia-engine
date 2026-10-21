@@ -65,6 +65,9 @@ function forma(g: CanvasRenderingContext2D, t: Tipo, x: number, y: number, s: nu
     case "flecha": g.rotate(ang); g.moveTo(0, -s); g.lineTo(s * 0.75, s * 0.8); g.lineTo(0, s * 0.35); g.lineTo(-s * 0.75, s * 0.8); g.closePath(); break;
     case "cuadrado": g.rect(-s, -s, 2 * s, 2 * s); break;
     case "rombo": g.moveTo(0, -s * 1.2); g.lineTo(s, 0); g.lineTo(0, s * 1.2); g.lineTo(-s, 0); g.closePath(); break;
+    case "rombo-hueco": // ia-visible S5: a sleeping AI — the diamond's outline in its green over a pale fill
+      g.moveTo(0, -s * 1.2); g.lineTo(s, 0); g.lineTo(0, s * 1.2); g.lineTo(-s, 0); g.closePath();
+      g.fillStyle = "rgba(255,255,255,0.7)"; g.fill(); g.strokeStyle = t.color; g.lineWidth = 2; g.stroke(); g.restore(); return;
     case "triangulo": g.moveTo(0, -s * 1.1); g.lineTo(s, s * 0.8); g.lineTo(-s, s * 0.8); g.closePath(); break;
     case "estrella": for (let i = 0; i < 10; i++) { const r = i % 2 ? s * 0.5 : s * 1.25, a = (i * Math.PI) / 5 - Math.PI / 2; if (i) g.lineTo(Math.cos(a) * r, Math.sin(a) * r); else g.moveTo(Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); break;
     case "anillo": g.arc(0, 0, s, 0, Math.PI * 2); g.lineWidth = 3; g.strokeStyle = t.color; g.stroke(); g.beginPath(); g.arc(0, 0, s * 0.35, 0, Math.PI * 2); g.fill(); g.restore(); return;
@@ -175,7 +178,7 @@ export function montarMapa(h: HostMapa) {
   // trust it. Groups AI inhabitants and organization agents apart from people on the map and its list.
   const esIA = (nombre: string): boolean => nombre.endsWith(MARCA_IA);
   fuentes.set("tu", () => (yo ? [{ id: "tu", tipo: "tu", nombre: h.session.who?.nombre ?? "Tú", x: yo.x, z: yo.z, yaw: yawYo }] : []));
-  fuentes.set("gente", () => h.session.remotePositions().map((r) => { const nombre = nombreDe(r.id); return { id: `p${r.id}`, tipo: esIA(nombre) ? "agente" : "persona", nombre, x: r.x, z: r.z }; }));
+  fuentes.set("gente", () => h.session.remotePositions().map((r) => { const nombre = nombreDe(r.id); return { id: `p${r.id}`, tipo: esIA(nombre) ? (h.otros().ia?.de?.(r.id)?.estado === "dormida" ? "agente-dormida" : "agente") : "persona", nombre, x: r.x, z: r.z }; })); // ia-visible S5: a sleeping AI is drawn hollow (features/ia says its state)
   // U14 (4): a person or a quest thing the server marks for you is drawn as «!» or «✓» (misiones.marcaDe), and a
   // person's trade goes next to the name in the list (misiones.oficioDe); re-read at once when the marks change.
   // E4: the cards are rebuilt only when something they come from changed — the shared state (`stateVersion`), the
