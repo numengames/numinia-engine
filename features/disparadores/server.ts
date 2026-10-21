@@ -290,7 +290,7 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
     desmontar(d);
     if (!montar(leido)) { montar(d); return rechazar(e, `No pude cambiar el cable «${id}» (no cabe en el esquema): revisa sus números.`); }
     if (usos > 0) poner(leido, { usos });
-    api.emit("cableEditado", { disparador: id }, { to: e });
+    api.emit("cableEditado", { disparador: id }, { to: e }); api.emit("hizo", { quien: e, disparador: id, accion: "editado" }, "server"); // T4: the sentence's «Guardar» is an edit too (a mission step `edita_cable` listens to `hizo`)
     api.log(`«${id}»: ${nombreDe(e)} edita el cable en vivo`);
     guardar(id);
   });

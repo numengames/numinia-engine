@@ -23,6 +23,7 @@ test("nothing leads there: no arrow", () => {
   assert.equal(objetivoDeFlecha("cable-nuevo", ve("otro")), "");
   assert.equal(objetivoDeFlecha("", ve("construir")), "");
   assert.equal(objetivoDeFlecha("cable-probar", ve("construir")), "");
+  assert.equal(objetivoDeFlecha("cable-probar-boton-rojo", ve()), "");
 });
 test("a phone keeps Construir inside «…»: point at mas", () => {
   assert.equal(objetivoDeFlecha("construir", ve("mas")), "mas");
@@ -33,4 +34,10 @@ test("the chain ends (no loops) and parents are what the page has", () => {
   assert.equal(padreDeBoton("mas"), "");
   assert.equal(padreDeBoton("dock-cable"), "construir");
   assert.equal(padreDeBoton("cable-nuevo"), "dock-cable");
+});
+test("«Probar» of one cable (cable-probar-<id>): itself, else the Cable drawer button, else Construir", () => {
+  assert.equal(objetivoDeFlecha("cable-probar-boton-rojo", ve("cable-probar-boton-rojo", "dock-cable", "construir")), "cable-probar-boton-rojo");
+  assert.equal(objetivoDeFlecha("cable-probar-boton-rojo", ve("dock-cable", "construir")), "dock-cable");
+  assert.equal(objetivoDeFlecha("cable-probar-boton-rojo", ve("construir")), "construir");
+  assert.equal(padreDeBoton("cable-probar-boton-rojo"), "dock-cable");
 });

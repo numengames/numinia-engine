@@ -1466,3 +1466,9 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `taller`, sin subir.
 - Siguiente: T4 (zip del Taller).
+
+## 2026-10-21 21:50 · T4 recorrido del Taller · dos arreglos hallados al recorrerlo en el navegador
+- Qué: el paso 2 de la misión 5 del Taller señalaba `cable-probar`, que no existe en la página (el botón «Probar» de cada fila era solo una clase) y la flecha no salía. Ahora cada «Probar» lleva `id="cable-probar-<cable>"` (`apps/plaza/cable.ts`) y `padreDeBoton` manda `cable-probar-<id>` → `dock-cable` → `construir` → `mas` (`apps/plaza/flecha-logica.ts`). La misión usa `senala: "cable-probar-boton-rojo"`. Segundo hallazgo: el «Guardar» de la frase del cable (`editarDisparador`) no avisaba con `hizo`, así que un paso `edita_cable` nunca se cumplía desde la interfaz (solo desde el JSON de «Ver datos», `editarReceptores`); ahora `features/disparadores/server.ts` lo emite también.
+- Números: `test/flecha.test.ts` +1 prueba y una aserción; `test/misiones-hace.test.ts` +1 prueba (falla sin el arreglo); `npm test` 1639 bien, 0 mal; puertas en verde; build ok (594,4 kB gz). Prueba real: `plantillas/taller/recorrido.mjs`.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `taller`, sin subir.

@@ -168,6 +168,17 @@ test("T1 machine: gira (girar and a mover that turns), escala (a mover that scal
   assert.equal(w.paso(), -1);
 });
 
+test("T4 machine: edita_cable also counts when the cable is edited with the sentence's «Guardar» (editarDisparador), only that cable", () => {
+  const w = mundo([H("ec", "edita_cable", { disparador: "rojo" })]);
+  w.pump(3);
+  w.aceptar();
+  const cambio = (disparador: string) => ({ disparador, nombre: "Cambiado", tipo: "boton", senal: "", cooldown: 0, unSoloUso: false, receptores: JSON.stringify([{ accion: "suena", sonido: "din" }]) });
+  w.send("disparadores", "editarDisparador", cambio("azul"));
+  assert.equal(w.avances(), 0, "another cable does not count");
+  w.send("disparadores", "editarDisparador", cambio("rojo"));
+  assert.equal(w.avances(), 1, "editing «rojo» with the sentence counts");
+});
+
 test("T1 machine: dispara_cable (with `disparador` only that cable), by the one who presses it", () => {
   const w = mundo([H("p", "dispara_cable", { disparador: "rojo" })]);
   w.pump(3); w.aceptar(); w.place(0.5, 0.5); w.pump();
