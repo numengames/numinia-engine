@@ -11,6 +11,7 @@ import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
 import { pesca, CERCA_M, ESPERA_S, MORDISQUEO_EN, MORDISQUEO_P, MOTIVOS, PELEA, RAREZAS, VENTANA_POR_RAREZA, VENTANA_S } from "./feature.ts";
 import { otorgaDeCaptura } from "./otorga.ts";
+import { encendida } from "../funciones/feature.ts"; // f2: the world's switch
 import tabla from "./peces.json" with { type: "json" };
 
 export type Rareza = (typeof RAREZAS)[number];
@@ -27,6 +28,7 @@ const TEXTO: Record<(typeof MOTIVOS)[number], string> = {
   agotado: "El pez te ha cansado y se ha ido.",
   lejos: "Te alejaste del agua y el pez se fue.",
   desconectado: "Te fuiste.",
+  apagada: "La pesca se ha apagado en este mundo: recoges la caña.",
 };
 
 type Pelea = { pez: Pez & { cm: number; fuerza: number }; tension: number; progreso: number; recogiendo: boolean; t: number; arrancada: "no" | "aviso" | "si"; proxima: number; dura: number };
@@ -86,6 +88,9 @@ export const crearPesca = (opts: { sitios?: Sitio[]; peces?: Pez[]; semilla?: nu
   api.log(`pesca: ${sitios.size} sitio(s), ${peces.length} pez/peces en la tabla`);
 
   const rechazar = (e: number, motivo: string) => { api.emit("rechazado", { motivo }, { to: e }); };
+  // f2: the world's switch (features/funciones: state «pesca» { activa, fija }; no entry = on, as before). The server decides: off refuses every action…
+  const apagada = () => !encendida(api.estadoDe("funciones").get("pesca"));
+  const SI_APAGADA = "La pesca está apagada en este mundo.";
   const ocupar = (id: string, si: boolean) => { const v = api.state.get(id); const s = sitios.get(id); if (v && s) api.state.set(id, { ...v, ocupado: si }, { at: { x: s.x, z: s.z } }); };
   const cesta = (e: number) => {
     const w = api.who(e); if (!w) return;
@@ -112,10 +117,16 @@ export const crearPesca = (opts: { sitios?: Sitio[]; peces?: Pez[]; semilla?: nu
     api.emit("fin", { quien: e, sitio: p.sitio, resultado, ...pez }, { near: { x: s.x, z: s.z }, radius: CERCA_M });
   };
 
+  // …and closes what was running when the switch goes off: whoever fished loses the float with a clear line (no catch, nothing stored, no `otorga`); the spot is free again
+  api.listen("funciones", "cambiada", (m) => {
+    if (m.funcion !== "pesca" || !apagada()) return;
+    for (const e of [...partidas.keys()]) terminar(e, "escape", "apagada");
+  });
   api.onIdentify((e) => cesta(e));
   api.onLeave((e) => terminar(e, "escape"));
 
   api.on("lanzar", (e, m) => {
+    if (apagada()) return rechazar(e, SI_APAGADA);
     const id = String(m.sitio), s = sitios.get(id);
     if (!s) return rechazar(e, `No hay ningún sitio de pesca «${id}».`);
     if (partidas.has(e)) return rechazar(e, "Ya estás pescando: recoge o suelta la caña antes.");
@@ -130,6 +141,7 @@ export const crearPesca = (opts: { sitios?: Sitio[]; peces?: Pez[]; semilla?: nu
   });
 
   api.on("recoger", (e, m) => {
+    if (apagada()) return rechazar(e, SI_APAGADA);
     const p = partidas.get(e);
     if (!p) return rechazar(e, "No estás pescando: lanza la caña en un sitio de pesca.");
     const activo = !!m.activo;
@@ -145,6 +157,7 @@ export const crearPesca = (opts: { sitios?: Sitio[]; peces?: Pez[]; semilla?: nu
   });
 
   api.on("soltar", (e) => {
+    if (apagada()) return rechazar(e, SI_APAGADA);
     const p = partidas.get(e);
     if (!p) return rechazar(e, "No estás pescando.");
     if (p.fase === "pelea") return terminar(e, "escape", "escapa");

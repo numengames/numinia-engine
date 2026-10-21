@@ -1472,3 +1472,15 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `feat/ia-visible` (S1–S7 + clic del mapa + origin/main a4e967ec), PR contra `main`.
 - Siguiente: ja/ko/pt-br; que numinia.com mande el bloque `ia` cuando este motor esté publicado en toda la flota.
+
+
+## 2026-10-21 · funciones f2 · hecho
+- Qué: historia f2 (0.30.0): dardos y pesca obedecen su interruptor. Servidor (manda él): apagada, la pieza rechaza toda acción y cierra lo
+  que corría —tirada suelta termina, duelo cancelado para todos sin ganador, pescador suelto con `escape.motivo "apagada"` (pesca v4: un
+  valor nuevo al final del enum), sitio libre—. Página (PC, móvil, AR, VR, por los controladores): sin diana, estanque, flotador, pez en mano
+  ni «E: …»; el chunk de la pieza ni se carga; al encender reaparece sin recargar. `ClientApi.estadoDe(feature)` (solo lectura) y las
+  funciones puras `encendida` / `verSi`. Encendidas (por defecto) = como hoy; sin cambio en la simulación (huella intacta).
+- Números: `test/funciones-obedecen.test.ts` (4 pruebas); ver la PR para `npm test`, gates y build.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `funciones/f2-dardos-pesca-obedecen` (sobre f1), sin subir.
+- Siguiente: f3 (e2e de navegador y panel con los interruptores).

@@ -6,6 +6,7 @@
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
 import { equiposDe, siguienteEquipo, terminada, resultado, RETIRANDO_S } from "./equipos.ts";
+import { encendida } from "../funciones/feature.ts"; // f2: the world's switch
 import { dardos, CERCA_M, DARDOS_TURNO, TURNO_INACTIVO_S, RONDAS_DEFECTO, RONDAS_MAX, zonaDe, desvioFuerza, ZONA_FUERZA } from "./feature.ts";
 
 export type Sitio = { id: string; nombre: string; x: number; z: number; y?: number; radio?: number; rumbo?: number;
@@ -125,6 +126,10 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
   api.log(`dardos: ${sitios.size} diana(s)`);
 
   const rechazar = (e: number, motivo: string) => { api.emit("rechazado", { motivo }, { to: e }); };
+  // f2: the world's switch (features/funciones: state «dardos» { activa, fija }; no entry = on, as before). The server decides: off refuses every action…
+  const apagada = () => !encendida(api.estadoDe("funciones").get("dardos"));
+  const SI_APAGADA = "Los dardos están apagados en este mundo.";
+  const encendido = (f: (e: number, m: Msg) => void) => (e: number, m: Msg): void => { if (apagada()) rechazar(e, SI_APAGADA); else f(e, m); };
   const poner = (id: string, cambio: Msg) => { const v = api.state.get(id); const s = sitios.get(id); if (v && s) api.state.set(id, { ...v, ...cambio }, donde(s)); };
   const ocupar = (id: string, si: boolean) => poner(id, { ocupado: si });
   /** Send an event to whoever is near the board and, directly, to each of `quienes` that is farther than CERCA_M
@@ -263,19 +268,31 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     return nueva;
   };
 
+  // …and closes what was running when the switch goes off: single turns end (the darts thrown already count in the scoreboard, as when walking away),
+  // a match in progress or waiting is cancelled for everybody with no winner (the points of a match are not stored anywhere), and the boards are free again
+  const cerrarTodo = (): void => {
+    for (const P of [...partidas.values()]) {
+      for (const q of jugadoresDe(P)) if (tiradas.has(q)) terminar(q); // the visit in course: its `fin` goes out, the page drops its turn
+      const s = sitios.get(P.sitio)!, datos = pares(P), jugs = jugadoresDe(P);
+      soltarPartida(P);
+      difundir("finduelo", { sitio: P.sitio, ganador: 0, empate: true, abandono: false, ...datos, retirando: false, texto: "Los dardos se han apagado en este mundo: partida cancelada" }, s, jugs);
+    }
+    for (const e of [...tiradas.keys()]) terminar(e);
+  };
+  api.listen("funciones", "cambiada", (m) => { if (m.funcion === "dardos" && apagada()) cerrarTodo(); });
   api.onIdentify((e) => marcador(e));
   api.onLeave((e) => { if (enPartida.has(e)) dejarDuelo(e); else terminar(e); });
 
-  api.on("jugar", (e, m) => {
+  api.on("jugar", encendido((e, m) => {
     // `desde`: sitio (at the throwing line), pared (a real wall: AR) or lejos (a flat screen far from the board); the last two need `remoto`
     const id = String(m.sitio), s = sitios.get(id), pared = m.desde === "pared", lejos = pared || m.desde === "lejos";
     if (s && lejos && !s.remoto) return rechazar(e, `${s.nombre} no admite jugar desde ${pared ? "una pared" : "lejos"}: hay que estar en su línea de tiro.`);
     if (s?.duelo) { const r = unirse(e, id, lejos, pared); if (r) rechazar(e, r); return; }
     const t = empezar(e, id, lejos); if (typeof t === "string") rechazar(e, t);
-  });
+  }));
 
   // a `lanzar` without a turn starts one (an agent or a page can simply throw); in a duel only on your turn
-  api.on("lanzar", (e, m) => {
+  api.on("lanzar", encendido((e, m) => {
     const id = String(m.sitio);
     const idDuelo = enPartida.get(e);
     if (idDuelo) {
@@ -303,11 +320,11 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     if (!P) return;
     if (n < DARDOS_TURNO) return emitirDuelo(P);
     retirar(P); // the third dart: wait for «cambiar» (v3)
-  });
+  }));
 
   // v3: `cambiar` = the player on turn (or, later, their team) hands the dice over: the first press (even before the third dart)
   // opens «retira los dardos», the next one (or RETIRANDO_S) changes the turn. `empezar` = the host starts with the teams that are seated.
-  api.on("cambiar", (e, m) => {
+  api.on("cambiar", encendido((e, m) => {
     const id = String(m.sitio), P = enPartida.get(e) ? partidas.get(enPartida.get(e)!) : undefined;
     if (!P || P.sitio !== id) return rechazar(e, "No estás en un duelo en esta diana.");
     if (P.estado !== "juego") return rechazar(e, "El duelo aún no ha empezado.");
@@ -315,15 +332,15 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     if (P.retirando) return avanzar(P);
     if (tiradas.has(e)) terminar(e);
     retirar(P);
-  });
-  api.on("empezar", (e, m) => {
+  }));
+  api.on("empezar", encendido((e, m) => {
     const id = String(m.sitio), P = partidas.get(id);
     if (!P || enPartida.get(e) !== id) return rechazar(e, "No estás esperando en esta diana.");
     if (P.estado !== "espera") return rechazar(e, "El duelo ya ha empezado.");
     if (P.jug[0] !== e) return rechazar(e, "Solo el anfitrión empieza el duelo.");
     if (P.jug.length < 2) return rechazar(e, "Hacen falta al menos 2 equipos para empezar.");
     comenzar(P);
-  });
+  }));
 
   api.on("salir", (e) => {
     if (enPartida.has(e)) return dejarDuelo(e);

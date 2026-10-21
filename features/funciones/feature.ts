@@ -1,12 +1,18 @@
 // funciones — declaration (f1, decision R-1: every piece of the engine switches on without touching code). The server keeps ONE switch per piece
 // of the world — `normas` (the gate of the conditions of entry), `dardos`, `pesca` — in the world's `funciones.json` (`numinia-engine/funciones@1`,
 // esquema.ts) and tells every page, on arrival and on each change, so a panel can draw them (f3/v3). Whoever may build flips them live, no restart.
-// f1 stores and publishes; what `dardos` and `pesca` hide in the world is f2. Nothing here touches the simulation or the fingerprint.
+// f1 stores and publishes; f2 makes `dardos` and `pesca` obey: their servers refuse every action and close what is running, their pages draw nothing (`encendida`, `verSi`). Nothing here touches the simulation or the fingerprint.
 import { defineFeature } from "../../packages/feature/src/index.ts";
 
 /** The pieces that have a switch, in the order a panel lists them. */
 export const FUNCIONES = ["normas", "dardos", "pesca"] as const;
 export type Funcion = (typeof FUNCIONES)[number];
+
+/** funciones/f2: is this piece on, given its entry in the `funciones` state ({ activa, fija })? No entry — a server without the switches, or a world
+ * that lacks the piece — means on, exactly as before f1. Pure: the servers of dardos and pesca and the pages ask it with whatever they read. */
+export const encendida = (v: { activa?: unknown } | undefined): boolean => v?.activa !== false;
+/** funciones/f2: what a page may draw of a piece's things (boards, ponds, floats): all of them while the piece is on, none while it is off. Pure. */
+export const verSi = <T>(cosas: readonly T[], v: { activa?: unknown } | undefined): T[] => (encendida(v) ? [...cosas] : []);
 
 export const funciones = defineFeature({
   id: "funciones",
