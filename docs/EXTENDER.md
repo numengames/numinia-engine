@@ -1329,6 +1329,10 @@ avisos de la casa eran osciladores: pitidos sintetizados. Ahora son sonidos.
 expone y prueba sus proyectos: `numinia-archive/lore/game/manual/es/05-geografia-y-cultura-de-numinia.md`) y, dentro,
 un homenaje a Isaac Asimov. Todo lo decide el servidor; la página dibuja y pregunta.
 
+- **El mundo elige si lo tiene:** `entorno/ancestros.json` (`{ "hologramas": [{ id, nombre, x, z, y?, rumbo?, radio? }], "muros":
+  [{ id, x0, z0, x1, z1, y0?, y1? }] }`). Sin fichero, la sala de la casa en (0, −48) con Asimov; con las dos listas vacías,
+  **ningún salón ni holograma** (un mundo en blanco: la plantilla «lienzo»); una lista que falta deja esa mitad como la de la
+  casa; cada línea mal escrita se deja fuera y el registro dice cuál (`features/mundo.ts`, `test/ancestros.test.ts`).
 - **La sala:** cuatro muros de piedra con puerta al sur (hacia la plaza), en `SALON` (`x: 0, z: -48`, 12 m de lado,
   4 m de alto). Cada muro es una cosa del estado con `solido` y su caja `bx0…bz1`: **la misma caja la lee la simulación**
   (`solidsFrom`), así que lo que ves es lo que te para, sin tocar `packages/sim`. Los muros no tienen nombre: ni ficha
