@@ -7,7 +7,7 @@ export const ESQUEMA = "numinia-engine/naturaleza@1";
 export const PALETAS = ["verano", "otono", "primavera"] as const;
 export type Paleta = (typeof PALETAS)[number];
 /** The validated world, flat, as it travels (the state's fields). */
-export type NaturalezaMundo = { activa: boolean; semilla: number; tamano: number; plaza: number; arboles: number; hierba: number; estanque: boolean; paleta: Paleta; fauna: boolean; faunaDensidad: number; faunaEspecies: string };
+export type NaturalezaMundo = { activa: boolean; semilla: number; tamano: number; plaza: number; arboles: number; hierba: number; estanque: boolean; paleta: Paleta; fauna: boolean; faunaDensidad: number; faunaEspecies: string; /** B1: seed of the espacio base while it is on (set by the server from that feature's state, never read from the file); absent/-1 = no base. */ base?: number };
 /** What a file that says nothing gets (kept equal to packages/render/src/naturaleza/naturaleza.ts `DEFECTOS_NATURALEZA`; a test compares). */
 export const DEFECTOS: NaturalezaMundo = { activa: true, semilla: 1234, tamano: 200, plaza: 12, arboles: 1, hierba: 1, estanque: true, paleta: "verano", fauna: true, faunaDensidad: 1, faunaEspecies: "" };
 

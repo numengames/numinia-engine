@@ -3,6 +3,15 @@
 Pieza reutilizable (R-1): cualquier mundo la activa con un JSON pequeño. Presupuesto, paleta y reglas: ver el brief del encargo
 (`work/naturaleza/BRIEF.md`). Cada historia añade su sección aquí.
 
+## B1 · La base manda sobre las alturas
+
+Si el espacio base está encendido, **su malla es el suelo de todo**: `alturaBase` (`relieve/espacio-base.ts`) da la altura en cada punto
+(la ven el avatar, los objetos y la página) y la naturaleza —colinas, estanque, árboles, hierba— es *piel* sobre ese relieve, no otro suelo.
+Los dos pueden estar encendidos a la vez. El servidor publica la semilla de la base en `naturaleza:mundo.base` (-1 = sin base; no viene de
+`naturaleza.json`, la pone el servidor y la sigue en caliente), y `alturaEn(semilla, x, z, { base })` devuelve `alturaBase(base, x, z)`: sin
+cuenca de estanque (ni arena ni orilla), mientras las zonas de pintura (prado, bosque, roca) siguen saliendo del campo de la naturaleza. Al apagar
+la naturaleza, nada cambia de altura; al apagar la base, el suelo vuelve a ser el de la naturaleza.
+
 ## N1 · Terreno con relieve y zonas (semilla)
 
 Ficheros: `packages/render/src/naturaleza/semilla.ts` (azar y ruido puros), `packages/render/src/naturaleza/terreno.ts`

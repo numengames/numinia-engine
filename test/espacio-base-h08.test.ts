@@ -16,6 +16,7 @@ import { conActiva, ficheroNuevo } from "../features/espaciobase/server.ts";
 import { crearCliente } from "../features/espaciobase/client.ts";
 import { crearCliente as clienteObjetos } from "../features/objetos/client.ts";
 import { crearCliente as clienteElementos } from "../features/elementos/client.ts";
+import { crearCliente as clienteNat } from "../features/naturaleza/client.ts";
 import { ESQUEMA, DEFECTOS, leerEspacioBase } from "../features/espaciobase/esquema.ts";
 
 const tmp = (p: string) => mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), p));
@@ -163,4 +164,29 @@ test("H8 seed: a builder changes the seed from the panel (file keeps every other
   const raiz = tmp("h08-sem-"), d3 = join(raiz, "entorno"), w = mundo(d3, 1);
   w.pages[0].base.ponerSemilla(55); w.pump();
   assert.deepEqual(JSON.parse(leer(d3)), { schema: ESQUEMA, activa: true, semilla: 55 });
+});
+
+// B1 · the nature follows the espacio base's hot switches: `naturaleza:mundo.base` is the base's seed while it is on, -1 when it is off.
+test("B1: turning the base on, off, re-seeding and restoring live keeps naturaleza:mundo.base right (and the nature's own switch keeps it)", () => {
+  const dir = carpeta(); writeFileSync(join(dir, "naturaleza.json"), JSON.stringify({ schema: "numinia-engine/naturaleza@1", semilla: 9 }));
+  const log: string[] = [];
+  const partes = conMundo(funciones, leerMundo(dir, (l) => log.push(l)), (l) => log.push(l), escribirMundo(dir, (l) => log.push(l)));
+  const inst = new Instance({ seed: 3, capacity: 8, k: 50, snapshotEvery: 2, features: partes.filter((p) => ["espacio-base", "naturaleza"].includes(p.feature.id)), log: (l) => log.push(l), aparicion: { x: 0, z: 0, radio: 1 }, puede: () => true });
+  const t = inst.join(0), b = crearCliente(), n = clienteNat();
+  new ClientSession(t, { features: [b.part, n.part], view: { label() {}, bounce() {}, espacioBase: () => {} } });
+  const pump = () => { for (let i = 0; i < 4; i++) { t.flush(); inst.tick(); t.flush(); } };
+  const nat = () => new Map(inst.features.allState()).get("naturaleza:mundo");
+  pump();
+  assert.equal(nat()?.base, -1, "no base file: the nature runs alone");
+  b.interruptor.poner(true); pump();
+  assert.equal(nat()?.base, 42, "base on with the default seed");
+  assert.equal(nat()?.semilla, 9, "the nature keeps its own seed");
+  b.interruptor.ponerSemilla(7); pump();
+  assert.equal(nat()?.base, 7, "re-seeded live");
+  b.interruptor.poner(false); pump();
+  assert.equal(nat()?.base, -1, "base off");
+  b.interruptor.restaurar(); pump();
+  assert.equal(nat()?.base, 42, "restored: on with the default seed");
+  n.interruptor.poner(false); pump();
+  assert.deepEqual([nat()?.activa, nat()?.base], [false, 42], "the nature's own switch keeps the base seed");
 });

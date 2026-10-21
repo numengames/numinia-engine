@@ -13,6 +13,7 @@ import { fx, FX_ONE } from "../packages/core/src/index.ts";
 import { rayBvh } from "../packages/sim/src/index.ts";
 import clientes from "../features/cliente.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
+import { alturaEn, zonaEn, campo } from "../packages/relieve/src/relieve.ts";
 import { terrenoMalla, terrenoDelEstado, TAMANO_ESPACIO_BASE, claveTerreno } from "../packages/sim/src/terreno-malla.ts";
 import { ESPACIO_BASE } from "../packages/render/src/naturaleza/paleta.ts";
 
@@ -26,7 +27,7 @@ test("esquema: defaults, valid file, and every wrong value says how to fix it", 
 });
 test("the page's defaults are the schema's", () => { const { objeto: _o, agentes: _a, ...paraLaPagina } = DEFECTOS; assert.deepEqual(DEFECTOS_ESPACIO_BASE, paraLaPagina); assert.deepEqual(normalizar({}), paraLaPagina); });
 
-test("activation: the file turns the feature on; without it, nothing is published; a wrong file is logged and not used; nature wins if both", () => {
+test("activation: the file turns the feature on; without it, nothing is published; a wrong file is logged and not used; both on = both published (B1)", () => {
   const publica = (leer: (f: string) => unknown, log: string[] = []) => {
     const partes = conMundo(funciones, leer as never, (l) => log.push(l));
     const inst = new Instance({ seed: 7, capacity: 4, k: 50, snapshotEvery: 2, features: partes });
@@ -38,8 +39,8 @@ test("activation: the file turns the feature on; without it, nothing is publishe
   assert.equal(publica((f) => (f === "espacio-base.json" ? { semilla: "x" } : undefined), log), undefined);
   assert.ok(log.some((l) => l.includes("espacio-base.json no se usa")));
   const log2: string[] = [];
-  assert.equal(publica((f) => (f === "espacio-base.json" || f === "naturaleza.json" ? {} : undefined), log2), undefined);
-  assert.ok(log2.some((l) => l.includes("se usa la naturaleza")));
+  assert.deepEqual(publica((f) => (f === "espacio-base.json" || f === "naturaleza.json" ? {} : undefined), log2), { activa: true, semilla: DEFECTOS.semilla });
+  assert.ok(log2.some((l) => l.includes("la naturaleza se dibuja sobre el relieve de la base")));
 });
 
 test("a world WITHOUT the file has the same features, state and flat ground as before", () => {
@@ -125,4 +126,46 @@ test("a world with espacio-base.json and no entorno.json is born at night; with 
   const noche = hora(base); assert.equal(noche.solHora, true); assert.ok(Number(noche.solAltura) < -6, JSON.stringify(noche));
   const dia = hora((f) => (f === "entorno.json" ? { hora: { valor: 12, mueveElSol: true } } : base(f))); assert.ok(Number(dia.solAltura) > 30, JSON.stringify(dia));
   const sin = hora(() => undefined); assert.notEqual(sin.solHora, true, "a world without the piece keeps the house's entorno");
+});
+
+// ---- B1 · «la base manda sobre las alturas» ----
+test("B1 relieve: with `base`, alturaEn is alturaBase on 20 points; zones are still the nature's paint; no pond zones; without `base` nothing changed", () => {
+  const pts = Array.from({ length: 20 }, (_, i) => [((i * 37) % 181) - 90, ((i * 53) % 173) - 86] as const);
+  for (const sem of [42, "otra"]) for (const [x, z] of pts) {
+    assert.equal(alturaEn(1234, x, z, { base: sem }), alturaBase(sem, x, z), `(${x},${z})`);
+    assert.equal(campo(1234, x, z, { base: sem }).h, alturaBase(sem, x, z));
+    assert.equal(alturaEn(99, x, z, { base: sem, tamano: 300, plaza: 20 }), alturaBase(sem, x, z), "the nature's seed/size/plaza do not move the height");
+  }
+  let rocas = 0;
+  for (let x = -190; x <= 190; x += 10) for (let z = -190; z <= 190; z += 10) {
+    const w = campo(1234, x, z, { base: 42 }).w; assert.ok(w[2] === 0 && w[4] === 0, "no arena / orilla over the base");
+    if (zonaEn(1234, x, z, { base: 42 }) === zonaEn(1234, x, z, { sinEstanque: true })) rocas++;
+  }
+  assert.ok(rocas > 300, "the zones follow the nature's own field");
+  assert.equal(alturaEn(1234, 30, 40), alturaEn(1234, 30, 40, { base: undefined }), "no base = the old hills");
+  assert.deepEqual(campo(1234, 30, 40, { base: 42 }), campo(1234, 30, 40, { base: 42 }), "pure and deterministic");
+});
+
+test("B1 sim: terrenoDelEstado with both states gives the base (base:true, 400 m), in any order; the nature alone keeps its own", () => {
+  const nat = ["naturaleza:mundo", { activa: true, semilla: 7, tamano: 200, plaza: 12, estanque: true, base: 5 }] as [string, Record<string, unknown>];
+  const bas = ["espacio-base:mundo", { activa: true, semilla: 5 }] as [string, Record<string, unknown>];
+  for (const orden of [[nat, bas], [bas, nat]]) assert.deepEqual(terrenoDelEstado(orden), { semilla: 5, tamano: TAMANO_ESPACIO_BASE, plaza: 12, estanque: false, base: true });
+  assert.equal(terrenoDelEstado([nat])?.base, undefined);
+  assert.equal(terrenoDelEstado([nat, ["espacio-base:mundo", { activa: false, semilla: 5 }]])?.semilla, 7, "base off = the nature's terrain");
+});
+
+test("B1 mundo: both files on publish both states, nature carries `base`; turning the base on/off live updates naturaleza:mundo.base", () => {
+  const ficheros: Record<string, unknown> = { "espacio-base.json": { semilla: 5 }, "naturaleza.json": { semilla: 9 } };
+  const log: string[] = [];
+  const partes = conMundo(funciones, ((f: string) => ficheros[f]) as never, (l) => log.push(l), ((f: string, d: unknown) => { ficheros[f] = d; }) as never);
+  const inst = new Instance({ seed: 7, capacity: 4, k: 50, snapshotEvery: 2, features: partes, aparicion: { x: 0, z: 0, radio: 1 }, puede: () => true });
+  const t = inst.join(0);
+  const estado = () => new Map(inst.features.allState());
+  const pump = () => { for (let i = 0; i < 3; i++) { t.flush(); inst.tick(); t.flush(); } };
+  pump();
+  assert.deepEqual(estado().get("espacio-base:mundo"), { activa: true, semilla: 5 });
+  assert.equal(estado().get("naturaleza:mundo")?.semilla, 9);
+  assert.equal(estado().get("naturaleza:mundo")?.base, 5);
+  assert.ok(log.some((l) => l.includes("la naturaleza se dibuja sobre el relieve de la base")));
+  assert.equal(terrenoDelEstado(estado())?.base, true);
 });

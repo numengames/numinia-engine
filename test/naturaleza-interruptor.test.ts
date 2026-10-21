@@ -99,7 +99,7 @@ test("interruptor: a world without naturaleza.json publishes nothing (as before)
   assert.doesNotMatch(log.join("\n"), /colisión del terreno/);
   a.nat.poner(true); pump();
   assert.deepEqual(JSON.parse(leer(dir)), { schema: ESQUEMA, activa: true });
-  for (const p of [a, b]) assert.deepEqual(p.vistas.at(-1), { ...DEFECTOS, activa: true });
+  for (const p of [a, b]) assert.deepEqual(p.vistas.at(-1), { ...DEFECTOS, activa: true, base: -1 });
   assert.match(log.join("\n"), /colisión del terreno lista/, "N5: the server walks the new hills too");
   // off again: the file stays (activa false), the pages tear down
   a.nat.poner(false); pump();
@@ -143,6 +143,6 @@ test("interruptor: without a world folder (the house part) the switch still work
   const pump = () => { for (let i = 0; i < 4; i++) { t.flush(); inst.tick(); t.flush(); } };
   pump();
   c.interruptor.poner(false); pump();
-  assert.deepEqual(vistas.at(-1), { ...DEFECTOS, semilla: 9, activa: false });
+  assert.deepEqual(vistas.at(-1), { ...DEFECTOS, semilla: 9, activa: false, base: -1 });
   assert.match(log.join("\n"), /sin carpeta del mundo/);
 });
