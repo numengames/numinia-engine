@@ -1053,6 +1053,44 @@ viejo que solo lee a/b sigue funcionando. Esquema `version: 3`. Reglas puras en 
 reutilizarlas en la pesca). Un equipo que se va se salta; si queda uno, gana por defecto. Pruebas: `node --test test/dardos-equipos.test.ts
 test/dardos-duelo-equipos-vista.test.ts`; e2e: `node tools/e2e-piernas/dardos-duelo.mjs` (tramo 6: tres jugadores).
 
+### Dardos enlazados (v6, E1): en cualquier mundo, la diana de la Torre en tu pared
+
+El dueño pidió que, **en cualquier mundo de Numinia**, al entrar en AR salga la diana «cosida» a la de la Torre de los
+Alquimistas: la misma partida que la gente que está en la Torre. Sin código en el mundo: es un ajuste de datos (R-1).
+- **El ajuste** (`features/dardos/enlace.ts`, una sola constante): `ENLACE_DARDOS = { servidor:
+  "wss://alchemiststower.numinia.com/ws", diana: "torre" }`. Un mundo lo cambia en su `dardos.json`
+  (`"enlace": { "servidor": "wss://otro/ws", "diana": "mesa" }`, una parte que falte es la de la casa) o lo apaga
+  (`"enlace": false`). Un `enlace` mal escrito se dice en el log del servidor (`enlace.servidor: debe ser una dirección
+  ws:// o wss://…`) y **se queda el de la casa**: una errata no apaga la función en silencio. El servidor lo cuenta a la
+  página en `/status` → `dardosEnlace` (`null` = apagado; sin el campo = un servidor antiguo: la página usa el de la casa).
+  La página lo resuelve en `__numinia.dardosEnlace.vigente()`: **un mundo nunca se enlaza a sí mismo** (mismo host) ni lo
+  hace si tiene diana propia con `duelo` + `remoto` (a la que la pared ya se une como siempre).
+- **La conexión** (`apps/plaza/dardos-enlace.ts`, trozo propio: no se baja nada hasta que alguien lo pide): una
+  segunda `ClientSession` ligera al servidor enlazado con **solo** el cliente de dardos (su propio controlador
+  `crearCliente()`, no el de la página), que nunca manda movimiento. Tiene su invitado por servidor
+  (`localStorage numinia.invitado@<host>`) y sale en el marcador con **el nombre que la persona tiene en este mundo**
+  y «desde <nombre del mundo>». `__numinia.dardosEnlace.enlace()` da el objeto: `conectar()` →
+  `"puerta" | "listo" | "error"`, `jugarEnPared()` (arranca AR, cuelga la pared y entra en la diana enlazada),
+  `salir()`, `cerrar()`, `aceptar(versiones, datos)`, `vista()` (estado, `condiciones`, `duelo`, panel AR),
+  `ar()`, `alCambiar(fn)` y el controlador en `.dardos`. Estados: `cerrado → conectando → puerta | listo →
+  jugando` (o `error` con `motivo`; `estadoEnlace()` es una función pura, probada en Node).
+- **La puerta de las condiciones es de verdad.** Si el mundo enlazado la tiene encendida, la conexión enlazada queda en
+  `puerta` y el servidor **ignora** sus mensajes de dardos hasta que la persona acepte las normas de ese mundo
+  (`vista().condiciones` = `puerta`, `abierta`, `faltan`, `capas`; `aceptar()` manda el mismo ACEPTAR que la pompa).
+  `jugarEnPared()` no cuelga nada mientras esté cerrada y dice por qué. La interfaz para leerlas y aceptarlas es la
+  historia E2.
+- **El servidor** (aditivo: un servidor o una página antiguos no notan nada). La dirección lleva `?enlace=dardos`
+  (`packages/net/src/enlace.ts`); el servidor hace de esa conexión una **visita**: no tiene avatar para nadie (no sale
+  en los snapshots de los demás, no los recibe, `INPUT` y `VOZ` suyos se tiran), solo habla y oye con las funciones de
+  `FUNCIONES_DE_ENLACE` (= `dardos`: del resto ni recibe ni acepta mensajes), no cuenta como persona en
+  `/status.conectados` ni en `/health`, y cuenta en `/status.visitas`. Identidad, puerta y límites de ritmo son los de
+  cualquiera. Cuenta en el aforo: ocupa una entidad.
+- **Dardos v6** (aditivo): `jugar` admite `mundo` y `nombre` (texto, 32 bytes; solo desde `pared`/`lejos`) y el estado de
+  la partida añade `mundoA`…`mundoD`; el letrero de la diana pone «En su pared (AR) · desde <mundo>».
+- **Pruebas**: `test/dardos-enlace.test.ts` (ajuste y su validación, estados, la visita sin avatar que juega en la
+  `remoto`, la puerta, el cliente con un servidor en memoria, el letrero). e2e con dos servidores y dos navegadores:
+  `tools/e2e-piernas/dardos-enlace.mjs` (8913 Torre / 8911 otro mundo / 5311, también lenta: `E2E_LENTAS=1`).
+
 ## Dados (v1): los tira el servidor y todos ven lo mismo
 
 `features/dados` es la tirada de una mesa de rol: **nadie decide un dado en su página**. Pides una tirada y el
