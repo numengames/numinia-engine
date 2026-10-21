@@ -61,7 +61,7 @@ test("density per tier: tufts and triangles fit the grass share of the nature bu
     assert.ok(t.cerca && anilloCerca(t)!.capTuft * anilloCerca(t)!.celdas.length <= t.cerca.tuftsMax, `${nv}: inner ring`);
     assert.ok(enviados <= PRESUPUESTO_NATURALEZA[nv].reparto.hierba, `${nv}: grass submits ${enviados} triangles, over its share ${PRESUPUESTO_NATURALEZA[nv].reparto.hierba}`);
   }
-  assert.ok(HIERBA_POR_NIVEL.A.radio === 24 && HIERBA_POR_NIVEL.B.radio === 16 && HIERBA_POR_NIVEL.C.radio === 14 && HIERBA_POR_NIVEL.D.radio === 10);
+  assert.ok(HIERBA_POR_NIVEL.A.radio === 48 && HIERBA_POR_NIVEL.B.radio === 36 && HIERBA_POR_NIVEL.C.radio === 26 && HIERBA_POR_NIVEL.D.radio === 10);
   const llano: Fuente = { alturaEn: () => 0, zonaEn: () => "prado" }, n = HIERBA_POR_NIVEL.A;
   let tufts = 0, flores = 0;
   for (let cx = -12; cx < 12; cx++) for (let cz = -12; cz < 12; cz++) { tufts += tuftsDeCelda(SEMILLA, cx, cz, llano, n).length; flores += floresDeCelda(SEMILLA, cx, cz, llano, n).length; }
@@ -144,4 +144,23 @@ test("R1: tuft and flower colours are palette colours or mezcla of two; flowers 
   assert.ok(hojas > 200 && flores > 5, `${hojas} tufts, ${flores} flowers`);
   assert.ok(peor < 0.1, `worst tuft/flower colour is ${peor.toFixed(3)} from the palette`);
   assert.ok(matices.size > 15, `tufts vary in hue/height within the palette (${matices.size} distinct greens)`);
+});
+
+// N1 «aparece antes»: a walker must see grass ~30 m ahead on A, and the ring must refill fast enough while he runs.
+test("reach: on tier A the grass has not started to thin at 30 m, and on a plain meadow it is still ≥ 0.2 tufts/m² there; walking at 6 m/s the queue stays under one row of the ring and drains once he stops", () => {
+  const A = HIERBA_POR_NIVEL.A, llano: Fuente = { alturaEn: () => 0, zonaEn: () => "prado" };
+  assert.ok(A.radio * 0.7 >= 30, `the fade starts at ${A.radio * 0.7} m`);
+  assert.ok(HIERBA_POR_NIVEL.B.radio * 0.7 >= 24, "tier B: fade starts after 24 m");
+  let tufts = 0, area = 0; const c = A.celda;
+  for (let cx = Math.floor(26 / c); cx < Math.ceil(34 / c); cx++) for (let cz = -4; cz < 4; cz++) { tufts += tuftsDeCelda(SEMILLA, cx, cz, llano, A).length; area += c * c; }
+  assert.ok(tufts / area >= 0.2, `${(tufts / area).toFixed(3)} tufts/m² at 26–34 m`);
+  const h = crearHierba(viento(), fuente, { semilla: SEMILLA, nivel: "A", empujaCamara: false }), cam = camara(0, 0);
+  h.llenarTodo(cam);
+  let peor = 0;
+  for (let f = 0; f < 600; f++) { cam.position.x = 6 * f / 60; cam.position.y = alturaEn(cam.position.x, 0) + 1.7; h.actualizar(cam, f / 60); peor = Math.max(peor, h.estadisticas().pendientes); }
+  const fila = 2 * Math.ceil(A.radio / A.celda) + 3; // a timing budget: a loaded machine may queue a little more, never more than the ring's leading edge
+  assert.ok(peor <= 2 * fila, `${peor} cells queued while walking (one row = ${fila})`);
+  for (let f = 0; f < 600 && h.estadisticas().pendientes > 0; f++) h.actualizar(cam, 10 + f / 60);
+  assert.equal(h.estadisticas().pendientes, 0, "the queue drains once he stands still");
+  h.dispose();
 });

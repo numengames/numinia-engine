@@ -1453,8 +1453,20 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `onboarding/lienzo` (desde origin/main 1b04bd1d), sin subir.
 - Siguiente: el «Taller» (guía, 11 misiones, flecha a los botones) sobre el lienzo; una farola de pie CC0 para la biblioteca (hoy hay «Farolillo»); idiomas ja, ko y pt-br de las frases del cable (siguen pendientes).
 
+## 2026-10-21 18:30 · funciones f1 · hecho
+- Qué: historia f1 de los interruptores de funciones (0.28.0, solo servidor + protocolo; la vista va en f3/v3). Pieza nueva
+  `features/funciones`: quien puede construir enciende y apaga en caliente `normas` (la puerta de condiciones de entrada),
+  `dardos` y `pesca` con el verbo `poner`; se guarda en `entorno/funciones.json` (`funciones@1`, mismo escritor atómico que el
+  espacio base) y sobrevive al reinicio. Apagar las normas deja entrar a quien las leía; encenderlas solo pide a quien llegue después.
+  Prioridad de la puerta: opción de `startServer` / `MOTOR_CONDICIONES_PUERTA` > `funciones.json` > `"puerta"` de `condiciones.json`.
+  Estado `normas|dardos|pesca` = `{ activa, fija }` para las páginas (`__numinia.funciones`). `dardos` y `pesca` solo se guardan y
+  se publican: esconderlos es f2. Sin `funciones.json`, todo como hoy (huella `7e630965`).
+- Números: `test/funciones-interruptores.test.ts` (8 pruebas); ver la PR para `npm test`, gates y tamaño.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `funciones/f1-interruptores-servidor`, sin subir.
+- Siguiente: f2 (esconder dianas y estanque con el interruptor), f3/v3 (panel con los interruptores).
 ## 2026-10-21 18:40 · ia-visible (las IAs se ven) · hecho
-- Qué: Las IAs se ven: robot, cartel verde con IA, aro en el suelo, sección IAs en Gente y su ficha con «Ir hacia ella». Cualquier IA que entre a un mundo lo muestra, sin encender nada (R-1): cuerpo de robot de la casa, cartel de nombre siempre visible y verde con la marca «IA» (luna si duerme), aro verde bajo ella, rombo en el mapa (hueco si duerme) cuyo clic abre su ficha, sección «IAs» en Gente (`N personas · M IAs`) y ficha con quién responde por ella, Activa/Dormida, si construye y «Ir hacia ella» (viaje, o baliza donde los viajes están apagados). El pase acepta un bloque `ia` opcional y estricto; sin él, ficha mínima. Versión 0.27.0 (menor: algo nuevo que no rompe nada).
+- Qué: Las IAs se ven: robot, cartel verde con IA, aro en el suelo, sección IAs en Gente y su ficha con «Ir hacia ella». Cualquier IA que entre a un mundo lo muestra, sin encender nada (R-1): cuerpo de robot de la casa, cartel de nombre siempre visible y verde con la marca «IA» (luna si duerme), aro verde bajo ella, rombo en el mapa (hueco si duerme) cuyo clic abre su ficha, sección «IAs» en Gente (`N personas · M IAs`) y ficha con quién responde por ella, Activa/Dormida, si construye y «Ir hacia ella» (viaje, o baliza donde los viajes están apagados). El pase acepta un bloque `ia` opcional y estricto; sin él, ficha mínima. Versión 0.29.0 (menor: algo nuevo que no rompe nada).
 - Números: ver el cuerpo de la PR (`npm test`, gates, build, `layers`, `tamano`). Sin probar en Quest/VR reales, ni el paso en vivo de dormida a activa.
 - Idiomas: los textos nuevos de Gente y de la ficha (`gente-ia-es.ts`) están en español. **`en`, `ja`, `ko` y `pt-br` pendientes** (caen en español).
 - Consumo: sin medir · Sonnet 5.5 (subagente).
