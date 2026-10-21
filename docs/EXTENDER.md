@@ -1447,6 +1447,30 @@ ejemplo de la casa; fichero roto = una línea en el registro con la ruta del fal
 - **`nombre`** (por capa, opcional, 1–60 caracteres, c3): cómo llama la burbuja a esa capa en sus pasos («Numen Games»); sin él dice «La casa» / «La comunidad». El motor no lleva marca: los nombres salen de este fichero.
 - **`puerta`** (opcional, `true`/`false`): pide encender la puerta del servidor para este mundo.
 
+### Interruptores de funciones del mundo (f1: `features/funciones`, `funciones.json`)
+
+Regla R-1: cada pieza del motor se enciende sin tocar código. El mundo guarda un interruptor por pieza en `entorno/funciones.json`
+(formato `numinia-engine/funciones@1`, todo opcional; una clave que no está no dice nada y el mundo sigue como hoy):
+
+```json
+{ "schema": "numinia-engine/funciones@1", "normas": false, "dardos": true, "pesca": true }
+```
+
+- **`normas`**: la puerta de condiciones de entrada. **Orden de prioridad** (la primera que existe manda): la opción
+  `condicionesPuerta` de `startServer` y la variable `MOTOR_CONDICIONES_PUERTA` (si|no) → `normas` de `funciones.json` →
+  `"puerta"` de `aventura/condiciones.json` → apagada. Si manda el entorno, el estado sale con `fija: true` y el interruptor se niega.
+  El interruptor solo existe si el mundo tiene condiciones (su `condiciones.json`, una fuente de la comunidad o la puerta forzada desde fuera).
+  **Apagarla** deja entrar a quien estaba leyendo (su burbuja se va para todos); **encenderla** solo afecta a quien llegue después: nadie
+  que ya esté dentro sale.
+- **`dardos`, `pesca`**: en f1 solo se guardan y se publican (por defecto encendidas, como hoy); esconder las dianas y el estanque es f2.
+- **Quién**: quien puede construir (`api.puede(e, "construir")`, igual que el interruptor «Espacio base»). El servidor reescribe solo la
+  clave pedida (las demás se quedan; sin fichero lo crea con `{ schema, <función> }`), lo valida y lo escribe de forma atómica; un fichero
+  mal escrito no se sobrescribe nunca (el log y el rechazo dicen cómo arreglarlo). Sin carpeta de mundo, el cambio vale hasta reiniciar.
+- **En la página**: estado compartido `normas` / `dardos` / `pesca`, cada uno `{ activa, fija }` (una función que el mundo no tiene no
+  aparece); `__numinia.funciones.actual()` → `{ normas?, dardos?, pesca? }`, `.fija(nombre)` y `.ponerFuncion(nombre, si)`. Para un agente:
+  el verbo `poner { funcion, activa }` de la pieza `funciones`. El panel que los pinta es f3/v3.
+- Pruebas: `test/funciones-interruptores.test.ts`.
+
 ### Las normas de la comunidad llegan solas al mundo (w4: `packages/server/src/condiciones-fuente.ts`)
 
 Cuando una comunidad publica una versión de sus normas en numinia.com (Ajustes → «Normas de vuestros espacios»), sus mundos la usan sin que
