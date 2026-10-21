@@ -192,9 +192,19 @@ en `features.cards()`. Un agente de IA lee lo mismo en el catálogo. Ejemplos: `
   La validación es estricta en todos los niveles: un campo que no existe, un tipo equivocado o un valor fuera de rango rechaza el
   pase entero como `contenido` y el texto dice qué campo (nunca su valor); un bloque `ia` en el pase de una persona también se
   rechaza. Sin `ia` el pase se lee igual que siempre. `roles.iaDe("ia-a_…")` devuelve el último bloque de esa IA (un PASE a mitad de
-  sesión lo reemplaza); de momento nada lo lee: lo usarán el cuerpo (S2), la ficha pública (S3), la burbuja (S8) y la llamada
-  (S10). **Orden de publicación:** el motor rechaza los campos que no conoce, así que numinia.com solo manda `ia` a los mundos
+  sesión lo reemplaza); lo leen la ficha pública (S3, abajo), el cuerpo (S2), y lo leerán la burbuja (S8) y la llamada (S10). **Orden de publicación:** el motor rechaza los campos que no conoce, así que numinia.com solo manda `ia` a los mundos
   cuyo motor ya trae esta versión.
+- **La ficha pública de una IA (ia-visible S3, `features/ia/`):** cada IA conectada (una IA de organización con pase, un agente de
+  fuera, un habitante) tiene una entrada en el estado compartido de la función `ia` (clave = su entidad; desaparece al irse; las
+  personas nunca tienen): `estado` (`activa`|`dormida`, del `state` del pase), `comunidad`/`nombre`/`cartera` (quién responde
+  por ella, D-084: la cartera es solo la forma corta `0x12…ab`; vacíos si el pase no trae `ia`), `construye` (si sus roles la dejan
+  construir ahora; dormida nunca) y `atenta` (si su cerebro escucha: falso hasta que el puente lo diga, S12). La decide el servidor:
+  la función `roles` emite el evento solo-servidor `ia` al identificarse y cuando un PASE a mitad de sesión cambia algo, y
+  `features/ia/server.ts` lo publica; una IA sin bloque `ia` (o sin pase) tiene igualmente la ficha mínima, para que su marca salga
+  siempre. Lo que **oye** no se publica: el pase no lo dice (D-083 lo fijará una historia posterior). Las páginas la leen con
+  `iaPagina.de(entidad)` (`features/ia/client.ts`; en la página, `__numinia.ia`) → `{estado, responde?: {comunidad, nombre?, cartera?},
+  puede: {construir}, atenta}` o `null` si no es una IA; también `es(entidad)`, `lista()` y `alCambiar(fn)`; un agente o un test lee
+  lo mismo en `session.features.stateOf("ia")`. Nada que encender: todo mundo la tiene (R-1).
 - `view.place?.(clave, { model, x, y, z, rx, ry, rz, sx, sy, sz, animate } | null)` — la página pone, mueve o quita
   una cosa con su modelo (sha256 de un `.glb`; el fichero sale de `/a/<sha256>.glb` del servidor). Giros en grados
   (primero `ry`, luego `rx`, luego `rz`). `view.here?.()` dice dónde está el jugador, para poner algo delante.
