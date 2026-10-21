@@ -55,5 +55,6 @@ export function elegirMirado<K>(ojo: V3, adelante: V3, cand: readonly Mirable<K>
   return mejorA <= MIRADA_GRADOS ? mejor : null;
 }
 
-/** Does this name show? `todos` (Alt held), the one looked at, or whoever speaks. `marca` is accepted for a later decision (a quest mark that keeps its plate on) and is off today. */
-export const nombreVisible = (o: { todos: boolean; mirado: boolean; habla: boolean; marca?: boolean }): boolean => o.todos || o.mirado || o.habla || (MARCA_FIJA && !!o.marca);
+/** Does this name show? `todos` (Alt held), the one looked at, or whoever speaks. `marca` is accepted for a later decision (a quest mark that keeps its plate on) and is off today.
+ * `ia` (ia-visible S4): the plate of an AI is always on; a person's keeps the rules above. */
+export const nombreVisible = (o: { todos: boolean; mirado: boolean; habla: boolean; marca?: boolean; ia?: boolean }): boolean => o.todos || o.mirado || o.habla || !!o.ia || (MARCA_FIJA && !!o.marca);
