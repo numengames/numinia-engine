@@ -69,6 +69,7 @@ try {
   // C4: /status in the shape the Worlds room reads, with this build's commit
   const st = await get("/status");
   if (!(Number.isInteger(st?.uptime) && st.conectados === 0 && st.commitHash === sello.commit && st.version === sello.build)) fail(`/status no es {uptime, conectados, commitHash, version} de este build: ${JSON.stringify(st)}`);
+  if (!/^\d+\.\d+\.\d+$/.test(st.semver) || st.semver !== sello.semver) fail(`/status no dice la versión semántica del build (semver): ${JSON.stringify(st)}`); // numinia.com reads it
   // C1: the engine serves its own page (index.html + every file it links), index revalidated, hashed assets immutable
   const indice = await fetch(`http://127.0.0.1:${PORT}/`).catch(() => null);
   if (indice?.status !== 200 || indice.headers.get("cache-control") !== "no-cache" || !(await indice.text()).includes("<html")) fail(`la página no se sirve en /: ${indice?.status}`);
