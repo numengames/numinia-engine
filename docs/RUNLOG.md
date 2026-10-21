@@ -1479,3 +1479,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `feat/ia-llamar` (sobre `feat/ia-visible`), sin PR.
 - Siguiente: S9 (dibujo), S10 (llamar), S13 («En tu burbuja» en `mirar`).
+## 2026-10-21 19:55 · ia-llamar S10 (llamar a una IA) · hecho
+- Qué: función `llamar` (servidor). Se llama a una IA por su nombre en el chat cercano, con `/nombre mensaje` (no se publica: solo quien lo escribe y la IA), con su frase clave o con la petición `llamar {ia, texto}` (botón y tecla E de S11). Respeta las casillas del bloque `ia.llamada` del pase (nueva señal solo-servidor `iaLlamada` en `roles`) y `solo_dentro` (burbuja de S8, o 20 m). Entre varias, la que te tiene dentro y luego la más cercana. Una llamada cada 10 s por persona y 30 por hora por IA, con aviso de pantalla; la IA recibe `llamada {ia, quien, nombre, texto, modo, t}` y un buzón (20 llamadas, 10 min) para el puente (S12). Sin IAs no hace nada.
+- Números: ver el cuerpo de la PR (`npm test`, gates, build). `test/llamar.test.ts`: 29 pruebas.
+- Idiomas: los avisos («Has llamado a Ada.», «Vas muy deprisa…») están en español; **`en`, `ja`, `ko` y `pt-br` pendientes**.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `feat/ia-llamar` (sobre S8), sin PR.
+- Siguiente: S11 (botón «Hablar con ella» y tecla E), S12 (el puente lee el buzón y deja de detectar el nombre por su cuenta).
