@@ -1472,3 +1472,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Números: `test/flecha.test.ts` +1 prueba y una aserción; `test/misiones-hace.test.ts` +1 prueba (falla sin el arreglo); `npm test` 1639 bien, 0 mal; puertas en verde; build ok (594,4 kB gz). Prueba real: `plantillas/taller/recorrido.mjs`.
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `taller`, sin subir.
+
+## 2026-10-21 21:05 · T4 Taller recorrido entero (11 misiones) · hecho
+- Qué: la pierna `work/plantillas/taller/recorrido.mjs` recorre las 11 misiones de «La plaza a oscuras» con la interfaz real (C, arrastrar el Farolillo, asas, «se ve al jugar», Probar, «+ Nuevo cable», huecos de la frase, Lumen) y acaba con la insignia «Constructor»; `recorrido-movil.mjs` hace la misión 1 en móvil desde «…» → «más». Arreglo en `apps/plaza/flecha.ts`: cuando el paso pide un botón que nadie ve todavía (el diálogo o el cajón del móvil lo tapan), la flecha se escondía y DEJABA DE VIGILAR, así que no volvía nunca; ahora sigue vigilando mientras un paso pida algo y solo se apaga del todo cuando ningún paso lo pide (nada corre sin flecha).
+- Números: escritorio 11/11 misiones (exit 0, cero errores de página); móvil 8/8 pasos; `taller.zip` 15 kB y `lienzo.zip` 6,4 kB (`comprobar` ok, importados y arrancados: «Taller», 11 misiones, 1 cable; «Lienzo»). Tests/puertas/build en el commit.
+- Consumo: sin medir · Fable 5.1 (Ursa, en el escritorio) + Sonnet 5.5 (subagente T4, que murió a mitad; su trabajo se recogió).
+- Commit: rama `taller`, sin subir.
+- Siguiente: PR de la rama `taller` (T1 paso `hace`, T3 flecha, arreglos) cuando Pablo diga; farola de pie CC0; ja/ko/pt-br.

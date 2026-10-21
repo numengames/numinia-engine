@@ -28,8 +28,10 @@ export function montarFlecha({ misiones }: Opciones): { reponer(): void } {
   let pendiente = 0;
   const poner = (): void => {
     pendiente = 0;
-    const id = objetivoDeFlecha(misiones.senala(), visible);
-    if (!id) { apagar(); return; }
+    const senala = misiones.senala();
+    if (!senala) { apagar(); return; }
+    const id = objetivoDeFlecha(senala, visible);
+    if (!id) { esconder(); vigilar(); return; } // a step asks for a button nobody can see yet (a dialogue or the phone's drawer covers it): keep watching, it will show
     const b = document.getElementById(id)!;
     const r = b.getBoundingClientRect();
     const abajo = r.top + r.height / 2 < innerHeight / 2; // button in the top half → arrow under it, pointing up
@@ -41,14 +43,17 @@ export function montarFlecha({ misiones }: Opciones): { reponer(): void } {
     const aviso = `Pulsa aquí: ${titulo(b)}`;
     if (flecha.getAttribute("aria-label") !== aviso) flecha.setAttribute("aria-label", aviso);
     flecha.hidden = false;
-    if (!observador) {
-      observador = new MutationObserver((rs) => { if (rs.some((m) => m.target !== flecha && !flecha.contains(m.target as Node))) reponer(); });
-      observador.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["hidden", "class", "aria-expanded", "data-oculto"] });
-      addEventListener("resize", reponer);
-    }
+    vigilar();
   };
-  function apagar(): void {
-    flecha.hidden = true; delete flecha.dataset.objetivo; flecha.removeAttribute("aria-label");
+  function vigilar(): void {
+    if (observador) return;
+    observador = new MutationObserver((rs) => { if (rs.some((m) => m.target !== flecha && !flecha.contains(m.target as Node))) reponer(); });
+    observador.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["hidden", "class", "aria-expanded", "data-oculto", "style"] });
+    addEventListener("resize", reponer);
+  }
+  function esconder(): void { flecha.hidden = true; delete flecha.dataset.objetivo; flecha.removeAttribute("aria-label"); }
+  function apagar(): void { // no step asks for anything: nothing to watch (nothing runs while there is no arrow)
+    esconder();
     if (observador) { observador.disconnect(); observador = null; removeEventListener("resize", reponer); }
   }
   function reponer(): void { if (!pendiente) pendiente = requestAnimationFrame(poner); }
