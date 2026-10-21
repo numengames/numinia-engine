@@ -586,6 +586,12 @@ html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 
 #gente-denuncia textarea { width: 100%; box-sizing: border-box; margin: 8px 0; padding: 8px 10px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-fondo); color: var(--n-texto); font: 14px var(--n-titulos); resize: vertical; }
 #gente-denuncia button.peligro { background: var(--n-grana) !important; color: #fff !important; border-color: var(--n-grana) !important; }
 #gente-denuncia .estado { color: var(--n-texto2); min-height: 1.2em; }
+/* the AI card and sheet: who answers for it, whether it builds */
+#gente .ia-dato, #gente-tarjeta .ia-dato { display: flex; flex-wrap: wrap; gap: 2px 8px; margin: 6px 0 0; font-size: 13px; color: var(--n-texto); }
+#gente .ia-dato .k, #gente-tarjeta .ia-dato .k { color: var(--n-texto2); }
+#gente .ia-dato.no, #gente-tarjeta .ia-dato.no { color: var(--n-texto2); }
+#gente .ia-dato b, #gente-tarjeta .ia-dato b { font-weight: 600; overflow-wrap: anywhere; }
+#gente-tarjeta .ia-datos { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--n-linea); }
 /* the small card beside someone you click in the world (maqueta p4) */
 #gente-tarjeta { position: fixed; left: 0; top: 0; z-index: 8; width: 330px; max-width: calc(100vw - 16px); box-sizing: border-box; padding: 12px; background: var(--n-sup); color: var(--n-texto); border: 1px solid var(--n-linea); border-radius: 8px; font: 14px var(--n-titulos); }
 #gente-tarjeta[hidden] { display: none; }

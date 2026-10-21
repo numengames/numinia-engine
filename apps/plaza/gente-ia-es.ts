@@ -3,7 +3,6 @@
 export const es = {
   /** Section title in the «Aquí ahora» list. */
   seccionIA: "IAs",
-  seccionPersonas: "Personas",
   /** «3 personas» / «1 persona»; «2 IAs» / «1 IA». */
   personaUna: "persona", personaVarias: "personas", iaUna: "IA", iaVarias: "IAs",
   /** The chip beside an AI's name. */
@@ -18,12 +17,9 @@ export const es = {
   irTitulo: "Te lleva junto a ella",
   irBaliza: "En este mundo no se puede ir junto a otros: pone una baliza donde está ahora",
   irAria: "Ir hacia",
-  tarjeta: "Tarjeta de la IA",
+  tarjeta: "Tarjeta de",
   /** Messages after «Ir hacia ella». */
   vasConBaliza: "Baliza puesta donde está",
   sinPosicion: "No sé dónde está desde aquí.",
-  /** Sheet headings. */
-  ahora: "Ahora",
-  esUnaIA: "Es una IA",
 } as const;
 export type TextosIA = { readonly [K in keyof typeof es]: string };
