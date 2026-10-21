@@ -14,7 +14,8 @@ import { tmpdir } from "node:os";
 import { startServer } from "../packages/server/src/server.ts";
 import { leerClave } from "../packages/server/src/pase.ts";
 import { PuenteMundo } from "../packages/agent/src/mcp-mundo.ts";
-import { mensajePase, pedirPaseHttp, pedirPaseToken, estadoDelPase } from "../packages/agent/src/pase-org.ts";
+import { mensajePase, pedirPaseToken, estadoDelPase } from "../packages/agent/src/pase-org.ts";
+import { pedirPaseHttp } from "../packages/agent/src/pase-org-clave.ts";
 import { clavePrivada, nuevaPareja } from "../packages/agent/src/llave.ts";
 import { ErrorHerramienta } from "../packages/agent/src/mcp.ts";
 import chatServer from "../features/chat/server.ts";
@@ -85,7 +86,7 @@ async function montar(o: { mundo?: boolean; token?: string } = {}) {
   const srv = await startServer({ port: 0, host: "127.0.0.1", statsMs: 60_000, features: [chatServer, crearObjetos()], admin: "codigo-de-administracion-largo", secret: "una-clave-de-prueba-larga", pase: { clave: CLAVE, mundo: MUNDO, org: ORG }, log: (l) => log.push(l), version: "prueba" });
   const biblioteca = (JSON.parse(readFileSync("features/objetos/biblioteca.json", "utf8")) as { modelos: { id: string; nombre: string; modelo: string }[] }).modelos.map(({ id, nombre, modelo }) => ({ id, nombre, modelo }));
   const puente = new PuenteMundo({
-    url: `ws://127.0.0.1:${srv.port}/ws`, id: AGENTE, ...(o.token ? {} : { privada }), biblioteca, log: (l) => lineasPuente.push(l),
+    url: `ws://127.0.0.1:${srv.port}/ws`, id: AGENTE, biblioteca, log: (l) => lineasPuente.push(l),
     pedirPase: o.token ? pedirPaseToken({ numiniaUrl: falso.url, org: ORG, agente: AGENTE, token: o.token }) : pedirPaseHttp({ numiniaUrl: falso.url, org: ORG, agente: AGENTE, privada }), ...(o.mundo ? { mundo: MUNDO } : {}),
   });
   const herr = (n: string) => puente.herramientas().find((h) => h.name === n)!;
