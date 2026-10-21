@@ -164,3 +164,34 @@ test("3D: the hall is drawn from state, a lit hologram turns to you and flickers
     assert.equal(world.children.length, 0);
   } finally { (globalThis as { document?: unknown }).document = antes; }
 });
+
+// ---- the lienzo (work/plantillas/lienzo): a blank world must be able to leave the house hall out ----
+test("MUNDO_DIR: ancestros.json with empty lists puts no hall and no hologram (a blank world); no file keeps the house's; a wrong shape says why", async () => {
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { leerMundo } = await import("../packages/server/src/mundo.ts");
+  const { conMundo } = await import("../features/mundo.ts");
+  const dir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "mundo-ancestros-"));
+  writeFileSync(join(dir, "ancestros.json"), JSON.stringify({ schema: "numinia-engine/ancestros@1", hologramas: [], muros: [] }));
+  const partes = conMundo(funciones, leerMundo(dir, () => {}), () => {});
+  const vacio = mundo(1, [partes.find((p) => p.feature.id === "ancestros")!]);
+  vacio.pump(2);
+  assert.equal(solidsFrom(vacio.inst.features.allState()).length, 0, "no walls");
+  assert.equal(vacio.pages[0].a.hologramas().length, 0, "no hologram");
+  assert.equal(vacio.pages[0].a.muros().length, 0);
+  // the simulation footprint is the same as a world with no feature at all
+  const sinNada = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [] });
+  const sinNadaT = sinNada.join(0); sinNadaT.flush(); for (let i = 0; i < 2; i++) { sinNada.tick(); sinNadaT.flush(); }
+  assert.equal(vacio.inst.hash(), sinNada.hash());
+  // no file: the house hall, untouched
+  const casa = conMundo(funciones, leerMundo(mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "mundo-ancestros-casa-")), () => {}), () => {});
+  assert.equal(casa.find((p) => p.feature.id === "ancestros"), funciones.find((p) => p.feature.id === "ancestros"));
+  // valid JSON, wrong shape: said, house hall kept
+  const mal = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "mundo-ancestros-mal-"));
+  writeFileSync(join(mal, "ancestros.json"), JSON.stringify({ salon: "no" }));
+  const log: string[] = [];
+  const partesMal = conMundo(funciones, leerMundo(mal, (l) => log.push(l)), (l) => log.push(l));
+  assert.match(log.join(" "), /ancestros\.json no tiene ninguna lista/);
+  assert.equal(partesMal.find((p) => p.feature.id === "ancestros"), funciones.find((p) => p.feature.id === "ancestros"));
+});

@@ -1008,6 +1008,73 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
   (§6 del diseño: avisar a quien sale «X ha sacado el Graboso»). Después: conectar con Y1, voces de otros en
   el clip, modelo fino, VR, compartir (M18c).
 
+## 2026-10-18 17:31 · AR-D1 · hecho
+- Qué: duelo de dardos, parte del servidor (dardos v2). `dardos.json` acepta `duelo`, `remoto` y `rondas` (1-5, por
+  defecto 3); `jugar` admite `desde: "pared"` (solo en dianas `remoto`); el primero que juega espera, el segundo
+  empieza la partida, los turnos alternan (3 dardos), `lanzar` fuera de turno se rechaza, gana el total más alto
+  (o `empate`), y salir/desconectar/60 s sin tirar da la victoria al otro (`abandono`). Eventos nuevos `duelo` y
+  `finduelo`; `dardo` y `fin` llegan también a los dos jugadores sea cual sea la distancia. Una diana sin los
+  campos nuevos no cambia. Sin `duelos`/`ganados` en el marcador (rompería el evento fijado por la prueba v1).
+- Números: `test/dardos-duelo.test.ts` nuevo (8 pruebas) y `test/dardos.test.ts` (10) sin tocar, en verde.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `ar/duelo-servidor` sobre origin/main 91f73a5. Sin push ni PR.
+- Siguiente: historia de la página (controlador y vista del duelo, AR sin estar cerca) y lanzar en VR (otra sesión).
+
+## 2026-10-18 17:37 · AR-D2 · hecho
+- Qué: duelo de dardos, controlador de la página (dardos v2, `features/dardos/client.ts`). `dardos.duelo()` da turno,
+  `miTurno`, rival, puntos y `fin` (`gane`/`empate`/`abandono`) a los dos jugadores y a un curioso cerca (`yo: false`);
+  `alCambiar` avisa `"duelo"`; los dardos del rival se quedan hasta su siguiente turno y, tras `finduelo`, 6 s. Una
+  diana sin campos de duelo no cambia. De paso, la entrada AR-D1 de este diario estaba pegada dentro de la línea de
+  formato de la cabecera: la he movido al final.
+- Números: `test/dardos-duelo-cliente.test.ts` nuevo (7 pruebas); `dardos.test.ts` y `dardos-duelo.test.ts` sin tocar, en verde.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `ar/duelo-servidor` (ver `git log`). Sin push ni PR.
+- Siguiente: AR-D3 (la vista del duelo en la página y en AR; `apps/plaza/dardos.ts` y `packages/render`).
+
+## 2026-10-18 17:42 · AR-D3 · hecho
+- Qué: duelo de dardos visto desde la pared (AR) y desde la página. Marcador 3D sobre la diana de pared (nombres,
+  puntos, ronda, turno, «Esperando rival…», «Ganas/Pierdes/Empate»), dardos del rival que entran volando 0,4 s,
+  lanzar solo en tu turno (fuera de turno no se envía nada), `dardos.salir()` al acabar la sesión AR, una línea de
+  duelo en el HUD de la página. Todo en archivos nuevos (`dardos-duelo.ts` y `dardos-duelo-ar.ts` en render,
+  `apps/plaza/dardos-duelo.ts`); a los existentes solo una importación y unas pocas líneas. De paso, `salir()` del
+  controlador vale en una partida también en el turno del rival.
+- Números: `test/dardos-duelo-ar.test.ts` nuevo (8 pruebas); marcador pintado a PNG en un navegador (IWER no pinta).
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `ar/duelo-servidor` (ver `git log`). Sin push ni PR.
+- Siguiente: AR-D5 (e2e con dos jugadores); el lanzar con la mano en VR es de otra sesión.
+
+## 2026-10-18 18:20 · AR-D4 · hecho
+- Qué: el duelo de dardos visto desde la plaza. Letrero 3D sobre la diana del duelo (nombres, puntos, ronda, turno,
+  resultado, invitación «Esperando rival — ¿juegas desde tu pared (AR)?»), etiqueta «En su pared (AR)» y los dardos
+  del jugador de pared entran en arco (el mismo vuelo que en AR) en la diana 3D. Campo nuevo y aditivo en el cable:
+  `paredA`/`paredB` en `duelo` y `finduelo` (la feature sigue en versión 2). Código nuevo en archivos nuevos
+  (`dardos-duelo-plaza.ts` puro, `dardos-duelo-plaza-3d.ts`); a `dardos.ts` de render solo cuatro asas, a `index.ts`
+  una llamada por fotograma, a `apps/plaza/dardos.ts` tres líneas. Arreglo del controlador: un curioso conservaba
+  «Esperando rival…» si el anfitrión desistía.
+- Números: `test/dardos-duelo-plaza.test.ts` nuevo (8 pruebas); `dardos-duelo.test.ts` ajustado al campo nuevo; letrero
+  pintado a PNG y arco muestreado en un navegador (el render GL de escena no estaba disponible en el headless).
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `ar/duelo-servidor` (ver `git log`). Sin push ni PR.
+- Siguiente: AR-D5 (e2e con dos jugadores, incluida la plaza).
+
+## 2026-10-18 18:50 UTC · AR-D5 · hecho
+- Qué: la pierna e2e `tools/e2e-piernas/dardos-duelo.mjs`: dos navegadores de verdad (PC y Quest 3 emulada con una pared)
+  juegan el duelo entero en un mundo desechable (diana `torre` con `duelo`, `remoto`, `rondas: 1`; aparición a 45 m).
+  26 comprobaciones: letrero de espera, entrada `desde pared` con B fuera de alcance, nombre y «En su pared (AR)» en A,
+  turno en el panel AR de B, tiros fuera de turno de los dos lados, dardos en las dos pantallas, puntos y veredicto
+  iguales al servidor, salida de AR limpia, y la variante de abandono. Ganchos de solo lectura `dardosHud.duelo()`.
+  Propuesta `dardos.json` de la Torre en `work/motor-ar/PRUEBA-TORRE-duelo/` (sin tocar el mundo).
+- Arreglos que salieron: (1) `cerradura.ts`: el teclado de la cerradura tenía `display: grid` en línea, que le gana a
+  `hidden`: en el ordenador quedaba un teclado a pantalla completa tapando la página y el ratón (en el móvil lo tapaba
+  una regla global); ahora se muestra y oculta con `display`. (2) La línea del HUD de la página usaba 3 rondas para
+  quien no colgó la diana en la pared («Ronda 1/3» en una diana de 1); ahora lee las rondas de la diana.
+- Números: 26/26 comprobaciones, sin errores de página, ~120-145 s con la máquina a carga 40+. Una vez falló por un
+  anfitrión esperando solo >60 s (se cancela, es la regla): la pierna abre a B antes de que A pulse E.
+- Consumo: sin medir · Sonnet 5.5.
+- Commit: rama `ar/duelo-servidor` (ver `git log`). Sin push ni PR.
+- Siguiente: botón real para que quien está lejos abra la vista de dardos (hoy solo el gancho de prueba); el etiquetado
+  «Salir de AR» del botón no se refresca al salir de AR hasta el siguiente cambio de estado.
+
 ## 2026-10-18 17:54 · ko-t_e8a450a4 · hecho (mitad)
 - Qué: H11 (importar de Hyperfy), la mitad `db.sqlite`+`assets/` → carpeta del mundo (la otra mitad, `.hyp` →
   carpeta de app, sigue esperando a M19, que está «para Opus»; no se ha tocado). `packages/server/src/importar-hyperfy.ts`
@@ -1365,3 +1432,23 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `cable/sin-json`, sin subir.
 - Siguiente: decidir cómo recibe la clave el servidor instalado; probar con una clave real (con permiso); ja/ko/pt-br.
+
+## 2026-10-20 21:48 · dardos+pesca · hecho
+- Qué: dos ramas en una PR, 0.26.0. Dardos: duelo y equipos de 2-4 entre PC, móvil, AR y VR (feature v5: `lanzar.via`,
+  `jugar desde:"lejos"`), barra de fuerza nueva en PC con la ventana que decide el servidor por dispositivo
+  (`ZONA_FUERZA`; `TEMBLOR` 0,15 → 0,08, zona muerta: cambia las puntuaciones de todos), chip «Dardos: jugar en
+  <diana>» para unirse a una diana `remoto` desde lejos, botón AR que se repinta al salir. Pesca v3: el medidor de
+  tensión va en la boya a ras de agua (PC, móvil, VR); cada pez pescado entra al Inventario (inventario v2, objeto
+  «captura» apilado por especie). Aditivo en el cable.
+- Números: `npm test` 1622/1622; `npm run gates` en verde; tamaño antes de dibujar 588368 → 592670 B gz (+4302);
+  e2e dardos-duelo, dardos, pesca y dardos-vr en verde (ver la PR). Sin probar en Quest ni móvil reales.
+- Consumo: sin medir · Sonnet 5.
+- Commit: rama `juegos/dardos-pesca` (ar/duelo-servidor + pesca/barra-boya + origin/main 54a4cf89), PR contra `main`.
+- Siguiente: probar el duelo con gafas y móvil reales; decidir si `TEMBLOR`/`ZONA_FUERZA` se quedan como están.
+
+## 2026-10-21 17:00 · lienzo (mundo en blanco para el onboarding) · hecho
+- Qué: dos piezas del motor para que un mundo pueda estar de verdad en blanco y el primer cable de un recién llegado no se pierda. (1) `entorno/ancestros.json` (`{ hologramas: [], muros: [] }`): sin fichero, el Salón de los Ancestros de la casa en (0, −48) con Asimov, como siempre; con las listas vacías, ningún salón ni holograma; una lista que falta deja esa mitad como la de la casa (misma forma que `pesca.json`/`dardos.json`, R-1). Era la única pieza de la casa que un mundo no podía apagar (muros sólidos a 48 m del centro). (2) Un mundo con carpeta pero SIN `disparadores.json` ya recibe el escritor del cable: «+ Nuevo cable» (`crearDisparador`) escribe el fichero por primera vez (con `nuevo`: nunca pisa uno escrito a mano que apareciera entre medias; los siguientes cambios lo reescriben) y un reinicio lo relee. Antes el cable se aceptaba en memoria y se perdía al reiniciar. Sin fichero la pieza arranca vacía, igual que la de la casa. La plantilla «lienzo» (`work/plantillas/lienzo`: suelo plano, día, sin nada, @todos construye, zip 5,9 kB) vive fuera del repo, con su pierna e2e (16 pasos escritorio + móvil) y la del cable (11 pasos: A–D sobre el mundo en blanco).
+- Números: `test/ancestros.test.ts` +1, `test/disparadores.test.ts` +2 (27/27); `npm test` 1625/1625; gates en verde (huella f455ffc1 intacta, p99 6,8 ms, página 592,6 kB gz); build en verde. Nada nuevo en el tick: las dos piezas solo deciden qué parte se monta al arrancar.
+- Consumo: sin medir · Fable 5.1 (Ursa, en el escritorio).
+- Commit: rama `onboarding/lienzo` (desde origin/main 1b04bd1d), sin subir.
+- Siguiente: el «Taller» (guía, 11 misiones, flecha a los botones) sobre el lienzo; una farola de pie CC0 para la biblioteca (hoy hay «Farolillo»); idiomas ja, ko y pt-br de las frases del cable (siguen pendientes).

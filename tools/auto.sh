@@ -71,6 +71,8 @@ case "${1:-status}" in
     for f in tools/e2e-piernas/*.mjs; do
       [ -e "$f" ] || continue
       n=$(basename "$f" .mjs)
+      # a leg that starts with «// e2e-lenta» takes minutes and brings its own server: out of the fast battery unless E2E_LENTAS=1
+      if head -1 "$f" | grep -q '^// e2e-lenta' && [ -z "${E2E_LENTAS:-}" ]; then echo "e2e $n saltada (lenta: E2E_LENTAS=1 o node $f)"; continue; fi
       if BASE="http://127.0.0.1:$VP/?webgl2&server=ws://127.0.0.1:$SP" SERVER_HTTP="http://127.0.0.1:$SP" timeout 120 taskset -c "$CPUS" nice -n 19 node "$f" > "$L-$n.log" 2>&1
       then echo "e2e $n OK"; else echo "e2e $n FALLA"; tail -15 "$L-$n.log"; rc=1; fi
     done

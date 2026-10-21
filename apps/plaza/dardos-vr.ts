@@ -19,7 +19,7 @@ type Lado = "izq" | "der";
 type Res = { ok: true } | { ok: false; why: string };
 type Dardo = { quien: number; sitio: string; numero: number; x: number; y: number };
 type Estado = { sitio: string; dardos: number; aviso: string };
-type Controlador = { estado(): Readonly<Estado>; clavados(sitio?: string): Dardo[]; lanzar(x: number, y: number, fuerza: number, sitio?: string): Res; alCambiar(fn: (que: "estado" | "sitios" | "clavados") => void): () => void };
+type Controlador = { estado(): Readonly<Estado>; clavados(sitio?: string): Dardo[]; lanzar(x: number, y: number, fuerza: number, sitio?: string, via?: "vr"): Res; alCambiar(fn: (que: "estado" | "sitios" | "clavados") => void): () => void };
 type Vuelo = { resolver(como: "clavado" | "caido", donde?: V3): void };
 type Vista = {
   vr: { active: boolean; nota?(t: string): void };
@@ -106,7 +106,7 @@ export async function montarDardosVR(o: { dardos: Controlador; view: Vista; yo: 
     sosteniendo = null; // the dart leaves the hand either way
     if (tiro.tipo === "tiro" && sitio) {
       const numero = e.dardos + sinResolver() + 1;
-      const r = dardos.lanzar(tiro.x, tiro.y, tiro.fuerza, sitio);
+      const r = dardos.lanzar(tiro.x, tiro.y, tiro.fuerza, sitio, "vr");
       if (r.ok) {
         const destino = vrd.puntoMundo(sitio, tiro.x, tiro.y) ?? p;
         const vuelo = vrd.volar(p, destino, duracionVuelo(tiro.distancia, tiro.velocidad));
