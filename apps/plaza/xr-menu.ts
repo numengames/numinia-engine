@@ -15,6 +15,10 @@ import { AYUDA_RAYO, TEXTO_FUERA_DE_VR, esInvitado, vistaConstruirVR } from "./c
 import { iconoDe } from "../../packages/render/src/menu-secciones.ts";
 import type { MenuVR, ContenidoMenuVR as Contenido } from "../../packages/render/src/index.ts";
 import { siguienteValor, textoValor } from "../../packages/render/src/menu-vr.ts";
+import { filasEsteMundoVR } from "../../features/funciones/menu-vr.ts";
+import { textoCambio } from "../../features/funciones/panel.ts";
+import { FUNCIONES } from "../../features/funciones/feature.ts";
+import type { Funcion } from "../../features/funciones/feature.ts";
 
 type N = Record<string, any>;
 type Fila = { texto: string; detalle?: string; icono?: string; color?: string; botones?: { texto?: string; icono?: string; accion: () => void; estilo?: "accion" | "normal" | "desactivado"; ancho?: number }[] };
@@ -165,7 +169,32 @@ export function montarMenuVR(o: {
         botones: s.tipo === "booleano" ? [{ texto: s.valor ? "Sí" : "No", accion: cambia(1), estilo: s.valor ? "accion" : "normal", ancho: 140 }]
           : [{ icono: "minus", accion: cambia(-1) }, { icono: "plus", accion: cambia(1) }] });
     }
+    filas.push(...esteMundo());
     return { tipo: "lista", titulo: "Ajustes de VR", nota: "Los demás ajustes, en el ordenador (tecla O).", vacio: "Este aparato no tiene ajustes de VR.", filas } as Contenido;
+  }
+  // «Este mundo» (funciones/v3): the Entorno panel's «Funciones de este mundo» rows, from the same pure panel (features/funciones/panel.ts):
+  // same rows, same words, the server's own state; only builders see it; a function the server fixes has its button off. It only asks.
+  function esteMundo(): Fila[] {
+    const f = o.n().funciones as { estado: { ultimoRechazo: string }; actual(): Record<string, boolean>; fija(x: Funcion): boolean; ponerFuncion(x: Funcion, si: boolean): { ok: boolean; why?: string } } | undefined;
+    if (!f?.actual) return [];
+    const lang = typeof document !== "undefined" ? document.documentElement?.lang : "";
+    const fija: Partial<Record<Funcion, boolean>> = {}; for (const x of FUNCIONES) fija[x] = f.fija(x);
+    return filasEsteMundoVR({ actual: f.actual(), fija, puede: o.puedeConstruir() }, lang).map((r): Fila => {
+      if (r.tipo === "encabezado") return { texto: r.texto, detalle: r.detalle, icono: "globe-hemisphere-west" };
+      if (r.tipo === "nota") return { texto: r.texto, icono: "lock-key", color: "#C4B5A6" };
+      const fn = r.funcion!;
+      const pulsa = () => {
+        if (f.fija(fn)) { nota(textoCambio(fn, "fija", lang)); return; }
+        const res = f.ponerFuncion(fn, r.quiero!);
+        if (!res.ok) { nota(`No: ${res.why ?? "no se pudo"}`); return; }
+        nota(textoCambio(fn, r.quiero ? "encendiendo" : "apagando", lang));
+        setTimeout(() => { // the server answers on its own time: say what it did, or why it refused
+          if (f.estado.ultimoRechazo) { nota(`No: ${f.estado.ultimoRechazo}`); f.estado.ultimoRechazo = ""; }
+          else if (f.actual()[fn] === r.quiero) nota(textoCambio(fn, r.quiero ? "encendida" : "apagada", lang));
+        }, 500);
+      };
+      return { texto: r.texto, detalle: r.detalle, icono: "gear", botones: [{ texto: r.boton, accion: pulsa, estilo: r.estilo, ancho: 200 }] };
+    });
   }
   function verAvisos(): Contenido {
     vistos = totalAvisos;

@@ -1641,6 +1641,11 @@ Regla R-1: cada pieza del motor se enciende sin tocar código. El mundo guarda u
   sale desactivada con «Lo fija el servidor.»; quien no puede construir no ve el bloque. Lógica pura (filas, textos es/en, si se puede
   pulsar) en `features/funciones/panel.ts` (+ `frases.es.ts`, `frases.en.ts`, mismas claves; ja, ko y pt-br pendientes); la página
   (`apps/plaza/entorno.ts`) solo las dibuja. Pruebas: `test/funciones-panel.test.ts`; navegador: `tools/e2e-piernas/funciones-interruptores.mjs`.
+- **En el menú de VR (v3)**: «Ajustes» del menú de la muñeca acaba con «Este mundo»: una fila de título y una fila por función (las mismas, en el
+  mismo orden y con los mismos textos que el bloque de PC, sacadas de `panel.ts`), con un botón que dice el estado del servidor («Encendida» /
+  «Apagada») y pide lo contrario al pulsarlo con el rayo + gatillo. Si la función es `fija` el botón sale apagado y debajo va «Lo fija el
+  servidor.»; quien no construye no ve el bloque. Filas en `features/funciones/menu-vr.ts` (puro); las dibuja `apps/plaza/xr-menu.ts`.
+  Pruebas: `test/funciones-menu-vr.test.ts`; navegador (IWER): `tools/e2e-piernas/funciones-menu-vr.mjs` (apaga Dardos desde el menú VR y la diana desaparece).
 - Pruebas: `test/funciones-interruptores.test.ts` (f1), `test/funciones-obedecen.test.ts` (f2), `test/funciones-panel.test.ts` (f3).
 
 ### Las normas de la comunidad llegan solas al mundo (w4: `packages/server/src/condiciones-fuente.ts`)
