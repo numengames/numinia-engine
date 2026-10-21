@@ -3,6 +3,7 @@
 // innerHTML only ever receives the house icons (constants); every name goes in with textContent.
 import { icono } from "./iconos.ts";
 import type { Amigo } from "./amigos.ts";
+import type { IAPublica } from "../../features/ia/feature.ts";
 
 export type Res = { ok: boolean; why?: string };
 /** What the page knows about someone near (main.ts wires it from the render, the avatars, fishing and the moves). */
@@ -28,7 +29,8 @@ export const botonCon = (ic: string, texto: string, clase = "", px = 18): HTMLBu
 };
 
 /** Someone the panel or the card shows: connected (quien) or a friend not here now (quien null). */
-export type Elegido = { quien: number | null; nombre: string; huella?: string; avatar: { id: string; nombre: string } | null };
+/** `ia` is set when the server says this player is an AI (features/ia): the list, the sheet and the card then show the AI's own content. */
+export type Elegido = { quien: number | null; nombre: string; huella?: string; avatar: { id: string; nombre: string } | null; ia?: IAPublica | null };
 
 /** A portrait: the house avatar's picture (busto / cuerpo) or a neutral silhouette, never a hole. */
 export function retrato(base: string, avatar: { id: string } | null, modo: "busto" | "cuerpo", px: number, apagado = false): HTMLElement {

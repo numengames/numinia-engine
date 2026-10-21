@@ -30,7 +30,8 @@ import movedores from "./movedores/server.ts"; // D-043: things the server moves
 import lucha from "./lucha/server.ts"; // L1: creatures with coherence and a solid box; one melee blow (the server decides reach, cooldown, damage)
 import ancestros from "./ancestros/server.ts"; // v1: the Salón de los Ancestros and the tribute to Asimov (a hologram that lights up near you and says the Three Laws + our AGW rules)
 import inventario from "./inventario/server.ts"; // Y1: what each person owns; after misiones, whose `otorga` it listens to
+import ia from "./ia/server.ts"; // ia-visible S3: the public card of every AI (state, who answers, what it may do); it hears the roles' «ia» event
 import sonido from "./sonido/server.ts"; // S6: the catalogue of house sounds (27 CC0 ids served by their sha256); the server picks the id and the seed, so everyone hears the same variant at the same instant. Last, so it hears the cable's `suena`
 import interruptores from "./funciones/server.ts"; // f1: feature switches (normas, dardos, pesca) the world's builder flips live; kept in funciones.json
-const funciones: ServerPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, naturaleza, espacioBase, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, sonido];
+const funciones: ServerPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, naturaleza, espacioBase, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, sonido];
 export default funciones;

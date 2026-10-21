@@ -6,7 +6,7 @@
 //     reading gets in. On: only whoever arrives afterwards is asked (nobody already inside is put out). The file beats condiciones.json's
 //     `puerta`; MOTOR_CONDICIONES_PUERTA and startServer's `condicionesPuerta` beat the file (then `fija` is true and the switch refuses).
 //     The switch exists only if the world has conditions (its own condiciones.json, a community source, or the gate forced from outside).
-//   · dardos, pesca — f1 keeps and publishes the state only (default on, as today); hiding the boards and the pond is f2.
+//   · dardos, pesca — f1 keeps and publishes the state (default on, as today); f2: their own servers read it (`api.estadoDe("funciones")`) and refuse + close what ran, their pages draw nothing.
 // A world with no funciones.json behaves exactly as before. No folder to write in: the change lasts until the server restarts.
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { EnlaceFunciones, ParteConEnlace, PuenteNormas } from "../../packages/feature/src/index.ts";

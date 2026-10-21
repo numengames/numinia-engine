@@ -6,6 +6,7 @@ import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
 import { dardos as decl, DARDOS_TURNO, FUERZA_IDEAL } from "./feature.ts";
 import type { Via } from "./feature.ts";
+import { encendida, verSi } from "../funciones/feature.ts"; // f2: the world's switch
 
 export { DARDOS_TURNO, FUERZA_IDEAL };
 export type { Via };
@@ -55,6 +56,7 @@ export const DUELO_FIN_MS = 30000, DUELO_DARDOS_MS = 6000;
 type DatosDuelo = { sitio: string; ronda: number; turnoDe: number; a: Jugador; b: Jugador | null; fin: FinDuelo | null; equipos: Jugador[]; max: number; turnoEq: number; retirando: boolean };
 type Res = { ok: true } | { ok: false; why: string };
 const SIN: Res = { ok: false, why: "la función dardos no está en este servidor" };
+const APAGADA: Res = { ok: false, why: "los dardos están apagados en este mundo" };
 const ahora = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 const r3 = (v: number) => Math.round(v * 1000) / 1000; // Q16.16 on the wire: 0.12 arrives as 0.11999…
 
@@ -66,6 +68,8 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
   const oyentes = new Set<(que: Que) => void>();
   const avisar = (que: Que) => { for (const fn of oyentes) fn(que); };
   let quitar: ReturnType<typeof setTimeout> | null = null;
+  /** f2: the world's switch for this piece, as the server last said (no entry = on). Off: no boards, no darts, no «E: tirar dardos», nothing to ask. */
+  const apagada = (): boolean => !!A && !encendida(A.estadoDe("funciones").get("dardos"));
   let D: DatosDuelo | null = null; // the match I know about (mine or one near me), kept from `duelo` / `finduelo`
   let quitarDuelo: ReturnType<typeof setTimeout> | null = null, olvidarDuelo: ReturnType<typeof setTimeout> | null = null;
   const enJuego = (sitio?: string): boolean => !!D && !D.fin && (sitio === undefined || D.sitio === sitio);
@@ -102,15 +106,16 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     /** True while this page has a turn going. */
     tirando: (): boolean => e.sitio !== "",
     /** The boards this page knows (state entries within reach of the area of interest). */
-    sitios: (): Sitio[] => (A ? A.state.keys().map((k) => ({ id: k, ...(A!.state.get(k) as Msg) }) as Sitio) : []),
+    sitios: (): Sitio[] => (A ? verSi(A.state.keys().map((k) => ({ id: k, ...(A!.state.get(k) as Msg) }) as Sitio), A.estadoDe("funciones").get("dardos")) : []),
     /** The darts stuck in boards near you right now (yours included), oldest first. */
-    clavados: (sitio?: string): Dardo[] => [...clavados.values()].flat().filter((d) => !sitio || d.sitio === sitio),
+    clavados: (sitio?: string): Dardo[] => (apagada() ? [] : [...clavados.values()].flat().filter((d) => !sitio || d.sitio === sitio)),
     /** J4: offer the «E: tirar dardos» prompt only while this page is not throwing already. */
-    ofrece: (feature: string, _key: string): boolean => feature !== "dardos" || (e.sitio === "" && !(D && !D.fin && soyDe(D))),
+    ofrece: (feature: string, _key: string): boolean => feature !== "dardos" || (!apagada() && e.sitio === "" && !(D && !D.fin && soyDe(D))),
     /** `desde: "pared"` joins a `remoto` board from a real wall far from it (AR); `"lejos"` (v5) from a flat screen far from it
      *  (the server refuses both elsewhere). */
     jugar: (sitio?: string, desde?: "sitio" | "pared" | "lejos"): Res => {
       if (!A) return SIN;
+      if (apagada()) return APAGADA;
       const id = sitio ?? dardos.sitios().find((s) => !s.ocupado)?.id;
       if (!id) return { ok: false, why: "no hay ninguna diana cerca" };
       return A.send("jugar", desde === "pared" || desde === "lejos" ? { sitio: id, desde } : { sitio: id });
@@ -119,6 +124,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
      *  thrown (raton, teclado, tactil, vr, ar); it sets the width of the straight-strength window (ZONA_FUERZA). Missing = raton. */
     lanzar: (x: number, y: number, fuerza: number, sitio?: string, via?: Via): Res => {
       if (!A) return SIN;
+      if (apagada()) return APAGADA;
       const id = sitio ?? (e.sitio || dardos.sitios()[0]?.id);
       if (!id) return { ok: false, why: "no hay ninguna diana cerca" };
       const c = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Number.isFinite(v) ? v : 0));
@@ -137,6 +143,8 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     const api: ClientApi = espia ? { ...raw, on: (ev, fn) => raw.on(ev, (m) => { espia(ev, m); fn(m); }) } : raw;
     A = api;
     api.state.onChange(() => avisar("sitios"));
+    // f2: the switch flips while the page is open: boards (and the darts stuck in them) go or come back with no reload
+    api.estadoDe("funciones").onChange((k) => { if (k === "dardos") { avisar("sitios"); avisar("clavados"); } });
     api.on("turno", (m) => {
       if (quitar) { clearTimeout(quitar); quitar = null; }
       e.sitio = String(m.sitio); e.dardos = 0; e.tirada = 0; e.fin = null; e.aviso = "";
