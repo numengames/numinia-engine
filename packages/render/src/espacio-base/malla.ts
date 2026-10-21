@@ -18,8 +18,8 @@ export const LADO_MUNDO = 400;
 export const CELDAS_POR_NIVEL: Record<Nivel, number> = { A: 64, B: 48, C: 32, D: 20 };
 /** The most line segments the whole mesh (lattice + contours + ring + accents) may send per tier; a test checks. D is the bare minimum. */
 export const LINEAS_TOPE: Record<Nivel, number> = { A: 9500, B: 5600, C: 2700, D: 1200 };
-/** Draw calls of the piece itself (the sky dome is the engine's): the line mesh + the accents' dots (one tiny quad mesh, ~600 vertices at most). */
-export const LLAMADAS = 2;
+/** Draw calls of the piece itself (the sky dome is the engine's): the line mesh + the accents' dots (one tiny quad mesh, ~600 vertices at most) + the translucent fill (B6: same vertices as the lines, only a triangle index). */
+export const LLAMADAS = 3;
 /** Contour interval (m of height) and the lowest height that gets one (the plateau and its lip stay clean). */
 export const PASO_CURVA = 12;
 /** Probability that a lattice vertex carries an accent tick. */
@@ -32,6 +32,8 @@ const ALTO_ACENTO = 1.6;
 
 export type Malla = {
   n: number; nv: number; posicion: Float32Array; tipo: Float32Array; indice: Uint16Array;
+  /** B6: 2 triangles per lattice cell over the FIRST nv·nv vertices of `posicion` (the lattice), the diagonal alternating like sim/terreno-malla.ts. Heights are not recomputed. */
+  indiceRelleno: Uint32Array;
   /** Segments (= indice.length / 2) and how many are of each kind. */
   /** The accents' dots (puntos.ts-free): one camera-facing quad per accent, at the tick's tip — position (x,y,z)×4, corner (±1,±1)×4, tipo×4, Uint16 index ×6. */
   puntos: { posicion: Float32Array; esquina: Float32Array; tipo: Float32Array; indice: Uint16Array };
@@ -62,6 +64,12 @@ export function construirMalla(semilla: SemillaBase, nivel: Nivel): Malla {
     const a = j * nv + i;
     if (i < n) { idx.push(a, a + 1); red++; }
     if (j < n) { idx.push(a, a + nv); red++; }
+  }
+  const rel = new Uint32Array(6 * n * n);
+  for (let j = 0, o = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const a = j * nv + i, b = a + 1, c = a + nv, d = c + 1; // the same diagonal rule as the collision mesh and the drawn terrain
+    if ((i + j) & 1) { rel[o++] = a; rel[o++] = c; rel[o++] = b; rel[o++] = b; rel[o++] = c; rel[o++] = d; }
+    else { rel[o++] = a; rel[o++] = c; rel[o++] = d; rel[o++] = a; rel[o++] = d; rel[o++] = b; }
   }
   const nuevo = (x: number, y: number, z: number, t: number): number => { pos.push(x, y, z); tipo.push(t); return tipo.length - 1; };
   // contour lines: marching squares, level k·PASO_CURVA for k ≠ 0 (the plateau is the 0 level and the ring marks it)
@@ -94,5 +102,5 @@ export function construirMalla(semilla: SemillaBase, nivel: Nivel): Malla {
     pi.push(4 * (acentos - 1), 4 * acentos - 3, 4 * acentos - 2, 4 * (acentos - 1), 4 * acentos - 2, 4 * acentos - 1);
   }
   if (tipo.length > 65535) throw new Error("espacio-base: más de 65535 vértices (los índices son Uint16)");
-  return { n, nv, posicion: new Float32Array(pos), tipo: new Float32Array(tipo), indice: new Uint16Array(idx), puntos: { posicion: new Float32Array(pp), esquina: new Float32Array(pe), tipo: new Float32Array(pt), indice: new Uint16Array(pi) }, lineas: idx.length / 2, porTipo: { red, curva, anillo, acentos }, vertices: tipo.length, hmin, hmax };
+  return { n, nv, posicion: new Float32Array(pos), tipo: new Float32Array(tipo), indice: new Uint16Array(idx), indiceRelleno: rel, puntos: { posicion: new Float32Array(pp), esquina: new Float32Array(pe), tipo: new Float32Array(pt), indice: new Uint16Array(pi) }, lineas: idx.length / 2, porTipo: { red, curva, anillo, acentos }, vertices: tipo.length, hmin, hmax };
 }

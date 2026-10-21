@@ -16,7 +16,7 @@ export const naturaleza = defineFeature({
   level: "base",
   describe: "Naturaleza low poly de un mundo (relieve, árboles, hierba, estanque) a partir de una semilla. La enciende naturaleza.json; sin él no cambia nada. Quien puede construir la enciende o apaga desde dentro del mundo (interruptor «Naturaleza»).",
   state: {
-    describe: "Una entrada, «mundo»: activa, semilla, tamano y plaza (metros), arboles y hierba (0 a 1), estanque y paleta (verano, otono, primavera); fauna (bool), faunaDensidad (0 a 1) y faunaEspecies (ids separados por comas; vacío = todas).",
+    describe: "Una entrada, «mundo»: activa, semilla, tamano y plaza (metros), arboles y hierba (0 a 1), estanque y paleta (verano, otono, primavera); fauna (bool), faunaDensidad (0 a 1) y faunaEspecies (ids separados por comas; vacío = todas); base: semilla del espacio base cuando está encendido (-1 = apagado; entonces la base manda sobre las alturas y la naturaleza se dibuja sobre su relieve).",
     fields: {
       activa: { kind: "bool" },
       semilla: { kind: "int", min: 0, max: 2147483647 },
@@ -29,6 +29,7 @@ export const naturaleza = defineFeature({
       fauna: { kind: "bool", default: true },
       faunaDensidad: { kind: "fixed", min: 0, max: 1, step: 0.01, default: 1 },
       faunaEspecies: { kind: "text", maxBytes: 512, default: "" },
+      base: { kind: "int", min: -1, max: 2147483647, default: -1 },
     },
   },
   // Interruptor (R-1): quien puede construir en el mundo enciende o apaga la naturaleza desde dentro; el servidor decide,

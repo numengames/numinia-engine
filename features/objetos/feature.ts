@@ -137,12 +137,13 @@ export const objetos = defineFeature({
     },
     vaciar: { describe: "U12: quitar la obra de un hueco: vuelve su cartel, con su nombre.", spoken: "vaciar un hueco", fields: { id: ID } },
     reiniciar: { describe: "Restaurar el mundo: quitar todos los objetos (también los fijados) y volver a plantar lo que el mundo trae de nacimiento (en el espacio base, el logo y el moñoni). No se puede deshacer. Solo quien puede construir.", spoken: "restaurar los objetos del mundo", fields: {}, rate: { perSecond: 1, burst: 2 } },
+    asentar: { describe: "B4: posar todos los objetos en el suelo que hay ahora, a la misma altura sobre él que tenían (se hace solo al cambiar el suelo; esto lo fuerza). Solo quien puede construir.", spoken: "asentar los objetos en el suelo", fields: {}, rate: { perSecond: 1, burst: 2 } },
     deshacer: { describe: "Deshacer el último cambio que hiciste en el mundo.", spoken: "deshacer", fields: {} },
     rehacer: { describe: "Volver a hacer lo último que deshiciste (hasta que hagas un cambio nuevo).", spoken: "rehacer", fields: {} },
   },
   events: {
     permiso: { describe: "Lo que puedes hacer aquí (llega al entrar y al identificarte).", fields: { construir: { kind: "bool" } }, announce: "silent" },
-    hecho: { describe: "Tu cambio se hizo: el objeto que tocó (para seleccionarlo).", fields: { id: ID, accion: { kind: "enum", values: ["colocar", "mover", "girar", "duplicar", "borrar", "fijar", "nombrar", "deshacer", "rehacer", "ajustar", "hueco", "rellenar", "vaciar", "reiniciar"] } }, announce: "silent" },
+    hecho: { describe: "Tu cambio se hizo: el objeto que tocó (para seleccionarlo).", fields: { id: ID, accion: { kind: "enum", values: ["colocar", "mover", "girar", "duplicar", "borrar", "fijar", "nombrar", "deshacer", "rehacer", "ajustar", "hueco", "rellenar", "vaciar", "reiniciar", "asentar"] } }, announce: "silent" },
     rechazado: { describe: "Tu cambio no se hizo, y por qué.", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
   },
 });
