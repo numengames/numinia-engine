@@ -164,11 +164,11 @@ try {
   await a.keyboard.press("KeyJ");
   await esperar(a, () => (globalThis.__numinia.inventario?.lista?.() ?? []).some((o) => o.clase === "semilla" && o.color === "verde"), null, 5000);
   await a.keyboard.press("KeyR");
-  await esperar(a, () => document.getElementById("inventario")?.open === true && document.querySelectorAll("#inventario li.objeto").length > 0, null, 3000);
+  await esperar(a, () => document.getElementById("inventario")?.open === true && document.querySelectorAll("#inventario button.hueco:not(.vacio)").length > 0, null, 3000);
   out.inventario = await ctl(a, () => ({
     lista: globalThis.__numinia.inventario.lista().map((o) => ({ tipo: o.tipo, clase: o.clase, nombre: o.nombre, color: o.color, n: o.n, portado: o.portado })),
     resumen: globalThis.__numinia.inventario.resumen(),
-    panel: [...document.querySelectorAll("#inventario li.objeto")].map((li) => ({ texto: li.textContent, icono: !!li.querySelector("svg"), boton: !!li.querySelector("button") })),
+    panel: [...document.querySelectorAll("#inventario button.hueco:not(.vacio)")].map((b) => ({ texto: b.getAttribute("aria-label"), icono: !!b.querySelector(".ic svg"), boton: false })), // La Bolsa galáctica: one icon slot per stack
     titulo: document.getElementById("inventario-titulo")?.textContent,
     avisos: globalThis.__numinia.session.features.announcements.filter((x) => x.feature === "inventario").map((x) => x.text),
   }));

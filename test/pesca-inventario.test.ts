@@ -19,7 +19,8 @@ import { otorgaDeCaptura, COLOR_POR_RAREZA, VALOR_POR_RAREZA, ICONO_PEZ } from "
 import { inventario } from "../features/inventario/feature.ts";
 import { crearInventario, DONANTES } from "../features/inventario/server.ts";
 import { crearCliente as crearClienteInventario } from "../features/inventario/client.ts";
-import { COLORES, LIM, TIPOS, dar, equipar, leerInventario, nuevoInventario, quitar } from "../features/inventario/reglas.ts";
+import { BOLSA_HUECOS, COLORES, LIM, TIPOS, dar, equipar, leerInventario, nuevoInventario, quitar, trocear } from "../features/inventario/reglas.ts";
+import type { FeatureStorage } from "../packages/feature/src/index.ts";
 import tabla from "../features/pesca/peces.json" with { type: "json" };
 import { notaDePescado } from "../apps/plaza/pesca.ts";
 import { detalleDeCaptura, RAREZA_DE_COLOR } from "../apps/plaza/inventario.ts";
@@ -48,7 +49,7 @@ test("otorgaDeCaptura: each species of the table becomes a stackable object with
   assert.equal(detalleDeCaptura({ color: "azul" }), "pez · rara");
 });
 
-test("reglas: catches stack per species and colour, never carried, kept over a hand-edited file; a full Reserva takes one more of a species you hold", () => {
+test("reglas: catches stack per species and colour, never carried, kept over a hand-edited file; a full Bolsa takes one more of a species you hold", () => {
   const inv = nuevoInventario();
   const carpa = otorgaDeCaptura(0, PECES[0]), trucha = otorgaDeCaptura(0, PECES[1]);
   const a = dar(inv, carpa), b = dar(inv, carpa), c = dar(inv, trucha);
@@ -70,9 +71,9 @@ test("reglas: catches stack per species and colour, never carried, kept over a h
   assert.equal(inv.objetos[0].n, 1);
   // a full Reserva: a new species is refused, one more of a species you already hold is taken (it stacks, it takes no slot)
   const llena = nuevoInventario();
-  for (let i = 0; i < LIM.reserva - 1; i++) dar(llena, { tipo: "arma", clase: "arma", nombre: `Arma ${i}` });
+  for (let i = 0; i < BOLSA_HUECOS - 1; i++) dar(llena, { tipo: "arma", clase: "arma", nombre: `Arma ${i}` });
   assert.ok(dar(llena, carpa).ok);
-  assert.equal(llena.objetos.length, LIM.reserva);
+  assert.equal(llena.objetos.length, BOLSA_HUECOS);
   assert.ok(!dar(llena, trucha).ok, "no slot for a new species");
   assert.ok(dar(llena, carpa).ok && llena.objetos.at(-1)!.n === 2, "but the carp you hold stacks");
 });
@@ -81,17 +82,19 @@ test("notaDePescado: «A tu Inventario» when the server kept it (with the count
   assert.equal(notaDePescado({ pez: "Carpa", rareza: "comun", guardado: true }, 4, 1), "común · A tu Inventario");
   assert.equal(notaDePescado({ pez: "Carpa", rareza: "comun", guardado: true }, 4, 3), "común · A tu Inventario (× 3)");
   assert.equal(notaDePescado({ pez: "Trucha", rareza: "rara", guardado: false }, 4), "rara · En tu cesta: 4");
+  assert.equal(notaDePescado({ pez: "Trucha", rareza: "rara", guardado: false }, 4, 0, { ocupados: 42, huecos: 42 }), "rara · Tu Bolsa está llena (42/42): vuelve al agua", "a full Bolsa: the fish goes back to the water");
+  assert.equal(notaDePescado({ pez: "Carpa", rareza: "comun", guardado: true }, 4, 3, { ocupados: 42, huecos: 42 }), "común · A tu Inventario (× 3)", "a stack that fitted is still «A tu Inventario»");
 });
 
 /** A headless pond with the real pesca and (optionally) the real inventario; each page has both controllers. */
-function mundo(opts: { conInventario?: boolean; n?: number; semilla?: number } = {}) {
+function mundo(opts: { conInventario?: boolean; n?: number; semilla?: number; storage?: FeatureStorage; keepers?: GuestKeeper[] } = {}) {
   const log: string[] = [];
   const features = [crearPesca({ sitios: [SITIO], semilla: opts.semilla ?? 7 }), ...(opts.conInventario === false ? [] : [crearInventario()])];
-  const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features, log: (l) => log.push(l), identitySign: sign });
+  const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features, log: (l) => log.push(l), identitySign: sign, storage: opts.storage });
   const pages = Array.from({ length: opts.n ?? 2 }, (_, i) => {
     const eventos: { event: string; msg: Record<string, unknown> }[] = [];
     const t = inst.join(i), pc = crearCliente((event, msg) => eventos.push({ event, msg })), ic = crearClienteInventario();
-    const s = new ClientSession(t, { features: [...pc.parts, ...ic.parts], identity: keeper(), view: { label() {}, bounce() {} } });
+    const s = new ClientSession(t, { features: [...pc.parts, ...ic.parts], identity: opts.keepers?.[i] ?? keeper(), view: { label() {}, bounce() {} } });
     return { t, s, p: pc.pesca, i: ic.inventario, eventos };
   });
   const pump = (ticks = 1) => { for (let k = 0; k < ticks; k++) { for (const c of pages) c.t.flush(); inst.tick(); for (const c of pages) c.t.flush(); } };
@@ -160,6 +163,35 @@ test("pesca → inventario over the real plug: the fish is in the angler's Inven
   // equipping a fish is refused by the server too
   A.i.equipar(ahora[0].id); W.pump(2);
   assert.match(A.i.estado.ultimoRechazo, /peces/);
+});
+
+test("pesca → inventario with a full Bolsa (42/42): the catch still counts in the cesta, `guardado` is false, «Tu Bolsa está llena (42/42)» and the fish is not kept; a species you hold still stacks", () => {
+  const k = keeper();
+  const id = (() => { const W0 = mundo({ n: 1, keepers: [k] }); W0.pump(3); return W0.pages[0].s.who!.id; })();
+  const inv = nuevoInventario();
+  for (let i = 0; i < BOLSA_HUECOS; i++) dar(inv, { tipo: "reliquia", clase: `r${i}`, nombre: `Reliquia ${i}` });
+  const store = trocear(inv).map((p, j) => [j ? `i:${id}:${j}` : `i:${id}`, p] as [string, unknown]);
+  const W = mundo({ n: 1, keepers: [k], storage: { load: (f) => (f === "inventario" ? { version: 1, state: [], store } : null), record: () => {} } });
+  const [A] = W.pages;
+  W.pump(2); W.place(A.s.entity, 8, 0); W.pump(12);
+  assert.deepEqual(A.i.bolsa(), { ocupados: 42, huecos: 42 });
+  W.pescar(A);
+  const c = W.evs(A, "captura");
+  assert.equal(c.length, 1, `escape: ${JSON.stringify(W.evs(A, "escape"))}`);
+  assert.equal(c[0].guardado, false, "no free slot: the server did not keep it");
+  assert.equal(A.p.estado().cesta.peces, 1, "the cesta still counts it (stats keep working)");
+  assert.equal(A.i.lista().filter((o) => o.tipo === "captura").length, 0, "nothing in the Bolsa, nothing lost silently");
+  assert.equal(A.i.estado.llena, true);
+  assert.equal(A.i.estado.ultimoRechazo, "Tu Bolsa está llena (42/42).");
+  const nota = notaDePescado(A.p.estado().ultimo!, A.p.estado().cesta.peces, 0, A.i.estado.llena ? A.i.bolsa() : null);
+  assert.match(nota, /Tu Bolsa está llena \(42\/42\): vuelve al agua$/);
+  assert.ok(W.log.every((l) => !/en listen|no cumple/.test(l)), W.log.join("\n"));
+  // free one slot: the next fish fits (a new species takes the slot)
+  A.i.soltar(A.i.lista()[0].id); W.pump(2);
+  W.pescar(A);
+  assert.equal(W.evs(A, "captura").length, 2, `escape: ${JSON.stringify(W.evs(A, "escape"))}`);
+  assert.equal(W.evs(A, "captura")[1].guardado, true);
+  assert.deepEqual([A.i.bolsa(), A.i.estado.llena], [{ ocupados: 42, huecos: 42 }, false]);
 });
 
 test("pesca without inventario: the fish still counts in the cesta, `guardado` is false, nothing breaks", () => {
