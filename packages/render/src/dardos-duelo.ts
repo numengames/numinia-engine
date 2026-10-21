@@ -5,6 +5,7 @@
 
 export type JugadorV = { entity: number; nombre: string; puntos: number; /** joined from a real wall (AR) */ pared?: boolean; /** v6: the world they came from through a link */ mundo?: string; /** v3 (teams): this row is me / left the match */ yo?: boolean; fuera?: boolean };
 export type DueloV = {
+  /** The board of the match (the controller's `Duelo.sitio`). */ sitio?: string;
   ronda: number; esperando: boolean; turnoDe: number | null; yo: boolean; miTurno: boolean;
   rival: JugadorV | null; yoPuntos: number; a: JugadorV; b: JugadorV | null;
   fin: { ganador: number | null; empate: boolean; abandono: boolean; texto: string; gane: boolean } | null;

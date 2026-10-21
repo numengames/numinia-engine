@@ -7,10 +7,18 @@
 //     gives way to the stuck dart (never vanishing before that: it waits at the board up to ESPERA_S, then falls);
 //   · the dart that FALLS (a slow or sideways release, a rejected throw, an answer that never came): ballistic to the
 //     floor, rests, shrinks away. A dart is never left floating and never disappears in one frame.
+//   · the SCOREBOARD beside the board (v6): names, points, «Te toca» / «Le toca a X» and, when it applies, a button you point at
+//     with the ray (the same `Panel` interface as the object card): «Pasar turno», «Empezar», «Otro turno». What it says is
+//     dardos-marcador.ts (pure); here it is a plane on the board's group, one canvas, one draw call.
+// The dart in the hand is held by its TAIL (the shaft behind the barrel) and points where the controller points (tip
+// forward, flights back toward the wrist), not along the hand's own frame.
 // Also `cadaCuadro`: the page's per-frame reader, called after the hands moved.
 import * as THREE from "three/webgpu";
 import { dardoMalla, ESCALA_PLAZA } from "./dardos.ts";
 import { RADIO_M, PINTADA } from "./diana.ts";
+import { ANCHO_M, ANCHO_PX, PX_POR_M, claveMarcador, disposicion, enBoton, pintarMarcador } from "./dardos-marcador.ts";
+import type { Boton, MarcadorV } from "./dardos-marcador.ts";
+import type { Panel } from "./manos.ts";
 
 export type Lado = "izq" | "der";
 export type V3 = [number, number, number];
@@ -22,18 +30,81 @@ export type Vuelo = {
 /** Seconds a dart waits at the board for the server's answer before it falls. */
 export const ESPERA_S = 1.5;
 const G = 9.8, DESCANSO_S = 1.2, ENCOGE_S = 0.4;
+/** Where the hand holds the dart: this far (m) from its tip, on the shaft behind the barrel (the tail end is 0.143 m). */
+export const COLA_M = 0.095;
+/** The scoreboard hangs beside the board (board-group metres: right of the painted board, which is PINTADA × RADIO_M × ESCALA_PLAZA of radius; turned a little toward the throwing line). */
+const MARCADOR = { x: RADIO_M * PINTADA * ESCALA_PLAZA + 0.1 + ANCHO_M / 2, arriba: 2.15, z: 0.2, giro: -0.4 };
 
 type Una = { g: THREE.Object3D; face: THREE.Object3D; s: { rumbo: number } };
-export function crearDardosVR(h: { world: THREE.Object3D; ancla(l: Lado): THREE.Object3D | null; suelo(): number; una(id: string): Una | undefined }) {
+/** The scoreboard plane (lazy with the rest of the VR darts). `alPulsar` is told which button was pressed. */
+function crearMarcador(h: { una(id: string): Una | undefined }) {
+  const lienzo = document.createElement("canvas"); lienzo.width = ANCHO_PX; lienzo.height = 800;
+  const ctx = lienzo.getContext("2d")!;
+  const tex = new THREE.CanvasTexture(lienzo); tex.colorSpace = THREE.SRGBColorSpace;
+  const malla = new THREE.Mesh(new THREE.PlaneGeometry(ANCHO_M, 1), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+  malla.name = "dardos:marcador"; malla.renderOrder = 20; malla.visible = false; malla.frustumCulled = false;
+  let m: MarcadorV | null = null, sitio = "", firma = "", alto = 0, encima = false, encimaEn = 0, repintados = 0;
+  const escuchas = new Set<(b: Boton) => void>();
+  function pintar(): void {
+    if (!m) return;
+    const f = `${claveMarcador(m)}|${encima}`;
+    if (f === firma) return;
+    firma = f; repintados++;
+    alto = disposicion(m).alto;
+    pintarMarcador(ctx, m, encima);
+    tex.repeat.set(1, alto / lienzo.height); tex.offset.set(0, 1 - alto / lienzo.height); tex.needsUpdate = true;
+    malla.scale.y = alto / PX_POR_M; malla.position.y = MARCADOR.arriba - malla.scale.y / 2;
+  }
+  const panel: Panel = {
+    malla,
+    fila(uv) { return enBoton(m, uv.x * ANCHO_PX, (1 - uv.y) * alto) ? 1 : 0; },
+    encima(n) { encima = n === 1; encimaEn = performance.now(); pintar(); },
+    pulsar(n) { if (n === 1 && m?.boton) for (const f of escuchas) f(m.boton); },
+  };
+  return {
+    panel,
+    /** The panel of board `id` shows `nuevo`; null (or no such board) hides it. */
+    mostrar(id: string | null, nuevo: MarcadorV | null): void {
+      const d = id ? h.una(id) : undefined;
+      if (!d || !nuevo) { malla.visible = false; m = null; sitio = ""; encima = false; return; }
+      if (malla.parent !== d.g) { malla.removeFromParent(); d.g.add(malla); malla.position.x = MARCADOR.x; malla.position.z = MARCADOR.z; malla.rotation.y = MARCADOR.giro; }
+      m = nuevo; sitio = id!; malla.visible = true; pintar();
+    },
+    /** Each frame: the highlight goes once the ray leaves. */
+    tick(): void { if (encima && performance.now() - encimaEn > 120) { encima = false; pintar(); } },
+    alPulsar(fn: (b: Boton) => void): () => void { escuchas.add(fn); return () => escuchas.delete(fn); },
+    /** For checks: what it shows, the world centre of its button, and the canvas itself (the pictures of the e2e). */
+    estado() { return { visible: malla.visible, sitio, marcador: m, repintados, encima }; },
+    botonMundo(): { x: number; y: number; z: number } | null {
+      const b = m ? disposicion(m).boton : null; if (!b || !malla.visible) return null;
+      malla.updateMatrixWorld(true);
+      const w = new THREE.Vector3(((b.x + b.w / 2) / ANCHO_PX - 0.5) * ANCHO_M, (0.5 - (b.y + b.h / 2) / alto) * (alto / PX_POR_M), 0.002).applyMatrix4(malla.matrixWorld);
+      return { x: w.x, y: w.y, z: w.z };
+    },
+    lienzo: () => { const c = document.createElement("canvas"); c.width = ANCHO_PX; c.height = alto || 1; c.getContext("2d")!.drawImage(lienzo, 0, 0); return c; },
+  };
+}
+
+export function crearDardosVR(h: { world: THREE.Object3D; ancla(l: Lado): THREE.Object3D | null; suelo(): number; una(id: string): Una | undefined; /** Where that hand points now (world, unit): the controller's ray, a tracked hand's wrist-to-fingertip. */ apunta?(l: Lado): V3 | null }) {
+  const marcador = crearMarcador(h);
   const cuadro = new Set<(dt: number) => void>();
-  let enMano: { lado: Lado; malla: THREE.Mesh } | null = null;
+  let enMano: { lado: Lado; malla: THREE.Object3D; pivote: THREE.Object3D } | null = null;
   type Vola = { malla: THREE.Mesh; desde: THREE.Vector3; hacia: THREE.Vector3; resuelto: "clavado" | "caido" | null; t0: number; ms: number; fin?: () => void };
   type Cae = { malla: THREE.Mesh; vel: THREE.Vector3; reposo: number };
   const vuelos: Vola[] = [], caidas: Cae[] = [];
   const A = new THREE.Vector3(), B = new THREE.Vector3(), F = new THREE.Vector3(0, 0, -1), Q = new THREE.Quaternion();
   const mallaMundo = (): THREE.Mesh => { const m = dardoMalla(); m.frustumCulled = false; h.world.add(m); return m; };
-  const quitar = (m: THREE.Mesh) => m.parent?.remove(m);
+  const quitar = (m: THREE.Object3D) => m.parent?.remove(m);
 
+  /** Turn the held dart so its tip points where that hand points (the grip frame of a controller is tilted from its ray: held «as is» the dart pointed up and sideways). */
+  function apuntar(): void {
+    if (!enMano) return;
+    const a = enMano.pivote.parent, d = h.apunta?.(enMano.lado);
+    if (!a || !d) { enMano.pivote.quaternion.identity(); return; }
+    a.updateWorldMatrix(true, false); a.getWorldQuaternion(Q).invert();
+    A.set(d[0], d[1], d[2]).applyQuaternion(Q);
+    if (A.lengthSq() > 1e-6) enMano.pivote.quaternion.setFromUnitVectors(F, A.normalize());
+  }
   function caer(m: THREE.Mesh, vel: THREE.Vector3): void { caidas.push({ malla: m, vel: vel.clone(), reposo: 0 }); }
 
   return {
@@ -43,8 +114,9 @@ export function crearDardosVR(h: { world: THREE.Object3D; ancla(l: Lado): THREE.
       if (!lado || enMano) return !!enMano || !lado;
       const a = h.ancla(lado); if (!a) return false;
       const malla = dardoMalla(); malla.frustumCulled = false;
-      malla.position.set(0, 0, -0.07); malla.rotation.set(0.35, 0, 0); // barrel in the fist, tip forward, flights behind the hand
-      a.add(malla); enMano = { lado, malla };
+      malla.position.set(0, 0, -COLA_M); // the mesh's tip is its origin and its flights are at +z: held at the shaft, the tip is COLA_M ahead of the hand, the flights behind it
+      const pivote = new THREE.Group(); pivote.add(malla); a.add(pivote); // the pivot is the hand's point: it turns the dart to where the controller points
+      enMano = { lado, malla: pivote, pivote }; apuntar();
       return true;
     },
     /** The world position of a hand's anchor (where a dart leaves it). */
@@ -88,6 +160,7 @@ export function crearDardosVR(h: { world: THREE.Object3D; ancla(l: Lado): THREE.
     actualizar(dt: number): void {
       const ahora = performance.now();
       for (const f of cuadro) { try { f(dt); } catch (e) { console.warn("[dardos-vr]", e); } }
+      apuntar(); marcador.tick();
       for (let i = vuelos.length - 1; i >= 0; i--) {
         const w = vuelos[i], t = (ahora - w.t0) / w.ms;
         B.copy(w.hacia);
@@ -114,6 +187,16 @@ export function crearDardosVR(h: { world: THREE.Object3D; ancla(l: Lado): THREE.
     },
     /** For checks: how many darts this module draws now. */
     contar: () => ({ enMano: enMano ? enMano.lado : null, vuelan: vuelos.length, caen: caidas.length }),
+    /** The scoreboard beside the board and its button as a `Panel` (the hands' ray and pinch find it through `paneles`). */
+    marcador,
+    paneles: (): Panel[] => (marcador.estado().visible ? [marcador.panel] : []),
+    /** For checks: the held dart's tip and hold point in the world, and the way it points (null: nothing in hand). */
+    mano(): { punta: V3; agarre: V3; dir: V3 } | null {
+      if (!enMano) return null;
+      enMano.pivote.updateWorldMatrix(true, true);
+      const pu = enMano.malla.children[0].localToWorld(new THREE.Vector3(0, 0, 0)), ag = enMano.pivote.getWorldPosition(new THREE.Vector3()), dir = pu.clone().sub(ag).normalize();
+      return { punta: [pu.x, pu.y, pu.z], agarre: [ag.x, ag.y, ag.z], dir: [dir.x, dir.y, dir.z] };
+    },
   };
 }
 export type DardosVR = ReturnType<typeof crearDardosVR>;
