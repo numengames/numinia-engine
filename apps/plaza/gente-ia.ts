@@ -51,3 +51,12 @@ export function fichaIA(nombre: string, ia: IAPublica, idioma?: string): FichaIA
 
 /** The line under an AI's name in a list: state and distance («Activa · a 5 m»). */
 export const subIA = (ia: IAPublica, distancia: string, idioma?: string): string => [textos(idioma)[ia.estado === "dormida" ? "dormida" : "activa"], distancia].filter(Boolean).join(" · ");
+
+/** S11/S16: the light on the card — «Escuchando ahora» when its brain used the listening tools less than 90 s ago (`atenta`), «No escucha ahora» otherwise. */
+export function luzEscucha(ia: IAPublica, idioma?: string): { escucha: boolean; texto: string } {
+  const t = textos(idioma);
+  return ia.atenta ? { escucha: true, texto: t.escuchando } : { escucha: false, texto: t.noEscucha };
+}
+
+/** S11: the E prompt as the interaction layer shows it after «E: » — «hablar con Ada» (the name without the « · IA» mark). */
+export const promptHablar = (nombre: string, idioma?: string): string => `${textos(idioma).promptHablar} ${sinMarca(nombre)}`;

@@ -4,6 +4,7 @@
 //   burbujaPagina.lista()         → { quien, burbuja }[] (every bubble now, by entity)
 //   burbujaPagina.alCambiar(fn)   → unsubscribe          (a bubble appeared, changed its shape/radius/visibility, or went)
 //   burbujaPagina.alEntrar(fn)    → unsubscribe          (`entras`: YOU have just entered the bubble of AI `ia`; the page flashes it)
+//   burbujaPagina.alSalir(fn)     → unsubscribe          (`sales`: YOU have left the bubble of AI `ia` whose entry told you; the «E: hablar con…» prompt goes)
 // The same entries are in `session.features.stateOf("burbuja")` for agents and tests. Exposed on the page as `__numinia.burbuja`.
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi } from "../../packages/feature/src/index.ts";
@@ -17,6 +18,7 @@ export function crearBurbujaPagina() {
   let api: ClientApi | null = null;
   const cambios = new Set<(quien: number, b: Burbuja | null) => void>();
   const entradas = new Set<(ia: number, nombre: string) => void>();
+  const salidas = new Set<(ia: number, nombre: string) => void>();
   const claveIA = (k: string): boolean => /^\d+$/.test(k);
   const ctl = {
     /** The bubble of this player if it is an AI, else null. Anything odd in the state reads as the house default. */
@@ -24,6 +26,7 @@ export function crearBurbujaPagina() {
     lista: (): { quien: number; burbuja: Burbuja }[] => (api?.state.keys() ?? []).flatMap((k) => { const v = api?.state.get(k); return v && claveIA(k) ? [{ quien: Number(k), burbuja: leerBurbuja(v) }] : []; }).sort((a, b) => a.quien - b.quien),
     alCambiar: (f: (quien: number, b: Burbuja | null) => void): (() => void) => { cambios.add(f); return () => cambios.delete(f); },
     alEntrar: (f: (ia: number, nombre: string) => void): (() => void) => { entradas.add(f); return () => entradas.delete(f); },
+    alSalir: (f: (ia: number, nombre: string) => void): (() => void) => { salidas.add(f); return () => salidas.delete(f); },
   };
   const part = clientPart(burbuja, (a) => {
     api = a;
@@ -35,6 +38,11 @@ export function crearBurbujaPagina() {
       const ia = Number(m.ia), nombre = typeof m.nombre === "string" ? m.nombre : "";
       if (!Number.isInteger(ia)) return;
       for (const f of entradas) { try { f(ia, nombre); } catch { /* idem */ } }
+    });
+    a.on("sales", (m) => {
+      const ia = Number(m.ia), nombre = typeof m.nombre === "string" ? m.nombre : "";
+      if (!Number.isInteger(ia)) return;
+      for (const f of salidas) { try { f(ia, nombre); } catch { /* idem */ } }
     });
   });
   return { ...ctl, part };
