@@ -5,7 +5,7 @@
 import { adoptarClaves, serverPart } from "../../packages/feature/src/index.ts";
 import type { ServerApi, ServerPart } from "../../packages/feature/src/index.ts";
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
-import { cargarAventura, corta, LIM } from "./formato.ts";
+import { ACCIONES_PAGINA, cargarAventura, corta, LIM } from "./formato.ts";
 import type { Accion, Aventura, Fichero, Mision, Opcion, Pnj } from "./formato.ts";
 import { abandonar, aceptar, enTexto, esperaLlegada, HECHAS_MAX, leerProgreso, marcas, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
 import type { Hecho, Progreso } from "./maquina.ts";
@@ -96,7 +96,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     M!.emit("mision", { id: m.id, titulo: m.titulo, descripcion: m.descripcion, estado: hecha ? "hecha" : "activa", paso: ahora, pasos: m.pasos.length, seguida: p.seguida === m.id, recompensa: recompensa(m) }, { to });
     m.pasos.forEach((s, n) => {
       const ob = objetivo(s, A), espera = !hecha && pendiente(m, act, n) ? Math.ceil(faltaEspera(m, act, n, t) / 1000) : 0;
-      M!.emit("paso", { mision: m.id, n, texto: s.texto, tipo: s.tipo, hecho: hecha || pasoHecho(m, act, n), x: ob.x, z: ob.z, donde: corta(ob.nombre, LIM.lugar), que: ob.que, grupo: s.grupo ?? "", espera }, { to });
+      M!.emit("paso", { mision: m.id, n, texto: s.texto, tipo: s.tipo, hecho: hecha || pasoHecho(m, act, n), x: ob.x, z: ob.z, donde: corta(ob.nombre, LIM.lugar), que: ob.que, grupo: s.grupo ?? "", espera, accion: s.tipo === "hace" ? s.accion : "", senala: s.senala ?? "" }, { to });
     });
   };
   const enviarLibro = (e: number, solo = false) => {
@@ -235,6 +235,35 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       const k = claveDe.get(e);
       claveDe.delete(e); llegadas.delete(e); esperas.delete(e);
       if (k && ![...claveDe.values()].includes(k)) progresos.delete(k); // saved in the store already
+    });
+    // T1: step `hace`. Nothing here runs per tick: a builder's action reaches us as an event another piece already emits
+    // (objetos `hizo`, disparadores `hizo` and `senal`; only the author's entity counts) and is turned into a Suceso; the
+    // three actions only the page sees come in as the intent `hace`. No permission to build = no `hace` counts.
+    let hayHace: boolean | null = null;
+    const conHace = () => (hayHace ??= [...A.misiones.values()].some((m) => m.pasos.some((s) => s.tipo === "hace")));
+    const hizo = (e: number, ...hechos: { accion: string; modelo?: string; disparador?: string }[]) => {
+      if (!conHace() || !api.puede(e, "construir")) return;
+      const p = prog(e);
+      for (const x of hechos) { // one action per event: the first the quest asks for (a drag that moves and scales completes one step, not two)
+        const h = registrar(p, A, { tipo: "hace", ...x, ahora: ahora() });
+        if (h.length) return void tras(e, p, h);
+      }
+    };
+    api.listen("objetos", "hizo", (m) => {
+      if (!conHace()) return;
+      const e = Number(m.quien), accion = String(m.accion), id = String(m.id);
+      if (accion === "colocar") return void hizo(e, { accion: "coloca", modelo: String(api.estadoDe("objetos").get(id)?.modelo ?? "") });
+      if (accion === "mover") return void hizo(e, ...(["mueve", "gira", "escala"] as const).filter((k) => m[k] === true).map((k) => ({ accion: k })));
+      if (accion === "girar") return void hizo(e, { accion: "gira" });
+      if (accion === "ajustar" && m.oculto === true) return void hizo(e, { accion: "oculta" });
+      if (accion === "borrar") return void hizo(e, { accion: "borra" });
+    });
+    api.listen("disparadores", "hizo", (m) => hizo(Number(m.quien), { accion: `${String(m.accion) === "creado" ? "crea" : String(m.accion) === "editado" ? "edita" : "borra"}_cable`, disparador: String(m.disparador) }));
+    api.listen("disparadores", "senal", (m) => { if (m.persona === true) hizo(Number(m.quien), { accion: "dispara_cable", disparador: String(m.disparador) }); });
+    api.on("hace", (e, msg) => {
+      const accion = String(msg.accion);
+      if (!(ACCIONES_PAGINA as readonly string[]).includes(accion)) return rechazarM(e, "Eso lo ve el servidor solo: no hace falta que me lo cuentes.");
+      hizo(e, { accion });
     });
     // D-041 historia 4: the cable's receiver `da_paso` names a mission and a step and jumps straight there (taking the
     // quest first if `quien` did not have it), unlike the natural play path above: the world's own file asked for

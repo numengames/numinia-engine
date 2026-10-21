@@ -244,6 +244,7 @@ if (esTactil()) {
 const constructorUI = montarConstructor(constructor, view, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!,
   { volver: () => mapa.volver(), puedeVolver: () => mapa.puedeVolver(),
     mundo: () => ({ disparadores: disparadores.lista(), cerraduras: cerraduras.cerraduras(), contadores: contadores.lista() }), abrirCable: () => cable.mostrar(),
+    alAbrir: (q) => { misiones.hace(q === "construir" ? "abre_construir" : q === "anadir" ? "abre_biblioteca" : "abre_cable"); }, // T1: only sent while a step asks for it
     subir: () => soltar.elegir() }); // C3, C4, ux2-dock: the card, «Lógica», «Subir»; `mapa`, `cable` and `soltar` are built below, only read later
 // ---- M22b-3: the same builder, picked and moved with a VR controller's ray instead of a mouse ----
 const constructorVR = montarConstructorVR(constructor, view);

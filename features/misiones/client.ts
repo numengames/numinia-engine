@@ -5,6 +5,7 @@
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg, PlacedObject } from "../../packages/feature/src/index.ts";
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
+import { ACCIONES_PAGINA } from "./formato.ts";
 import biblioteca from "../objetos/biblioteca.json" with { type: "json" };
 import type { Escenario, Pose, SecuenciaVista, SucesoSecuencia } from "./secuencia.ts"; // U14 (5): a moment only you see (loaded when one comes)
 
@@ -44,7 +45,7 @@ export const etiquetaCosa = (v: Msg): { text: string; mark: Marca; x: number; y:
 
 /** `espera` (U14 (5)): the seconds this step still waited when the book came (0 = it may be done); `listoEn` = when it
  * opens on this page's clock (ms; 0 = no wait). The server sends the book again when it opens. */
-export type PasoVista = { n: number; texto: string; tipo: string; hecho: boolean; x: number; z: number; donde: string; que: string; grupo: string; espera: number; listoEn: number };
+export type PasoVista = { n: number; texto: string; tipo: string; hecho: boolean; x: number; z: number; donde: string; que: string; grupo: string; espera: number; listoEn: number; accion: string; senala: string };
 export type MisionVista = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: PasoVista[] };
 export type Objetivo = { mision: string; paso: number; nombre: string; texto: string; x: number; z: number; seguida: boolean };
 export type Dialogo = { pnj: string; nombre: string; oficio: string; texto: string; opciones: string[] };
@@ -173,7 +174,7 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     /** The book as it arrived: active quests first, then the completed ones. */
     libro: (): MisionVista[] => [...libro.values()],
     /** Where each active quest's steps to do now point — every one of its current block (for the map: mapa reads this). */
-    objetivos: (): Objetivo[] => [...libro.values()].flatMap((m) => ahoraDe(m).map((s) => ({ mision: m.id, paso: s.n, nombre: s.donde, texto: s.texto, x: s.x, z: s.z, seguida: m.seguida }))),
+    objetivos: (): Objetivo[] => [...libro.values()].flatMap((m) => ahoraDe(m).filter((s) => s.tipo !== "hace").map((s) => ({ mision: m.id, paso: s.n, nombre: s.donde, texto: s.texto, x: s.x, z: s.z, seguida: m.seguida }))),
     /** For the player sheet: how many, the badges, and what is being followed (with its grupo's counter, if any). */
     resumen: () => {
       const todas = [...libro.values()], seg = todas.find((m) => m.seguida && m.estado === "activa"), s = seg && actual(seg), b = seg ? bloqueDe(seg) : [];
@@ -196,6 +197,15 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     aceptar: (mision: string): Res => M?.send("aceptar", { mision }) ?? sin("la página aún no ha arrancado"),
     abandonar: (mision: string): Res => M?.send("abandonar", { mision }) ?? sin("la página aún no ha arrancado"),
     seguir: (mision: string): Res => M?.send("seguir", { mision }) ?? sin("la página aún no ha arrancado"),
+    /** T1: tell the server the page opened a panel (`abre_construir`, `abre_biblioteca`, `abre_cable`) — the only `hace`
+     * actions the server cannot see. Sent only while a step to do now asks for exactly that (no noise otherwise). */
+    hace: (accion: string): Res => {
+      if (!(ACCIONES_PAGINA as readonly string[]).includes(accion)) return sin(`«${accion}» lo ve el servidor solo; aquí solo: ${ACCIONES_PAGINA.join(", ")}`);
+      if (![...libro.values()].some((m) => porHacer(m).some((s) => s.tipo === "hace" && s.accion === accion))) return sin("ningún paso de tus misiones pide eso ahora");
+      return M?.send("hace", { accion }) ?? sin("la página aún no ha arrancado");
+    },
+    /** T1: the id of the page button the arrow should point at for the step to do now of the followed quest (or the first active one with `senala`); "" = none. */
+    senala: (): string => { const todas = [...libro.values()].sort((a, b) => Number(b.seguida) - Number(a.seguida)); for (const m of todas) for (const s of ahoraDe(m)) if (s.senala) return s.senala; return ""; },
     usar: (cosa: string): Res => M?.send("usar", { cosa }) ?? sin("la página aún no ha arrancado"),
     /** Whether the page should offer «E: …» for a thing: quest things only while a step to do now needs them (U14 (5):
      * also while that step still waits — trying it says how long is left). */
@@ -264,7 +274,7 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
       const mv = libro.get(String(m.mision));
       if (!mv) return;
       const espera = Math.max(0, Number(m.espera ?? 0) || 0); // U14 (5): seconds left; counted down here, the server resends the book when it opens
-      const s: PasoVista = { n: Number(m.n), texto: String(m.texto), tipo: String(m.tipo), hecho: m.hecho === true, x: Number(m.x), z: Number(m.z), donde: String(m.donde), que: String(m.que ?? ""), grupo: String(m.grupo ?? ""), espera, listoEn: espera ? reloj() + espera * 1000 : 0 };
+      const s: PasoVista = { n: Number(m.n), texto: String(m.texto), tipo: String(m.tipo), hecho: m.hecho === true, x: Number(m.x), z: Number(m.z), donde: String(m.donde), que: String(m.que ?? ""), grupo: String(m.grupo ?? ""), espera, listoEn: espera ? reloj() + espera * 1000 : 0, accion: String(m.accion ?? ""), senala: String(m.senala ?? "") };
       mv.lista = [...mv.lista.filter((x) => x.n !== s.n), s].sort((p, q) => p.n - q.n);
       avisar("libro");
       revisarUsadas(); // U14 (6): the book's last step has arrived → the used looks

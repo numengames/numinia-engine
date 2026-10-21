@@ -175,7 +175,7 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
     const texto = cortar(quien !== null ? `${nombreDe(quien)} ${d.tipo === "zona" ? "entra en" : "pulsa"} ${d.nombre}` : `${d.nombre} salta`, 120);
     const q = quien ?? 0;
     api.emit("disparado", { quien: q, disparador: d.id, nombre: d.nombre, n, texto }, { near: { x: d.x, z: d.z }, radius: CERCA_M });
-    api.emit("senal", { quien: q, disparador: d.id, nombre: d.nombre, tipo: d.tipo }, "server");
+    api.emit("senal", { quien: q, disparador: d.id, nombre: d.nombre, tipo: d.tipo, persona: quien !== null }, "server");
     for (const r of d.receptores) {
       const base: Msg = { quien: q, disparador: d.id, accion: r.accion, objeto: "", x: 0, y: 0, z: 0, mision: "", paso: 0, enlace: "", sonido: "" };
       const oidos = api.emit("accion", { ...base, ...r }, "server");
@@ -215,7 +215,7 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
     if (new TextEncoder().encode(codificado).length > RECEPTORES_JSON_MAX_BYTES) return rechazar(e, `receptores: demasiado grande (más de ${RECEPTORES_JSON_MAX_BYTES} bytes codificados): acórtalo.`);
     d.receptores = receptores;
     poner(d, { receptores: codificado });
-    api.emit("editado", { disparador: d.id }, { to: e });
+    api.emit("editado", { disparador: d.id }, { to: e }); api.emit("hizo", { quien: e, disparador: d.id, accion: "editado" }, "server");
     api.log(`«${d.id}»: ${nombreDe(e)} edita sus receptores en vivo (${receptores.length})`);
     try { opts.escribir?.(Array.from(lista.values())); }
     catch (err) { api.log(`«${d.id}»: el cambio se aplicó pero no pude escribir disparadores.json: ${(err as Error).message}`); }
@@ -244,7 +244,7 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
     if (typeof leido === "string") return rechazar(e, leido);
     if (new TextEncoder().encode(JSON.stringify(leido.receptores)).length > RECEPTORES_JSON_MAX_BYTES) return rechazar(e, `receptores: demasiado grande (más de ${RECEPTORES_JSON_MAX_BYTES} bytes codificados): acórtalo.`);
     if (!montar(leido)) return rechazar(e, `No pude poner el cable «${id}» en el mundo (no cabe en el esquema): revisa sus números.`);
-    api.emit("creado", { disparador: id }, { to: e });
+    api.emit("creado", { disparador: id }, { to: e }); api.emit("hizo", { quien: e, disparador: id, accion: "creado" }, "server");
     api.log(`«${id}»: ${nombreDe(e)} crea un cable en vivo (${lista.size}/${DISPARADORES_MAX})`);
     guardar(id);
   });
@@ -261,7 +261,7 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
     if (!d) return rechazar(e, `No hay ningún cable «${cortar(id, 16)}» que borrar.`);
     desmontar(d);
     api.state.delete(id);
-    api.emit("borrado", { disparador: id }, { to: e });
+    api.emit("borrado", { disparador: id }, { to: e }); api.emit("hizo", { quien: e, disparador: id, accion: "borrado" }, "server");
     api.log(`«${id}»: ${nombreDe(e)} borra un cable en vivo (${lista.size}/${DISPARADORES_MAX})`);
     guardar(id);
   });
@@ -417,7 +417,7 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
     if ("motivo" in r) { propuestas.delete(id); return noDecir(e, r.motivo); }
     if (!montar(r.d)) return noDecir(e, `No pude poner el cable «${r.d.id}» en el mundo (no cabe en el esquema): dilo de otra manera.`);
     propuestas.delete(id);
-    api.emit("creado", { disparador: r.d.id }, { to: e });
+    api.emit("creado", { disparador: r.d.id }, { to: e }); api.emit("hizo", { quien: e, disparador: r.d.id, accion: "creado" }, "server");
     api.log(`«${r.d.id}»: ${nombreDe(e)} aplica un cable dicho en palabras (${lista.size}/${DISPARADORES_MAX})`);
     guardar(r.d.id);
   });

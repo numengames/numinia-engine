@@ -419,6 +419,28 @@ el servidor lo ve:
 | `coge` | `cosa` | la coge a su alcance (E); queda «llevada» para una `entrega` |
 | `entrega` | `pnj` y `cosa`, o `cosas` (una lista de 1 a 8) | las lleva todas (cada una con un `coge` o un `recibe` antes en la misma misión) y elige `entregar` (o le habla, si no hay esa respuesta); se las da todas a la vez |
 
+**`hace`: que quien construye haga algo de verdad (T1).** `{ "id", "tipo": "hace", "texto", "accion", "modelo"?, "disparador"?, "senala"? }`.
+Lo decide el servidor a partir de lo que las otras piezas ya cuentan (no hay nada nuevo en el tick); solo cuenta si ese
+paso es el que toca, y **sin permiso de construir no cuenta ninguna acción**. Un tutorial del constructor lo usa para
+que cada misión enseñe un botón y no avance hasta que se ha usado de verdad. Ejemplo:
+`{ "id": "pon-farolillo", "tipo": "hace", "texto": "Añade un farolillo al mundo", "accion": "coloca", "modelo": "farolillo", "senala": "dock-anadir" }`.
+
+| `accion` | Cuenta cuando… |
+|---|---|
+| `coloca` | pones un objeto nuevo (no un duplicado); con `modelo` (el id de la biblioteca: `bloque`, `farolillo`…) solo uno de ese modelo |
+| `mueve` · `gira` · `escala` | un objeto cambia de sitio · de giro (también la acción de girar) · de tamaño (un arrastre que cambia varias cosas cuenta una sola: la primera que pide la misión) |
+| `oculta` | un ajuste deja el objeto oculto al jugar (si el ajuste lo deja visible, no cuenta) |
+| `borra` | quitas un objeto |
+| `crea_cable` · `edita_cable` · `borra_cable` | creas, editas o borras un cable (disparador); con `disparador` solo ese cable |
+| `dispara_cable` | pulsas un botón o entras en una zona de un cable; con `disparador` solo ese |
+| `abre_construir` · `abre_cable` · `abre_biblioteca` | la página abre el panel Construir, el cajón Cable o el cajón Añadir. El servidor no lo ve: la página lo dice con la orden `misiones.hace` y **solo estas tres** se aceptan (cualquier otra se rechaza); la página solo lo manda si hay un paso que lo pide |
+
+`modelo` solo va con `coloca`; `disparador`, solo con las acciones de cable. **`senala`** (opcional, vale en **cualquier**
+tipo de paso): el id del botón de la página al que apuntará la flecha (`[a-z0-9-]`, 1 a 32; p. ej. `construir`,
+`dock-cable`). El motor solo lo valida, lo guarda y lo manda a la página con el paso (`misiones.senala()`); un paso `hace`
+no tiene sitio en el mundo, así que no pone baliza ni marca en el mapa. Para oír esto las piezas dicen quién hizo qué con
+dos eventos solo-servidor: `objetos.hizo` y `disparadores.hizo` (más `persona` en `disparadores.senal`).
+
 **En cualquier orden: `grupo`.** Pasos **seguidos** con el mismo `grupo` (un texto de 1 a 40 bytes) forman un bloque que
 se hace en el orden que quiera el jugador; la misión pasa al siguiente paso cuando están todos. El `grupo` es también el
 nombre del contador que ve arriba de la pantalla. Un `grupo` repetido más adelante, separado, es un error (junta esos

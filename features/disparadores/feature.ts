@@ -45,7 +45,7 @@ const SENAL = { kind: "text", maxBytes: 32, default: "" } as const;
 
 export const disparadores = defineFeature({
   id: "disparadores",
-  version: 1,
+  version: 1, // T1 (no bump: server-only, nothing on the page's wire): event `hizo` (who created, edited or deleted a cable) and `persona` in `senal`
   level: "base",
   describe: "El cable del mundo: disparadores que un constructor escribe en disparadores.json (una zona en la que se entra, un botón que se pulsa «E: pulsar», o una señal que oye de otra pieza: una cerradura que se abre, un movedor que llega), con tiempo de espera entre usos y, si quiere, de un solo uso. El servidor decide cada disparo, avisa a los cercanos y da una acción por receptor a la función que la hace (mostrar u ocultar un objeto, teletransportar, dar paso de misión, abrir enlace, sonar, mover otro movedor). D-041 historias 5-6: quien tiene permiso de construir también ve y edita en vivo los receptores de cada disparador, sin reiniciar: el servidor reescribe disparadores.json al vuelo. Historia A: también crea y borra disparadores enteros en vivo (crearDisparador, borrarDisparador).",
   state: {
@@ -123,7 +123,12 @@ export const disparadores = defineFeature({
     },
     senal: {
       describe: "Solo para las funciones del servidor (alcance «server»): un disparador ha saltado (quién, cuál, nombre, tipo).",
-      fields: { quien: QUIEN, disparador: ID, nombre: NOMBRE, tipo: { kind: "enum", values: [...TIPOS] } },
+      fields: { quien: QUIEN, disparador: ID, nombre: NOMBRE, tipo: { kind: "enum", values: [...TIPOS] }, persona: { kind: "bool", default: false } },
+      announce: "silent",
+    },
+    hizo: {
+      describe: "Solo para las funciones del servidor (alcance «server»): quien (su entidad) ha creado, editado o borrado un cable (disparador). Se dice a la vez que `creado`, `editado` o `borrado` se lo dicen a él.",
+      fields: { quien: QUIEN, disparador: ID, accion: { kind: "enum", values: ["creado", "editado", "borrado"] } },
       announce: "silent",
     },
     accion: {

@@ -96,7 +96,7 @@ export function motivoEnlace(valor: unknown): string {
 
 export const objetos = defineFeature({
   id: "objetos",
-  version: 7, // U10: + tipo/ext, oculto, volumen, solido + world box, intent ajustar; U11: + alcance, radio; U12: + holes; M6: + colision (additive: solido stays); M22c: + lote (deshacer agrupado); J4: + enlace
+  version: 7, // T1 (no bump: a server-only event, nothing on the wire or in the saved state): + event hizo; U10: + tipo/ext, oculto, volumen, solido + world box, intent ajustar; U11: + alcance, radio; U12: + holes; M6: + colision (additive: solido stays); M22c: + lote (deshacer agrupado); J4: + enlace
   describe: "Cosas colocadas en el mundo que se quedan (un modelo 3D con su sitio, giro, escala y nombre). Quien tiene permiso de construir las coloca, mueve, duplica, fija, borra y deshace en directo; todos lo ven al momento y sobrevive a los reinicios. Un hueco es un cuadro que espera su obra: se pincha, se elige una imagen y el servidor la encaja.",
   store: { describe: "Por objeto, quién lo colocó y cuándo (`a:<id>`), su caja propia si es sólido (`c:<id>`) y, si es un hueco, el cartel al que vuelve al vaciarlo (`v:<id>`); y el contador de ids (`siguiente`). Nunca va a las páginas." },
   state: {
@@ -143,6 +143,7 @@ export const objetos = defineFeature({
   events: {
     permiso: { describe: "Lo que puedes hacer aquí (llega al entrar y al identificarte).", fields: { construir: { kind: "bool" } }, announce: "silent" },
     hecho: { describe: "Tu cambio se hizo: el objeto que tocó (para seleccionarlo).", fields: { id: ID, accion: { kind: "enum", values: ["colocar", "mover", "girar", "duplicar", "borrar", "fijar", "nombrar", "deshacer", "rehacer", "ajustar", "hueco", "rellenar", "vaciar", "reiniciar"] } }, announce: "silent" },
+    hizo: { describe: "Solo para las funciones del servidor (alcance «server»): quién (quien = su entidad) hizo qué con qué objeto, a la vez que se le dice a él con `hecho`. Para un mover, mueve/gira/escala dicen qué cambió de verdad; para un ajustar, oculto = que el objeto quedó oculto al jugar. Ninguna página lo recibe.", fields: { quien: { kind: "int", min: 0, max: 65535 }, id: ID, accion: { kind: "enum", values: ["colocar", "mover", "girar", "duplicar", "borrar", "fijar", "nombrar", "deshacer", "rehacer", "ajustar", "hueco", "rellenar", "vaciar", "reiniciar"] }, mueve: { kind: "bool", default: false }, gira: { kind: "bool", default: false }, escala: { kind: "bool", default: false }, oculto: { kind: "bool", default: false } }, announce: "silent" },
     rechazado: { describe: "Tu cambio no se hizo, y por qué.", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
   },
 });

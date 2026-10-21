@@ -125,7 +125,7 @@ test("formats: secuencia@1 — the flight loads; each mistake says where and how
   const A = cargar();
   assert.deepEqual([A.misiones.get("vuelo")!.pasos[3].secuencia, A.misiones.get("vuelo")!.pasos[4].espera, A.secuencias.get("vuelo")!.duracion], ["vuelo", 10, 9]);
   // the plug: v5, three silent events, the paso event says how long it still waits
-  assert.equal(misionesDecl.version, 6); // v6 (N10): the server-only `concedido` for «objeto» rewards
+  assert.equal(misionesDecl.version, 7); // v7 (T1): step `hace`; v6 (N10): the server-only `concedido` for «objeto» rewards
   assert.deepEqual(misionesDecl.issues, []);
   for (const ev of ["secuencia", "pista", "clave"]) assert.equal(misionesDecl.events![ev].announce, "silent", ev);
   assert.deepEqual(misionesDecl.events!.paso.fields.espera, { kind: "int", min: 0, max: 60, default: 0 });

@@ -1452,3 +1452,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Fable 5.1 (Ursa, en el escritorio).
 - Commit: rama `onboarding/lienzo` (desde origin/main 1b04bd1d), sin subir.
 - Siguiente: el «Taller» (guía, 11 misiones, flecha a los botones) sobre el lienzo; una farola de pie CC0 para la biblioteca (hoy hay «Farolillo»); idiomas ja, ko y pt-br de las frases del cable (siguen pendientes).
+
+## 2026-10-21 19:00 · T1 paso de misión `hace` + `senala` · hecho
+- Qué: nuevo tipo de paso `hace` en `mision@1` (13 acciones: coloca, mueve, gira, escala, oculta, borra, crea/edita/borra/dispara_cable y las tres de página abre_construir, abre_cable, abre_biblioteca) y el campo `senala` (id del botón al que apuntará la flecha; vale en cualquier paso; solo se valida, se guarda y viaja con el paso). El servidor lo decide oyendo eventos que ya existían: nuevos `objetos.hizo` y `disparadores.hizo` (solo-servidor, con la entidad autora; `mover` dice si cambió sitio, giro o escala) y `persona` en `disparadores.senal`; las tres acciones de página entran por la orden nueva `misiones.hace`, que solo acepta esas tres. Sin permiso de construir no cuenta nada; un `hace` que no es el paso actual no cuenta. Nada en el tick. El cliente expone `misiones.hace(accion)` y `misiones.senala()`; la plaza avisa al abrir Construir, Añadir y Cable solo si un paso lo pide. Aditivo: `misiones` v7 (el evento `paso` gana `accion` y `senala`, intent `hace`); `objetos` y `disparadores` no cambian de versión (eventos solo-servidor).
+- Números: `test/misiones-hace.test.ts` (7 pruebas) nuevo; tres pruebas viejas actualizadas (lista de campos del paso, versión 7). Huella de determinismo intacta (un mundo con misiones `hace` hashea igual que sin ellas).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `taller` (desde origin/main a4e967ec), sin subir.
+- Siguiente: la flecha que lea `misiones.senala()` y señale el botón; las 11 misiones del Taller.
