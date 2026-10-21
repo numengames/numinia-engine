@@ -1,0 +1,11 @@
+/* T3: the guide arrow (#flecha-guia, flecha.ts). Sits against the button it points at; a soft heartbeat, off for those who ask for less motion. */
+#flecha-guia { position: fixed; z-index: 40; width: 30px; height: 30px; margin: 0; padding: 0; pointer-events: none; color: var(--n-ambar, #EFA517); filter: drop-shadow(0 0 4px rgba(0,0,0,.7)); }
+#flecha-guia[hidden] { display: none; }
+#flecha-guia svg { display: block; width: 100%; height: 100%; fill: currentColor; stroke: rgba(0,0,0,.55); stroke-width: 1.5; }
+#flecha-guia[data-lado="arriba"] svg { transform: rotate(180deg); } /* the arrow sits above the button and points down: its tip is the SVG's bottom */
+#flecha-guia[data-lado="abajo"] svg { transform: none; }
+#flecha-guia svg { animation: flecha-latido 1.2s ease-in-out infinite; }
+#flecha-guia[data-lado="abajo"] svg { --flecha-dy: 5px; } /* points up: it bobs towards the button */
+#flecha-guia[data-lado="arriba"] svg { --flecha-dy: -5px; }
+@keyframes flecha-latido { 0%, 100% { translate: 0 0; opacity: .85; } 50% { translate: 0 calc(var(--flecha-dy, 4px) * -1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #flecha-guia svg { animation: none; } }

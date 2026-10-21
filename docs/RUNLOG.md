@@ -1459,3 +1459,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `taller` (desde origin/main a4e967ec), sin subir.
 - Siguiente: la flecha que lea `misiones.senala()` y señale el botón; las 11 misiones del Taller.
+
+## 2026-10-21 18:54 · T3 flecha · hecho
+- Qué: la flecha que señala el botón del paso actual (`#flecha-guia`, `apps/plaza/flecha.ts`). Lee `misiones.senala()` y se pega al borde del botón (debajo si está en la mitad de arriba de la pantalla, encima si no), con latido suave que `prefers-reduced-motion` apaga. Si el botón no se ve señala el que lleva a él (`objetivoDeFlecha`, módulo sin DOM `flecha-logica.ts`): `cable-nuevo` → `dock-cable` → `construir` → `mas` (móvil). Sin flecha no hay observador ni bucle: se arma solo mientras hay una (MutationObserver + un rAF por cambio + resize).
+- Números: `test/flecha.test.ts` (6 pruebas) nuevo; `npm test` 1638 bien, 0 mal; puertas en verde; página D2 593,4 kB → 594,3 kB gz (+0,9 kB). Prueba real `plantillas/taller/flecha.mjs` (Chromium, escritorio): flecha a 4 px de «Construir» y de «Añadir»; fotos `fotos/20-flecha-construir.png` y `21-flecha-anadir.png`.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `taller`, sin subir.
+- Siguiente: T4 (zip del Taller).

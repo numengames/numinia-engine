@@ -438,7 +438,8 @@ que cada misión enseñe un botón y no avance hasta que se ha usado de verdad. 
 `modelo` solo va con `coloca`; `disparador`, solo con las acciones de cable. **`senala`** (opcional, vale en **cualquier**
 tipo de paso): el id del botón de la página al que apuntará la flecha (`[a-z0-9-]`, 1 a 32; p. ej. `construir`,
 `dock-cable`). El motor solo lo valida, lo guarda y lo manda a la página con el paso (`misiones.senala()`); un paso `hace`
-no tiene sitio en el mundo, así que no pone baliza ni marca en el mapa. Para oír esto las piezas dicen quién hizo qué con
+no tiene sitio en el mundo, así que no pone baliza ni marca en el mapa. La flecha (`apps/plaza/flecha.ts`, T3) ya lo lee: señala ese botón y, si no se ve, el que lleva a él
+(`cable-nuevo` → `dock-cable` → `construir` → `mas` en móvil; lógica pura en `flecha-logica.ts`). Para oír esto las piezas dicen quién hizo qué con
 dos eventos solo-servidor: `objetos.hizo` y `disparadores.hizo` (más `persona` en `disparadores.senal`).
 
 **En cualquier orden: `grupo`.** Pasos **seguidos** con el mismo `grupo` (un texto de 1 a 40 bytes) forman un bloque que
