@@ -12,6 +12,10 @@ Los dos pueden estar encendidos a la vez. El servidor publica la semilla de la b
 cuenca de estanque (ni arena ni orilla), mientras las zonas de pintura (prado, bosque, roca) siguen saliendo del campo de la naturaleza. Al apagar
 la naturaleza, nada cambia de altura; al apagar la base, el suelo vuelve a ser el de la naturaleza.
 
+## B9 · El estanque es un objeto
+
+Con la base no hay cuenca: el suelo es la malla del espacio base y la naturaleza no talla ningún estanque (el servidor lo dice al encender: «sobre el espacio base no se talla cuenca; pon un elemento de agua»). El agua es un **elemento** (`elementos` → `poner agua`, nombre «Estanque», con x, y, z, ancho y largo). Quien migra un mundo con estanque usa el verbo `aguaHeredada` (solo con permiso `construir`): lee `naturaleza:mundo`, calcula con `estanqueHeredado` dónde estaba (centro de `estanqueDe`, `y` = nivel del agua, ancho = largo = 2·radio) y pone un elemento «Estanque» con la clave `estanque-heredado`; una segunda llamada no duplica. Decisión D-086.
+
 ## B6 · Relleno traslúcido bajo la malla
 
 La malla del espacio base lleva por debajo un relleno blanco traslúcido (~12 % de noche, ~35 % de día; se ve también desde abajo). Reutiliza el buffer de
