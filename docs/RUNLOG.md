@@ -1519,3 +1519,15 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `feat/ia-llamar` (S8–S11 y el puente de `feat/ia-puente`, con origin/main 9573c2ae), PR contra `main`.
 - Siguiente: S14 (numinia-web refresca `puente-mundo.mjs` para dar estas herramientas a las IAs conectadas); S16 completo en el puente; idiomas.
+
+
+## 2026-10-21 · agua/nadar · hecho
+- Qué: nadar en el estanque (0.33.0), pieza reutilizable con interruptor `nadar` en `funciones.json` (apagado por defecto). Servidor (manda él):
+  encendido, el estanque de la naturaleza es agua; con los pies a más de 0,3 m bajo la superficie se nada a medio paso (correr no suma), sin
+  salto, flotando a 1,1 m; en la orilla se vuelve a andar. El cliente predice con la misma función. Página: estado `nadar` con el clip
+  `flotar` (Swim_Idle_Loop, ya en el catálogo), anillo plano en la orilla (chunk perezoso `nadar-onda.ts`) y el chapuzón del sintetizador.
+  Apagado = sin zonas de agua en la simulación = la misma huella que hoy.
+- Números: `test/nadar.test.ts` (9 pruebas); ver la PR para `npm test`, gates y tamaño.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `agua/nadar` sobre origin/main c387252b, sin subir.
+- Siguiente: probar en navegador real y en Quest; clip de nado con avance; panel del interruptor (f3).
