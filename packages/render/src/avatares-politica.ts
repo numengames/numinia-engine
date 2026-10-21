@@ -24,6 +24,22 @@ export function sueloBajo(x: number, z: number, y: number, cajas: ArrayLike<numb
   }
   return g;
 }
+/** The ground a world with relieve gives the avatars: `suelo` = what the simulation walks on under (x, z) for feet at `y` (the collision mesh and
+ * the solid boxes, metres), `malla` = the collision mesh alone. */
+export type SueloTerreno = { suelo: (x: number, z: number, y: number) => number; malla: (x: number, z: number, y: number) => number };
+/** What «in the air» is measured from: with relieve, the ground the simulation finds (hills included); without, the plaza and the boxes (`sueloBajo`). */
+export function sueloDeVista(cajas: () => ArrayLike<number>, terreno: () => SueloTerreno | null): (x: number, z: number, y: number) => number {
+  return (x, z, y) => { const t = terreno(); return t ? t.suelo(x, z, y) : sueloBajo(x, z, y, cajas()); };
+}
+/** How far (m) to lift or sink a standing avatar so it is DRAWN on the drawn terrain, not on the coarser collision mesh it walks on.
+ * 0 when the ground under it is not the mesh (a solid box, a roof) or there is no drawn surface there. `dibujado(x, z)` = the drawn surface's height. */
+export function asentadoEn(ts: SueloTerreno, dibujado: (x: number, z: number) => number, x: number, z: number, y: number): number {
+  const m = ts.malla(x, z, y);
+  if (m < SIN_SUELO_M || Math.abs(ts.suelo(x, z, y) - m) > 0.02) return 0; // no floor there (a slope too steep to stand on), or the floor is a box
+  const d = dibujado(x, z) - m;
+  return Number.isFinite(d) && Math.abs(d) < ASENTAR_MAX_M ? d : 0;
+}
+const ASENTAR_MAX_M = 4, SIN_SUELO_M = -100;
 /** Crossfade between clips (s). */
 export const FUNDIDO_S = 0.2;
 

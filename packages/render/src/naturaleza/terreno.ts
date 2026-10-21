@@ -92,6 +92,8 @@ export const LADOS_AGUA_PLANA = 14;
 export type Terreno = {
   malla: THREE.Mesh;
   alturaEn: (x: number, z: number) => number;
+  /** avatares/suelo-relieve: the height of the DRAWN surface (the lattice triangle under the point), which the coarser collision mesh only approximates. */
+  alturaDibujadaEn: (x: number, z: number) => number;
   zonaEn: (x: number, z: number) => Zona;
   /** R6.2: the ground bands at a point (pass the height when you have it: one relief sample less). */
   franjaEn: (x: number, z: number, h?: number) => Franjas;
@@ -458,7 +460,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
   const mascaraEn = (x: number, z: number) => celda(x, z, (ka, wa, kb, wb, kc, wc) => M[ka] * wa + M[kb] * wb + M[kc] * wc);
   return {
     malla, estanque: { ...e, nivel: AGUA }, triangulos: tris, vertices: nvt, residuos: { triangulos: triRes, sitios: res?.sitios ?? [] }, flora: { triangulos: triFlo },
-    alturaEn: (x, z) => alturaEn(s, x, z, op), zonaEn: (x, z) => zonaEn(s, x, z, op),
+    alturaEn: (x, z) => alturaEn(s, x, z, op), alturaDibujadaEn: alturaMalla, zonaEn: (x, z) => zonaEn(s, x, z, op),
     franjaEn: (x, z, h) => franjasEn(s, x, z, h ?? alturaEn(s, x, z, op), op),
     colorBaseEn, normalEn,
     colorSueloEn: (x, z) => sombrearSuelo(colorBaseEn(x, z), x, z, normalEn(x, z)[1], mascaraEn(x, z), s, nivel),

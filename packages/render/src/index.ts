@@ -37,7 +37,8 @@ export { sePuedeReproducir } from "./medios.ts";
 export type { ControlVideo } from "./medios.ts";
 export type { Donde, Eje, Herramienta, Fase, Paso, Editor } from "./gizmo.ts";
 import { createAvatares } from "./avatares.ts";
-import { sueloBajo } from "./avatares-politica.ts";
+import { asentadoEn, sueloDeVista } from "./avatares-politica.ts";
+import type { SueloTerreno } from "./avatares-politica.ts";
 import { prepararGltf, usarRenderer } from "./gltf.ts";
 import { ordenCarga, puedeEmpezar } from "./carga-orden.ts";
 import type { Movimiento } from "./avatares-politica.ts";
@@ -270,8 +271,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // J1: you and the nearest players as VRM humanoids (avatares.ts); the capsules above stay as their anchors
   // N1b: the solid boxes in metres (view.solidos): the camera does not go through them, avatars stand on them
   let cajasM: ArrayLike<number> = [], cajasFx: Int32Array | null = null;
+  let sueloT: SueloTerreno | null = null; // a world with relieve: the ground the simulation walks on (view.sueloTerreno); null = the plaza and the boxes
   const avs = createAvatares({ world, mobile: power.mobile, xr: () => renderer.xr.isPresenting, catalogo: opts.avatares?.catalogo, yo: opts.avatares?.yo, compilar: (o) => renderer.compileAsync(o, camera, scene),
-    suelo: (x, z, y) => sueloBajo(x, z, y, cajasM), eleccion: opts.avatares?.eleccion });
+    suelo: sueloDeVista(() => cajasM, () => sueloT),
+    asentar: (x, z, y) => { const dib = sueloT && naturaleza.terreno?.alturaDibujadaEn; return dib ? asentadoEn(sueloT!, dib, x, z, y) : 0; }, eleccion: opts.avatares?.eleccion });
   // H4 + H12: sky, sun, light, fog, wind and ground come from data (features/entorno), quality from the device tier
   const entorno = crearEntorno({ renderer, scene, world, camera, hemi, sun, ground, grid, hitos, aparato: { mobile: power.mobile, deviceMemoryGB: readCaps().deviceMemoryGB, saveData: readCaps().saveData }, foco: () => selfXZ,
     fichero: (f) => { const i = f.lastIndexOf("."); return (opts.assetUrl ?? ((m: string) => `/a/${m}.glb`))(f.slice(0, i)).replace(/\.glb$/, f.slice(i)); } });
@@ -1192,6 +1195,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       cam.paredes(fx);
       vr.paredes(cajasM as Float32Array); // N1c: real room-scale walking also stops at a wall now
     },
+    /** avatares/suelo-relieve: where the world has relieve, the ground the simulation walks on (`session.sueloTerreno()`; null otherwise).
+     * Avatars measure «in the air» from it (a hill is not a jump) and are drawn on the DRAWN terrain, not sunk in the coarser collision mesh. */
+    sueloTerreno(t: SueloTerreno | null | undefined): void { sueloT = t ?? null; },
     /** Move the camera (N1), then draw. */
     draw(dtSeconds: number): void {
       // B4: tell the resolution policy what it must not measure — models still loading, or a frame in which three

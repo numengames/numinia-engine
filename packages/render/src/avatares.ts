@@ -32,6 +32,8 @@ type Avatar = {
 };
 
 export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: () => boolean; catalogo?: CatalogoAvatares; yo?: () => number; compilar?: (raiz: THREE.Object3D) => Promise<unknown>; suelo?: (x: number, z: number, y: number) => number;
+  /** avatares/suelo-relieve: metres to add to the feet so a standing avatar is drawn on the drawn terrain (it walks on the coarser collision mesh); 0 elsewhere. */
+  asentar?: (x: number, z: number, y: number) => number;
   /** H10: which house avatar (index into `catalogo.modelos`, possibly grown with uploads by the caller) this player
    * wears right now, or undefined to keep the old per-entity default (`elegirAvatar`). Asked every sync(). */
   eleccion?: (clave: number | "yo") => number | undefined }) {
@@ -116,8 +118,9 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
   function actualizar(a: Avatar, ancla: THREE.Object3D, oculto: boolean, desde: { x: number; z: number } | null, ahora: number, dt: number, m: Vrm | null): void {
     const pos = ancla.position;
     seguir(a.marcha, pos.x, pos.z, dt);
-    const altura = pos.y - ALTURA_CAPSULA;
+    let altura = pos.y - ALTURA_CAPSULA;
     a.estado = estadoPor(a.marcha.velocidad, altura - (o.suelo?.(pos.x, pos.z, altura) ?? 0)); // over the ground under you
+    if (o.asentar && a.estado !== "saltar") altura += o.asentar(pos.x, pos.z, altura); // on relieve: drawn on the drawn ground, not buried in the collision mesh
     a.cerca = a.clave === "yo" || !desde || Math.hypot(pos.x - desde.x, pos.z - desde.z) <= ANIMAR_HASTA_M;
     if (fallidas.has(a.modelo)) return;
     const p = plantillas.get(a.modelo);
