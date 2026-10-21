@@ -10,7 +10,7 @@
 // that height (view.cenital) as the minimap's background too, and the cut's walls and columns as lines over it. The
 // picture is made when the minimap first needs it, then again only when the zone changes (at most every IMAGEN_MS),
 // never in XR (this clock stops there); until it exists, the minimap draws only what stands under the cut.
-import { proyectar, desproyectar, anguloFlecha, anguloBorde, yawDePaso, enPalabras, crearLimitador, crearRegistro, reunir, contar, cercanos, firma, matrizImagen, segmentosEnVista } from "../../packages/client/src/mapa.ts";
+import { proyectar, desproyectar, anguloFlecha, anguloBorde, yawDePaso, enPalabras, crearLimitador, crearRegistro, reunir, contar, cercanos, firma, matrizImagen, segmentosEnVista, quienDeAgente } from "../../packages/client/src/mapa.ts";
 import type { Vista, Marcador, Tipo, Fuente, Entrada } from "../../packages/client/src/mapa.ts";
 import type { ImagenCenital, Huella } from "../../packages/render/src/index.ts";
 import { bajoElCorte } from "../../packages/render/src/corte.ts";
@@ -42,6 +42,8 @@ export type HostMapa = {
   teletransporte?: { activo(): boolean; ir(x: number, z: number, nombre: string): void };
   /** C2: called after «Ir» sent the trip, with what you went to (the page selects it in the builder, opens its card…). */
   alIr?(donde: { id: string; nombre: string; x: number; z: number }): void;
+  /** ia-visible S8: the marker picked is an AI in the world; the page opens its card (gente.tarjeta). Omitted = the map only shows its detail. */
+  alAgente?(quien: number): void;
 };
 
 const PASO_MS = 200;               // the minimap looks 5 times a second; it draws only when the picture changed
@@ -452,6 +454,7 @@ export function montarMapa(h: HostMapa) {
     elegido = m;
     if (m && centrar) { gv.cx = m.x; gv.cz = m.z; }
     pintarDetalle(); pedir();
+    const ia = quienDeAgente(m); if (ia !== null) h.alAgente?.(ia);
   }
 
   // the HTML twin: nearest first, real buttons; rows are updated in place (focus never jumps), reordered only when

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import * as THREE from "three/webgpu";
 import { createAros, ARO_SOBRE_SUELO_M } from "../packages/render/src/aros.ts";
 import { estiloAro, escalaAro, arosMax, AROS_MOVIL, AROS_PC, ARO_CRECE_MAX } from "../packages/render/src/ia-marca.ts";
-import { crearRegistro, firma } from "../packages/client/src/mapa.ts";
+import { crearRegistro, firma, quienDeAgente } from "../packages/client/src/mapa.ts";
 import type { Vista, Marcador } from "../packages/client/src/mapa.ts";
 
 /** A world with avatars (capsule centres 0.85 m over the feet) and a camera at the origin looking along -z. */
@@ -119,4 +119,14 @@ test("map: a sleeping AI is the same green but a hollow diamond; the picture's k
   const v: Vista = { cx: 0, cz: 0, escala: 2, giro: 0, ancho: 100, alto: 100 };
   const una = (tipo: string): Marcador[] => [{ id: "p2", tipo, nombre: "Ada · IA", x: 3, z: 3 }];
   assert.notEqual(firma(v, una("agente")), firma(v, una("agente-dormida")), "the minimap repaints when the state changes");
+});
+
+test("map: a click on an AI's diamond (active or asleep) names the entity whose card opens; nothing else does", () => {
+  assert.equal(quienDeAgente({ id: "p7", tipo: "agente" }), 7);
+  assert.equal(quienDeAgente({ id: "p12", tipo: "agente-dormida" }), 12);
+  assert.equal(quienDeAgente({ id: "p7", tipo: "persona" }), null, "a person's dot opens no AI card");
+  assert.equal(quienDeAgente({ id: "c:objetos:7", tipo: "agente" }), null, "an id that is not an entity");
+  assert.equal(quienDeAgente({ id: "punto:1,2", tipo: "lugar" }), null);
+  assert.equal(quienDeAgente(null), null);
+  assert.equal(quienDeAgente(undefined), null);
 });

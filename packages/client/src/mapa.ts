@@ -159,6 +159,13 @@ export const ROL_A_TIPO: Readonly<Record<string, string>> = {
   persona: "npc", criatura: "npc", puerta: "portal", salida: "portal", lugar: "lugar", punto: "lugar", elemento: "elemento",
 };
 
+/** ia-visible S8: which in-world entity a map marker stands for, when it is an AI (agente / agente-dormida, id `p<entity>`); null for anything else. */
+export function quienDeAgente(m: { id: string; tipo: string } | null | undefined): number | null {
+  if (!m || (m.tipo !== "agente" && m.tipo !== "agente-dormida")) return null;
+  const q = /^p(\d+)$/.exec(m.id);
+  return q ? Number(q[1]) : null;
+}
+
 export type Registro = ReturnType<typeof crearRegistro>;
 export function crearRegistro() {
   const tipos = new Map<string, Tipo>(Object.entries(TIPOS_BASE));
