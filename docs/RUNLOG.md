@@ -1454,7 +1454,7 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Siguiente: el «Taller» (guía, 11 misiones, flecha a los botones) sobre el lienzo; una farola de pie CC0 para la biblioteca (hoy hay «Farolillo»); idiomas ja, ko y pt-br de las frases del cable (siguen pendientes).
 
 ## 2026-10-21 18:30 · funciones f1 · hecho
-- Qué: historia f1 de los interruptores de funciones (0.27.0, solo servidor + protocolo; la vista va en f3/v3). Pieza nueva
+- Qué: historia f1 de los interruptores de funciones (0.28.0, solo servidor + protocolo; la vista va en f3/v3). Pieza nueva
   `features/funciones`: quien puede construir enciende y apaga en caliente `normas` (la puerta de condiciones de entrada),
   `dardos` y `pesca` con el verbo `poner`; se guarda en `entorno/funciones.json` (`funciones@1`, mismo escritor atómico que el
   espacio base) y sobrevive al reinicio. Apagar las normas deja entrar a quien las leía; encenderlas solo pide a quien llegue después.
