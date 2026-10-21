@@ -64,7 +64,7 @@ test("formats: pnj@1 `oficio` — valid, too long, not text, absent; the plug's 
   assert.deepEqual([pnjDecl.issues, misionesDecl.issues], [[], []]);
   assert.equal(pnjDecl.version, 4); // v4: `voz` (test/pnj-voz.test.ts)
   assert.deepEqual(pnjDecl.state!.fields.oficio, { kind: "text", maxBytes: 40, default: "" });
-  assert.equal(misionesDecl.version, 6); // v6 (N10): the server-only `concedido` for «objeto» rewards
+  assert.equal(misionesDecl.version, 7); // v7 (T1): step `hace`; v6 (N10): the server-only `concedido` for «objeto» rewards
   const ev = misionesDecl.events!.marcas;
   assert.deepEqual(Object.keys(ev.fields), ["tiene", "hecho", "cosas"]);
   assert.ok(Object.values(ev.fields).every((f) => f.kind === "text" && f.maxBytes === 256), "three short id lists");

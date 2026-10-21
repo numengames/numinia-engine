@@ -5,7 +5,7 @@
 // quest keeps `desde`, when its current block became the one to do; a step that still waits is not done, not offered
 // («!») and the server says «Todavía no» when someone tries.
 import { alAlcanceEnAltura } from "../../packages/feature/src/index.ts";
-import { cosasDe, LIM } from "./formato.ts";
+import { cosasDe, LIM, shaDeBiblioteca } from "./formato.ts";
 import type { Aventura, Condicion, Mision, Nodo, Opcion, Paso, Pnj } from "./formato.ts";
 
 /** An active quest: the index of the step it is on (the first of its block), the things it carries (taken or given,
@@ -122,6 +122,7 @@ export type Suceso = (
   | { tipo: "avanzar"; pnj: string; mision: string }         // it chose an option avanzar_paso
   | { tipo: "entregar"; pnj: string; mision: string }        // it chose an option entregar
   | { tipo: "usa"; cosa: string }                            // it took or used this thing
+  | { tipo: "hace"; accion: string; modelo?: string; disparador?: string } // T1: the builder did this (modelo = the sha256 of the placed object's model; disparador = the cable's id)
 ) & { ahora?: number };
 /** A step completed: which quest, which step (index) and whether that finished the quest. */
 export type Hecho = { mision: string; paso: number; completada: boolean };
@@ -130,6 +131,8 @@ function cumplePaso(s: Paso, act: Activa, m: Mision, a: Aventura, x: Suceso): bo
   // llega_a: inside the circle and, when the step names a height, standing at it (± ALCANCE_ALTURA_M: a floor below does not count)
   if (s.tipo === "llega_a") return x.tipo === "llega" && (x.x - s.x) ** 2 + (x.z - s.z) ** 2 <= s.radio ** 2 && alAlcanceEnAltura(x.y, s.y);
   if (s.tipo === "usa" || s.tipo === "coge") return x.tipo === "usa" && x.cosa === s.cosa;
+  // hace: the action asked for; with `modelo` only an object of that model (coloca), with `disparador` only that cable
+  if (s.tipo === "hace") return x.tipo === "hace" && x.accion === s.accion && (!s.modelo || x.modelo === shaDeBiblioteca(s.modelo)) && (!s.disparador || x.disparador === s.disparador);
   if (!("pnj" in s) || (x.tipo !== "habla" && x.tipo !== "avanzar" && x.tipo !== "entregar")) return false; // the rest are said to a person
   if (x.pnj !== s.pnj) return false;
   const exp = a.explicitos.get(s.pnj);
@@ -222,6 +225,7 @@ export function seguir(p: Progreso, id: string): boolean {
 export function objetivo(s: Paso, a: Aventura): { x: number; z: number; nombre: string; que: string } {
   if (s.tipo === "llega_a") return { x: s.x, z: s.z, nombre: s.lugar, que: "" };
   if (s.tipo === "habla_con" || s.tipo === "recibe" || s.tipo === "entrega") { const n = a.pnjs.get(s.pnj); return { x: n?.posicion.x ?? 0, z: n?.posicion.z ?? 0, nombre: n?.nombre ?? s.pnj, que: s.pnj }; }
+  if (s.tipo === "hace") return { x: 0, z: 0, nombre: "", que: "" }; // T1: no place to point at (the page's `senala` is the arrow's target)
   const c = a.cosas.get(s.cosa);
   return { x: c?.posicion.x ?? 0, z: c?.posicion.z ?? 0, nombre: c?.nombre ?? s.cosa, que: s.cosa };
 }

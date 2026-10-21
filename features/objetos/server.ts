@@ -81,7 +81,12 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
   };
   const quien = (from: number) => api.who(from)?.id ?? `e${from}`;
   const rechazar = (from: number, motivo: string) => { api.emit("rechazado", { motivo }, { to: from }); return false; };
-  const hecho = (from: number, id: string, accion: string) => api.emit("hecho", { id, accion }, { to: from });
+  // T1: besides telling the author (`hecho`, to its page), say who did what to the server's own listeners (`hizo`, scope «server»:
+  // features/misiones counts a builder's steps with it). `mueve`/`gira`/`escala` say what a `mover` really changed, `oculto` what an `ajustar` left.
+  const hecho = (from: number, id: string, accion: string, extra: { mueve?: boolean; gira?: boolean; escala?: boolean; oculto?: boolean } = {}) => {
+    api.emit("hecho", { id, accion }, { to: from });
+    api.emit("hizo", { quien: from, id, accion, mueve: extra.mueve === true, gira: extra.gira === true, escala: extra.escala === true, oculto: extra.oculto === true }, "server");
+  };
   const puede = (from: number) => api.puede(from, "construir") || rechazar(from, "No puedes construir aquí: el mundo está cerrado a construir (lo abre quien lo administra).");
   const objeto = (from: number, id: unknown) => {
     const o = api.state.get(String(id));
@@ -186,12 +191,14 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     if (!o) return;
     if (o.fijado) return void rechazar(from, "Está fijado: suéltalo antes de moverlo.");
     apuntar(from, { id, antes: o }, { mover: true, lote: String(m.lote || "") });
-    guardar(id, conCaja(id, {
+    const nuevo = conCaja(id, {
       ...o, x: q(m.x, PASO.pos), y: q(m.y, PASO.pos), z: q(m.z, PASO.pos),
       rx: girado(Number(m.rx)), ry: girado(Number(m.ry)), rz: girado(Number(m.rz)),
       sx: q(m.sx, PASO.escala), sy: q(m.sy, PASO.escala), sz: q(m.sz, PASO.escala),
-    }));
-    hecho(from, id, "mover");
+    });
+    guardar(id, nuevo);
+    const cambia = (...k: string[]) => k.some((c) => Number(o[c]) !== Number(nuevo[c]));
+    hecho(from, id, "mover", { mueve: cambia("x", "y", "z"), gira: cambia("rx", "ry", "rz"), escala: cambia("sx", "sy", "sz") });
   });
 
   api.on("girar", (from, m) => {
@@ -201,7 +208,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     if (o.fijado) return void rechazar(from, "Está fijado: suéltalo antes de girarlo.");
     apuntar(from, { id, antes: o });
     api.state.set(id, conCaja(id, { ...o, ry: girado(Number(o.ry) + Number(m.grados)) }));
-    hecho(from, id, "girar");
+    hecho(from, id, "girar", { gira: true });
   });
 
   api.on("duplicar", (from, m) => {
@@ -280,7 +287,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     const alcance = ["burbuja", "zona", "todos"].includes(String(m.alcance)) ? String(m.alcance) : "burbuja";
     const n = { ...o, oculto: m.oculto === true, volumen: q(Math.max(0, Math.min(1, Number(m.volumen))), 0.01), solido, colision, alcance, radio: q(Math.max(0.5, Math.min(200, Number(m.radio) || 8)), 0.1), enlace };
     api.state.set(id, solido ? conCaja(id, n) : { ...n, bx0: 0, by0: 0, bz0: 0, bx1: 0, by1: 0, bz1: 0 });
-    hecho(from, id, "ajustar");
+    hecho(from, id, "ajustar", { oculto: n.oculto });
   });
 
   // ---- U12: holes ----

@@ -96,7 +96,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLEl
 /** C3: what the page lends the card: the map's «Volver», and a way to ask for the object chosen with «Ir». */
 /** C4: and the world's wires, locks and counters to read («Lógica»), and a way to bring the cable's list into view. */
 /** ux2-dock: and «Subir» (soltar.ts' file picker) for the «Añadir» drawer. */
-export type ExtraConstructor = { volver?(): boolean; puedeVolver?(): boolean; mundo?(): PiezasMundo; abrirCable?(): void; subir?(): void };
+export type ExtraConstructor = { volver?(): boolean; puedeVolver?(): boolean; mundo?(): PiezasMundo; abrirCable?(): void; subir?(): void; alAbrir?(que: "construir" | "anadir" | "cable"): void };
 export type ConstructorUI = {
   alIr(donde: { id: string }): boolean;
   cajon(id: Cajon): HTMLElement; ranuraFicha: HTMLElement;
@@ -318,6 +318,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   let cajon: Cajon | "" = "";
   function abrirCajon(id: Cajon | ""): void {
     cajon = id;
+    if (id === "anadir" || id === "cable") extra?.alAbrir?.(id); // T1: a mission step may ask «open the library / the cable»
     for (const [k] of CAJONES) { secciones[k].hidden = k !== id; botonesCajon[k].setAttribute("aria-expanded", String(k === id)); }
     document.documentElement.classList.toggle("cajon-abierto", !!id);
     firmaLogica = "";
@@ -637,6 +638,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     boton.setAttribute("aria-expanded", String(si));
     pintarBoton(si);
     if (si) {
+      extra?.alAbrir?.("construir"); // T1: a mission step may ask «open Construir»
       void ed.cargar();
       if (!c.estado.modo) c.modo("mover");
       cam()?.modo?.("construir");

@@ -195,7 +195,7 @@ export function montarCable(o: OpcionesCable) {
     const arriba = document.createElement("div"); arriba.className = "cable-linea";
     if (d.tipo === "boton") {
       const p = document.createElement("button");
-      p.type = "button"; p.textContent = "Probar"; p.className = "cable-probar";
+      p.type = "button"; p.textContent = "Probar"; p.className = "cable-probar"; p.id = `cable-probar-${id}`; // the guide arrow (a mission step's `senala`) can point at one cable's «Probar»
       p.title = `Disparar «${d.nombre}» como si lo pulsaras, para comprobar su cableado`;
       p.addEventListener("click", () => { const r = o.disparadores.pulsar(id); if (!r.ok) o.decir(`No: ${r.why}.`); });
       arriba.append(p);

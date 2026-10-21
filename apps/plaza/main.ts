@@ -20,6 +20,7 @@ import { montarConstructorVR } from "./constructor-xr.ts";
 import { montarSoltar } from "./soltar.ts";
 import { montarAvatar } from "./avatar.ts"; // H10: your avatar — house or uploaded .vrm, for every visitor
 import { montarHuecos } from "./huecos.ts";
+import { montarFlecha } from "./flecha.ts"; // T3: the arrow that points at the button of the current mission step
 import { montarEnlaces } from "./enlaces.ts"; // J4: click on a thing with a link opens it (new tab, after confirming)
 import { disparadores } from "../../features/disparadores/client.ts"; // D-041: the cable — controller
 import { montarCable } from "./cable.ts"; // D-041, historias 5-6 + C: builder's live view + the cable as a sentence with blanks
@@ -258,6 +259,7 @@ if (esTactil()) {
 const constructorUI = montarConstructor(constructor, view, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!,
   { volver: () => mapa.volver(), puedeVolver: () => mapa.puedeVolver(),
     mundo: () => ({ disparadores: disparadores.lista(), cerraduras: cerraduras.cerraduras(), contadores: contadores.lista() }), abrirCable: () => cable.mostrar(),
+    alAbrir: (q) => { misiones.hace(q === "construir" ? "abre_construir" : q === "anadir" ? "abre_biblioteca" : "abre_cable"); }, // T1: only sent while a step asks for it
     subir: () => soltar.elegir() }); // C3, C4, ux2-dock: the card, «Lógica», «Subir»; `mapa`, `cable` and `soltar` are built below, only read later
 // ---- M22b-3: the same builder, picked and moved with a VR controller's ray instead of a mouse ----
 const constructorVR = montarConstructorVR(constructor, view);
@@ -354,6 +356,7 @@ misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step
 const xr = montarXR({ session, view, misiones, interaccion }); // J10: hands in VR take, point and answer; what you took is in your hand
 const condicionesXR = montarCondicionesXR({ condiciones, vr: view.vr as never, mundo: () => nombreDelMundo, soportado: () => vrDisponible }); // condiciones/c4
 montarDialogo(misiones, document.getElementById("dialogo")!, view);
+montarFlecha({ misiones }); // T3: idle costs nothing; with a step that points at a button it follows the button
 const nombres = montarVerNombres(view); // U22: Alt / «Nombres» button / gamepad Back: every name; otherwise only who you look at and who speaks
 misiones.alCambiar((que) => { if (que === "dialogo") view.hablando(misiones.dialogo() ? `pnj:${misiones.dialogo()!.pnj}` : null); }); // U22: the one you talk to shows its name
 montarLibro(misiones, {

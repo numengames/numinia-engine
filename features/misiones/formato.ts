@@ -18,7 +18,16 @@ import type { Sound } from "../../packages/feature/src/index.ts";
 import biblioteca from "../objetos/biblioteca.json" with { type: "json" }; // U14 (5): what a missing model can be instead
 
 export const FORMATOS = { mision: "mision@1", pnj: "pnj@1", cosa: "cosa@1" } as const;
-export const TIPOS_PASO = ["llega_a", "habla_con", "usa", "coge", "entrega", "recibe"] as const; // new kinds go at the end (the wire's enum)
+export const TIPOS_PASO = ["llega_a", "habla_con", "usa", "coge", "entrega", "recibe", "hace"] as const; // new kinds go at the end (the wire's enum)
+/** T1, step `hace` (the builder DOES something): the closed list of actions. The server decides the first ten from events the
+ * other pieces already emit (objetos `hizo`, disparadores `hizo` / `senal`); the last three happen on the page, which the server
+ * cannot see: the page says so with the intent `hace`, and only for those (ACCIONES_PAGINA). New ones go at the end. */
+export const ACCIONES_HACE = ["coloca", "mueve", "gira", "escala", "oculta", "borra", "crea_cable", "edita_cable", "borra_cable", "dispara_cable", "abre_construir", "abre_cable", "abre_biblioteca"] as const;
+export const ACCIONES_PAGINA = ["abre_construir", "abre_cable", "abre_biblioteca"] as const;
+export type AccionHace = (typeof ACCIONES_HACE)[number];
+const CON_CABLE: readonly string[] = ["crea_cable", "edita_cable", "borra_cable", "dispara_cable"];
+/** The sha256 of a library model by its id (`bloque`, `farolillo`…), or "" when the library has none. */
+export const shaDeBiblioteca = (id: string): string => biblioteca.modelos.find((m) => m.id === id)?.modelo ?? "";
 export const ESTADOS = ["sin_empezar", "disponible", "activa", "hecha"] as const;
 export const ACCIONES = ["dar_mision", "avanzar_paso", "entregar", "despedir"] as const;
 /** The voices a person can have (pnj@1 `voz`): the house's NPC voice takes, a short wordless greeting when you start
@@ -42,7 +51,7 @@ export type Estado = (typeof ESTADOS)[number];
  * quest moves past it when all are done); the grupo also names the counter the player sees («Piezas reunidas 1/3»).
  * U14 (5), optional too: `secuencia` = the id of a secuencia@1 played for that player when the step is done; `espera` =
  * seconds (1–60) before it can be done, counted from when it became the step to do (in a grupo: from the block's start). */
-type PasoBase = { id: string; texto: string; grupo?: string; secuencia?: string; espera?: number };
+type PasoBase = { id: string; texto: string; grupo?: string; secuencia?: string; espera?: number; senala?: string };
 export type Paso = PasoBase & (
   | { tipo: "llega_a"; x: number; z: number; radio: number; lugar: string; y?: number } // y (optional, metres): the floor to reach it from
   | { tipo: "habla_con"; pnj: string }
@@ -50,6 +59,7 @@ export type Paso = PasoBase & (
   | { tipo: "usa" | "coge"; cosa: string }
   | { tipo: "entrega"; cosa: string; pnj: string } // one thing, as written…
   | { tipo: "entrega"; cosas: string[]; pnj: string } // …or several at once (1–8); cosasDe() reads either
+  | { tipo: "hace"; accion: AccionHace; modelo?: string; disparador?: string } // T1: the builder does something (modelo = a library id, only with coloca; disparador = a cable's id, only with the cable actions)
 );
 /** What an entrega asks for (its `cosa` or its `cosas`); for coge, usa and recibe, their one thing; else nothing. */
 export const cosasDe = (s: Paso): string[] => ("cosas" in s ? s.cosas : "cosa" in s ? [s.cosa] : []);
@@ -102,7 +112,7 @@ export type Aventura = {
 
 // ---------- small checks: each pushes an issue with its path and returns a usable value ----------
 type O = Record<string, unknown>;
-const ID = /^[a-z0-9][a-z0-9-]{0,31}$/, SHA = /^[0-9a-f]{64}$/;
+const ID = /^[a-z0-9][a-z0-9-]{0,31}$/, SHA = /^[0-9a-f]{64}$/, SENALA = /^[a-z0-9-]{1,32}$/;
 const utf8 = new TextEncoder();
 const bytes = (s: string) => utf8.encode(s).length;
 const esObjeto = (v: unknown): v is O => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -179,7 +189,7 @@ function paso(v: unknown, path: string, is: Issue[]): Paso {
   const o = objeto(v, path, is) ?? {};
   const tipo = TIPOS_PASO.includes(o.tipo as TipoPaso) ? (o.tipo as TipoPaso) : (is.push({ path: en(path, "tipo"), message: `uno de: ${TIPOS_PASO.join(", ")}` }), "llega_a" as const);
   const base = { id: id(o.id, en(path, "id"), is), texto: texto(o.texto, en(path, "texto"), LIM.textoPaso, is) };
-  const permite = (...k: string[]) => campos(o, ["id", "tipo", "texto", ...k, "grupo", "secuencia", "espera"], path, is); // any step may have these
+  const permite = (...k: string[]) => campos(o, ["id", "tipo", "texto", ...k, "grupo", "secuencia", "espera", "senala"], path, is); // any step may have these
   let p: Paso;
   if (tipo === "llega_a") {
     permite("x", "z", "radio", "lugar", "y");
@@ -189,10 +199,30 @@ function paso(v: unknown, path: string, is: Issue[]): Paso {
   } else if (tipo === "habla_con") { permite("pnj"); p = { ...base, tipo, pnj: id(o.pnj, en(path, "pnj"), is) }; }
   else if (tipo === "recibe") { permite("pnj", "cosa"); p = { ...base, tipo, pnj: id(o.pnj, en(path, "pnj"), is), cosa: id(o.cosa, en(path, "cosa"), is) }; }
   else if (tipo === "entrega") { permite("cosa", "cosas", "pnj"); p = entrega(o, base, path, is); }
+  else if (tipo === "hace") { permite("accion", "modelo", "disparador"); p = hace(o, base, path, is); }
   else { permite("cosa"); p = { ...base, tipo, cosa: id(o.cosa, en(path, "cosa"), is) }; }
+  if (o.senala !== undefined) { // T1: the id of the page's button the arrow will point at (any step); only checked and carried here
+    if (typeof o.senala === "string" && SENALA.test(o.senala)) p.senala = o.senala;
+    else is.push({ path: en(path, "senala"), message: "el id del botón de la página que señala la flecha: minúsculas, cifras y guiones, de 1 a 32 (p. ej. \"dock-cable\")" });
+  }
   if (o.grupo !== undefined) p.grupo = texto(o.grupo, en(path, "grupo"), LIM.grupo, is);
   if (o.secuencia !== undefined) p.secuencia = id(o.secuencia, en(path, "secuencia"), is); // U14 (5): played for you when done
   if (o.espera !== undefined) p.espera = numero(o.espera, en(path, "espera"), 1, ESPERA_MAX, is); // U14 (5): seconds before it can be done
+  return p;
+}
+/** hace: `accion` (one of ACCIONES_HACE); `modelo` (a library id) only with coloca; `disparador` (a cable id) only with the cable actions. */
+function hace(o: O, base: { id: string; texto: string }, path: string, is: Issue[]): Paso {
+  const accion = ACCIONES_HACE.includes(o.accion as AccionHace) ? (o.accion as AccionHace) : (is.push({ path: en(path, "accion"), message: `qué hace quien construye, una de: ${ACCIONES_HACE.join(", ")}` }), "coloca" as const);
+  const p: Extract<Paso, { tipo: "hace" }> = { ...base, tipo: "hace", accion };
+  if (o.modelo !== undefined) {
+    if (accion !== "coloca") is.push({ path: en(path, "modelo"), message: "«modelo» solo va con la acción \"coloca\" (cuenta solo un objeto de ese modelo); quítalo o cambia la acción" });
+    else if (typeof o.modelo !== "string" || !shaDeBiblioteca(o.modelo)) is.push({ path: en(path, "modelo"), message: `el id de un modelo de la biblioteca (${biblioteca.modelos.map((m) => m.id).join(", ")}), no su sha256` });
+    else p.modelo = o.modelo;
+  }
+  if (o.disparador !== undefined) {
+    if (!CON_CABLE.includes(accion)) is.push({ path: en(path, "disparador"), message: `«disparador» solo va con las acciones de cable (${CON_CABLE.join(", ")}); quítalo o cambia la acción` });
+    else p.disparador = id(o.disparador, en(path, "disparador"), is);
+  }
   return p;
 }
 /** entrega: `cosa` (one thing) or `cosas` (1–8, given all at once), never both; kept as written (cosasDe reads either). */
