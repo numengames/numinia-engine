@@ -71,6 +71,28 @@ export function crearProgresoMalla(el: PantallaMalla | null) {
   };
 }
 
+/** B5: how long after `welcome` the screen gives up waiting for the ground and goes anyway (a ground that never builds must not trap the player). */
+export const TOPE_CARGA_MS = 15000;
+
+/**
+ * B5: a ground is pending when the shared state asks for it (`activa` is not false, as `aplicar` reads it) and the view has not finished
+ * building it yet (`activa` of the view's naturaleza / espacio base is true only once the last `aplicar` produced the real thing).
+ * A world with neither answers false, so it behaves as before.
+ */
+export function sueloPendiente(o: { pideNaturaleza: boolean; pideBase: boolean; naturalezaLista: boolean; baseLista: boolean }): boolean {
+  return (o.pideNaturaleza && !o.naturalezaLista) || (o.pideBase && !o.baseLista);
+}
+
+/**
+ * B5: may the loading screen go? Yes once `welcome` is in, a frame was drawn with the ground already built (`primerCuadro`: the
+ * caller only says true for a frame that started with no ground pending) — or whatever the state, once `tope` ms passed since `welcome`.
+ */
+export function puedeOcultar(o: { welcome: boolean; primerCuadro: boolean; sueloPendiente: boolean; msDesdeWelcome: number; topeMs?: number }): boolean {
+  if (!o.welcome) return false;
+  if (o.msDesdeWelcome >= (o.topeMs ?? TOPE_CARGA_MS)) return true;
+  return o.primerCuadro && !o.sueloPendiente;
+}
+
 const hueco = { ocultar() {} };
 const malla = crearProgresoMalla(typeof document === "undefined" ? null : (document.getElementById("carga") as unknown as PantallaMalla | null));
 
