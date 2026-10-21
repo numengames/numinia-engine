@@ -9,6 +9,10 @@ import { pathsIcono } from "./iconos.ts";
 import { resumenTexto } from "./inventario.ts";
 import { sonar } from "./sonar.ts";
 import { ESCALERA } from "./ficha.ts";
+import { listaGenteVR, textos } from "./gente-ia.ts";
+import { distanciaTexto } from "./amigos.ts";
+import { AYUDA_RAYO, TEXTO_FUERA_DE_VR, esInvitado, vistaConstruirVR } from "./construir-vr-logica.ts";
+import { iconoDe } from "../../packages/render/src/menu-secciones.ts";
 import type { MenuVR, ContenidoMenuVR as Contenido } from "../../packages/render/src/index.ts";
 import { siguienteValor, textoValor } from "../../packages/render/src/menu-vr.ts";
 
@@ -32,6 +36,8 @@ export function montarMenuVR(o: {
   retrato: () => string | null;
   /** Whether you may build here (constructor.estado.puede). */
   puedeConstruir: () => boolean;
+  /** The builder's hands (constructor-xr.ts): «Construir» turns them on and off. */
+  construirVR: { activo(): boolean; entrar(): { ok: boolean; why?: string }; salir(): void };
   /** Your name. */
   nombre: () => string;
 }) {
@@ -85,8 +91,20 @@ export function montarMenuVR(o: {
     const n = o.n(), v = n.viajar;
     if (!n.gente || !v) return { tipo: "lista", titulo: "Gente", vacio: "Este mundo no enseña a la gente conectada.", filas: [] } as Contenido;
     const activo = v.activo?.() !== false, lista = (v.estado?.gente ?? []) as { quien: number; nombre: string }[];
-    const filas: Fila[] = lista.map((p) => ({ texto: p.nombre, icono: "user", botones: [{ texto: "Ir a su lado", accion: ir(p.quien, p.nombre), estilo: activo ? "normal" : "desactivado", ancho: 260 }] }));
-    return { tipo: "lista", titulo: `Gente aquí${v.estado?.todos ? ` · ${v.estado.todos}` : ""}`, nota: activo ? "«Ir a su lado» te lleva junto a esa persona." : "En este mundo ahora no se puede ir junto a otros.",
+    // the same as the computer's «Aquí ahora»: people first, then the AIs with their «IA» mark, state and distance (features/ia + gente-ia.ts)
+    const yo = n.session?.entity >= 0 ? n.session.selfPosition?.(1) : null, ras = (n.session?.remotePositions?.() ?? []) as { id: number; x: number; z: number }[];
+    const lejos = (q: number): number | null => { const r = ras.find((x) => x.id === q); return yo && r ? Math.hypot(r.x - yo.x, r.z - yo.z) : null; };
+    const dist = (q: number) => { const d = lejos(q); return d === null ? "" : distanciaTexto(d); };
+    const { cuenta, filas: gente } = listaGenteVR(lista, v.estado?.todos ?? 0, (q) => n.ia?.de?.(q) ?? null, dist, document.documentElement.lang);
+    const baliza = (p: { quien: number; nombre: string }) => () => { // an AI where trips are off: a beacon at its place, to walk there
+      const r = ras.find((x) => x.id === p.quien);
+      if (!r || !n.view?.beacon) { nota(textos(document.documentElement.lang).sinPosicion); return; }
+      n.view.beacon(r.x, r.z, p.nombre, 60_000); nota(`${textos(document.documentElement.lang).vasConBaliza}: ${p.nombre}.`); vr.menu.cerrar();
+    };
+    const filas: Fila[] = gente.map((p) => p.ia
+      ? { texto: p.nombre, detalle: p.detalle, icono: "robot", botones: [{ texto: textos(document.documentElement.lang).ir, accion: activo ? ir(p.quien, p.nombre) : baliza(p), estilo: "normal", ancho: 300 }] }
+      : { texto: p.nombre, detalle: p.detalle || undefined, icono: "user", botones: [{ texto: "Ir a su lado", accion: ir(p.quien, p.nombre), estilo: activo ? "normal" : "desactivado", ancho: 260 }] });
+    return { tipo: "lista", titulo: `Gente aquí${v.estado?.todos || gente.length ? ` · ${cuenta}` : ""}`, nota: activo ? "«Ir a su lado» te lleva junto a esa persona." : "En este mundo ahora no se puede ir junto a otros.",
       vacio: v.estado?.pedida ? "Ahora no hay nadie más en este mundo." : "Pidiendo la lista…", filas } as Contenido;
   }
   function bolsa(): Contenido {
@@ -122,10 +140,17 @@ export function montarMenuVR(o: {
       puntos: sitios.slice(0, 80).map((s) => ({ nombre: s.nombre, x: s.x, z: s.z, color: tipo(s.tipo).color })), filas, vacio: "No hay sitios marcados en esta zona." } as Contenido;
   }
   function construir(): Contenido {
-    return { tipo: "lista", titulo: "Construir en VR",
-      nota: "Apunta a una cosa y aprieta el gatillo: la eliges. Mantén el gatillo: la mueves. Agarre: la duplicas.",
-      vacio: "", filas: [{ texto: "Construir con el rayo", detalle: "Cierra el menú y apunta a lo que quieras cambiar", icono: "crane-tower",
-        botones: [{ texto: "Empezar", accion: () => { vr.menu.cerrar(); nota("Construir: apunta a una cosa y aprieta el gatillo."); }, estilo: "accion", ancho: 200 }] }] } as Contenido;
+    const who = o.n().session?.who as { id: string; nombre: string } | null | undefined;
+    const v = vistaConstruirVR({ puede: o.puedeConstruir(), invitado: esInvitado(who), activo: o.construirVR.activo() });
+    if (v.tipo === "negado") return { tipo: "lista", titulo: "Construir", vacio: v.texto, filas: [] } as Contenido;
+    const empezar = v.tipo === "listo";
+    return { tipo: "lista", titulo: empezar ? "Construir en VR" : "Construyendo", nota: AYUDA_RAYO, vacio: "",
+      filas: [{ texto: v.titulo, detalle: v.detalle, icono: iconoDe("construir"),
+        botones: [{ texto: v.boton, estilo: empezar ? "accion" : "normal", ancho: 260, accion: () => {
+          if (!empezar) { o.construirVR.salir(); nota("Has dejado de construir."); vr.menu.cerrar(); return; }
+          const r = o.construirVR.entrar();
+          if (r.ok) { nota("Construir: apunta a una cosa y aprieta el gatillo."); vr.menu.cerrar(); } else nota(r.why ?? TEXTO_FUERA_DE_VR);
+        } }] }] } as Contenido;
   }
   function ajustes(): Contenido {
     const a = o.n().ajustes;
@@ -150,8 +175,10 @@ export function montarMenuVR(o: {
   const porVista: Record<string, () => Contenido> = { tu, gente, bolsa, misiones, mapa, construir, ajustes, avisos: verAvisos };
   vr.menuProveedor({
     contenido: (v) => (porVista[v] ?? tu)(),
-    desactivadas: () => new Set(o.puedeConstruir() ? [] : ["construir"]),
+    // «Construir» is never greyed out: pressed without the role it says why (an invited guest: «Entra con tu nombre para construir»)
+    desactivadas: () => new Set(),
     alAbrir: (v) => { if (v === "gente") { const r = o.n().viajar?.pedirGente?.(); if (r && !r.ok && r.why) nota(r.why); } },
   });
-  return { avisos: () => avisos.map((x) => x.texto) };
+  // `contenido`: what a view shows now (for checks, e.g. the text «Construir» gives a guest)
+  return { avisos: () => avisos.map((x) => x.texto), contenido: (v: string) => (porVista[v] ?? tu)() };
 }

@@ -60,3 +60,16 @@ export function luzEscucha(ia: IAPublica, idioma?: string): { escucha: boolean; 
 
 /** S11: the E prompt as the interaction layer shows it after «E: » — «hablar con Ada» (the name without the « · IA» mark). */
 export const promptHablar = (nombre: string, idioma?: string): string => `${textos(idioma).promptHablar} ${sinMarca(nombre)}`;
+
+export type FilaGenteVR = { quien: number; nombre: string; ia: boolean; detalle: string };
+/** «Gente» in the VR menu, as the computer's «Aquí ahora» writes it: people first, then the AIs (name without the mark, «IA»,
+ * state and distance), and the title's count «N personas · M IAs». `distancia(quien)` is the text («a 5 m») or "". */
+export function listaGenteVR(gente: readonly { quien: number; nombre: string }[], todos: number, iaDe: (quien: number) => IAPublica | null, distancia: (quien: number) => string, idioma?: string): { cuenta: string; filas: FilaGenteVR[] } {
+  const t = textos(idioma), ias: FilaGenteVR[] = [], personas: FilaGenteVR[] = [];
+  for (const p of gente) {
+    const ia = iaDe(p.quien);
+    if (ia) ias.push({ quien: p.quien, nombre: sinMarca(p.nombre), ia: true, detalle: `${t.marca} · ${subIA(ia, distancia(p.quien), idioma)}` });
+    else personas.push({ quien: p.quien, nombre: p.nombre, ia: false, detalle: distancia(p.quien) });
+  }
+  return { cuenta: cuentaGente(Math.max(todos, gente.length) - ias.length, ias.length, idioma), filas: [...personas, ...ias] };
+}

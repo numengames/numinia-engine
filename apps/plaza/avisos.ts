@@ -5,6 +5,7 @@ import { SEGUNDOS_AL_CAMBIAR, apilarAviso } from "../../packages/client/src/dens
 import type { Aviso } from "../../packages/client/src/densidad.ts";
 import { alAnunciar, crearDialogo } from "./paneles.ts";
 import { icono } from "./iconos.ts";
+import { rotularBoton } from "./menu-secciones-ui.ts"; // v2 paridad: icon, name and tooltip from the one list of sections
 
 export function montarAvisos(): void {
   const caja = document.getElementById("avisos-pila");
@@ -48,8 +49,8 @@ export function tipoDeAviso(t: string): Tipo {
 
 function montarCentro(): void {
   const barra = document.getElementById("barra-arriba");
-  const boton = document.createElement("button"); boton.type = "button"; boton.id = "avisos-abrir"; boton.className = "solo-icono"; boton.title = "Avisos (N)";
-  boton.innerHTML = `${icono("bell")}<span class="solo-lector">Avisos</span><span class="insignia-n" hidden></span>`; // constants only
+  const boton = document.createElement("button"); boton.type = "button"; boton.id = "avisos-abrir"; boton.className = "solo-icono";
+  rotularBoton(boton, "avisos", { extra: `<span class="insignia-n" hidden></span>` }); // v2 paridad: icon, name and tooltip from the one list of sections
   (barra ?? document.body).appendChild(boton);
   const hist: Entrada[] = [];
   const leer = (h: Entrada) => { if (!h.leido) { h.leido = true; try { h.alLeer?.(); } catch { /* a reader never breaks the bell */ } } };

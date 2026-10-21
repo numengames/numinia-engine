@@ -61,3 +61,16 @@ test("gente-ia: every language has the same keys as Spanish, and an unknown or e
   assert.equal(textos("ES-es"), es);
   assert.equal(textos("__proto__"), es, "a language name never reaches the prototype");
 });
+
+test("gente-ia: «Gente» in the VR menu puts people first, then the AIs with the mark off, «IA · state · distance», and the count in the title", async () => {
+  const { listaGenteVR } = await import("../apps/plaza/gente-ia.ts");
+  const gente = [{ quien: 3, nombre: "Hermes · IA" }, { quien: 4, nombre: "Ana" }, { quien: 5, nombre: "Luz" }];
+  const iaDe = (q: number): IAPublica | null => (q === 3 ? ACTIVA : null);
+  const r = listaGenteVR(gente, 3, iaDe, (q) => (q === 3 ? "a 5 m" : ""));
+  assert.equal(r.cuenta, "2 personas · 1 IA");
+  assert.deepEqual(r.filas.map((f) => [f.nombre, f.ia]), [["Ana", false], ["Luz", false], ["Hermes", true]]);
+  assert.equal(r.filas[2]!.detalle, "IA · Activa · a 5 m");
+  assert.equal(listaGenteVR([{ quien: 3, nombre: "H · IA" }], 1, () => ({ ...ACTIVA, estado: "dormida" }), () => "").filas[0]!.detalle, "IA · Dormida");
+  assert.equal(listaGenteVR(gente, 3, () => null, () => "").cuenta, "3 personas", "no AIs: no AI part");
+  assert.equal(listaGenteVR(gente, 9, () => null, () => "").cuenta, "9 personas", "the server's count wins when larger");
+});

@@ -18,6 +18,7 @@ import { MARCA_IA } from "../../packages/instance/src/identidad.ts";
 import { crearDialogo, anunciar } from "./paneles.ts";
 import { perfil } from "./perfil-aparato.ts";
 import { icono } from "./iconos.ts";
+import { tituloDe } from "../../packages/render/src/menu-secciones.ts"; // v2 paridad: the map's name is the one list's
 import { esMovil } from "../../packages/client/src/movil.ts"; // U24
 import "./mapa.css";
 
@@ -264,7 +265,7 @@ export function montarMapa(h: HostMapa) {
   // ux2-barra: the minimap IS the button of the big map (M): no «−», «+», «N», «Mapa», «Ficha» under it. The wheel over it
   // zooms; turning with the camera is a setting (Ajustes › Interfaz, interfaz.minimapaGira); the sheet is your card (I).
   const bMapa = document.createElement("button"); bMapa.type = "button"; bMapa.id = "minimapa-abrir";
-  bMapa.title = "Mapa de la zona (M) · rueda: acercar y alejar"; bMapa.setAttribute("aria-label", "Mapa de la zona (M)");
+  bMapa.title = `${tituloDe("mapa")} · rueda: acercar y alejar`; bMapa.setAttribute("aria-label", tituloDe("mapa")); // v2 paridad: the name is the list's
   bMapa.append(miniCanvas);
   mini.append(bMapa, miniTexto);
   document.body.appendChild(mini);
