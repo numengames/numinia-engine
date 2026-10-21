@@ -98,7 +98,7 @@ test("server + page: the world's data reaches the view once; a world without the
   assert.ok(v.ok);
   const con = llega(v.ok ? v.value : null);
   assert.equal(con.vistas.length, 1);
-  assert.deepEqual(con.vistas[0], { activa: true, semilla: 99, tamano: 200, plaza: 12, arboles: 0.5, hierba: 1, estanque: true, paleta: "primavera", fauna: true, faunaDensidad: 1, faunaEspecies: "" });
+  assert.deepEqual(con.vistas[0], { activa: true, semilla: 99, tamano: 200, plaza: 12, arboles: 0.5, hierba: 1, estanque: true, paleta: "primavera", fauna: true, faunaDensidad: 1, faunaEspecies: "", base: -1 });
   assert.match(con.log.join(" "), /naturaleza: encendida \(semilla 99/);
   assert.equal(llega(null).vistas.length, 0, "no file: the page's view is never called");
 });

@@ -10,7 +10,7 @@
 // trigger must be HELD that long (a progress ring fills on the button, --progreso 0..1) before the intent is sent;
 // letting go early, or the target changing, cancels with nothing sent. A thing without `hold` fires as before.
 type Res = { ok: true } | { ok: false; why: string };
-type Cerca = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; hold?: number; local?: () => Res };
+export type Cerca = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; hold?: number; local?: () => Res };
 type Sesion = { entity: number; selfPosition(alpha: number): { x: number; y: number; z: number }; features: { reachable(x: number, z: number, y?: number): Cerca[]; use(feature: string, key: string): Res } };
 type Vista = { renderer: { domElement: HTMLElement }; pickThing?(x: number, y: number): string | null; cam?: { modo?(): string } };
 

@@ -32,7 +32,7 @@ export const PELEA = {
 export const RAREZAS = ["comun", "rara", "legendaria"] as const;
 /** Hook-window factor per rarity (tideline: common 1.15, legendary 0.78; ours keep the common fish at exactly VENTANA_S). */
 export const VENTANA_POR_RAREZA: Record<(typeof RAREZAS)[number], number> = { comun: 1, rara: 0.9, legendaria: 0.75 };
-export const MOTIVOS = ["tarde", "rota", "escapa", "agotado", "lejos", "desconectado"] as const;
+export const MOTIVOS = ["tarde", "rota", "escapa", "agotado", "lejos", "desconectado", "apagada"] as const; // f2: apagada = la pesca se apagó en el mundo (funciones.json)
 
 const ID = { kind: "text", maxBytes: 16 } as const;
 const X = { kind: "fixed", min: -2000, max: 2000, step: 0.01 } as const;
@@ -44,7 +44,7 @@ const PCT = { kind: "int", min: 0, max: 100 } as const;
 
 export const pesca = defineFeature({
   id: "pesca",
-  version: 3, // v2: `fin` carries the fish (pez, cm, rareza) so whoever is near sees it in the angler's hand; v3: each fish goes to the Inventario (`otorga`, server-only) and `captura` says whether it was kept (`guardado`)
+  version: 4, // v4 (funciones/f2): `escape.motivo` also says `apagada` (the world switched fishing off);  v2: `fin` carries the fish (pez, cm, rareza) so whoever is near sees it in the angler's hand; v3: each fish goes to the Inventario (`otorga`, server-only) and `captura` says whether it was kept (`guardado`)
   level: "base",
   describe: "Pescar en un sitio de pesca: lanzas la caña, esperas, algo mordisquea, pica y peleas con el sedal con un solo botón (recoger sube la tensión y acerca el pez; soltar la baja). El servidor decide cuándo pica, qué pez sale y si lo sacas; lo pescado se guarda por invitado y cada pez va a tu Inventario.",
   store: { describe: "Por invitado (`c:<id>`): cuántos peces de cada clase ha sacado y el mayor (cm). Nunca va a las páginas; a su dueño le llega como evento `cesta`." },
@@ -66,7 +66,7 @@ export const pesca = defineFeature({
     pelea: { describe: "Enganchaste un pez: empieza la pelea (fuerza = cuánto tira, 0-3). Solo a ti.", fields: { pez: PEZ, fuerza: { kind: "fixed", min: 0, max: 3, step: 0.01 } }, announce: { text: "¡Un pez tira del sedal! Recoge sin pasar de tensión.", sound: "magia", importance: 2 } },
     tension: { describe: "Cómo va la pelea, 10 veces por segundo: tensión del sedal (100 = se rompe), progreso (100 = lo sacas) y si el pez está dando una arrancada (o va a darla). Solo a ti.", fields: { tension: PCT, progreso: PCT, arrancada: { kind: "enum", values: ["no", "aviso", "si"] } }, announce: "silent" },
     captura: { describe: "Has pescado un pez: cuál, cuánto mide, su rareza, cuántos llevas en total y si ha ido a tu Inventario (guardado; falso si la Reserva está llena o no hay inventario). Solo a ti.", fields: { pez: PEZ, cm: CM, rareza: { kind: "enum", values: RAREZAS }, total: { kind: "int", min: 0, max: 100000 }, guardado: { kind: "bool", default: false } }, announce: { text: "Has pescado: {pez} de {cm} cm.", sound: "exito", importance: 2 } },
-    escape: { describe: "El pez se fue, y por qué (tarde = no recogiste a tiempo; rota = tensión 100; escapa = el progreso bajó a 0; agotado = la pelea duró demasiado; lejos = te alejaste). Solo a ti.", fields: { motivo: { kind: "enum", values: MOTIVOS }, texto: { kind: "text", maxBytes: 120 } }, announce: { text: "{texto}", sound: "error", importance: 1 } },
+    escape: { describe: "El pez se fue, y por qué (tarde = no recogiste a tiempo; rota = tensión 100; escapa = el progreso bajó a 0; agotado = la pelea duró demasiado; lejos = te alejaste; apagada = la pesca se apagó en este mundo). Solo a ti.", fields: { motivo: { kind: "enum", values: MOTIVOS }, texto: { kind: "text", maxBytes: 120 } }, announce: { text: "{texto}", sound: "error", importance: 1 } },
     recogida: { describe: "Recogiste la caña sin nada. Solo a ti.", fields: {}, announce: { text: "Has recogido la caña.", sound: "suave", importance: 0 } },
     fin: { describe: "Alguien cercano (o tú) dejó de pescar en un sitio: el flotador se quita. resultado = captura | escape | suelto; si fue captura, qué pez y cuánto mide (para verlo en su mano).", fields: { quien: QUIEN, sitio: ID, resultado: { kind: "enum", values: ["captura", "escape", "suelto"] }, pez: { ...PEZ, default: "" }, cm: { ...CM, default: 0 }, rareza: { kind: "enum", values: RAREZAS, default: "comun" } }, announce: "silent" },
     otorga: { describe: "Solo en el servidor (v3): el pez pescado es un objeto de quien lo sacó (quien = su entidad; tipo captura, clase = la especie, color = su rareza). Lo oye la función inventario y lo guarda; ninguna página lo recibe.", fields: { quien: QUIEN, tipo: { kind: "enum", values: ["captura"] }, clase: { kind: "text", maxBytes: 32 }, nombre: PEZ, icono: { kind: "text", maxBytes: 24, default: "" }, color: { kind: "enum", values: ["", "verde", "azul", "plateada", "dorada", "roja"] }, valor: { kind: "int", min: 0, max: 10000, default: 0 }, n: { kind: "int", min: 1, max: 999, default: 1 } }, announce: "silent" },

@@ -14,10 +14,11 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { clavePrivada } from "../packages/agent/src/llave.ts";
+import { clavePrivada, firmarBillete } from "../packages/agent/src/llave.ts";
 import { ServidorMcp } from "../packages/agent/src/mcp.ts";
 import { INSTRUCCIONES, PuenteMundo } from "../packages/agent/src/mcp-mundo.ts";
-import { FORMA_TOKEN, pedirPaseHttp, pedirPaseToken } from "../packages/agent/src/pase-org.ts";
+import { FORMA_TOKEN, pedirPaseToken } from "../packages/agent/src/pase-org.ts";
+import { pedirPaseHttp } from "../packages/agent/src/pase-org-clave.ts";
 import type { Modelo3D } from "../packages/agent/src/obra.ts";
 import { infoMotor } from "../packages/server/src/version.ts";
 
@@ -36,7 +37,7 @@ if (token && !numiniaUrl) { log("[puente] AGENTE_TOKEN solo vale para la IA de u
 if (token && !FORMA_TOKEN.test(token)) { log("[puente] AGENTE_TOKEN no tiene la forma de un token de acceso (ntk_ y 43 caracteres); cópialo entero del panel «Agentes» de numinia.com"); process.exit(2); }
 if (!url || !id || (!ruta && !token)) { log("[puente] faltan MUNDO_URL, AGENTE_ID y AGENTE_TOKEN o AGENTE_CLAVE (o --url --id --token|--clave). La clave: node tools/agente.ts nuevo <id>"); process.exit(2); }
 
-let privada;
+let privada: ReturnType<typeof clavePrivada> | undefined;
 if (!token) try { privada = clavePrivada(readFileSync(ruta, "utf8")); } catch (e) { log(`[puente] no puedo leer la clave ${ruta}: ${(e as Error).message}`); process.exit(2); }
 let biblioteca: Modelo3D[] = [];
 try {
@@ -46,7 +47,7 @@ try {
 } catch { log("[puente] sin biblioteca de modelos: puedo hablar y moverme, no colocar"); }
 
 let puente: PuenteMundo;
-try { puente = new PuenteMundo({ url, id, ...(privada ? { privada } : {}), biblioteca, log, ...(numiniaUrl ? { pedirPase: token ? pedirPaseToken({ numiniaUrl, org, agente: id, token }) : pedirPaseHttp({ numiniaUrl, org, agente: id, privada: privada! }), ...(mundoId ? { mundo: mundoId } : {}) } : {}) }); } catch (e) { log(`[puente] ${(e as Error).message}`); process.exit(2); }
+try { puente = new PuenteMundo({ url, id, ...(privada ? { firmar: (b) => firmarBillete({ ...b, privada: privada! }) } : {}), biblioteca, log, ...(numiniaUrl ? { pedirPase: token ? pedirPaseToken({ numiniaUrl, org, agente: id, token }) : pedirPaseHttp({ numiniaUrl, org, agente: id, privada: privada! }), ...(mundoId ? { mundo: mundoId } : {}) } : {}) }); } catch (e) { log(`[puente] ${(e as Error).message}`); process.exit(2); }
 const mcp = new ServidorMcp({ nombre: "numinia-mundo", version: infoMotor().build, herramientas: () => puente.herramientas(), instrucciones: INSTRUCCIONES, log });
 mcp.escuchar(process.stdin, process.stdout);
 puente.arrancar();

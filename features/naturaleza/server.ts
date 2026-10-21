@@ -31,12 +31,26 @@ export function conActiva(crudo: unknown, activa: boolean): Record<string, unkno
 
 const cortar = (t: string, n = 150) => (new TextEncoder().encode(t).length <= n ? t : `${t.slice(0, n - 1)}…`);
 
+// B1 («la base manda»): the espacio base is the ground of everything; the nature is paint over its relief. The state carries `base` (the base's seed,
+// -1 = no base) so every page and the sim know which height to follow. It is NOT in naturaleza.json: this part reads the espacio base's shared state
+// (`api.estadoDe`, read-only) when it publishes and again every tick, republishing only when the seed changed — so a hot switch of the base (its `encender`,
+// `semilla`, `restaurar`) is followed without the base feature knowing about the nature.
+const baseDe = (e: { get(key: string): Record<string, unknown> | undefined }): number => {
+  const b = e.get("mundo");
+  return b && b.activa !== false && typeof b.semilla === "number" ? b.semilla : -1;
+};
+
 export const crearNaturaleza = (mundo: NaturalezaMundo | null = null, fauna?: TablaFauna, opts: OpcionesNaturaleza = {}) => serverPart(naturaleza, (api) => {
+  const baseAhora = () => baseDe(api.estadoDe("espacio-base"));
   const decir = (m: NaturalezaMundo, fauna?: TablaFauna) => `naturaleza: ${m.activa ? "encendida" : "apagada"} (semilla ${m.semilla}, ${m.tamano} m, plaza ${m.plaza} m, árboles ${m.arboles}, hierba ${m.hierba}, ${m.estanque ? "con" : "sin"} estanque, paleta ${m.paleta}, fauna ${m.fauna ? `${(fauna ?? FAUNA_CASA).especies.length} especies${fauna ? " del mundo" : ""}, densidad ${m.faunaDensidad}${m.faunaEspecies ? `, solo ${m.faunaEspecies}` : ""}` : "apagada"})`;
   if (mundo) {
-    api.state.set(MUNDO, { ...mundo });
+    api.state.set(MUNDO, { ...mundo, base: baseAhora() });
     api.log(decir(mundo, fauna));
   }
+  api.onTick(() => { // B1: follow the espacio base's hot changes
+    const ahora = api.state.get(MUNDO) as NaturalezaMundo | undefined, b = baseAhora();
+    if (ahora && (ahora.base ?? -1) !== b) api.state.set(MUNDO, { ...ahora, base: b });
+  });
   const rechazar = (e: number, motivo: string) => { api.emit("rechazado", { motivo: cortar(motivo) }, { to: e }); return false; };
   const ids = (fauna ?? FAUNA_CASA).especies.map((x) => x.id);
 
@@ -59,7 +73,7 @@ export const crearNaturaleza = (mundo: NaturalezaMundo | null = null, fauna?: Ta
       valor = { ...(ahora ?? mundo ?? DEFECTOS), activa };
       api.log(`sin carpeta del mundo donde escribir: el cambio vale hasta que el servidor se reinicie`);
     }
-    api.state.set(MUNDO, { ...valor });
+    api.state.set(MUNDO, { ...valor, base: baseAhora() }); // B1: the switch keeps the base seed
     api.emit("cambiado", { estado: activa ? "encendida" : "apagada" }, "all");
     api.log(`la ${activa ? "enciende" : "apaga"} la entidad ${e} desde el mundo → ${decir(valor, fauna)}`);
   });

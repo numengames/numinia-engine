@@ -1453,6 +1453,72 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Commit: rama `onboarding/lienzo` (desde origin/main 1b04bd1d), sin subir.
 - Siguiente: el «Taller» (guía, 11 misiones, flecha a los botones) sobre el lienzo; una farola de pie CC0 para la biblioteca (hoy hay «Farolillo»); idiomas ja, ko y pt-br de las frases del cable (siguen pendientes).
 
+## 2026-10-21 18:30 · funciones f1 · hecho
+- Qué: historia f1 de los interruptores de funciones (0.28.0, solo servidor + protocolo; la vista va en f3/v3). Pieza nueva
+  `features/funciones`: quien puede construir enciende y apaga en caliente `normas` (la puerta de condiciones de entrada),
+  `dardos` y `pesca` con el verbo `poner`; se guarda en `entorno/funciones.json` (`funciones@1`, mismo escritor atómico que el
+  espacio base) y sobrevive al reinicio. Apagar las normas deja entrar a quien las leía; encenderlas solo pide a quien llegue después.
+  Prioridad de la puerta: opción de `startServer` / `MOTOR_CONDICIONES_PUERTA` > `funciones.json` > `"puerta"` de `condiciones.json`.
+  Estado `normas|dardos|pesca` = `{ activa, fija }` para las páginas (`__numinia.funciones`). `dardos` y `pesca` solo se guardan y
+  se publican: esconderlos es f2. Sin `funciones.json`, todo como hoy (huella `7e630965`).
+- Números: `test/funciones-interruptores.test.ts` (8 pruebas); ver la PR para `npm test`, gates y tamaño.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `funciones/f1-interruptores-servidor`, sin subir.
+- Siguiente: f2 (esconder dianas y estanque con el interruptor), f3/v3 (panel con los interruptores).
+## 2026-10-21 18:40 · ia-visible (las IAs se ven) · hecho
+- Qué: Las IAs se ven: robot, cartel verde con IA, aro en el suelo, sección IAs en Gente y su ficha con «Ir hacia ella». Cualquier IA que entre a un mundo lo muestra, sin encender nada (R-1): cuerpo de robot de la casa, cartel de nombre siempre visible y verde con la marca «IA» (luna si duerme), aro verde bajo ella, rombo en el mapa (hueco si duerme) cuyo clic abre su ficha, sección «IAs» en Gente (`N personas · M IAs`) y ficha con quién responde por ella, Activa/Dormida, si construye y «Ir hacia ella» (viaje, o baliza donde los viajes están apagados). El pase acepta un bloque `ia` opcional y estricto; sin él, ficha mínima. Versión 0.29.0 (menor: algo nuevo que no rompe nada).
+- Números: ver el cuerpo de la PR (`npm test`, gates, build, `layers`, `tamano`). Sin probar en Quest/VR reales, ni el paso en vivo de dormida a activa.
+- Idiomas: los textos nuevos de Gente y de la ficha (`gente-ia-es.ts`) están en español. **`en`, `ja`, `ko` y `pt-br` pendientes** (caen en español).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `feat/ia-visible` (S1–S7 + clic del mapa + origin/main a4e967ec), PR contra `main`.
+- Siguiente: ja/ko/pt-br; que numinia.com mande el bloque `ia` cuando este motor esté publicado en toda la flota.
+## 2026-10-21 · funciones f2 · hecho
+- Qué: historia f2 (0.30.0): dardos y pesca obedecen su interruptor. Servidor (manda él): apagada, la pieza rechaza toda acción y cierra lo
+  que corría —tirada suelta termina, duelo cancelado para todos sin ganador, pescador suelto con `escape.motivo "apagada"` (pesca v4: un
+  valor nuevo al final del enum), sitio libre—. Página (PC, móvil, AR, VR, por los controladores): sin diana, estanque, flotador, pez en mano
+  ni «E: …»; el chunk de la pieza ni se carga; al encender reaparece sin recargar. `ClientApi.estadoDe(feature)` (solo lectura) y las
+  funciones puras `encendida` / `verSi`. Encendidas (por defecto) = como hoy; sin cambio en la simulación (huella intacta).
+- Números: `test/funciones-obedecen.test.ts` (4 pruebas); ver la PR para `npm test`, gates y build.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `funciones/f2-dardos-pesca-obedecen` (sobre f1), sin subir.
+- Siguiente: f3 (e2e de navegador y panel con los interruptores).
+## 2026-10-21 19:42 · ia-llamar S8 (la burbuja de acción de cada IA) · hecho
+- Qué: toda IA conectada tiene una burbuja (esfera, cúpula, cilindro o caja; radio de 2 a 12 m; por defecto esfera de 4 m «al acercarte», o la del bloque `ia.burbuja` del pase). El servidor decide cada 10 ticks quién está dentro y avisa a la IA (`entraEnBurbuja`/`saleDeBurbuja`) y a la persona («Entras en la burbuja de Ada (IA).», una vez por entrada, con respiro de 10 s por IA). Publica la forma para que S9 la dibuje y ofrece `dentroDeBurbuja(ia)` a S10/S12. Sin IAs no hace nada (una comprobación por tick). Nombres de eventos en camelCase porque el motor no admite guiones bajos.
+- Números: ver el cuerpo de la PR (`npm test`, gates, build). Sin dibujo todavía (S9) y sin llamada (S10).
+- Idiomas: el aviso «Entras en la burbuja de…» está en español; **`en`, `ja`, `ko` y `pt-br` pendientes**.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `feat/ia-llamar` (sobre `feat/ia-visible`), sin PR.
+- Siguiente: S9 (dibujo), S10 (llamar), S13 («En tu burbuja» en `mirar`).
+## 2026-10-21 19:55 · ia-llamar S10 (llamar a una IA) · hecho
+- Qué: función `llamar` (servidor). Se llama a una IA por su nombre en el chat cercano, con `/nombre mensaje` (no se publica: solo quien lo escribe y la IA), con su frase clave o con la petición `llamar {ia, texto}` (botón y tecla E de S11). Respeta las casillas del bloque `ia.llamada` del pase (nueva señal solo-servidor `iaLlamada` en `roles`) y `solo_dentro` (burbuja de S8, o 20 m). Entre varias, la que te tiene dentro y luego la más cercana. Una llamada cada 10 s por persona y 30 por hora por IA, con aviso de pantalla; la IA recibe `llamada {ia, quien, nombre, texto, modo, t}` y un buzón (20 llamadas, 10 min) para el puente (S12). Sin IAs no hace nada.
+- Números: ver el cuerpo de la PR (`npm test`, gates, build). `test/llamar.test.ts`: 29 pruebas.
+- Idiomas: los avisos («Has llamado a Ada.», «Vas muy deprisa…») están en español; **`en`, `ja`, `ko` y `pt-br` pendientes**.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `feat/ia-llamar` (sobre S8), sin PR.
+- Siguiente: S11 (botón «Hablar con ella» y tecla E), S12 (el puente lee el buzón y deja de detectar el nombre por su cuenta).
+## 2026-10-21 21:20 · ia-llamar S12 (el puente atiende llamadas) · hecho
+- Qué: el puente (`packages/agent/src/mcp-mundo.ts`) guarda un buzón con los eventos `llamada` de la función `llamar` (últimas 20, 10 minutos; `buzon-llamadas.ts`) y las herramientas `llamadas` (las no leídas: quién, qué, cómo, hace cuántos segundos; cada una se da una vez) y `esperar_llamada` {segundos 1–25} (vuelve en cuanto llega una llamada o alguien entra en la burbuja, vacía al cumplirse el tiempo; no bloquea las demás herramientas). Con servidor que tiene `llamar`, deja de buscar su nombre en el chat: la llamada del servidor es la que deja hablar a una IA dormida; con servidor antiguo, todo como antes. «Atenta»: cada `llamadas` / `esperar_llamada` envía `ia.atenta` (como mucho una cada 5 s) y la ficha pública pone `atenta: true` 90 s desde el último aviso (`features/ia`, versión 2); un pase nuevo no la reinicia.
+- Números: `test/puente-llamadas.test.ts` (buzón, espera con relojes falsos, puente real en un mundo en memoria con chat, burbuja y `llamar`, servidor antiguo) y una prueba nueva en `test/ia-publica.test.ts`. `npm run puente` empaqueta sin `node:`. Para que el puente empaquete esta rama se trajo `tools/empaquetar-puente.mjs` de `agentes/puente-neutral` (240002dc) con `codeSplitting: false` (el cliente carga el terreno en un trozo aparte).
+- Idiomas: los textos que lee el cerebro están en español; **`en`, `ja`, `ko` y `pt-br` pendientes**.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `feat/ia-puente` (sobre `feat/ia-llamar`), sin PR.
+- Siguiente: S13 (`gesto` y «En tu burbuja» en `mirar`), S14 (numinia-web refresca el paquete).
+
+## 2026-10-21 21:40 · ia-llamar S13 (gesto y «En tu burbuja») · hecho
+- Qué: herramienta `gesto` {tipo: saludar|asentir|pensar|señalar} del puente: manda un movimiento de la función `gestos` (lo ven quienes están a menos de 30 m). Solo «saludar» tiene animación propia; «asentir» usa `hablar`, «pensar» `agacharse` (ambos paran solos a los 2 y 4 s) y «señalar» `usar`; la herramienta lo dice y la tabla está en `packages/agent/src/gesto-ia.ts` (cuando haya clips propios se cambia una línea; una prueba comprueba que cada movimiento exista). `mirar` añade «En tu burbuja: nadie / N» y, dentro del material, quién (con distancia), a partir de los eventos de `burbuja`; sin esa función no dice nada de burbuja.
+- Números: 4 pruebas nuevas en `test/puente-llamadas.test.ts` (tabla contra la lista real del mundo, `mirar`, gesto real visto por otra persona, mundo sin `gestos`).
+- Idiomas: textos para el cerebro en español; **`en`, `ja`, `ko` y `pt-br` pendientes**.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `feat/ia-puente`, sin PR.
+- Siguiente: S14 (numinia-web refresca `puente-mundo.mjs` y lo reenvía).
+
+## 2026-10-21 23:50 · ia-llamar S11 (Hablar con ella) y cierre de llamar a una IA · hecho
+- Qué: Las IAs se pueden llamar: por su burbuja, por su nombre, con `/nombre` o con el botón «Hablar con ella»; la IA puede esperar llamadas y saludar. Página (S11): en la tarjeta y en la ficha de Gente de una IA, si su casilla de botón está encendida, sale «Hablar con ella»; la primera vez (por navegador) un aviso («Lo que le digas lo lee su cerebro (la empresa de esa IA) fuera del mundo, y su respuesta la ven quienes estén cerca.», Aceptar) y luego una cajita (hasta 190 bytes, con contador; si no cabe se rechaza, nunca se corta). Dentro de la burbuja de una IA sale «E: hablar con <nombre>» (el mismo «E» de los hologramas, la cerradura y el vídeo: lo enseña lo más cercano; al `entras` aparece y al `sales` se va) y abre la misma cajita. La tarjeta dice «Escuchando ahora» si su cerebro usó las herramientas de escucha hace menos de 90 s, y «No escucha ahora» si no (texto de S16). La tarjeta se coloca a un lado para no tapar la burbuja de respuesta.
+- Números: ver el cuerpo de la PR. `test/llamar-ia.test.ts` (pruebas puras). Comprobado en navegador con una IA conectada por el puente (`esperar_llamada` devuelve «hola, ¿me oyes?», la IA responde con `decir` y `gesto saludar`; también `/ada hola` y la tecla E), PC 1400×900 y móvil 390×844; capturas en `work/ia-organizacion/capturas/llamar/`.
+- Idiomas: los textos nuevos están en español; **`en`, `ja`, `ko` y `pt-br` pendientes** (caen en español).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `feat/ia-llamar` (S8–S11 y el puente de `feat/ia-puente`, con origin/main 9573c2ae), PR contra `main`.
+- Siguiente: S14 (numinia-web refresca `puente-mundo.mjs` para dar estas herramientas a las IAs conectadas); S16 completo en el puente; idiomas.
 ## 2026-10-21 19:00 · T1 paso de misión `hace` + `senala` · hecho
 - Qué: nuevo tipo de paso `hace` en `mision@1` (13 acciones: coloca, mueve, gira, escala, oculta, borra, crea/edita/borra/dispara_cable y las tres de página abre_construir, abre_cable, abre_biblioteca) y el campo `senala` (id del botón al que apuntará la flecha; vale en cualquier paso; solo se valida, se guarda y viaja con el paso). El servidor lo decide oyendo eventos que ya existían: nuevos `objetos.hizo` y `disparadores.hizo` (solo-servidor, con la entidad autora; `mover` dice si cambió sitio, giro o escala) y `persona` en `disparadores.senal`; las tres acciones de página entran por la orden nueva `misiones.hace`, que solo acepta esas tres. Sin permiso de construir no cuenta nada; un `hace` que no es el paso actual no cuenta. Nada en el tick. El cliente expone `misiones.hace(accion)` y `misiones.senala()`; la plaza avisa al abrir Construir, Añadir y Cable solo si un paso lo pide. Aditivo: `misiones` v7 (el evento `paso` gana `accion` y `senala`, intent `hace`); `objetos` y `disparadores` no cambian de versión (eventos solo-servidor).
 - Números: `test/misiones-hace.test.ts` (7 pruebas) nuevo; tres pruebas viejas actualizadas (lista de campos del paso, versión 7). Huella de determinismo intacta (un mundo con misiones `hace` hashea igual que sin ellas).

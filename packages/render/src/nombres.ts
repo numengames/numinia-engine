@@ -5,8 +5,11 @@
 // VRM avatars (J1) pass the head bone's height instead.
 // U22: a name shows only over whoever you look at or who speaks (all of them while `todos` is held: Alt, a button), and no
 // plate takes more than 8° (name) / 30° (bubble) of your view, near or far, on screen or in VR (carteles.ts).
+// ia-visible S4: the plate of an AI is the exception: always drawn (even beyond 24 m if the avatar exists, and first when plates are capped), a green
+// border, an «IA» chip after the name and a crescent when it sleeps (ia-marca.ts). `ia(t, estado)` is called from the page with the public card.
 import * as THREE from "three/webgpu";
 import { escalaAcotada, nombreVisible, NOMBRE_GRADOS_MAX, DIALOGO_GRADOS_MAX, type Mirable } from "./carteles.ts";
+import { estiloCartel, nombreSinMarca, type EstadoIA, type EstiloCartel } from "./ia-marca.ts"; // ia-visible S4: an AI's plate is always on, green, with an «IA» chip and a moon when asleep
 
 export type Target = number | "self";
 export const NOMBRE_VISIBLE_M = 24;     // names are drawn for avatars this close to you (the server sends them up to 24 m)
@@ -58,6 +61,7 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
   const tags = new Map<Target, Plate>();               // plates drawn now (made when first shown)
   const bubbles = new Map<Target, Plate & { until: number }>();
   const lectores = new Map<Target, string>();           // condiciones/c5: who is reading the norms -> the words after their name; their plate is always on
+  const ias = new Map<Target, EstadoIA>();             // ia-visible S4: who is an AI now and its state (empty in a world without AIs: nothing else is made)
   const textoDe = (t: Target): string => { const base = texts.get(t) ?? "", et = lectores.get(t); return et ? (base ? `${base} · ${et}` : et) : base; };
   let top: Top = (_t, m) => m.position.y + 0.85;       // the capsule: its centre + half its height (index.ts draws it at y 0.85)
   const cam = new THREE.Vector3(), camQ = new THREE.Quaternion();
@@ -72,13 +76,32 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
     m.map?.dispose(); m.dispose(); p.mesh.geometry.dispose();
     map.delete(t);
   }
-  function nameplate(text: string): Plate {
+  function nameplate(text: string, est: EstiloCartel | null = null): Plate {
     const c = document.createElement("canvas"), g = c.getContext("2d")!;
-    const font = "600 40px system-ui, sans-serif";
+    const font = "600 40px system-ui, sans-serif", chipFont = "700 30px system-ui, sans-serif";
+    const nombre = est ? nombreSinMarca(text) : text;
     g.font = font;
-    c.width = Math.min(1024, Math.ceil(g.measureText(text).width) + 36); c.height = 60;
-    g.font = font; g.fillStyle = "rgba(20,26,34,0.78)"; roundRect(g, 0, 0, c.width, c.height, 18); g.fill();
-    g.fillStyle = "#f4f7fb"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, c.width / 2, c.height / 2 + 2);
+    const wTexto = Math.ceil(g.measureText(nombre).width);
+    let wChip = 0, wLuna = 0;
+    if (est) { g.font = chipFont; wChip = Math.ceil(g.measureText(est.chip).width) + 26; wLuna = est.luna ? 34 : 0; }
+    const extra = est ? 14 + wChip + (wLuna ? 10 + wLuna : 0) : 0;
+    c.width = Math.min(1024, wTexto + extra + 36); c.height = 60;
+    g.fillStyle = "rgba(20,26,34,0.78)"; roundRect(g, 0, 0, c.width, c.height, 18); g.fill();
+    if (est) { g.strokeStyle = est.borde; g.lineWidth = 5; roundRect(g, 2.5, 2.5, c.width - 5, c.height - 5, 16); g.stroke(); }
+    g.font = font; g.fillStyle = est?.tinta ?? "#f4f7fb"; g.textBaseline = "middle";
+    const x0 = (c.width - (wTexto + extra)) / 2; // the whole group (name, chip, moon) is centred on the plate
+    g.textAlign = est ? "left" : "center";
+    g.fillText(nombre, est ? x0 : c.width / 2, c.height / 2 + 2);
+    if (est) {
+      let x = x0 + wTexto + 14;
+      g.fillStyle = est.chipFondo; roundRect(g, x, 11, wChip, 38, 12); g.fill();
+      g.font = chipFont; g.fillStyle = est.chipTinta; g.textAlign = "center"; g.fillText(est.chip, x + wChip / 2, c.height / 2 + 2);
+      if (est.luna) { // a crescent: a disc minus a shifted disc (no font glyph: it reads the same everywhere)
+        x += wChip + 10; const cx = x + 15, cy = c.height / 2;
+        g.save(); g.fillStyle = "#e8f1ef"; g.beginPath(); g.arc(cx, cy, 13, 0, Math.PI * 2); g.fill();
+        g.globalCompositeOperation = "destination-out"; g.beginPath(); g.arc(cx + 7, cy - 4, 11, 0, Math.PI * 2); g.fill(); g.restore();
+      }
+    }
     const mesh = plate(c, (NOMBRE_ALTO_M * c.width) / c.height);
     o.world.add(mesh);
     return { mesh, text, h: NOMBRE_ALTO_M, w: (NOMBRE_ALTO_M * c.width) / c.height };
@@ -117,6 +140,11 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
       if (si) lectores.set(t, etiqueta); else lectores.delete(t);
       drop(tags, t); // remade with the new words when next shown
     },
+    /** ia-visible S4: this avatar is an AI in this state (`activa`|`dormida`), or a person again / gone (`null`). Its plate is always on and carries the mark. */
+    ia(t: Target, estado: EstadoIA | null): void {
+      if (estado === null) ias.delete(t); else ias.set(t, estado);
+      drop(tags, t); // remade with the mark (or without it) when next shown
+    },
     /** A bubble over an avatar for `ms`; the latest replaces the one before. */
     bubble(t: Target, text: string, ms: number): void {
       drop(bubbles, t);
@@ -150,12 +178,13 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
       for (const t of lectores.size ? new Set([...texts.keys(), ...lectores.keys()]) : texts.keys()) {
         const text = textoDe(t), a = t === "self" || !text ? undefined : o.avatarOf(t); // your own name is never drawn over you
         let p = tags.get(t);
-        if (!a || far(a, NOMBRE_VISIBLE_M) || !nombreVisible({ todos: ver.todos, mirado: ver.mirado === t, habla: bubbles.has(t) || lectores.has(t) })) { if (p) p.mesh.visible = false; continue; }
+        const esIA = ias.has(t);
+        if (!a || (!esIA && far(a, NOMBRE_VISIBLE_M)) || !nombreVisible({ todos: ver.todos, mirado: ver.mirado === t, habla: bubbles.has(t) || lectores.has(t), ia: esIA })) { if (p) p.mesh.visible = false; continue; }
         shown.push({ t, a, d: me ? (a.position.x - me.position.x) ** 2 + (a.position.z - me.position.z) ** 2 : 0 });
         if (p && p.text !== text) { drop(tags, t); p = undefined; } // the words changed (they started or stopped reading)
-        if (!p) tags.set(t, nameplate(text));
+        if (!p) tags.set(t, nameplate(text, estiloCartel(ias.get(t))));
       }
-      shown.sort((x, y) => x.d - y.d);
+      shown.sort((x, y) => (+ias.has(y.t) - +ias.has(x.t)) || x.d - y.d); // an AI's plate first when the cap bites, then the nearest
       shown.forEach(({ t, a }, i) => {
         const p = tags.get(t)!;
         p.mesh.visible = i < NOMBRES_DIBUJADOS;
@@ -176,10 +205,10 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
         b.mesh.quaternion.copy(camQ);
       }
     },
-    /** For checks: every name the page holds and whether its plate is drawn now. */
-    nameTags(): { target: Target; text: string; drawn: boolean }[] {
+    /** For checks: every name the page holds and whether its plate is drawn now (`ia` = the AI's state when it is one). */
+    nameTags(): { target: Target; text: string; drawn: boolean; ia?: EstadoIA }[] {
       const claves = lectores.size ? new Set([...texts.keys(), ...lectores.keys()]) : texts.keys();
-      return [...claves].map((target) => ({ target, text: textoDe(target), drawn: !!tags.get(target)?.mesh.visible }));
+      return [...claves].map((target) => ({ target, text: textoDe(target), drawn: !!tags.get(target)?.mesh.visible, ...(ias.has(target) ? { ia: ias.get(target) } : {}) }));
     },
     /** For checks: bubbles alive now. */
     bubbles(): { target: Target; text: string; drawn: boolean }[] {

@@ -69,6 +69,8 @@ export type OpcionesTerreno = {
   escena?: THREE.Object3D;
   /** N4: no pond (see OpcionesRelieve.sinEstanque). */
   sinEstanque?: boolean;
+  /** B3: seed of the espacio base. Present = the nature is painted on the base's relief (heights = alturaBase, relieve.ts B1), with no pond; the mesh is pushed back in depth so the base's lines draw over it. */
+  base?: number;
   /** N4: colours (hex) over the house palette, per zone: the world's palette (verano / otoño / primavera) changes the meadow only. */
   colores?: Partial<Record<Zona, number>>;
   /** R5.2: the world's season (paleta.ts ESTACIONES): picks the meadow colours; wins over the legacy `colores`. */
@@ -92,6 +94,8 @@ export const LADOS_AGUA_PLANA = 14;
 export type Terreno = {
   malla: THREE.Mesh;
   alturaEn: (x: number, z: number) => number;
+  /** avatares/suelo-relieve: the height of the DRAWN surface (the lattice triangle under the point), which the coarser collision mesh only approximates. */
+  alturaDibujadaEn: (x: number, z: number) => number;
   zonaEn: (x: number, z: number) => Zona;
   /** R6.2: the ground bands at a point (pass the height when you have it: one relief sample less). */
   franjaEn: (x: number, z: number, h?: number) => Franjas;
@@ -313,7 +317,7 @@ export function nodoSuelo(e: EntradaSuelo): V3 {
 
 /** Build the terrain: ONE mesh (one draw call), R7.2 smooth-shaded over shared lattice vertices, vertex colours + the ground node, no texture. */
 export function crearTerreno(o: OpcionesTerreno): Terreno {
-  const nivel = o.nivel ?? "A", n = o.celdas ?? CELDAS_TERRENO[nivel], tam = o.tamano ?? TAMANO, op: OpcionesRelieve = { tamano: tam, plaza: o.plaza ?? PLAZA, sinEstanque: o.sinEstanque };
+  const nivel = o.nivel ?? "A", n = o.celdas ?? CELDAS_TERRENO[nivel], tam = o.tamano ?? TAMANO, sinEstanque = !!o.sinEstanque || o.base !== undefined, op: OpcionesRelieve = { tamano: tam, plaza: o.plaza ?? PLAZA, sinEstanque, ...(o.base !== undefined ? { base: o.base } : {}) };
   const s = o.semilla, mitad = tam / 2, paso = tam / n;
   const nv = n + 1;
   // sample heights and zone weights once per lattice vertex, then colour in a second pass (slope and curvature need the neighbours)
@@ -340,7 +344,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
     C[k * 3] = tmpC.r; C[k * 3 + 1] = tmpC.g; C[k * 3 + 2] = tmpC.b;
     M[k] = mascaraSuelo(x, z, h, mitad, borde); // the shader recomputes this per vertex (same formula): the CPU twin interpolates it on the triangle like the GPU
   }
-  const e = estanqueDe(s, tam), plana = o.aguaPlana !== undefined && !o.sinEstanque;
+  const e = estanqueDe(s, tam), plana = o.aguaPlana !== undefined && !sinEstanque;
   // the drawn surface: the triangle of the lattice cell under (x, z) and its barycentric weights (the split alternates by cell parity, as built below)
   const celda = (x: number, z: number, cb: (ka: number, wa: number, kb: number, wb: number, kc: number, wc: number) => number) => {
     const fi = Math.min(n - 1e-6, Math.max(0, (x + mitad) / paso)), fj = Math.min(n - 1e-6, Math.max(0, (z + mitad) / paso)), i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j;
@@ -357,8 +361,8 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
     return u <= v ? a + v * (c - a) + u * (d - c) : a + u * (b - a) + v * (d - b);
   };
   const en3 = (A: Float32Array, x: number, z: number): [number, number, number] => { const r: [number, number, number] = [0, 0, 0]; celda(x, z, (ka, wa, kb, wb, kc, wc) => { for (let q = 0; q < 3; q++) r[q] = A[ka * 3 + q] * wa + A[kb * 3 + q] * wb + A[kc * 3 + q] * wc; return 0; }); return r; };
-  const res = o.residuos === false ? null : construirResiduos(s, { nivel, tamano: tam, plaza: op.plaza ?? PLAZA, estanque: o.sinEstanque ? null : e }, alturaMalla, (x, z) => zonaEn(s, x, z, op));
-  const flo = !(o.flora ?? o.residuos !== false) ? null : construirFlora(s, { nivel, tamano: tam, plaza: op.plaza ?? PLAZA, estanque: o.sinEstanque ? null : e, evitar: res?.piezas }, alturaMalla, (x, z) => zonaEn(s, x, z, op)); // R6.5
+  const res = o.residuos === false ? null : construirResiduos(s, { nivel, tamano: tam, plaza: op.plaza ?? PLAZA, estanque: sinEstanque ? null : e }, alturaMalla, (x, z) => zonaEn(s, x, z, op));
+  const flo = !(o.flora ?? o.residuos !== false) ? null : construirFlora(s, { nivel, tamano: tam, plaza: op.plaza ?? PLAZA, estanque: sinEstanque ? null : e, evitar: res?.piezas }, alturaMalla, (x, z) => zonaEn(s, x, z, op)); // R6.5
   const triRes = res?.triangulos ?? 0, triFlo = flo?.triangulos ?? 0, tris = triangulosDeTerreno(n, plana) + triRes + triFlo;
   // R7.2 vertex layout: [lattice nv² (shared, smooth)] [skirt, pond, Residuos, flora: 3 own vertices per triangle (their faces stay flat)]
   const nRejilla = nv * nv, nSueltos = (tris - 2 * n * n) * 3, nvt = nRejilla + nSueltos;
@@ -448,6 +452,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
     trozos = { actualizar: (x, z) => { const c = T.actualizar(x, z); if (c) subir(); return c; }, estadisticas: () => T.estadisticas() };
   }
   const mat = materialSuelo({ semilla: s, nivel, nRejilla, mitad, borde, radioDetalle: o.trozos?.radioDetalle ?? 0 });
+  if (o.base !== undefined) { mat.polygonOffset = true; mat.polygonOffsetFactor = 2; mat.polygonOffsetUnits = 2; } // B3: the base's lines (drawn after, depth-tested) win the tie with this surface
   const malla = new THREE.Mesh(g, mat);
   malla.name = "terreno-naturaleza";
   malla.userData.sinSombra = true; malla.receiveShadow = !!o.recibeSombra;
@@ -458,7 +463,7 @@ export function crearTerreno(o: OpcionesTerreno): Terreno {
   const mascaraEn = (x: number, z: number) => celda(x, z, (ka, wa, kb, wb, kc, wc) => M[ka] * wa + M[kb] * wb + M[kc] * wc);
   return {
     malla, estanque: { ...e, nivel: AGUA }, triangulos: tris, vertices: nvt, residuos: { triangulos: triRes, sitios: res?.sitios ?? [] }, flora: { triangulos: triFlo },
-    alturaEn: (x, z) => alturaEn(s, x, z, op), zonaEn: (x, z) => zonaEn(s, x, z, op),
+    alturaEn: (x, z) => alturaEn(s, x, z, op), alturaDibujadaEn: alturaMalla, zonaEn: (x, z) => zonaEn(s, x, z, op),
     franjaEn: (x, z, h) => franjasEn(s, x, z, h ?? alturaEn(s, x, z, op), op),
     colorBaseEn, normalEn,
     colorSueloEn: (x, z) => sombrearSuelo(colorBaseEn(x, z), x, z, normalEn(x, z)[1], mascaraEn(x, z), s, nivel),

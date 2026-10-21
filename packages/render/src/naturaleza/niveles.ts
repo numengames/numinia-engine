@@ -46,12 +46,17 @@ export type HierbaNivel = {
    *  the tier sends `tuftsMax + cerca.tuftsMax` tufts in all. */
   cerca?: { radio: number; celda: number; tuftsMax: number };
 };
+// N1 «aparece antes» (Pablo, videos 2026-10-20: the grass showed up when he was already on top of it): the outer ring reached only 24 m on A (16 B · 14 C · 10 D) and
+// the shader thins it from 70 % of that, so 30 m ahead of a walker the ground was bare (tools/naturaleza-alcance.ts: 0 tufts/m² at 30–38 m on every tier). The outer
+// ring now reaches A 48 m · B 36 m · C 26 m, so the fade starts after 33 m on A and the grass stands before the player arrives; tufts rise with the area (density at the fade start ≈ 0.33/m², was 0.55); reach where
+// the live density is still ≥ 0.1 tuft/m² ahead: A 20 → 40 m · B 12 → 32 m · C 12 → 20 m · D 8 m. Same single draw call and the same per-frame refill budget (`presupuestoMs`). D keeps 10 m: the oldest phones pay for it in
+// heat first, and a world can still ask for more through its tier table. The fog is untouched (Pablo likes it): it veils ~16 % at 44 m, the edge itself melts by shrinking (no pop).
 export const HIERBA_POR_NIVEL: Record<Nivel, HierbaNivel> = {
   // N7: each tier's tufts are split into a coarse outer ring and a dense inner ring (A 1050 + 350 = 1400 as before, so the grass's share does not change):
   // density ≈ 0.6 tufts/m² outside, ≈ 2.9 within the inner radius (was a flat 0.77), thinning with distance. Flowers are tufts of the outer ring.
-  A: { radio: 24, tuftsMax: 1000, celda: 8, floresMax: 0.1, aleteo: true, presupuestoMs: 0.4, cerca: { radio: 7, celda: 3.5, tuftsMax: 340 } },
-  B: { radio: 16, tuftsMax: 600, celda: 8, floresMax: 0.08, aleteo: true, presupuestoMs: 0.4, cerca: { radio: 6, celda: 3, tuftsMax: 190 } },
-  C: { radio: 14, tuftsMax: 450, celda: 8, floresMax: 0.08, aleteo: true, presupuestoMs: 0.4, cerca: { radio: 5.5, celda: 3, tuftsMax: 140 } },
+  A: { radio: 48, tuftsMax: 2400, celda: 8, floresMax: 0.1, aleteo: true, presupuestoMs: 0.4, cerca: { radio: 7, celda: 3.5, tuftsMax: 340 } },
+  B: { radio: 36, tuftsMax: 1300, celda: 8, floresMax: 0.08, aleteo: true, presupuestoMs: 0.4, cerca: { radio: 6, celda: 3, tuftsMax: 190 } },
+  C: { radio: 26, tuftsMax: 800, celda: 8, floresMax: 0.08, aleteo: true, presupuestoMs: 0.4, cerca: { radio: 5.5, celda: 3, tuftsMax: 140 } },
   D: { radio: 10, tuftsMax: 250, celda: 7, floresMax: 0.06, aleteo: false, presupuestoMs: 0.3, cerca: { radio: 4.5, celda: 3, tuftsMax: 80 } },
 };
 
@@ -62,9 +67,9 @@ export const HIERBA_POR_NIVEL: Record<Nivel, HierbaNivel> = {
  *  pixels, not opaque triangles: work/naturaleza/investigacion/04-presupuestos-estandar.md); the draw calls stay as they were (N6: 8 · 7 · 6 · 5).
  *  The shares (`reparto`) are NOT raised here: each R7 story that spends the new room raises its own share, and the sum of shares stays ≤ `triangulos`. */
 export const PRESUPUESTO_NATURALEZA: Record<Nivel, { triangulos: number; llamadas: number; reparto: { terreno: number; arboles: number; hierba: number; fauna: number } }> = {
-  A: { triangulos: 100000, llamadas: 8, reparto: { terreno: 4000, arboles: 8000, hierba: 4250, fauna: 1600 } }, // R6.5: +400 terrain for the baked flora (flora.ts), paid by 30 outer grass tufts and the trees'/fauna's unused slack
-  B: { triangulos: 60000, llamadas: 7, reparto: { terreno: 2100, arboles: 5000, hierba: 2500, fauna: 1100 } },
-  C: { triangulos: 35000, llamadas: 6, reparto: { terreno: 1650, arboles: 7700, hierba: 1900, fauna: 800 } },
+  A: { triangulos: 100000, llamadas: 8, reparto: { terreno: 4000, arboles: 8000, hierba: 8500, fauna: 1600 } }, // N1 aparece-antes: grass share 4250 → 8500 (outer ring 24 → 48 m); R6.5: +400 terrain for the baked flora (flora.ts), paid by 30 outer grass tufts and the trees'/fauna's unused slack
+  B: { triangulos: 60000, llamadas: 7, reparto: { terreno: 2100, arboles: 5000, hierba: 4600, fauna: 1100 } }, // N1 aparece-antes: grass share 2500 → 4600 (outer ring 16 → 36 m)
+  C: { triangulos: 35000, llamadas: 6, reparto: { terreno: 1650, arboles: 7700, hierba: 3000, fauna: 800 } }, // N1 aparece-antes: grass share 1900 → 3000 (outer ring 14 → 26 m)
   D: { triangulos: 12000, llamadas: 5, reparto: { terreno: 890, arboles: 3500, hierba: 1100, fauna: 400 } }, // R6.5 flora + R6.6 ring at (18,0) on D too: worst 654 grid + 110 Residuos + 120 flora = 884
 };
 /** Most trees the scatter plants in the whole world per tier (memory + the O(n) near/far split): thinned evenly above it. */

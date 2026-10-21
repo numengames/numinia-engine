@@ -3,6 +3,7 @@
 // innerHTML only ever receives the house icons (constants); every name goes in with textContent.
 import { icono } from "./iconos.ts";
 import type { Amigo } from "./amigos.ts";
+import type { IAPublica } from "../../features/ia/feature.ts";
 
 export type Res = { ok: boolean; why?: string };
 /** What the page knows about someone near (main.ts wires it from the render, the avatars, fishing and the moves). */
@@ -19,6 +20,9 @@ export type Mirada = {
 export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...hijos: (Node | string)[]): HTMLElementTagNameMap[K] => {
   const e: HTMLElementTagNameMap[K] = Object.assign(document.createElement(tag), props); e.append(...hijos); return e;
 };
+/** The light on an AI's card: a dot and «Escuchando ahora» / «No escucha ahora» (S16's words; the server's `atenta`). */
+export const luzEl = (luz: { escucha: boolean; texto: string }): HTMLParagraphElement =>
+  el("p", { className: `ia-dato luz${luz.escucha ? " escucha" : ""}` }, el("span", { className: "punto" }), el("b", { textContent: luz.texto }));
 /** A button with a house icon and a text (the icon is a constant; the text a text node). */
 export const botonCon = (ic: string, texto: string, clase = "", px = 18): HTMLButtonElement => {
   const b = el("button", { type: "button", className: clase });
@@ -28,7 +32,8 @@ export const botonCon = (ic: string, texto: string, clase = "", px = 18): HTMLBu
 };
 
 /** Someone the panel or the card shows: connected (quien) or a friend not here now (quien null). */
-export type Elegido = { quien: number | null; nombre: string; huella?: string; avatar: { id: string; nombre: string } | null };
+/** `ia` is set when the server says this player is an AI (features/ia): the list, the sheet and the card then show the AI's own content. */
+export type Elegido = { quien: number | null; nombre: string; huella?: string; avatar: { id: string; nombre: string } | null; ia?: IAPublica | null };
 
 /** A portrait: the house avatar's picture (busto / cuerpo) or a neutral silhouette, never a hole. */
 export function retrato(base: string, avatar: { id: string } | null, modo: "busto" | "cuerpo", px: number, apagado = false): HTMLElement {
@@ -46,5 +51,7 @@ export type Acciones = {
   esAmigo(p: Elegido): Amigo | undefined; silenciado(p: Elegido): boolean; bloqueado(p: Elegido): boolean;
   ir(p: Elegido): Res; mensaje(p: Elegido): Res; saludar(p: Elegido): Res; anadir(p: Elegido): Res; quitar(p: Elegido): Res;
   silenciar(p: Elegido): Res; bloquear(p: Elegido): Res; denunciar(p: Elegido): void; verFicha(p: Elegido): void;
+  /** ia-llamar S11: «Hablar con ella» — open the box to call this AI (the notice first, once per browser); `puedeHablar` = the AI takes calls by button now. */
+  puedeHablar?(p: Elegido): boolean; hablar?(p: Elegido): Res;
 };
 

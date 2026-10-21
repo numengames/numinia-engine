@@ -10,7 +10,7 @@
 // that height (view.cenital) as the minimap's background too, and the cut's walls and columns as lines over it. The
 // picture is made when the minimap first needs it, then again only when the zone changes (at most every IMAGEN_MS),
 // never in XR (this clock stops there); until it exists, the minimap draws only what stands under the cut.
-import { proyectar, desproyectar, anguloFlecha, anguloBorde, yawDePaso, enPalabras, crearLimitador, crearRegistro, reunir, contar, cercanos, firma, matrizImagen, segmentosEnVista } from "../../packages/client/src/mapa.ts";
+import { proyectar, desproyectar, anguloFlecha, anguloBorde, yawDePaso, enPalabras, crearLimitador, crearRegistro, reunir, contar, cercanos, firma, matrizImagen, segmentosEnVista, quienDeAgente } from "../../packages/client/src/mapa.ts";
 import type { Vista, Marcador, Tipo, Fuente, Entrada } from "../../packages/client/src/mapa.ts";
 import type { ImagenCenital, Huella } from "../../packages/render/src/index.ts";
 import { bajoElCorte } from "../../packages/render/src/corte.ts";
@@ -42,6 +42,8 @@ export type HostMapa = {
   teletransporte?: { activo(): boolean; ir(x: number, z: number, nombre: string): void };
   /** C2: called after «Ir» sent the trip, with what you went to (the page selects it in the builder, opens its card…). */
   alIr?(donde: { id: string; nombre: string; x: number; z: number }): void;
+  /** ia-visible S8: the marker picked is an AI in the world; the page opens its card (gente.tarjeta). Omitted = the map only shows its detail. */
+  alAgente?(quien: number): void;
 };
 
 const PASO_MS = 200;               // the minimap looks 5 times a second; it draws only when the picture changed
@@ -65,6 +67,9 @@ function forma(g: CanvasRenderingContext2D, t: Tipo, x: number, y: number, s: nu
     case "flecha": g.rotate(ang); g.moveTo(0, -s); g.lineTo(s * 0.75, s * 0.8); g.lineTo(0, s * 0.35); g.lineTo(-s * 0.75, s * 0.8); g.closePath(); break;
     case "cuadrado": g.rect(-s, -s, 2 * s, 2 * s); break;
     case "rombo": g.moveTo(0, -s * 1.2); g.lineTo(s, 0); g.lineTo(0, s * 1.2); g.lineTo(-s, 0); g.closePath(); break;
+    case "rombo-hueco": // ia-visible S5: a sleeping AI — the diamond's outline in its green over a pale fill
+      g.moveTo(0, -s * 1.2); g.lineTo(s, 0); g.lineTo(0, s * 1.2); g.lineTo(-s, 0); g.closePath();
+      g.fillStyle = "rgba(255,255,255,0.7)"; g.fill(); g.strokeStyle = t.color; g.lineWidth = 2; g.stroke(); g.restore(); return;
     case "triangulo": g.moveTo(0, -s * 1.1); g.lineTo(s, s * 0.8); g.lineTo(-s, s * 0.8); g.closePath(); break;
     case "estrella": for (let i = 0; i < 10; i++) { const r = i % 2 ? s * 0.5 : s * 1.25, a = (i * Math.PI) / 5 - Math.PI / 2; if (i) g.lineTo(Math.cos(a) * r, Math.sin(a) * r); else g.moveTo(Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); break;
     case "anillo": g.arc(0, 0, s, 0, Math.PI * 2); g.lineWidth = 3; g.strokeStyle = t.color; g.stroke(); g.beginPath(); g.arc(0, 0, s * 0.35, 0, Math.PI * 2); g.fill(); g.restore(); return;
@@ -175,7 +180,7 @@ export function montarMapa(h: HostMapa) {
   // trust it. Groups AI inhabitants and organization agents apart from people on the map and its list.
   const esIA = (nombre: string): boolean => nombre.endsWith(MARCA_IA);
   fuentes.set("tu", () => (yo ? [{ id: "tu", tipo: "tu", nombre: h.session.who?.nombre ?? "Tú", x: yo.x, z: yo.z, yaw: yawYo }] : []));
-  fuentes.set("gente", () => h.session.remotePositions().map((r) => { const nombre = nombreDe(r.id); return { id: `p${r.id}`, tipo: esIA(nombre) ? "agente" : "persona", nombre, x: r.x, z: r.z }; }));
+  fuentes.set("gente", () => h.session.remotePositions().map((r) => { const nombre = nombreDe(r.id); return { id: `p${r.id}`, tipo: esIA(nombre) ? (h.otros().ia?.de?.(r.id)?.estado === "dormida" ? "agente-dormida" : "agente") : "persona", nombre, x: r.x, z: r.z }; })); // ia-visible S5: a sleeping AI is drawn hollow (features/ia says its state)
   // U14 (4): a person or a quest thing the server marks for you is drawn as «!» or «✓» (misiones.marcaDe), and a
   // person's trade goes next to the name in the list (misiones.oficioDe); re-read at once when the marks change.
   // E4: the cards are rebuilt only when something they come from changed — the shared state (`stateVersion`), the
@@ -449,6 +454,7 @@ export function montarMapa(h: HostMapa) {
     elegido = m;
     if (m && centrar) { gv.cx = m.x; gv.cz = m.z; }
     pintarDetalle(); pedir();
+    const ia = quienDeAgente(m); if (ia !== null) h.alAgente?.(ia);
   }
 
   // the HTML twin: nearest first, real buttons; rows are updated in place (focus never jumps), reordered only when

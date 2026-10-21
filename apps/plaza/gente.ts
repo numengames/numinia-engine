@@ -20,7 +20,9 @@ import {
   buscar, claveDe, normal, fusionar, filtrar, haceTexto, fechaTexto, distanciaTexto, type Amigo, type Conectado,
 } from "./amigos.ts";
 import { montarTarjeta } from "./gente-tarjeta.ts";
-import { el, botonCon, retrato, type Res, type Mirada, type Elegido, type Acciones } from "./gente-comun.ts";
+import { el, botonCon, luzEl, retrato, type Res, type Mirada, type Elegido, type Acciones } from "./gente-comun.ts";
+import type { IAPublica } from "../../features/ia/feature.ts";
+import { cuentaGente, fichaIA, luzEscucha, sinMarca, subIA, textos } from "./gente-ia.ts";
 export type { Res, Mirada, Elegido, Acciones };
 
 type Orden = (texto: string) => Res;
@@ -38,6 +40,14 @@ export type OpcionesGente = {
   /** The world's name, for «En <mundo>». */
   mundo?: () => string;
   mirada?: Mirada;
+  /** ia-visible: the public card of each AI (features/ia/client.ts iaPagina). Without it every player is a person. */
+  ia?: { de(quien: number): IAPublica | null; alCambiar(f: () => void): () => void };
+  /** ia-llamar S11: «Hablar con ella» (llamar-ia.ts): whether this AI takes calls by button, and the box that makes the call. */
+  llamar?: { puede(quien: number): boolean; hablar(quien: number): { ok: boolean; why?: string } };
+  /** A beacon where this person is now (the map's marker, the column of light): what «Ir hacia ella» does when trips are off in this world. */
+  baliza?: (quien: number, texto: string) => Res;
+  /** The page's language for the AI texts (default es). */
+  idioma?: () => string;
   voz?: { silenciar(quien: number, si: boolean): void; silenciado(quien: number): boolean };
   /** Opens the chat box with this text written. */
   chat?: (texto: string) => void;
@@ -122,14 +132,16 @@ export function montarGente(o: OpcionesGente) {
   const pedir = () => { const r = viajar.pedirGente(); if (!r.ok && r.why) estadoP.textContent = r.why; };
 
   // ---- people ----
+  const tx = () => textos(o.idioma?.());
+  const iaDe = (quien: number): IAPublica | null => o.ia?.de(quien) ?? null;
   const conectados = (): Conectado[] => viajar.estado.gente.map((p) => ({ quien: p.quien, nombre: p.nombre, huella: p.huella || undefined, avatar: o.mirada?.avatar(p.quien)?.id ?? null }));
-  const deConectado = (p: Conectado): Elegido => ({ quien: p.quien, nombre: p.nombre, huella: p.huella, avatar: o.mirada?.avatar(p.quien) ?? (p.avatar ? { id: p.avatar, nombre: "" } : null) });
+  const deConectado = (p: Conectado): Elegido => ({ quien: p.quien, nombre: p.nombre, huella: p.huella, avatar: o.mirada?.avatar(p.quien) ?? (p.avatar ? { id: p.avatar, nombre: "" } : null), ia: iaDe(p.quien) });
   /** Someone by entity: from the «Gente» list (with their tag) or, if they are not listed, by the name over their head. */
   const porQuien = (quien: number): Elegido | null => {
     const p = viajar.estado.gente.find((g) => g.quien === quien);
     if (p) return deConectado({ quien, nombre: p.nombre, huella: p.huella || undefined });
     const n = o.mirada?.nombre(quien);
-    return n ? { quien, nombre: n, avatar: o.mirada?.avatar(quien) ?? null } : null;
+    return n ? { quien, nombre: n, avatar: o.mirada?.avatar(quien) ?? null, ia: iaDe(quien) } : null;
   };
   let elegido: { quien: number | null; clave: string } | null = null;
   /** The one picked, as it is now (a friend who just came in has an entity; one who left has none). */
@@ -153,10 +165,22 @@ export function montarGente(o: OpcionesGente) {
     bloqueado: (p) => bloqueados.has(claveDeElegido(p)),
     ir(p) {
       if (p.quien === null) return noEsta(p);
+      if (p.ia && !viajar.activo()) { // an AI where trips are off: a beacon at its place, to walk there
+        const b = o.baliza?.(p.quien, sinMarca(p.nombre)) ?? { ok: false, why: tx().sinPosicion };
+        decir(b.ok ? `${tx().vasConBaliza}: ${sinMarca(p.nombre)}.` : (b.why ?? tx().sinPosicion));
+        if (b.ok) { panel.cerrar(); tarjeta.cerrar(); }
+        return b;
+      }
       const r = viajar.ir(p.quien);
       if (!r.ok) { decir(r.why ?? "No se pudo."); return r; }
       decir(`Vas con ${p.nombre}…`); panel.cerrar(); tarjeta.cerrar();
       return r;
+    },
+    puedeHablar: (p) => p.quien !== null && !!p.ia && !!o.llamar?.puede(p.quien),
+    hablar(p) {
+      if (p.quien === null || !p.ia || !o.llamar) return { ok: false, why: tx().noSePuede };
+      panel.cerrar(); tarjeta.cerrar();
+      return o.llamar.hablar(p.quien);
     },
     mensaje(p) {
       if (!o.chat) return { ok: false, why: "No hay chat en esta página." };
@@ -173,6 +197,7 @@ export function montarGente(o: OpcionesGente) {
     anadir(p) {
       if (buscar(amigos, p)) return { ok: true };
       if (p.quien === null) return { ok: false, why: "Solo puedes añadir a alguien conectado." };
+      if (p.ia) return { ok: false, why: "Una IA no se guarda en los amigos." };
       amigos = anadir(amigos, { quien: p.quien, nombre: p.nombre, huella: p.huella, avatar: p.avatar?.id ?? null }, ahora());
       guardarAmigos();
       decir(`${p.nombre} está en tus amigos (en este navegador).`);
@@ -264,9 +289,12 @@ export function montarGente(o: OpcionesGente) {
     const b = el("button", { type: "button", className: `gente-fila${conectado ? "" : " fuera"}` });
     const sel = !!elegido && (elegido.clave === clave || (p.quien !== null && elegido.quien === p.quien));
     b.setAttribute("aria-current", sel ? "true" : "false");
-    b.setAttribute("aria-label", `${p.nombre}, ${conectado ? "conectado" : "desconectado"}, ${sub}`);
-    const textos = el("span", { className: "textos" }, el("b", { textContent: p.nombre }), el("span", { className: "sub", textContent: sub }));
-    b.append(retrato(base, p.avatar, "busto", 44, !conectado), textos);
+    b.setAttribute("aria-label", `${p.ia ? `${sinMarca(p.nombre)}, ${tx().marca}` : p.nombre}, ${conectado ? "conectado" : "desconectado"}, ${sub}`);
+    // an AI: its name without the server's « · IA» and the chip that says it; asleep, its portrait goes dim
+    const nombreL = p.ia ? el("span", { className: "nombre-ia" }, el("b", { textContent: sinMarca(p.nombre) }), el("span", { className: "marca-ia", textContent: tx().marca })) : el("b", { textContent: p.nombre });
+    const textosL = el("span", { className: "textos" }, nombreL, el("span", { className: "sub", textContent: sub }));
+    b.append(retrato(base, p.avatar, "busto", 44, !conectado || p.ia?.estado === "dormida"), textosL);
+    if (p.ia) b.dataset.ia = p.ia.estado;
     if (conectado) b.append(el("span", { className: "punto" }));
     b.addEventListener("click", () => { elegido = { quien: p.quien, clave }; vista = "ficha"; pintar(); });
     const li = el("div", { className: "gente-item" }, b);
@@ -284,7 +312,9 @@ export function montarGente(o: OpcionesGente) {
     if (f.cambio) { amigos = f.lista; guardarAmigos(); }
     const g = viajar.estado.gente;
     tabAmigos.textContent = `Amigos · ${amigos.length}`;
-    tabAqui.textContent = `Aquí ahora · ${Math.max(viajar.estado.todos, g.length)}`;
+    // «Aquí ahora · 5 personas · 2 IAs»: the AIs are counted apart (and left out when there are none)
+    const nIAs = g.filter((p) => iaDe(p.quien)).length;
+    tabAqui.textContent = `Aquí ahora · ${cuentaGente(Math.max(viajar.estado.todos, g.length) - nIAs, nIAs, o.idioma?.())}`;
     for (const [b, id] of [[tabAmigos, "amigos"], [tabAqui, "aqui"]] as const) { b.setAttribute("aria-selected", String(pestana === id)); b.tabIndex = pestana === id ? 0 : -1; }
     const filas: HTMLElement[] = [];
     if (pestana === "amigos") {
@@ -297,9 +327,17 @@ export function montarGente(o: OpcionesGente) {
       const lst = filtrar(conectados(), q);
       if (!g.length) filas.push(el("p", { className: "vacio", textContent: "No hay nadie más conectado ahora en este mundo." }));
       else if (!lst.length) filas.push(el("p", { className: "vacio", textContent: "Nadie se llama así." }));
-      for (const p of lst) {
+      // people first, then the AIs in their own section
+      const personas = lst.filter((p) => !iaDe(p.quien)), ias = lst.filter((p) => iaDe(p.quien));
+      for (const p of personas) {
         const a = buscar(amigos, p);
         filas.push(fila(deConectado(p), a ? `En tus amigos · ${donde(p.quien)}` : donde(p.quien), true, a ? a.clave : claveDe(p)));
+      }
+      if (ias.length) filas.push(seccion(tx().seccionIA));
+      for (const p of ias) {
+        const a = buscar(amigos, p), d = o.mirada?.distancia(p.quien);
+        const sub = subIA(iaDe(p.quien)!, d === null || d === undefined ? "" : distanciaTexto(d), o.idioma?.());
+        filas.push(fila(deConectado(p), a ? `En tus amigos · ${sub}` : sub, true, a ? a.clave : claveDe(p)));
       }
       if (viajar.estado.todos > g.length) filas.push(el("p", { className: "vacio", textContent: `Y ${viajar.estado.todos - g.length} más.` }));
     }
@@ -312,13 +350,20 @@ export function montarGente(o: OpcionesGente) {
       poner(der, el("div", { className: "gente-nadie" }, el("p", { textContent: pestana === "amigos" && !amigos.length ? "Tus amigos aparecerán aquí." : "Elige a alguien de la lista para ver su ficha." })));
       return;
     }
-    const amigo = buscar(amigos, p), con = p.quien !== null;
+    const amigo = buscar(amigos, p), con = p.quien !== null, t = tx(), ia = p.ia ? fichaIA(p.nombre, p.ia, o.idioma?.()) : null;
     const volver = el("button", { type: "button", className: "gente-volver", textContent: "‹ Volver a la lista" });
     volver.addEventListener("click", () => { vista = "lista"; pintar(); });
     const chip = el("span", { className: `chip${con ? " ok" : ""}` });
     if (con) chip.append(el("span", { className: "punto" }), `En ${mundo()}`); else chip.append("Desconectado");
     const linea = [amigo ? `En tus amigos desde el ${fechaTexto(amigo.desde, ahora())}` : "", p.avatar?.nombre ?? ""].filter(Boolean).join(" · ");
-    const datos = el("div", { className: "gente-datos" }, el("div", { className: "gente-titulo" }, el("h3", { className: "gente-nombre", textContent: p.nombre }), chip), el("p", { className: "sub", textContent: linea }));
+    // an AI: the «IA» chip and its state instead of «En <mundo>»; who answers for it and what it may do under the name
+    const chipIA = ia ? el("span", { className: "marca-ia", textContent: ia.marca }) : null;
+    const chipEstado = ia ? el("span", { className: `chip${ia.estado === "activa" ? " ok" : ""}` }, ...(ia.estado === "activa" ? [el("span", { className: "punto" })] : []), ia.estadoTexto) : null;
+    const datos = el("div", { className: "gente-datos" }, el("div", { className: "gente-titulo" }, el("h3", { className: "gente-nombre", textContent: ia?.nombre ?? p.nombre }), ...(chipIA && chipEstado ? [chipIA, chipEstado] : [chip])), el("p", { className: "sub", textContent: ia ? "" : linea }));
+    if (ia && p.ia) {
+      const luz = luzEscucha(p.ia, o.idioma?.());
+      datos.append(el("p", { className: "ia-dato" }, el("span", { className: "k", textContent: ia.respondeEtiqueta }), el("b", { textContent: ia.respondeValor })), el("p", { className: `ia-dato${ia.construye ? "" : " no"}`, textContent: ia.construyeTexto }), luzEl(luz));
+    }
     // «Ahora»: what they do (when the page knows) and how far
     const ahoraS = el("section", { className: "gente-ahora" }, el("h4", { textContent: "Ahora" }));
     if (con) {
@@ -327,10 +372,10 @@ export function montarGente(o: OpcionesGente) {
       ahoraS.append(el("p", { textContent: [que, dist].filter(Boolean).join(" · ") || `En ${mundo()}` }));
     } else ahoraS.append(el("p", { textContent: amigo ? `Desconectado · visto ${haceTexto(amigo.visto, ahora())}` : "Desconectado" }));
     // the main actions
-    const ir = botonCon("navigation-arrow", "Ir a su lado", "principal"); ir.id = "gente-ir";
-    ir.disabled = !con || !viajar.activo();
-    ir.title = !con ? "No está conectado ahora" : viajar.activo() ? `Ir junto a ${p.nombre}` : "En este mundo no se puede ir junto a otros: lo han apagado";
-    ir.setAttribute("aria-label", `Ir junto a ${p.nombre}`);
+    const ir = botonCon("navigation-arrow", ia ? t.ir : "Ir a su lado", "principal"); ir.id = "gente-ir";
+    ir.disabled = !con || (!viajar.activo() && !ia); // an AI always has the beacon to fall back on
+    ir.title = !con ? "No está conectado ahora" : ia ? (viajar.activo() ? t.irTitulo : t.irBaliza) : viajar.activo() ? `Ir junto a ${p.nombre}` : "En este mundo no se puede ir junto a otros: lo han apagado";
+    ir.setAttribute("aria-label", ia ? `${t.irAria} ${ia.nombre}` : `Ir junto a ${p.nombre}`);
     ir.addEventListener("click", () => acciones.ir(p));
     const msg = botonCon("chat-text", "Mensaje"); msg.id = "gente-mensaje"; msg.disabled = !o.chat || !con;
     msg.title = "Abre el chat con su nombre escrito (el chat lo leen quienes están cerca)";
@@ -338,7 +383,9 @@ export function montarGente(o: OpcionesGente) {
     const sal = botonCon("hand-waving", "Saludar"); sal.id = "gente-saludar"; sal.disabled = !o.saludar || !con;
     sal.title = "Te giras hacia esa persona y saludas con la mano";
     sal.addEventListener("click", () => acciones.saludar(p));
-    const principales = el("div", { className: "gente-botones" }, ir, msg, sal);
+    const hab = ia && acciones.puedeHablar?.(p) ? botonCon("chat-circle-dots", t.hablar, "principal") : null;
+    if (hab) { hab.id = "gente-hablar"; hab.title = t.hablarTitulo; hab.setAttribute("aria-label", `${t.hablarAria} ${ia!.nombre}`); hab.addEventListener("click", () => acciones.hablar?.(p)); ir.classList.remove("principal"); }
+    const principales = el("div", { className: "gente-botones" }, ...(ia ? [...(hab ? [hab] : []), ir, sal] : [ir, msg, sal])); // nothing reads a private note to an AI yet: no «Mensaje»
     // apart: the delicate ones
     const s = acciones.silenciado(p), b = acciones.bloqueado(p);
     const sil = botonCon("speaker-simple-slash", s ? "Oír su voz" : "Silenciar", "fantasma"); sil.id = "gente-silenciar";
@@ -359,7 +406,7 @@ export function montarGente(o: OpcionesGente) {
       delicados.append(q);
     }
     const info = el("div", { className: "gente-info" }, volver, datos, ahoraS, principales, delicados);
-    poner(der, el("div", { className: "gente-figura" }, retrato(base, p.avatar, "cuerpo", 300, !con)), info);
+    poner(der, el("div", { className: "gente-figura" }, retrato(base, p.avatar, "cuerpo", 300, !con || ia?.estado === "dormida")), info);
   }
 
   function pintar(): void {
@@ -367,14 +414,14 @@ export function montarGente(o: OpcionesGente) {
     pintarFicha();
     cuerpoG.dataset.vista = elegido ? vista : "lista";
     const p = actual();
-    anadirB.title = p && p.quien !== null && !buscar(amigos, p) ? `Añadir a ${p.nombre} a tus amigos` : "Elige a alguien de «Aquí ahora» para añadirle";
+    anadirB.title = p && p.quien !== null && !p.ia && !buscar(amigos, p) ? `Añadir a ${p.nombre} a tus amigos` : "Elige a alguien de «Aquí ahora» para añadirle";
     encontrable.checked = viajar.estado.encontrable;
     filaPermitir.hidden = !viajar.estado.puede;
     permitir.checked = viajar.activo();
   }
   anadirB.addEventListener("click", () => {
     const p = actual();
-    if (p && p.quien !== null && !buscar(amigos, p)) { acciones.anadir(p); return; }
+    if (p && p.quien !== null && !p.ia && !buscar(amigos, p)) { acciones.anadir(p); return; }
     pestana = "aqui"; elegido = null; vista = "lista"; pintar(); buscarI.focus();
     decir("Elige a alguien de la lista y pulsa «Añadir amigo».");
   });
@@ -384,10 +431,11 @@ export function montarGente(o: OpcionesGente) {
   permitir.addEventListener("change", () => { viajar.permitir(permitir.checked); });
 
   // the small card when you click someone in the world
-  const tarjeta = montarTarjeta({ acciones, porQuien, vista: o.vista, base, mirada: o.mirada, pedir: () => viajar.pedirGente() });
+  const tarjeta = montarTarjeta({ acciones, porQuien, vista: o.vista, base, mirada: o.mirada, idioma: o.idioma, pedir: () => viajar.pedirGente() });
 
   // silenced voices come back silenced: whenever the list says who is who, the marks find their entity again
   const reaplicar = () => { if (!o.voz || !silenciados.size) return; for (const p of conectados()) if (silenciados.has(claveDe(p)) || silenciados.has(`n:${normal(p.nombre)}`)) o.voz.silenciar(p.quien, true); };
+  o.ia?.alCambiar(() => { if (panel.abierto) pintar(); tarjeta.repintar(); }); // an AI came, went, fell asleep or woke up
   viajar.alCambiar((q) => {
     if (q === "viaje" && viajar.estado.viaje) { estadoP.textContent = viajar.estado.viaje.texto; if (!panel.abierto && !viajar.estado.viaje.ok) anunciar(viajar.estado.viaje.texto); }
     if (q === "gente") reaplicar();

@@ -11,6 +11,8 @@ import type { Msg } from "../../packages/feature/src/index.ts";
 import { objetos, PASO, OBJETOS_MAX, DESHACER_MAX, TIPOS, EXTENSIONES, HUECO_MIN_M, HUECO_PX_MAX, ESCALA_MIN, encajar, colisionDe, motivoEnlace } from "./feature.ts";
 import type { Tipo, Colision } from "./feature.ts";
 import biblioteca from "./biblioteca.json" with { type: "json" };
+import { alturaEn } from "../../packages/relieve/src/relieve.ts";
+import { alturaBase, SEMILLA_BASE_DEFECTO } from "../../packages/relieve/src/espacio-base.ts";
 
 export type Modelo = { id: string; nombre: string; modelo: string; fichero: string; licencia: string };
 type Autor = { autor: string | null; nombre: string | null; cuando: string };
@@ -46,6 +48,22 @@ export function cajaEnMundo(o: Msg, c: Caja): Record<"bx0" | "by0" | "bz0" | "bx
 /** H5: a thing the world is born with (planted once, see `sembrar`). Same fields `colocar` would give it; `modelo` is a library id. */
 export type Sembrado = { modelo: string; nombre: string; x: number; y: number; z: number; ry?: number; escala?: number; forma?: readonly [number, number, number] };
 
+/** B4: the ground the shared states ask for, as the sim reads it (`terrenoDelEstado`, sim/terreno-malla.ts): the espacio base first (B1: it is the
+ * ground of everything, the nature is paint over it), else the nature's own relief, else flat 0. `clave` changes exactly when the sim's terrain key does. */
+type Suelo = { clave: string; altura: (x: number, z: number) => number };
+const entero = (v: unknown, min: number, max: number, def: number) => (typeof v === "number" && Number.isInteger(v) && v >= min && v <= max ? v : def);
+export function sueloDe(base: Msg | undefined, nat: Msg | undefined): Suelo {
+  if (base && base.activa !== false) {
+    const s = entero(base.semilla, 0, 2147483647, SEMILLA_BASE_DEFECTO);
+    return { clave: `b${s}`, altura: (x, z) => alturaBase(s, x, z) };
+  }
+  if (nat && nat.activa !== false) {
+    const s = entero(nat.semilla, 0, 2147483647, 1234), tamano = entero(nat.tamano, 100, 400, 200), plaza = entero(nat.plaza, 4, 40, 12), estanque = nat.estanque !== false;
+    return { clave: `n${s}|${tamano}|${plaza}|${estanque ? 1 : 0}`, altura: (x, z) => alturaEn(s, x, z, { tamano, plaza, sinEstanque: !estanque }) };
+  }
+  return { clave: "plano", altura: () => 0 };
+}
+
 /** `modelos` only for tests; the real list is biblioteca.json. `sembrar` (H5, R-1: any world piece may ask for it): things planted ONCE, the first
  * time this world's objects start empty; after that the mark `sembrado` (in the store) says it was done, so a world that already had things of
  * its own, or whose builder deleted the planted one, never gets it back. They are ordinary things (move, delete, undo, rename all work). */
@@ -53,6 +71,14 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
   const enBiblioteca = new Map(modelos.map((m) => [m.modelo, m]));
   const pilas = new Map<string, Cambio[]>();
   const rehechos = new Map<string, Cambio[]>(); // M22: what each builder undid, ready to redo; a new change of theirs empties it
+  // B4: each thing remembers its height ABOVE the ground (`s:<id>` in the store, never sent to pages), so when the ground changes it keeps that
+  // height over the new one instead of its absolute y (floating or buried). A thing saved before this has none: it reads as 0 = sits on the ground.
+  const sueloAhora = () => sueloDe(api.estadoDe("espacio-base").get("mundo"), api.estadoDe("naturaleza").get("mundo"));
+  /** Save a thing's entry and how high it stands over the ground it is on now. */
+  const guardar = (id: string, o: Msg) => {
+    api.state.set(id, o);
+    api.store.set(`s:${id}`, q(Number(o.y) - sueloAhora().altura(Number(o.x), Number(o.z)), PASO.pos));
+  };
   const quien = (from: number) => api.who(from)?.id ?? `e${from}`;
   const rechazar = (from: number, motivo: string) => { api.emit("rechazado", { motivo }, { to: from }); return false; };
   // T1: besides telling the author (`hecho`, to its page), say who did what to the server's own listeners (`hizo`, scope «server»:
@@ -113,7 +139,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
       const m = modelos.find((x) => x.id === t.modelo);
       if (!m) { api.log(`[objetos] sembrar: «${t.modelo}» no está en la biblioteca (no pongo nada)`); continue; }
       const s = q(t.escala ?? 1, PASO.escala), f = t.forma ?? [1, 1, 1], id = nuevoId();
-      api.state.set(id, {
+      guardar(id, {
         modelo: m.modelo, x: q(t.x, PASO.pos), y: q(t.y, PASO.pos), z: q(t.z, PASO.pos), rx: 0, ry: girado(t.ry ?? 0), rz: 0, sx: q(s * f[0], PASO.escala), sy: q(s * f[1], PASO.escala), sz: q(s * f[2], PASO.escala),
         nombre: t.nombre, decorado: false, fijado: false, animar: true, tipo: "modelo", ext: "glb", oculto: false, volumen: 1, solido: false, colision: "ninguna",
       });
@@ -149,7 +175,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     if (!(tipo === "modelo" && enBiblioteca.has(modelo)) && !api.activo(modelo, ext)) return void rechazar(from, tipo === "modelo" ? "Ese modelo no está en la biblioteca ni se ha subido a este servidor." : `Ese fichero .${ext} no se ha subido a este servidor.`);
     if (sinNombre(from, nombre, decorado)) return;
     const id = nuevoId();
-    api.state.set(id, {
+    guardar(id, {
       modelo, x: q(m.x, PASO.pos), y: q(m.y, PASO.pos), z: q(m.z, PASO.pos), rx: 0, ry: girado(Number(m.ry)), rz: 0,
       sx: tipo === "sonido" ? 3 : 1, sy: tipo === "sonido" ? 3 : 1, sz: tipo === "sonido" ? 3 : 1, nombre, decorado, fijado: false, animar: true,
       tipo, ext, oculto: false, volumen: 1, solido: false, colision: "ninguna",
@@ -170,7 +196,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
       rx: girado(Number(m.rx)), ry: girado(Number(m.ry)), rz: girado(Number(m.rz)),
       sx: q(m.sx, PASO.escala), sy: q(m.sy, PASO.escala), sz: q(m.sz, PASO.escala),
     });
-    api.state.set(id, nuevo);
+    guardar(id, nuevo);
     const cambia = (...k: string[]) => k.some((c) => Number(o[c]) !== Number(nuevo[c]));
     hecho(from, id, "mover", { mueve: cambia("x", "y", "z"), gira: cambia("rx", "ry", "rz"), escala: cambia("sx", "sy", "sz") });
   });
@@ -192,7 +218,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     const id = nuevoId(), c = api.store.get(`c:${String(m.id)}`), v = api.store.get(`v:${String(m.id)}`);
     if (c) api.store.set(`c:${id}`, c);
     if (v) api.store.set(`v:${id}`, v); // U12: a copied hole keeps its card
-    api.state.set(id, conCaja(id, { ...o, x: q(Math.min(2000, Number(o.x) + 1), PASO.pos), fijado: false }));
+    guardar(id, conCaja(id, { ...o, x: q(Math.min(2000, Number(o.x) + 1), PASO.pos), fijado: false }));
     firmar(from, id);
     apuntar(from, { id, antes: null });
     hecho(from, id, "duplicar");
@@ -203,7 +229,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
   api.on("reiniciar", (from) => {
     if (!puede(from)) return;
     const n = api.state.keys().length;
-    for (const k of [...api.state.keys()]) { api.state.delete(k); api.store.delete(`a:${k}`); api.store.delete(`c:${k}`); api.store.delete(`v:${k}`); }
+    for (const k of [...api.state.keys()]) { api.state.delete(k); api.store.delete(`a:${k}`); api.store.delete(`c:${k}`); api.store.delete(`s:${k}`); api.store.delete(`v:${k}`); }
     pilas.clear(); rehechos.clear();
     api.store.set("sembrado", true);
     plantar(alRestaurar);
@@ -218,7 +244,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     if (o.fijado) return void rechazar(from, "Está fijado: suéltalo antes de borrarlo.");
     apuntar(from, { id, antes: o, autor: autorDe(id) }, { lote: String(m.lote || "") });
     api.state.delete(id);
-    api.store.delete(`a:${id}`);
+    api.store.delete(`a:${id}`); api.store.delete(`s:${id}`);
     hecho(from, id, "borrar");
   });
 
@@ -318,6 +344,38 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     hecho(from, id, "vaciar");
   });
 
+  // B4: put every thing back on the ground that is there now, at the height over it it keeps (`s:<id>`, 0 if it has none). Pinned things too: the
+  // ground moved under them. Returns how many moved. The `antes` of the undo stacks are left alone (undo re-reads the height over the ground then).
+  const asentarTodo = () => {
+    const suelo = sueloAhora();
+    let n = 0;
+    for (const id of api.state.keys()) {
+      const o = api.state.get(id);
+      if (!o) continue;
+      const sobre = Number(api.store.get(`s:${id}`) ?? 0), y = q(suelo.altura(Number(o.x), Number(o.z)) + (Number.isFinite(sobre) ? sobre : 0), PASO.pos);
+      if (y === o.y) continue;
+      api.state.set(id, conCaja(id, { ...o, y }));
+      n++;
+    }
+    return n;
+  };
+  api.on("asentar", (from) => {
+    if (!puede(from)) return;
+    const n = asentarTodo();
+    api.log(`[objetos] asentados por la entidad ${from}: ${n} movidos`);
+    hecho(from, "", "asentar");
+  });
+  // ... and by itself when the ground changes (the base switched on or off, another seed, the nature on or off). The key is kept in the store, so a
+  // world whose files changed while the server was down settles at start too; with no key saved yet (first run, older store) it only records it.
+  api.onTick(() => {
+    const clave = sueloAhora().clave, antes = api.store.get("suelo");
+    if (clave === antes) return;
+    api.store.set("suelo", clave);
+    if (antes === undefined) return;
+    const n = asentarTodo();
+    api.log(`[objetos] el suelo cambió (${String(antes)} → ${clave}): ${n} objeto(s) asentados`);
+  });
+
   // M22: undo and redo put a thing back as it was (or take it away) and leave the opposite on the other stack.
   // A pinned thing stays put for them too, unless what is undone or redone is the pin itself (or its name). A pinned
   // hole's scale is its picture's fit, not a move: undoing a fill or an emptying is allowed (U12).
@@ -338,7 +396,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     a.set(k, otra);
     for (const it of c.items) {
       if (it.antes === null) { api.state.delete(it.id); api.store.delete(`a:${it.id}`); }
-      else { api.state.set(it.id, it.antes); if (it.autor) api.store.set(`a:${it.id}`, it.autor); }
+      else { guardar(it.id, it.antes); if (it.autor) api.store.set(`a:${it.id}`, it.autor); }
       hecho(from, it.id, accion);
     }
   };

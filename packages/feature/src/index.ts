@@ -979,6 +979,9 @@ export type ClientApi = {
   /** Ask the server. Refused (with the reason) before the catalog arrives or if the server lacks it. */
   send(intent: string, msg: Msg): { ok: true } | { ok: false; why: string };
   state: { get(key: string): Msg | undefined; keys(): string[]; onChange(fn: (key: string, value: Msg | undefined) => void): void };
+  /** funciones/f2: read-only look at the shared state ANOTHER feature's server part published (what this page was told), and a way to hear it change.
+   * For a piece that follows a world switch (dardos and pesca hide when `funciones` says they are off). A feature the server lacks reads as empty. */
+  estadoDe(feature: string): { get(key: string): Msg | undefined; keys(): string[]; onChange(fn: (key: string, value: Msg | undefined) => void): void };
   /** Something the player can do: a key on desktop, a button on touch screens (the page draws it). */
   action(a: Omit<Action, "feature">): void;
   self(): number;
@@ -1032,6 +1035,11 @@ export class ClientRuntime {
         keys: () => [...(this.mirror.get(id)?.keys() ?? [])],
         onChange: (fn) => { this.changes.set(id, [...(this.changes.get(id) ?? []), fn]); },
       },
+      estadoDe: (otra) => ({
+        get: (key) => this.mirror.get(otra)?.get(key),
+        keys: () => [...(this.mirror.get(otra)?.keys() ?? [])],
+        onChange: (fn) => { this.changes.set(otra, [...(this.changes.get(otra) ?? []), fn]); },
+      }),
       action: (a) => { this.acts.push({ ...a, feature: id }); },
       self: () => host.self(),
       get view() { return host.view ?? NO_VIEW; }, // read on each use: the page may attach its view later
@@ -1153,3 +1161,5 @@ export class ClientRuntime {
 
 /** Escape text for an HTML reply (features that answer a QR with a small page). */
 export const escapeHtml = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+export type { PuenteNormas, EnlaceFunciones, ParteConEnlace } from "./enlace-funciones.ts"; // funciones/f1
+export { conEnlace } from "./enlace-funciones.ts";
