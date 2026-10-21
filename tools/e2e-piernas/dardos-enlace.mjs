@@ -306,7 +306,11 @@ try {
   const chooserC = () => L(c, () => { const r = document.getElementById("ar-elegir"), p = r?.querySelector(".ae-panel")?.getBoundingClientRect(), f = r?.querySelector(".ae-fallo"), rt = document.getElementById("ar-elegir-reintentar");
     return { abierto: !!r && !r.hidden, caben: !!p && p.left >= 0 && p.right <= innerWidth && p.top >= 0 && p.bottom <= innerHeight, foco: document.activeElement?.id, dardos: document.getElementById("ar-elegir-dardos")?.querySelector("b")?.textContent, ayuda: document.getElementById("ar-elegir-dardos")?.querySelector("small")?.textContent, fallo: f && !f.hidden ? f.textContent : "", reintentar: !!rt && !rt.hidden, accion: document.getElementById("ar-elegir-dardos")?.dataset.accion }; });
   const arC = () => L(c, () => ({ estado: globalThis.__numinia.view.ar.state, jugando: globalThis.__numinia.view.ar.jugando, pedidas: globalThis.__reqs.slice() }));
-  const pulsarARC = async () => { if (!(await c.isVisible("#ar"))) await c.click("#menu-abrir", { timeout: 20000 }); await c.click("#ar", { timeout: 20000 }); }; // on a phone the AR entry lives in «Menú»
+  const pulsarARC = async () => { // on a phone the AR entry lives in «⋯» (and behind «más»): real touches, as a person would
+    await c.click("#mas", { timeout: 20000 });
+    if (!(await c.isVisible('#mas-menu [data-id="ar"]'))) await c.click("#mas-mas", { timeout: 10000 });
+    await c.click('#mas-menu [data-id="ar"]', { timeout: 10000 });
+  };
   const abrirElegirC = async () => { await pulsarARC(); await esperar(c, () => !!document.getElementById("ar-elegir"), null, 15000); await L(c, async () => { globalThis.__l = await globalThis.__numinia.dardosEnlace.enlace(); }); };
   const salirDeARC = async () => { await L(c, () => globalThis.__numinia.view.ar.exit()); await esperar(c, () => globalThis.__numinia.view.ar.state === "off", null, 10000); };
   res.movil = {};
