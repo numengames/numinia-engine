@@ -36,9 +36,10 @@ export function montarTarjeta(o: {
     const s = o.vista?.personaEnPantalla(quien);
     if (!s) { cerrar(); return; }
     const w = caja.offsetWidth || 330, h = caja.offsetHeight || 120;
-    // above their head and to its left (their body stays in sight); to the right / below when it would leave the screen
-    let x = s.x - w + 24, y = s.y - h - 18;
-    if (x < 8) x = s.x - 24;
+    // above their head and to its left, clear of the speech bubble that opens over their head (an AI answers there: the card must not hide the
+    // answer); to the right / below when it would leave the screen
+    let x = s.x - w - 60, y = s.y - h - 18;
+    if (x < 8) x = s.x + 60;
     if (y < 8) y = s.y + 24;
     x = Math.max(8, Math.min(innerWidth - w - 8, x)); y = Math.max(8, Math.min(innerHeight - h - 8, y));
     caja.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;

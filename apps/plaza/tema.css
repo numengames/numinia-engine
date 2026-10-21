@@ -598,6 +598,7 @@ html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 
 #gente .ia-dato.luz.escucha b, #gente-tarjeta .ia-dato.luz.escucha b { color: #14897a; }
 /* «Hablar con ella»: the notice (first time) and the small box */
 #llamar-ia { width: min(92vw, 440px); }
+#llamar-ia [hidden] { display: none !important; } /* the flex rows below must not override the notice/box switch */
 #llamar-ia .llamar-aviso { margin: 8px 0 12px; font-size: 14px; line-height: 1.45; color: var(--n-texto); }
 #llamar-ia input { width: 100%; box-sizing: border-box; margin: 6px 0 4px; padding: 10px 12px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-fondo); color: var(--n-texto); font: 15px var(--n-titulos); }
 #llamar-ia input:focus-visible { outline: 2px solid var(--n-turquesa); outline-offset: 2px; }
