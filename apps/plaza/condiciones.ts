@@ -45,6 +45,9 @@ export type OpcionesCondiciones = {
   /** c4: where the page can enter VR (the headset's browser, a PC with a headset). While the bubble is up the page behind it is `inert`, so
    * the bar's «Entrar en VR» cannot be reached: the bubble carries its own button. `soportado` is read at each draw. */
   vr?: { soportado(): boolean; activo(): boolean; entrar(): void };
+  /** dardos enlazados (E2): this bubble asks for ANOTHER world's norms (the AR link) on the flat page, before AR. There is nothing to be locked out of
+   * here: «Salir» only goes back (`alSalir`), the acceptance closes the panel at once without a burst (`alAbrirse`), and the words say so. */
+  enlazada?: { alSalir(): void; alAbrirse(): void };
 };
 
 const ESPERA_RESPUESTA_MS = 5000;
@@ -228,7 +231,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
   const vuelta = () => esVuelta(pasos); // c6: the person is back; only what changed is shown
 
   function cabecera(p: Paso): void {
-    const t = textosDePaso(p, capas, o.mundo()); // c4: the same words in the headset (condiciones-logica.ts)
+    const t = textosDePaso(p, capas, o.mundo(), !!o.enlazada); // c4: the same words in the headset (condiciones-logica.ts)
     cab!.replaceChildren();
     cab!.append(el("div", "etq", t.eyebrow));
     titulo = el("h1", "", t.titulo); titulo.id = "condiciones-titulo"; titulo.tabIndex = -1;
@@ -404,6 +407,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
   // ---------- leaving ----------
   function salir(sinCiudad = false): void { // `sinCiudad`: for tests and for worlds where the city is not reachable; the farewell page stays
     if (saliendo) return;
+    if (o.enlazada) { retirar(); o.enlazada.alSalir(); return; } // the link: back to where the person came from, nothing is closed
     saliendo = true; avisarCambio();
     o.cerrarConexion?.(); // the server hears the goodbye: it never saw an acceptance
     const ciudad = sinCiudad ? null : o.ciudadUrl?.() ?? null;
@@ -452,7 +456,8 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     document.addEventListener("focusin", guardiaFoco);
     matchMedia("(max-width: 640px)").addEventListener?.("change", reajustar);
     pintar(true);
-    decir(`${vuelta() ? `${TITULO_CAMBIOS}. ` : ""}Antes de entrar: ${pasos.length === 1 ? "una página" : `${pasos.length} pasos`}. Hasta que aceptes las normas estás en una burbuja: ves el mundo, pero no puedes moverte ni hablar.`);
+    decir(o.enlazada ? `Normas de ${o.mundo() || "ese mundo"}: ${pasos.length === 1 ? "una página" : `${pasos.length} pasos`}. Si no las aceptas no juegas allí y sigues en este mundo.`
+      : `${vuelta() ? `${TITULO_CAMBIOS}. ` : ""}Antes de entrar: ${pasos.length === 1 ? "una página" : `${pasos.length} pasos`}. Hasta que aceptes las normas estás en una burbuja: ves el mundo, pero no puedes moverte ni hablar.`);
   }
   function reajustar(): void { if (raiz) { raiz.classList.toggle("movil", movil()); } }
 
@@ -473,6 +478,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
   function estallar(): void {
     if (!raiz || estallando) return;
     if (espera) clearTimeout(espera); espera = null;
+    if (o.enlazada) { enviando = false; retirar(); o.enlazada.alAbrirse(); return; } // the link: no world behind to give back, the page goes on
     estallando = true; enviando = false;
     const r = raiz; const quieta = matchMedia("(prefers-reduced-motion: reduce)").matches;
     panel?.removeAttribute("aria-busy");
@@ -517,6 +523,8 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     marcarDato: (id: string, v: boolean): void => { if (v) marcas.datos.add(id); else marcas.datos.delete(id); pintarPie(); avisarCambio(); },
     /** for tests of the page and for a future «change my mind» (c6): ask the server again and redraw */
     repetir: (): boolean => s.pedirCondiciones(),
+    /** dardos enlazados (E2): this panel is done (the link's page closes it): take the panel away and stop listening to the session */
+    soltar: (): void => { if (fin) { clearTimeout(fin); fin = null; } if (espera) { clearTimeout(espera); espera = null; } retirar(); if (s.onCondiciones === alMensaje) s.onCondiciones = null; },
   };
 }
 

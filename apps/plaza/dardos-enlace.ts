@@ -73,6 +73,7 @@ export function crearEnlaceDardos(o: OpcionesEnlace) {
   let transport: Abierto | null = null, session: ClientSession | null = null, fase: Hechos["fase"] = "nada", motivo = "", aviso = "";
   let timer: ReturnType<typeof setTimeout> | null = null, enPared = false, arJuego: DianaAR | null = null, duelo: ReturnType<typeof montarDuelo> | null = null;
   let cond: CondicionesMensaje | null = null, identificado = false;
+  const oyentesCond = new Set<(m: CondicionesMensaje) => void>(); // E2: the norms panel of the flat page listens to what the linked world says
 
   const estado = (): EstadoEnlaceDardos => estadoEnlace({ fase, identificado, condiciones: cond, enPared });
   const decir = (t: string): void => { aviso = t; o.avisar?.(t); dec("estado"); };
@@ -115,7 +116,7 @@ export function crearEnlaceDardos(o: OpcionesEnlace) {
       identity: { load: () => { try { return almacen?.getItem(llave) ?? null; } catch { return null; } }, save: (tk) => { try { almacen?.setItem(llave, tk); } catch { /* private mode: a new guest next time */ } } },
     });
     session = S;
-    S.onCondiciones = (m) => { cond = m; dec("estado"); };
+    S.onCondiciones = (m) => { cond = m; dec("estado"); for (const f of [...oyentesCond]) { try { f(m); } catch { /* a listener must not break the link */ } } };
     void t.closed?.then((c) => { if (transport === t) cerrarTodo(fase === "abriendo" ? "fallo" : "cerrada", c.code === 4004 ? "el mundo enlazado está lleno" : c.code === 4003 ? "el mundo enlazado no te deja entrar" : `conexión cerrada (${c.code})`); });
     try { await t.opened; } catch (e) { if (transport === t) cerrarTodo("fallo", `no se pudo llegar a ${anfitrionDe(o.enlace.servidor)}`); return "error"; }
     if (transport !== t) return estado();
@@ -185,6 +186,12 @@ export function crearEnlaceDardos(o: OpcionesEnlace) {
     }),
     /** The linked controller (features/dardos/client.ts): sitios / duelo / clavados / jugar / lanzar / salir, for the e2e and E2. */
     dardos, sesion: () => session,
+    /** E2: the linked world's norms as the server sent them (a `CondicionesMensaje`), what the page's bubble draws; null = not yet */
+    condicionesMensaje: (): CondicionesMensaje | null => cond,
+    /** E2: be told whenever the linked world sends its norms again (accepting included); returns the way to stop */
+    alCondiciones: (fn: (m: CondicionesMensaje) => void): (() => void) => { oyentesCond.add(fn); return () => { oyentesCond.delete(fn); }; },
+    /** E2: ask the linked world for its norms again */
+    pedirCondiciones: (): boolean => session?.pedirCondiciones() ?? false,
     /** The AR wall's own state (fase, pared, lanzados, clavados, ultimo): null while no wall is hung. */
     ar: () => arJuego?.estado() ?? null,
     alCambiar: (fn: (que: "estado" | "darts") => void): (() => void) => { oyentes.add(fn); return () => { oyentes.delete(fn); }; },

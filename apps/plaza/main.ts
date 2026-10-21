@@ -497,7 +497,24 @@ const decirAviso = (t: string) => { const box = document.getElementById("avisos"
 view.arSupported().then((ok) => {
   if (!ok) return;
   arBtn.hidden = false; // the hidden ATTRIBUTE, not a style: the icon bar (tema.css) sets display on its buttons
-  arBtn.onclick = () => { if (view.ar.state === "off") void view.ar.enter().then((ok) => { if (!ok) { session.report({ k: "xr", modo: "ar", accion: "falla", detalle: view.ar.lastError }); decirAviso(mensajeFalloAR(view.ar.lastErrorName)); } }); else void view.ar.exit(); };
+  // the miniature (the plaza on your table): `enter()` must start the session in the click's own call stack (ar.ts), so nothing is awaited before it
+  const entrarMiniatura = (): void => { void view.ar.enter().then((ok) => { if (!ok) { session.report({ k: "xr", modo: "ar", accion: "falla", detalle: view.ar.lastError }); decirAviso(mensajeFalloAR(view.ar.lastErrorName)); } }); };
+  // dardos enlazados (E2): where the world has a link, the button opens a little chooser (the Tower's darts on your wall / the miniature). The
+  // chooser is its own chunk, prefetched here so that opening it needs no wait; the darts' connection and norms are settled INSIDE it, before the
+  // click that enters AR (ar-elegir.ts). No link (the Tower itself, `enlace: false`, an own AR board): the button is what it always was.
+  let elegirAR: Promise<import("./ar-elegir.ts").ElegirAR> | null = null;
+  const cargarElegir = (): Promise<import("./ar-elegir.ts").ElegirAR> => (elegirAR ??= import("./ar-elegir.ts").then((m) => m.crearElegirAR({
+    enlace: dardosEnlace, view, condiciones: montarCondiciones, alMiniatura: entrarMiniatura, movil: () => enMovil, decir: decirAviso,
+    falloAR: () => mensajeFalloAR(view.ar.lastErrorName), informarFallo: () => session.report({ k: "xr", modo: "ar", accion: "falla", detalle: view.ar.lastError }),
+  })).catch((e) => { elegirAR = null; throw e; }));
+  const sinElegir = (): void => { console.warn("[ar] no se pudo cargar la elección de AR: se entra con la maqueta"); };
+  arBtn.onclick = () => {
+    if (view.ar.state !== "off") { void view.ar.exit(); return; }
+    if (!dardosEnlace.vigente().enlace) { entrarMiniatura(); return; }
+    // a link applies: the chooser. Its chunk is normally here already (prefetched below); if not, the chooser opens as soon as it has loaded (it enters AR on a later click anyway)
+    void cargarElegir().then((c) => { if (view.ar.state === "off") void c.abrir(); }, sinElegir);
+  };
+  setTimeout(() => { if (dardosEnlace.vigente().enlace) void cargarElegir().catch(() => {}); }, 2500); // prefetch (the chunk only; nothing is connected)
 });
 setInterval(() => { arBtn.textContent = view.ar.jugando ? "Dardos en tu pared (salir)" : arLabel[view.ar.state]; }, 250); // dardos v1: a minigame may hold the AR session
 
