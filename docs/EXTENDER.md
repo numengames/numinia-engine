@@ -1535,14 +1535,23 @@ Regla R-1: cada pieza del motor se enciende sin tocar código. El mundo guarda u
   El interruptor solo existe si el mundo tiene condiciones (su `condiciones.json`, una fuente de la comunidad o la puerta forzada desde fuera).
   **Apagarla** deja entrar a quien estaba leyendo (su burbuja se va para todos); **encenderla** solo afecta a quien llegue después: nadie
   que ya esté dentro sale.
-- **`dardos`, `pesca`**: en f1 solo se guardan y se publican (por defecto encendidas, como hoy); esconder las dianas y el estanque es f2.
+- **`dardos`, `pesca`** (f2: obedecen): por defecto encendidas, como hoy. Apagadas, **el servidor** rechaza toda acción de la pieza
+  (dardos: `jugar`, `lanzar`, `cambiar`, `empezar`; pesca: `lanzar`, `recoger`, `soltar`) con «Los dardos están apagados en este mundo» /
+  «La pesca está apagada en este mundo», y **cierra lo que estaba en marcha** al apagar: una tirada suelta termina (lo lanzado ya cuenta en
+  el marcador, como al alejarse); un duelo, en marcha o esperando, se cancela para todos sin ganador (`finduelo` con `empate` y el texto
+  «…partida cancelada»); quien pescaba pierde el flotador con `escape { motivo: "apagada" }` (sin captura, sin `otorga`, el sitio queda libre).
+  **La página** no dibuja diana, estanque, flotador, pez en mano ni «E: tirar dardos / E: pescar» (los controladores devuelven `sitios()`
+  vacío y `ofrece()` falso; el chunk de la pieza ni se carga) y reaparece al volver a encender, sin recargar. Lógica pura:
+  `encendida(estado)` y `verSi(cosas, estado)` en `features/funciones/feature.ts`; la página lee el interruptor de otra pieza con
+  `api.estadoDe("funciones")` (solo lectura, como en el servidor). Una pieza que se enciende sin código: un mundo cuyo único cambio es
+  `"dardos": true` ya los tiene. Pruebas: `test/funciones-obedecen.test.ts`.
 - **Quién**: quien puede construir (`api.puede(e, "construir")`, igual que el interruptor «Espacio base»). El servidor reescribe solo la
   clave pedida (las demás se quedan; sin fichero lo crea con `{ schema, <función> }`), lo valida y lo escribe de forma atómica; un fichero
   mal escrito no se sobrescribe nunca (el log y el rechazo dicen cómo arreglarlo). Sin carpeta de mundo, el cambio vale hasta reiniciar.
 - **En la página**: estado compartido `normas` / `dardos` / `pesca`, cada uno `{ activa, fija }` (una función que el mundo no tiene no
   aparece); `__numinia.funciones.actual()` → `{ normas?, dardos?, pesca? }`, `.fija(nombre)` y `.ponerFuncion(nombre, si)`. Para un agente:
   el verbo `poner { funcion, activa }` de la pieza `funciones`. El panel que los pinta es f3/v3.
-- Pruebas: `test/funciones-interruptores.test.ts`.
+- Pruebas: `test/funciones-interruptores.test.ts` (f1), `test/funciones-obedecen.test.ts` (f2).
 
 ### Las normas de la comunidad llegan solas al mundo (w4: `packages/server/src/condiciones-fuente.ts`)
 

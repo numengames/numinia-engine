@@ -57,3 +57,29 @@ test("si transitionend y el respaldo llegan los dos, el segundo no hace nada (id
   assert.doesNotThrow(() => avisoGuardado!());
   assert.equal(el.hidden, true);
 });
+
+// B5: the screen waits for the ground
+import { puedeOcultar, sueloPendiente, TOPE_CARGA_MS } from "../apps/plaza/carga.ts";
+test("B5: sin suelo se oculta con el primer cuadro tras welcome, como antes", () => {
+  const sp = sueloPendiente({ pideNaturaleza: false, pideBase: false, naturalezaLista: false, baseLista: false });
+  assert.equal(sp, false);
+  assert.equal(puedeOcultar({ welcome: true, primerCuadro: true, sueloPendiente: sp, msDesdeWelcome: 10 }), true);
+  assert.equal(puedeOcultar({ welcome: false, primerCuadro: true, sueloPendiente: false, msDesdeWelcome: 0 }), false);
+});
+test("B5: base o naturaleza pendientes mantienen la pantalla", () => {
+  assert.equal(sueloPendiente({ pideNaturaleza: false, pideBase: true, naturalezaLista: false, baseLista: false }), true);
+  assert.equal(sueloPendiente({ pideNaturaleza: true, pideBase: false, naturalezaLista: false, baseLista: true }), true);
+  assert.equal(sueloPendiente({ pideNaturaleza: true, pideBase: true, naturalezaLista: true, baseLista: false }), true);
+  assert.equal(sueloPendiente({ pideNaturaleza: true, pideBase: true, naturalezaLista: true, baseLista: true }), false);
+  assert.equal(puedeOcultar({ welcome: true, primerCuadro: true, sueloPendiente: true, msDesdeWelcome: 500 }), false);
+});
+test("B5: suelo aplicado pero sin cuadro dibujado después, aún no; con cuadro, sí", () => {
+  assert.equal(puedeOcultar({ welcome: true, primerCuadro: false, sueloPendiente: false, msDesdeWelcome: 500 }), false);
+  assert.equal(puedeOcultar({ welcome: true, primerCuadro: true, sueloPendiente: false, msDesdeWelcome: 500 }), true);
+});
+test("B5: el tope evita que se quede colgada", () => {
+  assert.equal(puedeOcultar({ welcome: true, primerCuadro: false, sueloPendiente: true, msDesdeWelcome: TOPE_CARGA_MS }), true);
+  assert.equal(puedeOcultar({ welcome: true, primerCuadro: false, sueloPendiente: true, msDesdeWelcome: TOPE_CARGA_MS - 1 }), false);
+  assert.equal(puedeOcultar({ welcome: true, primerCuadro: false, sueloPendiente: true, msDesdeWelcome: 100, topeMs: 50 }), true);
+  assert.equal(puedeOcultar({ welcome: false, primerCuadro: false, sueloPendiente: true, msDesdeWelcome: 99999 }), false);
+});

@@ -8,7 +8,7 @@ import { montarCiudad } from "./ciudad.ts"; // t_5cff4f06: the corner button bac
 import { montarMenuVR } from "./xr-menu.ts"; // rediseño v2: the VR wrist watch and menu (story E)
 import mundoPlaza from "./mundo.ajustes.json";
 import { montarPulsaciones } from "./pulsaciones.ts"; // U26: a press you can see (and feel) on every button
-import { carga } from "./carga.ts"; // MVL3 step 1: fades out the 2D "Cargando" screen once the first frame is drawn
+import { carga, puedeOcultar, sueloPendiente } from "./carga.ts"; // MVL3 step 1: fades out the 2D "Cargando" screen once the first frame is drawn
 import { ClientSession, serverUrl, tomarPaseDeLaDireccion } from "../../packages/client/src/index.ts";
 import { createView, leerAparato, leerBateria, medidorDeCuadros, haciaMundo } from "../../packages/render/src/index.ts";
 import { mensajeFalloAR } from "../../packages/render/src/ar.ts"; // J8: a clear sentence when AR fails to start
@@ -309,10 +309,10 @@ const webPagina = montarWeb({ web: pantallasWeb, view }); // N17: web screens �
 const ancestrosPagina = montarAncestros({ ancestros, view }); // ancestros v1: the hall in 3D, the two panels, and the law + our rule on screen when the hologram answers you
 // ---- pesca v1: nothing of it is in the start bundle; the HUD and the 3D arrive with the first fishing spot or float ----
 let pescaHud: Promise<unknown> | null = null, pescaPagina: unknown = null; // N4: pescaPagina.manos (VR rod, gamepad) for the e2e
-pesca.alCambiar(() => { pescaHud ??= import("./pesca.ts").then((m) => (pescaPagina = m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, interaccion: () => interaccion }))).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); });
+pesca.alCambiar(() => { if (!pesca.sitios().length) return; /* f2: fishing switched off: nothing to load */ pescaHud ??= import("./pesca.ts").then((m) => (pescaPagina = m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, interaccion: () => interaccion }))).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); });
 // ---- dardos v1: the throwing view (mouse, flick, keys) and «En tu pared (AR)» arrive with the first dartboard ----
 let dardosHud: Promise<unknown> | null = null;
-dardos.alCambiar(() => { dardosHud ??= import("./dardos.ts").then((m) => m.montarDardos({ dardos, view, session, hud: document.getElementById("dardos-hud")! })).catch((e) => console.warn(`[dardos] no se pudo cargar la página de dardos: ${(e as Error)?.message ?? e}`)); });
+dardos.alCambiar(() => { if (!dardos.sitios().length) return; /* f2: darts switched off: nothing to load */ dardosHud ??= import("./dardos.ts").then((m) => m.montarDardos({ dardos, view, session, hud: document.getElementById("dardos-hud")! })).catch((e) => console.warn(`[dardos] no se pudo cargar la página de dardos: ${(e as Error)?.message ?? e}`)); });
 
 // ---- S6f: todo suena por UNA puerta — el fichero del catálogo si lo hay, y si no la receta sintetizada; los botones,
 // mis pasos, mi salto y mi aterrizaje son locales, y lo compartido (puerta, dados, dardos, pez, teleport) lo manda el
@@ -582,13 +582,25 @@ const signature = () => { const s = session.entity >= 0 ? session.selfPosition(0
 let last = performance.now(), acc = 0, frames = 0, fps = 0, fpsT = last;
 setInterval(() => session.ping(), 1000);
 let mallaLista = false; // H4
+let cargaOculta = false;
+// B5: does the shared state ask for a ground (naturaleza / espacio base) that the view has not finished building? (`activa` of the view is true only after `aplicar` produced it)
+const suelosPedidos = () => {
+  let pideNaturaleza = false, pideBase = false;
+  for (const [k, v] of session.features.allState()) {
+    if (k === "naturaleza:mundo") pideNaturaleza = (v as { activa?: boolean } | null)?.activa !== false;
+    else if (k === "espacio-base:mundo") pideBase = (v as { activa?: boolean } | null)?.activa !== false;
+  }
+  return { pideNaturaleza, pideBase };
+};
 view.loop((now) => {
   const dt = Math.min(250, now - last); last = now;
   acc += dt;
   while (acc >= TICK_MS) { const [mx, mz] = readAxes(); session.tick(mx, mz, readButtons()); acc -= TICK_MS; }
   if (session.welcome && !probe.done) runProbe();
   if (session.welcome && !informe.bienvenidaMs) { informe.bienvenidaMs = Math.round(performance.now()); carga.etapa("bienvenida"); }
-  if (informe.bienvenidaMs && !mallaLista && !informe.primerCuadroMs && carga.conMalla() && view.espacioBase.estadisticas().activa) { mallaLista = true; carga.etapa("mundo"); } // H4: the espacio base's own mesh is built
+  const pedidos = cargaOculta ? null : suelosPedidos();
+  const pendiente = pedidos ? sueloPendiente({ ...pedidos, naturalezaLista: view.naturaleza.activa, baseLista: view.espacioBase.activa }) : false; // B5: before this frame is drawn
+  if (informe.bienvenidaMs && !mallaLista && !cargaOculta && carga.conMalla() && !pendiente && (view.espacioBase.activa || view.naturaleza.activa)) { mallaLista = true; carga.etapa("mundo"); } // H4 + B5: the ground (base or nature) is built
   if (probe.done && informe.primerCuadroMs && !informe.entrada) void enviarEntrada();
   // power policy (P2): skip the draw when hidden or when nothing changes; the 20 Hz ticks above never skip
   condicionesXR.tick(); // condiciones/c4: the bubble inside the headset (nothing to do unless the bubble is up and VR is presenting)
@@ -598,6 +610,7 @@ view.loop((now) => {
   const active = now - lastActive < 600;
   if (view.vr.active || view.ar.state !== "off" || view.power.shouldDraw(now, { hidden: document.hidden, active })) {
     view.sync(session.entity >= 0 ? session.selfPosition(acc / TICK_MS) : null, session.remotePositions(now));
+    view.sueloTerreno(session.sueloTerreno()); // avatares/suelo-relieve: hills count as ground for the avatars' clips and feet
     view.solidos(session.solidos()); // N1b: the camera does not go through solid things; avatars stand on them
     const t0 = performance.now();
     view.draw(dt / 1000);
@@ -609,7 +622,9 @@ view.loop((now) => {
     const xr = view.vr.active || view.ar.state !== "off";
     if (lastDrawAt) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active), { dc: cost.calls, tri: cost.triangles, programas: (cost as { programs?: number }).programs, ratio: view.power.pixelRatio(), xr });
     lastDrawAt = now;
-    if (session.welcome && !informe.primerCuadroMs) { informe.primerCuadroMs = Math.round(performance.now()); carga.ocultar(); } // MVL3 step 1: world visible, fade the "Cargando" screen away
+    if (session.welcome && !informe.primerCuadroMs) informe.primerCuadroMs = Math.round(performance.now());
+    // MVL3 step 1 + B5: fade the "Cargando" screen away once a frame was drawn with the ground built (or after the cap)
+    if (!cargaOculta && puedeOcultar({ welcome: !!session.welcome, primerCuadro: true, sueloPendiente: pendiente, msDesdeWelcome: informe.bienvenidaMs ? Math.round(performance.now()) - informe.bienvenidaMs : 0 })) { cargaOculta = true; carga.ocultar(); }
   }
   if (now - fpsT >= 500) { fps = Math.round((frames * 1000) / (now - fpsT)); frames = 0; fpsT = now; drawHud(); }
 });

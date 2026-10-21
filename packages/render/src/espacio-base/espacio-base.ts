@@ -11,11 +11,11 @@ import * as THREE from "three/webgpu";
 import type { Nivel } from "../calidad.ts";
 import type { Atmosfera } from "../entorno.ts";
 import { alturaBase, SEMILLA_BASE_DEFECTO } from "../../../relieve/src/espacio-base.ts";
-import { ocultarHitos } from "../naturaleza/hitos.ts";
+import { ocultarSuelo, ocultarHitosCompartido, ponerAtmosfera } from "../suelo-compartido.ts";
 import { atmosferaEspacioBase } from "./atmosfera.ts";
 import { construirMalla, LLAMADAS } from "./malla.ts";
 import type { Malla } from "./malla.ts";
-import { crearMaterialBase, crearMaterialPuntos } from "./material.ts";
+import { crearMaterialBase, crearMaterialPuntos, crearMaterialRelleno } from "./material.ts";
 
 /** What the page receives from features/espaciobase (flat, validated on the server). Every field optional: defaults below. */
 export type EspacioBaseDatos = { activa?: boolean; semilla?: number };
@@ -46,7 +46,7 @@ export type HEspacioBase = {
   atmosfera?: (a: Atmosfera) => () => void;
 };
 
-type Real = { grupo: THREE.Group; malla: THREE.LineSegments; puntos: THREE.Mesh; nivel: Nivel; datos: EspacioBaseNormal; m: Malla; hmin: number; hmax: number; groundVisible: boolean; mostrarHitos: (() => void) | null; quitarAtmosfera: (() => void) | null; msConstruir: number };
+type Real = { grupo: THREE.Group; malla: THREE.LineSegments; puntos: THREE.Mesh; relleno: THREE.Mesh; nivel: Nivel; datos: EspacioBaseNormal; m: Malla; hmin: number; hmax: number; soltarSuelo: () => void; mostrarHitos: (() => void) | null; quitarAtmosfera: (() => void) | null; msConstruir: number };
 export type EstadisticasEspacioBase = { activa: boolean; nivel: Nivel | null; clave: string; lineas: number; vertices: number; llamadas: number; msConstruir: number; hmin: number; hmax: number };
 
 export function crearEspacioBase(h: HEspacioBase) {
@@ -54,9 +54,9 @@ export function crearEspacioBase(h: HEspacioBase) {
 
   function desmontar(): void {
     if (!real) return;
-    for (const o of [real.malla, real.puntos]) { o.geometry.dispose(); (o.material as THREE.Material).dispose(); }
+    for (const o of [real.malla, real.puntos, real.relleno]) { o.geometry.dispose(); (o.material as THREE.Material).dispose(); }
     real.grupo.removeFromParent();
-    h.ground.visible = real.groundVisible;  // the flat ground comes back exactly as it was
+    real.soltarSuelo();                     // the flat ground comes back only when the nature does not hold it either (B3)
     real.mostrarHitos?.();                  // and so do the landmark pillars
     real.quitarAtmosfera?.();               // and the world's own sky, fog and tone
     real = null;
@@ -64,7 +64,7 @@ export function crearEspacioBase(h: HEspacioBase) {
 
   function construir(d: EspacioBaseNormal, nivel: Nivel): Real {
     const t0 = performance.now();
-    const quitarAtmosfera = h.atmosfera ? h.atmosfera(atmosferaEspacioBase()) : null;
+    const quitarAtmosfera = h.atmosfera ? ponerAtmosfera(h.atmosfera, "base", atmosferaEspacioBase()) : null;
     const m = construirMalla(d.semilla, nivel);
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(m.posicion, 3));
@@ -78,11 +78,15 @@ export function crearEspacioBase(h: HEspacioBase) {
     gp.setAttribute("position", new THREE.BufferAttribute(P.posicion, 3)); gp.setAttribute("esquina", new THREE.BufferAttribute(P.esquina, 2)); gp.setAttribute("tipo", new THREE.BufferAttribute(P.tipo, 1)); gp.setIndex(new THREE.BufferAttribute(P.indice, 1));
     const puntos = new THREE.Mesh(gp, crearMaterialPuntos(h.dia));
     puntos.name = "espacio-base-puntos"; puntos.userData.sinSombra = true; puntos.frustumCulled = false; puntos.matrixAutoUpdate = false; puntos.updateMatrix(); puntos.renderOrder = 1;
-    const grupo = new THREE.Group(); grupo.name = "espacio-base"; grupo.add(malla, puntos);
+    const gr = new THREE.BufferGeometry(); // B6: the translucent fill shares the lines' position BUFFER (one copy in memory), only the triangle index is new
+    gr.setAttribute("position", g.getAttribute("position")); gr.setIndex(new THREE.BufferAttribute(m.indiceRelleno, 1)); gr.boundingSphere = g.boundingSphere;
+    const relleno = new THREE.Mesh(gr, crearMaterialRelleno(h.dia));
+    relleno.name = "espacio-base-relleno"; relleno.userData.sinSombra = true; relleno.frustumCulled = false; relleno.matrixAutoUpdate = false; relleno.updateMatrix(); relleno.renderOrder = -1; // lines (0) and dots (1) draw over it
+    const grupo = new THREE.Group(); grupo.name = "espacio-base"; grupo.add(relleno, malla, puntos);
     h.padre.add(grupo);
-    const groundVisible = h.ground.visible; h.ground.visible = false;
-    const mostrarHitos = h.hitos ? ocultarHitos(h.hitos()) : null;
-    return { grupo, malla, puntos, nivel, datos: d, m, hmin: m.hmin, hmax: m.hmax, groundVisible, mostrarHitos, quitarAtmosfera, msConstruir: Math.round((performance.now() - t0) * 10) / 10 };
+    const soltarSuelo = ocultarSuelo(h.ground);
+    const mostrarHitos = h.hitos ? ocultarHitosCompartido(h.hitos()) : null;
+    return { grupo, malla, puntos, relleno, nivel, datos: d, m, hmin: m.hmin, hmax: m.hmax, soltarSuelo, mostrarHitos, quitarAtmosfera, msConstruir: Math.round((performance.now() - t0) * 10) / 10 };
   }
 
   /** Switch the espacio base on, change it or switch it off. Idempotent: the same data on the same tier does nothing. */

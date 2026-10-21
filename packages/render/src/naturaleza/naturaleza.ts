@@ -20,7 +20,7 @@ import { ESTACIONES, COLOR_ESTANQUE } from "./paleta.ts";
 import type { Estacion } from "./paleta.ts";
 import { HIERBA_POR_NIVEL, TROZOS_POR_NIVEL } from "./niveles.ts";
 import { actualizarRelleno } from "./relleno.ts";
-import { ocultarHitos } from "./hitos.ts";
+import { ocultarSuelo, ocultarHitosCompartido, ponerAtmosfera } from "../suelo-compartido.ts";
 
 /** What the page receives from features/naturaleza (flat, validated on the server). Every field optional: defaults below. */
 export type NaturalezaDatos = {
@@ -29,9 +29,11 @@ export type NaturalezaDatos = {
   paleta?: string; estacion?: string;
   /** F1: the fauna switch, its density 0–1 and the allow-list of species ids joined by commas ("" = all). */
   fauna?: boolean; faunaDensidad?: number; faunaEspecies?: string;
+  /** B3: seed of the espacio base the nature is painted on (naturaleza:mundo `base`); -1 or absent = no base, the nature's own relief. */
+  base?: number;
 };
 /** `paleta` = the world's season (kept under its N4 name: it is the field the server state travels with). */
-export type NaturalezaNormal = { activa: boolean; semilla: number; tamano: number; plaza: number; arboles: number; hierba: number; estanque: boolean; paleta: Estacion; fauna: boolean; faunaDensidad: number; faunaEspecies: string };
+export type NaturalezaNormal = { activa: boolean; semilla: number; tamano: number; plaza: number; arboles: number; hierba: number; estanque: boolean; paleta: Estacion; fauna: boolean; faunaDensidad: number; faunaEspecies: string; /** B3: the base's seed; absent = no base */ base?: number };
 /** Defaults: kept equal to features/naturaleza/esquema.ts `DEFECTOS` (a test compares them). */
 export const DEFECTOS_NATURALEZA: NaturalezaNormal = { activa: true, semilla: 1234, tamano: 200, plaza: 12, arboles: 1, hierba: 1, estanque: true, paleta: "verano", fauna: true, faunaDensidad: 1, faunaEspecies: "" };
 
@@ -50,6 +52,7 @@ export function normalizar(d: NaturalezaDatos): NaturalezaNormal {
     arboles: num(d.arboles, D.arboles, 0, 1), hierba: num(d.hierba, D.hierba, 0, 1), estanque: d.estanque !== false,
     paleta: estacionDeDatos(d),
     fauna: d.fauna !== false, faunaDensidad: num(d.faunaDensidad, D.faunaDensidad, 0, 1), faunaEspecies: typeof d.faunaEspecies === "string" ? d.faunaEspecies.slice(0, 512) : "",
+    ...(typeof d.base === "number" && Number.isFinite(d.base) && d.base >= 0 ? { base: Math.min(2147483647, Math.round(d.base)) } : {}),
   };
 }
 
@@ -87,7 +90,7 @@ export type HNaturaleza = {
 type Real = {
   arboles: import("./arboles.ts").Arboles; hierba: import("./hierba.ts").Hierba; terreno: import("./terreno.ts").Terreno;
   agua: { malla: THREE.Mesh; t: { value: number } } | null; grupo: THREE.Group; nivel: Nivel; datos: NaturalezaNormal; fauna: import("./fauna.ts").Fauna | null; sonido: import("./sonido.ts").SonidoFauna | null; claveFauna: string; msFauna: number;
-  puntos: readonly import("./arboles.ts").PuntoArbol[]; groundVisible: boolean; msConstruir: number;
+  puntos: readonly import("./arboles.ts").PuntoArbol[]; soltarSuelo: (() => void) | null; msConstruir: number;
   /** R6.1: shows the landmark pillars again (as the environment wants them). */
   mostrarHitos: (() => void) | null;
   /** R7.1: gives the world its own sky, fog and tone back. */
@@ -144,7 +147,7 @@ export function crearNaturaleza(h: HNaturaleza) {
     real.hierba.dispose(); real.arboles.dispose(); real.terreno.dispose();
     if (real.agua) { real.agua.malla.geometry.dispose(); (real.agua.malla.material as THREE.Material).dispose(); }
     real.grupo.removeFromParent();
-    h.ground.visible = real.groundVisible;          // the flat ground comes back exactly as it was
+    real.soltarSuelo?.();                           // B3: the flat ground comes back only when no other layer (the espacio base) still holds it
     real.mostrarHitos?.();                          // R6.1: and so do the engine's landmark pillars
     real.quitarAtmosfera?.();                       // R7.1: and the world's own sky, fog and tone
     real = null;
@@ -153,18 +156,19 @@ export function crearNaturaleza(h: HNaturaleza) {
   function construir(m: Awaited<ReturnType<typeof cargar>>, d: NaturalezaNormal, nivel: Nivel): Real {
     const [T, A, H, E, AG, AT] = m, t0 = performance.now();
     // R7.1: the nature's atmosphere first, so the terrain's border (h.niebla) already fades to the new horizon colour
-    const quitarAtmosfera = h.atmosfera ? h.atmosfera(AT.atmosferaNaturaleza(T.NIVEL_AGUA)) : null;
+    const quitarAtmosfera = h.atmosfera ? ponerAtmosfera(h.atmosfera, "naturaleza", AT.atmosferaNaturaleza(T.NIVEL_AGUA)) : null; // B3: the base's sky wins while it is on
+    const conBase = d.base !== undefined, estanque = d.estanque && !conBase; // B3: on the base's relief there is no basin to hold a pond
     const estacion = d.paleta, grupo = new THREE.Group(); grupo.name = "naturaleza";
     // R5.2: every colour comes from paleta.ts: the season picks the meadow/grass/leaf sets (ESTACIONES), the pond wears COLOR_ESTANQUE at every tier
-    const terreno = T.crearTerreno({ semilla: d.semilla, nivel, tamano: d.tamano, plaza: d.plaza, niebla: h.niebla(), escena: grupo, sinEstanque: !d.estanque, estacion, recibeSombra: nivel === "A", aguaPlana: nivel === "D" ? COLOR_ESTANQUE : undefined, trozos: h.trozos ? TROZOS_POR_NIVEL[nivel] : null });
+    const terreno = T.crearTerreno({ semilla: d.semilla, nivel, tamano: d.tamano, plaza: d.plaza, niebla: h.niebla(), escena: grupo, sinEstanque: !estanque, ...(d.base !== undefined ? { base: d.base } : {}), estacion, recibeSombra: nivel === "A", aguaPlana: nivel === "D" ? COLOR_ESTANQUE : undefined, trozos: h.trozos ? TROZOS_POR_NIVEL[nivel] : null });
     terreno.malla.userData.mapa = "suelo";
-    const puntos = E.esparcirArboles(terreno, { semilla: d.semilla, tamano: d.tamano, plaza: d.plaza, densidad: d.arboles, nivel, paleta: estacion, estanque: d.estanque ? terreno.estanque : null });
+    const puntos = E.esparcirArboles(terreno, { semilla: d.semilla, tamano: d.tamano, plaza: d.plaza, densidad: d.arboles, nivel, paleta: estacion, estanque: estanque ? terreno.estanque : null });
     const arboles = A.crearArboles({ vientoU: h.vientoU as never, nivel, camara: h.camara }, puntos);
     grupo.add(arboles.grupo);
     const hierba = H.crearHierba({ vientoU: h.vientoU, nivel }, { alturaEn: terreno.alturaEn, zonaEn: terreno.zonaEn, franjaEn: terreno.franjaEn, estacion },
       { semilla: d.semilla, nivel, escena: grupo, empujaCamara: false, tabla: d.hierba >= 1 ? undefined : { tuftsMax: Math.max(40, Math.round(HIERBA_POR_NIVEL[nivel].tuftsMax * d.hierba)) } });
     let agua: Real["agua"] = null;
-    if (d.estanque && nivel !== "D") { // N6: on tier D the pond is painted into the terrain mesh (one draw call less)
+    if (estanque && nivel !== "D") { // N6: on tier D the pond is painted into the terrain mesh (one draw call less)
       const t = uniform(0) as unknown as { value: number }, r = terreno.estanque.radio * 1.2, forma = { tipo: "circulo" as const, radio: r };
       const detalle = (h.detalleAgua?.() ?? { olas: 0, espuma: false, lineas: false, caustica: false, destellos: false }) as never;
       const mat = AG.materialDeAgua({ color: COLOR_ESTANQUE, forma, detalle, tiempo: t, luz: h.aguaLuz as never, bordeOculto: r * 0.12, verdemar: true }, 12);
@@ -174,13 +178,13 @@ export function crearNaturaleza(h: HNaturaleza) {
       grupo.add(malla); agua = { malla, t };
     }
     h.padre.add(grupo);
-    const groundVisible = h.ground.visible; h.ground.visible = false;
-    const mostrarHitos = h.hitos ? ocultarHitos(h.hitos()) : null; // R6.1: no toy boxes on the meadow (hidden, not recoloured)
+    const soltarSuelo = ocultarSuelo(h.ground); // B3: counted, shared with the espacio base
+    const mostrarHitos = h.hitos ? ocultarHitosCompartido(h.hitos()) : null; // R6.1: no toy boxes on the meadow (hidden, not recoloured)
     const p = h.camara.position;
     terreno.trozos?.actualizar(p.x, p.z);             // E02: each chunk's ring for where the camera starts
     hierba.llenarTodo(h.camara);                      // fill the ring now (a one-off cost at the load), not over the first frames
     arboles.repartir(p.x, p.y, p.z);
-    return { arboles, hierba, terreno, agua, grupo, nivel, datos: d, fauna: null, sonido: null, claveFauna: claveDeFauna(d), msFauna: 0, puntos, groundVisible, mostrarHitos, quitarAtmosfera, msConstruir: Math.round((performance.now() - t0) * 10) / 10 };
+    return { arboles, hierba, terreno, agua, grupo, nivel, datos: d, fauna: null, sonido: null, claveFauna: claveDeFauna(d), msFauna: 0, puntos, soltarSuelo, mostrarHitos, quitarAtmosfera, msConstruir: Math.round((performance.now() - t0) * 10) / 10 };
   }
 
   /** Switch the nature on, change it or switch it off. Idempotent: the same data on the same tier does nothing. Async only the first time (modules load). */

@@ -62,3 +62,19 @@ export function crearMaterialPuntos(dia: Nodo): THREE.MeshBasicNodeMaterial {
   m.name = "espacio-base-puntos";
   return m;
 }
+
+/** B6 · The translucent white fill under the line mesh: the same geometry's vertices, a triangle index, ONE uniform (the engine's `dia`) and nothing per frame.
+ *  White at ~12 % at night and ~35 % by day; double-sided (seen from below too), no depth write (never hides what is behind), unlit, fog like the rest.
+ *  polygonOffset 4/4 pushes it back MORE than the nature terrain's 2/2 (naturaleza/terreno.ts, B3): where both exist the terrain wins the depth test and the fill is
+ *  hidden under it; the lines (no offset) stay on top of it. */
+export const RELLENO = { noche: 0.12, dia: 0.35, offsetFactor: 4, offsetUnits: 4 };
+export function crearMaterialRelleno(dia: Nodo): THREE.MeshBasicNodeMaterial {
+  const m = new THREE.MeshBasicNodeMaterial();
+  m.colorNode = vec3(1, 1, 1);
+  m.opacityNode = mix(float(RELLENO.noche), float(RELLENO.dia), dia);
+  m.transparent = true; m.depthWrite = false; m.side = THREE.DoubleSide;
+  m.polygonOffset = true; m.polygonOffsetFactor = RELLENO.offsetFactor; m.polygonOffsetUnits = RELLENO.offsetUnits;
+  m.lights = false; m.userData.sinSombra = true;
+  m.name = "espacio-base-relleno";
+  return m;
+}

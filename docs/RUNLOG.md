@@ -1472,6 +1472,16 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `feat/ia-visible` (S1–S7 + clic del mapa + origin/main a4e967ec), PR contra `main`.
 - Siguiente: ja/ko/pt-br; que numinia.com mande el bloque `ia` cuando este motor esté publicado en toda la flota.
+## 2026-10-21 · funciones f2 · hecho
+- Qué: historia f2 (0.30.0): dardos y pesca obedecen su interruptor. Servidor (manda él): apagada, la pieza rechaza toda acción y cierra lo
+  que corría —tirada suelta termina, duelo cancelado para todos sin ganador, pescador suelto con `escape.motivo "apagada"` (pesca v4: un
+  valor nuevo al final del enum), sitio libre—. Página (PC, móvil, AR, VR, por los controladores): sin diana, estanque, flotador, pez en mano
+  ni «E: …»; el chunk de la pieza ni se carga; al encender reaparece sin recargar. `ClientApi.estadoDe(feature)` (solo lectura) y las
+  funciones puras `encendida` / `verSi`. Encendidas (por defecto) = como hoy; sin cambio en la simulación (huella intacta).
+- Números: `test/funciones-obedecen.test.ts` (4 pruebas); ver la PR para `npm test`, gates y build.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `funciones/f2-dardos-pesca-obedecen` (sobre f1), sin subir.
+- Siguiente: f3 (e2e de navegador y panel con los interruptores).
 ## 2026-10-21 19:42 · ia-llamar S8 (la burbuja de acción de cada IA) · hecho
 - Qué: toda IA conectada tiene una burbuja (esfera, cúpula, cilindro o caja; radio de 2 a 12 m; por defecto esfera de 4 m «al acercarte», o la del bloque `ia.burbuja` del pase). El servidor decide cada 10 ticks quién está dentro y avisa a la IA (`entraEnBurbuja`/`saleDeBurbuja`) y a la persona («Entras en la burbuja de Ada (IA).», una vez por entrada, con respiro de 10 s por IA). Publica la forma para que S9 la dibuje y ofrece `dentroDeBurbuja(ia)` a S10/S12. Sin IAs no hace nada (una comprobación por tick). Nombres de eventos en camelCase porque el motor no admite guiones bajos.
 - Números: ver el cuerpo de la PR (`npm test`, gates, build). Sin dibujo todavía (S9) y sin llamada (S10).
@@ -1501,3 +1511,11 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `feat/ia-puente`, sin PR.
 - Siguiente: S14 (numinia-web refresca `puente-mundo.mjs` y lo reenvía).
+
+## 2026-10-21 23:50 · ia-llamar S11 (Hablar con ella) y cierre de llamar a una IA · hecho
+- Qué: Las IAs se pueden llamar: por su burbuja, por su nombre, con `/nombre` o con el botón «Hablar con ella»; la IA puede esperar llamadas y saludar. Página (S11): en la tarjeta y en la ficha de Gente de una IA, si su casilla de botón está encendida, sale «Hablar con ella»; la primera vez (por navegador) un aviso («Lo que le digas lo lee su cerebro (la empresa de esa IA) fuera del mundo, y su respuesta la ven quienes estén cerca.», Aceptar) y luego una cajita (hasta 190 bytes, con contador; si no cabe se rechaza, nunca se corta). Dentro de la burbuja de una IA sale «E: hablar con <nombre>» (el mismo «E» de los hologramas, la cerradura y el vídeo: lo enseña lo más cercano; al `entras` aparece y al `sales` se va) y abre la misma cajita. La tarjeta dice «Escuchando ahora» si su cerebro usó las herramientas de escucha hace menos de 90 s, y «No escucha ahora» si no (texto de S16). La tarjeta se coloca a un lado para no tapar la burbuja de respuesta.
+- Números: ver el cuerpo de la PR. `test/llamar-ia.test.ts` (pruebas puras). Comprobado en navegador con una IA conectada por el puente (`esperar_llamada` devuelve «hola, ¿me oyes?», la IA responde con `decir` y `gesto saludar`; también `/ada hola` y la tecla E), PC 1400×900 y móvil 390×844; capturas en `work/ia-organizacion/capturas/llamar/`.
+- Idiomas: los textos nuevos están en español; **`en`, `ja`, `ko` y `pt-br` pendientes** (caen en español).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `feat/ia-llamar` (S8–S11 y el puente de `feat/ia-puente`, con origin/main 9573c2ae), PR contra `main`.
+- Siguiente: S14 (numinia-web refresca `puente-mundo.mjs` para dar estas herramientas a las IAs conectadas); S16 completo en el puente; idiomas.
