@@ -234,14 +234,14 @@ test("a sleeping AI's bubble is dim and dashed, and wakes bright; a bubble that 
   m.B.poner(1, null);                          // twice: no harm
 });
 
-test("the translucent green: fill and edge use the house green, depth is not written, and the fill is a closed shell you can stand inside", () => {
+test("the translucent green: fill and edge use the house green, depth is not written, and the fill is front-faced only (no tint when the camera is inside)", () => {
   const m = mundo(); m.ponerAvatar(1, 0, 3);
   for (const f of FORMAS) { m.B.poner(1, cfg(f)); m.B.update(0); }
   const gr = grupos(m.world)[0], rel = gr.children[0] as THREE.Mesh, bor = gr.children[1] as THREE.LineSegments;
   const mr = rel.material as THREE.MeshBasicMaterial, mb = bor.material as THREE.LineBasicMaterial;
   assert.equal(mr.color.getHex(), P.BURBUJA_COLOR); assert.equal(mb.color.getHex(), P.BURBUJA_COLOR);
   assert.equal(mr.transparent, true); assert.equal(mr.depthWrite, false); assert.equal(mb.depthWrite, false);
-  assert.equal(mr.side, THREE.DoubleSide, "seen from inside too");
+  assert.equal(mr.side, THREE.FrontSide, "front faces only: from inside the far wall is a back face, so the view is not tinted green (the edge stays)");
   assert.ok(mr.opacity < 0.3 && mb.opacity > mr.opacity);
   for (const f of FORMAS) { // every shape's edge has segments (pairs) and a distance along them for the dashes
     const m2 = mundo(); m2.ponerAvatar(1, 0, 3); m2.B.poner(1, cfg(f)); m2.B.update(0);

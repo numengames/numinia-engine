@@ -4,6 +4,8 @@
 // materials SHARED by level of visibility (a few in all: opacity is quantised, see burbujas-politica.ts), no shader of our own, no
 // second pass. At most `max()` bubbles are drawn at once (the nearest to the player), pooled by shape; a bubble that leaves or is
 // `nunca` goes back to the pool; a world without AIs makes nothing at all (no geometry, no material, no mesh, nothing to update).
+// The fill is drawn FrontSide only: with the camera inside the shape the far wall is a back face, so the view is not tinted green
+// (the edge lines stay); from outside the near wall still shows the shape.
 // What is drawn is decided in burbujas-politica.ts (pure, tested alone); this file only owns the three.js objects.
 import * as THREE from "three/webgpu";
 import { BURBUJA_COLOR, BURBUJA_COLOR_DORMIDA, DESTELLO_MS, colocacion, destello, distanciaAlBorde, elegir, intensidad, nivelDe, opacidadBorde, opacidadRelleno } from "./burbujas-politica.ts";
@@ -86,7 +88,7 @@ export function createBurbujas(o: {
   const unidad = (f: Forma): Unidad => { let u = unidades.get(f); if (!u) { u = crearUnidad(f); unidades.set(f, u); } return u; };
   const matRelleno = (dormida: boolean, nivel: number): THREE.MeshBasicMaterial => {
     const k = `${dormida ? 1 : 0}:${nivel}`; let m = rellenos.get(k);
-    if (!m) { m = new THREE.MeshBasicMaterial({ color: dormida ? BURBUJA_COLOR_DORMIDA : BURBUJA_COLOR, transparent: true, opacity: opacidadRelleno(nivel), depthWrite: false, side: THREE.DoubleSide }); rellenos.set(k, m); }
+    if (!m) { m = new THREE.MeshBasicMaterial({ color: dormida ? BURBUJA_COLOR_DORMIDA : BURBUJA_COLOR, transparent: true, opacity: opacidadRelleno(nivel), depthWrite: false, side: THREE.FrontSide }); rellenos.set(k, m); }
     return m;
   };
   const matBorde = (dormida: boolean, nivel: number): THREE.LineBasicMaterial => {
