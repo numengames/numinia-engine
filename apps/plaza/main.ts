@@ -273,6 +273,7 @@ montarDirector({ dj: dirigir, ambiente, view }); // N6: the Game Director (who m
 const distanciaA = (q: number): number | null => { if (session.entity < 0) return null; const r = session.remotePositions().find((x) => x.id === q); if (!r) return null; const y = session.selfPosition(1); return Math.hypot(r.x - y.x, r.z - y.z); };
 const gente = montarGente({ viajar, barra: document.getElementById("barra-arriba"), orden: (t) => chatDePagina.decir(t),
   mundo: () => estado?.nombre ?? "",
+  ia: iaPagina, idioma: () => document.documentElement.lang, // ia-visible S6/S7: the AIs in their own section, their card
   mirada: {
     avatar: (q) => avatarUI?.deQuien(q) ?? null,
     distancia: distanciaA,

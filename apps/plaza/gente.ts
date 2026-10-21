@@ -21,6 +21,8 @@ import {
 } from "./amigos.ts";
 import { montarTarjeta } from "./gente-tarjeta.ts";
 import { el, botonCon, retrato, type Res, type Mirada, type Elegido, type Acciones } from "./gente-comun.ts";
+import type { IAPublica } from "../../features/ia/feature.ts";
+import { cuentaGente, sinMarca, subIA, textos } from "./gente-ia.ts";
 export type { Res, Mirada, Elegido, Acciones };
 
 type Orden = (texto: string) => Res;
@@ -38,6 +40,10 @@ export type OpcionesGente = {
   /** The world's name, for «En <mundo>». */
   mundo?: () => string;
   mirada?: Mirada;
+  /** ia-visible: the public card of each AI (features/ia/client.ts iaPagina). Without it every player is a person. */
+  ia?: { de(quien: number): IAPublica | null; alCambiar(f: () => void): () => void };
+  /** The page's language for the AI texts (default es). */
+  idioma?: () => string;
   voz?: { silenciar(quien: number, si: boolean): void; silenciado(quien: number): boolean };
   /** Opens the chat box with this text written. */
   chat?: (texto: string) => void;
@@ -122,14 +128,16 @@ export function montarGente(o: OpcionesGente) {
   const pedir = () => { const r = viajar.pedirGente(); if (!r.ok && r.why) estadoP.textContent = r.why; };
 
   // ---- people ----
+  const tx = () => textos(o.idioma?.());
+  const iaDe = (quien: number): IAPublica | null => o.ia?.de(quien) ?? null;
   const conectados = (): Conectado[] => viajar.estado.gente.map((p) => ({ quien: p.quien, nombre: p.nombre, huella: p.huella || undefined, avatar: o.mirada?.avatar(p.quien)?.id ?? null }));
-  const deConectado = (p: Conectado): Elegido => ({ quien: p.quien, nombre: p.nombre, huella: p.huella, avatar: o.mirada?.avatar(p.quien) ?? (p.avatar ? { id: p.avatar, nombre: "" } : null) });
+  const deConectado = (p: Conectado): Elegido => ({ quien: p.quien, nombre: p.nombre, huella: p.huella, avatar: o.mirada?.avatar(p.quien) ?? (p.avatar ? { id: p.avatar, nombre: "" } : null), ia: iaDe(p.quien) });
   /** Someone by entity: from the «Gente» list (with their tag) or, if they are not listed, by the name over their head. */
   const porQuien = (quien: number): Elegido | null => {
     const p = viajar.estado.gente.find((g) => g.quien === quien);
     if (p) return deConectado({ quien, nombre: p.nombre, huella: p.huella || undefined });
     const n = o.mirada?.nombre(quien);
-    return n ? { quien, nombre: n, avatar: o.mirada?.avatar(quien) ?? null } : null;
+    return n ? { quien, nombre: n, avatar: o.mirada?.avatar(quien) ?? null, ia: iaDe(quien) } : null;
   };
   let elegido: { quien: number | null; clave: string } | null = null;
   /** The one picked, as it is now (a friend who just came in has an entity; one who left has none). */
@@ -264,9 +272,12 @@ export function montarGente(o: OpcionesGente) {
     const b = el("button", { type: "button", className: `gente-fila${conectado ? "" : " fuera"}` });
     const sel = !!elegido && (elegido.clave === clave || (p.quien !== null && elegido.quien === p.quien));
     b.setAttribute("aria-current", sel ? "true" : "false");
-    b.setAttribute("aria-label", `${p.nombre}, ${conectado ? "conectado" : "desconectado"}, ${sub}`);
-    const textos = el("span", { className: "textos" }, el("b", { textContent: p.nombre }), el("span", { className: "sub", textContent: sub }));
-    b.append(retrato(base, p.avatar, "busto", 44, !conectado), textos);
+    b.setAttribute("aria-label", `${p.ia ? `${sinMarca(p.nombre)}, ${tx().marca}` : p.nombre}, ${conectado ? "conectado" : "desconectado"}, ${sub}`);
+    // an AI: its name without the server's « · IA» and the chip that says it; asleep, its portrait goes dim
+    const nombreL = p.ia ? el("span", { className: "nombre-ia" }, el("b", { textContent: sinMarca(p.nombre) }), el("span", { className: "marca-ia", textContent: tx().marca })) : el("b", { textContent: p.nombre });
+    const textosL = el("span", { className: "textos" }, nombreL, el("span", { className: "sub", textContent: sub }));
+    b.append(retrato(base, p.avatar, "busto", 44, !conectado || p.ia?.estado === "dormida"), textosL);
+    if (p.ia) b.dataset.ia = p.ia.estado;
     if (conectado) b.append(el("span", { className: "punto" }));
     b.addEventListener("click", () => { elegido = { quien: p.quien, clave }; vista = "ficha"; pintar(); });
     const li = el("div", { className: "gente-item" }, b);
@@ -284,7 +295,9 @@ export function montarGente(o: OpcionesGente) {
     if (f.cambio) { amigos = f.lista; guardarAmigos(); }
     const g = viajar.estado.gente;
     tabAmigos.textContent = `Amigos · ${amigos.length}`;
-    tabAqui.textContent = `Aquí ahora · ${Math.max(viajar.estado.todos, g.length)}`;
+    // «Aquí ahora · 5 personas · 2 IAs»: the AIs are counted apart (and left out when there are none)
+    const nIAs = g.filter((p) => iaDe(p.quien)).length;
+    tabAqui.textContent = `Aquí ahora · ${cuentaGente(Math.max(viajar.estado.todos, g.length) - nIAs, nIAs, o.idioma?.())}`;
     for (const [b, id] of [[tabAmigos, "amigos"], [tabAqui, "aqui"]] as const) { b.setAttribute("aria-selected", String(pestana === id)); b.tabIndex = pestana === id ? 0 : -1; }
     const filas: HTMLElement[] = [];
     if (pestana === "amigos") {
@@ -297,9 +310,17 @@ export function montarGente(o: OpcionesGente) {
       const lst = filtrar(conectados(), q);
       if (!g.length) filas.push(el("p", { className: "vacio", textContent: "No hay nadie más conectado ahora en este mundo." }));
       else if (!lst.length) filas.push(el("p", { className: "vacio", textContent: "Nadie se llama así." }));
-      for (const p of lst) {
+      // people first, then the AIs in their own section
+      const personas = lst.filter((p) => !iaDe(p.quien)), ias = lst.filter((p) => iaDe(p.quien));
+      for (const p of personas) {
         const a = buscar(amigos, p);
         filas.push(fila(deConectado(p), a ? `En tus amigos · ${donde(p.quien)}` : donde(p.quien), true, a ? a.clave : claveDe(p)));
+      }
+      if (ias.length) filas.push(seccion(tx().seccionIA));
+      for (const p of ias) {
+        const a = buscar(amigos, p), d = o.mirada?.distancia(p.quien);
+        const sub = subIA(iaDe(p.quien)!, d === null || d === undefined ? "" : distanciaTexto(d), o.idioma?.());
+        filas.push(fila(deConectado(p), a ? `En tus amigos · ${sub}` : sub, true, a ? a.clave : claveDe(p)));
       }
       if (viajar.estado.todos > g.length) filas.push(el("p", { className: "vacio", textContent: `Y ${viajar.estado.todos - g.length} más.` }));
     }
@@ -388,6 +409,7 @@ export function montarGente(o: OpcionesGente) {
 
   // silenced voices come back silenced: whenever the list says who is who, the marks find their entity again
   const reaplicar = () => { if (!o.voz || !silenciados.size) return; for (const p of conectados()) if (silenciados.has(claveDe(p)) || silenciados.has(`n:${normal(p.nombre)}`)) o.voz.silenciar(p.quien, true); };
+  o.ia?.alCambiar(() => { if (panel.abierto) pintar(); tarjeta.repintar(); }); // an AI came, went, fell asleep or woke up
   viajar.alCambiar((q) => {
     if (q === "viaje" && viajar.estado.viaje) { estadoP.textContent = viajar.estado.viaje.texto; if (!panel.abierto && !viajar.estado.viaje.ok) anunciar(viajar.estado.viaje.texto); }
     if (q === "gente") reaplicar();

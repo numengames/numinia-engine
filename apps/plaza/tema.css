@@ -528,6 +528,11 @@ html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 
 #gente .gente-fila .textos { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 #gente .gente-fila b { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #gente .gente-fila .sub { font-size: 12px; color: var(--n-texto2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* an AI in the list and the card: its name, the «IA» chip (the house green, as the map diamond), asleep a little dimmer */
+#gente .nombre-ia, #gente-tarjeta .nombre-ia { display: flex; align-items: center; gap: 6px; min-width: 0; }
+#gente .nombre-ia b, #gente-tarjeta .nombre-ia b { min-width: 0; }
+#gente .marca-ia, #gente-tarjeta .marca-ia { flex: none; padding: 0 6px; border: 1px solid #14897a; border-radius: 4px; color: #14897a; font: 600 10px/16px var(--n-titulos); letter-spacing: .06em; }
+#gente .gente-fila[data-ia="dormida"] .textos { opacity: .7; }
 #gente .punto, #gente-tarjeta .punto { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--n-hecho); }
 #gente .vacio { color: var(--n-texto2); margin: 10px; }
 #gente .opcion { display: flex; align-items: center; gap: 8px; min-height: 44px; margin: 8px 10px 0; color: var(--n-texto2); font-size: 13px; }
