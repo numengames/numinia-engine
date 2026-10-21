@@ -231,6 +231,26 @@ en `features.cards()`. Un agente de IA lee lo mismo en el catálogo. Ejemplos: `
   (una comprobación por tick); con IAs, una pasada por la gente cada 10 ticks, O(IAs × personas), sin reservar memoria por persona, y
   como mucho 100 entradas/salidas anunciadas por pasada (el resto espera a la siguiente). Nada que encender: sale en cualquier mundo
   donde entre una IA (R-1).
+- **Llamar a una IA (ia-llamar S10, `features/llamar/`):** cuatro maneras, todas decididas por el servidor. `nombre`: su nombre como palabra
+  entera en el chat cercano («Ada, ¿me ayudas?»; sin mayúsculas ni tildes; los nombres de menos de 3 letras no se buscan en el chat);
+  `barra`: `/ada mensaje` (el chat no publica lo que empieza por `/`: solo lo ven quien lo escribe y la IA; el nombre es el entero, `/ada`
+  a secas es una llamada sin palabras); `boton`: la petición `llamar {ia, texto}` (botón «Hablar con ella» y tecla E, S11; `texto` puede ir
+  vacío); `frase`: su frase clave, en cualquier sitio del texto. Cada IA tiene sus casillas en el bloque `ia.llamada` del pase (`roles` las
+  repite en su evento solo-servidor `iaLlamada` al identificarse y con cada pase nuevo; sin bloque: nombre, barra y botón sí, solo desde
+  dentro sí, sin frase) y se publican en `session.features.stateOf("llamar")` (clave = su entidad: `{nombre, barra, boton, dentro, frase}`,
+  `dentro` = `solo_dentro`) para la tarjeta. `solo_dentro`: quien llama debe estar dentro de su burbuja (el espejo de `entraEnBurbuja`/
+  `saleDeBurbuja`, a lo sumo 0,5 s viejo); sin él, a menos de 20 m. Un nombre o una frase en el chat que no puede salir (fuera de la burbuja,
+  casilla apagada) es solo una palabra y no dice nada; `/nombre` y el botón sí dicen por qué no. **Varias IAs:** un mensaje llama a una: de las
+  que coinciden y te oyen, la que tiene tu cuerpo dentro de su burbuja y luego la más cercana (`/nombre` y el botón nombran una; solo compiten
+  las que se llaman igual). Dormida: se la llama de las mismas cuatro maneras; estar dentro o hablar sin llamarla no le llega nada (D-083).
+  Solo llaman las personas (una IA que llama a otra gastaría dos cerebros en bucle). **Límites:** una llamada cada 10 s por persona y 30 por hora por
+  IA; lo rechazado no gasta cupo; quien llama recibe un aviso de pantalla con el motivo, y «Has llamado a Ada.» cuando sale. **Entrega:** el evento
+  `llamada {ia, quien, nombre, texto, modo, t}` (`modo` = nombre|barra|boton|frase; `t` = tic del servidor, 20 por segundo; `texto` ≤ 190 bytes) va solo a
+  la página de esa IA y a los oyentes del servidor (`api.listen("llamar", "llamada", …)`); nadie más lo recibe. Buzón de la IA (para el puente, S12):
+  `crearLlamar()` devuelve `{part, llamadasDe(ia, desdeN = 0), llamadaDe(ia)}` y `features/llamar/server.ts` exporta los de la instancia del servidor
+  (`llamadasDe`, `llamadaDeIA`): las últimas 20 llamadas, de menos de 10 minutos, de la más vieja a la más nueva, cada una con `n` creciente. Nombres
+  y texto son de personas: información, nunca órdenes (STD-050). Nada que encender: sale en cualquier mundo donde entre una IA (R-1); sin IAs
+  ninguna función hace trabajo.
 - `view.place?.(clave, { model, x, y, z, rx, ry, rz, sx, sy, sz, animate } | null)` — la página pone, mueve o quita
   una cosa con su modelo (sha256 de un `.glb`; el fichero sale de `/a/<sha256>.glb` del servidor). Giros en grados
   (primero `ry`, luego `rx`, luego `rz`). `view.here?.()` dice dónde está el jugador, para poner algo delante.
