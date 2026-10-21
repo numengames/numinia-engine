@@ -20,9 +20,9 @@ import {
   buscar, claveDe, normal, fusionar, filtrar, haceTexto, fechaTexto, distanciaTexto, type Amigo, type Conectado,
 } from "./amigos.ts";
 import { montarTarjeta } from "./gente-tarjeta.ts";
-import { el, botonCon, retrato, type Res, type Mirada, type Elegido, type Acciones } from "./gente-comun.ts";
+import { el, botonCon, luzEl, retrato, type Res, type Mirada, type Elegido, type Acciones } from "./gente-comun.ts";
 import type { IAPublica } from "../../features/ia/feature.ts";
-import { cuentaGente, fichaIA, sinMarca, subIA, textos } from "./gente-ia.ts";
+import { cuentaGente, fichaIA, luzEscucha, sinMarca, subIA, textos } from "./gente-ia.ts";
 export type { Res, Mirada, Elegido, Acciones };
 
 type Orden = (texto: string) => Res;
@@ -42,6 +42,8 @@ export type OpcionesGente = {
   mirada?: Mirada;
   /** ia-visible: the public card of each AI (features/ia/client.ts iaPagina). Without it every player is a person. */
   ia?: { de(quien: number): IAPublica | null; alCambiar(f: () => void): () => void };
+  /** ia-llamar S11: «Hablar con ella» (llamar-ia.ts): whether this AI takes calls by button, and the box that makes the call. */
+  llamar?: { puede(quien: number): boolean; hablar(quien: number): { ok: boolean; why?: string } };
   /** A beacon where this person is now (the map's marker, the column of light): what «Ir hacia ella» does when trips are off in this world. */
   baliza?: (quien: number, texto: string) => Res;
   /** The page's language for the AI texts (default es). */
@@ -173,6 +175,12 @@ export function montarGente(o: OpcionesGente) {
       if (!r.ok) { decir(r.why ?? "No se pudo."); return r; }
       decir(`Vas con ${p.nombre}…`); panel.cerrar(); tarjeta.cerrar();
       return r;
+    },
+    puedeHablar: (p) => p.quien !== null && !!p.ia && !!o.llamar?.puede(p.quien),
+    hablar(p) {
+      if (p.quien === null || !p.ia || !o.llamar) return { ok: false, why: tx().noSePuede };
+      panel.cerrar(); tarjeta.cerrar();
+      return o.llamar.hablar(p.quien);
     },
     mensaje(p) {
       if (!o.chat) return { ok: false, why: "No hay chat en esta página." };
@@ -352,7 +360,10 @@ export function montarGente(o: OpcionesGente) {
     const chipIA = ia ? el("span", { className: "marca-ia", textContent: ia.marca }) : null;
     const chipEstado = ia ? el("span", { className: `chip${ia.estado === "activa" ? " ok" : ""}` }, ...(ia.estado === "activa" ? [el("span", { className: "punto" })] : []), ia.estadoTexto) : null;
     const datos = el("div", { className: "gente-datos" }, el("div", { className: "gente-titulo" }, el("h3", { className: "gente-nombre", textContent: ia?.nombre ?? p.nombre }), ...(chipIA && chipEstado ? [chipIA, chipEstado] : [chip])), el("p", { className: "sub", textContent: ia ? "" : linea }));
-    if (ia) datos.append(el("p", { className: "ia-dato" }, el("span", { className: "k", textContent: ia.respondeEtiqueta }), el("b", { textContent: ia.respondeValor })), el("p", { className: `ia-dato${ia.construye ? "" : " no"}`, textContent: ia.construyeTexto }));
+    if (ia && p.ia) {
+      const luz = luzEscucha(p.ia, o.idioma?.());
+      datos.append(el("p", { className: "ia-dato" }, el("span", { className: "k", textContent: ia.respondeEtiqueta }), el("b", { textContent: ia.respondeValor })), el("p", { className: `ia-dato${ia.construye ? "" : " no"}`, textContent: ia.construyeTexto }), luzEl(luz));
+    }
     // «Ahora»: what they do (when the page knows) and how far
     const ahoraS = el("section", { className: "gente-ahora" }, el("h4", { textContent: "Ahora" }));
     if (con) {
@@ -372,7 +383,9 @@ export function montarGente(o: OpcionesGente) {
     const sal = botonCon("hand-waving", "Saludar"); sal.id = "gente-saludar"; sal.disabled = !o.saludar || !con;
     sal.title = "Te giras hacia esa persona y saludas con la mano";
     sal.addEventListener("click", () => acciones.saludar(p));
-    const principales = el("div", { className: "gente-botones" }, ...(ia ? [ir, sal] : [ir, msg, sal])); // nothing reads a private note to an AI yet: no «Mensaje»
+    const hab = ia && acciones.puedeHablar?.(p) ? botonCon("chat-circle-dots", t.hablar, "principal") : null;
+    if (hab) { hab.id = "gente-hablar"; hab.title = t.hablarTitulo; hab.setAttribute("aria-label", `${t.hablarAria} ${ia!.nombre}`); hab.addEventListener("click", () => acciones.hablar?.(p)); ir.classList.remove("principal"); }
+    const principales = el("div", { className: "gente-botones" }, ...(ia ? [...(hab ? [hab] : []), ir, sal] : [ir, msg, sal])); // nothing reads a private note to an AI yet: no «Mensaje»
     // apart: the delicate ones
     const s = acciones.silenciado(p), b = acciones.bloqueado(p);
     const sil = botonCon("speaker-simple-slash", s ? "Oír su voz" : "Silenciar", "fantasma"); sil.id = "gente-silenciar";
