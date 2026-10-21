@@ -306,7 +306,8 @@ try {
   const chooserC = () => L(c, () => { const r = document.getElementById("ar-elegir"), p = r?.querySelector(".ae-panel")?.getBoundingClientRect(), f = r?.querySelector(".ae-fallo"), rt = document.getElementById("ar-elegir-reintentar");
     return { abierto: !!r && !r.hidden, caben: !!p && p.left >= 0 && p.right <= innerWidth && p.top >= 0 && p.bottom <= innerHeight, foco: document.activeElement?.id, dardos: document.getElementById("ar-elegir-dardos")?.querySelector("b")?.textContent, ayuda: document.getElementById("ar-elegir-dardos")?.querySelector("small")?.textContent, fallo: f && !f.hidden ? f.textContent : "", reintentar: !!rt && !rt.hidden, accion: document.getElementById("ar-elegir-dardos")?.dataset.accion }; });
   const arC = () => L(c, () => ({ estado: globalThis.__numinia.view.ar.state, jugando: globalThis.__numinia.view.ar.jugando, pedidas: globalThis.__reqs.slice() }));
-  const abrirElegirC = async () => { await c.click("#ar", { timeout: 20000 }); await esperar(c, () => !!document.getElementById("ar-elegir"), null, 15000); await L(c, async () => { globalThis.__l = await globalThis.__numinia.dardosEnlace.enlace(); }); };
+  const pulsarARC = async () => { if (!(await c.isVisible("#ar"))) await c.click("#menu-abrir", { timeout: 20000 }); await c.click("#ar", { timeout: 20000 }); }; // on a phone the AR entry lives in «Menú»
+  const abrirElegirC = async () => { await pulsarARC(); await esperar(c, () => !!document.getElementById("ar-elegir"), null, 15000); await L(c, async () => { globalThis.__l = await globalThis.__numinia.dardosEnlace.enlace(); }); };
   const salirDeARC = async () => { await L(c, () => globalThis.__numinia.view.ar.exit()); await esperar(c, () => globalThis.__numinia.view.ar.state === "off", null, 10000); };
   res.movil = {};
   await abrirElegirC();
@@ -338,7 +339,7 @@ try {
   await c.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0 && !!globalThis.__numinia.session.who, null, { timeout: 60000 });
   await aceptarNormas(c);
   await esperar(c, () => !document.getElementById("condiciones"), null, 8000).catch(() => {});
-  await c.click("#ar", { timeout: 20000 });
+  await pulsarARC();
   await esperar(c, () => globalThis.__numinia.view.ar.state !== "off", null, 15000);
   res.movil.torre = { chooser: await L(c, () => !!document.getElementById("ar-elegir")), ar: await arC(), vigente: await L(c, () => globalThis.__numinia.dardosEnlace.vigente().motivo) };
   await salirDeARC();
