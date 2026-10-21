@@ -154,7 +154,8 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     difundir("fin", fin, s, P ? jugadoresDe(P) : [e]); // the thrower who walked out of CERCA_M still hears how the turn ended
     marcador(e);
   };
-  const nombreDe = (e: number): string => (e >= 0 ? limpiarNombre(api.who(e)?.nombre ?? "") : "");
+  const elegidos = new Map<number, string>(); // v6: the name a link visitor asks to be shown with (their name in their own world), gone when they leave
+  const nombreDe = (e: number): string => (e >= 0 ? limpiarNombre(elegidos.get(e) ?? api.who(e)?.nombre ?? "") : "");
   const L = ["A", "B", "C", "D"] as const;
   /** The flat fields of a, b, c, d (+ who is seated, who left) that `duelo` and `finduelo` carry; the ones not seated are entity 0 / empty. */
   const pares = (P: Partida): Msg => {
@@ -264,7 +265,7 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
   };
 
   api.onIdentify((e) => marcador(e));
-  api.onLeave((e) => { if (enPartida.has(e)) dejarDuelo(e); else terminar(e); });
+  api.onLeave((e) => { if (enPartida.has(e)) dejarDuelo(e); else terminar(e); elegidos.delete(e); });
 
   api.on("jugar", (e, m) => {
     // `desde`: sitio (at the throwing line), pared (a real wall: AR) or lejos (a flat screen far from the board); the last two need `remoto`
@@ -272,6 +273,8 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     if (s && lejos && !s.remoto) return rechazar(e, `${s.nombre} no admite jugar desde ${pared ? "una pared" : "lejos"}: hay que estar en su línea de tiro.`);
     // v6: `mundo` = the world a link visitor comes from, shown on the sign; only kept when they play from a wall or a far screen
     const mundo = lejos ? limpiarNombre(String(m.mundo ?? ""), MUNDO_MAX_BYTES) : "";
+    const nombre = lejos ? limpiarNombre(String(m.nombre ?? ""), MUNDO_MAX_BYTES) : "";
+    if (nombre && !enPartida.has(e)) elegidos.set(e, nombre);
     if (s?.duelo) { const r = unirse(e, id, lejos, pared, mundo); if (r) rechazar(e, r); return; }
     const t = empezar(e, id, lejos); if (typeof t === "string") rechazar(e, t);
   });

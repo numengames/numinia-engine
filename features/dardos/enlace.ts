@@ -57,7 +57,7 @@ export function leerEnlace(crudo: unknown): Lectura {
 }
 
 /** Host (with port) of a server address, in lower case, to compare two: `ws://127.0.0.1:8913/ws` → `127.0.0.1:8913`. "" if it is not one. */
-export const anfitrionDe = (servidor: string): string => leerServidor(servidor)?.host.toLowerCase() ?? "";
+export const anfitrionDe = (servidor: string): string => { try { const u = new URL(servidor); return (u.protocol === "ws:" || u.protocol === "wss:") ? u.host.toLowerCase() : ""; } catch { return ""; } };
 
 /** The part of a board the rules look at (the shared state of features/dardos). */
 export type SitioEnlace = { duelo?: boolean; remoto?: boolean };
