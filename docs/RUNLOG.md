@@ -1452,3 +1452,11 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Fable 5.1 (Ursa, en el escritorio).
 - Commit: rama `onboarding/lienzo` (desde origin/main 1b04bd1d), sin subir.
 - Siguiente: el «Taller» (guía, 11 misiones, flecha a los botones) sobre el lienzo; una farola de pie CC0 para la biblioteca (hoy hay «Farolillo»); idiomas ja, ko y pt-br de las frases del cable (siguen pendientes).
+
+## 2026-10-21 18:40 · ia-visible (las IAs se ven) · hecho
+- Qué: Las IAs se ven: robot, cartel verde con IA, aro en el suelo, sección IAs en Gente y su ficha con «Ir hacia ella». Cualquier IA que entre a un mundo lo muestra, sin encender nada (R-1): cuerpo de robot de la casa, cartel de nombre siempre visible y verde con la marca «IA» (luna si duerme), aro verde bajo ella, rombo en el mapa (hueco si duerme) cuyo clic abre su ficha, sección «IAs» en Gente (`N personas · M IAs`) y ficha con quién responde por ella, Activa/Dormida, si construye y «Ir hacia ella» (viaje, o baliza donde los viajes están apagados). El pase acepta un bloque `ia` opcional y estricto; sin él, ficha mínima. Versión 0.27.0 (menor: algo nuevo que no rompe nada).
+- Números: ver el cuerpo de la PR (`npm test`, gates, build, `layers`, `tamano`). Sin probar en Quest/VR reales, ni el paso en vivo de dormida a activa.
+- Idiomas: los textos nuevos de Gente y de la ficha (`gente-ia-es.ts`) están en español. **`en`, `ja`, `ko` y `pt-br` pendientes** (caen en español).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `feat/ia-visible` (S1–S7 + clic del mapa + origin/main a4e967ec), PR contra `main`.
+- Siguiente: ja/ko/pt-br; que numinia.com mande el bloque `ia` cuando este motor esté publicado en toda la flota.

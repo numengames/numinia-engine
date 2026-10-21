@@ -210,6 +210,10 @@ en `features.cards()`. Un agente de IA lee lo mismo en el catálogo. Ejemplos: `
   pase traiga `ia.cuerpo` `{tipo: "casa", modelo}`, que elige otro avatar de la casa por índice (un PASE a mitad de sesión lo
   cambia al momento; quitar el bloque devuelve al robot). La IA no elige: su `elegir` se rechaza con un aviso y nunca se lee ni se
   guarda una elección suya. Las personas no cambian. Lo dice la función `roles` con el campo `cuerpo` de su evento `ia` (-1 = ninguno).
+- **Cómo se ve una IA (ia-visible S4–S8):** robot de la casa (S2), cartel de nombre siempre visible, verde, con la marca «IA» y una luna si
+  duerme (S4), aro verde en el suelo bajo ella (S5; compartido, con tope por aparato), rombo en el mapa (hueco si duerme; un clic en él abre su
+  ficha, `quienDeAgente` en `packages/client/src/mapa.ts` → `gente.tarjeta`), sección «IAs» en Gente con su ficha y «Ir hacia ella» (S6–S7).
+  Nada que encender: sale en cualquier mundo donde entre una IA (R-1).
 - `view.place?.(clave, { model, x, y, z, rx, ry, rz, sx, sy, sz, animate } | null)` — la página pone, mueve o quita
   una cosa con su modelo (sha256 de un `.glb`; el fichero sale de `/a/<sha256>.glb` del servidor). Giros en grados
   (primero `ry`, luego `rx`, luego `rz`). `view.here?.()` dice dónde está el jugador, para poner algo delante.
