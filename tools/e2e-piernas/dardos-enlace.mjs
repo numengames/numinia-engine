@@ -402,7 +402,7 @@ try {
     maquetaEntraEnARSinEnlace: mv.mesa.ar.estado !== "off" && mv.mesa.ar.jugando === false && mv.mesa.enlace === "cerrado" && mv.mesa.chooser === false && mv.mesa.ar.pedidas.length === 1 && mv.mesa.ar.pedidas[0].activo === true,
     escapeCierraTodo: mv.escape.enlace === "cerrado" && mv.escape.arFuera && mv.visitasTrasEscape === 0,
     laTorreEntraEnARComoSiempre: mv.torre.chooser === false && mv.torre.ar.estado !== "off" && mv.torre.ar.jugando === false && ["mismo-servidor", "diana-propia"].includes(mv.torre.vigente),
-    torreCaidaSeDiceYTieneSalida: mv.caido.fallo.length > 0 && /No se puede llegar a|no responde|Se ha cortado/.test(mv.caido.fallo) && mv.caido.reintentar === true && !/\d{4}|ws:/.test(mv.caido.fallo) && mv.reintentado.reintentar === true && mv.mesaCaido.ar.estado !== "off" && mv.mesaCaido.ar.jugando === false,
+    torreCaidaSeDiceYTieneSalida: mv.caido.fallo.length > 0 && /No se puede llegar a|no responde|Se ha cortado/.test(mv.caido.fallo) && mv.caido.reintentar === true && !/wss?:|Error|\(\d{4}\)/.test(mv.caido.fallo) && mv.reintentado.reintentar === true && mv.mesaCaido.ar.estado !== "off" && mv.mesaCaido.ar.jugando === false,
     sinErrores: errors.length === 0,
   };
   ok = Object.values(res.checks).every(Boolean);
