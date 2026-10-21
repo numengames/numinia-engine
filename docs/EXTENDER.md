@@ -182,6 +182,19 @@ en `features.cards()`. Un agente de IA lee lo mismo en el catálogo. Ejemplos: `
   (`pase.ts`, `roles-mundo.ts` `renovar`, `packages/agent/README.md`). Al motor le da igual cómo consiguió el pase la IA: el puente
   (`tools/mcp-mundo.ts`) lo pide a numinia.com con un **token** (`AGENTE_TOKEN=ntk_…`, `Authorization: Bearer`, lo más fácil) o firmando con
   su clave (`AGENTE_CLAVE`, avanzado); un 401 con token es final y el token nunca se imprime (`pase-org.ts` `pedirPaseToken`).
+- **El bloque `ia` del pase (ia-visible S1, `pase.ts` `leerIA`):** el pase de una IA puede llevar, además de `kind`/`state`, un bloque
+  opcional `ia` que dice cómo se ve y cómo se la llama en el mundo: `cuerpo` `{tipo: "casa", modelo}` (un avatar de la casa por
+  índice; un `.vrm` subido es de un servidor y no viaja), `burbuja` `{forma: esfera|cupula|cilindro|caja, radio: 2..12 (m,
+  entero), visible: siempre|al-acercarte|nunca}`, `llamada` `{nombre, barra, boton, solo_dentro: bool, frase?: 1..40}` (por su
+  nombre, `/nombre`, botón «Hablar con ella», solo desde dentro de la burbuja, frase clave), `responde` `{comunidad, nombre?,
+  cartera?}` (obligatorio: quién responde por ella, D-084; hace falta nombre o cartera, y de la cartera `0x`+40 cifras el motor
+  guarda solo la forma corta `0x12…ab`) y `quedarse_h` `0|1|4|24` (D-082). El estado no va aquí: sigue siendo el `state` del pase.
+  La validación es estricta en todos los niveles: un campo que no existe, un tipo equivocado o un valor fuera de rango rechaza el
+  pase entero como `contenido` y el texto dice qué campo (nunca su valor); un bloque `ia` en el pase de una persona también se
+  rechaza. Sin `ia` el pase se lee igual que siempre. `roles.iaDe("ia-a_…")` devuelve el último bloque de esa IA (un PASE a mitad de
+  sesión lo reemplaza); de momento nada lo lee: lo usarán el cuerpo (S2), la ficha pública (S3), la burbuja (S8) y la llamada
+  (S10). **Orden de publicación:** el motor rechaza los campos que no conoce, así que numinia.com solo manda `ia` a los mundos
+  cuyo motor ya trae esta versión.
 - `view.place?.(clave, { model, x, y, z, rx, ry, rz, sx, sy, sz, animate } | null)` — la página pone, mueve o quita
   una cosa con su modelo (sha256 de un `.glb`; el fichero sale de `/a/<sha256>.glb` del servidor). Giros en grados
   (primero `ry`, luego `rx`, luego `rz`). `view.here?.()` dice dónde está el jugador, para poner algo delante.

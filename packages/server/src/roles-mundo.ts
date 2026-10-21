@@ -40,7 +40,7 @@ import type { Who } from "../../instance/src/index.ts";
 import { ACCION_PERMISO, ACCION_TEXTO, PERMISOS, acceso, BASE, esBase, noPuedeDar, plano, plantilla, porDebajo, rolPorNombre, tiene, validarRoles } from "./roles.ts";
 import type { Acceso, Accion, Miembro, Permiso, Rol } from "./roles.ts";
 import { verificarPase } from "./pase.ts";
-import type { ConfigPase, EstadoIA, Pase } from "./pase.ts";
+import type { ConfigPase, EstadoIA, IABloque, Pase } from "./pase.ts";
 import { AGENTE } from "./aventura.ts";
 import { MARCA_IA, agenteDe, nombreDe } from "../../instance/src/identidad.ts";
 import type { Puerta } from "./puerta.ts";
@@ -634,6 +634,9 @@ export function crearRoles(o: OpcionesRoles) {
     /** For /status (STD: personas vs agentes): `id` is an "ia-…" one. Its organization (ADR-080, a signed pass) when
      * it is one of numinia.com's agents; null for a world inhabitant (habitantes/<id>.json, P4) — those have no pass. */
     organizacionDeAgente: (id: string): string | null => (esIA(id) ? pasesIA.get(id.slice(3))?.org ?? null : null),
+    /** ia-visible S1: the `ia` block of the latest pass of this AI (`id` is an "ia-…" one), or null: no block, a person, an outside agent.
+     * Kept as the pass is (a fresh pass in mid-session replaces it); nothing reads it yet (S2 body, S3 public card, S8 bubble, S10 call). */
+    iaDe: (id: string): IABloque | null => (esIA(id) ? pasesIA.get(id.slice(3))?.ia ?? null : null),
     get roles(): readonly Rol[] { return roles; },
     get soloMiembros() { return soloMiembros; },
     /** Are microphones relayed in this world (the stored setting; MOTOR_VOZ only seeded it)? The instance asks it. */
