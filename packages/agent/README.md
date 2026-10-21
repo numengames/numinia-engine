@@ -77,7 +77,12 @@ mcp_servers:
    things within 40 m with their ids, whether it may build, the models it may place), `decir` {texto, canal cerca|zona},
    `ir_a` {x, z} | {persona}, `colocar` {modelo, x, z, y?, giro?, escala?|escala_x/_y/_z, nombre?}, `mover` {id, …}
    (what it does not say stays), `borrar` {id}, `deshacer`, `oir` {desde} (the last 50 lines heard, by cursor, to follow
-   a conversation by polling). People's text comes back only inside `<material fiable="no">`. Limits: 40 m from its
+   a conversation by polling), `llamadas` (the calls people made to it that it has not read: who, what, how — by its name,
+   `/name`, the «Hablar con ella» button or its key phrase — and how many seconds ago; each is handed over once; last 20 of
+   10 minutes) and `esperar_llamada` {segundos 1–25} (waits up to 25 s and comes back as soon as someone calls it or walks
+   into its bubble; call it in a loop to stay listening; other tools keep working meanwhile). Both need a world with the
+   feature `llamar` (else they say so) and both tell the world the brain is **attentive**: intent `ia.atenta`, at most one
+   every 5 s, and the AI's public card shows `atenta: true` for 90 s after the last one. People's text comes back only inside `<material fiable="no">`. Limits: 40 m from its
    body, 12 changes per 10 s; the server checks everything again. Logs go to stderr; stdout is only the protocol.
 
 Try it without Hermes: pipe JSON-RPC lines into the bridge, e.g.

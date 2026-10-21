@@ -145,3 +145,34 @@ test("ia pública: the full server and page lists carry the feature (nothing to 
   assert.ok(iaFeatures.some((p) => p.feature.id === "ia"));
   assert.ok(iaClientes.some((p) => p.feature.id === "ia"));
 });
+
+test("ia pública: «atenta» (S12) — the AI's report turns its card true for 90 s, a fresh pass keeps it, then it is false again; a person's report changes nothing", () => {
+  const W = mundo();
+  const ai = new Cuerpo(W.inst.join(1), "", paseIA(T0, { ia: { responde: RESPONDE } }));
+  const ciclo = (n: number) => { for (let i = 0; i < n; i++) { ai.paso(); W.pump(1); } };
+  ciclo(6);
+  assert.ok(ai.nombre, "the AI is in");
+  assert.equal(W.pagina.de(ai.entidad)?.atenta, false, "false until its brain reports");
+  assert.deepEqual(W.mirador.features.send("ia", "atenta", {}), { ok: true }, "a person may send it (the server ignores it)");
+  ciclo(3);
+  assert.equal(W.pagina.de(ai.entidad)?.atenta, false, "a person's report changes nothing");
+  assert.deepEqual(W.pagina.lista().map((x) => x.quien), [ai.entidad], "and gives the person no card");
+  const visto: boolean[] = [];
+  W.pagina.alCambiar((q, f) => { if (q === ai.entidad && f) visto.push(f.atenta); });
+  assert.equal(ai.hacer("ia", "atenta", {}).ok, true);
+  ciclo(3);
+  assert.equal(W.pagina.de(ai.entidad)?.atenta, true);
+  for (let i = 0; i < 60 * 20; i++) W.inst.tick(); // 60 s of the server's clock
+  W.reloj(T0 + 60_000);
+  assert.equal(ai.renovarPase(paseIA(T0 + 60_000, { ia: { responde: { comunidad: "La Torre", nombre: "Otra" } } })), true);
+  ciclo(3);
+  assert.equal(W.pagina.de(ai.entidad)?.atenta, true, "a fresh pass rewrites the card but keeps «attentive»");
+  assert.equal(W.pagina.de(ai.entidad)?.responde?.nombre, "Otra");
+  for (let i = 0; i < 28 * 20; i++) W.inst.tick(); // 88 s since the report
+  ciclo(2);
+  assert.equal(W.pagina.de(ai.entidad)?.atenta, true, "still at ~88 s");
+  for (let i = 0; i < 4 * 20; i++) W.inst.tick();
+  ciclo(3);
+  assert.equal(W.pagina.de(ai.entidad)?.atenta, false, "after 90 s");
+  assert.deepEqual(visto.filter((v, i) => i === 0 || v !== visto[i - 1]), [true, false], "the card changed only when the flag flipped");
+});
