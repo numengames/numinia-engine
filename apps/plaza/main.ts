@@ -277,6 +277,8 @@ montarDirector({ dj: dirigir, ambiente, view }); // N6: the Game Director (who m
 const distanciaA = (q: number): number | null => { if (session.entity < 0) return null; const r = session.remotePositions().find((x) => x.id === q); if (!r) return null; const y = session.selfPosition(1); return Math.hypot(r.x - y.x, r.z - y.z); };
 const gente = montarGente({ viajar, barra: document.getElementById("barra-arriba"), orden: (t) => chatDePagina.decir(t),
   mundo: () => estado?.nombre ?? "",
+  ia: iaPagina, idioma: () => document.documentElement.lang,
+  baliza: (q, texto) => { const r = session.remotePositions().find((x) => x.id === q); if (!r) return { ok: false, why: "No sé dónde está desde aquí." }; view.beacon(r.x, r.z, texto, 60_000); return { ok: true }; }, // ia-visible S7: where trips are off, «Ir hacia ella» marks where the AI is
   mirada: {
     avatar: (q) => avatarUI?.deQuien(q) ?? null,
     distancia: distanciaA,
