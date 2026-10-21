@@ -63,6 +63,8 @@ import { rumboHacia } from "./foto-nucleo.ts"; // ux2-gente: «Saludar» turns y
 import { viajar } from "../../features/teletransporte/client.ts";
 import { iaPagina } from "../../features/ia/client.ts"; // ia-visible S3: the public card of each AI (state, who answers, what it may do)
 import { asiento, interruptor as interruptorAsiento } from "../../features/asiento/client.ts"; // asiento v1: sitting down for real
+import { burbujas, interruptor as interruptorBurbujas } from "../../features/burbujas/client.ts"; // burbujas v1: voice bubbles
+import { montarBurbuja } from "./burbuja.ts";
 import { baculo, interruptor as interruptorBaculo } from "../../features/baculo/client.ts"; // baculo v1: the Director's staff
 import { dados, interruptor as interruptorDados } from "../../features/dados/client.ts"; // dados v1: dice the server rolls
 import { montarDados } from "./dados.ts";
@@ -225,6 +227,16 @@ let vrDisponible = false; // set once the browser says it can present VR (below)
 
 // ---- the features' actions: a key on desktop, a button on touch screens; the help line lists them ----
 const acts = session.features.actions();
+// a button shows only while its action is possible (`Action.disponible`): the `hidden` attribute, which the bar's own rules do not beat (tema.css `#acciones button[hidden]`); re-asked when the shared state changes
+const botonesAccion: { a: (typeof acts)[number]; b: HTMLButtonElement }[] = [];
+let versionAcciones = -1;
+const refrescarAcciones = (): void => {
+  const v = session.features.stateVersion;
+  if (v === versionAcciones) return;
+  versionAcciones = v;
+  for (const { a, b } of botonesAccion) { const oculto = a.disponible ? !a.disponible() : false; if (b.hidden !== oculto) b.hidden = oculto; }
+};
+setInterval(refrescarAcciones, 250);
 addEventListener("keydown", (e) => { if (!e.repeat && !escribiendo(e)) acts.find((a) => a.key === e.code)?.run(); }); // J3: typing in a box is not an action
 if (esTactil()) {
   document.getElementById("help")!.textContent = "Dedo a la izquierda: andar · a la derecha: mirar · dos dedos: acercar"; // N1: the touch map only
@@ -233,7 +245,7 @@ if (esTactil()) {
     const b = document.createElement("button");
     b.type = "button"; b.textContent = a.label; b.title = a.describe ?? "";
     b.addEventListener("pointerdown", (ev) => { ev.stopPropagation(); a.run(); }); // not a joystick touch
-    bar.appendChild(b);
+    bar.appendChild(b); botonesAccion.push({ a, b });
   }
 } else if (acts.length) {
   // U3: the action bar (bottom centre) also lists them on a desktop: a chip with the name and its key; the key still does the work
@@ -244,8 +256,9 @@ if (esTactil()) {
     const t = document.createElement("span"); t.textContent = a.label; b.append(t);
     if (a.key) { const k = document.createElement("kbd"); k.textContent = a.key.replace(/^Key/, ""); b.append(k); }
     b.addEventListener("click", () => { a.run(); b.blur(); });
-    bar.appendChild(b);
+    bar.appendChild(b); botonesAccion.push({ a, b });
   }
+  versionAcciones = -1; refrescarAcciones();
   document.getElementById("help")!.textContent += " · " + acts.map((a) => `${(a.key ?? "").replace(/^Key/, "")} ${a.label.toLowerCase()}`).join(" · ") + " · G (mantén): movimientos";
 }
 
@@ -274,8 +287,10 @@ const videoMandos = montarVideoMandos({ lista: () => constructor.lista(), contro
 montarEntorno(ambiente, elementos, view, interruptorNaturaleza, constructorUI.cajon("entorno"), interruptorBase, constructor, [
   { id: "baculo", etiqueta: "Báculo del Director", titulo: "Encender o apagar el báculo del Director de juego de este mundo (quien lo lleva dirige) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en baculos.json. / Turn the Game Director's staff on or off for the whole world.", encendida: "Báculo del Director encendido.", apagada: "Báculo del Director apagado.", interruptor: interruptorBaculo },
   { id: "asientos", etiqueta: "Asientos", titulo: "Encender o apagar los asientos de este mundo («E» junto a un asiento y te sientas) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en asientos.json. / Turn the seats on or off for the whole world.", encendida: "Asientos encendidos.", apagada: "Asientos apagados.", interruptor: interruptorAsiento },
+  { id: "burbujas", etiqueta: "Burbujas de voz", titulo: "Encender o apagar las burbujas de voz de este mundo (dentro de una, solo se oyen entre sí los que están dentro; es privacidad de oído, no cifrado) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en burbujas.json. / Turn the voice bubbles on or off for the whole world.", encendida: "Burbujas de voz encendidas.", apagada: "Burbujas de voz apagadas.", interruptor: interruptorBurbujas },
   { id: "dados", etiqueta: "Dados", titulo: "Encender o apagar los dados de este mundo (la torre de dados y /tirar) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en dados.json. / Turn the dice on or off for the whole world.", encendida: "Dados encendidos.", apagada: "Dados apagados.", interruptor: interruptorDados },
 ]); // H4/H8: environment and elements, inside the builder's «Entorno» drawer (ux2-dock)
+montarBurbuja({ burbujas, cartel: document.getElementById("burbuja-cartel")! }); // burbujas v1: the small label while you are inside a bubble
 montarDados({ dados, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) }); // dados v1: the dice card everyone near sees, the dice buttons beside a tower
 const contadoresPagina = montarContadores({ contadores, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) }); // D-044: the counters' panel (the sign in the world is the feature's own label)
 montarDirector({ dj: dirigir, ambiente, view }); // N6: the Game Director (who may direct: STD-052 manage-rituals): scenes, narrator, summons
@@ -293,6 +308,7 @@ const gente = montarGente({ viajar, barra: document.getElementById("barra-arriba
     actividad: (q) => (pesca.flotadores().some((f) => f.quien === q) ? "Pescando" : gestosDePagina.deQuien(q) === "bailar" ? "Bailando" : null),
     nombre: (q) => chatDePagina.nombres.get(q) ?? null,
     baculo: (q) => baculo.lleva(q), // features/baculo: the staff badge next to the name of whoever directs
+    burbuja: (q) => burbujas.de(q)?.etiqueta ?? null, // features/burbujas: the voice-bubble icon next to who is inside
   },
   voz: { silenciar: (q, si) => voz.silenciar(q, si), silenciado: (q) => voz.silenciado(q) },
   chat: (t) => cajaChat.abrir(t),
@@ -631,7 +647,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones };
 
 // ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
 // of the bar's «Menú» (O), no longer a corner button ----

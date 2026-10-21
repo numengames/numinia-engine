@@ -88,7 +88,7 @@ export function crearCliente() {
     });
     api.on("permiso", (m) => { estado.puede = m.encender === true; });
     api.on("rechazado", (m) => { estado.ultimoRechazo = String(m.motivo); });
-    api.action({ id: "levantar", label: "Levantarte", describe: "Levantarte del asiento (también /levantar, o andar)", run: () => { if (asiento.mio()) asiento.levantar(); } });
+    api.action({ id: "levantar", label: "Levantarte", describe: "Levantarte del asiento (también /levantar, o andar)", run: () => { if (asiento.mio()) asiento.levantar(); }, disponible: () => asiento.mio() !== null });
   });
   return { parts: [parte], asiento };
 }

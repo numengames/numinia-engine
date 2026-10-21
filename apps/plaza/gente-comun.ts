@@ -18,6 +18,15 @@ export type Mirada = {
   nombre(quien: number): string | null;
   /** Does this person hold the Director's staff (features/baculo)? A badge shows next to their name. */
   baculo?(quien: number): boolean;
+  /** The name of the voice bubble they are in (features/burbujas), or null: an icon shows next to their name. */
+  burbuja?(quien: number): string | null;
+};
+/** The voice-bubble icon (a microphone): the mark next to the name of whoever is inside one. The label says which. */
+export const insigniaBurbuja = (etiqueta: string): HTMLElement => {
+  const s = el("span", { className: "insignia-burbuja", title: `En ${etiqueta}: solo se oyen con los de dentro` });
+  s.setAttribute("role", "img"); s.setAttribute("aria-label", `En ${etiqueta}`);
+  s.innerHTML = icono("microphone", 14); // constants only
+  return s;
 };
 /** The staff badge (a medal): the small mark next to the name of whoever holds the Director's staff. */
 export const insigniaBaculo = (): HTMLElement => {

@@ -65,8 +65,8 @@ export function crearCliente() {
     api.on("permiso", (m) => { estado.puede = m.encender === true; });
     api.on("rechazado", (m) => { estado.ultimoRechazo = String(m.motivo); });
     api.on("cambio", (m) => { api.view.bounce(Number(m.quien), 300); if (Number(m.a) >= 0) api.view.bounce(Number(m.a), 300); });
-    api.action({ id: "soltar", label: "Soltar el báculo", describe: "Soltar el báculo que llevas: vuelve a su sitio", run: () => { if (baculo.mias().length) baculo.soltar(); } });
-    api.action({ id: "pasar", label: "Pasar el báculo", describe: "Pasar el báculo a quien tengas más cerca (a 6 m o menos): pasa a dirigir esa persona", run: () => { if (baculo.mias().length) baculo.pasar(); } });
+    api.action({ id: "soltar", label: "Soltar el báculo", describe: "Soltar el báculo que llevas: vuelve a su sitio", run: () => { if (baculo.mias().length) baculo.soltar(); }, disponible: () => baculo.mias().length > 0 });
+    api.action({ id: "pasar", label: "Pasar el báculo", describe: "Pasar el báculo a quien tengas más cerca (a 6 m o menos): pasa a dirigir esa persona", run: () => { if (baculo.mias().length) baculo.pasar(); }, disponible: () => baculo.mias().length > 0 });
   });
   return { parts: [parte], baculo };
 }

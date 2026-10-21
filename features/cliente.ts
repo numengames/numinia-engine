@@ -14,6 +14,7 @@ import pesca from "./pesca/client.ts"; // v1: fishing (rod, float and the big «
 import dardos from "./dardos/client.ts"; // v1: darts (the throwing view lives in apps/plaza/dardos.ts; the board on your wall in AR)
 import bienes from "./bienes/client.ts";
 import asiento from "./asiento/client.ts"; // v1: sitting down for real (the pose, the name on the seat, «E: levantarte»)
+import burbujas from "./burbujas/client.ts"; // v1: voice bubbles (the notice, the icon in «Gente»; the server decides who is heard)
 import baculo from "./baculo/client.ts"; // v1: the Director's staff (pedestal, in hand, badge in «Gente»)
 import dados from "./dados/client.ts"; // v1: dice the server rolls (the dice card and the tower's buttons: apps/plaza/dados.ts) // N10: digital goods — a chest's «objeto» becomes yours (signed receipt, inventory)
 
@@ -35,5 +36,5 @@ import inventario from "./inventario/client.ts"; // Y1: the Reserva (panel in ap
 import ia from "./ia/client.ts"; // ia-visible S3: read the public card of an AI with `iaPagina.de(entity)` (features/ia/client.ts)
 import sonido from "./sonido/client.ts"; // S6: the sounds of the house — the server says what sounds and with what seed; the page only mixes (view.sonido)
 import interruptores from "./funciones/client.ts"; // f1: the world's feature switches (`__numinia.funciones`; the panel is f3/v3)
-const funciones: ClientPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, director, teletransporte, web, puertas, botones, cogibles, suelo, naturaleza, espacioBase, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, sonido];
+const funciones: ClientPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, naturaleza, espacioBase, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, sonido];
 export default funciones;
