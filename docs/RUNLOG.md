@@ -1472,3 +1472,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `feat/ia-visible` (S1–S7 + clic del mapa + origin/main a4e967ec), PR contra `main`.
 - Siguiente: ja/ko/pt-br; que numinia.com mande el bloque `ia` cuando este motor esté publicado en toda la flota.
+## 2026-10-21 19:42 · ia-llamar S8 (la burbuja de acción de cada IA) · hecho
+- Qué: toda IA conectada tiene una burbuja (esfera, cúpula, cilindro o caja; radio de 2 a 12 m; por defecto esfera de 4 m «al acercarte», o la del bloque `ia.burbuja` del pase). El servidor decide cada 10 ticks quién está dentro y avisa a la IA (`entraEnBurbuja`/`saleDeBurbuja`) y a la persona («Entras en la burbuja de Ada (IA).», una vez por entrada, con respiro de 10 s por IA). Publica la forma para que S9 la dibuje y ofrece `dentroDeBurbuja(ia)` a S10/S12. Sin IAs no hace nada (una comprobación por tick). Nombres de eventos en camelCase porque el motor no admite guiones bajos.
+- Números: ver el cuerpo de la PR (`npm test`, gates, build). Sin dibujo todavía (S9) y sin llamada (S10).
+- Idiomas: el aviso «Entras en la burbuja de…» está en español; **`en`, `ja`, `ko` y `pt-br` pendientes**.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `feat/ia-llamar` (sobre `feat/ia-visible`), sin PR.
+- Siguiente: S9 (dibujo), S10 (llamar), S13 («En tu burbuja» en `mirar`).

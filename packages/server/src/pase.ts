@@ -33,6 +33,7 @@ export type EstadoIA = "activa" | "dormida";
 export const FORMAS_BURBUJA = ["esfera", "cupula", "cilindro", "caja"] as const;
 export const VISIBLES_BURBUJA = ["siempre", "al-acercarte", "nunca"] as const;
 export const QUEDARSE_H = [0, 1, 4, 24] as const;
+export const RADIO_DEFECTO_M = 4;                  // an AI whose pass carries no bubble gets the house one: a sphere of 4 m, shown when you come close (features/burbuja)
 export const RADIO_MIN_M = 2, RADIO_MAX_M = 12;      // metres of the action bubble (design §3; 4 by default when the block has no bubble)
 export const CUERPO_MODELO_MAX = 999;                // same ceiling as features/avatar MODELO_MAX (a packages file does not import features/)
 export const FRASE_MAX = 40;                         // characters of the call phrase

@@ -214,6 +214,23 @@ en `features.cards()`. Un agente de IA lee lo mismo en el catálogo. Ejemplos: `
   duerme (S4), aro verde en el suelo bajo ella (S5; compartido, con tope por aparato), rombo en el mapa (hueco si duerme; un clic en él abre su
   ficha, `quienDeAgente` en `packages/client/src/mapa.ts` → `gente.tarjeta`), sección «IAs» en Gente con su ficha y «Ir hacia ella» (S6–S7).
   Nada que encender: sale en cualquier mundo donde entre una IA (R-1).
+- **La burbuja de acción de una IA (ia-llamar S8, `features/burbuja/`):** toda IA conectada tiene una zona que anda con ella; estar
+  dentro significa «estás con ella» (ahí se la podrá llamar, S10). Forma `esfera` (por defecto; centro a 1 m del suelo, sigue a una IA
+  que vuela), `cupula` (media esfera sobre el suelo), `cilindro` (alto 6 m) o `caja` (cuadrado de lado 2R alineado con los ejes), radio
+  de 2 a 12 m (4 por defecto) y `visible` `siempre`|`al-acercarte` (por defecto)|`nunca`: lo dice el bloque `ia.burbuja` del pase (la
+  función `roles` lo repite en su evento solo-servidor `iaBurbuja` al identificarse y con cada pase nuevo) y, sin él, la casa pone la
+  esfera de 4 m. **El servidor decide quién está dentro**, cada 10 ticks (0,5 s), con las posiciones que ya tiene (bordes incluidos;
+  una persona cuenta por sus pies, la esfera por el pecho; cúpula, cilindro y caja admiten 0,5 m por debajo de los pies de la IA).
+  Avisos: `entraEnBurbuja {ia, quien, nombre, distanciaDm, esIA}` y `saleDeBurbuja {ia, quien, nombre, esIA}` van a la IA (su página,
+  el buzón del puente) y a quien escuche en el servidor (`api.listen("burbuja", "entraEnBurbuja", …)`); `entras {ia, nombre}` y
+  `sales` son el aviso de pantalla «Entras en la burbuja de Ada (IA).» solo para esa persona, una vez por entrada y no más de una
+  vez cada 10 s por IA (un borde que parpadea no habla); el aviso de salida solo si hubo el de entrada. El estado público
+  (`session.features.stateOf("burbuja")`, clave = entidad de la IA) lleva `{forma, radio, visible}` para dibujarla (S9); quién está
+  dentro **no** se publica. Consulta del servidor: `crearBurbuja()` devuelve `{part, dentroDeBurbuja(ia), estaEnBurbuja(ia, quien),
+  burbujaDe(ia)}`; `features/burbuja/server.ts` exporta además los de la instancia única del servidor. Coste: nada mientras no hay IAs
+  (una comprobación por tick); con IAs, una pasada por la gente cada 10 ticks, O(IAs × personas), sin reservar memoria por persona, y
+  como mucho 100 entradas/salidas anunciadas por pasada (el resto espera a la siguiente). Nada que encender: sale en cualquier mundo
+  donde entre una IA (R-1).
 - `view.place?.(clave, { model, x, y, z, rx, ry, rz, sx, sy, sz, animate } | null)` — la página pone, mueve o quita
   una cosa con su modelo (sha256 de un `.glb`; el fichero sale de `/a/<sha256>.glb` del servidor). Giros en grados
   (primero `ry`, luego `rx`, luego `rz`). `view.here?.()` dice dónde está el jugador, para poner algo delante.
