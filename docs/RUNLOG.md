@@ -1573,3 +1573,13 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Fable 5.1 (Ursa, en el escritorio) + Sonnet 5.5 (subagente T4, que murió a mitad; su trabajo se recogió).
 - Commit: rama `taller`, sin subir.
 - Siguiente: PR de la rama `taller` (T1 paso `hace`, T3 flecha, arreglos) cuando Pablo diga; farola de pie CC0; ja/ko/pt-br.
+
+
+## 2026-10-21 · funciones v3 · hecho
+- Qué: historia v3: «Ajustes» del menú de VR acaba con «Este mundo» (Normas de entrada, Dardos, Pesca) con las filas y los textos de `panel.ts` (los del
+  bloque de PC), el estado real del servidor, `fija` con el botón apagado y «Lo fija el servidor.», y sin bloque para quien no construye. Sin cambio de versión.
+- Pruebas: `test/funciones-menu-vr.test.ts`; pierna IWER `tools/e2e-piernas/funciones-menu-vr.mjs` (rayo + gatillo en «Dardos» → la diana desaparece y vuelve; sin permiso no
+  hay bloque; puerta fijada por el servidor). Capturas del lienzo del menú en `work/motor-vr/fotos-v3/`.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `vr/v3-interruptores-vr` (sobre `funciones/f3-panel`), sin subir. Toca `apps/plaza/xr-menu.ts` solo en `ajustes()`: se junta con v2-fin.
+- Pendiente: el título «Este mundo» del menú VR va en castellano (el menú VR solo está en castellano); ja, ko, pt-br de los textos del bloque.
