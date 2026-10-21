@@ -76,6 +76,11 @@ async function pierna() {
     const nombreB = await b.evaluate(() => globalThis.__numinia.session.who.nombre);
     await ctl(() => document.getElementById("vr").click());
     paso("entra en VR", await esperar(() => globalThis.__numinia.view.vr.active, null, 15000));
+    // v1: the FIRST time on this device a notice says where the menu is (and says so in the page's language, Spanish here)
+    const verAviso = await esperar(() => globalThis.__numinia.view.vr.aviso.visible, null, 12000);
+    const av = await ctl(() => globalThis.__numinia.view.vr.aviso.diagnostico());
+    paso("la primera vez sale el aviso «Gira la muñeca…»", verAviso && /Gira la muñeca y mírate el reloj/.test(av.texto), { aviso: av });
+    if (CANVAS) { mkdirSync(CANVAS, { recursive: true }); writeFileSync(`${CANVAS}/vr-aviso.png`, Buffer.from((await ctl(() => globalThis.__numinia.view.vr.aviso.lienzo.toDataURL("image/png"))).split(",")[1], "base64")); }
     await esperar(() => globalThis.__numinia.view.manos.estado().izq?.tipo === "mando" && globalThis.__numinia.view.manos.estado().der?.tipo === "mando", null, 20000);
     await ctl(() => globalThis.__bajarMuneca()); await a.waitForTimeout(600);
     paso("con la muñeca bajada no hay reloj", !(await ctl(() => globalThis.__numinia.view.vr.reloj.visible)));
@@ -174,6 +179,20 @@ async function pierna() {
     paso("«Dejar de construir» sale del modo", (await pulsarZona(100)) && await esperar(() => !globalThis.__numinia.constructorVR.activo(), null, 3000));
     await boton("right", "b-button", 1); await a.waitForTimeout(120); await boton("right", "b-button", 0); await a.waitForTimeout(200);
     paso("bajar la muñeca esconde el reloj", await esperar(() => !globalThis.__numinia.view.vr.reloj.visible, null, 4000));
+    // v1: Y on the left controller opens and closes the same menu (the wrist is not the only way in with controllers)
+    await boton("left", "y-button", 1); await a.waitForTimeout(500); await boton("left", "y-button", 0); await a.waitForTimeout(500);
+    paso("Y (mando izquierdo) abre el mismo menú", await esperar(() => globalThis.__numinia.view.vr.menu.abierto, null, 3000));
+    await boton("left", "y-button", 1); await a.waitForTimeout(500); await boton("left", "y-button", 0); await a.waitForTimeout(500);
+    paso("Y otra vez lo cierra", await esperar(() => !globalThis.__numinia.view.vr.menu.abierto, null, 3000));
+    await ctl(() => globalThis.__numinia.view.vr.exit());
+    paso("sale de VR", await esperar(() => !globalThis.__numinia.view.vr.active, null, 8000));
+    // v1: the second time on the same device there is no notice (the page keeps `numinia.vr.avisoMuneca` in localStorage)
+    paso("el aparato recuerda que ya lo vio", await ctl(() => localStorage.getItem("numinia.vr.avisoMuneca")) === "1");
+    await ctl(() => document.getElementById("vr").click());
+    paso("entra en VR otra vez", await esperar(() => globalThis.__numinia.view.vr.active, null, 15000));
+    await a.waitForTimeout(3500); // longer than the notice's calm wait (1.5 s)
+    const av2 = await ctl(() => globalThis.__numinia.view.vr.aviso.diagnostico());
+    paso("la segunda vez no sale el aviso", !av2.visible && av2.fase === "hecho" && av2.vistas === 1, { aviso: av2 });
     await ctl(() => globalThis.__numinia.view.vr.exit());
     await esperar(() => !globalThis.__numinia.view.vr.active, null, 8000);
     r.ok = errors.length === 0;

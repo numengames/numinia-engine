@@ -13,6 +13,7 @@ import * as THREE from "three/webgpu";
 import type { Lado, Panel } from "./manos.ts";
 import { createReloj, type EstadoReloj } from "./muneca.ts";
 import { createMenuInvocado, type Proveedor } from "./menu-invocado.ts";
+import { createAviso } from "./muneca-aviso-vr.ts"; // v1: the first-time «turn your wrist» notice
 import type { BotonReloj, Vista } from "./menu-vr.ts";
 import type { PathsIcono } from "./vr-pintura.ts";
 import type { AccionFichaVR, DatosFichaVR, FichaVR } from "./vr-ficha.ts"; // types only: the panel itself is fetched on first use (C5)
@@ -322,6 +323,7 @@ export function createVR(h: VRHooks) {
   const iconos: PathsIcono = (n) => pathsIcono(n); // the page hands the house's icons over later (`vr.iconos(fn)`)
   const reloj = createReloj({ scene: h.scene, iconos });
   const menu = createMenuInvocado({ scene: h.scene, iconos, salir: () => { void exit(); }, alPulsar: avisarPulsa });
+  const aviso = createAviso({ camera: h.camera }); // v1: shown once per device, the first time you enter VR (muneca-aviso.ts)
   let estadoRelojPagina: () => Omit<EstadoReloj, "menuAbierto"> = () => ({ micro: null, camara: false, avisos: 0, ciudad: false });
   reloj.estado(() => ({ ...estadoRelojPagina(), menuAbierto: menu.abierto }));
   const ojoV = new THREE.Vector3(), miraV = new THREE.Vector3(), munPos = new THREE.Vector3(), puntaV = new THREE.Vector3();
@@ -357,12 +359,13 @@ export function createVR(h: VRHooks) {
     await h.manos?.cargar().catch(() => {}); // after requestSession (it needs the click's activation); prefetched by the view
     rig.add(h.camera);
     h.camera.add(vignette, nota);
+    aviso.nueva();
     h.manos?.montar(rig);
     rig.visible = true;
     pagina = "mandos"; panel.visible = true; panelDelante = false; // the first thing you see: how the controllers work
     ajusteMalla.visible = false; salirMalla.visible = true;
     session.addEventListener("end", () => {
-      session = null; moveX = moveZ = 0; strength = 0; fichaVR?.ocultar(); fichaPide = null; reloj.cerrar(); menu.cerrar(); condVR?.ocultar(false); condPendiente = null; pagLatched = false;
+      session = null; moveX = moveZ = 0; strength = 0; fichaVR?.ocultar(); fichaPide = null; reloj.cerrar(); menu.cerrar(); aviso.cerrar(); condVR?.ocultar(false); condPendiente = null; pagLatched = false;
       h.camera.remove(vignette, nota); rig.remove(h.camera); rig.visible = false;
       h.manos?.montar(null);
       h.renderer.xr.enabled = false;
@@ -474,6 +477,7 @@ export function createVR(h: VRHooks) {
     const hayPunta = visible && !!h.manos?.punta?.(LADO_PUNTA, puntaV);
     reloj.update(ojoV, miraV, mun ? { posicion: munPos, rotacion: munRot, esMano: mun.esMano, lado: LADO_RELOJ } : null, hayPunta ? puntaV : null);
     menu.update(ojoV);
+    aviso.update({ bloqueado: !visible || ojoV.y <= 0.1 || !!condVR?.abierto || !!condPendiente, menuAbierto: menu.abierto }); // v1: waits for a calm moment (no entry bubble)
     if (condPendiente && condVR && ojoV.y > 0.1) { // c4: the bubble's panel comes up in front of the eyes once they have a pose
       menu.cerrar(); reloj.cerrar(); panel.visible = false; // one thing in front of you: the old help card and the menu step aside
       const m = condPendiente; condPendiente = null; condVR.mostrar(m, ojoV, miraV);
@@ -510,7 +514,7 @@ export function createVR(h: VRHooks) {
     get alturaM() { return alturaM; },
     set alturaM(v: number) { alturaM = Number.isFinite(v) ? Math.max(ALTURA_M.min, Math.min(ALTURA_M.max, v)) : 0; },
     /** Rediseño v2: the wrist watch and the menu panel (for the page's wiring and for checks). */
-    reloj, menu,
+    reloj, menu, aviso,
     /** The house's Phosphor icons (name → SVG paths, viewBox 256) for the watch and the menu. */
     iconos(fn: PathsIcono): void { pathsIcono = fn; reloj.pintar(); },
     /** «Menú» / Y from the page or a check: open (at `en`) or close the menu in front of the eyes. */
