@@ -6,7 +6,7 @@
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
 import { equiposDe, siguienteEquipo, terminada, resultado, RETIRANDO_S } from "./equipos.ts";
-import { dardos, CERCA_M, DARDOS_TURNO, TURNO_INACTIVO_S, RONDAS_DEFECTO, RONDAS_MAX, zonaDe, desvioFuerza, ZONA_FUERZA } from "./feature.ts";
+import { dardos, CERCA_M, DARDOS_TURNO, TURNO_INACTIVO_S, RONDAS_DEFECTO, RONDAS_MAX, MUNDO_MAX_BYTES, zonaDe, desvioFuerza, ZONA_FUERZA } from "./feature.ts";
 
 export type Sitio = { id: string; nombre: string; x: number; z: number; y?: number; radio?: number; rumbo?: number;
   /** v2: the board takes a second player and plays a match; `remoto`: a player may join from a real wall far away; `rondas`: 1-5 (default 3). */
@@ -94,7 +94,7 @@ export const rumboHaciaElCentro = (x: number, z: number): number => (Math.hypot(
 type Tirada = { sitio: string; dardos: number; puntos: number; ultimo: number; remoto: boolean };
 type Marcador = { dardos: number; puntos: number; mejorDardo: number; mejorTirada: number; dianas: number };
 /** A duel in progress (or waiting) on one board. jug[i] = the player of team i (A..D; i = 0 is the host); only the seated ones are in the list (entity 0 is a real player). */
-type Partida = { sitio: string; jug: number[]; estado: "espera" | "juego"; pared: boolean[]; fuera: boolean[]; visitas: number[]; puntos: number[]; /** index of the team on turn */ turnoEq: number; /** v3: the visit is over and everybody waits for «cambiar» (or RETIRANDO_S) */ retirando: boolean; retiraTick: number; ultimo: number; rondas: number; max: number; /** starts when full, no `empezar` (the v2 board) */ auto: boolean };
+type Partida = { sitio: string; jug: number[]; estado: "espera" | "juego"; pared: boolean[]; /** v6: the world each one came from through a link ('' = none) */ mundo: string[]; fuera: boolean[]; visitas: number[]; puntos: number[]; /** index of the team on turn */ turnoEq: number; /** v3: the visit is over and everybody waits for «cambiar» (or RETIRANDO_S) */ retirando: boolean; retiraTick: number; ultimo: number; rondas: number; max: number; /** starts when full, no `empezar` (the v2 board) */ auto: boolean };
 const hashTexto = (s: string): number => { let h = 0; for (let i = 0; i < s.length; i++) h = Math.imul(h, 31) + s.charCodeAt(i) | 0; return h; };
 /** A person's name for a field declared `text`: control characters out, spaces collapsed, cut to `max` UTF-8 bytes. */
 export function limpiarNombre(s: string, max = 40): string {
@@ -159,7 +159,7 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
   /** The flat fields of a, b, c, d (+ who is seated, who left) that `duelo` and `finduelo` carry; the ones not seated are entity 0 / empty. */
   const pares = (P: Partida): Msg => {
     const m: Msg = { equipos: P.max, plazas: P.jug.length, turnoEq: P.estado === "juego" ? P.turnoEq + 1 : 0, retirando: P.estado === "juego" && P.retirando };
-    L.forEach((l, i) => { const q = P.jug[i] ?? -1; m[l.toLowerCase()] = Math.max(0, q); m[`nombre${l}`] = nombreDe(q); m[`puntos${l}`] = P.puntos[i] ?? 0; m[`pared${l}`] = P.pared[i] ?? false; m[`fuera${l}`] = P.fuera[i] ?? false; });
+    L.forEach((l, i) => { const q = P.jug[i] ?? -1; m[l.toLowerCase()] = Math.max(0, q); m[`nombre${l}`] = nombreDe(q); m[`puntos${l}`] = P.puntos[i] ?? 0; m[`pared${l}`] = P.pared[i] ?? false; m[`mundo${l}`] = P.mundo[i] ?? ""; m[`fuera${l}`] = P.fuera[i] ?? false; });
     return m;
   };
   const turnoDeP = (P: Partida): number => (P.estado === "juego" ? P.jug[P.turnoEq] : -1);
@@ -207,7 +207,7 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     if (P.estado === "espera") {
       const s = sitios.get(P.sitio)!;
       if (i > 0) { // a guest steps out: the seats close up and the host keeps waiting
-        P.jug.splice(i, 1); P.pared.splice(i, 1); P.fuera.splice(i, 1); P.visitas.splice(i, 1); P.puntos.splice(i, 1); enPartida.delete(e);
+        P.jug.splice(i, 1); P.pared.splice(i, 1); P.mundo.splice(i, 1); P.fuera.splice(i, 1); P.visitas.splice(i, 1); P.puntos.splice(i, 1); enPartida.delete(e);
         poner(P.sitio, { jugadores: P.jug.length }); difundir("fin", { quien: e, sitio: P.sitio, dardos: 0, puntos: 0 }, s, [e]); emitirDuelo(P); return;
       }
       const todos = jugadoresDe(P); soltarPartida(P); // the host gave up: the wait is over for everybody
@@ -223,7 +223,7 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     if (P.turnoEq === i) { P.retirando = false; P.visitas[i] = P.rondas; P.turnoEq = siguienteEquipo(P.fuera, i); if (terminada(P.visitas, P.fuera, P.rondas)) return terminarDuelo(P, false); empezarTurnoDuelo(P); } else emitirDuelo(P);
   };
   /** Join (or open) the duel of board `id`; the reason why not otherwise. */
-  const unirse = (e: number, id: string, remoto: boolean, pared = remoto): string | null => {
+  const unirse = (e: number, id: string, remoto: boolean, pared = remoto, mundo = ""): string | null => {
     const s = sitios.get(id)!;
     if (enPartida.get(e) === id) return null; // already in: nothing to do
     if (enPartida.has(e) || tiradas.has(e)) return "Ya estás tirando en otra diana: termina esa tirada antes.";
@@ -231,7 +231,7 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     const P = partidas.get(id);
     if (!P) {
       const max = equiposDe(s.equipos);
-      const nueva: Partida = { sitio: id, jug: [e], estado: "espera", pared: [pared], fuera: [false], visitas: [0], puntos: [0], turnoEq: 0, retirando: false, retiraTick: 0, ultimo: api.tick(), rondas: rondasDe(s.rondas), max, auto: s.equipos === undefined };
+      const nueva: Partida = { sitio: id, jug: [e], estado: "espera", pared: [pared], mundo: [mundo], fuera: [false], visitas: [0], puntos: [0], turnoEq: 0, retirando: false, retiraTick: 0, ultimo: api.tick(), rondas: rondasDe(s.rondas), max, auto: s.equipos === undefined };
       partidas.set(id, nueva); enPartida.set(e, id);
       poner(id, { espera: true, jugadores: 1 });
       emitirDuelo(nueva);
@@ -239,7 +239,7 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     }
     if (P.estado !== "espera") return "Ya hay un duelo en marcha en esta diana.";
     if (P.jug.length >= P.max) return "La partida está completa: espera a que acabe.";
-    P.jug.push(e); P.pared.push(pared); P.fuera.push(false); P.visitas.push(0); P.puntos.push(0); enPartida.set(e, id);
+    P.jug.push(e); P.pared.push(pared); P.mundo.push(mundo); P.fuera.push(false); P.visitas.push(0); P.puntos.push(0); enPartida.set(e, id);
     poner(id, { jugadores: P.jug.length });
     if (P.auto && P.jug.length >= P.max) comenzar(P); else { P.ultimo = api.tick(); emitirDuelo(P); }
     return null;
@@ -270,7 +270,9 @@ export const crearDardos = (opts: { sitios?: Sitio[] } = {}) => serverPart(dardo
     // `desde`: sitio (at the throwing line), pared (a real wall: AR) or lejos (a flat screen far from the board); the last two need `remoto`
     const id = String(m.sitio), s = sitios.get(id), pared = m.desde === "pared", lejos = pared || m.desde === "lejos";
     if (s && lejos && !s.remoto) return rechazar(e, `${s.nombre} no admite jugar desde ${pared ? "una pared" : "lejos"}: hay que estar en su línea de tiro.`);
-    if (s?.duelo) { const r = unirse(e, id, lejos, pared); if (r) rechazar(e, r); return; }
+    // v6: `mundo` = the world a link visitor comes from, shown on the sign; only kept when they play from a wall or a far screen
+    const mundo = lejos ? limpiarNombre(String(m.mundo ?? ""), MUNDO_MAX_BYTES) : "";
+    if (s?.duelo) { const r = unirse(e, id, lejos, pared, mundo); if (r) rechazar(e, r); return; }
     const t = empezar(e, id, lejos); if (typeof t === "string") rechazar(e, t);
   });
 

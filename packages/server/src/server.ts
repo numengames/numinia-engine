@@ -17,7 +17,7 @@ import type { SpawnArea } from "../../sim/src/index.ts";
 import { FASES_TICK, Instance } from "../../instance/src/index.ts";
 import type { Suelo } from "../../instance/src/index.ts";
 import { construirMalla } from "./colision-mundo.ts";
-import { CIERRE_LLENO, MSG, PASE_MAX, WS_FRAME_MAX } from "../../net/src/index.ts";
+import { CIERRE_LLENO, FUNCIONES_DE_ENLACE, MSG, PASE_MAX, WS_FRAME_MAX, esVisitaDeEnlace } from "../../net/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
 import type { HttpReply, ServerPart } from "../../feature/src/index.ts";
 import { buildMetrics, ByteWindow, CosteTick, OPENMETRICS, PROM_TEXT, quiereOpenMetrics, TickWindow, toPrometheus } from "./metrics.ts";
@@ -78,6 +78,7 @@ export type ServerOptions = {
   entorno?: string | null;       // the world's entorno/ folder (entorno.json, elementos.json): travels in the world's zip
   aparicion?: SpawnArea | null;  // where people appear (entorno.json `aparicion`, read by the composition root); none = the house square of 40 m
   suelo?: Suelo | null;          // D-045: entorno.json `sueloMinimo` + `vuelta` (read by the composition root); none = no void
+  enlaceDardos?: { servidor: string; diana: string } | null; // dardos enlazados (E1): the darts link this world's AR uses (dardos.json `enlace`, read by the composition root), told to the page in /status; null = off; undefined = not said (the page uses the house link)
   dondeCodigo?: string;          // where the administration code can be read (the /mundo page says it; never the code)
   www?: string | null;           // C1: the built page (WWW_DIR) served on / by the engine itself; null = none (Caddy or vite serve it)
   motor?: Motor;                 // build, full commit and image (version.ts); default infoMotor()
@@ -288,7 +289,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     if (method === "GET" && path === "/status") {
       const espacioBaseActivo = () => { for (const [k, v] of inst.features.allState()) if (k === "espacio-base:mundo") return (v as { activa?: boolean }).activa !== false; return false; };
       const agentesConectados = inst.conns.filter((c) => c.who?.id.startsWith("ia-"));
-      const personas = inst.conns.length - agentesConectados.length;
+      const visitas = inst.visitasDeEnlace().length; // dardos enlazados: pages of other worlds playing the darts; not people walking this world
+      const personas = inst.conns.length - agentesConectados.length - visitas;
       const agentesDe: { habitante: number; organizacion: Record<string, number> } = { habitante: 0, organizacion: {} };
       for (const c of agentesConectados) {
         const org = roles.organizacionDeAgente(c.who!.id);
@@ -301,6 +303,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
         ...(cfgPase.pase ? { mundoPase: cfgPase.pase.mundo, pases: roles.pases() } : {}), ...fichaPublica,
         // H4: the loading screen draws the line mesh only for a world whose espacio base is on (its state is public anyway)
         ...(espacioBaseActivo() ? { espacioBase: true } : {}),
+        // dardos enlazados (E1): where a page of this world sends its AR darts (the Alchemist Tower's board unless dardos.json says otherwise); null = nowhere
+        ...(o.enlaceDardos !== undefined ? { dardosEnlace: o.enlaceDardos } : {}), ...(visitas ? { visitas } : {}),
       }));
     }
     if (method === "GET" && path === "/metrics") return json(res, 200, metrics());
@@ -341,7 +345,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     // H7: full = the world's aforo (or the engine's capacity): refused at the door with the reason the page shows
     if (inst.conns.length >= aforo) { counts.rechazadasLlenas++; ws.close(CIERRE_LLENO, `lleno ${inst.conns.length}/${aforo}`); return; }
     counts.aceptadas++;
-    const entity = inst.connect(wsTransport(ws), undefined, req.headers.host); // ADR-080: the host an outside agent signs
+    // dardos enlazados: `?enlace=dardos` = a page of another world that only plays the darts here (no avatar for anybody, darts only)
+    const entity = inst.connect(wsTransport(ws), undefined, req.headers.host, esVisitaDeEnlace(req.url) ? FUNCIONES_DE_ENLACE : undefined); // ADR-080: the host an outside agent signs
     sockets.set(entity, ws);
     sesiones.abrir(entity);
     ws.on("close", (code) => { counts.cerradas++; sockets.delete(entity); sesiones.cerrar(entity, { cierre: code }); inst.disconnect(entity); });
