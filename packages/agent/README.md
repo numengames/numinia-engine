@@ -19,8 +19,8 @@ steps after this one (senses and catalog verbs, the brain and its puente, gestur
 
 - **Does not:** Run code a model writes, keep the key anywhere but its environment, build when the world says no (api.puede), remember people beyond 5 minutes of conversation in memory.
 - **Depends on:** core, schema, ecs, sim, net, feature, client, instance (rule: `tools/layers.json`)
-- **Tested by:** `test/agente.test.ts`, `test/cerebro.test.ts`, `test/puerta.test.ts`, `test/mcp-mundo.test.ts`
-- **Main API:** `Cuerpo` (`irA`, `seguir`, `parar`, `decir`, `gesto`, `hacer`, `cercanos`, `cosas`, `sentidos`, `alOir`, `paso`), `Guion`, `Mente`, `Obra` (the build verbs, shared), `cerebroClaude`, `cerebroEco`, `Topes`, `validarHabitante`, `leerHabitantes`; outside agents: `llave.ts` (`nuevaPareja`, `firmarBillete`, `clavePublica`), `mcp.ts` (`ServidorMcp`), `mcp-mundo.ts` (`PuenteMundo`)
+- **Tested by:** `test/agente.test.ts`, `test/cerebro.test.ts`, `test/puerta.test.ts`, `test/mcp-mundo.test.ts`, `test/puente-org.test.ts`, `test/puente-sin-node.test.ts`
+- **Main API:** `Cuerpo` (`irA`, `seguir`, `parar`, `decir`, `gesto`, `hacer`, `cercanos`, `cosas`, `sentidos`, `alOir`, `paso`), `Guion`, `Mente`, `Obra` (the build verbs, shared), `cerebroClaude`, `cerebroEco`, `Topes`, `validarHabitante`, `leerHabitantes`; outside agents: `llave.ts` (`nuevaPareja`, `firmarBillete`, `clavePublica`), `mcp.ts` (`ServidorMcp`), `mcp-mundo.ts` (`PuenteMundo`), `pase-org.ts` (`pedirPaseToken`, `pedirPaseFirmado`), `pase-org-clave.ts` (`pedirPaseHttp`, Node), `puente-neutral.ts` (the bridge for hosts without Node)
 
 ## Outside agents: one door (numinia-archive ADR-080; backlog M26, first slice)
 
@@ -77,7 +77,14 @@ mcp_servers:
    things within 40 m with their ids, whether it may build, the models it may place), `decir` {texto, canal cerca|zona},
    `ir_a` {x, z} | {persona}, `colocar` {modelo, x, z, y?, giro?, escala?|escala_x/_y/_z, nombre?}, `mover` {id, …}
    (what it does not say stays), `borrar` {id}, `deshacer`, `oir` {desde} (the last 50 lines heard, by cursor, to follow
-   a conversation by polling). People's text comes back only inside `<material fiable="no">`. Limits: 40 m from its
+   a conversation by polling), `llamadas` (the calls people made to it that it has not read: who, what, how — by its name,
+   `/name`, the «Hablar con ella» button or its key phrase — and how many seconds ago; each is handed over once; last 20 of
+   10 minutes) and `esperar_llamada` {segundos 1–25} (waits up to 25 s and comes back as soon as someone calls it or walks
+   into its bubble; call it in a loop to stay listening; other tools keep working meanwhile). Both need a world with the
+   feature `llamar` (else they say so) and both tell the world the brain is **attentive**: intent `ia.atenta`, at most one
+   every 5 s, and the AI's public card shows `atenta: true` for 90 s after the last one. `gesto` {tipo: saludar|asentir|pensar|señalar} plays a move of the world's `gestos` feature (everyone within 30 m sees it;
+   only `saludar` has a clip of its own, the others use the nearest one and stop by themselves — table in `gesto-ia.ts`),
+   and `mirar` adds «En tu burbuja: …» (who is inside the AI's bubble, from the `burbuja` events). People's text comes back only inside `<material fiable="no">`. Limits: 40 m from its
    body, 12 changes per 10 s; the server checks everything again. Logs go to stderr; stdout is only the protocol.
 
 Try it without Hermes: pipe JSON-RPC lines into the bridge, e.g.
@@ -126,6 +133,24 @@ AGENTE_CLAVE=$HOME/.numinia/agentes/<id>.clave MUNDO_URL=wss://its-domain node t
 - The world lists it in `GET /agentes` with `organizacion: true` and `estado` while it is connected (its `id` is the pass's `a_…`).
 - Tests: `test/puente-org.test.ts` (a fake numinia.com that speaks both modes over `node:http` signing passes with a test key, a real server, the real
   bridge, passes of 3 s so renewals happen in the test), `test/pase-ia.test.ts` (the world side).
+
+**The bridge without Node** (M1 of the remote MCP, numinia.com's `mcp.numinia.com`): `mcp-mundo.ts` and `pase-org.ts` import
+nothing from `node:` — the a2 ticket and the key way's signature are injected (`firmar`; `tools/mcp-mundo.ts` passes
+`llave.ts`'s `firmarBillete`, `pase-org-clave.ts` signs with a KeyObject). So the token way runs on any runtime with `fetch`
+and `WebSocket` (a Cloudflare Worker / Durable Object, Deno, Bun). `npm run puente` bundles `puente-neutral.ts` with platform
+neutral (rolldown, already here through vite) into one module, `dist/puente-mundo.mjs` (~90 kB, ~30 kB gz), and fails if any
+import is left unresolved:
+
+```js
+import { PuenteMundo, pedirPaseToken, ServidorMcp, INSTRUCCIONES } from "./puente-mundo.mjs";
+const puente = new PuenteMundo({ url: "wss://its-domain/ws", id: agente, mundo, pedirPase: pedirPaseToken({ numiniaUrl, org, agente, token }) });
+puente.arrancar();
+const mcp = new ServidorMcp({ nombre: "numinia-mundo", version, herramientas: () => puente.herramientas(), instrucciones: INSTRUCCIONES });
+const respuesta = await mcp.atender(await request.json()); // one JSON-RPC message (or batch) per POST
+```
+
+`test/puente-sin-node.test.ts` checks the bundle has no `node:` import nor Node globals, that a Node-only file refuses to
+bundle, and that the BUNDLE enters an in-memory world with a fake `PedirPase` and answers `mirar` inside one `<material>`.
 
 **Not yet:** the tools served by the world itself (MCP over HTTPS from the engine, M26 next), the «doorbell» that wakes an
 on-demand agent (`presencia` is stored but only informative), the installer passing `--dominio` as `MOTOR_DOMINIO`, and

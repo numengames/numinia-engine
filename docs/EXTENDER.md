@@ -198,7 +198,7 @@ en `features.cards()`. Un agente de IA lee lo mismo en el catálogo. Ejemplos: `
   fuera, un habitante) tiene una entrada en el estado compartido de la función `ia` (clave = su entidad; desaparece al irse; las
   personas nunca tienen): `estado` (`activa`|`dormida`, del `state` del pase), `comunidad`/`nombre`/`cartera` (quién responde
   por ella, D-084: la cartera es solo la forma corta `0x12…ab`; vacíos si el pase no trae `ia`), `construye` (si sus roles la dejan
-  construir ahora; dormida nunca) y `atenta` (si su cerebro escucha: falso hasta que el puente lo diga, S12). La decide el servidor:
+  construir ahora; dormida nunca) y `atenta` (si su cerebro escucha: falso hasta que el puente lo diga con la petición `ia.atenta`, verdadero 90 s desde el último aviso, a lo sumo uno cada 5 s por IA; una persona que la envía no cambia nada, S12). La decide el servidor:
   la función `roles` emite el evento solo-servidor `ia` al identificarse y cuando un PASE a mitad de sesión cambia algo, y
   `features/ia/server.ts` lo publica; una IA sin bloque `ia` (o sin pase) tiene igualmente la ficha mínima, para que su marca salga
   siempre. Lo que **oye** no se publica: el pase no lo dice (D-083 lo fijará una historia posterior). Las páginas la leen con
