@@ -5,6 +5,7 @@
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
 import { pesca as decl } from "./feature.ts";
+import { encendida, verSi } from "../funciones/feature.ts"; // f2: the world's switch
 
 export type Fase = "nada" | "espera" | "mordisqueo" | "picada" | "pelea";
 export type Estado = {
@@ -42,6 +43,7 @@ export function consejo(e: { fase: Fase; tension: number; arrancada: "no" | "avi
 }
 type Res = { ok: true } | { ok: false; why: string };
 const SIN: Res = { ok: false, why: "la función pesca no está en este servidor" };
+const APAGADA: Res = { ok: false, why: "la pesca está apagada en este mundo" };
 const ahora = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
 /** One per page (tests make one per client). `pesca` is what the page and an agent call; `espia` sees every event (tests). */
@@ -55,6 +57,8 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
   const olvidar = (vida = EN_MANO_MS) => { const t = ahora(); let n = 0; for (const [k, c] of capturas) if (t - c.desde >= vida) { capturas.delete(k); n++; } if (n) avisar("capturas"); };
   const fase = (f: Fase) => { e.fase = f; e.desde = ahora(); };
   const reposo = () => { fase("nada"); e.sitio = ""; e.tension = 0; e.progreso = 0; e.arrancada = "no"; e.recogiendo = false; e.pez = ""; };
+  /** f2: the world's switch for this piece, as the server last said (no entry = on). Off: no ponds, floats or fish in hand, no «E: pescar», nothing to ask. */
+  const apagada = (): boolean => !!A && !encendida(A.estadoDe("funciones").get("pesca"));
   let soltando: ReturnType<typeof setTimeout> | null = null;
 
   const pesca = {
@@ -62,17 +66,18 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     /** N4: what to do now in a few words (empty while not fishing). */
     consejo: (): string => consejo(e),
     /** The fishing spots this page knows (state entries within reach of the area of interest). */
-    sitios: (): Sitio[] => (A ? A.state.keys().map((k) => ({ id: k, ...(A!.state.get(k) as Msg) }) as Sitio) : []),
+    sitios: (): Sitio[] => (A ? verSi(A.state.keys().map((k) => ({ id: k, ...(A!.state.get(k) as Msg) }) as Sitio), A.estadoDe("funciones").get("pesca")) : []),
     /** Who is fishing where, near you (yourself included while you fish). */
-    flotadores: (): Flotador[] => [...flotadores.values()],
+    flotadores: (): Flotador[] => (apagada() ? [] : [...flotadores.values()]),
     /** v2: the fish landed in the last EN_MANO_MS near you (yours included): who holds which, since when. */
-    capturas: (): Captura[] => { olvidar(); return [...capturas.values()]; },
+    capturas: (): Captura[] => { olvidar(); return apagada() ? [] : [...capturas.values()]; },
     /** v2: empty the hands older than `vida` ms (the 3D calls it with 0 for an angler who walked away). */
     olvidar: (vida = EN_MANO_MS, quien?: number) => { if (quien !== undefined) { if (capturas.delete(quien)) avisar("capturas"); } else olvidar(vida); },
     /** J4: offer the «E: pescar» prompt only while this page is not fishing already. */
-    ofrece: (feature: string, _key: string): boolean => feature !== "pesca" || e.fase === "nada",
+    ofrece: (feature: string, _key: string): boolean => feature !== "pesca" || (!apagada() && e.fase === "nada"),
     lanzar: (sitio?: string): Res => {
       if (!A) return SIN;
+      if (apagada()) return APAGADA;
       const id = sitio ?? pesca.sitios().find((s) => !s.ocupado)?.id;
       if (!id) return { ok: false, why: "no hay ningún sitio de pesca cerca" };
       return A.send("lanzar", { sitio: id });
@@ -100,6 +105,8 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     const api: ClientApi = espia ? { ...raw, on: (ev, fn) => raw.on(ev, (m) => { espia(ev, m); fn(m); }) } : raw;
     A = api;
     api.state.onChange(() => avisar("sitios"));
+    // f2: the switch flips while the page is open: ponds, floats and the fish in hand go or come back with no reload
+    api.estadoDe("funciones").onChange((k) => { if (k === "pesca") { avisar("sitios"); avisar("flotadores"); avisar("capturas"); } });
     api.on("lanzado", (m) => {
       const quien = Number(m.quien), f = { quien, sitio: String(m.sitio), x: Number(m.x), y: Number(m.y), z: Number(m.z) };
       flotadores.set(quien, f);
