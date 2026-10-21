@@ -16,6 +16,15 @@ export type Mirada = {
   actividad(quien: number): string | null;
   /** The name over their head (the chat's names: who the page draws near). */
   nombre(quien: number): string | null;
+  /** Does this person hold the Director's staff (features/baculo)? A badge shows next to their name. */
+  baculo?(quien: number): boolean;
+};
+/** The staff badge (a medal): the small mark next to the name of whoever holds the Director's staff. */
+export const insigniaBaculo = (): HTMLElement => {
+  const s = el("span", { className: "insignia-baculo", title: "Tiene el báculo: dirige la partida" });
+  s.setAttribute("role", "img"); s.setAttribute("aria-label", "Tiene el báculo");
+  s.innerHTML = icono("medal", 14); // constants only
+  return s;
 };
 export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...hijos: (Node | string)[]): HTMLElementTagNameMap[K] => {
   const e: HTMLElementTagNameMap[K] = Object.assign(document.createElement(tag), props); e.append(...hijos); return e;

@@ -4,6 +4,8 @@
 // Every roll gets the world's next number (n), so a table can say «the roll 41» and nobody can quietly roll again.
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
+import { NO_PUEDE, guardarEnMundo, puedeInterruptor, vigilarPermiso } from "../interruptor.ts";
+import type { EntornoMundo } from "../interruptor.ts";
 import { dados, CARAS, CERCA_M, DADOS_MAX, MOD_MAX } from "./feature.ts";
 
 export type Torre = { id: string; nombre: string; x: number; z: number; y?: number; radio?: number; dados?: string };
@@ -64,20 +66,36 @@ const cortar = (t: string, max: number): string => {
   return out + "…";
 };
 
-export const crearDados = (opts: { torres?: Torre[]; azar?: () => number } = {}) => serverPart(dados, (api: ServerApi) => {
+export const FICHERO = "dados.json", ESQUEMA = "numinia-engine/dados@1";
+/** `activa` false = the piece is off (no tower, /tirar says so); the switch of the Entorno panel turns it on (`io`: the world's folder). Absent = on. */
+const APAGADO = "Los dados están apagados en este mundo (quien dirige los enciende en Entorno).";
+export const crearDados = (opts: { torres?: Torre[]; azar?: () => number; activa?: boolean; io?: EntornoMundo } = {}) => serverPart(dados, (api: ServerApi) => {
   const torres = new Map<string, Torre>();
-  for (const t of (opts.torres ?? []).filter((t) => /^[a-z0-9-]{1,16}$/.test(String(t.id)) && Number.isFinite(t.x) && Number.isFinite(t.z))) {
-    const propios = t.dados ? leerExpresion(t.dados) : null;
-    if (typeof propios === "string") api.log(`dados: la torre «${t.id}» tiene unos dados que no entiendo («${t.dados}»): tira 1d20`);
-    const v: Msg = { nombre: cortar(t.nombre || "Torre de dados", 60), x: t.x, y: t.y ?? 0, z: t.z, radio: Math.max(1, Math.min(16, t.radio ?? 2.5)), dados: propios && typeof propios !== "string" ? escribir(propios) : "1d20", ultima: "" };
-    if (api.state.set(t.id, v, { at: { x: t.x, z: t.z } })) torres.set(t.id, t); else api.log(`dados: la torre «${t.id}» no cabe en el esquema y no se pone`);
-  }
-  if (torres.size) api.log(`dados: ${torres.size} torre(s) de dados`);
+  const guardado = opts.io?.escribir ? undefined : api.store.get("estado") as { activa?: boolean; torres?: Torre[] } | undefined;
+  let encendido = guardado?.activa ?? opts.activa !== false;
+  let propias: Torre[] = guardado?.torres ?? opts.torres ?? [];
+  const poner = () => {
+    for (const t of propias.filter((t) => /^[a-z0-9-]{1,16}$/.test(String(t.id)) && Number.isFinite(t.x) && Number.isFinite(t.z))) {
+      const propios = t.dados ? leerExpresion(t.dados) : null;
+      if (typeof propios === "string") api.log(`dados: la torre «${t.id}» tiene unos dados que no entiendo («${t.dados}»): tira 1d20`);
+      const v: Msg = { nombre: cortar(t.nombre || "Torre de dados", 60), x: t.x, y: t.y ?? 0, z: t.z, radio: Math.max(1, Math.min(16, t.radio ?? 2.5)), dados: propios && typeof propios !== "string" ? escribir(propios) : "1d20", ultima: "" };
+      if (api.state.set(t.id, v, { at: { x: t.x, z: t.z } })) torres.set(t.id, t); else api.log(`dados: la torre «${t.id}» no cabe en el esquema y no se pone`);
+    }
+    if (torres.size) api.log(`dados: ${torres.size} torre(s) de dados`);
+  };
+  if (encendido) poner();
+  /** Keep the switch: in dados.json (every other key and every tower kept as they are), else in the server's store. */
+  const guardar = (cambios: Record<string, unknown>): string => {
+    const r = guardarEnMundo(opts.io, FICHERO, ESQUEMA, cambios, api.log);
+    if (r === "sin carpeta") { api.store.set("estado", { activa: encendido, torres: propias, ...cambios }); return ""; }
+    return r;
+  };
   let n = 0;
   const nombreDe = (e: number) => cortar(api.who(e)?.nombre ?? `Persona ${e}`, 40) || `Persona ${e}`;
   const rechazar = (e: number, motivo: string) => { api.emit("rechazado", { motivo: cortar(motivo, 160) }, { to: e }); };
 
   const hacer = (e: number, sitio: string, expresion: string, oculta: boolean) => {
+    if (!encendido) return rechazar(e, APAGADO);
     const torre = sitio ? torres.get(sitio) : undefined;
     if (sitio && !torre) return rechazar(e, `No hay ninguna torre de dados «${cortar(sitio, 16)}».`);
     if (torre && !api.within(e, sitio)) return rechazar(e, `Acércate a ${torre.nombre} para tirar ahí.`);
@@ -102,6 +120,36 @@ export const crearDados = (opts: { torres?: Torre[]; azar?: () => number } = {})
     api.log(`[dados] tirada ${n}: ${nombre} ${expr}${oculta ? " (oculta)" : ""} → ${valores.join(" ")} = ${total}`);
   };
 
+  /** The switch: who directs or rules turns the dice on or off. The towers saved stay as they are; the rolls of a saved tower do not change. */
+  const encender = (e: number, activa: boolean) => {
+    if (!puedeInterruptor(api, e)) return rechazar(e, NO_PUEDE);
+    if (activa === encendido) return rechazar(e, activa ? "Los dados ya están encendidos." : "Los dados ya están apagados.");
+    if (activa) {
+      let nuevas = propias, cambios: Record<string, unknown> = { activa: true };
+      if (!nuevas.length) { // first time, no tower defined: one beside who turns it on, kept in dados.json
+        const p = api.position(e);
+        if (!p) return;
+        nuevas = [{ id: "torre", nombre: "Torre de dados", x: Math.round((p.x + 1.5) * 100) / 100, z: Math.round(p.z * 100) / 100, y: Math.round(p.y * 100) / 100, radio: 2.5, dados: "1d20" }];
+        cambios = { activa: true, torres: nuevas };
+      }
+      const fallo = guardar(cambios);
+      if (fallo) return rechazar(e, fallo);
+      propias = nuevas; encendido = true; poner();
+      api.emit("encendido", { activa: true }, "all");
+      api.log(`[dados] ${nombreDe(e)} enciende los dados (${torres.size} torre(s))`);
+    } else {
+      const fallo = guardar({ activa: false });
+      if (fallo) return rechazar(e, fallo);
+      encendido = false;
+      for (const id of [...torres.keys()]) api.state.delete(id);
+      torres.clear();
+      api.emit("encendido", { activa: false }, "all");
+      api.log(`[dados] ${nombreDe(e)} apaga los dados (las torres se guardan)`);
+    }
+  };
+  api.onJoin((e) => { api.emit("encendido", { activa: encendido }, { to: e }); });
+  api.on("encender", (e, m) => encender(e, m.activa === true));
+  vigilarPermiso(api);
   api.on("tirar", (e, m) => hacer(e, String(m.sitio ?? ""), String(m.dados ?? ""), m.oculta === true));
 
   // the chat (any device with a keyboard, VR included): /tirar 2d6+1 · /tirar d20 oculta · /dados (the tower nearby)

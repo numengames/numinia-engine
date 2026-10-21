@@ -13,6 +13,7 @@ import elementos from "./elementos/server.ts";
 import pesca from "./pesca/server.ts"; // v1: fishing (the server decides the bite, the fish and the catch)
 import dardos from "./dardos/server.ts"; // v1: darts (the page sends aim + strength; the server decides where it lands and the score)
 import bienes from "./bienes/server.ts";
+import baculo from "./baculo/server.ts"; // v1: the Director's staff (whoever holds it directs; a world turns it on with baculos.json)
 import dados from "./dados/server.ts"; // v1: dice the server rolls (a tower is a thing of the world; /tirar 2d6 in the chat); everyone near sees the same // N10: digital goods — a chest's «objeto» becomes yours (signed receipt, inventory)
 
 import teletransporte from "./teletransporte/server.ts"; // N16: go next to someone connected now; a photo's place, if the world allows it
@@ -33,5 +34,5 @@ import inventario from "./inventario/server.ts"; // Y1: what each person owns; a
 import ia from "./ia/server.ts"; // ia-visible S3: the public card of every AI (state, who answers, what it may do); it hears the roles' «ia» event
 import sonido from "./sonido/server.ts"; // S6: the catalogue of house sounds (27 CC0 ids served by their sha256); the server picks the id and the seed, so everyone hears the same variant at the same instant. Last, so it hears the cable's `suena`
 import interruptores from "./funciones/server.ts"; // f1: feature switches (normas, dardos, pesca) the world's builder flips live; kept in funciones.json
-const funciones: ServerPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, naturaleza, espacioBase, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, sonido];
+const funciones: ServerPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, baculo, director, teletransporte, web, puertas, botones, cogibles, suelo, naturaleza, espacioBase, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, sonido];
 export default funciones;

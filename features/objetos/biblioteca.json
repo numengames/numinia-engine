@@ -21,6 +21,15 @@
       "fuente": "tools/hacer-farolillo.mjs"
     },
     {
+      "id": "baculo",
+      "nombre": "Báculo del Director",
+      "modelo": "f74174c8690cda9f17072002d620889c285d597a80f1b7d632d1654f4f12f2eb",
+      "fichero": "activos/casa/baculo.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia)",
+      "fuente": "tools/hacer-baculo.mjs"
+    },
+    {
       "id": "robot",
       "nombre": "Robot",
       "modelo": "047f5e5fb3bb6d378bd1df16ca6137f2a596c99b3a1b5690b4020c05aaf6f319",

@@ -1681,3 +1681,18 @@ ni un byte) y solo contesta si la página pregunta. El registro del arranque dic
   encendida): `{ v: {capa: versión}, d: [ids], en: ISO UTC }`; sobrevive a reinicios y viaja con la persona.
 - Cliente (`ClientSession`): `condiciones` (último mensaje; conserva el último `capas`), `onCondiciones`, `pedirCondiciones()` y
   `aceptar(versiones, datos = [])`.
+
+
+## Báculo del Director (v1) e interruptores de pieza
+
+**El báculo** (`features/baculo`): una cosa del mundo (pedestal + báculo ámbar, modelo CC0 de la casa). Quien lo lleva dirige: el servidor decide quién lo coge (`E` a su lado, un báculo por persona, nunca una IA), a quién se pasa (`/baculo pasar <nombre>`, a 6 m o menos), cuándo vuelve (`/baculo soltar`; al desconectarse se guarda 30 s; si un moderador echa a quien lo lleva, vuelve al instante) y se lo dice a los roles del mundo con el evento `concesion` (solo lo oye el servidor) para que presten `dirigir` (manage-rituals) exactamente a quien lo lleva. No es un rol nuevo (los roles son de numinia.com, STD-052). Quien manda (`mandar` = administrator o dueño) fija cuántos hay (`/baculos 1–5`) y los recupera (`/baculo recuperar`). Se configura con `entorno/baculos.json` (`numinia-engine/baculos@1`: `{ activa?, cantidad?, sitios?: [{x,y?,z}] }`); sin fichero está apagado y cuesta 0.
+
+**Interruptores** (Pablo, 2026-10-21: toda pieza es un on/off). Patrón de `apps/plaza/entorno.ts` + `features/naturaleza` + `features/espaciobase`:
+1. `features/<pieza>/feature.ts` declara el intent `encender { activa }` y el evento `permiso { encender }` (solo a esa persona).
+2. El servidor usa `features/interruptor.ts`: `puedeInterruptor` (`dirigir` **o** `mandar`: por rol, por `/dueño` o por llevar el báculo), `vigilarPermiso` (dice `permiso` al entrar, al identificarse y cuando cambian los roles) y `guardarEnMundo` (cambia solo esas claves del fichero del mundo; un fichero roto no se pisa; sin carpeta, lo guarda el `store` de la pieza).
+3. `features/<pieza>/client.ts` exporta `interruptor { estado.puede, activa(), poner(bool) }`; `main.ts` lo pasa a `montarEntorno` en la lista `piezas`, que pinta una fila `.interruptor` solo a quien tiene `estado.puede`. La fila sigue el estado del servidor, nunca su propio clic.
+4. Encendido por primera vez sin sitios: el servidor coloca la pieza junto a quien la enciende y los guarda (`baculos.json`, `dados.json`). Apagar guarda los sitios y quita la pieza; el báculo en una mano vuelve a su sitio antes.
+
+**Dados**: apagados no hay torre y `/tirar` dice que están apagados; las torres guardadas no cambian. Un `dados.json` anterior con torres y sin `activa` sigue encendido.
+
+Con interruptor: espacio base, naturaleza, báculo, dados. Sin él aún (siguen siendo «un fichero»): pesca, dardos, puertas, botones, cogibles, web, lucha, movedores, contadores, disparadores, suelo, elementos, teletransporte, objetos. Para cualquiera: los cuatro pasos de arriba (un intent, un evento, un `interruptor` en el cliente, una entrada en `piezas`).

@@ -73,6 +73,7 @@ export const rolesFeature = defineFeature({
     cambio: { describe: "Lo que alguien puede hacer ha cambiado (un rol, un dueño): objetos vuelve a decirle si construye.", fields: { quien }, announce: "silent" },
     nombreCambiado: { describe: "H3c: alguien se ha puesto otro nombre con /nombre (o vuelve a entrar con uno guardado); el chat lo usa sobre su cabeza y en lo que diga.", fields: { quien, nombre: { kind: "text", maxBytes: NOMBRE_PROPIO_MAX } }, announce: "silent" },
     ia: { describe: "ia-visible S3 (solo en el servidor): lo público de una IA conectada — su estado, quién responde por ella (comunidad y nombre o cartera corta, vacíos si el pase no lo dice) si sus roles la dejan construir ahora y qué avatar de la casa lleva (`cuerpo`: su índice, -1 = el robot de la casa). Al identificarse y cuando un pase nuevo lo cambia; la función «ia» lo publica a las páginas.", fields: { quien, estado: { kind: "enum", values: ["activa", "dormida"] }, comunidad: { kind: "text", maxBytes: 160 }, nombre: { kind: "text", maxBytes: 160 }, cartera: { kind: "text", maxBytes: 12 }, construye: { kind: "bool" }, cuerpo: { kind: "int", min: -1, max: 999 } }, announce: "silent" },
+    echado: { describe: "Un moderador acaba de echar o vetar a esta persona (su id de invitado): features/baculo le quita el báculo al instante. Solo en el servidor.", fields: { persona: { kind: "text", maxBytes: 80 } }, announce: "silent" },
     borrarHistorial: { describe: "H3c: /chat borrar; el chat vacía el historial de la zona (quien entre después ya no lo ve).", fields: {}, announce: "silent" },
   },
   store: { describe: "Los roles del mundo (forma de STD-052, con si @todos construye), quién tiene cada uno, los dueños, los vetados, los silenciados (hasta cuándo), a quién ha bloqueado cada persona, los avisos para moderación (/denunciar, los últimos 100) y sus ajustes (config: solo para miembros, voz)." },
@@ -154,6 +155,7 @@ export function crearRoles(o: OpcionesRoles) {
   // ia-organizacion: an AI of a numinia.com organization comes with a pass (kind "agent") and lives only while it is valid.
   const pasesIA = new Map<string, Pase>();                              // agent sub (a_…) -> its latest pass
   const vidaIA = new Map<number, { sub: string; exp: number; ult: number; cerrando?: true }>(); // entity -> pass end (s) and last renewal (ms)
+  const concedidos = new Set<string>();                               // features/baculo: person ids that hold a staff now (the loan of `dirigir`)
   const accesoDe = (id: string | undefined): Acceso => {
     const ia = id && esIA(id) ? pasesIA.get(id.slice(3)) : undefined;
     if (ia) { // the pass already says what it may do (role ∩ responsible, trimmed); asleep never builds, whatever the pass lists
@@ -166,7 +168,10 @@ export function crearRoles(o: OpcionesRoles) {
       return { permisos: new Set([...base.permisos].filter((p) => PERMISOS_IA.has(p))), altura: BASE, dueno: false };
     }
     const p = id && !duenos.has(id) ? pases.get(id) : undefined;
-    return p ? p.acceso : acceso(roles, miembroDe(id));
+    const propio = p ? p.acceso : acceso(roles, miembroDe(id));
+    // features/baculo: whoever holds a staff may direct for as long as they hold it (a loan of `manage-rituals`, nothing else:
+    // the same height, so they reach no further over anyone; never an AI, never kept: the staff's feature says when it ends)
+    return id && concedidos.has(id) && !propio.permisos.has("manage-rituals") ? { ...propio, permisos: new Set([...propio.permisos, "manage-rituals" as const]) } : propio;
   };
 
   /** What came of the entry passes this world received since it started (public in /status: counts and the verifier's short reason,
@@ -435,6 +440,7 @@ export function crearRoles(o: OpcionesRoles) {
       echar: (from, resto) => {
         const p = persona(from, resto); if (!p || !sobre(from, "echar", p)) return;
         echados.set(p.id, { nombre: p.nombre, hasta: ahora() + ECHADO_MIN * 60000 });
+        a.emit("echado", { persona: p.id }, "server");
         for (const e of conectadoComo(p.id)) sacar(e, `${nombre(from)} te ha sacado de este mundo. Puedes volver dentro de ${ECHADO_MIN} min.`);
         log(`[roles] ${a.who(from)?.id} echa a ${p.id}`);
         avisar(from, `${p.nombre} sale del mundo durante ${ECHADO_MIN} min.`);
@@ -445,6 +451,7 @@ export function crearRoles(o: OpcionesRoles) {
         if (!motivo) { avisar(from, "Di por qué: /vetar <persona> <motivo>. Queda escrito."); return; }
         const v: Veto = { nombre: p.nombre, motivo, por: a.who(from)?.id ?? "", cuando: new Date(ahora()).toISOString() };
         vetos.set(p.id, v); a.store.set(`veto:${p.id}`, v);
+        a.emit("echado", { persona: p.id }, "server");
         for (const e of conectadoComo(p.id)) sacar(e, `Te han vetado en este mundo: ${motivo}`);
         log(`[roles] ${v.por} veta a ${p.id}: ${motivo}`);
         avisar(from, `${p.nombre} queda vetado. Para levantarlo: /perdonar ${p.nombre}`);
@@ -581,6 +588,14 @@ export function crearRoles(o: OpcionesRoles) {
       avisar(from, `${p.nombre} ${dar ? "tiene ahora" : "ya no tiene"} «${rol.nombre}».`);
     };
 
+    // features/baculo tells us who holds a staff: the loan lasts exactly that long (an AI never gets it; a pass cannot give it)
+    a.listen("baculo", "concesion", (m) => {
+      const id = String(m.persona ?? "");
+      if (!id || esIA(id)) return true;
+      if (m.si === true) concedidos.add(id); else concedidos.delete(id);
+      for (const e of conectadoComo(id)) cambio(e); // the director's page learns at once whether it may direct
+      return true;
+    });
     a.listen("chat", "orden", (m) => {
       const texto = String(m.texto ?? "").trim(), from = Number(m.quien);
       const i = texto.indexOf(" "), palabra = (i < 0 ? texto : texto.slice(0, i)).toLowerCase(), resto = i < 0 ? "" : texto.slice(i + 1).trim();
