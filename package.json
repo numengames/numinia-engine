@@ -1,7 +1,7 @@
 {
   "name": "numinia-engine",
   "private": true,
-  "version": "0.31.0",
+  "version": "0.33.0",
   "license": "AGPL-3.0-only",
   "type": "module",
   "engines": {
@@ -23,6 +23,7 @@
     "e2e": "node tools/e2e.mjs",
     "gates": "node tools/gates.mjs",
     "tamano": "node tools/tamano.mjs",
+    "puente": "node tools/empaquetar-puente.mjs",
     "deploy": "node tools/build-deploy.mjs",
     "enlaces": "node tools/enlaces.ts",
     "bench": "node packages/server/src/bench.ts",

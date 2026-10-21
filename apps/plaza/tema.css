@@ -599,6 +599,26 @@ html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 
 #gente .ia-dato .k, #gente-tarjeta .ia-dato .k { color: var(--n-texto2); }
 #gente .ia-dato.no, #gente-tarjeta .ia-dato.no { color: var(--n-texto2); }
 #gente .ia-dato b, #gente-tarjeta .ia-dato b { font-weight: 600; overflow-wrap: anywhere; }
+/* the light of an AI (S11/S16): green dot «Escuchando ahora», grey «No escucha ahora» */
+#gente .ia-dato.luz, #gente-tarjeta .ia-dato.luz { align-items: center; gap: 8px; }
+#gente .ia-dato.luz .punto, #gente-tarjeta .ia-dato.luz .punto { background: var(--n-texto2); opacity: .6; }
+#gente .ia-dato.luz.escucha .punto, #gente-tarjeta .ia-dato.luz.escucha .punto { background: #14897a; opacity: 1; box-shadow: 0 0 0 3px rgba(20, 137, 122, .28); }
+#gente .ia-dato.luz.escucha b, #gente-tarjeta .ia-dato.luz.escucha b { color: #14897a; }
+/* «Hablar con ella»: the notice (first time) and the small box */
+#llamar-ia { width: min(92vw, 440px); }
+#llamar-ia [hidden] { display: none !important; } /* the flex rows below must not override the notice/box switch */
+#llamar-ia .llamar-aviso { margin: 8px 0 12px; font-size: 14px; line-height: 1.45; color: var(--n-texto); }
+#llamar-ia input { width: 100%; box-sizing: border-box; margin: 6px 0 4px; padding: 10px 12px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-fondo); color: var(--n-texto); font: 15px var(--n-titulos); }
+#llamar-ia input:focus-visible { outline: 2px solid var(--n-turquesa); outline-offset: 2px; }
+#llamar-ia .gente-letra { margin: 0; padding: 0; }
+#llamar-ia .llamar-fila { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin: 2px 0 10px; }
+#llamar-ia .llamar-contador { flex: none; font-size: 12px; color: var(--n-texto2); font-variant-numeric: tabular-nums; }
+#llamar-ia .llamar-contador.pasado { color: #F35059; }
+#llamar-ia .gente-botones { display: flex; gap: 8px; flex-wrap: wrap; }
+#llamar-ia button.principal { background: var(--n-accion) !important; border-color: var(--n-accion) !important; color: var(--n-accion-tinta) !important; }
+#llamar-ia button:disabled { opacity: .5; cursor: not-allowed; }
+#llamar-ia .estado { color: var(--n-texto2); min-height: 1.2em; margin: 8px 0 0; }
+@media (pointer: coarse) { #llamar-ia button { min-height: 44px; } }
 #gente-tarjeta .ia-datos { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--n-linea); }
 /* the small card beside someone you click in the world (maqueta p4) */
 #gente-tarjeta { position: fixed; left: 0; top: 0; z-index: 8; width: 330px; max-width: calc(100vw - 16px); box-sizing: border-box; padding: 12px; background: var(--n-sup); color: var(--n-texto); border: 1px solid var(--n-linea); border-radius: 8px; font: 14px var(--n-titulos); }

@@ -39,7 +39,7 @@ import type { ServerApi, ServerPart } from "../../feature/src/index.ts";
 import type { Who } from "../../instance/src/index.ts";
 import { ACCION_PERMISO, ACCION_TEXTO, PERMISOS, acceso, BASE, esBase, noPuedeDar, plano, plantilla, porDebajo, rolPorNombre, tiene, validarRoles } from "./roles.ts";
 import type { Acceso, Accion, Miembro, Permiso, Rol } from "./roles.ts";
-import { verificarPase } from "./pase.ts";
+import { FORMAS_BURBUJA, FRASE_MAX, RADIO_DEFECTO_M, RADIO_MAX_M, RADIO_MIN_M, VISIBLES_BURBUJA, verificarPase } from "./pase.ts";
 import type { ConfigPase, EstadoIA, IABloque, Pase } from "./pase.ts";
 import { AGENTE } from "./aventura.ts";
 import { MARCA_IA, agenteDe, nombreDe } from "../../instance/src/identidad.ts";
@@ -74,6 +74,8 @@ export const rolesFeature = defineFeature({
     nombreCambiado: { describe: "H3c: alguien se ha puesto otro nombre con /nombre (o vuelve a entrar con uno guardado); el chat lo usa sobre su cabeza y en lo que diga.", fields: { quien, nombre: { kind: "text", maxBytes: NOMBRE_PROPIO_MAX } }, announce: "silent" },
     ia: { describe: "ia-visible S3 (solo en el servidor): lo público de una IA conectada — su estado, quién responde por ella (comunidad y nombre o cartera corta, vacíos si el pase no lo dice) si sus roles la dejan construir ahora y qué avatar de la casa lleva (`cuerpo`: su índice, -1 = el robot de la casa). Al identificarse y cuando un pase nuevo lo cambia; la función «ia» lo publica a las páginas.", fields: { quien, estado: { kind: "enum", values: ["activa", "dormida"] }, comunidad: { kind: "text", maxBytes: 160 }, nombre: { kind: "text", maxBytes: 160 }, cartera: { kind: "text", maxBytes: 12 }, construye: { kind: "bool" }, cuerpo: { kind: "int", min: -1, max: 999 } }, announce: "silent" },
     echado: { describe: "Un moderador acaba de echar o vetar a esta persona (su id de invitado): features/baculo le quita el báculo al instante. Solo en el servidor.", fields: { persona: { kind: "text", maxBytes: 80 } }, announce: "silent" },
+    iaBurbuja: { describe: "ia-llamar S8 (solo en el servidor): la burbuja de acción de una IA conectada — forma, radio (m) y cuándo se dibuja — la del bloque `ia` de su pase o la de la casa (esfera, 4 m, al-acercarte). Al identificarse y cuando un pase nuevo la cambia; la función «burbuja» la publica y decide quién está dentro.", fields: { quien, forma: { kind: "enum", values: FORMAS_BURBUJA }, radio: { kind: "int", min: RADIO_MIN_M, max: RADIO_MAX_M }, visible: { kind: "enum", values: VISIBLES_BURBUJA } }, announce: "silent" },
+    iaLlamada: { describe: "ia-llamar S10 (solo en el servidor): cómo se llama a una IA conectada — por su nombre, con /nombre, con el botón, solo desde dentro de su burbuja y su frase clave — la del bloque `ia.llamada` de su pase o la de la casa (nombre, barra y botón sí; solo desde dentro sí; sin frase). Al identificarse y cuando un pase nuevo la cambia; la función «llamar» la publica y decide a quién llega cada llamada.", fields: { quien, nombre: { kind: "bool" }, barra: { kind: "bool" }, boton: { kind: "bool" }, soloDentro: { kind: "bool" }, frase: { kind: "text", maxBytes: FRASE_MAX * 4 } }, announce: "silent" },
     borrarHistorial: { describe: "H3c: /chat borrar; el chat vacía el historial de la zona (quien entre después ya no lo ve).", fields: {}, announce: "silent" },
   },
   store: { describe: "Los roles del mundo (forma de STD-052, con si @todos construye), quién tiene cada uno, los dueños, los vetados, los silenciados (hasta cuándo), a quién ha bloqueado cada persona, los avisos para moderación (/denunciar, los últimos 100) y sus ajustes (config: solo para miembros, voz)." },
@@ -219,6 +221,10 @@ export function crearRoles(o: OpcionesRoles) {
   const publicarIA = (a: ServerApi, e: number, id: string): void => {
     const p = pasesIA.get(id.slice(3)), r = p?.ia?.responde;
     a.emit("ia", { quien: e, estado: p?.state ?? "activa", comunidad: r?.comunidad ?? "", nombre: r?.nombre ?? "", cartera: r?.cartera ?? "", construye: tiene(accesoDe(id), "construir"), cuerpo: p?.ia?.cuerpo?.modelo ?? -1 }, "server");
+    const b = p?.ia?.burbuja; // ia-llamar S8: its bubble (the pass's, or the house one)
+    a.emit("iaBurbuja", { quien: e, forma: b?.forma ?? "esfera", radio: b?.radio ?? RADIO_DEFECTO_M, visible: b?.visible ?? "al-acercarte" }, "server");
+    const l = p?.ia?.llamada; // ia-llamar S10: how it is called (the pass's block, or the house default)
+    a.emit("iaLlamada", { quien: e, nombre: l?.nombre ?? true, barra: l?.barra ?? true, boton: l?.boton ?? true, soloDentro: l?.solo_dentro ?? true, frase: l?.frase ?? "" }, "server");
   };
   const todosConstruyen = (): boolean => roles.some((r) => esBase(r) && r.permisos.includes("build-in-worlds"));
 

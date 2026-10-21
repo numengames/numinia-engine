@@ -1,7 +1,12 @@
 // relieve (naturaleza N1, moved here by N5): the PURE terrain function of a world — `alturaEn(semilla, x, z)`, `zonaEn`, `estanqueDe`.
 // No three.js, no DOM, no clock: the page draws it (render/naturaleza/terreno.ts) and, since N5, the sim builds the collision mesh
 // from the very same numbers (sim/terreno-malla.ts): ONE source of truth for the hills. Copied/changed notes: see terreno.ts' header.
+// COPIED: the seeded hills, the pond and the five soft zones, unchanged when `op.base` is absent.
+// CHANGED (B1, «la base manda sobre las alturas»): `OpcionesRelieve.base` (the espacio base's seed). When it comes, the height at every point is
+// `alturaBase(base, x, z)` (espacio-base.ts) — the base mesh is THE ground — and the pond is not carved (as `sinEstanque`; no orilla, no arena).
+// The zones (meadow, forest, rock) stay the nature's own field: they are paint over that relief, not another ground.
 import { fbm, cresta2, valor2, simplex2, hash2 } from "./semilla.ts";
+import { alturaBase } from "./espacio-base.ts";
 
 export type Zona = "prado" | "bosque" | "arena" | "roca" | "orilla";
 export const ZONAS: readonly Zona[] = ["prado", "bosque", "arena", "roca", "orilla"];
@@ -16,6 +21,8 @@ export type OpcionesRelieve = {
   plaza?: number;
   /** N4: no pond at all (no basin, no sand belt): a world that says `estanque: false`. */
   sinEstanque?: boolean;
+  /** B1: seed of the espacio base. Present = the height is `alturaBase(base, x, z)` (the base governs), no pond is carved; zones are still painted. */
+  base?: number | string;
 };
 const TAMANO = 200, PLAZA = 12, AGUA = -0.2;
 /** Height (m) of the pond's water surface; the basin is carved below it. */
@@ -36,6 +43,8 @@ const W = [0, 0, 0, 0, 0]; // scratch for zone weights (order of ZONAS)
 /** Height and soft zone weights at a point. Weights sum to 1 and follow the order of ZONAS. */
 export function campo(semilla: number, x: number, z: number, op?: OpcionesRelieve, conPesos = true): { h: number; w: number[]; valle: number } {
   const tam = op?.tamano ?? TAMANO, plaza = op?.plaza ?? PLAZA;
+  const conBase = op?.base !== undefined;
+  if (conBase && !conPesos) return { h: alturaBase(op!.base!, x, z), w: W, valle: 0 }; // B1: the base mesh is the ground, nothing else to compute
   const r = Math.hypot(x, z);
   // rolling hills: low simplex fbm, lifted so the world sits above the pond water
   const colinas = fbm(semilla, x * 0.016, z * 0.016, 4) * 7.5 + 2.2;
@@ -50,10 +59,11 @@ export function campo(semilla: number, x: number, z: number, op?: OpcionesReliev
   h *= wp * (1 - 0.85 * sstep(tam * 0.34, tam * 0.5, Math.max(Math.abs(x), Math.abs(z)))); // the border settles low: a calm edge under the fog
   // pond basin with a gentle approach
   const e = estanqueDe(semilla, tam);
-  const dpr = op?.sinEstanque ? 99 : Math.hypot(x - e.x, z - e.z) / e.radio + simplex2(semilla + 31, x * 0.07, z * 0.07) * 0.1;
+  const dpr = op?.sinEstanque || conBase ? 99 : Math.hypot(x - e.x, z - e.z) / e.radio + simplex2(semilla + 31, x * 0.07, z * 0.07) * 0.1;
   // the bank: a bowl under the water, then a gentle slope rising with the distance; the land never stands above it (smooth min)
   const banco = AGUA - 1.45 + 1.4 * sstep(0, 1.05, dpr) + Math.max(0, dpr - 1.05) * 1.3;
-  if (!op?.sinEstanque) h = -maxSuave(-h, -banco, 1.0);
+  if (!op?.sinEstanque && !conBase) h = -maxSuave(-h, -banco, 1.0);
+  if (conBase) h = alturaBase(op!.base!, x, z); // B1: zones below read the nature's field; the height is the base's
   if (!conPesos) return { h, w: W, valle: 0 };
   // ---- zones (soft weights, priority: orilla > arena > roca > bosque > prado) ----
   const rocoso = sstep(0.6, 2.2, cima * wpRoca);

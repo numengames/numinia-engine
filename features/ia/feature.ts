@@ -2,7 +2,7 @@
 // «ia-…» (an organization's AI with a numinia.com pass, an outside agent, an inhabitant); this feature publishes, for each one
 // connected now, what everybody may know about it: its state (activa|dormida), who answers for it (D-084: the community and the
 // person's name or, without one, the short wallet `0x12…ab` — never more), what it may do here (builds or not, from its roles) and
-// whether its brain is listening (`atenta`, false until the bridge reports it, S12). The page only reads and draws it (nameplate,
+// whether its brain is listening (`atenta`: false until the bridge reports it with the intent `atenta`, and false again 90 s after the last report, S12). The page only reads and draws it (nameplate,
 // ring on the floor, «Gente», the card: S4–S7); it never decides. R-1: any world has it, nothing to switch on. An AI whose pass
 // carries no `ia` block still has an entry (state + abilities, nobody listed as answering): it is an AI, the mark must always show.
 // The roles feature (packages/server) says what it knows through its server-only event «ia»; people never have an entry.
@@ -24,13 +24,26 @@ const CAMPOS = {
   atenta: { kind: "bool", default: false },
 } as const;
 
+/** «Attentive» lasts this long after the last `atenta` report: the brain used `llamadas` or `esperar_llamada` less than 90 s ago (design §4). */
+export const ATENTA_S = 90;
+export const TICK_HZ = 20; // the sim's rate (features import only core, schema, feature)
+export const ATENTA_TICKS = ATENTA_S * TICK_HZ;
+
 export const ia = defineFeature({
   id: "ia",
-  version: 1,
+  version: 2, // S12: the intent `atenta`
   describe: "La ficha pública de cada IA conectada ahora: su estado (activa o dormida), quién responde por ella (la comunidad y el nombre de la persona o su cartera abreviada), qué puede hacer aquí y si su cerebro está atento. La decide el servidor; las páginas solo la leen para dibujar su marca de IA. Las personas no tienen ficha.",
   state: {
     describe: "Por entidad de IA conectada (clave = su entidad; desaparece al desconectar). estado = activa|dormida; comunidad y nombre = quién responde por ella (vacíos si el pase no lo dice); cartera = su forma corta 0x12…ab; construye = si sus roles la dejan construir ahora; atenta = si su cerebro escucha (falso hasta que el puente lo diga).",
     fields: CAMPOS,
+  },
+  intents: {
+    atenta: {
+      describe: "Solo para una IA: «mi cerebro acaba de usar mis herramientas de escucha (llamadas, esperar_llamada)». El servidor la marca como atenta durante 90 s desde el último aviso. Una persona que lo envía no cambia nada. Como mucho un aviso cada 5 s.",
+      spoken: "avisar de que su cerebro está atento",
+      fields: {},
+      rate: { perSecond: 0.2, burst: 2 },
+    },
   },
 });
 

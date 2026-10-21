@@ -4,6 +4,7 @@
 import { fxToFloat } from "../../core/src/index.ts";
 import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, PISO_SIN_SUELO, TICK_HZ } from "../../sim/src/index.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
+import { crearSueloTerreno } from "./suelo-terreno.ts";
 import type { Body, SimState } from "../../sim/src/index.ts";
 import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, encodeIdentityRequest, encodePase, decodeIdentity, decodeCondiciones, decodeLeyendo, encodePedirCondiciones, encodeAceptar, seqNewer, codificarVozSubida, leerVozBajada } from "../../net/src/index.ts";
 import type { CondicionesMensaje, Transport, Welcome } from "../../net/src/index.ts";
@@ -69,6 +70,7 @@ export class ClientSession {
   readonly features: ClientRuntime;
   private solidsVersion = -1; // U10: the solid boxes follow the shared state
   private terreno: TerrenoMalla | null = null; // N5: the hills of naturaleza.json, built from the same alturaEn as the server's mesh
+  private suelo: ReturnType<typeof crearSueloTerreno> | null = null; // the ground the view measures «in the air» and «buried» against (null = flat world)
   private terrenoMod: typeof import("../../sim/src/terreno-malla.ts") | null = null;
   /** N5: follows the shared state's «naturaleza:mundo» like the server does (same function, same numbers → same triangles), so the
    * prediction walks over the same hills. The terrain code (noise, mesh) is a separate chunk of the page, asked for only the first time
@@ -82,6 +84,7 @@ export class ClientSession {
     const clave = m ? M.claveTerreno(m) : null;
     if (clave === (this.terreno?.clave ?? null)) return;
     this.terreno = m ? M.terrenoMalla(m) : null;
+    this.suelo = this.terreno ? crearSueloTerreno(this.local, this.terreno.bvh) : null;
     setMesh(this.local, this.terreno?.bvh ?? null, this.terreno ? PISO_SIN_SUELO : 0);
     if (this.terreno) { // the body that was standing at the flat ground height now stands on the hill
       const b = getBody(this.local, 0), g = groundHeight(b.x, b.z, this.local, this.terreno.hmax * 65536 + 65536);
@@ -247,6 +250,8 @@ export class ClientSession {
   /** N1b: the solid boxes your prediction walks against (Q16.16, [x0 y0 z0 x1 y1 z1] each; the same as the server's).
    * The page hands them to the camera so it does not go through walls. A new array each time they change. */
   solidos(): Int32Array { return this.local.solids; }
+  /** The ground the simulation walks on where the world has relieve (`suelo`: mesh + boxes, `malla`: mesh alone), or null in a flat world. */
+  sueloTerreno(): ReturnType<typeof crearSueloTerreno> | null { return this.suelo; }
 
   /** Everyone else in metres, interpolated INTERP_TICKS in the past. J2: `y` (height of the feet) and `speed`
    * (horizontal, m/s, over the snapshot interval being drawn). */

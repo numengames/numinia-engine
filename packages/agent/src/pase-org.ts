@@ -8,8 +8,8 @@
 //   Same answers as the key way; a 401 there means «token wrong or renewed» and is FINAL (motivo "token"). The token is never
 //   written anywhere (not in logs, errors or texts from numinia.com: an echoed copy is scrubbed).
 // The fetcher is injected (`PedirPase`) so the bridge is tested without a network; `pedirPaseHttp` is the real one.
-import { sign } from "node:crypto";
-import type { KeyObject } from "node:crypto";
+// NO `node:` HERE (M1): the key way's signature is injected (`pedirPaseFirmado({ firmar })`); its Node form with a KeyObject,
+// `pedirPaseHttp`, lives in pase-org-clave.ts. So the token way bundles for a Cloudflare Worker (scripts/empaquetar-puente.mjs).
 
 export const PREFIJO_PASE = "numinia-agent-pass";
 export const PEDIR_PASE_MS = 8000;            // how long the request may take before the bridge gives up and tries again
@@ -39,14 +39,18 @@ async function postPase(f: typeof fetch, base: string, headers: Record<string, s
   return { ok: false, motivo: d.error === "apagada" ? "apagada" : "rechazado", texto };
 }
 
-export function pedirPaseHttp(o: {
-  numiniaUrl: string; org: string; agente: string; privada: KeyObject; ahora?: () => number; fetcher?: typeof fetch;
+/** Signs the ASCII line `mensajePase(…)` with the agent's Ed25519 key; answers the signature in base64url. */
+export type FirmarPase = (linea: string) => string | Promise<string>;
+
+/** Key way with the signature injected (the Node form with a KeyObject is pase-org-clave.ts `pedirPaseHttp`). */
+export function pedirPaseFirmado(o: {
+  numiniaUrl: string; org: string; agente: string; firmar: FirmarPase; ahora?: () => number; fetcher?: typeof fetch;
 }): PedirPase {
   const ahora = o.ahora ?? Date.now, f = o.fetcher ?? fetch;
   const base = o.numiniaUrl.replace(/\/+$/, "");
   return async (aud) => {
     const t = Math.floor(ahora() / 1000);
-    const sig = sign(null, Buffer.from(mensajePase(o.org, o.agente, aud, t), "ascii"), o.privada).toString("base64url");
+    const sig = await o.firmar(mensajePase(o.org, o.agente, aud, t));
     return postPase(f, base, {}, { org: o.org, agent: o.agente, aud, t, sig }, false);
   };
 }
@@ -61,7 +65,8 @@ export function pedirPaseToken(o: { numiniaUrl: string; org: string; agente: str
 /** The `state` inside our own pass (read, not verified: the world verifies it). null when it is not an AI's pass. */
 export function estadoDelPase(pase: string): "activa" | "dormida" | null {
   try {
-    const p = JSON.parse(Buffer.from(pase.split(".")[1] ?? "", "base64url").toString("utf8")) as { state?: unknown };
+    const b64 = (pase.split(".")[1] ?? "").replace(/-/g, "+").replace(/_/g, "/"); // base64url → base64 (atob takes it unpadded)
+    const p = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)))) as { state?: unknown };
     return p.state === "activa" || p.state === "dormida" ? p.state : null;
   } catch { return null; }
 }

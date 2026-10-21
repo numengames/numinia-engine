@@ -37,7 +37,8 @@ export { sePuedeReproducir } from "./medios.ts";
 export type { ControlVideo } from "./medios.ts";
 export type { Donde, Eje, Herramienta, Fase, Paso, Editor } from "./gizmo.ts";
 import { createAvatares } from "./avatares.ts";
-import { sueloBajo } from "./avatares-politica.ts";
+import { asentadoEn, sueloDeVista } from "./avatares-politica.ts";
+import type { SueloTerreno } from "./avatares-politica.ts";
 import { prepararGltf, usarRenderer } from "./gltf.ts";
 import { ordenCarga, puedeEmpezar } from "./carga-orden.ts";
 import type { Movimiento } from "./avatares-politica.ts";
@@ -47,6 +48,8 @@ import type { CatalogoAvatares } from "./avatares.ts";
 import { createNombres, NOMBRE_VISIBLE_M } from "./nombres.ts";
 import { createAros } from "./aros.ts"; // ia-visible S5: a green ring on the floor under every AI (pooled, one shared geometry)
 import { arosMax } from "./ia-marca.ts";
+import { createBurbujas } from "./burbujas.ts"; // ia-llamar S9: the action bubble of every AI (4 shapes; pooled, shared geometry and materials, capped)
+import { burbujasMax } from "./burbujas-politica.ts";
 import { createPompas } from "./pompas.ts"; // condiciones/c5: the bubble over someone who is still reading the norms
 import { elegirMirado, escalaAcotada, nombreVisible, NOMBRE_GRADOS_MAX, type Mirable } from "./carteles.ts";
 export { NOMBRE_VISIBLE_M, NOMBRES_DIBUJADOS, BOCADILLO_VISIBLE_M } from "./nombres.ts";
@@ -270,8 +273,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // J1: you and the nearest players as VRM humanoids (avatares.ts); the capsules above stay as their anchors
   // N1b: the solid boxes in metres (view.solidos): the camera does not go through them, avatars stand on them
   let cajasM: ArrayLike<number> = [], cajasFx: Int32Array | null = null;
+  let sueloT: SueloTerreno | null = null; // a world with relieve: the ground the simulation walks on (view.sueloTerreno); null = the plaza and the boxes
   const avs = createAvatares({ world, mobile: power.mobile, xr: () => renderer.xr.isPresenting, catalogo: opts.avatares?.catalogo, yo: opts.avatares?.yo, compilar: (o) => renderer.compileAsync(o, camera, scene),
-    suelo: (x, z, y) => sueloBajo(x, z, y, cajasM), eleccion: opts.avatares?.eleccion });
+    suelo: sueloDeVista(() => cajasM, () => sueloT),
+    asentar: (x, z, y) => { const dib = sueloT && naturaleza.terreno?.alturaDibujadaEn; return dib ? asentadoEn(sueloT!, dib, x, z, y) : 0; }, eleccion: opts.avatares?.eleccion });
   // H4 + H12: sky, sun, light, fog, wind and ground come from data (features/entorno), quality from the device tier
   const entorno = crearEntorno({ renderer, scene, world, camera, hemi, sun, ground, grid, hitos, aparato: { mobile: power.mobile, deviceMemoryGB: readCaps().deviceMemoryGB, saveData: readCaps().saveData }, foco: () => selfXZ,
     fichero: (f) => { const i = f.lastIndexOf("."); return (opts.assetUrl ?? ((m: string) => `/a/${m}.glb`))(f.slice(0, i)).replace(/\.glb$/, f.slice(i)); } });
@@ -291,6 +296,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const meshOf = (t: Target): THREE.Mesh | undefined => (t === "self" ? (selfMesh.visible ? selfMesh : undefined) : others.get(t));
   const nombres = createNombres({ world, camera, avatarOf: meshOf }); // J3: names over heads and speech bubbles
   const aros = createAros({ world, avatarOf: (t) => meshOf(t), camera, max: () => arosMax(power.mobile) }); // ia-visible S5: nothing is made until the first AI
+  const burbujas = createBurbujas({ world, avatarOf: (t) => meshOf(t), yo: () => selfXZ ? { x: selfXZ.x, y: selfXZ.y ?? 0, z: selfXZ.z } : null, max: () => burbujasMax(power.mobile, renderer.xr.isPresenting) }); // ia-llamar S9: nothing is made until the first AI
   const pompas = createPompas({ world, avatarOf: (t) => meshOf(t) }); // condiciones/c5: a bubble around whoever is reading the norms (one shared sphere)
   // pesca v1: rods, lines and floats of whoever fishes near (lazy: packages/render/src/pesca.ts). "self" hides in first person, so the rod uses the capsule's place anyway
   const pesca = vistaPesca({ world, posicionDe: (t) => (t === "self" ? selfMesh.position : others.get(t)?.position) ?? null,
@@ -375,6 +381,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     updateRotulos(now);
     pompas.update(now);
     aros.update();
+    burbujas.update(now);
   }
 
   // ---- U22: who shows a name. The one in the middle of your view (a person, or a name over a thing), whoever speaks,
@@ -1158,9 +1165,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** J3: names and bubbles the page holds, and whether each is drawn now (for checks). */
     nameTags() { return nombres.nameTags(); },
     /** ia-visible S4: this avatar is an AI (`activa`|`dormida`) or no longer (`null`): its plate is always on, green, with an «IA» chip (and a moon asleep). */
-    ia(t: Target, estado: "activa" | "dormida" | null): void { nombres.ia(t, estado); aros.poner(t, estado); rotulosPendiente = true; },
+    ia(t: Target, estado: "activa" | "dormida" | null): void { nombres.ia(t, estado); aros.poner(t, estado); burbujas.dormida(t, estado === "dormida"); rotulosPendiente = true; },
     /** ia-visible S5 (for checks): who has a ring, whether it is drawn, and how much the rings share (one geometry, one material per state). */
     aros() { return { lista: aros.lista(), ...aros.compartidos() }; },
+    /** ia-llamar S9: this AI has an action bubble of this shape, radius and visibility (`null`: it has none now); `dormida` = it sleeps (dim, dashed). */
+    burbuja(t: Target, cfg: { forma: "esfera" | "cupula" | "cilindro" | "caja"; radio: number; visible: "siempre" | "al-acercarte" | "nunca" } | null, dormida = false): void { burbujas.poner(t, cfg, dormida); },
+    /** ia-llamar S9: you have just entered this AI's bubble: it lights up for a moment (not when its keeper chose «nunca»). */
+    burbujaDestello(t: Target): void { burbujas.destellar(t, performance.now()); },
+    /** ia-llamar S9 (for checks): who has a bubble (shape, radius, visibility, drawn or not, level) and how much the bubbles share. */
+    burbujas() { return { lista: burbujas.lista(), ...burbujas.compartidos() }; },
     bubbles() { return nombres.bubbles(); },
     /** condiciones/c5: this avatar is (`true`) or is no longer (`false`: it accepted, it bursts) inside a bubble reading the world's norms; its plate says so
      * («<name> · <etiqueta>»). Cheap: one shared sphere and material; nothing is drawn for a world with nobody reading. */
@@ -1170,7 +1183,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
     /** U10: draw hidden spheres of sound (while building) or not (while playing). */
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */
@@ -1194,6 +1207,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       cam.paredes(fx);
       vr.paredes(cajasM as Float32Array); // N1c: real room-scale walking also stops at a wall now
     },
+    /** avatares/suelo-relieve: where the world has relieve, the ground the simulation walks on (`session.sueloTerreno()`; null otherwise).
+     * Avatars measure «in the air» from it (a hill is not a jump) and are drawn on the DRAWN terrain, not sunk in the coarser collision mesh. */
+    sueloTerreno(t: SueloTerreno | null | undefined): void { sueloT = t ?? null; },
     /** Move the camera (N1), then draw. */
     draw(dtSeconds: number): void {
       // B4: tell the resolution policy what it must not measure — models still loading, or a frame in which three

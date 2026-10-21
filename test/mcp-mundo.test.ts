@@ -71,7 +71,7 @@ test("the bridge over a real world: key from tools/agente.ts, initialize → too
     assert.deepEqual(ini.result.capabilities, { tools: {} });
     hijo.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n");
     const lista = await pedir("tools/list");
-    assert.deepEqual(lista.result.tools.map((t: { name: string }) => t.name), ["mirar", "decir", "ir_a", "colocar", "mover", "borrar", "deshacer", "oir"]);
+    assert.deepEqual(lista.result.tools.map((t: { name: string }) => t.name), ["mirar", "decir", "ir_a", "colocar", "mover", "borrar", "deshacer", "oir", "llamadas", "esperar_llamada", "gesto"]);
     let mira = await usar("mirar");
     for (let i = 0; i < 5 && mira.error; i++) { await espera(500); mira = await usar("mirar"); } // still connecting
     assert.equal(mira.error, false, `${mira.texto}\n${errores}`);

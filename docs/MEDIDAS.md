@@ -275,3 +275,23 @@ en `30da0fd`, Ryzen 9 7950X con carga 2,7. La cifra de cada turno del RUNLOG es 
    Una constante del código (20 Hz, un snapshot cada 2 ticks) es `config`: un ajuste no es una medida.
 7. Una cifra se nombra por la prueba que la da: la plaza de 1.000 **sin red** (`npm run gates`, ~8–9 ms) y **por WebSocket**
    (`tools/swarm.sh`) son dos pruebas distintas y no se mezclan; el «p99» de la puerta, con 80 ticks, es el peor de 80.
+
+## Espacio base: la base es lo más ligero (B7)
+
+Medido el 2026-10-21 con `tools/medir-base.mjs` (Chromium headless con swiftshader, 1280×720, mundo de prueba con
+base semilla 42 y naturaleza 1234; carga del PC 4-9 → fiable; valen llamadas, triángulos, ms de JS y objetos, NO fps ni GPU).
+Tres estados en la misma sesión, cambiando con los interruptores de la página; 180 cuadros cada uno tras 5 s de reposo.
+
+| estado | draw calls | triángulos | ms JS/cuadro (mediana / p95) | objetos visibles | `actualizar` base ms/cuadro | `actualizar` naturaleza ms/cuadro |
+|---|---|---|---|---|---|---|
+| a · base + naturaleza | 22 | 48.722 | 0,8 / 1,0 | 164 (55 meshes, 3 líneas) | 0,002 | 0,053 |
+| b · solo base (con relleno) | 16 | 27.717 | 0,6 / 0,8 | 154 (48 meshes, 3 líneas) | 0,006 | 0,005 |
+| c · solo plano | 13 | 11.087 | 0,6 / 0,8 | 151 (46 meshes, 2 líneas) | 0,002 | 0,002 |
+
+Lectura: la base cuesta **3 draw calls y 16.600 triángulos** (líneas 8.760, relleno 2 triángulos por celda, puntos de acento)
+y **nada por cuadro**: su `actualizar` solo mueve uniformes (0,002-0,006 ms). La naturaleza añade 6 llamadas, 21.000
+triángulos y 0,05 ms de JS por cuadro (viento de la hierba, fauna). Los 11.000 triángulos y 13 llamadas que quedan en el plano
+son avatar, objetos del mundo, hitos y UI, no suelo. Memoria JS 69 MB en los tres (la base no reserva nada al apagar la naturaleza).
+Servidor con la base (`tools/swarm.sh --url … --n 200 --secs 30`): 200/200 conectados, tick p50 2,69 / p99 5,26 ms,
+CPU del proceso 8,5 %, RSS 178 MB, 27 kbit/s por persona, 0 fallos.
+Repetir: motor en 8895 y página en 5335 sobre el mundo de prueba, `TMPDIR=/tmp node tools/medir-base.mjs salida.json`.

@@ -113,12 +113,11 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
   const natTexto = document.createElement("span"); natTexto.id = "naturaleza-etiqueta"; natTexto.textContent = "Naturaleza";
   const natBoton = document.createElement("button"); natBoton.type = "button"; natBoton.id = "naturaleza-interruptor";
   natBoton.setAttribute("role", "switch"); natBoton.setAttribute("aria-checked", "false"); natBoton.setAttribute("aria-labelledby", "naturaleza-etiqueta");
-  natBoton.title = "Encender o apagar la naturaleza de este mundo (relieve, árboles, hierba, agua, fauna) para todos. Se guarda en naturaleza.json.";
+  natBoton.title = "Encender o apagar la naturaleza de este mundo (relieve, árboles, hierba, agua, fauna) para todos. Se pinta sobre el relieve del espacio base: pueden estar encendidas las dos a la vez. Se guarda en naturaleza.json. / Turn this world's nature (trees, grass, water, fauna) on or off for everyone. It is painted on the base space's relief: both can be on together.";
   let natEsperando: boolean | null = null;
   natBoton.addEventListener("click", () => {
     if (!natu) return;
     const quiero = !natu.activa();
-    if (quiero && base?.activa()) base.poner(false); // the two grounds never go together (the nature wins): the espacio base steps aside FIRST, so the pages tear one ground down before they raise the other
     const r = natu.poner(quiero);
     natEsperando = r.ok ? quiero : null;
     natBoton.setAttribute("aria-busy", String(r.ok));
@@ -131,12 +130,11 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
   const baseTexto = document.createElement("span"); baseTexto.id = "espacio-base-etiqueta"; baseTexto.textContent = "Espacio base";
   const baseBoton = document.createElement("button"); baseBoton.type = "button"; baseBoton.id = "espacio-base-interruptor";
   baseBoton.setAttribute("role", "switch"); baseBoton.setAttribute("aria-checked", "false"); baseBoton.setAttribute("aria-labelledby", "espacio-base-etiqueta");
-  baseBoton.title = "Encender o apagar el espacio base de este mundo (el lienzo en blanco: de noche, suelo de líneas luminosas, sin árboles ni hierba) para todos. Se guarda en espacio-base.json. Si la naturaleza está encendida, se apaga. / Turn the blank base space (night, glowing line ground, no trees or grass) on or off for everyone; turning it on turns nature off.";
+  baseBoton.title = "Encender o apagar el espacio base de este mundo (el lienzo en blanco: de noche, suelo de líneas luminosas, sin árboles ni hierba) para todos. Es el suelo de todo: la naturaleza se pinta encima, y las dos pueden estar encendidas. Se guarda en espacio-base.json. / Turn the blank base space (night, glowing line ground) on or off for everyone. It is the floor of everything: nature is painted on top and both can be on together.";
   let baseEsperando: boolean | null = null;
   baseBoton.addEventListener("click", () => {
     if (!base) return;
     const quiero = !base.activa();
-    if (quiero && natu?.activa()) natu.poner(false); // the nature would win over the espacio base: it is turned off FIRST (one ground down before the other goes up)
     const r = base.poner(quiero);
     baseEsperando = r.ok ? quiero : null;
     baseBoton.setAttribute("aria-busy", String(r.ok));
@@ -145,7 +143,7 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
   });
   filaBase.append(baseTexto, baseBoton);
   const nota = document.createElement("p"); nota.className = "nota"; nota.hidden = true;
-  nota.textContent = "Espacio base: el lienzo en blanco, de noche. Naturaleza: relieve, árboles y hierba. Solo una a la vez: al encender una, se apaga la otra. / Base space: the blank canvas, at night. Nature: relief, trees and grass. One at a time: turning one on turns the other off.";
+  nota.textContent = "Espacio base: el lienzo en blanco, de noche. Naturaleza: árboles, hierba y agua que se pintan sobre el relieve del espacio base. Pueden estar encendidas las dos a la vez. / Base space: the blank canvas, at night. Nature: trees, grass and water painted on the base space's relief. Both can be on together.";
   // «Restaurar el mundo»: two steps (ask, then confirm); it empties what was built and puts the world back in the espacio base.
   const confirmar = document.createElement("div"); confirmar.className = "fila"; confirmar.hidden = true; confirmar.setAttribute("role", "group"); confirmar.setAttribute("aria-label", "Confirmar restaurar el mundo");
   const restaurarBoton = boton("Restaurar el mundo", "Borrar todo lo construido y volver al espacio base (la hoja en blanco). Pide confirmación. / Delete everything built and go back to the base space. Asks first.", () => ({ ok: true }));
@@ -161,7 +159,7 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
   si.addEventListener("click", () => {
     cerrarConfirmar();
     const fallos: string[] = [];
-    if (natu?.activa()) natu.poner(false); // first: the nature's ground goes down before the espacio base's goes up
+    if (natu?.activa()) natu.poner(false); // «Restore» goes back to the blank canvas: the nature is turned off too (it is a choice, not an exclusion)
     for (const r of [base?.restaurar(), objetos?.reiniciar(), elem.vaciar?.()]) if (r && !r.ok) fallos.push(r.why);
     estado.textContent = fallos.length ? `No del todo: ${fallos[0]}` : "Mundo restaurado: vuelves al espacio base.";
   });

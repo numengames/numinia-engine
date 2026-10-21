@@ -548,7 +548,21 @@ export class Instance {
     if (clave === (this.terreno?.clave ?? null)) return;
     this.terreno = m ? terrenoMalla(m) : null;
     this.aplicarMalla();
+    this.asentarAvatares();
     if (this.terreno) this.opts.log?.(`naturaleza: colisión del terreno lista (${this.terreno.triangulos} triángulos, celdas de ${m!.tamano / this.terreno.celdas} m, alturas ${this.terreno.hmin.toFixed(1)} a ${this.terreno.hmax.toFixed(1)} m)`);
+  }
+  /** B4: the ground changed under the people already here (the nature off, the base on…): whoever is now UNDER it is put on it, or they would fall
+   * forever. Whoever is above is left alone (falls by itself). Done with `ORDER_PONER`, like D-045's return: queued for the next step, recorded in the
+   * replay with the inputs, so the fingerprint stays deterministic (the order is a function of the mesh and the positions at that tick). */
+  private asentarAvatares(): void {
+    const s = this.sim, ref = fx((this.terreno?.hmax ?? 1) + 1);
+    for (const e of this.players()) {
+      if (!s.world.alive[e] || !s.tf.has[e]) continue;
+      const x = s.tf.cols.x[e], z = s.tf.cols.z[e], h = groundHeight(x, z, s, ref);
+      if (s.tf.cols.y[e] >= h) continue;
+      this.ordenes.push(e, ORDER_PONER, x, h, z, 0);
+      this.pendiente.add(e);
+    }
   }
   /** The GLB mesh and the terrain are ONE tree for the sim; with a terrain there is no flat floor under it (`piso`). */
   private aplicarMalla(): void {

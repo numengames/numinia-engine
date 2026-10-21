@@ -38,6 +38,9 @@ export const insigniaBaculo = (): HTMLElement => {
 export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...hijos: (Node | string)[]): HTMLElementTagNameMap[K] => {
   const e: HTMLElementTagNameMap[K] = Object.assign(document.createElement(tag), props); e.append(...hijos); return e;
 };
+/** The light on an AI's card: a dot and «Escuchando ahora» / «No escucha ahora» (S16's words; the server's `atenta`). */
+export const luzEl = (luz: { escucha: boolean; texto: string }): HTMLParagraphElement =>
+  el("p", { className: `ia-dato luz${luz.escucha ? " escucha" : ""}` }, el("span", { className: "punto" }), el("b", { textContent: luz.texto }));
 /** A button with a house icon and a text (the icon is a constant; the text a text node). */
 export const botonCon = (ic: string, texto: string, clase = "", px = 18): HTMLButtonElement => {
   const b = el("button", { type: "button", className: clase });
@@ -66,5 +69,7 @@ export type Acciones = {
   esAmigo(p: Elegido): Amigo | undefined; silenciado(p: Elegido): boolean; bloqueado(p: Elegido): boolean;
   ir(p: Elegido): Res; mensaje(p: Elegido): Res; saludar(p: Elegido): Res; anadir(p: Elegido): Res; quitar(p: Elegido): Res;
   silenciar(p: Elegido): Res; bloquear(p: Elegido): Res; denunciar(p: Elegido): void; verFicha(p: Elegido): void;
+  /** ia-llamar S11: «Hablar con ella» — open the box to call this AI (the notice first, once per browser); `puedeHablar` = the AI takes calls by button now. */
+  puedeHablar?(p: Elegido): boolean; hablar?(p: Elegido): Res;
 };
 

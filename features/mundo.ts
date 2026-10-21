@@ -99,12 +99,12 @@ export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) 
   if (leidoNat && !leidoNat.ok) log(`[mundo] naturaleza.json no se usa (suelo plano): ${leidoNat.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
   const natMundo = leidoNat?.ok ? leidoNat.value : null;
   // espacio-base.json (numinia-engine/espacio-base@1, H2: { activa?, semilla?, modo? }): the empty night world whose ground is a luminous line mesh;
-  // none = nothing changes. A wrong file is not used (every issue logged). A world that ALSO has the nature on keeps the nature (the two grounds
-  // would fight over the same place and the same collision mesh): the espacio base is then left out and the log says so.
+  // none = nothing changes. A wrong file is not used (every issue logged). B1 («la base manda sobre las alturas»): a world with BOTH on keeps both:
+  // the base's mesh is the ground (sim, collision, objects) and the nature is drawn over its relief (naturaleza publishes the base's seed as `base`).
   const crudoBase = leer("espacio-base.json"), leidoBase = crudoBase === undefined ? null : leerEspacioBase(crudoBase);
   if (leidoBase && !leidoBase.ok) log(`[mundo] espacio-base.json no se usa (suelo plano): ${leidoBase.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
-  const baseOk = leidoBase?.ok ? leidoBase.value : null, baseMundo = baseOk && baseOk.activa && natMundo?.activa ? null : baseOk;
-  if (baseOk && baseOk.activa && natMundo?.activa) log("[mundo] espacio-base.json y naturaleza.json están los dos encendidos: se usa la naturaleza; apaga una de las dos (activa: false)");
+  const baseMundo = leidoBase?.ok ? leidoBase.value : null;
+  if (baseMundo?.activa && natMundo?.activa) log("[mundo] espacio base y naturaleza encendidos: la naturaleza se dibuja sobre el relieve de la base");
   // Interruptor «Naturaleza»: with a world folder (`escribir`), the piece also gets the folder so whoever may build turns it on
   // or off from inside the world (it rewrites only `activa`; a world without the file gets one); without a folder, the house part.
   // contadores.json (numinia-engine/contadores@1, D-044: { contadores: [{ id, nombre, tipo, x, z, segundos | inicio, tope, donde?, evento?, manda? }] }):

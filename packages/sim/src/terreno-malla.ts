@@ -36,16 +36,16 @@ const ent = (v: unknown, min: number, max: number, def: number): number => typeo
 
 /** The terrain a shared state asks for, or null (no naturaleza, switched off, or not there yet). `objetos` are `allState()` entries. */
 export function terrenoDelEstado(objetos: Iterable<[string, Record<string, unknown>]>): TerrenoMundo | null {
+  let nat: TerrenoMundo | null = null;
   for (const [k, v] of objetos) {
-    if (k === CLAVE_ESPACIO_BASE) { // H2: the espacio base; the server never publishes both (features/mundo.ts keeps the nature if both are on)
+    if (k === CLAVE_ESPACIO_BASE) { // H2/B1: the espacio base governs the height, even when `naturaleza:mundo` is on too (nature is paint over its relief), whatever order the entries come in
       if (!v || v.activa === false) continue;
       return { semilla: ent(v.semilla, 0, 2147483647, SEMILLA_BASE_DEFECTO), tamano: TAMANO_ESPACIO_BASE, plaza: 12, estanque: false, base: true };
     }
-    if (k !== CLAVE_NATURALEZA) continue;
-    if (!v || v.activa === false) return null;
-    return { semilla: ent(v.semilla, 0, 2147483647, 1234), tamano: ent(v.tamano, 100, 400, 200), plaza: ent(v.plaza, 4, 40, 12), estanque: v.estanque !== false };
+    if (k !== CLAVE_NATURALEZA || !v || v.activa === false) continue;
+    nat = { semilla: ent(v.semilla, 0, 2147483647, 1234), tamano: ent(v.tamano, 100, 400, 200), plaza: ent(v.plaza, 4, 40, 12), estanque: v.estanque !== false };
   }
-  return null;
+  return nat; // no base on: the nature's own terrain, or null
 }
 
 export const claveTerreno = (m: TerrenoMundo): string => `${m.base ? "b" : ""}${m.semilla}|${m.tamano}|${m.plaza}|${m.estanque ? 1 : 0}`;

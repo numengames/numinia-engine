@@ -21,5 +21,22 @@ export const es = {
   /** Messages after «Ir hacia ella». */
   vasConBaliza: "Baliza puesta donde está",
   sinPosicion: "No sé dónde está desde aquí.",
+  /** S11: calling it. The button, the E prompt («E: hablar con Ada»), the light on the card (S16's words) and the box. */
+  hablar: "Hablar con ella",
+  hablarTitulo: "Le escribes y su cerebro lo lee",
+  hablarAria: "Hablar con",
+  promptHablar: "hablar con",
+  escuchando: "Escuchando ahora",
+  noEscucha: "No escucha ahora",
+  /** The notice before the first call (once per browser): who reads it and who sees the answer. */
+  avisoPrevio: "Lo que le digas lo lee su cerebro (la empresa de esa IA) fuera del mundo, y su respuesta la ven quienes estén cerca.",
+  aceptar: "Aceptar",
+  cancelar: "Cancelar",
+  enviar: "Enviar",
+  cajaTitulo: "Hablar con",
+  cajaEtiqueta: "Lo que le quieres decir",
+  cajaAyuda: "Hasta 190 bytes. Solo lo lee ella; su respuesta la ven quienes estén cerca.",
+  cajaVacia: "Escribe qué quieres decirle.",
+  noSePuede: "Ahora no se puede hablar con ella desde aquí.",
 } as const;
 export type TextosIA = { readonly [K in keyof typeof es]: string };

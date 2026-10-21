@@ -2,10 +2,10 @@
 // Vuelve a generarlo con `npm run novedades` (también corre antes de "dev" y "build").
 /** La versión del motor cuando se generó este fichero (solo para quien lo lea; la comparación real la hace
  * apps/plaza/novedades.ts contra la versión del paquete que corre la página). */
-export const version = "0.29.0";
+export const version = "0.32.0";
 /** Hasta 3 líneas, la más nueva primero. Vacío si el diario no tenía ninguna entrada con «Qué». */
 export const items: readonly string[] = [
-  "Las IAs se ven: robot, cartel verde con IA, aro en el suelo, sección IAs en Gente y su ficha con «Ir hacia ella».",
-  "historia f1 de los interruptores de funciones (0.28.0, solo servidor + protocolo; la vista va en f3/v3).",
-  "dos piezas del motor para que un mundo pueda estar de verdad en blanco y el primer cable de un recién llegado no se pierda."
+  "Las IAs se pueden llamar: por su burbuja, por su nombre, con /nombre o con el botón «Hablar con ella»; la IA puede esperar llamadas y saludar.",
+  "herramienta gesto {tipo: saludar|asentir|pensar|señalar} del puente: manda un movimiento de la función gestos (lo ven quienes están a menos de 30 m).",
+  "el puente (packages/agent/src/mcp-mundo.ts) guarda un buzón con los eventos llamada de la función llamar (últimas 20, 10 minutos; buzon-llamadas.ts) y las…"
 ];
