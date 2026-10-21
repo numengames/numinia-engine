@@ -1151,6 +1151,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     hablando(clave: string | null): void { if (hablando !== clave) { hablando = clave; rotulosPendiente = true; } },
     /** J3: names and bubbles the page holds, and whether each is drawn now (for checks). */
     nameTags() { return nombres.nameTags(); },
+    /** ia-visible S4: this avatar is an AI (`activa`|`dormida`) or no longer (`null`): its plate is always on, green, with an «IA» chip (and a moon asleep). */
+    ia(t: Target, estado: "activa" | "dormida" | null): void { nombres.ia(t, estado); rotulosPendiente = true; },
     bubbles() { return nombres.bubbles(); },
     /** condiciones/c5: this avatar is (`true`) or is no longer (`false`: it accepted, it bursts) inside a bubble reading the world's norms; its plate says so
      * («<name> · <etiqueta>»). Cheap: one shared sphere and material; nothing is drawn for a world with nobody reading. */

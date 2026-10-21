@@ -209,6 +209,10 @@ void transport.closed.then((c) => {
 // condiciones/c5: whoever else is still reading the norms is drawn inside a bubble with «<name> · leyendo las normas…»; the server only says so when it changes (nothing with the gate off).
 session.onLeyendo = (entidad, si) => view.leyendo(entidad, si);
 
+// ia-visible S4: an AI's plate is always on, green, with an «IA» chip (and a moon asleep); the server's public card says who is one and its state.
+// Nothing is made in a world without AIs: this only fires when an entry appears, changes or goes.
+iaPagina.alCambiar((quien, ficha) => view.ia(quien === session.entity ? "self" : quien, ficha ? ficha.estado : null));
+
 // condiciones/c3: with the world's gate on, the server sends its conditions after you join and you stand in a bubble until you accept;
 // with it off it sends nothing and this does nothing. The gate itself is the server's; here the walking input is also held still.
 const condiciones = montarCondiciones({ session, mundo: () => nombreDelMundo, decir: (t) => anunciar(t), ciudadUrl: () => ciudad.url, cerrarConexion: () => transport.close(), movil: () => enMovil,
