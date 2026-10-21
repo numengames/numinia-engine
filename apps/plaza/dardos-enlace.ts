@@ -185,6 +185,8 @@ export function crearEnlaceDardos(o: OpcionesEnlace) {
     }),
     /** The linked controller (features/dardos/client.ts): sitios / duelo / clavados / jugar / lanzar / salir, for the e2e and E2. */
     dardos, sesion: () => session,
+    /** The AR wall's own state (fase, pared, lanzados, clavados, ultimo): null while no wall is hung. */
+    ar: () => arJuego?.estado() ?? null,
     alCambiar: (fn: (que: "estado" | "darts") => void): (() => void) => { oyentes.add(fn); return () => { oyentes.delete(fn); }; },
   };
 }

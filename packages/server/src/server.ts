@@ -278,7 +278,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     const [path, qs = ""] = (req.url ?? "/").split("?");
     const method = req.method ?? "GET";
     if (method === "GET" && path === "/health") {
-      const personas = inst.conns.filter((c) => !c.who?.id.startsWith("ia-")).length, total = inst.conns.length;
+      const personas = inst.conns.filter((c) => !c.who?.id.startsWith("ia-") && !c.enlace).length, total = inst.conns.length; // a darts visit from another world (enlace) is not a person here
       return json(res, 200, { ok: true, version, huella: hex(refHash), conectados: total, personas, agentes: total - personas });
     }
     // C4: what the Worlds room of numinia.com reads (no people's names, no positions); people only, not the AI inhabitants;
