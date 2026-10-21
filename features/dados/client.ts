@@ -19,6 +19,8 @@ export function crearCliente() {
   let A: ClientApi | null = null;
   const tiradas: Tirada[] = [];
   let aviso = "";
+  const estado = { puede: false, ultimoRechazo: "" };
+  let encendida = false;
   const oyentes = new Set<(que: Que) => void>();
   const avisar = (que: Que) => { for (const fn of oyentes) fn(que); };
 
@@ -31,12 +33,20 @@ export function crearCliente() {
     torres: (): Torre[] => (A ? A.state.keys().map((k) => ({ id: k, ...(A!.state.get(k) as Msg) }) as Torre) : []),
     /** Roll: an expression («2d6+1»; empty = the tower's or 1d20), at a tower (its key; none = where you are), hidden or not. */
     tirar: (expresion = "", sitio = "", oculta = false): Res => (A ? A.send("tirar", { sitio, dados: String(expresion).slice(0, 16), oculta }) : SIN),
+    /** The switch of the Entorno panel (asks; the server checks who and keeps it in dados.json). `activa` = there are towers or /tirar works: the server's state. */
+    interruptor: {
+      estado,
+      activa: (): boolean => encendida,
+      poner: (activa: boolean): Res => (A ? A.send("encender", { activa }) : SIN),
+    },
     alCambiar: (fn: (que: Que) => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
 
   const parte: ClientPart = clientPart(decl, (api) => {
     A = api;
     api.state.onChange(() => avisar("torres"));
+    api.on("permiso", (m) => { estado.puede = m.encender === true; });
+    api.on("encendido", (m) => { encendida = m.activa === true; });
     api.on("tirada", (m) => {
       const t: Tirada = { quien: Number(m.quien), sitio: String(m.sitio), n: Number(m.n), dados: String(m.dados), valores: String(m.valores).split(" ").filter(Boolean).map(Number), mod: Number(m.mod), total: Number(m.total), oculta: m.oculta === true, texto: String(m.texto), mia: Number(m.quien) === api.self(), cuando: ahora() };
       tiradas.push(t); while (tiradas.length > RECUERDA) tiradas.shift();
@@ -46,11 +56,12 @@ export function crearCliente() {
       else api.view.label(t.quien, `${t.dados} en secreto`, 4000);
       avisar("tirada");
     });
-    api.on("rechazado", (m) => { aviso = String(m.motivo); avisar("aviso"); });
+    api.on("rechazado", (m) => { aviso = String(m.motivo); estado.ultimoRechazo = aviso; avisar("aviso"); });
   });
   return { parts: [parte], dados };
 }
 
 const pagina = crearCliente();
 export const dados = pagina.dados;
+export const interruptor = pagina.dados.interruptor;
 export default pagina.parts[0];

@@ -260,9 +260,11 @@ html[data-densidad-nivel="normal"]:not(.menos-movimiento) #chat:has(#chat-form:n
   #chat-lista:not(:empty) > :first-child { margin-top: auto; }
   #chat-lista:not(:empty) > * { flex: none; }
   /* the action bar: one chip per action, name above its key */
-  html body #acciones { flex-direction: row; align-items: stretch; gap: 8px; padding: 12px; }
-  #acciones button { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0 6px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-elev); color: var(--n-texto); font: 600 13px "Geist", system-ui, sans-serif; cursor: pointer; }
+  html body #acciones { min-height: 80px; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: stretch; gap: 8px; padding: 12px; }
+  /* the chips share the row; a long name («Soltar el báculo») wraps INSIDE its chip and a chip never goes under its longest word, so two never sit on top of each other (the row wraps instead; the bar has no fixed height: it grows UP, two rows at most with the eight chips, and stays under the abilities row) */
+  #acciones button { flex: 1 1 auto; min-width: min-content; min-height: 48px; text-align: center; line-height: 1.2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0 6px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-elev); color: var(--n-texto); font: 600 13px "Geist", system-ui, sans-serif; cursor: pointer; }
   #acciones button:hover { border-color: var(--n-texto2); }
+  #acciones button[hidden] { display: none; } /* a chip whose action is not possible now (Action.disponible): the bar's `display: flex` above would show it despite the attribute */
   #acciones kbd { padding: 1px 6px; border: 1px solid var(--n-linea); border-radius: 4px; color: var(--n-texto2); font: 11px/1.3 "Geist Mono", ui-monospace, monospace; }
   /* the key help: a framed list, not a loose line */
   #help { padding: 10px 14px; text-align: left; font-size: 12px; line-height: 1.55; opacity: 1; white-space: normal; }
@@ -533,6 +535,12 @@ html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 
 #gente .nombre-ia b, #gente-tarjeta .nombre-ia b { min-width: 0; }
 #gente .marca-ia, #gente-tarjeta .marca-ia { flex: none; padding: 0 6px; border: 1px solid #14897a; border-radius: 4px; color: #14897a; font: 600 10px/16px var(--n-titulos); letter-spacing: .06em; }
 #gente .gente-fila[data-ia="dormida"] .textos { opacity: .7; }
+#gente .gente-nombre-linea { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* burbujas: the small label while you are inside a voice bubble, above the abilities row, centred; and the icon in «Gente» */
+#burbuja-cartel { position: fixed; left: 50%; bottom: 248px; transform: translateX(-50%); max-width: min(90vw, 440px); padding: 6px 12px; border: 1px solid var(--n-linea); border-radius: 999px; background: var(--n-elev); color: var(--n-texto); font: 500 12px "Geist", system-ui, sans-serif; text-align: center; pointer-events: none; z-index: 5; }
+#burbuja-cartel[hidden] { display: none; }
+#gente .insignia-burbuja, #gente-tarjeta .insignia-burbuja { flex: none; display: inline-flex; align-items: center; color: var(--n-texto2); }
+#gente .insignia-baculo, #gente-tarjeta .insignia-baculo { flex: none; display: inline-flex; align-items: center; color: var(--n-ambar, #efa517); }
 #gente .punto, #gente-tarjeta .punto { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--n-hecho); }
 #gente .vacio { color: var(--n-texto2); margin: 10px; }
 #gente .opcion { display: flex; align-items: center; gap: 8px; min-height: 44px; margin: 8px 10px 0; color: var(--n-texto2); font-size: 13px; }

@@ -13,6 +13,9 @@ import elementos from "./elementos/client.ts";
 import pesca from "./pesca/client.ts"; // v1: fishing (rod, float and the big «Recoger» button live in apps/plaza/pesca.ts)
 import dardos from "./dardos/client.ts"; // v1: darts (the throwing view lives in apps/plaza/dardos.ts; the board on your wall in AR)
 import bienes from "./bienes/client.ts";
+import asiento from "./asiento/client.ts"; // v1: sitting down for real (the pose, the name on the seat, «E: levantarte»)
+import burbujas from "./burbujas/client.ts"; // v1: voice bubbles (the notice, the icon in «Gente»; the server decides who is heard)
+import baculo from "./baculo/client.ts"; // v1: the Director's staff (pedestal, in hand, badge in «Gente»)
 import dados from "./dados/client.ts"; // v1: dice the server rolls (the dice card and the tower's buttons: apps/plaza/dados.ts) // N10: digital goods — a chest's «objeto» becomes yours (signed receipt, inventory)
 
 import teletransporte from "./teletransporte/client.ts"; // N16: «Gente» and the light of the trip (apps/plaza/gente.ts; packages/render/src/teletransporte.ts)
@@ -35,5 +38,5 @@ import burbuja from "./burbuja/client.ts"; // ia-llamar S9: the shape of each AI
 import llamar from "./llamar/client.ts"; // ia-llamar S11: how each AI is called here (`llamarPagina.puedeBoton(entity)`) and the intent behind «Hablar con ella» and E
 import sonido from "./sonido/client.ts"; // S6: the sounds of the house — the server says what sounds and with what seed; the page only mixes (view.sonido)
 import interruptores from "./funciones/client.ts"; // f1: the world's feature switches (`__numinia.funciones`; the panel is f3/v3)
-const funciones: ClientPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, naturaleza, espacioBase, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido];
+const funciones: ClientPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, naturaleza, espacioBase, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido];
 export default funciones;

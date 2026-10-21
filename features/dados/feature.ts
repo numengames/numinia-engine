@@ -42,7 +42,14 @@ export const dados = defineFeature({
     card: { role: "lugar", name: "{nombre}", description: "Torre de dados: tira el servidor, todos ven lo mismo", at: ["x", "z"], actions: ["tirar"], interact: { intent: "tirar", prompt: "tirar los dados", radius: "radio", key: "sitio" } },
     radius: ALCANCE_M,
   },
+  store: { describe: "Sin carpeta del mundo donde escribir dados.json: si los dados están encendidos y sus torres (`estado`), para que sobrevivan al reinicio. Con carpeta lo guarda dados.json. Nada de esto va a las páginas." },
   intents: {
+    encender: {
+      describe: "Encender o apagar los dados del mundo (activa = true/false): la torre de dados y /tirar solo existen con ellos encendidos. Solo quien dirige aquí (rol, /dueño o llevando el báculo) o quien manda. Encendido por primera vez sin torres: el servidor pone una junto a quien lo enciende y la guarda en dados.json. Apagado, las torres se guardan y no cambian.",
+      spoken: "encender o apagar los dados",
+      fields: { activa: { kind: "bool" } },
+      rate: { perSecond: 1, burst: 6 },
+    },
     tirar: {
       describe: "Tirar dados: sitio = la torre que tienes al lado (vacío = donde estás), dados = la expresión («2d6+1», «d20», «3d6-2»; vacía = los de la torre, o 1d20), oculta = solo tú ves los valores (los demás ven que tiraste). El servidor decide cada dado.",
       spoken: "tirar los dados",
@@ -51,6 +58,8 @@ export const dados = defineFeature({
     },
   },
   events: {
+    permiso: { describe: "A ti solo: si puedes encender y apagar piezas del mundo (los dados, el báculo…): quien dirige o manda. Con eso la página muestra o no su interruptor.", fields: { encender: { kind: "bool" } }, announce: "silent" },
+    encendido: { describe: "A todos (al entrar y cuando cambia): si los dados están encendidos en este mundo; la página lo usa para el interruptor.", fields: { activa: { kind: "bool" } }, announce: "silent" },
     tirada: {
       describe: "Una tirada: quién, en qué torre (vacío = donde estaba), el número de tirada de este mundo (n, sube de uno en uno), la expresión, los valores de cada dado en orden («4 3»), el modificador, el total, si fue oculta y la frase. A quien tiró y a quien esté cerca (CERCA_M). Si es oculta, los demás la reciben sin valores (valores vacío, total 0).",
       fields: { quien: QUIEN, sitio: ID, n: { kind: "int", min: 1, max: 1_000_000_000 }, dados: EXPR, valores: { kind: "text", maxBytes: 40 }, mod: { kind: "int", min: -MOD_MAX, max: MOD_MAX }, total: TOTAL, oculta: { kind: "bool" }, texto: { kind: "text", maxBytes: 120 } },
