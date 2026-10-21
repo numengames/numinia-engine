@@ -1808,3 +1808,36 @@ ni un byte) y solo contesta si la página pregunta. El registro del arranque dic
   encendida): `{ v: {capa: versión}, d: [ids], en: ISO UTC }`; sobrevive a reinicios y viaja con la persona.
 - Cliente (`ClientSession`): `condiciones` (último mensaje; conserva el último `capas`), `onCondiciones`, `pedirCondiciones()` y
   `aceptar(versiones, datos = [])`.
+
+
+## Báculo del Director (v1) e interruptores de pieza
+
+**El báculo** (`features/baculo`): una cosa del mundo (pedestal + báculo ámbar, modelo CC0 de la casa). Quien lo lleva dirige: el servidor decide quién lo coge (`E` a su lado, un báculo por persona, nunca una IA), a quién se pasa (`/baculo pasar <nombre>`, a 6 m o menos), cuándo vuelve (`/baculo soltar`; al desconectarse se guarda 30 s; si un moderador echa a quien lo lleva, vuelve al instante) y se lo dice a los roles del mundo con el evento `concesion` (solo lo oye el servidor) para que presten `dirigir` (manage-rituals) exactamente a quien lo lleva. No es un rol nuevo (los roles son de numinia.com, STD-052). Quien manda (`mandar` = administrator o dueño) fija cuántos hay (`/baculos 1–5`) y los recupera (`/baculo recuperar`). Se configura con `entorno/baculos.json` (`numinia-engine/baculos@1`: `{ activa?, cantidad?, sitios?: [{x,y?,z}] }`); sin fichero está apagado y cuesta 0.
+
+**Interruptores** (Pablo, 2026-10-21: toda pieza es un on/off). Patrón de `apps/plaza/entorno.ts` + `features/naturaleza` + `features/espaciobase`:
+1. `features/<pieza>/feature.ts` declara el intent `encender { activa }` y el evento `permiso { encender }` (solo a esa persona).
+2. El servidor usa `features/interruptor.ts`: `puedeInterruptor` (`dirigir` **o** `mandar`: por rol, por `/dueño` o por llevar el báculo), `vigilarPermiso` (dice `permiso` al entrar, al identificarse y cuando cambian los roles) y `guardarEnMundo` (cambia solo esas claves del fichero del mundo; un fichero roto no se pisa; sin carpeta, lo guarda el `store` de la pieza).
+3. `features/<pieza>/client.ts` exporta `interruptor { estado.puede, activa(), poner(bool) }`; `main.ts` lo pasa a `montarEntorno` en la lista `piezas`, que pinta una fila `.interruptor` solo a quien tiene `estado.puede`. La fila sigue el estado del servidor, nunca su propio clic.
+4. Encendido por primera vez sin sitios: el servidor coloca la pieza junto a quien la enciende y los guarda (`baculos.json`, `dados.json`). Apagar guarda los sitios y quita la pieza; el báculo en una mano vuelve a su sitio antes.
+
+**Dados**: apagados no hay torre y `/tirar` dice que están apagados; las torres guardadas no cambian. Un `dados.json` anterior con torres y sin `activa` sigue encendido.
+
+Con interruptor: espacio base, naturaleza, báculo, dados, asientos. Sin él aún (siguen siendo «un fichero»): pesca, dardos, puertas, botones, cogibles, web, lucha, movedores, contadores, disparadores, suelo, elementos, teletransporte, objetos. Para cualquiera: los cuatro pasos de arriba (un intent, un evento, un `interruptor` en el cliente, una entrada en `piezas`).
+
+## Asiento (v1): sentarse de verdad
+
+`features/asiento`: `E` junto a un asiento libre y tu avatar se sienta (la animación `sentarse`, ya en el motor), mirando hacia donde mira el asiento, quieto. Un asiento, una persona; el ocupado muestra el nombre. Se levanta con `E` otra vez, `/levantar`, andando o saltando, o al desconectarse; quien dirige, puede echar o manda levanta a otra persona (`/levantar <nombre>`).
+- **Mundo**: `entorno/asientos.json` = `{ "schema": "numinia-engine/asientos@1", "activa": true, "sitios": [{ "id": "j1", "x": 3, "y": 0, "z": 4, "mira": 90, "etiqueta": "Jugador 1", "dibujo": false }] }`. `mira` en grados (0 = hacia +z, 90 = hacia +x, el `ry` de un modelo); `y` = altura de los pies sentado; `dibujo: true` pone una banqueta (para sitios sin modelo propio, p. ej. el que coloca el interruptor). Hasta 24 sitios. Sin fichero = apagado, coste 0, huella de simulación intacta.
+- **Cómo se sienta**: el servidor decide (`api.within` a 2 m, libre, no sentado, no leyendo normas) y da la orden grabada `api.ordenar(e, { sentar: { x, y, z, rumbo } })` (H2: `MODO_SENTADO` de la simulación, que ya existía). La simulación levanta sola ante un palo o un salto; el servidor lo ve con `api.sentado(e)` (nuevo) y libera el asiento. Al levantarse con `E` o `/levantar` se pone `api.ordenar(e, { poner })` 0,8 m detrás del asiento.
+- **Página**: pose `sentarse` mantenida con `view.movimiento` y rumbo con `view.orientar` (expuesto de `render/avatares`, que ya lo tenía); «E: levantarte» es un local de `interactuar.ts` (`asiento.cerca()`).
+- **Interruptor** «Asientos» en Entorno (mismo patrón que báculo y dados). Apagar levanta a quien esté sentado y quita los asientos; los sitios se guardan.
+
+## Burbujas de voz (v1): voz solo entre los de la mesa
+
+`features/burbujas`: una esfera del mundo (una mesa, una sala) donde solo se oyen entre sí los que están dentro. La decide el servidor al reenviar la voz (`relayVoice` en `packages/instance`), no una página: lo que el servidor no envía no suena. Es privacidad de oído, no cifrado: el servidor sigue reenviando las tramas que recibe y no las decodifica, graba ni guarda.
+- **Mundo**: `entorno/burbujas.json` = `{ "schema": "numinia-engine/burbujas@1", "activa": true, "burbujas": [{ "id": "mesa", "x": 3, "y": 0, "z": 4, "radio": 3.5, "modo": "aislada", "etiqueta": "La mesa" }] }`. Hasta 16 burbujas, radio 0,5–50 m, altura de una esfera. Sin el fichero no hay burbujas y la voz es la de siempre (coste 0, misma huella).
+- **Reglas** (modo `aislada`, el de por defecto): dentro ↔ misma burbuja se oyen (sin tope de 30 m dentro del radio); dentro ↔ fuera no se oye nadie, en ningún sentido; fuera ↔ fuera, por cercanía como siempre; dos burbujas distintas no se oyen. Modo `abierta`: los de fuera cercanos también oyen a los de dentro y viceversa (solo ensancha).
+- **Quién está dentro**: cada persona está en una burbuja como mucho (la de centro más cercano si se solapan), calculado una vez por tick por posición (sentado en un asiento de la burbuja cuenta). El hueco con el relé es `api.vozBurbujas(tabla | null)` (nuevo): el relé consulta `de(entidad)` y `abierta(burbuja)` por trama en O(1).
+- **Página**: aviso «En La mesa: solo te oyen los de la mesa» al entrar (evento `dentro`, solo a esa persona), cartel pequeño mientras estás dentro (`apps/plaza/burbuja.ts`) e icono de micrófono junto al nombre en «Gente».
+- **Interruptor** «Burbujas de voz» en Entorno (mismo patrón): quien dirige o manda; encendido por primera vez sin sitios pone una de 3,5 m donde está quien lo enciende y la guarda en `burbujas.json`; apagarlas devuelve la voz de siempre.
+- **Barra de acciones**: cada acción puede declarar `disponible()` (`Action` nuevo, opcional); la página pone `hidden` en el botón cuando no es posible («Soltar/Pasar el báculo» solo con báculo, «Levantarte» solo sentado). Sin `disponible`, siempre visible como antes.

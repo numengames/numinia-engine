@@ -4,15 +4,17 @@
 // it is a `Panel` the hands point at: the ray of either controller + the trigger, a pinch of a tracked hand's ray, or a fingertip that
 // touches it press; the stick turns pages (vr.ts hands the push over). render only draws and reports the press: the page decides
 // everything (apps/plaza/condiciones-xr.ts, from apps/plaza/condiciones-logica.ts) and hands a `ModeloVR` here.
+// c8: the top bar is a handle. Hold the trigger (or a pinch) on it and the panel follows where that hand points; let go and it stays,
+// facing the head, between 0,6 and 2 m (the same hold-and-move gesture as the builder's objects, constructor-xr.ts; numbers in the geom file).
 // Loaded on demand by vr.ts the first time the page asks (a world without the gate, or a flat screen, never fetches it).
 import * as THREE from "three/webgpu";
 import type { Panel } from "./manos.ts";
 import { COLOR, FUENTE, recortar, envolverPx, rectRedondo } from "./vr-pintura.ts";
 import {
-  ALTO_M, AYUDA, BOTONES_Y, BURBUJA, CABECERA_H, CUERPO, ESTILOS, FILA_NORMAS, LIENZO, LINEA_H, PANEL, PAGINADOR_H, PAGINADOR_Y, PIE_TEXTO_Y, TARJETA, DOTS_MAX,
-  colocarPanel, debeSeguir, desvioGrados, disposicion, estallidoBurbuja, flechaAnt, flechaSig, ID_NORMA, ID_PAG_ANT, ID_PAG_SIG, idBoton, idDato, metrosAPx, miradaPaso,
+  ALTO_M, AYUDA, BARRA, BARRA_ETIQUETA_W, BOTONES_Y, BURBUJA, CABECERA_H, CUERPO, ESTILOS, FILA_NORMAS, LIENZO, LINEA_H, PANEL, PAGINADOR_H, PAGINADOR_Y, PIE_TEXTO_Y, TARJETA, DOTS_MAX,
+  arrastreInicio, arrastrePaso, colocarPanel, debeSeguir, desvioGrados, disposicion, estallidoBurbuja, flechaAnt, flechaSig, haciaOjoGrados, ID_BARRA, ID_NORMA, ID_PAG_ANT, ID_PAG_SIG, idBoton, idDato, metrosAPx, miradaPaso,
   opacidadBurbuja, opacidadPanelEstallando, puntos, rectDato, toqueInicio, toquePaso, zonaDe, zonaPorId,
-  type EstadoMirada, type EstadoToque, type EstiloLinea, type ModeloVR, type Zona,
+  type EntradaMano, type EstadoArrastre, type EstadoMirada, type EstadoToque, type EstiloLinea, type ModeloVR, type Zona,
 } from "./condiciones-vr-geom.ts";
 
 const MONO = "'Geist Mono', ui-monospace, monospace";
@@ -45,8 +47,8 @@ export function createCondicionesVR(h: OpcionesCondicionesVR) {
 
   let vm: ModeloVR | null = null, zonas: Zona[] = [], firmaModelo = "", firma = "";
   let abierto = false, estallaEn = -1, estallaDesde = 0, abiertoEn = 0, encima = 0, encimaEn = 0, pintadoEn = 0, pinturas = 0, recolocadas = 0;
-  let toque: EstadoToque = toqueInicio(), mirada: EstadoMirada = { desdeMs: null };
-  const pos = new THREE.Vector3(), ojo = new THREE.Vector3(), centro = new THREE.Vector3(), local = new THREE.Vector3();
+  let toque: EstadoToque = toqueInicio(), mirada: EstadoMirada = { desdeMs: null }, arrastre: EstadoArrastre = arrastreInicio(), movidas = 0;
+  const pos = new THREE.Vector3(), ojo = new THREE.Vector3(), nuevaPos = new THREE.Vector3(), frente = new THREE.Vector3(), centro = new THREE.Vector3(), local = new THREE.Vector3();
 
   const fuente = (e: EstiloLinea): string => `${ESTILOS[e].peso} ${ESTILOS[e].px}px ${FUENTE}`;
   /** The real width of a piece of text in the style the panel will draw it in (the page's paging measures with this). */
@@ -93,17 +95,25 @@ export function createCondicionesVR(h: OpcionesCondicionesVR) {
   function pintar(forzar = false): void {
     if (!vm || (!abierto && !forzar)) return;
     const t = ahora();
-    const f = `${firmaModelo}|${encima}`;
+    const f = `${firmaModelo}|${encima}|${arrastre.lado ?? ""}`;
     if (!forzar && (f === firma || t - pintadoEn < REDIBUJO_MS)) return;
     pintadoEn = t; firma = f; pinturas++;
     zonas = disposicion(vm);
     const sobre = (id: number): boolean => encima === id;
     g.clearRect(0, 0, LIENZO.w, LIENZO.h);
     rectRedondo(g, TARJETA.x + 1, TARJETA.y + 1, TARJETA.w - 2, TARJETA.h - 2, 28); g.fillStyle = "rgba(20,17,15,0.95)"; g.fill(); g.lineWidth = 2; g.strokeStyle = COLOR.linea; g.stroke();
+    // c8: the grab bar: a little handle at the top middle and «Mover» at the right; lit when the ray is on it, solid while held
+    const agarrado = arrastre.lado !== null, barraSobre = agarrado || sobre(ID_BARRA);
+    if (barraSobre) { rectRedondo(g, BARRA.x - 28, 6, BARRA.w + 56, BARRA.h - 14, 20); g.fillStyle = agarrado ? "rgba(127,211,222,0.22)" : "rgba(249,235,220,0.10)"; g.fill(); g.lineWidth = agarrado ? 4 : 2; g.strokeStyle = agarrado ? "#7FD3DE" : COLOR.linea; g.stroke(); }
+    rectRedondo(g, LIENZO.w / 2 - 80, 16, 160, 14, 7); g.fillStyle = agarrado ? "#7FD3DE" : barraSobre ? COLOR.texto : COLOR.tenue; g.fill();
+    const colEt = agarrado ? "#7FD3DE" : barraSobre ? COLOR.texto : COLOR.suave, xEt = BARRA.x + BARRA.w - 24, etiqueta = agarrado ? "Suelta donde quieras" : "Agarra y mueve";
+    texto(etiqueta, xEt, 46, 26, 500, colEt, { align: "right" });
+    const anchoEt = g.measureText(etiqueta).width; g.fillStyle = colEt;
+    for (let c = 0; c < 2; c++) for (let r = 0; r < 3; r++) { g.beginPath(); g.arc(xEt - anchoEt - 28 + c * 14, 32 + r * 14, 4, 0, Math.PI * 2); g.fill(); }
     // header: the small line, the title, one explaining line (two at most)
     try { (g as unknown as { letterSpacing: string }).letterSpacing = "4px"; } catch { /* older canvases: no tracking */ }
     g.font = `600 27px ${MONO}`; g.fillStyle = COLOR.verdemar; g.textAlign = "left"; g.textBaseline = "middle";
-    g.fillText(recortar(g, vm.eyebrow.toUpperCase(), LIENZO.w - 96), 48, 46);
+    g.fillText(recortar(g, vm.eyebrow.toUpperCase(), LIENZO.w - 96 - BARRA_ETIQUETA_W - 120), 48, 46);
     try { (g as unknown as { letterSpacing: string }).letterSpacing = "0px"; } catch { /* idem */ }
     texto(recortar(g, vm.titulo, LIENZO.w - 96), 48, 104, 62, 700, COLOR.texto);
     g.font = `400 30px ${FUENTE}`; g.fillStyle = COLOR.suave;
@@ -140,10 +150,10 @@ export function createCondicionesVR(h: OpcionesCondicionesVR) {
     for (const z of zonas) if (z.tipo === "boton") { const b = vm.botones[z.indice]; boton(z, b.texto, b.prim, !z.activa, sobre(z.id)); }
     // the hint under the card (maqueta 3)
     rectRedondo(g, AYUDA.x, AYUDA.y, AYUDA.w, AYUDA.h, AYUDA.h / 2); g.fillStyle = "rgba(20,17,15,0.92)"; g.fill(); g.lineWidth = 2; g.strokeStyle = COLOR.linea; g.stroke();
-    const partes: [string, string][] = [["Gatillo", " pulsar"], ["Palanca", " ← → pasar página"], ["Pellizco", " con la mano"]];
-    let ancho = 0; for (const [a, b] of partes) { g.font = `700 26px ${FUENTE}`; ancho += g.measureText(a).width; g.font = `400 26px ${FUENTE}`; ancho += g.measureText(b).width; } ancho += 56 * (partes.length - 1);
+    const partes: [string, string][] = [["Gatillo", " pulsar"], ["Palanca", " ← → pasar página"], ["Pellizco", " con la mano"], ["Barra de arriba", " mueve el panel"]];
+    let ancho = 0; for (const [a, b] of partes) { g.font = `700 26px ${FUENTE}`; ancho += g.measureText(a).width; g.font = `400 26px ${FUENTE}`; ancho += g.measureText(b).width; } ancho += 44 * (partes.length - 1);
     let x = AYUDA.x + (AYUDA.w - ancho) / 2;
-    for (const [a, b] of partes) { g.textAlign = "left"; g.font = `700 26px ${FUENTE}`; g.fillStyle = COLOR.texto; g.fillText(a, x, AYUDA.y + AYUDA.h / 2 + 1); x += g.measureText(a).width; g.font = `400 26px ${FUENTE}`; g.fillStyle = COLOR.suave; g.fillText(b, x, AYUDA.y + AYUDA.h / 2 + 1); x += g.measureText(b).width + 56; }
+    for (const [a, b] of partes) { g.textAlign = "left"; g.font = `700 26px ${FUENTE}`; g.fillStyle = COLOR.texto; g.fillText(a, x, AYUDA.y + AYUDA.h / 2 + 1); x += g.measureText(a).width; g.font = `400 26px ${FUENTE}`; g.fillStyle = COLOR.suave; g.fillText(b, x, AYUDA.y + AYUDA.h / 2 + 1); x += g.measureText(b).width + 44; }
     void BOTONES_Y;
     tex.needsUpdate = true;
   }
@@ -158,7 +168,7 @@ export function createCondicionesVR(h: OpcionesCondicionesVR) {
   function pulsarZona(n: number): void {
     if (!abierto || estallaEn >= 0 || !n) return;
     const z = zonaPorId(zonas, n);
-    if (!z || !z.activa) return;
+    if (!z || !z.activa || z.tipo === "barra") return; // the bar is held, not pressed: update() moves the panel
     try { h.alSonar?.(); } catch { /* a page's click sound must not break the panel */ }
     h.alPulsar(z);
   }
@@ -172,6 +182,15 @@ export function createCondicionesVR(h: OpcionesCondicionesVR) {
     malla.lookAt(o.x, pos.y, o.z); // upright, once: it stays where you let it
     malla.updateMatrixWorld(true);
     toque = toqueInicio(); mirada = { desdeMs: null };
+  }
+
+  /** c8: the panel goes to world point `p` (already inside the limits), upright and facing the head `o`. */
+  function colocarEn(p: { x: number; y: number; z: number }, o: THREE.Vector3): void {
+    nuevaPos.set(p.x, p.y, p.z); pos.copy(nuevaPos); ojo.copy(o);
+    malla.position.copy(pos);
+    if (malla.parent) malla.parent.worldToLocal(malla.position);
+    malla.lookAt(o.x, pos.y, o.z);
+    malla.updateMatrixWorld(true);
   }
 
   function mostrar(m: ModeloVR, o: THREE.Vector3, mira: THREE.Vector3): void {
@@ -194,7 +213,7 @@ export function createCondicionesVR(h: OpcionesCondicionesVR) {
   function ocultar(estallido = false): void {
     if (!abierto) return;
     if (estallido && estallaEn < 0) { estallaEn = ahora(); estallaDesde = bmat.opacity; return; }
-    abierto = false; estallaEn = -1; malla.visible = false; burbuja.visible = false; bmat.opacity = 0; encima = 0;
+    abierto = false; estallaEn = -1; malla.visible = false; burbuja.visible = false; bmat.opacity = 0; encima = 0; arrastre = arrastreInicio();
   }
 
   return {
@@ -204,7 +223,7 @@ export function createCondicionesVR(h: OpcionesCondicionesVR) {
     /** Put it back in front of you now. */
     recolocar(o: THREE.Vector3, mira: THREE.Vector3): void { poner(o, mira); recolocadas++; pintar(true); },
     /** Each frame while presenting: the eyes (position, gaze) and the fingertip of the pointing hand (world, or null). */
-    update(o: THREE.Vector3, mira: THREE.Vector3, punta: THREE.Vector3 | null): void {
+    update(o: THREE.Vector3, mira: THREE.Vector3, punta: THREE.Vector3 | null, manos: readonly EntradaMano[] = []): void {
       if (!abierto) return;
       const t = ahora();
       if (estallaEn >= 0) { // bursting: the bubble grows and goes, the panel fades with it
@@ -216,7 +235,13 @@ export function createCondicionesVR(h: OpcionesCondicionesVR) {
       bmat.opacity = opacidadBurbuja(t - abiertoEn);
       if (debeSeguir(centro, o)) { centro.set(o.x, o.y - 0.2, o.z); burbuja.position.copy(centro); }
       if (encima && t - encimaEn > 150) { encima = 0; }
-      // turned right round: it comes back in front of you after a moment (never while you look at it)
+      // c8: a hand holding the bar moves the panel; it keeps facing the head and stays where it is let go
+      const a = arrastrePaso(arrastre, manos, pos, o); const eraAgarrado = arrastre.lado !== null;
+      arrastre = a.estado;
+      if (a.evento === "coge" || a.evento === "suelta") { encima = a.evento === "coge" ? ID_BARRA : encima; pintar(true); }
+      if (a.pos) { colocarEn(a.pos, o); movidas++; } else if (a.evento === "suelta") colocarEn({ x: pos.x, y: pos.y, z: pos.z }, o); // let go: it ends facing the head
+      // turned right round: it comes back in front of you after a moment (never while you look at it, nor while you hold it)
+      if (arrastre.lado || eraAgarrado) { mirada = { desdeMs: null }; toque = toqueInicio(); pintar(); return; }
       const m = miradaPaso(mirada, desvioGrados(o, mira, pos), t); mirada = m.estado;
       if (m.recolocar) { poner(o, mira); recolocadas++; pintar(true); }
       // a fingertip touching a button presses it (hand tracking)
@@ -244,11 +269,11 @@ export function createCondicionesVR(h: OpcionesCondicionesVR) {
       malla.updateMatrixWorld();
       const d = abierto && ojo.lengthSq() ? pos.distanceTo(ojo) : 0;
       return {
-        abierto, estallando: estallaEn >= 0, encima, pinturas, recolocadas,
+        abierto, estallando: estallaEn >= 0, encima, pinturas, recolocadas, movidas, agarrado: arrastre.lado,
         titulo: vm?.titulo ?? "", eyebrow: vm?.eyebrow ?? "", pagina: vm?.pagina ?? 0, paginas: vm?.paginas ?? 0, lineas: vm?.lineas.map((l) => l.texto) ?? [],
         casillaNormas: vm?.casillaNormas ? { texto: vm.casillaNormas.texto, marcada: vm.casillaNormas.marcada } : null, casillasDatos: vm?.casillasDatos.map((x) => ({ texto: x.texto, marcada: x.marcada })) ?? [],
         botones: vm?.botones.map((b) => ({ id: b.id, texto: b.texto, desactivado: b.desactivado })) ?? [], aviso: vm?.aviso ?? "",
-        diagnostico: { visible: malla.visible, distanciaM: +d.toFixed(2), alturaM: +pos.y.toFixed(2), pos: [pos.x, pos.y, pos.z].map((v) => +v.toFixed(2)) },
+        diagnostico: { visible: malla.visible, distanciaM: +d.toFixed(2), alturaM: +pos.y.toFixed(2), pos: [pos.x, pos.y, pos.z].map((v) => +v.toFixed(2)), horizontalM: +Math.hypot(pos.x - ojo.x, pos.z - ojo.z).toFixed(2), haciaOjoGrados: +haciaOjoGrados(frente.set(0, 0, 1).applyQuaternion(malla.quaternion), pos, ojo).toFixed(1) },
         burbuja: { visible: burbuja.visible, opacidad: +bmat.opacity.toFixed(3), radio: +burbuja.scale.x.toFixed(2) },
       };
     },

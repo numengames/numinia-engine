@@ -1,7 +1,7 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX, MODO_SENTADO, getMotionExtra } from "../../sim/src/index.ts";
 import type { SimState, SpawnArea, Bvh } from "../../sim/src/index.ts";
 import { terrenoDelEstado, terrenoMalla, claveTerreno, combinarMallas, sueloMinimoTerreno } from "../../sim/src/terreno-malla.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
@@ -16,7 +16,7 @@ import type { Who } from "./identidad.ts";
 export type { Who } from "./identidad.ts";
 import type { Aceptacion, CondicionesMensaje, Transport, Viewer, Welcome } from "../../net/src/index.ts";
 import { ServerRuntime } from "../../feature/src/index.ts";
-import type { BienFirmable, FeatureStorage, ReciboLeido, ServerPart, RayHit, Orden } from "../../feature/src/index.ts";
+import type { BienFirmable, FeatureStorage, ReciboLeido, ServerPart, RayHit, Orden, VozBurbujas } from "../../feature/src/index.ts";
 
 export type InstanceOptions = {
   seed: number; capacity: number; k: number; snapshotEvery: number;
@@ -174,6 +174,8 @@ export class Instance {
       rayo: (e, dir, max) => this.rayo(e, dir, max),
       ordenar: (e, orden) => this.ordenar(e, orden),
       leyendoNormas: (e) => this.leyendoNormas(e),
+      sentado: (e) => !!this.byEntity[e] && !!this.sim.world.alive[e] && getMotionExtra(this.sim, e).modo === MODO_SENTADO,
+      vozBurbujas: (v) => { this.burbujas = v; },
     });
     this.seguro = new Int32Array(opts.capacity * 3); this.tieneSeguro = new Uint8Array(opts.capacity);
   }
@@ -623,7 +625,9 @@ export class Instance {
   }
   /** U10: who hears a voice frame — players that have the speaker in their area of interest and within VOZ_RADIO_M.
    * Never everyone, never stored, never decoded. Over VOZ_TRAMAS_S frames a second the rest are dropped. */
-  readonly vozStats = { recibidas: 0, enviadas: 0, descartadas: 0 };
+  readonly vozStats = { recibidas: 0, enviadas: 0, descartadas: 0, burbuja: 0 };
+  /** burbujas: which bubble each person is in, kept up to date by the feature once per tick (none = the world has no bubbles). */
+  private burbujas: VozBurbujas | null = null;
   private relayVoice(from: Conn, bytes: Uint8Array): void {
     const v = leerVozSubida(bytes);
     if (!v) { from.bad++; return; }
@@ -632,11 +636,21 @@ export class Instance {
     if (++w.n > VOZ_TRAMAS_S) { this.vozStats.descartadas++; return; }
     this.vozStats.recibidas++;
     const X = this.sim.tf.cols.x, Z = this.sim.tf.cols.z, e = from.entity, r2 = (VOZ_RADIO_M * FX_ONE) ** 2;
+    const B = this.burbujas, bh = B ? B.de(e) : -1; // the speaker's bubble, once per frame; the listener's is one lookup each (the table is worked out per tick)
     let out: Uint8Array | null = null;
     for (const c of this.conns) {
-      if (c === from || !c.visible?.includes(e)) continue;
-      const dx = X[c.entity] - X[e], dz = Z[c.entity] - Z[e];
-      if (dx * dx + dz * dz > r2) continue;
+      if (c === from) continue;
+      let cerca = false; // inside the SAME bubble: heard whatever the distance or the area of interest (the bubble is the room)
+      if (B) {
+        const bo = B.de(c.entity);
+        if (bh >= 0 && bh === bo) cerca = true;
+        else if ((bh >= 0 || bo >= 0) && ((bh >= 0 && !B.abierta(bh)) || (bo >= 0 && !B.abierta(bo)))) { this.vozStats.burbuja++; continue; } // private: the game does not leave the bubble and the square does not enter it
+      }
+      if (!cerca) {
+        if (!c.visible?.includes(e)) continue;
+        const dx = X[c.entity] - X[e], dz = Z[c.entity] - Z[e];
+        if (dx * dx + dz * dz > r2) continue;
+      }
       if (this.opts.oye && !this.opts.oye(e, c.entity)) continue; // F1: silenced by the world's roles, or blocked by this listener
       out ??= codificarVozBajada(bytes, e);
       c.transport.send(out, false); this.vozStats.enviadas++;

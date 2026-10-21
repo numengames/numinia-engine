@@ -18,7 +18,7 @@ import type { BotonReloj, Vista } from "./menu-vr.ts";
 import type { PathsIcono } from "./vr-pintura.ts";
 import type { AccionFichaVR, DatosFichaVR, FichaVR } from "./vr-ficha.ts"; // types only: the panel itself is fetched on first use (C5)
 import type { CondicionesVR } from "./condiciones-vr.ts"; // types only: the entry bubble's panel is fetched on first use (c4)
-import { palancaPagina, type ModeloVR, type Zona } from "./condiciones-vr-geom.ts"; // pure numbers, no three.js
+import { ID_BARRA, palancaPagina, type EntradaMano, type LadoMano, type ModeloVR, type Zona } from "./condiciones-vr-geom.ts"; // pure numbers, no three.js
 import { empujaFuera } from "./vr-paredes.ts";
 import { audio } from "./audio/nucleo.ts"; // S1: the engine's one audio graph (it sleeps when the session ends)
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
@@ -27,7 +27,11 @@ export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | n
   dirMando?(lado: "izq" | "der"): [number, number] | null;
   /** Rediseño v2: a hand's wrist (world) and what presses by touch on the other hand (manos.ts). */
   muneca?(lado: Lado, pos: THREE.Vector3, rot: THREE.Quaternion): { esMano: boolean } | null;
-  punta?(lado: Lado, pos: THREE.Vector3): boolean };
+  punta?(lado: Lado, pos: THREE.Vector3): boolean;
+  /** c8 (the entry bubble's panel is taken by its bar): what a hand's buttons say, what its ray points at, and the ray (manos.ts). */
+  entrada?(lado: Lado): { gatillo: number; agarre: number; mano: boolean } | null;
+  sondeo?(lado: Lado): { candidato: string | null; apunta: string | null } | null;
+  rayo?(lado: Lado): { origen: { x: number; y: number; z: number }; dir: { x: number; y: number; z: number } } | null };
 /** t_bf8947cf (MVL1): how the left stick's push becomes a world direction — settings menu, remembered.
  * mirada: forward is where the head looks (as shipped). mando: forward is where the left controller points.
  * cuerpo: forward is the rig's own facing (only snap turns move it) — looking around does not redirect it. */
@@ -299,6 +303,11 @@ export function createVR(h: VRHooks) {
   // C5: the object card panel — built the first time it is needed (a separate chunk: flat-screen players never download it)
   let fichaVR: FichaVR | null = null, fichaPide: DatosFichaVR | null = null, fichaCargando = false;
   // c4: the entry bubble's panel (condiciones-vr.ts), built the first time the page asks, and who listens to its presses and to the stick turning pages
+  /** c8: what each hand says this frame, for the entry bubble's grab bar (only asked while that panel is up). */
+  const manosParaBarra = (): EntradaMano[] => (["izq", "der"] as LadoMano[]).flatMap((lado) => {
+    const en = h.manos?.entrada?.(lado); if (!en) return [];
+    return [{ lado, gatillo: en.gatillo > 0.5, apuntaBarra: h.manos?.sondeo?.(lado)?.apunta === `panel:${ID_BARRA}`, rayo: h.manos?.rayo?.(lado) ?? null }];
+  });
   let condPendiente: ModeloVR | null = null, condVR: CondicionesVR | null = null, condCargando: Promise<CondicionesVR> | null = null, pagLatched = false;
   const oyentesCond = { pulsa: new Set<(z: Zona) => void>(), pagina: new Set<(dir: -1 | 1) => void>() };
   // the object card sits LOW and to the LEFT (about 40° and 30° off the line of sight): the ray to the thing you are working on, straight
@@ -482,7 +491,7 @@ export function createVR(h: VRHooks) {
       menu.cerrar(); reloj.cerrar(); panel.visible = false; // one thing in front of you: the old help card and the menu step aside
       const m = condPendiente; condPendiente = null; condVR.mostrar(m, ojoV, miraV);
     }
-    condVR?.update(ojoV, miraV, hayPunta ? puntaV : null);
+    condVR?.update(ojoV, miraV, hayPunta ? puntaV : null, condVR.abierto ? manosParaBarra() : []);
     h.manos?.update(h.renderer.xr.getCamera());
     fichaVR?.tick();
     if (panel.visible) { pintarSalir(); pintarAjuste(); } // the highlight fades once the ray leaves; «¿Salir?» goes back after SALIR_CONFIRMA_MS

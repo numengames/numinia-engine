@@ -7,7 +7,7 @@ import { botonesDePie, marcasVacias, planificar, puedeSeguir } from "../apps/pla
 import type { Paso } from "../apps/plaza/condiciones-logica.ts";
 import { crearPaginador, eyebrow, lineasDe, modelo, notaDePaginas, paginasDePaso, trocearBloques } from "../apps/plaza/condiciones-vr-logica.ts";
 import {
-  ALTO_M, anchoTexto, BOTON_H, BURBUJA, CASILLAS_PAGINA, colocarPanel, debeSeguir, desvioGrados, disposicion, ESTILOS, estallidoBurbuja, ID_NORMA, ID_PAG_ANT, ID_PAG_SIG, idBoton,
+  ALTO_M, anchoTexto, ARRASTRE, arrastreInicio, arrastrePaso, BARRA, haciaOjoGrados, ID_BARRA, limitarPanel, type EntradaMano, BOTON_H, BURBUJA, CASILLAS_PAGINA, colocarPanel, debeSeguir, desvioGrados, disposicion, ESTILOS, estallidoBurbuja, ID_NORMA, ID_PAG_ANT, ID_PAG_SIG, idBoton,
   idDato, LIENZO, LINEAS_PAGINA, metrosAPx, miradaPaso, opacidadBurbuja, opacidadPanelEstallando, PALANCA, palancaPagina, paginaTras, PANEL, PX_POR_M, rectsBotones, RECOLOCAR,
   toqueInicio, toquePaso, TOQUE, uvAPx, zonaDe,
 } from "../packages/render/src/condiciones-vr-geom.ts";
@@ -203,4 +203,75 @@ test("the small line is short: «Antes de entrar · 2 de 3 · La Plaza», and «
   assert.equal(eyebrow(pasos[0], "x", 0, 1), "Antes de entrar · La casa");
   const vuelta = { ...pasos[1], cambios: { desde: "1", etiquetas: {}, antes: {}, quitados: [] } } as Paso;
   assert.equal(eyebrow(vuelta, "La Plaza · v1 → v2", 0, 2), "La Plaza · v1 → v2 · 1 de 2");
+});
+
+// ── c8: the panel is taken by its top bar and put where you want it ──
+const OJO = { x: 0, y: 1.6, z: 0 }, PANEL_0 = { x: 0, y: 1.56, z: -1.2 };
+const mano = (o: Partial<EntradaMano> = {}): EntradaMano => ({ lado: "der", gatillo: false, apuntaBarra: false, rayo: { origen: { x: 0.2, y: 1.2, z: -0.3 }, dir: { x: 0, y: 0, z: -1 } }, ...o });
+
+test("the bar is the top strip of the card: always active, inside the card, hit at its middle, clear of every other zone", () => {
+  const pasos = planificar(capas), paginar = crearPaginador(medir);
+  const vm = modelo({ pasos, i: 0, marcas: marcasVacias(), capas, mundo: "", pagina: 0, paginar, enviando: true, saliendo: false, aviso: "", salirPide: false })!;
+  const zonas = disposicion(vm), barra = zonas.find((z) => z.id === ID_BARRA)!;
+  assert.equal(barra.tipo, "barra"); assert.equal(barra.activa, true, "also while sending: it may be moved any time");
+  assert.equal(zonaDe(0.5, 1 - (BARRA.y + BARRA.h / 2) / LIENZO.h, zonas), ID_BARRA);
+  assert.ok(BARRA.h / PX_POR_M / PANEL.distM * (180 / Math.PI) >= 3, "≥ 3° to hit it with a ray");
+  assert.equal(zonas.filter((z) => z.id === ID_BARRA).length, 1);
+});
+
+test("a hand takes the panel only when its trigger goes DOWN with the ray on the bar", () => {
+  let e = arrastreInicio();
+  let r = arrastrePaso(e, [mano({ gatillo: false, apuntaBarra: true })], PANEL_0, OJO); e = r.estado;
+  assert.equal(r.evento, null); assert.equal(e.lado, null);
+  r = arrastrePaso(e, [mano({ gatillo: true, apuntaBarra: true })], PANEL_0, OJO);
+  assert.equal(r.evento, "coge"); assert.equal(r.estado.lado, "der"); assert.equal(r.pos, null, "taking it does not move it");
+  // pressing elsewhere and sliding onto the bar with the trigger held: nothing
+  let f = arrastrePaso(arrastreInicio(), [mano({ gatillo: true, apuntaBarra: false })], PANEL_0, OJO).estado;
+  f = arrastrePaso(f, [mano({ gatillo: true, apuntaBarra: true })], PANEL_0, OJO).estado;
+  assert.equal(f.lado, null);
+  // no ray (hand lost): nothing to take
+  assert.equal(arrastrePaso(arrastreInicio(), [mano({ gatillo: true, apuntaBarra: true, rayo: null })], PANEL_0, OJO).evento, null);
+});
+
+test("while held it follows the ray at the distance it was taken and keeps the grab offset; letting go leaves it there", () => {
+  const rayo0 = { origen: { x: 0, y: 1.3, z: -0.2 }, dir: { x: 0, y: 0.2, z: -1 } };
+  let r = arrastrePaso(arrastreInicio(), [mano({ gatillo: true, apuntaBarra: true, rayo: rayo0 })], PANEL_0, OJO);
+  const e = r.estado;
+  // same ray: the panel does not jump
+  r = arrastrePaso(e, [mano({ gatillo: true, rayo: rayo0 })], PANEL_0, OJO);
+  assert.ok(Math.hypot(r.pos!.x - PANEL_0.x, r.pos!.y - PANEL_0.y, r.pos!.z - PANEL_0.z) < 1e-9, "no jump at the start");
+  // the hand turns to the right: the panel goes right, about the same distance from the head
+  const giro = { origen: rayo0.origen, dir: { x: 0.5, y: 0.2, z: -1 } };
+  r = arrastrePaso(e, [mano({ gatillo: true, rayo: giro })], PANEL_0, OJO);
+  assert.ok(r.pos!.x > 0.4, `moved right: ${JSON.stringify(r.pos)}`);
+  const d = Math.hypot(r.pos!.x - OJO.x, r.pos!.z - OJO.z); assert.ok(d >= ARRASTRE.minM && d <= ARRASTRE.maxM);
+  // trigger released: «suelta», the state is clean, no new position
+  const fin = arrastrePaso(r.estado, [mano({ gatillo: false, rayo: giro })], r.pos!, OJO);
+  assert.equal(fin.evento, "suelta"); assert.equal(fin.estado.lado, null); assert.equal(fin.pos, null);
+  // the hand disappears: the same
+  assert.equal(arrastrePaso(r.estado, [], r.pos!, OJO).evento, "suelta");
+  // the other hand's trigger does not drive it
+  assert.equal(arrastrePaso(r.estado, [mano({ lado: "izq", gatillo: true, rayo: giro }), mano({ gatillo: false })], r.pos!, OJO).evento, "suelta");
+});
+
+test("limits: always 0,6–2 m from the head (horizontally) and within a comfortable height, whatever the hand does", () => {
+  for (const [x, z] of [[0, -9], [0, -0.05], [0.01, 0], [5, 5], [-3, 0.5], [0, -1.2]]) {
+    const p = limitarPanel({ x, y: 1.6, z }, OJO), d = Math.hypot(p.x - OJO.x, p.z - OJO.z);
+    assert.ok(d >= ARRASTRE.minM - 1e-9 && d <= ARRASTRE.maxM + 1e-9, `${x},${z} → ${d}`);
+    assert.ok(Number.isFinite(p.x) && Number.isFinite(p.z));
+  }
+  assert.equal(Math.hypot(...(["x", "z"] as const).map((k) => limitarPanel({ x: 0, y: 1.6, z: -9 }, OJO)[k] - OJO[k]) as [number, number]), 2);
+  assert.ok(Math.abs(Math.hypot(limitarPanel({ x: 0, y: 1.6, z: -0.1 }, OJO).z) - 0.6) < 1e-9);
+  assert.equal(limitarPanel({ x: 0, y: 9, z: -1.2 }, OJO).y, 1.6 + ARRASTRE.altoM);
+  assert.equal(limitarPanel({ x: 0, y: -3, z: -1.2 }, OJO).y, 1.6 - ARRASTRE.bajoM);
+  assert.deepEqual(limitarPanel({ x: 0.3, y: 1.5, z: -1.0 }, OJO), { x: 0.3, y: 1.5, z: -1.0 }, "inside the ring: unchanged");
+  // dragging far away with a long ray is cut to 2 m
+  const lejos = arrastrePaso(arrastrePaso(arrastreInicio(), [mano({ gatillo: true, apuntaBarra: true })], PANEL_0, OJO).estado, [mano({ gatillo: true, rayo: { origen: { x: 0.2, y: 1.2, z: -1.5 }, dir: { x: 0, y: 0, z: -1 } } })], PANEL_0, OJO);
+  assert.ok(Math.abs(Math.hypot(lejos.pos!.x - OJO.x, lejos.pos!.z - OJO.z) - ARRASTRE.maxM) < 1e-9);
+});
+
+test("it ends facing the head: the front direction measured against the head is 0° when it looks at you", () => {
+  assert.equal(haciaOjoGrados({ x: 0, y: 0, z: 1 }, { x: 0, y: 1.5, z: -1.2 }, OJO), 0);
+  assert.ok(Math.abs(haciaOjoGrados({ x: 1, y: 0, z: 0 }, { x: 0, y: 1.5, z: -1.2 }, OJO) - 90) < 1e-9);
+  assert.equal(haciaOjoGrados({ x: 0, y: 0, z: 0 }, { x: 0, y: 1.5, z: -1.2 }, OJO), 0, "degenerate: no NaN");
 });

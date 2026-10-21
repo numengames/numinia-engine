@@ -26,7 +26,11 @@ export const PAGINADOR_Y = 624, PAGINADOR_H = 84;
 export const FILA_NORMAS: Rect = { x: 48, y: 720, w: LIENZO.w - 96, h: 92 };
 export const PIE_TEXTO_Y = 838;
 export const BOTONES_Y = 858, BOTON_H = 118, BOTON_HUECO = 20, BOTONES_DER = LIENZO.w - 48;
-export const AYUDA: Rect = { x: 250, y: 1014, w: LIENZO.w - 500, h: 64 };
+export const AYUDA: Rect = { x: 48, y: 1014, w: LIENZO.w - 96, h: 64 };
+/** c8: the grab bar, the top strip of the card (84 px = 70 mm = 3.3°): hold the trigger or a pinch on it and the panel follows the hand. */
+export const BARRA: Rect = { x: 48, y: 0, w: LIENZO.w - 96, h: 84 };
+/** The part of the strip the header's small line leaves free: the «Mover» label sits here. */
+export const BARRA_ETIQUETA_W = 250;
 export const DOTS_MAX = 8; // more pages than this: «3 / 16» instead of dots
 
 /** How a line of the page is written: its font and where its text starts (a chip or a number may sit before it). */
@@ -63,9 +67,9 @@ export function envolverConMedida(texto: string, ancho: number, medir: (t: strin
 }
 
 // ── zones: what a point of the panel hits ──────────────────────────────────────────────────────────────────────────
-export type TipoZona = "pag-ant" | "pag-sig" | "norma" | "dato" | "boton";
+export type TipoZona = "pag-ant" | "pag-sig" | "norma" | "dato" | "boton" | "barra";
 export type Zona = Rect & { id: number; tipo: TipoZona; /** the index among its kind (the data box's, the button's) */ indice: number; activa: boolean; boton?: string };
-export const ID_PAG_ANT = 1, ID_PAG_SIG = 2, ID_NORMA = 3;
+export const ID_PAG_ANT = 1, ID_PAG_SIG = 2, ID_NORMA = 3, ID_BARRA = 4;
 export const idDato = (k: number): number => 20 + k;
 export const idBoton = (k: number): number => 100 + k;
 
@@ -87,6 +91,7 @@ export function rectsBotones(botones: readonly BotonVR[]): Rect[] {
 /** Every pressable thing of this model. A button that is off, or an arrow with no page beyond, is `activa: false` and hits nothing. */
 export function disposicion(vm: ModeloVR): Zona[] {
   const z: Zona[] = [];
+  z.push({ ...BARRA, id: ID_BARRA, tipo: "barra", indice: 0, activa: true }); // c8: always there (also while sending: the panel may be moved any time)
   z.push({ ...flechaAnt, id: ID_PAG_ANT, tipo: "pag-ant", indice: 0, activa: vm.pagina > 0 });
   z.push({ ...flechaSig, id: ID_PAG_SIG, tipo: "pag-sig", indice: 0, activa: vm.pagina < vm.paginas - 1 });
   if (vm.casillaNormas) z.push({ ...FILA_NORMAS, id: ID_NORMA, tipo: "norma", indice: 0, activa: !vm.enviando });
@@ -157,6 +162,55 @@ export function miradaPaso(e: EstadoMirada, desvio: number, ahora: number): { es
   if (desvio < RECOLOCAR.grados) return { estado: { desdeMs: null }, recolocar: false };
   const desde = e.desdeMs ?? ahora;
   return ahora - desde >= RECOLOCAR.ms ? { estado: { desdeMs: null }, recolocar: true } : { estado: { desdeMs: desde }, recolocar: false };
+}
+
+
+// ── c8: the panel is taken by its top bar and put where you want it ────────────────────────────────────────────────
+// The SAME gesture as every other thing you move in VR (apps/plaza/constructor-xr.ts): point with the ray and HOLD the trigger (or the
+// pinch of a tracked hand) on it; while held it follows where that hand points, at the distance it was taken; letting go leaves it there.
+// It always faces the head (upright, like when it first came up). It stays between ARRASTRE.minM and maxM from the head (horizontally)
+// and within a comfortable height, so it is never lost inside you or out of reach of the eyes.
+export const ARRASTRE = { minM: 0.6, maxM: 2, bajoM: 0.8, altoM: 0.6, ptoMinM: 0.3, ptoMaxM: 6 } as const;
+export type LadoMano = "izq" | "der";
+/** What one hand says each frame: the trigger/pinch held, whether its ray is on the bar, and the ray (world) or null. */
+export type EntradaMano = { lado: LadoMano; gatillo: boolean; apuntaBarra: boolean; rayo: { origen: V3; dir: V3 } | null };
+export type EstadoArrastre = { antes: Record<LadoMano, boolean>; lado: LadoMano | null; dist: number; desfase: V3 };
+export const arrastreInicio = (): EstadoArrastre => ({ antes: { izq: false, der: false }, lado: null, dist: 0, desfase: { x: 0, y: 0, z: 0 } });
+
+/** `p` brought inside the allowed ring around the head (horizontal distance 0,6–2 m, height eye −0,8 … +0,6 m). */
+export function limitarPanel(p: V3, ojo: V3): V3 {
+  let dx = p.x - ojo.x, dz = p.z - ojo.z; const n = Math.hypot(dx, dz);
+  if (n < 1e-4) { dx = 0; dz = -1; } else { dx /= n; dz /= n; }
+  const d = Math.max(ARRASTRE.minM, Math.min(ARRASTRE.maxM, n));
+  return { x: ojo.x + dx * d, y: Math.max(ojo.y - ARRASTRE.bajoM, Math.min(ojo.y + ARRASTRE.altoM, p.y)), z: ojo.z + dz * d };
+}
+/** One frame of the drag. `panel` = where it stands, `ojo` = the head. `pos` is where it must be now (null: leave it); `evento` says
+ * when a hand takes it («coge») or lets it go («suelta»). A hand takes it only when its trigger goes DOWN while its ray is on the bar
+ * (a trigger held while sliding onto it does nothing: like every other press). */
+export function arrastrePaso(e: EstadoArrastre, manos: readonly EntradaMano[], panel: V3, ojo: V3): { estado: EstadoArrastre; pos: V3 | null; evento: "coge" | "suelta" | null; lado: LadoMano | null } {
+  const antes = { izq: false, der: false };
+  for (const m of manos) antes[m.lado] = m.gatillo;
+  if (e.lado) {
+    const m = manos.find((x) => x.lado === e.lado);
+    if (!m || !m.gatillo || !m.rayo) return { estado: { ...arrastreInicio(), antes }, pos: null, evento: "suelta", lado: e.lado };
+    const d = e.dist;
+    const p = limitarPanel({ x: m.rayo.origen.x + m.rayo.dir.x * d + e.desfase.x, y: m.rayo.origen.y + m.rayo.dir.y * d + e.desfase.y, z: m.rayo.origen.z + m.rayo.dir.z * d + e.desfase.z }, ojo);
+    return { estado: { ...e, antes }, pos: p, evento: null, lado: e.lado };
+  }
+  for (const m of manos) {
+    if (!m.gatillo || e.antes[m.lado] || !m.apuntaBarra || !m.rayo) continue;
+    const { origen: o, dir } = m.rayo;
+    const d = Math.max(ARRASTRE.ptoMinM, Math.min(ARRASTRE.ptoMaxM, (panel.x - o.x) * dir.x + (panel.y - o.y) * dir.y + (panel.z - o.z) * dir.z));
+    const desfase = { x: panel.x - (o.x + dir.x * d), y: panel.y - (o.y + dir.y * d), z: panel.z - (o.z + dir.z * d) };
+    return { estado: { antes, lado: m.lado, dist: d, desfase }, pos: null, evento: "coge", lado: m.lado };
+  }
+  return { estado: { ...e, antes }, pos: null, evento: null, lado: null };
+}
+/** Degrees between the panel's front and the direction to the head, horizontally (0 = facing you; checks). */
+export function haciaOjoGrados(frente: V3, panel: V3, ojo: V3): number {
+  const ax = frente.x, az = frente.z, bx = ojo.x - panel.x, bz = ojo.z - panel.z, a = Math.hypot(ax, az), b = Math.hypot(bx, bz);
+  if (a < 1e-6 || b < 1e-6) return 0;
+  return (Math.acos(Math.max(-1, Math.min(1, (ax * bx + az * bz) / (a * b)))) * 180) / Math.PI;
 }
 
 // ── the bubble around you ──────────────────────────────────────────────────────────────────────────────────────────

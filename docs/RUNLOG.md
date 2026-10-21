@@ -1482,6 +1482,15 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `funciones/f2-dardos-pesca-obedecen` (sobre f1), sin subir.
 - Siguiente: f3 (e2e de navegador y panel con los interruptores).
+
+
+## 2026-10-21 20:40 · sala de rol: báculo del Director, asientos y burbujas de voz · hecho
+- Qué: 0.39.0. Tres piezas de «mesa de rol» que cualquier mundo enciende con un fichero o un interruptor de Entorno: el báculo del Director de juego (`entorno/baculos.json`; quien lo lleva dirige), sentarse con «E» (`entorno/asientos.json`) y la burbuja de voz de mesa (`entorno/burbujas.json`; el servidor solo reenvía la voz entre los de dentro). Tres interruptores en Entorno (báculo, asientos, burbujas) más el de dados (`dados.json` con `activa`). La barra de acciones muestra solo lo posible ahora. **Un mundo sin `dados.json` tiene ahora los dados apagados.**
+- Números: ver el cuerpo de la PR (`npm test`, gates, build, `tamano`). Sin probar con micrófono real, ni la pose de rodillas al sentarse, ni VR/móvil/Quest.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `sala-rol/baculo-asiento-voz` (cuatro commits de `voz/burbuja-de-mesa` sobre origin/main c387252b + versión), PR contra `main`.
+- Siguiente: medir el coste del relé de voz con burbujas; ja/ko/pt-br.
+
 ## 2026-10-21 19:42 · ia-llamar S8 (la burbuja de acción de cada IA) · hecho
 - Qué: toda IA conectada tiene una burbuja (esfera, cúpula, cilindro o caja; radio de 2 a 12 m; por defecto esfera de 4 m «al acercarte», o la del bloque `ia.burbuja` del pase). El servidor decide cada 10 ticks quién está dentro y avisa a la IA (`entraEnBurbuja`/`saleDeBurbuja`) y a la persona («Entras en la burbuja de Ada (IA).», una vez por entrada, con respiro de 10 s por IA). Publica la forma para que S9 la dibuje y ofrece `dentroDeBurbuja(ia)` a S10/S12. Sin IAs no hace nada (una comprobación por tick). Nombres de eventos en camelCase porque el motor no admite guiones bajos.
 - Números: ver el cuerpo de la PR (`npm test`, gates, build). Sin dibujo todavía (S9) y sin llamada (S10).

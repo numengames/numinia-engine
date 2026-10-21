@@ -21,7 +21,7 @@ import {
   buscar, claveDe, normal, fusionar, filtrar, haceTexto, fechaTexto, distanciaTexto, type Amigo, type Conectado,
 } from "./amigos.ts";
 import { montarTarjeta } from "./gente-tarjeta.ts";
-import { el, botonCon, luzEl, retrato, type Res, type Mirada, type Elegido, type Acciones } from "./gente-comun.ts";
+import { el, botonCon, luzEl, retrato, insigniaBaculo, insigniaBurbuja, type Res, type Mirada, type Elegido, type Acciones } from "./gente-comun.ts";
 import type { IAPublica } from "../../features/ia/feature.ts";
 import { cuentaGente, fichaIA, luzEscucha, sinMarca, subIA, textos } from "./gente-ia.ts";
 export type { Res, Mirada, Elegido, Acciones };
@@ -293,7 +293,9 @@ export function montarGente(o: OpcionesGente) {
     b.setAttribute("aria-label", `${p.ia ? `${sinMarca(p.nombre)}, ${tx().marca}` : p.nombre}, ${conectado ? "conectado" : "desconectado"}, ${sub}`);
     // an AI: its name without the server's « · IA» and the chip that says it; asleep, its portrait goes dim
     const nombreL = p.ia ? el("span", { className: "nombre-ia" }, el("b", { textContent: sinMarca(p.nombre) }), el("span", { className: "marca-ia", textContent: tx().marca })) : el("b", { textContent: p.nombre });
-    const textosL = el("span", { className: "textos" }, nombreL, el("span", { className: "sub", textContent: sub }));
+    const conBaculo = conectado && p.quien !== null && !!o.mirada?.baculo?.(p.quien);
+    const enBurbuja = conectado && p.quien !== null ? o.mirada?.burbuja?.(p.quien) ?? null : null;
+    const textosL = el("span", { className: "textos" }, conBaculo || enBurbuja ? el("span", { className: "gente-nombre-linea" }, nombreL, ...(conBaculo ? [insigniaBaculo()] : []), ...(enBurbuja ? [insigniaBurbuja(enBurbuja)] : [])) : nombreL, el("span", { className: "sub", textContent: sub }));
     b.append(retrato(base, p.avatar, "busto", 44, !conectado || p.ia?.estado === "dormida"), textosL);
     if (p.ia) b.dataset.ia = p.ia.estado;
     if (conectado) b.append(el("span", { className: "punto" }));
@@ -360,7 +362,7 @@ export function montarGente(o: OpcionesGente) {
     // an AI: the «IA» chip and its state instead of «En <mundo>»; who answers for it and what it may do under the name
     const chipIA = ia ? el("span", { className: "marca-ia", textContent: ia.marca }) : null;
     const chipEstado = ia ? el("span", { className: `chip${ia.estado === "activa" ? " ok" : ""}` }, ...(ia.estado === "activa" ? [el("span", { className: "punto" })] : []), ia.estadoTexto) : null;
-    const datos = el("div", { className: "gente-datos" }, el("div", { className: "gente-titulo" }, el("h3", { className: "gente-nombre", textContent: ia?.nombre ?? p.nombre }), ...(chipIA && chipEstado ? [chipIA, chipEstado] : [chip])), el("p", { className: "sub", textContent: ia ? "" : linea }));
+    const datos = el("div", { className: "gente-datos" }, el("div", { className: "gente-titulo" }, el("h3", { className: "gente-nombre", textContent: ia?.nombre ?? p.nombre }), ...(chipIA && chipEstado ? [chipIA, chipEstado] : [chip]), ...(con && p.quien !== null && o.mirada?.baculo?.(p.quien) ? [insigniaBaculo()] : []), ...(con && p.quien !== null && o.mirada?.burbuja?.(p.quien) ? [insigniaBurbuja(o.mirada.burbuja(p.quien) as string)] : []), ...(chipIA && chipEstado ? [chipIA, chipEstado] : [chip])), el("p", { className: "sub", textContent: ia ? "" : linea }));
     if (ia && p.ia) {
       const luz = luzEscucha(p.ia, o.idioma?.());
       datos.append(el("p", { className: "ia-dato" }, el("span", { className: "k", textContent: ia.respondeEtiqueta }), el("b", { textContent: ia.respondeValor })), el("p", { className: `ia-dato${ia.construye ? "" : " no"}`, textContent: ia.construyeTexto }), luzEl(luz));

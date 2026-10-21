@@ -30,6 +30,8 @@ type Base = { estado: { ultimoRechazo: string }; activa(): boolean; poner(activa
 type Funciones = { estado: { ultimoRechazo: string }; actual(): Partial<Record<Funcion, boolean>>; fija(f: Funcion): boolean; ponerFuncion(f: Funcion, si: boolean): Res };
 /** «Restaurar el mundo» also empties the objects (features/objetos/client.ts `constructor.reiniciar`): the server plants the logo and the moñoni again. */
 type Objetos = { reiniciar(): Res };
+/** An «Interruptor» of a piece (features/<pieza>/client.ts `interruptor`): on/off for the whole world, shown only to who the server says may (`estado.puede`: who directs or rules). */
+export type Pieza = { id: string; etiqueta: string; titulo: string; encendida: string; apagada: string; interruptor: { estado: { puede: boolean; ultimoRechazo: string }; activa(): boolean; poner(activa: boolean): Res } };
 type Vista = {
   cam?: { yaw?: () => number };
   sueloBajo?: (x: number, y: number) => { x: number; y?: number; z: number } | null;
@@ -61,7 +63,7 @@ const CSS = `
 #panel-entorno .nota[hidden], #panel-entorno .fila[hidden] { display: none; }
 #panel-entorno button.peligro { background: #f0b4aa; }`;
 
-export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu?: Naturaleza, padre?: HTMLElement, base?: Base, objetos?: Objetos, funcs?: Funciones): void {
+export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu?: Naturaleza, padre?: HTMLElement, base?: Base, objetos?: Objetos, piezas: Pieza[] = [], funcs?: Funciones): void {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const panel = document.createElement("section");
   panel.id = "panel-entorno"; panel.hidden = true; panel.setAttribute("aria-label", "Entorno y elementos");
@@ -181,6 +183,24 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
   const semAplicar = boton("Aplicar", "Usar esta semilla / Use this seed", () => { const n = Number(semInput.value); if (!Number.isInteger(n) || n < 0 || n > 2147483647) return { ok: false, why: "un número entero entre 0 y 2147483647" }; semIr(n); return { ok: true }; });
   const semAzar = boton("Otra al azar", "Probar otra semilla al azar / Try a random seed", () => { const n = Math.floor(Math.random() * 1_000_000); semInput.value = String(n); semIr(n); return { ok: true }; });
   filaSemilla.append(semEtiqueta, semAplicar, semAzar);
+  // Interruptores de piezas (Pablo, 2026-10-21: toda pieza es un interruptor): same pattern, but the row is shown to who may DIRIGIR
+  // or rule (the server's `permiso`), not only to builders; the switch follows the server's state, never its own click.
+  const filasPieza = piezas.map((pz) => {
+    const fila = document.createElement("div"); fila.className = "interruptor"; fila.hidden = true;
+    const texto = document.createElement("span"); texto.id = `${pz.id}-etiqueta`; texto.textContent = pz.etiqueta;
+    const boton = document.createElement("button"); boton.type = "button"; boton.id = `${pz.id}-interruptor`;
+    boton.setAttribute("role", "switch"); boton.setAttribute("aria-checked", "false"); boton.setAttribute("aria-labelledby", texto.id); boton.title = pz.titulo;
+    let esperando: boolean | null = null;
+    boton.addEventListener("click", () => {
+      const quiero = !pz.interruptor.activa(), r = pz.interruptor.poner(quiero);
+      esperando = r.ok ? quiero : null;
+      boton.setAttribute("aria-busy", String(r.ok));
+      estado.textContent = r.ok ? `${quiero ? "Encendiendo" : "Apagando"}: ${pz.etiqueta}…` : `No: ${r.why}`;
+      boton.blur();
+    });
+    fila.append(texto, boton);
+    return { pz, fila, boton, esperando: () => esperando, limpiar: () => { esperando = null; boton.setAttribute("aria-busy", "false"); } };
+  });
   // «Funciones de este mundo» (funciones/f3): one switch per function the world has (normas, dardos, pesca), the same shape as «Espacio base».
   // Which rows, what they say and whether they can be pressed is features/funciones/panel.ts (pure); here they are only drawn and follow the server.
   const grupoFunciones = document.createElement("div"); grupoFunciones.className = "funciones"; grupoFunciones.id = "funciones-mundo"; grupoFunciones.hidden = true;
@@ -242,6 +262,7 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
   };
   const sel = document.createElement("p");
   panel.append(
+    ...filasPieza.map((f) => f.fila),
     filaBase,
     filaNat,
     nota,
@@ -269,7 +290,7 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
   // shown only to builders while the build panel is open; values follow the server's (unless you are dragging)
   setInterval(() => {
     const construyendo = document.getElementById("panel-construir")?.hidden === false;
-    const mostrar = construyendo && (amb.estado.puede || elem.estado.puede);
+    const mostrar = construyendo && (amb.estado.puede || elem.estado.puede || filasPieza.some((f) => f.pz.interruptor.estado.puede));
     if (panel.hidden === mostrar) panel.hidden = !mostrar;
     if (!mostrar) return;
     const v = amb.valores();
@@ -299,6 +320,15 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
         if (on === baseEsperando) estado.textContent = on ? "Espacio base encendido." : "Espacio base apagado.";
         baseEsperando = null; baseBoton.setAttribute("aria-busy", "false");
       }
+    }
+    for (const f of filasPieza) {
+      const i = f.pz.interruptor, on = i.activa();
+      f.fila.hidden = !i.estado.puede;
+      f.boton.setAttribute("aria-checked", String(on));
+      const q = f.esperando();
+      if (q !== null && (on === q || i.estado.ultimoRechazo)) { if (on === q) estado.textContent = on ? f.pz.encendida : f.pz.apagada; f.limpiar(); }
+      if (i.estado.ultimoRechazo && !(q !== null)) { estado.textContent = `No: ${i.estado.ultimoRechazo}`; }
+      if (i.estado.ultimoRechazo) i.estado.ultimoRechazo = "";
     }
     pintarFunciones();
     const rechazo = amb.estado.ultimoRechazo || elem.estado.ultimoRechazo || (natu?.estado.ultimoRechazo ?? "") || (base?.estado.ultimoRechazo ?? "") || (funcs?.estado.ultimoRechazo ?? "");

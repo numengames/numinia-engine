@@ -16,6 +16,24 @@ export type Mirada = {
   actividad(quien: number): string | null;
   /** The name over their head (the chat's names: who the page draws near). */
   nombre(quien: number): string | null;
+  /** Does this person hold the Director's staff (features/baculo)? A badge shows next to their name. */
+  baculo?(quien: number): boolean;
+  /** The name of the voice bubble they are in (features/burbujas), or null: an icon shows next to their name. */
+  burbuja?(quien: number): string | null;
+};
+/** The voice-bubble icon (a microphone): the mark next to the name of whoever is inside one. The label says which. */
+export const insigniaBurbuja = (etiqueta: string): HTMLElement => {
+  const s = el("span", { className: "insignia-burbuja", title: `En ${etiqueta}: solo se oyen con los de dentro` });
+  s.setAttribute("role", "img"); s.setAttribute("aria-label", `En ${etiqueta}`);
+  s.innerHTML = icono("microphone", 14); // constants only
+  return s;
+};
+/** The staff badge (a medal): the small mark next to the name of whoever holds the Director's staff. */
+export const insigniaBaculo = (): HTMLElement => {
+  const s = el("span", { className: "insignia-baculo", title: "Tiene el báculo: dirige la partida" });
+  s.setAttribute("role", "img"); s.setAttribute("aria-label", "Tiene el báculo");
+  s.innerHTML = icono("medal", 14); // constants only
+  return s;
 };
 export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...hijos: (Node | string)[]): HTMLElementTagNameMap[K] => {
   const e: HTMLElementTagNameMap[K] = Object.assign(document.createElement(tag), props); e.append(...hijos); return e;

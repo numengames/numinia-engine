@@ -169,7 +169,7 @@ test("MUNDO_DIR: the server reads a world's entorno.json / elementos.json and sw
   assert.deepEqual(partes.map((p) => p.feature.id), funciones.map((p) => p.feature.id), "same features, same order");
   for (const p of partes) {
     const antes = funciones.find((f) => f.feature.id === p.feature.id);
-    if (p.feature.id === "entorno" || p.feature.id === "elementos") assert.notEqual(p, antes);
+    if (p.feature.id === "entorno" || p.feature.id === "elementos" || p.feature.id === "baculo" || p.feature.id === "asiento" || p.feature.id === "burbujas" || p.feature.id === "dados") assert.notEqual(p, antes); // baculo and dados are rebuilt with their switch (off here)
     else assert.equal(p, antes, `${p.feature.id} untouched`);
   }
   const w = world({ abierto: false, mundo: leer("entorno.json") });
