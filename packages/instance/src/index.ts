@@ -1,7 +1,7 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX, MODO_SENTADO, getMotionExtra } from "../../sim/src/index.ts";
 import type { SimState, SpawnArea, Bvh } from "../../sim/src/index.ts";
 import { terrenoDelEstado, terrenoMalla, claveTerreno, combinarMallas, sueloMinimoTerreno } from "../../sim/src/terreno-malla.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
@@ -172,6 +172,7 @@ export class Instance {
       rayo: (e, dir, max) => this.rayo(e, dir, max),
       ordenar: (e, orden) => this.ordenar(e, orden),
       leyendoNormas: (e) => this.leyendoNormas(e),
+      sentado: (e) => !!this.byEntity[e] && !!this.sim.world.alive[e] && getMotionExtra(this.sim, e).modo === MODO_SENTADO,
     });
     this.seguro = new Int32Array(opts.capacity * 3); this.tieneSeguro = new Uint8Array(opts.capacity);
   }

@@ -1142,6 +1142,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     avatares(): ReturnType<typeof avs.stats> { return avs.stats(); },
     /** J7b: play a move (the wheel's) on an avatar's VRM, or stop it (`null`); false = no VRM there (show a label). */
     movimiento(t: Target, mov: Movimiento | null): boolean { return avs.movimiento(t === "self" ? "yo" : t, mov); },
+    /** asiento: a standing avatar faces `rumbo` (radians, atan2(dx, dz)); `undefined` = walk-driven again. */
+    orientar(t: Target, rumbo: number | undefined): void { avs.orientar(t === "self" ? "yo" : t, rumbo); },
     /** J3: the name over an avatar (`null` takes it away); drawn for the nearest 32 within 24 m, never over yourself. */
     nameTag(t: Target, text: string | null): void { nombres.nameTag(t, text); },
     /** J3: a speech bubble over an avatar for `ms` (wrapped, up to 6 lines); the latest replaces the one before. */

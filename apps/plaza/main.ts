@@ -62,6 +62,7 @@ import { montarGente } from "./gente.ts";
 import { rumboHacia } from "./foto-nucleo.ts"; // ux2-gente: «Saludar» turns you towards them first
 import { viajar } from "../../features/teletransporte/client.ts";
 import { iaPagina } from "../../features/ia/client.ts"; // ia-visible S3: the public card of each AI (state, who answers, what it may do)
+import { asiento, interruptor as interruptorAsiento } from "../../features/asiento/client.ts"; // asiento v1: sitting down for real
 import { baculo, interruptor as interruptorBaculo } from "../../features/baculo/client.ts"; // baculo v1: the Director's staff
 import { dados, interruptor as interruptorDados } from "../../features/dados/client.ts"; // dados v1: dice the server rolls
 import { montarDados } from "./dados.ts";
@@ -173,6 +174,7 @@ const session = new ClientSession(transport, {
     fundido: (ms) => { const f = document.getElementById("fundido")!; f.style.transition = "none"; f.style.opacity = "1"; f.offsetHeight; f.style.transition = `opacity ${ms}ms ease-out`; f.style.opacity = "0"; f.dataset.ultimo = String(Date.now()); },
     // J7b: the moves of the wheel, played on the avatar's VRM (false = a capsule: the feature shows a label)
     movimiento: (e, m) => view.movimiento(e === session.entity ? "self" : e, m),
+    orientar: (e, r) => view.orientar(e === session.entity ? "self" : e, r), // asiento: whoever sits faces where the seat looks
     // S6: a sound the SERVER chose (features/sonido): its id and its seed, so every page plays the same variant at
     // the same instant. `donde: null` = in the head, with no panner (the notices and the interface). The accessible
     // text ALWAYS reaches the notices region, whether the file played or not (XAUR: no sound without its text).
@@ -271,6 +273,7 @@ const cerradurasPagina = montarCerradura({ cerradura: cerraduras });
 const videoMandos = montarVideoMandos({ lista: () => constructor.lista(), controlVideo: (id) => view.controlVideo(id), panel: document.getElementById("video-mandos")! });
 montarEntorno(ambiente, elementos, view, interruptorNaturaleza, constructorUI.cajon("entorno"), interruptorBase, constructor, [
   { id: "baculo", etiqueta: "Báculo del Director", titulo: "Encender o apagar el báculo del Director de juego de este mundo (quien lo lleva dirige) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en baculos.json. / Turn the Game Director's staff on or off for the whole world.", encendida: "Báculo del Director encendido.", apagada: "Báculo del Director apagado.", interruptor: interruptorBaculo },
+  { id: "asientos", etiqueta: "Asientos", titulo: "Encender o apagar los asientos de este mundo («E» junto a un asiento y te sientas) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en asientos.json. / Turn the seats on or off for the whole world.", encendida: "Asientos encendidos.", apagada: "Asientos apagados.", interruptor: interruptorAsiento },
   { id: "dados", etiqueta: "Dados", titulo: "Encender o apagar los dados de este mundo (la torre de dados y /tirar) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en dados.json. / Turn the dice on or off for the whole world.", encendida: "Dados encendidos.", apagada: "Dados apagados.", interruptor: interruptorDados },
 ]); // H4/H8: environment and elements, inside the builder's «Entorno» drawer (ux2-dock)
 montarDados({ dados, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) }); // dados v1: the dice card everyone near sees, the dice buttons beside a tower
@@ -344,7 +347,7 @@ const compartir = montarPantalla({
 });
 
 // ---- J4/J5: what you can use from close by (E, a click, the prompt button), conversations, the quest book (J) ----
-const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k) && cerradurasPagina.ofrece(f, k) && lucha.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: (x, z, y) => [...huecos.cerca(x, z, y), ...cerradurasPagina.cerca(x, z), ...videoMandos.cerca(x, z)], pinchar: (key) => huecos.pinchar(key) || enlaces.pinchar(key),
+const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k) && cerradurasPagina.ofrece(f, k) && lucha.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: (x, z, y) => [...asiento.cerca(), ...huecos.cerca(x, z, y), ...cerradurasPagina.cerca(x, z), ...videoMandos.cerca(x, z)], pinchar: (key) => huecos.pinchar(key) || enlaces.pinchar(key),
   persona: (x, y) => { const q = view.pickPerson(x, y); return q !== null && gente.tarjeta(q); } }); // ux2-gente: a click on someone = their card
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
 const xr = montarXR({ session, view, misiones, interaccion }); // J10: hands in VR take, point and answer; what you took is in your hand

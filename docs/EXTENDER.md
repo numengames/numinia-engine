@@ -1695,4 +1695,12 @@ ni un byte) y solo contesta si la página pregunta. El registro del arranque dic
 
 **Dados**: apagados no hay torre y `/tirar` dice que están apagados; las torres guardadas no cambian. Un `dados.json` anterior con torres y sin `activa` sigue encendido.
 
-Con interruptor: espacio base, naturaleza, báculo, dados. Sin él aún (siguen siendo «un fichero»): pesca, dardos, puertas, botones, cogibles, web, lucha, movedores, contadores, disparadores, suelo, elementos, teletransporte, objetos. Para cualquiera: los cuatro pasos de arriba (un intent, un evento, un `interruptor` en el cliente, una entrada en `piezas`).
+Con interruptor: espacio base, naturaleza, báculo, dados, asientos. Sin él aún (siguen siendo «un fichero»): pesca, dardos, puertas, botones, cogibles, web, lucha, movedores, contadores, disparadores, suelo, elementos, teletransporte, objetos. Para cualquiera: los cuatro pasos de arriba (un intent, un evento, un `interruptor` en el cliente, una entrada en `piezas`).
+
+## Asiento (v1): sentarse de verdad
+
+`features/asiento`: `E` junto a un asiento libre y tu avatar se sienta (la animación `sentarse`, ya en el motor), mirando hacia donde mira el asiento, quieto. Un asiento, una persona; el ocupado muestra el nombre. Se levanta con `E` otra vez, `/levantar`, andando o saltando, o al desconectarse; quien dirige, puede echar o manda levanta a otra persona (`/levantar <nombre>`).
+- **Mundo**: `entorno/asientos.json` = `{ "schema": "numinia-engine/asientos@1", "activa": true, "sitios": [{ "id": "j1", "x": 3, "y": 0, "z": 4, "mira": 90, "etiqueta": "Jugador 1", "dibujo": false }] }`. `mira` en grados (0 = hacia +z, 90 = hacia +x, el `ry` de un modelo); `y` = altura de los pies sentado; `dibujo: true` pone una banqueta (para sitios sin modelo propio, p. ej. el que coloca el interruptor). Hasta 24 sitios. Sin fichero = apagado, coste 0, huella de simulación intacta.
+- **Cómo se sienta**: el servidor decide (`api.within` a 2 m, libre, no sentado, no leyendo normas) y da la orden grabada `api.ordenar(e, { sentar: { x, y, z, rumbo } })` (H2: `MODO_SENTADO` de la simulación, que ya existía). La simulación levanta sola ante un palo o un salto; el servidor lo ve con `api.sentado(e)` (nuevo) y libera el asiento. Al levantarse con `E` o `/levantar` se pone `api.ordenar(e, { poner })` 0,8 m detrás del asiento.
+- **Página**: pose `sentarse` mantenida con `view.movimiento` y rumbo con `view.orientar` (expuesto de `render/avatares`, que ya lo tenía); «E: levantarte» es un local de `interactuar.ts` (`asiento.cerca()`).
+- **Interruptor** «Asientos» en Entorno (mismo patrón que báculo y dados). Apagar levanta a quien esté sentado y quita los asientos; los sitios se guardan.

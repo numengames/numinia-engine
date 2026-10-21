@@ -303,6 +303,8 @@ export type ServerHost = {
   ordenar?(entity: number, orden: Orden): boolean;
   /** condiciones/c5: is this avatar inside the bubble, reading the world's norms? (none = false) */
   leyendoNormas?(entity: number): boolean;
+  /** asiento: is this avatar seated (the simulation's MODO_SENTADO, which a stick or a jump ends by itself)? (none = false) */
+  sentado?(entity: number): boolean;
 };
 /** M6 h12: where a ray stopped — metres, and the unit normal of the surface it hit, facing the ray. */
 export type RayHit = { x: number; y: number; z: number; nx: number; ny: number; nz: number; distancia: number };
@@ -425,6 +427,8 @@ export type ServerApi = {
   /** condiciones/c5: is this person still inside the bubble, reading the world's norms? Nothing may touch them while they are (the instance refuses
    * `empujar`, `quieto` and `sentar` on them already; a feature that hurts or moves people another way asks this first). Always false with the gate off. */
   leyendoNormas(entity: number): boolean;
+  /** asiento: is this person seated now? The simulation stands them up by itself on a stick or a jump (or a push): a feature that seats people asks this to know they left the seat. */
+  sentado(entity: number): boolean;
 };
 export type ServerPart = { feature: Feature; side: "server"; setup: (api: ServerApi) => void };
 export const serverPart = (feature: Feature, setup: (api: ServerApi) => void): ServerPart => ({ feature, side: "server", setup });
@@ -703,6 +707,7 @@ export class ServerRuntime {
       rayo: (e, dir, max) => this.rayo(e, dir, max),
       ordenar: (e, orden) => { try { return this.host.ordenar?.(e, orden) ?? false; } catch (x) { log(`ordenar: ${String((x as Error)?.message ?? x)}`); return false; } },
       leyendoNormas: (e) => { try { return this.host.leyendoNormas?.(e) ?? false; } catch { return false; } },
+      sentado: (e) => { try { return this.host.sentado?.(e) ?? false; } catch { return false; } },
       puede: (e, accion) => { try { return this.host.puede?.(e, accion) ?? false; } catch { return false; } },
       activo: (sha256, ext = "glb") => { try { return /^[0-9a-f]{64}$/.test(sha256) && (this.host.activo?.(sha256, ext) ?? false); } catch { return false; } },
       medidas: (sha256, ext) => { try { return /^[0-9a-f]{64}$/.test(sha256) ? this.host.medidas?.(sha256, ext) ?? null : null; } catch { return null; } },
@@ -944,6 +949,8 @@ export type ViewHooks = {
   /** J7b: play a move on an avatar (its clips by name, how it ends), or stop it (`null`). Returns false when this view
    * cannot play it there (no VRM for that avatar): the feature then shows a label instead. */
   movimiento?(entity: number, m: MovimientoVista | null): boolean;
+  /** asiento: make a standing avatar face `rumbo` (radians, atan2(dx, dz)); `undefined` = walk-driven again. */
+  orientar?(entity: number, rumbo: number | undefined): void;
   /** S6: play a house sound the SERVER chose (features/sonido): its catalogue id, the seed every page shares (same
    * variant, same pitch, same instant), where it is in metres (`null` = in the head: no panner, the interface and the
    * notices) and the text whoever does not hear reads. Returns false when this view cannot play it (no Web Audio, the
