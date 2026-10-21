@@ -1519,6 +1519,17 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `feat/ia-llamar` (S8–S11 y el puente de `feat/ia-puente`, con origin/main 9573c2ae), PR contra `main`.
 - Siguiente: S14 (numinia-web refresca `puente-mundo.mjs` para dar estas herramientas a las IAs conectadas); S16 completo en el puente; idiomas.
+
+
+## 2026-10-21 · funciones f3 · hecho
+- Qué: historia f3 (0.33.0): el bloque «Funciones de este mundo» en el cajón Entorno (PC y móvil), debajo de «Espacio base»: interruptores
+  «Normas de entrada», «Dardos» y «Pesca» con el mismo aspecto que el de «Espacio base», el estado real del servidor, `fija` desactivado con
+  «Lo fija el servidor.», y sin bloque para quien no construye. Lógica pura y textos es/en en `features/funciones/panel.ts` (+ `frases.*.ts`).
+- Pruebas: `test/funciones-panel.test.ts`; pierna de navegador `tools/e2e-piernas/funciones-interruptores.mjs` (8871/5271): normas apagadas →
+  una página nueva entra sin burbuja, encendidas → la siguiente la ve; dardos apagados → la diana desaparece; capturas PC y móvil.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `funciones/f3-interruptores-pc-movil` (sobre f2), sin subir.
+- Pendiente: ja, ko, pt-br de los textos del bloque.
 ## 2026-10-21 19:00 · T1 paso de misión `hace` + `senala` · hecho
 - Qué: nuevo tipo de paso `hace` en `mision@1` (13 acciones: coloca, mueve, gira, escala, oculta, borra, crea/edita/borra/dispara_cable y las tres de página abre_construir, abre_cable, abre_biblioteca) y el campo `senala` (id del botón al que apuntará la flecha; vale en cualquier paso; solo se valida, se guarda y viaja con el paso). El servidor lo decide oyendo eventos que ya existían: nuevos `objetos.hizo` y `disparadores.hizo` (solo-servidor, con la entidad autora; `mover` dice si cambió sitio, giro o escala) y `persona` en `disparadores.senal`; las tres acciones de página entran por la orden nueva `misiones.hace`, que solo acepta esas tres. Sin permiso de construir no cuenta nada; un `hace` que no es el paso actual no cuenta. Nada en el tick. El cliente expone `misiones.hace(accion)` y `misiones.senala()`; la plaza avisa al abrir Construir, Añadir y Cable solo si un paso lo pide. Aditivo: `misiones` v7 (el evento `paso` gana `accion` y `senala`, intent `hace`); `objetos` y `disparadores` no cambian de versión (eventos solo-servidor).
 - Números: `test/misiones-hace.test.ts` (7 pruebas) nuevo; tres pruebas viejas actualizadas (lista de campos del paso, versión 7). Huella de determinismo intacta (un mundo con misiones `hace` hashea igual que sin ellas).

@@ -1573,8 +1573,14 @@ Regla R-1: cada pieza del motor se enciende sin tocar código. El mundo guarda u
   mal escrito no se sobrescribe nunca (el log y el rechazo dicen cómo arreglarlo). Sin carpeta de mundo, el cambio vale hasta reiniciar.
 - **En la página**: estado compartido `normas` / `dardos` / `pesca`, cada uno `{ activa, fija }` (una función que el mundo no tiene no
   aparece); `__numinia.funciones.actual()` → `{ normas?, dardos?, pesca? }`, `.fija(nombre)` y `.ponerFuncion(nombre, si)`. Para un agente:
-  el verbo `poner { funcion, activa }` de la pieza `funciones`. El panel que los pinta es f3/v3.
-- Pruebas: `test/funciones-interruptores.test.ts` (f1), `test/funciones-obedecen.test.ts` (f2).
+  el verbo `poner { funcion, activa }` de la pieza `funciones`. El panel que los pinta es f3 (abajo).
+- **El panel (f3)**: en el cajón «Entorno» del constructor (PC y móvil), debajo de «Espacio base», el bloque «Funciones de este mundo» con un
+  interruptor por función que el mundo tiene (`actual()`): «Normas de entrada» (con la ayuda «Apagadas, se entra sin aceptar normas. Para demos.»),
+  «Dardos» y «Pesca». Mismo componente y estilo que «Espacio base»; muestra el estado del servidor, nunca el del clic; si la función es `fija`
+  sale desactivada con «Lo fija el servidor.»; quien no puede construir no ve el bloque. Lógica pura (filas, textos es/en, si se puede
+  pulsar) en `features/funciones/panel.ts` (+ `frases.es.ts`, `frases.en.ts`, mismas claves; ja, ko y pt-br pendientes); la página
+  (`apps/plaza/entorno.ts`) solo las dibuja. Pruebas: `test/funciones-panel.test.ts`; navegador: `tools/e2e-piernas/funciones-interruptores.mjs`.
+- Pruebas: `test/funciones-interruptores.test.ts` (f1), `test/funciones-obedecen.test.ts` (f2), `test/funciones-panel.test.ts` (f3).
 
 ### Las normas de la comunidad llegan solas al mundo (w4: `packages/server/src/condiciones-fuente.ts`)
 
