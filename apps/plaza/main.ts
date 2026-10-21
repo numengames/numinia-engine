@@ -61,6 +61,7 @@ import { dirigir } from "../../features/director/client.ts";
 import { montarGente } from "./gente.ts";
 import { rumboHacia } from "./foto-nucleo.ts"; // ux2-gente: «Saludar» turns you towards them first
 import { viajar } from "../../features/teletransporte/client.ts";
+import { burbujaPagina } from "../../features/burbuja/client.ts"; // ia-llamar S9: the shape of each AI's action bubble and the «entras» that flashes it
 import { iaPagina } from "../../features/ia/client.ts"; // ia-visible S3: the public card of each AI (state, who answers, what it may do)
 import { dados } from "../../features/dados/client.ts"; // dados v1: dice the server rolls
 import { montarDados } from "./dados.ts";
@@ -213,6 +214,11 @@ session.onLeyendo = (entidad, si) => view.leyendo(entidad, si);
 // ia-visible S4: an AI's plate is always on, green, with an «IA» chip (and a moon asleep); the server's public card says who is one and its state.
 // Nothing is made in a world without AIs: this only fires when an entry appears, changes or goes.
 iaPagina.alCambiar((quien, ficha) => view.ia(quien === session.entity ? "self" : quien, ficha ? ficha.estado : null));
+
+// ia-llamar S9: the action bubble of each AI, drawn with the shape, radius and visibility the server publishes (nothing is made in a world without AIs);
+// «entras» (YOU crossed its edge) makes it flash for a moment. Who is inside is the server's: the page only draws.
+burbujaPagina.alCambiar((quien, b) => view.burbuja(quien === session.entity ? "self" : quien, b, iaPagina.de(quien)?.estado === "dormida"));
+burbujaPagina.alEntrar((ia) => view.burbujaDestello(ia === session.entity ? "self" : ia));
 
 // condiciones/c3: with the world's gate on, the server sends its conditions after you join and you stand in a bubble until you accept;
 // with it off it sends nothing and this does nothing. The gate itself is the server's; here the walking input is also held still.
@@ -623,7 +629,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones };
 
 // ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
 // of the bar's «Menú» (O), no longer a corner button ----
