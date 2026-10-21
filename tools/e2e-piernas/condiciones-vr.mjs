@@ -9,6 +9,8 @@
 //      + trigger ticks it → ray on «Siguiente» + trigger goes on → «Tus datos»: EMPTY boxes, the two equal buttons.
 //   4) «Salir» asks twice (nothing happens on the first press). A trigger on «Entrar sin lo opcional» sends ACEPTAR with no data; the panel
 //      fades with the burst and goes; the stick now moves you.
+//   2c) c8: the panel is taken by its top bar (ray on the bar + trigger HELD) and moved: it follows the hand, faces the head, stays there
+//      when the trigger is let go, never closer than 0,6 m nor further than 2 m; and its buttons still work where it ended up.
 //   5) the cost: the panel is repainted only when something changed (counted), one texture.
 // Env: SHOTS=<folder> saves the panel's canvas of every moment and a screenshot of the page in the headset (1400×900). Prints JSON; exit 0
 // only when all is right. A fingertip/pinch press is covered by test/condiciones-vr.test.ts (geometry) — IWER's hands are not driven here.
@@ -131,6 +133,47 @@ try {
   // the paint count stays still when nothing changes
   const pinturas0 = (await estado()).pinturas; await sleep(1200); const pinturas1 = (await estado()).pinturas;
   verifica(pinturas1 - pinturas0 <= 1, "redibuja solo al cambiar", { pinturas0, pinturas1 });
+
+  // 2c) c8: take the panel by its bar and put it somewhere else (the builder's gesture: hold the trigger, move the ray, let go)
+  const barra0 = await ctl(() => globalThis.__numinia.view.vr.condiciones().zonaMundo(4));
+  verifica(barra0, "la barra de arriba existe (zona 4)");
+  const antesPanel = (await estado()).diagnostico;
+  await ctl((w) => globalThis.__apuntar(w), barra0); await sleep(400);
+  const apunta = await ctl(() => globalThis.__numinia.view.manos.sondeo("der")?.apunta);
+  verifica(apunta === "panel:4", "el rayo está sobre la barra", { apunta });
+  await boton("right", "trigger", 1); await sleep(300);
+  e = await estado();
+  verifica(e.agarrado === "der", "gatillo apretado sobre la barra = panel cogido por la mano derecha", { agarrado: e.agarrado });
+  await lienzo("1b-vr-barra-cogida");
+  const objetivo = { x: barra0.x + 0.7, y: barra0.y + 0.15, z: barra0.z + 0.2 };
+  await ctl((w) => globalThis.__apuntar(w), objetivo); await sleep(500);
+  e = await estado();
+  verifica(Math.hypot(e.diagnostico.pos[0] - antesPanel.pos[0], e.diagnostico.pos[2] - antesPanel.pos[2]) > 0.3, "mientras lo sostienes el panel te sigue la mano", { antes: antesPanel.pos, ahora: e.diagnostico.pos });
+  await boton("right", "trigger", 0); await sleep(500);
+  e = await estado();
+  const movido = Math.hypot(e.diagnostico.pos[0] - antesPanel.pos[0], e.diagnostico.pos[2] - antesPanel.pos[2]);
+  nota("2c el panel cogido por la barra y movido", { antes: antesPanel.pos, despues: e.diagnostico.pos, movidoM: Math.round(movido * 100) / 100, horizontalM: e.diagnostico.horizontalM, haciaOjoGrados: e.diagnostico.haciaOjoGrados });
+  verifica(e.agarrado === null, "soltar el gatillo suelta el panel", { agarrado: e.agarrado });
+  verifica(movido > 0.3, "el panel se movió", { movido });
+  verifica(e.diagnostico.horizontalM >= 0.6 - 0.02 && e.diagnostico.horizontalM <= 2 + 0.02, "dentro de 0,6–2 m de la cabeza", e.diagnostico);
+  verifica(e.diagnostico.haciaOjoGrados < 3, "al soltar mira a la cabeza", e.diagnostico);
+  await lienzo("1c-vr-panel-movido");
+  const quieto = (await estado()).diagnostico.pos; await sleep(3200);
+  verifica(JSON.stringify((await estado()).diagnostico.pos) === JSON.stringify(quieto), "se queda donde lo soltaste (no vuelve solo)", { quieto });
+  // the limit: pushing the hand far forward while holding it cannot take the panel beyond 2 m
+  const barra1 = await ctl(() => globalThis.__numinia.view.vr.condiciones().zonaMundo(4));
+  await ctl((w) => globalThis.__apuntar(w), barra1); await sleep(400);
+  const pos0 = await ctl(() => { const p = globalThis.__iwer.controllers.right.position; return { x: p.x, y: p.y, z: p.z }; });
+  await boton("right", "trigger", 1); await sleep(300);
+  verifica((await estado()).agarrado === "der", "se vuelve a coger por la barra");
+  await ctl((z) => { const p = globalThis.__iwer.controllers.right.position; p.z = z; }, pos0.z - 2.5); await sleep(500);
+  e = await estado();
+  verifica(e.diagnostico.horizontalM <= 2.02, "con la mano muy adelantada no pasa de 2 m", e.diagnostico);
+  await ctl(([x, y, z]) => { const p = globalThis.__iwer.controllers.right.position; p.x = x; p.y = y; p.z = z; }, [pos0.x, pos0.y, pos0.z]); await sleep(300);
+  await boton("right", "trigger", 0); await sleep(400);
+  nota("2d el límite de 2 m con la mano adelantada", { horizontalM: e.diagnostico.horizontalM });
+  // pressing the bar is not a press of anything: nothing changed in the page's state
+  verifica((await ctl(() => globalThis.__numinia.condiciones.estado.paso)) === 1 && (await estado()).botones.length > 0, "coger la barra no pulsa nada: sigues en el mismo paso");
 
   // 3) pages with the stick; back to step 1 to test the box and «Siguiente»
   await pulsa("atras"); await esperar(() => globalThis.__numinia.condiciones.estado.paso === 0, null, 4000); await sleep(400);
