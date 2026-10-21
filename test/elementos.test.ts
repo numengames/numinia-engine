@@ -139,3 +139,11 @@ test("B9: aguaHeredada without permission, or without a pond, does nothing", () 
   sin.c.aguaHeredada(); sin.pump();
   assert.equal(sin.dibujo.size, 0); assert.match(sin.c.estado.ultimoRechazo, /no tiene estanque/);
 });
+
+test("B9: on the espacio base the inherited pond sits on the base's relief, not at NIVEL_AGUA", async () => {
+  const { estanqueHeredado } = await import("../features/naturaleza/server.ts");
+  const { alturaBase } = await import("../packages/relieve/src/espacio-base.ts");
+  const e = estanqueHeredado({ semilla: 1234, tamano: 200, estanque: true, base: 42 });
+  assert.ok(e); assert.equal(e.y, alturaBase(42, e.x, e.z) + 0.2);
+  assert.equal(estanqueHeredado({ semilla: 1234, tamano: 200, estanque: true, base: -1 })?.y, -0.2);
+});

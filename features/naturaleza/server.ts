@@ -14,6 +14,7 @@ import type { NaturalezaMundo } from "./esquema.ts";
 import type { TablaFauna } from "../../packages/relieve/src/fauna.ts";
 import { FAUNA_CASA } from "./fauna-casa.ts";
 import { estanqueDe, NIVEL_AGUA } from "../../packages/relieve/src/relieve.ts";
+import { alturaBase } from "../../packages/relieve/src/espacio-base.ts";
 
 export const FICHERO = "naturaleza.json";
 /** How the server touches the world's folder (features/mundo.ts passes them; none = no folder: the switch changes only this run). */
@@ -43,10 +44,12 @@ const baseDe = (e: { get(key: string): Record<string, unknown> | undefined }): n
 
 /** B9 (D-086): where and how big the nature's pond was for this world (its seed and size), so a migrated world can put a water element (`elementos` → `aguaHeredada`)
  * at the same place: centre (x, z), water level `y` (NIVEL_AGUA) and `ancho` = `largo` = 2·radius. null = the world has no pond (`estanque` false or no data). Pure. */
-export function estanqueHeredado(datos: { semilla?: unknown; tamano?: unknown; estanque?: unknown } | null | undefined): { x: number; z: number; y: number; ancho: number; largo: number } | null {
+export function estanqueHeredado(datos: { semilla?: unknown; tamano?: unknown; estanque?: unknown; base?: unknown } | null | undefined): { x: number; z: number; y: number; ancho: number; largo: number } | null {
   if (!datos || datos.estanque !== true || typeof datos.semilla !== "number" || typeof datos.tamano !== "number") return null;
   const e = estanqueDe(datos.semilla, datos.tamano), d = 2 * e.radio;
-  return { x: e.x, z: e.z, y: NIVEL_AGUA, ancho: d, largo: d };
+  // on the espacio base there is no basin: the water surface sits a hand above the base's relief at the pond's centre (D-086)
+  const y = typeof datos.base === "number" && datos.base >= 0 ? alturaBase(datos.base, e.x, e.z) + 0.2 : NIVEL_AGUA;
+  return { x: e.x, z: e.z, y, ancho: d, largo: d };
 }
 
 export const crearNaturaleza = (mundo: NaturalezaMundo | null = null, fauna?: TablaFauna, opts: OpcionesNaturaleza = {}) => serverPart(naturaleza, (api) => {
