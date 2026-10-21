@@ -1519,3 +1519,11 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `feat/ia-llamar` (S8–S11 y el puente de `feat/ia-puente`, con origin/main 9573c2ae), PR contra `main`.
 - Siguiente: S14 (numinia-web refresca `puente-mundo.mjs` para dar estas herramientas a las IAs conectadas); S16 completo en el puente; idiomas.
+
+## 2026-10-21 21:58 · status-semver (0.32.1) · hecho
+- Qué: `/status` dice la versión del motor en `semver` («0.32.1»), para que numinia.com sepa si un mundo entiende el bloque de la IA en el pase (desde 0.29.0); `version` y `commitHash` siguen como estaban. Se lee una sola vez al arrancar (del `build.json` del instalador, que ahora la lleva, o del `package.json` en un checkout), nunca por petición. Y la burbuja de una IA ya no tiñe de verde la vista cuando la cámara está dentro: el relleno se dibuja solo por su cara delantera, y las líneas del borde siguen.
+- Números: `test/flota.test.ts` (`/status` trae `semver` = la del `package.json`), `test/version.test.ts` (`semverMotor`, el sello de `build-deploy`), `test/burbuja-vista.test.ts` (el relleno es `FrontSide`). Captura desde dentro en `work/ia-organizacion/capturas/llamar/` (`*-v4.png`).
+- Idiomas: sin textos nuevos.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `feat/status-semver` (desde origin/main 1a771dfb).
+- Siguiente: numinia-web (#232) lee `semver` para decidir si da el bloque `ia` al pase.

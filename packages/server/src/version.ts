@@ -23,6 +23,25 @@ function sello(): { build?: string; commit?: string } {
   } catch { return {}; }
 }
 
+const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+let semverCache: string | null | undefined;
+/**
+ * The engine's semantic version (major.minor.patch, STD-019): what numinia.com reads from `/status` `semver` to know which pieces
+ * a world understands (e.g. the AI pass block, ≥ 0.29.0). First found wins: app/build.json `semver` (written by tools/build-deploy.mjs
+ * from the root package.json, so the installer, the image and arrancar.sh say the same) → the root package.json of a checkout.
+ * `null` when neither says one. Read once per process, never per request.
+ */
+export function semverMotor(): string | null {
+  if (semverCache !== undefined) return semverCache;
+  let v: unknown;
+  try { v = (JSON.parse(readFileSync(`${raizApp}build.json`, "utf8")) as { semver?: unknown }).semver; } catch { /* no stamp */ }
+  if (typeof v !== "string" || !SEMVER.test(v)) {
+    try { v = (JSON.parse(readFileSync(`${raizApp}package.json`, "utf8")) as { version?: unknown }).version; } catch { /* no package.json */ }
+  }
+  semverCache = typeof v === "string" && SEMVER.test(v) ? v : null;
+  return semverCache;
+}
+
 let cache: Motor | null = null;
 /** The engine's build string, commit and image (computed once per process). */
 export function infoMotor(): Motor {

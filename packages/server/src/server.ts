@@ -28,7 +28,7 @@ import { Activos, BIBLIOTECA } from "./activos.ts";
 import { Subidas } from "./subidas.ts";
 import { CopiaMundo } from "./mundo-zip.ts";
 import { Pagina } from "./pagina.ts";
-import { infoMotor } from "./version.ts";
+import { infoMotor, semverMotor } from "./version.ts";
 import type { Motor } from "./version.ts";
 import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
 import { leerFicha, leerTema, lectorAventura } from "./aventura.ts";
@@ -134,6 +134,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const maxPlayers = o.maxPlayers ?? 1000;
   const motor: Motor = o.motor ?? (o.version ? { ...infoMotor(), build: o.version } : infoMotor());
   const version = o.version ?? motor.build;
+  const semver = semverMotor();   // once: /status says which engine version this is (numinia.com reads it to know what a world understands)
   const born = performance.now();
   // ADR-074: what the world is called, from its own folder (aventura/ficha.json); none = the engine's defaults
   const { ficha, problemas: fichaMal } = leerFicha(o.aventura ?? null);
@@ -308,7 +309,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "access-control-allow-origin": "*" });
       return void res.end(JSON.stringify({
         uptime: Math.floor((performance.now() - born) / 1000), conectados: personas, agentes: agentesConectados.length,
-        total: inst.conns.length, agentesDe, commitHash: motor.commit ?? undefined, version, cerebro: cerebroEstado,
+        total: inst.conns.length, agentesDe, commitHash: motor.commit ?? undefined, version, ...(semver ? { semver } : {}), cerebro: cerebroEstado,
         ...(cfgPase.pase ? { mundoPase: cfgPase.pase.mundo, pases: roles.pases() } : {}), ...fichaPublica,
         // H4: the loading screen draws the line mesh only for a world whose espacio base is on (its state is public anyway)
         ...(espacioBaseActivo() ? { espacioBase: true } : {}),
