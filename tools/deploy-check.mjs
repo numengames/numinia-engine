@@ -119,9 +119,11 @@ try {
   const t1 = performance.now();
   while (!gs.features.catalog && performance.now() - t1 < 3000) { gs.tick(0, 0); await sleep(50); }
   gs.features.send("chat", "decirZona", { texto: 'Lía, pon un bloque [accion: colocar {"modelo":"bloque","x":1,"z":1,"nombre":"prueba"}]' });
-  while ((gs.features.stateOf("objetos").size === 0 || !dicho.some((d) => d.startsWith(`${nombre}: eco:`))) && performance.now() - t1 < 8000) { gs.tick(0, 0); await sleep(50); }
+  // A new world is born in the espacio base (#193) and already holds its own objects: look for Lía's block by name, not «the first one».
+  const suyo = () => [...gs.features.stateOf("objetos").values()].find((o) => o?.nombre === "prueba");
+  while ((!suyo() || !dicho.some((d) => d.startsWith(`${nombre}: eco:`))) && performance.now() - t1 < 8000) { gs.tick(0, 0); await sleep(50); }
   tg.close();
-  const puesto = [...gs.features.stateOf("objetos").values()][0];
+  const puesto = suyo();
   if (puesto?.nombre !== "prueba" || !dicho.some((d) => d.startsWith(`${nombre}: eco:`))) fail(`Lía no construyó con el cerebro de eco: objetos ${gs.features.stateOf("objetos").size}, chat ${JSON.stringify(dicho)}\n${habLog}`);
   const fp = log.match(/huella de referencia ([0-9a-f]+)/)?.[1];
   console.log(`[deploy-check] OK · node ${version} · ${sello.build} (${sello.commit.slice(0, 12)}…) · página ${refs.length} ficheros enlazados, servida por el motor · ${s.stats.snapshots} snapshots en ${Math.round(performance.now() - t0)} ms · huella ${fp} · /health, /status, /metrics, /a/, subidas y /mundo (zip mundo@2 con aventura, compose.yml y arrancar.sh; comprobar OK) · mundo nuevo con su aventura (Alma, Bruno, Teo) · habitante «${nombre}» dentro, piensa (eco) y construye (RSS ${m.memoriaMB.rss} MB)`);

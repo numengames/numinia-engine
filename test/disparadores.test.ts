@@ -531,3 +531,66 @@ test("cable sin JSON C: editarDisparador is rate-limited like its siblings, and 
   assert.deepEqual(r.map((x) => x.que), ["ok", "no"]);
   assert.match(r[1]!.motivo, /No hay ningún cable/);
 });
+
+// ---- Lienzo (onboarding): a world folder with NO disparadores.json ----
+test("lienzo: a world folder without disparadores.json gets a writer anyway: the first cable created live creates the file, a restart reloads it, and a hand-written file that appeared meanwhile is never overwritten", async () => {
+  const { mkdtempSync, existsSync, readFileSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { leerMundo, escribirMundo } = await import("../packages/server/src/mundo.ts");
+  const dir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "mundo-lienzo-cable-"));
+  const log: string[] = [];
+  const partes = conMundo(funciones, leerMundo(dir, (l) => log.push(l)), (l) => log.push(l), escribirMundo(dir, (l) => log.push(l)));
+  const parte = partes.find((p) => p.feature.id === "disparadores")!;
+  assert.notEqual(parte, funciones.find((p) => p.feature.id === "disparadores"), "the folder's part, not the house's");
+  const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [chatServer, crearObjetos(), parte], log: (l) => log.push(l), identitySign: sign, puede: (_w, accion) => accion === "construir" });
+  const t = inst.join(0), d = clienteDisparadores();
+  const s = new ClientSession(t, { identity: keeper(), features: [...d.parts], view: { label() {}, bounce() {}, place() {}, here: () => ({ x: 0, y: 0, z: 0 }) } });
+  const pump = (n = 2) => { for (let i = 0; i < n; i++) { t.flush(); inst.tick(); t.flush(); } };
+  pump(3);
+  assert.equal(existsSync(join(dir, "disparadores.json")), false, "nothing written while the world is blank");
+  assert.ok(d.disparadores.crearDisparador(NUEVO).ok); pump(3);
+  assert.equal(eventos(s, "disparadores", "creado").length, 1, log.join("\n"));
+  const fichero = join(dir, "disparadores.json");
+  assert.ok(existsSync(fichero), "the first live cable creates disparadores.json");
+  const releido = leerDisparadores(JSON.parse(readFileSync(fichero, "utf8")));
+  assert.deepEqual(releido.problemas, []);
+  assert.deepEqual(releido.disparadores.map((x) => x.id), ["luz-1"]);
+  // a second change renames over it (no `nuevo` link clash)
+  assert.ok(d.disparadores.crearDisparador({ ...NUEVO, id: "luz-2", x: 7 }).ok); pump(3);
+  assert.deepEqual(leerDisparadores(JSON.parse(readFileSync(fichero, "utf8"))).disparadores.map((x) => x.id), ["luz-1", "luz-2"]);
+  // a restart of the same folder reads the cables back
+  const otra = conMundo(funciones, leerMundo(dir, () => {}), () => {}, escribirMundo(dir, () => {}));
+  const inst2 = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [chatServer, crearObjetos(), otra.find((p) => p.feature.id === "disparadores")!], identitySign: sign });
+  const t2 = inst2.join(0), d2 = clienteDisparadores();
+  new ClientSession(t2, { identity: keeper(), features: [...d2.parts], view: { label() {}, bounce() {}, place() {}, here: () => ({ x: 0, y: 0, z: 0 }) } });
+  for (let i = 0; i < 3; i++) { t2.flush(); inst2.tick(); t2.flush(); }
+  assert.deepEqual(d2.disparadores.lista().map((x) => x.id).sort(), ["luz-1", "luz-2"]);
+  // a blank folder whose file is written BY HAND between boot and the first live cable: the live write refuses (link fails), the hand-written file stays, the log says so
+  const dir2 = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "mundo-lienzo-cable2-"));
+  const log2: string[] = [];
+  const parte2 = conMundo(funciones, leerMundo(dir2, () => {}), () => {}, escribirMundo(dir2, (l) => log2.push(l))).find((p) => p.feature.id === "disparadores")!;
+  const inst3 = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [chatServer, crearObjetos(), parte2], log: (l) => log2.push(l), identitySign: sign, puede: (_w, accion) => accion === "construir" });
+  const t3 = inst3.join(0), d3 = clienteDisparadores();
+  new ClientSession(t3, { identity: keeper(), features: [...d3.parts], view: { label() {}, bounce() {}, place() {}, here: () => ({ x: 0, y: 0, z: 0 }) } });
+  for (let i = 0; i < 3; i++) { t3.flush(); inst3.tick(); t3.flush(); }
+  writeFileSync(join(dir2, "disparadores.json"), JSON.stringify({ disparadores: [BOTON] }));
+  assert.ok(d3.disparadores.crearDisparador(NUEVO).ok);
+  for (let i = 0; i < 3; i++) { t3.flush(); inst3.tick(); t3.flush(); }
+  assert.deepEqual(leerDisparadores(JSON.parse(readFileSync(join(dir2, "disparadores.json"), "utf8"))).disparadores.map((x) => x.id), ["rojo"], "the hand-written file is kept");
+  assert.match(log2.join("\n"), /no pude escribir disparadores\.json/);
+});
+
+test("lienzo: the folder's empty cable part has the same simulation fingerprint as the house part (nothing in the tick)", async () => {
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { leerMundo, escribirMundo } = await import("../packages/server/src/mundo.ts");
+  const dir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "mundo-lienzo-huella-"));
+  const parte = conMundo(funciones, leerMundo(dir, () => {}), () => {}, escribirMundo(dir, () => {})).find((p) => p.feature.id === "disparadores")!;
+  const con = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [chatServer, parte], identitySign: sign });
+  const sin = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [chatServer], identitySign: sign });
+  const tc = con.join(0), ts = sin.join(0);
+  for (let i = 0; i < 6; i++) { tc.flush(); ts.flush(); con.tick(); sin.tick(); tc.flush(); ts.flush(); }
+  assert.equal(con.hash(), sin.hash());
+});

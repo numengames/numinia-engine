@@ -1162,3 +1162,5 @@ export class ClientRuntime {
 
 /** Escape text for an HTML reply (features that answer a QR with a small page). */
 export const escapeHtml = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+export type { PuenteNormas, EnlaceFunciones, ParteConEnlace } from "./enlace-funciones.ts"; // funciones/f1
+export { conEnlace } from "./enlace-funciones.ts";

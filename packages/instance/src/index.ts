@@ -137,6 +137,7 @@ type Conn = {
   anfitrion?: string; // ADR-080: the host this connection asked for (an outside agent signs the world's name)
   leyendo?: true; // condiciones/c5: the others have been told this person is reading the norms (set once identified and still behind the gate; cleared on accepting or leaving)
   admitido?: true; // condiciones/c2: the gate let this connection through (it accepted, or it is an AI); a connection never goes back
+  dentro?: true;   // funciones/f1: it was already inside when the world's gate was switched on: let through without accepting; the gate's answers about it say «open"
   acepta?: { desde: number; n: number }; // condiciones/c2: ACEPTAR messages this second (rate cap)
 };
 
@@ -313,7 +314,7 @@ export class Instance {
         if (!sinVoz) this.relayVoice(conn, bytes);
       } else if (bytes[0] === MSG.CONDICIONES && this.opts.condiciones) { // condiciones/c2: «send me the conditions» (one byte), asked at any time
         if (bytes.length !== 1) conn.bad++;
-        else t.send(encodeCondiciones(this.opts.condiciones.estado(conn.who ?? null, true)), true);
+        else t.send(encodeCondiciones(this.estadoDe(conn, true)), true);
       } else if (bytes[0] === MSG.ACEPTAR && this.opts.condiciones) { // condiciones/c2: what this person accepts; needs to be identified (it is kept by who)
         const a = decodeAceptar(bytes), now = this.sim.tick, w = (conn.acepta ??= { desde: now, n: 0 });
         if (now - w.desde >= 20) { w.desde = now; w.n = 0; } // 20 ticks = 1 s: a store write each, so a cap
@@ -381,6 +382,23 @@ export class Instance {
     const p = this.opts.condiciones;
     if (!p?.activa) return;
     for (const c of this.conns) if (c.who && this.cerrada(c)) c.transport.send(encodeCondiciones(p.estado(c.who, true)), true);
+  }
+  /** funciones/f1: the gate's answer about this connection; one let in by the switch (`dentro`) is told «open» whatever it has accepted. */
+  private estadoDe(conn: Conn, conCapas: boolean) {
+    const e = this.opts.condiciones!.estado(conn.who ?? null, conCapas);
+    return conn.dentro && !e.abierta ? { ...e, abierta: true } : e;
+  }
+  /** funciones/f1: the world's gate was just switched (the server already changed `condiciones.activa`). Off: whoever was reading the norms
+   * is let in (their bubble goes for everybody) and each identified page is told the gate is open. On: everybody connected and identified
+   * stays in without accepting (nobody already inside is put out; only who arrives afterwards is asked) and is told nothing. */
+  puertaCambiada(activa: boolean): void {
+    const p = this.opts.condiciones;
+    if (!p) return;
+    if (activa) { for (const c of this.conns) if (c.who && !c.admitido) { c.admitido = true; c.dentro = true; } return; }
+    for (const c of this.conns) {
+      if (c.leyendo) this.avisarLeyendo(c, false);
+      if (c.who) c.transport.send(encodeCondiciones(p.estado(c.who, false)), true);
+    }
   }
   /** condiciones/c2: is this entity held behind the gate? (see `cerrada`; uploads ask it too.) Not connected = false. */
   puertaCerrada(entity: number): boolean { const c = this.byEntity[entity]; return !!c && this.cerrada(c); }

@@ -18,6 +18,7 @@ import { leerAparicion, leerAparicionFoto, leerSuelo } from "./entorno/esquema.t
 import { crearSuelo } from "./suelo/server.ts"; // D-045
 import { crearNaturaleza } from "./naturaleza/server.ts"; // N4
 import { leerNaturaleza } from "./naturaleza/esquema.ts";
+import { crearFunciones } from "./funciones/server.ts"; // f1: the feature switches (funciones.json)
 import { crearEspacioBase } from "./espaciobase/server.ts"; // H2
 import { leerEspacioBase, DEFECTOS as DEFECTOS_BASE } from "./espaciobase/esquema.ts";
 import { crearObjetos } from "./objetos/server.ts"; // H5: the Logo Khepri, planted once
@@ -45,6 +46,8 @@ import type { OpcionesDecir } from "./disparadores/server.ts";
 import { sonidosParaCable } from "./sonido/server.ts";
 import { crearMovedores } from "./movedores/server.ts";
 import { leerMovedores } from "./movedores/feature.ts";
+import { crearAncestros } from "./ancestros/server.ts";
+import type { Holograma, Muro } from "./ancestros/server.ts";
 
 export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) => unknown, log: (l: string) => void = () => {}, escribir?: (fichero: string, datos: unknown, o?: { nuevo?: boolean }) => void, extras: { decir?: Omit<OpcionesDecir, "sonidos"> } = {}): ServerPart[] {
   // pesca.json (numinia-engine/pesca@1: { sitios: [{ id, nombre, x, y, z, radio, rumbo? }] }): the world's fishing spots; none = the house default
@@ -107,6 +110,12 @@ export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) 
   const decirDelMundo: OpcionesDecir = { pensar: null, ...extras.decir, sonidos: sonidosParaCable() };
   const leidoDisp = crudoDisp === undefined ? null : leerDisparadores(crudoDisp);
   for (const pr of leidoDisp?.problemas ?? []) log(`[mundo] disparadores.json: ${pr}`);
+  // Lienzo (onboarding): a world folder WITHOUT disparadores.json still gets a writer, so the first cable someone creates live
+  // («+ Nuevo cable», crearDisparador) is written to the folder and survives a restart. The first write creates the file (`nuevo`:
+  // it never overwrites a hand-written one that appeared or was broken); later writes rename over it. Without a file the part
+  // starts empty, exactly like the house part: the simulation footprint does not change (test/disparadores.test.ts).
+  let dispEscrito = crudoDisp !== undefined;
+  const escribirDisp = escribir ? (ds: Parameters<typeof serializarDisparadores>[0]) => { escribir("disparadores.json", serializarDisparadores(ds), { nuevo: !dispEscrito }); dispEscrito = true; } : undefined;
 
   // movedores.json (numinia-engine/movedores@1, D-043: { movedores: [{ id, nombre, modelo, tipo: vaiven|interruptor,
   // ax,ay,az,bx,by,bz, arx?,ary?,arz?,brx?,bry?,brz?, sx?,sy?,sz?, duracion, espera?, radio?, evento?, empiezaEn? }] }):
@@ -122,7 +131,16 @@ export function conMundo(partes: readonly ServerPart[], leer: (fichero: string) 
   // entorno.json `pvp` / `zonasPvp` (L8): may people strike people, in the world and in each zone; absent = nobody does. Each wrong line is said.
   const lp = leerPvp(crudoEntorno), pvpMundo = lp.ok ? lp.value : lp.parcial ?? null;
   if (!lp.ok) for (const i of lp.issues) log(`[mundo] ${i.path}: ${i.message} (esa parte no se usa)`);
-  return partes.map((p) => (p.feature.id === "espacio-base" && (baseMundo || escribir) ? crearEspacioBase(baseMundo, { leer, escribir }) : p.feature.id === "objetos" && (baseMundo?.activa || escribir) ? crearObjetos(undefined, baseMundo?.activa ? sembradoBase(baseMundo) : [], escribir ? sembradoBase(DEFECTOS_BASE) : []) : p.feature.id === "entorno" && baseMundo?.activa && crudoEntorno === undefined ? crearEntorno({ hora: { valor: 0, mueveElSol: true } }) : p.feature.id === "lucha" && (Array.isArray(criaturas) || pvpMundo) ? crearLucha({ criaturas: Array.isArray(criaturas) ? criaturas as Criatura[] : undefined, pvp: pvpMundo ?? undefined }) : p.feature.id === "disparadores" && (leidoDisp || extras.decir?.pensar) ? crearDisparadores({ disparadores: leidoDisp?.disparadores, escribir: leidoDisp && escribir ? (ds) => escribir("disparadores.json", serializarDisparadores(ds)) : undefined, decir: decirDelMundo }) : p.feature.id === "contadores" && leidoContadores ? crearContadores({ contadores: leidoContadores.valor }) : p.feature.id === "movedores" && leidoMov ? crearMovedores({ movedores: leidoMov.valor }) : p.feature.id === "suelo" && sueloMundo ? crearSuelo(sueloMundo) : p.feature.id === "naturaleza" && (natMundo || escribir) ? crearNaturaleza(natMundo, tablaFauna, { leer, escribir }) : p.feature.id === "puertas" && Array.isArray(inter.puertas) ? crearPuertas({ puertas: inter.puertas as Puerta[] }) : p.feature.id === "botones" && Array.isArray(inter.botones) ? crearBotones({ botones: inter.botones as Boton[] }) : p.feature.id === "cogibles" && Array.isArray(inter.cosas) ? crearCogibles({ cosas: inter.cosas as CosaCogible[] }) : p.feature.id === "web" && leidoWeb ? crearWeb(leidoWeb.valor) : p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p));
+  // funciones.json (numinia-engine/funciones@1, f1: { normas?, dardos?, pesca? }): the world's feature switches; with a folder to write in the piece also lets whoever builds flip them; none and no folder = the house part
+  const crudoFunciones = leer("funciones.json");
+  // ancestros.json (numinia-engine/ancestros@1: { hologramas: [{ id, nombre, x, z, y?, rumbo?, radio? }], muros: [{ id, x0, z0, x1, z1, y0?, y1? }] }):
+  // the world's own Salón de los Ancestros; none = the house hall at (0, −48) with Asimov. Empty lists = no hall at all (a blank world: the lienzo).
+  // A list that is missing keeps that half of the house's; each wrong line is left out by the feature with its reason.
+  const crudoAnc = leer("ancestros.json") as { hologramas?: unknown; muros?: unknown } | null | undefined;
+  const anc = { hologramas: crudoAnc?.hologramas, muros: crudoAnc?.muros };
+  if (crudoAnc !== undefined && !Array.isArray(anc.hologramas) && !Array.isArray(anc.muros)) log(`[mundo] ancestros.json no tiene ninguna lista "hologramas" o "muros" (uso el salón de la casa): ${JSON.stringify(crudoAnc).slice(0, 160)}`);
+  const ancMundo = Array.isArray(anc.hologramas) || Array.isArray(anc.muros);
+  return partes.map((p) => (p.feature.id === "funciones" && (escribir || crudoFunciones !== undefined) ? crearFunciones({ leer, escribir }) : p.feature.id === "espacio-base" && (baseMundo || escribir) ? crearEspacioBase(baseMundo, { leer, escribir }) : p.feature.id === "objetos" && (baseMundo?.activa || escribir) ? crearObjetos(undefined, baseMundo?.activa ? sembradoBase(baseMundo) : [], escribir ? sembradoBase(DEFECTOS_BASE) : []) : p.feature.id === "entorno" && baseMundo?.activa && crudoEntorno === undefined ? crearEntorno({ hora: { valor: 0, mueveElSol: true } }) : p.feature.id === "lucha" && (Array.isArray(criaturas) || pvpMundo) ? crearLucha({ criaturas: Array.isArray(criaturas) ? criaturas as Criatura[] : undefined, pvp: pvpMundo ?? undefined }) : p.feature.id === "disparadores" && (leidoDisp || escribirDisp || extras.decir?.pensar) ? crearDisparadores({ disparadores: leidoDisp?.disparadores, escribir: escribirDisp, decir: decirDelMundo }) : p.feature.id === "contadores" && leidoContadores ? crearContadores({ contadores: leidoContadores.valor }) : p.feature.id === "movedores" && leidoMov ? crearMovedores({ movedores: leidoMov.valor }) : p.feature.id === "suelo" && sueloMundo ? crearSuelo(sueloMundo) : p.feature.id === "naturaleza" && (natMundo || escribir) ? crearNaturaleza(natMundo, tablaFauna, { leer, escribir }) : p.feature.id === "puertas" && Array.isArray(inter.puertas) ? crearPuertas({ puertas: inter.puertas as Puerta[] }) : p.feature.id === "botones" && Array.isArray(inter.botones) ? crearBotones({ botones: inter.botones as Boton[] }) : p.feature.id === "cogibles" && Array.isArray(inter.cosas) ? crearCogibles({ cosas: inter.cosas as CosaCogible[] }) : p.feature.id === "web" && leidoWeb ? crearWeb(leidoWeb.valor) : p.feature.id === "dados" && Array.isArray(torresDados) ? crearDados({ torres: torresDados as TorreDados[] }) : p.feature.id === "teletransporte" ? (fotoSi ? crearTeletransporte({ foto: true }) : p) : p.feature.id === "entorno" ? crearEntorno(leer("entorno.json")) : p.feature.id === "elementos" ? crearElementos(leer("elementos.json")) : p.feature.id === "pesca" && Array.isArray(sitiosPesca) ? crearPesca({ sitios: sitiosPesca as SitioPesca[] }) : p.feature.id === "dardos" && Array.isArray(sitiosDardos) ? crearDardos({ sitios: sitiosDardos as SitioDardos[] }) : p.feature.id === "ancestros" && ancMundo ? crearAncestros({ hologramas: Array.isArray(anc.hologramas) ? anc.hologramas as Holograma[] : undefined, muros: Array.isArray(anc.muros) ? anc.muros as Muro[] : undefined }) : p));
 }
 
 /** D-045: the world's void (entorno.json `sueloMinimo` + `vuelta`), or null: no file, no key, or a wrong one (logged). */

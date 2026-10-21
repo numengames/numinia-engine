@@ -31,5 +31,6 @@ import lucha from "./lucha/client.ts"; // L1: creatures drawn as the house block
 import ancestros from "./ancestros/client.ts"; // v1: the Salón de los Ancestros (3D: packages/render/src/ancestros.ts; panel: apps/plaza/ancestros.ts)
 import inventario from "./inventario/client.ts"; // Y1: the Reserva (panel in apps/plaza/inventario.ts)
 import sonido from "./sonido/client.ts"; // S6: the sounds of the house — the server says what sounds and with what seed; the page only mixes (view.sonido)
-const funciones: ClientPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, naturaleza, espacioBase, contadores, disparadores, cerradura, movedores, inventario, ancestros, sonido];
+import interruptores from "./funciones/client.ts"; // f1: the world's feature switches (`__numinia.funciones`; the panel is f3/v3)
+const funciones: ClientPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, director, teletransporte, web, puertas, botones, cogibles, suelo, naturaleza, espacioBase, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, sonido];
 export default funciones;
