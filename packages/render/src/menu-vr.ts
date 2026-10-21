@@ -11,18 +11,23 @@
 // buttons: microphone (top), camera (right), notices (bottom), back to the city (left; only when the world has a city —
 // otherwise its place is not drawn and cannot be pressed). Canvas 512 × 512 px.
 
+import { iconoDe, idsPanelVR, nombreDe, seccionDeReloj } from "./menu-secciones.ts";
+
 // ── the panel ──────────────────────────────────────────────────────────────────────────────────────────────────────
 export const MENU = { distM: 1.2, bajoGrados: 12, anchoM: 1.0, altoM: 0.556, cierraM: 2 } as const;
 export const LIENZO = { w: 1440, h: 800 } as const;
 export const PX_POR_M = LIENZO.w / MENU.anchoM;
 
-export const SECCIONES = ["tu", "gente", "bolsa", "misiones", "mapa", "construir", "ajustes"] as const;
-export type Seccion = (typeof SECCIONES)[number];
+// the list, names and icons are the world's ONE list of sections (menu-secciones.ts): the same the computer's bar and the
+// phone's menu read (test/menu-paridad.test.ts keeps them together)
+export type Seccion = "tu" | "gente" | "bolsa" | "misiones" | "mapa" | "construir" | "ajustes";
+export const SECCIONES = idsPanelVR() as readonly Seccion[];
 /** What the panel can show: a section of the list, or the notices (opened from the watch; not in the list). */
 export type Vista = Seccion | "avisos";
-export const ETIQUETAS: Record<Vista, string> = { tu: "Tú", gente: "Gente", bolsa: "Bolsa", misiones: "Misiones", mapa: "Mapa", construir: "Construir", ajustes: "Ajustes", avisos: "Avisos" };
+const VISTAS: readonly Vista[] = [...SECCIONES, "avisos"];
+export const ETIQUETAS = Object.fromEntries(VISTAS.map((v) => [v, nombreDe(v)])) as Record<Vista, string>;
 /** Phosphor icons (apps/plaza/iconos.ts names), the same as the computer's sections. */
-export const ICONOS: Record<Vista, string> = { tu: "user", gente: "users", bolsa: "package", misiones: "scroll", mapa: "map-trifold", construir: "crane-tower", ajustes: "gear", avisos: "bell" };
+export const ICONOS = Object.fromEntries(VISTAS.map((v) => [v, iconoDe(v)])) as Record<Vista, string>;
 
 /** A rectangle in canvas px (x right, y down). */
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -119,7 +124,7 @@ export function paginar<T>(filas: readonly T[], porPagina: number, p: number): {
 export const RELOJ = { diametroM: 0.12, lienzo: 512 } as const;
 export const BOTONES_RELOJ = ["menu", "micro", "camara", "avisos", "ciudad"] as const;
 export type BotonReloj = (typeof BOTONES_RELOJ)[number];
-export const NOMBRES_RELOJ: Record<BotonReloj, string> = { menu: "Menú", micro: "Micrófono", camara: "Foto", avisos: "Avisos", ciudad: "Volver a la ciudad" };
+export const NOMBRES_RELOJ = Object.fromEntries(BOTONES_RELOJ.map((b) => [b, seccionDeReloj(b).es])) as Record<BotonReloj, string>;
 /** A round target on the disc, in canvas px (centre and radius). */
 export type Circulo = { id: BotonReloj; cx: number; cy: number; r: number };
 /** Disc radius, «Menú» radius (84 px = 3.9 cm across), the four buttons' radius (52 px = 2.4 cm across) and how far

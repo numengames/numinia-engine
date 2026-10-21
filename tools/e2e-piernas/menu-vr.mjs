@@ -5,6 +5,9 @@
 // section; B closes it; lowering the wrist hides the watch. Not a Quest: IWER only. Env: BASE, SERVER_HTTP
 // (tools/auto.sh e2e); CANVAS=<dir> also writes the watch's and the menu's canvases there (vr-reloj.png,
 // vr-menu-<section>.png) — IWER draws the scene poorly, so the pictures are the canvases themselves.
+// v2 paridad: the panel's seven rows are the computer's (one list: menu-secciones.ts); «Ir a su lado» from Gente puts you next to the
+// other person; «Construir» says «Entra con tu nombre para construir» to a guest without the role and, with it, turns the builder's
+// hands on (constructor-xr.ts).
 import { createRequire } from "node:module";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 
@@ -84,13 +87,32 @@ async function pierna() {
     paso("el reloj tiene Menú, micro, cámara y avisos", ["menu", "micro", "camara", "avisos"].every((b) => diag.botones.includes(b)), { botones: diag.botones });
     await a.waitForTimeout(400); await lienzo("reloj", "vr-reloj");
     // 2. the right ray on «Menú» + trigger: the menu opens in front of you, with seven sections
+    const abrirMenu = async () => { // the whole way: wrist towards you, ray on «Menú», trigger, wrist down again
+      await ctl(() => globalThis.__mirarMuneca());
+      await esperar(() => globalThis.__numinia.view.vr.reloj.visible, null, 4000); await a.waitForTimeout(300);
+      const en = await ctl(() => globalThis.__numinia.view.vr.reloj.botonMundo("menu"));
+      await ctl((w) => globalThis.__apuntar(w), en); await a.waitForTimeout(250);
+      await gatillo();
+      const ok = await esperar(() => globalThis.__numinia.view.vr.menu.abierto, null, 3000);
+      await ctl(() => globalThis.__bajarMuneca()); await a.waitForTimeout(100);
+      return ok;
+    };
+    const pulsarZona = async (id) => { // ray on a zone of the open panel + trigger
+      const en = await ctl((id) => globalThis.__numinia.view.vr.menu.zonaMundo(id), id);
+      if (!en) return false;
+      await ctl((w) => globalThis.__apuntar(w), en); await a.waitForTimeout(250);
+      await gatillo(); return true;
+    };
     const menuEn = await ctl(() => globalThis.__numinia.view.vr.reloj.botonMundo("menu"));
     await ctl((w) => globalThis.__apuntar(w), menuEn); await a.waitForTimeout(250);
     await gatillo();
     const abierto = await esperar(() => globalThis.__numinia.view.vr.menu.abierto, null, 3000);
     const e = await ctl(() => globalThis.__numinia.view.vr.menu.estado());
     paso("rayo + gatillo en «Menú» abre el panel", abierto, { reloj: await ctl(() => globalThis.__numinia.view.vr.reloj.diagnostico()), e });
+    // the names the computer's bar and the phone's «…» menu show, read from the live page (one list: menu-secciones.ts)
+    const delOrdenador = await ctl(() => ["hud-personaje-abrir", "gente-abrir", "inventario-abrir", "misiones", "minimapa-abrir", "construir", "ajustes-abrir"].map((id) => (document.getElementById(id)?.getAttribute("aria-label") || document.getElementById(id)?.textContent || "").replace(/\s*\(.\)\s*$/, "").replace(/\s*·.*$/, "").trim()));
     paso("el panel tiene las 7 secciones del ordenador", e.secciones.map((s) => s.nombre).join("·") === "Tú·Gente·Bolsa·Misiones·Mapa·Construir·Ajustes", { secciones: e.secciones });
+    paso("y se llaman igual que los botones de la página (PC)", e.secciones.every((s, i) => delOrdenador[i].startsWith(s.nombre)), { vr: e.secciones.map((s) => s.nombre), pc: delOrdenador });
     paso("el panel está a ~1,2 m y empieza en «Tú»", Math.abs(e.diagnostico.distanciaM - 1.2) < 0.25 && e.vista === "tu", { diag: e.diagnostico, vista: e.vista });
     await a.waitForTimeout(300); await lienzo("menu", "vr-menu-tu");
     // 3. the ray on «Gente» + trigger changes section
@@ -103,12 +125,54 @@ async function pierna() {
     const eg = await ctl(() => globalThis.__numinia.view.vr.menu.estado());
     paso("«Gente» lista a quien está aquí, con «Ir a su lado»", genteOk && eg.botones >= 1, { filas: eg.filas, botones: eg.botones, nombreB });
     await a.waitForTimeout(300); await lienzo("menu", "vr-menu-gente");
+    // 3a. an AI in «Gente» reads as on the computer: after the people, robot icon, «IA · Activa · distance», «Ir hacia ella», and the title counts it
+    //     (the page's AI card is stubbed for B: a real AI needs a signed world pass, see the e2e-agente-ia reference)
+    const entB0 = await b.evaluate(() => globalThis.__numinia.session.entity);
+    await ctl((q) => { const n = globalThis.__numinia; globalThis.__iaDe = n.ia.de; n.ia.de = (x) => (x === q ? { estado: "activa", responde: { comunidad: "La Torre", nombre: "Ana" }, puede: { construir: false }, atenta: false } : null); n.view.vr.menu.pintar(); }, entB0);
+    await a.waitForTimeout(300);
+    const gia = await ctl(() => globalThis.__numinia.menuVR.contenido("gente"));
+    paso("«Gente» pone a una IA con «IA · Activa», su icono y «Ir hacia ella», y la cuenta en el título", /IA$/.test(gia.titulo) && gia.filas.length >= 1 && gia.filas[0].icono === "robot" && /^IA · Activa/.test(gia.filas[0].detalle) && gia.filas[0].botones[0].texto === "Ir hacia ella" && !/ · IA$/.test(gia.filas[0].texto), { titulo: gia.titulo, fila: gia.filas[0] && { texto: gia.filas[0].texto, detalle: gia.filas[0].detalle, icono: gia.filas[0].icono, boton: gia.filas[0].botones[0].texto } });
+    await lienzo("menu", "vr-menu-gente-ia");
+    await ctl(() => { const n = globalThis.__numinia; n.ia.de = globalThis.__iaDe; n.view.vr.menu.pintar(); }); await a.waitForTimeout(200);
     if (CANVAS) for (const [i, s] of [[2, "bolsa"], [3, "misiones"], [4, "mapa"], [6, "ajustes"]]) {
       await ctl(([i]) => globalThis.__numinia.view.vr.menu.pulsar(10 + i), [i]); await a.waitForTimeout(300); await lienzo("menu", `vr-menu-${s}`);
     }
-    // 4. B closes it; the watch hides once the wrist is lowered
+    // 3b. «Ir a su lado» from Gente (ray + trigger on the row's button) puts you next to B and folds the menu
+    await ctl(() => globalThis.__numinia.view.vr.menu.pulsar(10 + 1)); await a.waitForTimeout(300); // back to «Gente» (the captures above moved on)
+    const entB = await b.evaluate(() => globalThis.__numinia.session.entity);
+    const lejos = await a.evaluate((q) => { const n = globalThis.__numinia, y = n.session.selfPosition(1), o = n.session.remotePositions().find((r) => r.id === q); return o ? Math.hypot(y.x - o.x, y.z - o.z) : null; }, entB);
+    paso("pulsar «Ir a su lado» con el rayo", await pulsarZona(100));
+    const junto = await esperar(([q]) => { const n = globalThis.__numinia, y = n.session.selfPosition(1), o = n.session.remotePositions().find((r) => r.id === q); return !!o && Math.hypot(y.x - o.x, y.z - o.z) <= 3.5; }, [entB], 10000);
+    const cerca = await a.evaluate((q) => { const n = globalThis.__numinia, y = n.session.selfPosition(1), o = n.session.remotePositions().find((r) => r.id === q); return o ? Math.hypot(y.x - o.x, y.z - o.z) : null; }, entB);
+    paso("«Ir a su lado» desde Gente te deja junto a la otra persona", junto, { antes: lejos, despues: cerca });
+    paso("y el menú se pliega", await esperar(() => !globalThis.__numinia.view.vr.menu.abierto, null, 3000));
+    // 4. «Construir»: a guest without the role is told to come in with their name; with the role it turns the builder's hands on
+    paso("se vuelve a abrir el menú", await abrirMenu());
+    paso("rayo + gatillo en «Construir» cambia de sección", (await pulsarZona(ID_SECCION(5))) && await esperar(() => globalThis.__numinia.view.vr.menu.vista === "construir", null, 3000));
+    paso("«Construir» no está apagado para quien puede", (await ctl(() => globalThis.__numinia.view.vr.menu.estado())).secciones[5].activa === true);
+    paso("sin construir aún", (await ctl(() => globalThis.__numinia.constructorVR.activo())) === false);
+    await a.waitForTimeout(300); await lienzo("menu", "vr-menu-construir");
+    const quien = await ctl(() => globalThis.__numinia.session.who);
+    const puedeAntes = await ctl(() => globalThis.__numinia.constructor.estado.puede);
+    await ctl(() => { globalThis.__puedeReal = globalThis.__numinia.constructor.estado.puede; globalThis.__numinia.constructor.estado.puede = false; });
+    const negado = await ctl(() => globalThis.__numinia.menuVR.contenido("construir"));
+    const invitado = /^Invitado [0-9A-Z]{4}$/.test(quien.nombre);
+    paso("sin permiso, un invitado lee «Entra con tu nombre para construir»", invitado ? negado.vacio === "Entra con tu nombre para construir" : /permiso/.test(negado.vacio), { vacio: negado.vacio, nombre: quien.nombre });
+    await ctl(() => globalThis.__numinia.view.vr.menu.pintar()); await a.waitForTimeout(200); await lienzo("menu", "vr-menu-construir-sin-permiso");
+    await ctl(() => { globalThis.__numinia.constructor.estado.puede = globalThis.__puedeReal; globalThis.__numinia.view.vr.menu.pintar(); });
+    paso("el permiso vuelve", (await ctl(() => globalThis.__numinia.constructor.estado.puede)) === puedeAntes);
+    // 5. B closes it; the watch hides once the wrist is lowered
     await boton("right", "b-button", 1); await a.waitForTimeout(120); await boton("right", "b-button", 0);
     paso("B cierra el menú", await esperar(() => !globalThis.__numinia.view.vr.menu.abierto, null, 3000));
+    // 5b. «Construir → Empezar» enters the builder's mode (and folds the menu); «Dejar de construir» leaves it
+    paso("se vuelve a abrir el menú otra vez", await abrirMenu());
+    paso("en «Construir»", (await pulsarZona(ID_SECCION(5))) && await esperar(() => globalThis.__numinia.view.vr.menu.vista === "construir", null, 3000));
+    paso("pulsar «Empezar» con el rayo", await pulsarZona(100));
+    paso("«Construir» entra en el modo construir de VR", await esperar(() => globalThis.__numinia.constructorVR.activo(), null, 3000), { activo: await ctl(() => globalThis.__numinia.constructorVR.activo()) });
+    paso("y el menú se pliega", await esperar(() => !globalThis.__numinia.view.vr.menu.abierto, null, 3000));
+    paso("se abre otra vez y ofrece «Dejar de construir»", (await abrirMenu()) && (await pulsarZona(ID_SECCION(5))) && (await ctl(() => globalThis.__numinia.menuVR.contenido("construir"))).filas[0].botones[0].texto === "Dejar de construir");
+    paso("«Dejar de construir» sale del modo", (await pulsarZona(100)) && await esperar(() => !globalThis.__numinia.constructorVR.activo(), null, 3000));
+    await boton("right", "b-button", 1); await a.waitForTimeout(120); await boton("right", "b-button", 0); await a.waitForTimeout(200);
     paso("bajar la muñeca esconde el reloj", await esperar(() => !globalThis.__numinia.view.vr.reloj.visible, null, 4000));
     await ctl(() => globalThis.__numinia.view.vr.exit());
     await esperar(() => !globalThis.__numinia.view.vr.active, null, 8000);

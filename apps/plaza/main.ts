@@ -83,6 +83,8 @@ import { montarCondicionesXR } from "./condiciones-xr.ts"; // condiciones/c4: th
 import { montarCondiciones } from "./condiciones.ts"; // condiciones/c3: the bubble of entry (only when the world's gate is on; the server decides)
 import { montarGraboso } from "./graboso.ts"; // M18b: the relic that records what you see (K)
 import { icono } from "./iconos.ts";
+import { rotularBoton } from "./menu-secciones-ui.ts"; // v2 paridad: the bar reads the one list of sections
+import { nombreDe, seccion, tituloDe } from "../../packages/render/src/menu-secciones.ts";
 import { gestosDePagina } from "../../features/gestos/client.ts";
 import { FAVORITOS_INICIALES } from "../../features/gestos/movimientos.ts";
 import { montarRueda } from "./rueda.ts";
@@ -659,7 +661,7 @@ const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById(
 // ---- rediseño v2 (story E): in VR, the wrist watch and the menu panel show what the computer's panels show ----
 {
   const n = (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia;
-  const menuVR = montarMenuVR({ vr: view.vr, n: () => n, ciudadUrl: ciudad.url, puedeConstruir: () => constructor.estado.puede,
+  const menuVR = montarMenuVR({ vr: view.vr, n: () => n, ciudadUrl: ciudad.url, puedeConstruir: () => constructor.estado.puede, construirVR: constructorVR,
     nombre: () => session.who?.nombre ?? "Invitado",
     // the same line «Tú» shows on the computer (avatar · world · how long), never the guest's raw id
     linea: () => lineaDeTu({ avatar: miAvatar()?.nombre, mundo: nombreDelMundo, ms: informe.bienvenidaMs > 0 ? performance.now() - informe.bienvenidaMs : 0 }),
@@ -675,25 +677,26 @@ const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById(
 {
   const barra = document.getElementById("barra-arriba")!;
   const gear = document.getElementById("ajustes-abrir")!;
-  gear.classList.add("solo-icono"); gear.innerHTML = `${icono("gear")}<span class="solo-lector">Ajustes</span>`; gear.title = "Ajustes";
+  // v2 paridad: icon, name and tooltip of every section come from the world's one list (menu-secciones.ts), the VR menu's too
+  gear.classList.add("solo-icono"); rotularBoton(gear, "ajustes"); gear.title = nombreDe("ajustes"); // its key (O) is the «Menú»'s
   const mis = document.getElementById("misiones")!;
-  mis.innerHTML = `${icono("scroll", 18)}<span>Misiones</span>`; mis.title = "Misiones (J)";
+  rotularBoton(mis, "misiones", { visible: true, px: 18 });
   const invB = document.getElementById("inventario-abrir")!;
-  invB.classList.add("solo-icono"); invB.innerHTML = `${icono("package")}<span class="solo-lector">Bolsa</span>`; invB.title = "Bolsa (R)";
+  invB.classList.add("solo-icono"); rotularBoton(invB, "bolsa");
   for (const id of ["construir", "microfono", "gente-abrir", "inventario-abrir", "vr", "ar"]) { const e = document.getElementById(id); if (e) barra.appendChild(e); }
   barra.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
   const separador = document.createElement("span"); separador.className = "separador"; separador.setAttribute("aria-hidden", "true");
   barra.appendChild(separador);
-  const botonBarra = (id: string, ic: string, nombre: string, tecla: string) => {
+  const botonBarra = (id: string, seccionId: string) => {
     const b = document.createElement("button"); b.type = "button"; b.id = id; b.className = "solo-icono";
-    b.title = `${nombre} (${tecla})`; b.setAttribute("aria-keyshortcuts", tecla);
-    b.innerHTML = `${icono(ic)}<span class="solo-lector">${nombre}</span>`; // constants only
+    const tecla = seccion(seccionId).tecla; if (tecla) b.setAttribute("aria-keyshortcuts", tecla);
+    rotularBoton(b, seccionId);
     barra.appendChild(b); return b;
   };
   const libre = () => !document.body.classList.contains("construyendo") && !document.querySelector("dialog[open]") && !foto.activo() && !dardos.tirando();
 
   // «Cámara» (P): photo, record (K still records on its own), share the screen (where the browser can)
-  const camaraB = botonBarra("camara-abrir", "camera", "Cámara", "P");
+  const camaraB = botonBarra("camara-abrir", "camara");
   const camara = montarMenuBarra({
     id: "camara-menu", barra, boton: camaraB, etiqueta: "Cámara", tecla: "KeyP", puedeTecla: libre,
     entradas: [document.getElementById("foto-abrir"), graboso.boton, document.getElementById("compartir-pantalla")].filter((b): b is HTMLButtonElement => b instanceof HTMLButtonElement),
@@ -702,7 +705,7 @@ const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById(
   const pintarCamara = () => {
     const e = estadoCamara({ grabando: graboso.boton.getAttribute("aria-pressed") === "true", compartiendo: compartir.estado.compartiendo });
     if ((camaraB.dataset.estado ?? null) !== e) { if (e) camaraB.dataset.estado = e; else delete camaraB.dataset.estado; }
-    const t = e === "grabando" ? "Cámara (P): grabando" : e === "compartiendo" ? "Cámara (P): compartiendo tu pantalla" : "Cámara (P)";
+    const t = e === "grabando" ? `${tituloDe("camara")}: grabando` : e === "compartiendo" ? `${tituloDe("camara")}: compartiendo tu pantalla` : tituloDe("camara");
     if (camaraB.title !== t) camaraB.title = t;
   };
   new MutationObserver(pintarCamara).observe(graboso.boton, { attributes: true, attributeFilter: ["aria-pressed"] });
@@ -710,7 +713,7 @@ const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById(
 
   // «Teclas y ayuda»: the keys of this page, from the help line (#help) every module already writes into
   const ayudaB = document.createElement("button"); ayudaB.type = "button"; ayudaB.id = "teclas-abrir";
-  ayudaB.innerHTML = `${icono("keyboard")}<span class="solo-lector">Teclas y ayuda</span>`; ayudaB.title = "Teclas y ayuda";
+  rotularBoton(ayudaB, "teclas");
   const teclas = crearDialogo({ id: "teclas", titulo: "Teclas y ayuda", tecla: "F1", boton: ayudaB, alAbrir: () => {
     const lista = document.createElement("dl"); lista.className = "teclas-lista";
     for (const p of filasDeAyuda(document.getElementById("help")?.textContent ?? "")) {
@@ -722,7 +725,7 @@ const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById(
   ayudaB.hidden = !!enMovil; // a phone names no key
 
   // «Menú» (O): settings, full screen, back to the city (only where the world names one), the keys
-  const menuB = botonBarra("menu-abrir", "list", "Menú", "O");
+  const menuB = botonBarra("menu-abrir", "menu");
   montarMenuBarra({
     id: "menu-lista", barra, boton: menuB, etiqueta: "Menú", tecla: "KeyO", puedeTecla: () => !document.querySelector("dialog[open]"),
     entradas: [gear, document.getElementById("pantalla"), document.getElementById("volver-ciudad"), ayudaB].filter((b): b is HTMLButtonElement => b instanceof HTMLButtonElement),

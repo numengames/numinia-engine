@@ -35,6 +35,7 @@ export type Contenido = ContenidoTu | ContenidoLista | ContenidoMapa;
 export type Proveedor = { contenido(v: Vista): Contenido; desactivadas(): ReadonlySet<Seccion>; alAbrir?(v: Vista): void };
 
 const TITULO_H = 64; // the title line over a list's rows
+const NOTA_FUENTE = `400 26px ${FUENTE}`, NOTA_LINEA = 32, NOTA_LINEAS = 2; // the footer note: its font, line height and most lines
 
 export function createMenuInvocado(h: { scene: THREE.Object3D; salir: () => void; iconos?: PathsIcono; ahora?: () => number; alCerrar?: () => void; alPulsar?: () => void }) {
   const ahora = h.ahora ?? (() => performance.now());
@@ -119,7 +120,13 @@ export function createMenuInvocado(h: { scene: THREE.Object3D; salir: () => void
       envolverPx(g, ct.vacio, ancho - 16).slice(0, 6).forEach((l, i) => g.fillText(l, x0, CONTENIDO.y + th + 8 + i * 44));
       return;
     }
-    const caben = filasCaben(th), conPag = ct.filas.length > caben;
+    // the footer note: the whole sentence in up to two lines (never cut with «…»); its room is taken from the rows, and when
+    // the rows need a pager instead the pager row takes its place at the bottom
+    g.font = NOTA_FUENTE;
+    const notaTodas = ct.nota ? envolverPx(g, ct.nota, ancho) : [];
+    const notaLineas = notaTodas.length > NOTA_LINEAS ? [...notaTodas.slice(0, NOTA_LINEAS - 1), notaTodas.slice(NOTA_LINEAS - 1).join(" ")] : notaTodas;
+    const notaAlto = notaLineas.length ? notaLineas.length * NOTA_LINEA + 8 : 0;
+    const caben = filasCaben(th + notaAlto), conPag = ct.filas.length > caben;
     const pp = conPag ? filasCaben(th, true) : caben;
     const pg = paginar(ct.filas, pp, paginas.get(vista) ?? 0);
     paginas.set(vista, pg.pagina);
@@ -155,9 +162,10 @@ export function createMenuInvocado(h: { scene: THREE.Object3D; salir: () => void
       boton(g, rs, "Siguiente", { estilo: pg.pagina < pg.paginas - 1 ? "normal" : "desactivado", encima: encima === idS, tam: 30 });
       botones.push({ rect: rs, accion: () => paginas.set(vista, pg.pagina + 1) });
     }
-    if (ct.nota && !conPag) {
-      g.font = `400 26px ${FUENTE}`; g.fillStyle = COLOR.suave; g.textAlign = "left"; g.textBaseline = "alphabetic";
-      g.fillText(recortar(g, ct.nota, ancho), x0, CONTENIDO.y + CONTENIDO.h - 8);
+    if (notaLineas.length && !conPag) {
+      g.font = NOTA_FUENTE; g.fillStyle = COLOR.suave; g.textAlign = "left"; g.textBaseline = "alphabetic";
+      const fondo = CONTENIDO.y + CONTENIDO.h - 8, primera = fondo - (notaLineas.length - 1) * NOTA_LINEA;
+      notaLineas.forEach((l, i) => g.fillText(i === NOTA_LINEAS - 1 ? recortar(g, l, ancho) : l, x0, primera + i * NOTA_LINEA));
     }
   }
 

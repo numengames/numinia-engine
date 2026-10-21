@@ -4,7 +4,9 @@
 // the ray's point (on the ground or on another thing) until the trigger lets go, which drops it (one undo step, like
 // every other drag: programarEnvio / terminarEnvio below send it, same cadence as constructor.ts). Squeeze on the
 // selection (not while holding) duplicates it, like Shift+D on the desktop. Everything goes through
-// features/objetos/client.ts: the server decides, as always (R-1). Tracked hands are not read here yet (M22b-4); a
+// features/objetos/client.ts: the server decides, as always (R-1).
+// v2 paridad: like the computer's «Construir» button, the hands only build once the mode is on — the VR menu's «Construir»
+// turns it on (`entrar`); «Dejar de construir» or leaving VR turns it off. Tracked hands are not read here yet (M22b-4); a
 // delete button needs a face/panel to press (J18's wrist menu, or a wrist panel row) — out of this slice, see
 // docs/BACKLOG.md M22b-3/M22b-4 and PROGRESO-M22b3.md.
 import type { Donde } from "../../packages/render/src/index.ts";
@@ -81,8 +83,9 @@ export function montarConstructorVR(c: Builder, view: Vista) {
   // C5: the object card as a panel in front of you — only for someone who may build, in VR (where picking with the ray IS the edit
   // mode: the HTML builder is not open in a headset) and with an object selected. The server still decides every action.
   let firmaFicha = "";
+  let modo = false; // v2 paridad: «Construir» pressed in the VR menu
   function fichaVR(): void {
-    const o = view.vr.active && c.estado.puede && c.estado.seleccionado ? c.objeto(c.estado.seleccionado) : null;
+    const o = modo && view.vr.active && c.estado.puede && c.estado.seleccionado ? c.objeto(c.estado.seleccionado) : null;
     const ver = !!o && fichaVisible(c.estado.puede, view.vr.active, o.id);
     const d: DatosFichaVR | null = ver ? { titulo: datosFicha(o!).titulo, anclado: o!.fijado === true } : null;
     const f = d ? `${o!.id}|${d.titulo}|${d.anclado}` : "";
@@ -96,8 +99,9 @@ export function montarConstructorVR(c: Builder, view: Vista) {
     if (res.ok) view.manos?.vibrar("der", 0.4, 30);
   });
   function cuadro(): void {
+    if (modo && (!view.vr.active || !c.estado.puede)) modo = false; // left VR, or lost the role: the mode ends with it
     fichaVR();
-    if (!view.vr.active || !c.estado.puede) {
+    if (!modo || !view.vr.active || !c.estado.puede) {
       for (const l of LADOS) { soltar(l); gatilloAntes[l] = agarreAntes[l] = false; gatilloDesde[l] = 0; }
       return;
     }
@@ -142,6 +146,16 @@ export function montarConstructorVR(c: Builder, view: Vista) {
   const reloj = setInterval(cuadro, 1000 / 60);
 
   return {
+    /** Whether the hands are building now (the VR menu's «Construir»). */
+    activo: (): boolean => modo,
+    /** Turns the builder's hands on (the VR menu's «Construir → Empezar»); refused outside VR or without the role. */
+    entrar(): Res {
+      if (!view.vr.active) return { ok: false, why: "El modo construir con el rayo solo funciona dentro de VR." };
+      if (!c.estado.puede) return { ok: false, why: "No tienes permiso para construir en este mundo." };
+      modo = true; return { ok: true };
+    },
+    /** Turns them off: lets go of what a hand holds and drops the selection (the computer's Escape). */
+    salir(): void { modo = false; for (const l of LADOS) { soltar(l); gatilloAntes[l] = agarreAntes[l] = false; gatilloDesde[l] = 0; } if (c.estado.seleccionado) c.seleccionar(""); fichaVR(); },
     /** For checks: the key a hand holds now, or null. */
     cogido: (lado: Lado) => cogido[lado]?.key ?? null,
     parar(): void { clearInterval(reloj); for (const l of LADOS) soltar(l); },
