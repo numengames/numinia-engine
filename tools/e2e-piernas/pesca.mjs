@@ -181,13 +181,13 @@ try {
   out.inventario = await ctl(a, () => globalThis.__numinia.inventario.lista().map((o) => ({ tipo: o.tipo, nombre: o.nombre, icono: o.icono, color: o.color, n: o.n, portado: o.portado })));
   out.inventarioB = await ctl(b, () => globalThis.__numinia.inventario.lista().length);
   await ctl(a, () => globalThis.__numinia.inventario.abrir());
-  await esperar(a, () => document.querySelectorAll("#inventario li.objeto").length > 0, null, 4000).catch(() => {});
-  out.panelInventario = await ctl(a, () => [...document.querySelectorAll("#inventario li.objeto")].map((li) => ({ texto: li.textContent, icono: !!li.querySelector(".icono-objeto svg"), boton: !!li.querySelector("button") })));
-  out.tituloInventario = await ctl(a, () => [...document.querySelectorAll("#inventario h3")].map((h) => h.textContent));
+  await esperar(a, () => document.querySelectorAll("#inventario .rejilla button.hueco:not(.vacio)").length > 0, null, 4000).catch(() => {});
+  out.panelInventario = await ctl(a, () => [...document.querySelectorAll("#inventario .rejilla button.hueco:not(.vacio)")].map((b) => ({ texto: b.getAttribute("aria-label"), icono: !!b.querySelector(".ic svg"), boton: false }))); // La Bolsa galáctica: one icon slot per stack, «Carpa × 3, pez · común»
+  out.tituloInventario = await ctl(a, () => [...document.querySelectorAll("#inventario h2, #inventario h3")].map((h) => h.textContent));
   await fotoSiempre(a, "inventario-panel");
   const fila = out.panelInventario.find((x) => x.texto.includes(capturadoA ?? "?"));
   const inventarioOk = out.inventario.some((o) => o.tipo === "captura" && o.nombre === capturadoA && o.icono === "fish" && o.n >= 1 && !o.portado) && out.inventarioB === 0
-    && !!fila && fila.icono && !fila.boton && /× \d+pez · (común|rara|legendaria)/.test(fila.texto) && out.tituloInventario.includes("Pescado")
+    && !!fila && fila.icono && !fila.boton && /pez · (común|rara|legendaria)/.test(fila.texto) && out.tituloInventario.some((t) => /Bolsa galáctica/.test(t))
     && out.guardado.enMano && out.guardado.oculto && out.guardado.pulso && out.guardado.chip && out.guardado.hudGuardados === "1";
   out.v3 = { inventarioOk, nota: out.panel.nota };
   const peces = ["Carpa", "Trucha", "Lucio"];
