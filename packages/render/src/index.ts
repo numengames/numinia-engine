@@ -229,7 +229,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       renderer,
       *objetos() { if (ar.state !== "off") return; for (const [k, s] of things) yield [k, s.group] as [string, THREE.Object3D]; },
       *etiquetas() { if (ar.state !== "off") return; for (const [k, r] of tags) yield [k, r.s] as [string, THREE.Object3D]; },
-      paneles: () => [...vr.paneles(), ...web.paneles()], // N17: a web screen's «Abrir fuera de VR»
+      paneles: () => [...vr.paneles(), ...web.paneles(), ...(dardosVRReal?.paneles() ?? [])], // N17: a web screen's «Abrir fuera de VR»; v6: the darts' scoreboard button
     });
     m.reglas(reglasManos);
     for (const [n, f] of ocupantesManos) m.ocupar(n, f);
@@ -349,7 +349,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // dardos in VR (packages/render/src/dardos-vr.ts): the dart in your hand, flying and falling; lazy, fetched by the page only on a VR-capable device
   let dardosVRReal: import("./dardos-vr.ts").DardosVR | null = null, dardosVRCarga: Promise<import("./dardos-vr.ts").DardosVR> | null = null;
   const dardosVR = {
-    cargar: () => (dardosVRCarga ??= import("./dardos-vr.ts").then((m) => (dardosVRReal = m.crearDardosVR({ world, ancla: (l) => manos.ancla(l), suelo: () => selfXZ?.y ?? 0, una: dardos.una })))),
+    cargar: () => (dardosVRCarga ??= import("./dardos-vr.ts").then((m) => (dardosVRReal = m.crearDardosVR({ world, ancla: (l) => manos.ancla(l), suelo: () => selfXZ?.y ?? 0, una: dardos.una, apunta: (l) => manosReal?.dirRayo(l) ?? null })))),
     actualizar: (dt: number) => dardosVRReal?.actualizar(dt),
     real: () => dardosVRReal,
     contar: () => dardosVRReal?.contar() ?? null,
