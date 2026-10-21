@@ -10,29 +10,38 @@ import { planificar, SUBTITULO_ENLAZADA, textosDePaso } from "../apps/plaza/cond
 import { ENLACE_DARDOS } from "../features/dardos/enlace.ts";
 import type { CondicionesCapa } from "../packages/net/src/index.ts";
 
-const torre = { servidor: ENLACE_DARDOS.servidor };
+const torre = { servidor: ENLACE_DARDOS.servidor, nombre: ENLACE_DARDOS.nombre };
 const otro = { servidor: "ws://127.0.0.1:8913/ws" };
 
-test("nombre: the house link is «la Torre»; another server is its address", () => {
-  assert.deepEqual(nombreDelEnlace(torre), { corto: "la Torre", largo: "la Torre de los Alquimistas" });
-  assert.deepEqual(nombreDelEnlace(otro), { corto: "127.0.0.1:8913", largo: "127.0.0.1:8913" });
-  assert.equal(rotuloDardos("la Torre"), "Dardos de la Torre en tu pared");
+test("nombre: the label names the linked WORLD — what its server tells, else the setting's `nombre`, else the host (never the host when a name is known)", () => {
+  const larga = "la Torre de los Alquimistas";
+  assert.deepEqual(nombreDelEnlace(torre), { corto: larga, largo: larga }, "the house link carries its name");
+  assert.deepEqual(nombreDelEnlace(torre, "Torre de Prueba"), { corto: "Torre de Prueba", largo: "Torre de Prueba" }, "what the world's own server says wins");
+  assert.equal(nombreDelEnlace(torre, "La Torre de los Alquimistas").corto, larga, "a leading article is lower case after «de»");
+  assert.equal(nombreDelEnlace(torre, "  ").corto, larga, "an empty name from the server is no name");
+  assert.deepEqual(nombreDelEnlace({ ...otro, nombre: "el Mirador" }), { corto: "el Mirador", largo: "el Mirador" }, "the setting's name, for any server");
+  assert.deepEqual(nombreDelEnlace(otro), { corto: "127.0.0.1:8913", largo: "127.0.0.1:8913" }, "last fallback: the host");
+  assert.deepEqual(nombreDelEnlace(otro, "Plaza de Ana").corto, "Plaza de Ana");
+  assert.equal(rotuloDardos(larga), "Dardos de la Torre de los Alquimistas en tu pared");
+  assert.equal(vistaElegir("conectando", "", torre).dardos.texto, "Dardos de la Torre de los Alquimistas en tu pared", "the chooser's button");
+  assert.equal(vistaElegir("conectando", "", otro).dardos.texto, "Dardos de 127.0.0.1:8913 en tu pared");
+  assert.equal(vistaElegir("conectando", "", otro, { nombreServidor: "Mundo de Ana" }).dardos.texto, "Dardos de Mundo de Ana en tu pared", "the name read from /status replaces the host");
   assert.equal(ROTULO_MESA, "El mundo en tu mesa");
 });
 
 test("chooser: while the link connects the darts button waits (on, focusable, does nothing); the miniature is not part of it", () => {
   for (const e of ["cerrado", "conectando"] as EstadoEnlaceDardos[]) {
     const v = vistaElegir(e, "", torre);
-    assert.equal(v.dardos.texto, "Dardos de la Torre en tu pared");
+    assert.equal(v.dardos.texto, "Dardos de la Torre de los Alquimistas en tu pared");
     assert.deepEqual([v.dardos.accion, v.dardos.apagado, v.reintentar, v.fallo], ["esperar", true, false, ""]);
-    assert.match(v.dardos.ayuda, /Conectando con la Torre/);
+    assert.match(v.dardos.ayuda, /Conectando con la Torre de los Alquimistas/);
   }
 });
 
 test("chooser: gate shut → the button leads to the norms; accepted → «go»; ready → «go»", () => {
   const p = vistaElegir("puerta", "", torre);
   assert.deepEqual([p.dardos.accion, p.dardos.apagado], ["normas", false]);
-  assert.match(p.dardos.ayuda, /aceptar las normas de la Torre/);
+  assert.match(p.dardos.ayuda, /aceptar las normas de la Torre de los Alquimistas/);
   const l = vistaElegir("listo", "", torre), a = vistaElegir("listo", "", torre, { aceptadas: true });
   assert.deepEqual([l.dardos.accion, l.dardos.apagado, a.dardos.accion, a.dardos.apagado], ["entrar", false, "entrar", false]);
   assert.match(a.dardos.ayuda, /Normas aceptadas/);
@@ -42,7 +51,7 @@ test("chooser: gate shut → the button leads to the norms; accepted → «go»;
 test("chooser: an error is plain Spanish with «Reintentar»; the darts button is off", () => {
   const v = vistaElegir("error", "el mundo enlazado está lleno", torre);
   assert.deepEqual([v.dardos.accion, v.dardos.apagado, v.reintentar], ["reintentar", true, true]);
-  assert.equal(v.fallo, "La Torre está llena ahora mismo. Prueba en un rato o entra con la maqueta.");
+  assert.equal(v.fallo, "La Torre de los Alquimistas está llena ahora mismo. Prueba en un rato o entra con la maqueta.");
   assert.equal(ROTULO_REINTENTAR, "Reintentar");
 });
 

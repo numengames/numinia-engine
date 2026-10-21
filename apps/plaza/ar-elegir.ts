@@ -1,5 +1,5 @@
 // dardos enlazados (E2) — the chooser the AR button opens in a world that has a link (apps/plaza/ar-elegir-logica.ts has the words and the
-// decisions): two big buttons on the flat page, «Dardos de la Torre en tu pared» (first, with the focus) and «El mundo en tu mesa» (the miniature).
+// decisions): two big buttons on the flat page, «Dardos de <the linked world> en tu pared» (first, with the focus) and «El mundo en tu mesa» (the miniature).
 //   · The XR rule: `requestSession` must run inside the person's click, with nothing awaited before it. So everything slow happens BEFORE that
 //     click, while the chooser is up: the link's chunk is loaded and the link connected (`enlace()` + `conectar()` the moment it opens), the Tower's
 //     norms are read and accepted on THIS page (the same bubble the world uses, asked for the linked world's text), and only then the darts button
@@ -70,7 +70,7 @@ export function crearElegirAR(o: OpcionesElegirAR) {
   function pintar(): void {
     if (!raiz || !ajuste) return;
     const e = enlace?.vista();
-    const v = vistaElegir(e?.estado ?? "conectando", e?.motivo ?? "", ajuste, { aceptadas, falloAR });
+    const v = vistaElegir(e?.estado ?? "conectando", e?.motivo ?? "", ajuste, { aceptadas, falloAR, nombreServidor: e?.nombreServidor });
     bDardos.replaceChildren(el("b", "", v.dardos.texto), el("small", "", v.dardos.ayuda));
     bDardos.setAttribute("aria-disabled", String(v.dardos.apagado)); bDardos.dataset.accion = v.dardos.accion;
     textoFallo.hidden = !v.fallo; textoFallo.textContent = v.fallo;
@@ -165,7 +165,7 @@ export function crearElegirAR(o: OpcionesElegirAR) {
   /** The Tower's gate is shut: show its norms (the page's own bubble, asked for the linked world's text). The panel gives back to the chooser. */
   function verNormas(e: EnlaceDardosPagina): void {
     if (panelNormas || !raiz) return;
-    const nombre = nombreDelEnlace(ajuste!);
+    const nombre = nombreDelEnlace(ajuste!, e.vista().nombreServidor);
     let quitarCond: (() => void) | null = null;
     // the bubble talks to a «session»: here it is the link (its norms, its acceptance), not the page's own connection
     const sesion = {
@@ -222,8 +222,8 @@ export function crearElegirAR(o: OpcionesElegirAR) {
 
   /** Once the wall is hung: leaving AR (however) closes the link; losing the link while in AR leaves AR and says so. */
   function vigilar(e: EnlaceDardosPagina): void {
-    const nombre = nombreDelEnlace(ajuste!);
     const quitar = e.alCambiar(() => {
+      const nombre = nombreDelEnlace(ajuste!, e.vista().nombreServidor);
       const st = e.estado();
       if (st === "jugando" || st === "conectando") return;
       quitar();

@@ -14,7 +14,7 @@ import type { CondicionesMensaje, Transport } from "../../packages/net/src/index
 import { ClientSession } from "../../packages/client/src/index.ts";
 import { crearCliente } from "../../features/dardos/client.ts";
 import { ZONA_FUERZA } from "../../features/dardos/feature.ts";
-import { anfitrionDe, claveInvitado } from "../../features/dardos/enlace.ts";
+import { anfitrionDe, claveInvitado, direccionDeEstado, limpiarNombreMundo, nombreDelEnlace } from "../../features/dardos/enlace.ts";
 import type { EnlaceDardos } from "../../features/dardos/enlace.ts";
 import { montarDuelo } from "./dardos-duelo.ts";
 import type { DianaAR } from "../../packages/render/src/index.ts";
@@ -62,6 +62,8 @@ export type OpcionesEnlace = {
   /** ms to wait for the server to say who I am (default 10 s) */
   esperaMs?: number;
   avisar?: (texto: string) => void;
+  /** how to read the linked server's /status (`{ nombre }`): default `fetch` (that route answers with CORS `*`); with `abrir` given and no `estadoDelServidor` the name is not asked for */
+  estadoDelServidor?: (url: string) => Promise<unknown>;
 };
 
 export function crearEnlaceDardos(o: OpcionesEnlace) {
@@ -73,6 +75,7 @@ export function crearEnlaceDardos(o: OpcionesEnlace) {
   let transport: Abierto | null = null, session: ClientSession | null = null, fase: Hechos["fase"] = "nada", motivo = "", aviso = "";
   let timer: ReturnType<typeof setTimeout> | null = null, enPared = false, arJuego: DianaAR | null = null, duelo: ReturnType<typeof montarDuelo> | null = null;
   let cond: CondicionesMensaje | null = null, identificado = false;
+  let nombreServidor = ""; // the name the linked world's own server gives itself in /status (dardos enlazados: «Dardos de <nombre> en tu pared»)
   const oyentesCond = new Set<(m: CondicionesMensaje) => void>(); // E2: the norms panel of the flat page listens to what the linked world says
 
   const estado = (): EstadoEnlaceDardos => estadoEnlace({ fase, identificado, condiciones: cond, enPared });
@@ -102,10 +105,25 @@ export function crearEnlaceDardos(o: OpcionesEnlace) {
     dec("estado");
   }
 
+  /** Ask the linked server who it says it is (its /status `nombre`): once per link object, in the background; a failure is silent (the setting's name, then the host, stay). */
+  let pedidoNombre = false;
+  function pedirNombre(): void {
+    if (pedidoNombre) return;
+    const leer = o.estadoDelServidor ?? (o.abrir || typeof fetch !== "function" ? null : (u: string) => fetch(u, { cache: "no-store", signal: AbortSignal.timeout(5000) }).then((r) => (r.ok ? r.json() : null)));
+    const url = direccionDeEstado(o.enlace.servidor);
+    if (!leer || !url) return;
+    pedidoNombre = true;
+    void Promise.resolve().then(() => leer(url)).then((j) => {
+      const n = limpiarNombreMundo((j as { nombre?: unknown } | null)?.nombre);
+      if (n && n !== nombreServidor) { nombreServidor = n; dec("estado"); }
+    }).catch(() => { /* the name is a nicety: no /status, no CORS, no problem */ });
+  }
+
   /** Open the link (once): resolves with the state it reached — `puerta` or `listo` when connected and identified, `error` if not. */
   async function conectar(): Promise<EstadoEnlaceDardos> {
     if (fase === "abriendo" || fase === "abierta") return espera();
     fase = "abriendo"; motivo = ""; aviso = ""; identificado = false; cond = null; enPared = false;
+    pedirNombre();
     dec("estado");
     const url = direccionDeEnlace(o.enlace.servidor);
     let t: Abierto;
@@ -148,7 +166,7 @@ export function crearEnlaceDardos(o: OpcionesEnlace) {
     if (estado() === "jugando") return { ok: true };
     if (estado() === "cerrado" || estado() === "error") await conectar();
     const e = estado();
-    if (e === "puerta") return { ok: false, why: `Primero hay que aceptar las normas de ${anfitrionDe(o.enlace.servidor)}.` };
+    if (e === "puerta") return { ok: false, why: `Primero hay que aceptar las normas de ${nombreDelEnlace(o.enlace, nombreServidor)}.` };
     if (e !== "listo") return { ok: false, why: motivo || "El mundo enlazado no está disponible ahora." };
     const v = o.view; if (!v) return { ok: false, why: "Esta página no puede abrir AR." };
     if (v.ar.state !== undefined && v.ar.state !== "off") return { ok: false, why: "Ya estás en una sesión de AR." };
@@ -179,6 +197,8 @@ export function crearEnlaceDardos(o: OpcionesEnlace) {
     /** Everything the page / the e2e / E2's UI reads. */
     vista: () => ({
       estado: estado(), fase, motivo, aviso, servidor: o.enlace.servidor, diana: o.enlace.diana,
+      /** the name the linked server tells ("" = not known); `nombre` = what people read: that, else the setting's, else the host */
+      nombreServidor, nombre: nombreDelEnlace(o.enlace, nombreServidor),
       entity: session?.entity ?? -1, yo: session?.who ?? null,
       /** the gate of the linked world: puerta = it has one; abierta = I may play; faltan = the layers still to accept; capas = the text (the offer) */
       condiciones: cond && { puerta: cond.puerta, abierta: cond.abierta, faltan: cond.faltan, capas: cond.capas ?? null },

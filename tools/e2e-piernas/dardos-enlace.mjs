@@ -49,13 +49,16 @@ const mundoDir = (n, aparicion, dardos) => { const d = join(tmp, n, "entorno"); 
   writeFileSync(join(d, "entorno.json"), JSON.stringify({ schema: "numinia-engine/entorno@1", aparicion }, null, 2));
   writeFileSync(join(d, "dardos.json"), JSON.stringify({ schema: "numinia-engine/dardos@1", ...dardos }, null, 2)); return d; };
 const torreDir = mundoDir("torre", { x: -34, z: 0, radio: 3 }, { sitios: [{ id: "torre", nombre: "Diana de la Torre", x: TABLERO.x, y: 0, z: TABLERO.z, radio: TABLERO.radio, duelo: true, remoto: true, rondas: 1 }] });
-const mundoADir = mundoDir("mundoA", { x: 0, z: 0, radio: 3 }, { sitios: [], enlace: { servidor: `ws://127.0.0.1:${TP}/ws`, diana: "torre" } });
+// the Tower has a ficha (its name, which its /status tells); the other world's setting carries a different `nombre`, to prove which one the chooser reads
+const torreAventura = join(tmp, "torre", "aventura"); mkdirSync(torreAventura, { recursive: true });
+writeFileSync(join(torreAventura, "ficha.json"), JSON.stringify({ formato: "ficha@1", nombre: "La Torre de los Alquimistas" }));
+const mundoADir = mundoDir("mundoA", { x: 0, z: 0, radio: 3 }, { sitios: [], enlace: { servidor: `ws://127.0.0.1:${TP}/ws`, diana: "torre", nombre: "el nombre del ajuste" } });
 
 const procs = [];
 const arrancar = (cmd, args, env, nombre) => { const p = spawn(cmd, args, { cwd: REPO, env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"], detached: true }); let t = ""; p.stdout.on("data", (d) => { t += d; }); p.stderr.on("data", (d) => { t += d; }); procs.push({ p, log: () => t, nombre }); return p; };
 for (const port of [TP, MP, VP]) if (await fetch(`http://127.0.0.1:${port}/`).then(() => true, () => false)) { console.error(`port ${port} is in use: set E2E_TORRE_PORT / E2E_MUNDO_PORT / E2E_VITE_PORT`); process.exit(2); }
 const servidor = (puerto, dir, nombre, extra = {}) => arrancar("nice", ["-n", "10", "node", "packages/server/src/main.ts"], { PORT: String(puerto), MUNDO_DIR: dir, DATOS_DIR: join(tmp, nombre, "datos"), SESIONES_DIR: join(tmp, nombre, "sesiones"), AVENTURA_DIR: "", ...extra }, nombre);
-servidor(TP, torreDir, "torre", { MOTOR_CONDICIONES_PUERTA: "si" }); // the Tower asks everybody to accept its norms
+servidor(TP, torreDir, "torre", { MOTOR_CONDICIONES_PUERTA: "si", AVENTURA_DIR: torreAventura }); // the Tower asks everybody to accept its norms
 servidor(MP, mundoADir, "mundoA");
 arrancar("nice", ["-n", "10", "npx", "vite", "--config", "apps/plaza/vite.config.mjs"], { PLAZA_PORT: String(VP) }, "vite");
 for (let i = 0; i < 120; i++) { try { const r = await fetch(`http://127.0.0.1:${VP}/`); const a = await fetch(`http://127.0.0.1:${TP}/status`).catch(() => null), b = await fetch(`http://127.0.0.1:${MP}/status`).catch(() => null); if (r.ok && a && b) break; } catch { /* not yet */ } await new Promise((r) => setTimeout(r, 500)); }
@@ -376,6 +379,7 @@ try {
     vigente: res.vigente.motivo === "ok" && res.vigente.enlace?.diana === "torre",
     laTorreNoSeEnlazaConsigoMisma: res.vigenteTorre.enlace === null && ["mismo-servidor", "diana-propia"].includes(res.vigenteTorre.motivo),
     nadaAbiertoHastaPulsarElBoton: res.visitasAntes === 0 && res.estadoInicial.elegir === false && res.estadoInicial.visible === true && res.estadoInicial.boton === "Entrar en AR",
+    elegirNombraElMundoEnlazado: res.elegir.dardos === "Dardos de la Torre de los Alquimistas en tu pared" && !/127\.0\.0\.1/.test(res.elegir.dardos + res.elegir.ayuda), // the name that world's /status tells (not the host, not the setting's)
     elegirConDosBotones: elegirOk(res.elegir) && res.elegir.titulo === "Entrar en AR" && res.elegir.mesa === "El mundo en tu mesa" && res.elegir.orden.join() === "ar-elegir-dardos,ar-elegir-mesa" && res.elegir.caben,
     dardosConElFocoPorDefecto: res.elegir.foco === "ar-elegir-dardos",
     conectaAntesDeEntrar: res.alAbrir.estado === "puerta" && res.alAbrir.condiciones?.puerta === true && res.alAbrir.condiciones?.abierta === false && res.alAbrir.condiciones.faltan.length > 0 && res.pedidasAntes === 0 && res.elegir.accion === "normas" && /aceptar las normas/.test(res.elegir.ayuda),

@@ -1150,8 +1150,9 @@ test/dardos-duelo-equipos-vista.test.ts`; e2e: `node tools/e2e-piernas/dardos-du
 El dueño pidió que, **en cualquier mundo de Numinia**, al entrar en AR salga la diana «cosida» a la de la Torre de los
 Alquimistas: la misma partida que la gente que está en la Torre. Sin código en el mundo: es un ajuste de datos (R-1).
 - **El ajuste** (`features/dardos/enlace.ts`, una sola constante): `ENLACE_DARDOS = { servidor:
-  "wss://alchemiststower.numinia.com/ws", diana: "torre" }`. Un mundo lo cambia en su `dardos.json`
-  (`"enlace": { "servidor": "wss://otro/ws", "diana": "mesa" }`, una parte que falte es la de la casa) o lo apaga
+  "wss://alchemiststower.numinia.com/ws", diana: "torre", nombre: "la Torre de los Alquimistas" }`. Un mundo lo cambia en su `dardos.json`
+  (`"enlace": { "servidor": "wss://otro/ws", "diana": "mesa", "nombre": "el Mirador" }`, una parte que falte es la de la casa; un
+  `servidor` distinto sin `nombre` no hereda el de la Torre) o lo apaga
   (`"enlace": false`). Un `enlace` mal escrito se dice en el log del servidor (`enlace.servidor: debe ser una dirección
   ws:// o wss://…`) y **se queda el de la casa**: una errata no apaga la función en silencio. El servidor lo cuenta a la
   página en `/status` → `dardosEnlace` (`null` = apagado; sin el campo = un servidor antiguo: la página usa el de la casa).
@@ -1173,8 +1174,12 @@ Alquimistas: la misma partida que la gente que está en la Torre. Sin código en
   de E2 (más abajo, «El botón de AR»).
 - **El botón de AR** (E2, `apps/plaza/ar-elegir.ts` + `ar-elegir-logica.ts`, trozo propio que se precarga a los 2,5 s):
   si el mundo tiene enlace (`__numinia.dardosEnlace.vigente().enlace`), «Entrar en AR» abre un selector en la página plana
-  con dos botones grandes: **«Dardos de la Torre en tu pared»** (el primero, con el foco) y **«El mundo en tu mesa»** (la
-  maqueta de siempre). Sin enlace (la Torre, `enlace: false`, diana propia) el botón es el de siempre. La regla de XR manda
+  con dos botones grandes: **«Dardos de <el mundo enlazado> en tu pared»** (el primero, con el foco) y **«El mundo en tu mesa»** (la
+  maqueta de siempre). El nombre del mundo enlazado sale, por este orden, de: lo que **su propio servidor dice en `/status`**
+  (`nombre`, su ficha; la página lo pide al abrir el enlace, con CORS `*`), el `nombre` del ajuste (la casa:
+  «la Torre de los Alquimistas»), y el host. Nunca se enseña el host si hay nombre. Un mundo con **sus dardos apagados**
+  (`funciones.json`) sigue ofreciendo la diana de la Torre: el enlace es de la diana de *otro* mundo (y ahí manda el
+  interruptor de ese mundo). Sin enlace (la Torre, `enlace: false`, diana propia) el botón es el de siempre. La regla de XR manda
   cómo está hecho: `requestSession` tiene que ir dentro del clic, sin `await` antes, así que **todo lo lento pasa antes de
   ese clic**, con el selector abierto: se carga y conecta el enlace (`enlace()` + `conectar()`), y si la puerta de la Torre
   está cerrada el botón de dardos lleva a **sus normas en la pantalla plana** (la misma pompa `montarCondiciones` con la

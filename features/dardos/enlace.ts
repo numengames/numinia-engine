@@ -7,14 +7,22 @@
 //     duels (`duelo` + `remoto`: what the AR wall joins) uses that one, as always.
 // Recipe: docs/EXTENDER.md «Dardos enlazados».
 
-export type EnlaceDardos = { servidor: string; diana: string };
+/** `nombre`: how people call the linked world, in the sentence «Dardos de <nombre> en tu pared» (optional; a world that links elsewhere says it in its dardos.json). */
+export type EnlaceDardos = { servidor: string; diana: string; nombre?: string };
 
 /** The house link: the Alchemist Tower's server and the id of its remote board (dardos.json of the Tower: `torre`, `remoto: true`). */
-export const ENLACE_DARDOS: Readonly<EnlaceDardos> = Object.freeze({ servidor: "wss://alchemiststower.numinia.com/ws", diana: "torre" });
+export const ENLACE_DARDOS: Readonly<EnlaceDardos> = Object.freeze({ servidor: "wss://alchemiststower.numinia.com/ws", diana: "torre", nombre: "la Torre de los Alquimistas" });
 
 /** The board ids dardos.json accepts (the same rule as the server's `crearDardos`). */
 const ID_DIANA = /^[a-z0-9-]{1,16}$/;
 const URL_MAX = 200;
+const NOMBRE_MAX = 60;
+/** A name a person can read in a button: 1-60 characters once trimmed, no control characters. null = it is not one. */
+export function limpiarNombreMundo(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const t = v.replace(/\s+/g, " ").trim();
+  return t.length >= 1 && t.length <= NOMBRE_MAX && !/[\u0000-\u001f\u007f]/.test(t) ? t : null;
+}
 
 export type Problema = { path: string; message: string };
 export type Lectura = { ok: true; value: EnlaceDardos | null; origen: "casa" | "mundo" | "apagado" } | { ok: false; issues: Problema[]; value: EnlaceDardos | null; origen: "casa" };
@@ -42,18 +50,23 @@ export function leerEnlace(crudo: unknown): Lectura {
   if (c.enlace === false) return { ok: true, value: null, origen: "apagado" };
   const issues: Problema[] = [];
   const e = c.enlace;
-  if (typeof e !== "object" || Array.isArray(e)) return { ok: false, issues: [{ path: "enlace", message: "debe ser false o un objeto { servidor, diana }" }], value: { ...ENLACE_DARDOS }, origen: "casa" };
+  if (typeof e !== "object" || Array.isArray(e)) return { ok: false, issues: [{ path: "enlace", message: "debe ser false o un objeto { servidor, diana, nombre }" }], value: { ...ENLACE_DARDOS }, origen: "casa" };
   const o = e as Record<string, unknown>;
-  for (const k of Object.keys(o)) if (k !== "servidor" && k !== "diana") issues.push({ path: `enlace.${k}`, message: "campo desconocido (solo servidor y diana)" });
-  let servidor = ENLACE_DARDOS.servidor, diana = ENLACE_DARDOS.diana;
+  for (const k of Object.keys(o)) if (k !== "servidor" && k !== "diana" && k !== "nombre") issues.push({ path: `enlace.${k}`, message: "campo desconocido (solo servidor, diana y nombre)" });
+  let servidor = ENLACE_DARDOS.servidor, diana = ENLACE_DARDOS.diana, nombre: string | undefined = ENLACE_DARDOS.nombre;
   if ("servidor" in o) {
     const u = leerServidor(o.servidor);
-    if (u) servidor = String(o.servidor); else issues.push({ path: "enlace.servidor", message: "debe ser una dirección ws:// o wss:// con la ruta del servidor (p. ej. wss://mundo.example/ws), sin usuario, parámetros ni #" });
+    if (u) { servidor = String(o.servidor); if (servidor !== ENLACE_DARDOS.servidor) nombre = undefined; /* another server is not «la Torre de los Alquimistas» */ } else issues.push({ path: "enlace.servidor", message: "debe ser una dirección ws:// o wss:// con la ruta del servidor (p. ej. wss://mundo.example/ws), sin usuario, parámetros ni #" });
   }
   if ("diana" in o) {
     if (typeof o.diana === "string" && ID_DIANA.test(o.diana)) diana = o.diana; else issues.push({ path: "enlace.diana", message: "debe ser el id de una diana: 1-16 caracteres a-z, 0-9 o guion" });
   }
-  return issues.length ? { ok: false, issues, value: { servidor, diana }, origen: "casa" } : { ok: true, value: { servidor, diana }, origen: "mundo" };
+  if ("nombre" in o) {
+    const n = limpiarNombreMundo(o.nombre);
+    if (n) nombre = n; else issues.push({ path: "enlace.nombre", message: "debe ser un texto de 1 a 60 caracteres (p. ej. «la Torre de los Alquimistas»)" });
+  }
+  const value: EnlaceDardos = nombre ? { servidor, diana, nombre } : { servidor, diana };
+  return issues.length ? { ok: false, issues, value, origen: "casa" } : { ok: true, value, origen: "mundo" };
 }
 
 /** Host (with port) of a server address, in lower case, to compare two: `ws://127.0.0.1:8913/ws` → `127.0.0.1:8913`. "" if it is not one. */
@@ -78,15 +91,33 @@ export function enlaceVigente(o: { ajuste: EnlaceDardos | null | undefined; serv
   if (!u || !ID_DIANA.test(String(ajuste.diana))) return { enlace: null, motivo: "invalido" };
   if (u.host.toLowerCase() === anfitrionDe(o.servidorActual)) return { enlace: null, motivo: "mismo-servidor" };
   if (tieneDianaPropia(o.sitios)) return { enlace: null, motivo: "diana-propia" };
-  return { enlace: { servidor: ajuste.servidor, diana: ajuste.diana }, motivo: "ok" };
+  return { enlace: { servidor: ajuste.servidor, diana: ajuste.diana, ...(ajuste.nombre ? { nombre: ajuste.nombre } : {}) }, motivo: "ok" };
 }
 
 /** Read what /status said about the link (`dardosEnlace`): undefined (not there) stays undefined, false/null = off, a good object = it; anything else = off. */
 export function ajusteDeEstado(v: unknown): EnlaceDardos | null | undefined {
   if (v === undefined) return undefined;
-  if (v && typeof v === "object") { const o = v as Record<string, unknown>; if (leerServidor(o.servidor) && typeof o.diana === "string" && ID_DIANA.test(o.diana)) return { servidor: String(o.servidor), diana: o.diana }; }
+  if (v && typeof v === "object") { const o = v as Record<string, unknown>; if (leerServidor(o.servidor) && typeof o.diana === "string" && ID_DIANA.test(o.diana)) { const n = limpiarNombreMundo(o.nombre); return { servidor: String(o.servidor), diana: o.diana, ...(n ? { nombre: n } : {}) }; } }
   return null;
 }
 
 /** Where the guest token of a linked server is kept: one per server host, so the Tower knows you as the same guest between visits. */
 export const claveInvitado = (servidor: string): string => `numinia.invitado@${anfitrionDe(servidor)}`;
+
+/**
+ * How the linked world is called for people (the button «Dardos de <nombre> en tu pared», the norms' title, the messages), most reliable first:
+ *   1. `delServidor`: the name that world's own server tells in its /status (`nombre`), once the page has read it;
+ *   2. the `nombre` of the setting (the house's «la Torre de los Alquimistas», or the one a world wrote in its dardos.json);
+ *   3. the address of the server (host and port).
+ * A leading article is written in lower case after «de» («La Torre» → «la Torre»).
+ */
+export function nombreDelEnlace(e: { servidor: string; nombre?: string }, delServidor?: string | null): string {
+  const n = limpiarNombreMundo(delServidor) ?? limpiarNombreMundo(e.nombre) ?? (anfitrionDe(e.servidor) || "otro mundo");
+  return n.replace(/^(El|La|Los|Las)(?=\s)/, (a) => a.toLowerCase());
+}
+
+/** The address of a linked server's /status (what it says about itself): `wss://host/ws` → `https://host/status`. null = not a server address. */
+export function direccionDeEstado(servidor: string): string | null {
+  const u = leerServidor(servidor); if (!u) return null;
+  const c = new URL(u.toString()); c.protocol = u.protocol === "wss:" ? "https:" : "http:"; c.pathname = c.pathname.replace(/\/ws\/?$/, "") + "/status"; return c.toString();
+}

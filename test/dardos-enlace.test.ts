@@ -16,7 +16,7 @@ import { crearCliente as crearChat } from "../features/chat/client.ts";
 import { FUERZA_IDEAL } from "../features/dardos/feature.ts";
 import { crearDardos } from "../features/dardos/server.ts";
 import type { Sitio } from "../features/dardos/server.ts";
-import { ENLACE_DARDOS, ajusteDeEstado, anfitrionDe, claveInvitado, enlaceVigente, leerEnlace, leerServidor } from "../features/dardos/enlace.ts";
+import { ENLACE_DARDOS, ajusteDeEstado, anfitrionDe, claveInvitado, direccionDeEstado, enlaceVigente, leerEnlace, leerServidor, limpiarNombreMundo } from "../features/dardos/enlace.ts";
 import { enlaceDardosDelMundo } from "../features/mundo.ts";
 import { crearEnlaceDardos, estadoEnlace } from "../apps/plaza/dardos-enlace.ts";
 import type { Hechos } from "../apps/plaza/dardos-enlace.ts";
@@ -29,15 +29,17 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // ---------------------------------------------------------------- the setting
 
 test("enlace: the house link is one constant; a world's dardos.json may change it, turn it off, or say nothing", () => {
-  assert.deepEqual({ ...ENLACE_DARDOS }, { servidor: "wss://alchemiststower.numinia.com/ws", diana: "torre" });
+  assert.deepEqual({ ...ENLACE_DARDOS }, { servidor: "wss://alchemiststower.numinia.com/ws", diana: "torre", nombre: "la Torre de los Alquimistas" });
   assert.throws(() => { (ENLACE_DARDOS as { diana: string }).diana = "otra"; }, "frozen: nobody edits the house link by accident");
   for (const crudo of [undefined, null, {}, { sitios: [] }, { enlace: undefined }, { enlace: true }]) {
     const r = leerEnlace(crudo); assert.equal(r.ok, true); assert.equal(r.origen, "casa"); assert.deepEqual(r.value, { ...ENLACE_DARDOS });
   }
   const off = leerEnlace({ enlace: false }); assert.deepEqual([off.ok, off.value, off.origen], [true, null, "apagado"]);
   const otro = leerEnlace({ enlace: { servidor: "ws://127.0.0.1:8913/ws", diana: "torre-2" } });
-  assert.deepEqual([otro.ok, otro.origen, otro.value], [true, "mundo", { servidor: "ws://127.0.0.1:8913/ws", diana: "torre-2" }]);
-  const media = leerEnlace({ enlace: { diana: "mesa" } }); assert.deepEqual(media.value, { servidor: ENLACE_DARDOS.servidor, diana: "mesa" }, "a part left out is the house's");
+  assert.deepEqual([otro.ok, otro.origen, otro.value], [true, "mundo", { servidor: "ws://127.0.0.1:8913/ws", diana: "torre-2" }], "another server does not inherit the Tower's name");
+  const media = leerEnlace({ enlace: { diana: "mesa" } }); assert.deepEqual(media.value, { servidor: ENLACE_DARDOS.servidor, diana: "mesa", nombre: ENLACE_DARDOS.nombre }, "a part left out is the house's");
+  const conNombre = leerEnlace({ enlace: { servidor: "ws://127.0.0.1:8913/ws", diana: "torre", nombre: "  el  Mirador " } });
+  assert.deepEqual(conNombre.value, { servidor: "ws://127.0.0.1:8913/ws", diana: "torre", nombre: "el Mirador" }, "`nombre` is allowed and tidied");
 });
 
 test("enlace: a wrong `enlace` is said with its path and the house link stays (a typo never turns the feature off)", () => {
@@ -47,6 +49,7 @@ test("enlace: a wrong `enlace` is said with its path and the house link stays (a
     [{ enlace: { servidor: "wss://u:p@x.example/ws" } }, "enlace.servidor"], [{ enlace: { servidor: "wss://x.example/ws?a=1" } }, "enlace.servidor"],
     [{ enlace: { servidor: 7 } }, "enlace.servidor"], [{ enlace: { diana: "Torre Grande" } }, "enlace.diana"], [{ enlace: { diana: "" } }, "enlace.diana"],
     [{ enlace: { diana: "a".repeat(17) } }, "enlace.diana"], [{ enlace: { diana: 5 } }, "enlace.diana"], [{ enlace: { extra: 1 } }, "enlace.extra"],
+    [{ enlace: { nombre: "" } }, "enlace.nombre"], [{ enlace: { nombre: 7 } }, "enlace.nombre"], [{ enlace: { nombre: "x".repeat(61) } }, "enlace.nombre"], [{ enlace: { nombre: "a\u0007b" } }, "enlace.nombre"],
   ];
   for (const [crudo, path] of malos) {
     const r = leerEnlace(crudo);
@@ -90,6 +93,19 @@ test("enlace: what a page does with the link — never to itself, never when it 
   assert.equal(ajusteDeEstado(undefined), undefined);
   assert.equal(ajusteDeEstado(null), null); assert.equal(ajusteDeEstado(false), null); assert.equal(ajusteDeEstado({ servidor: "x" }), null);
   assert.deepEqual(ajusteDeEstado(torre), torre);
+  assert.deepEqual(ajusteDeEstado({ ...torre, nombre: " la Torre " }), { ...torre, nombre: "la Torre" }, "the name travels in /status");
+  assert.deepEqual(ajusteDeEstado({ ...torre, nombre: 5 }), torre, "a bad name is dropped, the link stays");
+  assert.deepEqual(enlaceVigente({ ajuste: { ...torre, nombre: "la Torre" }, servidorActual: "wss://otro.example/ws", sitios: [] }).enlace, { ...torre, nombre: "la Torre" });
+  // a world whose OWN darts are switched off has no boards (verSi hides them): it still offers the linked board — the link is about the other world's board
+  assert.equal(enlaceVigente({ ajuste: torre, servidorActual: "wss://otro.example/ws", sitios: [] }).motivo, "ok", "own darts off → no own board → the link applies");
+});
+
+test("enlace: the address of the linked server's /status and its name", () => {
+  assert.equal(direccionDeEstado("wss://alchemiststower.numinia.com/ws"), "https://alchemiststower.numinia.com/status");
+  assert.equal(direccionDeEstado("ws://127.0.0.1:8913/ws"), "http://127.0.0.1:8913/status");
+  assert.equal(direccionDeEstado("ws://127.0.0.1:8913/sub/ws"), "http://127.0.0.1:8913/sub/status");
+  assert.equal(direccionDeEstado("http://x/ws"), null);
+  assert.equal(limpiarNombreMundo("  Mundo   de Ana "), "Mundo de Ana"); assert.equal(limpiarNombreMundo(""), null); assert.equal(limpiarNombreMundo(null), null);
 });
 
 // ---------------------------------------------------------------- the state machine
@@ -240,6 +256,30 @@ test("cliente del enlace: connects, finds the gate, accepts, hangs nothing witho
     const id1 = v.yo?.id; assert.equal(await link.conectar(), "listo", "the Tower remembers that guest accepted"); assert.equal(link.vista().yo?.id, id1, "the same guest the second time");
     await link.cerrar();
   } finally { clearInterval(motor); }
+});
+
+test("cliente del enlace: the name people read is the one the linked server tells in /status, then the setting's, then the host", async () => {
+  const pedidas: string[] = [];
+  const nunca = (): never => { throw new Error("no socket in this test"); };
+  const crear = (enlace: { servidor: string; diana: string; nombre?: string }, estadoDelServidor?: (u: string) => Promise<unknown>) =>
+    crearEnlaceDardos({ enlace, nombre: () => "Ana", mundo: () => "x", almacen: { getItem: () => null, setItem() {} }, abrir: nunca, estadoDelServidor });
+  const a = crear({ servidor: "ws://127.0.0.1:1/ws", diana: "torre", nombre: "la Torre de los Alquimistas" }, async (u) => { pedidas.push(u); return { nombre: "Torre de Prueba" }; });
+  assert.equal(a.vista().nombre, "la Torre de los Alquimistas", "before connecting: the setting's name");
+  let cambios = 0; a.alCambiar(() => { cambios++; });
+  await a.conectar(); await sleep(20);
+  assert.deepEqual(pedidas, ["http://127.0.0.1:1/status"], "asked once, at the /status of that same server");
+  assert.equal(a.vista().nombreServidor, "Torre de Prueba");
+  assert.equal(a.vista().nombre, "Torre de Prueba", "what the world's server says wins");
+  assert.ok(cambios > 0, "the chooser is told to redraw");
+  await a.conectar(); assert.equal(pedidas.length, 1, "one question per link");
+  const b = crear({ servidor: "ws://127.0.0.1:2/ws", diana: "torre" }, async () => { throw new Error("sin /status"); });
+  await b.conectar(); await sleep(20);
+  assert.equal(b.vista().nombre, "127.0.0.1:2", "no /status, no setting's name: the host");
+  const c = crear({ servidor: "ws://127.0.0.1:3/ws", diana: "torre" }, async () => ({ nombre: 5 }));
+  await c.conectar(); await sleep(20);
+  assert.equal(c.vista().nombre, "127.0.0.1:3", "a nonsense name is ignored");
+  const d = crear({ servidor: "ws://127.0.0.1:4/ws", diana: "torre", nombre: "el Mirador" });
+  await d.conectar(); assert.equal(d.vista().nombre, "el Mirador", "a test transport without a /status reader never asks");
 });
 
 test("cliente del enlace: an unreachable server is an error with a reason, and a silent one times out", async () => {
