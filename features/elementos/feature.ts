@@ -47,11 +47,12 @@ export const elementos = defineFeature({
     poner: { describe: "Poner agua, fuego, humo o polvo en un sitio. Sin nombre, el servidor le da el de su tipo (Estanque, Hoguera…); el polvo es decorado.", spoken: "poner un elemento", fields: { tipo: { kind: "enum", values: TIPOS }, x: X, y: Y, z: X, ...FORMA } },
     cambiar: { describe: "Mover, girar, agrandar o recolorear un elemento: se envían todos sus valores (los del estado con lo cambiado).", spoken: "cambiar un elemento", fields: { id: ID, x: X, y: Y, z: X, ...FORMA }, rate: { perSecond: 10, burst: 20 } },
     quitar: { describe: "Quitar un elemento del mundo.", spoken: "quitar un elemento", fields: { id: ID } },
+    "aguaHeredada": { describe: "Poner un estanque de agua donde lo tenía la naturaleza del mundo (misma semilla y tamaño), una sola vez. Solo quien puede construir.", spoken: "poner el estanque de la naturaleza", fields: {}, rate: { perSecond: 1, burst: 2 } },
     vaciar: { describe: "Quitar todos los elementos del mundo (parte de restaurar el mundo). Solo quien puede construir.", spoken: "quitar todos los elementos", fields: {}, rate: { perSecond: 1, burst: 2 } },
   },
   events: {
     permiso: { describe: "Si puedes poner elementos (llega al entrar y al identificarte).", fields: { construir: { kind: "bool" } }, announce: "silent" },
-    hecho: { describe: "Tu cambio se hizo: el elemento que tocó.", fields: { id: ID, accion: { kind: "enum", values: ["poner", "cambiar", "quitar", "vaciar"] } }, announce: "silent" },
+    hecho: { describe: "Tu cambio se hizo: el elemento que tocó.", fields: { id: ID, accion: { kind: "enum", values: ["poner", "cambiar", "quitar", "vaciar", "aguaHeredada"] } }, announce: "silent" },
     rechazado: { describe: "Tu cambio no se hizo, y por qué.", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
   },
 });

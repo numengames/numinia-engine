@@ -4,8 +4,10 @@
 // `numinia-engine/elementos@1`): they are placed once, when the zone has nothing saved yet.
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg } from "../../packages/feature/src/index.ts";
+import { estanqueHeredado } from "../naturaleza/server.ts";
 import { elementos, ELEMENTOS_MAX, NOMBRES, TIPOS } from "./feature.ts";
 
+const CLAVE_HEREDADA = "estanque-heredado";
 type Tipo = (typeof TIPOS)[number];
 const q = (v: unknown, paso: number) => Number((Math.round(Number(v) / paso) * paso).toFixed(2));
 /** Round what the wire would round, so what is saved is what every page receives. */
@@ -58,6 +60,18 @@ export const crearElementos = (mundo?: unknown) => serverPart(elementos, (api) =
     if (!o) return void rechazar(from, `No hay ningún elemento «${id}».`);
     poner(id, limpio({ ...m, nombre: m.nombre === undefined ? o.nombre : m.nombre }, o.tipo as Tipo));
     hecho(from, id, "cambiar");
+  });
+  // B9 (D-086): the pond is a water element. `aguaHeredada` puts one where the nature's pond was (naturaleza:mundo → estanqueHeredado), once: key `estanque-heredado`.
+  api.on("aguaHeredada", (from) => {
+    if (!puede(from)) return;
+    if (api.state.get(CLAVE_HEREDADA)) return void rechazar(from, "El estanque heredado ya está puesto.");
+    const sitio = estanqueHeredado(api.estadoDe("naturaleza").get("mundo"));
+    if (!sitio) return void rechazar(from, "La naturaleza de este mundo no tiene estanque que heredar.");
+    if (api.state.keys().length >= ELEMENTOS_MAX) return void rechazar(from, `Esta zona ya tiene ${ELEMENTOS_MAX} elementos: quita alguno antes.`);
+    if (!poner(CLAVE_HEREDADA, limpio({ ...defaults(), ...sitio }, "agua"))) return void rechazar(from, "Ese elemento no cabe en el esquema (mira los rangos en el catálogo).");
+    const w = api.who(from);
+    api.store.set(`a:${CLAVE_HEREDADA}`, { autor: w?.id ?? null, nombre: w?.nombre ?? null, cuando: new Date().toISOString() });
+    hecho(from, CLAVE_HEREDADA, "aguaHeredada");
   });
   // H8 (R-1): «restaurar el mundo» — every element goes (whoever may build).
   api.on("vaciar", (from) => {

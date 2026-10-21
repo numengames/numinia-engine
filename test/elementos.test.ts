@@ -94,3 +94,48 @@ test("S4: elements survive a restart; a world's own list is placed once, on a fr
   const v = [...w3.pages[0].dibujo.values()];
   assert.deepEqual(v.map((e) => [e.tipo, Math.round(Number(e.x) * 100) / 100, Math.round(Number(e.z) * 100) / 100, e.nombre]), [["fuego", 1, 2, "Hoguera de la plaza"]]);
 });
+
+// B9 (D-086): the pond is a water element; `aguaHeredada` puts it where the nature had it.
+import { estanqueHeredado } from "../features/naturaleza/server.ts";
+import { crearNaturaleza } from "../features/naturaleza/server.ts";
+import { DEFECTOS } from "../features/naturaleza/esquema.ts";
+import { estanqueDe, NIVEL_AGUA } from "../packages/relieve/src/relieve.ts";
+
+test("B9: estanqueHeredado agrees with estanqueDe for 3 seeds; no pond = null", () => {
+  for (const semilla of [1, 1234, 98765]) {
+    const e = estanqueDe(semilla, 200), h = estanqueHeredado({ semilla, tamano: 200, estanque: true })!;
+    assert.deepEqual([h.x, h.z, h.y, h.ancho, h.largo], [e.x, e.z, NIVEL_AGUA, 2 * e.radio, 2 * e.radio]);
+  }
+  assert.equal(estanqueHeredado({ semilla: 1, tamano: 200, estanque: false }), null);
+  assert.equal(estanqueHeredado(undefined), null);
+});
+
+function mundoConNaturaleza(abierto: boolean, estanque = true) {
+  const inst = new Instance({ seed: 1, capacity: 8, k: 50, snapshotEvery: 2, features: [crearNaturaleza({ ...DEFECTOS, semilla: 77, estanque }), crearElementos()], puede: (_w, accion) => abierto && accion === "construir" });
+  const t = inst.join(0), cli = crearCliente(), dibujo = new Map<string, Msg>();
+  const s = new ClientSession(t, { features: [cli.part as ClientPart], view: { label() {}, bounce() {}, here: () => ({ x: 0, y: 0, z: 0 }), elemento: (k, v) => { if (v) dibujo.set(k, v); else dibujo.delete(k); } } });
+  const pump = (n = 3) => { for (let k = 0; k < n; k++) { t.flush(); inst.tick(); t.flush(); } };
+  pump();
+  return { c: cli.elementos, dibujo, pump, s };
+}
+
+test("B9: aguaHeredada creates the pond once, named Estanque, where the nature had it", () => {
+  const { c, dibujo, pump } = mundoConNaturaleza(true);
+  c.aguaHeredada(); pump();
+  const e = estanqueDe(77, 200), v = dibujo.get("estanque-heredado");
+  assert.ok(v, "the element exists");
+  assert.equal(v.tipo, "agua"); assert.equal(v.nombre, "Estanque");
+  assert.ok(Math.abs(Number(v.x) - e.x) < 0.01 && Math.abs(Number(v.z) - e.z) < 0.01 && Math.abs(Number(v.ancho) - 2 * e.radio) < 0.1);
+  c.aguaHeredada(); pump();
+  assert.equal(dibujo.size, 1, "second call does not duplicate");
+  assert.match(c.estado.ultimoRechazo, /ya está puesto/);
+});
+
+test("B9: aguaHeredada without permission, or without a pond, does nothing", () => {
+  const cerrado = mundoConNaturaleza(false);
+  cerrado.c.aguaHeredada(); cerrado.pump();
+  assert.equal(cerrado.dibujo.size, 0); assert.match(cerrado.c.estado.ultimoRechazo, /construir/);
+  const sin = mundoConNaturaleza(true, false);
+  sin.c.aguaHeredada(); sin.pump();
+  assert.equal(sin.dibujo.size, 0); assert.match(sin.c.estado.ultimoRechazo, /no tiene estanque/);
+});

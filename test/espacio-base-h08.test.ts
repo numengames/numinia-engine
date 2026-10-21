@@ -189,4 +189,5 @@ test("B1: turning the base on, off, re-seeding and restoring live keeps naturale
   assert.equal(nat()?.base, 42, "restored: on with the default seed");
   n.interruptor.poner(false); pump();
   assert.deepEqual([nat()?.activa, nat()?.base], [false, 42], "the nature's own switch keeps the base seed");
+  assert.ok(log.some((l) => l.includes("sobre el espacio base no se talla cuenca; pon un elemento de agua (elementos → poner agua)")), "B9: with a base the switch log says the pond is an element");
 });
