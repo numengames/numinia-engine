@@ -6,15 +6,23 @@
 //   · the «Torre» server (engine, dardos.json: ONE duel board `torre`, remoto, rondas 1; the gate of the conditions of entry ON);
 //   · «world A» (another engine server whose dardos.json says "enlace": { servidor: ws://127.0.0.1:<torre>/ws, diana: "torre" } and has no board);
 //   · one vite page server for both (each page says which server it talks to with ?server=).
-// Then:
+// Then (E2: through the REAL button, chooser and norms, with real clicks — Playwright clicks carry user activation, and IWER's requestSession is
+// wrapped to record whether the activation was alive at the call):
 //  1) A (PC, 1280×800) opens the Tower, accepts its norms (the same ACEPTAR the bubble sends), runs to the throwing line and presses E.
 //  2) B (an emulated Quest 3, IWER) opens world A: /status says the link; `__numinia.dardosEnlace.vigente()` resolves it; nothing is
-//     connected yet (the Tower has no visit). B `conectar()`s: the link says «puerta» (the gate of the Tower is shut) and refuses to hang
-//     the wall; B accepts through the link (ACEPTAR); the link says «listo». The Tower counts a visit, not a person, and A sees nobody.
-//  3) B hangs the wall in AR (trigger): it joins `torre` «desde pared». A's sign says «<B's name> · En su pared (AR) · desde <world A>».
+//     connected until B presses «Entrar en AR»: a chooser opens (PC picture) with «Dardos de … en tu pared» first and focused and «El mundo en
+//     tu mesa»; it connects the link ahead; the Tower's gate is shut, so the button says «aceptar las normas»; B presses it: the Tower's norms
+//     appear on the flat page (picture), B ticks «acepto» and finishes the steps (the optional data boxes start empty); the link says «listo».
+//     The Tower counts a visit, not a person, and A sees nobody.
+//  3) B presses the darts button (a real click): the AR session starts INSIDE that click (user activation alive) and the wall is hung (trigger).
+//     A's sign says «<B's name> · En su pared (AR) · desde <world A>».
 //  4) The duel: A throws 3 (mouse), «Cambiar turno»; B throws 3 (trigger), presses «Cambiar turno» on its 3D panel. Each sees the other's
 //     darts, both see the same scores and the same verdict.
-//  5) B leaves AR and closes the link: the Tower has no visit left, and at no moment had an avatar for B (A.remotePositions() always empty).
+//  5) B leaves AR with the page's own button (nobody calls the link): the link closes by itself, the Tower has no visit left, and at no moment had
+//     an avatar for B (A.remotePositions() always empty).
+//  6) C (a phone, 390×844): chooser and norms on a phone (pictures), «Salir» of the norms goes back to the chooser, the miniature option enters
+//     AR without the link, Escape closes the chooser and the link; the Tower itself (no link) goes straight to AR as ever; with the Tower DOWN
+//     the chooser says it in plain Spanish with «Reintentar», and the miniature still works.
 // No page errors anywhere. Exit 0 = right.
 import { createRequire } from "node:module";
 import { existsSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
@@ -55,6 +63,7 @@ const estadoDe = (p) => fetch(`http://127.0.0.1:${p}/status`).then((r) => r.json
 const URL_TORRE = `http://127.0.0.1:${VP}/?webgl2&server=ws://127.0.0.1:${TP}`, URL_MUNDO = `http://127.0.0.1:${VP}/?webgl2&server=ws://127.0.0.1:${MP}`;
 
 const browser = await chromium.launch({ executablePath: CHROME, args: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"] });
+let IGNORAR_RED = false; // while the Tower is stopped on purpose, the browser's own «could not connect» lines are expected
 const errors = [], t0 = Date.now(), out = { pasos: [], errors };
 const nota = (paso, extra = {}) => { out.pasos.push({ paso, s: Math.round((Date.now() - t0) / 100) / 10, ...extra }); if (process.env.DEBUG) console.error("paso", paso, Math.round((Date.now() - t0) / 1000) + " s"); };
 const abrir = async (etiqueta, url, opts = {}, init = "") => {
@@ -63,7 +72,7 @@ const abrir = async (etiqueta, url, opts = {}, init = "") => {
   const p = await ctx.newPage();
   p.on("pageerror", (e) => errors.push(`${etiqueta}: ${e}`));
   p.on("crash", () => errors.push(`${etiqueta}: la página se ha caído (crash)`));
-  p.on("console", (m) => { if (m.type() === "error") errors.push(`${etiqueta} console: ${m.text().slice(0, 200)}`); });
+  p.on("console", (m) => { if (m.type() === "error" && !(IGNORAR_RED && /WebSocket|ERR_CONNECTION|Failed to load resource/i.test(m.text()))) errors.push(`${etiqueta} console: ${m.text().slice(0, 200)}`); });
   await p.goto(url);
   await p.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0 && !!globalThis.__numinia.session.who, null, { timeout: 60000 });
   return p;
@@ -98,6 +107,7 @@ const esperar = async (p, fn, arg, ms = 15000) => {
     return p.waitForFunction(fn, arg, { timeout: ms * 3 });
   }
 };
+const fotoE2 = async (p, nombre) => { if (SHOTS) await p.screenshot({ path: `${SHOTS}/${nombre}.png` }); };
 const foto = async (p, n) => { if (SHOTS) await p.screenshot({ path: `${SHOTS}/dardos-enlace-${n}.png` }); };
 const duelo = (p) => ctl(p, () => { const d = globalThis.__numinia.dardos.duelo(); return d && { sitio: d.sitio, ronda: d.ronda, esperando: d.esperando, turnoDe: d.turnoDe, yo: d.yo, miTurno: d.miTurno, rival: d.rival, yoPuntos: d.yoPuntos, a: d.a && { entity: d.a.entity, nombre: d.a.nombre, puntos: d.a.puntos, pared: d.a.pared, mundo: d.a.mundo }, b: d.b && { entity: d.b.entity, nombre: d.b.nombre, puntos: d.b.puntos, pared: d.b.pared, mundo: d.b.mundo }, fin: d.fin && { ganador: d.fin.ganador, empate: d.fin.empate, abandono: d.fin.abandono, texto: d.fin.texto, gane: d.fin.gane } }; });
 const vista = (p) => ctl(p, () => globalThis.__numinia.dardosHud?.duelo?.() ?? null);
@@ -124,7 +134,8 @@ const INIT_AR = IWER + `;
   class Pared { constructor(d) { this.d = d; this.environmentCanvas = document.createElement("canvas"); } render() {}
     computeHitTestResults() { return [new Float32Array([1,0,0,0, 0,0,1,0, 0,-1,0,0, 0,1.5,-2.4,1])]; } }
   Object.defineProperty(IWER.XRWebGLLayer.prototype, 'framebuffer', { get() { return this.__fb ??= this.context.createFramebuffer(); } });
-  const dev = new IWER.XRDevice(IWER.metaQuest3); dev.installRuntime({ forceInstall: true }); dev.installSEM(Pared); globalThis.__iwer = dev;`;
+  const dev = new IWER.XRDevice(IWER.metaQuest3); dev.installRuntime({ forceInstall: true }); dev.installSEM(Pared); globalThis.__iwer = dev;
+  globalThis.__reqs = []; { const xr = navigator.xr, orig = xr.requestSession.bind(xr); xr.requestSession = (m, i) => { globalThis.__reqs.push({ modo: m, activo: navigator.userActivation?.isActive === true }); return orig(m, i); }; }`;
 const gatillo = (r, ms) => r.evaluate((ms) => new Promise((ok) => { const c = globalThis.__iwer.controllers.right; c.updateButtonValue("trigger", 1); setTimeout(() => { c.updateButtonValue("trigger", 0); setTimeout(ok, 150); }, ms); }), ms);
 // B's link object (the page's `__numinia.dardosEnlace.enlace()`), kept in `__l`
 const L = (b, code, arg) => b.evaluate(code, arg);
@@ -148,36 +159,73 @@ try {
   res.promptA = await pulsarE(a);
   nota("A espera rival");
 
-  // ------------------------------------------------------------------------------------------ 2) B: the setting, the link, the gate
+  // ------------------------------------------------------------------------------------------ 2) B: the setting, the button, the chooser, the gate, the norms
   res.estadoMundo = (await estadoDe(MP)).dardosEnlace;
   res.vigente = await L(b, () => { const v = globalThis.__numinia.dardosEnlace.vigente(); return { motivo: v.motivo, enlace: v.enlace }; });
+  res.vigenteTorre = await ctl(a, () => { const v = globalThis.__numinia.dardosEnlace.vigente(); return { motivo: v.motivo, enlace: v.enlace }; });
   res.visitasAntes = (await estadoDe(TP)).visitas ?? 0;
   res.tituloB = await b.title();
+  res.estadoInicial = await L(b, () => ({ elegir: !!document.getElementById("ar-elegir"), boton: document.getElementById("ar")?.textContent, visible: !document.getElementById("ar")?.hidden }));
+  await b.bringToFront();
+  await b.setViewportSize({ width: 1280, height: 800 }); // the chooser's PC picture
+  await b.click("#ar", { timeout: 20000 });
+  await esperar(b, () => !!document.getElementById("ar-elegir"), null, 15000);
   await L(b, async () => { globalThis.__l = await globalThis.__numinia.dardosEnlace.enlace(); });
-  res.estadoInicial = await vistaB(b);
-  res.conectar = await L(b, () => globalThis.__l.conectar());
-  res.alConectar = await vistaB(b);
+  await esperar(b, () => globalThis.__l.estado() === "puerta", null, 20000);
+  await esperar(b, () => document.getElementById("ar-elegir-dardos")?.dataset.accion === "normas", null, 5000);
+  res.elegir = await L(b, () => { const d = document.getElementById("ar-elegir-dardos"), m = document.getElementById("ar-elegir-mesa"), p = document.querySelector("#ar-elegir .ae-panel").getBoundingClientRect();
+    return { titulo: document.getElementById("ar-elegir-titulo").textContent, dardos: d.querySelector("b").textContent, ayuda: d.querySelector("small").textContent, mesa: m.querySelector("b").textContent, orden: [...document.querySelectorAll("#ar-elegir .ae-btn")].map((x) => x.id), foco: document.activeElement?.id, accion: d.dataset.accion, caben: p.left >= 0 && p.right <= innerWidth && p.top >= 0 && p.bottom <= innerHeight }; });
+  res.alAbrir = await vistaB(b);
+  await fotoE2(b, "enlace-pc-1-elegir");
+  nota("B: elegir abierto (puerta)", { elegir: res.elegir.dardos });
   res.sinAceptar = await L(b, async () => { const r = await globalThis.__l.jugarEnPared(); return { ok: r.ok, why: r.ok ? "" : r.why }; });
   const intentoSitio = await L(b, () => { const x = globalThis.__l.dardos.jugar("torre", "pared"); return x.ok; }); // sent, and the Tower ignores it: the gate is shut
   await b.waitForTimeout(800);
   res.ignorado = await ctl(a, () => { const s = globalThis.__numinia.dardos.sitios().find((x) => x.id === "torre"); return { espera: s.espera, jugadores: s.jugadores }; });
   res.intentoSitio = intentoSitio;
-  res.aceptoB = await L(b, () => { const c = globalThis.__l.vista().condiciones; return globalThis.__l.aceptar(Object.fromEntries(c.capas.map((l) => [l.capa, l.version])), []); });
-  await esperar(b, () => globalThis.__l.estado() === "listo", null, 15000);
+  res.pedidasAntes = await L(b, () => globalThis.__reqs.length);
+  // the darts button leads to the Tower's norms, on the flat page
+  await b.click("#ar-elegir-dardos");
+  await esperar(b, () => !!document.getElementById("condiciones"), null, 10000);
+  await b.waitForTimeout(400);
+  res.normasPantalla = await L(b, () => { const c = document.getElementById("condiciones"), o = globalThis.__l.vista().condiciones;
+    const pasos = [...c.querySelectorAll(".paso")].map((x) => x.textContent.replace(/^\d+|✓/g, "").trim());
+    return { eyebrow: c.querySelector(".etq")?.textContent, titulo: c.querySelector("h1")?.textContent, sub: c.querySelector(".sub")?.textContent, pasos, capas: o.capas.map((l) => l.capa), primeraNorma: o.capas[0].puntos.find((p) => p.tipo !== "datos")?.titulo, texto: c.innerText,
+      chooserOculto: document.getElementById("ar-elegir").hidden, propioCerrado: globalThis.__numinia.condiciones.cerrada(), cajaOk: !!c.querySelector("input[id^=condiciones-ok-]") }; });
+  await fotoE2(b, "enlace-pc-2-normas");
+  nota("B: normas de la Torre en pantalla", { eyebrow: res.normasPantalla.eyebrow });
+  // accept like a person: tick «acepto» on each layer, go on; the optional data boxes start empty and are left empty
+  res.datosMarcados = null;
+  for (let i = 0; i < 8 && (await b.$("#condiciones")); i++) {
+    const caja = await b.$("#condiciones input[id^=condiciones-ok-]");
+    if (caja && !(await caja.isChecked())) await caja.check();
+    if (!caja) res.datosMarcados = await L(b, () => [...document.querySelectorAll("#condiciones .permiso input[type=checkbox]")].filter((x) => x.checked).length);
+    const fin = await b.$("#condiciones-sin-opcional, #condiciones-aceptar");
+    if (fin && (await fin.isEnabled())) { await fin.click(); break; }
+    await b.click("#condiciones-siguiente");
+    await b.waitForTimeout(150);
+  }
+  await esperar(b, () => !document.getElementById("condiciones") && globalThis.__l.estado() === "listo", null, 15000);
+  await b.waitForTimeout(300);
   res.tras = await vistaB(b);
+  res.aceptoB = res.tras.condiciones?.abierta === true;
+  res.trasNormas = await L(b, () => { const d = document.getElementById("ar-elegir-dardos"), r = document.getElementById("ar-elegir"); return { chooser: !!r && !r.hidden, accion: d.dataset.accion, ayuda: d.querySelector("small").textContent, foco: document.activeElement?.id, propioCerrado: globalThis.__numinia.condiciones.cerrada() }; });
+  await fotoE2(b, "enlace-pc-3-listo");
   res.torre1 = await estadoDe(TP);
   res.aVeA = await ctl(a, () => ({ visible: globalThis.__numinia.session.stats.visible, remotos: globalThis.__numinia.session.remotePositions().length }));
   nota("B enlazado (listo)", { visitas: res.torre1.visitas, conectados: res.torre1.conectados });
   res.tokenGuardado = await b.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("numinia.invitado@")));
   await esperar(a, () => globalThis.__numinia.dardos.duelo()?.esperando !== false, null, 5000).catch(() => {});
 
-  // ------------------------------------------------------------------------------------------ 3) B hangs the wall
+  // ------------------------------------------------------------------------------------------ 3) B presses the darts button: AR starts in that click, the wall is hung
+  await b.setViewportSize({ width: 640, height: 400 });
   await b.bringToFront();
-  const colgar = L(b, async () => { const r = await globalThis.__l.jugarEnPared(); return { ok: r.ok, why: r.ok ? "" : r.why }; });
+  await b.click("#ar-elegir-dardos"); // a real click: `requestSession` runs inside it (the wrapper in INIT_AR records the activation)
   await esperar(b, () => globalThis.__numinia.view.ar.jugando, null, 20000);
   await b.waitForTimeout(600);
   await b.evaluate(() => { const c = globalThis.__iwer.controllers.right; c.position.set(0.02, 1.52, -0.35); c.quaternion.set(0, 0, 0, 1); });
-  res.jugarEnPared = await colgar;
+  res.pedidasAR = await L(b, () => globalThis.__reqs);
+  res.jugarEnPared = await L(b, () => ({ ok: globalThis.__numinia.view.ar.jugando && globalThis.__l.estado() === "jugando", chooser: !!document.getElementById("ar-elegir"), boton: document.getElementById("ar").textContent }));
   await gatillo(b, 150);
   await esperar(b, () => globalThis.__l.ar()?.fase === "colocada", null, 8000);
   nota("B colgó la diana", await arEstado(b));
@@ -241,36 +289,115 @@ try {
   res.sumas = { sumaA: tirosA.reduce((s, t) => s + t.puntos, 0), sumaB: tirosB.reduce((s, t) => s + t.servidor.puntos, 0) };
   res.aVeA2 = await ctl(a, () => ({ visible: globalThis.__numinia.session.stats.visible, remotos: globalThis.__numinia.session.remotePositions().length }));
   res.torre3 = await estadoDe(TP);
-  await L(b, () => globalThis.__l.salir());
+  await b.evaluate(() => document.getElementById("ar").click()); // the page's own button («Dardos en tu pared (salir)»; IWER's overlay covers it for the mouse): nobody calls the link
   await esperar(b, () => globalThis.__numinia.view.ar.state === "off", null, 10000).catch(() => {});
   res.arSalio = await b.evaluate(() => globalThis.__numinia.view.ar.state);
   res.tras2 = await vistaB(b);
-  await L(b, () => globalThis.__l.cerrar());
-  await esperar(a, () => true, null, 100);
+  await esperar(b, () => globalThis.__l.estado() === "cerrado", null, 10000).catch(() => {});
   for (let i = 0; i < 40; i++) { res.torre4 = await estadoDe(TP); if (!(res.torre4.visitas ?? 0)) break; await new Promise((r) => setTimeout(r, 150)); }
   res.cerrado = (await vistaB(b)).estado;
+  res.botonTrasAR = await b.evaluate(() => document.getElementById("ar").textContent);
+
+  // ------------------------------------------------------------------------------------------ 6) C: a phone — chooser, norms, «Salir», the miniature, Escape; the Tower itself; the Tower down
+  await a.bringToFront();
+  const c = await abrir("C", URL_MUNDO, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, INIT_AR);
+  await c.bringToFront();
+  const estadoC = () => L(c, () => globalThis.__l.estado());
+  const chooserC = () => L(c, () => { const r = document.getElementById("ar-elegir"), p = r?.querySelector(".ae-panel")?.getBoundingClientRect(), f = r?.querySelector(".ae-fallo"), rt = document.getElementById("ar-elegir-reintentar");
+    return { abierto: !!r && !r.hidden, caben: !!p && p.left >= 0 && p.right <= innerWidth && p.top >= 0 && p.bottom <= innerHeight, foco: document.activeElement?.id, dardos: document.getElementById("ar-elegir-dardos")?.querySelector("b")?.textContent, ayuda: document.getElementById("ar-elegir-dardos")?.querySelector("small")?.textContent, fallo: f && !f.hidden ? f.textContent : "", reintentar: !!rt && !rt.hidden, accion: document.getElementById("ar-elegir-dardos")?.dataset.accion }; });
+  const arC = () => L(c, () => ({ estado: globalThis.__numinia.view.ar.state, jugando: globalThis.__numinia.view.ar.jugando, pedidas: globalThis.__reqs.slice() }));
+  const abrirElegirC = async () => { await c.click("#ar", { timeout: 20000 }); await esperar(c, () => !!document.getElementById("ar-elegir"), null, 15000); await L(c, async () => { globalThis.__l = await globalThis.__numinia.dardosEnlace.enlace(); }); };
+  const salirDeARC = async () => { await L(c, () => globalThis.__numinia.view.ar.exit()); await esperar(c, () => globalThis.__numinia.view.ar.state === "off", null, 10000); };
+  res.movil = {};
+  await abrirElegirC();
+  await esperar(c, () => globalThis.__l.estado() === "puerta", null, 20000);
+  res.movil.elegir = await chooserC();
+  await fotoE2(c, "enlace-movil-1-elegir");
+  await c.click("#ar-elegir-dardos");
+  await esperar(c, () => !!document.getElementById("condiciones"), null, 10000);
+  await c.waitForTimeout(400);
+  res.movil.normas = await L(c, () => { const n = document.getElementById("condiciones"), p = n.querySelector(".cond-panel").getBoundingClientRect(); return { movil: n.classList.contains("movil"), caben: p.left >= 0 && p.right <= innerWidth && p.bottom <= innerHeight, titulo: n.querySelector("h1")?.textContent }; });
+  await fotoE2(c, "enlace-movil-2-normas");
+  await c.click("#condiciones-salir");
+  await esperar(c, () => !document.getElementById("condiciones") && !!document.getElementById("ar-elegir") && !document.getElementById("ar-elegir").hidden, null, 8000);
+  res.movil.trasSalir = { chooser: await chooserC(), enlace: await estadoC(), torre: (await estadoDe(TP)).visitas ?? 0 };
+  await c.click("#ar-elegir-mesa"); // the miniature: AR starts in this click, without the link
+  await esperar(c, () => globalThis.__numinia.view.ar.state !== "off", null, 15000);
+  res.movil.mesa = { ar: await arC(), enlace: await estadoC(), chooser: await L(c, () => !!document.getElementById("ar-elegir")) };
+  await salirDeARC();
+  await abrirElegirC();
+  await c.keyboard.press("Escape");
+  await esperar(c, () => !document.getElementById("ar-elegir"), null, 5000);
+  await esperar(c, () => globalThis.__l.estado() === "cerrado", null, 8000).catch(() => {});
+  res.movil.escape = { enlace: await estadoC(), arFuera: (await arC()).estado === "off" };
+  for (let i = 0; i < 40; i++) { res.movil.visitasTrasEscape = (await estadoDe(TP)).visitas ?? 0; if (!res.movil.visitasTrasEscape) break; await new Promise((r) => setTimeout(r, 150)); }
+  nota("C: móvil hecho");
+
+  // the Tower itself has no link: the button enters AR as ever, no chooser
+  await c.goto(URL_TORRE);
+  await c.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0 && !!globalThis.__numinia.session.who, null, { timeout: 60000 });
+  await aceptarNormas(c);
+  await esperar(c, () => !document.getElementById("condiciones"), null, 8000).catch(() => {});
+  await c.click("#ar", { timeout: 20000 });
+  await esperar(c, () => globalThis.__numinia.view.ar.state !== "off", null, 15000);
+  res.movil.torre = { chooser: await L(c, () => !!document.getElementById("ar-elegir")), ar: await arC(), vigente: await L(c, () => globalThis.__numinia.dardosEnlace.vigente().motivo) };
+  await salirDeARC();
+
+  // the Tower DOWN: plain Spanish, «Reintentar», and the miniature still works
+  await a.close(); await b.close();
+  IGNORAR_RED = true;
+  const torreProc = procs[0];
+  try { process.kill(-torreProc.p.pid, "SIGTERM"); } catch { /* gone */ }
+  for (let i = 0; i < 40 && (await fetch(`http://127.0.0.1:${TP}/status`).then(() => true, () => false)); i++) await new Promise((r) => setTimeout(r, 150));
+  await c.goto(URL_MUNDO);
+  await c.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0 && !!globalThis.__numinia.session.who, null, { timeout: 60000 });
+  await abrirElegirC();
+  await esperar(c, () => globalThis.__l.estado() === "error", null, 20000);
+  res.movil.caido = await chooserC();
+  await fotoE2(c, "enlace-movil-3-error");
+  await c.click("#ar-elegir-reintentar");
+  await esperar(c, () => globalThis.__l.estado() === "error" && document.getElementById("ar-elegir-reintentar") && !document.getElementById("ar-elegir-reintentar").hidden, null, 20000);
+  res.movil.reintentado = await chooserC();
+  await c.click("#ar-elegir-mesa");
+  await esperar(c, () => globalThis.__numinia.view.ar.state !== "off", null, 15000);
+  res.movil.mesaCaido = { ar: await arC() };
+  await salirDeARC();
+  IGNORAR_RED = false;
   const sa = res.fin.dA, sb = res.fin.dB, mundoB = res.tituloB;
   const etiqueta = res.sign0?.etiqueta ?? "";
+  const mv = res.movil, elegirOk = (x) => /^Dardos de .+ en tu pared$/.test(x.dardos ?? "");
   res.checks = {
     ajusteDelMundo: res.estadoMundo?.servidor === `ws://127.0.0.1:${TP}/ws` && res.estadoMundo?.diana === "torre",
     vigente: res.vigente.motivo === "ok" && res.vigente.enlace?.diana === "torre",
-    nadaAbiertoHastaPedirlo: res.visitasAntes === 0 && res.estadoInicial.estado === "cerrado",
-    puertaCerrada: res.conectar === "puerta" && res.alConectar.condiciones?.puerta === true && res.alConectar.condiciones?.abierta === false && res.alConectar.condiciones.faltan.length > 0,
+    laTorreNoSeEnlazaConsigoMisma: res.vigenteTorre.enlace === null && ["mismo-servidor", "diana-propia"].includes(res.vigenteTorre.motivo),
+    nadaAbiertoHastaPulsarElBoton: res.visitasAntes === 0 && res.estadoInicial.elegir === false && res.estadoInicial.visible === true && res.estadoInicial.boton === "Entrar en AR",
+    elegirConDosBotones: elegirOk(res.elegir) && res.elegir.titulo === "Entrar en AR" && res.elegir.mesa === "El mundo en tu mesa" && res.elegir.orden.join() === "ar-elegir-dardos,ar-elegir-mesa" && res.elegir.caben,
+    dardosConElFocoPorDefecto: res.elegir.foco === "ar-elegir-dardos",
+    conectaAntesDeEntrar: res.alAbrir.estado === "puerta" && res.alAbrir.condiciones?.puerta === true && res.alAbrir.condiciones?.abierta === false && res.alAbrir.condiciones.faltan.length > 0 && res.pedidasAntes === 0 && res.elegir.accion === "normas" && /aceptar las normas/.test(res.elegir.ayuda),
     noColgaSinNormas: res.sinAceptar.ok === false && /aceptar las normas/.test(res.sinAceptar.why),
     elTorreIgnoraAntesDeAceptar: res.intentoSitio === true && res.ignorado.espera === true && res.ignorado.jugadores === 1, // 1 = A alone (B's attempt did nothing)
-    aceptaYQuedaListo: res.aceptoB === true && res.tras.estado === "listo" && res.tras.condiciones.abierta === true,
+    normasDeLaTorreEnPantalla: /^Antes de entrar/.test(res.normasPantalla.eyebrow ?? "") && res.normasPantalla.chooserOculto === true && res.normasPantalla.propioCerrado === false && res.normasPantalla.cajaOk === true && res.normasPantalla.capas.length >= 1 && !!res.normasPantalla.primeraNorma && res.normasPantalla.texto.includes(res.normasPantalla.primeraNorma) && /no pasa nada: sigues en este mundo/.test(res.normasPantalla.sub ?? ""),
+    datosOpcionalesSinMarcar: res.datosMarcados === null || res.datosMarcados === 0,
+    aceptaYQuedaListo: res.aceptoB === true && res.tras.estado === "listo" && res.trasNormas.chooser === true && res.trasNormas.accion === "entrar" && /Normas aceptadas/.test(res.trasNormas.ayuda) && res.trasNormas.foco === "ar-elegir-dardos" && res.trasNormas.propioCerrado === false,
     invitadoPropioPorServidor: res.tokenGuardado.length === 1 && res.tokenGuardado[0] === `numinia.invitado@127.0.0.1:${TP}`,
     laTorreContaUnaVisitaNoUnaPersona: res.torre1.visitas === 1 && res.torre1.conectados === res.torre0.conectados,
     sinAvatarEnLaTorre: res.aVeA.visible === 0 && res.aVeA.remotos === 0 && res.aVeA2.visible === 0 && res.aVeA2.remotos === 0,
-    colgoLaPared: res.jugarEnPared.ok === true,
+    laSesionDeARNaceEnElClic: res.pedidasAR.length === 1 && res.pedidasAR[0].modo === "immersive-ar" && res.pedidasAR[0].activo === true,
+    colgoLaPared: res.jugarEnPared.ok === true && res.jugarEnPared.chooser === false && /Dardos en tu pared \(salir\)/.test(res.jugarEnPared.boton),
     unidoDesdePared: res.inicio.dA.b?.pared === true || res.inicio.dA.a?.pared === true,
     letreroNombraDeDondeViene: /En su pared \(AR\)/.test(etiqueta) && etiqueta.includes(`desde ${mundoB}`),
     nombreEnElMarcador: [res.inicio.dA.a?.nombre, res.inicio.dA.b?.nombre].includes(nombreB),
     ambosVenLosDardos: res.bVeA.enLaPared >= 3 && res.bVeA.enElControlador >= 3 && res.aVeDeB >= 3,
     mismasPuntuaciones: sa.a.puntos === sb.a.puntos && sa.b.puntos === sb.b.puntos && [sa.a.puntos, sa.b.puntos].sort().join() === [res.sumas.sumaA, res.sumas.sumaB].sort().join(),
     mismoVeredicto: sa.fin.texto === sb.fin.texto && sa.fin.empate === sb.fin.empate && (sa.fin.empate || (sa.fin.gane !== sb.fin.gane)),
-    salioDeAR: res.arSalio === "off",
-    cerroYNoQuedaVisita: res.cerrado === "cerrado" && (res.torre4.visitas ?? 0) === 0,
+    salirDeARCierraElEnlaceSolo: res.arSalio === "off" && res.cerrado === "cerrado" && (res.torre4.visitas ?? 0) === 0 && res.botonTrasAR === "Entrar en AR",
+    movilElegirCabe: mv.elegir.abierto && mv.elegir.caben && elegirOk(mv.elegir) && mv.elegir.foco === "ar-elegir-dardos" && mv.elegir.accion === "normas",
+    movilNormasCaben: mv.normas.movil === true && mv.normas.caben === true,
+    salirDeLasNormasVuelveAlElegir: mv.trasSalir.chooser.abierto && mv.trasSalir.enlace === "puerta" && mv.trasSalir.chooser.foco === "ar-elegir-dardos",
+    maquetaEntraEnARSinEnlace: mv.mesa.ar.estado !== "off" && mv.mesa.ar.jugando === false && mv.mesa.enlace === "cerrado" && mv.mesa.chooser === false && mv.mesa.ar.pedidas.length === 1 && mv.mesa.ar.pedidas[0].activo === true,
+    escapeCierraTodo: mv.escape.enlace === "cerrado" && mv.escape.arFuera && mv.visitasTrasEscape === 0,
+    laTorreEntraEnARComoSiempre: mv.torre.chooser === false && mv.torre.ar.estado !== "off" && mv.torre.ar.jugando === false && ["mismo-servidor", "diana-propia"].includes(mv.torre.vigente),
+    torreCaidaSeDiceYTieneSalida: mv.caido.fallo.length > 0 && /No se puede llegar a|no responde|Se ha cortado/.test(mv.caido.fallo) && mv.caido.reintentar === true && !/\d{4}|ws:/.test(mv.caido.fallo) && mv.reintentado.reintentar === true && mv.mesaCaido.ar.estado !== "off" && mv.mesaCaido.ar.jugando === false,
     sinErrores: errors.length === 0,
   };
   ok = Object.values(res.checks).every(Boolean);

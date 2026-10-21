@@ -1078,7 +1078,21 @@ Alquimistas: la misma partida que la gente que está en la Torre. Sin código en
   `puerta` y el servidor **ignora** sus mensajes de dardos hasta que la persona acepte las normas de ese mundo
   (`vista().condiciones` = `puerta`, `abierta`, `faltan`, `capas`; `aceptar()` manda el mismo ACEPTAR que la pompa).
   `jugarEnPared()` no cuelga nada mientras esté cerrada y dice por qué. La interfaz para leerlas y aceptarlas es la
-  historia E2.
+  de E2 (más abajo, «El botón de AR»).
+- **El botón de AR** (E2, `apps/plaza/ar-elegir.ts` + `ar-elegir-logica.ts`, trozo propio que se precarga a los 2,5 s):
+  si el mundo tiene enlace (`__numinia.dardosEnlace.vigente().enlace`), «Entrar en AR» abre un selector en la página plana
+  con dos botones grandes: **«Dardos de la Torre en tu pared»** (el primero, con el foco) y **«El mundo en tu mesa»** (la
+  maqueta de siempre). Sin enlace (la Torre, `enlace: false`, diana propia) el botón es el de siempre. La regla de XR manda
+  cómo está hecho: `requestSession` tiene que ir dentro del clic, sin `await` antes, así que **todo lo lento pasa antes de
+  ese clic**, con el selector abierto: se carga y conecta el enlace (`enlace()` + `conectar()`), y si la puerta de la Torre
+  está cerrada el botón de dardos lleva a **sus normas en la pantalla plana** (la misma pompa `montarCondiciones` con la
+  opción `enlazada`: las palabras hablan de la Torre, «Salir» solo vuelve al selector y aceptar no hace estallido; los datos
+  opcionales salen sin marcar). Con las normas aceptadas el botón dice «Normas aceptadas. Toca para colgar la diana» y su
+  clic llama a `jugarEnPared()`, que arranca AR en esa misma llamada. En unas gafas no hay DOM dentro de AR: por eso todo
+  esto va antes. Si algo falla, una frase en castellano (`motivoParaPersonas`: «La Torre está llena ahora mismo…», «No se
+  puede llegar a la Torre…») con **Reintentar**, y la maqueta siempre queda como salida. Salir de AR (el botón, el menú de
+  las gafas, el límite de tiempo) **cierra el enlace**; si se pierde la conexión dentro de AR, se sale de AR y se avisa.
+  Escape o «Cancelar» cierran el selector y el enlace.
 - **El servidor** (aditivo: un servidor o una página antiguos no notan nada). La dirección lleva `?enlace=dardos`
   (`packages/net/src/enlace.ts`); el servidor hace de esa conexión una **visita**: no tiene avatar para nadie (no sale
   en los snapshots de los demás, no los recibe, `INPUT` y `VOZ` suyos se tiran), solo habla y oye con las funciones de
@@ -1089,7 +1103,11 @@ Alquimistas: la misma partida que la gente que está en la Torre. Sin código en
   la partida añade `mundoA`…`mundoD`; el letrero de la diana pone «En su pared (AR) · desde <mundo>».
 - **Pruebas**: `test/dardos-enlace.test.ts` (ajuste y su validación, estados, la visita sin avatar que juega en la
   `remoto`, la puerta, el cliente con un servidor en memoria, el letrero). e2e con dos servidores y dos navegadores:
-  `tools/e2e-piernas/dardos-enlace.mjs` (8913 Torre / 8911 otro mundo / 5311, también lenta: `E2E_LENTAS=1`).
+  `tools/e2e-piernas/dardos-enlace.mjs` (8913 Torre / 8911 otro mundo / 5311, también lenta: `E2E_LENTAS=1`): ahora por el
+  botón real, el selector y las normas con clics de verdad (la sesión de AR nace dentro del clic, con la activación viva),
+  más una pasada de móvil (selector, normas, «Salir», maqueta, Escape, la Torre sin enlace, la Torre caída con «Reintentar»).
+  Las palabras y decisiones del selector (`ar-elegir-logica.ts`) y las de la pompa con `enlazada` se prueban en
+  `test/ar-elegir.test.ts`.
 
 ## Dados (v1): los tira el servidor y todos ven lo mismo
 
