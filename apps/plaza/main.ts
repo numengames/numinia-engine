@@ -589,6 +589,7 @@ view.loop((now) => {
   const active = now - lastActive < 600;
   if (view.vr.active || view.ar.state !== "off" || view.power.shouldDraw(now, { hidden: document.hidden, active })) {
     view.sync(session.entity >= 0 ? session.selfPosition(acc / TICK_MS) : null, session.remotePositions(now));
+    view.sueloTerreno(session.sueloTerreno()); // avatares/suelo-relieve: hills count as ground for the avatars' clips and feet
     view.solidos(session.solidos()); // N1b: the camera does not go through solid things; avatars stand on them
     const t0 = performance.now();
     view.draw(dt / 1000);
