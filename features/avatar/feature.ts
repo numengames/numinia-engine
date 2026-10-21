@@ -8,6 +8,9 @@ export const TIPOS = ["casa", "subido"] as const;
 export type Tipo = (typeof TIPOS)[number];
 /** More than the house will ever hold; the page clamps a house index to what it actually has. */
 export const MODELO_MAX = 999;
+/** ia-visible S2: the house avatar every AI wears unless its pass picks another: Polybot, the green robot (index in
+ * activos/avatares/catalogo.json; test/ia-cuerpo.test.ts pins it to the catalogue so a reorder fails loudly). */
+export const ROBOT_CASA = 2;
 export const SHA256 = /^[0-9a-f]{64}$/;
 
 const CAMPOS = {
@@ -25,13 +28,16 @@ export function motivoElegir(tipo: unknown, sha: unknown): string {
   return "";
 }
 
+/** ia-visible S2: is this identity an AI (identidad.ts `agenteDe`: the id starts with «ia-»)? */
+export const esIA = (id: string | undefined): boolean => !!id && id.startsWith("ia-");
+
 export const avatar = defineFeature({
   id: "avatar",
   version: 1,
-  describe: "Tu avatar: uno de los de la casa (J1) o tu .vrm subido (H9). Se guarda con tu identidad (I1) y lo ven todos; vuelve contigo al recargar.",
+  describe: "Tu avatar: uno de los de la casa (J1) o tu .vrm subido (H9). Se guarda con tu identidad (I1) y lo ven todos; vuelve contigo al recargar. Las IAs no eligen: llevan el robot de la casa (o el que diga su pase).",
   store: { describe: "Por identidad de invitado (`id:<id>`): la última elección — tipo (casa|subido), el índice de la casa o el sha256+extensión de tu .vrm." },
   state: {
-    describe: "Por entidad conectada (clave = su entidad; desaparece al desconectar, I1 trae la elección de vuelta al identificarse). tipo = casa|subido; modelo = índice entre los avatares de la casa; sha/ext = tu .vrm subido (H9, /a/<sha>.<ext>). Sin entrada = el mundo decide por defecto (H7).",
+    describe: "Por entidad conectada (clave = su entidad; desaparece al desconectar, I1 trae la elección de vuelta al identificarse). tipo = casa|subido; modelo = índice entre los avatares de la casa; sha/ext = tu .vrm subido (H9, /a/<sha>.<ext>). Sin entrada = el mundo decide por defecto (H7). Una IA (identidad «ia-…») lleva siempre el robot de la casa o el avatar de la casa que elige su pase (bloque `ia.cuerpo`): lo decide el servidor, no ella.",
     fields: CAMPOS,
   },
   intents: {

@@ -72,7 +72,7 @@ export const rolesFeature = defineFeature({
     bloqueo: { describe: "F1: `quien` deja de leer (si = 1) o vuelve a leer (si = 0) lo que dice `a`; el chat no le reenvía sus líneas.", fields: { quien, a: quien, si: { kind: "int", min: 0, max: 1 } }, announce: "silent" },
     cambio: { describe: "Lo que alguien puede hacer ha cambiado (un rol, un dueño): objetos vuelve a decirle si construye.", fields: { quien }, announce: "silent" },
     nombreCambiado: { describe: "H3c: alguien se ha puesto otro nombre con /nombre (o vuelve a entrar con uno guardado); el chat lo usa sobre su cabeza y en lo que diga.", fields: { quien, nombre: { kind: "text", maxBytes: NOMBRE_PROPIO_MAX } }, announce: "silent" },
-    ia: { describe: "ia-visible S3 (solo en el servidor): lo público de una IA conectada — su estado, quién responde por ella (comunidad y nombre o cartera corta, vacíos si el pase no lo dice) y si sus roles la dejan construir ahora. Al identificarse y cuando un pase nuevo lo cambia; la función «ia» lo publica a las páginas.", fields: { quien, estado: { kind: "enum", values: ["activa", "dormida"] }, comunidad: { kind: "text", maxBytes: 160 }, nombre: { kind: "text", maxBytes: 160 }, cartera: { kind: "text", maxBytes: 12 }, construye: { kind: "bool" } }, announce: "silent" },
+    ia: { describe: "ia-visible S3 (solo en el servidor): lo público de una IA conectada — su estado, quién responde por ella (comunidad y nombre o cartera corta, vacíos si el pase no lo dice) si sus roles la dejan construir ahora y qué avatar de la casa lleva (`cuerpo`: su índice, -1 = el robot de la casa). Al identificarse y cuando un pase nuevo lo cambia; la función «ia» lo publica a las páginas.", fields: { quien, estado: { kind: "enum", values: ["activa", "dormida"] }, comunidad: { kind: "text", maxBytes: 160 }, nombre: { kind: "text", maxBytes: 160 }, cartera: { kind: "text", maxBytes: 12 }, construye: { kind: "bool" }, cuerpo: { kind: "int", min: -1, max: 999 } }, announce: "silent" },
     borrarHistorial: { describe: "H3c: /chat borrar; el chat vacía el historial de la zona (quien entre después ya no lo ve).", fields: {}, announce: "silent" },
   },
   store: { describe: "Los roles del mundo (forma de STD-052, con si @todos construye), quién tiene cada uno, los dueños, los vetados, los silenciados (hasta cuándo), a quién ha bloqueado cada persona, los avisos para moderación (/denunciar, los últimos 100) y sus ajustes (config: solo para miembros, voz)." },
@@ -209,11 +209,11 @@ export function crearRoles(o: OpcionesRoles) {
     if (api) for (const e of vidaIA.keys()) if (vidaIA.get(e)?.sub === vida.sub) { api.emit("cambio", { quien: e }, "server"); publicarIA(api, e, `ia-${vida.sub}`); } // objetos tells it again whether it builds; the public card follows
     return null;
   };
-  /** ia-visible S3: tell the «ia» feature what everybody may know about this AI (state, who answers for it, whether it builds). Every
+  /** ia-visible S3: tell the «ia» feature what everybody may know about this AI (state, who answers for it, whether it builds) and which house avatar its pass picks (-1 = none: the house robot, S2). Every
    * AI gets it: one with a pass carrying an `ia` block says who answers; any other (an inhabitant, an outside agent) is active, nobody listed. */
   const publicarIA = (a: ServerApi, e: number, id: string): void => {
     const p = pasesIA.get(id.slice(3)), r = p?.ia?.responde;
-    a.emit("ia", { quien: e, estado: p?.state ?? "activa", comunidad: r?.comunidad ?? "", nombre: r?.nombre ?? "", cartera: r?.cartera ?? "", construye: tiene(accesoDe(id), "construir") }, "server");
+    a.emit("ia", { quien: e, estado: p?.state ?? "activa", comunidad: r?.comunidad ?? "", nombre: r?.nombre ?? "", cartera: r?.cartera ?? "", construye: tiene(accesoDe(id), "construir"), cuerpo: p?.ia?.cuerpo?.modelo ?? -1 }, "server");
   };
   const todosConstruyen = (): boolean => roles.some((r) => esBase(r) && r.permisos.includes("build-in-worlds"));
 
@@ -643,7 +643,7 @@ export function crearRoles(o: OpcionesRoles) {
      * it is one of numinia.com's agents; null for a world inhabitant (habitantes/<id>.json, P4) — those have no pass. */
     organizacionDeAgente: (id: string): string | null => (esIA(id) ? pasesIA.get(id.slice(3))?.org ?? null : null),
     /** ia-visible S1: the `ia` block of the latest pass of this AI (`id` is an "ia-…" one), or null: no block, a person, an outside agent.
-     * Kept as the pass is (a fresh pass in mid-session replaces it); nothing reads it yet (S2 body, S3 public card, S8 bubble, S10 call). */
+     * Kept as the pass is (a fresh pass in mid-session replaces it); read by publicarIA (S2 body, S3 public card); the bubble (S8) and the call (S10) will read it too. */
     iaDe: (id: string): IABloque | null => (esIA(id) ? pasesIA.get(id.slice(3))?.ia ?? null : null),
     get roles(): readonly Rol[] { return roles; },
     get soloMiembros() { return soloMiembros; },

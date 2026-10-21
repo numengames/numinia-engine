@@ -192,7 +192,7 @@ en `features.cards()`. Un agente de IA lee lo mismo en el catálogo. Ejemplos: `
   La validación es estricta en todos los niveles: un campo que no existe, un tipo equivocado o un valor fuera de rango rechaza el
   pase entero como `contenido` y el texto dice qué campo (nunca su valor); un bloque `ia` en el pase de una persona también se
   rechaza. Sin `ia` el pase se lee igual que siempre. `roles.iaDe("ia-a_…")` devuelve el último bloque de esa IA (un PASE a mitad de
-  sesión lo reemplaza); lo leen la ficha pública (S3, abajo), el cuerpo (S2), y lo leerán la burbuja (S8) y la llamada (S10). **Orden de publicación:** el motor rechaza los campos que no conoce, así que numinia.com solo manda `ia` a los mundos
+  sesión lo reemplaza); lo leen la ficha pública (S3, abajo) y el cuerpo (S2, abajo), y lo leerán la burbuja (S8) y la llamada (S10). **Orden de publicación:** el motor rechaza los campos que no conoce, así que numinia.com solo manda `ia` a los mundos
   cuyo motor ya trae esta versión.
 - **La ficha pública de una IA (ia-visible S3, `features/ia/`):** cada IA conectada (una IA de organización con pase, un agente de
   fuera, un habitante) tiene una entrada en el estado compartido de la función `ia` (clave = su entidad; desaparece al irse; las
@@ -205,6 +205,11 @@ en `features.cards()`. Un agente de IA lee lo mismo en el catálogo. Ejemplos: `
   `iaPagina.de(entidad)` (`features/ia/client.ts`; en la página, `__numinia.ia`) → `{estado, responde?: {comunidad, nombre?, cartera?},
   puede: {construir}, atenta}` o `null` si no es una IA; también `es(entidad)`, `lista()` y `alCambiar(fn)`; un agente o un test lee
   lo mismo en `session.features.stateOf("ia")`. Nada que encender: todo mundo la tiene (R-1).
+- **El cuerpo de una IA (ia-visible S2, `features/avatar/server.ts`):** toda IA (identidad `ia-…`: de organización, de fuera o
+  habitante) lleva el **robot de la casa (Polybot, `ROBOT_CASA` = su índice en `activos/avatares/catalogo.json`)**, salvo que su
+  pase traiga `ia.cuerpo` `{tipo: "casa", modelo}`, que elige otro avatar de la casa por índice (un PASE a mitad de sesión lo
+  cambia al momento; quitar el bloque devuelve al robot). La IA no elige: su `elegir` se rechaza con un aviso y nunca se lee ni se
+  guarda una elección suya. Las personas no cambian. Lo dice la función `roles` con el campo `cuerpo` de su evento `ia` (-1 = ninguno).
 - `view.place?.(clave, { model, x, y, z, rx, ry, rz, sx, sy, sz, animate } | null)` — la página pone, mueve o quita
   una cosa con su modelo (sha256 de un `.glb`; el fichero sale de `/a/<sha256>.glb` del servidor). Giros en grados
   (primero `ry`, luego `rx`, luego `rz`). `view.here?.()` dice dónde está el jugador, para poner algo delante.
