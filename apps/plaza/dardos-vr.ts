@@ -14,12 +14,15 @@ import { sonar } from "./sonar.ts";
 import { DARDOS_TURNO } from "../../features/dardos/client.ts";
 import { lanzamiento, velocidadDe, duracionVuelo, FIN_PELLIZCO_MS, V_MIN } from "../../features/dardos/lanzamiento.ts";
 import type { Cara, Muestra, V3 } from "../../features/dardos/lanzamiento.ts";
+import { marcadorPara } from "../../packages/render/src/dardos-marcador.ts";
+import type { Boton, MarcadorV } from "../../packages/render/src/dardos-marcador.ts";
+import type { DueloV } from "../../packages/render/src/dardos-duelo.ts";
 
 type Lado = "izq" | "der";
-type Res = { ok: true } | { ok: false; why: string };
 type Dardo = { quien: number; sitio: string; numero: number; x: number; y: number };
-type Estado = { sitio: string; dardos: number; aviso: string };
-type Controlador = { estado(): Readonly<Estado>; clavados(sitio?: string): Dardo[]; lanzar(x: number, y: number, fuerza: number, sitio?: string, via?: "vr"): Res; alCambiar(fn: (que: "estado" | "sitios" | "clavados") => void): () => void };
+type Estado = { sitio: string; dardos: number; aviso: string; tirada: number; ultimo: { texto: string; puntos: number } | null; fin: { dardos: number; puntos: number; cuando: number } | null };
+type Res = { ok: true } | { ok: false; why: string };
+type Controlador = { estado(): Readonly<Estado>; duelo(): DueloV | null; sitios(): { id: string; rondas?: number }[]; jugar(sitio?: string): Res; cambiar(): Res; empezar(): Res; clavados(sitio?: string): Dardo[]; lanzar(x: number, y: number, fuerza: number, sitio?: string, via?: "vr"): Res; alCambiar(fn: (que: "estado" | "sitios" | "clavados") => void): () => void };
 type Vuelo = { resolver(como: "clavado" | "caido", donde?: V3): void };
 type Vista = {
   vr: { active: boolean; nota?(t: string): void };
@@ -33,6 +36,7 @@ type Vista = {
       cara(id: string): Cara | null; puntoMundo(id: string, x: number, y: number): V3 | null;
       enMano(l: Lado | null): boolean; posicion(l: Lado): V3 | null; local(l: Lado): V3 | null; aMundo(v: V3, l: Lado): V3;
       volar(desde: V3, hacia: V3, ms: number, fin?: () => void): Vuelo; soltar(desde: V3, vel: V3): void; cadaCuadro(fn: (dt: number) => void): () => void;
+      marcador: { mostrar(id: string | null, m: MarcadorV | null): void; alPulsar(fn: (b: Boton) => void): () => void };
     }>;
   };
 };
@@ -53,7 +57,27 @@ export async function montarDardosVR(o: { dardos: Controlador; view: Vista; yo: 
   const antes: Record<Lado, { gatillo: boolean; agarre: boolean }> = { izq: { gatillo: false, agarre: false }, der: { gatillo: false, agarre: false } };
   const muestras: Record<Lado, Muestra[]> = { izq: [], der: [] };
   const rastro: unknown[] = []; // the last releases (the e2e reads them when a throw is missed)
-  let avisoVisto = "", turnoVisto = "", ultimoTiro: unknown = null;
+  let avisoVisto = "", turnoVisto = "", ultimoTiro: unknown = null, ultimoSitio = "";
+
+  // ---- the scoreboard beside the board (v6): points, whose turn, and the button that passes it ----
+  const pasar = (r: Res): void => { if (!r.ok) view.vr.nota?.(r.why); };
+  vrd.marcador.alPulsar((b) => {
+    if (b === "cambiar") pasar(dardos.cambiar());
+    else if (b === "empezar") pasar(dardos.empezar());
+    else pasar(dardos.jugar(ultimoSitio || undefined)); // «Otro turno»: a new solo turn on the same board
+  });
+  let marcadorEn = 0;
+  const pintarMarcador = (): void => {
+    const t = performance.now();
+    if (t - marcadorEn < 100) return; // 10 times a second is plenty for a scoreboard (and kind to a headset's battery)
+    marcadorEn = t;
+    if (!view.vr.active || view.ar?.jugando) { vrd.marcador.mostrar(null, null); return; }
+    const e = dardos.estado();
+    if (e.sitio) ultimoSitio = e.sitio;
+    const solo = { sitio: e.sitio, dardos: e.dardos, tirada: e.tirada, ultimo: e.ultimo ? { texto: e.ultimo.texto, puntos: e.ultimo.puntos } : null, fin: e.fin };
+    const r = marcadorPara({ solo, duelo: dardos.duelo(), sitios: dardos.sitios(), ultimoSitio, ahora: performance.now() });
+    vrd.marcador.mostrar(r.sitio || null, r.marcador);
+  };
 
   const sinResolver = () => pend.filter((p) => !p.resuelto).length;
   const quedan = () => DARDOS_TURNO - dardos.estado().dardos - sinResolver();
@@ -61,6 +85,8 @@ export async function montarDardosVR(o: { dardos: Controlador; view: Vista; yo: 
   /** A hand that may take a dart now: nothing to take with it, nothing under its ray (those keep their own verbs). */
   const puedeCoger = (l: Lado): boolean => {
     if (!turno() || quedan() <= 0 || sosteniendo) return false;
+    const d = dardos.duelo();
+    if (d?.yo && (!d.miTurno || d.esperando || d.fin || d.retirando)) return false; // a match: only on my turn, until «retira los dardos» (the server would refuse the throw)
     if (view.manos.ocupadaPorOtros(l, "dardos")) return false; // the rod, a quest thing held there: that hand is not free
     const s = view.manos.sondeo(l);
     return !!s && !s.candidato && !s.apunta;
@@ -125,6 +151,7 @@ export async function montarDardosVR(o: { dardos: Controlador; view: Vista; yo: 
   vrd.cadaCuadro(() => {
     const ahora = performance.now();
     for (let i = pend.length - 1; i >= 0; i--) if (ahora - pend[i].cuando > PENDIENTE_MS) pend.splice(i, 1);
+    pintarMarcador();
     const sitio = turno();
     if (sitio !== turnoVisto) {
       if (sitio) view.vr.nota?.("Dardos: agarre coge un dardo · gatillo (o soltar) lo lanza");
