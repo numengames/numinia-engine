@@ -58,7 +58,7 @@ html[data-aparato^="movil"] #accion .lbl { font-size: 12px; font-weight: 650; li
 html[data-aparato^="movil"] #accion svg { width: 32px; height: 32px; }
 html[data-aparato^="movil"] #accion[data-tipo="saltar"] { background: rgba(42, 36, 32, .72); border-color: var(--n-linea); } /* nada cerca: salta; el turquesa es de cuando hay algo que hacer */
 html[data-aparato^="movil"] #mas { position: fixed; right: calc(var(--sr) + 16px + 88px - 34px); bottom: calc(var(--sb) + 16px + 88px + 14px); z-index: 6; width: 48px; height: 48px; padding: 0; border-radius: 50%; display: grid; place-items: center; color: var(--n-texto); }
-html[data-aparato^="movil"] #mas-menu { position: fixed; right: calc(var(--sr) + 16px); bottom: calc(var(--sb) + 16px + 88px + 14px + 48px + 10px); z-index: 7; border-radius: 8px; padding: 8px; display: grid; grid-template-columns: repeat(3, 64px); gap: 6px; transform-origin: 100% 100%; }
+html[data-aparato^="movil"] #mas-menu { position: fixed; right: calc(var(--sr) + 16px); bottom: calc(var(--sb) + 16px + 88px + 14px + 48px + 10px); z-index: 7; border-radius: 8px; padding: 8px; display: grid; grid-template-columns: repeat(3, 80px); gap: 6px; transform-origin: 100% 100%; } /* 80 px: «Movimientos» mide 75 px a 12 px de letra y en 64 px se salía del botón */
 html[data-aparato^="movil"] #mas-menu button { height: 64px; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0; font: 12px "Geist", system-ui, sans-serif; color: var(--n-texto); background: rgba(42, 36, 32, .6); border: 1px solid var(--cr-borde); }
 html[data-aparato^="movil"] #mas-menu .extra { display: none; }
 html[data-aparato^="movil"] #mas-menu.ampliado .extra { display: flex; }
@@ -158,7 +158,7 @@ html[data-aparato="movil-horizontal"] #chat-form { padding: 6px; }
 html[data-aparato="movil-horizontal"] #joy-fantasma { bottom: calc(var(--sb) + 34px); left: calc(var(--sl) + 34px); width: 120px; height: 120px; }
 html[data-aparato="movil-horizontal"] #accion { width: 84px; height: 84px; bottom: calc(var(--sb) + 22px); right: calc(var(--sr) + 22px); }
 html[data-aparato="movil-horizontal"] #mas { width: 44px; height: 44px; right: calc(var(--sr) + 22px + 84px + 14px); bottom: calc(var(--sb) + 22px + 84px - 44px); }
-html[data-aparato="movil-horizontal"] #mas-menu { bottom: calc(var(--sb) + 22px + 84px + 12px); right: calc(var(--sr) + 22px); grid-template-columns: repeat(5, 68px); }
+html[data-aparato="movil-horizontal"] #mas-menu { bottom: calc(var(--sb) + 22px + 84px + 12px); right: calc(var(--sr) + 22px); grid-template-columns: repeat(5, 80px); }
 html[data-aparato="movil-horizontal"] #mas-menu button { height: 58px; }
 html[data-aparato="movil-horizontal"] #hoja-msg { left: auto; right: calc(var(--sr) + var(--m)); width: 300px; }
 html[data-aparato="movil-horizontal"] body #dialogo { left: auto !important; right: calc(var(--sr) + var(--m)) !important; width: 330px !important; bottom: calc(var(--sb) + 10px) !important; max-height: calc(100dvh - var(--st) - var(--sb) - 20px); }
