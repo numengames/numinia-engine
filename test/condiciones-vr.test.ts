@@ -8,7 +8,7 @@ import type { Paso } from "../apps/plaza/condiciones-logica.ts";
 import { crearPaginador, eyebrow, lineasDe, modelo, notaDePaginas, paginasDePaso, trocearBloques } from "../apps/plaza/condiciones-vr-logica.ts";
 import {
   ALTO_M, anchoTexto, ARRASTRE, arrastreInicio, arrastrePaso, BARRA, haciaOjoGrados, ID_BARRA, limitarPanel, type EntradaMano, BOTON_H, BURBUJA, CASILLAS_PAGINA, colocarPanel, debeSeguir, desvioGrados, disposicion, ESTILOS, estallidoBurbuja, ID_NORMA, ID_PAG_ANT, ID_PAG_SIG, idBoton,
-  idDato, LIENZO, LINEAS_PAGINA, metrosAPx, miradaPaso, opacidadBurbuja, opacidadPanelEstallando, PALANCA, palancaPagina, paginaTras, PANEL, PX_POR_M, rectsBotones, RECOLOCAR,
+  idDato, LIENZO, LINEAS_PAGINA, metrosAPx, miradaPaso, palancasDelPanel, opacidadBurbuja, opacidadPanelEstallando, PALANCA, palancaPagina, paginaTras, PANEL, PX_POR_M, rectsBotones, RECOLOCAR,
   toqueInicio, toquePaso, TOQUE, uvAPx, zonaDe,
 } from "../packages/render/src/condiciones-vr-geom.ts";
 
@@ -274,4 +274,11 @@ test("it ends facing the head: the front direction measured against the head is 
   assert.equal(haciaOjoGrados({ x: 0, y: 0, z: 1 }, { x: 0, y: 1.5, z: -1.2 }, OJO), 0);
   assert.ok(Math.abs(haciaOjoGrados({ x: 1, y: 0, z: 0 }, { x: 0, y: 1.5, z: -1.2 }, OJO) - 90) < 1e-9);
   assert.equal(haciaOjoGrados({ x: 0, y: 0, z: 0 }, { x: 0, y: 1.5, z: -1.2 }, OJO), 0, "degenerate: no NaN");
+});
+
+test("c9: the sticks are the panel's only while it is up and not bursting — accepting gives the world back at once", () => {
+  assert.equal(palancasDelPanel(true, false, false), true, "panel up: the sticks turn pages");
+  assert.equal(palancasDelPanel(false, false, true), true, "panel about to show: the sticks are already its");
+  assert.equal(palancasDelPanel(true, true, false), false, "bursting (the server let you in): the stick moves you now, not when the burst ends");
+  assert.equal(palancasDelPanel(false, false, false), false, "no panel: the world's");
 });

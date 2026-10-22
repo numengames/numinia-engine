@@ -115,6 +115,12 @@ export function zonaDe(u: number, v: number, zonas: readonly Zona[]): number {
 }
 export const zonaPorId = (zonas: readonly Zona[], id: number): Zona | undefined => zonas.find((z) => z.id === id);
 
+/** c9: do the sticks belong to the panel (turn pages) instead of the world? Only while the panel is up and NOT bursting, or about to be shown.
+ * The server lets you through before the burst starts (the page's `cerrada()` is already false); the burst lasts a fixed time but only advances
+ * when a frame runs, so holding the sticks during it made them dead for as long as the frames were slow (the headset's stick «sometimes» did not
+ * move you right after accepting). From the first moment of the burst the world is yours. */
+export function palancasDelPanel(abierto: boolean, estallando: boolean, pendiente: boolean): boolean { return (abierto && !estallando) || pendiente; }
+
 // ── the stick turns pages ──────────────────────────────────────────────────────────────────────────────────────────
 /** One push = one page, re-armed when the stick returns near the middle (like the snap turn it replaces while the bubble is up). */
 export const PALANCA = { empuja: 0.6, suelta: 0.3 } as const;

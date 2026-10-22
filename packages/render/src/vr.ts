@@ -18,7 +18,7 @@ import type { BotonReloj, Vista } from "./menu-vr.ts";
 import type { PathsIcono } from "./vr-pintura.ts";
 import type { AccionFichaVR, DatosFichaVR, FichaVR } from "./vr-ficha.ts"; // types only: the panel itself is fetched on first use (C5)
 import type { CondicionesVR } from "./condiciones-vr.ts"; // types only: the entry bubble's panel is fetched on first use (c4)
-import { ID_BARRA, palancaPagina, type EntradaMano, type LadoMano, type ModeloVR, type Zona } from "./condiciones-vr-geom.ts"; // pure numbers, no three.js
+import { ID_BARRA, palancaPagina, palancasDelPanel, type EntradaMano, type LadoMano, type ModeloVR, type Zona } from "./condiciones-vr-geom.ts"; // pure numbers, no three.js
 import { empujaFuera } from "./vr-paredes.ts";
 import { audio } from "./audio/nucleo.ts"; // S1: the engine's one audio graph (it sleeps when the session ends)
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
@@ -425,7 +425,8 @@ export function createVR(h: VRHooks) {
     } else if (Math.abs(ry) <= 0.6) navLatched = false;
     // snap turn: one step per push, re-armed when the stick returns to the middle
     let turned = false;
-    if (condVR?.abierto || condPendiente) { // c4: inside the bubble the stick turns pages (either one: the left one walks nobody), it does not turn you
+    const enPanel = palancasDelPanel(!!condVR?.abierto, !!condVR?.estallando, !!condPendiente); // c9: not while the bubble bursts (the server already let you in)
+    if (enPanel) { // c4: inside the bubble the stick turns pages (either one: the left one walks nobody), it does not turn you
       const p = palancaPagina(Math.abs(rx) > Math.abs(lx) ? rx : lx, !pagLatched);
       pagLatched = !p.armado;
       if (p.dir) for (const f of oyentesCond.pagina) f(p.dir);
@@ -469,7 +470,7 @@ export function createVR(h: VRHooks) {
     moveZ = fz * -ly + fx * lx;
     const conMano = visible && !lx && !ly ? h.manos?.andar?.() : null; // tracked hands: pinch and hold in the air = walk where that hand points
     if (conMano) { moveX = conMano[0] * 0.7; moveZ = conMano[1] * 0.7; } // walking pace (the edge, 0.9, runs)
-    if (condVR?.abierto || condPendiente) { moveX = moveZ = 0; turned = false; } // c4: inside the bubble the sticks turn pages, they do not move or turn you (the server holds you too)
+    if (enPanel) { moveX = moveZ = 0; turned = false; } // c4: inside the bubble the sticks turn pages, they do not move or turn you (the server holds you too)
     const m = Math.hypot(moveX, moveZ);
     if (m > 1) { moveX /= m; moveZ /= m; }
     moveX *= velocidad; moveZ *= velocidad; // rediseño v2: the menu's «Velocidad» (1 = as shipped)
