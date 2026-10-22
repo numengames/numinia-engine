@@ -54,20 +54,22 @@ export const AMBIENTE_GANANCIA_MAX = 4;
 export const BUS_AMBIENTE: Bus = "ambiente";
 
 /** Los materiales con sonido de paso que hay en el catálogo. */
-export const MATERIALES = ["piedra", "madera", "metal", "hierba", "agua"] as const;
+export const MATERIALES = ["piedra", "madera", "metal", "hierba", "arena", "nieve", "agua"] as const;
 export type Material = (typeof MATERIALES)[number];
 /** Cuando el motor no sabe de qué es el suelo, los pasos suenan a piedra (que es lo que había antes de la fusión). */
 export const MATERIAL_DEF: Material = "piedra";
 /** El id del catálogo de los pasos de cada material. */
 export const PASO_DE: Readonly<Record<Material, string>> = {
-  piedra: "pasos-piedra", madera: "pasos-madera", metal: "pasos-metal", hierba: "pasos-hierba", agua: "pasos-agua",
+  piedra: "pasos-piedra", madera: "pasos-madera", metal: "pasos-metal", hierba: "pasos-hierba", arena: "pasos-arena", nieve: "pasos-nieve", agua: "pasos-agua",
 };
 /** El tipo de suelo de la ZONA (`entorno@1`: hierba, tierra, arena, roca, nieve, liso) → material de los pasos.
  *  Esto es lo más que el motor sabe hoy del suelo: es por zona, no por superficie, así que un tablado de madera sobre
  *  una zona de roca sigue sonando a piedra. Eso es la historia S8 del diseño (materiales por superficie), pendiente. */
 export const MATERIAL_DE_SUELO: Readonly<Record<string, Material>> = {
   hierba: "hierba", cesped: "hierba", prado: "hierba",
-  tierra: "piedra", arena: "piedra", roca: "piedra", piedra: "piedra", nieve: "piedra", liso: "piedra", baldosa: "piedra",
+  // arena and tierra step on sand, nieve on snow (Galatea, 2026-10-22: they all stepped on stone, and grass played the sand takes)
+  arena: "arena", tierra: "arena", playa: "arena", nieve: "nieve",
+  roca: "piedra", piedra: "piedra", liso: "piedra", baldosa: "piedra",
   madera: "madera", tablado: "madera",
   metal: "metal", rejilla: "metal",
   agua: "agua", charco: "agua",

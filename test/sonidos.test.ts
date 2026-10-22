@@ -100,7 +100,7 @@ test("S6f: el colchón de ambiente está en el catálogo, en bucle, en el bus am
   assert.equal(c.variantes.length, 1, "el colchón es una cama única: una sola variante");
 });
 
-test("S6: cada variante del catálogo existe, pesa lo que dice y su sha256 es el del fichero (los 194 ficheros)", () => {
+test("S6: cada variante del catálogo existe, pesa lo que dice y su sha256 es el del fichero (los 214 ficheros)", () => {
   assert.equal((catalogo as Cat).schema, "numinia-engine/sonidos@1");
   let ficheros = 0, bytes = 0, bytesColchon = 0;
   for (const s of sonidos()) {
@@ -116,7 +116,7 @@ test("S6: cada variante del catálogo existe, pesa lo que dice y su sha256 es el
       }
     }
   }
-  assert.equal(ficheros, 194, "194 ficheros (97 variantes × opus + m4a: 96 disparos —7 son las voces de los PNJ— + el colchón de ambiente)");
+  assert.equal(ficheros, 214, "214 ficheros (107 variantes × opus + m4a: 106 disparos —7 son las voces de los PNJ— + el colchón de ambiente; 2026-10-22 suman los pasos de arena y de nieve)");
   assert.ok(bytes < 600_000, `activos/sonidos/ son ${bytes} B sin el colchón: ¿se ha colado una cama de zona?`);
   assert.ok(bytesColchon < 2_000_000, `el colchón de ambiente son ${bytesColchon} B: 113 s de música no pasan de 2 MB`);
 });
@@ -356,7 +356,8 @@ test("S6: la tabla de la página no lleva sha256 ni licencias, y apunta a /a/<sh
   assert.equal(receta.fuente, "receta");
   assert.deepEqual(receta.variantes, [], "una fila de receta no lleva ficheros a la página");
   assert.ok(receta.texto.length > 3, "pero sí su texto accesible");
-  assert.ok(crudo.length < 24_000, `la tabla son ${crudo.length} B: demasiado para una descarga de arranque`);
+  // 26 kB (was 24): the sand and snow steps add two ids and ten variants, ~1.1 kB of table (Galatea, 2026-10-22)
+  assert.ok(crudo.length < 26_000, `la tabla son ${crudo.length} B: demasiado para una descarga de arranque`);
 });
 
 // ———————————— 4b. S6f · lo COMPARTIDO lo manda el servidor: la pieza se asoma a los eventos que ya hay ————————————

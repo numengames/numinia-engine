@@ -38,6 +38,8 @@ export const MEZCLA: Record<string, { prioridad: number; cooldown_ms: number }> 
   "pasos-piedra": { prioridad: 60, cooldown_ms: 90 },
   "pasos-madera": { prioridad: 60, cooldown_ms: 90 },
   "pasos-hierba": { prioridad: 60, cooldown_ms: 90 },
+  "pasos-arena": { prioridad: 60, cooldown_ms: 90 },
+  "pasos-nieve": { prioridad: 60, cooldown_ms: 90 },
   "pasos-metal": { prioridad: 60, cooldown_ms: 90 },
   "pasos-agua": { prioridad: 60, cooldown_ms: 90 },
   aterrizaje: { prioridad: 70, cooldown_ms: 150 },

@@ -1,6 +1,7 @@
 // S6s: la máquina de pasos (pura): cuándo suena un paso, un salto y un aterrizaje.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { crearPasos, PASO_M, AIRE_MIN_S } from "../apps/plaza/sonidos.ts";
 
 const DT = 0.05;
@@ -165,4 +166,16 @@ test("sonar.ts: las piezas de VR suenan por la puerta única de la página, y lo
   m.desmontar();
   assert.equal(puente.sonar, null, "al desmontar se suelta el puente");
   assert.equal(sonar("coger-soltar"), false);
+});
+
+test("Galatea: each ground steps on its own sound — grass is grass, sand and earth are sand, snow is snow, the rest stone", async () => {
+  const { materialDeSuelo, PASO_DE, MATERIALES } = await import("../packages/render/src/audio/sonar.ts");
+  const de = (t: string | null) => PASO_DE[materialDeSuelo(t)];
+  assert.deepEqual(["hierba", "arena", "tierra", "nieve", "roca", "liso", "madera", null].map(de),
+    ["pasos-hierba", "pasos-arena", "pasos-arena", "pasos-nieve", "pasos-piedra", "pasos-piedra", "pasos-madera", "pasos-piedra"]);
+  const cat = JSON.parse(readFileSync(new URL("../features/sonido/catalogo.json", import.meta.url), "utf8")) as { sonidos: { id: string; variantes: { autor?: string; origen?: string; licencia?: string }[] }[] };
+  for (const m of MATERIALES) assert.ok(cat.sonidos.some((s) => s.id === PASO_DE[m]), `${PASO_DE[m]} has files`);
+  const hierba = JSON.stringify(cat.sonidos.find((s) => s.id === "pasos-hierba"));
+  assert.match(hierba, /kenney/i, "grass steps are Kenney's footstep_grass, no longer Fantozzi's sand takes");
+  assert.doesNotMatch(hierba, /Fantozzi/);
 });
