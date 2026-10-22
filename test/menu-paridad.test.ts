@@ -17,7 +17,7 @@ const FUENTES = ["main.ts", "gente.ts", "avisos.ts", "mapa.ts", "movil.ts", "gra
 /** The exceptions: a section of the computer or the phone that VR does not have. Adding one means editing this list
  * AND giving it a reason in menu-secciones.ts (`sinVR`). `debe: true` = VR still owes it (the pending list). */
 const EXCEPCIONES = {
-  camara: false, grabar: true, compartir: false, pantalla: false, teclas: true, chat: true, interactuar: false, ar: false, vr: false,
+  camara: false, grabar: true, compartir: false, pantalla: false, teclas: true, interactuar: false, ar: false, vr: false,
 } as const;
 
 test("the list is well formed: unique ids and order, both languages, a real icon, a key that looks like one", () => {
@@ -46,20 +46,24 @@ test("PARITY: every section of the computer or the phone is in VR, or is a writt
   }
   const reales = Object.fromEntries(excepcionesVR().map((e) => [e.id, e.debe]));
   assert.deepEqual(reales, EXCEPCIONES, "the exceptions to «the same on every device» changed: update this list on purpose");
-  assert.deepEqual(excepcionesVR().filter((e) => e.debe).map((e) => e.id), ["grabar", "teclas", "chat"], "what VR still owes");
+  assert.deepEqual(excepcionesVR().filter((e) => e.debe).map((e) => e.id), ["grabar", "teclas"], "what VR still owes");
 });
 
-test("the seven sections of the computer's menu are the VR panel's rows, in the same order, with the same names and icons", () => {
+test("the seven sections of the computer's menu are the VR panel's first rows, in the same order, with the same names and icons; v7 adds Chat as the eighth", () => {
   const sieteDelOrdenador = seccionesEn("pc").filter((s) => s.orden <= 7).map((s) => s.id);
   assert.deepEqual(sieteDelOrdenador, ["tu", "gente", "bolsa", "misiones", "mapa", "construir", "ajustes"]);
-  assert.deepEqual([...SECCIONES], sieteDelOrdenador);
-  assert.deepEqual(idsPanelVR(), sieteDelOrdenador);
+  assert.deepEqual([...SECCIONES], [...sieteDelOrdenador, "chat"]);
+  assert.deepEqual(idsPanelVR(), [...sieteDelOrdenador, "chat"]);
   for (const id of sieteDelOrdenador) {
     const s = seccion(id);
     assert.deepEqual([...s.aparatos], ["pc", "movil", "vr"], `${id} exists on all three`);
     assert.equal(ETIQUETAS[id as keyof typeof ETIQUETAS], s.es);
     assert.equal(ICONOS[id as keyof typeof ICONOS], s.icono);
   }
+  // v7: «Chat» is the same section on the three devices (id, icon, name as the bar's «Chat» button)
+  assert.deepEqual([...seccion("chat").aparatos], ["pc", "movil", "vr"]);
+  assert.equal(ETIQUETAS.chat, "Chat"); assert.equal(ICONOS.chat, "chat-circle"); assert.equal(ETIQUETAS.chat, nombreDe("chat"));
+  assert.deepEqual(seccion("chat").botones, ["chat-boton"]);
   assert.equal(ETIQUETAS.avisos, nombreDe("avisos")); assert.equal(ICONOS.avisos, "bell");
 });
 

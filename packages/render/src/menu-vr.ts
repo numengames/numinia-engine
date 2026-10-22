@@ -1,11 +1,11 @@
 // Rediseño v2 (story E, maquetas p6/p7): the VR menu and the wrist watch as pure numbers (no three.js, tested in node:
 // test/vr-menu.test.ts). The views that paint them are menu-invocado.ts (the panel) and muneca.ts (the watch).
 //
-// THE PANEL (p7): one flat panel 1.0 × 0.556 m, 1.2 m from the eyes, a little below them so it leans towards you, STILL
+// THE PANEL (p7): one flat panel 1.0 × 0.611 m, 1.2 m from the eyes, a little below them so it leans towards you, STILL
 // (placed once when it opens; it closes with B, with «Menú» again, with its X, or walking 2 m away). A header (title,
 // «Salir de VR», X), the list of sections on the left — the same seven as the computer: Tú · Gente · Bolsa · Misiones ·
-// Mapa · Construir · Ajustes — and the section's content on the right. Pointed at with the ray of either hand; trigger
-// or pinch presses. Canvas 1440 × 800 px (1440 px per metre): a list row is 84 px = 58 mm ≈ 2.8° at 1.2 m.
+// Mapa · Construir · Ajustes, and since v7 Chat (8 rows) — and the section's content on the right. Pointed at with the ray of either hand; trigger
+// or pinch presses. Canvas 1440 × 880 px (1440 px per metre; 800 until the eighth row, «Chat», needed room): a list row is 84 px = 58 mm ≈ 2.8° at 1.2 m.
 //
 // THE WATCH (p6): a disc of 12 cm over the wrist of the menu hand. Centre «Menú» (turquoise), around it four round
 // buttons: microphone (top), camera (right), notices (bottom), back to the city (left; only when the world has a city —
@@ -14,13 +14,13 @@
 import { iconoDe, idsPanelVR, nombreDe, seccionDeReloj } from "./menu-secciones.ts";
 
 // ── the panel ──────────────────────────────────────────────────────────────────────────────────────────────────────
-export const MENU = { distM: 1.2, bajoGrados: 12, anchoM: 1.0, altoM: 0.556, cierraM: 2 } as const;
-export const LIENZO = { w: 1440, h: 800 } as const;
+export const MENU = { distM: 1.2, bajoGrados: 12, anchoM: 1.0, altoM: 880 / 1440, cierraM: 2 } as const;
+export const LIENZO = { w: 1440, h: 880 } as const;
 export const PX_POR_M = LIENZO.w / MENU.anchoM;
 
 // the list, names and icons are the world's ONE list of sections (menu-secciones.ts): the same the computer's bar and the
 // phone's menu read (test/menu-paridad.test.ts keeps them together)
-export type Seccion = "tu" | "gente" | "bolsa" | "misiones" | "mapa" | "construir" | "ajustes";
+export type Seccion = "tu" | "gente" | "bolsa" | "misiones" | "mapa" | "construir" | "ajustes" | "chat";
 export const SECCIONES = idsPanelVR() as readonly Seccion[];
 /** What the panel can show: a section of the list, or the notices (opened from the watch; not in the list). */
 export type Vista = Seccion | "avisos";
@@ -33,7 +33,7 @@ export const ICONOS = Object.fromEntries(VISTAS.map((v) => [v, iconoDe(v)])) as 
 export type Rect = { x: number; y: number; w: number; h: number };
 export type Caja = Rect & { id: number };
 
-/** Ids: 1 = close (X), 2 = «Salir de VR», 10..16 = the list, 100.. = the content's buttons. 0 = nothing. */
+/** Ids: 1 = close (X), 2 = «Salir de VR», 10..17 = the list, 100.. = the content's buttons. 0 = nothing. */
 export const ID_CERRAR = 1, ID_SALIR = 2;
 export const idSeccion = (i: number) => 10 + i;
 export const idBoton = (i: number) => 100 + i;

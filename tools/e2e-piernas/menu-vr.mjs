@@ -5,6 +5,7 @@
 // section; B closes it; lowering the wrist hides the watch. Not a Quest: IWER only. Env: BASE, SERVER_HTTP
 // (tools/auto.sh e2e); CANVAS=<dir> also writes the watch's and the menu's canvases there (vr-reloj.png,
 // vr-menu-<section>.png) — IWER draws the scene poorly, so the pictures are the canvases themselves.
+// v7: the panel's eighth row is «Chat» (the last lines + six quick phrases sent with ray + trigger; page B must receive one).
 // v2 paridad: the panel's seven rows are the computer's (one list: menu-secciones.ts); «Ir a su lado» from Gente puts you next to the
 // other person; «Construir» says «Entra con tu nombre para construir» to a guest without the role and, with it, turns the builder's
 // hands on (constructor-xr.ts).
@@ -115,8 +116,8 @@ async function pierna() {
     const e = await ctl(() => globalThis.__numinia.view.vr.menu.estado());
     paso("rayo + gatillo en «Menú» abre el panel", abierto, { reloj: await ctl(() => globalThis.__numinia.view.vr.reloj.diagnostico()), e });
     // the names the computer's bar and the phone's «…» menu show, read from the live page (one list: menu-secciones.ts)
-    const delOrdenador = await ctl(() => ["hud-personaje-abrir", "gente-abrir", "inventario-abrir", "misiones", "minimapa-abrir", "construir", "ajustes-abrir"].map((id) => (document.getElementById(id)?.getAttribute("aria-label") || document.getElementById(id)?.textContent || "").replace(/\s*\(.\)\s*$/, "").replace(/\s*·.*$/, "").trim()));
-    paso("el panel tiene las 7 secciones del ordenador", e.secciones.map((s) => s.nombre).join("·") === "Tú·Gente·Bolsa·Misiones·Mapa·Construir·Ajustes", { secciones: e.secciones });
+    const delOrdenador = await ctl(() => ["hud-personaje-abrir", "gente-abrir", "inventario-abrir", "misiones", "minimapa-abrir", "construir", "ajustes-abrir", "chat-boton"].map((id) => (document.getElementById(id)?.getAttribute("aria-label") || document.getElementById(id)?.textContent || "").replace(/\s*\(.\)\s*$/, "").replace(/\s*·.*$/, "").trim()));
+    paso("el panel tiene las 7 secciones del ordenador y Chat", e.secciones.map((s) => s.nombre).join("·") === "Tú·Gente·Bolsa·Misiones·Mapa·Construir·Ajustes·Chat", { secciones: e.secciones });
     paso("y se llaman igual que los botones de la página (PC)", e.secciones.every((s, i) => delOrdenador[i].startsWith(s.nombre)), { vr: e.secciones.map((s) => s.nombre), pc: delOrdenador });
     paso("el panel está a ~1,2 m y empieza en «Tú»", Math.abs(e.diagnostico.distanciaM - 1.2) < 0.25 && e.vista === "tu", { diag: e.diagnostico, vista: e.vista });
     await a.waitForTimeout(300); await lienzo("menu", "vr-menu-tu");
@@ -166,6 +167,35 @@ async function pierna() {
     await ctl(() => globalThis.__numinia.view.vr.menu.pintar()); await a.waitForTimeout(200); await lienzo("menu", "vr-menu-construir-sin-permiso");
     await ctl(() => { globalThis.__numinia.constructor.estado.puede = globalThis.__puedeReal; globalThis.__numinia.view.vr.menu.pintar(); });
     paso("el permiso vuelve", (await ctl(() => globalThis.__numinia.constructor.estado.puede)) === puedeAntes);
+    // 4b. v7 «Chat»: the eighth row lists the last lines and six quick phrases; ray + trigger on «Gracias» says it near (B is next to A now)
+    //     and page B receives it. The page's chat client keeps its pace (1 s): a second press right away is refused with a note.
+    const FRASES = ["¡Hola!", "Sí", "No", "Gracias", "Ven aquí", "Un momento"];
+    paso("rayo + gatillo en «Chat» cambia de sección", (await pulsarZona(ID_SECCION(7))) && await esperar(() => globalThis.__numinia.view.vr.menu.vista === "chat", null, 3000));
+    const ec = await ctl(() => globalThis.__numinia.view.vr.menu.estado());
+    paso("«Chat» pone seis frases rápidas como botones", ec.contenido === "chat" && ec.botones === 6, { contenido: ec.contenido, botones: ec.botones });
+    const frases = await ctl(() => globalThis.__numinia.menuVR.contenido("chat").frases.map((f) => f.texto));
+    paso("y son las del encargo", JSON.stringify(frases) === JSON.stringify(FRASES), { frases });
+    await a.waitForTimeout(300); await lienzo("menu", "vr-menu-chat-vacio");
+    const antesB = await b.evaluate(() => globalThis.__numinia.chat.lineas.length);
+    paso("pulsar «Gracias» con el rayo", await pulsarZona(100 + 3));
+    const llega = await b.waitForFunction(() => globalThis.__numinia.chat.lineas.some((l) => l.texto === "Gracias"), null, { timeout: 8000 }).then(() => true, () => false);
+    const lineaB = await b.evaluate(() => globalThis.__numinia.chat.lineas.filter((l) => l.texto === "Gracias").map((l) => ({ tipo: l.tipo, nombre: l.nombre, tuyo: l.tuyo })));
+    paso("la otra página recibe «Gracias» por el chat de siempre", llega && lineaB.length === 1 && lineaB[0].tipo === "cerca" && lineaB[0].tuyo === false, { antesB, lineaB });
+    paso("y A lo lee en su Chat del menú como «Tú: Gracias»", await esperar(() => globalThis.__numinia.view.vr.menu.estado().filas.includes("Tú: Gracias"), null, 4000), { filas: (await ctl(() => globalThis.__numinia.view.vr.menu.estado())).filas });
+    // the answer comes back: B says something, A reads it in the list
+    await b.evaluate(() => globalThis.__numinia.chat.decir("De nada"));
+    paso("A lee lo que dice B", await esperar(() => globalThis.__numinia.view.vr.menu.estado().filas.some((f) => /: De nada$/.test(f)), null, 6000), { filas: (await ctl(() => globalThis.__numinia.view.vr.menu.estado())).filas });
+    await a.waitForTimeout(400); await lienzo("menu", "vr-menu-chat");
+    // a burst of presses: the page's chat client keeps its pace (burst of 3, then one a second); the rest are refused with a note
+    // («Vas muy deprisa…») and nothing more is sent. Pressed in one go through the panel's own press (a ray takes ~0.5 s each).
+    const antesRitmo = await b.evaluate(() => globalThis.__numinia.chat.lineas.length);
+    await a.waitForTimeout(3500); // let the pace refill
+    await ctl(() => { const v = globalThis.__numinia.view.vr, n0 = v.nota.bind(v); globalThis.__notas = []; v.nota = (t) => { globalThis.__notas.push(t); n0(t); }; for (let k = 0; k < 8; k++) v.menu.pulsar(100); });
+    await a.waitForTimeout(1500);
+    const nuevas = await b.evaluate((n) => globalThis.__numinia.chat.lineas.slice(n).map((l) => l.texto), antesRitmo);
+    const notas = await ctl(() => globalThis.__notas);
+    paso("ocho pulsaciones seguidas: no salen todas (el ritmo de la página) y la rechazada dice por qué", nuevas.length >= 1 && nuevas.length < 8 && notas.some((t) => /deprisa/.test(t)), { enviadas: nuevas.length, notas });
+    await a.waitForTimeout(300); await lienzo("menu", "vr-menu-chat-lleno");
     // 5. B closes it; the watch hides once the wrist is lowered
     await boton("right", "b-button", 1); await a.waitForTimeout(120); await boton("right", "b-button", 0);
     paso("B cierra el menú", await esperar(() => !globalThis.__numinia.view.vr.menu.abierto, null, 3000));

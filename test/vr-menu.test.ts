@@ -124,13 +124,13 @@ test("watch fingertip: a press needs < 1.5 cm over a button, fires once, re-arms
 });
 
 // ── the menu: geometry and hit tests (p7) ──────────────────────────────────────────────────────────────────────────
-test("menu sections: the computer's seven, in its order, each with a name and a house icon", () => {
-  assert.deepEqual(SECCIONES.map((s) => ETIQUETAS[s]), ["Tú", "Gente", "Bolsa", "Misiones", "Mapa", "Construir", "Ajustes"]);
+test("menu sections: the computer's seven, in its order, then Chat (v7), each with a name and a house icon", () => {
+  assert.deepEqual(SECCIONES.map((s) => ETIQUETAS[s]), ["Tú", "Gente", "Bolsa", "Misiones", "Mapa", "Construir", "Ajustes", "Chat"]);
   for (const s of SECCIONES) assert.ok(ICONOS[s]);
   assert.ok(!SECCIONES.some((s) => /salir|mandos/i.test(ETIQUETAS[s])), "«Salir de VR» is a header button, not a section");
-  assert.equal(seccionDeId(idSeccion(0)), "tu"); assert.equal(seccionDeId(idSeccion(6)), "ajustes"); assert.equal(seccionDeId(idSeccion(7)), null);
+  assert.equal(seccionDeId(idSeccion(0)), "tu"); assert.equal(seccionDeId(idSeccion(6)), "ajustes"); assert.equal(seccionDeId(idSeccion(7)), "chat"); assert.equal(seccionDeId(idSeccion(8)), null);
 });
-test("menu geometry: 1.0 × 0.556 m at 1.2 m; header and list targets ≥ 2.5° and ≥ 5 mm apart; all inside the canvas", () => {
+test("menu geometry: 1.0 × 0.611 m at 1.2 m; header and list targets ≥ 2.5° and ≥ 5 mm apart; all inside the canvas", () => {
   assert.equal(MENU.distM, 1.2);
   assert.ok(Math.abs(MENU.altoM / MENU.anchoM - LIENZO.h / LIENZO.w) < 0.001, "the canvas has the plane's proportions");
   const { minGrados, minSeparacionMm } = medidas();
@@ -140,7 +140,7 @@ test("menu geometry: 1.0 × 0.556 m at 1.2 m; header and list targets ≥ 2.5° 
     assert.ok(c.h >= 84, "52-56 px on the computer ≈ 84 px here (58 mm at 1.2 m)");
   }
   assert.ok(cajaSalir().x + cajaSalir().w < cajaCerrar().x, "«Salir de VR» next to the X, left of it");
-  const l = cajasLista(); assert.ok(l[l.length - 1].y + l[l.length - 1].h <= LIENZO.h, "the seven rows fit");
+  const l = cajasLista(); assert.ok(l[l.length - 1].y + l[l.length - 1].h <= LIENZO.h, "the eight rows fit");
   assert.ok(l[0].y >= CABECERA.h, "the list starts under the header");
 });
 test("menu hit test: zonaDe maps uv (v up) to the X, «Salir», a section, a content button, or 0", () => {
@@ -219,7 +219,7 @@ test("menu: the list changes section (asking the page), a disabled one does not,
   pulsa(m, idSeccion(1)); assert.equal(m.vista, "gente"); assert.ok(hecho.abiertas.includes("gente"));
   pulsa(m, idSeccion(5)); assert.equal(m.vista, "gente", "Construir is disabled here");
   const e = m.estado();
-  assert.equal(e.secciones.length, 7); assert.equal(e.secciones.find((s) => s.id === "construir")!.activa, false);
+  assert.equal(e.secciones.length, 8); assert.equal(e.secciones.find((s) => s.id === "construir")!.activa, false);
   assert.deepEqual(e.filas, ["Ana"]);
   pulsa(m, idBoton(0)); assert.equal(hecho.ir, 1, "«Ir a su lado» runs the page's action");
   assert.ok(hecho.pulsados >= 3, "every press asks for the click sound");

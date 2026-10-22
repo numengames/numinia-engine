@@ -16,7 +16,7 @@ export type SeccionMundo = {
   icono: string;
   es: string;
   en: string;
-  /** Left to right on the bar, top to bottom in the VR list. Sections of the VR list come first (1..7), as the computer's. */
+  /** Left to right on the bar, top to bottom in the VR list. The first seven are the computer's menu; the VR list then adds «Chat» (v7), which keeps its place in the bar (18). */
   orden: number;
   /** Key on the computer (KeyboardEvent.code without «Key»), for the tooltip «Nombre (L)». */
   tecla?: string;
@@ -53,8 +53,8 @@ export const SECCIONES_MUNDO: readonly SeccionMundo[] = [
     sinVR: { motivo: "dentro del visor ya ocupas todo el campo de visión", debe: false } },
   { id: "teclas", icono: "keyboard", es: "Teclas y ayuda", en: "Keys and help", orden: 17, tecla: "F1", botones: ["teclas-abrir"], aparatos: ["pc"],
     sinVR: { motivo: "los mandos de VR no usan teclas; falta una página de ayuda de los mandos en el menú", debe: true } },
-  { id: "chat", icono: "chat-circle", es: "Chat", en: "Chat", orden: 18, botones: ["chat-boton"], aparatos: ["pc", "movil"],
-    sinVR: { motivo: "escribir en VR necesita un teclado virtual que aún no hay; solo se lee el chat en el mundo", debe: true } },
+  { id: "chat", icono: "chat-circle", es: "Chat", en: "Chat", orden: 18, botones: ["chat-boton"], aparatos: ["pc", "movil", "vr"],
+    vr: { panel: true } }, // v7: in VR it lists the last lines and sends quick phrases; typing needs a virtual keyboard that is not there yet
   { id: "interactuar", icono: "hand-pointing", es: "Interactuar", en: "Interact", orden: 19, tecla: "E", botones: ["interactuar"], aparatos: ["pc", "movil"],
     sinVR: { motivo: "en VR se interactúa apuntando con el rayo y apretando el gatillo", debe: false } },
   { id: "ar", icono: "eye", es: "Entrar en AR", en: "Enter AR", orden: 20, botones: ["ar"], aparatos: ["pc", "movil"],
