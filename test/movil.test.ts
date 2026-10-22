@@ -105,3 +105,10 @@ test("Galatea paseo: a phone offers no «Construir», and the skill slots show o
   assert.match(css, /#habilidades \.hueco \.nom \{[^}]*font-size: 13px/, "the slot names are legible (≥ 13 px)");
   assert.doesNotMatch(css, /#habilidades[^{]*\{[^}]*font(-size)?: (10|11)px/, "no 10–11 px text left in the slots");
 });
+
+test("phone chat box leaves room for the 88 px action button (it ran 22 px under «Saltar» on a 360 px phone)", () => {
+  const css = readFileSync(new URL("../apps/plaza/movil.css", import.meta.url), "utf8");
+  const chat = /body #chat \{[^}]*max-width: calc\(100vw - var\(--sl\) - var\(--sr\) - var\(--m\) - 16px - 88px - 8px\)/;
+  assert.match(css, chat, "#chat max-width reserves the action button (16 + 88) and 8 px of air");
+  assert.match(css, /#accion \{[^}]*width: 88px/, "the button is still 88 px: if it changes, change the chat reserve too");
+});
