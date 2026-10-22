@@ -36,7 +36,18 @@ if (!ORDENES.includes(orden)) {
 } else if (!dejarDeSerRoot()) {
   process.exitCode = 1;
 } else if (orden === "servidor") {
+  // E1: the world's AI inhabitants are a process apart (packages/agent). A systemd install runs it as its own unit; here, in the
+  // image, nobody would: if the world has inhabitants this process starts it (habitantes-proceso.ts has the rules and the switch,
+  // MOTOR_HABITANTES=no). It is prepared BEFORE the server loads (the agents' secret goes into the environment the server reads)
+  // and started AFTER it listens.
+  const { prepararHabitantes } = await import("./habitantes-proceso.ts");
+  const habitantes = prepararHabitantes(process.env, console.log);
   await import("./main.ts");
+  if (habitantes) {
+    const sup = habitantes.arrancar();
+    for (const sig of ["SIGTERM", "SIGINT"] as const) process.once(sig, () => sup.parar());
+    process.once("exit", () => sup.parar()); // the reload by exit 75 (a world zip), a crash, process.exit: the child never outlives the server
+  }
 } else {
   const cli = await import("./mundo-cli.ts");
   const raiz = process.env.MOTOR_MUNDO ?? "/mundo";

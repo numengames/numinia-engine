@@ -186,6 +186,34 @@ Eso solo siembra el mundo la primera vez; desde entonces lo dicen sus roles, que
 los micrófonos, que `MOTOR_VOZ=no` solo siembra). Volver a instalar con otro `--construir` ya no cambia un mundo hecho. Lo construido se guarda en `datos/objetos.json` + `.jsonl`. Los modelos que
 se pueden colocar son los de la biblioteca de la casa (`app/activos/`, CC0), servidos en `/a/<sha256>.glb`.
 
+**Los habitantes IA dentro del contenedor (E1).** Los habitantes de un mundo (`aventura/habitantes/*.json`) los mueve un
+proceso aparte (`packages/agent`). En una instalación con systemd es su propia unidad (`numinia-habitantes`); en la imagen,
+**el propio motor lo arranca** como proceso hijo cuando el mundo tiene al menos un habitante válido, hablando con el
+servidor por `127.0.0.1` y leyendo la aventura del mundo (`/mundo/aventura`). Sin habitantes no hay proceso hijo: cuesta
+una lectura de carpeta cada 2 s. Qué hace, en una línea cada cosa:
+
+- **Cuándo.** Solo si el motor arranca por `entrada.ts` (la imagen, `arrancar.sh`, el `compose.yml` del zip). Una instalación
+  con systemd arranca `main.ts` y su unidad aparte, y el instalador pone además `MOTOR_HABITANTES=no` en la unidad del motor:
+  nunca hay dos copias. `MOTOR_HABITANTES=no` en el entorno del contenedor los apaga (también con `AVENTURA_DIR=` vacío).
+- **Cómo entran.** Cada habitante firma su billete con `MOTOR_AGENTES_SECRET` y el servidor lo comprueba con el mismo. Nadie
+  escribe nada: si el entorno no trae uno (16 caracteres o más), el motor hace uno al azar al arrancar, solo en memoria, y se lo
+  da al servidor y al hijo; no va a un fichero, al zip ni al registro. Si la flota pone el suyo, se usa ese.
+- **Qué ve el hijo.** Un entorno corto: `PATH`, idioma, `NODE_ENV`, `CEREBRO_*`, `ANTHROPIC_API_KEY` y los ficheros de
+  certificados. **No** las claves del mundo (`JWT_SECRET`, `MOTOR_SECRET`, `ADMIN_CODE`, `MOTOR_ADMIN`, el pase): como en la
+  unidad de systemd, puede hacer identidades de IA y nunca de invitado ni el código de administración.
+- **El cerebro.** Si el contenedor trae `CEREBRO_CLAVE` (y, si quiere, `CEREBRO_MODELO`, `CEREBRO_DIA_MAX`) en su fichero de
+  entorno, los habitantes con `escalon` 2 o 4 piensan con Claude; sin clave contestan con su guion, como siempre. En la flota:
+  la línea va en `/srv/fleet/env/<mundo>.env`.
+- **Si se cae.** Vuelve a arrancar a los 5 s (10, 20, 40 y 60 s si sigue cayéndose joven; tras un minuto vivo, otra vez 5 s). Si
+  el servidor para (SIGTERM, SIGINT, salida 75 al subir un zip, un fallo), el hijo para con él.
+- **Altas y bajas.** El panel de numinia.com (`POST`/`DELETE /habitantes`) o la orden de chat escriben el fichero y el servidor
+  lo vuelve a leer; el hijo lee `habitantes/` solo al arrancar, así que el motor mira la carpeta cada 2 s y lo reinicia si algo
+  cambia (el primero que se añade lo arranca; al quitar el último, se para). El aviso de siempre al servidor
+  (`systemctl restart numinia-habitantes`) no existe en un contenedor y se apaga (`MOTOR_HABITANTES_SIN_RECARGA=1`).
+  Un fichero nuevo copiado a mano **no** lo conoce el servidor hasta que se reinicia (la lista de quién puede entrar la lee al
+  arrancar y tras cada alta por el panel).
+- **Peso.** Corre con `nice` 10 y el montón de Node limitado a 192 MB (medido: ~150 MB de memoria con los 15 del mundo TRG26).
+
 ## El cerebro de los habitantes IA (P5a)
 
 Lía (y cualquier habitante con `escalon` 2 o 4) contesta con Claude cuando la llamas por su nombre y, si el mundo
