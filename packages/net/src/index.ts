@@ -505,15 +505,18 @@ export const CIERRE_LLENO = 4004;
 export function webSocketClient(url: string): Transport & { opened: Promise<void>; closed: Promise<{ code: number; reason: string }>; close(): void } {
   const ws = new WebSocket(url);
   ws.binaryType = "arraybuffer";
-  let cb: (b: Uint8Array) => void = () => {};
+  // v9: the page may open the socket long before it has a session to listen (the handshake then runs while the view is built):
+  // what arrives meanwhile waits here and goes to the first listener, in order (of the snapshots, only the newest), instead of being dropped.
+  let cb: ((b: Uint8Array) => void) | null = null;
+  const espera: Uint8Array[] = [];
   const t = {
     sentBytes: 0,
     opened: new Promise<void>((ok, ko) => { ws.addEventListener("open", () => ok()); ws.addEventListener("error", () => ko(new Error(`cannot reach ${url}`))); }),
     closed: new Promise<{ code: number; reason: string }>((ok) => ws.addEventListener("close", (ev) => ok({ code: ev.code, reason: ev.reason }))),
     send(bytes: Uint8Array) { if (ws.readyState === 1) { ws.send(bytes); t.sentBytes += bytes.length; } },
-    onMessage(f: (b: Uint8Array) => void) { cb = f; },
+    onMessage(f: (b: Uint8Array) => void) { cb = f; for (const b of espera.splice(0)) f(b); },
     close() { ws.close(); },
   };
-  ws.addEventListener("message", (ev) => { if (ev.data instanceof ArrayBuffer) cb(new Uint8Array(ev.data)); });
+  ws.addEventListener("message", (ev) => { if (!(ev.data instanceof ArrayBuffer)) return; const b = new Uint8Array(ev.data); if (cb) { cb(b); return; } if (b[0] === MSG.SNAPSHOT) { const i = espera.findIndex((x) => x[0] === MSG.SNAPSHOT); if (i >= 0) espera.splice(i, 1); } espera.push(b); }); // a snapshot is the whole picture: only the newest is worth keeping
   return t;
 }

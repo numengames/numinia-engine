@@ -63,3 +63,32 @@ textura más pequeña en la plantilla (decisión de arte) o cargar primero una v
 `npm test` (test/carga-rapida.test.ts) · `npm run optimizar -- <mundo>` · para medir, el guion de la noche
 (`medir22.mjs` en el informe de N22, **fuera del repositorio**) arranca el servidor con el mundo y mide con el perfil de arriba.
 Mientras no esté en `tools/`, la tabla de arriba no se puede repetir: trátala como una pasada, no como una línea base.
+
+## v9: entrar en un mundo desde las gafas (Quest) · medido, 2026-10-22
+Dos causas baratas de que la entrada fuera lenta, ambas por hacer los pasos uno detrás de otro:
+1. **El socket se abría tarde.** `main.ts` pedía `/status`, montaba la vista 3D y solo entonces abría el WebSocket; su
+   apretón (TLS + upgrade) y el `welcome` del servidor esperaban detrás. Ahora se abre arriba de todo y lo que llega antes de
+   que haya sesión que lo lea se guarda en el transporte (`packages/net`; de los snapshots solo el último).
+2. **La sonda de determinismo corría antes del primer cuadro** (un replay: ~60 ms en PC, ~220 ms a CPU ×4). Ahora va después.
+
+Cómo se midió (`tools/medir-entrada.mjs`): Chromium headless, página y servidor locales con el mundo de alchemiststower,
+**A y B alternados** (5281 = `origin/main`, 8881 = esta rama), un navegador nuevo por pasada, 3 pasadas, mediana.
+Es un portátil sin GPU (SwiftShader): vale para comparar A con B, **no** como tiempo absoluto de unas Quest.
+
+| Límites | Medida (mediana de 3) | Antes | Después | Diferencia |
+|---|---|---|---|---|
+| CPU ×4 · 10 Mb/s · 60 ms | `welcome` recibido | 1817 ms | 1010 ms | −807 ms (−44 %) |
+| | primer cuadro | 1828 ms | 1125 ms | −703 ms (−38 %) |
+| | pantalla «Cargando» fuera | 1914 ms | 1354 ms | −560 ms (−29 %) |
+| CPU ×6 · 1,6 Mb/s · 150 ms | `welcome` recibido | 5243 ms | 4229 ms | −1014 ms (−19 %) |
+| | primer cuadro | 5263 ms | 4462 ms | −801 ms (−15 %) |
+| | pantalla «Cargando» fuera | 5348 ms | 4721 ms | −627 ms (−12 %) |
+
+Las 3 pasadas de cada lado quedan a ±30 ms entre sí (CPU ×4: antes 1904–1921, después 1346–1401). Carga de la máquina
+(`loadavg` 1 min) entre 5 y 9 durante las pruebas, parecida en A y B porque se alternaron. Detalle del CPU ×4: el socket abre a 1500 ms
+(antes) y 849 ms (después) desde el inicio de la página; la sonda (223 ms) ya no está antes del primer cuadro.
+
+**Lo que NO se ha tocado y es lo siguiente:** de los ~700 kB que bajan antes del primer cuadro, lo grande es el JS de la página y
+el mundo; con 1,6 Mb/s eso ya son ~3,5 s de los 4,7. Partir el JS (cargar tarde lo que no se ve al entrar) y las texturas
+del mundo son las dos palancas que quedan, y piden una decisión de qué se ve primero.
+**Falta en Quest real:** esto es un navegador de PC con límites; hay que repetirlo en las gafas (`about:inspect` + `chrome://inspect`).

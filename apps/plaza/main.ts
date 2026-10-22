@@ -106,6 +106,10 @@ const params = new URLSearchParams(location.search);
 if (montarMarco()) await new Promise<never>(() => {});
 const hud = document.getElementById("hud")!;
 const url = serverUrl(location, import.meta.env.PROD); // the built page (Caddy or the engine itself) always talks to its own origin
+// v9: the socket opens now, not after /status and the 3D view: its handshake (TLS + upgrade, several round trips on a headset's wifi) runs
+// while the page builds the view, and the server's welcome waits in the transport until the session is there to read it.
+const transport = webSocketClient(url);
+transport.opened.catch(() => {}); // the message for the player is set below, where the HUD is; this one only keeps the early rejection from being «unhandled»
 // H1: files of things in the world come from the instance's server by their sha256 (ws://h:p -> http://h:p/a/<sha256>.glb)
 const activos = new URL(url.replace(/^ws/, "http")).origin;
 // S6: the house sound catalogue — one small JSON from the INSTANCE'S server (`${activos}/sonidos.json`, the same
@@ -147,8 +151,6 @@ let avatarUI: ReturnType<typeof montarAvatar> | null = null; // ux2-barra: also 
 const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, movil: perfil().forzado ? perfil().movil : undefined, assetUrl: (m) => `${activos}/a/${m}.glb`,
   avatares: { catalogo: catalogoAvatares, yo: () => session.entity, eleccion: (c) => avatarUI?.eleccion(c) } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar; H10: your own choice
 carga.etapa("vista"); // H4
-const transport = webSocketClient(url);
-
 view.naturaleza.tablaFauna(() => import("../../features/naturaleza/fauna-casa.ts").then((m) => m.FAUNA_CASA)); // F4: the house fauna table, fetched only with the fauna
 // game features (J7): their client parts, and how they may draw (a label, a hop) over any avatar
 // I1: the guest token stays in this browser (no account, no personal data); private mode = a new guest each time
@@ -660,7 +662,8 @@ view.loop((now) => {
   const dt = Math.min(250, now - last); last = now;
   acc += dt;
   while (acc >= TICK_MS) { const [mx, mz] = readAxes(); session.tick(mx, mz, readButtons()); acc -= TICK_MS; }
-  if (session.welcome && !probe.done) runProbe();
+  // v9: the determinism probe (a replay, ~60 ms on a PC, ~230 ms at 4x slower CPU) runs after the first frame, not before it
+  if (session.welcome && !probe.done && (informe.primerCuadroMs || document.hidden)) runProbe();
   if (session.welcome && !informe.bienvenidaMs) { informe.bienvenidaMs = Math.round(performance.now()); carga.etapa("bienvenida"); }
   const pedidos = cargaOculta ? null : suelosPedidos();
   const pendiente = pedidos ? sueloPendiente({ ...pedidos, naturalezaLista: view.naturaleza.activa, baseLista: view.espacioBase.activa }) : false; // B5: before this frame is drawn

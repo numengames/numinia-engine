@@ -1618,3 +1618,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `feat/pesca-peces-del-mundo` (sobre main `5c23893a`), sin subir; versión sin tocar (la fija el PR conjunto).
 - Siguiente: el `pesca.json` del estanque de los partners de la TRG26 (20 peces, uno por marca) está en `trg26/peces/pesca.json`; falta verlo en un navegador y subirlo con el mundo cuando el motor esté desplegado.
+
+## 2026-10-22 01:43 · v9-carga-quest · hecho
+- Qué: por qué tarda entrar en un mundo desde las gafas: la página abría el WebSocket tarde y corría la sonda de determinismo antes del primer cuadro. Se abre el socket al principio (lo que llega antes de la sesión espera en el transporte) y la sonda va después del primer cuadro. `tools/medir-entrada.mjs` repite la medida.
+- Números: A/B alternado, mediana de 3, CPU ×4 · 10 Mb/s · 60 ms: welcome 1817 → 1010 ms, primer cuadro 1828 → 1125 ms, «Cargando» fuera 1914 → 1354 ms (−29 %); con CPU ×6 · 1,6 Mb/s · 150 ms: 5348 → 4721 ms (−12 %). Carga de la máquina 5–9. Detalle en `docs/CARGA-RAPIDA.md` («v9»).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `vr/v9-carga-quest`, local, sin push.
+- Siguiente: repetir en unas Quest reales; partir el JS de la página y las texturas del mundo (lo que queda de los ~700 kB antes del primer cuadro).
