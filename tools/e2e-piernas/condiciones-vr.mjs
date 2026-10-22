@@ -68,7 +68,7 @@ try {
   a.on("pageerror", (e) => errors.push(String(e)));
   a.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) errors.push("console: " + m.text()); });
   const ctl = (code, arg) => a.evaluate(code, arg);
-  const esperar = (fn, arg, ms = 8000) => a.waitForFunction(fn, arg, { timeout: ms }).then(() => true, () => false);
+  const esperar = (fn, arg, ms = 8000) => a.waitForFunction(fn, arg, { timeout: ms, polling: 100 }).then(() => true, () => false);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const boton = (b, nombre, v) => ctl(([b, nombre, v]) => globalThis.__iwer.controllers[b].updateButtonValue(nombre, v), [b, nombre, v]);
   const gatillo = async (ms = 80) => { await boton("right", "trigger", 1); await sleep(ms); await boton("right", "trigger", 0); await sleep(220); };
@@ -182,15 +182,27 @@ try {
   verifica(e.casillaNormas?.marcada === true, "la casilla que marcaste en PC sigue marcada", e.casillaNormas);
   verifica(e.paginas >= 2, "el texto está paginado", { paginas: e.paginas });
   const yaw0 = await ctl(() => globalThis.__numinia.view.vr.yawDegrees);
-  await palanca("right", 0.95, 0); await sleep(300); await palanca("right", 0, 0); await sleep(300);
-  e = await estado();
-  verifica(e.pagina === 1, "la palanca derecha pasa de página", { pagina: e.pagina });
+  // one push = one page. A push is only seen if a frame ran with the stick at the middle before it (the latch re-arms there), and software-rendered
+  // frames can stall for seconds: so each push is retried after a longer rest, and what is checked is the page reached, not a fixed time.
+  const empuja = async (dir, esperada) => {
+    const pag = () => ctl(() => globalThis.__numinia.view.vr.condiciones().estado().pagina);
+    const antes = await pag();
+    for (let k = 0; k < 3; k++) {
+      await palanca("right", 0, 0); await sleep(500 + k * 1000); await palanca("right", dir * 0.95, 0);
+      if (await esperar((p) => globalThis.__numinia.view.vr.condiciones().estado().pagina !== p, antes, 8000)) return (await pag()) === esperada; // moved: exactly one page, or it fails
+    }
+    return false;
+  };
+  verifica(await empuja(1, 1), "la palanca derecha pasa de página", { pagina: (await estado()).pagina });
   verifica((await ctl(() => globalThis.__numinia.view.vr.yawDegrees)) === yaw0, "y no te gira", {});
-  await palanca("right", 0.95, 0); await sleep(1000); // held a whole second: still one page per push
+  await sleep(1000); // held a whole second: still one page per push
   const sostenida = (await estado()).pagina; await palanca("right", 0, 0); await sleep(300);
-  verifica(sostenida === 2, "una página por empujón (mantenida no repite…)", { sostenida });
-  await palanca("right", -0.95, 0); await sleep(300); await palanca("right", 0, 0); await sleep(300);
-  nota("3 la palanca pasa las páginas", { pagina: (await estado()).pagina, paginas: e.paginas });
+  verifica(sostenida === 1, "una página por empujón (mantenida no repite…)", { sostenida });
+  verifica(await empuja(1, 2), "otro empujón, otra página", { pagina: (await estado()).pagina });
+  await palanca("right", 0, 0); await sleep(300);
+  verifica(await empuja(-1, 1), "y hacia atrás", { pagina: (await estado()).pagina });
+  await palanca("right", 0, 0); await sleep(300);
+  nota("3 la palanca pasa las páginas", { pagina: (await estado()).pagina, paginas: (await estado()).paginas });
   await lienzo("2-vr-paso1-paginas");
   // untick through the ray, «Siguiente» goes off, tick again, on
   await pulsa(3); await sleep(300);
@@ -226,22 +238,30 @@ try {
   const pide = await estado();
   verifica(/Otra vez/.test(pide.botones.find((b) => b.id === "salir")?.texto ?? "") && (await ctl(() => !globalThis.__numinia.condiciones.estado.saliendo)), "«Salir» pide confirmación y no sale a la primera", pide.botones);
   await lienzo("5-vr-salir-pregunta");
-  await sleep(3300);
-  verifica(!/Otra vez/.test((await estado()).botones.find((b) => b.id === "salir")?.texto ?? ""), "la pregunta caduca");
+  // the question lapses 3 s after the press, but is repainted on the next frame: wait for the condition (frames may be slow), not a fixed time
+  verifica(await esperar(() => !/Otra vez/.test(globalThis.__numinia.view.vr.condiciones().estado().botones.find((b) => b.id === "salir")?.texto ?? ""), null, 20000), "la pregunta caduca");
   nota("3d «Salir» pregunta y caduca");
 
   // 4) accept: «Entrar sin lo opcional» → panel out, bubble bursts, the stick moves you
-  await pulsa("sin-opcional");
-  verifica(await esperar(() => globalThis.__numinia.condiciones.estado.enviando || globalThis.__numinia.condiciones.estado.estallando || !globalThis.__numinia.condiciones.cerrada(), null, 6000), "se envía ACEPTAR");
-  const estalla = await esperar(() => globalThis.__numinia.view.vr.condiciones().estado().estallando || !globalThis.__numinia.view.vr.condiciones().abierto, null, 6000);
+  // a trigger pulled while a software-rendered frame is stalled can be missed: press again (it only sends once: the button goes off while sending)
+  let enviado = false;
+  for (let k = 0; k < 3 && !enviado; k++) {
+    await pulsa("sin-opcional");
+    enviado = await esperar(() => globalThis.__numinia.condiciones.estado.enviando || globalThis.__numinia.condiciones.estado.estallando || !globalThis.__numinia.condiciones.cerrada(), null, 8000);
+  }
+  verifica(enviado, "se envía ACEPTAR");
+  const estalla = await esperar(() => globalThis.__numinia.view.vr.condiciones().estado().estallando || !globalThis.__numinia.view.vr.condiciones().abierto, null, 30000);
   const durante = await estado();
   nota("4 aceptar: la pompa estalla", { estalla, burbuja: durante.burbuja, abierto: durante.abierto });
-  verifica(await esperar(() => globalThis.__numinia.view.vr.condiciones().abierto === false, null, 6000), "el panel se va", await estado());
+  verifica(await esperar(() => globalThis.__numinia.view.vr.condiciones().abierto === false, null, 30000), "el panel se va", await estado());
   const fin = await estado();
   verifica(!fin.diagnostico.visible && !fin.burbuja.visible, "ni panel ni pompa", fin);
   const serv = await ctl(() => { const c = globalThis.__numinia.session.condiciones; return c && { abierta: c.abierta, datos: c.aceptado?.datos }; });
   verifica(serv?.abierta === true && (serv.datos ?? []).length === 0, "el servidor te dejó pasar con datos []", serv);
-  const q0 = await yo(); await palanca("left", 0, -0.95); await sleep(1800);
+  // c9: the stick has to move you as soon as the server lets you in. Software-rendered frames can stall for seconds right after the burst
+  // (c9: 27 s of 30 in gl.getParameter), so a fixed 1,8 s window measured the stall, not the stick: wait for the movement, with a cap.
+  const q0 = await yo(); await palanca("left", 0, -0.95);
+  await esperar(([x, z]) => { const s = globalThis.__numinia.session.selfPosition(0); return Math.hypot(s.x - x, s.z - z) > 0.5; }, [q0.x, q0.z], 30000);
   const q1 = await yo(); await palanca("left", 0, 0);
   verifica(lejos(q0, q1) > 0.5, "ahora la palanca te mueve", { d: lejos(q0, q1) });
   nota("4b la locomoción VR vuelve", { metros: Math.round(lejos(q0, q1) * 100) / 100, serv });
