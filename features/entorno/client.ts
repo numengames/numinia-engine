@@ -30,9 +30,9 @@ export function crearCliente() {
     suelos: SUELOS.map((id) => ({ id, nombre: suelos[id]?.nombre ?? id })),
     /** The zone's environment as the server last said (flat fields; see feature.ts). */
     valores,
-    /** A named environment: día, amanecer, atardecer, noche, niebla, tormenta, nublado («dia» works too). */
+    /** A named environment: día, amanecer, atardecer, noche, niebla, tormenta, nublado, jardín («dia», «jardin» work too). */
     preset: (nombre: string) => {
-      const n = nombre === "dia" ? "día" : nombre;
+      const n = nombre === "dia" ? "día" : nombre === "jardin" ? "jardín" : nombre;
       return (PRESETS as readonly string[]).includes(n) ? enviar("preset", { nombre: n }) : { ok: false as const, why: `no hay ningún entorno «${nombre}» (hay: ${PRESETS.join(", ")})` };
     },
     /** Change some values and keep the rest (the message carries the whole environment). Marked «propio» unless `preset` comes in. */

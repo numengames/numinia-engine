@@ -227,3 +227,13 @@ test("U14 mapa.corte: a world may cut its maps at a height; absent = not cut; ou
   const w3 = world({ abierto: true, storage: new FileStorage(dir), mundo: { schema: ESQUEMA } });
   assert.equal(w3.pages[0].s.features.stateOf("entorno").get(ZONA)?.mapaCorte, 0, "taken out of the file: not cut");
 });
+
+test("«jardín» is the house look: every colour in it is a token of the closed palette (STD-023)", () => {
+  const TOKENS = new Set(["#14110f", "#1e1a17", "#292420", "#3a332d", "#8a7d72", "#c4b5a6", "#f9ebdc", "#a6dad5", "#018ea1", "#017c8d", "#efa517", "#7a5100", "#f35059", "#d33440", "#8fc46b"]);
+  const j = (presets.presets as Record<string, unknown>)["jardín"];
+  assert.ok(j, "presets.json has «jardín»");
+  const colores = JSON.stringify(j).match(/#[0-9a-f]{6}/gi) ?? [];
+  assert.ok(colores.length >= 5);
+  for (const c of colores) assert.ok(TOKENS.has(c.toLowerCase()), `${c} is not a house token`);
+  assert.ok(PRESETS.includes("jardín"));
+});

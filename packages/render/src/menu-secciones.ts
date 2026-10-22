@@ -35,7 +35,7 @@ export const SECCIONES_MUNDO: readonly SeccionMundo[] = [
   { id: "bolsa", icono: "package", es: "Bolsa", en: "Bag", orden: 3, tecla: "R", botones: ["inventario-abrir"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
   { id: "misiones", icono: "scroll", es: "Misiones", en: "Quests", orden: 4, tecla: "J", botones: ["misiones"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
   { id: "mapa", icono: "map-trifold", es: "Mapa", en: "Map", orden: 5, tecla: "M", botones: ["minimapa-abrir"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
-  { id: "construir", icono: "crane-tower", es: "Construir", en: "Build", orden: 6, tecla: "C", botones: ["construir"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
+  { id: "construir", icono: "crane-tower", es: "Construir", en: "Build", orden: 6, tecla: "C", botones: ["construir"], aparatos: ["pc", "vr"], vr: { panel: true } }, // not on a phone: a phone walks and talks (Pablo, 2026-10-22)
   { id: "ajustes", icono: "gear", es: "Ajustes", en: "Settings", orden: 7, tecla: "O", botones: ["ajustes-abrir"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
   // the rest of the bar
   { id: "micro", icono: "microphone", es: "Micrófono", en: "Microphone", orden: 8, tecla: "Q", botones: ["microfono"], aparatos: ["pc", "movil", "vr"], vr: { reloj: "micro" } },
