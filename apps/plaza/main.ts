@@ -27,7 +27,7 @@ import { montarCable } from "./cable.ts"; // D-041, historias 5-6 + C: builder's
 import { contextoDelCable } from "../../features/disparadores/cable-contexto.ts"; // what those blanks may choose (pure)
 import { movedores } from "../../features/movedores/client.ts"; // the movers a «mueve» receiver may name
 import { montarVideoMandos } from "./video-mandos.ts";
-import { catalogoDeAvatares, idAvatarDe } from "./catalogo-avatares.ts"; // not "./a…": dev:lan proxies every path starting with /a to the server
+import { avataresDelMundo, catalogoDeAvatares, idAvatarDe } from "./catalogo-avatares.ts"; // not "./a…": dev:lan proxies every path starting with /a to the server
 import { montarChat } from "./chat.ts";
 import { escribiendo } from "./escribiendo.ts";
 import { misiones } from "../../features/misiones/client.ts";
@@ -133,7 +133,7 @@ let sonarServidor: (s: PeticionSonido) => boolean = (s) => catalogoSonidos.suena
 // del catálogo que suena como cama única en bucle (hoy «ambiente-numinia», el colchón CC0); `ambiente_ganancia` = su
 // volumen (×0,042 por defecto, el que quiso su autor); `ambiente_sintetizado` = las camas y capas SINTETIZADAS que
 // este mundo enciende por nombre (de serie, ninguna).
-type Estado = { dardosEnlace?: unknown; version?: string; nombre?: string; tema?: unknown; avatar?: string; aforo?: number; conectados?: number;
+type Estado = { dardosEnlace?: unknown; version?: string; nombre?: string; tema?: unknown; avatar?: string; avatares?: unknown; aforo?: number; conectados?: number;
   audio?: { ambiente?: string | null; ambiente_ganancia?: number; ambiente_sintetizado?: string[] } };
 const estadoP: Promise<Estado | null> = fetch(`${activos}/status`).then((r) => r.json() as Promise<Estado>).catch(() => null);
 const estado = await Promise.race([estadoP, new Promise<null>((ok) => setTimeout(() => ok(null), 1500))]);
@@ -287,7 +287,7 @@ const constructorVR = montarConstructorVR(constructor, view);
 // ---- H9: drop your own .glb on the world (or «Añadir › Subir» in the builder's dock): uploaded by sha256, placed for everyone ----
 const soltar = montarSoltar({ session, view, puede: () => constructor.estado.puede, origen: activos, billete: () => localStorage.getItem(GUARDA) });
 // ---- H10: your avatar — one of the house's or your own .vrm (everyone, not only builders); saved with your identity ----
-avatarUI = montarAvatar({ session, catalogo: catalogoAvatares, origen: activos, billete: () => localStorage.getItem(GUARDA) });
+avatarUI = montarAvatar({ session, catalogo: catalogoAvatares, delMundo: avataresDelMundo(activos, estado?.avatares), origen: activos, billete: () => localStorage.getItem(GUARDA) });
 // ---- U12: holes — click one (or E near it) and choose your picture: it goes up and the server fits it into the frame ----
 const huecos = montarHuecos({ constructor, view, rellenar: soltar.rellenar, decir: (t) => soltar.decir(t), panel: constructorUI.ranuraFicha });
 // ---- J4: a thing may carry a link (set in the inspector); a click on it opens it in a new tab, after confirming ----
