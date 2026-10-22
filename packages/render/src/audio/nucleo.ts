@@ -84,8 +84,12 @@ export type Nucleo = {
   duck(activo: boolean): void;
   /** Suspender a propósito mientras dure la razón (pestaña oculta). Con `false` vuelve si nada más lo impide. */
   pausar(activo: boolean, razon?: string): void;
-  /** Suspender UNA vez, sin razón que dure: al salir de la sesión XR. El siguiente gesto lo despierta solo. */
+  /** Suspender UNA vez, sin razón que dure: al salir de la sesión XR. El siguiente gesto lo despierta solo.
+   * Si alguien pide `despertar` (el micrófono abierto, una voz oída), la siesta espera a que lo suelte: v10. */
   siesta(): void;
+  /** v10: algo necesita el grafo vivo aunque no haya gesto (el micrófono abierto: su captura corre en este contexto). Mientras
+   * haya una razón activa `siesta()` no duerme; al soltar la última, la siesta pedida entretanto se cumple. */
+  despertar(razon: string, activo: boolean): void;
   estado(): Estado;
 };
 
@@ -115,6 +119,7 @@ export function crearNucleo(h: Hechuras = {}): Nucleo {
   for (const b of BUSES) volumen[b] = conSuelo(b, (DEFECTO[AJUSTE_DE[b]] ?? 100) / 100);
   let duckActivo = false;
   const pausas = new Set<string>();
+  const despiertos = new Set<string>(); let siestaPendiente = false; // v10: razones que impiden la siesta, y si se pidió una mientras tanto
 
   function conSuelo(b: Bus, v: number): number { return INMUNES.includes(b) ? Math.max(SUELO, recorta(v)) : recorta(v); }
   const ahora = (): number => ctx?.currentTime ?? 0;
@@ -190,7 +195,17 @@ export function crearNucleo(h: Hechuras = {}): Nucleo {
         if (ctx) { try { void ctx.suspend?.(); } catch { /* ya suspendido */ } }
       } else { pausas.delete(razon); reanudar(); }
     },
-    siesta(): void { if (ctx) { try { void ctx.suspend?.(); } catch { /* ya suspendido */ } } },
+    siesta(): void {
+      if (despiertos.size > 0) { siestaPendiente = true; return; } // v10: la voz abierta no se duerme al salir de VR
+      siestaPendiente = false;
+      if (ctx) { try { void ctx.suspend?.(); } catch { /* ya suspendido */ } }
+    },
+    despertar(razon: string, activo: boolean): void {
+      if (activo) { despiertos.add(razon); return; }
+      if (!despiertos.delete(razon) || despiertos.size > 0 || !siestaPendiente) return;
+      siestaPendiente = false;
+      if (ctx) { try { void ctx.suspend?.(); } catch { /* ya suspendido */ } }
+    },
     estado(): Estado {
       return {
         contexto: ctx?.state ?? "sin-audio",
