@@ -1639,3 +1639,9 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `feat/avatares-del-mundo` (sobre main `f226cf5f`); versión 0.45.1 → 0.46.0 (algo nuevo que no rompe nada).
 - Pendiente: avatar por defecto del mundo (`ficha.avatar`) y de las IAs (`ia.cuerpo`) con uno propio; panel de créditos; mostrar el crédito de quien lleva uno puesto; `allowedUserName` no se mira (permiso de TRG/VIPE por escrito, fuera del motor).
+
+## 2026-10-22 09:10 · e1 la puerta HTTP /funciones · hecho
+- Qué: `GET|POST /funciones` en el servidor para que la administración de numinia.com encienda y apague Normas de entrada, Dardos y Pesca sin entrar al mundo. Misma forma que `/habitantes` (pase del mundo con `manage-organization` o dueño; sin clave de pase = 404; 401/403; CORS solo `https://numinia.com`; cuerpo ≤ 1 KiB). Un solo camino con el verbo `poner`: la lógica salió a `cambiar` en `features/funciones/server.ts` y el enlace `EnlaceFunciones` tiene ahora `estado()` y `cambiar()`. `fija` → 409 «Lo fija el servidor»; función desconocida → 400. El id de las normas es `normas` (el de `funciones.json` y del verbo); `puerta` se acepta como otro nombre al escribir. De paso `/habitantes` y `/funciones` salen en la lista `hay` del 404.
+- Pruebas: `test/funciones-http.test.ts` (9: sin pase, pase malo/otro mundo, sin permiso, sin clave de pase, CORS y OPTIONS, GET con y sin condiciones, POST visto por dos páginas conectadas y por el verbo, `puerta`, `fija`, validación y fichero roto).
+- Commit: rama `funciones/e1-funciones-http` (sobre `origin/main` d911f187), sin subir; versión sin tocar.
+- Siguiente: w7, el bloque «Funciones de este mundo» en el panel de numinia.com, que lee y escribe aquí.
