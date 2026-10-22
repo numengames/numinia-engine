@@ -67,7 +67,9 @@ try {
   const m = await get("/metrics");
   if (!(m?.conectados >= 0 && m?.tickMs)) fail(`/metrics no responde: ${JSON.stringify(m)}`);
   // C4: /status in the shape the Worlds room reads, with this build's commit
-  const st = await get("/status");
+  // the check's own client just closed: under load the server may count it for a moment more, so wait (≤ 3 s) for 0
+  let st = await get("/status");
+  for (let i = 0; i < 30 && st?.conectados > 0; i++) { await sleep(100); st = await get("/status"); }
   if (!(Number.isInteger(st?.uptime) && st.conectados === 0 && st.commitHash === sello.commit && st.version === sello.build)) fail(`/status no es {uptime, conectados, commitHash, version} de este build: ${JSON.stringify(st)}`);
   if (!/^\d+\.\d+\.\d+$/.test(st.semver) || st.semver !== sello.semver) fail(`/status no dice la versión semántica del build (semver): ${JSON.stringify(st)}`); // numinia.com reads it
   // C1: the engine serves its own page (index.html + every file it links), index revalidated, hashed assets immutable
