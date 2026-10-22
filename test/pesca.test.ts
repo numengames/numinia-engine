@@ -128,7 +128,7 @@ test("pesca: not reeling inside the window = the fish leaves (tarde), the spot i
   assert.equal(A.p.estado().fase, "nada");
   assert.deepEqual(W.evs(A, "escape").map((m) => m.motivo), ["tarde"]);
   assert.match(A.p.estado().aviso, /tardaste/);
-  assert.deepEqual(W.evs(B, "fin"), [{ quien: A.s.entity, sitio: "estanque", resultado: "escape", pez: "", cm: 0, rareza: "comun" }]);
+  assert.deepEqual(W.evs(B, "fin"), [{ quien: A.s.entity, sitio: "estanque", resultado: "escape", pez: "", cm: 0, rareza: "comun", color: "" }]);
   assert.deepEqual(B.p.flotadores(), []);
   assert.equal(A.p.sitios()[0].ocupado, false);
   assert.equal(W.evs(A, "captura").length, 0);
@@ -184,7 +184,7 @@ test("pesca: a sensible angler lands a fish of the table; it is written down per
   assert.ok(A.seen.some((s) => s.startsWith(`label ${A.s.entity} 🐟 ${sp.nombre}`)));
   assert.ok(A.s.features.announcements.some((a) => a.feature === "pesca" && a.text.startsWith("Has pescado: ") && a.sound === "exito"));
   assert.deepEqual(A.p.estado().cesta, { peces: 1, clases: 1, mejor: sp.nombre, mejorCm: Number(c[0].cm) });
-  assert.deepEqual(W.evs(B, "fin").at(-1), { quien: A.s.entity, sitio: "estanque", resultado: "captura", pez: sp.nombre, cm: Number(c[0].cm), rareza: sp.rareza });
+  assert.deepEqual(W.evs(B, "fin").at(-1), { quien: A.s.entity, sitio: "estanque", resultado: "captura", pez: sp.nombre, cm: Number(c[0].cm), rareza: sp.rareza, color: "" });
   assert.equal(W.evs(B, "captura").length, 0);
   assert.equal(A.p.sitios()[0].ocupado, false);
   assert.equal(W.inst.hash(), plain.inst.hash(), "features must never change the simulation");
@@ -243,7 +243,7 @@ test("pesca v2: the catch reaches whoever is near with the fish (fin: pez, cm, r
   const c = W.evs(A, "captura");
   assert.equal(c.length, 1, `escape: ${JSON.stringify(W.evs(A, "escape"))}`);
   const fin = W.evs(B, "fin").at(-1)!;
-  assert.deepEqual(fin, { quien: A.s.entity, sitio: "estanque", resultado: "captura", pez: c[0].pez, cm: c[0].cm, rareza: c[0].rareza });
+  assert.deepEqual(fin, { quien: A.s.entity, sitio: "estanque", resultado: "captura", pez: c[0].pez, cm: c[0].cm, rareza: c[0].rareza, color: "" });
   assert.deepEqual(W.evs(A, "fin").at(-1), fin, "the angler's own fin says the same");
   assert.equal(W.evs(C, "fin").length + W.evs(C, "lanzado").length, 0, "200 m away: nothing");
   // both pages keep the fish in the angler's hand (the 3D draws it there) and label it «🐟 Carpa · 23,4 cm»
@@ -256,7 +256,7 @@ test("pesca v2: the catch reaches whoever is near with the fish (fin: pez, cm, r
   assert.equal(C.p.capturas().length, 0);
   // an escape or letting go carries no fish
   A.p.lanzar(); W.pump(3); A.p.soltar(); W.pump();
-  assert.deepEqual(W.evs(B, "fin").at(-1), { quien: A.s.entity, sitio: "estanque", resultado: "suelto", pez: "", cm: 0, rareza: "comun" });
+  assert.deepEqual(W.evs(B, "fin").at(-1), { quien: A.s.entity, sitio: "estanque", resultado: "suelto", pez: "", cm: 0, rareza: "comun", color: "" });
   assert.equal(B.p.capturas().length, 1, "the fish of before is still in the hand");
   // the hand empties after EN_MANO_MS (the page's clock)
   B.p.olvidar(0);

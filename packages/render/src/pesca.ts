@@ -22,7 +22,7 @@ export { MANGO_M, AGARRE_ENTRA_M, AGARRE_SALE_M } from "./cana.ts";
 
 export type Sitio3D = { id: string; x: number; y: number; z: number; radio: number };
 export type Flotador3D = { quien: number; x: number; y: number; z: number };
-export type Captura3D = { quien: number; pez: string; cm: number; rareza: string; desde: number; guardado?: boolean };
+export type Captura3D = { quien: number; pez: string; cm: number; rareza: string; desde: number; guardado?: boolean; color?: string };
 export type Fase = "nada" | "espera" | "mordisqueo" | "picada" | "pelea";
 export type Estado3D = { fase: Fase; desde: number; tension: number; progreso: number; arrancada: "no" | "aviso" | "si"; texto?: string };
 export type Quien = number | "self";
@@ -88,9 +88,9 @@ const M = (x: number, y: number, z: number, rx = 0, ry = 0, rz = 0, sx = 1, sy =
 /** A small deterministic sequence (stones and reeds look the same for everyone, no Math.random). */
 const semilla = (i: number) => { const x = Math.sin(i * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); };
 
-/** One fish, 1 m long along +x (head at +0.5), 1 draw call; scale it by the size. */
-export function geometriaDePez(especie: string): THREE.BufferGeometry {
-  const cuerpo = hex(COLORES[especie] ?? 0x9aa5b1), oscuro = cuerpo.clone().multiplyScalar(0.72), ojo = hex(0x111111), brillo = hex(0xf2f2f2);
+/** One fish, 1 m long along +x (head at +0.5), 1 draw call; scale it by the size. `color` ("#RRGGBB", a world's own fish) wins over the species' colour. */
+export function geometriaDePez(especie: string, color = ""): THREE.BufferGeometry {
+  const cuerpo = hex(/^#[0-9a-fA-F]{6}$/.test(color) ? parseInt(color.slice(1), 16) : COLORES[especie] ?? 0x9aa5b1), oscuro = cuerpo.clone().multiplyScalar(0.72), ojo = hex(0x111111), brillo = hex(0xf2f2f2);
   const partes = [
     pieza(new THREE.SphereGeometry(0.5, 12, 8), cuerpo, M(0, 0, 0, 0, 0, 0, 1, 0.36, 0.22), 0.45),
     pieza(new THREE.SphereGeometry(0.5, 12, 8), cuerpo.clone().multiplyScalar(1.25), M(0.02, -0.03, 0, 0, 0, 0, 0.9, 0.3, 0.2), 0),
@@ -203,7 +203,7 @@ export function crearPesca(h: Ayudas & AyudasVR) {
   };
   const quitar = (a: Angler) => { h.world.remove(a.grupo); a.sedal.geometry.dispose(); a.sedalMat.dispose(); ultimoFlotador.set(a.quien, a.flotador.position.clone()); };
   const nuevoPez = (c: Captura3D, quien: Quien, origen: THREE.Vector3): Pez3D => {
-    let g = pezGeos.get(c.pez); if (!g) { g = geometriaDePez(c.pez); pezGeos.set(c.pez, g); }
+    const clave = `${c.pez}|${c.color ?? ""}`; let g = pezGeos.get(clave); if (!g) { g = geometriaDePez(c.pez, c.color); pezGeos.set(clave, g); }
     const largo = Math.max(0.12, c.cm / 100);
     const malla = new THREE.Mesh(g, pezMat); malla.scale.setScalar(largo); malla.castShadow = true;
     const grupo = new THREE.Group(); grupo.add(malla); grupo.position.copy(origen); h.world.add(grupo);

@@ -15,7 +15,7 @@ import { encendida } from "../funciones/feature.ts"; // f2: the world's switch
 import tabla from "./peces.json" with { type: "json" };
 
 export type Rareza = (typeof RAREZAS)[number];
-export type Pez = { id: string; nombre: string; rareza: Rareza; peso: number; cm: [number, number]; fuerza: number; heft: number; aguante: number; arrancadas: [number, number] };
+export type Pez = { id: string; nombre: string; rareza: Rareza; peso: number; cm: [number, number]; fuerza: number; heft: number; aguante: number; arrancadas: [number, number]; /** v5: the fish's body colour as \"#RRGGBB\" (a world's own table; the house fish have none and keep the page's colours) */ color?: string };
 export type Sitio = { id: string; nombre: string; x: number; z: number; y?: number; radio?: number };
 /** The server's tick rate (Hz) and its length (s): the fight integrates with it. */
 export const HZ = 20, DT = 1 / HZ;
@@ -113,7 +113,7 @@ export const crearPesca = (opts: { sitios?: Sitio[]; peces?: Pez[]; semilla?: nu
     ocupar(p.sitio, false);
     if (motivo) api.emit("escape", { motivo, texto: TEXTO[motivo] }, { to: e });
     const s = sitios.get(p.sitio)!;
-    const pez = resultado === "captura" ? { pez: p.pez.nombre, cm: p.pez.cm, rareza: p.pez.rareza } : {}; // v2: the neighbours see the fish in the hand
+    const pez = resultado === "captura" ? { pez: p.pez.nombre, cm: p.pez.cm, rareza: p.pez.rareza, color: p.pez.color ?? "" } : {}; // v2: the neighbours see the fish in the hand (v5: in its own colour)
     api.emit("fin", { quien: e, sitio: p.sitio, resultado, ...pez }, { near: { x: s.x, z: s.z }, radius: CERCA_M });
   };
 
@@ -186,7 +186,7 @@ export const crearPesca = (opts: { sitios?: Sitio[]; peces?: Pez[]; semilla?: nu
           // v3: the fish goes to the Inventario (inventario hears our `otorga`; it answers whether it kept it — a full Reserva says no)
           const guardado = api.emit("otorga", otorgaDeCaptura(e, f.pez), "server") > 0;
           const total = anotar(e, f.pez);
-          api.emit("captura", { pez: f.pez.nombre, cm: f.pez.cm, rareza: f.pez.rareza, total, guardado }, { to: e });
+          api.emit("captura", { pez: f.pez.nombre, cm: f.pez.cm, rareza: f.pez.rareza, total, guardado, color: f.pez.color ?? "" }, { to: e });
           cesta(e);
           terminar(e, "captura");
         } else if (fin) terminar(e, "escape", fin);
