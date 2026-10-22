@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three/webgpu";
-import { ABRIR, CERRAR, inicio, paso, cumpleAbrir, normalDorsoLocal, type EstadoGesto } from "../packages/render/src/muneca-gesto.ts";
+import { ABRIR, CERRAR, inicio, paso, cumpleAbrir, normalDorsoLocal, type EstadoGesto, type Muestra } from "../packages/render/src/muneca-gesto.ts";
 import { medirReloj, type ManoMenu } from "../packages/render/src/muneca.ts";
 import {
   AVISO, avisoInicio, avisoPaso, gradosDePx, marcarVisto, textoAviso, yaVisto, type EntradaAviso, type EstadoAviso,
@@ -77,6 +77,82 @@ for (const esMano of [false, true]) {
     assert.equal(sostener(m, MIRA_RECTO, ABRIR.ms + 50), true);
   });
 }
+
+// ── v11: the wrist opens the watch ~10 cm lower (the pose in which you read a real watch) ───────────────────────────
+/** The gate as shipped before v11 (45° cone, wrist up to 0.65 m), kept here to measure how far the new one reaches. */
+const V10 = { dorso: 0.5, conoGrados: 45, cercaMinM: 0.2, cercaMaxM: 0.65 } as const;
+const abreCon = (m: Muestra, P: { dorso: number; conoGrados: number; cercaMinM: number; cercaMaxM: number }) =>
+  m.dorso >= P.dorso && m.anguloGrados <= P.conoGrados && m.distanciaM >= P.cercaMinM && m.distanciaM <= P.cercaMaxM;
+/** How far under the eyes (m) a left wrist `adelante` m ahead of the eyes (and 0.10 m to the left), head level, back to the eyes,
+ * can be and still open the watch under rule `P`. Bisection on the drop. */
+function caidaMaxima(adelante: number, P: Parameters<typeof abreCon>[1], esMano = false): number {
+  const abre = (caida: number) => {
+    const p = V(-0.1, OJO.y - caida, -adelante);
+    return abreCon(medirReloj(OJO, MIRA_RECTO, manoCon(p, haciaOjos(p), esMano)), P);
+  };
+  let a = 0.05, b = 0.9;
+  assert.equal(abre(a), true, "a wrist just under the eyes opens");
+  for (let i = 0; i < 40; i++) { const m = (a + b) / 2; if (abre(m)) a = m; else b = m; }
+  return a;
+}
+test("v11: reading a watch (wrist 0.20–0.30 m ahead, 0.22–0.36 m under the eyes) opens now, did not before — it opens 9.5–13.5 cm lower", () => {
+  for (const esMano of [false, true]) for (const adelante of [0.2, 0.25, 0.3]) {
+    const antes = caidaMaxima(adelante, V10, esMano), ahora = caidaMaxima(adelante, ABRIR, esMano);
+    const mas = ahora - antes;
+    assert.ok(mas >= 0.09 && mas <= 0.14, `${esMano ? "hand" : "controller"} ${adelante} m ahead: ${(antes * 100).toFixed(1)} → ${(ahora * 100).toFixed(1)} cm under the eyes (+${(mas * 100).toFixed(1)} cm)`);
+  }
+  // the three poses, end to end through the 200 ms hold
+  for (const esMano of [false, true]) for (const [adelante, caida] of [[0.2, 0.22], [0.25, 0.3], [0.3, 0.36]] as const) {
+    const p = V(-0.1, OJO.y - caida, -adelante), m = manoCon(p, haciaOjos(p), esMano);
+    assert.equal(abreCon(medirReloj(OJO, MIRA_RECTO, m), V10), false, `${adelante} m ahead, ${caida} m under: closed before`);
+    assert.equal(sostener(m, MIRA_RECTO, ABRIR.ms + 50), true, `${adelante} m ahead, ${caida} m under: opens now`);
+  }
+  // a head tilted a little (10°) as you look: even more room, and it still opens
+  const mira10 = V(0, -Math.sin((10 * Math.PI) / 180), -Math.cos((10 * Math.PI) / 180));
+  const p = V(-0.1, OJO.y - 0.45, -0.25); // 52° off a gaze pitched 10° down
+  assert.equal(sostener(manoCon(p, haciaOjos(p), false), mira10, ABRIR.ms + 50), true);
+});
+for (const esMano of [false, true]) {
+  const que = esMano ? "tracked hand" : "controller";
+  test(`v11 (${que}): what the wider cone must not open — arm stretched out, pointing, hand at the chest, arm swinging, hanging`, () => {
+    // arm stretched forward to point with the controller: 0.65 m away, level with the chest, back of the hand up or to the side
+    for (const p of [V(-0.15, 1.35, -0.6), V(-0.2, 1.3, -0.62), V(-0.1, 1.45, -0.65)]) {
+      for (const hacia of [V(0, 1, 0), V(-1, 0.2, 0), haciaOjos(p)]) {
+        const m = manoCon(p, hacia, esMano);
+        assert.equal(sostener(m, MIRA_RECTO, 3000), false, `arm out at ${p.toArray()} back ${hacia.toArray()}`);
+      }
+    }
+    // pointing at something ahead with the arm half bent: the back of the hand to the side (thumb up), never to the eyes
+    const apuntando = V(-0.2, 1.4, -0.45);
+    assert.equal(sostener(manoCon(apuntando, V(-1, 0, 0), esMano), MIRA_RECTO, 3000), false, "pointing, back to the side");
+    // the hand at the chest, back up, 0.5 under the eyes and 57° down
+    assert.equal(sostener(manoCon(V(-0.2, 1.1, -0.35), V(0, 1, 0), esMano), MIRA_RECTO, 3000), false, "chest");
+    // the arm swinging forward as you walk (0.6 under the eyes), whichever way its back faces
+    for (const hacia of [V(0, 1, 0), V(-1, 0, 0), V(0, 0, 1)]) assert.equal(sostener(manoCon(V(-0.22, 1.0, -0.3), hacia, esMano), MIRA_RECTO, 3000), false, "swinging");
+    // hanging, back towards where the eyes are: still nothing
+    const cae = V(-0.25, 0.85, -0.05);
+    assert.equal(sostener(manoCon(cae, haciaOjos(cae), esMano), MIRA_RECTO, 3000), false, "hanging");
+    // ...and a watch pose is not allowed to leak through the wide closing cone for good: out of the cone 1 s = hidden again
+    const reloj = V(-0.1, OJO.y - 0.32, -0.25);
+    const abierto = paso(paso(inicio(), medirReloj(OJO, MIRA_RECTO, manoCon(reloj, haciaOjos(reloj), esMano)), 0), medirReloj(OJO, MIRA_RECTO, manoCon(reloj, haciaOjos(reloj), esMano)), ABRIR.ms);
+    assert.equal(abierto.abierto, true);
+    assert.equal(sostener(manoCon(V(-0.25, 0.85, -0.05), V(0, 1, 0), esMano), MIRA_RECTO, 1500, abierto), false, "dropping the hand closes it");
+  });
+}
+test("v11: the closing cone keeps its 15° of hysteresis over the opening one, and a watch pose does not flicker closed", () => {
+  assert.equal(CERRAR.conoGrados - ABRIR.conoGrados, 15);
+  assert.equal(ABRIR.conoGrados, 55);
+  // it stays open while the wrist sinks 10° more (inside the 70° closing cone)
+  const p = V(-0.1, OJO.y - 0.33, -0.25); // the lowest pose that opens (54°)
+  const m = manoCon(p, haciaOjos(p), false);
+  let e = paso(paso(inicio(), medirReloj(OJO, MIRA_RECTO, m), 0), medirReloj(OJO, MIRA_RECTO, m), ABRIR.ms);
+  assert.equal(e.abierto, true);
+  const mas = V(-0.1, OJO.y - 0.55, -0.25); // 66° down
+  const mm = manoCon(mas, haciaOjos(mas), false);
+  assert.ok(medirReloj(OJO, MIRA_RECTO, mm).anguloGrados < CERRAR.conoGrados);
+  for (let t = 500; t < 5000; t += 50) e = paso(e, medirReloj(OJO, MIRA_RECTO, mm), t);
+  assert.equal(e.abierto, true, "no flicker while it sinks inside the closing cone");
+});
 
 test("gesture: it closes by itself when the hand drops, with the hysteresis wider than the opening", () => {
   assert.ok(ABRIR.ms <= 200 && ABRIR.conoGrados >= 45, "v1 numbers: 200 ms, 45°");

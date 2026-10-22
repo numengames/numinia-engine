@@ -44,6 +44,19 @@ async function pierna() {
       // the other hand between the eyes and the watch, to its right (the watch's glass faces the eyes: front side only)
       const r = d.controllers.right; r.position.set(h.x + 0.15, h.y - 0.12, h.z - 0.12);
     };
+    // v11: the pose in which you read a real watch — head level, the wrist 0.25 m ahead, 0.10 m to the left and ~0.29 m UNDER the
+    // eyes (52° below the gaze: outside the old 45° cone), the back of the controller towards the eyes
+    globalThis.__relojNatural = () => {
+      const d = globalThis.__iwer, h = d.position, c = d.controllers.left; d.quaternion.set(0, 0, 0, 1);
+      const w = [-0.1, -0.26, -0.25]; c.position.set(h.x + w[0], h.y + w[1], h.z + w[2]);
+      const q = giro([-1, 0, 0], [-w[0], -w[1], -w[2]].map((v) => v / Math.hypot(...w))); c.quaternion.set(q[0], q[1], q[2], q[3]);
+      const r = d.controllers.right; r.position.set(h.x + 0.15, h.y - 0.2, h.z - 0.15);
+    };
+    // v11: the left arm stretched out in front (0.71 m from the eyes), the back of the hand up: it must not open the watch
+    globalThis.__brazoEstirado = () => {
+      const d = globalThis.__iwer, h = d.position, c = d.controllers.left; d.quaternion.set(0, 0, 0, 1);
+      c.position.set(h.x - 0.15, h.y - 0.25, h.z - 0.65); const q = giro([-1, 0, 0], [0, 1, 0]); c.quaternion.set(q[0], q[1], q[2], q[3]);
+    };
     globalThis.__bajarMuneca = () => { const d = globalThis.__iwer, h = d.position; d.quaternion.set(0, 0, 0, 1);
       const c = d.controllers.left; c.position.set(h.x - 0.2, h.y - 0.8, h.z - 0.1); c.quaternion.set(0, 0, 0, 1); };
     // aim the right controller from where it is at a world point: its position is local to the rig (the player's root)
@@ -209,6 +222,17 @@ async function pierna() {
     paso("«Dejar de construir» sale del modo", (await pulsarZona(100)) && await esperar(() => !globalThis.__numinia.constructorVR.activo(), null, 3000));
     await boton("right", "b-button", 1); await a.waitForTimeout(120); await boton("right", "b-button", 0); await a.waitForTimeout(200);
     paso("bajar la muñeca esconde el reloj", await esperar(() => !globalThis.__numinia.view.vr.reloj.visible, null, 4000));
+    // v11: the watch comes out at the height where a real watch is read (52° under the gaze, was outside the 45° cone), and not with the arm stretched out
+    await ctl(() => globalThis.__bajarMuneca()); await a.waitForTimeout(600);
+    paso("v11: con el brazo estirado delante (0,71 m) no sale el reloj", (await ctl(() => globalThis.__brazoEstirado()), await a.waitForTimeout(1500), !(await ctl(() => globalThis.__numinia.view.vr.reloj.visible))), { reloj: await ctl(() => globalThis.__numinia.view.vr.reloj.diagnostico()) });
+    await ctl(() => globalThis.__bajarMuneca()); await a.waitForTimeout(600);
+    await ctl(() => globalThis.__relojNatural());
+    const natural = await esperar(() => globalThis.__numinia.view.vr.reloj.visible, null, 4000);
+    const dn = await ctl(() => globalThis.__numinia.view.vr.reloj.diagnostico());
+    paso("v11: con la muñeca a la altura de un reloj de verdad (~52° bajo la mirada, ~0,29 m bajo los ojos) sale el reloj", natural && dn.medida && dn.medida.angulo > 46 && dn.medida.angulo < 55, { reloj: dn });
+    await a.waitForTimeout(400); await lienzo("reloj", "vr-reloj-bajo");
+    await ctl(() => globalThis.__bajarMuneca());
+    paso("v11: y bajar la muñeca lo vuelve a esconder", await esperar(() => !globalThis.__numinia.view.vr.reloj.visible, null, 4000));
     // v1: Y on the left controller opens and closes the same menu (the wrist is not the only way in with controllers)
     await boton("left", "y-button", 1); await a.waitForTimeout(500); await boton("left", "y-button", 0); await a.waitForTimeout(500);
     paso("Y (mando izquierdo) abre el mismo menú", await esperar(() => globalThis.__numinia.view.vr.menu.abierto, null, 3000));

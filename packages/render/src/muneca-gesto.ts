@@ -11,10 +11,19 @@
  * the natural glance; 300 ms felt like the gesture had failed. What stops it from opening by accident: the back must still
  * face the eyes within 60°, the wrist must be 0.2–0.65 m away, and a hand at the chest (wrist ≥ 53° below the gaze) or
  * hanging (≥ 0.65 m, ≥ 70° below) stays outside (test/vr-muneca.test.ts). The worst a false opening does is show the
- * 12 cm disc (the menu opens only when «Menú» is pressed) and it fades when the back turns away. Not measured on a Quest. */
-export const ABRIR = { dorso: 0.5, conoGrados: 45, cercaMinM: 0.2, cercaMaxM: 0.65, ms: 200 } as const;
-/** To close: the back turns away (cos 75°) for `ms`, or the wrist leaves a wider cone for `fueraMs` (kept 15° wider than ABRIR). */
-export const CERRAR = { dorso: 0.26, conoGrados: 60, ms: 400, fueraMs: 1000 } as const;
+ * 12 cm disc (the menu opens only when «Menú» is pressed) and it fades when the back turns away. Not measured on a Quest. *
+ * v11 (QA on a Quest, 2026-10-22: «hay que levantarlo como 10 centímetros… tienes que poderlo ver así»): the watch only
+ * showed with the wrist ~10 cm HIGHER than the pose in which you read a real watch. That pose, with the upper arm hanging
+ * and the forearm raised: wrist 0.20–0.30 m ahead of the eyes, ~0.10 m to the side and 0.22–0.40 m under them (45–55°
+ * below the gaze, head hardly tilted) — at or just outside a 45° cone. The cone went 45° → 55°: with the head level, a
+ * wrist 0.20–0.30 m ahead now opens the watch 9.5–13.5 cm lower than before (test/vr-muneca.test.ts bisects both limits).
+ * A wider cone alone would also let a stretched arm open it (pointing with the controller, back of the hand up), so the far
+ * limit went 0.65 → 0.60 m: a watch is read at 0.3–0.55 m, a straight arm is 0.65–0.75 m. Still closed: hand at the chest
+ * (0.5 under, 58° down, 0.64 m), arm hanging, arm stretched out, palm towards the eyes. The back-of-hand limit (60°) is
+ * untouched. Not measured on a Quest. */
+export const ABRIR = { dorso: 0.5, conoGrados: 55, cercaMinM: 0.2, cercaMaxM: 0.6, ms: 200 } as const;
+/** To close: the back turns away (cos 75°) for `ms`, or the wrist leaves a wider cone for `fueraMs` (kept 15° wider than ABRIR: 55° → 70°). */
+export const CERRAR = { dorso: 0.26, conoGrados: 70, ms: 400, fueraMs: 1000 } as const;
 /** A tracked wrist that stops arriving keeps the watch where it was this long, then hides it. */
 export const PERDIDA_MS = 1000;
 
