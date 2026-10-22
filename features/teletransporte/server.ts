@@ -6,7 +6,7 @@
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { ServerApi } from "../../packages/feature/src/index.ts";
 import {
-  teletransporte, huellaDe, ESPERA_S, DESMATERIALIZAR_TICKS, FOTO_VENTANA_S, JUNTO_M, FOTO_M, FOTO_CAIDA_M, GENTE_MAX, VARIANTES, VER_M, NOMBRE_MAX, MUNDO,
+  teletransporte, huellaDe, ESPERA_S, DESMATERIALIZAR_TICKS, FOTO_VENTANA_S, JUNTO_M, FOTO_M, FOTO_CAIDA_M, PUNTO_ALTO_M, PUNTO_BAJO_M, GENTE_MAX, VARIANTES, VER_M, NOMBRE_MAX, MUNDO,
 } from "./feature.ts";
 
 const TICKS_POR_SEGUNDO = 20; // the sim's TICK_HZ (features import only core, schema, feature)
@@ -163,6 +163,8 @@ export const crearTeletransporte = (o: { foto?: boolean } = {}) => serverPart(te
       } else {
         const sitio = v.destino.nombre ? ` en ${v.destino.nombre}` : "";
         donde = api.teletransportar(e, v.destino, { radios: [0, 1, 2], caida: 1 });
+        // the map knows no height: on a relief the ground at the site may be a hill above or a cleft below the traveller → look from higher up
+        if (!donde) { const alto = Math.min(v.destino.y + PUNTO_ALTO_M, 450); donde = api.teletransportar(e, { ...v.destino, y: alto }, { radios: [0, 1, 2], caida: alto - v.destino.y + PUNTO_BAJO_M }); }
         motivo = donde ? `Has llegado${sitio}.` : `No hay sitio libre${sitio}: sigue la luz hasta allí.`;
       }
       const fin = donde ?? p; // no trip: the light leaves you where you were
