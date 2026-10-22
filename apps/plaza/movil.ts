@@ -74,7 +74,16 @@ export function montarMovil(o: Opciones): void {
     accion.setAttribute("aria-label", ctx.tipo === "saltar" ? "Saltar" : `${ctx.verbo}: ${o.interaccion.actual()?.prompt ?? ""}`);
     accion.dataset.tipo = ctx.tipo;
   };
-  accion.addEventListener("click", () => { if (!ctx) return; if (ctx.tipo === "saltar") o.saltar(); else o.interaccion.usar(); accion.blur(); });
+  // «Saltar» fires on pointerdown: with a finger already on the stick the browser may never send the click (measured:
+  // pointerdown arrives, click does not, so the jump was lost while walking). The click that follows a touch is ignored;
+  // a click with no touch before it (a screen reader, the keyboard) still jumps.
+  let saltoPorToque = false;
+  accion.addEventListener("pointerdown", () => { if (ctx?.tipo !== "saltar") return; saltoPorToque = true; o.saltar(); });
+  accion.addEventListener("click", () => {
+    if (!ctx) return;
+    if (ctx.tipo === "saltar") { if (!saltoPorToque) o.saltar(); saltoPorToque = false; } else o.interaccion.usar();
+    accion.blur();
+  });
   o.misiones.alCambiar(() => { o.interaccion.mirar(); refrescarAccion(); });
   setInterval(refrescarAccion, 150);
   refrescarAccion();
@@ -106,9 +115,11 @@ export function montarMovil(o: Opciones): void {
       const b = el<HTMLButtonElement>("button", { clase: `tocable${en.masAlla ? " extra" : ""}`, html: icono(en.icono, 24) }); // the icon is a fixed house glyph; the label (a feature's text) goes in as text
       b.append(el("span", { texto: en.etiqueta }));
       b.setAttribute("role", "menuitem"); b.dataset.id = en.id;
+      let porToque = false; // «Saltar» in the menu jumps on pointerdown too (same reason as the big button)
+      if (en.id === "saltar") b.addEventListener("pointerdown", () => { porToque = true; cerrarMenu(); o.saltar(); });
       b.addEventListener("click", () => {
         cerrarMenu();
-        if (en.id === "saltar") o.saltar();
+        if (en.id === "saltar") { if (!porToque) o.saltar(); porToque = false; }
         else { const a = o.acciones.find((x) => x.id === en.id); if (a) a.run(); else ex.find((x) => x.id === en.id)?.clic(); }
       });
       return b;
@@ -120,7 +131,10 @@ export function montarMovil(o: Opciones): void {
     menu.replaceChildren(...normales, masB, ...botones.filter((b) => b.classList.contains("extra")));
   };
   const reloj = () => { clearTimeout(tMenu); tMenu = window.setTimeout(cerrarMenu, 6000); };
-  mas.addEventListener("click", () => { if (!menu.hidden) { cerrarMenu(); return; } pintarMenu(); menu.hidden = false; mas.setAttribute("aria-expanded", "true"); reloj(); });
+  const alternarMenu = () => { if (!menu.hidden) { cerrarMenu(); return; } pintarMenu(); menu.hidden = false; mas.setAttribute("aria-expanded", "true"); reloj(); };
+  let menuPorToque = false; // «…» opens on pointerdown as well: with a finger on the stick the click may never come
+  mas.addEventListener("pointerdown", () => { menuPorToque = true; alternarMenu(); });
+  mas.addEventListener("click", () => { if (!menuPorToque) alternarMenu(); menuPorToque = false; });
   addEventListener("pointerdown", (e) => { if (!menu.hidden && !(e.target as Element).closest?.("#mas, #mas-menu")) cerrarMenu(); }, true);
 
   // ---- 3 · a ghost joystick where the thumb goes (the real one floats under the first touch) ----
