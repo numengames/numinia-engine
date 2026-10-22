@@ -72,7 +72,17 @@ export function montarMenuVR(o: {
   });
 
   // ── each section's content ──
+  // the server answers a trip later (and may refuse: «Espera 7 s…», «No hay sitio libre…», «no se deja encontrar»); the computer announces
+  // it, the headset shows no toast stack, so a refusal is told with the VR note (v8: Pablo's «el teletransporte no funciona» was silent)
+  let vigilando = false;
+  const vigilarViaje = () => {
+    const v = o.n().viajar;
+    if (vigilando || typeof v?.alCambiar !== "function") return;
+    vigilando = true;
+    v.alCambiar((q: string) => { const x = v.estado?.viaje; if (q === "viaje" && x && !x.ok) nota(x.texto); });
+  };
   const ir = (quien: number, nombre: string) => () => {
+    vigilarViaje();
     const r = o.n().viajar?.ir?.(quien);
     if (r && !r.ok) nota(r.why ?? "No se pudo."); else { nota(`Vas con ${nombre}…`); vr.menu.cerrar(); }
   };
@@ -138,7 +148,7 @@ export function montarMenuVR(o: {
     const tu = marc.find((x) => x.tipo === "tu"), puede = mp.puedeIr?.() ?? false;
     const sitios = marc.filter((x) => x.tipo !== "tu" && tipo(x.tipo).enLista).sort((a, b) => tipo(b.tipo).orden - tipo(a.tipo).orden);
     const filas: Fila[] = sitios.map((s) => ({ texto: s.nombre, detalle: tipo(s.tipo).nombre, color: undefined, icono: "map-pin",
-      botones: [{ texto: "Ir", accion: () => { mp.ir?.(s); nota(`Vas a ${s.nombre}…`); vr.menu.cerrar(); }, estilo: puede ? "normal" : "desactivado", ancho: 120 }] }));
+      botones: [{ texto: "Ir", accion: () => { vigilarViaje(); mp.ir?.(s); nota(`Vas a ${s.nombre}…`); vr.menu.cerrar(); }, estilo: puede ? "normal" : "desactivado", ancho: 120 }] }));
     if (mp.puedeVolver?.()) filas.unshift({ texto: "Donde estabas", icono: "arrow-u-up-left", botones: [{ texto: "Volver", accion: () => { mp.volver(); vr.menu.cerrar(); }, ancho: 160 }] });
     return { tipo: "mapa", titulo: "Sitios", yo: tu ? { x: tu.x, z: tu.z, rumbo: tu.yaw !== undefined ? (tu.yaw * 180) / Math.PI : 0 } : null,
       puntos: sitios.slice(0, 80).map((s) => ({ nombre: s.nombre, x: s.x, z: s.z, color: tipo(s.tipo).color })), filas, vacio: "No hay sitios marcados en esta zona." } as Contenido;
