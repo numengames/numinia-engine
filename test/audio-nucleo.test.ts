@@ -163,6 +163,33 @@ test("salir de la sesión XR duerme el grafo, y el siguiente gesto lo despierta 
   assert.equal(b.ctx.state, "running", "un clic después de salir de VR y el mundo vuelve a sonar");
 });
 
+test("v10: con el micrófono abierto salir de VR no duerme el grafo; al cerrarlo, la siesta pedida se cumple", () => {
+  const b = banco();
+  b.n.bus("musica");
+  b.n.despertar("microfono", true);
+  b.n.siesta();
+  assert.equal(b.ctx.state, "running", "su captura corre en este contexto: dormirlo corta lo que dices y lo que oyes");
+  b.n.despertar("microfono", false);
+  assert.equal(b.ctx.state, "suspended", "soltada la última razón, la siesta que se pidió entretanto ocurre (batería)");
+  b.gesto();
+  assert.equal(b.ctx.state, "running", "y el siguiente gesto lo despierta como siempre");
+});
+
+test("v10: dos razones para despertar; la siesta espera a la última, y soltar sin siesta pedida no duerme nada", () => {
+  const b = banco();
+  b.n.bus("musica");
+  b.n.despertar("microfono", true); b.n.despertar("voz-oida", true);
+  b.n.siesta();
+  b.n.despertar("microfono", false);
+  assert.equal(b.ctx.state, "running", "queda una razón");
+  b.n.despertar("voz-oida", false);
+  assert.equal(b.ctx.state, "suspended");
+  b.gesto();
+  b.n.despertar("microfono", true); b.n.despertar("microfono", false); // nadie pidió siesta: no hay nada que cumplir
+  assert.equal(b.ctx.state, "running");
+  b.n.despertar("nunca-pedida", false); // soltar una razón desconocida no lanza
+});
+
 test("un navegador sin Web Audio no rompe nada: el motor sigue, mudo", () => {
   const n = crearNucleo({ crear: () => { throw new Error("no AudioContext here"); }, hayGesto: () => true, trasGesto: (f) => f(), enCadaGesto: () => {}, visibilidad: () => false });
   assert.equal(n.ctx(), null);

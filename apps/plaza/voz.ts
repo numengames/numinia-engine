@@ -23,6 +23,7 @@ const MULAW_HZ = 16000;
 const SILENCIO = 0.006;      // a frame quieter than this (RMS) is not sent: no bandwidth while you are quiet
 const COLA_S = 0.08;         // jitter buffer: a voice starts this late, so late frames still fit
 const LEJOS_M = 30;
+const OIDA_MS = 10_000;      // v10: after this long without hearing anybody, the audio graph may sleep again when the headset is taken off
 /** Mouth level (U13's decaerBoca, 0–1) above which someone counts as talking: it is what triggers the ducking. */
 const HABLANDO = 0.02;
 
@@ -39,7 +40,9 @@ const WORKLET = `registerProcessor("captura-voz", class extends AudioWorkletProc
   process(ins) { const c = ins[0] && ins[0][0]; if (c) this.port.postMessage(c.slice(0)); return true; }
 });`;
 
-export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: KeyboardEvent): boolean; decir(t: string): void; ajuste?: (id: string) => unknown }) {
+export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: KeyboardEvent): boolean; decir(t: string): void; ajuste?: (id: string) => unknown;
+  /** v10: the headset. `activo` = inside an immersive session; `cerrada` = still behind the entry bubble (the server drops a closed person's voice); `nota` = a line in front of the eyes. */
+  vr?: { activo(): boolean; cerrada(): boolean; nota(t: string): void } }) {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const boton = document.createElement("button");
   boton.type = "button"; boton.id = "microfono"; boton.className = "solo-icono"; boton.setAttribute("aria-pressed", "false");
@@ -97,9 +100,11 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
   // ux2-gente: «Silenciar» someone (Gente, the card in the world) = their frames are dropped HERE, before any decoding:
   // only you stop hearing them, nobody is told, and the server still relays (it is the page's choice, not a ban).
   const silenciados = new Set<number>();
+  let oidaHasta = 0; // v10: somebody's voice came in within this many ms: the graph is not put to sleep when the headset is taken off
   o.session.onVoice = (m) => {
     estado.recibidas++;
     if (silenciados.has(m.entidad)) return;
+    oidaHasta = performance.now() + OIDA_MS; nucleo.despertar("voz-oida", true);
     const v = vozDe(m.entidad), ahora = performance.now();
     if (!v) return;
     if (ahora - v.marca > 700) { v.marca = ahora; o.view.label(m.entidad, "habla", 800); }
@@ -119,6 +124,7 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
   // your head did not change how people sounded. Nothing else changes here: same relay, same codec, same 30 m,
   // same `equalpower` panner per speaker at the position the server gives.
   setInterval(() => {
+    if (oidaHasta && performance.now() > oidaHasta) { oidaHasta = 0; nucleo.despertar("voz-oida", false); }
     if (voces.size === 0 || o.session.entity < 0) return;
     const ctx = contexto();
     if (!ctx) return;
@@ -142,6 +148,7 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
   let flujo: MediaStream | null = null, nodo: AudioWorkletNode | null = null, fuente: MediaStreamAudioSourceNode | null = null, enc: AudioEncoder | null = null;
   let acumulado = new Float32Array(0), ts = 0;
   const pintar = () => {
+    nucleo.despertar("microfono", estado.encendido); // v10: leaving the headset must not put the audio graph (and so the mic capture) to sleep
     boton.setAttribute("aria-pressed", String(estado.encendido));
     const t = estado.encendido ? "Micrófono encendido: te oyen a menos de 30 m (Q apaga)" : "Micrófono apagado (Q enciende)";
     texto.innerHTML = `${icono(estado.encendido ? "microphone" : "microphone-slash")}<span class="solo-lector">${t}</span>`; boton.title = t;
@@ -197,7 +204,30 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
     estado.encendido = false; nivel.style.width = "0"; pintar();
     o.decir("Micrófono apagado.");
   }
-  const alternar = () => { if (estado.encendido) apagar(); else void encender(); };
+  const entraVR = { antes: false, pendiente: false, enCurso: false };
+  const alternar = () => { entraVR.pendiente = false; if (estado.encendido) apagar(); else void encender(); }; // a press of yours settles it: nothing opens by itself afterwards
+  // v10: ENTERING THE HEADSET opens the microphone by itself — a headset has no Q key, the button of the page is not in front of the eyes,
+  // and talking to someone is what you came for. Once, after the entry bubble is answered (before that the server drops your voice and the
+  // icon would lie), and ONLY when the browser already gave the permission: a permission prompt cannot be answered from inside an immersive
+  // session, so a first-time person gets a line saying where to grant it and the wrist menu's «Micrófono» keeps working as before.
+  const permiso = async (): Promise<string> => { try { return (await navigator.permissions.query({ name: "microphone" as PermissionName })).state; } catch { return "desconocido"; } };
+  const vigilarVR = async (): Promise<void> => {
+    const vr = o.vr; if (!vr) return;
+    const dentro = vr.activo();
+    if (dentro && !entraVR.antes) entraVR.pendiente = true;
+    entraVR.antes = dentro;
+    if (!dentro) { entraVR.pendiente = false; return; }
+    if (!entraVR.pendiente || entraVR.enCurso || vr.cerrada()) return;
+    entraVR.enCurso = true;
+    try {
+      entraVR.pendiente = false;
+      if (estado.encendido) return;
+      const p = await permiso();
+      if (p === "granted") { await encender(); if (estado.encendido) vr.nota("Micrófono abierto: te oyen a menos de 30 m"); }
+      else vr.nota("Micrófono apagado: dale permiso en la página, fuera de VR");
+    } finally { entraVR.enCurso = false; }
+  };
+  setInterval(() => { void vigilarVR(); }, 500);
   boton.addEventListener("click", (e) => { alternar(); if (e.detail > 0) boton.blur(); });
   addEventListener("keydown", (e) => { if (e.code === "KeyQ" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !o.escribiendo(e)) alternar(); });
   pintar();
