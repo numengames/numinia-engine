@@ -1632,3 +1632,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `fix/pnj-quietos-enteros` (sobre main `fba7d873`); versión 0.45.0 → 0.45.1 (arreglo).
 - Siguiente: quitar de los mundos el apaño de la cintura (`CINTURA` en `trg26/espacio/comida.mjs`, la `y` de los pnj) cuando el motor esté desplegado; los modelos con el origen en la cintura siguen valiendo.
+
+## 2026-10-22 · E3 avatares del mundo · hecho
+- Qué: un mundo trae sus propios avatares en su zip (CC0, o CC BY con crédito visible) y su gente los elige en el selector de ese mundo. `entorno/avatares.json` (`numinia-engine/avatares-mundo@1`, hasta 8) + `.vrm`/miniatura en `datos/activos/<sha256>`: nada nuevo en el zip (ya viajan). `packages/server/src/avatares-mundo.ts` lo comprueba al arrancar con el lector `vrm.ts` (≤ 10.000 triángulos, la licencia del propio fichero = la declarada, CC BY exige `credito`, línea mala fuera con su motivo); `GET /status` lleva `avatares`; el selector de `apps/plaza/avatar.ts` añade «De este mundo» con el crédito pegado. La biblioteca de la casa sigue siendo solo CC0 (`revisarAvatar` intacto).
+- Números: `test/avatares-mundo.test.ts` 13 pruebas; avatares TRG26 (4 × 9.997 triángulos, CC BY) leídos sin problemas por el lector nuevo. `npm test` 1966 (1964 bien; 2 de tiempo de naturaleza mal con la máquina cargada, loadavg 15–18 en 32 núcleos, y bien solas), `layers` y `build` ok; foto del selector con los 4 en `work/trg26/avatares/fotos-e3/`.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `feat/avatares-del-mundo` (sobre main `f226cf5f`); versión 0.45.1 → 0.46.0 (algo nuevo que no rompe nada).
+- Pendiente: avatar por defecto del mundo (`ficha.avatar`) y de las IAs (`ia.cuerpo`) con uno propio; panel de créditos; mostrar el crédito de quien lleva uno puesto; `allowedUserName` no se mira (permiso de TRG/VIPE por escrito, fuera del motor).

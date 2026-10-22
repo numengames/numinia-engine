@@ -11,6 +11,7 @@
 import { comprobarFichero, sha256Hex } from "../../packages/net/src/ficheros.ts";
 import { infoVrm, revisarAvatar } from "../../packages/server/src/vrm.ts";
 import type { CatalogoAvatares } from "../../packages/render/src/index.ts";
+import type { AvatarDelMundo } from "./catalogo-avatares.ts";
 import { elegirAvatar } from "../../packages/render/src/avatares-politica.ts";
 
 type Msg = Record<string, unknown>;
@@ -23,6 +24,8 @@ export type OpcionesAvatar = {
     features: { send(feature: string, intent: string, msg: Msg): Res; stateOf(feature: string): ReadonlyMap<string, Msg> };
   };
   catalogo: CatalogoAvatares | undefined;
+  /** E3: this world's own avatars (entorno/avatares.json via GET /status), each offered with its credit; none = the picker as always. */
+  delMundo?: readonly AvatarDelMundo[];
   origen: string;           // the instance's server, where /a/ lives (http://host:port)
   billete: () => string | null; // the guest token the page keeps (localStorage numinia.invitado)
 };
@@ -33,6 +36,11 @@ const CSS = `
 #avatar-panel.abierto { display: block; }
 #avatar-panel button { display: block; width: 100%; margin: 4px 0; text-align: left; }
 #avatar-estado { font-size: 12px; opacity: .85; margin-top: 6px; min-height: 28px; }
+#avatar-panel { max-height: calc(100vh - 70px); overflow-y: auto; }
+#avatar-panel h3 { font-size: 12px; font-weight: 600; margin: 8px 0 2px; opacity: .85; }
+#avatar-panel .avatar-mundo img { width: 32px; height: 32px; vertical-align: middle; margin-right: 6px; border-radius: 4px; }
+#avatar-panel .avatar-credito { font-size: 11px; line-height: 1.3; margin: 0 0 6px; opacity: .8; }
+#avatar-panel .avatar-credito a { color: inherit; }
 `;
 
 const huella = async (b: Uint8Array): Promise<string> => {
@@ -51,10 +59,11 @@ export function montarAvatar(o: OpcionesAvatar) {
   const casas = o.catalogo?.modelos ?? [];
   const nCasa = casas.length; // ux2-gente: the house models only (uploads are pushed after them); avatares.ts's default counts these
   const subidos = new Map<string, number>(); // "sha.ext" -> index pushed into casas (shared with avatares.ts)
+  const delMundo = new Map((o.delMundo ?? []).map((a) => [`${a.sha256}.vrm`, a] as const)); // E3: by file, so a chosen one is named as it is listed
   function indiceDe(sha: string, ext: string): number {
     const k = `${sha}.${ext}`;
     let i = subidos.get(k);
-    if (i === undefined) { i = casas.length + subidos.size; subidos.set(k, i); casas.push({ nombre: "Avatar subido", url: `${o.origen}/a/${sha}.${ext}` }); }
+    if (i === undefined) { i = casas.length + subidos.size; subidos.set(k, i); casas.push({ nombre: delMundo.get(k)?.nombre ?? "Avatar subido", url: `${o.origen}/a/${sha}.${ext}` }); }
     return i;
   }
 
@@ -65,6 +74,28 @@ export function montarAvatar(o: OpcionesAvatar) {
       decir(r.ok ? `Avatar: ${m.nombre}.` : `No se pudo: ${r.why}`);
     });
     panel.appendChild(b);
+  }
+
+  // E3: the avatars this world brings, with the credit its licence asks for right under each (CC BY: author and what was changed).
+  // Choosing one is the same choice as an upload (avatar.elegir tipo «subido», the file is already on this server): no new intent,
+  // nothing new in the shared state, and another world's picker never lists them (only this server's /status does).
+  if (delMundo.size) {
+    const t = document.createElement("h3"); t.textContent = "De este mundo"; panel.appendChild(t);
+    for (const a of delMundo.values()) {
+      const b = document.createElement("button"); b.type = "button"; b.className = "avatar-mundo";
+      if (a.miniatura) { const im = document.createElement("img"); im.src = a.miniatura; im.alt = ""; im.loading = "lazy"; b.appendChild(im); }
+      b.append(a.nombre);
+      b.addEventListener("click", () => {
+        indiceDe(a.sha256, "vrm");
+        const r = o.session.features.send("avatar", "elegir", { tipo: "subido", modelo: 0, sha: a.sha256, ext: "vrm" });
+        decir(r.ok ? `Avatar: ${a.nombre}.` : `No se pudo: ${r.why}`);
+      });
+      const c = document.createElement("p"); c.className = "avatar-credito";
+      const lic = a.licencia === "CC0" ? "CC0" : "CC BY 4.0";
+      c.append(a.credito ? `${a.credito} · ` : "");
+      if (a.creditoUrl) { const l = document.createElement("a"); l.href = a.creditoUrl; l.target = "_blank"; l.rel = "noopener noreferrer"; l.textContent = lic; c.appendChild(l); } else c.append(lic);
+      panel.append(b, c);
+    }
   }
 
   const entrada = document.createElement("input");

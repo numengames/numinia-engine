@@ -61,3 +61,33 @@ export function revisarAvatar(info: InfoVrm, max = TRIANGULOS_MAX_VRM): Issue[] 
   if (info.version === "0" && !info.licencia.comercial) out.push({ path: "meta.commercialUssageName", message: "el propio fichero no permite el uso comercial" });
   return out;
 }
+
+/** Licences a WORLD's own avatars may carry (entorno/avatares.json, E3): CC0, or CC BY with a visible credit. Never
+ * the house library (revisarAvatar above stays CC0-only: that catalogue travels to every world). */
+export type LicenciaMundo = "CC0" | "CC-BY";
+
+/** What the VRM itself says about its licence, as one of the two a world may carry, or null (anything else: NC, SA, ND,
+ * «Other», redistribution prohibited, nothing). VRM 0.x names it (`licenseName` CC0 | CC_BY); VRM 1.0 points at the
+ * Creative Commons deed in `otherLicenseUrl`. The file is read, never rewritten: its metadata travels untouched. */
+export function licenciaDeVrm(info: InfoVrm): LicenciaMundo | null {
+  if (info.version === "0") return info.licencia.nombre === "CC0" ? "CC0" : info.licencia.nombre === "CC_BY" ? "CC-BY" : null;
+  if (info.version === "1") {
+    if (/creativecommons\.org\/publicdomain\/zero/.test(info.licencia.url)) return "CC0";
+    if (/creativecommons\.org\/licenses\/by\/\d/.test(info.licencia.url)) return "CC-BY";
+  }
+  return null;
+}
+
+/** May a world carry this avatar? A VRM, at most `max` triangles, whose own licence is CC0 or CC BY and is the one the
+ * world declares (a CC BY file cannot be listed as CC0: that would be relicensing it), and that allows commercial use. */
+export function revisarAvatarDelMundo(info: InfoVrm, declarada: LicenciaMundo, max = TRIANGULOS_MAX_VRM): Issue[] {
+  const out: Issue[] = [];
+  if (!info.version) out.push({ path: "extensions", message: "no es un VRM (no tiene la extensión VRM ni VRMC_vrm)" });
+  if (info.triangulos > max) out.push({ path: "meshes", message: `${info.triangulos} triángulos > ${max}: simplifica la malla (Blender: Decimate) o elige otro avatar` });
+  const propia = licenciaDeVrm(info);
+  if (!propia) out.push({ path: "meta.license", message: `licencia «${info.licencia.nombre || info.licencia.url || "ninguna"}» dentro del fichero: un mundo solo lleva avatares CC0 o CC BY` });
+  else if (propia !== declarada) out.push({ path: "meta.license", message: `avatares.json dice ${declarada} pero el fichero dice ${propia}: la licencia del fichero no se reescribe, declárala como es` });
+  if (!info.licencia.comercial) out.push({ path: info.version === "1" ? "meta.commercialUsage" : "meta.commercialUssageName", message: "el propio fichero no permite el uso comercial" });
+  if (info.version === "1" && info.licencia.redistribuir !== true) out.push({ path: "meta.allowRedistribution", message: "el propio fichero no permite redistribuirlo (allowRedistribution)" });
+  return out;
+}

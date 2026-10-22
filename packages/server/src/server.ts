@@ -25,6 +25,8 @@ import { entorno, Runtime } from "./runtime.ts";
 import { KEEP_DAYS, Sesiones } from "./sesiones.ts";
 import { FileStorage } from "./datos.ts";
 import { Activos, BIBLIOTECA } from "./activos.ts";
+import { avataresDelMundo } from "./avatares-mundo.ts";
+import { leerMundo } from "./mundo.ts";
 import { Subidas } from "./subidas.ts";
 import { CopiaMundo } from "./mundo-zip.ts";
 import { Pagina } from "./pagina.ts";
@@ -213,6 +215,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const puede = (who: Who | null, accion: string) => roles.puede(who, accion);
   const activos = new Activos(o.biblioteca === undefined ? BIBLIOTECA : o.biblioteca, o.subidas ?? null, log);
   const optimizar = new ColaOptimizar(activos, log, o.optimizar ?? process.env.MOTOR_OPTIMIZAR !== "no"); // N22
+  // E3: the world's own avatars (entorno/avatares.json → files in datos/activos/, checked now with the same VRM reader the uploads use); none = nothing told, the world as always
+  const avataresMundo = o.entorno ? avataresDelMundo(leerMundo(o.entorno, log), (h, ext) => activos.buscar(h, ext), log) : [];
   optimizar.repasar();
   if (o.aventura) log(`[aventura] ${o.aventura}${existsSync(o.aventura) ? "" : " (no existe: el mundo arranca sin aventura)"}`);
   const agentesSign = signer(o.agentes ?? process.env.MOTOR_AGENTES_SECRET);
@@ -317,6 +321,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
         ...(espacioBaseActivo() ? { espacioBase: true } : {}),
         // dardos enlazados (E1): where a page of this world sends its AR darts (the Alchemist Tower's board unless dardos.json says otherwise); null = nowhere
         ...(o.enlaceDardos !== undefined ? { dardosEnlace: o.enlaceDardos } : {}), ...(visitas ? { visitas } : {}),
+        // E3: the world's own avatars (name, licence, credit): the picker of THIS world offers them; absent when it has none
+        ...(avataresMundo.length ? { avatares: avataresMundo } : {}),
       }));
     }
     if (method === "GET" && path === "/metrics") return json(res, 200, metrics());
