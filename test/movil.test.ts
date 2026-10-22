@@ -4,6 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { GLIFOS, ayudaDe, conGlifo, cercaDeAlguien, contextoDe, elegirAccion, siguienteChat, esPulsacionLarga, tamanoOk, entradasDelMenu, enZonaAndar, ZONA_ANDAR_MOVIL, ZONA_ANDAR_ANTES, esMovil, ultimaLinea, SALTAR, ZONA_SEGURA_SIMULADA } from "../packages/client/src/movil.ts";
 import { APARATOS } from "../packages/client/src/aparato.ts";
+import { readFileSync } from "node:fs";
 
 const CLASES = APARATOS.filter((a) => a !== "auto");
 
@@ -94,4 +95,13 @@ test("the one-line chat shows the last spoken line, not a notice", () => {
 test("simulated safe zones exist for both phone orientations", () => {
   assert.ok(ZONA_SEGURA_SIMULADA["movil-vertical"].t > 0 && ZONA_SEGURA_SIMULADA["movil-vertical"].b > 0);
   assert.ok(ZONA_SEGURA_SIMULADA["movil-horizontal"].l > 0 && ZONA_SEGURA_SIMULADA["movil-horizontal"].r > 0);
+});
+
+test("Galatea paseo: a phone offers no «Construir», and the skill slots show only while a creature is in reach", () => {
+  const leer = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
+  assert.doesNotMatch(leer("apps/plaza/movil.ts"), /\["construir", "construir"\]/, "the «…» menu does not carry Construir");
+  assert.match(leer("apps/plaza/movil.css"), /body:not\(:has\(#objetivo:not\(\[hidden\]\)\)\) #habilidades \{ display: none !important; \}/);
+  const css = leer("apps/plaza/tema.css");
+  assert.match(css, /#habilidades \.hueco \.nom \{[^}]*font-size: 13px/, "the slot names are legible (≥ 13 px)");
+  assert.doesNotMatch(css, /#habilidades[^{]*\{[^}]*font(-size)?: (10|11)px/, "no 10–11 px text left in the slots");
 });

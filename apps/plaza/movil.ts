@@ -89,7 +89,8 @@ export function montarMovil(o: Opciones): void {
   const extras = (): (Entrada & { clic: () => void })[] => {
     const f: (Entrada & { clic: () => void })[] = [];
     // [the page's button, its section in the one list (packages/render/src/menu-secciones.ts)]
-    for (const [id, sec] of [["microfono", "micro"], ["gente-abrir", "gente"], ["inventario-abrir", "bolsa"], ["foto-abrir", "foto"], ["construir", "construir"], ["pantalla", "pantalla"], ["ar", "ar"], ["vr", "vr"]] as const) {
+    // no «Construir» here: a phone walks and talks; building lives on a desktop and in VR (Pablo, 2026-10-22)
+    for (const [id, sec] of [["microfono", "micro"], ["gente-abrir", "gente"], ["inventario-abrir", "bolsa"], ["foto-abrir", "foto"], ["pantalla", "pantalla"], ["ar", "ar"], ["vr", "vr"]] as const) {
       const b = botonDe(id); if (b) f.push({ id, etiqueta: nombreDe(sec), icono: iconoDe(sec), clic: () => b.click() });
     }
     f.push({ id: "ficha", etiqueta: nombreDe("tu"), icono: iconoDe("tu"), clic: () => document.getElementById("hud-personaje-abrir")?.click() }); // ux2-barra: the card's button («Tú»)

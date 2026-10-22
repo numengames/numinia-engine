@@ -56,7 +56,8 @@ test("the seven sections of the computer's menu are the VR panel's first rows, i
   assert.deepEqual(idsPanelVR(), [...sieteDelOrdenador, "chat"]);
   for (const id of sieteDelOrdenador) {
     const s = seccion(id);
-    assert.deepEqual([...s.aparatos], ["pc", "movil", "vr"], `${id} exists on all three`);
+    // «Construir» is the one left off the phone: a phone walks and talks (Pablo, 2026-10-22)
+    assert.deepEqual([...s.aparatos], id === "construir" ? ["pc", "vr"] : ["pc", "movil", "vr"], `${id} exists where it should`);
     assert.equal(ETIQUETAS[id as keyof typeof ETIQUETAS], s.es);
     assert.equal(ICONOS[id as keyof typeof ICONOS], s.icono);
   }

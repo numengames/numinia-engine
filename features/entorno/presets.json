@@ -57,6 +57,14 @@
       "niebla": { "cerca": 60, "lejos": 330, "color": "#c2cbd2" },
       "viento": { "rumbo": 45, "fuerza": 5 },
       "tono": { "curva": "neutro", "exposicion": 1 }
+    },
+    "jardín": {
+      "cielo": { "tipo": "degradado", "arriba": "#a6dad5", "horizonte": "#f9ebdc" },
+      "luz": { "hdr": "", "ambiente": 1.4, "cielo": "#a6dad5", "suelo": "#8a7d72" },
+      "sol": { "altura": 32, "rumbo": 140, "intensidad": 3.6, "color": "#f9ebdc" },
+      "niebla": { "cerca": 70, "lejos": 360, "color": "#f9ebdc" },
+      "viento": { "rumbo": 60, "fuerza": 2 },
+      "tono": { "curva": "neutro", "exposicion": 1.2 }
     }
   }
 }

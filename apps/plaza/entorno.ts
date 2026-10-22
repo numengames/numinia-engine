@@ -37,7 +37,7 @@ type Vista = {
   sueloBajo?: (x: number, y: number) => { x: number; y?: number; z: number } | null;
 };
 
-const PRESET_NOMBRE: Record<string, string> = { día: "Día", amanecer: "Amanecer", atardecer: "Atardecer", noche: "Noche", niebla: "Niebla", tormenta: "Tormenta", nublado: "Nublado" };
+const PRESET_NOMBRE: Record<string, string> = { día: "Día", amanecer: "Amanecer", atardecer: "Atardecer", noche: "Noche", niebla: "Niebla", tormenta: "Tormenta", nublado: "Nublado", jardín: "Jardín" };
 const ELEMENTO_NOMBRE: Record<string, string> = { agua: "Agua", fuego: "Fuego", humo: "Humo", polvo: "Polvo" };
 const CSS = `
 #panel-entorno { font: 13px/1.45 "Geist", system-ui, sans-serif; }

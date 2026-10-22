@@ -6,7 +6,8 @@ import { defineFeature } from "../../packages/feature/src/index.ts";
 import type { Fields } from "../../packages/feature/src/index.ts";
 
 /** Named environments (presets.json). «propio» = adjusted by hand after a preset. */
-export const PRESETS = ["día", "amanecer", "atardecer", "noche", "niebla", "tormenta", "nublado"] as const;
+/** «jardín» is the house look (STD-023: the Mediterranean garden — Verdemar sky over an Arena horizon, a warm haze). */
+export const PRESETS = ["día", "amanecer", "atardecer", "noche", "niebla", "tormenta", "nublado", "jardín"] as const;
 export const SUELOS = ["hierba", "tierra", "arena", "roca", "nieve", "liso"] as const;
 export const CIELOS = ["atmosfera", "degradado", "color"] as const;
 export const TONOS = ["agx", "aces", "neutro", "ninguno"] as const;
@@ -66,7 +67,7 @@ export const entorno = defineFeature({
     persist: true,
   },
   intents: {
-    preset: { describe: "Poner un entorno con nombre (día, amanecer, atardecer, noche, niebla, tormenta, nublado). El suelo se queda como estaba.", spoken: "cambiar el entorno", fields: { nombre: { kind: "enum", values: PRESETS } } },
+    preset: { describe: "Poner un entorno con nombre (día, amanecer, atardecer, noche, niebla, tormenta, nublado, jardín). El suelo se queda como estaba.", spoken: "cambiar el entorno", fields: { nombre: { kind: "enum", values: PRESETS } } },
     ajustar: { describe: "Poner el entorno con todos sus valores (lo que muestran los deslizadores). Para cambiar uno, lee el estado «zona», cambia ese campo y envíalo entero.", spoken: "ajustar el entorno", fields: CAMPOS, rate: { perSecond: 10, burst: 20 } },
     restaurar: { describe: "Volver al entorno con el que viene el mundo.", spoken: "restaurar el entorno", fields: {} },
   },

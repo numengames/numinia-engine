@@ -167,3 +167,6 @@ html[data-aparato="movil-horizontal"] #dialogo .opciones button, html[data-apara
 html[data-aparato="movil-horizontal"] #dados-torre { bottom: calc(var(--sb) + 22px + 84px + 12px) !important; }
 html[data-aparato="movil-horizontal"] #pesca-hud { bottom: calc(var(--sb) + 10px + 46px + 10px); }
 @media (prefers-reduced-motion: reduce) { html[data-aparato^="movil"] * { transition: none !important; animation: none !important; } }
+/* Galatea, mobile «paseo» (Pablo, 2026-10-22): a phone walks and talks. The skill slots come up only while a creature is
+   in reach (#objetivo shown), as the one action button does; the rest of the time the top of the screen is the world. */
+html[data-aparato^="movil"] body:not(:has(#objetivo:not([hidden]))) #habilidades { display: none !important; }

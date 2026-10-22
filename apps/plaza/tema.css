@@ -372,15 +372,15 @@ html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 
 #objetivo .barra i.alta { background: var(--n-verdemar); }
 #objetivo .nota { color: var(--n-ambar); font-size: 11px; }
 #habilidades { display: flex; gap: 8px; padding: 8px; justify-content: center; }
-#habilidades .hueco { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-fondo); color: var(--n-texto2); font: 11px "Geist", system-ui, sans-serif; opacity: .7; }
-#habilidades .hueco kbd { position: absolute; top: 3px; left: 5px; font: 11px "Geist Mono", ui-monospace, monospace; color: var(--n-texto2); }
+#habilidades .hueco { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-fondo); color: var(--n-texto2); font: 12px "Geist", system-ui, sans-serif; opacity: .7; }
+#habilidades .hueco kbd { position: absolute; top: 3px; left: 5px; font: 12px "Geist Mono", ui-monospace, monospace; color: var(--n-texto2); }
 #habilidades[hidden] { display: none !important; } /* no fighting in this world: no slots (combate.ts) */
 /* combate nivel 2: a slot with a real ability is a button (combate.ts); lit when the Carga pays for it, dim otherwise */
 #habilidades button.hueco { cursor: pointer; padding: 0; opacity: .55; }
 #habilidades button.hueco.lista { opacity: 1; color: var(--n-texto); border-color: var(--n-ambar); }
 #habilidades button.hueco:focus-visible { outline: 2px solid var(--n-ambar); outline-offset: 2px; }
-#habilidades .hueco .cos { position: absolute; top: 3px; right: 5px; font: 11px "Geist Mono", ui-monospace, monospace; color: var(--n-ambar); }
-#habilidades .hueco .nom { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; padding: 0 4px; }
+#habilidades .hueco .cos { position: absolute; top: 3px; right: 5px; font: 12px "Geist Mono", ui-monospace, monospace; color: var(--n-ambar); }
+#habilidades .hueco .nom { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; padding: 0 4px; } /* Galatea: 10 px could not be read (Pablo, 2026-10-22); 13 px is the floor for a label you act on */
 
 /* ux2-barra: one thing, one place, one key. The bar, left to right: Micrófono (Q) · Gente (L) · Bolsa (R) · Cámara (P) ·
    Construir (C) | Avisos (N) · Menú (O); the order lives here (modules add their buttons at different moments). Cámara and
