@@ -22,7 +22,14 @@ export function letreroDe(d: DueloV | null, rondas: number): Letrero {
   const panel = panelDe(d, rondas);
   if (panel.fase === "nada" || !d) return { panel, etiqueta: null, pie: [] };
   const pie = panel.fase === "espera" && panel.pie === "Esperando rival…" ? [INVITACION.split(" — ")[0] + " —", INVITACION.split(" — ")[1]] : [panel.pie];
-  return { panel, etiqueta: d.a.pared || d.b?.pared ? TAG_PARED : null, pie };
+  return { panel, etiqueta: etiquetaPared(d), pie };
+}
+/** The tag under the sign: «En su pared (AR)» when somebody plays from a wall; v6: «… · desde <mundo>» when they came through a link from another world. */
+export function etiquetaPared(d: DueloV): string | null {
+  const todos = d.equipos?.length ? d.equipos : [d.a, d.b];
+  const p = todos.find((j) => j?.pared);
+  if (!p) return null;
+  return p.mundo ? `${TAG_PARED} · desde ${p.mundo}` : TAG_PARED;
 }
 /** A key that changes exactly when the sign must be repainted. */
 export const claveLetrero = (l: Letrero): string => JSON.stringify([l.panel, l.etiqueta]);
@@ -53,8 +60,10 @@ export function pintarLetrero(ctx: CanvasRenderingContext2D, l: Letrero): void {
     l.pie.forEach((t, i) => ctx.fillText(t, w / 2, 144 + i * 31));
   }
   if (l.etiqueta) {
-    ctx.fillStyle = "rgba(20,24,30,.92)"; ctx.beginPath(); ctx.roundRect(w / 2 - 130, PANEL_PX.h + 6, 260, 32, 16); ctx.fill();
-    ctx.fillStyle = "#9fd8ff"; ctx.font = "700 22px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText(l.etiqueta, w / 2, PANEL_PX.h + 23);
+    ctx.font = "700 22px system-ui, sans-serif";
+    const ancho = Math.min(w - 8, Math.max(260, l.etiqueta.length * 13 + 40)); // a long «desde <mundo>» widens the pill, never past the sign
+    ctx.fillStyle = "rgba(20,24,30,.92)"; ctx.beginPath(); ctx.roundRect(w / 2 - ancho / 2, PANEL_PX.h + 6, ancho, 32, 16); ctx.fill();
+    ctx.fillStyle = "#9fd8ff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(l.etiqueta, w / 2, PANEL_PX.h + 23, w - 24);
   }
 }

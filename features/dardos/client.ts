@@ -26,7 +26,7 @@ export type Estado = {
   marcador: { dardos: number; puntos: number; mejorDardo: number; mejorTirada: number; dianas: number };
 };
 /** `pared`: this player joined from a real wall (AR) instead of the board's throwing line. */
-export type Jugador = { entity: number; nombre: string; puntos: number; pared?: boolean;
+export type Jugador = { entity: number; nombre: string; puntos: number; pared?: boolean; /** v6: the world they came from through a link, when they did */ mundo?: string;
   /** v3: this team is me / left the match. */ yo?: boolean; fuera?: boolean };
 export type FinDuelo = { ganador: number | null; empate: boolean; abandono: boolean; texto: string; gane: boolean; cuando: number };
 /** The match as this page sees it. Wire entity 0 is a real player: read `empate` / `ronda`, never `ganador === 0`. */
@@ -78,7 +78,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     const L = ["A", "B", "C", "D"] as const;
     const plazas = m.plazas !== undefined ? Number(m.plazas) : ronda > 0 || fin ? 2 : 1; // a server of schema v2 has no `plazas`
     const yo = A ? A.self() : -1;
-    const equipos: Jugador[] = L.slice(0, plazas).map((l) => { const entity = Number(m[l.toLowerCase()]); return { entity, nombre: String(m[`nombre${l}`] ?? ""), puntos: Number(m[`puntos${l}`] ?? 0), pared: m[`pared${l}`] === true, yo: entity === yo, fuera: m[`fuera${l}`] === true }; });
+    const equipos: Jugador[] = L.slice(0, plazas).map((l) => { const entity = Number(m[l.toLowerCase()]); return { entity, nombre: String(m[`nombre${l}`] ?? ""), puntos: Number(m[`puntos${l}`] ?? 0), pared: m[`pared${l}`] === true, ...(m[`mundo${l}`] ? { mundo: String(m[`mundo${l}`]) } : {}), yo: entity === yo, fuera: m[`fuera${l}`] === true }; });
     return {
       sitio: String(m.sitio), ronda, turnoDe: Number(m.turnoDe ?? 0), a: equipos[0], b: equipos[1] ?? null, fin, equipos,
       max: Number(m.equipos ?? 2), turnoEq: Number(m.turnoEq ?? 0), retirando: m.retirando === true,
@@ -112,13 +112,13 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     /** J4: offer the «E: tirar dardos» prompt only while this page is not throwing already. */
     ofrece: (feature: string, _key: string): boolean => feature !== "dardos" || (!apagada() && e.sitio === "" && !(D && !D.fin && soyDe(D))),
     /** `desde: "pared"` joins a `remoto` board from a real wall far from it (AR); `"lejos"` (v5) from a flat screen far from it
-     *  (the server refuses both elsewhere). */
-    jugar: (sitio?: string, desde?: "sitio" | "pared" | "lejos"): Res => {
+     *  (the server refuses both elsewhere). v6: `mundo` = the world this page comes from when it joins through a link (shown on the sign), `nombre` the name to show instead of the guest's there. */
+    jugar: (sitio?: string, desde?: "sitio" | "pared" | "lejos", mundo?: string, nombre?: string): Res => {
       if (!A) return SIN;
       if (apagada()) return APAGADA;
       const id = sitio ?? dardos.sitios().find((s) => !s.ocupado)?.id;
       if (!id) return { ok: false, why: "no hay ninguna diana cerca" };
-      return A.send("jugar", desde === "pared" || desde === "lejos" ? { sitio: id, desde } : { sitio: id });
+      return A.send("jugar", desde === "pared" || desde === "lejos" ? { sitio: id, desde, ...(mundo ? { mundo } : {}), ...(nombre ? { nombre } : {}) } : { sitio: id });
     },
     /** Throw: aim (x, y) on the face in board radii, strength 0-1. Without a turn the server starts one. v4: `via` = how it was
      *  thrown (raton, teclado, tactil, vr, ar); it sets the width of the straight-strength window (ZONA_FUERZA). Missing = raton. */

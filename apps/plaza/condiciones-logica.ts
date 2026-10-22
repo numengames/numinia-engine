@@ -22,6 +22,8 @@ export const SUBTITULO_CAMBIOS = "Ya aceptaste las anteriores; solo te enseñamo
 export const ETIQUETAS: Record<Etiqueta, string> = { nuevo: "NUEVO", cambiado: "CAMBIADO" };
 export const NOTA_DATOS_VUELVE = "Lo que ya permitiste y no ha cambiado sigue como estaba. Ninguna casilla nueva sale marcada.";
 /** «v1.0 → v1.1» */
+/** dardos enlazados (E2): what the bubble says when it is asked for another world's norms (the link); not accepting only means «no darts there». */
+export const SUBTITULO_ENLAZADA = "Para jugar a sus dardos desde tu pared tienes que aceptarlas. Si no las aceptas no pasa nada: sigues en este mundo.";
 export const flechaVersion = (desde: string, ahora: string): string => `v${desde} → v${ahora}`;
 /** The box of a returning layer: «Acepto la versión 1.1 de las normas de Numen Games». */
 export const rotuloAcepto = (p: Pick<PasoCapa, "capa" | "propio" | "version">): string =>
@@ -126,10 +128,14 @@ export function porcentajeLeido(scrollTop: number, clientHeight: number, scrollH
 // (condiciones-vr-logica.ts): the two are views of THIS file, so what a button says and when it is off cannot drift apart. ----
 
 /** The three texts above a step: the small line, the title and the one-line explanation. `mundo` is the world's name ('' = none). */
-export function textosDePaso(p: Paso, capas: CondicionesCapa[], mundo: string): { eyebrow: string; titulo: string; subtitulo: string } {
+export function textosDePaso(p: Paso, capas: CondicionesCapa[], mundo: string, enlazada = false): { eyebrow: string; titulo: string; subtitulo: string } {
   const eyebrow = p.tipo === "capa" && p.cambios ? `${p.nombre} · ${flechaVersion(p.cambios.desde, p.version)}` : mundo ? `Antes de entrar · ${mundo}` : "Antes de entrar";
   if (p.tipo === "capa" && p.cambios) return { eyebrow, titulo: TITULO_CAMBIOS, subtitulo: SUBTITULO_CAMBIOS };
   if (p.tipo === "datos") return { eyebrow, titulo: "Lo que tú eliges", subtitulo: "Esto es opcional: entras igual digas sí o no. Ninguna casilla sale marcada." };
+  if (enlazada) { // dardos enlazados (E2): the norms of ANOTHER world, asked on the flat page before AR; saying no costs nothing here
+    const propio = p.capa === "casa" ? null : capas.find((c) => c.capa === p.capa)?.nombre;
+    return { eyebrow, titulo: p.capa === "casa" ? `Las normas de ${mundo || "ese mundo"}` : propio ? `Las normas de ${propio}` : "Las normas de la comunidad", subtitulo: SUBTITULO_ENLAZADA };
+  }
   if (p.capa === "casa") return { eyebrow, titulo: "Las normas de este sitio", subtitulo: "Mientras no aceptes estás en esta burbuja: ves el mundo, pero nadie te oye y no puedes tocar nada." };
   const propio = capas.find((c) => c.capa === p.capa)?.nombre;
   return { eyebrow, titulo: propio ? `Las normas de ${propio}` : "Las normas de la comunidad", subtitulo: `${propio ?? "La comunidad"} añade estas normas a las anteriores. No pueden quitar nada de ellas.` };

@@ -1583,3 +1583,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `vr/v3-interruptores-vr` (sobre `funciones/f3-panel`), sin subir. Toca `apps/plaza/xr-menu.ts` solo en `ajustes()`: se junta con v2-fin.
 - Pendiente: el título «Este mundo» del menú VR va en castellano (el menú VR solo está en castellano); ja, ko, pt-br de los textos del bloque.
+
+## 2026-10-21 23:52 · bolsa-enlace · hecho
+- Qué: «La Bolsa galáctica» (Inventario como rejilla de 42 casillas con iconos, equipo, ficha, tooltip y arrastre; el servidor pone el tope; bolsa llena = el pez vuelve al agua; inventario v3) y «dardos enlazados» (en cualquier mundo el botón AR ofrece «Dardos de <mundo enlazado> en tu pared» / «El mundo en tu mesa»; visita ligera `?enlace=dardos` a la Torre de los Alquimistas; dardos v6; `/status` con `dardosEnlace` y `visitas`). El botón nombra el mundo enlazado (su `/status` → `nombre` del ajuste → host). Versión 0.41.0.
+- Números: `npm run gates` en verde (1952 pruebas, 0 mal); página 624,5 kB gz (main 0.39.0: 618,2); piernas dardos-enlace, dardos-duelo, pesca y misiones en verde.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `juegos/bolsa-enlace` (junta `inventario/rejilla` y `dardos/enlazados`), PR contra main.
+- Siguiente: probar con gafas y móvil reales y contra la Torre en producción (hace falta este motor desplegado allí y una diana `remoto` en su dardos.json).

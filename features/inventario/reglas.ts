@@ -11,10 +11,13 @@ export type Color = (typeof COLORES)[number];
 /** Prestige points of one Semilla del Conocimiento by colour (lore 06, «Morfología de las Semillas»). */
 export const VALOR_SEMILLA: Record<Exclude<Color, "">, number> = { verde: 1, azul: 2, plateada: 3, dorada: 4, roja: 5 };
 
+/** «La Bolsa galáctica» (a wink: 42): how many slots the bag has. One slot per stack (tokens and catches of one kind stack);
+ * what you carry (1 weapon, 3 relics) does not use a slot. The server decides; the page draws exactly this many sockets. */
+export const BOLSA_HUECOS = 42;
 export const LIM = {
   armaPortada: 1,        // canon: «un PJ solo puede llevar consigo un arma»
   reliquiasPortadas: 3,  // canon: «no es posible portar más de tres Reliquias al mismo tiempo»
-  reserva: 24,           // engine: distinct objects per person (a stack counts once); 24 with long names fit S4's 4,096 bytes per key
+  reserva: BOLSA_HUECOS + 1 + 3, // engine: distinct objects per person (a stack counts once) = the bag's slots + what is carried (stored in pages: PAGINA)
   pila: 999,             // engine: units in one stack
   clase: 32, nombre: 40, icono: 24, // bytes of text
 } as const;
@@ -59,7 +62,6 @@ export function leerInventario(raw: unknown): Inventario {
     });
     ids.add(r.id);
   }
-  if (objetos.length > LIM.reserva) objetos.length = LIM.reserva;
   const serie = Math.max(Math.floor(Number(o.serie) || 0), ...objetos.map((x) => Number(x.id.slice(1))));
   const inv: Inventario = { v: 1, serie, objetos };
   // the limits hold even over a hand-edited file: extra carried things go back to the Reserva, oldest first kept
@@ -69,12 +71,39 @@ export function leerInventario(raw: unknown): Inventario {
     if (x.tipo === "arma" && ++armas > LIM.armaPortada) x.portado = false;
     if (x.tipo === "reliquia" && ++reliquias > LIM.reliquiasPortadas) x.portado = false;
   }
+  // and the bag keeps its size: what does not fit the 42 slots is dropped, newest first (carried things are never dropped)
+  let huecos = 0;
+  inv.objetos = inv.objetos.filter((x) => x.portado || ++huecos <= BOLSA_HUECOS);
   return inv;
 }
 
-export type Resultado = { ok: true; objeto: Objeto } | { ok: false; motivo: string };
+export type Resultado = { ok: true; objeto: Objeto } | { ok: false; motivo: string; llena?: true };
 
-/** Hand something to this person. Tokens stack with the same class and colour; the Reserva has a size. */
+/** Slots of the bag in use: everything not carried (a stack is one slot). */
+export const ocupados = (inv: Inventario): number => inv.objetos.reduce((s, x) => s + (x.portado ? 0 : 1), 0);
+export const bolsaLlena = (inv: Inventario): boolean => ocupados(inv) >= BOLSA_HUECOS;
+export const textoLlena = `Tu Bolsa está llena (${BOLSA_HUECOS}/${BOLSA_HUECOS})`;
+
+// S4 keeps at most STORE_VALUE_MAX (4,096) bytes per key and 46 objects with long names do not fit one: the Inventario is
+// stored in pages of PAGINA objects (`i:<id>`, `i:<id>:1`…); the first page carries the series and how many more pages follow.
+export const PAGINA = 14;
+export const PAGINAS_MAX = Math.ceil(LIM.reserva / PAGINA);
+export function trocear(inv: Inventario): unknown[] {
+  const paginas: unknown[] = [];
+  for (let i = 0; i < Math.max(1, inv.objetos.length); i += PAGINA) paginas.push(i === 0 ? { v: 1, serie: inv.serie, objetos: inv.objetos.slice(0, PAGINA), mas: Math.max(0, Math.ceil(inv.objetos.length / PAGINA) - 1) } : { v: 1, p: i / PAGINA, objetos: inv.objetos.slice(i, i + PAGINA) });
+  return paginas;
+}
+/** The reverse: `leer(j)` returns the stored value of page j (0 = the first). A value written before pages existed has no `mas`. */
+export function juntar(leer: (j: number) => unknown): Inventario {
+  const p0 = leer(0);
+  if (!p0 || typeof p0 !== "object") return nuevoInventario();
+  const r = p0 as Record<string, unknown>, objetos: unknown[] = Array.isArray(r.objetos) ? [...r.objetos] : [];
+  const mas = Math.min(PAGINAS_MAX - 1, Math.max(0, Math.floor(Number(r.mas) || 0)));
+  for (let j = 1; j <= mas; j++) { const q = leer(j) as Record<string, unknown> | null; if (q && Array.isArray(q.objetos)) objetos.push(...q.objetos); }
+  return leerInventario({ ...r, objetos });
+}
+
+/** Hand something to this person. Tokens and catches stack with the same class and colour; a new stack needs a free slot of the bag. */
 export function dar(inv: Inventario, e: Entrega): Resultado {
   if (!esTipo(e.tipo)) return { ok: false, motivo: "Eso no es un arma, una reliquia, un token ni una captura." };
   const clase = corta(e.clase, LIM.clase), nombre = corta(e.nombre, LIM.nombre);
@@ -90,7 +119,7 @@ export function dar(inv: Inventario, e: Entrega): Resultado {
       return { ok: true, objeto: pila };
     }
   }
-  if (inv.objetos.length >= LIM.reserva) return { ok: false, motivo: `Tu Reserva está llena (${LIM.reserva} objetos).` };
+  if (bolsaLlena(inv)) return { ok: false, motivo: `${textoLlena}.`, llena: true }; // a NEW slot is needed and there is none
   inv.serie++;
   const objeto: Objeto = { id: `o${inv.serie}`, tipo: e.tipo, clase, nombre, icono: corta(e.icono, LIM.icono), color, valor, n, portado: false };
   inv.objetos.push(objeto);
@@ -126,6 +155,7 @@ export function equipar(inv: Inventario, id: string): Resultado {
 export function desequipar(inv: Inventario, id: string): Resultado {
   const o = inv.objetos.find((x) => x.id === id);
   if (!o) return { ok: false, motivo: "No tienes eso." };
+  if (o.portado && bolsaLlena(inv)) return { ok: false, motivo: `${textoLlena}: no hay hueco donde guardarlo.`, llena: true }; // it needs a slot again
   o.portado = false;
   return { ok: true, objeto: o };
 }

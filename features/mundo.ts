@@ -9,6 +9,8 @@ import { crearElementos } from "./elementos/server.ts";
 import { crearPesca } from "./pesca/server.ts";
 import type { Sitio as SitioPesca } from "./pesca/server.ts";
 import { crearDardos } from "./dardos/server.ts";
+import { leerEnlace } from "./dardos/enlace.ts";
+import type { EnlaceDardos } from "./dardos/enlace.ts";
 import type { Sitio as SitioDardos } from "./dardos/server.ts";
 import { crearBaculo, leerBaculos } from "./baculo/server.ts";
 import { crearAsiento, leerAsientos } from "./asiento/server.ts";
@@ -167,4 +169,14 @@ export function aparicionDelMundo(leer: (fichero: string) => unknown, log: (l: s
   if (r.ok) return r.value;
   log(`[mundo] aparicion de entorno.json no se usa (la gente aparece en el cuadrado de la casa): ${r.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
   return null;
+}
+
+/** dardos enlazados (E1): the link this world's AR sends its darts to — the house's (the Alchemist Tower) unless dardos.json says `"enlace": { servidor, diana }`,
+ * or `false` for none. A wrong `enlace` is said (with its path) and the house link stays: a typo never turns the feature off silently. */
+export function enlaceDardosDelMundo(leer: (fichero: string) => unknown, log: (l: string) => void = () => {}): EnlaceDardos | null {
+  const r = leerEnlace(leer("dardos.json"));
+  if (!r.ok) log(`[mundo] dardos.json: ${r.issues.map((i) => `${i.path}: ${i.message}`).join("; ")} (el enlace queda como ${r.value ? `${r.value.diana} en ${r.value.servidor}` : "apagado"})`);
+  else if (r.origen === "mundo") log(`[mundo] dardos enlazados: AR → «${r.value!.diana}» en ${r.value!.servidor}`);
+  else if (r.origen === "apagado") log("[mundo] dardos enlazados apagados (dardos.json: \"enlace\": false)");
+  return r.value;
 }

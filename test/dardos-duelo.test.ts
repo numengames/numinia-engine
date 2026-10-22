@@ -50,7 +50,7 @@ function mundo(sitios: Sitio[] = SITIOS, n = 5, opts: { sinDardos?: boolean } = 
 test("duelo: the declaration is valid, rounds are clamped, names lose control characters and fit 40 bytes", async () => {
   const { dardos } = await import("../features/dardos/feature.ts");
   assert.deepEqual(dardos.issues, []);
-  assert.equal(dardos.version, 5);
+  assert.equal(dardos.version, 6);
   assert.equal(rondasDe(undefined), RONDAS_DEFECTO); assert.equal(rondasDe(0), 1); assert.equal(rondasDe(99), 5); assert.equal(rondasDe(2.4), 2); assert.equal(rondasDe("x"), RONDAS_DEFECTO);
   assert.equal(limpiarNombre("Ana\u0000\n\u202EMar\tía"), "Ana Mar ía");
   assert.ok(Buffer.byteLength(limpiarNombre("ñ".repeat(60))) <= 40);
@@ -76,7 +76,7 @@ test("duelo: the host waits (`espera`), a second player starts the match, a thir
   W.montar(); W.place(E, 9, 1); W.pump(2);
   assert.equal(W.jugar(A).ok, true); W.pump(2);
   assert.deepEqual([W.estado(C)?.espera, W.estado(C)?.jugadores, W.estado(C)?.ocupado], [true, 1, false], "every page can read «esperando rival»");
-  assert.deepEqual(W.evs(A, "duelo").at(-1), { sitio: "duelo", ronda: 0, turnoDe: 0, a: A.s.entity, nombreA: A.s.who!.nombre, puntosA: 0, b: 0, nombreB: "", puntosB: 0, paredA: false, paredB: false, c: 0, nombreC: "", puntosC: 0, d: 0, nombreD: "", puntosD: 0, paredC: false, paredD: false, equipos: 2, plazas: 1, turnoEq: 0, retirando: false, fueraA: false, fueraB: false, fueraC: false, fueraD: false });
+  assert.deepEqual(W.evs(A, "duelo").at(-1), { sitio: "duelo", ronda: 0, turnoDe: 0, a: A.s.entity, nombreA: A.s.who!.nombre, puntosA: 0, b: 0, nombreB: "", puntosB: 0, paredA: false, paredB: false, c: 0, nombreC: "", puntosC: 0, d: 0, nombreD: "", puntosD: 0, paredC: false, paredD: false, equipos: 2, plazas: 1, turnoEq: 0, retirando: false, fueraA: false, fueraB: false, fueraC: false, fueraD: false, mundoA: "", mundoB: "", mundoC: "", mundoD: "" });
   W.lanzar(A); W.pump();
   assert.match(W.ultimoRechazo(A), /Espera a tu rival/);
   // B on a wall 500 m away cannot join a board that is not `remoto` (nor without saying `desde`), but can join this one

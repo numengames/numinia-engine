@@ -10,7 +10,6 @@ import { join } from "node:path";
 import { fx } from "../packages/core/src/index.ts";
 import { stateHash } from "../packages/sim/src/index.ts";
 import { ServerRuntime } from "../packages/feature/src/index.ts";
-import type { Saved } from "../packages/feature/src/index.ts";
 import { Instance } from "../packages/instance/src/index.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
 import type { GuestKeeper } from "../packages/client/src/index.ts";
@@ -20,7 +19,8 @@ import { lectorAventura } from "../packages/server/src/aventura.ts";
 import { inventario } from "../features/inventario/feature.ts";
 import { crearInventario } from "../features/inventario/server.ts";
 import { crearCliente } from "../features/inventario/client.ts";
-import { dar, quitar, equipar, desequipar, leerInventario, nuevoInventario, resumen, LIM } from "../features/inventario/reglas.ts";
+import { dar, quitar, equipar, desequipar, leerInventario, nuevoInventario, resumen, LIM, BOLSA_HUECOS, PAGINA, PAGINAS_MAX, juntar, trocear, ocupados, bolsaLlena } from "../features/inventario/reglas.ts";
+import type { FeatureStorage, Saved } from "../packages/feature/src/index.ts";
 import { crearMisiones } from "../features/misiones/server.ts";
 import { crearCliente as crearMisionesCliente } from "../features/misiones/client.ts";
 import { cargarAventura } from "../features/misiones/formato.ts";
@@ -78,7 +78,7 @@ test("reglas: tokens stack by class and colour, weapons and relics never; the Re
   const h1 = dar(inv, { tipo: "arma", clase: "hoja", nombre: "Hoja" }), h2 = dar(inv, { tipo: "arma", clase: "hoja", nombre: "Hoja" });
   assert.ok(h1.ok && h2.ok && h1.objeto.id !== h2.objeto.id && h2.objeto.n === 1, "two weapons are two objects");
   assert.equal(dar(inv, { tipo: "token", clase: "semilla", nombre: "x", color: "verde", n: LIM.pila }).ok, false, "a stack has a top");
-  for (let i = inv.objetos.length; i < LIM.reserva; i++) assert.ok(dar(inv, { tipo: "reliquia", clase: `r${i}`, nombre: `Reliquia ${i}` }).ok);
+  for (let i = ocupados(inv); i < BOLSA_HUECOS; i++) assert.ok(dar(inv, { tipo: "reliquia", clase: `r${i}`, nombre: `Reliquia ${i}` }).ok);
   assert.match((dar(inv, { tipo: "reliquia", clase: "otra", nombre: "Otra" }) as { motivo: string }).motivo, /llena/);
   assert.ok(dar(inv, { tipo: "token", clase: "semilla", nombre: "Semilla roja", color: "roja" }).ok, "a full Reserva still stacks");
   assert.equal(dar(inv, { tipo: "token", clase: "", nombre: "x" }).ok, false);
@@ -117,7 +117,112 @@ test("reglas: what S4 stored is read back exactly; a broken or hand-edited value
   const roto = leerInventario({ v: 1, serie: 0, objetos: [{ id: "o1", tipo: "arma", clase: "a", nombre: "A", portado: true }, { id: "o2", tipo: "arma", clase: "b", nombre: "B", portado: true }, { id: "o2", tipo: "token" }, { id: "zz", tipo: "token", clase: "x", nombre: "x" }, { id: "o5", tipo: "token", clase: "semilla", nombre: "S", color: "morada", n: 5000, portado: true }] });
   assert.deepEqual(roto.objetos.map((o) => [o.id, o.portado, o.n, o.color]), [["o1", true, 1, ""], ["o2", false, 1, ""], ["o5", false, LIM.pila, ""]], "second carried weapon goes back; a token is never carried; unknown colour = none; duplicate and bad ids dropped");
   assert.equal(roto.serie, 5, "the series continues after the highest id");
-  assert.ok(JSON.stringify((() => { const full = nuevoInventario(); for (let i = 0; i < LIM.reserva; i++) dar(full, { tipo: "reliquia", clase: `reliquia-larga-${i}`, nombre: `Una reliquia con nombre largo ${i}`, icono: "crane-tower" }); return full; })()).length <= 4096, "a full Reserva fits in one S4 key");
+  assert.equal(leerInventario({ v: 1, serie: 0, objetos: Array.from({ length: 80 }, (_, i) => ({ id: `o${i + 1}`, tipo: "reliquia", clase: `r${i}`, nombre: `R${i}`, portado: i < 5 })) }).objetos.length, BOLSA_HUECOS + 3, "a hand-edited file with 80 objects keeps the 42 slots and the carried ones");
+});
+
+/** A bag as full as the rules allow, with the longest names the schema allows (what S4 has to hold). */
+const llenaLarga = () => {
+  const inv = nuevoInventario();
+  for (let i = 0; i < BOLSA_HUECOS; i++) dar(inv, { tipo: i % 3 === 0 ? "arma" : "reliquia", clase: `${"c".repeat(28)}${i}`.slice(-32), nombre: `${"ñ".repeat(17)}${i}`.slice(-19) + "x".repeat(20), icono: "crane-tower-abc".padEnd(24, "x"), color: "dorada", valor: 9999 });
+  for (const o of [inv.objetos.find((x) => x.tipo === "arma")!, ...inv.objetos.filter((x) => x.tipo === "reliquia").slice(0, 3)]) equipar(inv, o.id);
+  return inv;
+};
+
+test("La Bolsa galáctica: 42 slots, one per stack; what is carried takes none; a NEW slot is refused when full, a stack still grows", () => {
+  assert.equal(BOLSA_HUECOS, 42);
+  const inv = nuevoInventario();
+  const carpa = { tipo: "captura", clase: "carpa", nombre: "Carpa", icono: "fish", color: "plateada" } as const;
+  for (let i = 0; i < 40; i++) assert.ok(dar(inv, { tipo: "reliquia", clase: `r${i}`, nombre: `Reliquia ${i}` }).ok);
+  assert.ok(dar(inv, carpa).ok && dar(inv, carpa).ok && dar(inv, { tipo: "arma", clase: "hoja", nombre: "Hoja" }).ok);
+  assert.deepEqual([ocupados(inv), bolsaLlena(inv), inv.objetos.length], [42, true, 42], "two carp are one slot; 42 slots used");
+  for (const r of inv.objetos.filter((o) => o.tipo === "reliquia").slice(0, 3)) equipar(inv, r.id);
+  equipar(inv, inv.objetos.find((o) => o.tipo === "arma")!.id);
+  assert.deepEqual([ocupados(inv), bolsaLlena(inv), inv.objetos.length], [38, false, 42], "carried things leave their slots");
+  assert.ok(dar(inv, { tipo: "token", clase: "semilla", nombre: "Semilla verde", color: "verde" }).ok && dar(inv, { tipo: "arma", clase: "martillo", nombre: "Martillo" }).ok);
+  assert.ok(dar(inv, { ...carpa, color: "azul", nombre: "Carpa rara" }).ok && dar(inv, { tipo: "reliquia", clase: "ultima", nombre: "Última" }).ok);
+  assert.equal(ocupados(inv), 42);
+  // full: a new slot is refused with the words the HUD shows; the same kinds still stack
+  const nueva = dar(inv, { tipo: "captura", clase: "trucha", nombre: "Trucha", color: "azul" });
+  assert.deepEqual(nueva, { ok: false, motivo: "Tu Bolsa está llena (42/42).", llena: true });
+  assert.ok(dar(inv, carpa).ok && inv.objetos.find((o) => o.clase === "carpa" && o.color === "plateada")!.n === 3);
+  assert.equal(dar(inv, { tipo: "reliquia", clase: "otra", nombre: "Otra" }).ok, false);
+  // putting a carried thing back needs a slot again; dropping one frees it
+  const llevada = inv.objetos.find((o) => o.portado)!;
+  assert.deepEqual(desequipar(inv, llevada.id), { ok: false, motivo: "Tu Bolsa está llena (42/42): no hay hueco donde guardarlo.", llena: true });
+  assert.equal(llevada.portado, true);
+  assert.ok(quitar(inv, inv.objetos.find((o) => o.clase === "ultima")!.id).ok && desequipar(inv, llevada.id).ok && ocupados(inv) === 42);
+  assert.ok(desequipar(inv, llevada.id).ok, "a thing already in the bag is fine to «put back»");
+});
+
+test("La Bolsa galáctica: a full bag with the longest names is stored in pages that each fit S4's key, and reads back exactly", () => {
+  const inv = llenaLarga();
+  assert.equal(inv.objetos.length, BOLSA_HUECOS, "42 objects, 4 of them carried");
+  assert.equal(ocupados(inv), 38);
+  for (let i = ocupados(inv); i < BOLSA_HUECOS; i++) dar(inv, { tipo: "reliquia", clase: `x${i}`, nombre: `${"ñ".repeat(19)}${i}`.slice(0, 40), icono: "x".repeat(24), color: "roja", valor: 9999 });
+  assert.equal(inv.objetos.length, LIM.reserva);
+  const paginas = trocear(inv);
+  assert.equal(paginas.length, PAGINAS_MAX);
+  for (const p of paginas) assert.ok(new TextEncoder().encode(JSON.stringify(p)).length <= 4096, "a page fits one S4 key");
+  assert.equal((paginas[0] as { objetos: unknown[] }).objetos.length, PAGINA);
+  assert.deepEqual(juntar((j) => JSON.parse(JSON.stringify(paginas[j] ?? null))), inv, "pages read back exactly");
+  // a value written before pages existed (a single `i:<id>` with no `mas`) still reads
+  const viejo = nuevoInventario(); dar(viejo, { tipo: "arma", clase: "hoja", nombre: "Hoja" });
+  assert.deepEqual(juntar((j) => (j === 0 ? JSON.parse(JSON.stringify(viejo)) : undefined)), viejo);
+  assert.deepEqual(juntar(() => undefined), nuevoInventario());
+  assert.deepEqual(trocear(nuevoInventario()).length, 1, "an empty bag is one page");
+});
+
+/** A memory-only S4 holding `inventario` data, so a test can start with a bag that is already full. */
+const memoria = (saved: Saved): FeatureStorage => ({ load: (f) => (f === "inventario" ? saved : null), record: () => {} });
+const guardadoDe = (id: string, inv = llenaLarga()): Saved => ({ version: 1, state: [], store: trocear(inv).map((p, j) => [j ? `i:${id}:${j}` : `i:${id}`, p] as [string, unknown]) });
+
+test("La Bolsa galáctica over the plug: the server refuses a new slot («Tu Bolsa está llena (42/42)»), says `huecos`, frees it on drop, and a restart keeps all 46 objects", async () => {
+  const k = keeper();
+  const W0 = world(); const a0 = W0.add(k); W0.pump(3);
+  const id = a0.s.who!.id;
+  const inv = llenaLarga();
+  for (let i = ocupados(inv); i < BOLSA_HUECOS; i++) dar(inv, { tipo: "reliquia", clase: `x${i}`, nombre: `Reliquia ${i}` });
+  const W = world({ storage: memoria(guardadoDe(id, inv)) });
+  const a = W.add(k); W.pump(3);
+  assert.equal(a.s.who?.id, id);
+  assert.equal(a.i.lista().length, LIM.reserva, "42 in the bag + 4 carried arrive");
+  assert.deepEqual([a.i.bolsa(), a.i.estado.huecos, a.i.portados().length], [{ ocupados: 42, huecos: 42 }, 42, 4]);
+  // the example quest gives a Semilla verde: a NEW slot, the bag is full → refused, nothing lost silently (the log says so)
+  W.completar(a);
+  assert.equal(a.i.lista().some((o) => o.clase === "semilla"), false);
+  assert.equal(a.i.estado.ultimoRechazo, "Tu Bolsa está llena (42/42).");
+  assert.equal(a.i.estado.llena, true);
+  assert.ok(W.log.some((l) => /no pude dar Semilla verde: Tu Bolsa está llena/.test(l)));
+  assert.match(a.s.features.announcements.map((x) => x.text).join("|"), /Tu Bolsa está llena \(42\/42\)/);
+  // putting a carried weapon back needs a slot too
+  const llevada = a.i.portados()[0];
+  a.i.desequipar(llevada.id); W.pump(2);
+  assert.match(a.i.estado.ultimoRechazo, /no hay hueco/);
+  assert.equal(a.i.portados().length, 4);
+  // drop one thing → a slot is free → it fits; the list resets the «llena» mark
+  a.i.soltar(a.i.reserva()[0].id); W.pump(2);
+  assert.deepEqual([a.i.estado.llena, a.i.bolsa().ocupados], [false, 41]);
+  a.i.desequipar(llevada.id); W.pump(2);
+  assert.deepEqual([a.i.portados().length, a.i.bolsa().ocupados], [3, 42]);
+});
+
+test("La Bolsa galáctica is saved in pages: a smaller bag leaves no stale page behind, and a restart reads it all back", () => {
+  const k = keeper();
+  const W0 = world(); const a0 = W0.add(k); W0.pump(3); const id = a0.s.who!.id;
+  const inv = llenaLarga();
+  for (let i = ocupados(inv); i < BOLSA_HUECOS; i++) dar(inv, { tipo: "reliquia", clase: `x${i}`, nombre: `Reliquia ${i}` });
+  const saved = guardadoDe(id, inv), claves = new Map(saved.store);
+  const disco: FeatureStorage = { load: (f) => (f === "inventario" ? { ...saved, store: [...claves] } : null), record: (_f, _v, op) => { if (op.op === "k") claves.set(op.key, JSON.parse(JSON.stringify(op.value))); else if (op.op === "kd") claves.delete(op.key); } };
+  assert.deepEqual([...claves.keys()], [`i:${id}`, `i:${id}:1`, `i:${id}:2`, `i:${id}:3`]);
+  const W = world({ storage: disco }); const a = W.add(k); W.pump(3);
+  assert.equal(a.i.lista().length, LIM.reserva);
+  for (const o of a.i.reserva().slice(0, 40)) { a.i.soltar(o.id); W.pump(12); } // soltar is rate-limited: 2 a second
+  assert.equal(a.i.lista().length, LIM.reserva - 40);
+  assert.deepEqual([...claves.keys()], [`i:${id}`], "6 objects are one page: the others are deleted");
+  // …and what is left reads back, through a second server over the same pages
+  const W2 = world({ storage: { load: (f) => (f === "inventario" ? { version: 1, state: [], store: [...claves] } : null), record: () => {} } });
+  const b = W2.add(k); W2.pump(3);
+  assert.deepEqual(b.i.lista(), a.i.lista());
 });
 
 test("the example quest's Semilla verde lands in the inventory of whoever completed it, in every tab of that guest and nobody else's; equip, drop and refusals over the plug", () => {
