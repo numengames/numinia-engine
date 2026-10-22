@@ -366,9 +366,30 @@ mi-aventura/
   cosas/<id>.json      formato "cosa@1"    (cosas que se cogen o se usan)
   secuencias/<id>.json formato "secuencia@1" (un momento con guion que solo ve quien lo provoca: U14 (5))
   habitantes/<id>.json formato "habitante@1" (IA que viven en el mundo: packages/agent)
+  saber/<nombre>.md    texto que un habitante sabe (hasta 16 kB; lo nombra su `cerebro.saber`; también .txt)
   ficha.json           formato "ficha@1"   (opcional: cómo se llama el mundo, de qué va y su portada)
   *.md                 notas para quien escribe (no se leen)
 ```
+
+**`habitante@1` y lo que sabe (`cerebro.saber`, E2)** — una IA con cerebro (escalón 2 o 4) conoce quién es por su
+`cerebro.persona`, que no pasa de **1500 bytes**. Para lo que no cabe ahí (un programa de horarios, dónde está cada
+cosa, una lista de patrocinadores) el fichero del habitante puede llevar `"cerebro": { …, "saber": "saber/procyon.md" }`:
+una ruta **relativa a la carpeta de la aventura**, de la forma `saber/<nombre>.md` o `.txt` (una sola carpeta, `saber/`;
+sin ruta absoluta, sin `..`, sin `\`). Cómo se lee:
+- El servicio de habitantes (`packages/agent/src/main.ts`) lo lee **una vez al arrancar** con `lectorSaber` (`saber.ts`)
+  y lo mete en el prompt del sistema **justo después de la persona**, bajo «## Lo que sabes» y entre `<saber>` y
+  `</saber>`, como material de referencia de fiar (lo escribe quien administra el mundo, como la persona); el modelo
+  contesta desde ahí y, si no está, dice que no lo sabe. Para cambiarlo hay que reiniciar el servicio.
+- **Tope: 16 KB (`SABER_MAX`, 16.384 bytes)**, en bytes y no en letras. Más grande, vacío, que no exista, que sea un enlace que
+  sale de la carpeta de la aventura, que no sea texto o que contenga algo que parezca una clave (`sk-…` o una cadena
+  larga de letras y cifras) → **ese habitante no se carga**, y el log dice por qué en castellano
+  (`[habitantes] NO se carga: habitantes/procyon.json.cerebro.saber: «saber/procyon.md» pesa 17601 bytes y el tope es 16384 (16 kB)…`).
+- Viaja con el mundo: `aventura/saber/*.md|txt` entra en el zip `mundo@2` (copia, comprobar, importar) por las mismas reglas
+  de toda la aventura (carpeta `[a-z0-9-]`, nombre `.json|.md|.txt`, hasta 64 KB por fichero), así que no hace falta
+  tocar nada del servidor.
+- Sin `saber`, nada cambia: el prompt es el de siempre, byte por byte. El prompt del sistema es el mismo en cada
+  llamada de ese habitante, así que la caché de prompt del proveedor (`cache_control` del bloque de sistema) lo conserva.
+- `node tools/aventura.ts <carpeta>` hoy solo comprueba la ruta como texto; que el fichero existe y cabe lo comprueba el servicio al cargar.
 
 **`ficha@1`** (ADR-074: el mundo dice qué es desde su propia carpeta) — `{ "formato": "ficha@1", "nombre": "Plaza de
 ejemplo", "descripcion": "…", "portada": "<sha256>.webp" }`. `nombre` de 1 a 60 caracteres (sin `<` `>` ni saltos de

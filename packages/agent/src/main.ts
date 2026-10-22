@@ -11,6 +11,8 @@
 //   CEREBRO_CLAVE  the provider key (installed: /opt/numinia-engine/cerebro.env, made by `instalar-motor.sh --clave-ia`)
 //   CEREBRO_MODELO the model (default cerebro.ts MODELO_POR_DEFECTO) · CEREBRO_DIA_MAX calls a day for all (300)
 //   (an inhabitant's file may name its own model, cerebro.modelo, and its own calls a day, cerebro.tope: the world's choice)
+//   (and cerebro.saber, a text file of its adventure — «saber/<nombre>.md», up to 16 kB — read ONCE here at start and put in
+//   its prompt after the persona; one that is missing, too big or outside the folder keeps that inhabitant from loading)
 //   CEREBRO_MINUTO calls a minute per inhabitant (6) · CEREBRO_ECO=1 the echo brain (QA: no provider, no key)
 //   MOTOR_BIBLIOTECA what it may place (default features/objetos/biblioteca.json, the engine's house library)
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -24,6 +26,7 @@ import type { Modelo3D } from "./mente.ts";
 import { cerebroClaude, cerebroEco, Topes } from "./cerebro.ts";
 import type { Cerebro } from "./cerebro.ts";
 import { leerHabitantes } from "./formato.ts";
+import { lectorSaber } from "./saber.ts";
 import type { Habitante } from "./formato.ts";
 import { createHmac } from "node:crypto";
 
@@ -54,7 +57,7 @@ try {
   biblioteca = (b.modelos ?? []).filter((m) => /^[a-z0-9-]{1,32}$/.test(m.id) && /^[0-9a-f]{64}$/.test(m.modelo)).map(({ id, nombre, modelo }) => ({ id, nombre, modelo }));
 } catch { /* without the library it can talk, not place */ }
 
-const { habitantes, problemas } = leerHabitantes(ficheros());
+const { habitantes, problemas, saberes } = leerHabitantes(ficheros(), lectorSaber(dir));
 for (const p of problemas) log(`NO se carga: ${p}`);
 if (!habitantes.length) { log(`ningún habitante en ${dir}/habitantes; me quedo esperando (systemctl stop numinia-habitantes para quitarme)`); setInterval(() => {}, 1 << 30); }
 
@@ -66,7 +69,7 @@ async function entrar(v: Vivo): Promise<void> {
   try { await t.opened; } catch { return reintentar(v, "no llego al motor"); }
   const c = new Cuerpo(t, emitirAgente(sign, v.h.id, today()));
   v.g = new Guion(c, v.h); v.dentro = true; v.espera = 0; v.nombrado = false;
-  if (cerebro && v.h.escalon >= 2) new Mente({ guion: v.g, cerebro, topes, biblioteca, log }); // it plugs into the script
+  if (cerebro && v.h.escalon >= 2) new Mente({ guion: v.g, cerebro, topes, biblioteca, saber: saberes.get(v.h.id), log }); // it plugs into the script
   t.closed.then(() => { v.g = null; v.dentro = false; reintentar(v, "el motor cerró la conexión"); });
 }
 function reintentar(v: Vivo, porque: string): void {
@@ -78,7 +81,7 @@ function reintentar(v: Vivo, porque: string): void {
 for (const v of vivos) await entrar(v);
 log(`${vivos.filter((v) => v.dentro).length} de ${vivos.length} dentro de ${url}: ${habitantes.map((h) => `${h.nombre} (${h.id}, E${h.escalon})`).join(", ")}${copias > 1 ? ` × ${copias} copias` : ""}`);
 const conCerebro = habitantes.filter((h) => h.escalon >= 2);
-const suyo = (h: Habitante) => [h.cerebro?.modelo && `modelo ${h.cerebro.modelo}`, h.cerebro?.tope && `${h.cerebro.tope}/día`].filter(Boolean).join(", ");
+const suyo = (h: Habitante) => [h.cerebro?.modelo && `modelo ${h.cerebro.modelo}`, h.cerebro?.tope && `${h.cerebro.tope}/día`, saberes.has(h.id) && `sabe ${new TextEncoder().encode(saberes.get(h.id)).length} bytes (${h.cerebro?.saber})`].filter(Boolean).join(", ");
 if (conCerebro.length) log(cerebro ? `cerebro: ${cerebro.nombre} para ${conCerebro.map((h) => (suyo(h) ? `${h.nombre} (${suyo(h)})` : h.nombre)).join(", ")} · topes ${topes.porMinuto}/min por habitante, ${topes.porPersonaMinuto}/min por persona, ${topes.alDia}/día · ${biblioteca.length} modelos para colocar`
   : `sin clave de cerebro (CEREBRO_CLAVE): ${conCerebro.map((h) => h.nombre).join(", ")} contestan con su guion`);
 
