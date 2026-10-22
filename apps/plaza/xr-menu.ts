@@ -15,6 +15,7 @@ import { AYUDA_RAYO, TEXTO_FUERA_DE_VR, esInvitado, vistaConstruirVR } from "./c
 import { iconoDe } from "../../packages/render/src/menu-secciones.ts";
 import type { MenuVR, ContenidoMenuVR as Contenido } from "../../packages/render/src/index.ts";
 import { siguienteValor, textoValor } from "../../packages/render/src/menu-vr.ts";
+import { FRASES, ultimosMensajes, type LineaChat } from "../../packages/render/src/menu-chat.ts";
 import { filasEsteMundoVR } from "../../features/funciones/menu-vr.ts";
 import { textoCambio } from "../../features/funciones/panel.ts";
 import { FUNCIONES } from "../../features/funciones/feature.ts";
@@ -166,6 +167,16 @@ export function montarMenuVR(o: {
           if (r.ok) { nota("Construir: apunta a una cosa y aprieta el gatillo."); vr.menu.cerrar(); } else nota(r.why ?? TEXTO_FUERA_DE_VR);
         } }] }] } as Contenido;
   }
+  // v7 «Chat»: the last lines of the page's chat (the same list the computer's box shows) and the quick phrases. A phrase goes the
+  // computer's way — `chat.decir(texto, "cerca")` — so the page's pace and the server's rules apply (a silenced person or a closed
+  // entry bubble sends nothing; the server's own notice comes back as a line). No virtual keyboard yet: typing stays on the computer.
+  function chat(): Contenido {
+    const c = o.n().chat as { lineas: readonly LineaChat[]; decir(t: string, canal?: "cerca" | "zona"): { ok: boolean; why?: string } } | undefined;
+    if (!c?.lineas) return { tipo: "chat", titulo: "Chat", mensajes: [], vacio: "Este mundo no tiene chat.", frases: FRASES.map((texto) => ({ texto, accion: () => {}, estilo: "desactivado" as const })) } as Contenido;
+    return { tipo: "chat", titulo: "Chat", mensajes: ultimosMensajes(c.lineas), vacio: "Aún no hay mensajes. Toca una frase para decir algo.",
+      nota: "Te leen quienes están a menos de 20 m. Para escribir: el teclado del ordenador.",
+      frases: FRASES.map((texto) => ({ texto, accion: () => { const r = c.decir(texto, "cerca"); if (!r.ok) nota(r.why ?? "No se pudo decir."); } })) } as Contenido;
+  }
   function ajustes(): Contenido {
     const a = o.n().ajustes;
     if (!a?.lista) return { tipo: "lista", titulo: "Ajustes de VR", vacio: "Los ajustes aún no están listos.", filas: [] } as Contenido;
@@ -211,7 +222,7 @@ export function montarMenuVR(o: {
     const hora = (t: number) => { const d = new Date(t); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
     return { tipo: "lista", titulo: "Avisos", vacio: "No hay avisos todavía.", filas: avisos.map((x) => ({ texto: x.texto, detalle: hora(x.t), icono: "bell" })) } as Contenido;
   }
-  const porVista: Record<string, () => Contenido> = { tu, gente, bolsa, misiones, mapa, construir, ajustes, avisos: verAvisos };
+  const porVista: Record<string, () => Contenido> = { tu, gente, bolsa, misiones, mapa, construir, ajustes, chat, avisos: verAvisos };
   vr.menuProveedor({
     contenido: (v) => (porVista[v] ?? tu)(),
     // «Construir» is never greyed out: pressed without the role it says why (an invited guest: «Entra con tu nombre para construir»)

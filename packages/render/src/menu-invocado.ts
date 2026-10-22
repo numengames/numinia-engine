@@ -1,7 +1,7 @@
-// Rediseño v2 (story E, maqueta p7): the VR menu. ONE flat panel 1.0 × 0.556 m, 1.2 m in front of the eyes and a
+// Rediseño v2 (story E, maqueta p7): the VR menu. ONE flat panel 1.0 × 0.611 m, 1.2 m in front of the eyes and a
 // little below them (so it leans towards you), STILL: placed once when it opens («Menú» on the watch, or Y), closed by
 // «Menú» again, B, its X, or walking 2 m away. Header «Menú» with «Salir de VR» and X; on the left the same sections
-// as the computer — Tú · Gente · Bolsa · Misiones · Mapa · Construir · Ajustes —; on the right the section, filled by
+// as the computer — Tú · Gente · Bolsa · Misiones · Mapa · Construir · Ajustes — and Chat (v7); on the right the section, filled by
 // the page with the SAME data the HTML panels read (apps/plaza/xr-menu.ts). In VR the HTML panels are not drawn, so
 // this is a canvas on a plane. You point with the ray of either hand and press with the trigger or a pinch (manos.ts
 // tests `paneles()`, calls `fila(uv)` / `encima(n)` and, because the panel has `pulsar`, presses come straight here).
@@ -14,6 +14,7 @@ import {
   zonaDe, idBoton, seccionDeId, colocarMenu, demasiadoLejos, filasCaben, rectFila, botonesFila, cajasPaginas, paginar, anguloGrados,
   type Seccion, type Vista, type Rect,
 } from "./menu-vr.ts";
+import { TEXTO, disposicion, elegirLineas, textoDeMensaje, LINEAS_POR_MENSAJE, type MensajeVR } from "./menu-chat.ts";
 import { COLOR, FUENTE, fondoPanel, icono, boton, chip, recortar, envolverPx, rectRedondo, type PathsIcono, type EstiloBoton } from "./vr-pintura.ts";
 
 /** «Salir de VR»: the second press must come within this long of the first (ms) — the same as vr.ts's old button. */
@@ -29,7 +30,9 @@ export type ContenidoTu = {
 };
 export type ContenidoLista = { tipo: "lista"; titulo?: string; nota?: string; vacio: string; filas: FilaMenu[] };
 export type ContenidoMapa = { tipo: "mapa"; titulo?: string; yo: { x: number; z: number; rumbo?: number } | null; puntos: { nombre: string; x: number; z: number; color: string }[]; filas: FilaMenu[]; vacio: string };
-export type Contenido = ContenidoTu | ContenidoLista | ContenidoMapa;
+/** v7 «Chat»: the last lines of the chat and the quick phrases (`frases[i].texto` is FRASES[i]; `accion` says it). */
+export type ContenidoChat = { tipo: "chat"; titulo?: string; mensajes: MensajeVR[]; vacio: string; nota?: string; frases: { texto: string; accion: () => void; estilo?: EstiloBoton }[] };
+export type Contenido = ContenidoTu | ContenidoLista | ContenidoMapa | ContenidoChat;
 /** What the page gives the menu: each view's content (read at each paint), the sections it cannot show here, and a
  * hook when a view opens (e.g. ask the server who is here). */
 export type Proveedor = { contenido(v: Vista): Contenido; desactivadas(): ReadonlySet<Seccion>; alAbrir?(v: Vista): void };
@@ -103,6 +106,7 @@ export function createMenuInvocado(h: { scene: THREE.Object3D; salir: () => void
     g.save(); g.beginPath(); g.rect(CONTENIDO.x, CONTENIDO.y - 4, CONTENIDO.w, CONTENIDO.h + 8); g.clip();
     if (ct.tipo === "tu") pintarTu(ct);
     else if (ct.tipo === "mapa") pintarMapa(ct);
+    else if (ct.tipo === "chat") pintarChat(ct);
     else pintarLista(ct, ct.titulo ?? (vista === "avisos" ? "Avisos" : ""), CONTENIDO.x, CONTENIDO.w);
     g.restore();
     tex.needsUpdate = true;
@@ -215,6 +219,47 @@ export function createMenuInvocado(h: { scene: THREE.Object3D; salir: () => void
     }
   }
 
+  function pintarChat(ct: ContenidoChat): void {
+    const d = disposicion();
+    titulo(ct.titulo ?? "Chat", d.titulo.x);
+    // the box with the last lines, newest at the bottom; each message wraps to at most LINEAS_POR_MENSAJE lines
+    const m = d.mensajes;
+    rectRedondo(g, m.x, m.y, m.w, m.h, 12); g.fillStyle = COLOR.fila; g.fill();
+    g.font = `500 ${TEXTO.mensaje}px ${FUENTE}`; g.textAlign = "left"; g.textBaseline = "middle";
+    if (!ct.mensajes.length) {
+      g.fillStyle = COLOR.suave;
+      envolverPx(g, ct.vacio, m.w - 48).slice(0, 4).forEach((l, i) => g.fillText(l, m.x + 24, m.y + 16 + TEXTO.linea / 2 + i * TEXTO.linea));
+    } else {
+      const envueltos = ct.mensajes.map((x: MensajeVR) => {
+        const ls = envolverPx(g, textoDeMensaje(x), m.w - 48);
+        return ls.length > LINEAS_POR_MENSAJE ? [...ls.slice(0, LINEAS_POR_MENSAJE - 1), recortar(g, ls.slice(LINEAS_POR_MENSAJE - 1).join(" "), m.w - 48)] : ls;
+      });
+      const elegidos = elegirLineas(envueltos, d.lineasCaben);
+      const primero = ct.mensajes.length - elegidos.length;
+      let fila = 0;
+      for (const [i, ls] of elegidos.entries()) {
+        const msg = ct.mensajes[primero + i], pref = msg.quien ? `${msg.quien}:` : "";
+        const color = msg.clase === "aviso" ? COLOR.aviso : COLOR.texto;
+        for (const [k, l] of ls.entries()) {
+          const y = m.y + 16 + TEXTO.linea / 2 + fila * TEXTO.linea, x = m.x + 24;
+          if (k === 0 && pref && l.startsWith(pref)) {
+            g.fillStyle = msg.clase === "yo" ? COLOR.verdemar : COLOR.aviso; g.fillText(pref, x, y);
+            g.fillStyle = color; g.fillText(l.slice(pref.length), x + g.measureText(pref).width, y);
+          } else { g.fillStyle = color; g.fillText(l, x, y); }
+          fila++;
+        }
+      }
+    }
+    // the quick phrases: a 2 × 3 grid of buttons; each is a content button (idBoton(i)), pressed with ray + trigger
+    for (const [i, f] of ct.frases.entries()) {
+      const r = d.frases[i]; if (!r) break;
+      const id = idBoton(botones.length);
+      boton(g, r, f.texto, { estilo: f.estilo ?? "normal", encima: encima === id, tam: TEXTO.frase });
+      botones.push({ rect: r, accion: f.estilo === "desactivado" ? () => {} : f.accion });
+    }
+    if (ct.nota) { g.font = `400 ${TEXTO.nota}px ${FUENTE}`; g.fillStyle = COLOR.suave; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(recortar(g, ct.nota, d.nota.w), d.nota.x, d.nota.y + d.nota.h / 2); }
+  }
+
   function pintarMapa(ct: ContenidoMapa): void {
     const lado = 420, x0 = CONTENIDO.x, y0 = CONTENIDO.y;
     rectRedondo(g, x0, y0, lado, lado, 16); g.fillStyle = "rgba(249,235,220,0.04)"; g.fill(); g.lineWidth = 2; g.strokeStyle = COLOR.linea; g.stroke();
@@ -312,7 +357,7 @@ export function createMenuInvocado(h: { scene: THREE.Object3D; salir: () => void
       const d = abierto && ojo.lengthSq() ? pos.distanceTo(ojo) : 0;
       return {
         abierto, vista, encima, secciones: SECCIONES.map((x) => ({ id: x, nombre: ETIQUETAS[x], activa: !proveedor.desactivadas().has(x) })),
-        contenido: ultimoContenido?.tipo ?? null, filas: ultimoContenido && "filas" in ultimoContenido ? ultimoContenido.filas.map((f) => f.texto) : [],
+        contenido: ultimoContenido?.tipo ?? null, filas: ultimoContenido && "filas" in ultimoContenido ? ultimoContenido.filas.map((f) => f.texto) : ultimoContenido?.tipo === "chat" ? ultimoContenido.mensajes.map(textoDeMensaje) : [],
         botones: botones.length, pinturas,
         diagnostico: { visible: malla.visible, distanciaM: +d.toFixed(2), escalaMundo: +s.x.toFixed(3), anchoVisualGrados: +anguloGrados(MENU.anchoM * s.x, d || MENU.distM).toFixed(1), pos: [pos.x, pos.y, pos.z].map((v) => +v.toFixed(2)) },
       };
