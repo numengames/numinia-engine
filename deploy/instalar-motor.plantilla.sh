@@ -211,7 +211,8 @@ Wants=network-online.target
 User=$USER_NAME
 Group=$USER_NAME
 WorkingDirectory=$PREFIX/app
-Environment=PORT=$PORT HOST=127.0.0.1 STATS_MS=30000 NODE_ENV=production MOTOR_MUNDO=$STATE SESIONES_DIR=$STATE/sesiones DATOS_DIR=/var/lib/numinia-motor/datos ACTIVOS_DIR=/var/lib/numinia-motor/datos/activos MOTOR_CONSTRUIR=$CONSTRUIR MOTOR_DOMINIO=$DOMAIN
+Environment=PORT=$PORT HOST=127.0.0.1 STATS_MS=30000 NODE_ENV=production MOTOR_MUNDO=$STATE SESIONES_DIR=$STATE/sesiones DATOS_DIR=/var/lib/numinia-motor/datos ACTIVOS_DIR=/var/lib/numinia-motor/datos/activos MOTOR_CONSTRUIR=$CONSTRUIR MOTOR_DOMINIO=$DOMAIN MOTOR_HABITANTES=no
+# E1: MOTOR_HABITANTES=no — this unit never starts the inhabitants itself (the container's entrada.ts does; here the unit $HAB_SERVICE below is the one that runs them: no second copy)
 # ADR-080: fixing MOTOR_DOMINIO here to the --dominio this install was given (empty counts as unset for the server)
 # stops an outside world from forging a ticket under this one's name by sending another Host header
 # C2: the whole world in one folder (datos/, aventura/, entorno/, sesiones/), the same layout as a container's /mundo

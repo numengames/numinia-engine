@@ -14,10 +14,10 @@ import { avisarRecibido } from "./inventario.ts"; // v3: the Bolsa button pulses
 import { sonarFase } from "./pesca-sonido.ts"; // the nibble and the bite sound through the page's single door (sonar.ts bridge), once
 
 type Res = { ok: true } | { ok: false; why: string };
-type Estado = { fase: "nada" | "espera" | "mordisqueo" | "picada" | "pelea"; sitio: string; desde: number; ventana: number; pez: string; tension: number; progreso: number; arrancada: "no" | "aviso" | "si"; recogiendo: boolean; aviso: string; ultimo: { pez: string; cm: number; rareza: string; total: number; guardado: boolean } | null; cesta: { peces: number; mejor: string; mejorCm: number } };
+type Estado = { fase: "nada" | "espera" | "mordisqueo" | "picada" | "pelea"; sitio: string; desde: number; ventana: number; pez: string; tension: number; progreso: number; arrancada: "no" | "aviso" | "si"; recogiendo: boolean; aviso: string; ultimo: { pez: string; cm: number; rareza: string; total: number; guardado: boolean; color?: string } | null; cesta: { peces: number; mejor: string; mejorCm: number } };
 type Sitio = { id: string; nombre: string; x: number; y: number; z: number; radio: number; ocupado: boolean };
 type Flotador = { quien: number; x: number; y: number; z: number };
-type Captura = { quien: number; pez: string; cm: number; rareza: string; desde: number; guardado: boolean };
+type Captura = { quien: number; pez: string; cm: number; rareza: string; desde: number; guardado: boolean; color?: string };
 type Que = "estado" | "flotadores" | "sitios" | "capturas";
 type Pesca = { estado(): Readonly<Estado>; sitios(): Sitio[]; flotadores(): Flotador[]; capturas(): Captura[]; lanzar(sitio?: string): Res; recoger(activo: boolean): Res; pulsar(): Res; soltar(): Res; alCambiar(fn: (que: Que) => void): () => void };
 type Manos = Parameters<typeof montarPescaManos>[0];
@@ -63,6 +63,7 @@ const CSS = `
 #pesca-hud .resultado.pescado .titulo { color: #9fe8a8; }
 #pesca-hud .resultado.escapado .titulo { color: #ff9a9e; }
 #pesca-hud .resultado .pez { font-size: 18px; font-weight: 700; color: #ffd27a; }
+#pesca-hud .resultado .pez[data-color]::before { content: ""; display: inline-block; width: .75em; height: .75em; margin-right: .45em; border-radius: 50%; background: var(--pez); border: 2px solid #fff; vertical-align: -.05em; }
 #pesca-hud .resultado .nota { font-size: 13px; color: #c9d3dc; }
 @keyframes pesca-entra { from { transform: scale(.92); opacity: 0; } }`;
 
@@ -106,8 +107,10 @@ export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud
     : hayMando() ? "Mantén A (o RT) para recoger · B suelta la caña" : "Mantén F para recoger · X suelta la caña";
   addEventListener("gamepadconnected", () => pintar()); addEventListener("gamepaddisconnected", () => pintar());
   let fase: Estado["fase"] = "nada", arrancada: Estado["arrancada"] = "no", manteniendo = false, resultadoHasta = 0, temporizador: ReturnType<typeof setTimeout> | null = null;
-  const mostrarResultado = (clase: "pescado" | "escapado", t: string, p: string, n: string, guardado = false) => {
+  const mostrarResultado = (clase: "pescado" | "escapado", t: string, p: string, n: string, guardado = false, color = "") => {
     resultado.className = `resultado ${clase}${guardado ? " guardado" : ""}`; titulo.textContent = t; pezEl.textContent = p; nota.textContent = n;
+    // a world's own fish shows its colour next to its name (a dot with a white rim: a dark brand colour still reads on the dark panel)
+    if (/^#[0-9a-fA-F]{6}$/.test(color)) { pezEl.dataset.color = color; pezEl.style.setProperty("--pez", color); } else { delete pezEl.dataset.color; pezEl.style.removeProperty("--pez"); }
     resultadoHasta = performance.now() + RESULTADO_MS;
     if (temporizador) clearTimeout(temporizador);
     temporizador = setTimeout(() => { temporizador = null; pintar(); }, RESULTADO_MS + 20);
@@ -124,7 +127,7 @@ export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud
       if (e.fase === "pelea") vibrar([40, 30, 40]);
       if (e.fase === "nada" && fase !== "nada") { // the fight just ended: say clearly how
         if (e.ultimo && /^Has pescado/.test(e.aviso)) {
-          mostrarResultado("pescado", "¡Pescado!", `🐟 ${e.ultimo.pez} · ${cmTexto(e.ultimo.cm)}`, notaDePescado(e.ultimo, e.cesta.peces, enLaBolsa(e.ultimo.pez), bolsaLlena()), e.ultimo.guardado);
+          mostrarResultado("pescado", "¡Pescado!", `🐟 ${e.ultimo.pez} · ${cmTexto(e.ultimo.cm)}`, notaDePescado(e.ultimo, e.cesta.peces, enLaBolsa(e.ultimo.pez), bolsaLlena()), e.ultimo.guardado, e.ultimo.color ?? "");
           vibrar([60, 40, 60, 40, 220]); // the catch sounds from the SERVER (pesca-cobrar), for everyone nearby, me too
         } else if (e.aviso && !/^Has recogido/.test(e.aviso)) {
           mostrarResultado("escapado", "Se ha escapado", e.aviso.replace(/\.$/, ""), "Vuelve a lanzar la caña");

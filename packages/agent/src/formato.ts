@@ -7,6 +7,11 @@
 // model id this inhabitant thinks with (else the installer's CEREBRO_MODELO), and `cerebro.tope`, its own calls per UTC
 // day (on top of the service's caps). A key never lives here: nothing else is accepted in `cerebro`, and any text of
 // the file that looks like a key is refused.
+// A third one, `cerebro.saber`, is what the persona (1500 bytes) cannot hold: a path inside the adventure folder to a
+// Markdown/text file of up to SABER_MAX bytes — «saber/<nombre>.md|txt», the folder the mundo@2 zip already carries —
+// that the inhabitants' service reads when it starts and puts in the system prompt after the persona, as reference
+// knowledge. The path is checked here (pure); the file is read through a `LectorSaber` (saber.ts) handed to
+// `leerHabitantes`, which refuses the inhabitant — with the reason in Spanish — if the file is missing or too big.
 // Validation returns issues, never throws.
 import type { Issue, Result } from "../../core/src/index.ts";
 import { AGENTE_ID } from "../../instance/src/identidad.ts";
@@ -19,6 +24,8 @@ export const LADO_M = 60;       // every point within ±60 m of the centre (the 
 export const GESTOS = ["saludar", "bailar"] as const; // features/gestos today; the five of SABER §3.4 come with clips
 export const ESCALONES = [0, 2, 4] as const;            // E1 (rephrase) and E3 (initiative) come with P5b
 export const PERSONA_MAX = 1500;                        // bytes: who it is, for the model (written by the world's admin)
+export const SABER_MAX = 16 * 1024;                     // bytes: the knowledge file (cerebro.saber), ≈ 4–5 k tokens of the model's context
+export const SABER_CARPETA = "saber";                   // the adventure's folder for it (aventura/saber/<nombre>.md|txt)
 export const TOPE_MAX = 10_000;                         // cerebro.tope: calls per UTC day for one inhabitant
 export const MODELO = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{1,63}$/; // a model id («claude-sonnet-5», «anthropic/claude-x:beta»)
 /** Text that looks like a provider key (sk-…, or a long unbroken token): never in a world file. */
@@ -32,7 +39,7 @@ export type Habitante = {
   descripcion: string;        // one line: who it is (its card; also what it says when asked who it is)
   responsable: string;        // the person or team that answers for it (D5)
   escalon: (typeof ESCALONES)[number]; // 0 script · 2 talks with a model · 4 and builds (DISENO-IAS-MOTOR.md §4)
-  cerebro?: { persona: string; modelo?: string; tope?: number }; // with escalón 2 or 4: who it is for the model (trusted: the admin writes it); its model and daily cap
+  cerebro?: { persona: string; modelo?: string; tope?: number; saber?: string }; // with escalón 2 or 4: who it is for the model (trusted: the admin writes it); its model and daily cap; `saber` = «saber/<nombre>.md|txt» in its adventure: reference knowledge for the prompt
   ruta: Punto[];              // where it walks, in order, in a loop (one point = it stays there)
   pausa: number;              // seconds it stays at each point (0–120)
   saludo: { radio: number; cada: number; frases: string[]; gesto?: (typeof GESTOS)[number] }; // greets who comes near; {nombre} = their name
@@ -41,6 +48,22 @@ export type Habitante = {
 };
 
 const bytes = (t: string) => new TextEncoder().encode(t).length;
+
+/** Why `ruta` cannot be a `cerebro.saber`, in Spanish, or null if it can: «saber/<nombre>.md|txt», relative, no «..»,
+ * no backslashes, one folder deep — exactly what the mundo@2 zip carries (aventura/<carpeta>/<nombre>). */
+export function problemaRutaSaber(ruta: unknown): string | null {
+  if (typeof ruta !== "string" || !ruta.trim()) return "una ruta de texto, p. ej. «saber/procyon.md»";
+  if (ruta.startsWith("/") || /^[A-Za-z]:/.test(ruta) || ruta.startsWith("~")) return "ruta relativa a la carpeta de la aventura, no absoluta";
+  if (ruta.includes("\\") || ruta.includes("\0")) return "con barras normales «/», sin «\\» ni caracteres raros";
+  if (ruta.split("/").some((p) => p === ".." || p === ".")) return "sin «..» ni «.»: tiene que quedarse dentro de la carpeta de la aventura";
+  if (!new RegExp(`^${SABER_CARPETA}/[a-zA-Z0-9][a-zA-Z0-9._-]{0,80}\\.(md|txt)$`).test(ruta)) return `«${SABER_CARPETA}/<nombre>.md» o «${SABER_CARPETA}/<nombre>.txt» (una sola carpeta, ${SABER_CARPETA}/; letras, cifras, . _ -; solo .md o .txt)`;
+  return null;
+}
+
+/** What reading a knowledge file gives back: its text, or why it cannot be used (Spanish, for the log). */
+export type LecturaSaber = { texto: string } | { problema: string };
+/** Reads the file at a path that already passed `problemaRutaSaber`, relative to the adventure folder (saber.ts). */
+export type LectorSaber = (ruta: string) => LecturaSaber;
 
 /** Check one habitante@1 object. */
 export function validarHabitante(o: unknown, donde = "habitante"): Result<Habitante> {
@@ -59,10 +82,11 @@ export function validarHabitante(o: unknown, donde = "habitante"): Result<Habita
   texto("descripcion", FRASE_MAX); texto("responsable", 80); texto("siNoEntiende", FRASE_MAX);
   if (!ESCALONES.includes(h.escalon as never)) bad("escalon", "0 (guion sin LLM), 2 (contesta con un modelo) o 4 (y construye)");
   const ce = h.cerebro as Record<string, unknown> | undefined;
-  if (ce !== undefined && (!ce || typeof ce !== "object" || typeof ce.persona !== "string" || !ce.persona.trim() || bytes(ce.persona) > PERSONA_MAX || Object.keys(ce).some((k) => !["persona", "modelo", "tope"].includes(k)))) bad("cerebro", `{persona: texto de hasta ${PERSONA_MAX} bytes, modelo?, tope?} y nada más (la clave va en cerebro.env, nunca en el mundo)`);
+  if (ce !== undefined && (!ce || typeof ce !== "object" || typeof ce.persona !== "string" || !ce.persona.trim() || bytes(ce.persona) > PERSONA_MAX || Object.keys(ce).some((k) => !["persona", "modelo", "tope", "saber"].includes(k)))) bad("cerebro", `{persona: texto de hasta ${PERSONA_MAX} bytes, modelo?, tope?, saber?} y nada más (la clave va en cerebro.env, nunca en el mundo)`);
   else if (ce) {
     if (ce.modelo !== undefined && (typeof ce.modelo !== "string" || !MODELO.test(ce.modelo) || pareceClave(ce.modelo))) bad("cerebro.modelo", "el id de un modelo (2–64: letras, cifras y . _ : @ / -), no una clave");
     if (ce.tope !== undefined && !(Number.isInteger(ce.tope) && (ce.tope as number) >= 1 && (ce.tope as number) <= TOPE_MAX)) bad("cerebro.tope", `llamadas al día (UTC) de este habitante: un entero de 1 a ${TOPE_MAX}`);
+    if (ce.saber !== undefined) { const p = problemaRutaSaber(ce.saber); if (p) bad("cerebro.saber", p); }
   }
   if (typeof h.escalon === "number" && h.escalon > 0 && ce === undefined) bad("cerebro", "con escalón 2 o 4 hace falta {persona}: quién es para el modelo");
   const punto = (p: unknown) => !!p && typeof p === "object" && [(p as Punto).x, (p as Punto).z].every((v) => typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= LADO_M);
@@ -93,9 +117,12 @@ export function validarHabitante(o: unknown, donde = "habitante"): Result<Habita
   return issues.length ? { ok: false, issues } : { ok: true, value: h as unknown as Habitante };
 }
 
-/** Every inhabitant of an adventure (files of its `habitantes/` folder), the valid ones and what was wrong with the rest. */
-export function leerHabitantes(ficheros: readonly { fichero: string; texto: string }[]): { habitantes: Habitante[]; problemas: string[] } {
-  const habitantes: Habitante[] = [], problemas: string[] = [], vistos = new Set<string>();
+/** Every inhabitant of an adventure (files of its `habitantes/` folder), the valid ones and what was wrong with the rest.
+ * With a `lector` (saber.ts), an inhabitant whose `cerebro.saber` names a file is only loaded if the file reads, is not
+ * empty, weighs at most SABER_MAX bytes and looks like no key; its text comes back in `saberes` (by inhabitant id).
+ * Without one, the path is only checked as text (the server's door, `node tools/aventura.ts`) and `saberes` is empty. */
+export function leerHabitantes(ficheros: readonly { fichero: string; texto: string }[], lector?: LectorSaber): { habitantes: Habitante[]; problemas: string[]; saberes: Map<string, string> } {
+  const habitantes: Habitante[] = [], problemas: string[] = [], vistos = new Set<string>(), saberes = new Map<string, string>();
   for (const f of ficheros) {
     if (!f.fichero.endsWith(".json")) continue;
     let o: unknown;
@@ -103,7 +130,32 @@ export function leerHabitantes(ficheros: readonly { fichero: string; texto: stri
     const r = validarHabitante(o, f.fichero);
     if (!r.ok) { problemas.push(...r.issues.map((i) => `${i.path}: ${i.message}`)); continue; }
     if (vistos.has(r.value.id)) { problemas.push(`${f.fichero}: id «${r.value.id}» repetido`); continue; }
+    const ruta = r.value.cerebro?.saber;
+    if (ruta !== undefined && lector) {
+      const s = textoDeSaber(ruta, lector);
+      if ("problema" in s) { problemas.push(`${f.fichero}.cerebro.saber: ${s.problema}`); continue; }
+      saberes.set(r.value.id, s.texto);
+    }
     vistos.add(r.value.id); habitantes.push(r.value);
   }
-  return { habitantes, problemas };
+  return { habitantes, problemas, saberes };
+}
+
+/** Why a knowledge file of `n` bytes is too big, or null (the same words wherever it is checked). */
+export const problemaPesoSaber = (n: number): string | null =>
+  n > SABER_MAX ? `pesa ${n} bytes y el tope es ${SABER_MAX} (${SABER_MAX / 1024} kB): acórtalo o quita lo que el modelo no necesite` : null;
+
+/** A provider key inside a knowledge file: «sk-…» or a long token that mixes letters and digits (unlike `pareceClave`,
+ * a Markdown rule «--------» or a long word is no key: this is prose, not a short field). */
+const claveEnSaber = (t: string): boolean => /\bsk-[A-Za-z0-9]/.test(t) || (t.match(/[A-Za-z0-9_+=-]{40,}/g) ?? []).some((x) => /[A-Za-z]/.test(x) && /[0-9]/.test(x));
+
+/** The checked text of one knowledge file, or the reason it cannot be used. */
+function textoDeSaber(ruta: string, lector: LectorSaber): LecturaSaber {
+  const l = lector(ruta);
+  if ("problema" in l) return { problema: `«${ruta}» ${l.problema}` };
+  const peso = problemaPesoSaber(bytes(l.texto));
+  if (peso) return { problema: `«${ruta}» ${peso}` };
+  if (!l.texto.trim()) return { problema: `«${ruta}» está vacío: escribe lo que debe saber o quita cerebro.saber` };
+  if (claveEnSaber(l.texto)) return { problema: `«${ruta}» tiene un texto que parece una clave: las claves van en cerebro.env del servidor, nunca en el mundo` };
+  return { texto: l.texto };
 }

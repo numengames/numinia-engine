@@ -366,9 +366,30 @@ mi-aventura/
   cosas/<id>.json      formato "cosa@1"    (cosas que se cogen o se usan)
   secuencias/<id>.json formato "secuencia@1" (un momento con guion que solo ve quien lo provoca: U14 (5))
   habitantes/<id>.json formato "habitante@1" (IA que viven en el mundo: packages/agent)
+  saber/<nombre>.md    texto que un habitante sabe (hasta 16 kB; lo nombra su `cerebro.saber`; también .txt)
   ficha.json           formato "ficha@1"   (opcional: cómo se llama el mundo, de qué va y su portada)
   *.md                 notas para quien escribe (no se leen)
 ```
+
+**`habitante@1` y lo que sabe (`cerebro.saber`, E2)** — una IA con cerebro (escalón 2 o 4) conoce quién es por su
+`cerebro.persona`, que no pasa de **1500 bytes**. Para lo que no cabe ahí (un programa de horarios, dónde está cada
+cosa, una lista de patrocinadores) el fichero del habitante puede llevar `"cerebro": { …, "saber": "saber/procyon.md" }`:
+una ruta **relativa a la carpeta de la aventura**, de la forma `saber/<nombre>.md` o `.txt` (una sola carpeta, `saber/`;
+sin ruta absoluta, sin `..`, sin `\`). Cómo se lee:
+- El servicio de habitantes (`packages/agent/src/main.ts`) lo lee **una vez al arrancar** con `lectorSaber` (`saber.ts`)
+  y lo mete en el prompt del sistema **justo después de la persona**, bajo «## Lo que sabes» y entre `<saber>` y
+  `</saber>`, como material de referencia de fiar (lo escribe quien administra el mundo, como la persona); el modelo
+  contesta desde ahí y, si no está, dice que no lo sabe. Para cambiarlo hay que reiniciar el servicio.
+- **Tope: 16 KB (`SABER_MAX`, 16.384 bytes)**, en bytes y no en letras. Más grande, vacío, que no exista, que sea un enlace que
+  sale de la carpeta de la aventura, que no sea texto o que contenga algo que parezca una clave (`sk-…` o una cadena
+  larga de letras y cifras) → **ese habitante no se carga**, y el log dice por qué en castellano
+  (`[habitantes] NO se carga: habitantes/procyon.json.cerebro.saber: «saber/procyon.md» pesa 17601 bytes y el tope es 16384 (16 kB)…`).
+- Viaja con el mundo: `aventura/saber/*.md|txt` entra en el zip `mundo@2` (copia, comprobar, importar) por las mismas reglas
+  de toda la aventura (carpeta `[a-z0-9-]`, nombre `.json|.md|.txt`, hasta 64 KB por fichero), así que no hace falta
+  tocar nada del servidor.
+- Sin `saber`, nada cambia: el prompt es el de siempre, byte por byte. El prompt del sistema es el mismo en cada
+  llamada de ese habitante, así que la caché de prompt del proveedor (`cache_control` del bloque de sistema) lo conserva.
+- `node tools/aventura.ts <carpeta>` hoy solo comprueba la ruta como texto; que el fichero existe y cabe lo comprueba el servicio al cargar.
 
 **`ficha@1`** (ADR-074: el mundo dice qué es desde su propia carpeta) — `{ "formato": "ficha@1", "nombre": "Plaza de
 ejemplo", "descripcion": "…", "portada": "<sha256>.webp" }`. `nombre` de 1 a 60 caracteres (sin `<` `>` ni saltos de
@@ -810,7 +831,20 @@ página solo pide tres cosas (`lanzar { sitio }`, `recoger { activo }`, `soltar`
   (`tension.arrancada`: no | aviso | si); tensión 100 = `escape rota`, progreso 0 = `escapa`, 55 s = `agotado`, alejarse =
   `lejos`; progreso 100 = `captura { pez, cm, rareza, total }` («Has pescado: Carpa de 23,1 cm.», sonido `exito`).
   El estado de la pelea llega a 10 Hz solo al pescador (`tension`). Quien está a 40 m ve el flotador (`lanzado` / `fin`).
-- **Peces**: `features/pesca/peces.json` (1–3 entradas; talla con `azar^1,8`, la fuerza crece con la talla). Azar con el
+- **Peces**: `features/pesca/peces.json` (1–3 entradas; talla con `azar^1,8`, la fuerza crece con la talla). **Un mundo trae los
+  suyos** en `MUNDO_DIR/pesca.json`, clave `peces` (opcional): **sustituyen** la tabla de la casa en ese mundo; sin `peces`
+  todo sigue como antes. Cada pez: `id` (1–32, minúsculas, cifras y guion; único), `nombre` (≤ 32 caracteres y ≤ 40 bytes: lo
+  que lee quien lo pesca), `rareza` (`comun`, `rara`, `legendaria`), `peso` (0,01–1000; más = más común), `cm` (`[mín, máx]`,
+  1–500) y, si se quiere, `color` (`"#RRGGBB"`: el cuerpo del pez en la mano y un punto junto al nombre en «¡Pescado!») más los
+  números de la pelea (`fuerza` 0,1–2,5 · `heft` 0,2–4 · `aguante` 3–50 s · `arrancadas` `[mín, máx]` s); lo que no diga lo toma
+  del pez de la casa de su rareza (Carpa, Trucha, Lucio). Hasta 40 peces. Se lee **estricto** (`leerPeces` en
+  `features/pesca/esquema.ts`, como `naturaleza.json`): una clave desconocida —también a nivel del fichero, que con `peces` solo
+  admite `schema`, `sitios`, `peces` y `notas` (un texto para quien edite; no se lee)—, un valor fuera de rango, un nombre largo, un id repetido o una lista vacía hacen que **no
+  se use el `pesca.json` entero** (el mundo se queda con el estanque y los peces de la casa) y el servidor lo cuenta en el log con
+  la ruta de cada fallo (`[mundo] pesca.json no se usa …: pesca.peces[2].nombre: como mucho 32 caracteres`). Con `peces` y sin
+  `sitios` vale el estanque de la casa. Para probarlo basta ese fichero: ningún código. `captura` y `fin` llevan el `color`
+  (`""` = pez de la casa, la página usa el suyo). Ejemplo:
+  `{ "schema": "numinia-engine/pesca@1", "sitios": [{ "id": "lago", "nombre": "Lago", "x": 10, "z": 0, "radio": 4 }], "peces": [{ "id": "pez-merlin", "nombre": "Pez Merlín", "rareza": "comun", "peso": 6, "cm": [30, 50], "color": "#3758E9" }] }`. Azar con el
   PRNG del motor (`rngNext`, estado propio de la función, semilla mezclada con el tick del lanzamiento: reproducible, nunca
   `Math.random`). Lo pescado se guarda por invitado en el almacén (`c:<id>`: cuántos y el mayor) y vuelve como `cesta`.
 - **Página**: `features/pesca/client.ts` da el controlador (`window.__numinia.pesca`: `estado()`, `sitios()`, `flotadores()`,
@@ -832,7 +866,7 @@ página solo pide tres cosas (`lanzar { sitio }`, `recoger { activo }`, `soltar`
   (`geometriaDePez`: cuerpo, vientre, cola, aleta dorsal, pectorales, ojos; colores por especie Carpa / Trucha / Lucio;
   1 draw call; escala = cm / 100) que salta del flotador en arco hasta la mano (`SALTO_MS` 1,3 s) y cuelga de ella, cabeza
   arriba, hasta que pasan los 7 s o el pescador anda más de `PASO_SUELTA_M` (0,6 m). Lo ven todos los cercanos.
-- **Pruebas**: `test/pesca.test.ts` (sin pantalla: la picada cae en el rango, fuera de ventana se escapa, la tensión sube y baja,
+- **Pruebas**: `test/pesca-peces-mundo.test.ts` (los peces del mundo: lector estricto, sustituyen la tabla, nombre y color hasta la página, sin `peces` nada cambia, uno malo rechaza el fichero), `test/pesca.test.ts` (sin pantalla: la picada cae en el rango, fuera de ventana se escapa, la tensión sube y baja,
   un pescador sensato captura en 8–25 s, nadie captura sin picada, la simulación no se entera) y la pierna
   `tools/e2e-piernas/pesca.mjs` (navegador real: andar al pantalán, «E: pescar», HUD, chunk 3D, picada, pelea con F, captura,
   panel «¡Pescado!», pez en la mano en A y en B —otro invitado a 10 m—, la mano se vacía sola; B nunca recibe las fases de A).
