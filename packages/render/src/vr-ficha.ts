@@ -10,6 +10,26 @@ export type DatosFichaVR = { titulo: string; anclado: boolean };
 /** Canvas size and the button grid (4 × 2 cells; ≥ 10° of arc each at 1.1 m, Meta asks ≥ 3°). */
 export const FICHA_W = 768, FICHA_H = 432, COLS = 4, X0 = 24, Y0 = 128, CW = 168, CH = 132, GAP = 16;
 export const FICHA_ANCHO_M = 0.9; // the plane's width in metres
+/** Where the card sits, from the eyes and the flat direction of the gaze: DIST_M ahead, DESVIO_RAD to the left, BAJO_M below the eyes
+ *  (the ray to the thing you work on, straight ahead, must not cross it, and the right hand stays clear). Pure: world coordinates in, out. */
+export const FICHA_DIST_M = 0.9, FICHA_DESVIO_RAD = 0.5, FICHA_BAJO_M = 0.42;
+/** v13: the card follows your head — once it is more than this many degrees off your line of sight it comes back (it used to stay
+ *  where it opened: turn round and it was behind you, «Cerrar» out of reach). */
+export const FICHA_SEGUIR_GRADOS = 55, FICHA_VUELTA_S = 0.2;
+type V3 = { x: number; y: number; z: number };
+export function puntoFicha(ojo: V3, mira: V3): V3 {
+  let dx = mira.x, dz = mira.z; const l = Math.hypot(dx, dz);
+  if (l < 1e-6) { dx = 0; dz = -1; } else { dx /= l; dz /= l; }
+  const c = Math.cos(FICHA_DESVIO_RAD), s = Math.sin(FICHA_DESVIO_RAD); // turned to the left about the vertical axis
+  const x = dx * c + dz * s, z = -dx * s + dz * c;
+  return { x: ojo.x + x * FICHA_DIST_M, y: ojo.y - FICHA_BAJO_M, z: ojo.z + z * FICHA_DIST_M };
+}
+/** The angle (degrees) between where you look and the point `p`. Pure. */
+export function gradosDeLaMirada(ojo: V3, mira: V3, p: V3): number {
+  const vx = p.x - ojo.x, vy = p.y - ojo.y, vz = p.z - ojo.z, l = Math.hypot(vx, vy, vz), m = Math.hypot(mira.x, mira.y, mira.z);
+  if (l < 1e-6 || m < 1e-6) return 0;
+  return (Math.acos(Math.max(-1, Math.min(1, (vx * mira.x + vy * mira.y + vz * mira.z) / (l * m)))) * 180) / Math.PI;
+}
 /** «Borrar» asks twice: the second press must come within this long (ms) of the first. */
 export const BORRAR_CONFIRMA_MS = 3000;
 
@@ -30,12 +50,21 @@ export function celdaEn(x: number, y: number): number {
   return dx <= CW && dy <= CH ? f * COLS + c + 1 : 0;
 }
 
-export function crearFichaVR(rig: THREE.Object3D, alPulsar: (a: AccionFichaVR) => void, colocar: (m: THREE.Object3D) => void) {
+/** `cabeza()` says where the eyes are and where they look now (world); the card places itself from it. */
+export function crearFichaVR(rig: THREE.Object3D, alPulsar: (a: AccionFichaVR) => void, cabeza: () => { ojo: V3; mira: V3 }) {
   const c = document.createElement("canvas"); c.width = FICHA_W; c.height = FICHA_H;
   const g = c.getContext("2d")!;
   const tex = new THREE.CanvasTexture(c);
   const malla = new THREE.Mesh(new THREE.PlaneGeometry(FICHA_ANCHO_M, (FICHA_ANCHO_M * FICHA_H) / FICHA_W), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
   malla.renderOrder = 20; malla.visible = false; rig.add(malla);
+  let pedida = false, cede = false, siguiendo = false; // asked by the page / stepping aside for the VR menu / easing back to your line of sight
+  const ver = (): void => { malla.visible = pedida && !cede; };
+  const aqui = new THREE.Vector3(), alli = new THREE.Vector3();
+  const colocar = (m: THREE.Object3D): void => { // in front of you, low and to the left, facing the eyes
+    const { ojo, mira } = cabeza(), t = puntoFicha(ojo, mira);
+    alli.set(t.x, t.y, t.z); rig.worldToLocal(alli); m.position.copy(alli);
+    m.lookAt(ojo.x, ojo.y, ojo.z);
+  };
   let datos: DatosFichaVR = { titulo: "", anclado: false }, encima = 0, encimaEn = 0, pideHasta = 0, firma = "";
 
   function pintar(): void {
@@ -46,7 +75,7 @@ export function crearFichaVR(rig: THREE.Object3D, alPulsar: (a: AccionFichaVR) =
     g.clearRect(0, 0, FICHA_W, FICHA_H);
     g.fillStyle = "rgba(20,30,40,0.92)"; g.fillRect(0, 0, FICHA_W, FICHA_H);
     g.fillStyle = "#ffd27a"; g.font = "bold 40px sans-serif"; g.fillText(datos.titulo.slice(0, 34) || "Objeto", 24, 62);
-    g.fillStyle = "rgba(255,255,255,0.65)"; g.font = "24px sans-serif"; g.fillText("Apunta con el rayo y aprieta el gatillo · para moverlo, mantén el gatillo sobre él", 24, 104);
+    g.fillStyle = "rgba(255,255,255,0.65)"; g.font = "24px sans-serif"; g.fillText("Gatillo: elegir · mantenlo sobre algo: moverlo · B: dejar de construir", 24, 104);
     celdasFicha(datos, pide).forEach((cel, i) => {
       const x = X0 + (i % COLS) * (CW + GAP), y = Y0 + Math.floor(i / COLS) * (CH + GAP), sel = sobre === i + 1;
       g.fillStyle = sel ? "#ffd27a" : cel.peligro ? (pide ? "#e07a5f" : "rgba(224,122,95,0.35)") : "rgba(255,255,255,0.14)"; g.fillRect(x, y, CW, CH);
@@ -74,8 +103,23 @@ export function crearFichaVR(rig: THREE.Object3D, alPulsar: (a: AccionFichaVR) =
   return {
     panel,
     get visible() { return malla.visible; },
-    mostrar(d: DatosFichaVR): void { const abria = !malla.visible; datos = d; if (abria) { colocar(malla); malla.visible = true; pideHasta = 0; } firma = ""; pintar(); },
-    ocultar(): void { malla.visible = false; encima = 0; pideHasta = 0; },
+    mostrar(d: DatosFichaVR): void { const abria = !pedida; datos = d; pedida = true; if (abria) { colocar(malla); pideHasta = 0; siguiendo = false; } ver(); firma = ""; pintar(); },
+    ocultar(): void { pedida = false; ver(); encima = 0; pideHasta = 0; siguiendo = false; },
+    /** The VR menu opens in front of you: the card steps aside (one thing in front of you) and comes back where you look when it closes. */
+    ceder(si: boolean): void { if (si === cede) return; cede = si; if (!si && pedida) { colocar(malla); siguiendo = false; } ver(); },
+    /** Each frame while shown (v13): once you have turned away (> FICHA_SEGUIR_GRADOS) the card eases back to your line of sight; while
+     *  it is in view it never moves, so the buttons do not slide from under the pointer. */
+    seguir(ojo: V3, mira: V3, dt: number): void {
+      if (!malla.visible) return;
+      malla.getWorldPosition(aqui);
+      if (!siguiendo && gradosDeLaMirada(ojo, mira, aqui) < FICHA_SEGUIR_GRADOS) return;
+      siguiendo = true;
+      const t = puntoFicha(ojo, mira); alli.set(t.x, t.y, t.z);
+      aqui.lerp(alli, 1 - Math.exp(-dt / FICHA_VUELTA_S));
+      if (aqui.distanceToSquared(alli) < 0.0009) { aqui.copy(alli); siguiendo = false; }
+      malla.parent!.worldToLocal(aqui); malla.position.copy(aqui);
+      malla.lookAt(ojo.x, ojo.y, ojo.z);
+    },
     /** Each frame while shown: the highlight fades once the ray leaves; «¿Seguro?» goes back after BORRAR_CONFIRMA_MS. */
     tick(): void { if (malla.visible) pintar(); },
     /** For checks: the centre of cell n in the world, and what the panel says. */

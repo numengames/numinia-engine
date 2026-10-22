@@ -40,7 +40,10 @@ type Editor = {
   poner(key: string, d: Partial<Donde>): void;
   sostener(key: string | null, final?: Donde): void;
 };
-type Vista = { vr: { active: boolean; nota?(t: string): void; ficha?(d: DatosFichaVR | null): void; onFicha?(fn: (a: AccionFichaVR) => void): unknown }; editor: Editor; manos?: Manos };
+type Vista = { vr: { active: boolean; nota?(t: string): void; ficha?(d: DatosFichaVR | null): void; onFicha?(fn: (a: AccionFichaVR) => void): unknown; onAtras?(fn: () => void): unknown }; editor: Editor; manos?: Manos };
+/** v13: what the notes say about leaving, so nobody is left inside the mode without knowing the way out. */
+export const NOTA_SIGUES = "Ficha cerrada. Sigues construyendo: B para dejar de construir.";
+export const NOTA_DEJADO = "Has dejado de construir.";
 
 /** Held past this long (ms) on the already-selected thing: it is taken at the ray's end, not just re-selected. */
 export const PRENSION_MS = 180;
@@ -95,11 +98,15 @@ export function montarConstructorVR(c: Builder, view: Vista) {
   view.vr.onFicha?.((a) => {
     if (!c.estado.puede || !view.vr.active) return;
     const { res, dicho } = aplicarAccionVR(c as VerbosFicha, a);
-    view.vr.nota?.(dicho);
+    view.vr.nota?.(a === "cerrar" && res.ok ? NOTA_SIGUES : dicho);
     if (res.ok) view.manos?.vibrar("der", 0.4, 30);
   });
+  // v13: B (right) is «back» everywhere else in VR; here it leaves the mode in one press — lets go of what a hand holds, drops the
+  // selection (the card goes with it) and puts the rays back to the world. The menu's own B (closing it) comes first: vr.ts only
+  // calls these listeners when no menu was open.
+  view.vr.onAtras?.(() => { if (modo) { dejar(); view.vr.nota?.(NOTA_DEJADO); } });
   function cuadro(): void {
-    if (modo && (!view.vr.active || !c.estado.puede)) modo = false; // left VR, or lost the role: the mode ends with it
+    if (modo && (!view.vr.active || !c.estado.puede)) { modo = false; if (c.estado.seleccionado) c.seleccionar(""); } // left VR, or lost the role: the mode ends with it, and the selection does not stay behind
     fichaVR();
     if (!modo || !view.vr.active || !c.estado.puede) {
       for (const l of LADOS) { soltar(l); gatilloAntes[l] = agarreAntes[l] = false; gatilloDesde[l] = 0; }
@@ -111,10 +118,10 @@ export function montarConstructorVR(c: Builder, view: Vista) {
       const en = m.entrada(lado);
       if (!en) { soltar(lado); gatilloAntes[lado] = agarreAntes[lado] = false; gatilloDesde[lado] = 0; continue; }
       const gatillo = en.gatillo > 0.5, agarre = en.agarre > 0.6;
-      // a ray on the card's panel is for its buttons (manos.ts presses them), not for the thing behind it
-      const rayo = c.estado.seleccionado && m.estado?.()[lado]?.apunta?.startsWith("panel:") ? null : m.rayoDe(lado);
+      // a ray on ANY panel (the card, the menu, the watch) is for its buttons (manos.ts presses them), not for the thing behind it
+      const rayo = m.estado?.()[lado]?.apunta?.startsWith("panel:") ? null : m.rayoDe(lado);
       if (cogido[lado]) {
-        if (!gatillo) { soltar(lado); } else if (rayo) {
+        if (!gatillo || c.estado.seleccionado !== cogido[lado]!.key) { soltar(lado); } else if (rayo) { // v13: «Cerrar» (other hand) or B lets it go
           const p = view.editor.puntoBajoRayo(rayo.origen, rayo.dir, cogido[lado]!.key);
           if (p) { view.editor.poner(cogido[lado]!.key, { x: p.x + cogido[lado]!.desfase.x, y: p.y, z: p.z + cogido[lado]!.desfase.z }); programarEnvio(cogido[lado]!.key); }
         }
@@ -143,6 +150,7 @@ export function montarConstructorVR(c: Builder, view: Vista) {
       gatilloAntes[lado] = gatillo; agarreAntes[lado] = agarre;
     }
   }
+  function dejar(): void { modo = false; for (const l of LADOS) { soltar(l); gatilloAntes[l] = agarreAntes[l] = false; gatilloDesde[l] = 0; } if (c.estado.seleccionado) c.seleccionar(""); fichaVR(); }
   const reloj = setInterval(cuadro, 1000 / 60);
 
   return {
@@ -155,7 +163,7 @@ export function montarConstructorVR(c: Builder, view: Vista) {
       modo = true; return { ok: true };
     },
     /** Turns them off: lets go of what a hand holds and drops the selection (the computer's Escape). */
-    salir(): void { modo = false; for (const l of LADOS) { soltar(l); gatilloAntes[l] = agarreAntes[l] = false; gatilloDesde[l] = 0; } if (c.estado.seleccionado) c.seleccionar(""); fichaVR(); },
+    salir: dejar,
     /** For checks: the key a hand holds now, or null. */
     cogido: (lado: Lado) => cogido[lado]?.key ?? null,
     parar(): void { clearInterval(reloj); for (const l of LADOS) soltar(l); },
