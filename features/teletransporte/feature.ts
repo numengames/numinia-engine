@@ -16,6 +16,11 @@ export const DESMATERIALIZAR_TICKS = 12;
 export const FOTO_VENTANA_S = 30;
 /** Rings (metres) tried around the person you go to: never on top of them. */
 export const JUNTO_M: readonly number[] = [1.2, 2, 3];
+/** A marked site of the map has an x, z and no height. First it is tried at the traveller's own height (a flat world: exactly as always);
+ * if the ground there is not within a step of it (a hill above, a cleft below: the espacio base's relief), it is tried again from
+ * PUNTO_ALTO_M over the traveller, accepting ground down to PUNTO_BAJO_M under the traveller's height. */
+export const PUNTO_ALTO_M = 100;
+export const PUNTO_BAJO_M = 30;
 /** Rings tried around a photo's place (0 = the place itself). */
 export const FOTO_M: readonly number[] = [0, 0.75, 1.5, 2.5];
 /** How far under the photo's pivot (its camera's point, a little over the ground) a floor may be. */

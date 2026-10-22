@@ -6,7 +6,9 @@ import { Instance } from "../packages/instance/src/index.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
 import type { GuestKeeper } from "../packages/client/src/index.ts";
 import { signer } from "../packages/server/src/secret.ts";
-import { TICK_HZ, createSim, sitioLibre, setSolids, BOUND } from "../packages/sim/src/index.ts";
+import { TICK_HZ, createSim, sitioLibre, setSolids, setMesh, PISO_SIN_SUELO, BOUND } from "../packages/sim/src/index.ts";
+import { terrenoMalla } from "../packages/sim/src/terreno-malla.ts";
+import { alturaBase } from "../packages/relieve/src/espacio-base.ts";
 import { fx, fxToFloat } from "../packages/core/src/index.ts";
 import chatServer from "../features/chat/server.ts";
 import { crearCliente as crearChat } from "../features/chat/client.ts";
@@ -282,6 +284,29 @@ test("teletransporte: MVL1 — a marked site of the map; your own height, a free
   A.v.irAPunto(1, 1, ""); W.pump(3);
   assert.equal(A.v.estado.viaje?.ok, false);
   assert.match(A.v.estado.viaje!.texto, /lo han apagado/);
+});
+
+test("teletransporte: v8 — a map site on the espacio base's relief (a hill above, a cleft below) is reached; the failure is told", () => {
+  // Pablo, Quest 3S: «el teletransporte no funciona». «Ir a su lado» worked everywhere; «Ir» to a map site tried the ground only within a
+  // step of the TRAVELLER's height, so on the base's relief most sites answered «No hay sitio libre» (and the headset showed nothing).
+  const W = mundo(1);
+  const [A] = W.gente;
+  setMesh(W.inst.sim, terrenoMalla({ semilla: 42, tamano: 200, plaza: 12, estanque: false, base: true }).bvh, PISO_SIN_SUELO);
+  W.pump(4);
+  W.poner(A, 0, 0);
+  const sitios: { x: number; z: number; h: number }[] = [];
+  for (const [x, z] of [[60, 30], [-50, 70], [20, -80], [-70, -40], [80, -10], [-30, 60], [10, 90], [-85, 20]]) sitios.push({ x, z, h: alturaBase(42, x, z) });
+  assert.ok(sitios.some((s) => s.h > 3) && sitios.some((s) => s.h < -1), `the sample has a hill and a cleft: ${sitios.map((s) => s.h.toFixed(1))}`);
+  for (const s of sitios) {
+    W.pump(ESPERA_S * TICK_HZ + 4);
+    W.poner(A, 0, 0); W.inst.sim.tf.cols.y[A.s.entity] = 0;
+    assert.deepEqual(A.v.irAPunto(s.x, s.z, "Sitio"), { ok: true });
+    W.pump(DESMATERIALIZAR_TICKS + 4);
+    assert.equal(A.v.estado.viaje?.ok, true, `site (${s.x}, ${s.z}) at ${s.h.toFixed(1)} m: ${A.v.estado.viaje?.texto}`);
+    const p = W.pos(A);
+    assert.ok(dist(p, s) < 2.1, `you stand at the site (${s.x}, ${s.z}): ${dist(p, s).toFixed(2)} m`);
+    assert.ok(Math.abs(p.y - alturaBase(42, p.x, p.z)) < 0.5, `on the ground there (${p.y.toFixed(2)} vs ${alturaBase(42, p.x, p.z).toFixed(2)})`);
+  }
 });
 
 test("the light: three masks, the body hidden between the cuts, no lights on tier D, few on Quest", async () => {

@@ -8,10 +8,10 @@
 // second server whose MUNDO_DIR's entorno.json says `aparicionFoto: true`) the link puts you at the photo's place.
 // Usage (tools/auto.sh e2e runs it): BASE=http://127.0.0.1:5174/?webgl2&server=ws://127.0.0.1:8792 node tools/e2e-piernas/teletransporte.mjs
 import { createRequire } from "node:module";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, globSync } from "node:fs";
 
 const PW = process.env.PW_CORE ?? new URL("../../node_modules/playwright-core", import.meta.url).pathname;
-const CHROME = process.env.CHROME ?? "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell";
+const CHROME = process.env.CHROME ?? globSync("/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell").sort().at(-1) ?? "";
 const BASE = process.env.BASE ?? "http://127.0.0.1:5173/?webgl2";
 if (!existsSync(PW) || !existsSync(CHROME)) { console.error("playwright-core or chromium not found; set PW_CORE / CHROME"); process.exit(2); }
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright";
@@ -169,13 +169,20 @@ try {
   const rig = await v.evaluate(() => { const r = globalThis.__numinia.view.vr.rig.position; return { x: r.x, z: r.z }; });
   const aPos = await donde(v, A);
   ok("vr", dVA <= 3.5 && luzV1.max === 3 && luzV1.lanzadas >= luzV0.lanzadas + 1 && dist(rig, aPos) <= 4, { distancia: R(dVA), luz: luzV1, rig, a: aPos });
+  // v8: the menu's «Ir a su lado» inside the headset, pressed again at once (the world allows one trip every ESPERA_S): the server's «Espera N s»
+  // must be TOLD in the headset (the VR note), because the menu closes at once and the page's toast stack is not drawn there. Before v8 it was silent.
+  await v.evaluate(() => globalThis.__numinia.view.vr.alternarMenu("gente"));
+  const listaVR = await v.waitForFunction((n) => globalThis.__numinia.view.vr.menu.vista === "gente" && globalThis.__numinia.view.vr.menu.estado().filas.includes(n), nA, { timeout: 8000 }).then(() => true, () => false);
+  await v.evaluate(() => globalThis.__numinia.view.vr.menu.pulsar(100)); // the first row's button
+  const nota = await v.waitForFunction(() => /Espera \d+ s/.test(globalThis.__numinia.view.vr.estadoPaneles().nota), null, { timeout: 6000 }).then(() => true, () => false);
+  ok("vrRechazo", listaVR && nota, { lista: listaVR, nota, panel: await v.evaluate(() => globalThis.__numinia.view.vr.estadoPaneles().nota) });
   await v.evaluate(() => globalThis.__numinia.view.vr.exit());
   await vctx.close();
   await ctx.close();
 } catch (e) { checks.excepcion = { ok: false, error: String(e).split("\n").slice(0, 3).join(" | ") }; }
 await browser.close();
 
-const allOk = Object.values(checks).every((c) => c.ok) && errors.length === 0 && Object.keys(checks).length >= (process.env.BASE_FOTO ? 10 : 9);
+const allOk = Object.values(checks).every((c) => c.ok) && errors.length === 0 && Object.keys(checks).length >= (process.env.BASE_FOTO ? 11 : 10);
 console.log(JSON.stringify({ checks, errors }, null, 1));
 console.log(allOk ? "E2E TELETRANSPORTE OK" : "E2E TELETRANSPORTE FALLA");
 process.exit(allOk ? 0 : 1);
