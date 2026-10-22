@@ -112,3 +112,9 @@ test("phone chat box leaves room for the 88 px action button (it ran 22 px under
   assert.match(css, chat, "#chat max-width reserves the action button (16 + 88) and 8 px of air");
   assert.match(css, /#accion \{[^}]*width: 88px/, "the button is still 88 px: if it changes, change the chat reserve too");
 });
+
+test("phone «…» menu: its buttons are wide enough for «Movimientos» (75 px at 12 px type spilled out of a 64 px button)", () => {
+  const css = readFileSync(new URL("../apps/plaza/movil.css", import.meta.url), "utf8");
+  assert.match(css, /#mas-menu \{[^}]*grid-template-columns: repeat\(3, 80px\)/, "portrait: 3 columns of 80 px");
+  assert.match(css, /movil-horizontal"\] #mas-menu \{[^}]*grid-template-columns: repeat\(5, 80px\)/, "landscape: 5 columns of 80 px");
+});
