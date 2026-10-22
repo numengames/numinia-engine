@@ -5,7 +5,7 @@ import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi } from "../../packages/feature/src/index.ts";
 import { web } from "./feature.ts";
 
-export type Pantalla = { id: string; url: string; titulo: string; texto: string; x: number; y: number; z: number; ry: number; ancho: number; alto: number; marco: string; fichero: boolean };
+export type Pantalla = { id: string; url: string; titulo: string; texto: string; x: number; y: number; z: number; ry: number; ancho: number; alto: number; marco: string; fichero: boolean; inicio: number };
 export type Cambio = "pantallas" | "permiso" | "hecho" | "rechazado" | "dominioHecho";
 export type Poner = { id?: string; url: string; titulo?: string; texto?: string; x: number; y?: number; z: number; ry?: number; ancho?: number; alto?: number };
 
@@ -26,7 +26,7 @@ export function crearCliente() {
       if (!api) return [];
       return api.state.keys().sort().map((id) => {
         const v = api!.state.get(id)!;
-        return { id, url: String(v.url), titulo: String(v.titulo), texto: String(v.texto ?? ""), x: r(v.x), y: r(v.y), z: r(v.z), ry: r(v.ry), ancho: r(v.ancho), alto: r(v.alto), marco: String(v.marco ?? "?"), fichero: v.fichero === true };
+        return { id, url: String(v.url), titulo: String(v.titulo), texto: String(v.texto ?? ""), x: r(v.x), y: r(v.y), z: r(v.z), ry: r(v.ry), ancho: r(v.ancho), alto: r(v.alto), marco: String(v.marco ?? "?"), fichero: v.fichero === true, inicio: Number(v.inicio) || 0 };
       });
     },
     poner: (p: Poner) => enviar("poner", { id: "", texto: "", titulo: "", y: 1.6, ry: 0, ancho: 3.2, alto: 1.8, ...p }),

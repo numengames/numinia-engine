@@ -8,7 +8,7 @@
 // the domains added this way live in api.store (S4, server-only) and are merged with the file's at every check.
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg } from "../../packages/feature/src/index.ts";
-import { web, motivoUrl, resumirMarco, normalizarDominio, PANTALLAS_MAX, DOMINIOS_MAX, TITULO_MAX, TEXTO_MAX, ANCHO_M, ALTO_M } from "./feature.ts";
+import { web, motivoUrl, videoDe, resumirMarco, normalizarDominio, PANTALLAS_MAX, DOMINIOS_MAX, TITULO_MAX, TEXTO_MAX, ANCHO_M, ALTO_M } from "./feature.ts";
 import type { WebMundo } from "./feature.ts";
 
 /** What a site answers about framing: its two headers (null = not sent), or null when it could not be reached. */
@@ -61,7 +61,8 @@ const giro = (g: unknown) => q(((((Number(g) || 0) + 180) % 360) + 360) % 360 - 
 const PREFIJO_DOMINIO = "d:";
 const claveDominio = (api: { sign(t: string): string }, d: string) => PREFIJO_DOMINIO + api.sign(d);
 
-export function crearWeb(o: Partial<WebMundo> & { probar?: Probar } = {}) {
+export function crearWeb(o: Partial<WebMundo> & { probar?: Probar; reloj?: () => number } = {}) {
+  const ahoraS = () => Math.floor((o.reloj ? o.reloj() : Date.now()) / 1000);
   const dominiosArchivo = o.dominios ?? [], deFichero = o.pantallas ?? [];
   const extra: string[] = []; // N17 corte 2: dominios añadidos en caliente desde el mundo (api.store, no el fichero)
   const dominios = (): readonly string[] => dominiosArchivo.length || extra.length ? [...dominiosArchivo, ...extra] : dominiosArchivo;
@@ -77,6 +78,7 @@ export function crearWeb(o: Partial<WebMundo> & { probar?: Probar } = {}) {
     const comprobar = (id: string) => {
       const p = api.state.get(id), url = String(p?.url ?? "");
       if (!url) return;
+      if (videoDe(url)) { if (p!.marco !== "si") api.state.set(id, { ...p!, marco: "si" }); return; } // the player is made to be embedded: no need to ask
       void probar(url).then((c) => {
         const ahora = api.state.get(id);
         if (!ahora || ahora.url !== url) return;
@@ -142,6 +144,7 @@ export function crearWeb(o: Partial<WebMundo> & { probar?: Probar } = {}) {
         x: q(m.x, 0.01, -2000, 2000, 0), y: q(m.y, 0.01, -100, 500, 1.6), z: q(m.z, 0.01, -2000, 2000, 0), ry: giro(m.ry),
         ancho: q(m.ancho, 0.01, ANCHO_M.min, ANCHO_M.max, ANCHO_M.defecto), alto: q(m.alto, 0.01, ALTO_M.min, ALTO_M.max, ALTO_M.defecto),
         marco: antes?.url === url ? String(antes.marco) : "?", fichero: false,
+        inicio: !videoDe(url) ? "" : antes?.url === url && antes.inicio ? String(antes.inicio) : String(ahoraS()), // same video put again keeps its clock
       });
       api.log(`[web] ${api.who(from)?.nombre ?? `e${from}`} pone la pantalla ${id}: ${url}`);
       if (antes?.url !== url) comprobar(id);
@@ -187,11 +190,21 @@ export function crearWeb(o: Partial<WebMundo> & { probar?: Probar } = {}) {
     api.on("dominioPoner", (from, m) => { dominioPoner(from, String(m.dominio), false); });
     api.on("dominioQuitar", (from, m) => { dominioQuitar(from, String(m.dominio), false); });
 
-    // the chat: /web (the list), /web <url> [título] (a screen 3 m north of you, facing you), /web quitar <id>,
+    // the chat: /video <url> [título] (a video screen 3 m north of you: the same moment for everybody), /web (the list), /web <url> [título] (a screen 3 m north of you, facing you), /web quitar <id>,
     // /web dominio (list), /web dominio <dominio> (add in hot), /web dominio quitar <dominio>
     api.listen("chat", "orden", (m) => {
       const texto = String(m.texto ?? "").trim(), from = Number(m.quien);
       const partes = texto.split(/\s+/);
+      if (partes[0]?.toLowerCase() === "video") {
+        const p = api.position(from);
+        const aviso = (t: string) => api.emit("aviso", { quien: from, texto: limpiar(t, 300) }, "server");
+        if (!partes[1]) { aviso("Pon un vídeo de YouTube con /video <dirección> [título]. Se quita con /web quitar <id>."); return true; }
+        if (!videoDe(partes[1])) { aviso("Eso no parece un vídeo de YouTube (watch?v=…, youtu.be/…)."); return true; }
+        if (!p) return true;
+        const id = poner(from, { url: partes[1], titulo: partes.slice(2).join(" "), texto: "", x: p.x, y: p.y + 1.6, z: p.z - 3, ry: 0, ancho: 4.8, alto: 2.7 }, true);
+        if (id) aviso(`Vídeo ${id} puesto delante (al norte). Empieza sin sonido: toca el reproductor para activarlo. Quítalo con /web quitar ${id}.`);
+        return true;
+      }
       if (partes[0]?.toLowerCase() !== "web") return false;
       const aviso = (t: string) => api.emit("aviso", { quien: from, texto: limpiar(t, 300) }, "server");
       if (partes.length === 1) {

@@ -48,8 +48,8 @@ export const web = defineFeature({
   describe: "Pantallas web: un panel del mundo que muestra una página web de verdad. En ordenador y móvil se lee y se pulsa dentro del mundo; en VR muestra una vista previa y un botón para abrirla fuera. Solo sitios de la lista del mundo; solo los dueños y quien dirige ponen o quitan pantallas, y añaden o quitan dominios de la lista en caliente.",
   store: { describe: "Dominios añadidos a la lista de sitios permitidos desde dentro del mundo (N17 corte 2): clave = firma del dominio (api.sign), valor = el dominio normalizado. No incluye los de entorno/web.json (esos no se quitan desde aquí)." },
   state: {
-    describe: "Una entrada por pantalla (clave = su id). url = la página (https; sitios de la lista del mundo); titulo = lo que dice el lector de pantalla; texto = la vista previa (VR, o si el sitio no se deja enmarcar); x, y (centro), z en metros y ry en grados (hacia dónde mira); ancho × alto en metros; marco = lo que el servidor sabe de si el sitio se deja mostrar dentro de otra página («?», «si», «no» o la lista frame-ancestors del sitio); fichero = viene de entorno/web.json (no se quita desde el mundo).",
-    fields: { url: URL_F, titulo: TITULO, texto: TEXTO, x: POS, y: Y, z: POS, ry: GIRO, ancho: ANCHO, alto: ALTO, marco: { kind: "text", maxBytes: MARCO_MAX, default: "?" }, fichero: { kind: "bool", default: false } },
+    describe: "Una entrada por pantalla (clave = su id). url = la página (https; sitios de la lista del mundo); titulo = lo que dice el lector de pantalla; texto = la vista previa (VR, o si el sitio no se deja enmarcar); x, y (centro), z en metros y ry en grados (hacia dónde mira); ancho × alto en metros; marco = lo que el servidor sabe de si el sitio se deja mostrar dentro de otra página («?», «si», «no» o la lista frame-ancestors del sitio); fichero = viene de entorno/web.json (no se quita desde el mundo); inicio = si la dirección es un vídeo de YouTube, el instante (segundos desde 1970) en que se puso: cada página lo reproduce ya avanzado esos segundos, para que todos vean más o menos lo mismo.",
+    fields: { url: URL_F, titulo: TITULO, texto: TEXTO, x: POS, y: Y, z: POS, ry: GIRO, ancho: ANCHO, alto: ALTO, marco: { kind: "text", maxBytes: MARCO_MAX, default: "?" }, fichero: { kind: "bool", default: false }, inicio: { kind: "text", maxBytes: 12, default: "" } },
     card: { role: "pantalla", name: "{titulo}", description: "Pantalla web: {url}", at: ["x", "z"] },
     persist: true,
   },
@@ -104,9 +104,31 @@ export function motivoUrl(url: string, dominios: readonly string[]): string {
   const host = u.hostname.toLowerCase(), local = LOCAL.has(host);
   if (u.protocol !== "https:" && !(u.protocol === "http:" && local)) return "Solo páginas https (http solo para esta misma máquina, en pruebas).";
   const conPuerto = u.port ? `${host}:${u.port}` : host;
-  const ok = dominios.some((d) => d.includes(":") ? d === conPuerto : host === d || host.endsWith(`.${d}`));
+  // the youtube family counts as one site: «youtube.com» on the list also lets youtu.be and the no-cookie player (what the page really embeds)
+  const familia = VIDEO_HOSTS.includes(host) && dominios.includes("youtube.com");
+  const ok = familia || dominios.some((d) => d.includes(":") ? d === conPuerto : host === d || host.endsWith(`.${d}`));
   if (!ok) return dominios.length ? `${host} no está en la lista de sitios de este mundo (${dominios.slice(0, 6).join(", ")}${dominios.length > 6 ? "…" : ""}). Se añade en entorno/web.json.` : "Este mundo no tiene lista de sitios web: quien lo administra la pone en entorno/web.json («dominios»).";
   return "";
+}
+
+/** Video screens (Pablo 22-10, «la pieza de compartir vídeo en un espacio»): a screen whose address is a YouTube video.
+ * The server stamps `inicio` (epoch seconds) when the video is put; every page draws the player already that many
+ * seconds in, so everybody sees about the same moment (as close as their clocks agree: seconds, not frames).
+ * Muted at the start (browsers only autoplay muted); the person unmutes with a tap on the player. */
+export const VIDEO_HOSTS = ["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtube-nocookie.com", "www.youtube-nocookie.com", "youtu.be"];
+/** The 11-character id of a YouTube video address (watch?v=, youtu.be/, /embed/, /shorts/, /live/), or null. */
+export function videoDe(url: string): string | null {
+  let u: URL;
+  try { u = new URL(url); } catch { return null; }
+  const host = u.hostname.toLowerCase();
+  if (u.protocol !== "https:" || !VIDEO_HOSTS.includes(host)) return null;
+  const id = host === "youtu.be" ? u.pathname.split("/")[1] : u.pathname === "/watch" ? u.searchParams.get("v") : /^\/(embed|shorts|live)\/([^/]+)/.exec(u.pathname)?.[2];
+  return id && /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null;
+}
+/** The player's address for a video that started `inicio` (epoch s) and is now `ahora` (epoch s): muted autoplay, no related videos. */
+export function urlVideo(id: string, inicio: number, ahora: number): string {
+  const start = Math.max(0, Math.min(86400, Math.floor(ahora - inicio)));
+  return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&start=${start}`;
 }
 
 /** What the server keeps of a site's answer about framing (see MARCO_MAX). `xfo` = X-Frame-Options, `csp` =
