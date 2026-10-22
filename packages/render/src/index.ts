@@ -70,6 +70,7 @@ import { detalleAgua } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
 import { fundirAnimado } from "./fundir.ts";
 import { crearQuietos } from "./fundir-quietos.ts";
+import { hornearEscena } from "./hornear.ts";
 import type { Fundido } from "./fundir.ts";
 import type { Parte } from "./lotes.ts";
 import { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
@@ -494,41 +495,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   function hornear(model: string, raiz: THREE.Object3D, merge: Merge): { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean }[] | null {
     if (horneados.has(model)) return horneados.get(model)!;
     let out: { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean }[] | null = null;
-    try {
-      raiz.updateMatrixWorld(true);
-      const inv = raiz.matrixWorld.clone().invert(), rel = new THREE.Matrix4(), v = new THREE.Vector3();
-      const porMat = new Map<THREE.Material, { gs: THREE.BufferGeometry[]; sombra: boolean }>();
-      let mal = false;
-      raiz.traverse((o) => {
-        const m = o as THREE.Mesh;
-        if (!m.isMesh || mal) return;
-        if (Array.isArray(m.material)) { mal = true; return; }
-        const src = m.geometry, pos = src.attributes.position;
-        if (!pos) return;
-        const geo = new THREE.BufferGeometry();
-        const p = pos.clone() as THREE.BufferAttribute;
-        const sk = m as THREE.SkinnedMesh;
-        if (sk.isSkinnedMesh && src.attributes.skinIndex) for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(pos, i); sk.applyBoneTransform(i, v); p.setXYZ(i, v.x, v.y, v.z); }
-        geo.setAttribute("position", p);
-        if (src.attributes.uv) geo.setAttribute("uv", src.attributes.uv.clone());
-        if (src.index) geo.setIndex(src.index.clone());
-        geo.applyMatrix4(rel.multiplyMatrices(inv, m.matrixWorld));
-        const g2 = geo.index ? geo.toNonIndexed() : geo;
-        g2.computeVertexNormals();
-        const e = porMat.get(m.material) ?? { gs: [], sombra: false };
-        e.gs.push(g2); e.sombra ||= m.castShadow; porMat.set(m.material, e);
-      });
-      if (!mal && porMat.size) {
-        out = [];
-        for (const [mat, e] of porMat) {
-          if (e.gs.some((x) => !!x.attributes.uv) && !e.gs.every((x) => !!x.attributes.uv)) for (const x of e.gs) x.deleteAttribute("uv"); // all or none
-          const geo = e.gs.length === 1 ? e.gs[0] : merge(e.gs);
-          if (!geo) { out = null; break; }
-          geo.computeBoundingSphere(); geo.computeBoundingBox();
-          out.push({ geo, mat, sombra: e.sombra });
-        }
-      }
-    } catch (err) { console.warn(`[objetos] no pude hornear ${model}:`, err); out = null; }
+    try { out = hornearEscena(raiz, merge); } catch (err) { console.warn(`[objetos] no pude hornear ${model}:`, err); out = null; } // E5: hornear.ts (positions as floats first)
     horneados.set(model, out);
     return out;
   }
