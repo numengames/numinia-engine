@@ -21,7 +21,7 @@ const lienzoFalso = () => ({ width: 0, height: 0, getContext: () => new Proxy({}
 const mirando: Muestra = { dorso: 0.9, anguloGrados: 10, distanciaM: 0.4 };   // the back of the wrist towards you, like a watch
 const bajada: Muestra = { dorso: -0.2, anguloGrados: 60, distanciaM: 0.7 };   // arm down by your side
 const girada: Muestra = { dorso: 0.1, anguloGrados: 10, distanciaM: 0.4 };    // still in view, the back turned away
-const fuera: Muestra = { dorso: 0.9, anguloGrados: 70, distanciaM: 0.4 };     // the back towards you, but out of view
+const fuera: Muestra = { dorso: 0.9, anguloGrados: 75, distanciaM: 0.4 };     // the back towards you, but out of view
 
 // ── the watch: when it shows ───────────────────────────────────────────────────────────────────────────────────────
 test("watch: shows only after ABRIR.ms of looking; a glance shorter than that does not", () => {
@@ -33,11 +33,11 @@ test("watch: shows only after ABRIR.ms of looking; a glance shorter than that do
   g = paso(g, mirando, 0); g = paso(g, bajada, 100); g = paso(g, mirando, 120); g = paso(g, mirando, 120 + ABRIR.ms - 1);
   assert.equal(g.abierto, false, "the streak breaks when any condition fails");
 });
-test("watch: the back must face the eyes within 60°, the wrist 0.2–0.65 m away inside the cone (ABRIR.conoGrados)", () => {
+test("watch: the back must face the eyes within 60°, the wrist 0.2–0.6 m away inside the cone (ABRIR.conoGrados)", () => {
   assert.equal(cumpleAbrir({ dorso: Math.cos((59 * Math.PI) / 180), anguloGrados: 10, distanciaM: 0.4 }), true);
   assert.equal(cumpleAbrir({ dorso: Math.cos((61 * Math.PI) / 180), anguloGrados: 10, distanciaM: 0.4 }), false);
   assert.equal(cumpleAbrir({ ...mirando, distanciaM: 0.15 }), false, "too close to the face");
-  assert.equal(cumpleAbrir({ ...mirando, distanciaM: 0.8 }), false, "arm stretched out");
+  assert.equal(cumpleAbrir({ ...mirando, distanciaM: 0.65 }), false, "arm stretched out");
   assert.equal(cumpleAbrir({ ...mirando, anguloGrados: ABRIR.conoGrados - 1 }), true, "inside the cone");
   assert.equal(cumpleAbrir({ ...mirando, anguloGrados: ABRIR.conoGrados + 1 }), false, "outside the cone");
 });
