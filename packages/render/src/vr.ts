@@ -310,17 +310,14 @@ export function createVR(h: VRHooks) {
   });
   let condPendiente: ModeloVR | null = null, condVR: CondicionesVR | null = null, condCargando: Promise<CondicionesVR> | null = null, pagLatched = false;
   const oyentesCond = { pulsa: new Set<(z: Zona) => void>(), pagina: new Set<(dir: -1 | 1) => void>() };
-  // the object card sits LOW and to the LEFT (about 40° and 30° off the line of sight): the ray to the thing you are working on, straight
-  // ahead, must not pass through it, and the right hand — the one that points — stays clear of it
-  const fichaColocar = (m: THREE.Object3D) => {
+  // the object card sits LOW and to the LEFT of your line of sight (vr-ficha.ts `puntoFicha`): the ray to the thing you are working on,
+  // straight ahead, must not pass through it, and the right hand — the one that points — stays clear of it. v13: it follows your head
+  // (`fichaVR.seguir` each frame) and steps aside while the VR menu is open.
+  const fichaOjo = new THREE.Vector3(), fichaMira = new THREE.Vector3();
+  const fichaCabeza = () => {
     const cam = h.renderer.xr.getCamera();
-    const ojo = new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld), dir = new THREE.Vector3();
-    cam.getWorldDirection(dir); dir.y = 0;
-    if (dir.lengthSq() < 1e-6) dir.set(0, 0, -1);
-    dir.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), 0.7);
-    const p = ojo.clone().addScaledVector(dir, 0.95); p.y -= 0.5;
-    rig.worldToLocal(p); m.position.copy(p);
-    m.lookAt(ojo);
+    fichaOjo.setFromMatrixPosition(cam.matrixWorld); cam.getWorldDirection(fichaMira);
+    return { ojo: fichaOjo, mira: fichaMira };
   };
 
   // Rediseño v2 (story E): the wrist watch (left wrist) and the menu panel. Both live in the WORLD (scene), not the rig:
@@ -494,7 +491,10 @@ export function createVR(h: VRHooks) {
     }
     condVR?.update(ojoV, miraV, hayPunta ? puntaV : null, condVR.abierto ? manosParaBarra() : []);
     h.manos?.update(h.renderer.xr.getCamera());
-    fichaVR?.tick();
+    if (fichaVR) {
+      fichaVR.ceder(menu.abierto); fichaVR.tick(); fichaVR.seguir(ojoV, miraV, dtSeconds);
+      nota.position.y = fichaVR.visible ? 0.3 : -0.22; // the note must not sit on the card's buttons: above your line of sight while it shows
+    }
     if (panel.visible) { pintarSalir(); pintarAjuste(); } // the highlight fades once the ray leaves; «¿Salir?» goes back after SALIR_CONFIRMA_MS
   }
 
@@ -580,7 +580,7 @@ export function createVR(h: VRHooks) {
       if (fichaVR) { fichaVR.mostrar(d); return; }
       if (fichaCargando) return;
       fichaCargando = true;
-      void import("./vr-ficha.ts").then((m) => { fichaVR = m.crearFichaVR(rig, (a) => { for (const f of oyentes.ficha) f(a); }, fichaColocar); if (fichaPide && session) fichaVR.mostrar(fichaPide); }).finally(() => { fichaCargando = false; });
+      void import("./vr-ficha.ts").then((m) => { fichaVR = m.crearFichaVR(rig, (a) => { for (const f of oyentes.ficha) f(a); }, fichaCabeza); if (fichaPide && session) fichaVR.mostrar(fichaPide); }).finally(() => { fichaCargando = false; });
     },
     onFicha(fn: (a: AccionFichaVR) => void): () => void { oyentes.ficha.add(fn); return () => oyentes.ficha.delete(fn); },
     /** For checks: the object card's panel (null until it was first shown). */

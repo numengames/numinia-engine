@@ -128,6 +128,61 @@ async function pierna() {
       if (process.env.SHOTS === "1") await a.screenshot({ path: "e2e-constructor-vr-ficha.png" });
       if (idF !== id) await ctl((k) => { const c = globalThis.__numinia.constructor; c.seleccionar(k); c.borrar(); }, idF); // the copy goes too
     }
+    // 6. v13 (Pablo's headset QA 2026-10-22, «este no se sale del menú»): the card stays in view as you turn, steps aside for the VR
+    // menu, a ray on the menu never picks the thing behind it, and B leaves the mode in one press.
+    {
+      const boton = (b, n, v) => a.evaluate(([b, n, v]) => globalThis.__iwer.controllers[b].updateButtonValue(n, v), [b, n, v]);
+      const pulsa = async (b, n) => { await boton(b, n, 1); await a.waitForTimeout(120); await boton(b, n, 0); await a.waitForTimeout(250); };
+      const panelVisible = () => ctl(() => globalThis.__numinia.view.vr.fichaPanel()?.estado().visible === true);
+      const girar = (grados) => ctl((g) => { const d = globalThis.__iwer, r = (g * Math.PI) / 180; d.quaternion.set(0, Math.sin(r / 2), 0, Math.cos(r / 2)); }, grados);
+      // degrees between where the head looks and the centre of the card's two middle cells (the card's own measure: celdaMundo)
+      const grados = () => ctl(() => {
+        const n = globalThis.__numinia, f = n.view.vr.fichaPanel(), d = globalThis.__iwer;
+        if (!f?.visible) return null;
+        const q = d.quaternion, yaw = 2 * Math.atan2(q.y, q.w), r = n.view.vr.rig.position, h = d.position;
+        const c2 = f.celdaMundo(2), c3 = f.celdaMundo(3), m = { x: (c2.x + c3.x) / 2, y: (c2.y + c3.y) / 2, z: (c2.z + c3.z) / 2 };
+        const v = [m.x - (r.x + h.x), m.y - (r.y + h.y), m.z - (r.z + h.z)], L = Math.hypot(...v), g = [-Math.sin(yaw), 0, -Math.cos(yaw)];
+        return Math.round((Math.acos(Math.max(-1, Math.min(1, (v[0] * g[0] + v[2] * g[2]) / L))) * 180) / Math.PI);
+      });
+      await ctl((k) => globalThis.__numinia.constructor.seleccionar(k), id);
+      await esperar(() => globalThis.__numinia.view.vr.fichaPanel()?.estado().visible === true, null, 8000);
+      const g0 = await grados();
+      paso("v13: la ficha se abre dentro de la vista (< 55° de la mirada)", g0 !== null && g0 < 55, { g0 });
+      await girar(150); await a.waitForTimeout(2000);
+      const g1 = await grados();
+      paso("v13: al girar la cabeza 150° la ficha vuelve a la vista, no se queda a la espalda", g1 !== null && g1 < 55, { g0, g1 });
+      await girar(0); await a.waitForTimeout(2000);
+      // the VR menu (Y) opens: the card steps aside; the mode goes on
+      await pulsa("left", "y-button");
+      paso("v13: con el menú abierto la ficha se aparta", (await ctl(() => globalThis.__numinia.view.vr.menu.abierto)) && !(await panelVisible()), { vista: await ctl(() => globalThis.__numinia.view.vr.fichaPanel()?.estado()) });
+      // a ray on the menu, with a block on the ground along it and nothing selected: the trigger must pick nothing
+      await ctl(() => { globalThis.__numinia.constructor.seleccionar(""); globalThis.__iwer.controllers.right.position.y = 2.1; });
+      const z = await ctl(() => globalThis.__numinia.view.vr.menu.zonaMundo(10));
+      const mano = await ctl(() => { const r = globalThis.__numinia.view.vr.rig.position, p = globalThis.__iwer.controllers.right.position; return { x: r.x + p.x, y: r.y + p.y, z: r.z + p.z }; });
+      const t = mano.y / (mano.y - z.y), gx = mano.x + (z.x - mano.x) * t, gz = mano.z + (z.z - mano.z) * t;
+      const n2 = await ctl(() => globalThis.__numinia.session.features.stateOf("objetos").size);
+      await ctl(({ x, z }) => globalThis.__numinia.constructor.colocarEn("bloque", { x, y: 0, z }), { x: gx, z: gz });
+      await esperar((n) => globalThis.__numinia.session.features.stateOf("objetos").size > n, n2, 8000);
+      const idMenu = await ctl(() => globalThis.__numinia.constructor.estado.seleccionado);
+      await ctl(() => globalThis.__numinia.constructor.seleccionar(""));
+      await ctl((w) => globalThis.__apuntar(w), z); await a.waitForTimeout(250);
+      const apunta = await ctl(() => globalThis.__numinia.view.manos.estado().der?.apunta);
+      await pulsarGatillo(80);
+      paso("v13: el rayo sobre el menú no elige lo que hay detrás", /^panel:/.test(apunta) && (await ctl(() => globalThis.__numinia.constructor.estado.seleccionado)) === "", { apunta, idMenu });
+      // B closes the menu first and leaves the mode only on the next press
+      await pulsa("right", "b-button");
+      paso("v13: B cierra primero el menú y el modo sigue", !(await ctl(() => globalThis.__numinia.view.vr.menu.abierto)) && (await ctl(() => globalThis.__numinia.constructorVR.activo())));
+      await ctl((w) => globalThis.__apuntar(w), { x: gx, y: 0.5, z: gz }); await a.waitForTimeout(250);
+      await pulsarGatillo(60);
+      await esperar(() => globalThis.__numinia.view.vr.fichaPanel()?.estado().visible === true, null, 6000).catch(() => {});
+      paso("v13: con el menú cerrado, la ficha vuelve con lo elegido", (await ctl(() => globalThis.__numinia.constructor.estado.seleccionado)) === idMenu && (await panelVisible()));
+      await pulsa("right", "b-button");
+      paso("v13: B deja de construir de una vez: modo apagado, nada elegido, sin ficha",
+        !(await ctl(() => globalThis.__numinia.constructorVR.activo())) && (await ctl(() => globalThis.__numinia.constructor.estado.seleccionado)) === "" && !(await panelVisible()));
+      await ctl(() => { globalThis.__iwer.controllers.right.position.y = 1.5; });
+      if (process.env.SHOTS === "1") await a.screenshot({ path: "e2e-constructor-vr-salir.png" });
+      if (idMenu) await ctl((k) => { const c = globalThis.__numinia.constructor; c.seleccionar(k); c.borrar(); }, idMenu);
+    }
     await ctl(() => globalThis.__numinia.view.vr.exit());
     await esperar(() => !globalThis.__numinia.view.vr.active, null, 8000).catch(() => {});
     r.ok = errors.length === 0;

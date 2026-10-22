@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { aplicarAccionVR, datosFicha, enlaceDeObjeto, ETIQUETAS_FICHA, FACTOR_MAS_VR, FACTOR_MENOS_VR, fichaVisible, logicaDeObjeto, PASO_GIRO_VR, seleccionarAlIr } from "../apps/plaza/ficha-objeto.ts";
 import type { AccionVR } from "../apps/plaza/ficha-objeto.ts";
-import { celdaEn, celdasFicha, CH, COLS, CW, FICHA_H, FICHA_W, GAP, X0, Y0 } from "../packages/render/src/vr-ficha.ts";
+import { celdaEn, celdasFicha, CH, COLS, CW, FICHA_BAJO_M, FICHA_DIST_M, FICHA_H, FICHA_SEGUIR_GRADOS, FICHA_W, GAP, gradosDeLaMirada, puntoFicha, X0, Y0 } from "../packages/render/src/vr-ficha.ts";
 import { leerSitio } from "../apps/plaza/foto-nucleo.ts";
 
 test("the card shows only for someone who may build, with the builder open and an object selected", () => {
@@ -109,4 +109,31 @@ test("VR actions run the builder's own verbs with fixed steps, say what happened
   const no = { ...c, borrar: () => ({ ok: false, why: "está anclado" }) as const };
   assert.deepEqual(aplicarAccionVR(no, "borrar"), { res: { ok: false, why: "está anclado" }, dicho: "No: está anclado" });
   assert.match(aplicarAccionVR(c, "mover").dicho, /gatillo/);
+});
+
+// v13: the VR card sits where you look and follows your head (it stayed where it opened: turn round and «Cerrar» was behind you)
+test("the VR card opens low and to the left of the line of sight, always inside the follow cone, whichever way you face", () => {
+  const ojo = { x: 3, y: 1.6, z: -2 };
+  for (const grados of [0, 45, 90, 180, 270]) {
+    const a = (grados * Math.PI) / 180, mira = { x: -Math.sin(a), y: 0, z: -Math.cos(a) };
+    const p = puntoFicha(ojo, mira);
+    assert.ok(Math.abs(Math.hypot(p.x - ojo.x, p.z - ojo.z) - FICHA_DIST_M) < 1e-9, "the same distance ahead");
+    assert.ok(Math.abs(ojo.y - p.y - FICHA_BAJO_M) < 1e-9, "below the eyes");
+    const g = gradosDeLaMirada(ojo, mira, p);
+    assert.ok(g > 20 && g < FICHA_SEGUIR_GRADOS - 10, `${grados}°: opens ${g.toFixed(0)}° off the line of sight, in view (below the ${FICHA_SEGUIR_GRADOS}° at which it follows)`);
+    // to the LEFT of the gaze: the cross product (gaze × card) points up
+    const cruz = mira.x * (p.z - ojo.z) - mira.z * (p.x - ojo.x);
+    assert.ok(cruz < 0, `${grados}°: on the left`);
+  }
+  assert.deepEqual(puntoFicha(ojo, { x: 0, y: -1, z: 0 }).y, ojo.y - FICHA_BAJO_M, "looking straight down: still a valid place (falls back to ahead)");
+});
+
+test("the angle to the card: 0 on the line of sight, 90 at the side, 180 behind (so a head turn past the threshold brings it back)", () => {
+  const ojo = { x: 0, y: 1.6, z: 0 }, mira = { x: 0, y: 0, z: -1 };
+  assert.ok(Math.abs(gradosDeLaMirada(ojo, mira, { x: 0, y: 1.6, z: -1 })) < 1e-6);
+  assert.ok(Math.abs(gradosDeLaMirada(ojo, mira, { x: 1, y: 1.6, z: 0 }) - 90) < 1e-6);
+  assert.ok(Math.abs(gradosDeLaMirada(ojo, mira, { x: 0, y: 1.6, z: 1 }) - 180) < 1e-6);
+  const p = puntoFicha(ojo, mira); // after a 120° turn to the right, the card left where it opened is far outside the cone
+  const a = (-120 * Math.PI) / 180;
+  assert.ok(gradosDeLaMirada(ojo, { x: -Math.sin(a), y: 0, z: -Math.cos(a) }, p) > FICHA_SEGUIR_GRADOS);
 });
