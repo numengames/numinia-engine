@@ -643,13 +643,13 @@
       ]
     },
     {
-      "id": "pasos-hierba",
-      "uso": "pasos sobre hierba",
+      "id": "pasos-arena",
+      "uso": "pasos sobre arena o tierra",
       "bus": "pasos-propios",
       "lote": "nucleo",
       "prioridad": 60,
       "cooldown_ms": 90,
-      "texto": "pasos sobre hierba",
+      "texto": "pasos sobre arena",
       "duracion_s": 0.405,
       "bucle": false,
       "licencia": "CC0-1.0",
@@ -661,58 +661,123 @@
       ],
       "variantes": [
         {
-          "fichero": "activos/sonidos/pasos-hierba/pasos-hierba-01.opus",
-          "sha256": "83158f51f3a4a82766b1309dc52c86ed0279ea5f32b82bb813339447a25fd954",
+          "fichero": "activos/sonidos/pasos-arena/pasos-arena-01.opus",
+          "sha256": "6b079e21096f925fc5eddab26afef38c73c7c00c3b52b2372fe6cde557a4febf",
           "bytes": 2320,
           "peso": 1,
-          "respaldo": "activos/sonidos/pasos-hierba/pasos-hierba-01.m4a",
+          "respaldo": "activos/sonidos/pasos-arena/pasos-arena-01.m4a",
           "respaldo_sha256": "72a0e0878fb845929fac629035485ddfb7155611234545d5e71f8b1abf1d6b47",
           "respaldo_bytes": 3505
         },
         {
-          "fichero": "activos/sonidos/pasos-hierba/pasos-hierba-02.opus",
-          "sha256": "d30e6b324634e89e55ce30b0d9d5e09424096fee3fea506079a9aa817131d7b1",
+          "fichero": "activos/sonidos/pasos-arena/pasos-arena-02.opus",
+          "sha256": "2d1e624049d22cd732c748231d0f517687330368b02c377d2f593b95bc5c8db4",
           "bytes": 1808,
           "peso": 1,
-          "respaldo": "activos/sonidos/pasos-hierba/pasos-hierba-02.m4a",
+          "respaldo": "activos/sonidos/pasos-arena/pasos-arena-02.m4a",
           "respaldo_sha256": "0375b1bdba7d82435c266bab05ca49d5acfc6391d721d154f877214fb83b1b4c",
           "respaldo_bytes": 2921
         },
         {
-          "fichero": "activos/sonidos/pasos-hierba/pasos-hierba-03.opus",
-          "sha256": "2959d2f70ecc18c58c0493ecfddba561dba1729259cd664bb690fa371cf7577b",
+          "fichero": "activos/sonidos/pasos-arena/pasos-arena-03.opus",
+          "sha256": "746e26b1b153daf628ffff8b95b075d328ce21bcaff4afc3675819b4e452cde7",
           "bytes": 1758,
           "peso": 1,
-          "respaldo": "activos/sonidos/pasos-hierba/pasos-hierba-03.m4a",
+          "respaldo": "activos/sonidos/pasos-arena/pasos-arena-03.m4a",
           "respaldo_sha256": "83ca82308a030525ed4247383412ccb9f7df4cf42f76255acaf3dbf8f87ee44b",
           "respaldo_bytes": 2846
         },
         {
-          "fichero": "activos/sonidos/pasos-hierba/pasos-hierba-04.opus",
-          "sha256": "dabb82db528a00299ddeed87c6c72b7f4e2bcc1da0a9aacf8d56f3df6443829f",
+          "fichero": "activos/sonidos/pasos-arena/pasos-arena-04.opus",
+          "sha256": "3f7f43b1e3b05c0d6ba550d0dcb1e819ea24e2e15d6a0c57050752aec3d8c071",
           "bytes": 2164,
           "peso": 1,
-          "respaldo": "activos/sonidos/pasos-hierba/pasos-hierba-04.m4a",
+          "respaldo": "activos/sonidos/pasos-arena/pasos-arena-04.m4a",
           "respaldo_sha256": "608432a6790277f34963e70e79a5ad8419c29d6ce1e73cc5c9ef6dfd6c5f326e",
           "respaldo_bytes": 3279
         },
         {
-          "fichero": "activos/sonidos/pasos-hierba/pasos-hierba-05.opus",
-          "sha256": "b6be1828ce79c989c9ab949b6818defd69796a02371b9418410f115ae66f3e0e",
+          "fichero": "activos/sonidos/pasos-arena/pasos-arena-05.opus",
+          "sha256": "aed85bdadcfe85b4656c7f88c4f7af74ae040ee1819640b36bfcd8f76759ce0a",
           "bytes": 1874,
           "peso": 1,
-          "respaldo": "activos/sonidos/pasos-hierba/pasos-hierba-05.m4a",
+          "respaldo": "activos/sonidos/pasos-arena/pasos-arena-05.m4a",
           "respaldo_sha256": "2faaecd9cae09e2b6804abe39bd1ccdfb2c66b5cb92a10768ddb6922837a00be",
           "respaldo_bytes": 3097
         },
         {
-          "fichero": "activos/sonidos/pasos-hierba/pasos-hierba-06.opus",
-          "sha256": "8a5d0325060dc93eebb0afd03cf28d8ad581a294f9db652c5f1069dc05b01cc9",
+          "fichero": "activos/sonidos/pasos-arena/pasos-arena-06.opus",
+          "sha256": "9f918956bcf92ba328290109db8703af7e5f49245bc55eea717f90363ed4c942",
           "bytes": 1865,
           "peso": 1,
-          "respaldo": "activos/sonidos/pasos-hierba/pasos-hierba-06.m4a",
+          "respaldo": "activos/sonidos/pasos-arena/pasos-arena-06.m4a",
           "respaldo_sha256": "3740fa52f3df073a4024ffbaae5499b93fdb10d7a8a7245fa8fa1406c4b72141",
           "respaldo_bytes": 3072
+        }
+      ]
+    },
+    {
+      "id": "pasos-hierba",
+      "uso": "pasos sobre hierba",
+      "bus": "pasos-propios",
+      "lote": "nucleo",
+      "prioridad": 60,
+      "cooldown_ms": 90,
+      "texto": "pasos sobre hierba",
+      "duracion_s": 0.13,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Kenney Vleugels (kenney.nl)"
+      ],
+      "fuente": [
+        "https://kenney.nl/assets/impact-sounds"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/pasos-hierba/pasos-hierba-01.opus",
+          "sha256": "5f94a3af85df3055698b3b9bd92335d9bdf2193d4f5372c10e5d689a11bd3c2d",
+          "bytes": 685,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-hierba/pasos-hierba-01.m4a",
+          "respaldo_sha256": "35bed09b432ab2176401bcf1ccbcd7efa259284fc7e11925b47a2b20c992844d",
+          "respaldo_bytes": 1459
+        },
+        {
+          "fichero": "activos/sonidos/pasos-hierba/pasos-hierba-02.opus",
+          "sha256": "ec2796b2b03f5af7500282ee059cc647787edc3ef3ef3e7294651128def454df",
+          "bytes": 810,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-hierba/pasos-hierba-02.m4a",
+          "respaldo_sha256": "221211a279ad39bfff82df0197837ee11eced1e77367251da96687b4c2d80655",
+          "respaldo_bytes": 1818
+        },
+        {
+          "fichero": "activos/sonidos/pasos-hierba/pasos-hierba-03.opus",
+          "sha256": "70b59c483033135e055db4999b5123cc5ddb68567742ba5f24fc6e094d5dc72b",
+          "bytes": 799,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-hierba/pasos-hierba-03.m4a",
+          "respaldo_sha256": "7d6d5e3455f9da31b3a9287a54c3194ed3eec9c78381708614085e594a5cc03a",
+          "respaldo_bytes": 1754
+        },
+        {
+          "fichero": "activos/sonidos/pasos-hierba/pasos-hierba-04.opus",
+          "sha256": "fe3779f57b461377a37f65e852bdf6bde865bdcb01f8155bf0ac3f25afe10d09",
+          "bytes": 701,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-hierba/pasos-hierba-04.m4a",
+          "respaldo_sha256": "b76a2f6a074c3f3c1cb933573cd80ec12812699c1d1fd611d1156882f9cbfe6e",
+          "respaldo_bytes": 1449
+        },
+        {
+          "fichero": "activos/sonidos/pasos-hierba/pasos-hierba-05.opus",
+          "sha256": "4fe8c49571572183a6b61c7202e6941520c9e11529b765b4ddc6096bb5c97ae5",
+          "bytes": 662,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-hierba/pasos-hierba-05.m4a",
+          "respaldo_sha256": "e5ed52d17aaabcd4ee01ce4baed33bd6346bfb01f2387e04bde45f1f098ff6c3",
+          "respaldo_bytes": 1509
         }
       ]
     },
@@ -863,6 +928,71 @@
           "respaldo": "activos/sonidos/pasos-metal/pasos-metal-06.m4a",
           "respaldo_sha256": "34639256d2d786cba0634c2c81d5b42df20e630f5fa514953b0a6b2ad29243fb",
           "respaldo_bytes": 2022
+        }
+      ]
+    },
+    {
+      "id": "pasos-nieve",
+      "uso": "pasos sobre nieve",
+      "bus": "pasos-propios",
+      "lote": "nucleo",
+      "prioridad": 60,
+      "cooldown_ms": 90,
+      "texto": "pasos sobre nieve",
+      "duracion_s": 0.378,
+      "bucle": false,
+      "licencia": "CC0-1.0",
+      "autor": [
+        "Kenney Vleugels (kenney.nl)"
+      ],
+      "fuente": [
+        "https://kenney.nl/assets/impact-sounds"
+      ],
+      "variantes": [
+        {
+          "fichero": "activos/sonidos/pasos-nieve/pasos-nieve-01.opus",
+          "sha256": "d08425abc34bebaad2ed90c708f1ef39b7c71f562d8ae5d7ea3096974e36263a",
+          "bytes": 1616,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-nieve/pasos-nieve-01.m4a",
+          "respaldo_sha256": "e5b84463465695cf723f6ff95de09149c5b934df7f0c2c09a1a8ec74585dd3e2",
+          "respaldo_bytes": 3038
+        },
+        {
+          "fichero": "activos/sonidos/pasos-nieve/pasos-nieve-02.opus",
+          "sha256": "2f29b2cb8625fcf54ae0c9b7baf038a3ccfbcd0f1410ff30e5b0f881f604ae18",
+          "bytes": 1609,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-nieve/pasos-nieve-02.m4a",
+          "respaldo_sha256": "578573e15f08d57b3854266c7117b9a414aa1571d6cf7e2b5bb859ddff663ea5",
+          "respaldo_bytes": 3047
+        },
+        {
+          "fichero": "activos/sonidos/pasos-nieve/pasos-nieve-03.opus",
+          "sha256": "228c06784cd6c6b7b43d077306471d367bf4294ff87bcae69ad00912f1652d30",
+          "bytes": 1597,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-nieve/pasos-nieve-03.m4a",
+          "respaldo_sha256": "a87531191fb50138699e52f8380eed01ffd8e44f173ec14fdc25fd50310e4bee",
+          "respaldo_bytes": 3157
+        },
+        {
+          "fichero": "activos/sonidos/pasos-nieve/pasos-nieve-04.opus",
+          "sha256": "a434aa125205b6a8e8a569bd4b186d6f61f70bf3af8bc5312c57801c2edd6a86",
+          "bytes": 1609,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-nieve/pasos-nieve-04.m4a",
+          "respaldo_sha256": "316128eefc744809d953bb37a97042a31e1b81d4cfdb1aff0e670f710bdb1c52",
+          "respaldo_bytes": 3187
+        },
+        {
+          "fichero": "activos/sonidos/pasos-nieve/pasos-nieve-05.opus",
+          "sha256": "43f6ba128b3d706b9b574b3dcd364d416fb301dd1670869ec8cea346d7e21647",
+          "bytes": 1568,
+          "peso": 1,
+          "respaldo": "activos/sonidos/pasos-nieve/pasos-nieve-05.m4a",
+          "respaldo_sha256": "8e0178ac284cf8102e73ad6f2efd1e7d6c1582e0a76451e8d310c67bf3b1a26a",
+          "respaldo_bytes": 3106
         }
       ]
     },
