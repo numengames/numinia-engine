@@ -1666,6 +1666,17 @@ Regla R-1: cada pieza del motor se enciende sin tocar código. El mundo guarda u
 - **Quién**: quien puede construir (`api.puede(e, "construir")`, igual que el interruptor «Espacio base»). El servidor reescribe solo la
   clave pedida (las demás se quedan; sin fichero lo crea con `{ schema, <función> }`), lo valida y lo escribe de forma atómica; un fichero
   mal escrito no se sobrescribe nunca (el log y el rechazo dicen cómo arreglarlo). Sin carpeta de mundo, el cambio vale hasta reiniciar.
+- **Desde la administración de numinia.com (e1: la puerta HTTP `/funciones`)**: el panel cambia los mismos interruptores sin entrar al mundo.
+  `GET /funciones` → `{ "funciones": [{ "id": "normas"|"dardos"|"pesca", "activa": bool, "fija": bool }] }` (solo las que el mundo tiene:
+  sin condiciones de entrada no sale `normas`); `POST /funciones` con `{ "funcion": "normas", "activa": true }` → `200 { ok, funcion, funciones }`
+  (`puerta` vale como otro nombre de `normas`). Mismo pase que `/habitantes` y `/agentes` (`Authorization: Bearer <pase>`, `aud` = este mundo,
+  permiso `manage-organization` o dueño): sin pase configurado `404` (cerrada), sin pase `401`, sin permiso `403`; CORS solo `https://numinia.com`,
+  nunca `*`; cuerpo máximo 1 KiB (`413`). `400` función desconocida o cuerpo que no es `{ funcion: texto, activa: booleano }`; `404` el mundo no
+  tiene esa función; `409` la fija el servidor (`fija: true`, «Lo fija el servidor») o `funciones.json` está mal escrito (no se toca);
+  `500` no se pudo escribir. **Un solo camino**: `cambiar` de `features/funciones/server.ts`, el mismo que el verbo `poner` (sale por el enlace
+  `EnlaceFunciones.cambiar`, `packages/feature/src/enlace-funciones.ts`): reescribe la clave, escribe atómico, aplica en vivo y avisa a todas las
+  páginas conectadas; encender las normas solo pide aceptar a quien llegue después. El log dice quién: `el pase p_… enciende normas desde el panel`.
+  Código `packages/server/src/funciones-http.ts`; pruebas `test/funciones-http.test.ts`. Un motor sin esta puerta contesta `404` en `/funciones`.
 - **En la página**: estado compartido `normas` / `dardos` / `pesca`, cada uno `{ activa, fija }` (una función que el mundo no tiene no
   aparece); `__numinia.funciones.actual()` → `{ normas?, dardos?, pesca? }`, `.fija(nombre)` y `.ponerFuncion(nombre, si)`. Para un agente:
   el verbo `poner { funcion, activa }` de la pieza `funciones`. El panel que los pinta es f3 (abajo).

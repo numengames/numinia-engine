@@ -45,6 +45,7 @@ import type { ConfigPase } from "./pase.ts";
 import type { Who } from "../../instance/src/index.ts";
 import { crearHabitantesGestion } from "./habitantes.ts";
 import { crearHabitantesHttp } from "./habitantes-http.ts";
+import { crearFuncionesHttp } from "./funciones-http.ts";
 import { MODELO_POR_DEFECTO } from "../../agent/src/cerebro.ts";
 import { crearPuerta } from "./puerta.ts";
 import { ColaOptimizar } from "./optimizar-cola.ts";
@@ -290,6 +291,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   };
   const agentesHttp = crearAgentesHttp({ pase: cfgPase.pase, agentes: () => roles.agentes, log });
   const habitantesHttp = crearHabitantesHttp({ pase: cfgPase.pase, habitantes: () => hab, log });
+  const funcionesHttp = crearFuncionesHttp({ pase: cfgPase.pase, enlace: () => enlaceFunciones, log });
   const http: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
     const [path, qs = ""] = (req.url ?? "/").split("?");
     const method = req.method ?? "GET";
@@ -336,6 +338,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     if ((method === "PUT" || method === "OPTIONS") && path.startsWith("/a/")) return subidas.atender(method, path, req, res); // H9: uploads
     if (agentesHttp.atender(method, path, req, res)) return; // ADR-080: numinia.com's panel manages the outside agents (pass-authenticated)
     if (habitantesHttp.atender(method, path, req, res)) return; // the panel manages this world's own AI inhabitants (pass-authenticated)
+    if (funcionesHttp.atender(method, path, req, res)) return; // e1: the panel switches the world's functions (normas, dardos, pesca) (pass-authenticated)
     if (copia.atender(method, path, req, res)) return; // the world as a zip
     if (pagina?.servir(method, path, req, res)) return; // C1: the page (index.html, assets/) when the engine serves it
     if (method !== "GET" && method !== "POST") return json(res, 405, { error: "solo GET o POST" });
@@ -343,7 +346,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     const answer = (body: string) => {
       const r = inst.features.http(method, path, Object.fromEntries(new URLSearchParams(qs)), body);
       if (r) return reply(res, r);
-      json(res, 404, { error: `no existe ${method} ${path}`, hay: ["/health", "/status", "/metrics", "/metrics.prom", "/sesiones", "/agentes", ...inst.features.routes(), "WebSocket en cualquier ruta (/ws)"] });
+      json(res, 404, { error: `no existe ${method} ${path}`, hay: ["/health", "/status", "/metrics", "/metrics.prom", "/sesiones", "/agentes", "/habitantes", "/funciones", ...inst.features.routes(), "WebSocket en cualquier ruta (/ws)"] });
     };
     if (method === "GET") return answer("");
     let body = "", size = 0;

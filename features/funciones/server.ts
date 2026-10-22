@@ -9,7 +9,7 @@
 //   · dardos, pesca — f1 keeps and publishes the state (default on, as today); f2: their own servers read it (`api.estadoDe("funciones")`) and refuse + close what ran, their pages draw nothing.
 // A world with no funciones.json behaves exactly as before. No folder to write in: the change lasts until the server restarts.
 import { serverPart } from "../../packages/feature/src/index.ts";
-import type { EnlaceFunciones, ParteConEnlace, PuenteNormas } from "../../packages/feature/src/index.ts";
+import type { CambioFuncion, EnlaceFunciones, EstadoFuncion, ParteConEnlace, PuenteNormas } from "../../packages/feature/src/index.ts";
 import { funciones, FUNCIONES } from "./feature.ts";
 import type { Funcion } from "./feature.ts";
 import { conFuncion, FICHERO, leerFunciones } from "./esquema.ts";
@@ -30,7 +30,13 @@ export function crearFunciones(opts: OpcionesFunciones = {}): ParteConEnlace {
   const crudo0 = opts.leer?.(FICHERO), leido = crudo0 === undefined ? null : leerFunciones(crudo0);
   const escrito: FuncionesMundo = leido?.ok ? { ...leido.value } : {};
   let seam: { normas: PuenteNormas | null; presentes: readonly string[] } | null = null;
-  const enlace: EnlaceFunciones = { normasEscritas: () => escrito.normas, conectar: (s) => { seam = s; } };
+  // e1: what the piece can do once it has started (it needs the plug's `api`); the HTTP door reaches it through the seam
+  let control: { estado(): EstadoFuncion[]; cambiar(f: string, activa: boolean, quien: string, via: string): CambioFuncion } | null = null;
+  const enlace: EnlaceFunciones = {
+    normasEscritas: () => escrito.normas, conectar: (s) => { seam = s; },
+    estado: () => control?.estado() ?? null,
+    cambiar: (f, activa, quien) => control?.cambiar(f, activa, quien, "el panel") ?? { ok: false, motivo: "arrancando", texto: "El mundo está arrancando; vuelve a probar en un momento." },
+  };
 
   const part = serverPart(funciones, (api) => {
     if (leido && !leido.ok) api.log(`${FICHERO} no se usa (todo como siempre): ${leido.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
@@ -44,27 +50,39 @@ export function crearFunciones(opts: OpcionesFunciones = {}): ParteConEnlace {
     for (const f of FUNCIONES) publicar(f);
     if (seam) api.log(`funciones: ${FUNCIONES.filter((f) => valor(f)).map((f) => `${f} ${valor(f)!.activa ? "sí" : "no"}${valor(f)!.fija ? " (fija)" : ""}`).join(", ") || "ninguna con interruptor"}`);
 
-    api.on("poner", (e, m) => {
-      if (!api.puede(e, "construir")) return rechazar(e, "No puedes encender ni apagar las funciones del mundo: es cosa de quien tiene permiso de construir en este mundo.");
-      const f = m.funcion as Funcion, activa = m.activa === true, ahora = valor(f);
-      if (!ahora) return rechazar(e, f === "normas" ? "Este mundo no tiene condiciones de entrada: no hay normas que encender o apagar." : `Este mundo no tiene ${NOMBRE[f] ?? f}.`);
-      if (ahora.fija) return rechazar(e, "Las normas de entrada las fija el servidor (MOTOR_CONDICIONES_PUERTA o su opción de arranque): el interruptor no las cambia.");
+    /** The ONE way a switch changes: the intent `poner` (from inside the world) and the HTTP door (/funciones, from numinia.com's panel) both come here. */
+    const cambiar = (f0: string, activa: boolean, quien: string, via: string): CambioFuncion => {
+      const no = (motivo: Extract<CambioFuncion, { ok: false }>["motivo"], texto: string): CambioFuncion => ({ ok: false, motivo, texto });
+      if (!(FUNCIONES as readonly string[]).includes(f0)) return no("desconocida", `No conozco la función «${cortar(f0, 40)}»: las hay ${FUNCIONES.join(", ")}.`);
+      const f = f0 as Funcion, ahora = valor(f);
+      if (!ahora) return no("ausente", f === "normas" ? "Este mundo no tiene condiciones de entrada: no hay normas que encender o apagar." : `Este mundo no tiene ${NOMBRE[f]}.`);
+      if (ahora.fija) return no("fija", "Las normas de entrada las fija el servidor (MOTOR_CONDICIONES_PUERTA o su opción de arranque): el interruptor no las cambia.");
       if (opts.leer) {
         const crudo = opts.leer(FICHERO), nuevo = conFuncion(crudo, f, activa);
-        if (!nuevo) return rechazar(e, `${FICHERO} no es un objeto JSON: arréglalo a mano antes de usar el interruptor.`);
+        if (!nuevo) return no("fichero", `${FICHERO} no es un objeto JSON: arréglalo a mano antes de usar el interruptor.`);
         const r = leerFunciones(nuevo);
-        if (!r.ok) return rechazar(e, `${FICHERO} tiene errores (${r.issues[0].path}): arréglalo a mano; el interruptor no lo toca.`);
+        if (!r.ok) return no("fichero", `${FICHERO} tiene errores (${r.issues[0].path}): arréglalo a mano; el interruptor no lo toca.`);
         if (opts.escribir) {
           try { opts.escribir(FICHERO, nuevo, { nuevo: crudo === undefined }); }
-          catch (err) { api.log(`no pude escribir ${FICHERO}: ${(err as Error).message}`); return rechazar(e, `No he podido guardar ${FICHERO} (${(err as NodeJS.ErrnoException).code ?? "error"}; más en el registro del servidor): la función no cambia.`); }
+          catch (err) { api.log(`no pude escribir ${FICHERO}: ${(err as Error).message}`); return no("servidor", `No he podido guardar ${FICHERO} (${(err as NodeJS.ErrnoException).code ?? "error"}; más en el registro del servidor): la función no cambia.`); }
         } else api.log("sin carpeta del mundo donde escribir: el cambio vale hasta que el servidor se reinicie");
       } else api.log("sin carpeta del mundo donde escribir: el cambio vale hasta que el servidor se reinicie");
       escrito[f] = activa;
       if (f === "normas") seam!.normas!.poner(activa); // the gate itself; the instance lets the readers in (off) or leaves everyone inside alone (on)
       publicar(f);
       api.emit("cambiada", { funcion: f, estado: activa ? "encendida" : "apagada" }, "all");
-      api.log(`la entidad ${e} ${activa ? "enciende" : "apaga"} ${f} desde el mundo`);
-      return true;
+      api.log(`${quien} ${activa ? "enciende" : "apaga"} ${f} desde ${via}`);
+      return { ok: true, estado: { id: f, ...valor(f)! } };
+    };
+    control = {
+      cambiar,
+      estado: () => FUNCIONES.flatMap((f) => { const v = valor(f); return v ? [{ id: f, ...v }] : []; }),
+    };
+
+    api.on("poner", (e, m) => {
+      if (!api.puede(e, "construir")) return rechazar(e, "No puedes encender ni apagar las funciones del mundo: es cosa de quien tiene permiso de construir en este mundo.");
+      const r = cambiar(m.funcion as string, m.activa === true, `la entidad ${e}`, "el mundo");
+      return r.ok ? true : rechazar(e, r.texto);
     });
   });
   return Object.assign(part, { enlace });
