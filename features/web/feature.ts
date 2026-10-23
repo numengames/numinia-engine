@@ -105,7 +105,7 @@ export function motivoUrl(url: string, dominios: readonly string[]): string {
   if (u.protocol !== "https:" && !(u.protocol === "http:" && local)) return "Solo páginas https (http solo para esta misma máquina, en pruebas).";
   const conPuerto = u.port ? `${host}:${u.port}` : host;
   // the youtube family counts as one site: «youtube.com» on the list also lets youtu.be and the no-cookie player (what the page really embeds)
-  const familia = VIDEO_HOSTS.includes(host) && dominios.includes("youtube.com");
+  const familia = VIDEO_HOSTS.includes(host) && dominios.some((d) => d === "youtube.com");
   const ok = familia || dominios.some((d) => d.includes(":") ? d === conPuerto : host === d || host.endsWith(`.${d}`));
   if (!ok) return dominios.length ? `${host} no está en la lista de sitios de este mundo (${dominios.slice(0, 6).join(", ")}${dominios.length > 6 ? "…" : ""}). Se añade en entorno/web.json.` : "Este mundo no tiene lista de sitios web: quien lo administra la pone en entorno/web.json («dominios»).";
   return "";
