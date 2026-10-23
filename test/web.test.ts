@@ -13,11 +13,11 @@ import { crearCliente as crearChat } from "../features/chat/client.ts";
 import { crearWeb } from "../features/web/server.ts";
 import type { Cabeceras } from "../features/web/server.ts";
 import { crearCliente as crearWebCliente } from "../features/web/client.ts";
-import { web, motivoUrl, resumirMarco, dejaEnmarcar, leerWebMundo, normalizarDominio, DOMINIOS_MAX } from "../features/web/feature.ts";
+import { web, motivoUrl, videoDe, urlVideo, resumirMarco, dejaEnmarcar, leerWebMundo, normalizarDominio, DOMINIOS_MAX } from "../features/web/feature.ts";
 import { conMundo } from "../features/mundo.ts";
 import funciones from "../features/servidor.ts";
 import { crearRoles } from "../packages/server/src/roles-mundo.ts";
-import { tapadoPorCajas, SANDBOX, PERMISOS } from "../packages/render/src/web-politica.ts";
+import { tapadoPorCajas, SANDBOX, PERMISOS, PERMISOS_VIDEO } from "../packages/render/src/web-politica.ts";
 
 const sign = signer("una-clave-de-prueba-larga");
 const ADMIN = "codigo-de-administracion-largo";
@@ -99,7 +99,7 @@ function mundo(n: number, respuestas: Record<string, Cabeceras> = {}) {
   const pedidas: string[] = [];
   const roles = crearRoles({ construir: true, admin: ADMIN, firmar: sign, cerrar: (e) => inst.disconnect(e), ahora: () => reloj.ms, log: (l) => log.push(l) });
   const w = crearWeb({
-    dominios: ["numinia.org", "127.0.0.1:8123"],
+    dominios: ["numinia.org", "127.0.0.1:8123", "youtube.com"], reloj: () => reloj.ms,
     pantallas: [{ id: "archivo", url: "https://numinia.org/", titulo: "El Archivo", texto: "La memoria de Numinia.", x: 0, y: 2, z: -6 }],
     probar: async (url) => { pedidas.push(url); return respuestas[url] ?? null; },
   });
@@ -288,4 +288,36 @@ test("web: at start, a placed screen whose site left the list is dropped (and so
   crearWeb({ dominios: ["numinia.org"], pantallas: [], probar: async () => null }).setup(api as never);
   assert.deepEqual([...estado.keys()], ["w2"]);
   assert.match(log.join("\n"), /quito la pantalla w1: antes\.org no está en la lista/);
+});
+
+test("video screen: the addresses of a YouTube video, the player's start second, and the permissions it gets", () => {
+  for (const u of ["https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://youtu.be/dQw4w9WgXcQ?t=5", "https://www.youtube.com/embed/dQw4w9WgXcQ", "https://youtube.com/shorts/dQw4w9WgXcQ", "https://www.youtube.com/live/dQw4w9WgXcQ"]) assert.equal(videoDe(u), "dQw4w9WgXcQ", u);
+  for (const u of ["https://numinia.org/watch?v=dQw4w9WgXcQ", "http://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://www.youtube.com/watch?v=corto", "https://www.youtube.com/", "https://youtube.com.malo.com/watch?v=dQw4w9WgXcQ", "no es url"]) assert.equal(videoDe(u), null, u);
+  assert.equal(urlVideo("dQw4w9WgXcQ", 1000, 1042.9), "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&start=42");
+  assert.match(urlVideo("dQw4w9WgXcQ", 1000, 900), /start=0$/, "a clock that is behind never asks for a negative second");
+  assert.equal(motivoUrl("https://youtu.be/dQw4w9WgXcQ", ["youtube.com"]), "", "youtube.com on the list also lets youtu.be");
+  assert.notEqual(motivoUrl("https://youtu.be/dQw4w9WgXcQ", ["numinia.org"]), "", "a world without youtube on its list refuses it");
+  for (const p of ["camera", "microphone", "geolocation", "display-capture"]) assert.ok(PERMISOS_VIDEO.includes(`${p} 'none'`), p);
+  assert.ok(PERMISOS_VIDEO.includes("autoplay") && !PERMISOS.includes("autoplay"), "only a video screen autoplays");
+});
+
+test("video screen: /video puts it with the same start second for everybody; the same video put again keeps its clock", async () => {
+  const W = mundo(2);
+  const [A, B] = W.gente;
+  W.pump(3); await esperar(); W.pump(2);
+  W.decir(A, `/dueño ${ADMIN}`);
+  W.decir(A, "/video https://www.youtube.com/watch?v=dQw4w9WgXcQ La Nave");
+  const antes = A.web.pantallas().find((p) => p.titulo === "La Nave");
+  assert.ok(antes, "put: " + W.ultimo(A));
+  assert.ok(antes.inicio > 0, "stamped with the server's clock");
+  assert.equal(antes.marco, "si", "the player is made to be embedded: the server does not need to ask");
+  assert.equal(B.web.pantallas().find((p) => p.titulo === "La Nave")?.inicio, antes.inicio, "everybody gets the same start second");
+  W.decir(A, "/video https://youtu.be/no");
+  assert.match(W.ultimo(A), /no parece un vídeo de YouTube/);
+  W.pump(TICK_HZ * 5);
+  assert.deepEqual(A.web.poner({ id: antes.id, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", titulo: "La Nave 2", x: 1, z: 1 }), { ok: true });
+  W.pump(4);
+  assert.equal(A.web.pantallas().find((p) => p.id === antes.id)?.inicio, antes.inicio, "moving or renaming it does not restart the video");
+  const web1 = A.web.pantallas().find((p) => p.titulo === "El Archivo");
+  assert.equal(web1?.inicio, 0, "an ordinary screen has no clock");
 });

@@ -8,6 +8,8 @@ export const QUITAR_IFRAME_M = 32;
 export const PX_ANCHO = 1280;
 /** What the iframe may do: run its own page and forms, open links in a new tab; never navigate this page, never
  * reach the parent (it is another origin: allow-same-origin keeps its own cookies, not ours). */
+/** A video screen's player may autoplay (muted), go full screen and decode protected video; nothing else more than any screen. */
+export const PERMISOS_VIDEO = "autoplay; fullscreen; encrypted-media; picture-in-picture; camera 'none'; microphone 'none'; geolocation 'none'; display-capture 'none'; usb 'none'; serial 'none'; hid 'none'; bluetooth 'none'; payment 'none'; xr-spatial-tracking 'none'; clipboard-read 'none'";
 export const SANDBOX = "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox";
 /** Permissions Policy for the iframe: none of these, ever. */
 export const PERMISOS = "camera 'none'; microphone 'none'; geolocation 'none'; display-capture 'none'; usb 'none'; serial 'none'; hid 'none'; bluetooth 'none'; payment 'none'; xr-spatial-tracking 'none'; clipboard-read 'none'";

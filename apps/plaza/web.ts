@@ -3,7 +3,10 @@
 // and gives VR its way out: «Abrir fuera de VR» on a screen leaves VR and shows a card with the link (a real tap on a
 // real link: no popup blocker, no new window from inside the headset's session — nothing to trust there).
 import type { Pantalla } from "../../features/web/client.ts";
-import { dejaEnmarcar } from "../../features/web/feature.ts";
+import { dejaEnmarcar, videoDe, urlVideo } from "../../features/web/feature.ts";
+
+/** A video screen (`inicio` set and a YouTube address): the player, started as many seconds in as the video has been going. */
+const reproductorDe = (p: Pantalla): (() => string) | undefined => { const id = p.inicio ? videoDe(p.url) : null; return id ? () => urlVideo(id, p.inicio, Date.now() / 1000) : undefined; };
 import type { PantallaVista } from "../../packages/render/src/web.ts";
 
 type Ctl = { pantallas(): Pantalla[]; alCambiar(f: (q: string) => void): unknown };
@@ -13,7 +16,7 @@ export function montarWeb(o: { web: Ctl; view: Vista; padre?: HTMLElement }) {
   const sincronizar = () => {
     const ahora = o.web.pantallas(), ids = new Set(ahora.map((p) => p.id));
     for (const id of o.view.web.ids()) if (!ids.has(id)) o.view.web.quitar(id);
-    for (const p of ahora) o.view.web.poner({ id: p.id, url: p.url, titulo: p.titulo, texto: p.texto, x: p.x, y: p.y, z: p.z, ry: p.ry, ancho: p.ancho, alto: p.alto, enmarcar: dejaEnmarcar(p.marco, location.origin) });
+    for (const p of ahora) o.view.web.poner({ id: p.id, url: p.url, titulo: p.titulo, texto: p.texto, x: p.x, y: p.y, z: p.z, ry: p.ry, ancho: p.ancho, alto: p.alto, enmarcar: dejaEnmarcar(p.marco, location.origin), reproductor: reproductorDe(p) });
   };
   o.web.alCambiar((q) => { if (q === "pantallas") sincronizar(); });
   sincronizar();

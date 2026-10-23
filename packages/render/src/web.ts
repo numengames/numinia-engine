@@ -11,10 +11,12 @@
 import * as THREE from "three/webgpu";
 import type { Panel } from "./manos.ts";
 
-import { VER_IFRAME_M, QUITAR_IFRAME_M, PX_ANCHO, SANDBOX, PERMISOS, tapadoPorCajas } from "./web-politica.ts";
-export { VER_IFRAME_M, QUITAR_IFRAME_M, PX_ANCHO, SANDBOX, PERMISOS, tapadoPorCajas };
+import { VER_IFRAME_M, QUITAR_IFRAME_M, PX_ANCHO, SANDBOX, PERMISOS, PERMISOS_VIDEO, tapadoPorCajas } from "./web-politica.ts";
+export { VER_IFRAME_M, QUITAR_IFRAME_M, PX_ANCHO, SANDBOX, PERMISOS, PERMISOS_VIDEO, tapadoPorCajas };
 
-export type PantallaVista = { id: string; url: string; titulo: string; texto: string; x: number; y: number; z: number; ry: number; ancho: number; alto: number; enmarcar: boolean };
+export type PantallaVista = { id: string; url: string; titulo: string; texto: string; x: number; y: number; z: number; ry: number; ancho: number; alto: number; enmarcar: boolean;
+  /** A video screen: the address of the player as it should start RIGHT NOW (already some seconds in). The page (composition root) builds it; render knows nothing of features/. */
+  reproductor?: () => string };
 export type EstadoPantalla = { id: string; dom: boolean; iframe: boolean; tarjeta: boolean; motivo: string; dist: number };
 
 /** The bar over the page (title, site, «Abrir en pestaña»), CSS px. */
@@ -118,9 +120,10 @@ export function crearPantallasWeb(h: { world: THREE.Object3D; camera: THREE.Pers
     if (!u.el || u.iframe || !u.p.enmarcar) return;
     try { if (new URL(u.p.url).origin === location.origin) return; } catch { return; } // never this page's own origin: the sandbox would not hold
     const f = document.createElement("iframe");
-    f.src = u.p.url; f.title = u.p.titulo; f.className = "web-iframe";
+    const vid = u.p.reproductor;
+    f.src = vid ? vid() : u.p.url; f.title = u.p.titulo; f.className = "web-iframe";
     f.setAttribute("sandbox", SANDBOX);
-    f.setAttribute("allow", PERMISOS);
+    f.setAttribute("allow", vid ? PERMISOS_VIDEO : PERMISOS);
     f.setAttribute("referrerpolicy", "no-referrer");
     f.setAttribute("loading", "eager");
     // an explicit height: an iframe in a flex column keeps its default 150 px in some engines
