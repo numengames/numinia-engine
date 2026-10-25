@@ -18,6 +18,7 @@ import { iconoDe, nombreDe } from "../../packages/render/src/menu-secciones.ts";
 import type { MenuVR, ContenidoMenuVR as Contenido } from "../../packages/render/src/index.ts";
 import { siguienteValor, textoValor } from "../../packages/render/src/menu-vr.ts";
 import { FRASES, ultimosMensajes, type LineaChat } from "../../packages/render/src/menu-chat.ts";
+import { vistaObra, pedidoPoner, nombreObra, type HuecoObra, type ImagenObra } from "./obra-vr-logica.ts";
 import { filasEsteMundoVR } from "../../features/funciones/menu-vr.ts";
 import { textoCambio } from "../../features/funciones/panel.ts";
 import { FUNCIONES } from "../../features/funciones/feature.ts";
@@ -47,6 +48,8 @@ export function montarMenuVR(o: {
   construirVR: { activo(): boolean; entrar(): { ok: boolean; why?: string }; salir(): void };
   /** Your name. */
   nombre: () => string;
+  /** MIS-222: the «Obra» view — a hole you pressed in VR and the images already on the server to put in it. */
+  obra?: { hueco(id: string): HuecoObra | null; imagenes(): ImagenObra[]; poner(id: string, sha: string, ext: string, nombre: string): Promise<{ ok: boolean; texto: string }> };
 }) {
   const { vr } = o;
   vr.iconos(pathsIcono);
@@ -253,7 +256,29 @@ export function montarMenuVR(o: {
     const hora = (t: number) => { const d = new Date(t); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
     return { tipo: "lista", titulo: "Avisos", vacio: "No hay avisos todavía.", filas: avisos.map((x) => ({ texto: x.texto, detalle: hora(x.t), icono: "bell" })) } as Contenido;
   }
-  const porVista: Record<string, () => Contenido> = { tu, gente, bolsa, misiones, mapa, construir, ajustes, chat, avisos: verAvisos };
+  // MIS-222 «Obra»: pressing a hole in VR opens the menu here (huecos.ts → elegirObra): no file picker exists in a headset, so the
+  // images the world already has are listed, each with «Poner». The server measures and fits it; the note says how it went.
+  let huecoObra = "";
+  function obra(): Contenido {
+    const v = vistaObra(o.obra ? o.obra.hueco(huecoObra) : null, o.obra ? o.obra.imagenes() : []);
+    return { tipo: "lista", titulo: v.titulo, nota: v.nota, vacio: v.vacio, filas: v.filas.map((f): Fila => ({ texto: f.texto, detalle: f.detalle, icono: f.icono,
+      botones: f.boton ? [{ texto: f.boton.texto, ancho: f.boton.ancho, estilo: f.boton.estilo, accion: () => ponerObra(f.boton!.poner) }] : undefined })) } as Contenido;
+  }
+  function ponerObra(i: ImagenObra): void {
+    const h = o.obra?.hueco(huecoObra) ?? null, p = pedidoPoner(h, i, o.puedeConstruir());
+    if (!p.ok || !o.obra) { nota(p.ok ? "Aquí no se pueden poner obras." : p.why); return; }
+    nota(`Poniendo «${nombreObra(i)}»…`);
+    void o.obra.poner(p.id, p.sha, p.ext, p.nombre).then((r) => {
+      if (r.ok) { nota(`Colgada en el hueco: «${nombreObra(i)}».`); vr.menu.cerrar(); } // done: back to the gallery, the picture is on the wall
+      else nota(`No se pudo: ${r.texto || "el servidor no contestó"}`);
+    });
+  }
+  /** A hole was pressed inside VR: open the menu on its «Obra» view. */
+  const elegirObra = (id: string): void => {
+    huecoObra = id;
+    if (vr.menu.abierto) vr.menu.ir("obra"); else vr.alternarMenu("obra");
+  };
+  const porVista: Record<string, () => Contenido> = { tu, gente, bolsa, misiones, mapa, construir, ajustes, chat, avisos: verAvisos, obra };
   vr.menuProveedor({
     contenido: (v) => (porVista[v] ?? tu)(),
     // «Construir» is never greyed out: pressed without the role it says why (an invited guest: «Entra con tu nombre para construir»)
@@ -262,5 +287,5 @@ export function montarMenuVR(o: {
     alAbrir: (v) => { if (v === "gente") { const r = o.n().viajar?.pedirGente?.(); if (r && !r.ok && r.why) nota(r.why); } },
   });
   // `contenido`: what a view shows now (for checks, e.g. the text «Construir» gives a guest)
-  return { avisos: () => avisos.map((x) => x.texto), contenido: (v: string) => (porVista[v] ?? tu)() };
+  return { avisos: () => avisos.map((x) => x.texto), contenido: (v: string) => (porVista[v] ?? tu)(), elegirObra };
 }

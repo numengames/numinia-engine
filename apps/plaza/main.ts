@@ -314,7 +314,8 @@ const soltar = montarSoltar({ session, view, puede: () => constructor.estado.pue
 // ---- H10: your avatar — one of the house's or your own .vrm (everyone, not only builders); saved with your identity ----
 avatarUI = montarAvatar({ session, catalogo: catalogoAvatares, delMundo: avataresDelMundo(activos, estado?.avatares), origen: activos, billete: () => localStorage.getItem(GUARDA) });
 // ---- U12: holes — click one (or E near it) and choose your picture: it goes up and the server fits it into the frame ----
-const huecos = montarHuecos({ constructor, view, rellenar: soltar.rellenar, decir: (t) => soltar.decir(t), panel: constructorUI.ranuraFicha });
+let elegirObraVR: (id: string) => void = () => {}; // MIS-222: the VR menu's «Obra» view (below, once the menu exists)
+const huecos = montarHuecos({ constructor, view, rellenar: soltar.rellenar, decir: (t) => soltar.decir(t), panel: constructorUI.ranuraFicha, vr: { activo: () => view.vr.active, elegir: (id) => elegirObraVR(id) } });
 // ---- J4: a thing may carry a link (set in the inspector); a click on it opens it in a new tab, after confirming ----
 const enlaces = montarEnlaces({ constructor, view, construyendo: () => construyendo(view) });
 const gemelos = montarGemelos({ constructor, session, view, enlaces, abrible: enlaceAbrible }); // H6: «Imágenes del mundo», read by the screen reader; `__numinia.gemelos.lista()` for agents
@@ -430,7 +431,7 @@ const compartir = montarPantalla({
 const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k) && cerradurasPagina.ofrece(f, k) && lucha.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: (x, z, y) => [...asiento.cerca(), ...huecos.cerca(x, z, y), ...cerradurasPagina.cerca(x, z), ...videoMandos.cerca(x, z), ...llamarIA.cerca()], pinchar: (key) => huecos.pinchar(key) || enlaces.pinchar(key),
   persona: (x, y) => { const q = view.pickPerson(x, y); return q !== null && gente.tarjeta(q); } }); // ux2-gente: a click on someone = their card
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
-const xr = montarXR({ session, view, misiones, interaccion, enlaces }); // J4: + the ray points at things with a link and the trigger asks before opening // J10: hands in VR take, point and answer; what you took is in your hand
+const xr = montarXR({ session, view, misiones, interaccion, enlaces, huecos }); // J4: + the ray points at things with a link and the trigger asks before opening // J10: hands in VR take, point and answer; what you took is in your hand
 const condicionesXR = montarCondicionesXR({ condiciones, vr: view.vr as never, mundo: () => nombreDelMundo, soportado: () => vrDisponible }); // condiciones/c4
 montarDialogo(misiones, document.getElementById("dialogo")!, view);
 montarFlecha({ misiones }); // T3: idle costs nothing; with a step that points at a button it follows the button
@@ -832,9 +833,11 @@ const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById(
   const n = (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia;
   const menuVR = montarMenuVR({ vr: view.vr, n: () => n, ciudadUrl: ciudad.url, puedeConstruir: () => constructor.estado.puede, construirVR: constructorVR,
     nombre: () => session.who?.nombre ?? "Invitado",
+    obra: { hueco: (id) => constructor.huecos().find((h) => h.id === id) ?? null, imagenes: () => constructor.imagenes(), poner: soltar.rellenarYa },
     // the same line «Tú» shows on the computer (avatar · world · how long), never the guest's raw id
     linea: () => lineaDeTu({ avatar: miAvatar()?.nombre, mundo: nombreDelMundo, ms: informe.bienvenidaMs > 0 ? performance.now() - informe.bienvenidaMs : 0 }),
     retrato: () => { const id = miAvatar()?.id ?? idAvatarDe(avatarUI?.eleccion("yo"), estado?.avatar); return id ? `/retratos/${id}-cuerpo.webp` : null; } });
+  elegirObraVR = menuVR.elegirObra;
   Object.assign(n, { menuVR });
 }
 
