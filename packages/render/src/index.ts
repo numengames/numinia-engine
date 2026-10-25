@@ -17,8 +17,8 @@ export type { VRState, DialogoVR } from "./vr.ts";
 /** Rediseño v2: the VR session as the page wires its watch and menu (apps/plaza/xr-menu.ts). */
 export type MenuVR = ReturnType<typeof createVR>;
 export type { Contenido as ContenidoMenuVR } from "./menu-invocado.ts";
-import type { Manos, EventoMano } from "./manos.ts";
-export type { EventoMano, Lado } from "./manos.ts";
+import type { Manos, EventoMano, Llevable, ResCambio } from "./manos.ts";
+export type { EventoMano, Lado, Llevable, ResCambio } from "./manos.ts";
 import { createPower, readCaps, checkCost, conClase } from "./power.ts";
 export { createPower, readCaps, checkCost, conClase } from "./power.ts";
 export { limitesGraficos } from "./capacidades.ts"; // N2: max texture size for the capabilities
@@ -224,16 +224,18 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // three gives a session's inputs only to controller slots that already exist: make both now (cheap, core three).
   for (const i of [0, 1]) { renderer.xr.getController(i); renderer.xr.getControllerGrip(i); renderer.xr.getHand(i); }
   let manosReal: Manos | null = null, manosCarga: Promise<Manos> | null = null;
-  const reglasManos: Parameters<Manos["reglas"]>[0] = {}, oyentesManos = new Set<(e: EventoMano) => void>(), ocupantesManos = new Map<string, (l: "izq" | "der") => boolean>();
+  const reglasManos: Parameters<Manos["reglas"]>[0] = {}, oyentesManos = new Set<(e: EventoMano) => void>(), ocupantesManos = new Map<string, (l: "izq" | "der") => boolean>(), llevablesManos = new Map<string, Llevable>();
   const cargarManos = () => (manosCarga ??= import("./manos.ts").then(({ createManos }) => {
     const m = createManos({
       renderer,
       *objetos() { if (ar.state !== "off") return; for (const [k, s] of things) yield [k, s.group] as [string, THREE.Object3D]; },
       *etiquetas() { if (ar.state !== "off") return; for (const [k, r] of tags) yield [k, r.s] as [string, THREE.Object3D]; },
+      nota: (t) => vr.nota(t),
       paneles: () => [...vr.paneles(), ...web.paneles(), ...(dardosVRReal?.paneles() ?? [])], // N17: a web screen's «Abrir fuera de VR»; v6: the darts' scoreboard button
     });
     m.reglas(reglasManos);
     for (const [n, f] of ocupantesManos) m.ocupar(n, f);
+    for (const [n, l] of llevablesManos) m.llevable(n, l);
     m.on((e) => { for (const f of oyentesManos) f(e); });
     return (manosReal = m);
   }));
@@ -244,6 +246,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     reglas(o: Parameters<Manos["reglas"]>[0]) { Object.assign(reglasManos, o); manosReal?.reglas(o); },
     /** A feature that holds a hand (a dart in it): asked live; kept until the hands module arrives. */
     ocupar(nombre: string, fn: (l: "izq" | "der") => boolean) { ocupantesManos.set(nombre, fn); return manosReal?.ocupar(nombre, fn) ?? (() => { if (ocupantesManos.get(nombre) === fn) ocupantesManos.delete(nombre); }); },
+    /** Hand to hand: a held thing (rod, quest item) registers here; kept until the hands module arrives. */
+    llevable(nombre: string, l: Llevable) { llevablesManos.set(nombre, l); const off = manosReal?.llevable(nombre, l); return () => { off?.(); if (llevablesManos.get(nombre) === l) llevablesManos.delete(nombre); }; },
+    llevando: () => manosReal?.llevando() ?? [],
+    cambiarMano: (): ResCambio => manosReal?.cambiarMano() ?? { ok: false, why: "Las manos aún no están listas" },
     sondeo: (l: "izq" | "der") => manosReal?.sondeo(l) ?? null,
     ocupadaPorOtros: (l: "izq" | "der", excepto: string) => manosReal?.ocupadaPorOtros(l, excepto) ?? false,
     on(fn: (e: EventoMano) => void) { oyentesManos.add(fn); return () => oyentesManos.delete(fn); },

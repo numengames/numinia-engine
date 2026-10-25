@@ -5,11 +5,16 @@
 // scatter over it) and decides where the dart lands: this file never decides a landing, it only reads the gesture.
 //   · aim   = where the hand's direction of travel meets the board (a straight line: the server adds the drop);
 //   · power = how fast the hand moved (V_LLENO m/s = full strength; FUERZA_IDEAL is reached at 65% of it);
+//   · help  = v14: `ayuda` (0-1, from gesto.ts: the closer the gesture is to a professional's throw, the more) pulls the aim toward
+//             the middle (the farther out, the harder) and the strength toward FUERZA_IDEAL; 0 changes nothing. The raw reading
+//             stays in `crudo`. The server still bends and scatters what it gets: help is partial, never total;
 //   · caps  = the aim is held inside TOPE_RADIOS of the bull's eye (a wild throw is a rim hit, never "gone"), and a
 //             gesture that is too slow, backwards or sideways is NOT a throw: the dart just falls from the hand.
 // Sources of the ideas (nothing copied verbatim; see the PR body): Valve's SteamVR Interaction System VelocityEstimator
 // (BSD-3-Clause: velocity = average over the last few frames), three.js webxr_xr_ballshooter (MIT: select = launch),
 // super-hands for A-Frame (MIT: release velocity), Half-Life: Alyx's «partial assistance, never total» (see the guide).
+
+import { FUERZA_IDEAL } from "./feature.ts";
 
 export type V3 = [number, number, number];
 /** The board's face in the world: centre, unit normal pointing at the thrower, unit "right", and metres per board radius. */
@@ -27,6 +32,8 @@ export const TOPE_RADIOS = 1.25;
 /** The velocity is read from the last VENTANA_MS before the release (a pinch opening jerks the joints: the hands end earlier). */
 export const VENTANA_MS = 120;
 export const FIN_PELLIZCO_MS = 45;
+/** Help pulls an aim at distance rho (board radii) toward the middle with weight (rho / RADIO_AYUDA)², capped at 1: an aim near the bull's eye is barely touched, one that would miss the board is pulled in. */
+export const RADIO_AYUDA = 1.0;
 
 const dot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -58,11 +65,17 @@ export function velocidadDe(muestras: readonly Muestra[], fin: number, ventana =
 }
 
 export type Tiro =
-  | { tipo: "tiro"; x: number; y: number; fuerza: number; velocidad: number; recortado: boolean; distancia: number }
+  | { tipo: "tiro"; x: number; y: number; fuerza: number; velocidad: number; recortado: boolean; distancia: number; ayuda: number; crudo: { x: number; y: number; fuerza: number } }
   | { tipo: "suelta"; motivo: "lento" | "atras" | "detras" | "sin-velocidad" };
 
-/** One release: the throw to send, or why the dart just falls. Pure. */
-export function lanzamiento(cara: Cara, p: V3, v: V3 | null): Tiro {
+/** The help applied to an aim and a strength: `ayuda` 0 returns them unchanged, 1 would put a far-off aim at the middle and the strength at the ideal. Pure. */
+export function ayudar(x: number, y: number, fuerza: number, ayuda: number): { x: number; y: number; fuerza: number } {
+  const a = clamp(ayuda, 0, 1), rho = Math.hypot(x, y), k = 1 - a * Math.min(1, (rho / RADIO_AYUDA) ** 2);
+  return { x: x * k, y: y * k, fuerza: fuerza + (FUERZA_IDEAL - fuerza) * a };
+}
+
+/** One release: the throw to send, or why the dart just falls. `ayuda` (0-1): the help the gesture earned (gesto.ts). Pure. */
+export function lanzamiento(cara: Cara, p: V3, v: V3 | null, ayuda = 0): Tiro {
   if (!v) return { tipo: "suelta", motivo: "sin-velocidad" };
   const vel = Math.hypot(v[0], v[1], v[2]);
   if (!(vel >= V_MIN)) return { tipo: "suelta", motivo: "lento" };
@@ -77,7 +90,8 @@ export function lanzamiento(cara: Cara, p: V3, v: V3 | null): Tiro {
   const rho = Math.hypot(x, y);
   const recortado = rho > TOPE_RADIOS;
   if (recortado) { x *= TOPE_RADIOS / rho; y *= TOPE_RADIOS / rho; }
-  return { tipo: "tiro", x: r3(x), y: r3(y), fuerza: r3(fuerzaDeVelocidad(vel)), velocidad: r3(vel), recortado, distancia: r3(pn) };
+  const fuerza = fuerzaDeVelocidad(vel), a = clamp(Number.isFinite(ayuda) ? ayuda : 0, 0, 1), h = ayudar(x, y, fuerza, a);
+  return { tipo: "tiro", x: r3(h.x), y: r3(h.y), fuerza: r3(h.fuerza), velocidad: r3(vel), recortado, distancia: r3(pn), ayuda: r3(a), crudo: { x: r3(x), y: r3(y), fuerza: r3(fuerza) } };
 }
 
 /** How long the flight to the board is drawn (ms): the real distance at the throw's speed, within a readable range. */

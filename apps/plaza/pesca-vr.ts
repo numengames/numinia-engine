@@ -24,7 +24,9 @@ type VistaPesca = {
 type Vista = {
   pesca: VistaPesca;
   vr: { active: boolean; nota?(t: string): void };
-  manos?: { reglas(o: { ocupada?: (l: Lado) => boolean }): void; vibrar(l: Lado, v?: number, ms?: number): void; entrada(l: Lado): { gatillo: number; agarre: number; mano: boolean } | null };
+  manos?: { reglas(o: { ocupada?: (l: Lado) => boolean }): void; vibrar(l: Lado, v?: number, ms?: number): void; entrada(l: Lado): { gatillo: number; agarre: number; mano: boolean } | null;
+    /** Hand to hand (packages/render/src/manos.ts): the rod registers as a thing that can change hands. */
+    llevable?(nombre: string, l: { que: string; lado(): Lado | null; puede(): true | string; pasar(a: Lado): void; ocupante?: string }): () => void };
 };
 type Sesion = { selfPosition(alpha: number): P3 };
 type Interaccion = { actual(): { feature: string } | null; usar(): Res };
@@ -55,6 +57,23 @@ export function montarPescaManos(o: { pesca: Pesca; view: Vista; session: Sesion
     agarreAntes[sujeta] = pellizcoAntes[sujeta] = true; // the pinch/grip that put it back is still closed: open it before taking again
     sujeta = null; sitio = ""; capturado = false; view.pesca.sujetar(null); decir("");
   };
+  // hand to hand (MIS-200): the free hand's grip next to the rod hand, or the Bolsa row, moves the rod. Allowed while it is not
+  // cast and while waiting; not from the nibble on (the strike window is short and a tracked-joint jump would read as a tiron).
+  let esperaSoltar = false; // a pinch that passed the rod is still closed: it must open once before it can reel
+  const pasar = (a: Lado) => {
+    const de = sujeta; if (!de) return;
+    if (reelVR) { reelVR = false; if (pesca.estado().fase !== "nada") pesca.recoger(false); }
+    const en = view.manos?.entrada(a);
+    agarreAntes[de] = pellizcoAntes[de] = agarreAntes[a] = pellizcoAntes[a] = true; // the grip/pinch that passes it is still closed
+    pinzaAntes = !!en?.mano && en.gatillo > 0.5; esperaSoltar = !!en && en.gatillo > 0.3;
+    quietoHasta = performance.now() + 300; g.reiniciar(); // the tip jumps from one hand to the other: no cast, no strike from that
+    sujeta = a; view.pesca.sujetar(a, sitio);
+    view.vr.nota?.(`Caña en la mano ${a === "izq" ? "izquierda" : "derecha"}`);
+  };
+  view.manos?.llevable?.("pesca", {
+    que: "la caña", lado: () => sujeta, ocupante: "reglas", pasar,
+    puede: () => { const f = pesca.estado().fase; return f === "nada" || f === "espera" ? true : "Ahora no: el pez ya ha picado"; },
+  });
   const flanco = (antes: Record<Lado, boolean>, l: Lado, ahora: boolean) => { const b = ahora && !antes[l]; antes[l] = ahora; return b; };
 
   // the rod's haptics follow the fish: a nibble ticks, the bite thumps, a coming surge warns, the fight hums with tension
@@ -110,7 +129,8 @@ export function montarPescaManos(o: { pesca: Pesca; view: Vista; session: Sesion
       else if (r.tiron && (e.fase === "picada" || e.fase === "pelea")) { pesca.pulsar(); zumbar(0.6, 50); }
     }
     // reeling: the trigger (or a held pinch) while fishing
-    const quiere = e.fase !== "nada" && apretado(en.gatillo);
+    if (esperaSoltar && en.gatillo <= 0.3) esperaSoltar = false;
+    const quiere = e.fase !== "nada" && !esperaSoltar && apretado(en.gatillo);
     if (quiere !== reelVR && e.fase !== "nada") { reelVR = quiere; pesca.recoger(quiere); }
     else if (e.fase === "nada") reelVR = false;
     // the fight hums with the line's tension, so you can fish with your eyes on the water

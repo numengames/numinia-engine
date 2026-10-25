@@ -4,6 +4,7 @@
 // prompt's thing). Conversations show on a panel in front of you (answer with the ray, or the stick + A; B leaves).
 // What you took is drawn in the hand that took it (beside you on a flat screen) until the quest ends.
 import { ESTADOS, ahorasDe, estadoPaso } from "./misiones.ts"; // U14 (3): a step's state, the same as in the book
+import { LINEAS_MANDOS } from "./xr-mandos.ts"; // the controls sheet's words (test/xr-mandos.test.ts checks them against the bindings)
 type Res = { ok: true } | { ok: false; why: string };
 type Lado = "izq" | "der";
 type EventoMano = { tipo: "agarrar"; key: string; lado: Lado } | { tipo: "apuntar"; key: string; lado: Lado } | { tipo: "panel"; fila: number; lado: Lado } | { tipo: "gatillo"; lado: Lado } | { tipo: "gatillo_fin"; lado: Lado };
@@ -19,7 +20,8 @@ type Misiones = {
 type Vista = {
   vr: { active: boolean; pagina: "mision" | "mandos" | "ajustes"; dialogo(d: { nombre: string; texto: string; opciones: string[] } | null): void; nota(t: string): void; onElegir(fn: (n: number) => void): unknown; onAtras(fn: () => void): unknown };
   ar: { state: string };
-  manos: { reglas(o: { agarrable?: (k: string) => boolean; apuntable?: (k: string) => boolean }): void; on(fn: (e: EventoMano) => void): unknown; vibrar(l: Lado, v?: number, ms?: number): void };
+  manos: { reglas(o: { agarrable?: (k: string) => boolean; apuntable?: (k: string) => boolean }): void; on(fn: (e: EventoMano) => void): unknown; vibrar(l: Lado, v?: number, ms?: number): void;
+    llevable?(nombre: string, l: { que: string; lado(): Lado | null; puede(): true | string; pasar(a: Lado): void }): () => void };
   llevar(key: string, donde: Lado | "yo" | null): void;
   llevando(): Record<string, string>;
 };
@@ -57,11 +59,25 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
   view.vr.onElegir((n) => { decir(misiones.elegir(n)); });
   view.vr.onAtras(() => { if (misiones.dialogo()) misiones.adios(); });
 
+  // hand to hand (MIS-200): each quest thing drawn in a hand can change hands; if the other hand holds one too, the two swap
+  const registros = new Map<string, () => void>();
+  const registrar = (cosa: string) => {
+    if (registros.has(cosa) || !view.manos.llevable) return;
+    registros.set(cosa, view.manos.llevable(`misiones:${cosa}`, {
+      que: "lo que llevas", puede: () => true,
+      lado: () => { const l = enMano.get(cosa); return l === "izq" || l === "der" ? l : null; },
+      pasar: (a) => {
+        const antes = enMano.get(cosa); if (!antes) return;
+        for (const [c, l] of enMano) if (c !== cosa && l === a) { enMano.set(c, antes); view.llevar(`misiones:${c}`, antes); }
+        enMano.set(cosa, a); view.llevar(`misiones:${cosa}`, a);
+      },
+    }));
+  };
   // what you carry: every quest thing a «coge» step of an ACTIVE quest already took
   const llevar = () => {
     const quiero = new Set<string>();
     for (const m of misiones.libro()) if (m.estado === "activa") for (const s of m.lista) if (s.tipo === "coge" && s.hecho && s.que) quiero.add(s.que);
-    for (const [cosa] of enMano) if (!quiero.has(cosa)) { view.llevar(`misiones:${cosa}`, null); enMano.delete(cosa); }
+    for (const [cosa] of enMano) if (!quiero.has(cosa)) { view.llevar(`misiones:${cosa}`, null); enMano.delete(cosa); registros.get(cosa)?.(); registros.delete(cosa); }
     for (const cosa of quiero) {
       if (enMano.has(cosa)) continue;
       const ocupadas = new Set(enMano.values());
@@ -72,6 +88,7 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
       }
       enMano.set(cosa, lado); view.llevar(`misiones:${cosa}`, lado);
       pendiente.delete(cosa);
+      registrar(cosa);
       if (lado !== "yo") view.manos.vibrar(lado, 0.7, 80);
     }
   };
@@ -85,16 +102,7 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
   return {
     /** The VR panel's lines: what the trigger does now, the followed quest and its steps. */
     lineasPanel(): string[] {
-      if (view.vr.pagina === "mandos") return [
-        "Mandos (Y: misión · otra vez: ocultar)",
-        "Izquierda: andar (al borde, correr) · derecha: girar",
-        "Gatillo: hablar / usar lo que apuntas",
-        "Agarre (o pellizco) junto a algo: cogerlo",
-        "Caña: muñeca lanza, tirón al picar · Dardos: agarre y gatillo",
-        "A o X: saltar · B: salir del diálogo",
-        "Sin mandos: pellizca y mantén en el aire = andar adonde apunta la mano",
-        "Salir: el botón de abajo, pulsa dos veces",
-      ];
+      if (view.vr.pagina === "mandos") return [...LINEAS_MANDOS];
       if (view.vr.pagina === "ajustes") return [ // MVL1: ajustes dentro de VR, sin quitarte las gafas
         "Ajustes (Y: ocultar)",
         "Apunta al botón de abajo con el gatillo",
