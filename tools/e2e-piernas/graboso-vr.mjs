@@ -22,14 +22,15 @@ const MEDIR_CLIP = async () => {
   const c = globalThis.__numinia.graboso.graboso.estado.clip;
   if (!c) return null;
   const v = document.createElement("video"); v.muted = true; v.playsInline = true; v.src = URL.createObjectURL(c.blob);
+  let fotogramas = 0; if (v.requestVideoFrameCallback) { const f = () => { fotogramas++; v.requestVideoFrameCallback(f); }; v.requestVideoFrameCallback(f); }
   await v.play().catch(() => {});
-  await new Promise((ok) => setTimeout(ok, 700));
+  await new Promise((ok) => setTimeout(ok, 1200));
   const k = document.createElement("canvas"); k.width = v.videoWidth || 64; k.height = v.videoHeight || 64;
   const g = k.getContext("2d"); g.drawImage(v, 0, 0, k.width, k.height);
   const d = g.getImageData(0, 0, k.width, k.height).data; let suma = 0, vivos = 0;
   for (let i = 0; i < d.length; i += 4) { const l = (d[i] + d[i + 1] + d[i + 2]) / 3; suma += l; if (l > 12) vivos++; }
   URL.revokeObjectURL(v.src);
-  return { bytes: c.blob.size, tipo: c.tipo, ancho: k.width, alto: k.height, luminanciaMedia: +(suma / (d.length / 4)).toFixed(2), pixelesNoNegros: +(vivos / (d.length / 4)).toFixed(4) };
+  return { bytes: c.blob.size, tipo: c.tipo, fotogramas, escritosEspejo: globalThis.__numinia.view.espejoGrabar?.escritos?.() ?? null, ancho: k.width, alto: k.height, luminanciaMedia: +(suma / (d.length / 4)).toFixed(2), pixelesNoNegros: +(vivos / (d.length / 4)).toFixed(4) };
 };
 // does the canvas's capture stream deliver frames right now? (the cause of an empty clip: counted on a <video> over a fresh stream)
 const FOTOGRAMAS = async () => {
@@ -41,6 +42,9 @@ const FOTOGRAMAS = async () => {
   const pistas = s.getVideoTracks().map((t) => t.readyState); s.getTracks().forEach((t) => t.stop());
   return { fotogramasEn1500ms: n, pistas, enXR: !!globalThis.__numinia.view.renderer.xr.isPresenting };
 };
+// rough frame cost inside the XR session: rAF frames of the session over 3 s (software GL: only the ON/OFF ratio means anything)
+const RITMO = () => new Promise((ok) => { const se = globalThis.__numinia.view.renderer.xr.getSession(); let n = 0; const t0 = performance.now();
+  const f = () => { n++; if (performance.now() - t0 < 3000) se.requestAnimationFrame(f); else ok({ cuadros: n, msPorCuadro: +((performance.now() - t0) / n).toFixed(1) }); }; se.requestAnimationFrame(f); });
 // how much of the watch's «Grabar» face is red (the recording colour, #D33440)
 const ROJO_BOTON = () => {
   const v = globalThis.__numinia.view.vr, k = v.reloj.lienzo, g = k.getContext("2d"), c = k.width / 2, o = 176, a = (45 * Math.PI) / 180;
@@ -139,6 +143,7 @@ async function pierna() {
     const rojoAntes = await ctl(ROJO_BOTON);
     paso("apagado, el botón no es rojo", rojoAntes < 20, { rojoAntes });
 
+    r.hallazgos.ritmoSinGrabar = await ctl(RITMO); // before the first press: nothing extra runs
     // 1. press: it starts recording
     paso("rayo + gatillo en «Grabar» (1)", await pulsarReloj("graboso"));
     paso("la pulsación llega al reloj", (await ctl(() => globalThis.__numinia.view.vr.reloj.diagnostico())).ultimoPulsado === "graboso");
@@ -149,6 +154,7 @@ async function pierna() {
     await ctl(() => { globalThis.__numinia.view.vr.reloj.pintar(); });
     const rojoGrabando = await ctl(ROJO_BOTON);
     paso("grabando, el botón del reloj se pinta rojo", rojoGrabando > 100, { rojoGrabando });
+    r.hallazgos.ritmoGrabando = await ctl(RITMO); // MIS-200: what the XR mirror costs per frame (rough, software GL)
     r.hallazgos.capturaVR = await ctl(FOTOGRAMAS); // while the Graboso records inside the XR session
     paso("sigue dentro de la sesión de VR", await ctl(() => globalThis.__numinia.view.vr.active && globalThis.__numinia.view.renderer.xr.isPresenting));
 
@@ -167,6 +173,11 @@ async function pierna() {
     } else {
       r.hallazgos.clipVR = { sinClip: true, error: parado.error, pildora: parado.pildora };
     }
+    // MIS-200 t_40a65495: the clip recorded INSIDE the XR session must hold frames (before: the canvas stream gave 0 and the
+    // Graboso kept nothing). Required, not printed: this step fails on vr/mis200-graboso and passes with the XR mirror.
+    paso("el clip hecho dentro de VR tiene fotogramas (> 0)", !!parado.clip && r.hallazgos.clipVR.fotogramas > 0 && r.hallazgos.clipVR.ancho > 0, { clipVR: r.hallazgos.clipVR, error: parado.error });
+    paso("el espejo de VR escribió fotogramas mientras grababa", (r.hallazgos.clipVR.escritosEspejo ?? 0) > 0, { clipVR: r.hallazgos.clipVR });
+    paso("el clip de VR no es negro (IWER sí pinta el render a textura)", r.hallazgos.clipVR.pixelesNoNegros > 0, { clipVR: r.hallazgos.clipVR });
     r.hallazgos.lectura = r.hallazgos.clipPlano && r.hallazgos.clipVR?.pixelesNoNegros !== undefined
       ? `plano: ${r.hallazgos.clipPlano.pixelesNoNegros * 100}% de píxeles no negros; en VR (IWER): ${r.hallazgos.clipVR.pixelesNoNegros * 100}%`
       : `el clip hecho DENTRO de VR no existe (${r.hallazgos.clipVR?.error || "sin error"}); la captura del lienzo da ${r.hallazgos.capturaVR?.fotogramasEn1500ms} fotogramas en 1,5 s en VR y ${r.hallazgos.capturaPlano?.fotogramasEn1500ms} en la página plana`;
