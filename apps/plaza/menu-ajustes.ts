@@ -129,6 +129,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   // t_bf8947cf (MVL1): the VR rig always exists (unlike cam/entorno, built in parallel branches), so this
   // writes straight to view.vr instead of going through Contratos.
   a.alAplicar("controles.modoMovimientoVR", (v) => { view.vr.modoMovimiento = v as "mirada" | "mando" | "cuerpo"; });
+  a.alAplicar("controles.vrManoMenu", (v) => { view.vr.manoMenu = v === "der" ? "der" : "izq"; }); // t_d5f5523a: the watch's hand
   // rediseño v2: the VR menu's «Ajustes» rows (also here on the computer)
   a.alAplicar("controles.giroVR", (v) => { view.vr.giroGrados = Number(v); });
   a.alAplicar("controles.velocidadVR", (v) => { view.vr.velocidad = Number(v) / 100; });

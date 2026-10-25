@@ -116,6 +116,12 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     opciones: [{ valor: "mirada", nombre: "Según la mirada" }, { valor: "mando", nombre: "Según el mando" }, { valor: "cuerpo", nombre: "De lado (según el cuerpo)" }],
     defecto: "mirada", requiere: ["xrVr"],
   },
+  {
+    grupo: "controles", id: "vrManoMenu", tipo: "eleccion", nombre: "Mano del menú de muñeca",
+    describe: "En qué muñeca sale el reloj del menú dentro de VR. La otra mano es la que lo pulsa.",
+    opciones: [{ valor: "izq", nombre: "Izquierda" }, { valor: "der", nombre: "Derecha" }],
+    defecto: "izq", requiere: ["xrVr"],
+  },
   // Rediseño v2 (story E): the VR menu's «Ajustes» — the same rows on the computer and in the headset
   {
     grupo: "controles", id: "giroVR", tipo: "eleccion", nombre: "Giro en VR",
