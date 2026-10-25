@@ -4,7 +4,8 @@
 // sky baked into a cube once per change (no per-pixel atmosphere), no shadows and no HDR light by default.
 import * as THREE from "three/webgpu";
 import { uniform, mix, smoothstep, normalize, positionLocal, positionWorld, cameraPosition, vec3, dot, max, pow, fog, rangeFogFactor, exponentialHeightFogFactor } from "three/tsl";
-import { CALIDAD_POR_NIVEL, SOMBRA_PX, CIELO_LUZ_PX, nivelDe, capacidades, acotarCalidad, ficheroGrandePermitido } from "./calidad.ts";
+import type { Efectos } from "./calidad.ts";
+import { CALIDAD_POR_NIVEL, SOMBRA_PX, CIELO_LUZ_PX, nivelDe, capacidades, acotarCalidad, ficheroGrandePermitido, acotarEfectos, efectosPermitidos, EFECTOS_APAGADOS, RADIO_SOMBRA } from "./calidad.ts";
 import type { Calidad, Nivel } from "./calidad.ts";
 import { horizonteAtmosfera } from "./cielo-horizonte.ts";
 
@@ -295,6 +296,7 @@ export function crearEntorno(h: EntornoHooks) {
     const c = sun.shadow.camera as THREE.OrthographicCamera;
     if (c.right !== lado) { c.left = -lado; c.right = lado; c.top = lado; c.bottom = -lado; c.near = 1; c.far = 160; c.updateProjectionMatrix(); }
     sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.03;
+    sun.shadow.radius = efectos.sombraSuave ? RADIO_SOMBRA.suave : RADIO_SOMBRA.duro; // H12b: soft = a wider PCF disc (a uniform: no recompile)
   }
   function marcarSombras(): void {
     world.traverse((o) => {
@@ -385,6 +387,16 @@ export function crearEntorno(h: EntornoHooks) {
     avisar();
   }
 
+  // H12b: the extra effects (bloom, AO, soft shadows): level A only, off by default; the page asks (settings menu), the tier clamps
+  let efectos: Efectos = { ...EFECTOS_APAGADOS }, pedidoEf: Partial<Efectos> = {};
+  const alEfectos: ((e: Efectos) => void)[] = [];
+  function cambiarEfectos(): void {
+    const antes = JSON.stringify(efectos);
+    efectos = acotarEfectos(nivel, { ...EFECTOS_APAGADOS }, pedidoEf);
+    if (JSON.stringify(efectos) === antes) return;
+    sombras(); avisar();
+    for (const f of alEfectos) f({ ...efectos });
+  }
   function cambiarCalidad(): void {
     const antes = { ...calidad };
     calidad = acotarCalidad(nivel, { ...CALIDAD_POR_NIVEL[nivel] }, pedido);
@@ -395,7 +407,7 @@ export function crearEntorno(h: EntornoHooks) {
   function actualizarNivel(): void {
     const nv = forzado ?? nivelDe({ ...h.aparato, xr: renderer.xr.isPresenting });
     if (nv === nivel) return;
-    nivel = nv; cambiarCalidad(); if (d) aplicar(d);
+    nivel = nv; cambiarCalidad(); cambiarEfectos(); if (d) aplicar(d);
   }
 
   return {
@@ -412,8 +424,16 @@ export function crearEntorno(h: EntornoHooks) {
       if (c) { pedido = { ...pedido, ...c }; cambiarCalidad(); }
       return { ...calidad };
     },
+    /** H12b: choose the extra effects (any subset); off whatever the wish on a tier that is not A. Returns what applies now. */
+    efectos(e?: Partial<Efectos>): Efectos {
+      if (e) { pedidoEf = { ...pedidoEf, ...e }; cambiarEfectos(); }
+      return { ...efectos };
+    },
+    get efectosActual(): Efectos { return efectos; },
+    /** H12b: tell me when the effects that apply change (a tier change turns them off). */
+    alCambiarEfectos(f: (e: Efectos) => void): void { alEfectos.push(f); },
     /** What this device can choose, its defaults and its particle caps. */
-    capacidades() { return { ...capacidades(nivel), backend: (renderer as unknown as { backend: { isWebGPUBackend?: boolean } }).backend.isWebGPUBackend ? "WebGPU" : "WebGL2" }; },
+    capacidades() { return { ...capacidades(nivel), efectos: efectosPermitidos(nivel), backend: (renderer as unknown as { backend: { isWebGPUBackend?: boolean } }).backend.isWebGPUBackend ? "WebGPU" : "WebGL2" }; },
     /**
      * R7.1: lay an atmosphere over the world's (the nature does, while it is on): the 4-stop dome, the gradient + height fog node and its tone.
      * Returns the undo: the world's own sky, fog and tone come back exactly as its data says (one re-apply), so worlds without nature never change.
@@ -449,6 +469,7 @@ export function crearEntorno(h: EntornoHooks) {
         hitos: h.hitos[0]?.visible ?? false, rejilla: grid.visible, mapaCorte: Math.max(0, n(d?.mapaCorte, 0)),
         /** H4b: the big files this tier actually uses (a name = fetched, "" = none; `omitidos` = the world names one this tier does not fetch). */
         ficheros: { hdr: hdrDe(d), fondo: imagenDe(d), omitidos: (!!String(d?.hdr ?? "") && !hdrDe(d)) || (!!String(d?.imagen ?? "") && !imagenDe(d)) },
+        efectos: { ...efectos }, radioSombra: sun.shadow.radius,
         nivel, calidad: { ...calidad }, aplicados, horneados, cargando,
       };
     },

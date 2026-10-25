@@ -794,6 +794,7 @@ view.loop((now) => {
     // (B5), unless the page was hidden or frozen meanwhile; draw calls, triangles, programs and pixel ratio ride along
     const xr = view.vr.active || view.ar.state !== "off";
     if (lastDrawAt) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active), { dc: cost.calls, tri: cost.triangles, programas: (cost as { programs?: number }).programs, ratio: view.power.pixelRatio(), xr });
+    if (lastDrawAt) view.posproceso.vigilar(now - lastDrawAt, active); // H12b: the effects' cost gate (level A only; a no-op when they are off)
     lastDrawAt = now;
     if (session.welcome && !informe.primerCuadroMs) informe.primerCuadroMs = Math.round(performance.now());
     // MVL3 step 1 + B5 + C: fade the "Cargando" screen away once a frame was drawn with the ground built AND every piece within view
