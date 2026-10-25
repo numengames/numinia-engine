@@ -12,14 +12,18 @@ import type { Clave, Pista, Pnj, Secuencia } from "./formato.ts"; // types only:
 // ---------- the wire: a header, one `pista` per track and, after each `mueve`, its keys ----------
 /** The events that carry a sequence to a page, in order. What a key leaves out is filled with the person's own place
  * and yaw (its pnj@1 file), so the page needs nothing else to play it. */
-export function eventosDe(s: Secuencia, pnjs: ReadonlyMap<string, Pnj>): [string, Msg][] {
+/** Where a person or thing stands. `y` is ABSOLUTE (as ever: a tower floor, a balcony, a table); only one that would end up below the ground
+ * at its x,z (`y` under ground − 0.1 m) or that gave no `y` at all (`omitida`) is put ON the ground, so nobody is buried on a hill. */
+export const alSuelo = (ground: number, y: number, omitida = false): number => (omitida || y < ground - 0.1 ? Math.round(ground * 100) / 100 : y);
+
+export function eventosDe(s: Secuencia, pnjs: ReadonlyMap<string, Pnj>, suelo: (x: number, z: number) => number = () => 0): [string, Msg][] {
   const out: [string, Msg][] = [["secuencia", { id: s.id, duracion: s.duracion, pistas: s.pistas.length }]];
   s.pistas.forEach((p, n) => {
     const base = { secuencia: s.id, n, tipo: p.tipo };
     if (p.tipo === "mueve") {
       const q = pnjs.get(p.pnj);
       out.push(["pista", { ...base, pnj: p.pnj, claves: p.claves.length }]);
-      for (const c of p.claves) out.push(["clave", { secuencia: s.id, pista: n, t: c.t, x: c.x ?? q?.posicion.x ?? 0, y: c.y ?? q?.posicion.y ?? 0, z: c.z ?? q?.posicion.z ?? 0, giro: c.giro ?? q?.giro ?? 0 }]);
+      for (const c of p.claves) { const x = c.x ?? q?.posicion.x ?? 0, z = c.z ?? q?.posicion.z ?? 0; out.push(["clave", { secuencia: s.id, pista: n, t: c.t, x, y: alSuelo(suelo(x, z), c.y ?? q?.posicion.y ?? 0, c.y === undefined && (q?.sinY ?? false)), z, giro: c.giro ?? q?.giro ?? 0 }]); } // absolute y; below the ground (or none given) → on it (0 on a flat world)
     } else if (p.tipo === "muestra") out.push(["pista", { ...base, modelo: p.modelo, pnj: p.pnj, x: p.x, y: p.y, z: p.z, ox: p.offset.x, oy: p.offset.y, oz: p.offset.z, giro: p.giro, escala: p.escala, desde: p.desde, hasta: p.hasta }]);
     else if (p.tipo === "texto") out.push(["pista", { ...base, t: p.t, texto: p.texto }]);
     else out.push(["pista", { ...base, t: p.t, sonido: p.sonido }]);
