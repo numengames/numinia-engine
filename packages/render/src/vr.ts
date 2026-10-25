@@ -24,7 +24,9 @@ import { empujaFuera } from "./vr-paredes.ts";
 import { completarSesionXR, textoDeFallo } from "./xr-compat.ts"; // old headset browsers lack XRSession.enabledFeatures (Chrome 105)
 import { audio } from "./audio/nucleo.ts"; // S1: the engine's one audio graph (it sleeps when the session ends)
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
-export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void; andar?(): [number, number] | null;
+export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void; andar?(excluida?: Lado | null): [number, number] | null;
+  /** t_8d0bc2dd: true once per jump made with the hands (both wrists flicked up); reiniciarSalto forgets the gesture's history. */
+  takeSalto?(): boolean; reiniciarSalto?(): void;
   /** t_bf8947cf: where a controller points, flattened (world, unit); null without that controller. */
   dirMando?(lado: "izq" | "der"): [number, number] | null;
   /** Rediseño v2: a hand's wrist (world) and what presses by touch on the other hand (manos.ts). */
@@ -383,7 +385,7 @@ export function createVR(h: VRHooks) {
       pagina = "mandos"; panel.visible = true; panelDelante = false; // the first thing you see: how the controllers work
       ajusteMalla.visible = false; salirMalla.visible = true;
       session.addEventListener("end", () => {
-        session = null; moveX = moveZ = 0; strength = 0; fichaVR?.ocultar(); fichaPide = null; reloj.cerrar(); menu.cerrar(); aviso.cerrar(); condVR?.ocultar(false); condPendiente = null; pagLatched = false;
+        session = null; h.manos?.reiniciarSalto?.(); moveX = moveZ = 0; strength = 0; fichaVR?.ocultar(); fichaPide = null; reloj.cerrar(); menu.cerrar(); aviso.cerrar(); condVR?.ocultar(false); condPendiente = null; pagLatched = false;
         h.camera.remove(vignette, nota); rig.remove(h.camera); rig.visible = false;
         h.manos?.montar(null);
         h.renderer.xr.enabled = false;
@@ -486,7 +488,7 @@ export function createVR(h: VRHooks) {
     else { const len = Math.hypot(dir.x, dir.z) || 1; fx = dir.x / len; fz = dir.z / len; }
     moveX = fx * -ly + -fz * lx;
     moveZ = fz * -ly + fx * lx;
-    const conMano = visible && !lx && !ly ? h.manos?.andar?.() : null; // tracked hands: pinch and hold in the air = walk where that hand points
+    const conMano = visible && !lx && !ly ? h.manos?.andar?.(menu.abierto ? LADO_RELOJ : null) : null; // tracked hands: pinch and hold in the air = walk where that hand points; t_41d8e44c: never with the hand holding the open menu
     if (conMano) { moveX = conMano[0] * 0.7; moveZ = conMano[1] * 0.7; } // walking pace (the edge, 0.9, runs)
     if (enPanel) { moveX = moveZ = 0; turned = false; } // c4: inside the bubble the sticks turn pages, they do not move or turn you (the server holds you too)
     const m = Math.hypot(moveX, moveZ);
@@ -512,6 +514,8 @@ export function createVR(h: VRHooks) {
     }
     condVR?.update(ojoV, miraV, hayPunta ? puntaV : null, condVR.abierto ? manosParaBarra() : []);
     h.manos?.update(h.renderer.xr.getCamera());
+    // t_8d0bc2dd: both wrists flicked up = jump (bare hands have no A/X); not while a menu, the entry bubble or a dialogue is in front
+    if (h.manos?.takeSalto?.()) { if (visible && !enPanel && !menu.abierto && !(dialogo && dialogoMalla.visible)) jumpWanted = true; }
     if (fichaVR) {
       fichaVR.ceder(menu.abierto); fichaVR.tick(); fichaVR.seguir(ojoV, miraV, dtSeconds);
       nota.position.y = fichaVR.visible ? 0.3 : -0.22; // the note must not sit on the card's buttons: above your line of sight while it shows
