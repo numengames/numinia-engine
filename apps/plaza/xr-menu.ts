@@ -25,7 +25,7 @@ type N = Record<string, any>;
 type Fila = { texto: string; detalle?: string; icono?: string; color?: string; botones?: { texto?: string; icono?: string; accion: () => void; estilo?: "accion" | "normal" | "desactivado"; ancho?: number }[] };
 
 /** The VR settings the menu shows, in order (ids of the settings registry: packages/client/src/ajustes-motor.ts). */
-export const AJUSTES_VR = ["controles.modoMovimientoVR", "controles.giroVR", "controles.velocidadVR", "controles.confortVR", "controles.alturaVR"] as const;
+export const AJUSTES_VR = ["controles.modoMovimientoVR", "controles.vrManoMenu", "controles.giroVR", "controles.velocidadVR", "controles.confortVR", "controles.alturaVR"] as const;
 /** How many notices the menu keeps. */
 export const AVISOS_MAX = 30;
 

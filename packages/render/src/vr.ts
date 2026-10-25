@@ -11,6 +11,7 @@
 // still in front of you at 1.2 m (menu-invocado.ts) with the computer's sections; B, «Menú» again or its X close it.
 import * as THREE from "three/webgpu";
 import type { Lado, Panel } from "./manos.ts";
+import { ladosDelMenu, type ManoMenuVR } from "./mano-menu.ts"; // t_d5f5523a: which hand carries the watch
 import { createReloj, type EstadoReloj } from "./muneca.ts";
 import { createMenuInvocado, type Proveedor } from "./menu-invocado.ts";
 import { createAviso } from "./muneca-aviso-vr.ts"; // v1: the first-time «turn your wrist» notice
@@ -29,6 +30,8 @@ export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | n
   /** Rediseño v2: a hand's wrist (world) and what presses by touch on the other hand (manos.ts). */
   muneca?(lado: Lado, pos: THREE.Vector3, rot: THREE.Quaternion): { esMano: boolean } | null;
   punta?(lado: Lado, pos: THREE.Vector3): boolean;
+  /** t_41d8e44c: a feature holds a hand (manos.ts `ocupar`; the view's facade keeps it until the hands arrive). */
+  ocupar?(nombre: string, fn: (lado: Lado) => boolean): () => void;
   /** c8 (the entry bubble's panel is taken by its bar): what a hand's buttons say, what its ray points at, and the ray (manos.ts). */
   entrada?(lado: Lado): { gatillo: number; agarre: number; mano: boolean } | null;
   sondeo?(lado: Lado): { candidato: string | null; apunta: string | null } | null;
@@ -323,12 +326,17 @@ export function createVR(h: VRHooks) {
 
   // Rediseño v2 (story E): the wrist watch (left wrist) and the menu panel. Both live in the WORLD (scene), not the rig:
   // the watch is placed on the wrist each frame, the menu stays where it opened while you walk or turn.
-  const LADO_RELOJ: Lado = "izq", LADO_PUNTA: Lado = "der";
+  // t_d5f5523a: the watch hand is the setting vrManoMenu (default left); the other hand presses it. Both swap together.
+  let manoMenu: ManoMenuVR = "izq";
+  let LADO_RELOJ: Lado = "izq", LADO_PUNTA: Lado = "der";
+  const elegirManoMenu = (v: ManoMenuVR): void => { manoMenu = v; const l = ladosDelMenu(v); LADO_RELOJ = l.reloj; LADO_PUNTA = l.punta; };
   const oyentesV2 = { reloj: new Set<(b: BotonReloj) => void>(), pulsa: new Set<() => void>() };
   const avisarPulsa = () => { for (const f of oyentesV2.pulsa) try { f(); } catch { /* a page's sound must not break VR */ } };
   let pathsIcono: PathsIcono = h.iconos ?? (() => []);
   const iconos: PathsIcono = (n) => pathsIcono(n); // the page hands the house's icons over later (`vr.iconos(fn)`)
   const reloj = createReloj({ scene: h.scene, iconos });
+  // t_41d8e44c (its one line): while the watch shows, its hand is busy (no pinch-walk, no ray, no grab with it)
+  h.manos?.ocupar?.("reloj", (lado) => reloj.visible && lado === LADO_RELOJ);
   const menu = createMenuInvocado({ scene: h.scene, iconos, salir: () => { void exit(); }, alPulsar: avisarPulsa });
   const aviso = createAviso({ camera: h.camera }); // v1: shown once per device, the first time you enter VR (muneca-aviso.ts)
   let estadoRelojPagina: () => Omit<EstadoReloj, "menuAbierto"> = () => ({ micro: null, camara: false, avisos: 0, ciudad: false });
@@ -528,6 +536,8 @@ export function createVR(h: VRHooks) {
     set comfort(v: number) { comfort = Math.max(0, Math.min(1, v)); },
     get modoMovimiento() { return modoMovimiento; },
     set modoMovimiento(v: ModoMovimientoVR) { modoMovimiento = v === "mando" || v === "cuerpo" ? v : "mirada"; },
+    get manoMenu(): ManoMenuVR { return manoMenu; },
+    set manoMenu(v: ManoMenuVR) { elegirManoMenu(v === "der" ? "der" : "izq"); },
     get yawDegrees() { return yawDeg; },
     /** Rediseño v2 (VR settings): snap turn step (one of GIROS_DEG), stick pace (0.4..1) and the floor's lift (m). */
     get giroGrados() { return giroDeg; },
