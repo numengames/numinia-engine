@@ -22,6 +22,8 @@ import { datosFicha, enlaceDeObjeto, ETIQUETAS_FICHA, fichaVisible, logicaDeObje
 import type { PiezasMundo } from "./ficha-objeto.ts";
 import { ACCIONES_DOCK, alTocarlo, alternarCajon, CAJONES, esArrastre, filtrarBiblioteca, iconoDePieza, queCierraEscape, tamanoUniforme } from "./cajones.ts";
 import type { Cajon } from "./cajones.ts";
+import { transformarGrupo } from "../../packages/render/src/grupo.ts";
+import { rectDesde, esCaja, idsEnRect, unirSeleccion, gestoDosDedos, aplicarGesto } from "./seleccion-caja.ts";
 import { esTactil } from "./perfil-aparato.ts"; // U25: the page's one answer to «touch controls or not»
 
 type Res = { ok: true } | { ok: false; why: string };
@@ -67,13 +69,13 @@ export const AYUDA = [
   "X, Y o Z: solo ese eje (otra vez: todos) · T: ejes del objeto o del mundo.",
   "Con paso: 0,5 m, 15°, escala 0,1 (cámbialo abajo); Ctrl mantenido: libre.",
   "Mayús + D o Ctrl + D: duplicar y coger la copia · Supr o Retroceso: borrar · P: anclar o soltar (un objeto anclado no se puede mover, girar ni borrar hasta soltarlo).",
-  "Mayús + clic: suma o quita del grupo seleccionado (varios a la vez); el gizmo los mueve juntos, Supr los borra juntos, Ctrl+Z los deshace juntos.",
-  "Al mover un solo objeto con un eje elegido (X/Y/Z): si su cara queda a menos de 25 cm de otro objeto, encaja cara con cara.",
+  "Mayús + clic: suma o quita del grupo seleccionado (varios a la vez); Mayús + arrastrar en el vacío dibuja un rectángulo y suma lo que quede dentro. El gizmo los mueve, gira y escala juntos (el grupo gira o crece alrededor de su centro), Supr los borra juntos, Ctrl+Z los deshace juntos.",
+  "Al mover un solo objeto con un eje elegido (X/Y/Z): si su cara queda a menos de 25 cm de otro objeto, encaja cara con cara; desde 60 cm una guía fantasma (blanca; verde al encajar) muestra dónde caerá.",
   "Ctrl + Z: deshacer · Ctrl + Mayús + Z o Ctrl + Y: rehacer · F: encuadrar.",
   "Arriba, una fila de iconos: Añadir, Cable, Entorno, Precisión, Inspector y Ayuda abren su cajón (uno a la vez; otra vez o Esc lo cierra); Deshacer, Rehacer y Salir.",
   "Añadir: pulsa una pieza para ponerla delante de ti, o arrástrala al mundo y suéltala donde la quieras (la rueda la gira). «Subir»: tu modelo .glb, imagen, vídeo o sonido, delante de ti; también puedes soltar el fichero sobre el mundo. La zona de sonido es una esfera: Escalar cambia su radio.",
   "Doble clic en un objeto mientras juegas: abre construir con él seleccionado. Con un objeto seleccionado sale su tarjeta (a la derecha): nombre, Mover, Girar y Escalar, posición, giro, tamaño, qué hace al tocarlo, Duplicar, Borrar, Anclar, Copiar enlace y Volver. Todos los campos y la lógica (qué cables, cerraduras y contadores lo tocan): el cajón Inspector.",
-  "Con el dedo: toca un objeto para seleccionarlo y arrástralo para moverlo (sobre el suelo y sobre otros objetos). Un dedo en el vacío mueve la cámara; dos la acercan. Girar y escalar: el cajón Precisión.",
+  "Con el dedo: toca un objeto para seleccionarlo y arrástralo para moverlo (sobre el suelo y sobre otros objetos). Un dedo en el vacío mueve la cámara; dos la acercan. Con un dedo sobre el objeto, pon un segundo dedo en cualquier sitio: girar los dedos lo gira, separarlos o juntarlos lo escala. Girar y escalar: el cajón Precisión.",
   "Botones derecho y central del ratón, y la rueda: la cámara (cuando llegue la cámara nueva).",
 ];
 
@@ -377,14 +379,20 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     } else if (fase === "cambia") {
       programarEnvio(key); mostrarDonde(d);
       if (grupoInicio?.has(key)) {
-        const o0 = grupoInicio.get(key)!, dx = d.x - o0.x, dy = d.y - o0.y, dz = d.z - o0.z;
-        for (const [id, oi] of grupoInicio) if (id !== key) ed.poner(id, { x: oi.x + dx, y: oi.y + dy, z: oi.z + dz });
+        // lote4: the tool decides how the rest follow — move: the same shift; turn / scale: the whole group turns or
+        // grows around its centre as one body (the primary only gives up its x/z: the gizmo owns its turn and size)
+        const modo = ed.estado().herramienta ?? "mover";
+        for (const [id, dd] of transformarGrupo(grupoInicio, key, d, modo)) {
+          if (id !== key) ed.poner(id, dd);
+          else if (modo !== "mover") ed.poner(id, { x: dd.x, z: dd.z });
+        }
       }
     } else {
       terminarEnvio(); cam()?.bloquear?.(false);
       if (grupoInicio) {
-        for (const [id] of grupoInicio) if (id !== key) { const d2 = ed.dondeEsta(id); if (d2) c.transformar(id, { x: d2.x, y: d2.y, z: d2.z }, loteGrupo); }
-        decir(`${grupoInicio.size} objetos movidos juntos (Ctrl+Z los devuelve a la vez).`);
+        const modo = ed.estado().herramienta ?? "mover";
+        for (const [id] of grupoInicio) if (id !== key) { const d2 = ed.dondeEsta(id); if (d2) c.transformar(id, modo === "mover" ? { x: d2.x, y: d2.y, z: d2.z } : d2, loteGrupo); }
+        decir(`${grupoInicio.size} objetos ${modo === "girar" ? "girados" : modo === "escalar" ? "escalados" : "movidos"} juntos (Ctrl+Z los devuelve a la vez).`);
       } else decir(`${nombreDe(c.objeto(key) ?? { id: key })}: x ${fmt(d.x)} y ${fmt(d.y)} z ${fmt(d.z)} · giro ${fmt(d.ry)}°.`);
       grupoInicio = null; loteGrupo = "";
       refrescar();
@@ -742,6 +750,45 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     else if (k) { const o = c.objeto(k); decir(`Seleccionado: ${o ? nombreDe(o) : k}.`); }
     else decir("Nada seleccionado.");
   });
+  // ---- lote4: the rubber band — Shift + drag on the empty world draws a rectangle; on release every thing whose centre
+  // is inside joins the selection (it adds to what Shift-clicks already picked). Claimed on `document` in the capture
+  // phase so the camera's orbit and the gizmo never see this press. Mouse only: a finger on the empty world is the camera.
+  let banda: { id: number; x0: number; y0: number; x: number; y: number; caja: HTMLDivElement } | null = null;
+  document.addEventListener("pointerdown", (e) => {
+    if (!abierto() || e.pointerType !== "mouse" || e.button !== 0 || !e.shiftKey || e.target !== lienzo || banda || agarre || fantasma) return;
+    if (ed.estado().ejeBajo || ed.pick(e.clientX, e.clientY)) return; // a handle or a thing: Shift+click keeps toggling that thing
+    e.stopPropagation(); e.preventDefault();
+    const caja = document.createElement("div");
+    caja.className = "banda-seleccion"; caja.setAttribute("aria-hidden", "true");
+    caja.style.cssText = "position:fixed;z-index:50;pointer-events:none;border:1.5px solid #7ac3ff;background:rgba(122,195,255,.14);display:none";
+    document.body.appendChild(caja);
+    banda = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, caja };
+    abajo = null; // this press is not a click
+    cam()?.bloquear?.(true);
+    try { lienzo.setPointerCapture(e.pointerId); } catch { /* window events still arrive */ }
+  }, { capture: true });
+  addEventListener("pointermove", (e) => {
+    if (!banda || e.pointerId !== banda.id) return;
+    banda.x = e.clientX; banda.y = e.clientY;
+    const r = rectDesde({ x: banda.x0, y: banda.y0 }, banda);
+    if (esCaja({ x: banda.x0, y: banda.y0 }, banda)) Object.assign(banda.caja.style, { display: "block", left: `${r.x0}px`, top: `${r.y0}px`, width: `${r.x1 - r.x0}px`, height: `${r.y1 - r.y0}px` });
+  }, { capture: true });
+  const finBanda = (e: PointerEvent) => {
+    if (!banda || e.pointerId !== banda.id) return;
+    const b = banda; banda = null;
+    b.caja.remove(); cam()?.bloquear?.(false);
+    try { lienzo.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+    if (e.type === "pointercancel" || !esCaja({ x: b.x0, y: b.y0 }, { x: e.clientX, y: e.clientY })) return;
+    const r = rectDesde({ x: b.x0, y: b.y0 }, { x: e.clientX, y: e.clientY });
+    const dentro = idsEnRect(ed.centros().map(([k, p]) => [k, ed.pantalla(p.x, p.y, p.z)] as const), r);
+    if (!dentro.length) return decir("Ningún objeto dentro del rectángulo.");
+    const ids = unirSeleccion(c.estado.seleccionados, dentro);
+    c.seleccionarVarios(ids);
+    decir(`${ids.length} seleccionados con el rectángulo (Mayús + arrastrar en el vacío). Mover, girar y escalar los lleva a todos juntos.`);
+  };
+  addEventListener("pointerup", finBanda, { capture: true });
+  addEventListener("pointercancel", finBanda, { capture: true });
+
   // the wheel is the camera's, except while something follows the pointer: then it turns (Shift: scales) it
   lienzo.addEventListener("wheel", (e) => {
     if (!abierto() || (!agarre && !fantasma)) return;
@@ -762,20 +809,84 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   let dedo: { id: number; key: string; x0: number; y0: number; antes: Donde; desfase: { x: number; z: number } | null; movido: boolean } | null = null;
   document.addEventListener("pointerdown", (e) => {
     if (!abierto() || e.pointerType === "mouse" || e.target !== lienzo) return;
-    if (dedo) { if (e.pointerId !== dedo.id) e.stopPropagation(); return; }
+    if (dedo) {
+      if (e.pointerId !== dedo.id) {
+        e.stopPropagation();
+        if (!gesto && !dedo.movido && e.pointerType === "touch") empezarGesto(e); // lote4: a second finger while the first rests on the thing
+      }
+      return;
+    }
     if (!tactil) { tactil = true; aplicarGizmo(); }
     if (!e.isPrimary || agarre || fantasma) return; // grab mode and the library preview keep today's path (tap = drop)
     const key = ed.pick(e.clientX, e.clientY), antes = key ? ed.dondeEsta(key) : null;
     if (!key || !antes) return;
     e.stopPropagation();
     dedo = { id: e.pointerId, key, x0: e.clientX, y0: e.clientY, antes, desfase: null, movido: false };
+    posDedo.set(e.pointerId, { x: e.clientX, y: e.clientY });
     try { lienzo.setPointerCapture(e.pointerId); } catch { /* not capturable: window events still arrive */ }
     cam()?.bloquear?.(true);
     c.seleccionar(key);
     ed.despertar();
   }, { capture: true });
+  // ---- lote4 (M22b-2): two fingers — the first stays on the thing, the second joins anywhere; turning them turns the thing
+  // around its vertical axis, spreading them scales it (all three axes alike). One shared `lote`: a single Ctrl+Z.
+  let gesto: { ids: [number, number]; pos: Map<number, { x: number; y: number }>; inicio: { a: { x: number; y: number }; b: { x: number; y: number } }; key: string; antes: Donde; lote: string } | null = null;
+  const sobrantes = new Set<number>(); // fingers of a finished gesture: swallowed until they lift, so they never move the thing
+  const posDedo = new Map<number, { x: number; y: number }>();
+  function empezarGesto(e: PointerEvent): void {
+    if (!dedo) return;
+    const o = c.objeto(dedo.key);
+    if (!o || o.fijado) return decir(o?.fijado ? "Está anclado: suéltalo («Anclar / soltar») antes de girarlo o escalarlo." : "");
+    const a = posDedo.get(dedo.id) ?? { x: dedo.x0, y: dedo.y0 }, b = { x: e.clientX, y: e.clientY };
+    const inicio = { a: { ...a }, b };
+    if (!gestoDosDedos(inicio, inicio)) return; // fingers too close to tell an angle: ignore the second one
+    const antes = ed.dondeEsta(dedo.key);
+    if (!antes) return;
+    gesto = { ids: [dedo.id, e.pointerId], pos: new Map([[dedo.id, a], [e.pointerId, b]]), inicio, key: dedo.key, antes, lote: c.nuevoLote() };
+    loteGrupo = gesto.lote; arrastrado = true;
+    ed.sostener(gesto.key);
+    decir("Dos dedos: gíralos para girar el objeto, sepáralos o júntalos para escalarlo.");
+  }
+  function moverGesto(): void {
+    if (!gesto) return;
+    const g = gestoDosDedos(gesto.inicio, { a: gesto.pos.get(gesto.ids[0])!, b: gesto.pos.get(gesto.ids[1])! });
+    if (!g) return;
+    const n = aplicarGesto(gesto.antes, g);
+    ed.poner(gesto.key, n);
+    programarEnvio(gesto.key);
+    const d = ed.dondeEsta(gesto.key);
+    if (d) mostrarDonde(d);
+  }
+  function terminarGesto(): void {
+    if (!gesto) return;
+    const fue = gesto; gesto = null;
+    for (const id of fue.ids) sobrantes.add(id);
+    if (dedo && fue.ids.includes(dedo.id)) { try { lienzo.releasePointerCapture(dedo.id); } catch { /* gone */ } dedo = null; }
+    cam()?.bloquear?.(false);
+    const final = terminarEnvio();
+    ed.sostener(null, final ?? undefined);
+    loteGrupo = "";
+    const d = final ?? ed.dondeEsta(fue.key);
+    decir(d ? `${nombreDe(c.objeto(fue.key) ?? { id: fue.key })}: giro ${fmt(d.ry)}° · tamaño ${fmt(d.sx)} (Ctrl+Z lo deshace).` : "Hecho.");
+    refrescar();
+  }
   addEventListener("pointermove", (e) => {
-    if (!dedo || e.pointerId !== dedo.id) return;
+    if (sobrantes.has(e.pointerId)) { e.stopPropagation(); return; }
+    if (e.pointerType === "touch" && dedo) posDedo.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (!gesto || !gesto.ids.includes(e.pointerId)) return;
+    e.stopPropagation();
+    gesto.pos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    moverGesto();
+  }, { capture: true });
+  const levantar = (e: PointerEvent) => {
+    posDedo.delete(e.pointerId);
+    if (sobrantes.delete(e.pointerId)) { e.stopPropagation(); return; }
+    if (gesto?.ids.includes(e.pointerId)) { e.stopPropagation(); terminarGesto(); }
+  };
+  addEventListener("pointerup", levantar, { capture: true });
+  addEventListener("pointercancel", levantar, { capture: true });
+  addEventListener("pointermove", (e) => {
+    if (!dedo || e.pointerId !== dedo.id || gesto) return;
     e.stopPropagation();
     if (!dedo.movido) {
       if (Math.hypot(e.clientX - dedo.x0, e.clientY - dedo.y0) <= CLIC_PX) return;

@@ -36,6 +36,7 @@ import type { Medio, ControlVideo } from "./medios.ts";
 export { sePuedeReproducir } from "./medios.ts";
 export type { ControlVideo } from "./medios.ts";
 export type { Donde, Eje, Herramienta, Fase, Paso, Editor } from "./gizmo.ts";
+export { transformarGrupo, centroGrupo } from "./grupo.ts";
 import { createAvatares } from "./avatares.ts";
 import { asentadoEn, sueloDeVista } from "./avatares-politica.ts";
 import type { SueloTerreno } from "./avatares-politica.ts";

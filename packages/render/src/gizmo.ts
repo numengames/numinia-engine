@@ -7,8 +7,8 @@
 // only update what is wanted (no rubber-banding); after the release they wait until the final transform comes back,
 // or MANTENER_MS at most (then the thing goes where the server says: a refused move goes back).
 import * as THREE from "three/webgpu";
-import { mejorEncaje } from "./encaje.ts";
-import type { Caja3 } from "./encaje.ts";
+import { guiaEncaje } from "./encaje.ts";
+import type { Caja3, GuiaEncaje } from "./encaje.ts";
 import { yParaApoyar } from "./apoyo.ts";
 import type { Caja3 as CajaPropia } from "./apoyo.ts";
 
@@ -34,6 +34,7 @@ const RAD = Math.PI / 180;
 const MANTENER_MS = 1500; // after a release, at most this long the server's older echoes are ignored
 const ACTIVO_MS = 400;    // after any change here keep drawing this long (the page only draws while busy)
 const ENCAJE_M = 0.25;    // M22c: faces within this close (metres), while dragging on one axis, snap together
+const GUIA_M = 0.6;       // lote4: from this close a ghost shows the place where it will snap (before the jump)
 
 /** Degrees into [-180, 180]. */
 export const envolver = (g: number): number => ((((g + 180) % 360) + 360) % 360) - 180;
@@ -114,6 +115,18 @@ export function crearEditor(ctx: EditorCtx) {
   const cajaVarios = new Map<string, THREE.Box3>();
   let variosIds: string[] = [];
   const cajaOtra = new THREE.Box3(); // scratch for encaje's candidate boxes
+  // lote4: the snap guide — a ghost box (outline + faint fill, never casting shadows) at the place where the dragged
+  // thing will snap; white while there is distance left, green once the snap holds it.
+  const cajaGuia = new THREE.Box3();
+  const guiaMarco = new THREE.Box3Helper(cajaGuia, 0xffffff);
+  const guiaMat = guiaMarco.material as THREE.LineBasicMaterial;
+  guiaMat.depthTest = false; guiaMat.transparent = true; guiaMat.opacity = 0.95;
+  guiaMarco.renderOrder = 999; guiaMarco.visible = false; guiaMarco.name = "guia-encaje";
+  const guiaRelleno = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.16, depthTest: false, depthWrite: false }));
+  guiaRelleno.renderOrder = 996; guiaRelleno.visible = false; guiaRelleno.name = "guia-encaje-relleno"; guiaRelleno.castShadow = false; guiaRelleno.receiveShadow = false;
+  ctx.scene.add(guiaMarco, guiaRelleno);
+  let guia: GuiaEncaje | null = null;
+  const quitarGuia = () => { if (guia || guiaMarco.visible) { guia = null; guiaMarco.visible = false; guiaRelleno.visible = false; tocar(); } };
 
   let sel: string | null = null, herramienta: Herramienta | null = null, eje: Eje | null = null, local = false;
   let paso: Paso = { pos: 0.5, grados: 15, escala: 0.1 };
@@ -137,20 +150,33 @@ export function crearEditor(ctx: EditorCtx) {
   const claveDe = (o: THREE.Object3D | null): string | null => { for (; o; o = o.parent) if (o.name.startsWith("objeto:")) return o.name.slice(7); return null; };
   const candidatos = (ignorar?: string) => { const out: THREE.Object3D[] = []; for (const [k, g] of ctx.grupos()) if (k !== ignorar && !k.startsWith("~")) out.push(g); return out; };
   /** M22c: snaps a dragged group's position so its face touches a neighbour's, along ONE axis (the gizmo's axis
-   * filter): the common case of aligning two blocks. Only while a single axis is chosen, to keep the intent clear. */
+   * filter): the common case of aligning two blocks. Only while a single axis is chosen, to keep the intent clear.
+   * Lote4: from GUIA_M away it also draws the ghost at the snap place (see `guia`), and the snap itself is unchanged. */
   function intentarEncaje(g: THREE.Object3D, ejeSel: Eje): void {
     const idx = ejeSel === "X" ? 0 : ejeSel === "Y" ? 1 : 2;
     const propia = cajaDe(g, new THREE.Box3());
-    if (propia.isEmpty()) return;
+    if (propia.isEmpty()) return quitarGuia();
     const mia: Caja3 = { min: propia.min.toArray() as [number, number, number], max: propia.max.toArray() as [number, number, number] };
     const otras: Caja3[] = [];
     for (const o of candidatos(claveDe(g) ?? undefined)) {
       cajaDe(o, cajaOtra);
       if (!cajaOtra.isEmpty()) otras.push({ min: cajaOtra.min.toArray() as [number, number, number], max: cajaOtra.max.toArray() as [number, number, number] });
     }
-    const d = mejorEncaje(mia, otras, idx as 0 | 1 | 2, ENCAJE_M);
-    if (d === null) return;
-    if (idx === 0) g.position.x += d; else if (idx === 1) g.position.y += d; else g.position.z += d;
+    const r = guiaEncaje(mia, otras, idx as 0 | 1 | 2, GUIA_M, ENCAJE_M);
+    if (r === null) return quitarGuia();
+    // the ghost sits where the faces will touch: the dragged box moved by the displacement, on this axis only
+    cajaGuia.copy(propia);
+    if (idx === 0) { cajaGuia.min.x += r.desplazamiento; cajaGuia.max.x += r.desplazamiento; }
+    else if (idx === 1) { cajaGuia.min.y += r.desplazamiento; cajaGuia.max.y += r.desplazamiento; }
+    else { cajaGuia.min.z += r.desplazamiento; cajaGuia.max.z += r.desplazamiento; }
+    guia = r;
+    guiaMat.color.setHex(r.encaja ? 0x4be38a : 0xffffff);
+    (guiaRelleno.material as THREE.MeshBasicMaterial).color.setHex(r.encaja ? 0x4be38a : 0xffffff);
+    cajaGuia.getCenter(guiaRelleno.position); cajaGuia.getSize(guiaRelleno.scale);
+    guiaMarco.visible = guiaRelleno.visible = true;
+    tocar();
+    if (!r.encaja) return;
+    if (idx === 0) g.position.x += r.desplazamiento; else if (idx === 1) g.position.y += r.desplazamiento; else g.position.z += r.desplazamiento;
   }
 
   /** The gizmo follows the selection, the tool, the axis, the space and the snap. */
@@ -180,7 +206,7 @@ export function crearEditor(ctx: EditorCtx) {
         avisar("empieza", key, dondeDe(g));
       } else if (arrastre) {
         const { key, g } = arrastre, d = dondeDe(g);
-        arrastre = null; sostenido = null; soltado = { key, final: d, hasta: performance.now() + MANTENER_MS }; apoyo = null;
+        arrastre = null; sostenido = null; soltado = { key, final: d, hasta: performance.now() + MANTENER_MS }; apoyo = null; quitarGuia();
         avisar("acaba", key, d);
         aplicar();
       }
@@ -188,7 +214,7 @@ export function crearEditor(ctx: EditorCtx) {
     });
     c.addEventListener("objectChange", () => {
       if (arrastre && c.dragging) {
-        if (tc!.mode === "translate" && eje) intentarEncaje(arrastre.g, eje);
+        if (tc!.mode === "translate" && eje) intentarEncaje(arrastre.g, eje); else quitarGuia();
         // M22-fix: after each rotate step, put the base back exactly where it was (own box + current scale and
         // turn against the floor level remembered at the start of the drag) before telling anyone where it is.
         if (tc!.mode === "rotate" && apoyo) {
@@ -232,6 +258,18 @@ export function crearEditor(ctx: EditorCtx) {
       const s = ray.ray.intersectPlane(suelo, enSuelo);
       if (hit && (!s || hit.distance <= ray.ray.origin.distanceTo(s))) return { x: hit.point.x, y: Math.max(0, hit.point.y), z: hit.point.z };
       return s ? { x: s.x, y: 0, z: s.z } : null;
+    },
+    /** Lote4: the centre of every placed thing (the middle of what it draws, its position if nothing is drawn yet) —
+     * what the rubber band projects. Previews (`~`) are left out. */
+    centros(): [string, { x: number; y: number; z: number }][] {
+      const out: [string, { x: number; y: number; z: number }][] = [];
+      for (const [k, g] of ctx.grupos()) {
+        if (k.startsWith("~")) continue;
+        cajaDe(g, cajaOtra);
+        const c = cajaOtra.isEmpty() ? g.position : cajaOtra.getCenter(v);
+        out.push([k, { x: c.x, y: c.y, z: c.z }]);
+      }
+      return out;
     },
     /** Where a world point is on screen (client px), or null when it is behind the camera. */
     pantalla(x: number, y: number, z: number): { x: number; y: number } | null {
@@ -298,7 +336,7 @@ export function crearEditor(ctx: EditorCtx) {
     },
     /** The state of the hands (for the page, agents and checks). `ejeBajo` = the handle under the pointer. */
     estado() {
-      return { seleccionado: sel, herramienta, eje, local, paso, cargado: !!tc, fallo, arrastrando: !!tc?.dragging, ejeBajo: tc?.axis ?? null, sostenido };
+      return { seleccionado: sel, herramienta, eje, local, paso, cargado: !!tc, fallo, arrastrando: !!tc?.dragging, ejeBajo: tc?.axis ?? null, sostenido, guia };
     },
     /** True while something here moves or just changed: the page keeps drawing. */
     activo(): boolean { return !!tc?.dragging || sostenido !== null || soltado !== null || performance.now() < activoHasta; },
