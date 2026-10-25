@@ -971,7 +971,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   };
   function dibujarCuadro(): void {
     antesDelCuadro();
-    try { if (ppVivo && pp && !renderer.xr.isPresenting) pp.dibujar(); else renderer.render(scene, camera); if (espejoXR?.activo()) espejoXR.cuadro(performance.now()); if (fotoXR?.pendiente()) fotoXR.cuadro(); } finally { despuesDelCuadro();   }
+    try { if (ppVivo && pp && !renderer.xr.isPresenting) pp.dibujar(); else renderer.render(scene, camera); if (espejoXR?.activo()) espejoXR.cuadro(performance.now()); if (fotoXR?.pendiente()) fotoXR.cuadro(); } finally { despuesDelCuadro(); }
+  }
 
   // B4: three's own count of live shader programs (WebGPURenderer info.memory.programs); it only grows when one is made
   const programasVivos = (): number => (renderer as unknown as { info: { memory: { programs?: number } } }).info.memory.programs ?? 0;
