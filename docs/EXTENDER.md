@@ -1925,6 +1925,14 @@ Con interruptor: espacio base, naturaleza, báculo, dados, asientos. Sin él aú
 - **Página**: pose `sentarse` mantenida con `view.movimiento` y rumbo con `view.orientar` (expuesto de `render/avatares`, que ya lo tenía); «E: levantarte» es un local de `interactuar.ts` (`asiento.cerca()`).
 - **Interruptor** «Asientos» en Entorno (mismo patrón que báculo y dados). Apagar levanta a quien esté sentado y quita los asientos; los sitios se guardan.
 
+## Vuelo (v1): volar con permiso
+
+`features/vuelo` (H2): `/volar` te levanta del suelo (sin gravedad: Espacio sube, Ctrl baja) y `/aterrizar` te devuelve a pie. Quien decide es el servidor, nunca la página.
+- **Mundo**: `entorno.json` → `"vuelo": "nadie" | "constructores" | "todos"`. Sin la clave, **nadie** vuela. `constructores` = quien puede construir aquí (`puede(…, "construir")`). Una clave mal escrita se avisa en el registro y se queda en «nadie».
+- **Concesión por pieza**: otra pieza puede dar el vuelo a una persona con `instancia.concederVuelo(entidad, true|false)` (por ejemplo un objeto o un rol), también en un mundo que dice «nadie». Aterrizar siempre se permite.
+- **Cómo**: la intención `volar { activa }` o el chat piden `api.ordenar(e, { volar })`; la instancia lo comprueba (`puedeVolar`), lo graba entre las órdenes de la simulación (misma huella al repetir) y, si no hay permiso, lo registra y la persona oye por qué. Una página que mande `volar` por su cuenta no consigue nada.
+- Ctrl (BAJAR) lo envía la página en cada tick; a pie, la simulación lo ignora.
+
 ## Burbujas de voz (v1): voz solo entre los de la mesa
 
 `features/burbujas`: una esfera del mundo (una mesa, una sala) donde solo se oyen entre sí los que están dentro. La decide el servidor al reenviar la voz (`relayVoice` en `packages/instance`), no una página: lo que el servidor no envía no suena. Es privacidad de oído, no cifrado: el servidor sigue reenviando las tramas que recibe y no las decodifica, graba ni guarda.

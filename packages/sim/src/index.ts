@@ -290,18 +290,23 @@ export function spawnAvatar(s: SimState, owner: number, area?: SpawnArea | null)
 
 /** J2: everything that decides where an avatar goes next. The server sends it whole to the avatar's owner,
  * so the client's prediction restarts from exactly the server's state. H2's `modo`/`cnt`/`ix`/`iz` (historias 2-4)
- * are NOT here yet: they ride the wire only once the net package carries them (H2 historia 4's cola, out of scope
- * for this story); until then they live in `Motion` only and `getMotionExtra` below reads them for tests/instance. */
-export type Body = { x: number; y: number; z: number; vy: number; air: number; buf: number };
+ * are NOT here (except `vuela`, below): they ride the wire only once the net package carries them; until then they live in `Motion` only and `getMotionExtra` below reads them for tests/instance. */
+export type Body = { x: number; y: number; z: number; vy: number; air: number; buf: number; vuela?: number };
+/** `vuela` (H2 historia 4): 1 while the avatar's mode is MODO_VOLANDO. It rides the wire (SNAPSHOT flags bit 3) so the owner's
+ * prediction flies when the server says so (no gravity, no rubber band); the other modes (frozen, seated) are not carried. */
 export function getBody(s: SimState, e: number): Body {
-  return { x: s.tf.cols.x[e], y: s.tf.cols.y[e], z: s.tf.cols.z[e], vy: s.mo.cols.vy[e], air: s.mo.cols.air[e], buf: s.mo.cols.buf[e] };
+  return { x: s.tf.cols.x[e], y: s.tf.cols.y[e], z: s.tf.cols.z[e], vy: s.mo.cols.vy[e], air: s.mo.cols.air[e], buf: s.mo.cols.buf[e], vuela: s.mo.cols.modo[e] === MODO_VOLANDO ? 1 : 0 };
 }
 export function setBody(s: SimState, e: number, b: Body): void {
   s.tf.cols.x[e] = b.x; s.tf.cols.y[e] = b.y; s.tf.cols.z[e] = b.z;
   s.mo.cols.vy[e] = b.vy; s.mo.cols.air[e] = b.air; s.mo.cols.buf[e] = b.buf;
+  if (b.vuela !== undefined) { // only flying is carried: it never touches a frozen or seated mode
+    const MODO = s.mo.cols.modo;
+    if (b.vuela) MODO[e] = MODO_VOLANDO; else if (MODO[e] === MODO_VOLANDO) MODO[e] = MODO_PIE;
+  }
 }
 export const sameBody = (a: Body, b: Body): boolean =>
-  a.x === b.x && a.y === b.y && a.z === b.z && a.vy === b.vy && a.air === b.air && a.buf === b.buf;
+  a.x === b.x && a.y === b.y && a.z === b.z && a.vy === b.vy && a.air === b.air && a.buf === b.buf && (a.vuela ?? 0) === (b.vuela ?? 0);
 /** H2 historias 2-4: the extra motion state an order can set, read for tests and the instance (not yet on the
  * wire; `modo` is one of MODO_*). */
 export type MotionExtra = { modo: number; cnt: number; ix: number; iz: number };

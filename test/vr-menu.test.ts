@@ -263,3 +263,35 @@ test("menu: the ray's hit test (fila) finds header, list and content buttons; pr
   m.cerrar(); m.pulsar(idBoton(0)); assert.equal(hecho.ir, 0);
   assert.equal(m.abrir(ojo, new THREE.Vector3(0, -1, 0)), false, "no front when looking straight down");
 });
+
+// t_022e9bc1 (U-reloj in the headset): the HTML #reloj is not drawn in VR, so the wrist watch and the menu's header carry the time.
+test("VR clock: horaVR follows interfaz.hora (local/UTC); the watch paints the time under «Menú», the menu header beside it", async () => {
+  const { horaVR } = await import("../packages/client/src/reloj.ts");
+  const { dibujarReloj } = await import("../packages/render/src/muneca.ts");
+  const t = Date.UTC(2026, 9, 18, 22, 14, 59);
+  assert.equal(horaVR(t, "utc"), "22:14 UTC");
+  assert.match(horaVR(t, "local"), /^\d\d:\d\d$/);
+  assert.equal(horaVR(t, "marte"), horaVR(t, "local"), "an unknown value is local, like the HUD");
+  const pinta = (hora?: string) => {
+    const textos: string[] = [];
+    const g = new Proxy({}, { get: (_t, k) => (k === "fillText" ? (s: string) => { textos.push(s); } : k === "measureText" ? () => ({ width: 10 }) : () => undefined), set: () => true }) as unknown as CanvasRenderingContext2D;
+    dibujarReloj(g, { micro: null, camara: false, avisos: 0, ciudad: false, menuAbierto: false, ...(hora ? { hora } : {}) }, null);
+    return textos;
+  };
+  assert.deepEqual(pinta("21:40").filter((x) => x !== "Menú"), ["21:40"], "the time is drawn once");
+  assert.ok(pinta("21:40").includes("Menú"));
+  assert.deepEqual(pinta(), ["Menú"], "no time given = the watch as before");
+});
+
+test("VR clock: the menu repaints when the minute changes (and not before), a throwing clock does not break the menu", () => {
+  const { m, reloj, ojo, mira } = menuDePrueba();
+  let hora = "21:40", rompe = false;
+  const base = { contenido: () => ({ tipo: "lista" as const, vacio: "x", filas: [] }), desactivadas: () => new Set<never>(), hora: () => { if (rompe) throw new Error("no clock"); return hora; } };
+  m.proveedor(base);
+  m.alternar(ojo, mira);
+  const pinturas = () => m.estado().pinturas;
+  const p0 = pinturas();
+  reloj.t += 500; m.update(ojo); assert.equal(pinturas(), p0, "same minute: no repaint");
+  hora = "21:41"; reloj.t += 500; m.update(ojo); assert.equal(pinturas(), p0 + 1, "a new minute: one repaint");
+  rompe = true; hora = "21:42"; reloj.t += 500; m.update(ojo); assert.ok(pinturas() >= p0 + 1, "a broken clock paints the menu without it");
+});

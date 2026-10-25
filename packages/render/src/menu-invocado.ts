@@ -35,7 +35,8 @@ export type ContenidoChat = { tipo: "chat"; titulo?: string; mensajes: MensajeVR
 export type Contenido = ContenidoTu | ContenidoLista | ContenidoMapa | ContenidoChat;
 /** What the page gives the menu: each view's content (read at each paint), the sections it cannot show here, and a
  * hook when a view opens (e.g. ask the server who is here). */
-export type Proveedor = { contenido(v: Vista): Contenido; desactivadas(): ReadonlySet<Seccion>; alAbrir?(v: Vista): void };
+export type Proveedor = { contenido(v: Vista): Contenido; desactivadas(): ReadonlySet<Seccion>; alAbrir?(v: Vista): void;
+  /** The time in the header beside «Menú» («21:40»); none = no clock. */ hora?(): string };
 
 const TITULO_H = 64; // the title line over a list's rows
 const NOTA_FUENTE = `400 26px ${FUENTE}`, NOTA_LINEA = 32, NOTA_LINEAS = 2; // the footer note: its font, line height and most lines
@@ -77,7 +78,8 @@ export function createMenuInvocado(h: { scene: THREE.Object3D; salir: () => void
     let ct: Contenido;
     try { ct = proveedor.contenido(vista); } catch (e) { ct = { tipo: "lista", vacio: `No se pudo leer: ${String((e as Error)?.message ?? e).slice(0, 80)}`, filas: [] }; }
     const desact = proveedor.desactivadas();
-    const f = JSON.stringify([vista, encima, ct, [...desact], t < salirPideHasta, paginas.get(vista) ?? 0], (_, v) => (typeof v === "function" ? 1 : v));
+    let hora = ""; try { hora = proveedor.hora?.() ?? ""; } catch { /* the clock must not break the menu */ }
+    const f = JSON.stringify([vista, encima, ct, [...desact], t < salirPideHasta, paginas.get(vista) ?? 0, hora], (_, v) => (typeof v === "function" ? 1 : v));
     pintadoEn = t;
     if (!forzar && f === firma) return;
     firma = f; pinturas++; ultimoContenido = ct;
@@ -86,6 +88,7 @@ export function createMenuInvocado(h: { scene: THREE.Object3D; salir: () => void
     // header: «Menú», then «Salir de VR» and X on the right; a line under it
     g.fillStyle = COLOR.texto; g.font = `600 44px ${FUENTE}`; g.textAlign = "left"; g.textBaseline = "middle";
     g.fillText("Menú", 40, CABECERA.h / 2);
+    if (hora) { const w = g.measureText("Menú").width; g.font = `500 34px ${FUENTE}`; g.fillStyle = COLOR.suave; g.fillText(hora, 40 + w + 28, CABECERA.h / 2 + 2); g.fillStyle = COLOR.texto; }
     const pide = t < salirPideHasta;
     boton(g, cajaSalir(), pide ? "¿Salir? Otra vez" : "Salir de VR", { estilo: "normal", encima: encima === ID_SALIR, icono: "desktop", paths: h.iconos, tam: 30 });
     boton(g, cajaCerrar(), "", { encima: encima === ID_CERRAR, icono: "x", paths: h.iconos });
