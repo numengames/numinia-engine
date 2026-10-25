@@ -4,7 +4,8 @@
 // sky baked into a cube once per change (no per-pixel atmosphere), no shadows and no HDR light by default.
 import * as THREE from "three/webgpu";
 import { uniform, mix, smoothstep, normalize, positionLocal, positionWorld, cameraPosition, vec3, dot, max, pow, fog, rangeFogFactor, exponentialHeightFogFactor } from "three/tsl";
-import { CALIDAD_POR_NIVEL, SOMBRA_PX, CIELO_LUZ_PX, nivelDe, capacidades, acotarCalidad } from "./calidad.ts";
+import type { Efectos } from "./calidad.ts";
+import { CALIDAD_POR_NIVEL, SOMBRA_PX, CIELO_LUZ_PX, nivelDe, capacidades, acotarCalidad, ficheroGrandePermitido, acotarEfectos, efectosPermitidos, EFECTOS_APAGADOS, RADIO_SOMBRA } from "./calidad.ts";
 import type { Calidad, Nivel } from "./calidad.ts";
 import { horizonteAtmosfera } from "./cielo-horizonte.ts";
 
@@ -83,6 +84,9 @@ export function crearEntorno(h: EntornoHooks) {
   let pedido: Partial<Calidad> = {};
   let calidad: Calidad = { ...CALIDAD_POR_NIVEL[nivel] };
   const avisar = () => { hastaMs = performance.now() + 500; };
+  /** H4b: the world's HDR light / sky picture as THIS tier may use it ("" = not on this tier: the baked sky lights and draws instead). */
+  const hdrDe = (v: EntornoDatos | null): string => { const f = String(v?.hdr ?? ""); return ficheroGrandePermitido(nivel, f) ? f : ""; };
+  const imagenDe = (v: EntornoDatos | null): string => { const f = String(v?.imagen ?? ""); return ficheroGrandePermitido(nivel, f) ? f : ""; };
 
   // ---- sky: the atmosphere (three's SkyMesh, lazy), a gradient dome, or a flat colour ----
   let sky: Sky | null = null;
@@ -197,7 +201,7 @@ export function crearEntorno(h: EntornoHooks) {
     const fuente: THREE.Object3D | null = atm ? domo : tipo === "atmosfera" ? sky : tipo === "degradado" || tipo === "color" ? domo : null; // R7.1: the nature's dome
     if (!fuente) return;
     const auto = !atm && d.nieblaAuto !== false && tipo === "atmosfera" && scene.fog instanceof THREE.Fog;
-    const luz = calidad.hdr && !String(d.hdr ?? "");
+    const luz = calidad.hdr && !hdrDe(d);
     // the sun moves in whole degrees for this purpose: a day cycle re-bakes every few steps, not every step
     const clave = JSON.stringify([tipo, Math.round(n(d.solAltura)), Math.round(n(d.solRumbo)), d.turbidez, d.nubes, d.cieloArriba, d.cieloHorizonte, modoCielo, auto, luz, atm ? atmClave : 0]);
     if (clave === horneadoClave) { if (luz && envRT) scene.environment = envRT.texture; if (modoCielo === "horneado") scene.background = cubo.texture; return; }
@@ -250,7 +254,7 @@ export function crearEntorno(h: EntornoHooks) {
       pmrem ??= new THREE.PMREMGenerator(renderer);
       hdrTex.rt = pmrem.fromEquirectangular(t);
       t.dispose();
-      if (d && calidad.hdr && String(d.hdr) === nombre) scene.environment = hdrTex.rt.texture;
+      if (d && calidad.hdr && hdrDe(d) === nombre) scene.environment = hdrTex.rt.texture;
     }).catch((e) => { console.warn(`[entorno] no se pudo cargar ${nombre}: ${(e as Error)?.message ?? e}`); })
       .finally(() => { hdrTex.cargando = false; cargando--; avisar(); });
   }
@@ -292,6 +296,7 @@ export function crearEntorno(h: EntornoHooks) {
     const c = sun.shadow.camera as THREE.OrthographicCamera;
     if (c.right !== lado) { c.left = -lado; c.right = lado; c.top = lado; c.bottom = -lado; c.near = 1; c.far = 160; c.updateProjectionMatrix(); }
     sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.03;
+    sun.shadow.radius = efectos.sombraSuave ? RADIO_SOMBRA.suave : RADIO_SOMBRA.duro; // H12b: soft = a wider PCF disc (a uniform: no recompile)
   }
   function marcarSombras(): void {
     world.traverse((o) => {
@@ -303,8 +308,11 @@ export function crearEntorno(h: EntornoHooks) {
   }
 
   /** Apply an environment (flat fields). Safe to call at any time; with AR on, it waits until the world shows again. */
+  // D-076: a sun that follows the real one — set from the page AFTER the player accepted; kept only in memory. It sits over the world's own
+  // sun (altura, rumbo and the clock the sky reads) without touching the shared environment: nobody else sees it, the file is not changed.
+  let solLocal: { altura: number; rumbo: number; hora: number } | null = null;
   function aplicar(pedido: EntornoDatos): void {
-    d = pedido; const v = pedido;
+    d = pedido; const v: EntornoDatos = solLocal && pedido.solReal === true ? { ...pedido, solAltura: solLocal.altura, solRumbo: solLocal.rumbo, solHora: true, hora: solLocal.hora } : pedido;
     if (!world.visible) { pendiente = true; return; }
     pendiente = false; aplicados++;
     // sun (the sky's) and the light (the moon when the sun is down)
@@ -350,7 +358,7 @@ export function crearEntorno(h: EntornoHooks) {
     suelo(v);
     // sky
     arribaU.value.setHex(n(v.cieloArriba, 0x5d8fc9)); horizonteU.value.setHex(n(v.cieloHorizonte, 0xc9d8e4));
-    const tipo = String(v.cielo), imagen = String(v.imagen ?? "");
+    const tipo = String(v.cielo), imagen = imagenDe(v);
     scene.backgroundNode = null;
     if (imagen) {
       modoCielo = "imagen"; cielosEnEscena(null);
@@ -358,7 +366,7 @@ export function crearEntorno(h: EntornoHooks) {
         fondoTex = { nombre: imagen, tex: null };
         const carga = imagen.endsWith(".hdr") ? import("three/addons/loaders/HDRLoader.js").then((m) => new m.HDRLoader().loadAsync(h.fichero(imagen))) : new THREE.TextureLoader().loadAsync(h.fichero(imagen));
         cargando++;
-        carga.then((t: THREE.Texture) => { t.mapping = THREE.EquirectangularReflectionMapping; if (!imagen.endsWith(".hdr")) t.colorSpace = THREE.SRGBColorSpace; fondoTex.tex = t; if (d && String(d.imagen) === imagen && world.visible) scene.background = t; })
+        carga.then((t: THREE.Texture) => { t.mapping = THREE.EquirectangularReflectionMapping; if (!imagen.endsWith(".hdr")) t.colorSpace = THREE.SRGBColorSpace; fondoTex.tex = t; if (d && imagenDe(d) === imagen && world.visible) scene.background = t; })
           .catch((e: unknown) => console.warn(`[entorno] fondo sin imagen: ${(e as Error)?.message ?? e}`)).finally(() => { cargando--; avisar(); });
       } else if (fondoTex.tex) scene.background = fondoTex.tex;
     } else if (atm) { // R7.1: the nature's 4-stop dome, live on A (it takes the place of the live SkyMesh: same one draw); baked into the cube on B–D, as today
@@ -374,7 +382,7 @@ export function crearEntorno(h: EntornoHooks) {
     } else if (tipo === "degradado") { modoCielo = "degradado"; cielosEnEscena(domo); scene.background = null; }
     else { modoCielo = "color"; cielosEnEscena(null); scene.background = new THREE.Color(n(v.cieloArriba, 0x5d8fc9)); }
     // environment light: an HDR file, or the sky itself (baked), or none
-    const hdr = String(v.hdr ?? "");
+    const hdr = hdrDe(v);
     if (!calidad.hdr) scene.environment = null;
     else if (hdr) { cargarHdr(hdr); if (hdrTex.rt) scene.environment = hdrTex.rt.texture; }
     hornearEn = performance.now() + (horneados ? 200 : 0);
@@ -382,6 +390,16 @@ export function crearEntorno(h: EntornoHooks) {
     avisar();
   }
 
+  // H12b: the extra effects (bloom, AO, soft shadows): level A only, off by default; the page asks (settings menu), the tier clamps
+  let efectos: Efectos = { ...EFECTOS_APAGADOS }, pedidoEf: Partial<Efectos> = {};
+  const alEfectos: ((e: Efectos) => void)[] = [];
+  function cambiarEfectos(): void {
+    const antes = JSON.stringify(efectos);
+    efectos = acotarEfectos(nivel, { ...EFECTOS_APAGADOS }, pedidoEf);
+    if (JSON.stringify(efectos) === antes) return;
+    sombras(); avisar();
+    for (const f of alEfectos) f({ ...efectos });
+  }
   function cambiarCalidad(): void {
     const antes = { ...calidad };
     calidad = acotarCalidad(nivel, { ...CALIDAD_POR_NIVEL[nivel] }, pedido);
@@ -392,7 +410,7 @@ export function crearEntorno(h: EntornoHooks) {
   function actualizarNivel(): void {
     const nv = forzado ?? nivelDe({ ...h.aparato, xr: renderer.xr.isPresenting });
     if (nv === nivel) return;
-    nivel = nv; cambiarCalidad(); if (d) aplicar(d);
+    nivel = nv; cambiarCalidad(); cambiarEfectos(); if (d) aplicar(d);
   }
 
   return {
@@ -409,8 +427,24 @@ export function crearEntorno(h: EntornoHooks) {
       if (c) { pedido = { ...pedido, ...c }; cambiarCalidad(); }
       return { ...calidad };
     },
+    /** D-076: show the real sun (altura, rumbo, local solar hour) in this browser only, or null to go back to the world's own. Needs the world to offer it (`solReal`). */
+    solReal(s: { altura: number; rumbo: number; hora: number } | null): boolean {
+      solLocal = s && [s.altura, s.rumbo, s.hora].every(Number.isFinite) ? { ...s } : null;
+      if (d) aplicar(d);
+      return solLocal !== null && d?.solReal === true;
+    },
+    /** D-076: does the world offer it? */
+    get ofreceSolReal(): boolean { return d?.solReal === true; },
+    /** H12b: choose the extra effects (any subset); off whatever the wish on a tier that is not A. Returns what applies now. */
+    efectos(e?: Partial<Efectos>): Efectos {
+      if (e) { pedidoEf = { ...pedidoEf, ...e }; cambiarEfectos(); }
+      return { ...efectos };
+    },
+    get efectosActual(): Efectos { return efectos; },
+    /** H12b: tell me when the effects that apply change (a tier change turns them off). */
+    alCambiarEfectos(f: (e: Efectos) => void): void { alEfectos.push(f); },
     /** What this device can choose, its defaults and its particle caps. */
-    capacidades() { return { ...capacidades(nivel), backend: (renderer as unknown as { backend: { isWebGPUBackend?: boolean } }).backend.isWebGPUBackend ? "WebGPU" : "WebGL2" }; },
+    capacidades() { return { ...capacidades(nivel), efectos: efectosPermitidos(nivel), backend: (renderer as unknown as { backend: { isWebGPUBackend?: boolean } }).backend.isWebGPUBackend ? "WebGPU" : "WebGL2" }; },
     /**
      * R7.1: lay an atmosphere over the world's (the nature does, while it is on): the 4-stop dome, the gradient + height fog node and its tone.
      * Returns the undo: the world's own sky, fog and tone come back exactly as its data says (one re-apply), so worlds without nature never change.
@@ -435,15 +469,18 @@ export function crearEntorno(h: EntornoHooks) {
       return {
         preset: String(d?.preset ?? ""), cielo: String(d?.cielo ?? ""), modoCielo, fondo,
         niebla: f ? { cerca: f.near, lejos: f.far, color: hex(f.color) } : null,
-        sol: { altura: n(d?.solAltura), rumbo: n(d?.solRumbo), intensidad: Math.round(sun.intensity * 100) / 100, color: hex(sun.color), sombras: sun.castShadow && sun.shadow.intensity > 0, mapa: sun.castShadow && sun.shadow.intensity > 0 ? sun.shadow.mapSize.x : 0 },
+        sol: { altura: n(solLocal && d?.solReal === true ? solLocal.altura : d?.solAltura), rumbo: n(solLocal && d?.solReal === true ? solLocal.rumbo : d?.solRumbo), intensidad: Math.round(sun.intensity * 100) / 100, color: hex(sun.color), sombras: sun.castShadow && sun.shadow.intensity > 0, mapa: sun.castShadow && sun.shadow.intensity > 0 ? sun.shadow.mapSize.x : 0 },
         ambiente: Math.round(hemi.intensity * 100) / 100,
-        luzEntorno: !scene.environment ? "no" : String(d?.hdr ?? "") && hdrTex.rt && scene.environment === hdrTex.rt.texture ? "fichero" : "cielo",
+        luzEntorno: !scene.environment ? "no" : hdrDe(d) && hdrTex.rt && scene.environment === hdrTex.rt.texture ? "fichero" : "cielo",
         suelo: { tipo: String(d?.suelo ?? ""), textura: !!sueloMat.map, relieve: !!sueloMat.normalMap, metros: n(d?.sueloMetros) },
         tono: String(d?.tono ?? ""), exposicion: renderer.toneMappingExposure,
         /** R7.1: a piece's atmosphere is on (the nature): the tone actually applied, and whether the fog is the gradient node. */
         atmosfera: atm ? { tono: atm.tono, nieblaNodo: scene.fogNode !== null && scene.fogNode !== undefined, horizonte: hex(atmU.horizonte.value), cielo: atm.cielo ? "analitico" : "4-paradas" } : null,
         viento: { x: Math.round(viento.x * 100) / 100, z: Math.round(viento.z * 100) / 100, fuerza: n(d?.vientoFuerza) },
         hitos: h.hitos[0]?.visible ?? false, rejilla: grid.visible, mapaCorte: Math.max(0, n(d?.mapaCorte, 0)),
+        /** H4b: the big files this tier actually uses (a name = fetched, "" = none; `omitidos` = the world names one this tier does not fetch). */
+        ficheros: { hdr: hdrDe(d), fondo: imagenDe(d), omitidos: (!!String(d?.hdr ?? "") && !hdrDe(d)) || (!!String(d?.imagen ?? "") && !imagenDe(d)) },
+        efectos: { ...efectos }, radioSombra: sun.shadow.radius, solReal: { ofrecido: d?.solReal === true, activo: solLocal !== null && d?.solReal === true },
         nivel, calidad: { ...calidad }, aplicados, horneados, cargando,
       };
     },

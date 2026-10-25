@@ -7,6 +7,8 @@
 //    through the 3D transform) reaches the page inside (its counter goes to 1); the iframe is sandboxed (no top
 //    navigation), has no camera/microphone (Permissions Policy), no referrer; the closed site is a card with «Abrir …»
 //    (no iframe); walking behind the screen hides the page.
+//    H8 hole-punch: with the player standing between the camera and the screen, the avatar is drawn OVER the page (pixels at its
+//    chest and head are not the page's white; capture web-4-pc-avatar-delante.png); the mouse still reaches the page through the canvas.
 // 2) Phone (390×844, touch): the same screen answers a TAP.
 // 3) VR (IWER Quest 3): inside VR no DOM is drawn (#web-capa hidden, every screen «xr»); the ray on the panel's
 //    «Abrir fuera de VR» + trigger leaves VR and shows the card with the link to the page.
@@ -53,7 +55,7 @@ mkdirSync(join(DIR, "entorno"), { recursive: true });
 mkdirSync(join(DIR, "datos"), { recursive: true });
 writeFileSync(join(DIR, "entorno", "entorno.json"), JSON.stringify({ schema: "numinia-engine/entorno@1", aparicion: { x: 0, z: 0, radio: 1 } }));
 writeFileSync(join(DIR, "entorno", "web.json"), JSON.stringify({ schema: "numinia-engine/web@1", dominios: [`127.0.0.1:${SP_SITIO}`], pantallas: [
-  { id: "prueba", url: `${SITIO}/pagina.html`, titulo: "Página de prueba", texto: "Una página servida en esta máquina.", x: 0, y: 1.8, z: -6, ry: 0, ancho: 3.2, alto: 1.8 },
+  { id: "prueba", url: `${SITIO}/pagina.html`, titulo: "Página de prueba", texto: "Una página servida en esta máquina.", x: 0, y: 1.3, z: -6, ry: 0, ancho: 3.2, alto: 1.8 },
   { id: "cerrada", url: `${SITIO}/cerrada.html`, titulo: "Web cerrada", x: 4.5, y: 1.8, z: -6, ry: 0, ancho: 2.4, alto: 1.5 },
 ] }));
 const ADMIN = "codigo-admin-e2e-web-largo";
@@ -144,7 +146,7 @@ if (!SOLO || SOLO === "pc") try {
     res.pcBoton = punto && { x: Math.round(punto.x), y: Math.round(punto.y) };
     if (punto) res.pcPila = await p.evaluate(([x, y]) => document.elementsFromPoint(x, y).slice(0, 3).map((e) => `${e.tagName}.${e.className}`), [punto.x, punto.y]);
     await foto(p, "1-pc-cerca");
-    if (punto) await p.mouse.click(punto.x, punto.y);
+    if (punto) { await p.mouse.move(punto.x, punto.y); res.pcPilaTrasMover = await p.evaluate(([x, y]) => ({ agujero: globalThis.__numinia.view.web.agujero, lienzoPE: globalThis.__numinia.view.renderer.domElement.style.pointerEvents, pila: document.elementsFromPoint(x, y).slice(0, 5).map((e) => `${e.tagName}#${e.id}.${e.className}`) }), [punto.x, punto.y]); await p.mouse.click(punto.x, punto.y); }
     await p.waitForTimeout(400);
     res.pcClics = await f.evaluate(() => document.getElementById("n").textContent);
     res.pcCamara = await f.evaluate(() => document.featurePolicy ? document.featurePolicy.allowsFeature("camera") : "sin featurePolicy");
@@ -160,6 +162,30 @@ if (!SOLO || SOLO === "pc") try {
   await p.mouse.click(640, 560);
   await p.waitForTimeout(200);
   res.pcTecladoAlMundo = await p.evaluate(() => document.activeElement?.tagName !== "IFRAME");
+  // H8 hole-punch: standing between the camera and the screen, you are drawn OVER the page (it used to vanish behind it)
+  res.pcAgujero = await p.evaluate(() => globalThis.__numinia.view.web.agujero);
+  const pos = await p.evaluate(() => globalThis.__numinia.web.pantallas().find((x) => x.id === "prueba"));
+  res.pcPantallaPos = pos && { x: pos.x, y: pos.y, z: pos.z };
+  res.pcDelante = pos ? await caminar(p, pos.x, pos.z + 1.8, 0.4) : null; // 1.8 m in front of its face: the camera follows behind you
+  res.pcYaw = await p.evaluate(() => { const c = globalThis.__numinia.view.cam; c.mirarHacia(0, 0.12); return c.yaw(); }); // looking north along the ground, towards the screen
+  await p.waitForTimeout(1500);
+  {
+    const q = await p.evaluate(() => {
+      const n = globalThis.__numinia, me = n.session.selfPosition(1), cam = n.view.camera;
+      cam.updateMatrixWorld(true);
+      const pr = (y) => { const t = new (cam.position.constructor)(me.x, me.y + y, me.z).project(cam); return { x: ((t.x + 1) / 2) * innerWidth, y: ((1 - t.y) / 2) * innerHeight }; };
+      return { pecho: pr(1.1), cabeza: pr(1.55), pies: pr(0.1), estado: n.view.web.estado().find((e) => e.id === "prueba") };
+    });
+    res.pcDelanteAvatar = q;
+    const dentro = [q.pecho, q.cabeza].filter((pt) => { const sc = null; return pt.x > 0; });
+    void dentro;
+    const png = await p.screenshot({ ...(SHOTS ? { path: `${SHOTS}/web-4-pc-avatar-delante.png` } : {}) });
+    res.pcDelantePixeles = await p.evaluate(async ([b64, pts]) => {
+      const im = new Image(); im.src = `data:image/png;base64,${b64}`; await im.decode();
+      const c = document.createElement("canvas"); c.width = im.width; c.height = im.height; const g = c.getContext("2d"); g.drawImage(im, 0, 0);
+      return pts.map((pt) => { const d = g.getImageData(Math.round(pt.x), Math.round(pt.y), 1, 1).data; return [d[0], d[1], d[2]]; });
+    }, [png.toString("base64"), [q.pecho, q.cabeza]]);
+  }
   res.pcDetras = await aDetras(p);
   await foto(p, "2-pc-detras");
   nota("pc");
@@ -245,6 +271,8 @@ if (pc) {
   pide(res.pcReferrer === "", "la página de dentro sabe de dónde viene");
   pide(res.pcTarjeta?.tarjeta && !res.pcTarjeta.iframe && res.pcTarjeta.enlace?.endsWith("/cerrada.html") && /noopener/.test(res.pcTarjeta.rel ?? ""), "la web cerrada no es una tarjeta con «Abrir»");
   pide(res.pcTecladoAlMundo, "tras usar la página, un clic en el mundo no devolvió el teclado");
+  pide(res.pcAgujero === true, "en un escritorio la página va bajo el lienzo (hole-punch)");
+  pide(Array.isArray(res.pcDelantePixeles) && res.pcDelantePixeles.every((c) => Math.min(...c) < 200), `el avatar se dibuja encima de la página (píxeles ${JSON.stringify(res.pcDelantePixeles)})`);
   pide(res.pcDetras && !res.pcDetras.dom && res.pcDetras.motivo === "detrás", "por detrás se seguía viendo la página");
 }
 if (movil) pide(res.movilToques === "1", "el toque del móvil no llegó a la página");

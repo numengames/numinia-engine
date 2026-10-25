@@ -11,7 +11,7 @@
 import * as THREE from "three/webgpu";
 import type { Panel } from "./manos.ts";
 
-import { VER_IFRAME_M, QUITAR_IFRAME_M, PX_ANCHO, SANDBOX, PERMISOS, PERMISOS_VIDEO, tapadoPorCajas } from "./web-politica.ts";
+import { VER_IFRAME_M, QUITAR_IFRAME_M, PX_ANCHO, SANDBOX, PERMISOS, PERMISOS_VIDEO, tapadoPorCajas, puntoEnCuadrilatero } from "./web-politica.ts";
 export { VER_IFRAME_M, QUITAR_IFRAME_M, PX_ANCHO, SANDBOX, PERMISOS, PERMISOS_VIDEO, tapadoPorCajas };
 
 export type PantallaVista = { id: string; url: string; titulo: string; texto: string; x: number; y: number; z: number; ry: number; ancho: number; alto: number; enmarcar: boolean;
@@ -35,13 +35,43 @@ const envolver = (g: CanvasRenderingContext2D, t: string, max: number) => {
   return out;
 };
 
-export function crearPantallasWeb(h: { world: THREE.Object3D; camera: THREE.PerspectiveCamera; enXR: () => boolean; cajas: () => ArrayLike<number>; padre?: HTMLElement }) {
+/** `agujero` (H8, hole-punch): when it answers true the page layer is drawn UNDER the canvas and each live screen's panel punches a hole
+ * (transparent pixels, depth-tested) in the canvas, so an avatar or any solid thing in front of the screen is drawn over the page instead of
+ * vanishing behind it. The render only says yes on a desktop (a canvas with alpha, a mouse to find the hole) and with no post-processing
+ * pass (it would drop the canvas' alpha); otherwise the page stays over the canvas as before (the known limit). */
+export function crearPantallasWeb(h: { world: THREE.Object3D; camera: THREE.PerspectiveCamera; enXR: () => boolean; cajas: () => ArrayLike<number>; padre?: HTMLElement; agujero?: () => boolean; lienzo?: HTMLElement }) {
   const pantallas = new Map<string, Una>();
   let css: Css | null = null, cargando: Promise<unknown> | null = null;
   let r3: InstanceType<Css["CSS3DRenderer"]> | null = null;
   const escenaCss = new THREE.Scene();
   const oyentes = new Set<(p: PantallaVista) => void>();
   let ultimoXR = false;
+  // H8: the punched hole = a material that writes (0,0,0,0) where it passes the depth test
+  const hueco = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true, depthWrite: true, fog: false, toneMapped: false,
+    blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.ZeroFactor, blendDst: THREE.ZeroFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.ZeroFactor });
+  let conAgujero = false, fondoCuerpo: string | null = null;
+  const PUNTEROS = { x: -1, y: -1 };
+  /** The four corners of each punched screen on the client, to let the mouse reach the page through the canvas. */
+  function cuadrilatero(u: Una, out: { x: number; y: number }[]): boolean {
+    const w = u.p.ancho / 2, hh = u.p.alto / 2, v = new THREE.Vector3();
+    u.malla.updateWorldMatrix(true, false);
+    out.length = 0;
+    for (const [x, y] of [[-w, hh], [w, hh], [w, -hh], [-w, -hh]]) {
+      v.set(x, y, 0).applyMatrix4(u.malla.matrixWorld).project(h.camera);
+      if (v.z > 1 || v.z < -1) return false;
+      out.push({ x: ((v.x + 1) / 2) * innerWidth, y: ((1 - v.y) / 2) * innerHeight });
+    }
+    return true;
+  }
+  function alPuntero(e: PointerEvent): void {
+    PUNTEROS.x = e.clientX; PUNTEROS.y = e.clientY;
+    if (!conAgujero || !h.lienzo || e.buttons !== 0) return; // a drag that began on the world keeps the canvas
+    let dentro = false;
+    const q: { x: number; y: number }[] = [];
+    for (const u of pantallas.values()) if (u.estado.dom && u.estado.iframe && cuadrilatero(u, q) && puntoEnCuadrilatero(q, e.clientX, e.clientY)) { dentro = true; break; }
+    h.lienzo.style.pointerEvents = dentro ? "none" : "";
+  }
+  if (h.agujero && h.lienzo) addEventListener("pointermove", alPuntero, { capture: true, passive: true });
 
   const cargar = () => (cargando ??= import("three/addons/renderers/CSS3DRenderer.js").then((m) => {
     css = m as unknown as Css;
@@ -49,7 +79,7 @@ export function crearPantallasWeb(h: { world: THREE.Object3D; camera: THREE.Pers
     const capa = r3.domElement;
     capa.id = "web-capa";
     // positioned and FIRST in the body: over the canvas (which is not positioned), under every later positioned HUD
-    Object.assign(capa.style, { position: "fixed", left: "0", top: "0", pointerEvents: "none" });
+    Object.assign(capa.style, { position: "fixed", left: "0", top: "0", pointerEvents: "none", zIndex: conAgujero ? "-1" : "" });
     (h.padre ?? document.body).prepend(capa);
     r3.setSize(innerWidth, innerHeight);
     addEventListener("resize", () => r3?.setSize(innerWidth, innerHeight));
@@ -136,7 +166,7 @@ export function crearPantallasWeb(h: { world: THREE.Object3D; camera: THREE.Pers
   function quitar(id: string): void {
     const u = pantallas.get(id);
     if (!u) return;
-    h.world.remove(u.malla); u.malla.geometry.dispose(); (u.malla.material as THREE.Material).dispose(); u.tex.dispose();
+    h.world.remove(u.malla); u.malla.geometry.dispose(); ((u.malla.userData as { mat?: THREE.Material }).mat ?? (u.malla.material as THREE.Material)).dispose(); u.tex.dispose();
     if (u.obj) { escenaCss.remove(u.obj); u.el?.remove(); }
     pantallas.delete(id);
   }
@@ -189,6 +219,24 @@ export function crearPantallasWeb(h: { world: THREE.Object3D; camera: THREE.Pers
         if (dom) ponerIframe(u); else if (dist > QUITAR_IFRAME_M || xr) quitarIframe(u);
         u.estado = { id: u.p.id, dom, iframe: !!u.iframe, tarjeta: !u.p.enmarcar, motivo: motivo || (u.obj ? "" : "cargando"), dist: Math.round(dist * 10) / 10 };
       }
+      // H8: under the canvas (z-index -1, the body's own background let through) while the render says the hole can be punched
+      const quiero = !!h.agujero?.() && !xr;
+      if (quiero !== conAgujero) {
+        conAgujero = quiero;
+        if (r3) r3.domElement.style.zIndex = quiero ? "-1" : "";
+        if (quiero) {
+          fondoCuerpo = document.body.style.background; document.body.style.background = "transparent";
+          // the body is a block that would sit over the page layer and catch its clicks: it lets them through, and its children (the canvas, the HUD…) take them back at zero specificity so any rule of theirs still wins
+          if (!document.getElementById("web-agujero-css")) { const st = document.createElement("style"); st.id = "web-agujero-css"; st.textContent = ":where(body.web-agujero){pointer-events:none}:where(body.web-agujero)>:where(*){pointer-events:auto}"; document.head.append(st); }
+          document.body.classList.add("web-agujero");
+        } else { document.body.style.background = fondoCuerpo ?? ""; document.body.classList.remove("web-agujero"); if (h.lienzo) h.lienzo.style.pointerEvents = ""; }
+      }
+      for (const u of pantallas.values()) {
+        const m = u.malla.material;
+        const quieroHueco = conAgujero && u.estado.dom && u.estado.iframe;
+        if (quieroHueco && m !== hueco) { (u.malla as unknown as { userData: { mat?: THREE.Material } }).userData.mat = m as THREE.Material; u.malla.material = hueco; }
+        else if (!quieroHueco && m === hueco) u.malla.material = (u.malla.userData as { mat: THREE.Material }).mat;
+      }
       if (r3) { r3.domElement.style.display = xr ? "none" : ""; if (!xr) r3.render(escenaCss, h.camera); }
     },
     /** The VR panels the hands may point at (each screen's button). */
@@ -208,6 +256,8 @@ export function crearPantallasWeb(h: { world: THREE.Object3D; camera: THREE.Pers
       v.applyMatrix4(u.obj.matrixWorld).project(h.camera);
       return { x: ((v.x + 1) / 2) * innerWidth, y: ((1 - v.y) / 2) * innerHeight };
     },
+    /** For checks: is the hole punched now (the page under the canvas)? */
+    get agujero(): boolean { return conAgujero; },
     /** For checks: where a screen's VR button sits in the world. */
     botonMundo(id: string): { x: number; y: number; z: number } | null {
       const u = pantallas.get(id);

@@ -1,4 +1,5 @@
 // The PP1 page: one plaza, your capsule, everyone else's, and the determinism probe.
+import { montarSolReal } from "./sol-real.ts";
 import { version as versionPaquete } from "../../package.json"; // only this field reaches the page (docs/VERSIONES.md)
 import { hex } from "../../packages/core/src/index.ts";
 import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX, BTN_JUMP, BTN_RUN } from "../../packages/sim/src/index.ts";
@@ -338,7 +339,7 @@ montarEntorno(ambiente, elementos, view, interruptorNaturaleza, constructorUI.ca
   { id: "asientos", etiqueta: "Asientos", titulo: "Encender o apagar los asientos de este mundo («E» junto a un asiento y te sientas) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en asientos.json. / Turn the seats on or off for the whole world.", encendida: "Asientos encendidos.", apagada: "Asientos apagados.", interruptor: interruptorAsiento },
   { id: "burbujas", etiqueta: "Burbujas de voz", titulo: "Encender o apagar las burbujas de voz de este mundo (dentro de una, solo se oyen entre sí los que están dentro; es privacidad de oído, no cifrado) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en burbujas.json. / Turn the voice bubbles on or off for the whole world.", encendida: "Burbujas de voz encendidas.", apagada: "Burbujas de voz apagadas.", interruptor: interruptorBurbujas },
   { id: "dados", etiqueta: "Dados", titulo: "Encender o apagar los dados de este mundo (la torre de dados y /tirar) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en dados.json. / Turn the dice on or off for the whole world.", encendida: "Dados encendidos.", apagada: "Dados apagados.", interruptor: interruptorDados },
-], interruptoresFunciones); // H4/H8: environment and elements, inside the builder's «Entorno» drawer (ux2-dock)
+], interruptoresFunciones, { subir: (f, campo) => soltar.subirFondo(f, campo), nivel: () => view.entorno.nivel }); // H4b: fondo y HDR subidos; H4/H8: environment and elements, inside the builder's «Entorno» drawer (ux2-dock)
 // H7: the world's settings (title, picture, default avatar, people limit): the form below the switches (only who may), and the title in the tab follows the server
 montarFichaMundo({ ajustes: ajustesMundo, padre: constructorUI.cajon("entorno"), avatares: catalogoAvatares?.modelos.map((m) => ({ id: m.id, nombre: m.nombre })) ?? [] });
 montarBurbuja({ burbujas, cartel: document.getElementById("burbuja-cartel")! }); // burbujas v1: the small label while you are inside a bubble
@@ -794,6 +795,7 @@ view.loop((now) => {
     // (B5), unless the page was hidden or frozen meanwhile; draw calls, triangles, programs and pixel ratio ride along
     const xr = view.vr.active || view.ar.state !== "off";
     if (lastDrawAt) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active), { dc: cost.calls, tri: cost.triangles, programas: (cost as { programs?: number }).programs, ratio: view.power.pixelRatio(), xr });
+    if (lastDrawAt) view.posproceso.vigilar(now - lastDrawAt, active); // H12b: the effects' cost gate (level A only; a no-op when they are off)
     lastDrawAt = now;
     if (session.welcome && !informe.primerCuadroMs) informe.primerCuadroMs = Math.round(performance.now());
     // MVL3 step 1 + B5 + C: fade the "Cargando" screen away once a frame was drawn with the ground built AND every piece within view
@@ -921,6 +923,9 @@ const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById(
 // before the first frame: the display loop above only draws from the next animation frame on ----
 montarAjustes({ view, session, params, funciones, numinia: (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia });
 montarPulsaciones({ ajuste: leerAjuste });
+// D-076: the sun that follows the real one, only for a world that offers it AND a player who accepted (sol-real.ts)
+const solReal = montarSolReal({ view, ajustes: (globalThis as unknown as { __numinia: { ajustes: Parameters<typeof montarSolReal>[0]["ajustes"] } }).__numinia.ajustes, decir: (t) => { const box = document.getElementById("avisos"); if (!box) return; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); } });
+Object.assign((globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia, { solReal });
 
 // battery mode: press B (or open ?bateria)
 addEventListener("keydown", (e) => { if (e.code === "KeyB" && !escribiendo(e)) { view.power.setBattery(!view.power.battery); view.applyPixelRatio(); } });

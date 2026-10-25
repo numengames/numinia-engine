@@ -18,32 +18,50 @@ export function aVista(v: Msg): Msg {
   return { ...v, ...(hdr ? { hdr } : {}), sueloMapa: s.color, sueloNormal: s.normal, sueloMetros: Math.max(0.1, s.metros * Number(v.sueloEscala ?? 1)), sueloRugosidad: s.rugosidad };
 }
 
+/** H4b: the house skies a builder may pick from the panel as the world's HDR light or sky picture (`id` → the file's «<sha256>.hdr» in /a/). */
+export const CIELOS_CASA: { id: string; nombre: string; hdr: string }[] = Object.entries(catalogo.cielos as Record<string, { hdr: string }>).map(([id, c]) => ({ id, nombre: id.charAt(0).toUpperCase() + id.slice(1), hdr: c.hdr }));
+
 /** One per page (tests make one per client). */
 export function crearCliente() {
   let api: ClientApi | null = null;
   const estado = { puede: false, ultimoRechazo: "", cambios: 0 };
   const enviar = (intent: string, msg: Msg) => api?.send(intent, msg) ?? { ok: false as const, why: "la página aún no ha arrancado" };
   const valores = (): Msg | undefined => api?.state.get(ZONA);
+  /** H4b: the message of `ajustar` carries the WHOLE environment, built from the last state the server echoed. Two quick edits (a colour,
+   * then a slider, inside the round trip) would each start from the same old state and the second would undo the first. What this page
+   * just sent therefore stays laid over the echoed state for a moment (one entry per field). A preset forgets them. */
+  const recientes = new Map<string, { valor: unknown; hasta: number }>();
+  const RECIENTE_MS = 800;
+  const conRecientes = (v: Msg): Msg => {
+    const ahora = Date.now(), fuera: Msg = {};
+    for (const [k, r] of recientes) { if (r.hasta < ahora) recientes.delete(k); else fuera[k] = r.valor; }
+    return { ...v, ...fuera };
+  };
   const ambiente = {
     estado,
     presets: PRESETS.slice(),
+    cielos: CIELOS_CASA,
     suelos: SUELOS.map((id) => ({ id, nombre: suelos[id]?.nombre ?? id })),
     /** The zone's environment as the server last said (flat fields; see feature.ts). */
     valores,
     /** A named environment: día, amanecer, atardecer, noche, niebla, tormenta, nublado, jardín («dia», «jardin» work too). */
     preset: (nombre: string) => {
       const n = nombre === "dia" ? "día" : nombre === "jardin" ? "jardín" : nombre;
+      recientes.clear();
       return (PRESETS as readonly string[]).includes(n) ? enviar("preset", { nombre: n }) : { ok: false as const, why: `no hay ningún entorno «${nombre}» (hay: ${PRESETS.join(", ")})` };
     },
     /** Change some values and keep the rest (the message carries the whole environment). Marked «propio» unless `preset` comes in. */
     ajustar: (cambios: Msg) => {
       const v = valores();
       if (!v) return { ok: false as const, why: "todavía no ha llegado el entorno de la zona" };
-      return enviar("ajustar", { ...v, preset: "propio", ...cambios });
+      const todo = { ...conRecientes(v), preset: "propio", ...cambios };
+      const r = enviar("ajustar", todo);
+      if (r.ok) { const hasta = Date.now() + RECIENTE_MS; for (const k of Object.keys(cambios)) recientes.set(k, { valor: cambios[k], hasta }); recientes.set("preset", { valor: "propio", hasta }); }
+      return r;
     },
     /** Put back exactly these values (e.g. what there was before a test). */
-    poner: (todo: Msg) => enviar("ajustar", todo),
-    restaurar: () => enviar("restaurar", {}),
+    poner: (todo: Msg) => { recientes.clear(); return enviar("ajustar", todo); },
+    restaurar: () => { recientes.clear(); return enviar("restaurar", {}); },
   };
   const part = clientPart(entorno, (a) => {
     api = a;

@@ -321,3 +321,19 @@ test("video screen: /video puts it with the same start second for everybody; the
   const web1 = A.web.pantallas().find((p) => p.titulo === "El Archivo");
   assert.equal(web1?.inicio, 0, "an ordinary screen has no clock");
 });
+
+// H8 hole-punch: the mouse reaches the page through the canvas only inside the screen's quad on the client
+test("puntoEnCuadrilatero: inside, outside, in a tilted quad, whichever way the corners go round", async () => {
+  const { puntoEnCuadrilatero } = await import("../packages/render/src/web-politica.ts");
+  const q = [{ x: 100, y: 100 }, { x: 300, y: 120 }, { x: 300, y: 220 }, { x: 100, y: 240 }]; // a screen seen from a corner: taller on the left
+  assert.equal(puntoEnCuadrilatero(q, 200, 170), true);
+  assert.equal(puntoEnCuadrilatero(q, 101, 101), true);
+  assert.equal(puntoEnCuadrilatero(q, 299, 125), true);
+  assert.equal(puntoEnCuadrilatero(q, 50, 170), false);
+  assert.equal(puntoEnCuadrilatero(q, 200, 99), false, "above the slanted top edge");
+  assert.equal(puntoEnCuadrilatero(q, 299, 100), false, "above the right end of the top edge (y=120 there)");
+  assert.equal(puntoEnCuadrilatero(q, 200, 245), false);
+  assert.equal(puntoEnCuadrilatero([...q].reverse(), 200, 170), true, "the other winding");
+  assert.equal(puntoEnCuadrilatero([], 1, 1), false);
+});
+
