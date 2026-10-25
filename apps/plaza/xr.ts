@@ -4,6 +4,7 @@
 // prompt's thing). Conversations show on a panel in front of you (answer with the ray, or the stick + A; B leaves).
 // What you took is drawn in the hand that took it (beside you on a flat screen) until the quest ends.
 import { ESTADOS, ahorasDe, estadoPaso } from "./misiones.ts"; // U14 (3): a step's state, the same as in the book
+import { LINEAS_MANDOS } from "./xr-mandos.ts"; // the controls sheet's words (test/xr-mandos.test.ts checks them against the bindings)
 type Res = { ok: true } | { ok: false; why: string };
 type Lado = "izq" | "der";
 type EventoMano = { tipo: "agarrar"; key: string; lado: Lado } | { tipo: "apuntar"; key: string; lado: Lado } | { tipo: "panel"; fila: number; lado: Lado } | { tipo: "gatillo"; lado: Lado } | { tipo: "gatillo_fin"; lado: Lado };
@@ -85,16 +86,7 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
   return {
     /** The VR panel's lines: what the trigger does now, the followed quest and its steps. */
     lineasPanel(): string[] {
-      if (view.vr.pagina === "mandos") return [
-        "Mandos (Y: misión · otra vez: ocultar)",
-        "Izquierda: andar (al borde, correr) · derecha: girar",
-        "Gatillo: hablar / usar lo que apuntas",
-        "Agarre (o pellizco) junto a algo: cogerlo",
-        "Caña: muñeca lanza, tirón al picar · Dardos: agarre y gatillo",
-        "A o X: saltar · B: salir del diálogo",
-        "Sin mandos: pellizca y mantén en el aire = andar adonde apunta la mano",
-        "Salir: el botón de abajo, pulsa dos veces",
-      ];
+      if (view.vr.pagina === "mandos") return [...LINEAS_MANDOS];
       if (view.vr.pagina === "ajustes") return [ // MVL1: ajustes dentro de VR, sin quitarte las gafas
         "Ajustes (Y: ocultar)",
         "Apunta al botón de abajo con el gatillo",
