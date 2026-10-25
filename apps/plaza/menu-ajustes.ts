@@ -35,6 +35,7 @@ export const leerAjuste = (id: string): Valor | undefined => activo?.get(id);
 
 /** Typing in a box belongs to the box, not to the world: J3's one rule for every key listener of the page. */
 import { escribiendo } from "./escribiendo.ts";
+import { montarBalizaSonora } from "./baliza-sonora.ts"; // V6: the beacon also sounds
 import { montarEdicion } from "./edicion.ts"; // M6: move and hide the frames
 import { montarMarcos } from "./marcos.ts"; // U20 + U3: the density dial, the frames, the clock, the notices
 export { escribiendo };
@@ -152,6 +153,8 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   // V7 «menos movimiento»: the features' hops are skipped (their label and announcement still say what happened)
   const rebote = view.bounce;
   view.bounce = (...args: Parameters<View["bounce"]>) => { if (a.get("accesibilidad.menosMovimiento") !== true) rebote(...args); };
+  // V6: «Baliza sonora» — a beacon of light also pings at its destination (apps/plaza/baliza-sonora.ts), off by default
+  montarBalizaSonora(view as never, (id) => a.get(id));
   // T1: the session report goes only while «Enviar el informe de la sesión» is on (Pablo's default: on)
   const informar = session.report.bind(session);
   session.report = (r) => (a.get("privacidad.informe") === false ? false : informar(r));

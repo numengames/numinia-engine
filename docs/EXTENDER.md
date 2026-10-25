@@ -406,7 +406,10 @@ menor entre ese aforo y la capacidad del motor. Los dos salen en `GET /status` (
 sin ficha = la capacidad). Con el mundo lleno, el servidor cierra la conexión con el código **4004** y el motivo
 «lleno <dentro>/<aforo>»; la página lo enseña en el centro (`#mundo-lleno`, `role=alert`) y no reintenta sola. Un valor
 que no cabe deja la ficha entera sin cargar, con su motivo en el log (`[ficha] no se carga: ficha.json.aforo: …`).
-Hoy se editan en el fichero: no hay panel para cambiarlos en marcha.
+Se editan en el fichero o, en marcha, desde el cajón «Entorno» → «Ajustes del mundo» (pieza `ficha-mundo`; solo quien manda: administrador
+o dueño): título, imagen, avatar por defecto y límite de personas. El servidor valida con las mismas reglas, reescribe SOLO esas claves
+de `ficha.json` (las demás, como `descripcion`, `tema` o `audio`, quedan igual) y la puerta usa el límite nuevo al momento; bajar el límite
+por debajo de los que hay dentro no echa a nadie, solo cierra la puerta al siguiente. El avatar nuevo lo llevan los que entran después.
 
 **`audio`** (S6f, opcional, dentro de la ficha): lo que este mundo pide del sonido. **R-1: una línea lo enciende.**
 `{ "audio": { "ambiente": "ambiente-numinia" } }` y ya suena el colchón de fondo. Cuatro campos, todos opcionales:
@@ -1921,6 +1924,14 @@ Con interruptor: espacio base, naturaleza, báculo, dados, asientos. Sin él aú
 - **Cómo se sienta**: el servidor decide (`api.within` a 2 m, libre, no sentado, no leyendo normas) y da la orden grabada `api.ordenar(e, { sentar: { x, y, z, rumbo } })` (H2: `MODO_SENTADO` de la simulación, que ya existía). La simulación levanta sola ante un palo o un salto; el servidor lo ve con `api.sentado(e)` (nuevo) y libera el asiento. Al levantarse con `E` o `/levantar` se pone `api.ordenar(e, { poner })` 0,8 m detrás del asiento.
 - **Página**: pose `sentarse` mantenida con `view.movimiento` y rumbo con `view.orientar` (expuesto de `render/avatares`, que ya lo tenía); «E: levantarte» es un local de `interactuar.ts` (`asiento.cerca()`).
 - **Interruptor** «Asientos» en Entorno (mismo patrón que báculo y dados). Apagar levanta a quien esté sentado y quita los asientos; los sitios se guardan.
+
+## Vuelo (v1): volar con permiso
+
+`features/vuelo` (H2): `/volar` te levanta del suelo (sin gravedad: Espacio sube, Ctrl baja) y `/aterrizar` te devuelve a pie. Quien decide es el servidor, nunca la página.
+- **Mundo**: `entorno.json` → `"vuelo": "nadie" | "constructores" | "todos"`. Sin la clave, **nadie** vuela. `constructores` = quien puede construir aquí (`puede(…, "construir")`). Una clave mal escrita se avisa en el registro y se queda en «nadie».
+- **Concesión por pieza**: otra pieza puede dar el vuelo a una persona con `instancia.concederVuelo(entidad, true|false)` (por ejemplo un objeto o un rol), también en un mundo que dice «nadie». Aterrizar siempre se permite.
+- **Cómo**: la intención `volar { activa }` o el chat piden `api.ordenar(e, { volar })`; la instancia lo comprueba (`puedeVolar`), lo graba entre las órdenes de la simulación (misma huella al repetir) y, si no hay permiso, lo registra y la persona oye por qué. Una página que mande `volar` por su cuenta no consigue nada.
+- Ctrl (BAJAR) lo envía la página en cada tick; a pie, la simulación lo ignora.
 
 ## Burbujas de voz (v1): voz solo entre los de la mesa
 

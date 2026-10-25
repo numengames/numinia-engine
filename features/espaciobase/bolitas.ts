@@ -49,3 +49,12 @@ export function bolitas(semilla: SemillaBase, n: number): Sembrado[] {
 
 /** The farthest a moñoni can be from the spawn (8 m out, plus the ball): well inside the 26 m plateau (a test checks). */
 export const MAX_RADIO = 8.5;
+
+/** Lote 5 («los moñoñis reaccionan al clic»): the ids of every piece of the moñoni that `id` belongs to — its body ("Moñoni 2") and its
+ * smile ("Moñoni 2 boca") are two objects, and a click on either must make BOTH hop. Empty when `id` is not a moñoni (by its name). */
+export function piezasDeMoñoni(id: string, objetos: readonly { id: string; nombre?: unknown }[]): string[] {
+  const nombre = String(objetos.find((o) => o.id === id)?.nombre ?? ""), m = /^Moñoni (\d+)( boca)?$/.exec(nombre);
+  if (!m) return [];
+  const cuerpo = `Moñoni ${m[1]}`, boca = `${cuerpo} boca`;
+  return objetos.filter((o) => o.nombre === cuerpo || o.nombre === boca).map((o) => o.id);
+}

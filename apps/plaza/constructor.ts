@@ -38,7 +38,7 @@ type Builder = {
   colocar(id: string): Res; colocarEn(id: string, p: Punto, ry?: number): Res;
   girar(grados: number): Res; subir(metros: number): Res; desplazar(dx: number, dz: number): Res; escalar(factor: number): Res;
   duplicar(): Res; borrar(): Res; fijar(): Res; nombrar(nombre: string, decorado?: boolean): Res; deshacer(): Res; rehacer(): Res;
-  ajustar(c: { oculto?: boolean; volumen?: number; solido?: boolean; caja?: [number, number, number, number, number, number] | null; alcance?: "burbuja" | "zona" | "todos"; radio?: number; enlace?: string }): Res;
+  ajustar(c: { oculto?: boolean; volumen?: number; solido?: boolean; caja?: [number, number, number, number, number, number] | null; alcance?: "burbuja" | "zona" | "todos"; radio?: number; enlace?: string; grupo?: "auto" | "musica" | "efectos" | "ambiente" }): Res;
   seleccionar(id: string): Res; transformar(id: string, t: Partial<Donde>, lote?: string): Res; modo(m: string): Res;
   /** M22c: seleccionar varios (reemplaza), sumar/quitar uno (shift+clic), borrar por id con un lote (deshacer agrupado). */
   seleccionarVarios(ids: string[]): Res; alternarSeleccion(id: string): Res;
@@ -169,6 +169,10 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   for (const [v, t] of [["burbuja", "solo dentro de la burbuja"], ["zona", "toda la zona"], ["todos", "todo el mundo"]]) alcance.append(el("option", { value: v, textContent: t }));
   const radio = el("input", { type: "number", min: "0.5", max: "200", step: "0.5" });
   const lAlcance = el("label", {}, "Se oye en ", alcance);
+  // H5: the mixer group (Ajustes → Sonido): the music slider lowers it, or the effects one, or the ambient one
+  const grupoSonido = el("select");
+  for (const [v, t] of [["auto", "el normal (vídeo: música; sonido: efecto o ambiente)"], ["musica", "música"], ["efectos", "efectos"], ["ambiente", "ambiente"]]) grupoSonido.append(el("option", { value: v, textContent: t }));
+  const lGrupo = el("label", {}, "Grupo de sonido ", grupoSonido);
   const lRadio = el("label", {}, "Radio de la burbuja (m) ", radio);
   // J4: the address a click opens, in a new tab, after confirming; "" = nothing to open
   const enlace = el("input", { type: "url", maxLength: 300, placeholder: "https://…" });
@@ -179,7 +183,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     grupo("Posición (m)", campos.x.l, campos.y.l, campos.z.l),
     grupo("Giro (grados)", campos.rx.l, campos.ry.l, campos.rz.l),
     grupo("Escala", campos.sx.l, campos.sy.l, campos.sz.l, campos.u.l),
-    el("label", {}, fijado, " anclado (nadie lo mueve, gira ni borra hasta que lo sueltes)"), lSolido, lVisible, lVolumen, lAlcance, lRadio, lEnlace);
+    el("label", {}, fijado, " anclado (nadie lo mueve, gira ni borra hasta que lo sueltes)"), lSolido, lVisible, lVolumen, lAlcance, lGrupo, lRadio, lEnlace);
   datos.setAttribute("aria-label", "Inspector del objeto seleccionado: Intro aplica");
   nombre.addEventListener("change", () => responder(c.nombrar(nombre.value.trim(), decorado.checked), "Nombre puesto."));
   decorado.addEventListener("change", () => responder(c.nombrar(decorado.checked ? "" : nombre.value.trim(), decorado.checked)));
@@ -196,6 +200,10 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   alcance.addEventListener("change", () => {
     const a = alcance.value as "burbuja" | "zona" | "todos";
     responder(c.ajustar({ alcance: a }), a === "burbuja" ? "Se oye solo dentro de la burbuja." : a === "zona" ? "Lo oye toda la zona, al mismo volumen." : "Lo oye todo el mundo, al mismo volumen.");
+  });
+  grupoSonido.addEventListener("change", () => {
+    const g = grupoSonido.value as "auto" | "musica" | "efectos" | "ambiente";
+    responder(c.ajustar({ grupo: g }), g === "auto" ? "Grupo de sonido: el normal." : `Suena en el grupo «${g === "musica" ? "música" : g}»: lo baja su deslizador de Sonido.`);
   });
   radio.addEventListener("change", () => {
     const id = c.estado.seleccionado, o = c.objeto(id), r = radio.valueAsNumber;
@@ -587,12 +595,14 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     const tipo = String(o?.tipo ?? "modelo");
     const suena = tipo === "sonido" || tipo === "video";
     lSolido.hidden = !o || tipo === "sonido"; lVisible.hidden = !o; // «se ve al jugar» for every object (it was the card's Ajustes tab) lVolumen.hidden = lAlcance.hidden = !o || !suena;
+    lGrupo.hidden = !o || !suena;
     lRadio.hidden = !o || !suena || (o.alcance ?? "burbuja") !== "burbuja";
     lEnlace.hidden = !o;
     if (!o) return;
     solido.checked = o.solido === true; visible.checked = o.oculto !== true;
     if (document.activeElement !== volumen) volumen.value = String(o.volumen ?? 1);
     if (document.activeElement !== alcance) alcance.value = String(o.alcance ?? "burbuja");
+    if (document.activeElement !== grupoSonido) grupoSonido.value = String(o.grupo ?? "auto");
     if (document.activeElement !== radio) radio.value = String(tipo === "sonido" ? o.sx : (o.radio ?? 8));
     if (document.activeElement !== enlace) enlace.value = String(o.enlace ?? "");
     const drawn = agarre?.key === o.id || ed.estado().arrastrando ? ed.dondeEsta(o.id) : null;

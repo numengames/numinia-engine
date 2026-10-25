@@ -18,7 +18,8 @@ import { crearAsiento, leerAsientos } from "./asiento/server.ts";
 import { crearBurbujas, leerBurbujas } from "./burbujas/server.ts";
 import { crearDados } from "./dados/server.ts";
 import type { Torre as TorreDados } from "./dados/server.ts";
-import { leerAparicion, leerAparicionFoto, leerSuelo } from "./entorno/esquema.ts";
+import { leerAparicion, leerAparicionFoto, leerSuelo, leerVuelo } from "./entorno/esquema.ts";
+import type { VueloMundo } from "./entorno/esquema.ts";
 import { crearSuelo } from "./suelo/server.ts"; // D-045
 import { crearNaturaleza } from "./naturaleza/server.ts"; // N4
 import { leerNaturaleza } from "./naturaleza/esquema.ts";
@@ -166,6 +167,14 @@ export function sueloDelMundo(leer: (fichero: string) => unknown, log: (l: strin
   const r = leerSuelo(leer("entorno.json"));
   if (r.ok) return r.value;
   log(`[mundo] sueloMinimo/vuelta de entorno.json no se usan (este mundo no tiene vacío): ${r.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
+  return null;
+}
+
+/** H2: who may fly here (entorno.json `vuelo`), or null: no file, no key (nobody flies), or a wrong one (logged). */
+export function vueloDelMundo(leer: (fichero: string) => unknown, log: (l: string) => void = () => {}): VueloMundo | null {
+  const r = leerVuelo(leer("entorno.json"));
+  if (r.ok) return r.value;
+  log(`[mundo] vuelo de entorno.json no se usa (nadie vuela): ${r.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
   return null;
 }
 

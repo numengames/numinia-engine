@@ -8,7 +8,7 @@ import { crearNucleo, type Bus } from "../packages/render/src/audio/nucleo.ts";
 import { crearVoces } from "../packages/render/src/audio/voces.ts";
 import { conectar } from "../packages/render/src/audio/oyente.ts";
 import {
-  cargarSonido, cargarVideo, ponerGrafo, volumenEn, instanteDePared, desfase, necesitaSincro,
+  cargarSonido, cargarVideo, ponerGrafo, volumenEn, instanteDePared, desfase, necesitaSincro, fijarRelojMundo, ahoraMundo, desfasesDeVideos, VIDEO_SINCRO_S,
   distanciaDeSonido, busDeSonido, radioDeSonido, RADIO_SONIDO_MAX, CAMA_S, EMISOR, type Grafo, type Opciones,
 } from "../packages/render/src/medios.ts";
 
@@ -397,4 +397,87 @@ test("S4: el oyente lo pone `audio/oyente.ts`; sin oyente (nadie situado) un son
   m.soltar();
   // y el pool escribe el oyente en el `AudioListener` del único contexto, con orientación (eso es lo que faltaba)
   assert.ok(b.ctx.listener, "el oyente del motor es el del único AudioContext");
+});
+// ——— H5: el grupo del sonido; M18: el reloj del servidor ———————————————————————————————————
+
+test("H5: el grupo de una cosa (música, efectos, ambiente) manda sobre el bus por defecto, y su deslizador la baja", async () => {
+  const b = banco();
+  // un sonido corto sería «efectos»; la cosa dice «musica» y va al bus música
+  const m = cargarSonido("corto.ogg", () => false, { medio: () => elemento(2) as unknown as HTMLMediaElement, ahora: () => 1_000_000_000, monotono: () => 0 });
+  await esperar(); await esperar();
+  m.actualizar(cosa(0, 0, 0, 12), { x: 0, y: 0, z: 0 }, OPC({ bus: "musica" })); await esperar();
+  assert.equal(cadena(b)!.bus, busNodo(b, "musica"), "grupo música: cuelga del bus música aunque sea corto");
+  m.soltar();
+  // lo mismo con un vídeo que dice «efectos» (por defecto sería música)
+  const doc = docFalso();
+  try {
+    const v = await cargarVideo("p.mp4", () => false, { trasGesto: (fn) => fn() });
+    const g = cosa(5, 2, 0, 1);
+    v.actualizar(g, { x: 0, y: 1.6, z: 0 }, OPC({ radius: 10, bus: "efectos" })); await esperar(); await esperar();
+    v.actualizar(g, { x: 0, y: 1.6, z: 0 }, OPC({ radius: 10, bus: "efectos" }));
+    assert.equal(cadena(b)!.bus, busNodo(b, "efectos"), "un vídeo del grupo efectos va al bus efectos");
+    v.soltar();
+  } finally { doc.quitar(); }
+  // el deslizador de música baja el bus música (y solo ese)
+  const musica = busNodo(b, "musica"), efectos = busNodo(b, "efectos");
+  b.nucleo.aplicarAjustes((id) => ({ "sonido.musica": 20, "sonido.efectos": 90 } as Record<string, number>)[id]);
+  const vcaDe = (bus: Nodo) => b.nodos.find((n) => n.tipo === "gain" && (bus.sale as Nodo[]).includes(n))!;
+  assert.ok(vcaDe(musica) && vcaDe(efectos));
+  const e = b.nucleo.estado().volumen;
+  assert.equal(e.musica, 0.2, "el grupo música sigue a su volumen");
+  assert.equal(e.efectos, 0.9, "y el de efectos al suyo");
+});
+
+test("M18: dos páginas con la hora del ordenador distinta ven el mismo segundo con el reloj del servidor; sin él, no", async () => {
+  banco();
+  const doc = docFalso();
+  const dateNow = Date.now;
+  try {
+    const servidor = 5_000_000;                      // ms de reloj del servidor (los mismos para todos)
+    // dos «ordenadores»: sus relojes de pared difieren en 7 s
+    const abrir = async (pared: number, relojServ: (() => number | null) | null) => {
+      Date.now = () => pared; fijarRelojMundo(relojServ);
+      const v = await cargarVideo("p.mp4", () => false, { trasGesto: (fn) => fn() });
+      const el = doc.creados.at(-1)!;
+      v.actualizar(cosa(5, 2, 0, 1), { x: 0, y: 1.6, z: 0 }, OPC({ radius: 10 })); await esperar();
+      v.actualizar(cosa(5, 2, 0, 1), { x: 0, y: 1.6, z: 0 }, OPC({ radius: 10 }));
+      return { v, el };
+    };
+    // SIN reloj del servidor: cada una va por su Date.now y se separan los 7 s
+    const a0 = await abrir(1_000_000_000, null), b0 = await abrir(1_000_007_000, null);
+    assert.equal(Math.round(Math.abs(a0.el.currentTime - b0.el.currentTime)), 7, "con el reloj de cada ordenador, 7 s de diferencia");
+    a0.v.soltar(); b0.v.soltar();
+    // CON el del servidor: el mismo segundo, da igual lo que diga cada ordenador
+    const A = await abrir(1_000_000_000, () => servidor), B = await abrir(1_000_007_000, () => servidor);
+    const debe = instanteDePared(300, servidor);
+    assert.ok(Math.abs(A.el.currentTime - debe) < 1e-6 && Math.abs(B.el.currentTime - debe) < 1e-6, "las dos en el segundo del servidor");
+    assert.ok(Math.abs(A.el.currentTime - B.el.currentTime) < 0.5, "a menos de 0,5 s una de otra");
+    // pasan 60 s del servidor: las dos siguen (el elemento avanza solo; aquí avanzamos lo que avanzaría)
+    const t60 = servidor + 60_000;
+    A.el.currentTime += 60; B.el.currentTime += 60.08;                      // B se ha ido 80 ms (jitter de decodificación)
+    Date.now = () => 1_000_000_000 + 60_000; fijarRelojMundo(() => t60);
+    const medidos = desfasesDeVideos(t60);
+    assert.equal(medidos.length, 2);
+    assert.ok(Math.max(...medidos) < 0.5, `desfase medido tras 60 s: ${Math.max(...medidos).toFixed(3)} s`);
+    assert.ok(Math.abs(A.el.currentTime - B.el.currentTime) < 0.5);
+    // la TERCERA entra tarde (a los 60 s) y se alinea: arranca en el segundo del servidor, no en el principio
+    const C = await abrir(1_000_999_000, () => t60);
+    assert.ok(Math.abs(C.el.currentTime - instanteDePared(300, t60)) < 1e-6, "quien entra tarde ve el mismo segundo");
+    assert.ok(Math.abs(C.el.currentTime - A.el.currentTime) < 0.5, "y queda a menos de 0,5 s de las otras");
+    assert.equal(desfasesDeVideos(t60).length, 3);
+    assert.ok(VIDEO_SINCRO_S <= 0.25, "cada vídeo salta si se desvía más de 0,25 s: dos juntas no pasan de 0,5 s");
+    A.v.soltar(); B.v.soltar(); C.v.soltar();
+    assert.equal(desfasesDeVideos(t60).length, 0, "un vídeo soltado deja de contar");
+  } finally { Date.now = dateNow; fijarRelojMundo(null); doc.quitar(); }
+});
+
+test("M18: el reloj del mundo cae a Date.now si la fuente no tiene hora (antes del primer snapshot) y vuelve al instante", () => {
+  const dateNow = Date.now;
+  try {
+    Date.now = () => 123_456;
+    fijarRelojMundo(() => null); assert.equal(ahoraMundo(), 123_456, "sin hora del servidor, la del ordenador");
+    fijarRelojMundo(() => 9_000); assert.equal(ahoraMundo(), 9_000, "con ella, la suya");
+    fijarRelojMundo(() => Number.NaN); assert.equal(ahoraMundo(), 123_456, "una hora rota no se usa");
+    fijarRelojMundo(null); assert.equal(ahoraMundo(), 123_456);
+  } finally { Date.now = dateNow; fijarRelojMundo(null); }
 });

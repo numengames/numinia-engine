@@ -32,7 +32,8 @@ type Comprimido = { etag: string; gz: Buffer; br?: Buffer };
 
 export class Pagina {
   readonly dir: string;
-  readonly titulo: string | null;
+  /** The world's name in every page's <title>; the owner may change it while the server runs (H7). */
+  titulo: string | null;
   private readonly raiz: string;
   private readonly comprimidos = new Map<string, Comprimido>(); // file -> its gzip/brotli, for one etag
 

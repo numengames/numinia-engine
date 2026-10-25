@@ -117,11 +117,11 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | H3 | Roles del mundo = los de numinia.com (STD-051/052; Pablo 15-10: «cada organización tiene sus roles; de momento los de Numinia»), no los de Hyperfy. Primer corte (H3a): plantilla «Comunidad» (Administración, Moderación, @todos), dueños con `/dueño <código>`, órdenes `/roles` `/dar` `/quitar` `/silenciar` `/echar` `/vetar` `/perdonar` `/solo-miembros` con la regla de altura; diseño `../mmo-browser-study/ROLES-MOTOR-Y-NUMINIA.md` | hecho (H3a) | sí |
 | H3b | El pase de numinia.com: el motor acepta un pase Ed25519 firmado por numinia.com (persona, organización, mundo, permisos, altura, 10 min, en `#`), clave pública en el instalador; sin pase = visitante. Hecho de punta a punta (verificador, `MOTOR_PASE_*`, roles por pase, mensaje PASE, página) | hecho | sí |
 | H3c | Órdenes de Hyperfy que faltan: `/nombre` (nunca acabado en « · IA»), `/aparecer`, `/chat borrar` (con `manage-organization`) | hecho (ordenes/h3c-nombre-aparecer-chat) | sí |
-| H2 | Paridad Hyperfy2: lo que el servidor le hace a un jugador (teletransportar, congelar, frenar, empujar, sentarse, volar, salud) como entradas grabadas de la simulación | para Opus | no |
+| H2 | Paridad Hyperfy2: lo que el servidor le hace a un jugador (teletransportar, congelar, frenar, empujar, sentarse, volar, salud) como entradas grabadas de la simulación | hecho salvo salud (poner/quieto/empujar/sentar/volar en la simulación y `api.ordenar`; asiento y teletransporte como piezas; volar con permiso: `features/vuelo`, `/volar` `/aterrizar`, `entorno.json` `vuelo` nadie·constructores·todos, Ctrl baja; lote 6, 25-10) | no |
 | H4 | Paridad Hyperfy2: entorno — cielo, sol, niebla, mapa HDR y viento desde un JSON con esquema (su nodo `Sky`) | hecho | sí |
 | H4b | Entorno fino en el panel: colores de cielo, niebla y sol; fondo y HDR de la biblioteca o subidos (H9) | pendiente | sí |
 | H4c | Agua mejor: espuma de orilla, refracción en A, ríos; olas que mueven cosas (con M6) | pendiente | sí |
-| H6 | Paridad Hyperfy2: imagen y paneles de interfaz en el mundo (sus nodos `Image` y `UI`), cada panel con gemelo HTML | pendiente | sí |
+| H6 | Paridad Hyperfy2: imagen y paneles de interfaz en el mundo (sus nodos `Image` y `UI`), cada panel con gemelo HTML | primer corte hecho: las imágenes con nombre puestas en el mundo tienen gemelo HTML («Imágenes del mundo», `apps/plaza/gemelos.ts`; lector de pantalla y `__numinia.gemelos.lista()` para agentes; botón si llevan enlace); faltan los paneles `UI` con texto y botones, diseño flex y panel pegado a pantalla | sí |
 | H12 | Paridad Hyperfy2: sombras y posprocesado por nivel de aparato, elegibles en ajustes | en curso (sombras por nivel hechas; posprocesado → H12b) | sí |
 | H12b | Sombras en cascada o suaves y posprocesado (bloom, AO), solo en A | pendiente | sí |
 | H12c | Compilar el entorno antes de dibujarlo (`compileAsync`): sin tirón al cambiarlo | pendiente | sí |
@@ -130,7 +130,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | H5 | Paridad Hyperfy2: sonido del mundo — fuentes en objetos y puntos, grupos música/efectos (su nodo `Audio`) | espera a V6 | sí |
 | H9 | Paridad Hyperfy2: subir ficheros arrastrando — por hash, con tope, solo quien construye | hecho | sí |
 | H9b | Subidas: borrar lo que nadie usa y cupo por identidad | espera a H3 | sí |
-| H7 | Paridad Hyperfy2: ajustes del mundo — título, descripción, imagen, escenario, avatar por defecto, abierto a construir, límite de personas | hecho (primer corte: fichero `ficha.json` con avatar y aforo, aviso al lleno; falta el panel) | sí |
+| H7 | Paridad Hyperfy2: ajustes del mundo — título, descripción, imagen, escenario, avatar por defecto, abierto a construir, límite de personas | hecho (fichero `ficha.json` con avatar y aforo, aviso al lleno; panel «Ajustes del mundo» en el cajón Entorno, solo quien manda: título, imagen, avatar, límite; el servidor escribe el fichero y la puerta sigue el límite al momento; faltan descripción, escenario y «abierto a construir» en el panel) | sí |
 | H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | hecho | sí |
 | H13 | Paridad Hyperfy2: nivel de detalle (LOD) de los modelos, generado en la ingesta | espera a M21 | sí |
 | H11 | Paridad Hyperfy2: importar de Hyperfy — `.hyp` → carpeta de app; un mundo entero → carpeta del mundo | en curso (la mitad `db.sqlite`+`assets/` → carpeta del mundo, hecha; la mitad `.hyp` → carpeta de app sigue esperando a M19) | sí |
@@ -165,7 +165,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | P5a | El puente nuevo y el primer cerebro (E2 contesta, E4 construye si el mundo deja): clave sin eco (`--clave-ia`), topes, `<material>`, herramientas comprobadas en código | hecho (primer corte; falta: E1, probarlo con Claude en el VPS, D7 revisión del contrato) | no |
 | P5b | Iniciativa por evento (E3), gestos con clips, persona en `.md`, medidor de consumo por habitante y por mundo | espera a P5a | sí |
 | V12 | Guía IA: un agente que acompaña, describe y lleva (primero desde datos) | espera a P4b | sí |
-| M6 | Colisión con el escenario y física básica: malla GLB (trimesh + BVH propio en enteros, sin cambiar la huella), zonas que disparan, rayos; Rapier solo si hacen falta dinámicos | en curso (h1-h7 hechas 18-10) | no |
+| M6 | Colisión con el escenario y física básica: malla GLB (trimesh + BVH propio en enteros, sin cambiar la huella), zonas que disparan, rayos; Rapier solo si hacen falta dinámicos | en curso (h1-h7, h12 rayo, h13 zonas entra/sale + overlapSphere hechas 18-10) | no |
 | M6b | Terreno con altura (relieve y suelos pintados por capas) | espera a M6 | no |
 | M10 | Servidor de instancia completo: regiones en hilos (horizonte de 5.000) y copias cuando se llena | para Opus | no |
 | V9 | Mapa de caminos (navmesh) en el servidor + guía paso a paso + «mírame al objetivo» + escáner direccional | para Opus | no |

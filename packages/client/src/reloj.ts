@@ -15,5 +15,8 @@ export function formatoHora(ms: number, modo: ModoHora): string {
 }
 /** What the clock says to a screen reader or on hover. */
 export const etiquetaHora = (modo: ModoHora): string => (modo === "utc" ? "Hora UTC" : "Hora local de tu aparato");
+/** The clock line of the VR watch and menu (the headset does not draw the HTML #reloj): the same HH:MM, local or UTC, as the setting
+ * `interfaz.hora` says. `modo` is the setting's raw value (anything else = local). */
+export const horaVR = (ms: number, modo: unknown): string => formatoHora(ms, modoHora(modo));
 /** Milliseconds to the next minute change (1 s at least, so a timer never spins). */
 export const msHastaMinuto = (ms: number): number => Math.max(1000, 60000 - (ms % 60000) + 50);

@@ -60,6 +60,8 @@ export function validarEntorno(json: unknown, base: Plano = porDefecto()): Resul
   if (!af.ok) issues.push(...af.issues);
   const su = leerSuelo(json);
   if (!su.ok) issues.push(...su.issues);
+  const vu = leerVuelo(json);
+  if (!vu.ok) issues.push(...vu.issues);
   const plano: Plano = { ...base };
   for (const [campo, ruta, color] of RUTAS) {
     const v = leer(json, ruta);
@@ -125,6 +127,18 @@ export function leerSuelo(json: unknown): Result<SueloMundo | null> {
     }
   }
   return issues.length ? { ok: false, issues } : { ok: true, value: { minimo: m as number, vuelta } };
+}
+
+/** H2: who may fly in this world — entorno.json `vuelo`: "nadie" (the default, and what a missing key means), "constructores"
+ * (whoever may build here: STD-052's build-in-worlds) or "todos". null when the file says nothing. The server's (the
+ * instance decides every `volar` order with it), never on the wire as environment. */
+export const VUELOS = ["nadie", "constructores", "todos"] as const;
+export type VueloMundo = (typeof VUELOS)[number];
+export function leerVuelo(json: unknown): Result<VueloMundo | null> {
+  const o = typeof json === "object" && json !== null && !Array.isArray(json) ? (json as Record<string, unknown>) : {};
+  if (o.vuelo === undefined) return { ok: true, value: null };
+  if (typeof o.vuelo === "string" && (VUELOS as readonly string[]).includes(o.vuelo)) return { ok: true, value: o.vuelo as VueloMundo };
+  return { ok: false, issues: [{ path: "entorno.vuelo", message: `uno de ${VUELOS.map((v) => `«${v}»`).join(", ")}: quién puede volar en este mundo (sin la clave, nadie)` }] };
 }
 
 /**
