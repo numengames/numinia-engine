@@ -37,7 +37,7 @@ function montar(cargarMs: number, ocupado?: () => boolean) {
   const sesion = Object.assign(new EventTarget(), { inputSources: [], visibilityState: "visible", frameRate: 100, end: async () => { registro.push("end"); } });
   Object.defineProperty(globalThis, "navigator", { configurable: true, value: { xr: { isSessionSupported: async () => true, requestSession: async () => { registro.push("requestSession"); return sesion; } } } });
   const raizManos = new THREE.Group(); raizManos.visible = false;
-  const renderer = { xr: { enabled: false, setReferenceSpaceType() {}, setSession: async () => { registro.push("setSession"); }, getCamera: () => new THREE.Camera(), updateCamera() {} }, info: {} } as never;
+  const renderer = { xr: { enabled: false, setReferenceSpaceType() {}, setFoveation() {}, setFramebufferScaleFactor() {}, setSession: async () => { registro.push("setSession"); }, getCamera: () => new THREE.Camera(), updateCamera() {} }, info: {} } as never;
   const manos = { cargar: () => new Promise<void>((ok) => setTimeout(() => { registro.push("manosListas"); ok(); }, cargarMs)), montar(r: unknown) { registro.push(r ? "montar" : "desmontar"); }, update() {}, raiz: () => raizManos };
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera();
   const vr = createVR({ renderer, scene, camera, manos: manos as never, ocupado });
