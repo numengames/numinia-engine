@@ -109,6 +109,22 @@ test("watch hit test: the centre is «Menú», a point between buttons is nothin
   assert.equal(botonRelojEn(c + d, c - d, true), null, "between micro and camera");
   const [px, py] = metrosAPxReloj(0, 0.01); assert.equal(px, c); assert.ok(py < c, "metres on the disc: +y is up");
 });
+test("watch «Grabar»: drawn only where the Graboso is, between the camera and the notices, never touching a neighbour", () => {
+  const c = RELOJ.lienzo / 2;
+  assert.deepEqual(circulosReloj({ ciudad: true }).map((b) => b.id), ["menu", "micro", "camara", "avisos", "ciudad"], "no Graboso: no button");
+  assert.deepEqual(circulosReloj(true).map((b) => b.id), ["menu", "micro", "camara", "avisos", "ciudad"], "a plain boolean keeps its old meaning");
+  const con = circulosReloj({ ciudad: true, graboso: true });
+  assert.deepEqual(con.map((b) => b.id), ["menu", "micro", "camara", "graboso", "avisos", "ciudad"]);
+  const g = con.find((b) => b.id === "graboso")!;
+  assert.ok(g.cx > c && g.cy > c, "bottom right, between camera and notices");
+  assert.ok(Math.hypot(g.cx - c, g.cy - c) + g.r <= DISCO.r, "inside the disc");
+  assert.ok(g.r * 2 * (RELOJ.diametroM / RELOJ.lienzo) >= 0.02, "at least 2 cm across");
+  for (const b of con) if (b !== g) assert.ok(Math.hypot(g.cx - b.cx, g.cy - b.cy) > g.r + b.r + TOQUE.margenPx * 2 - 1e-9, `graboso/${b.id} apart, even with the fingertip's slack`);
+  assert.equal(botonRelojEn(g.cx, g.cy, { ciudad: false, graboso: true }), "graboso");
+  assert.equal(botonRelojEn(g.cx, g.cy, { ciudad: false, graboso: false }), null, "not drawn, not pressable");
+  const r = toquePaso(toqueInicio(), { x: (g.cx - c) * (RELOJ.diametroM / RELOJ.lienzo), y: (c - g.cy) * (RELOJ.diametroM / RELOJ.lienzo), z: 0.01 }, { ciudad: false, graboso: true }, 1000);
+  assert.equal(r.pulsado, "graboso");
+});
 test("watch fingertip: a press needs < 1.5 cm over a button, fires once, re-arms only after leaving, never twice in TOQUE.ms", () => {
   const s = RELOJ.diametroM / RELOJ.lienzo, yMicro = DISCO.orbita * s; // micro, in disc metres (y up)
   let e = toqueInicio();
