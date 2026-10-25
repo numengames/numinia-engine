@@ -75,7 +75,7 @@ import type { Fundido } from "./fundir.ts";
 import type { Parte } from "./lotes.ts";
 import { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 import { crearTeletransporte } from "./teletransporte.ts";
-import { crearPrecompilador } from "./precompilar.ts";
+import { crearPrecompilador, calentarOcultos } from "./precompilar.ts";
 export { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 export type { EntornoDatos } from "./entorno.ts";
 export type { Luz } from "./teletransporte.ts";
@@ -241,6 +241,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   }));
   const manos = {
     cargar: cargarManos,
+    raiz: () => manosReal?.raiz ?? null,
     montar: (p: THREE.Object3D | null) => manosReal?.montar(p),
     update: (c: THREE.Camera | null) => manosReal?.update(c),
     reglas(o: Parameters<Manos["reglas"]>[0]) { Object.assign(reglasManos, o); manosReal?.reglas(o); },
@@ -272,9 +273,21 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       *cosas() { for (const [k, s] of things) yield [k, s.want] as [string, { x: number; y: number; z: number }]; },
     } });
 
-  const vr = createVR({ renderer, scene, camera, manos });
+  const vr = createVR({ renderer, scene, camera, manos, ocupado: () => loading > 0 || precompilar.pendientes() > 0 }); // MIS-200: the VR extras wait for the world's loading work
   // where XR exists, the hands' code is fetched a few seconds after start, so entering VR/AR does not wait for it
   void Promise.all([vrSupported(), arSupported()]).then(([v, a]) => { if (v || a) setTimeout(() => { void cargarManos().catch(() => {}); }, 3000); });
+  // MIS-200: once the hands are in and the world has stopped loading, link the programs only VR draws (rig, panels, vignette, watch, hands) while hidden,
+  // so the first VR frame does not compile them (200-860 ms measured). Only where a VR session can exist; nothing is drawn.
+  void vrSupported().then((v) => { if (!v) return; setTimeout(async () => {
+    try { await cargarManos(); } catch { /* no hands: the rest still warms */ }
+    for (let i = 0; i < 60 && (loading > 0 || precompilar.pendientes() > 0); i++) await new Promise((ok) => setTimeout(ok, 500));
+    try { // a VR frame is drawn with an ArrayCamera of two eyes, which three keys apart from the desktop camera (see precompilar.ts)
+      const ojos = new THREE.ArrayCamera([new THREE.PerspectiveCamera(), new THREE.PerspectiveCamera()]);
+      const compilarXR = (o: THREE.Object3D) => renderer.compileAsync(o, ojos, scene);
+      await vr.calentar(compilarXR);
+      await calentarOcultos([scene as never], compilarXR as never, false); // the world as the two eyes will draw it (nothing forced visible)
+    } catch { /* best effort */ }
+  }, 3500); });
   const cenital = crearCenital(renderer, scene, world, backend); // J5: the zone from above (big map) and its footprints
   let selfXZ: { x: number; z: number; y?: number } | null = null;
   // J1: you and the nearest players as VRM humanoids (avatares.ts); the capsules above stay as their anchors
@@ -1171,6 +1184,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
     /** U10: draw hidden spheres of sound (while building) or not (while playing). */
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
+    /** MIS-200 (t_9687b5fc): the world still loads models or shaders: the entry buttons wait (the same gate as the VR entry, not busy()). */
+    cargando(): boolean { return loading > 0 || precompilar.pendientes() > 0; },
     busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize

@@ -86,6 +86,10 @@ async function pierna() {
     b = await ctxB.newPage(); b.on("pageerror", (e) => errors.push("B: " + String(e)));
     await Promise.all([a.goto(BASE), b.goto(BASE0)]);
     paso("la página arranca", await esperar(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0 && !!globalThis.__numinia.session.who, null, 30000));
+    // MIS-200 (t_9687b5fc): once the world has loaded, «Entrar en VR» is active and says so in text (not «Preparando…», not aria-disabled)
+    const botonVR = () => ({ texto: document.getElementById("vr").textContent, ariaDisabled: document.getElementById("vr").getAttribute("aria-disabled") });
+    const activoTrasCargar = await esperar(() => { const v = document.getElementById("vr"); return v.textContent === "Entrar en VR" && v.getAttribute("aria-disabled") === "false"; }, null, 15000);
+    paso("«Entrar en VR» activo tras cargar (no «Preparando…»)", activoTrasCargar, { boton: await ctl(botonVR) });
     await b.waitForFunction(() => globalThis.__numinia?.probe.done && !!globalThis.__numinia.session.who, null, { timeout: 30000 });
     const nombreB = await b.evaluate(() => globalThis.__numinia.session.who.nombre);
     await ctl(() => document.getElementById("vr").click());
