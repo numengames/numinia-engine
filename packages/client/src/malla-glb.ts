@@ -16,6 +16,36 @@ export type LeerGlb = (sha256: string, ext: string) => Promise<Uint8Array | null
 const MALLA_OBJETOS_MAX = 64, TRIANGULOS_MAX_MALLA = 50_000;
 const esSha256 = (s: string): boolean => /^[0-9a-f]{64}$/.test(s);
 
+/**
+ * H13 + M16: the url the page reads a `malla` thing's collision from — ALWAYS the whole model, `/a/<sha256>.<ext>`. The drawing may
+ * have picked `/a/<sha256>.lod1.glb` or `.lod2.glb` for a far thing (packages/render/src/lod-modelo.ts `ficheroDeNivel`), and
+ * lighter levels move vertices by more than the quantization of the sim, so a floor built from one would not be the server's floor.
+ * Pure: the page and test/malla-cliente.test.ts both go through here. Null when the thing names no readable file.
+ */
+export function urlColision(origen: string, sha256: string, ext: string): string | null {
+  if (!esSha256(sha256) || !/^[a-z0-9]{2,5}$/.test(ext) || /^lod\d*$/.test(ext)) return null;
+  return `${origen}/a/${sha256}.${ext}`;
+}
+
+/**
+ * The reader `construirMallaCliente` takes: the whole model by `urlColision`, through the page's file store first (`leerTienda` =
+ * tienda.leer: the Cache API by sha256, and a download checked against the manifest's sha256 — the same bytes the drawing holds,
+ * never downloaded twice), and when the store does not manage the file (no manifest, or not listed) a plain fetch as it always was.
+ * A refused hash (store throws) is NOT retried with a plain fetch: a file that does not match its sha256 is not a floor.
+ */
+export function lectorColision(origen: string, leerTienda: ((url: string) => Promise<ArrayBuffer | null>) | null, pedir: typeof fetch): LeerGlb {
+  return async (sha256, ext) => {
+    const url = urlColision(origen, sha256, ext);
+    if (!url) return null;
+    try {
+      const b = leerTienda ? await leerTienda(url) : null;
+      if (b) return new Uint8Array(b);
+      const r = await pedir(url);
+      return r.ok ? new Uint8Array(await r.arrayBuffer()) : null;
+    } catch { return null; }
+  };
+}
+
 /** One BVH from every readable `malla` entry, or null. Never throws. `falta`: some file was not readable (yet). */
 export async function construirMallaCliente(entradas: readonly [string, Record<string, unknown>][], leer: LeerGlb): Promise<{ mesh: Bvh | null; falta: boolean }> {
   let falta = false;
