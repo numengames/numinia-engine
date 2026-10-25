@@ -3,7 +3,7 @@
 // Unpacks deploy/instalar-motor.sh with --solo-extraer into $TMPDIR, checks the page files, starts the
 // unpacked server on a spare port (8793) with the given node, connects one client and waits for snapshots.
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { webSocketClient } from "../packages/net/src/index.ts";
@@ -109,7 +109,14 @@ try {
   // C6: the image's «comprobar», from the unpacked copy, reads it
   const comp = spawnSync(node, ["packages/server/src/entrada.ts", "comprobar"], { cwd: join(dir, "app"), input: readFileSync(join(dir, "mundo.zip")), encoding: "utf8" });
   if (comp.status !== 0 || !/^vale: numinia-engine\/mundo@2/.test(comp.stdout)) fail(`comprobar no acepta el zip del mundo: ${comp.stdout}${comp.stderr}`);
-  hab = spawn(node, ["packages/agent/src/main.ts"], { cwd: join(dir, "app"), env: { ...process.env, MOTOR_URL: `ws://127.0.0.1:${PORT}`, MOTOR_AGENTES_SECRET: AGENTES, STATS_MS: "60000", CEREBRO_ECO: "1", AVENTURA_DIR: join(dir, "app/aventuras/ejemplo") } }); // the new world has no inhabitants (the Taller brings none): the service reads the example adventure's Lía
+  // the Taller brings no inhabitants: like an owner who adds Lía from the example, put her file in the world and restart the server (it reads its inhabitants at start)
+  mkdirSync(join(mundo, "aventura", "habitantes"), { recursive: true });
+  cpSync(join(dir, "app/aventuras/ejemplo/habitantes/lia.json"), join(mundo, "aventura", "habitantes", "lia.json"));
+  const parado = new Promise((r) => srv.once("exit", r)); srv.kill(); await parado;
+  srv = spawn(node, ["packages/server/src/main.ts"], { cwd: join(dir, "app"), env: { ...entorno, PORT: String(PORT), HOST: "127.0.0.1", STATS_MS: "60000", MOTOR_AGENTES_SECRET: AGENTES, ADMIN_CODE: ADMIN, JWT_SECRET: "c".repeat(64), MOTOR_MUNDO: mundo, WWW_DIR: join(dir, "www"), MOTOR_CONSTRUIR: "todos" } });
+  srv.stdout.on("data", (d) => { log += d; }); srv.stderr.on("data", (d) => { log += d; });
+  for (let i = 0; i < 40 && log.split("[instancia]").length < 3; i++) await sleep(100);
+  hab = spawn(node, ["packages/agent/src/main.ts"], { cwd: join(dir, "app"), env: { ...process.env, MOTOR_URL: `ws://127.0.0.1:${PORT}`, MOTOR_AGENTES_SECRET: AGENTES, STATS_MS: "60000", CEREBRO_ECO: "1", AVENTURA_DIR: join(mundo, "aventura") } });
   hab.stdout.on("data", (d) => { habLog += d; }); hab.stderr.on("data", (d) => { habLog += d; });
   for (let i = 0; i < 50 && !habLog.includes("el motor me llama"); i++) await sleep(100);
   const nombre = habLog.match(/el motor me llama «([^»]+)»/)?.[1];
