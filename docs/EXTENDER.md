@@ -406,7 +406,10 @@ menor entre ese aforo y la capacidad del motor. Los dos salen en `GET /status` (
 sin ficha = la capacidad). Con el mundo lleno, el servidor cierra la conexión con el código **4004** y el motivo
 «lleno <dentro>/<aforo>»; la página lo enseña en el centro (`#mundo-lleno`, `role=alert`) y no reintenta sola. Un valor
 que no cabe deja la ficha entera sin cargar, con su motivo en el log (`[ficha] no se carga: ficha.json.aforo: …`).
-Hoy se editan en el fichero: no hay panel para cambiarlos en marcha.
+Se editan en el fichero o, en marcha, desde el cajón «Entorno» → «Ajustes del mundo» (pieza `ficha-mundo`; solo quien manda: administrador
+o dueño): título, imagen, avatar por defecto y límite de personas. El servidor valida con las mismas reglas, reescribe SOLO esas claves
+de `ficha.json` (las demás, como `descripcion`, `tema` o `audio`, quedan igual) y la puerta usa el límite nuevo al momento; bajar el límite
+por debajo de los que hay dentro no echa a nadie, solo cierra la puerta al siguiente. El avatar nuevo lo llevan los que entran después.
 
 **`audio`** (S6f, opcional, dentro de la ficha): lo que este mundo pide del sonido. **R-1: una línea lo enciende.**
 `{ "audio": { "ambiente": "ambiente-numinia" } }` y ya suena el colchón de fondo. Cuatro campos, todos opcionales:

@@ -130,7 +130,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | H5 | Paridad Hyperfy2: sonido del mundo — fuentes en objetos y puntos, grupos música/efectos (su nodo `Audio`) | espera a V6 | sí |
 | H9 | Paridad Hyperfy2: subir ficheros arrastrando — por hash, con tope, solo quien construye | hecho | sí |
 | H9b | Subidas: borrar lo que nadie usa y cupo por identidad | espera a H3 | sí |
-| H7 | Paridad Hyperfy2: ajustes del mundo — título, descripción, imagen, escenario, avatar por defecto, abierto a construir, límite de personas | hecho (primer corte: fichero `ficha.json` con avatar y aforo, aviso al lleno; falta el panel) | sí |
+| H7 | Paridad Hyperfy2: ajustes del mundo — título, descripción, imagen, escenario, avatar por defecto, abierto a construir, límite de personas | hecho (fichero `ficha.json` con avatar y aforo, aviso al lleno; panel «Ajustes del mundo» en el cajón Entorno, solo quien manda: título, imagen, avatar, límite; el servidor escribe el fichero y la puerta sigue el límite al momento; faltan descripción, escenario y «abierto a construir» en el panel) | sí |
 | H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | hecho | sí |
 | H13 | Paridad Hyperfy2: nivel de detalle (LOD) de los modelos, generado en la ingesta | espera a M21 | sí |
 | H11 | Paridad Hyperfy2: importar de Hyperfy — `.hyp` → carpeta de app; un mundo entero → carpeta del mundo | en curso (la mitad `db.sqlite`+`assets/` → carpeta del mundo, hecha; la mitad `.hyp` → carpeta de app sigue esperando a M19) | sí |

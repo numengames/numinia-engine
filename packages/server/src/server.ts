@@ -34,9 +34,10 @@ import { infoMotor, semverMotor } from "./version.ts";
 import type { Motor } from "./version.ts";
 import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
 import { leerFicha, leerTema, lectorAventura } from "./aventura.ts";
+import { crearFichaViva } from "./ficha-viva.ts"; // H7: the ficha while running (the owner edits it from the settings panel)
 import { leerCondiciones, PUERTA_POR_DEFECTO } from "./condiciones.ts";
 import { crearPuertaCondiciones } from "./condiciones-puerta.ts"; // condiciones/c2: the gate
-import { conEnlace } from "../../feature/src/index.ts"; // funciones/f1: the switches piece the features bring
+import { conEnlace, conFicha } from "../../feature/src/index.ts"; // funciones/f1: the switches piece the features bring
 import { elegirFuente, iniciarFuente, ESPERA_ARRANQUE_MS } from "./condiciones-fuente.ts"; // condiciones/w4: the community's norms, pulled
 import { crearRoles } from "./roles-mundo.ts";
 import { configPase } from "./pase.ts";
@@ -142,7 +143,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const semver = semverMotor();   // once: /status says which engine version this is (numinia.com reads it to know what a world understands)
   const born = performance.now();
   // ADR-074: what the world is called, from its own folder (aventura/ficha.json); none = the engine's defaults
-  const { ficha, problemas: fichaMal } = leerFicha(o.aventura ?? null);
+  const { ficha: ficha0, problemas: fichaMal } = leerFicha(o.aventura ?? null);
+  const ficha = ficha0; // the ficha AS IT WAS AT START (its tema and audio stay); the name, cover, avatar and aforo that people may change live are read from `fichaViva` below
   for (const p of fichaMal) log(`[ficha] no se carga: ${p}`);
   const { tema, problemas: temaMal } = leerTema(ficha?.tema); // how its page looks (an event's colours and titles); a bad value drops only itself
   for (const p of temaMal) log(`[ficha] ${p}: lo dejo fuera`);
@@ -226,13 +228,21 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   if (hab.habitantes.length) log(`[habitantes] ${hab.habitantes.map((h) => h.nombre).join(", ")}${agentes ? "" : " — sin MOTOR_AGENTES_SECRET: no podrán entrar como IA"}`);
   // the cover: a picture this server has (library or datos/activos/); one it does not have is said once and left out
   const [portadaSha, portadaExt] = ficha?.portada?.split(".") ?? [];
-  const portada = portadaSha && activos.buscar(portadaSha, portadaExt) ? `/a/${ficha!.portada}` : null;
-  if (ficha) log(`[ficha] el mundo se llama «${ficha.nombre}»${ficha.portada ? (portada ? `, portada ${portada}` : `; su portada ${ficha.portada} no está en este servidor (súbela al mundo): no la enseño`) : ""}`);
+  const portada0 = portadaSha && activos.buscar(portadaSha, portadaExt) ? `/a/${ficha!.portada}` : null;
+  if (ficha) log(`[ficha] el mundo se llama «${ficha.nombre}»${ficha.portada ? (portada0 ? `, portada ${portada0}` : `; su portada ${ficha.portada} no está en este servidor (súbela al mundo): no la enseño`) : ""}`);
   // H7: how many may be inside at once = the world's aforo (its ficha) under the engine's capacity; everyone counts (people and AIs)
-  const aforo = Math.min(ficha?.aforo ?? maxPlayers, maxPlayers);
   if (ficha?.aforo) log(`[ficha] aforo ${ficha.aforo} persona${ficha.aforo === 1 ? "" : "s"}${ficha.aforo > maxPlayers ? ` (el motor admite ${maxPlayers}: ese es el tope)` : ""}${ficha.avatar ? ` · avatar de todos: ${ficha.avatar}` : ""}`);
   else if (ficha?.avatar) log(`[ficha] avatar de todos: ${ficha.avatar}`);
-  const fichaPublica = ficha ? { nombre: ficha.nombre, descripcion: ficha.descripcion, portada: portada ?? undefined, tema: tema ?? undefined, avatar: ficha.avatar, aforo, ...(ficha.audio ? { audio: ficha.audio } : {}) } : { aforo };
+  // H7 (settings panel): the owner changes the title, cover, default avatar and limit live; the file (aventura/ficha.json) is written and these follow it
+  const fichaViva = crearFichaViva({ aventura: o.aventura ?? null, ficha, maxPlayers, tieneImagen: (h, ext) => !!activos.buscar(h, ext), dentro: () => { try { return inst.conns.length; } catch { return 0; } }, log, // (the feature asks once while the instance is still being built)
+    alCambiarNombre: (n) => { if (pagina) pagina.titulo = n; } });
+  const aforo = (): number => fichaViva.aforo();
+  const fichaPublica = () => {
+    const f = fichaViva.ficha(), [sha, ext] = f?.portada?.split(".") ?? [];
+    const portada = sha && activos.buscar(sha, ext) ? `/a/${f!.portada}` : undefined;
+    return f ? { nombre: f.nombre, descripcion: f.descripcion, portada, tema: tema ?? undefined, avatar: f.avatar, aforo: aforo(), ...(ficha?.audio ? { audio: ficha.audio } : {}) } : { aforo: aforo() };
+  };
+  (o.features ?? []).find(conFicha)?.ficha.conectar({ ajustes: fichaViva.ajustes, cambiar: fichaViva.cambiar });
   if (o.suelo) log(`[mundo] suelo mínimo ${o.suelo.minimo} m: bajo él se vuelve a la última posición segura${o.suelo.vuelta ? ` (punto de vuelta ${o.suelo.vuelta.x}, ${o.suelo.vuelta.y}, ${o.suelo.vuelta.z})` : ""}`);
   if (o.aparicion) log(`[mundo] la gente aparece en el cuadrado de ${2 * o.aparicion.radio} m centrado en (${o.aparicion.x}, ${o.aparicion.z})`);
   // N10: digital goods' receipts, signed with a key derived from the world's secret (none without MOTOR_SECRET: no goods)
@@ -275,7 +285,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
 
   const metrics = () => buildMetrics({
     version, uptimeMs: performance.now() - born, tick: inst.sim.tick, tickHz: TICK_HZ, people: inst.conns.length,
-    capacity: aforo, ticks, bytes, lagMs, mem: process.memoryUsage(),
+    capacity: aforo(), ticks, bytes, lagMs, mem: process.memoryUsage(),
     lags, responses, runtime: runtime.window(), entorno: env, counts, bytesTotal: bytesOut, tickSumMs,
     coste, erroresDe: inst.features.erroresDe, piezasStats: inst.features.stats,
   });
@@ -319,7 +329,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       return void res.end(JSON.stringify({
         uptime: Math.floor((performance.now() - born) / 1000), conectados: personas, agentes: agentesConectados.length,
         total: inst.conns.length, agentesDe, commitHash: motor.commit ?? undefined, version, ...(semver ? { semver } : {}), cerebro: cerebroEstado,
-        ...(cfgPase.pase ? { mundoPase: cfgPase.pase.mundo, pases: roles.pases() } : {}), ...fichaPublica,
+        ...(cfgPase.pase ? { mundoPase: cfgPase.pase.mundo, pases: roles.pases() } : {}), ...fichaPublica(),
         // H4: the loading screen draws the line mesh only for a world whose espacio base is on (its state is public anyway)
         ...(espacioBaseActivo() ? { espacioBase: true } : {}),
         // dardos enlazados (E1): where a page of this world sends its AR darts (the Alchemist Tower's board unless dardos.json says otherwise); null = nowhere
@@ -365,7 +375,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const wss = new WebSocketServer({ server: http, maxPayload: PASE_MAX, perMessageDeflate: false });
   wss.on("connection", (ws, req) => {
     // H7: full = the world's aforo (or the engine's capacity): refused at the door with the reason the page shows
-    if (inst.conns.length >= aforo) { counts.rechazadasLlenas++; ws.close(CIERRE_LLENO, `lleno ${inst.conns.length}/${aforo}`); return; }
+    if (inst.conns.length >= aforo()) { counts.rechazadasLlenas++; ws.close(CIERRE_LLENO, `lleno ${inst.conns.length}/${aforo()}`); return; }
     counts.aceptadas++;
     // dardos enlazados: `?enlace=dardos` = a page of another world that only plays the darts here (no avatar for anybody, darts only)
     const entity = inst.connect(wsTransport(ws), undefined, req.headers.host, esVisitaDeEnlace(req.url) ? FUNCIONES_DE_ENLACE : undefined); // ADR-080: the host an outside agent signs
