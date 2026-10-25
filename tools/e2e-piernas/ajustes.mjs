@@ -34,6 +34,14 @@ async function tabHasta(p, id, max = 80) {
   return -1;
 }
 
+/** MIS-239: wide window = a tab; narrow window (480 px here) = a folded section's heading. */
+async function abrirCategoria(p, cat) {
+  const tab = p.locator(`#ajustes nav button[data-cat="${cat}"]`);
+  if (await tab.isVisible()) return tab.click();
+  const cab = p.locator(`#ajustes .cat-cab[data-cat="${cat}"]`);
+  if ((await cab.getAttribute("aria-expanded")) !== "true") await cab.click();
+}
+
 async function pierna(engine) {
   const r = { engine, errors: [] };
   const browser = await launchers[engine]();
@@ -59,7 +67,7 @@ async function pierna(engine) {
     r.abreConO = true;
     r.focoDentro = await p.evaluate(() => document.getElementById("ajustes").contains(document.activeElement));
     // 2. keyboard only: Tab to «Resolución», one step left
-    await p.click('#ajustes nav button[data-cat="graficos"]'); // the window shows one category at a time
+    await abrirCategoria(p, "graficos"); // the window shows one category at a time (a tab, or a folded section at this narrow width: MIS-239)
     r.tabsHastaResolucion = await tabHasta(p, "ajuste-graficos.resolucion");
     await p.keyboard.press("ArrowLeft");
     await p.waitForFunction(() => globalThis.__numinia.ajustes.get("graficos.resolucion") === 95, null, { timeout: 3000 });
