@@ -6,6 +6,7 @@
 // the last things the page announced (paneles.ts alAnunciar), back to the city = mundo.ajustes.json `ciudadUrl`.
 // Not yet tried on a real Quest (only the IWER emulator and pictures of the canvases).
 import { alAnunciar } from "./paneles.ts";
+import { horaVR } from "../../packages/client/src/reloj.ts";
 import { pathsIcono } from "./iconos.ts";
 import { resumenTexto } from "./inventario.ts";
 import { sonar } from "./sonar.ts";
@@ -60,9 +61,15 @@ export function montarMenuVR(o: {
   const grabosoAqui = () => { const g = o.n().graboso; return !!g?.graboso?.alternar && g.soporta !== false; };
   const grabosoSaca = () => { const f = o.n().graboso.graboso.estado.fase; return f === "grabando" || f === "despertando"; };
 
+  // the clock of the watch and of the menu's header: the same HH:MM as the HUD's #reloj (apps/plaza/reloj.ts), same `interfaz.hora` setting
+  const hora = (): string => {
+    const a = o.n().ajustes;
+    let modo: unknown; try { modo = a?.get?.("interfaz.hora"); } catch { /* settings not ready: local */ }
+    return horaVR(Date.now(), modo);
+  };
   vr.relojEstado(() => {
     const n = o.n(), voz = n.voz, foto = n.foto;
-    return { micro: voz?.estado ? !!voz.estado.encendido : null, camara: !!foto?.disparar, graboso: grabosoAqui() ? grabosoSaca() : null, avisos: Math.min(99, totalAvisos - vistos), ciudad: !!o.ciudadUrl };
+    return { hora: hora(), micro: voz?.estado ? !!voz.estado.encendido : null, camara: !!foto?.disparar, graboso: grabosoAqui() ? grabosoSaca() : null, avisos: Math.min(99, totalAvisos - vistos), ciudad: !!o.ciudadUrl };
   });
   vr.onPulsa(() => { try { sonar("ui-pulsar"); } catch { /* no sound here */ } });
   vr.onReloj((b) => {
@@ -249,6 +256,7 @@ export function montarMenuVR(o: {
     contenido: (v) => (porVista[v] ?? tu)(),
     // «Construir» is never greyed out: pressed without the role it says why (an invited guest: «Entra con tu nombre para construir»)
     desactivadas: () => new Set(),
+    hora,
     alAbrir: (v) => { if (v === "gente") { const r = o.n().viajar?.pedirGente?.(); if (r && !r.ok && r.why) nota(r.why); } },
   });
   // `contenido`: what a view shows now (for checks, e.g. the text «Construir» gives a guest)
