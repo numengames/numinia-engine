@@ -285,7 +285,8 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     if (motivo) return void rechazar(from, motivo);
     apuntar(from, { id, antes: o });
     const alcance = ["burbuja", "zona", "todos"].includes(String(m.alcance)) ? String(m.alcance) : "burbuja";
-    const n = { ...o, oculto: m.oculto === true, volumen: q(Math.max(0, Math.min(1, Number(m.volumen))), 0.01), solido, colision, alcance, radio: q(Math.max(0.5, Math.min(200, Number(m.radio) || 8)), 0.1), enlace };
+    const grupo = ["musica", "efectos", "ambiente"].includes(String(m.grupo)) ? String(m.grupo) : "auto"; // H5: a page from before sends none = auto
+    const n = { ...o, oculto: m.oculto === true, volumen: q(Math.max(0, Math.min(1, Number(m.volumen))), 0.01), solido, colision, alcance, grupo, radio: q(Math.max(0.5, Math.min(200, Number(m.radio) || 8)), 0.1), enlace };
     api.state.set(id, solido ? conCaja(id, n) : { ...n, bx0: 0, by0: 0, bz0: 0, bx1: 0, by1: 0, bz1: 0 });
     hecho(from, id, "ajustar", { oculto: n.oculto });
   });

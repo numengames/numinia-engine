@@ -31,7 +31,7 @@ import type { Oyente, Camara as CamaraOyente } from "./audio/oyente.ts";
 export { haciaMundo, TECLAS_CAMARA, CAMARA } from "./camara.ts";
 export type { Camara, ModoCamara } from "./camara.ts";
 import { crearEditor } from "./gizmo.ts";
-import { cargarImagen, cargarVideo, cargarSonido, sePuedeReproducir } from "./medios.ts";
+import { cargarImagen, cargarVideo, cargarSonido, sePuedeReproducir, fijarRelojMundo, desfasesDeVideos } from "./medios.ts";
 import type { Medio, ControlVideo } from "./medios.ts";
 export { sePuedeReproducir } from "./medios.ts";
 export type { ControlVideo } from "./medios.ts";
@@ -103,6 +103,8 @@ export type Thing = { model: string; x: number; y: number; z: number; rx: number
   kind?: "modelo" | "imagen" | "video" | "sonido"; ext?: string; hidden?: boolean; volume?: number;
   /** U11 (optional): who hears it (burbuja: inside the bubble; zona, todos: everyone, at the same volume) and a video's bubble radius (m). */
   reach?: "burbuja" | "zona" | "todos"; radius?: number;
+  /** H5 (optional): the mixer group a sound or video plays in (the thing says; without it the engine picks: ambient for a bed, effects for a short sound, music for a video). */
+  bus?: "musica" | "efectos" | "ambiente";
   /** N22 (optional): part of the room (pinned or backdrop), downloaded first (carga-orden.ts). */
   sala?: boolean };
 /** J10: where a thing you carry goes: a hand in XR («izq»/«der»), or beside you on a flat screen («yo»). */
@@ -746,7 +748,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       ? { x: op.x, y: op.y, z: op.z }
       : { x: camera.position.x, y: camera.position.y, z: camera.position.z };
     for (const s of things.values()) {
-      if (s.medio) { s.medio.actualizar(s.group, oido, { hidden: !!s.want.hidden, volume: s.want.volume ?? 1, reach: s.want.reach ?? "burbuja", radius: s.want.radius ?? 8 }); if (s.want.kind === "video" && s.medio.sonando()) mediosSonando = true; }
+      if (s.medio) { s.medio.actualizar(s.group, oido, { hidden: !!s.want.hidden, volume: s.want.volume ?? 1, reach: s.want.reach ?? "burbuja", radius: s.want.radius ?? 8, ...(s.want.bus ? { bus: s.want.bus } : {}) }); if (s.want.kind === "video" && s.medio.sonando()) mediosSonando = true; }
       if (s.horneado) actualizarLOD(s); // J14: far baked figures drop to one piece (one draw call)
       if (!s.mixer) continue;
       if (distance2(s) <= r2) { s.mixer.update(dt); animatingNear = true; }
@@ -1254,6 +1256,11 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** S5: the engine's one audio listener (it already runs every frame; this is for reading it). `null` only in
      * the instant between the first frame and its lazy module arriving. */
     oyente: (): Oyente | null => oyente,
+    /** M18: the clock videos and sounds follow, in ms: pass the SERVER's (`session.relojServidorMs`) so every page is at the
+     * same second; `null` (or a source that returns `null`) goes back to this computer's clock. */
+    fijarRelojMundo,
+    /** M18 (to measure): how far (s) from the world's clock each video that plays now is. */
+    desfasesDeVideos,
     /** N1b: the world's solid boxes as the simulation holds them (Q16.16, `session.solidos()`): the camera does not go
      * through them and an avatar on a stair or a roof walks instead of «jumping». Cheap every frame (converted on change). */
     solidos(fx: Int32Array | null | undefined): void {

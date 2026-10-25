@@ -38,6 +38,12 @@ const VOLUMEN = { kind: "fixed", min: 0, max: 1, step: 0.01, default: 1 } as con
 /** U11: who hears a sound or a video: only inside its bubble, the whole zone, or everyone in the world. */
 export const ALCANCES = ["burbuja", "zona", "todos"] as const;
 const ALCANCE = { kind: "enum", values: ALCANCES, default: "burbuja" } as const;
+/** H5: which mixer group a sound or a video belongs to (the sliders of Ajustes → Sonido): «musica» lowers with the music
+ * volume, «efectos» with the effects one, «ambiente» is the bed of a place. «auto» = the engine's default (a long loop is
+ * ambient, a short sound is an effect, a video is music). */
+export const GRUPOS = ["auto", "musica", "efectos", "ambiente"] as const;
+export type Grupo = (typeof GRUPOS)[number];
+const GRUPO = { kind: "enum", values: GRUPOS, default: "auto" } as const;
 /** U11: a video's bubble of sound, in metres (a sphere of sound uses its scale as its radius). */
 const RADIO = { kind: "fixed", min: 0.5, max: 200, step: 0.1, default: 8 } as const;
 /** U10: a box in metres (the solid's world box in the state; the model's own box, unscaled, in `ajustar`). */
@@ -96,13 +102,13 @@ export function motivoEnlace(valor: unknown): string {
 
 export const objetos = defineFeature({
   id: "objetos",
-  version: 7, // T1 (no bump: a server-only event, nothing on the wire or in the saved state): + event hizo; U10: + tipo/ext, oculto, volumen, solido + world box, intent ajustar; U11: + alcance, radio; U12: + holes; M6: + colision (additive: solido stays); M22c: + lote (deshacer agrupado); J4: + enlace
+  version: 7, // T1 (no bump: a server-only event, nothing on the wire or in the saved state): + event hizo; U10: + tipo/ext, oculto, volumen, solido + world box, intent ajustar; U11: + alcance, radio; H5: + grupo (additive); U12: + holes; M6: + colision (additive: solido stays); M22c: + lote (deshacer agrupado); J4: + enlace
   describe: "Cosas colocadas en el mundo que se quedan (un modelo 3D con su sitio, giro, escala y nombre). Quien tiene permiso de construir las coloca, mueve, duplica, fija, borra y deshace en directo; todos lo ven al momento y sobrevive a los reinicios. Un hueco es un cuadro que espera su obra: se pincha, se elige una imagen y el servidor la encaja.",
   store: { describe: "Por objeto, quién lo colocó y cuándo (`a:<id>`), su caja propia si es sólido (`c:<id>`) y, si es un hueco, el cartel al que vuelve al vaciarlo (`v:<id>`); y el contador de ids (`siguiente`). Nunca va a las páginas." },
   state: {
-    describe: "Una entrada por objeto (clave = su id). modelo = sha256 del .glb (el fichero está en /a/<sha256>.glb). Giros en grados. decorado = sin nombre a propósito (como alt=\"\"); fijado = no se mueve ni se borra hasta soltarlo. tipo = modelo, imagen, video o sonido (una esfera: dentro se oye el fichero; su radio es la escala); ext = la extensión del fichero (/a/<sha256>.<ext>); oculto = la esfera no se ve al jugar (sí al construir); volumen 0-1; alcance = quién oye un sonido o un vídeo (burbuja, zona, todos); radio = la burbuja de sonido de un vídeo (m); colision = cómo chocan las personas con él (ninguna: se atraviesa; caja: su caja en el mundo; malla: los triángulos del modelo, M6); solido = colision distinta de ninguna (bx0…bz1: su caja en el mundo, la calcula el servidor); huecoAncho × huecoAlto > 0 = es un hueco (U12): una imagen en un marco de ese tamaño (m) que espera su obra; huecoLleno = ya la tiene.",
+    describe: "Una entrada por objeto (clave = su id). modelo = sha256 del .glb (el fichero está en /a/<sha256>.glb). Giros en grados. decorado = sin nombre a propósito (como alt=\"\"); fijado = no se mueve ni se borra hasta soltarlo. tipo = modelo, imagen, video o sonido (una esfera: dentro se oye el fichero; su radio es la escala); ext = la extensión del fichero (/a/<sha256>.<ext>); oculto = la esfera no se ve al jugar (sí al construir); volumen 0-1; alcance = quién oye un sonido o un vídeo (burbuja, zona, todos); grupo = en qué grupo del mezclador suena (auto, musica, efectos, ambiente; H5); radio = la burbuja de sonido de un vídeo (m); colision = cómo chocan las personas con él (ninguna: se atraviesa; caja: su caja en el mundo; malla: los triángulos del modelo, M6); solido = colision distinta de ninguna (bx0…bz1: su caja en el mundo, la calcula el servidor); huecoAncho × huecoAlto > 0 = es un hueco (U12): una imagen en un marco de ese tamaño (m) que espera su obra; huecoLleno = ya la tiene.",
     fields: { modelo: { kind: "text", maxBytes: 64 }, ...DONDE, nombre: NOMBRE, decorado: { kind: "bool", default: true }, fijado: { kind: "bool", default: false }, animar: { kind: "bool", default: true },
-      tipo: TIPO, ext: EXT, oculto: { kind: "bool", default: false }, volumen: VOLUMEN, solido: { kind: "bool", default: false }, colision: COLISION, ...CAJA, alcance: ALCANCE, radio: RADIO,
+      tipo: TIPO, ext: EXT, oculto: { kind: "bool", default: false }, volumen: VOLUMEN, solido: { kind: "bool", default: false }, colision: COLISION, ...CAJA, alcance: ALCANCE, radio: RADIO, grupo: GRUPO,
       huecoAncho: HUECO_M, huecoAlto: HUECO_M, huecoLleno: { kind: "bool", default: false },
       enlace: { kind: "text", maxBytes: ENLACE_MAX, default: "" } },
     card: { role: "objeto", name: "{nombre}", at: ["x", "z"], actions: ["mover", "girar", "duplicar", "borrar"] },
@@ -121,9 +127,9 @@ export const objetos = defineFeature({
     fijar: { describe: "Fijar un objeto (nadie lo mueve ni lo borra) o soltarlo. M22c: `lote` agrupa varios en un solo paso de deshacer.", spoken: "fijar un objeto", fields: { id: ID, fijado: { kind: "bool" }, lote: LOTE } },
     nombrar: { describe: "Ponerle nombre a un objeto (lo que dice el lector de pantalla y leen los agentes), o marcarlo como decorado.", spoken: "poner nombre a un objeto", fields: { id: ID, nombre: NOMBRE, decorado: { kind: "bool", default: false } } },
     ajustar: {
-      describe: "U10: lo que no es sitio ni nombre: oculto (una esfera de sonido que no se ve al jugar), volumen 0-1 (sonido y vídeo), alcance (burbuja: solo dentro; zona: toda la zona; todos: todo el mundo), radio de la burbuja de un vídeo en metros, colision (M6: ninguna, caja o malla; malla solo para un modelo), solido (= colision caja, se mantiene por las páginas de antes; bx0…bz1 = la caja del modelo sin escalar, en sus propios ejes, la que mide la página al cargarlo; caja y malla la necesitan) y enlace (J4: la dirección que abre un clic sobre la cosa, en pestaña nueva, tras confirmar; vacío = no abre nada).",
+      describe: "U10: lo que no es sitio ni nombre: oculto (una esfera de sonido que no se ve al jugar), volumen 0-1 (sonido y vídeo), alcance (burbuja: solo dentro; zona: toda la zona; todos: todo el mundo), grupo (H5: musica, efectos, ambiente o auto = el defecto del motor; es el deslizador de Ajustes → Sonido que lo baja), radio de la burbuja de un vídeo en metros, colision (M6: ninguna, caja o malla; malla solo para un modelo), solido (= colision caja, se mantiene por las páginas de antes; bx0…bz1 = la caja del modelo sin escalar, en sus propios ejes, la que mide la página al cargarlo; caja y malla la necesitan) y enlace (J4: la dirección que abre un clic sobre la cosa, en pestaña nueva, tras confirmar; vacío = no abre nada).",
       spoken: "ajustar un objeto",
-      fields: { id: ID, oculto: { kind: "bool", default: false }, volumen: VOLUMEN, solido: { kind: "bool", default: false }, colision: COLISION, ...CAJA, alcance: ALCANCE, radio: RADIO, enlace: { kind: "text", maxBytes: ENLACE_MAX, default: "" } },
+      fields: { id: ID, oculto: { kind: "bool", default: false }, volumen: VOLUMEN, solido: { kind: "bool", default: false }, colision: COLISION, ...CAJA, alcance: ALCANCE, radio: RADIO, grupo: GRUPO, enlace: { kind: "text", maxBytes: ENLACE_MAX, default: "" } },
     },
     hueco: {
       describe: "U12: hacer de una imagen un hueco: el marco de ancho × alto metros (lo de dentro) donde quien construye pone su obra (rellenar). La imagen que tiene ahora es el cartel al que vuelve al vaciarlo. 0 × 0 = deja de ser hueco.",

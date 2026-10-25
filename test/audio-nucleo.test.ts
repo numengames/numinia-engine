@@ -58,7 +58,7 @@ test("el grafo se construye UNA sola vez, por perezoso que sea el motor", () => 
   assert.equal(b.veces(), 1, "un solo AudioContext para toda la página");
   assert.equal(b.n.bus("musica"), b.n.bus("musica"), "el mismo bus siempre, no uno nuevo por llamada");
   assert.equal(b.nodos.filter((x) => x.tipo === "limitador").length, 1);
-  assert.equal(b.nodos.filter((x) => x.tipo === "gain").length, BUSES.length * 2, "un bus y un VCA por cada uno de los ocho");
+  assert.equal(b.nodos.filter((x) => x.tipo === "gain").length, BUSES.length * 2 + 1, "un bus y un VCA por cada uno de los ocho, y el nodo del modo mono (V6)");
 });
 
 test("los ocho buses existen y acaban en el limitador, y el limitador en la salida", () => {
@@ -70,7 +70,8 @@ test("los ocho buses existen y acaban en el limitador, y el limitador en la sali
   assert.equal(lim.ratio.value, LIMITADOR.ratio); assert.equal(lim.attack.value, LIMITADOR.attack); assert.equal(lim.release.value, LIMITADOR.release);
   assert.ok(b.conexiones.some(([de, a]) => de === lim && a === b.ctx.destination), "el limitador es lo último antes de la salida");
   const master = bus(b, "master"), vcaMaster = vcaDe(b, "master");
-  assert.ok(b.conexiones.some(([de, a]) => de === vcaMaster && a === lim), "el máster entra en el limitador");
+  const aMono = b.conexiones.find(([de]) => de === vcaMaster)![1];
+  assert.ok(b.conexiones.some(([de, a]) => de === aMono && a === lim), "el máster entra en el limitador (pasando por el nodo del modo mono, V6)");
   for (const nombre of BUSES) {
     if (nombre === "master") continue;
     assert.ok(b.conexiones.some(([de, a]) => de === vcaDe(b, nombre) && a === master), `${nombre} no cuelga del máster`);
