@@ -97,6 +97,17 @@ async function pierna() {
     if (CANVAS) { mkdirSync(CANVAS, { recursive: true }); writeFileSync(`${CANVAS}/vr-aviso.png`, Buffer.from((await ctl(() => globalThis.__numinia.view.vr.aviso.lienzo.toDataURL("image/png"))).split(",")[1], "base64")); }
     await esperar(() => globalThis.__numinia.view.manos.estado().izq?.tipo === "mando" && globalThis.__numinia.view.manos.estado().der?.tipo === "mando", null, 20000);
     await ctl(() => globalThis.__bajarMuneca()); await a.waitForTimeout(600);
+    // t_166720f3: a dialogue opens with the help card in front → the card steps aside; Y does not open the menu over it
+    paso("la ayuda de mandos está delante al entrar", (await ctl(() => globalThis.__numinia.view.vr.estadoPaneles())).panel === true);
+    await ctl(() => globalThis.__numinia.view.vr.dialogo({ nombre: "Prueba", texto: "Una frase de prueba.", opciones: ["Sí", "No"] }));
+    await a.waitForTimeout(300);
+    const conDialogo = await ctl(() => { const v = globalThis.__numinia.view.vr; return { dialogo: v.estadoPaneles().dialogo, ayuda: v.estadoPaneles().panel, menu: v.menu.abierto }; });
+    paso("un diálogo deja la ayuda escondida y solo el diálogo delante", conDialogo.dialogo === true && conDialogo.ayuda === false && conDialogo.menu === false, { conDialogo });
+    await boton("left", "y-button", 1); await a.waitForTimeout(120); await boton("left", "y-button", 0); await a.waitForTimeout(300);
+    paso("con el diálogo abierto, Y no abre el menú encima", (await ctl(() => globalThis.__numinia.view.vr.menu.abierto)) === false);
+    await ctl(() => globalThis.__numinia.view.vr.dialogo(null)); await a.waitForTimeout(200);
+    paso("sin diálogo, la ayuda sigue escondida (vuelve al entrar, no al hablar)", (await ctl(() => globalThis.__numinia.view.vr.estadoPaneles())).panel === false);
+    await ctl(() => globalThis.__bajarMuneca()); await a.waitForTimeout(600);
     paso("con la muñeca bajada no hay reloj", !(await ctl(() => globalThis.__numinia.view.vr.reloj.visible)));
     // 1. turn the wrist towards you: the watch shows (after ABRIR.ms, 300 ms)
     await ctl(() => globalThis.__mirarMuneca());
