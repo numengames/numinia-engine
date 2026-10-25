@@ -295,7 +295,10 @@ const constructorUI = montarConstructor(constructor, view, document.getElementBy
   { volver: () => mapa.volver(), puedeVolver: () => mapa.puedeVolver(),
     mundo: () => ({ disparadores: disparadores.lista(), cerraduras: cerraduras.cerraduras(), contadores: contadores.lista() }), abrirCable: () => cable.mostrar(),
     alAbrir: (q) => { misiones.hace(q === "construir" ? "abre_construir" : q === "anadir" ? "abre_biblioteca" : "abre_cable"); }, // T1: only sent while a step asks for it
-    subir: () => soltar.elegir() }); // C3, C4, ux2-dock: the card, «Lógica», «Subir»; `mapa`, `cable` and `soltar` are built below, only read later
+    subir: () => soltar.elegir(), // C3, C4, ux2-dock: the card, «Lógica», «Subir»; `mapa`, `cable` and `soltar` are built below, only read later
+    // MIS-241: «Objetos del mundo» goes next to the object with the map's own jump (so the map's «Volver» takes you back), and says where you stand
+    ir: (d) => { if (!mapa.puedeIr()) return false; mapa.ir({ ...d, id: `c:objetos:${d.id}` }); return true; },
+    yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) });
 // ---- M22b-3: the same builder, picked and moved with a VR controller's ray instead of a mouse ----
 const constructorVR = montarConstructorVR(constructor, view);
 // ---- H9: drop your own .glb on the world (or «Añadir › Subir» in the builder's dock): uploaded by sha256, placed for everyone ----
@@ -442,8 +445,12 @@ const andar = crearIrAndando({
   alTerminar: (f) => { if (f.motivo !== "cancelado" && f.motivo !== "llegada") anunciar(frase(f.motivo, f.destino.nombre)); mapa.andandoTermino(f); }, // the arrival is said by the map (quitarDestino)
 });
 let andarCorrer = false;
+/** The id of a world object from a map marker's id (`c:objetos:<id>`); "" for anything else (a person, a mission, a spot). */
+const idDeObjeto = (marca: string): string => (marca.startsWith("c:objetos:") ? marca.slice("c:objetos:".length) : "");
 const mapa = montarMapa({ session, view, otros,
-  andar: { ir: (d) => { const yo = session.entity >= 0 ? session.selfPosition(1) : null; return yo ? andar.empezar(d, yo) : { ok: false, motivo: "invalido" as const }; }, parar: () => andar.cancelar(), activo: () => andar.activo() },  alAgente: (q) => { mapa.cerrar(); if (view.personaEnPantalla(q) && gente.tarjeta(q)) return; gente.elegir(q); }, /* the big map is a modal dialog: close it so the card shows; an AI behind the camera gets her sheet in «Gente» instead */ alIr: (donde) => { constructorUI.alIr({ id: donde.id.replace(/^c:objetos:/, "") }); }, teletransporte: { activo: () => viajar.activo(), ir: (x, z, nombre) => viajar.irAPunto(x, z, nombre) } });
+  andar: { ir: (d) => { const yo = session.entity >= 0 ? session.selfPosition(1) : null; return yo ? andar.empezar(d, yo) : { ok: false, motivo: "invalido" as const }; }, parar: () => andar.cancelar(), activo: () => andar.activo() },  alAgente: (q) => { mapa.cerrar(); if (view.personaEnPantalla(q) && gente.tarjeta(q)) return; gente.elegir(q); }, /* the big map is a modal dialog: close it so the card shows; an AI behind the camera gets her sheet in «Gente» instead */ alIr: (donde) => { constructorUI.alIr({ id: donde.id.replace(/^c:objetos:/, "") }); },
+  /* MIS-240: a thing of the world picked on the map: «Editar» opens Construir on it (only when you may build and it is an object, not a person or a mission) */
+  puedeEditar: (donde) => { const id = idDeObjeto(donde.id); return id !== "" && constructorUI.puedeEditar(id); }, alEditar: (donde) => constructorUI.editar(idDeObjeto(donde.id)), teletransporte: { activo: () => viajar.activo(), ir: (x, z, nombre) => viajar.irAPunto(x, z, nombre) } });
 // ---- N13: photo mode (P or the camera button): the photo owns the screen and the keys; your avatar stands still ----
 const foto = montarFoto({ view, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), mapa, boton: document.getElementById("foto-abrir") as HTMLButtonElement, volverA: () => document.getElementById("camara-abrir"), ocupado: () => dardos.tirando(),
   aparecer: { puede: () => (viajar.estado.recibido ? viajar.foto() : null), pedir: (s) => { viajar.aparecerEnFoto(s.x, s.y, s.z); } }, // N16: the world may put you at the photo's place

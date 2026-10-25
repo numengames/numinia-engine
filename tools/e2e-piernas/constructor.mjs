@@ -80,7 +80,7 @@ async function pierna(engine) {
         abiertos: [...p.querySelectorAll(".cajon")].filter((c) => !c.hidden).length, alto: Math.round(p.getBoundingClientRect().height),
         entornoDentro: !!document.querySelector("#cajon-entorno #panel-entorno"), ficha: document.getElementById("ficha-objeto").hidden };
     });
-    paso("al entrar solo el dock, sin cajones", dock.n === 9 && dock.ids === "anadir,cable,entorno,precision,inspector,ayuda,deshacer,rehacer,salir" && dock.tips && dock.abiertos === 0 && dock.alto < 120 && dock.entornoDentro && dock.ficha, dock);
+    paso("al entrar solo el dock, sin cajones", dock.n === 10 && dock.ids === "anadir,objetos,cable,entorno,precision,inspector,ayuda,deshacer,rehacer,salir" && dock.tips && dock.abiertos === 0 && dock.alto < 120 && dock.entornoDentro && dock.ficha, dock);
     if (process.env.SHOTS === "1") await a.screenshot({ path: `e2e-dock-${engine}.png` });
     // one drawer at a time: Añadir opens (its icon marked), Entorno replaces it, the same icon again closes it, Esc closes too
     const cajones = () => a.evaluate(() => ({ abiertos: [...document.querySelectorAll("#panel-construir .cajon")].filter((c) => !c.hidden).map((c) => c.id.replace("cajon-", "")).join(),
