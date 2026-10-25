@@ -46,12 +46,12 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
   {
     grupo: "graficos", id: "foveacionVR", tipo: "eleccion", nombre: "Gafas: foveación", requiere: ["xrVr"],
     describe: "Los bordes de la vista se dibujan con menos detalle para ir más fluido. Más: más rápido, bordes más borrosos. Se nota en el texto de los paneles.",
-    opciones: [{ valor: "1", nombre: "Máxima (como hasta ahora)" }, { valor: "0.5", nombre: "Media" }, { valor: "0", nombre: "Apagada" }], defecto: "1",
+    opciones: [{ valor: "100", nombre: "Máxima (como hasta ahora)" }, { valor: "50", nombre: "Media" }, { valor: "0", nombre: "Apagada" }], defecto: "100",
   },
   {
     grupo: "graficos", id: "escalaVR", tipo: "eleccion", nombre: "Gafas: resolución", requiere: ["xrVr"],
     describe: "Cuántos puntos se dibujan por ojo. 80 %: más fluido y algo menos nítido. Vale en la próxima entrada en VR.",
-    opciones: [{ valor: "1", nombre: "100 % (como hasta ahora)" }, { valor: "0.8", nombre: "80 %" }], defecto: "1",
+    opciones: [{ valor: "100", nombre: "100 % (como hasta ahora)" }, { valor: "80", nombre: "80 %" }], defecto: "100",
   },
   {
     grupo: "graficos", id: "multiviewVR", tipo: "bool", nombre: "Gafas: multiview (experimento)", requiere: ["xrVr"],

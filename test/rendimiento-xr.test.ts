@@ -15,8 +15,8 @@ const falso = (gpu = false, flag: boolean | null = false) => {
 test("defaults equal what three does today (foveation 1, scale 1, no multiview) and the settings declare the same", () => {
   assert.deepEqual(RENDIMIENTO_DEFECTO, { foveacion: 1, escala: 1, multiview: false });
   const d = (id: string) => AJUSTES_MOTOR.find((a) => a.grupo === "graficos" && a.id === id)!;
-  assert.equal(d("foveacionVR").defecto, "1");
-  assert.equal(d("escalaVR").defecto, "1");
+  assert.equal(Number(d("foveacionVR").defecto) / 100, RENDIMIENTO_DEFECTO.foveacion); // the menu speaks percent: option values cannot hold a dot
+  assert.equal(Number(d("escalaVR").defecto) / 100, RENDIMIENTO_DEFECTO.escala);
   assert.equal(d("multiviewVR").defecto, false);
 });
 
@@ -66,4 +66,10 @@ test("the installed three still has the flag we set and still reads it where the
   const src = readFileSync(new URL("../node_modules/three/src/renderers/common/XRManager.js", import.meta.url), "utf8");
   assert.match(src, /this\._useMultiviewIfPossible = multiview/);
   assert.match(src, /this\._useMultiviewIfPossible && renderer\.hasFeature\( 'OVR_multiview2' \)/);
+});
+
+test("every option maps onto an allowed step", () => {
+  const op = (id: string) => (AJUSTES_MOTOR.find((a) => a.grupo === "graficos" && a.id === id) as { opciones: { valor: string }[] }).opciones.map((o) => Number(o.valor) / 100);
+  assert.deepEqual(op("foveacionVR"), [1, 0.5, 0]);
+  assert.deepEqual(op("escalaVR"), [1, 0.8]);
 });
