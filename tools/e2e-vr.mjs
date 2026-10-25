@@ -62,6 +62,8 @@ const shown = () => getComputedStyle(document.getElementById("vr")).display !== 
       navigator.getGamepads = () => [pad];
       dispatchEvent(new Event("gamepadconnected"));
     });
+    // MIS-200 (t_9687b5fc): «Entrar en VR» says «Preparando…» (aria-disabled) while the world loads; wait for it to be active, as a person would.
+    await p.waitForFunction(() => document.getElementById("vr").getAttribute("aria-disabled") !== "true", null, { timeout: 15000 }).catch(() => {});
     await p.evaluate(() => document.getElementById("vr").click());
     await p.waitForFunction(() => globalThis.__numinia.view.vr.active, null, { timeout: 15000 }).catch(() => {});
     results.entered = await p.evaluate(() => globalThis.__numinia.view.vr.active);

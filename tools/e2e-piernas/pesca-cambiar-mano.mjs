@@ -119,6 +119,7 @@ async function vr() {
     r.pantalan = await alPantalan(p);
     await esperar(p, () => getComputedStyle(document.getElementById("vr")).display !== "none", null, 8000);
     await ctl(p, () => { try { globalThis.__numinia.view.renderer.xr.setFramebufferScaleFactor(0.25); } catch { /* not every renderer lets it */ } });
+    await esperar(p, () => document.getElementById("vr").getAttribute("aria-disabled") !== "true", null, 15000).catch(() => {}); // MIS-200 (t_9687b5fc): the entry says «Preparando…» until the world has loaded
     await ctl(p, () => document.getElementById("vr").click());
     await esperar(p, () => globalThis.__numinia.view.vr.active, null, 15000);
     await p.waitForTimeout(800);
