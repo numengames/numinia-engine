@@ -1,0 +1,22 @@
+{
+  "schema": "numinia-engine/disparadores@1",
+  "disparadores": [
+    {
+      "id": "boton-rojo",
+      "nombre": "Botón rojo",
+      "tipo": "boton",
+      "x": 4,
+      "y": 0,
+      "z": -3,
+      "radio": 3,
+      "frase": "E: pulsar",
+      "cooldown": 2,
+      "receptores": [
+        {
+          "accion": "muestra",
+          "objeto": "Farolillo"
+        }
+      ]
+    }
+  ]
+}

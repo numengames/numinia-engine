@@ -263,7 +263,9 @@ function arrancarEntrada(mundo: string, puerto: number, extra: Record<string, st
 const vivo = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
 
 test("E1 real: entrada.ts starts the inhabitants itself, reloads them when the panel adds or removes one, and takes them down with it", { timeout: 120_000 }, async () => {
-  const mundo = join(tmp("e1-real-"), "mundo");        // a new world: born with the example adventure (lia)
+  const mundo = join(tmp("e1-real-"), "mundo");        // a world with an adventure of its own that holds the example's inhabitant (lia): a NEW world is born with the Taller onboarding, which has none
+  mkdirSync(join(mundo, "aventura"), { recursive: true });
+  cpSync(new URL("../aventuras/ejemplo/habitantes", import.meta.url).pathname, join(mundo, "aventura", "habitantes"), { recursive: true });
   const puerto = await puertoLibre();
   const r = arrancarEntrada(mundo, puerto, { MOTOR_PASE_CLAVE: RAW, MOTOR_PASE_MUNDO: MUNDO_ID });
   const pedir = (method: string, ruta: string, cuerpo?: unknown) => fetch(`http://127.0.0.1:${puerto}${ruta}`, {

@@ -94,14 +94,15 @@ test("H8 switch: an existing file keeps its seed and every other key; a broken o
   assert.equal(leer(d2), roto); assert.deepEqual(readdirSync(d2), ["espacio-base.json"]);
 });
 
-test("H8 new world: `sembrar` on an empty folder writes entorno/espacio-base.json on (default seed); the example adventure is still copied", () => {
+test("H8 new world: `sembrar` on an empty folder writes entorno/espacio-base.json on (default seed); the Taller onboarding comes with it (Lumen), not the example", () => {
   const c = carpetaMundo(join(tmp("h08-nuevo-"), "mundo")), log: string[] = [];
   assert.equal(sembrar(c, (l) => log.push(l)), true);
   const f = JSON.parse(readFileSync(join(c.entorno, "espacio-base.json"), "utf8"));
   assert.deepEqual(f, ESPACIO_BASE_NUEVO); assert.deepEqual(f, ficheroNuevo(), "the same words as the switch's file");
   const r = leerEspacioBase(f); assert.ok(r.ok && r.value.activa && r.value.semilla === 42);
-  assert.ok(existsSync(join(c.aventura, "pnj", "alma.json")), "the example adventure came too");
-  assert.match(log.join("\n"), /nace en el espacio base/);
+  assert.ok(existsSync(join(c.aventura, "pnj", "lumen.json")), "the Taller onboarding came too");
+  assert.equal(existsSync(join(c.aventura, "pnj", "alma.json")), false, "not the example adventure");
+  assert.match(log.join("\n"), /nace con el onboarding del Taller.*nace en el espacio base/);
   // the world that exists is not changed: run again, even after the builder switched it off
   writeFileSync(join(c.entorno, "espacio-base.json"), JSON.stringify({ activa: false, semilla: 5 }));
   assert.equal(sembrar(c), false);

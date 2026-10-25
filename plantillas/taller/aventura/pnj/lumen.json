@@ -1,0 +1,479 @@
+{
+  "formato": "pnj@1",
+  "id": "lumen",
+  "nombre": "Lumen",
+  "descripcion": "La guardiana del taller: te enseña a construir de noche, un botón cada vez.",
+  "apariencia": {
+    "modelo": "047f5e5fb3bb6d378bd1df16ca6137f2a596c99b3a1b5690b4020c05aaf6f319",
+    "escala": 0.5
+  },
+  "posicion": {
+    "x": 2.5,
+    "z": -3
+  },
+  "giro": 150,
+  "radio": 3,
+  "dialogo": {
+    "entradas": [
+      {
+        "si": {
+          "mision": "tu-mini-mision",
+          "estado": "activa"
+        },
+        "nodo": "pista-11"
+      },
+      {
+        "si": {
+          "mision": "tu-mini-mision",
+          "estado": "hecha"
+        },
+        "nodo": "final"
+      },
+      {
+        "si": {
+          "mision": "tu-mini-mision",
+          "estado": "disponible"
+        },
+        "nodo": "da-11"
+      },
+      {
+        "si": {
+          "mision": "encadena",
+          "estado": "disponible"
+        },
+        "nodo": "da-10"
+      },
+      {
+        "si": {
+          "mision": "varios-que",
+          "estado": "disponible"
+        },
+        "nodo": "da-9"
+      },
+      {
+        "si": {
+          "mision": "cuanto-espera",
+          "estado": "disponible"
+        },
+        "nodo": "da-8"
+      },
+      {
+        "si": {
+          "mision": "cuando-zona",
+          "estado": "disponible"
+        },
+        "nodo": "da-7"
+      },
+      {
+        "si": {
+          "mision": "tu-primer-cable",
+          "estado": "disponible"
+        },
+        "nodo": "da-6"
+      },
+      {
+        "si": {
+          "mision": "mira-el-cable",
+          "estado": "activa"
+        },
+        "nodo": "pista-5"
+      },
+      {
+        "si": {
+          "mision": "mira-el-cable",
+          "estado": "disponible"
+        },
+        "nodo": "da-5"
+      },
+      {
+        "si": {
+          "mision": "apagalo",
+          "estado": "disponible"
+        },
+        "nodo": "da-4"
+      },
+      {
+        "si": {
+          "mision": "muevelo",
+          "estado": "disponible"
+        },
+        "nodo": "da-3"
+      },
+      {
+        "si": {
+          "mision": "pon-un-farolillo",
+          "estado": "disponible"
+        },
+        "nodo": "da-2"
+      },
+      {
+        "si": {
+          "mision": "abre-el-taller",
+          "estado": "activa"
+        },
+        "nodo": "pista-1"
+      },
+      {
+        "si": {
+          "mision": "abre-el-taller",
+          "estado": "disponible"
+        },
+        "nodo": "da-1"
+      },
+      {
+        "nodo": "hola"
+      }
+    ],
+    "nodos": {
+      "da-1": {
+        "texto": "Es de noche y esta plaza está a oscuras. Yo soy Lumen. Quiero que el farolillo se encienda cuando tú lo decidas, y te enseño cómo. Primero: pulsa Construir; te lo señalo con una flecha.",
+        "opciones": [
+          {
+            "texto": "Vale, vamos.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "abre-el-taller"
+            }
+          },
+          {
+            "texto": "Ahora no.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "pista-1": {
+        "texto": "Sigue con lo tuyo: Pulsa el botón Construir: el mundo tiene un modo construir y un modo jugar.",
+        "opciones": [
+          {
+            "texto": "Vale.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "da-2": {
+        "texto": "Bien. Ahora, en Añadir hay una biblioteca: arrastra un Farolillo a la plaza. Aprenderás a colocar.",
+        "opciones": [
+          {
+            "texto": "Vale, vamos.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "pon-un-farolillo"
+            }
+          },
+          {
+            "texto": "Ahora no.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "pista-2": {
+        "texto": "Sigue con lo tuyo: Abre Añadir y coloca un farolillo en la plaza.",
+        "opciones": [
+          {
+            "texto": "Vale.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "da-3": {
+        "texto": "Muévelo con las flechas de colores (X roja, Y verde, Z azul) y gíralo. Si te equivocas, deshaz.",
+        "opciones": [
+          {
+            "texto": "Vale, vamos.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "muevelo"
+            }
+          },
+          {
+            "texto": "Ahora no.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "pista-3": {
+        "texto": "Sigue con lo tuyo: Mueve el farolillo con las flechas de colores y gíralo.",
+        "opciones": [
+          {
+            "texto": "Vale.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "da-4": {
+        "texto": "Ahora apágalo: en su ficha, márcalo oculto al jugar. Tú lo sigues viendo; quien juega, no.",
+        "opciones": [
+          {
+            "texto": "Vale, vamos.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "apagalo"
+            }
+          },
+          {
+            "texto": "Ahora no.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "pista-4": {
+        "texto": "Sigue con lo tuyo: En la ficha del farolillo, márcalo para que no se vea al jugar.",
+        "opciones": [
+          {
+            "texto": "Vale.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "da-5": {
+        "texto": "Hay un cable ya hecho: abre el panel Cable. «Cuando pasa ESTO, pasa AQUELLO». Pulsa Probar en el Botón rojo.",
+        "opciones": [
+          {
+            "texto": "Vale, vamos.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "mira-el-cable"
+            }
+          },
+          {
+            "texto": "Ahora no.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "pista-5": {
+        "texto": "Sigue con lo tuyo: Abre el panel Cable, lee el cable de muestra y pulsa el Botón rojo.",
+        "opciones": [
+          {
+            "texto": "Vale.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "da-6": {
+        "texto": "Hazlo tú: en el panel Cable, «+ Nuevo cable». Eliges cuándo y qué.",
+        "opciones": [
+          {
+            "texto": "Vale, vamos.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "tu-primer-cable"
+            }
+          },
+          {
+            "texto": "Ahora no.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "pista-6": {
+        "texto": "Sigue con lo tuyo: Crea tu primer cable con «+ Nuevo cable».",
+        "opciones": [
+          {
+            "texto": "Vale.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "da-7": {
+        "texto": "Cambia el botón por una zona: el cable salta al entrar en el círculo.",
+        "opciones": [
+          {
+            "texto": "Vale, vamos.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "cuando-zona"
+            }
+          },
+          {
+            "texto": "Ahora no.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "pista-7": {
+        "texto": "Sigue con lo tuyo: Cambia el botón por una zona: «entrar en este círculo».",
+        "opciones": [
+          {
+            "texto": "Vale.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "da-8": {
+        "texto": "Ahora cuánto: pon unos segundos de espera y marca «un solo uso». El servidor vigila: el cable no hace trampas.",
+        "opciones": [
+          {
+            "texto": "Vale, vamos.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "cuanto-espera"
+            }
+          },
+          {
+            "texto": "Ahora no.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "pista-8": {
+        "texto": "Sigue con lo tuyo: Pon una espera de unos segundos y marca «un solo uso».",
+        "opciones": [
+          {
+            "texto": "Vale.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "da-9": {
+        "texto": "Un cuándo, muchos qué: añade a tu cable otra acción (suena, teletransporta, abre un enlace…).",
+        "opciones": [
+          {
+            "texto": "Vale, vamos.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "varios-que"
+            }
+          },
+          {
+            "texto": "Ahora no.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "pista-9": {
+        "texto": "Sigue con lo tuyo: Añade a tu cable otra acción: suena, teletransporta, abre un enlace o da paso de misión.",
+        "opciones": [
+          {
+            "texto": "Vale.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "da-10": {
+        "texto": "Último truco: que tu cable arranque con la señal de otra pieza. Así nacen las escape rooms.",
+        "opciones": [
+          {
+            "texto": "Vale, vamos.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "encadena"
+            }
+          },
+          {
+            "texto": "Ahora no.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "pista-10": {
+        "texto": "Sigue con lo tuyo: Haz que un cable arranque cuando otra pieza avise (una señal).",
+        "opciones": [
+          {
+            "texto": "Vale.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "da-11": {
+        "texto": "Reto final: escribe una misión de dos pasos con tu cable como segundo paso, y cuéntamela.",
+        "opciones": [
+          {
+            "texto": "Vale, vamos.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "tu-mini-mision"
+            }
+          },
+          {
+            "texto": "Ahora no.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "pista-11": {
+        "texto": "Sigue con lo tuyo: Escribe una misión de 2 pasos con tu cable como segundo paso y enséñasela a Lumen.",
+        "opciones": [
+          {
+            "texto": "Aquí está mi mini-misión.",
+            "accion": {
+              "tipo": "avanzar_paso",
+              "mision": "tu-mini-mision"
+            }
+          },
+          {
+            "texto": "Vale.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "final": {
+        "texto": "Lo has hecho: ya eres Constructor. Llévate la plaza a tu mundo con tu primer cable dentro.",
+        "opciones": [
+          {
+            "texto": "Gracias, Lumen.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "hola": {
+        "texto": "Soy Lumen, guardiana del taller. Si tienes una misión en marcha, mírala en el libro (J): enseña un solo botón y avanza sola cuando lo usas. Vuelve a hablarme al acabarla.",
+        "opciones": [
+          {
+            "texto": "Adiós.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "notas": "Cerca de la aparición (0,0). Da cada misión al hablarle al acabar la anterior; en la 11 revisa el reto (sin IA)."
+}
