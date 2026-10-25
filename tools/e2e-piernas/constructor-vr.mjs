@@ -53,6 +53,7 @@ async function pierna() {
       esperar(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0 && !!globalThis.__numinia.session.who && globalThis.__numinia.constructor.estado.puede, null, 30000),
       b.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 }),
     ]);
+    await esperar(() => document.getElementById("vr").getAttribute("aria-disabled") !== "true", null, 15000).catch(() => {}); // MIS-200 (t_9687b5fc): the entry says «Preparando…» until the world has loaded
     await ctl(() => document.getElementById("vr").click());
     await esperar(() => globalThis.__numinia.view.vr.active, null, 15000);
     await esperar(() => globalThis.__numinia.view.manos.estado().der?.tipo === "mando", null, 20000); // the hands load a few seconds in (index.ts)

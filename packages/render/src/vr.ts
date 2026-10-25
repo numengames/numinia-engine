@@ -22,9 +22,14 @@ import type { CondicionesVR } from "./condiciones-vr.ts"; // types only: the ent
 import { ID_BARRA, palancaPagina, palancasDelPanel, type EntradaMano, type LadoMano, type ModeloVR, type Zona } from "./condiciones-vr-geom.ts"; // pure numbers, no three.js
 import { empujaFuera } from "./vr-paredes.ts";
 import { completarSesionXR, textoDeFallo } from "./xr-compat.ts"; // old headset browsers lack XRSession.enabledFeatures (Chrome 105)
+import { calentarOcultos } from "./precompilar.ts"; // MIS-200: warm what only VR draws while it is still hidden
+import { crearEstable } from "./entrada-estable.ts"; // MIS-200: no VR drawing until the first calm frames
+import { aplicarRendimiento, normalizarRendimiento, pedirFrecuencia, type RendererLike, type RendimientoXR, RENDIMIENTO_DEFECTO } from "./rendimiento-xr.ts"; // MIS-200: foveation, scale, multiview, 72 Hz
 import { audio } from "./audio/nucleo.ts"; // S1: the engine's one audio graph (it sleeps when the session ends)
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
-export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void; andar?(excluida?: Lado | null): [number, number] | null;
+export type ManosXR = { cargar(): Promise<unknown>;
+  /** MIS-200: the hands' root group (once loaded), so its programs can be warmed before the session. */
+  raiz?(): THREE.Object3D | null; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void; andar?(excluida?: Lado | null): [number, number] | null;
   /** t_8d0bc2dd: true once per jump made with the hands (both wrists flicked up); reiniciarSalto forgets the gesture's history. */
   takeSalto?(): boolean; reiniciarSalto?(): void;
   /** t_bf8947cf: where a controller points, flattened (world, unit); null without that controller. */
@@ -57,6 +62,8 @@ export const INTENCION_CADUCA_MS = 1000;
 export const SALIR_CONFIRMA_MS = 3000;
 
 type XRLike = { isSessionSupported(mode: string): Promise<boolean>; requestSession(mode: string, init?: object): Promise<any> };
+/** MIS-200: how long enter() waits for the hands before asking for the session (the click's activation is short-lived). */
+const ESPERA_MANOS_MS = 1500;
 const xrOf = (): XRLike | null => (typeof navigator !== "undefined" && (navigator as unknown as { xr?: XRLike }).xr) || null;
 
 /** True only when this device can run an immersive-vr session. Never throws. */
@@ -73,6 +80,8 @@ export type VRHooks = {
   camera: THREE.PerspectiveCamera;
   manos?: ManosXR;
   onChange?: (state: VRState) => void;
+  /** MIS-200: true while the world still has loading work (models, compiles); the VR extras wait for it to end (entrada-estable.ts). */
+  ocupado?: () => boolean;
   /** The house's Phosphor icons for the watch and the menu (apps/plaza/iconos.ts); without them, text only. */
   iconos?: PathsIcono;
 };
@@ -297,6 +306,7 @@ export function createVR(h: VRHooks) {
   let session: any = null;
   let comfort = 0.8; // 0 = off, 1 = strongest
   let modoMovimiento: ModoMovimientoVR = "mirada"; // t_bf8947cf: settings menu, remembered by the registry
+  let rendimiento: RendimientoXR = { ...RENDIMIENTO_DEFECTO }; // MIS-200: «Rendimiento en gafas», applied on entering
   let giroDeg: number = SNAP_DEG, yawDeg = 0, velocidad = 1, alturaM = 0; // rediseño v2: the menu's VR settings
   let moveX = 0, moveZ = 0, turnLatched = false, strength = 0, navLatched = false;
   let ultimoFotograma = 0; // performance.now() of the last update(): axes() goes stale after INTENCION_CADUCA_MS
@@ -365,28 +375,43 @@ export function createVR(h: VRHooks) {
     for (const f of oyentesV2.reloj) try { f(b); } catch (e) { console.warn("[reloj]", e); }
   });
 
+  /** MIS-200 (t_fb2f9e37): link the programs of everything VR draws — rig (panels, «Salir», dialogue), vignette, note, watch, menu,
+   * entry notice, hands — while it is all still hidden, so the first VR frame does not stop to compile them. `compilar` is
+   * renderer.compileAsync(o, camera, scene). Resolves with how many objects were handed over. */
+  function calentar(compilar: (o: THREE.Object3D) => Promise<unknown>): Promise<number> {
+    const objs = [rig, vignette, nota, reloj.malla, menu.malla, aviso.malla, h.manos?.raiz?.(), condVR?.malla];
+    return calentarOcultos(objs as never, compilar as never);
+  }
+
   let lastError = ""; // why the last enter() failed (T1 report)
+  let estable = crearEstable({ ocupado: h.ocupado });
+  let mostrado = false; // the VR extras are on screen (false from entering until the first calm frames)
   async function enter(): Promise<boolean> {
     const xr = xrOf();
     if (!xr || session) return false;
+    // MIS-200 (t_04ada0ed): the hands come first. Normally they are prefetched and this is instant; if not, wait for them
+    // only while the click's activation (needed by requestSession) is still fresh, and finish before setSession either way.
+    const manosListas = (h.manos?.cargar() ?? Promise.resolve()).catch(() => {});
+    await Promise.race([manosListas, new Promise((ok) => setTimeout(ok, ESPERA_MANOS_MS))]);
+    if (session) return false; // a second click while waiting
     try { session = completarSesionXR(await xr.requestSession("immersive-vr", { optionalFeatures: ["local-floor", "hand-tracking"] })); } catch (e) { lastError = textoDeFallo(e); session = null; return false; }
     // From here the session is ours: if anything below throws (three's setSession on an old browser…), it is ended and
     // forgotten, or `session` would stay set and every later enter() would answer false with no reason (a zombie).
     try {
+      await manosListas; // still before setSession: the session is not handed to three until the hands exist
       h.renderer.xr.enabled = true;
       h.renderer.xr.setReferenceSpaceType("local-floor");
+      aplicarRendimiento(h.renderer as unknown as RendererLike, rendimiento); // scale + multiview are read by setSession
       await h.renderer.xr.setSession(session);
-      await h.manos?.cargar().catch(() => {}); // after requestSession (it needs the click's activation); prefetched by the view
+      // Nothing of VR is shown yet (rig stays hidden): the world is all you see until update() finds calm frames (mostrarVR).
+      void pedirFrecuencia(session); // Quest lists 72 Hz; Pico (Chrome 105) has no list: nothing happens
       rig.add(h.camera);
       h.camera.add(vignette, nota);
-      aviso.nueva();
       h.manos?.montar(rig);
-      rig.visible = true;
-      pagina = "mandos"; panel.visible = true; panelDelante = false; // the first thing you see: how the controllers work
-      ajusteMalla.visible = false; salirMalla.visible = true;
+      estable = crearEstable({ ocupado: h.ocupado, periodoMs: session.frameRate ? 1000 / session.frameRate : undefined }); mostrado = false;
       session.addEventListener("end", () => {
         session = null; h.manos?.reiniciarSalto?.(); moveX = moveZ = 0; strength = 0; fichaVR?.ocultar(); fichaPide = null; reloj.cerrar(); menu.cerrar(); aviso.cerrar(); condVR?.ocultar(false); condPendiente = null; pagLatched = false;
-        h.camera.remove(vignette, nota); rig.remove(h.camera); rig.visible = false;
+        h.camera.remove(vignette, nota); rig.remove(h.camera); rig.visible = false; mostrado = false;
         h.manos?.montar(null);
         h.renderer.xr.enabled = false;
         audio().siesta(); // S1: out of the session, the audio graph sleeps (battery); the next gesture wakes it
@@ -408,12 +433,25 @@ export function createVR(h: VRHooks) {
     set("on");
     return true;
   }
+  /** The first calm frames are over: the rig (panels, hands), the entry notice and the help card appear together. */
+  function mostrarVR(): void {
+    mostrado = true;
+    aviso.nueva();
+    rig.visible = true;
+    pagina = "mandos"; panel.visible = true; panelDelante = false; // the first thing you see: how the controllers work
+    ajusteMalla.visible = false; salirMalla.visible = true;
+  }
   async function exit(): Promise<void> { if (session) await session.end(); }
 
   /** Call every frame while presenting; `self` is where the avatar is (metres; J2: the floor rises with its jumps). */
   function update(self: { x: number; z: number; y?: number } | null, dtSeconds: number): void {
     if (!session) return;
     ultimoFotograma = performance.now();
+    if (!mostrado) { // MIS-200: no VR drawing until the frames are calm; meanwhile only the avatar's floor follows
+      if (self) rig.position.set(self.x + empujeX, (self.y ?? 0) + alturaM, self.z + empujeZ);
+      if (!estable.fotograma(ultimoFotograma)) return;
+      mostrarVR();
+    }
     if (self) rig.position.set(self.x + empujeX, (self.y ?? 0) + alturaM, self.z + empujeZ);
     let lx = 0, ly = 0, rx = 0, ry = 0;
     const visible = (session.visibilityState ?? "visible") === "visible"; // blurred/hidden: the system owns the input
@@ -544,6 +582,12 @@ export function createVR(h: VRHooks) {
     set manoMenu(v: ManoMenuVR) { elegirManoMenu(v === "der" ? "der" : "izq"); },
     get yawDegrees() { return yawDeg; },
     /** Rediseño v2 (VR settings): snap turn step (one of GIROS_DEG), stick pace (0.4..1) and the floor's lift (m). */
+    /** MIS-200 «Rendimiento en gafas»: foveation (live), scale and multiview (read on the next entry). */
+    get rendimiento() { return rendimiento; },
+    set rendimiento(v: Partial<RendimientoXR>) {
+      rendimiento = normalizarRendimiento({ ...rendimiento, ...v });
+      if (session) h.renderer.xr.setFoveation(rendimiento.foveacion); // the only one that works while presenting
+    },
     get giroGrados() { return giroDeg; },
     set giroGrados(v: number) { giroDeg = (GIROS_DEG as readonly number[]).includes(v) ? v : SNAP_DEG; },
     get velocidad() { return velocidad; },
@@ -581,6 +625,7 @@ export function createVR(h: VRHooks) {
       dialogoMalla.visible = !!session;
     },
     /** The panel the hands may point at (manos.ts asks for it). */
+    calentar,
     paneles(): Panel[] { const out: Panel[] = dialogo && dialogoMalla.visible ? [panelDialogo] : []; out.push(...menu.paneles(), ...reloj.paneles(), ...(condVR?.paneles() ?? [])); if (fichaVR?.visible) out.push(fichaVR.panel); if (panel.visible) out.push(pagina === "ajustes" ? panelAjuste : panelSalir); return out; },
     /** c4: the entry bubble's panel (null until it has been loaded), and loading it. The page asks for it as soon as the bubble is up on a
      * headset-capable browser, so entering VR does not wait for it. */

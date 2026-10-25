@@ -42,6 +42,21 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     opciones: [{ valor: "auto", nombre: "Automático" }, ...["24", "30", "45", "60", "72", "90", "120"].map((v) => ({ valor: v, nombre: v }))],
     defecto: "auto",
   },
+  // MIS-200 (t_febc1fc2): «Rendimiento en gafas» — defaults are what three does today; apps/plaza/menu-ajustes.ts → view.vr.rendimiento
+  {
+    grupo: "graficos", id: "foveacionVR", tipo: "eleccion", nombre: "Gafas: foveación", requiere: ["xrVr"],
+    describe: "Los bordes de la vista se dibujan con menos detalle para ir más fluido. Más: más rápido, bordes más borrosos. Se nota en el texto de los paneles.",
+    opciones: [{ valor: "100", nombre: "Máxima (como hasta ahora)" }, { valor: "50", nombre: "Media" }, { valor: "0", nombre: "Apagada" }], defecto: "100",
+  },
+  {
+    grupo: "graficos", id: "escalaVR", tipo: "eleccion", nombre: "Gafas: resolución", requiere: ["xrVr"],
+    describe: "Cuántos puntos se dibujan por ojo. 80 %: más fluido y algo menos nítido. Vale en la próxima entrada en VR.",
+    opciones: [{ valor: "100", nombre: "100 % (como hasta ahora)" }, { valor: "80", nombre: "80 %" }], defecto: "100",
+  },
+  {
+    grupo: "graficos", id: "multiviewVR", tipo: "bool", nombre: "Gafas: multiview (experimento)", requiere: ["xrVr"],
+    describe: "Dibuja los dos ojos en una sola pasada si las gafas lo permiten (menos llamadas de dibujo). Si no lo permiten, no hace nada. Vale en la próxima entrada en VR.", defecto: false,
+  },
   {
     grupo: "graficos", id: "bateria", tipo: "bool", nombre: "Modo batería",
     describe: "24 cuadros por segundo y resolución contenida: gasta y calienta menos. También con la tecla B.",

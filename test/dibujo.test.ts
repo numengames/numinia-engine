@@ -3,7 +3,7 @@
 // (draw calls before/after: the N12 note in the PR).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { INSTANCIAR_DESDE, MARGEN_NIEBLA_M, NIEBLA_TOTAL, lejosDeNiebla, llamadasDe, lotesQueSeInstancian, tapadoPorNiebla } from "../packages/render/src/dibujo-politica.ts";
+import { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, MARGEN_NIEBLA_M, NIEBLA_TOTAL, lejosDeNiebla, llamadasDe, lotesQueSeInstancian, tapadoPorNiebla } from "../packages/render/src/dibujo-politica.ts";
 
 test("the fog's far end: a linear fog covers everything from `far` on; no fog cuts nothing", () => {
   assert.equal(lejosDeNiebla({ isFog: true, near: 35, far: 110 }), 110); // the Ayuntamiento's desert fog
@@ -41,4 +41,16 @@ test("copies drawn together: from INSTANCIAR_DESDE on, a model's copies cost its
   assert.equal(llamadasDe(1, 0), 0);
   // N1's «bloque» world: 2.000 copies of one model drew 1.179 calls on PC; now 1 per material
   assert.equal(llamadasDe(1, 2000), 1);
+});
+
+test("MIS-200: in a headset two identical copies already go together; off it the threshold stays 4", () => {
+  assert.equal(INSTANCIAR_DESDE_VR, 2);
+  assert.equal(instanciarDesde(true), 2);
+  assert.equal(instanciarDesde(false), INSTANCIAR_DESDE);
+  const cuentas = new Map([["ot|", 3], ["ob1|", 3], ["o49|", 2], ["pnj:alma|", 2], ["solo|", 1], ["o4a|", 10]]);
+  assert.deepEqual([...lotesQueSeInstancian(cuentas, instanciarDesde(false))], ["o4a|"]);                       // flat page: as before
+  assert.deepEqual([...lotesQueSeInstancian(cuentas, instanciarDesde(true))].sort(), ["ob1|", "o49|", "o4a|", "ot|", "pnj:alma|"].sort()); // headset: a single copy still draws itself
+  assert.equal(llamadasDe(3, 2, instanciarDesde(true)), 3);   // a 3-material prop twice: 3 calls per eye instead of 6
+  assert.equal(llamadasDe(3, 2, instanciarDesde(false)), 6);
+  assert.equal(llamadasDe(3, 1, instanciarDesde(true)), 3);   // one copy costs the same either way
 });

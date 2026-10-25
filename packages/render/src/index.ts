@@ -68,15 +68,16 @@ import { crearSalon } from "./ancestros.ts";
 import type { DianaAR } from "./dardos.ts";
 import { detalleAgua } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
+import { crearHitosMalla } from "./hitos-malla.ts";
 import { fundirAnimado } from "./fundir.ts";
 import { crearQuietos } from "./fundir-quietos.ts";
 import { hornearEscena } from "./hornear.ts";
 import type { Fundido } from "./fundir.ts";
 import type { Parte } from "./lotes.ts";
-import { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
+import { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 import { crearTeletransporte } from "./teletransporte.ts";
-import { crearPrecompilador } from "./precompilar.ts";
-export { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
+import { crearPrecompilador, calentarOcultos } from "./precompilar.ts";
+export { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 export type { EntornoDatos } from "./entorno.ts";
 export type { Luz } from "./teletransporte.ts";
 // D-058 spike: «materia de bloques» — a shape of dice-shaped blocks that assembles and crumbles (materia.ts, materia-politica.ts)
@@ -241,6 +242,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   }));
   const manos = {
     cargar: cargarManos,
+    raiz: () => manosReal?.raiz ?? null,
     montar: (p: THREE.Object3D | null) => manosReal?.montar(p),
     update: (c: THREE.Camera | null) => manosReal?.update(c),
     reglas(o: Parameters<Manos["reglas"]>[0]) { Object.assign(reglasManos, o); manosReal?.reglas(o); },
@@ -274,9 +276,21 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       *cosas() { for (const [k, s] of things) yield [k, s.want] as [string, { x: number; y: number; z: number }]; },
     } });
 
-  const vr = createVR({ renderer, scene, camera, manos });
+  const vr = createVR({ renderer, scene, camera, manos, ocupado: () => loading > 0 || precompilar.pendientes() > 0 }); // MIS-200: the VR extras wait for the world's loading work
   // where XR exists, the hands' code is fetched a few seconds after start, so entering VR/AR does not wait for it
   void Promise.all([vrSupported(), arSupported()]).then(([v, a]) => { if (v || a) setTimeout(() => { void cargarManos().catch(() => {}); }, 3000); });
+  // MIS-200: once the hands are in and the world has stopped loading, link the programs only VR draws (rig, panels, vignette, watch, hands) while hidden,
+  // so the first VR frame does not compile them (200-860 ms measured). Only where a VR session can exist; nothing is drawn.
+  void vrSupported().then((v) => { if (!v) return; setTimeout(async () => {
+    try { await cargarManos(); } catch { /* no hands: the rest still warms */ }
+    for (let i = 0; i < 60 && (loading > 0 || precompilar.pendientes() > 0); i++) await new Promise((ok) => setTimeout(ok, 500));
+    try { // a VR frame is drawn with an ArrayCamera of two eyes, which three keys apart from the desktop camera (see precompilar.ts)
+      const ojos = new THREE.ArrayCamera([new THREE.PerspectiveCamera(), new THREE.PerspectiveCamera()]);
+      const compilarXR = (o: THREE.Object3D) => renderer.compileAsync(o, ojos, scene);
+      await vr.calentar(compilarXR);
+      await calentarOcultos([scene as never], compilarXR as never, false); // the world as the two eyes will draw it (nothing forced visible)
+    } catch { /* best effort */ }
+  }, 3500); });
   const cenital = crearCenital(renderer, scene, world, backend); // J5: the zone from above (big map) and its footprints
   let selfXZ: { x: number; z: number; y?: number } | null = null;
   // J1: you and the nearest players as VRM humanoids (avatares.ts); the capsules above stay as their anchors
@@ -589,6 +603,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // B3: shaders ready before a model shows (precompilar.ts): batches through compileAsync, in parallel where the GPU can
   const precompilar = crearPrecompilador({ compilar: (g) => renderer.compileAsync(g as unknown as THREE.Object3D, camera, scene), grupo: () => new THREE.Group() as never, paralelo: () => paralelo });
   const instanciasPreparadas = new Set<string>();
+  let xrPosible = false; // a headset can present here: its lotes start at INSTANCIAR_DESDE_VR, so those programs are warmed too
+  void vrSupported().then((v) => { xrPosible = v; }, () => {});
   const copiasDe = (model: string) => { let n = 0; for (const t of things.values()) if (t.model === model) n++; return n; };
   const sombrasPuestas = () => sun.castShadow && sun.shadow.autoUpdate;
   const things = new Map<string, Slot>();
@@ -649,7 +665,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         // The LOD it is not showing yet (J14) is prepared alongside, so switching later does not stall either.
         const objs: THREE.Object3D[] = [copy];
         if (quieto && pieza) objs.push(representacion(lod === "lejos" ? quieto : [pieza]));
-        if (partes && !instanciasPreparadas.has(model) && copiasDe(model) >= INSTANCIAR_DESDE) {
+        if (partes && !instanciasPreparadas.has(model) && copiasDe(model) >= (xrPosible ? INSTANCIAR_DESDE_VR : INSTANCIAR_DESDE)) {
           instanciasPreparadas.add(model);
           for (const q of partes) { const im = new THREE.InstancedMesh(q.geo, q.mat, 1); im.castShadow = q.sombra; objs.push(im); }
         }
@@ -775,9 +791,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // the capsules of the people who wear no VRM (the far crowd: one call for all). Before and after the frame every
   // object is as it was, so picking, the map, footprints, hands and the gizmo never see any of this.
   const lotes = crearLotes(world);
+  const hitosMalla = crearHitosMalla(hitos, pillarGeo, lotes.raiz); // MIS-200: the 24 pillars are ONE instanced call (hitos-malla.ts); lotes.raiz shows only while the frame is drawn
   const capsulasParte: Parte[] = [{ geo: bodyGeo, mat: otherMat, sombra: false }];
   const ojo = new THREE.Vector3(), ocultosCuadro: THREE.Object3D[] = [], enLuz = new Set<number | "self">();
   const porLote = new Map<string, { partes: Parte[]; color: string; slots: Slot[] }>();
+  const idPartes = new WeakMap<Parte[], number>();
+  let nPartes = 0;
   const capsulasCuadro: THREE.Mesh[] = [], matricesTmp: THREE.Matrix4[] = [];
   let dibujoUltimo = { lejos: Infinity, niebla: 0, instanciadas: 0, lotes: 0 };
   const matricesDe = (objs: readonly THREE.Object3D[]): THREE.Matrix4[] => {
@@ -797,15 +816,18 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (!s.loaded || !g.visible || g.parent !== world) continue; // still loading, hidden, or carried in a hand
       if (tapa(g, (s.radio ?? 1) * Math.max(Math.abs(g.scale.x), Math.abs(g.scale.y), Math.abs(g.scale.z)))) { ocultar(g); niebla++; continue; }
       if (!s.partes || s.mixer || k.startsWith("~")) continue; // a held copy too: its matrix is read every frame
-      const color = s.want.color ?? "", clave = `${s.model}|${color}`;
+      // the same model can hold two kinds of parts (baked when it stands still, whole when `animar` is on): copies share a lote only if they share the parts, or the two kinds overwrite each other's group every frame and neither reaches the threshold
+      let id = idPartes.get(s.partes); if (id === undefined) idPartes.set(s.partes, (id = ++nPartes));
+      const color = s.want.color ?? "", clave = `${s.model}|${color}|${id}`;
       let v = porLote.get(clave);
       if (!v || v.partes !== s.partes) porLote.set(clave, (v = { partes: s.partes, color, slots: [] }));
       v.slots.push(s);
     }
     lotes.empezar();
     let nLotes = 0;
+    const desde = instanciarDesde(renderer.xr.isPresenting);
     for (const [clave, v] of porLote) {
-      if (v.slots.length < INSTANCIAR_DESDE) continue;
+      if (v.slots.length < desde) continue;
       lotes.dibujar(clave, v.partes, v.color, matricesDe(v.slots.map((s) => s.group)));
       for (const s of v.slots) ocultar(s.group);
       instanciadas += v.slots.length; nLotes++;
@@ -830,12 +852,14 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     for (const r of avs.raices()) if (r.visible && tapa(r, 2)) { ocultar(r); niebla++; }
     for (const k of enLuz) { const r = avs.raiz(k === "self" ? "yo" : k); if (r?.visible) ocultar(r); }
     for (const r of tags.values()) if (r.s.visible && tapa(r.s, 3)) { ocultar(r.s); niebla++; }
+    hitosMalla.antes();
     lotes.raiz.visible = true;
     dibujoUltimo = { lejos, niebla, instanciadas, lotes: nLotes };
   }
   function despuesDelCuadro(): void {
     for (const o of ocultosCuadro) o.visible = true;
     ocultosCuadro.length = 0;
+    hitosMalla.despues();
     lotes.raiz.visible = false;
   }
   // MIS-200: the Graboso inside XR films a small mirror of the left eye (espejo-xr.ts); the module is fetched at the first
@@ -1173,6 +1197,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
     /** U10: draw hidden spheres of sound (while building) or not (while playing). */
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
+    /** MIS-200 (t_9687b5fc): the world still loads models or shaders: the entry buttons wait (the same gate as the VR entry, not busy()). */
+    cargando(): boolean { return loading > 0 || precompilar.pendientes() > 0; },
     busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize
