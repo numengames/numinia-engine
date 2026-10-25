@@ -4,7 +4,7 @@
 // sky baked into a cube once per change (no per-pixel atmosphere), no shadows and no HDR light by default.
 import * as THREE from "three/webgpu";
 import { uniform, mix, smoothstep, normalize, positionLocal, positionWorld, cameraPosition, vec3, dot, max, pow, fog, rangeFogFactor, exponentialHeightFogFactor } from "three/tsl";
-import { CALIDAD_POR_NIVEL, SOMBRA_PX, CIELO_LUZ_PX, nivelDe, capacidades, acotarCalidad } from "./calidad.ts";
+import { CALIDAD_POR_NIVEL, SOMBRA_PX, CIELO_LUZ_PX, nivelDe, capacidades, acotarCalidad, ficheroGrandePermitido } from "./calidad.ts";
 import type { Calidad, Nivel } from "./calidad.ts";
 import { horizonteAtmosfera } from "./cielo-horizonte.ts";
 
@@ -83,6 +83,9 @@ export function crearEntorno(h: EntornoHooks) {
   let pedido: Partial<Calidad> = {};
   let calidad: Calidad = { ...CALIDAD_POR_NIVEL[nivel] };
   const avisar = () => { hastaMs = performance.now() + 500; };
+  /** H4b: the world's HDR light / sky picture as THIS tier may use it ("" = not on this tier: the baked sky lights and draws instead). */
+  const hdrDe = (v: EntornoDatos | null): string => { const f = String(v?.hdr ?? ""); return ficheroGrandePermitido(nivel, f) ? f : ""; };
+  const imagenDe = (v: EntornoDatos | null): string => { const f = String(v?.imagen ?? ""); return ficheroGrandePermitido(nivel, f) ? f : ""; };
 
   // ---- sky: the atmosphere (three's SkyMesh, lazy), a gradient dome, or a flat colour ----
   let sky: Sky | null = null;
@@ -197,7 +200,7 @@ export function crearEntorno(h: EntornoHooks) {
     const fuente: THREE.Object3D | null = atm ? domo : tipo === "atmosfera" ? sky : tipo === "degradado" || tipo === "color" ? domo : null; // R7.1: the nature's dome
     if (!fuente) return;
     const auto = !atm && d.nieblaAuto !== false && tipo === "atmosfera" && scene.fog instanceof THREE.Fog;
-    const luz = calidad.hdr && !String(d.hdr ?? "");
+    const luz = calidad.hdr && !hdrDe(d);
     // the sun moves in whole degrees for this purpose: a day cycle re-bakes every few steps, not every step
     const clave = JSON.stringify([tipo, Math.round(n(d.solAltura)), Math.round(n(d.solRumbo)), d.turbidez, d.nubes, d.cieloArriba, d.cieloHorizonte, modoCielo, auto, luz, atm ? atmClave : 0]);
     if (clave === horneadoClave) { if (luz && envRT) scene.environment = envRT.texture; if (modoCielo === "horneado") scene.background = cubo.texture; return; }
@@ -250,7 +253,7 @@ export function crearEntorno(h: EntornoHooks) {
       pmrem ??= new THREE.PMREMGenerator(renderer);
       hdrTex.rt = pmrem.fromEquirectangular(t);
       t.dispose();
-      if (d && calidad.hdr && String(d.hdr) === nombre) scene.environment = hdrTex.rt.texture;
+      if (d && calidad.hdr && hdrDe(d) === nombre) scene.environment = hdrTex.rt.texture;
     }).catch((e) => { console.warn(`[entorno] no se pudo cargar ${nombre}: ${(e as Error)?.message ?? e}`); })
       .finally(() => { hdrTex.cargando = false; cargando--; avisar(); });
   }
@@ -350,7 +353,7 @@ export function crearEntorno(h: EntornoHooks) {
     suelo(v);
     // sky
     arribaU.value.setHex(n(v.cieloArriba, 0x5d8fc9)); horizonteU.value.setHex(n(v.cieloHorizonte, 0xc9d8e4));
-    const tipo = String(v.cielo), imagen = String(v.imagen ?? "");
+    const tipo = String(v.cielo), imagen = imagenDe(v);
     scene.backgroundNode = null;
     if (imagen) {
       modoCielo = "imagen"; cielosEnEscena(null);
@@ -358,7 +361,7 @@ export function crearEntorno(h: EntornoHooks) {
         fondoTex = { nombre: imagen, tex: null };
         const carga = imagen.endsWith(".hdr") ? import("three/addons/loaders/HDRLoader.js").then((m) => new m.HDRLoader().loadAsync(h.fichero(imagen))) : new THREE.TextureLoader().loadAsync(h.fichero(imagen));
         cargando++;
-        carga.then((t: THREE.Texture) => { t.mapping = THREE.EquirectangularReflectionMapping; if (!imagen.endsWith(".hdr")) t.colorSpace = THREE.SRGBColorSpace; fondoTex.tex = t; if (d && String(d.imagen) === imagen && world.visible) scene.background = t; })
+        carga.then((t: THREE.Texture) => { t.mapping = THREE.EquirectangularReflectionMapping; if (!imagen.endsWith(".hdr")) t.colorSpace = THREE.SRGBColorSpace; fondoTex.tex = t; if (d && imagenDe(d) === imagen && world.visible) scene.background = t; })
           .catch((e: unknown) => console.warn(`[entorno] fondo sin imagen: ${(e as Error)?.message ?? e}`)).finally(() => { cargando--; avisar(); });
       } else if (fondoTex.tex) scene.background = fondoTex.tex;
     } else if (atm) { // R7.1: the nature's 4-stop dome, live on A (it takes the place of the live SkyMesh: same one draw); baked into the cube on B–D, as today
@@ -374,7 +377,7 @@ export function crearEntorno(h: EntornoHooks) {
     } else if (tipo === "degradado") { modoCielo = "degradado"; cielosEnEscena(domo); scene.background = null; }
     else { modoCielo = "color"; cielosEnEscena(null); scene.background = new THREE.Color(n(v.cieloArriba, 0x5d8fc9)); }
     // environment light: an HDR file, or the sky itself (baked), or none
-    const hdr = String(v.hdr ?? "");
+    const hdr = hdrDe(v);
     if (!calidad.hdr) scene.environment = null;
     else if (hdr) { cargarHdr(hdr); if (hdrTex.rt) scene.environment = hdrTex.rt.texture; }
     hornearEn = performance.now() + (horneados ? 200 : 0);
@@ -437,13 +440,15 @@ export function crearEntorno(h: EntornoHooks) {
         niebla: f ? { cerca: f.near, lejos: f.far, color: hex(f.color) } : null,
         sol: { altura: n(d?.solAltura), rumbo: n(d?.solRumbo), intensidad: Math.round(sun.intensity * 100) / 100, color: hex(sun.color), sombras: sun.castShadow && sun.shadow.intensity > 0, mapa: sun.castShadow && sun.shadow.intensity > 0 ? sun.shadow.mapSize.x : 0 },
         ambiente: Math.round(hemi.intensity * 100) / 100,
-        luzEntorno: !scene.environment ? "no" : String(d?.hdr ?? "") && hdrTex.rt && scene.environment === hdrTex.rt.texture ? "fichero" : "cielo",
+        luzEntorno: !scene.environment ? "no" : hdrDe(d) && hdrTex.rt && scene.environment === hdrTex.rt.texture ? "fichero" : "cielo",
         suelo: { tipo: String(d?.suelo ?? ""), textura: !!sueloMat.map, relieve: !!sueloMat.normalMap, metros: n(d?.sueloMetros) },
         tono: String(d?.tono ?? ""), exposicion: renderer.toneMappingExposure,
         /** R7.1: a piece's atmosphere is on (the nature): the tone actually applied, and whether the fog is the gradient node. */
         atmosfera: atm ? { tono: atm.tono, nieblaNodo: scene.fogNode !== null && scene.fogNode !== undefined, horizonte: hex(atmU.horizonte.value), cielo: atm.cielo ? "analitico" : "4-paradas" } : null,
         viento: { x: Math.round(viento.x * 100) / 100, z: Math.round(viento.z * 100) / 100, fuerza: n(d?.vientoFuerza) },
         hitos: h.hitos[0]?.visible ?? false, rejilla: grid.visible, mapaCorte: Math.max(0, n(d?.mapaCorte, 0)),
+        /** H4b: the big files this tier actually uses (a name = fetched, "" = none; `omitidos` = the world names one this tier does not fetch). */
+        ficheros: { hdr: hdrDe(d), fondo: imagenDe(d), omitidos: (!!String(d?.hdr ?? "") && !hdrDe(d)) || (!!String(d?.imagen ?? "") && !imagenDe(d)) },
         nivel, calidad: { ...calidad }, aplicados, horneados, cargando,
       };
     },

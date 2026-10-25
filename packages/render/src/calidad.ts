@@ -40,6 +40,12 @@ export const FACTOR_PARTICULAS: Record<Particulas, number> = { pocas: 0.3, norma
 export const SOMBRA_PX: Record<Sombras, number> = { no: 0, baja: 512, media: 1024, alta: 2048 };
 /** HDR environment size (PMREM cube face): 256 everywhere (H4: «256 px en móvil»). */
 export const HDR_PX = 256;
+/** H4b: a big file of the environment (an HDR light or an HDR background) is fetched and decoded only on level A. Phones (C, D)
+ * and headsets (B, in XR) keep the small baked-sky light and the sky they draw anyway: the file is never downloaded there, even
+ * if the world names one. A plain picture (.png .jpg .webp, capped at 4 MB on upload) is a texture, not an HDR: it passes. */
+export function ficheroGrandePermitido(n: Nivel, nombre: string): boolean {
+  return n === "A" || !/\.hdr$/i.test(nombre);
+}
 /** The sky baked into environment light: without its sun disc it is smooth, so a small cube is enough (and cheap to redo). */
 export const CIELO_LUZ_PX = 64;
 /** What the stylised water (agua-estilo.ts) draws, per tier and water choice. Every tier gets the flat colour bands, the
