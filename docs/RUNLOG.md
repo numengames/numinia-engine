@@ -1707,3 +1707,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `lote/5` sobre main `cd7079c5`, fusiones normales de `lote5/mundo`, `lote5/plaza-vr`, `lote6/audio-video`, `lote6/mundo-vivo` y main.
 - Siguiente: conos y curva de caída por fuente de sonido; pausa y volumen del vídeo por permiso de rol; reloj HTML en el visor; salud; paneles de interfaz con gemelo.
+
+## 2026-10-26 · lote 7: ajustes en pestañas, lista de objetos del mundo, modelos lejanos más ligeros y caché por hash · hecho
+- Qué: cinco tarjetas juntas en un PR. `t_63eb7ffd`: los ajustes son una sola tarjeta con pestañas (≥ 701 px) o secciones plegables (≤ 700 px o `movil*`); el buscador abre las secciones que coinciden. `t_224c7a97`: cajón «Objetos del mundo» (nombre, tipo, pieza; búsqueda y filtro «con pieza»; tocar = seleccionar, ir junto y mirar). `t_733aa31a`: «Editar este objeto» en el mapa, solo con permiso de construir. `t_2eb304b3`: al ingerir un modelo pesado se hacen dos niveles (`lod1`, `lod2`); la página carga un nivel para lo que está a más de 80 m y el modelo entero a menos de 70 m; sin posición conocida se toma el nivel más ligero. `t_d44c3945`: `/manifiesto.json` con sha256 por fichero y caché por hash en la página (segunda visita −58 % de bytes de `/a/`). La pantalla de carga dice «n de N piezas · x de y MB».
+- Números: ver el cuerpo del PR. Versión 0.63.0 (menor: algo nuevo que no rompe nada).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `lote/7` sobre main `a60cc1ca`, fusiones normales de `lote/5`, `lote7/interfaz`, `lote7/activos` y main.
+- Siguiente: O2 y M21 esperan al manifiesto y los niveles; `dardos-vr.mjs` y `constructor.mjs` se arreglan en lote/8.
