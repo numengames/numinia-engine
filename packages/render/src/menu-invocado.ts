@@ -329,6 +329,7 @@ export function createMenuInvocado(h: { scene: THREE.Object3D; salir: () => void
   }
 
   return {
+    malla, // MIS-200: so vr.calentar() can link its program while hidden
     /** The panel manos.ts may point at (only while open). */
     paneles(): Panel[] { return abierto ? [panel] : []; },
     /** The page's data for each view. */

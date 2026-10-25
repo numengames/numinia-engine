@@ -111,6 +111,7 @@ async function abrirAjustes(url, aceptarBurbuja) {
     const url = await ctl(() => globalThis.__numinia.view.vr.menu.lienzo.toDataURL("image/png"));
     writeFileSync(join(SHOTS, `${nombre}.png`), Buffer.from(url.split(",")[1], "base64"));
   };
+  await esperar(() => document.getElementById("vr").getAttribute("aria-disabled") !== "true", null, 15000).catch(() => {}); // MIS-200 (t_9687b5fc): the entry says «Preparando…» until the world has loaded
   await ctl(() => document.getElementById("vr").click());
   verifica(await esperar(() => globalThis.__numinia.view.vr.active, null, 15000), "no entra en VR");
   await esperar(() => globalThis.__numinia.view.manos.estado().izq?.tipo === "mando" && globalThis.__numinia.view.manos.estado().der?.tipo === "mando", null, 20000);

@@ -86,6 +86,7 @@ async function pierna() {
     await a.keyboard.press("KeyE");
     paso("E abre la tirada", await esperar(() => globalThis.__numinia.dardos.tirando(), null, 8000));
     await esperar(() => !!globalThis.__numinia.dardosHud?.vr(), null, 15000);
+    await esperar(() => document.getElementById("vr").getAttribute("aria-disabled") !== "true", null, 15000).catch(() => {}); // MIS-200 (t_9687b5fc): the entry says «Preparando…» until the world has loaded
     await ctl(() => document.getElementById("vr").click());
     paso("entra en VR", await esperar(() => globalThis.__numinia.view.vr.active, null, 15000));
     await esperar(() => globalThis.__numinia.view.manos.estado().der?.tipo === "mando", null, 20000);
