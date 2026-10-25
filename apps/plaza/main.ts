@@ -98,6 +98,7 @@ import { aplicarTema } from "./tema-mundo.ts"; // a world's look (ficha@1 `tema`
 import { montarFoto } from "./foto.ts"; // N13: photo mode (P): hide the interface, frame, filter, PNG, share, a link to the place
 import { esTactil, perfil, montarMarco } from "./perfil-aparato.ts"; // U25: the device profile (touch, small screen, VR), one answer for the whole page
 import { montarNovedades } from "./novedades.ts"; // t_bdc2c2db: «qué hay de nuevo» card, once per version
+import { crearListo, aspectoBoton, MOTIVO_PREPARANDO } from "./boton-listo.ts"; // MIS-200 (t_9687b5fc): the entry buttons wait for the world
 import { esMovil, enZonaAndar, ZONA_ANDAR_MOVIL } from "../../packages/client/src/movil.ts"; // U24: the phone layout (apps/plaza/movil.ts) and its rules
 
 const params = new URLSearchParams(location.search);
@@ -540,6 +541,9 @@ function readButtons(): number {
 
 // ---- AR (J8): the button exists only where the device can do immersive-ar; no WebXR (iPhone) = no button ----
 const arBtn = document.getElementById("ar") as HTMLButtonElement;
+// MIS-200 (t_9687b5fc): both entry buttons wait while the world still loads (boton-listo.ts); once it is ready they stay ready
+const listoEntrada = crearListo();
+const entradaLista = (): boolean => listoEntrada.actualizar(view.cargando(), performance.now());
 const arLabel = { off: "Entrar en AR", searching: "Mira una mesa o el suelo… (salir)", ready: "Toca para poner la plaza (salir)", placed: "La plaza en tu mesa · toca para moverla (salir)", mezclada: "Realidad mezclada (por VR)" };
 const decirAviso = (t: string) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); };
 view.arSupported().then((ok) => {
@@ -558,13 +562,19 @@ view.arSupported().then((ok) => {
   const sinElegir = (): void => { console.warn("[ar] no se pudo cargar la elección de AR: se entra con la maqueta"); };
   arBtn.onclick = () => {
     if (view.ar.state !== "off") { void view.ar.exit(); return; }
+    if (!entradaLista()) { decirAviso(MOTIVO_PREPARANDO); return; }
     if (!dardosEnlace.vigente().enlace) { entrarMiniatura(); return; }
     // a link applies: the chooser. Its chunk is normally here already (prefetched below); if not, the chooser opens as soon as it has loaded (it enters AR on a later click anyway)
     void cargarElegir().then((c) => { if (view.ar.state === "off") void c.abrir(); }, sinElegir);
   };
   setTimeout(() => { if (dardosEnlace.vigente().enlace) void cargarElegir().catch(() => {}); }, 2500); // prefetch (the chunk only; nothing is connected)
 });
-setInterval(() => { arBtn.textContent = view.ar.jugando ? "Dardos en tu pared (salir)" : arLabel[view.ar.state]; }, 250); // dardos v1: a minigame may hold the AR session
+setInterval(() => { // dardos v1: a minigame may hold the AR session
+  const espera = !view.ar.jugando && view.ar.state === "off" && !entradaLista();
+  const asp = aspectoBoton(!espera, view.ar.jugando ? "Dardos en tu pared (salir)" : arLabel[view.ar.state]);
+  arBtn.textContent = asp.texto; arBtn.setAttribute("aria-disabled", String(asp.ariaDisabled));
+  if (asp.titulo) arBtn.title = asp.titulo; else arBtn.removeAttribute("title");
+}, 250);
 
 // ---- VR (J6): same idea; the stick becomes the same two int8 intentions as keyboard and touch ----
 const vrBtn = document.getElementById("vr") as HTMLButtonElement;
@@ -572,9 +582,18 @@ view.vrSupported().then((ok) => {
   if (!ok) return;
   vrDisponible = true;
   vrBtn.hidden = false;
-  vrBtn.onclick = () => { if (view.vr.state === "off") void view.vr.enter().then((ok) => { if (!ok) session.report({ k: "xr", modo: "vr", accion: "falla", detalle: view.vr.lastError }); }); else void view.vr.exit(); };
+  vrBtn.onclick = () => {
+    if (view.vr.state !== "off") { void view.vr.exit(); return; }
+    if (!entradaLista()) { decirAviso(MOTIVO_PREPARANDO); return; } // MIS-200 (t_9687b5fc): the world is still loading
+    void view.vr.enter().then((ok) => { if (!ok) session.report({ k: "xr", modo: "vr", accion: "falla", detalle: view.vr.lastError }); });
+  };
 });
-setInterval(() => { vrBtn.textContent = view.vr.active ? "Salir de VR" : "Entrar en VR"; }, 250);
+setInterval(() => { // the «…» menu's «Entrar en VR» clicks this button, so the gate above covers it too
+  const espera = !view.vr.active && view.vr.state === "off" && !entradaLista();
+  const asp = aspectoBoton(!espera, view.vr.active ? "Salir de VR" : "Entrar en VR");
+  vrBtn.textContent = asp.texto; vrBtn.setAttribute("aria-disabled", String(asp.ariaDisabled));
+  if (asp.titulo) vrBtn.title = asp.titulo; else vrBtn.removeAttribute("title");
+}, 250);
 
 // ---- the version, at the foot of the settings (Pablo, 16-10: «la versión, 0.1…, sin branding»): the semantic version
 // of package.json (docs/VERSIONES.md, STD-019), nothing else on screen; the server's build (/status `version`, «<commit>

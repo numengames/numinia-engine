@@ -179,6 +179,7 @@
     body > :not(canvas):not(#joy):not(#web-capa) { zoom: var(--ui); } /* «Tamaño de la interfaz»: everything on the screen but the world (and the web screens, which live in it) */
     #ajustes-abrir { position: fixed; top: 10px; right: 10px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #eef2f6; font: inherit; font-size: 22px; line-height: 44px; }
     #ajustes-abrir[hidden] { display: none; }
+    #ar[aria-disabled="true"], #vr[aria-disabled="true"] { opacity: .65; cursor: progress; } /* MIS-200: «Preparando…» while the world loads (boton-listo.ts) */
     #ar[hidden], #vr[hidden] { display: none; } /* AR/VR start hidden (attribute): only a device that can do it shows them */
     #ar, #vr, #construir { right: 62px; } /* the gear takes the corner: AR, VR and Construir move one button to the left */
     #ajustes { position: fixed; inset: 10px 10px auto auto; margin: 0; width: min(390px, calc(100vw - 20px)); max-height: calc((100vh - 20px) / var(--ui)); overflow: auto; padding: 10px 12px 12px; border: 0; border-radius: 10px; background: rgb(20, 24, 30); color: #eef2f6; box-sizing: border-box; }

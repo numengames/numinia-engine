@@ -104,6 +104,7 @@ try {
   // 1. walk next to Teo on the flat page, then enter VR
   await esperar(() => globalThis.__numinia.session.features.cards().some((c) => c.feature === "pnj" && c.key === "teo"), null, 10000).catch(() => {});
   const dTeo = await caminar(-6.5, 4);
+  await esperar(() => document.getElementById("vr").getAttribute("aria-disabled") !== "true", null, 15000).catch(() => {}); // MIS-200 (t_9687b5fc): the entry says «Preparando…» until the world has loaded
   await ctl(() => document.getElementById("vr").click());
   await esperar(() => globalThis.__numinia.view.vr.active, null, 15000);
   await p.waitForTimeout(800);

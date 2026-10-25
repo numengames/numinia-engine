@@ -217,6 +217,7 @@ export function createCondicionesVR(h: OpcionesCondicionesVR) {
   }
 
   return {
+    malla, // MIS-200: so vr.calentar() can link its program while hidden
     /** The panel the hands may point at (only while it is up and not bursting). */
     paneles(): Panel[] { return abierto && estallaEn < 0 ? [panel] : []; },
     mostrar, actualizar, ocultar, medir,
