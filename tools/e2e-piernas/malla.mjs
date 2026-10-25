@@ -79,7 +79,7 @@ const cuartoObj = {
   tipo: "modelo", oculto: false, volumen: 1, solido: true, colision: "malla", bx0: 100, by0: 0, bz0: 100, bx1: 100.01, by1: 0.01, bz1: 100.01,
   alcance: "burbuja", radio: 8, huecoAncho: 0, huecoAlto: 0, huecoLleno: false, decorado: false, fijado: true, animar: false, enlace: "",
 };
-writeFileSync(join(datos, "objetos.json"), JSON.stringify({ schema: "numinia-engine/datos@1", feature: "objetos", version: 7, savedAt: new Date().toISOString(), state: [["p1", { value: cuartoObj, at: { x: 0, z: 0 } }]], store: [["siguiente", 2]] }));
+writeFileSync(join(datos, "objetos.json"), JSON.stringify({ schema: "numinia-engine/datos@1", feature: "objetos", version: 8, savedAt: new Date().toISOString(), state: [["p1", { value: cuartoObj, at: { x: 0, z: 0 } }]], store: [["siguiente", 2]] }));
 
 const procs = [];
 const arrancar = (cmd, args, env, nombre) => { const p = spawn(cmd, args, { cwd: REPO, env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"] }); let t = ""; p.stdout.on("data", (d) => { t += d; }); p.stderr.on("data", (d) => { t += d; }); procs.push({ p, log: () => t, nombre }); return p; };
