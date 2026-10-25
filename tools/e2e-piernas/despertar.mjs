@@ -1,4 +1,4 @@
-// e2e leg (lote 10, MIS-... t_af276a26): «el e2e comprueba en pantalla la columna Despertar». A real signed QR link (GET /e/<token>) wakes the
+// e2e leg (lote 10, card t_af276a26): «el e2e comprueba en pantalla la columna Despertar». A real signed QR link (GET /e/<token>) wakes the
 // point «la fuente» (0, 12) of features/despertar/enlaces.json: the page must (1) get the event (view.beaconCount() 0 → 1), (2) DRAW the column of
 // light on screen — compared in PIXELS, same camera pose before/after: a clear gold-lit patch appears in a vertical band around the point's
 // projected column and nowhere else —, (3) with the setting «Despertar → Columna de luz» OFF the same scan draws no column (count of lit pixels stays at the noise),

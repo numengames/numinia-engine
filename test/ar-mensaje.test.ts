@@ -20,3 +20,8 @@ test("mensajeFalloAR: an unknown or missing name still gets a usable sentence (n
     assert.ok(typeof m === "string" && m.length > 10, `"${raro}" -> "${m}"`);
   }
 });
+
+test("mensajeFalloAR: the Brave/Android case names its real cause (an app drawing over the screen) and the way out", () => {
+  const m = mensajeFalloAR("NotAllowedError");
+  assert.match(m, /encima/); assert.match(m, /burbujas/); assert.match(m, /Cámara/); assert.match(m, /Permitir/);
+});
