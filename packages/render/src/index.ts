@@ -267,7 +267,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       *cosas() { for (const [k, s] of things) yield [k, s.want] as [string, { x: number; y: number; z: number }]; },
     } });
 
-  const vr = createVR({ renderer, scene, camera, manos });
+  const vr = createVR({ renderer, scene, camera, manos, ocupado: () => loading > 0 || precompilar.pendientes() > 0 }); // MIS-200: the VR extras wait for the world's loading work
   // where XR exists, the hands' code is fetched a few seconds after start, so entering VR/AR does not wait for it
   void Promise.all([vrSupported(), arSupported()]).then(([v, a]) => { if (v || a) setTimeout(() => { void cargarManos().catch(() => {}); }, 3000); });
   // MIS-200: once the hands are in and the world has stopped loading, link the programs only VR draws (rig, panels, vignette, watch, hands) while hidden,

@@ -22,6 +22,7 @@ import { ID_BARRA, palancaPagina, palancasDelPanel, type EntradaMano, type LadoM
 import { empujaFuera } from "./vr-paredes.ts";
 import { completarSesionXR, textoDeFallo } from "./xr-compat.ts"; // old headset browsers lack XRSession.enabledFeatures (Chrome 105)
 import { calentarOcultos } from "./precompilar.ts"; // MIS-200: warm what only VR draws while it is still hidden
+import { crearEstable } from "./entrada-estable.ts"; // MIS-200: no VR drawing until the first calm frames
 import { audio } from "./audio/nucleo.ts"; // S1: the engine's one audio graph (it sleeps when the session ends)
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
 export type ManosXR = { cargar(): Promise<unknown>;
@@ -55,6 +56,8 @@ export const INTENCION_CADUCA_MS = 1000;
 export const SALIR_CONFIRMA_MS = 3000;
 
 type XRLike = { isSessionSupported(mode: string): Promise<boolean>; requestSession(mode: string, init?: object): Promise<any> };
+/** MIS-200: how long enter() waits for the hands before asking for the session (the click's activation is short-lived). */
+const ESPERA_MANOS_MS = 1500;
 const xrOf = (): XRLike | null => (typeof navigator !== "undefined" && (navigator as unknown as { xr?: XRLike }).xr) || null;
 
 /** True only when this device can run an immersive-vr session. Never throws. */
@@ -71,6 +74,8 @@ export type VRHooks = {
   camera: THREE.PerspectiveCamera;
   manos?: ManosXR;
   onChange?: (state: VRState) => void;
+  /** MIS-200: true while the world still has loading work (models, compiles); the VR extras wait for it to end (entrada-estable.ts). */
+  ocupado?: () => boolean;
   /** The house's Phosphor icons for the watch and the menu (apps/plaza/iconos.ts); without them, text only. */
   iconos?: PathsIcono;
 };
@@ -367,27 +372,32 @@ export function createVR(h: VRHooks) {
   }
 
   let lastError = ""; // why the last enter() failed (T1 report)
+  let estable = crearEstable({ ocupado: h.ocupado });
+  let mostrado = false; // the VR extras are on screen (false from entering until the first calm frames)
   async function enter(): Promise<boolean> {
     const xr = xrOf();
     if (!xr || session) return false;
+    // MIS-200 (t_04ada0ed): the hands come first. Normally they are prefetched and this is instant; if not, wait for them
+    // only while the click's activation (needed by requestSession) is still fresh, and finish before setSession either way.
+    const manosListas = (h.manos?.cargar() ?? Promise.resolve()).catch(() => {});
+    await Promise.race([manosListas, new Promise((ok) => setTimeout(ok, ESPERA_MANOS_MS))]);
+    if (session) return false; // a second click while waiting
     try { session = completarSesionXR(await xr.requestSession("immersive-vr", { optionalFeatures: ["local-floor", "hand-tracking"] })); } catch (e) { lastError = textoDeFallo(e); session = null; return false; }
     // From here the session is ours: if anything below throws (three's setSession on an old browser…), it is ended and
     // forgotten, or `session` would stay set and every later enter() would answer false with no reason (a zombie).
     try {
+      await manosListas; // still before setSession: the session is not handed to three until the hands exist
       h.renderer.xr.enabled = true;
       h.renderer.xr.setReferenceSpaceType("local-floor");
       await h.renderer.xr.setSession(session);
-      await h.manos?.cargar().catch(() => {}); // after requestSession (it needs the click's activation); prefetched by the view
+      // Nothing of VR is shown yet (rig stays hidden): the world is all you see until update() finds calm frames (mostrarVR).
       rig.add(h.camera);
       h.camera.add(vignette, nota);
-      aviso.nueva();
       h.manos?.montar(rig);
-      rig.visible = true;
-      pagina = "mandos"; panel.visible = true; panelDelante = false; // the first thing you see: how the controllers work
-      ajusteMalla.visible = false; salirMalla.visible = true;
+      estable = crearEstable({ ocupado: h.ocupado, periodoMs: session.frameRate ? 1000 / session.frameRate : undefined }); mostrado = false;
       session.addEventListener("end", () => {
         session = null; moveX = moveZ = 0; strength = 0; fichaVR?.ocultar(); fichaPide = null; reloj.cerrar(); menu.cerrar(); aviso.cerrar(); condVR?.ocultar(false); condPendiente = null; pagLatched = false;
-        h.camera.remove(vignette, nota); rig.remove(h.camera); rig.visible = false;
+        h.camera.remove(vignette, nota); rig.remove(h.camera); rig.visible = false; mostrado = false;
         h.manos?.montar(null);
         h.renderer.xr.enabled = false;
         audio().siesta(); // S1: out of the session, the audio graph sleeps (battery); the next gesture wakes it
@@ -409,12 +419,25 @@ export function createVR(h: VRHooks) {
     set("on");
     return true;
   }
+  /** The first calm frames are over: the rig (panels, hands), the entry notice and the help card appear together. */
+  function mostrarVR(): void {
+    mostrado = true;
+    aviso.nueva();
+    rig.visible = true;
+    pagina = "mandos"; panel.visible = true; panelDelante = false; // the first thing you see: how the controllers work
+    ajusteMalla.visible = false; salirMalla.visible = true;
+  }
   async function exit(): Promise<void> { if (session) await session.end(); }
 
   /** Call every frame while presenting; `self` is where the avatar is (metres; J2: the floor rises with its jumps). */
   function update(self: { x: number; z: number; y?: number } | null, dtSeconds: number): void {
     if (!session) return;
     ultimoFotograma = performance.now();
+    if (!mostrado) { // MIS-200: no VR drawing until the frames are calm; meanwhile only the avatar's floor follows
+      if (self) rig.position.set(self.x + empujeX, (self.y ?? 0) + alturaM, self.z + empujeZ);
+      if (!estable.fotograma(ultimoFotograma)) return;
+      mostrarVR();
+    }
     if (self) rig.position.set(self.x + empujeX, (self.y ?? 0) + alturaM, self.z + empujeZ);
     let lx = 0, ly = 0, rx = 0, ry = 0;
     const visible = (session.visibilityState ?? "visible") === "visible"; // blurred/hidden: the system owns the input
