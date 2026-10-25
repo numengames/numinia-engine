@@ -132,6 +132,7 @@ try {
   // the VR half of the page loads on a device that supports it (after start, not before requestSession)
   if (!process.env.SOLO_COSTE) await esperar(() => !!globalThis.__numinia.dardosHud?.vr(), null, 15000);
   await esperar(() => getComputedStyle(document.getElementById("vr")).display !== "none", null, 8000);
+  await esperar(() => document.getElementById("vr").getAttribute("aria-disabled") !== "true", null, 15000).catch(() => {}); // MIS-200 (t_9687b5fc): the entry says «Preparando…» until the world has loaded
   await ctl(() => document.getElementById("vr").click());
   await esperar(() => globalThis.__numinia.view.vr.active, null, 15000);
   await p.waitForTimeout(900);
