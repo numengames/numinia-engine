@@ -46,6 +46,12 @@ try {
   const page = await ctx.newPage();
   page.on("pageerror", (e) => errors.push(String(e)));
   // the instant the screen starts to leave (class «ida» is added by ocultarCarga): time since navigation + what the page counts
+  // the heartbeat must not drop anyone during the (longer) loading screen: record every WebSocket close code (4005 = the server stopped hearing the page)
+  await page.addInitScript(() => {
+    globalThis.__cierres = [];
+    const WS = globalThis.WebSocket;
+    globalThis.WebSocket = class extends WS { constructor(...a) { super(...a); this.addEventListener("close", (e) => globalThis.__cierres.push({ code: e.code, ms: Math.round(performance.now()) })); } };
+  });
   await page.addInitScript(() => {
     globalThis.__ida = null;
     const mirar = () => {
@@ -98,6 +104,8 @@ try {
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/carga-${ETIQUETA || "x"}-seis-s-despues.png` });
   const prog = await page.evaluate(() => globalThis.__progreso);
   out.progreso = prog.filter((_, i) => i % Math.max(1, Math.floor(prog.length / 12)) === 0).slice(0, 14);
+  out.cierresWs = await page.evaluate(() => globalThis.__cierres);
+  if (out.cierresWs.some((c) => c.code === 4005)) throw new Error(`the heartbeat dropped the page (close 4005): ${JSON.stringify(out.cierresWs)}`);
   out.aparecioDespues = luego.objetos.loaded - justo.objetos.loaded; // pieces that finished loading after the screen went
   const faltan = ida.cargaMundo ? ida.cargaMundo.total - ida.cargaMundo.listas : null;
   out.pendientesDentroDeLaVista = faltan;

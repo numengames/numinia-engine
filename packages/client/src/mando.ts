@@ -22,7 +22,7 @@ export const ACCIONES = {
   saltar: { tecla: "Space", key: " ", nombre: "saltar" },
   usar: { tecla: "KeyE", key: "e", nombre: "hablar o coger" },
   ficha: { tecla: "KeyI", key: "i", nombre: "ficha" },
-  mapa: { tecla: "KeyM", key: "m", nombre: "mapa" },
+  mapa: { tecla: "KeyM", key: "m", nombre: "dónde estoy" },
   ajustes: { tecla: "KeyO", key: "o", nombre: "ajustes" },
   vista: { tecla: "KeyV", key: "v", nombre: "1.ª o 3.ª persona" },
   misiones: { tecla: "KeyJ", key: "j", nombre: "misiones" },

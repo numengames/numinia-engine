@@ -13,7 +13,7 @@ import type { Field } from "../../schema/src/index.ts";
 // 13-14 (condiciones/c2, additive): CONDICIONES (server -> page: the world's conditions of entry and where you stand; page -> server,
 // one byte: "send them again") and ACEPTAR (page -> server: what you accept). See the end of this file.
 // 15 (condiciones/c5, additive): LEYENDO, server -> page: who is still reading the norms (the others draw them inside a bubble). Only a world with the gate on sends it.
-export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8, REPORT: 9, IDENTITY: 10, VOICE: 11, PASE: 12, CONDICIONES: 13, ACEPTAR: 14, LEYENDO: 15 } as const;
+export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8, REPORT: 9, IDENTITY: 10, VOICE: 11, PASE: 12, CONDICIONES: 13, ACEPTAR: 14, LEYENDO: 15, LATIDO: 16 } as const;
 export * from "./voz.ts";
 export * from "./enlace.ts"; // dardos enlazados (E1): the «visita de enlace»
 
@@ -241,13 +241,14 @@ export function cuantizar(s: SimState): Cuantas {
 
 /** SNAPSHOT: own state at full precision (exact reconciliation, height included), others quantized. `q` (E1, optional):
  * the table from `cuantizar` for this same state; without it, it is filled here (same values: same state). */
-export function encodeSnapshot(s: SimState, self: number, ack: number, visible: number[], q?: Cuantas): Uint8Array {
+export function encodeSnapshot(s: SimState, self: number, ack: number, visible: number[], q?: Cuantas, saltos?: readonly Salto[]): Uint8Array {
   const X = s.tf.cols.x, Y = s.tf.cols.y, Z = s.tf.cols.z, nv = visible.length;
   const t = q ?? cuantizar(s), qxs = t.x, qys = t.y, qzs = t.z;
   let high = 0;
   for (let i = 0; i < nv; i++) if (qys[visible[i]] !== ZERO_Q) high++;
   const low = nv - high;
-  const buf = new Uint8Array(SNAP_HEADER + low * 6 + high * 8), dv = new DataView(buf.buffer);
+  const nsal = saltos ? Math.min(saltos.length, SALTOS_MAX) : 0; // t_9cb3f636: the optional tail (see Salto); nothing when nobody jumped
+  const buf = new Uint8Array(SNAP_HEADER + low * 6 + high * 8 + (nsal ? 1 + nsal * 4 : 0)), dv = new DataView(buf.buffer);
   dv.setUint8(0, MSG.SNAPSHOT); dv.setUint32(1, s.tick >>> 0); dv.setUint16(5, ack & 0xffff); dv.setUint16(7, self);
   dv.setInt32(9, X[self]); dv.setInt32(13, Z[self]); dv.setInt32(17, Y[self]); dv.setInt32(21, s.mo.cols.vy[self]);
   dv.setUint8(25, (s.mo.cols.air[self] & 1) | ((s.mo.cols.buf[self] & 3) << 1));
@@ -259,9 +260,16 @@ export function encodeSnapshot(s: SimState, self: number, ack: number, visible: 
     if (qy === ZERO_Q) { buf[o] = id >> 8; buf[o + 1] = id; buf[o + 2] = qx >> 8; buf[o + 3] = qx; buf[o + 4] = qz >> 8; buf[o + 5] = qz; o += 6; }
     else { buf[h] = id >> 8; buf[h + 1] = id; buf[h + 2] = qx >> 8; buf[h + 3] = qx; buf[h + 4] = qz >> 8; buf[h + 5] = qz; buf[h + 6] = qy >> 8; buf[h + 7] = qy; h += 8; }
   }
+  if (nsal) { let t = h; buf[t++] = nsal; for (let i = 0; i < nsal; i++, t += 4) { dv.setUint16(t, saltos![i].id); dv.setUint16(t + 2, saltos![i].tick & 0xffff); } }
   return buf;
 }
-export type Snapshot = { tick: number; ack: number; self: Body & { id: number }; others: { id: number; x: number; y: number; z: number }[] };
+/** t_9cb3f636: an avatar that was put somewhere on purpose (a teleport, a return to a safe spot) at server tick `tick` (low 16 bits).
+ * The snapshot carries it for a few ticks (snapshots are unreliable) in an optional tail after the avatars: one byte n, then n ×
+ * (id 2, tick 2); no tail when nobody jumped, so the usual snapshot costs what it cost. A page that sees a NEW (id, tick) draws
+ * that avatar at its new place at once instead of sliding it there from the old one. An older client ignores the tail. */
+export type Salto = { id: number; tick: number };
+export const SALTOS_MAX = 255;
+export type Snapshot = { tick: number; ack: number; self: Body & { id: number }; others: { id: number; x: number; y: number; z: number }[]; saltos: Salto[] };
 /** Returns null for a message too short to be a snapshot; lying counts are clipped. Never throws. */
 export function decodeSnapshot(bytes: Uint8Array): Snapshot | null {
   if (bytes.length < SNAP_HEADER) return null;
@@ -274,10 +282,15 @@ export function decodeSnapshot(bytes: Uint8Array): Snapshot | null {
   for (let i = 0; i < nLow; i++, o += 6) others[i] = { id: dv.getUint16(o), x: unwrapPos(dv.getUint16(o + 2), sx), y: 0, z: unwrapPos(dv.getUint16(o + 4), sz) };
   for (let i = 0; i < nHigh; i++, o += 8) others[nLow + i] = { id: dv.getUint16(o), x: unwrapPos(dv.getUint16(o + 2), sx), y: dequantPos(dv.getUint16(o + 6)), z: unwrapPos(dv.getUint16(o + 4), sz) };
   const flags = dv.getUint8(25);
+  const saltos: Salto[] = [];
+  if (bytes.length > o) { // the optional tail; a lying count is clipped to what is there
+    const n = Math.min(dv.getUint8(o), Math.floor((bytes.length - o - 1) / 4));
+    for (let i = 0, t = o + 1; i < n; i++, t += 4) saltos.push({ id: dv.getUint16(t), tick: dv.getUint16(t + 2) });
+  }
   return {
     tick: dv.getUint32(1), ack: dv.getUint16(5),
     self: { id: dv.getUint16(7), x: dv.getInt32(9), z: dv.getInt32(13), y: dv.getInt32(17), vy: dv.getInt32(21), air: flags & 1, buf: (flags >> 1) & 3 },
-    others,
+    others, saltos,
   };
 }
 
@@ -292,6 +305,11 @@ export function decodeInput(bytes: Uint8Array): { seq: number; mx: number; mz: n
   return { seq, mx, mz, buttons: bytes.length > 5 ? r.read(8) : 0 };
 }
 
+/** t_9cb3f636: the client's heartbeat, a few times a second: 2 bytes. `oculta` = the page is in a background tab (its timers run
+ * slowly there, so the server waits much longer before it calls it gone). Anything the client sends counts as a sign of life;
+ * this is the one that is sent when it has nothing else to say. */
+export const encodeLatido = (oculta = false): Uint8Array => new Uint8Array([MSG.LATIDO, oculta ? 1 : 0]);
+export const decodeLatido = (bytes: Uint8Array): { oculta: boolean } | null => (bytes.length === 2 && bytes[0] === MSG.LATIDO ? { oculta: bytes[1] === 1 } : null);
 export const encodePing = (t: number): Uint8Array => { const w = new BitWriter(5); w.write(MSG.PING, 8); w.write(t >>> 0, 32); return w.finish(); };
 export const encodePong = (t: number): Uint8Array => { const w = new BitWriter(5); w.write(MSG.PONG, 8); w.write(t >>> 0, 32); return w.finish(); };
 export const decodeTime = (bytes: Uint8Array): number => { const r = new BitReader(bytes); r.read(8); return r.read(32); };
@@ -499,6 +517,17 @@ export function decodeLeyendo(bytes: Uint8Array): Leyendo[] | null {
 
 /** H7: close code the server sends when the world is full (its ficha `aforo`); the reason reads «lleno <inside>/<aforo>». */
 export const CIERRE_LLENO = 4004;
+/** t_9cb3f636: the server stopped hearing the page's heartbeat (its connection died without closing): 4005. */
+export const CIERRE_SILENCIO = 4005;
+/** t_9cb3f636: how often a page sends its heartbeat; the server calls a page that sent one gone after SILENCIO_MS without hearing
+ * anything, or after SILENCIO_OCULTA_MS when the page said it is in a background tab (the browser throttles its timers to one a
+ * second, and to one a minute after a few minutes). SILENCIO_MS is long on purpose: a phone or a headset can freeze the page's main
+ * thread for several seconds (a big GLB parse, shader compiles on the loading screen, a GC pause, the notification shade, taking the
+ * headset off) and that must not throw the player out. The loading screen is not treated apart: this limit simply covers it.
+ * The PLAYER notices a dead connection fast on the page's side instead (SERVIDOR_CALLADO_MS, packages/client vigia-servidor.ts). */
+export const LATIDO_MS = 400, SILENCIO_MS = 15_000, SILENCIO_OCULTA_MS = 150_000;
+/** t_9cb3f636: the page calls the SERVER silent after this long without receiving anything (snapshots come at 10 Hz, a pong every second). */
+export const SERVIDOR_CALLADO_MS = 1500;
 
 /** `closed` says the close code and reason (4003 = the world's roles took it out: do not come back by yourself;
  * 4004 = full, CIERRE_LLENO: wait and reload). */

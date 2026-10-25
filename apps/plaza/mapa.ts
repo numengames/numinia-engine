@@ -10,7 +10,7 @@
 // that height (view.cenital) as the minimap's background too, and the cut's walls and columns as lines over it. The
 // picture is made when the minimap first needs it, then again only when the zone changes (at most every IMAGEN_MS),
 // never in XR (this clock stops there); until it exists, the minimap draws only what stands under the cut.
-import { proyectar, desproyectar, anguloFlecha, anguloBorde, yawDePaso, enPalabras, crearLimitador, crearRegistro, reunir, contar, cercanos, firma, matrizImagen, segmentosEnVista, quienDeAgente } from "../../packages/client/src/mapa.ts";
+import { proyectar, desproyectar, anguloFlecha, anguloBorde, yawDePaso, enPalabras, crearLimitador, crearRegistro, reunir, contar, cercanos, firma, matrizImagen, segmentosEnVista, quienDeAgente, puntoNorte } from "../../packages/client/src/mapa.ts";
 import type { Vista, Marcador, Tipo, Fuente, Entrada } from "../../packages/client/src/mapa.ts";
 import type { ImagenCenital, Huella } from "../../packages/render/src/index.ts";
 import { bajoElCorte } from "../../packages/render/src/corte.ts";
@@ -18,6 +18,8 @@ import { MARCA_IA } from "../../packages/instance/src/identidad.ts";
 import { crearDialogo, anunciar } from "./paneles.ts";
 import { perfil, esTactil } from "./perfil-aparato.ts";
 import { icono } from "./iconos.ts";
+import { frase } from "../../packages/client/src/ir-andando.ts";
+import type { Fin } from "../../packages/client/src/ir-andando.ts";
 import { tituloDe } from "../../packages/render/src/menu-secciones.ts"; // v2 paridad: the map's name is the one list's
 import { esMovil } from "../../packages/client/src/movil.ts"; // U24
 import "./mapa.css";
@@ -41,6 +43,8 @@ export type HostMapa = {
   otros(): Record<string, any>;
   /** U27 (MVL1): go to a marked site of the map (features/teletransporte): omitted = no «Ir» button (this world's page did not wire it). */
   teletransporte?: { activo(): boolean; ir(x: number, z: number, nombre: string): void };
+  /** MIS-257: walk by yourself to a point on the ground (packages/client/src/ir-andando.ts; the page feeds the stick). Omitted = no «Ir» that walks. */
+  andar?: { ir(d: { x: number; z: number; nombre: string }): { ok: true } | { ok: false; motivo: "ya-estas" | "lejos" | "invalido" }; parar(): void; activo(): boolean };
   /** C2: called after «Ir» sent the trip, with what you went to (the page selects it in the builder, opens its card…). */
   alIr?(donde: { id: string; nombre: string; x: number; z: number }): void;
   /** ia-visible S8: the marker picked is an AI in the world; the page opens its card (gente.tarjeta). Omitted = the map only shows its detail. */
@@ -53,6 +57,7 @@ const TEXTO_MS = 2000;             // the minimap's text twin, at most every 2 s
 const LISTA_MAX = 400;             // C1: the big map lists everything in the world (nearest first), up to this many; the search narrows it
 const LISTA_MS = 1000;             // the big map's list, at most once a second while open
 const RADIOS = [15, 30, 60, 120];  // minimap zoom: metres from the centre to the edge
+const ZOOM_INICIAL = 1;            // the radius the minimap starts with, and the one the north button brings back
 const LLEGADA_M = 2.5;             // a waypoint this close is reached (and cleared, with a notice)
 const ESTABLE_MS = 1500, ESPERA_MAX_MS = 10_000; // E4: a cut world's minimap picture waits until the zone stood still this long (at most ESPERA_MAX_MS)
 const IMAGEN_MS = 5000;            // the zone's picture is regenerated at most every 5 s, only while the big map is open (U14: or, in a world cut with mapa.corte, when its minimap's zone changed)
@@ -224,8 +229,28 @@ export function montarMapa(h: HostMapa) {
   function irA(m: { id: string; nombre: string; x: number; z: number }): void {
     if (!h.teletransporte?.activo()) return;
     if (yo) origenViaje = { x: yo.x, z: yo.z, nombre: "donde estabas" };
+    h.andar?.parar(); // a trip by teleport replaces a walk
     h.teletransporte.ir(m.x, m.z, m.nombre);
     h.alIr?.({ id: m.id, nombre: m.nombre, x: m.x, z: m.z });
+    pintarDetalle();
+  }
+  // MIS-257: «Ir» — the avatar walks to the point over the ground (the page feeds the stick; walls stop it, a hand on the
+  // controls stops it). The point is marked as the destination too (a column of light and a marker on both maps), the
+  // big map closes so you see yourself go, and every ending says why in a notice (an arrival is said by quitarDestino).
+  const decir = anunciar; // the notice shows at the top (paneles.ts) and is read aloud
+  function irAndando(m: { id: string; nombre: string; x: number; z: number }): boolean {
+    if (!h.andar) return false;
+    const r = h.andar.ir({ x: m.x, z: m.z, nombre: m.nombre });
+    if (!r.ok) { decir(frase(r.motivo, m.nombre)); return false; }
+    if (!destino || destino.id !== m.id) marcarDestino(m);
+    decir(frase("empieza", m.nombre));
+    if (panel.abierto) panel.cerrar(); // the big map is a modal dialog: close it so you see yourself walk
+    pintarDetalle();
+    return true;
+  }
+  /** The page tells the map a walk ended (the words were already said): an arrival clears the marker it was walking to. */
+  function andandoTermino(f: Fin): void {
+    if (f.motivo === "llegada" && destino && destino.x === f.destino.x && destino.z === f.destino.z) quitarDestino(null);
     pintarDetalle();
   }
   function volver(): boolean {
@@ -262,18 +287,25 @@ export function montarMapa(h: HostMapa) {
   mini.id = "minimapa"; mini.setAttribute("aria-label", "Minimapa");
   const miniCanvas = document.createElement("canvas"); miniCanvas.setAttribute("aria-hidden", "true");
   const miniTexto = document.createElement("p"); miniTexto.className = "solo-lector"; miniTexto.id = "minimapa-texto";
-  // ux2-barra: the minimap IS the button of the big map (M): no «−», «+», «N», «Mapa», «Ficha» under it. The wheel over it
+  // ux2-barra: the minimap IS the button of the big map (M): no «−», «+», «Mapa», «Ficha» under it (MIS-257: and the N is the compass button on its rim). The wheel over it
   // zooms; turning with the camera is a setting (Ajustes › Interfaz, interfaz.minimapaGira); the sheet is your card (I).
   const bMapa = document.createElement("button"); bMapa.type = "button"; bMapa.id = "minimapa-abrir";
   bMapa.title = `${tituloDe("mapa")} · rueda: acercar y alejar`; bMapa.setAttribute("aria-label", tituloDe("mapa")); // v2 paridad: the name is the list's
   bMapa.append(miniCanvas);
-  mini.append(bMapa, miniTexto);
+  // MIS-257: the north is a button, not a letter painted on the canvas: it rides just inside the rim where north is (up, or swinging
+  // round when the minimap turns with the camera) and pressing it puts the minimap back: centred on you, north up,
+  // the usual radius. Phosphor «compass» (house icons); on a phone the folded minimap has no buttons (movil.css).
+  const caja = document.createElement("div"); caja.className = "caja";
+  const bNorte = document.createElement("button"); bNorte.type = "button"; bNorte.className = "norte"; bNorte.id = "minimapa-norte";
+  bNorte.innerHTML = icono("compass", 16); bNorte.setAttribute("aria-label", "Norte arriba: centrar el minimapa en ti"); bNorte.title = "Norte arriba · centrar el minimapa en ti";
+  caja.append(bMapa, bNorte);
+  mini.append(caja, miniTexto);
   document.body.appendChild(mini);
   // a touch here is not the walking joystick; a mouse click leaves no focus behind (Space must jump, not open the map)
   mini.addEventListener("pointerdown", (e) => e.stopPropagation());
   bMapa.addEventListener("click", (e) => { if (e.detail > 0) bMapa.blur(); });
   const lm = lienzo(miniCanvas);
-  let zoom = 1, gira = false;
+  let zoom = ZOOM_INICIAL, gira = false, recentrados = 0;
   const ponerZoom = (i: number) => { const z = Math.max(0, Math.min(RADIOS.length - 1, i)); if (z !== zoom) { zoom = z; limMini.forzar(); textoT = -Infinity; } };
   // the wheel over the minimap: away = farther (a bigger radius), toward you = closer; one notch, one step; never the camera's zoom
   let ruedaT = 0;
@@ -284,6 +316,12 @@ export function montarMapa(h: HostMapa) {
     ponerZoom(zoom + (e.deltaY > 0 ? 1 : -1));
   }, { passive: false });
   const ponerGiro = (si: boolean) => { if (si === gira) return; gira = si; limMini.forzar(); textoT = -Infinity; };
+  /** The north button: centred on you, north up, the usual radius. Says so for screen readers, and redraws at once. */
+  function recentrarMini(): void {
+    ponerZoom(ZOOM_INICIAL); ponerGiro(false); recentrados++; limMini.forzar(); textoT = -Infinity;
+    anunciar("Minimapa centrado en ti, norte arriba.");
+  }
+  bNorte.addEventListener("click", (e) => { recentrarMini(); if (e.detail > 0) bNorte.blur(); });
   // on touch screens the features' buttons live in the bottom-right corner: sit to their left
   const acciones = document.getElementById("acciones");
   const sitio = () => { if (!esTactil()) return; /* U3: on a mouse screen the frame table places the map */ mini.style.right = acciones && acciones.childElementCount ? `${acciones.offsetWidth + 20}px` : ""; };
@@ -328,9 +366,8 @@ export function montarMapa(h: HostMapa) {
     }
     g.restore();
     g.strokeStyle = "rgba(20,24,30,0.85)"; g.lineWidth = 2.5; g.beginPath(); g.arc(c, c, r, 0, Math.PI * 2); g.stroke();
-    const n = proyectar(v, v.cx, v.cz - 1000), dx = n.px - c, dy = n.py - c, l = Math.hypot(dx, dy) || 1;
-    g.fillStyle = "#23303b"; g.font = "bold 12px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
-    g.fillText("N", c + (dx / l) * (r - 9), c + (dy / l) * (r - 9));
+    const n = puntoNorte(v.giro, c, r - 10); // the north button sits just inside the rim where north is (never over the clock above) (a CSS transform: no layout)
+    bNorte.style.transform = `translate(${n.x.toFixed(1)}px, ${n.y.toFixed(1)}px) translate(-50%, -50%)`;
     dibujado.mini = vistos;
   }
 
@@ -342,18 +379,18 @@ export function montarMapa(h: HostMapa) {
     for (const [id, ti] of reg.tipos()) if (n[id] && ti.enLista) partes.push(`${n[id]} ${ti.nombre.toLowerCase()}`);
     const cerca = cercanos(ms, yo, reg, 3).map((e) => `${e.nombre} (${reg.tipo(e.tipo).nombre.toLowerCase()}), ${e.texto}`);
     const t = `Minimapa, ${gira ? "gira con la cámara" : "norte arriba"}, ${RADIOS[zoom]} m alrededor: ${partes.join(", ") || "nada cerca"}.` +
-      (cerca.length ? ` Lo más cerca: ${cerca.join("; ")}.` : "") + (destino ? ` Destino: ${destino.nombre}, ${enPalabras(destino.x - yo.x, destino.z - yo.z)}.` : "") + (esMovil(perfil().clase) ? " Toca el minimapa para el mapa y la lista." : " Pulsa M para el mapa y la lista.");
+      (cerca.length ? ` Lo más cerca: ${cerca.join("; ")}.` : "") + (destino ? ` Destino: ${destino.nombre}, ${enPalabras(destino.x - yo.x, destino.z - yo.z)}.` : "") + (esMovil(perfil().clase) ? " Toca el minimapa para ver dónde estás y la lista." : " Pulsa M para ver dónde estás y la lista.");
     if (t !== textoAntes) { miniTexto.textContent = t; textoAntes = t; }
   }
 
   // ---------- big map (dialog) ----------
-  const panel = crearDialogo({ id: "mapa-grande", titulo: "Mapa de la zona", tecla: "KeyM", boton: bMapa, alAbrir: () => abrirGrande(), alCerrar: () => { arrastre.clear(); } });
+  const panel = crearDialogo({ id: "mapa-grande", titulo: tituloDe("mapa").replace(/ \(M\)$/, ""), tecla: "KeyM", boton: bMapa, alAbrir: () => abrirGrande(), alCerrar: () => { arrastre.clear(); } });
   const zonaLienzo = document.createElement("div"); zonaLienzo.className = "lienzo";
   const gCanvas = document.createElement("canvas"); gCanvas.tabIndex = 0;
   gCanvas.setAttribute("role", "img");
-  gCanvas.setAttribute("aria-label", "Mapa de la zona visto desde arriba, norte arriba. Flechas: mover el mapa; + y −: acercar y alejar; 0: centrar en ti. La misma información está en la lista.");
+  gCanvas.setAttribute("aria-label", "La zona vista desde arriba, norte arriba. Flechas: mover la vista; + y −: acercar y alejar; 0: centrar en ti. La misma información está en la lista.");
   const controles = document.createElement("div"); controles.className = "controles";
-  const gMas = boton("+", "Acercar el mapa"), gMenos = boton("−", "Alejar el mapa"), gCentro = boton("◎", "Centrar el mapa en ti");
+  const gMas = boton("+", "Acercar la vista"), gMenos = boton("−", "Alejar la vista"), gCentro = boton("◎", "Centrarte en la vista");
   controles.append(gMas, gMenos, gCentro);
   const estadoImagen = document.createElement("p"); estadoImagen.className = "estado-imagen";
   zonaLienzo.append(gCanvas, controles, estadoImagen);
@@ -434,7 +471,7 @@ export function montarMapa(h: HostMapa) {
       v.addEventListener("click", () => volver());
       detalle.append(v);
     }
-    if (!elegido) { const p = document.createElement("p"); p.textContent = "Elige algo en el mapa o en la lista para ver su detalle y marcarlo como destino."; detalle.append(p); return; }
+    if (!elegido) { const p = document.createElement("p"); p.textContent = "Elige algo en la vista o en la lista para ver su detalle y marcarlo como destino."; detalle.append(p); return; }
     const t = document.createElement("h3"); t.textContent = elegido.nombre;
     const p = document.createElement("p");
     p.textContent = `${reg.tipo(elegido.tipo).nombre}${yo ? ` · ${enPalabras(elegido.x - yo.x, elegido.z - yo.z)}` : ""}${elegido.detalle ? ` · ${elegido.detalle}` : ""}`;
@@ -443,9 +480,14 @@ export function montarMapa(h: HostMapa) {
     const e = elegido;
     b.addEventListener("click", () => marcarDestino(e));
     detalle.append(t, p, b);
-    if (h.teletransporte) { // U27 (MVL1): pick a site, press «Ir», appear there (the server decides; same in VR)
+    if (h.andar) { // MIS-257: «Ir» walks there by itself
+      const a = boton("Ir", `Ir andando a ${e.nombre}`); a.className = "andar";
+      a.addEventListener("click", () => { irAndando(e); });
+      detalle.append(a);
+    }
+    if (h.teletransporte) { // U27 (MVL1): pick a site, press «Ir de golpe», appear there (the server decides; same in VR)
       const activo = h.teletransporte.activo();
-      const g = boton(activo ? "Ir" : "Ir (apagado en este mundo)");
+      const g = boton(activo ? "Ir de golpe" : "Ir de golpe (apagado en este mundo)");
       g.disabled = !activo;
       g.addEventListener("click", () => irA(e));
       detalle.append(g);
@@ -461,7 +503,7 @@ export function montarMapa(h: HostMapa) {
   // the HTML twin: nearest first, real buttons; rows are updated in place (focus never jumps), reordered only when
   // focus is outside the list
   let listaT = -Infinity;
-  const filas = new Map<string, { li: HTMLLIElement; ver: HTMLButtonElement; marcar: HTMLButtonElement; ir: HTMLButtonElement; e: Entrada }>();
+  const filas = new Map<string, { li: HTMLLIElement; ver: HTMLButtonElement; marcar: HTMLButtonElement; ir: HTMLButtonElement; andar: HTMLButtonElement; e: Entrada }>();
   function pintarLista(): void {
     if (!yo) return;
     // the waypoint is listed only when it is a point of the map (a marker that is the destination already says so)
@@ -474,15 +516,16 @@ export function montarMapa(h: HostMapa) {
     for (const e of entradas) {
       let f = filas.get(e.id);
       if (!f) {
-        const li = document.createElement("li"), ver = boton(""), marcar = boton(""), ir = boton("");
-        ver.className = "ver"; marcar.className = "marcar ic"; ir.className = "ir ic";
-        marcar.innerHTML = icono("map-pin", 18); ir.innerHTML = icono("crosshair", 18);
-        f = { li, ver, marcar, ir, e };
+        const li = document.createElement("li"), ver = boton(""), marcar = boton(""), ir = boton(""), andar = boton("");
+        ver.className = "ver"; marcar.className = "marcar ic"; ir.className = "ir ic"; andar.className = "andar ic";
+        marcar.innerHTML = icono("map-pin", 18); ir.innerHTML = icono("crosshair", 18); andar.innerHTML = icono("person-simple-walk", 18);
+        f = { li, ver, marcar, ir, andar, e };
         const fx = f;
         ver.addEventListener("click", () => elegir({ id: fx.e.id, nombre: fx.e.nombre, tipo: fx.e.tipo, x: fx.e.x, z: fx.e.z, detalle: fx.e.detalle }, true));
         marcar.addEventListener("click", () => marcarDestino(fx.e));
-        if (h.teletransporte) li.append(ver, ir, marcar); else li.append(ver, marcar);
+        li.append(ver); if (h.andar) li.append(andar); if (h.teletransporte) li.append(ir); li.append(marcar);
         ir.addEventListener("click", () => irA(fx.e));
+        andar.addEventListener("click", () => { irAndando(fx.e); });
         li.dataset.id = e.id;
         lista.appendChild(li); filas.set(e.id, f);
       }
@@ -491,8 +534,12 @@ export function montarMapa(h: HostMapa) {
       if (f.ver.textContent !== texto) f.ver.textContent = texto;
       const es = destino?.id === e.id, mt = es ? "Quitar destino" : "Marcar destino", ml = `${mt}: ${e.nombre}`;
       if (f.marcar.getAttribute("aria-label") !== ml) { f.marcar.setAttribute("aria-label", ml); f.marcar.title = mt; }
+      if (h.andar) {
+        const al = `Ir andando a ${e.nombre}`;
+        if (f.andar.getAttribute("aria-label") !== al) { f.andar.setAttribute("aria-label", al); f.andar.title = al; }
+      }
       if (h.teletransporte) {
-        const activo = h.teletransporte.activo(), il = activo ? `Ir a ${e.nombre}` : "Ir (apagado en este mundo)";
+        const activo = h.teletransporte.activo(), il = activo ? `Ir de golpe a ${e.nombre}` : "Ir de golpe (apagado en este mundo)";
         if (f.ir.getAttribute("aria-label") !== il) { f.ir.setAttribute("aria-label", il); f.ir.title = il; }
         f.ir.disabled = !activo;
       }
@@ -558,7 +605,7 @@ export function montarMapa(h: HostMapa) {
         if (d < d2) { d2 = d; mejor = m; }
       }
       if (mejor) elegir({ id: mejor.id === "destino" && destino ? destino.id : mejor.id, nombre: mejor.nombre, tipo: mejor.tipo, x: mejor.x, z: mejor.z, detalle: mejor.detalle });
-      else { const w = desproyectar(gv, p.px, p.py), x = Math.round(w.x * 10) / 10, z = Math.round(w.z * 10) / 10; elegir({ id: `punto:${x},${z}`, nombre: "Punto del mapa", tipo: "lugar", x, z }); }
+      else { const w = desproyectar(gv, p.px, p.py), x = Math.round(w.x * 10) / 10, z = Math.round(w.z * 10) / 10; elegir({ id: `punto:${x},${z}`, nombre: "Punto elegido", tipo: "lugar", x, z }); }
     }
     if (arrastre.size < 2) pinza = 0;
   };
@@ -640,6 +687,8 @@ export function montarMapa(h: HostMapa) {
     stats: () => ({ mini: limMini.stats, grande: limGrande.stats, imagenes, vueltas, ocultas, corte }),
     /** C2: go back to where you were before the last «Ir» (false when there is nowhere to go back to). */
     volver, puedeVolver: () => origenViaje !== null,
+    /** MIS-257: walk to a marker (or a place of your own) by yourself, as the map's «Ir» does; false when it cannot start. */
+    irAndando, andandoTermino,
     /** Rediseño v2 (the VR menu's «Mapa»): go to a marker as the map's own «Ir» does, and whether trips are allowed now. */
     ir: (m: { id: string; nombre: string; x: number; z: number }): void => irA(m), puedeIr: (): boolean => !!h.teletransporte?.activo(),
     abrir: () => panel.abrir(), cerrar: () => panel.cerrar(), abierto: () => panel.abierto,
@@ -664,6 +713,6 @@ export function montarMapa(h: HostMapa) {
     },
     quitarDestino: () => quitarDestino("quitado"),
     /** ux2-barra: the minimap's own state (zoom = index into the radii; gira = turns with the camera) and its controls. */
-    minimapa: { girar(si: boolean) { ponerGiro(si); }, zoom(i: number) { ponerZoom(i); }, estado: () => ({ zoom, gira, radio: RADIOS[zoom] }) },
+    minimapa: { girar(si: boolean) { ponerGiro(si); }, zoom(i: number) { ponerZoom(i); }, recentrar: recentrarMini, estado: () => ({ zoom, gira, radio: RADIOS[zoom], recentrados }) },
   };
 }

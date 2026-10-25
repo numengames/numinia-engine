@@ -13,7 +13,7 @@ import { ESCALERA } from "./ficha.ts";
 import { listaGenteVR, textos } from "./gente-ia.ts";
 import { distanciaTexto } from "./amigos.ts";
 import { AYUDA_RAYO, TEXTO_FUERA_DE_VR, esInvitado, vistaConstruirVR } from "./construir-vr-logica.ts";
-import { iconoDe } from "../../packages/render/src/menu-secciones.ts";
+import { iconoDe, nombreDe } from "../../packages/render/src/menu-secciones.ts";
 import type { MenuVR, ContenidoMenuVR as Contenido } from "../../packages/render/src/index.ts";
 import { siguienteValor, textoValor } from "../../packages/render/src/menu-vr.ts";
 import { FRASES, ultimosMensajes, type LineaChat } from "../../packages/render/src/menu-chat.ts";
@@ -165,7 +165,7 @@ export function montarMenuVR(o: {
   }
   function mapa(): Contenido {
     const mp = o.n().mapa;
-    if (!mp?.marcadores) return { tipo: "lista", titulo: "Mapa", vacio: "Este mundo no tiene mapa.", filas: [] } as Contenido;
+    if (!mp?.marcadores) return { tipo: "lista", titulo: nombreDe("mapa"), vacio: "Este mundo no enseña dónde estás.", filas: [] } as Contenido;
     const marc = mp.marcadores() as { id: string; tipo: string; nombre: string; x: number; z: number; yaw?: number }[];
     const tipo = (t: string) => mp.registro?.tipo?.(t) ?? { color: "#C4B5A6", enLista: true, orden: 0 };
     const tu = marc.find((x) => x.tipo === "tu"), puede = mp.puedeIr?.() ?? false;

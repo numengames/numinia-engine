@@ -145,7 +145,7 @@ async function pierna() {
     paso("rayo + gatillo en «Menú» abre el panel", abierto, { reloj: await ctl(() => globalThis.__numinia.view.vr.reloj.diagnostico()), e });
     // the names the computer's bar and the phone's «…» menu show, read from the live page (one list: menu-secciones.ts)
     const delOrdenador = await ctl(() => ["hud-personaje-abrir", "gente-abrir", "inventario-abrir", "misiones", "minimapa-abrir", "construir", "ajustes-abrir", "chat-boton"].map((id) => (document.getElementById(id)?.getAttribute("aria-label") || document.getElementById(id)?.textContent || "").replace(/\s*\(.\)\s*$/, "").replace(/\s*·.*$/, "").trim()));
-    paso("el panel tiene las 7 secciones del ordenador y Chat", e.secciones.map((s) => s.nombre).join("·") === "Tú·Gente·Bolsa·Misiones·Mapa·Construir·Ajustes·Chat", { secciones: e.secciones });
+    paso("el panel tiene las 7 secciones del ordenador y Chat", e.secciones.map((s) => s.nombre).join("·") === "Tú·Gente·Bolsa·Misiones·Dónde estoy·Construir·Ajustes·Chat", { secciones: e.secciones });
     paso("y se llaman igual que los botones de la página (PC)", e.secciones.every((s, i) => delOrdenador[i].startsWith(s.nombre)), { vr: e.secciones.map((s) => s.nombre), pc: delOrdenador });
     paso("el panel está a ~1,2 m y empieza en «Tú»", Math.abs(e.diagnostico.distanciaM - 1.2) < 0.25 && e.vista === "tu", { diag: e.diagnostico, vista: e.vista });
     await a.waitForTimeout(300); await lienzo("menu", "vr-menu-tu");

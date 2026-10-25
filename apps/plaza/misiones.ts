@@ -98,7 +98,7 @@ export const NOTAS_EXITO: readonly (readonly [number, number, number])[] = NOTAS
  * notes of the step that completed the quest (both arrive in the same moment): one short fanfare, no file to load. */
 export const ACORDE_COMPLETADA: readonly (readonly [number, number, number])[] = [[523.25, 0.3, 0.9], [659.25, 0.3, 0.9], [783.99, 0.3, 0.9], [1046.5, 0.3, 0.9]];
 /** S6: the catalogue of the house, as `sonarCasa` needs it. Injectable so a test can play without Web Audio. */
-export type CatalogoCasa = { listo(): boolean; casa(nombre: string): string | null; suena(p: { id: string; donde?: null; texto?: string }): boolean };
+export type CatalogoCasa = { listo(): boolean; casa(nombre: string): string | null; suena(p: { id: string; donde?: null; texto?: string }): boolean; fila?(id: string): unknown };
 /** S6: which catalogue `sonarCasa` asks first. The page sets it once (apps/plaza/main.ts); a test puts a fake one. */
 let catalogoCasa: CatalogoCasa | null = null;
 export function ponerCatalogoCasa(c: CatalogoCasa | null): void { catalogoCasa = c; }
@@ -115,8 +115,56 @@ export function sonarCasa(ctx: () => AudioContext | null, ajuste: (id: string) =
   return !!s && sonar(ctx, ajuste, s.onda, s.notas, 0.2, salida);
 }
 export function sonarCompletada(ctx: () => AudioContext | null, ajuste: (id: string) => unknown, salida?: (c: AudioContext) => AudioNode | null): boolean {
-  if (sonarDelCatalogo("completada")) return true;
-  return sonar(ctx, ajuste, "triangle", ACORDE_COMPLETADA, 0.07, salida); // four notes at once: each one softer
+  return sonarAviso("completada", ctx, ajuste, salida);
+}
+
+/** t_d7411a07: the three quest notices that have a sound of their own — the quest is received (accepted), a delivery step is
+ * done, the quest is completed. The world picks the sound of each from the catalogue (`ficha.json` → `audio.avisos`); a silent
+ * one is `""`. Step-by-step progress stays silent (it is frequent): Pablo's rule «suena el mundo, no la interfaz». */
+export const AVISOS_MISION = ["recibida", "entregada", "completada"] as const;
+export type AvisoMision = (typeof AVISOS_MISION)[number];
+export type AvisosMundo = Partial<Record<AvisoMision, string>>;
+/** The house default of each notice (ids of `features/sonido/catalogo.json`), when the world says nothing. */
+export const SONIDO_AVISO_DEF: Readonly<Record<AvisoMision, string>> = { recibida: "ui-confirmar", entregada: "coger-soltar", completada: "ui-logro" };
+/** The oscillator notes of each notice, only for when the catalogue is not there (see NOTAS_CASA). */
+const NOTAS_AVISO: Record<AvisoMision, { onda: OscillatorType; notas: readonly (readonly [number, number, number])[]; fuerza: number }> = {
+  recibida: { ...NOTAS_CASA.magia, fuerza: 0.2 }, entregada: { ...NOTAS_CASA.exito, fuerza: 0.2 }, completada: { onda: "triangle", notas: ACORDE_COMPLETADA, fuerza: 0.07 },
+};
+/** Which notice an event of the server is, if any: «aceptada» = recibida; «avance» of a step of type `entrega` = entregada;
+ * «completada» = completada. Every other step is silent. `libro` is the page's book (the step is found by its own text). */
+export function avisoDeEvento(event: string, msg: Record<string, unknown>, libro: readonly { id: string; lista: readonly { texto: string; tipo?: string }[] }[]): AvisoMision | null {
+  if (event === "aceptada") return "recibida";
+  if (event === "completada") return "completada";
+  if (event !== "avance") return null;
+  const texto = String(msg.texto ?? "");
+  return libro.find((m) => m.id === String(msg.mision))?.lista.some((x) => x.texto === texto && x.tipo === "entrega") ? "entregada" : null;
+}
+let avisosMundo: AvisosMundo = {};
+/** The page sets the world's choices once, from /status (`audio.avisos`); anything that is not a notice name or a text is left out. */
+export function ponerAvisosMundo(a: unknown): void {
+  avisosMundo = {};
+  if (!a || typeof a !== "object" || Array.isArray(a)) return;
+  for (const n of AVISOS_MISION) { const v = (a as Record<string, unknown>)[n]; if (typeof v === "string") avisosMundo[n] = v; }
+}
+/** Which catalogue id a notice plays: the world's choice, else the house default; null = silent (the world said `""`). */
+export function sonidoDeAviso(aviso: AvisoMision, mundo: AvisosMundo = avisosMundo, catalogo: CatalogoCasa | null = catalogoCasa): string | null {
+  const v = mundo[aviso];
+  if (v === "") return null;
+  if (v) return v;
+  return (aviso === "completada" ? catalogo?.casa("completada") : null) ?? SONIDO_AVISO_DEF[aviso];
+}
+/** Play a quest notice: the world's catalogue sound (or the house default) in the head on the «interfaz» bus; the oscillator
+ * notes only when the catalogue cannot (no table yet, no audio, an id it does not know or one with no file). Returns whether it sounded. */
+export function sonarAviso(aviso: AvisoMision, ctx: () => AudioContext | null, ajuste: (id: string) => unknown, salida?: (c: AudioContext) => AudioNode | null): boolean {
+  const id = sonidoDeAviso(aviso);
+  if (id === null) return false; // the world silenced it; the text still reaches the notices region
+  const c = catalogoCasa;
+  if (c?.listo()) {
+    const fila = c.fila ? (c.fila(id) as { fuente?: string } | null) : { fuente: "fichero" };
+    if (fila?.fuente === "fichero") { try { return c.suena({ id, donde: null }); } catch { /* the notes below */ } } // a file: it sounded, or its cooldown cut it — the notes never stack on it
+  }
+  const n = NOTAS_AVISO[aviso];
+  return sonar(ctx, ajuste, n.onda, n.notas, n.fuerza, salida);
 }
 /** S6: try the house catalogue for this notice name. `donde: null` = no panner, in the head. */
 function sonarDelCatalogo(nombre: string): boolean {
@@ -327,12 +375,14 @@ export function montarLibro(c: Ctl, o: {
   };
   o.oir?.((feature, event, msg) => {
     if (feature !== "misiones") return;
+    const aviso = avisoDeEvento(event, msg, c.libro());
+    if (aviso && o.ajuste) sonarAviso(aviso, contexto, o.ajuste, salida); // t_d7411a07: recibida / entregada / completada, each its own house sound
     if (event === "aceptada") { solo.aceptada(); quizasAbrir(); }
     if (event === "avance") {
       if (esObjeto(String(msg.texto ?? ""), c.libro().find((m) => m.id === String(msg.mision)))) mostrarNota(c.estado.nota, true);
-      // a step done is silent (it is frequent): only the whole mission, a rare milestone, sounds
+      // a step done is silent (it is frequent): only the milestones sound (received, delivered, completed: avisoDeEvento)
     }
-    if (event === "completada") { mostrarCompletada(msg); if (o.ajuste) sonarCompletada(contexto, o.ajuste, salida); }
+    if (event === "completada") mostrarCompletada(msg);
   });
   // U14 (5): a sequence's lines are read aloud (the note itself is hidden from screen readers) and its sounds play
   c.alSecuencia?.((s) => {

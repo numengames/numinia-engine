@@ -14,7 +14,7 @@ import { crearCliente as crearAmbiente } from "../features/entorno/client.ts";
 import { crearDirector, limpiar } from "../features/director/server.ts";
 import { crearCliente as crearDirectorCliente } from "../features/director/client.ts";
 import { leerEscena, cargarEscenas, buscarEscena, idDeFichero, ESCENAS_CASA } from "../features/director/escena.ts";
-import { director, NARRACION_MAX } from "../features/director/feature.ts";
+import { director, NARRACION_MAX, ambienteDeEscena } from "../features/director/feature.ts";
 import { crearRoles } from "../packages/server/src/roles-mundo.ts";
 import { tiene, acceso, plantilla } from "../packages/server/src/roles.ts";
 
@@ -28,7 +28,7 @@ const CRIPTA = JSON.stringify({ schema: "numinia-engine/escena@1", nombre: "La c
 test("escena@1: a scene is a preset and/or a partial environment plus a line; wrong files say where and how to fix", () => {
   const r = leerEscena("taberna.json", TABERNA);
   assert.ok(r.ok);
-  assert.deepEqual({ ...r.value, entorno: JSON.parse(r.value.entorno) }, { id: "taberna", nombre: "La taberna", preset: "atardecer", entorno: { niebla: { cerca: 8, lejos: 60, color: "#3a2a20" } }, narracion: "Huele a vino especiado.", casa: false });
+  assert.deepEqual({ ...r.value, entorno: JSON.parse(r.value.entorno) }, { id: "taberna", nombre: "La taberna", preset: "atardecer", entorno: { niebla: { cerca: 8, lejos: 60, color: "#3a2a20" } }, narracion: "Huele a vino especiado.", casa: false, ambiente: "", ganancia: -1 });
   assert.equal(idDeFichero("escenas/Fiesta-Neon.json"), "fiesta-neon");
   assert.equal(idDeFichero("la taberna.json"), null, "a space is not an id");
   const ko = leerEscena("mal.json", JSON.stringify({ schema: "numinia-engine/escena@1", nombre: "", preset: "verano", entorno: { suelo: { tipo: "hierba" }, niebla: { lejos: "mucho" } }, narracion: "x".repeat(NARRACION_MAX + 1) }));
@@ -62,12 +62,12 @@ test("director: declared for people and agents; directing is STD-052 manage-ritu
 });
 
 /** A headless world with chat, the environment, the director and the world's roles: n people with identities. */
-function mundo(n: number) {
+function mundo(n: number, escenas = [{ fichero: "taberna.json", texto: TABERNA }, { fichero: "cripta.json", texto: CRIPTA }]) {
   const log: string[] = [];
   const reloj = { ms: Date.parse("2026-10-18T22:00:00Z") };
   const roles = crearRoles({ construir: false, admin: ADMIN, firmar: sign, cerrar: (e) => inst.disconnect(e), ahora: () => reloj.ms, log: (l) => log.push(l) });
   const mundoEntorno = { schema: "numinia-engine/entorno@1", cielo: { arriba: "#102030" }, suelo: { tipo: "hierba" } };
-  const dj = crearDirector({ escenas: [{ fichero: "taberna.json", texto: TABERNA }, { fichero: "cripta.json", texto: CRIPTA }] });
+  const dj = crearDirector({ escenas });
   const inst: Instance = new Instance({ seed: 1, capacity: 32, k: 50, snapshotEvery: 2, features: [chatServer, crearEntorno(mundoEntorno), dj, roles.part], log: (l) => log.push(l), identitySign: sign, puede: (who, accion) => roles.puede(who, accion) });
   const entrar = (i: number) => {
     const t = inst.join(i), c = crearChat(() => reloj.ms), a = crearAmbiente(), d = crearDirectorCliente();
@@ -168,4 +168,57 @@ test("director: narrate goes to everyone; a summons is an invitation each person
   assert.deepEqual(A.dj.convocar(""), { ok: true });
   W.pump(3);
   assert.equal(D.dj.estado.convocatorias.at(-1)!.texto, "ven aquí");
+});
+
+// ---- a scene brings its own ambient bed ----
+const base = { schema: "numinia-engine/escena@1", preset: "noche" };
+const escena = (f: Record<string, unknown>) => leerEscena("x.json", JSON.stringify({ ...base, nombre: "X", ...f }));
+
+test("escena@1 ambiente: a catalogue id (or \"\" for silence) and a volume; wrong ones say where; without them the scene leaves the world's bed alone", () => {
+  const v = (f: Record<string, unknown>) => { const r = escena(f); assert.ok(r.ok, JSON.stringify(f)); return r.value; };
+  assert.deepEqual([v({}).ambiente, v({}).ganancia], ["", -1]);
+  assert.deepEqual([v({ ambiente: "ambiente-numinia" }).ambiente, v({ ambiente: "ambiente-numinia" }).ganancia], ["ambiente-numinia", -1]);
+  assert.deepEqual([v({ ambiente: "", ambiente_ganancia: 2 }).ambiente, v({ ambiente: "", ambiente_ganancia: 2 }).ganancia], ["-", 2], "\"\" = silence, written on the wire as «-»");
+  assert.equal(v({ ambiente: "a", ambiente_ganancia: 0.12345 }).ganancia, 0.123);
+  const ko = escena({ ambiente: "Con Mayúsculas", ambiente_ganancia: 9 });
+  assert.ok(!ko.ok);
+  if (!ko.ok) assert.deepEqual(ko.issues.map((i) => i.path).sort(), ["escena.ambiente", "escena.ambiente_ganancia"]);
+  for (const f of [{ ambiente: 3 }, { ambiente: "a", ambiente_ganancia: "alto" }, { ambiente: "a", ambiente_ganancia: -1 }, { ambiente_ganancia: 1 }]) assert.ok(!escena(f).ok, JSON.stringify(f));
+  assert.ok(ESCENAS_CASA.every((e) => e.ambiente === "" && e.ganancia === -1), "the house scenes never touch the bed");
+});
+
+test("ambienteDeEscena: no scene or a scene without a sound = the world's own bed; a scene's id replaces it; «-» silences; the beds from the ficha stay", () => {
+  const mundo = { ambiente: "ambiente-numinia", ambiente_ganancia: 0.05, ambiente_sintetizado: ["bed-niebla"] };
+  assert.deepEqual(ambienteDeEscena(null, mundo), { id: "ambiente-numinia", ganancia: 0.05, sintetizado: ["bed-niebla"] });
+  assert.deepEqual(ambienteDeEscena({ ambiente: "", ganancia: -1 }, mundo), { id: "ambiente-numinia", ganancia: 0.05, sintetizado: ["bed-niebla"] });
+  assert.deepEqual(ambienteDeEscena({ ambiente: "viento", ganancia: -1 }, mundo), { id: "viento", ganancia: undefined, sintetizado: ["bed-niebla"] }, "-1 = default volume, not the world's");
+  assert.deepEqual(ambienteDeEscena({ ambiente: "viento", ganancia: 0.3 }, mundo), { id: "viento", ganancia: 0.3, sintetizado: ["bed-niebla"] });
+  assert.deepEqual(ambienteDeEscena({ ambiente: "-", ganancia: -1 }, mundo).id, null);
+  assert.deepEqual(ambienteDeEscena(null, undefined), { id: null, ganancia: undefined, sintetizado: undefined }, "a world with no audio and no scene: nothing");
+  assert.equal(ambienteDeEscena({ ambiente: "viento", ganancia: -1 }, null).id, "viento", "a scene can bring a bed to a world that has none");
+});
+
+test("director: the scene's bed reaches every page (state and event), changes with the next scene, and a scene without one gives the world's back", () => {
+  const VIENTO = JSON.stringify({ ...base, nombre: "El viento", ambiente: "viento-sierra", ambiente_ganancia: 0.5 });
+  const MUDA = JSON.stringify({ ...base, nombre: "La muda", ambiente: "" });
+  const W = mundo(3, [{ fichero: "muda.json", texto: MUDA }, { fichero: "sinsonido.json", texto: CRIPTA }, { fichero: "viento.json", texto: VIENTO }]);
+  const [A, B, C] = W.gente;
+  W.pump(3);
+  W.decir(A, `/dueño ${ADMIN}`);
+  W.decir(A, `/dar ${W.nombre(B)} Moderación`);
+  W.pump(3);
+  assert.equal(C.dj.ambienteActual(), null, "no scene yet");
+  assert.deepEqual(B.dj.escena("viento"), { ok: true });
+  W.pump(3);
+  assert.deepEqual(C.dj.ambienteActual(), { ambiente: "viento-sierra", ganancia: 0.5 });
+  assert.deepEqual(ambienteDeEscena(C.dj.ambienteActual(), { ambiente: "ambiente-numinia" }), { id: "viento-sierra", ganancia: 0.5, sintetizado: undefined });
+  B.dj.escena("muda"); W.pump(3);
+  assert.deepEqual(C.dj.ambienteActual(), { ambiente: "-", ganancia: -1 });
+  assert.equal(ambienteDeEscena(C.dj.ambienteActual(), { ambiente: "ambiente-numinia" }).id, null, "silence");
+  let cambios = 0; C.dj.alCambiar((q) => { if (q === "actual") cambios++; });
+  B.dj.escena("sinsonido"); W.pump(3);
+  assert.deepEqual(C.dj.ambienteActual(), { ambiente: "", ganancia: -1 });
+  assert.equal(ambienteDeEscena(C.dj.ambienteActual(), { ambiente: "ambiente-numinia" }).id, "ambiente-numinia", "the world's own bed is back");
+  assert.ok(cambios >= 1, "the page is told so it can swap the bed");
+  assert.equal(C.dj.actual()?.id, "sinsonido");
 });
