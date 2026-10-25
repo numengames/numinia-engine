@@ -60,6 +60,7 @@ import { montarBienes } from "./bienes.ts";
 import { montarEntorno } from "./entorno.ts";
 import { montarDirector } from "./director.ts";
 import { dirigir } from "../../features/director/client.ts";
+import { ambienteDeEscena } from "../../features/director/feature.ts";
 import { montarGente } from "./gente.ts";
 import { rumboHacia } from "./foto-nucleo.ts"; // ux2-gente: «Saludar» turns you towards them first
 import { viajar } from "../../features/teletransporte/client.ts";
@@ -375,8 +376,12 @@ void import("./sonidos.ts").then(async (m) => {
   // El COLCHÓN de ambiente: solo si el mundo lo pide en su ficha (`audio.ambiente`), y con la ganancia que diga
   // (×0,042 por defecto, el volumen que quiso su autor). Encima manda el deslizador de «ambiente» del jugador: a cero,
   // ni arranca. Las camas y capas SINTETIZADAS siguen apagadas salvo las que el mundo nombre en `ambiente_sintetizado`.
+  // The Director's scene can bring a bed of its own (escena@1 `ambiente`): it replaces the world's while the scene is on, and a
+  // scene without one gives the world's back. Applied now (a scene may already be on) and at every scene change.
   const a = (await estadoP)?.audio;
-  if (a) puerta.ambiente({ id: a.ambiente ?? null, ganancia: a.ambiente_ganancia, sintetizado: a.ambiente_sintetizado });
+  const ponerAmbiente = () => { if (a || dirigir.ambienteActual()) puerta.ambiente(ambienteDeEscena(dirigir.ambienteActual(), a)); };
+  ponerAmbiente();
+  dirigir.alCambiar((que) => { if (que === "actual") ponerAmbiente(); });
 }).catch((e) => console.warn(`[sonidos] no se pudieron montar: ${(e as Error)?.message ?? e}`));
 
 // ---- U10: the microphone (button or Q): your voice to who is near; theirs from where they stand ----

@@ -3,21 +3,27 @@
 // a partial entorno@1 over the world's own environment, never the ground) plus an optional line of narration.
 //
 //   { "schema": "numinia-engine/escena@1", "nombre": "La taberna", "preset": "atardecer",
-//     "entorno": { "niebla": { "cerca": 8, "lejos": 60 } }, "narracion": "Huele a vino especiado." }
+//     "entorno": { "niebla": { "cerca": 8, "lejos": 60 } }, "narracion": "Huele a vino especiado.",
+//     "ambiente": "ambiente-numinia", "ambiente_ganancia": 0.1 }
+//
+// Its sound: `ambiente` is the id of a looping file of the sound catalogue that replaces the world's own bed while the scene
+// is on (`""` = that scene is silent); a scene without it gives the world's own bed back. `ambiente_ganancia` is its volume (×0…4).
 //
 // The look is applied by features/entorno (event `aplicar`): world's entorno.json → preset → the scene's entorno, so
 // changing from one scene to another never keeps leftovers of the first.
 import type { Issue, Result } from "../../packages/core/src/index.ts";
 import { validarEntorno } from "../entorno/esquema.ts";
 import { PRESETS } from "../entorno/feature.ts";
-import { ESCENAS_MAX, ID_MAX, NARRACION_MAX, NOMBRE_MAX } from "./feature.ts";
+import { AMBIENTE_MUNDO, AMBIENTE_SILENCIO, ESCENAS_MAX, GANANCIA_DEF, GANANCIA_MAX, ID_MAX, NARRACION_MAX, NOMBRE_MAX } from "./feature.ts";
 
 export const ESQUEMA_ESCENA = "numinia-engine/escena@1";
 /** The scene's environment travels to features/entorno as compact JSON in one 512-byte field. */
 export const ENTORNO_JSON_MAX = 512;
 const ID = /^[a-z0-9][a-z0-9-]{0,31}$/;
+const ID_SONIDO = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 
-export type Escena = { id: string; nombre: string; preset: string; entorno: string; narracion: string; casa: boolean };
+export type Escena = { id: string; nombre: string; preset: string; entorno: string; narracion: string; casa: boolean; ambiente: string; ganancia: number };
+/* `ambiente`: "" = the world's own bed, "-" = silence, else a catalogue id; `ganancia`: -1 = the default volume (see feature.ts). */
 
 const bytes = (s: string) => new TextEncoder().encode(s).length;
 
@@ -56,15 +62,26 @@ export function leerEscena(fichero: string, texto: string): Result<Escena> {
       if (bytes(entorno) > ENTORNO_JSON_MAX) issues.push({ path: "escena.entorno", message: `demasiado largo (${bytes(entorno)} bytes en JSON compacto; caben ${ENTORNO_JSON_MAX}): deja solo lo que la escena cambia, o pon un preset` });
     }
   }
+  let ambiente: string = AMBIENTE_MUNDO, ganancia = GANANCIA_DEF;
+  if (j.ambiente !== undefined) {
+    if (typeof j.ambiente !== "string" || (j.ambiente !== "" && !ID_SONIDO.test(j.ambiente))) issues.push({ path: "escena.ambiente", message: 'el id de un sonido en bucle del catálogo (minúsculas, cifras, guiones; p. ej. "ambiente-numinia") o "" para que esta escena no tenga ambiente' });
+    else ambiente = j.ambiente === "" ? AMBIENTE_SILENCIO : j.ambiente;
+  }
+  if (j.ambiente_ganancia !== undefined) {
+    const g = j.ambiente_ganancia;
+    if (typeof g !== "number" || !Number.isFinite(g) || g < 0 || g > GANANCIA_MAX) issues.push({ path: "escena.ambiente_ganancia", message: `un volumen entre 0 y ${GANANCIA_MAX} (×; 1 = el del fichero)` });
+    else if (j.ambiente === undefined) issues.push({ path: "escena.ambiente_ganancia", message: 'solo vale junto a "ambiente" (el id del sonido al que sube o baja)' });
+    else ganancia = Math.round(g * 1000) / 1000;
+  }
   if (preset === "" && entorno === "") issues.push({ path: "escena", message: "una escena necesita un \"preset\" o un \"entorno\" (o los dos)" });
   const narracion = j.narracion === undefined ? "" : j.narracion;
   if (typeof narracion !== "string" || bytes(narracion.trim()) > NARRACION_MAX) issues.push({ path: "escena.narracion", message: `una línea de hasta ${NARRACION_MAX} bytes (o quítala)` });
   if (issues.length) return { ok: false, issues };
-  return { ok: true, value: { id: id!, nombre, preset: String(preset), entorno, narracion: String(narracion).trim(), casa: false } };
+  return { ok: true, value: { id: id!, nombre, preset: String(preset), entorno, narracion: String(narracion).trim(), casa: false, ambiente, ganancia } };
 }
 
 /** The house presets as scenes anyone directing can put in any world (`/escena noche`). */
-export const ESCENAS_CASA: readonly Escena[] = PRESETS.map((p) => ({ id: p, nombre: p[0].toUpperCase() + p.slice(1), preset: p, entorno: "", narracion: "", casa: true }));
+export const ESCENAS_CASA: readonly Escena[] = PRESETS.map((p) => ({ id: p, nombre: p[0].toUpperCase() + p.slice(1), preset: p, entorno: "", narracion: "", casa: true, ambiente: AMBIENTE_MUNDO, ganancia: GANANCIA_DEF }));
 
 /** An adventure's scenes: every file checked; a wrong one is left out and logged with its path. Sorted by file name;
  * at most ESCENAS_MAX. */
