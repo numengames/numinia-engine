@@ -141,7 +141,7 @@ test("watch fingertip: a press needs < 1.5 cm over a button, fires once, re-arms
 
 // ── the menu: geometry and hit tests (p7) ──────────────────────────────────────────────────────────────────────────
 test("menu sections: the computer's seven, in its order, then Chat (v7), each with a name and a house icon", () => {
-  assert.deepEqual(SECCIONES.map((s) => ETIQUETAS[s]), ["Tú", "Gente", "Bolsa", "Misiones", "Mapa", "Construir", "Ajustes", "Chat"]);
+  assert.deepEqual(SECCIONES.map((s) => ETIQUETAS[s]), ["Tú", "Gente", "Bolsa", "Misiones", "Dónde estoy", "Construir", "Ajustes", "Chat"]);
   for (const s of SECCIONES) assert.ok(ICONOS[s]);
   assert.ok(!SECCIONES.some((s) => /salir|mandos/i.test(ETIQUETAS[s])), "«Salir de VR» is a header button, not a section");
   assert.equal(seccionDeId(idSeccion(0)), "tu"); assert.equal(seccionDeId(idSeccion(6)), "ajustes"); assert.equal(seccionDeId(idSeccion(7)), "chat"); assert.equal(seccionDeId(idSeccion(8)), null);

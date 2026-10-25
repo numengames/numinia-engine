@@ -48,6 +48,7 @@ html[data-aparato^="movil"] #barra-arriba > #menu-abrir { width: 44px; height: 4
 html[data-aparato^="movil"] body #minimapa { top: calc(var(--st) + 8px) !important; right: calc(var(--sr) + var(--m)) !important; bottom: auto !important; left: auto !important; width: 62px; height: 62px; padding: 0; border-radius: 50%; overflow: hidden; z-index: 6; gap: 0; align-items: center; justify-content: center; }
 html[data-aparato^="movil"] #minimapa canvas { width: 62px !important; height: 62px !important; border: 0 !important; box-shadow: none !important; }
 html[data-aparato^="movil"] #minimapa .botones { display: none !important; }
+html[data-aparato^="movil"] #minimapa .norte { display: none !important; } /* MIS-257: the folded phone minimap is one touch target: it opens the big view */
 
 /* ---- abajo a la derecha: UNA acción contextual grande + «…» ---- */
 html[data-aparato^="movil"] #accion {

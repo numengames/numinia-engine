@@ -22,6 +22,14 @@ export function desproyectar(v: Vista, px: number, py: number): { x: number; z: 
 /** Screen angle (rad, clockwise from up) of an arrow for someone facing `yaw` on a map turned by `giro`. */
 export const anguloFlecha = (giro: number, yaw: number): number => giro - yaw;
 
+/** Where north sits on the rim of a round minimap of radius `r` (px) centred at (c, c) and turned by `giro`: straight up
+ * when the map is north-up, swinging round as the map turns with the camera. The «north» button rides on this point. */
+export function puntoNorte(giro: number, c: number, r: number): { x: number; y: number } {
+  const v: Vista = { cx: 0, cz: 0, escala: 1, giro, ancho: 2 * c, alto: 2 * c }, n = proyectar(v, 0, -1000);
+  const dx = n.px - c, dy = n.py - c, l = Math.hypot(dx, dy) || 1;
+  return { x: c + (dx / l) * r, y: c + (dy / l) * r };
+}
+
 /** The yaw of a step (dx, dz): 0 = walking north (-z), + = turned left (three's rotation.y, like the camera). */
 export const yawDePaso = (dx: number, dz: number): number => Math.atan2(-dx, -dz);
 
