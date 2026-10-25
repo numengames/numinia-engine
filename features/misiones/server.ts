@@ -7,7 +7,7 @@ import type { ServerApi, ServerPart } from "../../packages/feature/src/index.ts"
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
 import { ACCIONES_PAGINA, cargarAventura, corta, LIM } from "./formato.ts";
 import type { Accion, Aventura, Fichero, Mision, Opcion, Pnj } from "./formato.ts";
-import { abandonar, aceptar, enTexto, esperaLlegada, HECHAS_MAX, leerProgreso, marcas, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
+import { abandonar, aceptar, asentar, enTexto, esperaLlegada, HECHAS_MAX, leerProgreso, marcas, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
 import type { Hecho, Progreso } from "./maquina.ts";
 import { esperando, faltaEspera, pendiente, proximaEspera } from "./maquina.ts"; // U14 (5): steps that wait
 import type { Suceso } from "./maquina.ts";
@@ -72,6 +72,13 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   const revisarLlegadas = (e: number) => { const p = prog(e), espera = esperaLlegada(p, A); for (const x of suyos(e)) { if (espera) llegadas.add(x); else llegadas.delete(x); } };
   /** U14 (5): when this player's next wait ends, for each of its connections (the tick sends them the book then). */
   const revisarEsperas = (e: number) => { const vence = proximaEspera(prog(e), A, ahora()); for (const x of suyos(e)) { if (vence === null) esperas.delete(x); else esperas.set(x, vence); } };
+  /** A finished grupo (mision@1 `grupo`) shows its counter complete for ~2 s (maquina.ts PAUSA_GRUPO_MS) and moves on at the
+   * player's next deliberate action or at its time (`ahora`, the tick's check): save, re-arm the checks, send the book. */
+  const asentarYa = (e: number, p: Progreso, porEvento: boolean): boolean => {
+    if (!asentar(p, A, ahora(), porEvento)) return false;
+    guardar(e, p); revisarLlegadas(e); revisarEsperas(e); enviarLibro(e);
+    return true;
+  };
   /** U14 (5): «Todavía no: faltan 7 s para «Abre el cofre…».» — when someone tries a step that still waits. */
   const todaviaNo = (w: { mision: string; paso: number; faltaMs: number }) => {
     const s = Math.max(1, Math.ceil(w.faltaMs / 1000)), texto = A.misiones.get(w.mision)?.pasos[w.paso]?.texto ?? "";
@@ -180,6 +187,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     const p = prog(e);
     if (ac.tipo === "dar_mision") return tomar(e, p, m);
     const x: Suceso = ac.tipo === "avanzar_paso" ? { tipo: "avanzar", pnj: n.id, mision: m.id, ahora: ahora() } : { tipo: "entregar", pnj: n.id, mision: m.id, ahora: ahora() };
+    asentarYa(e, p, true);
     const h = registrar(p, A, x);
     if (!h.length) { const w = esperando(p, A, x); return { ok: false, motivo: w ? todaviaNo(w) : ac.tipo === "avanzar_paso" ? "Eso ahora no toca." : `No llevas lo que ${n.nombre} espera.` }; }
     tras(e, p, h);
@@ -202,6 +210,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       if (!n) return rechazarP(e, "No hay nadie así por aquí.");
       if (!api.within(e, n.id)) return rechazarP(e, `Acércate a ${n.nombre} para hablar.`);
       const p = prog(e), x: Suceso = { tipo: "habla", pnj: n.id, ahora: ahora() };
+      asentarYa(e, p, true); // a finished grupo moves on before this talk (its dialogue reads the next block)
       const h = registrar(p, A, x); // steps that complete just by talking
       if (h.length) tras(e, p, h);
       else { const w = esperando(p, A, x); if (w) M?.emit("aviso", { texto: todaviaNo(w) }, { to: e }); } // U14 (5): it still waits
@@ -260,6 +269,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     const hizo = (e: number, ...hechos: { accion: string; modelo?: string; disparador?: string }[]) => {
       if (!conHace() || !api.puede(e, "construir")) return;
       const p = prog(e);
+      asentarYa(e, p, true);
       for (const x of hechos) { // one action per event: the first the quest asks for (a drag that moves and scales completes one step, not two)
         const h = registrar(p, A, { tipo: "hace", ...x, ahora: ahora() });
         if (h.length) return void tras(e, p, h);
@@ -338,6 +348,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       if (!c) return rechazarM(e, "No hay nada así por aquí.");
       if (!api.within(e, c.id)) return rechazarM(e, `Acércate más a ${c.nombre}.`);
       const p = prog(e), x: Suceso = { tipo: "usa", cosa: c.id, ahora: ahora() };
+      asentarYa(e, p, true);
       const h = registrar(p, A, x);
       if (!h.length) { const w = esperando(p, A, x); return rechazarM(e, w ? todaviaNo(w) : `Ahora no te hace falta ${c.nombre}.`); } // U14 (5): too early
       tras(e, p, h);
@@ -356,7 +367,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
         const ya = ahora();
         for (const [e, vence] of esperas) {
           if (ya < vence) continue;
-          enviarLibro(e, true); // this connection only: each of the player's tabs has its own entry
+          if (!asentarYa(e, prog(e), false)) enviarLibro(e, true); // a finished grupo moves on (the book goes to every tab); else this connection only: each of the player's tabs has its own entry
           const otra = proximaEspera(prog(e), A, ya);
           if (otra === null) esperas.delete(e); else esperas.set(e, otra);
         }

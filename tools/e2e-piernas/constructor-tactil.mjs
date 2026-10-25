@@ -2,7 +2,8 @@
 // Input.dispatchTouchEvent, which firefox does not offer). Tab A opens build mode, places a Bloque 3 m ahead through
 // the page API (placing with a finger is M22b-2's reticle), then: a tap on the block selects it (and does not turn the
 // camera); a one-finger drag of ~300 px moves it over the ground → B sees x/z change ≥ 1 m and the camera's yaw is
-// untouched; a tap on the empty ground deselects; Ctrl+Z brings it back for B (one undo step per drag); it is deleted.
+// untouched; a tap on the empty ground deselects; Ctrl+Z brings it back for B (one undo step per drag); lote4: two fingers
+// (first on the block, second anywhere) turn and scale it, one undo step; it is deleted.
 // Env: BASE, SERVER_HTTP (tools/auto.sh e2e), SHOTS=1 screenshots.
 import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
@@ -139,6 +140,39 @@ async function pierna() {
     await a.evaluate(() => globalThis.__numinia.constructor.deshacer());
     const vuelto = await esperaB(([k, w]) => { const o = globalThis.__numinia.session.features.stateOf("objetos").get(k); return !!o && Math.abs(o.x - w.x) < 0.01 && Math.abs(o.z - w.z) < 0.01; }, id, o0);
     paso("deshacer devuelve el arrastre en B", vuelto);
+    // 5b. lote4 (M22b-2): two fingers. The first rests on the block, the second joins 120 px to its right; the second then
+    // swings a quarter turn clockwise on the screen and out to 1.25x the distance → the block turns (yaw down by 90°) and
+    // grows 1.25x, B sees it, and ONE undo brings both back.
+    const dosDedos = async (c, p1, p2a, p2b, n = 14) => {
+      const pts = (a1, b1) => [{ x: a1.x, y: a1.y, radiusX: 8, radiusY: 8, force: 1, id: 1 }, ...(b1 ? [{ x: b1.x, y: b1.y, radiusX: 8, radiusY: 8, force: 1, id: 2 }] : [])];
+      await c.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pts(p1) });
+      await a.waitForTimeout(80);
+      await c.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pts(p1, p2a) });
+      await a.waitForTimeout(80);
+      for (let i = 1; i <= n; i++) {
+        const t = i / n, ang = (Math.PI / 2) * t, rad = 120 + 30 * t;
+        await c.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pts(p1, { x: p1.x + rad * Math.cos(ang), y: p1.y + rad * Math.sin(ang) }) });
+        await a.waitForTimeout(35);
+      }
+      await c.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    };
+    s = await pantalla(id);
+    await toque(a, cdp, s);
+    await a.waitForTimeout(300);
+    const antes2 = await a.evaluate((k) => globalThis.__numinia.view.editor.dondeEsta(k), id);
+    const dedo2 = { x: s.x + 120, y: s.y };
+    const libre2 = await a.evaluate((p) => document.elementFromPoint(p.x, p.y)?.tagName, dedo2);
+    paso("dos dedos: el segundo dedo cae sobre el mundo", libre2 === "CANVAS", { dedo2, libre2 });
+    await dosDedos(cdp, s, dedo2, null);
+    await a.waitForTimeout(600);
+    const dos = await a.evaluate((k) => globalThis.__numinia.view.editor.dondeEsta(k), id);
+    const yawC = await a.evaluate(() => globalThis.__numinia.view.cam.yaw());
+    const girado = Math.abs((((dos.ry - antes2.ry + 90) % 360) + 540) % 360 - 180) < 3; // -90° (clockwise fingers turn the thing clockwise seen from above)
+    paso("dos dedos: girar los dedos 90° gira el objeto 90°; separarlos lo escala 1,25", girado && Math.abs(dos.sx / antes2.sx - 1.25) < 0.04 && Math.abs(dos.sy / antes2.sy - 1.25) < 0.04 && Math.abs(yawC - yaw0) < 0.01, { antes: antes2, dos, yawC });
+    paso("dos dedos: llega a B", await esperaB(([k, w]) => { const o = globalThis.__numinia.session.features.stateOf("objetos").get(k); return !!o && Math.abs(o.sx - w.sx) < 0.011 && Math.abs(o.ry - w.ry) < 0.11; }, id, dos), { dos });
+    paso("dos dedos: el gesto terminó (nada sostenido)", await a.evaluate(() => globalThis.__numinia.view.editor.estado().sostenido === null));
+    await a.evaluate(() => globalThis.__numinia.constructor.deshacer());
+    paso("dos dedos: un solo deshacer devuelve giro y tamaño a B", await esperaB(([k, w]) => { const o = globalThis.__numinia.session.features.stateOf("objetos").get(k); return !!o && Math.abs(o.sx - w.sx) < 0.011 && Math.abs(o.ry - w.ry) < 0.11; }, id, { sx: antes2.sx, ry: antes2.ry }));
     if (process.env.SHOTS === "1") await a.screenshot({ path: "e2e-constructor-tactil.png" });
     // 6. delete through the API; B sees it gone
     await a.evaluate((k) => { const c = globalThis.__numinia.constructor; c.seleccionar(k); c.borrar(); }, id);

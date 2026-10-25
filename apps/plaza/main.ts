@@ -191,7 +191,7 @@ const session = new ClientSession(transport, {
 
     elemento: (k, v) => view.elementos.poner(k, v),
     // N18: what each person wears (features/bienes): a good's model in a hand or on the head
-    lleva: (e, v) => view.vestir(e === session.entity ? "self" : e, v),
+    lleva: (e, v, ranura) => view.vestir(e === session.entity ? "self" : e, v, ranura),
     // D-045: a fade when the server puts me back on a safe spot (features/suelo); the live region reads the announcement
     fundido: (ms) => { const f = document.getElementById("fundido")!; f.style.transition = "none"; f.style.opacity = "1"; f.offsetHeight; f.style.transition = `opacity ${ms}ms ease-out`; f.style.opacity = "0"; f.dataset.ultimo = String(Date.now()); },
     // J7b: the moves of the wheel, played on the avatar's VRM (false = a capsule: the feature shows a label)
@@ -412,7 +412,7 @@ void import("./sonidos.ts").then(async (m) => {
 const voz = montarVoz({ session, view: { label: (t, text, ms) => view.label(t, text, ms), cam: view.cam, voz: (id, nivel) => view.voz(id, nivel) }, escribiendo, ajuste: leerAjuste, vr: { activo: () => view.vr.active, cerrada: () => condiciones.cerrada(), nota: (t) => view.vr.nota(t) }, decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } } });
 
 // ---- M18b: the Graboso (button or K): out = recording what your camera sees + your microphone, 30–60 s hard cap, then a clip to download ----
-const graboso = montarGraboso({ lienzo: view.renderer.domElement, view, xr: { presentando: () => view.renderer.xr.isPresenting, espejo: view.espejoGrabar }, barra: document.getElementById("barra-arriba"), decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } } });
+const graboso = montarGraboso({ lienzo: view.renderer.domElement, view, xr: { presentando: () => view.renderer.xr.isPresenting, espejo: view.espejoGrabar }, barra: document.getElementById("barra-arriba"), permiso: { libre: () => inventarioCtl.grabosoLibre(), alCambiar: inventarioCtl.alCambiar }, decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } } });
 
 // ---- J3: the chat box (Enter opens, Enter sends, Escape closes; a «Chat» button on touch screens) ----
 const cajaChat = montarChat(chatDePagina, document.getElementById("chat")!);

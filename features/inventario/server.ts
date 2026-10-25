@@ -6,13 +6,22 @@
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
 import { inventario } from "./feature.ts";
-import { BOLSA_HUECOS, PAGINAS_MAX, dar, desequipar, equipar, juntar, leerInventario, nuevoInventario, quitar, trocear } from "./reglas.ts";
+import { comoEntrega, leerCatalogo } from "./objeto.ts";
+import { BOLSA_HUECOS, PAGINAS_MAX, armaEnMano, dar, mundoDefineGraboso, desequipar, equipar, juntar, leerInventario, nuevoInventario, quitar, trocear } from "./reglas.ts";
 import type { Color, Entrega, Inventario, Objeto, Tipo } from "./reglas.ts";
 
 /** Who hands objects over today. A feature not on this server is logged by `listen` and simply never heard. */
 export const DONANTES: [feature: string, event: string][] = [["misiones", "otorga"], ["pesca", "otorga"]];
 
-export const crearInventario = (opts: { donantes?: [string, string][] } = {}) => serverPart(inventario, (api: ServerApi) => {
+/** `donantes` and `objetos` are for tests: the world's object files default to `<aventura>/objetos/` (api.aventura). */
+export const crearInventario = (opts: { donantes?: [string, string][]; objetos?: () => { fichero: string; texto: string }[] } = {}) => serverPart(inventario, (api: ServerApi) => {
+  const ficherosObjetos = () => (opts.objetos ?? (() => api.aventura("objetos")))();
+  const ficheros = ficherosObjetos();
+  const exigeGraboso = mundoDefineGraboso(ficheros); // t_f87ffb93: read once, the world's files do not change under a running server
+  // Y3: the weapons and relics this adventure defines (objeto@1); a broken file is said once, in the log, and skipped
+  const catalogo = leerCatalogo(ficheros);
+  for (const p of catalogo.problemas) api.log(`inventario: objeto@1 inválido — ${p}`);
+  for (const a of catalogo.avisos) api.log(`inventario: objeto@1 — ${a}`);
   const cache = new Map<string, Inventario>();   // "g:<guest>" (saved) or "e<entity>" (no identity: memory only)
   const claveDe = new Map<number, string>();      // entity -> its key (who() is gone by onLeave)
 
@@ -38,13 +47,22 @@ export const crearInventario = (opts: { donantes?: [string, string][] } = {}) =>
   /** Every connection of the same guest (two tabs share the Reserva); just this one without identity. */
   const suyos = (e: number): number[] => { const k = claveDe.get(e) ?? clave(e); return k.startsWith("g:") ? api.players().filter((x) => claveDe.get(x) === k) : [e]; };
 
-  const objetoMsg = (o: Objeto): Msg => ({ id: o.id, tipo: o.tipo, clase: o.clase, nombre: o.nombre, icono: o.icono, color: o.color, valor: o.valor, n: o.n, portado: o.portado });
+  const objetoMsg = (o: Objeto): Msg => ({ id: o.id, tipo: o.tipo, clase: o.clase, nombre: o.nombre, icono: o.icono, color: o.color, valor: o.valor, n: o.n, portado: o.portado, modelo: o.modelo, competencia: o.competencia, riesgo: o.riesgo });
+  /** t_31e1f7ea: the carried weapon in the hand of every connection of this guest (shared state `a:<entity>`, drawn by every page); taken off when nothing is carried or this server does not hold the model. */
+  const armarMano = (e: number) => {
+    const arma = armaEnMano(inv(e));
+    for (const x of suyos(e)) {
+      if (arma && api.activo(arma.modelo)) api.state.set(`a:${x}`, { ent: x, modelo: arma.modelo, nombre: arma.nombre });
+      else if (api.state.get(`a:${x}`) !== undefined) api.state.delete(`a:${x}`);
+    }
+  };
   const enviar = (e: number) => {
     const i = inv(e);
     for (const x of suyos(e)) {
-      api.emit("lista", { total: i.objetos.length, huecos: BOLSA_HUECOS }, { to: x });
+      api.emit("lista", { total: i.objetos.length, huecos: BOLSA_HUECOS, graboso: exigeGraboso }, { to: x });
       for (const o of i.objetos) api.emit("objeto", objetoMsg(o), { to: x });
     }
+    armarMano(e);
   };
   const rechazar = (e: number, motivo: string, llena = false) => api.emit("rechazado", { motivo, llena }, { to: e });
   const tras = (e: number, i: Inventario) => { guardar(e, i); enviar(e); };
@@ -63,7 +81,14 @@ export const crearInventario = (opts: { donantes?: [string, string][] } = {}) =>
     api.listen(f, ev, (m) => {
       const e = Number(m.quien);
       if (!Number.isInteger(e) || !api.players().includes(e)) return;
-      const r = otorgar(e, { tipo: String(m.tipo) as Tipo, clase: String(m.clase ?? ""), nombre: String(m.nombre ?? ""), icono: typeof m.icono === "string" ? m.icono : "", color: (typeof m.color === "string" ? m.color : "") as Color, valor: typeof m.valor === "number" ? m.valor : undefined, n: typeof m.n === "number" ? m.n : 1 });
+      // Y3: `objeto` = the id of an objeto@1 of this adventure → what the adventure defined is what is handed over (the rest of the event is ignored)
+      const idObjeto = typeof m.objeto === "string" ? m.objeto : "";
+      if (idObjeto) {
+        const d = catalogo.objetos.get(idObjeto);
+        if (!d) { api.log(`inventario: ${f}.${ev} pide el objeto «${idObjeto}», que esta aventura no define (o es inválido)`); return false; }
+        return otorgar(e, comoEntrega(d)).ok;
+      }
+      const r = otorgar(e, { tipo: String(m.tipo) as Tipo, clase: String(m.clase ?? ""), nombre: String(m.nombre ?? ""), icono: typeof m.icono === "string" ? m.icono : "", color: (typeof m.color === "string" ? m.color : "") as Color, valor: typeof m.valor === "number" ? m.valor : undefined, n: typeof m.n === "number" ? m.n : 1, modelo: typeof m.modelo === "string" ? m.modelo : "" });
       return r.ok; // «handled» = it is in the Reserva (a full Bolsa says no: the donor can tell its player)
     });
   }
@@ -81,7 +106,7 @@ export const crearInventario = (opts: { donantes?: [string, string][] } = {}) =>
     cache.set(`g:${sub}`, junto); cache.delete(`g:${invitado}`); borrar(invitado);
     for (const x of api.players()) if (claveDe.get(x) === `g:${sub}`) enviar(x);
   });
-  api.onLeave((e) => { const k = claveDe.get(e); claveDe.delete(e); if (k && !k.startsWith("g:")) cache.delete(k); else if (k && ![...claveDe.values()].includes(k)) cache.delete(k); });
+  api.onLeave((e) => { if (api.state.get(`a:${e}`) !== undefined) api.state.delete(`a:${e}`); const k = claveDe.get(e); claveDe.delete(e); if (k && !k.startsWith("g:")) cache.delete(k); else if (k && ![...claveDe.values()].includes(k)) cache.delete(k); });
 
   api.on("equipar", (e, m) => { const i = inv(e), r = equipar(i, String(m.id)); if (!r.ok) return rechazar(e, r.motivo); tras(e, i); });
   api.on("desequipar", (e, m) => { const i = inv(e), r = desequipar(i, String(m.id)); if (!r.ok) return rechazar(e, r.motivo, r.llena === true); tras(e, i); });

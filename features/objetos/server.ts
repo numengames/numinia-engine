@@ -99,8 +99,11 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     const ultimo = pila[pila.length - 1], ahora = api.tick();
     // M22c: a group action (move/delete/pin several at once) tags every message with the same `lote`; while the
     // tag is fresh (within a second) they all land on the one entry that started it, so undo takes them back together.
-    if (opts.lote && ultimo?.lote === opts.lote && ahora - ultimo.tick <= TICK_HZ && !ultimo.items.some((it) => it.id === item.id)) {
-      ultimo.items.push(item); ultimo.tick = ahora; return;
+    // Lote4: a thing sent again with the same tag (the primary of a group drag sends every 125 ms) keeps its FIRST
+    // `antes`, so one undo takes it back to before the whole drag, not to the previous step of the drag.
+    if (opts.lote && ultimo?.lote === opts.lote && ahora - ultimo.tick <= TICK_HZ) {
+      if (!ultimo.items.some((it) => it.id === item.id)) ultimo.items.push(item);
+      ultimo.tick = ahora; return;
     }
     // a drag sends many moves: within a second they are one change (undo goes back to before the drag)
     if (opts.mover && !opts.lote && ultimo?.mover && !ultimo.lote && ultimo.items.length === 1 && ultimo.items[0].id === item.id && ahora - ultimo.tick <= TICK_HZ) { ultimo.tick = ahora; return; }

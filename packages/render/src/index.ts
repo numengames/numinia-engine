@@ -36,6 +36,7 @@ import type { Medio, ControlVideo } from "./medios.ts";
 export { sePuedeReproducir } from "./medios.ts";
 export type { ControlVideo } from "./medios.ts";
 export type { Donde, Eje, Herramienta, Fase, Paso, Editor } from "./gizmo.ts";
+export { transformarGrupo, centroGrupo } from "./grupo.ts";
 import { createAvatares } from "./avatares.ts";
 import { asentadoEn, sueloDeVista } from "./avatares-politica.ts";
 import type { SueloTerreno } from "./avatares-politica.ts";
@@ -260,7 +261,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     on(fn: (e: EventoMano) => void) { oyentesManos.add(fn); return () => oyentesManos.delete(fn); },
     ancla: (l: "izq" | "der") => manosReal?.ancla(l) ?? null,
     rayo: (l: "izq" | "der") => manosReal?.rayo(l) ?? null,
-    andar: () => manosReal?.andar() ?? null,
+    andar: (excluida?: "izq" | "der" | null) => manosReal?.andar(excluida) ?? null,
+    takeSalto: () => manosReal?.takeSalto() ?? false, // t_8d0bc2dd: both wrists flicked up
+    reiniciarSalto: () => manosReal?.reiniciarSalto(),
     dirMando: (l: "izq" | "der") => manosReal?.dirMando(l) ?? null,
     muneca: (l: "izq" | "der", pos: THREE.Vector3, rot: THREE.Quaternion) => manosReal?.muneca(l, pos, rot) ?? null, // rediseño v2: the wrist watch
     punta: (l: "izq" | "der", pos: THREE.Vector3) => manosReal?.punta(l, pos) ?? false,
@@ -1188,7 +1191,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     llevando(): Record<string, Llevar> { return Object.fromEntries(llevados); },
     /** N18: put one of a person's goods (a model by its sha256) in their right hand or on their head, for everyone who
      * sees them (`"self"` = you); `null` takes it off. features/bienes decides who wears what (view.lleva). */
-    vestir(t: Target, p: { model: string; donde: "mano" | "cabeza"; nombre?: string } | null): void { puestos.poner(t, p); },
+    vestir(t: Target, p: { model: string; donde: "mano" | "cabeza"; nombre?: string } | null, ranura?: "arma"): void { puestos.poner(t, p, ranura); },
     /** N18: a model (sha256) turning in its own small canvas — the sheet's «ver en 3D». Close it when it goes away. */
     vitrina(canvas: HTMLCanvasElement, model: string) { return crearVitrina(canvas, async () => (await getTools()).load(assetUrl(model)).then((g) => g.scene as THREE.Object3D), { pixelRatio: renderer.getPixelRatio() }); },
     /** N18 (for checks): who wears what, loaded, drawn this frame, and at what height. */

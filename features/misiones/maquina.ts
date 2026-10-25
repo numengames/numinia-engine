@@ -11,7 +11,11 @@ import type { Aventura, Condicion, Mision, Nodo, Opcion, Paso, Pnj } from "./for
 /** An active quest: the index of the step it is on (the first of its block), the things it carries (taken or given,
  * for `entrega`) and the ids of the steps already done inside the current block (`grupo`; empty outside blocks).
  * U14 (5): `desde` = when that block became the one to do (ms of the server's clock; absent = no wait counts). */
-export type Activa = { paso: number; tiene: string[]; hechos: string[]; desde?: number };
+export type Activa = { paso: number; tiene: string[]; hechos: string[]; desde?: number; cierra?: number };
+/** A finished grupo (two or more steps, with a next step after it) stays on screen complete — «Piezas reunidas 3/3» — for this
+ * long before the quest moves on: `cierra` = when it moves on (ms of the server's clock), `hechos` still lists the whole block.
+ * It ends sooner at the player's next deliberate action (any event but the arrival checks). Without a clock nothing waits. */
+export const PAUSA_GRUPO_MS = 2000;
 /** One player's quests, as the server keeps it (store `p:<guest>`). Plain JSON. */
 export type Progreso = { v: 1; activas: Record<string, Activa>; hechas: string[]; seguida: string };
 export const ACTIVAS_MAX = 16;
@@ -33,6 +37,7 @@ export function leerProgreso(v: unknown): Progreso {
       if (!ID.test(id) || typeof x !== "object" || x === null || !Number.isInteger(x.paso) || Number(x.paso) < 0) continue;
       p.activas[id] = { paso: Number(x.paso), tiene: ids(x.tiene, 16), hechos: [...new Set(ids(x.hechos, LIM.pasos))] };
       if (typeof x.desde === "number" && Number.isFinite(x.desde) && x.desde >= 0) p.activas[id].desde = x.desde;
+      if (typeof (x as { cierra?: unknown }).cierra === "number" && Number.isFinite((x as { cierra: number }).cierra) && (x as { cierra: number }).cierra >= 0) p.activas[id].cierra = (x as { cierra: number }).cierra;
     }
   }
   if (Array.isArray(o.hechas)) p.hechas = o.hechas.filter((h): h is string => typeof h === "string" && ID.test(h)).slice(-HECHAS_MAX);
@@ -76,6 +81,7 @@ export function proximaEspera(p: Progreso, a: Aventura, ahora: number): number |
   for (const [id, act] of Object.entries(p.activas)) {
     const m = a.misiones.get(id);
     if (!m) continue;
+    if (act.cierra !== undefined && (min === null || act.cierra < min)) min = act.cierra; // a finished grupo moves on then
     for (let n = act.paso, fin = finBloque(m, act.paso); n < fin; n++) {
       if (act.hechos.includes(m.pasos[n].id)) continue;
       const falta = faltaEspera(m, act, n, ahora);
@@ -83,6 +89,23 @@ export function proximaEspera(p: Progreso, a: Aventura, ahora: number): number |
     }
   }
   return min;
+}
+
+/** The quest leaves a finished grupo: on to the block after it. Its waits (`desde`) already count from the moment the grupo was
+ * done, so the pause is only what the page shows — no step opens later because of it. */
+function cerrarBloque(m: Mision, act: Activa): void {
+  act.paso = finBloque(m, act.paso); act.hechos = []; delete act.cierra;
+}
+/** Let the finished grupos move on: at their time (`ahora` >= `cierra`), or at once when the player did something
+ * (`porEvento`: any deliberate action, so the next step's first event meets the next block). True when anything moved. */
+export function asentar(p: Progreso, a: Aventura, ahora?: number, porEvento = false): boolean {
+  let cambio = false;
+  for (const [id, act] of Object.entries(p.activas)) {
+    const m = a.misiones.get(id);
+    if (!m || act.cierra === undefined) continue;
+    if (ahora === undefined || ahora >= act.cierra || porEvento) { cerrarBloque(m, act); cambio = true; }
+  }
+  return cambio;
 }
 
 export type EstadoMision = "sin_empezar" | "activa" | "hecha";
@@ -155,6 +178,10 @@ export function registrar(p: Progreso, a: Aventura, x: Suceso): Hecho[] {
   for (const [id, act] of Object.entries(p.activas)) {
     const m = a.misiones.get(id);
     if (!m) continue;
+    if (act.cierra !== undefined) { // a finished grupo is still on screen: it moves on at its time or at the first deliberate action
+      if (x.ahora === undefined || x.ahora >= act.cierra || x.tipo !== "llega") cerrarBloque(m, act);
+      else continue; // an arrival check inside the pause: the finished block has nothing left to do
+    }
     const fin = finBloque(m, act.paso);
     let n = act.paso;
     while (n < fin && (act.hechos.includes(m.pasos[n].id) || faltaEspera(m, act, n, x.ahora) > 0 || !cumplePaso(m.pasos[n], act, m, a, x))) n++;
@@ -164,8 +191,13 @@ export function registrar(p: Progreso, a: Aventura, x: Suceso): Hecho[] {
     if (s.tipo === "entrega") { const dadas = cosasDe(s); act.tiene = act.tiene.filter((c) => !dadas.includes(c)); }
     act.hechos.push(s.id);
     if (m.pasos.slice(act.paso, fin).every((q) => act.hechos.includes(q.id))) { // the whole block: on to the next, which starts counting now
-      act.paso = fin; act.hechos = [];
-      if (x.ahora !== undefined && conEsperas(m)) act.desde = x.ahora; else delete act.desde;
+      if (x.ahora !== undefined && fin < m.pasos.length && fin - act.paso > 1 && m.pasos[act.paso].grupo) { // a grupo with something after it: its counter stays complete for a moment first
+        act.cierra = x.ahora + PAUSA_GRUPO_MS;
+        if (conEsperas(m)) act.desde = x.ahora; else delete act.desde; // the next block's waits count from now, as always
+      } else {
+        act.paso = fin; act.hechos = [];
+        if (x.ahora !== undefined && conEsperas(m)) act.desde = x.ahora; else delete act.desde;
+      }
     }
     const completada = act.paso >= m.pasos.length;
     out.push({ mision: id, paso: n, completada });
