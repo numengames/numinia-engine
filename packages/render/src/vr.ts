@@ -24,6 +24,7 @@ import { empujaFuera } from "./vr-paredes.ts";
 import { completarSesionXR, textoDeFallo } from "./xr-compat.ts"; // old headset browsers lack XRSession.enabledFeatures (Chrome 105)
 import { calentarOcultos } from "./precompilar.ts"; // MIS-200: warm what only VR draws while it is still hidden
 import { crearEstable } from "./entrada-estable.ts"; // MIS-200: no VR drawing until the first calm frames
+import { aplicarRendimiento, normalizarRendimiento, pedirFrecuencia, type RendererLike, type RendimientoXR, RENDIMIENTO_DEFECTO } from "./rendimiento-xr.ts"; // MIS-200: foveation, scale, multiview, 72 Hz
 import { audio } from "./audio/nucleo.ts"; // S1: the engine's one audio graph (it sleeps when the session ends)
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
 export type ManosXR = { cargar(): Promise<unknown>;
@@ -303,6 +304,7 @@ export function createVR(h: VRHooks) {
   let session: any = null;
   let comfort = 0.8; // 0 = off, 1 = strongest
   let modoMovimiento: ModoMovimientoVR = "mirada"; // t_bf8947cf: settings menu, remembered by the registry
+  let rendimiento: RendimientoXR = { ...RENDIMIENTO_DEFECTO }; // MIS-200: «Rendimiento en gafas», applied on entering
   let giroDeg: number = SNAP_DEG, yawDeg = 0, velocidad = 1, alturaM = 0; // rediseño v2: the menu's VR settings
   let moveX = 0, moveZ = 0, turnLatched = false, strength = 0, navLatched = false;
   let ultimoFotograma = 0; // performance.now() of the last update(): axes() goes stale after INTENCION_CADUCA_MS
@@ -397,8 +399,10 @@ export function createVR(h: VRHooks) {
       await manosListas; // still before setSession: the session is not handed to three until the hands exist
       h.renderer.xr.enabled = true;
       h.renderer.xr.setReferenceSpaceType("local-floor");
+      aplicarRendimiento(h.renderer as unknown as RendererLike, rendimiento); // scale + multiview are read by setSession
       await h.renderer.xr.setSession(session);
       // Nothing of VR is shown yet (rig stays hidden): the world is all you see until update() finds calm frames (mostrarVR).
+      void pedirFrecuencia(session); // Quest lists 72 Hz; Pico (Chrome 105) has no list: nothing happens
       rig.add(h.camera);
       h.camera.add(vignette, nota);
       h.manos?.montar(rig);
@@ -574,6 +578,12 @@ export function createVR(h: VRHooks) {
     set manoMenu(v: ManoMenuVR) { elegirManoMenu(v === "der" ? "der" : "izq"); },
     get yawDegrees() { return yawDeg; },
     /** Rediseño v2 (VR settings): snap turn step (one of GIROS_DEG), stick pace (0.4..1) and the floor's lift (m). */
+    /** MIS-200 «Rendimiento en gafas»: foveation (live), scale and multiview (read on the next entry). */
+    get rendimiento() { return rendimiento; },
+    set rendimiento(v: Partial<RendimientoXR>) {
+      rendimiento = normalizarRendimiento({ ...rendimiento, ...v });
+      if (session) h.renderer.xr.setFoveation(rendimiento.foveacion); // the only one that works while presenting
+    },
     get giroGrados() { return giroDeg; },
     set giroGrados(v: number) { giroDeg = (GIROS_DEG as readonly number[]).includes(v) ? v : SNAP_DEG; },
     get velocidad() { return velocidad; },
