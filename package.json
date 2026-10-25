@@ -1,7 +1,7 @@
 {
   "name": "numinia-engine",
   "private": true,
-  "version": "0.53.0",
+  "version": "0.53.1",
   "license": "AGPL-3.0-only",
   "type": "module",
   "engines": {
