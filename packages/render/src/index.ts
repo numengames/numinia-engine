@@ -1134,6 +1134,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** Lote 5: the little hop of a clicked thing (reaccion.ts) for each key given; the keys not placed are ignored. Local: nothing is sent. */
     reaccionar(keys: readonly string[]): number { const t = performance.now(); let n = 0; for (const k of keys) if (things.has(k) && !k.startsWith("~")) { reacciones.set(k, t); n++; } return n; },
+    /** For checks: where a placed thing is drawn right now (position and scale), or null. */
+    dibujadoDe(key: string): { x: number; y: number; z: number; sx: number; sy: number } | null { const g = things.get(key)?.group; return g ? { x: g.position.x, y: g.position.y, z: g.position.z, sx: g.scale.x, sy: g.scale.y } : null; },
     /** For checks: the things hopping right now. */
     reaccionando(): string[] { return [...reacciones.keys()]; },
     /** H1: things placed, how many have their model drawn, and how many failed to load (for checks). `~` keys = the page's previews, not counted. */
