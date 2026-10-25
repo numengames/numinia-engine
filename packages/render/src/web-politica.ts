@@ -34,3 +34,15 @@ export function tapadoPorCajas(a: { x: number; y: number; z: number }, b: { x: n
   return false;
 }
 
+/** Is the client point (x, y) inside the convex quad `q` (4 corners, in order)? Pure. */
+export function puntoEnCuadrilatero(q: readonly { x: number; y: number }[], x: number, y: number): boolean {
+  let signo = 0;
+  for (let i = 0; i < q.length; i++) {
+    const a = q[i], b = q[(i + 1) % q.length], c = (b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x);
+    if (Math.abs(c) < 1e-9) continue;
+    const s = c > 0 ? 1 : -1;
+    if (signo && s !== signo) return false;
+    signo = s;
+  }
+  return signo !== 0;
+}

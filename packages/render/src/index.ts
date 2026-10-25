@@ -143,7 +143,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // 16-10 over USB): there a WebGPU page can never enter VR or AR. Devices that can do XR but not XR-on-WebGPU draw
   // with WebGL2 from the start (the backend cannot change later).
   const xrSinGpu = typeof (globalThis as { XRGPUBinding?: unknown }).XRGPUBinding === "undefined" && (await vrSupported() || await arSupported());
-  const renderer = new THREE.WebGPURenderer({ antialias: !power.mobile, forceWebGL: !!opts.forceWebGL || xrSinGpu, powerPreference: power.mobile ? "low-power" : "high-performance" });
+  const renderer = new THREE.WebGPURenderer({ antialias: !power.mobile, alpha: !power.mobile, /* H8: a transparent canvas lets a web screen's page show through the hole its panel punches (desktop only) */ forceWebGL: !!opts.forceWebGL || xrSinGpu, powerPreference: power.mobile ? "low-power" : "high-performance" });
   usarRenderer(renderer); // N22: KTX2 textures transcode to what this GPU takes
   await renderer.init();
   const backend: Backend = (renderer as unknown as { backend: { isWebGPUBackend?: boolean } }).backend.isWebGPUBackend ? "WebGPU" : "WebGL2";
@@ -348,7 +348,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     visible: (q) => (q === "self" ? selfMat.visible : true),
     hueso: (q, donde, out) => (donde === "mano" ? avs.mano(q === "self" ? "yo" : q, "derecha", out) : avs.cabeza(q === "self" ? "yo" : q, out)),
     rumbo: (q) => avs.rumbo(q === "self" ? "yo" : q) });
-  const web = crearPantallasWeb({ world, camera, enXR: () => renderer.xr.isPresenting, cajas: () => cajasM }); // N17: web screens (web.ts)
+  const web = crearPantallasWeb({ world, camera, enXR: () => renderer.xr.isPresenting, cajas: () => cajasM, agujero: () => !power.mobile && !ppVivo && !!matchMedia?.("(pointer: fine)").matches, lienzo: renderer.domElement }); // N17: web screens (web.ts); H8: hole-punch on a desktop
   // M18b: the Graboso, the relic that records, over your right shoulder (lazy: packages/render/src/graboso.ts, fetched at the first invocation)
   const grabosoPos = new THREE.Vector3();
   let graboso3d: import("./graboso.ts").Graboso3D | null = null, grabosoCarga: Promise<void> | null = null;
@@ -998,6 +998,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     backend,
     power,
     renderer,
+    /** The world's camera (checks project points through it). */
+    camera,
     /** T1: the graphics chip as the browser names it ("" when it hides it). Read once at start (B3), then remembered. */
     gpu(): Promise<string> { return gpuNombre; },
     /** T1: refresh rate of the XR session (Hz); 0 outside XR or when the browser does not say. */
