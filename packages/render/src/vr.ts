@@ -21,6 +21,7 @@ import type { CondicionesVR } from "./condiciones-vr.ts"; // types only: the ent
 import { ID_BARRA, palancaPagina, palancasDelPanel, type EntradaMano, type LadoMano, type ModeloVR, type Zona } from "./condiciones-vr-geom.ts"; // pure numbers, no three.js
 import { empujaFuera } from "./vr-paredes.ts";
 import { completarSesionXR, textoDeFallo } from "./xr-compat.ts"; // old headset browsers lack XRSession.enabledFeatures (Chrome 105)
+import { aplicarRendimiento, normalizarRendimiento, pedirFrecuencia, type RendererLike, type RendimientoXR, RENDIMIENTO_DEFECTO } from "./rendimiento-xr.ts"; // MIS-200: foveation, scale, multiview, 72 Hz
 import { audio } from "./audio/nucleo.ts"; // S1: the engine's one audio graph (it sleeps when the session ends)
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
 export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void; andar?(): [number, number] | null;
@@ -292,6 +293,7 @@ export function createVR(h: VRHooks) {
   let session: any = null;
   let comfort = 0.8; // 0 = off, 1 = strongest
   let modoMovimiento: ModoMovimientoVR = "mirada"; // t_bf8947cf: settings menu, remembered by the registry
+  let rendimiento: RendimientoXR = { ...RENDIMIENTO_DEFECTO }; // MIS-200: «Rendimiento en gafas», applied on entering
   let giroDeg: number = SNAP_DEG, yawDeg = 0, velocidad = 1, alturaM = 0; // rediseño v2: the menu's VR settings
   let moveX = 0, moveZ = 0, turnLatched = false, strength = 0, navLatched = false;
   let ultimoFotograma = 0; // performance.now() of the last update(): axes() goes stale after INTENCION_CADUCA_MS
@@ -365,7 +367,9 @@ export function createVR(h: VRHooks) {
     try {
       h.renderer.xr.enabled = true;
       h.renderer.xr.setReferenceSpaceType("local-floor");
+      aplicarRendimiento(h.renderer as unknown as RendererLike, rendimiento); // scale + multiview are read by setSession
       await h.renderer.xr.setSession(session);
+      void pedirFrecuencia(session); // Quest lists 72 Hz; Pico (Chrome 105) has no list: nothing happens
       await h.manos?.cargar().catch(() => {}); // after requestSession (it needs the click's activation); prefetched by the view
       rig.add(h.camera);
       h.camera.add(vignette, nota);
@@ -530,6 +534,12 @@ export function createVR(h: VRHooks) {
     set modoMovimiento(v: ModoMovimientoVR) { modoMovimiento = v === "mando" || v === "cuerpo" ? v : "mirada"; },
     get yawDegrees() { return yawDeg; },
     /** Rediseño v2 (VR settings): snap turn step (one of GIROS_DEG), stick pace (0.4..1) and the floor's lift (m). */
+    /** MIS-200 «Rendimiento en gafas»: foveation (live), scale and multiview (read on the next entry). */
+    get rendimiento() { return rendimiento; },
+    set rendimiento(v: Partial<RendimientoXR>) {
+      rendimiento = normalizarRendimiento({ ...rendimiento, ...v });
+      if (session) h.renderer.xr.setFoveation(rendimiento.foveacion); // the only one that works while presenting
+    },
     get giroGrados() { return giroDeg; },
     set giroGrados(v: number) { giroDeg = (GIROS_DEG as readonly number[]).includes(v) ? v : SNAP_DEG; },
     get velocidad() { return velocidad; },

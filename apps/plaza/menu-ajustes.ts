@@ -134,6 +134,10 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   a.alAplicar("controles.velocidadVR", (v) => { view.vr.velocidad = Number(v) / 100; });
   a.alAplicar("controles.confortVR", (v) => { view.vr.comfort = Number(v) / 100; });
   a.alAplicar("controles.alturaVR", (v) => { view.vr.alturaM = Number(v) / 100; });
+  // MIS-200: «Rendimiento en gafas» (foveation live; scale and multiview on the next entry)
+  a.alAplicar("graficos.foveacionVR", (v) => { view.vr.rendimiento = { foveacion: Number(v) }; });
+  a.alAplicar("graficos.escalaVR", (v) => { view.vr.rendimiento = { escala: Number(v) }; });
+  a.alAplicar("graficos.multiviewVR", (v) => { view.vr.rendimiento = { multiview: v === true }; });
   a.alAplicar("accesibilidad.menosMovimiento", (v) => { html.classList.toggle("menos-movimiento", v === true); });
   a.alAplicar("accesibilidad.textoGrande", (v) => { html.classList.toggle("texto-grande", v === true); });
   a.alAplicar("accesibilidad.altoContraste", (v) => { html.classList.toggle("alto-contraste", v === true); });
