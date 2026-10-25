@@ -169,3 +169,16 @@ test("AR wall bar: the gold window is the server's ZONA_FUERZA.ar tall (centred 
     assert.equal(notas.length, 2, "two notches, one each side");
   } finally { delete (globalThis as { document?: unknown }).document; }
 });
+
+test("AR wall board: nothing under it is a lit material (the Quest drew the lit ones black in AR «En tu pared»), the plaza's boards stay lit", async () => {
+  const noop: unknown = new Proxy(function () {}, { get: (_t, k) => (k === "measureText" ? () => ({ width: 10 }) : k === "createRadialGradient" || k === "createLinearGradient" ? () => ({ addColorStop() {} }) : noop), apply: () => noop, set: () => true });
+  (globalThis as { document?: unknown }).document = { createElement: () => ({ width: 0, height: 0, getContext: () => noop }) };
+  try {
+    const lit = (root: THREE.Object3D) => { const n: string[] = []; root.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.Material | undefined; if (m && !(m as THREE.Material & { isMeshBasicMaterial?: boolean }).isMeshBasicMaterial) n.push(`${o.type}:${m.type}`); }); return n; };
+    const j = crearDianaAR({ alLanzar() {} });
+    assert.deepEqual(lit(j.root), [], "board, backboard, rim, darts and bar: all MeshBasicMaterial");
+    const { dardoMalla } = await import("../packages/render/src/dardos.ts");
+    assert.equal((dardoMalla(true).material as THREE.Material).type, "MeshBasicMaterial");
+    assert.equal((dardoMalla().material as THREE.Material).type, "MeshStandardMaterial", "the plaza's darts keep their light");
+  } finally { delete (globalThis as { document?: unknown }).document; }
+});

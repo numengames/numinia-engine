@@ -1030,6 +1030,10 @@ servidor decide dónde se clava**. Los mismos verbos en el PC, en el móvil y en
   `dom-overlay` de la sesión es `#hud`); la barra 3D sí. Después: diana de pared en el editor del mundo, partidas
   a 301/501 y «alrededor del reloj», dardos lanzados con el gesto real del
   mando (velocidad de la mano en VR).
+- **Gesto de profesional en VR (v14)**: el lanzamiento con mando o mano lee la velocidad y la dirección reales de la mano; además
+  `features/dardos/gesto.ts` puntúa el gesto de 0 a 1 (recta, aún acelerando al soltar, velocidad de una suelta real, retroceso)
+  y `lanzamiento(cara, p, v, ayuda)` aplica `ayuda = 0,6 × puntos` (acerca el punto al centro y la fuerza a `FUERZA_IDEAL`; la lectura
+  cruda queda en `tiro.crudo`). El servidor no cambia. Fuentes y umbrales: `docs/DARDOS-GESTO-PROFESIONAL.md`.
 
 ### Duelo (v2): dos personas, una en el mundo y otra en su pared (AR)
 
