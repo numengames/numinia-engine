@@ -14,6 +14,8 @@ import { sonar } from "./sonar.ts";
 import { DARDOS_TURNO } from "../../features/dardos/client.ts";
 import { lanzamiento, velocidadDe, duracionVuelo, FIN_PELLIZCO_MS, V_MIN } from "../../features/dardos/lanzamiento.ts";
 import type { Cara, Muestra, V3 } from "../../features/dardos/lanzamiento.ts";
+import { valorarGesto, ayudaDe, consejo, VENTANA_GESTO_MS } from "../../features/dardos/gesto.ts";
+import type { Gesto, Partes } from "../../features/dardos/gesto.ts";
 import { marcadorPara } from "../../packages/render/src/dardos-marcador.ts";
 import type { Boton, MarcadorV } from "../../packages/render/src/dardos-marcador.ts";
 import type { DueloV } from "../../packages/render/src/dardos-duelo.ts";
@@ -45,8 +47,15 @@ type Vista = {
 
 /** Grip/pinch levels: closing above, opening below (hysteresis, so a trembling finger does not flicker). */
 export const CIERRA = 0.6, ABRE = 0.3;
-/** Samples kept per hand (ms): enough for the release window plus the pinch lead. */
-const GUARDA_MS = 300;
+/** Samples kept per hand (ms): the gesture's window (backswing + swing, gesto.ts) plus the pinch lead. */
+const GUARDA_MS = VENTANA_GESTO_MS + 100;
+/** v14: what to tell a thrower whose gesture is far from a professional's (the lowest part of the score) and what to tell one who nailed it. */
+const CONSEJOS: Record<keyof Partes, string> = {
+  recta: "Lanza recto hacia la diana, sin abrir la mano a los lados",
+  aceleracion: "Suelta cuando la mano aún va acelerando, no después de frenar",
+  velocidad: "Un lanzamiento de dardos es rápido pero no un latigazo: ni flojo ni a toda fuerza",
+  retroceso: "Lleva el dardo atrás, hacia la cara, antes de lanzar",
+};
 /** A pending throw is forgotten after this long without an answer (ms). */
 const PENDIENTE_MS = 4000;
 
@@ -146,8 +155,13 @@ export async function montarDardosVR(o: { dardos: Controlador; view: Vista; yo: 
     const p: V3 = pos ?? [0, 0, 0];
     const vl = velocidadDe(muestras[lado], ahora - (mando ? 0 : FIN_PELLIZCO_MS));
     const v = vl ? vrd.aMundo(vl, lado) : null; // measured in the rig's frame (the avatar walking adds nothing), turned into the world's
-    const tiro = cara && pos ? lanzamiento(cara, p, v) : ({ tipo: "suelta", motivo: "sin-velocidad" } as const);
-    ultimoTiro = { lado, t: Math.round(ahora), pos: p, n: muestras[lado].length, m: muestras[lado].slice(-8).map((q) => [Math.round(q.t - ahora), Math.round(q.x * 100) / 100, Math.round(q.y * 100) / 100, Math.round(q.z * 100) / 100]), v: v && v.map((n) => Math.round(n * 100) / 100), tiro };
+    // v14: how close the gesture is to a professional's throw decides how much help the aim gets (features/dardos/gesto.ts); the
+    // samples are in the rig's frame, so each is turned into the world's orientation (only differences are read)
+    const fin = ahora - (mando ? 0 : FIN_PELLIZCO_MS);
+    const gesto: Gesto | null = cara ? valorarGesto(cara, muestras[lado].map((s) => { const w = vrd.aMundo([s.x, s.y, s.z], lado); return { t: s.t, x: w[0], y: w[1], z: w[2] }; }), fin) : null;
+    const ayuda = gesto ? ayudaDe(gesto.puntos) : 0;
+    const tiro = cara && pos ? lanzamiento(cara, p, v, ayuda) : ({ tipo: "suelta", motivo: "sin-velocidad" } as const);
+    ultimoTiro = { lado, t: Math.round(ahora), pos: p, gesto, n: muestras[lado].length, m: muestras[lado].slice(-8).map((q) => [Math.round(q.t - ahora), Math.round(q.x * 100) / 100, Math.round(q.y * 100) / 100, Math.round(q.z * 100) / 100]), v: v && v.map((n) => Math.round(n * 100) / 100), tiro };
     rastro.push(ultimoTiro); if (rastro.length > 40) rastro.shift();
     sosteniendo = null; sinSoltar = null; // the dart leaves the hand either way
     if (tiro.tipo === "tiro" && sitio) {
@@ -157,7 +171,8 @@ export async function montarDardosVR(o: { dardos: Controlador; view: Vista; yo: 
         const destino = vrd.puntoMundo(sitio, tiro.x, tiro.y) ?? p;
         const vuelo = vrd.volar(p, destino, duracionVuelo(tiro.distancia, tiro.velocidad));
         pend.push({ numero, sitio, vuelo, cuando: ahora, resuelto: false });
-        view.manos.vibrar(lado, 0.5, 50);
+        view.manos.vibrar(lado, 0.5 + 0.3 * tiro.ayuda / 0.6, 50); // a stronger buzz the closer to a pro throw (felt, not read)
+        if (gesto) { const c = consejo(gesto); if (c) view.vr.nota?.(CONSEJOS[c]); else if (gesto.puntos >= 0.8) view.vr.nota?.("¡Gesto de profesional!"); }
         return;
       }
       view.vr.nota?.(r.why);
@@ -174,7 +189,7 @@ export async function montarDardosVR(o: { dardos: Controlador; view: Vista; yo: 
     pintarMarcador();
     const sitio = turno();
     if (sitio !== turnoVisto) {
-      if (sitio) view.vr.nota?.("Dardos: agarre coge un dardo · gatillo (o soltar) lo lanza");
+      if (sitio) view.vr.nota?.("Dardos: agarre coge un dardo · atrás y recto, como un profesional: más ayuda");
       turnoVisto = sitio;
     }
     for (const l of ["izq", "der"] as Lado[]) {

@@ -38,11 +38,11 @@ export type DianaDueloAR = DianaAR & {
   pulsarBoton(): boolean;
 };
 
-/** A light dart for the flight (the stuck ones are the board's own mesh): tip at the origin, pointing along -z. */
+/** A light dart for the flight (the stuck ones are the board's own mesh): tip at the origin, pointing along -z. Unlit, like the wall board (dardos.ts `cara`). */
 function dardoVuelo(): THREE.Group {
   const g = new THREE.Group();
-  const gris = new THREE.MeshStandardMaterial({ color: 0x8a94a3, roughness: 0.5, metalness: 0.2 });
-  const naranja = new THREE.MeshStandardMaterial({ color: 0xe07a3f, roughness: 0.6 });
+  const gris = new THREE.MeshBasicMaterial({ color: 0x8a94a3 });
+  const naranja = new THREE.MeshBasicMaterial({ color: 0xe07a3f });
   const barril = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 0.07, 8).rotateX(Math.PI / 2).translate(0, 0, 0.035), gris);
   const alas = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.0008, 0.035).translate(0, 0, 0.125), naranja);
   g.add(barril, alas);
