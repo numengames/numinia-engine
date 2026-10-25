@@ -1653,3 +1653,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `vr/v11-muneca-baja` (sobre main `4b4c3833`, 0.47.0); versión sin cambiar.
 - Pendiente: medir en la Quest que 55° basta (no hay medidas de la pose del grip en las sesiones del 22-10: solo la transcripción); si el límite era el dorso (60°) y no el cono, habría que abrir también ese.
+
+## 2026-10-22 10:58 · v14 lanzar el dardo como un profesional · hecho
+- Qué: la ayuda del lanzamiento en VR crece con lo parecido que es el gesto al de un lanzador profesional (Pablo, QA Quest 22-10). `features/dardos/gesto.ts` puntúa 0–1 la trayectoria de la mano (recta hacia la diana, aún acelerando al soltar, velocidad de una suelta real ~4–6,5 m/s, retroceso previo); `ayuda = 0,6 × puntos`; `lanzamiento(cara, p, v, ayuda)` acerca el punto apuntado al centro y la fuerza a `FUERZA_IDEAL` sin llegar nunca al 100 % y guarda la lectura cruda. El servidor no cambia (`lanzar` igual, `via: "vr"`). Estudio con fuentes leídas en `docs/DARDOS-GESTO-PROFESIONAL.md`.
+- Números: `test/dardos-gesto.test.ts` nuevo (11 pruebas); `npm test` 2022 bien; `npm run gates` verde; e2e `dardos-vr` 6/6 pasadas (una con el segundo intento del propio leg). Umbrales sin calibrar en el casco.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `vr/v14-lanzar-dardo` (sobre main `864c7f86`); sin cambio de versión.
+- Siguiente: calibrar los umbrales con Pablo en el casco; decidir si la ayuda tira al centro o hacia donde señala el mando; unificar la ventana de lectura de velocidad (120 ms al lanzar, 60 ms al puntuar).

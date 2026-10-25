@@ -175,9 +175,13 @@ try {
   out.tiro1 = { u1, e1, ex1, vio1 };
   afirma(u1?.tiro?.tipo === "tiro", "un balanceo rápido hacia la diana es un tiro", u1);
   afirma(u1?.tiro?.x > 0 && u1?.tiro?.y > 0, "DIRECCIÓN: arriba y a la derecha de la cara", u1?.tiro);
-  afirma(ex1 && Math.abs(u1.tiro.x - ex1.x) < 0.12 + Math.abs(ex1.x) * 0.12 && Math.abs(u1.tiro.y - ex1.y) < 0.12 + Math.abs(ex1.y) * 0.12, "DISTANCIA: el punto apuntado es donde la trayectoria corta la diana", { enviado: u1?.tiro, esperado: ex1 });
+  afirma(ex1 && Math.abs(u1.tiro.crudo.x - ex1.x) < 0.12 + Math.abs(ex1.x) * 0.12 && Math.abs(u1.tiro.crudo.y - ex1.y) < 0.12 + Math.abs(ex1.y) * 0.12, "DISTANCIA: el punto apuntado (lectura cruda, sin ayuda) es donde la trayectoria corta la diana", { enviado: u1?.tiro, esperado: ex1 });
   // strength = speed / V_LLENO (7 m/s), capped at 1; the speed is the hand's, read from a machine that may be loaded (jitter): a wide band
-  afirma(u1?.tiro && Math.abs(u1.tiro.fuerza - Math.min(1, u1.tiro.velocidad / 7)) < 0.01 && u1.tiro.velocidad > 1.5 && u1.tiro.velocidad < 14, "la fuerza sale de la velocidad de la mano (V/7, tope 1)", u1?.tiro);
+  afirma(u1?.tiro && Math.abs(u1.tiro.crudo.fuerza - Math.min(1, u1.tiro.velocidad / 7)) < 0.01 && u1.tiro.velocidad > 1.5 && u1.tiro.velocidad < 14, "la fuerza sale de la velocidad de la mano (V/7, tope 1)", u1?.tiro);
+  // v14: the help the gesture earned (a straight, steady swing with no backswing: a middling score) pulls toward the middle and the ideal strength, never past them and never all the way
+  const g1 = u1?.gesto;
+  afirma(g1 && g1.puntos > 0 && g1.puntos < 1 && u1.tiro.ayuda > 0 && u1.tiro.ayuda <= 0.6 + 1e-9 && Math.abs(u1.tiro.ayuda - 0.6 * g1.puntos) < 0.01, "v14: la ayuda sale de la puntuación del gesto (≤ 60 %)", { gesto: g1, ayuda: u1?.tiro?.ayuda });
+  afirma(u1?.tiro && Math.hypot(u1.tiro.x, u1.tiro.y) <= Math.hypot(u1.tiro.crudo.x, u1.tiro.crudo.y) + 1e-6 && Math.abs(u1.tiro.fuerza - 0.65) <= Math.abs(u1.tiro.crudo.fuerza - 0.65) + 1e-6, "v14: lo enviado está más cerca del centro y de la fuerza ideal que lo crudo", u1?.tiro);
   afirma(vio1.maxVuelan >= 1, "el dardo se VE volar", vio1);
   afirma(e1.ultimo?.numero === 1 && e1.dardos === 1, "el servidor decidió dónde cae el dardo", e1);
   const t1 = await cuenta();
@@ -195,7 +199,7 @@ try {
   const ex2 = u2 && esperado(c, u2.pos, v2);
   out.tiro2 = { u2, e2, ex2 };
   afirma(u2?.tiro?.tipo === "tiro" && u2.tiro.x < 0 && u2.tiro.y < 0, "DIRECCIÓN: abajo y a la izquierda", u2?.tiro);
-  afirma(ex2 && Math.abs(u2.tiro.x - ex2.x) < 0.12 + Math.abs(ex2.x) * 0.12 && Math.abs(u2.tiro.y - ex2.y) < 0.12 + Math.abs(ex2.y) * 0.12, "DISTANCIA: el punto apuntado cambia con la distancia a la diana", { enviado: u2?.tiro, esperado: ex2 });
+  afirma(ex2 && Math.abs(u2.tiro.crudo.x - ex2.x) < 0.12 + Math.abs(ex2.x) * 0.12 && Math.abs(u2.tiro.crudo.y - ex2.y) < 0.12 + Math.abs(ex2.y) * 0.12, "DISTANCIA: el punto apuntado cambia con la distancia a la diana", { enviado: u2?.tiro, esperado: ex2 });
   afirma(u2?.tiro?.distancia < u1?.tiro?.distancia, "la distancia a la cara medida es menor que en el primer tiro", [u1?.tiro?.distancia, u2?.tiro?.distancia]);
   afirma(e2.ultimo?.numero === 2, "segundo dardo respondido por el servidor", e2);
 
@@ -242,7 +246,7 @@ try {
   const ex5 = u5 && esperado(c, u5.pos, v5);
   out.mano = { u5, e5, ex5, vio5 };
   afirma(u5?.tiro?.tipo === "tiro" && u5.tiro.x > 0 && u5.tiro.y > 0, "con la mano: abrir el pellizco lanza, arriba y a la derecha", u5?.tiro);
-  afirma(ex5 && Math.abs(u5.tiro.x - ex5.x) < 0.15 + Math.abs(ex5.x) * 0.15 && Math.abs(u5.tiro.y - ex5.y) < 0.15 + Math.abs(ex5.y) * 0.15, "con la mano: dirección y distancia", { enviado: u5?.tiro, esperado: ex5 });
+  afirma(ex5 && Math.abs(u5.tiro.crudo.x - ex5.x) < 0.15 + Math.abs(ex5.x) * 0.15 && Math.abs(u5.tiro.crudo.y - ex5.y) < 0.15 + Math.abs(ex5.y) * 0.15, "con la mano: dirección y distancia", { enviado: u5?.tiro, esperado: ex5 });
   afirma(e5.ultimo?.numero === 1 && vio5.maxVuelan >= 1, "con la mano: vuela y el servidor lo responde", { e5, vio5 });
   await foto("3-mano");
   const cFin = await ctl(() => globalThis.__numinia.cost());
