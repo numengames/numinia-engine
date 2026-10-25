@@ -33,10 +33,30 @@ export function ocultarCarga(el: ElementoCarga | null, esperaMs = 700, ponerTime
 export const ETAPAS = { codigo: 0.1, estado: 0.25, vista: 0.55, bienvenida: 0.8, mundo: 0.93, listo: 1 } as const;
 export type Etapa = keyof typeof ETAPAS;
 
-/** The fraction (0…1) after the steps in `hechas`: the furthest one reached; none = 0. */
-export function fraccionCarga(hechas: Iterable<Etapa>): number {
-  let f = 0;
-  for (const e of hechas) f = Math.max(f, ETAPAS[e] ?? 0);
+/** C: the pieces of the world (models, images… within view distance) fill the stretch between the welcome and «listo». */
+export const TRAMO_PIEZAS = { desde: ETAPAS.bienvenida, hasta: 0.97 } as const;
+
+/** C: how many pieces of the world within view are ready out of how many there are (`total` 0 = none placed yet). */
+export type Piezas = { listas: number; total: number };
+
+/** C: the text of the count — «120 de 146 piezas»; empty when there are none (a bare world says nothing). */
+export function textoPiezas(p: Piezas | null): string {
+  if (!p || p.total <= 0) return "";
+  const listas = Math.max(0, Math.min(p.listas, p.total));
+  return `${listas} de ${p.total} ${p.total === 1 ? "pieza" : "piezas"}`;
+}
+
+/**
+ * The fraction (0…1) after the steps in `hechas`: the furthest one reached; none = 0. With `piezas`, once the welcome is in,
+ * the real count of ready pieces moves it from the welcome step up to TRAMO_PIEZAS.hasta (the last bit is the first frame).
+ */
+export function fraccionCarga(hechas: Iterable<Etapa>, piezas?: Piezas | null): number {
+  let f = 0, conBienvenida = false;
+  for (const e of hechas) { f = Math.max(f, ETAPAS[e] ?? 0); if (e === "bienvenida") conBienvenida = true; }
+  if (piezas && piezas.total > 0 && conBienvenida && f < 1) {
+    const r = Math.max(0, Math.min(1, piezas.listas / piezas.total));
+    f = Math.max(f, TRAMO_PIEZAS.desde + (TRAMO_PIEZAS.hasta - TRAMO_PIEZAS.desde) * r);
+  }
   return f;
 }
 
@@ -45,6 +65,8 @@ export type PantallaMalla = {
   style: { setProperty(nombre: string, valor: string): void };
   classList: { add(clase: string): void };
   querySelector(selector: string): { textContent: string | null } | null;
+  /** C: optional so a fake without it still works; the page's element has it. */
+  querySelectorAll?(selector: string): { forEach(f: (e: { textContent: string | null }) => void): void };
 };
 
 /**
@@ -54,10 +76,14 @@ export type PantallaMalla = {
  */
 export function crearProgresoMalla(el: PantallaMalla | null) {
   const hechas = new Set<Etapa>();
-  let activa = false, ultima = -1;
+  let activa = false, ultima = -1, piezas: Piezas | null = null, textoAntes = "";
   const pintar = () => {
-    if (!el || !activa) return;
-    const f = fraccionCarga(hechas);
+    if (!el) return;
+    // C: «n de N piezas» on whichever screen is up (the moon's or the mesh's); only written when it changes
+    const texto = textoPiezas(piezas);
+    if (texto !== textoAntes) { textoAntes = texto; el.querySelectorAll?.(".c-piezas").forEach((t) => { t.textContent = texto; }); }
+    if (!activa) return;
+    const f = Math.max(ultima, fraccionCarga(hechas, piezas)); // the lines only ever go forward, even if a new piece joins the count
     if (f === ultima) return;
     ultima = f;
     el.style.setProperty("--p", String(f));
@@ -66,13 +92,18 @@ export function crearProgresoMalla(el: PantallaMalla | null) {
   return {
     activar(): void { if (!el || activa) return; activa = true; el.classList.add("eb"); pintar(); },
     etapa(e: Etapa): void { hechas.add(e); pintar(); },
-    fraccion: () => fraccionCarga(hechas),
+    /** C: the count of ready pieces of the world within view (view.cargaMundo()). */
+    piezas(p: Piezas): void { piezas = p; pintar(); },
+    fraccion: () => fraccionCarga(hechas, piezas),
     activa: () => activa,
   };
 }
 
-/** B5: how long after `welcome` the screen gives up waiting for the ground and goes anyway (a ground that never builds must not trap the player). */
-export const TOPE_CARGA_MS = 15000;
+/**
+ * C: how long after `welcome` the screen gives up waiting for the world and goes anyway (a ground or a model that never builds
+ * must not trap the player). It was 15 s when only the ground was awaited; now that every piece within view is awaited, 45 s.
+ */
+export const TOPE_CARGA_MS = 45000;
 
 /**
  * B5: a ground is pending when the shared state asks for it (`activa` is not false, as `aplicar` reads it) and the view has not finished
@@ -83,14 +114,31 @@ export function sueloPendiente(o: { pideNaturaleza: boolean; pideBase: boolean; 
   return (o.pideNaturaleza && !o.naturalezaLista) || (o.pideBase && !o.baseLista);
 }
 
+/** C: pieces still to be ready: models downloaded, textures uploaded and shaders compiled (view.cargaMundo()); a failed one counts as done. */
+export const piezasPendientes = (p: Piezas | null | undefined): number => (p ? Math.max(0, p.total - p.listas) : 0);
+
+export type EstadoCarga = "esperando" | "listo" | "tope";
+export type EntradaCarga = { welcome: boolean; mundoRecibido: boolean; primerCuadro: boolean; sueloPendiente: boolean; piezasPendientes: number; msDesdeWelcome: number; topeMs?: number };
+
 /**
- * B5: may the loading screen go? Yes once `welcome` is in, a frame was drawn with the ground already built (`primerCuadro`: the
- * caller only says true for a frame that started with no ground pending) — or whatever the state, once `tope` ms passed since `welcome`.
+ * C: where the loading screen stands. «listo» = `welcome` is in, a frame was drawn with the ground already built (`primerCuadro`: the
+ * caller only says true for a frame that started with no ground pending) AND the world's things have arrived (`mundoRecibido`: the
+ * server sends the welcome first and then, in the same burst, every thing near you — a frame between the two would count 0 pieces and
+ * hide the screen on an empty world; the first snapshot after the welcome comes behind that whole burst, on the same ordered
+ * socket) AND every piece within view is ready (`piezasPendientes` 0: pieces far away that proximity loading defers are not counted
+ * by the caller). «tope» = `topeMs` passed since `welcome` with the
+ * world still not whole: it goes anyway, and the caller says so in the log and the metrics. «esperando» otherwise.
  */
-export function puedeOcultar(o: { welcome: boolean; primerCuadro: boolean; sueloPendiente: boolean; msDesdeWelcome: number; topeMs?: number }): boolean {
-  if (!o.welcome) return false;
-  if (o.msDesdeWelcome >= (o.topeMs ?? TOPE_CARGA_MS)) return true;
-  return o.primerCuadro && !o.sueloPendiente;
+export function estadoCarga(o: EntradaCarga): EstadoCarga {
+  if (!o.welcome) return "esperando";
+  if (o.mundoRecibido && o.primerCuadro && !o.sueloPendiente && o.piezasPendientes <= 0) return "listo";
+  if (o.msDesdeWelcome >= (o.topeMs ?? TOPE_CARGA_MS)) return "tope";
+  return "esperando";
+}
+
+/** B5 + C: may the loading screen go? Whole world (see estadoCarga), or the cap. */
+export function puedeOcultar(o: EntradaCarga): boolean {
+  return estadoCarga(o) !== "esperando";
 }
 
 const hueco = { ocultar() {} };
@@ -104,6 +152,8 @@ export const carga = {
   conMalla(): boolean { return malla.activa(); },
   /** H4: a step of the real load is done (the mesh draws itself up to it; no effect on other worlds). */
   etapa(e: Etapa): void { malla.etapa(e); },
+  /** C: «n de N piezas» of the world within view are ready (shown on the screen; the lines follow it). */
+  piezas(p: Piezas): void { malla.piezas(p); },
   ocultar(): void {
     malla.etapa("listo");
     if (typeof document === "undefined") { hueco.ocultar(); return; }
