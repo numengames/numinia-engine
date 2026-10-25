@@ -73,10 +73,10 @@ import { crearQuietos } from "./fundir-quietos.ts";
 import { hornearEscena } from "./hornear.ts";
 import type { Fundido } from "./fundir.ts";
 import type { Parte } from "./lotes.ts";
-import { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
+import { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 import { crearTeletransporte } from "./teletransporte.ts";
 import { crearPrecompilador } from "./precompilar.ts";
-export { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
+export { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 export type { EntornoDatos } from "./entorno.ts";
 export type { Luz } from "./teletransporte.ts";
 // D-058 spike: «materia de bloques» — a shape of dice-shaped blocks that assembles and crumbles (materia.ts, materia-politica.ts)
@@ -587,6 +587,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // B3: shaders ready before a model shows (precompilar.ts): batches through compileAsync, in parallel where the GPU can
   const precompilar = crearPrecompilador({ compilar: (g) => renderer.compileAsync(g as unknown as THREE.Object3D, camera, scene), grupo: () => new THREE.Group() as never, paralelo: () => paralelo });
   const instanciasPreparadas = new Set<string>();
+  let xrPosible = false; // a headset can present here: its lotes start at INSTANCIAR_DESDE_VR, so those programs are warmed too
+  void vrSupported().then((v) => { xrPosible = v; }, () => {});
   const copiasDe = (model: string) => { let n = 0; for (const t of things.values()) if (t.model === model) n++; return n; };
   const sombrasPuestas = () => sun.castShadow && sun.shadow.autoUpdate;
   const things = new Map<string, Slot>();
@@ -647,7 +649,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         // The LOD it is not showing yet (J14) is prepared alongside, so switching later does not stall either.
         const objs: THREE.Object3D[] = [copy];
         if (quieto && pieza) objs.push(representacion(lod === "lejos" ? quieto : [pieza]));
-        if (partes && !instanciasPreparadas.has(model) && copiasDe(model) >= INSTANCIAR_DESDE) {
+        if (partes && !instanciasPreparadas.has(model) && copiasDe(model) >= (xrPosible ? INSTANCIAR_DESDE_VR : INSTANCIAR_DESDE)) {
           instanciasPreparadas.add(model);
           for (const q of partes) { const im = new THREE.InstancedMesh(q.geo, q.mat, 1); im.castShadow = q.sombra; objs.push(im); }
         }
@@ -776,6 +778,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const capsulasParte: Parte[] = [{ geo: bodyGeo, mat: otherMat, sombra: false }];
   const ojo = new THREE.Vector3(), ocultosCuadro: THREE.Object3D[] = [], enLuz = new Set<number | "self">();
   const porLote = new Map<string, { partes: Parte[]; color: string; slots: Slot[] }>();
+  const idPartes = new WeakMap<Parte[], number>();
+  let nPartes = 0;
   const capsulasCuadro: THREE.Mesh[] = [], matricesTmp: THREE.Matrix4[] = [];
   let dibujoUltimo = { lejos: Infinity, niebla: 0, instanciadas: 0, lotes: 0 };
   const matricesDe = (objs: readonly THREE.Object3D[]): THREE.Matrix4[] => {
@@ -795,15 +799,18 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (!s.loaded || !g.visible || g.parent !== world) continue; // still loading, hidden, or carried in a hand
       if (tapa(g, (s.radio ?? 1) * Math.max(Math.abs(g.scale.x), Math.abs(g.scale.y), Math.abs(g.scale.z)))) { ocultar(g); niebla++; continue; }
       if (!s.partes || s.mixer || k.startsWith("~")) continue; // a held copy too: its matrix is read every frame
-      const color = s.want.color ?? "", clave = `${s.model}|${color}`;
+      // the same model can hold two kinds of parts (baked when it stands still, whole when `animar` is on): copies share a lote only if they share the parts, or the two kinds overwrite each other's group every frame and neither reaches the threshold
+      let id = idPartes.get(s.partes); if (id === undefined) idPartes.set(s.partes, (id = ++nPartes));
+      const color = s.want.color ?? "", clave = `${s.model}|${color}|${id}`;
       let v = porLote.get(clave);
       if (!v || v.partes !== s.partes) porLote.set(clave, (v = { partes: s.partes, color, slots: [] }));
       v.slots.push(s);
     }
     lotes.empezar();
     let nLotes = 0;
+    const desde = instanciarDesde(renderer.xr.isPresenting);
     for (const [clave, v] of porLote) {
-      if (v.slots.length < INSTANCIAR_DESDE) continue;
+      if (v.slots.length < desde) continue;
       lotes.dibujar(clave, v.partes, v.color, matricesDe(v.slots.map((s) => s.group)));
       for (const s of v.slots) ocultar(s.group);
       instanciadas += v.slots.length; nLotes++;

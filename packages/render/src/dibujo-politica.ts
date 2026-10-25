@@ -9,6 +9,12 @@ export const NIEBLA_TOTAL = 0.999;
 export const MARGEN_NIEBLA_M = 1;
 /** Copies of the same model (and colour) that stand still: from this many on, they are drawn as one instanced mesh. */
 export const INSTANCIAR_DESDE = 4;
+/** In a headset (draw calls are what Quest/Pico run out of, ×2 eyes) two identical copies are already drawn as one: it
+ * costs nothing more per frame than the two meshes did (matrix compare, no upload while they stand still), and saves
+ * one call per material per eye. Off the headset the threshold stays INSTANCIAR_DESDE: nothing there is bound by calls. */
+export const INSTANCIAR_DESDE_VR = 2;
+/** The threshold in force: `xr` = a headset session is presenting. */
+export const instanciarDesde = (xr: boolean): number => (xr ? INSTANCIAR_DESDE_VR : INSTANCIAR_DESDE);
 
 /** What the scene's fog looks like to these rules (three's Fog / FogExp2 have these fields). */
 export type NieblaLeida = { isFog?: boolean; isFogExp2?: boolean; near?: number; far?: number; density?: number } | null | undefined;
