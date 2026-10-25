@@ -52,6 +52,7 @@ export const crearDirector = (o: { escenas?: { fichero: string; texto: string }[
     const quien = nombreDe(from);
     api.state.set(ACTUAL, { id: s.id, nombre: limpiar(s.nombre, NOMBRE_MAX), quien, ambiente: s.ambiente, ganancia: s.ganancia });
     api.emit("puesta", { nombre: limpiar(s.nombre, NOMBRE_MAX), quien, ambiente: s.ambiente, ganancia: s.ganancia }, "all");
+    if (s.mapa) api.emit("mapa", s.mapa, "server"); // features/objetos fills the table's hole (the same piece a builder uses by hand)
     if (s.narracion) api.emit("narracion", { texto: limpiar(s.narracion, NARRACION_MAX), quien }, "all");
     api.log(`[director] ${quien} pone la escena «${s.id}»`);
     if (porChat) api.emit("aviso", { quien: from, texto: `Escena puesta: ${s.nombre}.` }, "server");

@@ -515,7 +515,7 @@ el servidor lo ve:
 | `habla_con` | `pnj` | elige en el diálogo de esa persona una respuesta `avanzar_paso` de esta misión; si su árbol no tiene ninguna, basta con hablarle |
 | `recibe` | `pnj`, `cosa` | como `habla_con`; esa persona te da la cosa, que queda «llevada» para una `entrega` |
 | `usa` | `cosa` | usa la cosa a su alcance (E) |
-| `coge` | `cosa` | la coge a su alcance (E); queda «llevada» para una `entrega` |
+| `coge` | `cosa`; opcional `otorga` (el id de un `objeto@1` de `objetos/`) | la coge a su alcance (E); queda «llevada» para una `entrega`; con `otorga`, en ese momento pasa a tu Reserva el arma o la reliquia que la aventura definió (una vez; si el `objeto@1` no existe o es inválido, la misión no carga y el diagnóstico dice el fichero y el campo `pasos[n].otorga`) |
 | `entrega` | `pnj` y `cosa`, o `cosas` (una lista de 1 a 8) | las lleva todas (cada una con un `coge` o un `recibe` antes en la misma misión) y elige `entregar` (o le habla, si no hay esa respuesta); se las da todas a la vez |
 
 **`hace`: que quien construye haga algo de verdad (T1).** `{ "id", "tipo": "hace", "texto", "accion", "modelo"?, "disparador"?, "senala"? }`.
@@ -787,6 +787,13 @@ Una aventura trae sus escenas en `escenas/<id>.json` (el id es el nombre del fic
   `ambiente_ganancia` (×0–4, solo junto a `ambiente`). `"ambiente": ""` deja esa escena en silencio. Una escena sin
   `ambiente` devuelve la cama del mundo. Las camas sintetizadas del mundo no cambian. Quien entra con una escena
   puesta la oye también. Las escenas de la casa no traen sonido.
+- **Mapa de la escena** (la mesa de rol): `"mapa": { "obra": "<sha256>.png", "titulo": "La cripta", "hueco": "El mapa de la mesa" }`.
+  Al poner la escena, esa imagen (ya subida al servidor: `.png`, `.jpg` o `.webp`, hasta 4096 px) entra en un **hueco** que
+  alguien que construye hizo (objetos `hueco`), con el mismo encaje que a mano (entera, centrada, sin deformar); `titulo` es
+  su nombre. `hueco` es el id o el nombre exacto; sin él vale el único hueco de la zona (si hay varios o ninguno, no se
+  adivina: queda dicho en el registro). `"obra": ""` vacía el hueco y vuelve su cartel. Una escena sin `mapa` no toca el
+  mapa; una escena puede ser solo un `mapa`. No hay paso de «deshacer»: no lo construyó nadie. Nada más cambia: el hueco es
+  de quien construye, la escena solo lo llena.
 - Los entornos de la casa también son escenas: `/escena noche` vale en cualquier mundo.
 - Quien dirige tiene el botón «Dirigir» (tecla K): escenas, luz y niebla en directo, narrar y «Convocar aquí». En el
   chat: `/escenas`, `/escena <nombre o número>`, `/narrar <texto>` y `/convocar [texto]`.
@@ -1302,9 +1309,16 @@ servidor saca cada dado, la numera y da los mismos valores a todos los que está
   fila de botones (d4 … d100, 2d6, «en secreto») y su última tirada a la vista (`ultima`) para quien llega después.
   Un mundo trae las suyas en `MUNDO_DIR/dados.json` (`{ "torres": [{ id, nombre, x, y, z, radio, dados }] }`); sin
   fichero no hay torre, y se tira igual donde estés.
+- **Dados 3D en la bandeja** (lote 8, primera historia: d6 y d20, en PC): la tirada que oyes cae en 3D sobre la bandeja de
+  la torre y se queda quieta con la cara que sacó **el servidor** hacia arriba (la caída es una función pura de la tirada
+  numerada: dos pantallas dibujan lo mismo; `packages/render/src/dados-caida.ts`, `dados-3d.ts` se carga con la primera
+  tirada). La bandeja se dice en `dados.json`: `"bandeja": { "dx": 0.4, "dz": 0.62, "alto": 0.89, "ancho": 0.8, "fondo": 0.6 }`
+  (dónde está respecto a la torre, y su tamaño en metros; sin ella, un trozo de suelo de 0,8 × 0,6 m en la torre). Una
+  bandeja pequeña encoge los dados, no los saca fuera. Sin dibujar todavía: d4, d8, d10, d12, d100 (siguen la carta y la
+  etiqueta), tiradas ocultas (los demás no ven valores), móviles y gafas (historia 2).
 - **Chat** (cualquier aparato con teclado, VR incluida): `/tirar 2d6+1`, `/tirar d20 oculta`; al lado de una torre,
   la tirada es de la torre.
-- **Lo que no hace (todavía):** dados 3D que caen en la bandeja (la carta y la etiqueta los sustituyen), tiradas con
+- **Lo que no hace (todavía):** dados 3D de d4/d8/d10/d12/d100, en móvil y en gafas (la carta y la etiqueta los sustituyen), tiradas con
   ventaja o «quedarse con los mejores», y un diario de tiradas que viaje en el zip.
 
 ## Puertas, botones y cosas que se cogen (J4, v1): tres piezas del motor que decide el servidor

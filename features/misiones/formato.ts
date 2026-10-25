@@ -57,7 +57,8 @@ export type Paso = PasoBase & (
   | { tipo: "llega_a"; x: number; z: number; radio: number; lugar: string; y?: number } // y (optional, metres): the floor to reach it from
   | { tipo: "habla_con"; pnj: string }
   | { tipo: "recibe"; pnj: string; cosa: string } // the person gives you the thing: it goes to what you carry (`tiene`)
-  | { tipo: "usa" | "coge"; cosa: string }
+  | { tipo: "usa"; cosa: string }
+  | { tipo: "coge"; cosa: string; otorga?: string } // otorga (optional, Y3): the id of an objeto@1 of the adventure that picking it up hands over (inventario `otorga`)
   | { tipo: "entrega"; cosa: string; pnj: string } // one thing, as written…
   | { tipo: "entrega"; cosas: string[]; pnj: string } // …or several at once (1–8); cosasDe() reads either
   | { tipo: "hace"; accion: AccionHace; modelo?: string; disparador?: string } // T1: the builder does something (modelo = a library id, only with coloca; disparador = a cable's id, only with the cable actions)
@@ -201,7 +202,12 @@ function paso(v: unknown, path: string, is: Issue[]): Paso {
   else if (tipo === "recibe") { permite("pnj", "cosa"); p = { ...base, tipo, pnj: id(o.pnj, en(path, "pnj"), is), cosa: id(o.cosa, en(path, "cosa"), is) }; }
   else if (tipo === "entrega") { permite("cosa", "cosas", "pnj"); p = entrega(o, base, path, is); }
   else if (tipo === "hace") { permite("accion", "modelo", "disparador"); p = hace(o, base, path, is); }
-  else { permite("cosa"); p = { ...base, tipo, cosa: id(o.cosa, en(path, "cosa"), is) }; }
+  else if (tipo === "coge") { // Y3: a `coge` may hand over a weapon or relic the adventure defines (objeto@1); cargarAventura checks the id exists
+    permite("cosa", "otorga");
+    const c: Extract<Paso, { tipo: "coge" }> = { ...base, tipo, cosa: id(o.cosa, en(path, "cosa"), is) };
+    if (o.otorga !== undefined) c.otorga = id(o.otorga, en(path, "otorga"), is);
+    p = c;
+  } else { permite("cosa"); p = { ...base, tipo, cosa: id(o.cosa, en(path, "cosa"), is) }; }
   if (o.senala !== undefined) { // T1: the id of the page's button the arrow will point at (any step); only checked and carried here
     if (typeof o.senala === "string" && SENALA.test(o.senala)) p.senala = o.senala;
     else is.push({ path: en(path, "senala"), message: "el id del botón de la página que señala la flecha: minúsculas, cifras y guiones, de 1 a 32 (p. ej. \"dock-cable\")" });
@@ -511,8 +517,9 @@ const conFichero = (f: string, is: Issue[]) => is.map((i) => ({ path: i.path ? `
 /** Load an adventure from its files. What has problems is left out (and said, with its file and path); the rest loads.
  * U14 (5): `secuencias` (secuencia@1, optional) and `o.modelo`, when the caller can tell whether this server has a .glb
  * (the server: api.activo; tools/aventura.ts: the library and the world's datos/activos/): a sequence whose model is
- * not there does not load. */
-export function cargarAventura(f: { misiones: Fichero[]; pnj: Fichero[]; cosas: Fichero[]; secuencias?: Fichero[] }, o: { modelo?: (sha256: string) => boolean } = {}): { aventura: Aventura; issues: Issue[] } {
+ * not there does not load. Y3: `o.objetos` = the ids of the valid objeto@1 the adventure defines (inventario's leerCatalogo): a
+ * `coge` whose `otorga` names another one does not load; without it (tests, tools that cannot read the catalogue) that is not checked. */
+export function cargarAventura(f: { misiones: Fichero[]; pnj: Fichero[]; cosas: Fichero[]; secuencias?: Fichero[] }, o: { modelo?: (sha256: string) => boolean; objetos?: ReadonlySet<string> } = {}): { aventura: Aventura; issues: Issue[] } {
   const issues: Issue[] = [];
   const leer = <T extends { id: string }>(fs: Fichero[], fn: (v: unknown) => Result<T>, into: Map<string, T>) => {
     for (const x of fs) {
@@ -559,6 +566,7 @@ export function cargarAventura(f: { misiones: Fichero[]; pnj: Fichero[]; cosas: 
           if (!cosas.has(c)) is.push({ path: donde, message: `no hay ninguna cosa «${c}» (hay: ${hay(cosas)})` });
           else if (p.tipo === "entrega" && !m.pasos.slice(0, i).some((q) => (q.tipo === "coge" || q.tipo === "recibe") && q.cosa === c)) is.push({ path: donde, message: `para entregar «${c}» antes hay que tenerla: pon delante un paso coge (la coge) o recibe (alguien se la da) con esa cosa` });
         });
+        if (p.tipo === "coge" && p.otorga !== undefined && o.objetos && !o.objetos.has(p.otorga)) is.push({ path: `${at}.otorga`, message: `la aventura no define ningún objeto «${p.otorga}» (hay: ${[...o.objetos].join(", ") || "ninguno"}; van en objetos/<id>.json, formato objeto@1, y tienen que ser válidos)` });
         if (p.secuencia && !secuencias.has(p.secuencia)) is.push({ path: `${at}.secuencia`, message: `no hay ninguna secuencia «${p.secuencia}» (hay: ${hay(secuencias)}; van en secuencias/<id>.json)` });
       });
       if (is.length) { issues.push(...conFichero(`misiones/${m.id}`, is)); misiones.delete(m.id); cae = true; }

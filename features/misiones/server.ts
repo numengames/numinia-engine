@@ -6,7 +6,9 @@ import { adoptarClaves, serverPart } from "../../packages/feature/src/index.ts";
 import type { ServerApi, ServerPart } from "../../packages/feature/src/index.ts";
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
 import { ACCIONES_PAGINA, cargarAventura, corta, LIM } from "./formato.ts";
-import type { Accion, Aventura, Fichero, Mision, Opcion, Pnj } from "./formato.ts";
+import type { Accion, Aventura, Fichero, Mision, Opcion, Paso, Pnj } from "./formato.ts";
+import { leerCatalogo } from "../inventario/objeto.ts"; // Y3: the objeto@1 a `coge` step may hand over
+import type { ObjetoAventura } from "../inventario/objeto.ts";
 import { abandonar, aceptar, asentar, enTexto, esperaLlegada, HECHAS_MAX, leerProgreso, marcas, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
 import type { Hecho, Progreso } from "./maquina.ts";
 import { esperando, faltaEspera, pendiente, proximaEspera } from "./maquina.ts"; // U14 (5): steps that wait
@@ -30,7 +32,7 @@ export const LIBRO_HECHAS = 20;
 export type Frasear = (l: { pnj: string; nodo: string; texto: string; jugador: string }) => string;
 /** `reloj` (U14 (5)): the server's clock in ms (default Date.now) — steps that wait (`espera`) count with it and it is
  * saved with the progress, so it must survive restarts; tests pass their own. */
-export type OpcionesMisiones = { aventura?: { misiones: Fichero[]; pnj: Fichero[]; cosas: Fichero[]; secuencias?: Fichero[] }; frasear?: Frasear; reloj?: () => number };
+export type OpcionesMisiones = { aventura?: { misiones: Fichero[]; pnj: Fichero[]; cosas: Fichero[]; secuencias?: Fichero[]; objetos?: Fichero[] }; frasear?: Frasear; reloj?: () => number };
 
 /** One engine behind two features: [pnj, misiones]. `aventura` only for tests; the server reads AVENTURA_DIR. */
 export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
@@ -49,10 +51,12 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   const esperas = new Map<number, number>();          // U14 (5): connection -> when its next wait ends (ms): then its book again, once
   const ahora = () => (o.reloj ? o.reloj() : Date.now());
 
+  let objetos = new Map<string, ObjetoAventura>();      // Y3: the adventure's valid objeto@1 (a `coge` step may hand one over)
   const cargar = (api: ServerApi) => {
     if (cargada) return;
     cargada = true;
-    const r = cargarAventura(o.aventura ?? { misiones: api.aventura("misiones"), pnj: api.aventura("pnj"), cosas: api.aventura("cosas"), secuencias: api.aventura("secuencias") }, { modelo: (sha) => api.activo(sha, "glb") });
+    objetos = leerCatalogo(o.aventura?.objetos ?? api.aventura("objetos")).objetos; // its own problems are said by inventario, once
+    const r = cargarAventura(o.aventura ?? { misiones: api.aventura("misiones"), pnj: api.aventura("pnj"), cosas: api.aventura("cosas"), secuencias: api.aventura("secuencias") }, { modelo: (sha) => api.activo(sha, "glb"), objetos: new Set(objetos.keys()) });
     for (const i of r.issues) api.log(`aventura: ${i.path}: ${i.message}`);
     A = r.aventura;
     if (A.misiones.size + A.pnjs.size + A.cosas.size) api.log(`aventura: ${A.misiones.size} misiones, ${A.pnjs.size} personas, ${A.cosas.size} cosas${A.secuencias.size ? `, ${A.secuencias.size} secuencias` : ""}`);
@@ -101,6 +105,13 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   const nombreSemilla = (r: { color: string; n: number }) => `Semilla ${r.color}${r.n > 1 ? ` ×${r.n}` : ""}`;
   /** Y1: what goes to the inventory (misiones never stores objects): one server-only `otorga` per Semilla reward; whoever listens (inventario) keeps it. */
   const otorgar = (e: number, m: Mision) => { for (const r of m.recompensas) if (r.tipo === "semilla") M!.emit("otorga", { quien: e, tipo: "token", clase: "semilla", nombre: `Semilla ${r.color}`, color: r.color, n: r.n }, "server"); };
+  /** Y3: a `coge` step with `otorga` hands over that objeto@1 the moment it is done (the same door as a reward; inventario keeps it and tells the player). */
+  const otorgarPaso = (e: number, s: Paso) => {
+    if (s.tipo !== "coge" || !s.otorga || !M) return;
+    const d = objetos.get(s.otorga);
+    if (!d) { M.log(`misiones: el paso «${s.id}» otorga «${s.otorga}», que la aventura ya no define`); return; }
+    M.emit("otorga", { quien: e, tipo: d.tipo, clase: corta(d.clase, 32), nombre: corta(d.nombre, 40), objeto: d.id }, "server");
+  };
   const recompensa = (m: Mision) => corta(m.recompensas.map((r) => (r.tipo === "semilla" ? nombreSemilla(r) : `${r.tipo === "objeto" ? "Objeto" : "Insignia"} «${r.nombre}»`)).join(", "), 120); // N10: an «objeto» is a digital good of yours
   // `paso` = the first step still to do; inside a grupo the others of its block are to do too (each `paso` says its
   // grupo, and `hecho` is true for what is already done in the block); `espera` = the seconds a step to do still waits
@@ -145,6 +156,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     for (const h of hechos) {
       const m = A.misiones.get(h.mision)!, s = m.pasos[h.paso];
       const texto = s.tipo === "recibe" ? corta(`Has recibido: ${A.cosas.get(s.cosa)?.nombre ?? s.cosa}`, LIM.textoPaso) : s.texto;
+      otorgarPaso(e, s); // Y3: the thing you picked up brings its weapon or relic (before «completada»: it is in the Reserva when the page says it)
       if (h.completada) conceder(e, m); // before anyone hears «completada»: the record exists when the page says it
       for (const x of suyos(e)) {
         M!.emit("avance", { mision: m.id, texto }, { to: x });
