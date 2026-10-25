@@ -26,6 +26,8 @@ export const SERVIR: Record<string, string> = { ...TIPOS, vrma: "model/gltf-bina
 export const BIBLIOTECA = fileURLToPath(new URL("../../../activos", import.meta.url));
 
 const RUTA = /^\/a\/([0-9a-f]{64})\.([a-z0-9]{2,4})$/;
+/** H13: a model's level of detail, /a/<sha256>.lod1.glb, made at ingest (lod.ts) beside the lighter copy. Only there: no original to fall back on. */
+const RUTA_LOD = /^\/a\/([0-9a-f]{64})\.lod([12])\.glb$/;
 /** N22: kinds that shrink in gzip (pictures, sound and video are already compressed). */
 export const COMPRIMIBLES = new Set(["glb", "vrm", "vrma", "hdr"]);
 /** N22: kinds with a lighter copy (optimizar.ts): models, and PNG pictures (their lossless WebP). */
@@ -83,6 +85,13 @@ export class Activos {
     return ruta ? { ruta, optimizado: false } : null;
   }
 
+  /** H13: where the level of detail `nivel` (1 or 2) of a model lives, or null. */
+  rutaLod(hash: string, nivel: number): string | null {
+    if (!this.optimizados) return null;
+    const r = join(this.optimizados, `${hash}.lod${nivel}.glb`);
+    return existsSync(r) ? r : null;
+  }
+
   /** N22: the gzip of `ruta` if it is ready (its .gz beside it, or made before); else starts making it and says null. */
   private gzipDe(ruta: string, bytes: number): Buffer | string | null {
     const g = this.gz.get(ruta);
@@ -120,9 +129,11 @@ export class Activos {
   /** Answer GET /a/<sha256>.<ext> (HEAD: the same headers, no body — H9: a page asks before uploading). Returns
    * false when the path is not an asset path at all. */
   servir(path: string, res: ServerResponse, head = false, range?: string, acepta?: string, accept?: string): boolean {
-    const m = RUTA.exec(path);
+    const lod = RUTA_LOD.exec(path);
+    const m = lod ? [path, lod[1], "glb"] : RUTA.exec(path);
     if (!m || !SERVIR[m[2]]) return false;
-    const elegido = this.aServir(m[1], m[2], accept), ruta = elegido?.ruta;
+    const rl = lod ? this.rutaLod(m[1], Number(lod[2])) : null;
+    const elegido = lod ? (rl ? { ruta: rl, optimizado: true } : null) : this.aServir(m[1], m[2], accept), ruta = elegido?.ruta;
     if (!ruta) {
       res.writeHead(404, { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "no-store" });
       res.end(head ? undefined : JSON.stringify({ error: `no hay ningún fichero ${m[1]}.${m[2]}` }));
@@ -130,7 +141,7 @@ export class Activos {
     }
     const total = statSync(ruta).size, comprimible = COMPRIMIBLES.has(m[2]);
     const vary = comprimible ? "accept-encoding" : m[2] === "png" && this.optimizados ? "accept" : null;
-    const comun: Record<string, string> = { "content-type": elegido!.tipo ?? SERVIR[m[2]], "cache-control": "public, max-age=31536000, immutable", "access-control-allow-origin": "*", "accept-ranges": "bytes", ...(vary ? { vary } : {}), ...(elegido!.optimizado ? { "x-optimizado": elegido!.tipo ? "webp-sin-perdida" : "meshopt" } : {}) };
+    const comun: Record<string, string> = { "content-type": elegido!.tipo ?? SERVIR[m[2]], "cache-control": "public, max-age=31536000, immutable", "access-control-allow-origin": "*", "accept-ranges": "bytes", ...(vary ? { vary } : {}), ...(elegido!.optimizado ? { "x-optimizado": elegido!.tipo ? "webp-sin-perdida" : lod ? `lod${lod[2]}` : "meshopt" } : {}) };
     // U10: videos and sounds ask for byte ranges (a browser seeks a video, or will not loop it, without them)
     const r = range ? /^bytes=(\d*)-(\d*)$/.exec(range.trim()) : null;
     if (r && (r[1] || r[2])) {
