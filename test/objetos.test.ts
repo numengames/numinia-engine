@@ -330,6 +330,29 @@ test("M22c: borrar varios con el mismo lote es un paso de deshacer; sin lote cad
   assert.equal(a.s.features.stateOf("objetos").size, 2, "un solo deshacer trae a los dos de vuelta");
 });
 
+test("Lote4: girar y escalar dos objetos como grupo con un lote — el primario manda varias veces y UN deshacer devuelve a los dos (posición, giro y escala)", () => {
+  const { pages, pump } = world({ abierto: true });
+  const [a, b] = pages;
+  a.b.colocar("bloque"); pump(); const uno = a.b.estado.seleccionado;
+  a.b.colocar("bloque"); pump(); const dos = a.b.estado.seleccionado;
+  const antes = { uno: { ...a.b.objeto(uno)! }, dos: { ...a.b.objeto(dos)! } };
+  const lote = a.b.nuevoLote();
+  // the primary sends several times while the gizmo turns it (a drag), then the rest of the group follows once
+  for (const ry of [10, 30, 60]) assert.ok(a.b.transformar(uno, { ry, sx: 1 + ry / 100, sy: 1 + ry / 100, sz: 1 + ry / 100 }, lote).ok);
+  assert.ok(a.b.transformar(dos, { x: Number(antes.dos.x) + 2, ry: 60, sx: 1.6, sy: 1.6, sz: 1.6 }, lote).ok);
+  pump();
+  assert.equal(Number(b.drawn.get(uno)?.ry), 60);
+  assert.equal(Number(b.drawn.get(dos)?.ry), 60);
+  a.b.deshacer(); pump(); // a single undo
+  for (const [k, o] of [[uno, antes.uno], [dos, antes.dos]] as const) {
+    const v = b.drawn.get(k)!;
+    assert.deepEqual([v.x, v.ry, v.sx, v.sy, v.sz], [Number(o.x), Number(o.ry), Number(o.sx), Number(o.sy), Number(o.sz)], `${k}: de vuelta a como estaba antes del arrastre`);
+  }
+  a.b.rehacer(); pump();
+  assert.equal(Number(b.drawn.get(uno)?.ry), 60, "rehacer lo vuelve a poner");
+  assert.equal(Number(b.drawn.get(dos)?.sx), 1.6);
+});
+
 test("J4: enlace — solo https (http en localhost, en pruebas), nunca usuario/contraseña, y \"\" lo quita", () => {
   const { pages, pump } = world({ abierto: true });
   const [a, b] = pages;
