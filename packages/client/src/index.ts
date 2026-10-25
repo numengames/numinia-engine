@@ -262,6 +262,9 @@ export class ClientSession {
     };
   }
 
+  /** H2: is your avatar flying now (the server's mode, carried on the snapshot and predicted here)? The page reads it to turn a held Space into «climb». */
+  volando(): boolean { return this.cur.vuela === 1; }
+
   /** N1b: the solid boxes your prediction walks against (Q16.16, [x0 y0 z0 x1 y1 z1] each; the same as the server's).
    * The page hands them to the camera so it does not go through walls. A new array each time they change. */
   solidos(): Int32Array { return this.local.solids; }
