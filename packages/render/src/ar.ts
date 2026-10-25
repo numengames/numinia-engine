@@ -10,6 +10,7 @@
 // surface's normal), every press and release with its ray (a tap on a phone, the trigger or a pinch on a headset),
 // and its own group to draw in; the miniature stays hidden. Such a session lasts AR_JUEGO_MS on a phone.
 import * as THREE from "three/webgpu";
+import { completarSesionXR, textoDeFallo } from "./xr-compat.ts"; // old headset browsers lack XRSession.enabledFeatures (Chrome 105)
 import { audio } from "./audio/nucleo.ts"; // S1: the engine's one audio graph (it sleeps when the session ends)
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
 export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void };
@@ -242,14 +243,25 @@ export function createAR(h: ARHooks) {
     if (maxMs === undefined) juego = null; // the plain button: the miniature
     const init: Record<string, unknown> = { optionalFeatures: ["hit-test", "anchors", "local-floor", "hand-tracking"] };
     if (h.domOverlayRoot) { (init.optionalFeatures as string[]).push("dom-overlay"); init.domOverlay = { root: h.domOverlayRoot }; }
-    try { session = await xr.requestSession("immersive-ar", init); } catch (e) {
-      lastError = String((e as Error)?.message ?? e).slice(0, 160);
+    try { session = completarSesionXR(await xr.requestSession("immersive-ar", init)); } catch (e) {
+      lastError = textoDeFallo(e);
       lastErrorName = String((e as { name?: string })?.name ?? "");
       session = null; return false;
     }
-    h.renderer.xr.enabled = true;
-    h.renderer.xr.setReferenceSpaceType("local");
-    await h.renderer.xr.setSession(session);
+    // three's setSession can still throw (an old headset browser…): end the session and forget it, or `session` would
+    // stay set and every later enter() would answer false with no reason (a zombie).
+    try {
+      h.renderer.xr.enabled = true;
+      h.renderer.xr.setReferenceSpaceType("local");
+      await h.renderer.xr.setSession(session);
+    } catch (e) {
+      lastError = textoDeFallo(e);
+      lastErrorName = String((e as { name?: string })?.name ?? "");
+      const caida = session; session = null;
+      h.renderer.xr.enabled = false;
+      try { await caida?.end(); } catch { /* already over */ }
+      return false;
+    }
     savedBg = h.scene.background; savedFog = h.scene.fog;
     h.scene.background = null; h.scene.fog = null; h.world.visible = false; root.visible = true;
     await h.manos?.cargar().catch(() => {}); // after requestSession (it needs the click's activation); prefetched by the view

@@ -20,6 +20,7 @@ import type { AccionFichaVR, DatosFichaVR, FichaVR } from "./vr-ficha.ts"; // ty
 import type { CondicionesVR } from "./condiciones-vr.ts"; // types only: the entry bubble's panel is fetched on first use (c4)
 import { ID_BARRA, palancaPagina, palancasDelPanel, type EntradaMano, type LadoMano, type ModeloVR, type Zona } from "./condiciones-vr-geom.ts"; // pure numbers, no three.js
 import { empujaFuera } from "./vr-paredes.ts";
+import { completarSesionXR, textoDeFallo } from "./xr-compat.ts"; // old headset browsers lack XRSession.enabledFeatures (Chrome 105)
 import { audio } from "./audio/nucleo.ts"; // S1: the engine's one audio graph (it sleeps when the session ends)
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
 export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void; andar?(): [number, number] | null;
@@ -358,30 +359,42 @@ export function createVR(h: VRHooks) {
   async function enter(): Promise<boolean> {
     const xr = xrOf();
     if (!xr || session) return false;
-    try { session = await xr.requestSession("immersive-vr", { optionalFeatures: ["local-floor", "hand-tracking"] }); } catch (e) { lastError = String((e as Error)?.message ?? e).slice(0, 160); session = null; return false; }
-    h.renderer.xr.enabled = true;
-    h.renderer.xr.setReferenceSpaceType("local-floor");
-    await h.renderer.xr.setSession(session);
-    await h.manos?.cargar().catch(() => {}); // after requestSession (it needs the click's activation); prefetched by the view
-    rig.add(h.camera);
-    h.camera.add(vignette, nota);
-    aviso.nueva();
-    h.manos?.montar(rig);
-    rig.visible = true;
-    pagina = "mandos"; panel.visible = true; panelDelante = false; // the first thing you see: how the controllers work
-    ajusteMalla.visible = false; salirMalla.visible = true;
-    session.addEventListener("end", () => {
-      session = null; moveX = moveZ = 0; strength = 0; fichaVR?.ocultar(); fichaPide = null; reloj.cerrar(); menu.cerrar(); aviso.cerrar(); condVR?.ocultar(false); condPendiente = null; pagLatched = false;
-      h.camera.remove(vignette, nota); rig.remove(h.camera); rig.visible = false;
-      h.manos?.montar(null);
+    try { session = completarSesionXR(await xr.requestSession("immersive-vr", { optionalFeatures: ["local-floor", "hand-tracking"] })); } catch (e) { lastError = textoDeFallo(e); session = null; return false; }
+    // From here the session is ours: if anything below throws (three's setSession on an old browser…), it is ended and
+    // forgotten, or `session` would stay set and every later enter() would answer false with no reason (a zombie).
+    try {
+      h.renderer.xr.enabled = true;
+      h.renderer.xr.setReferenceSpaceType("local-floor");
+      await h.renderer.xr.setSession(session);
+      await h.manos?.cargar().catch(() => {}); // after requestSession (it needs the click's activation); prefetched by the view
+      rig.add(h.camera);
+      h.camera.add(vignette, nota);
+      aviso.nueva();
+      h.manos?.montar(rig);
+      rig.visible = true;
+      pagina = "mandos"; panel.visible = true; panelDelante = false; // the first thing you see: how the controllers work
+      ajusteMalla.visible = false; salirMalla.visible = true;
+      session.addEventListener("end", () => {
+        session = null; moveX = moveZ = 0; strength = 0; fichaVR?.ocultar(); fichaPide = null; reloj.cerrar(); menu.cerrar(); aviso.cerrar(); condVR?.ocultar(false); condPendiente = null; pagLatched = false;
+        h.camera.remove(vignette, nota); rig.remove(h.camera); rig.visible = false;
+        h.manos?.montar(null);
+        h.renderer.xr.enabled = false;
+        audio().siesta(); // S1: out of the session, the audio graph sleeps (battery); the next gesture wakes it
+        set("off");
+      });
+      // t_ab71cff0: a controller that falls asleep (Quest hands over to tracked hands) or a session that stops being
+      // visible must not leave its last push behind as the intention; the next frame recomputes it from what is there
+      session.addEventListener("inputsourceschange", () => { moveX = moveZ = 0; });
+      session.addEventListener("visibilitychange", () => { moveX = moveZ = 0; });
+    } catch (e) {
+      lastError = textoDeFallo(e);
+      const caida = session; session = null;
+      try { h.camera.remove(vignette, nota); rig.remove(h.camera); rig.visible = false; h.manos?.montar(null); } catch { /* half-built: nothing more to undo */ }
       h.renderer.xr.enabled = false;
-      audio().siesta(); // S1: out of the session, the audio graph sleeps (battery); the next gesture wakes it
+      try { await caida?.end(); } catch { /* already over */ }
       set("off");
-    });
-    // t_ab71cff0: a controller that falls asleep (Quest hands over to tracked hands) or a session that stops being
-    // visible must not leave its last push behind as the intention; the next frame recomputes it from what is there
-    session.addEventListener("inputsourceschange", () => { moveX = moveZ = 0; });
-    session.addEventListener("visibilitychange", () => { moveX = moveZ = 0; });
+      return false;
+    }
     set("on");
     return true;
   }
