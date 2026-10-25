@@ -3,7 +3,7 @@
 // 390×844 frame, and forcing only works in development or with ?debug.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { APARATOS, MARCOS, DECLARADAS, AJUSTE_APARATO, claseReal, decidirAparato, eleccionDesde, capacidadesDelPerfil, nivelDelPerfil, escalaMarco, direccionCon, leerReal } from "../packages/client/src/aparato.ts";
+import { APARATOS, MARCOS, DECLARADAS, AJUSTE_APARATO, claseReal, decidirAparato, eleccionDesde, capacidadesDelPerfil, nivelDelPerfil, escalaMarco, direccionCon, leerReal, esVisor } from "../packages/client/src/aparato.ts";
 import { AJUSTES_MOTOR, CAPACIDADES, crearAjustes, crearCapacidades, cumple } from "../packages/client/src/ajustes.ts";
 
 const pc = { punteroGrueso: false, raton: true, tactil: false, ancho: 1600, alto: 900, memoriaGB: 8 };
@@ -100,9 +100,9 @@ test("the frame fits the window (never above 1:1) and its address keeps the othe
 
 test("leerReal reads a fake browser without throwing", () => {
   const r = leerReal({ matchMedia: (q) => ({ matches: q === "(pointer: coarse)" }), innerWidth: 844, innerHeight: 390, navigator: { maxTouchPoints: 5, deviceMemory: 4 } });
-  assert.deepEqual(r, { punteroGrueso: true, raton: false, tactil: true, ancho: 844, alto: 390, memoriaGB: 4 });
+  assert.deepEqual(r, { punteroGrueso: true, raton: false, tactil: true, ancho: 844, alto: 390, memoriaGB: 4, visor: false });
   assert.equal(decidirAparato({ real: r }).clase, "movil-horizontal");
-  assert.deepEqual(leerReal({ matchMedia: () => { throw new Error("old"); } }), { punteroGrueso: false, raton: false, tactil: false, ancho: 0, alto: 0, memoriaGB: 0 });
+  assert.deepEqual(leerReal({ matchMedia: () => { throw new Error("old"); } }), { punteroGrueso: false, raton: false, tactil: false, ancho: 0, alto: 0, memoriaGB: 0, visor: false });
 });
 
 test("render/power.ts: a forced class sets the power policy's device class (phone: 30 fps cap; desktop: 60)", async () => {
@@ -111,4 +111,57 @@ test("render/power.ts: a forced class sets the power policy's device class (phon
   assert.equal(conClase(escritorio, undefined), escritorio, "undefined = as read");
   assert.equal(createPower(conClase(escritorio, true)).mobile, true);
   assert.equal(createPower(conClase({ ...escritorio, coarsePointer: true, deviceMemoryGB: 2 }, false)).mobile, false);
+});
+
+// Pico 4 (PICO Browser 3.3.46 = Chrome 105, measured on the headset 2026-10-25): it reports `(pointer: coarse)`, 5 touch
+// points and a wide window, so it used to be a phone — touch HUD, «Saltar», and the top bar (with «Entrar en VR») hidden.
+const UA_PICO = "Mozilla/5.0 (X11; Linux x86_64; PICO 4 OS5.13.8 like Quest) AppleWebKit/537.36 (KHTML, like Gecko) PicoBrowser/3.3.46 Chrome/105.0.5195.68 VR Safari/537.36  OculusBrowser/7.0";
+const UA_QUEST = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) OculusBrowser/33.0.0.1.33 SamsungBrowser/4.0 Chrome/126.0.0.0 VR Safari/537.36 Quest 3";
+const UA_PIXEL = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
+const UA_PC = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+
+test("esVisor: Pico, Quest and Wolvic browsers are headsets; a phone and a desktop are not", () => {
+  assert.equal(esVisor(UA_PICO), true);
+  assert.equal(esVisor(UA_QUEST), true);
+  assert.equal(esVisor("Mozilla/5.0 (Android 12; Mobile VR; rv:128.0) Gecko/128.0 Firefox/128.0 Wolvic/1.7"), true);
+  assert.equal(esVisor(UA_PIXEL), false);
+  assert.equal(esVisor(UA_PC), false);
+  assert.equal(esVisor(undefined), false);
+  assert.equal(esVisor(""), false);
+});
+
+test("leerReal reads the headset from the user agent", () => {
+  const pico = leerReal({ matchMedia: (q) => ({ matches: q === "(pointer: coarse)" }), innerWidth: 1280, innerHeight: 720, navigator: { maxTouchPoints: 5, userAgent: UA_PICO } });
+  assert.equal(pico.visor, true);
+  assert.equal(pico.punteroGrueso, true, "the Pico does say coarse: that is the trap");
+  assert.equal(leerReal({ navigator: { userAgent: UA_PC } }).visor, false);
+});
+
+test("auto on the Pico 4: the vr profile, not a phone — no touch HUD, a fine pointer, no phone power class", () => {
+  const pico = { punteroGrueso: true, raton: false, tactil: true, ancho: 1280, alto: 720, memoriaGB: 8, visor: true };
+  assert.equal(claseReal(pico), "vr");
+  const p = decidirAparato({ real: pico });
+  assert.equal(p.clase, "vr"); assert.equal(p.forzado, false); assert.equal(p.marco, null);
+  assert.equal(p.tactil, false, "no joystick and no «Saltar» drawn over the headset's flat page");
+  assert.equal(p.punteroGrueso, false); assert.equal(p.raton, true, "the controllers point like a fine pointer");
+  assert.equal(p.pantallaPequena, false); assert.equal(p.vr, true);
+  assert.equal(p.movil, false, "the coarse pointer must not make it phone-class (30 fps cap)");
+  assert.equal(decidirAparato({ real: { ...pico, ancho: 400, alto: 300 } }).pantallaPequena, false, "a small window on a headset is still not a phone screen");
+  assert.equal(decidirAparato({ real: { ...pico, memoriaGB: 4 } }).movil, true, "phone-class power only by the memory rule");
+  assert.equal(decidirAparato({ real: { ...pico, memoriaGB: 0 } }).movil, false, "0 = the browser does not say");
+  const c = capacidadesDelPerfil(p);
+  assert.equal(c.aparato, "vr"); assert.equal(c.interfazTactil, false); assert.equal(c.aparatoForzado, false); assert.equal(c.pantallaPequena, false);
+});
+
+test("auto on a Quest whose browser says «fine»: the same vr profile; a forced class still wins over the headset", () => {
+  const quest = { punteroGrueso: false, raton: true, tactil: false, ancho: 1440, alto: 900, memoriaGB: 8, visor: true };
+  assert.equal(decidirAparato({ real: quest }).clase, "vr");
+  assert.equal(decidirAparato({ eleccion: "escritorio", real: quest }).clase, "escritorio");
+  assert.equal(decidirAparato({ eleccion: "movil-vertical", real: quest }).clase, "movil-vertical");
+});
+
+test("a phone and a desktop are unchanged by the headset signal", () => {
+  assert.equal(decidirAparato({ real: { ...telefono, visor: false } }).clase, "movil-vertical");
+  assert.equal(decidirAparato({ real: { ...pc, visor: false } }).clase, "escritorio");
+  assert.equal(decidirAparato({ real: telefono }).tactil, true, "visor absent = not a headset");
 });

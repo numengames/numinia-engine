@@ -7,6 +7,7 @@ import { MARCOS_PLAZA, NOMBRES_DENSIDAD, SEGUNDOS_AL_CAMBIAR, nivelDensidad, sig
 import type { Densidad } from "../../packages/client/src/densidad.ts";
 import { escribiendo } from "./escribiendo.ts";
 import { anunciar } from "./paneles.ts";
+import { esTactil } from "./perfil-aparato.ts"; // U25: the page's one answer to «touch controls or not»
 
 type Registro = { get(id: string): unknown; set(id: string, v: unknown): unknown; alAplicar(id: string, fn: (v: unknown) => void): void };
 
@@ -36,7 +37,7 @@ export function montarDensidad(a: Registro): { nivel(): Densidad; poner(d: Densi
 
   // ---- the folded chat: a pill with the count of new lines (Mínimo) ----
   const lista = document.getElementById("chat-lista"), boton = document.getElementById("chat-boton") as HTMLButtonElement | null, form = document.getElementById("chat-form");
-  const tactil = matchMedia("(pointer: coarse)").matches;
+  const tactil = esTactil();
   let nuevos = 0, timer: ReturnType<typeof setTimeout> | undefined;
   const pastilla = () => {
     if (!boton) return;

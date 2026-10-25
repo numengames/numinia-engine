@@ -128,7 +128,7 @@ test("the page carries what the table names: #reloj and #avisos-pila in the mark
   assert.ok(!/numinia|escarabajo/i.test(html.slice(html.indexOf('id="reloj"'), html.indexOf('id="reloj"') + 600)), "no brand in the new markup");
   assert.ok(!/fog|niebla/i.test(css.slice(css.indexOf("U3 (minimum)"))) && !leer("apps/plaza/marcos.ts").match(/fog|niebla/i), "the fog is not touched");
   assert.ok(leer("apps/plaza/paneles.ts").includes("alAnunciar"), "anunciar feeds the stack");
-  assert.ok(leer("apps/plaza/mapa.ts").includes("pointer: coarse") && leer("apps/plaza/mapa.ts").includes("U3: on a mouse screen"), "the map's touch nudge does not move it on a mouse screen");
+  assert.ok(leer("apps/plaza/mapa.ts").includes("if (!esTactil()) return;") && leer("apps/plaza/mapa.ts").includes("U3: on a mouse screen"), "the map's touch nudge does not move it on a mouse screen");
 });
 
 test("the key help reads on a light floor: its colour comes with the glass, not the old dark ink on the sky", () => {

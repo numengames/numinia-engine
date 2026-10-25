@@ -9,6 +9,7 @@ import "./rueda.css";
 import { PORCIONES, ZONA_MUERTA_PALANCA, alternarFavorito, anillos, centroDe, esToque, leerFavoritos, porcionDe, siguiente, trazoDe } from "../../packages/client/src/rueda.ts";
 import { escribiendo } from "./escribiendo.ts";
 import { icono } from "./iconos.ts";
+import { esTactil } from "./perfil-aparato.ts"; // U25: the page's one answer to «touch controls or not»
 
 type Mov = { id: string; nombre: string; grupo: string; describe: string; modo: string };
 type Res = { ok: true } | { ok: false; why: string };
@@ -56,7 +57,7 @@ export function montarRueda(o: { gestos: Gestos; favoritosIniciales: readonly st
   const pestanas = $<HTMLDivElement>(".pestanas"), porciones = $<SVGGElement>(".porciones"), ranuras = $<HTMLDivElement>(".ranuras");
   const nombre = $<HTMLParagraphElement>(".nombre"), describe = $<HTMLParagraphElement>(".describe"), fijar = $<HTMLButtonElement>(".fijar"), parar = $<HTMLButtonElement>(".parar");
   const ayuda = $<HTMLParagraphElement>(".ayuda"), estado = $<HTMLParagraphElement>(".estado"), disco = $<HTMLDivElement>(".disco");
-  const tactil = matchMedia("(pointer: coarse)").matches;
+  const tactil = esTactil();
   ayuda.innerHTML = tactil
     ? "Toca un movimiento · desliza desde el botón y suelta"
     : "<kbd>←</kbd><kbd>→</kbd> elegir · <kbd>↑</kbd><kbd>↓</kbd> grupo · <kbd>1</kbd>–<kbd>8</kbd> o <kbd>Intro</kbd> hacer · <kbd>F</kbd> favorito · <kbd>0</kbd> parar · <kbd>Esc</kbd> cerrar";
