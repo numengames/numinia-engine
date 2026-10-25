@@ -66,16 +66,25 @@ function geometriaDardo(): THREE.BufferGeometry {
   m.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); m.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3)); m.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
   return m;
 }
-let dardoGeo: THREE.BufferGeometry | null = null, dardoMat: THREE.MeshStandardMaterial | null = null;
-export const dardoMalla = () => new THREE.Mesh((dardoGeo ??= geometriaDardo()), (dardoMat ??= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 })));
+let dardoGeo: THREE.BufferGeometry | null = null, dardoMat: THREE.MeshStandardMaterial | null = null, dardoMatSinLuz: THREE.MeshBasicMaterial | null = null;
+/** A dart mesh (merged geometry, one shared material). `sinLuz`: the AR wall board's (see `cara`): the vertex colours as they are, no lights. */
+export const dardoMalla = (sinLuz = false) => new THREE.Mesh((dardoGeo ??= geometriaDardo()), sinLuz ? (dardoMatSinLuz ??= new THREE.MeshBasicMaterial({ vertexColors: true })) : (dardoMat ??= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 })));
 
-/** A board face (real size) + its dark backboard; the face is the +z side, its centre at the origin. */
-function cara(): THREE.Group {
+/** A board face (real size) + its dark backboard; the face is the +z side, its centre at the origin.
+ *  `sinLuz` (the board on your real wall, AR): plain unlit materials. On the Quest the lit materials of an AR session
+ *  (MeshStandardMaterial: the board, the darts and the hands) were drawn BLACK while the unlit ones (the power bar, the aim dot)
+ *  were fine, so «En tu pared» showed a black square. IWER does not reproduce that (it draws with the base layer, the Quest
+ *  with a projection layer); a wall board needs no world light anyway: the painted texture already carries its colours and
+ *  the room is lit by the real lamps. The boards in the plaza keep their lit materials. */
+function cara(sinLuz = false): THREE.Group {
   const g = new THREE.Group();
   const R = RADIO_M * PINTADA;
-  const tabla = new THREE.Mesh(new THREE.BoxGeometry(R * 2.5, R * 2.5, 0.025).translate(0, 0, -0.0125), new THREE.MeshStandardMaterial({ color: 0x2b2f36, roughness: 0.9 }));
-  const disco = new THREE.Mesh(new THREE.CircleGeometry(R, 64).translate(0, 0, 0.012), new THREE.MeshStandardMaterial({ map: texturaDiana(), roughness: 0.85 }));
-  const canto = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 0.012, 64, 1, true).rotateX(Math.PI / 2).translate(0, 0, 0.006), new THREE.MeshStandardMaterial({ color: 0x1a1c20 }));
+  const mat = (color: number, rugosidad: number, mapa?: THREE.Texture): THREE.Material => sinLuz
+    ? new THREE.MeshBasicMaterial(mapa ? { map: mapa } : { color })
+    : new THREE.MeshStandardMaterial(mapa ? { map: mapa, roughness: rugosidad } : { color, roughness: rugosidad });
+  const tabla = new THREE.Mesh(new THREE.BoxGeometry(R * 2.5, R * 2.5, 0.025).translate(0, 0, -0.0125), mat(0x2b2f36, 0.9));
+  const disco = new THREE.Mesh(new THREE.CircleGeometry(R, 64).translate(0, 0, 0.012), mat(0xffffff, 0.85, texturaDiana()));
+  const canto = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 0.012, 64, 1, true).rotateX(Math.PI / 2).translate(0, 0, 0.006), mat(0x1a1c20, 0.5));
   g.add(tabla, disco, canto);
   return g;
 }
@@ -163,7 +172,7 @@ export function crearDianaAR(o: { alLanzar: (x: number, y: number, fuerza: numbe
   const reticula = new THREE.Mesh(new THREE.RingGeometry(0.05, 0.07, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd27a, side: THREE.DoubleSide }));
   reticula.matrixAutoUpdate = false; reticula.visible = false; root.add(reticula);
   const diana = new THREE.Group(); diana.visible = false; root.add(diana);
-  const face = cara(); diana.add(face);
+  const face = cara(true); diana.add(face); // unlit: see `cara`
   // the power bar, to the right of the board: a white frame, a dark track, the fill (scaled in y: teal under the window, red over
   // it), and the straight-throw WINDOW (±zona, the server's number): a flat gold band with a white border and two notches that
   // lights up while the bar is inside it. The fill is never gold, so the window is never hidden by another gold.
@@ -185,7 +194,7 @@ export function crearDianaAR(o: { alLanzar: (x: number, y: number, fuerza: numbe
   barra.visible = false;
   // where you aim right now (the gaze on a phone): a small dot on the face
   const punto = new THREE.Mesh(new THREE.CircleGeometry(0.006, 12).translate(0, 0, 0.014), new THREE.MeshBasicMaterial({ color: 0xffffff })); punto.visible = false; face.add(punto);
-  const vuelo = dardoMalla(); vuelo.visible = false; root.add(vuelo); // the dart on its way, until the server answers
+  const vuelo = dardoMalla(true); vuelo.visible = false; root.add(vuelo); // the dart on its way, until the server answers
 
   let fase: FaseAR = "buscando", pared: boolean | null = null, superficie: THREE.Matrix4 | null = null;
   let cargando = false, desde = 0, potencia = 0, lanzados = 0, ultimo: { x: number; y: number; fuerza: number } | null = null;
@@ -277,7 +286,7 @@ export function crearDianaAR(o: { alLanzar: (x: number, y: number, fuerza: numbe
       for (const x of lista) {
         const k = `${x.quien}:${x.numero}`; vistos.add(k);
         let m = clav.get(k);
-        if (!m) { m = dardoMalla(); face.add(m); clav.set(k, m); vuelo.visible = false; }
+        if (!m) { m = dardoMalla(true); face.add(m); clav.set(k, m); vuelo.visible = false; }
         const fuera = Math.hypot(x.x, x.y) > PINTADA * 1.2;
         m.visible = !fuera; // way off the board: it is in the wall, not on the board
         m.position.set(x.x * RADIO_M, x.y * RADIO_M, 0.012);

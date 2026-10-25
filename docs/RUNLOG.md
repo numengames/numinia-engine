@@ -1660,3 +1660,8 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `vr/v14-lanzar-dardo` (sobre main `864c7f86`); sin cambio de versión.
 - Siguiente: calibrar los umbrales con Pablo en el casco; decidir si la ayuda tira al centro o hacia donde señala el mando; unificar la ventana de lectura de velocidad (120 ms al lanzar, 60 ms al puntuar).
+
+## 2026-10-25 · v12 la diana de «En tu pared» ya no sale negra · hecho
+- Qué: en AR (`En tu pared`) la diana usa materiales sin luz (`packages/render/src/dardos.ts`, `dardos-duelo-ar.ts`); con luz salía negra en la Quest (QA 22-10). Hipótesis: el modo AR no aporta luces a la escena; no reproducido en IWER, solo cubierto por prueba unitaria y la pata `dardos-ar-diana`.
+- Números: `test/dardos-barra.test.ts` (+1), pata `tools/e2e-piernas/dardos-ar-diana.mjs`; `npm run gates` verde. Versión 0.54.2.
+- Siguiente: confirmar en una Quest real que la diana se ve de color.
