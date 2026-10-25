@@ -1,0 +1,5 @@
+{
+  "schema": "numinia-engine/lucha@1",
+  "criaturas": [],
+  "notas": "Sin criaturas: sin este fichero el motor pone la criatura de la casa al sureste de la plaza."
+}

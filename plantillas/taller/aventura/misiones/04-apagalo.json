@@ -1,0 +1,25 @@
+{
+  "formato": "mision@1",
+  "id": "apagalo",
+  "titulo": "Apágalo",
+  "descripcion": "En la ficha del farolillo, márcalo para que no se vea al jugar.",
+  "requisitos": {
+    "misiones": [
+      "muevelo"
+    ]
+  },
+  "pasos": [
+    {
+      "id": "oculta",
+      "tipo": "hace",
+      "texto": "Abre su ficha y márcalo como oculto al jugar",
+      "accion": "oculta"
+    }
+  ],
+  "recompensas": [],
+  "textos": {
+    "aceptada": "Tú lo sigues viendo al construir; quien juega, no.",
+    "completada": "Un objeto tiene ficha con propiedades. Esto prepara el truco de los cables."
+  },
+  "repetible": false
+}
