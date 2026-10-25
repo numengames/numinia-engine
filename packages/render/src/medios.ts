@@ -74,27 +74,57 @@ export function volumenEn(d: number, r: number, o: { volume: number; reach: Alca
   if (o.reach !== "burbuja") return v;
   return v * (d <= r * BORDE ? 1 : d >= r ? 0 : (r - d) / (r * (1 - BORDE)));
 }
-/** Keep a looping media element on the wall clock: everyone at the same moment. */
-function sincronizar(m: HTMLMediaElement): void {
+// ——— M18: el reloj del mundo ———
+// Hasta ahora «el reloj de pared» era `Date.now()` de CADA ordenador: dos pestañas de máquinas con la hora distinta veían
+// segundos distintos. Ahora la página puede darle a los medios el reloj del SERVIDOR (`fijarRelojMundo`, ms): los ticks
+// del servidor no dependen de la hora de nadie. Mientras no haya reloj (antes del primer snapshot, o en una prueba) se usa
+// `Date.now()` como siempre, y si la fuente devuelve `null` también.
+let relojMundo: (() => number | null) | null = null;
+export function fijarRelojMundo(f: (() => number | null) | null): void { relojMundo = f; }
+/** La hora del mundo en ms: la del servidor si la hay, si no la del ordenador. */
+let usaServidor = false, epocaReloj = 0;
+export const ahoraMundo = (): number => {
+  const t = relojMundo?.();
+  const ok = typeof t === "number" && Number.isFinite(t);
+  if (ok !== usaServidor) { usaServidor = ok; epocaReloj++; }   // el reloj cambió de fuente: cada vídeo se realinea en el acto
+  return ok ? (t as number) : Date.now();
+};
+/** Cambia cuando el reloj del mundo cambia de fuente (llegó el del servidor): el vídeo la mira para no esperar 5 s. */
+export const epocaDelReloj = (): number => epocaReloj;
+/** M18 (para medir): cuánto se desvía (s) del reloj del mundo cada vídeo que suena ahora mismo. */
+const videosVivos = new Set<HTMLVideoElement>();
+/** M18: un vídeo se desvía a lo sumo esto (s) del reloj del mundo antes de saltar; con 0,5 s de margen entre DOS pestañas
+ *  (la tarjeta pide < 0,5 s) cada una tiene que ir dentro de 0,25 s: el sonido corto sigue en 0,6 s. */
+export const VIDEO_SINCRO_S = 0.25;
+/** M18: cada cuánto (ms) un vídeo mira si se ha desviado. */
+export const VIDEO_SINCRO_CADA_MS = 5_000;
+export function desfasesDeVideos(ahoraMs: number = ahoraMundo()): number[] {
+  const out: number[] = [];
+  for (const v of videosVivos) if (!v.paused && Number.isFinite(v.duration) && v.duration > 0) out.push(desfase(v.currentTime, v.duration, ahoraMs));
+  return out;
+}
+
+/** Keep a looping media element on the world's clock (the server's when we have it): everyone at the same moment. */
+function sincronizar(m: HTMLMediaElement, umbral: number = SINCRO_S): void {
   if (!Number.isFinite(m.duration) || m.duration <= 0) return;
-  const debe = (Date.now() / 1000) % m.duration, dif = Math.abs(m.currentTime - debe);
-  if (dif > SINCRO_S && dif < m.duration - SINCRO_S) m.currentTime = debe;
+  const debe = (ahoraMundo() / 1000) % m.duration, dif = Math.abs(m.currentTime - debe);
+  if (dif > umbral && dif < m.duration - umbral) m.currentTime = debe;
 }
 
 // ——— S4: el reloj de pared, en funciones puras (dos clientes con el mismo reloj caen en el mismo instante) ———
 
 /** En qué segundo del bucle va el mundo ahora mismo. Es LA regla de la sincronía: no depende de cuándo entraste. */
-export const instanteDePared = (dur: number, ahoraMs: number = Date.now()): number =>
+export const instanteDePared = (dur: number, ahoraMs: number = ahoraMundo()): number =>
   (!Number.isFinite(dur) || dur <= 0 ? 0 : ((ahoraMs / 1000) % dur + dur) % dur);
 
 /** Cuánto se ha desviado del reloj compartido una voz que va por `posicion` (segundos, ya con la vuelta del bucle). */
-export function desfase(posicion: number, dur: number, ahoraMs: number = Date.now()): number {
+export function desfase(posicion: number, dur: number, ahoraMs: number = ahoraMundo()): number {
   if (!Number.isFinite(dur) || dur <= 0) return 0;
   const d = Math.abs((((posicion - instanteDePared(dur, ahoraMs)) % dur) + dur) % dur);
   return Math.min(d, dur - d);                 // el final del bucle está pegado al principio
 }
 /** ¿Hay que saltar? El mismo umbral de siempre (0,6 s), y nunca a menos de 0,6 s del final. */
-export const necesitaSincro = (posicion: number, dur: number, ahoraMs: number = Date.now()): boolean =>
+export const necesitaSincro = (posicion: number, dur: number, ahoraMs: number = ahoraMundo()): boolean =>
   Number.isFinite(dur) && dur > 2 * SINCRO_S && desfase(posicion, dur, ahoraMs) > SINCRO_S;
 
 /** Las distancias del panner de una cosa que suena: `maxDistance` es su radio, y con `reach` más ancho que la
@@ -164,6 +194,7 @@ export async function cargarVideo(url: string, verOcultos: () => boolean = () =>
   const v = document.createElement("video");
   v.crossOrigin = "anonymous"; v.src = url; v.loop = true; v.muted = true; v.playsInline = true; v.preload = "auto";
   v.setAttribute("playsinline", "");
+  videosVivos.add(v);
   await new Promise<void>((ok, mal) => { v.addEventListener("loadedmetadata", () => ok(), { once: true }); v.addEventListener("error", () => mal(new Error(`no se pudo leer el vídeo (${v.error?.code ?? "?"})`)), { once: true }); });
   const tex = new THREE.VideoTexture(v);
   const pantalla = plano(tex, v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 16 / 9);
@@ -173,7 +204,8 @@ export async function cargarVideo(url: string, verOcultos: () => boolean = () =>
   let quiereSonar = false, ultimaSincro = 0;
   // U-mandos: ME alone — pausing, muting or lowering volume here never touches the shared clock or anyone else's screen.
   let miPausa = false, miVolumen = 1, miSilencio = false;
-  const reproducir = () => { if (miPausa) return; sincronizar(v); void v.play().catch(() => esperarGesto(reproducir)); };
+  let miEpoca = epocaDelReloj();
+  const reproducir = () => { if (miPausa) return; sincronizar(v, VIDEO_SINCRO_S); void v.play().catch(() => esperarGesto(reproducir)); };
 
   // ——— S4: el audio del vídeo entra en el mezclador ———
   // Un `MediaElementAudioSourceNode` se enchufa UNA vez por elemento (el spec no deja deshacerlo): desde ese momento
@@ -264,7 +296,8 @@ export async function cargarVideo(url: string, verOcultos: () => boolean = () =>
       if (miPausa || (o.reach === "burbuja" && d > VIDEO_PAUSA_M + r)) { if (!v.paused) v.pause(); return; }
       if (v.paused) reproducir();
       const ahora = performance.now();
-      if (ahora - ultimaSincro > SINCRO_CADA_MS) { ultimaSincro = ahora; sincronizar(v); }
+      ahoraMundo(); if (miEpoca !== epocaDelReloj()) { miEpoca = epocaDelReloj(); ultimaSincro = 0; }
+      if (ahora - ultimaSincro > VIDEO_SINCRO_CADA_MS) { ultimaSincro = ahora; sincronizar(v, VIDEO_SINCRO_S); }
       const mio = miSilencio ? 0 : miVolumen;
       if (!cadena && !sinGrafo) { enchufar(o, r); }
       if (cadena) {
@@ -284,7 +317,7 @@ export async function cargarVideo(url: string, verOcultos: () => boolean = () =>
       v.volume = vol;
     },
     soltar() {
-      quitarVivo(); v.pause(); v.removeAttribute("src"); v.load(); tex.dispose();
+      videosVivos.delete(v); quitarVivo(); v.pause(); v.removeAttribute("src"); v.load(); tex.dispose();
       if (cadena) { for (const n of [cadena.g, cadena.panner]) { try { (n as { disconnect?: () => void }).disconnect?.(); } catch { /* ya suelto */ } } cadena = null; }
       (pantalla.material as THREE.Material).dispose(); pantalla.geometry.dispose(); soltarEsfera(burbuja);
     },
@@ -309,7 +342,7 @@ let serieSonido = 0;
 export function cargarSonido(url: string, verOcultos: () => boolean, h: HechurasSonido = {}): Medio {
   const pedir = h.grafo ?? pedirGrafo;
   const hacerMedio = h.medio ?? ((u: string) => { const a = new Audio(); a.crossOrigin = "anonymous"; a.preload = "metadata"; a.src = u; return a; });
-  const ahoraMs = h.ahora ?? (() => Date.now());
+  const ahoraMs = h.ahora ?? ahoraMundo;
   const monotono = h.monotono ?? (() => (typeof performance !== "undefined" ? performance.now() : Date.now()));
   const esperarGesto = h.trasGesto ?? trasGesto;
 
