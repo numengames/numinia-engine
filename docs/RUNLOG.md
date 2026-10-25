@@ -1665,3 +1665,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Qué: en AR (`En tu pared`) la diana usa materiales sin luz (`packages/render/src/dardos.ts`, `dardos-duelo-ar.ts`); con luz salía negra en la Quest (QA 22-10). Hipótesis: el modo AR no aporta luces a la escena; no reproducido en IWER, solo cubierto por prueba unitaria y la pata `dardos-ar-diana`.
 - Números: `test/dardos-barra.test.ts` (+1), pata `tools/e2e-piernas/dardos-ar-diana.mjs`; `npm run gates` verde. Versión 0.54.2.
 - Siguiente: confirmar en una Quest real que la diana se ve de color.
+
+## 2026-10-25 · MIS-246 dos fichas del mismo color ya no se funden · hecho
+- Qué: en el Inventario, dos tokens con otro nombre y el mismo color (dos «semillas» verdes) se juntaban bajo el nombre de la primera. Ahora apilan por clase + color + nombre (`features/inventario/reglas.ts`, `dar`); la misma ficha sigue sumando en su pila.
+- Números: `test/inventario.test.ts` (+1 prueba; una afirmación vieja que dependía del fallo usa ahora el nombre real); `npm run gates` verde. Versión 0.57.1.
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `inventario/fichas-sin-fusion` (sobre main `4fb099a4`), sin PR todavía.
+- Siguiente: `inventario/confirmar-soltar` (pedir confirmación antes de soltar un arma o reliquia).

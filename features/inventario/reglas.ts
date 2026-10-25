@@ -103,7 +103,7 @@ export function juntar(leer: (j: number) => unknown): Inventario {
   return leerInventario({ ...r, objetos });
 }
 
-/** Hand something to this person. Tokens and catches stack with the same class and colour; a new stack needs a free slot of the bag. */
+/** Hand something to this person. Tokens and catches stack with the same class, colour and name (two seeds of one colour but different names stay apart); a new stack needs a free slot of the bag. */
 export function dar(inv: Inventario, e: Entrega): Resultado {
   if (!esTipo(e.tipo)) return { ok: false, motivo: "Eso no es un arma, una reliquia, un token ni una captura." };
   const clase = corta(e.clase, LIM.clase), nombre = corta(e.nombre, LIM.nombre);
@@ -112,7 +112,7 @@ export function dar(inv: Inventario, e: Entrega): Resultado {
   const n = apila(e.tipo) ? Math.max(1, Math.min(LIM.pila, Math.floor(Number(e.n) || 1))) : 1;
   const valor = Math.max(0, Math.floor(Number(e.valor ?? (clase === "semilla" && color ? VALOR_SEMILLA[color] : 0)) || 0));
   if (apila(e.tipo)) {
-    const pila = inv.objetos.find((x) => x.tipo === e.tipo && x.clase === clase && x.color === color);
+    const pila = inv.objetos.find((x) => x.tipo === e.tipo && x.clase === clase && x.color === color && x.nombre === nombre);
     if (pila) {
       if (pila.n + n > LIM.pila) return { ok: false, motivo: `No caben más de ${LIM.pila} ${pila.nombre}.` };
       pila.n += n;
