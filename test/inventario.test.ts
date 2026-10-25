@@ -66,6 +66,19 @@ test("inventario: the declaration meets the plug's rules and is in both lists", 
   assert.ok(funciones.findIndex((f) => f.feature.id === "inventario") > funciones.findIndex((f) => f.feature.id === "misiones"), "inventario listens to misiones: it comes after");
 });
 
+test("reglas: two tokens of one colour but different names stay in two stacks and resumen counts both", () => {
+  const inv = nuevoInventario();
+  const a = dar(inv, { tipo: "token", clase: "semilla", nombre: "Semilla del bosque", color: "verde", n: 2 });
+  const b = dar(inv, { tipo: "token", clase: "semilla", nombre: "Semilla del lago", color: "verde", n: 3 });
+  const c = dar(inv, { tipo: "token", clase: "semilla", nombre: "Semilla del bosque", color: "verde" });
+  assert.ok(a.ok && b.ok && c.ok);
+  assert.notEqual(a.objeto.id, b.objeto.id, "different names, different stacks");
+  assert.equal(a.objeto.id, c.objeto.id, "the same name still joins its stack");
+  assert.deepEqual(inv.objetos.map((o) => [o.nombre, o.n]), [["Semilla del bosque", 3], ["Semilla del lago", 3]]);
+  assert.equal(ocupados(inv), 2);
+  assert.equal(resumen(inv).prestigio, 6);
+});
+
 test("reglas: tokens stack by class and colour, weapons and relics never; the Reserva and a stack have a size", () => {
   const inv = nuevoInventario();
   const a = dar(inv, { tipo: "token", clase: "semilla", nombre: "Semilla verde", color: "verde" });
@@ -77,7 +90,7 @@ test("reglas: tokens stack by class and colour, weapons and relics never; the Re
   assert.equal(resumen(inv).prestigio, 8);
   const h1 = dar(inv, { tipo: "arma", clase: "hoja", nombre: "Hoja" }), h2 = dar(inv, { tipo: "arma", clase: "hoja", nombre: "Hoja" });
   assert.ok(h1.ok && h2.ok && h1.objeto.id !== h2.objeto.id && h2.objeto.n === 1, "two weapons are two objects");
-  assert.equal(dar(inv, { tipo: "token", clase: "semilla", nombre: "x", color: "verde", n: LIM.pila }).ok, false, "a stack has a top");
+  assert.equal(dar(inv, { tipo: "token", clase: "semilla", nombre: "Semilla verde", color: "verde", n: LIM.pila }).ok, false, "a stack has a top");
   for (let i = ocupados(inv); i < BOLSA_HUECOS; i++) assert.ok(dar(inv, { tipo: "reliquia", clase: `r${i}`, nombre: `Reliquia ${i}` }).ok);
   assert.match((dar(inv, { tipo: "reliquia", clase: "otra", nombre: "Otra" }) as { motivo: string }).motivo, /llena/);
   assert.ok(dar(inv, { tipo: "token", clase: "semilla", nombre: "Semilla roja", color: "roja" }).ok, "a full Reserva still stacks");
