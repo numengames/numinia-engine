@@ -122,7 +122,7 @@ test("lucha pvp: reaching Aletargado freezes the person, then the server puts th
 });
 
 test("lucha: main's fall (#145) and the Estado ladder agree — a fallen or colapsado person strikes neither creatures (blow or ability) nor people; one return path each", () => {
-  const G: Criatura = { id: "guardian-1", especie: "guardian-crisalida", x: 10, z: 0, y: 0, reaparicion: 0.05 };
+  const G: Criatura = { id: "guardian-1", especie: "guardian-crisalida", x: 10, z: 0, y: 0, reaparicion: 0.05, fija: true };
   const KEY = "c:guardian-1";
   const W = mundo(3, true, [G]);
   W.pump(2);

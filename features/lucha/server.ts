@@ -4,7 +4,10 @@
 // Date), lowers coherence in the shared state, dissolves the creature at 0 (it stops being solid: the simulation
 // rebuilds its boxes from the state, as with objetos) and invokes it again REAPARICION_S later. No work when nothing
 // changes: the tick hook only looks at the (usually empty) lists of dissolved creatures and fallen players and returns.
-// The creature does not move or chase yet (L3) — but every blow a player lands, it strikes back: the player's own life,
+// MIS-245: a creature whose sheet has a `conducta` (bestiario.ts) walks too: every MOVER_CADA_TICKS ticks, while someone is near, it
+// steps towards the nearest person inside its sight and its leash (persecucion.ts, pure), strikes them on its own cooldown when in
+// reach (the same `contraatacar` as the strike-back: `jugadorHerido`, `jugadorCaido`) and walks home when nobody is left; a world
+// pins one with `fija: true` in lucha.json. The server decides every step and every blow; the page only draws. Every blow a player lands, it strikes back: the player's own life,
 // kept in server memory only (no shared state, no HUD yet: that is L2's next story), goes down by the same roll. At 0
 // the player falls (`caido`): `golpear` and `habilidad` are refused until REAPARICION_JUGADOR_TICKS pass, then they come
 // back whole. Two independent paths down, one way back each: the creature's strike-back (life → caído → jugadorVuelve) and,
@@ -20,10 +23,11 @@ import { crearEscalera, NIVEL_COLAPSADO, NIVEL_ALETARGADO, ESCALERA, INCAPACITAD
 import { lucha, ALCANCE_PVP_M, DANO_BASE, DANO_VAR, ENFRIAMIENTO_TICKS, REAPARICION_S, VER_M, VIDA_JUGADOR_MAX, REAPARICION_JUGADOR_TICKS } from "./feature.ts";
 import { BESTIARIO } from "./bestiario.ts";
 import { ECLIPSE, CRITICO_PCT, CRITICO_X, cargaTras, ticksDe } from "./habilidades.ts";
+import { MOVER_CADA_TICKS, NIVEL_MAX_M, pasoDeCriatura } from "./persecucion.ts";
 
 /** The server's tick rate (Hz): cooldown and return are counted in ticks of it. */
 export const HZ = 20;
-export type Criatura = { id: string; especie: string; x: number; z: number; y?: number; nombre?: string; reaparicion?: number };
+export type Criatura = { id: string; especie: string; x: number; z: number; y?: number; nombre?: string; reaparicion?: number; /** true = it never walks (a world pins it where it is). */ fija?: boolean };
 /** The default creature of a world without its own lucha.json: south-east of the plaza (+z is south), away from the pond (18, −14). */
 export const CRIATURAS_DEFECTO: Criatura[] = [{ id: "guardian-1", especie: "guardian-crisalida", x: 24, z: 10, y: 0 }];
 
@@ -55,17 +59,21 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
   const vida = new Map<number, number>();          // player → life left (server memory only, L2 trozo 1)
   const caidos = new Map<number, number>();        // fallen player → tick they come back whole
 
+  const donde = new Map<string, { x: number; z: number }>();   // creature → where it stands now (its home is the `criaturas` entry; only a walker ever differs)
+  const golpeaDesde = new Map<string, number>();               // creature → first tick its next blow may land
+  const caminan = new Set<string>();                           // the creatures that may walk (a sheet with `conducta`, not pinned): the tick looks at these only
   const lista = (opts.criaturas ?? CRIATURAS_DEFECTO).filter((c) => /^[a-z0-9-]{1,30}$/.test(String(c.id)) && Number.isFinite(c.x) && Number.isFinite(c.z));
   for (const c of lista) {
     const v = valorDe(c);
     if (!v) { api.log(`lucha: la criatura «${c.id}» es de una especie que no está en el bestiario («${c.especie}») y no se pone`); continue; }
-    if (api.state.set(`c:${c.id}`, v, { at: { x: c.x, z: c.z } })) criaturas.set(`c:${c.id}`, c); else api.log(`lucha: la criatura «${c.id}» no cabe en el esquema y no se pone`);
+    if (api.state.set(`c:${c.id}`, v, { at: { x: c.x, z: c.z } })) { criaturas.set(`c:${c.id}`, c); if (BESTIARIO[c.especie]?.conducta && c.fija !== true) caminan.add(`c:${c.id}`); } else api.log(`lucha: la criatura «${c.id}» no cabe en el esquema y no se pone`);
   }
   api.log(`lucha: ${criaturas.size} criatura(s)`);
 
   const rechazar = (e: number, motivo: string) => { api.emit("rechazado", { motivo }, { to: e }); };
-  const poner = (key: string, v: Msg) => { const c = criaturas.get(key)!; api.state.set(key, v, { at: { x: c.x, z: c.z } }); };
-  const cerca = (key: string) => { const c = criaturas.get(key)!; return { near: { x: c.x, z: c.z }, radius: VER_M }; };
+  const aqui = (key: string) => donde.get(key) ?? criaturas.get(key)!;
+  const poner = (key: string, v: Msg) => { const c = aqui(key); api.state.set(key, v, { at: { x: c.x, z: c.z } }); };
+  const cerca = (key: string) => { const c = aqui(key); return { near: { x: c.x, z: c.z }, radius: VER_M }; };
 
   const carga = new Map<number, number>();         // player → Carga (0..100), lost on leaving
   const habDesde = new Map<string, number>();      // `player:ability` → first tick it may be used again
@@ -167,6 +175,34 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
     if (s > 0) vuelven.set(key, t + Math.round(s * HZ));                  // a creature the ability dissolves does NOT strike back: it is gone
   });
 
+  /** MIS-245: one step of every walker that is standing (not dissolved). Costs a look at the (few) walkers and, for each,
+   *  a sphere query; nothing is written unless it moved or changed mode. */
+  const caminar = (t: number) => {
+    for (const key of caminan) {
+      const v = api.state.get(key), c = criaturas.get(key), f = BESTIARIO[c?.especie ?? ""], k = f?.conducta;
+      if (!v || !c || !k || v.modo === "disuelta") continue;
+      const aca = aqui(key), y = c.y ?? 0;
+      const gente = api.overlapSphere(aca.x, y, aca.z, k.vision + 1).filter((e) => !caidos.has(e) && !api.leyendoNormas(e) && !(escalera.size > 0 && escalera.nivel(e, t) >= NIVEL_ALETARGADO)).flatMap((e) => {
+        const p = api.position(e);
+        return p && Math.abs(p.y - y) <= NIVEL_MAX_M ? [{ entidad: e, x: p.x, z: p.z }] : [];
+      });
+      const paso = pasoDeCriatura(aca, c, k, gente, MOVER_CADA_TICKS / HZ);
+      const movio = paso.x !== aca.x || paso.z !== aca.z;
+      if (movio || paso.modo !== v.modo) {
+        donde.set(key, { x: paso.x, z: paso.z });
+        const w = valorDe({ ...c, x: paso.x, z: paso.z })!;                        // its box moves with it (the simulation rebuilds the solids)
+        poner(key, { ...v, x: w.x, z: w.z, bx0: w.bx0, bz0: w.bz0, bx1: w.bx1, bz1: w.bz1, modo: paso.modo });
+      }
+      if (paso.alcanza && paso.objetivo !== null && t >= (golpeaDesde.get(key) ?? 0)) {
+        golpeaDesde.set(key, t + k.enfriamiento);
+        rng[0] = (rng[0] ^ Math.imul(t + 1, 0x9e3779b1)) >>> 0;                    // same mix as `golpear`: same inputs, same blows (replayable)
+        const dano = k.dano + (rngNext(rng) % k.variacion);
+        api.emit("ataca", { objetivo: key, a: paso.objetivo, dano }, cerca(key));
+        contraatacar(paso.objetivo, t, dano);
+      }
+    }
+  };
+
   api.onTick((t) => {
     if (reaparecen.size > 0) {
       for (const [e, en] of reaparecen) {
@@ -182,11 +218,13 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
     if (vuelven.size > 0) for (const [key, en] of vuelven) {
       if (t < en) continue;
       vuelven.delete(key);
+      donde.delete(key); golpeaDesde.delete(key);                   // it comes back at home
       const v = valorDe(criaturas.get(key)!);
       if (!v) continue;
       poner(key, v);
       api.emit("vuelve", { objetivo: key }, cerca(key));
     }
+    if (caminan.size > 0 && t % MOVER_CADA_TICKS === 0) caminar(t);
     if (caidos.size > 0) for (const [e, en] of caidos) {
       if (t < en) continue;
       caidos.delete(e);
