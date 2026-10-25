@@ -130,6 +130,10 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
   });
   const nieblaAuto = boton("Niebla del color del cielo", "La niebla toma el color del horizonte del cielo (vuelve a seguir al cielo). / The fog takes the sky horizon's colour again.", () => amb.ajustar({ nieblaAuto: true }));
   nieblaAuto.id = "entorno-niebla-auto";
+  // D-076: this world lets players see the real sun where they are (each player still has to switch it on in their settings and accept the browser's question)
+  let solRealOfrecido = false;
+  const solRealBtn = boton("Ofrecer el sol real", "Los jugadores de este mundo podrán elegir (en sus ajustes) ver el sol de verdad donde están; el navegador les pregunta su ubicación y solo se usa en su navegador. / Players here may choose to see the real sun where they are.", () => amb.ajustar({ solReal: !solRealOfrecido }));
+  solRealBtn.id = "entorno-sol-real";
   const fondoFila = (campo: CampoFondo, texto: string, ayuda: string) => {
     const caja = document.createElement("div"); caja.className = "fondo"; caja.dataset.campo = campo;
     const select = document.createElement("select"); select.id = `entorno-${campo}`; select.setAttribute("aria-label", texto);
@@ -330,6 +334,7 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
     ...colores.map((c) => c.label),
     deslizador("Altura del sol", "solAltura", -30, 90, 1, (v) => `${v}°`),
     deslizador("Rumbo del sol", "solRumbo", -180, 180, 5, (v) => `${v}°`),
+    fila("Sol real", solRealBtn),
     deslizador("Fuerza del sol", "solIntensidad", 0, 10, 0.1, (v) => v.toFixed(1)),
     deslizador("Niebla (cerca)", "nieblaCerca", 0, 600, 5, (v) => `${v} m`),
     deslizador("Niebla (lejos)", "nieblaLejos", 0, 600, 5, (v) => (v === 0 ? "sin niebla" : `${v} m`)),
@@ -365,6 +370,7 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
       if (document.activeElement !== cieloTipo) cieloTipo.value = String(v.cielo);
       for (const c of colores) if (document.activeElement !== c.input) c.input.value = aHex(Number(v[c.campo]));
       nieblaAuto.setAttribute("aria-pressed", String(v.nieblaAuto !== false));
+      solRealOfrecido = v.solReal === true; solRealBtn.setAttribute("aria-pressed", String(solRealOfrecido));
       for (const f of [fondoImagen, fondoHdr]) if (document.activeElement !== f.select) f.pintar(String(v[f.campo] ?? ""));
       notaFondo.textContent = fondos ? notaNivel(fondos.nivel()) : ""; notaFondo.hidden = !notaFondo.textContent;
       for (const b of presets) b.setAttribute("aria-pressed", String(b.dataset.preset === v.preset));

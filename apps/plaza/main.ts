@@ -1,4 +1,5 @@
 // The PP1 page: one plaza, your capsule, everyone else's, and the determinism probe.
+import { montarSolReal } from "./sol-real.ts";
 import { version as versionPaquete } from "../../package.json"; // only this field reaches the page (docs/VERSIONES.md)
 import { hex } from "../../packages/core/src/index.ts";
 import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX, BTN_JUMP, BTN_RUN } from "../../packages/sim/src/index.ts";
@@ -922,6 +923,9 @@ const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById(
 // before the first frame: the display loop above only draws from the next animation frame on ----
 montarAjustes({ view, session, params, funciones, numinia: (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia });
 montarPulsaciones({ ajuste: leerAjuste });
+// D-076: the sun that follows the real one, only for a world that offers it AND a player who accepted (sol-real.ts)
+const solReal = montarSolReal({ view, ajustes: (globalThis as unknown as { __numinia: { ajustes: Parameters<typeof montarSolReal>[0]["ajustes"] } }).__numinia.ajustes, decir: (t) => { const box = document.getElementById("avisos"); if (!box) return; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); } });
+Object.assign((globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia, { solReal });
 
 // battery mode: press B (or open ?bateria)
 addEventListener("keydown", (e) => { if (e.code === "KeyB" && !escribiendo(e)) { view.power.setBattery(!view.power.battery); view.applyPixelRatio(); } });

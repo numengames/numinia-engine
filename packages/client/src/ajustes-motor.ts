@@ -92,6 +92,12 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     describe: "Luz del cielo de alto rango: más realista y más pesada. Sin ella en móvil y en visor.",
     defecto: { valor: false, nivel: { A: true } },
   },
+  // D-076: the sun follows the real one where you are. Off by default; it does nothing unless the WORLD offers it, and the browser asks you again.
+  {
+    grupo: "graficos", id: "solReal", tipo: "bool", nombre: "Sol real", requiere: ["entorno"],
+    describe: "En los mundos que lo permiten, el sol sigue al de verdad donde estás. El navegador te pregunta tu ubicación; solo se usa aquí y solo su zona aproximada.",
+    defecto: false,
+  },
   // H12b: extra effects, level A only (entorno.efectos is true only on a desktop): off for everyone until a person turns them on
   {
     grupo: "graficos", id: "bloom", tipo: "bool", nombre: "Brillo (bloom)", requiere: ["entorno.efectos"],

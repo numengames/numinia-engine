@@ -185,6 +185,8 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   const api = {
     lista: () => a.lista(), grupos: () => a.grupos(), get: (id: string) => a.get(id), set: (id: string, v: unknown) => a.set(id, v),
     restablecer: (id?: string) => a.restablecer(id), capacidades: () => caps.describir(),
+    /** D-076: the page hears a setting change (id, value). */
+    alCambiar: (f: (id: string, v: unknown) => void) => a.alCambiar(f),
     abrir: (): boolean => abrir(), cerrar: (): void => cerrar(),
     get abierto(): boolean { return !!dlg?.open; },
   };

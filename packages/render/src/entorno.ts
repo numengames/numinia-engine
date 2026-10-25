@@ -308,8 +308,11 @@ export function crearEntorno(h: EntornoHooks) {
   }
 
   /** Apply an environment (flat fields). Safe to call at any time; with AR on, it waits until the world shows again. */
+  // D-076: a sun that follows the real one — set from the page AFTER the player accepted; kept only in memory. It sits over the world's own
+  // sun (altura, rumbo and the clock the sky reads) without touching the shared environment: nobody else sees it, the file is not changed.
+  let solLocal: { altura: number; rumbo: number; hora: number } | null = null;
   function aplicar(pedido: EntornoDatos): void {
-    d = pedido; const v = pedido;
+    d = pedido; const v: EntornoDatos = solLocal && pedido.solReal === true ? { ...pedido, solAltura: solLocal.altura, solRumbo: solLocal.rumbo, solHora: true, hora: solLocal.hora } : pedido;
     if (!world.visible) { pendiente = true; return; }
     pendiente = false; aplicados++;
     // sun (the sky's) and the light (the moon when the sun is down)
@@ -424,6 +427,14 @@ export function crearEntorno(h: EntornoHooks) {
       if (c) { pedido = { ...pedido, ...c }; cambiarCalidad(); }
       return { ...calidad };
     },
+    /** D-076: show the real sun (altura, rumbo, local solar hour) in this browser only, or null to go back to the world's own. Needs the world to offer it (`solReal`). */
+    solReal(s: { altura: number; rumbo: number; hora: number } | null): boolean {
+      solLocal = s && [s.altura, s.rumbo, s.hora].every(Number.isFinite) ? { ...s } : null;
+      if (d) aplicar(d);
+      return solLocal !== null && d?.solReal === true;
+    },
+    /** D-076: does the world offer it? */
+    get ofreceSolReal(): boolean { return d?.solReal === true; },
     /** H12b: choose the extra effects (any subset); off whatever the wish on a tier that is not A. Returns what applies now. */
     efectos(e?: Partial<Efectos>): Efectos {
       if (e) { pedidoEf = { ...pedidoEf, ...e }; cambiarEfectos(); }
@@ -458,7 +469,7 @@ export function crearEntorno(h: EntornoHooks) {
       return {
         preset: String(d?.preset ?? ""), cielo: String(d?.cielo ?? ""), modoCielo, fondo,
         niebla: f ? { cerca: f.near, lejos: f.far, color: hex(f.color) } : null,
-        sol: { altura: n(d?.solAltura), rumbo: n(d?.solRumbo), intensidad: Math.round(sun.intensity * 100) / 100, color: hex(sun.color), sombras: sun.castShadow && sun.shadow.intensity > 0, mapa: sun.castShadow && sun.shadow.intensity > 0 ? sun.shadow.mapSize.x : 0 },
+        sol: { altura: n(solLocal && d?.solReal === true ? solLocal.altura : d?.solAltura), rumbo: n(solLocal && d?.solReal === true ? solLocal.rumbo : d?.solRumbo), intensidad: Math.round(sun.intensity * 100) / 100, color: hex(sun.color), sombras: sun.castShadow && sun.shadow.intensity > 0, mapa: sun.castShadow && sun.shadow.intensity > 0 ? sun.shadow.mapSize.x : 0 },
         ambiente: Math.round(hemi.intensity * 100) / 100,
         luzEntorno: !scene.environment ? "no" : hdrDe(d) && hdrTex.rt && scene.environment === hdrTex.rt.texture ? "fichero" : "cielo",
         suelo: { tipo: String(d?.suelo ?? ""), textura: !!sueloMat.map, relieve: !!sueloMat.normalMap, metros: n(d?.sueloMetros) },
@@ -469,7 +480,7 @@ export function crearEntorno(h: EntornoHooks) {
         hitos: h.hitos[0]?.visible ?? false, rejilla: grid.visible, mapaCorte: Math.max(0, n(d?.mapaCorte, 0)),
         /** H4b: the big files this tier actually uses (a name = fetched, "" = none; `omitidos` = the world names one this tier does not fetch). */
         ficheros: { hdr: hdrDe(d), fondo: imagenDe(d), omitidos: (!!String(d?.hdr ?? "") && !hdrDe(d)) || (!!String(d?.imagen ?? "") && !imagenDe(d)) },
-        efectos: { ...efectos }, radioSombra: sun.shadow.radius,
+        efectos: { ...efectos }, radioSombra: sun.shadow.radius, solReal: { ofrecido: d?.solReal === true, activo: solLocal !== null && d?.solReal === true },
         nivel, calidad: { ...calidad }, aplicados, horneados, cargando,
       };
     },
