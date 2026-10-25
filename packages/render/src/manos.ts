@@ -210,7 +210,7 @@ export function createManos(h: ManosHooks) {
     return r;
   });
 
-  function vibrar(r: Ranura, v = 0.35, ms = 25): void { try { void r.fuente?.gamepad?.hapticActuators?.[0]?.pulse?.(v, ms); } catch { /* no haptics here */ } }
+  function vibrar(r: Ranura, v = 0.35, ms = 25): void { if (r.esMano) return; /* a tracked hand has no motor: no pulse */ try { void r.fuente?.gamepad?.hapticActuators?.[0]?.pulse?.(v, ms); } catch { /* no haptics here */ } }
   function pulsar(r: Ranura, como: "gatillo" | "agarre"): void {
     if (!r.lado || !raiz.parent) return;
     if (r.candidato) { emitir({ tipo: "agarrar", key: r.candidato, lado: r.lado }); vibrar(r, 0.6, 40); return; }
@@ -276,6 +276,7 @@ export function createManos(h: ManosHooks) {
     if (r.halo.parent && r.candidato) { r.halo.parent.worldToLocal(r.halo.position); r.halo.scale.divideScalar(r.halo.parent.getWorldScale(O).x || 1); }
     r.halo.visible = !!r.candidato;
     // the ray: panels first, then things and names; it stops where it hits
+    const filaAntes = r.apuntado?.tipo === "panel" ? r.apuntado.fila : 0; // the row aimed last frame (0: none)
     r.apuntado = null;
     const rayoVivo = conectado && r.ctrl.visible && !r.candidato && !ocupada(r.lado!);
     r.rayo.visible = rayoVivo; r.punto.visible = false;
@@ -288,7 +289,7 @@ export function createManos(h: ManosHooks) {
     for (const p of h.paneles?.() ?? []) {
       if (!p.malla.visible) continue;
       const hit = ray.intersectObject(p.malla, false)[0];
-      if (hit && hit.distance < dist && hit.uv) { uv.copy(hit.uv); const n = p.fila(uv); dist = hit.distance; r.apuntado = { tipo: "panel", key: "", fila: n, panel: p }; p.encima(n); }
+      if (hit && hit.distance < dist && hit.uv) { uv.copy(hit.uv); const n = p.fila(uv); dist = hit.distance; r.apuntado = { tipo: "panel", key: "", fila: n, panel: p }; p.encima(n); if (n && n !== filaAntes) vibrar(r, 0.25, 15); /* MIS-200 t_4038a8cd: a new row under the ray ticks once */ }
     }
     if (!r.apuntado) {
       const lista: THREE.Object3D[] = [], claves = new Map<THREE.Object3D, string>();
