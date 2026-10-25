@@ -17,7 +17,7 @@ import { carpetaMundo } from "./mundo-carpeta.ts";
 import { FICHA, type Ficha, validarFicha } from "./aventura.ts";
 
 /** Must match `objetos.version` in `features/objetos/feature.ts` (checked at runtime by the round-trip test). */
-export const OBJETOS_VERSION = 7;
+export const OBJETOS_VERSION = 8;
 
 /** A Hyperfy `assets://<sha256>.<ext>` reference, or null when the string is not one. */
 const ASSET_RE = /^asset:\/\/([0-9a-f]{64})\.([a-z0-9]+)$/i;

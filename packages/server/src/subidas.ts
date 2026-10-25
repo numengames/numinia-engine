@@ -22,7 +22,7 @@ import type { Activos } from "./activos.ts";
 export const SUBIDAS_A_LA_VEZ = 4;
 export const NOMBRE_FICHERO_MAX = 120;
 const MB = 1024 * 1024;
-const RUTA = /^\/a\/([^/]*)$/, NOMBRE = /^([0-9a-f]{64})\.([a-z0-9]{1,8})$/, YA_SUBIDO = /^[0-9a-f]{64}\.[a-z0-9]{2,4}$/;
+const RUTA = /^\/a\/([^/]*)$/, NOMBRE = /^([0-9a-f]{64})\.([a-z0-9]{1,8})$/, YA_SUBIDO = /^[0-9a-f]{64}\.[a-z0-9]{2,5}$/;
 const CORS = {
   "access-control-allow-origin": "*", // the token travels in a header, never in a cookie: another site cannot use it
   "access-control-allow-methods": "GET, HEAD, PUT",

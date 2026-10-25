@@ -1028,7 +1028,7 @@ export type MovimientoVista = { id: string; clips: readonly string[]; modo: "una
 export type PlacedObject = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean;
   /** U10 (optional): what it is (modelo = a .glb; imagen, video: a plane; sonido: a sphere of sound, radius = sx), the file's
    * extension, hidden while playing (a sphere), and volume 0-1. Without them: a .glb model. */
-  kind?: "modelo" | "imagen" | "video" | "sonido"; ext?: string; hidden?: boolean; volume?: number;
+  kind?: "modelo" | "imagen" | "video" | "sonido" | "trazo"; ext?: string; hidden?: boolean; volume?: number;
   /** U11 (optional): who hears it (burbuja: inside the bubble; zona, todos: everyone, at the same volume) and a video's bubble radius (m). */
   reach?: "burbuja" | "zona" | "todos"; radius?: number; bus?: "musica" | "efectos" | "ambiente";
   /** N22 (optional): part of the room (pinned or backdrop: the hall you stand in), downloaded before anything else. */

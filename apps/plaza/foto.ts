@@ -7,7 +7,10 @@
 // turns the camera toward it, and once there looks the way the photo looked. Where you appear is the server's (no
 // client says where it stands): the waypoint leads you there, or (N16) the world puts you there if its entorno.json
 // says `aparicionFoto: true` (features/teletransporte: the server finds a free spot; the light takes you). Nothing of this runs until P is pressed, and
-// nothing draws while you hold still (phones stay cool). Not in XR: the headset's view is not this page's canvas.
+// nothing draws while you hold still (phones stay cool). In VR (MIS-222) there is no free camera and no filters yet: the wrist
+// watch's camera button takes ONE picture of the headset's view (view.fotoVR: the head's pose re-drawn into a target; the page's
+// canvas gets nothing inside XR), always with the frame and the world's name, saves it, and keeps it: on leaving VR the picture
+// is on screen with «Compartir» / «Guardar» / «Copiar enlace». In AR there is no photo mode yet.
 import { FILTROS, filtro, valoresSvg, aplicarMatriz, marco, nombreArchivo, enlaceSitio, tomarSitioDeLaDireccion, rumboHacia, type Sitio, type Filtro } from "./foto-nucleo.ts";
 import { escribiendo } from "./escribiendo.ts";
 import { icono } from "./iconos.ts";
@@ -19,6 +22,8 @@ type Vista = {
   renderer: { domElement: HTMLCanvasElement; getPixelRatio(): number; setPixelRatio(r: number): void; setSize(w: number, h: number): void };
   draw(dt: number): void; applyPixelRatio(): void;
   vr: { active: boolean }; ar: { state: string };
+  /** MIS-222: one picture of what the headset sees (packages/render/src/foto-xr.ts); rejects outside XR or when no frame comes. */
+  fotoVR?: { sacar(): Promise<HTMLCanvasElement> };
   cam: { modo(m?: "juego" | "construir" | "foto"): string; desplazar(d: number, a: number, h?: number): void; mirarHacia(yaw: number, pitch?: number): void; yaw(): number;
     estado(): { pivote: Punto; yaw: number; pitch: number; distancia: number } };
   waypoint?(x: number, z: number, text: string): number;
@@ -49,6 +54,7 @@ export function montarFoto(o: FotoOpts) {
   const { view } = o;
   const lienzo = view.renderer.domElement;
   let activo = false, filtroId = "natural", conMarco = false, hecha: { blob: Blob; url: string; nombre: string; ancho: number; alto: number; enlace: string } | null = null;
+  let deVR = false, estabaEnVR = false; // the picture on hand was taken inside VR and has not been shown yet / VR was on a moment ago
   let mundo = () => document.title || "Mundo";
 
   // ---- the filters as SVG colour matrices (the live preview: the same numbers the PNG gets) ----
@@ -97,7 +103,11 @@ export function montarFoto(o: FotoOpts) {
   o.boton.title = "Foto: la interfaz se esconde, encuadras y disparas";
   o.boton.innerHTML = `${icono("camera")}<span class="solo-lector">Foto</span>`;
   o.boton.addEventListener("click", () => (activo ? cerrar() : abrir()));
-  setInterval(() => { const x = view.vr.active || view.ar.state !== "off"; if (o.boton.hidden !== x) o.boton.hidden = x; }, 500); // not in XR
+  setInterval(() => {
+    const vr = view.vr.active, x = vr || view.ar.state !== "off"; if (o.boton.hidden !== x) o.boton.hidden = x; // no free-camera button in XR
+    if (estabaEnVR && !vr && deVR && hecha && !activo && abrir()) mostrarHecha(); // back from VR: the picture taken there, on screen
+    estabaEnVR = vr;
+  }, 500);
 
   function pintarMarco(): void {
     capaMarco.hidden = !conMarco;
@@ -153,7 +163,7 @@ export function montarFoto(o: FotoOpts) {
     o.decir("Fuera del modo foto.");
   }
   function volverAEncuadrar(): void { panel.hidden = true; raiz.classList.remove("con-foto"); pintarMarco(); soltarHecha(); bDisparar.focus({ preventScroll: true }); }
-  function soltarHecha(): void { if (hecha) URL.revokeObjectURL(hecha.url); hecha = null; img.removeAttribute("src"); campoEnlace.hidden = true; }
+  function soltarHecha(): void { if (hecha) URL.revokeObjectURL(hecha.url); hecha = null; deVR = false; img.removeAttribute("src"); campoEnlace.hidden = true; }
 
   // ---- the picture: drawn again at up to 2× right now, read from the canvas in the same task (WebGL2 and WebGPU
   // both keep the frame until the task ends), then filtered and framed on a 2D canvas ----
@@ -173,12 +183,12 @@ export function montarFoto(o: FotoOpts) {
     for (let i = 0; i < px.length; i += 4 * 997) if (px[i + 3] !== 0 && (px[i] | px[i + 1] | px[i + 2]) !== 0) return false;
     return true;
   }
-  async function componer(c: HTMLCanvasElement, f: Filtro): Promise<void> {
+  async function componer(c: HTMLCanvasElement, f: Filtro, conElMarco = conMarco): Promise<void> {
     const ctx = c.getContext("2d")!, w = c.width, h = c.height;
     const datos = ctx.getImageData(0, 0, w, h);
     if (vacia(datos.data)) throw new Error("el navegador no dejó leer la imagen del mundo");
     if (f.matriz) { aplicarMatriz(datos.data, f.matriz); ctx.putImageData(datos, 0, 0); }
-    if (!conMarco) return;
+    if (!conElMarco) return;
     const m = marco(w, h), fondo = css("--n-fondo", "#14110F");
     ctx.fillStyle = fondo;
     ctx.fillRect(0, 0, w, m.borde); ctx.fillRect(0, 0, m.borde, h); ctx.fillRect(w - m.borde, 0, m.borde, h);
@@ -198,25 +208,59 @@ export function montarFoto(o: FotoOpts) {
     ctx.fillStyle = css("--n-texto2", "#C4B5A6"); ctx.textAlign = "right";
     ctx.fillText(fecha(new Date()), w - m.margen, yTexto);
   }
-  async function disparar(): Promise<{ ok: boolean; ancho?: number; alto?: number; bytes?: number; nombre?: string; enlace?: string; error?: string }> {
+  type Resultado = { ok: boolean; ancho?: number; alto?: number; bytes?: number; nombre?: string; enlace?: string; error?: string; deVR?: boolean };
+  /** Keeps a finished picture as «the last one» (blob, link, name) and offers the buttons the browser can use. */
+  async function guardarHecha(c: HTMLCanvasElement, enlaceDe: string): Promise<{ blob: Blob; archivo: File }> {
+    const blob = await new Promise<Blob | null>((ok) => c.toBlob(ok, "image/png"));
+    if (!blob) throw new Error("no se pudo guardar como PNG");
+    soltarHecha();
+    hecha = { blob, url: URL.createObjectURL(blob), nombre: nombreArchivo(mundo(), new Date()), ancho: c.width, alto: c.height, enlace: enlaceDe };
+    img.src = hecha.url; img.alt = `Tu foto de ${mundo()}`;
+    const archivo = new File([blob], hecha.nombre, { type: "image/png" });
+    bCompartir.hidden = !(typeof navigator.share === "function" && (navigator.canShare?.({ files: [archivo] }) ?? false));
+    bCopiarImg.hidden = tactil() || typeof ClipboardItem === "undefined" || !navigator.clipboard?.write;
+    estado.textContent = `${c.width} × ${c.height} px · ${Math.round(blob.size / 1024)} kB`;
+    return { blob, archivo };
+  }
+  function mostrarHecha(): void {
+    panel.hidden = false; raiz.classList.add("con-foto");
+    (bCompartir.hidden ? bGuardar : bCompartir).focus({ preventScroll: true });
+    deVR = false;
+    o.decir("Foto hecha. Puedes compartirla, guardarla o copiar el enlace a este sitio.");
+  }
+  function resultado(c: HTMLCanvasElement, extra: Partial<Resultado> = {}): Resultado {
+    return { ok: true, ancho: c.width, alto: c.height, bytes: hecha!.blob.size, nombre: hecha!.nombre, enlace: hecha!.enlace, ...extra };
+  }
+  /** MIS-222 — inside VR: one picture of the headset's view, with the frame and the world's name (no filters, no free camera
+   * yet). The PNG is kept as «the last one» and offered for download at once (best effort: a headset browser may refuse a
+   * download in a session); on leaving VR it is on screen with the share / save buttons. */
+  async function dispararVR(): Promise<Resultado> {
+    if (!view.fotoVR) return { ok: false, error: "este motor no saca fotos dentro de VR" };
+    try {
+      const c = await view.fotoVR.sacar();
+      await componer(c, filtro("natural"), true);
+      const yo = o.yo(), e = view.cam.estado(); // where you stand and the way you look: the link leads there
+      await guardarHecha(c, enlaceSitio(location, { x: yo?.x ?? e.pivote.x, y: yo?.y ?? e.pivote.y, z: yo?.z ?? e.pivote.z, yaw: view.cam.yaw(), pitch: 0, dist: 0 }));
+      deVR = true;
+      try { const a = document.createElement("a"); a.href = hecha!.url; a.download = hecha!.nombre; document.body.appendChild(a); a.click(); a.remove(); } catch { /* the picture waits on the page */ }
+      o.decir("Foto hecha en VR: al salir la tienes en la página para compartirla.");
+      return resultado(c, { deVR: true });
+    } catch (e) {
+      const t = `No pude hacer la foto en VR: ${(e as Error)?.message ?? e}.`;
+      o.decir(t); console.warn(`[foto] ${t}`);
+      return { ok: false, error: String((e as Error)?.message ?? e), deVR: true };
+    }
+  }
+  async function disparar(): Promise<Resultado> {
+    if (view.vr.active) return dispararVR(); // the headset's view is not this page's canvas
     if (!activo && !abrir()) return { ok: false, error: "no hay modo foto aquí" };
     try {
       if (!document.documentElement.classList.contains("menos-movimiento")) { destello.classList.remove("ya"); void destello.offsetWidth; destello.classList.add("ya"); }
       const c = capturar();
       await componer(c, filtro(filtroId));
-      const blob = await new Promise<Blob | null>((ok) => c.toBlob(ok, "image/png"));
-      if (!blob) throw new Error("no se pudo guardar como PNG");
-      soltarHecha();
-      hecha = { blob, url: URL.createObjectURL(blob), nombre: nombreArchivo(mundo(), new Date()), ancho: c.width, alto: c.height, enlace: enlace() };
-      img.src = hecha.url; img.alt = `Tu foto de ${mundo()}`;
-      const archivo = new File([blob], hecha.nombre, { type: "image/png" });
-      bCompartir.hidden = !(typeof navigator.share === "function" && (navigator.canShare?.({ files: [archivo] }) ?? false));
-      bCopiarImg.hidden = tactil() || typeof ClipboardItem === "undefined" || !navigator.clipboard?.write;
-      estado.textContent = `${c.width} × ${c.height} px · ${Math.round(blob.size / 1024)} kB`;
-      panel.hidden = false; raiz.classList.add("con-foto");
-      (bCompartir.hidden ? bGuardar : bCompartir).focus({ preventScroll: true });
-      o.decir("Foto hecha. Puedes compartirla, guardarla o copiar el enlace a este sitio.");
-      return { ok: true, ancho: c.width, alto: c.height, bytes: blob.size, nombre: hecha.nombre, enlace: hecha.enlace };
+      await guardarHecha(c, enlace());
+      mostrarHecha();
+      return resultado(c);
     } catch (e) {
       const t = `No pude hacer la foto: ${(e as Error)?.message ?? e}.`;
       o.decir(t); console.warn(`[foto] ${t}`);

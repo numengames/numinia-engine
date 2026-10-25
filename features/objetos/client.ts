@@ -26,6 +26,8 @@ export type Modo = (typeof MODOS)[number];
 export type Donde = Record<"x" | "y" | "z" | "rx" | "ry" | "rz" | "sx" | "sy" | "sz", number>;
 type Res = { ok: true } | { ok: false; why: string };
 /** U12: a hole as the page and agents read it (constructor.huecos). */
+/** MIS-222: an image already uploaded to this server (/a/<sha>.<ext>) that some object of the world shows, as a hole can take it. */
+export type ImagenSubida = { sha: string; ext: string; nombre: string };
 export type Hueco = { id: string; nombre: string; x: number; y: number; z: number; ancho: number; alto: number; lleno: boolean; fijado: boolean };
 
 const entre = (v: number, [min, max]: readonly [number, number]) => Math.min(max, Math.max(min, v));
@@ -142,6 +144,17 @@ export function crearCliente() {
     rellenar: (id: string, sha: string, ext: string, nombre = "") => enviar("rellenar", { id, modelo: sha, ext, nombre }),
     /** U12: take the work out of a hole: its card comes back. */
     vaciar: (id: string) => enviar("vaciar", { id }),
+    /** MIS-222: the images already on this server that the world shows (one per file, by its sha256), the ones to pick from where a
+     * file picker does not exist (inside a headset). The name is the first object's; the extension is the file's. */
+    imagenes: (): ImagenSubida[] => {
+      const vistos = new Set<string>(), out: ImagenSubida[] = [];
+      if (api) for (const id of api.state.keys()) {
+        const o = api.state.get(id)!, sha = String(o.modelo ?? ""), ext = String(o.ext ?? "");
+        if (o.tipo !== "imagen" || !sha || !(EXTENSIONES.imagen as readonly string[]).includes(ext) || vistos.has(sha)) continue;
+        vistos.add(sha); out.push({ sha, ext, nombre: String(o.nombre ?? "") });
+      }
+      return out;
+    },
     /** U12: the zone's holes: where each is, its frame (metres) and whether it holds a work. */
     huecos: (): Hueco[] => (api ? (huecosLeidos ??= leerHuecos()) : []).map((h) => ({ ...h })), // fresh copies: a caller may change them
     /** H8: restore the world — every object goes and what the world is born with is planted again (the server asks «construir»; it cannot be undone). */

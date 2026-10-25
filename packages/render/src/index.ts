@@ -102,7 +102,7 @@ export type Placed = { id: number; x: number; z: number; y?: number; speed?: num
  * `color` (optional «#rrggbb»): the model painted in that colour (quest things: two blocks that differ). */
 export type Thing = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean; color?: string;
   /** U10 (optional): modelo (.glb, the default), imagen / video (a plane), sonido (a sphere: radius = sx); file extension; hidden while playing; volume 0-1. */
-  kind?: "modelo" | "imagen" | "video" | "sonido"; ext?: string; hidden?: boolean; volume?: number;
+  kind?: "modelo" | "imagen" | "video" | "sonido" | "trazo"; ext?: string; hidden?: boolean; volume?: number;
   /** U11 (optional): who hears it (burbuja: inside the bubble; zona, todos: everyone, at the same volume) and a video's bubble radius (m). */
   reach?: "burbuja" | "zona" | "todos"; radius?: number;
   /** H5 (optional): the mixer group a sound or video plays in (the thing says; without it the engine picks: ambient for a bed, effects for a short sound, music for a video). */
@@ -726,6 +726,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   /** U10: an image, a video or a sphere of sound instead of a .glb (medios.ts). */
   function cargarMedio(key: string, s: Slot, cerca = true): void {
     const t = s.want, url = assetUrl(t.model).replace(/\.glb$/, `.${t.ext ?? "glb"}`), model = s.model;
+    if (t.kind === "trazo") { s.failed = true; return; } // J18b: a brush stroke is stored (story 1) but not drawn yet (story 3): never open it as a sound
     if ((t.kind === "video" || t.kind === "sonido") && !sePuedeReproducir(t.ext ?? "")) { s.failed = true; console.warn(`[medios] este navegador no reproduce .${t.ext}`); return; }
     const p = t.kind === "imagen" ? cargarImagen(url) : t.kind === "video" ? cargarVideo(url, () => verOcultos) : Promise.resolve(cargarSonido(url, () => verOcultos));
     loading++; if (cerca) cercaCargando++;
@@ -917,9 +918,19 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     escritos(): number { return espejoXR?.escritos() ?? 0; },
     lienzo(): HTMLCanvasElement | null { return espejoXR?.lienzo() ?? null; },
   };
+  // MIS-222: one photo of the headset's view (foto-xr.ts), drawn right after an XR frame; fetched at the first photo in XR
+  let fotoXR: import("./foto-xr.ts").FotoXR | null = null, fotoCarga: Promise<import("./foto-xr.ts").FotoXR> | null = null;
+  const fotoVR = {
+    /** A canvas with what the headset sees now (no VR furniture: the watch, the menu, the notices and everything the VR rig holds — help card, «Salir», dialogue, vignette, hands), or a rejection when no XR frame came. Only inside an XR session. */
+    async sacar(): Promise<HTMLCanvasElement> {
+      if (!renderer.xr.isPresenting) throw new Error("no estás dentro de VR");
+      fotoCarga ??= import("./foto-xr.ts").then((m) => (fotoXR = m.crearFotoXR({ renderer, scene, backend, ocultar: () => [vr.reloj.malla, vr.menu.malla, vr.aviso.malla, ...vr.rig.children] })));
+      return (await fotoCarga).sacar();
+    },
+  };
   function dibujarCuadro(): void {
     antesDelCuadro();
-    try { renderer.render(scene, camera); if (espejoXR?.activo()) espejoXR.cuadro(performance.now()); } finally { despuesDelCuadro(); }
+    try { renderer.render(scene, camera); if (espejoXR?.activo()) espejoXR.cuadro(performance.now()); if (fotoXR?.pendiente()) fotoXR.cuadro(); } finally { despuesDelCuadro(); }
   }
 
   // B4: three's own count of live shader programs (WebGPURenderer info.memory.programs); it only grows when one is made
@@ -988,6 +999,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     graboso,
     /** MIS-200: the XR mirror the Graboso records inside a headset session (espejo-xr.ts; off until switched on). */
     espejoGrabar,
+    /** MIS-222: one photo of what the headset sees (foto-xr.ts); the page frames and saves it (apps/plaza/foto.ts). */
+    fotoVR,
     /** Place everyone for this frame (J2: at their height). */
     sync(self: { x: number; z: number; y?: number; speed?: number } | null, list: Placed[]): void {
       selfXZ = self;

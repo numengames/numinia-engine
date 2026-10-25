@@ -22,12 +22,15 @@ export const PX_POR_M = LIENZO.w / MENU.anchoM;
 // phone's menu read (test/menu-paridad.test.ts keeps them together)
 export type Seccion = "tu" | "gente" | "bolsa" | "misiones" | "mapa" | "construir" | "ajustes" | "chat";
 export const SECCIONES = idsPanelVR() as readonly Seccion[];
-/** What the panel can show: a section of the list, or the notices (opened from the watch; not in the list). */
-export type Vista = Seccion | "avisos";
-const VISTAS: readonly Vista[] = [...SECCIONES, "avisos"];
-export const ETIQUETAS = Object.fromEntries(VISTAS.map((v) => [v, nombreDe(v)])) as Record<Vista, string>;
+/** What the panel can show: a section of the list, the notices (opened from the watch) or «obra» (MIS-222: the pictures a hole
+ * can take, opened by pressing a hole; apps/plaza/obra-vr.ts) — the last two are not in the list. */
+export type Vista = Seccion | "avisos" | "obra";
+/** The views that are not rows of the list: opened by something else, never greyed out. */
+export const VISTAS_SUELTAS: readonly Vista[] = ["avisos", "obra"];
+const VISTAS: readonly Vista[] = [...SECCIONES, ...VISTAS_SUELTAS];
+export const ETIQUETAS = Object.fromEntries(VISTAS.map((v) => [v, v === "obra" ? "Obra" : nombreDe(v)])) as Record<Vista, string>;
 /** Phosphor icons (apps/plaza/iconos.ts names), the same as the computer's sections. */
-export const ICONOS = Object.fromEntries(VISTAS.map((v) => [v, iconoDe(v)])) as Record<Vista, string>;
+export const ICONOS = Object.fromEntries(VISTAS.map((v) => [v, v === "obra" ? "image-square" : iconoDe(v)])) as Record<Vista, string>;
 
 /** A rectangle in canvas px (x right, y down). */
 export type Rect = { x: number; y: number; w: number; h: number };

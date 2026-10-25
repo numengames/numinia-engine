@@ -278,6 +278,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     const colision: Colision = m.colision === "malla" ? "malla" : m.colision === "caja" || m.solido === true ? "caja" : "ninguna";
     const solido = colision !== "ninguna";
     if (solido && o.tipo === "sonido") return void rechazar(from, "Una esfera de sonido no puede ser sólida: es una zona por la que se pasa.");
+    if (solido && o.tipo === "trazo") return void rechazar(from, "Un trazo no puede ser sólido: es pintura en el aire, no choca.");
     if (colision === "malla" && o.tipo !== "modelo") return void rechazar(from, "Solo un modelo 3D (.glb) choca con su malla: una imagen, un vídeo o un sonido pueden ser caja o nada.");
     if (solido) {
       const c: Caja = [m.bx0, m.by0, m.bz0, m.bx1, m.by1, m.bz1].map((v) => q(v, PASO.pos)) as Caja;

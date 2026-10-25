@@ -25,7 +25,7 @@ export const SERVIR: Record<string, string> = { ...TIPOS, vrma: "model/gltf-bina
 /** The house library. In the installer it sits next to the server code (app/activos). */
 export const BIBLIOTECA = fileURLToPath(new URL("../../../activos", import.meta.url));
 
-const RUTA = /^\/a\/([0-9a-f]{64})\.([a-z0-9]{2,4})$/;
+const RUTA = /^\/a\/([0-9a-f]{64})\.([a-z0-9]{2,5})$/;
 /** H13: a model's level of detail, /a/<sha256>.lod1.glb, made at ingest (lod.ts) beside the lighter copy. Only there: no original to fall back on. */
 const RUTA_LOD = /^\/a\/([0-9a-f]{64})\.lod([12])\.glb$/;
 /** N22: kinds that shrink in gzip (pictures, sound and video are already compressed). */

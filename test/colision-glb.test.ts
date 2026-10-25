@@ -152,8 +152,8 @@ test("h2: what cannot be read is refused with the reason: Draco, sparse, externa
 });
 
 // ---- h1: the schema ----
-test("h1: objetos is version 7 with colision ninguna|caja|malla; a v5 value (no colision) validates and reads as caja when it was solid", () => {
-  assert.equal(objetos.version, 7);
+test("h1: objetos is version 8 with colision ninguna|caja|malla; a v5 value (no colision) validates and reads as caja when it was solid", () => {
+  assert.equal(objetos.version, 8);
   assert.deepEqual([...COLISIONES], ["ninguna", "caja", "malla"]);
   assert.equal(objetos.issues.length, 0, JSON.stringify(objetos.issues));
   const s = defineSchema("objetos.state", 6, objetos.state!.fields);
