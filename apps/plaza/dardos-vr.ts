@@ -32,6 +32,8 @@ type Vista = {
   manos: {
     entrada(l: Lado): { gatillo: number; agarre: number; mano: boolean } | null; vibrar(l: Lado, v?: number, ms?: number): void;
     ocupar(nombre: string, fn: (l: Lado) => boolean): () => void; ocupadaPorOtros(l: Lado, excepto: string): boolean; sondeo(l: Lado): { candidato: string | null; apunta: string | null } | null;
+    /** Hand to hand (MIS-200): register the held dart so the free hand's grip next to it, or the Bolsa row, passes it over. */
+    llevable?(nombre: string, l: { que: string; lado(): Lado | null; puede(): true | string; pasar(a: Lado): void; ocupante?: string }): () => void;
   };
   dardosVR: {
     cargar(): Promise<{
@@ -109,6 +111,24 @@ export async function montarDardosVR(o: { dardos: Controlador; view: Vista; yo: 
     return !!en?.mano && en.gatillo > 0.5;
   });
 
+  // hand to hand (MIS-200): the dart goes to the other hand without being thrown. Both hands' samples are dropped (the hand
+  // that receives starts a fresh throw window, so the jump between hands is never read as a flick) and the grip/pinch that
+  // passed it must open once before it can throw (opening it is not a release). A hand that holds a dart still receives
+  // nothing else; the only thing the free hand may be given is this very dart.
+  let sinSoltar: Lado | null = null;
+  view.manos.llevable?.("dardos", {
+    que: "el dardo", lado: () => sosteniendo?.lado ?? null, ocupante: "dardos", puede: () => true,
+    pasar: (a) => {
+      const de = sosteniendo; if (!de || de.lado === a) return;
+      const en = view.manos.entrada(a); if (!en) return;
+      if (!vrd.enMano(a)) return; // no anchor on that hand: the dart stays where it is
+      muestras.izq.length = 0; muestras.der.length = 0;
+      antes[a] = { gatillo: en.mano ? en.gatillo > 0.5 : en.gatillo > CIERRA, agarre: !en.mano && en.agarre > CIERRA };
+      sosteniendo = { lado: a, mando: !en.mano };
+      sinSoltar = antes[a].gatillo || antes[a].agarre ? a : null;
+    },
+  });
+
   // ---- the server's answers: where each dart landed, or why it did not ----
   dardos.alCambiar((que) => {
     if (que === "clavados") {
@@ -143,7 +163,7 @@ export async function montarDardosVR(o: { dardos: Controlador; view: Vista; yo: 
     const tiro = cara && pos ? lanzamiento(cara, p, v, ayuda) : ({ tipo: "suelta", motivo: "sin-velocidad" } as const);
     ultimoTiro = { lado, t: Math.round(ahora), pos: p, gesto, n: muestras[lado].length, m: muestras[lado].slice(-8).map((q) => [Math.round(q.t - ahora), Math.round(q.x * 100) / 100, Math.round(q.y * 100) / 100, Math.round(q.z * 100) / 100]), v: v && v.map((n) => Math.round(n * 100) / 100), tiro };
     rastro.push(ultimoTiro); if (rastro.length > 40) rastro.shift();
-    sosteniendo = null; // the dart leaves the hand either way
+    sosteniendo = null; sinSoltar = null; // the dart leaves the hand either way
     if (tiro.tipo === "tiro" && sitio) {
       const numero = e.dardos + sinResolver() + 1;
       const r = dardos.lanzar(tiro.x, tiro.y, tiro.fuerza, sitio, "vr");
@@ -185,9 +205,10 @@ export async function montarDardosVR(o: { dardos: Controlador; view: Vista; yo: 
       antes[l] = { gatillo, agarre };
       if (sosteniendo?.lado === l) {
         if (!en || !sitio) { sosteniendo = null; vrd.enMano(null); continue; } // controller asleep, hand lost, or the turn ended
-        if (sosteniendo.mando ? subeG || bajaA : bajaG) lanzar(l, ahora, sosteniendo.mando);
+        if (sinSoltar === l && (sosteniendo.mando ? bajaA : bajaG)) sinSoltar = null; // the grip/pinch that passed the dart opens: not a throw
+        else if (sosteniendo.mando ? subeG || bajaA : bajaG) lanzar(l, ahora, sosteniendo.mando);
       } else if (!sosteniendo && en && sitio && (en.mano ? subeG : subeA) && puedeCoger(l)) {
-        if (vrd.enMano(l)) { sosteniendo = { lado: l, mando: !en.mano }; view.manos.vibrar(l, 0.4, 40); sonar("coger-soltar", { gain: 0.5 }, 150); }
+        if (vrd.enMano(l)) { sosteniendo = { lado: l, mando: !en.mano }; sinSoltar = null; view.manos.vibrar(l, 0.4, 40); sonar("coger-soltar", { gain: 0.5 }, 150); }
       }
     }
     if (sosteniendo && !sitio) { sosteniendo = null; vrd.enMano(null); }

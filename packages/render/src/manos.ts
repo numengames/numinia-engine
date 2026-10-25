@@ -20,7 +20,26 @@ export type ManosHooks = {
   etiquetas?: () => Iterable<[string, THREE.Object3D]>;
   /** Interactive 3D panels (dialogue rows), tested before anything else. */
   paneles?: () => Panel[];
+  /** Says a short sentence to the wearer (the VR note): why a handover was refused. */
+  nota?: (texto: string) => void;
 };
+/** A thing carried in one hand that can go to the other (the fishing rod, a quest item, a dart...). Every held thing
+ * registers one with `llevable()`; the hands layer owns the gesture and the button, the piece owns its own state. */
+export type Llevable = {
+  /** What it is, in words for the wearer, with its article («la caña»). */
+  que: string;
+  /** The hand that holds it now, or null when it is not in a hand. */
+  lado(): Lado | null;
+  /** true when it may go now; else the reason (a sentence). Fishing: not during the bite or the fight. */
+  puede(): true | string;
+  /** Move it to that hand, keeping its state. The hands layer has checked both hands and buzzes them. */
+  pasar(a: Lado): void;
+  /** Optional world point of its grip, when it is not at the holding hand. */
+  punto?(): { x: number; y: number; z: number } | null;
+  /** The name under which the piece marks its own hand busy with `ocupar` (or `reglas`'s «reglas»): that busyness is not a refusal. */
+  ocupante?: string;
+};
+export type ResCambio = { ok: true; que: string; a: Lado } | { ok: false; why: string };
 export type EventoMano =
   | { tipo: "agarrar"; key: string; lado: Lado }
   | { tipo: "apuntar"; key: string; lado: Lado }
@@ -31,6 +50,8 @@ export type EventoMano =
 
 /** How far from a thing's surface a hand still takes it (m). */
 export const ALCANCE_M = 0.22;
+/** The free hand this near the holding hand (or the thing's grip point), with its grip or pinch pressed, takes the thing (m). */
+export const CERCA_CAMBIO_M = 0.15;
 /** The ray stops here (m). */
 export const RAYO_M = 12;
 const PIEL = 0xe3b896, MANDO = 0x2b2f36;
@@ -186,6 +207,13 @@ export function createManos(h: ManosHooks) {
    *  Several features may hold different hands: each registers under its own name (`reglas({ocupada})` is the name "reglas"). */
   const ocupantes = new Map<string, (lado: Lado) => boolean>();
   const ocupada = (lado: Lado): boolean => { for (const f of ocupantes.values()) if (f(lado)) return true; return false; };
+  /** Is the hand held by anyone but these names (the handover's own mark, the piece's own mark)? */
+  const ocupadaSalvo = (lado: Lado, ...nombres: string[]): boolean => { for (const [n, f] of ocupantes) if (!nombres.includes(n) && f(lado)) return true; return false; };
+  // ---- hand to hand: the free hand next to a held thing, with its grip (or pinch) pressed, takes it ----
+  const llevables = new Map<string, Llevable>();
+  const cercaCambio = new Set<Lado>(); // free hands within reach of a held thing: their pinch is for the handover, not for «using»
+  const gripAntes: Record<Lado, boolean> = { izq: false, der: false };
+  ocupantes.set("cambio", (l) => cercaCambio.has(l));
 
   const ranuras: Ranura[] = [0, 1].map((i) => {
     const ctrl = h.renderer.xr.getController(i), grip = h.renderer.xr.getControllerGrip(i), hand = h.renderer.xr.getHand(i) as Ranura["hand"];
@@ -239,6 +267,45 @@ export function createManos(h: ManosHooks) {
     if (!r.grip.visible) return false;
     r.ancla.position.copy(r.grip.position); r.ancla.quaternion.copy(r.grip.quaternion);
     return true;
+  }
+
+  const Pa = new THREE.Vector3(), Pb = new THREE.Vector3();
+  const mundoDe = (r: Ranura, v: THREE.Vector3): boolean => { if (!puntoDeAgarre(r)) return false; r.ancla.updateMatrixWorld(); r.ancla.getWorldPosition(v); return true; };
+  const otra = (l: Lado): Lado => (l === "izq" ? "der" : "izq");
+  /** Hand `de` gives what `reg` carries to the other hand, if both hands and the piece allow it. Gesture and button both come here. */
+  function pasarA(reg: Llevable, de: Lado): ResCambio {
+    const a = otra(de);
+    const hacia = ranuras.find((x) => x.lado === a && x.fuente);
+    if (!hacia) return { ok: false, why: "No hay otra mano para pasarlo" };
+    if (ocupadaSalvo(de, "cambio", reg.ocupante ?? "")) return { ok: false, why: "Esa mano tiene el reloj o está ocupada" };
+    if (ocupadaSalvo(a, "cambio")) return { ok: false, why: "La otra mano está ocupada" };
+    const p = reg.puede();
+    if (p !== true) return { ok: false, why: p };
+    reg.pasar(a);
+    vibrar(ranuras.find((x) => x.lado === de && x.fuente) ?? hacia, 0.5, 60); vibrar(hacia, 0.5, 60);
+    return { ok: true, que: reg.que, a };
+  }
+  /** Every frame, after the hands moved: a free hand close to a held thing, its grip going down = the thing changes hands. */
+  function vigilarCambio(): void {
+    cercaCambio.clear();
+    const hay = [...llevables.values()].some((x) => x.lado());
+    for (const r of ranuras) {
+      if (!r.lado || !r.fuente) continue;
+      const pulsado = r.esMano ? r.pellizco : (r.fuente.gamepad?.buttons[1]?.value ?? 0) > 0.6;
+      const baja = pulsado && !gripAntes[r.lado]; gripAntes[r.lado] = pulsado;
+      if (!hay || r.candidato || ocupadaSalvo(r.lado, "cambio") || !mundoDe(r, Pa)) continue;
+      for (const reg of llevables.values()) {
+        const de = reg.lado();
+        if (!de || de === r.lado) continue;
+        const donante = ranuras.find((x) => x.lado === de && x.fuente);
+        const pt = reg.punto?.();
+        const cerca = (donante && mundoDe(donante, Pb) && Pa.distanceTo(Pb) <= CERCA_CAMBIO_M) || (!!pt && Pa.distanceTo(Pb.set(pt.x, pt.y, pt.z)) <= CERCA_CAMBIO_M);
+        if (!cerca) continue;
+        cercaCambio.add(r.lado);
+        if (baja) { const res = pasarA(reg, de); if (!res.ok) h.nota?.(res.why); }
+        break;
+      }
+    }
   }
 
   function actualizarRanura(r: Ranura, camara: THREE.Camera | null): void {
@@ -318,6 +385,15 @@ export function createManos(h: ManosHooks) {
     reglas(o: { agarrable?: (key: string) => boolean; apuntable?: (key: string) => boolean; ocupada?: (lado: Lado) => boolean }): void { if (o.agarrable) agarrable = o.agarrable; if (o.apuntable) apuntable = o.apuntable; if (o.ocupada) ocupantes.set("reglas", o.ocupada); },
     /** A feature that holds a hand (see `ocupada`): `fn(lado)` is asked live. Returns how to let go of the registration. */
     ocupar(nombre: string, fn: (lado: Lado) => boolean): () => void { ocupantes.set(nombre, fn); return () => { if (ocupantes.get(nombre) === fn) ocupantes.delete(nombre); }; },
+    /** Hand to hand: a piece that carries something in a hand registers it here; the free hand's grip next to it (CERCA_CAMBIO_M), or `cambiarMano()`, moves it. Returns how to unregister. */
+    llevable(nombre: string, l: Llevable): () => void { llevables.set(nombre, l); return () => { if (llevables.get(nombre) === l) llevables.delete(nombre); }; },
+    /** What is carried now: name, words, hand. */
+    llevando(): { nombre: string; que: string; lado: Lado }[] { const out: { nombre: string; que: string; lado: Lado }[] = []; for (const [nombre, l] of llevables) { const lado = l.lado(); if (lado) out.push({ nombre, que: l.que, lado }); } return out; },
+    /** The button path of the same handover (the Bolsa row «Cambiar de mano»): the first thing carried goes to the other hand. */
+    cambiarMano(): ResCambio {
+      for (const reg of llevables.values()) { const de = reg.lado(); if (de) return pasarA(reg, de); }
+      return { ok: false, why: "No llevas nada en la mano" };
+    },
     /** Is this hand held by any feature but `excepto` (a feature asks before it takes a hand for itself)? */
     ocupadaPorOtros(lado: Lado, excepto: string): boolean { for (const [n, f] of ocupantes) if (n !== excepto && f(lado)) return true; return false; },
     /** What a hand reaches (a quest thing it would take) and what its ray points at ("panel:n" or a thing's key), now. */
@@ -326,7 +402,7 @@ export function createManos(h: ManosHooks) {
       return r ? { candidato: r.candidato, apunta: r.apuntado ? (r.apuntado.tipo === "panel" ? `panel:${r.apuntado.fila}` : r.apuntado.key) : null } : null;
     },
     /** Every frame while presenting. `camara` = the XR camera (sprites need it to be hit). */
-    update(camara: THREE.Camera | null): void { if (!raiz.parent) return; raiz.updateMatrixWorld(); for (const r of ranuras) actualizarRanura(r, camara); },
+    update(camara: THREE.Camera | null): void { if (!raiz.parent) return; raiz.updateMatrixWorld(); for (const r of ranuras) actualizarRanura(r, camara); vigilarCambio(); },
     on(fn: (e: EventoMano) => void): () => void { oyentes.add(fn); return () => oyentes.delete(fn); },
     /** Where a thing held in this hand goes (grip or pinch point), or null if that hand is not here. */
     ancla(lado: Lado): THREE.Object3D | null { const r = ranuras.find((x) => x.lado === lado && x.fuente); return r ? r.ancla : null; },

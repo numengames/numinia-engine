@@ -122,12 +122,24 @@ export function montarMenuVR(o: {
     return { tipo: "lista", titulo: `Gente aquí${v.estado?.todos || gente.length ? ` · ${cuenta}` : ""}`, nota: activo ? "«Ir a su lado» te lleva junto a esa persona." : "En este mundo ahora no se puede ir junto a otros.",
       vacio: v.estado?.pedida ? "Ahora no hay nadie más en este mundo." : "Pidiendo la lista…", filas } as Contenido;
   }
+  // MIS-200 «Cambiar de mano»: the same handover as the free hand's grip next to what you carry (manos.ts), for whoever cannot do
+  // the gesture. The first row of the Bolsa: what is in which hand, and a button that passes it to the other one.
+  function filaCambiarMano(): Fila | null {
+    const m = (o.n().view as { manos?: { llevando(): { que: string; lado: "izq" | "der" }[]; cambiarMano(): { ok: boolean; why?: string; que?: string; a?: "izq" | "der" } } } | undefined)?.manos;
+    if (!m?.llevando) return null;
+    const lleva = m.llevando();
+    const lado = (l: string) => (l === "izq" ? "izquierda" : "derecha");
+    return { texto: "Cambiar de mano", icono: "hand-grabbing",
+      detalle: lleva.length ? lleva.map((x) => `${x.que}: mano ${lado(x.lado)}`).join(" · ") : "No llevas nada en la mano",
+      botones: [{ texto: "Pasar", estilo: lleva.length ? "normal" : "desactivado", ancho: 160, accion: () => { const r = m.cambiarMano(); nota(r.ok ? `Pasado a la mano ${lado(r.a ?? "")}` : r.why ?? "No se pudo."); } }] };
+  }
   function bolsa(): Contenido {
     const inv = o.n().inventario, r = typeof inv?.resumen === "function" ? inv.resumen() : null;
-    if (!r) return { tipo: "lista", titulo: "Bolsa", vacio: "Este servidor no lleva inventario.", filas: [] } as Contenido;
+    const cambio = filaCambiarMano();
+    if (!r) return { tipo: "lista", titulo: "Bolsa", vacio: "Este servidor no lleva inventario.", filas: cambio ? [cambio] : [] } as Contenido;
     const lista = (inv.lista?.() ?? []) as { nombre: string; n: number; portado: boolean; tipo?: string }[];
     return { tipo: "lista", titulo: "Bolsa", nota: resumenTexto(r), vacio: resumenTexto(r),
-      filas: lista.map((x) => ({ texto: x.n > 1 ? `${x.nombre} × ${x.n}` : x.nombre, detalle: x.portado ? "Contigo" : "Guardado", icono: x.tipo === "captura" ? "fish" : "package" })) } as Contenido;
+      filas: [...(cambio ? [cambio] : []), ...lista.map((x) => ({ texto: x.n > 1 ? `${x.nombre} × ${x.n}` : x.nombre, detalle: x.portado ? "Contigo" : "Guardado", icono: x.tipo === "captura" ? "fish" : "package" }))] } as Contenido;
   }
   function misiones(): Contenido {
     const m = o.n().misiones;
