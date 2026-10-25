@@ -515,7 +515,7 @@ el servidor lo ve:
 | `habla_con` | `pnj` | elige en el diálogo de esa persona una respuesta `avanzar_paso` de esta misión; si su árbol no tiene ninguna, basta con hablarle |
 | `recibe` | `pnj`, `cosa` | como `habla_con`; esa persona te da la cosa, que queda «llevada» para una `entrega` |
 | `usa` | `cosa` | usa la cosa a su alcance (E) |
-| `coge` | `cosa` | la coge a su alcance (E); queda «llevada» para una `entrega` |
+| `coge` | `cosa`; opcional `otorga` (el id de un `objeto@1` de `objetos/`) | la coge a su alcance (E); queda «llevada» para una `entrega`; con `otorga`, en ese momento pasa a tu Reserva el arma o la reliquia que la aventura definió (una vez; si el `objeto@1` no existe o es inválido, la misión no carga y el diagnóstico dice el fichero y el campo `pasos[n].otorga`) |
 | `entrega` | `pnj` y `cosa`, o `cosas` (una lista de 1 a 8) | las lleva todas (cada una con un `coge` o un `recibe` antes en la misma misión) y elige `entregar` (o le habla, si no hay esa respuesta); se las da todas a la vez |
 
 **`hace`: que quien construye haga algo de verdad (T1).** `{ "id", "tipo": "hace", "texto", "accion", "modelo"?, "disparador"?, "senala"? }`.
