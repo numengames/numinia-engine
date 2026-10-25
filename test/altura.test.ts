@@ -142,7 +142,7 @@ test("formats: pnj@1 posicion.y (0-30) and llega_a y (0-30) are optional and che
   // the declarations grew: pnj v2 carries y (0-30), misiones v2 lets a thing stand on an upper floor (v3: U14's grupo / recibe; U14 (4): pnj v3 oficio, misiones v4 marcas; pnj v4 voz)
   assert.deepEqual([pnj.issues, misiones.issues], [[], []]);
   const cat = buildCatalog([pnj, misiones]).catalog;
-  assert.deepEqual(cat.features.map((f) => [f.id, f.version, (f.state!.fields.y as { max: number }).max]), [["pnj", 4, 30], ["misiones", 7, 30]]);
+  assert.deepEqual(cat.features.map((f) => [f.id, f.version, (f.state!.fields.y as { max: number }).max]), [["pnj", 4, 30], ["misiones", 8, 30]]);
 });
 
 test("a pnj with posicion.y reaches the page with y and is drawn at that height, its name above its head", () => {

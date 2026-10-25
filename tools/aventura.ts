@@ -1,4 +1,4 @@
-// Check an adventure folder (J5) without starting anything: every file against its format (mision@1, pnj@1, cosa@1, secuencia@1, habitante@1, ficha@1, agente@1)
+// Check an adventure folder (J5) without starting anything: every file against its format (objeto@1, mision@1, pnj@1, cosa@1, secuencia@1, habitante@1, ficha@1, agente@1)
 // and the references between them. Prints what loads and each problem with its file and path; exit 1 if any.
 // U14 (5): a sequence's models are looked for where a server would find them: the house library (activos/) and, when the
 // folder is a world's aventura/, that world's datos/activos/<sha256>.glb.
@@ -10,6 +10,7 @@ import { Activos, BIBLIOTECA } from "../packages/server/src/activos.ts";
 import { cargarAventura } from "../features/misiones/formato.ts";
 import { leerHabitantes } from "../packages/agent/src/formato.ts";
 import { leerEscena } from "../features/director/escena.ts";
+import { leerCatalogo } from "../features/inventario/objeto.ts";
 
 const dir = process.argv[2] ?? "aventuras/ejemplo";
 const leer = lectorAventura(dir, (l) => console.log(l));
@@ -28,7 +29,10 @@ const malas = escenas.flatMap(({ f, r }) => (r.ok ? [] : r.issues.map((i) => `es
 if (escenas.length) console.log(`  ${escenas.length} escenas para quien dirige (${escenas.flatMap(({ r }) => (r.ok ? [r.value.id] : [])).join(", ") || "-"})`);
 const fi = leerFicha(dir); // ADR-074: what the world is called (aventura/ficha.json)
 console.log(fi.ficha ? `  ficha: «${fi.ficha.nombre}»${fi.ficha.portada ? `, portada ${fi.ficha.portada} (el servidor mira al arrancar que la tiene)` : ""}` : "  sin ficha.json (la página y /status no dicen cómo se llama el mundo)");
-const problemas = [...r.issues.map((i) => `${i.path}: ${i.message}`), ...h.problemas, ...ag.problemas, ...malas, ...fi.problemas];
+const objetos = leerCatalogo(leer("objetos")); // Y3: the weapons and relics the adventure defines (objeto@1)
+if (objetos.objetos.size) console.log(`  ${objetos.objetos.size} objetos (${[...objetos.objetos.values()].map((o) => `${o.id}: ${o.tipo} de ${o.competencia}`).join(", ")})`);
+for (const a of objetos.avisos) console.log(`  aviso: objetos/${a.replace(/^.*\//, "")}`);
+const problemas = [...r.issues.map((i) => `${i.path}: ${i.message}`), ...h.problemas, ...ag.problemas, ...malas, ...fi.problemas, ...objetos.problemas.map((p) => `objetos/${p.replace(/^.*\//, "")}`)];
 for (const p of problemas) console.log(`  ✗ ${p}`);
 // Pedido de Pablo (motor-vr t_5eb6d923): un mundo sin ninguna misión se queda sin hilo conductor del que colgar lo
 // demás — un aviso, no un error (una aventura vacía de verdad sigue cargando: misiones/ ausente no rompe nada).

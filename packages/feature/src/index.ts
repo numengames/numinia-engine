@@ -960,7 +960,8 @@ export type ViewHooks = {
   /** H4/H8: an element of the world (water, fire, smoke, dust) by key, or `null` to take it away — features/elementos. */
   elemento?(key: string, valores: Msg | null): void;
   /** N18: what a person wears — a model by its sha256 in a hand or on the head (features/bienes) — or `null` to take it off. */
-  lleva?(entity: number, p: { model: string; donde: "mano" | "cabeza"; nombre?: string } | null): void;
+  lleva?(entity: number, p: { model: string; donde: "mano" | "cabeza"; nombre?: string } | null, ranura?: "arma"): void;
+  /* t_31e1f7ea: `ranura: "arma"` = the weapon of the inventory, in the right hand; it does not replace a good worn in the hand (features/bienes), that one is not drawn while a weapon is held. */
   /** D-045: the page goes dark at once and comes back to the world over `ms` (the server put this person somewhere else). */
   fundido?(ms: number): void;
   /** J7b: play a move on an avatar (its clips by name, how it ends), or stop it (`null`). Returns false when this view

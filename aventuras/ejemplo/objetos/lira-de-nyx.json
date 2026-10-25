@@ -1,0 +1,15 @@
+{
+  "formato": "objeto@1",
+  "id": "lira-de-nyx",
+  "tipo": "reliquia",
+  "clase": "lira",
+  "nombre": "Lira de Nyx",
+  "descripcion": "Instrumento de resonancia cósmica, forjado en auricalco negro y cuerdas de luz sólida.",
+  "competencia": "Tecnomancia",
+  "propiedad": "Resonancia Memorística",
+  "factorRiesgo": {
+    "nombre": "Desfase Armónico",
+    "consecuencia": "Si se obtiene un Fracaso, una desincronización provoca glitches e interferencias."
+  },
+  "valor": 3
+}
