@@ -170,6 +170,7 @@ const session = new ClientSession(transport, {
   features: funciones,
   pase: tomarPaseDeLaDireccion(location, history), // H3b: #pass=<token> from numinia.com, out of the address bar at once, sent once connected
   identity: { load: () => localStorage.getItem(GUARDA), save: (t) => localStorage.setItem(GUARDA, t) },
+  construirGlb: async (entradas) => (await import("../../packages/client/src/malla-glb.ts")).construirMallaCliente(entradas, async (sha, ext) => { try { const r = await fetch(`${activos}/a/${sha}.${ext}`); return r.ok ? new Uint8Array(await r.arrayBuffer()) : null; } catch { return null; } }), // M6 h9: the page builds the GLB collision mesh too (own chunk, only a world with a `malla` thing asks for it)
   view: {
     label: (e, text, ms) => view.label(e === session.entity ? "self" : e, text, ms),
     bounce: (e, ms) => view.bounce(e === session.entity ? "self" : e, ms),
