@@ -140,8 +140,9 @@ const sign = signer("una-clave-de-prueba-larga");
 type Keeper = GuestKeeper & { token: string | null };
 const keeper = (): Keeper => { const k = { token: null as string | null, load: () => k.token, save: (t: string) => { k.token = t; } }; return k; };
 type Rotulo = { text: string; sub?: string; mark?: string; x: number; y: number; z: number };
+const RELOJ = { ms: Date.parse("2026-10-17T12:00:00Z") }; // the server's clock: a finished grupo moves on after ~2 s of it
 function plaza() {
-  const inst = new Instance({ seed: 1, capacity: 8, k: 50, snapshotEvery: 2, features: crearMisiones({ aventura: aventura() }), log: () => {}, identitySign: sign, now: () => Date.parse("2026-10-17T12:00:00Z") });
+  const inst = new Instance({ seed: 1, capacity: 8, k: 50, snapshotEvery: 2, features: crearMisiones({ aventura: aventura(), reloj: () => RELOJ.ms }), log: () => {}, identitySign: sign, now: () => Date.parse("2026-10-17T12:00:00Z") });
   type Pagina = { s: ClientSession; t: ReturnType<Instance["join"]>; m: ReturnType<typeof crearCliente>["misiones"]; rotulos: Map<string, Rotulo>; llamadas: string[] };
   const paginas: Pagina[] = [];
   const abrir = (k: Keeper = keeper()): Pagina => {
@@ -200,6 +201,8 @@ test("over the plug: marks only to their owner (both tabs), never to another gue
   assert.equal(a.m.dialogo()?.oficio, "Carpintero");
   a.m.elegir(1); W.pump(2);
   W.ir(a, 0, 9); a.m.hablar("artemisia"); W.pump(2); a.m.adios(); W.pump(2);
+  assert.deepEqual(a.m.marcas().tiene, [], "the finished grupo is held (3/3) for a moment: nobody to point at yet");
+  RELOJ.ms += 2500; W.pump(4); // then the quest moves on to Leonardo
   assert.deepEqual(a.m.marcas(), { tiene: ["leonardo"], hecho: ["cosimo", "bianca", "artemisia", "pietro"], cosas: [] });
   W.ir(a, 0, -9); a.m.hablar("leonardo"); W.pump(2); a.m.elegir(1); W.pump(3);
   assert.deepEqual(a.m.marcas().cosas, ["cofre"]);

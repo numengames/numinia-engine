@@ -294,7 +294,9 @@ export function montarLibro(c: Ctl, o: {
     } else if (m) t = `★ ${m.titulo} (${obs[0].paso + 1}/${m.pasos}): ${obs[0].texto}${yo ? ` · ${rumbo(obs[0].x - yo.x, obs[0].z - yo.z)}` : ""}`;
     else { // U14 (5): the tracked quest's next step still waits: how long
       const seg = c.libro().find((x) => x.seguida && x.estado === "activa"), s = seg?.lista.find((x) => x.n === seg.paso), falta = s ? segundosDe(s) : 0;
-      if (seg && s && falta) t = `★ ${seg.titulo} (${s.n + 1}/${seg.pasos}): ${s.texto} · en ${falta} s`;
+      const gr = seg ? c.resumen().seguida?.grupo : null;
+      if (seg && gr && gr.total > 0 && gr.hechos === gr.total) t = `★ ${seg.titulo} · ${gr.nombre} ${gr.hechos}/${gr.total}`; // the grupo is complete and the server holds it a moment (~2 s) before the next step: nothing is left to point at, the counter stays
+      else if (seg && s && falta) t = `★ ${seg.titulo} (${s.n + 1}/${seg.pasos}): ${s.texto} · en ${falta} s`;
     }
     if (o.linea.textContent !== t) o.linea.textContent = t;
     o.linea.hidden = !t;
