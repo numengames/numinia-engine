@@ -46,13 +46,15 @@ export const AJUSTE_DE: Readonly<Record<Bus, string>> = {
   musica: "sonido.musica",
   ambiente: "sonido.efectos",
   efectos: "sonido.efectos",
-  interfaz: "sonido.efectos",
+  interfaz: "sonido.avisos",
   "voz-gente": "sonido.voz",
   "voz-lector": "sonido.voz",
   "pasos-propios": "sonido.efectos",
 };
 /** Valor por defecto de cada deslizador (packages/client/src/ajustes-motor.ts), en 0–100. */
-const DEFECTO: Readonly<Record<string, number>> = { "sonido.general": 80, "sonido.musica": 60, "sonido.efectos": 80, "sonido.voz": 100 };
+const DEFECTO: Readonly<Record<string, number>> = { "sonido.general": 80, "sonido.musica": 60, "sonido.efectos": 80, "sonido.avisos": 100, "sonido.voz": 100 };
+/** V6: el ajuste que pone el modo mono (para quien oye por un solo oído): los dos oídos reciben lo mismo. */
+export const AJUSTE_MONO = "sonido.mono";
 
 export type Estado = {
   /** `"sin-audio"` = este navegador no dio un `AudioContext` (o todavía no hizo falta construir el grafo). */
@@ -67,6 +69,8 @@ export type Estado = {
   pausas: readonly string[];
   /** Volumen 0–1 de cada bus (lo que pide la persona, ya con el suelo de accesibilidad aplicado). */
   volumen: Record<Bus, number>;
+  /** V6: ¿está el modo mono puesto? (los dos oídos oyen lo mismo). */
+  mono: boolean;
 };
 
 export type Nucleo = {
@@ -78,8 +82,11 @@ export type Nucleo = {
   bus(nombre: Bus): GainNode | null;
   /** Volumen que pide la persona, 0–1 (los buses inmunes no bajan de `SUELO`). */
   volumen(nombre: Bus, v: number): void;
-  /** Leer los cuatro deslizadores de «Sonido» y ponerlos en los VCA. No construye el grafo por sí solo. */
+  /** Leer los deslizadores de «Sonido» (y el modo mono) y ponerlos en los VCA. No construye el grafo por sí solo. */
   aplicarAjustes(leer: (id: string) => unknown): void;
+  /** V6 · modo mono: la salida entera se mezcla a un solo canal antes del limitador, así que un sonido a la derecha
+   *  suena igual en los dos oídos. Se puede pedir antes de que exista el grafo: se aplica al construirlo. */
+  mono(activo: boolean): void;
   /** Alguien está hablando (o el lector de pantalla): baja música, ambiente y efectos. */
   duck(activo: boolean): void;
   /** Suspender a propósito mientras dure la razón (pestaña oculta). Con `false` vuelve si nada más lo impide. */
@@ -115,6 +122,7 @@ export function crearNucleo(h: Hechuras = {}): Nucleo {
   const bus = new Map<Bus, GainNode>();      // donde se conecta lo que suena; aquí automatiza el ducking
   const vca = new Map<Bus, GainNode>();      // el deslizador de la persona (conceptualmente fuera del routing, FMOD)
   let limitador: DynamicsCompressorNode | null = null;
+  let aMono: GainNode | null = null, monoActivo = false;   // V6: entre el máster y el limitador; 1 canal «explicit» = mono
   const volumen = {} as Record<Bus, number>;
   for (const b of BUSES) volumen[b] = conSuelo(b, (DEFECTO[AJUSTE_DE[b]] ?? 100) / 100);
   let duckActivo = false;
@@ -139,6 +147,8 @@ export function crearNucleo(h: Hechuras = {}): Nucleo {
       limitador.threshold.value = LIMITADOR.threshold; limitador.knee.value = LIMITADOR.knee;
       limitador.ratio.value = LIMITADOR.ratio; limitador.attack.value = LIMITADOR.attack; limitador.release.value = LIMITADOR.release;
       limitador.connect(c.destination);
+      aMono = c.createGain();
+      aMono.connect(limitador);
       for (const b of BUSES) {
         const g = c.createGain(), v = c.createGain();
         g.connect(v);
@@ -146,11 +156,12 @@ export function crearNucleo(h: Hechuras = {}): Nucleo {
       }
       // los siete grupos cuelgan del bus máster; el máster cuelga del limitador y el limitador de la salida
       for (const b of BUSES) {
-        if (b === "master") vca.get(b)!.connect(limitador);
+        if (b === "master") vca.get(b)!.connect(aMono);
         else vca.get(b)!.connect(bus.get("master")!);
       }
       for (const b of BUSES) { vca.get(b)!.gain.value = volumen[b]; bus.get(b)!.gain.value = duckDe(b); }
-    } catch { roto = true; ctx = null; bus.clear(); vca.clear(); limitador = null; return null; }
+      ponerMono();
+    } catch { roto = true; ctx = null; bus.clear(); vca.clear(); limitador = null; aMono = null; return null; }
     // nace suspendido mientras no haya habido un gesto: antes de eso no puede sonar nada (política de autoplay)
     if (!gestoYa()) { try { void c.suspend?.(); } catch { /* algunos navegadores ya lo dan suspendido */ } }
     esperarGesto(() => reanudar());
@@ -158,6 +169,18 @@ export function crearNucleo(h: Hechuras = {}): Nucleo {
     try { c.addEventListener?.("statechange", () => { if (c.state === "interrupted") reanudar(); }); } catch { /* sin eventos aquí */ }
     if (pausas.size === 0 && gestoYa()) reanudar();
     return ctx;
+  }
+
+  /** Un nodo con un solo canal fijo mezcla lo que le llega a mono (media de izquierda y derecha) y el destino lo
+   *  reparte igual a los dos oídos; con «max» deja pasar el estéreo tal cual. */
+  function ponerMono(): void {
+    const n = aMono;
+    if (!n) return;
+    try {
+      n.channelCountMode = monoActivo ? "explicit" : "max";
+      n.channelCount = monoActivo ? 1 : 2;
+      n.channelInterpretation = "speakers";
+    } catch { /* un nodo terco: la salida sigue en estéreo */ }
   }
 
   function reanudar(): void {
@@ -182,6 +205,12 @@ export function crearNucleo(h: Hechuras = {}): Nucleo {
         const id = AJUSTE_DE[b], n = Number(leer(id) ?? DEFECTO[id] ?? 100);
         api.volumen(b, (Number.isFinite(n) ? n : (DEFECTO[id] ?? 100)) / 100);
       }
+      api.mono(leer(AJUSTE_MONO) === true);
+    },
+    mono(activo: boolean): void {
+      if (activo === monoActivo) return;
+      monoActivo = activo;
+      ponerMono();
     },
     duck(activo: boolean): void {
       if (activo === duckActivo) return;
@@ -214,6 +243,7 @@ export function crearNucleo(h: Hechuras = {}): Nucleo {
         duck: duckActivo,
         pausas: [...pausas],
         volumen: { ...volumen },
+        mono: monoActivo,
       };
     },
   };

@@ -247,6 +247,11 @@ export class ClientSession {
 
   serverTickNow(now = nowMs()): number { return (now * TICK_HZ) / 1000 + this.offset; }
 
+  /** M18: the SERVER's clock in ms (its ticks since it started: the same number for everyone connected to it, within the
+   * jitter of the smoothed offset), or `null` until the first snapshot gave us the offset. A video or a sound that goes by
+   * this clock is at the same second in every page, whatever each computer's own clock says. */
+  relojServidorMs(now = nowMs()): number | null { return this.hasClock ? (this.serverTickNow(now) * 1000) / TICK_HZ : null; }
+
   /** Own avatar in metres, blended between the last two client ticks (alpha in [0,1]). J2: `y` is the height of the
    * feet, `speed` the horizontal speed in m/s (≈4 walking, ≈8 running), `grounded` false while in the air. */
   selfPosition(alpha: number): { x: number; y: number; z: number; speed: number; grounded: boolean } {

@@ -25,6 +25,7 @@ import botones from "./botones/client.ts"; // J4: the cap on its post
 import cogibles from "./cogibles/client.ts"; // J4: on the floor or in a hand (view.lleva); «Soltar» = Q
 import naturaleza from "./naturaleza/client.ts"; // N4: relief, trees and grass (built by packages/render/src/naturaleza/naturaleza.ts)
 import espacioBase from "./espaciobase/client.ts"; // H2: the espacio base — an empty night world whose ground is a luminous line mesh (packages/render/src/espacio-base/)
+import vuelo from "./vuelo/client.ts"; // H2: fly with permission (the refusal is read aloud; the server decides)
 import suelo from "./suelo/client.ts"; // D-045: the fade when the server puts you back on a safe spot
 import contadores from "./contadores/client.ts"; // D-044: timers and counters (the sign is a label sprite; the panel lives in apps/plaza/contadores.ts)
 import disparadores from "./disparadores/client.ts"; // D-041: the cable — a button on its post; the page only asks `pulsar`
@@ -38,5 +39,6 @@ import burbuja from "./burbuja/client.ts"; // ia-llamar S9: the shape of each AI
 import llamar from "./llamar/client.ts"; // ia-llamar S11: how each AI is called here (`llamarPagina.puedeBoton(entity)`) and the intent behind «Hablar con ella» and E
 import sonido from "./sonido/client.ts"; // S6: the sounds of the house — the server says what sounds and with what seed; the page only mixes (view.sonido)
 import interruptores from "./funciones/client.ts"; // f1: the world's feature switches (`__numinia.funciones`; the panel is f3/v3)
-const funciones: ClientPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, naturaleza, espacioBase, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido];
+import fichaMundo from "./ficha-mundo/client.ts"; // H7: the world's settings (title, picture, default avatar, people limit)
+const funciones: ClientPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, vuelo, naturaleza, espacioBase, fichaMundo, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido];
 export default funciones;

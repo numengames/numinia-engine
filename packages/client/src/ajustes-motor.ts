@@ -92,10 +92,13 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     describe: "Luz del cielo de alto rango: más realista y más pesada. Sin ella en móvil y en visor.",
     defecto: { valor: false, nivel: { A: true } },
   },
-  // ---- Sonido: stored and readable now; the mixer that uses them is V6/H5 ----
+  // ---- Sonido: the sliders are the VCAs of the audio graph (packages/render/src/audio/nucleo.ts); «Avisos» and «mono» are V6 ----
   { grupo: "sonido", id: "general", tipo: "numero", min: 0, max: 100, paso: 5, unidad: "%", nombre: "Volumen general", describe: "El volumen de todo lo que suena en el mundo.", defecto: 80, nota: H5 },
   { grupo: "sonido", id: "musica", tipo: "numero", min: 0, max: 100, paso: 5, unidad: "%", nombre: "Música", describe: "El volumen de la música del mundo.", defecto: 60, nota: H5 },
-  { grupo: "sonido", id: "efectos", tipo: "numero", min: 0, max: 100, paso: 5, unidad: "%", nombre: "Efectos", describe: "El volumen de los efectos: pasos, puertas, avisos.", defecto: 80, nota: H5 },
+  { grupo: "sonido", id: "efectos", tipo: "numero", min: 0, max: 100, paso: 5, unidad: "%", nombre: "Efectos", describe: "El volumen de los efectos: pasos, puertas, sonidos del mundo.", defecto: 80, nota: H5 },
+  { grupo: "sonido", id: "avisos", tipo: "numero", min: 0, max: 100, paso: 5, unidad: "%", nombre: "Avisos", describe: "El volumen de los avisos de la casa (confirmaciones, errores, misiones). Aparte de los efectos; nunca baja del todo para que un aviso se oiga." , defecto: 100 },
+  { grupo: "sonido", id: "mono", tipo: "bool", nombre: "Sonido mono", describe: "Los dos oídos oyen lo mismo. Para quien oye por un solo oído o por un altavoz.", defecto: false },
+  { grupo: "sonido", id: "baliza", tipo: "bool", nombre: "Baliza sonora", describe: "Cuando algo te marca un destino con una luz, también suena un pitido allí, más seguido cuanto más cerca. Se oye de qué lado está.", defecto: false },
   { grupo: "sonido", id: "voz", tipo: "numero", min: 0, max: 100, paso: 5, unidad: "%", nombre: "Voz de las personas", describe: "El volumen de la gente que habla cerca de ti.", defecto: 100, nota: "Llega con H5 y la voz por cercanía (M17)." },
   // ---- Controles: the camera applies them through view.cam.ajustar (N1); shown only where it can ----
   {

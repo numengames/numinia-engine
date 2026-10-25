@@ -18,7 +18,9 @@ export type ManoMenu = { posicion: THREE.Vector3; rotacion: THREE.Quaternion; es
 /** What the watch shows: microphone on/off (null = this page has no voice), whether a photo can be made here, how many
  * notices you have not seen, whether this world has a city to go back to, and the Graboso (null = not here, the button
  * is not drawn; false = put away; true = out and recording). */
-export type EstadoReloj = { micro: boolean | null; camara: boolean; avisos: number; ciudad: boolean; menuAbierto: boolean; graboso?: boolean | null };
+export type EstadoReloj = { micro: boolean | null; camara: boolean; avisos: number; ciudad: boolean; menuAbierto: boolean; graboso?: boolean | null;
+  /** The time under «Menú» («21:40», or «21:40 UTC»), as the `interfaz.hora` setting says; none = the watch shows no time. */
+  hora?: string };
 /** The optional buttons this state draws. */
 export const presentesDe = (e: Pick<EstadoReloj, "ciudad" | "graboso">): Presentes => ({ ciudad: e.ciudad, graboso: e.graboso != null });
 
@@ -153,7 +155,10 @@ export function dibujarReloj(g: CanvasRenderingContext2D, e: EstadoReloj, encima
       g.fillStyle = sobre || e.menuAbierto ? COLOR.accionEncima : COLOR.accion; g.fill();
       if (sobre) { g.lineWidth = 5; g.strokeStyle = COLOR.texto; g.stroke(); }
       g.font = `600 44px ${FUENTE}`; g.fillStyle = COLOR.texto; g.textAlign = "center"; g.textBaseline = "middle";
-      g.fillText("Menú", b.cx, b.cy + 2);
+      if (e.hora) { // the clock of the watch: «Menú» up a little, the time under it
+        g.fillText("Menú", b.cx, b.cy - 16);
+        g.font = `500 ${e.hora.length > 5 ? 22 : 30}px ${FUENTE}`; g.fillText(e.hora, b.cx, b.cy + 26);
+      } else g.fillText("Menú", b.cx, b.cy + 2);
       continue;
     }
     const apagado = (b.id === "camara" && !e.camara) || (b.id === "micro" && e.micro === null);

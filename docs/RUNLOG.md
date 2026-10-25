@@ -1700,3 +1700,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `lote/4` sobre main `7cc658de`, fusiones normales de `lote3/inventario-2`, `lote4/constructor`, `lote/2` y main.
 - Siguiente: el paso `coge` y las recompensas de arma o reliquia; selección múltiple con el dedo; afinar el salto de manos en un Quest.
+
+## 2026-10-25 · lote 5: ajustes del mundo, enlaces, vídeo con el reloj del servidor, volar con permiso y nadie enterrado · hecho
+- Qué: trece tarjetas juntas en un PR. `t_7a82b009`: panel de ajustes del mundo (título, imagen, avatar por defecto, límite de personas), el servidor lo guarda en `aventura/ficha.json`. `t_8186747e`: clic en algo con enlace abre un aviso («Abrir» / «Ahora no»), en VR con rayo y gatillo; solo https. `t_c15ea255` (primer tramo): lista «Imágenes del mundo» con gemelo HTML. `t_ba85a7d1`: nadie queda enterrado (la `y` absoluta se respeta; bajo el suelo o sin `y` se posa en el suelo). `t_4d283894` (tramo): el rayo de VR solo se posa en PNJ y cosas de misión al alcance. `t_2f62c167`: los moñoñis saltan al clic. `t_f311f0ab`: modo mono, deslizador «Avisos» y baliza sonora. `t_51a3313f`: los vídeos siguen el reloj del servidor. `t_960eed8e`: grupo de sonido (música/efectos/ambiente). `t_022e9bc1`: la hora en el reloj de muñeca de VR. `t_1b26f52e`: zonas entra/sale y `api.overlapSphere`. `t_b50786ee`: volar con permiso (`/volar`), con la predicción del cliente siguiendo el vuelo (bit 3 de `flags` en la instantánea). `t_5f6ff048`: sin cambio propio (lo cubre el alcance del rayo).
+- Números: ver el cuerpo del PR. Versión 0.62.0 (menor: algo nuevo que no rompe nada).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `lote/5` sobre main `cd7079c5`, fusiones normales de `lote5/mundo`, `lote5/plaza-vr`, `lote6/audio-video`, `lote6/mundo-vivo` y main.
+- Siguiente: conos y curva de caída por fuente de sonido; pausa y volumen del vídeo por permiso de rol; reloj HTML en el visor; salud; paneles de interfaz con gemelo.

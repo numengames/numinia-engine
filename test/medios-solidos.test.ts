@@ -104,3 +104,25 @@ test("U10: marking a placed block solid makes the instance stop a walking player
   b.ajustar({ solido: false }); pump();
   assert.equal(inst.sim.solids.length, 0);
 });
+
+test("H5: a sound or a screen belongs to a mixer group; the page draws it with that bus; nonsense and old pages mean «auto»", () => {
+  const { b, drawn, pump, s } = world();
+  b.colocarFichero(SHA, "mp3", "Fuente"); pump();
+  const clave = () => [...drawn.keys()][0];
+  assert.equal(drawn.get(clave())!.bus, undefined, "without a group the engine picks the bus (ambient bed / effect / music for a video)");
+  assert.ok(b.ajustar({ grupo: "musica" }).ok); pump();
+  assert.equal(s.features.stateOf("objetos").get(clave())!.grupo, "musica");
+  assert.equal(drawn.get(clave())!.bus, "musica", "the page gets the bus the render plays it in");
+  assert.ok(b.ajustar({ volumen: 0.3 }).ok); pump();
+  assert.equal(drawn.get(clave())!.bus, "musica", "an unrelated change keeps the group");
+  assert.ok(b.ajustar({ grupo: "efectos" }).ok); pump();
+  assert.equal(drawn.get(clave())!.bus, "efectos");
+  assert.ok(b.ajustar({ grupo: "auto" }).ok); pump();
+  assert.equal(drawn.get(clave())!.bus, undefined, "auto = back to the engine's default");
+  // the server never trusts the page: «interfaz» (the notices) or any other word is not a group a world sound may take
+  s.features.send("objetos", "ajustar", { id: clave(), oculto: false, volumen: 1, solido: false, bx0: 0, by0: 0, bz0: 0, bx1: 0, by1: 0, bz1: 0, alcance: "burbuja", radio: 8, grupo: "interfaz" }); pump();
+  assert.equal(s.features.stateOf("objetos").get(clave())!.grupo, "auto");
+  // a page from before H5 sends no group: auto
+  s.features.send("objetos", "ajustar", { id: clave(), oculto: false, volumen: 1, solido: false, bx0: 0, by0: 0, bz0: 0, bx1: 0, by1: 0, bz1: 0, alcance: "burbuja", radio: 8 }); pump();
+  assert.equal(s.features.stateOf("objetos").get(clave())!.grupo, "auto");
+});

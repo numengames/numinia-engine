@@ -229,7 +229,7 @@ export class Instance {
     if (this.concedidosVuelo.has(entity)) return true;
     const vuelo = this.opts.vuelo ?? "nadie";
     if (vuelo === "todos") return true;
-    if (vuelo === "constructores") return this.opts.puede?.(this.byEntity[entity]?.who ?? null, "build-in-worlds", entity) ?? false;
+    if (vuelo === "constructores") return this.opts.puede?.(this.byEntity[entity]?.who ?? null, "construir", entity) ?? false;
     return false;
   }
   /** H2 historia 5: a feature grants (or takes back) flight for one avatar, regardless of the world's `vuelo`
