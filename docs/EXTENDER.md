@@ -787,6 +787,13 @@ Una aventura trae sus escenas en `escenas/<id>.json` (el id es el nombre del fic
   `ambiente_ganancia` (×0–4, solo junto a `ambiente`). `"ambiente": ""` deja esa escena en silencio. Una escena sin
   `ambiente` devuelve la cama del mundo. Las camas sintetizadas del mundo no cambian. Quien entra con una escena
   puesta la oye también. Las escenas de la casa no traen sonido.
+- **Mapa de la escena** (la mesa de rol): `"mapa": { "obra": "<sha256>.png", "titulo": "La cripta", "hueco": "El mapa de la mesa" }`.
+  Al poner la escena, esa imagen (ya subida al servidor: `.png`, `.jpg` o `.webp`, hasta 4096 px) entra en un **hueco** que
+  alguien que construye hizo (objetos `hueco`), con el mismo encaje que a mano (entera, centrada, sin deformar); `titulo` es
+  su nombre. `hueco` es el id o el nombre exacto; sin él vale el único hueco de la zona (si hay varios o ninguno, no se
+  adivina: queda dicho en el registro). `"obra": ""` vacía el hueco y vuelve su cartel. Una escena sin `mapa` no toca el
+  mapa; una escena puede ser solo un `mapa`. No hay paso de «deshacer»: no lo construyó nadie. Nada más cambia: el hueco es
+  de quien construye, la escena solo lo llena.
 - Los entornos de la casa también son escenas: `/escena noche` vale en cualquier mundo.
 - Quien dirige tiene el botón «Dirigir» (tecla K): escenas, luz y niebla en directo, narrar y «Convocar aquí». En el
   chat: `/escenas`, `/escena <nombre o número>`, `/narrar <texto>` y `/convocar [texto]`.
