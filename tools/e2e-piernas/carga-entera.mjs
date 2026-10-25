@@ -6,7 +6,7 @@
 // screen wrote; then, once it is gone, a screenshot of the world as the player first sees it (no grey, untextured pieces).
 // It works on any engine checkout (MOTOR_DIR=<worktree>, default this one), so the same leg measures BEFORE (origin/main, which has
 // no view.cargaMundo) and AFTER; only the AFTER must pass the assertions (pending within view = 0).
-// Env: SHOTS=<folder> pictures; THROTTLE_KBPS=<n> throttles the page's downloads (a phone's 4G is ~ 2500); CHROME=<headless shell>;
+// Env: MIN_PIEZAS=<n> (default 20) the least pieces the world must have within view (a freshly born Taller world has 10: MIN_PIEZAS=1); SHOTS=<folder> pictures; THROTTLE_KBPS=<n> throttles the page's downloads (a phone's 4G is ~ 2500); CHROME=<headless shell>;
 // SALIDA=<file.json> also writes the JSON. Prints JSON; exit 0 only when all is right (AFTER) or when it measured (MEDIR_SOLO=1).
 import { createRequire } from "node:module";
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync } from "node:fs";
@@ -20,7 +20,7 @@ const CHROME = process.env.CHROME ?? "/var/home/uruk/arkhitektonian-lab/.cache/m
 const SHOTS = process.env.SHOTS ?? "";
 const WORLD = process.env.WORLD ?? "/var/home/uruk/arkhitektonian-lab/.hermes/profiles/ursa/work/plantillas/eventos/mundo";
 const SP = Number(process.env.E2E_SERVER_PORT ?? 8812), VP = Number(process.env.E2E_VITE_PORT ?? 5332);
-const KBPS = Number(process.env.THROTTLE_KBPS ?? 0), SOLO_MEDIR = process.env.MEDIR_SOLO === "1", ETIQUETA = process.env.ETIQUETA ?? "";
+const MIN_PIEZAS = Number(process.env.MIN_PIEZAS ?? 20), KBPS = Number(process.env.THROTTLE_KBPS ?? 0), SOLO_MEDIR = process.env.MEDIR_SOLO === "1", ETIQUETA = process.env.ETIQUETA ?? "";
 if (!existsSync(PW) || !existsSync(CHROME) || !existsSync(WORLD)) { console.error("playwright-core, chromium or the world not found; set PW_CORE / CHROME / WORLD"); process.exit(2); }
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright";
 const { chromium } = createRequire(import.meta.url)(PW);
@@ -105,7 +105,11 @@ try {
   else {
     if (!ida.cargaMundo) throw new Error("this engine has no view.cargaMundo: run with MEDIR_SOLO=1 for a BEFORE measurement");
     if (faltan !== 0) throw new Error(`the screen left with ${faltan} pieces within view not ready`);
-    if (ida.cargaMundo.total < 20) throw new Error(`the world has only ${ida.cargaMundo.total} pieces within view (≥ 20 wanted)`);
+    // A small world is legitimate (a newborn Taller world has 6 things + 4 avatars = 10 pieces): the floor is MIN_PIEZAS (default 20, for
+    // the events world); run it with MIN_PIEZAS=1 on a small one. What proves the screen did not leave before the world's burst arrived,
+    // on any world, is that nothing is placed or counted after it left.
+    if (ida.cargaMundo.total < MIN_PIEZAS) throw new Error(`the world has only ${ida.cargaMundo.total} pieces within view (≥ ${MIN_PIEZAS} wanted; MIN_PIEZAS=<n> for a small world)`);
+    if (luego.objetos.placed !== justo.objetos.placed || (luego.cargaMundo?.total ?? 0) !== (justo.cargaMundo?.total ?? 0)) throw new Error(`pieces appeared after the screen left: placed ${justo.objetos.placed} → ${luego.objetos.placed}, counted ${justo.cargaMundo?.total} → ${luego.cargaMundo?.total}`);
     if (ida.informeCarga?.tope) throw new Error("the cap fired: the world was not whole when the screen left");
     if (!ida.textoPiezas.some((t) => /de \d+ pieza/.test(t))) throw new Error(`the screen never said «n de N piezas»: ${JSON.stringify(ida.textoPiezas)}`);
     if (out.progreso.length < 2) throw new Error("no progress sampled");
