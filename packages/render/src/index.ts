@@ -68,6 +68,7 @@ import { crearSalon } from "./ancestros.ts";
 import type { DianaAR } from "./dardos.ts";
 import { detalleAgua } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
+import { crearHitosMalla } from "./hitos-malla.ts";
 import { fundirAnimado } from "./fundir.ts";
 import { crearQuietos } from "./fundir-quietos.ts";
 import { hornearEscena } from "./hornear.ts";
@@ -786,6 +787,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // the capsules of the people who wear no VRM (the far crowd: one call for all). Before and after the frame every
   // object is as it was, so picking, the map, footprints, hands and the gizmo never see any of this.
   const lotes = crearLotes(world);
+  const hitosMalla = crearHitosMalla(hitos, pillarGeo, lotes.raiz); // MIS-200: the 24 pillars are ONE instanced call (hitos-malla.ts); lotes.raiz shows only while the frame is drawn
   const capsulasParte: Parte[] = [{ geo: bodyGeo, mat: otherMat, sombra: false }];
   const ojo = new THREE.Vector3(), ocultosCuadro: THREE.Object3D[] = [], enLuz = new Set<number | "self">();
   const porLote = new Map<string, { partes: Parte[]; color: string; slots: Slot[] }>();
@@ -841,12 +843,14 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     for (const r of avs.raices()) if (r.visible && tapa(r, 2)) { ocultar(r); niebla++; }
     for (const k of enLuz) { const r = avs.raiz(k === "self" ? "yo" : k); if (r?.visible) ocultar(r); }
     for (const r of tags.values()) if (r.s.visible && tapa(r.s, 3)) { ocultar(r.s); niebla++; }
+    hitosMalla.antes();
     lotes.raiz.visible = true;
     dibujoUltimo = { lejos, niebla, instanciadas, lotes: nLotes };
   }
   function despuesDelCuadro(): void {
     for (const o of ocultosCuadro) o.visible = true;
     ocultosCuadro.length = 0;
+    hitosMalla.despues();
     lotes.raiz.visible = false;
   }
   // MIS-200: the Graboso inside XR films a small mirror of the left eye (espejo-xr.ts); the module is fetched at the first
