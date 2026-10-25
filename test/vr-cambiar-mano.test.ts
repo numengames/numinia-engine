@@ -169,3 +169,70 @@ test("un objeto de misión en la mano se pasa a la otra y se redibuja ahí", () 
   assert.deepEqual(xr.enMano(), { llave: "izq" });
   assert.equal(lleva["misiones:llave"], "izq");
 });
+
+// ── darts ──────────────────────────────────────────────────────────────────────────────────────────────────────────
+async function dardosFalsos() {
+  const { montarDardosVR } = await import("../apps/plaza/dardos-vr.ts");
+  const f = montar();
+  const est = { sitio: "diana", dardos: 0, aviso: "", tirada: 0, ultimo: null, fin: null };
+  const lanzados: unknown[][] = [];
+  const dardos = { estado: () => est, duelo: () => null, sitios: () => [], jugar: () => ({ ok: true as const }), cambiar: () => ({ ok: true as const }), empezar: () => ({ ok: true as const }), clavados: () => [],
+    lanzar: (...a: unknown[]) => { lanzados.push(a); return { ok: true as const }; }, alCambiar: () => () => {} };
+  let marco: (dt: number) => void = () => {}; let enMano: Lado | null = null; const historial: (Lado | null)[] = [];
+  const pos: Record<Lado, [number, number, number]> = { izq: [0, 1, 0], der: [0, 1, 0] };
+  const vrd = {
+    cara: () => ({ c: [0, 1, -3] as [number, number, number], n: [0, 0, 1] as [number, number, number], r: [1, 0, 0] as [number, number, number], m: 0.408 }), puntoMundo: () => [0, 1, -3] as [number, number, number],
+    enMano: (l: Lado | null) => { enMano = l; historial.push(l); return true; }, posicion: (l: Lado) => pos[l], local: (l: Lado) => pos[l], aMundo: (v: [number, number, number]) => v,
+    volar: () => ({ resolver() {} }), soltar: () => {}, cadaCuadro: (fn: (dt: number) => void) => { marco = fn; return () => {}; }, marcador: { mostrar() {}, alPulsar: () => () => {} },
+  };
+  const view = { vr: { active: true, nota: (t: string) => f.avisos.push(t) }, manos: { entrada: (l: Lado) => f.m.entrada(l), vibrar: (l: Lado, v?: number, ms?: number) => f.m.vibrar(l, v, ms), ocupar: f.m.ocupar,
+    ocupadaPorOtros: f.m.ocupadaPorOtros, sondeo: (l: Lado) => f.m.sondeo(l), llevable: f.m.llevable }, dardosVR: { cargar: async () => vrd } };
+  const api = await montarDardosVR({ dardos: dardos as never, view: view as never, yo: () => 1 });
+  // one frame at time `t`: the hand `l` moves to x (the page samples the anchor's local position)
+  const ahora = performance.now; let t = 1000; performance.now = () => t;
+  const cuadro = (mover: Partial<Record<Lado, [number, number, number]>> = {}, avanza = 16) => { t += avanza; Object.assign(pos, mover); f.cuadro(); marco(0.016); };
+  return { f, api, cuadro, lanzados, pos, enMano: () => enMano, historial, restaurar: () => { performance.now = ahora; } };
+}
+
+test("el dardo: la mano libre junto a la que lo lleva + agarre lo pasa, sin lanzar, y se lanza desde la nueva mano", async () => {
+  const d = await dardosFalsos(); const f = d.f;
+  try {
+    f.poner(f.IZQ, -0.6); f.poner(f.DER, 0); d.cuadro();
+    f.agarre(f.DER, 1); d.cuadro();                       // take it with the right grip
+    assert.equal(d.api.sosteniendo(), "der"); assert.equal(d.enMano(), "der");
+    f.agarre(f.DER, 0);                                   // (a controller's grip released = throw: hold it instead)
+    f.agarre(f.DER, 1); f.poner(f.IZQ, -0.05);
+    d.cuadro(); d.cuadro();
+    const antesPulsos = f.pulsos.length;
+    f.agarre(f.IZQ, 1); d.cuadro();                       // the free hand's grip next to it
+    assert.equal(d.api.sosteniendo(), "izq", "the dart is in the left hand"); assert.equal(d.enMano(), "izq");
+    assert.deepEqual(f.pulsos.slice(antesPulsos).map((p) => p[0]).sort(), [0, 1], "both buzzed");
+    // the hand that gave it lets go, the one that took it moves and opens its grip: still no throw
+    f.agarre(f.DER, 0); d.cuadro({ izq: [0, 1, -0.4] }); d.cuadro({ izq: [0, 1, -1.2] }); f.agarre(f.IZQ, 0); d.cuadro();
+    assert.equal(d.lanzados.length, 0, "the handover itself threw nothing");
+    assert.equal(d.api.sosteniendo(), "izq", "the grip that passed it opened: not a release");
+    // a real throw from the new hand: grip, then a fast flick toward the board and the trigger
+    f.agarre(f.IZQ, 1); d.cuadro({ izq: [0, 1, 0] }, 400);
+    for (let i = 1; i <= 8; i++) d.cuadro({ izq: [0, 1, -0.07 * i] }, 10); // 7 m/s toward -z
+    f.agarre(f.IZQ, 0); d.cuadro({ izq: [0, 1, -0.6] }, 10);
+    assert.equal(d.lanzados.length, 1, "the throw works from the new hand " + JSON.stringify(d.api.ultimo()));
+  } finally { d.restaurar(); }
+});
+
+test("el dardo: el botón pasa el dardo; con el reloj en la otra mano o sin dardo, no", async () => {
+  const d = await dardosFalsos(); const f = d.f;
+  try {
+    f.poner(f.IZQ, -2); f.poner(f.DER, 0); d.cuadro(); f.agarre(f.DER, 1); d.cuadro(); f.agarre(f.DER, 0);
+    f.m.ocupar("reloj", (l) => l === "izq");
+    const no = f.m.cambiarMano(); assert.equal(no.ok, false, "the watch hand does not receive"); assert.equal(d.api.sosteniendo(), "der");
+    const libre = montar(); assert.equal(libre.m.cambiarMano().ok, false, "nothing in hand: says so");
+  } finally { d.restaurar(); }
+  const e = await dardosFalsos(); const g = e.f;
+  try {
+    g.poner(g.IZQ, -2); g.poner(g.DER, 0); e.cuadro(); g.agarre(g.DER, 1); e.cuadro(); g.agarre(g.DER, 0);
+    const r = g.m.cambiarMano(); assert.deepEqual(r, { ok: true, que: "el dardo", a: "izq" });
+    assert.equal(e.api.sosteniendo(), "izq"); assert.equal(e.enMano(), "izq");
+    // today's rule stays: a hand with a dart receives nothing else (it takes no second dart with the other hand)
+    g.agarre(g.DER, 1); e.cuadro(); assert.equal(e.api.sosteniendo(), "izq");
+  } finally { e.restaurar(); }
+});
