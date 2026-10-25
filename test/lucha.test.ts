@@ -18,7 +18,7 @@ import { BESTIARIO } from "../features/lucha/bestiario.ts";
 import funciones from "../features/servidor.ts";
 import clientes from "../features/cliente.ts";
 
-const G = { id: "guardian-1", especie: "guardian-crisalida", x: 10, z: 0, y: 0 };
+const G = { id: "guardian-1", especie: "guardian-crisalida", x: 10, z: 0, y: 0, fija: true }; // pinned: these tests are about blows, not about the walk (test/lucha-persigue.test.ts)
 const KEY = "c:guardian-1";
 const sign = signer("una-clave-de-prueba-larga");
 type Keeper = GuestKeeper & { token: string | null };

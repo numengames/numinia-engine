@@ -1,15 +1,17 @@
 // «Tú» — the player sheet (key I, the «Ficha» button, the HUD card's portrait). M3's window with tabs, rebuilt for production
 // (rediseño v2, story B): Personaje · Reserva · Insignias. Personaje is two columns: your avatar — a real render of the VRM you
 // wear (tu-logica.ts, tools/retratos.mjs), turnable front/back, with «Cambiar avatar» (the H10 chooser, avatar.ts) — and who
-// you are: name, Estado chip and ladder, Reserva and Carga when the page has them, your badges. Quests live in the quest line
-// and book (J), people in Gente (L), the device's and the visit's numbers in Ajustes › Gráficos (menu-ajustes.ts): one thing,
+// you are: name, Estado chip, what you carry (the weapon and relics, MIS-257), the adventures under way, Carga when the page has
+// it, your badges: the whole game side of you on ONE screen. The quest book (J) keeps the full list, people are in Gente (L), the device's and the visit's numbers in Ajustes › Gráficos (menu-ajustes.ts): one thing,
 // one place. Nothing here is invented: a source the page does not receive is left out, never «Próximamente».
 // Sections come from a registry: a feature or an adventure adds its own with `__numinia.ficha.seccion(id, {...})`.
 // innerHTML below only ever receives icono()'s output (a fixed table of house SVGs); every text goes in with textContent.
 import { crearDialogo } from "./paneles.ts";
 import { resumenTexto } from "./inventario.ts";
 import { icono } from "./iconos.ts";
-import { retratoDe, insigniasDelLibro, lineaDeTu } from "./tu-logica.ts";
+import { retratoDe, insigniasDelLibro, lineaDeTu, equipoDeLaLista, aventurasEnCurso } from "./tu-logica.ts";
+import { ICONO_TIPO, SILUETA, colorDe, nombreConCuenta } from "./bolsa-rejilla.ts";
+import type { Objeto } from "./bolsa-rejilla.ts";
 import type { Insignia } from "./tu-logica.ts";
 
 export type HostFicha = {
@@ -140,15 +142,54 @@ export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
     const cab = el("div", "tu-cabeza"); cab.append(el("p", "tu-nombre"), el("span", "chip tu-chip"));
     const est = el("div", "tu-bloque tu-estado"), ol = el("ol", "escalera"); ol.setAttribute("aria-label", "Escalera del estado");
     for (const n of ["Estable", ...ESCALERA]) ol.appendChild(el("li", "chip", n));
-    est.append(el("h4", "", "Estado"), ol, el("p", "nota", "Si te debilitan, bajas por esta escalera."));
-    const reserva = el("div", "tu-bloque tu-reserva"); reserva.append(el("h4", "", "Reserva"), el("p", "tu-reserva-texto"));
+    est.append(el("h4", "", "Estado"), ol); ol.title = "Si te debilitan, bajas por esta escalera.";
+    const reserva = el("div", "tu-bloque tu-reserva"); reserva.append(el("h4", "", "Llevas contigo"), el("div", "tu-equipo"), el("p", "nota tu-reserva-texto"));
+    const aventuras = el("div", "tu-bloque tu-aventuras"); aventuras.append(el("h4", "", "Aventuras en curso"), el("ul", "tu-lista-aventuras"), el("p", "nota"));
     const carga = el("div", "tu-bloque tu-carga"), fila = el("div", "tu-barra-fila"), barra = el("div", "tu-barra");
     barra.append(el("i")); barra.setAttribute("role", "meter"); barra.setAttribute("aria-label", "Carga"); barra.setAttribute("aria-valuemin", "0");
     fila.append(barra, el("span", "tu-num")); carga.append(el("h4", "", "Carga"), fila);
     const ins = el("div", "tu-bloque tu-insignias"); ins.append(el("h4"), el("ul", "insignias"), el("p", "nota"));
-    datos.append(cab, el("p", "tu-linea"), est, reserva, carga, ins);
+    datos.append(cab, el("p", "tu-linea"), reserva, aventuras, carga, est, ins);
     r.append(fig, datos);
     return r;
+  }
+  /** The four equipment slots (weapon + three relics): a house icon, rarity as the border, the name under it; empty = a silhouette. */
+  function pintarEquipo(caja: HTMLElement, lista: unknown, nota: HTMLElement, rs: { objetos: number; portados: number; prestigio: number }): void {
+    const { arma, reliquias } = equipoDeLaLista(lista), firma = JSON.stringify([arma, reliquias, rs]);
+    if (caja.dataset.firma === firma) return; caja.dataset.firma = firma;
+    const hueco = (o: Objeto | null, forma: "arma" | "reliquia"): HTMLElement => {
+      const li = el("div", `tu-hueco${o ? "" : " vacio"}`); li.setAttribute("role", "group");
+      const ic = el("span", "ic"); ic.innerHTML = icono(o ? (o.icono || ICONO_TIPO[o.tipo]) : SILUETA[forma], 26);
+      const t = o ? nombreConCuenta(o) : forma === "arma" ? "Sin arma" : "Sin reliquia";
+      li.setAttribute("aria-label", o ? `${forma === "arma" ? "Arma" : "Reliquia"}: ${t}` : t);
+      if (o) li.style.setProperty("--c", colorDe(o));
+      li.append(ic, el("span", "nom", t)); li.title = li.getAttribute("aria-label")!;
+      return li;
+    };
+    caja.setAttribute("role", "group"); caja.setAttribute("aria-label", "Un arma y hasta tres reliquias");
+    caja.replaceChildren(hueco(arma, "arma"), ...[0, 1, 2].map((i) => hueco(reliquias[i] ?? null, "reliquia")));
+    nota.textContent = rs.objetos > rs.portados ? `${resumenTexto(rs)} · el resto, en la Bolsa (R)` : resumenTexto(rs);
+  }
+  /** Up to three adventures under way: title, «paso 2 de 5», the step you are on; the one you follow first. */
+  function pintarAventuras(r: HTMLElement, libro: unknown): void {
+    const todas = aventurasEnCurso(libro), firma = JSON.stringify(todas);
+    if (r.dataset.aventuras === firma) return; r.dataset.aventuras = firma;
+    const caja = r.querySelector(".tu-aventuras") as HTMLElement, ul = caja.querySelector("ul") as HTMLElement, nota = caja.querySelector(".nota") as HTMLElement;
+    ul.replaceChildren(...todas.slice(0, 3).map((a, i) => {
+      const li = el("li", `tu-aventura${a.seguida ? " seguida" : ""}`), cab = el("div", "cab");
+      cab.append(el("span", "titulo", a.titulo), el("span", "paso", a.pasos ? `paso ${Math.min(a.pasos, a.paso + 1)} de ${a.pasos}` : ""));
+      const barra = el("div", "tu-barra"); barra.append(el("i")); (barra.firstElementChild as HTMLElement).style.width = a.pasos ? `${Math.min(100, (a.paso / a.pasos) * 100)}%` : "0%";
+      li.append(cab, barra); if (a.siguiente && i === 0) li.append(el("p", "sig", a.siguiente));
+      return li;
+    }));
+    nota.replaceChildren();
+    if (!todas.length) nota.textContent = "Ninguna aventura en curso. Habla con la gente de la plaza para empezar una.";
+    else {
+      if (todas.length > 3) nota.append(`Y ${todas.length - 3} más. `);
+      const b = el("button", "tu-libro", "Abrir el libro de misiones (J)"); b.type = "button"; b.setAttribute("aria-keyshortcuts", "J");
+      b.addEventListener("click", () => { panel.cerrar(); const m = document.getElementById("misiones"); if (m && document.getElementById("libro")?.hidden) m.click(); });
+      nota.append(b);
+    }
   }
   function refrescarPersonaje(r: HTMLElement): void {
     const q = <T extends HTMLElement = HTMLElement>(s: string) => r.querySelector(s) as T;
@@ -183,15 +224,17 @@ export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
       li.classList.toggle("ok", actual && k === 0); li.classList.toggle("aviso", actual && (k === 1 || k === 2)); li.classList.toggle("mal", actual && k > 2);
       if (actual) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current");
     });
-    // Reserva (the inventario contract) and Carga (the lucha client, as on the HUD card): each only when the page has it
+    // what you carry (the inventario contract: one weapon, up to three relics) and the adventures under way (the misiones
+    // contract), then Carga (the lucha client, as on the HUD card): each only when the page has its source
     const inv = otros.inventario, rs = (() => { try { return typeof inv?.resumen === "function" ? inv.resumen() : null; } catch { return null; } })();
     q(".tu-reserva").hidden = !rs;
-    if (rs) set(q(".tu-reserva-texto"), resumenTexto(rs));
+    if (rs) pintarEquipo(q(".tu-equipo"), (() => { try { return typeof inv?.lista === "function" ? inv.lista() : []; } catch { return []; } })(), q(".tu-reserva-texto"), rs);
+    pintarAventuras(r, libro());
     const cg = (() => { try { return otros.carga?.actual?.() as { valor: number; max: number } | null | undefined; } catch { return null; } })();
     const hayCarga = !!cg && Number.isFinite(cg.valor) && Number.isFinite(cg.max) && cg.max > 0;
     q(".tu-carga").hidden = !hayCarga;
     if (hayCarga) {
-      const m = Math.round(cg!.max), v = Math.min(m, Math.max(0, Math.round(cg!.valor))), b = q(".tu-barra");
+      const m = Math.round(cg!.max), v = Math.min(m, Math.max(0, Math.round(cg!.valor))), b = q(".tu-carga .tu-barra");
       (b.firstElementChild as HTMLElement).style.width = `${(v / m) * 100}%`; set(q(".tu-num"), `${v} / ${m}`);
       b.setAttribute("aria-valuemax", String(m)); b.setAttribute("aria-valuenow", String(v)); b.setAttribute("aria-valuetext", `${v} de ${m}`);
     }

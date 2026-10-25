@@ -5,6 +5,7 @@
 import catalogo from "../../activos/avatares/catalogo.json" with { type: "json" };
 import { recompensasDe } from "./misiones.ts";
 import { elegirAvatar } from "../../packages/render/src/avatares-politica.ts";
+import type { Objeto } from "./bolsa-rejilla.ts";
 
 export type TipoRetrato = "busto" | "cuerpo" | "espalda";
 /** The house avatars that have portraits: every model of the catalogue (test/retratos.test.ts checks the files exist). */
@@ -54,4 +55,24 @@ export function desdeHace(ms: number): string {
 /** The line under your name: «Polybot · en la Plaza · aquí desde hace 12 min», leaving out what the page does not know. */
 export function lineaDeTu(o: { avatar?: string | null; mundo?: string | null; ms: number }): string {
   return [o.avatar?.trim(), o.mundo?.trim() ? `en ${o.mundo.trim()}` : "", desdeHace(o.ms)].filter(Boolean).join(" · ");
+}
+
+/** What you carry (MIS-257): the one weapon and up to three relics that are `portado` in the Bolsa, in the order the equipment row
+ * draws them. Anything else (tokens, catches, the Reserva) stays in the Bolsa. A list that is not an array gives an empty kit. */
+export function equipoDeLaLista(lista: unknown): { arma: Objeto | null; reliquias: Objeto[] } {
+  const l = (Array.isArray(lista) ? lista : []).filter((o): o is Objeto => !!o && typeof o === "object" && (o as Objeto).portado === true);
+  return { arma: l.find((o) => o.tipo === "arma") ?? null, reliquias: l.filter((o) => o.tipo === "reliquia").slice(0, 3) };
+}
+
+export type Aventura = { id: string; titulo: string; paso: number; pasos: number; siguiente: string; seguida: boolean };
+/** Your adventures under way (MIS-257), from the quest book: only the active ones, the one you follow first, then the book's
+ * order. `siguiente` is the text of the step you are on («» when the book has no such step). A done quest is not here:
+ * its badge lives in Insignias. */
+export function aventurasEnCurso(libro: unknown): Aventura[] {
+  const l = Array.isArray(libro) ? libro : [];
+  const activas = l.filter((m) => m && m.estado === "activa" && typeof m.titulo === "string").map((m) => {
+    const lista: { n: number; texto: string }[] = Array.isArray(m.lista) ? m.lista : [];
+    return { id: String(m.id ?? m.titulo), titulo: String(m.titulo), paso: Number(m.paso) || 0, pasos: Number(m.pasos) || lista.length, siguiente: String(lista.find((x) => x.n === m.paso)?.texto ?? ""), seguida: m.seguida === true };
+  });
+  return [...activas.filter((a) => a.seguida), ...activas.filter((a) => !a.seguida)];
 }
