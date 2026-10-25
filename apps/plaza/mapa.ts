@@ -47,6 +47,10 @@ export type HostMapa = {
   andar?: { ir(d: { x: number; z: number; nombre: string }): { ok: true } | { ok: false; motivo: "ya-estas" | "lejos" | "invalido" }; parar(): void; activo(): boolean };
   /** C2: called after «Ir» sent the trip, with what you went to (the page selects it in the builder, opens its card…). */
   alIr?(donde: { id: string; nombre: string; x: number; z: number }): void;
+  /** MIS-240: edit what you picked. `puedeEditar` says whether it is an object you may build on (then the detail shows «Editar»);
+   * `alEditar` opens the builder on it and returns whether it did (then the big map closes so you see it). Omitted = no button. */
+  puedeEditar?(donde: { id: string; nombre: string; x: number; z: number }): boolean;
+  alEditar?(donde: { id: string; nombre: string; x: number; z: number }): boolean;
   /** ia-visible S8: the marker picked is an AI in the world; the page opens its card (gente.tarjeta). Omitted = the map only shows its detail. */
   alAgente?(quien: number): void;
 };
@@ -484,6 +488,11 @@ export function montarMapa(h: HostMapa) {
       const a = boton("Ir", `Ir andando a ${e.nombre}`); a.className = "andar";
       a.addEventListener("click", () => { irAndando(e); });
       detalle.append(a);
+    }
+    if (h.puedeEditar?.(e) && h.alEditar) { // MIS-240: a thing of the world, and you may build: open it in the builder
+      const ed = boton("Editar este objeto", `Abrir ${e.nombre} en Construir`); ed.className = "editar";
+      ed.addEventListener("click", () => { if (h.alEditar!(e) && panel.abierto) panel.cerrar(); });
+      detalle.append(ed);
     }
     if (h.teletransporte) { // U27 (MVL1): pick a site, press «Ir de golpe», appear there (the server decides; same in VR)
       const activo = h.teletransporte.activo();

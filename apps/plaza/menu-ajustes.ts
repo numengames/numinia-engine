@@ -38,6 +38,7 @@ import { escribiendo } from "./escribiendo.ts";
 import { montarBalizaSonora } from "./baliza-sonora.ts"; // V6: the beacon also sounds
 import { montarEdicion } from "./edicion.ts"; // M6: move and hide the frames
 import { montarMarcos } from "./marcos.ts"; // U20 + U3: the density dial, the frames, the clock, the notices
+import { categoriaInicial, categoriaTrasPulsar, categoriaVisible, modoAjustes, pestanaSiguiente } from "./ajustes-pestanas.ts"; // MIS-239: tabs on a wide screen, folded sections on a phone
 export { escribiendo };
 /** Inside the menu, O closes it unless the key is text being typed. */
 const escribeTexto = (t: EventTarget | null): boolean => {
@@ -257,29 +258,58 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   const categoriaDe = (grupo: string): string => ({ graficos: "graficos", aparato: "graficos", sonido: "sonido", controles: "controles", accesibilidad: "accesibilidad", interfaz: "interfaz", privacidad: "cuenta", identidad: "cuenta" } as Record<string, string>)[grupo] ?? "juego";
   let categoria = "", busqueda = "";
   const cuerpo = document.createElement("div"); cuerpo.className = "ajustes-cuerpo";
+  // MIS-239: ONE card. Wide screen: the categories are a strip of tabs (role=tablist; ↑ ↓ ← → Home End move between them).
+  // Narrow screen / phone profile: no strip, each category is a heading that folds and unfolds its settings (accordion).
   const nav = document.createElement("nav"); nav.setAttribute("aria-label", "Categorías de ajustes");
+  const tiras = document.createElement("div"); tiras.setAttribute("role", "tablist"); tiras.setAttribute("aria-orientation", "vertical"); tiras.setAttribute("aria-label", "Pestañas de ajustes");
+  nav.append(tiras);
   lista.before(cuerpo); cuerpo.append(nav, lista);
+  let modo = modoAjustes(innerWidth, html.dataset.aparato ?? "");
+  const aplicarModo = (): boolean => {
+    const nuevo = modoAjustes(innerWidth, html.dataset.aparato ?? "");
+    const cambio = nuevo !== modo; modo = nuevo;
+    dlg.classList.toggle("acordeon", modo === "acordeon");
+    dlg.dataset.modo = modo;
+    if (modo === "pestanas") { lista.setAttribute("role", "tabpanel"); lista.setAttribute("aria-labelledby", categoria ? `ajustes-tab-${categoria}` : "ajustes-titulo"); } else { lista.removeAttribute("role"); lista.removeAttribute("aria-labelledby"); }
+    return cambio;
+  };
   const buscar = document.createElement("input"); buscar.type = "search"; buscar.id = "ajustes-buscar"; buscar.placeholder = "Buscar un ajuste";
   const etqBuscar = document.createElement("label"); etqBuscar.htmlFor = "ajustes-buscar"; etqBuscar.className = "solo-lector"; etqBuscar.textContent = "Buscar un ajuste";
   const cab = dlg.querySelector(".cabecera"); cab?.insertBefore(etqBuscar, cab.lastElementChild); cab?.insertBefore(buscar, cab.lastElementChild);
   const pagina = document.createElement("button"); pagina.type = "button"; pagina.id = "ajustes-restablecer-pagina"; pagina.textContent = "Restablecer esta página";
   $("ajustes-restablecer")?.before(pagina);
   function mostrar(): void {
-    const q = busqueda.trim().toLowerCase();
+    const q = busqueda.trim().toLowerCase(), buscando = q !== "";
     const visibles = new Map(a.lista().map((x) => [x.id, x.visible])); // once per call: lista() rebuilds every view
+    const coinciden = new Set<string>(); // categories with at least one setting shown by the search
     for (const fs of lista.querySelectorAll<HTMLFieldSetElement>("fieldset")) {
-      const enCat = categoriaDe(fs.dataset.grupo ?? "") === categoria;
+      const cat = categoriaDe(fs.dataset.grupo ?? "");
       let alguno = false;
       for (const f of fs.querySelectorAll<HTMLElement>(".ajuste")) {
         const visible = visibles.get(f.dataset.id!) !== false;
         const coincide = !q || (f.textContent ?? "").toLowerCase().includes(q);
         f.hidden = !visible || !coincide; if (!f.hidden) alguno = true;
       }
-      fs.hidden = !alguno || (!q && !enCat);
+      if (alguno) coinciden.add(cat);
+      fs.hidden = !alguno || !categoriaVisible(cat, categoria, buscando);
     }
     const con = (c: string) => [...lista.querySelectorAll<HTMLFieldSetElement>("fieldset")].some((fs) => categoriaDe(fs.dataset.grupo ?? "") === c && [...fs.querySelectorAll<HTMLElement>(".ajuste")].some((f) => visibles.get(f.dataset.id!) !== false));
-    for (const b of nav.querySelectorAll<HTMLButtonElement>("button")) { b.hidden = !con(b.dataset.cat!); b.setAttribute("aria-pressed", String(!q && b.dataset.cat === categoria)); }
-    if (!lista.querySelector("fieldset:not([hidden])")) { const v = lista.querySelector(".vacio") ?? Object.assign(document.createElement("p"), { className: "vacio" }); v.textContent = q ? "Ningún ajuste coincide." : "Esta categoría no tiene ajustes."; lista.append(v); } else lista.querySelector(".vacio")?.remove();
+    const hay = new Map(CATEGORIAS.map((c) => [c.id, con(c.id)]));
+    const tabs = [...tiras.querySelectorAll<HTMLButtonElement>("button")];
+    const sel = !buscando && categoria && hay.get(categoria) ? categoria : tabs.find((b) => !b.hidden && hay.get(b.dataset.cat!))?.dataset.cat;
+    for (const b of tabs) {
+      const c = b.dataset.cat!, hayC = hay.get(c) === true, esta = !buscando && c === categoria;
+      b.hidden = !hayC; b.setAttribute("aria-selected", String(esta)); b.tabIndex = c === sel ? 0 : -1;
+    }
+    for (const sec of lista.querySelectorAll<HTMLElement>("section.cat")) { // folded sections: the heading shows its state
+      const c = sec.dataset.cat!, abierta = categoriaVisible(c, categoria, buscando), cab = sec.querySelector<HTMLButtonElement>(".cat-cab")!;
+      sec.hidden = buscando ? !coinciden.has(c) : hay.get(c) !== true;
+      cab.setAttribute("aria-expanded", String(abierta)); sec.classList.toggle("abierta", abierta);
+    }
+    if (modo === "pestanas") lista.setAttribute("aria-labelledby", sel ? `ajustes-tab-${sel}` : "ajustes-titulo");
+    pagina.hidden = !buscando && !categoria; // a folded accordion has no «page» to reset
+    pagina.textContent = modo === "acordeon" ? "Restablecer esta sección" : "Restablecer esta página";
+    if (!lista.querySelector("fieldset:not([hidden])") && (buscando || modo === "pestanas")) { const v = lista.querySelector(".vacio") ?? Object.assign(document.createElement("p"), { className: "vacio" }); v.textContent = q ? "Ningún ajuste coincide." : "Esta categoría no tiene ajustes."; lista.append(v); } else lista.querySelector(".vacio")?.remove();
     const editar = lista.querySelector<HTMLElement>("#ajustes-editar-interfaz"); if (editar) editar.hidden = !!q || categoria !== "interfaz" || !edicion.disponible;
   }
   // read-only facts: the device and this visit under Gráficos, who you are under Cuenta y privacidad (live while open)
@@ -289,14 +319,50 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
     infoDom("identidad", "Tu identidad", "Cómo te conoce este mundo desde este navegador. Solo se lee.", () => filasIdentidad(fuente)),
   ];
   setInterval(() => { if (dlg.open) for (const x of infos) x.pintar(); }, 1000);
+  const conAjustes = () => CATEGORIAS.filter((c) => [...lista.querySelectorAll<HTMLFieldSetElement>("fieldset")].some((fs) => categoriaDe(fs.dataset.grupo ?? "") === c.id && !fs.hidden)).map((c) => c.id);
+  /** Pulsar una pestaña o un encabezado: the category it names opens (a folded heading pressed again folds it). */
+  const pulsar = (c: string) => { categoria = categoriaTrasPulsar(modo, categoria, c); busqueda = ""; buscar.value = ""; mostrar(); };
   const construir = () => {
-    lista.replaceChildren(...a.grupos().map(grupoDom), ...infos.map((x) => x.fs));
-    nav.replaceChildren(...CATEGORIAS.map((c) => { const b = document.createElement("button"); b.type = "button"; b.dataset.cat = c.id; b.innerHTML = `${icono(c.icono, 18)}<span>${c.nombre}</span>`; /* constants only */ b.addEventListener("click", () => { categoria = c.id; busqueda = ""; buscar.value = ""; mostrar(); }); return b; }));
+    const fss = [...a.grupos().map(grupoDom), ...infos.map((x) => x.fs)];
+    // one section per category: its heading (a button, shown only as a folded section) and its groups
+    const secciones = CATEGORIAS.map((c) => {
+      const sec = document.createElement("section"), cab = document.createElement("button"), cu = document.createElement("div");
+      sec.className = "cat"; sec.dataset.cat = c.id; cu.className = "cat-cuerpo"; cu.id = `ajustes-cat-${c.id}`;
+      cab.type = "button"; cab.className = "cat-cab"; cab.id = `ajustes-cab-${c.id}`; cab.dataset.cat = c.id; cab.setAttribute("aria-controls", cu.id); cab.setAttribute("aria-expanded", "false");
+      cab.innerHTML = `${icono(c.icono, 20)}<span>${c.nombre}</span>${icono("caret-down", 18)}`; /* constants only */
+      cu.setAttribute("role", "region"); cu.setAttribute("aria-labelledby", cab.id);
+      cab.addEventListener("click", () => pulsar(c.id));
+      cu.append(...fss.filter((fs) => categoriaDe(fs.dataset.grupo ?? "") === c.id));
+      sec.append(cab, cu);
+      return sec;
+    });
+    lista.replaceChildren(...secciones);
+    tiras.replaceChildren(...CATEGORIAS.map((c) => {
+      const b = document.createElement("button"); b.type = "button"; b.dataset.cat = c.id; b.id = `ajustes-tab-${c.id}`;
+      b.setAttribute("role", "tab"); b.setAttribute("aria-controls", "ajustes-grupos"); b.setAttribute("aria-selected", "false"); b.tabIndex = -1;
+      b.innerHTML = `${icono(c.icono, 18)}<span>${c.nombre}</span>`; /* constants only */
+      b.addEventListener("click", () => pulsar(c.id));
+      return b;
+    }));
     const fsI = lista.querySelector<HTMLElement>('fieldset[data-grupo="interfaz"]');
     if (fsI) { const e = document.createElement("button"); e.type = "button"; e.id = "ajustes-editar-interfaz"; e.className = "grande"; e.textContent = "Editar interfaz"; e.hidden = true; e.dataset.listo = "1"; e.addEventListener("click", () => { cerrar(); edicion.abrir(); }); fsI.append(e); }
-    if (!categoria) categoria = CATEGORIAS.find((c) => [...lista.querySelectorAll<HTMLFieldSetElement>("fieldset")].some((fs) => categoriaDe(fs.dataset.grupo ?? "") === c.id && !fs.hidden))?.id ?? "juego";
+    // the fieldsets start hidden for categories without visible settings: decide with what is there, then show
+    for (const fs of lista.querySelectorAll<HTMLFieldSetElement>("fieldset")) fs.hidden = !fs.querySelector(".ajuste:not([hidden])");
+    categoria = categoriaInicial(modo, conAjustes(), categoria);
+    aplicarModo();
     mostrar();
   };
+  // roving focus on the strip: the arrow keys move between the tabs and open the one reached (a game's options menu)
+  tiras.addEventListener("keydown", (e) => {
+    const ids = [...tiras.querySelectorAll<HTMLButtonElement>("button")].filter((b) => !b.hidden).map((b) => b.dataset.cat!);
+    const act = (document.activeElement as HTMLElement | null)?.dataset?.cat ?? categoria;
+    const sig = pestanaSiguiente(ids, act, e.key);
+    if (!sig) return;
+    e.preventDefault(); categoria = sig; busqueda = ""; buscar.value = ""; mostrar();
+    tiras.querySelector<HTMLButtonElement>(`button[data-cat="${sig}"]`)?.focus();
+  });
+  // turning the phone or resizing the window changes tabs <-> folded sections without losing the open category
+  addEventListener("resize", () => { if (aplicarModo()) { categoria = categoriaInicial(modo, conAjustes(), categoria); mostrar(); } });
   buscar.addEventListener("input", () => { busqueda = buscar.value; mostrar(); });
   pagina.addEventListener("click", () => {
     for (const x of a.lista()) if (categoriaDe(x.grupo) === categoria) a.restablecer(x.id);
@@ -321,6 +387,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
     if (!dlg || dlg.open || enXR()) return !!dlg?.open;
     volverA = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     for (const x of infos) x.pintar();
+    if (aplicarModo()) { categoria = categoriaInicial(modo, conAjustes(), categoria); mostrar(); }
     try { dlg.showModal(); } catch { dlg.setAttribute("open", ""); }
     boton!.setAttribute("aria-expanded", "true");
     titulo?.focus(); // a quiet start: the dialog's name is read, nothing changes by accident; Tab walks the settings

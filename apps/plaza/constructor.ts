@@ -1,5 +1,5 @@
 // The builder (H1 + M22): a «Construir» button (C or Tab) for whoever may build; real HTML controls that screen readers
-// and keyboards can use — since ux2-dock a row of icons (the dock: Añadir, Cable, Entorno, Precisión, Inspector, Ayuda |
+// and keyboards can use — since ux2-dock a row of icons (the dock: Añadir, Objetos del mundo, Cable, Entorno, Precisión, Inspector, Ayuda |
 // Deshacer, Rehacer | Salir) with ONE drawer open at a time under it (cajones.ts), and the selected object's card on the
 // right — so building no longer covers the world; and the hands in the 3D view
 // (packages/render/src/gizmo.ts): a click selects, the gizmo's handles (X red, Y green, Z blue) move, turn and scale,
@@ -22,6 +22,7 @@ import { datosFicha, enlaceDeObjeto, ETIQUETAS_FICHA, fichaVisible, logicaDeObje
 import type { PiezasMundo } from "./ficha-objeto.ts";
 import { ACCIONES_DOCK, alTocarlo, alternarCajon, CAJONES, esArrastre, filtrarBiblioteca, iconoDePieza, queCierraEscape, tamanoUniforme } from "./cajones.ts";
 import type { Cajon } from "./cajones.ts";
+import { encuadreDe, filasDeObjetos, filtrarObjetos, firmaDeLista, frase, recortarLista, resumenLista, sitioJunto, yaJunto } from "./objetos-mundo.ts"; // MIS-241: «Objetos del mundo»
 import { transformarGrupo } from "../../packages/render/src/grupo.ts";
 import { rectDesde, esCaja, idsEnRect, unirSeleccion, gestoDosDedos, aplicarGesto } from "./seleccion-caja.ts";
 import { esTactil } from "./perfil-aparato.ts"; // U25: the page's one answer to «touch controls or not»
@@ -35,6 +36,8 @@ type Builder = {
   biblioteca: { id: string; nombre: string; modelo: string }[];
   seleccion(): Obj | null;
   objeto(id: string): Obj | null;
+  /** Every object of the zone (MIS-241: the «Objetos del mundo» drawer lists them). */
+  lista(): Obj[];
   colocar(id: string): Res; colocarEn(id: string, p: Punto, ry?: number): Res;
   girar(grados: number): Res; subir(metros: number): Res; desplazar(dx: number, dz: number): Res; escalar(factor: number): Res;
   duplicar(): Res; borrar(): Res; fijar(): Res; nombrar(nombre: string, decorado?: boolean): Res; deshacer(): Res; rehacer(): Res;
@@ -53,6 +56,7 @@ type Vista = {
   place(key: string, t: (Donde & { model: string; animate: boolean }) | null): void;
 };
 
+const LLEGADA_M = 3, LLEGADA_ESPERA_MS = 6000; // MIS-241: after «go to an object», the camera looks at it once you are within 3 m of the spot (or after 6 s)
 const FANTASMA = "~fantasma";   // the library model following the pointer before it is placed (only on this page)
 const ENVIO_MS = 125;           // a drag sends `mover` at most 8 times a second,
 const VIVO_MS = 500;            // and again every half second while held still (the server keeps one undo step per drag)
@@ -72,8 +76,9 @@ export const AYUDA = [
   "Mayús + clic: suma o quita del grupo seleccionado (varios a la vez); Mayús + arrastrar en el vacío dibuja un rectángulo y suma lo que quede dentro. El gizmo los mueve, gira y escala juntos (el grupo gira o crece alrededor de su centro), Supr los borra juntos, Ctrl+Z los deshace juntos.",
   "Al mover un solo objeto con un eje elegido (X/Y/Z): si su cara queda a menos de 25 cm de otro objeto, encaja cara con cara; desde 60 cm una guía fantasma (blanca; verde al encajar) muestra dónde caerá.",
   "Ctrl + Z: deshacer · Ctrl + Mayús + Z o Ctrl + Y: rehacer · F: encuadrar.",
-  "Arriba, una fila de iconos: Añadir, Cable, Entorno, Precisión, Inspector y Ayuda abren su cajón (uno a la vez; otra vez o Esc lo cierra); Deshacer, Rehacer y Salir.",
+  "Arriba, una fila de iconos: Añadir, Objetos del mundo, Cable, Entorno, Precisión, Inspector y Ayuda abren su cajón (uno a la vez; otra vez o Esc lo cierra); Deshacer, Rehacer y Salir.",
   "Añadir: pulsa una pieza para ponerla delante de ti, o arrástrala al mundo y suéltala donde la quieras (la rueda la gira). «Subir»: tu modelo .glb, imagen, vídeo o sonido, delante de ti; también puedes soltar el fichero sobre el mundo. La zona de sonido es una esfera: Escalar cambia su radio.",
+  "Objetos del mundo: la lista de todo lo que hay puesto (nombre, tipo y si lleva pieza: cable, cerradura, contador o enlace); escribe para buscar. Pulsa uno: te lleva junto a él y lo deja seleccionado, con su tarjeta para moverlo o editarlo. En el mapa grande, un objeto elegido tiene «Editar este objeto» (abre Construir con él).",
   "Doble clic en un objeto mientras juegas: abre construir con él seleccionado. Con un objeto seleccionado sale su tarjeta (a la derecha): nombre, Mover, Girar y Escalar, posición, giro, tamaño, qué hace al tocarlo, Duplicar, Borrar, Anclar, Copiar enlace y Volver. Todos los campos y la lógica (qué cables, cerraduras y contadores lo tocan): el cajón Inspector.",
   "Con el dedo: toca un objeto para seleccionarlo y arrástralo para moverlo (sobre el suelo y sobre otros objetos). Un dedo en el vacío mueve la cámara; dos la acercan. Con un dedo sobre el objeto, pon un segundo dedo en cualquier sitio: girar los dedos lo gira, separarlos o juntarlos lo escala. Girar y escalar: el cajón Precisión.",
   "Botones derecho y central del ratón, y la rueda: la cámara (cuando llegue la cámara nueva).",
@@ -99,9 +104,17 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLEl
 /** C3: what the page lends the card: the map's «Volver», and a way to ask for the object chosen with «Ir». */
 /** C4: and the world's wires, locks and counters to read («Lógica»), and a way to bring the cable's list into view. */
 /** ux2-dock: and «Subir» (soltar.ts' file picker) for the «Añadir» drawer. */
-export type ExtraConstructor = { volver?(): boolean; puedeVolver?(): boolean; mundo?(): PiezasMundo; abrirCable?(): void; subir?(): void; alAbrir?(que: "construir" | "anadir" | "cable"): void };
+export type ExtraConstructor = { volver?(): boolean; puedeVolver?(): boolean; mundo?(): PiezasMundo; abrirCable?(): void; subir?(): void; alAbrir?(que: "construir" | "anadir" | "cable"): void;
+  /** MIS-241: go next to a spot of the world in one jump, as the map's «Ir de golpe» (same trip, same “Volver”); false = trips are off here. */
+  ir?(donde: { id: string; nombre: string; x: number; z: number }): boolean;
+  /** MIS-241: where you stand (x, z), to put the jump on your side of the object and to know when you are already there. */
+  yo?(): { x: number; z: number } | null };
 export type ConstructorUI = {
   alIr(donde: { id: string }): boolean;
+  /** MIS-240: the map's «Editar»: whether this object exists and you may build, and open Construir on it (selected, in view). */
+  puedeEditar(id: string): boolean; editar(id: string): boolean;
+  /** MIS-241: the «Objetos del mundo» drawer's row press: go next to the object and leave it selected. */
+  irAObjeto(id: string): Res;
   cajon(id: Cajon): HTMLElement; ranuraFicha: HTMLElement;
   abrirCajon(id: Cajon | ""): void; cajonAbierto(): Cajon | "";
 };
@@ -233,7 +246,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     b.addEventListener("click", (e) => { const r = fn(); if (r) responder(r); if (e.detail > 0) b.blur(); });
     return b;
   };
-  const PISTA: Record<Cajon, string> = { anadir: "arrastra al mundo o pulsa para ponerlo delante", cable: "lo que hace cada botón o zona", entorno: "para todos los que están aquí", precision: "para lo que tengas elegido", inspector: "todos los campos del objeto elegido", ayuda: "teclas y ratón" };
+  const PISTA: Record<Cajon, string> = { anadir: "arrastra al mundo o pulsa para ponerlo delante", objetos: "pulsa uno: te lleva junto a él", cable: "lo que hace cada botón o zona", entorno: "para todos los que están aquí", precision: "para lo que tengas elegido", inspector: "todos los campos del objeto elegido", ayuda: "teclas y ratón" };
   const secciones = {} as Record<Cajon, HTMLElement>, cuerpos = {} as Record<Cajon, HTMLElement>, botonesCajon = {} as Record<Cajon, HTMLButtonElement>;
   for (const [id, ic, titulo, tip] of CAJONES) {
     const b = botonDock(ic, tip, () => abrirCajon(alternarCajon(cajon, id)));
@@ -302,6 +315,75 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   addEventListener("pointercancel", finArrastre, { capture: true });
   cuerpos.anadir.append(avisoLib, el("div", { className: "fila buscar-fila" }, cajaBuscar, bSubir), rejilla, sinResultado);
 
+  // «Objetos del mundo» (MIS-241): every object placed in the world, with its name, kind and pieces; a press goes next to it
+  // (the map's same jump when trips are on, the camera always) and leaves it selected, so its card opens to move it, edit it or wire it.
+  const buscarObjetos = el("input", { type: "search", id: "buscar-objetos", placeholder: "Buscar por nombre o tipo", autocomplete: "off" });
+  buscarObjetos.setAttribute("aria-label", "Buscar entre los objetos del mundo");
+  const cajaBuscarObj = el("label", { className: "buscar" }); cajaBuscarObj.innerHTML = icono("magnifying-glass", 18); cajaBuscarObj.append(buscarObjetos);
+  const soloPieza = el("input", { type: "checkbox", id: "objetos-solo-pieza" });
+  const resumenObj = el("p", { className: "resumen-objetos" }); resumenObj.setAttribute("role", "status");
+  const listaObj = el("ul", { className: "lista-objetos", id: "lista-objetos" }); listaObj.setAttribute("aria-label", "Objetos del mundo");
+  let firmaObj = "";
+  /** Redraw the list only when what it shows changed (a drag sends many events; the rows need none of them). */
+  function pintarLista(): void {
+    const filas = filasDeObjetos(c.lista(), extra?.mundo?.());
+    const coinciden = filtrarObjetos(filas, buscarObjetos.value, soloPieza.checked);
+    const firma = firmaDeLista(coinciden, buscarObjetos.value, soloPieza.checked) + `|${filas.length}|${c.estado.seleccionado}`;
+    if (firma === firmaObj) return;
+    firmaObj = firma;
+    const { visibles, resto } = recortarLista(coinciden);
+    resumenObj.textContent = resumenLista(filas.length, coinciden.length, buscarObjetos.value.trim() !== "" || soloPieza.checked) + (resto ? ` Se ven los ${visibles.length} primeros: escribe para acotar.` : "");
+    listaObj.replaceChildren(...visibles.map((f) => {
+      const b = el("button", { type: "button", className: "objeto-fila", title: `Ir a ${f.nombre} y editarlo` });
+      b.dataset.id = f.id; b.setAttribute("aria-pressed", String(f.id === c.estado.seleccionado));
+      const piezas = f.piezas.length ? el("span", { className: "con-pieza", textContent: f.piezas.join(" · ") }) : null;
+      b.append(el("span", { className: "n", textContent: f.nombre }), el("span", { className: "t", textContent: f.tipo + (f.fijado ? " · anclado" : "") + (f.oculto ? " · oculto" : "") }), ...(piezas ? [piezas] : []));
+      b.addEventListener("click", (e) => { responder(irAObjeto(f.id)); if (e.detail > 0) b.blur(); });
+      return el("li", {}, b);
+    }));
+  }
+  buscarObjetos.addEventListener("input", () => pintarLista());
+  soloPieza.addEventListener("change", () => pintarLista());
+  /** Point the camera at an object (the new camera only; in build mode it keeps the pivot within reach of your feet). */
+  const mirarObjeto = (id: string): void => { const o = c.objeto(id); if (!o) return; const e = encuadreDe(o); cam()?.frame?.(e.centro, e.radio); };
+  let esperaLlegada = 0;
+  /** The camera's frame is kept relative to your feet, so after a jump it is set once you have ARRIVED and stand still (not
+   * before: it would point at where the object was from the old spot, or from a step of the way). Gives up after a few
+   * seconds (the server may have refused the trip) and frames from where you are. */
+  function mirarAlLlegar(id: string, sitio: { x: number; z: number }): void {
+    clearInterval(esperaLlegada);
+    const hasta = performance.now() + LLEGADA_ESPERA_MS;
+    let antes: { x: number; z: number } | null = null, quietos = 0;
+    esperaLlegada = window.setInterval(() => {
+      const yo = extra?.yo?.() ?? null;
+      const cerca = !yo || Math.hypot(yo.x - sitio.x, yo.z - sitio.z) < LLEGADA_M;
+      quietos = cerca && yo && antes && Math.hypot(yo.x - antes.x, yo.z - antes.z) < 0.05 ? quietos + 1 : 0;
+      antes = yo;
+      if (quietos < 2 && yo && performance.now() < hasta && c.estado.seleccionado === id) return;
+      clearInterval(esperaLlegada);
+      if (c.estado.seleccionado === id && abierto()) mirarObjeto(id);
+    }, 150);
+  }
+  /** Go next to an object and leave it selected, its card open: unless you are already beside it the page's jump takes you
+   * there, and the camera is pointed at it (once you are there). */
+  function irAObjeto(id: string): Res {
+    const o = c.objeto(id);
+    if (!o) return { ok: false, why: "ese objeto ya no está en el mundo" };
+    const r = c.seleccionar(id);
+    if (!r.ok) return r;
+    const yo = extra?.yo?.() ?? null, nombre = nombreDe(o);
+    let camino: "viaja" | "cerca" | "apagado" | "sin-viaje" = "sin-viaje";
+    if (extra?.ir) {
+      if (yaJunto(o, yo)) camino = "cerca";
+      else { const s = sitioJunto(o, yo); camino = extra.ir({ id, nombre, x: s.x, z: s.z }) ? "viaja" : "apagado"; if (camino === "viaja") mirarAlLlegar(id, s); }
+    }
+    if (camino !== "viaja") mirarObjeto(id);
+    decir(frase(nombre, camino));
+    abrirCajon(""); // the card of what you chose shows only with every drawer shut (it would sit under the list)
+    return { ok: true };
+  }
+  cuerpos.objetos.append(el("div", { className: "fila buscar-fila" }, cajaBuscarObj, el("label", { className: "solo-pieza" }, soloPieza, " con pieza")), resumenObj, listaObj);
+
   // «Precisión»: the tools, the axes, the snap steps and the step buttons (touch screens turn and scale here)
   cuerpos.precision.append(
     el("h3", { textContent: "Herramienta" }), fila("Herramienta", ...botonesHerr),
@@ -332,7 +414,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     if (id === "anadir" || id === "cable") extra?.alAbrir?.(id); // T1: a mission step may ask «open the library / the cable»
     for (const [k] of CAJONES) { secciones[k].hidden = k !== id; botonesCajon[k].setAttribute("aria-expanded", String(k === id)); }
     document.documentElement.classList.toggle("cajon-abierto", !!id);
-    firmaLogica = "";
+    firmaLogica = ""; firmaObj = "";
     refrescar();
   }
 
@@ -581,6 +663,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     avisoLib.textContent = aviso; avisoLib.hidden = !aviso;
     pintarFicha();
     if (!abierto()) return;
+    if (cajon === "objetos") pintarLista();
     for (const b of botonesHerr) b.setAttribute("aria-pressed", String(b.dataset.modo === c.estado.modo));
     for (const b of botonesEje) b.setAttribute("aria-pressed", String((b.dataset.eje || null) === eje));
     botonEspacio.textContent = local ? "Local" : "Mundo";
@@ -1034,6 +1117,18 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   // C3: «Ir» in the map, when you may build and the builder is open, selects that object so its card opens by itself
   return {
     alIr: (donde) => { const sitio = seleccionarAlIr(c.estado.puede, abierto(), !!c.objeto(donde.id)); if (sitio) c.seleccionar(donde.id); return sitio; },
+    // MIS-240: from the map's selection, «Editar»: open Construir on that object (selected, camera on it, its card showing)
+    puedeEditar: (id) => c.estado.puede && !!c.objeto(id),
+    editar: (id) => {
+      const o = id ? c.objeto(id) : null;
+      if (!c.estado.puede || !o) return false;
+      if (!abierto()) abrir(true);
+      abrirCajon(""); c.seleccionar(id);
+      mirarObjeto(id);
+      decir(`Editando ${nombreDe(o)}: su tarjeta está a la derecha; mueve, gira o escala.`);
+      return true;
+    },
+    irAObjeto: (id) => (c.estado.puede ? irAObjeto(id) : { ok: false, why: "no tienes permiso para construir aquí" }),
     /** ux2-dock: where the other parts of the page put their controls — a drawer's body, the card's slot */
     cajon: (id) => cuerpos[id], ranuraFicha: ranura,
     abrirCajon: (id) => abrirCajon(id), cajonAbierto: () => cajon,

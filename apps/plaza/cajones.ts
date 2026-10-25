@@ -3,12 +3,13 @@
 // environment's sliders were open at once in two tall panels that covered the world. Pure helpers here (tested in
 // test/cajones.test.ts); the DOM lives in constructor.ts.
 
-export type Cajon = "anadir" | "cable" | "entorno" | "precision" | "inspector" | "ayuda";
+export type Cajon = "anadir" | "objetos" | "cable" | "entorno" | "precision" | "inspector" | "ayuda";
 
 /** The dock's drawers, in order: id, icon (iconos.ts), title (the drawer's heading) and tooltip (the button's accessible
  * name). No drawer has a key of its own: B is the battery mode and N the minimap's (one thing, one place, one key). */
 export const CAJONES: readonly (readonly [Cajon, string, string, string])[] = [
   ["anadir", "plus", "Añadir", "Añadir: biblioteca y subir ficheros"],
+  ["objetos", "list", "Objetos del mundo", "Objetos del mundo: lista para ir a uno y editarlo"],
   ["cable", "lightning", "Cable", "Cable: disparadores del mundo"],
   ["entorno", "sun", "Entorno", "Entorno: luz, niebla, viento y elementos"],
   ["precision", "ruler", "Precisión", "Precisión: herramientas, ejes, pasos y giros"],
