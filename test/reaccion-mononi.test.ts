@@ -19,11 +19,13 @@ test("reaccionDe: it rests before and after, rises, never goes under the ground,
 test("piezasDeMoñoni: the body and the smile of the same moñoni, whichever is clicked; nothing for other things", () => {
   const w = bolitas("3", 2).map((s, i) => ({ id: `o${i}`, nombre: s.nombre }));
   w.push({ id: "logo", nombre: "Logo" }, { id: "mesa", nombre: "Moñoni mesa" });
-  assert.equal(w.length, 6);
+  assert.equal(w.length, 8, "2 moñonis × (body + smile) + the elder (2) + 2 others");
   assert.deepEqual(piezasDeMoñoni("o0", w).sort(), ["o0", "o1"]);
   assert.deepEqual(piezasDeMoñoni("o1", w).sort(), ["o0", "o1"], "the smile too");
   assert.deepEqual(piezasDeMoñoni("o2", w).sort(), ["o2", "o3"], "the second one is its own");
   assert.deepEqual(piezasDeMoñoni("logo", w), []);
+  const m = w.findIndex((x) => x.nombre === "Moñoni mayor"); assert.ok(m > 3);
+  assert.deepEqual(piezasDeMoñoni(`o${m + 1}`, w).sort(), [`o${m}`, `o${m + 1}`], "the elder hops with her smile too");
   assert.deepEqual(piezasDeMoñoni("mesa", w), [], "only the numbered house moñonis");
   assert.deepEqual(piezasDeMoñoni("no-existe", w), []);
 });

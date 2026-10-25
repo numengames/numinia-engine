@@ -102,6 +102,15 @@
       "fuente": "work/ayuntamiento/bolita.mjs (cuerpo, color verdemar; 1.246 triángulos, 3 materiales, ojos incluidos, sin texturas)"
     },
     {
+      "id": "bolita-rica-mayor",
+      "nombre": "Moñoña mayor (cuerpo)",
+      "modelo": "2d11e1926fde512c30fc88d97bd402baf9625d164f8a7344374d7da63d85b468",
+      "fichero": "activos/bolitas/bolita-rica-mayor.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia, CC0 1.0 declarado dentro del propio .glb): la moñoña mayor del Ayuntamiento de Alchemist Towers",
+      "fuente": "work/ayuntamiento/bolita-mayor.mjs sobre bolita.mjs (cuerpo con canas, gafas redondas y arrugas; 1.394 triángulos, 3 materiales, ojos incluidos, sin texturas; comparte la boca bolita-rica-boca)"
+    },
+    {
       "id": "bolita-rica-boca",
       "nombre": "Moñoni (boca)",
       "modelo": "211bed925a75b1a65d8c26e5972f0d1782ae4033baba6aa1b995adcfbb1010a6",

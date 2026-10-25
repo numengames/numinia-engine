@@ -14,6 +14,9 @@ import type { Sembrado } from "../objetos/server.ts";
  * turquesahonda) are left out: on the espacio base's night they photograph as black blobs (H6 photo). The smile is `bolita-rica-boca`, one file for every colour. */
 export const COLORES_BOLITA = ["ambar", "turquesa", "coral", "verde", "verdemar"] as const;
 export const BOCA = "bolita-rica-boca";
+/** Lote 10 («la moñoña mayor»): the elder (grey hair, round glasses, wrinkles; work/ayuntamiento/bolita-mayor.mjs). She comes WITH the moñonis — planted
+ * whenever `agentes` ≥ 1, beside the first one, a little smaller than it (2.1–2.3 vs 2.8) but bigger than the later ones — and `agentes: 0` leaves her out too. Her smile is the shared `BOCA`. */
+export const MAYOR = "bolita-rica-mayor", NOMBRE_MAYOR = "Moñoni mayor";
 /** The body spans y −0.235…0.219 at scale 1 and x ±0.22 (measured from the .glb); at scale 2.8 it is about 1.2 m across (the hairs make it read bigger). It floats 0.2 m over the ground. */
 const BAJO = 0.235, FLOTA = 0.2, ESCALA = 2.8;
 
@@ -44,16 +47,27 @@ export function bolitas(semilla: SemillaBase, n: number): Sembrado[] {
     const pose = { x: p.x, y: BAJO * escala + FLOTA, z: p.z, ry, escala };
     fuera.push({ modelo: `bolita-rica-${colores[i]}`, nombre: `Moñoni ${i + 1}`, ...pose }, { modelo: BOCA, nombre: `Moñoni ${i + 1} boca`, ...pose });
   }
+  if (cuantas >= 1) fuera.push(...mayor(puestos[0], rnd));
   return fuera;
 }
 
-/** The farthest a moñoni can be from the spawn (8 m out, plus the ball): well inside the 26 m plateau (a test checks). */
+/** The elder: 2.2 m to the side of the first moñoni (away from the logo's side), a little smaller than the first moñoni, her face to the spawn. */
+function mayor(primera: { x: number; z: number }, rnd: () => number): Sembrado[] {
+  const lado = primera.x >= 0 ? 1 : -1;           // the first stands on one side of straight ahead: she stands further out on that side, so neither hides the other
+  const p = { x: primera.x + lado * 2.2, z: primera.z - 0.8 };
+  const escala = 2.1 + rnd() * 0.2;
+  const ry = Math.round((Math.atan2(-p.x, -p.z) * 180) / Math.PI);
+  const pose = { x: p.x, y: BAJO * escala + FLOTA, z: p.z, ry, escala };
+  return [{ modelo: MAYOR, nombre: NOMBRE_MAYOR, ...pose }, { modelo: BOCA, nombre: `${NOMBRE_MAYOR} boca`, ...pose }];
+}
+
+/** The farthest a moñoni can be from the spawn (8 m out, plus the ball; the elder sits within 2.2 m of the first one, who is 4 m out): well inside the 26 m plateau (a test checks). */
 export const MAX_RADIO = 8.5;
 
 /** Lote 5 («los moñoñis reaccionan al clic»): the ids of every piece of the moñoni that `id` belongs to — its body ("Moñoni 2") and its
  * smile ("Moñoni 2 boca") are two objects, and a click on either must make BOTH hop. Empty when `id` is not a moñoni (by its name). */
 export function piezasDeMoñoni(id: string, objetos: readonly { id: string; nombre?: unknown }[]): string[] {
-  const nombre = String(objetos.find((o) => o.id === id)?.nombre ?? ""), m = /^Moñoni (\d+)( boca)?$/.exec(nombre);
+  const nombre = String(objetos.find((o) => o.id === id)?.nombre ?? ""), m = /^Moñoni (\d+|mayor)( boca)?$/.exec(nombre);
   if (!m) return [];
   const cuerpo = `Moñoni ${m[1]}`, boca = `${cuerpo} boca`;
   return objetos.filter((o) => o.nombre === cuerpo || o.nombre === boca).map((o) => o.id);
