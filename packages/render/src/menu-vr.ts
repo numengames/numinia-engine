@@ -122,7 +122,7 @@ export function paginar<T>(filas: readonly T[], porPagina: number, p: number): {
 
 // ── the watch ──────────────────────────────────────────────────────────────────────────────────────────────────────
 export const RELOJ = { diametroM: 0.12, lienzo: 512 } as const;
-export const BOTONES_RELOJ = ["menu", "micro", "camara", "avisos", "ciudad"] as const;
+export const BOTONES_RELOJ = ["menu", "micro", "camara", "graboso", "avisos", "ciudad"] as const;
 export type BotonReloj = (typeof BOTONES_RELOJ)[number];
 export const NOMBRES_RELOJ = Object.fromEntries(BOTONES_RELOJ.map((b) => [b, seccionDeReloj(b).es])) as Record<BotonReloj, string>;
 /** A round target on the disc, in canvas px (centre and radius). */
@@ -130,19 +130,24 @@ export type Circulo = { id: BotonReloj; cx: number; cy: number; r: number };
 /** Disc radius, «Menú» radius (84 px = 3.9 cm across), the four buttons' radius (52 px = 2.4 cm across) and how far
  * from the centre they sit (176 px). */
 export const DISCO = { r: 248, centro: 84, boton: 52, orbita: 176 } as const;
-const ANGULO: Record<Exclude<BotonReloj, "menu">, number> = { micro: -90, camara: 0, avisos: 90, ciudad: 180 };
-/** The watch's targets; «ciudad» only when the world has a city. */
-export function circulosReloj(hayCiudad: boolean): Circulo[] {
+const ANGULO: Record<Exclude<BotonReloj, "menu">, number> = { micro: -90, camara: 0, graboso: 45, avisos: 90, ciudad: 180 };
+/** Which optional buttons the watch has: `true`/`false` = only «ciudad» (the older callers), or both. */
+export type Presentes = boolean | { ciudad: boolean; graboso?: boolean };
+const quePresentes = (p: Presentes): { ciudad: boolean; graboso: boolean } => typeof p === "boolean" ? { ciudad: p, graboso: false } : { ciudad: p.ciudad, graboso: !!p.graboso };
+/** The watch's targets; «ciudad» only when the world has a city, «graboso» only where the Graboso exists. */
+export function circulosReloj(presentes: Presentes): Circulo[] {
+  const hay = quePresentes(presentes);
   const c = RELOJ.lienzo / 2, out: Circulo[] = [{ id: "menu", cx: c, cy: c, r: DISCO.centro }];
-  for (const id of ["micro", "camara", "avisos", "ciudad"] as const) {
-    if (id === "ciudad" && !hayCiudad) continue;
+  for (const id of ["micro", "camara", "graboso", "avisos", "ciudad"] as const) {
+    if (id === "ciudad" && !hay.ciudad) continue;
+    if (id === "graboso" && !hay.graboso) continue;
     const a = (ANGULO[id] * Math.PI) / 180;
     out.push({ id, cx: c + Math.cos(a) * DISCO.orbita, cy: c + Math.sin(a) * DISCO.orbita, r: DISCO.boton });
   }
   return out;
 }
 /** What a point of the disc hits (canvas px), with `margen` px of slack around each button (a fingertip is not a point). */
-export function botonRelojEn(x: number, y: number, hayCiudad: boolean, margen = 0): BotonReloj | null {
+export function botonRelojEn(x: number, y: number, hayCiudad: Presentes, margen = 0): BotonReloj | null {
   for (const b of circulosReloj(hayCiudad)) if (Math.hypot(x - b.cx, y - b.cy) <= b.r + margen) return b.id;
   return null;
 }
@@ -159,7 +164,7 @@ export const TOQUE = { cercaM: 0.015, sueltaM: 0.03, ms: 450, margenPx: 14 } as 
 export type EstadoToque = { armado: boolean; ultimo: number };
 export const toqueInicio = (): EstadoToque => ({ armado: true, ultimo: -1e9 });
 /** One step: the fingertip in disc-local metres (z = distance in front of the disc; null = no fingertip). */
-export function toquePaso(e: EstadoToque, punta: { x: number; y: number; z: number } | null, hayCiudad: boolean, ahora: number): { estado: EstadoToque; pulsado: BotonReloj | null } {
+export function toquePaso(e: EstadoToque, punta: { x: number; y: number; z: number } | null, hayCiudad: Presentes, ahora: number): { estado: EstadoToque; pulsado: BotonReloj | null } {
   if (!punta) return { estado: { ...e, armado: true }, pulsado: null };
   const [px, py] = metrosAPxReloj(punta.x, punta.y);
   const sobre = botonRelojEn(px, py, hayCiudad, TOQUE.margenPx);

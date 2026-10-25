@@ -836,9 +836,22 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     ocultosCuadro.length = 0;
     lotes.raiz.visible = false;
   }
+  // MIS-200: the Graboso inside XR films a small mirror of the left eye (espejo-xr.ts); the module is fetched at the first
+  // recording in XR and `espejoXR` stays null (one null check per frame) in every other session
+  let espejoXR: import("./espejo-xr.ts").EspejoXR | null = null, espejoCarga: Promise<import("./espejo-xr.ts").EspejoXR> | null = null;
+  const espejoGrabar = {
+    /** The 2D canvas that mirrors one eye while the XR session lasts; the recorder films it instead of the main canvas. */
+    async encender(): Promise<HTMLCanvasElement> {
+      espejoCarga ??= import("./espejo-xr.ts").then((m) => (espejoXR = m.crearEspejoXR({ renderer, scene, backend })));
+      return (await espejoCarga).encender();
+    },
+    apagar(): void { espejoXR?.apagar(); },
+    escritos(): number { return espejoXR?.escritos() ?? 0; },
+    lienzo(): HTMLCanvasElement | null { return espejoXR?.lienzo() ?? null; },
+  };
   function dibujarCuadro(): void {
     antesDelCuadro();
-    try { renderer.render(scene, camera); } finally { despuesDelCuadro(); }
+    try { renderer.render(scene, camera); if (espejoXR?.activo()) espejoXR.cuadro(performance.now()); } finally { despuesDelCuadro(); }
   }
 
   // B4: three's own count of live shader programs (WebGPURenderer info.memory.programs); it only grows when one is made
@@ -905,6 +918,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** M18b: the Graboso over your shoulder (mostrar, grabando, visible) — packages/render/src/graboso.ts, loaded when first invoked. */
     graboso,
+    /** MIS-200: the XR mirror the Graboso records inside a headset session (espejo-xr.ts; off until switched on). */
+    espejoGrabar,
     /** Place everyone for this frame (J2: at their height). */
     sync(self: { x: number; z: number; y?: number; speed?: number } | null, list: Placed[]): void {
       selfXZ = self;

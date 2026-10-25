@@ -9,7 +9,7 @@
 export type Aparato = "pc" | "movil" | "vr";
 export type Idioma = "es" | "en";
 /** Where VR draws it: a row of the menu panel, a button of the wrist watch (its id in menu-vr.ts BOTONES_RELOJ). */
-export type DondeVR = { panel: true } | { reloj: "menu" | "micro" | "camara" | "avisos" | "ciudad" };
+export type DondeVR = { panel: true } | { reloj: "menu" | "micro" | "camara" | "graboso" | "avisos" | "ciudad" };
 export type SeccionMundo = {
   id: string;
   /** Phosphor icon name. */
@@ -42,8 +42,7 @@ export const SECCIONES_MUNDO: readonly SeccionMundo[] = [
   { id: "foto", icono: "camera", es: "Foto", en: "Photo", orden: 9, tecla: "P", botones: ["foto-abrir"], aparatos: ["pc", "movil", "vr"], vr: { reloj: "camara" } },
   { id: "camara", icono: "camera", es: "Cámara", en: "Camera", orden: 10, tecla: "P", botones: ["camara-abrir"], aparatos: ["pc"],
     sinVR: { motivo: "en VR la cámara es el botón «Foto» del reloj (la Cámara de la barra solo reúne foto, grabar y compartir pantalla)", debe: false } },
-  { id: "grabar", icono: "record", es: "Grabar", en: "Record", orden: 11, tecla: "K", botones: ["graboso"], aparatos: ["pc"],
-    sinVR: { motivo: "grabar un clip del mundo todavía no se puede hacer desde el reloj de VR", debe: true } },
+  { id: "grabar", icono: "record", es: "Grabar", en: "Record", orden: 11, tecla: "K", botones: ["graboso"], aparatos: ["pc", "vr"], vr: { reloj: "graboso" } }, // in VR: the watch's «Grabar» button, only where the Graboso exists (MIS-200)
   { id: "compartir", icono: "screencast", es: "Compartir pantalla", en: "Share screen", orden: 12, botones: ["compartir-pantalla"], aparatos: ["pc"],
     sinVR: { motivo: "el navegador no comparte la pantalla del ordenador dentro de una sesión VR", debe: false } },
   { id: "avisos", icono: "bell", es: "Avisos", en: "Notices", orden: 13, tecla: "N", botones: ["avisos-abrir"], aparatos: ["pc", "vr"], vr: { reloj: "avisos" } },
@@ -81,7 +80,7 @@ export const seccionesEn = (aparato: Aparato): SeccionMundo[] => SECCIONES_MUNDO
 /** The ids of the sections that are rows of the VR menu panel, in order. */
 export const idsPanelVR = (): string[] => seccionesEn("vr").filter((s) => "panel" in (s.vr ?? {})).map((s) => s.id);
 /** The section a wrist-watch button stands for. */
-export const seccionDeReloj = (b: "menu" | "micro" | "camara" | "avisos" | "ciudad"): SeccionMundo => {
+export const seccionDeReloj = (b: "menu" | "micro" | "camara" | "graboso" | "avisos" | "ciudad"): SeccionMundo => {
   const s = SECCIONES_MUNDO.find((x) => x.vr && "reloj" in x.vr && x.vr.reloj === b);
   if (!s) throw new Error(`menu-secciones: ningún botón del reloj «${b}»`);
   return s;

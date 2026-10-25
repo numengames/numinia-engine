@@ -18,7 +18,16 @@ export type OpcionesGraboso = {
   barra: HTMLElement | null;                                   // the top bar (#barra-arriba); the button goes there
   decir(t: string): void;                                      // the page's polite aria-live line
   cuadros?: number;                                            // frames per second asked of captureStream (30)
+  xr?: { presentando(): boolean; espejo: Espejo };             // inside an XR session the canvas gets no frames: film the mirror instead
 };
+/** The XR mirror (packages/render/src/espejo-xr.ts through view.espejoGrabar): a small 2D canvas that follows one eye. */
+export type Espejo = { encender(): Promise<HTMLCanvasElement>; apagar(): void };
+
+/** Which canvas the recorder films: the engine's, or (inside an XR session) the mirror of one eye. Pure, so a test can pin it. */
+export async function elegirFuente(lienzo: HTMLCanvasElement, xr?: { presentando(): boolean; espejo: Espejo }): Promise<{ fuente: HTMLCanvasElement; espejo: boolean }> {
+  if (xr?.presentando()) return { fuente: await xr.espejo.encender(), espejo: true };
+  return { fuente: lienzo, espejo: false };
+}
 
 const CSS = `
 #graboso-hud { position: fixed; left: 50%; top: 108px; transform: translateX(-50%); z-index: 8; display: none; align-items: center; gap: 8px;
@@ -38,22 +47,25 @@ const CSS = `
 `;
 
 /** The real recorder: MediaRecorder over the canvas stream (+ the microphone when allowed). Built once per clip. */
-export function grabadorDeNavegador(lienzo: HTMLCanvasElement, cuadros = 30): Grabador {
-  let rec: MediaRecorder | null = null, mic: MediaStream | null = null, trozos: Blob[] = [], tipo = "";
+export function grabadorDeNavegador(lienzo: HTMLCanvasElement, cuadros = 30, xr?: OpcionesGraboso["xr"]): Grabador {
+  let rec: MediaRecorder | null = null, mic: MediaStream | null = null, trozos: Blob[] = [], tipo = "", espejo: Espejo | null = null;
   return {
     async empezar(t) {
       if (typeof MediaRecorder === "undefined" || typeof lienzo.captureStream !== "function") throw new Error("este navegador no sabe grabar el lienzo");
-      const video = lienzo.captureStream(cuadros);
+      const f = await elegirFuente(lienzo, xr); espejo = f.espejo ? xr!.espejo : null; // the mirror only runs while it is filmed
+      const video = f.fuente.captureStream(cuadros);
       let sonido = false;
       if (navigator.mediaDevices?.getUserMedia) {
         try { mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); sonido = true; }
         catch { mic = null; } // denied or no device: the clip goes silent and crearGraboso says so
       }
-      const flujo = new MediaStream([...video.getVideoTracks(), ...(mic?.getAudioTracks() ?? [])]);
-      trozos = []; tipo = t;
-      rec = new MediaRecorder(flujo, { mimeType: t, videoBitsPerSecond: 4_000_000 });
-      rec.ondataavailable = (e) => { if (e.data && e.data.size > 0) trozos.push(e.data); };
-      rec.start(1000); // a chunk per second: a hard close loses at most one
+      try {
+        const flujo = new MediaStream([...video.getVideoTracks(), ...(mic?.getAudioTracks() ?? [])]);
+        trozos = []; tipo = t;
+        rec = new MediaRecorder(flujo, { mimeType: t, videoBitsPerSecond: 4_000_000 });
+        rec.ondataavailable = (e) => { if (e.data && e.data.size > 0) trozos.push(e.data); };
+        rec.start(1000); // a chunk per second: a hard close loses at most one
+      } catch (e) { espejo?.apagar(); espejo = null; mic?.getTracks().forEach((p) => p.stop()); mic = null; throw e; }
       return { sonido };
     },
     parar() {
@@ -61,6 +73,7 @@ export function grabadorDeNavegador(lienzo: HTMLCanvasElement, cuadros = 30): Gr
         const r = rec; rec = null;
         const cerrar = () => {
           mic?.getTracks().forEach((p) => p.stop()); mic = null;
+          espejo?.apagar(); espejo = null;
           r?.stream.getTracks().forEach((p) => p.stop());
           ok({ blob: trozos.length ? new Blob(trozos, { type: tipo.split(";")[0] }) : null, tipo });
         };
@@ -122,7 +135,7 @@ export function montarGraboso(o: OpcionesGraboso) {
     descargar.href = url; descargar.download = c.nombre;
   };
   const gr = crearGraboso({
-    grabador: grabadorDeNavegador(o.lienzo, o.cuadros), ahora: () => performance.now(), tipo: lienzoTipo,
+    grabador: grabadorDeNavegador(o.lienzo, o.cuadros, o.xr), ahora: () => performance.now(), tipo: lienzoTipo,
     alCambiar: pintar, avisar: (a) => o.decir(a.texto),
   });
   tope.addEventListener("change", () => gr.tope(Number(tope.value)));

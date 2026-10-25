@@ -17,7 +17,7 @@ const FUENTES = ["main.ts", "gente.ts", "avisos.ts", "mapa.ts", "movil.ts", "gra
 /** The exceptions: a section of the computer or the phone that VR does not have. Adding one means editing this list
  * AND giving it a reason in menu-secciones.ts (`sinVR`). `debe: true` = VR still owes it (the pending list). */
 const EXCEPCIONES = {
-  camara: false, grabar: true, compartir: false, pantalla: false, teclas: true, interactuar: false, ar: false, vr: false,
+  camara: false, compartir: false, pantalla: false, teclas: true, interactuar: false, ar: false, vr: false,
 } as const;
 
 test("the list is well formed: unique ids and order, both languages, a real icon, a key that looks like one", () => {
@@ -46,7 +46,7 @@ test("PARITY: every section of the computer or the phone is in VR, or is a writt
   }
   const reales = Object.fromEntries(excepcionesVR().map((e) => [e.id, e.debe]));
   assert.deepEqual(reales, EXCEPCIONES, "the exceptions to «the same on every device» changed: update this list on purpose");
-  assert.deepEqual(excepcionesVR().filter((e) => e.debe).map((e) => e.id), ["grabar", "teclas"], "what VR still owes");
+  assert.deepEqual(excepcionesVR().filter((e) => e.debe).map((e) => e.id), ["teclas"], "what VR still owes");
 });
 
 test("the seven sections of the computer's menu are the VR panel's first rows, in the same order, with the same names and icons; v7 adds Chat as the eighth", () => {
@@ -74,7 +74,7 @@ test("the watch's buttons are sections of the same list, with its names", () => 
     assert.ok(s.aparatos.includes("vr"));
     assert.equal(NOMBRES_RELOJ[b], s.es);
   }
-  assert.deepEqual(BOTONES_RELOJ.map((b) => NOMBRES_RELOJ[b]), ["Menú", "Micrófono", "Foto", "Avisos", "Volver a la ciudad"]);
+  assert.deepEqual(BOTONES_RELOJ.map((b) => NOMBRES_RELOJ[b]), ["Menú", "Micrófono", "Foto", "Grabar", "Avisos", "Volver a la ciudad"]);
 });
 
 test("every section's button exists in the page, and every button of the bar is a section", () => {

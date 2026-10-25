@@ -1,7 +1,8 @@
 // Rediseño v2 (story E, maquetas p6/p7): what the VR watch and the VR menu show, from the SAME sources the computer's
 // panels read (`globalThis.__numinia`: ficha/estado/carga, viajar + gente, inventario, misiones, mapa, ajustes) — in VR
 // the HTML panels are not drawn, so the menu (packages/render/src/menu-invocado.ts) is a canvas the page fills here.
-// Also what the watch's buttons do: microphone = the Q key (voz.alternar), camera = the photo mode's shot, notices =
+// Also what the watch's buttons do: microphone = the Q key (voz.alternar), camera = the photo mode's shot, record = the K key
+// (graboso.alternar; only drawn where the Graboso exists, red while it records), notices =
 // the last things the page announced (paneles.ts alAnunciar), back to the city = mundo.ajustes.json `ciudadUrl`.
 // Not yet tried on a real Quest (only the IWER emulator and pictures of the canvases).
 import { alAnunciar } from "./paneles.ts";
@@ -55,9 +56,13 @@ export function montarMenuVR(o: {
   alAnunciar((texto) => { if (!texto) return; avisos.unshift({ texto, t: Date.now() }); totalAvisos++; if (avisos.length > AVISOS_MAX) avisos.length = AVISOS_MAX; });
   const nota = (t: string) => { try { vr.nota(t); } catch { /* VR off */ } };
 
+  // the Graboso (apps/plaza/graboso.ts) is `__numinia.graboso`; a browser that cannot record the canvas (`soporta` false) has no button
+  const grabosoAqui = () => { const g = o.n().graboso; return !!g?.graboso?.alternar && g.soporta !== false; };
+  const grabosoSaca = () => { const f = o.n().graboso.graboso.estado.fase; return f === "grabando" || f === "despertando"; };
+
   vr.relojEstado(() => {
     const n = o.n(), voz = n.voz, foto = n.foto;
-    return { micro: voz?.estado ? !!voz.estado.encendido : null, camara: !!foto?.disparar, avisos: Math.min(99, totalAvisos - vistos), ciudad: !!o.ciudadUrl };
+    return { micro: voz?.estado ? !!voz.estado.encendido : null, camara: !!foto?.disparar, graboso: grabosoAqui() ? grabosoSaca() : null, avisos: Math.min(99, totalAvisos - vistos), ciudad: !!o.ciudadUrl };
   });
   vr.onPulsa(() => { try { sonar("ui-pulsar"); } catch { /* no sound here */ } });
   vr.onReloj((b) => {
@@ -68,6 +73,11 @@ export function montarMenuVR(o: {
       if (!f?.disparar) { nota("Aquí no hay modo foto."); return; }
       const ya = f.activo?.();
       void f.disparar().then((r: { ok: boolean; error?: string }) => { if (!ya) f.cerrar?.(); nota(r.ok ? "Foto hecha: está en el modo foto de la página." : `No se pudo hacer la foto: ${r.error ?? "?"}`); });
+    } else if (b === "graboso") {
+      if (!grabosoAqui()) { nota("Aquí no está el Graboso."); return; }
+      const g = n.graboso.graboso, antes = g.estado.fase;
+      if (antes === "despertando") return; // it is starting: a second press would stop nothing yet
+      void Promise.resolve(g.alternar()).then(() => nota(antes === "grabando" ? (g.estado.error || "Clip guardado: lo tienes en la página (Descargar).") : g.estado.fase === "grabando" ? "Grabando lo que ves: pulsa otra vez para guardar." : (g.estado.error || "No se pudo grabar.")));
     } else if (b === "avisos") vistos = totalAvisos;
     else if (b === "ciudad" && o.ciudadUrl) { const u = o.ciudadUrl; void vr.exit().finally(() => { location.href = u; }); }
   });

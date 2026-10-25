@@ -10,14 +10,17 @@
 import * as THREE from "three/webgpu";
 import type { Lado, Panel } from "./manos.ts";
 import { inicio, paso, normalDorsoLocal, type EstadoGesto, type Muestra } from "./muneca-gesto.ts";
-import { RELOJ, DISCO, BOTONES_RELOJ, circulosReloj, botonRelojEn, toqueInicio, toquePaso, type BotonReloj, type EstadoToque } from "./menu-vr.ts";
+import { RELOJ, DISCO, BOTONES_RELOJ, circulosReloj, botonRelojEn, toqueInicio, toquePaso, type BotonReloj, type EstadoToque, type Presentes } from "./menu-vr.ts";
 import { COLOR, FUENTE, icono, type PathsIcono } from "./vr-pintura.ts";
 
 /** The menu hand as the view reads it from manos.ts: the wrist in world space. */
 export type ManoMenu = { posicion: THREE.Vector3; rotacion: THREE.Quaternion; esMano: boolean; lado: Lado };
 /** What the watch shows: microphone on/off (null = this page has no voice), whether a photo can be made here, how many
- * notices you have not seen, and whether this world has a city to go back to. */
-export type EstadoReloj = { micro: boolean | null; camara: boolean; avisos: number; ciudad: boolean; menuAbierto: boolean };
+ * notices you have not seen, whether this world has a city to go back to, and the Graboso (null = not here, the button
+ * is not drawn; false = put away; true = out and recording). */
+export type EstadoReloj = { micro: boolean | null; camara: boolean; avisos: number; ciudad: boolean; menuAbierto: boolean; graboso?: boolean | null };
+/** The optional buttons this state draws. */
+export const presentesDe = (e: Pick<EstadoReloj, "ciudad" | "graboso">): Presentes => ({ ciudad: e.ciudad, graboso: e.graboso != null });
 
 const REDIBUJO_MS = 100; // ≤ 10 Hz
 const FUNDIDO_S = 0.15;
@@ -65,7 +68,7 @@ export function createReloj(h: { scene: THREE.Object3D; iconos?: PathsIcono; aho
   }
   function pulsar(b: BotonReloj, como: "dedo" | "rayo"): void {
     const e = estado();
-    if (b === "ciudad" && !e.ciudad) return;
+    if ((b === "ciudad" && !e.ciudad) || (b === "graboso" && e.graboso == null)) return;
     pulsaciones++; ultimoPulsado = b;
     alPulsar(b, como);
     pintar(true);
@@ -73,7 +76,7 @@ export function createReloj(h: { scene: THREE.Object3D; iconos?: PathsIcono; aho
 
   const panel: Panel = {
     malla,
-    fila(uv) { const b = botonRelojEn(uv.x * W, (1 - uv.y) * W, estado().ciudad); return b ? BOTONES_RELOJ.indexOf(b) + 1 : 0; },
+    fila(uv) { const b = botonRelojEn(uv.x * W, (1 - uv.y) * W, presentesDe(estado())); return b ? BOTONES_RELOJ.indexOf(b) + 1 : 0; },
     encima(n) { encimaEn = ahora(); const b = n ? BOTONES_RELOJ[n - 1] : null; if (b !== encima) { encima = b; pintar(true); } },
     pulsar(n) { if (n && malla.visible) pulsar(BOTONES_RELOJ[n - 1], "rayo"); },
   };
@@ -102,7 +105,7 @@ export function createReloj(h: { scene: THREE.Object3D; iconos?: PathsIcono; aho
       // the other hand's fingertip: pressed when it comes within 1.5 cm of a button (only while the watch is shown fully)
       if (mat.opacity < 0.9) return;
       const local = punta ? malla.worldToLocal(_l.copy(punta)) : null;
-      const r = toquePaso(toque, local ? { x: local.x, y: local.y, z: local.z } : null, estado().ciudad, t);
+      const r = toquePaso(toque, local ? { x: local.x, y: local.y, z: local.z } : null, presentesDe(estado()), t);
       toque = r.estado;
       if (r.pulsado) pulsar(r.pulsado, "dedo");
     },
@@ -120,7 +123,7 @@ export function createReloj(h: { scene: THREE.Object3D; iconos?: PathsIcono; aho
     /** For checks: where button `b` sits in the world (null while hidden or when that button is not drawn). */
     botonMundo(b: BotonReloj): { x: number; y: number; z: number } | null {
       if (!malla.visible) return null;
-      const k = circulosReloj(estado().ciudad).find((x) => x.id === b);
+      const k = circulosReloj(presentesDe(estado())).find((x) => x.id === b);
       if (!k) return null;
       malla.updateMatrixWorld(true);
       const s = RELOJ.diametroM / W;
@@ -130,7 +133,7 @@ export function createReloj(h: { scene: THREE.Object3D; iconos?: PathsIcono; aho
     /** For checks. */
     diagnostico() {
       return { ...visto, visible: malla.visible, opacidad: +mat.opacity.toFixed(2), abierto: gesto.abierto, pinturas, pulsaciones, ultimoPulsado,
-        encima, botones: circulosReloj(estado().ciudad).map((b) => b.id),
+        encima, botones: circulosReloj(presentesDe(estado())).map((b) => b.id),
         medida: ultima ? { dorso: +ultima.dorso.toFixed(3), angulo: +ultima.anguloGrados.toFixed(1), distancia: +ultima.distanciaM.toFixed(3) } : null };
     },
   };
@@ -143,7 +146,7 @@ export function dibujarReloj(g: CanvasRenderingContext2D, e: EstadoReloj, encima
   g.clearRect(0, 0, W, W);
   g.beginPath(); g.arc(cx, cx, DISCO.r, 0, Math.PI * 2);
   g.fillStyle = COLOR.fondo; g.fill(); g.lineWidth = 4; g.strokeStyle = COLOR.linea; g.stroke();
-  for (const b of circulosReloj(e.ciudad)) {
+  for (const b of circulosReloj(presentesDe(e))) {
     const sobre = encima === b.id;
     g.beginPath(); g.arc(b.cx, b.cy, b.r, 0, Math.PI * 2);
     if (b.id === "menu") {
@@ -156,8 +159,8 @@ export function dibujarReloj(g: CanvasRenderingContext2D, e: EstadoReloj, encima
     const apagado = (b.id === "camara" && !e.camara) || (b.id === "micro" && e.micro === null);
     g.fillStyle = sobre ? COLOR.filaEncima : "rgba(249,235,220,0.07)"; g.fill();
     g.lineWidth = sobre ? 5 : 3; g.strokeStyle = sobre ? COLOR.foco : COLOR.linea; g.stroke();
-    const nombre = b.id === "micro" ? (e.micro ? "microphone" : "microphone-slash") : b.id === "camara" ? "camera" : b.id === "avisos" ? "bell" : "map-pin";
-    icono(g, iconos, nombre, b.cx, b.cy, 56, apagado ? COLOR.tenue : b.id === "micro" && e.micro ? COLOR.ok : COLOR.texto);
+    const nombre = b.id === "micro" ? (e.micro ? "microphone" : "microphone-slash") : b.id === "camara" ? "camera" : b.id === "graboso" ? "record" : b.id === "avisos" ? "bell" : "map-pin";
+    icono(g, iconos, nombre, b.cx, b.cy, 56, apagado ? COLOR.tenue : b.id === "micro" && e.micro ? COLOR.ok : b.id === "graboso" && e.graboso ? COLOR.mal : COLOR.texto);
     if (b.id === "avisos" && e.avisos > 0) { // unseen notices: an amber dot with the count
       const x = b.cx + b.r * 0.7, y = b.cy - b.r * 0.7;
       g.beginPath(); g.arc(x, y, 20, 0, Math.PI * 2); g.fillStyle = COLOR.aviso; g.fill();
