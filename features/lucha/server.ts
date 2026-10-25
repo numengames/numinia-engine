@@ -29,7 +29,12 @@ import { MOVER_CADA_TICKS, NIVEL_MAX_M, pasoDeCriatura } from "./persecucion.ts"
 export const HZ = 20;
 export type Criatura = { id: string; especie: string; x: number; z: number; y?: number; nombre?: string; reaparicion?: number; /** true = it never walks (a world pins it where it is). */ fija?: boolean };
 /** The default creature of a world without its own lucha.json: south-east of the plaza (+z is south), away from the pond (18, −14). */
-export const CRIATURAS_DEFECTO: Criatura[] = [{ id: "guardian-1", especie: "guardian-crisalida", x: 24, z: 10, y: 0 }];
+export const CRIATURAS_DEFECTO: Criatura[] = [
+  { id: "guardian-1", especie: "guardian-crisalida", x: 24, z: 10, y: 0 },
+  { id: "residuo-1", especie: "residuo-del-velo", x: 30, z: 2, y: 0 },        // MIS-245: the small one, to learn to fight
+  { id: "umbrilego-1", especie: "umbrilego", x: -28, z: 18, y: 0 },
+  { id: "desgarraforma-1", especie: "desgarraformas", x: -24, z: -22, y: 0 },
+];
 
 /** The shared-state value of a creature at full coherence, with its solid box from the sheet (pure; tests use it). */
 export function valorDe(c: Criatura): Msg | null {
