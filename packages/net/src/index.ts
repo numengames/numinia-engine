@@ -520,9 +520,14 @@ export const CIERRE_LLENO = 4004;
 /** t_9cb3f636: the server stopped hearing the page's heartbeat (its connection died without closing): 4005. */
 export const CIERRE_SILENCIO = 4005;
 /** t_9cb3f636: how often a page sends its heartbeat; the server calls a page that sent one gone after SILENCIO_MS without hearing
- * anything (so a dead connection is noticed in under 2 s, not at the TCP timeout), or after SILENCIO_OCULTA_MS when the page said
- * it is in a background tab (the browser throttles its timers to one a second, and to one a minute after a few minutes). */
-export const LATIDO_MS = 400, SILENCIO_MS = 1500, SILENCIO_OCULTA_MS = 150_000;
+ * anything, or after SILENCIO_OCULTA_MS when the page said it is in a background tab (the browser throttles its timers to one a
+ * second, and to one a minute after a few minutes). SILENCIO_MS is long on purpose: a phone or a headset can freeze the page's main
+ * thread for several seconds (a big GLB parse, shader compiles on the loading screen, a GC pause, the notification shade, taking the
+ * headset off) and that must not throw the player out. The loading screen is not treated apart: this limit simply covers it.
+ * The PLAYER notices a dead connection fast on the page's side instead (SERVIDOR_CALLADO_MS, packages/client vigia-servidor.ts). */
+export const LATIDO_MS = 400, SILENCIO_MS = 15_000, SILENCIO_OCULTA_MS = 150_000;
+/** t_9cb3f636: the page calls the SERVER silent after this long without receiving anything (snapshots come at 10 Hz, a pong every second). */
+export const SERVIDOR_CALLADO_MS = 1500;
 
 /** `closed` says the close code and reason (4003 = the world's roles took it out: do not come back by yourself;
  * 4004 = full, CIERRE_LLENO: wait and reload). */

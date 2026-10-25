@@ -65,6 +65,8 @@ export class ClientSession {
   private remotes = new Map<number, { samples: Sample[]; lastTick: number; salto?: number }>();
   private offset = 0;                       // server tick minus local tick clock
   private hasClock = false;
+  /** t_9cb3f636: when the last message from the server arrived (performance.now): the page's silence detector reads it. */
+  oidoEn = nowMs();
   stats = { snapshots: 0, corrections: 0, rttMs: -1, visible: 0, lastServerTick: 0 };
   /** Game features (J7): their client parts, the server's catalog, their recent events. */
   readonly features: ClientRuntime;
@@ -104,7 +106,7 @@ export class ClientSession {
     this.local = createSim(1, 0);
     spawnAvatar(this.local, 0);
     this.features = new ClientRuntime(opts.features ?? [], { send: (b) => this.t.send(b, true), self: () => this.entity, view: opts.view });
-    t.onMessage((bytes) => this.handle(bytes, nowMs()));
+    t.onMessage((bytes) => { const now = nowMs(); this.oidoEn = now; this.handle(bytes, now); });
   }
 
   /** One client tick (20 Hz): send the input and predict its effect immediately. `buttons`: BTN_JUMP (a press since

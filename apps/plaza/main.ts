@@ -3,6 +3,7 @@ import { version as versionPaquete } from "../../package.json"; // only this fie
 import { hex } from "../../packages/core/src/index.ts";
 import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX, BTN_JUMP, BTN_RUN } from "../../packages/sim/src/index.ts";
 import { CIERRE_LLENO, CIERRE_SILENCIO, LATIDO_MS, webSocketClient } from "../../packages/net/src/index.ts";
+import { BARRIDO_MS, VigiaServidor } from "../../packages/client/src/vigia-servidor.ts"; // t_9cb3f636: the page notices the server went silent
 import { montarAjustes, leerAjuste } from "./menu-ajustes.ts"; // N2: settings menu + capabilities
 import { montarCiudad } from "./ciudad.ts"; // t_5cff4f06: the corner button back to the city (a world's own ciudadUrl)
 import { montarMenuVR } from "./xr-menu.ts"; // rediseño v2: the VR wrist watch and menu (story E)
@@ -216,7 +217,9 @@ const session = new ClientSession(transport, {
 transport.opened.catch(() => { hud.textContent = `No llego al servidor ${url}.\n¿Está arrancado (npm run server)?`; });
 // H7: the door was closed because the world is full (ficha `aforo`): say so where everyone reads it (the HUD and the
 // alert region for screen readers), with the way out; the page does not reconnect by itself
+let conexionCerrada = false; // t_9cb3f636: the socket closed for good: the silence notice gives way to the final one
 void transport.closed.then((c) => {
+  conexionCerrada = true;
   if (c.code === CIERRE_SILENCIO) { // t_9cb3f636: the server stopped hearing this page (a stall, a lost network): it let go of the avatar
     hud.hidden = true;
     const aviso = document.getElementById("mundo-lleno")!;
@@ -682,6 +685,24 @@ setInterval(() => session.ping(), 1000);
 // t_9cb3f636: the heartbeat. A background tab says so (its timers run slowly there), and says «I am back» the moment it is shown.
 setInterval(() => session.latido(document.hidden), LATIDO_MS);
 addEventListener("visibilitychange", () => session.latido(document.hidden));
+// t_9cb3f636: the SERVER went silent (nothing received for ~1.5 s while the page is running and shown): say so in the world's connection
+// notice (#mundo-lleno, role=alert) and take it away when traffic returns. The server itself waits 15 s before it lets go of a page, so
+// a short stall heals by itself. No automatic reconnect yet: when the socket does close, the final «recarga» notice above stands.
+{
+  const vigia = new VigiaServidor(performance.now());
+  let visto = session.oidoEn, mostrado = false;
+  setInterval(() => {
+    if (conexionCerrada || session.entity < 0) return;
+    const ahora = performance.now();
+    if (session.oidoEn > visto) { visto = session.oidoEn; vigia.recibido(visto); }
+    vigia.barrer(ahora, document.hidden);
+    if (vigia.callado === mostrado) return;
+    mostrado = vigia.callado;
+    const aviso = document.getElementById("mundo-lleno")!;
+    if (mostrado) { aviso.textContent = "Sin respuesta del mundo… esperando a que vuelva la conexión."; aviso.hidden = false; }
+    else aviso.hidden = true;
+  }, BARRIDO_MS);
+}
 let mallaLista = false; // H4
 let cargaOculta = false;
 // B5: does the shared state ask for a ground (naturaleza / espacio base) that the view has not finished building? (`activa` of the view is true only after `aplicar` produced it)

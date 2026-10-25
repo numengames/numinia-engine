@@ -446,12 +446,12 @@ export class Instance {
   private ultimoBarrido = -1;
   /** t_9cb3f636: call a few times a second. Whoever sent heartbeats and then said nothing for `silencio` ms (`oculta`: for a page that
    * said it is in a background tab) is gone: its connection is dropped here (its avatar leaves) and its entity is returned so the
-   * server can close the socket. If THIS call comes much later than expected (the server itself stalled) nobody is judged: the
+   * server can close the socket. If THIS call comes much later than the 250 ms it is made at (the server itself stalled) nobody is judged: the
    * messages that were waiting have not been read yet, and silence is ours, not theirs. */
   expirarSilencio(silencio = SILENCIO_MS, oculta = SILENCIO_OCULTA_MS): number[] {
     const ahora = this.reloj(), antes = this.ultimoBarrido;
     this.ultimoBarrido = ahora;
-    if (antes >= 0 && ahora - antes > Math.max(1000, silencio * 0.7)) { for (const c of this.conns) if (c.latido) c.latido.visto = ahora; return []; }
+    if (antes >= 0 && ahora - antes > 1000) { for (const c of this.conns) if (c.latido) c.latido.visto = ahora; return []; }
     const idos = this.conns.filter((c) => c.latido && ahora - c.latido.visto > (c.latido.oculta ? oculta : silencio)).map((c) => c.entity);
     for (const e of idos) { this.opts.log?.(`[red] ${e}: sin latido, se da por caída`); this.disconnect(e); }
     return idos;

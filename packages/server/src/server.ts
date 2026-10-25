@@ -56,7 +56,7 @@ export type ServerOptions = {
   host: string;
   maxPlayers?: number;   // default 1000
   statsMs?: number;      // console summary period; default 30000
-  silencioMs?: number;   // t_9cb3f636: how long a page that sends heartbeats may say nothing before it is dropped; default SILENCIO_MS (1500)
+  silencioMs?: number;   // t_9cb3f636: how long a page that sends heartbeats may say nothing before it is dropped; default SILENCIO_MS (15 s: a frozen page is not a dead one)
   sampleMs?: number;     // byte-rate sample period (kbit/s window = 10 samples); default 1000
   version?: string;      // default: ENGINE_BUILD env, then ../VERSION (written by the installer), then "dev"
   features?: readonly ServerPart[]; // game features (J7): composition roots pass them in
