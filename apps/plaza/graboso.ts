@@ -4,8 +4,9 @@
 // canvas (what your camera sees, HUD excluded); audio = your microphone with the browser's permission (denied or no
 // https → silent clip, said aloud). A pill at the top centre shows «● 0:12 / 1:00» and, after, Descargar / Ver / Quitar.
 // Only the last clip stays, in memory; nothing goes to the server or localStorage. Sharing/uploading is a later row.
-// A CONECTAR CON Y1 (el inventario) cuando se fusione: hoy todo jugador tiene el Graboso (acceso directo); entonces el
-// botón saldrá solo si el inventario trae una reliquia `clase: "graboso"` portada, y «Invocar» irá también en el panel L.
+// t_f87ffb93 (Y1 connected): a world that DEFINES the Graboso as a relic (aventura/objetos/ has `clase: "graboso"`) shows the
+// button, K and the watch's «Grabar» only to whoever carries that relic (`permiso`, the inventory's `grabosoLibre`); a world
+// that does not define it keeps the Graboso for everyone, as before. «Invocar» in the panel L is still to do.
 // Design: ../../../mmo-browser-study/GRABOSO-DISENO.md.
 import { icono } from "./iconos.ts";
 import { crearGraboso, elegirFormato, TOPE_S, type Clip, type Estado, type Grabador } from "../../packages/client/src/graboso.ts";
@@ -19,6 +20,8 @@ export type OpcionesGraboso = {
   decir(t: string): void;                                      // the page's polite aria-live line
   cuadros?: number;                                            // frames per second asked of captureStream (30)
   xr?: { presentando(): boolean; espejo: Espejo };             // inside an XR session the canvas gets no frames: film the mirror instead
+  /** The inventory's rule (features/inventario/reglas.ts `grabosoLibre`): may this player use the Graboso now? Absent = always (a page with no inventory). */
+  permiso?: { libre(): boolean; alCambiar(fn: () => void): () => void };
 };
 /** The XR mirror (packages/render/src/espejo-xr.ts through view.espejoGrabar): a small 2D canvas that follows one eye. */
 export type Espejo = { encender(): Promise<HTMLCanvasElement>; apagar(): void };
@@ -95,6 +98,7 @@ export function montarGraboso(o: OpcionesGraboso) {
   boton.title = "Grabar (K): el Graboso graba lo que ves y dices, de 30 s a 1 min; guárdalo y descarga el clip.";
   if (o.barra) o.barra.appendChild(boton); else document.body.appendChild(boton);
   boton.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
+  const libre = () => { try { return o.permiso ? o.permiso.libre() : true; } catch { return true; } };
 
   const hud = document.createElement("div"); hud.id = "graboso-hud"; hud.setAttribute("aria-label", "El Graboso");
   const punto = document.createElement("span"); punto.className = "punto"; punto.setAttribute("aria-hidden", "true");
@@ -117,6 +121,7 @@ export function montarGraboso(o: OpcionesGraboso) {
     boton.setAttribute("aria-pressed", String(fuera));
     etiqueta(e.fase === "grabando" ? "Guardar" : e.fase === "despertando" ? "Grabar…" : "Grabar");
     o.view.graboso.mostrar(fuera); o.view.graboso.grabando(e.fase === "grabando");
+    if (!fuera && boton.hidden !== !libre()) boton.hidden = !libre(); // kept: the button follows the relic again
     hud.classList.toggle("visible", fuera || !!e.clip);
     hud.classList.toggle("listo", !fuera && !!e.clip);
     tope.hidden = fuera;
@@ -141,12 +146,22 @@ export function montarGraboso(o: OpcionesGraboso) {
   tope.addEventListener("change", () => gr.tope(Number(tope.value)));
   ver.addEventListener("click", () => { const abierto = video.hidden; if (abierto && url) { video.src = url; video.hidden = false; void video.play().catch(() => {}); } else { video.pause(); video.hidden = true; } ver.setAttribute("aria-pressed", String(abierto)); });
   quitar.addEventListener("click", () => { soltarUrl(); clipPreparado = null; gr.quitarClip(); o.decir("Clip descartado."); });
-  boton.addEventListener("click", () => { void gr.alternar(); });
-  addEventListener("keydown", (e) => { if (e.code === TECLA && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !escribiendo(e)) { e.preventDefault(); void gr.alternar(); } });
+  boton.addEventListener("click", () => { if (libre() || gr.estado.fase !== "guardado") void gr.alternar(); });
+  addEventListener("keydown", (e) => { if (e.code === TECLA && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !escribiendo(e)) { if (!libre() && gr.estado.fase === "guardado") return; e.preventDefault(); void gr.alternar(); } });
+  // without the relic: no button (the bar's «Cámara» menu hides the entry by itself), no K in the help line, and a recording
+  // in progress is kept first (never lose a clip because the relic went back to the Reserva)
+  const ayuda = document.getElementById("help"), AYUDA_K = " · K: grabar";
+  const pintarPermiso = () => {
+    const si = libre();
+    if (!si && gr.estado.fase === "grabando") void gr.alternar();
+    boton.hidden = !si && gr.estado.fase === "guardado";
+    if (ayuda) { const tiene = ayuda.textContent?.includes(AYUDA_K); if (!si && tiene) ayuda.textContent = ayuda.textContent!.replace(AYUDA_K, ""); else if (si && !tiene && !ayuda.textContent?.includes("K: grabar")) ayuda.textContent += AYUDA_K; }
+  };
+  const sinOirPermiso = o.permiso?.alCambiar(pintarPermiso);
   // the counter and the hard cap, once per second
   let ultimo = "";
   const reloj = setInterval(() => { if (gr.estado.fase !== "grabando") return; gr.tic(); const t = gr.contador(); if (t !== ultimo) { ultimo = t; tiempo.textContent = t; } }, 250);
   addEventListener("pagehide", () => { if (gr.estado.fase === "grabando") void gr.guardar(); });
-  pintar(gr.estado);
-  return { graboso: gr, boton, hud, soporta: !!lienzoTipo, tipo: lienzoTipo, parar: () => clearInterval(reloj) };
+  pintar(gr.estado); pintarPermiso();
+  return { graboso: gr, boton, hud, soporta: !!lienzoTipo, tipo: lienzoTipo, libre, parar: () => { clearInterval(reloj); sinOirPermiso?.(); } };
 }

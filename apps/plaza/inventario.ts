@@ -13,10 +13,11 @@ import { crearDialogo, anunciar } from "./paneles.ts";
 import { icono } from "./iconos.ts";
 import { FORMAS_EQUIPO, ICONO_TIPO, SILUETA, accionDe, colorDe, cuentaTexto, destinoDeSoltar, etiquetaHueco, lineaTipo, lineaValor, mover, nombreConCuenta, novedades, plano } from "./bolsa-rejilla.ts";
 import type { Objeto, Zona } from "./bolsa-rejilla.ts";
+import { crearSoltar, preguntaSoltar } from "./bolsa-soltar.ts";
 export { ICONO_TIPO, RAREZA_DE_COLOR, detalleDeCaptura } from "./bolsa-rejilla.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
-type Ctl = { lista(): Objeto[]; resumen(): { objetos: number; portados: number; prestigio: number }; equipar(id: string): Res; desequipar(id: string): Res; estado: { ultimoRechazo: string; ultimoRecibido: string; huecos?: number }; alCambiar(fn: () => void): unknown };
+type Ctl = { lista(): Objeto[]; resumen(): { objetos: number; portados: number; prestigio: number }; equipar(id: string): Res; desequipar(id: string): Res; soltar(id: string, n?: number): Res; estado: { ultimoRechazo: string; ultimoRecibido: string; huecos?: number }; alCambiar(fn: () => void): unknown };
 
 const CSS_AVISO = `
 #inventario-abrir.recibe, #mas.recibe { animation: bolsa-pulso .7s ease-out 2; }
@@ -65,6 +66,8 @@ export function montarInventario(c: Ctl, boton: HTMLButtonElement) {
 
   let firma = "", sel: string | null = null, foco: { zona: Zona; i: number } = { zona: "bolsa", i: 0 }, parpadean = new Set<string>(), arrastrado = false;
   const antes = new Map<string, number>();
+  // «Soltar» a weapon or a relic asks first (bolsa-soltar.ts); the question is an inline choice in the card, so it also reads in VR
+  const soltar = crearSoltar((id, n) => c.soltar(id, n), anunciar, () => pintar(true));
   let hueco: { zona: Zona; i: number; o: Objeto | null }[] = [];
   const botonDe = (zona: Zona, i: number): HTMLButtonElement | null => (zona === "equipo" ? equipoEl : rejilla).children[i] as HTMLButtonElement | null ?? null;
 
@@ -97,6 +100,19 @@ export function montarInventario(c: Ctl, boton: HTMLButtonElement) {
       const b = el("button", acc, "accion"); b.type = "button"; b.setAttribute("aria-label", `${acc} ${o.nombre}`);
       b.addEventListener("click", () => { const res = o.portado ? c.desequipar(o.id) : c.equipar(o.id); if (!res.ok) anunciar(res.why); });
       partes.push(b);
+      const pide = soltar.pendiente?.id === o.id;
+      if (pide) {
+        const q = el("p", preguntaSoltar(o), "pregunta"), si = el("button", "Sí, soltar", "accion soltar-si"), no = el("button", "Cancelar", "accion soltar-no");
+        si.type = "button"; no.type = "button"; si.setAttribute("aria-label", `Sí, soltar ${o.nombre}`); no.setAttribute("aria-label", `Cancelar: conservar ${o.nombre}`);
+        si.addEventListener("click", () => { soltar.confirmar(); botonDe(foco.zona, foco.i)?.focus({ preventScroll: true }); });
+        no.addEventListener("click", () => { soltar.cancelar(); botonDe(foco.zona, foco.i)?.focus({ preventScroll: true }); });
+        const g = el("div", "", "soltar-pregunta"); g.setAttribute("role", "group"); g.setAttribute("aria-label", `Confirmar soltar ${o.nombre}`); g.append(q, si, no);
+        partes.push(g);
+      } else {
+        const bs = el("button", "Soltar", "accion soltar"); bs.type = "button"; bs.setAttribute("aria-label", `Soltar ${o.nombre}`);
+        bs.addEventListener("click", () => { if (soltar.pedir(o) === "pregunta") ficha.querySelector<HTMLElement>(".soltar-no")?.focus({ preventScroll: true }); }); // the safe answer has the focus
+        partes.push(bs);
+      }
     }
     ficha.replaceChildren(...partes);
   };
@@ -107,6 +123,7 @@ export function montarInventario(c: Ctl, boton: HTMLButtonElement) {
     firma = f;
     const p = plano(todos, c.estado.huecos || undefined);
     if (sel && !todos.some((o) => o.id === sel)) sel = null;
+    if (soltar.pendiente && !todos.some((o) => o.id === soltar.pendiente!.id)) soltar.cancelar(true); // it is gone already: nothing left to ask about
     const tenia = panel.dialog.contains(document.activeElement) && (document.activeElement as HTMLElement).classList.contains("hueco");
     hueco = [...p.equipo.map((o, i) => ({ zona: "equipo" as Zona, i, o })), ...p.bolsa.map((o, i) => ({ zona: "bolsa" as Zona, i, o }))];
     equipoEl.replaceChildren(...p.equipo.map((o, i) => casilla("equipo", i, o)));
@@ -124,6 +141,7 @@ export function montarInventario(c: Ctl, boton: HTMLButtonElement) {
     foco = { zona, i };
     const o = hueco.find((h) => h.zona === zona && h.i === i)?.o ?? null;
     sel = o ? o.id : null;
+    if (soltar.pendiente && soltar.pendiente.id !== sel) soltar.cancelar(true); // another object chosen: the question lapses, nothing was sent
     pintar(true);
     botonDe(zona, i)?.focus({ preventScroll: true });
   };
@@ -150,7 +168,8 @@ export function montarInventario(c: Ctl, boton: HTMLButtonElement) {
   };
   panel.cuerpo.addEventListener("pointerover", (e) => { const b = (e.target as HTMLElement).closest<HTMLElement>("button.hueco"); if (b && e.pointerType === "mouse" && !arrastrando) mostrarTip(b); else if (!b) tip.hidden = true; });
   panel.cuerpo.addEventListener("pointerleave", () => { tip.hidden = true; });
-  panel.dialog.addEventListener("close", () => { tip.hidden = true; });
+  panel.dialog.addEventListener("close", () => { tip.hidden = true; soltar.cancelar(true); });
+  panel.dialog.addEventListener("cancel", (e) => { if (soltar.pendiente) { e.preventDefault(); soltar.cancelar(); botonDe(foco.zona, foco.i)?.focus({ preventScroll: true }); } }); // Esc answers «Cancelar» first, then closes the panel
 
   // ── drag and drop (small): weapons and relics between the bag and the equipment; mouse and touch (pointer events) ──
   let arrastrando: { o: Objeto; fantasma: HTMLElement; x0: number; y0: number; origen: HTMLElement; vivo: boolean } | null = null;

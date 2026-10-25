@@ -113,6 +113,10 @@
     #inventario .ficha-objeto .tipo { color: #9db0c2; font-size: 12px; }
     #inventario .ficha-objeto .valor { color: #ffd27a; }
     #inventario .ficha-objeto .accion { min-height: 44px; background: #ffd27a; color: #23303b; font-weight: 700; }
+    #inventario .ficha-objeto .accion.soltar { background: transparent; color: #ff9a94; box-shadow: inset 0 0 0 2px #ff9a94; }
+    #inventario .ficha-objeto .soltar-pregunta { display: grid; gap: 6px; padding: 8px; border-radius: 8px; background: rgba(255, 107, 100, .12); border: 1px solid #ff9a94; }
+    #inventario .ficha-objeto .soltar-pregunta .pregunta { font-weight: 700; color: #ffd0cc; }
+    #inventario .ficha-objeto .accion.soltar-si { background: #ff6b64; color: #230b0a; }
     #inventario p.vacio { opacity: .75; font-size: 12px; }
     .bolsa-tip { position: absolute; z-index: 5; max-width: 220px; padding: 4px 9px; border-radius: 8px; background: rgba(8, 12, 16, .95); border: 1px solid color-mix(in srgb, var(--c, #c3ceda) 70%, #000); color: #eef2f6; font: 12px/1.35 system-ui, sans-serif; pointer-events: none; display: grid; }
     .bolsa-tip[hidden] { display: none; }
