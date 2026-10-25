@@ -34,7 +34,7 @@ export const SECCIONES_MUNDO: readonly SeccionMundo[] = [
   { id: "gente", icono: "users", es: "Gente", en: "People", orden: 2, tecla: "L", botones: ["gente-abrir"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
   { id: "bolsa", icono: "package", es: "Bolsa", en: "Bag", orden: 3, tecla: "R", botones: ["inventario-abrir"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
   { id: "misiones", icono: "scroll", es: "Misiones", en: "Quests", orden: 4, tecla: "J", botones: ["misiones"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
-  { id: "mapa", icono: "map-trifold", es: "Mapa", en: "Map", orden: 5, tecla: "M", botones: ["minimapa-abrir"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
+  { id: "mapa", icono: "map-trifold", es: "Dónde estoy", en: "Where am I", orden: 5, tecla: "M", botones: ["minimapa-abrir"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
   { id: "construir", icono: "crane-tower", es: "Construir", en: "Build", orden: 6, tecla: "C", botones: ["construir"], aparatos: ["pc", "vr"], vr: { panel: true } }, // not on a phone: a phone walks and talks (Pablo, 2026-10-22)
   { id: "ajustes", icono: "gear", es: "Ajustes", en: "Settings", orden: 7, tecla: "O", botones: ["ajustes-abrir"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
   // the rest of the bar

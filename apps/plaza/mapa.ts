@@ -10,7 +10,7 @@
 // that height (view.cenital) as the minimap's background too, and the cut's walls and columns as lines over it. The
 // picture is made when the minimap first needs it, then again only when the zone changes (at most every IMAGEN_MS),
 // never in XR (this clock stops there); until it exists, the minimap draws only what stands under the cut.
-import { proyectar, desproyectar, anguloFlecha, anguloBorde, yawDePaso, enPalabras, crearLimitador, crearRegistro, reunir, contar, cercanos, firma, matrizImagen, segmentosEnVista, quienDeAgente } from "../../packages/client/src/mapa.ts";
+import { proyectar, desproyectar, anguloFlecha, anguloBorde, yawDePaso, enPalabras, crearLimitador, crearRegistro, reunir, contar, cercanos, firma, matrizImagen, segmentosEnVista, quienDeAgente, puntoNorte } from "../../packages/client/src/mapa.ts";
 import type { Vista, Marcador, Tipo, Fuente, Entrada } from "../../packages/client/src/mapa.ts";
 import type { ImagenCenital, Huella } from "../../packages/render/src/index.ts";
 import { bajoElCorte } from "../../packages/render/src/corte.ts";
@@ -53,6 +53,7 @@ const TEXTO_MS = 2000;             // the minimap's text twin, at most every 2 s
 const LISTA_MAX = 400;             // C1: the big map lists everything in the world (nearest first), up to this many; the search narrows it
 const LISTA_MS = 1000;             // the big map's list, at most once a second while open
 const RADIOS = [15, 30, 60, 120];  // minimap zoom: metres from the centre to the edge
+const ZOOM_INICIAL = 1;            // the radius the minimap starts with, and the one the north button brings back
 const LLEGADA_M = 2.5;             // a waypoint this close is reached (and cleared, with a notice)
 const ESTABLE_MS = 1500, ESPERA_MAX_MS = 10_000; // E4: a cut world's minimap picture waits until the zone stood still this long (at most ESPERA_MAX_MS)
 const IMAGEN_MS = 5000;            // the zone's picture is regenerated at most every 5 s, only while the big map is open (U14: or, in a world cut with mapa.corte, when its minimap's zone changed)
@@ -262,18 +263,25 @@ export function montarMapa(h: HostMapa) {
   mini.id = "minimapa"; mini.setAttribute("aria-label", "Minimapa");
   const miniCanvas = document.createElement("canvas"); miniCanvas.setAttribute("aria-hidden", "true");
   const miniTexto = document.createElement("p"); miniTexto.className = "solo-lector"; miniTexto.id = "minimapa-texto";
-  // ux2-barra: the minimap IS the button of the big map (M): no «−», «+», «N», «Mapa», «Ficha» under it. The wheel over it
+  // ux2-barra: the minimap IS the button of the big map (M): no «−», «+», «Mapa», «Ficha» under it (MIS-257: and the N is the compass button on its rim). The wheel over it
   // zooms; turning with the camera is a setting (Ajustes › Interfaz, interfaz.minimapaGira); the sheet is your card (I).
   const bMapa = document.createElement("button"); bMapa.type = "button"; bMapa.id = "minimapa-abrir";
   bMapa.title = `${tituloDe("mapa")} · rueda: acercar y alejar`; bMapa.setAttribute("aria-label", tituloDe("mapa")); // v2 paridad: the name is the list's
   bMapa.append(miniCanvas);
-  mini.append(bMapa, miniTexto);
+  // MIS-257: the north is a button, not a letter painted on the canvas: it rides just inside the rim where north is (up, or swinging
+  // round when the minimap turns with the camera) and pressing it puts the minimap back: centred on you, north up,
+  // the usual radius. Phosphor «compass» (house icons); on a phone the folded minimap has no buttons (movil.css).
+  const caja = document.createElement("div"); caja.className = "caja";
+  const bNorte = document.createElement("button"); bNorte.type = "button"; bNorte.className = "norte"; bNorte.id = "minimapa-norte";
+  bNorte.innerHTML = icono("compass", 16); bNorte.setAttribute("aria-label", "Norte arriba: centrar el minimapa en ti"); bNorte.title = "Norte arriba · centrar el minimapa en ti";
+  caja.append(bMapa, bNorte);
+  mini.append(caja, miniTexto);
   document.body.appendChild(mini);
   // a touch here is not the walking joystick; a mouse click leaves no focus behind (Space must jump, not open the map)
   mini.addEventListener("pointerdown", (e) => e.stopPropagation());
   bMapa.addEventListener("click", (e) => { if (e.detail > 0) bMapa.blur(); });
   const lm = lienzo(miniCanvas);
-  let zoom = 1, gira = false;
+  let zoom = ZOOM_INICIAL, gira = false, recentrados = 0;
   const ponerZoom = (i: number) => { const z = Math.max(0, Math.min(RADIOS.length - 1, i)); if (z !== zoom) { zoom = z; limMini.forzar(); textoT = -Infinity; } };
   // the wheel over the minimap: away = farther (a bigger radius), toward you = closer; one notch, one step; never the camera's zoom
   let ruedaT = 0;
@@ -284,6 +292,12 @@ export function montarMapa(h: HostMapa) {
     ponerZoom(zoom + (e.deltaY > 0 ? 1 : -1));
   }, { passive: false });
   const ponerGiro = (si: boolean) => { if (si === gira) return; gira = si; limMini.forzar(); textoT = -Infinity; };
+  /** The north button: centred on you, north up, the usual radius. Says so for screen readers, and redraws at once. */
+  function recentrarMini(): void {
+    ponerZoom(ZOOM_INICIAL); ponerGiro(false); recentrados++; limMini.forzar(); textoT = -Infinity;
+    anunciar("Minimapa centrado en ti, norte arriba.");
+  }
+  bNorte.addEventListener("click", (e) => { recentrarMini(); if (e.detail > 0) bNorte.blur(); });
   // on touch screens the features' buttons live in the bottom-right corner: sit to their left
   const acciones = document.getElementById("acciones");
   const sitio = () => { if (!esTactil()) return; /* U3: on a mouse screen the frame table places the map */ mini.style.right = acciones && acciones.childElementCount ? `${acciones.offsetWidth + 20}px` : ""; };
@@ -328,9 +342,8 @@ export function montarMapa(h: HostMapa) {
     }
     g.restore();
     g.strokeStyle = "rgba(20,24,30,0.85)"; g.lineWidth = 2.5; g.beginPath(); g.arc(c, c, r, 0, Math.PI * 2); g.stroke();
-    const n = proyectar(v, v.cx, v.cz - 1000), dx = n.px - c, dy = n.py - c, l = Math.hypot(dx, dy) || 1;
-    g.fillStyle = "#23303b"; g.font = "bold 12px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
-    g.fillText("N", c + (dx / l) * (r - 9), c + (dy / l) * (r - 9));
+    const n = puntoNorte(v.giro, c, r - 10); // the north button sits just inside the rim where north is (never over the clock above) (a CSS transform: no layout)
+    bNorte.style.transform = `translate(${n.x.toFixed(1)}px, ${n.y.toFixed(1)}px) translate(-50%, -50%)`;
     dibujado.mini = vistos;
   }
 
@@ -342,18 +355,18 @@ export function montarMapa(h: HostMapa) {
     for (const [id, ti] of reg.tipos()) if (n[id] && ti.enLista) partes.push(`${n[id]} ${ti.nombre.toLowerCase()}`);
     const cerca = cercanos(ms, yo, reg, 3).map((e) => `${e.nombre} (${reg.tipo(e.tipo).nombre.toLowerCase()}), ${e.texto}`);
     const t = `Minimapa, ${gira ? "gira con la cámara" : "norte arriba"}, ${RADIOS[zoom]} m alrededor: ${partes.join(", ") || "nada cerca"}.` +
-      (cerca.length ? ` Lo más cerca: ${cerca.join("; ")}.` : "") + (destino ? ` Destino: ${destino.nombre}, ${enPalabras(destino.x - yo.x, destino.z - yo.z)}.` : "") + (esMovil(perfil().clase) ? " Toca el minimapa para el mapa y la lista." : " Pulsa M para el mapa y la lista.");
+      (cerca.length ? ` Lo más cerca: ${cerca.join("; ")}.` : "") + (destino ? ` Destino: ${destino.nombre}, ${enPalabras(destino.x - yo.x, destino.z - yo.z)}.` : "") + (esMovil(perfil().clase) ? " Toca el minimapa para ver dónde estás y la lista." : " Pulsa M para ver dónde estás y la lista.");
     if (t !== textoAntes) { miniTexto.textContent = t; textoAntes = t; }
   }
 
   // ---------- big map (dialog) ----------
-  const panel = crearDialogo({ id: "mapa-grande", titulo: "Mapa de la zona", tecla: "KeyM", boton: bMapa, alAbrir: () => abrirGrande(), alCerrar: () => { arrastre.clear(); } });
+  const panel = crearDialogo({ id: "mapa-grande", titulo: tituloDe("mapa").replace(/ \(M\)$/, ""), tecla: "KeyM", boton: bMapa, alAbrir: () => abrirGrande(), alCerrar: () => { arrastre.clear(); } });
   const zonaLienzo = document.createElement("div"); zonaLienzo.className = "lienzo";
   const gCanvas = document.createElement("canvas"); gCanvas.tabIndex = 0;
   gCanvas.setAttribute("role", "img");
-  gCanvas.setAttribute("aria-label", "Mapa de la zona visto desde arriba, norte arriba. Flechas: mover el mapa; + y −: acercar y alejar; 0: centrar en ti. La misma información está en la lista.");
+  gCanvas.setAttribute("aria-label", "La zona vista desde arriba, norte arriba. Flechas: mover la vista; + y −: acercar y alejar; 0: centrar en ti. La misma información está en la lista.");
   const controles = document.createElement("div"); controles.className = "controles";
-  const gMas = boton("+", "Acercar el mapa"), gMenos = boton("−", "Alejar el mapa"), gCentro = boton("◎", "Centrar el mapa en ti");
+  const gMas = boton("+", "Acercar la vista"), gMenos = boton("−", "Alejar la vista"), gCentro = boton("◎", "Centrarte en la vista");
   controles.append(gMas, gMenos, gCentro);
   const estadoImagen = document.createElement("p"); estadoImagen.className = "estado-imagen";
   zonaLienzo.append(gCanvas, controles, estadoImagen);
@@ -434,7 +447,7 @@ export function montarMapa(h: HostMapa) {
       v.addEventListener("click", () => volver());
       detalle.append(v);
     }
-    if (!elegido) { const p = document.createElement("p"); p.textContent = "Elige algo en el mapa o en la lista para ver su detalle y marcarlo como destino."; detalle.append(p); return; }
+    if (!elegido) { const p = document.createElement("p"); p.textContent = "Elige algo en la vista o en la lista para ver su detalle y marcarlo como destino."; detalle.append(p); return; }
     const t = document.createElement("h3"); t.textContent = elegido.nombre;
     const p = document.createElement("p");
     p.textContent = `${reg.tipo(elegido.tipo).nombre}${yo ? ` · ${enPalabras(elegido.x - yo.x, elegido.z - yo.z)}` : ""}${elegido.detalle ? ` · ${elegido.detalle}` : ""}`;
@@ -558,7 +571,7 @@ export function montarMapa(h: HostMapa) {
         if (d < d2) { d2 = d; mejor = m; }
       }
       if (mejor) elegir({ id: mejor.id === "destino" && destino ? destino.id : mejor.id, nombre: mejor.nombre, tipo: mejor.tipo, x: mejor.x, z: mejor.z, detalle: mejor.detalle });
-      else { const w = desproyectar(gv, p.px, p.py), x = Math.round(w.x * 10) / 10, z = Math.round(w.z * 10) / 10; elegir({ id: `punto:${x},${z}`, nombre: "Punto del mapa", tipo: "lugar", x, z }); }
+      else { const w = desproyectar(gv, p.px, p.py), x = Math.round(w.x * 10) / 10, z = Math.round(w.z * 10) / 10; elegir({ id: `punto:${x},${z}`, nombre: "Punto elegido", tipo: "lugar", x, z }); }
     }
     if (arrastre.size < 2) pinza = 0;
   };
@@ -664,6 +677,6 @@ export function montarMapa(h: HostMapa) {
     },
     quitarDestino: () => quitarDestino("quitado"),
     /** ux2-barra: the minimap's own state (zoom = index into the radii; gira = turns with the camera) and its controls. */
-    minimapa: { girar(si: boolean) { ponerGiro(si); }, zoom(i: number) { ponerZoom(i); }, estado: () => ({ zoom, gira, radio: RADIOS[zoom] }) },
+    minimapa: { girar(si: boolean) { ponerGiro(si); }, zoom(i: number) { ponerZoom(i); }, recentrar: recentrarMini, estado: () => ({ zoom, gira, radio: RADIOS[zoom], recentrados }) },
   };
 }
