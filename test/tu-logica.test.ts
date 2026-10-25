@@ -80,3 +80,27 @@ test("«Tú» keeps three tabs and no «Próximamente»; the sheet no longer car
   for (const id of ["personaje", "reserva", "insignias"]) assert.ok(src.includes(`id: "${id}"`));
   assert.ok(!src.includes('id: "misiones"') && !src.includes('id: "gente"'));
 });
+
+// MIS-257: the sheet's Personaje screen carries what you wear and the adventures under way
+import { equipoDeLaLista, aventurasEnCurso } from "../apps/plaza/tu-logica.ts";
+const obj = (id: string, tipo: string, portado: boolean) => ({ id, tipo, clase: "", nombre: id, icono: "", color: "", valor: 1, n: 1, portado });
+test("equipoDeLaLista: only what is carried, the one weapon and at most three relics; a bad list is an empty kit", () => {
+  const e = equipoDeLaLista([obj("espada", "arma", true), obj("hacha", "arma", false), obj("r1", "reliquia", true), obj("r2", "reliquia", true), obj("r3", "reliquia", true), obj("r4", "reliquia", true), obj("pez", "captura", true), obj("semilla", "token", false)]);
+  assert.equal(e.arma?.id, "espada");
+  assert.deepEqual(e.reliquias.map((o) => o.id), ["r1", "r2", "r3"]);
+  assert.deepEqual(equipoDeLaLista(undefined), { arma: null, reliquias: [] });
+  assert.deepEqual(equipoDeLaLista([null, 3, "x"]), { arma: null, reliquias: [] });
+});
+test("aventurasEnCurso: active ones only, the followed one first, with the text of the step you are on", () => {
+  const lista = [{ n: 0, texto: "Habla con Ana" }, { n: 1, texto: "Lleva la carta" }];
+  const l = [
+    { id: "a", titulo: "Vieja", estado: "hecha", paso: 2, pasos: 2, seguida: false, lista },
+    { id: "b", titulo: "Primera", estado: "activa", paso: 0, pasos: 2, seguida: false, lista },
+    { id: "c", titulo: "Seguida", estado: "activa", paso: 1, pasos: 2, seguida: true, lista },
+  ];
+  const a = aventurasEnCurso(l);
+  assert.deepEqual(a.map((x) => x.id), ["c", "b"]);
+  assert.equal(a[0].siguiente, "Lleva la carta"); assert.equal(a[1].siguiente, "Habla con Ana");
+  assert.equal(a[0].pasos, 2);
+  assert.deepEqual(aventurasEnCurso(null), []); assert.deepEqual(aventurasEnCurso([null, { estado: "activa" }]), []);
+});

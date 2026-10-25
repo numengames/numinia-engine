@@ -506,12 +506,36 @@ html.menos-movimiento #ajustes.acordeon .cat-cab > svg:last-child { transition: 
 #ficha ul.insignias.grandes li.insignia .icono { grid-row: 1 / 3; justify-self: center; }
 #ficha ul.insignias.grandes .nombre { color: var(--n-texto); font-weight: 600; font-size: 14px; }
 #ficha ul.insignias.grandes .mision { color: var(--n-texto2); font-size: 12px; }
+/* MIS-257: what you carry (4 slots) and the adventures under way, on the Personaje screen itself */
+#ficha .tu-datos { gap: 12px; padding: 14px 24px; }
+#ficha .tu-datos .tu-bloque h4 { margin-bottom: 6px; }
+#ficha .tu-personaje li.insignia { width: 48px; height: 48px; }
+#ficha .tu-carga { display: flex; align-items: center; gap: 12px; }
+#ficha .tu-carga h4 { margin: 0; flex: none; }
+#ficha .tu-carga .tu-barra-fila { flex: 1; min-width: 0; }
+#ficha .tu-linea { margin: -10px 0 0; }
+#ficha .tu-equipo { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+#ficha .tu-hueco { --c: var(--n-linea); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; min-width: 0; border-radius: 8px; border: 1px solid var(--c); background: var(--n-elev); color: var(--n-texto); }
+#ficha .tu-hueco.vacio { background: transparent; border-style: dashed; border-color: var(--n-linea); color: var(--n-texto2); opacity: .75; }
+#ficha .tu-hueco .nom { font-size: 12px; line-height: 1.25; text-align: center; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#ficha .tu-lista-aventuras { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+#ficha .tu-aventura { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--n-linea); background: var(--n-elev); }
+#ficha .tu-aventura.seguida { border-color: color-mix(in srgb, var(--n-turquesa) 55%, var(--n-linea)); }
+#ficha .tu-aventura .cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+#ficha .tu-aventura .titulo { font-weight: 600; font-size: 14px; color: var(--n-texto); overflow-wrap: anywhere; }
+#ficha .tu-aventura .paso { flex: none; font: 500 12px "Geist Mono", ui-monospace, monospace; color: var(--n-texto2); }
+#ficha .tu-aventura .tu-barra { height: 6px; margin-top: 6px; }
+#ficha .tu-aventura .sig { margin: 6px 0 0; font-size: 13px; color: var(--n-texto2); overflow-wrap: anywhere; }
+#ficha .tu-aventuras .nota button { margin-left: 4px; padding: 4px 10px; font: 500 13px "Geist", system-ui, sans-serif; cursor: pointer; }
 #ficha .tu-cuenta { margin: 0 0 12px; color: var(--n-texto2); font: 500 13px "Geist Mono", ui-monospace, monospace; }
 @media (max-width: 760px) {
   #ficha .tu-personaje { flex-direction: column; min-height: 0; }
   #ficha .tu-figura { flex: none; border-right: 0; border-bottom: 1px solid var(--n-linea); }
   #ficha .tu-marco img, #ficha .tu-silueta { height: 280px; }
   #ficha .hoja[data-pestana="personaje"] section + section { padding: 0 16px 16px; }
+  #ficha .tu-datos { padding: 16px; order: -1; } /* on a phone the game side (name, kit, adventures) comes first, the render after */
+  #ficha .tu-figura { border-bottom: 0; border-top: 1px solid var(--n-linea); }
+  #ficha .tu-hueco .nom { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 }
 /* the HUD card: your bust on the left opens «Tú» */
 #hud-personaje:not([hidden]) { display: flex; gap: 12px; align-items: flex-start; }
