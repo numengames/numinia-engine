@@ -35,3 +35,12 @@ test("la hoja de mandos: cabe en el panel (8 líneas, 2 filas cada una, hasta y 
   });
   assert.equal(dibujadas, totales, `filas que no caben: ${totales - dibujadas}`);
 });
+
+test("la hoja de mandos: una línea dice cómo pasar lo que llevas a la otra mano (MIS-200), y el agarre la mueve de verdad", () => {
+  const linea = LINEAS_MANDOS.find((l) => /pasar de mano/.test(l));
+  assert.ok(linea, "hay línea de pasar de mano");
+  assert.match(linea, /Agarre o pellizco/);
+  const MANOS = readFileSync(new URL("../packages/render/src/manos.ts", import.meta.url), "utf8");
+  assert.match(MANOS, /export const CERCA_CAMBIO_M = 0\.15/, "la distancia del gesto tiene nombre");
+  assert.match(MANOS, /\?\?\s*0\) > 0\.6/, "el agarre del mando cuenta a partir de 0,6, como en la caña");
+});
