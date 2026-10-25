@@ -295,3 +295,24 @@ son avatar, objetos del mundo, hitos y UI, no suelo. Memoria JS 69 MB en los tre
 Servidor con la base (`tools/swarm.sh --url … --n 200 --secs 30`): 200/200 conectados, tick p50 2,69 / p99 5,26 ms,
 CPU del proceso 8,5 %, RSS 178 MB, 27 kbit/s por persona, 0 fallos.
 Repetir: motor en 8895 y página en 5335 sobre el mundo de prueba, `TMPDIR=/tmp node tools/medir-base.mjs salida.json`.
+
+## Niveles de detalle e ingesta por hash: bytes y llamadas (H13, M16)
+
+Medido con `tools/e2e-piernas/lod-manifiesto.mjs` sobre el mundo de la plantilla de eventos (227 piezas colocadas, 5 modelos `.glb`),
+Chromium headless con GPU por software, antes = `origin/main` 7cc658de y después = `lote7/activos`. Los JSON están en
+`work/motor-vr/lotes/capturas-lote7-activos/`.
+
+| | antes | después |
+|---|---|---|
+| ficheros de nivel hechos en la ingesta (2 por modelo) | 0 | 10 (los 5 modelos) |
+| triángulos del modelo de más peso | 3.668 | 3.668 · nivel 1: 1.708 · nivel 2: 424 |
+| 1.ª visita, bytes de `/a/` | 1.429.763 | 1.429.763 (los niveles no se bajan hasta que hacen falta; en la plaza de 200 copias lejanas, +34.360 de nivel) |
+| 2.ª visita, caché HTTP apagada, bytes de `/a/` | 763.172 (28 peticiones) | 321.068 (20 peticiones), **-58 %** |
+| 2.ª visita, caché HTTP encendida | 0 | 0 |
+| pantalla de carga | «231 de 231 piezas» | «231 de 231 piezas · 1,1 de 1,1 MB»; pendientes dentro de la vista 0 (`carga-entera.mjs`, ok) |
+| llamadas y triángulos del último cuadro (plantilla, 2.ª visita) | 74 · 271.447 | 74 · 271.447 (todo está cerca: igual, como debe ser) |
+
+Plaza de 200 copias del modelo de 3.668 triángulos a 100–420 m (`COPIAS=200`): después, 427 piezas cargadas, 0 fallidas; el último cuadro
+dio 100 llamadas y 539.983 triángulos. **No hay cifra «antes» fiable de llamadas y triángulos de esa plaza**: el cuadro leído por el
+GPU por software salió a 0 en el motor sin tarjeta (la lectura varía con el cuadro y con la posición, de 100 a 333 llamadas en
+el mismo mundo). Lo medido de verdad es el peso de cada nivel (arriba); las llamadas no bajan con el nivel, bajan los triángulos.
