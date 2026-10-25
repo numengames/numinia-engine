@@ -1,0 +1,26 @@
+{
+  "formato": "mision@1",
+  "id": "tu-primer-cable",
+  "titulo": "Tu primer cable",
+  "descripcion": "Crea tu primer cable con «+ Nuevo cable».",
+  "requisitos": {
+    "misiones": [
+      "mira-el-cable"
+    ]
+  },
+  "pasos": [
+    {
+      "id": "crea",
+      "tipo": "hace",
+      "texto": "Pulsa «+ Nuevo cable» en el panel Cable",
+      "accion": "crea_cable",
+      "senala": "cable-nuevo"
+    }
+  ],
+  "recompensas": [],
+  "textos": {
+    "aceptada": "Eliges CUÁNDO (un botón) y QUÉ (muestra el farolillo).",
+    "completada": "Un cable nuevo se crea en vivo, donde estás."
+  },
+  "repetible": false
+}

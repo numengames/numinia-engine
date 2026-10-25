@@ -1,0 +1,22 @@
+{
+  "formato": "mision@1",
+  "id": "abre-el-taller",
+  "titulo": "Abre el taller",
+  "descripcion": "Pulsa el botón Construir: el mundo tiene un modo construir y un modo jugar.",
+  "pasos": [
+    {
+      "id": "abre",
+      "tipo": "hace",
+      "texto": "Pulsa Construir (o la tecla C)",
+      "accion": "abre_construir",
+      "senala": "construir"
+    }
+  ],
+  "recompensas": [],
+  "textos": {
+    "aceptada": "Busca la flecha: el botón Construir está señalado.",
+    "completada": "Ya estás en modo construir. Para volver a jugar, sal del panel."
+  },
+  "repetible": false,
+  "notas": "Pasos tipo `hace`: formato de la historia T1 (aún no lo acepta tools/aventura.ts). Ver LEEME."
+}

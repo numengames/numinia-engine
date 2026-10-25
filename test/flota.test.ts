@@ -24,15 +24,16 @@ const COMMIT = "c57dbb7cc4c51b0834184f1dd47b311e47fde234";
 const MOTOR = { build: "c57dbb7 2026-10-16", commit: COMMIT, imagen: `ghcr.io/numengames/numinia-engine:sha-${COMMIT}` };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-test("C2: a new world folder gets a copy of the example adventure once; then it is the world's", () => {
+test("C2: a new world folder is born with the Taller onboarding once; then it is the world's", () => {
   const c = carpetaMundo(join(tmp("carpeta-"), "mundo"));
   const log: string[] = [];
   assert.equal(sembrar(c, (l) => log.push(l)), true);
-  for (const f of ["misiones/primeros-pasos.json", "pnj/alma.json", "pnj/bruno.json", "cosas/caja-de-bruno.json", "habitantes/lia.json"]) assert.ok(existsSync(join(c.aventura, f)), f);
-  writeFileSync(join(c.aventura, "pnj", "alma.json"), "{\"cambiada\":true}");
+  for (const f of ["misiones/01-abre-el-taller.json", "misiones/11-tu-mini-mision.json", "pnj/lumen.json", "ficha.json"]) assert.ok(existsSync(join(c.aventura, f)), f);
+  assert.equal(existsSync(join(c.aventura, "pnj", "alma.json")), false, "the example is not in a new world");
+  writeFileSync(join(c.aventura, "pnj", "lumen.json"), "{\"cambiada\":true}");
   assert.equal(sembrar(c), false, "a world that has its adventure keeps it");
-  assert.equal(readFileSync(join(c.aventura, "pnj", "alma.json"), "utf8"), "{\"cambiada\":true}");
-  assert.match(log.join("\n"), /copia de la de ejemplo/);
+  assert.equal(readFileSync(join(c.aventura, "pnj", "lumen.json"), "utf8"), "{\"cambiada\":true}");
+  assert.match(log.join("\n"), /nace con el onboarding del Taller/);
   escribirManifiesto(c, MOTOR, new Date(Date.UTC(2026, 9, 16)));
   assert.deepEqual(JSON.parse(readFileSync(c.manifiesto, "utf8")), { esquema: "numinia-engine/mundo@2", motor: MOTOR, creado: "2026-10-16T00:00:00.000Z" });
   assert.deepEqual(readdirSync(c.raiz).filter((f) => f.startsWith(".")), [], "no half copy left behind");
@@ -219,7 +220,7 @@ test("C6: copia → comprobar → importar (an EMPTY folder only) gives the same
   assert.deepEqual(readdirSync(destino).sort(), ["aventura", "datos", "entorno", "mundo.json"], "H8: a new world is born in the espacio base, and that choice travels in the zip");
   assert.deepEqual(JSON.parse(readFileSync(join(destino, "entorno", "espacio-base.json"), "utf8")), { schema: "numinia-engine/espacio-base@1", activa: true, semilla: 42 });
   assert.equal(readFileSync(join(destino, "datos", "objetos.jsonl"), "utf8"), '{"op":"s","key":"o2","value":{"x":2}}\n', "only complete lines travel");
-  assert.ok(readFileSync(join(destino, "aventura", "pnj", "bruno.json")).equals(readFileSync(join(origen.aventura, "pnj", "bruno.json"))));
+  assert.ok(readFileSync(join(destino, "aventura", "pnj", "lumen.json")).equals(readFileSync(join(origen.aventura, "pnj", "lumen.json"))));
   assert.ok(!existsSync(join(destino, "claves.env")));
   const otra = await cli("importar", destino, zip);
   assert.equal(otra.code, 1); assert.match(otra.err, /no está vacía/); assert.equal(otra.err.trim().split("\n").length, 1);
@@ -256,6 +257,8 @@ test("installer: --desinstalar stops and removes the services and Caddy, keeps t
   assert.match(env, /\bMOTOR_MUNDO=\$STATE\b/); assert.match(tpl, /^STATE=\/var\/lib\/numinia-motor\b/m);
   assert.match(tpl, /Environment=MOTOR_URL=[^\n]*AVENTURA_DIR=\$STATE\/aventura/, "the inhabitants read the world's own adventure");
   assert.match(tpl, /cp -r "\$PREFIX\/app\/aventuras\/ejemplo" "\$STATE\/\.aventura-nueva"/, "the installer seeds the adventure when absent");
+  assert.match(tpl, /cp -r "\$PREFIX\/app\/plantillas\/taller\/aventura" "\$STATE\/\.aventura-nueva"/, "a NEW world folder is born with the Taller onboarding (primera vez)");
+  assert.match(tpl, /\[ ! -e "\$STATE\/entorno" \] && \[ ! -e "\$STATE\/datos" \] && \[ ! -e "\$STATE\/mundo\.json" \]/, "...only when the folder holds none of a world's parts");
 });
 
 test("Dockerfile (C1): built from the installer, Node checked by sha256, 10001:10001 on 0.0.0.0:8790, /mundo, healthcheck", () => {
