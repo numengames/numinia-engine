@@ -41,7 +41,7 @@ import { createAvatares } from "./avatares.ts";
 import { asentadoEn, sueloDeVista } from "./avatares-politica.ts";
 import type { SueloTerreno } from "./avatares-politica.ts";
 import { prepararGltf, usarRenderer } from "./gltf.ts";
-import { ordenCarga, puedeEmpezar } from "./carga-orden.ts";
+import { contarPiezas, ordenCarga, puedeEmpezar } from "./carga-orden.ts";
 import type { Movimiento } from "./avatares-politica.ts";
 export type { Movimiento } from "./avatares-politica.ts";
 export type { CatalogoAvatares } from "./avatares.ts";
@@ -600,7 +600,22 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   }
   const files = new Map<string, Promise<{ g: Gltf; clone: Tools["clone"]; merge: Merge }>>(); // model -> its parsed file, shared by every copy
   // B3: shaders ready before a model shows (precompilar.ts): batches through compileAsync, in parallel where the GPU can
-  const precompilar = crearPrecompilador({ compilar: (g) => renderer.compileAsync(g as unknown as THREE.Object3D, camera, scene), grupo: () => new THREE.Group() as never, paralelo: () => paralelo });
+  // C: a model's textures go to the GPU here too, in the same task as its shaders and before it is shown — the first draw
+  // of a model then neither uploads nor decodes anything, and the loading screen's «ready» means textured, not just parsed.
+  const texturasSubidas = new WeakSet<THREE.Texture>();
+  function subirTexturas(raiz: THREE.Object3D): void {
+    raiz.traverse((x) => {
+      const m = (x as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      if (!m) return;
+      for (const mat of Array.isArray(m) ? m : [m]) for (const v of Object.values(mat)) {
+        const t = v as THREE.Texture | null;
+        if (!t || !(t as { isTexture?: boolean }).isTexture || texturasSubidas.has(t) || (t as { isVideoTexture?: boolean }).isVideoTexture) continue;
+        texturasSubidas.add(t);
+        try { renderer.initTexture(t); } catch { /* a texture that cannot be pre-uploaded is uploaded by its first draw, as before */ }
+      }
+    });
+  }
+  const precompilar = crearPrecompilador({ compilar: (g) => { subirTexturas(g as unknown as THREE.Object3D); return renderer.compileAsync(g as unknown as THREE.Object3D, camera, scene); }, grupo: () => new THREE.Group() as never, paralelo: () => paralelo });
   const instanciasPreparadas = new Set<string>();
   let xrPosible = false; // a headset can present here: its lotes start at INSTANCIAR_DESDE_VR, so those programs are warmed too
   void vrSupported().then((v) => { xrPosible = v; }, () => {});
@@ -1128,6 +1143,17 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (!s?.loaded || !s.medio?.enVivo) return false;
       s.medio.enVivo(stream);
       return true;
+    },
+    /**
+     * C: the world within view, for the loading screen: how many pieces stand within view distance (the room and what is near, as
+     * carga-orden.ts ranks them: what proximity loading defers is not counted), and how many of those are ready — the model
+     * downloaded, its textures uploaded and its shaders compiled (`loaded` is set only after precompilar), or failed (it will not
+     * come). Hidden things and sounds are not drawn, so they are not waited for. Avatars (their VRM and first clips) count too.
+     */
+    cargaMundo(): { total: number; listas: number; fallidas: number; avatares: { total: number; listos: number } } {
+      const { total, listas, fallidas } = contarPiezas((function* () { for (const [k, s] of things) yield { key: k, kind: s.want.kind, hidden: s.want.hidden, sala: s.want.sala, distancia2: distance2(s), loaded: s.loaded, failed: s.failed }; })(), verOcultos);
+      const a = avs.cargas();
+      return { total: total + a.pedidas, listas: listas + (a.pedidas - a.pendientes), fallidas, avatares: { total: a.pedidas, listos: a.pedidas - a.pendientes } };
     },
     /** B3: how the world's models got their shaders ready before showing (precompilar.ts): prepared, batches, failures,
      * shown without waiting (ESPERA_MAX_MS), in the queue, ms per batch, and whether this GPU links in parallel. */

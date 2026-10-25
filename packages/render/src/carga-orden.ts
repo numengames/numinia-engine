@@ -17,3 +17,22 @@ export function ordenCarga(t: { sala?: boolean }, distancia2: number): 0 | 1 | 2
 export function puedeEmpezar(cercaCargando: number, quedanCerca: boolean): boolean {
   return cercaCargando === 0 && !quedanCerca;
 }
+
+/** What the loading screen needs to know about one placed thing (C). */
+export type PiezaCarga = { key: string; kind?: string; hidden?: boolean; sala?: boolean; distancia2: number; loaded: boolean; failed: boolean };
+
+/**
+ * C: the pieces the loading screen waits for. Counted: the room and what is near (ordenCarga < 2) — what proximity loading defers
+ * (rank 2) is NOT, or the screen would wait for what the pump deliberately holds back. Not counted: the page's previews (`~` keys),
+ * sounds and hidden things (nothing to see). A failed piece counts as ready (it will not come, and must not trap the player).
+ */
+export function contarPiezas(cosas: Iterable<PiezaCarga>, verOcultos = false): { total: number; listas: number; fallidas: number } {
+  let total = 0, listas = 0, fallidas = 0;
+  for (const c of cosas) {
+    if (c.key.startsWith("~") || c.kind === "sonido" || (c.hidden && !verOcultos)) continue;
+    if (ordenCarga(c, c.distancia2) >= 2) continue;
+    total++;
+    if (c.failed) { fallidas++; listas++; } else if (c.loaded) listas++;
+  }
+  return { total, listas, fallidas };
+}

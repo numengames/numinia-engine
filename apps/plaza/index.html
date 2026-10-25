@@ -152,6 +152,9 @@
     #carga[hidden] { display: none; }
     #carga.ida { opacity: 0; pointer-events: none; }
     #carga .c-texto { margin: 14px 0 0; font: 16px/1 system-ui, sans-serif; letter-spacing: .04em; text-align: center; }
+    #carga .c-piezas { font: 13px/1.2 system-ui, sans-serif; letter-spacing: .04em; color: #9aa7b4; }
+    #carga .c-caja .c-piezas { margin: 8px 0 0; text-align: center; min-height: 16px; }
+    #carga .c-pie .c-piezas:not(:empty)::before { content: "· "; }
     #carga .c-puntos::after { content: ""; animation: c-puntos 1.4s steps(4, end) infinite; }
     @keyframes c-puntos { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } 100% { content: ""; } }
     @media (prefers-reduced-motion: reduce) { #carga { transition: none; } #carga .c-puntos::after { animation: none; content: "…"; } }
@@ -224,13 +227,14 @@
 <body>
   <div id="carga" aria-hidden="true"><!-- MVL3 step 1: moon + running dots, gone by main.ts once the first frame is drawn -->
     <svg class="c-malla" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false"><path pathLength="1" style="--a:0.02;--d:.3" d="M-60 96L80 36"/><path pathLength="1" style="--a:0.06;--d:.3" d="M-12 96L80 36"/><path pathLength="1" style="--a:0.10;--d:.3" d="M24 96L80 36"/><path pathLength="1" style="--a:0.14;--d:.3" d="M52 96L80 36"/><path pathLength="1" style="--a:0.18;--d:.3" d="M80 96L80 36"/><path pathLength="1" style="--a:0.22;--d:.3" d="M108 96L80 36"/><path pathLength="1" style="--a:0.26;--d:.3" d="M136 96L80 36"/><path pathLength="1" style="--a:0.30;--d:.3" d="M172 96L80 36"/><path pathLength="1" style="--a:0.34;--d:.3" d="M220 96L80 36"/><path pathLength="1" style="--a:0.04;--d:.2" d="M-20 88L180 88"/><path pathLength="1" style="--a:0.11;--d:.2" d="M-20 72L180 72"/><path pathLength="1" style="--a:0.17;--d:.2" d="M-20 60L180 60"/><path pathLength="1" style="--a:0.24;--d:.2" d="M-20 52L180 52"/><path pathLength="1" style="--a:0.30;--d:.2" d="M-20 46L180 46"/><path pathLength="1" style="--a:0.36;--d:.2" d="M-20 42L180 42"/><path pathLength="1" style="--a:0.43;--d:.2" d="M-20 39.5L180 39.5"/><path pathLength="1" style="--a:0.49;--d:.2" d="M-20 38L180 38"/><path class="h" pathLength="1" style="--a:0;--d:.12" d="M-20 36L180 36"/><path class="r z" pathLength="1" style="--a:.66;--d:.3" d="M-10 36L8 25L20 30L38 14L52 26L66 19L80 31L96 17L112 27L128 12L146 28L160 22L170 36"/></svg>
-    <p class="c-pie">Cargando <span class="c-pct">0 %</span></p><!-- H4: only with the mesh («eb») -->
+    <p class="c-pie">Cargando <span class="c-pct">0 %</span> <span class="c-piezas"></span></p><!-- H4: only with the mesh («eb») -->
     <div class="c-caja">
       <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
         <defs><mask id="c-luna-mask"><rect width="64" height="64" fill="#fff" /><circle cx="40" cy="24" r="22" fill="#000" /></mask></defs>
         <circle cx="32" cy="32" r="26" fill="#eef2f6" mask="url(#c-luna-mask)" />
       </svg>
       <p class="c-texto">Cargando<span class="c-puntos"></span></p>
+      <p class="c-piezas" role="status"></p>
     </div>
   </div>
   <div id="hud">Conectando…</div>

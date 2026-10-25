@@ -216,6 +216,8 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     nivelVoz(id: number, nivel: number): void { if (nivel > 0) nivelesVoz.set(id, nivel); else nivelesVoz.delete(id); },
     /** Loading, fading, or someone near moving: keep drawing. A near avatar standing idle does not (it breathes at the idle frame rate). */
     busy(): boolean { return ocupado; },
+    /** C: avatar files (a VRM, its first clips) asked for so far and how many are still on the way — the loading screen counts them. */
+    cargas(): { pedidas: number; pendientes: number } { return { pedidas: pedidas.size + animPedidas.size, pendientes: cargando }; },
     /** pesca v2: a hand's place in the world (the VRM's raw bone), or null while that player wears a capsule. */
     mano(clave: number | "yo", lado: "derecha" | "izquierda", out: THREE.Vector3): THREE.Vector3 | null {
       const c = avatares.get(clave)?.copia;

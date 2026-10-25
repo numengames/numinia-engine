@@ -50,7 +50,7 @@ Qué deja montado:
 | Habitantes IA (P4a) | servicio `numinia-habitantes`, mismo `app/` | usuario `numinia-hab`; solo habla con `127.0.0.1:8790` (`IPAddressDeny=any`); `MemoryMax=256M`, `CPUQuota=50%`; secreto de agentes en `/opt/numinia-engine/agentes.env` (lo lee systemd); quitarlos: `systemctl stop numinia-habitantes` o instalar con `--sin-habitantes` |
 | Servidor de instancia | `/opt/numinia-engine/app`, servicio `numinia-motor` | escucha solo en `127.0.0.1:8790`; usuario `numinia`; `LimitNOFILE=65536`, `MemoryMax=75%` (cámbialo con `--memoria 1G`) |
 | Página | `/opt/numinia-engine/www` | la sirve Caddy |
-| El mundo | `/var/lib/numinia-motor` (`MOTOR_MUNDO`) | `datos/`, `aventura/` (la primera vez, una copia de la de ejemplo; desde entonces es del mundo y los habitantes leen esa), `entorno/`, `sesiones/`, `mundo.json`; reinstalar o actualizar no lo toca |
+| El mundo | `/var/lib/numinia-motor` (`MOTOR_MUNDO`) | `datos/`, `aventura/` (un mundo nuevo nace con el onboarding del Taller —Lumen, 11 misiones, un cable de muestra: `plantillas/taller`—; desde entonces es del mundo y los habitantes leen esa), `entorno/`, `sesiones/`, `mundo.json`; reinstalar o actualizar no lo toca |
 | Caddy | `/etc/caddy/Caddyfile` | página + `/ws` al servidor, mismo origen; guarda el Caddyfile anterior en `Caddyfile.antes-del-motor` |
 | Cortafuegos | ufw | abre el puerto de ssh que esté en uso, 22, 80, 443 (tcp y udp); `--sin-cortafuegos` para no tocarlo |
 
@@ -120,7 +120,7 @@ docker build --build-arg COMMIT=$(git rev-parse HEAD) -t ghcr.io/numengames/numi
 Se publica como `ghcr.io/numengames/numinia-engine:sha-<commit de 40>` (amd64 y arm64; el workflow de publicar, que
 pega una persona con permiso). Escucha en `0.0.0.0:8790`: la página (`/`, la sirve el propio motor), `/ws`, `/health`,
 `/status`, `/a/*`, `/mundo*`. Corre como `10001:10001`. **El mundo es la carpeta montada en `/mundo`**
-(`datos/`, `aventura/`, `entorno/`, `sesiones/`, `mundo.json`; la primera vez se siembra la aventura de ejemplo). Las
+(`datos/`, `aventura/`, `entorno/`, `sesiones/`, `mundo.json`; un mundo nuevo nace con el onboarding del Taller: `plantillas/taller`). Las
 claves vienen del entorno: `JWT_SECRET` y `ADMIN_CODE` (el fichero de claves de la flota) o `MOTOR_SECRET` y
 `MOTOR_ADMIN`; sin ellas, el motor las hace una vez en `/mundo/claves.env` (600) y el registro dice dónde están, nunca
 cuáles son. Al subir un mundo por `/mundo`, lo cambia y sale con 75: `restart: on-failure` lo vuelve a arrancar.

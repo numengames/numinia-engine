@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ETAPAS, fraccionCarga, crearProgresoMalla } from "../apps/plaza/carga.ts";
+import { ETAPAS, TRAMO_PIEZAS, fraccionCarga, crearProgresoMalla } from "../apps/plaza/carga.ts";
 import type { Etapa } from "../apps/plaza/carga.ts";
 
 function pantalla() {
@@ -36,6 +36,38 @@ test("activar() pone la clase «eb» y se pone al día con lo ya cargado; cada e
   c.etapa("vista"); assert.equal(p.props["--p"], String(ETAPAS.vista));
   c.etapa("codigo"); assert.equal(p.props["--p"], String(ETAPAS.vista)); // a late older step does not pull the lines back
   c.etapa("listo"); assert.equal(p.props["--p"], "1"); assert.equal(p.pct.textContent, "100 %");
+});
+
+test("C: las piezas reales mueven las líneas entre la bienvenida y el 97 %, escriben «n de N piezas» y nunca retroceden", () => {
+  const p = pantalla();
+  const sitios = [{ textContent: "" as string | null }, { textContent: "" as string | null }];
+  const el = { ...p.el, querySelectorAll: (s: string) => ({ forEach: (f: (e: { textContent: string | null }) => void) => { if (s === ".c-piezas") sitios.forEach(f); } }) };
+  const c = crearProgresoMalla(el);
+  c.activar(); c.etapa("codigo"); c.etapa("estado"); c.etapa("vista");
+  c.piezas({ listas: 5, total: 10 });
+  assert.equal(p.props["--p"], String(ETAPAS.vista), "sin bienvenida las piezas no mueven las líneas (el 55 % de la vista manda)");
+  assert.equal(sitios[0].textContent, "5 de 10 piezas"); assert.equal(sitios[1].textContent, "5 de 10 piezas");
+  c.etapa("bienvenida");
+  assert.equal(c.fraccion(), ETAPAS.bienvenida + (TRAMO_PIEZAS.hasta - TRAMO_PIEZAS.desde) * 0.5);
+  c.piezas({ listas: 10, total: 10 });
+  assert.equal(p.props["--p"], String(TRAMO_PIEZAS.hasta));
+  c.piezas({ listas: 10, total: 20 }); // new pieces join the count (a late placement)
+  assert.equal(p.props["--p"], String(TRAMO_PIEZAS.hasta), "el trazo no vuelve atrás");
+  assert.equal(sitios[0].textContent, "10 de 20 piezas", "…pero el texto dice la verdad");
+  c.etapa("listo"); assert.equal(p.props["--p"], "1");
+});
+
+test("C: fraccionCarga con piezas: sin bienvenida o sin piezas no cambia; con todo listo no pasa del tramo", () => {
+  assert.equal(fraccionCarga(["vista"], { listas: 9, total: 10 }), ETAPAS.vista);
+  assert.equal(fraccionCarga(["bienvenida"], { listas: 0, total: 0 }), ETAPAS.bienvenida);
+  assert.equal(fraccionCarga(["bienvenida"], null), ETAPAS.bienvenida);
+  assert.equal(fraccionCarga(["bienvenida"], { listas: 10, total: 10 }), TRAMO_PIEZAS.hasta);
+  assert.equal(fraccionCarga(["bienvenida", "mundo"], { listas: 0, total: 10 }), ETAPAS.mundo, "el suelo ya hecho no baja");
+});
+
+test("C: el HTML trae el sitio del recuento en las dos pantallas (luna y malla)", () => {
+  const html = readFileSync(new URL("../apps/plaza/index.html", import.meta.url), "utf8");
+  assert.equal((html.match(/class="c-piezas"/g) ?? []).length, 2);
 });
 
 test("sin pantalla (null) no revienta", () => {

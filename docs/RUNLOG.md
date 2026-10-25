@@ -1679,3 +1679,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `lote/vr-1` sobre main `a59b3105`, cuatro fusiones normales de `vr/mis200-boton-listo` (con calentar y entrada-lista), `-multiview`, `-plaza-una-malla` y `-instanciar-2`.
 - Siguiente: probar en una Quest y una Pico reales (negro o parpadeo al entrar, «Preparando…», multiview solo medible en gafas, número de llamadas con `view.dibujo().instanciadas`).
+
+## 2026-10-25 · «primera vez»: la pantalla de carga espera al mundo entero y un mundo nuevo nace con el Taller · hecho
+- Qué: dos tarjetas juntas en un PR. (1) `t_9c719ff4`: la pantalla de carga sale solo cuando el mundo a la vista está entero (modelo bajado, texturas subidas, shaders compilados), escribe «n de N piezas», el tope pasa de 15 s a 45 s y, si salta, lo dice en consola y en el nuevo informe `carga`. En el mundo de eventos (227 objetos) la pantalla dura ≈4 s en local (antes ≈0,8 s) y ≈12 s con 4G (antes ≈8 s), pero nada aparece después de quitarse. (2) `t_b6173504`: un mundo recién creado nace solo con el onboarding del Taller (Lumen, 11 misiones y el cable de ejemplo «Botón rojo»); los mundos que ya existen no cambian.
+- Números: ver el cuerpo del PR (npm test, build, layers, tamaño, gates y piernas del navegador de la cabeza final). Versión 0.59.0 (menor: algo nuevo que no rompe nada).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `lote/primera-vez` sobre main `bc6fd99b`, dos fusiones normales de `primera-vez/carga-entera` y `primera-vez/mundo-nuevo-taller`.
+- Siguiente: probar en un móvil y una GPU reales cuánto dura la pantalla; el botón «crear mundo» de numinia.com y el instalador `.sh` sin ejecutar aún.

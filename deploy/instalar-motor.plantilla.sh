@@ -171,18 +171,27 @@ rm -rf "$PREFIX/new" "$PREFIX/app.old" "$PREFIX/www.old"
 echo "$BUILD" > "$PREFIX/VERSION"
 
 # ---------- the world folder (C2): it carries its own adventure ----------
-# A world without one gets a copy of the example once; from then on it is the world's (a newer engine never swaps it).
-# datos/ and sesiones/ stay where they always were; the engine reads them all from MOTOR_MUNDO.
+# A folder with none of a world's parts (no aventura/, entorno/, datos/ nor mundo.json) is a NEW world: it is born with the Taller
+# onboarding (plantillas/taller: Lumen, the 11 build-a-world missions, a sample cable, the espacio base; the same files the server's
+# `sembrar` copies) and nothing else. A world that exists without an aventura/ gets a copy of the example once, as before. From then on
+# it is the world's (a newer engine never swaps it). datos/ and sesiones/ stay where they always were; the engine reads them all from MOTOR_MUNDO.
 if [ ! -d "$STATE/aventura" ]; then
   mkdir -p "$STATE"
-  rm -rf "$STATE/.aventura-nueva"; cp -r "$PREFIX/app/aventuras/ejemplo" "$STATE/.aventura-nueva"
-  chown -R "$USER_NAME:$USER_NAME" "$STATE/.aventura-nueva"; mv "$STATE/.aventura-nueva" "$STATE/aventura"
-  say "mundo: su aventura es una copia de la de ejemplo ($STATE/aventura); desde ahora es suya"
-  # H8: a new world is born in the espacio base (the same file the server's `sembrar` writes); an existing entorno/ is never touched
-  if [ ! -d "$STATE/entorno" ]; then
-    mkdir -p "$STATE/entorno"
-    printf '{\n  "schema": "numinia-engine/espacio-base@1",\n  "activa": true,\n  "semilla": 42\n}\n' > "$STATE/entorno/espacio-base.json"
-    chown -R "$USER_NAME:$USER_NAME" "$STATE/entorno"
+  if [ ! -e "$STATE/entorno" ] && [ ! -e "$STATE/datos" ] && [ ! -e "$STATE/mundo.json" ] && [ -d "$PREFIX/app/plantillas/taller" ]; then
+    rm -rf "$STATE/.aventura-nueva" "$STATE/.entorno-nuevo"
+    cp -r "$PREFIX/app/plantillas/taller/aventura" "$STATE/.aventura-nueva"; cp -r "$PREFIX/app/plantillas/taller/entorno" "$STATE/.entorno-nuevo"
+    chown -R "$USER_NAME:$USER_NAME" "$STATE/.aventura-nueva" "$STATE/.entorno-nuevo"; mv "$STATE/.entorno-nuevo" "$STATE/entorno"; mv "$STATE/.aventura-nueva" "$STATE/aventura"
+    say "mundo nuevo: nace con el onboarding del Taller ($STATE/aventura, $STATE/entorno); desde ahora es suyo"
+  else
+    rm -rf "$STATE/.aventura-nueva"; cp -r "$PREFIX/app/aventuras/ejemplo" "$STATE/.aventura-nueva"
+    chown -R "$USER_NAME:$USER_NAME" "$STATE/.aventura-nueva"; mv "$STATE/.aventura-nueva" "$STATE/aventura"
+    say "mundo: su aventura es una copia de la de ejemplo ($STATE/aventura); desde ahora es suya"
+    # H8: a new world is born in the espacio base (the same file the server's `sembrar` writes); an existing entorno/ is never touched
+    if [ ! -d "$STATE/entorno" ]; then
+      mkdir -p "$STATE/entorno"
+      printf '{\n  "schema": "numinia-engine/espacio-base@1",\n  "activa": true,\n  "semilla": 42\n}\n' > "$STATE/entorno/espacio-base.json"
+      chown -R "$USER_NAME:$USER_NAME" "$STATE/entorno"
+    fi
   fi
 fi
 
