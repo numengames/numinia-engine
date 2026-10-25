@@ -239,6 +239,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   }));
   const manos = {
     cargar: cargarManos,
+    raiz: () => manosReal?.raiz ?? null,
     montar: (p: THREE.Object3D | null) => manosReal?.montar(p),
     update: (c: THREE.Camera | null) => manosReal?.update(c),
     reglas(o: Parameters<Manos["reglas"]>[0]) { Object.assign(reglasManos, o); manosReal?.reglas(o); },
@@ -269,6 +270,13 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const vr = createVR({ renderer, scene, camera, manos });
   // where XR exists, the hands' code is fetched a few seconds after start, so entering VR/AR does not wait for it
   void Promise.all([vrSupported(), arSupported()]).then(([v, a]) => { if (v || a) setTimeout(() => { void cargarManos().catch(() => {}); }, 3000); });
+  // MIS-200: once the hands are in and the world has stopped loading, link the programs only VR draws (rig, panels, vignette, watch, hands) while hidden,
+  // so the first VR frame does not compile them (200-860 ms measured). Only where a VR session can exist; nothing is drawn.
+  void vrSupported().then((v) => { if (!v) return; setTimeout(async () => {
+    try { await cargarManos(); } catch { /* no hands: the rest still warms */ }
+    for (let i = 0; i < 60 && (loading > 0 || precompilar.pendientes() > 0); i++) await new Promise((ok) => setTimeout(ok, 500));
+    try { await vr.calentar((o) => renderer.compileAsync(o, camera, scene)); } catch { /* best effort */ }
+  }, 3500); });
   const cenital = crearCenital(renderer, scene, world, backend); // J5: the zone from above (big map) and its footprints
   let selfXZ: { x: number; z: number; y?: number } | null = null;
   // J1: you and the nearest players as VRM humanoids (avatares.ts); the capsules above stay as their anchors

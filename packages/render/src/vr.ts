@@ -21,9 +21,12 @@ import type { CondicionesVR } from "./condiciones-vr.ts"; // types only: the ent
 import { ID_BARRA, palancaPagina, palancasDelPanel, type EntradaMano, type LadoMano, type ModeloVR, type Zona } from "./condiciones-vr-geom.ts"; // pure numbers, no three.js
 import { empujaFuera } from "./vr-paredes.ts";
 import { completarSesionXR, textoDeFallo } from "./xr-compat.ts"; // old headset browsers lack XRSession.enabledFeatures (Chrome 105)
+import { calentarOcultos } from "./precompilar.ts"; // MIS-200: warm what only VR draws while it is still hidden
 import { audio } from "./audio/nucleo.ts"; // S1: the engine's one audio graph (it sleeps when the session ends)
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
-export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void; andar?(): [number, number] | null;
+export type ManosXR = { cargar(): Promise<unknown>;
+  /** MIS-200: the hands' root group (once loaded), so its programs can be warmed before the session. */
+  raiz?(): THREE.Object3D | null; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void; andar?(): [number, number] | null;
   /** t_bf8947cf: where a controller points, flattened (world, unit); null without that controller. */
   dirMando?(lado: "izq" | "der"): [number, number] | null;
   /** Rediseño v2: a hand's wrist (world) and what presses by touch on the other hand (manos.ts). */
@@ -355,6 +358,14 @@ export function createVR(h: VRHooks) {
     for (const f of oyentesV2.reloj) try { f(b); } catch (e) { console.warn("[reloj]", e); }
   });
 
+  /** MIS-200 (t_fb2f9e37): link the programs of everything VR draws — rig (panels, «Salir», dialogue), vignette, note, watch, menu,
+   * entry notice, hands — while it is all still hidden, so the first VR frame does not stop to compile them. `compilar` is
+   * renderer.compileAsync(o, camera, scene). Resolves with how many objects were handed over. */
+  function calentar(compilar: (o: THREE.Object3D) => Promise<unknown>): Promise<number> {
+    const objs = [rig, vignette, nota, reloj.malla, menu.malla, aviso.malla, h.manos?.raiz?.(), condVR?.malla];
+    return calentarOcultos(objs as never, compilar as never);
+  }
+
   let lastError = ""; // why the last enter() failed (T1 report)
   async function enter(): Promise<boolean> {
     const xr = xrOf();
@@ -566,6 +577,7 @@ export function createVR(h: VRHooks) {
       dialogoMalla.visible = !!session;
     },
     /** The panel the hands may point at (manos.ts asks for it). */
+    calentar,
     paneles(): Panel[] { const out: Panel[] = dialogo && dialogoMalla.visible ? [panelDialogo] : []; out.push(...menu.paneles(), ...reloj.paneles(), ...(condVR?.paneles() ?? [])); if (fichaVR?.visible) out.push(fichaVR.panel); if (panel.visible) out.push(pagina === "ajustes" ? panelAjuste : panelSalir); return out; },
     /** c4: the entry bubble's panel (null until it has been loaded), and loading it. The page asks for it as soon as the bubble is up on a
      * headset-capable browser, so entering VR does not wait for it. */
