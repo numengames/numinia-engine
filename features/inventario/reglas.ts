@@ -19,7 +19,7 @@ export const LIM = {
   reliquiasPortadas: 3,  // canon: «no es posible portar más de tres Reliquias al mismo tiempo»
   reserva: BOLSA_HUECOS + 1 + 3, // engine: distinct objects per person (a stack counts once) = the bag's slots + what is carried (stored in pages: PAGINA)
   pila: 999,             // engine: units in one stack
-  clase: 32, nombre: 40, icono: 24, // bytes of text
+  clase: 32, nombre: 40, icono: 24, modelo: 64, competencia: 32, propiedad: 40, riesgo: 40, // bytes of text
 } as const;
 
 export type Objeto = {
@@ -32,16 +32,22 @@ export type Objeto = {
   valor: number;    // prestige points per unit; 0 if none
   n: number;        // units (tokens and catches stack); weapons and relics are always 1
   portado: boolean; // carried with you (weapons and relics only)
+  competencia: string; // Y3: the Competencia its property is articulated with (canon), from the adventure's objeto@1; "" = none
+  riesgo: string;      // Y3: the name of its Factor de Riesgo (what a Fracaso costs); "" = none
+  modelo: string;   // t_31e1f7ea: the 3D model of a weapon (sha256 of a .glb, as the world's server holds it); "" = none. Drawn in the avatar's hand while it is carried.
 };
 export type Inventario = { v: 1; serie: number; objetos: Objeto[] };
 /** What another feature hands over: the engine gives it an id and stacks it. */
-export type Entrega = { tipo: Tipo; clase: string; nombre: string; icono?: string; color?: Color; valor?: number; n?: number };
+export type Entrega = { tipo: Tipo; clase: string; nombre: string; icono?: string; color?: Color; valor?: number; n?: number; modelo?: string; competencia?: string; riesgo?: string };
 
 export const nuevoInventario = (): Inventario => ({ v: 1, serie: 0, objetos: [] });
 
 const corta = (s: unknown, max: number): string => { const t = typeof s === "string" ? s : ""; return new TextEncoder().encode(t).length <= max ? t : new TextDecoder().decode(new TextEncoder().encode(t).slice(0, max)).replace(/\uFFFD$/, ""); };
 const esTipo = (t: unknown): t is Tipo => TIPOS.includes(t as Tipo);
 const esColor = (c: unknown): c is Color => COLORES.includes(c as Color);
+/** A model is the sha256 of a .glb (64 lowercase hex) or nothing: anything else reads as «no model». */
+export const SHA256 = /^[0-9a-f]{64}$/;
+const modeloDe = (m: unknown, tipo: Tipo): string => (tipo === "arma" && typeof m === "string" && SHA256.test(m) ? m : "");
 
 /** Read what S4 stored: a broken value is an empty inventory (never a crash); each object is sanitised. */
 export function leerInventario(raw: unknown): Inventario {
@@ -58,7 +64,7 @@ export function leerInventario(raw: unknown): Inventario {
     objetos.push({
       id: r.id, tipo: r.tipo, clase: corta(r.clase, LIM.clase), nombre: corta(r.nombre, LIM.nombre), icono: corta(r.icono, LIM.icono),
       color: esColor(r.color) ? r.color : "", valor: Math.max(0, Math.floor(Number(r.valor) || 0)),
-      n: apila(r.tipo) ? n : 1, portado: !apila(r.tipo) && r.portado === true,
+      n: apila(r.tipo) ? n : 1, portado: !apila(r.tipo) && r.portado === true, modelo: modeloDe(r.modelo, r.tipo), competencia: corta(r.competencia, LIM.competencia), riesgo: corta(r.riesgo, LIM.riesgo),
     });
     ids.add(r.id);
   }
@@ -121,7 +127,7 @@ export function dar(inv: Inventario, e: Entrega): Resultado {
   }
   if (bolsaLlena(inv)) return { ok: false, motivo: `${textoLlena}.`, llena: true }; // a NEW slot is needed and there is none
   inv.serie++;
-  const objeto: Objeto = { id: `o${inv.serie}`, tipo: e.tipo, clase, nombre, icono: corta(e.icono, LIM.icono), color, valor, n, portado: false };
+  const objeto: Objeto = { id: `o${inv.serie}`, tipo: e.tipo, clase, nombre, icono: corta(e.icono, LIM.icono), color, valor, n, portado: false, modelo: modeloDe(e.modelo, e.tipo), competencia: corta(e.competencia, LIM.competencia), riesgo: corta(e.riesgo, LIM.riesgo) };
   inv.objetos.push(objeto);
   return { ok: true, objeto };
 }
@@ -177,6 +183,9 @@ export function mundoDefineGraboso(ficheros: readonly { fichero: string; texto: 
   }
   return false;
 }
+
+/** t_31e1f7ea: the weapon the avatar holds in its hand — the carried weapon, when it has a model. At most one (the canon carries one). */
+export const armaEnMano = (inv: Pick<Inventario, "objetos">): Objeto | null => inv.objetos.find((o) => o.tipo === "arma" && o.portado && o.modelo !== "") ?? null;
 
 /** A short summary for the sheet: «3 objetos · Semillas: 4 puntos de Prestigio». */
 export function resumen(inv: Inventario): { objetos: number; portados: number; prestigio: number } {

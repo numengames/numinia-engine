@@ -7,13 +7,14 @@ import { inventario } from "./feature.ts";
 import { BOLSA_HUECOS, grabosoLibre } from "./reglas.ts";
 import type { Color, Tipo } from "./reglas.ts";
 
-export type ObjetoVista = { id: string; tipo: Tipo; clase: string; nombre: string; icono: string; color: Color; valor: number; n: number; portado: boolean };
+export type ObjetoVista = { id: string; tipo: Tipo; clase: string; nombre: string; icono: string; color: Color; valor: number; n: number; portado: boolean; modelo: string; competencia: string; riesgo: string };
 type Res = { ok: true } | { ok: false; why: string };
 
 export function crearCliente() {
   let A: ClientApi | null = null;
   let objetos: ObjetoVista[] = [], llegando: ObjetoVista[] | null = null, esperados = 0;
   const estado = { ultimoRechazo: "", ultimoRecibido: "", llena: false, huecos: BOLSA_HUECOS as number, graboso: false }; // graboso: the world defines the Graboso as a relic; llena: the last refusal was «la Bolsa está llena» (until the next list arrives)
+  const armas = new Map<number, { modelo: string; nombre: string }>(); // who holds which weapon in their hand now (for checks and the sheet)
   const oyentes = new Set<() => void>();
   const avisar = () => { for (const f of oyentes) { try { f(); } catch { /* a panel's problem is its own */ } } };
   const sin = (why: string): Res => ({ ok: false, why });
@@ -24,6 +25,8 @@ export function crearCliente() {
     lista: (): ObjetoVista[] => [...objetos].sort((a, b) => Number(b.portado) - Number(a.portado)),
     portados: (): ObjetoVista[] => objetos.filter((o) => o.portado),
     reserva: (): ObjetoVista[] => objetos.filter((o) => !o.portado),
+    /** t_31e1f7ea: the weapon in each person's hand now (entity → its model and name), as the server shares it. */
+    armasEnMano: (): Record<number, { modelo: string; nombre: string }> => Object.fromEntries(armas),
     /** The Bolsa galáctica: slots in use (everything not carried; a stack is one) of `huecos` (the server says how many). */
     bolsa: () => ({ ocupados: objetos.filter((o) => !o.portado).length, huecos: estado.huecos }),
     /** t_f87ffb93: may this player use the Graboso (button, K, the watch's «Grabar»)? Yes unless the world defines it as a relic and you do not carry it. */
@@ -41,8 +44,16 @@ export function crearCliente() {
     api.on("lista", (m) => { estado.llena = false; estado.huecos = Number(m.huecos) || BOLSA_HUECOS; estado.graboso = m.graboso === true; esperados = Number(m.total); llegando = []; if (esperados === 0) { objetos = []; llegando = null; avisar(); } });
     api.on("objeto", (m) => {
       if (!llegando) return;
-      llegando.push({ id: String(m.id), tipo: m.tipo as Tipo, clase: String(m.clase), nombre: String(m.nombre), icono: String(m.icono ?? ""), color: (m.color as Color) ?? "", valor: Number(m.valor) || 0, n: Number(m.n) || 0, portado: m.portado === true });
+      llegando.push({ id: String(m.id), tipo: m.tipo as Tipo, clase: String(m.clase), nombre: String(m.nombre), icono: String(m.icono ?? ""), color: (m.color as Color) ?? "", valor: Number(m.valor) || 0, n: Number(m.n) || 0, portado: m.portado === true, modelo: String(m.modelo ?? ""), competencia: String(m.competencia ?? ""), riesgo: String(m.riesgo ?? "") });
       if (llegando.length >= esperados) { objetos = llegando; llegando = null; avisar(); }
+    });
+    // t_31e1f7ea: the weapon each person holds in their hand (shared state `a:<entity>`) → the page draws it on their avatar
+    api.state.onChange((k, v) => {
+      if (!k.startsWith("a:")) return;
+      const ent = Number(k.slice(2));
+      if (!Number.isInteger(ent)) return;
+      if (v) armas.set(ent, { modelo: String(v.modelo), nombre: String(v.nombre) }); else armas.delete(ent);
+      api.view.lleva?.(ent, v ? { model: String(v.modelo), donde: "mano", nombre: String(v.nombre) } : null, "arma");
     });
     api.on("recibido", (m) => { estado.ultimoRecibido = String(m.nombre); });
     api.on("rechazado", (m) => { estado.ultimoRechazo = String(m.motivo); estado.llena = m.llena === true; avisar(); });

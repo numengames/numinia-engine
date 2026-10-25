@@ -181,7 +181,7 @@ const session = new ClientSession(transport, {
 
     elemento: (k, v) => view.elementos.poner(k, v),
     // N18: what each person wears (features/bienes): a good's model in a hand or on the head
-    lleva: (e, v) => view.vestir(e === session.entity ? "self" : e, v),
+    lleva: (e, v, ranura) => view.vestir(e === session.entity ? "self" : e, v, ranura),
     // D-045: a fade when the server puts me back on a safe spot (features/suelo); the live region reads the announcement
     fundido: (ms) => { const f = document.getElementById("fundido")!; f.style.transition = "none"; f.style.opacity = "1"; f.offsetHeight; f.style.transition = `opacity ${ms}ms ease-out`; f.style.opacity = "0"; f.dataset.ultimo = String(Date.now()); },
     // J7b: the moves of the wheel, played on the avatar's VRM (false = a capsule: the feature shows a label)

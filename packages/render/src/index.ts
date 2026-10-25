@@ -1142,7 +1142,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     llevando(): Record<string, Llevar> { return Object.fromEntries(llevados); },
     /** N18: put one of a person's goods (a model by its sha256) in their right hand or on their head, for everyone who
      * sees them (`"self"` = you); `null` takes it off. features/bienes decides who wears what (view.lleva). */
-    vestir(t: Target, p: { model: string; donde: "mano" | "cabeza"; nombre?: string } | null): void { puestos.poner(t, p); },
+    vestir(t: Target, p: { model: string; donde: "mano" | "cabeza"; nombre?: string } | null, ranura?: "arma"): void { puestos.poner(t, p, ranura); },
     /** N18: a model (sha256) turning in its own small canvas — the sheet's «ver en 3D». Close it when it goes away. */
     vitrina(canvas: HTMLCanvasElement, model: string) { return crearVitrina(canvas, async () => (await getTools()).load(assetUrl(model)).then((g) => g.scene as THREE.Object3D), { pixelRatio: renderer.getPixelRatio() }); },
     /** N18 (for checks): who wears what, loaded, drawn this frame, and at what height. */
