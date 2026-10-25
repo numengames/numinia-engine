@@ -8,7 +8,8 @@ import { Instance } from "../packages/instance/src/index.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
 import type { GuestKeeper } from "../packages/client/src/index.ts";
 import { signer } from "../packages/server/src/secret.ts";
-import { TICK_HZ, getMotionExtra, stateHash, MODO_PIE, MODO_VOLANDO, BTN_JUMP, BTN_BAJAR } from "../packages/sim/src/index.ts";
+import { TICK_HZ, getMotionExtra, stateHash, MODO_PIE, MODO_VOLANDO, BTN_JUMP, BTN_RUN, BTN_BAJAR, createSim, spawnAvatar, getBody } from "../packages/sim/src/index.ts";
+import { encodeSnapshot, decodeSnapshot } from "../packages/net/src/index.ts";
 import chatServer from "../features/chat/server.ts";
 import { crearCliente as crearChat } from "../features/chat/client.ts";
 import { vuelo } from "../features/vuelo/feature.ts";
@@ -123,4 +124,62 @@ test("vuelo: the order is recorded in the simulation — two worlds with the sam
   };
   assert.equal(corre(true), corre(true));
   assert.notEqual(corre(true), corre(false));
+});
+
+/** A flight script with sticks and buttons: climb, forward, run, descend, strafe up — `ticks` client ticks long, never still. */
+const guion = (i: number): [number, number, number] => {
+  const f = i % 60;
+  if (f < 15) return [0, 0, BTN_JUMP];                    // straight up
+  if (f < 30) return [0, -127, BTN_JUMP | BTN_RUN];       // forward and up, running
+  if (f < 45) return [100, -60, BTN_BAJAR];               // diagonal and down
+  return [-127, 0, 0];                                    // sideways at the same height
+};
+
+test("vuelo: the wire carries «vuela» (snapshot flags bit 3) and the page's one-avatar sim takes it", () => {
+  const sim = createSim(1, 0); spawnAvatar(sim, 0);
+  const antes = decodeSnapshot(encodeSnapshot(sim, 0, 0, []))!;
+  assert.equal(antes.self.vuela, 0);
+  sim.mo.cols.modo[0] = MODO_VOLANDO;
+  const volando = decodeSnapshot(encodeSnapshot(sim, 0, 0, []))!;
+  assert.equal(volando.self.vuela, 1);
+  assert.deepEqual({ ...volando.self, id: undefined, vuela: undefined }, { ...antes.self, id: undefined, vuela: undefined }, "the other flag bits keep their place");
+  assert.equal(getBody(sim, 0).vuela, 1);
+});
+
+for (const [nombre, retraso] of [["snapshots on time", 1], ["snapshots arriving in bursts every 4 ticks, 3+ inputs always pending", 4]] as const) {
+  test(`vuelo: prediction flies with the server — no corrections over 400 ticks of climbing, running and descending (${nombre})`, () => {
+    const W = mundo(2, { vuelo: "todos" });
+    const [A, B] = W.gente;
+    W.pump(4);
+    W.decir(A, "/volar");
+    assert.equal(W.modo(A), MODO_VOLANDO);
+    const antes = A.s.stats.corrections, suelo = W.y(A);
+    let maxAlto = suelo, minAlto = suelo;
+    for (let i = 0; i < 400; i++) {
+      const [mx, mz, b] = guion(i);
+      A.s.tick(mx, mz, b); B.s.tick(0, 0, 0); B.t.flush();
+      W.inst.tick(); B.t.flush();
+      if ((i + 1) % retraso === 0) A.t.flush(); // what the server said arrives late and all at once; the page keeps predicting meanwhile
+      const alto = A.s.selfPosition(1).y;
+      maxAlto = Math.max(maxAlto, alto); minAlto = Math.min(minAlto, alto);
+    }
+    for (let k = 0; k < retraso + 2; k++) { A.s.tick(0, 0, 0); W.inst.tick(); A.t.flush(); }
+    assert.equal(A.s.stats.corrections - antes, 0, "the server never had to move a flying player");
+    assert.ok(maxAlto > suelo + 3, `it really climbed (${maxAlto.toFixed(1)} m)`);
+    assert.ok(A.s.stats.snapshots > 100, "the server did answer");
+  });
+}
+
+test("vuelo: landing — the flag goes back to 0 and the page walks again (gravity) with no correction either", () => {
+  const W = mundo(1, { vuelo: "todos" });
+  const [A] = W.gente;
+  W.pump(4);
+  W.decir(A, "/volar");
+  W.pump(TICK_HZ, BTN_JUMP);
+  W.decir(A, "/aterrizar");
+  const antes = A.s.stats.corrections;
+  W.pump(TICK_HZ * 8);
+  assert.equal(W.modo(A), MODO_PIE);
+  assert.ok(A.s.selfPosition(1).grounded, "back on the floor");
+  assert.ok(A.s.stats.corrections - antes <= 1, `at most the one correction of the landing order itself (${A.s.stats.corrections - antes})`);
 });
