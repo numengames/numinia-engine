@@ -120,6 +120,12 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     defecto: "mirada", requiere: ["xrVr"],
   },
   {
+    grupo: "controles", id: "gestoAndarVR", tipo: "eleccion", nombre: "Andar con las manos en VR",
+    describe: "Con las manos sin mandos: Apuntar = pellizca y andas hacia donde apunta la mano; Remar = pellizca y echa la mano atrás para avanzar, adelante para frenar.",
+    opciones: [{ valor: "apuntar", nombre: "Apuntar (como hasta ahora)" }, { valor: "remar", nombre: "Remar (atrás acelera, adelante frena)" }],
+    defecto: "apuntar", requiere: ["xrVr"],
+  },
+  {
     grupo: "controles", id: "vrManoMenu", tipo: "eleccion", nombre: "Mano del menú de muñeca",
     describe: "En qué muñeca sale el reloj del menú dentro de VR. La otra mano es la que lo pulsa.",
     opciones: [{ valor: "izq", nombre: "Izquierda" }, { valor: "der", nombre: "Derecha" }],
