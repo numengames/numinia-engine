@@ -17,6 +17,8 @@ import { constructor } from "../../features/objetos/client.ts";
 import { chatDePagina } from "../../features/chat/client.ts";
 import { montarConstructor } from "./constructor.ts";
 import { montarConstructorVR } from "./constructor-xr.ts";
+import { montarReaccionClic } from "./reaccion-clic.ts"; // lote 5: a click on a moñoni makes it hop
+import { sonar as sonarLocalPlaza } from "./sonar.ts";
 import { montarSoltar } from "./soltar.ts";
 import { montarAvatar } from "./avatar.ts"; // H10: your avatar — house or uploaded .vrm, for every visitor
 import { montarHuecos } from "./huecos.ts";
@@ -285,6 +287,9 @@ const constructorUI = montarConstructor(constructor, view, document.getElementBy
     subir: () => soltar.elegir() }); // C3, C4, ux2-dock: the card, «Lógica», «Subir»; `mapa`, `cable` and `soltar` are built below, only read later
 // ---- M22b-3: the same builder, picked and moved with a VR controller's ray instead of a mouse ----
 const constructorVR = montarConstructorVR(constructor, view);
+// ---- lote 5: a plain click on a moñoni of the plaza makes it hop (local; the builder's click is its own) ----
+const panelConstruir = document.getElementById("panel-construir")!;
+const reaccionClic = montarReaccionClic({ view, objetos: () => constructor.lista(), construyendo: () => !panelConstruir.hidden, sonar: (id) => { sonarLocalPlaza(id, { gain: 0.3 }, 150); } });
 // ---- H9: drop your own .glb on the world (or «Añadir › Subir» in the builder's dock): uploaded by sha256, placed for everyone ----
 const soltar = montarSoltar({ session, view, puede: () => constructor.estado.puede, origen: activos, billete: () => localStorage.getItem(GUARDA) });
 // ---- H10: your avatar — one of the house's or your own .vrm (everyone, not only builders); saved with your identity ----

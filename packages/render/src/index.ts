@@ -88,6 +88,7 @@ export type { Forma, Mezcla, Metodo, Muestra } from "./materia-politica.ts";
 export type { Calidad, Nivel } from "./calidad.ts";
 import { decidirLOD } from "./lod-politica.ts";
 import { personaEn, type Proyectada } from "./gente-politica.ts";
+import { REACCION_MS, reaccionDe } from "./reaccion.ts"; // lote 5: the hop of a clicked thing
 export { decidirLOD, LOD_LEJOS_M, LOD_HISTERESIS_M } from "./lod-politica.ts";
 export type { EstadoLOD } from "./lod-politica.ts";
 
@@ -313,6 +314,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   type Target = number | "self";
   const labels = new Map<Target, { mesh: THREE.Mesh; until: number }>();
   const bounces = new Map<Target, number>(); // target -> until (ms)
+  const reacciones = new Map<string, number>(); // lote 5: placed thing key -> when its little hop started (ms); see reaccion.ts
   const labelGeo = new THREE.PlaneGeometry(1.6, 0.4);
   const meshOf = (t: Target): THREE.Mesh | undefined => (t === "self" ? (selfMesh.visible ? selfMesh : undefined) : others.get(t));
   const nombres = createNombres({ world, camera, avatarOf: meshOf }); // J3: names over heads and speech bubbles
@@ -724,6 +726,16 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   let mediosSonando = false;
   function updateThings(dt: number): void {
     animatingNear = false; mediosSonando = false;
+    if (reacciones.size) { // lote 5: a clicked thing hops on top of where its state puts it, and goes back exactly there when it ends
+      const t = performance.now();
+      for (const [k, t0] of reacciones) {
+        const s = things.get(k), x = (t - t0) / REACCION_MS;
+        if (!s || x >= 1 || llevados.has(k) || editor.retiene(k, s.want)) { reacciones.delete(k); if (s && !llevados.has(k) && !editor.retiene(k, s.want)) placeGroup(s); continue; }
+        const r = reaccionDe(x), w = s.want;
+        s.group.position.y = w.y + r.sube * Math.max(0.3, Math.abs(w.sy));
+        s.group.scale.set(w.sx * r.ancho, w.sy * r.alto, w.sz * r.ancho);
+      }
+    }
     const r2 = ANIMATE_WITHIN_M ** 2;
     // S4/S5: de dónde oyes es LO QUE DICE EL OYENTE (audio/oyente.ts): la cámara fuera de XR, la pose real del visor
     // dentro. Antes era la posición DE RED del jugador +1,5 m y sin orientación, y por eso un sonido a tu izquierda
@@ -1120,6 +1132,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.partes = undefined; s.radio = undefined; s.horneado = false; s.piezaCerca = undefined; s.piezaLejos = undefined; s.lod = undefined; s.preparando = undefined; s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpPronto(); } // a baked copy cannot move: load it whole
       else if (!t.animate && s.mixer) { s.mixer.stopAllAction(); s.mixer = undefined; }
     },
+    /** Lote 5: the little hop of a clicked thing (reaccion.ts) for each key given; the keys not placed are ignored. Local: nothing is sent. */
+    reaccionar(keys: readonly string[]): number { const t = performance.now(); let n = 0; for (const k of keys) if (things.has(k) && !k.startsWith("~")) { reacciones.set(k, t); n++; } return n; },
+    /** For checks: the things hopping right now. */
+    reaccionando(): string[] { return [...reacciones.keys()]; },
     /** H1: things placed, how many have their model drawn, and how many failed to load (for checks). `~` keys = the page's previews, not counted. */
     objects(): { placed: number; loaded: number; failed: number } {
       let placed = 0, loaded = 0, failed = 0;
@@ -1223,7 +1239,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
     /** MIS-200 (t_9687b5fc): the world still loads models or shaders: the entry buttons wait (the same gate as the VR entry, not busy()). */
     cargando(): boolean { return loading > 0 || precompilar.pendientes() > 0; },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || reacciones.size > 0 || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */
