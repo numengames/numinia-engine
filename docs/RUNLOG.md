@@ -1693,3 +1693,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `lote/3` sobre main `86de6bcb`, dos fusiones normales de `lote3/sonido-red-ia` y `lote3/mapa`.
 - Siguiente: reconexión automática tras una caída; oír los sonidos con una persona; «Ir» en VR sigue teletransportando.
+
+## 2026-10-25 · lote 4: arma en la mano, Graboso con su reliquia, selección y giro de grupo en el constructor · hecho
+- Qué: ocho tarjetas juntas en un PR. `t_f87ffb93`: en un mundo que define la reliquia Graboso, el botón, la tecla K y la fila «Grabar» del reloj de VR solo salen a quien la lleva (un mundo que no la define lo deja para todos, como antes). `t_31e1f7ea`: el arma equipada se dibuja en la mano del avatar para todos. `t_2b9f99c3` (primer tramo): `objeto@1` por aventura y `otorga objeto:` (misiones v8, inventario v4); el paso `coge` queda para después. `t_83d449d8`: Mayús + arrastrar dibuja un rectángulo y selecciona. `t_9ba70b26`: el grupo gira y escala como uno y un solo Ctrl+Z lo deshace. `t_20955be6`: caja fantasma de encaje, verde cuando encaja. `t_df22a793` (primer tramo): dos dedos giran y escalan UNA cosa en el móvil. `t_0a54a5ec`: piernas `constructor-grupo.mjs` y paso de dos dedos en `constructor-tactil.mjs`.
+- Números: ver el cuerpo del PR. Versión 0.61.0 (menor: algo nuevo que no rompe nada).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `lote/4` sobre main `7cc658de`, fusiones normales de `lote3/inventario-2` y `lote4/constructor`, y de main.
+- Siguiente: el paso `coge` y las recompensas de arma o reliquia; selección múltiple con el dedo.
