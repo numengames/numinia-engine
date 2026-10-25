@@ -40,6 +40,7 @@ import { montarMenuBarra } from "./menu-barra.ts"; // ux2-barra: the bar's «Cá
 import { estadoCamara, filasDeAyuda } from "./menu-logica.ts";
 import { crearSonidos, ponerSonidos, RUTA_TABLA, sonidos } from "../../packages/render/src/audio/sonidos.ts"; // S6: the house catalogue (its table comes from /sonidos.json; the files are served by their sha256)
 import { montarMapa } from "./mapa.ts";
+import { crearIrAndando, frase } from "../../packages/client/src/ir-andando.ts";
 import { montarFicha } from "./ficha.ts";
 import { avatarQueLlevas, lineaDeTu } from "./tu-logica.ts"; // «Tú»: which house avatar you wear, for its portrait
 import { montarObjetivo } from "./objetivo.ts";
@@ -418,7 +419,15 @@ const inventario = montarInventario(inventarioCtl, document.getElementById("inve
 // ---- J5: minimap (corner), big map (M, «Mapa») and player sheet (I, «Ficha»); other branches' contracts are read
 // from __numinia when present (misiones.objetivos/resumen, ajustes.abrir, chat.nombres) ----
 const otros = () => (globalThis as unknown as { __numinia?: Record<string, unknown> }).__numinia ?? {};
-const mapa = montarMapa({ session, view, otros, alAgente: (q) => { mapa.cerrar(); if (view.personaEnPantalla(q) && gente.tarjeta(q)) return; gente.elegir(q); }, /* the big map is a modal dialog: close it so the card shows; an AI behind the camera gets her sheet in «Gente» instead */ alIr: (donde) => { constructorUI.alIr({ id: donde.id.replace(/^c:objetos:/, "") }); }, teletransporte: { activo: () => viajar.activo(), ir: (x, z, nombre) => viajar.irAPunto(x, z, nombre) } });
+// MIS-257 (t_fb535386): the map's «Ir» walks you there. ir-andando.ts only decides the direction each tick; readAxes below feeds it
+// to the simulation as the stick, so walls and slopes work as for a person, and any hand on the controls stops it.
+const andar = crearIrAndando({
+  ahora: () => performance.now(),
+  alTerminar: (f) => { if (f.motivo !== "cancelado" && f.motivo !== "llegada") anunciar(frase(f.motivo, f.destino.nombre)); mapa.andandoTermino(f); }, // the arrival is said by the map (quitarDestino)
+});
+let andarCorrer = false;
+const mapa = montarMapa({ session, view, otros,
+  andar: { ir: (d) => { const yo = session.entity >= 0 ? session.selfPosition(1) : null; return yo ? andar.empezar(d, yo) : { ok: false, motivo: "invalido" as const }; }, parar: () => andar.cancelar(), activo: () => andar.activo() },  alAgente: (q) => { mapa.cerrar(); if (view.personaEnPantalla(q) && gente.tarjeta(q)) return; gente.elegir(q); }, /* the big map is a modal dialog: close it so the card shows; an AI behind the camera gets her sheet in «Gente» instead */ alIr: (donde) => { constructorUI.alIr({ id: donde.id.replace(/^c:objetos:/, "") }); }, teletransporte: { activo: () => viajar.activo(), ir: (x, z, nombre) => viajar.irAPunto(x, z, nombre) } });
 // ---- N13: photo mode (P or the camera button): the photo owns the screen and the keys; your avatar stands still ----
 const foto = montarFoto({ view, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), mapa, boton: document.getElementById("foto-abrir") as HTMLButtonElement, volverA: () => document.getElementById("camara-abrir"), ocupado: () => dardos.tirando(),
   aparecer: { puede: () => (viajar.estado.recibido ? viajar.foto() : null), pedir: (s) => { viajar.aparecerEnFoto(s.x, s.y, s.z); } }, // N16: the world may put you at the photo's place
@@ -482,7 +491,19 @@ const avisar = (t: string) => { const box = document.getElementById("avisos")!; 
 const rueda = montarRueda({ gestos: gestosDePagina, favoritosIniciales: FAVORITOS_INICIALES, aviso: avisar,
   haciendo: () => view.avatares().lista.find((a) => a.id === "yo")?.movimiento ?? null });
 
+/** MIS-257: is a hand on the controls (a key, the touch stick, the pad, the headset's stick, a jump)? Then the walk-by-itself gives way. */
+function manoEnMandos(): boolean {
+  const pad = view.cam.mando();
+  return keys.has("KeyW") || keys.has("KeyA") || keys.has("KeyS") || keys.has("KeyD") || keys.has("ArrowUp") || keys.has("ArrowDown") || keys.has("ArrowLeft") || keys.has("ArrowRight")
+    || keys.has("Space") || saltoPendiente || touch !== null || !!(pad && (pad[0] || pad[1])) || (view.vr.active && Math.hypot(...view.vr.axes()) > 0.2);
+}
 function readAxes(): [number, number] {
+  andarCorrer = false;
+  if (andar.activo() && (condiciones.cerrada() || foto.activo())) andar.cancelar();
+  if (andar.activo() && !rueda.abierta()) {
+    const yo = session.entity >= 0 ? session.selfPosition(1) : null, e = yo ? andar.ejes(yo, manoEnMandos()) : null;
+    if (e) { andarCorrer = e.correr; return [Math.round(e.x * STICK_MAX), Math.round(e.z * STICK_MAX)]; }
+  }
   if (condiciones.cerrada()) { soltarEntradaPlana(); return [0, 0]; } // condiciones/c3: inside the bubble nobody walks (the server holds them too)
   if (rueda.abierta()) return [0, 0]; // J7b: choosing a move never walks (walking would end it)
   // motor-vr t_ab71cff0: while the headset presents, ITS input is the only source of movement. A flat-page input
@@ -533,6 +554,7 @@ function readButtons(): number {
   // RUN_EDGE close to 1: most of the stick's travel walks (human pace), only the very end runs
   // (was 0.9 — reached with barely half the throw, so there was no way to just walk).
   const RUN_EDGE = 0.97;
+  if (andarCorrer) b |= BTN_RUN; // MIS-257: a long walk-by-itself runs (ir-andando.ts), the last stretch walks
   if (view.vr.active) { if (Math.hypot(...view.vr.axes()) >= RUN_EDGE) b |= BTN_RUN; return b; } // in VR only the headset's stick runs
   const alBorde = touch && Math.hypot(touch.dx, touch.dy) >= RUN_EDGE;
   if (keys.has("ShiftLeft") || keys.has("ShiftRight") || alBorde) b |= BTN_RUN;
@@ -733,7 +755,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones };
 
 // ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
 // of the bar's «Menú» (O), no longer a corner button ----

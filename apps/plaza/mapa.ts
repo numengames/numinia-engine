@@ -18,6 +18,8 @@ import { MARCA_IA } from "../../packages/instance/src/identidad.ts";
 import { crearDialogo, anunciar } from "./paneles.ts";
 import { perfil, esTactil } from "./perfil-aparato.ts";
 import { icono } from "./iconos.ts";
+import { frase } from "../../packages/client/src/ir-andando.ts";
+import type { Fin } from "../../packages/client/src/ir-andando.ts";
 import { tituloDe } from "../../packages/render/src/menu-secciones.ts"; // v2 paridad: the map's name is the one list's
 import { esMovil } from "../../packages/client/src/movil.ts"; // U24
 import "./mapa.css";
@@ -41,6 +43,8 @@ export type HostMapa = {
   otros(): Record<string, any>;
   /** U27 (MVL1): go to a marked site of the map (features/teletransporte): omitted = no «Ir» button (this world's page did not wire it). */
   teletransporte?: { activo(): boolean; ir(x: number, z: number, nombre: string): void };
+  /** MIS-257: walk by yourself to a point on the ground (packages/client/src/ir-andando.ts; the page feeds the stick). Omitted = no «Ir» that walks. */
+  andar?: { ir(d: { x: number; z: number; nombre: string }): { ok: true } | { ok: false; motivo: "ya-estas" | "lejos" | "invalido" }; parar(): void; activo(): boolean };
   /** C2: called after «Ir» sent the trip, with what you went to (the page selects it in the builder, opens its card…). */
   alIr?(donde: { id: string; nombre: string; x: number; z: number }): void;
   /** ia-visible S8: the marker picked is an AI in the world; the page opens its card (gente.tarjeta). Omitted = the map only shows its detail. */
@@ -225,8 +229,28 @@ export function montarMapa(h: HostMapa) {
   function irA(m: { id: string; nombre: string; x: number; z: number }): void {
     if (!h.teletransporte?.activo()) return;
     if (yo) origenViaje = { x: yo.x, z: yo.z, nombre: "donde estabas" };
+    h.andar?.parar(); // a trip by teleport replaces a walk
     h.teletransporte.ir(m.x, m.z, m.nombre);
     h.alIr?.({ id: m.id, nombre: m.nombre, x: m.x, z: m.z });
+    pintarDetalle();
+  }
+  // MIS-257: «Ir» — the avatar walks to the point over the ground (the page feeds the stick; walls stop it, a hand on the
+  // controls stops it). The point is marked as the destination too (a column of light and a marker on both maps), the
+  // big map closes so you see yourself go, and every ending says why in a notice (an arrival is said by quitarDestino).
+  const decir = anunciar; // the notice shows at the top (paneles.ts) and is read aloud
+  function irAndando(m: { id: string; nombre: string; x: number; z: number }): boolean {
+    if (!h.andar) return false;
+    const r = h.andar.ir({ x: m.x, z: m.z, nombre: m.nombre });
+    if (!r.ok) { decir(frase(r.motivo, m.nombre)); return false; }
+    if (!destino || destino.id !== m.id) marcarDestino(m);
+    decir(frase("empieza", m.nombre));
+    if (panel.abierto) panel.cerrar(); // the big map is a modal dialog: close it so you see yourself walk
+    pintarDetalle();
+    return true;
+  }
+  /** The page tells the map a walk ended (the words were already said): an arrival clears the marker it was walking to. */
+  function andandoTermino(f: Fin): void {
+    if (f.motivo === "llegada" && destino && destino.x === f.destino.x && destino.z === f.destino.z) quitarDestino(null);
     pintarDetalle();
   }
   function volver(): boolean {
@@ -456,9 +480,14 @@ export function montarMapa(h: HostMapa) {
     const e = elegido;
     b.addEventListener("click", () => marcarDestino(e));
     detalle.append(t, p, b);
-    if (h.teletransporte) { // U27 (MVL1): pick a site, press «Ir», appear there (the server decides; same in VR)
+    if (h.andar) { // MIS-257: «Ir» walks there by itself
+      const a = boton("Ir", `Ir andando a ${e.nombre}`); a.className = "andar";
+      a.addEventListener("click", () => { irAndando(e); });
+      detalle.append(a);
+    }
+    if (h.teletransporte) { // U27 (MVL1): pick a site, press «Ir de golpe», appear there (the server decides; same in VR)
       const activo = h.teletransporte.activo();
-      const g = boton(activo ? "Ir" : "Ir (apagado en este mundo)");
+      const g = boton(activo ? "Ir de golpe" : "Ir de golpe (apagado en este mundo)");
       g.disabled = !activo;
       g.addEventListener("click", () => irA(e));
       detalle.append(g);
@@ -474,7 +503,7 @@ export function montarMapa(h: HostMapa) {
   // the HTML twin: nearest first, real buttons; rows are updated in place (focus never jumps), reordered only when
   // focus is outside the list
   let listaT = -Infinity;
-  const filas = new Map<string, { li: HTMLLIElement; ver: HTMLButtonElement; marcar: HTMLButtonElement; ir: HTMLButtonElement; e: Entrada }>();
+  const filas = new Map<string, { li: HTMLLIElement; ver: HTMLButtonElement; marcar: HTMLButtonElement; ir: HTMLButtonElement; andar: HTMLButtonElement; e: Entrada }>();
   function pintarLista(): void {
     if (!yo) return;
     // the waypoint is listed only when it is a point of the map (a marker that is the destination already says so)
@@ -487,15 +516,16 @@ export function montarMapa(h: HostMapa) {
     for (const e of entradas) {
       let f = filas.get(e.id);
       if (!f) {
-        const li = document.createElement("li"), ver = boton(""), marcar = boton(""), ir = boton("");
-        ver.className = "ver"; marcar.className = "marcar ic"; ir.className = "ir ic";
-        marcar.innerHTML = icono("map-pin", 18); ir.innerHTML = icono("crosshair", 18);
-        f = { li, ver, marcar, ir, e };
+        const li = document.createElement("li"), ver = boton(""), marcar = boton(""), ir = boton(""), andar = boton("");
+        ver.className = "ver"; marcar.className = "marcar ic"; ir.className = "ir ic"; andar.className = "andar ic";
+        marcar.innerHTML = icono("map-pin", 18); ir.innerHTML = icono("crosshair", 18); andar.innerHTML = icono("person-simple-walk", 18);
+        f = { li, ver, marcar, ir, andar, e };
         const fx = f;
         ver.addEventListener("click", () => elegir({ id: fx.e.id, nombre: fx.e.nombre, tipo: fx.e.tipo, x: fx.e.x, z: fx.e.z, detalle: fx.e.detalle }, true));
         marcar.addEventListener("click", () => marcarDestino(fx.e));
-        if (h.teletransporte) li.append(ver, ir, marcar); else li.append(ver, marcar);
+        li.append(ver); if (h.andar) li.append(andar); if (h.teletransporte) li.append(ir); li.append(marcar);
         ir.addEventListener("click", () => irA(fx.e));
+        andar.addEventListener("click", () => { irAndando(fx.e); });
         li.dataset.id = e.id;
         lista.appendChild(li); filas.set(e.id, f);
       }
@@ -504,8 +534,12 @@ export function montarMapa(h: HostMapa) {
       if (f.ver.textContent !== texto) f.ver.textContent = texto;
       const es = destino?.id === e.id, mt = es ? "Quitar destino" : "Marcar destino", ml = `${mt}: ${e.nombre}`;
       if (f.marcar.getAttribute("aria-label") !== ml) { f.marcar.setAttribute("aria-label", ml); f.marcar.title = mt; }
+      if (h.andar) {
+        const al = `Ir andando a ${e.nombre}`;
+        if (f.andar.getAttribute("aria-label") !== al) { f.andar.setAttribute("aria-label", al); f.andar.title = al; }
+      }
       if (h.teletransporte) {
-        const activo = h.teletransporte.activo(), il = activo ? `Ir a ${e.nombre}` : "Ir (apagado en este mundo)";
+        const activo = h.teletransporte.activo(), il = activo ? `Ir de golpe a ${e.nombre}` : "Ir de golpe (apagado en este mundo)";
         if (f.ir.getAttribute("aria-label") !== il) { f.ir.setAttribute("aria-label", il); f.ir.title = il; }
         f.ir.disabled = !activo;
       }
@@ -653,6 +687,8 @@ export function montarMapa(h: HostMapa) {
     stats: () => ({ mini: limMini.stats, grande: limGrande.stats, imagenes, vueltas, ocultas, corte }),
     /** C2: go back to where you were before the last «Ir» (false when there is nowhere to go back to). */
     volver, puedeVolver: () => origenViaje !== null,
+    /** MIS-257: walk to a marker (or a place of your own) by yourself, as the map's «Ir» does; false when it cannot start. */
+    irAndando, andandoTermino,
     /** Rediseño v2 (the VR menu's «Mapa»): go to a marker as the map's own «Ir» does, and whether trips are allowed now. */
     ir: (m: { id: string; nombre: string; x: number; z: number }): void => irA(m), puedeIr: (): boolean => !!h.teletransporte?.activo(),
     abrir: () => panel.abrir(), cerrar: () => panel.cerrar(), abierto: () => panel.abierto,
