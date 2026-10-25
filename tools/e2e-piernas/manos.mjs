@@ -5,8 +5,14 @@
 // is drawn in that hand; then with TRACKED HANDS a pinch next to the seed sack takes it into the left hand; back at Teo
 // a pinch on his name / body and on «Aquí tienes» completes the quest and both things leave your hands. 0 page errors.
 // Needs the server + page running (tools/auto.sh e2e starts them). Env: BASE; SHOTS=<folder> saves pictures.
+// Load-proof: the page's sim clamps a frame to 250 ms (apps/plaza/main.ts: dt = min(250, now - last)), so on a loaded
+// machine (~2 fps) a fixed WALL-clock window covers less SIM time and the avatar walks less. Every walk below therefore
+// goes on until the distance is reached or a generous timeout, and logs seconds + XR frames + fps + distance, so a failure
+// says «too slow» (timeout, low fps) or «does not walk» (distance 0 at any fps).
 import { createRequire } from "node:module";
 import { existsSync, readFileSync } from "node:fs";
+
+const carga = () => { try { return readFileSync("/proc/loadavg", "utf8").split(" ")[0]; } catch { return "?"; } };
 
 const PW = process.env.PW_CORE ?? new URL("../../node_modules/playwright-core", import.meta.url).pathname;
 const CHROME = process.env.CHROME ?? "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell";
@@ -19,13 +25,16 @@ const { chromium } = createRequire(import.meta.url)(PW);
 const IWER = readFileSync(new URL("../../node_modules/iwer/build/iwer.min.js", import.meta.url), "utf8");
 const browser = await chromium.launch({ executablePath: CHROME, args: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"] });
 const errors = [], t0 = Date.now();
-const out = { pasos: [], errors };
+const out = { carga: [carga()], pasos: [], caminatas: [], errors };
 const nota = (paso, extra = {}) => out.pasos.push({ paso, s: Math.round((Date.now() - t0) / 100) / 10, ...extra });
 
 const ctx = await browser.newContext({ viewport: { width: 640, height: 400 } });
 await ctx.addInitScript(IWER + `;
   Object.defineProperty(IWER.XRWebGLLayer.prototype, 'framebuffer', { get() { return this.__fb ??= this.context.createFramebuffer(); } });
   const dev = new IWER.XRDevice(IWER.metaQuest3); dev.installRuntime({ forceInstall: true }); globalThis.__iwer = dev;
+  // count the XR frames the page really draws (load shows up here as a low rate)
+  globalThis.__xrFrames = 0; const rafXR = IWER.XRSession.prototype.requestAnimationFrame;
+  IWER.XRSession.prototype.requestAnimationFrame = function (cb) { return rafXR.call(this, (t, f) => { globalThis.__xrFrames++; return cb(t, f); }); };
   // aim an emulated input (controller or hand) from where it is at a world point; rig = the avatar (no snap turns here)
   globalThis.__apuntar = (inp, w) => {
     const r = globalThis.__numinia.view.vr.rig.position, p = inp.position;
@@ -43,20 +52,22 @@ const esperar = (fn, arg, ms = 8000) => p.waitForFunction(fn, arg, { timeout: ms
 const yo = () => ctl(() => globalThis.__numinia.session.selfPosition(1));
 const manos = () => ctl(() => globalThis.__numinia.view.manos.estado());
 const paneles = () => ctl(() => globalThis.__numinia.view.vr.estadoPaneles());
+const cuadros = () => ctl(() => globalThis.__xrFrames ?? 0);
 const foto = async (n) => { if (SHOTS) await p.screenshot({ path: `${SHOTS}/manos-${n}.png` }); };
 const SPEED = 1.5; // SPEED 1.5 m/s since #24 (was 4): walking pace of the sim, used to size key/stick holds
-const ANDA_S = 3, ANDA_MIN = 0.2 * SPEED * (ANDA_S - 0.25); // pinch-walk hold (s) and least forward metres (≈ 0.8)
+const ANDA_S = 3, ANDA_MIN = 0.2 * SPEED * (ANDA_S - 0.25); // pinch-walk ideal hold (s) and least forward metres (≈ 0.8)
+const ANDA_MAX_MS = 20000; // ...but on a slow page the pinch is held until that distance, up to this long (wall clock)
 /** Walk on the flat page with the keys. In VR the keys do nothing since #24 (the headset is the only source of
  *  movement): there it walks with the left controller's stick, below the run edge (0.97); with tracked hands the
  *  controllers are put back for the walk and the hands come back after it. */
-async function caminar(x, z, cerca = 1.0, maxMs = 30000) {
+async function caminar(x, z, cerca = 1.0, maxMs = 60000) {
   const enVR = await ctl(() => globalThis.__numinia.view.vr.active);
   const modo = enVR ? await ctl(() => globalThis.__iwer.primaryInputMode) : null;
   if (modo === "hand") {
     await ctl(() => { globalThis.__iwer.primaryInputMode = "controller"; });
     await esperar(() => globalThis.__numinia.view.manos.estado().izq?.tipo === "mando", null, 6000).catch(() => {});
   }
-  const t = Date.now();
+  const t = Date.now(), f0 = await cuadros();
   let d = Infinity;
   while (Date.now() - t < maxMs) {
     const me = await yo(), dx = x - me.x, dz = z - me.z;
@@ -81,6 +92,8 @@ async function caminar(x, z, cerca = 1.0, maxMs = 30000) {
     await ctl(() => { globalThis.__iwer.primaryInputMode = "hand"; });
     await esperar(() => { const e = globalThis.__numinia.view.manos.estado(); return e.izq?.tipo === "mano" && e.der?.tipo === "mano"; }, null, 6000).catch(() => {});
   }
+  const s = (Date.now() - t) / 1000, f = (await cuadros()) - f0;
+  out.caminatas.push({ a: [x, z], d: Math.round(d * 10) / 10, s: Math.round(s * 10) / 10, cuadrosXR: f, fps: f ? Math.round((f / s) * 10) / 10 : null, llego: d <= cerca });
   return Math.round(d * 10) / 10;
 }
 /** Press and let go an emulated button (controller) or a pinch (hand). */
@@ -157,15 +170,34 @@ try {
   // SPEED 1.5 m/s since #24: held ANDA_S s, the first ANDAR_MS (0.25 s) only arms it; headless software GL drops frames
   // (the stick's intention goes stale between them), so ask for a fifth of the ideal distance, as the 4 m/s leg did.
   {
-    await ctl(() => { const h = globalThis.__iwer.hands.left; h.position.set(-0.2, 1.3, -0.3); h.quaternion.set(0, 0, 0, 1); });
+    // The pose matters: the left hand is the WATCH hand. At (-0.2, 1.3, -0.3) with the back of the hand up it sits in the
+    // watch gesture's hysteresis band (55° to open, 70° to close; measured 62°): whether the watch is open there depends on
+    // the path the hand took (IWER's switch to tracked hands), not on load or on the code under test — and a hand showing the
+    // watch is «busy» (manos.ts `ocupar`), so its pinch never walks (dz 0 for 20 s at 25 fps, on main too). So: roll the hand
+    // 180° about its pointing axis (back of the hand down, pointing still -Z), which is outside the opening cone for sure
+    // and closes an open watch in 400 ms; then wait for the watch to be gone before pinching.
+    await ctl(() => { const h = globalThis.__iwer.hands.left; h.position.set(-0.2, 1.3, -0.3); h.quaternion.set(0, 0, 1, 0); });
+    out.relojCerrado = await esperar(() => !globalThis.__numinia.view.vr.reloj.visible, null, 8000).then(() => true, () => false);
     await p.waitForTimeout(300);
-    const a = await yo();
+    // what could stop the pinch from being a step: the wrist watch visible on the left wrist (that hand is then «busy»)
+    out.andaAntes = await ctl(() => { try { const v = globalThis.__numinia.view; const r = v.vr.reloj.diagnostico(); return { relojVisible: r.visible, relojAbierto: r.abierto, opacidad: r.opacidad, medida: r.medida, izq: v.manos.estado().izq, andar: v.manos.andar(null) }; } catch (e) { return { error: String(e) }; } });
+    const a = await yo(), f0 = await cuadros(), t1 = Date.now();
     await ctl(() => globalThis.__iwer.hands.left.updatePinchValue(1));
-    await p.waitForTimeout(ANDA_S * 1000);
+    const traza = []; // [wall s, XR frames, dz, watch visible]
+    let b = a;
+    while (Date.now() - t1 < ANDA_MAX_MS) {
+      await p.waitForTimeout(250);
+      b = await yo();
+      const rv = await ctl(() => { try { return globalThis.__numinia.view.vr.reloj.visible; } catch { return null; } });
+      traza.push([Math.round((Date.now() - t1) / 100) / 10, (await cuadros()) - f0, Math.round((b.z - a.z) * 100) / 100, rv]);
+      if (b.z - a.z < -ANDA_MIN && Math.abs(b.x - a.x) < Math.abs(b.z - a.z) / 2) break;
+    }
+    const s = (Date.now() - t1) / 1000, f = (await cuadros()) - f0;
     await ctl(() => globalThis.__iwer.hands.left.updatePinchValue(0));
     await p.waitForTimeout(400);
-    const b = await yo();
-    out.andaConMano = { dx: Math.round((b.x - a.x) * 10) / 10, dz: Math.round((b.z - a.z) * 10) / 10 };
+    b = await yo();
+    out.andaConMano = { dx: Math.round((b.x - a.x) * 10) / 10, dz: Math.round((b.z - a.z) * 10) / 10, s: Math.round(s * 10) / 10, cuadrosXR: f, fps: f ? Math.round((f / s) * 10) / 10 : null, simTope_s: f ? Math.round(f * 0.25 * 10) / 10 : null };
+    out.andaTraza = traza.length > 24 ? [...traza.slice(0, 12), ...traza.slice(-12)] : traza;
   }
   const sem = await cosaEn("semillas");
   out.dSem = await caminar(sem.x + 1.0, sem.z, 0.5);
@@ -206,6 +238,7 @@ try {
     && errors.length === 0;
 } catch (e) { errors.push("leg: " + String(e?.message ?? e)); }
 await browser.close();
+out.carga.push(carga());
 console.log(JSON.stringify(out, null, 1));
 console.log(ok ? "E2E MANOS OK" : "E2E MANOS FALLA");
 process.exit(ok ? 0 : 1);
