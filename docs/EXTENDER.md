@@ -409,7 +409,7 @@ que no cabe deja la ficha entera sin cargar, con su motivo en el log (`[ficha] n
 Hoy se editan en el fichero: no hay panel para cambiarlos en marcha.
 
 **`audio`** (S6f, opcional, dentro de la ficha): lo que este mundo pide del sonido. **R-1: una línea lo enciende.**
-`{ "audio": { "ambiente": "ambiente-numinia" } }` y ya suena el colchón de fondo. Tres campos, todos opcionales:
+`{ "audio": { "ambiente": "ambiente-numinia" } }` y ya suena el colchón de fondo. Cuatro campos, todos opcionales:
 
 - **`ambiente`** — el id del catálogo de sonidos (`features/sonido/catalogo.json`) que suena como **cama única en
   bucle**. Hoy el único que vale es `ambiente-numinia`: 113 s en CC0 que un amigo de Numinia hizo para Numinia.
@@ -423,6 +423,12 @@ Hoy se editan en el fichero: no hay panel para cambiarlos en marcha.
   `capa-*`…) que este mundo enciende por su nombre. **De serie, ninguna**: una cama o una capa sintetizada no
   suena hasta que un mundo la nombra aquí (decisión de Pablo, 19-10). Encenderlas no enciende el colchón, ni al
   revés.
+- **`avisos`** — un sonido de la casa para cada aviso de misión: `{ "recibida": "ui-confirmar", "entregada":
+  "coger-soltar", "completada": "ui-logro" }` (esos son los de serie). `recibida` = aceptas una misión; `entregada` =
+  haces un paso de tipo `entrega`; `completada` = terminas la misión. El valor es el id de una fila **con fichero** del
+  catálogo (suena en la cabeza, sin panner, por el bus de interfaz) o `""` para que ese aviso no suene (su texto sigue
+  llegando a quien lee). Cada paso que no es de entrega sigue mudo, a propósito. Si el catálogo aún no ha llegado o el
+  id no tiene fichero, suenan las notas cortas de siempre.
 
 Un valor que no cabe deja la ficha entera sin cargar, con su motivo en el log. Va en `GET /status` (`audio`).
 

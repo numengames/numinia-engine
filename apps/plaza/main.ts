@@ -34,7 +34,7 @@ import { misiones } from "../../features/misiones/client.ts";
 import { montarInteraccion, construyendo } from "./interactuar.ts";
 import { montarDialogo } from "./dialogo.ts";
 import { montarVerNombres } from "./nombres-ver.ts";
-import { montarLibro, ponerCatalogoCasa } from "./misiones.ts";
+import { montarLibro, ponerAvisosMundo, ponerCatalogoCasa } from "./misiones.ts";
 import { anunciar, crearDialogo } from "./paneles.ts"; // S6: el texto accesible de cada sonido (XAUR)
 import { montarMenuBarra } from "./menu-barra.ts"; // ux2-barra: the bar's «Cámara» (P) and «Menú» (O) drop-downs
 import { estadoCamara, filasDeAyuda } from "./menu-logica.ts";
@@ -135,9 +135,11 @@ let sonarServidor: (s: PeticionSonido) => boolean = (s) => catalogoSonidos.suena
 // volumen (×0,042 por defecto, el que quiso su autor); `ambiente_sintetizado` = las camas y capas SINTETIZADAS que
 // este mundo enciende por nombre (de serie, ninguna).
 type Estado = { dardosEnlace?: unknown; version?: string; nombre?: string; tema?: unknown; avatar?: string; avatares?: unknown; aforo?: number; conectados?: number;
-  audio?: { ambiente?: string | null; ambiente_ganancia?: number; ambiente_sintetizado?: string[] } };
+  audio?: { ambiente?: string | null; ambiente_ganancia?: number; ambiente_sintetizado?: string[]; avisos?: Record<string, string> } };
 const estadoP: Promise<Estado | null> = fetch(`${activos}/status`).then((r) => r.json() as Promise<Estado>).catch(() => null);
 const estado = await Promise.race([estadoP, new Promise<null>((ok) => setTimeout(() => ok(null), 1500))]);
+ponerAvisosMundo(estado?.audio?.avisos); // t_d7411a07: the sound of each quest notice the world picked (ficha.json → audio.avisos)
+void estadoP.then((e) => ponerAvisosMundo(e?.audio?.avisos)); // a slow /status (past the 1.5 s) still sets them
 // H4: a world with an espacio base shows the line mesh drawing itself on the loading screen (apps/plaza/carga.ts); any other keeps the moon
 carga.etapa("codigo");
 const pintarEstadoCarga = (st: { espacioBase?: boolean } | null) => { if (st?.espacioBase) carga.espacioBase(); carga.etapa("estado"); };
