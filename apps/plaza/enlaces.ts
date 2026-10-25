@@ -15,6 +15,19 @@ export type OpcionesEnlaces = {
 
 const enlaceDe = (o: Objeto | null): string => { const s = String(o?.enlace ?? "").trim(); return s; };
 
+/** The page's own last check before a tab is opened (the server already refuses the others when the link is saved, features/objetos
+ * `motivoEnlace`): only https, or http to this very machine (tests), and no user:password. Anything else is never opened, whatever the file says. */
+export function enlaceAbrible(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.username || u.password) return false;
+    const local = u.hostname === "localhost" || u.hostname === "127.0.0.1" || u.hostname === "[::1]";
+    return u.protocol === "https:" || (u.protocol === "http:" && local);
+  } catch { return false; }
+}
+/** What the confirm says: the whole address, and where it goes (the host), so nobody leaves the world by accident. */
+export const preguntaEnlace = (url: string): string => `¿Abrir en una pestaña nueva?\n${url}`;
+
 export function montarEnlaces(o: OpcionesEnlaces) {
   const confirmar = o.confirmar ?? ((t: string) => confirm(t));
   const abrirUrl = o.abrir ?? ((url: string) => { window.open(url, "_blank", "noopener"); });
@@ -25,9 +38,13 @@ export function montarEnlaces(o: OpcionesEnlaces) {
     if (o.construyendo()) return false;
     const url = enlaceDe(o.constructor.objeto(key));
     if (!url) return false;
-    if (confirmar(`¿Abrir en una pestaña nueva?\n${url}`)) abrirUrl(url);
+    if (!enlaceAbrible(url)) return true; // claimed (it is a link) but never opened: not https
+    if (confirmar(preguntaEnlace(url))) abrirUrl(url);
     return true; // claimed either way: a "no" to the confirm must not fall through to anything else
   };
+  /** VR: window.confirm cannot be shown inside an immersive session, so the VR layer (xr.ts) asks with its own panel and calls `abrir` on «Abrir».
+   * `tiene`/`url` say whether the ray is on a thing with an openable link; `abrir` is the same open as the click's, after the person's gesture. */
+  const url = (key: string): string | null => { if (o.construyendo()) return null; const u = enlaceDe(o.constructor.objeto(key)); return u && enlaceAbrible(u) ? u : null; };
 
   // ---- the hand cursor: only while playing, only over a thing that actually opens something ----
   let encima = false;
@@ -40,5 +57,5 @@ export function montarEnlaces(o: OpcionesEnlaces) {
   lienzo.addEventListener("pointermove", mover);
   lienzo.addEventListener("pointerleave", () => { if (encima) { lienzo.style.cursor = ""; encima = false; } });
 
-  return { pinchar };
+  return { pinchar, url, tiene: (key: string): boolean => url(key) !== null, abrir: (u: string): void => { if (enlaceAbrible(u)) abrirUrl(u); } };
 }

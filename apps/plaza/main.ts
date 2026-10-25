@@ -420,7 +420,7 @@ const compartir = montarPantalla({
 const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k) && cerradurasPagina.ofrece(f, k) && lucha.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: (x, z, y) => [...asiento.cerca(), ...huecos.cerca(x, z, y), ...cerradurasPagina.cerca(x, z), ...videoMandos.cerca(x, z), ...llamarIA.cerca()], pinchar: (key) => huecos.pinchar(key) || enlaces.pinchar(key),
   persona: (x, y) => { const q = view.pickPerson(x, y); return q !== null && gente.tarjeta(q); } }); // ux2-gente: a click on someone = their card
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
-const xr = montarXR({ session, view, misiones, interaccion }); // J10: hands in VR take, point and answer; what you took is in your hand
+const xr = montarXR({ session, view, misiones, interaccion, enlaces }); // J4: + the ray points at things with a link and the trigger asks before opening // J10: hands in VR take, point and answer; what you took is in your hand
 const condicionesXR = montarCondicionesXR({ condiciones, vr: view.vr as never, mundo: () => nombreDelMundo, soportado: () => vrDisponible }); // condiciones/c4
 montarDialogo(misiones, document.getElementById("dialogo")!, view);
 montarFlecha({ misiones }); // T3: idle costs nothing; with a step that points at a button it follows the button

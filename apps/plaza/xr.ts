@@ -30,15 +30,22 @@ type Interaccion = { actual(): { prompt: string } | null; usar(): Res; mirar(): 
 
 const partir = (k: string): [string, string] => { const i = k.indexOf(":"); return i < 1 ? ["", ""] : [k.slice(0, i), k.slice(i + 1)]; };
 
-export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; interaccion: Interaccion }) {
+/** J4 in VR: things with a link (apps/plaza/enlaces.ts): the ray can point at them and the trigger asks, in a panel, before opening. */
+type EnlacesVR = { tiene(key: string): boolean; url(key: string): string | null; abrir(url: string): void };
+
+export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; interaccion: Interaccion; enlaces?: EnlacesVR }) {
   const { view, misiones, session } = o;
   const pendiente = new Map<string, Lado>(); // quest thing -> the hand that reached for it (until the server answers)
   const enMano = new Map<string, Lado | "yo">(); // what is drawn where
 
   view.manos.reglas({
     agarrable: (k) => { const [f, key] = partir(k); return f === "misiones" && misiones.ofrece(f, key); },
-    apuntable: (k) => { const [f, key] = partir(k); return f === "pnj" || (f === "misiones" && misiones.ofrece(f, key)); },
+    apuntable: (k) => { const [f, key] = partir(k); return f === "pnj" || (f === "misiones" && misiones.ofrece(f, key)) || (f === "" && !k.includes(":") && !!o.enlaces?.tiene(k)); },
   });
+  // J4 VR: window.confirm cannot show inside an immersive session → the link asks in the dialogue panel; only the person's choice opens it
+  let enlacePendiente: string | null = null;
+  const cerrarEnlace = () => { enlacePendiente = null; view.vr.dialogo(null); };
+  misiones.alCambiar(() => { if (enlacePendiente) cerrarEnlace(); }); // a conversation or a step took the panel: the question is gone, nothing can open by a stray «1»
   const decir = (r: Res) => { if (!r.ok) view.vr.nota(r.why); return r; };
   view.manos.on((e) => {
     if (!view.vr.active) return; // AR: the trigger places the plaza (ar.ts); nothing of the world is in reach
@@ -47,6 +54,8 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
       pendiente.set(cosa, e.lado);
       if (!decir(misiones.usar(cosa)).ok) pendiente.delete(cosa);
     } else if (e.tipo === "apuntar") {
+      const u = o.enlaces?.url(e.key);
+      if (u && !e.key.includes(":")) { enlacePendiente = u; view.vr.dialogo({ nombre: "Enlace", texto: `¿Abrir en una pestaña nueva? ${u}`, opciones: ["Abrir", "Ahora no"] }); return; }
       const [f, key] = partir(e.key);
       if (f === "misiones") pendiente.set(key, e.lado);
       decir(session.features.use(f, key));
@@ -56,8 +65,11 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
       o.interaccion.mantener.soltar(); // J4: releasing the trigger before a held `hold` finishes cancels it
     } else if (o.interaccion.actual()) o.interaccion.mantener.empezar(); // J4: fires at once, or starts the hold
   });
-  view.vr.onElegir((n) => { decir(misiones.elegir(n)); });
-  view.vr.onAtras(() => { if (misiones.dialogo()) misiones.adios(); });
+  view.vr.onElegir((n) => {
+    if (enlacePendiente) { const u = enlacePendiente; cerrarEnlace(); if (n === 1) o.enlaces?.abrir(u); return; } // «Abrir» = 1; anything else closes it
+    decir(misiones.elegir(n));
+  });
+  view.vr.onAtras(() => { if (enlacePendiente) { cerrarEnlace(); return; } if (misiones.dialogo()) misiones.adios(); });
 
   // hand to hand (MIS-200): each quest thing drawn in a hand can change hands; if the other hand holds one too, the two swap
   const registros = new Map<string, () => void>();

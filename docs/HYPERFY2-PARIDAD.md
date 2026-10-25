@@ -103,8 +103,8 @@ por capacidad, con lo que Hyperfy2 tiene, lo que tenemos hoy y la fila de `docs/
 | Capacidad | Hyperfy2 | Nosotros hoy | Estado | Fila |
 |---|---|---|---|---|
 | Aviso «E: usar» con mantener pulsado | nodo `Action`: `label`, `distance`, `duration`, `onStart/onTrigger/onCancel` | acciones de las funciones por tecla o botón táctil | ◐ | J4 |
-| Clic sobre cosas del mundo | `onPointerEnter/Leave/Down/Up` | no | ✘ | J4 |
-| Abrir un enlace | `world.open(url)` | no | ✘ | J4 |
+| Clic sobre cosas del mundo | `onPointerEnter/Leave/Down/Up` | clic (escritorio y móvil) y rayo + gatillo (VR) sobre una cosa con enlace; la mano del cursor al pasar; sin eventos de entrar/salir para scripts | ◐ | J4 |
+| Abrir un enlace | `world.open(url)` | `enlace` de la cosa (inspector): pregunta con la dirección entera y abre en pestaña nueva solo con un «sí»; solo https (http a esta máquina); en VR pregunta en un panel (`window.confirm` no sale en inmersivo) | ✔ | J4 |
 | Chocar con el escenario | `Collider`: caja, esfera, malla, convexa | suelo plano | ✘ | M6 |
 | Zonas que disparan algo | `Collider` con `trigger` + `onTriggerEnter/Leave` | no | ✘ | M6 |
 | Objetos con física | `RigidBody` estático, cinemático, dinámico; contactos | no | ✘ | M6 |
