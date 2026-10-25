@@ -5,8 +5,9 @@
 //   secuencias/<id>.json secuencia@1 (U14 (5)) a short scripted moment — people move, extra models show, lines appear —
 //                        played only on the pages of the player whose step names it (`secuencia`); a step may also
 //                        wait (`espera`, seconds) before it can be done. Run time: secuencia.ts
-// Vertical worlds: a person and a thing may carry `posicion.y` (metres above the ground) and a `llega_a` step a `y`;
-// reach then also asks for the player's height (packages/feature ALCANCE_ALTURA_M). Absent = the ground, as before.
+// Vertical worlds: a person and a thing may carry `posicion.y` (ABSOLUTE height, metres) and a `llega_a` step a `y`;
+// reach then also asks for the player's height (packages/feature ALCANCE_ALTURA_M). Absent = the ground. On a world with relieve one that
+// would stand below the ground (or gave no `y`) is put on the ground; one above it stays where it was written (server.ts).
 // Steps in any order (U14): consecutive steps with the same `grupo` form a block done in any order; `recibe` = a person
 // gives you a thing; `entrega` may name several things (`cosas`). All optional: files without them read as before.
 // A person may say its trade (pnj@1 `oficio`, U14 (4)): a second, smaller line under the name.
@@ -85,19 +86,19 @@ export type Accion = { tipo: "dar_mision" | "avanzar_paso" | "entregar"; mision:
 export type Opcion = { texto: string; si: Condicion[]; ir?: string; accion?: Accion };
 export type Nodo = { texto: string; opciones: Opcion[] };
 export type Apariencia = { modelo: string; escala: number };
-/** A person's `posicion.y` (optional, metres above the ground, 0–30: the floor of a tower it stands on; 0 when absent).
+/** A person's `posicion.y` (optional, absolute metres, 0–30: the floor of a tower it stands on; 0 when absent). `sinY` is set when the file gave none: it stands on the ground whatever its height.
  * `oficio` (optional, 1–40 bytes; "" when absent): their trade («Carpintero»), a smaller line under the name (U14 (4)).
  * `voz` (optional, one of VOCES_PNJ; "" when absent = chosen from the id, always the same): how they sound when you
  * start and stop talking to them. */
 export type Pnj = {
-  formato: "pnj@1"; id: string; nombre: string; oficio: string; voz: VozPnj | ""; descripcion: string; apariencia: Apariencia; posicion: { x: number; z: number; y: number };
+  formato: "pnj@1"; id: string; nombre: string; oficio: string; voz: VozPnj | ""; descripcion: string; apariencia: Apariencia; posicion: { x: number; z: number; y: number }; sinY?: true;
   giro: number; radio: number; dialogo: { entradas: { si: Condicion[]; nodo: string }[]; nodos: Record<string, Nodo> };
 };
-/** A thing's `posicion.y` (optional, metres above the ground: a thing on a table or held up at chest height, reachable
+/** A thing's `posicion.y` (optional, absolute metres: a thing on a table or held up at chest height, reachable
  * with a hand in VR) and `apariencia.color` (optional «#rrggbb»: the house block in a colour, so two things differ).
  * `apariencia.usada` (optional, U14 (6)): how it looks for a player once THEY did the step that uses it (`usa`/`coge`)
  * in a quest they have or finished — the open chest; absent when the file does not say it. */
-export type Cosa = { formato: "cosa@1"; id: string; nombre: string; descripcion: string; apariencia: Apariencia & { color: string; usada?: Apariencia }; posicion: { x: number; z: number; y: number }; radio: number; aviso: string };
+export type Cosa = { formato: "cosa@1"; id: string; nombre: string; descripcion: string; apariencia: Apariencia & { color: string; usada?: Apariencia }; posicion: { x: number; z: number; y: number }; sinY?: true; radio: number; aviso: string };
 export type Fichero = { fichero: string; texto: string };
 export type Aventura = {
   misiones: Map<string, Mision>; pnjs: Map<string, Pnj>; cosas: Map<string, Cosa>;
@@ -452,7 +453,7 @@ export function leerPnj(v: unknown): Result<Pnj> {
   if (entradas.length && entradas[entradas.length - 1].si.length) is.push({ path: `dialogo.entradas[${entradas.length - 1}].si`, message: "la última entrada no lleva «si»: es lo que dice cuando nada más se cumple" });
   return resultado(is, {
     formato: FORMATOS.pnj, id: id(o.id, "id", is), nombre: texto(o.nombre, "nombre", LIM.nombre, is), oficio: texto(o.oficio, "oficio", LIM.oficio, is, true), voz, descripcion: texto(o.descripcion, "descripcion", LIM.descripcionCosa, is, true),
-    apariencia: apariencia(o.apariencia, "apariencia", is), posicion: { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is, ALTURA_MAX) }, giro: numero(o.giro, "giro", -180, 180, is, 0),
+    apariencia: apariencia(o.apariencia, "apariencia", is), posicion: { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is, ALTURA_MAX) }, ...sinY(o.posicion), giro: numero(o.giro, "giro", -180, 180, is, 0),
     radio: numero(o.radio, "radio", 1, 8, is, 3), dialogo: { entradas, nodos },
   });
 }
@@ -469,11 +470,13 @@ export function leerCosa(v: unknown): Result<Cosa> {
   return resultado(is, {
     formato: FORMATOS.cosa, id: id(o.id, "id", is), nombre: texto(o.nombre, "nombre", LIM.nombre, is), descripcion: texto(o.descripcion, "descripcion", LIM.descripcionCosa, is, true),
     apariencia: { ...ap, color: color(o.apariencia, is), ...(usada ? { usada } : {}) },
-    posicion: { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is, ALTURA_MAX) }, radio: numero(o.radio, "radio", 1, 8, is, 2),
+    posicion: { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is, ALTURA_MAX) }, ...sinY(o.posicion), radio: numero(o.radio, "radio", 1, 8, is, 2),
     aviso: texto(o.aviso, "aviso", LIM.aviso, is),
   });
 }
-/** `posicion.y` of a person (pnj@1) or a thing (cosa@1): metres above the ground, 0–ALTURA_MAX (a hand's height, a
+/** `{ sinY: true }` when a position gave no `y` (it then stands on the ground); nothing otherwise. */
+const sinY = (v: unknown): { sinY?: true } => (typeof v === "object" && v !== null && (v as Record<string, unknown>).y === undefined ? { sinY: true } : {});
+/** `posicion.y` of a person (pnj@1) or a thing (cosa@1): absolute metres, 0–ALTURA_MAX (a hand's height, a
  * table, or the floor of a tower); 0 when absent. Both formats share the cap. */
 function altura(v: unknown, is: Issue[], max = ALTURA_MAX): number {
   const o = typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};

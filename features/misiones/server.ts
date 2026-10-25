@@ -11,7 +11,7 @@ import { abandonar, aceptar, enTexto, esperaLlegada, HECHAS_MAX, leerProgreso, m
 import type { Hecho, Progreso } from "./maquina.ts";
 import { esperando, faltaEspera, pendiente, proximaEspera } from "./maquina.ts"; // U14 (5): steps that wait
 import type { Suceso } from "./maquina.ts";
-import { eventosDe } from "./secuencia.ts"; // U14 (5): a moment only its player sees
+import { alSuelo, eventosDe } from "./secuencia.ts"; // U14 (5): a moment only its player sees
 import { sueloDe } from "../objetos/server.ts"; // the ground people and things stand on (the espacio base, the nature, or flat)
 import { claveConcesion, concesion } from "./concesion.ts"; // U14 (6): the reward granted, recorded once
 
@@ -36,11 +36,11 @@ export type OpcionesMisiones = { aventura?: { misiones: Fichero[]; pnj: Fichero[
 export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   let A: Aventura = { misiones: new Map(), pnjs: new Map(), cosas: new Map(), secuencias: new Map(), dadores: new Map(), explicitos: new Map() };
   let P: ServerApi | null = null, M: ServerApi | null = null;
-  // Lote 5 (nobody buried in the plaza): `posicion.y` is metres ABOVE THE GROUND. Where the world has relieve (the espacio base or the nature) the
-  // page draws a person at the absolute `y` it is given and `api.within` compares the player's feet with it, so a person published at y 0 on a hill
-  // stood buried and out of reach. The state now carries ground + posicion.y; it follows the ground when that changes (`sueloAhora().clave`).
+  // Lote 5 (nobody buried in the plaza): `posicion.y` stays ABSOLUTE, as every world written so far assumes (a tower floor, a balcony). Where the
+  // world has relieve the page draws a person at the `y` it is given, so one that would stand below the ground at its x,z (or gave no `y`) is
+  // published ON the ground instead; only those follow the ground when it changes (`sueloAhora().clave`). One above the ground never moves.
   const sueloAhora = (api: ServerApi) => sueloDe(api.estadoDe("espacio-base").get("mundo"), api.estadoDe("naturaleza").get("mundo"));
-  const sobreSuelo = (suelo: { altura: (x: number, z: number) => number }, x: number, z: number, y: number) => Math.round((suelo.altura(x, z) + y) * 100) / 100;
+  const sobreSuelo = (suelo: { altura: (x: number, z: number) => number }, o: { posicion: { x: number; z: number; y: number }; sinY?: true }) => alSuelo(suelo.altura(o.posicion.x, o.posicion.z), o.posicion.y, o.sinY === true);
   let cargada = false;
   const progresos = new Map<string, Progreso>();      // "g:<guest>" (saved) or "e<entity>" (no identity: memory only)
   const claveDe = new Map<number, string>();          // entity -> its progress key (who() is gone by onLeave)
@@ -191,12 +191,12 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     cargar(api);
     const ponerPnjs = (suelo: ReturnType<typeof sueloDe>) => {
       for (const n of A.pnjs.values()) {
-        api.state.set(n.id, { nombre: n.nombre, descripcion: n.descripcion, x: n.posicion.x, z: n.posicion.z, y: sobreSuelo(suelo, n.posicion.x, n.posicion.z, n.posicion.y), giro: n.giro, radio: n.radio, modelo: n.apariencia.modelo, escala: n.apariencia.escala, oficio: n.oficio, voz: n.voz }, { at: { x: n.posicion.x, z: n.posicion.z } });
+        api.state.set(n.id, { nombre: n.nombre, descripcion: n.descripcion, x: n.posicion.x, z: n.posicion.z, y: sobreSuelo(suelo, n), giro: n.giro, radio: n.radio, modelo: n.apariencia.modelo, escala: n.apariencia.escala, oficio: n.oficio, voz: n.voz }, { at: { x: n.posicion.x, z: n.posicion.z } });
       }
     };
     let claveP = sueloAhora(api).clave;
     ponerPnjs(sueloAhora(api));
-    api.onTick(() => { const su = sueloAhora(api); if (su.clave === claveP) return; claveP = su.clave; cifradas.clear(); ponerPnjs(su); }); // the ground changed: stand on the new one
+    api.onTick(() => { const su = sueloAhora(api); if (su.clave === claveP) return; claveP = su.clave; cifradas.clear(); ponerPnjs(su); }); // the ground changed: the ones standing on it stand on the new one
     api.on("hablar", (e, msg) => {
       const n = A.pnjs.get(String(msg.pnj));
       if (!n) return rechazarP(e, "No hay nadie así por aquí.");
@@ -229,7 +229,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     cargar(api);
     const ponerCosas = (suelo: ReturnType<typeof sueloDe>) => {
       for (const c of A.cosas.values()) {
-        api.state.set(c.id, { nombre: c.nombre, descripcion: c.descripcion, x: c.posicion.x, z: c.posicion.z, radio: c.radio, aviso: c.aviso, modelo: c.apariencia.modelo, escala: c.apariencia.escala, y: sobreSuelo(suelo, c.posicion.x, c.posicion.z, c.posicion.y), color: c.apariencia.color, modeloUsada: c.apariencia.usada?.modelo ?? "", escalaUsada: c.apariencia.usada?.escala ?? c.apariencia.escala }, { at: { x: c.posicion.x, z: c.posicion.z } }); // U14 (6): the used look travels with it; each page picks by its own book
+        api.state.set(c.id, { nombre: c.nombre, descripcion: c.descripcion, x: c.posicion.x, z: c.posicion.z, radio: c.radio, aviso: c.aviso, modelo: c.apariencia.modelo, escala: c.apariencia.escala, y: sobreSuelo(suelo, c), color: c.apariencia.color, modeloUsada: c.apariencia.usada?.modelo ?? "", escalaUsada: c.apariencia.usada?.escala ?? c.apariencia.escala }, { at: { x: c.posicion.x, z: c.posicion.z } }); // U14 (6): the used look travels with it; each page picks by its own book
       }
     };
     let claveC = sueloAhora(api).clave;

@@ -60,7 +60,7 @@ try {
   await a.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 60000 });
   const foto = async (n) => { if (SHOTS) await a.screenshot({ path: `${SHOTS}/plaza-lote5-${n}.png` }); };
 
-  // 1) Bruno stands on the hill: state y = ground + posicion.y (0), and the page has him there
+  // 1) Bruno stands on the hill: state y = ground (no posicion.y: stands on the ground), and the page has him there
   await a.waitForFunction(() => globalThis.__numinia.session.features.cards().some((c) => c.feature === "pnj" && c.key === "bruno"), null, { timeout: 20000 });
   const est = await a.evaluate(() => { const s = globalThis.__numinia.session.features.stateOf("pnj"); const v = s.get("bruno"); return v && { x: v.x, y: v.y, z: v.z }; });
   nota("1 Bruno en la colina", { estado: est, suelo: colina.h });
