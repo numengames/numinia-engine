@@ -8,7 +8,10 @@ import { NO_PUEDE, guardarEnMundo, puedeInterruptor, vigilarPermiso } from "../i
 import type { EntornoMundo } from "../interruptor.ts";
 import { dados, CARAS, CERCA_M, DADOS_MAX, MOD_MAX } from "./feature.ts";
 
-export type Torre = { id: string; nombre: string; x: number; z: number; y?: number; radio?: number; dados?: string };
+/** Where the 3D dice land (lote 8): offsets from the tower, height over its ground, and the tray's size (m). All optional. */
+export type BandejaTorre = { dx?: number; dz?: number; alto?: number; ancho?: number; fondo?: number };
+export type Torre = { id: string; nombre: string; x: number; z: number; y?: number; radio?: number; dados?: string; bandeja?: BandejaTorre };
+const entre = (v: unknown, min: number, max: number, def: number) => (typeof v === "number" && Number.isFinite(v) ? Math.max(min, Math.min(max, Math.round(v * 100) / 100)) : def);
 export type Tirada = { cuantos: number; caras: number; mod: number };
 
 /** «2d6+1», «d20», «3D8 - 2», «1d100»; also «2d» (= 2d6, the default die) — or why not, in a sentence. */
@@ -78,7 +81,8 @@ export const crearDados = (opts: { torres?: Torre[]; azar?: () => number; activa
     for (const t of propias.filter((t) => /^[a-z0-9-]{1,16}$/.test(String(t.id)) && Number.isFinite(t.x) && Number.isFinite(t.z))) {
       const propios = t.dados ? leerExpresion(t.dados) : null;
       if (typeof propios === "string") api.log(`dados: la torre «${t.id}» tiene unos dados que no entiendo («${t.dados}»): tira 1d20`);
-      const v: Msg = { nombre: cortar(t.nombre || "Torre de dados", 60), x: t.x, y: t.y ?? 0, z: t.z, radio: Math.max(1, Math.min(16, t.radio ?? 2.5)), dados: propios && typeof propios !== "string" ? escribir(propios) : "1d20", ultima: "" };
+      const v: Msg = { nombre: cortar(t.nombre || "Torre de dados", 60), x: t.x, y: t.y ?? 0, z: t.z, radio: Math.max(1, Math.min(16, t.radio ?? 2.5)), dados: propios && typeof propios !== "string" ? escribir(propios) : "1d20",
+        bandejaDx: entre(t.bandeja?.dx, -8, 8, 0), bandejaDz: entre(t.bandeja?.dz, -8, 8, 0), bandejaAlto: entre(t.bandeja?.alto, 0, 10, 0), bandejaAncho: entre(t.bandeja?.ancho, 0.2, 4, 0.8), bandejaFondo: entre(t.bandeja?.fondo, 0.2, 4, 0.6), ultima: "" };
       if (api.state.set(t.id, v, { at: { x: t.x, z: t.z } })) torres.set(t.id, t); else api.log(`dados: la torre «${t.id}» no cabe en el esquema y no se pone`);
     }
     if (torres.size) api.log(`dados: ${torres.size} torre(s) de dados`);

@@ -1309,9 +1309,16 @@ servidor saca cada dado, la numera y da los mismos valores a todos los que está
   fila de botones (d4 … d100, 2d6, «en secreto») y su última tirada a la vista (`ultima`) para quien llega después.
   Un mundo trae las suyas en `MUNDO_DIR/dados.json` (`{ "torres": [{ id, nombre, x, y, z, radio, dados }] }`); sin
   fichero no hay torre, y se tira igual donde estés.
+- **Dados 3D en la bandeja** (lote 8, primera historia: d6 y d20, en PC): la tirada que oyes cae en 3D sobre la bandeja de
+  la torre y se queda quieta con la cara que sacó **el servidor** hacia arriba (la caída es una función pura de la tirada
+  numerada: dos pantallas dibujan lo mismo; `packages/render/src/dados-caida.ts`, `dados-3d.ts` se carga con la primera
+  tirada). La bandeja se dice en `dados.json`: `"bandeja": { "dx": 0.4, "dz": 0.62, "alto": 0.89, "ancho": 0.8, "fondo": 0.6 }`
+  (dónde está respecto a la torre, y su tamaño en metros; sin ella, un trozo de suelo de 0,8 × 0,6 m en la torre). Una
+  bandeja pequeña encoge los dados, no los saca fuera. Sin dibujar todavía: d4, d8, d10, d12, d100 (siguen la carta y la
+  etiqueta), tiradas ocultas (los demás no ven valores), móviles y gafas (historia 2).
 - **Chat** (cualquier aparato con teclado, VR incluida): `/tirar 2d6+1`, `/tirar d20 oculta`; al lado de una torre,
   la tirada es de la torre.
-- **Lo que no hace (todavía):** dados 3D que caen en la bandeja (la carta y la etiqueta los sustituyen), tiradas con
+- **Lo que no hace (todavía):** dados 3D de d4/d8/d10/d12/d100, en móvil y en gafas (la carta y la etiqueta los sustituyen), tiradas con
   ventaja o «quedarse con los mejores», y un diario de tiradas que viaje en el zip.
 
 ## Puertas, botones y cosas que se cogen (J4, v1): tres piezas del motor que decide el servidor
