@@ -79,7 +79,9 @@ export function montarMenuVR(o: {
       const f = n.foto;
       if (!f?.disparar) { nota("Aquí no hay modo foto."); return; }
       const ya = f.activo?.();
-      void f.disparar().then((r: { ok: boolean; error?: string }) => { if (!ya) f.cerrar?.(); nota(r.ok ? "Foto hecha: está en el modo foto de la página." : `No se pudo hacer la foto: ${r.error ?? "?"}`); });
+      nota("Sacando la foto…");
+      // MIS-222: inside VR `disparar` takes one picture of the headset's view (with the frame); it is kept for the page
+      void f.disparar().then((r: { ok: boolean; error?: string; deVR?: boolean }) => { if (!ya) f.cerrar?.(); nota(r.ok ? (r.deVR ? "Foto hecha: al salir de VR la tienes en la página." : "Foto hecha: está en el modo foto de la página.") : `No se pudo hacer la foto: ${r.error ?? "?"}`); });
     } else if (b === "graboso") {
       if (!grabosoAqui()) { nota("Aquí no está el Graboso."); return; }
       const g = n.graboso.graboso, antes = g.estado.fase;
