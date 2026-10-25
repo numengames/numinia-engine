@@ -57,7 +57,8 @@ hace falta para que quepa el pase (medido 630–1.813 bytes; un tope de 1.536 no
 | REPORT (9) | página → servidor | 1000 | un informe JSON; la página recorta `ua`/`gpu` si no cabe | 20 % sobre lo visto | 799 guardados (entrada) | medido en sesiones locales; **sin medir en aparatos reales** |
 | VOICE (11) | página → servidor | 704 | 4 de cabecera + 700 de trama | 380 bytes (54 %) | 324 (20 ms µ-law) | medido (`test/mensajes-tope.test.ts`) |
 | FEATURE (7), intención | página → servidor | sin tope propio (campos con `maxBytes`) | texto empaquetado por esquema | 820 bytes bajo el corte de 1024 | 204 (`chat.decir`) de 26 intenciones | medido (`test/mensajes-tope.test.ts`) |
-| SNAPSHOT (2) | servidor → página | sin tope (K=50) | 30 de cabecera + 6–8 por visible | — | 330 con K=50 | medido (ídem) |
+| SNAPSHOT (2) | servidor → página | sin tope (K=50) | 30 de cabecera + 6–8 por visible; si alguien acaba de ser puesto en otro sitio a propósito (teletransporte), 1 + 4 por cada uno durante 5 ticks | — | 330 con K=50 (sin saltos) | medido (ídem); la cola de saltos, calculada |
+| LATIDO (16) | página → servidor | 2 | 1 de tipo + 1 de «estoy en una pestaña de fondo»; cada 400 ms. El servidor da por caída a la página que latió y calla 15 s (150 s si dijo que está de fondo); la página avisa sola a los 1,5 s si es el servidor el que calla | — | 2 | calculado (`test/latido-salto.test.ts`) |
 | WELCOME (5) | servidor → página | fijo | — | — | 30 | medido (ídem) |
 | CATALOG (6) | servidor → página | sin tope | JSON de todo lo que corre el servidor | — | 32.863 (se manda una vez al entrar) | medido (ídem) |
 | FEATURE (7), evento | servidor → página | sin tope | esquema | — | 902 (`pnj.dialogo`) | medido (ídem) |

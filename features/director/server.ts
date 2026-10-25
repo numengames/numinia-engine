@@ -50,8 +50,8 @@ export const crearDirector = (o: { escenas?: { fichero: string; texto: string }[
     if (!s) return rechazar(from, `No hay ninguna escena «${limpiar(texto, 32)}». Escribe /escenas para verlas.`, porChat);
     api.emit("aplicar", { preset: s.preset, entorno: s.entorno }, "server"); // features/entorno puts the look
     const quien = nombreDe(from);
-    api.state.set(ACTUAL, { id: s.id, nombre: limpiar(s.nombre, NOMBRE_MAX), quien });
-    api.emit("puesta", { nombre: limpiar(s.nombre, NOMBRE_MAX), quien }, "all");
+    api.state.set(ACTUAL, { id: s.id, nombre: limpiar(s.nombre, NOMBRE_MAX), quien, ambiente: s.ambiente, ganancia: s.ganancia });
+    api.emit("puesta", { nombre: limpiar(s.nombre, NOMBRE_MAX), quien, ambiente: s.ambiente, ganancia: s.ganancia }, "all");
     if (s.narracion) api.emit("narracion", { texto: limpiar(s.narracion, NARRACION_MAX), quien }, "all");
     api.log(`[director] ${quien} pone la escena «${s.id}»`);
     if (porChat) api.emit("aviso", { quien: from, texto: `Escena puesta: ${s.nombre}.` }, "server");

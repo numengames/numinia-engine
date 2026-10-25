@@ -22,9 +22,15 @@ export type Cercano = { entidad: number; nombre: string | null; ia: boolean; x: 
 /** Is this a name the server gave to an AI? (MARCA_IA is put by the server; a person cannot choose it.) */
 export const esIA = (nombre: string | null | undefined): boolean => !!nombre && nombre.endsWith(MARCA_IA);
 
+/** Heading in degrees [0, 360) of a ground vector: 0° = +z, 90° = +x, 180° = −z, 270° = −x (the `rumbo` of the dart lines: x = sin, z = cos). */
+export const rumboDe = (dx: number, dz: number): number => { const g = (Math.atan2(dx, dz) * 180) / Math.PI; return Math.round((g < 0 ? g + 360 : g) * 10) / 10 % 360; };
+/** The unit vector a heading in degrees looks along (the inverse of rumboDe). */
+export const frenteDe = (grados: number): { x: number; z: number } => ({ x: Math.round(Math.sin((grados * Math.PI) / 180) * 1000) / 1000 + 0, z: Math.round(Math.cos((grados * Math.PI) / 180) * 1000) / 1000 + 0 });
+
 export class Cuerpo {
   readonly s: ClientSession;
   meta: Meta = null;
+  private giro: number | null = null; // heading in degrees, set whenever it steers; null = it has not walked yet
   readonly nombres = new Map<number, string>(); // who its page would name (chat «nombre»: within 24 m)
   readonly oido: Oido[] = [];
   private readonly oyentes: ((o: Oido) => void)[] = [];
@@ -60,6 +66,9 @@ export class Cuerpo {
   hacer(funcion: string, verbo: string, msg: Msg) { return this.s.features.send(funcion, verbo, msg); }
 
   // ---------- senses ----------
+  /** Where it faces: the way it last steered (walking to a point or after someone), like a page's avatar turns to the stick. Before its
+   * first step it faces 0° (+z) and `andado` is false. The simulation keeps no facing, so this is the body's own. */
+  rumbo(): { grados: number; x: number; z: number; andado: boolean } { const grados = this.giro ?? 0; return { grados, ...frenteDe(grados), andado: this.giro !== null }; }
   posicion(): { x: number; z: number } { const p = this.s.selfPosition(1); return { x: p.x, z: p.z }; }
   /** Who is around (from its own snapshots, like a page), nearest first. */
   cercanos(radio = 20): Cercano[] {
@@ -115,6 +124,7 @@ export class Cuerpo {
     if (to) {
       const dx = to.x - me.x, dz = to.z - me.z, d = Math.hypot(dx, dz);
       if (d > to.stop) {
+        this.giro = rumboDe(dx, dz);
         mx = Math.round((dx / d) * STICK_MAX); mz = Math.round((dz / d) * STICK_MAX);
         run = d > CORRER_M;
       } else if (this.meta?.tipo === "ir") this.meta = null; // arrived

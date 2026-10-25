@@ -28,6 +28,11 @@ export function crearCliente() {
       const v = api?.state.get(ACTUAL);
       return v && v.id ? { id: String(v.id), nombre: String(v.nombre), quien: String(v.quien) } : null;
     },
+    /** The sound of the scene on now: `ambiente` "" = the world's own bed, "-" = silence, else a catalogue id; `ganancia` -1 = default. null = no scene yet. */
+    ambienteActual: (): { ambiente: string; ganancia: number } | null => {
+      const v = api?.state.get(ACTUAL);
+      return v && v.id ? { ambiente: String(v.ambiente ?? ""), ganancia: Number(v.ganancia ?? -1) } : null;
+    },
     escena: (id: string) => enviar("escena", { id }),
     narrar: (texto: string) => enviar("narrar", { texto }),
     convocar: (texto = "") => enviar("convocar", { texto }),

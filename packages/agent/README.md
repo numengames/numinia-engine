@@ -73,7 +73,7 @@ mcp_servers:
       AGENTE_CLAVE: "/home/<you>/.numinia/agentes/hermes-pablo.clave"
 ```
 
-4. **Talk to Hermes** («entra en el mundo y pon una mesa delante de mí»). Its tools: `mirar` (where it is, people and
+4. **Talk to Hermes** («entra en el mundo y pon una mesa delante de mí»). Its tools: `mirar` (where it is, which way it faces — `rumbo` in degrees, 0° = +z, 90° = +x, plus a front vector —, people and
    things within 40 m with their ids, whether it may build, the models it may place), `decir` {texto, canal cerca|zona},
    `ir_a` {x, z} | {persona}, `colocar` {modelo, x, z, y?, giro?, escala?|escala_x/_y/_z, nombre?}, `mover` {id, …}
    (what it does not say stays), `borrar` {id}, `deshacer`, `oir` {desde} (the last 50 lines heard, by cursor, to follow
