@@ -1,7 +1,8 @@
 // habitantes-http: the door numinia.com's owner panel uses to manage a world's own AI inhabitants over HTTP — camino
 // A of «Add an AI» (B is an outside agent, agentes-http.ts). Same shape as that door, on purpose:
 //   GET    /habitantes        -> { habitantes: [{ id, nombre, escalon }] }
-//   POST   /habitantes        -> body: a whole habitante@1 object (the same as the chat order, once it exists) (201)
+//   POST   /habitantes        -> body: a whole habitante@1 object (the same as the chat order, once it exists) (201);
+//                                escalón 4 (it builds) also needs a pass that may build («build-in-worlds» or an owner): 403 otherwise
 //   DELETE /habitantes/<id>   -> the inhabitant's file is deleted (200)
 // Who may: whoever carries a numinia.com world pass (the same verifier as the WebSocket, `aud` = this world) that
 // holds `manage-organization` or is an owner (`dueno`). No pass configured at all = the door is shut (404, fail
@@ -28,7 +29,9 @@ export type OpcionesHabitantesHttp = {
   log?: (line: string) => void;
 };
 
-const STATUS: Record<string, number> = { invalido: 400, conflicto: 409, "no-hay": 404, servidor: 500 };
+/** The permission (numinia.com's STD-051 name) that lets a pass build; an inhabitant of escalón 4 builds, so creating one asks for it too. */
+export const PERMISO_CONSTRUIR = "build-in-worlds";
+const STATUS: Record<string, number> = { invalido: 400, conflicto: 409, "no-hay": 404, servidor: 500, "sin-permiso": 403 };
 
 export function crearHabitantesHttp(o: OpcionesHabitantesHttp) {
   const ahora = o.ahora ?? Date.now;
@@ -105,7 +108,7 @@ export function crearHabitantesHttp(o: OpcionesHabitantesHttp) {
       }
       let b: unknown;
       try { b = JSON.parse(txt); } catch { return responder(res, origen, 400, { error: "json", texto: "El cuerpo no es JSON." }); }
-      fin(g.anadir(b), 201);
+      fin(g.anadir(b, { puedeConstruir: v.pase.dueno || v.pase.permisos.includes(PERMISO_CONSTRUIR) }), 201); // escalón 4 builds: only a pass that may build can assign it (t_6c1f98aa)
     });
     return true;
   };

@@ -130,3 +130,33 @@ test("one id, one kind of AI: an outside agent's id cannot also be an inhabitant
     assert.equal(r.status, 409); assert.match((await r.json()).texto, /es un agente de fuera/);
   } finally { await srv.close(); }
 });
+
+// t_6c1f98aa (H3, «Add an AI» story 3): an inhabitant of escalón 4 BUILDS, so only a pass that may build can create one.
+test("escalón 4 needs a pass that may build: manage-organization alone is refused (403, nothing written), build-in-worlds or an owner passes", async () => {
+  const cerebro = { cerebro: { persona: "Una constructora tranquila" } };
+  const w = await mundo();
+  try {
+    const sinConstruir = await w.pedir("POST", "/habitantes", { token: GESTOR, cuerpo: HABITANTE("obrera", { escalon: 4, ...cerebro }) });
+    assert.equal(sinConstruir.status, 403, JSON.stringify(sinConstruir.json));
+    assert.equal(sinConstruir.json.error, "sin-permiso"); assert.match(sinConstruir.json.texto, /build-in-worlds/);
+    assert.equal(existsSync(join(w.aventura, "habitantes", "obrera.json")), false, "refused before any write");
+    assert.equal(w.recargas.length, 0, "and the service is not told to reload");
+    assert.ok(w.log.some((l) => l.includes("obrera") && l.includes("no puede construir")), "the refusal is in the log");
+    // a lower escalón is not affected by the building rule
+    assert.equal((await w.pedir("POST", "/habitantes", { token: GESTOR, cuerpo: HABITANTE("charla", { escalon: 2, ...cerebro }) })).status, 201);
+    assert.equal((await w.pedir("POST", "/habitantes", { token: GESTOR, cuerpo: HABITANTE("guion") })).status, 201);
+    // a pass with the building permission (and the management one) may
+    const constructor = pase(carga({ perm: ["enter-worlds", "manage-organization", "build-in-worlds"] }));
+    const ok = await w.pedir("POST", "/habitantes", { token: constructor, cuerpo: HABITANTE("obrera", { escalon: 4, ...cerebro }) });
+    assert.equal(ok.status, 201, JSON.stringify(ok.json));
+    assert.deepEqual(ok.json.habitante, { id: "obrera", nombre: "Nueva", escalon: 4 });
+    assert.equal(JSON.parse(readFileSync(join(w.aventura, "habitantes", "obrera.json"), "utf8")).escalon, 4);
+    // building alone does not manage inhabitants: the door's own permission is still asked first
+    const soloConstruir = pase(carga({ perm: ["enter-worlds", "build-in-worlds"] }));
+    assert.equal((await w.pedir("POST", "/habitantes", { token: soloConstruir, cuerpo: HABITANTE("otra", { escalon: 4, ...cerebro }) })).status, 403);
+    // an owner passes without listing permissions
+    const dueno = await w.pedir("POST", "/habitantes", { token: pase(carga({ perm: [], height: Number.MAX_VALUE })), cuerpo: HABITANTE("jefa", { escalon: 4, ...cerebro }) });
+    assert.equal(dueno.status, 201, JSON.stringify(dueno.json));
+    assert.deepEqual((await w.pedir("GET", "/habitantes", { token: GESTOR })).json.habitantes.map((h: { id: string }) => h.id).sort(), ["charla", "guion", "jefa", "obrera"]);
+  } finally { await w.srv.close(); }
+});
