@@ -3,7 +3,7 @@
 // hands), a panel with what you are doing, a dialogue panel you answer with the ray, and short notes in front of you.
 // render only reports intentions (`axes()` in -1..1, world frame) and choices; the sim and the server decide.
 // Only offered where WebXR VR exists (Quest, Pico, desktop headsets); phones and iPhone never see the button.
-// Buttons (xr-standard): A or X jump · B back (closes the dialogue) · Y brings the panel in front of you / hides it ·
+// Buttons (xr-standard): A or X jump · B (right) closes the menu or leaves the dialogue · Y (left) opens/closes the menu ·
 // trigger uses what the ray points at · grip takes what the hand touches · right stick: turn (sideways), and up/down
 // moves through a dialogue's answers (A or the trigger chooses).
 // Rediseño v2 (story E, maquetas p6/p7): turn the back of the LEFT wrist towards you and a watch shows on it (muneca.ts:
