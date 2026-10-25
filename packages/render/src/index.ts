@@ -668,7 +668,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (s.want.kind && s.want.kind !== "modelo") { cargarMedio(best, s, cerca); continue; }
       // H13: a still thing that is far when its turn comes loads a lighter level of the model (if the server made one); `clave`
       // names that file everywhere a model's file is the key (parsed file, baked parts, instanced stand-ins). `model` stays the thing's own.
-      const nivel = s.want.animate || s.sinNivel ? 0 : nivelParaCargar(Math.sqrt(distance2(s)), opts.lods?.(model.replace(/\.glb$/, "")) ?? 0);
+      const nivel = s.want.animate || s.sinNivel ? 0 : nivelParaCargar(selfXZ ? Math.sqrt(distance2(s)) : null, opts.lods?.(model.replace(/\.glb$/, "")) ?? 0);
       s.nivel = nivel;
       const clave = ficheroDeNivel(model, nivel);
       let file = files.get(clave);
@@ -762,7 +762,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       ? { x: op.x, y: op.y, z: op.z }
       : { x: camera.position.x, y: camera.position.y, z: camera.position.z };
     for (const [k, s] of things) {
-      if (s.nivel && s.loaded && !s.mejorando && debeMejorar(selfXZ ? Math.sqrt(distance2(s)) : 0, s.nivel)) { s.mejorando = true; s.nivel = undefined; waiting.add(k); pumpPronto(); } // H13: you came near: load the whole model
+      if (s.nivel && s.loaded && !s.mejorando && debeMejorar(selfXZ ? Math.sqrt(distance2(s)) : null, s.nivel)) { s.mejorando = true; s.nivel = undefined; waiting.add(k); pumpPronto(); } // H13: you came near: load the whole model
       if (s.medio) { s.medio.actualizar(s.group, oido, { hidden: !!s.want.hidden, volume: s.want.volume ?? 1, reach: s.want.reach ?? "burbuja", radius: s.want.radius ?? 8, ...(s.want.bus ? { bus: s.want.bus } : {}) }); if (s.want.kind === "video" && s.medio.sonando()) mediosSonando = true; }
       if (s.horneado) actualizarLOD(s); // J14: far baked figures drop to one piece (one draw call)
       if (!s.mixer) continue;

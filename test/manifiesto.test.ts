@@ -162,6 +162,20 @@ test("levels in the page: whole model near, level 1 from the near limit, level 2
   assert.equal(ficheroDeNivel("abc.glb", 2), "abc.lod2.glb"); assert.equal(ficheroDeNivel("abc.glb", 0), "abc.glb");
 });
 
+test("levels before the page knows where you stand: never the whole model; position near → whole, far → level; no upgrade loop without a position", () => {
+  assert.notEqual(nivelParaCargar(null, 2), 0, "no position: not the whole model"); assert.equal(nivelParaCargar(null, 2), 2, "the lightest level");
+  assert.equal(nivelParaCargar(null, 1), 1, "one level made: that one"); assert.equal(nivelParaCargar(NaN, 2), 2, "a non-finite distance is unknown too");
+  assert.equal(nivelParaCargar(null, 0), 0, "no levels made: the whole model, as before");
+  assert.equal(nivelParaCargar(5, 2), 0, "position known, near: the whole model"); assert.equal(nivelParaCargar(0, 2), 0, "standing on it is a real 0, still whole");
+  assert.equal(nivelParaCargar(LEJOS_M + 1, 2), 1); assert.equal(nivelParaCargar(LOD2_M + 1, 2), 2, "position known, far: a level");
+  assert.equal(debeMejorar(null, 2), false, "no position: a level is not 'near' (it would swap to the whole model at once)");
+  assert.equal(debeMejorar(5, 2), true, "the first snapshot says it is near: swap to the whole model");
+  assert.equal(debeMejorar(LOD2_M + 1, 2), false, "the first snapshot says it is far: keep the level");
+  // loading screen: a thing drawn from a level is a loaded piece, and the later swap keeps it loaded (index.ts keeps `loaded` while `mejorando`)
+  const p = { key: "a", distancia2: 0, loaded: true, failed: false };
+  assert.deepEqual(contarPiezas([p]), { total: 1, listas: 1, fallidas: 0 });
+});
+
 test("over a real server: upload a heavy model, place it, /manifiesto.json lists it with its levels and hashes that match what /a/ sends", async () => {
   const dir = tmp("m16-srv-"), datos = tmp("m16-datos-"), log: string[] = [];
   const glb = await colina(), h = sha(glb);
