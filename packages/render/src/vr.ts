@@ -341,7 +341,7 @@ export function createVR(h: VRHooks) {
   }
   /** «Menú» / Y: open the menu in front of the eyes (at `en`, or where it was) or close it. Returns whether it is open. */
   function alternarMenu(en?: Vista): boolean {
-    if (!session || condVR?.abierto) return false; // c4: with the entry bubble up there is no menu (nothing in it works yet)
+    if (!session || condVR?.abierto || (dialogo && dialogoMalla.visible)) return false; // c4: with the entry bubble up there is no menu (nothing in it works yet); t_166720f3: nor while a dialogue is in front
     leerOjos();
     const abre = !menu.abierto;
     const ok = menu.alternar(ojoV, miraV, en);
@@ -562,6 +562,7 @@ export function createVR(h: VRHooks) {
       if (!d) { dialogoMalla.visible = false; encima = 0; return; }
       if (encima > d.opciones.length) encima = 0;
       pintarDialogo();
+      if (session) { menu.cerrar(); panel.visible = false; } // MIS-200 t_166720f3: the dialogue is the one panel in front of you
       if (abria && session) delante(dialogoMalla, 1.15, 0.12);
       dialogoMalla.visible = !!session;
     },
