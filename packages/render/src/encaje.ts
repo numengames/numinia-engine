@@ -35,3 +35,14 @@ export function mejorEncaje(mia: Caja3, candidatos: Caja3[], idx: 0 | 1 | 2, umb
   }
   return mejor;
 }
+
+/** Lote4 (t_20955be6): what the builder SEES while dragging on one axis. `mejorEncaje` with a wider reach than the snap:
+ * `desplazamiento` is how far to move for the faces to touch, `falta` how much is left (metres), `encaja` whether the
+ * snap takes it now (it is within `umbralEncaje`). Between `umbralEncaje` and `umbralGuia` the page draws a ghost at the
+ * place where it will snap, so the jump is announced; null = nothing near enough to announce. */
+export type GuiaEncaje = { desplazamiento: number; falta: number; encaja: boolean };
+export function guiaEncaje(mia: Caja3, candidatos: Caja3[], idx: 0 | 1 | 2, umbralGuia = 0.6, umbralEncaje = 0.25): GuiaEncaje | null {
+  const d = mejorEncaje(mia, candidatos, idx, Math.max(umbralGuia, umbralEncaje));
+  if (d === null) return null;
+  return { desplazamiento: d, falta: Math.abs(d), encaja: Math.abs(d) <= umbralEncaje };
+}

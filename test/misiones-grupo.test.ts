@@ -11,7 +11,7 @@ import type { GuestKeeper } from "../packages/client/src/index.ts";
 import { signer } from "../packages/server/src/secret.ts";
 import { cargarAventura, leerMision } from "../features/misiones/formato.ts";
 import type { Aventura, Fichero } from "../features/misiones/formato.ts";
-import { aceptar, cumple, esperaLlegada, leerProgreso, nodoInicial, nuevoProgreso, registrar } from "../features/misiones/maquina.ts";
+import { PAUSA_GRUPO_MS, aceptar, asentar, cumple, proximaEspera, esperaLlegada, leerProgreso, nodoInicial, nuevoProgreso, registrar } from "../features/misiones/maquina.ts";
 import type { Progreso, Suceso } from "../features/misiones/maquina.ts";
 import { misiones as misionesDecl } from "../features/misiones/feature.ts";
 import { crearMisiones } from "../features/misiones/server.ts";
@@ -256,14 +256,76 @@ test("the TRG26 quest over the plug: three artisans at once on the map and the c
   m.elegir(1); W.pump(2);
   assert.deepEqual([libro().paso, m.resumen().seguida?.grupo?.hechos], [2, 2]);
   W.ir(0, 9); m.hablar("artemisia"); W.pump(2); m.adios(); W.pump(2);
+  // the third piece: the counter stays complete («Piezas reunidas 3/3») for a moment before the quest moves on (card t_b74b7f72)
+  assert.deepEqual([libro().paso, m.resumen().seguida?.grupo], [0, { nombre: G, hechos: 3, total: 3 }], "the whole block shows 3/3 first");
+  assert.deepEqual(m.objetivos(), [], "nothing left to point at while the finished grupo is held");
+  // Leonardo takes the three; then the chest — talking to him is the next step's first event: the quest moves on
+  W.ir(0, -9); m.hablar("leonardo"); W.pump(2);
   assert.deepEqual([libro().paso, m.resumen().seguida?.grupo], [3, null], "past the block: no counter");
   assert.deepEqual(m.objetivos().map((o) => o.nombre), ["Leonardo"]);
-  // Leonardo takes the three; then the chest
-  W.ir(0, -9); m.hablar("leonardo"); W.pump(2);
   assert.deepEqual(m.dialogo()?.opciones, ["Entregar piezas"]);
   m.elegir(1); W.pump(2);
   assert.equal(libro().paso, 4);
   assert.equal(m.ofrece("misiones", "cofre"), true);
   W.ir(2, -11); m.usar("cofre"); W.pump(2);
   assert.deepEqual([libro().estado, m.objetivos()], ["hecha", []]);
+});
+
+// ---------- «Piezas reunidas 3/3» before the quest advances (card t_b74b7f72) ----------
+test("machine: the finished grupo stays complete for ~2 s (3/3) before the quest moves on; time or the next action ends it", () => {
+  const T = 1_000_000;
+  const ultima = (p: Progreso, A: Aventura, t0: number) => { for (const [i, q] of ARTESANOS.entries()) registrar(p, A, { ...recibir(q), ahora: t0 + i * 100 }); };
+  // 1. all three done: the block is held complete, the quest has not moved
+  const A = cargar(), p = empezar(A), act = p.activas.vuelo;
+  ultima(p, A, T);
+  assert.deepEqual([act.paso, act.hechos.length, act.cierra], [0, 3, T + 200 + PAUSA_GRUPO_MS], "held at 3/3, with the time it moves on");
+  assert.equal(proximaEspera(p, A, T + 300), T + 200 + PAUSA_GRUPO_MS, "the server's tick has a time to look at");
+  // 2. nothing before the time; at the time, on to the delivery
+  assert.equal(asentar(p, A, T + 200 + PAUSA_GRUPO_MS - 1), false);
+  assert.deepEqual([act.paso, act.hechos.length], [0, 3]);
+  assert.equal(asentar(p, A, T + 200 + PAUSA_GRUPO_MS), true);
+  assert.deepEqual([act.paso, act.hechos, act.cierra], [3, [], undefined]);
+  // 3. the player acts first (talks to Leonardo inside the pause): the hold ends and the event is read by the next block
+  const B = cargar(), q = empezar(B), act2 = q.activas.vuelo;
+  ultima(q, B, T);
+  assert.deepEqual(registrar(q, B, { tipo: "entregar", pnj: "leonardo", mision: "vuelo", ahora: T + 500 }), [{ mision: "vuelo", paso: 3, completada: false }]);
+  assert.deepEqual([act2.paso, act2.cierra], [4, undefined], "the delivery went through, no waiting");
+  // 4. an arrival check inside the pause changes nothing; the same event outside the pause is the next block's
+  const C = cargar(), r = empezar(C), act3 = r.activas.vuelo;
+  ultima(r, C, T);
+  assert.deepEqual(registrar(r, C, { tipo: "llega", x: 0, z: 0, ahora: T + 400 }), []);
+  assert.deepEqual([act3.paso, act3.hechos.length], [0, 3], "an arrival does not end the hold");
+  // 5. the hold is saved and read back (a reload inside the pause), and a block that is not a grupo never waits
+  const D = leerProgreso(JSON.parse(JSON.stringify(p)));
+  assert.deepEqual(D, p);
+  const E = cargar(), u = empezar(E);
+  ultima(u, E, T);
+  const salvado = leerProgreso(JSON.parse(JSON.stringify(u)));
+  assert.equal(salvado.activas.vuelo.cierra, u.activas.vuelo.cierra, "`cierra` survives a save");
+  assert.equal(leerProgreso({ v: 1, activas: { vuelo: { paso: 0, tiene: [], cierra: -5 } }, hechas: [], seguida: "" }).activas.vuelo.cierra, undefined, "a bad value is dropped");
+  // 6. without a clock (old callers) nothing waits: the quest moves on at once, as before
+  const F = cargar(), v = empezar(F);
+  for (const a of ARTESANOS) registrar(v, F, recibir(a));
+  assert.deepEqual([v.activas.vuelo.paso, v.activas.vuelo.cierra], [3, undefined]);
+});
+
+test("over the plug: the counter shows 3/3 for ~2 s with the server's clock, then the tick moves the quest on by itself", () => {
+  const T = { ms: Date.parse("2026-10-17T12:00:00Z") };
+  const inst = new Instance({ seed: 1, capacity: 8, k: 50, snapshotEvery: 2, features: crearMisiones({ aventura: aventura(), reloj: () => T.ms }), log: () => {}, identitySign: sign, now: () => T.ms });
+  const t = inst.join(0), cli = crearCliente(), m = cli.misiones;
+  const s = new ClientSession(t, { features: cli.parts, identity: keeper(), view: { label() {}, bounce() {}, place() {}, tag() {} } });
+  const pump = (ticks = 2) => { for (let i = 0; i < ticks; i++) { t.flush(); inst.tick(); t.flush(); } };
+  const ir = (x: number, z: number) => { inst.sim.tf.cols.x[s.entity] = fx(x); inst.sim.tf.cols.z[s.entity] = fx(z); pump(12); };
+  pump(3);
+  ir(1, 0); m.hablar("pietro"); pump(2); m.elegir(1); pump(2);
+  ir(-9, 0); m.hablar("bianca"); pump(2); m.adios(); pump(2);
+  ir(9, 0); m.hablar("cosimo"); pump(2); m.elegir(1); pump(2);
+  ir(0, 9); m.hablar("artemisia"); pump(2); m.adios(); pump(2);
+  assert.deepEqual(m.resumen().seguida?.grupo, { nombre: G, hechos: 3, total: 3 }, "«Piezas reunidas 3/3» is on screen");
+  assert.equal(m.libro()[0].paso, 0, "the quest has not moved yet");
+  T.ms += PAUSA_GRUPO_MS - 500; pump(6);
+  assert.deepEqual(m.resumen().seguida?.grupo, { nombre: G, hechos: 3, total: 3 }, "still held before the time");
+  T.ms += 600; pump(6);
+  assert.deepEqual([m.libro()[0].paso, m.resumen().seguida?.grupo], [3, null], "after ~2 s the tick moved it on, with no action from the player");
+  assert.deepEqual(m.objetivos().map((o) => o.nombre), ["Leonardo"]);
 });

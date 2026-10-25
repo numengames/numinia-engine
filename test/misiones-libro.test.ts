@@ -119,16 +119,18 @@ const ficheros = (dir: string, xs: { id: string }[]): Fichero[] => xs.map((x) =>
 const keeper = (): GuestKeeper & { token: string | null } => { const k = { token: null as string | null, load: () => k.token, save: (t: string) => { k.token = t; } }; return k; };
 
 function world() {
-  const inst = new Instance({ seed: 1, capacity: 8, k: 50, snapshotEvery: 2, features: crearMisiones({ aventura: { misiones: ficheros("misiones", [VUELO]), pnj: ficheros("pnj", PNJ), cosas: ficheros("cosas", COSAS) } }), log: () => {}, identitySign: signer("una-clave-de-prueba-larga"), now: () => Date.parse("2026-10-17T12:00:00Z") });
+  const T = { ms: Date.parse("2026-10-17T12:00:00Z") }; // the server's clock: a finished grupo moves on after ~2 s of it
+  const inst = new Instance({ seed: 1, capacity: 8, k: 50, snapshotEvery: 2, features: crearMisiones({ aventura: { misiones: ficheros("misiones", [VUELO]), pnj: ficheros("pnj", PNJ), cosas: ficheros("cosas", COSAS) }, reloj: () => T.ms }), log: () => {}, identitySign: signer("una-clave-de-prueba-larga"), now: () => Date.parse("2026-10-17T12:00:00Z") });
   const t = inst.join(0), cli = crearCliente();
   const s = new ClientSession(t, { features: cli.parts, identity: keeper(), view: { label() {}, bounce() {}, place() {}, tag() {} } });
   const pump = (ticks = 2) => { for (let i = 0; i < ticks; i++) { t.flush(); inst.tick(); t.flush(); } };
   const ir = (x: number, z: number) => { inst.sim.tf.cols.x[s.entity] = fx(x); inst.sim.tf.cols.z[s.entity] = fx(z); pump(12); };
-  return { s, m: cli.misiones, pump, ir };
+  const pasar = (ms: number) => { T.ms += ms; pump(4); };
+  return { s, m: cli.misiones, pump, ir, pasar };
 }
 
 test("the TRG26 quest over the plug: the states at each moment, the VR panel's marks, the book opening once after Pietro, the item notes", () => {
-  const { s, m, pump, ir } = world();
+  const { s, m, pump, ir, pasar } = world();
   pump(3);
   // the page's wiring (montarLibro): «aceptada» and every closed conversation ask whether to open; the «avance» texts
   const ab = abrirSolo(), aperturas: string[] = [], avances: string[] = [];
@@ -156,6 +158,7 @@ test("the TRG26 quest over the plug: the states at each moment, the VR panel's m
   assert.equal(marcasVR(), "→✓→□□");
   ir(9, 0); m.hablar("cosimo"); pump(2); m.adios(); pump(2);
   ir(0, 9); m.hablar("artemisia"); pump(2); m.adios(); pump(2);
+  pasar(2500); // «Piezas reunidas 3/3» is held ~2 s, then the quest moves on
   assert.deepEqual(ahora(), [H, H, H, A, B], "the three pieces: the delivery is now");
   assert.equal(marcasVR(), "✓✓✓→□");
   ir(0, -9); m.hablar("leonardo"); pump(2); m.elegir(1); pump(2);
