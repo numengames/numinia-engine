@@ -22,7 +22,8 @@ import { montarSoltar } from "./soltar.ts";
 import { montarAvatar } from "./avatar.ts"; // H10: your avatar — house or uploaded .vrm, for every visitor
 import { montarHuecos } from "./huecos.ts";
 import { montarFlecha } from "./flecha.ts"; // T3: the arrow that points at the button of the current mission step
-import { montarEnlaces } from "./enlaces.ts"; // J4: click on a thing with a link opens it (new tab, after confirming)
+import { montarGemelos } from "./gemelos.ts"; // H6: the HTML twin of the pictures placed in the world (screen readers, agents)
+import { enlaceAbrible, montarEnlaces } from "./enlaces.ts"; // J4: click on a thing with a link opens it (new tab, after confirming)
 import { disparadores } from "../../features/disparadores/client.ts"; // D-041: the cable — controller
 import { montarCable } from "./cable.ts"; // D-041, historias 5-6 + C: builder's live view + the cable as a sentence with blanks
 import { contextoDelCable } from "../../features/disparadores/cable-contexto.ts"; // what those blanks may choose (pure)
@@ -60,6 +61,8 @@ import { pesca } from "../../features/pesca/client.ts"; // pesca v1: the control
 import { bienes, comprobar } from "../../features/bienes/client.ts"; // N10: goods that are yours (signed receipt), in the sheet's «Inventario»
 import { montarBienes } from "./bienes.ts";
 import { montarEntorno } from "./entorno.ts";
+import { montarFichaMundo } from "./ficha-mundo.ts"; // H7: the form of the world's settings (inside the «Entorno» drawer)
+import { ajustes as ajustesMundo } from "../../features/ficha-mundo/client.ts"; // H7: the world's settings as the server says (title, picture, default avatar, people limit)
 import { montarDirector } from "./director.ts";
 import { dirigir } from "../../features/director/client.ts";
 import { ambienteDeEscena } from "../../features/director/feature.ts";
@@ -306,6 +309,7 @@ avatarUI = montarAvatar({ session, catalogo: catalogoAvatares, delMundo: avatare
 const huecos = montarHuecos({ constructor, view, rellenar: soltar.rellenar, decir: (t) => soltar.decir(t), panel: constructorUI.ranuraFicha });
 // ---- J4: a thing may carry a link (set in the inspector); a click on it opens it in a new tab, after confirming ----
 const enlaces = montarEnlaces({ constructor, view, construyendo: () => construyendo(view) });
+const gemelos = montarGemelos({ constructor, session, view, enlaces, abrible: enlaceAbrible }); // H6: «Imágenes del mundo», read by the screen reader; `__numinia.gemelos.lista()` for agents
 const cable = montarCable({ constructor, disparadores, aqui: () => (session.entity >= 0 ? session.selfPosition(1) : null), decir: (t) => soltar.decir(t), panel: constructorUI.cajon("cable"),
   // what the blanks of the sentence may choose: the world's own things (the server still checks every choice on save)
   contexto: () => contextoDelCable({ objetos: constructor.lista(), movedores: movedores.lista(), misiones: misiones.libro(), sonidos: catalogoSonidos.tabla() }) });
@@ -319,6 +323,8 @@ montarEntorno(ambiente, elementos, view, interruptorNaturaleza, constructorUI.ca
   { id: "burbujas", etiqueta: "Burbujas de voz", titulo: "Encender o apagar las burbujas de voz de este mundo (dentro de una, solo se oyen entre sí los que están dentro; es privacidad de oído, no cifrado) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en burbujas.json. / Turn the voice bubbles on or off for the whole world.", encendida: "Burbujas de voz encendidas.", apagada: "Burbujas de voz apagadas.", interruptor: interruptorBurbujas },
   { id: "dados", etiqueta: "Dados", titulo: "Encender o apagar los dados de este mundo (la torre de dados y /tirar) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en dados.json. / Turn the dice on or off for the whole world.", encendida: "Dados encendidos.", apagada: "Dados apagados.", interruptor: interruptorDados },
 ], interruptoresFunciones); // H4/H8: environment and elements, inside the builder's «Entorno» drawer (ux2-dock)
+// H7: the world's settings (title, picture, default avatar, people limit): the form below the switches (only who may), and the title in the tab follows the server
+montarFichaMundo({ ajustes: ajustesMundo, padre: constructorUI.cajon("entorno"), avatares: catalogoAvatares?.modelos.map((m) => ({ id: m.id, nombre: m.nombre })) ?? [] });
 montarBurbuja({ burbujas, cartel: document.getElementById("burbuja-cartel")! }); // burbujas v1: the small label while you are inside a bubble
 montarDados({ dados, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) }); // dados v1: the dice card everyone near sees, the dice buttons beside a tower
 const contadoresPagina = montarContadores({ contadores, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) }); // D-044: the counters' panel (the sign in the world is the feature's own label)
@@ -416,7 +422,7 @@ const compartir = montarPantalla({
 const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k) && cerradurasPagina.ofrece(f, k) && lucha.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: (x, z, y) => [...asiento.cerca(), ...huecos.cerca(x, z, y), ...cerradurasPagina.cerca(x, z), ...videoMandos.cerca(x, z), ...llamarIA.cerca()], pinchar: (key) => huecos.pinchar(key) || enlaces.pinchar(key),
   persona: (x, y) => { const q = view.pickPerson(x, y); return q !== null && gente.tarjeta(q); } }); // ux2-gente: a click on someone = their card
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
-const xr = montarXR({ session, view, misiones, interaccion }); // J10: hands in VR take, point and answer; what you took is in your hand
+const xr = montarXR({ session, view, misiones, interaccion, enlaces }); // J4: + the ray points at things with a link and the trigger asks before opening // J10: hands in VR take, point and answer; what you took is in your hand
 const condicionesXR = montarCondicionesXR({ condiciones, vr: view.vr as never, mundo: () => nombreDelMundo, soportado: () => vrDisponible }); // condiciones/c4
 montarDialogo(misiones, document.getElementById("dialogo")!, view);
 montarFlecha({ misiones }); // T3: idle costs nothing; with a step that points at a button it follows the button
@@ -455,6 +461,7 @@ const fuentesLucha = fuentesDeLucha(lucha); // the character HUD's Estado and Ca
 // «Tú» (I): the avatar you wear (its portrait: tu-logica.ts) and the world's name, read when the sheet draws
 const botonFicha = document.getElementById("hud-personaje-abrir") as HTMLButtonElement;
 let nombreDelMundo = estado?.nombre ?? "";
+ajustesMundo.alCambiar((a) => { if (a.nombre) { nombreDelMundo = a.nombre; document.title = a.nombre; } }); // H7: the owner renames the world → every tab
 const miAvatar = () => avatarQueLlevas(catalogoAvatares?.modelos, avatarUI?.eleccion("yo"), session.entity);
 const ficha = montarFicha({ session, view, desde: () => informe.bienvenidaMs, otros, avatar: miAvatar, mundo: () => nombreDelMundo,
   ...(catalogoAvatares?.modelos.length ? { cambiarAvatar: () => avatarUI?.abrir() } : {}) }, botonFicha);
@@ -805,7 +812,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { gemelos, ajustesMundo, session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones };
 
 // ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
 // of the bar's «Menú» (O), no longer a corner button ----

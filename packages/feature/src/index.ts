@@ -1188,3 +1188,5 @@ export class ClientRuntime {
 export const escapeHtml = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 export type { PuenteNormas, EnlaceFunciones, ParteConEnlace, EstadoFuncion, CambioFuncion } from "./enlace-funciones.ts"; // funciones/f1
 export { conEnlace } from "./enlace-funciones.ts";
+export type { AjustesMundo, AjustesMundoVivo, CambioAjustes, EnlaceFicha, ParteConFicha } from "./enlace-ficha.ts"; // ficha-mundo (H7)
+export { conFicha } from "./enlace-ficha.ts";

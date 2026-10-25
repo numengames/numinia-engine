@@ -38,5 +38,6 @@ import burbuja from "./burbuja/client.ts"; // ia-llamar S9: the shape of each AI
 import llamar from "./llamar/client.ts"; // ia-llamar S11: how each AI is called here (`llamarPagina.puedeBoton(entity)`) and the intent behind «Hablar con ella» and E
 import sonido from "./sonido/client.ts"; // S6: the sounds of the house — the server says what sounds and with what seed; the page only mixes (view.sonido)
 import interruptores from "./funciones/client.ts"; // f1: the world's feature switches (`__numinia.funciones`; the panel is f3/v3)
-const funciones: ClientPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, naturaleza, espacioBase, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido];
+import fichaMundo from "./ficha-mundo/client.ts"; // H7: the world's settings (title, picture, default avatar, people limit)
+const funciones: ClientPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, naturaleza, espacioBase, fichaMundo, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido];
 export default funciones;
