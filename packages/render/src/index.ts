@@ -101,7 +101,7 @@ export type Placed = { id: number; x: number; z: number; y?: number; speed?: num
  * `color` (optional «#rrggbb»): the model painted in that colour (quest things: two blocks that differ). */
 export type Thing = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean; color?: string;
   /** U10 (optional): modelo (.glb, the default), imagen / video (a plane), sonido (a sphere: radius = sx); file extension; hidden while playing; volume 0-1. */
-  kind?: "modelo" | "imagen" | "video" | "sonido"; ext?: string; hidden?: boolean; volume?: number;
+  kind?: "modelo" | "imagen" | "video" | "sonido" | "trazo"; ext?: string; hidden?: boolean; volume?: number;
   /** U11 (optional): who hears it (burbuja: inside the bubble; zona, todos: everyone, at the same volume) and a video's bubble radius (m). */
   reach?: "burbuja" | "zona" | "todos"; radius?: number;
   /** H5 (optional): the mixer group a sound or video plays in (the thing says; without it the engine picks: ambient for a bed, effects for a short sound, music for a video). */
@@ -715,6 +715,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   /** U10: an image, a video or a sphere of sound instead of a .glb (medios.ts). */
   function cargarMedio(key: string, s: Slot, cerca = true): void {
     const t = s.want, url = assetUrl(t.model).replace(/\.glb$/, `.${t.ext ?? "glb"}`), model = s.model;
+    if (t.kind === "trazo") { s.failed = true; return; } // J18b: a brush stroke is stored (story 1) but not drawn yet (story 3): never open it as a sound
     if ((t.kind === "video" || t.kind === "sonido") && !sePuedeReproducir(t.ext ?? "")) { s.failed = true; console.warn(`[medios] este navegador no reproduce .${t.ext}`); return; }
     const p = t.kind === "imagen" ? cargarImagen(url) : t.kind === "video" ? cargarVideo(url, () => verOcultos) : Promise.resolve(cargarSonido(url, () => verOcultos));
     loading++; if (cerca) cercaCargando++;

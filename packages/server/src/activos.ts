@@ -25,7 +25,7 @@ export const SERVIR: Record<string, string> = { ...TIPOS, vrma: "model/gltf-bina
 /** The house library. In the installer it sits next to the server code (app/activos). */
 export const BIBLIOTECA = fileURLToPath(new URL("../../../activos", import.meta.url));
 
-const RUTA = /^\/a\/([0-9a-f]{64})\.([a-z0-9]{2,4})$/;
+const RUTA = /^\/a\/([0-9a-f]{64})\.([a-z0-9]{2,5})$/;
 /** N22: kinds that shrink in gzip (pictures, sound and video are already compressed). */
 export const COMPRIMIBLES = new Set(["glb", "vrm", "vrma", "hdr"]);
 /** N22: kinds with a lighter copy (optimizar.ts): models, and PNG pictures (their lossless WebP). */

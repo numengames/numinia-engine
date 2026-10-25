@@ -27,13 +27,14 @@ export const LIMITES = { x: [X.min, X.max], y: [Y.min, Y.max], z: [X.min, X.max]
 const DONDE: Fields = { x: X, y: Y, z: X, rx: GIRO, ry: GIRO, rz: GIRO, sx: ESCALA, sy: ESCALA, sz: ESCALA };
 
 /** U10: what a thing is. modelo = a .glb; imagen = a picture on a plane (png, jpg, webp); video = a screen that plays a
- * looped video (mp4, webm); sonido = a sphere of sound (mp3, ogg): inside it you hear the file, its radius is the scale. */
-export const TIPOS = ["modelo", "imagen", "video", "sonido"] as const;
+ * looped video (mp4, webm); sonido = a sphere of sound (mp3, ogg): inside it you hear the file, its radius is the scale;
+ * J18b: trazo = a brush stroke painted in VR (a .trazo file, trazo@1 in packages/net/src/ficheros.ts; the renderer draws it in a later story). */
+export const TIPOS = ["modelo", "imagen", "video", "sonido", "trazo"] as const;
 export type Tipo = (typeof TIPOS)[number];
 /** Which file extensions each kind takes (the server checks /a/<sha256>.<ext> exists). */
-export const EXTENSIONES: Record<Tipo, readonly string[]> = { modelo: ["glb"], imagen: ["png", "jpg", "webp"], video: ["mp4", "webm"], sonido: ["mp3", "ogg"] };
+export const EXTENSIONES: Record<Tipo, readonly string[]> = { modelo: ["glb"], imagen: ["png", "jpg", "webp"], video: ["mp4", "webm"], sonido: ["mp3", "ogg"], trazo: ["trazo"] };
 const TIPO = { kind: "enum", values: TIPOS, default: "modelo" } as const;
-const EXT = { kind: "text", maxBytes: 4, default: "glb" } as const;
+const EXT = { kind: "text", maxBytes: 5, default: "glb" } as const; // 5: «trazo» (J18b)
 const VOLUMEN = { kind: "fixed", min: 0, max: 1, step: 0.01, default: 1 } as const;
 /** U11: who hears a sound or a video: only inside its bubble, the whole zone, or everyone in the world. */
 export const ALCANCES = ["burbuja", "zona", "todos"] as const;
@@ -102,7 +103,7 @@ export function motivoEnlace(valor: unknown): string {
 
 export const objetos = defineFeature({
   id: "objetos",
-  version: 7, // T1 (no bump: a server-only event, nothing on the wire or in the saved state): + event hizo; U10: + tipo/ext, oculto, volumen, solido + world box, intent ajustar; U11: + alcance, radio; H5: + grupo (additive); U12: + holes; M6: + colision (additive: solido stays); M22c: + lote (deshacer agrupado); J4: + enlace
+  version: 8, // J18b: + tipo «trazo» and ext up to 5 bytes (the enum and the text grew: new wire layout); T1 (no bump: a server-only event, nothing on the wire or in the saved state): + event hizo; U10: + tipo/ext, oculto, volumen, solido + world box, intent ajustar; U11: + alcance, radio; H5: + grupo (additive); U12: + holes; M6: + colision (additive: solido stays); M22c: + lote (deshacer agrupado); J4: + enlace
   describe: "Cosas colocadas en el mundo que se quedan (un modelo 3D con su sitio, giro, escala y nombre). Quien tiene permiso de construir las coloca, mueve, duplica, fija, borra y deshace en directo; todos lo ven al momento y sobrevive a los reinicios. Un hueco es un cuadro que espera su obra: se pincha, se elige una imagen y el servidor la encaja.",
   store: { describe: "Por objeto, quién lo colocó y cuándo (`a:<id>`), su caja propia si es sólido (`c:<id>`) y, si es un hueco, el cartel al que vuelve al vaciarlo (`v:<id>`); y el contador de ids (`siguiente`). Nunca va a las páginas." },
   state: {

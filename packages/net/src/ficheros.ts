@@ -9,12 +9,13 @@ export const TIPOS: Record<string, string> = {
   glb: "model/gltf-binary", vrm: "model/gltf-binary",
   png: "image/png", jpg: "image/jpeg", webp: "image/webp", ktx2: "image/ktx2", hdr: "image/vnd.radiance",
   mp3: "audio/mpeg", ogg: "audio/ogg", mp4: "video/mp4", webm: "video/webm",
+  trazo: "application/json", // J18b: a brush stroke painted in VR (trazo@1, below): text a person or an AI can read
 };
 
 const MB = 1024 * 1024;
 /** Largest upload per kind, in MB (1 MB = 1,048,576 bytes). Models: Hyperfy2's default (PUBLIC_MAX_UPLOAD_SIZE=12);
  * images are textures (KTX2 for big ones); video is short loops. Phones must stay cool: small files first. */
-export const TOPES_MB: Record<string, number> = { glb: 12, vrm: 12, png: 4, jpg: 4, webp: 4, ktx2: 8, hdr: 8, mp3: 8, ogg: 8, mp4: 32, webm: 32 };
+export const TOPES_MB: Record<string, number> = { glb: 12, vrm: 12, png: 4, jpg: 4, webp: 4, ktx2: 8, hdr: 8, mp3: 8, ogg: 8, mp4: 32, webm: 32, trazo: 32 / 1024 }; // a stroke is 32 kB (STROKE_FILE_BYTES_MAX), written as a fraction of a MB for this table
 /** Everything uploaded to one server, together (a builder cannot fill the disk). */
 export const SUBIDAS_TOTAL_MB = 1024;
 export const topeBytes = (tipo: string): number => (TOPES_MB[tipo] ?? 0) * MB;
@@ -82,7 +83,10 @@ export function comprobarFichero(tipo: string, b: Uint8Array): Result<{ tipo: st
   if (!TIPOS[tipo]) return fail("tipo", `.${tipo} no es un tipo admitido (${Object.keys(TIPOS).join(", ")})`);
   if (b.length === 0) return fail("bytes", "el fichero está vacío");
   if (b.length > topeBytes(tipo)) return fail("bytes", `pasa de ${TOPES_MB[tipo]} MB, el tope para .${tipo}`);
-  if (tipo === "glb" || tipo === "vrm") {
+  if (tipo === "trazo") {
+    const z = comprobarTrazo(b);
+    if (!z.ok) return { ok: false, issues: z.issues };
+  } else if (tipo === "glb" || tipo === "vrm") {
     const g = comprobarGlb(b);
     if (!g.ok) return { ok: false, issues: g.issues };
     const ext = (g.value.json.extensions ?? {}) as Record<string, unknown>;
@@ -91,6 +95,42 @@ export function comprobarFichero(tipo: string, b: Uint8Array): Result<{ tipo: st
     return fail("magic", `los primeros bytes no son los de un .${tipo}: ¿es otro tipo de fichero con la extensión cambiada?`);
   }
   return { ok: true, value: { tipo, bytes: b.length } };
+}
+
+// J18b (MIS-222 t_1b395abe, story 1 of MENU-MUNECA-Y-PINTURA-VR.md §3.7): `trazo@1`, a brush stroke painted in VR. A JSON text file
+// `{ "schema": "numinia-engine/trazo@1", "pincel": "tubo", "color": 3, "grosor": 0.015, "puntos": [[x,y,z,p], …] }`: the points are
+// metres relative to the stroke's centre (mm: 3 decimals), p the pressure 0–1 (2 decimals). It is an `objetos` thing (tipo trazo,
+// ext trazo, modelo = the sha256 of this file): the server checks it here like any upload, the renderer (story 3) draws it.
+export const TRAZO_SCHEMA = "numinia-engine/trazo@1";
+/** The caps of a stroke (limits.json: stroke_file_bytes_max, stroke_points_max, stroke_color_max, stroke_width_min/max). */
+export const TRAZO = { bytesMax: 32 * 1024, puntosMax: 600, puntosMin: 2, colores: 8, grosorMin: 0.003, grosorMax: 0.06, coordMax: 100, pinceles: ["tubo"] as readonly string[] } as const;
+export type Trazo = { schema: typeof TRAZO_SCHEMA; pincel: string; color: number; grosor: number; puntos: [number, number, number, number][] };
+const decimales = (v: number, n: number) => Math.abs(Math.round(v * 10 ** n) / 10 ** n - v) < 1e-9;
+
+/** A trazo@1 file: UTF-8 JSON that starts with `{`, with exactly that schema and caps (600 points, colour 0–7, width 0.003–0.06,
+ * coordinates within ±100 m of the centre, rounded to the millimetre, pressure 0–1). Never throws; says in Spanish what is wrong. */
+export function comprobarTrazo(b: Uint8Array): Result<Trazo> {
+  if (b[0] !== 0x7b) return fail("trazo.magic", "un trazo es un texto JSON: tiene que empezar por «{»");
+  let v: unknown;
+  try { v = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(b)); } catch { return fail("trazo.json", "el trazo no es un JSON legible (UTF-8)"); }
+  if (typeof v !== "object" || v === null || Array.isArray(v)) return fail("trazo.json", "el trazo no es un objeto JSON");
+  const t = v as Record<string, unknown>;
+  if (t.schema !== TRAZO_SCHEMA) return fail("trazo.schema", `el trazo tiene que decir schema «${TRAZO_SCHEMA}»`);
+  if (typeof t.pincel !== "string" || !TRAZO.pinceles.includes(t.pincel)) return fail("trazo.pincel", `pincel «${String(t.pincel).slice(0, 20)}» desconocido; vale: ${TRAZO.pinceles.join(", ")}`);
+  if (!Number.isInteger(t.color) || (t.color as number) < 0 || (t.color as number) >= TRAZO.colores) return fail("trazo.color", `el color es un número entero de 0 a ${TRAZO.colores - 1} (la paleta del motor)`);
+  if (typeof t.grosor !== "number" || !(t.grosor >= TRAZO.grosorMin && t.grosor <= TRAZO.grosorMax)) return fail("trazo.grosor", `el grosor va de ${TRAZO.grosorMin} a ${TRAZO.grosorMax} m`);
+  const p = t.puntos;
+  if (!Array.isArray(p)) return fail("trazo.puntos", "faltan los puntos");
+  if (p.length < TRAZO.puntosMin || p.length > TRAZO.puntosMax) return fail("trazo.puntos", `un trazo lleva de ${TRAZO.puntosMin} a ${TRAZO.puntosMax} puntos; este lleva ${p.length}`);
+  for (let i = 0; i < p.length; i++) {
+    const q = p[i] as unknown;
+    if (!Array.isArray(q) || q.length !== 4 || !q.every((n) => typeof n === "number" && Number.isFinite(n))) return fail(`trazo.puntos[${i}]`, "cada punto es [x, y, z, presión], cuatro números");
+    const [x, y, z, pr] = q as number[];
+    if (Math.abs(x) > TRAZO.coordMax || Math.abs(y) > TRAZO.coordMax || Math.abs(z) > TRAZO.coordMax) return fail(`trazo.puntos[${i}]`, `un punto se aleja más de ${TRAZO.coordMax} m del centro del trazo`);
+    if (!decimales(x, 3) || !decimales(y, 3) || !decimales(z, 3)) return fail(`trazo.puntos[${i}]`, "x, y, z van redondeados al milímetro (3 decimales)");
+    if (pr < 0 || pr > 1 || !decimales(pr, 2)) return fail(`trazo.puntos[${i}]`, "la presión va de 0 a 1 con 2 decimales");
+  }
+  return { ok: true, value: t as unknown as Trazo };
 }
 
 /** The issues of a Result as one line a person reads. */

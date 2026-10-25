@@ -26,7 +26,7 @@ import { trasGesto } from "./gesto.ts"; // the person's first gesture: shared wi
 import type { Bus, Nucleo } from "./audio/nucleo.ts";
 import type { Voces, Voz } from "./audio/voces.ts";
 
-export type Tipo = "modelo" | "imagen" | "video" | "sonido";
+export type Tipo = "modelo" | "imagen" | "video" | "sonido" | "trazo";
 export type Alcance = "burbuja" | "zona" | "todos";
 type Punto = { x: number; y: number; z: number };
 /** Lo que el render sabe de una cosa que suena o se ve. `bus` y `refDistance` todavía no vienen del mundo (los trae
