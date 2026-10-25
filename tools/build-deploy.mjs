@@ -63,6 +63,7 @@ function main() {
   cpSync(join(root, "features"), join(app, "features"), { recursive: true }); // the game features main.ts composes (J7)
   cpSync(join(root, "activos"), join(app, "activos"), { recursive: true }); // H1: the house library, served at /a/<sha256>
   cpSync(join(root, "aventuras"), join(app, "aventuras"), { recursive: true }); // J5: the example adventure (AVENTURA_DIR= for none)
+  cpSync(join(root, "plantillas"), join(app, "plantillas"), { recursive: true }); // primera vez: what a NEW world is born with (plantillas/taller, copied by `sembrar` and the installer)
   cpSync(join(root, "node_modules/ws"), join(app, "node_modules/ws"), { recursive: true });
   // N22: what the server's model optimizer needs (packages/server/src/optimizar.ts; all MIT), without maps, types, tests or
   // sources; ndarray-pixels is the empty package (tools/vacio): no sharp, no libvips

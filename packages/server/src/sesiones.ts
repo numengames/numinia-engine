@@ -31,6 +31,8 @@ export const SHAPES: Record<string, Shape> = {
     tiempos: { bienvenidaMs: "numero", primerCuadroMs: "numero", huellaMs: "numero" }, huellaIgual: "bool",
     origen: "texto", motorPagina: "texto",
   },
+  /** once, when the loading screen leaves: when, how many pieces of the world within view there were, how many were still not ready, and whether the cap forced it (C) */
+  carga: { ocultaMs: "numero", msDesdeWelcome: "numero", piezas: "conteo", pendientes: "conteo", tope: "bool" },
   /** every ~10 s: how it is going */
   pulso: {
     modo: "texto", cuadros: "numero", cuadroMs: P, perdidos: "numero", objetivoFps: "numero", hzXR: "numero",

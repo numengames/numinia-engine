@@ -3,7 +3,7 @@
 // Unpacks deploy/instalar-motor.sh with --solo-extraer into $TMPDIR, checks the page files, starts the
 // unpacked server on a spare port (8793) with the given node, connects one client and waits for snapshots.
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { webSocketClient } from "../packages/net/src/index.ts";
@@ -81,9 +81,10 @@ try {
     await x.arrayBuffer();
   }
   if ((await fetch(`http://127.0.0.1:${PORT}/..%2f..%2fapp%2fbuild.json`).catch(() => null))?.status !== 404) fail("la página deja salir de www/");
-  // C2: a new world got its own adventure (Alma, Bruno, Teo, Lía) and its manifest
-  for (const f of ["aventura/pnj/alma.json", "aventura/pnj/bruno.json", "aventura/pnj/teo.json", "aventura/habitantes/lia.json", "mundo.json"]) if (!existsSync(join(mundo, f))) fail(`el mundo nuevo no tiene ${f}`);
-  if (!/aventura: 2 misiones, 3 personas, 3 cosas/.test(log)) fail(`no leyó la aventura del mundo:\n${log}`);
+  // C2 + primera vez: a new world got its own adventure — the Taller onboarding (Lumen, 11 missions, a sample cable), nothing of the example — and its manifest
+  for (const f of ["aventura/pnj/lumen.json", "aventura/misiones/01-abre-el-taller.json", "aventura/misiones/11-tu-mini-mision.json", "entorno/disparadores.json", "entorno/espacio-base.json", "mundo.json"]) if (!existsSync(join(mundo, f))) fail(`el mundo nuevo no tiene ${f}`);
+  for (const f of ["aventura/pnj/alma.json", "aventura/habitantes/lia.json", "entorno/entorno.json"]) if (existsSync(join(mundo, f))) fail(`el mundo nuevo trae ${f}, que no es del onboarding`);
+  if (!/aventura: 11 misiones, 1 personas/.test(log)) fail(`no leyó la aventura del mundo:\n${log}`);
   if (existsSync(join(mundo, "claves.env"))) fail("con claves en el entorno (JWT_SECRET, ADMIN_CODE) no debe escribir claves.env");
   if (log.includes(ADMIN) || log.includes("c".repeat(64))) fail("el registro enseña una clave");
   // H1: the house library is served by its sha256 (the robot, CC0)
@@ -103,11 +104,18 @@ try {
   if (tz.status !== 0) fail(`el zip del mundo no pasa unzip -t:\n${tz.stdout}${tz.stderr}`);
   // C5: mundo@2 carries the adventure and the run-it-yourself extras, never keys or sessions
   const lista = spawnSync("unzip", ["-Z1", join(dir, "mundo.zip")], { encoding: "utf8" }).stdout.split("\n");
-  for (const f of ["mundo.json", "aventura/pnj/alma.json", "aventura/pnj/bruno.json", "aventura/misiones/primeros-pasos.json", "compose.yml", "arrancar.sh", "LEEME.txt"]) if (!lista.includes(f)) fail(`el zip no lleva ${f}: ${lista.join(" ")}`);
+  for (const f of ["mundo.json", "aventura/pnj/lumen.json", "aventura/misiones/01-abre-el-taller.json", "entorno/disparadores.json", "compose.yml", "arrancar.sh", "LEEME.txt"]) if (!lista.includes(f)) fail(`el zip no lleva ${f}: ${lista.join(" ")}`);
   if (lista.some((f) => /claves|sesiones\/|subidas\.jsonl/.test(f))) fail(`el zip lleva lo que no debe: ${lista.join(" ")}`);
   // C6: the image's «comprobar», from the unpacked copy, reads it
   const comp = spawnSync(node, ["packages/server/src/entrada.ts", "comprobar"], { cwd: join(dir, "app"), input: readFileSync(join(dir, "mundo.zip")), encoding: "utf8" });
   if (comp.status !== 0 || !/^vale: numinia-engine\/mundo@2/.test(comp.stdout)) fail(`comprobar no acepta el zip del mundo: ${comp.stdout}${comp.stderr}`);
+  // the Taller brings no inhabitants: like an owner who adds Lía from the example, put her file in the world and restart the server (it reads its inhabitants at start)
+  mkdirSync(join(mundo, "aventura", "habitantes"), { recursive: true });
+  cpSync(join(dir, "app/aventuras/ejemplo/habitantes/lia.json"), join(mundo, "aventura", "habitantes", "lia.json"));
+  const parado = new Promise((r) => srv.once("exit", r)); srv.kill(); await parado;
+  srv = spawn(node, ["packages/server/src/main.ts"], { cwd: join(dir, "app"), env: { ...entorno, PORT: String(PORT), HOST: "127.0.0.1", STATS_MS: "60000", MOTOR_AGENTES_SECRET: AGENTES, ADMIN_CODE: ADMIN, JWT_SECRET: "c".repeat(64), MOTOR_MUNDO: mundo, WWW_DIR: join(dir, "www"), MOTOR_CONSTRUIR: "todos" } });
+  srv.stdout.on("data", (d) => { log += d; }); srv.stderr.on("data", (d) => { log += d; });
+  for (let i = 0; i < 40 && log.split("[instancia]").length < 3; i++) await sleep(100);
   hab = spawn(node, ["packages/agent/src/main.ts"], { cwd: join(dir, "app"), env: { ...process.env, MOTOR_URL: `ws://127.0.0.1:${PORT}`, MOTOR_AGENTES_SECRET: AGENTES, STATS_MS: "60000", CEREBRO_ECO: "1", AVENTURA_DIR: join(mundo, "aventura") } });
   hab.stdout.on("data", (d) => { habLog += d; }); hab.stderr.on("data", (d) => { habLog += d; });
   for (let i = 0; i < 50 && !habLog.includes("el motor me llama"); i++) await sleep(100);
@@ -129,5 +137,5 @@ try {
   const puesto = suyo();
   if (puesto?.nombre !== "prueba" || !dicho.some((d) => d.startsWith(`${nombre}: eco:`))) fail(`Lía no construyó con el cerebro de eco: objetos ${gs.features.stateOf("objetos").size}, chat ${JSON.stringify(dicho)}\n${habLog}`);
   const fp = log.match(/huella de referencia ([0-9a-f]+)/)?.[1];
-  console.log(`[deploy-check] OK · node ${version} · ${sello.build} (${sello.commit.slice(0, 12)}…) · página ${refs.length} ficheros enlazados, servida por el motor · ${s.stats.snapshots} snapshots en ${Math.round(performance.now() - t0)} ms · huella ${fp} · /health, /status, /metrics, /a/, subidas y /mundo (zip mundo@2 con aventura, compose.yml y arrancar.sh; comprobar OK) · mundo nuevo con su aventura (Alma, Bruno, Teo) · habitante «${nombre}» dentro, piensa (eco) y construye (RSS ${m.memoriaMB.rss} MB)`);
+  console.log(`[deploy-check] OK · node ${version} · ${sello.build} (${sello.commit.slice(0, 12)}…) · página ${refs.length} ficheros enlazados, servida por el motor · ${s.stats.snapshots} snapshots en ${Math.round(performance.now() - t0)} ms · huella ${fp} · /health, /status, /metrics, /a/, subidas y /mundo (zip mundo@2 con aventura, compose.yml y arrancar.sh; comprobar OK) · mundo nuevo con el onboarding del Taller (Lumen, 11 misiones) · habitante «${nombre}» dentro, piensa (eco) y construye (RSS ${m.memoriaMB.rss} MB)`);
 } finally { stop(); }
