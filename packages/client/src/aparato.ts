@@ -6,7 +6,7 @@
 // before it counts as done.
 // Forcing (`?aparato=movil-vertical`, or the setting interfaz.aparato) works only in development (vite dev) or with
 // ?debug: a shared link must never take a phone's touch controls away. `auto` reproduces the old decision exactly
-// (touch HUD = pointer: coarse). No DOM: the browser is read through `Entorno`, so Node tests pass a fake one.
+// (touch HUD = pointer: coarse), except on a headset's own browser (see `esVisor`), which is always the `vr` class. No DOM: the browser is read through `Entorno`, so Node tests pass a fake one.
 import { leerTextoGuardado } from "./ajustes.ts";
 import type { Capacidades, Nivel } from "../../feature/src/ajustes.ts";
 
@@ -52,19 +52,30 @@ export const PARAM_MARCO = "marco";
 export const esEleccion = (v: unknown): v is Eleccion => typeof v === "string" && (APARATOS as readonly string[]).includes(v);
 
 /** What the browser says, as plain values (Node tests pass them directly). */
-export type Real = { punteroGrueso: boolean; raton: boolean; tactil: boolean; ancho: number; alto: number; memoriaGB: number };
+export type Real = { punteroGrueso: boolean; raton: boolean; tactil: boolean; ancho: number; alto: number; memoriaGB: number; visor?: boolean };
 type MQ = { matches: boolean };
-export type Entorno = { matchMedia?: (q: string) => MQ; innerWidth?: number; innerHeight?: number; navigator?: { maxTouchPoints?: number; deviceMemory?: number } };
+export type Entorno = { matchMedia?: (q: string) => MQ; innerWidth?: number; innerHeight?: number; navigator?: { maxTouchPoints?: number; deviceMemory?: number; userAgent?: string } };
+
+/**
+ * Is this the browser of a standalone headset (Quest Browser, PICO Browser, Wolvic)? The ONE place the page reads a
+ * browser name, and only for this question: no synchronous capability tells a headset from a phone — the Pico 4's
+ * browser reports `(pointer: coarse)` and 5 touch points, exactly like a phone — and the profile has to be decided
+ * before the first frame, long before `navigator.xr` answers. Pico UA: «… PicoBrowser/3.3.46 Chrome/105… VR Safari/537.36
+ * OculusBrowser/7.0»; Quest: «… OculusBrowser/… Quest 3 …».
+ */
+export const esVisor = (userAgent: string | undefined): boolean => /\b(OculusBrowser|PicoBrowser|Wolvic|Quest|PICO)\b/i.test(userAgent ?? "");
 export function leerReal(env: Entorno = globalThis as unknown as Entorno): Real {
   const mq = (q: string) => { try { return !!env.matchMedia?.(q).matches; } catch { return false; } };
   return {
     punteroGrueso: mq("(pointer: coarse)"), raton: mq("(any-pointer: fine)"), tactil: (env.navigator?.maxTouchPoints ?? 0) > 0,
     ancho: Number(env.innerWidth) || 0, alto: Number(env.innerHeight) || 0, memoriaGB: Number(env.navigator?.deviceMemory) || 0,
+    visor: esVisor(env.navigator?.userAgent),
   };
 }
 
 /** `auto`: the class the device itself gives. Same rule the page always used: the touch HUD comes with pointer: coarse. */
 export function claseReal(r: Real): Clase {
+  if (r.visor) return "vr"; // a headset's browser says «coarse» like a phone, but it has controllers, not fingers
   if (!r.punteroGrueso) return "escritorio";
   return r.ancho > r.alto ? "movil-horizontal" : "movil-vertical";
 }
@@ -86,10 +97,14 @@ export function eleccionDesde(o: { url?: string | null; guardado?: string | null
 export function decidirAparato(o: { eleccion?: Eleccion; real: Real; enMarco?: boolean }): Perfil {
   const r = o.real, eleccion = o.eleccion && esEleccion(o.eleccion) ? o.eleccion : "auto";
   if (eleccion === "auto") {
+    const memoriaBaja = r.memoriaGB > 0 && r.memoriaGB <= 4;
+    // a headset: the `vr` class with its declared capabilities (controllers point like a fine pointer, no touch HUD, no
+    // phone-size screen); phone-class power only by the memory rule, never because the pointer reads «coarse»
+    if (r.visor) return { eleccion, clase: "vr", forzado: false, ...DECLARADAS.vr, movil: memoriaBaja, marco: null };
     const pequena = r.ancho > 0 && r.alto > 0 && Math.min(r.ancho, r.alto) < PANTALLA_PEQUENA_PX;
     return {
       eleccion, clase: claseReal(r), forzado: false, tactil: r.punteroGrueso, punteroGrueso: r.punteroGrueso, raton: r.raton,
-      pantallaPequena: pequena, movil: r.punteroGrueso || (r.memoriaGB > 0 && r.memoriaGB <= 4), vr: false, marco: null,
+      pantallaPequena: pequena, movil: r.punteroGrueso || memoriaBaja, vr: false, marco: null,
     };
   }
   // a phone profile forced on a device without fingers is drawn inside a phone-size frame (unless this IS the frame)

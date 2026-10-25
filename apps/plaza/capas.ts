@@ -12,6 +12,7 @@
 // browser's and never reaches the page (design §4); the menu opens when the pointer is released / full screen ends
 // (`alSoltarse`, wired in menu-juego.ts). Re-capturing the pointer always needs a click: nothing here does it.
 import { escribiendo } from "./escribiendo.ts";
+import { esTactil } from "./perfil-aparato.ts"; // U25: the page's one answer to «touch controls or not»
 
 export const RANGO = { tecla: 60, escribir: 50, panel: 40, modo: 30, menu: 20 } as const;
 export type Capa = { id: string; rango: number; abierta(): boolean; cerrar(): void };
@@ -78,7 +79,7 @@ function alEscape(e: KeyboardEvent): void {
 // checks), and only after the first touch (browsers skip entries added without one). ----
 function montarAtras(): void {
   const params = new URLSearchParams(location.search);
-  if (!matchMedia("(pointer: coarse)").matches && !params.has("atras")) return;
+  if (!esTactil() && !params.has("atras")) return;
   let puesta = false;
   const poner = () => { if (puesta) return; puesta = true; try { history.pushState({ numinia: "capa" }, ""); } catch { puesta = false; } };
   addEventListener("pointerdown", poner, { once: true, capture: true });

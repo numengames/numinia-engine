@@ -16,7 +16,7 @@ import type { ImagenCenital, Huella } from "../../packages/render/src/index.ts";
 import { bajoElCorte } from "../../packages/render/src/corte.ts";
 import { MARCA_IA } from "../../packages/instance/src/identidad.ts";
 import { crearDialogo, anunciar } from "./paneles.ts";
-import { perfil } from "./perfil-aparato.ts";
+import { perfil, esTactil } from "./perfil-aparato.ts";
 import { icono } from "./iconos.ts";
 import { tituloDe } from "../../packages/render/src/menu-secciones.ts"; // v2 paridad: the map's name is the one list's
 import { esMovil } from "../../packages/client/src/movil.ts"; // U24
@@ -286,7 +286,7 @@ export function montarMapa(h: HostMapa) {
   const ponerGiro = (si: boolean) => { if (si === gira) return; gira = si; limMini.forzar(); textoT = -Infinity; };
   // on touch screens the features' buttons live in the bottom-right corner: sit to their left
   const acciones = document.getElementById("acciones");
-  const sitio = () => { if (!matchMedia("(pointer: coarse)").matches) return; /* U3: on a mouse screen the frame table places the map */ mini.style.right = acciones && acciones.childElementCount ? `${acciones.offsetWidth + 20}px` : ""; };
+  const sitio = () => { if (!esTactil()) return; /* U3: on a mouse screen the frame table places the map */ mini.style.right = acciones && acciones.childElementCount ? `${acciones.offsetWidth + 20}px` : ""; };
   if (acciones && typeof ResizeObserver === "function") new ResizeObserver(sitio).observe(acciones);
   sitio();
 

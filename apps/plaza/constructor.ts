@@ -22,6 +22,7 @@ import { datosFicha, enlaceDeObjeto, ETIQUETAS_FICHA, fichaVisible, logicaDeObje
 import type { PiezasMundo } from "./ficha-objeto.ts";
 import { ACCIONES_DOCK, alTocarlo, alternarCajon, CAJONES, esArrastre, filtrarBiblioteca, iconoDePieza, queCierraEscape, tamanoUniforme } from "./cajones.ts";
 import type { Cajon } from "./cajones.ts";
+import { esTactil } from "./perfil-aparato.ts"; // U25: the page's one answer to «touch controls or not»
 
 type Res = { ok: true } | { ok: false; why: string };
 type Obj = Record<string, unknown> & { id: string };
@@ -331,9 +332,9 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   let puntero: { x: number; y: number } | null = null;
   let ctrl = false, eje: Eje | null = null, local = false, trasDuplicar = false;
   let abajo: { x: number; y: number; gizmo: boolean } | null = null, arrastrado = false, ultimoRaton = -Infinity;
-  // M22b-1: coarse pointer (a phone) → «mover» has no handles, the thing is the handle. Starts from the media query and
+  // M22b-1: coarse pointer (a phone) → «mover» has no handles, the thing is the handle. Starts from the device profile (perfil-aparato.ts: a headset's coarse pointer is not a finger) and
   // turns on at the first touch (a laptop with a touch screen reports a fine pointer)
-  let tactil = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+  let tactil = esTactil();
   const pasoPos = () => (ctrl ? 0 : Number(selPos.value));
   const pasoGiro = () => (ctrl ? 0 : Number(selGiro.value));
 
