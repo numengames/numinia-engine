@@ -9,6 +9,7 @@ import { montarCiudad } from "./ciudad.ts"; // t_5cff4f06: the corner button bac
 import { montarMenuVR } from "./xr-menu.ts"; // rediseño v2: the VR wrist watch and menu (story E)
 import mundoPlaza from "./mundo.ajustes.json";
 import { montarPulsaciones } from "./pulsaciones.ts"; // U26: a press you can see (and feel) on every button
+import { crearTienda, type CachesLike } from "./manifiesto.ts";
 import { carga, estadoCarga, piezasPendientes, sueloPendiente, TOPE_CARGA_MS } from "./carga.ts"; // MVL3 step 1: fades out the 2D "Cargando" screen once the first frame is drawn
 import { ClientSession, serverUrl, tomarPaseDeLaDireccion } from "../../packages/client/src/index.ts";
 import { createView, leerAparato, leerBateria, medidorDeCuadros, haciaMundo } from "../../packages/render/src/index.ts";
@@ -116,6 +117,8 @@ const transport = webSocketClient(url);
 transport.opened.catch(() => {}); // the message for the player is set below, where the HUD is; this one only keeps the early rejection from being «unhandled»
 // H1: files of things in the world come from the instance's server by their sha256 (ws://h:p -> http://h:p/a/<sha256>.glb)
 const activos = new URL(url.replace(/^ws/, "http")).origin;
+// M16: the zone's manifest (every file with its sha256 and size) and the files the browser already holds by hash: a reload downloads nothing it has seen
+const tienda = crearTienda({ origen: activos, caches: typeof caches !== "undefined" ? (caches as unknown as CachesLike) : null });
 // S6: the house sound catalogue — one small JSON from the INSTANCE'S server (`${activos}/sonidos.json`, the same
 // origin the files come from: that way `dev:lan`, Caddy or a world on another host need no extra proxy rule), and
 // from then on the seven notices are FILES on the «interfaz» bus with no panner. Until the table lands, `sonarCasa`
@@ -154,7 +157,7 @@ const catalogoAvatares = catalogoDeAvatares(activos, params, estado?.avatar);
 // H10: montarAvatar() below needs `session` and `view`, both built after this; the hook itself is only read each
 // frame (avatares.ts sync()), so a holder filled in later is enough — nothing calls it before montarAvatar runs.
 let avatarUI: ReturnType<typeof montarAvatar> | null = null; // ux2-barra: also abrirSelector()/alternarSelector() for story B («Tú»)
-const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, movil: perfil().forzado ? perfil().movil : undefined, assetUrl: (m) => `${activos}/a/${m}.glb`,
+const view = await createView(document.body, { forceWebGL: params.has("webgl2"), arMaxMs: Number(params.get("armax")) || undefined, battery: params.has("bateria"), maxFps: Number(params.get("fps")) || undefined, movil: perfil().forzado ? perfil().movil : undefined, assetUrl: (m) => `${activos}/a/${m}.glb`, lods: (sha) => tienda.lods(sha), leer: (u) => tienda.leer(u),
   avatares: { catalogo: catalogoAvatares, yo: () => session.entity, eleccion: (c) => avatarUI?.eleccion(c) } }); // J1: VRM avatars (session exists by the first draw); H7: the world's default avatar; H10: your own choice
 carga.etapa("vista"); // H4
 view.naturaleza.tablaFauna(() => import("../../features/naturaleza/fauna-casa.ts").then((m) => m.FAUNA_CASA)); // F4: the house fauna table, fetched only with the fauna
@@ -772,7 +775,8 @@ view.loop((now) => {
     // is ready (model, textures, shaders — view.cargaMundo()), or after the cap. The count is also what the screen writes («n de N piezas»).
     if (!cargaOculta) {
       const mundo = view.cargaMundo();
-      carga.piezas({ listas: mundo.listas, total: mundo.total });
+      const tot = tienda.totales().arranque, est0 = tienda.estadisticas();
+      carga.piezas({ listas: mundo.listas, total: mundo.total, ...(tot > 0 ? { bytes: { listos: est0.bytesDescargados + est0.bytesDeCache, total: tot } } : {}) }); // M16: its bytes, from the manifest
       const msDesdeWelcome = informe.bienvenidaMs ? Math.round(performance.now()) - informe.bienvenidaMs : 0;
       const est = estadoCarga({ welcome: !!session.welcome, mundoRecibido: session.stats.snapshots > 0, primerCuadro: true, sueloPendiente: pendiente, piezasPendientes: piezasPendientes(mundo), msDesdeWelcome });
       if (est !== "esperando") {

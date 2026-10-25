@@ -85,19 +85,29 @@ export async function generarLods(bytes: Uint8Array): Promise<Lods> {
     const lods: Lod[] = [];
     let anterior = h0.triangulos, porque: string | undefined;
     for (const nv of NIVELES_LOD) {
-      const doc = await l.io.readBinary(bytes);
-      doc.setLogger(new l.core.Logger(l.core.Logger.Verbosity.SILENT));
-      await doc.transform(
-        l.fns.dedup(),
-        l.fns.prune({ keepLeaves: true, keepAttributes: false, keepExtras: true, keepIndices: true }),
-        l.fns.weld(),
-        l.fns.simplify({ simplifier: MeshoptSimplifier, ratio: nv.ratio, error: nv.error }),
-        l.fns.quantize({ quantizePosition: 16, quantizeNormal: 12, quantizeTexcoord: 14, quantizeColor: 10, quantizeWeight: 10, quantizeGeneric: 12 }),
-        l.fns.reorder({ encoder: MeshoptEncoder, target: "size" }),
-      );
-      doc.createExtension(l.ext.EXTMeshoptCompression).setRequired(true).setEncoderOptions({ method: l.ext.EXTMeshoptCompression.EncoderMethod.QUANTIZE });
-      const out = await l.io.writeBinary(doc);
-      const h = medir(l, await l.io.readBinary(out)); // read back what we wrote: the check is on the real bytes
+      // First as it is. A flat-shaded model (a normal per face: low-poly, hard edges) comes out of weld() with every triangle on
+      // its own island, and the simplifier will not touch an island's border: it removes nothing. For those, a second try
+      // without the normals (welded by position, simplified, smooth normals computed again): from afar, which is all a level is for, it reads the same.
+      let hecho: { out: Uint8Array; h: ReturnType<typeof medir> } | null = null;
+      for (const liso of [false, true]) {
+        const doc = await l.io.readBinary(bytes);
+        doc.setLogger(new l.core.Logger(l.core.Logger.Verbosity.SILENT));
+        if (liso) for (const m of doc.getRoot().listMeshes()) for (const p of m.listPrimitives()) p.setAttribute("NORMAL", null);
+        await doc.transform(
+          l.fns.dedup(),
+          l.fns.prune({ keepLeaves: true, keepAttributes: false, keepExtras: true, keepIndices: true }),
+          l.fns.weld(),
+          l.fns.simplify({ simplifier: MeshoptSimplifier, ratio: nv.ratio, error: nv.error }),
+          ...(liso ? [l.fns.normals({ overwrite: true })] : []),
+          l.fns.quantize({ quantizePosition: 16, quantizeNormal: 12, quantizeTexcoord: 14, quantizeColor: 10, quantizeWeight: 10, quantizeGeneric: 12 }),
+          l.fns.reorder({ encoder: MeshoptEncoder, target: "size" }),
+        );
+        doc.createExtension(l.ext.EXTMeshoptCompression).setRequired(true).setEncoderOptions({ method: l.ext.EXTMeshoptCompression.EncoderMethod.QUANTIZE });
+        const out = await l.io.writeBinary(doc);
+        hecho = { out, h: medir(l, await l.io.readBinary(out)) }; // read back what we wrote: the check is on the real bytes
+        if (hecho.h.triangulos <= anterior * LOD_MAX_RELATIVO) break;
+      }
+      const { out, h } = hecho!;
       if (h.triangulos > anterior * LOD_MAX_RELATIVO) { porque = `el nivel ${nv.nivel} solo baja a ${h.triangulos} de ${anterior} triángulos`; break; }
       if (h.triangulos < 1) { porque = `el nivel ${nv.nivel} se queda sin triángulos`; break; }
       const dif = Math.max(...[0, 1, 2].flatMap((i) => [Math.abs(h.min[i] - h0.min[i]), Math.abs(h.max[i] - h0.max[i])]));

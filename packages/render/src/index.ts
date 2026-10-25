@@ -69,6 +69,7 @@ import { crearSalon } from "./ancestros.ts";
 import type { DianaAR } from "./dardos.ts";
 import { detalleAgua } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
+import { debeMejorar, ficheroDeNivel, nivelParaCargar } from "./lod-modelo.ts";
 import { crearHitosMalla } from "./hitos-malla.ts";
 import { fundirAnimado } from "./fundir.ts";
 import { crearQuietos } from "./fundir-quietos.ts";
@@ -129,7 +130,7 @@ async function leerGpu(renderer: THREE.WebGPURenderer, backend: Backend): Promis
   } catch { return ""; }
 }
 
-export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number; eleccion?: (clave: number | "yo") => number | undefined } } = {}) {
+export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; lods?: (sha: string) => number; leer?: (url: string) => Promise<ArrayBuffer | null>; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number; eleccion?: (clave: number | "yo") => number | undefined } } = {}) {
   // U25: `movil` = the device class a forced profile declares (?aparato, development only); undefined = read the device
   const power = createPower(conClase(readCaps(), opts.movil), { battery: opts.battery, maxFps: opts.maxFps });
   // XR on a WebGPU backend needs the session's "webgpu" feature (XRGPUBinding); Quest Browser 152 has neither (measured
@@ -447,7 +448,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** J14: a baked figure's two LODs (cerca = its baked parts, lejos = one piece) */
     piezaCerca?: Pieza[]; piezaLejos?: Pieza; lod?: "cerca" | "lejos";
     /** B3: set while this copy's shaders are being prepared (precompilar.ts); a new model or pose for the slot drops it. */
-    preparando?: object };
+    preparando?: object;
+    /** H13: the level of detail this copy was loaded from (0/undefined = the whole model), and set while the whole model loads to replace it. */
+    nivel?: number; mejorando?: boolean; sinNivel?: boolean };
   const esferaTmp = new THREE.Sphere();
   /** N12: the radius (m, before the copy's scale) of a sphere round the origin that holds `o`, a copy not yet in the world. */
   const radioDe = (o: THREE.Object3D): number => { o.updateMatrixWorld(true); tmpBox.setFromObject(o); if (tmpBox.isEmpty()) return 1; tmpBox.getBoundingSphere(esferaTmp); return esferaTmp.center.length() + esferaTmp.radius; };
@@ -511,7 +514,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   type Tools = { load: (url: string) => Promise<Gltf>; clone: (o: THREE.Object3D) => THREE.Object3D; merge: Merge };
   let tools: Promise<Tools> | null = null;
   const getTools = () => (tools ??= Promise.all([import("three/addons/loaders/GLTFLoader.js"), import("three/addons/utils/SkeletonUtils.js"), import("three/addons/utils/BufferGeometryUtils.js")])
-    .then(async ([g, u, b]) => { const l = await prepararGltf(new g.GLTFLoader()); return { load: (url: string) => l.loadAsync(url) as unknown as Promise<Gltf>, clone: (o: THREE.Object3D) => u.clone(o as never) as unknown as THREE.Object3D, merge: (gs) => b.mergeGeometries(gs as never) as unknown as THREE.BufferGeometry | null }; }));
+    .then(async ([g, u, b]) => { const l = await prepararGltf(new g.GLTFLoader()); return { load: async (url: string) => { const b = opts.leer ? await opts.leer(url) : null; return (b ? l.parseAsync(b, "") : l.loadAsync(url)) as unknown as Promise<Gltf>; }, // M16: bytes the page already holds by hash (apps/plaza/manifiesto.ts), checked against the manifest; else the loader fetches
+       clone: (o: THREE.Object3D) => u.clone(o as never) as unknown as THREE.Object3D, merge: (gs) => b.mergeGeometries(gs as never) as unknown as THREE.BufferGeometry | null }; }));
   // A model that does not animate (people of the world, quest things) is baked ONCE per file into one mesh per
   // material, in the pose it comes in: the house robot goes from 19 draw calls to 3. Copies share the geometry.
   const horneados = new Map<string, { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean }[] | null>();
@@ -658,43 +662,49 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       const cerca = bestO < 2;
       const model = s.model;
       if (s.want.kind && s.want.kind !== "modelo") { cargarMedio(best, s, cerca); continue; }
-      let file = files.get(model);
-      if (!file) { file = getTools().then(async (t) => ({ g: await t.load(assetUrl(model.replace(/\.glb$/, ""))), clone: t.clone, merge: t.merge })); files.set(model, file); }
+      // H13: a still thing that is far when its turn comes loads a lighter level of the model (if the server made one); `clave`
+      // names that file everywhere a model's file is the key (parsed file, baked parts, instanced stand-ins). `model` stays the thing's own.
+      const nivel = s.want.animate || s.sinNivel ? 0 : nivelParaCargar(Math.sqrt(distance2(s)), opts.lods?.(model.replace(/\.glb$/, "")) ?? 0);
+      s.nivel = nivel;
+      const clave = ficheroDeNivel(model, nivel);
+      let file = files.get(clave);
+      if (!file) { file = getTools().then(async (t) => ({ g: await t.load(assetUrl(clave.replace(/\.glb$/, ""))), clone: t.clone, merge: t.merge })); files.set(clave, file); }
       loading++; if (cerca) cercaCargando++;
       file.then(({ g, clone, merge }) => {
         const now = things.get(best);
-        if (!now || now.model !== model || now.loaded || now.preparando) return; // removed or changed while it downloaded
-        const quieto = !now.want.animate ? hornear(model, g.scene, merge) : null;
+        if (!now || now.model !== model || (now.loaded && !now.mejorando) || now.preparando || now.nivel !== nivel) return; // removed or changed while it downloaded
+        const quieto = !now.want.animate ? hornear(clave, g.scene, merge) : null;
         let copy: THREE.Object3D;
         const fu = !quieto && now.want.animate ? fundido(model, g, clone) : null;
-        const qu = !quieto && !fu ? quietoDe(model, g.scene, g.animations) : null;
+        const qu = !quieto && !fu ? quietoDe(clave, g.scene, g.animations) : null;
         // J14: a thing painted a custom colour keeps its baked parts (pintar() cannot tint a merged,
         // vertex-coloured piece); anything else gets both LODs and starts at whichever distance picks.
-        const pieza = quieto && !now.want.color ? hornearPieza(model, quieto, merge) : null;
+        const pieza = quieto && !now.want.color ? hornearPieza(clave, quieto, merge) : null;
         const lod: "cerca" | "lejos" = pieza ? decidirLOD(selfXZ ? Math.sqrt(distance2(now)) : 0, undefined) : "cerca";
         if (quieto) copy = representacion(lod === "lejos" && pieza ? [pieza] : quieto);
         else copy = clone(fu ? fu.escena : qu ? qu.escena : g.scene); // E2: a still model drawn merged
-        const partes = quieto ?? qu?.partes ?? partesEnteras(model, g) ?? undefined;
+        const partes = quieto ?? qu?.partes ?? partesEnteras(clave, g) ?? undefined;
         // B3: its shaders are prepared first (precompilar.ts) and only then is it shown; the first copy of a model
         // compiles, the rest find the programs ready. Copies drawn together (lotes.ts) use instanced programs: a
         // one-instance stand-in per part prepares those too, once per model, when the world has enough copies of it.
         // The LOD it is not showing yet (J14) is prepared alongside, so switching later does not stall either.
         const objs: THREE.Object3D[] = [copy];
         if (quieto && pieza) objs.push(representacion(lod === "lejos" ? quieto : [pieza]));
-        if (partes && !instanciasPreparadas.has(model) && copiasDe(model) >= (xrPosible ? INSTANCIAR_DESDE_VR : INSTANCIAR_DESDE)) {
-          instanciasPreparadas.add(model);
+        if (partes && !instanciasPreparadas.has(clave) && copiasDe(model) >= (xrPosible ? INSTANCIAR_DESDE_VR : INSTANCIAR_DESDE)) {
+          instanciasPreparadas.add(clave);
           for (const q of partes) { const im = new THREE.InstancedMesh(q.geo, q.mat, 1); im.castShadow = q.sombra; objs.push(im); }
         }
         if (sombrasPuestas()) for (const o of objs) o.traverse((x) => { if ((x as THREE.Mesh).isMesh && !x.userData.sinSombra) { x.castShadow = true; x.receiveShadow = true; } }); // as entorno marks them: same shader
         const yo = {};
         now.preparando = yo;
         precompilar.preparar(objs, () => {
-          if (things.get(best) !== now || now.preparando !== yo || now.model !== model || now.loaded) return; // removed or changed while it compiled
+          if (things.get(best) !== now || now.preparando !== yo || now.model !== model || (now.loaded && !now.mejorando) || now.nivel !== nivel) return; // removed or changed while it compiled
           now.preparando = undefined;
           // J14's LODs are set only now: actualizarLOD() must not show the copy before its shaders are ready
           if (quieto) { now.piezaCerca = quieto; now.piezaLejos = pieza ?? undefined; now.lod = lod; }
           now.horneado = !!quieto; now.partes = partes;
           now.radio = radioDe(copy) * (now.want.animate ? 1.5 : 1); // an animation may reach out of its rest pose
+          if (now.mejorando) { now.group.clear(); now.mejorando = false; } // H13: the whole model replaces the level it was showing, in the same frame
           now.group.add(copy);
           if (now.want.animate && g.animations.length) { now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction((fu ? fu.clips : g.animations)[0]).play(); }
           now.loaded = true; now.color = undefined; pintar(now);
@@ -702,9 +712,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         });
       }).catch((e) => {
         const now = things.get(best);
-        if (now && now.model === model) now.failed = true;
-        files.delete(model); // a later placement may try again
-        console.warn(`[objetos] no se pudo cargar ${assetUrl(model.replace(/\.glb$/, ""))}: ${(e as Error)?.message ?? e}`);
+        files.delete(clave); // a later placement may try again
+        if (now && now.model === model && nivel > 0) { now.sinNivel = true; now.nivel = 0; waiting.add(best); return; } // H13: the level did not come: the whole model, as before
+        if (now && now.model === model) { now.mejorando = false; if (!now.loaded) now.failed = true; }
+        console.warn(`[objetos] no se pudo cargar ${assetUrl(clave.replace(/\.glb$/, ""))}: ${(e as Error)?.message ?? e}`);
       }).finally(() => { loading--; if (cerca) cercaCargando--; pumpLoads(); });
     }
   }
@@ -736,7 +747,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     const oido: { x: number; y: number; z: number } | null = op && op.fuente !== "ninguna"
       ? { x: op.x, y: op.y, z: op.z }
       : { x: camera.position.x, y: camera.position.y, z: camera.position.z };
-    for (const s of things.values()) {
+    for (const [k, s] of things) {
+      if (s.nivel && s.loaded && !s.mejorando && debeMejorar(selfXZ ? Math.sqrt(distance2(s)) : 0, s.nivel)) { s.mejorando = true; s.nivel = undefined; waiting.add(k); pumpPronto(); } // H13: you came near: load the whole model
       if (s.medio) { s.medio.actualizar(s.group, oido, { hidden: !!s.want.hidden, volume: s.want.volume ?? 1, reach: s.want.reach ?? "burbuja", radius: s.want.radius ?? 8 }); if (s.want.kind === "video" && s.medio.sonando()) mediosSonando = true; }
       if (s.horneado) actualizarLOD(s); // J14: far baked figures drop to one piece (one draw call)
       if (!s.mixer) continue;
@@ -1120,7 +1132,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       }
       s.want = t; if (!editor.retiene(key, t) && !llevados.has(key)) placeGroup(s);
       pintar(s);
-      if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.partes = undefined; s.radio = undefined; s.horneado = false; s.piezaCerca = undefined; s.piezaLejos = undefined; s.lod = undefined; s.preparando = undefined; s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpPronto(); } // a baked copy cannot move: load it whole
+      if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.partes = undefined; s.radio = undefined; s.horneado = false; s.piezaCerca = undefined; s.piezaLejos = undefined; s.lod = undefined; s.preparando = undefined; s.nivel = undefined; s.mejorando = false; s.sinNivel = false; s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpPronto(); } // a baked copy cannot move: load it whole
       else if (!t.animate && s.mixer) { s.mixer.stopAllAction(); s.mixer = undefined; }
     },
     /** H1: things placed, how many have their model drawn, and how many failed to load (for checks). `~` keys = the page's previews, not counted. */
