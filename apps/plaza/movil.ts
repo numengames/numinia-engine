@@ -222,7 +222,7 @@ export function montarMovil(o: Opciones): void {
     const c = caja(), cabeza = c?.querySelector("header");
     if (!c || !cabeza || cabeza.querySelector(".pestanas")) return;
     const p = el("div", { clase: "pestanas" }); p.setAttribute("role", "tablist");
-    const tMapa = el<HTMLButtonElement>("button", { clase: "tocable", texto: "Mapa" }), tMis = el<HTMLButtonElement>("button", { clase: "tocable", texto: "Misiones" });
+    const tMapa = el<HTMLButtonElement>("button", { clase: "tocable", texto: nombreDe("mapa") }), tMis = el<HTMLButtonElement>("button", { clase: "tocable", texto: "Misiones" });
     tMapa.setAttribute("role", "tab"); tMapa.setAttribute("aria-selected", "true"); tMis.setAttribute("role", "tab"); tMis.setAttribute("aria-selected", "false");
     tMis.addEventListener("click", () => { o.mapa.cerrar(); porId("misiones")?.click(); });
     p.append(tMapa, tMis);

@@ -2,7 +2,8 @@
 import { version as versionPaquete } from "../../package.json"; // only this field reaches the page (docs/VERSIONES.md)
 import { hex } from "../../packages/core/src/index.ts";
 import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX, BTN_JUMP, BTN_RUN } from "../../packages/sim/src/index.ts";
-import { CIERRE_LLENO, webSocketClient } from "../../packages/net/src/index.ts";
+import { CIERRE_LLENO, CIERRE_SILENCIO, LATIDO_MS, webSocketClient } from "../../packages/net/src/index.ts";
+import { BARRIDO_MS, VigiaServidor } from "../../packages/client/src/vigia-servidor.ts"; // t_9cb3f636: the page notices the server went silent
 import { montarAjustes, leerAjuste } from "./menu-ajustes.ts"; // N2: settings menu + capabilities
 import { montarCiudad } from "./ciudad.ts"; // t_5cff4f06: the corner button back to the city (a world's own ciudadUrl)
 import { montarMenuVR } from "./xr-menu.ts"; // rediseño v2: the VR wrist watch and menu (story E)
@@ -34,12 +35,13 @@ import { misiones } from "../../features/misiones/client.ts";
 import { montarInteraccion, construyendo } from "./interactuar.ts";
 import { montarDialogo } from "./dialogo.ts";
 import { montarVerNombres } from "./nombres-ver.ts";
-import { montarLibro, ponerCatalogoCasa } from "./misiones.ts";
+import { montarLibro, ponerAvisosMundo, ponerCatalogoCasa } from "./misiones.ts";
 import { anunciar, crearDialogo } from "./paneles.ts"; // S6: el texto accesible de cada sonido (XAUR)
 import { montarMenuBarra } from "./menu-barra.ts"; // ux2-barra: the bar's «Cámara» (P) and «Menú» (O) drop-downs
 import { estadoCamara, filasDeAyuda } from "./menu-logica.ts";
 import { crearSonidos, ponerSonidos, RUTA_TABLA, sonidos } from "../../packages/render/src/audio/sonidos.ts"; // S6: the house catalogue (its table comes from /sonidos.json; the files are served by their sha256)
 import { montarMapa } from "./mapa.ts";
+import { crearIrAndando, frase } from "../../packages/client/src/ir-andando.ts";
 import { montarFicha } from "./ficha.ts";
 import { avatarQueLlevas, lineaDeTu } from "./tu-logica.ts"; // «Tú»: which house avatar you wear, for its portrait
 import { montarObjetivo } from "./objetivo.ts";
@@ -60,6 +62,7 @@ import { montarBienes } from "./bienes.ts";
 import { montarEntorno } from "./entorno.ts";
 import { montarDirector } from "./director.ts";
 import { dirigir } from "../../features/director/client.ts";
+import { ambienteDeEscena } from "../../features/director/feature.ts";
 import { montarGente } from "./gente.ts";
 import { rumboHacia } from "./foto-nucleo.ts"; // ux2-gente: «Saludar» turns you towards them first
 import { viajar } from "../../features/teletransporte/client.ts";
@@ -135,9 +138,11 @@ let sonarServidor: (s: PeticionSonido) => boolean = (s) => catalogoSonidos.suena
 // volumen (×0,042 por defecto, el que quiso su autor); `ambiente_sintetizado` = las camas y capas SINTETIZADAS que
 // este mundo enciende por nombre (de serie, ninguna).
 type Estado = { dardosEnlace?: unknown; version?: string; nombre?: string; tema?: unknown; avatar?: string; avatares?: unknown; aforo?: number; conectados?: number;
-  audio?: { ambiente?: string | null; ambiente_ganancia?: number; ambiente_sintetizado?: string[] } };
+  audio?: { ambiente?: string | null; ambiente_ganancia?: number; ambiente_sintetizado?: string[]; avisos?: Record<string, string> } };
 const estadoP: Promise<Estado | null> = fetch(`${activos}/status`).then((r) => r.json() as Promise<Estado>).catch(() => null);
 const estado = await Promise.race([estadoP, new Promise<null>((ok) => setTimeout(() => ok(null), 1500))]);
+ponerAvisosMundo(estado?.audio?.avisos); // t_d7411a07: the sound of each quest notice the world picked (ficha.json → audio.avisos)
+void estadoP.then((e) => ponerAvisosMundo(e?.audio?.avisos)); // a slow /status (past the 1.5 s) still sets them
 // H4: a world with an espacio base shows the line mesh drawing itself on the loading screen (apps/plaza/carga.ts); any other keeps the moon
 carga.etapa("codigo");
 const pintarEstadoCarga = (st: { espacioBase?: boolean } | null) => { if (st?.espacioBase) carga.espacioBase(); carga.etapa("estado"); };
@@ -213,7 +218,15 @@ const session = new ClientSession(transport, {
 transport.opened.catch(() => { hud.textContent = `No llego al servidor ${url}.\n¿Está arrancado (npm run server)?`; });
 // H7: the door was closed because the world is full (ficha `aforo`): say so where everyone reads it (the HUD and the
 // alert region for screen readers), with the way out; the page does not reconnect by itself
+let conexionCerrada = false; // t_9cb3f636: the socket closed for good: the silence notice gives way to the final one
 void transport.closed.then((c) => {
+  conexionCerrada = true;
+  if (c.code === CIERRE_SILENCIO) { // t_9cb3f636: the server stopped hearing this page (a stall, a lost network): it let go of the avatar
+    hud.hidden = true;
+    const aviso = document.getElementById("mundo-lleno")!;
+    aviso.textContent = "Se cortó la conexión con el mundo. Vuelve a cargar la página para entrar de nuevo."; aviso.hidden = false;
+    return;
+  }
   if (c.code !== CIERRE_LLENO) return;
   const n = /(\d+)\/(\d+)/.exec(c.reason), nombre = estado?.nombre ? `«${estado.nombre}»` : "Este mundo";
   const texto = `${nombre} está lleno${n ? ` (${n[2]} persona${n[2] === "1" ? "" : "s"} como mucho)` : ""}. Espera un rato y vuelve a cargar la página.`;
@@ -373,8 +386,12 @@ void import("./sonidos.ts").then(async (m) => {
   // El COLCHÓN de ambiente: solo si el mundo lo pide en su ficha (`audio.ambiente`), y con la ganancia que diga
   // (×0,042 por defecto, el volumen que quiso su autor). Encima manda el deslizador de «ambiente» del jugador: a cero,
   // ni arranca. Las camas y capas SINTETIZADAS siguen apagadas salvo las que el mundo nombre en `ambiente_sintetizado`.
+  // The Director's scene can bring a bed of its own (escena@1 `ambiente`): it replaces the world's while the scene is on, and a
+  // scene without one gives the world's back. Applied now (a scene may already be on) and at every scene change.
   const a = (await estadoP)?.audio;
-  if (a) puerta.ambiente({ id: a.ambiente ?? null, ganancia: a.ambiente_ganancia, sintetizado: a.ambiente_sintetizado });
+  const ponerAmbiente = () => { if (a || dirigir.ambienteActual()) puerta.ambiente(ambienteDeEscena(dirigir.ambienteActual(), a)); };
+  ponerAmbiente();
+  dirigir.alCambiar((que) => { if (que === "actual") ponerAmbiente(); });
 }).catch((e) => console.warn(`[sonidos] no se pudieron montar: ${(e as Error)?.message ?? e}`));
 
 // ---- U10: the microphone (button or Q): your voice to who is near; theirs from where they stand ----
@@ -418,7 +435,15 @@ const inventario = montarInventario(inventarioCtl, document.getElementById("inve
 // ---- J5: minimap (corner), big map (M, «Mapa») and player sheet (I, «Ficha»); other branches' contracts are read
 // from __numinia when present (misiones.objetivos/resumen, ajustes.abrir, chat.nombres) ----
 const otros = () => (globalThis as unknown as { __numinia?: Record<string, unknown> }).__numinia ?? {};
-const mapa = montarMapa({ session, view, otros, alAgente: (q) => { mapa.cerrar(); if (view.personaEnPantalla(q) && gente.tarjeta(q)) return; gente.elegir(q); }, /* the big map is a modal dialog: close it so the card shows; an AI behind the camera gets her sheet in «Gente» instead */ alIr: (donde) => { constructorUI.alIr({ id: donde.id.replace(/^c:objetos:/, "") }); }, teletransporte: { activo: () => viajar.activo(), ir: (x, z, nombre) => viajar.irAPunto(x, z, nombre) } });
+// MIS-257 (t_fb535386): the map's «Ir» walks you there. ir-andando.ts only decides the direction each tick; readAxes below feeds it
+// to the simulation as the stick, so walls and slopes work as for a person, and any hand on the controls stops it.
+const andar = crearIrAndando({
+  ahora: () => performance.now(),
+  alTerminar: (f) => { if (f.motivo !== "cancelado" && f.motivo !== "llegada") anunciar(frase(f.motivo, f.destino.nombre)); mapa.andandoTermino(f); }, // the arrival is said by the map (quitarDestino)
+});
+let andarCorrer = false;
+const mapa = montarMapa({ session, view, otros,
+  andar: { ir: (d) => { const yo = session.entity >= 0 ? session.selfPosition(1) : null; return yo ? andar.empezar(d, yo) : { ok: false, motivo: "invalido" as const }; }, parar: () => andar.cancelar(), activo: () => andar.activo() },  alAgente: (q) => { mapa.cerrar(); if (view.personaEnPantalla(q) && gente.tarjeta(q)) return; gente.elegir(q); }, /* the big map is a modal dialog: close it so the card shows; an AI behind the camera gets her sheet in «Gente» instead */ alIr: (donde) => { constructorUI.alIr({ id: donde.id.replace(/^c:objetos:/, "") }); }, teletransporte: { activo: () => viajar.activo(), ir: (x, z, nombre) => viajar.irAPunto(x, z, nombre) } });
 // ---- N13: photo mode (P or the camera button): the photo owns the screen and the keys; your avatar stands still ----
 const foto = montarFoto({ view, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), mapa, boton: document.getElementById("foto-abrir") as HTMLButtonElement, volverA: () => document.getElementById("camara-abrir"), ocupado: () => dardos.tirando(),
   aparecer: { puede: () => (viajar.estado.recibido ? viajar.foto() : null), pedir: (s) => { viajar.aparecerEnFoto(s.x, s.y, s.z); } }, // N16: the world may put you at the photo's place
@@ -482,7 +507,19 @@ const avisar = (t: string) => { const box = document.getElementById("avisos")!; 
 const rueda = montarRueda({ gestos: gestosDePagina, favoritosIniciales: FAVORITOS_INICIALES, aviso: avisar,
   haciendo: () => view.avatares().lista.find((a) => a.id === "yo")?.movimiento ?? null });
 
+/** MIS-257: is a hand on the controls (a key, the touch stick, the pad, the headset's stick, a jump)? Then the walk-by-itself gives way. */
+function manoEnMandos(): boolean {
+  const pad = view.cam.mando();
+  return keys.has("KeyW") || keys.has("KeyA") || keys.has("KeyS") || keys.has("KeyD") || keys.has("ArrowUp") || keys.has("ArrowDown") || keys.has("ArrowLeft") || keys.has("ArrowRight")
+    || keys.has("Space") || saltoPendiente || touch !== null || !!(pad && (pad[0] || pad[1])) || (view.vr.active && Math.hypot(...view.vr.axes()) > 0.2);
+}
 function readAxes(): [number, number] {
+  andarCorrer = false;
+  if (andar.activo() && (condiciones.cerrada() || foto.activo())) andar.cancelar();
+  if (andar.activo() && !rueda.abierta()) {
+    const yo = session.entity >= 0 ? session.selfPosition(1) : null, e = yo ? andar.ejes(yo, manoEnMandos()) : null;
+    if (e) { andarCorrer = e.correr; return [Math.round(e.x * STICK_MAX), Math.round(e.z * STICK_MAX)]; }
+  }
   if (condiciones.cerrada()) { soltarEntradaPlana(); return [0, 0]; } // condiciones/c3: inside the bubble nobody walks (the server holds them too)
   if (rueda.abierta()) return [0, 0]; // J7b: choosing a move never walks (walking would end it)
   // motor-vr t_ab71cff0: while the headset presents, ITS input is the only source of movement. A flat-page input
@@ -533,6 +570,7 @@ function readButtons(): number {
   // RUN_EDGE close to 1: most of the stick's travel walks (human pace), only the very end runs
   // (was 0.9 — reached with barely half the throw, so there was no way to just walk).
   const RUN_EDGE = 0.97;
+  if (andarCorrer) b |= BTN_RUN; // MIS-257: a long walk-by-itself runs (ir-andando.ts), the last stretch walks
   if (view.vr.active) { if (Math.hypot(...view.vr.axes()) >= RUN_EDGE) b |= BTN_RUN; return b; } // in VR only the headset's stick runs
   const alBorde = touch && Math.hypot(touch.dx, touch.dy) >= RUN_EDGE;
   if (keys.has("ShiftLeft") || keys.has("ShiftRight") || alBorde) b |= BTN_RUN;
@@ -666,6 +704,27 @@ let lastActive = 0, lastSig = "", cost: { calls: number; triangles: number; cpuM
 const signature = () => { const s = session.entity >= 0 ? session.selfPosition(0) : null; let h = s ? s.x + s.z + s.y * 7 : 0; for (const r of session.remotePositions()) h += r.x * 3 + r.z + r.y * 5; return h.toFixed(2); };
 let last = performance.now(), acc = 0, frames = 0, fps = 0, fpsT = last;
 setInterval(() => session.ping(), 1000);
+// t_9cb3f636: the heartbeat. A background tab says so (its timers run slowly there), and says «I am back» the moment it is shown.
+setInterval(() => session.latido(document.hidden), LATIDO_MS);
+addEventListener("visibilitychange", () => session.latido(document.hidden));
+// t_9cb3f636: the SERVER went silent (nothing received for ~1.5 s while the page is running and shown): say so in the world's connection
+// notice (#mundo-lleno, role=alert) and take it away when traffic returns. The server itself waits 15 s before it lets go of a page, so
+// a short stall heals by itself. No automatic reconnect yet: when the socket does close, the final «recarga» notice above stands.
+{
+  const vigia = new VigiaServidor(performance.now());
+  let visto = session.oidoEn, mostrado = false;
+  setInterval(() => {
+    if (conexionCerrada || session.entity < 0) return;
+    const ahora = performance.now();
+    if (session.oidoEn > visto) { visto = session.oidoEn; vigia.recibido(visto); }
+    vigia.barrer(ahora, document.hidden);
+    if (vigia.callado === mostrado) return;
+    mostrado = vigia.callado;
+    const aviso = document.getElementById("mundo-lleno")!;
+    if (mostrado) { aviso.textContent = "Sin respuesta del mundo… esperando a que vuelva la conexión."; aviso.hidden = false; }
+    else aviso.hidden = true;
+  }, BARRIDO_MS);
+}
 let mallaLista = false; // H4
 let cargaOculta = false;
 // B5: does the shared state ask for a ground (naturaleza / espacio base) that the view has not finished building? (`activa` of the view is true only after `aplicar` produced it)
@@ -746,7 +805,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones };
 
 // ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
 // of the bar's «Menú» (O), no longer a corner button ----

@@ -415,6 +415,13 @@ html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 
 /* the minimap: the round picture IS the button of the big map (M); the wheel over it zooms */
 #minimapa #minimapa-abrir { display: block; padding: 0 !important; margin: 0; border: 0 !important; background: none !important; border-radius: 50% !important; cursor: pointer; line-height: 0; min-width: 0 !important; min-height: 0 !important; }
 #minimapa #minimapa-abrir:hover canvas { outline: 1px solid var(--n-texto2); outline-offset: 1px; }
+/* MIS-257: the north button rides the minimap's rim (mapa.ts sets its transform); a round Phosphor compass in the house palette */
+#minimapa .caja { position: relative; }
+#minimapa #minimapa-norte { position: absolute; left: 0; top: 0; width: 26px; height: 26px; min-width: 0 !important; min-height: 0 !important; padding: 0 !important; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50% !important; border: 1px solid var(--n-ambar) !important; background: var(--n-fondo) !important; color: var(--n-ambar) !important; box-shadow: 0 1px 5px rgba(0, 0, 0, .45); cursor: pointer; line-height: 0; transition: background .15s, color .15s; }
+#minimapa #minimapa-norte:hover { background: var(--n-ambar) !important; color: var(--n-fondo) !important; border-color: var(--n-ambar) !important; }
+#minimapa #minimapa-norte:focus-visible { outline: 2px solid var(--n-verdemar); outline-offset: 2px; }
+#minimapa #minimapa-norte .icono { pointer-events: none; }
 :root { --botones-alto: 0px !important; }
 @media (pointer: coarse) { :root { --botones-alto: 0px !important; } }
 /* your card, top left: a real button laid over it opens your sheet (I) */

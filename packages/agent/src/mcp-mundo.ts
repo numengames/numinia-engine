@@ -311,16 +311,17 @@ export class PuenteMundo {
     };
     return [
       {
-        name: "mirar", description: `Lo que percibe tu cuerpo en el mundo: dónde estás, la gente y los objetos a menos de ${ALCANCE_M} m (con su id), quién está dentro de tu burbuja (la zona que te rodea: ahí te pueden llamar), si puedes construir y qué modelos puedes colocar.`,
+        name: "mirar", description: `Lo que percibe tu cuerpo en el mundo: dónde estás, hacia dónde miras (rumbo en grados: 0° = +z, 90° = +x, 180° = −z, 270° = −x, y el vector de frente {x, z}: «delante de ti» es hacia ahí; solo cambia cuando andas con ir_a), la gente y los objetos a menos de ${ALCANCE_M} m (con su id), quién está dentro de tu burbuja (la zona que te rodea: ahí te pueden llamar), si puedes construir y qué modelos puedes colocar.`,
         inputSchema: obj({}),
         ejecutar: async () => {
           const c = await this.dentro(), p = c.s.selfPosition(1);
           const gente = c.cercanos(ALCANCE_M);
           const objetos = [...c.s.features.stateOf("objetos")].map(([id, v]) => ({ id, v, d: Math.hypot(Number(v.x) - p.x, Number(v.z) - p.z) }))
             .filter((x) => x.d <= ALCANCE_M).sort((a, b) => a.d - b.d).slice(0, 40);
-          const dentroDeTuBurbuja = [...this.buzon.dentro];
+          const dentroDeTuBurbuja = [...this.buzon.dentro], mira = c.rumbo();
           return [
             `Eres «${c.nombre}» (entidad ${c.entidad}) en ${this.mundo}: x ${f1(p.x)} y ${f1(p.y)} z ${f1(p.z)} (metros; y = altura, el suelo es 0). ${c.meta ? (c.meta.tipo === "ir" ? `Vas hacia x ${f1(c.meta.x)} z ${f1(c.meta.z)}.` : "Sigues a alguien.") : "Estás parado."}`,
+            `Miras hacia el rumbo ${f1(mira.grados)}° (0° = +z, 90° = +x, 180° = −z, 270° = −x); vector de frente x ${mira.x.toFixed(2)} z ${mira.z.toFixed(2)}${mira.andado ? "" : " (aún no has andado: es el rumbo de partida)"}. «Delante de ti» es lo que queda hacia ese vector.`,
             ...(this.estado ? [this.dormida ? "Estado: dormida (baja atención). Oyes y miras, pero solo hablas si te llaman por tu nombre y no construyes." : "Estado: activa. Atenta y dispuesta a interactuar."] : []),
             `Construir: ${this.puedeConstruir && !this.dormida ? "sí" : this.dormida ? "no (estás dormida)" : "no (este mundo no te deja ahora)"}. Modelos que puedes colocar: ${this.modelos()}.`,
             ...(this.tiene("burbuja") ? [dentroDeTuBurbuja.length ? `En tu burbuja: ${dentroDeTuBurbuja.length} (sus nombres van en el material).` : "En tu burbuja: nadie."] : []),

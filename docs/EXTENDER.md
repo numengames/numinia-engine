@@ -409,7 +409,7 @@ que no cabe deja la ficha entera sin cargar, con su motivo en el log (`[ficha] n
 Hoy se editan en el fichero: no hay panel para cambiarlos en marcha.
 
 **`audio`** (S6f, opcional, dentro de la ficha): lo que este mundo pide del sonido. **R-1: una línea lo enciende.**
-`{ "audio": { "ambiente": "ambiente-numinia" } }` y ya suena el colchón de fondo. Tres campos, todos opcionales:
+`{ "audio": { "ambiente": "ambiente-numinia" } }` y ya suena el colchón de fondo. Cuatro campos, todos opcionales:
 
 - **`ambiente`** — el id del catálogo de sonidos (`features/sonido/catalogo.json`) que suena como **cama única en
   bucle**. Hoy el único que vale es `ambiente-numinia`: 113 s en CC0 que un amigo de Numinia hizo para Numinia.
@@ -423,6 +423,12 @@ Hoy se editan en el fichero: no hay panel para cambiarlos en marcha.
   `capa-*`…) que este mundo enciende por su nombre. **De serie, ninguna**: una cama o una capa sintetizada no
   suena hasta que un mundo la nombra aquí (decisión de Pablo, 19-10). Encenderlas no enciende el colchón, ni al
   revés.
+- **`avisos`** — un sonido de la casa para cada aviso de misión: `{ "recibida": "ui-confirmar", "entregada":
+  "coger-soltar", "completada": "ui-logro" }` (esos son los de serie). `recibida` = aceptas una misión; `entregada` =
+  haces un paso de tipo `entrega`; `completada` = terminas la misión. El valor es el id de una fila **con fichero** del
+  catálogo (suena en la cabeza, sin panner, por el bus de interfaz) o `""` para que ese aviso no suene (su texto sigue
+  llegando a quien lee). Cada paso que no es de entrega sigue mudo, a propósito. Si el catálogo aún no ha llegado o el
+  id no tiene fichero, suenan las notas cortas de siempre.
 
 Un valor que no cabe deja la ficha entera sin cargar, con su motivo en el log. Va en `GET /status` (`audio`).
 
@@ -766,13 +772,18 @@ Una aventura trae sus escenas en `escenas/<id>.json` (el id es el nombre del fic
 ```json
 { "schema": "numinia-engine/escena@1", "nombre": "La taberna", "preset": "atardecer",
   "entorno": { "niebla": { "cerca": 8, "lejos": 60, "color": "#3a2a20", "delCielo": false } },
-  "narracion": "Huele a vino especiado." }
+  "narracion": "Huele a vino especiado.", "ambiente": "ambiente-numinia", "ambiente_ganancia": 0.1 }
 ```
 
 - `nombre` (1–40 bytes) es lo que ve quien dirige. Hace falta `preset` (uno de la casa) o `entorno` (un `entorno@1`
   parcial, sin `suelo`, `aparicion` ni `mapa`, que son del mundo; caben 512 bytes en JSON compacto), o los dos.
 - Al ponerla: el entorno del mundo, luego el preset y luego lo que cambia la escena. Pasar de una escena a otra no
   deja restos. Si hay `narracion` (≤ 280 bytes), todos la ven en el cartel del narrador.
+- **Sonido de la escena**: `ambiente` es el id de una fila del catálogo con fichero y «bucle» (la misma que acepta
+  `ficha.json` → `audio.ambiente`); mientras la escena está puesta suena **esa** cama en lugar de la del mundo, con
+  `ambiente_ganancia` (×0–4, solo junto a `ambiente`). `"ambiente": ""` deja esa escena en silencio. Una escena sin
+  `ambiente` devuelve la cama del mundo. Las camas sintetizadas del mundo no cambian. Quien entra con una escena
+  puesta la oye también. Las escenas de la casa no traen sonido.
 - Los entornos de la casa también son escenas: `/escena noche` vale en cualquier mundo.
 - Quien dirige tiene el botón «Dirigir» (tecla K): escenas, luz y niebla en directo, narrar y «Convocar aquí». En el
   chat: `/escenas`, `/escena <nombre o número>`, `/narrar <texto>` y `/convocar [texto]`.

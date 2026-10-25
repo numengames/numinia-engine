@@ -1686,3 +1686,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `lote/primera-vez` sobre main `bc6fd99b`, dos fusiones normales de `primera-vez/carga-entera` y `primera-vez/mundo-nuevo-taller`.
 - Siguiente: probar en un móvil y una GPU reales cuánto dura la pantalla; el botón «crear mundo» de numinia.com y el instalador `.sh` sin ejecutar aún.
+
+## 2026-10-25 · lote 3: sonido de la casa por aviso, ambiente en escenas, latido activo, «Ir» andando · hecho
+- Qué: seis tarjetas juntas en un PR. `t_85ff48e0`: `mirar` devuelve el rumbo y el vector de frente. `t_d7411a07`: cada aviso de misión (recibida, entregada, completada) suena con un sonido de la casa; el mundo lo elige en `ficha.json` → `audio.avisos`. `t_293c2687`: `escena@1` admite `ambiente` (cama de sonido propia de la escena). `t_9cb3f636`: latido cliente→servidor (el servidor suelta tras 15 s en silencio; la página avisa «Sin respuesta del mundo…» a los ~1,75 s) y marca de teletransporte para que las otras pestañas no vean un deslizamiento. `t_76430aea`: el menú dice «Dónde estoy» y el norte de la brújula recentra el minimapa. `t_fb535386`: «Ir» camina hasta el punto marcado («Ir de golpe» conserva el teletransporte).
+- Números: ver el cuerpo del PR. Versión 0.60.0 (menor: algo nuevo que no rompe nada).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `lote/3` sobre main `86de6bcb`, dos fusiones normales de `lote3/sonido-red-ia` y `lote3/mapa`.
+- Siguiente: reconexión automática tras una caída; oír los sonidos con una persona; «Ir» en VR sigue teletransportando.

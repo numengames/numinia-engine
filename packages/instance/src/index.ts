@@ -6,7 +6,7 @@ import type { SimState, SpawnArea, Bvh } from "../../sim/src/index.ts";
 import { terrenoDelEstado, terrenoMalla, claveTerreno, combinarMallas, sueloMinimoTerreno } from "../../sim/src/terreno-malla.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import {
-  MSG, buildGrid, selectVisible, encodeSnapshot, cuantizar, decodeSnapshot, encodeInput, decodeInput,
+  MSG, SILENCIO_MS, SILENCIO_OCULTA_MS, decodeLatido, buildGrid, selectVisible, encodeSnapshot, cuantizar, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
   decodeIdentityRequest, decodePase, encodeIdentity, leerVozSubida, codificarVozBajada, VOZ_RADIO_M, VOZ_TRAMAS_S,
   encodeCondiciones, decodeAceptar, encodeLeyendo, LEYENDO_POR_MENSAJE,
@@ -18,6 +18,9 @@ import type { Aceptacion, CondicionesMensaje, Transport, Viewer, Welcome } from 
 import { ServerRuntime } from "../../feature/src/index.ts";
 import type { BienFirmable, FeatureStorage, ReciboLeido, ServerPart, RayHit, Orden, VozBurbujas } from "../../feature/src/index.ts";
 
+/** t_9cb3f636: a mark of «put there on purpose» rides in this many ticks of snapshots (0.25 s at 20 Hz: two or three snapshots). */
+export const SALTO_TICKS = 5;
+
 export type InstanceOptions = {
   seed: number; capacity: number; k: number; snapshotEvery: number;
   reference?: Welcome["ref"]; // determinism probe sent to every client on join
@@ -27,6 +30,7 @@ export type InstanceOptions = {
   onReport?: (entity: number, report: Record<string, unknown>) => void; // T1: how a player entered (server/sesiones.ts)
   storage?: FeatureStorage; // S4: where the features' saved state and stores live (server/datos.ts); none = memory only
   identitySign?: (text: string) => string; // I1: signs guest tokens; none = no identities (bots, bare tests)
+  reloj?: () => number;                    // t_9cb3f636: the clock the heartbeat is measured with (ms); default performance.now
   random?: () => number;                   // I1: randomness for new guest ids (the server passes crypto); default Math.random
   now?: () => number;                      // I1: the clock for token days; default Date.now
   puede?: (who: Who | null, accion: string, entity: number) => boolean; // H1: permissions for features (api.puede); none = nobody may
@@ -127,6 +131,7 @@ const EYE_HEIGHT = fx(1.6);
 type Conn = {
   entity: number; transport: Transport; viewer: Viewer;
   queue: { seq: number; mx: number; mz: number; buttons: number }[]; ack: number; dropped: number; bad: number;
+  latido?: { visto: number; oculta: boolean }; // t_9cb3f636: set when the page sends its first heartbeat (an AI, a bot or an older page never does: it is never called gone for silence)
   who?: Who; // I1: set once the page shows (or asks for) its guest token
   invitado?: string; // H3b: the guest id behind a numinia.com person (the page's guest token still names it: uploads)
   pase?: string; // H3b: the world pass the page sent (PASE), held until its IDENTITY arrives, then handed to identificar and forgotten
@@ -213,7 +218,7 @@ export class Instance {
     if (!this.byEntity[entity] || !s.world.alive[entity] || !s.tf.has[entity] || this.pendiente.has(entity)) return false;
     const d = this.destinoSeguro(entity);
     if (!d) { if (!this.avisado) { this.avisado = true; this.opts.log?.("[suelo] no hay sitio seguro al que volver (ni última posición ni «vuelta» en entorno.json)"); } return false; }
-    this.ordenes.push(entity, ORDER_PONER, d.x, d.y, d.z, 0); this.pendiente.add(entity);
+    this.ordenes.push(entity, ORDER_PONER, d.x, d.y, d.z, 0); this.pendiente.add(entity); this.marcarSalto(entity);
     this.vueltas.push({ entity, x: fxToFloat(d.x), y: fxToFloat(d.y), z: fxToFloat(d.z), motivo });
     return true;
   }
@@ -244,7 +249,7 @@ export class Instance {
     if ("poner" in orden) {
       const { x, y, z } = orden.poner;
       if (!finite(x, y, z)) return false;
-      this.ordenes.push(entity, ORDER_PONER, fx(x), fx(y), fx(z), 0);
+      this.ordenes.push(entity, ORDER_PONER, fx(x), fx(y), fx(z), 0); this.marcarSalto(entity);
       return true;
     }
     if ("cerca" in orden) {
@@ -287,11 +292,15 @@ export class Instance {
     const conn: Conn = { entity, transport: t, viewer: { entity, priority: new Float32Array(this.opts.capacity) }, queue: [], ack: 0, dropped: 0, bad: 0, anfitrion, ...(enlace?.length ? { enlace, visible: [] } : {}) };
     if (conn.enlace) this.ocultas.add(entity);
     t.onMessage((bytes) => {
+      if (conn.latido) conn.latido.visto = this.reloj(); // anything it sends is a sign of life
       if (conn.enlace && (bytes[0] === MSG.INPUT || bytes[0] === MSG.VOICE)) { conn.bad++; return; } // a visit does not walk and does not talk aloud
       if (bytes[0] === MSG.INPUT && (bytes.length === 6 || bytes.length === 5)) { // 5 = from before J2 (no buttons)
         if (this.cerrada(conn)) { this.puertaStats.entradas++; return; } // condiciones/c2: frozen where it arrived until it accepts
         conn.queue.push(decodeInput(bytes));
         if (conn.queue.length > MAX_QUEUE) { conn.queue.shift(); conn.dropped++; } // faster-than-tick senders lose inputs
+      } else if (bytes[0] === MSG.LATIDO) { // t_9cb3f636: the page's heartbeat (and whether it is in a background tab)
+        const l = decodeLatido(bytes);
+        if (l) conn.latido = { visto: this.reloj(), oculta: l.oculta }; else conn.bad++;
       } else if (bytes[0] === MSG.PING && bytes.length === 5) {
         t.send(encodePong(decodeTime(bytes)), true);
       } else if (bytes[0] === MSG.FEATURE && this.features.active) {
@@ -433,13 +442,39 @@ export class Instance {
   leyendoNormas(entity: number): boolean { return !!this.byEntity[entity]?.leyendo; }
   readonly puertaStats: PuertaStats = { entradas: 0, funciones: 0, voz: 0, aceptaciones: 0, malas: 0, leyendoBytes: 0, empujes: 0 };
 
+  private reloj(): number { return this.opts.reloj ? this.opts.reloj() : performance.now(); }
+  private ultimoBarrido = -1;
+  /** t_9cb3f636: call a few times a second. Whoever sent heartbeats and then said nothing for `silencio` ms (`oculta`: for a page that
+   * said it is in a background tab) is gone: its connection is dropped here (its avatar leaves) and its entity is returned so the
+   * server can close the socket. If THIS call comes much later than the 250 ms it is made at (the server itself stalled) nobody is judged: the
+   * messages that were waiting have not been read yet, and silence is ours, not theirs. */
+  expirarSilencio(silencio = SILENCIO_MS, oculta = SILENCIO_OCULTA_MS): number[] {
+    const ahora = this.reloj(), antes = this.ultimoBarrido;
+    this.ultimoBarrido = ahora;
+    if (antes >= 0 && ahora - antes > 1000) { for (const c of this.conns) if (c.latido) c.latido.visto = ahora; return []; }
+    const idos = this.conns.filter((c) => c.latido && ahora - c.latido.visto > (c.latido.oculta ? oculta : silencio)).map((c) => c.entity);
+    for (const e of idos) { this.opts.log?.(`[red] ${e}: sin latido, se da por caída`); this.disconnect(e); }
+    return idos;
+  }
+
+  /** t_9cb3f636: avatars put somewhere on purpose lately (entity → server tick), so their snapshots carry the mark. */
+  private saltos = new Map<number, number>();
+  private marcarSalto(entity: number): void { this.saltos.set(entity, this.sim.tick); }
+  /** The marks still worth sending (the last SALTO_TICKS ticks; snapshots are unreliable, so a mark rides in a few), without the
+   * ones of the viewer itself (its own page reconciles). */
+  private saltosRecientes(): { id: number; tick: number }[] {
+    const t = this.sim.tick, out: { id: number; tick: number }[] = [];
+    for (const [id, at] of this.saltos) { if (t - at > SALTO_TICKS) this.saltos.delete(id); else out.push({ id, tick: at }); }
+    return out;
+  }
+
   disconnect(entity: number): void {
     const i = this.conns.findIndex((c) => c.entity === entity);
     if (i < 0) return;
     if (this.conns[i].leyendo) this.avisarLeyendo(this.conns[i], false); // condiciones/c5: its bubble goes (the entity number may be someone else's next)
     const enlace = this.conns[i].enlace;
     this.conns.splice(i, 1); this.playersView = null; this.ocultas.delete(entity);
-    this.byEntity[entity] = undefined;
+    this.byEntity[entity] = undefined; this.saltos.delete(entity);
     this.features.leave(entity, enlace); // still has a position here; no longer among the players
     this.sim.world.despawn(entity);
     this.tieneSeguro[entity] = 0; this.pendiente.delete(entity);
@@ -494,12 +529,13 @@ export class Instance {
     b = performance.now(); f[4] = b - a; a = b; // piezas
     if (this.sim.tick % this.opts.snapshotEvery === 0) { // 20 Hz sim, 10 Hz snapshots by default
       const grid = buildGrid(this.sim), q = cuantizar(this.sim); // E1: every avatar quantized once, not once per viewer
+      const saltos = this.saltosRecientes(); // t_9cb3f636: usually empty: the snapshot then has no tail at all
       for (const c of this.conns) {
         if (c.enlace) continue; // a visit walks nowhere and sees nobody: no snapshot (its page never asks for one)
         let visible = selectVisible(this.sim, grid, c.viewer, this.opts.k);
         if (this.ocultas.size) visible = visible.filter((id) => !this.ocultas.has(id)); // the visits are nobody's neighbours
         c.visible = visible;
-        c.transport.send(encodeSnapshot(this.sim, c.entity, c.ack, visible, q), false);
+        c.transport.send(encodeSnapshot(this.sim, c.entity, c.ack, visible, q, saltos.length ? saltos.filter((j) => j.id !== c.entity && visible.includes(j.id)) : undefined), false);
       }
     }
     f[5] = performance.now() - a; // instantaneas
@@ -518,6 +554,7 @@ export class Instance {
     if (!p) return null;
     s.tf.cols.x[entity] = p.x; s.tf.cols.y[entity] = p.y; s.tf.cols.z[entity] = p.z;
     s.mo.cols.vy[entity] = 0; s.mo.cols.air[entity] = 0; s.mo.cols.buf[entity] = 0;
+    this.marcarSalto(entity);
     return { x: fxToFloat(p.x), y: fxToFloat(p.y), z: fxToFloat(p.z) };
   }
 
@@ -569,7 +606,7 @@ export class Instance {
       const x = s.tf.cols.x[e], z = s.tf.cols.z[e], h = groundHeight(x, z, s, ref);
       if (s.tf.cols.y[e] >= h) continue;
       this.ordenes.push(e, ORDER_PONER, x, h, z, 0);
-      this.pendiente.add(e);
+      this.pendiente.add(e); this.marcarSalto(e);
     }
   }
   /** The GLB mesh and the terrain are ONE tree for the sim; with a terrain there is no flat floor under it (`piso`). */
