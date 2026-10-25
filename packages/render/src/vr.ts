@@ -24,7 +24,7 @@ import { empujaFuera } from "./vr-paredes.ts";
 import { completarSesionXR, textoDeFallo } from "./xr-compat.ts"; // old headset browsers lack XRSession.enabledFeatures (Chrome 105)
 import { audio } from "./audio/nucleo.ts"; // S1: the engine's one audio graph (it sleeps when the session ends)
 /** The hands (manos.ts) as the view hands them over: loaded on entering (`cargar`), then mounted. */
-export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void; andar?(): [number, number] | null;
+export type ManosXR = { cargar(): Promise<unknown>; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void; andar?(excluida?: Lado | null): [number, number] | null;
   /** t_bf8947cf: where a controller points, flattened (world, unit); null without that controller. */
   dirMando?(lado: "izq" | "der"): [number, number] | null;
   /** Rediseño v2: a hand's wrist (world) and what presses by touch on the other hand (manos.ts). */
@@ -486,7 +486,7 @@ export function createVR(h: VRHooks) {
     else { const len = Math.hypot(dir.x, dir.z) || 1; fx = dir.x / len; fz = dir.z / len; }
     moveX = fx * -ly + -fz * lx;
     moveZ = fz * -ly + fx * lx;
-    const conMano = visible && !lx && !ly ? h.manos?.andar?.() : null; // tracked hands: pinch and hold in the air = walk where that hand points
+    const conMano = visible && !lx && !ly ? h.manos?.andar?.(menu.abierto ? LADO_RELOJ : null) : null; // tracked hands: pinch and hold in the air = walk where that hand points; t_41d8e44c: never with the hand holding the open menu
     if (conMano) { moveX = conMano[0] * 0.7; moveZ = conMano[1] * 0.7; } // walking pace (the edge, 0.9, runs)
     if (enPanel) { moveX = moveZ = 0; turned = false; } // c4: inside the bubble the sticks turn pages, they do not move or turn you (the server holds you too)
     const m = Math.hypot(moveX, moveZ);

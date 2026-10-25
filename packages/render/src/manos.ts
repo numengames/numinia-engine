@@ -437,11 +437,13 @@ export function createManos(h: ManosHooks) {
       const o = r.ctrl.getWorldPosition(new THREE.Vector3()), d = new THREE.Vector3(0, 0, -1).applyQuaternion(r.ctrl.getWorldQuaternion(new THREE.Quaternion()));
       return { origen: { x: o.x, y: o.y, z: o.z }, dir: { x: d.x, y: d.y, z: d.z } };
     },
-    /** Walking with tracked hands: the flattened direction (world, unit) of a hand pinching in empty air for ANDAR_MS. */
-    andar(): [number, number] | null {
+    /** Walking with tracked hands: the flattened direction (world, unit) of a hand pinching in empty air for ANDAR_MS,
+     *  never the `excluida` hand (the one holding the open wrist menu). */
+    andar(excluida?: Lado | null): [number, number] | null {
       const ahora = performance.now();
       for (const r of ranuras) {
-        if (!r.esMano || !r.pellizcoAire || ahora - r.pellizcoAire < ANDAR_MS || !r.ctrl.visible || (r.lado && ocupada(r.lado))) continue;
+        // t_41d8e44c (design §2.3): `excluida` = the hand that carries the open wrist menu: its pinch is the menu's, never a step
+        if (!r.esMano || !r.pellizcoAire || ahora - r.pellizcoAire < ANDAR_MS || !r.ctrl.visible || (r.lado && (r.lado === excluida || ocupada(r.lado)))) continue;
         Dir.set(0, 0, -1).applyQuaternion(r.ctrl.getWorldQuaternion(Qw));
         const l = Math.hypot(Dir.x, Dir.z);
         if (l > 0.2) return [Dir.x / l, Dir.z / l];
