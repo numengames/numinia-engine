@@ -85,7 +85,7 @@ export async function construirManifiesto(zona: string, cosas: Iterable<Cosa>, a
   const por = new Map<string, { sha: string; ext: string; clase: Clase; copias: number }>();
   for (const c of cosas) {
     if (!c?.modelo || !/^[0-9a-f]{64}$/.test(c.modelo)) continue;
-    const ext = (c.tipo ?? "modelo") === "modelo" ? "glb" : /^[a-z0-9]{2,4}$/.test(c.ext ?? "") ? c.ext! : "glb";
+    const ext = (c.tipo ?? "modelo") === "modelo" ? "glb" : /^[a-z0-9]{2,5}$/.test(c.ext ?? "") ? c.ext! : "glb";
     const k = `${c.modelo}.${ext}`, clase = claseDe(c), v = por.get(k);
     if (!v) por.set(k, { sha: c.modelo, ext, clase, copias: 1 });
     else { v.copias++; if (ORDEN[clase] < ORDEN[v.clase]) v.clase = clase; }
