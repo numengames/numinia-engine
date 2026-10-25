@@ -7,7 +7,7 @@ import { World } from "../../ecs/src/index.ts";
 import type { Store } from "../../ecs/src/index.ts";
 import { rayBvh, boxBvh, triNormal, triAabb } from "./bvh.ts";
 import type { Bvh } from "./bvh.ts";
-export { buildBvh, rayBvh, bvhFingerprint, quantizeTriangles, BVH_UNIT, BVH_LEAF, TRI_STRIDE, NODE_STRIDE } from "./bvh.ts";
+export { buildBvh, combinarMallas, rayBvh, bvhFingerprint, quantizeTriangles, BVH_UNIT, BVH_LEAF, TRI_STRIDE, NODE_STRIDE } from "./bvh.ts";
 export type { Bvh, Hit } from "./bvh.ts";
 
 export const TICK_HZ = 20;
