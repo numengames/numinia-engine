@@ -7,6 +7,7 @@
 // person = «panel» / «apuntar»; on nothing = «gatillo» (the page uses what is in reach). render only reports: the
 // page asks the server, which decides. No files are downloaded (no controller profiles from a CDN): primitives only.
 import * as THREE from "three/webgpu";
+import { crearSaltoManos } from "./salto-manos.ts"; // t_8d0bc2dd: both wrists flicked up = jump
 
 export type Lado = "izq" | "der";
 export type Panel = { malla: THREE.Mesh; fila(uv: THREE.Vector2): number; encima(n: number): void;
@@ -308,6 +309,24 @@ export function createManos(h: ManosHooks) {
     }
   }
 
+  // ---- t_8d0bc2dd: jump with the hands — both wrists flicked up at once (salto-manos.ts holds the maths) ----
+  const salto = crearSaltoManos();
+  let saltoPedido = false;
+  const Pw = new THREE.Vector3();
+  /** A TRACKED hand's wrist height in the rig's frame (the avatar's jumps and walking add nothing), or null: not here, a controller
+   *  (it has A/X, and a controller swung about while walking must not jump), not drawn, or busy with something. */
+  function alturaMuneca(lado: Lado): number | null {
+    const r = ranuras.find((x) => x.lado === lado && x.fuente);
+    if (!r || !r.esMano || ocupada(lado)) return null;
+    const o = r.hand.joints?.wrist;
+    if (!o?.visible || !r.hand.visible) return null;
+    o.updateWorldMatrix(true, false); o.getWorldPosition(Pw);
+    return raiz.worldToLocal(Pw).y;
+  }
+  function vigilarSalto(ahora: number): void {
+    if (salto.muestra(ahora, alturaMuneca("izq"), alturaMuneca("der"))) saltoPedido = true;
+  }
+
   function actualizarRanura(r: Ranura, camara: THREE.Camera | null): void {
     if (!r.fuente) { // loaded after the inputs connected (entering XR before the prefetch): take the one three gave this slot
       const xr = h.renderer.xr as unknown as { _controllerInputSources?: (Fuente | null)[] };
@@ -402,7 +421,11 @@ export function createManos(h: ManosHooks) {
       return r ? { candidato: r.candidato, apunta: r.apuntado ? (r.apuntado.tipo === "panel" ? `panel:${r.apuntado.fila}` : r.apuntado.key) : null } : null;
     },
     /** Every frame while presenting. `camara` = the XR camera (sprites need it to be hit). */
-    update(camara: THREE.Camera | null): void { if (!raiz.parent) return; raiz.updateMatrixWorld(); for (const r of ranuras) actualizarRanura(r, camara); vigilarCambio(); },
+    update(camara: THREE.Camera | null, ahora = performance.now()): void { if (!raiz.parent) return; raiz.updateMatrixWorld(); for (const r of ranuras) actualizarRanura(r, camara); vigilarCambio(); vigilarSalto(ahora); },
+    /** t_8d0bc2dd: true once per jump gesture (both wrists flicked up together) since the last call; the VR layer asks each frame. */
+    takeSalto(): boolean { const s = saltoPedido; saltoPedido = false; return s; },
+    /** Forget the jump gesture's history (leaving VR, a panel opening). */
+    reiniciarSalto(): void { salto.reiniciar(); saltoPedido = false; },
     on(fn: (e: EventoMano) => void): () => void { oyentes.add(fn); return () => oyentes.delete(fn); },
     /** Where a thing held in this hand goes (grip or pinch point), or null if that hand is not here. */
     ancla(lado: Lado): THREE.Object3D | null { const r = ranuras.find((x) => x.lado === lado && x.fuente); return r ? r.ancla : null; },

@@ -256,6 +256,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     ancla: (l: "izq" | "der") => manosReal?.ancla(l) ?? null,
     rayo: (l: "izq" | "der") => manosReal?.rayo(l) ?? null,
     andar: (excluida?: "izq" | "der" | null) => manosReal?.andar(excluida) ?? null,
+    takeSalto: () => manosReal?.takeSalto() ?? false, // t_8d0bc2dd: both wrists flicked up
+    reiniciarSalto: () => manosReal?.reiniciarSalto(),
     dirMando: (l: "izq" | "der") => manosReal?.dirMando(l) ?? null,
     muneca: (l: "izq" | "der", pos: THREE.Vector3, rot: THREE.Quaternion) => manosReal?.muneca(l, pos, rot) ?? null, // rediseño v2: the wrist watch
     punta: (l: "izq" | "der", pos: THREE.Vector3) => manosReal?.punta(l, pos) ?? false,
