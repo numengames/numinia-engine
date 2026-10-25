@@ -17,7 +17,7 @@ import type { SpawnArea } from "../../sim/src/index.ts";
 import { FASES_TICK, Instance } from "../../instance/src/index.ts";
 import type { Suelo } from "../../instance/src/index.ts";
 import { construirMalla } from "./colision-mundo.ts";
-import { CIERRE_LLENO, FUNCIONES_DE_ENLACE, MSG, PASE_MAX, WS_FRAME_MAX, esVisitaDeEnlace } from "../../net/src/index.ts";
+import { CIERRE_LLENO, CIERRE_SILENCIO, FUNCIONES_DE_ENLACE, MSG, PASE_MAX, WS_FRAME_MAX, esVisitaDeEnlace } from "../../net/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
 import type { HttpReply, ServerPart } from "../../feature/src/index.ts";
 import { buildMetrics, ByteWindow, CosteTick, OPENMETRICS, PROM_TEXT, quiereOpenMetrics, TickWindow, toPrometheus } from "./metrics.ts";
@@ -56,6 +56,7 @@ export type ServerOptions = {
   host: string;
   maxPlayers?: number;   // default 1000
   statsMs?: number;      // console summary period; default 30000
+  silencioMs?: number;   // t_9cb3f636: how long a page that sends heartbeats may say nothing before it is dropped; default SILENCIO_MS (1500)
   sampleMs?: number;     // byte-rate sample period (kbit/s window = 10 samples); default 1000
   version?: string;      // default: ENGINE_BUILD env, then ../VERSION (written by the installer), then "dev"
   features?: readonly ServerPart[]; // game features (J7): composition roots pass them in
@@ -93,7 +94,7 @@ export type ServerOptions = {
 export const CIERRE_ROLES = 4003;
 /** H7: WebSocket close code when the world is full (its ficha `aforo`, or the engine's capacity): wait and try again. The
  * reason («lleno <inside>/<aforo>») is what the page turns into its message. Defined in net (the page reads it too). */
-export { CIERRE_LLENO };
+export { CIERRE_LLENO, CIERRE_SILENCIO };
 /** Largest POST body a feature route accepts. */
 export const MAX_BODY = 4096;
 
@@ -374,6 +375,11 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     ws.on("error", () => ws.terminate());
   });
 
+  // t_9cb3f636: a page that sends heartbeats and then goes quiet has lost its connection without closing it: drop it now (its avatar
+  // leaves for everyone) instead of waiting minutes for the network. Pages without heartbeats (AIs, bots, old pages) are never judged.
+  const vigia = setInterval(() => { for (const e of inst.expirarSilencio(o.silencioMs)) { const ws = sockets.get(e); if (ws) { try { ws.close(CIERRE_SILENCIO, "sin latido"); } catch { /* gone */ } setTimeout(() => ws.terminate(), 1000).unref(); } } }, 250);
+  vigia.unref?.();
+
   // fixed-rate loop: schedule against the start time so timer drift never accumulates
   const loop = () => {
     if (stopped) return;
@@ -395,7 +401,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   stats.unref();
   // stop the world for good (before a swap of datos/): no tick, nobody connected, no new connections, all written
   apagar = async () => {
-    stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); fuenteCondiciones.parar();
+    stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); clearInterval(vigia); fuenteCondiciones.parar();
     for (const c of wss.clients) c.terminate();
     wss.close(); http.close(); http.closeIdleConnections();
     await Promise.all([sesiones.vaciar(), datos?.flush(), optimizar.parar()]);
@@ -414,7 +420,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       ok({
         port, inst, sesiones, datos, fingerprint: hex(refHash), metrics, optimizar,
         close: () => new Promise<void>((done) => {
-          stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); fuenteCondiciones.parar(); runtime.close();
+          stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); clearInterval(vigia); fuenteCondiciones.parar(); runtime.close();
           for (const c of wss.clients) c.terminate();
           wss.close(); http.close(() => void Promise.all([sesiones.vaciar(), datos?.flush(), optimizar.parar()]).then(() => done()));
         }),

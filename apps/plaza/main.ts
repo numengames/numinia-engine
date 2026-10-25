@@ -2,7 +2,7 @@
 import { version as versionPaquete } from "../../package.json"; // only this field reaches the page (docs/VERSIONES.md)
 import { hex } from "../../packages/core/src/index.ts";
 import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX, BTN_JUMP, BTN_RUN } from "../../packages/sim/src/index.ts";
-import { CIERRE_LLENO, webSocketClient } from "../../packages/net/src/index.ts";
+import { CIERRE_LLENO, CIERRE_SILENCIO, LATIDO_MS, webSocketClient } from "../../packages/net/src/index.ts";
 import { montarAjustes, leerAjuste } from "./menu-ajustes.ts"; // N2: settings menu + capabilities
 import { montarCiudad } from "./ciudad.ts"; // t_5cff4f06: the corner button back to the city (a world's own ciudadUrl)
 import { montarMenuVR } from "./xr-menu.ts"; // rediseño v2: the VR wrist watch and menu (story E)
@@ -217,6 +217,12 @@ transport.opened.catch(() => { hud.textContent = `No llego al servidor ${url}.\n
 // H7: the door was closed because the world is full (ficha `aforo`): say so where everyone reads it (the HUD and the
 // alert region for screen readers), with the way out; the page does not reconnect by itself
 void transport.closed.then((c) => {
+  if (c.code === CIERRE_SILENCIO) { // t_9cb3f636: the server stopped hearing this page (a stall, a lost network): it let go of the avatar
+    hud.hidden = true;
+    const aviso = document.getElementById("mundo-lleno")!;
+    aviso.textContent = "Se cortó la conexión con el mundo. Vuelve a cargar la página para entrar de nuevo."; aviso.hidden = false;
+    return;
+  }
   if (c.code !== CIERRE_LLENO) return;
   const n = /(\d+)\/(\d+)/.exec(c.reason), nombre = estado?.nombre ? `«${estado.nombre}»` : "Este mundo";
   const texto = `${nombre} está lleno${n ? ` (${n[2]} persona${n[2] === "1" ? "" : "s"} como mucho)` : ""}. Espera un rato y vuelve a cargar la página.`;
@@ -673,6 +679,9 @@ let lastActive = 0, lastSig = "", cost: { calls: number; triangles: number; cpuM
 const signature = () => { const s = session.entity >= 0 ? session.selfPosition(0) : null; let h = s ? s.x + s.z + s.y * 7 : 0; for (const r of session.remotePositions()) h += r.x * 3 + r.z + r.y * 5; return h.toFixed(2); };
 let last = performance.now(), acc = 0, frames = 0, fps = 0, fpsT = last;
 setInterval(() => session.ping(), 1000);
+// t_9cb3f636: the heartbeat. A background tab says so (its timers run slowly there), and says «I am back» the moment it is shown.
+setInterval(() => session.latido(document.hidden), LATIDO_MS);
+addEventListener("visibilitychange", () => session.latido(document.hidden));
 let mallaLista = false; // H4
 let cargaOculta = false;
 // B5: does the shared state ask for a ground (naturaleza / espacio base) that the view has not finished building? (`activa` of the view is true only after `aplicar` produced it)

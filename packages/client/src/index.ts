@@ -6,7 +6,7 @@ import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight,
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import { crearSueloTerreno } from "./suelo-terreno.ts";
 import type { Body, SimState } from "../../sim/src/index.ts";
-import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeReport, encodeIdentityRequest, encodePase, decodeIdentity, decodeCondiciones, decodeLeyendo, encodePedirCondiciones, encodeAceptar, seqNewer, codificarVozSubida, leerVozBajada } from "../../net/src/index.ts";
+import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeLatido, encodeReport, encodeIdentityRequest, encodePase, decodeIdentity, decodeCondiciones, decodeLeyendo, encodePedirCondiciones, encodeAceptar, seqNewer, codificarVozSubida, leerVozBajada } from "../../net/src/index.ts";
 import type { CondicionesMensaje, Transport, Welcome } from "../../net/src/index.ts";
 import { ClientRuntime } from "../../feature/src/index.ts";
 import type { ClientPart, ViewHooks } from "../../feature/src/index.ts";
@@ -62,7 +62,7 @@ export class ClientSession {
   private readonly local: SimState;         // a one-avatar sim used only for prediction
   private prev: Body = { x: 0, y: 0, z: 0, vy: 0, air: 0, buf: 0 }; // predicted state one client tick ago (fixed point)
   private cur: Body = this.prev;            // predicted state now (fixed point); J2: height and vertical state too
-  private remotes = new Map<number, { samples: Sample[]; lastTick: number }>();
+  private remotes = new Map<number, { samples: Sample[]; lastTick: number; salto?: number }>();
   private offset = 0;                       // server tick minus local tick clock
   private hasClock = false;
   stats = { snapshots: 0, corrections: 0, rttMs: -1, visible: 0, lastServerTick: 0 };
@@ -122,6 +122,9 @@ export class ClientSession {
   }
 
   ping(now = nowMs()): void { this.t.send(encodePing(now >>> 0), true); }
+  /** t_9cb3f636: the heartbeat (the page calls it every LATIDO_MS, `oculta` = in a background tab): the server notes a dead connection in
+   * under two seconds instead of waiting for the network's timeout. Sent over the reliable channel; only after joining. */
+  latido(oculta = false): void { if (this.entity >= 0) this.t.send(encodeLatido(oculta), true); }
 
   /** T1: tell the server how this player entered / how it is going. false if not joined yet or too big. */
   report(r: Record<string, unknown>): boolean {
@@ -201,9 +204,14 @@ export class ClientSession {
       this.stats.snapshots++; this.stats.visible = s.others.length; this.stats.lastServerTick = s.tick;
       this.syncClock(s.tick, now, false);
       this.reconcile(s.self, s.ack);
+      // t_9cb3f636: someone was put somewhere on purpose (a teleport): forget the path up to now, so it is drawn at its new place at
+      // once and not slid there from the old one. Each mark is (id, tick) and rides in a few snapshots: only a NEW one clears.
+      const saltaron = s.saltos.length ? new Map(s.saltos.map((j) => [j.id, j.tick])) : null;
       for (const o of s.others) {
         let r = this.remotes.get(o.id);
         if (!r) this.remotes.set(o.id, (r = { samples: [], lastTick: s.tick }));
+        const marca = saltaron?.get(o.id);
+        if (marca !== undefined && marca !== r.salto) { r.salto = marca; r.samples.length = 0; }
         r.samples.push({ tick: s.tick, x: o.x, y: o.y, z: o.z });
         if (r.samples.length > MAX_SAMPLES) r.samples.shift();
         r.lastTick = s.tick;
