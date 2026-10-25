@@ -58,28 +58,60 @@ test("si transitionend y el respaldo llegan los dos, el segundo no hace nada (id
   assert.equal(el.hidden, true);
 });
 
-// B5: the screen waits for the ground
-import { puedeOcultar, sueloPendiente, TOPE_CARGA_MS } from "../apps/plaza/carga.ts";
-test("B5: sin suelo se oculta con el primer cuadro tras welcome, como antes", () => {
+// B5 + C: the screen waits for the ground and for every piece of the world within view
+import { puedeOcultar, estadoCarga, sueloPendiente, piezasPendientes, textoPiezas, TOPE_CARGA_MS } from "../apps/plaza/carga.ts";
+const base = { welcome: true, mundoRecibido: true, primerCuadro: true, sueloPendiente: false, piezasPendientes: 0, msDesdeWelcome: 500 };
+test("B5: sin suelo ni piezas se oculta con el primer cuadro tras welcome, como antes", () => {
   const sp = sueloPendiente({ pideNaturaleza: false, pideBase: false, naturalezaLista: false, baseLista: false });
   assert.equal(sp, false);
-  assert.equal(puedeOcultar({ welcome: true, primerCuadro: true, sueloPendiente: sp, msDesdeWelcome: 10 }), true);
-  assert.equal(puedeOcultar({ welcome: false, primerCuadro: true, sueloPendiente: false, msDesdeWelcome: 0 }), false);
+  assert.equal(puedeOcultar({ ...base, sueloPendiente: sp, msDesdeWelcome: 10 }), true);
+  assert.equal(puedeOcultar({ ...base, welcome: false, msDesdeWelcome: 0 }), false);
 });
 test("B5: base o naturaleza pendientes mantienen la pantalla", () => {
   assert.equal(sueloPendiente({ pideNaturaleza: false, pideBase: true, naturalezaLista: false, baseLista: false }), true);
   assert.equal(sueloPendiente({ pideNaturaleza: true, pideBase: false, naturalezaLista: false, baseLista: true }), true);
   assert.equal(sueloPendiente({ pideNaturaleza: true, pideBase: true, naturalezaLista: true, baseLista: false }), true);
   assert.equal(sueloPendiente({ pideNaturaleza: true, pideBase: true, naturalezaLista: true, baseLista: true }), false);
-  assert.equal(puedeOcultar({ welcome: true, primerCuadro: true, sueloPendiente: true, msDesdeWelcome: 500 }), false);
+  assert.equal(puedeOcultar({ ...base, sueloPendiente: true }), false);
 });
 test("B5: suelo aplicado pero sin cuadro dibujado después, aún no; con cuadro, sí", () => {
-  assert.equal(puedeOcultar({ welcome: true, primerCuadro: false, sueloPendiente: false, msDesdeWelcome: 500 }), false);
-  assert.equal(puedeOcultar({ welcome: true, primerCuadro: true, sueloPendiente: false, msDesdeWelcome: 500 }), true);
+  assert.equal(puedeOcultar({ ...base, primerCuadro: false }), false);
+  assert.equal(puedeOcultar(base), true);
 });
-test("B5: el tope evita que se quede colgada", () => {
-  assert.equal(puedeOcultar({ welcome: true, primerCuadro: false, sueloPendiente: true, msDesdeWelcome: TOPE_CARGA_MS }), true);
-  assert.equal(puedeOcultar({ welcome: true, primerCuadro: false, sueloPendiente: true, msDesdeWelcome: TOPE_CARGA_MS - 1 }), false);
-  assert.equal(puedeOcultar({ welcome: true, primerCuadro: false, sueloPendiente: true, msDesdeWelcome: 100, topeMs: 50 }), true);
-  assert.equal(puedeOcultar({ welcome: false, primerCuadro: false, sueloPendiente: true, msDesdeWelcome: 99999 }), false);
+test("C: con una sola pieza del mundo a la vista sin lista (modelo, texturas o shaders) la pantalla sigue", () => {
+  assert.equal(puedeOcultar({ ...base, piezasPendientes: 1 }), false);
+  assert.equal(puedeOcultar({ ...base, piezasPendientes: 37, msDesdeWelcome: 20000 }), false, "20 s: el tope de antes (15 s) ya no la suelta");
+  assert.equal(puedeOcultar({ ...base, piezasPendientes: 0 }), true);
+  assert.equal(estadoCarga({ ...base, piezasPendientes: 1 }), "esperando");
+  assert.equal(estadoCarga(base), "listo");
+});
+test("C: piezas listas pero suelo pendiente, o sin cuadro dibujado: tampoco (las tres cosas a la vez)", () => {
+  assert.equal(puedeOcultar({ ...base, sueloPendiente: true, piezasPendientes: 0 }), false);
+  assert.equal(puedeOcultar({ ...base, primerCuadro: false, piezasPendientes: 0 }), false);
+  assert.equal(puedeOcultar({ ...base, welcome: false, piezasPendientes: 0 }), false, "sin welcome nunca");
+});
+test("C: el welcome llega antes que las cosas del mundo: sin el primer snapshot (tras toda la ráfaga) con 0 piezas contadas no se oculta", () => {
+  assert.equal(puedeOcultar({ ...base, mundoRecibido: false, piezasPendientes: 0 }), false, "0 piezas porque aún no han llegado, no porque no haya");
+  assert.equal(estadoCarga({ ...base, mundoRecibido: false }), "esperando");
+  assert.equal(puedeOcultar({ ...base, mundoRecibido: true, piezasPendientes: 0 }), true);
+  assert.equal(estadoCarga({ ...base, mundoRecibido: false, msDesdeWelcome: TOPE_CARGA_MS }), "tope", "…y si el mundo nunca llega, el tope");
+});
+test("C: el tope sube a 45 s, suelta con el mundo a medias y lo dice (estado «tope», no «listo»)", () => {
+  assert.equal(TOPE_CARGA_MS, 45000);
+  const a_medias = { ...base, piezasPendientes: 5, sueloPendiente: true, primerCuadro: false };
+  assert.equal(puedeOcultar({ ...a_medias, msDesdeWelcome: TOPE_CARGA_MS }), true);
+  assert.equal(estadoCarga({ ...a_medias, msDesdeWelcome: TOPE_CARGA_MS }), "tope");
+  assert.equal(puedeOcultar({ ...a_medias, msDesdeWelcome: TOPE_CARGA_MS - 1 }), false);
+  assert.equal(puedeOcultar({ ...a_medias, msDesdeWelcome: 100, topeMs: 50 }), true);
+  assert.equal(puedeOcultar({ ...a_medias, welcome: false, msDesdeWelcome: 99999 }), false);
+  assert.equal(estadoCarga({ ...base, msDesdeWelcome: TOPE_CARGA_MS + 1 }), "listo", "mundo entero pasado el tope: es «listo», no «tope»");
+});
+test("C: piezasPendientes y textoPiezas", () => {
+  assert.equal(piezasPendientes(null), 0); assert.equal(piezasPendientes(undefined), 0);
+  assert.equal(piezasPendientes({ listas: 3, total: 10 }), 7);
+  assert.equal(piezasPendientes({ listas: 12, total: 10 }), 0, "nunca negativo");
+  assert.equal(textoPiezas(null), ""); assert.equal(textoPiezas({ listas: 0, total: 0 }), "");
+  assert.equal(textoPiezas({ listas: 120, total: 146 }), "120 de 146 piezas");
+  assert.equal(textoPiezas({ listas: 1, total: 1 }), "1 de 1 pieza");
+  assert.equal(textoPiezas({ listas: 9, total: 4 }), "4 de 4 piezas", "acotado");
 });

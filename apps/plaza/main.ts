@@ -8,7 +8,7 @@ import { montarCiudad } from "./ciudad.ts"; // t_5cff4f06: the corner button bac
 import { montarMenuVR } from "./xr-menu.ts"; // rediseño v2: the VR wrist watch and menu (story E)
 import mundoPlaza from "./mundo.ajustes.json";
 import { montarPulsaciones } from "./pulsaciones.ts"; // U26: a press you can see (and feel) on every button
-import { carga, puedeOcultar, sueloPendiente } from "./carga.ts"; // MVL3 step 1: fades out the 2D "Cargando" screen once the first frame is drawn
+import { carga, estadoCarga, piezasPendientes, sueloPendiente, TOPE_CARGA_MS } from "./carga.ts"; // MVL3 step 1: fades out the 2D "Cargando" screen once the first frame is drawn
 import { ClientSession, serverUrl, tomarPaseDeLaDireccion } from "../../packages/client/src/index.ts";
 import { createView, leerAparato, leerBateria, medidorDeCuadros, haciaMundo } from "../../packages/render/src/index.ts";
 import { mensajeFalloAR } from "../../packages/render/src/ar.ts"; // J8: a clear sentence when AR fails to start
@@ -612,7 +612,7 @@ if (document.fullscreenEnabled) {
 const PULSO_MS = Math.max(1000, Number(params.get("pulso")) || 10_000);
 const medidor = medidorDeCuadros();
 medidor.vigilar(); // B5: a hidden or frozen page is a pause, not a freeze; Long Animation Frames where the browser has them
-const informe = { entrada: false, bienvenidaMs: 0, primerCuadroMs: 0, errores: 0, oculta: false, pulsos: 0 };
+const informe: { entrada: boolean; bienvenidaMs: number; primerCuadroMs: number; errores: number; oculta: boolean; pulsos: number; carga?: { ocultaMs: number; msDesdeWelcome: number; piezas: number; pendientes: number; tope: boolean } } = { entrada: false, bienvenidaMs: 0, primerCuadroMs: 0, errores: 0, oculta: false, pulsos: 0 }; // C: `carga` = how the loading screen left (when, with how many pieces not ready, by the cap or not)
 let bateria: { nivel: number; cargando: boolean } | null = null;
 const modo = () => (view.vr.active ? "vr" : view.ar.state !== "off" ? "ar" : "plano");
 const enviarEntrada = async () => {
@@ -690,8 +690,21 @@ view.loop((now) => {
     if (lastDrawAt) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active), { dc: cost.calls, tri: cost.triangles, programas: (cost as { programs?: number }).programs, ratio: view.power.pixelRatio(), xr });
     lastDrawAt = now;
     if (session.welcome && !informe.primerCuadroMs) informe.primerCuadroMs = Math.round(performance.now());
-    // MVL3 step 1 + B5: fade the "Cargando" screen away once a frame was drawn with the ground built (or after the cap)
-    if (!cargaOculta && puedeOcultar({ welcome: !!session.welcome, primerCuadro: true, sueloPendiente: pendiente, msDesdeWelcome: informe.bienvenidaMs ? Math.round(performance.now()) - informe.bienvenidaMs : 0 })) { cargaOculta = true; carga.ocultar(); }
+    // MVL3 step 1 + B5 + C: fade the "Cargando" screen away once a frame was drawn with the ground built AND every piece within view
+    // is ready (model, textures, shaders — view.cargaMundo()), or after the cap. The count is also what the screen writes («n de N piezas»).
+    if (!cargaOculta) {
+      const mundo = view.cargaMundo();
+      carga.piezas({ listas: mundo.listas, total: mundo.total });
+      const msDesdeWelcome = informe.bienvenidaMs ? Math.round(performance.now()) - informe.bienvenidaMs : 0;
+      const est = estadoCarga({ welcome: !!session.welcome, mundoRecibido: session.stats.snapshots > 0, primerCuadro: true, sueloPendiente: pendiente, piezasPendientes: piezasPendientes(mundo), msDesdeWelcome });
+      if (est !== "esperando") {
+        cargaOculta = true; carga.ocultar();
+        const pend = piezasPendientes(mundo);
+        informe.carga = { ocultaMs: Math.round(performance.now()), msDesdeWelcome, piezas: mundo.total, pendientes: pend, tope: est === "tope" };
+        if (est === "tope") console.warn(`[carga] the cap (${TOPE_CARGA_MS / 1000} s) fired: the loading screen left with ${pend} of ${mundo.total} pieces still not ready${pendiente ? " and the ground still pending" : ""}`);
+        session.report({ k: "carga", ...informe.carga });
+      }
+    }
   }
   if (now - fpsT >= 500) { fps = Math.round((frames * 1000) / (now - fpsT)); frames = 0; fpsT = now; drawHud(); }
 });
