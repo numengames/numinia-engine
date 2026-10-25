@@ -57,7 +57,7 @@ export function montarMenuVR(o: {
   const nota = (t: string) => { try { vr.nota(t); } catch { /* VR off */ } };
 
   // the Graboso (apps/plaza/graboso.ts) is `__numinia.graboso`; a browser that cannot record the canvas (`soporta` false) has no button
-  const grabosoAqui = () => { const g = o.n().graboso; return !!g?.graboso?.alternar && g.soporta !== false; };
+  const grabosoAqui = () => { const g = o.n().graboso; return !!g?.graboso?.alternar && g.soporta !== false && g.libre?.() !== false; }; // t_f87ffb93: a world that defines the Graboso as a relic gives the button only with the relic
   const grabosoSaca = () => { const f = o.n().graboso.graboso.estado.fase; return f === "grabando" || f === "despertando"; };
 
   vr.relojEstado(() => {

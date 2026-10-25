@@ -160,6 +160,24 @@ export function desequipar(inv: Inventario, id: string): Resultado {
   return { ok: true, objeto: o };
 }
 
+/** t_f87ffb93: the Graboso is a relic of class «graboso». A world that DEFINES that relic (its aventura/objetos/ has one, see
+ * `mundoDefineGraboso`) shows the Graboso's button and K only to whoever CARRIES it; a world that does not define it keeps the
+ * Graboso for everyone, as before (a world that never uses the inventory must not lose it). Pure: the page, the watch in VR and
+ * the tests read the same two functions. */
+export const CLASE_GRABOSO = "graboso";
+export const llevaGraboso = (objetos: readonly { tipo: string; clase: string; portado: boolean }[]): boolean =>
+  objetos.some((o) => o.tipo === "reliquia" && o.clase === CLASE_GRABOSO && o.portado);
+export const grabosoLibre = (exige: boolean, objetos: readonly { tipo: string; clase: string; portado: boolean }[]): boolean => !exige || llevaGraboso(objetos);
+/** Does one of the world's object files (aventura/objetos/*.json) define a relic of class «graboso»? Lenient on purpose (the strict
+ * reading and its diagnostics are objeto.ts): any readable JSON with `tipo: "reliquia"` and `clase: "graboso"` counts. */
+export function mundoDefineGraboso(ficheros: readonly { fichero: string; texto: string }[]): boolean {
+  for (const f of ficheros) {
+    if (!/\.json$/i.test(f.fichero)) continue;
+    try { const o = JSON.parse(f.texto) as { tipo?: unknown; clase?: unknown }; if (o && o.tipo === "reliquia" && o.clase === CLASE_GRABOSO) return true; } catch { /* a broken file is for the author's check */ }
+  }
+  return false;
+}
+
 /** A short summary for the sheet: «3 objetos · Semillas: 4 puntos de Prestigio». */
 export function resumen(inv: Inventario): { objetos: number; portados: number; prestigio: number } {
   let prestigio = 0, portados = 0;

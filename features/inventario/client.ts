@@ -4,7 +4,7 @@
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart } from "../../packages/feature/src/index.ts";
 import { inventario } from "./feature.ts";
-import { BOLSA_HUECOS } from "./reglas.ts";
+import { BOLSA_HUECOS, grabosoLibre } from "./reglas.ts";
 import type { Color, Tipo } from "./reglas.ts";
 
 export type ObjetoVista = { id: string; tipo: Tipo; clase: string; nombre: string; icono: string; color: Color; valor: number; n: number; portado: boolean };
@@ -13,7 +13,7 @@ type Res = { ok: true } | { ok: false; why: string };
 export function crearCliente() {
   let A: ClientApi | null = null;
   let objetos: ObjetoVista[] = [], llegando: ObjetoVista[] | null = null, esperados = 0;
-  const estado = { ultimoRechazo: "", ultimoRecibido: "", llena: false, huecos: BOLSA_HUECOS as number }; // llena: the last refusal was «la Bolsa está llena» (until the next list arrives)
+  const estado = { ultimoRechazo: "", ultimoRecibido: "", llena: false, huecos: BOLSA_HUECOS as number, graboso: false }; // graboso: the world defines the Graboso as a relic; llena: the last refusal was «la Bolsa está llena» (until the next list arrives)
   const oyentes = new Set<() => void>();
   const avisar = () => { for (const f of oyentes) { try { f(); } catch { /* a panel's problem is its own */ } } };
   const sin = (why: string): Res => ({ ok: false, why });
@@ -26,6 +26,8 @@ export function crearCliente() {
     reserva: (): ObjetoVista[] => objetos.filter((o) => !o.portado),
     /** The Bolsa galáctica: slots in use (everything not carried; a stack is one) of `huecos` (the server says how many). */
     bolsa: () => ({ ocupados: objetos.filter((o) => !o.portado).length, huecos: estado.huecos }),
+    /** t_f87ffb93: may this player use the Graboso (button, K, the watch's «Grabar»)? Yes unless the world defines it as a relic and you do not carry it. */
+    grabosoLibre: (): boolean => grabosoLibre(estado.graboso, objetos),
     /** For the player sheet. */
     resumen: () => ({ objetos: objetos.length, portados: objetos.filter((o) => o.portado).length, prestigio: objetos.filter((o) => o.clase === "semilla").reduce((s, o) => s + o.valor * o.n, 0) }),
     equipar: (id: string): Res => A?.send("equipar", { id }) ?? sin("la página aún no ha arrancado"),
@@ -36,7 +38,7 @@ export function crearCliente() {
 
   const part: ClientPart = clientPart(inventario, (api) => {
     A = api;
-    api.on("lista", (m) => { estado.llena = false; estado.huecos = Number(m.huecos) || BOLSA_HUECOS; esperados = Number(m.total); llegando = []; if (esperados === 0) { objetos = []; llegando = null; avisar(); } });
+    api.on("lista", (m) => { estado.llena = false; estado.huecos = Number(m.huecos) || BOLSA_HUECOS; estado.graboso = m.graboso === true; esperados = Number(m.total); llegando = []; if (esperados === 0) { objetos = []; llegando = null; avisar(); } });
     api.on("objeto", (m) => {
       if (!llegando) return;
       llegando.push({ id: String(m.id), tipo: m.tipo as Tipo, clase: String(m.clase), nombre: String(m.nombre), icono: String(m.icono ?? ""), color: (m.color as Color) ?? "", valor: Number(m.valor) || 0, n: Number(m.n) || 0, portado: m.portado === true });

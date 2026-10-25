@@ -6,13 +6,16 @@
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
 import { inventario } from "./feature.ts";
-import { BOLSA_HUECOS, PAGINAS_MAX, dar, desequipar, equipar, juntar, leerInventario, nuevoInventario, quitar, trocear } from "./reglas.ts";
+import { BOLSA_HUECOS, PAGINAS_MAX, dar, mundoDefineGraboso, desequipar, equipar, juntar, leerInventario, nuevoInventario, quitar, trocear } from "./reglas.ts";
 import type { Color, Entrega, Inventario, Objeto, Tipo } from "./reglas.ts";
 
 /** Who hands objects over today. A feature not on this server is logged by `listen` and simply never heard. */
 export const DONANTES: [feature: string, event: string][] = [["misiones", "otorga"], ["pesca", "otorga"]];
 
-export const crearInventario = (opts: { donantes?: [string, string][] } = {}) => serverPart(inventario, (api: ServerApi) => {
+/** `donantes` and `objetos` are for tests: the world's object files default to `<aventura>/objetos/` (api.aventura). */
+export const crearInventario = (opts: { donantes?: [string, string][]; objetos?: () => { fichero: string; texto: string }[] } = {}) => serverPart(inventario, (api: ServerApi) => {
+  const ficherosObjetos = () => (opts.objetos ?? (() => api.aventura("objetos")))();
+  const exigeGraboso = mundoDefineGraboso(ficherosObjetos()); // t_f87ffb93: read once, the world's files do not change under a running server
   const cache = new Map<string, Inventario>();   // "g:<guest>" (saved) or "e<entity>" (no identity: memory only)
   const claveDe = new Map<number, string>();      // entity -> its key (who() is gone by onLeave)
 
@@ -42,7 +45,7 @@ export const crearInventario = (opts: { donantes?: [string, string][] } = {}) =>
   const enviar = (e: number) => {
     const i = inv(e);
     for (const x of suyos(e)) {
-      api.emit("lista", { total: i.objetos.length, huecos: BOLSA_HUECOS }, { to: x });
+      api.emit("lista", { total: i.objetos.length, huecos: BOLSA_HUECOS, graboso: exigeGraboso }, { to: x });
       for (const o of i.objetos) api.emit("objeto", objetoMsg(o), { to: x });
     }
   };
