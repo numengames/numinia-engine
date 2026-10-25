@@ -93,18 +93,22 @@ export type Precompilador = ReturnType<typeof crearPrecompilador>;
 // the hands) is hidden on desktop, so the warm-up above never saw it and its programs linked inside the first VR frame
 // (200-860 ms measured on IWER, 2-12 new programs). Here each such object is compiled while HIDDEN: for the synchronous part of
 // `compileAsync` (the projection three does before its first await) every node of the subtree is forced visible and uncullable,
-// then put back exactly as it was. Nothing is drawn: no render call happens, only the programs get linked.
+// then put back exactly as it was (`forzarVisible` false: only the culling is lifted, hidden things stay hidden — for the whole scene). Nothing is drawn: no render call happens, only the programs get linked.
 export type NodoOculto = { traverse(f: (o: NodoOculto) => void): void; visible: boolean; frustumCulled?: boolean };
 
 /** Compile `objs` (possibly invisible) with `compilar` (renderer.compileAsync bound to the camera and scene). Never throws; resolves when all are linked. */
-export function calentarOcultos(objs: (NodoOculto | null | undefined)[], compilar: (o: NodoOculto) => Promise<unknown>): Promise<number> {
+export function calentarOcultos(objs: (NodoOculto | null | undefined)[], compilar: (o: NodoOculto) => Promise<unknown>, forzarVisible = true): Promise<number> {
   const pendientes: Promise<unknown>[] = [];
   for (const obj of objs) {
     if (!obj) continue;
     const antes: [NodoOculto, boolean, boolean | undefined][] = [];
-    obj.traverse((x) => { antes.push([x, x.visible, x.frustumCulled]); x.visible = true; if (x.frustumCulled) x.frustumCulled = false; });
+    obj.traverse((x) => { antes.push([x, x.visible, x.frustumCulled]); if (forzarVisible) x.visible = true; if (x.frustumCulled) x.frustumCulled = false; });
     try { pendientes.push(Promise.resolve(compilar(obj)).catch(() => {})); } catch { /* a lost device: warming is best effort */ }
     for (const [x, v, c] of antes) { x.visible = v; if (c !== undefined) x.frustumCulled = c; } // projection already happened inside the call
   }
   return Promise.all(pendientes).then(() => pendientes.length);
 }
+
+// Why the world itself is compiled again for VR: three keys every render object by the camera, and a VR frame is drawn with an
+// ArrayCamera of two eyes (RenderObject.getDynamicCacheKey hashes `camera.cameras.length`). The desktop warm-up above used the
+// plain camera, so on entering VR every object of the world linked a second, stereo variant inside the first frame.

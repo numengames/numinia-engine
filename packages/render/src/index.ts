@@ -75,7 +75,7 @@ import type { Fundido } from "./fundir.ts";
 import type { Parte } from "./lotes.ts";
 import { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 import { crearTeletransporte } from "./teletransporte.ts";
-import { crearPrecompilador } from "./precompilar.ts";
+import { crearPrecompilador, calentarOcultos } from "./precompilar.ts";
 export { INSTANCIAR_DESDE, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 export type { EntornoDatos } from "./entorno.ts";
 export type { Luz } from "./teletransporte.ts";
@@ -275,7 +275,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   void vrSupported().then((v) => { if (!v) return; setTimeout(async () => {
     try { await cargarManos(); } catch { /* no hands: the rest still warms */ }
     for (let i = 0; i < 60 && (loading > 0 || precompilar.pendientes() > 0); i++) await new Promise((ok) => setTimeout(ok, 500));
-    try { await vr.calentar((o) => renderer.compileAsync(o, camera, scene)); } catch { /* best effort */ }
+    try { // a VR frame is drawn with an ArrayCamera of two eyes, which three keys apart from the desktop camera (see precompilar.ts)
+      const ojos = new THREE.ArrayCamera([new THREE.PerspectiveCamera(), new THREE.PerspectiveCamera()]);
+      const compilarXR = (o: THREE.Object3D) => renderer.compileAsync(o, ojos, scene);
+      await vr.calentar(compilarXR);
+      await calentarOcultos([scene as never], compilarXR as never, false); // the world as the two eyes will draw it (nothing forced visible)
+    } catch { /* best effort */ }
   }, 3500); });
   const cenital = crearCenital(renderer, scene, world, backend); // J5: the zone from above (big map) and its footprints
   let selfXZ: { x: number; z: number; y?: number } | null = null;
