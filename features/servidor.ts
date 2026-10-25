@@ -25,6 +25,7 @@ import botones from "./botones/server.ts"; // J4: buttons the server counts; a s
 import cogibles from "./cogibles/server.ts"; // J4: things anyone picks up and puts down; drawn in the carrier's hand
 import naturaleza from "./naturaleza/server.ts"; // N4: relief, trees and grass from a seed (the world's naturaleza.json; the page builds it)
 import espacioBase from "./espaciobase/server.ts"; // H2: the espacio base from the world's espacio-base.json (the page draws it)
+import vuelo from "./vuelo/server.ts"; // H2: fly with permission (/volar, /aterrizar; the world's `vuelo` in entorno.json says who; the instance decides)
 import suelo from "./suelo/server.ts"; // D-045: back to the last safe spot after a fall (the instance does it; this tells the page)
 import contadores from "./contadores/server.ts"; // D-044: timers and counters everyone sees (the server keeps the clock, publishes once a second to the zone)
 import disparadores from "./disparadores/server.ts"; // D-041: the cable — zone and button triggers a world wires in disparadores.json; one server-only `accion` per receiver
@@ -38,5 +39,5 @@ import burbuja from "./burbuja/server.ts"; // ia-llamar S8: the action bubble of
 import llamar from "./llamar/server.ts"; // ia-llamar S10: call an AI by name, /name, key phrase or button; limits; delivered to the AI only; it hears the roles' «iaLlamada» and the bubble's events
 import sonido from "./sonido/server.ts"; // S6: the catalogue of house sounds (27 CC0 ids served by their sha256); the server picks the id and the seed, so everyone hears the same variant at the same instant. Last, so it hears the cable's `suena`
 import interruptores from "./funciones/server.ts"; // f1: feature switches (normas, dardos, pesca) the world's builder flips live; kept in funciones.json
-const funciones: ServerPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, naturaleza, espacioBase, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido];
+const funciones: ServerPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, vuelo, naturaleza, espacioBase, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido];
 export default funciones;
