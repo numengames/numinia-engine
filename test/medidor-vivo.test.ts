@@ -90,3 +90,8 @@ test("censo: counts per eye through the frustum, per material group, instanced a
   assert.equal(c3.ojos, 2);
   assert.equal(c3.llamadas, 12, "inside the array camera's frustum = drawn in both eyes");
 });
+
+test("categoriaDe: the merged cells of the pinned things have their own row", () => {
+  assert.equal(categoriaDe(["fijados", "lotes-raiz"], { fijados: true }), "fijados");
+  assert.equal(categoriaDe(["lote"], { lote: true }), "lotes");
+});

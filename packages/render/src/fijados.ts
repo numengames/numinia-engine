@@ -2,8 +2,9 @@
 // their parts can be baked into the WORLD and merged by material across models: a hall of 40 different fixed props that costs 40-120
 // draw calls costs one per material per cell. Static batching, like PlayCanvas' (batch-manager.js: split by material, vertex format,
 // shadow flag and winding, bake the node transform into the streams).
-//   - what merges: baked parts (`Parte`, lotes.ts) of a loaded, still, unpainted, pinned copy. A part's material is the key: fundir-quietos
-//     already shares one material between every model fused the same way, so «same material» is object identity (+ vertex layout, shadows).
+//   - what merges: baked parts (`Parte`, lotes.ts) of a loaded, still, unpainted, pinned copy. «Same material» = same look (claveMaterial: type,
+//     colours, numbers, textures by their image) or the very same object when it carries node graphs (fundir-quietos shares those); and the
+//     same vertex layout and shadow flag.
 //   - cells: parts are grouped by a square cell of CELDA_M metres so the frustum and the fog still cull the far ones (one world-sized mesh
 //     would always be drawn whole).
 //   - the copies keep their own meshes (picking, the map, collision, the gizmo all read those); index.ts hides them only while the frame
@@ -20,6 +21,28 @@ export type Fijado = { id: string; partes: readonly Parte[]; matriz: THREE.Matri
 export type Trozo = { id: string; parte: Parte; matriz: THREE.Matrix4 };
 export type Grupo = { clave: string; celda: string; mat: THREE.Material; sombra: boolean; trozos: Trozo[] };
 
+
+/** What a material looks like, so two glTF files that each made their own copy of «the same grey plastic» still merge. A material with node
+ * graphs (fundir-quietos' shared vertex materials, anything with a `*Node`) is its own key: those are already shared by identity. */
+const MAPAS = ["map", "normalMap", "roughnessMap", "metalnessMap", "emissiveMap", "aoMap", "alphaMap", "bumpMap", "displacementMap", "lightMap", "envMap"] as const;
+const firmas = new WeakMap<THREE.Material, string>();
+export function claveMaterial(m: THREE.Material): string {
+  let k = firmas.get(m);
+  if (k !== undefined) return k;
+  const x = m as unknown as Record<string, unknown>;
+  const conNodos = Object.keys(x).some((n) => n.endsWith("Node") && x[n] != null);
+  if (conNodos || m.userData?.colorEnVertices || m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile || (m as { customProgramCacheKey?: unknown }).customProgramCacheKey !== THREE.Material.prototype.customProgramCacheKey) k = m.uuid;
+  else {
+    const num = (n: string) => { const v = x[n]; return typeof v === "number" ? Math.round(v * 1e4) / 1e4 : v == null ? "" : String(v); };
+    const col = (n: string) => { const v = x[n] as THREE.Color | undefined; return v?.isColor ? v.getHexString() : ""; };
+    const tex = (n: string) => { const t = x[n] as THREE.Texture | null | undefined; return t ? `${t.source?.uuid ?? t.uuid}/${t.wrapS}${t.wrapT}${t.flipY ? "f" : ""}/${t.repeat?.x},${t.repeat?.y}/${t.offset?.x},${t.offset?.y}/${t.channel}` : ""; };
+    k = [m.type, col("color"), col("emissive"), ...["roughness", "metalness", "emissiveIntensity", "opacity", "alphaTest", "envMapIntensity", "aoMapIntensity", "bumpScale"].map(num),
+      m.transparent ? "t" : "o", m.side, m.depthWrite ? "w" : "-", m.depthTest ? "d" : "-", m.blending, m.vertexColors ? "v" : "-", x.flatShading ? "F" : "-", x.wireframe ? "W" : "-", ...MAPAS.map(tex),
+      x.normalScale ? `${(x.normalScale as THREE.Vector2).x},${(x.normalScale as THREE.Vector2).y}` : ""].join("|");
+  }
+  firmas.set(m, k);
+  return k;
+}
 
 /** The layout a merge needs equal: attribute names and sizes, and whether it is indexed. */
 export const disposicion = (g: THREE.BufferGeometry): string =>
@@ -39,7 +62,7 @@ export function planFijados(fijados: readonly Fijado[], celdaM = CELDA_M): Grupo
     const celda = `${Math.floor(f.x / celdaM)},${Math.floor(f.z / celdaM)}`;
     for (const p of f.partes) {
       if (!sePuede(p)) continue;
-      const clave = `${celda}|${p.mat.uuid}|${p.sombra ? "s" : "-"}|${disposicion(p.geo)}`;
+      const clave = `${celda}|${claveMaterial(p.mat)}|${p.sombra ? "s" : "-"}|${disposicion(p.geo)}`;
       let g = grupos.get(clave);
       if (!g) grupos.set(clave, (g = { clave, celda, mat: p.mat, sombra: p.sombra, trozos: [] }));
       g.trozos.push({ id: f.id, parte: p, matriz: p.rel ? tmp.multiplyMatrices(f.matriz, p.rel).clone() : f.matriz.clone() });

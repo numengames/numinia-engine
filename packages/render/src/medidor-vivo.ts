@@ -85,12 +85,13 @@ export function lineaMedidorCorta(r: ResumenMedidor): string {
 // ---- the census: where the draw calls come from ----
 
 /** The categories of the census, in the order they print. */
-export const CATEGORIAS = ["mapa", "objetos", "personas", "manos", "ancestros", "elementos", "lotes", "pesca", "nombres", "ui-vr", "otros"] as const;
+export const CATEGORIAS = ["mapa", "objetos", "personas", "manos", "ancestros", "elementos", "lotes", "fijados", "pesca", "nombres", "ui-vr", "otros"] as const;
 export type Categoria = (typeof CATEGORIAS)[number];
 
 /** What the census needs to know of an object to sort it: the names of the object and of its ancestors, nearest first. */
 export function categoriaDe(nombres: readonly string[], userData: Record<string, unknown>): Categoria {
   if (userData.lote === true) return "lotes";
+  if (userData.fijados === true) return "fijados"; // t_e41c0a12: the merged cells of the pinned things
   for (const raw of nombres) {
     const nombre = raw.toLowerCase();
     if (nombre === "lotes" || nombre === "lote") return "lotes";

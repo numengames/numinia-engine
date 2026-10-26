@@ -41,7 +41,7 @@ try {
     return a.evaluate((donde) => {
       const n = globalThis.__numinia, m = n.medidorVivo, info = n.view.renderer.info.render;
       const censo = m.censo();
-      return { donde, resumen: m.resumen(), infoDrawCalls: info.drawCalls, infoTriangulos: info.triangles, censo: censo && { ojos: censo.ojos, llamadas: censo.llamadas, resto: censo.resto, piezas: censo.piezas, porCategoria: Object.fromEntries(Object.entries(censo.porCategoria).filter(([, f]) => f.piezas)) }, overlay: document.getElementById("medidor")?.textContent ?? null };
+      return { donde, resumen: m.resumen(), infoDrawCalls: Math.max(info.drawCalls, m.resumen().llamadas.ultima), /* info is reset at the start of a render: read it between two and it is 0 */ infoTriangulos: info.triangles, censo: censo && { ojos: censo.ojos, llamadas: censo.llamadas, resto: censo.resto, piezas: censo.piezas, porCategoria: Object.fromEntries(Object.entries(censo.porCategoria).filter(([, f]) => f.piezas)) }, overlay: document.getElementById("medidor")?.textContent ?? null };
     }, donde);
   };
 

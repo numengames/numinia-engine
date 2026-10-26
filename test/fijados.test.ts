@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three/webgpu";
-import { CELDA_M, crearFijados, fusionable, geometriaDeGrupo, planFijados, type Fijado } from "../packages/render/src/fijados.ts";
+import { CELDA_M, claveMaterial, crearFijados, fusionable, geometriaDeGrupo, planFijados, type Fijado } from "../packages/render/src/fijados.ts";
 
 const rojo = new THREE.MeshStandardMaterial({ color: 0xff0000 }), azul = new THREE.MeshStandardMaterial({ color: 0x0000ff });
 const caja = (w = 1) => new THREE.BoxGeometry(w, 1, 1);
@@ -107,4 +107,21 @@ test("crearFijados: a copy with a part that cannot merge is left to its own mesh
   const morph = caja(); morph.morphAttributes.position = [new THREE.BufferAttribute(new Float32Array(24 * 3), 3)];
   f.actualizar([fijado("a", 1, 1, silla), fijado("m", 2, 2, [{ geo: morph, mat: rojo, sombra: false }])]);
   assert.ok(f.cubre("a") && !f.cubre("m"));
+});
+
+test("claveMaterial: two files' own copies of the same plain look merge; a different colour, a different texture or a node material do not", () => {
+  const a = new THREE.MeshStandardMaterial({ color: 0x808080, roughness: 0.5 }), b = new THREE.MeshStandardMaterial({ color: 0x808080, roughness: 0.5 });
+  assert.notEqual(a, b);
+  assert.equal(claveMaterial(a), claveMaterial(b));
+  assert.notEqual(claveMaterial(a), claveMaterial(new THREE.MeshStandardMaterial({ color: 0x808081, roughness: 0.5 })));
+  assert.notEqual(claveMaterial(a), claveMaterial(new THREE.MeshStandardMaterial({ color: 0x808080, roughness: 0.5, transparent: true })));
+  assert.notEqual(claveMaterial(a), claveMaterial(new THREE.MeshStandardMaterial({ color: 0x808080, roughness: 0.5, side: THREE.DoubleSide })));
+  const img1 = new THREE.Texture(), img2 = new THREE.Texture();
+  const t1 = new THREE.MeshStandardMaterial({ map: img1 }), t2 = new THREE.MeshStandardMaterial({ map: img2 }), t1b = new THREE.MeshStandardMaterial({ map: img1.clone() });
+  assert.notEqual(claveMaterial(t1), claveMaterial(t2), "different image = different look");
+  assert.equal(claveMaterial(t1), claveMaterial(t1b), "a clone of a texture shares its image source");
+  const nodo = new THREE.MeshStandardNodeMaterial(); (nodo as unknown as { colorNode: unknown }).colorNode = {};
+  assert.equal(claveMaterial(nodo), nodo.uuid, "a node material is its own key");
+  const g = planFijados([fijado("a", 1, 1, [{ geo: caja(), mat: a, sombra: false }]), fijado("b", 2, 2, [{ geo: caja(), mat: b, sombra: false }])]);
+  assert.equal(g.length, 1, "two materials, one look, one group");
 });

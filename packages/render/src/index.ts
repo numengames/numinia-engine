@@ -887,11 +887,11 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       instanciadas += v.slots.length; nLotes++;
       for (const s of v.slots) instanciados.add(s);
     }
-    // pinned, still, unpainted copies that no lote draws: one mesh per material and cell instead of one per model part
+    // pinned, still (no mixer: `animar` is on by default, a model without clips has none), unpainted copies that no lote draws: one mesh per material and cell instead of one per model part
     fijosCuadro.length = 0; fijosSlots.length = 0;
     for (const [k, s] of things) {
       const g = s.group;
-      if (!s.want.fijo || !s.loaded || !s.partes || s.mixer || s.want.animate || s.want.color || k.startsWith("~") || !g.visible || g.parent !== world || instanciados.has(s)) continue;
+      if (!s.want.fijo || !s.loaded || !s.partes || s.mixer || s.want.color || k.startsWith("~") || !g.visible || g.parent !== world || instanciados.has(s)) continue;
       g.updateWorldMatrix(true, false);
       fijosCuadro.push({ id: k, partes: s.partes, matriz: g.matrixWorld, x: g.position.x, z: g.position.z }); fijosSlots.push(s);
     }
