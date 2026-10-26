@@ -34,7 +34,7 @@ writeFileSync(join(entorno, "entorno.json"), JSON.stringify({ schema: "numinia-e
 // only the real triangles of the hill collide, the whole point of M6b over a flat box platform.
 const loma = { modelo: LOMA, x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, sx: 1, sy: 1, sz: 1, nombre: "Loma de pruebas", decorado: false, fijado: true, animar: false,
   tipo: "modelo", ext: "glb", oculto: false, volumen: 1, solido: true, colision: "malla", bx0: 0, by0: 0, bz0: 0, bx1: 0, by1: 0, bz1: 0, alcance: "burbuja", radio: 8, huecoAncho: 0, huecoAlto: 0, huecoLleno: false };
-writeFileSync(join(datos, "objetos.json"), JSON.stringify({ schema: "numinia-engine/datos@1", feature: "objetos", version: 7, savedAt: new Date().toISOString(), state: [["o1", { value: loma, at: { x: 0, z: 0 } }]], store: [["siguiente", 2]] }));
+writeFileSync(join(datos, "objetos.json"), JSON.stringify({ schema: "numinia-engine/datos@1", feature: "objetos", version: 8, savedAt: new Date().toISOString(), state: [["o1", { value: loma, at: { x: 0, z: 0 } }]], store: [["siguiente", 2]] }));
 
 const procs = [];
 const arrancar = (cmd, args, env, nombre) => { const p = spawn(cmd, args, { cwd: REPO, env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"] }); let t = ""; p.stdout.on("data", (d) => { t += d; }); p.stderr.on("data", (d) => { t += d; }); procs.push({ p, log: () => t, nombre }); return p; };

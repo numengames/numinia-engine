@@ -251,7 +251,7 @@ export function createManos(h: ManosHooks) {
     else emitir({ tipo: "gatillo", lado: r.lado });
   }
 
-  const caja = new THREE.Box3(), esfera = new THREE.Sphere(), P = new THREE.Vector3(), O = new THREE.Vector3(), Dir = new THREE.Vector3(), Qw = new THREE.Quaternion();
+  const caja = new THREE.Box3(), esfera = new THREE.Sphere(), P = new THREE.Vector3(), O = new THREE.Vector3(), Dir = new THREE.Vector3(), Pr = new THREE.Vector3(), Qw = new THREE.Quaternion();
   const ray = new THREE.Raycaster(); ray.far = RAYO_M;
   const uv = new THREE.Vector2();
 
@@ -472,6 +472,17 @@ export function createManos(h: ManosHooks) {
         if (l > 0.2) return [Dir.x / l, Dir.z / l];
       }
       return null;
+    },
+    /** Rowing (t_ee0ca4a3, remo.ts): where each tracked hand pinching in empty air is now (world space, plain numbers), at once
+     *  (no ANDAR_MS wait), never the `excluida` hand nor one that holds something. vr.ts turns it into «metres in front of the head». */
+    remar(excluida?: Lado | null): { lado: Lado; x: number; y: number; z: number }[] {
+      const out: { lado: Lado; x: number; y: number; z: number }[] = [];
+      for (const r of ranuras) {
+        if (!r.esMano || !r.pellizcoAire || !r.ctrl.visible || !r.lado || r.lado === excluida || ocupada(r.lado)) continue;
+        r.ctrl.getWorldPosition(Pr);
+        out.push({ lado: r.lado, x: Pr.x, y: Pr.y, z: Pr.z });
+      }
+      return out;
     },
     /** t_bf8947cf: where that hand's controller points, flattened (world, unit) — «según el mando» locomotion.
      * null while that side has no controller connected (a tracked hand has no stick to read anyway). */

@@ -7,11 +7,13 @@
 import { filasFunciones, textoCambio, tituloGrupo } from "../../features/funciones/panel.ts";
 import type { FilaFuncion } from "../../features/funciones/panel.ts";
 import type { Funcion } from "../../features/funciones/feature.ts";
+import { ACEPTA_FONDO, CIELO_NOMBRE, COLORES, aHex, cambioColor, notaNivel, opcionesFondo } from "./entorno-fino-logica.ts";
+import type { CampoFondo } from "./entorno-fino-logica.ts";
 type Res = { ok: true } | { ok: false; why: string };
 type Valores = Record<string, unknown>;
 type Ambiente = {
   estado: { puede: boolean; ultimoRechazo: string };
-  presets: string[]; suelos: { id: string; nombre: string }[];
+  presets: string[]; suelos: { id: string; nombre: string }[]; cielos?: { id: string; nombre: string; hdr: string }[];
   valores(): Valores | undefined; preset(n: string): Res; ajustar(c: Valores): Res; restaurar(): Res;
 };
 type Elementos = {
@@ -32,6 +34,8 @@ type Funciones = { estado: { ultimoRechazo: string }; actual(): Partial<Record<F
 type Objetos = { reiniciar(): Res };
 /** An «Interruptor» of a piece (features/<pieza>/client.ts `interruptor`): on/off for the whole world, shown only to who the server says may (`estado.puede`: who directs or rules). */
 export type Pieza = { id: string; etiqueta: string; titulo: string; encendida: string; apagada: string; interruptor: { estado: { puede: boolean; ultimoRechazo: string }; activa(): boolean; poner(activa: boolean): Res } };
+/** H4b: sends a sky picture or an HDR light up (apps/plaza/soltar.ts `subirFondo`) and the tier this page draws at (A, B, C, D). */
+export type Fondos = { subir(file: File, campo: CampoFondo): Promise<{ ok: true; nombre: string } | { ok: false; why: string }>; nivel(): string };
 type Vista = {
   cam?: { yaw?: () => number };
   sueloBajo?: (x: number, y: number) => { x: number; y?: number; z: number } | null;
@@ -61,9 +65,13 @@ const CSS = `
 #panel-entorno .funciones[hidden] { display: none; }
 #panel-entorno .nota { margin: 2px 0 6px; color: #aab6c2; font-size: 12px; }
 #panel-entorno .nota[hidden], #panel-entorno .fila[hidden] { display: none; }
-#panel-entorno button.peligro { background: #f0b4aa; }`;
+#panel-entorno button.peligro { background: #f0b4aa; }
+#panel-entorno label.color { grid-template-columns: 1fr auto; align-items: center; }
+#panel-entorno input[type=color] { width: 44px; height: 30px; padding: 0; border: 0; border-radius: 6px; background: none; }
+#panel-entorno .fondo { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; align-items: center; margin: 6px 0; }
+#panel-entorno .fondo select { min-width: 0; max-width: 100%; }`;
 
-export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu?: Naturaleza, padre?: HTMLElement, base?: Base, objetos?: Objetos, piezas: Pieza[] = [], funcs?: Funciones): void {
+export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu?: Naturaleza, padre?: HTMLElement, base?: Base, objetos?: Objetos, piezas: Pieza[] = [], funcs?: Funciones, fondos?: Fondos): void {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const panel = document.createElement("section");
   panel.id = "panel-entorno"; panel.hidden = true; panel.setAttribute("aria-label", "Entorno y elementos");
@@ -104,6 +112,57 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
   suelo.setAttribute("aria-label", "Suelo");
   for (const s of amb.suelos) { const o = document.createElement("option"); o.value = s.id; o.textContent = s.nombre; suelo.appendChild(o); }
   suelo.addEventListener("change", () => decir(amb.ajustar({ suelo: suelo.value })));
+  // H4b — fine environment: sky kind, four colours, fog near, sun strength, and the sky picture / HDR light (library or upload).
+  const cieloTipo = document.createElement("select"); cieloTipo.setAttribute("aria-label", "Tipo de cielo");
+  for (const [id, nombre] of Object.entries(CIELO_NOMBRE)) { const o = document.createElement("option"); o.value = id; o.textContent = nombre; cieloTipo.appendChild(o); }
+  cieloTipo.addEventListener("change", () => decir(amb.ajustar({ cielo: cieloTipo.value })));
+  const cieloLabel = document.createElement("label"); const cieloSpan = document.createElement("span"); cieloSpan.textContent = "Cielo"; cieloLabel.append(cieloSpan, cieloTipo);
+  const colores = COLORES.map((c) => {
+    const label = document.createElement("label"); label.className = "color";
+    const span = document.createElement("span"); span.textContent = c.texto;
+    const input = document.createElement("input"); input.type = "color"; input.id = `entorno-color-${c.campo}`; input.setAttribute("aria-label", `${c.texto} / ${c.en}`);
+    let espera: ReturnType<typeof setTimeout> | null = null;
+    const enviar = () => { espera = null; const cambio = cambioColor(c.campo, input.value); if (cambio) decir(amb.ajustar(cambio)); };
+    input.addEventListener("input", () => { if (!espera) espera = setTimeout(enviar, 150); }); // dragging in the picker: at most every 150 ms
+    input.addEventListener("change", () => { if (espera) clearTimeout(espera); enviar(); });
+    label.append(span, input);
+    return { campo: c.campo, input, label };
+  });
+  const nieblaAuto = boton("Niebla del color del cielo", "La niebla toma el color del horizonte del cielo (vuelve a seguir al cielo). / The fog takes the sky horizon's colour again.", () => amb.ajustar({ nieblaAuto: true }));
+  nieblaAuto.id = "entorno-niebla-auto";
+  // D-076: this world lets players see the real sun where they are (each player still has to switch it on in their settings and accept the browser's question)
+  let solRealOfrecido = false;
+  const solRealBtn = boton("Ofrecer el sol real", "Los jugadores de este mundo podrán elegir (en sus ajustes) ver el sol de verdad donde están; el navegador les pregunta su ubicación y solo se usa en su navegador. / Players here may choose to see the real sun where they are.", () => amb.ajustar({ solReal: !solRealOfrecido }));
+  solRealBtn.id = "entorno-sol-real";
+  const fondoFila = (campo: CampoFondo, texto: string, ayuda: string) => {
+    const caja = document.createElement("div"); caja.className = "fondo"; caja.dataset.campo = campo;
+    const select = document.createElement("select"); select.id = `entorno-${campo}`; select.setAttribute("aria-label", texto);
+    select.title = ayuda;
+    let pintado = "";
+    const pintar = (actual: string) => {
+      const clave = `${actual}|${amb.cielos?.length ?? 0}`;
+      if (clave === pintado) return;
+      pintado = clave; select.replaceChildren();
+      for (const op of opcionesFondo(campo, actual, amb.cielos ?? [])) { const o = document.createElement("option"); o.value = op.valor; o.textContent = op.texto; select.appendChild(o); }
+      select.value = actual;
+    };
+    select.addEventListener("change", () => decir(amb.ajustar({ [campo]: select.value })));
+    const entrada = document.createElement("input"); entrada.type = "file"; entrada.accept = ACEPTA_FONDO[campo]; entrada.hidden = true; entrada.id = `entorno-${campo}-fichero`;
+    const subir = boton("Subir…", `${ayuda} Sube un fichero tuyo (CC0 o tuyo) y lo pone. / Upload your own file and use it.`, () => { entrada.click(); return { ok: true }; });
+    subir.id = `entorno-${campo}-subir`; subir.hidden = !fondos;
+    entrada.addEventListener("change", () => {
+      const f = entrada.files?.[0]; entrada.value = "";
+      if (!f || !fondos) return;
+      estado.textContent = `Subiendo «${f.name}»…`;
+      void fondos.subir(f, campo).then((r) => { if (!r.ok) { estado.textContent = `No: ${r.why}`; return; } decir(amb.ajustar({ [campo]: r.nombre })); }).catch((e: unknown) => { estado.textContent = `No: ${(e as Error)?.message ?? e}`; });
+    });
+    const t = document.createElement("span"); t.textContent = texto; t.style.gridColumn = "1 / 3";
+    caja.append(t, select, subir, entrada);
+    return { campo, caja, select, pintar };
+  };
+  const fondoImagen = fondoFila("imagen", "Fondo del cielo (imagen)", "Una imagen de 360° (.hdr, .png, .jpg, .webp) en lugar del cielo de colores.");
+  const fondoHdr = fondoFila("hdr", "Luz del cielo (HDR)", "Un fichero .hdr que da la luz y los reflejos en lugar del propio cielo.");
+  const notaFondo = document.createElement("p"); notaFondo.className = "nota"; notaFondo.id = "entorno-nota-nivel";
   const sueloLabel = document.createElement("label"); const sueloSpan = document.createElement("span"); sueloSpan.textContent = "Suelo"; sueloLabel.append(sueloSpan, suelo);
 
   // elements: in front of where the camera looks (or 3 m in front of you)
@@ -270,9 +329,20 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
     filaRestaurar,
     grupoFunciones,
     fila("Entornos con nombre", ...presets),
+    titulo("h3", "Cielo, niebla y sol"),
+    cieloLabel,
+    ...colores.map((c) => c.label),
     deslizador("Altura del sol", "solAltura", -30, 90, 1, (v) => `${v}°`),
     deslizador("Rumbo del sol", "solRumbo", -180, 180, 5, (v) => `${v}°`),
+    fila("Sol real", solRealBtn),
+    deslizador("Fuerza del sol", "solIntensidad", 0, 10, 0.1, (v) => v.toFixed(1)),
+    deslizador("Niebla (cerca)", "nieblaCerca", 0, 600, 5, (v) => `${v} m`),
     deslizador("Niebla (lejos)", "nieblaLejos", 0, 600, 5, (v) => (v === 0 ? "sin niebla" : `${v} m`)),
+    fila("Niebla", nieblaAuto),
+    titulo("h3", "Fondo y luz del cielo"),
+    fondoImagen.caja,
+    fondoHdr.caja,
+    notaFondo,
     deslizador("Viento", "vientoFuerza", 0, 25, 0.5, (v) => `${v} m/s`),
     deslizador("Exposición", "exposicion", 0.2, 2.5, 0.05, (v) => v.toFixed(2)),
     sueloLabel,
@@ -297,6 +367,12 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
     if (v) {
       for (const d of deslizadores) if (document.activeElement !== d.input) { d.input.value = String(v[d.campo]); d.salida.textContent = d.formato(Number(v[d.campo])); }
       if (document.activeElement !== suelo) suelo.value = String(v.suelo);
+      if (document.activeElement !== cieloTipo) cieloTipo.value = String(v.cielo);
+      for (const c of colores) if (document.activeElement !== c.input) c.input.value = aHex(Number(v[c.campo]));
+      nieblaAuto.setAttribute("aria-pressed", String(v.nieblaAuto !== false));
+      solRealOfrecido = v.solReal === true; solRealBtn.setAttribute("aria-pressed", String(solRealOfrecido));
+      for (const f of [fondoImagen, fondoHdr]) if (document.activeElement !== f.select) f.pintar(String(v[f.campo] ?? ""));
+      notaFondo.textContent = fondos ? notaNivel(fondos.nivel()) : ""; notaFondo.hidden = !notaFondo.textContent;
       for (const b of presets) b.setAttribute("aria-pressed", String(b.dataset.preset === v.preset));
     }
     const o = elem.seleccion();

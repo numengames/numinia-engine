@@ -32,6 +32,8 @@ export const CAMPOS: Fields = {
   hora: { kind: "fixed", min: 0, max: 24, step: 0.05, default: 12 },
   solHora: { kind: "bool", default: false },
   ciclo: { kind: "fixed", min: 0, max: 1440, step: 0.5, default: 0 },
+  /** D-076: this world lets a player, if they accept, see the sun where they really are (the page asks the browser for the place; nothing leaves it). */
+  solReal: { kind: "bool", default: false },
   solAltura: { kind: "fixed", min: -90, max: 90, step: 0.1, default: 45 },
   solRumbo: { kind: "fixed", min: -180, max: 180, step: 0.1, default: 30 },
   solIntensidad: { kind: "fixed", min: 0, max: 20, step: 0.01, default: 3 },

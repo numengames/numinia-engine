@@ -40,6 +40,30 @@ export const FACTOR_PARTICULAS: Record<Particulas, number> = { pocas: 0.3, norma
 export const SOMBRA_PX: Record<Sombras, number> = { no: 0, baja: 512, media: 1024, alta: 2048 };
 /** HDR environment size (PMREM cube face): 256 everywhere (H4: «256 px en móvil»). */
 export const HDR_PX = 256;
+/** H12b: the extra effects a person may switch on — bloom (glow on bright things), ambient occlusion (soft contact shadows in corners)
+ * and soft sun shadows. They exist ONLY on level A (a desktop): phones and headsets never get them, are not offered them and never load the
+ * code (house rule: phones must not heat). They start OFF everywhere; choosing is the person's. */
+export type Efectos = { bloom: boolean; ao: boolean; sombraSuave: boolean };
+export const EFECTOS_APAGADOS: Efectos = { bloom: false, ao: false, sombraSuave: false };
+export const EFECTOS: readonly (keyof Efectos)[] = ["bloom", "ao", "sombraSuave"];
+/** May this tier offer the effects at all? Only A. */
+export const efectosPermitidos = (n: Nivel): boolean => n === "A";
+/** A wish (any subset) clamped to the tier: off everywhere but A. */
+export function acotarEfectos(n: Nivel, actual: Efectos, pedido: Partial<Efectos>): Efectos {
+  if (!efectosPermitidos(n)) return { ...EFECTOS_APAGADOS };
+  const o = { ...actual };
+  for (const k of EFECTOS) if (typeof pedido[k] === "boolean") o[k] = pedido[k]!;
+  return o;
+}
+/** Soft shadows: the PCF filter's radius in shadow-map texels (three r186 ShadowFilterNode reads `shadow.radius` as a uniform, so changing it
+ * recompiles nothing; r186 has no PCFSoftShadowMap any more). 1 is three's default; a bigger disc with the same 5 taps and per-pixel noise rotation. */
+export const RADIO_SOMBRA: Record<"duro" | "suave", number> = { duro: 1, suave: 3.5 };
+/** H4b: a big file of the environment (an HDR light or an HDR background) is fetched and decoded only on level A. Phones (C, D)
+ * and headsets (B, in XR) keep the small baked-sky light and the sky they draw anyway: the file is never downloaded there, even
+ * if the world names one. A plain picture (.png .jpg .webp, capped at 4 MB on upload) is a texture, not an HDR: it passes. */
+export function ficheroGrandePermitido(n: Nivel, nombre: string): boolean {
+  return n === "A" || !/\.hdr$/i.test(nombre);
+}
 /** The sky baked into environment light: without its sun disc it is smooth, so a small cube is enough (and cheap to redo). */
 export const CIELO_LUZ_PX = 64;
 /** What the stylised water (agua-estilo.ts) draws, per tier and water choice. Every tier gets the flat colour bands, the
