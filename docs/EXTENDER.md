@@ -259,7 +259,7 @@ en `features.cards()`. Un agente de IA lee lo mismo en el catálogo. Ejemplos: `
 - `api.activo(sha256, "glb")` (H9) — ¿hay en este servidor un fichero `/a/<sha256>.glb`, de la biblioteca de la casa
   o subido por quien construye (`PUT /a/<sha256>.<ext>`)? `objetos` lo pregunta antes de colocar un modelo que no está
   en su `biblioteca.json`. Solo lee: subir es cosa del servidor, nunca de una función.
-- El ejemplo completo es `features/objetos` (colocar, mover, girar, duplicar, fijar, nombrar, borrar, deshacer; la
+- El ejemplo completo es `features/objetos` (colocar, mover, `moverCon` —una cosa y su compañera, p. ej. el cuerpo y la boca de una criatura, en un solo mensaje y un solo paso de deshacer—, girar, duplicar, fijar, nombrar, borrar, deshacer; la
   lista de la zona llega entera a quien entra, sin `at`, porque el escenario se ve desde lejos). Su constructor
   (`constructor` en `client.ts`) es lo que usa el panel de la plaza (`apps/plaza/constructor.ts`), y lo mismo puede
   usar un agente.

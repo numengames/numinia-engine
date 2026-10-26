@@ -318,6 +318,42 @@ test("M22c: mover varios con el mismo lote es UN paso de deshacer (los tres vuel
   assert.equal(Number(b.drawn.get(tres)?.x), Number(antes.tres.x) + 5);
 });
 
+test("moverCon: a thing and its companion move in one message, the companion keeps its own height scale, one undo takes both back", () => {
+  const { pages, pump } = world({ abierto: true });
+  const [a, b] = pages;
+  a.b.colocar("bloque"); pump(); const cuerpo = a.b.estado.seleccionado;
+  a.b.colocar("bloque"); pump(); const boca = a.b.estado.seleccionado;
+  const antes = { cuerpo: { ...a.b.objeto(cuerpo)! }, boca: { ...a.b.objeto(boca)! } };
+  const donde = { x: 7, y: 1.5, z: -3, rx: 0, ry: 90, rz: 0, sx: 0.8, sy: 1.2, sz: 0.8 };
+  const r = a.s.features.send("objetos", "moverCon", { id: cuerpo, ...donde, con: boca, syCon: 0.5, lote: "" });
+  assert.ok(r.ok, "the page may send it");
+  pump();
+  for (const [id, sy] of [[cuerpo, 1.2], [boca, 0.5]] as const) {
+    const o = b.drawn.get(id)!;
+    assert.ok(cerca(Number(o.x), 7) && cerca(Number(o.y), 1.5) && cerca(Number(o.z), -3), `${id} is at the new place`);
+    assert.ok(cerca(Number(o.ry), 90) && cerca(Number(o.sx), 0.8) && cerca(Number(o.sz), 0.8), `${id} has the same turn and width`);
+    assert.ok(cerca(Number(o.sy), sy), `${id} has its own height scale ${sy}`);
+  }
+  a.b.deshacer(); pump(); // ONE undo for both
+  for (const [id, was] of [[cuerpo, antes.cuerpo], [boca, antes.boca]] as const) assert.ok(cerca(Number(b.drawn.get(id)?.x), Number(was.x)), `${id} is back`);
+});
+
+test("moverCon: refused when the companion is the thing itself, does not exist, or either is pinned; changes nothing", () => {
+  const { pages, pump } = world({ abierto: true });
+  const [a, b] = pages;
+  a.b.colocar("bloque"); pump(); const uno = a.b.estado.seleccionado;
+  a.b.colocar("bloque"); pump(); const dos = a.b.estado.seleccionado;
+  const x0 = Number(a.b.objeto(uno)!.x), donde = { x: 20, y: 0, z: 20, rx: 0, ry: 0, rz: 0, sx: 1, sy: 1, sz: 1 };
+  const rechazos: string[] = [];
+  a.s.features.tap((f, e, m) => { if (f === "objetos" && e === "rechazado") rechazos.push(String(m.motivo)); });
+  a.s.features.send("objetos", "moverCon", { id: uno, ...donde, con: uno, syCon: 1, lote: "" }); pump();
+  a.s.features.send("objetos", "moverCon", { id: uno, ...donde, con: "nada", syCon: 1, lote: "" }); pump();
+  a.b.fijarId(dos, true); pump();
+  a.s.features.send("objetos", "moverCon", { id: uno, ...donde, con: dos, syCon: 1, lote: "" }); pump();
+  assert.equal(rechazos.length, 3, `three refusals, got ${JSON.stringify(rechazos)}`);
+  assert.equal(Number(b.drawn.get(uno)?.x), x0, "the first thing did not move either (nothing half done)");
+});
+
 test("M22c: borrar varios con el mismo lote es un paso de deshacer; sin lote cada uno es su propio paso", () => {
   const { pages, pump } = world({ abierto: true });
   const [a] = pages;
