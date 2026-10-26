@@ -1721,3 +1721,9 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `lote/12` sobre main `2ea4b64f`, fusiones `--no-ff` de `lote/11` y `lote13/personas`.
 - Siguiente: bajar la lista de tipos permitidos archivo a archivo; medir llamadas y fps en un visor real.
+
+## 2026-10-26 · MIS-265: la foto hecha dentro del mundo es su portada · hecho
+- Qué: en el modo foto, quien puede cambiar los ajustes del mundo (dueño o administración) ve «Usar de portada»: la foto se rehace como JPEG de 1600 px como mucho en su lado largo, se sube al mundo (`PUT /a/<sha256>.jpg`, la misma ruta que un fondo) y queda como `portada` en `aventura/ficha.json` (las demás claves, igual). Cada página HTML del mundo lleva desde entonces `og:title`, `og:image` (absoluta, con el Host / X-Forwarded-* que pidió el visitante) y `twitter:card`: es lo que la sala de mundos de numinia.com lee para la tarjeta del mundo, y lo que enseña una vista previa de un enlace. Un invitado no ve el botón. Formato: nada cambia (la ficha ya tenía `portada`).
+- Números: `test/portada.test.ts` 5 en verde; `npm run gates` en verde (2497 pruebas); pierna lenta `tools/e2e-piernas/portada.mjs` en verde (JPEG 1280×720, 267 kB, de una foto PNG de 2,3 MB). Versión 0.69.0 (menor: algo nuevo que no rompe nada).
+- Sin comprobar: un mundo real de la flota detrás de su Caddy (el de una instalación sin WWW_DIR sirve la página con Caddy y no lleva las etiquetas), Firefox, Safari, móvil y VR (en VR no hay botón: la foto de VR sale al volver a la página y ahí sí).
+- Siguiente: la foto lleva los rótulos con los nombres de quien esté delante; para una portada pública convendría quitarlos al hacerla.

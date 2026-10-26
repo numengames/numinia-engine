@@ -272,5 +272,8 @@ export function montarSoltar(o: OpcionesSoltar) {
   document.body.append(entrada);
   /** Open the file picker (call it inside a click or a key press: browsers refuse a picker otherwise). */
   const elegir = () => { if (o.puede()) entrada.click(); };
-  return { cuenta, subir: varios, rellenar, rellenarYa, decir, elegir, subirFondo };
+  /** MIS-265: a picture uploaded to the world and nothing placed (the photo mode's «Usar de portada»): the same checks and
+   * path as a background; resolves with «<sha256>.<ext>». */
+  const subirImagen = (file: File) => subirFondo(file, "imagen");
+  return { cuenta, subir: varios, rellenar, rellenarYa, decir, elegir, subirFondo, subirImagen };
 }
