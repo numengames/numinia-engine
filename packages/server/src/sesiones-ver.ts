@@ -76,6 +76,7 @@ export function tirones(p: Rec[]): string[] | null {
   if (hay("dc")) gpu.push(`dibujos p50 ${n(med(p.map((x) => x.dc?.p50)))} (peor ${n(maximo(p.map((x) => x.dc?.peor)))})`);
   if (hay("kTri")) gpu.push(`miles de triángulos p50 ${n(med(p.map((x) => x.kTri?.p50)))} (peor ${n(maximo(p.map((x) => x.kTri?.peor)))})`);
   if (hay("programas")) gpu.push(`programas máx ${n(maximo(p.map((x) => x.programas)))} (+${suma(p.map((x) => x.programasNuevos))} nuevos)`);
+  if (hay("compilesTardios")) gpu.push(`compilaciones tardías ${suma(p.map((x) => x.compilesTardios))}`);
   if (hay("cambiosRes") || hay("ratio")) gpu.push(`cambios de resolución ${suma(p.map((x) => x.cambiosRes))} (ratio mín ${r2(minimo(p.map((x) => x.ratio)))}, último ${r2(p.filter((x) => typeof x.ratio === "number").at(-1)?.ratio ?? NaN)})`);
   if (gpu.length) out.push(`  dibujo: ${gpu.join(" · ")}`);
   return out;

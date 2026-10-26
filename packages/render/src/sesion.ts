@@ -51,12 +51,13 @@ export const CONGELACION_MS = 1000;
 export const LARGO_MS = 50;
 
 /** What the page knows about the frame it just drew, besides its interval (all optional). */
-export type Dibujo = { dc?: number; tri?: number; programas?: number; ratio?: number; xr?: boolean };
+export type Dibujo = { dc?: number; tri?: number; programas?: number; ratio?: number; xr?: boolean;
+  /** t_159e18d2: cumulative shader pipelines linked by a draw after the loading screen (render/compilaciones.ts). The window reports the new ones. */ compilesTardios?: number };
 
 type Ventana = {
   cuadros: number; cuadroMs: { p50: number; p99: number; peor: number }; perdidos: number; costeMs: { p50: number; p99: number; peor: number };
   largos: number; congelado?: { n: number; ms: number; peor: number }; dc?: { p50: number; peor: number }; kTri?: { p50: number; peor: number };
-  programas?: number; programasNuevos?: number; cambiosRes?: number; ratio?: number; loaf?: { n: number; bloqMs: number; peorMs: number };
+  programas?: number; programasNuevos?: number; compilesTardios?: number; cambiosRes?: number; ratio?: number; loaf?: { n: number; bloqMs: number; peorMs: number };
 };
 
 /**
@@ -69,7 +70,7 @@ export function medidorDeCuadros() {
   let dts: number[] = [], costs: number[] = [], lost = 0, largos = 0;
   let cong = 0, congMs = 0, congPeor = 0, pausado = false, enXR: boolean | undefined;
   let dcs: number[] = [], tris: number[] = [];
-  let programas: number | undefined, programasAntes: number | undefined, ratio: number | undefined, cambiosRes = 0;
+  let programas: number | undefined, programasAntes: number | undefined, tardios: number | undefined, tardiosAntes: number | undefined, ratio: number | undefined, cambiosRes = 0;
   let loafN = 0, loafBloq = 0, loafPeor = 0, loafVisto = false;
   const ms0 = (x: number) => Math.round(x);
   const verLoaf = (durationMs: number, blockingMs: number) => { loafVisto = true; loafN++; loafBloq += blockingMs; loafPeor = Math.max(loafPeor, durationMs); };
@@ -77,6 +78,7 @@ export function medidorDeCuadros() {
     cuadro(dtMs: number, costeMs: number, objetivoFps: number, d: Dibujo = {}): void {
       if (d.ratio !== undefined && Number.isFinite(d.ratio)) { if (ratio !== undefined && d.ratio !== ratio) cambiosRes++; ratio = d.ratio; }
       if (d.programas !== undefined && Number.isFinite(d.programas)) { programas = d.programas; if (programasAntes === undefined) programasAntes = d.programas; }
+      if (d.compilesTardios !== undefined && Number.isFinite(d.compilesTardios)) { tardios = d.compilesTardios; if (tardiosAntes === undefined) tardiosAntes = d.compilesTardios; }
       if (d.xr !== undefined) { if (enXR !== undefined && d.xr !== enXR) pausado = true; enXR = d.xr; } // entering/leaving XR swaps loops
       if (!(dtMs > 0)) return;
       if (dtMs >= CONGELACION_MS) {
@@ -118,10 +120,11 @@ export function medidorDeCuadros() {
       if (dcs.length) { const s = dcs.sort((a, b) => a - b); out.dc = { p50: s[Math.floor(s.length / 2)], peor: s[s.length - 1] }; }
       if (tris.length) { const s = tris.sort((a, b) => a - b); out.kTri = { p50: r1(s[Math.floor(s.length / 2)] / 1000), peor: r1(s[s.length - 1] / 1000) }; }
       if (programas !== undefined) { out.programas = programas; out.programasNuevos = Math.max(0, programas - (programasAntes ?? programas)); }
+      if (tardios !== undefined) out.compilesTardios = Math.max(0, tardios - (tardiosAntes ?? tardios));
       if (ratio !== undefined) { out.cambiosRes = cambiosRes; out.ratio = Math.round(ratio * 100) / 100; }
       if (loafVisto) out.loaf = { n: loafN, bloqMs: ms0(loafBloq), peorMs: ms0(loafPeor) };
       dts = []; costs = []; lost = 0; largos = 0; cong = 0; congMs = 0; congPeor = 0; dcs = []; tris = [];
-      programasAntes = programas; cambiosRes = 0; loafN = 0; loafBloq = 0; loafPeor = 0;
+      programasAntes = programas; tardiosAntes = tardios; cambiosRes = 0; loafN = 0; loafBloq = 0; loafPeor = 0;
       return out;
     },
   };
