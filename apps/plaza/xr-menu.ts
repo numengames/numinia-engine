@@ -13,7 +13,8 @@ import { sonar } from "./sonar.ts";
 import { ESCALERA } from "./ficha.ts";
 import { listaGenteVR, textos } from "./gente-ia.ts";
 import { distanciaTexto } from "./amigos.ts";
-import { AYUDA_RAYO, TEXTO_FUERA_DE_VR, esInvitado, vistaConstruirVR } from "./construir-vr-logica.ts";
+import { NOTA_DEJADO as NOTA_DEJADO_PINTAR, NOTA_ENTRAR as NOTA_ENTRAR_PINTAR } from "./pintar-vr.ts";
+import { AYUDA_PINTAR, AYUDA_RAYO, TEXTO_FUERA_DE_VR, esInvitado, vistaConstruirVR, vistaPintarVR } from "./construir-vr-logica.ts";
 import { iconoDe, nombreDe } from "../../packages/render/src/menu-secciones.ts";
 import type { MenuVR, ContenidoMenuVR as Contenido } from "../../packages/render/src/index.ts";
 import { siguienteValor, textoValor } from "../../packages/render/src/menu-vr.ts";
@@ -46,6 +47,8 @@ export function montarMenuVR(o: {
   puedeConstruir: () => boolean;
   /** The builder's hands (constructor-xr.ts): «Construir» turns them on and off. */
   construirVR: { activo(): boolean; entrar(): { ok: boolean; why?: string }; salir(): void };
+  /** J18b: painting with the controller (pintar-vr.ts); a second row under «Construir». The two modes exclude each other (both want the right trigger). */
+  pintarVR?: { activo(): boolean; entrar(): { ok: boolean; why?: string }; salir(): void };
   /** Your name. */
   nombre: () => string;
   /** MIS-222: the «Obra» view — a hole you pressed in VR and the images already on the server to put in it. */
@@ -192,14 +195,23 @@ export function montarMenuVR(o: {
     const who = o.n().session?.who as { id: string; nombre: string } | null | undefined;
     const v = vistaConstruirVR({ puede: o.puedeConstruir(), invitado: esInvitado(who), activo: o.construirVR.activo() });
     if (v.tipo === "negado") return { tipo: "lista", titulo: "Construir", vacio: v.texto, filas: [] } as Contenido;
-    const empezar = v.tipo === "listo";
-    return { tipo: "lista", titulo: empezar ? "Construir en VR" : "Construyendo", nota: AYUDA_RAYO, vacio: "",
-      filas: [{ texto: v.titulo, detalle: v.detalle, icono: iconoDe("construir"),
-        botones: [{ texto: v.boton, estilo: empezar ? "accion" : "normal", ancho: 260, accion: () => {
-          if (!empezar) { o.construirVR.salir(); nota("Has dejado de construir."); vr.menu.cerrar(); return; }
-          const r = o.construirVR.entrar();
-          if (r.ok) { nota("Construir: apunta a una cosa y aprieta el gatillo."); vr.menu.cerrar(); } else nota(r.why ?? TEXTO_FUERA_DE_VR);
-        } }] }] } as Contenido;
+    const empezar = v.tipo === "listo", pv = o.pintarVR ? vistaPintarVR(o.pintarVR.activo()) : null;
+    const filaConstruir = { texto: v.titulo, detalle: v.detalle, icono: iconoDe("construir"),
+      botones: [{ texto: v.boton, estilo: empezar ? "accion" : "normal", ancho: 260, accion: () => {
+        if (!empezar) { o.construirVR.salir(); nota("Has dejado de construir."); vr.menu.cerrar(); return; }
+        o.pintarVR?.salir(); // one right trigger, one job
+        const r = o.construirVR.entrar();
+        if (r.ok) { nota("Construir: apunta a una cosa y aprieta el gatillo."); vr.menu.cerrar(); } else nota(r.why ?? TEXTO_FUERA_DE_VR);
+      } }] };
+    const filaPintar = pv && o.pintarVR ? { texto: pv.titulo, detalle: pv.detalle, icono: iconoDe("construir"),
+      botones: [{ texto: pv.boton, estilo: pv.activo ? "normal" : "accion", ancho: 260, accion: () => {
+        if (pv.activo) { o.pintarVR!.salir(); nota(NOTA_DEJADO_PINTAR); vr.menu.cerrar(); return; }
+        o.construirVR.salir(); // one right trigger, one job
+        const r = o.pintarVR!.entrar();
+        if (r.ok) { nota(NOTA_ENTRAR_PINTAR); vr.menu.cerrar(); } else nota(r.why ?? TEXTO_FUERA_DE_VR);
+      } }] } : null;
+    return { tipo: "lista", titulo: pv?.activo ? "Pintando" : empezar ? "Construir en VR" : "Construyendo", nota: pv?.activo ? AYUDA_PINTAR : AYUDA_RAYO, vacio: "",
+      filas: filaPintar ? [filaConstruir, filaPintar] : [filaConstruir] } as Contenido;
   }
   // v7 «Chat»: the last lines of the page's chat (the same list the computer's box shows) and the quick phrases. A phrase goes the
   // computer's way — `chat.decir(texto, "cerca")` — so the page's pace and the server's rules apply (a silenced person or a closed

@@ -873,10 +873,11 @@ const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById(
 // VR: a computer or a phone without a headset never downloads them. `__numinia.menuVR` / `.constructorVR` appear when it lands ----
 void view.vrSupported().then(async (ok) => {
   if (!ok) return;
-  const [{ montarMenuVR }, { montarConstructorVR }, { montarCondicionesXR }] = await Promise.all([import("./xr-menu.ts"), import("./constructor-xr.ts"), import("./condiciones-xr.ts")]);
+  const [{ montarMenuVR }, { montarConstructorVR }, { montarCondicionesXR }, { montarPintarVR }] = await Promise.all([import("./xr-menu.ts"), import("./constructor-xr.ts"), import("./condiciones-xr.ts"), import("./pintar-vr.ts")]);
   const n = (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia;
   const constructorVR = montarConstructorVR(constructor, view); // M22b-3: the same builder, picked and moved with a VR controller's ray
-  const menuVR = montarMenuVR({ vr: view.vr, n: () => n, ciudadUrl: ciudad.url, puedeConstruir: () => constructor.estado.puede, construirVR: constructorVR,
+  const pintarVR = montarPintarVR({ pintar, view, puede: () => constructor.estado.puede }); // J18b story 4: the controller's trigger paints (lazy chunk with the other VR modules)
+  const menuVR = montarMenuVR({ vr: view.vr, n: () => n, ciudadUrl: ciudad.url, puedeConstruir: () => constructor.estado.puede, construirVR: constructorVR, pintarVR,
     nombre: () => session.who?.nombre ?? "Invitado",
     obra: { hueco: (id) => constructor.huecos().find((h) => h.id === id) ?? null, imagenes: () => constructor.imagenes(), poner: soltar.rellenarYa },
     // the same line «Tú» shows on the computer (avatar · world · how long), never the guest's raw id
@@ -884,7 +885,7 @@ void view.vrSupported().then(async (ok) => {
     retrato: () => { const id = miAvatar()?.id ?? idAvatarDe(avatarUI?.eleccion("yo"), estado?.avatar); return id ? `/retratos/${id}-cuerpo.webp` : null; } });
   elegirObraVR = menuVR.elegirObra;
   condicionesXR = montarCondicionesXR({ condiciones, vr: view.vr as never, mundo: () => nombreDelMundo, soportado: () => vrDisponible }); // condiciones/c4
-  Object.assign(n, { menuVR, constructorVR });
+  Object.assign(n, { menuVR, constructorVR, pintarVR });
 });
 
 // ---- U11 + ux2-barra: the bar, top right — one thing, one place, one key. Left to right: Micrófono (Q) · Gente (L) ·

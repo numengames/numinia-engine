@@ -539,6 +539,20 @@ export function createManos(h: ManosHooks) {
       const b = r.fuente!.gamepad?.buttons ?? [];
       return { gatillo: b[0]?.value ?? 0, agarre: b[1]?.value ?? 0, mano: false };
     },
+    /** J18b (painting): where a brush held in this hand paints, in world space as plain numbers, and how hard the trigger is down. A controller paints
+     *  from the tip of its ray (where the drawn ray starts); a tracked hand from the point between thumb and index, with the pinch as a 0/1 trigger
+     *  (no pressure). null while that hand is not here or not tracked this frame. */
+    pincel(lado: Lado): { x: number; y: number; z: number; gatillo: number; mano: boolean } | null {
+      const r = ranuras.find((x) => x.lado === lado && x.fuente);
+      if (!r) return null;
+      if (r.esMano) {
+        if (!r.hand.visible || !mundoDe(r, Pa)) return null;
+        return { x: Pa.x, y: Pa.y, z: Pa.z, gatillo: r.pellizco ? 1 : 0, mano: true };
+      }
+      if (!r.ctrl.visible) return null;
+      r.ctrl.updateWorldMatrix(true, false); r.ctrl.getWorldPosition(Pb);
+      return { x: Pb.x, y: Pb.y, z: Pb.z, gatillo: r.fuente!.gamepad?.buttons[0]?.value ?? 0, mano: false };
+    },
     vibrar(lado: Lado, v = 0.5, ms = 60): void { const r = ranuras.find((x) => x.lado === lado); if (r) vibrar(r, v, ms); },
     /** M22b-3: this hand's ray now (world space), or null when it is not drawn (no controller, or holding something close). For
      * features that pick their own things along it (the builder) instead of waiting for `apuntado`'s own list. */

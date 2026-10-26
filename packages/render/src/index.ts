@@ -281,6 +281,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     punta: (l: "izq" | "der", pos: THREE.Vector3) => manosReal?.punta(l, pos) ?? false,
     vibrar: (l: "izq" | "der", v?: number, ms?: number) => manosReal?.vibrar(l, v, ms),
     entrada: (l: "izq" | "der") => manosReal?.entrada(l) ?? null,
+    pincel: (l: "izq" | "der") => manosReal?.pincel(l) ?? null, // J18b: where a brush in this hand paints, and the trigger
     rayoDe: (l: "izq" | "der") => manosReal?.rayoDe(l) ?? null,
     estado: () => manosReal?.estado() ?? { izq: null, der: null },
   };
@@ -398,6 +399,18 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     actualizar: (dt: number) => dardosVRReal?.actualizar(dt),
     real: () => dardosVRReal,
     contar: () => dardosVRReal?.contar() ?? null,
+  };
+
+  // painting in VR (J18b story 4): the stroke being painted, live under the hand (packages/render/src/trazo-vivo.ts; lazy, fetched by the page's pintar-vr.ts
+  // only on a VR-capable device). `cadaCuadro` is the page's per-frame reader (after the hands moved); then the live tube uploads what changed.
+  let trazoVivoReal: import("./trazo-vivo.ts").TrazoVivo | null = null, trazoVivoCarga: Promise<import("./trazo-vivo.ts").TrazoVivo> | null = null;
+  const cuadrosPincel = new Set<(dt: number) => void>();
+  const pincelVR = {
+    cargar: () => (trazoVivoCarga ??= import("./trazo-vivo.ts").then((m) => (trazoVivoReal = m.crearTrazoVivo({ world })))),
+    cadaCuadro(fn: (dt: number) => void): () => void { cuadrosPincel.add(fn); return () => cuadrosPincel.delete(fn); },
+    actualizar(dt: number): void { for (const f of cuadrosPincel) { try { f(dt); } catch (e) { console.warn("[pincel]", e); } } trazoVivoReal?.actualizar(); },
+    real: () => trazoVivoReal,
+    contar: () => trazoVivoReal?.contar() ?? null,
   };
 
   // beacons (R1): a column of light with a text at a world point; expires on its own
@@ -1039,7 +1052,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
     editor.frame();
     entorno.actualizar(); naturaleza.actualizar(dtSeconds); espacioBase.actualizar(dtSeconds); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ);
-    if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); dardosVR.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
+    if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); dardosVR.actualizar(dtSeconds); pincelVR.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
     pesca.actualizar(dtSeconds); dardos.actualizar(dtSeconds); dados3d.actualizar(dtSeconds);
     if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
     cam.update(dtSeconds, selfXZ ? feet : null);
@@ -1089,6 +1102,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     dardos,
     /** dardos in VR: load the 3D side (`cargar()`), then enMano / volar / soltar / posicion / local / aMundo / cadaCuadro; `contar()` for checks. */
     dardosVR,
+    /** painting in VR (J18b): load the live tube (`cargar()`), then marcar / empezar / anadir / seguir / terminar / cancelar / apagar; `cadaCuadro(fn)` is the page's per-frame reader; `contar()` for checks. */
+    pincelVR,
     /** N17: web screens — a panel everywhere, the live page in CSS3D near you on PC/phone, «Abrir fuera de VR» in VR (web.ts). */
     web,
     /** ancestros v1: the Salón de los Ancestros (muros, hologramas, paneles, dice, contar) — packages/render/src/ancestros.ts. */

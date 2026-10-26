@@ -2,7 +2,7 @@
 // Vuelve a generarlo con `npm run novedades` (también corre antes de "dev" y "build").
 /** La versión del motor cuando se generó este fichero (solo para quien lo lea; la comparación real la hace
  * apps/plaza/novedades.ts contra la versión del paquete que corre la página). */
-export const version = "0.72.0";
+export const version = "0.75.0";
 /** Hasta 3 líneas, la más nueva primero. Vacío si el diario no tenía ninguna entrada con «Qué». */
 export const items: readonly string[] = [
   "la ayuda del lanzamiento en VR crece con lo parecido que es el gesto al de un lanzador profesional (Pablo, QA Quest 22-10).",
