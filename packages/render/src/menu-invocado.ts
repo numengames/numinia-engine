@@ -14,6 +14,8 @@ import {
   zonaDe, idBoton, seccionDeId, colocarMenu, demasiadoLejos, filasCaben, rectFila, botonesFila, cajasPaginas, paginar, anguloGrados,
   VISTAS_SUELTAS, type Seccion, type Vista, type Rect,
 } from "./menu-vr.ts";
+import { disposicionPaleta, TEXTO_PALETA, pxGrosor } from "./menu-paleta.ts";
+import { PALETA_TRAZO } from "./trazo-tubo.ts";
 import { TEXTO, disposicion, elegirLineas, textoDeMensaje, LINEAS_POR_MENSAJE, type MensajeVR } from "./menu-chat.ts";
 import { COLOR, FUENTE, fondoPanel, icono, boton, chip, recortar, envolverPx, rectRedondo, type PathsIcono, type EstiloBoton } from "./vr-pintura.ts";
 
@@ -32,7 +34,14 @@ export type ContenidoLista = { tipo: "lista"; titulo?: string; nota?: string; va
 export type ContenidoMapa = { tipo: "mapa"; titulo?: string; yo: { x: number; z: number; rumbo?: number } | null; puntos: { nombre: string; x: number; z: number; color: string }[]; filas: FilaMenu[]; vacio: string };
 /** v7 «Chat»: the last lines of the chat and the quick phrases (`frases[i].texto` is FRASES[i]; `accion` says it). */
 export type ContenidoChat = { tipo: "chat"; titulo?: string; mensajes: MensajeVR[]; vacio: string; nota?: string; frases: { texto: string; accion: () => void; estilo?: EstiloBoton }[] };
-export type Contenido = ContenidoTu | ContenidoLista | ContenidoMapa | ContenidoChat;
+/** J18b story 5 «Pincel»: the brush's palette — 8 colours (`hex` is the stroke's colour, `nombre` what it is called), 3 thicknesses (`m` metres, drawn at true width) and 2 verbs. */
+export type ContenidoPaleta = {
+  tipo: "paleta"; titulo?: string; nota?: string;
+  colores: { nombre: string; hex?: string; activo: boolean; accion: () => void }[];
+  grosores: { texto: string; detalle?: string; m: number; activo: boolean; accion: () => void }[];
+  acciones: { texto: string; icono?: string; estilo?: EstiloBoton; accion: () => void }[];
+};
+export type Contenido = ContenidoTu | ContenidoLista | ContenidoMapa | ContenidoChat | ContenidoPaleta;
 /** What the page gives the menu: each view's content (read at each paint), the sections it cannot show here, and a
  * hook when a view opens (e.g. ask the server who is here). */
 export type Proveedor = { contenido(v: Vista): Contenido; desactivadas(): ReadonlySet<Seccion>; alAbrir?(v: Vista): void;
@@ -110,6 +119,7 @@ export function createMenuInvocado(h: { scene: THREE.Object3D; salir: () => void
     if (ct.tipo === "tu") pintarTu(ct);
     else if (ct.tipo === "mapa") pintarMapa(ct);
     else if (ct.tipo === "chat") pintarChat(ct);
+    else if (ct.tipo === "paleta") pintarPaleta(ct);
     else pintarLista(ct, ct.titulo ?? (vista === "avisos" ? "Avisos" : ""), CONTENIDO.x, CONTENIDO.w);
     g.restore();
     tex.needsUpdate = true;
@@ -263,6 +273,45 @@ export function createMenuInvocado(h: { scene: THREE.Object3D; salir: () => void
     if (ct.nota) { g.font = `400 ${TEXTO.nota}px ${FUENTE}`; g.fillStyle = COLOR.suave; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(recortar(g, ct.nota, d.nota.w), d.nota.x, d.nota.y + d.nota.h / 2); }
   }
 
+  function pintarPaleta(ct: ContenidoPaleta): void {
+    const d = disposicionPaleta();
+    titulo(ct.titulo ?? "Pincel", d.titulo.x);
+    // the eight colours: flat swatches (the stroke's own colour), the chosen one ringed and ticked
+    for (const [i, c] of ct.colores.entries()) {
+      const r = d.colores[i]; if (!r) break;
+      const id = idBoton(botones.length), sobre = encima === id;
+      rectRedondo(g, r.x, r.y, r.w, r.h, 16); g.fillStyle = c.hex ?? PALETA_TRAZO[i] ?? COLOR.fila; g.fill();
+      g.lineWidth = c.activo ? 8 : sobre ? 5 : 2; g.strokeStyle = c.activo ? COLOR.foco : sobre ? COLOR.texto : COLOR.linea; g.stroke();
+      if (c.activo) icono(g, h.iconos, "check", r.x + r.w / 2, r.y + r.h / 2, 56, i === 7 ? COLOR.texto : "#2a2420");
+      botones.push({ rect: r, accion: c.accion });
+    }
+    const activo = ct.colores.find((c) => c.activo);
+    g.font = `500 ${TEXTO_PALETA.etiqueta}px ${FUENTE}`; g.fillStyle = COLOR.suave; g.textAlign = "left"; g.textBaseline = "middle";
+    g.fillText(activo ? `Color: ${activo.nombre} · grosor` : "Color · grosor", d.etiquetaGrosor.x, d.etiquetaGrosor.y + d.etiquetaGrosor.h / 2);
+    // the three thicknesses: a line of the true width beside the words
+    for (const [i, gr] of ct.grosores.entries()) {
+      const r = d.grosores[i]; if (!r) break;
+      const id = idBoton(botones.length), sobre = encima === id;
+      boton(g, r, "", { estilo: gr.activo ? "accion" : "normal", encima: sobre });
+      const px = pxGrosor(gr.m), cy = r.y + r.h / 2;
+      // the sample line sits in the left 150 px (a short stroke centred at 90 px, its round caps included); the words in the rest, name over size
+      const largo = Math.max(0, 60 - px);
+      g.save(); g.lineCap = "round"; g.lineWidth = px; g.strokeStyle = activo?.hex ?? PALETA_TRAZO[ct.colores.findIndex((c) => c.activo)] ?? COLOR.texto;
+      g.beginPath(); g.moveTo(r.x + 90 - largo / 2, cy); g.lineTo(r.x + 90 + largo / 2, cy); g.stroke(); g.restore();
+      g.textAlign = "left"; g.textBaseline = "middle"; g.font = `600 ${TEXTO_PALETA.boton}px ${FUENTE}`; g.fillStyle = COLOR.texto;
+      g.fillText(recortar(g, gr.texto, r.w - 176), r.x + 168, gr.detalle ? cy - 15 : cy + 1);
+      if (gr.detalle) { g.font = `400 ${TEXTO_PALETA.nota}px ${FUENTE}`; g.fillStyle = COLOR.suave; g.fillText(recortar(g, gr.detalle, r.w - 176), r.x + 168, cy + 22); }
+      botones.push({ rect: r, accion: gr.accion });
+    }
+    for (const [i, a] of ct.acciones.entries()) {
+      const r = d.acciones[i]; if (!r) break;
+      const id = idBoton(botones.length);
+      boton(g, r, a.texto, { estilo: a.estilo ?? "normal", encima: encima === id, icono: a.icono, paths: h.iconos, tam: TEXTO_PALETA.boton });
+      botones.push({ rect: r, accion: a.estilo === "desactivado" ? () => {} : a.accion });
+    }
+    if (ct.nota) { g.font = `400 ${TEXTO_PALETA.nota}px ${FUENTE}`; g.fillStyle = COLOR.suave; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(recortar(g, ct.nota, d.nota.w), d.nota.x, d.nota.y + d.nota.h / 2); }
+  }
+
   function pintarMapa(ct: ContenidoMapa): void {
     const lado = 420, x0 = CONTENIDO.x, y0 = CONTENIDO.y;
     rectRedondo(g, x0, y0, lado, lado, 16); g.fillStyle = "rgba(249,235,220,0.04)"; g.fill(); g.lineWidth = 2; g.strokeStyle = COLOR.linea; g.stroke();
@@ -361,7 +410,7 @@ export function createMenuInvocado(h: { scene: THREE.Object3D; salir: () => void
       const d = abierto && ojo.lengthSq() ? pos.distanceTo(ojo) : 0;
       return {
         abierto, vista, encima, secciones: SECCIONES.map((x) => ({ id: x, nombre: ETIQUETAS[x], activa: !proveedor.desactivadas().has(x) })),
-        contenido: ultimoContenido?.tipo ?? null, filas: ultimoContenido && "filas" in ultimoContenido ? ultimoContenido.filas.map((f) => f.texto) : ultimoContenido?.tipo === "chat" ? ultimoContenido.mensajes.map(textoDeMensaje) : [],
+        contenido: ultimoContenido?.tipo ?? null, filas: ultimoContenido && "filas" in ultimoContenido ? ultimoContenido.filas.map((f) => f.texto) : ultimoContenido?.tipo === "chat" ? ultimoContenido.mensajes.map(textoDeMensaje) : ultimoContenido?.tipo === "paleta" ? ultimoContenido.colores.map((c) => c.nombre) : [],
         botones: botones.length, pinturas,
         diagnostico: { visible: malla.visible, distanciaM: +d.toFixed(2), escalaMundo: +s.x.toFixed(3), anchoVisualGrados: +anguloGrados(MENU.anchoM * s.x, d || MENU.distM).toFixed(1), pos: [pos.x, pos.y, pos.z].map((v) => +v.toFixed(2)) },
       };

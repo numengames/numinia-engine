@@ -877,7 +877,7 @@ void view.vrSupported().then(async (ok) => {
   const [{ montarMenuVR }, { montarConstructorVR }, { montarCondicionesXR }, { montarPintarVR }] = await Promise.all([import("./xr-menu.ts"), import("./constructor-xr.ts"), import("./condiciones-xr.ts"), import("./pintar-vr.ts")]);
   const n = (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia;
   const constructorVR = montarConstructorVR(constructor, view); // M22b-3: the same builder, picked and moved with a VR controller's ray
-  const pintarVR = montarPintarVR({ pintar, view, puede: () => constructor.estado.puede }); // J18b story 4: the controller's trigger paints (lazy chunk with the other VR modules)
+  const pintarVR = montarPintarVR({ pintar, view, puede: () => constructor.estado.puede, deshacer: () => constructor.deshacer() }); // J18b story 4: the controller's trigger paints (lazy chunk with the other VR modules)
   const menuVR = montarMenuVR({ vr: view.vr, n: () => n, ciudadUrl: ciudad.url, puedeConstruir: () => constructor.estado.puede, construirVR: constructorVR, pintarVR,
     nombre: () => session.who?.nombre ?? "Invitado",
     obra: { hueco: (id) => constructor.huecos().find((h) => h.id === id) ?? null, imagenes: () => constructor.imagenes(), poner: soltar.rellenarYa },
