@@ -3,8 +3,7 @@
    interactive (focus), action fill #017C8D (one per view), Ámbar #EFA517 emphasis, Verdemar #A6DAD5 labels, Grana
    #D33440 destructive. Two radii only: 6px controls, 8px frames. No shadows in Nocturno. Geist / Geist Mono.
    Layout (Pablo, 16-10): top right a bar of icon buttons, the map under it, the quests under the map. */
-@font-face { font-family: "Geist"; src: url("/fuentes/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
-@font-face { font-family: "Geist Mono"; src: url("/fuentes/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+/* Geist and Geist Mono are declared in fuentes.ts and added after the first frame (t_45ef2f70: 115 kB less before playable). */
 /* a world's tema may pick it for its titles (tema-mundo.ts); a browser fetches a face only when something uses it */
 @font-face { font-family: "Bebas Neue"; src: url("/fuentes/BebasNeue-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 :root {

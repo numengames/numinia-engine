@@ -2,7 +2,7 @@
 // Vuelve a generarlo con `npm run novedades` (también corre antes de "dev" y "build").
 /** La versión del motor cuando se generó este fichero (solo para quien lo lea; la comparación real la hace
  * apps/plaza/novedades.ts contra la versión del paquete que corre la página). */
-export const version = "0.74.0";
+export const version = "0.75.0";
 /** Hasta 3 líneas, la más nueva primero. Vacío si el diario no tenía ninguna entrada con «Qué». */
 export const items: readonly string[] = [
   "en VR puedes soltar lo que llevas en la mano (palanca del mando pulsada medio segundo, o Bolsa › Soltar) y «Velocidad al andar en VR» sube hasta 200 % (c…",
