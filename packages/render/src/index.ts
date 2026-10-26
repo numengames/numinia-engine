@@ -70,7 +70,8 @@ import { crearDianas3D, crearDianaAR } from "./dardos.ts";
 import { crearPantallasWeb } from "./web.ts";
 import { crearSalon } from "./ancestros.ts";
 import type { DianaAR } from "./dardos.ts";
-import { detalleAgua, LUCES_FUEGO } from "./calidad.ts";
+import { detalleAgua, LUCES_FUEGO, IMAGEN_PX } from "./calidad.ts";
+import type { Nivel as NivelCalidad } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
 import { crearFijados, type Fijado } from "./fijados.ts";
 import { censoDeEscena, type Censo } from "./medidor-vivo.ts";
@@ -467,7 +468,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** B3: set while this copy's shaders are being prepared (precompilar.ts); a new model or pose for the slot drops it. */
     preparando?: object;
     /** H13: the level of detail this copy was loaded from (0/undefined = the whole model), and set while the whole model loads to replace it. */
-    nivel?: number; mejorando?: boolean; sinNivel?: boolean };
+    nivel?: number; mejorando?: boolean; sinNivel?: boolean;
+    /** The longest side (px) this picture's texture was capped at when it loaded (calidad.ts IMAGEN_PX of the tier then). */
+    imgPx?: number };
   const esferaTmp = new THREE.Sphere();
   /** N12: the radius (m, before the copy's scale) of a sphere round the origin that holds `o`, a copy not yet in the world. */
   const radioDe = (o: THREE.Object3D): number => { o.updateMatrixWorld(true); tmpBox.setFromObject(o); if (tmpBox.isEmpty()) return 1; tmpBox.getBoundingSphere(esferaTmp); return esferaTmp.center.length() + esferaTmp.radius; };
@@ -741,7 +744,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   function cargarMedio(key: string, s: Slot, cerca = true): void {
     const t = s.want, url = assetUrl(t.model).replace(/\.glb$/, `.${t.ext ?? "glb"}`), model = s.model;
     if ((t.kind === "video" || t.kind === "sonido") && !sePuedeReproducir(t.ext ?? "")) { s.failed = true; console.warn(`[medios] este navegador no reproduce .${t.ext}`); return; }
-    const p = t.kind === "trazo" ? import("./trazo.ts").then((m) => m.cargarTrazo(url)) /* lazy: nothing downloaded until a world has a stroke */ : t.kind === "imagen" ? cargarImagen(url) : t.kind === "video" ? cargarVideo(url, () => verOcultos) : Promise.resolve(cargarSonido(url, () => verOcultos));
+    if (t.kind === "imagen") s.imgPx = IMAGEN_PX[entorno.nivel];
+    const p = t.kind === "trazo" ? import("./trazo.ts").then((m) => m.cargarTrazo(url)) /* lazy: nothing downloaded until a world has a stroke */ : t.kind === "imagen" ? cargarImagen(url, s.imgPx) /* the picture is redrawn to the tier's size before it is a texture */ : t.kind === "video" ? cargarVideo(url, () => verOcultos) : Promise.resolve(cargarSonido(url, () => verOcultos));
     loading++; if (cerca) cercaCargando++;
     p.then((m) => {
       const now = things.get(key);
@@ -754,8 +758,23 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     }).finally(() => { loading--; if (cerca) cercaCargando--; pumpLoads(); });
   }
   let mediosSonando = false;
+  /** The tier the pictures were last checked against: entering VR makes it B, and a picture loaded bigger than B's size is let go
+   * and loaded again at B's (the browser has the file cached for a year), so the headset never holds the desktop-size copies. */
+  let nivelImagenes: NivelCalidad = entorno.nivel;
+  function ajustarImagenes(): void {
+    const nv = entorno.nivel;
+    if (nv === nivelImagenes) return;
+    nivelImagenes = nv;
+    let hay = false;
+    for (const [k, s] of things) {
+      if (s.want.kind !== "imagen" || !s.loaded || !((s.imgPx ?? 0) > IMAGEN_PX[nv])) continue;
+      s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.radio = undefined; s.loaded = false; s.failed = false; waiting.add(k); hay = true;
+    }
+    if (hay) pumpPronto();
+  }
   function updateThings(dt: number): void {
     animatingNear = false; mediosSonando = false;
+    ajustarImagenes();
     if (reacciones.size) { // lote 5: a clicked thing hops on top of where its state puts it, and goes back exactly there when it ends
       const t = performance.now();
       for (const [k, t0] of reacciones) {
