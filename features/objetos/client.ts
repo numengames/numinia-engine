@@ -18,6 +18,7 @@ export const aDibujo = (v: Msg): PlacedObject => ({
   reach: (v.alcance ?? "burbuja") as PlacedObject["reach"], radius: v.radio === undefined ? 8 : Number(v.radio),
   ...(v.grupo === "musica" || v.grupo === "efectos" || v.grupo === "ambiente" ? { bus: v.grupo as "musica" | "efectos" | "ambiente" } : {}), // H5
   ...(v.fijado === true || v.decorado === true ? { sala: true } : {}), // N22: the room loads first
+  ...(v.fijado === true ? { fijo: true } : {}), // t_e41c0a12: pinned things never move: the renderer merges them by material
 });
 
 /** M22: the builder's tools. "" = only select (click), like Hyperfy2 before choosing one. */

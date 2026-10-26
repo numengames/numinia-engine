@@ -136,7 +136,23 @@ test("3D: the hall is drawn from state, a lit hologram turns to you and flickers
     s.hologramas([holo]);
     s.paneles([{ id: "a-leyes", titulo: "Leyes", lineas: [...LEYES], x: 0, y: 2, z: -50, rumbo: 0 }, { id: "a-nuestras", titulo: "Nuestras", lineas: NUESTRAS.map((n) => n.texto), x: 2, y: 2, z: -50, rumbo: 0 }]);
     assert.deepEqual(s.contar(), { muros: 5, techo: true, luz: true, hologramas: 1, paneles: 2, encendidos: 0, placas: 0 });
-    assert.equal(world.children.length, 5 + 1 + 1 + 1 + 1 + 2, "walls, floor, ceiling, light, hologram, two panels");
+    assert.equal(world.children.length, 1 + 1 + 1 + 1 + 1 + 2, "ONE wall mesh (5 walls, same stone), floor, ceiling, light, hologram, two panels");
+    // MIS-200 t_7ed19d06: fewer pieces. The five walls are one mesh (the same boxes), the hologram three: pedestal, translucent body, wireframe head
+    const paredes = world.getObjectByName("ancestros:muros") as import("three/webgpu").Mesh;
+    assert.ok(paredes && (paredes as { isMesh?: boolean }).isMesh);
+    paredes.geometry.computeBoundingBox();
+    const bb = paredes.geometry.boundingBox!;
+    assert.ok(bb.min.x <= Math.min(...muros.map((m) => m.x0)) + 1e-6 && bb.max.x >= Math.max(...muros.map((m) => m.x1)) - 1e-6, "the merged walls cover the same footprint");
+    assert.ok(Math.abs(bb.max.y - SALON.alto) < 1e-6, "and the same height");
+    assert.equal(paredes.userData.mapa, true, "still on the top-down map");
+    const holoGrupo = world.getObjectByName("ancestros:asimov")!;
+    assert.equal(holoGrupo.children.filter((o) => (o as { isMesh?: boolean }).isMesh).length, 3, "pedestal, translucent body, wireframe head");
+    const cuerpo = holoGrupo.getObjectByName("holograma-cuerpo") as import("three/webgpu").Mesh;
+    assert.equal((cuerpo.material as { vertexColors?: boolean }).vertexColors, true, "the cone's weaker glow lives in the vertices");
+    s.hologramas([{ ...holo, encendido: true }]);
+    const op = (cuerpo.material as { opacity: number }).opacity;
+    assert.ok(op > 0.2 && op <= 0.32, `lit body opacity ${op}`);
+    s.hologramas([holo]);
     // MIS-228: ONE slab over the walls (one draw call), above their top, not on the top-down map; ONE dim cyan point light inside under it
     const techo = world.getObjectByName("ancestros:techo") as import("three/webgpu").Mesh, luz = world.getObjectByName("ancestros:luz") as import("three/webgpu").PointLight;
     assert.ok(techo && luz);
