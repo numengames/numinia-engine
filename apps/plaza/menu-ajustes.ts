@@ -132,7 +132,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   a.alAplicar("graficos.foveacionVR", (v) => { view.vr.rendimiento = { foveacion: Number(v) / 100 }; });
   a.alAplicar("graficos.escalaVR", (v) => { view.vr.rendimiento = { escala: Number(v) / 100 }; });
   a.alAplicar("graficos.multiviewVR", (v) => { view.vr.rendimiento = { multiview: v === true }; });
-  a.alAplicar("accesibilidad.menosMovimiento", (v) => { html.classList.toggle("menos-movimiento", v === true); });
+  a.alAplicar("accesibilidad.menosMovimiento", (v) => { html.classList.toggle("menos-movimiento", v === true); view.orbeQuieto(v === true); }); // t_466efdb8: the «thinking» orbs stand still too
   a.alAplicar("accesibilidad.textoGrande", (v) => { html.classList.toggle("texto-grande", v === true); });
   a.alAplicar("accesibilidad.altoContraste", (v) => { html.classList.toggle("alto-contraste", v === true); });
   a.alAplicar("accesibilidad.anunciar", (v) => { $("avisos")?.setAttribute("aria-live", v === true ? "polite" : "off"); }); // safety notices (assertive) always

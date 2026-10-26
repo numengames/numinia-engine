@@ -40,5 +40,10 @@ export const es = {
   cajaAyuda: "Hasta 190 bytes. Solo lo lee ella; su respuesta la ven quienes estén cerca.",
   cajaVacia: "Escribe qué quieres decirle.",
   noSePuede: "Ahora no se puede hablar con ella desde aquí.",
+  /** t_466efdb8: the chat line under the list while an AI that was called has not answered («Ada está pensando…»). */
+  pensando: "está pensando…",
+  pensandoVarias: "están pensando…",
+  pensandoY: "y",
+  pensandoIAs: "IAs",
 } as const;
 export type TextosIA = { readonly [K in keyof typeof es]: string };
