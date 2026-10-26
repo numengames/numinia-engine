@@ -303,6 +303,39 @@ constructor** (`constructor.ts` 58 k, `entorno.ts` 27 k, `cable.ts` 20 k, `foto.
 fuente; solo con la puerta de normas encendida, pero `ar-elegir.ts` y 19 pruebas de extremo a extremo lo leen en `__numinia.condiciones`), `voz.ts` y
 `rueda.ts`. `three.tsl` (190,7 kB) y `three.core` (69,1 kB) no se pueden partir: es `three.webgpu.js` entero.
 
+### Primera carga en el móvil: de 0,72 a 0,575 MB (t_45ef2f70, 26-10-2026)
+
+Medida en la red de verdad, no en el HTML: Chromium headless (shell 1248, SwiftShader), perfil de móvil de N22 (412×915, DPR 2,625, CPU ×4, sin caché),
+«4G lento» 1,6 Mb/s / 150 ms, servidor propio del motor (gzip/brotli como en vivo). Cifra = bytes por el cable de las respuestas terminadas antes de
+`__numinia.informe.primerCuadroMs` (los bytes no dependen de la carga de la máquina; el tiempo sí: 2 vueltas por rama, dispersión < 0,1 s).
+
+| Commit | Bytes hasta el primer cuadro | Primer cuadro |
+|---|---|---|
+| `dad2011c` (fin del 18-10) | 543 kB | 3,84 s |
+| `83810091` (0.71.0, 26-10) | 720 kB | 4,59 s |
+| 0.73.0 (primera pasada, con main) | 575 kB | 3,95 s |
+| esta rama (0.78.0: constructor, mapa, ajustes y cajón Cable tras el primer cuadro) | 551 kB | 3,80 s |
+
+**Qué subió.** No hay un commit culpable: el arranque fue creciendo con cada pieza nueva que `main.ts` monta antes de dibujar. Fichero a fichero
+(gz -9 de la puerta, `dad2011c` → `83810091`): `index` 136 → 198 kB, `src` 54 → 81 kB, `gente-ia` 0 → 16 kB, `paneles` 0 → 13 kB, `index.css` 8 → 16 kB,
+más ~25 trozos pequeños (inventario, voces, dardos, dados, ficha-objeto, condiciones…) que no existían. Además, antes del primer cuadro bajaban
+**115 kB de fuentes** (Geist, Geist Mono: ya estaban el 18-10) y **25 kB de `sonidos.json`** (nuevo), que comparten el enlace con el código.
+
+**Qué se hizo.** `apps/plaza/primer-cuadro.ts` (`alPrimerCuadro`) guarda lo que el primer cuadro no necesita y lo lanza cuando el bucle lo dibuja (o a los 15 s
+si nunca se dibuja, pestaña oculta): las fuentes (`fuentes.ts`, ya no en `tema.css`; `font-display: swap` ya era la regla, así que se ve la letra
+del sistema los primeros segundos), la tabla de sonidos, y el montaje de «Entorno», «Ficha del mundo», «Director», dados y burbujas, que ahora son
+trozos perezosos (`import()`). Lo que no se movió: `three` (260 kB gz: no se puede) y el resto de `main.ts` (mapa, ajustes, constructor, gente, ficha…): cada
+uno devuelve algo que otras piezas leen en el acto, y sacarlo es un cambio de arquitectura de la plaza, no un parche.
+
+**Resultado y por qué no llega a 0,5 MB.** 0,57 MB / 3,9 s: de vuelta a +32 kB y +0,1 s sobre el 18-10. Lo que queda por encima de 0,5 MB son 75 kB de
+funciones nuevas de la plaza (constructor 13 kB gz, mapa 7, ajustes 5,5, gente 5, foto 4, condiciones 4, ficha 4…) que hoy van dentro de la entrada. Pablo dio el
+19-10 «hasta 1 MB sin problema» para el arranque; esta tarjeta no lo cambia. **Tope nuevo:** `first_load_br_bytes` en `limits.json`
+(585.000 bytes brotli 11 de lo que el HTML pide antes de ejecutar `main.ts`: 557.271 hoy + 5 %), comprobado por `npm run tamano`, por la puerta de `npm run gates`
+y por `test/tamano-primera-carga.test.ts`. Siguiente recorte, si se quiere llegar a 0,5: sacar de la entrada el constructor y su cajón (≈ 25 kB br) y «Gente»/«Tú» (≈ 20 kB).
+
+**Segunda pasada (0.78.0, t_45ef2f70).** Hecho el recorte de arriba: el constructor (`constructor.ts`), el mapa (`mapa.ts`), la ventana de ajustes (`menu-ajustes-ui.ts`, lo que dibuja; el registro y lo que cada ajuste *hace* se queda en `menu-ajustes.ts`) y el cajón «Cable» (`cable.ts`) ya no van en la entrada: `main.ts` monta una **puerta** (`constructor-puerta.ts`, `mapa-puerta.ts`, `cable-puerta.ts`, `puerta.ts`) con el mismo objeto de siempre; lo que se le pide antes de que llegue el trozo se encola y se repite en orden cuando llega (después del primer cuadro, por `alPrimerCuadro`), y lo que pide una persona (Construir, C, M, «Ir», el engranaje) trae el trozo en el acto. El constructor sigue entregando los cuerpos de los cajones y la ranura de la ficha vacíos desde el principio y el real los adopta. Bytes hasta el primer cuadro: **575 → 551 kB**, primer cuadro 3,95 → 3,80 s (mismo perfil, 2 vueltas, dispersión < 0,01 MB); brotli de la puerta 557,3 → 529,4 kB; tope `first_load_br_bytes` 585.000 → 555.000. **No llega a 0,5 MB** (faltan ≈ 50 kB): `iconos` (10 kB) y `perfil-aparato` (9 kB) pasaron a trozos propios pero los siguen pidiendo piezas que se quedan en la entrada (no se ahorra nada), y lo que queda dentro de `index` son ~25 funciones de `features/` (≈ 30 kB), «Gente» (7 kB + `gente-ia` 14 kB que también usa `llamar-ia`), foto (4 kB; tiene la llegada por enlace al arrancar) y condiciones (4 kB; es la puerta de las normas, no se difiere sin pensarlo). Cada una es el mismo tipo de recorte, pero ninguna sola cierra los 50 kB.
+Guion de la medida: `work/motor-vr/lotes/medidas-resto/medir-carga.mjs` (el mismo perfil) y el bisect por trozo del 26-10.
+
 ## Pruebas unitarias: cuántas y cuánto tardan
 
 La cuenta no se copia aquí: la imprime `npm run gates` en cada pasada (fila «pruebas unitarias», sacada de la línea `ℹ pass N`

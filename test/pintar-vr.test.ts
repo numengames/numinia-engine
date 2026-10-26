@@ -3,11 +3,11 @@
 // the finger is not a line, and the press that chose the menu row does not start one.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { montarPintarVR, presionDe, CIERRA, ABRE, NOTA_TIRADO, NOTA_DEJADO, CLAVE_PINCEL, NOTA_SIN_DESHACER } from "../apps/plaza/pintar-vr.ts";
+import { montarPintarVR, presionDe, CIERRA, ABRE, NOTA_TIRADO, NOTA_DEJADO } from "../apps/plaza/pintar-vr.ts";
 import { crearPincel } from "../apps/plaza/pincel.ts";
 import { vistaPintarVR } from "../apps/plaza/construir-vr-logica.ts";
 
-function montar(opt: { puede?: boolean; guardado?: { getItem(k: string): string | null; setItem(k: string, v: string): void } | null; deshacer?: () => { ok: true } | { ok: false; why: string } } = {}) {
+function montar(opt: { puede?: boolean } = {}) {
   const reg: string[] = [], notas: string[] = [];
   let mano: { x: number; y: number; z: number; gatillo: number; mano: boolean } | null = { x: 0, y: 1.2, z: 0, gatillo: 0, mano: false };
   const estado = { active: true, puede: opt.puede ?? true, menu: false };
@@ -30,7 +30,7 @@ function montar(opt: { puede?: boolean; guardado?: { getItem(k: string): string 
     manos: { pincel: () => mano, vibrar: () => { reg.push("vibra"); }, ocupar: (_n: string, fn: (l: "izq" | "der") => boolean) => { ocupada = fn; return () => {}; } },
     pincelVR: { cargar: async () => vivo, cadaCuadro: (fn: (dt: number) => void) => { cuadro = fn; return () => {}; } },
   };
-  const p = montarPintarVR({ pintar: pintar as never, view: view as never, puede: () => estado.puede, guardado: opt.guardado ?? null, deshacer: opt.deshacer });
+  const p = montarPintarVR({ pintar: pintar as never, view: view as never, puede: () => estado.puede });
   const poner = (x: number, y: number, z: number, gatillo: number, esMano = false) => { mano = { x, y, z, gatillo, mano: esMano }; cuadro(0.011); };
   return { p, reg, notas, estado, poner, atras: () => atras(), ocupada: () => ocupada, quitarMano: () => { mano = null; cuadro(0.011); }, resolver: (r: { ok: boolean; why?: string }) => soltado?.(r) };
 }
@@ -113,55 +113,4 @@ test("a tracked hand paints with its pinch at the neutral width", () => {
 test("the menu row: two states, Empezar / Dejar de pintar", () => {
   assert.equal(vistaPintarVR(false).boton, "Empezar"); assert.equal(vistaPintarVR(true).boton, "Dejar de pintar");
   assert.notEqual(vistaPintarVR(true).titulo, vistaPintarVR(false).titulo);
-});
-
-// ── story 5: the palette ──────────────────────────────────────────────────────────────────────────────────────────
-const dibujar = (t: ReturnType<typeof montar>, n = 40) => { t.poner(0, 1.2, 0, 0); t.poner(0, 1.2, 0, 0.8); for (let i = 1; i <= n; i++) t.poner(i * 0.005, 1.2, 0, 1); };
-
-test("palette: the colour and thickness picked are the ones the NEXT stroke starts with (and so what its trazo@1 file will say); a bad pick changes nothing", async () => {
-  const t = montar();
-  assert.equal(t.p.entrar().ok, true); await espera();
-  assert.deepEqual(t.p.opciones(), { color: 2, grosor: 0.015 }, "the default brush");
-  assert.equal(t.p.ajustar({ color: 5, grosor: 0.04 }).ok, true);
-  dibujar(t);
-  assert.ok(t.reg.includes("empezar 5 0.04"), "pintar.empezar got the chosen colour and thickness");
-  assert.ok(t.reg.includes("v.empezar 5 0.04"), "and the live tube");
-  assert.equal(t.p.ajustar({ color: 8, grosor: 0.015 }).ok, false, "colour 8 is outside the palette");
-  assert.equal(t.p.ajustar({ color: -1, grosor: 0.015 }).ok, false);
-  assert.equal(t.p.ajustar({ color: 1, grosor: 0.015 }).ok, false, "not in the middle of a stroke");
-  assert.deepEqual(t.p.opciones(), { color: 5, grosor: 0.04 });
-  t.poner(0.3, 1.2, 0, 0); t.resolver({ ok: true }); await espera();
-  assert.equal(t.p.ajustar({ color: 1, grosor: 0.005 }).ok, true, "free again once the stroke is let go");
-});
-
-test("palette: two colours in a row make two strokes, each with its own colour", async () => {
-  const t = montar();
-  t.p.entrar(); await espera();
-  t.p.ajustar({ color: 1, grosor: 0.015 }); dibujar(t); t.poner(0.3, 1.2, 0, 0); t.resolver({ ok: true }); await espera();
-  t.p.ajustar({ color: 3, grosor: 0.015 }); dibujar(t); t.poner(0.3, 1.2, 0, 0); t.resolver({ ok: true }); await espera();
-  const empiezan = t.reg.filter((x) => x.startsWith("empezar "));
-  assert.deepEqual(empiezan, ["empezar 1 0.015", "empezar 3 0.015"]);
-});
-
-test("palette: the choice is kept for the next visit (two numbers in this browser) and an unreadable or out-of-palette value is ignored", () => {
-  const mem = new Map<string, string>();
-  const guardado = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => { mem.set(k, v); } };
-  const a = montar({ guardado });
-  a.p.ajustar({ color: 6, grosor: 0.005 });
-  assert.deepEqual(JSON.parse(mem.get(CLAVE_PINCEL)!), { color: 6, grosor: 0.005 });
-  assert.deepEqual(montar({ guardado }).p.opciones(), { color: 6, grosor: 0.005 }, "the next page starts with it");
-  mem.set(CLAVE_PINCEL, "{ roto"); assert.deepEqual(montar({ guardado }).p.opciones(), { color: 2, grosor: 0.015 });
-  mem.set(CLAVE_PINCEL, JSON.stringify({ color: 99, grosor: 0.015 })); assert.deepEqual(montar({ guardado }).p.opciones(), { color: 2, grosor: 0.015 });
-  const roto = { getItem: () => { throw new Error("no"); }, setItem: () => { throw new Error("full"); } };
-  const r = montar({ guardado: roto }); assert.equal(r.p.ajustar({ color: 4, grosor: 0.015 }).ok, true, "storage that fails must not break the brush");
-});
-
-test("palette: «Deshacer» asks the builder's undo; without one it says so; never in the middle of a stroke", async () => {
-  let pedidos = 0;
-  const t = montar({ deshacer: () => { pedidos++; return { ok: true }; } });
-  t.p.entrar(); await espera();
-  assert.equal(t.p.deshacer().ok, true); assert.equal(pedidos, 1);
-  dibujar(t, 10); assert.equal(t.p.estado().pintando, true);
-  assert.equal(t.p.deshacer().ok, false); assert.equal(pedidos, 1);
-  const s = montar(); assert.equal(s.p.deshacer().ok, false); assert.deepEqual(s.notas, [NOTA_SIN_DESHACER]);
 });

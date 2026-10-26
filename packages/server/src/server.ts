@@ -218,7 +218,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   if (puerta.leer()) log(`[agentes] agentes de fuera que pueden entrar: ${puerta.agentes.map((x) => `${x.nombre} (${x.id}${x.rol ? `, rol ${x.rol}` : ""})`).join(", ")}${dominios.length ? ` · el mundo firma como ${dominios.join(", ")}` : ""}`);
   const roles = crearRoles({
     construir: construir === "todos", voz: o.voz ?? process.env.MOTOR_VOZ !== "no", admin: o.admin ?? process.env.MOTOR_ADMIN, log, firmar: identitySign, pase: cfgPase.pase, puerta,
-    habitante: (id) => { const h = hab.habitantes.find((x) => x.id === id); return h ? { escalon: h.escalon, modelo: h.cerebro?.modelo ?? cerebroEstado.modelo } : undefined; }, // t_5096d6f4: the eyes of an inhabitant say the size of its model
+    habitante: (id) => { const h = hab.habitantes.find((x) => x.id === id); return h ? { escalon: h.escalon, modelo: h.cerebro?.modelo ?? cerebroEstado.modelo, ...(h.apariencia && activos.buscar(h.apariencia.modelo, "glb") ? { apariencia: h.apariencia } : {}) /* no .glb on this server: the robot, never an invisible body */ } : undefined; }, // t_5096d6f4: the eyes of an inhabitant say the size of its model
     cerrar: (e) => { sockets.get(e)?.close(CIERRE_ROLES, "fuera"); }, // the reason went out in the chat just before
   });
   // f1: the «normas» switch exists only if this world has conditions of entry (its own file, a community source, or the gate forced from outside); then the gate's feature is always there (who accepted is kept even while it is off)
@@ -386,7 +386,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
         res.end(method === "HEAD" ? undefined : JSON.stringify(m));
       }, (e) => json(res, 500, { error: String((e as Error)?.message ?? e) }));
     }
-    if ((method === "GET" || method === "HEAD") && path.startsWith("/a/") && activos.servir(path, res, method === "HEAD", req.headers.range, String(req.headers["accept-encoding"] ?? ""), String(req.headers.accept ?? ""))) return; // H1: files by their sha256
+    if ((method === "GET" || method === "HEAD") && path.startsWith("/a/") && activos.servir(path, res, method === "HEAD", req.headers.range, String(req.headers["accept-encoding"] ?? ""), String(req.headers.accept ?? ""), qs)) return; // H1: files by their sha256; ?px=N a picture's copy for that size
     if ((method === "PUT" || method === "OPTIONS") && path.startsWith("/a/")) return subidas.atender(method, path, req, res); // H9: uploads
     if (agentesHttp.atender(method, path, req, res)) return; // ADR-080: numinia.com's panel manages the outside agents (pass-authenticated)
     if (habitantesHttp.atender(method, path, req, res)) return; // the panel manages this world's own AI inhabitants (pass-authenticated)

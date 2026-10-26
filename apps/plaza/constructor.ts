@@ -108,7 +108,9 @@ export type ExtraConstructor = { volver?(): boolean; puedeVolver?(): boolean; mu
   /** MIS-241: go next to a spot of the world in one jump, as the map's «Ir de golpe» (same trip, same “Volver”); false = trips are off here. */
   ir?(donde: { id: string; nombre: string; x: number; z: number }): boolean;
   /** MIS-241: where you stand (x, z), to put the jump on your side of the object and to know when you are already there. */
-  yo?(): { x: number; z: number } | null };
+  yo?(): { x: number; z: number } | null;
+  /** First-load façade (constructor-puerta.ts): the drawers' bodies and the card's slot already exist (other pieces filled them before this file arrived); use them instead of making new ones. */
+  cuerpos?: Record<Cajon, HTMLElement>; ranura?: HTMLElement };
 export type ConstructorUI = {
   alIr(donde: { id: string }): boolean;
   /** MIS-240: the map's «Editar»: whether this object exists and you may build, and open Construir on it (selected, in view). */
@@ -254,7 +256,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     botonesCajon[id] = b;
     const h = el("h2", { id: `cajon-${id}-titulo`, textContent: titulo });
     const cerrar = botonDock("x", "Cerrar (Esc)", () => abrirCajon("")); cerrar.classList.add("cerrar");
-    const cuerpo = el("div", { className: "cuerpo" });
+    const cuerpo = extra?.cuerpos?.[id] ?? el("div", { className: "cuerpo" });
     const s = el("section", { id: `cajon-${id}`, className: "cajon" }, el("div", { className: "cab" }, h, el("span", { className: "pista", textContent: PISTA[id] }), cerrar), cuerpo);
     s.setAttribute("aria-labelledby", h.id); s.hidden = true;
     secciones[id] = s; cuerpos[id] = cuerpo;
@@ -1052,7 +1054,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     el("dt", { textContent: "Posición" }), el("dd", { className: "tres" }, tc.x, tc.y, tc.z),
     el("dt", { textContent: "Giro" }), el("dd", { className: "unidad" }, tc.ry, el("span", { textContent: "°" })),
     el("dt", { textContent: "Tamaño" }), el("dd", {}, tc.u), ...rAlTocar);
-  const ranura = el("div", { className: "ranura" }); // huecos.ts puts «Hacer hueco / Poner obra / Vaciar» here for a picture
+  const ranura = extra?.ranura ?? el("div", { className: "ranura" }); // huecos.ts puts «Hacer hueco / Poner obra / Vaciar» here for a picture
   const bDuplicar = boton2("Duplicar", "Hacer una copia y cogerla (Mayús+D o Ctrl+D)", () => duplicar(), "copy");
   const bBorrar = boton2("Borrar", "Quitarlo del mundo; con varios elegidos, los borra juntos (Supr; Ctrl+Z lo devuelve)", () => borrarSeleccion(), "trash");
   bBorrar.classList.add("peligro");

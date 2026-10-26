@@ -25,6 +25,7 @@ import { vistaObra, pedidoPoner, nombreObra, type HuecoObra, type ImagenObra } f
 import { filasEsteMundoVR } from "../../features/funciones/menu-vr.ts";
 import { textoCambio } from "../../features/funciones/panel.ts";
 import { FUNCIONES } from "../../features/funciones/feature.ts";
+import { cogibles } from "../../features/cogibles/client.ts"; // N3: a thing the server put in your hand (the page's Q) can be let go from the Bolsa too
 import type { Funcion } from "../../features/funciones/feature.ts";
 
 type N = Record<string, any>;
@@ -50,9 +51,7 @@ export function montarMenuVR(o: {
   /** The builder's hands (constructor-xr.ts): «Construir» turns them on and off. */
   construirVR: { activo(): boolean; entrar(): { ok: boolean; why?: string }; salir(): void };
   /** J18b: painting with the controller (pintar-vr.ts); a second row under «Construir». The two modes exclude each other (both want the right trigger). */
-  pintarVR?: { activo(): boolean; entrar(): { ok: boolean; why?: string }; salir(): void;
-    /** Story 5, the palette: what the brush holds now, set it (colour 0–7, thickness in metres) and undo your last change. */
-    opciones?(): { color: number; grosor: number }; ajustar?(o: { color: number; grosor: number }): { ok: boolean; why?: string }; deshacer?(): { ok: boolean; why?: string } };
+  pintarVR?: { activo(): boolean; entrar(): { ok: boolean; why?: string }; salir(): void };
   /** Your name. */
   nombre: () => string;
   /** MIS-222: the «Obra» view — a hole you pressed in VR and the images already on the server to put in it. */
@@ -162,13 +161,28 @@ export function montarMenuVR(o: {
       detalle: lleva.length ? lleva.map((x) => `${x.que}: mano ${lado(x.lado)}`).join(" · ") : "No llevas nada en la mano",
       botones: [{ texto: "Pasar", estilo: lleva.length ? "normal" : "desactivado", ancho: 160, accion: () => { const r = m.cambiarMano(); nota(r.ok ? `Pasado a la mano ${lado(r.a ?? "")}` : r.why ?? "No se pudo."); } }] };
   }
+  // N3 «Soltar»: let go of whatever is in a hand — the rod back on its holder, the dart, a quest thing — with the button, for hands
+  // that have no stick to click (and for whoever prefers it). A thing the server put in your hand (cogibles) is let go the page's way.
+  function filaSoltar(): Fila | null {
+    const m = (o.n().view as { manos?: { llevando(): { que: string; lado: "izq" | "der" }[]; soltar(l?: "izq" | "der"): { ok: boolean; why?: string; que?: string } } } | undefined)?.manos;
+    if (!m?.llevando) return null;
+    const lleva = m.llevando(), suelo = cogibles.mias().length;
+    const lado = (l: string) => (l === "izq" ? "izquierda" : "derecha");
+    return { texto: "Soltar", icono: "hand-grabbing",
+      detalle: lleva.length ? lleva.map((x) => `${x.que}: mano ${lado(x.lado)}`).join(" · ") : suelo ? "Llevas algo en la mano" : "No llevas nada en la mano",
+      botones: [{ texto: "Soltar", estilo: lleva.length || suelo ? "normal" : "desactivado", ancho: 160, accion: () => {
+        if (lleva.length) { const r = m.soltar(); nota(r.ok ? `Soltado: ${r.que}` : r.why ?? "No se pudo."); return; }
+        const r = cogibles.soltar(); nota(r.ok ? "Soltado" : r.why);
+      } }] };
+  }
   function bolsa(): Contenido {
     const inv = o.n().inventario, r = typeof inv?.resumen === "function" ? inv.resumen() : null;
-    const cambio = filaCambiarMano();
-    if (!r) return { tipo: "lista", titulo: "Bolsa", vacio: "Este servidor no lleva inventario.", filas: cambio ? [cambio] : [] } as Contenido;
+    const cambio = filaCambiarMano(), soltar = filaSoltar();
+    const arriba = [...(cambio ? [cambio] : []), ...(soltar ? [soltar] : [])];
+    if (!r) return { tipo: "lista", titulo: "Bolsa", vacio: "Este servidor no lleva inventario.", filas: arriba } as Contenido;
     const lista = (inv.lista?.() ?? []) as { nombre: string; n: number; portado: boolean; tipo?: string }[];
     return { tipo: "lista", titulo: "Bolsa", nota: resumenTexto(r), vacio: resumenTexto(r),
-      filas: [...(cambio ? [cambio] : []), ...lista.map((x) => ({ texto: x.n > 1 ? `${x.nombre} × ${x.n}` : x.nombre, detalle: x.portado ? "Contigo" : "Guardado", icono: x.tipo === "captura" ? "fish" : "package" }))] } as Contenido;
+      filas: [...arriba, ...lista.map((x) => ({ texto: x.n > 1 ? `${x.nombre} × ${x.n}` : x.nombre, detalle: x.portado ? "Contigo" : "Guardado", icono: x.tipo === "captura" ? "fish" : "package" }))] } as Contenido;
   }
   function misiones(): Contenido {
     const m = o.n().misiones;
@@ -212,7 +226,6 @@ export function montarMenuVR(o: {
     const v = vistaConstruirVR({ puede: o.puedeConstruir(), invitado: esInvitado(who), activo: o.construirVR.activo() });
     if (v.tipo === "negado") return { tipo: "lista", titulo: "Construir", vacio: v.texto, filas: [] } as Contenido;
     const empezar = v.tipo === "listo", pv = o.pintarVR ? vistaPintarVR(o.pintarVR.activo()) : null;
-    if (pv?.activo && o.pintarVR?.opciones && o.pintarVR.ajustar) return paleta(pv.activo);
     const filaConstruir = { texto: v.titulo, detalle: v.detalle, icono: iconoDe("construir"),
       botones: [{ texto: v.boton, estilo: empezar ? "accion" : "normal", ancho: 260, accion: () => {
         if (!empezar) { o.construirVR.salir(); nota("Has dejado de construir."); vr.menu.cerrar(); return; }

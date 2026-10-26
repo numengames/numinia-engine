@@ -8,6 +8,8 @@ import { FUNDIDO_S, cadenciaAnimacion, clipPara, cupoVRM, distanciaVRM, elegirAv
 import type { Clip, EnCurso, Estado, Marcha, Movimiento } from "./avatares-politica.ts";
 import type { Copia, Plantilla } from "./avatares-vrm.ts";
 import type { VRMAnimation } from "@pixiv/three-vrm-animation";
+import { colocarCuerpo, seguirRumbo } from "./cuerpo-vr.ts";
+import type { PoseCabeza } from "./cuerpo-vr.ts";
 
 /** What the page gives: the house avatars (VRM) and animations (VRMA), by URL. */
 export type CatalogoAvatares = {
@@ -30,6 +32,7 @@ type Avatar = {
   ancla?: THREE.Object3D; mascara?: number; cerca: boolean;
   cadencia: 0 | 1 | 2; pendienteDt: number; // J14: how often its animation steps (1 = every frame, 2 = every other, 0 = frozen) and the time not yet given to the mixer
   rumboFijo?: number; // pesca v2: while fishing the body faces the water (only while standing still)
+  recortado?: boolean; escala?: number; rumboVR?: number; // t_8217ffea (N2): VR body — head and arms collapsed, scaled to your height, facing where the head looks
   apoyo?: number; // t_3f0e5846: metres the body is moved so its feet stand on the floor during a calm posture (sitting, crouching); eases back to 0
 };
 
@@ -50,8 +53,10 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
   const poza = new Map<number, Copia[]>();
   const avatares = new Map<number | "yo", Avatar>();
   const altos = new WeakMap<THREE.Object3D, { cima: number }>(); // N18: top of each VRM copy's head over its head bone
+  let ultimoVR = 0;
   let cargando = 0, errores = 0, cuadros = 0, ultimoRepaso = -Infinity, antes = -1, ocupado = false;
   let conVrm = new Set<number>();
+  let cuerpoPropio = true; // t_8217ffea (N2): in VR your own body is drawn (the setting controles.cuerpoVR)
   const nivelesVoz = new Map<number, number>(); // U13: who you hear right now, 0..1 (apps/plaza/voz.ts pushes this)
   const natural: Partial<Record<Clip, number>> = {};
   const duracion: Record<string, number> = {}; // N1b: loop lengths (s), for the step rate; J7b: how long each move's clip lasts
@@ -145,6 +150,12 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     c.raiz.position.set(pos.x, altura, pos.z);
     c.raiz.rotation.y = a.rumboFijo !== undefined && a.estado === "quieto" ? a.rumboFijo : a.marcha.rumbo;
     c.raiz.visible = !oculto;
+    // t_8217ffea (N2): in VR your body stands under your head (colocarVR, every frame): the head and the arms are collapsed, and back on the flat page nothing stays changed
+    if (a.clave === "yo") {
+      const cuerpo = o.xr() && cuerpoPropio;
+      if (cuerpo !== !!a.recortado) { m.recortarCuerpo(c, cuerpo); a.recortado = cuerpo; }
+      if (!cuerpo && a.escala !== undefined) { c.raiz.scale.setScalar(1); a.escala = undefined; a.rumboVR = undefined; }
+    }
     // J7b: a move, while there is one, plays over the speed-driven clip; walking or jumping ends it (pasoDeMovimiento)
     const mov = movs.get(a.clave);
     let paso = mov ? pasoDeMovimiento(mov, ahora, a.estado, durDe, hay) : null;
@@ -201,7 +212,7 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
         let a = avatares.get("yo");
         if (a && a.modelo !== modelo) { desvestir(a); avatares.delete("yo"); a = undefined; }
         if (!a) { a = { clave: "yo", modelo, marcha: nuevaMarcha(), estado: "quieto", fundidoHasta: 0, cerca: true, cadencia: 1, pendienteDt: 0 }; avatares.set("yo", a); }
-        actualizar(a, yo, primeraPersona || o.xr(), desde, ahora, dt, modulo);
+        actualizar(a, yo, o.xr() ? !cuerpoPropio : primeraPersona, desde, ahora, dt, modulo);
       }
       for (const id of conVrm) {
         const ancla = otros.get(id);
@@ -234,6 +245,26 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     nivelVoz(id: number, nivel: number): void { if (nivel > 0) nivelesVoz.set(id, nivel); else nivelesVoz.delete(id); },
     /** Loading, fading, or someone near moving: keep drawing. A near avatar standing idle does not (it breathes at the idle frame rate). */
     busy(): boolean { return ocupado; },
+    /** t_8217ffea (N2): in VR, stand your own VRM under your head (call every XR frame, after the headset moved): `pose` is the XR camera, or null for none.
+     * Only x/z, the turn and the scale change (the feet stay where the sim puts them); other players still see you where the sim says. */
+    colocarVR(pose: PoseCabeza | null, ahora: number): void {
+      const a = avatares.get("yo");
+      if (!a?.copia?.raiz.parent || !a.recortado || !pose) return;
+      const c = a.copia, p = plantillas.get(a.modelo);
+      const col = p && colocarCuerpo(pose, c.raiz.position.y, p.cabeza);
+      if (!col) return;
+      const dt = a.rumboVR === undefined ? 0 : Math.min(0.1, (ahora - (ultimoVR || ahora)) / 1000);
+      ultimoVR = ahora;
+      a.rumboVR = a.rumboVR === undefined ? col.rumbo : seguirRumbo(a.rumboVR, col.rumbo, dt);
+      c.raiz.position.x = col.x; c.raiz.position.z = col.z; c.raiz.rotation.y = a.rumboVR; c.raiz.scale.setScalar(col.escala); a.escala = col.escala;
+    },
+    /** t_8217ffea (N2): draw your own body in VR (default yes); off = the avatar stays hidden in the headset, as before. */
+    cuerpoPropio(on: boolean): void { cuerpoPropio = on; },
+    /** t_8217ffea (N1): the colour of this player's avatar's hands (0xRRGGBB, from its texture), or null while it is not loaded or cannot be read. */
+    colorPiel(clave: number | "yo"): number | null {
+      const a = avatares.get(clave), p = a && plantillas.get(a.modelo);
+      return p && modulo ? modulo.colorMano(p) : null;
+    },
     /** C: avatar files (a VRM, its first clips) asked for so far and how many are still on the way — the loading screen counts them. */
     cargas(): { pedidas: number; pendientes: number } { return { pedidas: pedidas.size + animPedidas.size, pendientes: cargando }; },
     /** pesca v2: a hand's place in the world (the VRM's raw bone), or null while that player wears a capsule. */

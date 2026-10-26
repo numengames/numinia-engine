@@ -45,6 +45,8 @@ export type Habitante = {
   saludo: { radio: number; cada: number; frases: string[]; gesto?: (typeof GESTOS)[number] }; // greets who comes near; {nombre} = their name
   respuestas: { si: string[]; dice: string }[]; // when called by its name: the first whose word appears answers
   siNoEntiende: string;       // when called and nothing matched
+  /** Its own body, like a person's (pnj@1 `apariencia`): the sha256 of a .glb the world carries (it faces +z) and its size. Without it: the house robot. */
+  apariencia?: { modelo: string; escala: number };
 };
 
 const bytes = (t: string) => new TextEncoder().encode(t).length;
@@ -105,11 +107,20 @@ export function validarHabitante(o: unknown, donde = "habitante"): Result<Habita
     const ok = r && typeof r === "object" && Array.isArray(r.si) && r.si.length >= 1 && r.si.every((w: unknown) => typeof w === "string" && w.trim().length >= 2 && bytes(w) <= 40) && typeof r.dice === "string" && r.dice.trim() && bytes(r.dice) <= FRASE_MAX;
     if (!ok) bad(`respuestas[${i}]`, `{si: 1+ palabras de 2–40 bytes, dice: hasta ${FRASE_MAX} bytes}`);
   });
-  const conocidas = new Set(["formato", "id", "nombre", "descripcion", "responsable", "escalon", "cerebro", "ruta", "pausa", "saludo", "respuestas", "siNoEntiende", "notas"]);
+  if (h.apariencia !== undefined) {
+    const a = h.apariencia as Record<string, unknown> | null;
+    if (!a || typeof a !== "object" || Array.isArray(a)) bad("apariencia", "{modelo: sha256 de un .glb del mundo, escala?}");
+    else {
+      for (const k of Object.keys(a)) if (k !== "modelo" && k !== "escala") bad(`apariencia.${k}`, "campo desconocido (solo modelo y escala)");
+      if (typeof a.modelo !== "string" || !/^[0-9a-f]{64}$/.test(a.modelo)) bad("apariencia.modelo", "el sha256 (64 letras hex) de un .glb que lleva el mundo (los modelos propios miran a +z)");
+      if (a.escala !== undefined && (typeof a.escala !== "number" || !(a.escala >= 0.05 && a.escala <= 50))) bad("apariencia.escala", "un número entre 0,05 y 50 (1 = tal como viene el modelo)");
+    }
+  }
+  const conocidas = new Set(["formato", "id", "nombre", "descripcion", "responsable", "escalon", "cerebro", "ruta", "pausa", "saludo", "respuestas", "siNoEntiende", "notas", "apariencia"]);
   for (const k of Object.keys(h)) if (!conocidas.has(k)) bad(k, "campo desconocido en habitante@1");
   // a key pasted anywhere (the persona, the notes, a phrase) is refused: the file travels in the world's zip
   const textos = (v: unknown, ruta: string): void => {
-    if (typeof v === "string") { if (pareceClave(v)) bad(ruta, "parece una clave: las claves van en cerebro.env del servidor, nunca en el mundo"); }
+    if (typeof v === "string") { if (ruta === "apariencia.modelo" && /^[0-9a-f]{64}$/.test(v)) return; /* a sha256 is a 64-letter hex by nature: checked above, not a key */ if (pareceClave(v)) bad(ruta, "parece una clave: las claves van en cerebro.env del servidor, nunca en el mundo"); }
     else if (Array.isArray(v)) v.forEach((x, i) => textos(x, `${ruta}[${i}]`));
     else if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) textos(x, ruta ? `${ruta}.${k}` : k);
   };

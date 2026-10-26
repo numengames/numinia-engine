@@ -17,8 +17,8 @@ export type { VRState, DialogoVR } from "./vr.ts";
 /** Rediseño v2: the VR session as the page wires its watch and menu (apps/plaza/xr-menu.ts). */
 export type MenuVR = ReturnType<typeof createVR>;
 export type { Contenido as ContenidoMenuVR } from "./menu-invocado.ts";
-import type { Manos, EventoMano, Llevable, ResCambio } from "./manos.ts";
-export type { EventoMano, Lado, Llevable, ResCambio } from "./manos.ts";
+import type { Manos, EventoMano, Llevable, ResCambio, ResSoltar } from "./manos.ts";
+export type { EventoMano, Lado, Llevable, ResCambio, ResSoltar } from "./manos.ts";
 import { createPower, readCaps, checkCost, conClase } from "./power.ts";
 export { createPower, readCaps, checkCost, conClase } from "./power.ts";
 export { limitesGraficos } from "./capacidades.ts"; // N2: max texture size for the capabilities
@@ -38,7 +38,8 @@ export type { ControlVideo } from "./medios.ts";
 export type { Donde, Eje, Herramienta, Fase, Paso, Editor } from "./gizmo.ts";
 export { transformarGrupo, centroGrupo } from "./grupo.ts";
 import { createAvatares } from "./avatares.ts";
-import { asentadoEn, sueloDeVista } from "./avatares-politica.ts";
+import { asentadoEn, nuevaMarcha, seguir, sueloDeVista } from "./avatares-politica.ts";
+import type { Marcha } from "./avatares-politica.ts";
 import type { SueloTerreno } from "./avatares-politica.ts";
 import { prepararGltf, usarRenderer } from "./gltf.ts";
 import { contarPiezas, ordenCarga, puedeEmpezar } from "./carga-orden.ts";
@@ -146,7 +147,9 @@ async function leerGpu(renderer: THREE.WebGPURenderer, backend: Backend): Promis
   } catch { return ""; }
 }
 
-export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; lods?: (sha: string) => number; leer?: (url: string) => Promise<ArrayBuffer | null>; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number; eleccion?: (clave: number | "yo") => number | undefined } } = {}) {
+export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; lods?: (sha: string) => number; leer?: (url: string) => Promise<ArrayBuffer | null>; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number; eleccion?: (clave: number | "yo") => number | undefined;
+    /** habitante@1 `apariencia`: the .glb of the world (sha256, size) this other player wears INSTEAD of an avatar, or undefined. Asked every sync(). */
+    cuerpoPropio?: (id: number) => { sha: string; escala: number } | undefined } } = {}) {
   // U25: `movil` = the device class a forced profile declares (?aparato, development only); undefined = read the device
   const power = createPower(conClase(readCaps(), opts.movil), { battery: opts.battery, maxFps: opts.maxFps });
   // XR on a WebGPU backend needs the session's "webgpu" feature (XRGPUBinding); Quest Browser 152 has neither (measured
@@ -209,6 +212,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   selfMesh.visible = false;
   world.add(selfMesh);
   const others = new Map<number, THREE.Mesh>();
+  const cuerposPropios = new Map<number, { marcha: Marcha }>(), sinCuerpo = new Map<number, THREE.Mesh>(); let antesPropios = -1; // habitante@1 `apariencia`: who wears a .glb of the world, and the others for the VRM pass
   // N1: the camera (mouse, keys, touch, gamepad; play and build modes) — packages/render/src/camara.ts
   const cam = createCamara(camera, renderer.domElement, { enXR: () => renderer.xr.isPresenting });
   const feet = { x: 0, y: 0, z: 0 };
@@ -269,6 +273,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     llevable(nombre: string, l: Llevable) { llevablesManos.set(nombre, l); const off = manosReal?.llevable(nombre, l); return () => { off?.(); if (llevablesManos.get(nombre) === l) llevablesManos.delete(nombre); }; },
     llevando: () => manosReal?.llevando() ?? [],
     cambiarMano: (): ResCambio => manosReal?.cambiarMano() ?? { ok: false, why: "Las manos aún no están listas" },
+    /** N3: let go of what a hand carries (no hand: the first thing carried). */
+    soltar: (l?: "izq" | "der"): ResSoltar => manosReal?.soltar(l) ?? { ok: false, why: "Las manos aún no están listas" },
     sondeo: (l: "izq" | "der") => manosReal?.sondeo(l) ?? null,
     ocupadaPorOtros: (l: "izq" | "der", excepto: string) => manosReal?.ocupadaPorOtros(l, excepto) ?? false,
     on(fn: (e: EventoMano) => void) { oyentesManos.add(fn); return () => oyentesManos.delete(fn); },
@@ -762,7 +768,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     const t = s.want, url = assetUrl(t.model).replace(/\.glb$/, `.${t.ext ?? "glb"}`), model = s.model;
     if ((t.kind === "video" || t.kind === "sonido") && !sePuedeReproducir(t.ext ?? "")) { s.failed = true; console.warn(`[medios] este navegador no reproduce .${t.ext}`); return; }
     if (t.kind === "imagen") s.imgPx = IMAGEN_PX[entorno.nivel];
-    const p = t.kind === "trazo" ? import("./trazo.ts").then((m) => m.cargarTrazo(url)) /* lazy: nothing downloaded until a world has a stroke */ : t.kind === "imagen" ? cargarImagen(url, s.imgPx) /* the picture is redrawn to the tier's size before it is a texture */ : t.kind === "video" ? cargarVideo(url, () => verOcultos) : Promise.resolve(cargarSonido(url, () => verOcultos));
+    const p = t.kind === "trazo" ? import("./trazo.ts").then((m) => m.cargarTrazo(url)) /* lazy: nothing downloaded until a world has a stroke */ : t.kind === "imagen" ? cargarImagen(`${url}?px=${s.imgPx}`, s.imgPx) /* the server's copy made for this tier (activos.ts `?px=`); a picture still bigger than the tier (no copy yet) is redrawn to its size before it is a texture */ : t.kind === "video" ? cargarVideo(url, () => verOcultos) : Promise.resolve(cargarSonido(url, () => verOcultos));
     loading++; if (cerca) cercaCargando++;
     p.then((m) => {
       const now = things.get(key);
@@ -1064,6 +1070,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // B4: three's own count of live shader programs (WebGPURenderer info.memory.programs); it only grows when one is made
   const programasVivos = (): number => (renderer as unknown as { info: { memory: { programs?: number } } }).info.memory.programs ?? 0;
   let programasVistos = programasVivos();
+  // t_8217ffea (N1, N2): in VR your hands wear your avatar's skin and your own body is drawn under your head (settings controles.pielManosVR / cuerpoVR)
+  let cuerpoVR = true, pielManosVR = true;
+  function cuerpoEnVR(): void {
+    manosReal?.piel(pielManosVR ? avs.colorPiel("yo") : null);
+    if (!cuerpoVR) return;
+    camera.updateWorldMatrix(true, false);
+    const e = camera.matrixWorld.elements;
+    avs.colocarVR({ x: e[12], y: e[13], z: e[14], fx: -e[8], fy: -e[9], fz: -e[10], ux: e[4], uy: e[5], uz: e[6] }, performance.now());
+  }
   /** Move the camera (N1), then draw. */
   function dibujar(dtSeconds: number): void {
     updateDecorations(performance.now());
@@ -1071,7 +1086,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
     editor.frame();
     entorno.actualizar(); naturaleza.actualizar(dtSeconds); espacioBase.actualizar(dtSeconds); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ);
-    if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); dardosVR.actualizar(dtSeconds); pincelVR.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
+    if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); cuerpoEnVR(); pesca.actualizar(dtSeconds); dardosVR.actualizar(dtSeconds); pincelVR.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
     pesca.actualizar(dtSeconds); dardos.actualizar(dtSeconds); dados3d.actualizar(dtSeconds);
     if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
     cam.update(dtSeconds, selfXZ ? feet : null);
@@ -1157,8 +1172,30 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         if (!m || now > until) bounces.delete(t);
         else m.position.y += Math.abs(Math.sin(now / 90)) * 0.35;
       }
+      // habitante@1 `apariencia`: an AI that has a body of its own is drawn as a model of the world (the same path as a person of the
+      // world, `place`), turned where it walks (our models face +z: yaw = atan2(vx, vz), the avatars' rule); its capsule hides, no VRM is dressed on it.
+      const propios = opts.avatares?.cuerpoPropio;
+      if (propios || cuerposPropios.size) {
+        const dtC = antesPropios < 0 ? 0 : Math.min(0.25, (now - antesPropios) / 1000); antesPropios = now;
+        for (const [id, m] of others) {
+          const c = propios?.(id);
+          if (!c) continue;
+          let k = cuerposPropios.get(id);
+          if (!k) { k = { marcha: nuevaMarcha() }; cuerposPropios.set(id, k); }
+          seguir(k.marcha, m.position.x, m.position.z, dtC);
+          m.layers.mask = 0; // the capsule's way of saying «something else draws this one» (avatares.ts does the same)
+          this.place(`cuerpo:${id}`, { model: c.sha, x: m.position.x, y: m.position.y - 0.85, z: m.position.z, rx: 0, ry: k.marcha.rumbo / RAD, rz: 0, sx: c.escala, sy: c.escala, sz: c.escala, animate: false });
+        }
+        for (const [id, k] of cuerposPropios) {
+          const m = others.get(id);
+          if (m && propios?.(id)) continue;
+          this.place(`cuerpo:${id}`, null); cuerposPropios.delete(id); if (m) m.layers.mask = 1; // it left, or changed body: the capsule comes back (a VRM, if it gets one, hides it again)
+        }
+        sinCuerpo.clear();
+        for (const [id, m] of others) if (!cuerposPropios.has(id)) sinCuerpo.set(id, m);
+      }
       // J1: VRMs follow the capsules (hops and jumps included); yours hides in first person (camera branch: view.cam)
-      avs.sync(self ? selfMesh : null, others, !!(this as unknown as { cam?: { primeraPersona?: () => boolean } }).cam?.primeraPersona?.(), now);
+      avs.sync(self ? selfMesh : null, cuerposPropios.size ? sinCuerpo : others, !!(this as unknown as { cam?: { primeraPersona?: () => boolean } }).cam?.primeraPersona?.(), now);
     },
     /** U13: who you hear right now, 0..1 (apps/plaza/voz.ts; never your own id, voz.ts never hears you). Drives
      * that avatar's "aa" mouth shape, kept aside at load (J1's avatares-vrm.ts `bocaDe`) just for this. */
@@ -1361,6 +1398,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     puestos(): ReturnType<typeof puestos.estado> { return puestos.estado(); },
     /** J10: your hands in XR (manos.ts): rules, events, state. */
     manos,
+    /** t_8217ffea (N2): in VR your own avatar is drawn under your head, head and arms collapsed (default yes; the setting controles.cuerpoVR). */
+    get cuerpoVR(): boolean { return cuerpoVR; },
+    set cuerpoVR(v: boolean) { cuerpoVR = v; avs.cuerpoPropio(v); },
+    /** t_8217ffea (N1): in VR your hands wear your avatar's skin colour with circuit lights (default yes; controles.pielManosVR). Off = the plain skin. */
+    get pielManosVR(): boolean { return pielManosVR; },
+    set pielManosVR(v: boolean) { pielManosVR = v; },
     /** M22: the builder's hands (packages/render/src/gizmo.ts): select, the point under the pointer, gizmo, hold. */
     editor,
     /** M22: the key of the placed thing under a screen point (client px), or null. */

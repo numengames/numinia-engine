@@ -41,8 +41,8 @@ export function fillTemplate(template, { build, payloadB64 }) {
 }
 
 /** N22: the optimizer's runtime packages (the closure of @gltf-transform/{core,extensions,functions}, meshoptimizer and
- * @jsquash/{png,webp}: MIT and Apache-2.0). */
-export const OPTIMIZAR_DEPS = ["@gltf-transform/core", "@gltf-transform/extensions", "@gltf-transform/functions", "meshoptimizer", "property-graph", "ktx-parse", "ndarray", "ndarray-lanczos", "iota-array", "is-buffer", "@jsquash/png", "@jsquash/webp", "wasm-feature-detect"];
+ * @jsquash/{jpeg,png,webp}: MIT and Apache-2.0). */
+export const OPTIMIZAR_DEPS = ["@gltf-transform/core", "@gltf-transform/extensions", "@gltf-transform/functions", "meshoptimizer", "property-graph", "ktx-parse", "ndarray", "ndarray-lanczos", "iota-array", "is-buffer", "@jsquash/jpeg", "@jsquash/png", "@jsquash/webp", "wasm-feature-detect"];
 
 function run(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, { cwd: root, encoding: "utf8", ...opts });
