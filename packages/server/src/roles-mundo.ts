@@ -91,6 +91,7 @@ export type OpcionesRoles = {
   log?: (line: string) => void;
   pase?: ConfigPase | null;                             // H3b: numinia.com's key, this world's id (+ org): a pass is checked at join; none = passes are ignored
   puerta?: Pick<Puerta, "agente" | "anadir" | "quitar" | "esHabitante" | "agentes">; // ADR-080: outside agents; none = /agente says there is no door
+  habitante?: (id: string) => { escalon: number; modelo?: string } | undefined; // t_5096d6f4: what the inhabitant's file says about the brain behind an «ia-<id>» (none / unknown id = nothing: the eyes read «desconocido»). Server-side only: the `ia` feature turns it into a size class
 };
 type Veto = { nombre: string; motivo: string; por: string; cuando: string };
 /** ux2-gente: a report — who reported (id, name), about whom (id, name), why, when (ISO). Kept in the store «denuncias». */
@@ -219,8 +220,8 @@ export function crearRoles(o: OpcionesRoles) {
   /** ia-visible S3: tell the «ia» feature what everybody may know about this AI (state, who answers for it, whether it builds) and which house avatar its pass picks (-1 = none: the house robot, S2). Every
    * AI gets it: one with a pass carrying an `ia` block says who answers; any other (an inhabitant, an outside agent) is active, nobody listed. */
   const publicarIA = (a: ServerApi, e: number, id: string): void => {
-    const p = pasesIA.get(id.slice(3)), r = p?.ia?.responde;
-    a.emit("ia", { quien: e, estado: p?.state ?? "activa", comunidad: r?.comunidad ?? "", nombre: r?.nombre ?? "", cartera: r?.cartera ?? "", construye: tiene(accesoDe(id), "construir"), cuerpo: p?.ia?.cuerpo?.modelo ?? -1 }, "server");
+    const p = pasesIA.get(id.slice(3)), r = p?.ia?.responde, h = o.habitante?.(id.slice(3));
+    a.emit("ia", { quien: e, estado: p?.state ?? "activa", comunidad: r?.comunidad ?? "", nombre: r?.nombre ?? "", cartera: r?.cartera ?? "", construye: tiene(accesoDe(id), "construir"), cuerpo: p?.ia?.cuerpo?.modelo ?? -1, ...(h ? { escalon: h.escalon, modelo: h.modelo ?? "" } : {}) }, "server");
     const b = p?.ia?.burbuja; // ia-llamar S8: its bubble (the pass's, or the house one)
     a.emit("iaBurbuja", { quien: e, forma: b?.forma ?? "esfera", radio: b?.radio ?? RADIO_DEFECTO_M, visible: b?.visible ?? "al-acercarte" }, "server");
     const l = p?.ia?.llamada; // ia-llamar S10: how it is called (the pass's block, or the house default)

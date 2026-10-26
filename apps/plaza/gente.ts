@@ -21,7 +21,7 @@ import {
   buscar, claveDe, normal, fusionar, filtrar, haceTexto, fechaTexto, distanciaTexto, type Amigo, type Conectado,
 } from "./amigos.ts";
 import { montarTarjeta } from "./gente-tarjeta.ts";
-import { el, botonCon, luzEl, retrato, insigniaBaculo, insigniaBurbuja, type Res, type Mirada, type Elegido, type Acciones } from "./gente-comun.ts";
+import { el, botonCon, luzEl, ojosEl, retrato, insigniaBaculo, insigniaBurbuja, type Res, type Mirada, type Elegido, type Acciones } from "./gente-comun.ts";
 import type { IAPublica } from "../../features/ia/feature.ts";
 import { cuentaGente, fichaIA, luzEscucha, sinMarca, subIA, textos } from "./gente-ia.ts";
 export type { Res, Mirada, Elegido, Acciones };
@@ -365,7 +365,7 @@ export function montarGente(o: OpcionesGente) {
     const datos = el("div", { className: "gente-datos" }, el("div", { className: "gente-titulo" }, el("h3", { className: "gente-nombre", textContent: ia?.nombre ?? p.nombre }), ...(chipIA && chipEstado ? [chipIA, chipEstado] : [chip]), ...(con && p.quien !== null && o.mirada?.baculo?.(p.quien) ? [insigniaBaculo()] : []), ...(con && p.quien !== null && o.mirada?.burbuja?.(p.quien) ? [insigniaBurbuja(o.mirada.burbuja(p.quien) as string)] : []), ...(chipIA && chipEstado ? [chipIA, chipEstado] : [chip])), el("p", { className: "sub", textContent: ia ? "" : linea }));
     if (ia && p.ia) {
       const luz = luzEscucha(p.ia, o.idioma?.());
-      datos.append(el("p", { className: "ia-dato" }, el("span", { className: "k", textContent: ia.respondeEtiqueta }), el("b", { textContent: ia.respondeValor })), el("p", { className: `ia-dato${ia.construye ? "" : " no"}`, textContent: ia.construyeTexto }), luzEl(luz));
+      datos.append(el("p", { className: "ia-dato" }, el("span", { className: "k", textContent: ia.respondeEtiqueta }), el("b", { textContent: ia.respondeValor })), el("p", { className: `ia-dato${ia.construye ? "" : " no"}`, textContent: ia.construyeTexto }), ojosEl(ia.ojos, true), luzEl(luz));
     }
     // «Ahora»: what they do (when the page knows) and how far
     const ahoraS = el("section", { className: "gente-ahora" }, el("h4", { textContent: "Ahora" }));
