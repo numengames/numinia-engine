@@ -60,6 +60,11 @@ export const MOVIMIENTOS: readonly Movimiento[] = [
   m("disparar", "Disparar", "combate", "Dispara una vez", ["pistola-disparar"], "una", true),
   m("recargar", "Recargar", "combate", "Recarga", ["pistola-recargar"], "una", true),
   // reacciones
+  // the four non-verbal answers of an AI's body (packages/agent/src/gesto-ia.ts), a person may make them too: one short move each
+  m("asentir", "Asentir", "reacciones", "Dice que sí con la cabeza", ["asentir"], "una", false, "Sí"),
+  m("negar", "Negar", "reacciones", "Dice que no con la cabeza", ["negar"], "una", false, "No"),
+  m("pensar", "Pensar", "reacciones", "Se lleva la mano a la barbilla y piensa", ["pensar"], "una", false, "Hmm…"),
+  m("senalar", "Señalar", "reacciones", "Señala lo que tiene delante", ["senalar"], "una", false, "☞"),
   m("ay", "¡Ay!", "reacciones", "Un golpe en la cabeza", ["golpe-cabeza"], "una", true),
   m("encajar", "Encajar", "reacciones", "Un golpe en el pecho", ["golpe-pecho"], "una", true),
   m("manos-arriba", "Manos arriba", "reacciones", "Levanta las manos y las deja arriba", ["pistola-arriba"], "quedarse", false),
