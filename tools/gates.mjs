@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkLayers } from "./layers.mjs";
 import { runHeadless } from "../packages/cli/src/run.ts";
-import { medirArranque, construir, TOPE_GZ } from "./tamano.mjs";
+import { medirArranque, construir, TOPE_GZ, topeBr } from "./tamano.mjs";
 import { puerta as puertaTipos } from "./tipos.ts";
 
 const root = join(fileURLToPath(import.meta.url), "../..");
@@ -60,10 +60,10 @@ gate("plaza de 1.000, un hilo", "tick p99 ≤ 25 ms", () => {
   return [r.tickP99ms <= 25, `p50 ${r.tickP50ms} ms · p99 ${r.tickP99ms} ms`];
 });
 
-gate("tamaño de la página (D2)", `≤ ${TOPE_GZ / 1000} kB gz antes de dibujar`, () => {
+gate("tamaño de la página (D2)", `≤ ${TOPE_GZ / 1000} kB gz · ≤ ${(topeBr() / 1000).toFixed(0)} kB br`, () => {
   construir();
   const m = medirArranque();
-  return [m.pasa, `${(m.totalGz / 1000).toFixed(1)} kB gz en ${m.ficheros.length} ficheros (meta 300)`];
+  return [m.pasa, `${(m.totalGz / 1000).toFixed(1)} kB gz · ${(m.totalBr / 1000).toFixed(1)} kB br en ${m.ficheros.length} ficheros`];
 });
 
 const w = (s, n) => String(s).padEnd(n);
