@@ -1269,6 +1269,15 @@ El robot de la casa son 19 llamadas por persona (tope del nivel D: 80). LOD o un
 
 **Hecho (18-10, rama `lod/dibujo-barato-personas`).** `packages/render/src/lod-politica.ts` (puro, `test/lod-personas.test.ts`): más allá de `LOD_LEJOS_M` (22 m, histéresis ±4 m para no parpadear en el borde) una figura horneada (J5: sin animar, ya 19 → 3 llamadas por material) baja a UNA pieza — una sola malla con un color por parte (sin textura) en vez de una por material: 3 → 1 llamada. Una figura pintada con un color propio (J10) se queda siempre en «cerca» (pintar() no puede teñir una pieza fusionada). `packages/render/src/index.ts`: `hornearPieza`, `representacion`, `actualizarLOD` (una vez por figura horneada y por fotograma; solo reconstruye el grupo si cambia de estado). **Medido** (`tools/medir-lod-robot.mjs`, parseando `activos/robot/RobotExpressive.glb` igual que el motor): 19 llamadas sin hornear, 3 horneado «cerca», 1 horneado «lejos». 20 personas a la vista: 380 sin hornear, 60 horneadas todas «cerca» (ya cerca del tope 80 sin nada más en la escena), 20 todas «lejos», 40 con la mitad y mitad — cualquier mezcla de cerca/lejos cabe en el tope de 80 con margen para el resto de la escena. Verificado también en vivo (plaza real, Chromium headless, WebGL2): el cambio de estado dispara en el punto esperado y no oscila en el borde de la banda. **Falta:** decidir si un avatar VRM (J1) sigue la misma política cuando esté lejos y quieto (hoy solo se congela su animación, `ANIMATE_WITHIN_M`); extender la pieza lejana a otros modelos horneados con más de un material (hoy solo probado con el robot).
 
+**Personas de lejos (26-10, rama `lote13/personas`; MIS-253, MIS-233).** Decisión sobre los VRM: **más allá de 30 m (móvil, visor) o 45 m (PC) una
+persona deja de llevar VRM y es la cápsula de siempre** (`VRM_HASTA_M`, `distanciaVRM`, histéresis de 4 m en `elegirCercanos`; la cápsula sigue
+siendo el ancla del nombre, los botes y la cámara, así que los nombres se leen igual). Entre 15 m y `ANIMAR_HASTA_M` la animación avanza un cuadro de cada dos
+(`cadenciaAnimacion`; el reloj no se pierde: el mezclador recibe el tiempo acumulado). Medida (`tools/medir-gente.mjs`, clase móvil nivel D, CPU ×8, SwiftShader,
+mismo arranque antes y después, dos rondas alternadas): 12 personas a 36 m, 27 → 16 llamadas, 12 → 1 VRM, CPU del cuadro 5,7 y 7,1 → 3,6 y 3,0 ms
+(×16: 16,4 y 15,1 → 5,1 y 5,9); además el aparato pasa al ritmo de reposo (12 fps) porque no hay nada animado cerca. A 20 m (medio ritmo) la ganancia
+es pequeña: sin cambio a ×8 (6,8 y 6,2 → 6,9 y 6,3 ms) y ~10 % a ×16 (14,0 y 16,7 → 12,5 y 13,5 ms). A 6 m no cambia nada (lo previsto). Los ms de SwiftShader solo
+valen comparando condiciones iguales; falta un aparato real.
+
 ### J15 — Marcas de misión sobre las personas
 «!» si alguien tiene una misión para ti, «?» si espera algo tuyo; es por jugador (un evento, no estado compartido). **Hecho cuando:** e2e: A ve «!» sobre Alma y B, que ya la hizo, no.
 
