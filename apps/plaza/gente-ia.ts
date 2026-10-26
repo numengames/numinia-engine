@@ -81,7 +81,7 @@ export function listaGenteVR(gente: readonly { quien: number; nombre: string }[]
   const t = textos(idioma), ias: FilaGenteVR[] = [], personas: FilaGenteVR[] = [];
   for (const p of gente) {
     const ia = iaDe(p.quien);
-    if (ia) ias.push({ quien: p.quien, nombre: sinMarca(p.nombre), ia: true, detalle: [t.marca, ia.tamano === "desconocido" ? "" : ojosFicha(ia, idioma).nombre, subIA(ia, distancia(p.quien), idioma)].filter(Boolean).join(" · ") }); // t_5096d6f4: the size too, when the world knows it
+    if (ia) ias.push({ quien: p.quien, nombre: sinMarca(p.nombre), ia: true, detalle: [t.marca, ojosFicha(ia, idioma).tamano === "desconocido" ? "" : ojosFicha(ia, idioma).nombre, subIA(ia, distancia(p.quien), idioma)].filter(Boolean).join(" · ") }); // t_5096d6f4: the size too, when the world knows it (a missing or odd value reads as unknown: nothing about size)
     else personas.push({ quien: p.quien, nombre: p.nombre, ia: false, detalle: distancia(p.quien) });
   }
   return { cuenta: cuentaGente(Math.max(todos, gente.length) - ias.length, ias.length, idioma), filas: [...personas, ...ias] };

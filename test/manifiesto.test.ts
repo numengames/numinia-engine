@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Document, NodeIO } from "@gltf-transform/core";
@@ -72,6 +72,15 @@ test("manifest: a file per model with the sha256 of the bytes served, its levels
   assert.deepEqual([f[`/a/${h}.lod1.glb`].clase, f[`/a/${h}.lod1.glb`].nivel, f[`/a/${h}.lod1.glb`].de, f[`/a/${h}.lod1.glb`].sha256], ["perezoso", 1, `/a/${h}.glb`, sha(l1)]);
   assert.equal(m.total.bytes, copia.length + pocos.length, "the total is what plays and follows, not the lazy levels");
   assert.deepEqual(m.clases.perezoso, { ficheros: 2, bytes: l1.length + l2.length });
+  // tier copies: a picture with copies made says their sizes (`copiasPx`), `bytes` stays the original's; one without says nothing
+  assert.equal(f[`/a/${h2}.png`].copiasPx, undefined, "no copy made yet: nothing to add up but the original");
+  const c1024 = Buffer.alloc(2), c512 = Buffer.alloc(1);
+  writeFileSync(join(opt, `${h2}.png.p1024.webp`), c1024); writeFileSync(join(opt, `${h2}.png.p512.webp`), c512);
+  const conCopias = Object.fromEntries((await construirManifiesto("principal", cosas, a, hashes)).ficheros.map((x) => [x.ruta, x]));
+  assert.deepEqual(conCopias[`/a/${h2}.png`].copiasPx, { "1024": 2, "512": 1 });
+  assert.equal(conCopias[`/a/${h2}.png`].bytes, pocos.length, "bytes (and sha256) stay the original's");
+  assert.equal(conCopias[`/a/${h}.glb`].copiasPx, undefined, "models have no tier copies");
+  rmSync(join(opt, `${h2}.png.p1024.webp`)); rmSync(join(opt, `${h2}.png.p512.webp`));
   // the hash cache: the second manifest, and one from a restarted server, hash nothing
   assert.equal(hashes.calculados, 4);
   await construirManifiesto("principal", cosas, a, hashes); assert.equal(hashes.calculados, 4, "second manifest: no file read");
@@ -204,4 +213,17 @@ test("over a real server: upload a heavy model, place it, /manifiesto.json lists
     assert.ok(m.ficheros[1].bytes < m.ficheros[0].bytes * 2 && m.ficheros[2].bytes <= m.ficheros[1].bytes, "levels are not heavier than the model");
     assert.ok(srv.inst && readFileSync(join(dir, "hashes.json"), "utf8").includes(m.ficheros[0].sha256), "the hash cache is on disk beside the uploads");
   } finally { await srv.close(); }
+});
+
+test("page store: the loading bar adds up the picture copy of the page's tier, and the original where that copy is not made", async () => {
+  const f = (ruta: string, bytes: number, clase: string, copiasPx?: Record<string, number>) => ({ ruta, sha256: "a".repeat(64), bytes, clase, tipo: "png", ...(copiasPx ? { copiasPx } : {}) });
+  const manifiesto = { schema: "numinia-engine/manifiesto@1", zona: "principal", origenes: ["/"], total: { ficheros: 3, bytes: 5000 }, clases: { arranque: { ficheros: 2, bytes: 4000 }, fondo: { ficheros: 1, bytes: 1000 }, perezoso: { ficheros: 0, bytes: 0 } },
+    ficheros: [f("/a/1.png", 3000, "arranque", { "1024": 400, "512": 100 }), f("/a/2.glb", 1000, "arranque"), f("/a/3.jpg", 1000, "fondo", { "512": 50 })] };
+  const fetchFalso = (async () => new Response(JSON.stringify(manifiesto))) as unknown as typeof fetch;
+  const t = crearTienda({ origen: "http://mundo", fetch: fetchFalso, caches: null });
+  await t.listo;
+  assert.deepEqual(t.totales(), { arranque: 4000, fondo: 1000, perezoso: 0 }, "no tier given: what the manifest says");
+  assert.deepEqual(t.totales(1024), { arranque: 1400, fondo: 1000, perezoso: 0 }, "1024: the first picture's copy; the third has none at 1024 and counts whole");
+  assert.deepEqual(t.totales(512), { arranque: 1100, fondo: 50, perezoso: 0 });
+  assert.deepEqual(t.totales(2048), { arranque: 4000, fondo: 1000, perezoso: 0 }, "a tier with no copy made: the originals");
 });

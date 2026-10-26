@@ -17,6 +17,7 @@ import { carga, estadoCarga, piezasPendientes, sueloPendiente, TOPE_CARGA_MS } f
 import { ClientSession, serverUrl, tomarPaseDeLaDireccion } from "../../packages/client/src/index.ts";
 import { createView, leerAparato, leerBateria, medidorDeCuadros, haciaMundo } from "../../packages/render/src/index.ts";
 import { montarMedidor } from "./medidor-ui.ts"; // MIS-200 t_ee19c84b: the live frame meter (`?medidor`, `__numinia.medidorVivo`)
+import { IMAGEN_PX } from "../../packages/render/src/calidad.ts"; // the picture size of each tier: the loading bar adds up the copy the page asks for
 import { mensajeFalloAR } from "../../packages/render/src/ar.ts"; // J8: a clear sentence when AR fails to start
 import funciones from "../../features/cliente.ts";
 import { constructor } from "../../features/objetos/client.ts";
@@ -829,7 +830,7 @@ view.loop((now) => {
     // is ready (model, textures, shaders — view.cargaMundo()), or after the cap. The count is also what the screen writes («n de N piezas»).
     if (!cargaOculta) {
       const mundo = view.cargaMundo();
-      const tot = tienda.totales().arranque, est0 = tienda.estadisticas();
+      const tot = tienda.totales(IMAGEN_PX[view.entorno.nivel]).arranque, est0 = tienda.estadisticas();
       carga.piezas({ listas: mundo.listas, total: mundo.total, ...(tot > 0 ? { bytes: { listos: est0.bytesDescargados + est0.bytesDeCache, total: tot } } : {}) }); // M16: its bytes, from the manifest
       const msDesdeWelcome = informe.bienvenidaMs ? Math.round(performance.now()) - informe.bienvenidaMs : 0;
       const est = estadoCarga({ welcome: !!session.welcome, mundoRecibido: session.stats.snapshots > 0, primerCuadro: true, sueloPendiente: pendiente, piezasPendientes: piezasPendientes(mundo), msDesdeWelcome });
