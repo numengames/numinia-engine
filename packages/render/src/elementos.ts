@@ -11,6 +11,7 @@ import { materialDeAgua, geometriaDeAgua } from "./agua-estilo.ts";
 import { particulasPara, detalleAgua, LUCES_FUEGO, ANIMAR_M, DIBUJAR_M, OLAS_DESDE_M } from "./calidad.ts";
 import type { Entorno } from "./entorno.ts";
 import type { Cuenta } from "./elementos-vista.ts";
+import { elementoSeDibuja } from "./dibujo-politica.ts";
 
 type Datos = Record<string, unknown>;
 const n = (v: unknown, d = 0) => (typeof v === "number" && Number.isFinite(v) ? v : d);
@@ -32,7 +33,7 @@ export function crearElementos(h: { renderer: THREE.WebGPURenderer; scene: THREE
   const { world, camera, entorno } = h;
   const todos = new Map<string, Uno>();
   let enUso = 0, calidadVista = JSON.stringify(entorno.calidadActual), nivelVisto = entorno.nivel, animando = 0, tiempo = 0;
-  const frustum = new THREE.Frustum(), pv = new THREE.Matrix4(), esfera = new THREE.Sphere();
+  const ojo = new THREE.Vector3(), frustum = new THREE.Frustum(), pv = new THREE.Matrix4(), esfera = new THREE.Sphere();
   const lenaGeo = new THREE.CylinderGeometry(0.07, 0.08, 0.95, 6);
   const lenaMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1e, roughness: 0.95, emissive: new THREE.Color(0x401000), emissiveIntensity: 0.6 });
   const luces: THREE.PointLight[] = []; // the fire-light pool, made on the first fire (adding lights recompiles lit materials once)
@@ -123,13 +124,15 @@ export function crearElementos(h: { renderer: THREE.WebGPURenderer; scene: THREE
       if (c !== calidadVista || entorno.nivel !== nivelVisto) { calidadVista = c; nivelVisto = entorno.nivel; rehacer(); }
       tiempo += dt;
       pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); frustum.setFromProjectionMatrix(pv);
+      // the eye in WORLD space: in a headset the camera hangs from the rig, so its local position is only the head offset
+      camera.getWorldPosition(ojo);
       animando = 0;
       const fuegos: [number, Uno][] = [];
       for (const u of todos.values()) {
-        const dx = u.grupo.position.x - camera.position.x, dz = u.grupo.position.z - camera.position.z, dist = Math.hypot(dx, dz);
+        const dx = u.grupo.position.x - ojo.x, dz = u.grupo.position.z - ojo.z, dist = Math.hypot(dx, dz);
         esfera.center.copy(u.grupo.position); esfera.radius = u.radio;
         const enPantalla = frustum.intersectsSphere(esfera);
-        u.visible = dist - u.radio < DIBUJAR_M;
+        u.visible = elementoSeDibuja(dist, u.radio, !!h.renderer.xr?.isPresenting, DIBUJAR_M); // in a headset: cut at ELEMENTOS_VR_M (fewer calls per eye)
         u.grupo.visible = u.visible;
         u.animando = u.visible && enPantalla && dist - u.radio < ANIMAR_M;
         if (u.animando) { animando++; for (const e of u.emisores) e.avanzar(dt); }

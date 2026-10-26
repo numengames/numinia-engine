@@ -16,6 +16,13 @@ export const INSTANCIAR_DESDE_VR = 2;
 /** The threshold in force: `xr` = a headset session is presenting. */
 export const instanciarDesde = (xr: boolean): number => (xr ? INSTANCIAR_DESDE_VR : INSTANCIAR_DESDE);
 
+/** In a headset the small things of the world (fire, smoke, dust, water: each a draw call per eye with next to no triangles) are
+ * not drawn past this many metres from the edge of their reach: from 25 m a campfire is a few pixels in a 90° view. (MIS-200 t_7ed19d06.) */
+export const ELEMENTOS_VR_M = 25;
+/** Is an element (centre `distanciaM` from the eye, reach `radioM`) drawn? `normalM` = the screen's limit (calidad.ts DIBUJAR_M). */
+export const elementoSeDibuja = (distanciaM: number, radioM: number, xr: boolean, normalM: number): boolean =>
+  distanciaM - radioM < (xr ? Math.min(ELEMENTOS_VR_M, normalM) : normalM);
+
 /** What the scene's fog looks like to these rules (three's Fog / FogExp2 have these fields). */
 export type NieblaLeida = { isFog?: boolean; isFogExp2?: boolean; near?: number; far?: number; density?: number } | null | undefined;
 
