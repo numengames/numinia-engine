@@ -1567,6 +1567,18 @@ avisos de la casa eran osciladores: pitidos sintetizados. Ahora son sonidos.
 - **Rehacer el catálogo:** `node tools/sonidos-catalogo.ts --biblioteca <carpeta>` copia los lotes `nucleo` y
   `funcion` de la biblioteca verificada, recalcula el sha256 de cada fichero y reescribe `features/sonido/catalogo.json`
   y `activos/sonidos/LICENCIAS.md`. Es idempotente: si nada cambió, no toca nada.
+## LEEME-IA: la nota de un mundo para las IAs que entran (t_06071dee)
+
+`aventura/LEEME-IA.md` es el AGENTS.md **del mundo**: qué puede construir aquí una IA, en qué estilo y qué no tocar. Es markdown
+normal en la carpeta del mundo (viaja en el zip; lo reescribe el dueño o numinia.com por la puerta del mundo). Un mundo **nuevo** nace
+con el del Taller (`plantillas/taller/aventura/LEEME-IA.md`, que es también el modelo: «De qué va», «Lo que puedes construir»,
+«Estilo», «Lo que no debes tocar», «Cómo trabajar aquí», «A quién preguntar»). Reglas: público (nada de claves), ≤ 12 KiB
+(`LEEME_IA_MAX`), UTF-8; solo puede pedir más cuidado o un estilo, nunca dar permisos (los decide el servidor).
+El servidor lo sirve en `GET /leeme-ia` (404 con el motivo si falta o está roto; `/status` dice `leemeIA: true` cuando hay); el puente
+MCP de `tools/mcp-mundo.ts` se lo entrega a la IA como herramienta `leeme_ia`, como recurso `numinia://mundo/leeme-ia` y en sus
+`instructions`, dentro de una valla `<leeme-ia>` (el texto es del dueño, no de quien envía a la IA). `node tools/aventura.ts <carpeta>`
+avisa si falta y falla si pesa de más. Pruebas: `test/leeme-ia.test.ts`, `test/mcp-mundo.test.ts`.
+
 ## Salón de los Ancestros y el tributo a Asimov (ancestros v1)
 
 `features/ancestros` es el Salón de los Ancestros del Ateneo (el Ayuntamiento de Numinia, donde el Consejo de Sabios

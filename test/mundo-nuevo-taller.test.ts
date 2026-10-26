@@ -21,7 +21,7 @@ const MISIONES = ["01-abre-el-taller", "02-pon-un-farolillo", "03-muevelo", "04-
 const ENTORNO = ["ancestros", "dardos", "disparadores", "espacio-base", "lucha", "naturaleza", "pesca"];
 /** Exactly what a new world's folder holds besides mundo.json / datos / claves (which the server makes after). */
 const ESPERADOS = [
-  "aventura/ficha.json", ...MISIONES.map((m) => `aventura/misiones/${m}.json`), "aventura/pnj/lumen.json",
+  "aventura/ficha.json", "aventura/LEEME-IA.md", ...MISIONES.map((m) => `aventura/misiones/${m}.json`), "aventura/pnj/lumen.json",
   ...ENTORNO.map((e) => `entorno/${e}.json`),
 ].sort();
 
@@ -114,7 +114,7 @@ test("an EMPTY folder that already exists (numinia.com's «crear mundo» hands o
 test("the shipped template folder has exactly the files the birth is tested for, and nothing in it is example content", () => {
   assert.deepEqual(todos(TALLER), ESPERADOS);
   assert.deepEqual(json(join(TALLER, "entorno", "espacio-base.json")), ESPACIO_BASE_NUEVO);
-  for (const f of todos(TALLER)) assert.doesNotThrow(() => JSON.parse(readFileSync(join(TALLER, f), "utf8")), f);
+  for (const f of todos(TALLER).filter((x) => x.endsWith(".json"))) assert.doesNotThrow(() => JSON.parse(readFileSync(join(TALLER, f), "utf8")), f);
 });
 
 const puertaLibre = () => new Promise<number>((ok) => { const s = createServer(); s.listen(0, "127.0.0.1", () => { const p = (s.address() as { port: number }).port; s.close(() => ok(p)); }); });

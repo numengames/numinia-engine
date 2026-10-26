@@ -13,6 +13,7 @@ lo que hablar. Las aventuras de verdad viven en su propio repositorio y el servi
 - `escenas/taberna.json`, `escenas/tormenta.json` (`escena@1`, N6): dos escenas para quien dirige (permiso «Gestionar
   rituales»): el panel «Dirigir» (K) o `/escena taberna` en el chat. Una escena pone cielo, luz y niebla sobre el
   entorno del mundo y puede traer una línea del narrador. `/escenas` las lista, junto a los entornos de la casa.
+- `LEEME-IA.md`: la nota de este mundo para las IAs que entran (qué construir, estilo, qué no tocar); ejemplo de LEEME-IA, el modelo está en `plantillas/taller/aventura/`.
 - `ficha.json` (`ficha@1`): cómo se llama el mundo y de qué va (la página y `/status` lo dicen); `portada` opcional.
 
 Cómo se escribe una aventura (formatos, reglas, errores): `docs/EXTENDER.md`, «Misiones y personas (PNJ)».

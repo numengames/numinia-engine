@@ -73,7 +73,16 @@ mcp_servers:
       AGENTE_CLAVE: "/home/<you>/.numinia/agentes/hermes-pablo.clave"
 ```
 
-4. **Talk to Hermes** («entra en el mundo y pon una mesa delante de mí»). Its tools: `mirar` (where it is, which way it faces — `rumbo` in degrees, 0° = +z, 90° = +x, plus a front vector —, people and
+4. **The world's LEEME-IA comes first.** A world keeps `aventura/LEEME-IA.md` — its own AGENTS.md for any AI that comes in: what
+   may be built here, the style, what not to touch (plain markdown, public, up to 12 KiB, travels in the zip; a NEW world is born
+   with the Taller's one, `plantillas/taller/aventura/LEEME-IA.md`, which is also the template). The server serves it at
+   `GET /leeme-ia` (and says `leemeIA: true` in `/status`); the bridge hands it to the AI as the tool `leeme_ia` (the FIRST tool),
+   as the MCP resource `numinia://mundo/leeme-ia` and as the first line of its `instructions` («LO PRIMERO»); `mirar` reminds until it
+   has been read. The text is the owner's, so it goes in one `<leeme-ia>` fence (cleaned so nothing can close it) under a line that says it
+   can ask for more care or a style but never widens the AI's tools, rules or permissions (the server decides those). A world with none
+   (or a broken file) gets plain prudence rules. Code: `leeme-ia.ts` here, `packages/server/src/leeme-ia.ts`; test `test/leeme-ia.test.ts`.
+
+5. **Talk to Hermes** («entra en el mundo y pon una mesa delante de mí»). Its tools: `mirar` (where it is, which way it faces — `rumbo` in degrees, 0° = +z, 90° = +x, plus a front vector —, people and
    things within 40 m with their ids, whether it may build, the models it may place), `decir` {texto, canal cerca|zona},
    `ir_a` {x, z} | {persona}, `colocar` {modelo, x, z, y?, giro?, escala?|escala_x/_y/_z, nombre?}, `mover` {id, …}
    (what it does not say stays), `borrar` {id}, `deshacer`, `oir` {desde} (the last 50 lines heard, by cursor, to follow

@@ -13,6 +13,9 @@ El onboarding de quien llega a un mundo nuevo, y nada más:
 - `aventura/` — `ficha.json` («Mundo nuevo»), `pnj/lumen.json` (la guía) y las 11 misiones encadenadas de «cómo se
   construye un mundo» (`misiones/01-abre-el-taller.json` … `11-tu-mini-mision.json`; usan los pasos `hace` y `senala`).
   Recompensa final: la insignia «Constructor». Sin misiones de ejemplo, sin otras personas, sin habitantes.
+- `aventura/LEEME-IA.md` — la nota del mundo para las IAs que entran (qué pueden construir, estilo, qué no tocar): el modelo de todo
+  LEEME-IA (`## Lo que puedes construir`, `## Estilo`, `## Lo que no debes tocar`). Pública, hasta 12 KiB; el dueño la reescribe.
+  El puente MCP se la entrega a la IA (`leeme_ia`); lo comprueba `node tools/aventura.ts`.
 - `entorno/` — `espacio-base.json` (nace en el espacio base, de noche), `naturaleza.json` apagada, `disparadores.json`
   con el cable de muestra «Botón rojo» (que enseña el farolillo que pone la misión 2), y `pesca`, `dardos` (sin enlace de
   AR a la Torre), `lucha` y `ancestros` **vacíos**: sin ellos el motor pondría el estanque, la diana, la criatura y el
