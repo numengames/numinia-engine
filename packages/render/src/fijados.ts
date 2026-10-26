@@ -93,7 +93,7 @@ export function geometriaDeGrupo(g: Grupo): THREE.BufferGeometry {
         const o = (vo + i) * dst.size;
         if (nombre === "position") { v.fromBufferAttribute(src, i).applyMatrix4(t.matriz); dst.a[o] = v.x; dst.a[o + 1] = v.y; dst.a[o + 2] = v.z; }
         else if (nombre === "normal") { v.fromBufferAttribute(src, i).applyMatrix3(nm).normalize(); dst.a[o] = v.x; dst.a[o + 1] = v.y; dst.a[o + 2] = v.z; }
-        else if (nombre === "tangent") { v4.fromBufferAttribute(src, i); v.set(v4.x, v4.y, v4.z).transformDirection(t.matriz); dst.a[o] = v.x; dst.a[o + 1] = v.y; dst.a[o + 2] = v.z; dst.a[o + 3] = espejo ? -v4.w : v4.w; }
+        else if (nombre === "tangent") { v4.fromBufferAttribute(src as THREE.BufferAttribute, i); v.set(v4.x, v4.y, v4.z).transformDirection(t.matriz); dst.a[o] = v.x; dst.a[o + 1] = v.y; dst.a[o + 2] = v.z; dst.a[o + 3] = espejo ? -v4.w : v4.w; }
         else for (let k = 0; k < dst.size; k++) dst.a[o + k] = [src.getX, src.getY, src.getZ, src.getW][k].call(src, i);
       }
     }

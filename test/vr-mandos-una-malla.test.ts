@@ -26,7 +26,7 @@ test("manos: one hand with a controller is one mesh and one draw call", () => {
   const mallas: THREE.Object3D[] = [];
   mano.grupo.traverse((o) => { if ((o as THREE.Mesh).isMesh) mallas.push(o); });
   assert.equal(mallas.length, 1, "controller + palm + fingers in a single mesh");
-  assert.equal((mallas[0] as THREE.Mesh).isInstancedMesh, undefined);
+  assert.equal((mallas[0] as THREE.Mesh & { isInstancedMesh?: boolean }).isInstancedMesh, undefined);
 });
 
 test("manos: two controllers in a headset = two draw calls for the models (the pointing rays are separate, see-through, and only while a hand points)", () => {
@@ -52,7 +52,7 @@ test("manos: two controllers in a headset = two draw calls for the models (the p
 test("manos: the fingers bend in the same buffer, stay finite and keep unit normals; nothing moved = no upload", () => {
   const mano = crearManoMando(materialManoMando());
   const geo = mano.malla.geometry;
-  const pos = geo.attributes.position, nor = geo.attributes.normal;
+  const pos = geo.attributes.position as THREE.BufferAttribute, nor = geo.attributes.normal;
   const antes = Float32Array.from(pos.array as Float32Array);
   const v0 = pos.version;
   mano.dedos(0, 0, 0); // same signature as the first call: no work
